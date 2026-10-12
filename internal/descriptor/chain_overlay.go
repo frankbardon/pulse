@@ -187,13 +187,13 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 			map[string]any{
 				"index":         i,
 				"overlay_index": i,
-				"kind":         string(spec.Kind),
-				"ref_index":    refIdx,
-				"ref_shape":    string(refShape),
-				"target_index": targetIdx,
-				"target_shape": string(targetShape),
-				"stage_index":  targetIdx,
-				"stage_name":   stageNameAt(req, targetIdx),
+				"kind":          string(spec.Kind),
+				"ref_index":     refIdx,
+				"ref_shape":     string(refShape),
+				"target_index":  targetIdx,
+				"target_shape":  string(targetShape),
+				"stage_index":   targetIdx,
+				"stage_name":    stageNameAt(req, targetIdx),
 			})
 		if result != nil {
 			result.OverlaysSchemaDivergence = append(result.OverlaysSchemaDivergence,

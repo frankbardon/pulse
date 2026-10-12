@@ -1206,8 +1206,8 @@ instance implements `extend.RichAggregator` and `Rich` returns a
 `missing_rich_interface`); a `Rich` value of another shape is
 `PROCESSING_INTERNAL` at run time. Predict and the runtime then treat
 the slot as they treat `AGG_VEC_MEAN`: refused as a crosstab cell or
-margin aggregation, a sort key, the value an overlay scores (request:
-`aggregations[0]`; Compose / chain: `params.field`, else
+margin aggregation, a sort key, the value an overlay scores (request, Compose or
+chain: `params.field` where the kind honours it, else
 `aggregations[0]` — an unscored one beside it runs) and a chain stage
 feeding another (`PROCESSING_CONFIG`, reason `array_valued`), and `params.expand: true` writes one column per member,
 `<label>[<element label>]`, which predict lists in

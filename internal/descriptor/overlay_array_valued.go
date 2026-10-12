@@ -5,11 +5,13 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/seriesfield"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
 // Array-valued overlay hosts — the Compose-host and whole-chain halves
-// of the rule the field-reference walk applies to Request.Overlays. A
+// of the rule the field-reference walk applies to Request.Overlays
+// (processOverlayArrayValuedRefusals, the Process-host half). A
 // vector aggregation (types.AggregationType.ArrayValued — AGG_VEC_MEAN /
 // AGG_VEC_SUM — or an extension declared ArrayValued; aggregationKinds)
 // holds one figure per member, and under params.expand its
@@ -18,10 +20,14 @@ import (
 // silently. Both rules refuse instead: PROCESSING_CONFIG,
 // details.reason "array_valued". Predict (ValidateCompose /
 // ValidateChain) and the runtime (Service.applyComposeOverlays /
-// Service.processChain) call the same functions.
+// Service.processChain) call the same functions; the Process-host half
+// rides the field-reference walk, which predict and the runtime
+// (Service.checkFieldRefs) share.
 //
 // Only the SCORED aggregation is judged (scoredArrayValuedAggregation):
-// a non-crosstab slot or stage is narrowed to its group columns plus
+// a series overlay on a grouped Process request reads only the one
+// aggregation params.field names (seriesfield.Resolve), and a
+// non-crosstab slot or stage is narrowed to its group columns plus
 // that one value column before any gate or handler reads a row
 // (processing.narrowSeriesHost), so an unscored array-valued
 // aggregation never reaches the fold. A crosstab slot or stage is not
@@ -29,11 +35,10 @@ import (
 
 // firstArrayValuedAggregation returns the index and slot of r's first
 // array-valued aggregation under the instance's routing, or -1, nil.
-func firstArrayValuedAggregation(r *types.Request, inst *InstanceSnapshot) (int, *types.Aggregation) {
+func firstArrayValuedAggregation(r *types.Request, kinds vectors.AggregationKinds) (int, *types.Aggregation) {
 	if r == nil {
 		return -1, nil
 	}
-	kinds := aggregationKinds(inst, nil)
 	for i, a := range r.Aggregations {
 		if a != nil && kinds.IsArrayValued(a.Type) {
 			return i, a
@@ -47,19 +52,22 @@ func firstArrayValuedAggregation(r *types.Request, inst *InstanceSnapshot) (int,
 // nil. scored resolves that aggregation's index (params.field, else 0 —
 // the narrowing's own reading); a resolution error is left to the field
 // rule (PULSE_OVERLAY_FIELD_UNKNOWN), which owns it. A crosstab request
-// is never narrowed, so every aggregation counts there.
-func scoredArrayValuedAggregation(r *types.Request, inst *InstanceSnapshot, scored func([]*types.Aggregation) (int, error)) (int, *types.Aggregation) {
+// is never narrowed, so every aggregation counts there. kinds is the
+// instance's aggregation routing (aggregationKinds). The Process host
+// (fieldRefWalk's overlay step), the Compose host and the chain host
+// all judge through it.
+func scoredArrayValuedAggregation(r *types.Request, kinds vectors.AggregationKinds, scored func([]*types.Aggregation) (int, error)) (int, *types.Aggregation) {
 	if r == nil {
 		return -1, nil
 	}
 	if r.Crosstab != nil {
-		return firstArrayValuedAggregation(r, inst)
+		return firstArrayValuedAggregation(r, kinds)
 	}
 	ai, err := scored(r.Aggregations)
 	if err != nil || ai < 0 || ai >= len(r.Aggregations) {
 		return -1, nil
 	}
-	if a := r.Aggregations[ai]; a != nil && aggregationKinds(inst, nil).IsArrayValued(a.Type) {
+	if a := r.Aggregations[ai]; a != nil && kinds.IsArrayValued(a.Type) {
 		return ai, a
 	}
 	return -1, nil
@@ -102,7 +110,7 @@ func composeOverlayArrayValuedRefusal(i int, spec *types.ComposeOverlaySpec, req
 			continue
 		}
 		slot := labels[j]
-		ai, agg := scoredArrayValuedAggregation(r, inst, func(aggs []*types.Aggregation) (int, error) {
+		ai, agg := scoredArrayValuedAggregation(r, aggregationKinds(inst, nil), func(aggs []*types.Aggregation) (int, error) {
 			if !seriesfield.AppliesCompose(spec.Kind) {
 				return 0, nil
 			}
@@ -156,7 +164,7 @@ func chainOverlayArrayValuedRefusal(req *types.ChainRequest, i int, spec *types.
 			continue
 		}
 		role := side.role
-		ai, agg := scoredArrayValuedAggregation(req.Stages[idx].Request, inst, func(aggs []*types.Aggregation) (int, error) {
+		ai, agg := scoredArrayValuedAggregation(req.Stages[idx].Request, aggregationKinds(inst, nil), func(aggs []*types.Aggregation) (int, error) {
 			if !seriesfield.AppliesChain(spec.Kind) {
 				return 0, nil
 			}
@@ -197,4 +205,42 @@ func chainStageIndex(req *types.ChainRequest, ref types.StageRef, dflt bool) (in
 		return n - 1, true
 	}
 	return 0, false
+}
+
+// processOverlayArrayValuedRefusals is the Process-host half: one
+// refusal per distinct array-valued aggregation an entry of
+// req.Overlays scores — the one params.field names on a kind
+// seriesfield.Applies accepts, else Aggregations[0] (every other kind
+// reads the first aggregation as its host value). A crosstab request is
+// out of scope here (its overlays read cells). An unresolvable field is
+// left to PULSE_OVERLAY_FIELD_UNKNOWN. Details {aggregation, label,
+// slot, reason: "array_valued"}; slot is "aggregations[<i>]".
+func processOverlayArrayValuedRefusals(req *types.Request, kinds vectors.AggregationKinds) []*errors.CodedError {
+	if req == nil || len(req.Overlays) == 0 || req.Crosstab != nil {
+		return nil
+	}
+	var out []*errors.CodedError
+	seen := map[int]bool{}
+	for i := range req.Overlays {
+		spec := &req.Overlays[i]
+		ai, host := scoredArrayValuedAggregation(req, kinds, func(aggs []*types.Aggregation) (int, error) {
+			if !seriesfield.Applies(spec.Kind) {
+				return 0, nil
+			}
+			return seriesfield.Resolve(aggs, spec, i)
+		})
+		if host == nil || seen[ai] {
+			continue
+		}
+		seen[ai] = true
+		label := types.AggregationLabelOf(host)
+		msg := "overlays read the first aggregation as their host value, and " + label + " (" + string(host.Type) + ") is array-valued; put a scalar aggregation first"
+		if ai != 0 {
+			msg = "overlays[" + strconv.Itoa(i) + "] (" + string(spec.Kind) + ") params.field scores " + label + " (" + string(host.Type) +
+				"), which is array-valued (one figure per vector member); an overlay folds one number per host row — name a scalar aggregation instead"
+		}
+		out = append(out, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG, msg,
+			map[string]any{"aggregation": string(host.Type), "label": label, "slot": "aggregations[" + strconv.Itoa(ai) + "]", "reason": "array_valued"}))
+	}
+	return out
 }

@@ -155,7 +155,8 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     — and, under params.expand, each per-element column, which is
 //     presentation only — is refused at step 5 as a Sort key, a
 //     window's field / order_by / partition_by, a post-test's field, or
-//     a request overlay's host (the first aggregation) —
+//     a request overlay's host (the aggregation it scores: a series
+//     kind's params.field, else the first) —
 //     PROCESSING_CONFIG, details.reason "array_valued".
 //     Steps 6 to 11 contribute one refusal at most between them.
 //
@@ -599,15 +600,9 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 				map[string]any{"sort_index": i, "field": k.Field})
 		})
 	}
-	if len(req.Overlays) > 0 && req.Crosstab == nil && len(req.Aggregations) > 0 && req.Aggregations[0] != nil {
-		// A request overlay reads the PRIMARY aggregation (the first)
-		// as its host value.
-		if host := req.Aggregations[0]; aggregationKinds(inst, w.snap).IsArrayValued(host.Type) {
-			w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-				"overlays read the first aggregation as their host value, and "+types.AggregationLabelOf(host)+" ("+string(host.Type)+") is array-valued; put a scalar aggregation first",
-				map[string]any{"aggregation": string(host.Type), "label": types.AggregationLabelOf(host), "slot": "aggregations[0]", "reason": "array_valued"}))
-		}
-	}
+	// A request overlay reads ONE aggregation as its host value: the one
+	// a series kind's params.field names, else the first.
+	w.out = append(w.out, processOverlayArrayValuedRefusals(req, aggregationKinds(inst, w.snap))...)
 	if req.Crosstab == nil {
 		for i, t := range req.PostTests {
 			if t != nil {
