@@ -197,6 +197,22 @@ func orderCompositeKeysByAxisInclude(keys []string, tuples []types.AxisKey, axis
 	for i, k := range keys {
 		tupleOf[k] = tuples[i]
 	}
+	return sortCompositeKeys(out, tupleOf, filters)
+}
+
+// orderCompositeKeys is orderCompositeKeysByAxisInclude over explicit
+// per-position filters (filters[p] orders position p; nil is
+// alphabetical): the multi-grouper Request.Groups arms pass each
+// grouper's native order (includeFilterOf). keys is not mutated.
+func orderCompositeKeys(keys []string, tupleOf map[string]types.AxisKey, filters []*includeFilter) []string {
+	out := make([]string, len(keys))
+	copy(out, keys)
+	return sortCompositeKeys(out, tupleOf, filters)
+}
+
+// sortCompositeKeys sorts out in place lexicographically by tuple
+// position (see orderCompositeKeysByAxisInclude) and returns it.
+func sortCompositeKeys(out []string, tupleOf map[string]types.AxisKey, filters []*includeFilter) []string {
 
 	component := func(tup types.AxisKey, p int) (string, bool) {
 		if p >= len(tup) {
@@ -208,7 +224,7 @@ func orderCompositeKeysByAxisInclude(keys []string, tuples []types.AxisKey, axis
 
 	sort.SliceStable(out, func(a, b int) bool {
 		ta, tb := tupleOf[out[a]], tupleOf[out[b]]
-		for p := 0; p < len(axis); p++ {
+		for p := 0; p < len(filters); p++ {
 			ca, aok := component(ta, p)
 			cb, bok := component(tb, p)
 			switch {

@@ -1647,6 +1647,9 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// key; assembled over the final (sorted) keys below. Nil when
 	// components are disabled.
 	var bucketAggComponents map[string][]types.AggregationComponents
+	// The observed composite keys of a multi-grouper run (nil for one
+	// grouper): the tuple each groups[] entry's GroupKey carries.
+	var groupKeySet *CompositeKeySet
 
 	recordRows := false
 	if len(req.Groups) > 0 {
@@ -1654,7 +1657,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 			return nil, err
 		}
 		var grpWarnings []*types.ResponseWarning
-		data, grpComponents, bucketAggComponents, groupKeys, grpWarnings, err = p.processGrouped(req, filtered, groupedMatrices)
+		data, grpComponents, bucketAggComponents, groupKeys, groupKeySet, grpWarnings, err = p.processGrouped(req, filtered, groupedMatrices)
 		if err != nil {
 			return nil, err
 		}
@@ -1796,7 +1799,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 			grouped := slotTotalComponents(req.Aggregations, filtered)
 			if p.compute.Groups {
 				var err error
-				if grouped, err = GroupedAggregationComponents(grouped, bucketAggComponents, groupKeys); err != nil {
+				if grouped, err = GroupedAggregationComponents(grouped, bucketAggComponents, groupKeys, groupKeySet); err != nil {
 					return nil, err
 				}
 			}
@@ -1809,8 +1812,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// Attach per-slot GrouperComponents emitted by processGrouped (nil
 	// when the plan skips them). The ungrouped path leaves grpComponents
 	// nil so nothing is appended; the grouped exit appends exactly one
-	// entry per Request.Groups slot (the single-grouper limit matches
-	// processGrouped today).
+	// entry per Request.Groups slot.
 	for _, entry := range grpComponents {
 		attachGrouperComponents(resp, entry)
 	}
@@ -2066,13 +2068,25 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 }
 
 // processGrouped is the buffered grouped exit: one Data row per bucket
-// of Request.Groups[0] in emission order, plus the grouper's Components.
+// in emission order, plus each grouper's Components.
 // matrices (nil without Request.Matrices) receives each bucket's
 // records, in record order, so the per-bucket matrices fold exactly the
 // rows (and blocks) the streaming-grouped path folds; the ordered bucket
 // keys are returned for their emission.
-func (p *Processor) processGrouped(req *types.Request, records []*Record, matrices *GroupedMatrices) ([]map[string]any, []types.GrouperComponents, map[string][]types.AggregationComponents, []string, []*types.ResponseWarning, error) {
-	// Use the first group for now (single-level grouping)
+//
+// Two or more groupers take processGroupedComposite (one row per
+// observed key combination); the single-grouper body below is the
+// unchanged fast path.
+func (p *Processor) processGrouped(req *types.Request, records []*Record, matrices *GroupedMatrices) ([]map[string]any, []types.GrouperComponents, map[string][]types.AggregationComponents, []string, *CompositeKeySet, []*types.ResponseWarning, error) {
+	if len(req.Groups) > 1 {
+		return p.processGroupedComposite(req, records, matrices)
+	}
+	data, grpComps, bucketComps, keys, warns, err := p.processGroupedSingle(req, records, matrices)
+	return data, grpComps, bucketComps, keys, nil, warns, err
+}
+
+// processGroupedSingle is the single-grouper buffered exit.
+func (p *Processor) processGroupedSingle(req *types.Request, records []*Record, matrices *GroupedMatrices) ([]map[string]any, []types.GrouperComponents, map[string][]types.AggregationComponents, []string, []*types.ResponseWarning, error) {
 	grp := req.Groups[0]
 	factory, ok := p.exts.LookupGrouper(grp.Type)
 	if !ok {
