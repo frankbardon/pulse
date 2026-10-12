@@ -11,7 +11,10 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -715,5 +718,148 @@ func TestMultiGrouper_MatricesCarryTuple(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestMultiGrouper_PredictBoundsRuntime is the predict/runtime parity
+// row: predict's max_groups estimate for a multi-grouper request is the
+// PRODUCT of every grouper's bound (a POSSIBLE finding — an upper
+// bound), every mode's observed row count never exceeds it, and the two
+// are equal when every combination is observed. A grouper whose keys
+// depend on the data (range, date) leaves the request unsized: no
+// finding, never a guess.
+func TestMultiGrouper_PredictBoundsRuntime(t *testing.T) {
+	// Hand-computed over mgSchema: region 3, sex 2, tier 2, tags 2,
+	// quartiles 4, k-means k=2, an include list its length. 0 = unsized.
+	estimate := map[string]int64{
+		"CategoryXCategory":            6,
+		"CategoryXCategoryReversed":    6,
+		"RangeXCategory":               0,
+		"DateXCategory":                0,
+		"SetPerElementFanOutXCategory": 4,
+		"EmptyCombinationAndInnerNull": 6,
+		"OuterNull":                    4,
+		"QuantileNotFirst":             12,
+		"KMeansNotFirst":               4,
+		"IncludeOrderBothPositions":    4,
+		"ThreeCategories":              12,
+		"ThreeWithNullAndFanOut":       8,
+	}
+	// Every combination observed: the bound is exact.
+	exact := map[string]bool{
+		"CategoryXCategory": true, "CategoryXCategoryReversed": true,
+		"SetPerElementFanOutXCategory": true, "OuterNull": true,
+		"KMeansNotFirst": true, "IncludeOrderBothPositions": true,
+	}
+	// MaxGroups 1 makes every sized estimate a reported finding; the
+	// predict-only engine never runs a record.
+	pf := newMGFixture(t, pulse.Options{Limits: pulse.Limits{MaxGroups: 1}})
+	f := newMGFixture(t, pulse.Options{})
+	for _, c := range mgCases() {
+		want, ok := estimate[c.name]
+		if !ok {
+			t.Fatalf("case %s has no hand-computed estimate", c.name)
+		}
+		pr, err := pf.p.Predict(context.Background(), mgRequest(pf, c.groups))
+		if err != nil {
+			t.Fatalf("%s: Predict: %v", c.name, err)
+		}
+		var got int64
+		for _, lf := range pr.LimitFindings {
+			if lf.Limit == "max_groups" {
+				if lf.Grade != descriptor.LimitGradePossible {
+					t.Fatalf("%s: max_groups grade %s, want possible (an upper bound)", c.name, lf.Grade)
+				}
+				got = lf.Estimated
+			}
+		}
+		if got != want {
+			t.Fatalf("%s: predict max_groups estimate %d, want %d", c.name, got, want)
+		}
+		if want == 0 {
+			continue
+		}
+		for _, mode := range mgModes {
+			resp, err := mode.run(t, f, mgRequest(f, c.groups))
+			if err != nil {
+				t.Fatalf("%s/%s: %v", mode.name, c.name, err)
+			}
+			rows := int64(len(resp.Data))
+			if rows > got {
+				t.Errorf("%s/%s: %d rows above the predicted bound %d", mode.name, c.name, rows, got)
+			}
+			if exact[c.name] && rows != got {
+				t.Errorf("%s/%s: every combination observed, yet %d rows != bound %d", mode.name, c.name, rows, got)
+			}
+		}
+	}
+}
+
+// grpMGNul keys like GROUP_CATEGORY but appends a NUL byte and a
+// suffix to every key — the composite-key separator inside a key.
+const grpMGNul types.GroupType = "GROUP_MGT_NUL"
+
+type nulKeyGrouper struct{ inner *parityCategoryGrouper }
+
+func (g nulKeyGrouper) Group(rows extend.Rows, field string) (map[string][]int, error) {
+	b, err := g.inner.Group(rows, field)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string][]int, len(b))
+	for k, v := range b {
+		out[k+"\x00x"] = v
+	}
+	return out, nil
+}
+
+func (g nulKeyGrouper) KeyForRow(rec extend.Record, field string) (string, bool, error) {
+	k, ok, err := g.inner.KeyForRow(rec, field)
+	return k + "\x00x", ok, err
+}
+
+// TestMultiGrouper_SeparatorInKeyRefused: an extension grouper whose
+// key carries the composite-key separator ("\x00") is refused with
+// PROCESSING_GROUP under two or more groupers, at any position, on
+// every mode — the composite string would be ambiguous — while the
+// same grouper alone runs unchanged.
+func TestMultiGrouper_SeparatorInKeyRefused(t *testing.T) {
+	reg := pulse.GrouperRegistration{
+		Name:       grpMGNul,
+		Streamable: true,
+		Factory: func(spec *types.Group, schema *encoding.Schema) (extend.Grouper, error) {
+			return nulKeyGrouper{&parityCategoryGrouper{probe: &parityProbe{}, dict: fieldDict(schema, spec.Field), live: map[string]int{}}}, nil
+		},
+		FieldInputs: func(json.RawMessage) []string { return nil },
+	}
+	f := newMGFixture(t, pulse.Options{Extensions: pulse.Extensions{Groupers: []pulse.GrouperRegistration{reg}}})
+	for _, mode := range mgModes {
+		t.Run(mode.name+"/alone", func(t *testing.T) {
+			resp, err := mode.run(t, f, mgRequest(f, []*types.Group{mgGroup(grpMGNul, "sex")}))
+			if err != nil {
+				t.Fatalf("single grouper refused: %v", err)
+			}
+			if len(resp.Data) != 2 || resp.Data[0]["sex"] != "F\x00x" {
+				t.Fatalf("single grouper rows %v", resp.Data)
+			}
+		})
+		for name, c := range map[string]struct {
+			groups []*types.Group
+			index  int
+		}{
+			"inner": {[]*types.Group{mgRegion(), mgGroup(grpMGNul, "sex")}, 1},
+			"outer": {[]*types.Group{mgGroup(grpMGNul, "sex"), mgRegion()}, 0},
+		} {
+			t.Run(mode.name+"/"+name, func(t *testing.T) {
+				resp, err := mode.run(t, f, mgRequest(f, c.groups))
+				if resp != nil && len(resp.Data) > 0 {
+					t.Fatalf("an ambiguous composite returned rows: %v", resp.Data)
+				}
+				ce := requireCodedError(t, err, perr.PROCESSING_GROUP)
+				if ce.Details["reason"] != "key_contains_separator" || ce.Details["group_index"] != c.index {
+					t.Fatalf("details = %v, want reason key_contains_separator at group_index %d", ce.Details, c.index)
+				}
+			})
+		}
 	}
 }

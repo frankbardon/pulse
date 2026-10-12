@@ -2,6 +2,8 @@ package processing
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/limits"
@@ -123,6 +125,16 @@ func (c *CompositeKeySet) Expand(keySets [][]string, emit func(key string) error
 			tuple := make(types.AxisKey, len(keySets))
 			for i, ks := range keySets {
 				tuple[i] = ks[odo[i]]
+				// A key holding the separator makes the composite
+				// string ambiguous ("a\x00b"+"c" = "a"+"b\x00c").
+				// Checking at intern time suffices: every interned key
+				// is clean, so it carries exactly width-1 separators
+				// and a dirty candidate (more) can never hit the map.
+				if k := ks[odo[i]]; strings.Contains(k, crosstabAxisKeySep) {
+					return errors.NewCodedErrorWithDetails(errors.PROCESSING_GROUP,
+						"group["+strconv.Itoa(i)+"] key contains a NUL byte (\\x00), the composite group-key separator; a grouper key must not contain it when two or more groupers are combined",
+						map[string]any{"group_index": i, "key": k, "reason": "key_contains_separator"})
+				}
 			}
 			e = &compositeEntry{key: string(c.buf), tuple: tuple}
 			c.entries[e.key] = e

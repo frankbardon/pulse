@@ -366,16 +366,18 @@ type MatrixPredict struct {
 	AccumulatorBytes int64 `json:"accumulator_bytes"`
 	// BucketBasis says how EstimatedBuckets was derived from the
 	// request and the schema: "ungrouped" (1), "dictionary" (the
-	// Groups[0] field's dictionary size), "boolean" (2), "include"
+	// grouper field's dictionary size), "boolean" (2), "include"
 	// (Group.Include's distinct reachable keys), "quantile_bins"
-	// (GROUP_QUANTILE's bin count), "clusters" (GROUP_KMEANS's params.k)
-	// or "unknown" (the keys depend on the
+	// (GROUP_QUANTILE's bin count), "clusters" (GROUP_KMEANS's params.k),
+	// "product" (two or more groupers, every one sized: the product of
+	// their bounds) or "unknown" (the keys of some grouper depend on the
 	// data — ranges, dates, numeric categories — and the three estimate
 	// fields are omitted).
 	BucketBasis string `json:"bucket_basis"`
 	// EstimatedBuckets is the upper bound on the results this spec
-	// emits — one per non-empty bucket of Groups[0]; a bucket no row
-	// reaches is not emitted, so a run returns at most this many.
+	// emits — one per observed (composite) group key; a bucket no row
+	// reaches, or a combination never observed, is not emitted, so a
+	// run returns at most this many.
 	EstimatedBuckets *int64 `json:"estimated_buckets,omitempty"`
 	// EstimatedCells is EstimatedBuckets × p² — the primary cells the
 	// spec's results carry in full encoding (MAT_DISTANCE: × k²).

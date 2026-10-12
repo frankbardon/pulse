@@ -99,6 +99,55 @@ func TestEstimateGroups(t *testing.T) {
 	}
 }
 
+// TestEstimateGroups_MultiGrouperProduct: two or more groupers mint
+// composite keys, so the MaxGroups bound is the PRODUCT of every
+// grouper's own bound — clamped by records unless a grouper fans out,
+// unknown when any grouper is (never Groups[0] alone).
+func TestEstimateGroups_MultiGrouperProduct(t *testing.T) {
+	schema := groupsSchema(t)
+	inst := UnscopedInstanceSnapshot(&ExtensionsSnapshot{
+		RangeTables: []descriptor.RangeTableMeta{{Name: "fiscal", RangeCount: 4}},
+	})
+	cat := &types.Group{Type: types.GROUP_CATEGORY, Field: "cat"}
+	flag := &types.Group{Type: types.GROUP_CATEGORY, Field: "flag"}
+	tags := &types.Group{Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}
+	quant := &types.Group{Type: types.GROUP_QUANTILE, Field: "num", Interval: 3}
+	rng := &types.Group{Type: types.GROUP_RANGE, Field: "num", Interval: 10}
+	fiscal := dateRangesGroup(t, map[string]string{"table": "fiscal"})
+	for _, c := range []struct {
+		name    string
+		groups  []*types.Group
+		records int64
+		want    int64
+		known   bool
+	}{
+		{"category x boolean", []*types.Group{cat, flag}, -1, 10, true},
+		{"three positions", []*types.Group{cat, flag, quant}, -1, 30, true},
+		{"product clamped by records", []*types.Group{cat, flag}, 7, 7, true},
+		{"records above the product", []*types.Group{cat, flag}, 1000, 10, true},
+		{"fan-out position escapes the clamp", []*types.Group{cat, tags}, 4, 15, true},
+		{"date ranges position", []*types.Group{flag, fiscal}, -1, 10, true},
+		{"unknown inner position", []*types.Group{cat, rng}, -1, 0, false},
+		{"unknown outer position", []*types.Group{rng, cat}, -1, 0, false},
+		{"nil position", []*types.Group{cat, nil}, -1, 0, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got, known := EstimateGroups(c.groups, schema, inst, c.records)
+			if got != c.want || known != c.known {
+				t.Fatalf("EstimateGroups = %d, %v; want %d, %v", got, known, c.want, c.known)
+			}
+		})
+	}
+	// The finding carries the product (Possible: an upper bound).
+	l := limits.Defaults()
+	l.MaxGroups = 8
+	fs := RequestLimitFindings(&types.Request{Groups: []*types.Group{cat, flag}}, schema, inst, l, LimitInputs{Records: 100, JoinRightRows: -1})
+	want := limits.Finding{Limit: limits.MaxGroups, Configured: 8, Estimated: 10, Grade: limits.Possible}
+	if len(fs) != 1 || fs[0] != want {
+		t.Fatalf("findings = %+v, want [%+v]", fs, want)
+	}
+}
+
 // TestRequestLimitFindings_MaxGroupsPossible: a categorical whose
 // dictionary exceeds MaxGroups is a Possible finding — never a
 // pre-flight refusal — and the record count clamps it away.

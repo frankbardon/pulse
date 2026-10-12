@@ -218,8 +218,9 @@ func TestPredict_MatrixEstimatedBytesCountsBlocks(t *testing.T) {
 }
 
 // TestPredict_MatrixBucketEstimate: a grouped request reports each
-// spec's estimated buckets (from Groups[0] and the schema), cells
-// (buckets × p²) and bytes (buckets × accumulator_bytes); a grouper
+// spec's estimated buckets (the product over every grouper, from the
+// schema), cells (buckets × p²) and bytes (buckets ×
+// accumulator_bytes); a grouper
 // whose keys depend on the data reports basis "unknown" and omits the
 // three figures — never a guess, never a refusal (no guard: U19).
 func TestPredict_MatrixBucketEstimate(t *testing.T) {
@@ -238,7 +239,8 @@ func TestPredict_MatrixBucketEstimate(t *testing.T) {
 		{"include", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region", Include: []string{"S", "X", "S"}}}, "include", 1},
 		{"quantile", []*types.Group{{Type: types.GROUP_QUANTILE, Field: "q_1", Interval: 5}}, "quantile_bins", 5},
 		{"range", []*types.Group{{Type: types.GROUP_RANGE, Field: "q_1", Interval: 10}}, "unknown", 0},
-		{"multi-entry keys off Groups[0]", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}, {Type: types.GROUP_RANGE, Field: "q_1", Interval: 10}}, "dictionary", 2},
+		{"two groupers multiply", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}, {Type: types.GROUP_QUANTILE, Field: "q_1", Interval: 5}}, "product", 10},
+		{"an unknown grouper unsizes the product", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}, {Type: types.GROUP_RANGE, Field: "q_1", Interval: 10}}, "unknown", 0},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

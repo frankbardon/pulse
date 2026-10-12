@@ -291,3 +291,40 @@ func TestPredict_ReturnUnresolvedIncludes(t *testing.T) {
 		t.Errorf("crosstab data include: %v", rp.Return.UnresolvedIncludes)
 	}
 }
+
+// TestReturnSizes_DataRowsMultiGrouper: the data-row count behind the
+// `data` size is the MaxGroups bound — the product of every grouper's
+// key count (one composite row per observed combination), clamped by
+// the record count, unknown when any grouper is data-dependent.
+func TestReturnSizes_DataRowsMultiGrouper(t *testing.T) {
+	d := func(vs ...string) *encoding.Dictionary { return makeDictionary(t, vs...) }
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: d("N", "S", "E", "W")},
+		{Name: "tier", Type: encoding.FieldTypeCategoricalU8, Dictionary: d("a", "b", "c")},
+		{Name: "revenue", Type: encoding.FieldTypeF64},
+	}}
+	region := &types.Group{Type: types.GROUP_CATEGORY, Field: "region"}
+	tier := &types.Group{Type: types.GROUP_CATEGORY, Field: "tier"}
+	rng := &types.Group{Type: types.GROUP_RANGE, Field: "revenue", Interval: 10}
+	for _, c := range []struct {
+		name    string
+		groups  []*types.Group
+		records int64 // -1 unknown
+		want    int64
+		known   bool
+	}{
+		{"product", []*types.Group{region, tier}, 100, 12, true},
+		{"product clamped by records", []*types.Group{region, tier}, 5, 5, true},
+		{"product, records unknown", []*types.Group{region, tier}, -1, 12, true},
+		{"a data-dependent grouper unsizes it", []*types.Group{region, rng}, 100, 0, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			in := returnSizeInputs{req: &types.Request{Groups: c.groups}, schema: schema,
+				records: c.records, recordsKnown: c.records >= 0}
+			n, basis, known := in.dataRows()
+			if known != c.known || n != c.want || (known && basis != returnSizeUpperBound) {
+				t.Fatalf("dataRows = %d %q %v, want %d upper_bound %v", n, basis, known, c.want, c.known)
+			}
+		})
+	}
+}

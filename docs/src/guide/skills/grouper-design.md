@@ -13,7 +13,7 @@ covers: [GROUP, Crosstab, groups]
 
 ## Slot identity
 
-`groups` entry: `{type, field, label?, interval?, params?, include?}`. One bucket key per post-filter row; output rows carry it as `<field>` (or `label`).
+`groups` entry: `{type, field, interval?, params?, include?}`. One bucket key per post-filter row; output rows carry it as `<field>`.
 
 Pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`. Grouping runs AFTER attributes, so derived columns are addressable as `field`.
 
@@ -28,11 +28,11 @@ Read the intent first (`pulse_skills_get intents`): `compare_groups`, `compositi
 
 Each grouper's `Purpose.NotFor` names the sibling to use when the choice is wrong.
 
-**High cardinality.** Each distinct key is a bucket; past the instance `max_groups` limit the run is refused `PULSE_LIMIT_EXCEEDED`. `pulse_predict` flags a dictionary over it as a `possible` `limit_findings` entry.
+**High cardinality.** Each distinct key is a bucket; past the instance `max_groups` limit the run is refused `PULSE_LIMIT_EXCEEDED`. `pulse_predict` flags a dictionary over it as a `possible` `limit_findings` entry; several groupers multiply their bounds.
 
 ## Composition (key product)
 
-With N entries (N ≥ 2), the engine forms the cartesian **key product**: each row receives a composite key `(g0, ..., gN-1)`. Empty `groups` collapses to one global bucket.
+With N entries (N ≥ 2), the engine forms the cartesian **key product**: each row receives a composite key `(g0, ..., gN-1)`. Empty `groups` collapses to one global bucket. Two entries on one key column: `SERVICE_VALIDATION`.
 
 Plain `groups` emit one flat row per composite key under `Response.Data` — the canonical cross-tab mechanism. Reach for `Request.Crosstab` only when margins or normalisation matter ([`crosstab-guide`](crosstab-guide.md)).
 

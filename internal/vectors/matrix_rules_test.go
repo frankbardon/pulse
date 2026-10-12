@@ -55,7 +55,14 @@ func TestEstimateBuckets(t *testing.T) {
 		{"range ignores include", []*types.Group{{Type: types.GROUP_RANGE, Field: "x", Interval: 5, Include: []string{"0"}}}, 0, BucketBasisUnknown, false},
 		{"date", []*types.Group{{Type: types.GROUP_DATE, Field: "d"}}, 0, BucketBasisUnknown, false},
 		{"unknown field", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "nope"}}, 0, BucketBasisUnknown, false},
-		{"Groups[0] only", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}, {Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}}, 3, BucketBasisDictionary, true},
+		// Two or more groupers: the product of every grouper's bound
+		// (a multi-grouper run emits one bucket per observed
+		// combination), unknown when any grouper is.
+		{"two groupers multiply", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}, {Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}}, 15, BucketBasisProduct, true},
+		{"three groupers multiply", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}, {Type: types.GROUP_CATEGORY, Field: "flag"}, {Type: types.GROUP_QUANTILE, Field: "x", Interval: 3}}, 18, BucketBasisProduct, true},
+		{"unknown inner grouper", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}, {Type: types.GROUP_RANGE, Field: "x", Interval: 5}}, 0, BucketBasisUnknown, false},
+		{"unknown outer grouper", []*types.Group{{Type: types.GROUP_DATE, Field: "d"}, {Type: types.GROUP_CATEGORY, Field: "region"}}, 0, BucketBasisUnknown, false},
+		{"nil entries skipped", []*types.Group{nil, {Type: types.GROUP_CATEGORY, Field: "region"}}, 3, BucketBasisDictionary, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
