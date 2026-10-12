@@ -9,9 +9,9 @@ covers: [OVERLAY, OverlaySpec, OverlayLayer]
 
 # Overlays
 
-Additive, read-only decorations on a result that is already computed. Specs ride `Request.Overlays`; each produces one layer in `Response.Overlays[i]`, in spec order. Overlays NEVER mutate the base payload — they are siblings keyed to host coordinates, so the base numbers are byte-identical with or without them.
+Additive, read-only decorations on a computed result. Specs ride `Request.Overlays`; each produces one layer in `Response.Overlays[i]`, in spec order. Overlays NEVER mutate the base payload — they are siblings keyed to host coordinates, so base numbers are byte-identical either way.
 
-Use an overlay for a figure DERIVED from the result — a share, an index against a reference, a delta, a z-score, a significance test between cells. Base figures stay aggregations.
+Use an overlay for a figure DERIVED from the result — a share, an index against a reference, a delta, a z-score, a significance test between cells.
 
 ```jsonc
 {"overlays": [{"kind": "<overlay kind>", "scope": "cell", "ref": {"margin": {"axis": "row"}}}]}
@@ -21,7 +21,7 @@ Use an overlay for a figure DERIVED from the result — a share, an index agains
 
 1. Name the question, then read the matching intent (`pulse_skills_get intents`): `composition` (shares), `benchmark` (index / delta against a reference), `compare_groups` (cell and pairwise tests), `change_over_time` (prior period, rolling, baseline).
 2. Filter manifest `overlays[]` on that intent, then on the HOST you have — each entry lists `shapes`, `scopes`, `ref_kinds`, `buffered` and `inferential`.
-3. Read the chosen kind's atomic skill for its math, params and warnings. The authoritative catalog is `overlays[]` itself; never hardcode a count.
+3. Read the kind's atomic skill for math, params and warnings. The authoritative catalog is `overlays[]` itself; never hardcode a count.
 
 ## OverlaySpec composition
 
@@ -50,10 +50,10 @@ Implicit-margin kinds (the χ² and Fisher cell tests) leave `ref` empty.
 
 ## Host-arm wiring
 
-Which request carries the spec decides the host, and the host decides which kinds are legal:
+The carrying request decides the host; the host decides the legal kinds:
 
 - **MATRIX** — a crosstab (`Request.Crosstab` + `Request.Overlays`): share, margin compare, cell tests, intra-matrix pairwise.<!-- feature: capability:crosstab --> Pairwise n: `pairwise-n-sources`.<!-- /feature -->
-- **SERIES** — a grouped Process with no crosstab: per-group self-compare (sibling, baseline, prior, rolling, year-over-year).
+- **SERIES** — a grouped Process with no crosstab: per-group self-compare (sibling, baseline, prior, rolling, year-over-year). ONE grouper only: two or more `groups` (composite rows) are refused `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - **FACET** — `FacetRequest.Overlays` (NOT `Request.Overlays`): population comparisons, layers on `FacetResult.Overlays`<!-- feature: capability:facet --> (`facet-design`)<!-- /feature -->.
 - **CHAIN** — whole-chain `ChainRequest.Overlays` against an earlier stage; layers on the chain response, per-stage overlays untouched. Stages of divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->.
 - **FORMULA** — an expression over earlier layers, referenced by `name`.
@@ -61,7 +61,7 @@ Which request carries the spec decides the host, and the host decides which kind
 
 ## Per-layer warnings (`OverlayLayer.Warnings`)
 
-Additive `warnings: [{code, message, details}]` on each layer, `omitempty` — overlay-free responses stay byte-identical. Canonical: `PULSE_OVERLAY_REF_ZERO` (a reference value of zero, so the ratio is undefined), `PULSE_OVERLAY_EXPECTED_LOW` (χ² expected count below 5). A warning lands on the layer that raised it; on Compose and chain hosts it rides `Overlays[i].Warnings` of the matching layer. Warnings never fail the request — read them before reporting a figure.
+Additive `warnings: [{code, message, details}]` on each layer, `omitempty` — overlay-free responses stay byte-identical. Canonical: `PULSE_OVERLAY_REF_ZERO` (zero reference, undefined ratio), `PULSE_OVERLAY_EXPECTED_LOW` (χ² expected count below 5). A warning lands on the layer that raised it; on Compose and chain hosts it rides `Overlays[i].Warnings` of the matching layer. Warnings never fail the request — read them before reporting a figure.
 
 <!-- feature: capability:multiplicity -->
 ## Multiplicity

@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U02c]
 blocks: [U32]
-todo_items: [198, 199, 201, 207, 213, 214, 215, 221, 248, 249, 253, 254, 255, 256, 259, 260, 267, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419, 427]
+todo_items: [198, 199, 201, 207, 213, 214, 215, 221, 248, 249, 253, 254, 255, 256, 259, 260, 267, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419, 427, 431, 432]
 branch: predict-runtime-parity
 ---
 
@@ -193,3 +193,10 @@ Filed from [U26 handed on](U26-vector-expr-functions.md#handed-on); tick in [`TO
 Filed from [U27 handed on](U27-vector-metrics-aggregates.md#handed-on-from-u27); tick in [`TODO.md`](../TODO.md) when delivered.
 
 - [ ] **#427** (10. Vector & matrix — operators › Follow-ups from U27) A `u64` `key_field` value above 2^53 is matched via its float64 value (records carry numbers as float64; the same limit as `ATTR_CODE_IN`), so two distinct large keys can collide. No unit owns exact `u64` record access, so it is filed here: give record access an exact `u64` path, or refuse such a key. Found in U27 (E3-S4).
+
+## Inherited from U54
+
+Filed from the U54 series-overlay refusal follow-up ([U54](U54-multi-grouper.md)); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#431** (Grouped analysis › Follow-ups from U54) `OVERLAY_INDEX_VS_ROLLING_MEAN` / `OVERLAY_ZSCORE_VS_ROLLING` with `params.window: 1` answer NaN from the second present point on: `rollingCarrier`'s eviction divides by `count - 1 == 0` (`internal/processing/overlay_index_vs_rolling_mean.go`), while predict accepts window 1 (`validateOverlayRollingWindowParam` checks only `> 0`). Fix the window-1 eviction (or refuse window 1 at predict and runtime alike).
+- [ ] **#432** (Grouped analysis › Follow-ups from U54) `OVERLAY_FORMULA` on a grouped Process (SERIES) host passes predict — the SERIES namespace `value` / `total` / `prior` / `baseline` validates — but the runtime refuses it `PULSE_OVERLAY_KIND_UNKNOWN`: `seriesOverlayHandlers` has no FORMULA entry. Either wire a SERIES FORMULA handler or refuse it at predict; a wired handler's `prior` is a lag-1 read, so it needs the multi-grouper refusal (`refuseCompositeSeriesHost`) the prior / rolling kinds carry. The Compose-predict side is #400.
