@@ -629,11 +629,13 @@ func buildSeriesRowLookup(rows []map[string]any) (map[string]float64, string) {
 // Returns hasValue=false when the row has no numeric column at all
 // (no aggregator output to fold).
 //
-// Compose-host rows never reach it multi-aggregation: the dispatcher
-// first narrows every SERIES slot to its group columns plus the one
-// scored aggregation (projectComposeSeriesSlots), so there the key is
-// the group columns and the value the named aggregation. The
-// sorted-first rule still decides chain-stage rows.
+// Compose-host and chain-stage rows never reach it multi-aggregation:
+// both dispatchers first narrow every SERIES slot / stage to its group
+// columns plus the one scored aggregation (projectComposeSeriesSlots,
+// projectChainSeriesStages), so there the key is the group columns and
+// the value the named aggregation. The sorted-first rule decides only
+// a caller that hands no Request (the bare ApplyChainOverlays /
+// ApplyComposeOverlays entries).
 func encodeSeriesRow(row map[string]any) (key string, valueCol string, value float64, hasValue bool) {
 	if len(row) == 0 {
 		return "", "", 0, false

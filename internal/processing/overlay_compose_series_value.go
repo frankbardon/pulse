@@ -74,9 +74,20 @@ func projectComposeSeriesSlot(spec *types.ComposeOverlaySpec, route types.Overla
 		}
 		aggIdx = i
 	}
+	return narrowSeriesHost(req, aggIdx, resp), nil
+}
+
+// narrowSeriesHost is the narrowing both the Compose and the chain
+// (projectChainSeriesStages) series arms share: resp's Data rows cut
+// to req's GROUP columns (vectors.GroupKeyField of every Groups entry)
+// plus the output label of req.Aggregations[aggIdx], in a shallow copy
+// with fresh rows — resp itself is never touched. resp comes back as
+// it is when aggIdx is out of range, it carries a matrix, or it has no
+// Data.
+func narrowSeriesHost(req *types.Request, aggIdx int, resp *types.Response) *types.Response {
 	if aggIdx >= len(req.Aggregations) || resp == nil || len(resp.Data) == 0 ||
 		(resp.Crosstab != nil && resp.Crosstab.Matrix != nil) {
-		return resp, nil
+		return resp
 	}
 	valueCol := types.AggregationLabelOf(req.Aggregations[aggIdx])
 	keep := make([]string, 0, len(req.Groups)+1)
@@ -97,5 +108,54 @@ func projectComposeSeriesSlot(spec *types.ComposeOverlaySpec, route types.Overla
 		}
 		narrowed.Data[r] = nr
 	}
-	return &narrowed, nil
+	return &narrowed
+}
+
+// projectChainSeriesStages is projectComposeSeriesSlots for a
+// whole-chain overlay spec: the target and the reference stage each
+// narrow (narrowSeriesHost) to their group columns plus the one scored
+// aggregation — the one params.field names (seriesfield.ResolveChainStage)
+// on a kind seriesfield.AppliesChain accepts, else the stage's
+// Aggregations[0]. Before it, encodeSeriesRow scored a stage on its
+// alphabetically first numeric column and folded every other
+// aggregation's value into the row key.
+//
+// A stage is left as it is when no stage Request is in reach (the bare
+// ApplyChainOverlays entry) or its Request declares a crosstab. The
+// field refusal is the target's, then the reference's — the order
+// predict-chain checks them in. ChainResponse.Stages is never touched:
+// a narrowed stage is a shallow copy.
+func projectChainSeriesStages(spec *types.ChainOverlaySpec, route types.OverlayKind, specIdx int, target, ref *types.Response, targetIdx, refIdx int, stageReqs []*types.Request) (*types.Response, *types.Response, error) {
+	if len(stageReqs) == 0 {
+		return target, ref, nil
+	}
+	narrowedTarget, err := projectChainSeriesStage(spec, route, specIdx, "target", target, targetIdx, stageReqs)
+	if err != nil {
+		return nil, nil, err
+	}
+	narrowedRef, err := projectChainSeriesStage(spec, route, specIdx, "ref", ref, refIdx, stageReqs)
+	if err != nil {
+		return nil, nil, err
+	}
+	return narrowedTarget, narrowedRef, nil
+}
+
+// projectChainSeriesStage is projectChainSeriesStages for one stage.
+func projectChainSeriesStage(spec *types.ChainOverlaySpec, route types.OverlayKind, specIdx int, which string, resp *types.Response, idx int, stageReqs []*types.Request) (*types.Response, error) {
+	if idx < 0 || idx >= len(stageReqs) {
+		return resp, nil
+	}
+	req := stageReqs[idx]
+	if req == nil || req.Crosstab != nil {
+		return resp, nil
+	}
+	aggIdx := 0
+	if seriesfield.AppliesChain(route) {
+		i, err := seriesfield.ResolveChainStage(req.Aggregations, spec, specIdx, which, idx)
+		if err != nil {
+			return nil, err
+		}
+		aggIdx = i
+	}
+	return narrowSeriesHost(req, aggIdx, resp), nil
 }

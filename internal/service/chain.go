@@ -314,13 +314,18 @@ func (s *Service) applyChainOverlays(req *types.ChainRequest, out *types.ChainRe
 		return nil
 	}
 	stageNames := make([]string, len(req.Stages))
+	// Each stage's Request as it ran (smart defaults resolved in place
+	// by the stage loop): a SERIES stage keys on its group columns and
+	// scores the aggregation params.field names.
+	stageReqs := make([]*types.Request, len(req.Stages))
 	for i, st := range req.Stages {
 		if st == nil {
 			continue
 		}
 		stageNames[i] = st.Name
+		stageReqs[i] = st.Request
 	}
-	layers, warnings, err := processing.ApplyChainOverlaysWithExtensions(req.Overlays, out.Stages, stageNames, s.extensions)
+	layers, warnings, err := processing.ApplyChainOverlaysWithRequests(req.Overlays, out.Stages, stageNames, stageReqs, s.extensions)
 	if err != nil {
 		return err
 	}

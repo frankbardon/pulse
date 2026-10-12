@@ -73,12 +73,7 @@ func OverlayCapabilities() []descriptor.OverlayCapability {
 	for _, k := range kinds {
 		streamable, _ := types.OverlayStreamable(k)
 		entry := overlayCapabilityFor(k)
-		if seriesfield.Applies(k) {
-			entry.Description += seriesFieldNote
-		}
-		if seriesfield.AppliesCompose(k) {
-			entry.Description += composeSeriesFieldNote
-		}
+		entry.Description += seriesFieldNoteFor(k)
 		entry.Buffered = !streamable
 		entry.Zone = ZoneCapabilityOf(string(k))
 		sort.Slice(entry.Shapes, func(i, j int) bool {
@@ -94,6 +89,22 @@ func OverlayCapabilities() []descriptor.OverlayCapability {
 	return caps
 }
 
+// seriesFieldNoteFor is the params.field note closing kind's
+// Description on every manifest surface that lists it (Manifest.Overlays
+// and the ProcessChain capability block): the host family's note, else
+// "".
+func seriesFieldNoteFor(k types.OverlayKind) string {
+	switch {
+	case seriesfield.Applies(k):
+		return seriesFieldNote
+	case seriesfield.AppliesCompose(k):
+		return composeSeriesFieldNote
+	case seriesfield.AppliesChain(k):
+		return chainSeriesFieldNote
+	}
+	return ""
+}
+
 // seriesFieldNote closes the Description of every series kind that
 // scores one host aggregation (internal/seriesfield): the params.field
 // rule, stated once so the twelve rows cannot drift.
@@ -107,6 +118,13 @@ const seriesFieldNote = " Measure: on a SERIES host the overlay scores the aggre
 const composeSeriesFieldNote = " Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores " +
 	"the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on every slot it reads; " +
 	"absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime."
+
+// chainSeriesFieldNote closes the Description of every whole-chain
+// kind whose SERIES arm scores one stage aggregation
+// (seriesfield.AppliesChain).
+const chainSeriesFieldNote = " Measure: on SERIES stages the overlay keys each row on the stage's group columns alone and scores " +
+	"the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on the target and the reference stage; " +
+	"absent, each stage's Aggregations[0]. A label a stage lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.which, stage_index) at predict and at runtime."
 
 // overlayCapabilityFor returns the static per-kind capability shape
 // (Shapes / Scopes / RefKinds / Description). Buffered is filled by

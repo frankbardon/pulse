@@ -113,3 +113,33 @@ func TestResolveComposeSlot(t *testing.T) {
 		t.Error("compose kind set wrong, or a compose kind leaked into the process-host set")
 	}
 }
+
+// ResolveChainStage reads the chain spec's params by the Resolve rule
+// and stamps the arm and stage on a refusal.
+func TestResolveChainStage(t *testing.T) {
+	spec := &types.ChainOverlaySpec{Kind: types.OverlayKindDeltaVsStage}
+	for field, want := range map[any]int{nil: 0, "": 0, "orders": 2, "AGG_AVERAGE_spend": 1} {
+		spec.Params = map[string]any{"field": field}
+		if got, err := ResolveChainStage(aggs(), spec, 0, "target", 1); err != nil || got != want {
+			t.Errorf("field %v: (%d, %v), want %d", field, got, err, want)
+		}
+	}
+	spec.Params = map[string]any{"field": "spend"}
+	_, err := ResolveChainStage(aggs(), spec, 2, "ref", 0)
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_OVERLAY_FIELD_UNKNOWN {
+		t.Fatalf("err = %v, want PULSE_OVERLAY_FIELD_UNKNOWN", err)
+	}
+	want := map[string]any{"index": 2, "kind": string(types.OverlayKindDeltaVsStage), "field": "spend",
+		"available": []string{"AGG_SUM_spend", "AGG_AVERAGE_spend", "orders"}, "which": "ref", "stage_index": 0}
+	if !reflect.DeepEqual(ce.Details, want) {
+		t.Errorf("details %#v, want %#v", ce.Details, want)
+	}
+	if got := ChainKinds(); !reflect.DeepEqual(got, []types.OverlayKind{types.OverlayKindIndexVsStage, types.OverlayKindDeltaVsStage}) &&
+		!reflect.DeepEqual(got, []types.OverlayKind{types.OverlayKindDeltaVsStage, types.OverlayKindIndexVsStage}) {
+		t.Errorf("ChainKinds = %v", got)
+	}
+	if AppliesChain(types.OverlayKindIndexVsRef) || Applies(types.OverlayKindIndexVsStage) || AppliesCompose(types.OverlayKindDeltaVsStage) {
+		t.Error("a chain kind leaked into another host set, or a compose kind into the chain set")
+	}
+}

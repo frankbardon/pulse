@@ -3,6 +3,7 @@ package descriptor
 import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -153,6 +154,15 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 			addCodedError(env, aerr)
 			continue
 		}
+		// The SERIES value rule (U46): a non-crosstab stage is scored on
+		// the aggregation params.field names (else Aggregations[0]), the
+		// runtime's processing.projectChainSeriesStages — target first,
+		// then ref. A stage with an untyped, unlabelled aggregation takes
+		// its labels from the schema at run time, so the runtime judges it.
+		validateChainOverlaySeriesField(env, spec, opts.overlayRoute(spec.Kind), i, "target", targetIdx, targetReq)
+		if refIdx != targetIdx {
+			validateChainOverlaySeriesField(env, spec, opts.overlayRoute(spec.Kind), i, "ref", refIdx, refReq)
+		}
 		refShape := inferChainStageShape(refReq)
 		targetShape := inferChainStageShape(targetReq)
 		if refShape == targetShape {
@@ -181,6 +191,19 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 					TargetShape: targetShape,
 				})
 		}
+	}
+}
+
+// validateChainOverlaySeriesField refuses a params.field that names no
+// aggregation of one stage, PULSE_OVERLAY_FIELD_UNKNOWN via the
+// seriesfield.ResolveChainStage call the runtime makes on the same
+// stage Request.
+func validateChainOverlaySeriesField(env *descriptor.Envelope, spec *types.ChainOverlaySpec, route types.OverlayKind, specIdx int, which string, stageIdx int, req *types.Request) {
+	if !seriesfield.AppliesChain(route) || req == nil || req.Crosstab != nil || requestLabelsDeferred(req) {
+		return
+	}
+	if _, err := seriesfield.ResolveChainStage(req.Aggregations, spec, specIdx, which, stageIdx); err != nil {
+		addCodedError(env, err)
 	}
 }
 

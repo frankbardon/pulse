@@ -42,15 +42,7 @@ func Applies(kind types.OverlayKind) bool { return kinds[kind] }
 
 // Kinds returns every kind Applies accepts, in types.AllOverlayKinds
 // order.
-func Kinds() []types.OverlayKind {
-	out := make([]types.OverlayKind, 0, len(kinds))
-	for _, k := range types.AllOverlayKinds() {
-		if kinds[k] {
-			out = append(out, k)
-		}
-	}
-	return out
-}
+func Kinds() []types.OverlayKind { return kindsIn(kinds) }
 
 // Labels returns the output label of every aggregation, in request
 // order: the explicit Label, else TYPE_field (types.AggregationLabelOf).
@@ -93,7 +85,8 @@ func Resolve(aggs []*types.Aggregation, spec *types.OverlaySpec, index int) (int
 	return resolve(aggs, spec.Kind, m, index)
 }
 
-// resolve is Resolve over decoded params, shared with the Compose host.
+// resolve is Resolve over decoded params, shared with the Compose and
+// chain hosts.
 func resolve(aggs []*types.Aggregation, kind types.OverlayKind, params map[string]any, index int) (int, error) {
 	raw, present := params[Param]
 	if !present || raw == nil {
@@ -137,10 +130,30 @@ func AppliesCompose(kind types.OverlayKind) bool { return composeKinds[kind] }
 
 // ComposeKinds returns every kind AppliesCompose accepts, in
 // types.AllOverlayKinds order.
-func ComposeKinds() []types.OverlayKind {
-	out := make([]types.OverlayKind, 0, len(composeKinds))
+func ComposeKinds() []types.OverlayKind { return kindsIn(composeKinds) }
+
+// chainKinds is the set of whole-chain (CHAIN-host) kinds whose SERIES
+// arm scores one aggregation of each stage: the value of a stage's Data
+// row is the aggregation Param names, its key the stage's group columns
+// only — the Compose rule, per stage.
+var chainKinds = map[types.OverlayKind]bool{
+	types.OverlayKindIndexVsStage: true,
+	types.OverlayKindDeltaVsStage: true,
+}
+
+// AppliesChain reports whether kind is a whole-chain kind whose SERIES
+// arm scores the stage aggregation Param names.
+func AppliesChain(kind types.OverlayKind) bool { return chainKinds[kind] }
+
+// ChainKinds returns every kind AppliesChain accepts, in
+// types.AllOverlayKinds order.
+func ChainKinds() []types.OverlayKind { return kindsIn(chainKinds) }
+
+// kindsIn returns the members of set in types.AllOverlayKinds order.
+func kindsIn(set map[types.OverlayKind]bool) []types.OverlayKind {
+	out := make([]types.OverlayKind, 0, len(set))
 	for _, k := range types.AllOverlayKinds() {
-		if composeKinds[k] {
+		if set[k] {
 			out = append(out, k)
 		}
 	}
@@ -159,10 +172,35 @@ func ResolveComposeSlot(aggs []*types.Aggregation, spec *types.ComposeOverlaySpe
 	if spec == nil {
 		return 0, nil
 	}
-	i, err := resolve(aggs, spec.Kind, spec.Params, index)
+	return located(aggs, spec.Kind, spec.Params, index,
+		map[string]any{"slot": slot}, " on slot \""+slot+"\"")
+}
+
+// ResolveChainStage returns the index into aggs (one chain stage's
+// Request.Aggregations) of the aggregation a whole-chain overlay spec
+// scores on that stage: the Resolve rule over the spec's Params. The
+// refusal is PULSE_OVERLAY_FIELD_UNKNOWN with Details {index, kind,
+// field, available, which, stage_index} — index the spec's position in
+// ChainRequest.Overlays, which "target" or "ref", stage_index the
+// stage it resolved to. The runtime dispatcher and predict-chain both
+// call it, target before ref, so the refusal cannot drift between them.
+func ResolveChainStage(aggs []*types.Aggregation, spec *types.ChainOverlaySpec, index int, which string, stage int) (int, error) {
+	if spec == nil {
+		return 0, nil
+	}
+	return located(aggs, spec.Kind, spec.Params, index,
+		map[string]any{"which": which, "stage_index": stage}, " on the "+which+" stage")
+}
+
+// located is resolve with the host's locating Details merged into a
+// refusal and suffix appended to its message.
+func located(aggs []*types.Aggregation, kind types.OverlayKind, params map[string]any, index int, at map[string]any, suffix string) (int, error) {
+	i, err := resolve(aggs, kind, params, index)
 	if ce, ok := err.(*errors.CodedError); ok {
-		ce.Details["slot"] = slot
-		ce.Message += " on slot \"" + slot + "\""
+		for k, v := range at {
+			ce.Details[k] = v
+		}
+		ce.Message += suffix
 	}
 	return i, err
 }

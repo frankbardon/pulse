@@ -2416,7 +2416,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_FIELD_UNKNOWN: {
-		Message: "A series overlay's params.field does not name a request aggregation. The param takes the OUTPUT LABEL of one Request.Aggregations entry — its explicit Label, else its TYPE_field default — and the overlay scores that aggregation; absent, it scores the first aggregation. Raised at predict and at runtime with the same Details {index, kind, field, available}, where available lists the request's aggregation labels in order. A Compose overlay (INDEX_VS_REF, DELTA_VS_REF, T_VS_REF, Z_VS_REF, PANEL_INDEX_VS_REF) resolves the label on every non-crosstab slot it reads, reference first, and adds Details.slot naming the slot that lacks it.",
+		Message: "A series overlay's params.field does not name a request aggregation. The param takes the OUTPUT LABEL of one Request.Aggregations entry — its explicit Label, else its TYPE_field default — and the overlay scores that aggregation; absent, it scores the first aggregation. Raised at predict and at runtime with the same Details {index, kind, field, available}, where available lists the request's aggregation labels in order. A Compose overlay (INDEX_VS_REF, DELTA_VS_REF, T_VS_REF, Z_VS_REF, PANEL_INDEX_VS_REF) resolves the label on every non-crosstab slot it reads, reference first, and adds Details.slot naming the slot that lacks it. A whole-chain overlay (INDEX_VS_STAGE, DELTA_VS_STAGE) resolves it on the target, then the reference non-crosstab stage, and adds Details.which (target | ref) and Details.stage_index.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,

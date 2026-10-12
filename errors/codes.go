@@ -1649,6 +1649,10 @@ const (
 	// available} — available lists the request's aggregation labels.
 	// A Compose overlay's SERIES arm resolves it per slot
 	// (seriesfield.ResolveComposeSlot) and adds Details.slot.
+	// A whole-chain overlay (INDEX_VS_STAGE, DELTA_VS_STAGE) resolves
+	// it on the target, then the reference stage
+	// (seriesfield.ResolveChainStage) and adds Details.which and
+	// Details.stage_index.
 	PULSE_OVERLAY_FIELD_UNKNOWN Code = "PULSE_OVERLAY_FIELD_UNKNOWN"
 
 	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT indicates a whole-chain

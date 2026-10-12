@@ -175,6 +175,16 @@ func ApplyChainOverlays(specs []*types.ChainOverlaySpec, stages []*types.Respons
 // kind the instance feature set hides misses the CHAIN table exactly
 // like a never-registered kind. A nil exts is ApplyChainOverlays.
 func ApplyChainOverlaysWithExtensions(specs []*types.ChainOverlaySpec, stages []*types.Response, stageNames []string, exts *ExtensionRegistry) ([]*types.OverlayLayer, []types.OverlayWarning, error) {
+	return ApplyChainOverlaysWithRequests(specs, stages, stageNames, nil, exts)
+}
+
+// ApplyChainOverlaysWithRequests is ApplyChainOverlaysWithExtensions
+// with each stage's executed Request in reach (stageReqs, parallel to
+// stages): a SERIES stage then keys on its group columns alone and
+// scores the aggregation params.field names, else its Aggregations[0]
+// (projectChainSeriesStages). A nil stageReqs keeps the legacy
+// whole-row reading of encodeSeriesRow.
+func ApplyChainOverlaysWithRequests(specs []*types.ChainOverlaySpec, stages []*types.Response, stageNames []string, stageReqs []*types.Request, exts *ExtensionRegistry) ([]*types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
@@ -224,7 +234,15 @@ func ApplyChainOverlaysWithExtensions(specs []*types.ChainOverlaySpec, stages []
 		if err != nil {
 			return nil, nil, err
 		}
-		layer, ws, err := handler(spec, stages[targetIdx], stages[refIdx], targetIdx, refIdx)
+		// SERIES stages narrow to their group columns plus the scored
+		// aggregation BEFORE the handler reads a Data row; the field
+		// refusal sits where predict-chain raises it, after stage
+		// resolution.
+		target, ref, err := projectChainSeriesStages(spec, exts.overlayRoute(spec.Kind), i, stages[targetIdx], stages[refIdx], targetIdx, refIdx, stageReqs)
+		if err != nil {
+			return nil, nil, err
+		}
+		layer, ws, err := handler(spec, target, ref, targetIdx, refIdx)
 		if err != nil {
 			return nil, nil, err
 		}

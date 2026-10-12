@@ -654,7 +654,7 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 			// default (and so its TYPE_field label) from the cohort
 			// schema, which predict-compose never reads: such a slot's
 			// labels are unknown here, so the runtime judges it.
-			if composeSlotLabelsDeferred(s.req) {
+			if requestLabelsDeferred(s.req) {
 				continue
 			}
 			if _, ferr := seriesfield.ResolveComposeSlot(s.req.Aggregations, spec, specIdx, s.label); ferr != nil {
@@ -985,10 +985,11 @@ func composeRequestAxisTuples(req *types.Request) ([]string, []string) {
 	return nil, nil
 }
 
-// composeSlotLabelsDeferred reports whether a slot carries an
-// aggregation with neither a Label nor a Type: its output label is the
-// smart default's TYPE_field, decided by the cohort schema at run time.
-func composeSlotLabelsDeferred(req *types.Request) bool {
+// requestLabelsDeferred reports whether a Compose slot or chain stage
+// Request carries an aggregation with neither a Label nor a Type: its
+// output label is the smart default's TYPE_field, decided by the
+// cohort schema at run time.
+func requestLabelsDeferred(req *types.Request) bool {
 	for _, a := range req.Aggregations {
 		if a != nil && a.Label == "" && a.Type == "" {
 			return true
