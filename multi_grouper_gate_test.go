@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/spf13/afero"
@@ -15,6 +17,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
+	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -119,26 +122,123 @@ func mgSchema() encoding.Schema {
 	return encoding.Schema{Fields: fields}
 }
 
-// mgFixture is the gate's engine over the 30-row cohort.
+// mgFixture is the gate's engine over the 30-row cohort: f.p reads the
+// single file; the parallel modes read the same rows as a shard archive
+// (f.shard) or interleaved with filtered-out filler rows on disk
+// (f.decoder, built on first use).
 type mgFixture struct {
 	p      *pulse.Pulse
 	fs     afero.Fs
 	cohort string
+	opts   pulse.Options
+
+	// shard reads archive (the 30 rows split 1 / 0 / 7 / 12 / 10)
+	// with ShardWorkers 3.
+	shard   *pulse.Pulse
+	archive string
+
+	// tempDir is the creating test's (outlives every subtest).
+	tempDir      func() string
+	decodeOnce   sync.Once
+	decoder      *pulse.Pulse
+	decodeCohort string
+
+	// arm is the execution arm of the last operation a parallel-mode
+	// engine ran (observe.OperationResult.Arm).
+	armMu sync.Mutex
+	arm   observe.Arm
 }
+
+// mgShardBounds splits mgRows into a 1-row shard, an EMPTY shard and
+// three uneven ones.
+var mgShardBounds = []int{0, 1, 1, 8, 20, 30}
 
 func newMGFixture(t *testing.T, opts pulse.Options) *mgFixture {
 	t.Helper()
 	fsys := afero.NewMemMapFs()
+	f := &mgFixture{fs: fsys, cohort: "mg.pulse", archive: "mg_archive.pulse", opts: opts, tempDir: t.TempDir}
+	f.p = f.engine(t, fsys, 0, 0)
+	mgWriteCohort(t, f.p, f.cohort, mgRows, 0)
+	var shards []string
+	for i := 0; i+1 < len(mgShardBounds); i++ {
+		path := fmt.Sprintf("mg_s%d.pulse", i)
+		mgWriteCohort(t, f.p, path, mgRows[mgShardBounds[i]:mgShardBounds[i+1]], 0)
+		shards = append(shards, path)
+	}
+	if _, err := f.p.CreateShardArchive(context.Background(), f.archive, shards); err != nil {
+		t.Fatalf("CreateShardArchive: %v", err)
+	}
+	f.shard = f.engine(t, fsys, 3, 1)
+	return f
+}
+
+// engine is a pulse instance over fsys carrying the fixture's options,
+// the given worker knobs and an arm-recording hook.
+func (f *mgFixture) engine(t *testing.T, fsys afero.Fs, shardWorkers, decodeWorkers int) *pulse.Pulse {
+	t.Helper()
+	opts := f.opts
 	opts.FS = fsys
+	opts.ShardWorkers, opts.DecodeWorkers = shardWorkers, decodeWorkers
+	opts.Hooks = &observe.Hooks{OnOperationEnd: func(_ context.Context, _ observe.OperationInfo, r observe.OperationResult) {
+		f.armMu.Lock()
+		f.arm = r.Arm
+		f.armMu.Unlock()
+	}}
 	p, err := pulse.New(opts)
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
-	b, err := p.NewCohortBuilder(context.Background(), "mg.pulse", mgSchema(), pulse.CohortBuilderOptions{})
+	return p
+}
+
+// mgDecodeFiller is the filler record count: above the parallel-decode
+// threshold (100,000 records), so DecodeWorkers engages.
+const mgDecodeFiller = 102_400
+
+// decodeEngine returns the DecodeWorkers=3 engine over an on-disk
+// cohort holding mgRows interleaved with mgDecodeFiller filler rows
+// (id >= 1,000,000 — mgDecodeFilter drops them), so every worker's
+// segment carries real rows. Built once per fixture.
+func (f *mgFixture) decodeEngine(t *testing.T) (*pulse.Pulse, string) {
+	t.Helper()
+	f.decodeOnce.Do(func() {
+		dir := f.tempDir()
+		fsys := afero.NewBasePathFs(afero.NewOsFs(), dir)
+		f.decoder = f.engine(t, fsys, 1, 3)
+		f.decodeCohort = "mg_decode.pulse"
+		mgWriteCohort(t, f.decoder, f.decodeCohort, mgRows, mgDecodeFiller)
+	})
+	if f.decoder == nil {
+		t.Fatal("decode fixture failed to build")
+	}
+	return f.decoder, f.decodeCohort
+}
+
+// mgDecodeFilter keeps the 30 real rows (ids 1-30) and drops the filler.
+func mgDecodeFilter() *types.Filterer {
+	return &types.Filterer{Type: types.FILTER_RANGE, Field: "id", Values: []string{"0", "1000"}}
+}
+
+// mgWriteCohort writes rows to path; filler > 0 interleaves that many
+// filler rows, the real rows spread evenly across the file.
+func mgWriteCohort(t *testing.T, p *pulse.Pulse, path string, rows []mgRow, filler int) {
+	t.Helper()
+	b, err := p.NewCohortBuilder(context.Background(), path, mgSchema(), pulse.CohortBuilderOptions{})
 	if err != nil {
 		t.Fatalf("NewCohortBuilder: %v", err)
 	}
-	for _, r := range mgRows {
+	day := func(id int) int32 {
+		dayStr := "2024-01-15"
+		if id%2 == 0 {
+			dayStr = "2024-02-15"
+		}
+		d, err := encoding.ParseDate(dayStr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return int32(d)
+	}
+	appendRow := func(r mgRow) {
 		var tier, tags any
 		if r.tier != "" {
 			tier = r.tier
@@ -146,23 +246,125 @@ func newMGFixture(t *testing.T, opts pulse.Options) *mgFixture {
 		if r.tags != nil {
 			tags = r.tags
 		}
-		dayStr := "2024-01-15"
-		if r.id%2 == 0 {
-			dayStr = "2024-02-15"
-		}
-		d, err := encoding.ParseDate(dayStr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		row := pulse.CohortRow{uint64(r.id), r.region, r.sex, tier, tags, float64(r.id), r.y, int32(d)}
+		row := pulse.CohortRow{uint64(r.id), r.region, r.sex, tier, tags, float64(r.id), r.y, day(r.id)}
 		if err := b.Append(row); err != nil {
 			t.Fatalf("Append(%d): %v", r.id, err)
 		}
 	}
+	total, every := len(rows)+filler, 1
+	if len(rows) > 0 {
+		every = total / len(rows)
+	}
+	next := 0
+	for i := 0; i < total; i++ {
+		if next < len(rows) && i == next*every {
+			appendRow(rows[next])
+			next++
+			continue
+		}
+		appendRow(mgRow{id: 1_000_000 + i, region: "north", sex: "F", tags: []string{}})
+	}
 	if _, err := b.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
-	return &mgFixture{p: p, fs: fsys, cohort: "mg.pulse"}
+}
+
+// lastArm is the arm of the last operation a fixture engine ran.
+func (f *mgFixture) lastArm() observe.Arm {
+	f.armMu.Lock()
+	defer f.armMu.Unlock()
+	return f.arm
+}
+
+// mgMergeable reports whether the parallel reducers admit req's
+// groupers (the built-in mergeable set plus the gate's mergeable
+// extension grouper), i.e. whether a parallel mode must fan out.
+func mgMergeable(req *types.Request) bool {
+	for _, g := range req.Groups {
+		if !g.Type.Mergeable() && g.Type != grpMrgFloor && g.Type != grpMGNul {
+			return false
+		}
+	}
+	return true
+}
+
+// mgRequireArm fails unless the last run took arm whenever req is
+// mergeable — a parallel mode must never silently pass serially.
+func mgRequireArm(t *testing.T, f *mgFixture, req *types.Request, arm observe.Arm) {
+	t.Helper()
+	if mgMergeable(req) && f.lastArm() != arm {
+		t.Fatalf("mergeable request ran on arm %q, want %q", f.lastArm(), arm)
+	}
+}
+
+// mgKeyColumn is the Data column g writes its key under (the
+// vectors.GroupKeyField rule: Field, else "<TYPE>_<first fields entry>").
+func mgKeyColumn(g *types.Group) string {
+	if g.Field != "" {
+		return g.Field
+	}
+	return string(g.Type) + "_" + g.Fields[0]
+}
+
+// mgRunChain runs req as stage 0 of a two-stage chain whose stage 1
+// re-groups stage 0's rows by EVERY key column (GROUP_CATEGORY, the
+// include list kept) and sums each aggregation column. Stage 1 must
+// reproduce stage 0's rows key for key — the stage typing exposes
+// every key column and a downstream stage can group on each — and
+// stage 0's response is returned for the gate's checks.
+func mgRunChain(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error) {
+	t.Helper()
+	next := &types.Request{}
+	var cols []string
+	for _, g := range req.Groups {
+		col := mgKeyColumn(g)
+		cols = append(cols, col)
+		ng := &types.Group{Type: types.GROUP_CATEGORY, Field: col}
+		if g.Type == types.GROUP_CATEGORY {
+			ng.Include = g.Include
+		}
+		next.Groups = append(next.Groups, ng)
+	}
+	var labels []string
+	for _, a := range req.Aggregations {
+		labels = append(labels, a.Label)
+		next.Aggregations = append(next.Aggregations, &types.Aggregation{Type: types.AGG_SUM, Field: a.Label, Label: a.Label})
+	}
+	stage0 := *req
+	stage0.Cohort = nil
+	out, err := f.p.ProcessChain(context.Background(), &types.ChainRequest{
+		Cohort: req.Cohort,
+		Stages: []*types.ChainStage{{Request: &stage0}, {Request: next}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(out.Stages) != 2 {
+		t.Fatalf("chain returned %d stages", len(out.Stages))
+	}
+	index := func(data []map[string]any) map[string]string {
+		m := make(map[string]string, len(data))
+		for i, row := range data {
+			key := make([]string, 0, len(cols))
+			for _, c := range cols {
+				v, ok := row[c]
+				if !ok {
+					t.Fatalf("chain row %d carries no key column %q: %v", i, c, row)
+				}
+				key = append(key, fmt.Sprint(v))
+			}
+			val := make([]string, 0, len(labels))
+			for _, l := range labels {
+				val = append(val, fmt.Sprint(row[l]))
+			}
+			m[strings.Join(key, "|")] = strings.Join(val, "|")
+		}
+		return m
+	}
+	if got, want := index(out.Stages[1].Data), index(out.Stages[0].Data); !reflect.DeepEqual(got, want) {
+		t.Fatalf("stage 1 re-grouped on every key column differs from stage 0:\n got  %v\n want %v", got, want)
+	}
+	return out.Stages[0], nil
 }
 
 // mgMode is one execution mode of the gate. run returns the response
@@ -170,23 +372,36 @@ func newMGFixture(t *testing.T, opts pulse.Options) *mgFixture {
 type mgMode struct {
 	name string
 	run  func(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error)
+	// mergeOnly marks a mode that admits only mergeable groupers: a
+	// ProcessChain stage must merge (PULSE_CHAIN_NOT_MERGEABLE), with
+	// one grouper as with several.
+	mergeOnly bool
+}
+
+// admits reports whether the mode can run groups at all.
+func (m mgMode) admits(groups []*types.Group) bool {
+	return !m.mergeOnly || mgMergeable(&types.Request{Groups: groups})
 }
 
 // mgModes: buffered Process (a non-streamable AGG_MEDIAN slot forces
 // the buffered arm), streaming Process and ProcessStream (every slot
 // streamable; a request whose groupers all stream must ride the
 // streaming arm — a non-streamable grouper, GROUP_DATE / GROUP_QUANTILE
-// / GROUP_KMEANS, routes buffered by design). E2-S1 / E2-S2 append
-// their modes.
+// / GROUP_KMEANS, routes buffered by design); the shard archive
+// (ShardWorkers 3 over an uneven split with a 1-row and an empty shard)
+// and parallel decode (DecodeWorkers 3), each required to take its
+// parallel arm whenever the groupers merge; Compose, serial and
+// parallel; and stage 0 of a ProcessChain whose stage 1 re-groups on
+// every key column. E2-S2 appends its modes.
 var mgModes = []mgMode{
 	{"Buffered", func(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error) {
 		req.Aggregations = append(req.Aggregations, &types.Aggregation{Type: types.AGG_MEDIAN, Field: "score", Label: "med"})
 		return f.p.Process(context.Background(), req)
-	}},
+	}, false},
 	{"Streaming", func(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error) {
 		mgRequireStreamable(t, f, req)
 		return f.p.Process(context.Background(), req)
-	}},
+	}, false},
 	{"ProcessStream", func(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error) {
 		mgRequireStreamable(t, f, req)
 		iter, err := f.p.ProcessStream(context.Background(), req)
@@ -207,7 +422,50 @@ var mgModes = []mgMode{
 		}
 		resp.Components = iter.Components()
 		return resp, nil
-	}},
+	}, false},
+	{"ShardArchive", func(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error) {
+		req.Cohort = &types.Cohort{Filename: f.archive}
+		resp, err := f.shard.Process(context.Background(), req)
+		if err == nil {
+			mgRequireArm(t, f, req, observe.ArmShardParallel)
+		}
+		return resp, err
+	}, false},
+	{"ParallelDecode", func(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error) {
+		p, cohort := f.decodeEngine(t)
+		req.Cohort = &types.Cohort{Filename: cohort}
+		req.Filterers = append(req.Filterers, mgDecodeFilter())
+		resp, err := p.Process(context.Background(), req)
+		if err == nil {
+			mgRequireArm(t, f, req, observe.ArmParallelDecode)
+		}
+		return resp, err
+	}, false},
+	{"Compose", func(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error) {
+		out, err := f.p.Compose(context.Background(), &types.ComposedRequest{Requests: []*types.Request{req}})
+		if err != nil {
+			return nil, err
+		}
+		return out.Responses[0], nil
+	}, false},
+	{"ComposeParallel", func(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error) {
+		var twin types.Request
+		if b, err := json.Marshal(req); err != nil || json.Unmarshal(b, &twin) != nil {
+			t.Fatalf("clone request: %v", err)
+		}
+		out, err := f.p.ComposeParallel(context.Background(), &types.ComposedRequest{Requests: []*types.Request{req, &twin}},
+			pulse.ComposeOptions{MaxWorkers: 2, FailFast: true})
+		if err != nil {
+			return nil, err
+		}
+		if !reflect.DeepEqual(out.Responses[0].Data, out.Responses[1].Data) {
+			t.Fatalf("parallel Compose slots disagree:\n %v\n %v", out.Responses[0].Data, out.Responses[1].Data)
+		}
+		return out.Responses[0], nil
+	}, false},
+	{"ProcessChain", func(t *testing.T, f *mgFixture, req *types.Request) (*types.Response, error) {
+		return mgRunChain(t, f, req)
+	}, true},
 }
 
 // mgRequireStreamable fails unless predict routes req to the streaming
@@ -416,6 +674,9 @@ func TestMultiGrouper_Gate(t *testing.T) {
 		f := newMGFixture(t, pulse.Options{})
 		for _, c := range mgCases() {
 			t.Run(mode.name+"/"+c.name, func(t *testing.T) {
+				if !mode.admits(c.groups) {
+					t.Skip("mode admits mergeable groupers only")
+				}
 				resp, err := mode.run(t, f, mgRequest(f, c.groups))
 				if err != nil {
 					t.Fatalf("Process: %v", err)
@@ -489,6 +750,9 @@ func TestMultiGrouper_DataDependentKeyIndependentOfPosition(t *testing.T) {
 			{"KMeans", mgKMeans, "GROUP_KMEANS_y"},
 		} {
 			t.Run(mode.name+"/"+c.name, func(t *testing.T) {
+				if !mode.admits([]*types.Group{c.g()}) {
+					t.Skip("mode admits mergeable groupers only")
+				}
 				run := func(groups ...*types.Group) []map[string]any {
 					resp, err := mode.run(t, f, mgRequest(f, groups, sum))
 					if err != nil {
@@ -780,6 +1044,9 @@ func TestMultiGrouper_PredictBoundsRuntime(t *testing.T) {
 			continue
 		}
 		for _, mode := range mgModes {
+			if !mode.admits(c.groups) {
+				continue
+			}
 			resp, err := mode.run(t, f, mgRequest(f, c.groups))
 			if err != nil {
 				t.Fatalf("%s/%s: %v", mode.name, c.name, err)
@@ -827,6 +1094,9 @@ func TestMultiGrouper_SeparatorInKeyRefused(t *testing.T) {
 	reg := pulse.GrouperRegistration{
 		Name:       grpMGNul,
 		Streamable: true,
+		// Mergeable (it carries no components state), so the shard and
+		// decode modes key it on their parallel arms.
+		Mergeable: true,
 		Factory: func(spec *types.Group, schema *encoding.Schema) (extend.Grouper, error) {
 			return nulKeyGrouper{&parityCategoryGrouper{probe: &parityProbe{}, dict: fieldDict(schema, spec.Field), live: map[string]int{}}}, nil
 		},
@@ -861,5 +1131,245 @@ func TestMultiGrouper_SeparatorInKeyRefused(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// mgBitsRow is record r of the bit-exactness cohorts: mgRows[r%30]'s
+// keys with a fractional score (still inside the row's GROUP_RANGE
+// bucket; also the weight) and a noisy y, so a reassociated Welford or
+// co-moment merge moves bits.
+func mgBitsRow(r int) mgRow {
+	row := mgRows[r%len(mgRows)]
+	z := uint64(r) + 0x9e3779b97f4a7c15
+	z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9
+	z = (z ^ (z >> 27)) * 0x94d049bb133111eb
+	z ^= z >> 31
+	u := float64(z>>11) / float64(1<<53)
+	row.y += u*1000/3 - 100
+	row.id = r + 1
+	return row
+}
+
+// mgWriteBitsCohort writes records [from, to) of the bit cohort.
+func mgWriteBitsCohort(t *testing.T, p *pulse.Pulse, path string, from, to int) {
+	t.Helper()
+	b, err := p.NewCohortBuilder(context.Background(), path, mgSchema(), pulse.CohortBuilderOptions{})
+	if err != nil {
+		t.Fatalf("NewCohortBuilder: %v", err)
+	}
+	for r := from; r < to; r++ {
+		row := mgBitsRow(r)
+		base := mgRows[r%len(mgRows)]
+		var tier, tags any
+		if row.tier != "" {
+			tier = row.tier
+		}
+		if row.tags != nil {
+			tags = row.tags
+		}
+		score := float64(base.id) + float64(r%97)/97
+		day := int32(19737 + base.id%2*31)
+		if err := b.Append(pulse.CohortRow{uint64(row.id), row.region, row.sex, tier, tags, score, row.y, day}); err != nil {
+			t.Fatalf("Append(%d): %v", r, err)
+		}
+	}
+	if _, err := b.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+}
+
+// mgBitsRequest is c's groups over a count and the merge-block slots
+// (vector sum / mean, covariance) — every float slot weighted by score
+// when weighted. Those merge through processing.BlockMerger's fixed
+// tree, so their bits cannot depend on the partition; a scalar
+// AGG_SUM / AGG_AVERAGE / AGG_STDDEV merges through MergeOnline and is
+// ULP-bounded across worker counts by design, with one grouper as with
+// several (.claude/reference/execution-modes.md, Blocked merge).
+func mgBitsRequest(cohort string, groups []*types.Group, weighted bool) *types.Request {
+	var w types.SlotWeight
+	if weighted {
+		w = types.SlotWeightField("score")
+	}
+	return &types.Request{
+		Cohort: &types.Cohort{Filename: cohort},
+		Groups: groups,
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_COUNT, Field: "id", Label: "n"},
+			{Type: types.AGG_VEC_SUM, Fields: []string{"score", "y"}, Label: "s", Weight: w},
+			{Type: types.AGG_VEC_MEAN, Fields: []string{"score", "y"}, Label: "m", Weight: w},
+		},
+		Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "cov", Fields: []string{"score", "y"}, Weight: w}},
+	}
+}
+
+// mgBits is the part of a response every worker count must reproduce
+// bit for bit: rows, per-slot and per-group Components, per-grouper
+// Components and the grouped matrices (Run.shard_count and the cohort
+// path legitimately differ between a file and its archive). The
+// aggregation floor's weighted keys (sum_weights, n_eff) are lifted
+// into Floors: they are plain Σw / Σw² tallies summed across
+// partitions (processing.MergeSlotFloors), so they are equal to a few
+// ulps, not bitwise — with one grouper as with several.
+type mgBits struct {
+	Data     []map[string]any
+	Aggs     []types.AggregationComponents
+	Floors   []float64
+	Groupers []types.GrouperComponents
+	Matrices []types.MatrixResult
+	MatComps []types.MatrixComponents
+	Arm      observe.Arm
+}
+
+func mgRunBits(t *testing.T, p *pulse.Pulse, f *mgFixture, req *types.Request) mgBits {
+	t.Helper()
+	resp, err := p.Process(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	out := mgBits{Data: resp.Data, Matrices: resp.Matrices, Arm: f.lastArm()}
+	if c := resp.Components; c != nil {
+		out.Aggs, out.Groupers, out.MatComps = c.Aggregations, c.Groupers, c.Matrices
+	}
+	lift := func(ps ...**float64) {
+		for _, p := range ps {
+			if *p != nil {
+				out.Floors = append(out.Floors, **p)
+				*p = nil
+			}
+		}
+	}
+	for i := range out.Aggs {
+		lift(&out.Aggs[i].SumWeights, &out.Aggs[i].NEff)
+		for j := range out.Aggs[i].Groups {
+			lift(&out.Aggs[i].Groups[j].SumWeights, &out.Aggs[i].Groups[j].NEff)
+		}
+	}
+	if len(out.Data) == 0 || len(out.Groupers) != len(req.Groups) {
+		t.Fatalf("degenerate run: %d rows, %d grouper entries", len(out.Data), len(out.Groupers))
+	}
+	return out
+}
+
+func mgSameBits(t *testing.T, label string, got, want mgBits) {
+	t.Helper()
+	for _, part := range []struct {
+		name      string
+		got, want any
+	}{
+		{"Data", got.Data, want.Data},
+		{"Components.Aggregations", got.Aggs, want.Aggs},
+		{"Components.Groupers", got.Groupers, want.Groupers},
+		{"Matrices", got.Matrices, want.Matrices},
+		{"Components.Matrices", got.MatComps, want.MatComps},
+	} {
+		if !reflect.DeepEqual(part.got, part.want) {
+			t.Errorf("%s: %s differ from the serial single-file run\n got  %v\n want %v", label, part.name, part.got, part.want)
+		}
+	}
+	if len(got.Floors) != len(want.Floors) {
+		t.Fatalf("%s: %d weighted floor keys, want %d", label, len(got.Floors), len(want.Floors))
+	}
+	for i, w := range want.Floors {
+		if math.Abs(got.Floors[i]-w) > 1e-12*math.Abs(w) {
+			t.Errorf("%s: weighted floor key %d = %v, want %v", label, i, got.Floors[i], w)
+		}
+	}
+}
+
+// TestMultiGrouper_BitExactAcrossWorkers: every mergeable #422 case
+// answers the SAME BITS — rows, Components (per-slot, per-group,
+// per-grouper) and grouped matrices — serially over a single file,
+// under every DecodeWorkers count over that file, and over a shard
+// archive of the same rows split unevenly (1-row shards, an empty
+// shard, edges inside merge blocks) under every ShardWorkers ×
+// DecodeWorkers count; weighted and unweighted. Each parallel run must
+// take its parallel arm, so no knob compares serial against serial.
+func TestMultiGrouper_BitExactAcrossWorkers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping the 100K-record multi-grouper worker-invariance gate in -short mode")
+	}
+	const big = mgDecodeFiller + 1234
+	f := newMGFixture(t, pulse.Options{})
+	dir := t.TempDir()
+	osFs := afero.NewBasePathFs(afero.NewOsFs(), dir)
+	serial := f.engine(t, osFs, 1, 1)
+	mgWriteBitsCohort(t, serial, "big.pulse", 0, big)
+	// The archive's twin: a smaller file (shard fan-out has no record
+	// threshold) and the same rows as uneven shards.
+	const small = 3*4096 + 777
+	mgWriteBitsCohort(t, serial, "small.pulse", 0, small)
+	bounds := []int{0, 1, 2, 2, 4097, 4098, 9000, small}
+	var shards []string
+	for i := 0; i+1 < len(bounds); i++ {
+		path := fmt.Sprintf("bits_s%d.pulse", i)
+		mgWriteBitsCohort(t, serial, path, bounds[i], bounds[i+1])
+		shards = append(shards, path)
+	}
+	if _, err := serial.CreateShardArchive(context.Background(), "bits_archive.pulse", shards); err != nil {
+		t.Fatalf("CreateShardArchive: %v", err)
+	}
+	decoders := map[int]*pulse.Pulse{}
+	for _, dw := range []int{2, 3, 7} {
+		decoders[dw] = f.engine(t, osFs, 1, dw)
+	}
+	sharders := map[[2]int]*pulse.Pulse{}
+	for _, sw := range []int{1, 2, 3, 4} {
+		for _, dw := range []int{1, 2, 3, 7} {
+			sharders[[2]int{sw, dw}] = f.engine(t, osFs, sw, dw)
+		}
+	}
+	for _, c := range mgCases() {
+		if !mgMergeable(&types.Request{Groups: c.groups}) {
+			continue
+		}
+		for _, weighted := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/weighted=%v", c.name, weighted), func(t *testing.T) {
+				want := mgRunBits(t, serial, f, mgBitsRequest("big.pulse", c.groups, weighted))
+				if weighted != (len(want.Floors) > 0) {
+					t.Fatalf("weighted=%v run carries %d weighted floor keys", weighted, len(want.Floors))
+				}
+				for _, dw := range []int{2, 3, 7} {
+					got := mgRunBits(t, decoders[dw], f, mgBitsRequest("big.pulse", c.groups, weighted))
+					if got.Arm != observe.ArmParallelDecode {
+						t.Fatalf("DecodeWorkers=%d ran on arm %q", dw, got.Arm)
+					}
+					mgSameBits(t, fmt.Sprintf("DecodeWorkers=%d", dw), got, want)
+				}
+				twin := mgRunBits(t, serial, f, mgBitsRequest("small.pulse", c.groups, weighted))
+				for _, sw := range []int{1, 2, 3, 4} {
+					for _, dw := range []int{1, 2, 3, 7} {
+						got := mgRunBits(t, sharders[[2]int{sw, dw}], f, mgBitsRequest("bits_archive.pulse", c.groups, weighted))
+						if sw > 1 && got.Arm != observe.ArmShardParallel {
+							t.Fatalf("ShardWorkers=%d ran on arm %q", sw, got.Arm)
+						}
+						mgSameBits(t, fmt.Sprintf("archive ShardWorkers=%d DecodeWorkers=%d", sw, dw), got, twin)
+					}
+				}
+			})
+		}
+	}
+}
+
+// TestMultiGrouper_ChainFiltersOnInnerKeyColumn: a downstream chain
+// stage filters on stage 0's INNER key column and groups on its outer
+// one — every key column is a typed stage-1 input, not only the first.
+func TestMultiGrouper_ChainFiltersOnInnerKeyColumn(t *testing.T) {
+	f := newMGFixture(t, pulse.Options{})
+	out, err := f.p.ProcessChain(context.Background(), &types.ChainRequest{
+		Cohort: &types.Cohort{Filename: f.cohort},
+		Stages: []*types.ChainStage{
+			{Request: mgRequest(f, []*types.Group{mgRegion(), mgSex()})},
+			{Request: &types.Request{
+				Filterers:    []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "sex", Values: []string{"M"}}},
+				Groups:       []*types.Group{mgRegion()},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n", Label: "n"}},
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ProcessChain: %v", err)
+	}
+	if got, want := mgRender(t, out.Final.Data, []string{"region"}, "n"), []string{"north|5", "south|6", "west|5"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("stage 1 rows %q, want %q", got, want)
 	}
 }
