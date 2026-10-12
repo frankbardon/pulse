@@ -84,7 +84,7 @@ func TestSkillsCoverAllOperatorComponents(t *testing.T) {
 		}
 	})
 
-		// Matrices: the manifest's declaration (weighted keys spliced in),
+	// Matrices: the manifest's declaration (weighted keys spliced in),
 	// so the skill names the weighted floor keys too.
 	t.Run("matrices", func(t *testing.T) {
 		for _, op := range BuildManifest().Matrices {
