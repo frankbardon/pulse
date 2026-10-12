@@ -46,14 +46,14 @@ Implicit-margin kinds (the χ² and Fisher cell tests) leave `ref` empty.
 
 ## Three payload shapes
 
-`payload.shape` ∈ `scalar|series|matrix`. Scalar — `payload.scalar` + optional `summary`. Series — `payload.series.entries[i].{key, value, summary}`, aligned to host keys. Matrix — `payload.matrix.cells[r][c]`, mirroring host cells. `baseline` is the centre point (100 for an index, 0 for a delta / z) and is absent for inferential kinds (manifest `inferential: true`).
+`payload.shape` ∈ `scalar|series|matrix`. Scalar — `payload.scalar` + optional `summary`. Series — `payload.series.entries[i].{key, summary}`, aligned to host keys; the figure is `summary.statistic`. Matrix — `payload.matrix.cells[r][c]`, mirroring host cells. `baseline` is the centre point (100 for an index, 0 for a delta / z) and is absent for inferential kinds (manifest `inferential: true`).
 
 ## Host-arm wiring
 
 The carrying request decides the host; the host decides the legal kinds:
 
 - **MATRIX** — a crosstab (`Request.Crosstab` + `Request.Overlays`): share, margin compare, cell tests, intra-matrix pairwise. Pairwise n: [`pairwise-n-sources`](pairwise-n-sources.md).
-- **SERIES** — a grouped Process with no crosstab: per-group self-compare (sibling, baseline, prior, rolling, year-over-year). ONE grouper only: two or more `groups` (composite rows) are refused `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+- **SERIES** — a grouped Process with no crosstab: per-group self-compare (sibling, baseline, prior, rolling, year-over-year). ONE grouper only: two or more `groups` (composite rows) are refused `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. Scores the aggregation whose output label `params.field` names; absent, `aggregations[0]`.
 - **FACET** — `FacetRequest.Overlays` (NOT `Request.Overlays`): population comparisons, layers on `FacetResult.Overlays` ([`facet-design`](facet-design.md)).
 - **CHAIN** — whole-chain `ChainRequest.Overlays` against an earlier stage; layers on the chain response, per-stage overlays untouched. Stages of divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` ([`process-chain`](process-chain.md)).
 - **FORMULA** — an expression over earlier layers, referenced by `name`.
@@ -77,7 +77,7 @@ A weighted host yields a weighted payload, so every descriptive kind (shares, in
 
 ## Parity overlays — Welford migration
 
-The cell t / z kinds and their Compose vs-ref twins read `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]`, so the cell aggregator must emit that triple; with no triple at the coordinate they fall back to `params` (`variance_*`, `sample_size_*`). The cell's own `MatrixCell.Value` is the scalar mean. P-values equal the matching row-level two-sample tests on the same inputs.
+The cell t / z kinds and their Compose vs-ref twins read `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]`, so the cell aggregator must emit that triple; with no triple at the coordinate they fall back to `params` (`variance_*`, `sample_size_*`).
 
 ## See
 

@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -771,6 +772,26 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		validateOverlaySpec(env, req, spec, opts, i)
 		validateOverlayLevelWithinPredict(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		validateOverlayBaselineIndexPredict(env, req, spec, schema, opts.instance(), i)
+		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i)
+	}
+}
+
+// validateOverlaySeriesField refuses a series overlay whose
+// params.field names no request aggregation (PULSE_OVERLAY_FIELD_UNKNOWN,
+// Details {index, kind, field, available}). Shared by every series kind
+// beside the per-kind validators (refuseCompositeSeriesHost); the
+// reading is internal/seriesfield.Resolve, the one the runtime host
+// builder (processing.applyOverlaysSeriesToResponse) calls, so the
+// refusal is identical on both sides. Runs on the defaults-resolved
+// request, so a defaulted aggregation's TYPE_field label resolves. Only
+// a SERIES host (Groups set, Crosstab nil) reads the param; a MATRIX
+// host of SHARE_OF_TOTAL / ZSCORE_VS_TOTAL ignores it.
+func validateOverlaySeriesField(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int) {
+	if req == nil || spec == nil || req.Crosstab != nil || len(req.Groups) == 0 || !seriesfield.Applies(route) {
+		return
+	}
+	if _, err := seriesfield.Resolve(req.Aggregations, spec, index); err != nil {
+		addCodedError(env, err)
 	}
 }
 

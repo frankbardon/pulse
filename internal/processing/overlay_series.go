@@ -516,6 +516,17 @@ func ApplyOverlaysSeries(specs []types.OverlaySpec, host *SeriesHostView) ([]typ
 // spec runs no handler and raises nothing, and its position holds a
 // zero layer so the result stays index-aligned with specs.
 func applyOverlaysSeriesWith(specs []types.OverlaySpec, host *SeriesHostView, exts *ExtensionRegistry, keep func(int) bool) ([]types.OverlayLayer, []types.OverlayWarning, error) {
+	return applyOverlaysSeriesPerSpec(specs, func(int, *types.OverlaySpec, types.OverlayKind) (*SeriesHostView, error) {
+		return host, nil
+	}, exts, keep)
+}
+
+// applyOverlaysSeriesPerSpec is applyOverlaysSeriesWith with the host
+// chosen per spec: hostFor receives the spec's index, the spec and its
+// routed kind, and returns the view that spec folds over (the grouped
+// Process hook hands each spec the host scoring its params.field). An
+// error from hostFor aborts the fold like a handler error.
+func applyOverlaysSeriesPerSpec(specs []types.OverlaySpec, hostFor func(int, *types.OverlaySpec, types.OverlayKind) (*SeriesHostView, error), exts *ExtensionRegistry, keep func(int) bool) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
@@ -528,7 +539,8 @@ func applyOverlaysSeriesWith(specs []types.OverlaySpec, host *SeriesHostView, ex
 		}
 		workOverlayLayerRuns.Add(1)
 		spec := &specs[i]
-		handler, ok := seriesOverlayHandlers[exts.overlayRoute(spec.Kind)]
+		route := exts.overlayRoute(spec.Kind)
+		handler, ok := seriesOverlayHandlers[route]
 		if !ok {
 			return nil, nil, errors.NewCodedErrorWithDetails(
 				errors.PULSE_OVERLAY_KIND_UNKNOWN,
@@ -538,6 +550,10 @@ func applyOverlaysSeriesWith(specs []types.OverlaySpec, host *SeriesHostView, ex
 					"kind":  string(spec.Kind),
 					"host":  "series",
 				})
+		}
+		host, err := hostFor(i, spec, route)
+		if err != nil {
+			return nil, nil, err
 		}
 		layer, ws, err := handler(spec, host)
 		if err != nil {

@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -72,6 +73,9 @@ func OverlayCapabilities() []descriptor.OverlayCapability {
 	for _, k := range kinds {
 		streamable, _ := types.OverlayStreamable(k)
 		entry := overlayCapabilityFor(k)
+		if seriesfield.Applies(k) {
+			entry.Description += seriesFieldNote
+		}
 		entry.Buffered = !streamable
 		entry.Zone = ZoneCapabilityOf(string(k))
 		sort.Slice(entry.Shapes, func(i, j int) bool {
@@ -86,6 +90,13 @@ func OverlayCapabilities() []descriptor.OverlayCapability {
 	}
 	return caps
 }
+
+// seriesFieldNote closes the Description of every series kind that
+// scores one host aggregation (internal/seriesfield): the params.field
+// rule, stated once so the twelve rows cannot drift.
+const seriesFieldNote = " Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL " +
+	"Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. " +
+	"A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime."
 
 // overlayCapabilityFor returns the static per-kind capability shape
 // (Shapes / Scopes / RefKinds / Description). Buffered is filled by

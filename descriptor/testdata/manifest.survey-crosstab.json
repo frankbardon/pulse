@@ -748,7 +748,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 168,
+    "error_codes_count": 169,
     "error_domains": [
       "CLI",
       "DATA",
@@ -853,6 +853,7 @@
       "PULSE_OVERLAY_COMPONENTS_REQUIRED",
       "PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED",
       "PULSE_OVERLAY_EXPECTED_LOW",
+      "PULSE_OVERLAY_FIELD_UNKNOWN",
       "PULSE_OVERLAY_KIND_UNKNOWN",
       "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE",
       "PULSE_OVERLAY_PARAM_MISSING",
@@ -2236,4 +2237,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 644eff0a2e29b490177a4c78641941be351a7852ab577e76d6c6603b1d2c3a4a
+// golden-hash: f299e4c58e98ea63246f9c6b28b241862b84297b4b72fea42030f6fb98193f60

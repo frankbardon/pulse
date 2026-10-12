@@ -2415,6 +2415,17 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_OVERLAY_FIELD_UNKNOWN: {
+		Message: "A series overlay's params.field does not name a request aggregation. The param takes the OUTPUT LABEL of one Request.Aggregations entry — its explicit Label, else its TYPE_field default — and the overlay scores that aggregation; absent, it scores the first aggregation. Raised at predict and at runtime with the same Details {index, kind, field, available}, where available lists the request's aggregation labels in order.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "field"},
+				Hint:     "Set params.field to one of the labels in Details.available, or give the aggregation you mean an explicit Label and name that. Two aggregations over one input field (AGG_SUM and AGG_MEAN of spend) differ by label, not by field. Omit params.field to score the first aggregation.",
+				Examples: []any{map[string]any{"field": "orders"}, map[string]any{"field": "AGG_SUM_spend"}},
+			},
+		},
+	},
 	PULSE_OVERLAY_REF_UNKNOWN: {
 		Message: "An overlay handler named a reference that does not resolve to a known slot on the host. Three arms today: (1) sibling-reference overlays (delta- and index-vs-sibling) name a Sibling (Field, Value) pair that does not match any observed axis-key value on the SERIES host; (2) baseline-index overlays (index- and delta-vs-baseline, rolling-mean index, year-over-year) name a Position ordinal outside [0, host.GroupCount()) — Details carry {baseline_index, series_length}; (3) Facet-host population overlays (index, z-score, chi-square and KS vs population) name a population field absent from the host FacetResult — Details carry {field, available_fields}. The affected layer surfaces NaN statistics across every present entry (arms 1–2) or fails fast (arm 3). Warning-class for arms 1–2, runtime error for arm 3 — surfaced as a Response.Warning or envelope error depending on arm.",
 		Fixups: []Fixup{

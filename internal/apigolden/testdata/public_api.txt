@@ -2344,6 +2344,7 @@ pulse/errors: const PULSE_OVERLAY_DICT_PREFIX_DRIFT pulse/errors.Code = "PULSE_O
 pulse/errors: const PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED pulse/errors.Code = "PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED"
 pulse/errors: const PULSE_OVERLAY_EXPECTED_LOW pulse/errors.Code = "PULSE_OVERLAY_EXPECTED_LOW"
 pulse/errors: const PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED pulse/errors.Code = "PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED"
+pulse/errors: const PULSE_OVERLAY_FIELD_UNKNOWN pulse/errors.Code = "PULSE_OVERLAY_FIELD_UNKNOWN"
 pulse/errors: const PULSE_OVERLAY_FORMULA_INVALID_IDENT pulse/errors.Code = "PULSE_OVERLAY_FORMULA_INVALID_IDENT"
 pulse/errors: const PULSE_OVERLAY_FORMULA_PARSE_ERROR pulse/errors.Code = "PULSE_OVERLAY_FORMULA_PARSE_ERROR"
 pulse/errors: const PULSE_OVERLAY_FORMULA_TYPE_MISMATCH pulse/errors.Code = "PULSE_OVERLAY_FORMULA_TYPE_MISMATCH"
@@ -4936,4 +4937,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 02f8f4c6754b22a18ff6d410e8e2d6a338f267497a2a5987b82805da2995a10b
+// golden-hash: a8f62d7c531ca585095248accabd7a0f14cd6fa5dcb9848f85fba5d166bb62e0

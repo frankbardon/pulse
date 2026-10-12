@@ -1640,6 +1640,15 @@ const (
 	// division by zero is undefined).
 	PULSE_OVERLAY_REF_UNKNOWN Code = "PULSE_OVERLAY_REF_UNKNOWN"
 
+	// PULSE_OVERLAY_FIELD_UNKNOWN indicates a series overlay's
+	// Params["field"] does not name the output label of a request
+	// aggregation (the explicit Label, else TYPE_field), or is not a
+	// string. Absent field scores Request.Aggregations[0]. Raised at
+	// predict and at runtime by the one shared reading
+	// (internal/seriesfield.Resolve), Details {index, kind, field,
+	// available} — available lists the request's aggregation labels.
+	PULSE_OVERLAY_FIELD_UNKNOWN Code = "PULSE_OVERLAY_FIELD_UNKNOWN"
+
 	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT indicates a whole-chain
 	// overlay spec (OVERLAY_INDEX_VS_STAGE / OVERLAY_DELTA_VS_STAGE)
 	// where the resolved target stage and reference stage produce
@@ -3642,6 +3651,7 @@ var allCodes = []Code{
 	PULSE_OVERLAY_FORMULA_TYPE_MISMATCH,
 	PULSE_OVERLAY_FORMULA_INVALID_IDENT,
 	PULSE_OVERLAY_REF_UNKNOWN,
+	PULSE_OVERLAY_FIELD_UNKNOWN,
 	PULSE_OVERLAY_YOY_FREQUENCY_MISSING,
 	PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY,
 	PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT,

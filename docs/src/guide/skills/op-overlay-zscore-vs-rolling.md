@@ -26,7 +26,7 @@ Use something else:
 
 ## Params
 
-`Scope` required, must be `group`. `Ref.RollingMean` empty marker tags the ref family. `params.window` required, positive width `W`. `Level` / `Within` must be `0`.
+`Scope` required, must be `group`. `Ref.RollingMean` empty marker tags the ref family. `params.window` required, positive width `W`. `Level` / `Within` must be `0`. `params.field` (string, optional) — OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`.
 
 ## Host shape
 

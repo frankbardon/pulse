@@ -3,6 +3,7 @@ package processing
 import (
 	"encoding/json"
 
+	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -112,9 +113,26 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 		return nil
 	}
 
-	host := buildSeriesHostFromGroupedResponse(req, resp)
-	if host == nil {
+	if len(resp.Data) == 0 {
+		// No host groups, no entries to fold over.
 		return nil
+	}
+	hosts := map[int]*SeriesHostView{}
+	hostFor := func(i int, spec *types.OverlaySpec, kind types.OverlayKind) (*SeriesHostView, error) {
+		aggIndex := 0
+		if seriesfield.Applies(kind) {
+			idx, err := seriesfield.Resolve(req.Aggregations, spec, i)
+			if err != nil {
+				return nil, err
+			}
+			aggIndex = idx
+		}
+		if h, ok := hosts[aggIndex]; ok {
+			return h, nil
+		}
+		h := buildSeriesHostFromGroupedResponse(req, resp, aggIndex)
+		hosts[aggIndex] = h
+		return h, nil
 	}
 	// OVERLAY_YOY frequency promotion. The YoY handler reads
 	// the frequency value from spec.Params["frequency"] only; the
@@ -124,7 +142,7 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 	// spec already carries its own frequency Param (the override path),
 	// the orchestrator leaves it unchanged.
 	specs := promoteYoYFrequencyFromGroupParams(req, exts)
-	layers, warnings, err := applyOverlaysSeriesWith(specs, host, exts, compute.overlayKeep())
+	layers, warnings, err := applyOverlaysSeriesPerSpec(specs, hostFor, exts, compute.overlayKeep())
 	if err != nil {
 		return err
 	}
@@ -144,9 +162,12 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 // buildSeriesHostFromGroupedResponse builds a SeriesHostView wrapping
 // the per-group rows on resp.Data. Each row's group-key entry (under
 // req.Groups[i].Field) becomes one element of the AxisKey tuple at the
-// row's ordinal; the primary aggregator's value (under
-// AggregationLabel(req.Aggregations[0])) becomes the host's resolver
-// output for that ordinal.
+// row's ordinal; the scored aggregation's value (under
+// AggregationLabel(req.Aggregations[aggIndex])) becomes the host's
+// resolver output for that ordinal. aggIndex is the spec's resolved
+// params.field (internal/seriesfield.Resolve; 0 when absent) — resolved
+// once per spec by applyOverlaysSeriesToResponse, which every tail
+// (buffered, streaming, parallel) calls.
 //
 // Group-key extraction: the row map carries the canonical group-key
 // representation the grouped path emits (string-typed for category /
@@ -155,8 +176,8 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 // AxisKey[i] so resolveSibling and absent-key handlers see the same
 // shape they would against a Crosstab MATRIX axis.
 //
-// Resolver wiring: the primary aggregator is req.Aggregations[0]; its
-// emitted label resolves via processing.AggregationLabel. The resolver
+// Resolver wiring: the scored aggregator is req.Aggregations[aggIndex];
+// its emitted label resolves via processing.AggregationLabel. The resolver
 // returns (val, present) where val is the row's labeled value coerced
 // to float64 (via toFloat64) and present=true iff the row map carries
 // the label AND the value coerces to a finite number. RichAggregator
@@ -173,11 +194,11 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 // OVERLAY_INDEX_VS_SIBLING / OVERLAY_DELTA_VS_SIBLING spec can resolve
 // `Ref.Sibling.Field` to the matching axis-key element index without
 // scanning every element.
-func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response) *SeriesHostView {
+func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response, aggIndex int) *SeriesHostView {
 	if resp == nil || len(resp.Data) == 0 {
 		return nil
 	}
-	if len(req.Groups) == 0 || len(req.Aggregations) == 0 {
+	if len(req.Groups) == 0 || aggIndex < 0 || aggIndex >= len(req.Aggregations) {
 		return nil
 	}
 	groupFields := make([]string, 0, len(req.Groups))
@@ -189,7 +210,7 @@ func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response
 		groupFields = append(groupFields, g.Field)
 		grouperKinds = append(grouperKinds, g.Type)
 	}
-	primaryLabel := AggregationLabel(req.Aggregations[0])
+	primaryLabel := AggregationLabel(req.Aggregations[aggIndex])
 	data := resp.Data
 	keys := make([]types.AxisKey, len(data))
 	for i, row := range data {

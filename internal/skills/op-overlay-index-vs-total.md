@@ -15,7 +15,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` must be `group`. `Ref` (object, empty) — implicit-grand-total — leave empty. `Level`/`Within` must be `0`.
+`Scope` must be `group`. `Ref` (object, empty) — implicit-grand-total — leave empty. `Level`/`Within` must be `0`. `params.field` (string, optional) — OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`.
 
 ## Host shape
 
