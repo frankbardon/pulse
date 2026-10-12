@@ -1164,6 +1164,7 @@ pulse/descriptor: type ComponentsSchemasBlock field Filterers map[string]pulse/d
 pulse/descriptor: type ComponentsSchemasBlock field Groupers map[string]pulse/descriptor.ComponentSchema "json:\"groupers,omitempty\""
 pulse/descriptor: type ComponentsSchemasBlock field Matrices map[string]pulse/descriptor.ComponentSchema "json:\"matrices,omitempty\""
 pulse/descriptor: type CrosstabCapability struct
+pulse/descriptor: type CrosstabCapability field ArrayValuedAggregators []string "json:\"array_valued_aggregators,omitempty\""
 pulse/descriptor: type CrosstabCapability field IndependentAggregators []string "json:\"independent_aggregators\""
 pulse/descriptor: type CrosstabCapability field MapValuedCellAggregators []string "json:\"map_valued_cell_aggregators\""
 pulse/descriptor: type CrosstabCapability field MarginAggregationRules []string "json:\"margin_aggregation_rules\""
@@ -3827,6 +3828,8 @@ pulse/types: const AGG_SKEWNESS pulse/types.AggregationType = "AGG_SKEWNESS"
 pulse/types: const AGG_STDDEV pulse/types.AggregationType = "AGG_STDDEV"
 pulse/types: const AGG_SUM pulse/types.AggregationType = "AGG_SUM"
 pulse/types: const AGG_VARIANCE pulse/types.AggregationType = "AGG_VARIANCE"
+pulse/types: const AGG_VEC_MEAN pulse/types.AggregationType = "AGG_VEC_MEAN"
+pulse/types: const AGG_VEC_SUM pulse/types.AggregationType = "AGG_VEC_SUM"
 pulse/types: const AGG_WEIGHTED_MEAN pulse/types.AggregationType = "AGG_WEIGHTED_MEAN"
 pulse/types: const AGG_WELFORD pulse/types.AggregationType = "AGG_WELFORD"
 pulse/types: const AGG_ZSCORE pulse/types.AggregationType = "AGG_ZSCORE"
@@ -3849,9 +3852,11 @@ pulse/types: const ATTR_TSCORE pulse/types.AttributeType = "ATTR_TSCORE"
 pulse/types: const ATTR_ZSCORE pulse/types.AttributeType = "ATTR_ZSCORE"
 pulse/types: type Aggregation struct
 pulse/types: type Aggregation field Field string "json:\"field\""
+pulse/types: type Aggregation field Fields []string "json:\"fields,omitempty\""
 pulse/types: type Aggregation field Label string "json:\"label,omitempty\""
 pulse/types: type Aggregation field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type Aggregation field Type pulse/types.AggregationType "json:\"type\""
+pulse/types: type Aggregation field Vector string "json:\"vector,omitempty\""
 pulse/types: type Aggregation field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type AggregationComponents struct
 pulse/types: type AggregationComponents field Groups []pulse/types.AggregationGroupComponents "json:\"groups,omitempty\""
@@ -3874,6 +3879,7 @@ pulse/types: type AggregationGroupComponents field SumWeights *float64 "json:\"s
 pulse/types: type AggregationGroupComponents method (AggregationGroupComponents) MarshalJSON() ([]byte, error)
 pulse/types: func AggregationLabelOf(a *pulse/types.Aggregation) string
 pulse/types: type AggregationType string
+pulse/types: type AggregationType method (AggregationType) ArrayValued() bool
 pulse/types: type AggregationType method (AggregationType) MapValued() bool
 pulse/types: type AggregationType method (AggregationType) MarginReducibility() pulse/types.MarginReducibility
 pulse/types: type AggregationType method (AggregationType) Mergeable() bool
@@ -4895,4 +4901,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 298ec9fe53b49cb9945a954f1e1fc0b03e167fcaaca808631b88d05d09b54d1e
+// golden-hash: d27275995f30cdff6d1c7a20f616b4a7c5ed4680ff3404719342011f8f2712f3

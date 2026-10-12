@@ -421,5 +421,74 @@ func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
 // for the expression operators (Processor.exprVectors).
 func (p *Processor) prepare(req *types.Request) *types.Request {
 	p.exprVectors = ExprVectors(req, p.schema)
-	return p.resolveGroupInputs(p.resolveAttributeInputs(p.stampWeights(req)))
+	return ResolveAggregationInputs(p.resolveGroupInputs(p.resolveAttributeInputs(p.stampWeights(req))), p.schema, p.exts)
+}
+
+// ResolveAggregationInputs returns req with every vector aggregator
+// slot — aggregations, the crosstab cell and its margin aggregations —
+// rewritten for its factory by vectors.AggregationSlotRewrite: Fields =
+// the resolved literal members, Vector cleared, Label = the default
+// label when empty, params.labels = the resolved display labels (the
+// literal-member rewrite would otherwise drop a named vector's labels).
+// Processor.prepare applies it, and so must every arm that builds
+// aggregators off a request without a Processor (the parallel decode
+// and shard reducers). req itself is returned when no slot reads a
+// vector or resolution fails (the field-reference pass has refused
+// that request; the factory refuses an unresolved Vector). The
+// caller's request is never mutated.
+func ResolveAggregationInputs(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) *types.Request {
+	if req == nil {
+		return req
+	}
+	has := false
+	for _, s := range vectors.AggregationSlots(req) {
+		if vectors.HasAggregationVectorInput(s.Agg) {
+			has = true
+			break
+		}
+	}
+	if !has {
+		return req
+	}
+	inputs, err := vectors.ResolveAggregations(req, schema, func(t types.AggregationType) types.AggregationType {
+		if exts.isHidden(string(t)) {
+			return ""
+		}
+		return t
+	}, func(name string) bool {
+		return exts.isExtensionAggregator(types.AggregationType(name))
+	})
+	if err != nil || len(inputs) == 0 {
+		return req
+	}
+	rewrite := func(a *types.Aggregation) *types.Aggregation {
+		if in, ok := inputs[a]; ok && in.Has() {
+			return vectors.AggregationSlotRewrite(a, in)
+		}
+		return a
+	}
+	c := *req
+	if len(req.Aggregations) > 0 {
+		c.Aggregations = make([]*types.Aggregation, len(req.Aggregations))
+		for i, a := range req.Aggregations {
+			c.Aggregations[i] = rewrite(a)
+		}
+	}
+	if ct := req.Crosstab; ct != nil {
+		cc := *ct
+		if ct.Cell != nil {
+			cc.Cell = rewrite(ct.Cell)
+		}
+		if len(ct.MarginAggregations) > 0 {
+			cc.MarginAggregations = make([]*types.Aggregation, len(ct.MarginAggregations))
+			for i, a := range ct.MarginAggregations {
+				cc.MarginAggregations[i] = a
+				if a != nil {
+					cc.MarginAggregations[i] = rewrite(a)
+				}
+			}
+		}
+		c.Crosstab = &cc
+	}
+	return &c
 }

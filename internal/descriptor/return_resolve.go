@@ -673,7 +673,7 @@ func returnOutputColumns(req *types.Request, schema *encoding.Schema, inst *Inst
 			}
 			label := agg.Label
 			if label == "" {
-				label = string(agg.Type) + "_" + agg.Field
+				label = types.AggregationLabelOf(agg)
 			}
 			cols[label] = true
 		}

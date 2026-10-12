@@ -145,7 +145,16 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     vector input has its member sets judged at steps 8-10 by the same
 //     member rules (shape, undefined vector, inline-fields rules); its
 //     params and other slots stay its own.
-//     Steps 6 to 10 contribute one refusal at most between them.
+//  11. aggregation vector inputs — every aggregation slot's
+//     (aggregations, the crosstab cell and its margin aggregations)
+//     vector / fields and params resolved by the same leaf
+//     (internal/vectors.ResolveAggregations): the exactly-one shape, a
+//     vector input on an aggregator that reads a field (an extension's
+//     included), an undefined vector, the inline-fields vector rules and
+//     params.labels. A vector aggregator's array value is refused at
+//     step 5 as a Sort key or a request overlay's host (the first
+//     aggregation) — PROCESSING_CONFIG, details.reason "array_valued".
+//     Steps 6 to 11 contribute one refusal at most between them.
 //
 // Derived names follow the runtime's own naming (featureOutputLabels,
 // attributeDefaultLabel, "<TYPE>_<field>" for an aggregation,
@@ -391,10 +400,14 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 		if agg == nil {
 			continue
 		}
-		w.check(agg.Field, func() *errors.CodedError {
-			return refusal("aggregation references unknown field: "+agg.Field,
-				map[string]any{"field": agg.Field, "aggregation": string(agg.Type)})
-		})
+		// A vector aggregator (AGG_VEC_*) reads its members (step 11,
+		// source columns only), never a field.
+		if !vectors.IsVectorAggregation(opRoute(inst, agg.Type)) {
+			w.check(agg.Field, func() *errors.CodedError {
+				return refusal("aggregation references unknown field: "+agg.Field,
+					map[string]any{"field": agg.Field, "aggregation": string(agg.Type)})
+			})
+		}
 		w.checkAgg(agg, "aggregation "+string(agg.Type), "aggregation", string(agg.Type))
 	}
 	if spec := req.Crosstab; spec != nil {
@@ -459,7 +472,7 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 			}
 			label := agg.Label
 			if label == "" {
-				label = string(agg.Type) + "_" + agg.Field
+				label = types.AggregationLabelOf(agg)
 			}
 			// Output-namespace collision: the row map holds one value
 			// per name, so an aggregation label equal to a group field
@@ -536,6 +549,18 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 		w.cols[label] = true
 		w.claim(label, map[string]any{"slot": "window[" + idx + "] " + string(win.Type), "window_index": i, "window": string(win.Type)})
 	}
+	// An array-valued aggregation's output column (AGG_VEC_*) holds one
+	// figure per vector member: no single number to order by, host an
+	// overlay on. Not on a crosstab (its cell slot is refused by the
+	// crosstab rule).
+	arrayLabels := map[string]*types.Aggregation{}
+	if req.Crosstab == nil {
+		for _, agg := range req.Aggregations {
+			if agg != nil && opRoute(inst, agg.Type).ArrayValued() {
+				arrayLabels[types.AggregationLabelOf(agg)] = agg
+			}
+		}
+	}
 	for i, k := range req.Sort {
 		if k.Field == "" {
 			continue
@@ -545,6 +570,20 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 			return refusal("sort["+idx+"]: field "+k.Field+" is not produced by the pipeline (no schema field, aggregation, attribute, group, or window output matches)",
 				map[string]any{"sort_index": i, "field": k.Field})
 		})
+		if agg, ok := arrayLabels[k.Field]; ok {
+			w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+				"sort["+idx+"]: "+k.Field+" is array-valued ("+string(agg.Type)+", one figure per vector member) and has no single number to order by; sort by a scalar column",
+				map[string]any{"sort_index": i, "field": k.Field, "aggregation": string(agg.Type), "reason": "array_valued"}))
+		}
+	}
+	if len(req.Overlays) > 0 && req.Crosstab == nil && len(req.Aggregations) > 0 && req.Aggregations[0] != nil {
+		// A request overlay reads the PRIMARY aggregation (the first)
+		// as its host value.
+		if host := req.Aggregations[0]; opRoute(inst, host.Type).ArrayValued() {
+			w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+				"overlays read the first aggregation as their host value, and "+types.AggregationLabelOf(host)+" ("+string(host.Type)+") is array-valued; put a scalar aggregation first",
+				map[string]any{"aggregation": string(host.Type), "label": types.AggregationLabelOf(host), "slot": "aggregations[0]", "reason": "array_valued"}))
+		}
 	}
 	if req.Crosstab == nil {
 		for i, t := range req.PostTests {
@@ -605,6 +644,17 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 		return opRoute(inst, t)
 	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Groupers })); gerr != nil {
 		w.out = append(w.out, gerr)
+		return w.out
+	}
+	// 11. Aggregation vector inputs — every aggregation slot's (the
+	// aggregations, the crosstab cell and its margin aggregations)
+	// vector / fields and params resolved by the same leaf
+	// (vectors.ResolveAggregations). Steps 6-11 contribute one refusal
+	// at most between them.
+	if _, aerr := vectors.ResolveAggregations(req, schema, func(t types.AggregationType) types.AggregationType {
+		return opRoute(inst, t)
+	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Aggregators })); aerr != nil {
+		w.out = append(w.out, aerr)
 	}
 	return w.out
 }

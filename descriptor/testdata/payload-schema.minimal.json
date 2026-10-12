@@ -27,6 +27,15 @@
         "field": {
           "type": "string"
         },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "label": {
           "type": "string"
         },
@@ -35,6 +44,9 @@
         },
         "type": {
           "$ref": "#/$defs/AggregationType"
+        },
+        "vector": {
+          "type": "string"
         }
       },
       "required": [
@@ -2180,4 +2192,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 5e95f432bd1be735c1a19837a47d5a95a4c0e2b5d3a19c4038e34a4d3dc71c6a
+// golden-hash: a5ac37dc9b4eeb99113e122486503d0a3f45874b45fc9b3dae3d799e1961c388

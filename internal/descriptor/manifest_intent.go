@@ -69,6 +69,7 @@ func BuildManifestForIntent(inst *InstanceSnapshot, intent string) (*descriptor.
 		c.IndependentAggregators = filterNames(c.IndependentAggregators, in)
 		c.RecomputeAggregators = filterNames(c.RecomputeAggregators, in)
 		c.MapValuedCellAggregators = filterNames(c.MapValuedCellAggregators, in)
+		c.ArrayValuedAggregators = filterNames(c.ArrayValuedAggregators, in)
 		if len(c.SummableAggregators)+len(c.MeanReducibleAggregators)+len(c.IndependentAggregators)+
 			len(c.RecomputeAggregators)+len(c.MapValuedCellAggregators) == 0 {
 			m.Crosstab = nil

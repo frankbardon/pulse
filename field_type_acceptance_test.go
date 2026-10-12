@@ -160,6 +160,8 @@ var acceptanceTemplates = map[string]string{
 	"AGG_SET_CARDINALITY_SUM": `{"aggregations":[{"type":"AGG_SET_CARDINALITY_SUM","field":"$F"}]}`,
 	"AGG_SET_CARDINALITY_AVG": `{"aggregations":[{"type":"AGG_SET_CARDINALITY_AVG","field":"$F"}]}`,
 	"AGG_SET_DISTINCT_VALUES": `{"aggregations":[{"type":"AGG_SET_DISTINCT_VALUES","field":"$F"}]}`,
+	"AGG_VEC_MEAN":            `{"aggregations":[{"type":"AGG_VEC_MEAN","fields":["$F","x"]}]}`,
+	"AGG_VEC_SUM":             `{"aggregations":[{"type":"AGG_VEC_SUM","fields":["$F","x"]}]}`,
 
 	// Attributes (aggregated afterwards so the label is consumed).
 	"ATTR_ZSCORE":     `{"attributes":[{"type":"ATTR_ZSCORE","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,

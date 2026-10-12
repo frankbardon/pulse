@@ -765,6 +765,9 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	itemProps("groups")["include"] = groupIncludeSchema()
 	itemProps("groups")["vector"] = groupVectorSchema()
 	itemProps("groups")["fields"] = groupFieldsSchema()
+	aggs := itemProps("aggregations")
+	aggs["vector"] = map[string]any{"type": "string", "description": "Vector aggregators (AGG_VEC_MEAN, AGG_VEC_SUM): the Request.Vectors entry whose members are aggregated element by element; exactly one of vector / fields, and no field."}
+	aggs["fields"] = map[string]any{"type": "array", "description": "Vector aggregators: inline members (names and / or globs); exactly one of vector / fields.", "items": map[string]any{"type": "string"}}
 	attr := itemProps("attributes")
 	attr["target"] = enumStringField(c.Numeric, "Dependent variable for the regression attributes (ATTR_REG_FITTED / RESIDUAL / LEVERAGE).")
 	attr["predictors"] = map[string]any{"type": "array", "description": "Independent variables for the regression attributes; at least one.", "items": enumStringField(c.Numeric, "")}
@@ -1156,6 +1159,17 @@ func overlayMultiplicitySchema(facade overlayFacade) map[string]any {
 	return multiplicitySchema(desc, families, true)
 }
 
+// crosstabArrayValuedVectorSchema / crosstabArrayValuedFieldsSchema
+// declare a crosstab aggregation slot's vector input: accepted on the
+// wire like every aggregation slot's, refused by the crosstab rule.
+func crosstabArrayValuedVectorSchema() map[string]any {
+	return map[string]any{"type": "string", "description": "Vector aggregators only (AGG_VEC_*), which a crosstab refuses (array-valued: Manifest.Crosstab.ArrayValuedAggregators)."}
+}
+
+func crosstabArrayValuedFieldsSchema() map[string]any {
+	return map[string]any{"type": "array", "description": "Vector aggregators only (AGG_VEC_*), which a crosstab refuses (array-valued).", "items": map[string]any{"type": "string"}}
+}
+
 // crosstabSchema returns the JSON Schema for the Crosstab section.
 func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[string]any {
 	groupItem := map[string]any{
@@ -1193,6 +1207,8 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 					"label":  map[string]any{"type": "string"},
 					"params": map[string]any{},
 					"weight": slotWeightSchema(c),
+					"vector": crosstabArrayValuedVectorSchema(),
+					"fields": crosstabArrayValuedFieldsSchema(),
 				},
 				"required":             []string{"type", "field"},
 				"additionalProperties": true,
@@ -1208,6 +1224,8 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 						"label":  map[string]any{"type": "string"},
 						"params": map[string]any{},
 						"weight": slotWeightSchema(c),
+						"vector": crosstabArrayValuedVectorSchema(),
+						"fields": crosstabArrayValuedFieldsSchema(),
 					},
 					"required":             []string{"type", "field"},
 					"additionalProperties": true,

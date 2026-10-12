@@ -383,6 +383,28 @@ best start stopped at `params.max_iter` adds a
 store. `format_version` stays `"1.1"`; a grouper without them is
 byte-identical.
 
+## Aggregation vector inputs
+
+`Aggregation` carries the same two additive slots, `vector` / `fields`,
+on `aggregations`, `crosstab.cell` and `crosstab.margin_aggregations`.
+A vector aggregator (`AGG_VEC_MEAN`, `AGG_VEC_SUM`) sets exactly one of
+them and no `field`; every other aggregator (extensions included)
+refuses both. Members are source columns only; `params.labels` (one per
+member) is accepted with `fields` only. The default label is
+`<TYPE>_<vector>` or `<TYPE>_<first fields entry>`. The value in
+`data` is a JSON ARRAY, one figure per member in member order (a
+non-finite element is `null`); its components entry adds `labels`,
+`element_n`, `element_sum` and, weighted, `element_sum_weights`. Shape
+refusals are `SERVICE_VALIDATION` with `details.aggregation` and
+`details.reason`; an undefined vector is `PULSE_VECTOR_UNKNOWN`. An
+array-valued aggregator is refused `PROCESSING_CONFIG`
+(`details.reason` `array_valued`) as a crosstab cell or margin
+aggregation (the manifest lists them in
+`crosstab.array_valued_aggregators`), as a `sort` key, as
+`aggregations[0]` under `overlays` and in a chain stage that feeds
+another. `format_version` stays `"1.1"`; an aggregation without them is
+byte-identical.
+
 ## Matrix slots
 
 `matrices` on `Request` is an additive array of `MatrixSpec`

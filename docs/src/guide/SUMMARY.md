@@ -80,6 +80,8 @@
     - [op-agg-stddev](skills/op-agg-stddev.md)
     - [op-agg-sum](skills/op-agg-sum.md)
     - [op-agg-variance](skills/op-agg-variance.md)
+    - [op-agg-vec-mean](skills/op-agg-vec-mean.md)
+    - [op-agg-vec-sum](skills/op-agg-vec-sum.md)
     - [op-agg-weighted-mean](skills/op-agg-weighted-mean.md)
     - [op-agg-welford](skills/op-agg-welford.md)
     - [op-agg-zscore](skills/op-agg-zscore.md)

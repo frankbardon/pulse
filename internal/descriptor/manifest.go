@@ -416,6 +416,7 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		c.IndependentAggregators = filterNames(c.IndependentAggregators, on)
 		c.RecomputeAggregators = filterNames(c.RecomputeAggregators, on)
 		c.MapValuedCellAggregators = filterNames(c.MapValuedCellAggregators, on)
+		c.ArrayValuedAggregators = filterNames(c.ArrayValuedAggregators, on)
 		m.Crosstab = &c
 	}
 	if on(featExport) {

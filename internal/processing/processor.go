@@ -692,12 +692,12 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		weights.Observe(r)
 		for i := range entries {
 			e := &entries[i]
-			if FieldPresent(r, e.agg.Field) {
+			if AggregationPresent(r, e.agg) {
 				e.n++
 			} else {
 				e.nNull++
 			}
-			e.weight.Observe(r, e.agg.Field)
+			e.weight.ObserveSlot(r, e.agg)
 			if err := e.online.UpdateRow(r, e.agg.Field); err != nil {
 				return nil, err
 			}
@@ -738,7 +738,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		}
 		label := e.agg.Label
 		if label == "" {
-			label = fmt.Sprintf("%s_%s", e.agg.Type, e.agg.Field)
+			label = types.AggregationLabelOf(e.agg)
 		}
 		row[label], err = dispatchAggregatorResult(e.online, val)
 		if err != nil {
@@ -906,7 +906,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		factory, _ := p.exts.LookupAggregator(agg.Type) // canStream verified
 		label := agg.Label
 		if label == "" {
-			label = fmt.Sprintf("%s_%s", agg.Type, agg.Field)
+			label = types.AggregationLabelOf(agg)
 		}
 		specs[i] = aggSpec{agg: agg, label: label, factory: factory}
 	}
@@ -1341,12 +1341,12 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		weights.Observe(r)
 		for i := range entries {
 			e := &entries[i]
-			if FieldPresent(r, e.agg.Field) {
+			if AggregationPresent(r, e.agg) {
 				e.n++
 			} else {
 				e.nNull++
 			}
-			e.weight.Observe(r, e.agg.Field)
+			e.weight.ObserveSlot(r, e.agg)
 			if err := e.online.UpdateRow(r, e.agg.Field); err != nil {
 				return nil, err
 			}
@@ -1362,7 +1362,7 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		}
 		label := e.agg.Label
 		if label == "" {
-			label = fmt.Sprintf("%s_%s", e.agg.Type, e.agg.Field)
+			label = types.AggregationLabelOf(e.agg)
 		}
 		row[label], err = dispatchAggregatorResult(e.online, val)
 		if err != nil {
@@ -2138,19 +2138,20 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 		nNull int
 	}
 	floorCache := make(map[string]floor)
-	floorFor := func(field string) floor {
-		if f, ok := floorCache[field]; ok {
+	floorFor := func(agg *types.Aggregation) floor {
+		key := aggregationFloorKey(agg)
+		if f, ok := floorCache[key]; ok {
 			return f
 		}
 		var f floor
 		for _, r := range records {
-			if FieldPresent(r, field) {
+			if AggregationPresent(r, agg) {
 				f.n++
 			} else {
 				f.nNull++
 			}
 		}
-		floorCache[field] = f
+		floorCache[key] = f
 		return f
 	}
 
@@ -2164,7 +2165,7 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 	for _, agg := range aggs {
 		label := agg.Label
 		if label == "" {
-			label = fmt.Sprintf("%s_%s", agg.Type, agg.Field)
+			label = types.AggregationLabelOf(agg)
 		}
 		// Decimal-typed fields dispatch to AggregateDecimalField. A
 		// registered extension aggregator owns its decimal semantics
@@ -2183,7 +2184,7 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 				row[label] = out
 				if collectComponents {
 					workAggComponentBuilds.Add(1)
-					fl := floorFor(agg.Field)
+					fl := floorFor(agg)
 					components = append(components, types.AggregationComponents{
 						Label: agg.Label,
 						N:     fl.n,
@@ -2217,7 +2218,7 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 			return nil, nil, err
 		}
 		if collectComponents {
-			fl := floorFor(agg.Field)
+			fl := floorFor(agg)
 			entry, err := buildAggregationComponents(aggregator, agg, fl.n, fl.nNull)
 			if err != nil {
 				return nil, nil, err
@@ -2225,7 +2226,7 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 			wf := NewWeightFloor(agg)
 			if wf.spec != nil {
 				for _, r := range records {
-					wf.Observe(r, agg.Field)
+					wf.ObserveSlot(r, agg)
 				}
 				wf.Stamp(&entry)
 			}

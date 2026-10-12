@@ -282,6 +282,7 @@ func TestMetaAggregator_StreamingEmits(t *testing.T) {
 type aggParityFixture struct {
 	schema       *encoding.Schema
 	field        string
+	fields       []string // a vector aggregator's members (field empty)
 	params       json.RawMessage
 	records      []*Record
 	expectedN    int
@@ -460,6 +461,13 @@ func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixtu
 		types.AGG_RMSE: coh(json.RawMessage(`{"prediction_field":"num"}`)),
 		types.AGG_MAE:  coh(json.RawMessage(`{"prediction_field":"num"}`)),
 
+		// Vector aggregators read value, num and den of the cohort
+		// schema (never null): the floor counts every row.
+		types.AGG_VEC_MEAN: {schema: cohSchema, fields: []string{"value", "num", "den"}, records: cohRecs,
+			expectedN: 10, expectedNull: 0, filteredRecords: 10},
+		types.AGG_VEC_SUM: {schema: cohSchema, fields: []string{"value", "num", "den"}, records: cohRecs,
+			expectedN: 10, expectedNull: 0, filteredRecords: 10},
+
 		// Set ops use the set_u8 dictionary cohort.
 		types.AGG_SET_UNION:           set(),
 		types.AGG_SET_INTERSECTION:    set(),
@@ -529,7 +537,7 @@ func TestMetaAggregator_AllOps_ManifestParity(t *testing.T) {
 		t.Run(string(op), func(t *testing.T) {
 			req := &types.Request{
 				Aggregations: []*types.Aggregation{
-					{Type: op, Field: fix.field, Label: "primary", Params: fix.params},
+					{Type: op, Field: fix.field, Fields: fix.fields, Label: "primary", Params: fix.params},
 				},
 			}
 			proc := NewProcessor(fix.schema)
@@ -572,7 +580,7 @@ func TestComponentsUniversalFloor(t *testing.T) {
 		t.Run(string(op), func(t *testing.T) {
 			req := &types.Request{
 				Aggregations: []*types.Aggregation{
-					{Type: op, Field: fix.field, Label: "x", Params: fix.params},
+					{Type: op, Field: fix.field, Fields: fix.fields, Label: "x", Params: fix.params},
 				},
 			}
 			proc := NewProcessor(fix.schema)

@@ -66,7 +66,8 @@ func (t AggregationType) Streamable() bool {
 		AGG_WELFORD,
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
-		AGG_SET_DISTINCT_VALUES:
+		AGG_SET_DISTINCT_VALUES,
+		AGG_VEC_MEAN, AGG_VEC_SUM:
 		return true
 	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE:
 		return false
@@ -103,7 +104,10 @@ func (t AggregationType) Mergeable() bool {
 		AGG_MAPE, AGG_RMSE, AGG_MAE,
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
-		AGG_SET_DISTINCT_VALUES:
+		AGG_SET_DISTINCT_VALUES,
+		// Per-merge-block element sums combined in a fixed tree: the
+		// merged figure is bit-identical to the serial one.
+		AGG_VEC_MEAN, AGG_VEC_SUM:
 		return true
 	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE,
 		AGG_SKEWNESS, AGG_KURTOSIS:
@@ -192,7 +196,10 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 		AGG_WELFORD,
 		// AND across cells ≠ AND across all rows in general — recompute
 		// from raw rows.
-		AGG_SET_INTERSECTION:
+		AGG_SET_INTERSECTION,
+		// Array-valued: never a crosstab cell or margin (ArrayValued —
+		// refused unconditionally); classed with the honest default.
+		AGG_VEC_MEAN, AGG_VEC_SUM:
 		return MarginRecompute
 	}
 	return MarginRecompute
@@ -210,6 +217,21 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 func (t AggregationType) MapValued() bool {
 	switch t {
 	case AGG_SET_FREQUENCY, AGG_WELFORD:
+		return true
+	}
+	return false
+}
+
+// ArrayValued reports whether the aggregator emits one figure per
+// vector member — a JSON array through the RichAggregator lift, with
+// no meaningful scalar (AGG_VEC_MEAN, AGG_VEC_SUM). An array value has
+// no single number to place in a crosstab cell, order a Sort by, host
+// an overlay on or hand a later chain stage's f64 column, so each of
+// those is refused with PROCESSING_CONFIG whatever else the request
+// says — unlike MapValued, which only gates crosstab normalize.
+func (t AggregationType) ArrayValued() bool {
+	switch t {
+	case AGG_VEC_MEAN, AGG_VEC_SUM:
 		return true
 	}
 	return false

@@ -148,6 +148,19 @@ const (
 	// (treats each combination as atomic). Mergeable via the union of
 	// seen-mask sets.
 	AGG_SET_DISTINCT_VALUES AggregationType = "AGG_SET_DISTINCT_VALUES"
+
+	// Vector aggregators (U27). Each reads a vector input — the slot's
+	// Vector (a Request.Vectors name) or inline Fields, never Field —
+	// and emits one figure PER MEMBER, in member order: a JSON array
+	// through the RichAggregator lift (ArrayValued). Missing data is per
+	// element: a null member skips that element only. AGG_VEC_MEAN is
+	// Σw·x / Σw per element (null when no row answered it), AGG_VEC_SUM
+	// Σw·x per element (0 when none did). Streamable and mergeable:
+	// per-merge-block sums combined in a fixed tree, so the figure is
+	// bit-identical for every worker count. Refused by crosstab, Sort,
+	// overlays and a chain stage that feeds another stage.
+	AGG_VEC_MEAN AggregationType = "AGG_VEC_MEAN"
+	AGG_VEC_SUM  AggregationType = "AGG_VEC_SUM"
 )
 
 // AllAggregationTypes returns all defined aggregation types.
@@ -167,6 +180,7 @@ func AllAggregationTypes() []AggregationType {
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES,
+		AGG_VEC_MEAN, AGG_VEC_SUM,
 	}
 }
 
@@ -984,8 +998,20 @@ type Aggregation struct {
 	// Type is the aggregation operation to perform.
 	Type AggregationType `json:"type"`
 
-	// Field is the name of the data field to aggregate.
+	// Field is the name of the data field to aggregate. Empty on a
+	// vector aggregator (AGG_VEC_*), which reads Vector or Fields.
 	Field string `json:"field"`
+
+	// Vector names the Request.Vectors entry whose members a vector
+	// aggregator (AGG_VEC_MEAN / AGG_VEC_SUM) aggregates element by
+	// element; exactly one of Vector and Fields. Any other aggregator
+	// refuses it.
+	Vector string `json:"vector,omitempty"`
+
+	// Fields lists a vector aggregator's members inline (literal names
+	// and / or globs, resolved by the Request.Vectors rules); exactly
+	// one of Vector and Fields.
+	Fields []string `json:"fields,omitempty"`
 
 	// Label is an optional output label for the aggregation result.
 	Label string `json:"label,omitempty"`

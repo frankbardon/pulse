@@ -234,6 +234,11 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			}
 		}
 		gerr := mergegate.ChainRefusal(staged, current, snap.mergeFacts(opts.instance()), i, stage.Name)
+		if gerr == nil {
+			// The runtime's next check: an array-valued aggregation may
+			// not feed a later stage.
+			gerr = mergegate.StageArrayValuedRefusal(staged, i, len(req.Stages), stage.Name)
+		}
 		if gerr != nil {
 			addCodedError(env, gerr)
 		}
@@ -375,7 +380,7 @@ func chainPredictedOutputFields(req *types.Request) []string {
 		}
 		label := agg.Label
 		if label == "" {
-			label = string(agg.Type) + "_" + agg.Field
+			label = types.AggregationLabelOf(agg)
 		}
 		if _, dup := seen[label]; dup {
 			continue
@@ -412,7 +417,7 @@ func synthChainSchema(req *types.Request) *encoding.Schema {
 		}
 		label := agg.Label
 		if label == "" {
-			label = string(agg.Type) + "_" + agg.Field
+			label = types.AggregationLabelOf(agg)
 		}
 		if _, dup := seen[label]; dup {
 			continue

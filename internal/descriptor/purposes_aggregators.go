@@ -46,6 +46,8 @@ var aggregatorPurposes = map[string]descriptor.Purpose{
 	"AGG_STDDEV":              purposeAggStdDev,
 	"AGG_SUM":                 purposeAggSum,
 	"AGG_VARIANCE":            purposeAggVariance,
+	"AGG_VEC_MEAN":            purposeAggVecMean,
+	"AGG_VEC_SUM":             purposeAggVecSum,
 	"AGG_WEIGHTED_MEAN":       purposeAggWeightedMean,
 	"AGG_WELFORD":             purposeAggWelford,
 	"AGG_ZSCORE":              purposeAggZScore,
@@ -883,5 +885,60 @@ var (
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"residual", "overfitting", "missing-value"},
+	}
+)
+
+// --- Vector profiles (U27) -------------------------------------------
+
+var (
+	purposeAggVecMean = descriptor.Purpose{
+		Plain:   "Average of each item of a battery or mix, as one list per group: the group's average profile across the items.",
+		KnownAs: []string{"average profile", "mean vector", "centroid", "item means"},
+		Intents: []string{IntentDescribe, IntentCompareGroups},
+		Questions: []string{
+			"What is each segment's average rating on each of the eight brand attributes?",
+			"What does the typical store's channel mix look like in each region?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Per-segment average of every item in an agree-disagree battery, ready to chart as profile lines.",
+			descriptor.DomainOps:     "Average share of each sales channel per region, read from one list.",
+			descriptor.DomainScience: "Mean of each measured variable per treatment group, kept together as one profile.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want one score per row from the items", Use: "ATTR_SCALE_SCORE"},
+			{When: "you want the average of a single field", Use: "AGG_AVERAGE"},
+			{When: "you want how the items vary together", Use: "MAT_COVARIANCE"},
+		},
+		Assumptions: []string{
+			"Each item is averaged over the rows that answered it; a skipped item leaves only that item out of the row.",
+			"An item no row answered has no average rather than 0.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"mean", "missing-value"},
+	}
+
+	purposeAggVecSum = descriptor.Purpose{
+		Plain:   "Total of each item of a set of related fields, as one list per group.",
+		KnownAs: []string{"item totals", "column totals", "sum vector"},
+		Intents: []string{IntentDescribe},
+		Questions: []string{
+			"How many units of each of the six products did each store sell?",
+			"What is the total spend per channel for every region, in one list?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Count of yes answers to each item of a checklist battery per segment.",
+			descriptor.DomainOps:     "Total volume per product line per site, kept together as one list.",
+			descriptor.DomainScience: "Total count of each observed category per sample site.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want each item's average rather than its total", Use: "AGG_VEC_MEAN"},
+			{When: "you want the total of a single field", Use: "AGG_SUM"},
+		},
+		Assumptions: []string{
+			"Each item is totalled over the rows that answered it; a skipped item adds nothing to that item.",
+			"An item no row answered totals 0.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"missing-value"},
 	}
 )

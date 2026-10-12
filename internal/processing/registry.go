@@ -40,6 +40,9 @@ var aggregatorRegistry = map[types.AggregationType]AggregatorFactory{
 	types.AGG_SET_CARDINALITY_SUM: newSetCardinalitySumAggregator,
 	types.AGG_SET_CARDINALITY_AVG: newSetCardinalityAvgAggregator,
 	types.AGG_SET_DISTINCT_VALUES: newSetDistinctValuesAggregator,
+
+	types.AGG_VEC_MEAN: newVecAggregator,
+	types.AGG_VEC_SUM:  newVecAggregator,
 }
 
 // attributeRegistry maps attribute types to their factory functions.

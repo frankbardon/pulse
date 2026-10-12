@@ -250,3 +250,29 @@ func StageMatrixRefusal(req *types.Request, stageIndex int, stageName string) er
 		"only chain stage 0 may carry matrices; a later stage reads the previous stage's output",
 		map[string]any{"source": "chain_stage", "matrices": len(req.Matrices), "stage": stageIndex, "stage_name": stageName})
 }
+
+// StageArrayValuedRefusal is the ProcessChain rule that an
+// array-valued aggregation (types.AggregationType.ArrayValued —
+// AGG_VEC_MEAN / AGG_VEC_SUM) may not feed a later stage: the next
+// stage reads each output column as one f64, so the array would read
+// as null and every figure over it — a total(), a ratio, a plain sum —
+// would be silently wrong. nil for the last stage (its rows are the
+// chain's output) or a stage with no such slot, else PROCESSING_CONFIG
+// {stage_index, stage_name, aggregation, label, reason:
+// "array_valued"}. The runtime and the chain validator both check it
+// right after ChainRefusal.
+func StageArrayValuedRefusal(req *types.Request, stageIndex, stageCount int, stageName string) error {
+	if req == nil || stageIndex >= stageCount-1 {
+		return nil
+	}
+	for _, agg := range req.Aggregations {
+		if agg == nil || !agg.Type.ArrayValued() {
+			continue
+		}
+		label := types.AggregationLabelOf(agg)
+		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("chain stage %d aggregation %s (%s) is array-valued and cannot feed a later stage, which reads one number per column; make it the last stage", stageIndex, label, agg.Type),
+			map[string]any{"stage_index": stageIndex, "stage_name": stageName, "aggregation": string(agg.Type), "label": label, "reason": "array_valued"})
+	}
+	return nil
+}

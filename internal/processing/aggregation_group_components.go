@@ -28,7 +28,7 @@ import (
 // bucket) and the shard / parallel-decode partials — so a slot's floor
 // has one implementation whatever the worker count.
 type SlotFloor struct {
-	field  string
+	agg    *types.Aggregation
 	n      int
 	nNull  int
 	weight WeightFloor
@@ -42,7 +42,7 @@ func NewSlotFloors(aggs []*types.Aggregation) []SlotFloor {
 	}
 	out := make([]SlotFloor, len(aggs))
 	for i, agg := range aggs {
-		out[i] = SlotFloor{field: agg.Field, weight: NewWeightFloor(agg)}
+		out[i] = SlotFloor{agg: agg, weight: NewWeightFloor(agg)}
 	}
 	return out
 }
@@ -54,12 +54,15 @@ func NewSlotFloors(aggs []*types.Aggregation) []SlotFloor {
 func ObserveSlotFloors(floors []SlotFloor, r *Record) {
 	for i := range floors {
 		f := &floors[i]
-		if FieldPresent(r, f.field) {
+		present := AggregationPresent(r, f.agg)
+		if present {
 			f.n++
 		} else {
 			f.nNull++
 		}
-		f.weight.Observe(r, f.field)
+		if f.weight.spec != nil {
+			f.weight.observePresent(r, present)
+		}
 	}
 }
 

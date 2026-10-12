@@ -155,6 +155,15 @@ type CrosstabCapability struct {
 	// incompatible because dividing one map by another is undefined.
 	// Derived from types.AggregationType.MapValued() at build time.
 	MapValuedCellAggregators []string `json:"map_valued_cell_aggregators"`
+
+	// ArrayValuedAggregators is the alphabetized list of aggregator
+	// names whose value is one figure per vector member
+	// (types.AggregationType.ArrayValued — AGG_VEC_MEAN, AGG_VEC_SUM).
+	// They are refused as the crosstab cell or a margin aggregation
+	// UNCONDITIONALLY (PROCESSING_CONFIG, details.reason
+	// "array_valued"), whatever normalize says. Additive; omitted when
+	// the instance offers none.
+	ArrayValuedAggregators []string `json:"array_valued_aggregators,omitempty"`
 }
 
 // ExportFormatCapability describes the per-format export envelope

@@ -91,6 +91,9 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	req = processing.StampWeightsWith(req, s.defaultWeight, s.extensions)
 	shards := cohort.Shards()
 	schema := cohort.Schema()
+	// A vector aggregator's factory reads its resolved members (the
+	// rewrite Processor.prepare applies on every other arm).
+	req = processing.ResolveAggregationInputs(req, schema, s.extensions)
 
 	// Read the archive once. Each worker re-wraps the byte buffer in a
 	// bytes.Reader (which is an io.ReaderAt under the hood) so worker
@@ -577,11 +580,18 @@ func primaryNullFieldFor(req *types.Request) string {
 	if req == nil {
 		return ""
 	}
-	if len(req.Aggregations) > 0 && req.Aggregations[0] != nil && req.Aggregations[0].Field != "" {
-		return req.Aggregations[0].Field
+	// The serial arms' rule (processing.primaryNullFieldName): the first
+	// aggregation that names a Field — a vector aggregator names none —
+	// else the first grouper that names one.
+	for _, agg := range req.Aggregations {
+		if agg != nil && agg.Field != "" {
+			return agg.Field
+		}
 	}
-	if len(req.Groups) > 0 && req.Groups[0] != nil {
-		return req.Groups[0].Field
+	for _, grp := range req.Groups {
+		if grp != nil && grp.Field != "" {
+			return grp.Field
+		}
 	}
 	return ""
 }
@@ -816,7 +826,7 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 			}
 			label := req.Aggregations[i].Label
 			if label == "" {
-				label = fmt.Sprintf("%s_%s", req.Aggregations[i].Type, req.Aggregations[i].Field)
+				label = types.AggregationLabelOf(req.Aggregations[i])
 			}
 			// Lift through the Rich-or-scalar dispatch the serial
 			// Processor uses. Finalize() alone returns a

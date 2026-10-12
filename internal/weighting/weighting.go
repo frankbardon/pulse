@@ -97,6 +97,11 @@ var aggregatorClasses = map[types.AggregationType]Class{
 	types.AGG_MAPE: ClassAware,
 	types.AGG_RMSE: ClassAware,
 	types.AGG_MAE:  ClassAware,
+
+	// vector-metrics-aggregates E2-S2: per element Σw·x (AGG_VEC_SUM)
+	// and Σw·x / Σw (AGG_VEC_MEAN).
+	types.AGG_VEC_MEAN: ClassAware,
+	types.AGG_VEC_SUM:  ClassAware,
 }
 
 // attributeClasses classes the attributes the table governs: the

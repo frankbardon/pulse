@@ -118,7 +118,7 @@ func AggregationLabel(agg *types.Aggregation) string {
 	if agg.Label != "" {
 		return agg.Label
 	}
-	return fmt.Sprintf("%s_%s", agg.Type, agg.Field)
+	return types.AggregationLabelOf(agg)
 }
 
 // ChainOutputSchema synthesises the schema produced by a mergeable

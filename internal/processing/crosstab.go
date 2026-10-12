@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/limits"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -1871,6 +1872,12 @@ func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request) error {
 	if req != nil && (len(req.Groups) > 0 || len(req.Aggregations) > 0) {
 		return errors.NewCodedError(errors.PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS,
 			"crosstab cannot coexist with top-level groups or aggregations on the same request")
+	}
+	// An array-valued cell or margin aggregation (AGG_VEC_*) has no one
+	// number for a cell: refused whatever normalize says. Shared with
+	// predict (vectors.ArrayValuedCrosstabRefusal).
+	if cerr := vectors.ArrayValuedCrosstabRefusal(spec, nil); cerr != nil {
+		return cerr
 	}
 	if !types.IsValidNormalize(spec.Normalize) {
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,

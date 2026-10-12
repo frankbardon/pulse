@@ -66,6 +66,10 @@ definition:
     form with N* = Kish n_eff, cross-checked against statsmodels
     DescrStatsW(w*).zconfint_mean; the same closed form must equal R on
     the frequency column (1e-12) first.
+  * AGG_VEC_SUM / AGG_VEC_MEAN (vector-metrics-aggregates E2-S2) —
+    statsmodels DescrStatsW .sum / .mean per member over that member's
+    own contributing rows (one slot over x and y; figures keyed by
+    element position "0", "1").
   * AGG_MAE / AGG_RMSE / AGG_MAPE (fit-scoring E2-S1) — scikit-learn
     metrics mean_absolute_error / mean_squared_error (RMSE = its root) /
     mean_absolute_percentage_error with sample_weight, actual x against
@@ -245,6 +249,8 @@ def present_rows(col):
         return [i for i, r in enumerate(ROWS) if r[0] is not NULL]
     if col == "s":
         return [i for i, r in enumerate(ROWS) if r[2] is not NULL]
+    if col == "y":
+        return [i for i, r in enumerate(ROWS) if r[1] is not NULL]
     raise ValueError(col)
 
 
@@ -493,6 +499,18 @@ def cases():
         add("AGG_SET_CARDINALITY_SUM", {"": csum}, col="s", floor_=sfl, src=nsrc + " Σw·popcount")
         add("AGG_SET_CARDINALITY_AVG", {"": csum / float(np.sum(sw))}, col="s", floor_=sfl,
             src=nsrc + " Σw·popcount / Σw")
+
+        # Vector aggregators (vector-metrics-aggregates E2-S2): ONE slot
+        # over x and y, figures keyed by element position. Each element is
+        # the DescrStatsW of that member's own contributing rows (present,
+        # weight valid) — missing data is per element. The floor counts a
+        # row present when ANY member answered; y is never null, so it is
+        # y's floor.
+        yidx = [i for i in present_rows("y") if valid(ws[i], kind)]
+        dy = DescrStatsW(np.array([ROWS[i][1] for i in yidx]), weights=np.array([ws[i] for i in yidx]), ddof=0)
+        vfl = floor("y", wname, kind)
+        add("AGG_VEC_SUM", {"0": d0.sum, "1": dy.sum}, col="x,y", floor_=vfl, src=sm + ".sum per member")
+        add("AGG_VEC_MEAN", {"0": d0.mean, "1": dy.mean}, col="x,y", floor_=vfl, src=sm + ".mean per member")
 
     # Cross-check: where the normalized probability weights are
     # integers the transcription must equal numpy type 7 on the

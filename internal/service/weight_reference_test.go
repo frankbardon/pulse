@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -116,6 +117,10 @@ const weightRefLabel = "ref"
 func weightRefRun(t *testing.T, svc *Service, c weightRefCase, buffered bool) (*types.Response, bool) {
 	t.Helper()
 	agg := &types.Aggregation{Type: types.AggregationType(c.op), Field: c.field, Label: weightRefLabel}
+	if agg.Type.ArrayValued() {
+		// A vector aggregator: field lists its members, comma-separated.
+		agg.Field, agg.Fields = "", strings.Split(c.field, ",")
+	}
 	if c.params != "" {
 		agg.Params = json.RawMessage(c.params)
 	}
@@ -198,6 +203,18 @@ func assertWeightRef(t *testing.T, arm string, c weightRefCase, resp *types.Resp
 	got := rows[0][weightRefLabel]
 	if want, scalar := c.data[""]; scalar {
 		weightRefClose(t, arm+" "+c.op, got, want)
+	} else if arr, isArray := got.([]any); isArray {
+		// An array figure (AGG_VEC_*): keyed by element position.
+		if len(arr) != len(c.data) {
+			t.Errorf("%s: %d elements, reference %d", arm, len(arr), len(c.data))
+		}
+		for k, want := range c.data {
+			i, err := strconv.Atoi(k)
+			if err != nil || i >= len(arr) {
+				t.Fatalf("%s: reference key %q is no element of %v", arm, k, arr)
+			}
+			weightRefClose(t, arm+" "+c.op+"["+k+"]", arr[i], want)
+		}
 	} else {
 		obj, ok := got.(map[string]any)
 		if !ok {
@@ -320,6 +337,10 @@ var weightRefScale = map[types.AggregationType]string{
 	types.AGG_MAPE: "free",
 	types.AGG_RMSE: "free",
 	types.AGG_MAE:  "free",
+	// Per element: a weighted mean is scale-free, a weighted total
+	// scales.
+	types.AGG_VEC_MEAN: "free",
+	types.AGG_VEC_SUM:  "total",
 }
 
 // TestWeightReferenceKindsAgree: the same replication pattern given as
@@ -383,6 +404,16 @@ func compareKinds(t *testing.T, where string, prob, freq any, factor float64) {
 		}
 		for k, v := range fm {
 			compareKinds(t, where+"."+k, pm[k], v, factor)
+		}
+		return
+	}
+	if fa, ok := freq.([]any); ok {
+		pa, ok := prob.([]any)
+		if !ok || len(pa) != len(fa) {
+			t.Fatalf("%s: probability %v, frequency %v", where, prob, freq)
+		}
+		for i, v := range fa {
+			compareKinds(t, where+"["+strconv.Itoa(i)+"]", pa[i], v, factor)
 		}
 		return
 	}

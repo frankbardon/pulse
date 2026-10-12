@@ -260,7 +260,9 @@ func Find(resolved []Resolved, name string) (Resolved, bool) {
 // Referenced returns the vector names req's operator slots reference:
 // every Request.Matrices spec's `vector`, every tier-1 test's
 // `vector` / `vector2`, every attribute's `vector`, every grouper
-// slot's `vector` (groups and both crosstab axes), and every
+// slot's `vector` (groups and both crosstab axes), every aggregation
+// slot's `vector` (aggregations, the crosstab cell and its margin
+// aggregations), and every
 // Request.Vectors name an expression reads as a free identifier — an
 // ATTR_FORMULA expression, a FILTER_EXPRESSION filterer's expression
 // (Request.Filterers and a vector attribute's params.fit_on) and so a
@@ -298,6 +300,11 @@ func Referenced(req *types.Request) map[string]bool {
 	for _, s := range GroupSlots(req) {
 		if s.Group.Vector != "" {
 			refs[s.Group.Vector] = true
+		}
+	}
+	for _, s := range AggregationSlots(req) {
+		if s.Agg.Vector != "" {
+			refs[s.Agg.Vector] = true
 		}
 	}
 	exprReferenced(req, refs)

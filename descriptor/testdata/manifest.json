@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:9b101a1db67f0c220241137f11bdb3d5ec8f3c61c5ef2c985f806afd2b0f399b",
+    "feature_set_digest": "fs1:bda75d65c1725facda0f6ccfe2f1459aa034209bc150da6ffd6720ef178e1c72",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -2613,6 +2613,181 @@
           "intents": [
             "describe",
             "distribution_shape"
+          ]
+        },
+        {
+          "name": "AGG_VEC_MEAN",
+          "category": "aggregator",
+          "description": "Per-member mean of a vector (vector or fields, exactly one; never field): one figure per member, in member order — the group's average profile. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) / sum(w) per element. An element no row answered is NaN (null in JSON). Array-valued: refused as a crosstab cell, a Sort key, a request overlay's host and a chain stage that feeds another.",
+          "params": [
+            {
+              "name": "labels",
+              "type": "list",
+              "required": false,
+              "description": "Display label per member, inline fields only (a named vector carries its own Request.Vectors labels); one per resolved member. Names the elements in labels (components). Default: the member names."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "rich []float64, one mean per member in member order (an element no row answered is NaN, null in JSON); no scalar figure",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
+                "name": "labels",
+                "type": "[]string",
+                "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names."
+              },
+              {
+                "name": "element_n",
+                "type": "[]int",
+                "description": "Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered)."
+              },
+              {
+                "name": "element_sum",
+                "type": "[]float64",
+                "description": "Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count."
+              },
+              {
+                "name": "element_sum_weights",
+                "type": "[]float64",
+                "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator.",
+                "optional": true
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "compare_groups",
+            "describe"
+          ]
+        },
+        {
+          "name": "AGG_VEC_SUM",
+          "category": "aggregator",
+          "description": "Per-member total of a vector (vector or fields, exactly one; never field): one figure per member, in member order. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) per element. An element no row answered is 0. Array-valued: refused as a crosstab cell, a Sort key, a request overlay's host and a chain stage that feeds another.",
+          "params": [
+            {
+              "name": "labels",
+              "type": "list",
+              "required": false,
+              "description": "Display label per member, inline fields only (a named vector carries its own Request.Vectors labels); one per resolved member. Names the elements in labels (components). Default: the member names."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "rich []float64, one total per member in member order (0 where no row answered); no scalar figure",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
+                "name": "labels",
+                "type": "[]string",
+                "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names."
+              },
+              {
+                "name": "element_n",
+                "type": "[]int",
+                "description": "Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered)."
+              },
+              {
+                "name": "element_sum",
+                "type": "[]float64",
+                "description": "Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count."
+              },
+              {
+                "name": "element_sum_weights",
+                "type": "[]float64",
+                "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator.",
+                "optional": true
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "describe"
           ]
         },
         {
@@ -8941,6 +9116,8 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_VEC_MEAN",
+          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
           "AGG_ZSCORE"
@@ -9027,6 +9204,8 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_VEC_MEAN",
+          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
           "AGG_ZSCORE"
@@ -9113,6 +9292,8 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_VEC_MEAN",
+          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
           "AGG_ZSCORE"
@@ -9199,6 +9380,8 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_VEC_MEAN",
+          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
           "AGG_ZSCORE"
@@ -9285,6 +9468,8 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_VEC_MEAN",
+          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
           "AGG_ZSCORE"
@@ -9370,6 +9555,8 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_VEC_MEAN",
+          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
           "AGG_ZSCORE"
@@ -9455,6 +9642,8 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_VEC_MEAN",
+          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
         ],
@@ -9537,6 +9726,8 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_VEC_MEAN",
+          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
         ],
@@ -10363,6 +10554,14 @@
       {
         "name": "op-agg-variance",
         "description": "Population variance via Welford's online algorithm."
+      },
+      {
+        "name": "op-agg-vec-mean",
+        "description": "Per-member mean of a vector — one average per member, in member order (a group's average profile)."
+      },
+      {
+        "name": "op-agg-vec-sum",
+        "description": "Per-member total of a vector — one sum per member, in member order."
       },
       {
         "name": "op-agg-weighted-mean",
@@ -11381,7 +11580,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 207,
+    "examples_count": 208,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -11644,6 +11843,8 @@
         "AGG_SKEWNESS",
         "AGG_STDDEV",
         "AGG_VARIANCE",
+        "AGG_VEC_MEAN",
+        "AGG_VEC_SUM",
         "AGG_WELFORD",
         "AGG_ZSCORE"
       ],
@@ -11656,7 +11857,8 @@
         "crosstab requires a cell aggregation (PULSE_CROSSTAB_MISSING_CELL)",
         "crosstab cannot coexist with top-level groups or aggregations (PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS)",
         "matrix shape, any margin, or any normalization forces the buffered path",
-        "map-valued cell aggregators (AGG_SET_FREQUENCY) cannot pair with normalize=row/column/total (PULSE_CROSSTAB_NORMALIZE_MAP_VALUED)"
+        "map-valued cell aggregators (AGG_SET_FREQUENCY) cannot pair with normalize=row/column/total (PULSE_CROSSTAB_NORMALIZE_MAP_VALUED)",
+        "array-valued aggregators (array_valued_aggregators: AGG_VEC_MEAN, AGG_VEC_SUM) are refused as the cell or a margin aggregation, whatever normalize says (PROCESSING_CONFIG, reason array_valued)"
       ],
       "supports_normalize_level": true,
       "normalize_level_rules": [
@@ -11679,6 +11881,10 @@
       "map_valued_cell_aggregators": [
         "AGG_SET_FREQUENCY",
         "AGG_WELFORD"
+      ],
+      "array_valued_aggregators": [
+        "AGG_VEC_MEAN",
+        "AGG_VEC_SUM"
       ]
     },
     "export": {
@@ -14264,6 +14470,114 @@
           ],
           "mergeability": "mergeable"
         },
+        "AGG_VEC_MEAN": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "labels",
+              "type": "[]string",
+              "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names."
+            },
+            {
+              "name": "element_n",
+              "type": "[]int",
+              "description": "Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered)."
+            },
+            {
+              "name": "element_sum",
+              "type": "[]float64",
+              "description": "Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count."
+            },
+            {
+              "name": "element_sum_weights",
+              "type": "[]float64",
+              "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator.",
+              "optional": true
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_VEC_SUM": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "labels",
+              "type": "[]string",
+              "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names."
+            },
+            {
+              "name": "element_n",
+              "type": "[]int",
+              "description": "Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered)."
+            },
+            {
+              "name": "element_sum",
+              "type": "[]float64",
+              "description": "Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count."
+            },
+            {
+              "name": "element_sum_weights",
+              "type": "[]float64",
+              "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator.",
+              "optional": true
+            }
+          ],
+          "mergeability": "mergeable"
+        },
         "AGG_WEIGHTED_MEAN": {
           "keys": [
             {
@@ -15659,4 +15973,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 126bf38966d64adc56971b297db6209a75dc896f296d86ffc4df3c2cfe69af1e
+// golden-hash: 887dfba292831ef6abc113cbb7c6e1521a9a41270eb8ad9193c79834b399c34c
