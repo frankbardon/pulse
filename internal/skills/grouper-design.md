@@ -35,7 +35,7 @@ With N ≥ 2 entries a row's key is the tuple `(g0, ..., gN-1)`; this is the can
 - **Rows:** one per OBSERVED combination (never an empty one), in each grouper's native key order, outer → inner. Every row carries every grouper's key column.
 - **Null key** at any position drops the record from every row; each grouper still sees it once, so `n_null` matches its single-grouper run.
 - **Fan-out** groupers multiply: a record lands in each key-set product.
-- **Whole-set fit:** <!-- feature: GROUP_QUANTILE -->`GROUP_QUANTILE`<!-- /feature --> and <!-- feature: GROUP_KMEANS -->`GROUP_KMEANS`<!-- /feature --> fit once over the filtered set, then cross; position never changes a record's band.
+- **Fit:** <!-- feature: GROUP_QUANTILE -->`GROUP_QUANTILE`<!-- /feature --> / <!-- feature: GROUP_KMEANS -->`GROUP_KMEANS`<!-- /feature --> fit once over the filtered set (`params.fit` `global`); `within` refits per bucket of the keys before it.
 - **Refused:** two entries on one key column (`SERVICE_VALIDATION`); an extension key containing NUL (`PROCESSING_GROUP`); <!-- feature: OVERLAY_YOY -->`OVERLAY_YOY`<!-- /feature --> without exactly one date grouper (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`).
 - **`max_groups`:** predict reports the PRODUCT of per-grouper estimates, an upper bound; the run enforces it on observed ones.
 - **Downstream:** `sort`, `return`, windows, post-tests<!-- feature: capability:matrices --> and grouped matrices<!-- /feature --> follow the composite rows. Series overlays (YoY aside) run once per partition: the leading keys (`params.partition_by`; default all but the last, so put the date grouper last), never crossing a segment (`overlay-system`).

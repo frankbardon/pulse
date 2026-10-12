@@ -147,6 +147,7 @@ func grouperCapabilities() []descriptor.Operator {
 				{Name: "n_init", Type: "int", Default: 10, Description: "Number of seeded starts; the lowest within-cluster sum of squares wins, ties to the earliest."},
 				{Name: "standardize", Type: "bool", Default: true, Description: "z-score each member (weighted mean, ddof = 1 sd over the clustered rows) before clustering."},
 				{Name: "missing", Type: "enum", Default: "listwise", EnumValues: []string{"listwise"}, Description: "Missing-data mode; only listwise (a row with any null member joins no cluster)."},
+				groupFitParam,
 			},
 			AcceptsTypes:   numericFieldTypesNoDecimal,
 			EmitsTypeNote:  "cluster label per row (cluster_1 .. cluster_k, by descending size)",
@@ -184,6 +185,7 @@ func grouperCapabilities() []descriptor.Operator {
 					Default:     4,
 					Description: "Number of buckets. Conventional values 4 (quartiles), 10 (deciles), 100 (percentiles); set on the request's Group.Interval field, not in Params.",
 				},
+				groupFitParam,
 			},
 			AcceptsTypes:   numericFieldTypesNoDecimal,
 			EmitsTypeNote:  "bucket label per row (Qk / Dk / Pk)",
@@ -268,4 +270,16 @@ func grouperCapabilities() []descriptor.Operator {
 			),
 		},
 	}
+}
+
+// groupFitParam is params.fit on the data-dependent groupers
+// (internal/groupfit; GROUP_QUANTILE, GROUP_KMEANS).
+var groupFitParam = descriptor.Param{
+	Name:       "fit",
+	Type:       "enum",
+	Default:    "global",
+	EnumValues: []string{"global", "within"},
+	Description: "Where the grouper is fitted. global: once over the whole filtered set, whatever its position (plain groups, crosstab and Compose alike). " +
+		"within: refitted inside each bucket of the groupers before it (crosstab: rows, then columns), so [region, quartile] gives per-region quartiles. " +
+		"On the outermost position (groups[0], crosstab rows[0]) within is a no-op. Any other value is refused PROCESSING_CONFIG on predict and at run time.",
 }

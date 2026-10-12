@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/dategroup"
+	"github.com/frankbardon/pulse/internal/groupfit"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -743,6 +744,9 @@ type quantileGrouper struct {
 
 func newQuantileGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) {
 	if err := rejectSetFieldForNumericGrouper(grp, schema); err != nil {
+		return nil, err
+	}
+	if _, err := groupfit.Parse(grp.Type, grp.Params); err != nil {
 		return nil, err
 	}
 	buckets := int(grp.Interval)

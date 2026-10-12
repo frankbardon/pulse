@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/groupfit"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/linalg/metric"
@@ -101,6 +102,9 @@ type kmeansGrouper struct {
 func newKMeansGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) {
 	cfg, cerr := vectors.KMeansParams("groups", grp.Params)
 	if cerr != nil {
+		return nil, cerr
+	}
+	if _, cerr := groupfit.Parse(grp.Type, grp.Params); cerr != nil {
 		return nil, cerr
 	}
 	members := grp.Fields
@@ -694,10 +698,14 @@ func (p *Processor) resolveGroupInputs(req *types.Request) *types.Request {
 }
 
 // wholeSetAxis is one buffered-crosstab axis position whose grouper
-// partitions the WHOLE filtered set at once (GROUP_KMEANS): the fitted
-// assignment, its emission order and its components, computed once per
-// RunCrosstab so a nested position or the per-row-bucket column
-// partition routes records by it instead of refitting a subset.
+// partitions the WHOLE filtered set at once (a data-dependent grouper —
+// GROUP_QUANTILE, GROUP_KMEANS — under params.fit "global", the
+// default; internal/groupfit): the fitted assignment, its emission
+// order and its components, computed once per RunCrosstab so a nested
+// position or the per-row-bucket column partition routes records by it
+// instead of refitting a subset — the plain-groups rule
+// (partitionComposite). Under "within" the position is not whole-set
+// and PartitionByAxis refits it on each outer bucket's records.
 type wholeSetAxis struct {
 	keyOf      map[*Record]string
 	order      *includeFilter
@@ -724,7 +732,7 @@ func (p *Processor) fitWholeSetAxes(spec *types.CrosstabSpec, filtered []*Record
 	var warns []*types.ResponseWarning
 	for _, axis := range [][]*types.Group{spec.Rows, spec.Columns} {
 		for _, grp := range axis {
-			if grp == nil || grp.Type != types.GROUP_KMEANS || p.exts.isHidden(string(grp.Type)) {
+			if grp == nil || !groupfit.Applies(grp.Type) || groupfit.IsWithin(grp) || p.exts.isHidden(string(grp.Type)) {
 				continue
 			}
 			factory, ok := p.exts.LookupGrouper(grp.Type)

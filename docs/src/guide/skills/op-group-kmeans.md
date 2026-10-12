@@ -26,6 +26,7 @@ Use something else:
 ## Params
 
 - `k` (required, 2 ≤ k ≤ distinct tuples). `seed` int64 (0 = fixed). `max_iter` 100, `n_init` 10 (lowest within-SS wins). `standardize` true. `missing` `listwise`.
+- `fit` `global` (once over the filtered set) or `within` (per bucket of the groupers before it; no-op outermost).
 - `weight`: frequency only (a row is w points).
 
 Slot: exactly one of `vector` (a `vectors` entry) / `fields`; no `field`. Key column `GROUP_KMEANS_<vector>` or `_<first fields entry>`.

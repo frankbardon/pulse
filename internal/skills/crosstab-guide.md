@@ -33,7 +33,9 @@ Result `Response.Crosstab.Matrix` — `RowKeys`, `ColumnKeys`, `Cells`, margins,
 
 `rows`, `columns` are each a list of groupers — any grouper, either axis. Several per axis = nested headers in composite-key order. Empty axes / missing cell ⇒ `PULSE_CROSSTAB_EMPTY_ROWS` / `_EMPTY_COLUMNS` / `_MISSING_CELL`.
 
-**Include ordering is per axis.** Each axis honors its own grouper `include` order — a non-empty list emits keys in listed order (per key position on a nested axis), else alphabetical. Zero-record include values drop.
+**Include ordering is per axis** (per key position when nested): listed order, else alphabetical; zero-record include values drop.
+
+**Fit.** A <!-- feature: GROUP_QUANTILE -->`GROUP_QUANTILE`<!-- /feature --> / <!-- feature: GROUP_KMEANS -->`GROUP_KMEANS`<!-- /feature --> axis fits once over the filtered set (`params.fit` `global`, as in `groups`); `within` refits per outer bucket (rows, then columns).
 
 `cell` is one aggregation. Most cells are scalars (`MatrixCell.Value: float64`). Map- or list-valued cells (manifest `crosstab.map_valued_cell_aggregators` and the set unions / intersections) refuse a non-`none` normalize with `PULSE_CROSSTAB_NORMALIZE_MAP_VALUED` — normalize a scalar aggregator instead.
 
@@ -70,7 +72,7 @@ Overlays never prevent fusing. A fan-out axis makes margins non-additive on both
 
 **Grid cap.** Rows × columns over `max_crosstab_cells` refuses either path with `PULSE_LIMIT_EXCEEDED`; predict flags it `possible`.
 
-**Joins.** A joined crosstab runs buffered over the JOINED rows: axes / cell may name `as`-prefixed right fields; an unmatched left row is counted nowhere; a 1:N match counts once per joined row<!-- feature: capability:joins --> (`join-design`)<!-- /feature -->.
+**Joins.** A joined crosstab runs buffered over the JOINED rows (`as`-prefixed right fields)<!-- feature: capability:joins -->; see `join-design`<!-- /feature -->.
 
 ## Components — `Response.Components.Crosstab`
 

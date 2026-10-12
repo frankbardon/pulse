@@ -4806,6 +4806,17 @@
               "enum_values": [
                 "listwise"
               ]
+            },
+            {
+              "name": "fit",
+              "type": "enum",
+              "required": false,
+              "default": "global",
+              "description": "Where the grouper is fitted. global: once over the whole filtered set, whatever its position (plain groups, crosstab and Compose alike). within: refitted inside each bucket of the groupers before it (crosstab: rows, then columns), so [region, quartile] gives per-region quartiles. On the outermost position (groups[0], crosstab rows[0]) within is a no-op. Any other value is refused PROCESSING_CONFIG on predict and at run time.",
+              "enum_values": [
+                "global",
+                "within"
+              ]
             }
           ],
           "accepts_types": [
@@ -4940,6 +4951,17 @@
               "required": false,
               "default": 4,
               "description": "Number of buckets. Conventional values 4 (quartiles), 10 (deciles), 100 (percentiles); set on the request's Group.Interval field, not in Params."
+            },
+            {
+              "name": "fit",
+              "type": "enum",
+              "required": false,
+              "default": "global",
+              "description": "Where the grouper is fitted. global: once over the whole filtered set, whatever its position (plain groups, crosstab and Compose alike). within: refitted inside each bucket of the groupers before it (crosstab: rows, then columns), so [region, quartile] gives per-region quartiles. On the outermost position (groups[0], crosstab rows[0]) within is a no-op. Any other value is refused PROCESSING_CONFIG on predict and at run time.",
+              "enum_values": [
+                "global",
+                "within"
+              ]
             }
           ],
           "accepts_types": [
@@ -16405,4 +16427,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 63c7c6a31f5f356c789fa48b318895809f1b19fd7f4ad2b6e8f6134da61a8453
+// golden-hash: 1edab157e8dcc0e0f38242e215ab3ef1277c7e67f9c130c15bb892ac7a01fa80

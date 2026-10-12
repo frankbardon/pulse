@@ -131,11 +131,11 @@ func TestPartitionComposite_MaxGroupsObserved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := partitionComposite(groups, gs, recs, limits.Limits{MaxGroups: 2}); err == nil {
+	if _, err := partitionComposite(groups, gs, recs, limits.Limits{MaxGroups: 2}, nil); err == nil {
 		t.Fatal("3 observed composite keys passed MaxGroups=2")
 	}
 	gs, _ = p.newRequestGroupers(groups)
-	part, err := partitionComposite(groups, gs, recs, limits.Limits{MaxGroups: 3})
+	part, err := partitionComposite(groups, gs, recs, limits.Limits{MaxGroups: 3}, nil)
 	if err != nil || part.Set.Len() != 3 {
 		t.Fatalf("at the limit: %v, %v", part, err)
 	}

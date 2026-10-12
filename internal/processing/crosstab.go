@@ -74,12 +74,15 @@ func (p *Processor) PartitionByAxis(axis []*types.Group, records []*Record) (*Cr
 	var buckets map[string][]*Record
 	order := buildIncludeFilter(grp.Include)
 	if ws := p.wholeSetAxes[grp]; ws != nil {
-		// A whole-set axis (GROUP_KMEANS) was fitted once over every
-		// filtered record (fitWholeSetAxes); this level only routes its
-		// records by that assignment, so a nested position — and the
+		// A whole-set axis (GROUP_QUANTILE / GROUP_KMEANS under
+		// params.fit "global") was fitted once over every filtered
+		// record (fitWholeSetAxes); this level only routes its records
+		// by that assignment, so a nested position — and the
 		// per-row-bucket column partition — never refits a subset.
 		buckets = ws.partition(records)
-		order = ws.order
+		if ws.order != nil {
+			order = ws.order
+		}
 	} else {
 		if buckets, err = grouper.Group(records, grp.Field); err != nil {
 			return nil, err
@@ -515,9 +518,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	if err != nil {
 		return nil, err
 	}
-	// Whole-set axis groupers (GROUP_KMEANS) fit once over the filtered
-	// set before any partition; their warnings join the attribute
-	// pass's.
+	// Whole-set axis groupers (GROUP_QUANTILE / GROUP_KMEANS under
+	// params.fit "global") fit once over the filtered set before any
+	// partition; their warnings join the attribute pass's.
 	axisWarnings, err := p.fitWholeSetAxes(spec, filtered)
 	if err != nil {
 		return nil, err

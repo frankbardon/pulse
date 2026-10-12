@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/groupfit"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -217,19 +218,31 @@ type compositePartition struct {
 
 // partitionComposite drives every grouper exactly once over the WHOLE
 // record set (so a data-dependent grouper — GROUP_QUANTILE,
-// GROUP_KMEANS — is fitted once, whatever its position, and a record's
-// key equals its single-grouper key), then crosses the per-record key
-// sets into composite buckets. lim is checked against the observed
-// composite count as each new key appears.
-func partitionComposite(groups []*types.Group, groupers []Grouper, records []*Record, lim limits.Limits) (*compositePartition, error) {
+// GROUP_KMEANS — is fitted once under params.fit "global", the default,
+// whatever its position, and a record's key equals its single-grouper
+// key), then crosses the per-record key sets into composite buckets.
+// lim is checked against the observed composite count as each new key
+// appears.
+//
+// A position after the first whose grouper asks for params.fit
+// "within" (internal/groupfit) is refitted inside each outer-prefix
+// bucket instead — a fresh instance from refit per bucket — through
+// partitionCompositeWithin; its whole-set fit still sources the slot's
+// Components, warnings and key order. "within" on groups[0] has no
+// outer segment and is the whole-set fit.
+func partitionComposite(groups []*types.Group, groupers []Grouper, records []*Record, lim limits.Limits, refit func(i int) (Grouper, error)) (*compositePartition, error) {
 	n := len(groups)
 	perGrouper := make([]map[string][]*Record, n)
+	within := false
 	for i, grp := range groups {
 		b, err := groupers[i].Group(records, grp.Field)
 		if err != nil {
 			return nil, err
 		}
 		perGrouper[i] = b
+		if i > 0 && groupfit.IsWithin(grp) {
+			within = true
+		}
 	}
 
 	// Per-position, per-record key sets. Most groupers give one key per
@@ -238,14 +251,9 @@ func partitionComposite(groups []*types.Group, groupers []Grouper, records []*Re
 	for i, r := range records {
 		idx[r] = i
 	}
-	type position struct {
-		first []string
-		has   []bool
-		more  map[int][]string
-	}
-	pos := make([]position, n)
+	pos := make([]compositePosition, n)
 	for i := range pos {
-		pos[i] = position{first: make([]string, len(records)), has: make([]bool, len(records))}
+		pos[i] = compositePosition{first: make([]string, len(records)), has: make([]bool, len(records))}
 		for key, recs := range perGrouper[i] {
 			for _, r := range recs {
 				ri, ok := idx[r]
@@ -262,6 +270,10 @@ func partitionComposite(groups []*types.Group, groupers []Grouper, records []*Re
 				pos[i].more[ri] = append(pos[i].more[ri], key)
 			}
 		}
+	}
+
+	if within {
+		return partitionCompositeWithin(groups, records, lim, refit, pos, perGrouper)
 	}
 
 	set := NewCompositeKeySet(n)
@@ -299,6 +311,109 @@ func partitionComposite(groups []*types.Group, groupers []Grouper, records []*Re
 	return out, nil
 }
 
+// compositePosition is one grouper position's per-record key set over
+// the whole record set (indexed by record position): first holds the
+// first key, more any fan-out extras.
+type compositePosition struct {
+	first []string
+	has   []bool
+	more  map[int][]string
+}
+
+// keys returns record ri's keys at this position (nil = none).
+func (c *compositePosition) keys(ri int) []string {
+	if !c.has[ri] {
+		return nil
+	}
+	if extra, ok := c.more[ri]; ok {
+		return append([]string{c.first[ri]}, extra...)
+	}
+	return []string{c.first[ri]}
+}
+
+// partitionCompositeWithin is partitionComposite when some position
+// after the first refits within its outer segment: it walks the
+// positions outer → inner over prefix buckets (each in record order),
+// keying a "global" position from its whole-set key set (pos) and a
+// "within" position from a fresh fit (refit) over that prefix bucket's
+// records only, so the inner key depends on the outer tuple. The
+// leaves become the composite buckets — same key strings, tuples, NUL
+// guard and max_groups check as the cross-product path.
+func partitionCompositeWithin(groups []*types.Group, records []*Record, lim limits.Limits, refit func(i int) (Grouper, error), pos []compositePosition, perGrouper []map[string][]*Record) (*compositePartition, error) {
+	idx := make(map[*Record]int, len(records))
+	for i, r := range records {
+		idx[r] = i
+	}
+	type prefix struct {
+		tuple []string
+		recs  []*Record
+	}
+	level := []prefix{{recs: records}}
+	for i, grp := range groups {
+		var next []prefix
+		for _, b := range level {
+			var keysOf func(r *Record) []string
+			if i > 0 && groupfit.IsWithin(grp) {
+				g, err := refit(i)
+				if err != nil {
+					return nil, err
+				}
+				m, err := g.Group(b.recs, grp.Field)
+				if err != nil {
+					return nil, err
+				}
+				local := make(map[*Record][]string, len(b.recs))
+				for k, recs := range m {
+					for _, r := range recs {
+						local[r] = append(local[r], k)
+					}
+				}
+				keysOf = func(r *Record) []string { return local[r] }
+			} else {
+				keysOf = func(r *Record) []string { return pos[i].keys(idx[r]) }
+			}
+			child := map[string]int{}
+			for _, r := range b.recs {
+				for _, k := range keysOf(r) {
+					ci, ok := child[k]
+					if !ok {
+						ci = len(next)
+						child[k] = ci
+						tuple := make([]string, len(b.tuple)+1)
+						copy(tuple, b.tuple)
+						tuple[len(b.tuple)] = k
+						next = append(next, prefix{tuple: tuple})
+					}
+					next[ci].recs = append(next[ci].recs, r)
+				}
+			}
+		}
+		level = next
+	}
+
+	set := NewCompositeKeySet(len(groups))
+	out := &compositePartition{Set: set, Buckets: map[string][]*Record{}, PerGrouper: perGrouper}
+	keySets := make([][]string, len(groups))
+	for _, leaf := range level {
+		for i, k := range leaf.tuple {
+			keySets[i] = []string{k}
+		}
+		err := set.Expand(keySets, func(key string) error {
+			if _, seen := out.Buckets[key]; !seen {
+				if err := limits.Check(lim, limits.MaxGroups, int64(len(out.Buckets))+1); err != nil {
+					return err
+				}
+			}
+			out.Buckets[key] = leaf.recs
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
 // processGroupedComposite is the buffered grouped exit for two or more
 // groupers: one Data row per OBSERVED composite key, in each grouper's
 // native order outer → inner, every key column written from the tuple;
@@ -310,7 +425,13 @@ func (p *Processor) processGroupedComposite(req *types.Request, records []*Recor
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, err
 	}
-	part, err := partitionComposite(req.Groups, groupers, records, p.limits)
+	part, err := partitionComposite(req.Groups, groupers, records, p.limits, func(i int) (Grouper, error) {
+		gs, err := p.newRequestGroupers(req.Groups[i : i+1])
+		if err != nil {
+			return nil, err
+		}
+		return gs[0], nil
+	})
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, err
 	}
