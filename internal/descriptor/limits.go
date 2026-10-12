@@ -282,8 +282,9 @@ var valueStateAggregation = map[types.AggregationType]bool{
 	types.AGG_FREQUENCY:      true,
 }
 
-// mergeBlocks is the merge-block count a run over in's records
-// populates: per shard for an archive, else over Records.
+// mergeBlocks is the merge-fragment count a run over in's records
+// populates: over the per-shard counts for an archive, else over
+// Records.
 func mergeBlocks(in LimitInputs) int64 {
 	if len(in.ShardRecords) > 0 {
 		return limits.MergeBlocks(in.ShardRecords...)
@@ -309,6 +310,8 @@ func matrixMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSna
 		acc := m.AccumulatorBytes() * m.StateCount(schema)
 		if known {
 			b = limits.MatrixStateBytes(blocks, buckets, acc)
+			// A shard starting inside a block buffers that block's rows.
+			b = addSaturating(b, limits.MatrixStateBytes(limits.MergeBufferedRows(in.ShardRecords...), buckets, m.FragmentRowBytes()*m.StateCount(schema)))
 		} else {
 			b = limits.MatrixStateBytes(in.Records, 1, acc)
 		}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/mergegate"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -360,6 +361,30 @@ func (s *ExtensionsSnapshot) WeightAwareness(category, name string) (registered,
 		}
 	}
 	return false, false
+}
+
+// aggregationKinds is the descriptor's view of the aggregation types
+// for the vector rules — the twin of processing.ExtensionRegistry.
+// AggregationKinds: a type the instance hides routes to "" (unknown),
+// and a registered extension aggregator (snap, else the instance's own
+// projection) reports its declared VectorInput / ArrayValued.
+func aggregationKinds(inst *InstanceSnapshot, snap *ExtensionsSnapshot) vectors.AggregationKinds {
+	if snap == nil {
+		snap = inst.Extensions()
+	}
+	k := vectors.AggregationKinds{
+		Route: func(t types.AggregationType) types.AggregationType { return opRoute(inst, t) },
+	}
+	if snap != nil && len(snap.Aggregators) > 0 {
+		k.Extension = func(name string) vectors.ExtensionAggregation {
+			m, ok := findMeta(snap.Aggregators, name)
+			if !ok {
+				return vectors.ExtensionAggregation{}
+			}
+			return vectors.ExtensionAggregation{Registered: true, VectorInput: m.VectorInput, ArrayValued: m.ArrayValued}
+		}
+	}
+	return k
 }
 
 // HasAggregator reports whether name is an embedder-registered

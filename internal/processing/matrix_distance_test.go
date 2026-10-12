@@ -62,7 +62,7 @@ func runDistance(t *testing.T, schema *encoding.Schema, spec types.MatrixSpec, r
 			nl = nulls[i]
 		}
 		rec := NewRecordWithNulls(schema, vals, nl)
-		rec.SetMergePosition(0, i)
+		rec.SetMergePosition(0, 0, i)
 		if err := slots[0].UpdateRow(rec, ""); err != nil {
 			t.Fatalf("UpdateRow: %v", err)
 		}
@@ -360,7 +360,7 @@ func TestMatrixDistance_MergeEqualsSerial(t *testing.T) {
 			nulls = map[string]bool{"g": true} // null keys on both partitions
 		}
 		recs[i] = NewRecordWithNulls(schema, map[string]float64{"x1": x, "x2": math.Sin(float64(i)) * 7, "g": float64(1 + i%4), "w": 1}, nulls)
-		recs[i].SetMergePosition(0, i)
+		recs[i].SetMergePosition(0, 0, i)
 	}
 	build := func() []*matrixSlot {
 		s, err := buildMatrixSlotsFor(&types.Request{Matrices: []types.MatrixSpec{spec}}, schema, nil, FullComputePlan())

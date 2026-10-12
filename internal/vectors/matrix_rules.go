@@ -88,6 +88,14 @@ func (m Matrix) AccumulatorBytes() int64 {
 	return coMomentHeaderBytes + 8*(p+cells)
 }
 
+// FragmentRowBytes is one row a non-head merge fragment buffers (a
+// shard archive row whose shard starts inside its merge block, kept
+// for the finalize to replay): the folded columns plus the weight,
+// 8 bytes each. Slice headers are not counted.
+func (m Matrix) FragmentRowBytes() int64 {
+	return 8 * int64(len(m.Columns())+1)
+}
+
 // StateCount is the co-moment states the matrix holds per merge block:
 // 1, or on MAT_DISTANCE its base state plus one per between bucket
 // when the bucket count is known from the schema (EstimateBuckets over

@@ -258,6 +258,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_EXTENSION_EXAMPLE_COLLISION:            shared,
 	errors.PULSE_EXTENSION_MERGEABLE_MISMATCH:           shared,
 	errors.PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH: shared,
+	errors.PULSE_EXTENSION_ARRAY_VALUED_MISMATCH:        shared,
 	errors.PULSE_EXTENSION_FACTORY_PANIC:                shared,
 	errors.PULSE_EXTENSION_PARAM_INVALID:                shared,
 	errors.PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH:    shared,

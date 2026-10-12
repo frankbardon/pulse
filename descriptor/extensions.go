@@ -59,6 +59,19 @@ type OperatorMeta struct {
 	// cell. Omitted when undeclared, which reads as "recompute": the
 	// crosstab cell runs buffered.
 	MarginReducibility string `json:"margin_reducibility,omitempty"`
+	// VectorInput is the aggregator-only projection of
+	// pulse.AggregatorRegistration.VectorInput: the slot reads a member
+	// set from vector or fields (exactly one; field refused), resolved
+	// by the built-in vector rules, like AGG_VEC_MEAN. Omitted
+	// otherwise: the slot reads field.
+	VectorInput bool `json:"vector_input,omitempty"`
+	// ArrayValued is the aggregator-only projection of
+	// pulse.AggregatorRegistration.ArrayValued (implies VectorInput):
+	// the value is one figure per member, so the slot is refused as a
+	// crosstab cell or margin, a sort key, an overlay host and a chain
+	// stage feeding another, and params.expand writes one column per
+	// member. Omitted otherwise.
+	ArrayValued bool `json:"array_valued,omitempty"`
 	// WeightAware is the aggregator / attribute / test projection of
 	// the registration's WeightAware declaration — the extension half
 	// of the built-in Operator.WeightAware. True means the operator

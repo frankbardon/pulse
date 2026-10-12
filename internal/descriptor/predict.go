@@ -476,11 +476,13 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	}
 
 	predictVectors(env, result, req, schema, opts.Strict)
-	// The merge-block count the matrix state scales with: per shard for
-	// an archive, else over the record count; unknown without one.
-	blocks := int64(-1)
+	// The merge-fragment count the matrix state scales with: over the
+	// per-shard counts for an archive (plus the rows non-head fragments
+	// buffer), else over the record count; unknown without one.
+	blocks, buffered := int64(-1), int64(0)
 	if len(shardRecords) > 0 {
 		blocks = limits.MergeBlocks(shardRecords...)
+		buffered = limits.MergeBufferedRows(shardRecords...)
 	} else if sizeIn.recordsKnown {
 		blocks = limits.MergeBlocks(sizeIn.records)
 	}
@@ -493,7 +495,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	} else if sizeIn.recordsKnown {
 		matrixRecords = sizeIn.records
 	}
-	predictMatrices(result, req, schema, extensionsFromOpts(opts), opts.Instance, blocks, matrixRecords)
+	predictMatrices(result, req, schema, extensionsFromOpts(opts), opts.Instance, blocks, buffered, matrixRecords)
 	// Instance resource limits — the rule the process pre-flight
 	// refuses with (LimitRefusal), on the defaults-resolved request over
 	// the schema it executes over. A certain finding is a predict error.
@@ -1339,8 +1341,8 @@ func populateAggregationPredicts(result *descriptor.PredictResult, req *types.Re
 		}
 		// An expanding vector aggregation (params.expand) names the
 		// per-element columns it writes in place of its label.
-		if vectors.AggregationExpands(agg) {
-			if cols, ok := vectors.AggregationOutputColumns(req, agg, schema); ok {
+		if kinds := aggregationKinds(opts.instance(), extensionsFromOpts(opts)); vectors.AggregationExpands(agg, kinds) {
+			if cols, ok := vectors.AggregationOutputColumns(req, agg, schema, kinds); ok {
 				ap.Columns = cols
 			}
 		}

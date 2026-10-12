@@ -10,7 +10,8 @@ import (
 // Array-valued overlay hosts — the Compose-host and whole-chain halves
 // of the rule the field-reference walk applies to Request.Overlays. A
 // vector aggregation (types.AggregationType.ArrayValued — AGG_VEC_MEAN /
-// AGG_VEC_SUM) holds one figure per member, and under params.expand its
+// AGG_VEC_SUM — or an extension declared ArrayValued; aggregationKinds)
+// holds one figure per member, and under params.expand its
 // per-element columns are presentation only. An overlay handler reads
 // one number per host row (a SERIES host takes the row's first numeric
 // column), so a slot or stage carrying one would fold an array as NaN —
@@ -26,8 +27,9 @@ func firstArrayValuedAggregation(r *types.Request, inst *InstanceSnapshot) (int,
 	if r == nil {
 		return -1, nil
 	}
+	kinds := aggregationKinds(inst, nil)
 	for i, a := range r.Aggregations {
-		if a != nil && opRoute(inst, a.Type).ArrayValued() {
+		if a != nil && kinds.IsArrayValued(a.Type) {
 			return i, a
 		}
 	}

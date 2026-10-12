@@ -403,9 +403,10 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 		if agg == nil {
 			continue
 		}
-		// A vector aggregator (AGG_VEC_*) reads its members (step 11,
-		// source columns only), never a field.
-		if !vectors.IsVectorAggregation(opRoute(inst, agg.Type)) {
+		// A vector aggregator (AGG_VEC_*, or an extension declared
+		// VectorInput) reads its members (step 11, source columns only),
+		// never a field.
+		if !aggregationKinds(inst, w.snap).IsVector(agg.Type) {
 			w.check(agg.Field, func() *errors.CodedError {
 				return refusal("aggregation references unknown field: "+agg.Field,
 					map[string]any{"field": agg.Field, "aggregation": string(agg.Type)})
@@ -481,9 +482,9 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 			label := types.AggregationLabelOf(agg)
 			cols := [1]string{label}
 			outCols := cols[:]
-			if opRoute(inst, agg.Type).ArrayValued() {
-				if vectors.AggregationExpands(agg) {
-					outCols, _ = vectors.AggregationOutputColumns(req, agg, schema)
+			if kinds := aggregationKinds(inst, w.snap); kinds.IsArrayValued(agg.Type) {
+				if vectors.AggregationExpands(agg, kinds) {
+					outCols, _ = vectors.AggregationOutputColumns(req, agg, schema, kinds)
 				}
 				// An array-valued slot's label, and every expanded
 				// column, are presentation only (judged below).
@@ -592,7 +593,7 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 	if len(req.Overlays) > 0 && req.Crosstab == nil && len(req.Aggregations) > 0 && req.Aggregations[0] != nil {
 		// A request overlay reads the PRIMARY aggregation (the first)
 		// as its host value.
-		if host := req.Aggregations[0]; opRoute(inst, host.Type).ArrayValued() {
+		if host := req.Aggregations[0]; aggregationKinds(inst, w.snap).IsArrayValued(host.Type) {
 			w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 				"overlays read the first aggregation as their host value, and "+types.AggregationLabelOf(host)+" ("+string(host.Type)+") is array-valued; put a scalar aggregation first",
 				map[string]any{"aggregation": string(host.Type), "label": types.AggregationLabelOf(host), "slot": "aggregations[0]", "reason": "array_valued"}))
@@ -664,9 +665,7 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 	// vector / fields and params resolved by the same leaf
 	// (vectors.ResolveAggregations). Steps 6-11 contribute one refusal
 	// at most between them.
-	if _, aerr := vectors.ResolveAggregations(req, schema, func(t types.AggregationType) types.AggregationType {
-		return opRoute(inst, t)
-	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Aggregators })); aerr != nil {
+	if _, aerr := vectors.ResolveAggregations(req, schema, aggregationKinds(inst, w.snap)); aerr != nil {
 		w.out = append(w.out, aerr)
 	}
 	return w.out

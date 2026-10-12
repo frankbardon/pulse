@@ -238,7 +238,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		if gerr == nil {
 			// The runtime's next check: an array-valued aggregation may
 			// not feed a later stage.
-			gerr = mergegate.StageArrayValuedRefusal(staged, i, len(req.Stages), stage.Name)
+			gerr = mergegate.StageArrayValuedRefusal(staged, i, len(req.Stages), stage.Name, aggregationKinds(opts.instance(), snap))
 		}
 		if gerr != nil {
 			addCodedError(env, gerr)
@@ -303,7 +303,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 				}
 			}
 		}
-		next := chainPredictedOutputFields(staged, current)
+		next := chainPredictedOutputFields(staged, current, aggregationKinds(opts.instance(), snap))
 		result.StageSchemas = append(result.StageSchemas, next)
 		current = synthChainSchema(staged)
 	}
@@ -367,7 +367,7 @@ func chainStageDefaulted(req *types.Request, in *encoding.Schema, opts *PredictO
 // array-valued stage may not feed another: mergegate.
 // StageArrayValuedRefusal), so its columns are never typed as a next
 // stage's input.
-func chainPredictedOutputFields(req *types.Request, in *encoding.Schema) []string {
+func chainPredictedOutputFields(req *types.Request, in *encoding.Schema, kinds vectors.AggregationKinds) []string {
 	out := make([]string, 0, len(req.Groups)+len(req.Aggregations))
 	seen := make(map[string]struct{})
 	for _, g := range req.Groups {
@@ -384,7 +384,7 @@ func chainPredictedOutputFields(req *types.Request, in *encoding.Schema) []strin
 		if agg == nil {
 			continue
 		}
-		cols, _ := vectors.AggregationOutputColumns(req, agg, in)
+		cols, _ := vectors.AggregationOutputColumns(req, agg, in, kinds)
 		for _, label := range cols {
 			if _, dup := seen[label]; dup {
 				continue

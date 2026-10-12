@@ -200,7 +200,7 @@ func TestScaleScore_ReliabilityContrast(t *testing.T) {
 	vecs := scaleVector(true, 1, 5)
 	recs := scaleRecords(schema)
 	for i, r := range recs {
-		r.SetMergePosition(0, i)
+		r.SetMergePosition(0, 0, i)
 	}
 	p := NewProcessor(schema)
 	_, err := p.Process(context.Background(), &types.Request{

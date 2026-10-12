@@ -310,7 +310,7 @@ func NewFusedCrosstabState(spec *types.CrosstabSpec, schema *encoding.Schema, ex
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"NewFusedCrosstabState called with nil spec")
 	}
-	if err := validateCrosstabSpec(spec, nil); err != nil {
+	if err := validateCrosstabSpec(spec, nil, ext); err != nil {
 		return nil, err
 	}
 	if spec.Cell == nil {

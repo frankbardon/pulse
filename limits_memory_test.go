@@ -16,8 +16,9 @@ import (
 )
 
 // memoryArchive imports two numeric cohorts of 4,097 and 5 records and
-// packs them into a shard archive: three merge blocks (numbering
-// restarts per shard) where one file of the same 4,102 rows holds two.
+// packs them into a shard archive: three merge fragments (blocks key by
+// the global ordinal; shard 1 starts inside block 1 and buffers its 5
+// rows) where one file of the same 4,102 rows holds two blocks.
 func memoryArchive(t *testing.T, fs afero.Fs) string {
 	t.Helper()
 	p, err := pulse.New(pulse.Options{FS: fs})
@@ -175,8 +176,9 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 }
 
 // TestPredict_MatrixEstimatedBytes_ArchiveBlocks: predict's
-// estimated_bytes counts merge blocks per shard — 4,097 + 5 sharded
-// rows hold three blocks.
+// estimated_bytes counts merge fragments — 4,097 + 5 sharded rows hold
+// three — plus the 5 rows shard 1 buffers (columns a, b and the weight:
+// 24 bytes each).
 func TestPredict_MatrixEstimatedBytes_ArchiveBlocks(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	arch := memoryArchive(t, fs)
@@ -194,7 +196,7 @@ func TestPredict_MatrixEstimatedBytes_ArchiveBlocks(t *testing.T) {
 		t.Fatalf("matrices = %+v", res.Matrices)
 	}
 	m := res.Matrices[0]
-	if *m.EstimatedBytes != 3*m.AccumulatorBytes {
-		t.Fatalf("estimated_bytes = %d, want 3 blocks x %d", *m.EstimatedBytes, m.AccumulatorBytes)
+	if want := 3*m.AccumulatorBytes + 5*24; *m.EstimatedBytes != want {
+		t.Fatalf("estimated_bytes = %d, want 3 fragments x %d + 5 buffered rows x 24 = %d", *m.EstimatedBytes, m.AccumulatorBytes, want)
 	}
 }

@@ -27,20 +27,24 @@ import (
 // other aggregators' rule); element_n stays the RAW present count, as
 // the floor's n does.
 //
-// Bit-exact merge (the linalg blocked-merge pattern). A row folds into
-// the per-block partial its ABSOLUTE merge position names
-// (Record.MergeBlock: shard, record / linalg.MergeBlockSize) — never
-// into "this worker's partial" — and Finalize combines the blocks in
-// one fixed binary tree (vecMergeTree, linalg.MergeTree's shape: within
-// a shard by block order, then across shards). Partitions own disjoint
-// blocks, so MergeOnline is a map union and the merge order of
-// partitions cannot reach the bits: serial, every DecodeWorkers and
-// every ShardWorkers count answer the same words. Products are written
-// float64(w*x) so no FMA contraction differs by architecture. A record
-// no source stamped (a joined or chain-stage row) folds into one
-// trailing "loose" partial in arrival order; two partitions both
-// holding loose rows cannot be ordered and refuse to merge
-// (PROCESSING_INTERNAL), never guess.
+// Bit-exact merge (the linalg blocked-merge pattern, block_merge.go).
+// A row folds into the fragment its GLOBAL merge position names
+// (Record.MergeBlock: global ordinal / linalg.MergeBlockSize, shard,
+// head) — never into "this worker's partial". A head fragment folds as
+// rows arrive; a fragment that starts mid-block (a shard edge inside
+// the block) buffers its rows, and Finalize replays them on top of the
+// head in shard order, so each block's partial is the sequential fold
+// of its rows in ordinal order. Finalize then combines the blocks in
+// one fixed binary tree (vecMergeTree, linalg.MergeTree's shape) by
+// block order. Partitions own disjoint fragments, so MergeOnline is a
+// map union and the merge order of partitions cannot reach the bits:
+// serial, every DecodeWorkers and every ShardWorkers count — and a
+// shard archive versus its single-file twin, whatever the split —
+// answer the same words. Products are written float64(w*x) so no FMA
+// contraction differs by architecture. A record no source stamped (a
+// joined or chain-stage row) folds into one trailing "loose" partial in
+// arrival order; two partitions both holding loose rows cannot be
+// ordered and refuse to merge (PROCESSING_INTERNAL), never guess.
 //
 // The scalar Aggregate / Finalize fallback is NaN: an array value has
 // no single number, and every consumer that needs one refuses the slot
@@ -63,6 +67,41 @@ func (b *vecBlock) clone() *vecBlock {
 		sum: append([]float64(nil), b.sum...),
 		w:   append([]float64(nil), b.w...),
 		n:   append([]int(nil), b.n...),
+	}
+}
+
+// add folds member i of one row: x answered, w the row weight,
+// contrib whether the row carries weight (valid and > 0).
+func (b *vecBlock) add(i int, x, w float64, contrib bool) {
+	b.n[i]++
+	if !contrib {
+		return
+	}
+	b.sum[i] += float64(w * x)
+	b.w[i] += w
+}
+
+// vecFrag is one merge fragment: blk on a head fragment (rows folded as
+// they arrive); otherwise the buffered rows — per row p values in xs
+// with their presence in pres, the weight in ws and whether it
+// contributes in contrib — for root to replay in order.
+type vecFrag struct {
+	blk     *vecBlock
+	xs      []float64
+	pres    []bool
+	ws      []float64
+	contrib []bool
+}
+
+// replay folds the buffered rows into b in arrival order.
+func (f *vecFrag) replay(b *vecBlock) {
+	p := len(b.sum)
+	for r, w := range f.ws {
+		for i := 0; i < p; i++ {
+			if f.pres[r*p+i] {
+				b.add(i, f.xs[r*p+i], w, f.contrib[r])
+			}
+		}
 	}
 }
 
@@ -115,12 +154,13 @@ type vecAggregator struct {
 	// member (vectors.ExpandedColumn) instead of the array.
 	expand bool
 
-	blocks map[BlockKey]*vecBlock
+	blocks map[BlockKey]*vecFrag
 	loose  *vecBlock // rows with no merge position, in arrival order
-	cur    *vecBlock
+	cur    *vecFrag
 	curKey BlockKey
 
 	frozen     bool
+	err        error
 	value      []float64
 	frozenComp map[string]any
 }
@@ -168,85 +208,120 @@ func newVecAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregat
 }
 
 func (a *vecAggregator) reset() {
-	a.blocks = map[BlockKey]*vecBlock{}
+	a.blocks = map[BlockKey]*vecFrag{}
 	a.loose, a.cur = nil, nil
 }
 
-// blockFor returns the partial r's merge position names.
-func (a *vecAggregator) blockFor(r *Record) *vecBlock {
+// fragFor returns the fragment r's merge position names, nil for an
+// unpositioned record (it folds into loose).
+func (a *vecAggregator) fragFor(r *Record) *vecFrag {
 	key, ok := r.MergeBlock()
 	if !ok {
-		if a.loose == nil {
-			a.loose = newVecBlock(len(a.members))
-		}
-		return a.loose
+		return nil
 	}
 	if a.cur != nil && key == a.curKey {
 		return a.cur
 	}
-	b, exists := a.blocks[key]
+	f, exists := a.blocks[key]
 	if !exists {
-		b = newVecBlock(len(a.members))
-		a.blocks[key] = b
+		f = &vecFrag{}
+		if key.Head {
+			f.blk = newVecBlock(len(a.members))
+		}
+		a.blocks[key] = f
 	}
-	a.cur, a.curKey = b, key
-	return b
+	a.cur, a.curKey = f, key
+	return f
 }
 
-// fold adds one row.
+// fold adds one row: into its head fragment's (or the loose) partial
+// now, or into a non-head fragment's buffer for root to replay.
 func (a *vecAggregator) fold(r *Record) {
 	w, contributes := 1.0, true
 	if a.weight != nil {
 		w, contributes = validRowWeight(r, a.weight)
 	}
-	b := a.blockFor(r)
-	for i, m := range a.members {
-		x, ok := r.NumericValue(m)
-		if !ok {
-			continue
+	f := a.fragFor(r)
+	var b *vecBlock
+	switch {
+	case f == nil:
+		if a.loose == nil {
+			a.loose = newVecBlock(len(a.members))
 		}
-		b.n[i]++
-		if !contributes {
-			continue
-		}
-		b.sum[i] += float64(w * x)
-		b.w[i] += w
+		b = a.loose
+	case f.blk != nil:
+		b = f.blk
 	}
+	if b != nil {
+		for i, m := range a.members {
+			if x, ok := r.NumericValue(m); ok {
+				b.add(i, x, w, contributes)
+			}
+		}
+		return
+	}
+	for _, m := range a.members {
+		x, ok := r.NumericValue(m)
+		f.xs = append(f.xs, x)
+		f.pres = append(f.pres, ok)
+	}
+	f.ws = append(f.ws, w)
+	f.contrib = append(f.contrib, contributes)
 }
 
-// root combines every partial in the one fixed shape: within each
-// shard vecMergeTree over its blocks in block order, then vecMergeTree
-// over the shard roots in shard order, then the loose partial last.
-func (a *vecAggregator) root() *vecBlock {
+// root combines every partial in the one fixed shape: each block's
+// partial is its head fragment (or an empty block) with the block's
+// other fragments replayed in shard order; vecMergeTree runs over the
+// block partials in block order, then the loose partial merges last.
+func (a *vecAggregator) root() (*vecBlock, error) {
 	p := len(a.members)
 	keys := make([]BlockKey, 0, len(a.blocks))
 	for k := range a.blocks {
 		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(i, j int) bool { return keys[i].less(keys[j]) })
-	var roots []*vecBlock
-	for start := 0; start < len(keys); {
-		end := start
-		seq := make([]*vecBlock, 0, 8)
-		for end < len(keys) && keys[end].Shard == keys[start].Shard {
-			seq = append(seq, a.blocks[keys[end]])
-			end++
+	runs, err := blockRuns(keys)
+	if err != nil {
+		return nil, err
+	}
+	seq := make([]*vecBlock, 0, len(runs))
+	for _, run := range runs {
+		head := a.blocks[run[0]]
+		if len(run) == 1 && head.blk != nil {
+			seq = append(seq, head.blk)
+			continue
 		}
+		b := newVecBlock(p)
+		if head.blk != nil {
+			b = head.blk.clone()
+		}
+		for _, k := range run {
+			a.blocks[k].replay(b)
+		}
+		seq = append(seq, b)
+	}
+	var roots []*vecBlock
+	if len(seq) > 0 {
 		roots = append(roots, vecMergeTree(seq))
-		start = end
 	}
 	if a.loose != nil {
 		roots = append(roots, a.loose)
 	}
 	if len(roots) == 0 {
-		return newVecBlock(p)
+		return newVecBlock(p), nil
 	}
-	return vecMergeTree(roots)
+	return vecMergeTree(roots), nil
 }
 
-// finish freezes the value and components from the live partials.
+// finish freezes the value and components from the live partials; a
+// fragment-invariant break freezes the error instead.
 func (a *vecAggregator) finish() {
-	r := a.root()
+	r, err := a.root()
+	if err != nil {
+		a.frozen, a.err, a.value, a.frozenComp = true, err, nil, nil
+		return
+	}
+	a.err = nil
 	val := make([]float64, len(a.members))
 	for i := range val {
 		switch a.typ {
@@ -279,7 +354,7 @@ func (a *vecAggregator) Aggregate(records []*Record, _ string) (float64, error) 
 	}
 	a.finish()
 	a.reset()
-	return math.NaN(), nil
+	return math.NaN(), a.err
 }
 
 func (a *vecAggregator) UpdateRow(r *Record, _ string) error {
@@ -290,7 +365,7 @@ func (a *vecAggregator) UpdateRow(r *Record, _ string) error {
 func (a *vecAggregator) Finalize() (float64, error) {
 	a.finish()
 	a.reset()
-	return math.NaN(), nil
+	return math.NaN(), a.err
 }
 
 // Rich returns the per-member figures in member order ([]float64; a
@@ -299,6 +374,9 @@ func (a *vecAggregator) Finalize() (float64, error) {
 func (a *vecAggregator) Rich() (any, error) {
 	if !a.frozen {
 		a.finish()
+	}
+	if a.err != nil {
+		return nil, a.err
 	}
 	return append([]float64(nil), a.value...), nil
 }
@@ -312,6 +390,9 @@ func (a *vecAggregator) Components() (map[string]any, error) {
 	if !a.frozen {
 		a.finish()
 	}
+	if a.err != nil {
+		return nil, a.err
+	}
 	return a.frozenComp, nil
 }
 
@@ -322,14 +403,17 @@ func (a *vecAggregator) ElementLabels() []string { return append([]string(nil), 
 // ExpandedElements reports, on a slot whose params set expand, the
 // element labels and the per-member figures the row carries as one
 // column each; ok is false on an array slot.
-func (a *vecAggregator) ExpandedElements() (labels []string, values []float64, ok bool) {
+func (a *vecAggregator) ExpandedElements() (labels []string, values []float64, ok bool, err error) {
 	if !a.expand {
-		return nil, nil, false
+		return nil, nil, false, nil
 	}
 	if !a.frozen {
 		a.finish()
 	}
-	return append([]string(nil), a.labels...), append([]float64(nil), a.value...), true
+	if a.err != nil {
+		return nil, nil, false, a.err
+	}
+	return append([]string(nil), a.labels...), append([]float64(nil), a.value...), true, nil
 }
 
 // MergeOnline absorbs another partition's partials. Partitions cover
@@ -342,13 +426,13 @@ func (a *vecAggregator) MergeOnline(other OnlineAggregator) error {
 	if !ok || b.typ != a.typ || len(b.members) != len(a.members) {
 		return mergeTypeMismatch(string(a.typ))
 	}
-	for k, blk := range b.blocks {
+	for k, frag := range b.blocks {
 		if _, dup := a.blocks[k]; dup {
 			return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 				string(a.typ)+": one merge block reached two partitions",
 				map[string]any{"shard": k.Shard, "block": k.Block})
 		}
-		a.blocks[k] = blk
+		a.blocks[k] = frag
 	}
 	if b.loose != nil {
 		if a.loose != nil {

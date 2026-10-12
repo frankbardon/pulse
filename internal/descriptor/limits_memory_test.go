@@ -89,7 +89,7 @@ func TestEstimateMemory_Terms(t *testing.T) {
 	if d := est(median, memIn(1000)) - base; d != 1000*(rec+16) {
 		t.Errorf("the buffered arm adds %d bytes, want %d", d, 1000*(rec+16))
 	}
-	// Matrix: blocks per shard x buckets x accumulator bytes (2 numeric
+	// Matrix: merge fragments x buckets x accumulator bytes (2 numeric
 	// members, listwise: 32 + 8·(2+3) = 72).
 	numeric := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF64}, {Name: "y", Type: encoding.FieldTypeF64}}}
 	mat := &types.Request{Aggregations: sumOf("x"), Matrices: []types.MatrixSpec{{Name: "c", Type: types.MAT_COVARIANCE, Fields: []string{"x", "y"}}}}
@@ -103,8 +103,10 @@ func TestEstimateMemory_Terms(t *testing.T) {
 	}
 	single := matEst(memIn(limits.MergeBlockSize + 6))
 	sharded := matEst(LimitInputs{Records: limits.MergeBlockSize + 6, ShardRecords: []int64{limits.MergeBlockSize + 1, 5}, JoinRightRows: -1})
-	if d := sharded - single; d != 72 {
-		t.Errorf("4,097 + 5 sharded rows hold one more block than 4,102 in one file: +%d bytes, want 72", d)
+	// One more fragment (72) plus the 5 rows shard 1 buffers because it
+	// starts inside block 1 (x, y and the weight: 24 bytes each).
+	if d := sharded - single; d != 72+5*24 {
+		t.Errorf("4,097 + 5 sharded rows hold one more fragment and 5 buffered rows than 4,102 in one file: +%d bytes, want %d", d, 72+5*24)
 	}
 
 	if _, ok := EstimateMemory(plain, schema, nil, memIn(-1)); ok {

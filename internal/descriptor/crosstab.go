@@ -162,9 +162,7 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 	// An array-valued cell or margin aggregation (AGG_VEC_*): refused
 	// unconditionally — the runtime twin is processing's
 	// validateCrosstabSpec, one helper for both.
-	if cerr := vectors.ArrayValuedCrosstabRefusal(spec, func(t types.AggregationType) types.AggregationType {
-		return opRoute(opts.instance(), t)
-	}); cerr != nil {
+	if cerr := vectors.ArrayValuedCrosstabRefusal(spec, aggregationKinds(opts.instance(), extensionsFromOpts(opts))); cerr != nil {
 		addCodedError(env, cerr)
 	}
 

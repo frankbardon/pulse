@@ -65,6 +65,8 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Mergeable:   r.Mergeable,
 			// The declared crosstab margin class; empty stays omitted.
 			MarginReducibility: string(r.MarginReducibility),
+			VectorInput:        r.VectorInput,
+			ArrayValued:        r.ArrayValued,
 			WeightAware:        r.WeightAware,
 			Accepts:            fieldTypeStrings(r.Accepts),
 			Params:             paramMetaSnapshot(r.Params),

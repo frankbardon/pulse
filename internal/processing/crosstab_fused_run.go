@@ -55,7 +55,7 @@ func (p *Processor) RunCrosstabFused(ctx context.Context, req *types.Request, it
 	req = p.prepare(req)
 
 	spec := req.Crosstab
-	if err := validateCrosstabSpec(spec, req); err != nil {
+	if err := validateCrosstabSpec(spec, req, p.exts); err != nil {
 		return nil, err
 	}
 

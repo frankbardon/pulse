@@ -96,11 +96,13 @@ type Record struct {
 	// attribute writing a member's name — never reports a stale entry.
 	groupIdxOK bool
 
-	// posSet / posShard / posBlock carry the row's merge-block position
-	// (SetMergePosition, block_merge.go): the shard's archive index and
-	// the block its ABSOLUTE in-shard record index falls in. They pack
-	// into the padding after groupIdxOK, so the Record stays 96 bytes.
-	posSet   bool
+	// posFlags / posShard / posBlock carry the row's merge-block position
+	// (SetMergePosition, block_merge.go): posFlags holds "stamped" and
+	// "the shard holds its block's first ordinal" (posSetFlag,
+	// posHeadFlag), posShard the shard's archive index and posBlock the
+	// block its GLOBAL record ordinal falls in. They pack into the
+	// padding after groupIdxOK, so the Record stays 96 bytes.
+	posFlags uint8
 	posShard uint16
 	posBlock uint32
 }

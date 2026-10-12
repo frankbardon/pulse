@@ -40,7 +40,7 @@ Rich `[]float64`, one total per member; per-element missing data (a null member 
 
 ## Components
 
-Floor `{n, n_null}` — a row is present when ANY member answered (weighted adds `sum_weights`, `n_eff`, `n_weight_invalid`). Plus `labels`, `element_n` (raw per member), `element_sum`, `element_sum_weights` (weighted). `Mergeable`; streams; bit-identical for any worker count.
+Floor `{n, n_null}` — a row is present when ANY member answered (weighted adds `sum_weights`, `n_eff`, `n_weight_invalid`). Plus `labels`, `element_n` (raw per member), `element_sum`, `element_sum_weights` (weighted). `Mergeable`; streams; bit-identical for any worker count or shard split.
 
 ## Gotchas
 

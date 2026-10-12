@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/window"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -96,6 +97,12 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 			}
 			r.MarginReducibility[reg.Name] = reg.MarginReducibility
 			r.WeightAware[processing.StreamabilityKey("aggregator", string(reg.Name))] = reg.WeightAware
+			if reg.VectorInput {
+				if r.VectorAggregators == nil {
+					r.VectorAggregators = make(map[types.AggregationType]vectors.ExtensionAggregation)
+				}
+				r.VectorAggregators[reg.Name] = vectors.ExtensionAggregation{Registered: true, VectorInput: true, ArrayValued: reg.ArrayValued}
+			}
 			addFieldInputs("aggregator", string(reg.Name), reg.FieldInputs)
 		}
 	}

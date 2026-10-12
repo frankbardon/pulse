@@ -49,7 +49,7 @@ func TestResolveAggregations_Rules(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			_, err := ResolveAggregations(c.req, groupSchema(), nil, nil)
+			_, err := ResolveAggregations(c.req, groupSchema(), AggregationKinds{})
 			if c.code == "" {
 				if err != nil {
 					t.Fatalf("refused: %v", err)
@@ -66,17 +66,121 @@ func TestResolveAggregations_Rules(t *testing.T) {
 	}
 }
 
-// TestResolveAggregations_Extension: a registered extension aggregator
-// that sets a vector input is refused (the extension contract reads one
-// field); an unknown name is left to the unknown-type refusal.
+// extKinds declares AGG_ACME_X a plain extension, AGG_ACME_V a
+// VectorInput one and AGG_ACME_A a VectorInput + ArrayValued one.
+func extKinds() AggregationKinds {
+	return AggregationKinds{Extension: func(n string) ExtensionAggregation {
+		switch n {
+		case "AGG_ACME_X":
+			return ExtensionAggregation{Registered: true}
+		case "AGG_ACME_V":
+			return ExtensionAggregation{Registered: true, VectorInput: true}
+		case "AGG_ACME_A":
+			return ExtensionAggregation{Registered: true, VectorInput: true, ArrayValued: true}
+		}
+		return ExtensionAggregation{}
+	}}
+}
+
+// TestResolveAggregations_Extension: a plain registered extension
+// aggregator refuses a vector input; one declared VectorInput resolves
+// by the built-in rules — its own params kept, labels / expand read
+// leniently, expand only when ArrayValued; an unknown name is left to
+// the unknown-type refusal.
 func TestResolveAggregations_Extension(t *testing.T) {
-	req := &types.Request{Aggregations: []*types.Aggregation{{Type: "AGG_ACME_X", Field: "q_1", Fields: []string{"q_2"}}}}
-	if _, err := ResolveAggregations(req, groupSchema(), nil, nil); err != nil {
-		t.Fatalf("unknown name judged: %v", err)
+	agg := func(typ, field string, fields []string, params string) *types.Request {
+		a := &types.Aggregation{Type: types.AggregationType(typ), Field: field, Fields: fields}
+		if params != "" {
+			a.Params = json.RawMessage(params)
+		}
+		return &types.Request{Aggregations: []*types.Aggregation{a}}
 	}
-	_, err := ResolveAggregations(req, groupSchema(), nil, func(n string) bool { return n == "AGG_ACME_X" })
-	if err == nil || err.Details["reason"] != "vector_not_accepted" {
-		t.Fatalf("err = %v, want vector_not_accepted", err)
+	cases := []struct {
+		name   string
+		req    *types.Request
+		kinds  AggregationKinds
+		code   errors.Code
+		reason string
+		n      int // resolved slots
+	}{
+		{"unknown name, no extensions", agg("AGG_ACME_X", "q_1", []string{"q_2"}, ""), AggregationKinds{}, "", "", 0},
+		{"plain extension refuses", agg("AGG_ACME_X", "q_1", []string{"q_2"}, ""), extKinds(), errors.SERVICE_VALIDATION, "vector_not_accepted", 0},
+		{"vector extension resolves", agg("AGG_ACME_V", "", []string{"q_*"}, `{"k":3}`), extKinds(), "", "", 1},
+		{"vector extension labels", agg("AGG_ACME_V", "", []string{"q_1", "q_2"}, `{"k":3,"labels":["a","b"]}`), extKinds(), "", "", 1},
+		{"vector extension bad labels", agg("AGG_ACME_V", "", []string{"q_1"}, `{"labels":"a"}`), extKinds(), errors.SERVICE_VALIDATION, "bad_params", 0},
+		{"vector extension field", agg("AGG_ACME_V", "q_1", []string{"q_2"}, ""), extKinds(), errors.SERVICE_VALIDATION, "field_on_vector_aggregation", 0},
+		{"vector extension neither", agg("AGG_ACME_V", "", nil, ""), extKinds(), errors.SERVICE_VALIDATION, "no_vector_or_fields", 0},
+		{"scalar extension expand", agg("AGG_ACME_V", "", []string{"q_1"}, `{"expand":true}`), extKinds(), errors.SERVICE_VALIDATION, "expand_not_array_valued", 0},
+		{"array extension expand", agg("AGG_ACME_A", "", []string{"q_1", "q_2"}, `{"expand":true}`), extKinds(), "", "", 1},
+		{"array extension member type", agg("AGG_ACME_A", "", []string{"label"}, ""), extKinds(), errors.PULSE_VECTOR_MEMBER_TYPE, "", 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			in, err := ResolveAggregations(c.req, groupSchema(), c.kinds)
+			if c.code == "" {
+				if err != nil || len(in) != c.n {
+					t.Fatalf("resolved %d (%v), want %d", len(in), err, c.n)
+				}
+				return
+			}
+			if err == nil || err.Code != c.code || (c.reason != "" && err.Details["reason"] != c.reason) {
+				t.Fatalf("err = %v, want %s %s", err, c.code, c.reason)
+			}
+		})
+	}
+}
+
+// TestAggregationKinds_Extension: the instance view classifies a
+// declared extension like a built-in — vector input, array value,
+// expand and its output columns, the crosstab refusal — and a hidden
+// name like an unknown one.
+func TestAggregationKinds_Extension(t *testing.T) {
+	k := extKinds()
+	if !k.IsVector("AGG_ACME_V") || k.IsArrayValued("AGG_ACME_V") || !k.IsArrayValued("AGG_ACME_A") || k.IsVector("AGG_ACME_X") {
+		t.Fatal("extension declarations not read")
+	}
+	if !k.IsVector(types.AGG_VEC_SUM) || !k.IsArrayValued(types.AGG_VEC_MEAN) || k.IsArrayValued(types.AGG_SUM) {
+		t.Fatal("built-ins misread")
+	}
+	hidden := AggregationKinds{Route: func(types.AggregationType) types.AggregationType { return "" }, Extension: k.Extension}
+	if hidden.IsArrayValued("AGG_ACME_A") || hidden.IsVector("AGG_ACME_A") {
+		t.Fatal("a hidden extension still classified")
+	}
+	a := &types.Aggregation{Type: "AGG_ACME_A", Fields: []string{"q_1", "q_2"}, Label: "p", Params: json.RawMessage(`{"expand":true,"k":1}`)}
+	if !AggregationExpands(a, k) || AggregationExpands(a, AggregationKinds{}) {
+		t.Fatal("AggregationExpands ignores the extension declaration")
+	}
+	cols, ok := AggregationOutputColumns(&types.Request{}, a, groupSchema(), k)
+	if !ok || !reflect.DeepEqual(cols, []string{"p[q_1]", "p[q_2]"}) {
+		t.Fatalf("columns = %v %v", cols, ok)
+	}
+	if err := ArrayValuedCrosstabRefusal(&types.CrosstabSpec{Cell: a}, k); err == nil || err.Details["reason"] != "array_valued" {
+		t.Fatalf("crosstab refusal = %v", err)
+	}
+	if err := ArrayValuedCrosstabRefusal(&types.CrosstabSpec{Cell: a}, AggregationKinds{}); err != nil {
+		t.Fatalf("built-in view refused an unknown name: %v", err)
+	}
+}
+
+// TestAggregationSlotRewrite_ExtensionKeepsParams: an extension's
+// rewritten slot keeps its own params beside the resolved labels.
+func TestAggregationSlotRewrite_ExtensionKeepsParams(t *testing.T) {
+	a := &types.Aggregation{Type: "AGG_ACME_A", Fields: []string{"q_*"}, Params: json.RawMessage(`{"k":3,"expand":true}`)}
+	req := &types.Request{Aggregations: []*types.Aggregation{a}}
+	in, err := ResolveAggregations(req, groupSchema(), extKinds())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rw := AggregationSlotRewrite(a, in[a])
+	var got map[string]any
+	if err := json.Unmarshal(rw.Params, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["k"] != float64(3) || got["expand"] != true || len(got["labels"].([]any)) != len(rw.Fields) || rw.Vector != "" {
+		t.Fatalf("rewrite = %+v params %s", rw, rw.Params)
+	}
+	if string(a.Params) != `{"k":3,"expand":true}` {
+		t.Fatal("caller's slot mutated")
 	}
 }
 
@@ -84,7 +188,7 @@ func TestResolveAggregations_Extension(t *testing.T) {
 // resolves nothing (its unknown-type refusal is elsewhere).
 func TestResolveAggregations_RouteHidesType(t *testing.T) {
 	req := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_VEC_SUM}}}
-	in, err := ResolveAggregations(req, groupSchema(), func(types.AggregationType) types.AggregationType { return "" }, nil)
+	in, err := ResolveAggregations(req, groupSchema(), AggregationKinds{Route: func(types.AggregationType) types.AggregationType { return "" }})
 	if err != nil || len(in) != 0 {
 		t.Fatalf("hidden type resolved: %v %v", in, err)
 	}
@@ -98,7 +202,7 @@ func TestAggregationSlotRewrite(t *testing.T) {
 		Vectors:      []types.VectorSpec{{Name: "v", Fields: []string{"q_*"}, Labels: []string{"first", "second"}}},
 		Aggregations: []*types.Aggregation{{Type: types.AGG_VEC_SUM, Vector: "v"}, {Type: types.AGG_VEC_MEAN, Fields: []string{"q_2", "q_1"}, Label: "m"}},
 	}
-	in, err := ResolveAggregations(req, groupSchema(), nil, nil)
+	in, err := ResolveAggregations(req, groupSchema(), AggregationKinds{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +257,7 @@ func TestArrayValuedCrosstabRefusal(t *testing.T) {
 		{"margin", &types.CrosstabSpec{Cell: sum, MarginAggregations: []*types.Aggregation{sum, vec}}, "crosstab.margin_aggregations[1]"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			err := ArrayValuedCrosstabRefusal(c.spec, nil)
+			err := ArrayValuedCrosstabRefusal(c.spec, AggregationKinds{})
 			if c.slot == "" {
 				if err != nil {
 					t.Fatalf("refused: %v", err)
@@ -165,7 +269,7 @@ func TestArrayValuedCrosstabRefusal(t *testing.T) {
 			}
 		})
 	}
-	hidden := ArrayValuedCrosstabRefusal(&types.CrosstabSpec{Cell: vec}, func(types.AggregationType) types.AggregationType { return "" })
+	hidden := ArrayValuedCrosstabRefusal(&types.CrosstabSpec{Cell: vec}, AggregationKinds{Route: func(types.AggregationType) types.AggregationType { return "" }})
 	if hidden != nil {
 		t.Errorf("a hidden type is refused as unknown elsewhere, not here: %v", hidden)
 	}
@@ -197,11 +301,11 @@ func TestAggregationOutputColumns(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			req := &types.Request{Vectors: vecs, Aggregations: []*types.Aggregation{c.agg}}
-			got, ok := AggregationOutputColumns(req, c.agg, groupSchema())
+			got, ok := AggregationOutputColumns(req, c.agg, groupSchema(), AggregationKinds{})
 			if !reflect.DeepEqual(got, c.want) || ok != c.ok {
 				t.Errorf("columns = %v, %v; want %v, %v", got, ok, c.want, c.ok)
 			}
-			if AggregationExpands(c.agg) != c.expand {
+			if AggregationExpands(c.agg, AggregationKinds{}) != c.expand {
 				t.Errorf("AggregationExpands = %v, want %v", !c.expand, c.expand)
 			}
 		})
@@ -210,25 +314,25 @@ func TestAggregationOutputColumns(t *testing.T) {
 	// expand survives the factory rewrite (the runtime reads it there).
 	a := &types.Aggregation{Type: types.AGG_VEC_MEAN, Vector: "v", Params: exp}
 	req := &types.Request{Vectors: vecs, Aggregations: []*types.Aggregation{a}}
-	in, err := ResolveAggregations(req, groupSchema(), nil, nil)
+	in, err := ResolveAggregations(req, groupSchema(), AggregationKinds{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !in[a].Expand {
 		t.Error("resolved input lost expand")
 	}
-	if rw := AggregationSlotRewrite(a, in[a]); !AggregationExpands(rw) {
+	if rw := AggregationSlotRewrite(a, in[a]); !AggregationExpands(rw, AggregationKinds{}) {
 		t.Errorf("rewrite dropped expand: %s", rw.Params)
 	}
 
 	// Duplicate element labels: refused under expand only.
 	dup := &types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"q_*"}, Params: json.RawMessage(`{"expand":true,"labels":["x","x"]}`)}
-	if _, err := ResolveAggregations(&types.Request{Aggregations: []*types.Aggregation{dup}}, groupSchema(), nil, nil); err == nil ||
+	if _, err := ResolveAggregations(&types.Request{Aggregations: []*types.Aggregation{dup}}, groupSchema(), AggregationKinds{}); err == nil ||
 		err.Details["reason"] != "expand_duplicate_labels" {
 		t.Errorf("duplicate labels under expand = %v, want expand_duplicate_labels", err)
 	}
 	dup.Params = json.RawMessage(`{"labels":["x","x"]}`)
-	if _, err := ResolveAggregations(&types.Request{Aggregations: []*types.Aggregation{dup}}, groupSchema(), nil, nil); err != nil {
+	if _, err := ResolveAggregations(&types.Request{Aggregations: []*types.Aggregation{dup}}, groupSchema(), AggregationKinds{}); err != nil {
 		t.Errorf("duplicate labels on an array slot refused: %v", err)
 	}
 }

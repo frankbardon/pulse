@@ -91,6 +91,9 @@ func validateExtensions(ext Extensions) error {
 	}); err != nil {
 		return err
 	}
+	if err := validateAggregatorVectorInputs(ext.Aggregators); err != nil {
+		return err
+	}
 	if err := validateOperatorSlice(ext.Attributes, categoryAttribute, builtinAttributeNames(), func(r AttributeRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
 	}); err != nil {
@@ -287,6 +290,50 @@ func validateComponentSchemaDeclaration(
 				"reason":   "missing_mergeability",
 			},
 		)
+	}
+	return nil
+}
+
+// validateAggregatorVectorInputs enforces the VectorInput / ArrayValued
+// declarations (see AggregatorRegistration):
+//
+//   - PULSE_EXTENSION_ARRAY_VALUED_MISMATCH, reason
+//     array_valued_without_vector_input — an array value is one figure
+//     per member, so ArrayValued needs VectorInput.
+//   - PULSE_EXTENSION_ARRAY_VALUED_MISMATCH, reason
+//     array_valued_margin_reducibility — a crosstab refuses an
+//     array-valued cell, so a margin class would never be read.
+//   - PULSE_EXTENSION_PARAM_INVALID, reason reserved_vector_param — a
+//     VectorInput registration's params.labels / params.expand are the
+//     engine's (the resolved member labels; one column per member).
+//
+// The RichAggregator half of ArrayValued is probe-validated
+// (verifyAggregatorArrayValued).
+func validateAggregatorVectorInputs(regs []AggregatorRegistration) error {
+	for i, r := range regs {
+		mismatch := func(reason, msg string) error {
+			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_ARRAY_VALUED_MISMATCH,
+				fmt.Sprintf("extension aggregator %q declares ArrayValued=true but %s", r.Name, msg),
+				map[string]any{"category": "aggregator", "name": string(r.Name), "index": i, "reason": reason})
+		}
+		if r.ArrayValued && !r.VectorInput {
+			return mismatch("array_valued_without_vector_input",
+				"VectorInput=false (an array value is one figure per vector member; declare VectorInput=true)")
+		}
+		if r.ArrayValued && r.MarginReducibility != "" {
+			return mismatch("array_valued_margin_reducibility",
+				fmt.Sprintf("MarginReducibility=%q (a crosstab refuses an array-valued cell; leave it empty)", r.MarginReducibility))
+		}
+		if !r.VectorInput {
+			continue
+		}
+		for _, p := range r.Params {
+			if p.Name == "labels" || p.Name == "expand" {
+				return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_PARAM_INVALID,
+					fmt.Sprintf("extension aggregator %q declares VectorInput=true and a param %q, which the engine owns on a vector input (labels: the display label per member; expand: one column per member); rename the param", r.Name, p.Name),
+					map[string]any{"category": "aggregator", "name": string(r.Name), "index": i, "param": p.Name, "reason": "reserved_vector_param"})
+			}
+		}
 	}
 	return nil
 }

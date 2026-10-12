@@ -34,18 +34,83 @@ import (
 //     label>]" (ExpandedColumn); two members sharing a display label
 //     would write one column twice, so expand refuses them
 //     (expand_duplicate_labels).
-//   - Any OTHER aggregator — built-in or a registered extension —
-//     refuses a vector input (vector_not_accepted): the extension
-//     aggregator contract reads one field.
+//   - A registered extension aggregator declared VectorInput
+//     (pulse.AggregatorRegistration.VectorInput) reads its members by
+//     the same rules; only `labels` and `expand` of its params are the
+//     engine's (read leniently — the rest are the operator's own), and
+//     `expand` needs a declared ArrayValued value
+//     (expand_not_array_valued).
+//   - Any OTHER aggregator — built-in or a registered extension not
+//     declared VectorInput — refuses a vector input
+//     (vector_not_accepted).
 //   - The default output label is types.AggregationLabelOf:
 //     "<TYPE>_<vector>", or "<TYPE>_<first fields entry as written>".
 //
 // Shape refusals are SERVICE_VALIDATION naming `aggregation` (the slot
 // path) and `reason`. A vector aggregator's array value is refused
-// downstream wherever one number is needed (types.AggregationType.
-// ArrayValued): ArrayValuedCrosstabRefusal here, Sort and request
-// overlays in the field-reference walk, a feeding chain stage in
-// internal/mergegate.
+// downstream wherever one number is needed (AggregationKinds.
+// IsArrayValued — types.AggregationType.ArrayValued or a declared
+// ArrayValued extension): ArrayValuedCrosstabRefusal here, Sort and
+// request overlays in the field-reference walk, a feeding chain stage
+// in internal/mergegate.
+
+// ExtensionAggregation is what an instance declares about one
+// aggregation type its extensions register: Registered (the name is an
+// extension aggregator), VectorInput (it reads vector / fields) and
+// ArrayValued (its value is one figure per member).
+type ExtensionAggregation struct {
+	Registered, VectorInput, ArrayValued bool
+}
+
+// AggregationKinds is one instance's view of the aggregation types the
+// vector rules judge. Route maps a type to the name it executes as (a
+// hidden type routes to "", an unknown name); nil is the identity.
+// Extension reports a routed, non-built-in name's extension
+// declaration; nil means no extension is registered. The zero value is
+// the built-in view. Predict (from the extensions snapshot) and the
+// runtime (from the extension registry) build one each, over the same
+// declarations, so they classify a slot identically.
+type AggregationKinds struct {
+	Route     func(types.AggregationType) types.AggregationType
+	Extension func(name string) ExtensionAggregation
+}
+
+// Routed returns the name t executes as.
+func (k AggregationKinds) Routed(t types.AggregationType) types.AggregationType {
+	if k.Route == nil {
+		return t
+	}
+	return k.Route(t)
+}
+
+// extension returns the extension declaration of the ROUTED name r (the
+// zero value for a built-in, a hidden or an unregistered name).
+func (k AggregationKinds) extension(r types.AggregationType) ExtensionAggregation {
+	if k.Extension == nil || r == "" || slices.Contains(types.AllAggregationTypes(), r) {
+		return ExtensionAggregation{}
+	}
+	e := k.Extension(string(r))
+	if !e.Registered {
+		return ExtensionAggregation{}
+	}
+	return e
+}
+
+// IsVector reports whether t reads a vector input: a built-in vector
+// aggregator (VectorAggregationTypes) or an extension declared
+// VectorInput.
+func (k AggregationKinds) IsVector(t types.AggregationType) bool {
+	r := k.Routed(t)
+	return IsVectorAggregation(r) || k.extension(r).VectorInput
+}
+
+// IsArrayValued reports whether t's value is one figure per member:
+// types.AggregationType.ArrayValued or an extension declared
+// ArrayValued. Every consumer that needs one number refuses it.
+func (k AggregationKinds) IsArrayValued(t types.AggregationType) bool {
+	r := k.Routed(t)
+	return r.ArrayValued() || k.extension(r).ArrayValued
+}
 
 // VectorAggregationTypes returns the built-in aggregation types that
 // read their columns from Vector / Fields, in AllAggregationTypes order.
@@ -76,6 +141,10 @@ type AggregationInput struct {
 	// Expand is params.expand: the value is written as one column per
 	// member (ExpandedColumn) instead of an array.
 	Expand bool
+	// Extension marks an extension vector aggregator's slot: its params
+	// are the operator's, so AggregationSlotRewrite keeps every other
+	// key.
+	Extension bool
 }
 
 // Has reports whether the slot resolved a vector input.
@@ -156,6 +225,45 @@ type VecAggParams struct {
 	Expand bool `json:"expand,omitempty"`
 }
 
+// DecodeExtensionVecAggParams decodes the engine's keys of an extension
+// vector aggregator's params — `labels` and `expand` — leniently: every
+// other key is the operator's own and is left alone. A reserved key of
+// the wrong JSON type is bad_params. at is the slot path.
+func DecodeExtensionVecAggParams(at string, typ types.AggregationType, raw json.RawMessage) (VecAggParams, *errors.CodedError) {
+	var p VecAggParams
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return p, nil
+	}
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &keys); err != nil {
+		return VecAggParams{}, aggregationInvalid(at, "bad_params",
+			at+" "+string(typ)+" params: "+err.Error()+" (an object)", nil)
+	}
+	if v, ok := keys["labels"]; ok {
+		if err := json.Unmarshal(v, &p.Labels); err != nil {
+			return VecAggParams{}, aggregationInvalid(at, "bad_params",
+				at+" "+string(typ)+" params.labels: "+err.Error()+" (a list of strings)", map[string]any{"param": "labels"})
+		}
+	}
+	if v, ok := keys["expand"]; ok {
+		if err := json.Unmarshal(v, &p.Expand); err != nil {
+			return VecAggParams{}, aggregationInvalid(at, "bad_params",
+				at+" "+string(typ)+" params.expand: "+err.Error()+" (a boolean)", map[string]any{"param": "expand"})
+		}
+	}
+	return p, nil
+}
+
+// decodeVecAggParams is the slot's engine params: strict for a built-in,
+// lenient (DecodeExtensionVecAggParams) for an extension.
+func decodeVecAggParams(at string, typ types.AggregationType, raw json.RawMessage, extension bool) (VecAggParams, *errors.CodedError) {
+	if extension {
+		return DecodeExtensionVecAggParams(at, typ, raw)
+	}
+	return DecodeVecAggParams(at, typ, raw)
+}
+
 // DecodeVecAggParams decodes a vector aggregator's params strictly
 // (unknown keys refused, bad_params). at is the slot path.
 func DecodeVecAggParams(at string, typ types.AggregationType, raw json.RawMessage) (VecAggParams, *errors.CodedError) {
@@ -173,23 +281,19 @@ func DecodeVecAggParams(at string, typ types.AggregationType, raw json.RawMessag
 
 // ResolveAggregations resolves every aggregation slot's vector input
 // (AggregationSlots order) against schema (Request.Vectors first, like
-// ResolveAttributes). route maps an aggregation type to the built-in
-// it executes as — the instance's view, where a hidden type routes to
-// an unknown name; nil is the identity. ext reports whether a routed
-// type that is not a built-in is a registered extension aggregator
-// (its vector input is then refused); nil means none is. The result is
-// keyed by the slot's *types.Aggregation and holds only the slots that
-// resolved a vector input; the first refusal is returned. Like Resolve
-// it reads only the schema.
-func ResolveAggregations(req *types.Request, schema *encoding.Schema, route func(types.AggregationType) types.AggregationType, ext func(string) bool) (map[*types.Aggregation]AggregationInput, *errors.CodedError) {
-	if route == nil {
-		route = func(t types.AggregationType) types.AggregationType { return t }
-	}
+// ResolveAttributes). kinds is the instance's view: its Route (a hidden
+// type routes to an unknown name) and its extension declarations — an
+// extension declared VectorInput resolves like a built-in vector
+// aggregator, any other registered extension refuses a vector input.
+// The result is keyed by the slot's *types.Aggregation and holds only
+// the slots that resolved a vector input; the first refusal is
+// returned. Like Resolve it reads only the schema.
+func ResolveAggregations(req *types.Request, schema *encoding.Schema, kinds AggregationKinds) (map[*types.Aggregation]AggregationInput, *errors.CodedError) {
 	// Nothing to judge when no slot reads a vector or is a vector
 	// aggregator: return before building the slot list (the common
 	// request allocates nothing here).
 	if !anyAggregationSlot(req, func(a *types.Aggregation) bool {
-		return HasAggregationVectorInput(a) || IsVectorAggregation(route(a.Type))
+		return HasAggregationVectorInput(a) || kinds.IsVector(a.Type)
 	}) {
 		return nil, nil
 	}
@@ -200,17 +304,20 @@ func ResolveAggregations(req *types.Request, schema *encoding.Schema, route func
 	}
 	var out map[*types.Aggregation]AggregationInput
 	for _, s := range slots {
-		typ := route(s.Agg.Type)
+		typ := kinds.Routed(s.Agg.Type)
 		builtin := slices.Contains(types.AllAggregationTypes(), typ)
-		if !IsVectorAggregation(typ) {
-			if HasAggregationVectorInput(s.Agg) && (builtin || isExtension(ext, string(typ), builtin)) {
-				return nil, aggregationInvalid(s.Path, "vector_not_accepted",
-					s.Path+" ("+string(s.Agg.Type)+") reads field, not a vector; drop vector / fields (AGG_VEC_MEAN / AGG_VEC_SUM aggregate a vector)",
-					map[string]any{"type": string(s.Agg.Type)})
+		ext := kinds.extension(typ)
+		if !IsVectorAggregation(typ) && !ext.VectorInput {
+			if HasAggregationVectorInput(s.Agg) && (builtin || ext.Registered) {
+				msg := s.Path + " (" + string(s.Agg.Type) + ") reads field, not a vector; drop vector / fields (AGG_VEC_MEAN / AGG_VEC_SUM aggregate a vector)"
+				if ext.Registered {
+					msg = s.Path + " (" + string(s.Agg.Type) + ") reads field, not a vector: the extension is not registered with VectorInput; drop vector / fields"
+				}
+				return nil, aggregationInvalid(s.Path, "vector_not_accepted", msg, map[string]any{"type": string(s.Agg.Type)})
 			}
 			continue
 		}
-		in, err := resolveAggregation(s.Path, s.Agg, typ, req.Vectors, resolved, schema)
+		in, err := resolveAggregation(s.Path, s.Agg, typ, req.Vectors, resolved, schema, ext)
 		if err != nil {
 			return nil, err
 		}
@@ -222,8 +329,9 @@ func ResolveAggregations(req *types.Request, schema *encoding.Schema, route func
 	return out, nil
 }
 
-// resolveAggregation resolves one vector aggregator slot.
-func resolveAggregation(at string, a *types.Aggregation, typ types.AggregationType, specs []types.VectorSpec, resolved []Resolved, schema *encoding.Schema) (AggregationInput, *errors.CodedError) {
+// resolveAggregation resolves one vector aggregator slot; ext is the
+// routed type's extension declaration (zero for a built-in).
+func resolveAggregation(at string, a *types.Aggregation, typ types.AggregationType, specs []types.VectorSpec, resolved []Resolved, schema *encoding.Schema, ext ExtensionAggregation) (AggregationInput, *errors.CodedError) {
 	name := string(a.Type)
 	if a.Field != "" {
 		return AggregationInput{}, aggregationInvalid(at, "field_on_vector_aggregation",
@@ -236,9 +344,14 @@ func resolveAggregation(at string, a *types.Aggregation, typ types.AggregationTy
 	case a.Vector == "" && len(a.Fields) == 0:
 		return AggregationInput{}, aggregationInvalid(at, "no_vector_or_fields", at+" ("+name+") sets neither vector nor fields; set exactly one", nil)
 	}
-	p, err := DecodeVecAggParams(at, typ, a.Params)
+	p, err := decodeVecAggParams(at, typ, a.Params, ext.Registered)
 	if err != nil {
 		return AggregationInput{}, err
+	}
+	if p.Expand && ext.Registered && !ext.ArrayValued {
+		return AggregationInput{}, aggregationInvalid(at, "expand_not_array_valued",
+			at+" ("+name+") params.expand writes one column per element of an array value, and this extension aggregator returns one figure (it is not registered ArrayValued); drop expand",
+			map[string]any{"type": name, "param": "expand"})
 	}
 	var members Resolved
 	if a.Vector == "" {
@@ -266,7 +379,7 @@ func resolveAggregation(at string, a *types.Aggregation, typ types.AggregationTy
 			seen[l] = i
 		}
 	}
-	return AggregationInput{Slot: at, Members: members, Expand: p.Expand}, nil
+	return AggregationInput{Slot: at, Members: members, Expand: p.Expand, Extension: ext.Registered}, nil
 }
 
 // ExpandedColumn is the Response.Data column an expanded vector
@@ -275,29 +388,31 @@ func ExpandedColumn(label, element string) string {
 	return label + "[" + element + "]"
 }
 
-// AggregationExpands reports whether a is a built-in vector aggregation
-// whose params set expand (a params blob that does not decode never
-// expands — the resolver refuses it).
-func AggregationExpands(a *types.Aggregation) bool {
-	if a == nil || !IsVectorAggregation(a.Type) {
+// AggregationExpands reports whether a is an array-valued vector
+// aggregation (a built-in, or an extension declared VectorInput and
+// ArrayValued — kinds) whose params set expand (a params blob that does
+// not decode never expands — the resolver refuses it).
+func AggregationExpands(a *types.Aggregation, kinds AggregationKinds) bool {
+	if a == nil || !kinds.IsVector(a.Type) || !kinds.IsArrayValued(a.Type) {
 		return false
 	}
-	p, err := DecodeVecAggParams("aggregation", a.Type, a.Params)
+	p, err := decodeVecAggParams("aggregation", a.Type, a.Params, kinds.extension(kinds.Routed(a.Type)).Registered)
 	return err == nil && p.Expand
 }
 
 // AggregationOutputColumns returns the Response.Data columns slot a of
 // req emits over schema: its label (types.AggregationLabelOf unless
-// Label is set), or — on an expanding vector aggregation — one
-// ExpandedColumn per member in member order, the label itself absent.
+// Label is set), or — on an expanding vector aggregation
+// (AggregationExpands under kinds) — one ExpandedColumn per member in
+// member order, the label itself absent.
 // The second result is false when an expanding slot's members do not
 // resolve (the resolver refuses the request); the label is returned
 // then. Predict (return planning, chain stage columns, the per-slot
 // columns) and the field-reference walk share it, so they name the
 // columns the runtime writes.
-func AggregationOutputColumns(req *types.Request, a *types.Aggregation, schema *encoding.Schema) ([]string, bool) {
+func AggregationOutputColumns(req *types.Request, a *types.Aggregation, schema *encoding.Schema, kinds AggregationKinds) ([]string, bool) {
 	label := types.AggregationLabelOf(a)
-	if !AggregationExpands(a) {
+	if !AggregationExpands(a, kinds) {
 		return []string{label}, true
 	}
 	var specs []types.VectorSpec
@@ -308,7 +423,8 @@ func AggregationOutputColumns(req *types.Request, a *types.Aggregation, schema *
 	if verr != nil || schema == nil {
 		return []string{label}, false
 	}
-	in, err := resolveAggregation("aggregation", a, a.Type, specs, resolved, schema)
+	typ := kinds.Routed(a.Type)
+	in, err := resolveAggregation("aggregation", a, typ, specs, resolved, schema, kinds.extension(typ))
 	if err != nil {
 		return []string{label}, false
 	}
@@ -323,8 +439,9 @@ func AggregationOutputColumns(req *types.Request, a *types.Aggregation, schema *
 // receives: a copy with Label the default label when empty (computed
 // from the slot as written), Vector cleared, Fields = the resolved
 // literal members and params.labels = the resolved display labels — so
-// a named vector's labels survive the literal-member rewrite. The
-// caller's slot is never mutated.
+// a named vector's labels survive the literal-member rewrite. An
+// extension's slot keeps every other params key (the operator's own).
+// The caller's slot is never mutated.
 func AggregationSlotRewrite(a *types.Aggregation, in AggregationInput) *types.Aggregation {
 	cp := *a
 	if cp.Label == "" {
@@ -332,6 +449,21 @@ func AggregationSlotRewrite(a *types.Aggregation, in AggregationInput) *types.Ag
 	}
 	cp.Vector = ""
 	cp.Fields = append([]string(nil), in.Members.Members...)
+	if in.Extension {
+		keys := map[string]json.RawMessage{}
+		if raw := bytes.TrimSpace(a.Params); len(raw) > 0 && !bytes.Equal(raw, []byte("null")) {
+			if json.Unmarshal(raw, &keys) != nil {
+				return &cp
+			}
+		}
+		if labels, err := json.Marshal(in.Members.Labels); err == nil {
+			keys["labels"] = labels
+		}
+		if raw, err := json.Marshal(keys); err == nil {
+			cp.Params = raw
+		}
+		return &cp
+	}
 	p, err := DecodeVecAggParams(in.Slot, a.Type, a.Params)
 	if err == nil {
 		p.Labels = append([]string(nil), in.Members.Labels...)
@@ -366,21 +498,19 @@ func AggregationInputMembers(req *types.Request, schema *encoding.Schema) (membe
 }
 
 // ArrayValuedCrosstabRefusal is the unconditional crosstab gate for an
-// array-valued aggregator (types.AggregationType.ArrayValued) as the
-// cell or a margin aggregation: PROCESSING_CONFIG {aggregation, slot,
-// reason: "array_valued"}, whatever normalize says — a cell holds one
-// number. route is the instance's view (nil: identity); nil when no
-// slot is array-valued. processing.validateCrosstabSpec (both arms) and
-// predict call it, so they refuse identically.
-func ArrayValuedCrosstabRefusal(spec *types.CrosstabSpec, route func(types.AggregationType) types.AggregationType) *errors.CodedError {
+// array-valued aggregator (AggregationKinds.IsArrayValued — a built-in
+// or a declared ArrayValued extension) as the cell or a margin
+// aggregation: PROCESSING_CONFIG {aggregation, slot, reason:
+// "array_valued"}, whatever normalize says — a cell holds one number.
+// kinds is the instance's view; nil when no slot is array-valued.
+// processing.validateCrosstabSpec (both arms) and predict call it, so
+// they refuse identically.
+func ArrayValuedCrosstabRefusal(spec *types.CrosstabSpec, kinds AggregationKinds) *errors.CodedError {
 	if spec == nil {
 		return nil
 	}
-	if route == nil {
-		route = func(t types.AggregationType) types.AggregationType { return t }
-	}
 	check := func(slot string, a *types.Aggregation) *errors.CodedError {
-		if a == nil || !route(a.Type).ArrayValued() {
+		if a == nil || !kinds.IsArrayValued(a.Type) {
 			return nil
 		}
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,

@@ -71,7 +71,7 @@ A range or date grouper is `unknown`: the three figures are omitted, never guess
 - `matrices` with `crosstab`: `PULSE_MATRIX_HOST_CONFLICT`.
 - Matrices are not streamed row by row: they arrive at the final flush. `ProcessStream` rows carry no matrices.
 
-Serial, parallel-decode and sharded runs return bit-identical matrices on one cohort file; a multi-shard archive matches its single-file twin within rounding only.
+Serial, parallel-decode and sharded runs return bit-identical matrices, and a multi-shard archive matches its single-file twin bit for bit.
 
 Streamability is per spec, not per type: a spec whose params need every row at once (a rank method) is buffered — predict `matrices[].streamable` / `mergeable` false — so the whole request runs buffered (`ProcessStream` too) and serially.
 

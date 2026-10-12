@@ -851,6 +851,16 @@ const (
 	// extensions_probe.probeAggregators.
 	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH Code = "PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH"
 
+	// PULSE_EXTENSION_ARRAY_VALUED_MISMATCH indicates an aggregator
+	// registration declared ArrayValued it cannot honour: without
+	// VectorInput (an array value is one figure per vector member), with
+	// a MarginReducibility (a crosstab refuses an array-valued cell), or
+	// with a factory whose value does not implement
+	// extend.RichAggregator (the array rides Rich). Details carry the
+	// category, name and a reason discriminator. Wired into
+	// extensions_validate and extensions_probe.probeAggregators.
+	PULSE_EXTENSION_ARRAY_VALUED_MISMATCH Code = "PULSE_EXTENSION_ARRAY_VALUED_MISMATCH"
+
 	// PULSE_EXTENSION_FACTORY_PANIC indicates an embedder factory
 	// panicked during probe-validation at registration time.
 	PULSE_EXTENSION_FACTORY_PANIC Code = "PULSE_EXTENSION_FACTORY_PANIC"
@@ -3491,6 +3501,7 @@ var allCodes = []Code{
 	PULSE_EXTENSION_EXAMPLE_COLLISION,
 	PULSE_EXTENSION_MERGEABLE_MISMATCH,
 	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH,
+	PULSE_EXTENSION_ARRAY_VALUED_MISMATCH,
 	PULSE_EXTENSION_FACTORY_PANIC,
 	PULSE_EXTENSION_PARAM_INVALID,
 	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH,

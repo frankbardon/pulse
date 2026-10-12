@@ -193,18 +193,41 @@ func RecordBytes(schema *encoding.Schema) int64 {
 	return b
 }
 
-// MergeBlocks is the number of merge blocks a run over the given
-// per-shard record counts populates: ceil(n / MergeBlockSize) per
-// shard, since block numbering restarts per shard. A single-file
-// cohort passes one count.
+// MergeBlocks is the number of merge fragments a run over the given
+// per-shard record counts (archive order) populates. Blocks key by the
+// GLOBAL record ordinal, so a shard holds one fragment per global block
+// its ordinal range touches: ceil(n / MergeBlockSize) on a single file,
+// one more for a shard whose edges fall inside blocks. An upper bound
+// on the per-fragment states held until finalize (a non-head fragment
+// keeps rows instead: MergeBufferedRows).
 func MergeBlocks(shardRecords ...int64) int64 {
-	var blocks int64
+	var blocks, start int64
 	for _, n := range shardRecords {
 		if n > 0 {
-			blocks += (n + MergeBlockSize - 1) / MergeBlockSize
+			blocks += (start+n-1)/MergeBlockSize - start/MergeBlockSize + 1
+			start += n
 		}
 	}
 	return blocks
+}
+
+// MergeBufferedRows is the rows a run over the given per-shard record
+// counts (archive order) BUFFERS in non-head merge fragments: a shard
+// that starts inside a block keeps that block's rows (up to the block
+// end) for the finalize to replay on top of the head fragment. 0 on a
+// single file.
+func MergeBufferedRows(shardRecords ...int64) int64 {
+	var rows, start int64
+	for _, n := range shardRecords {
+		if n <= 0 {
+			continue
+		}
+		if off := start % MergeBlockSize; off != 0 {
+			rows += min(n, MergeBlockSize-off)
+		}
+		start += n
+	}
+	return rows
 }
 
 // MatrixStateBytes is one matrix's merge-block state: blocks x buckets

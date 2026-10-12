@@ -352,9 +352,10 @@ chain stage after the first (`PULSE_MATRIX_UNSUPPORTED_SOURCE`), and with
 
 ## Determinism
 
-Serial, parallel-decode and sharded runs return bit-identical matrices
-for a cohort file; a multi-shard archive matches its single-file twin
-within rounding. A correlation cell agrees with the corresponding
+Serial, parallel-decode and sharded runs return bit-identical matrices,
+and a multi-shard archive matches its single-file twin bit for bit
+(merge blocks key by the global record ordinal, whatever the shard
+split). A correlation cell agrees with the corresponding
 `TEST_PEARSON_R` within `1e-12 + 1e-12 * |r|`.
 
 Contract: `.claude/reference/matrix-and-vectors.md`; payload shapes:

@@ -482,10 +482,10 @@ func assertMatrixCloseToReference(t *testing.T, got matrixRun, ref []uint64) {
 // ShardWorkers 2/3/8 bitwise (every cell and the determinant), on
 // cohorts ending mid-block and on a block boundary, weighted and
 // unweighted, matrix-only and beside an aggregation; a one-shard
-// archive equals its single-file twin bitwise; a multi-shard archive
-// equals its single-file twin to tolerance only (block numbering
-// restarts per shard — .claude/reference/matrix-and-vectors.md,
-// Blocked merge-tree contract). Listwise and pairwise (params.missing),
+// archive and a multi-shard one (shard edges inside merge blocks) equal
+// their single-file twin bitwise (blocks key by the global record
+// ordinal — .claude/reference/matrix-and-vectors.md, Blocked
+// merge-tree contract). Listwise and pairwise (params.missing),
 // the pairwise N (auxiliary.n) and the matrix warnings included.
 func TestMatrixCovariance_WorkerInvariant(t *testing.T) {
 	if testing.Short() {
@@ -560,13 +560,11 @@ func TestMatrixCovariance_WorkerInvariant(t *testing.T) {
 					assertMatrixRunsEqual(t, fmt.Sprintf("ShardWorkers=%d", workers), got, serial)
 				}
 
-				// Multi-shard archive vs single-file twin: tolerance only
-				// (blocks are cut at different places); the bit
-				// difference, if any, is logged.
+				// Multi-shard archive vs single-file twin: blocks key by
+				// the global record ordinal, so the same bits.
 				single := runMatrixInvariance(t, cfg, matrixInvarianceRequest("single.pulse", v), 0, 0)
-				assertMatrixCloseToReference(t, single, referenceMatrixWords(t, total, v))
 				if i := firstWordDiff(single.words, serial.words); i != -1 {
-					t.Logf("caveat observed: archive vs single file differ from word %d", i)
+					t.Errorf("archive differs from its single-file twin at word %d", i)
 				}
 			})
 		}

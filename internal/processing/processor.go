@@ -2321,10 +2321,16 @@ func dispatchAggregatorResult(agg any, scalar float64) (any, error) {
 }
 
 // elementExpander is an array-valued aggregator whose slot asked for
-// its value as one scalar column per element (AGG_VEC_* params.expand).
+// its value as one scalar column per element (AGG_VEC_* params.expand,
+// or an extension declared ArrayValued). ok false: write the value as
+// usual (Rich-or-scalar).
 type elementExpander interface {
-	ExpandedElements() (labels []string, values []float64, ok bool)
+	ExpandedElements() (labels []string, values []float64, ok bool, err error)
 }
+
+// ElementExpander is the exported elementExpander, for the adapter that
+// gives an ArrayValued extension aggregator the expand path.
+type ElementExpander = elementExpander
 
 // writeAggregationResult writes one aggregation slot's finished value
 // into row under label: the Rich-or-scalar lift
@@ -2335,7 +2341,11 @@ type elementExpander interface {
 // writes through it, so the keys are the same whatever arm runs.
 func writeAggregationResult(row map[string]any, label string, agg any, scalar float64) error {
 	if ex, ok := agg.(elementExpander); ok {
-		if labels, values, expand := ex.ExpandedElements(); expand {
+		labels, values, expand, err := ex.ExpandedElements()
+		if err != nil {
+			return err
+		}
+		if expand {
 			for i, l := range labels {
 				row[vectors.ExpandedColumn(label, l)] = values[i]
 			}

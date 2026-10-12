@@ -259,6 +259,35 @@ type AggregatorRegistration struct {
 	// and the instance default is skipped. Projected as the manifest's
 	// weight_aware.
 	WeightAware bool
+	// VectorInput declares that the operator reads a member set instead
+	// of one field: the slot names a Request.Vectors entry (vector) or
+	// inline members (fields — names and globs), exactly one, and no
+	// field. Predict and the runtime resolve it by the built-in vector
+	// rules (the AGG_VEC_MEAN contract: PULSE_VECTOR_* refusals,
+	// numeric source columns only, labels) and the factory receives a
+	// copy of the spec whose Fields are the resolved literal members,
+	// Vector empty, Label the default "<NAME>_<vector or first fields
+	// entry>" when unset, and params.labels the resolved display label
+	// per member (every other params key is kept). Each row's members
+	// read through Record.Value / IsNull as usual. params.labels and
+	// params.expand are the engine's: a VectorInput registration may not
+	// declare a ParamMeta of either name (PULSE_EXTENSION_PARAM_INVALID,
+	// reason reserved_vector_param). The universal floor counts a row
+	// present when ANY member answered. Undeclared, a vector input on
+	// the slot is refused (vector_not_accepted).
+	VectorInput bool
+	// ArrayValued declares that the value is one figure per member, in
+	// member order: the instance implements extend.RichAggregator and
+	// Rich returns a []float64 of the member count (NaN is null on the
+	// wire). It requires VectorInput and leaves MarginReducibility empty
+	// (PULSE_EXTENSION_ARRAY_VALUED_MISMATCH). The slot is then refused
+	// wherever one number is needed — a crosstab cell or margin
+	// aggregation, a sort key, an overlay host, a chain stage feeding
+	// another — exactly like AGG_VEC_MEAN, and params.expand writes one
+	// column per member, "<label>[<element label>]", in place of the
+	// array. A Rich value of another shape is PROCESSING_INTERNAL at
+	// run time.
+	ArrayValued bool
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection

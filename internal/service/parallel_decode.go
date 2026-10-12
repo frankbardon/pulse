@@ -408,7 +408,7 @@ func parallelDecodeMmap(
 				// record index — the key the serial iterator stamps on
 				// the same row, so a processing.BlockMerger keys it
 				// identically under any worker count.
-				rec.SetMergePosition(0, seg.startRec+recIdx)
+				rec.SetMergePosition(0, 0, seg.startRec+recIdx)
 				if err := cb(rec); err != nil {
 					return err
 				}

@@ -92,7 +92,7 @@ func TestMatrixCorrelation_TopPairsResult(t *testing.T) {
 					nulls = map[string]bool{"z": true}
 				}
 				rec := NewRecordWithNulls(schema, vals, nulls)
-				rec.SetMergePosition(0, i)
+				rec.SetMergePosition(0, 0, i)
 				if err := slots[0].UpdateRow(rec, ""); err != nil {
 					t.Fatal(err)
 				}

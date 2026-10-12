@@ -101,6 +101,15 @@ type ExtensionRegistry struct {
 	// so the request runs serial. Absent reads false.
 	ComponentAttributes map[types.AttributeType]bool
 
+	// VectorAggregators records the extension aggregators declared
+	// VectorInput (pulse.AggregatorRegistration.VectorInput, with
+	// ArrayValued): their slots read vector / fields by the built-in
+	// vector rules (vectors.ResolveAggregations), and an ArrayValued one
+	// is refused wherever one number is needed and honours expand.
+	// Read through AggregationKinds. Absent reads as a field-reading
+	// operator.
+	VectorAggregators map[types.AggregationType]vectors.ExtensionAggregation
+
 	// FansOut is the per-grouper fan-out declaration recorded from
 	// pulse.GrouperRegistration.FansOut — true when one record can
 	// land in MORE THAN ONE bucket, so the bucket counts SUM to more
@@ -186,6 +195,34 @@ func (r *ExtensionRegistry) WithHidden(hidden func(name string) bool) *Extension
 // Nil-receiver-safe: a nil registry hides nothing.
 func (r *ExtensionRegistry) isHidden(name string) bool {
 	return r != nil && r.hidden != nil && r.hidden(name)
+}
+
+// AggregationKinds is the runtime's view of the aggregation types for
+// the vector rules: a hidden name routes to "" (unknown), and a
+// registered extension aggregator reports its declared VectorInput /
+// ArrayValued. Predict builds the same view from the extensions
+// snapshot. Nil-receiver-safe (the built-in view).
+func (r *ExtensionRegistry) AggregationKinds() vectors.AggregationKinds {
+	if r == nil {
+		return vectors.AggregationKinds{}
+	}
+	return vectors.AggregationKinds{
+		Route: func(t types.AggregationType) types.AggregationType {
+			if r.isHidden(string(t)) {
+				return ""
+			}
+			return t
+		},
+		Extension: func(name string) vectors.ExtensionAggregation {
+			t := types.AggregationType(name)
+			if !r.isExtensionAggregator(t) {
+				return vectors.ExtensionAggregation{}
+			}
+			e := r.VectorAggregators[t]
+			e.Registered = true
+			return e
+		},
+	}
 }
 
 // ExprFunction is the runtime-side mirror of pulse.ExprFunction. The

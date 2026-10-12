@@ -82,6 +82,9 @@ func probeAggregators(regs []AggregatorRegistration) error {
 		if err := verifyAggregatorMarginReducibility(reg); err != nil {
 			return err
 		}
+		if err := verifyAggregatorArrayValued(reg, instance); err != nil {
+			return err
+		}
 		if reg.ComponentsFunc != nil {
 			if err := verifyComponentSchemaPresence(
 				"aggregator", string(reg.Name), reg.ComponentSchema, true,
@@ -230,6 +233,23 @@ func verifyAggregatorMarginReducibility(reg AggregatorRegistration) error {
 	}
 	return mismatch("unknown_class",
 		`the class is unknown (want "summable", "mean_reducible", "independent" or "recompute")`)
+}
+
+// verifyAggregatorArrayValued checks an ArrayValued=true registration's
+// value carries the array: it must implement extend.RichAggregator
+// (PULSE_EXTENSION_ARRAY_VALUED_MISMATCH, reason
+// missing_rich_interface). The declaration-only rules run at
+// validation (validateAggregatorVectorInputs).
+func verifyAggregatorArrayValued(reg AggregatorRegistration, instance extend.Aggregator) error {
+	if !reg.ArrayValued {
+		return nil
+	}
+	if _, ok := instance.(extend.RichAggregator); ok {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_ARRAY_VALUED_MISMATCH,
+		fmt.Sprintf("aggregator %q declares ArrayValued=true but factory does not return extend.RichAggregator (the per-member figures ride Rich)", reg.Name),
+		map[string]any{"category": "aggregator", "name": string(reg.Name), "reason": "missing_rich_interface"})
 }
 
 // probeGroupers validates every registered grouper. A Streamable=true

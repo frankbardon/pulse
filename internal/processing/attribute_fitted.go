@@ -443,14 +443,7 @@ func ResolveAggregationInputs(req *types.Request, schema *encoding.Schema, exts 
 	if !vectors.AnyAggregationVectorInput(req) {
 		return req
 	}
-	inputs, err := vectors.ResolveAggregations(req, schema, func(t types.AggregationType) types.AggregationType {
-		if exts.isHidden(string(t)) {
-			return ""
-		}
-		return t
-	}, func(name string) bool {
-		return exts.isExtensionAggregator(types.AggregationType(name))
-	})
+	inputs, err := vectors.ResolveAggregations(req, schema, exts.AggregationKinds())
 	if err != nil || len(inputs) == 0 {
 		return req
 	}

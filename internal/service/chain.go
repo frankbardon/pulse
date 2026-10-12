@@ -140,7 +140,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	if err := processing.ChainRefusal(stage0, cohort.Schema(), s.extensions, 0, req.Stages[0].Name); err != nil {
 		return nil, err
 	}
-	if err := mergegate.StageArrayValuedRefusal(stage0, 0, len(req.Stages), req.Stages[0].Name); err != nil {
+	if err := mergegate.StageArrayValuedRefusal(stage0, 0, len(req.Stages), req.Stages[0].Name, s.extensions.AggregationKinds()); err != nil {
 		return nil, err
 	}
 
@@ -252,7 +252,7 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 	if err := processing.ChainRefusal(stage, synthSchema, s.extensions, i, req.Stages[i].Name); err != nil {
 		return nil, err
 	}
-	if err := mergegate.StageArrayValuedRefusal(stage, i, len(req.Stages), req.Stages[i].Name); err != nil {
+	if err := mergegate.StageArrayValuedRefusal(stage, i, len(req.Stages), req.Stages[i].Name, s.extensions.AggregationKinds()); err != nil {
 		return nil, err
 	}
 	if err := s.checkFieldRefs(ctx, stage, synthSchema); err != nil {

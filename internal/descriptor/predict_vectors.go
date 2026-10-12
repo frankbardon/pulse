@@ -48,16 +48,19 @@ func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, 
 // AccumulatorBytes, vectors.EstimateBuckets) the engine honours. A refused spec is reported by
 // the field-reference pass, so nothing is echoed then.
 //
-// blocks is the merge-block count the run populates (limits.MergeBlocks
-// over the record count, per shard for an archive; -1 when unknown).
+// blocks is the merge-fragment count the run populates
+// (limits.MergeBlocks over the record count, over the per-shard counts
+// for an archive; -1 when unknown) and buffered the rows non-head
+// fragments keep (limits.MergeBufferedRows; 0 on a single file).
 // EstimatedBytes is the real state, limits.MatrixStateBytes: one
-// CoMoment per populated block per bucket — omitted with the block
-// count unknown.
+// CoMoment per populated fragment per bucket, plus the buffered rows
+// (vectors.Matrix.FragmentRowBytes each, per bucket) — omitted with the
+// block count unknown.
 //
 // records is the cohort's record count (-1 when unknown): a buffered
 // spec's RowBufferBytes is records × vectors.Matrix.RowBytes, added to
 // EstimatedBytes.
-func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, blocks, records int64) {
+func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, blocks, buffered, records int64) {
 	if req == nil || len(req.Matrices) == 0 {
 		return
 	}
@@ -123,6 +126,14 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 			mp.EstimatedBuckets, mp.EstimatedCells = &b, &cells
 			if blocks >= 0 {
 				bytes := limits.MatrixStateBytes(blocks, b, m.AccumulatorBytes()*m.StateCount(schema))
+				if buffered > 0 {
+					fb := limits.MatrixStateBytes(buffered, b, m.FragmentRowBytes()*m.StateCount(schema))
+					if bytes > math.MaxInt64-fb {
+						bytes = math.MaxInt64
+					} else {
+						bytes += fb
+					}
+				}
 				if bytes > math.MaxInt64-rowBytes {
 					bytes = math.MaxInt64
 				} else {

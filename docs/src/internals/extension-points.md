@@ -1100,7 +1100,8 @@ ranges.
 
 ## Vector inputs (`vector` / `fields`)
 
-An extension test, attribute or grouper may read a member set from the
+An extension test, attribute or grouper — and an aggregator declared
+`VectorInput` (below) — may read a member set from the
 slot's `vector` (a `Request.Vectors` name) or `fields` (inline names
 and globs), and a test also a second set from `vector2` / `fields2`.
 Predict and the runtime judge those member sets exactly as a
@@ -1116,6 +1117,56 @@ params, `field` / `field2` beside the vector, `split_by` and whether
 the two sets must match in length. A test or attribute that reads a
 vector may leave `field` empty; a grouper keeps its `field`, which
 names its key column.
+
+An **aggregator** reads a vector only when its registration declares
+`VectorInput: true` — otherwise a `vector` / `fields` on its slot is
+refused (`vector_not_accepted`), as for a built-in scalar aggregator.
+A vector-input aggregator follows the `AGG_VEC_MEAN` slot rules exactly:
+one of `vector` / `fields`, never `field`, numeric source columns only;
+its factory receives the literal members in `spec.Fields` and the
+display label per member in `params.labels` (a named vector's labels,
+else the slot's `params.labels`, else the member names), with every
+other params key kept for the operator. `params.labels` and
+`params.expand` belong to the engine, so the registration may not
+declare a `ParamMeta` of either name (`PULSE_EXTENSION_PARAM_INVALID`,
+`reserved_vector_param`). The universal floor counts a row present when
+ANY member answered.
+
+Add `ArrayValued: true` when the value is one figure per member: the
+instance implements `extend.RichAggregator` and `Rich` returns a
+`[]float64` with one entry per member, in member order (`NaN` is
+`null` on the wire). `ArrayValued` needs `VectorInput` and no
+`MarginReducibility` (`PULSE_EXTENSION_ARRAY_VALUED_MISMATCH`, reasons
+`array_valued_without_vector_input`, `array_valued_margin_reducibility`,
+`missing_rich_interface`); a `Rich` value of another shape is
+`PROCESSING_INTERNAL` at run time. Predict and the runtime then treat
+the slot as they treat `AGG_VEC_MEAN`: refused as a crosstab cell or
+margin aggregation, a sort key, an overlay host (request, Compose,
+chain) and a chain stage feeding another (`PROCESSING_CONFIG`, reason
+`array_valued`), and `params.expand: true` writes one column per member,
+`<label>[<element label>]`, which predict lists in
+`aggregations[i].columns`. `expand` on a slot whose aggregator is not
+`ArrayValued` is refused (`expand_not_array_valued`). The manifest's
+extension entry carries `vector_input` / `array_valued`, which the
+recommend planner reads to draft a `fields` list.
+
+```go
+pulse.AggregatorRegistration{
+    Name:        "AGG_ACME_PROFILE",
+    VectorInput: true,
+    ArrayValued: true,
+    Streamable:  true,
+    Mergeable:   true,
+    Factory: func(spec *types.Aggregation, _ *encoding.Schema) (extend.Aggregator, error) {
+        return newProfile(spec.Fields), nil // Rich() returns []float64, len(spec.Fields)
+    },
+}
+```
+
+A mergeable extension's partials fold through its own `Merge`, so —
+unlike the built-in `AGG_VEC_*`, which key their partials by global
+record ordinal — its figures under `ShardWorkers` / `DecodeWorkers` may
+differ from the serial run in the last bits (see `MergeableAggregator`).
 
 ## Streamability contract
 

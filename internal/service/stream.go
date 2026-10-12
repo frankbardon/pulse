@@ -168,7 +168,7 @@ func (it *streamingIterator) Next() bool {
 	if !it.next() {
 		return false
 	}
-	it.current.SetMergePosition(0, it.nextRec)
+	it.current.SetMergePosition(0, 0, it.nextRec)
 	it.nextRec++
 	return true
 }

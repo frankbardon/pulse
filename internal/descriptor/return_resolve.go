@@ -673,11 +673,12 @@ func returnOutputColumns(req *types.Request, schema *encoding.Schema, inst *Inst
 			}
 			// An expanding vector aggregation writes its per-element
 			// columns, not its label.
-			if !vectors.AggregationExpands(agg) {
+			kinds := aggregationKinds(inst, nil)
+			if !vectors.AggregationExpands(agg, kinds) {
 				cols[types.AggregationLabelOf(agg)] = true
 				continue
 			}
-			out, _ := vectors.AggregationOutputColumns(req, agg, schema)
+			out, _ := vectors.AggregationOutputColumns(req, agg, schema, kinds)
 			for _, c := range out {
 				cols[c] = true
 			}

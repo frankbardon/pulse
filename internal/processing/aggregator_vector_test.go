@@ -162,8 +162,9 @@ func TestVecAgg_FactoryRefusals(t *testing.T) {
 }
 
 // vecRandomRows: n rows of non-dyadic floats (so summation order
-// reaches the bits), ~10% nulls per member, stamped on shard.
-func vecRandomRows(s *encoding.Schema, n, shard int, seed int64) []*Record {
+// reaches the bits), ~10% nulls per member, stamped on shard (whose
+// first global ordinal is start).
+func vecRandomRows(s *encoding.Schema, n, shard, start int, seed int64) []*Record {
 	rng := rand.New(rand.NewSource(seed))
 	out := make([]*Record, n)
 	val := func() float64 {
@@ -174,7 +175,7 @@ func vecRandomRows(s *encoding.Schema, n, shard int, seed int64) []*Record {
 	}
 	for i := range out {
 		out[i] = vecRec(s, val(), val(), val(), 0.1+rng.Float64())
-		out[i].SetMergePosition(shard, i)
+		out[i].SetMergePosition(shard, start, i)
 	}
 	return out
 }
@@ -200,8 +201,8 @@ func TestVecAgg_MergeBitExact(t *testing.T) {
 	s := vecAggSchema()
 	n := 5*linalg.MergeBlockSize + 77
 	var rows []*Record
-	rows = append(rows, vecRandomRows(s, n, 0, 1)...)
-	rows = append(rows, vecRandomRows(s, n/2, 1, 2)...)
+	rows = append(rows, vecRandomRows(s, n, 0, 0, 1)...)
+	rows = append(rows, vecRandomRows(s, n/2, 1, n, 2)...)
 	for _, typ := range []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM} {
 		for _, weighted := range []bool{false, true} {
 			serial := newVecAggForTest(t, typ, weighted, "")
@@ -237,6 +238,91 @@ func TestVecAgg_MergeBitExact(t *testing.T) {
 	}
 }
 
+// TestVecAgg_ShardSplitBitExact: the same rows stamped as one file and
+// as a shard archive split unevenly — shard edges inside blocks, 1-row
+// shards, an empty shard — give the single file's exact bits, each
+// shard folded on its own partition and the partitions merged in any
+// order (the per-shard reducer), or every row on one (the serial shard
+// iterator). Falsified by keying blocks per shard (start 0).
+func TestVecAgg_ShardSplitBitExact(t *testing.T) {
+	s := vecAggSchema()
+	B := linalg.MergeBlockSize
+	n := 3*B + 500
+	single := vecRandomRows(s, n, 0, 0, 7)
+	splits := map[string][]int{
+		"mid-block edges":     {B + 13, 1, 0, 2*B - 400, n - (3*B - 386)},
+		"one-row shards":      {1, 1, 1, B - 3, 1, 0, n - B - 1},
+		"aligned plus tail":   {B, B, B, 500},
+		"one shard":           {n},
+		"leading empty shard": {0, 2, n - 2},
+	}
+	for _, typ := range []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM} {
+		for _, weighted := range []bool{false, true} {
+			ref := newVecAggForTest(t, typ, weighted, "")
+			for _, r := range single {
+				_ = ref.UpdateRow(r, "")
+			}
+			want := vecBits(t, ref)
+			for name, sizes := range splits {
+				total := 0
+				for _, z := range sizes {
+					total += z
+				}
+				if total != n {
+					t.Fatalf("%s: split sums to %d, want %d", name, total, n)
+				}
+				restamp := func() [][]*Record {
+					var shards [][]*Record
+					start := 0
+					for sh, z := range sizes {
+						var part []*Record
+						for i := 0; i < z; i++ {
+							r := single[start+i]
+							r.SetMergePosition(sh, start, i)
+							part = append(part, r)
+						}
+						shards = append(shards, part)
+						start += z
+					}
+					return shards
+				}
+				shards := restamp()
+				serial := newVecAggForTest(t, typ, weighted, "")
+				for _, part := range shards {
+					for _, r := range part {
+						_ = serial.UpdateRow(r, "")
+					}
+				}
+				if got := vecBits(t, serial); !reflect.DeepEqual(got, want) {
+					t.Errorf("%s weighted=%v %s serial: bits %x, single file %x", typ, weighted, name, got, want)
+				}
+				for trial := 0; trial < 3; trial++ {
+					parts := make([]*vecAggregator, len(shards))
+					for i, part := range shards {
+						parts[i] = newVecAggForTest(t, typ, weighted, "")
+						for _, r := range part {
+							_ = parts[i].UpdateRow(r, "")
+						}
+					}
+					order := rand.New(rand.NewSource(int64(trial))).Perm(len(parts))
+					root := parts[order[0]]
+					for _, i := range order[1:] {
+						if err := root.MergeOnline(parts[i]); err != nil {
+							t.Fatal(err)
+						}
+					}
+					if got := vecBits(t, root); !reflect.DeepEqual(got, want) {
+						t.Errorf("%s weighted=%v %s merge order %v: bits %x, single file %x", typ, weighted, name, order, got, want)
+					}
+				}
+				for i, r := range single { // back to the single-file stamp
+					r.SetMergePosition(0, 0, i)
+				}
+			}
+		}
+	}
+}
+
 // TestVecAgg_MergeRefusals: a block on both sides, or unpositioned
 // rows on both sides, refuses PROCESSING_INTERNAL; a type mismatch
 // refuses too.
@@ -246,7 +332,7 @@ func TestVecAgg_MergeRefusals(t *testing.T) {
 		a := newVecAggForTest(t, types.AGG_VEC_SUM, false, "")
 		r := vecRec(s, 1, 2, 3, 1)
 		if pos {
-			r.SetMergePosition(0, 0)
+			r.SetMergePosition(0, 0, 0)
 		}
 		_ = a.UpdateRow(r, "")
 		return a

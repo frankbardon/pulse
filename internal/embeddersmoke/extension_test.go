@@ -556,3 +556,83 @@ func TestExtensionExamplesThroughFacade(t *testing.T) {
 	}
 	_ = errors.PULSE_EXTENSION_EXAMPLE_INVALID
 }
+
+// smokeVecSum is an ArrayValued vector-input aggregator: one total per
+// member of the slot's vector, carried by Rich as a []float64.
+type smokeVecSum struct {
+	members []string
+	sums    []float64
+}
+
+var _ extend.RichAggregator = (*smokeVecSum)(nil)
+
+func (a *smokeVecSum) Aggregate(rows extend.Rows, _ string) (float64, error) {
+	for i := 0; i < rows.Len(); i++ {
+		for j, m := range a.members {
+			if v, ok := rows.At(i).NumericValue(m); ok {
+				a.sums[j] += v
+			}
+		}
+	}
+	return 0, nil
+}
+
+func (a *smokeVecSum) Rich() (any, error) { return append([]float64(nil), a.sums...), nil }
+
+// TestExtendVectorAggregatorThroughProcess: a registration declaring
+// VectorInput + ArrayValued reads the slot's inline fields (handed to
+// the factory as literal members), returns one figure per member, honours
+// params.expand, and is refused as a crosstab cell — all through the
+// public spellings.
+func TestExtendVectorAggregatorThroughProcess(t *testing.T) {
+	p, fs := newEngine(t, pulse.Options{Extensions: pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{{
+			Name:        "AGG_SMOKE_VEC_SUM",
+			Description: "Per-member totals of a vector input.",
+			VectorInput: true,
+			ArrayValued: true,
+			Factory: func(spec *types.Aggregation, _ *encoding.Schema) (extend.Aggregator, error) {
+				return &smokeVecSum{members: spec.Fields, sums: make([]float64, len(spec.Fields))}, nil
+			},
+		}},
+	}})
+	ingest(t, p, fs, "sales.pulse")
+	ctx := context.Background()
+	req := sumByRegion("sales.pulse")
+	req.Aggregations = []*types.Aggregation{{Type: "AGG_SMOKE_VEC_SUM", Fields: []string{"amount"}, Label: "total"}}
+	resp, err := p.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	for _, row := range resp.Data {
+		v, ok := row["total"].([]float64)
+		want := map[string]float64{"north": 15, "south": 20}[row["region"].(string)]
+		if !ok || len(v) != 1 || v[0] != want {
+			t.Fatalf("row %v: total = %#v, want [%v]", row, row["total"], want)
+		}
+	}
+
+	req.Aggregations[0].Params = []byte(`{"expand":true}`)
+	resp, err = p.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process(expand): %v", err)
+	}
+	for _, row := range resp.Data {
+		if _, ok := row["total[amount]"].(float64); !ok {
+			t.Fatalf("expanded row %v lacks total[amount]", row)
+		}
+	}
+
+	_, err = p.Process(ctx, &pulse.Request{
+		Cohort: &types.Cohort{Filename: "sales.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Cell:    &types.Aggregation{Type: "AGG_SMOKE_VEC_SUM", Fields: []string{"amount"}},
+		},
+	})
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_CONFIG || ce.Details["reason"] != "array_valued" {
+		t.Fatalf("crosstab cell = %v, want PROCESSING_CONFIG array_valued", err)
+	}
+}

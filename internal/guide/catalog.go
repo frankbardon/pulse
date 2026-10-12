@@ -2,6 +2,8 @@ package guide
 
 import (
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/types"
 )
 
 // Operator categories a draft request can carry. Overlays and synth
@@ -67,9 +69,13 @@ type opInfo struct {
 	name         string
 	category     string
 	ignoresField bool
-	accepts      []string // field type names the operator's field takes; empty = undeclared
-	requires     []string // tests: types.Test Go field names
-	params       []param  // required params without a default
+	// vectorInput: the operator reads an inline fields list (a built-in
+	// vector aggregator, or an extension aggregator declared
+	// VectorInput), never field.
+	vectorInput bool
+	accepts     []string // field type names the operator's field takes; empty = undeclared
+	requires    []string // tests: types.Test Go field names
+	params      []param  // required params without a default
 }
 
 // param is one required, default-less param. typ and fieldFilter are
@@ -92,7 +98,8 @@ func catalog(m *descriptor.Manifest) map[string]opInfo {
 	out := map[string]opInfo{}
 	addOps := func(ops []descriptor.Operator) {
 		for _, o := range ops {
-			out[o.Name] = opInfo{name: o.Name, category: o.Category, ignoresField: o.IgnoresField, accepts: o.AcceptsTypes, params: requiredParams(o.Params)}
+			out[o.Name] = opInfo{name: o.Name, category: o.Category, ignoresField: o.IgnoresField, accepts: o.AcceptsTypes, params: requiredParams(o.Params),
+				vectorInput: o.Category == catAggregator && vectors.IsVectorAggregation(types.AggregationType(o.Name))}
 		}
 	}
 	c := m.Components
@@ -123,7 +130,7 @@ func catalog(m *descriptor.Manifest) map[string]opInfo {
 		catGrouper: e.Groupers, catWindow: e.Windows, catFeature: e.Features, catTest: e.Tests,
 	} {
 		for _, o := range metas {
-			info := opInfo{name: o.Name, category: cat, accepts: o.Accepts}
+			info := opInfo{name: o.Name, category: cat, accepts: o.Accepts, vectorInput: cat == catAggregator && o.VectorInput}
 			if cat == catTest {
 				info.requires = []string{"Field"}
 				if o.Tier == "tier2" {

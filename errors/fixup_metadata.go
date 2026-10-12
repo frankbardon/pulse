@@ -1372,6 +1372,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_EXTENSION_ARRAY_VALUED_MISMATCH: {
+		Message: "An aggregator registration declared ArrayValued it cannot honour: without VectorInput, with a MarginReducibility, or with a factory whose value does not implement extend.RichAggregator.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "An array value is one figure per vector member: declare VectorInput=true beside ArrayValued, leave MarginReducibility empty (a crosstab refuses an array-valued cell), and return a value implementing extend.RichAggregator whose Rich gives a []float64 of the member count — or drop ArrayValued and return one figure.",
+			},
+		},
+	},
 	PULSE_EXTENSION_FACTORY_PANIC: {
 		Message: "An embedder factory panicked during probe-validation at registration time.",
 		Fixups: []Fixup{

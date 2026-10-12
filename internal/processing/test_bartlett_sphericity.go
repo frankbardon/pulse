@@ -101,7 +101,7 @@ func (b *bartlettSphericityRow) UpdateRow(record *Record) error {
 	}
 	key, positioned := record.MergeBlock()
 	if !positioned {
-		key = BlockKey{Block: b.seq / linalg.MergeBlockSize}
+		key = BlockKey{Block: b.seq / linalg.MergeBlockSize, Head: true}
 	}
 	b.seq++
 	return b.blocks.AddAt(key, b.x, w)

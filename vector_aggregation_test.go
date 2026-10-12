@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -262,7 +261,9 @@ func writeVaggBitsCohort(t testing.TB, fsys afero.Fs, path string, from, to int)
 }
 
 // vaggBits runs the request and returns every array element's bits,
-// row by row, weighted and unweighted slots alike.
+// row by row, weighted and unweighted slots alike, then every
+// covariance entry's bits (the BlockCoMoments arm of the blocked
+// merge; per group on a grouped request).
 func vaggBits(t *testing.T, p *pulse.Pulse, cohort string, grouped bool) []uint64 {
 	t.Helper()
 	req := &types.Request{
@@ -271,6 +272,10 @@ func vaggBits(t *testing.T, p *pulse.Pulse, cohort string, grouped bool) []uint6
 			{Type: types.AGG_VEC_MEAN, Fields: []string{"b*"}, Label: "m"},
 			{Type: types.AGG_VEC_SUM, Fields: []string{"b*"}, Label: "s"},
 			{Type: types.AGG_VEC_MEAN, Fields: []string{"b*"}, Label: "wm", Weight: types.SlotWeightField("score")},
+		},
+		Matrices: []types.MatrixSpec{
+			{Type: types.MAT_COVARIANCE, Fields: []string{"b*"}, Name: "cov"},
+			{Type: types.MAT_COVARIANCE, Fields: []string{"b*"}, Name: "wcov", Weight: types.SlotWeightField("score")},
 		},
 	}
 	if grouped {
@@ -293,40 +298,32 @@ func vaggBits(t *testing.T, p *pulse.Pulse, cohort string, grouped bool) []uint6
 			}
 		}
 	}
+	if len(resp.Matrices) == 0 {
+		t.Fatal("no matrix results")
+	}
+	for _, m := range resp.Matrices {
+		for _, r := range m.Primary.Values {
+			for _, x := range r {
+				out = append(out, math.Float64bits(x))
+			}
+		}
+	}
 	return out
 }
 
 // TestVecAgg_BitExactAcrossWorkers: a single file answers the same bits
-// serially and under every DecodeWorkers count; a shard archive the
-// same bits under every ShardWorkers count (a shard archive and its
-// single-file twin cut blocks differently, so they agree to rounding
-// only — the CoMoment caveat).
+// serially and under every DecodeWorkers count, and a shard archive
+// holding the same rows — split unevenly, with shard edges inside merge
+// blocks, 1-row shards and an empty shard — answers THOSE bits under
+// every ShardWorkers × DecodeWorkers count: blocks key by the global
+// record ordinal, so the twin and the archive fold the same blocks in
+// the same tree. Grouped and ungrouped; weighted and unweighted vector
+// aggregates and covariance matrices.
 func TestVecAgg_BitExactAcrossWorkers(t *testing.T) {
-	dir := t.TempDir()
-	osfs := afero.NewOsFs()
-	writeVaggBitsCohort(t, osfs, filepath.Join(dir, "large.pulse"), 0, parityLargeRows)
-	for _, grouped := range []bool{false, true} {
-		t.Run(fmt.Sprintf("single_file/grouped=%v", grouped), func(t *testing.T) {
-			var want []uint64
-			for _, dw := range []int{1, 2, 3, 7} {
-				p, err := pulse.New(pulse.Options{DataDir: dir, DecodeWorkers: dw})
-				if err != nil {
-					t.Fatal(err)
-				}
-				got := vaggBits(t, p, "large.pulse", grouped)
-				if want == nil {
-					want = got
-					continue
-				}
-				if !reflect.DeepEqual(got, want) {
-					t.Errorf("DecodeWorkers=%d bits differ from serial", dw)
-				}
-			}
-		})
-	}
-
+	const rows = 5*4096 + 1234
 	fsys := afero.NewMemMapFs()
-	bounds := []int{0, 9000, 14000, 21000, 21500}
+	writeVaggBitsCohort(t, fsys, "single.pulse", 0, rows)
+	bounds := []int{0, 1, 2, 4097, 4097, 9000, 9001, 14000, 14000 + 4096, rows}
 	var shards []string
 	for i := 0; i+1 < len(bounds); i++ {
 		path := fmt.Sprintf("s%d.pulse", i)
@@ -341,20 +338,28 @@ func TestVecAgg_BitExactAcrossWorkers(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, grouped := range []bool{false, true} {
-		t.Run(fmt.Sprintf("shard_archive/grouped=%v", grouped), func(t *testing.T) {
-			var want []uint64
-			for _, sw := range []int{1, 2, 3, 4} {
-				p, err := pulse.New(pulse.Options{FS: fsys, ShardWorkers: sw})
+		t.Run(fmt.Sprintf("grouped=%v", grouped), func(t *testing.T) {
+			serial, err := pulse.New(pulse.Options{FS: fsys})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := vaggBits(t, serial, "single.pulse", grouped)
+			for _, dw := range []int{1, 2, 3, 7} {
+				p, err := pulse.New(pulse.Options{FS: fsys, DecodeWorkers: dw})
 				if err != nil {
 					t.Fatal(err)
 				}
-				got := vaggBits(t, p, "archive.pulse", grouped)
-				if want == nil {
-					want = got
-					continue
+				if got := vaggBits(t, p, "single.pulse", grouped); !reflect.DeepEqual(got, want) {
+					t.Errorf("single file DecodeWorkers=%d: bits differ from serial", dw)
 				}
-				if !reflect.DeepEqual(got, want) {
-					t.Errorf("ShardWorkers=%d bits differ from ShardWorkers=1", sw)
+				for _, sw := range []int{1, 2, 3, 4} {
+					p, err := pulse.New(pulse.Options{FS: fsys, ShardWorkers: sw, DecodeWorkers: dw})
+					if err != nil {
+						t.Fatal(err)
+					}
+					if got := vaggBits(t, p, "archive.pulse", grouped); !reflect.DeepEqual(got, want) {
+						t.Errorf("archive ShardWorkers=%d DecodeWorkers=%d: bits differ from the single-file twin", sw, dw)
+					}
 				}
 			}
 		})

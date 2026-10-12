@@ -19,6 +19,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/totalcall"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -252,21 +253,23 @@ func StageMatrixRefusal(req *types.Request, stageIndex int, stageName string) er
 }
 
 // StageArrayValuedRefusal is the ProcessChain rule that an
-// array-valued aggregation (types.AggregationType.ArrayValued —
-// AGG_VEC_MEAN / AGG_VEC_SUM) may not feed a later stage: the next
+// array-valued aggregation (AGG_VEC_MEAN / AGG_VEC_SUM, or an extension
+// declared ArrayValued) may not feed a later stage: the next
 // stage reads each output column as one f64, so the array would read
 // as null and every figure over it — a total(), a ratio, a plain sum —
 // would be silently wrong. nil for the last stage (its rows are the
 // chain's output) or a stage with no such slot, else PROCESSING_CONFIG
 // {stage_index, stage_name, aggregation, label, reason:
 // "array_valued"}. The runtime and the chain validator both check it
-// right after ChainRefusal.
-func StageArrayValuedRefusal(req *types.Request, stageIndex, stageCount int, stageName string) error {
+// right after ChainRefusal. kinds is the instance's view (a declared
+// ArrayValued extension aggregator is array-valued too); the zero value
+// is the built-in view.
+func StageArrayValuedRefusal(req *types.Request, stageIndex, stageCount int, stageName string, kinds vectors.AggregationKinds) error {
 	if req == nil || stageIndex >= stageCount-1 {
 		return nil
 	}
 	for _, agg := range req.Aggregations {
-		if agg == nil || !agg.Type.ArrayValued() {
+		if agg == nil || !kinds.IsArrayValued(agg.Type) {
 			continue
 		}
 		label := types.AggregationLabelOf(agg)

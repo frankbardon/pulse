@@ -768,8 +768,8 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	itemProps("groups")["vector"] = groupVectorSchema()
 	itemProps("groups")["fields"] = groupFieldsSchema()
 	aggs := itemProps("aggregations")
-	aggs["vector"] = map[string]any{"type": "string", "description": "Vector aggregators (AGG_VEC_MEAN, AGG_VEC_SUM): the Request.Vectors entry whose members are aggregated element by element; exactly one of vector / fields, and no field."}
-	aggs["fields"] = map[string]any{"type": "array", "description": "Vector aggregators: inline members (names and / or globs); exactly one of vector / fields.", "items": map[string]any{"type": "string"}}
+	aggs["vector"] = map[string]any{"type": "string", "description": "Vector aggregators (AGG_VEC_MEAN, AGG_VEC_SUM, and any extension aggregator whose manifest entry declares vector_input): the Request.Vectors entry whose members are aggregated; exactly one of vector / fields, and no field."}
+	aggs["fields"] = map[string]any{"type": "array", "description": "Vector aggregators (built-in, or an extension declaring vector_input): inline members (names and / or globs); exactly one of vector / fields.", "items": map[string]any{"type": "string"}}
 	attr := itemProps("attributes")
 	attr["target"] = enumStringField(c.Numeric, "Dependent variable for the regression attributes (ATTR_REG_FITTED / RESIDUAL / LEVERAGE).")
 	attr["predictors"] = map[string]any{"type": "array", "description": "Independent variables for the regression attributes; at least one.", "items": enumStringField(c.Numeric, "")}
@@ -1179,7 +1179,7 @@ func columnInputAnyOf() []any {
 // declare a crosstab aggregation slot's vector input: accepted on the
 // wire like every aggregation slot's, refused by the crosstab rule.
 func crosstabArrayValuedVectorSchema() map[string]any {
-	return map[string]any{"type": "string", "description": "Vector aggregators only (AGG_VEC_*), which a crosstab refuses (array-valued: Manifest.Crosstab.ArrayValuedAggregators)."}
+	return map[string]any{"type": "string", "description": "Vector aggregators only (AGG_VEC_*, or an extension declaring vector_input), which a crosstab refuses when array-valued (Manifest.Crosstab.ArrayValuedAggregators, an extension's array_valued)."}
 }
 
 func crosstabArrayValuedFieldsSchema() map[string]any {
