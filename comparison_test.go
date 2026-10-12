@@ -7,6 +7,7 @@ import (
 	"math"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -377,7 +378,9 @@ func TestComparison_RefusalsPredictRuntimeParity(t *testing.T) {
 		{"unknown table", types.ATTR_VEC_DISTANCE, `{"metric":"euclidean","reference":{"table":"nope","key":"north"}}`, perr.PULSE_VECTOR_REFERENCE_UNKNOWN, ""},
 		{"unknown key", types.ATTR_VEC_DISTANCE, `{"metric":"euclidean","reference":{"table":"t","key":"west"}}`, perr.PULSE_VECTOR_REFERENCE_UNKNOWN, ""},
 		{"table labels", types.ATTR_PROFILE_SIMILARITY, `{"metric":"cosine","reference":{"table":"other","key_field":"region"}}`, perr.PULSE_VECTOR_REFERENCE_MISMATCH, ""},
-		{"key_field numeric", types.ATTR_PROFILE_SIMILARITY, `{"metric":"cosine","reference":{"table":"t","key_field":"qty"}}`, perr.SERVICE_VALIDATION, ""},
+		{"key_field float", types.ATTR_PROFILE_SIMILARITY, `{"metric":"cosine","reference":{"table":"t","key_field":"score"}}`, perr.SERVICE_VALIDATION, ""},
+		{"key_field date", types.ATTR_PROFILE_SIMILARITY, `{"metric":"cosine","reference":{"table":"t","key_field":"day"}}`, perr.SERVICE_VALIDATION, ""},
+		{"key_field set", types.ATTR_PROFILE_SIMILARITY, `{"metric":"cosine","reference":{"table":"t","key_field":"tags"}}`, perr.SERVICE_VALIDATION, ""},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			req := &types.Request{
@@ -488,5 +491,107 @@ func TestComparison_PredictReadings(t *testing.T) {
 		if _, err := p.Process(ctx, req); err != nil {
 			t.Fatalf("Process: %v", err)
 		}
+	}
+}
+
+// TestComparison_RowWarningsEveryMode (E3-S4): rows nulled for a
+// missing reference or a domain violation raise one coded warning per
+// slot with counts identical to the oracle (and to the components) on
+// streaming, buffered, parallel decode and the shard archive; an
+// unsigned-integer key_field (qty, u32) matches the table by its
+// base-10 form; a clean slot warns nothing.
+func TestComparison_RowWarningsEveryMode(t *testing.T) {
+	ctx := context.Background()
+	byQty := map[string][]float64{}
+	for k := 0; k < 10; k++ {
+		byQty[strconv.Itoa(k)] = []float64{float64(k), float64(2 * k)} // q, s
+	}
+	tables := map[string]types.ReferenceVectorTable{"byqty": {Labels: []string{"q", "s"}, Profiles: byQty}}
+	vec := []types.VectorSpec{{Name: "v", Fields: []string{"score", "qty"}, Labels: []string{"s", "q"}}}
+	for name, m := range refCohortModes(t, tables) {
+		t.Run(name, func(t *testing.T) {
+			req := &types.Request{
+				Cohort:  &types.Cohort{Filename: m.path},
+				Vectors: vec,
+				Attributes: []*types.Attribute{
+					{Type: types.ATTR_VEC_DISTANCE, Vector: "v", Label: "keyed",
+						Params: json.RawMessage(`{"metric":"manhattan","reference":{"table":"byqty","key_field":"qty"}}`)},
+					{Type: types.ATTR_VEC_DISTANCE, Vector: "v", Label: "domain",
+						Params: json.RawMessage(`{"metric":"hellinger","reference":{"s":-1,"q":1}}`)},
+					{Type: types.ATTR_VEC_DISTANCE, Vector: "v", Label: "clean",
+						Params: json.RawMessage(`{"metric":"euclidean","reference":{"s":1,"q":1}}`)},
+				},
+				Aggregations: []*types.Aggregation{
+					{Type: types.AGG_SUM, Field: "keyed", Label: "sum_keyed"},
+					{Type: types.AGG_SUM, Field: "amount", Label: "a"},
+				},
+			}
+			if name == "buffered" {
+				req.Attributes = append(req.Attributes, &types.Attribute{Type: types.ATTR_PERCENTILE, Field: "qty", Label: "pct"})
+			}
+			resp, err := m.p.Process(ctx, req)
+			if err != nil {
+				t.Fatalf("Process: %v", err)
+			}
+			wantSum, unmatched, domain := 0.0, 0, 0
+			for r := 0; r < m.rows; r++ {
+				x := []float64{float64(r%50) + 0.5, float64(r % 13)}
+				if r%7 == 3 {
+					x[0] = math.NaN()
+				} else {
+					domain++
+				}
+				prof, ok := byQty[strconv.Itoa(r%13)]
+				if !ok {
+					unmatched++
+					continue
+				}
+				ref := []float64{prof[1], prof[0]} // by label: s, q
+				d, obs := 0.0, 0
+				for i := range x {
+					if !math.IsNaN(x[i]) {
+						d += math.Abs(x[i] - ref[i])
+						obs++
+					}
+				}
+				wantSum += d * 2 / float64(obs)
+			}
+			if got, ok := vexprFloat(resp.Data[0]["sum_keyed"]); !ok || !vexprClose(got, wantSum) {
+				t.Errorf("sum_keyed = %v, want %v", resp.Data[0]["sum_keyed"], wantSum)
+			}
+			byCode := map[string][]*types.ResponseWarning{}
+			for _, w := range resp.Warnings {
+				byCode[w.Code] = append(byCode[w.Code], w)
+			}
+			missing := byCode[string(perr.PULSE_VECTOR_REFERENCE_MISSING)]
+			if len(missing) != 1 || missing[0].Details["attribute"] != "keyed" {
+				t.Fatalf("PULSE_VECTOR_REFERENCE_MISSING warnings %+v, want one on keyed", missing)
+			}
+			wantMissing := map[string]any{"attribute": "keyed", "type": "ATTR_VEC_DISTANCE", "table": "byqty", "key_field": "qty",
+				"n_reference_missing": unmatched, "n_key_null": 0, "n_key_unmatched": unmatched, "keys": []string{"10", "11", "12"}}
+			if !reflect.DeepEqual(missing[0].Details, wantMissing) {
+				t.Errorf("missing details %#v, want %#v", missing[0].Details, wantMissing)
+			}
+			dom := byCode[string(perr.PULSE_VECTOR_METRIC_DOMAIN)]
+			if len(dom) != 1 || dom[0].Details["attribute"] != "domain" || dom[0].Details["n_domain_invalid"] != domain {
+				t.Errorf("PULSE_VECTOR_METRIC_DOMAIN warnings %+v, want one on domain counting %d", dom, domain)
+			}
+			if unmatched == 0 || domain == 0 {
+				t.Fatal("vacuous oracle")
+			}
+			// The warnings' counts are the components'.
+			for _, e := range resp.Components.Attributes {
+				switch e.Label {
+				case "keyed":
+					if e.Operator["n_reference_missing"] != unmatched {
+						t.Errorf("keyed components %+v", e.Operator)
+					}
+				case "domain":
+					if e.Operator["n_domain_invalid"] != domain {
+						t.Errorf("domain components %+v", e.Operator)
+					}
+				}
+			}
+		})
 	}
 }

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"math"
 	"reflect"
+	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -422,4 +424,184 @@ func TestComparison_FittedIsTwoPassPerSlot(t *testing.T) {
 			t.Errorf("%s %s: two-pass %v, want %v", c.attr.Type, c.attr.Params, got, c.want)
 		}
 	}
+}
+
+// TestComparison_RowWarnings (E3-S4): a row nulled for a missing
+// reference (a null key, or a key the table lacks) or a domain violation
+// raises one coded Response warning per slot — label, type and counts in
+// details, null and unmatched keys apart — on the streaming, buffered
+// and fitted (two-pass) arms, components on or off; a clean run raises
+// none. An unsigned-integer key_field matches by its base-10 form and
+// scores exactly as its categorical twin.
+func TestComparison_RowWarnings(t *testing.T) {
+	schema := cmpSchema()
+	schema.Fields[3].Nullable = true // g
+	schema.Fields = append(schema.Fields,
+		encoding.Field{Name: "gid", Type: encoding.FieldTypeU8, Nullable: true},
+		encoding.Field{Name: "gbig", Type: encoding.FieldTypeU64, Nullable: true})
+	ids := map[string]float64{"a": 1, "b": 2, "c": 30}
+	const nullRow = 5
+	records := func() []*Record {
+		recs := cmpRecords(schema)
+		for i, r := range recs {
+			if i == nullRow {
+				r.SetNullField("g")
+				continue
+			}
+			r.Set("gid", ids[cmpGroups[i]])
+			r.Set("gbig", ids[cmpGroups[i]]+1e12)
+		}
+		return recs
+	}
+	tables := vectors.NewReferenceTables(map[string]types.ReferenceVectorTable{
+		"t": {Labels: []string{"x", "y", "z"}, Profiles: map[string][]float64{
+			"a": {1, 3, 2}, "b": {0, 1, 0}, "1": {1, 3, 2}, "2": {0, 1, 0}, "01": {9, 9, 9},
+			"1000000000001": {1, 3, 2}, "1000000000002": {0, 1, 0}}},
+	})
+	unmatched := 0
+	for i, g := range cmpGroups {
+		if i != nullRow && g == "c" {
+			unmatched++
+		}
+	}
+	missing := map[string]any{"n_reference_missing": unmatched + 1, "n_key_null": 1, "n_key_unmatched": unmatched}
+	cases := []struct {
+		name, typ, params string
+		code              errors.Code
+		details           map[string]any
+		twin              string // the categorical key_field twin's params
+	}{
+		{name: "categorical key", typ: "dist", params: `{"metric":"euclidean","reference":{"table":"t","key_field":"g"}}`,
+			code: errors.PULSE_VECTOR_REFERENCE_MISSING, details: merge(missing, map[string]any{"key_field": "g", "keys": []string{"c"}})},
+		{name: "u8 key", typ: "dist", params: `{"metric":"euclidean","reference":{"table":"t","key_field":"gid"}}`,
+			code: errors.PULSE_VECTOR_REFERENCE_MISSING, details: merge(missing, map[string]any{"key_field": "gid", "keys": []string{"30"}}),
+			twin: `{"metric":"euclidean","reference":{"table":"t","key_field":"g"}}`},
+		{name: "u64 key", typ: "sim", params: `{"metric":"cosine","reference":{"table":"t","key_field":"gbig"}}`,
+			code: errors.PULSE_VECTOR_REFERENCE_MISSING, details: merge(missing, map[string]any{"key_field": "gbig", "keys": []string{"1000000000030"}}),
+			twin: `{"metric":"cosine","reference":{"table":"t","key_field":"g"}}`},
+		{name: "fitted key", typ: "dist", params: `{"metric":"std_euclidean","reference":{"table":"t","key_field":"gid"}}`,
+			code: errors.PULSE_VECTOR_REFERENCE_MISSING, details: merge(missing, map[string]any{"key_field": "gid", "keys": []string{"30"}}),
+			twin: `{"metric":"std_euclidean","reference":{"table":"t","key_field":"g"}}`},
+		{name: "domain", typ: "dist", params: `{"metric":"hellinger","reference":[-1,1,1]}`,
+			code: errors.PULSE_VECTOR_METRIC_DOMAIN, details: map[string]any{"metric": "hellinger", "n_domain_invalid": len(cmpRows) - 1, "reasons": []string{"negative"}}},
+		{name: "clean", typ: "sim", params: `{"metric":"cosine","reference":[1,2,3]}`},
+	}
+	run := func(t *testing.T, typ, params string, buffered, noComponents, twoPass bool) (*types.Response, []float64) {
+		at := map[string]types.AttributeType{"dist": types.ATTR_VEC_DISTANCE, "sim": types.ATTR_PROFILE_SIMILARITY}[typ]
+		req := &types.Request{Attributes: []*types.Attribute{{Type: at, Label: "out", Fields: []string{"x", "y", "z"}, Params: json.RawMessage(params)}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "out", Label: "n"}}}
+		if buffered {
+			req.Attributes = append(req.Attributes, &types.Attribute{Type: types.ATTR_PERCENTILE, Field: "w", Label: "pct"})
+		}
+		if twoPass {
+			// A two-pass stage reading the score re-scores the row-local
+			// slot on the prepass: the tally must count each row once.
+			req.Attributes = append(req.Attributes, &types.Attribute{Type: types.ATTR_ZSCORE, Field: "out", Label: "z"})
+		}
+		recs := records()
+		p := NewProcessorWithExtensions(schema, &ExtensionRegistry{ReferenceVectors: tables})
+		p.SetDisableComponents(noComponents)
+		resp, err := p.Process(context.Background(), req, NewSliceIterator(recs))
+		if err != nil {
+			t.Fatal(err)
+		}
+		vals := make([]float64, len(recs))
+		for i, r := range recs {
+			v, ok := r.NumericValue("out")
+			if !ok {
+				v = math.NaN()
+			}
+			vals[i] = v
+		}
+		return resp, vals
+	}
+	for _, c := range cases {
+		for _, arm := range []struct {
+			name                            string
+			buffered, noComponents, twoPass bool
+		}{{"streaming", false, false, false}, {"buffered", true, false, false}, {"no components", false, true, false}, {"two-pass", false, false, true}} {
+			t.Run(c.name+"/"+arm.name, func(t *testing.T) {
+				resp, vals := run(t, c.typ, c.params, arm.buffered, arm.noComponents, arm.twoPass)
+				var got []*types.ResponseWarning
+				for _, w := range resp.Warnings {
+					if w.Code == string(errors.PULSE_VECTOR_REFERENCE_MISSING) || w.Code == string(errors.PULSE_VECTOR_METRIC_DOMAIN) {
+						got = append(got, w)
+					}
+				}
+				if c.code == "" {
+					if len(got) != 0 {
+						t.Fatalf("clean run warns %+v", got)
+					}
+					return
+				}
+				if len(got) != 1 || got[0].Code != string(c.code) {
+					t.Fatalf("warnings %+v, want one %s", resp.Warnings, c.code)
+				}
+				at := map[string]string{"dist": "ATTR_VEC_DISTANCE", "sim": "ATTR_PROFILE_SIMILARITY"}[c.typ]
+				want := merge(c.details, map[string]any{"attribute": "out", "type": at})
+				if c.code == errors.PULSE_VECTOR_REFERENCE_MISSING {
+					want["table"] = "t"
+				}
+				if !reflect.DeepEqual(got[0].Details, want) {
+					t.Errorf("details %#v, want %#v", got[0].Details, want)
+				}
+				if arm.noComponents != (resp.Components == nil) {
+					t.Errorf("components %v with DisableComponents %v", resp.Components, arm.noComponents)
+				}
+				if c.twin != "" {
+					_, twin := run(t, c.typ, c.twin, arm.buffered, arm.noComponents, arm.twoPass)
+					scored := 0
+					for i := range vals {
+						if !cmpClose(vals[i], twin[i]) {
+							t.Errorf("row %d: %v, categorical twin %v", i, vals[i], twin[i])
+						}
+						if !math.IsNaN(vals[i]) {
+							scored++
+						}
+					}
+					if scored < len(vals)/2 {
+						t.Fatalf("vacuous: %d rows scored", scored)
+					}
+				}
+			})
+		}
+	}
+}
+
+func merge(a, b map[string]any) map[string]any {
+	out := map[string]any{}
+	for k, v := range a {
+		out[k] = v
+	}
+	for k, v := range b {
+		out[k] = v
+	}
+	return out
+}
+
+// TestComparison_UnmatchedKeysSmallestFirst: the warning lists the
+// comparisonUnmatchedKeys smallest distinct unmatched values whatever
+// the row order.
+func TestComparison_UnmatchedKeysSmallestFirst(t *testing.T) {
+	var keys []string
+	for i := 0; i < 25; i++ {
+		keys = append(keys, strconv.Itoa(100+i))
+	}
+	want := slices.Clone(keys[:comparisonUnmatchedKeys])
+	for _, order := range [][]string{keys, reversed(keys), append(slices.Clone(keys[12:]), keys[:12]...)} {
+		var c comparisonCore
+		for _, k := range order {
+			c.noteUnmatched(k)
+			c.noteUnmatched(k)
+		}
+		if !reflect.DeepEqual(c.unmatched, want) {
+			t.Errorf("unmatched = %v, want %v", c.unmatched, want)
+		}
+	}
+}
+
+func reversed(s []string) []string {
+	out := slices.Clone(s)
+	slices.Reverse(out)
+	return out
 }

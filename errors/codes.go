@@ -2998,6 +2998,28 @@ const (
 	// "function" for an expression call and "slot" at predict.
 	PULSE_VECTOR_REFERENCE_MISMATCH Code = "PULSE_VECTOR_REFERENCE_MISMATCH"
 
+	// PULSE_VECTOR_REFERENCE_MISSING is a runtime Response WARNING raised
+	// once per ATTR_PROFILE_SIMILARITY / ATTR_VEC_DISTANCE slot whose
+	// {table, key_field} reference left one or more rows without a
+	// profile: the row's key is null, or its value (a categorical label,
+	// an unsigned integer's base-10 form) is not a key of the table. Each
+	// such row scored null. Details carry "attribute" (the slot label),
+	// "type", "table", "key_field", "n_reference_missing" (the rows),
+	// "n_key_null" and "n_key_unmatched" (its two parts) and "keys" (up
+	// to 10 of the unmatched values, smallest first). Raised whether or
+	// not components are enabled; never under a clean run.
+	PULSE_VECTOR_REFERENCE_MISSING Code = "PULSE_VECTOR_REFERENCE_MISSING"
+
+	// PULSE_VECTOR_METRIC_DOMAIN is a runtime Response WARNING raised
+	// once per ATTR_PROFILE_SIMILARITY / ATTR_VEC_DISTANCE slot with one
+	// or more rows whose values fall outside the metric's domain (a
+	// negative part under hellinger / aitchison, an aitchison zero, a
+	// non-0/1 value under a set metric), each scored null. Details carry
+	// "attribute" (the slot label), "type", "metric", "n_domain_invalid"
+	// (the rows) and "reasons". The per-row twin of MAT_DISTANCE's
+	// PULSE_MATRIX_METRIC_DOMAIN.
+	PULSE_VECTOR_METRIC_DOMAIN Code = "PULSE_VECTOR_METRIC_DOMAIN"
+
 	// PULSE_MATRIX_UNSUPPORTED_SOURCE indicates a `matrices` slot on a
 	// request whose rows are not cohort rows the matrix operators can
 	// fold: a Request carrying Joins (details "source" = "join",
@@ -3716,6 +3738,8 @@ var allCodes = []Code{
 	PULSE_VECTOR_METRIC_UNSUITED,
 	PULSE_VECTOR_REFERENCE_UNKNOWN,
 	PULSE_VECTOR_REFERENCE_MISMATCH,
+	PULSE_VECTOR_REFERENCE_MISSING,
+	PULSE_VECTOR_METRIC_DOMAIN,
 	PULSE_MATRIX_UNSUPPORTED_SOURCE,
 	PULSE_MATRIX_HOST_CONFLICT,
 	PULSE_MATRIX_NOT_PSD,

@@ -819,8 +819,8 @@ Only the floor keys.
 
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
-| `n_reference_missing` | int | always | Rows whose params.reference key_field label has no profile in the table (or is null), scored null; 0 for a static reference. |
-| `n_domain_invalid` | int | always | Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). |
+| `n_reference_missing` | int | always | Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING. |
+| `n_domain_invalid` | int | always | Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). Non-zero also raises PULSE_VECTOR_METRIC_DOMAIN. |
 
 <a id="op-attr_scale_score"></a>
 
@@ -841,5 +841,5 @@ Only the floor keys.
 
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
-| `n_reference_missing` | int | always | Rows whose params.reference key_field label has no profile in the table (or is null), scored null; 0 for a static reference. |
-| `n_domain_invalid` | int | always | Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). |
+| `n_reference_missing` | int | always | Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING. |
+| `n_domain_invalid` | int | always | Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). Non-zero also raises PULSE_VECTOR_METRIC_DOMAIN. |

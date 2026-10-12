@@ -78,7 +78,8 @@ const (
 	// ReferenceTableKey: {table, key} — one registered profile.
 	ReferenceTableKey = "table_key"
 	// ReferenceTableKeyField: {table, key_field} — each row's own
-	// profile, keyed by its categorical key_field value.
+	// profile, keyed by its key_field value (a categorical label, or an
+	// unsigned integer's base-10 form).
 	ReferenceTableKeyField = "table_key_field"
 )
 
@@ -147,7 +148,8 @@ type vecDistanceParams struct {
 
 // ComparisonParams judges comparison type typ's params against members
 // (the resolved vector or inline fields) and schema (key_field must be a
-// categorical source column; nil skips that check): metric, min_valid,
+// categorical or unsigned-integer source column,
+// ComparisonKeyFieldAccepts; nil skips that check): metric, min_valid,
 // reference, labels and — ATTR_VEC_DISTANCE beside a fitted metric —
 // fit_on / missing. Unknown keys are refused. The table checks are
 // ComparisonTableIssue's. Predict (the field-reference walk) and the
@@ -408,7 +410,7 @@ func decodeTableReference(at string, obj map[string]json.RawMessage, schema *enc
 	case !okKey || !okField:
 		return bad("bad_reference", "key and key_field are strings", nil)
 	case hasKey == hasField:
-		return bad("bad_reference", "sets exactly one of key (one profile) and key_field (each row's own, by a categorical column)", nil)
+		return bad("bad_reference", "sets exactly one of key (one profile) and key_field (each row's own, by a categorical or unsigned-integer column)", nil)
 	case hasKey:
 		if key == "" {
 			return bad("bad_reference", "names an empty key", nil)
@@ -423,12 +425,36 @@ func decodeTableReference(at string, obj map[string]json.RawMessage, schema *enc
 		if f == nil {
 			return bad("key_field_unknown", "key_field "+strconv.Quote(field)+" is not a field of the cohort", map[string]any{"field": field})
 		}
-		if !f.Type.IsCategorical() {
-			return bad("key_field_not_categorical", "key_field "+strconv.Quote(field)+" is "+f.Type.String()+"; it must be a categorical field, whose label is the profile key",
-				map[string]any{"field": field, "field_type": f.Type.String()})
+		if !ComparisonKeyFieldAccepts(f.Type) {
+			return bad("key_field_type", "key_field "+strconv.Quote(field)+" is "+f.Type.String()+"; it must be a categorical field (its label is the profile key) or an unsigned integer field (u4, u8, u16, u32, u64: its base-10 value is the key)",
+				map[string]any{"field": field, "field_type": f.Type.String(), "accepted": ComparisonKeyFieldTypes()})
 		}
 	}
 	return ComparisonReference{Form: ReferenceTableKeyField, Table: table, KeyField: field}, nil
+}
+
+// ComparisonKeyFieldTypes names the field types a {table, key_field}
+// reference accepts: the categorical rungs (the label is the profile
+// key) and the unsigned integers (the value's canonical base-10 form —
+// no sign, no leading zero — is the key). Floats, dates, datetimes,
+// packed_bool, decimal128 and set_* are refused.
+func ComparisonKeyFieldTypes() []string {
+	return []string{"categorical_u8", "categorical_u16", "categorical_u32", "u4", "u8", "u16", "u32", "u64"}
+}
+
+// ComparisonKeyFieldAccepts reports whether ft may be a key_field.
+func ComparisonKeyFieldAccepts(ft encoding.FieldType) bool {
+	return ft.IsCategorical() || ComparisonKeyFieldInteger(ft)
+}
+
+// ComparisonKeyFieldInteger reports whether ft is an unsigned-integer
+// key_field, matched by its value's canonical base-10 string.
+func ComparisonKeyFieldInteger(ft encoding.FieldType) bool {
+	switch ft {
+	case encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64:
+		return true
+	}
+	return false
 }
 
 // ComparisonBinding is a comparison slot's reference against the

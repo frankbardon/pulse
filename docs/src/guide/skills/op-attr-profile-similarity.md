@@ -25,7 +25,7 @@ Use something else:
 ## Params
 
 - `metric` — similarity only: `correlation`, `cosine`, `jaccard`, `dice`, `overlap`. Default from the vector's `kind` (scale → `correlation`); none → `PULSE_VECTOR_METRIC_REQUIRED`. A distance → `PULSE_VECTOR_METRIC_UNKNOWN`, `details.use` = `ATTR_VEC_DISTANCE`.
-- `reference` (required) — `[…]` (member order), `{label: value}`, `{table, key}` or `{table, key_field}` (a categorical column).
+- `reference` (required) — `[…]` (member order), `{label: value}`, `{table, key}` or `{table, key_field}` (categorical or `u4`…`u64`, by base-10 form).
 - `min_valid` — fewest complete pairs, default 1; below → null.
 - `labels` — inline `fields` only.
 
@@ -46,7 +46,7 @@ Floor `{n, n_null}` + `n_reference_missing`, `n_domain_invalid`. `Mergeable`.
 ## Gotchas
 
 - Matched BY LABEL, never position: wrong labels / length → `PULSE_VECTOR_REFERENCE_MISMATCH` at predict.
-- A `key_field` label with no profile is null and counted.
+- A null or profile-less `key_field` row is null and warns `PULSE_VECTOR_REFERENCE_MISSING` (`n_key_null`, `n_key_unmatched`); a domain violation `PULSE_VECTOR_METRIC_DOMAIN`. Once per slot; strict does not escalate.
 - Row-local: streams, fuses; weight ignored.
 
 ## See

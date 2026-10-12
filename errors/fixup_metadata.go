@@ -3792,6 +3792,26 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_VECTOR_REFERENCE_MISSING: {
+		Message: "A reference-comparison attribute slot's {table, key_field} reference found no profile for some rows: the key was null (`n_key_null`) or its value is not a key of the table (`n_key_unmatched`; `keys` lists up to 10 of them). Those rows score null; `n_reference_missing` counts them. A runtime warning, raised with or without components.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Attributes", "*", "Params", "reference"},
+				Hint:   "Register a profile for each value in details.keys in the Extensions.ReferenceVectors table (an unsigned-integer key_field matches by its base-10 form, e.g. \"7\", never \"07\"), filter the rows out first, or compare against one profile with {table, key}.",
+			},
+		},
+	},
+	PULSE_VECTOR_METRIC_DOMAIN: {
+		Message: "A reference-comparison attribute's metric reads values only within its domain (hellinger / aitchison: non-negative parts, aitchison no zero; a set metric: 0/1 values), and some rows hold values outside it. Those rows score null; details carry `attribute`, `type`, `metric`, `n_domain_invalid` (the rows) and `reasons`. A runtime warning, raised with or without components.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Attributes", "*", "Params", "metric"},
+				Hint:   "Pick a metric defined on the members' values (euclidean or manhattan for signed values, cosine for direction), or recode the members first (replace aitchison zero parts, dichotomise for a set metric).",
+			},
+		},
+	},
 	PULSE_MATRIX_METRIC_DOMAIN: {
 		Message: "MAT_DISTANCE's metric reads non-negative values (hellinger, aitchison) and some bucket centroids hold a negative coordinate, or an aitchison zero part whose log-ratio is undefined. The distances touching those centroids are null; details carry `matrix`, `metric`, `pairs` (the refused centroid pairs), `buckets` and `reasons` (`negative`, `zero`).",
 		Fixups: []Fixup{

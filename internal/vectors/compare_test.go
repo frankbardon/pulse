@@ -3,8 +3,10 @@ package vectors
 import (
 	"encoding/json"
 	"reflect"
+	"slices"
 	"testing"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -85,7 +87,9 @@ func TestComparisonParams_Rules(t *testing.T) {
 		{name: "neither key", attr: cmpAttr(sim, `{"metric":"cosine","reference":{"table":"t"}}`, vec("vb")), code: errors.SERVICE_VALIDATION, reason: "bad_reference"},
 		{name: "table unknown key", attr: cmpAttr(sim, `{"metric":"cosine","reference":{"table":"t","row":"k"}}`, vec("vb")), code: errors.SERVICE_VALIDATION, reason: "bad_reference"},
 		{name: "key_field unknown", attr: cmpAttr(sim, `{"metric":"cosine","reference":{"table":"t","key_field":"nope"}}`, vec("vb")), code: errors.SERVICE_VALIDATION, reason: "key_field_unknown"},
-		{name: "key_field numeric", attr: cmpAttr(sim, `{"metric":"cosine","reference":{"table":"t","key_field":"a1"}}`, vec("vb")), code: errors.SERVICE_VALIDATION, reason: "key_field_not_categorical"},
+		{name: "key_field float", attr: cmpAttr(sim, `{"metric":"cosine","reference":{"table":"t","key_field":"a1"}}`, vec("vb")), code: errors.SERVICE_VALIDATION, reason: "key_field_type"},
+		{name: "key_field packed_bool", attr: cmpAttr(sim, `{"metric":"cosine","reference":{"table":"t","key_field":"flag"}}`, vec("vb")), code: errors.SERVICE_VALIDATION, reason: "key_field_type"},
+		{name: "key_field unsigned integer", attr: cmpAttr(dist, `{"metric":"euclidean","reference":{"table":"t","key_field":"a2"}}`, vec("vb")), metric: "euclidean", form: ReferenceTableKeyField, minValid: 1},
 		{name: "reference scalar", attr: cmpAttr(sim, `{"metric":"cosine","reference":3}`, vec("vb")), code: errors.SERVICE_VALIDATION, reason: "bad_reference"},
 		// Labels and fit keys.
 		{name: "labels on a named vector", attr: cmpAttr(sim, `{"metric":"cosine","labels":["p","q"],"reference":[1,2]}`, vec("vb")), code: errors.SERVICE_VALIDATION, reason: "labels_on_vector"},
@@ -283,5 +287,47 @@ func TestComparisonKindReadings(t *testing.T) {
 	members, ok := AttributeInputMembers(req, testInputSchema())
 	if !ok || !reflect.DeepEqual(members, []string{"b1", "b2", "region"}) {
 		t.Errorf("projection members %v (%v), want the inline members and the key_field", members, ok)
+	}
+}
+
+// TestComparisonKeyFieldAccepts pins the key_field type matrix over
+// every field type: the categorical rungs and the unsigned integers are
+// accepted (the integers matched by their base-10 form), everything
+// else refused — and the refusal names exactly the accepted list.
+func TestComparisonKeyFieldAccepts(t *testing.T) {
+	want := map[encoding.FieldType]bool{
+		encoding.FieldTypeCategoricalU8: false, encoding.FieldTypeCategoricalU16: false, encoding.FieldTypeCategoricalU32: false,
+		encoding.FieldTypeU4: true, encoding.FieldTypeU8: true, encoding.FieldTypeU16: true, encoding.FieldTypeU32: true, encoding.FieldTypeU64: true,
+	}
+	var accepted []string
+	for ft := encoding.FieldTypeU8; ft <= encoding.FieldTypeSetU256; ft++ {
+		integer, ok := want[ft]
+		if got := ComparisonKeyFieldAccepts(ft); got != ok {
+			t.Errorf("%s: accepts = %v, want %v", ft, got, ok)
+		}
+		if got := ComparisonKeyFieldInteger(ft); got != integer {
+			t.Errorf("%s: integer = %v, want %v", ft, got, integer)
+		}
+		if ok {
+			accepted = append(accepted, ft.String())
+		}
+		if !ok {
+			schema := &encoding.Schema{Fields: []encoding.Field{{Name: "b1", Type: encoding.FieldTypeF64}, {Name: "b2", Type: encoding.FieldTypeF64}, {Name: "k", Type: ft}}}
+			_, err := ComparisonParams("at", types.ATTR_VEC_DISTANCE, json.RawMessage(`{"metric":"euclidean","reference":{"table":"t","key_field":"k"}}`),
+				Resolved{Members: []string{"b1", "b2"}, Labels: []string{"b1", "b2"}}, schema)
+			if err == nil || err.Details["reason"] != "key_field_type" {
+				t.Errorf("%s: refusal %v, want reason key_field_type", ft, err)
+				continue
+			}
+			if got, _ := err.Details["accepted"].([]string); !reflect.DeepEqual(got, ComparisonKeyFieldTypes()) {
+				t.Errorf("%s: details.accepted = %v", ft, err.Details["accepted"])
+			}
+		}
+	}
+	slices.Sort(accepted)
+	listed := slices.Clone(ComparisonKeyFieldTypes())
+	slices.Sort(listed)
+	if !reflect.DeepEqual(accepted, listed) {
+		t.Errorf("ComparisonKeyFieldTypes() = %v, the predicate accepts %v", listed, accepted)
 	}
 }

@@ -2479,11 +2479,13 @@ pulse/errors: const PULSE_VECTOR_EMPTY pulse/errors.Code = "PULSE_VECTOR_EMPTY"
 pulse/errors: const PULSE_VECTOR_INVALID pulse/errors.Code = "PULSE_VECTOR_INVALID"
 pulse/errors: const PULSE_VECTOR_LABELS_MISMATCH pulse/errors.Code = "PULSE_VECTOR_LABELS_MISMATCH"
 pulse/errors: const PULSE_VECTOR_MEMBER_TYPE pulse/errors.Code = "PULSE_VECTOR_MEMBER_TYPE"
+pulse/errors: const PULSE_VECTOR_METRIC_DOMAIN pulse/errors.Code = "PULSE_VECTOR_METRIC_DOMAIN"
 pulse/errors: const PULSE_VECTOR_METRIC_REQUIRED pulse/errors.Code = "PULSE_VECTOR_METRIC_REQUIRED"
 pulse/errors: const PULSE_VECTOR_METRIC_UNKNOWN pulse/errors.Code = "PULSE_VECTOR_METRIC_UNKNOWN"
 pulse/errors: const PULSE_VECTOR_METRIC_UNSUITED pulse/errors.Code = "PULSE_VECTOR_METRIC_UNSUITED"
 pulse/errors: const PULSE_VECTOR_NAME_COLLISION pulse/errors.Code = "PULSE_VECTOR_NAME_COLLISION"
 pulse/errors: const PULSE_VECTOR_REFERENCE_MISMATCH pulse/errors.Code = "PULSE_VECTOR_REFERENCE_MISMATCH"
+pulse/errors: const PULSE_VECTOR_REFERENCE_MISSING pulse/errors.Code = "PULSE_VECTOR_REFERENCE_MISSING"
 pulse/errors: const PULSE_VECTOR_REFERENCE_UNKNOWN pulse/errors.Code = "PULSE_VECTOR_REFERENCE_UNKNOWN"
 pulse/errors: const PULSE_VECTOR_UNKNOWN pulse/errors.Code = "PULSE_VECTOR_UNKNOWN"
 pulse/errors: const PULSE_VECTOR_UNREFERENCED pulse/errors.Code = "PULSE_VECTOR_UNREFERENCED"
@@ -4934,4 +4936,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 3a30e40087e6fa475b5027b41d6542d0c1d4f30841d0e4a6cb0810be692fc162
+// golden-hash: 02f8f4c6754b22a18ff6d410e8e2d6a338f267497a2a5987b82805da2995a10b

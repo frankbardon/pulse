@@ -4,6 +4,8 @@ import (
 	stderrors "errors"
 	"fmt"
 	"math"
+	"slices"
+	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -31,14 +33,19 @@ import (
 //
 // Per row: the members read as a vector (a null member is a missing
 // element, NaN); the reference is the static one, or — {table,
-// key_field} — the profile keyed by the row's categorical key_field
-// label: a null key or a label with no profile is a null value, counted
-// in n_reference_missing, never a refusal. Fewer than params.min_valid
+// key_field} — the profile keyed by the row's key_field value (a
+// categorical label, or an unsigned integer's canonical base-10 form):
+// a null key or a value with no profile is a null value, counted in
+// n_reference_missing, never a refusal. Fewer than params.min_valid
 // complete pairs is null; otherwise the registry metric
 // (metric.Metric.Eval, pairwise-complete with the p/p_observed rescaling)
 // in the operator's form. A value outside the metric's domain (a
 // negative part under hellinger / aitchison, an aitchison zero, a
 // non-0/1 value under a set metric) is null, counted in n_domain_invalid.
+// Either tally, when non-zero, also raises one Response warning per slot
+// after the run (attributeWarner: PULSE_VECTOR_REFERENCE_MISSING,
+// PULSE_VECTOR_METRIC_DOMAIN), components on or off — never under
+// Strict escalation, like MAT_DISTANCE's PULSE_MATRIX_METRIC_DOMAIN.
 //
 // Row-local metrics: single pass, streamable, fusable; the weight is
 // irrelevant. ATTR_VEC_DISTANCE's fitted metrics (std_euclidean: the
@@ -63,14 +70,28 @@ type comparisonCore struct {
 	// profile in member order.
 	static   []float64
 	profiles map[string][]float64
+	// keyInt: the key_field is an unsigned integer, matched by its
+	// base-10 form (keyBuf the reused formatting buffer).
+	keyInt bool
+	keyBuf []byte
 
 	x []float64
 
 	// nRefMissing counts rows whose key_field had no profile (or was
-	// null); nDomain rows whose value fell outside the metric's domain.
-	nRefMissing int64
-	nDomain     int64
+	// null) — nKeyNull of them a null key, the rest unmatched, the
+	// smallest of whose values ride unmatched; nDomain rows whose value
+	// fell outside the metric's domain, for reasons domainReasons.
+	nRefMissing   int64
+	nKeyNull      int64
+	unmatched     []string
+	nDomain       int64
+	domainReasons map[string]bool
 }
+
+// comparisonUnmatchedKeys caps the unmatched key values a
+// PULSE_VECTOR_REFERENCE_MISSING warning lists (the smallest, so the
+// list is independent of row order).
+const comparisonUnmatchedKeys = 10
 
 // newComparisonCore decodes attr's canonical params over its literal
 // members. ok is false for a registry probe (no members).
@@ -99,6 +120,11 @@ func newComparisonCore(attr *types.Attribute, schema *encoding.Schema) (comparis
 	}
 	c.cfg = cfg
 	c.x = make([]float64, len(c.members))
+	if cfg.Reference.Form == vectors.ReferenceTableKeyField && schema != nil {
+		if f := schema.Field(cfg.Reference.KeyField); f != nil {
+			c.keyInt = vectors.ComparisonKeyFieldInteger(f.Type)
+		}
+	}
 	return c, true, nil
 }
 
@@ -137,14 +163,49 @@ func (c *comparisonCore) reference(rec *Record) ([]float64, bool, error) {
 	if c.profiles == nil {
 		return c.static, true, nil
 	}
-	key, ok := rec.StringValue(c.cfg.Reference.KeyField)
-	if ok {
-		if v, has := c.profiles[key]; has {
+	field := c.cfg.Reference.KeyField
+	c.nRefMissing++
+	if c.keyInt {
+		n, ok := rec.NumericValue(field)
+		if !ok {
+			c.nKeyNull++
+			return nil, false, nil
+		}
+		c.keyBuf = strconv.AppendUint(c.keyBuf[:0], uint64(n), 10)
+		if v, has := c.profiles[string(c.keyBuf)]; has {
+			c.nRefMissing--
 			return v, true, nil
 		}
+		c.noteUnmatched(string(c.keyBuf))
+		return nil, false, nil
 	}
-	c.nRefMissing++
+	key, ok := rec.StringValue(field)
+	if !ok && rec.IsNull(field) {
+		c.nKeyNull++
+		return nil, false, nil
+	}
+	if v, has := c.profiles[key]; ok && has {
+		c.nRefMissing--
+		return v, true, nil
+	}
+	c.noteUnmatched(key)
 	return nil, false, nil
+}
+
+// noteUnmatched keeps key among the comparisonUnmatchedKeys smallest
+// distinct unmatched values (sorted).
+func (c *comparisonCore) noteUnmatched(key string) {
+	i, found := slices.BinarySearch(c.unmatched, key)
+	if found {
+		return
+	}
+	if len(c.unmatched) == comparisonUnmatchedKeys {
+		if i == comparisonUnmatchedKeys {
+			return
+		}
+		c.unmatched = c.unmatched[:comparisonUnmatchedKeys-1]
+	}
+	c.unmatched = slices.Insert(c.unmatched, i, key)
 }
 
 // readMembers fills c.x with rec's members (a null member is NaN).
@@ -168,6 +229,10 @@ func (c *comparisonCore) eval(ref []float64, stats *metric.Stats) (float64, erro
 		var de *metric.DomainError
 		if stderrors.As(err, &de) {
 			c.nDomain++
+			if c.domainReasons == nil {
+				c.domainReasons = map[string]bool{}
+			}
+			c.domainReasons[de.Reason] = true
 			return math.NaN(), nil
 		}
 		return math.NaN(), errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
@@ -197,7 +262,61 @@ func (c *comparisonCore) components() map[string]any {
 	}
 }
 
-func (c *comparisonCore) resetTally() { c.nRefMissing, c.nDomain = 0, 0 }
+func (c *comparisonCore) resetTally() {
+	c.nRefMissing, c.nKeyNull, c.unmatched, c.nDomain, c.domainReasons = 0, 0, nil, 0, nil
+}
+
+// warnings are the slot's Response warnings: one
+// PULSE_VECTOR_REFERENCE_MISSING when any row had no profile, one
+// PULSE_VECTOR_METRIC_DOMAIN when any row fell outside the metric's
+// domain; none on a clean run.
+func (c *comparisonCore) warnings() []*types.ResponseWarning {
+	var out []*types.ResponseWarning
+	if c.nRefMissing > 0 {
+		keys := c.unmatched
+		if keys == nil {
+			keys = []string{}
+		}
+		ref := c.cfg.Reference
+		out = append(out, &types.ResponseWarning{
+			Code: string(errors.PULSE_VECTOR_REFERENCE_MISSING),
+			Message: c.label + ": " + strconv.FormatInt(c.nRefMissing, 10) + " row(s) have no profile in reference table " + strconv.Quote(ref.Table) +
+				" (" + strconv.FormatInt(c.nKeyNull, 10) + " with a null " + ref.KeyField + ", " + strconv.FormatInt(c.nRefMissing-c.nKeyNull, 10) +
+				" with a value the table has no key for) and score null",
+			Details: map[string]any{
+				"attribute":           c.label,
+				"type":                string(c.typ),
+				"table":               ref.Table,
+				"key_field":           ref.KeyField,
+				"n_reference_missing": int(c.nRefMissing),
+				"n_key_null":          int(c.nKeyNull),
+				"n_key_unmatched":     int(c.nRefMissing - c.nKeyNull),
+				"keys":                slices.Clone(keys),
+			},
+		})
+	}
+	if c.nDomain > 0 {
+		reasons := make([]string, 0, len(c.domainReasons))
+		for r := range c.domainReasons {
+			reasons = append(reasons, r)
+		}
+		slices.Sort(reasons)
+		name := c.cfg.Metric.Name()
+		out = append(out, &types.ResponseWarning{
+			Code: string(errors.PULSE_VECTOR_METRIC_DOMAIN),
+			Message: c.label + ": " + strconv.FormatInt(c.nDomain, 10) + " row(s) hold values outside the " + name +
+				" metric's domain and score null",
+			Details: map[string]any{
+				"attribute":        c.label,
+				"type":             string(c.typ),
+				"metric":           name,
+				"n_domain_invalid": int(c.nDomain),
+				"reasons":          reasons,
+			},
+		})
+	}
+	return out
+}
 
 // comparisonAttribute is the row-local computer (every metric but
 // ATTR_VEC_DISTANCE's fitted ones).
@@ -213,6 +332,7 @@ var (
 	_ ExtensionAware         = (*comparisonAttribute)(nil)
 	_ attributePreparer      = (*comparisonAttribute)(nil)
 	_ attributeTallyResetter = (*comparisonAttribute)(nil)
+	_ attributeWarner        = (*comparisonAttribute)(nil)
 
 	_ TwoPassAttribute       = (*fittedComparisonAttribute)(nil)
 	_ NullEmitter            = (*fittedComparisonAttribute)(nil)
@@ -274,6 +394,9 @@ func (a *comparisonAttribute) Compute(records []*Record, field string) ([]float6
 // Components satisfies MetaAttribute.
 func (a *comparisonAttribute) Components() (map[string]any, error) { return a.components(), nil }
 
+// attributeWarnings satisfies attributeWarner.
+func (a *comparisonAttribute) attributeWarnings() []*types.ResponseWarning { return a.warnings() }
+
 // fittedComparisonAttribute is ATTR_VEC_DISTANCE over a fitted metric:
 // ATTR_MAHALANOBIS's fit pass (the embedded fittedVectorAttribute's
 // PrePass / Finalize / fit_on / weight / warnings), then every filtered
@@ -318,6 +441,17 @@ func (a *fittedComparisonAttribute) Components() (map[string]any, error) {
 }
 
 func (a *fittedComparisonAttribute) resetTally() { a.core.resetTally() }
+
+// attributeWarnings satisfies attributeWarner: the fit's warnings (a
+// singular or insufficient fit), then the scoring tallies'.
+func (a *fittedComparisonAttribute) attributeWarnings() []*types.ResponseWarning {
+	fit := a.fittedVectorAttribute.attributeWarnings()
+	rows := a.core.warnings()
+	if len(rows) == 0 {
+		return fit
+	}
+	return append(slices.Clone(fit), rows...)
+}
 
 // comparisonFit is the fittedModel of a fitted comparison: the per-member
 // SDs (std_euclidean) or the inverse covariance (mahalanobis) of the fit.

@@ -14,7 +14,7 @@ examples_tags: [feature-engineering, multivariate, streaming-friendly]
 ## Params
 
 - `metric` — distance only: `euclidean`, `sq_euclidean`, `manhattan`, `chebyshev`, `cosine` (1 − cos), `hellinger`, `aitchison`, `hamming`, `std_euclidean`, `mahalanobis`. Default from `kind` (measure → `std_euclidean`); none → `PULSE_VECTOR_METRIC_REQUIRED`. A similarity → `PULSE_VECTOR_METRIC_UNKNOWN`<!-- feature: ATTR_PROFILE_SIMILARITY -->, `details.use` = `ATTR_PROFILE_SIMILARITY`<!-- /feature -->.
-- `reference` (required) — `[…]`, `{label: value}`, `{table, key}` or `{table, key_field}`.
+- `reference` (required) — `[…]`, `{label: value}`, `{table, key}` or `{table, key_field}` (categorical or `u4`…`u64`, by base-10 form).
 - `min_valid` — fewest complete pairs, default 1. `labels` — inline `fields` only.
 - `fit_on`, `missing` — fitted metrics only.
 
@@ -34,6 +34,7 @@ Floor `{n, n_null}` + `n_reference_missing`, `n_domain_invalid`. `Mergeable`.
 
 - `std_euclidean` / `mahalanobis`: two-pass fit (listwise, weighted under a weight); N* ≤ p or singular → all null + warning.
 - Matched BY LABEL: `PULSE_VECTOR_REFERENCE_MISMATCH` at predict.
+- A null / profile-less key or a domain violation (`hellinger`, `aitchison`) nulls the row and warns once per slot: `PULSE_VECTOR_REFERENCE_MISSING`, `PULSE_VECTOR_METRIC_DOMAIN`; strict does not escalate.
 
 ## See
 

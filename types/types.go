@@ -439,8 +439,11 @@ const (
 	// (a literal array in member order, a label map, {table, key} or
 	// {table, key_field} over Extensions.ReferenceVectors, matched by
 	// label) and params.min_valid (fewest complete pairs, default 1).
-	// A row whose key_field value has no profile is null and counted
-	// (n_reference_missing). Row-local: single pass, streamable; the
+	// key_field is a categorical label or an unsigned integer's base-10
+	// value. A row whose key_field is null or has no profile is null,
+	// counted (n_reference_missing) and warned
+	// (PULSE_VECTOR_REFERENCE_MISSING); a domain violation likewise
+	// (PULSE_VECTOR_METRIC_DOMAIN). Row-local: single pass, streamable; the
 	// weight is irrelevant. A distance metric is refused with a pointer
 	// to ATTR_VEC_DISTANCE.
 	ATTR_PROFILE_SIMILARITY AttributeType = "ATTR_PROFILE_SIMILARITY"

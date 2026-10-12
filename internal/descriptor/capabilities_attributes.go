@@ -431,7 +431,7 @@ func comparisonCapability(t types.AttributeType) descriptor.Operator {
 			Name:        "reference",
 			Type:        "any",
 			Required:    true,
-			Description: "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label). A table or map is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field has no profile is null and counted in n_reference_missing.",
+			Description: "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label or an unsigned-integer field's (u4, u8, u16, u32, u64) canonical base-10 value; any other field type is refused, SERVICE_VALIDATION reason key_field_type). A table or map is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field is null or has no profile is null, counted in n_reference_missing and warned once per slot (PULSE_VECTOR_REFERENCE_MISSING, components on or off; strict does not escalate it).",
 		},
 		{
 			Name:        "min_valid",
@@ -480,9 +480,9 @@ func comparisonCapability(t types.AttributeType) descriptor.Operator {
 		StreamableHint: hint,
 		ComponentSchema: attrSchema(descriptor.Mergeable,
 			descriptor.ComponentKey{Name: "n_reference_missing", Type: "int",
-				Description: "Rows whose params.reference key_field label has no profile in the table (or is null), scored null; 0 for a static reference."},
+				Description: "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."},
 			descriptor.ComponentKey{Name: "n_domain_invalid", Type: "int",
-				Description: "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric)."},
+				Description: "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). Non-zero also raises PULSE_VECTOR_METRIC_DOMAIN."},
 		),
 	}
 }

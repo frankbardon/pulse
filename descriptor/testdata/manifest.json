@@ -3471,7 +3471,7 @@
               "name": "reference",
               "type": "any",
               "required": true,
-              "description": "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label). A table or map is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field has no profile is null and counted in n_reference_missing."
+              "description": "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label or an unsigned-integer field's (u4, u8, u16, u32, u64) canonical base-10 value; any other field type is refused, SERVICE_VALIDATION reason key_field_type). A table or map is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field is null or has no profile is null, counted in n_reference_missing and warned once per slot (PULSE_VECTOR_REFERENCE_MISSING, components on or off; strict does not escalate it)."
             },
             {
               "name": "min_valid",
@@ -3515,12 +3515,12 @@
               {
                 "name": "n_reference_missing",
                 "type": "int",
-                "description": "Rows whose params.reference key_field label has no profile in the table (or is null), scored null; 0 for a static reference."
+                "description": "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
               },
               {
                 "name": "n_domain_invalid",
                 "type": "int",
-                "description": "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric)."
+                "description": "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). Non-zero also raises PULSE_VECTOR_METRIC_DOMAIN."
               }
             ],
             "mergeability": "mergeable"
@@ -3884,7 +3884,7 @@
               "name": "reference",
               "type": "any",
               "required": true,
-              "description": "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label). A table or map is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field has no profile is null and counted in n_reference_missing."
+              "description": "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label or an unsigned-integer field's (u4, u8, u16, u32, u64) canonical base-10 value; any other field type is refused, SERVICE_VALIDATION reason key_field_type). A table or map is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field is null or has no profile is null, counted in n_reference_missing and warned once per slot (PULSE_VECTOR_REFERENCE_MISSING, components on or off; strict does not escalate it)."
             },
             {
               "name": "min_valid",
@@ -3946,12 +3946,12 @@
               {
                 "name": "n_reference_missing",
                 "type": "int",
-                "description": "Rows whose params.reference key_field label has no profile in the table (or is null), scored null; 0 for a static reference."
+                "description": "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
               },
               {
                 "name": "n_domain_invalid",
                 "type": "int",
-                "description": "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric)."
+                "description": "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). Non-zero also raises PULSE_VECTOR_METRIC_DOMAIN."
               }
             ],
             "mergeability": "mergeable"
@@ -8858,7 +8858,7 @@
         ]
       }
     ],
-    "error_codes_count": 344,
+    "error_codes_count": 346,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9196,11 +9196,13 @@
       "PULSE_VECTOR_INVALID",
       "PULSE_VECTOR_LABELS_MISMATCH",
       "PULSE_VECTOR_MEMBER_TYPE",
+      "PULSE_VECTOR_METRIC_DOMAIN",
       "PULSE_VECTOR_METRIC_REQUIRED",
       "PULSE_VECTOR_METRIC_UNKNOWN",
       "PULSE_VECTOR_METRIC_UNSUITED",
       "PULSE_VECTOR_NAME_COLLISION",
       "PULSE_VECTOR_REFERENCE_MISMATCH",
+      "PULSE_VECTOR_REFERENCE_MISSING",
       "PULSE_VECTOR_REFERENCE_UNKNOWN",
       "PULSE_VECTOR_UNKNOWN",
       "PULSE_VECTOR_UNREFERENCED",
@@ -16058,12 +16060,12 @@
             {
               "name": "n_reference_missing",
               "type": "int",
-              "description": "Rows whose params.reference key_field label has no profile in the table (or is null), scored null; 0 for a static reference."
+              "description": "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
             },
             {
               "name": "n_domain_invalid",
               "type": "int",
-              "description": "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric)."
+              "description": "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). Non-zero also raises PULSE_VECTOR_METRIC_DOMAIN."
             }
           ],
           "mergeability": "mergeable"
@@ -16110,12 +16112,12 @@
             {
               "name": "n_reference_missing",
               "type": "int",
-              "description": "Rows whose params.reference key_field label has no profile in the table (or is null), scored null; 0 for a static reference."
+              "description": "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
             },
             {
               "name": "n_domain_invalid",
               "type": "int",
-              "description": "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric)."
+              "description": "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). Non-zero also raises PULSE_VECTOR_METRIC_DOMAIN."
             }
           ],
           "mergeability": "mergeable"
@@ -16323,4 +16325,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: fce25a1fc0f086e598a761caafc954a44b8e01556ff91c382f7107ffc29e0991
+// golden-hash: bbf80daf8f6d741e43269e036dfb2735898e5b4a472b14ef262796237c6c2c4d

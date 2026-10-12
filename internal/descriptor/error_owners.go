@@ -532,6 +532,10 @@ var errorOwners = map[errors.Code][]string{
 	// whose labels are not the vector's is a mismatch too).
 	errors.PULSE_VECTOR_REFERENCE_UNKNOWN:  own("ATTR_FORMULA", "FILTER_EXPRESSION", "ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE"),
 	errors.PULSE_VECTOR_REFERENCE_MISMATCH: own("ATTR_FORMULA", "FILTER_EXPRESSION", "ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE"),
+	// The comparison attributes' runtime row warnings: a key_field row
+	// with no profile, and a row outside the metric's domain.
+	errors.PULSE_VECTOR_REFERENCE_MISSING: own("ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE"),
+	errors.PULSE_VECTOR_METRIC_DOMAIN:     own("ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE"),
 
 	// The matrix-source refusals fire only on a request carrying the
 	// `matrices` slot, which capability:matrices gates; the MAT_ family
