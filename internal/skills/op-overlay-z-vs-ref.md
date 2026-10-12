@@ -23,7 +23,7 @@ Compose-only parity overlay. Series-shape sibling of the cell z overlay. Overlay
 
 ## Host shape
 
-COMPOSE — SERIES grouped Process on both slots. **Parity overlay** — reads `{n, mean, variance}` from the scored `AGG_WELFORD`'s per-group `Response.Components` (weighted floor included; components off → empty layer), else the `params` triple. Any other non-scalar scored aggregation is refused (`non_scalar`). Renders as a per-group strip.
+COMPOSE — SERIES grouped Process on both slots. **Parity overlay** — reads `{n, mean, variance}` from the scored `AGG_WELFORD`'s per-group `Response.Components` (weighted floor included; components disabled on that slot → `PULSE_OVERLAY_COMPONENTS_REQUIRED`, reason `components_disabled`, predict and runtime), else the `params` triple. Any other non-scalar scored aggregation is refused (`non_scalar`). Renders as a per-group strip.
 
 ## Output
 

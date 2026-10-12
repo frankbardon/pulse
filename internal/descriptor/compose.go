@@ -544,6 +544,14 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	if aerr := composeOverlayArrayValuedRefusal(specIdx, spec, req.Requests, labels, opts.instance()); aerr != nil {
 		addCodedError(env, aerr)
 	}
+	// Gate 2e: a kind that reads a slot's AGG_WELFORD moments from its
+	// per-group components (OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF) over a
+	// slot built with components disabled
+	// (PULSE_OVERLAY_COMPONENTS_REQUIRED) — the runtime's check in
+	// Service.applyComposeOverlays.
+	if werr := composeOverlayWelfordComponentsRefusal(specIdx, spec, req.Requests, labels, opts.instance(), opts.componentsDisabled); werr != nil {
+		addCodedError(env, werr)
+	}
 
 	// Gate 3: multi-reference panel target cap. Fires before the
 	// per-target shape walk so a wildly over-cap spec does not also

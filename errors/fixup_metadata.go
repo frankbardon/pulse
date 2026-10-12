@@ -2358,12 +2358,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_COMPONENTS_REQUIRED: {
-		Message: "An overlay kind that reads per-cell components (n / weight sums / Welford triples / margin counts) ran against a host built with components disabled. The OVERLAY_PAIRWISE_* family needs the components block to resolve each pair leg's sample size.",
+		Message: "An overlay kind that reads per-cell components (n / weight sums / Welford triples / margin counts) ran against a host built with components disabled. The OVERLAY_PAIRWISE_* family needs the components block to resolve each pair leg's sample size; a Compose two-sample vs-ref overlay scoring a grouped slot's moment aggregation reads each group's mean / variance / n from that slot's per-group components (details.reason components_disabled, details.slot the slot).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"DisableComponents"},
-				Hint:     "Re-run with components enabled: clear Options.DisableComponents (and any per-request disable_components override) so Response.Components.Crosstab carries the cell n / Welford triples the pairwise overlay divides by.",
+				Hint:     "Re-run with components enabled: clear Options.DisableComponents (and any per-request disable_components override) so Response.Components.Crosstab carries the cell n / Welford triples the pairwise overlay divides by. On Compose the override is per slot: set disable_components: false on the slot details.slot names (it re-opens an engine-off gate), or score a scalar mean with the params triple instead.",
 				Examples: []any{false},
 			},
 		},

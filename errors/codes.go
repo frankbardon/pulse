@@ -1527,7 +1527,10 @@ const (
 	// handler entry: without the components block there is no sample-size
 	// leg to divide by. Re-run with components enabled (clear
 	// DisableComponents / the per-request override) so the host carries
-	// the counters the pairwise test needs.
+	// the counters the pairwise test needs. A Compose OVERLAY_T_VS_REF /
+	// OVERLAY_Z_VS_REF scoring a grouped AGG_WELFORD slot built with
+	// components disabled raises it too (reason components_disabled),
+	// on predict and runtime alike.
 	PULSE_OVERLAY_COMPONENTS_REQUIRED Code = "PULSE_OVERLAY_COMPONENTS_REQUIRED"
 
 	// PULSE_OVERLAY_SCOPE_UNSUPPORTED indicates an OverlaySpec named a

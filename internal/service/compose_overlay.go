@@ -148,6 +148,13 @@ func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedR
 	if err := descx.ComposeOverlayArrayValuedRefusal(req.Overlays, requests, labels, s.instance); err != nil {
 		return nil, nil, err
 	}
+	// A T / Z vs-ref kind scoring a slot's AGG_WELFORD reads that
+	// slot's per-group components: with them disabled the layer would
+	// be empty (U46 E4-S13). Same rule, same slots as
+	// ValidateComposeWithOptions.
+	if err := descx.ComposeOverlayWelfordComponentsRefusal(req.Overlays, requests, labels, s.instance, s.componentsGateClosed); err != nil {
+		return nil, nil, err
+	}
 	// Same rule against what the slots actually returned. The refusal
 	// above and the compute plan's Compose veto (composeSlotVetoes)
 	// should guarantee every probability-weighted slot such a kind reads
@@ -155,6 +162,9 @@ func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedR
 	// would read Σw as n and fold silently unweighted p-values. Fail
 	// loudly instead — reaching here is an engine invariant violation.
 	if err := s.composeOverlayFloorsPresent(req, requests, labels, responses); err != nil {
+		return nil, nil, err
+	}
+	if err := s.composeOverlayWelfordLegsPresent(req, requests, labels, responses); err != nil {
 		return nil, nil, err
 	}
 	// The requests-aware entry point, not the bare one: the panel's
@@ -200,5 +210,41 @@ func (s *Service) composeOverlayFloorsPresent(req *types.ComposedRequest, reques
 	}
 	return perr.NewCodedErrorWithDetails(perr.PROCESSING_INTERNAL,
 		"engine invariant violated: a Compose overlay would fold a probability-weighted slot whose crosstab Components were not computed; refusing rather than reading weight sums as the sample size",
+		details)
+}
+
+// composeOverlayWelfordLegsPresent re-runs
+// descx.ComposeOverlayWelfordComponentsRefusal with "this slot came
+// back without aggregation Components" in place of the
+// DisableComponents gate. A hit is PROCESSING_INTERNAL: the gate
+// refusal and the Compose veto (composeSlotVetoes) exist so a T / Z
+// vs-ref layer over AGG_WELFORD never folds empty on a correct engine.
+func (s *Service) composeOverlayWelfordLegsPresent(req *types.ComposedRequest, requests []*types.Request, labels []string, responses []*types.Response) error {
+	missing := func(r *types.Request) bool {
+		for j, rr := range requests {
+			if rr != r {
+				continue
+			}
+			if j >= len(responses) || responses[j] == nil {
+				return false // failed slot: the dispatcher's slot rules own it
+			}
+			c := responses[j].Components
+			return c == nil || len(c.Aggregations) == 0
+		}
+		return false
+	}
+	err := descx.ComposeOverlayWelfordComponentsRefusal(req.Overlays, requests, labels, s.instance, missing)
+	if err == nil {
+		return nil
+	}
+	details := map[string]any{"invariant": "compose overlay welford components missing at fold"}
+	var ce *perr.CodedError
+	if stderrors.As(err, &ce) {
+		for k, v := range ce.Details {
+			details[k] = v
+		}
+	}
+	return perr.NewCodedErrorWithDetails(perr.PROCESSING_INTERNAL,
+		"engine invariant violated: a Compose overlay would read a slot's AGG_WELFORD moments from aggregation Components that were not computed; refusing rather than folding an empty layer",
 		details)
 }
