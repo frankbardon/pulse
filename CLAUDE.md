@@ -103,7 +103,7 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 - **Undefined figures are `null`.** A non-finite float is JSON `null` in place, key kept (`types.MarshalFinite`); Go keeps NaN; a result read back decodes `null` → NaN (`internal/jsonfinite`), never 0. Long form: `.claude/reference/response-components.md` (Undefined figures on the wire).
 - `request` is an opt-in echo of the *normalized* request, omitted unless `Options.EchoRequest` / `--echo-request`; its shape follows the operation (one of the five request roots). Streaming skips the echo. Additive `omitempty`; no `format_version` bump.
 
-**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, not the legacy array; `--stream` bypasses the envelope with per-row NDJSON. Optional `sweep` expands into ordinary slots before any run, optional `rank` adds `ranking` (`skills/compose-sweeps.md`); `fits` run once first and add `fits` (`skills/compose-fits.md`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
+**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, not the legacy array; `--stream` bypasses the envelope with per-row NDJSON. `sweep` / `rank` / `fits` add slots (`skills/compose-sweeps.md`, `skills/compose-fits.md`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
 
 **Item fan-out.** A `for_each` on a window / feature / attribute item expands in place before validation (absent = byte-identical). Long form: `execution-modes.md` (Item fan-out).
 
@@ -120,15 +120,16 @@ Every `Response` carries an optional `Components *ResponseComponents` (additive 
 - `Aggregations []AggregationComponents` — one entry per aggregator slot; universal floor `{n, n_null}` + operator-specific `Operator map[string]any` keyed by the manifest schema. Grouped: cohort-wide floor + per-row `Groups` (reference).
 - `Groupers []GrouperComponents` — universal floor `{total_n, n_null}` + operator-specific bucket layout.
 - `Crosstab *CrosstabComponents` — `CellCounts[r][c]`, `CellComponents[r][c]`, row/column/grand-total margin counterparts, axis-key components. Mirrors `MatrixPayload` coordinate-for-coordinate. Auxiliary `crosstab.margin_aggregations` margin figures extend this bullet — reference below.
-- `Filterers []FiltererComponents` — uniform `{n_in, n_out, n_null_input}` across all 11 filterers.
+- `Filterers []FiltererComponents` — uniform `{n_in, n_out, n_null_input}` on every filterer.
 - `Run *RunComponents` — `total_records`, `filtered_records`, `null_records`, `shard_count`, `partial_cohort_reason`. Coexists with `Response.Metadata`: `Metadata` keeps non-numerical run facts (cohort filename); `Run` carries the typed counters.
 - `Matrices []MatrixComponents` — one per `Response.Matrices` result: floor `{n, n_null, n_listwise_dropped}` (weight-0 rows count in `n`), pairwise `{min_pair_n, max_pair_n}`, the weighted floor keys, operator map (`ddof`). Rides `capability:matrices`.
+- `Attributes []AttributeComponents` — per attribute slot declaring a `ComponentSchema`, keyed by `label` + `type` (not index): floor `{n, n_null}` (present / null outputs) + `Operator`; cohort-wide.
 
-Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators,Groupers,Filterers,Matrices}`, each carrying a mergeability class — `Mergeable` / `Partial` / `None` (`types.ComponentsMergeability`). Streaming chunks emit running state for mergeable operators; non-mergeable ones surface only at terminal flush.
+Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators,Groupers,Filterers,Matrices,Attributes}`, each carrying a mergeability class — `Mergeable` / `Partial` / `None` (`types.ComponentsMergeability`). Streaming chunks emit running state for mergeable operators; non-mergeable ones surface only at terminal flush.
 
 **Opt-out.** `Options.DisableComponents` (engine default) + `types.Request.DisableComponents *bool` (`nil` inherits; a `return` never re-opens an engine-off gate, only explicit `false` does); CLI `--no-components`. Disabled leaves `Components` `nil`, byte-identical — `format_version` NOT bumped. Full contract: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
 
-**Weighted slots** add `omitempty` aggregator-floor keys `sum_weights`, `n_eff` (probability only), `n_weight_invalid` — absent means unweighted; `n` / `n_null` and every count stay raw ints. Long form: `.claude/reference/weighting.md`.
+**Weighted slots** add `omitempty` aggregator-floor keys `sum_weights`, `n_eff` (probability only), `n_weight_invalid` — absent means unweighted; `n` / `n_null` and every count stay raw ints (`weighting.md`).
 
 **Long form: `.claude/reference/response-components.md`** (auxiliary margins, opt-out, Compose surface); skill `skills/response-components.md`.
 
@@ -150,7 +151,7 @@ Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators
 **Contract: `.claude/reference/predict-inspect.md` — load it before changing predict, inspect, `pulse_inspect` or `CountRecords`.** The always-load half:
 
 - **Predict structural ban:** `internal/descriptor/predict.go` MUST NOT import `internal/service/` or `internal/processing/`. Enforced by `TestPredictNoExecutionImports`. Reads only header + schema, never records.
-- **Predict streamability:** `PredictResult.Streamable` mirrors per-type `Streamable()` methods plus schema gates (decimal). Runtime parity via the engine's internal streamability gate (`TestPredict_Streamable_MatchesRuntime`). Beside it, `CrosstabFusable` (nil ⇔ no crosstab) + `CrosstabFusionReasons` answer fused-crosstab dispatch by the shared `internal/crosstabfuse` rule (`TestPredict_CrosstabFusableMatchesRuntime`).
+- **Predict streamability:** `PredictResult.Streamable` mirrors per-type `Streamable()` methods plus schema gates (decimal). Runtime parity: `TestPredict_Streamable_MatchesRuntime`. `CrosstabFusable` / `CrosstabFusionReasons` (fused-crosstab dispatch): `predict-inspect.md`.
 - **Inspect reads no record:** header + schema + sidecar metadata (`suggested_weight`); dictionaries truncated to `DefaultDictionaryLimit` (100) unless `FullDict: true`; `RecordCount` derives from the file LENGTH. **`Pulse.Inspect` drops `env.Warnings`** — CLI and `pulse_inspect` read `Pulse.InspectEnvelope`.
 - **Advisories:** `PredictResult.Advisories` (`PULSE_ADVISORY_*`) — coded fit notes, never warnings, never escalated by Strict, never change execution; `Options.SuppressAdvisories` validated at `New`. Long form: `predict-inspect.md` (Advisories).
 - **CountRecords header-fast:** no payload decode; the single-file floor division exists ONCE (`encoding.Schema.RecordCountForPayload`, shared with `Inspect`). `Inspect` warns on a truncated tail, `CountRecords` floors SILENTLY — deliberately; never make it error.

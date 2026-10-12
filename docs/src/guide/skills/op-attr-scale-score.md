@@ -35,9 +35,13 @@ Members: `u4`…`u64`, `f32`/`f64`; source columns only.
 
 One `f64` per record on the item scale (`sum`: × p).
 
+## Components
+
+`components.attributes` entry: floor `{n, n_null}` (present / null scores) + `n_out_of_range` (values), `n_rows_out_of_range` (rows) only with a range. `Mergeable`; no weighted keys.
+
 ## Gotchas
 
-- With a range, a value outside it is MISSING (never clamped): one `PULSE_ATTR_SCALE_OUT_OF_RANGE` warning, `details.n_out_of_range`. `MAT_RELIABILITY` refuses that data instead.
+- With a range, a value outside it is MISSING (never clamped): one `PULSE_ATTR_SCALE_OUT_OF_RANGE` warning, same counts. `MAT_RELIABILITY` refuses that data instead.
 - Row-local: streams, fuses; weight ignored.
 
 ## See

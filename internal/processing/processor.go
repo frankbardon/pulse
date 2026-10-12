@@ -687,6 +687,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 				return nil, err
 			}
 			SetAttributeOutput(r, ra.label, val, ra.nullable)
+			ra.floor.observe(val, ra.nullable)
 		}
 
 		weights.Observe(r)
@@ -848,6 +849,9 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	// Row-local attribute warnings (ATTR_SCALE_SCORE's out-of-range
 	// tally), first and in declared order — the buffered arm's order.
 	resp.Warnings = prependRowLocalWarnings(resp.Warnings, rowLocalAttrs)
+	if err := attachRowLocalAttributeComponents(resp, rowLocalAttrs); err != nil {
+		return nil, err
+	}
 	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
 	}
@@ -1024,6 +1028,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 				return nil, err
 			}
 			SetAttributeOutput(r, ra.label, val, ra.nullable)
+			ra.floor.observe(val, ra.nullable)
 		}
 
 		// Tallied AFTER row-local attributes land: the primary field
@@ -1114,6 +1119,9 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	}
 	// Row-local attribute warnings, first and in declared order.
 	resp.Warnings = prependRowLocalWarnings(resp.Warnings, rowLocalAttrs)
+	if err := attachRowLocalAttributeComponents(resp, rowLocalAttrs); err != nil {
+		return nil, err
+	}
 	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
 	}
@@ -1130,6 +1138,9 @@ type twoPassStage struct {
 	label string
 	// nullable: the computer writes NaN as a null (EmitsNull).
 	nullable bool
+	// floor tallies the slot's Components.Attributes floor on the
+	// emission scan only; nil when the slot emits no entry.
+	floor *attributeFloor
 }
 
 // buildTwoPassStages constructs every attribute in declared order and
@@ -1155,7 +1166,7 @@ func (p *Processor) buildTwoPassStages(attrs []*types.Attribute) ([]twoPassStage
 		if label == "" {
 			label = defaultAttributeLabel(attr)
 		}
-		st := twoPassStage{attr: attr, label: label, nullable: EmitsNull(computer)}
+		st := twoPassStage{attr: attr, label: label, nullable: EmitsNull(computer), floor: attributeFloorFor(computer, p.compute)}
 		if tp, ok := computer.(TwoPassAttribute); ok {
 			st.tp, st.row = tp, tp
 		} else if rl, ok := computer.(RowLocalAttribute); ok {
@@ -1248,12 +1259,17 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		}
 		return true, nil
 	}
-	setRow := func(st *twoPassStage, r *Record) error {
+	// emit is the emission scan: only it tallies the Components floor
+	// (a prepass evaluation of a needed stage is a re-read, not a row).
+	setRow := func(st *twoPassStage, r *Record, emit bool) error {
 		val, err := st.row.Row(r, st.attr.Field)
 		if err != nil {
 			return err
 		}
 		SetAttributeOutput(r, st.label, val, st.nullable)
+		if emit {
+			st.floor.observe(val, st.nullable)
+		}
 		return nil
 	}
 
@@ -1295,7 +1311,7 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 			for i := range stages {
 				if k < len(needed) && needed[k] == i {
 					k++
-					if err := setRow(&stages[i], r); err != nil {
+					if err := setRow(&stages[i], r, false); err != nil {
 						return nil, err
 					}
 					continue
@@ -1316,6 +1332,14 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		}
 	}
 	iter.Reset()
+	// A stage a prepass layer needed already scored every row once:
+	// reset its own counters (attributeTallyResetter) so the emission
+	// scan's tally — the one every other arm takes — is the whole of it.
+	for i := range stages {
+		if rs, ok := stages[i].row.(attributeTallyResetter); ok {
+			rs.resetTally()
+		}
+	}
 
 	// Emission scan: re-apply filters, emit every attribute in declared
 	// order (each sees every earlier label, as on the buffered arm),
@@ -1333,7 +1357,7 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 			continue
 		}
 		for i := range stages {
-			if err := setRow(&stages[i], r); err != nil {
+			if err := setRow(&stages[i], r, true); err != nil {
 				return nil, err
 			}
 		}
@@ -1432,6 +1456,15 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 	for i := range stages {
 		resp.Warnings = append(resp.Warnings, AttributeWarnings(stages[i].row)...)
 	}
+	for i := range stages {
+		entry, ok, err := attributeComponents(stages[i].attr, stages[i].label, stages[i].row, stages[i].floor)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			attachAttributeComponents(resp, []types.AttributeComponents{entry})
+		}
+	}
 	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
 	}
@@ -1447,6 +1480,20 @@ type rowLocalAttrEntry struct {
 	label    string
 	// nullable: the computer writes NaN as a null (EmitsNull).
 	nullable bool
+	// floor tallies the slot's Components.Attributes floor; nil when
+	// the slot emits no entry (attributeFloorFor).
+	floor *attributeFloor
+}
+
+// attachRowLocalAttributeComponents attaches the row-local slots'
+// Components.Attributes entries (nil floors build none).
+func attachRowLocalAttributeComponents(resp *types.Response, attrs []rowLocalAttrEntry) error {
+	entries, err := rowLocalAttributeComponents(attrs)
+	if err != nil {
+		return err
+	}
+	attachAttributeComponents(resp, entries)
+	return nil
 }
 
 // prependRowLocalWarnings returns warns with the Response-level
@@ -1494,7 +1541,8 @@ func (p *Processor) buildRowLocalAttributes(attrs []*types.Attribute) ([]rowLoca
 		if label == "" {
 			label = defaultAttributeLabel(attr)
 		}
-		out = append(out, rowLocalAttrEntry{attr: attr, computer: rowLocal, label: label, nullable: EmitsNull(computer)})
+		out = append(out, rowLocalAttrEntry{attr: attr, computer: rowLocal, label: label, nullable: EmitsNull(computer),
+			floor: attributeFloorFor(computer, p.compute)})
 	}
 	return out, nil
 }
@@ -1580,7 +1628,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	}
 
 	// Step 2: Compute attributes (adds derived fields to records)
-	attrWarnings, err := p.applyAttributes(req.Attributes, filtered)
+	attrWarnings, attrComps, err := p.applyAttributes(req.Attributes, filtered)
 	if err != nil {
 		return nil, err
 	}
@@ -1816,6 +1864,9 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// One MatrixComponents entry per Response.Matrices result (nil when
 	// the plan skips them).
 	attachMatrixComponents(resp, matrixComps)
+	// One AttributeComponents entry per attribute slot that emits one
+	// (nil when the plan skips them: applyAttributes tallied none).
+	attachAttributeComponents(resp, attrComps)
 	p.lap(observe.PhasePost)
 
 	// SERIES-host overlay hook. Wraps the finalized per-group
@@ -1956,25 +2007,27 @@ func (p *Processor) applyFeatures(features []*types.Feature, records []*Record) 
 // filtered set), writing each output under its label, and returns the
 // Response-level warnings the attributes raised (AttributeWarnings —
 // a fitted vector attribute's singular or insufficient fit), in
-// declared order.
-func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record) ([]*types.ResponseWarning, error) {
+// declared order, and the Components.Attributes entries of the slots
+// that emit one (under ComputePlan.Attributes), in declared order.
+func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record) ([]*types.ResponseWarning, []types.AttributeComponents, error) {
 	var warns []*types.ResponseWarning
+	var comps []types.AttributeComponents
 	for _, attr := range attrs {
 		factory, ok := p.exts.LookupAttribute(attr.Type)
 		if !ok {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			return nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown attribute type: %s", attr.Type))
 		}
 		computer, err := factory(attr, p.schema)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if err := p.bindAttribute(computer); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		values, err := computer.Compute(records, attr.Field)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		warns = append(warns, AttributeWarnings(computer)...)
 
@@ -1984,8 +2037,10 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 			label = defaultAttributeLabel(attr)
 		}
 		nullable := EmitsNull(computer)
+		floor := attributeFloorFor(computer, p.compute)
 		for i, r := range records {
 			if i < len(values) {
+				floor.observe(values[i], nullable)
 				if attributeOutputNull(values[i], nullable) {
 					// A null output (AttributeNull, or a NullEmitter's
 					// NaN): the row has no value under the label, so
@@ -1998,8 +2053,15 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 				r.injectValue(label, values[i])
 			}
 		}
+		entry, ok, err := attributeComponents(attr, label, computer, floor)
+		if err != nil {
+			return nil, nil, err
+		}
+		if ok {
+			comps = append(comps, entry)
+		}
 	}
-	return warns, nil
+	return warns, comps, nil
 }
 
 // processGrouped is the buffered grouped exit: one Data row per bucket

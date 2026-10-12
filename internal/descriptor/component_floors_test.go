@@ -17,6 +17,7 @@ func TestComponentFloors_PrefixEverySchema(t *testing.T) {
 		"groupers":     m.ComponentsSchemas.Groupers,
 		"filterers":    m.ComponentsSchemas.Filterers,
 		"matrices":     m.ComponentsSchemas.Matrices,
+		"attributes":   m.ComponentsSchemas.Attributes,
 	}
 	floors := ComponentFloors()
 	if len(floors) != len(bySlot) {

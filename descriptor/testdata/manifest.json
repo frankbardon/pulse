@@ -3660,7 +3660,31 @@
           "emits_type_note": "one score per record on the item scale (sum: × item count); null when fewer than min_valid items are valid",
           "streamable": true,
           "component_schema": {
-            "mergeability": ""
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Filter-passing rows whose attribute output is present (non-null)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Filter-passing rows whose attribute output is null."
+              },
+              {
+                "name": "n_out_of_range",
+                "type": "int",
+                "description": "Member values read as missing for lying outside the declared range (never clamped); emitted only when a range is declared (scale_min / scale_max or a kind \"scale\" vector's bounds).",
+                "optional": true
+              },
+              {
+                "name": "n_rows_out_of_range",
+                "type": "int",
+                "description": "Rows holding at least one out-of-range member value; emitted only when a range is declared.",
+                "optional": true
+              }
+            ],
+            "mergeability": "mergeable"
           },
           "intents": [
             "measure_construct",
@@ -15782,6 +15806,35 @@
           ],
           "mergeability": "mergeable"
         }
+      },
+      "attributes": {
+        "ATTR_SCALE_SCORE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Filter-passing rows whose attribute output is present (non-null)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Filter-passing rows whose attribute output is null."
+            },
+            {
+              "name": "n_out_of_range",
+              "type": "int",
+              "description": "Member values read as missing for lying outside the declared range (never clamped); emitted only when a range is declared (scale_min / scale_max or a kind \"scale\" vector's bounds).",
+              "optional": true
+            },
+            {
+              "name": "n_rows_out_of_range",
+              "type": "int",
+              "description": "Rows holding at least one out-of-range member value; emitted only when a range is declared.",
+              "optional": true
+            }
+          ],
+          "mergeability": "mergeable"
+        }
       }
     },
     "intents": [
@@ -15985,4 +16038,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 82e477f9cacd5817e70b0846e6882dd211de297191ba2dc0fc528b0df5693b30
+// golden-hash: 99b9cdf4e1cc8d9a68c05e7c70498b161ea3e517e108729bdcce3a6d24c12eac

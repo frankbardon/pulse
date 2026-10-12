@@ -126,6 +126,7 @@ func (p *Processor) RunCrosstabFused(ctx context.Context, req *types.Request, it
 				return nil, rerr
 			}
 			SetAttributeOutput(rec, ra.label, val, ra.nullable)
+			ra.floor.observe(val, ra.nullable)
 		}
 
 		weights.Observe(rec)
@@ -162,6 +163,9 @@ func (p *Processor) RunCrosstabFused(ctx context.Context, req *types.Request, it
 	// Row-local attribute warnings, first and in declared order (the
 	// buffered RunCrosstab carries applyAttributes' warnings first).
 	resp.Warnings = prependRowLocalWarnings(resp.Warnings, rowLocalAttrs)
+	if err := attachRowLocalAttributeComponents(resp, rowLocalAttrs); err != nil {
+		return nil, err
+	}
 	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
 	}

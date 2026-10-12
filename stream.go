@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -503,7 +504,7 @@ func grpMergeabilityVector(req *Request) []descriptor.ComponentsMergeability {
 //   - terminal=false: clone the shell, drop every aggregation slot's
 //     per-group figures (groups[] is terminal-only), and strip the
 //     Operator map (the per-operator schema-declared keys) from every
-//     aggregation / grouper slot whose mergeability is None.
+//     aggregation / grouper / attribute slot whose mergeability is None.
 //     Mergeable / Partial slots keep their running state so consumers
 //     can render mid-stream. The universal floor (N, NNull, Label / Field) is
 //     preserved on every slot regardless of mergeability — those keys
@@ -574,7 +575,48 @@ func chunkComponents(buffered *types.ResponseComponents, aggMerge, grpMerge []de
 		}
 		out.Groupers = clone
 	}
+	if attrHasNone(buffered.Attributes) {
+		clone := make([]types.AttributeComponents, len(buffered.Attributes))
+		copy(clone, buffered.Attributes)
+		for i := range clone {
+			if attributeNoneTypes()[clone[i].Type] {
+				// Non-mergeable attribute: the operator keys wait for
+				// the terminal chunk; the attribute floor stays.
+				clone[i].Operator = nil
+			}
+		}
+		out.Attributes = clone
+	}
 	return out
+}
+
+// attributeNoneTypes is the set of built-in attribute operators whose
+// ComponentSchema mergeability is None (none today: ATTR_SCALE_SCORE's
+// counters are Mergeable). Read once from the static capability table;
+// an extension attribute, like an extension aggregator, is kept as-is.
+var attributeNoneTypes = sync.OnceValue(func() map[types.AttributeType]bool {
+	out := map[types.AttributeType]bool{}
+	for _, t := range types.AllAttributeTypes() {
+		if descx.AttributeMergeability(t) == descriptor.None {
+			out[t] = true
+		}
+	}
+	return out
+})
+
+// attrHasNone reports whether any attribute entry's operator is a None
+// one, so chunkComponents clones the slice only then.
+func attrHasNone(entries []types.AttributeComponents) bool {
+	if len(entries) == 0 {
+		return false
+	}
+	none := attributeNoneTypes()
+	for _, e := range entries {
+		if none[e.Type] {
+			return true
+		}
+	}
+	return false
 }
 
 // grpHasNone reports whether the grouper mergeability vector carries

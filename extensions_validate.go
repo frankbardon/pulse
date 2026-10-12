@@ -150,7 +150,8 @@ func validateExtensions(ext Extensions) error {
 	return nil
 }
 
-// validateComponentSchemas asserts every aggregator / grouper / filterer
+// validateComponentSchemas asserts every aggregator / grouper / filterer /
+// attribute
 // registration's ComponentSchema and ComponentsFunc declarations are
 // consistent.
 //
@@ -200,6 +201,14 @@ func validateComponentSchemas(ext Extensions) error {
 	for i, r := range ext.Filterers {
 		if err := validateComponentSchemaDeclaration(
 			"filterer", string(r.Name), i,
+			r.ComponentSchema, r.ComponentsFunc != nil,
+		); err != nil {
+			return err
+		}
+	}
+	for i, r := range ext.Attributes {
+		if err := validateComponentSchemaDeclaration(
+			"attribute", string(r.Name), i,
 			r.ComponentSchema, r.ComponentsFunc != nil,
 		); err != nil {
 			return err

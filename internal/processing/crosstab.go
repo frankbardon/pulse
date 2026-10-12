@@ -495,7 +495,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	if err != nil {
 		return nil, err
 	}
-	attrWarnings, err := p.applyAttributes(req.Attributes, filtered)
+	attrWarnings, attrComps, err := p.applyAttributes(req.Attributes, filtered)
 	if err != nil {
 		return nil, err
 	}
@@ -1087,6 +1087,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	if err := applyOverlaysToResponse(req, resp, p.exts, p.compute); err != nil {
 		return nil, err
 	}
+	// Attribute slots' Components entries (cohort-wide; the fused arm
+	// attaches them at the same point).
+	attachAttributeComponents(resp, attrComps)
 
 	// One PULSE_WEIGHT_INVALID_ROWS warning per weight field the cell or
 	// an auxiliary margin reads, over the filter-passing rows (after

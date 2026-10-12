@@ -39,6 +39,10 @@ type ComputePlan struct {
 	AuxMargins bool
 	// Matrices is components.matrices.
 	Matrices bool
+	// Attributes is components.attributes: the attribute floor tallies
+	// and the operator Components() builds of every attribute slot
+	// whose operator declares a ComponentSchema.
+	Attributes bool
 
 	// MatricesSlot is the whole Response.Matrices slot. A run folds its
 	// matrix specs per record iff it computes MatricesSlot or Matrices
@@ -172,7 +176,7 @@ func (c ComputePlan) overlayKeep() func(int) bool {
 func FullComputePlan() ComputePlan {
 	return ComputePlan{
 		Aggs: true, Groups: true, Groupers: true, Filterers: true, Run: true,
-		Crosstab: true, AuxMargins: true, Matrices: true,
+		Crosstab: true, AuxMargins: true, Matrices: true, Attributes: true,
 		MatricesSlot: true, MatrixAuxiliary: true, MatrixScalars: true, MatrixVectors: true,
 		Overlays: true, Tests: true, PostTests: true, Regressions: true,
 	}
@@ -182,21 +186,21 @@ func FullComputePlan() ComputePlan {
 // DisableComponents gate) and leaves the rest of the plan alone.
 func (c ComputePlan) WithoutComponents() ComputePlan {
 	c.Aggs, c.Groups, c.Groupers, c.Filterers, c.Run = false, false, false, false, false
-	c.Crosstab, c.AuxMargins, c.Matrices = false, false, false
+	c.Crosstab, c.AuxMargins, c.Matrices, c.Attributes = false, false, false, false
 	return c
 }
 
 // WithComponentsOf copies every Components sub-part flag from o.
 func (c ComputePlan) WithComponentsOf(o ComputePlan) ComputePlan {
 	c.Aggs, c.Groups, c.Groupers, c.Filterers, c.Run = o.Aggs, o.Groups, o.Groupers, o.Filterers, o.Run
-	c.Crosstab, c.AuxMargins, c.Matrices = o.Crosstab, o.AuxMargins, o.Matrices
+	c.Crosstab, c.AuxMargins, c.Matrices, c.Attributes = o.Crosstab, o.AuxMargins, o.Matrices, o.Attributes
 	return c
 }
 
 // AnyComponents reports whether any Components sub-part is computed.
 func (c ComputePlan) AnyComponents() bool {
 	return c.Aggs || c.Groups || c.Groupers || c.Filterers || c.Run ||
-		c.Crosstab || c.AuxMargins || c.Matrices
+		c.Crosstab || c.AuxMargins || c.Matrices || c.Attributes
 }
 
 // ComputePlanFor derives the plan a resolved `return` selection allows:
@@ -220,6 +224,7 @@ func ComputePlanFor(ret *returnplan.Plan) ComputePlan {
 		Run:          k("components", "run").Keep,
 		Crosstab:     k("components", "crosstab").Keep,
 		Matrices:     k("components", "matrices").Keep,
+		Attributes:   k("components", "attributes").Keep,
 		MatricesSlot: k("matrices").Keep,
 		Overlays:     k("overlays").Keep,
 		Tests:        k("tests").Keep,

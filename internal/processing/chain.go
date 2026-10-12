@@ -108,7 +108,7 @@ func (f registryMergeFacts) Attribute(name string) (bool, bool) {
 	if !f.r.isExtensionAttribute(t) {
 		return false, false
 	}
-	return f.r.IsStreamable("attribute", name) && !f.r.attributeRequiresTwoPass(t), true
+	return f.r.IsStreamable("attribute", name) && !f.r.attributeRequiresTwoPass(t) && !f.r.ComponentAttributes[t], true
 }
 
 // AggregationLabel returns the output column name for an aggregation,

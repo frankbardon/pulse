@@ -2,9 +2,11 @@ package descriptor
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/buildinfo"
 	"github.com/frankbardon/pulse/types"
 )
@@ -358,6 +360,47 @@ func TestManifestComponentSchemasComplete(t *testing.T) {
 		if len(sch.Keys) < 3 || sch.Keys[2].Name != "n_null_input" {
 			t.Errorf("filterer %q ComponentsSchemas entry Keys[2].Name missing or wrong, want \"n_null_input\" (universal floor)", name)
 		}
+	}
+
+	// Attributes: only an operator that emits a
+	// Response.Components.Attributes entry declares a schema; the
+	// top-level projection carries exactly those, each opening with the
+	// attribute floor {n, n_null} and naming a mergeability class.
+	attrSet := nameSet(m.Components.Attributes)
+	declared := 0
+	for _, at := range types.AllAttributeTypes() {
+		name := string(at)
+		op, ok := attrSet[name]
+		if !ok {
+			t.Fatalf("attribute %q missing from manifest.components.attributes", name)
+		}
+		sch, inBlock := m.ComponentsSchemas.Attributes[name]
+		if len(op.ComponentSchema.Keys) == 0 {
+			if inBlock {
+				t.Errorf("attribute %q declares no schema but is in ComponentsSchemas.Attributes", name)
+			}
+			continue
+		}
+		declared++
+		if !inBlock || !reflect.DeepEqual(sch, op.ComponentSchema) {
+			t.Errorf("attribute %q ComponentsSchemas entry %+v, want the operator's %+v", name, sch, op.ComponentSchema)
+		}
+		if sch.Mergeability == "" {
+			t.Errorf("attribute %q has empty Mergeability", name)
+		}
+		if len(sch.Keys) < 2 || sch.Keys[0].Name != "n" || sch.Keys[1].Name != "n_null" {
+			t.Errorf("attribute %q schema does not open with the attribute floor {n, n_null}", name)
+		}
+	}
+	if declared != len(m.ComponentsSchemas.Attributes) {
+		t.Errorf("ComponentsSchemas.Attributes has %d entries, %d attributes declare a schema", len(m.ComponentsSchemas.Attributes), declared)
+	}
+	scale := m.ComponentsSchemas.Attributes[string(types.ATTR_SCALE_SCORE)]
+	if names := componentKeyNames(scale); !reflect.DeepEqual(names, []string{"n", "n_null", "n_out_of_range", "n_rows_out_of_range"}) {
+		t.Errorf("ATTR_SCALE_SCORE schema keys = %v", names)
+	}
+	if scale.Mergeability != descriptor.Mergeable {
+		t.Errorf("ATTR_SCALE_SCORE mergeability = %q, want mergeable", scale.Mergeability)
 	}
 }
 

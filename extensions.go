@@ -48,6 +48,21 @@ type GrouperComponentsFunc func(instance extend.Grouper) (map[string]any, error)
 // in is the extend.FiltererBuilder the registration's Factory returned.
 type FiltererComponentsFunc func(instance extend.FiltererBuilder) (map[string]any, error)
 
+// AttributeComponentsFunc is the attribute-shape sibling. The
+// orchestrator invokes the func ONCE after the attribute has scored
+// every filter-passing row and routes the result onto that slot's
+// Response.Components.Attributes entry (Operator); the attribute floor
+// ({n, n_null}: rows whose output is present / null) is filled by the
+// orchestrator. Only a registration that supplies it (with a
+// ComponentSchema) emits an entry. The instance passed in is the
+// extend.AttributeComputer the registration's Factory returned.
+//
+// A registration that supplies it is not admitted to the parallel
+// reducers or ProcessChain even when its Mode is row_local: one
+// instance per worker would leave per-worker figures no orchestrator
+// merge can fold, so the request runs on the serial arm instead.
+type AttributeComponentsFunc func(instance extend.AttributeComputer) (map[string]any, error)
+
 // FieldInputsFunc is the optional introspection callback an extension
 // registration may supply so the buffered-projection extractor can
 // determine which extra schema fields the operator reads beyond the
@@ -339,6 +354,16 @@ type AttributeRegistration struct {
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc.
 	FieldInputs FieldInputsFunc
+	// ComponentSchema declares the per-operator components contract
+	// surfaced through the slot's Response.Components.Attributes entry
+	// (Operator). Empty (zero Keys and Mergeability) emits no entry.
+	// When Keys is non-empty ComponentsFunc MUST be supplied and its
+	// returned keys MUST be a subset of the declared set; probe-
+	// validation enforces both at pulse.New time.
+	ComponentSchema descriptor.ComponentSchema
+	// ComponentsFunc is the optional emitter (see
+	// AttributeComponentsFunc). Nil emits no entry.
+	ComponentsFunc AttributeComponentsFunc
 }
 
 // FiltererRegistration installs a custom FILTER_* operator. Filterers

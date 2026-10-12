@@ -31,7 +31,10 @@ import (
 //     MISSING too — never clamped, never reversed — and counted
 //     (n_out_of_range values, n_rows rows), raising one
 //     PULSE_ATTR_SCALE_OUT_OF_RANGE warning per slot after the run
-//     (attributeWarner). MAT_RELIABILITY refuses the same value
+//     (attributeWarner) and reported on the slot's
+//     Response.Components.Attributes entry (MetaAttribute:
+//     n_out_of_range / n_rows_out_of_range, only when a range is
+//     declared). MAT_RELIABILITY refuses the same value
 //     (PROCESSING_CONFIG): both read the one vectors.ScaleKey;
 //   - each reverse-keyed valid item is flipped lo + hi − x;
 //   - k valid items below params.min_valid score null (NaN → null,
@@ -60,6 +63,9 @@ var (
 	_ RowLocalAttribute = (*scaleScoreAttribute)(nil)
 	_ NullEmitter       = (*scaleScoreAttribute)(nil)
 	_ attributeWarner   = (*scaleScoreAttribute)(nil)
+	_ MetaAttribute     = (*scaleScoreAttribute)(nil)
+
+	_ attributeTallyResetter = (*scaleScoreAttribute)(nil)
 )
 
 // newScaleScoreAttribute builds the computer over attr's resolved
@@ -173,4 +179,24 @@ func (a *scaleScoreAttribute) attributeWarnings() []*types.ResponseWarning {
 			"scale_max":      a.cfg.Key.Hi,
 		},
 	}}
+}
+
+// Components satisfies MetaAttribute: the out-of-range tally the
+// warning carries, as typed counters — present only when a range is
+// declared (without one no value is range-checked, and a 0 would claim
+// a check that never ran). The floor {n, n_null} is the orchestrator's.
+func (a *scaleScoreAttribute) Components() (map[string]any, error) {
+	if !a.cfg.HasScale {
+		return nil, nil
+	}
+	return map[string]any{
+		"n_out_of_range":      int(a.nOutOfRange),
+		"n_rows_out_of_range": int(a.nRows),
+	}, nil
+}
+
+// resetTally satisfies attributeTallyResetter: the two-pass arm's
+// emission scan re-scores rows a prepass already scored.
+func (a *scaleScoreAttribute) resetTally() {
+	a.nOutOfRange, a.nRows = 0, 0
 }

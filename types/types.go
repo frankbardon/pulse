@@ -1576,6 +1576,11 @@ type Response struct {
 //     the floor {n, n_null, n_listwise_dropped}, pairwise
 //     {min_pair_n, max_pair_n}, the weighted floor keys and the
 //     operator's own keys (MatrixComponents).
+//   - Attributes: one entry per Request.Attributes slot whose operator
+//     declares a ComponentSchema, in declared order — NOT index-aligned
+//     with Request.Attributes; Label + Type key it back. The attribute
+//     floor {n, n_null} counts the rows the attribute scored, by
+//     output presence (AttributeComponents).
 type ResponseComponents struct {
 	// Aggregations carries one AggregationComponents entry per
 	// Request.Aggregations slot in matching declared order.
@@ -1604,6 +1609,14 @@ type ResponseComponents struct {
 	// result, in the same order (keyed back by Name, and GroupKey on a
 	// grouped result).
 	Matrices []MatrixComponents `json:"matrices,omitempty"`
+
+	// Attributes carries one AttributeComponents entry per
+	// Request.Attributes slot whose operator declares a ComponentSchema
+	// (ATTR_SCALE_SCORE; an extension attribute registered with one),
+	// in declared order. A slot whose operator declares none has no
+	// entry, so the slice is keyed back by Label (and Type), never by
+	// index.
+	Attributes []AttributeComponents `json:"attributes,omitempty"`
 
 	// plan is the resolved `return` selection a STANDALONE components
 	// payload (a streamed chunk's) was shaped under, rooted at the
@@ -1757,6 +1770,37 @@ type GrouperComponents struct {
 // components, axis-key grouper components, and include / exclude
 // record sanity counters — mirroring MatrixPayload coordinate-for-
 // coordinate so consumers can index components by the same (r, c).
+
+// AttributeComponents carries one attribute slot's constituent-parts
+// metadata: the attribute floor plus the operator's own
+// ComponentSchema keys. Attributes are cohort-wide on every arm — they
+// run over the filter-passing records before any grouping — so a
+// grouped or crosstab run carries one entry per slot, never per
+// bucket. Attributes are weight-irrelevant here: no weighted floor
+// keys ride the entry.
+type AttributeComponents struct {
+	// Label is the slot's EFFECTIVE output label — Attribute.Label, or
+	// the default label the engine wrote the column under when the
+	// request left it empty — so it always names the Data column.
+	Label string `json:"label"`
+
+	// Type is the slot's operator (Attribute.Type).
+	Type AttributeType `json:"type"`
+
+	// N is the number of filter-passing rows whose attribute output is
+	// PRESENT (non-null). Attribute floor.
+	N int `json:"n"`
+
+	// NNull is the number of filter-passing rows whose attribute
+	// output is null. N + NNull is the post-filter record count the
+	// attribute scored. Attribute floor.
+	NNull int `json:"n_null"`
+
+	// Operator carries the operator's schema-declared keys (the
+	// manifest's components_schemas.attributes entry). Absent when the
+	// operator emitted none.
+	Operator map[string]any `json:"operator,omitempty"`
+}
 
 // FiltererComponents carries per-filterer constituent-parts metadata —
 // records in (post-prior-stage), records out (post-this-filter), and

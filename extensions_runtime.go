@@ -112,6 +112,12 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 				}
 				r.TwoPassAttributes[reg.Name] = true
 			}
+			if reg.ComponentsFunc != nil {
+				if r.ComponentAttributes == nil {
+					r.ComponentAttributes = make(map[types.AttributeType]bool)
+				}
+				r.ComponentAttributes[reg.Name] = true
+			}
 			addFieldInputs("attribute", string(reg.Name), reg.FieldInputs)
 		}
 	}

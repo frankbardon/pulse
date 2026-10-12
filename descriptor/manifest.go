@@ -91,6 +91,11 @@ type ComponentsSchemasBlock struct {
 	Groupers    map[string]ComponentSchema `json:"groupers,omitempty"`
 	Filterers   map[string]ComponentSchema `json:"filterers,omitempty"`
 	Matrices    map[string]ComponentSchema `json:"matrices,omitempty"`
+	// Attributes carries the schema of every attribute operator that
+	// emits a Response.Components.Attributes entry (one opening with
+	// the attribute floor {n, n_null}); an attribute absent here emits
+	// none.
+	Attributes map[string]ComponentSchema `json:"attributes,omitempty"`
 }
 
 // Manifest is the root self-description of the Pulse system. One bootstrap

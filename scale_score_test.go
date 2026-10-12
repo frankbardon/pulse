@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"math"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -51,13 +53,25 @@ func scaleScoreCases() []scaleScoreCase {
 // oracle returns the score sum, the scored-row count and the
 // out-of-range value count over rows [0, rows).
 func (c scaleScoreCase) oracle(rows int) (sum float64, scored, outOfRange int) {
+	sum, scored, outOfRange, _ = c.oracleRows(rows)
+	return sum, scored, outOfRange
+}
+
+// oracleRows is oracle plus the count of rows holding an out-of-range
+// value.
+func (c scaleScoreCase) oracleRows(rows int) (sum float64, scored, outOfRange, rowsOut int) {
 	for r := 0; r < rows; r++ {
 		x := vexprRow(r)
+		rowOut := false
 		for j, v := range x {
 			if c.ranged && !math.IsNaN(v) && (v < c.lo || v > c.hi) {
 				outOfRange++
+				rowOut = true
 				x[j] = math.NaN()
 			}
+		}
+		if rowOut {
+			rowsOut++
 		}
 		for _, j := range c.rev {
 			if !math.IsNaN(x[j]) {
@@ -85,7 +99,18 @@ func (c scaleScoreCase) oracle(rows int) (sum float64, scored, outOfRange int) {
 		sum += score
 		scored++
 	}
-	return sum, scored, outOfRange
+	return sum, scored, outOfRange, rowsOut
+}
+
+// scaleComponentsEntry is the Components.Attributes entry the oracle
+// expects for slot "s" over rows [0, rows).
+func (c scaleScoreCase) componentsEntry(rows int) types.AttributeComponents {
+	_, scored, out, rowsOut := c.oracleRows(rows)
+	e := types.AttributeComponents{Label: "s", Type: types.ATTR_SCALE_SCORE, N: scored, NNull: rows - scored}
+	if c.ranged {
+		e.Operator = map[string]any{"n_out_of_range": out, "n_rows_out_of_range": rowsOut}
+	}
+	return e
 }
 
 func TestScaleScore_EveryModeUnderProjection(t *testing.T) {
@@ -139,6 +164,13 @@ func TestScaleScore_EveryModeUnderProjection(t *testing.T) {
 						if got, _ := vexprFloat(warned[0].Details["n_out_of_range"]); got != float64(wantOut) {
 							t.Errorf("n_out_of_range = %v, want %d", warned[0].Details["n_out_of_range"], wantOut)
 						}
+					}
+					// The typed counters (E2-S4): one entry, the floor by
+					// score presence, the range tally beside it — the
+					// warning's counts, on every mode.
+					if want := c.componentsEntry(m.rows); resp.Components == nil ||
+						!reflect.DeepEqual(resp.Components.Attributes, []types.AttributeComponents{want}) {
+						t.Errorf("Components.Attributes = %+v, want [%+v]", resp.Components, want)
 					}
 					res, err := p.Predict(ctx, req)
 					if err != nil {
@@ -227,4 +259,131 @@ func TestScaleScore_ReliabilityContrastFacade(t *testing.T) {
 	if n != 1 {
 		t.Errorf("want one PULSE_ATTR_SCALE_OUT_OF_RANGE, got %+v", resp.Warnings)
 	}
+}
+
+// TestScaleScore_ComponentsSurface: the attribute entry follows every
+// Components knob — the engine and request opt-out (Components nil),
+// a `return` exclude of components.attributes (the rest stays) and an
+// include of it alone, the Compose per-slot surface (serial and
+// parallel), and the wire (one "attributes" array, absent when off).
+func TestScaleScore_ComponentsSurface(t *testing.T) {
+	ctx := context.Background()
+	fsys := afero.NewMemMapFs()
+	writeVexprCohort(t, fsys, "v.pulse", 0, 96)
+	c := scaleScoreCases()[0]
+	want := c.componentsEntry(96)
+	build := func() *types.Request {
+		a := c.attr
+		a.Type, a.Label = types.ATTR_SCALE_SCORE, "s"
+		return &types.Request{
+			Cohort:       &types.Cohort{Filename: "v.pulse"},
+			Vectors:      c.vecs,
+			Attributes:   []*types.Attribute{&a},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "s", Label: "sum_s"}},
+		}
+	}
+	p, err := pulse.New(pulse.Options{FS: fsys})
+	if err != nil {
+		t.Fatal(err)
+	}
+	attrsOf := func(resp *types.Response) []types.AttributeComponents {
+		if resp.Components == nil {
+			return nil
+		}
+		return resp.Components.Attributes
+	}
+
+	resp, err := p.Process(ctx, build())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := attrsOf(resp); !reflect.DeepEqual(got, []types.AttributeComponents{want}) {
+		t.Fatalf("default: %+v, want [%+v]", got, want)
+	}
+	wire, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(wire), `"attributes":[{"label":"s","type":"ATTR_SCALE_SCORE","n":`) ||
+		!strings.Contains(string(wire), `"n_rows_out_of_range":`) {
+		t.Errorf("wire form lacks the attributes entry: %s", wire)
+	}
+
+	t.Run("request_opt_out", func(t *testing.T) {
+		req := build()
+		off := true
+		req.DisableComponents = &off
+		resp, err := p.Process(ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.Components != nil {
+			t.Errorf("Components = %+v, want nil", resp.Components)
+		}
+		if wire, _ := json.Marshal(resp); strings.Contains(string(wire), `"attributes"`) {
+			t.Errorf("opted-out wire carries attributes: %s", wire)
+		}
+	})
+	t.Run("engine_opt_out", func(t *testing.T) {
+		q, err := pulse.New(pulse.Options{FS: fsys, DisableComponents: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := q.Process(ctx, build())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.Components != nil {
+			t.Errorf("Components = %+v, want nil", resp.Components)
+		}
+	})
+	t.Run("return_exclude", func(t *testing.T) {
+		req := build()
+		req.Return = &types.Return{Exclude: []string{"components.attributes"}}
+		resp, err := p.Process(ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.Components == nil || resp.Components.Attributes != nil || len(resp.Components.Aggregations) != 1 {
+			t.Errorf("Components = %+v, want aggregations without attributes", resp.Components)
+		}
+		wire, _ := json.Marshal(resp)
+		if strings.Contains(string(wire), `"attributes"`) || !strings.Contains(string(wire), `"aggregations"`) {
+			t.Errorf("shaped wire: %s", wire)
+		}
+	})
+	t.Run("return_include_counter", func(t *testing.T) {
+		req := build()
+		req.Return = &types.Return{Include: []string{"components.attributes[*].operator.n_out_of_range"}}
+		resp, err := p.Process(ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wire, _ := json.Marshal(resp)
+		if !strings.Contains(string(wire), `"components":{"attributes":[{"operator":{"n_out_of_range":`) {
+			t.Errorf("include of one counter: %s", wire)
+		}
+	})
+	t.Run("compose", func(t *testing.T) {
+		composed := &types.ComposedRequest{Requests: []*types.Request{build(), build()}}
+		off := true
+		composed.Requests[1].DisableComponents = &off
+		for name, run := range map[string]func(context.Context, *types.ComposedRequest) (*types.ComposedResponse, error){
+			"serial": p.Compose,
+			"parallel": func(ctx context.Context, r *types.ComposedRequest) (*types.ComposedResponse, error) {
+				return p.ComposeParallel(ctx, r, pulse.ComposeOptions{MaxWorkers: 2})
+			},
+		} {
+			out, err := run(ctx, composed)
+			if err != nil {
+				t.Fatalf("%s: %v", name, err)
+			}
+			if got := attrsOf(out.Responses[0]); !reflect.DeepEqual(got, []types.AttributeComponents{want}) {
+				t.Errorf("%s slot 0: %+v, want [%+v]", name, got, want)
+			}
+			if out.Responses[1].Components != nil {
+				t.Errorf("%s slot 1 (opted out): %+v", name, out.Responses[1].Components)
+			}
+		}
+	})
 }

@@ -44,6 +44,13 @@ Pulse fills these keys on every entry of a slot, ahead of the operator's own key
 | `min_pair_n` | int | when its condition holds | Pairwise only: the smallest pair N (the minimum of auxiliary.n). |
 | `max_pair_n` | int | when its condition holds | Pairwise only: the largest pair N (the maximum of auxiliary.n). |
 
+### Attributes
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `n` | int | always | Filter-passing rows whose attribute output is present (non-null). |
+| `n_null` | int | always | Filter-passing rows whose attribute output is null. |
+
 <a id="weighted-floor"></a>
 
 ## Weighted floor keys
@@ -801,3 +808,16 @@ Only the floor keys.
 |---|---|---|---|
 | `iterations` | int | when its condition holds | Coordinate sweeps the one-factor minres fit behind omega ran (cap 1000); absent when no fit ran (2 items, an undefined or unrepaired non-PSD input). |
 | `converged` | bool | when its condition holds | Whether the minres fit met its tolerance (1e-12) within the cap; false comes with PULSE_MATRIX_NOT_CONVERGED. Absent when no fit ran. |
+
+### Attributes
+
+<a id="op-attr_scale_score"></a>
+
+#### `ATTR_SCALE_SCORE`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/attribute.md#op-attr_scale_score).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `n_out_of_range` | int | when its condition holds | Member values read as missing for lying outside the declared range (never clamped); emitted only when a range is declared (scale_min / scale_max or a kind "scale" vector's bounds). |
+| `n_rows_out_of_range` | int | when its condition holds | Rows holding at least one out-of-range member value; emitted only when a range is declared. |

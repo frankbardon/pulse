@@ -214,6 +214,34 @@
       ],
       "type": "object"
     },
+    "AttributeComponents": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "n": {
+          "type": "integer"
+        },
+        "n_null": {
+          "type": "integer"
+        },
+        "operator": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "type": {
+          "$ref": "#/$defs/AttributeType"
+        }
+      },
+      "required": [
+        "label",
+        "n",
+        "n_null",
+        "type"
+      ],
+      "type": "object"
+    },
     "AttributeType": {
       "enum": [],
       "type": "string"
@@ -2196,6 +2224,15 @@
             "null"
           ]
         },
+        "attributes": {
+          "items": {
+            "$ref": "#/$defs/AttributeComponents"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "crosstab": {
           "$ref": "#/$defs/CrosstabComponents"
         },
@@ -2610,4 +2647,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 187e0e208ac20cd892b7c17b976e7541ac74abb733557f3a396610618f4d06c1
+// golden-hash: 0c50f0eaa0d4c994b7d57d91aea397ef259b35670ae2cbc6d59e74ecda7c0e0f

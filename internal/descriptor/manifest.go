@@ -200,7 +200,7 @@ func sortRegressions(rs []descriptor.RegressionMeta) []descriptor.RegressionMeta
 // matching any snapshot category are dropped (defensive — the
 // registration surface only populates ComponentSchemas alongside one
 // of the three category slices).
-func componentsSchemasBlock(aggs, grps, filts []descriptor.Operator, snap *ExtensionsSnapshot, mats []descriptor.MatrixMeta) descriptor.ComponentsSchemasBlock {
+func componentsSchemasBlock(aggs, grps, filts, attrs []descriptor.Operator, snap *ExtensionsSnapshot, mats []descriptor.MatrixMeta) descriptor.ComponentsSchemasBlock {
 	out := descriptor.ComponentsSchemasBlock{Matrices: matrixComponentSchemas(mats)}
 	if len(aggs) > 0 {
 		m := make(map[string]descriptor.ComponentSchema, len(aggs))
@@ -238,6 +238,15 @@ func componentsSchemasBlock(aggs, grps, filts []descriptor.Operator, snap *Exten
 			out.Filterers = m
 		}
 	}
+	for _, op := range attrs {
+		if len(op.ComponentSchema.Keys) == 0 && op.ComponentSchema.Mergeability == "" {
+			continue
+		}
+		if out.Attributes == nil {
+			out.Attributes = make(map[string]descriptor.ComponentSchema)
+		}
+		out.Attributes[op.Name] = op.ComponentSchema
+	}
 	if snap != nil && len(snap.ComponentSchemas) > 0 {
 		mergeExtensionSchemas := func(target *map[string]descriptor.ComponentSchema, metas []descriptor.OperatorMeta) {
 			for _, m := range metas {
@@ -257,6 +266,7 @@ func componentsSchemasBlock(aggs, grps, filts []descriptor.Operator, snap *Exten
 		mergeExtensionSchemas(&out.Aggregators, snap.Aggregators)
 		mergeExtensionSchemas(&out.Groupers, snap.Groupers)
 		mergeExtensionSchemas(&out.Filterers, snap.Filterers)
+		mergeExtensionSchemas(&out.Attributes, snap.Attributes)
 	}
 	return out
 }
@@ -348,7 +358,7 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		ExampleTags:        exTags,
 		Extensions:         extensionsManifestFromSnapshot(snap),
 		Overlays:           withOverlayIntents(filterOverlays(OverlayCapabilities(), on)),
-		ComponentsSchemas:  componentsSchemasBlock(aggs, grps, filts, snap, mats),
+		ComponentsSchemas:  componentsSchemasBlock(aggs, grps, filts, attrs, snap, mats),
 		Intents:            instanceIntentIDs(inst),
 		ReturnPresets:      ReturnPresetsFor(inst),
 		Limits:             LimitsFor(inst),

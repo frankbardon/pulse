@@ -93,6 +93,14 @@ type ExtensionRegistry struct {
 	// compose with grouped or feature streaming. Absent reads false.
 	TwoPassAttributes map[types.AttributeType]bool
 
+	// ComponentAttributes records which extension attributes emit a
+	// Response.Components.Attributes entry (a registration with a
+	// ComponentsFunc). Such an attribute is never admitted to the
+	// parallel reducers or ProcessChain (registryMergeFacts.Attribute):
+	// per-worker instances leave figures no orchestrator merge folds,
+	// so the request runs serial. Absent reads false.
+	ComponentAttributes map[types.AttributeType]bool
+
 	// FansOut is the per-grouper fan-out declaration recorded from
 	// pulse.GrouperRegistration.FansOut — true when one record can
 	// land in MORE THAN ONE bucket, so the bucket counts SUM to more

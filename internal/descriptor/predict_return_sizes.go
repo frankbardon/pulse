@@ -308,6 +308,10 @@ func returnSections(in returnSizeInputs) []returnSection {
 		}
 		kids = append(kids, key("run", leaf("total_records", sizeNumber),
 			leaf("filtered_records", sizeNumber), leaf("null_records", sizeNumber)))
+		if n := attributeComponentSlots(req, in.inst); n > 0 {
+			kids = append(kids, key("attributes", elems(int64(n), leaf("label", sizeLabel), leaf("type", sizeLabel),
+				leaf("n", sizeNumber), leaf("n_null", sizeNumber), leaf("operator", sizeOperatorMap))))
+		}
 		add(key("components", kids...), returnSizeHeuristic)
 	}
 	return out
@@ -384,4 +388,30 @@ func matchesDataColumn(p returnplan.Path, cols map[string]bool) bool {
 		}
 	}
 	return false
+}
+
+// attributeComponentSlots counts the request's attribute slots that
+// emit a Components.Attributes entry: a built-in declaring a
+// ComponentSchema, or an extension registered with one.
+func attributeComponentSlots(req *types.Request, inst *InstanceSnapshot) int {
+	var snap *ExtensionsSnapshot
+	if inst != nil {
+		snap = inst.Extensions()
+	}
+	n := 0
+	for _, a := range req.Attributes {
+		if a == nil {
+			continue
+		}
+		if AttributeMergeability(a.Type) != "" {
+			n++
+			continue
+		}
+		if snap != nil {
+			if _, ok := snap.ComponentSchemas[string(a.Type)]; ok {
+				n++
+			}
+		}
+	}
+	return n
 }

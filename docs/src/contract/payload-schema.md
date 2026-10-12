@@ -616,6 +616,24 @@ a stream carries them on its terminal chunk only. Contract:
 `.claude/reference/response-components.md` (Per-group aggregation
 components).
 
+## Attribute components
+
+`attributes` on `ResponseComponents` is an additive `omitempty` array of
+`AttributeComponents` `{label, type, n, n_null, operator?}`
+(`format_version` stays `"1.1"`; a response with no attribute slot whose
+operator declares a `ComponentSchema` has no `attributes` key and is
+byte-identical). What the schema cannot say: an entry exists only for a
+slot whose operator declares a schema (`ATTR_SCALE_SCORE`, an extension
+attribute registered with one) — `manifest.components_schemas.attributes`
+lists them — so entries are keyed back by `label` (the effective output
+label) and `type`, never by index into `attributes`; `n` / `n_null`
+count the filter-passing rows whose output is present / null; entries
+are cohort-wide (a grouped or crosstab run carries one per slot, never
+per bucket) and carry no weighted floor keys. `ATTR_SCALE_SCORE`'s
+`operator` holds `n_out_of_range` / `n_rows_out_of_range` only when a
+range is declared. Contract: `.claude/reference/response-components.md`
+(Attribute components).
+
 ## Return slot
 
 `return` on `Request` is an additive `Return` object

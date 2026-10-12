@@ -85,6 +85,9 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Mode:        string(r.Mode),
 			Params:      paramMetaSnapshot(r.Params),
 		})
+		if len(r.ComponentSchema.Keys) > 0 || r.ComponentSchema.Mergeability != "" {
+			snap.ComponentSchemas[string(r.Name)] = r.ComponentSchema
+		}
 	}
 	for _, r := range ext.Filterers {
 		snap.Filterers = append(snap.Filterers, descriptor.OperatorMeta{

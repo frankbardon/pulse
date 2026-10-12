@@ -21,6 +21,28 @@ var codeInFieldTypes = []string{
 	"u8",
 }
 
+// attributeFloorKeys is the attribute floor every
+// Response.Components.Attributes entry carries ahead of the operator's
+// own keys: the filter-passing rows the attribute scored, split by
+// output presence (n + n_null = the post-filter record count).
+func attributeFloorKeys() []descriptor.ComponentKey {
+	return []descriptor.ComponentKey{
+		{Name: "n", Type: "int", Description: "Filter-passing rows whose attribute output is present (non-null)."},
+		{Name: "n_null", Type: "int", Description: "Filter-passing rows whose attribute output is null."},
+	}
+}
+
+// attrSchema composes an attribute ComponentSchema: the attribute floor,
+// then the operator's own keys in emission order. Only an attribute
+// that declares one emits a Response.Components.Attributes entry.
+func attrSchema(merge descriptor.ComponentsMergeability, extra ...descriptor.ComponentKey) descriptor.ComponentSchema {
+	floor := attributeFloorKeys()
+	keys := make([]descriptor.ComponentKey, 0, len(floor)+len(extra))
+	keys = append(keys, floor...)
+	keys = append(keys, extra...)
+	return descriptor.ComponentSchema{Keys: keys, Mergeability: merge}
+}
+
 // attributeCapabilities returns the metadata for every registered
 // AttributeComputer. TestManifestOperatorsComplete enforces coverage of
 // types.AllAttributeTypes().
@@ -373,6 +395,12 @@ func attributeCapabilities() []descriptor.Operator {
 			EmitsType:     "f64",
 			EmitsTypeNote: "one score per record on the item scale (sum: × item count); null when fewer than min_valid items are valid",
 			Streamable:    true,
+			ComponentSchema: attrSchema(descriptor.Mergeable,
+				descriptor.ComponentKey{Name: "n_out_of_range", Type: "int", Optional: true,
+					Description: "Member values read as missing for lying outside the declared range (never clamped); emitted only when a range is declared (scale_min / scale_max or a kind \"scale\" vector's bounds)."},
+				descriptor.ComponentKey{Name: "n_rows_out_of_range", Type: "int", Optional: true,
+					Description: "Rows holding at least one out-of-range member value; emitted only when a range is declared."},
+			),
 		},
 	}
 }

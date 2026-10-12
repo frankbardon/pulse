@@ -835,9 +835,19 @@ func (a attrTwoPass) PrePass(rec *processing.Record, field string) error {
 
 func (a attrTwoPass) Finalize() error { return a.two.Finalize() }
 
+// attrMeta synthesizes processing.MetaAttribute from the
+// registration's ComponentsFunc.
+type attrMeta struct {
+	inner extend.AttributeComputer
+	emit  AttributeComponentsFunc
+}
+
+func (a attrMeta) Components() (map[string]any, error) { return a.emit(a.inner) }
+
 // One wrapper per capability tier: buffered, (R)ow-local, (T)wo-pass.
 // TwoPassAttribute embeds RowLocalAttribute, so the tiers nest and
-// there is no fourth combination.
+// there is no fourth combination. The M variants add MetaAttribute
+// (a registration with a ComponentsFunc).
 type (
 	attrAdapted  struct{ attrCore }
 	attrAdaptedR struct {
@@ -849,23 +859,49 @@ type (
 		attrRow
 		attrTwoPass
 	}
+	attrAdaptedM struct {
+		attrCore
+		attrMeta
+	}
+	attrAdaptedRM struct {
+		attrCore
+		attrRow
+		attrMeta
+	}
+	attrAdaptedTM struct {
+		attrCore
+		attrRow
+		attrTwoPass
+		attrMeta
+	}
 )
 
 // adaptAttribute wraps an extend.AttributeComputer so the engine's
 // RowLocalAttribute / TwoPassAttribute assertions succeed iff the
-// embedder value implements the matching extend sibling. ExtensionAware
-// is engine-only and never forwarded.
-func adaptAttribute(inner extend.AttributeComputer, wt *slotWeighting) processing.AttributeComputer {
+// embedder value implements the matching extend sibling, and
+// MetaAttribute iff emit is non-nil. ExtensionAware is engine-only and
+// never forwarded.
+func adaptAttribute(inner extend.AttributeComputer, wt *slotWeighting, emit AttributeComponentsFunc) processing.AttributeComputer {
 	core := attrCore{inner: inner, wt: wt}
 	var view *rowView
 	if wt != nil {
 		view = &rowView{s: wt}
 	}
+	meta := attrMeta{inner: inner, emit: emit}
 	if two, ok := inner.(extend.TwoPassAttribute); ok {
+		if emit != nil {
+			return &attrAdaptedTM{core, attrRow{row: two, view: view}, attrTwoPass{two: two, view: view}, meta}
+		}
 		return &attrAdaptedT{core, attrRow{row: two, view: view}, attrTwoPass{two: two, view: view}}
 	}
 	if row, ok := inner.(extend.RowLocalAttribute); ok {
+		if emit != nil {
+			return &attrAdaptedRM{core, attrRow{row: row, view: view}, meta}
+		}
 		return &attrAdaptedR{core, attrRow{row: row, view: view}}
+	}
+	if emit != nil {
+		return &attrAdaptedM{core, meta}
 	}
 	return &attrAdapted{core}
 }
@@ -873,7 +909,7 @@ func adaptAttribute(inner extend.AttributeComputer, wt *slotWeighting) processin
 // adaptAttributeFactory turns a registration's extend factory into the
 // engine factory. A nil instance passes through as nil.
 func adaptAttributeFactory(reg AttributeRegistration) processing.AttributeFactory {
-	inner, aware := reg.Factory, reg.WeightAware
+	inner, aware, emit := reg.Factory, reg.WeightAware, reg.ComponentsFunc
 	return func(attr *types.Attribute, schema *encoding.Schema) (processing.AttributeComputer, error) {
 		instance, err := inner(attr, schema)
 		if err != nil {
@@ -886,7 +922,7 @@ func adaptAttributeFactory(reg AttributeRegistration) processing.AttributeFactor
 		if attr != nil {
 			wt = newSlotWeighting(aware, attr.Weight)
 		}
-		return adaptAttribute(instance, wt), nil
+		return adaptAttribute(instance, wt, emit), nil
 	}
 }
 

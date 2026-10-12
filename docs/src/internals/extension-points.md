@@ -341,8 +341,17 @@ snapshot.
 `extend.AttributeComputer` (`Compute(rows extend.Rows, field)
 ([]float64, error)`, one value per row, aligned with `rows`). The probe
 asserts the `extend` sibling on the factory's own value; the adapter
-forwards exactly the tier it implements. Attributes do NOT declare a
-`ComponentSchema` (see the table in the **Component schemas** section).
+forwards exactly the tier it implements. An attribute MAY declare a
+`ComponentSchema` + `ComponentsFunc` (`pulse.AttributeComponentsFunc`,
+called once after the attribute scored every filter-passing row): its
+slot then carries one `Response.Components.Attributes` entry — the
+attribute floor `{n, n_null}` (rows whose output is present / null,
+filled by the orchestrator) plus the emitter's keys as `operator`. Only
+the registration-level `ComponentsFunc` emits; a value's own
+`Components()` method is not consulted for attributes. Such an
+attribute is never admitted to the parallel reducers or
+`ProcessChain`, whatever its `Mode` — one instance per worker would
+leave figures no merge folds — so a request carrying it runs serial.
 `Mode` also picks the run-time drive on `Process`: `row_local` streams
 through `Row`, `two_pass` takes the streaming `PrePass` → `Finalize` →
 `Row` drive, `buffered` runs `Compute` over the materialised rows. Like
@@ -555,9 +564,12 @@ to detect inside the chain.
 alongside `Response.Data`. Every aggregator, grouper, and filterer in
 a request lands a typed map under
 `Response.Components.Aggregations[i].Operator`, `.Groupers[i].Operator`,
-or `.Filterers[i].Operator`. Embedder-registered operators participate
+or `.Filterers[i].Operator`, and an attribute whose operator declares a
+schema lands one under `.Attributes[j].Operator` (keyed by `label` +
+`type`, not by slot index). Embedder-registered operators participate
 via two coupled optional fields on `AggregatorRegistration`,
-`GrouperRegistration`, and `FiltererRegistration`. The universal
+`GrouperRegistration`, `FiltererRegistration` and
+`AttributeRegistration`. The universal
 contract — typed shells, floor keys, additive `omitempty` shape —
 lives in
 [`skills/response-components.md`](https://github.com/frankbardon/pulse/blob/main/internal/skills/response-components.md);
@@ -570,7 +582,7 @@ this section covers only the extension-side wiring.
 | Aggregator | Yes | Universal floor `{n, n_null}` filled by orchestrator. |
 | Grouper | Yes | Universal floor `{total_n, n_null}` filled by orchestrator. |
 | Filterer | Yes (floor-only valid) | Universal floor `{n_in, n_out, n_null_input}` filled by orchestrator; in v1 no built-in filterer adds operator-specific keys. |
-| Attribute | No | Attributes do not flow into `Response.Components`. |
+| Attribute | Optional | Only a registration with a `ComponentsFunc` emits a `Response.Components.Attributes` entry; attribute floor `{n, n_null}` (present / null outputs) filled by orchestrator; no weighted floor keys. Built-in example: `ATTR_SCALE_SCORE` (`n_out_of_range`, `n_rows_out_of_range`). |
 | Window | No | Window outputs land in `Response.Data` rows. |
 | Feature | No | Pre-filter; no components surface. |
 | Test | No | Test results carry their own typed shape. |

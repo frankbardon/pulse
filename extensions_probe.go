@@ -420,9 +420,51 @@ func probeAttributes(regs []AttributeRegistration) error {
 				// AttributeComputer is the minimum interface; the factory
 				// signature already enforces this at compile time.
 			}
+			if weighted {
+				continue
+			}
+			if err := verifyComponentSchemaPresence(
+				"attribute", string(reg.Name), reg.ComponentSchema, reg.ComponentsFunc != nil,
+			); err != nil {
+				return err
+			}
+			if reg.ComponentsFunc == nil {
+				continue
+			}
+			emitted, err := safeInvokeAttributeComponents(reg, instance)
+			if err != nil {
+				return err
+			}
+			if err := verifyComponentKeysSubset("attribute", string(reg.Name), reg.ComponentSchema, emitted); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+// safeInvokeAttributeComponents mirrors safeInvokeFiltererComponents
+// for attribute registrations: the emitter runs once against the probe
+// instance (which has scored no row).
+func safeInvokeAttributeComponents(reg AttributeRegistration, instance extend.AttributeComputer) (out map[string]any, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_FACTORY_PANIC,
+				fmt.Sprintf("attribute %q ComponentsFunc panicked during probe-validation: %v", reg.Name, r),
+				map[string]any{"category": "attribute", "name": string(reg.Name), "panic": fmt.Sprintf("%v", r)},
+			)
+		}
+	}()
+	out, err = reg.ComponentsFunc(instance)
+	if err != nil {
+		return nil, errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_FACTORY_PANIC,
+			fmt.Sprintf("attribute %q ComponentsFunc returned error during probe-validation: %v", reg.Name, err),
+			map[string]any{"category": "attribute", "name": string(reg.Name), "components_error": err.Error()},
+		)
+	}
+	return out, nil
 }
 
 // probeTests constructs every WeightAware test factory (tier 1 or tier

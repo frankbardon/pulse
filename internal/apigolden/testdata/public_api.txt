@@ -23,6 +23,7 @@ pulse: type AggregatorRegistration field Params []pulse.ParamMeta
 pulse: type AggregatorRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type AggregatorRegistration field Streamable bool
 pulse: type AggregatorRegistration field WeightAware bool
+pulse: type AttributeComponentsFunc func(instance pulse/extend.AttributeComputer) (map[string]any, error)
 pulse: const AttributeEmitBool pulse.AttributeEmitType = "bool"
 pulse: const AttributeEmitFloat64 pulse.AttributeEmitType = "float64"
 pulse: const AttributeEmitString pulse.AttributeEmitType = "string"
@@ -33,6 +34,8 @@ pulse: const AttributeModeRowLocal pulse.AttributeMode = "row_local"
 pulse: const AttributeModeTwoPass pulse.AttributeMode = "two_pass"
 pulse: type AttributeRegistration struct
 pulse: type AttributeRegistration field Accepts []pulse/encoding.FieldType
+pulse: type AttributeRegistration field ComponentSchema pulse/descriptor.ComponentSchema
+pulse: type AttributeRegistration field ComponentsFunc pulse.AttributeComponentsFunc
 pulse: type AttributeRegistration field DependsOn []string
 pulse: type AttributeRegistration field Description string
 pulse: type AttributeRegistration field Emits pulse.AttributeEmitType
@@ -1161,6 +1164,7 @@ pulse/descriptor: type ComponentsMergeability = pulse/types.ComponentsMergeabili
 pulse/descriptor: type ComponentsMergeability underlying string
 pulse/descriptor: type ComponentsSchemasBlock struct
 pulse/descriptor: type ComponentsSchemasBlock field Aggregators map[string]pulse/descriptor.ComponentSchema "json:\"aggregators,omitempty\""
+pulse/descriptor: type ComponentsSchemasBlock field Attributes map[string]pulse/descriptor.ComponentSchema "json:\"attributes,omitempty\""
 pulse/descriptor: type ComponentsSchemasBlock field Filterers map[string]pulse/descriptor.ComponentSchema "json:\"filterers,omitempty\""
 pulse/descriptor: type ComponentsSchemasBlock field Groupers map[string]pulse/descriptor.ComponentSchema "json:\"groupers,omitempty\""
 pulse/descriptor: type ComponentsSchemasBlock field Matrices map[string]pulse/descriptor.ComponentSchema "json:\"matrices,omitempty\""
@@ -3927,6 +3931,13 @@ pulse/types: type Attribute field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Attribute field Type pulse/types.AttributeType "json:\"type\""
 pulse/types: type Attribute field Vector string "json:\"vector,omitempty\""
 pulse/types: type Attribute field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
+pulse/types: type AttributeComponents struct
+pulse/types: type AttributeComponents field Label string "json:\"label\""
+pulse/types: type AttributeComponents field N int "json:\"n\""
+pulse/types: type AttributeComponents field NNull int "json:\"n_null\""
+pulse/types: type AttributeComponents field Operator map[string]any "json:\"operator,omitempty\""
+pulse/types: type AttributeComponents field Type pulse/types.AttributeType "json:\"type\""
+pulse/types: type AttributeComponents method (AttributeComponents) MarshalJSON() ([]byte, error)
 pulse/types: type AttributeType string
 pulse/types: type AttributeType method (AttributeType) Streamable() bool
 pulse/types: func AutoHACLags(n int) int
@@ -4713,6 +4724,7 @@ pulse/types: type Response field Warnings []*pulse/types.ResponseWarning "json:\
 pulse/types: type Response method (Response) MarshalJSON() ([]byte, error)
 pulse/types: type ResponseComponents struct
 pulse/types: type ResponseComponents field Aggregations []pulse/types.AggregationComponents "json:\"aggregations,omitempty\""
+pulse/types: type ResponseComponents field Attributes []pulse/types.AttributeComponents "json:\"attributes,omitempty\""
 pulse/types: type ResponseComponents field Crosstab *pulse/types.CrosstabComponents "json:\"crosstab,omitempty\""
 pulse/types: type ResponseComponents field Filterers []pulse/types.FiltererComponents "json:\"filterers,omitempty\""
 pulse/types: type ResponseComponents field Groupers []pulse/types.GrouperComponents "json:\"groupers,omitempty\""
@@ -4902,4 +4914,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 99f768d7b9453ccd8dd1aa7855eaa82fcbd9ef8eb42eca0294e97f36435e332c
+// golden-hash: af005311c4861ad6fbce5940a939e830d25bd4f8161817d862bea95504224e27
