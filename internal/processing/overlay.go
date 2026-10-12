@@ -386,6 +386,11 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 		if cerr := overlayhost.Refusal(overlayhost.Request, spec.Kind, route, i); cerr != nil {
 			return nil, nil, cerr
 		}
+		// A SERIES-only kind handed to this MATRIX loop: the shared
+		// wrong-shape refusal, not PULSE_OVERLAY_KIND_UNKNOWN.
+		if cerr := overlayhost.ShapeRefusal(types.OverlayShapeMatrix, spec.Kind, route, i); cerr != nil {
+			return nil, nil, cerr
+		}
 		if err := validateOverlayLevelWithinRuntime(spec, route, host, i); err != nil {
 			return nil, nil, err
 		}

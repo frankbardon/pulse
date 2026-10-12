@@ -4,12 +4,11 @@ import (
 	"encoding/json"
 	"sort"
 
-	exprast "github.com/expr-lang/expr/ast"
 	exprparser "github.com/expr-lang/expr/parser"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/exprbuiltins"
+	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -51,8 +50,9 @@ import (
 //
 // Slot-namespace handling: `slot.<label>.<field>` member chains are
 // rejected at this validator (Request-host has no Compose slots).
-// The Compose-side validator passes a non-nil `composeLabels` set so
-// the same helpers accept slot identifiers against that set instead.
+// The Compose-side gate (validateComposeFormula →
+// formulaident.ComposeRefusal, which the runtime Compose dispatcher
+// also calls) accepts them against the slots the spec names.
 //
 // Structural invariants (CLAUDE.md "Predict / Inspect contracts" +
 // "What NOT to Do"):
@@ -79,10 +79,9 @@ import (
 // entries, and FORMULA has no Ref / Scope contract worth gating
 // further beyond the namespace check).
 //
-// `composeLabels` is reserved for the Compose-host re-entry point and
-// MUST be nil for the Request-host dispatch — Compose slot identifiers
-// are rejected against a nil set so `slot.<label>.cell` on
-// Request.Overlays surfaces `PULSE_OVERLAY_FORMULA_INVALID_IDENT`.
+// Compose slot identifiers are always rejected here, so
+// `slot.<label>.cell` on Request.Overlays surfaces
+// `PULSE_OVERLAY_FORMULA_INVALID_IDENT`.
 func validateFormulaOverlay(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
 	formula, ok := extractFormulaParamPredict(env, spec, index)
 	if !ok {
@@ -114,31 +113,12 @@ func validateFormulaOverlay(env *descriptor.Envelope, req *types.Request, spec *
 	allowedVars := buildFormulaAllowedVarsRequest(hostShape, spec)
 	allowedFuncs := buildFormulaAllowedFuncs(opts)
 
-	// Two-pass traversal: pre-pass collects IdentifierNode pointers
-	// acting as call callees and as MemberNode roots (e.g. the leading
-	// `slot` in `slot.foo.cell`) so the main walk can SKIP them when
-	// it visits IdentifierNode leaves directly. `exprast.Walk` is
-	// post-order — children visit BEFORE their parents — so an in-walk
-	// "am I a memberRoot?" check would race the parent MemberNode's
-	// Visit. The pre-pass fixes the ordering.
-	pre := &formulaIdentPrescan{
-		callees:      map[*exprast.IdentifierNode]struct{}{},
-		memberRoots:  map[*exprast.IdentifierNode]struct{}{},
-		innerMembers: map[*exprast.MemberNode]struct{}{},
-	}
-	exprast.Walk(&tree.Node, pre)
+	// The shared walk (internal/formulaident.Collect) splits variables,
+	// called functions and `slot.<label>.<field>` paths — the one the
+	// Compose gate (formulaident.ComposeRefusal) reads on both sides.
+	refs := formulaident.Collect(&tree.Node)
 
-	visitor := &formulaIdentVisitor{
-		variables:    map[string]struct{}{},
-		funcs:        map[string]struct{}{},
-		slotPaths:    map[string]struct{}{},
-		callees:      pre.callees,
-		memberRoots:  pre.memberRoots,
-		innerMembers: pre.innerMembers,
-	}
-	exprast.Walk(&tree.Node, visitor)
-
-	for ident := range visitor.variables {
+	for ident := range refs.Vars {
 		if _, ok := allowedVars[ident]; ok {
 			continue
 		}
@@ -154,7 +134,7 @@ func validateFormulaOverlay(env *descriptor.Envelope, req *types.Request, spec *
 			})
 		return
 	}
-	for fn := range visitor.funcs {
+	for fn := range refs.Funcs {
 		if _, ok := allowedFuncs[fn]; ok {
 			continue
 		}
@@ -174,7 +154,7 @@ func validateFormulaOverlay(env *descriptor.Envelope, req *types.Request, spec *
 	// because the Compose slot namespace is meaningless without a
 	// ComposedRequest. The Compose-side validator handles its own
 	// member-chain dispatch and never calls this Request-host helper.
-	for slotIdent := range visitor.slotPaths {
+	for slotIdent := range refs.SlotPaths {
 		env.AddError(string(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT),
 			"overlay "+string(spec.Kind)+" formula references Compose slot "+slotIdent+" on a Request host (slot namespace is Compose-only)",
 			map[string]any{
@@ -340,27 +320,15 @@ func hasBaselinePosition(spec *types.OverlaySpec) bool {
 // set_xor) always, and `lookup` when the instance registers any
 // LookupTable.
 func buildFormulaAllowedFuncs(opts *PredictOptions) map[string]struct{} {
-	out := map[string]struct{}{}
-	for _, name := range exprbuiltins.OverlayNames() {
-		out[name] = struct{}{}
-	}
-	for _, name := range exprbuiltins.SetHelperNames() {
-		out[name] = struct{}{}
-	}
 	snap := extensionsFromOpts(opts)
 	if snap == nil {
-		return out
+		return formulaident.AllowedFuncs(nil, false)
 	}
+	names := make([]string, 0, len(snap.ExprFunctions))
 	for _, fn := range snap.ExprFunctions {
-		if fn.Name == "" {
-			continue
-		}
-		out[fn.Name] = struct{}{}
+		names = append(names, fn.Name)
 	}
-	if len(snap.LookupTables) > 0 {
-		out["lookup"] = struct{}{}
-	}
-	return out
+	return formulaident.AllowedFuncs(names, len(snap.LookupTables) > 0)
 }
 
 // sortedStringSet returns the sorted keys of `set` as a freshly
@@ -376,188 +344,5 @@ func sortedStringSet(set map[string]struct{}) []string {
 		out = append(out, k)
 	}
 	sort.Strings(out)
-	return out
-}
-
-// formulaIdentPrescan is the pre-walk pass that collects the
-// IdentifierNode pointers acting as MemberNode roots and CallNode
-// callees so the main walk can skip them.
-//
-// `exprast.Walk` is POST-ORDER: children visit before their parent.
-// Without this pre-pass the leaf IdentifierNode("slot") would record
-// itself in `variables` BEFORE the outer MemberNode("slot.foo.cell")
-// could classify it as a member-chain root, producing duplicate error
-// noise on every Compose slot reference. The pre-pass walks the tree
-// once and stamps every IdentifierNode pointer that participates as a
-// MemberNode root or a CallNode callee, then the main visitor consults
-// the stamps to filter the IdentifierNode arm.
-type formulaIdentPrescan struct {
-	callees     map[*exprast.IdentifierNode]struct{}
-	memberRoots map[*exprast.IdentifierNode]struct{}
-	// innerMembers tracks MemberNode pointers that appear as the
-	// `Node` field of ANOTHER MemberNode — they are inner segments of
-	// a longer member chain, not the chain's outermost node. The
-	// visitor's MemberNode arm only emits a slot path when the
-	// MemberNode is NOT inner, so a `slot.foo.cell` expression emits
-	// exactly one slot path ("slot.foo.cell") instead of two
-	// ("slot.foo" + "slot.foo.cell").
-	innerMembers map[*exprast.MemberNode]struct{}
-}
-
-func (p *formulaIdentPrescan) Visit(node *exprast.Node) {
-	if node == nil || *node == nil {
-		return
-	}
-	switch n := (*node).(type) {
-	case *exprast.CallNode:
-		if id, ok := n.Callee.(*exprast.IdentifierNode); ok {
-			p.callees[id] = struct{}{}
-		}
-	case *exprast.MemberNode:
-		if root, _, ok := flattenMemberChain(n); ok {
-			p.memberRoots[root] = struct{}{}
-		}
-		// Stamp the inner MemberNode (if any) so the visitor only
-		// emits the OUTERMOST chain root's path.
-		if inner, ok := n.Node.(*exprast.MemberNode); ok {
-			p.innerMembers[inner] = struct{}{}
-		}
-	}
-}
-
-// formulaIdentVisitor is the main AST walker `validateFormulaOverlay`
-// uses to collect identifier references. The visitor distinguishes
-// three surfaces per the research note § 3.1:
-//
-//  1. Plain identifier (`IdentifierNode`) NOT acting as a call callee
-//     OR a MemberNode root → variable reference. Surfaces in
-//     `variables`.
-//  2. Identifier acting as a call callee (`CallNode.Callee` is an
-//     `IdentifierNode`) → function reference. Surfaces in `funcs`.
-//  3. Member chain rooted at the `slot` identifier
-//     (`MemberNode` rooted at `IdentifierNode("slot")`) → Compose slot
-//     reference. Surfaces in `slotPaths` as the flattened dotted
-//     string (e.g. `slot.us.cell`). Member chains rooted at any other
-//     identifier are silently ignored (the root IdentifierNode is
-//     skipped via `memberRoots` — this matches expr-lang's compile-
-//     time env-validation policy where a `foo.bar` field-style access
-//     is governed by the same identifier table as `foo`).
-//
-// `BuiltinNode` references (`len(foo)` / `min(...)`) are NOT recorded
-// in either set — expr-lang's parser routes stdlib helpers through a
-// distinct node type so they bypass the validator's allowed-funcs
-// check.
-//
-// The visitor uses three maps (instead of one slice each) so the
-// per-spec error path emits ONE coded error per offending identifier
-// without duplicating the same identifier surfaced via multiple AST
-// nodes (a formula referencing `cell + cell - cell` records `cell`
-// once, not three times).
-type formulaIdentVisitor struct {
-	variables map[string]struct{}
-	funcs     map[string]struct{}
-	slotPaths map[string]struct{}
-
-	// callees / memberRoots / innerMembers are populated by the prescan
-	// above. The visitor consults them to filter IdentifierNode visits
-	// that would otherwise duplicate the call-callee / member-chain
-	// surfaces and to emit one slot path per OUTERMOST chain.
-	callees      map[*exprast.IdentifierNode]struct{}
-	memberRoots  map[*exprast.IdentifierNode]struct{}
-	innerMembers map[*exprast.MemberNode]struct{}
-}
-
-func (v *formulaIdentVisitor) Visit(node *exprast.Node) {
-	if node == nil || *node == nil {
-		return
-	}
-	switch n := (*node).(type) {
-	case *exprast.CallNode:
-		if id, ok := n.Callee.(*exprast.IdentifierNode); ok {
-			v.funcs[id.Value] = struct{}{}
-		}
-	case *exprast.MemberNode:
-		// Skip inner segments of a longer chain — only the OUTERMOST
-		// MemberNode emits the full dotted path. Without this skip a
-		// `slot.foo.cell` would emit both "slot.foo" and
-		// "slot.foo.cell" as separate slot references.
-		if _, inner := v.innerMembers[n]; inner {
-			return
-		}
-		// Only surface member chains rooted at `slot` — every other
-		// MemberNode chain is governed by the same identifier table
-		// as its root IdentifierNode, so the root's IdentifierNode
-		// visit will fire the allowed-vars check on the root's name.
-		root, path, ok := flattenMemberChain(n)
-		if !ok {
-			return
-		}
-		if root.Value == "slot" {
-			v.slotPaths[path] = struct{}{}
-		}
-	case *exprast.IdentifierNode:
-		if _, isCallee := v.callees[n]; isCallee {
-			return
-		}
-		if _, isRoot := v.memberRoots[n]; isRoot {
-			return
-		}
-		v.variables[n.Value] = struct{}{}
-	}
-}
-
-// flattenMemberChain walks a MemberNode chain and returns
-// (rootIdentifier, dotted-path, ok). The chain `slot.foo.cell` is
-// represented in expr-lang as:
-//
-//	MemberNode{
-//	  Node:     MemberNode{
-//	    Node:     IdentifierNode("slot"),
-//	    Property: StringNode("foo"),
-//	  },
-//	  Property: StringNode("cell"),
-//	}
-//
-// The function unwinds the chain, returning the root
-// IdentifierNode("slot") and the flattened path "slot.foo.cell". The
-// `ok` flag is false when the chain root is not a single
-// IdentifierNode (e.g. a chain rooted at a CallNode such as
-// `foo().bar` is not a flattenable slot reference).
-//
-// Used by the visitor's MemberNode arm to recognise Compose
-// `slot.<label>.<field>` member-chain identifiers BEFORE the walker
-// reaches the chain's IdentifierNode leaves and double-emits them.
-func flattenMemberChain(n *exprast.MemberNode) (*exprast.IdentifierNode, string, bool) {
-	parts := []string{}
-	cur := exprast.Node(n)
-	for {
-		switch node := cur.(type) {
-		case *exprast.MemberNode:
-			if str, ok := node.Property.(*exprast.StringNode); ok {
-				parts = append([]string{str.Value}, parts...)
-			} else {
-				return nil, "", false
-			}
-			cur = node.Node
-		case *exprast.IdentifierNode:
-			parts = append([]string{node.Value}, parts...)
-			return node, joinDottedPath(parts), true
-		default:
-			return nil, "", false
-		}
-	}
-}
-
-// joinDottedPath joins identifier parts with "." separators —
-// stdlib-free so the helper does not pull in `strings` for one call
-// site.
-func joinDottedPath(parts []string) string {
-	if len(parts) == 0 {
-		return ""
-	}
-	out := parts[0]
-	for i := 1; i < len(parts); i++ {
-		out += "." + parts[i]
-	}
 	return out
 }

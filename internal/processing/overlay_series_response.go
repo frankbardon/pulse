@@ -93,11 +93,12 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 	if req == nil || len(req.Overlays) == 0 || !compute.Overlays {
 		return nil
 	}
-	// A Compose, whole-chain or FACET kind on Request.Overlays — the
-	// shared wrong-slot refusal predict raises first (ValidateOverlays),
-	// ahead of every shape and payload guard below so an ungrouped or
-	// empty result refuses it too.
-	if err := refuseWrongHostOverlays(req.Overlays, exts, compute.overlayKeep()); err != nil {
+	// A Compose, whole-chain or FACET kind on Request.Overlays, or a
+	// kind over the wrong Process shape (a MATRIX-only kind on a grouped
+	// request) — the shared wrong-slot / wrong-shape refusals predict
+	// raises first (ValidateOverlays), ahead of every shape and payload
+	// guard below so an ungrouped or empty result refuses it too.
+	if err := refuseWrongHostOverlays(req, exts, compute.overlayKeep()); err != nil {
 		return err
 	}
 	if req.Crosstab != nil {
@@ -384,9 +385,10 @@ func canStreamOverlays(req *types.Request, exts *ExtensionRegistry) bool {
 		if !known {
 			return false
 		}
-		// A kind that does not run on a Process host routes buffered,
-		// whose hook raises the wrong-slot refusal.
-		if !overlayhost.Accepts(overlayhost.Request, route) {
+		// A kind that does not run on a Process host, or not on this
+		// request's Process shape, routes buffered, whose hook raises
+		// the wrong-slot / wrong-shape refusal.
+		if !overlayhost.Accepts(overlayhost.Request, route) || !overlayhost.AcceptsShape(AuthoredHostShape(req), route) {
 			return false
 		}
 		if !streamable {

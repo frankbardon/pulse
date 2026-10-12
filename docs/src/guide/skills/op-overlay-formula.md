@@ -26,29 +26,24 @@ Use something else:
 
 ## Params
 
-`Scope` required — `cell` (MATRIX) / `group` (SERIES) / `total` (SCALAR). `params.formula` required — an `expr-lang/expr` expression. `params.baseline_position` (int, optional) — SERIES only, opts in the `baseline` variable.
+`Scope` — `cell` (MATRIX) / `group` (SERIES) / `total` (SCALAR). `params.formula` required — an `expr-lang/expr` expression.
 
 ## Host shape
 
-ANY shape. Per-shape namespace via `types.FormulaNamespace`:
-
-- MATRIX: `cell`, `margin_row|col|grand`, `sd_row|col|grand` (+ `ref_cell` on Compose).
-- SERIES: `value`, `total`, `prior` (+ opt-in `baseline`, `ref_value` on Compose).
-- SCALAR: `value` (+ `ref` on Compose).
+`Request.Overlays`: a crosstab only (`cell`, `margin_row|col|grand`, `sd_row|col|grand`); a grouped request is `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`details.shapes`). Compose: the first target, any shape of the reference — MATRIX adds `ref_cell`; SERIES `value`, `total`, `prior`, `ref_value`; SCALAR `value`, `ref`; plus `slot.<label>.cell|value` for the reference and targets, aligned by key (missing → NaN → null).
 
 ## Output
 
-Shape matches host; each evaluation yields one `float64`. Layer `Baseline` unset.
+Shape matches host; one `float64` per evaluation. No `Baseline`.
 
 ## Gotchas
 
-- Compile-once / run-many via `expr.Compile`.
-- Predict-time AST walk validates identifiers; unknown → `PULSE_OVERLAY_FORMULA_INVALID_IDENT` + allowed set.
+- Predict refuses an identifier, function or slot path outside the namespace — `PULSE_OVERLAY_FORMULA_INVALID_IDENT` + allowed set; a Compose host refuses it identically at runtime.
 - Parse error → `PULSE_OVERLAY_FORMULA_PARSE_ERROR`; non-coercible result → `PULSE_OVERLAY_FORMULA_TYPE_MISMATCH`.
-- Embedder `ExprFunctions` widen the function surface; variables are fixed per host shape (widen via a custom `OverlayKinds` entry). `lookup(...)` needs a registered LookupTable.
+- Embedder `ExprFunctions` widen functions, never variables. `lookup(...)` needs a LookupTable.
 - Built-ins: scalar `sqrt` / `log` / `exp` / `pow` and the set helpers; the vector functions (`vmean`, `dot`, ...) are `PULSE_OVERLAY_FORMULA_INVALID_IDENT` on predict (request and Compose hosts) and runtime.
-- `total(expr)` is a formula-attribute-only function: calling it here (Compose host included) is `PULSE_FORMULA_TOTAL_SITE` on predict and runtime. Use the `total` variable (SERIES) instead.
-- Buffered at v1 (margins / totals / SDs need post-fold state).
+- `total(expr)` is `PULSE_FORMULA_TOTAL_SITE` here; use the `total` variable (SERIES).
+- Buffered (margins / totals / SDs are post-fold).
 
 ## See
 

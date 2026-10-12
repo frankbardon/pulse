@@ -476,9 +476,24 @@ func applyFormulaWithExtensions(spec *types.OverlaySpec, host *CrosstabHostView,
 		GrandSD:    grandSD,
 	}
 
-	program, err := compileFormulaProgramWithExtensions(spec, formula, buildFormulaPrototypeEnvMatrix(ctx), exts)
+	layer, err := runFormulaMatrix(spec, formula, ctx, exts)
 	if err != nil {
 		return types.OverlayLayer{}, nil, err
+	}
+	return layer, nil, nil
+}
+
+// runFormulaMatrix compiles formula against ctx's MATRIX prototype env
+// and evaluates it once per present host cell (ctx.MatrixHost), with
+// every other namespace slot — margins, SDs, and on a Compose host
+// ref_cell and the slot map — read off ctx. Shared by the Request-host
+// handler and the Compose-host one (applyComposeFormula), so both
+// evaluate a cell identically.
+func runFormulaMatrix(spec *types.OverlaySpec, formula string, ctx *FormulaContext, exts *ExtensionRegistry) (types.OverlayLayer, error) {
+	host := ctx.MatrixHost
+	program, err := compileFormulaProgramWithExtensions(spec, formula, buildFormulaPrototypeEnvMatrix(ctx), exts)
+	if err != nil {
+		return types.OverlayLayer{}, err
 	}
 
 	rowCount := host.RowCount()
@@ -507,7 +522,7 @@ func applyFormulaWithExtensions(spec *types.OverlaySpec, host *CrosstabHostView,
 
 			out, runErr := expr.Run(program.program, env)
 			if runErr != nil {
-				return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+				return types.OverlayLayer{}, errors.NewCodedErrorWithDetails(
 					errors.PULSE_OVERLAY_FORMULA_TYPE_MISMATCH,
 					"overlay "+string(spec.Kind)+" expression evaluation failed",
 					map[string]any{
@@ -520,7 +535,7 @@ func applyFormulaWithExtensions(spec *types.OverlaySpec, host *CrosstabHostView,
 			}
 			stat, ok := coerceFormulaResult(out)
 			if !ok {
-				return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+				return types.OverlayLayer{}, errors.NewCodedErrorWithDetails(
 					errors.PULSE_OVERLAY_FORMULA_TYPE_MISMATCH,
 					"overlay "+string(spec.Kind)+" expression returned a non-numeric value",
 					map[string]any{
@@ -595,7 +610,7 @@ func applyFormulaWithExtensions(spec *types.OverlaySpec, host *CrosstabHostView,
 	}
 	layer.Summary = summary
 
-	return layer, nil, nil
+	return layer, nil
 }
 
 // extractFormulaParam reads `OverlaySpec.Params["formula"]` as a

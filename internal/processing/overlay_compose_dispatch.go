@@ -139,6 +139,7 @@ var composeOverlayHandlers = map[types.OverlayKind]composeOverlayHandler{
 	types.OverlayKindZVsRef:     applyZVsRef,
 	types.OverlayKindChiSqVsRef: applyChiSqVsRef,
 	types.OverlayKindRank:       applyRank,
+	types.OverlayKindFormula:    applyComposeFormula,
 }
 
 // composeOverlayMultiLayerHandlers is the per-kind dispatch table for
@@ -196,7 +197,9 @@ var composeOverlayMultiLayerHandlers = map[types.OverlayKind]composeOverlayMulti
 // Stub fallback: kinds without a registered handler route through
 // `applyComposeStub`, which emits a zero-payload OverlayLayer that
 // inherits the reference slot's host shape. The stub emits no
-// warnings and no per-coordinate values.
+// warnings and no per-coordinate values. Every catalog kind Compose
+// runs has a handler (OVERLAY_FORMULA since U46 E4-S15), so only a
+// kind outside the catalog — an embedder kind — reaches it.
 func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.Response, labels []string) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	return ApplyComposeOverlaysWithRequests(specs, responses, labels, nil, nil)
 }
@@ -371,6 +374,19 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 			if err := checkDictPrefixEquality(refResp, targetResps, *spec, i); err != nil {
 				return nil, nil, err
 			}
+		}
+		// OVERLAY_FORMULA reads each slot's AUTHORED shape and the
+		// instance's ExprFunctions, which the handler signature carries
+		// neither of: dispatch it here (its table entry serves the bare
+		// handler-signature path). Its identifier gate is the one
+		// predict-compose raises (formulaident.ComposeRefusal).
+		if route == types.OverlayKindFormula {
+			layer, _, err := applyComposeFormulaWith(spec, i, shapes, refResp, targetResps, exts)
+			if err != nil {
+				return nil, nil, err
+			}
+			layers = append(layers, layer)
+			continue
 		}
 		// Multi-layer dispatch runs FIRST — kinds in this table
 		// emit N layers per spec (one per target). The single-layer

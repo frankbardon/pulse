@@ -585,6 +585,7 @@ var overlayHostKinds = map[string][]string{
 		// composeOverlayHandlers.
 		"OVERLAY_CHISQ_VS_REF",
 		"OVERLAY_DELTA_VS_REF",
+		"OVERLAY_FORMULA",
 		"OVERLAY_INDEX_VS_REF",
 		"OVERLAY_PROP_Z_CELL",
 		"OVERLAY_PROP_Z_PANEL",

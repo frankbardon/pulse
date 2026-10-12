@@ -597,16 +597,10 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 		return descriptor.OverlayCapability{
 			Kind: types.OverlayKindFormula,
 			Shapes: []types.OverlayShape{
-				// FORMULA declares its full per-shape surface across
-				// MATRIX (evaluator spine + per-shape binder), SERIES
-				// (SERIES binder via grouped Process hosts), and SCALAR
-				// (SCALAR binder via whole-matrix p-value / whole-chain
-				// SCALAR hosts). Runtime dispatch is still MATRIX-only at
-				// v1 via internal/processing/overlay.go; the SERIES + SCALAR host
-				// glue lands in a follow-up story. Declaring the full
-				// shape surface here keeps the capability manifest aligned
-				// with the per-shape binders + the predict-time namespace
-				// tables FormulaNamespace serves.
+				// Every shape FORMULA computes on some slot: MATRIX on
+				// Request.Overlays (a crosstab — the one Process shape it
+				// runs on, overlayhost.Shapes) and on Compose; SERIES and
+				// SCALAR on ComposedRequest.Overlays (U46 E4-S15).
 				types.OverlayShapeMatrix,
 				types.OverlayShapeScalar,
 				types.OverlayShapeSeries,
@@ -644,25 +638,21 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// OverlayRef pointer at predict or runtime.
 			RefKinds: []string{},
 			Description: "Custom user-defined overlay via expr-lang formula; namespace varies by host shape; buffered-only. " +
-				"The handler compiles `OverlaySpec.Params[\"formula\"]` ONCE per spec via expr-lang/expr (the same " +
-				"evaluator that backs ATTR_FORMULA and FILTER_EXPRESSION — the scalar built-ins sqrt / log / exp / pow, the set helpers, lookup() with a registered LookupTable and embedder ExprFunctions registered at " +
-				"pulse.New time are reachable from FORMULA expressions with no additional registration) then runs " +
-				"the compiled program per cell / entry / scalar against a per-host-shape variable namespace " +
-				"(MATRIX hosts: cell, margin_row, margin_col, margin_grand, sd_row, sd_col, sd_grand; SERIES " +
-				"hosts: value, total, prior, baseline; SCALAR hosts: value; Compose hosts add the dotted " +
-				"`slot.<label>.{cell|value}` namespace tied to Request.Label). Compile-once / run-many: O(1) " +
-				"compile per overlay layer; O(cells) / O(entries) / O(1) run cost per evaluation. Return-type " +
-				"coercion: float64 / float32 / int / int64 widen natively; bool widens to 0.0 / 1.0; everything " +
-				"else fires PULSE_OVERLAY_FORMULA_TYPE_MISMATCH. Predict-time identifier validation walks " +
-				"the parsed AST via expr-lang/expr/parser + expr-lang/expr/ast and rejects every identifier not " +
-				"in the per-shape variable table (types.FormulaNamespace), sqrt / log / exp / pow, the set helpers, lookup() (with a LookupTable), or the embedder ExprFunctions function " +
-				"set with PULSE_OVERLAY_FORMULA_INVALID_IDENT. INHERENTLY BUFFERED at v1 across every host shape " +
-				"— the variable namespace depends on post-fold state (margins / totals / SDs are not available " +
-				"mid-stream); a streamable variant under a distinct kind constant may land in future work without " +
-				"re-opening this kind's contract. The MATRIX-host evaluator spine + the per-shape binder fill the " +
-				"full namespace across MATRIX / SERIES / SCALAR hosts. SERIES + SCALAR runtime host glue lands in " +
-				"a follow-up; this capability row declares the full per-shape surface for predict / " +
-				"manifest alignment.",
+				"The handler compiles `params.formula` ONCE per spec via expr-lang/expr (the same evaluator that backs " +
+				"ATTR_FORMULA and FILTER_EXPRESSION — the scalar built-ins sqrt / log / exp / pow, the set helpers, " +
+				"lookup() with a registered LookupTable and embedder ExprFunctions are reachable) then runs it per " +
+				"cell / entry / scalar against a per-host-shape namespace. On Request.Overlays it runs on a MATRIX " +
+				"(crosstab) host only — cell, margin_row, margin_col, margin_grand, sd_row, sd_col, sd_grand; a grouped " +
+				"request is refused PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (details.shapes). On ComposedRequest.Overlays " +
+				"the host is the first target slot, of the reference slot's shape: MATRIX adds ref_cell; SERIES binds " +
+				"value, total, prior and ref_value; SCALAR binds value and ref; every shape adds " +
+				"`slot.<label>.cell` (MATRIX) / `slot.<label>.value` for the reference and each target, aligned by key " +
+				"(no figure at a coordinate binds NaN, so the result is null). Return-type coercion: float64 / float32 " +
+				"/ int / int64 widen natively; bool widens to 0.0 / 1.0; anything else fires " +
+				"PULSE_OVERLAY_FORMULA_TYPE_MISMATCH. Predict walks the parsed AST and refuses every identifier, " +
+				"function or slot path outside that namespace with PULSE_OVERLAY_FORMULA_INVALID_IDENT; on a Compose host " +
+				"the runtime raises the same refusal before it compiles. INHERENTLY BUFFERED — margins, totals and SDs " +
+				"are post-fold state.",
 		}
 	case types.OverlayKindIndexVsBaseline:
 		return descriptor.OverlayCapability{

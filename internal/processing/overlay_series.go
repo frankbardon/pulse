@@ -515,6 +515,11 @@ func applyOverlaysSeriesPerSpec(specs []types.OverlaySpec, hostFor func(int, *ty
 		if cerr := overlayhost.Refusal(overlayhost.Request, spec.Kind, route, i); cerr != nil {
 			return nil, nil, cerr
 		}
+		// A MATRIX-only kind handed to this SERIES loop: the shared
+		// wrong-shape refusal, not PULSE_OVERLAY_KIND_UNKNOWN.
+		if cerr := overlayhost.ShapeRefusal(types.OverlayShapeSeries, spec.Kind, route, i); cerr != nil {
+			return nil, nil, cerr
+		}
 		handler, ok := seriesOverlayHandlers[route]
 		if !ok {
 			return nil, nil, errors.NewCodedErrorWithDetails(

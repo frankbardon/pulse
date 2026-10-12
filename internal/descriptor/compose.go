@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprbuiltins"
 	"github.com/frankbardon/pulse/internal/exprident"
+	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
@@ -775,6 +776,22 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 					"target_schema":    composeRequestSchemaCanonical(target.req),
 				})
 			appendComposeSlotPair(result, spec.Reference, target.label, "schema-divergent")
+		}
+	}
+
+	// Gate 5: a Compose OVERLAY_FORMULA reads only its namespace — the
+	// reference slot's shape variables, its ref variable and the
+	// `slot.<label>.<field>` paths of the slots it names. The runtime
+	// dispatcher (processing.applyComposeFormula) raises the same
+	// formulaident.ComposeRefusal before it compiles the formula.
+	if opts.overlayRoute(spec.Kind) == types.OverlayKindFormula {
+		slots := make([]formulaident.Slot, 0, 1+len(resolved))
+		slots = append(slots, formulaident.Slot{Label: spec.Reference, Shape: refShape})
+		for _, target := range resolved {
+			slots = append(slots, formulaident.Slot{Label: target.label, Shape: inferComposeSlotShape(target.req)})
+		}
+		if cerr := formulaident.ComposeRefusal(spec.Kind, spec.Params, specIdx, refShape, slots, buildFormulaAllowedFuncs(opts)); cerr != nil {
+			addCodedError(env, cerr)
 		}
 	}
 

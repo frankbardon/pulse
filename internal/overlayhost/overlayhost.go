@@ -13,8 +13,13 @@
 // layer). The processing-side test pins this table to the four runtime
 // handler tables, so it cannot drift from what actually executes.
 //
-// Within a Process host the MATRIX-versus-SERIES split stays with the
-// per-kind validators; this package judges the slot only.
+// Within a Process host (Request.Overlays) it also declares the host
+// SHAPE(s) each Process kind runs on — MATRIX (a crosstab), SERIES (a
+// grouped request with aggregations) or both — and owns the one
+// refusal a kind authored over the other shape gets (ShapeRefusal),
+// raised right after the slot refusal and before any per-kind rule, on
+// predict and runtime alike. The processing-side drift test pins the
+// shape table to the MATRIX and SERIES handler tables.
 //
 // Leaf: stdlib + types + errors. No-execute.
 package overlayhost
@@ -94,7 +99,7 @@ var hosts = map[types.OverlayKind][]Host{
 	types.OverlayKindYoY:                requestOnly,
 	types.OverlayKindZScoreVsRolling:    requestOnly,
 	types.OverlayKindZScoreVsTotal:      requestOnly,
-	// Both Process shapes and Compose.
+	// Process (MATRIX only — processShapes) and Compose.
 	types.OverlayKindFormula: {Request, Compose},
 	// Compose kinds.
 	types.OverlayKindChiSqVsRef:      composeOnly,
@@ -169,5 +174,112 @@ func Refusal(host Host, kind, route types.OverlayKind, index int) *errors.CodedE
 			"kind":  string(kind),
 			"host":  string(host),
 			"hosts": names,
+		})
+}
+
+var (
+	matrixOnly  = []types.OverlayShape{types.OverlayShapeMatrix}
+	seriesOnly  = []types.OverlayShape{types.OverlayShapeSeries}
+	bothProcess = []types.OverlayShape{types.OverlayShapeMatrix, types.OverlayShapeSeries}
+)
+
+// processShapes maps every kind that runs on Request.Overlays to the
+// Process host shapes it runs on, MATRIX first. OVERLAY_SHARE_OF_TOTAL
+// is the one kind with both. OVERLAY_FORMULA runs on a MATRIX Process
+// host only: its SERIES and SCALAR namespaces execute on a Compose host.
+var processShapes = map[types.OverlayKind][]types.OverlayShape{
+	types.OverlayKindChiSqCol:                  matrixOnly,
+	types.OverlayKindChiSqMatrix:               matrixOnly,
+	types.OverlayKindChiSqRow:                  matrixOnly,
+	types.OverlayKindDeltaVsMargin:             matrixOnly,
+	types.OverlayKindFisherExactCell:           matrixOnly,
+	types.OverlayKindFormula:                   matrixOnly,
+	types.OverlayKindIndexVsMargin:             matrixOnly,
+	types.OverlayKindPairwiseProbitT:           matrixOnly,
+	types.OverlayKindPairwisePropZ:             matrixOnly,
+	types.OverlayKindPairwiseTwoMeansZ:         matrixOnly,
+	types.OverlayKindPairwiseWeightedTwoMeansZ: matrixOnly,
+	types.OverlayKindPairwiseWelchT:            matrixOnly,
+	types.OverlayKindShareOfCol:                matrixOnly,
+	types.OverlayKindShareOfRow:                matrixOnly,
+	types.OverlayKindZScoreVsMargin:            matrixOnly,
+	types.OverlayKindDeltaVsBaseline:           seriesOnly,
+	types.OverlayKindDeltaVsPrior:              seriesOnly,
+	types.OverlayKindDeltaVsSibling:            seriesOnly,
+	types.OverlayKindIndexVsBaseline:           seriesOnly,
+	types.OverlayKindIndexVsPrior:              seriesOnly,
+	types.OverlayKindIndexVsRollingMean:        seriesOnly,
+	types.OverlayKindIndexVsSibling:            seriesOnly,
+	types.OverlayKindIndexVsTotal:              seriesOnly,
+	types.OverlayKindYoY:                       seriesOnly,
+	types.OverlayKindZScoreVsRolling:           seriesOnly,
+	types.OverlayKindZScoreVsTotal:             seriesOnly,
+	types.OverlayKindShareOfTotal:              bothProcess,
+}
+
+// Shapes returns the Process host shapes kind runs on, or nil for a
+// kind that does not run on Request.Overlays (or is outside the
+// catalog).
+func Shapes(kind types.OverlayKind) []types.OverlayShape {
+	return append([]types.OverlayShape(nil), processShapes[kind]...)
+}
+
+// AcceptsShape reports whether kind runs on a Process host of shape.
+// Only MATRIX and SERIES are judged: a SCALAR (ungrouped) host, a kind
+// outside the Process table (the slot refusal owns it) and a kind
+// outside the catalog are accepted here.
+func AcceptsShape(shape types.OverlayShape, kind types.OverlayKind) bool {
+	if shape != types.OverlayShapeMatrix && shape != types.OverlayShapeSeries {
+		return true
+	}
+	ss, known := processShapes[kind]
+	if !known {
+		return true
+	}
+	for _, s := range ss {
+		if s == shape {
+			return true
+		}
+	}
+	return false
+}
+
+// shapeHost names the request slot that makes a Process host shape.
+func shapeHost(shape types.OverlayShape) string {
+	if shape == types.OverlayShapeMatrix {
+		return "a matrix host (Request.Crosstab)"
+	}
+	return "a series host (Request.Groups + Request.Aggregations, no Request.Crosstab)"
+}
+
+// ShapeRefusal returns the wrong-shape refusal for the Request.Overlays
+// spec at index over a Process host of shape, or nil when kind runs on
+// it. route and kind follow Refusal.
+//
+// Code PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, Details
+// {index, kind, host, shape, shapes}: host is always "request", shape
+// the host shape authored, shapes every Process shape the kind runs on.
+func ShapeRefusal(shape types.OverlayShape, kind, route types.OverlayKind, index int) *errors.CodedError {
+	if AcceptsShape(shape, route) {
+		return nil
+	}
+	ss := processShapes[route]
+	names := make([]string, len(ss))
+	runs := ""
+	for i, s := range ss {
+		names[i] = string(s)
+		if i > 0 {
+			runs += " or "
+		}
+		runs += shapeHost(s)
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+		"overlay "+string(kind)+" does not run on a "+string(shape)+"-shape Request.Overlays host; it runs on "+runs,
+		map[string]any{
+			"index":  index,
+			"kind":   string(kind),
+			"host":   string(Request),
+			"shape":  string(shape),
+			"shapes": names,
 		})
 }

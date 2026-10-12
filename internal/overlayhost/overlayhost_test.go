@@ -111,3 +111,68 @@ func TestSlotAndHostsCopy(t *testing.T) {
 		t.Error("Hosts returned the table's own slice")
 	}
 }
+
+// TestShapesCoverRequestKinds: a kind declares Process shapes iff it
+// runs on Request.Overlays.
+func TestShapesCoverRequestKinds(t *testing.T) {
+	for _, k := range types.AllOverlayKinds() {
+		if got, want := len(Shapes(k)) > 0, Accepts(Request, k); got != want {
+			t.Errorf("%s: declares shapes %v, runs on Request.Overlays %v", k, got, want)
+		}
+	}
+	ss := Shapes(types.OverlayKindShareOfTotal)
+	ss[0] = types.OverlayShapeScalar
+	if Shapes(types.OverlayKindShareOfTotal)[0] != types.OverlayShapeMatrix {
+		t.Error("Shapes returned the table's own slice")
+	}
+}
+
+func TestShapeRefusal(t *testing.T) {
+	cases := []struct {
+		name        string
+		shape       types.OverlayShape
+		kind        types.OverlayKind
+		index       int
+		wantMsg     string
+		wantDetails map[string]any
+	}{
+		{"matrix kind on a series host", types.OverlayShapeSeries, types.OverlayKindShareOfCol, 1,
+			"overlay OVERLAY_SHARE_OF_COL does not run on a series-shape Request.Overlays host; it runs on a matrix host (Request.Crosstab)",
+			map[string]any{"index": 1, "kind": "OVERLAY_SHARE_OF_COL", "host": "request", "shape": "series", "shapes": []string{"matrix"}}},
+		{"series kind on a matrix host", types.OverlayShapeMatrix, types.OverlayKindYoY, 0,
+			"overlay OVERLAY_YOY does not run on a matrix-shape Request.Overlays host; it runs on a series host (Request.Groups + Request.Aggregations, no Request.Crosstab)",
+			map[string]any{"index": 0, "kind": "OVERLAY_YOY", "host": "request", "shape": "matrix", "shapes": []string{"series"}}},
+		{"formula on a series host", types.OverlayShapeSeries, types.OverlayKindFormula, 2,
+			"overlay OVERLAY_FORMULA does not run on a series-shape Request.Overlays host; it runs on a matrix host (Request.Crosstab)",
+			map[string]any{"index": 2, "kind": "OVERLAY_FORMULA", "host": "request", "shape": "series", "shapes": []string{"matrix"}}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ce := ShapeRefusal(c.shape, c.kind, c.kind, c.index)
+			if ce == nil {
+				t.Fatal("not refused")
+			}
+			if ce.Code != errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE || ce.Message != c.wantMsg ||
+				!reflect.DeepEqual(ce.Details, c.wantDetails) {
+				t.Errorf("got %s %q %v", ce.Code, ce.Message, ce.Details)
+			}
+		})
+	}
+	for _, c := range []struct {
+		shape types.OverlayShape
+		kind  types.OverlayKind
+	}{
+		{types.OverlayShapeMatrix, types.OverlayKindShareOfTotal},
+		{types.OverlayShapeSeries, types.OverlayKindShareOfTotal},
+		{types.OverlayShapeMatrix, types.OverlayKindFormula},
+		{types.OverlayShapeSeries, types.OverlayKindIndexVsTotal},
+		{types.OverlayShapeScalar, types.OverlayKindShareOfCol},
+		{types.OverlayShapeSeries, types.OverlayKindTVsRef},
+		{types.OverlayShapeMatrix, "OVERLAY_NOT_IN_CATALOG"},
+		{types.OverlayShapeMatrix, ""},
+	} {
+		if ce := ShapeRefusal(c.shape, c.kind, c.kind, 0); ce != nil {
+			t.Errorf("%s on %s refused: %v", c.kind, c.shape, ce)
+		}
+	}
+}

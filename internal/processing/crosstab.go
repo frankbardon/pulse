@@ -1179,9 +1179,10 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 	if req == nil || len(req.Overlays) == 0 || !compute.Overlays {
 		return nil
 	}
-	// A Compose, whole-chain or FACET kind on Request.Overlays — the
-	// shared wrong-slot refusal predict raises first (ValidateOverlays).
-	if err := refuseWrongHostOverlays(req.Overlays, exts, compute.overlayKeep()); err != nil {
+	// A Compose, whole-chain or FACET kind on Request.Overlays, or a
+	// SERIES-only kind over this MATRIX host — the shared wrong-slot /
+	// wrong-shape refusals predict raises first (ValidateOverlays).
+	if err := refuseWrongHostOverlays(req, exts, compute.overlayKeep()); err != nil {
 		return err
 	}
 	// Distinct-key slab partition gate — the RUNTIME twin of the predict

@@ -777,6 +777,15 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 			addCodedError(env, cerr)
 			continue
 		}
+		// A kind over the wrong Process shape (a MATRIX-only kind on a
+		// grouped request, a SERIES-only kind on a crosstab) — the shared
+		// overlayhost shape refusal, judged on the authored shape
+		// (inferComposeSlotShape, the runtime's AuthoredHostShape rule)
+		// before any per-kind validator.
+		if cerr := overlayhost.ShapeRefusal(inferComposeSlotShape(req), spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
+			addCodedError(env, cerr)
+			continue
+		}
 		validateOverlaySpec(env, req, spec, opts, i)
 		validateOverlayLevelWithinPredict(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		validateOverlayBaselineIndexPredict(env, req, spec, schema, opts.instance(), i)

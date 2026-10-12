@@ -2355,6 +2355,12 @@ var codeMetadata = map[Code]Metadata{
 				Hint:     "When details.hosts is present the kind runs on another overlay slot: details.host is the slot it was sent on (request | compose | chain | facet), details.hosts every slot that runs it. Move the spec there (a Compose kind such as OVERLAY_T_VS_REF goes on ComposedRequest.Overlays, comparing two slots; a stage kind on ChainRequest.Overlays; a population kind on FacetRequest.Overlays), or pick a kind this slot runs.",
 				Examples: []any{"compose", "chain", "facet", "request"},
 			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Kind"},
+				Hint:     "When details.shapes is present the kind runs on Request.Overlays but not over this Process host shape: details.shape is the host the request makes (matrix = a crosstab; series = groups + aggregations, no crosstab), details.shapes every shape the kind runs on. Pick a kind for this shape (a share or margin kind on a crosstab, a prior / baseline / total kind on a grouped request), or reshape the request. A series OVERLAY_FORMULA runs on ComposedRequest.Overlays.",
+				Examples: []any{"matrix", "series"},
+			},
 		},
 	},
 	PULSE_OVERLAY_COMPONENTS_REQUIRED: {
