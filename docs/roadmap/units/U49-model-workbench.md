@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U42]
 blocks: [U32]
-todo_items: [339, 340, 341, 342, 343, 344, 345, 346, 347]
+todo_items: [339, 340, 341, 342, 343, 344, 345, 346, 347, 395]
 branch: model-workbench
 ---
 
@@ -96,6 +96,12 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(model-workbench/E
 - Atomic skills for every new operator, `capabilities_*.go`, example tags, `Purpose` / `Interpretation`, `features.go`, weight class in `weighting.md`, `make docs`
 - `skills/regression-modeling.md` gotchas (the misleading remedy for divergence), `skills/feature-engineering.md` (the leakage trap now has a parameter)
 - CLAUDE.md only where a contract it states moves (keep it ≤ 40,000 bytes)
+
+## Inherited from U42
+
+Filed from [U42 handed on](U42-fit-scoring.md#handed-on) and moved here from [U46](U46-grouped-analysis.md) (U46 E4-S3): a numeric-range grouper is the train/holdout split a model workbench needs. Tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#395** — A grouper over explicit numeric ranges (e.g. 0–90 and 91–103), so a train/holdout split that is not a multiple of the `GROUP_RANGE` interval is one slot instead of a filter or two slots. Found in U42 (E2-S1).
 
 ## Human inputs & decisions
 
