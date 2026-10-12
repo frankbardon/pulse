@@ -64,7 +64,7 @@ var (
 	// ownMetricConsumers: every consumer of the shared metric
 	// registry (linalg/metric) — the expression operators, MAT_DISTANCE
 	// and GROUP_KMEANS.
-	ownMetricConsumers = plus(ownExpr, own("MAT_DISTANCE", "GROUP_KMEANS"))
+	ownMetricConsumers = plus(ownExpr, own("MAT_DISTANCE", "GROUP_KMEANS", "ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE"))
 	// ownChiSq: the contingency-table checks run in the chi-square /
 	// Fisher row tests and in the crosstab chi-square overlays.
 	ownChiSq = own("TEST_CHISQ", "TEST_FISHER_EXACT", "OVERLAY_CHISQ_COL", "OVERLAY_CHISQ_MATRIX",
@@ -527,9 +527,11 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_VECTOR_METRIC_UNSUITED: own(featMatrices),
 	// A reference vector (Extensions.ReferenceVectors) is read by ref()
 	// in the two row expressions — OVERLAY_FORMULA refuses the vector
-	// built-ins, ref() among them.
-	errors.PULSE_VECTOR_REFERENCE_UNKNOWN:  own("ATTR_FORMULA", "FILTER_EXPRESSION"),
-	errors.PULSE_VECTOR_REFERENCE_MISMATCH: own("ATTR_FORMULA", "FILTER_EXPRESSION"),
+	// built-ins, ref() among them — and by the comparison attributes'
+	// params.reference (a literal of the wrong length or a label map
+	// whose labels are not the vector's is a mismatch too).
+	errors.PULSE_VECTOR_REFERENCE_UNKNOWN:  own("ATTR_FORMULA", "FILTER_EXPRESSION", "ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE"),
+	errors.PULSE_VECTOR_REFERENCE_MISMATCH: own("ATTR_FORMULA", "FILTER_EXPRESSION", "ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE"),
 
 	// The matrix-source refusals fire only on a request carrying the
 	// `matrices` slot, which capability:matrices gates; the MAT_ family
@@ -541,8 +543,9 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATRIX_NOT_PSD:             ownAllMats,
 	errors.PULSE_MATRIX_LISTWISE_HEAVY_DROP: ownAllMats,
 	// TEST_BARTLETT_SPHERICITY raises it on its result (MAT_PCA's
-	// Bartlett rule, the shared core).
-	errors.PULSE_MATRIX_INSUFFICIENT_N: plus(ownAllMats, own("TEST_BARTLETT_SPHERICITY"), fittedAttributeOwners()),
+	// Bartlett rule, the shared core); ATTR_VEC_DISTANCE's fitted
+	// metrics read the fitted attributes' fit pass.
+	errors.PULSE_MATRIX_INSUFFICIENT_N: plus(ownAllMats, own("TEST_BARTLETT_SPHERICITY", "ATTR_VEC_DISTANCE"), fittedAttributeOwners()),
 	errors.PULSE_MATRIX_ZERO_VARIANCE:  ownAllMats,
 	// Only MAT_DISTANCE resolves a non-negative-domain metric
 	// (hellinger, aitchison) over centroids.

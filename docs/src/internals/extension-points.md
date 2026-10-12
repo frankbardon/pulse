@@ -614,10 +614,11 @@ environment directory loads them — and, like lookup tables, they are
 not features: no feature profile gates them.
 
 `ref` is a reserved expression name (an `ExprFunction` claiming it is
-`PULSE_EXTENSION_NAME_RESERVED`), and the attribute names
-`ATTR_PROFILE_SIMILARITY` / `ATTR_VEC_DISTANCE` — the built-in
-reference-comparison operators — are reserved against extensions
-(`PULSE_EXTENSION_NAME_COLLISION`).
+`PULSE_EXTENSION_NAME_RESERVED`). The built-in reference-comparison
+attributes `ATTR_PROFILE_SIMILARITY` / `ATTR_VEC_DISTANCE` read the same
+tables through their `reference` param (`{table, key}` or
+`{table, key_field}`, matched by label); as built-ins their names are
+refused to an extension (`PULSE_EXTENSION_NAME_COLLISION`).
 
 ## Component schemas (v0.20.0)
 
@@ -1526,7 +1527,7 @@ Fetch the Message + Fixup template for any of these via
 |---|---|
 | `PULSE_EXTENSION_NAME_INVALID` | name fails the registration regex |
 | `PULSE_EXTENSION_NAME_RESERVED` | namespace is BUILTIN/STANDARD/CORE/PULSE, or an `ExprFunction` is named `total` (engine-owned) or a reserved built-in (`vsum` … `overlap`, `ref`) |
-| `PULSE_EXTENSION_NAME_COLLISION` | name matches a built-in (or a reserved built-in name: `ATTR_PROFILE_SIMILARITY`, `ATTR_VEC_DISTANCE`) |
+| `PULSE_EXTENSION_NAME_COLLISION` | name matches a built-in |
 | `PULSE_EXTENSION_DUPLICATE` | same name registered twice |
 | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | declared streaming tier does not match factory interface |
 | `PULSE_EXTENSION_FANOUT_MISMATCH` | grouper `FansOut` disagrees with `extend.MultiKeyStreamingGrouper`, either direction |

@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:bda75d65c1725facda0f6ccfe2f1459aa034209bc150da6ffd6720ef178e1c72",
+    "feature_set_digest": "fs1:f6b6ec312915decc6d37f5b5d85503625d7e87783c4cbee05538b7ea958e25ff",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -3450,6 +3450,87 @@
           ]
         },
         {
+          "name": "ATTR_PROFILE_SIMILARITY",
+          "category": "attribute",
+          "description": "Per-row similarity to a reference across the p members of vector / fields (exactly one): correlation, cosine or a set similarity, pairwise-complete (a null member drops its pair). Row-local and single-pass; the weight is irrelevant.",
+          "params": [
+            {
+              "name": "metric",
+              "type": "enum",
+              "required": false,
+              "description": "The similarity metric (capabilities.matrix.metrics). Default: the named vector kind's similarity default; with no kind and no metric the slot is refused (PULSE_VECTOR_METRIC_REQUIRED). A distance-direction metric is refused with a pointer to ATTR_VEC_DISTANCE, never converted.",
+              "enum_values": [
+                "cosine",
+                "correlation",
+                "jaccard",
+                "dice",
+                "overlap"
+              ]
+            },
+            {
+              "name": "reference",
+              "type": "any",
+              "required": true,
+              "description": "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label). A table or map is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field has no profile is null and counted in n_reference_missing."
+            },
+            {
+              "name": "min_valid",
+              "type": "int",
+              "required": false,
+              "default": 1,
+              "description": "Fewest complete member pairs (member and reference both present) a row needs, 1 to the member count; below it the value is null. Distance sums are rescaled by p / p_observed."
+            },
+            {
+              "name": "labels",
+              "type": "list",
+              "required": false,
+              "description": "Inline fields only: one unique label per member, the names a label map or table aligns to (default: the field names). A named vector carries its own labels."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one similarity per record (correlation / cosine in [-1, 1], set similarities in [0, 1]); null below min_valid or when the row's reference is missing",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Filter-passing rows whose attribute output is present (non-null)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Filter-passing rows whose attribute output is null."
+              },
+              {
+                "name": "n_reference_missing",
+                "type": "int",
+                "description": "Rows whose params.reference key_field label has no profile in the table (or is null), scored null; 0 for a static reference."
+              },
+              {
+                "name": "n_domain_invalid",
+                "type": "int",
+                "description": "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric)."
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "intents": [
+            "benchmark",
+            "prepare"
+          ]
+        },
+        {
           "name": "ATTR_REG_FITTED",
           "category": "attribute",
           "description": "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own RegressionSpec-shaped fields (Target, Predictors, Penalty, Alpha, L1Ratio); each ATTR_REG_* attribute refits independently (Option A). Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet).",
@@ -3765,6 +3846,115 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "benchmark",
+            "prepare"
+          ]
+        },
+        {
+          "name": "ATTR_VEC_DISTANCE",
+          "category": "attribute",
+          "description": "Per-row distance to a reference across the p members of vector / fields (exactly one), pairwise-complete with the p / p_observed rescaling. Row-local metrics are single-pass; std_euclidean (per-member SDs) and mahalanobis (inverse covariance, every member needed) fit first on the filtered rows params.fit_on admits — ATTR_MAHALANOBIS's fit pass, two-pass, weighted when a weight is in force; N* ≤ p or a singular fit nulls every value with a warning.",
+          "params": [
+            {
+              "name": "metric",
+              "type": "enum",
+              "required": false,
+              "description": "The distance metric (capabilities.matrix.metrics). Default: the named vector kind's distance default; with no kind and no metric the slot is refused (PULSE_VECTOR_METRIC_REQUIRED). A similarity-direction metric is refused with a pointer to ATTR_PROFILE_SIMILARITY, never converted.",
+              "enum_values": [
+                "euclidean",
+                "sq_euclidean",
+                "manhattan",
+                "chebyshev",
+                "cosine",
+                "hellinger",
+                "aitchison",
+                "hamming",
+                "std_euclidean",
+                "mahalanobis"
+              ]
+            },
+            {
+              "name": "reference",
+              "type": "any",
+              "required": true,
+              "description": "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label). A table or map is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field has no profile is null and counted in n_reference_missing."
+            },
+            {
+              "name": "min_valid",
+              "type": "int",
+              "required": false,
+              "default": 1,
+              "description": "Fewest complete member pairs (member and reference both present) a row needs, 1 to the member count; below it the value is null. Distance sums are rescaled by p / p_observed."
+            },
+            {
+              "name": "labels",
+              "type": "list",
+              "required": false,
+              "description": "Inline fields only: one unique label per member, the names a label map or table aligns to (default: the field names). A named vector carries its own labels."
+            },
+            {
+              "name": "fit_on",
+              "type": "any",
+              "required": false,
+              "default": "filtered",
+              "description": "Fitted metrics only (refused beside a row-local one): the fit population, \"filtered\" (every filtered row) or an inline array of filterer objects; every filtered row is still scored."
+            },
+            {
+              "name": "missing",
+              "type": "enum",
+              "required": false,
+              "default": "listwise",
+              "description": "Fitted metrics only: the fit's missing-data mode; only listwise (a row with a null member is left out of the fit, and is still scored pairwise-complete).",
+              "enum_values": [
+                "listwise"
+              ]
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one distance (≥ 0) per record; null below min_valid, when the row's reference is missing or the fit cannot score",
+          "streamable": true,
+          "streamable_hint": "Row-local metrics stream in one pass; std_euclidean / mahalanobis take the two-pass drive (with groupers or features the request runs buffered). The fit is cohort-wide, never per group.",
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Filter-passing rows whose attribute output is present (non-null)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Filter-passing rows whose attribute output is null."
+              },
+              {
+                "name": "n_reference_missing",
+                "type": "int",
+                "description": "Rows whose params.reference key_field label has no profile in the table (or is null), scored null; 0 for a static reference."
+              },
+              {
+                "name": "n_domain_invalid",
+                "type": "int",
+                "description": "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric)."
+              }
+            ],
+            "mergeability": "mergeable"
           },
           "weight_aware": true,
           "weight_kinds": [
@@ -9169,12 +9359,14 @@
           "ATTR_NORMALIZED",
           "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
+          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
+          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -9257,12 +9449,14 @@
           "ATTR_NORMALIZED",
           "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
+          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
+          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -9345,12 +9539,14 @@
           "ATTR_NORMALIZED",
           "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
+          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
+          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -9433,12 +9629,14 @@
           "ATTR_NORMALIZED",
           "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
+          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
+          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -9520,12 +9718,14 @@
           "ATTR_NORMALIZED",
           "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
+          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
+          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -9607,12 +9807,14 @@
           "ATTR_NORMALIZED",
           "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
+          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
+          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -9694,12 +9896,14 @@
           "ATTR_NORMALIZED",
           "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
+          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
+          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -9778,12 +9982,14 @@
           "ATTR_NORMALIZED",
           "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
+          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
+          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -10647,6 +10853,10 @@
         "description": "Per-row percentile rank column against the post-filter value set; requires sorting."
       },
       {
+        "name": "op-attr-profile-similarity",
+        "description": "Per-row similarity to a target profile — correlation, cosine or a set similarity across a vector's members, against a literal, label-map or registered reference."
+      },
+      {
         "name": "op-attr-reg-fitted",
         "description": "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from an OLS refit during the attribute prepass."
       },
@@ -10677,6 +10887,10 @@
       {
         "name": "op-attr-tscore",
         "description": "Per-row T-score column — z-score rescaled to mean 50, stddev 10."
+      },
+      {
+        "name": "op-attr-vec-distance",
+        "description": "Per-row distance to a target profile — plain, set or fitted (std_euclidean, mahalanobis) metrics across a vector's members, against a literal, label-map or registered reference."
       },
       {
         "name": "op-attr-zscore",
@@ -11619,7 +11833,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 208,
+    "examples_count": 210,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -12081,6 +12295,7 @@
           "scaled": true,
           "consumers": [
             "expr",
+            "ATTR_VEC_DISTANCE",
             "MAT_DISTANCE",
             "GROUP_KMEANS"
           ]
@@ -12104,6 +12319,7 @@
           "domain": "real",
           "scaled": true,
           "consumers": [
+            "ATTR_VEC_DISTANCE",
             "MAT_DISTANCE",
             "GROUP_KMEANS"
           ]
@@ -12125,6 +12341,7 @@
           "domain": "real",
           "scaled": true,
           "consumers": [
+            "ATTR_VEC_DISTANCE",
             "MAT_DISTANCE"
           ]
         },
@@ -12143,6 +12360,7 @@
           "fitted": false,
           "domain": "real",
           "consumers": [
+            "ATTR_VEC_DISTANCE",
             "MAT_DISTANCE"
           ]
         },
@@ -12167,6 +12385,8 @@
           "domain": "real",
           "consumers": [
             "expr",
+            "ATTR_VEC_DISTANCE",
+            "ATTR_PROFILE_SIMILARITY",
             "MAT_DISTANCE"
           ]
         },
@@ -12184,7 +12404,9 @@
           "poor_fit": [],
           "fitted": false,
           "domain": "real",
-          "consumers": []
+          "consumers": [
+            "ATTR_PROFILE_SIMILARITY"
+          ]
         },
         {
           "name": "hellinger",
@@ -12201,6 +12423,7 @@
           "fitted": false,
           "domain": "non_negative",
           "consumers": [
+            "ATTR_VEC_DISTANCE",
             "MAT_DISTANCE"
           ]
         },
@@ -12220,6 +12443,7 @@
           "domain": "non_negative",
           "zero_undefined": true,
           "consumers": [
+            "ATTR_VEC_DISTANCE",
             "MAT_DISTANCE"
           ]
         },
@@ -12238,7 +12462,8 @@
           "fitted": false,
           "domain": "binary",
           "consumers": [
-            "expr"
+            "expr",
+            "ATTR_PROFILE_SIMILARITY"
           ]
         },
         {
@@ -12256,7 +12481,8 @@
           "fitted": false,
           "domain": "binary",
           "consumers": [
-            "expr"
+            "expr",
+            "ATTR_PROFILE_SIMILARITY"
           ]
         },
         {
@@ -12275,7 +12501,8 @@
           "domain": "binary",
           "scaled": true,
           "consumers": [
-            "expr"
+            "expr",
+            "ATTR_VEC_DISTANCE"
           ]
         },
         {
@@ -12293,7 +12520,8 @@
           "fitted": false,
           "domain": "binary",
           "consumers": [
-            "expr"
+            "expr",
+            "ATTR_PROFILE_SIMILARITY"
           ]
         },
         {
@@ -12314,7 +12542,9 @@
           "fit_stat": "sd",
           "domain": "real",
           "scaled": true,
-          "consumers": []
+          "consumers": [
+            "ATTR_VEC_DISTANCE"
+          ]
         },
         {
           "name": "mahalanobis",
@@ -12333,6 +12563,7 @@
           "domain": "real",
           "complete": true,
           "consumers": [
+            "ATTR_VEC_DISTANCE",
             "MAT_DISTANCE"
           ]
         },
@@ -15812,6 +16043,31 @@
         }
       },
       "attributes": {
+        "ATTR_PROFILE_SIMILARITY": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Filter-passing rows whose attribute output is present (non-null)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Filter-passing rows whose attribute output is null."
+            },
+            {
+              "name": "n_reference_missing",
+              "type": "int",
+              "description": "Rows whose params.reference key_field label has no profile in the table (or is null), scored null; 0 for a static reference."
+            },
+            {
+              "name": "n_domain_invalid",
+              "type": "int",
+              "description": "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric)."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
         "ATTR_SCALE_SCORE": {
           "keys": [
             {
@@ -15835,6 +16091,31 @@
               "type": "int",
               "description": "Rows holding at least one out-of-range member value; emitted only when a range is declared.",
               "optional": true
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "ATTR_VEC_DISTANCE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Filter-passing rows whose attribute output is present (non-null)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Filter-passing rows whose attribute output is null."
+            },
+            {
+              "name": "n_reference_missing",
+              "type": "int",
+              "description": "Rows whose params.reference key_field label has no profile in the table (or is null), scored null; 0 for a static reference."
+            },
+            {
+              "name": "n_domain_invalid",
+              "type": "int",
+              "description": "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric)."
             }
           ],
           "mergeability": "mergeable"
@@ -16042,4 +16323,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5656b4ef7ff05630b7ed4d757d7e344536fde414a4bbcea4bfa98e8bc1f929ff
+// golden-hash: fce25a1fc0f086e598a761caafc954a44b8e01556ff91c382f7107ffc29e0991

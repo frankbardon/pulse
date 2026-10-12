@@ -281,11 +281,13 @@ func (t GroupType) Mergeable() bool {
 // Streamable reports whether this attribute type can be computed in a
 // streaming path. Three tiers exist at runtime:
 //
-//   - Row-local: FORMULA, DATE_PART, SCALE_SCORE (and REG_PREDICT,
+//   - Row-local: FORMULA, DATE_PART, SCALE_SCORE, PROFILE_SIMILARITY
+//     and VEC_DISTANCE over a row-local metric (and REG_PREDICT,
 //     whose model is bound before the row pass) implement processing.RowLocalAttribute
 //     and execute inline with no PrePass.
 //   - Two-pass: ZSCORE, TSCORE, NORMALIZED (and the fitted vector
-//     attributes, MAHALANOBIS, PC_SCORE, FACTOR_SCORE) implement
+//     attributes, MAHALANOBIS, PC_SCORE, FACTOR_SCORE, and VEC_DISTANCE
+//     over a fitted metric) implement
 //     processing.TwoPassAttribute and need a PrePass over filter-passing
 //     records, Finalize, then per-row Row() in pass 2 (iter.Reset()).
 //   - Buffered-only: PERCENTILE needs a sorted view of every value;
@@ -293,8 +295,9 @@ func (t GroupType) Mergeable() bool {
 //
 // Streamable() returns true for the first two tiers since both routes
 // avoid materializing the full record set in memory. The tier is per
-// TYPE here; an ATTR_FORMULA calling total(expr) is two-pass per
-// attribute (still streamable, via the two-pass drive) — routing asks
+// TYPE here; an ATTR_FORMULA calling total(expr) and an ATTR_VEC_DISTANCE
+// over std_euclidean / mahalanobis are two-pass per attribute (still
+// streamable, via the two-pass drive) — routing asks
 // the engine's per-attribute predicate, never this method alone.
 func (t AttributeType) Streamable() bool {
 	switch t {
@@ -303,6 +306,7 @@ func (t AttributeType) Streamable() bool {
 		ATTR_REG_FITTED, ATTR_REG_RESIDUAL, ATTR_REG_LEVERAGE,
 		ATTR_SET_POPCOUNT, ATTR_SET_HAS,
 		ATTR_CODE_IN, ATTR_REG_PREDICT, ATTR_SCALE_SCORE,
+		ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE,
 		ATTR_MAHALANOBIS, ATTR_PC_SCORE, ATTR_FACTOR_SCORE:
 		return true
 	case ATTR_PERCENTILE:

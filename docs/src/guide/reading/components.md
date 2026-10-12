@@ -811,6 +811,17 @@ Only the floor keys.
 
 ### Attributes
 
+<a id="op-attr_profile_similarity"></a>
+
+#### `ATTR_PROFILE_SIMILARITY`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/attribute.md#op-attr_profile_similarity).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `n_reference_missing` | int | always | Rows whose params.reference key_field label has no profile in the table (or is null), scored null; 0 for a static reference. |
+| `n_domain_invalid` | int | always | Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). |
+
 <a id="op-attr_scale_score"></a>
 
 #### `ATTR_SCALE_SCORE`
@@ -821,3 +832,14 @@ Only the floor keys.
 |---|---|---|---|
 | `n_out_of_range` | int | when its condition holds | Member values read as missing for lying outside the declared range (never clamped); emitted only when a range is declared (scale_min / scale_max or a kind "scale" vector's bounds). |
 | `n_rows_out_of_range` | int | when its condition holds | Rows holding at least one out-of-range member value; emitted only when a range is declared. |
+
+<a id="op-attr_vec_distance"></a>
+
+#### `ATTR_VEC_DISTANCE`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/attribute.md#op-attr_vec_distance).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `n_reference_missing` | int | always | Rows whose params.reference key_field label has no profile in the table (or is null), scored null; 0 for a static reference. |
+| `n_domain_invalid` | int | always | Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). |

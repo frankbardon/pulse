@@ -49,6 +49,12 @@ Every operator here reads one vector (`vectors`, see `matrix-results`) and answe
 <!-- feature: ATTR_SCALE_SCORE -->
 | Each row's score on a rating battery (mean or prorated sum, reverse-keyed items)? | `ATTR_SCALE_SCORE` (a row score) |
 <!-- /feature -->
+<!-- feature: ATTR_PROFILE_SIMILARITY -->
+| How closely does each row match a target profile? | `ATTR_PROFILE_SIMILARITY` (a row score) |
+<!-- /feature -->
+<!-- feature: ATTR_VEC_DISTANCE -->
+| How far is each row from a target profile? | `ATTR_VEC_DISTANCE` (a row score) |
+<!-- /feature -->
 <!-- feature: AGG_VEC_MEAN -->
 | Each group's average profile across the items, as one list? | `AGG_VEC_MEAN` |
 <!-- /feature -->

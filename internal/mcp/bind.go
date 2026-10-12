@@ -776,7 +776,7 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	attr["penalty"] = enumStringField([]string{"l1", "l2", "elasticnet"}, "Regression-attribute OLS penalty; omit for none. ATTR_REG_LEVERAGE refuses one.")
 	attr["alpha"] = map[string]any{"type": "number", "description": "Penalty strength (> 0) when penalty is set."}
 	attr["l1_ratio"] = map[string]any{"type": "number", "description": "Elastic-net mixing in (0, 1) when penalty is elasticnet."}
-	attr["vector"] = map[string]any{"type": "string", "description": "Vector-input attributes (ATTR_MAHALANOBIS, ATTR_PC_SCORE, ATTR_FACTOR_SCORE, ATTR_SCALE_SCORE): the Request.Vectors entry whose members are the attribute's columns; exactly one of vector / fields."}
+	attr["vector"] = map[string]any{"type": "string", "description": "Vector-input attributes (ATTR_MAHALANOBIS, ATTR_PC_SCORE, ATTR_FACTOR_SCORE, ATTR_SCALE_SCORE, ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE): the Request.Vectors entry whose members are the attribute's columns; exactly one of vector / fields."}
 	attr["fields"] = map[string]any{"type": "array", "description": "Vector-input attributes: inline members (names and / or globs); exactly one of vector / fields.", "items": map[string]any{"type": "string"}}
 	itemProps("windows")["frame"] = frameSchema()
 	if inst.Enabled(descx.FeatureForEach) {

@@ -3,6 +3,7 @@ package descriptor
 import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/crosstabfuse"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -56,6 +57,12 @@ func (f snapshotFuseFacts) AggregatorMarginClass(t types.AggregationType) types.
 
 func (f snapshotFuseFacts) AttributeTwoPass(t types.AttributeType) bool {
 	return attributeTwoPass(&PredictOptions{Extensions: f.s, Instance: f.inst}, t)
+}
+
+// AttributeSlotTwoPass mirrors the runtime: an ATTR_VEC_DISTANCE the
+// instance offers over a fitted metric (vectors.ComparisonFitted).
+func (f snapshotFuseFacts) AttributeSlotTwoPass(a *types.Attribute, specs []types.VectorSpec) bool {
+	return a != nil && !f.inst.Hidden(string(a.Type)) && vectors.ComparisonFitted(a.Type, a, specs)
 }
 
 // GrouperKeyable answers a built-in from the static table and an

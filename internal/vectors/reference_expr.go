@@ -351,17 +351,18 @@ func ExprSlots(req *types.Request) []ExprSlot {
 	return out
 }
 
-// ReferenceIssues returns every reference issue of req's expressions
-// (ExprSlots), each with details.slot, against tables and the request's
-// named vectors resolved over schema (a vector named like a schema field
-// is shadowed by the field, as at bind time). The predict twin of the
-// runtime build's refusal: the build raises the first issue of the
-// first expression it compiles.
+// ReferenceIssues returns every reference issue of req's comparison
+// attributes' table references (ComparisonReferenceIssues) and of its
+// expressions (ExprSlots), each with details.slot, against tables and
+// the request's named vectors resolved over schema (a vector named like
+// a schema field is shadowed by the field, as at bind time). The
+// predict twin of the runtime build's refusal: the build raises the
+// first issue of the first slot it binds.
 func ReferenceIssues(req *types.Request, schema *encoding.Schema, resolved []Resolved, tables ReferenceTables) []*errors.CodedError {
+	out := ComparisonReferenceIssues(req, schema, resolved, tables)
 	if !mentionsRef(req) {
-		return nil
+		return out
 	}
-	var out []*errors.CodedError
 	scope := RefScope{
 		Tables: tables,
 		LabelsOf: func(name string) ([]string, bool) {
@@ -382,6 +383,47 @@ func ReferenceIssues(req *types.Request, schema *encoding.Schema, resolved []Res
 			}
 			cerr.Details["slot"] = slot.Path
 			out = append(out, cerr)
+		}
+	}
+	return out
+}
+
+// ComparisonReferenceIssues returns, in request order, the table issue
+// (ComparisonTableIssue) of every comparison attribute slot
+// (ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE) whose members and params
+// judge — a slot that does not is the field-reference pass's to refuse.
+// resolved are the request's named vectors over schema.
+func ComparisonReferenceIssues(req *types.Request, schema *encoding.Schema, resolved []Resolved, tables ReferenceTables) []*errors.CodedError {
+	if req == nil {
+		return nil
+	}
+	var out []*errors.CodedError
+	for i, a := range req.Attributes {
+		if a == nil || !IsComparisonAttribute(a.Type) {
+			continue
+		}
+		at := attributePath(i)
+		var members Resolved
+		var err *errors.CodedError
+		switch {
+		case a.Vector != "" && len(a.Fields) == 0:
+			var ok bool
+			if members, ok = Find(resolved, a.Vector); !ok {
+				continue
+			}
+		case a.Vector == "" && len(a.Fields) > 0:
+			if members, err = ResolveSpec(at+".fields", types.VectorSpec{Fields: a.Fields}, schema); err != nil {
+				continue
+			}
+		default:
+			continue
+		}
+		cfg, err := ComparisonParams(at, a.Type, a.Params, members, schema)
+		if err != nil {
+			continue
+		}
+		if _, ce := ComparisonTableIssue(at, cfg, tables); ce != nil {
+			out = append(out, ce)
 		}
 	}
 	return out

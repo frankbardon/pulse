@@ -3,6 +3,7 @@ package processing
 import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/crosstabfuse"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -177,6 +178,13 @@ func (f registryFuseFacts) AggregatorMarginClass(t types.AggregationType) types.
 // predicate at run time. Pinned by TestFormulaTotal_CrosstabDeclines.
 func (f registryFuseFacts) AttributeTwoPass(t types.AttributeType) bool {
 	return f.r.attributeRequiresTwoPass(t)
+}
+
+// AttributeSlotTwoPass is the per-slot two-pass case the type cannot
+// tell: an ATTR_VEC_DISTANCE over a fitted metric
+// (attrRequiresTwoPassIn's vectors.ComparisonFitted).
+func (f registryFuseFacts) AttributeSlotTwoPass(a *types.Attribute, specs []types.VectorSpec) bool {
+	return a != nil && !f.r.isHidden(string(a.Type)) && vectors.ComparisonFitted(a.Type, a, specs)
 }
 
 // GrouperKeyable answers from the static table (built-in) or the

@@ -167,11 +167,78 @@ func MatrixMetricDefaults(req *types.Request) []MetricDefault {
 	return out
 }
 
+// AttributeMetricDefault is one kind-filled metric on a comparison
+// attribute slot.
+type AttributeMetricDefault struct {
+	// Index is the slot's position in Request.Attributes.
+	Index int
+	// Vector and Kind are the vector the slot reads and its kind.
+	Vector string
+	Kind   types.VectorKind
+	// Metric is the filled metric; TableDefault the kind's own default
+	// in the slot's form (they differ when the operator does not accept
+	// the table default).
+	Metric, TableDefault string
+	// Params are the slot's params with "metric" set.
+	Params json.RawMessage
+}
+
+// AttributeMetricDefaults returns, in request order, the metric each
+// comparison attribute slot (ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE)
+// defaults to: one reading a kind-declared vector by `vector` whose
+// params are a JSON object naming no metric (absent or null). The fill
+// is ResolveKindMetric's own default, so the slot executes the metric
+// reported whether or not the fill is applied. Inline `fields` carry no
+// kind and are never filled; malformed params are left for decode to
+// refuse.
+func AttributeMetricDefaults(req *types.Request) []AttributeMetricDefault {
+	if req == nil || len(req.Vectors) == 0 {
+		return nil
+	}
+	var out []AttributeMetricDefault
+	for i, a := range req.Attributes {
+		if a == nil || !IsComparisonAttribute(a.Type) || a.Vector == "" {
+			continue
+		}
+		kind := KindOf(req.Vectors, a.Vector)
+		if kind == "" {
+			continue
+		}
+		params := map[string]json.RawMessage{}
+		if raw := bytes.TrimSpace(a.Params); len(raw) > 0 && !bytes.Equal(raw, []byte("null")) {
+			if json.Unmarshal(raw, &params) != nil {
+				continue
+			}
+		}
+		if v, set := params["metric"]; set && !bytes.Equal(bytes.TrimSpace(v), []byte("null")) {
+			continue
+		}
+		c, f, _ := ComparisonConsumer(a.Type)
+		m, ok := KindDefault(c, kind, f, nil)
+		if !ok {
+			continue
+		}
+		name, _ := json.Marshal(m.Name())
+		params["metric"] = name
+		raw, err := json.Marshal(params)
+		if err != nil {
+			continue
+		}
+		d := AttributeMetricDefault{Index: i, Vector: a.Vector, Kind: kind, Metric: m.Name(), Params: raw}
+		if td, ok := metric.Default(metric.Kind(kind), f); ok {
+			d.TableDefault = td.Name()
+		}
+		out = append(out, d)
+	}
+	return out
+}
+
 // MetricUnsuitedIssues returns one PULSE_VECTOR_METRIC_UNSUITED issue
 // per explicit poor-fit pair in req (metric.Metric.PoorFitFor: cosine
 // on scale / measure, the Euclidean family on composition), in request
 // order: every metric-taking matrix slot reading a kind-declared vector
-// by name, then every expression call of a metric built-in
+// by name, every comparison attribute (ATTR_PROFILE_SIMILARITY,
+// ATTR_VEC_DISTANCE) doing the same, then every expression call of a metric built-in
 // (exprbuiltins.Metric) whose argument IS a kind-declared vector — the
 // filterers' FILTER_EXPRESSION, each attribute's ATTR_FORMULA and its
 // params.fit_on filterers, the slots exprReferenced scans. A wrapped
@@ -206,6 +273,25 @@ func MetricUnsuitedIssues(req *types.Request) []*errors.CodedError {
 			continue
 		}
 		if w := unsuited(matrixPath(i)+".params.metric", spec.Vector, kind, *p.Metric, f, c, ""); w != nil {
+			out = append(out, w)
+		}
+	}
+	for i, a := range req.Attributes {
+		if a == nil || !IsComparisonAttribute(a.Type) {
+			continue
+		}
+		kind := kinds[a.Vector]
+		if kind == "" {
+			continue
+		}
+		c, f, _ := ComparisonConsumer(a.Type)
+		var p struct {
+			Metric *string `json:"metric"`
+		}
+		if raw := bytes.TrimSpace(a.Params); len(raw) == 0 || json.Unmarshal(raw, &p) != nil || p.Metric == nil {
+			continue
+		}
+		if w := unsuited(attributePath(i)+".params.metric", a.Vector, kind, *p.Metric, f, c, ""); w != nil {
 			out = append(out, w)
 		}
 	}

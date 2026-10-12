@@ -87,8 +87,9 @@ const defaultDateComponent = "day"
 
 // ResolveDefaults inspects every aggregation and grouper slot in req,
 // fills in the Type for slots that name a field but omit the Type, fills
-// the metric of a metric-taking matrix slot reading a kind-declared
-// vector (resolveMetricDefaults, Category "metric"), and returns one
+// the metric of a metric-taking matrix or comparison attribute slot
+// reading a kind-declared vector (resolveMetricDefaults, Category
+// "metric"), and returns one
 // DefaultApplied entry per change made. Mutates req in place.
 //
 // Rules:
@@ -194,6 +195,45 @@ func resolveMetricDefaults(req *types.Request, inst *InstanceSnapshot) []descrip
 		}
 		applied = append(applied, descriptor.DefaultApplied{
 			Path:     []string{"Matrices", strconv.Itoa(d.Index), "Params", "metric"},
+			Field:    d.Vector,
+			Type:     d.Metric,
+			Category: "metric",
+			Reason:   reason + ")",
+		})
+	}
+	return append(applied, resolveAttributeMetricDefaults(req, inst)...)
+}
+
+// resolveAttributeMetricDefaults fills the metric of every comparison
+// attribute slot (ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE) that reads
+// a kind-declared vector and names none (vectors.AttributeMetricDefaults
+// — the default the operator's own resolution takes) and reports each as
+// a "metric" DefaultApplied at ["Attributes", i, "Params", "metric"].
+// The Attributes slice and each filled *Attribute are copied before the
+// write, so the caller's request never changes. A slot whose operator
+// inst hides is left alone.
+func resolveAttributeMetricDefaults(req *types.Request, inst *InstanceSnapshot) []descriptor.DefaultApplied {
+	fills := vectors.AttributeMetricDefaults(req)
+	var applied []descriptor.DefaultApplied
+	copied := false
+	for _, d := range fills {
+		a := req.Attributes[d.Index]
+		if inst.Hidden(string(a.Type)) {
+			continue
+		}
+		if !copied {
+			req.Attributes = slices.Clone(req.Attributes)
+			copied = true
+		}
+		cp := *a
+		cp.Params = d.Params
+		req.Attributes[d.Index] = &cp
+		reason := "kind " + string(d.Kind) + " → " + d.Metric + " (rule: " + string(d.Kind) + " default"
+		if d.TableDefault != "" && d.TableDefault != d.Metric {
+			reason += "; " + d.TableDefault + " is not offered by " + string(a.Type)
+		}
+		applied = append(applied, descriptor.DefaultApplied{
+			Path:     []string{"Attributes", strconv.Itoa(d.Index), "Params", "metric"},
 			Field:    d.Vector,
 			Type:     d.Metric,
 			Category: "metric",

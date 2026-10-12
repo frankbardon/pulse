@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -402,5 +403,94 @@ func attributeCapabilities() []descriptor.Operator {
 					Description: "Rows holding at least one out-of-range member value; emitted only when a range is declared."},
 			),
 		},
+		comparisonCapability(types.ATTR_PROFILE_SIMILARITY),
+		comparisonCapability(types.ATTR_VEC_DISTANCE),
 	}
+}
+
+// comparisonCapability is the manifest entry of a reference-comparison
+// attribute (ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE): one engine,
+// split by direction; its metric enum is the registry's accepted list
+// for the operator's consumer (vectors.ComparisonConsumer).
+func comparisonCapability(t types.AttributeType) descriptor.Operator {
+	c, form, other := vectors.ComparisonConsumer(t)
+	accepted := []string{}
+	for _, m := range metric.Accepted(c) {
+		if mm, _ := metric.Lookup(m); mm.HasForm(form) {
+			accepted = append(accepted, m)
+		}
+	}
+	params := []descriptor.Param{
+		{
+			Name:        "metric",
+			Type:        "enum",
+			EnumValues:  accepted,
+			Description: "The " + string(form) + " metric (capabilities.matrix.metrics). Default: the named vector kind's " + string(form) + " default; with no kind and no metric the slot is refused (PULSE_VECTOR_METRIC_REQUIRED). A " + string(otherForm(form)) + "-direction metric is refused with a pointer to " + string(other) + ", never converted.",
+		},
+		{
+			Name:        "reference",
+			Type:        "any",
+			Required:    true,
+			Description: "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label). A table or map is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field has no profile is null and counted in n_reference_missing.",
+		},
+		{
+			Name:        "min_valid",
+			Type:        "int",
+			Default:     1,
+			Description: "Fewest complete member pairs (member and reference both present) a row needs, 1 to the member count; below it the value is null. Distance sums are rescaled by p / p_observed.",
+		},
+		{
+			Name:        "labels",
+			Type:        "list",
+			Description: "Inline fields only: one unique label per member, the names a label map or table aligns to (default: the field names). A named vector carries its own labels.",
+		},
+	}
+	desc := "Per-row similarity to a reference across the p members of vector / fields (exactly one): correlation, cosine or a set similarity, pairwise-complete (a null member drops its pair). Row-local and single-pass; the weight is irrelevant."
+	note := "one similarity per record (correlation / cosine in [-1, 1], set similarities in [0, 1]); null below min_valid or when the row's reference is missing"
+	hint := ""
+	if t == types.ATTR_VEC_DISTANCE {
+		desc = "Per-row distance to a reference across the p members of vector / fields (exactly one), pairwise-complete with the p / p_observed rescaling. Row-local metrics are single-pass; std_euclidean (per-member SDs) and mahalanobis (inverse covariance, every member needed) fit first on the filtered rows params.fit_on admits — ATTR_MAHALANOBIS's fit pass, two-pass, weighted when a weight is in force; N* ≤ p or a singular fit nulls every value with a warning."
+		note = "one distance (≥ 0) per record; null below min_valid, when the row's reference is missing or the fit cannot score"
+		hint = "Row-local metrics stream in one pass; std_euclidean / mahalanobis take the two-pass drive (with groupers or features the request runs buffered). The fit is cohort-wide, never per group."
+		params = append(params,
+			descriptor.Param{
+				Name:        "fit_on",
+				Type:        "any",
+				Default:     "filtered",
+				Description: "Fitted metrics only (refused beside a row-local one): the fit population, \"filtered\" (every filtered row) or an inline array of filterer objects; every filtered row is still scored.",
+			},
+			descriptor.Param{
+				Name:        "missing",
+				Type:        "enum",
+				Default:     "listwise",
+				EnumValues:  []string{"listwise"},
+				Description: "Fitted metrics only: the fit's missing-data mode; only listwise (a row with a null member is left out of the fit, and is still scored pairwise-complete).",
+			},
+		)
+	}
+	return descriptor.Operator{
+		Name:           string(t),
+		Category:       "attribute",
+		Description:    desc,
+		Params:         params,
+		AcceptsTypes:   numericFieldTypesNoDecimal,
+		EmitsType:      "f64",
+		EmitsTypeNote:  note,
+		Streamable:     true,
+		StreamableHint: hint,
+		ComponentSchema: attrSchema(descriptor.Mergeable,
+			descriptor.ComponentKey{Name: "n_reference_missing", Type: "int",
+				Description: "Rows whose params.reference key_field label has no profile in the table (or is null), scored null; 0 for a static reference."},
+			descriptor.ComponentKey{Name: "n_domain_invalid", Type: "int",
+				Description: "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric)."},
+		),
+	}
+}
+
+// otherForm is the direction f is not.
+func otherForm(f metric.Form) metric.Form {
+	if f == metric.Distance {
+		return metric.Similarity
+	}
+	return metric.Distance
 }

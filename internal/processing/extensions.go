@@ -664,19 +664,33 @@ func (r *ExtensionRegistry) attributeRequiresTwoPass(t types.AttributeType) bool
 }
 
 // attrRequiresTwoPass is the PER-ATTRIBUTE two-pass predicate: the
-// type rule (attributeRequiresTwoPass) or an ATTR_FORMULA whose
+// type rule (attributeRequiresTwoPass), an ATTR_FORMULA whose
 // expression calls total(expr) (formula_total.go), which is row-local
-// by type but needs a pre-pass over the post-filter rows. Every
+// by type but needs a pre-pass over the post-filter rows, or an
+// ATTR_VEC_DISTANCE over a fitted metric (vectors.ComparisonFitted:
+// std_euclidean / mahalanobis read ATTR_MAHALANOBIS's fit pass). Every
 // routing decision that schedules attributes asks this, never the type
-// alone. Nil-receiver-safe.
+// alone. It reads the slot's params.metric — written out by
+// Processor.prepare's rewrite; attrRequiresTwoPassIn also reads a kind
+// default off the request's vectors. Nil-receiver-safe.
 func (r *ExtensionRegistry) attrRequiresTwoPass(attr *types.Attribute) bool {
+	return r.attrRequiresTwoPassIn(attr, nil)
+}
+
+// attrRequiresTwoPassIn is attrRequiresTwoPass over a slot of a request
+// whose Request.Vectors are specs (a named vector's kind decides an
+// absent metric).
+func (r *ExtensionRegistry) attrRequiresTwoPassIn(attr *types.Attribute, specs []types.VectorSpec) bool {
 	if attr == nil {
 		return false
 	}
 	if r.attributeRequiresTwoPass(attr.Type) {
 		return true
 	}
-	return !r.isHidden(string(attr.Type)) && formulaCallsTotal(attr)
+	if r.isHidden(string(attr.Type)) {
+		return false
+	}
+	return formulaCallsTotal(attr) || vectors.ComparisonFitted(attr.Type, attr, specs)
 }
 
 // isExtensionAggregator reports whether t is an embedder-registered

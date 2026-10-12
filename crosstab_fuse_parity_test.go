@@ -157,6 +157,22 @@ func fusionParityCorpus() []fusionCase {
 	add("attr/ATTR_SCALE_SCORE", with(func(r *types.Request) {
 		r.Attributes = []*types.Attribute{{Type: types.ATTR_SCALE_SCORE, Fields: []string{"score", "qty"}, Label: "a", Params: json.RawMessage(`{"stat":"sum","min_valid":1}`)}}
 	}))
+	add("attr/ATTR_PROFILE_SIMILARITY", with(func(r *types.Request) {
+		r.Attributes = []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY, Fields: []string{"score", "qty"}, Label: "a", Params: json.RawMessage(`{"metric":"cosine","reference":[1,2]}`)}}
+	}))
+	add("attr/ATTR_VEC_DISTANCE", with(func(r *types.Request) {
+		r.Attributes = []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Fields: []string{"score", "qty"}, Label: "a", Params: json.RawMessage(`{"metric":"manhattan","reference":[1,2]}`)}}
+	}))
+	// A fitted metric is two-pass per slot: the type cannot tell, the
+	// per-slot fact declines it (explicit, and a measure vector's
+	// default before the rewrite).
+	add("attr/ATTR_VEC_DISTANCE_fitted", with(func(r *types.Request) {
+		r.Attributes = []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Fields: []string{"score", "qty"}, Label: "a", Params: json.RawMessage(`{"metric":"std_euclidean","reference":[1,2]}`)}}
+	}))
+	add("attr/ATTR_VEC_DISTANCE_kind_fitted", with(func(r *types.Request) {
+		r.Vectors = []types.VectorSpec{{Name: "m", Fields: []string{"score", "qty"}, Kind: types.VectorKindMeasure}}
+		r.Attributes = []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Vector: "m", Label: "a", Params: json.RawMessage(`{"reference":[1,2]}`)}}
+	}))
 	add("formula_expression", with(func(r *types.Request) {
 		r.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "score * 2", Label: "f"}}
 	}))

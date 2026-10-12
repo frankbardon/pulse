@@ -383,16 +383,22 @@
         ]
       },
       {
-        "operator": "ATTR_TSCORE",
+        "operator": "ATTR_PROFILE_SIMILARITY",
         "category": "attribute",
         "level": "intermediate",
-        "why": "Adds to every row its T-score: the z-score rescaled so the mean is 50 and one standard deviation is 10. Fill in each placeholder in the draft before you run it.",
+        "why": "Adds to every row how closely its related fields match a target profile: an ideal pattern, a benchmark, or its own segment target. Fill in each placeholder in the draft before you run it.",
         "bound": false,
         "request": {
           "attributes": [
             {
-              "field": "\u003cfield\u003e",
-              "type": "ATTR_TSCORE"
+              "fields": [
+                "\u003cfields\u003e"
+              ],
+              "params": {
+                "metric": "\u003cmetric\u003e",
+                "reference": "\u003creference\u003e"
+              },
+              "type": "ATTR_PROFILE_SIMILARITY"
             }
           ],
           "cohort": {
@@ -401,24 +407,30 @@
         },
         "placeholders": [
           "cohort",
-          "field"
+          "fields",
+          "metric",
+          "reference"
         ],
         "alternatives": [
           {
-            "when": "you want plain standard-deviation units centred on 0",
-            "use": "ATTR_ZSCORE"
+            "when": "you want how far apart the values are rather than how alike the pattern is",
+            "use": "ATTR_VEC_DISTANCE"
           },
           {
-            "when": "you want each row's percentile rank (the share at or below it when values are untied)",
-            "use": "ATTR_PERCENTILE"
+            "when": "you want how unusual a row is against the whole cohort",
+            "use": "ATTR_MAHALANOBIS"
+          },
+          {
+            "when": "you want how far apart whole groups are",
+            "use": "MAT_DISTANCE"
           }
         ]
       }
     ],
     "truncated": true,
-    "candidates_considered": 15
+    "candidates_considered": 17
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: d5c53a82866192a420b3dedb44fe3cd9c13af7dd83f5dc11ebb76085beacf5d1
+// golden-hash: dfe0b1c6b13a585354ddbbda6e9d196a9631da342287cd434d59f68991758ead

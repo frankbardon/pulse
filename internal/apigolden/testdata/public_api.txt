@@ -3860,6 +3860,7 @@ pulse/types: const ATTR_MAHALANOBIS pulse/types.AttributeType = "ATTR_MAHALANOBI
 pulse/types: const ATTR_NORMALIZED pulse/types.AttributeType = "ATTR_NORMALIZED"
 pulse/types: const ATTR_PC_SCORE pulse/types.AttributeType = "ATTR_PC_SCORE"
 pulse/types: const ATTR_PERCENTILE pulse/types.AttributeType = "ATTR_PERCENTILE"
+pulse/types: const ATTR_PROFILE_SIMILARITY pulse/types.AttributeType = "ATTR_PROFILE_SIMILARITY"
 pulse/types: const ATTR_REG_FITTED pulse/types.AttributeType = "ATTR_REG_FITTED"
 pulse/types: const ATTR_REG_LEVERAGE pulse/types.AttributeType = "ATTR_REG_LEVERAGE"
 pulse/types: const ATTR_REG_PREDICT pulse/types.AttributeType = "ATTR_REG_PREDICT"
@@ -3868,6 +3869,7 @@ pulse/types: const ATTR_SCALE_SCORE pulse/types.AttributeType = "ATTR_SCALE_SCOR
 pulse/types: const ATTR_SET_HAS pulse/types.AttributeType = "ATTR_SET_HAS"
 pulse/types: const ATTR_SET_POPCOUNT pulse/types.AttributeType = "ATTR_SET_POPCOUNT"
 pulse/types: const ATTR_TSCORE pulse/types.AttributeType = "ATTR_TSCORE"
+pulse/types: const ATTR_VEC_DISTANCE pulse/types.AttributeType = "ATTR_VEC_DISTANCE"
 pulse/types: const ATTR_ZSCORE pulse/types.AttributeType = "ATTR_ZSCORE"
 pulse/types: type Aggregation struct
 pulse/types: type Aggregation field Field string "json:\"field\""
@@ -4932,4 +4934,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c3501ad44f3f8dc1366b3f27b8f5f4be41ac1ae398f2135f0901eed97e351b3d
+// golden-hash: 3a30e40087e6fa475b5027b41d6542d0c1d4f30841d0e4a6cb0810be692fc162

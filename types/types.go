@@ -431,6 +431,28 @@ const (
 	// counted and warned (PULSE_ATTR_SCALE_OUT_OF_RANGE). Row-local:
 	// single pass, streamable; the weight is irrelevant.
 	ATTR_SCALE_SCORE AttributeType = "ATTR_SCALE_SCORE"
+
+	// ATTR_PROFILE_SIMILARITY emits each row's similarity to a
+	// reference across the p members of Vector / Fields: params.metric
+	// (a similarity-direction metric — correlation, cosine, jaccard,
+	// dice, overlap; default from the vector's kind), params.reference
+	// (a literal array in member order, a label map, {table, key} or
+	// {table, key_field} over Extensions.ReferenceVectors, matched by
+	// label) and params.min_valid (fewest complete pairs, default 1).
+	// A row whose key_field value has no profile is null and counted
+	// (n_reference_missing). Row-local: single pass, streamable; the
+	// weight is irrelevant. A distance metric is refused with a pointer
+	// to ATTR_VEC_DISTANCE.
+	ATTR_PROFILE_SIMILARITY AttributeType = "ATTR_PROFILE_SIMILARITY"
+
+	// ATTR_VEC_DISTANCE emits each row's distance to a reference across
+	// the p members of Vector / Fields: ATTR_PROFILE_SIMILARITY's params
+	// with a distance-direction metric (the row-local ones, plus the
+	// fitted std_euclidean and mahalanobis, whose per-member SDs /
+	// covariance come from ATTR_MAHALANOBIS's fit pass — two-pass,
+	// params.fit_on, weighted when a weight is in force). A similarity
+	// metric is refused with a pointer to ATTR_PROFILE_SIMILARITY.
+	ATTR_VEC_DISTANCE AttributeType = "ATTR_VEC_DISTANCE"
 )
 
 // AllAttributeTypes returns all defined attribute types.
@@ -444,6 +466,7 @@ func AllAttributeTypes() []AttributeType {
 		ATTR_NORMALIZED,
 		ATTR_PC_SCORE,
 		ATTR_PERCENTILE,
+		ATTR_PROFILE_SIMILARITY,
 		ATTR_REG_FITTED,
 		ATTR_REG_LEVERAGE,
 		ATTR_REG_PREDICT,
@@ -452,6 +475,7 @@ func AllAttributeTypes() []AttributeType {
 		ATTR_SET_HAS,
 		ATTR_SET_POPCOUNT,
 		ATTR_TSCORE,
+		ATTR_VEC_DISTANCE,
 		ATTR_ZSCORE,
 	}
 }
@@ -1612,7 +1636,8 @@ type ResponseComponents struct {
 
 	// Attributes carries one AttributeComponents entry per
 	// Request.Attributes slot whose operator declares a ComponentSchema
-	// (ATTR_SCALE_SCORE; an extension attribute registered with one),
+	// (ATTR_SCALE_SCORE, ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE; an
+	// extension attribute registered with one),
 	// in declared order. A slot whose operator declares none has no
 	// entry, so the slice is keyed back by Label (and Type), never by
 	// index.

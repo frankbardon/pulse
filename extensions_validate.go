@@ -842,19 +842,8 @@ func builtinAttributeNames() map[string]struct{} {
 	for _, t := range types.AllAttributeTypes() {
 		out[string(t)] = struct{}{}
 	}
-	for _, n := range reservedAttributeNames {
-		out[n] = struct{}{}
-	}
 	return out
 }
-
-// reservedAttributeNames are the built-in attribute names reserved
-// against embedders ahead of their operators (the reference-comparison
-// pair that reads Extensions.ReferenceVectors): an extension claiming
-// one is refused as a built-in collision now, so registering the
-// built-in later breaks no embedder. Harmless once each is in
-// types.AllAttributeTypes().
-var reservedAttributeNames = []string{"ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE"}
 
 func builtinFiltererNames() map[string]struct{} {
 	out := make(map[string]struct{}, 16)

@@ -98,8 +98,15 @@ func catalog(m *descriptor.Manifest) map[string]opInfo {
 	out := map[string]opInfo{}
 	addOps := func(ops []descriptor.Operator) {
 		for _, o := range ops {
-			out[o.Name] = opInfo{name: o.Name, category: o.Category, ignoresField: o.IgnoresField, accepts: o.AcceptsTypes, params: requiredParams(o.Params),
+			info := opInfo{name: o.Name, category: o.Category, ignoresField: o.IgnoresField, accepts: o.AcceptsTypes, params: requiredParams(o.Params),
 				vectorInput: o.Category == catAggregator && vectors.IsVectorAggregation(types.AggregationType(o.Name))}
+			if o.Category == catAttribute && vectors.IsComparisonAttribute(types.AttributeType(o.Name)) {
+				// A draft reads inline fields, which carry no vector
+				// kind: the metric the kind would default is the
+				// user's to name.
+				info.params = append([]param{{name: "metric", typ: "enum"}}, info.params...)
+			}
+			out[o.Name] = info
 		}
 	}
 	c := m.Components

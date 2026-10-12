@@ -102,6 +102,10 @@ var regParityOps = []regParityOp{
 	// standardized members: the same fit rules, grouped and flat.
 	{name: "attr_factor_score", attr: types.ATTR_FACTOR_SCORE, tol: 1e-9},
 	{name: "attr_factor_score_flat", attr: types.ATTR_FACTOR_SCORE, flat: true, tol: 1e-9},
+	// ATTR_VEC_DISTANCE (U27 E3-S2) over std_euclidean on (x, y): the
+	// fitted per-member sds of ATTR_MAHALANOBIS's fit, grouped and flat.
+	{name: "attr_vec_distance", attr: types.ATTR_VEC_DISTANCE, tol: 1e-10},
+	{name: "attr_vec_distance_flat", attr: types.ATTR_VEC_DISTANCE, flat: true, tol: 1e-10},
 }
 
 func (o regParityOp) surface() (weightSurface, string) {
@@ -137,6 +141,9 @@ func (o regParityOp) build(path string) func() *types.Request {
 		}
 		if o.attr == types.ATTR_PC_SCORE {
 			attr = &types.Attribute{Type: o.attr, Label: "attr", Fields: []string{"x", "y"}, Params: json.RawMessage(`{"component":1}`)}
+		}
+		if o.attr == types.ATTR_VEC_DISTANCE {
+			attr = &types.Attribute{Type: o.attr, Label: "attr", Fields: []string{"x", "y"}, Params: json.RawMessage(`{"metric":"std_euclidean","reference":[1,2]}`)}
 		}
 		if o.attr == types.ATTR_FACTOR_SCORE {
 			attr = &types.Attribute{Type: o.attr, Label: "attr", Fields: []string{"x", "y", "g"}, Params: json.RawMessage(`{"factor":1,"factors":1}`)}

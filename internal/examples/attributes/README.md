@@ -27,6 +27,8 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `14_factor_score.json` | `ATTR_FACTOR_SCORE` | Factor scores (regression on a minres fit, Bartlett on an ML fit) of one factor behind three measures, averaged by treatment; a Heywood case warns |
 | `15_vector_battery.json` | `ATTR_FORMULA` | A named vector read by formulas: the mean of the valid members when at least 2 of 3 answered (else null), and a flat-profile (straight-lining) flag `vsd(...) == 0` |
 | `16_scale_score.json` | `ATTR_SCALE_SCORE` | A rating-battery score per row from a kind `scale` vector: the valid-item mean (an out-of-range value is missing and warned), a reverse-keyed item by label, and the prorated sum over inline fields |
+| `17_profile_similarity.json` | `ATTR_PROFILE_SIMILARITY` | Each row's similarity to a target profile: the kind `scale` default (correlation) against a literal, and an explicit cosine against a label map matched by label (warned as a poor fit) |
+| `18_vec_distance.json` | `ATTR_VEC_DISTANCE` | Each row's distance to a benchmark: the kind `measure` default (std_euclidean, a two-pass fit), mahalanobis fitted on the control arm, and a row-local manhattan over inline fields |
 
 See `pulse skills show attribute-composition` for the full operator
 contract, the `ATTR_FORMULA` allowlist, and composition rules.

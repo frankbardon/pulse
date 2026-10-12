@@ -16,8 +16,12 @@ import (
 // runtime and projection all call (the Test.Vector / Fields mirror).
 // Most are FITTED attributes (FittedAttributeTypes): a fit pass folds
 // one co-moment over the filtered rows params.fit_on admits, then every
-// filtered row is scored. ATTR_SCALE_SCORE is the row-local one: each
-// row's score reads only its own members (no fit, no fit_on).
+// filtered row is scored. ATTR_SCALE_SCORE is row-local: each row's
+// score reads only its own members (no fit, no fit_on). The
+// reference-comparison pair (compare.go: ATTR_PROFILE_SIMILARITY,
+// ATTR_VEC_DISTANCE) is row-local over a row-local metric; an
+// ATTR_VEC_DISTANCE over std_euclidean / mahalanobis fits like
+// ATTR_MAHALANOBIS (ComparisonFitted, per slot).
 //
 // Rules (the contract), per attribute slot "attributes[i]":
 //
@@ -31,7 +35,9 @@ import (
 //   - ATTR_SCALE_SCORE's params (ScaleScoreParams: stat, min_valid,
 //     reverse by member label, scale_min / scale_max with the kind
 //     "scale" vector's bounds as fallback) are judged once the members
-//     resolve.
+//     resolve, and so are the comparison pair's (ComparisonParams:
+//     metric, min_valid, reference, labels, fit_on beside a fitted
+//     metric; the table checks are ComparisonTableIssue's).
 //   - A fitted type's params (strict: unknown keys refused) share
 //     fit_on and missing (FittedCommon): fit_on is "filtered" (the default) or a non-empty
 //     inline array of Filterer objects; missing is "listwise" (the only
@@ -56,13 +62,15 @@ import (
 // VectorAttributeTypes returns the built-in attribute types that read
 // their columns from Vector / Fields, in AllAttributeTypes order.
 func VectorAttributeTypes() []types.AttributeType {
-	return []types.AttributeType{types.ATTR_FACTOR_SCORE, types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE, types.ATTR_SCALE_SCORE}
+	return []types.AttributeType{types.ATTR_FACTOR_SCORE, types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE,
+		types.ATTR_PROFILE_SIMILARITY, types.ATTR_SCALE_SCORE, types.ATTR_VEC_DISTANCE}
 }
 
 // FittedAttributeTypes returns the vector-input attribute types that
 // fit before they score (two-pass, params.fit_on), in AllAttributeTypes
 // order: every VectorAttributeTypes entry but the row-local
-// ATTR_SCALE_SCORE.
+// ATTR_SCALE_SCORE and the comparison pair (ATTR_VEC_DISTANCE fits per
+// slot, by its metric: ComparisonFitted).
 func FittedAttributeTypes() []types.AttributeType {
 	return []types.AttributeType{types.ATTR_FACTOR_SCORE, types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE}
 }
@@ -217,6 +225,13 @@ func resolveAttribute(at string, a *types.Attribute, typ types.AttributeType, sp
 			return AttributeInput{}, err
 		}
 	}
+	if IsComparisonAttribute(typ) {
+		cfg, err := ComparisonParams(at, typ, a.Params, members, schema)
+		if err != nil {
+			return AttributeInput{}, err
+		}
+		fitOn = cfg.FitOn
+	}
 	return AttributeInput{Members: members, FitOn: fitOn}, nil
 }
 
@@ -268,6 +283,25 @@ func fittedParams(at string, typ types.AttributeType, raw json.RawMessage) ([]*t
 		return cfg.FitOn, err
 	}
 	return nil, nil
+}
+
+// comparisonFitOn decodes an ATTR_VEC_DISTANCE slot's params.fit_on
+// alone (loose: the other keys are ComparisonParams' to judge); nil for
+// any other type, "filtered" or absent.
+func comparisonFitOn(typ types.AttributeType, raw json.RawMessage) []*types.Filterer {
+	if typ != types.ATTR_VEC_DISTANCE {
+		return nil
+	}
+	var c FittedCommon
+	if json.Unmarshal(raw, &c) != nil {
+		return nil
+	}
+	c.Missing = nil
+	fitOn, err := c.resolve("")
+	if err != nil {
+		return nil
+	}
+	return fitOn
 }
 
 // fittedMemberBounds judges typ's member-count params against the p
@@ -643,6 +677,9 @@ func AttributeFitOn(typ types.AttributeType, a *types.Attribute) []*types.Filter
 	if a == nil || !IsVectorAttribute(typ) {
 		return nil
 	}
+	if IsComparisonAttribute(typ) {
+		return comparisonFitOn(typ, a.Params)
+	}
 	fitOn, err := fittedParams(attributePath(0), typ, a.Params)
 	if err != nil {
 		return nil
@@ -652,15 +689,23 @@ func AttributeFitOn(typ types.AttributeType, a *types.Attribute) []*types.Filter
 
 // AttributeInputMembers returns the union of every field req's
 // attributes read through inline fields (a named vector's members ride
-// Members(req)), and whether every one resolved — projection decodes
-// wide otherwise.
+// Members(req)) plus every comparison slot's params.reference key_field
+// (ComparisonKeyField — a row whose key column did not decode would read
+// as a missing profile), and whether every one resolved — projection
+// decodes wide otherwise.
 func AttributeInputMembers(req *types.Request, schema *encoding.Schema) (members []string, ok bool) {
 	ok = true
 	if req == nil {
 		return nil, true
 	}
 	for i, a := range req.Attributes {
-		if a == nil || len(a.Fields) == 0 {
+		if a == nil {
+			continue
+		}
+		if kf := ComparisonKeyField(a.Type, a); kf != "" {
+			members = append(members, kf)
+		}
+		if len(a.Fields) == 0 {
 			continue
 		}
 		r, err := ResolveSpec(attributePath(i)+".fields", types.VectorSpec{Fields: a.Fields}, schema)

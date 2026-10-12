@@ -27,6 +27,8 @@ Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-r
 | Each row's score on a component (a summary column)? | `ATTR_PC_SCORE` (a row score) |
 | Each row's score on a factor (a construct estimate)? | `ATTR_FACTOR_SCORE` (a row score) |
 | Each row's score on a rating battery (mean or prorated sum, reverse-keyed items)? | `ATTR_SCALE_SCORE` (a row score) |
+| How closely does each row match a target profile? | `ATTR_PROFILE_SIMILARITY` (a row score) |
+| How far is each row from a target profile? | `ATTR_VEC_DISTANCE` (a row score) |
 | Each group's average profile across the items, as one list? | `AGG_VEC_MEAN` |
 | Each group's total per item, as one list? | `AGG_VEC_SUM` |
 | Which segments do the rows fall into across the fields? | `GROUP_KMEANS` (a grouper) |

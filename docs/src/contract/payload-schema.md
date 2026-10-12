@@ -345,13 +345,20 @@ refused). Shape refusals are `SERVICE_VALIDATION` with
 
 `Attribute` carries two additive slots, the same mirror: `vector` /
 `fields`. A vector-input attribute (the fitted `ATTR_MAHALANOBIS`,
-`ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`, and the row-local
-`ATTR_SCALE_SCORE`) sets exactly one of them and no `field`; every other
-attribute refuses both.
+`ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`, the row-local
+`ATTR_SCALE_SCORE`, and the reference comparisons
+`ATTR_PROFILE_SIMILARITY` / `ATTR_VEC_DISTANCE`) sets exactly one of
+them and no `field`; every other attribute refuses both.
 Members are source columns only. `ATTR_SCALE_SCORE`'s `params` are
 `stat` (`mean` | `sum`, prorated), `min_valid`, `reverse` (member
 labels) and `scale_min` / `scale_max` (else the kind `scale` vector's
-bounds). A fitted attribute's `params` share `fit_on` —
+bounds). The comparisons' `params` are `metric` (similarity / distance
+direction respectively; default from the vector's `kind`), `min_valid`
+(complete pairs, default 1), `labels` (inline fields only) and
+`reference` — a literal array (member order), a label map
+`{label: value}`, `{table, key}` or `{table, key_field}` over
+`Extensions.ReferenceVectors`, matched by label; `ATTR_VEC_DISTANCE`
+adds `fit_on` / `missing` beside its fitted metrics. A fitted attribute's `params` share `fit_on` —
 `"filtered"` (the default) or an inline array of `Filterer` objects
 choosing the fit rows among the filtered ones (every filtered row is
 still scored) — and `missing` (`"listwise"` only). The default label is

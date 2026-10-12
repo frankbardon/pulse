@@ -276,6 +276,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("ATTR_NORMALIZED"),
 	op("ATTR_PC_SCORE"),
 	op("ATTR_PERCENTILE"),
+	op("ATTR_PROFILE_SIMILARITY"),
 	op("ATTR_REG_FITTED"),
 	op("ATTR_REG_LEVERAGE"),
 	op("ATTR_REG_PREDICT"),
@@ -284,6 +285,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("ATTR_SET_HAS"),
 	op("ATTR_SET_POPCOUNT"),
 	op("ATTR_TSCORE"),
+	op("ATTR_VEC_DISTANCE"),
 	op("ATTR_ZSCORE"),
 	// Filterers — types.AllFiltererTypes().
 	op("FILTER_DATE_RANGES"),

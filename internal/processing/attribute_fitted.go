@@ -408,6 +408,14 @@ func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
 				cp.Params = params
 			}
 		}
+		if vectors.IsComparisonAttribute(cp.Type) && !p.exts.isHidden(string(cp.Type)) {
+			// The literal members lose the vector's labels and kind:
+			// hand the factory canonical params (the metric written out,
+			// the reference in member order, the labels it aligns to).
+			if params, ok := vectors.ComparisonSlotParams(a, inputs[i].Members, p.schema); ok {
+				cp.Params = params
+			}
+		}
 		cp.Vector = ""
 		cp.Fields = append([]string(nil), inputs[i].Members.Members...)
 		c.Attributes[i] = &cp
