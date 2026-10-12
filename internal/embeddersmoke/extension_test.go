@@ -9,6 +9,7 @@ package embeddersmoke
 import (
 	"context"
 	stderrors "errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -324,11 +325,37 @@ func TestExtendOtherCategoriesThroughProcess(t *testing.T) {
 			t.Errorf("row %v missing window column ord", row)
 		}
 	}
-	if len(resp.Tests) != 1 || resp.Tests[0].Statistic != 3 {
-		t.Errorf("tier-1 tests = %+v, want statistic 3 (rows)", resp.Tests)
+	// A grouped request runs a tier-1 test once per group bucket, in
+	// Response.Data row order, each over that bucket's records only.
+	wantRows := map[string]float64{}
+	for _, line := range strings.Split(strings.TrimSpace(salesCSV), "\n")[1:] {
+		wantRows[strings.SplitN(line, ",", 2)[0]]++
 	}
-	if len(resp.PostTests) != 1 || resp.PostTests[0].Statistic != 2 {
-		t.Errorf("tier-2 tests = %+v, want statistic 2 (result rows)", resp.PostTests)
+	if len(resp.Tests) != len(resp.Data) || len(resp.Tests) != len(wantRows) {
+		t.Fatalf("tier-1 tests = %d results, want one per group (%d)", len(resp.Tests), len(wantRows))
+	}
+	var sum float64
+	for i, tr := range resp.Tests {
+		if len(tr.GroupKey) != 1 {
+			t.Fatalf("tier-1 test %d: group_key = %v, want one element (single grouper)", i, tr.GroupKey)
+		}
+		region := fmt.Sprint(tr.GroupKey[0])
+		if region != resp.Data[i]["region"] {
+			t.Errorf("tier-1 test %d: group_key %q, want Data row order %v", i, region, resp.Data[i]["region"])
+		}
+		want, ok := wantRows[region]
+		if !ok || tr.Statistic != want {
+			t.Errorf("tier-1 test %d (%s): statistic %v, want %v (group rows)", i, region, tr.Statistic, want)
+		}
+		sum += tr.Statistic
+	}
+	if sum != 3 {
+		t.Errorf("tier-1 statistics sum to %v, want 3 (all rows)", sum)
+	}
+	// A single grouper leaves post-tests unpartitioned: one result over
+	// every result row, no group key.
+	if len(resp.PostTests) != 1 || resp.PostTests[0].Statistic != 2 || len(resp.PostTests[0].GroupKey) != 0 {
+		t.Errorf("tier-2 tests = %+v, want one unpartitioned result with statistic 2 (result rows)", resp.PostTests)
 	}
 }
 
