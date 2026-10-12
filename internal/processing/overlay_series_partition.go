@@ -10,7 +10,8 @@ import (
 //
 // With two or more groupers the grouped-Process host is the composite
 // rows. A kind that reads the host as an ordered series (the prior,
-// rolling, baseline and sibling pairs — seriespartition.Kinds) runs
+// rolling, baseline and sibling pairs) or scores each row against the
+// host's total (the three _TOTAL kinds) — seriespartition.Kinds — runs
 // once per PARTITION: the rows sharing the first `depth` key elements
 // (seriespartition.Depth: every key but the last by default, an
 // explicit leading prefix, or [] for none). Each partition is a
@@ -28,8 +29,9 @@ import (
 //   - Summary: Min / Max over the partitions' Min / Max, Count summed
 //     (each handler counts its present, non-NaN entries, so the merged
 //     figures equal one pass over every entry); every other field is
-//     the first partition's (the eight kinds set only Baseline, a
-//     per-kind constant).
+//     the first partition's (the eleven kinds set only Baseline, a
+//     per-kind constant — a _TOTAL kind's total, mean and SD stay
+//     per-partition figures and never reach the layer summary).
 //   - Warnings: one per code, the first raising partition's message
 //     and Details, with `group_count` restated as the whole host's and
 //     `partitions` the number of partitions that raised it — the

@@ -26,6 +26,7 @@ Predict answers "will this run" (errors, warnings). An **advisory** answers a di
 | `PULSE_ADVISORY_ORDINAL_PARAMETRIC` | the SPSS sidecar records a numeric field `ordinal` and a parametric test reads it | `slot`, `operator`, `field`, `measure`, `suggested` (the rank-based test from the operator's `not_for`; absent when it names none) |
 | `PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED` | predict echoes `suggested_weight` (an SPSS weight variable, no slot resolving a weight) | `field`, `source`, `suggested: {"weight": {"field": F}}` |
 | `PULSE_ADVISORY_EXTRA_PASS` | an `ATTR_FORMULA` calls `total(expr)`, so the run adds a pre-pass over the filtered rows (one per such formula) | `slot`, `operator`, `label`, `totals` (distinct arguments), `added_scans` (1; formulas in one pre-pass layer share it) |
+| `PULSE_ADVISORY_SERIES_AXIS_NOT_DATE` | a series overlay that reads rows in order (prior, rolling, baseline, sibling) runs over two or more groupers with no `params.partition_by`, and the last grouper — the series axis — is not a date grouper | `slot`, `operator`, `series_axis`, `grouper`, `groups`, `date_axis` (a leading date grouper to move last; absent when none) |
 
 The many-tests message says "at least N" when `p_values.basis` is `lower_bound` and "an estimated N" when it is `dictionary`; any `multiplicity` block — `method: none` included — silences it.
 

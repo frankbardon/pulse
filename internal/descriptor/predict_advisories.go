@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -31,6 +32,7 @@ var advisoryCodes = []errors.Code{
 	errors.PULSE_ADVISORY_ORDINAL_PARAMETRIC,
 	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED,
 	errors.PULSE_ADVISORY_EXTRA_PASS,
+	errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
 }
 
 // AdvisoryCodes returns every registered PULSE_ADVISORY_* code, in rule
@@ -124,6 +126,7 @@ func computeAdvisories(in advisoryInput) []descriptor.Advisory {
 		add(a)
 	}
 	add(extraPassAdvisories(in.req, in.prefix, in.inst)...)
+	add(seriesAxisAdvisories(in.req, in.schema, in.prefix, in.inst)...)
 	return out
 }
 
@@ -472,6 +475,92 @@ func extraPassAdvisories(req *types.Request, prefix string, inst *InstanceSnapsh
 				"totals":      totals,
 				"added_scans": extraPassAddedScans,
 			},
+		})
+	}
+	return out
+}
+
+// advisoryOrderedOverlayNames is the owner list of
+// PULSE_ADVISORY_SERIES_AXIS_NOT_DATE: the partitioned series overlays
+// that read their rows in order (seriespartition.Ordered).
+func advisoryOrderedOverlayNames() []string {
+	var out []string
+	for _, k := range seriespartition.Kinds() {
+		if seriespartition.Ordered(k) {
+			out = append(out, string(k))
+		}
+	}
+	return out
+}
+
+// seriesAxisIsDate reports whether grouper g buckets time: a date
+// grouper the instance offers, or any grouper over a date or datetime
+// column of the schema.
+func seriesAxisIsDate(g *types.Group, schema *encoding.Schema, inst *InstanceSnapshot) bool {
+	switch opRoute(inst, g.Type) {
+	case types.GROUP_DATE, types.GROUP_DATE_RANGES:
+		return true
+	}
+	if schema == nil || g.Field == "" {
+		return false
+	}
+	f := schema.Field(g.Field)
+	return f != nil && (f.Type == encoding.FieldTypeDate || f.Type == encoding.FieldTypeDateTime)
+}
+
+// seriesAxisAdvisories: one PULSE_ADVISORY_SERIES_AXIS_NOT_DATE per
+// series overlay (the instance offers) that reads its rows in order
+// (seriespartition.Ordered) on a SERIES host of two or more groupers
+// with no params.partition_by, when the last grouper — the implicit
+// series axis — is not a date grouper (seriesAxisIsDate). An explicit
+// partition_by states the order and never fires; the _TOTAL kinds are
+// order-free and never fire. details {slot, operator, series_axis,
+// grouper, groups[, date_axis]}: date_axis is the first leading key
+// column that does bucket time, when one exists.
+func seriesAxisAdvisories(req *types.Request, schema *encoding.Schema, prefix string, inst *InstanceSnapshot) []descriptor.Advisory {
+	n := len(req.Groups)
+	if req.Crosstab != nil || n < 2 || len(req.Overlays) == 0 {
+		return nil
+	}
+	last := req.Groups[n-1]
+	if last == nil || seriesAxisIsDate(last, schema, inst) {
+		return nil
+	}
+	cols := seriespartition.KeyColumns(req.Groups)
+	dateAxis := ""
+	for i, g := range req.Groups[:n-1] {
+		if g != nil && seriesAxisIsDate(g, schema, inst) {
+			dateAxis = cols[i]
+			break
+		}
+	}
+	var out []descriptor.Advisory
+	for i := range req.Overlays {
+		spec := &req.Overlays[i]
+		kind := opRoute(inst, spec.Kind)
+		if !seriespartition.Ordered(kind) || seriespartition.Explicit(spec) {
+			continue
+		}
+		slot := prefix + "overlays[" + strconv.Itoa(i) + "]"
+		details := map[string]any{
+			"slot":        slot,
+			"operator":    string(kind),
+			"series_axis": cols[n-1],
+			"grouper":     string(last.Type),
+			"groups":      append([]string(nil), cols...),
+		}
+		next := "if this is the order you mean, set params.partition_by to the leading key columns to state it."
+		if dateAxis != "" {
+			details["date_axis"] = dateAxis
+			next = "put " + dateAxis + " last in groups so the series runs through time within each segment, or, " + next
+		} else {
+			next = "if " + cols[n-1] + " is the order you mean, set params.partition_by to the leading key columns to state it."
+		}
+		out = append(out, descriptor.Advisory{
+			Code: string(errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE),
+			Message: string(kind) + " at " + slot + " reads its rows in order and, with no params.partition_by, runs its series down " +
+				cols[n-1] + " (" + string(last.Type) + "), the last of " + strconv.Itoa(n) + " groupers, which is not a date grouper; " + next,
+			Details: details,
 		})
 	}
 	return out

@@ -38,7 +38,7 @@ With N ≥ 2 entries a row's key is the tuple `(g0, ..., gN-1)`; this is the can
 - **Whole-set fit:** <!-- feature: GROUP_QUANTILE -->`GROUP_QUANTILE`<!-- /feature --> and <!-- feature: GROUP_KMEANS -->`GROUP_KMEANS`<!-- /feature --> fit once over the filtered set, then cross; position never changes a record's band.
 - **Refused:** two entries on one key column (`SERVICE_VALIDATION`); an extension key containing NUL (`PROCESSING_GROUP`); <!-- feature: OVERLAY_YOY -->`OVERLAY_YOY`<!-- /feature --> with N ≥ 2 (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`).
 - **`max_groups`:** predict reports the PRODUCT of per-grouper estimates, an upper bound; the run enforces it on observed ones.
-- **Downstream:** `sort`, `return`, windows, post-tests<!-- feature: capability:matrices --> and grouped matrices<!-- /feature --> follow the composite rows. Prior / rolling / baseline / sibling overlays run once per partition: the leading keys (`params.partition_by`; default all but the last), never crossing a segment (`overlay-system`).
+- **Downstream:** `sort`, `return`, windows, post-tests<!-- feature: capability:matrices --> and grouped matrices<!-- /feature --> follow the composite rows. Series overlays (YoY aside) run once per partition: the leading keys (`params.partition_by`; default all but the last, so put the date grouper last), never crossing a segment (`overlay-system`).
 
 ## Smart defaults
 

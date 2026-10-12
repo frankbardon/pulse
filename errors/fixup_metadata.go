@@ -902,6 +902,22 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE: {
+		Message: "A series overlay that reads its rows in order (a prior, rolling, baseline or sibling overlay) runs over two or more groupers with no params.partition_by, so it partitions by every key but the last and runs its series down the last grouper, which is not a date grouper; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups"},
+				Hint:   "Put the date grouper (details.date_axis, when present) last in Request.Groups so the series runs through time within each segment.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "partition_by"},
+				Hint:     "If the last grouper is the order you mean, set params.partition_by to the leading key columns to state it; an explicit partition_by silences the advisory.",
+				Examples: []any{map[string]any{"partition_by": []any{"warehouse"}}},
+			},
+		},
+	},
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN: {
 		Message: "Options.SuppressAdvisories names a code that is not a registered PULSE_ADVISORY_* advisory code.",
 		Fixups: []Fixup{
@@ -2427,7 +2443,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_PARTITION_INVALID: {
-		Message: "A series overlay's params.partition_by is not a leading prefix of the request's group key columns. With two or more groupers a prior, rolling, baseline or sibling overlay runs once per partition — the rows sharing the leading keys — so the series never crosses a segment. Absent, it partitions by every key but the last (the series runs down the last grouper); [] means no partition. Raised at predict and at runtime with the same Details {index, kind, partition_by, groups, reason, field}: reason is not_string_list, unknown_field or not_prefix, groups lists the key columns in order.",
+		Message: "A series overlay's params.partition_by is not a leading prefix of the request's group key columns. With two or more groupers a prior, rolling, baseline, sibling or _TOTAL overlay runs once per partition — the rows sharing the leading keys — so a series never crosses a segment and a total is the partition's own. Absent, it partitions by every key but the last (the series runs down the last grouper); [] means no partition. Raised at predict and at runtime with the same Details {index, kind, partition_by, groups, reason, field}: reason is not_string_list, unknown_field or not_prefix, groups lists the key columns in order.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,

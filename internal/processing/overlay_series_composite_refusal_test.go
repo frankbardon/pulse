@@ -12,11 +12,12 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// partitionedSeriesSpecs is every SERIES overlay that reads the host as
-// an ordered series (lag-1 prior, rolling window, positional baseline,
-// sibling) — the kinds that run once per partition on a composite-row
-// host (internal/seriespartition.Kinds). The sibling names the series
-// key "step" so each partition resolves its own sibling row.
+// partitionedSeriesSpecs is every SERIES overlay that runs once per
+// partition on a composite-row host (internal/seriespartition.Kinds):
+// the eight that read the host as an ordered series (lag-1 prior,
+// rolling window, positional baseline, sibling), then the three _TOTAL
+// kinds. The sibling names the series key "step" so each partition
+// resolves its own sibling row.
 func partitionedSeriesSpecs() []types.OverlaySpec {
 	window := json.RawMessage(`{"window": 2}`)
 	sib := &types.OverlaySiblingRef{Field: "step", Value: "s2"}
@@ -29,8 +30,15 @@ func partitionedSeriesSpecs() []types.OverlaySpec {
 		{Name: "db", Kind: types.OverlayKindDeltaVsBaseline, Scope: types.OverlayScopeGroup, Ref: types.OverlayRef{BaselineIndex: &types.OverlayBaselineIndexRef{}}},
 		{Name: "is", Kind: types.OverlayKindIndexVsSibling, Scope: types.OverlayScopeGroup, Ref: types.OverlayRef{Sibling: sib}},
 		{Name: "ds", Kind: types.OverlayKindDeltaVsSibling, Scope: types.OverlayScopeGroup, Ref: types.OverlayRef{Sibling: sib}},
+		{Name: "it", Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeGroup},
+		{Name: "st", Kind: types.OverlayKindShareOfTotal, Scope: types.OverlayScopeGroup},
+		{Name: "zt", Kind: types.OverlayKindZScoreVsTotal, Scope: types.OverlayScopeGroup},
 	}
 }
+
+// totalSeriesSpecs is the three _TOTAL kinds of partitionedSeriesSpecs:
+// each row's total (or mean and SD) is its partition's.
+func totalSeriesSpecs() []types.OverlaySpec { return partitionedSeriesSpecs()[8:] }
 
 // withParam merges key=value into spec.Params.
 func withParam(t *testing.T, spec types.OverlaySpec, key string, value any) types.OverlaySpec {
@@ -250,6 +258,68 @@ func TestOverlaySeries_PartitionNoneIsTheWholeWalk(t *testing.T) {
 	}
 }
 
+// TestOverlaySeries_TotalKindsPartitionNoneIsTheGrandTotal: on the
+// _TOTAL kinds partition_by [] is the pre-U46 figure — every composite
+// row against the grand total (or grand mean and SD), exactly the
+// handler over the whole host — while the default takes each region's
+// own total, so the share sums to 1 within every region.
+func TestOverlaySeries_TotalKindsPartitionNoneIsTheGrandTotal(t *testing.T) {
+	rows := interleave(ptRows())
+	keys := make([]types.AxisKey, len(rows))
+	for i, r := range rows {
+		keys[i] = types.AxisKey{r.keys["region"], r.keys["step"]}
+	}
+	for _, spec := range totalSeriesSpecs() {
+		t.Run(string(spec.Kind), func(t *testing.T) {
+			none, noneSummary, _ := ptRun(t, withParam(t, spec, "partition_by", []string{}), []string{"region", "step"}, rows)
+			host := NewSeriesHostViewWithGrouper(keys, func(i int) (float64, bool) { return rows[i].v, true },
+				[]string{"region", "step"}, []types.GroupType{types.GROUP_CATEGORY, types.GROUP_CATEGORY})
+			layers, _, err := ApplyOverlaysSeries([]types.OverlaySpec{spec}, host)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i, e := range layers[0].Payload.Series.Entries {
+				if got := ptKey(e.Key) + "=" + ptStat(e.Summary.Statistic); got != none[i] {
+					t.Errorf("entry %d: partition_by [] %s, grand-total walk %s", i, none[i], got)
+				}
+			}
+			if ptSummary(noneSummary) != ptSummary(layers[0].Summary) {
+				t.Errorf("summary %s, grand-total walk %s", ptSummary(noneSummary), ptSummary(layers[0].Summary))
+			}
+			def, _, _ := ptRun(t, spec, []string{"region", "step"}, rows)
+			if strings.Join(def, ";") == strings.Join(none, ";") {
+				t.Error("the default partition equals the grand total; the fixture does not tell them apart")
+			}
+		})
+	}
+	// The default share sums to 1 within each region (south's absent
+	// step contributes nothing).
+	req := &types.Request{
+		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}, {Type: types.GROUP_CATEGORY, Field: "step"}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x", Label: "v"}},
+		Overlays:     []types.OverlaySpec{totalSeriesSpecs()[1]},
+	}
+	resp := &types.Response{}
+	for _, r := range rows {
+		resp.Data = append(resp.Data, map[string]any{"region": r.keys["region"], "step": r.keys["step"], "v": r.v})
+	}
+	if err := applyOverlaysSeriesToResponse(req, resp, nil, FullComputePlan()); err != nil {
+		t.Fatal(err)
+	}
+	sums := map[any]float64{}
+	for _, e := range resp.Overlays[0].Payload.Series.Entries {
+		sums[e.Key[0]] += *e.Summary.Statistic
+	}
+	for region, sum := range sums {
+		if math.Abs(sum-1) > 1e-12 {
+			t.Errorf("%v: shares sum to %v, want 1", region, sum)
+		}
+	}
+	if len(sums) != 3 {
+		t.Errorf("shares over %d regions, want 3", len(sums))
+	}
+}
+
 // TestOverlaySeries_ThreeGroupersPrefixes: over [region, tier, step]
 // partition_by [region] runs the series down (tier, step) within each
 // region — equal to a [tier, step] host per region with
@@ -318,17 +388,29 @@ func TestOverlaySeries_ThreeGroupersPrefixes(t *testing.T) {
 
 // TestOverlaySeries_PartitionWarningsOncePerLayer: a zero baseline in
 // one partition raises PULSE_OVERLAY_REF_ZERO once for the layer, with
-// group_count the whole host's and partitions the raising count.
+// group_count the whole host's and partitions the raising count. A
+// one-row zero "north" partition is a zero total and a zero SD for the
+// _TOTAL kinds, so they raise it from that partition alone.
 func TestOverlaySeries_PartitionWarningsOncePerLayer(t *testing.T) {
-	spec := partitionedSeriesSpecs()[4] // INDEX_VS_BASELINE: west's first value is 0
 	rows := ptRows()
 	rows = append(rows, ptRow{keys: map[string]string{"region": "north", "step": "s1"}, v: 0})
-	_, _, ws := ptRun(t, spec, []string{"region", "step"}, interleave(rows))
-	if len(ws) != 1 || ws[0].Code != string(errors.PULSE_OVERLAY_REF_ZERO) {
-		t.Fatalf("warnings %+v, want one PULSE_OVERLAY_REF_ZERO", ws)
-	}
-	if ws[0].Details["partitions"] != 2 || ws[0].Details["group_count"] != len(rows) {
-		t.Errorf("details %v, want partitions 2, group_count %d", ws[0].Details, len(rows))
+	specs := partitionedSeriesSpecs()
+	for _, c := range []struct {
+		spec       types.OverlaySpec
+		partitions int
+	}{
+		{specs[4], 2},  // INDEX_VS_BASELINE: west's and north's first values are 0
+		{specs[8], 1},  // INDEX_VS_TOTAL
+		{specs[9], 1},  // SHARE_OF_TOTAL
+		{specs[10], 1}, // ZSCORE_VS_TOTAL
+	} {
+		_, _, ws := ptRun(t, c.spec, []string{"region", "step"}, interleave(rows))
+		if len(ws) != 1 || ws[0].Code != string(errors.PULSE_OVERLAY_REF_ZERO) {
+			t.Fatalf("%s: warnings %+v, want one PULSE_OVERLAY_REF_ZERO", c.spec.Kind, ws)
+		}
+		if ws[0].Details["partitions"] != c.partitions || ws[0].Details["group_count"] != len(rows) {
+			t.Errorf("%s: details %v, want partitions %d, group_count %d", c.spec.Kind, ws[0].Details, c.partitions, len(rows))
+		}
 	}
 }
 

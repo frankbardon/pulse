@@ -26,19 +26,19 @@ Use something else:
 
 ## Params
 
-`Scope` must be `group`. `Ref` (object, empty) — implicit-grand-total — leave empty. `Level`/`Within` must be `0`. `params.field` (string, optional) — OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`.
+`Scope` must be `group`. `Ref` (object, empty) — implicit-grand-total — leave empty. `Level`/`Within` must be `0`. `params.field` (string, optional) — OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`. `params.partition_by` (string list, optional) — a leading prefix of the group key columns (Host shape); anything else → `PULSE_OVERLAY_PARTITION_INVALID`.
 
 ## Host shape
 
-SERIES — grouped Process host. First streamable SERIES-host overlay with a streaming finalize hook. Sibling to the grand-total share (SERIES arm) — same accumulator, different scale.
+SERIES — grouped Process host. Over two or more `groups` the total is each partition's own — the rows sharing the leading keys `params.partition_by` names (default all but the last; `[]` = the grand total over every row), matched by key equality. First streamable SERIES-host overlay with a streaming finalize hook. Sibling to the grand-total share (SERIES arm) — same accumulator, different scale.
 
 ## Output
 
-SERIES — one `SeriesEntry` per host group key in host order, carrying `index = group_val / grand_total × 100` on `Summary.Statistic`. Layer `Baseline = 100`.
+SERIES — one `SeriesEntry` per host group key in host order, carrying `index = group_val / total × 100` (`total` = the partition's) on `Summary.Statistic`. Layer `Baseline = 100`.
 
 ## Gotchas
 
-- `grand_total == 0` → NaN entries + ONE `PULSE_OVERLAY_REF_ZERO` per layer.
+- Zero total → NaN entries + ONE `PULSE_OVERLAY_REF_ZERO` per layer (`details.partitions` = raising count).
 - Absent host group → `SeriesEntry` with unset `Statistic` and does NOT contribute to grand total.
 - Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Streamable — one `float64` grand-total accumulator carried alongside per-group accumulators inside the streaming Process fold. Post-host finalize is the divide step.

@@ -34,7 +34,8 @@ func mgSeriesOverlaySpecs() []types.OverlaySpec {
 	}
 }
 
-// psSpecs is the eight partitioned kinds over a series key: the sibling
+// psSpecs is the eleven partitioned kinds over a series key: the eight
+// ordered kinds, then the three _TOTAL kinds (psTotalSpecs). The sibling
 // pair names sibling (the series key column and a value every partition
 // carries); without one the sibling pair is left out.
 func psSpecs(sibField, sibValue string) []types.OverlaySpec {
@@ -48,7 +49,17 @@ func psSpecs(sibField, sibValue string) []types.OverlaySpec {
 		}
 		out = append(out, s)
 	}
-	return out
+	return append(out, psTotalSpecs()...)
+}
+
+// psTotalSpecs is the three _TOTAL kinds: each row against its
+// partition's total (or mean and SD).
+func psTotalSpecs() []types.OverlaySpec {
+	return []types.OverlaySpec{
+		{Name: "it", Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeGroup},
+		{Name: "st", Kind: types.OverlayKindShareOfTotal, Scope: types.OverlayScopeGroup},
+		{Name: "zt", Kind: types.OverlayKindZScoreVsTotal, Scope: types.OverlayScopeGroup},
+	}
 }
 
 // psWithPartition sets params.partition_by on every spec.
@@ -158,8 +169,9 @@ func psRender(t *testing.T, resp *types.Response, nSpecs, depth int) []map[strin
 // names sex = F), the story's segment × day [region, day], and three
 // groupers [region, sex, score/2] partitioned by both prefixes
 // (partition_by [region] against per-region runs with partition_by []).
-// The prior pair alone over streamable groupers must ride the
-// streaming arm.
+// The prior pair alone, and the three _TOTAL kinds alone, over
+// streamable groupers must ride the streaming arm; each _TOTAL row is
+// scored against its partition's total (or mean and SD).
 func TestMultiGrouper_SeriesOverlaysPartitioned(t *testing.T) {
 	f := newMGFixture(t, pulse.Options{})
 	cases := []psCase{
@@ -171,6 +183,8 @@ func TestMultiGrouper_SeriesOverlaysPartitioned(t *testing.T) {
 			specs: psSpecs("", ""), perSingle: psSpecs("", "")},
 		{name: "region×score streamable kinds", groups: func() []*types.Group { return []*types.Group{mgRegion(), psScoreBy2()} }, depth: 1,
 			specs: psSpecs("", "")[:2], perSingle: psSpecs("", "")[:2]},
+		{name: "region×score total kinds", groups: func() []*types.Group { return []*types.Group{mgRegion(), psScoreBy2()} }, depth: 1,
+			specs: psTotalSpecs(), perSingle: psTotalSpecs()},
 		{name: "region×sex×score default", groups: func() []*types.Group { return []*types.Group{mgRegion(), mgSex(), psScoreBy2()} }, depth: 2,
 			specs: psSpecs("", ""), perSingle: psSpecs("", "")},
 		{name: "region×sex×score partition_by [region]", groups: func() []*types.Group { return []*types.Group{mgRegion(), mgSex(), psScoreBy2()} }, depth: 1,
@@ -235,6 +249,51 @@ func TestMultiGrouper_SeriesOverlaysPartitioned(t *testing.T) {
 					t.Fatalf("only %d partitions; the fixture must split into several", seen)
 				}
 			})
+		}
+	}
+}
+
+// TestMultiGrouper_TotalKindsPartitionNoneIsGrandTotal: with
+// partition_by [] a _TOTAL overlay over [region, score/2] scores every
+// composite row against the GRAND total — share = ys / Σys over every
+// row, the pre-U46 figure — while the default shares sum to 1 within
+// each region.
+func TestMultiGrouper_TotalKindsPartitionNoneIsGrandTotal(t *testing.T) {
+	f := newMGFixture(t, pulse.Options{})
+	share := psTotalSpecs()[1:2]
+	run := func(specs []types.OverlaySpec) *types.Response {
+		req := mgRequest(f, []*types.Group{mgRegion(), psScoreBy2()}, psYSum())
+		req.Overlays = specs
+		resp, err := f.p.Process(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp
+	}
+	resp := run(psWithPartition(t, share, []string{}))
+	grand := 0.0
+	for _, row := range resp.Data {
+		grand += row["ys"].(float64)
+	}
+	entries := resp.Overlays[0].Payload.Series.Entries
+	if len(entries) != len(resp.Data) || len(entries) < 6 {
+		t.Fatalf("%d entries for %d rows", len(entries), len(resp.Data))
+	}
+	for i, e := range entries {
+		if want := resp.Data[i]["ys"].(float64) / grand; *e.Summary.Statistic != want {
+			t.Errorf("row %d: share %v, want %v (grand total %v)", i, *e.Summary.Statistic, want, grand)
+		}
+	}
+	sums := map[any]float64{}
+	for _, e := range run(share).Overlays[0].Payload.Series.Entries {
+		sums[e.Key[0]] += *e.Summary.Statistic
+	}
+	if len(sums) < 3 {
+		t.Fatalf("shares over %d regions; the fixture must split into several", len(sums))
+	}
+	for region, sum := range sums {
+		if math.Abs(sum-1) > 1e-12 {
+			t.Errorf("region %v: default shares sum to %v, want 1", region, sum)
 		}
 	}
 }

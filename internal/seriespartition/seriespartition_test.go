@@ -147,15 +147,46 @@ func TestRowKeys(t *testing.T) {
 
 func TestKinds(t *testing.T) {
 	ks := Kinds()
-	if len(ks) != 8 {
-		t.Fatalf("Kinds() = %v, want the 8 prior / rolling / baseline / sibling kinds", ks)
+	if len(ks) != 11 {
+		t.Fatalf("Kinds() = %v, want the 8 ordered kinds and the 3 _TOTAL kinds", ks)
 	}
+	ordered := 0
 	for _, k := range ks {
 		if !Applies(k) {
 			t.Errorf("%s listed but not applied", k)
 		}
+		if Ordered(k) {
+			ordered++
+		}
 	}
-	if Applies(types.OverlayKindYoY) || Applies(types.OverlayKindShareOfTotal) {
-		t.Error("YoY or a _TOTAL kind partitions before its story lands")
+	if ordered != 8 {
+		t.Errorf("%d ordered kinds, want 8", ordered)
+	}
+	for _, k := range []types.OverlayKind{types.OverlayKindIndexVsTotal, types.OverlayKindShareOfTotal, types.OverlayKindZScoreVsTotal} {
+		if !Applies(k) || Ordered(k) {
+			t.Errorf("%s: Applies=%v Ordered=%v, want a partitioned, order-free kind", k, Applies(k), Ordered(k))
+		}
+	}
+	if Applies(types.OverlayKindYoY) || Ordered(types.OverlayKindYoY) {
+		t.Error("YoY partitions before its story lands")
+	}
+}
+
+func TestExplicit(t *testing.T) {
+	for params, want := range map[string]bool{
+		"":                             false,
+		`{"window": 2}`:                false,
+		`{"partition_by": null}`:       false,
+		`[1]`:                          false,
+		`{"partition_by": []}`:         true,
+		`{"partition_by": ["region"]}`: true,
+		`{"partition_by": "region"}`:   true,
+	} {
+		if got := Explicit(spec(params)); got != want {
+			t.Errorf("Explicit(%s) = %v, want %v", params, got, want)
+		}
+	}
+	if Explicit(nil) {
+		t.Error("Explicit(nil)")
 	}
 }

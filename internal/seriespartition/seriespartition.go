@@ -6,7 +6,8 @@
 // leak into each other.
 //
 //   - Implicit (absent or null `partition_by`): every key but the last,
-//     so the series runs down the last grouper. One grouper means no
+//     so the series runs down the last grouper (the _TOTAL kinds take
+//     each row's total over the rows sharing every other key). One grouper means no
 //     partition (the pre-U46 walk).
 //   - Explicit: a LEADING PREFIX of the request's group key columns
 //     (vectors.GroupKeyField). `[]` means no partition: one walk over
@@ -41,9 +42,10 @@ import (
 // Param is the OverlaySpec.Params key naming the partition keys.
 const Param = "partition_by"
 
-// kinds is the set of process-host series overlay kinds that read the
-// host as ordered series and so honour Param.
-var kinds = map[types.OverlayKind]bool{
+// ordered is the set of process-host series overlay kinds that read the
+// host as an ORDERED series (a lag, a window, a position, a sibling
+// row): within a partition the series runs down the remaining keys.
+var ordered = map[types.OverlayKind]bool{
 	types.OverlayKindDeltaVsPrior:       true,
 	types.OverlayKindIndexVsPrior:       true,
 	types.OverlayKindIndexVsRollingMean: true,
@@ -54,9 +56,46 @@ var kinds = map[types.OverlayKind]bool{
 	types.OverlayKindIndexVsSibling:     true,
 }
 
+// kinds is every process-host series overlay kind that runs per
+// partition and honours Param: the ordered kinds plus the three _TOTAL
+// kinds, whose total (or mean and SD) is the partition's own, order-free.
+var kinds = map[types.OverlayKind]bool{
+	types.OverlayKindDeltaVsPrior:       true,
+	types.OverlayKindIndexVsPrior:       true,
+	types.OverlayKindIndexVsRollingMean: true,
+	types.OverlayKindZScoreVsRolling:    true,
+	types.OverlayKindDeltaVsBaseline:    true,
+	types.OverlayKindIndexVsBaseline:    true,
+	types.OverlayKindDeltaVsSibling:     true,
+	types.OverlayKindIndexVsSibling:     true,
+	types.OverlayKindIndexVsTotal:       true,
+	types.OverlayKindShareOfTotal:       true,
+	types.OverlayKindZScoreVsTotal:      true,
+}
+
 // Applies reports whether kind is a series overlay kind that runs per
 // partition and reads Param.
 func Applies(kind types.OverlayKind) bool { return kinds[kind] }
+
+// Ordered reports whether kind is one of the partitioned kinds that
+// reads its partition as an ordered series, so the last grouper's key
+// order is the series order (the _TOTAL kinds are order-free).
+func Ordered(kind types.OverlayKind) bool { return ordered[kind] }
+
+// Explicit reports whether spec's Params carry a non-null partition_by
+// (valid or not). Absent, null or undecodable Params is the implicit
+// default.
+func Explicit(spec *types.OverlaySpec) bool {
+	if spec == nil || len(spec.Params) == 0 {
+		return false
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(spec.Params, &m); err != nil {
+		return false
+	}
+	raw, present := m[Param]
+	return present && string(raw) != "null"
+}
 
 // Kinds returns every kind Applies accepts, in types.AllOverlayKinds
 // order.

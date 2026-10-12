@@ -96,8 +96,10 @@ func OverlayCapabilities() []descriptor.OverlayCapability {
 // "".
 func seriesFieldNoteFor(k types.OverlayKind) string {
 	switch {
+	case seriespartition.Ordered(k):
+		return seriesFieldNote + seriesPartitionNote + seriesAxisNote
 	case seriespartition.Applies(k):
-		return seriesFieldNote + seriesPartitionNote
+		return seriesFieldNote + seriesPartitionNote + seriesTotalNote
 	case seriesfield.Applies(k):
 		return seriesFieldNote
 	case seriesfield.AppliesCompose(k):
@@ -117,11 +119,25 @@ const seriesFieldNote = " Measure: on a SERIES host the overlay scores the aggre
 
 // seriesPartitionNote follows seriesFieldNote on every kind that runs
 // once per partition of a composite-row host
-// (internal/seriespartition): the params.partition_by rule.
+// (internal/seriespartition): the params.partition_by rule. An ordered
+// kind (seriespartition.Ordered) adds seriesAxisNote; a _TOTAL kind adds
+// seriesTotalNote.
 const seriesPartitionNote = " Partition: with two or more groupers the overlay runs once per partition, the rows sharing " +
-	"the leading keys Params[\"partition_by\"] names (default every key but the last, so the series runs down the last " +
-	"grouper; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list " +
+	"the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); " +
+	"partitions match by key equality, so a sort may interleave them. A list " +
 	"that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime."
+
+// seriesAxisNote closes the partition note of an ordered kind: the
+// series runs down the last grouper, and predict advises when that axis
+// is not a date grouper.
+const seriesAxisNote = " The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, " +
+	"predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE."
+
+// seriesTotalNote closes the partition note of a _TOTAL kind: each row
+// is scored against its partition's total, and [] restores the grand
+// total.
+const seriesTotalNote = " Each row is scored against its partition's total (and, for the z-score, its partition's mean and SD); " +
+	"partition_by [] restores the grand total over every row."
 
 // composeSeriesFieldNote closes the Description of every Compose kind
 // whose SERIES arm scores one slot aggregation

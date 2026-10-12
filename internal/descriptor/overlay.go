@@ -782,8 +782,8 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 // params.partition_by is not a leading prefix of the request's group key
 // columns (PULSE_OVERLAY_PARTITION_INVALID, Details {index, kind,
 // partition_by, groups, reason[, field]}). With two or more groupers the
-// prior / rolling / baseline / sibling kinds (seriespartition.Kinds) run
-// once per partition — every key but the last by default — so the
+// prior / rolling / baseline / sibling kinds and the three _TOTAL kinds
+// (seriespartition.Kinds) run once per partition — every key but the last by default — so the
 // composite rows are no longer refused. The reading is
 // internal/seriespartition.Depth, the one the runtime hook
 // (processing.applyOverlaysSeriesToResponse) calls, so the refusal is

@@ -2182,6 +2182,7 @@ pulse/errors: const PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC pulse/errors.Code = "P
 pulse/errors: const PULSE_ADVISORY_EXTRA_PASS pulse/errors.Code = "PULSE_ADVISORY_EXTRA_PASS"
 pulse/errors: const PULSE_ADVISORY_MANY_TESTS pulse/errors.Code = "PULSE_ADVISORY_MANY_TESTS"
 pulse/errors: const PULSE_ADVISORY_ORDINAL_PARAMETRIC pulse/errors.Code = "PULSE_ADVISORY_ORDINAL_PARAMETRIC"
+pulse/errors: const PULSE_ADVISORY_SERIES_AXIS_NOT_DATE pulse/errors.Code = "PULSE_ADVISORY_SERIES_AXIS_NOT_DATE"
 pulse/errors: const PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS pulse/errors.Code = "PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS"
 pulse/errors: const PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED pulse/errors.Code = "PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED"
 pulse/errors: const PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL pulse/errors.Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL"
@@ -4938,4 +4939,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 091230550eb6106104f82b85e45250d36847c2f3b6573e29f0f178fb9b7028ea
+// golden-hash: 58dc730eaafc833b9303291deb294b6ef05828ac2a56f440bb69a82ef64d02ec

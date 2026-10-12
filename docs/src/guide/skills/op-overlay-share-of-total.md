@@ -26,11 +26,11 @@ Use something else:
 
 ## Params
 
-`Scope` required — `cell` (MATRIX) or `group` (SERIES). `Ref.Margin.Axis` required on MATRIX dispatch (grand-axis-locked, value ignored), empty on SERIES. `Level` / `Within` must be `0`. `params.field` (string, optional on SERIES) — OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`.
+`Scope` required — `cell` (MATRIX) or `group` (SERIES). `Ref.Margin.Axis` required on MATRIX dispatch (grand-axis-locked, value ignored), empty on SERIES. `Level` / `Within` must be `0`. `params.field` (string, optional on SERIES) — OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`. `params.partition_by` (string list, optional) — a leading prefix of the group key columns (Host shape); anything else → `PULSE_OVERLAY_PARTITION_INVALID`.
 
 ## Host shape
 
-Dual-shape: **MATRIX** crosstab (`Ref.Margin` required, grand-axis) → `cell / grand_total`; **SERIES** grouped Process host (implicit grand-total, empty `Ref`) → `group_val / grand_total`.
+Dual-shape: **MATRIX** crosstab (`Ref.Margin` required, grand-axis) → `cell / grand_total`; **SERIES** grouped Process host (implicit total, empty `Ref`) → `group_val / total`. Over two or more `groups` the total is each partition's own — the rows sharing the leading keys `params.partition_by` names (default all but the last; `[]` = the grand total over every row), matched by key equality.
 
 ## Output
 
@@ -40,7 +40,7 @@ MATRIX or SERIES — raw share (no ×100). A whole matrix / complete partition s
 
 - Streamable via SERIES dispatch — same `computeSeriesGrandTotal` accumulator as the total index; MATRIX buffers.
 - Empty `Ref.Margin` on MATRIX, or a populated `Ref` on SERIES → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
-- `grand_total == 0` → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per layer.
+- Zero total → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per layer (`details.partitions` on SERIES).
 - Absent host coordinate → unset entry, no contribution to the grand total.
 - A share, not an index (×100); the kind names are kept distinct.
 - Weighted host → weighted figure (reads the host payload).

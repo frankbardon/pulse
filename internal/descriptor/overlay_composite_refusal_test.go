@@ -11,8 +11,8 @@ import (
 
 // TestValidateOverlay_SeriesKindsMultiGrouperPartitioned: every SERIES
 // overlay that reads the host as an ordered series (lag-1 prior,
-// rolling window, positional baseline, sibling) is ACCEPTED over two
-// groupers — it runs once per partition, every key but the last by
+// rolling window, positional baseline, sibling) and the three _TOTAL
+// kinds are ACCEPTED over two groupers — it runs once per partition, every key but the last by
 // default — and with an explicit leading-prefix partition_by or [].
 // A non-prefix or unknown partition_by is refused
 // PULSE_OVERLAY_PARTITION_INVALID with the Details the runtime raises
@@ -31,6 +31,9 @@ func TestValidateOverlay_SeriesKindsMultiGrouperPartitioned(t *testing.T) {
 		{Name: "db", Kind: types.OverlayKindDeltaVsBaseline, Scope: types.OverlayScopeGroup, Ref: types.OverlayRef{BaselineIndex: &types.OverlayBaselineIndexRef{}}},
 		{Name: "is", Kind: types.OverlayKindIndexVsSibling, Scope: types.OverlayScopeGroup, Ref: types.OverlayRef{Sibling: &types.OverlaySiblingRef{Field: "region", Value: "east"}}},
 		{Name: "ds", Kind: types.OverlayKindDeltaVsSibling, Scope: types.OverlayScopeGroup, Ref: types.OverlayRef{Sibling: &types.OverlaySiblingRef{Field: "region", Value: "east"}}},
+		{Name: "it", Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeGroup},
+		{Name: "st", Kind: types.OverlayKindShareOfTotal, Scope: types.OverlayScopeGroup},
+		{Name: "zt", Kind: types.OverlayKindZScoreVsTotal, Scope: types.OverlayScopeGroup},
 	}
 	region := func() *types.Group { return &types.Group{Type: types.GROUP_CATEGORY, Field: "region"} }
 	segment := func() *types.Group { return &types.Group{Type: types.GROUP_CATEGORY, Field: "segment"} }

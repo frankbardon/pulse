@@ -494,6 +494,15 @@ const (
 	// formula label, the distinct total() arguments and added_scans.
 	PULSE_ADVISORY_EXTRA_PASS Code = "PULSE_ADVISORY_EXTRA_PASS"
 
+	// PULSE_ADVISORY_SERIES_AXIS_NOT_DATE is a predict advisory: a
+	// series overlay that reads its rows in order (prior, rolling,
+	// baseline, sibling) runs over two or more groupers with no
+	// params.partition_by, so it partitions by every key but the last
+	// and runs its series down the last grouper — which is not a date
+	// grouper. One per such overlay; details carry the slot, the kind,
+	// the series axis, its grouper and the group key columns.
+	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE Code = "PULSE_ADVISORY_SERIES_AXIS_NOT_DATE"
+
 	// PULSE_SUPPRESS_ADVISORY_UNKNOWN is raised by pulse.New when
 	// Options.SuppressAdvisories names a code that is not a registered
 	// PULSE_ADVISORY_* advisory code.
@@ -3525,6 +3534,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_ORDINAL_PARAMETRIC,
 	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED,
 	PULSE_ADVISORY_EXTRA_PASS,
+	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN,
 	PULSE_RECOMMEND_INTENT_UNKNOWN,
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,
