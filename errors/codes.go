@@ -1647,6 +1647,8 @@ const (
 	// predict and at runtime by the one shared reading
 	// (internal/seriesfield.Resolve), Details {index, kind, field,
 	// available} — available lists the request's aggregation labels.
+	// A Compose overlay's SERIES arm resolves it per slot
+	// (seriesfield.ResolveComposeSlot) and adds Details.slot.
 	PULSE_OVERLAY_FIELD_UNKNOWN Code = "PULSE_OVERLAY_FIELD_UNKNOWN"
 
 	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT indicates a whole-chain
@@ -1717,8 +1719,11 @@ const (
 	// post-slot-barrier inside processing.ApplyComposeOverlays, BEFORE
 	// the schema-match and dict-drift gates fire — key-set
 	// divergence is the cheapest signal so it fails fast. Surfaced at
-	// runtime; the internal/descriptor.ValidateCompose predict-time
-	// companion is deferred.
+	// runtime from the data; predict-compose (Gate 4) raises the
+	// structural half — two SERIES slots whose group key columns differ
+	// by name, Details {index, reference, target, reference_fields,
+	// target_fields}. A SERIES slot keys on its group columns alone
+	// (U46): aggregation values never enter the key.
 	PULSE_OVERLAY_KEY_SET_DIVERGENT Code = "PULSE_OVERLAY_KEY_SET_DIVERGENT"
 
 	// PULSE_OVERLAY_SCHEMA_DIVERGENT indicates a Compose overlay spec

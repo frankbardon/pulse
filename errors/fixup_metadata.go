@@ -2416,7 +2416,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_FIELD_UNKNOWN: {
-		Message: "A series overlay's params.field does not name a request aggregation. The param takes the OUTPUT LABEL of one Request.Aggregations entry — its explicit Label, else its TYPE_field default — and the overlay scores that aggregation; absent, it scores the first aggregation. Raised at predict and at runtime with the same Details {index, kind, field, available}, where available lists the request's aggregation labels in order.",
+		Message: "A series overlay's params.field does not name a request aggregation. The param takes the OUTPUT LABEL of one Request.Aggregations entry — its explicit Label, else its TYPE_field default — and the overlay scores that aggregation; absent, it scores the first aggregation. Raised at predict and at runtime with the same Details {index, kind, field, available}, where available lists the request's aggregation labels in order. A Compose overlay (INDEX_VS_REF, DELTA_VS_REF, T_VS_REF, Z_VS_REF, PANEL_INDEX_VS_REF) resolves the label on every non-crosstab slot it reads, reference first, and adds Details.slot naming the slot that lacks it.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -2533,7 +2533,7 @@ var codeMetadata = map[Code]Metadata{
 	PULSE_OVERLAY_KEY_SET_DIVERGENT: {
 		// Minimal entry — full polish (richer Message + per-shape Fixup
 		// hints) is deferred.
-		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose per-coordinate key sets disagree — matrix (row × column) tuples present on one slot but absent on another, or series group-keys diverging across slots. Compose-only overlays require strict cross-Request key alignment so the renderer can fold target values against the reference at byte-equal coordinates; tolerant alignment is an explicit non-goal for v1. Details carry the reference slot label, the offending target slot label, and the symmetric difference of the two key sets (`missing` keys present on reference but absent from target; `extra` keys present on target but absent from reference).",
+		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose per-coordinate key sets disagree — matrix (row × column) tuples present on one slot but absent on another, or series group-keys diverging across slots. Compose-only overlays require strict cross-Request key alignment so the renderer can fold target values against the reference at byte-equal coordinates; tolerant alignment is an explicit non-goal for v1. Details carry the reference slot label, the offending target slot label, and the symmetric difference of the two key sets (`missing` keys present on reference but absent from target; `extra` keys present on target but absent from reference). A SERIES slot keys on its group columns alone, so predict-compose refuses two SERIES slots whose group key columns differ by name, Details {index, reference, target, reference_fields, target_fields}.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

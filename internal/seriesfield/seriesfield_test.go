@@ -87,3 +87,29 @@ func TestKinds(t *testing.T) {
 		t.Error("a MATRIX-only kind applies, or an unknown label resolved")
 	}
 }
+
+// ResolveComposeSlot reads the Compose spec's decoded params by the
+// Resolve rule and stamps the slot label on a refusal.
+func TestResolveComposeSlot(t *testing.T) {
+	spec := &types.ComposeOverlaySpec{Kind: types.OverlayKindIndexVsRef}
+	for field, want := range map[any]int{nil: 0, "": 0, "orders": 2, "AGG_AVERAGE_spend": 1} {
+		spec.Params = map[string]any{"field": field}
+		if got, err := ResolveComposeSlot(aggs(), spec, 0, "a"); err != nil || got != want {
+			t.Errorf("field %v: (%d, %v), want %d", field, got, err, want)
+		}
+	}
+	spec.Params = map[string]any{"field": "spend"}
+	_, err := ResolveComposeSlot(aggs(), spec, 3, "treated")
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_OVERLAY_FIELD_UNKNOWN {
+		t.Fatalf("err = %v, want PULSE_OVERLAY_FIELD_UNKNOWN", err)
+	}
+	want := map[string]any{"index": 3, "kind": string(types.OverlayKindIndexVsRef), "field": "spend",
+		"available": []string{"AGG_SUM_spend", "AGG_AVERAGE_spend", "orders"}, "slot": "treated"}
+	if !reflect.DeepEqual(ce.Details, want) {
+		t.Errorf("details %#v, want %#v", ce.Details, want)
+	}
+	if !AppliesCompose(types.OverlayKindPanelIndexVsRef) || AppliesCompose(types.OverlayKindRank) || Applies(types.OverlayKindIndexVsRef) {
+		t.Error("compose kind set wrong, or a compose kind leaked into the process-host set")
+	}
+}

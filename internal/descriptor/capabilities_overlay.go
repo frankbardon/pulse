@@ -76,6 +76,9 @@ func OverlayCapabilities() []descriptor.OverlayCapability {
 		if seriesfield.Applies(k) {
 			entry.Description += seriesFieldNote
 		}
+		if seriesfield.AppliesCompose(k) {
+			entry.Description += composeSeriesFieldNote
+		}
 		entry.Buffered = !streamable
 		entry.Zone = ZoneCapabilityOf(string(k))
 		sort.Slice(entry.Shapes, func(i, j int) bool {
@@ -97,6 +100,13 @@ func OverlayCapabilities() []descriptor.OverlayCapability {
 const seriesFieldNote = " Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL " +
 	"Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. " +
 	"A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime."
+
+// composeSeriesFieldNote closes the Description of every Compose kind
+// whose SERIES arm scores one slot aggregation
+// (seriesfield.AppliesCompose).
+const composeSeriesFieldNote = " Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores " +
+	"the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on every slot it reads; " +
+	"absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime."
 
 // overlayCapabilityFor returns the static per-kind capability shape
 // (Shapes / Scopes / RefKinds / Description). Buffered is filled by

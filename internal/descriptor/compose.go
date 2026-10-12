@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -11,8 +12,10 @@ import (
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/internal/totalcall"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -632,7 +635,55 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	// host itself. The kindRequiresMatrix table mirrors the runtime
 	// processing.kindRequiresMatrix (see compose_test.go for the
 	// lock-step sync test).
+	//
+	// Gate 4a, the SERIES value + key rule (U46): a non-crosstab slot is
+	// scored on the aggregation params.field names (else
+	// Aggregations[0]) and keyed on its GROUP columns alone — the
+	// runtime's processing.projectComposeSeriesSlots. An unknown label
+	// is PULSE_OVERLAY_FIELD_UNKNOWN (reference first, then targets),
+	// and two SERIES slots whose group key columns differ by name can
+	// never align: PULSE_OVERLAY_KEY_SET_DIVERGENT, the code the
+	// runtime key-set gate raises.
+	if seriesfield.AppliesCompose(opts.overlayRoute(spec.Kind)) {
+		slots := append([]resolvedTarget{{label: spec.Reference, req: refReq}}, resolved...)
+		for _, s := range slots {
+			if s.req == nil || s.req.Crosstab != nil {
+				continue
+			}
+			// An aggregation authored without a Type takes its smart
+			// default (and so its TYPE_field label) from the cohort
+			// schema, which predict-compose never reads: such a slot's
+			// labels are unknown here, so the runtime judges it.
+			if composeSlotLabelsDeferred(s.req) {
+				continue
+			}
+			if _, ferr := seriesfield.ResolveComposeSlot(s.req.Aggregations, spec, specIdx, s.label); ferr != nil {
+				addCodedError(env, ferr)
+				appendComposeSlotPair(result, spec.Reference, s.label, "field-unknown")
+			}
+		}
+	}
 	refShape := inferComposeSlotShape(refReq)
+	if refShape == types.OverlayShapeSeries {
+		refKeys := composeSeriesKeyFields(refReq)
+		for _, target := range resolved {
+			if inferComposeSlotShape(target.req) != types.OverlayShapeSeries {
+				continue
+			}
+			if tKeys := composeSeriesKeyFields(target.req); !composeStringTuplesEqual(refKeys, tKeys) {
+				env.AddError(string(errors.PULSE_OVERLAY_KEY_SET_DIVERGENT),
+					"compose overlay key set divergent: reference and target SERIES slots key on differently named group columns",
+					map[string]any{
+						"index":            specIdx,
+						"reference":        spec.Reference,
+						"target":           target.label,
+						"reference_fields": refKeys,
+						"target_fields":    tKeys,
+					})
+				appendComposeSlotPair(result, spec.Reference, target.label, "key-set-divergent")
+			}
+		}
+	}
 	if kindRequiresMatrixCompose(spec.Kind) && refShape != types.OverlayShapeMatrix {
 		env.AddError(string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
 			"compose overlay kind requires a MATRIX-shape host but the reference slot is not a crosstab",
@@ -932,6 +983,33 @@ func composeRequestAxisTuples(req *types.Request) ([]string, []string) {
 		return row, nil
 	}
 	return nil, nil
+}
+
+// composeSlotLabelsDeferred reports whether a slot carries an
+// aggregation with neither a Label nor a Type: its output label is the
+// smart default's TYPE_field, decided by the cohort schema at run time.
+func composeSlotLabelsDeferred(req *types.Request) bool {
+	for _, a := range req.Aggregations {
+		if a != nil && a.Label == "" && a.Type == "" {
+			return true
+		}
+	}
+	return false
+}
+
+// composeSeriesKeyFields returns the sorted group key columns a SERIES
+// slot's Data rows key on (vectors.GroupKeyField of every Groups
+// entry) — the column names the runtime row key encodes, in its sorted
+// order.
+func composeSeriesKeyFields(req *types.Request) []string {
+	out := make([]string, 0, len(req.Groups))
+	for _, g := range req.Groups {
+		if g != nil {
+			out = append(out, vectors.GroupKeyField(g.Type, g))
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // composeStringTuplesEqual reports byte-equality between two string

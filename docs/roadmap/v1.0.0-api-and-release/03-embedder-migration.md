@@ -489,6 +489,16 @@ Complete for U54 (no release tag cut by the unit). Contract: `.claude/reference/
 | `OVERLAY_DELTA_VS_PRIOR` / `_INDEX_VS_PRIOR` / `_INDEX_VS_ROLLING_MEAN` / `_ZSCORE_VS_ROLLING` / `_DELTA_VS_BASELINE` / `_INDEX_VS_BASELINE` / `_DELTA_VS_SIBLING` / `_INDEX_VS_SIBLING` on a request with two or more `groups` folded down the composite rows: a lag or window crossed outer buckets (the first row of a bucket got a delta against the previous bucket's last row), and a baseline or sibling resolved to one row of another bucket | refused `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`details.groupers`) on predict and runtime; one grouper is byte-identical | behaviour change (refusal) | use one grouper, or a FILTER_INCLUDE / Compose slot per outer bucket; #320 (U46) lifts the refusal with per-partition semantics | U54 |
 | predict `max_groups` / group estimate for several groupers was the first grouper's | the PRODUCT of the per-grouper estimates, an upper bound (runtime enforces on observed combinations); the matrix `bucket_basis` is `"product"` | behaviour change (estimate) | treat the estimate as a ceiling, not a row count | U54 |
 
+## Changes from U46 (grouped analysis)
+
+In progress (no release tag cut by the unit). Contract: `.claude/reference/execution-modes.md` (Series measure, Compose series value + key); skills `op-overlay-*`. `format_version` stays `"1.1"`; an overlay-free Compose is byte-identical.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| a Compose `OVERLAY_INDEX_VS_REF` / `_DELTA_VS_REF` / `_T_VS_REF` / `_Z_VS_REF` / `_PANEL_INDEX_VS_REF` over SERIES slots with two or more aggregations scored the alphabetically FIRST aggregation label and folded the other aggregations' values into the row key, so it failed `PULSE_OVERLAY_KEY_SET_DIVERGENT` or scored the wrong measure | each row keys on the slot's group columns alone and scores the aggregation `params.field` names (output label), else the slot's FIRST-LISTED aggregation; single-aggregation slots are byte-identical | behaviour change | drop slot-per-measure and aggregation-reordering workarounds; name the measure with `params.field` | U46 |
+| (none) | `params.field` on those five kinds; a label a slot the overlay reads lacks is `PULSE_OVERLAY_FIELD_UNKNOWN` with `details.slot`, on predict-compose and runtime | added | set `field` to a label every read slot carries | U46 |
+| predict-compose admitted two SERIES slots whose group columns differ by name (same grouper types); the runtime refused them `PULSE_OVERLAY_KEY_SET_DIVERGENT` | predict-compose refuses them too, `PULSE_OVERLAY_KEY_SET_DIVERGENT` with `details.{reference_fields, target_fields}` | behaviour change (predict refusal) | group every compared slot on the same key columns | U46 |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

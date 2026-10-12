@@ -90,7 +90,12 @@ func Resolve(aggs []*types.Aggregation, spec *types.OverlaySpec, index int) (int
 	if err := json.Unmarshal(spec.Params, &m); err != nil {
 		return 0, nil
 	}
-	raw, present := m[Param]
+	return resolve(aggs, spec.Kind, m, index)
+}
+
+// resolve is Resolve over decoded params, shared with the Compose host.
+func resolve(aggs []*types.Aggregation, kind types.OverlayKind, params map[string]any, index int) (int, error) {
+	raw, present := params[Param]
 	if !present || raw == nil {
 		return 0, nil
 	}
@@ -103,14 +108,61 @@ func Resolve(aggs []*types.Aggregation, spec *types.OverlaySpec, index int) (int
 			return i, nil
 		}
 	}
-	msg := "overlay " + string(spec.Kind) + " params.field must name the output label of a request aggregation"
+	msg := "overlay " + string(kind) + " params.field must name the output label of a request aggregation"
 	if isString {
-		msg = "overlay " + string(spec.Kind) + " params.field \"" + name + "\" names no request aggregation"
+		msg = "overlay " + string(kind) + " params.field \"" + name + "\" names no request aggregation"
 	}
 	return 0, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_FIELD_UNKNOWN, msg, map[string]any{
 		"index":     index,
-		"kind":      string(spec.Kind),
+		"kind":      string(kind),
 		"field":     raw,
 		"available": Labels(aggs),
 	})
+}
+
+// composeKinds is the set of Compose-host kinds whose SERIES arm scores
+// one aggregation of each slot: the value of a slot's Data row is the
+// aggregation Param names, its key the slot's group columns only.
+var composeKinds = map[types.OverlayKind]bool{
+	types.OverlayKindIndexVsRef:      true,
+	types.OverlayKindDeltaVsRef:      true,
+	types.OverlayKindTVsRef:          true,
+	types.OverlayKindZVsRef:          true,
+	types.OverlayKindPanelIndexVsRef: true,
+}
+
+// AppliesCompose reports whether kind is a Compose-host kind whose
+// SERIES arm scores the slot aggregation Param names.
+func AppliesCompose(kind types.OverlayKind) bool { return composeKinds[kind] }
+
+// ComposeKinds returns every kind AppliesCompose accepts, in
+// types.AllOverlayKinds order.
+func ComposeKinds() []types.OverlayKind {
+	out := make([]types.OverlayKind, 0, len(composeKinds))
+	for _, k := range types.AllOverlayKinds() {
+		if composeKinds[k] {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// ResolveComposeSlot returns the index into aggs (one Compose slot's
+// Request.Aggregations) of the aggregation a Compose overlay spec
+// scores on that slot: the Resolve rule over the spec's decoded Params.
+// The refusal is PULSE_OVERLAY_FIELD_UNKNOWN with Details {index, kind,
+// field, available, slot} — index the spec's position in
+// ComposedRequest.Overlays, slot the slot's label. The runtime
+// dispatcher and predict-compose both call it, so the refusal cannot
+// drift between them.
+func ResolveComposeSlot(aggs []*types.Aggregation, spec *types.ComposeOverlaySpec, index int, slot string) (int, error) {
+	if spec == nil {
+		return 0, nil
+	}
+	i, err := resolve(aggs, spec.Kind, spec.Params, index)
+	if ce, ok := err.(*errors.CodedError); ok {
+		ce.Details["slot"] = slot
+		ce.Message += " on slot \"" + slot + "\""
+	}
+	return i, err
 }

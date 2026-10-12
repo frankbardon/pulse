@@ -309,6 +309,15 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 		if err := checkPanelSlabPartition(spec, i, refIdx, targetIdxs, requests, exts); err != nil {
 			return nil, nil, err
 		}
+		// SERIES slots narrow to their group columns plus the scored
+		// aggregation (params.field, else Aggregations[0]) BEFORE any
+		// gate reads a Data row, so a multi-aggregation slot keys on its
+		// groups alone. The field refusal sits where predict-compose
+		// raises it: after label resolution, before the key-set gate.
+		refResp, targetResps, err = projectComposeSeriesSlots(spec, route, i, refResp, refIdx, targetResps, targetIdxs, requests)
+		if err != nil {
+			return nil, nil, err
+		}
 		// Strict cross-Request key-set alignment. Runs AFTER reference
 		// + targets have resolved to concrete *Response objects but
 		// BEFORE the per-kind handler dispatches — key-set divergence
