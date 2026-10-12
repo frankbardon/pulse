@@ -2944,6 +2944,17 @@ const (
 	// and "valid" (the names that would be accepted).
 	PULSE_VECTOR_METRIC_REQUIRED Code = "PULSE_VECTOR_METRIC_REQUIRED"
 
+	// PULSE_VECTOR_METRIC_UNSUITED is a WARNING (an error under strict
+	// mode): an explicitly named metric fits the declared kind of the
+	// vector it reads poorly — cosine on a scale or measure vector, the
+	// Euclidean family on a composition. A defaulted metric never
+	// raises it, and a vector without a kind never does. Details carry
+	// "vector", "kind", "metric", "slot" (the request path), "form",
+	// "consumer" (the operator, or "expr" with "function" for an
+	// expression call) and "suggested" (the kind's default in that form,
+	// absent when the kind has none).
+	PULSE_VECTOR_METRIC_UNSUITED Code = "PULSE_VECTOR_METRIC_UNSUITED"
+
 	// PULSE_MATRIX_UNSUPPORTED_SOURCE indicates a `matrices` slot on a
 	// request whose rows are not cohort rows the matrix operators can
 	// fold: a Request carrying Joins (details "source" = "join",
@@ -3657,6 +3668,7 @@ var allCodes = []Code{
 	PULSE_VECTOR_UNREFERENCED,
 	PULSE_VECTOR_METRIC_UNKNOWN,
 	PULSE_VECTOR_METRIC_REQUIRED,
+	PULSE_VECTOR_METRIC_UNSUITED,
 	PULSE_MATRIX_UNSUPPORTED_SOURCE,
 	PULSE_MATRIX_HOST_CONFLICT,
 	PULSE_MATRIX_NOT_PSD,

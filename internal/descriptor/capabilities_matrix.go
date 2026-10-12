@@ -147,7 +147,7 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 			AcceptsTypes: memberTypes,
 			Params: []descriptor.Param{
 				{Name: "between", Type: "object", Required: true, Description: "The grouper whose buckets are compared: a grouper spec {type, field | vector | fields, params, include, interval} as in groups (GROUP_KMEANS reads vector / fields). Any built-in grouper or a registered extension grouper; it takes the matrix's weight and no weight of its own, and a tz only on a date-family grouper (GROUP_DATE, GROUP_DATE_RANGES), which reads its zone like a groups slot."},
-				{Name: "metric", Type: "enum", Required: false, Default: vectors.DistanceDefaultMetric, EnumValues: metric.Accepted(metric.ConsumerMatDistance), Description: "A linalg/metric registry name (capabilities.matrix.metrics, consumer MAT_DISTANCE), in the distance form: euclidean (stats::dist), sq_euclidean (its square), manhattan (sum of absolute differences), chebyshev (the largest absolute difference), cosine (1 - cos of the angle between the centroids, clamped to [0, 2]; null for a zero-length one), hellinger and aitchison (compositions: non-negative centroids, refused beside standardize; a negative coordinate or an aitchison zero part nulls the distance with PULSE_MATRIX_METRIC_DOMAIN) or mahalanobis (over the pooled within-bucket covariance, on the raw centroids: scale-free, standardize changes nothing; null on any undefined coordinate). An undefined coordinate (a zero-spread member under standardize) is dropped pairwise and the element sums rescaled by p/p_observed (R stats::dist())."},
+				{Name: "metric", Type: "enum", Required: false, Default: vectors.DistanceDefaultMetric, EnumValues: metric.Accepted(metric.ConsumerMatDistance), Description: "A linalg/metric registry name (capabilities.matrix.metrics, consumer MAT_DISTANCE), in the distance form. Absent over a kind-declared vector, the smart defaults fill the kind's default this operator accepts (capabilities.matrix.vector_kinds: measure euclidean, scale euclidean, composition aitchison — manhattan under standardize — binary cosine; reported in defaults_applied); absent otherwise, euclidean. An explicit metric that fits the vector's kind poorly warns PULSE_VECTOR_METRIC_UNSUITED (an error under strict). The metrics: euclidean (stats::dist), sq_euclidean (its square), manhattan (sum of absolute differences), chebyshev (the largest absolute difference), cosine (1 - cos of the angle between the centroids, clamped to [0, 2]; null for a zero-length one), hellinger and aitchison (compositions: non-negative centroids, refused beside standardize; a negative coordinate or an aitchison zero part nulls the distance with PULSE_MATRIX_METRIC_DOMAIN) or mahalanobis (over the pooled within-bucket covariance, on the raw centroids: scale-free, standardize changes nothing; null on any undefined coordinate). An undefined coordinate (a zero-spread member under standardize) is dropped pairwise and the element sums rescaled by p/p_observed (R stats::dist())."},
 				{Name: "min_valid", Type: "int", Required: false, Default: 1, Description: "The fewest complete member pairs (coordinates defined on both centroids) a distance needs, 1 to the member count; below it the distance is null."},
 				{Name: "standardize", Type: "bool", Required: false, Default: false, Description: "z-score every member over the bucketed rows (their mean and N* - 1 standard deviation, R scale()) before comparing, so no member dominates by its units."},
 				{Name: "missing", Type: "enum", Required: false, Default: vectors.MissingListwise, EnumValues: []string{vectors.MissingListwise}, Description: "listwise only: a row with any member null joins no centroid (pairwise is refused)."},
@@ -299,6 +299,23 @@ func metricCapabilities(offered func(metric.Consumer) bool) []descriptor.MetricM
 	return out
 }
 
+// vectorKindCapabilities is the kind → default metric table
+// (metric.Default), in canonical kind order.
+func vectorKindCapabilities() []descriptor.VectorKindMeta {
+	out := make([]descriptor.VectorKindMeta, 0, len(metric.Kinds()))
+	for _, k := range metric.Kinds() {
+		e := descriptor.VectorKindMeta{Name: string(k)}
+		if m, ok := metric.Default(k, metric.Distance); ok {
+			e.DistanceDefault = m.Name()
+		}
+		if m, ok := metric.Default(k, metric.Similarity); ok {
+			e.SimilarityDefault = m.Name()
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
 // metricConsumerOffered reports, from the instance's registered and
 // enabled operator names, whether it offers metric consumer c: "expr"
 // through either expression operator, an operator consumer by name.
@@ -330,6 +347,7 @@ func matrixCapability(offered func(metric.Consumer) bool) descriptor.MatrixCapab
 		MissingModes:    vectors.MissingModes(),
 		MergeBlockSize:  linalg.MergeBlockSize,
 		Metrics:         metricCapabilities(offered),
+		VectorKinds:     vectorKindCapabilities(),
 		Limitations: []string{
 			"Matrices follow Request.Groups: a grouped request returns one result per spec per non-empty bucket (group_key, group_header), spec-major then bucket in the final Data row order (Request.Sort included); a thin bucket is still emitted, with PULSE_MATRIX_INSUFFICIENT_N.",
 			"A request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results, per bucket on a grouped request.",

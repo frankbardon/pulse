@@ -7,6 +7,7 @@ import (
 
 	perrors "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/linalg/metric"
+	"github.com/frankbardon/pulse/types"
 )
 
 // TestMetricFlow drives the public metric registry the way an embedder
@@ -28,5 +29,21 @@ func TestMetricFlow(t *testing.T) {
 	}
 	if len(metric.Names()) != 15 || !metric.Accepts(metric.ConsumerKMeans, "euclidean") {
 		t.Fatal("registry listing changed")
+	}
+}
+
+// TestVectorKindFlow: an embedder declares a vector kind with the
+// public spelling and reads the metric it defaults to, consumer-aware.
+func TestVectorKindFlow(t *testing.T) {
+	lo, hi := 1.0, 5.0
+	spec := types.VectorSpec{Name: "sat", Fields: []string{"q*"}, Kind: types.VectorKindScale, ScaleMin: &lo, ScaleMax: &hi}
+	if d, ok := metric.Default(metric.Kind(spec.Kind), metric.Similarity); !ok || d.Name() != "correlation" {
+		t.Fatalf("scale similarity default = %q, %v", d.Name(), ok)
+	}
+	if d, ok := metric.DefaultFor(metric.ConsumerMatDistance, metric.Kind(types.VectorKindBinary), metric.Distance, nil); !ok || d.Name() != "cosine" {
+		t.Fatalf("MAT_DISTANCE binary default = %q, %v", d.Name(), ok)
+	}
+	if perrors.PULSE_VECTOR_METRIC_UNSUITED == "" || len(types.AllVectorKinds()) != 4 {
+		t.Fatal("kind surface changed")
 	}
 }

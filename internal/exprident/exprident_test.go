@@ -59,3 +59,25 @@ func TestFirstCallee(t *testing.T) {
 		}
 	}
 }
+
+func TestCalls(t *testing.T) {
+	cases := []struct {
+		src    string
+		want   []Call
+		parsed bool
+	}{
+		{`cosine(a, b) > 0.5`, []Call{{"cosine", []string{"a", "b"}}}, true},
+		{`cosine(vcenter(a), b)`, []Call{{"vcenter", []string{"a"}}, {"cosine", []string{"", "b"}}}, true},
+		{`dist(a, [1, 2]) + len(a)`, []Call{{"dist", []string{"a", ""}}}, true},
+		{`let v = vcenter(a); cosine(v, a)`, []Call{{"vcenter", []string{"a"}}, {"cosine", []string{"", "a"}}}, true},
+		{`cosine($env, a)`, []Call{{"cosine", []string{"", "a"}}}, true},
+		{`x + 1`, nil, true},
+		{`cosine(`, nil, false},
+	}
+	for _, c := range cases {
+		got, ok := Calls(c.src)
+		if ok != c.parsed || !reflect.DeepEqual(got, c.want) {
+			t.Errorf("Calls(%q) = %v, %v; want %v, %v", c.src, got, ok, c.want, c.parsed)
+		}
+	}
+}

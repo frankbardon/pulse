@@ -27,7 +27,7 @@ Use something else:
 ## Params
 
 - `between` — required grouper spec as in `groups`, extension groupers too; no own `weight`.
-- `metric` — a `matrix.metrics` name with consumer `MAT_DISTANCE`: `euclidean` (default), `sq_euclidean`, `manhattan`, `chebyshev`, `cosine` (1 − cos), `hellinger`, `aitchison`, `mahalanobis` (pooled covariance, raw centroids). `standardize` — z-score first; refused with `hellinger` / `aitchison`.
+- `metric` — a `matrix.metrics` name with consumer `MAT_DISTANCE`: `euclidean` (default; over a `kind` vector the kind's default, [`vector-metrics`](vector-metrics.md)), `sq_euclidean`, `manhattan`, `chebyshev`, `cosine` (1 − cos), `hellinger`, `aitchison`, `mahalanobis` (pooled covariance, raw centroids). `standardize` — z-score first; refused with `hellinger` / `aitchison`.
 - `min_valid` — fewest complete member pairs per distance (default 1); below it null.
 - `missing` (`listwise`), `max_drop_share`, `weight`, `encoding`: [`op-mat-correlation`](op-mat-correlation.md).
 
@@ -50,10 +50,11 @@ Integer / float members.
 - `GROUP_KMEANS`: buffered, frequency weights only.
 - Missing coordinate (zero-spread member under standardize): dropped pairwise, sums rescaled by p/p_observed; `mahalanobis` needs all.
 - Negative coordinate under `hellinger` / `aitchison`, or an aitchison zero: null cells, `PULSE_MATRIX_METRIC_DOMAIN`.
+- An explicit metric unsuited to the vector's `kind` (`cosine` on scale / measure, Euclidean on composition) warns `PULSE_VECTOR_METRIC_UNSUITED`; error under strict.
 - Massless bucket: null centroid (`PULSE_MATRIX_INSUFFICIENT_N`); collinear: `PULSE_MATRIX_SINGULAR`. Centres only; no p-values.
 
 ## See
 
 - `pulse_examples_search tags=[matrix, multivariate]`
-- Skills: [`multivariate-outputs`](multivariate-outputs.md)
+- Skills: [`multivariate-outputs`](multivariate-outputs.md), [`vector-metrics`](vector-metrics.md)
 - [`op-group-kmeans`](op-group-kmeans.md)

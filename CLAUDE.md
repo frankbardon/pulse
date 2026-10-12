@@ -88,7 +88,7 @@ Field descriptions in `.pulse` capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_T
 
 ### Smart defaults
 
-A slot naming a field but omitting `Type` gets an operator inferred from the schema type (`internal/descriptor/defaults.go`, `defaultRules`; numeric -> `AGG_SUM`/`GROUP_RANGE`, categorical and `packed_bool` -> `AGG_MODE_COUNT`/`GROUP_CATEGORY`, date-family -> `GROUP_DATE` only). Defaults never override `Type`, cross categories or default tests/filters/attributes/windows/features; disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`; predict always computes `DefaultsApplied`. Table: `execution-modes.md` (Smart defaults).
+A slot naming a field but omitting `Type` gets an operator inferred from the schema type (`internal/descriptor/defaults.go`, `defaultRules`; numeric -> `AGG_SUM`/`GROUP_RANGE`, categorical and `packed_bool` -> `AGG_MODE_COUNT`/`GROUP_CATEGORY`, date-family -> `GROUP_DATE` only); a metric slot on a `kind` vector gets its kind's metric. Defaults never override `Type`/`metric`, cross categories or default tests/filters/attributes/windows/features; disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`; predict always computes `DefaultsApplied`. Table: `execution-modes.md` (Smart defaults).
 
 **Date-family field types.** `GROUP_DATE`, `GROUP_DATE_RANGES` and `FILTER_DATE_RANGES` accept both `date` and `datetime`; zone math lives only in `internal/temporal` (`TestNoZoneMathOutsideTemporal`). Long form: `execution-modes.md` (Date-family field types, Time zones); `skills/time-zones.md`.
 
@@ -111,7 +111,7 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 
 **Response shaping.** Opt-in `Request.Return {preset, include, exclude, precision}`; an excluded part is ABSENT on the wire (never `null`), output stamped `returned`. Long form: `update-demand.md` (`Request.Return` row), `skills/response-shaping.md`.
 
-**Matrices.** `Request.Vectors` + `Request.Matrices` → `Response.Matrices` (`MatrixResult`, each matrix a dedicated `MatrixValues`, never the crosstab `MatrixPayload`). Long form: `matrix-and-vectors.md` (Matrix slot); skill `multivariate-design` picks the operator. `Test` / `Attribute` `vector` / `fields` reuse the vector rules (Virtual vectors). Opt-in `RegressionSpec.Vcov` adds `RegressionResult.Vcov` + `Correlation` (`MatrixValues`), `Covariance` robust SEs (off = byte-identical): `matrix-and-vectors.md` (Regression vcov).
+**Matrices.** `Request.Vectors` + `Request.Matrices` → `Response.Matrices` (`MatrixResult`, each matrix a dedicated `MatrixValues`, never the crosstab `MatrixPayload`). Long form: `matrix-and-vectors.md` (Matrix slot); skill `multivariate-design` picks the operator. `Test` / `Attribute` `vector` / `fields` reuse the vector rules (Virtual vectors), where a vector's `kind` and `PULSE_VECTOR_METRIC_UNSUITED` live. Opt-in `RegressionSpec.Vcov` (`RegressionResult.Vcov` / `Correlation`; off = byte-identical): `matrix-and-vectors.md` (Regression vcov).
 
 ### Response.Components
 
@@ -150,7 +150,7 @@ Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators
 **Contract: `.claude/reference/predict-inspect.md` — load it before changing predict, inspect, `pulse_inspect` or `CountRecords`.** The always-load half:
 
 - **Predict structural ban:** `internal/descriptor/predict.go` MUST NOT import `internal/service/` or `internal/processing/`. Enforced by `TestPredictNoExecutionImports`. Reads only header + schema, never records.
-- **Predict streamability:** `PredictResult.Streamable` mirrors per-type `Streamable()` methods plus schema gates (decimal). Runtime parity via the engine's internal streamability gate (`TestPredict_Streamable_MatchesRuntime`). Beside it, `CrosstabFusable` (nil ⇔ no crosstab) + `CrosstabFusionReasons`: the fused-crosstab dispatch answer from the shared `internal/crosstabfuse` rule, instance-aware (`DisableCrosstabFusion`) — `TestPredict_CrosstabFusableMatchesRuntime`.
+- **Predict streamability:** `PredictResult.Streamable` mirrors per-type `Streamable()` methods plus schema gates (decimal). Runtime parity via the engine's internal streamability gate (`TestPredict_Streamable_MatchesRuntime`). Beside it, `CrosstabFusable` (nil ⇔ no crosstab) + `CrosstabFusionReasons` answer fused-crosstab dispatch by the shared `internal/crosstabfuse` rule (`TestPredict_CrosstabFusableMatchesRuntime`).
 - **Inspect reads no record:** header + schema + sidecar metadata (`suggested_weight`); dictionaries truncated to `DefaultDictionaryLimit` (100) unless `FullDict: true`; `RecordCount` derives from the file LENGTH. **`Pulse.Inspect` drops `env.Warnings`** — CLI and `pulse_inspect` read `Pulse.InspectEnvelope`.
 - **Advisories:** `PredictResult.Advisories` (`PULSE_ADVISORY_*`) — coded fit notes, never warnings, never escalated by Strict, never change execution; `Options.SuppressAdvisories` validated at `New`. Long form: `predict-inspect.md` (Advisories).
 - **CountRecords header-fast:** no payload decode; the single-file floor division exists ONCE (`encoding.Schema.RecordCountForPayload`, shared with `Inspect`). `Inspect` warns on a truncated tail, `CountRecords` floors SILENTLY — deliberately; never make it error.
@@ -173,7 +173,7 @@ Other load-bearing gates (`TestManifest*Complete`, `TestStreamability_*`, `TestE
 
 ## Build / Env
 
-`make contrib` / `make contrib-tidy` (nested adapter modules; a root dependency bump needs `contrib-tidy` in its PR). `make build` (default; injects `VERSION` from `git describe` via ldflags into `internal/buildinfo`, read by `pulse.Version()`), `test`, `fmt`, `vet`, `lint`, `cover`, `clean`, `dist` (6-platform archives + `checksums.txt` into `dist/`), `docs` (runs `docs-generate` first, which regenerates the committed `docs/src/guide`), `docs-serve`, `docs-clean`. A `v*.*.*` tag push runs `release.yml`: `ci.yml` via `workflow_call`, then `make dist`, assets attached to the GitHub Release (`-` tags pre-release). A `.env` at repo root is auto-loaded. `make lint` = `go vet` + `staticcheck`, and must pass before any push.
+`make contrib` / `make contrib-tidy` (nested adapter modules; a root dependency bump needs `contrib-tidy` in its PR). `make build` (default; injects `VERSION` from `git describe` via ldflags into `internal/buildinfo`, read by `pulse.Version()`), `test`, `fmt`, `vet`, `lint`, `cover`, `clean`, `dist` (6-platform archives + `checksums.txt` into `dist/`), `docs` (runs `docs-generate` first, which regenerates the committed `docs/src/guide`), `docs-serve`, `docs-clean`. A `v*.*.*` tag push runs `release.yml` (`ci.yml`, then `make dist` assets onto the GitHub Release; `-` tags pre-release). A `.env` at repo root is auto-loaded. `make lint` = `go vet` + `staticcheck`, and must pass before any push.
 
 **Environment variables** — one line each; `pulse.Options` always overrides:
 

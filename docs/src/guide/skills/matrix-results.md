@@ -9,11 +9,11 @@ requires: [capability:matrices]
 ```
 # Vectors and matrices
 
-A **vector** names numeric fields once; a **matrix** slot turns a vector into a square result (every member against every member). Both are additive: no `vectors` / `matrices` is byte-identical to before, and `format_version` stays `"1.1"`.
+A **vector** names numeric fields once; a **matrix** slot turns a vector into a square result (every member against every member). Both are additive (`format_version` stays `"1.1"`).
 
 ## 1. Name the vector
 
-`vectors: [{name, fields | pattern, labels?, coerce?}]` — exactly one of `fields` / `pattern`. A `name` equal to a field or a feature / attribute / window label is `PULSE_VECTOR_NAME_COLLISION`.
+`vectors: [{name, fields | pattern, labels?, coerce?, kind?}]` — one of `fields` / `pattern`; `kind` → [`vector-metrics`](vector-metrics.md). A `name` equal to a field or a feature / attribute / window label is `PULSE_VECTOR_NAME_COLLISION`.
 
 - A literal `fields` entry keeps the caller's position; a glob (`q*`) expands in place in schema order; `pattern` is an unanchored regexp in schema order.
 - Members: integer and float types. `packed_bool` only with `coerce: "binary"`. Categorical, `set_*`, `date`, `datetime`, `decimal128` are refused (`PULSE_VECTOR_MEMBER_TYPE`).

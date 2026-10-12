@@ -642,6 +642,20 @@ type MatrixCapability struct {
 	// (linalg/metric) in canonical order: every metric any consumer
 	// resolves by name.
 	Metrics []MetricMeta `json:"metrics"`
+	// VectorKinds lists the vector kinds (VectorSpec.kind) in canonical
+	// order with the metric each defaults to per form.
+	VectorKinds []VectorKindMeta `json:"vector_kinds"`
 	// Limitations lists the v1 envelope notes for LLM clients.
 	Limitations []string `json:"limitations"`
+}
+
+// VectorKindMeta is one vector kind's metric defaults: the metric an
+// operator naming none fills from the vector's kind, per form (a
+// consumer that does not accept it fills the first metric it accepts
+// that suits the kind). Empty when the kind has no default in that
+// form.
+type VectorKindMeta struct {
+	Name              string `json:"name"`
+	DistanceDefault   string `json:"distance_default"`
+	SimilarityDefault string `json:"similarity_default"`
 }

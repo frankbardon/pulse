@@ -546,7 +546,7 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#139** Centering functions `vcenter`, `vzscore`, `vnormalize` · [U26](units/U26-vector-expr-functions.md)
 - [x] **#140** Set similarity `jaccard`, `dice`, `hamming`, `overlap` on `set_*` fields · [U26](units/U26-vector-expr-functions.md)
 - [ ] **#141** Shared metric registry `linalg/metric` · [U27](units/U27-vector-metrics-aggregates.md)
-- [ ] **#142** Vector `kind` (`measure` / `scale` / `composition` / `binary`) with metric defaults and `PULSE_VECTOR_METRIC_UNSUITED`; also owns `PULSE_ADVISORY_COSINE_ON_SCALE` (moved from U22) · [U27](units/U27-vector-metrics-aggregates.md)
+- [x] **#142** Vector `kind` (`measure` / `scale` / `composition` / `binary`) with metric defaults and `PULSE_VECTOR_METRIC_UNSUITED`; also owns `PULSE_ADVISORY_COSINE_ON_SCALE` (moved from U22) · [U27](units/U27-vector-metrics-aggregates.md)
 - [ ] **#143** `ATTR_SCALE_SCORE` · [U27](units/U27-vector-metrics-aggregates.md)
 - [ ] **#144** `AGG_VEC_MEAN`, `AGG_VEC_SUM` (array value, `expand` option) · [U27](units/U27-vector-metrics-aggregates.md)
 

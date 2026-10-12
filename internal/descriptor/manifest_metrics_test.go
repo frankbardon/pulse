@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/linalg/metric"
+	"github.com/frankbardon/pulse/types"
 )
 
 // manifestMetrics returns m.Matrix.Metrics keyed by name, failing when
@@ -117,5 +118,28 @@ func TestManifestMetrics_InstanceHidesConsumers(t *testing.T) {
 	_, set = manifestMetrics(t, m)
 	if !slices.Contains(set["cosine"].Consumers, "expr") {
 		t.Error("expr dropped while FILTER_EXPRESSION is still offered")
+	}
+}
+
+// TestManifestVectorKindsComplete: capabilities.matrix.vector_kinds
+// lists every types.AllVectorKinds kind in order with the registry's
+// per-form default (metric.Default; "" where the kind has none).
+func TestManifestVectorKindsComplete(t *testing.T) {
+	m := BuildManifest()
+	kinds := types.AllVectorKinds()
+	if len(m.Matrix.VectorKinds) != len(kinds) {
+		t.Fatalf("vector_kinds %+v, want %d kinds", m.Matrix.VectorKinds, len(kinds))
+	}
+	want := map[types.VectorKind][2]string{
+		types.VectorKindMeasure:     {"std_euclidean", ""},
+		types.VectorKindScale:       {"euclidean", "correlation"},
+		types.VectorKindComposition: {"aitchison", "cosine"},
+		types.VectorKindBinary:      {"hamming", "jaccard"},
+	}
+	for i, k := range kinds {
+		e := m.Matrix.VectorKinds[i]
+		if e.Name != string(k) || [2]string{e.DistanceDefault, e.SimilarityDefault} != want[k] {
+			t.Errorf("vector_kinds[%d] = %+v, want %s %v", i, e, k, want[k])
+		}
 	}
 }

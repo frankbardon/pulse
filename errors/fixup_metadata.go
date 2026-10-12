@@ -3663,6 +3663,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_VECTOR_METRIC_UNSUITED: {
+		Message: "An explicitly named metric fits the declared kind of the vector it reads poorly: cosine ignores magnitude and level, which a scale or measure vector's values carry, and the Euclidean family ignores that a composition's parts sum to a whole. It is a warning (an error under strict mode); the run uses the metric as named. The vector is under `vector`, its kind under `kind`, the metric under `metric`, the request path under `slot` and the kind's default in that direction under `suggested`. A defaulted metric never raises it.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"params", "metric"},
+				Hint:   "Use the metric under `suggested`, or drop `metric` and let the vector's kind pick it; in an expression, cosine(vcenter(a), vcenter(b)) is the correlation a scale vector suits.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"vectors", "kind"},
+				Hint:   "If the kind is wrong (the values are not what it says), correct the vector's `kind`.",
+			},
+		},
+	},
 	PULSE_MATRIX_UNSUPPORTED_SOURCE: {
 		Message: "A `matrices` slot sits on a request whose rows the matrix operators cannot fold, so the request is refused before any record is read — predict refuses it identically. Matrices read cohort rows directly: a Request that also carries `joins` (details `source` = `join`) and a ProcessChain stage after stage 0 (details `source` = `chain_stage`, which reads the previous stage's output rows; the stage is under `stage` / `stage_name`) are not supported. The number of matrix slots is under `matrices`.",
 		Fixups: []Fixup{

@@ -34,8 +34,8 @@ with a feature profile gets a narrower document:
   names;
 - a request slot the instance does not offer (`crosstab`, `joins`,
   `overlays`, `vectors`, `matrices`, `weight`) is not a property of its
-  request root (a hidden `vectors` takes `VectorSpec` and `VectorCoerce`
-  with it; hidden `matrices` takes `MatrixSpec`, the `Response.matrices`
+  request root (a hidden `vectors` takes `VectorSpec`, `VectorCoerce` and
+  `VectorKind` with it; hidden `matrices` takes `MatrixSpec`, the `Response.matrices`
   and `ResponseComponents.matrices` slots and `MatrixResult` /
   `MatrixComponents` with it — `MatrixValues` stays, shared with the
   regression `vcov` / `correlation`); without
@@ -300,9 +300,16 @@ rules and the unweighted-base recipe: [Row Weighting](../library/weighting.md).
 ## Vector slot
 
 `vectors` on `Request` is an additive array of `VectorSpec`
-`{name, fields | pattern, labels?, coerce?}` (`format_version` stays
-`"1.1"`; a request with no vectors is byte-identical and hashes
-identically). `coerce` is the closed `VectorCoerce` enum (`binary`).
+`{name, fields | pattern, labels?, coerce?, kind?, scale_min?, scale_max?}`
+(`format_version` stays `"1.1"`; a request with no vectors is
+byte-identical and hashes identically). `coerce` is the closed
+`VectorCoerce` enum (`binary`); `kind` the closed `VectorKind` enum
+(`measure`, `scale`, `composition`, `binary`) — what the values mean,
+which fills a metric-taking operator's default metric (reported in
+predict's `defaults_applied`, category `metric`) and flags an explicit
+poorly fitting one (`PULSE_VECTOR_METRIC_UNSUITED`, a warning, an
+error under strict). `scale_min` / `scale_max` are numbers, accepted
+only beside `kind: "scale"`, both or neither, min below max.
 What the schema cannot say, predict and the runtime enforce
 identically before any record is read: exactly one of `fields` /
 `pattern`; literal `fields` entries keep the caller's order while glob

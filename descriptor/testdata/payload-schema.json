@@ -4197,6 +4197,15 @@
       ],
       "type": "string"
     },
+    "VectorKind": {
+      "enum": [
+        "binary",
+        "composition",
+        "measure",
+        "scale"
+      ],
+      "type": "string"
+    },
     "VectorSpec": {
       "additionalProperties": false,
       "properties": {
@@ -4212,6 +4221,9 @@
             "null"
           ]
         },
+        "kind": {
+          "$ref": "#/$defs/VectorKind"
+        },
         "labels": {
           "items": {
             "type": "string"
@@ -4226,6 +4238,12 @@
         },
         "pattern": {
           "type": "string"
+        },
+        "scale_max": {
+          "type": "number"
+        },
+        "scale_min": {
+          "type": "number"
         }
       },
       "required": [
@@ -4382,4 +4400,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: dca335bcfc3a1326ca802aeb5c27709dce7c84ab4a74698cf9fb8330f8487fc6
+// golden-hash: 2123809c6aeeacb9cd34677a6ff37d4a1781e111c7cdc0513a23fc184bb6519b

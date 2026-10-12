@@ -7281,7 +7281,7 @@
             "type": "enum",
             "required": false,
             "default": "euclidean",
-            "description": "A linalg/metric registry name (capabilities.matrix.metrics, consumer MAT_DISTANCE), in the distance form: euclidean (stats::dist), sq_euclidean (its square), manhattan (sum of absolute differences), chebyshev (the largest absolute difference), cosine (1 - cos of the angle between the centroids, clamped to [0, 2]; null for a zero-length one), hellinger and aitchison (compositions: non-negative centroids, refused beside standardize; a negative coordinate or an aitchison zero part nulls the distance with PULSE_MATRIX_METRIC_DOMAIN) or mahalanobis (over the pooled within-bucket covariance, on the raw centroids: scale-free, standardize changes nothing; null on any undefined coordinate). An undefined coordinate (a zero-spread member under standardize) is dropped pairwise and the element sums rescaled by p/p_observed (R stats::dist()).",
+            "description": "A linalg/metric registry name (capabilities.matrix.metrics, consumer MAT_DISTANCE), in the distance form. Absent over a kind-declared vector, the smart defaults fill the kind's default this operator accepts (capabilities.matrix.vector_kinds: measure euclidean, scale euclidean, composition aitchison — manhattan under standardize — binary cosine; reported in defaults_applied); absent otherwise, euclidean. An explicit metric that fits the vector's kind poorly warns PULSE_VECTOR_METRIC_UNSUITED (an error under strict). The metrics: euclidean (stats::dist), sq_euclidean (its square), manhattan (sum of absolute differences), chebyshev (the largest absolute difference), cosine (1 - cos of the angle between the centroids, clamped to [0, 2]; null for a zero-length one), hellinger and aitchison (compositions: non-negative centroids, refused beside standardize; a negative coordinate or an aitchison zero part nulls the distance with PULSE_MATRIX_METRIC_DOMAIN) or mahalanobis (over the pooled within-bucket covariance, on the raw centroids: scale-free, standardize changes nothing; null on any undefined coordinate). An undefined coordinate (a zero-spread member under standardize) is dropped pairwise and the element sums rescaled by p/p_observed (R stats::dist()).",
             "enum_values": [
               "euclidean",
               "sq_euclidean",
@@ -8395,7 +8395,7 @@
         ]
       }
     ],
-    "error_codes_count": 339,
+    "error_codes_count": 340,
     "error_domains": [
       "CLI",
       "DATA",
@@ -8733,6 +8733,7 @@
       "PULSE_VECTOR_MEMBER_TYPE",
       "PULSE_VECTOR_METRIC_REQUIRED",
       "PULSE_VECTOR_METRIC_UNKNOWN",
+      "PULSE_VECTOR_METRIC_UNSUITED",
       "PULSE_VECTOR_NAME_COLLISION",
       "PULSE_VECTOR_UNKNOWN",
       "PULSE_VECTOR_UNREFERENCED",
@@ -11293,6 +11294,10 @@
         "description": "1-byte unsigned integer; fits cardinals through 255."
       },
       {
+        "name": "vector-metrics",
+        "description": "Declaring what a battery's values mean (vector kind measure, scale, composition or binary) so similarity and distance pick a suitable metric by default, the scale bounds a kind \"scale\" battery carries, and the warning (an error under strict) an explicit metric that fits the kind poorly raises. Topical design; per-operator params in the atomic skills."
+      },
+      {
         "name": "weighting",
         "description": "Row weights on a Request — the request / per-slot weight and the instance default, probability vs frequency kinds, resolution order, invalid-weight exclusion, which operators honour, skip or refuse a weight, weighted inference on the effective sample size, the unweighted-base recipe and the weighted floor keys."
       },
@@ -12026,6 +12031,28 @@
           "fit_stat": "column_masses",
           "domain": "non_negative",
           "consumers": []
+        }
+      ],
+      "vector_kinds": [
+        {
+          "name": "measure",
+          "distance_default": "std_euclidean",
+          "similarity_default": ""
+        },
+        {
+          "name": "scale",
+          "distance_default": "euclidean",
+          "similarity_default": "correlation"
+        },
+        {
+          "name": "composition",
+          "distance_default": "aitchison",
+          "similarity_default": "cosine"
+        },
+        {
+          "name": "binary",
+          "distance_default": "hamming",
+          "similarity_default": "jaccard"
         }
       ],
       "limitations": [
@@ -15557,4 +15584,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: faa74557196e7bd44f0a7700c927e6c5650cf77fc2b389aaed91da9faf20b7ce
+// golden-hash: e05ead05c6ce9abbf60ed34b55d8f76e9ada8a1653d7cf088c242945a23ab437

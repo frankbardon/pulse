@@ -10,7 +10,7 @@ requires: [capability:matrices]
 
 # Choosing a multivariate operator
 
-Every operator here reads one vector (`vectors`, see `matrix-results`) and answers with a matrix plus vectors and scalars. Pick by the QUESTION, then set the missing-data mode.
+Every operator here reads one vector (`vectors`, see `matrix-results`) and answers with a matrix plus vectors and scalars. Pick by the QUESTION, then set the missing-data mode. Comparing rows or segments by distance or similarity? Declare the vector's `kind` first so the metric fits the values (`vector-metrics`).
 
 ## Which operator answers my question
 
@@ -90,6 +90,7 @@ Per-test correction on other operators: `multiplicity-correction`.
 
 - `matrix-results` — slot, encodings, refusals.
 - `multivariate-outputs` — how the PCA, factor, distance, score and vector-test figures are laid out.
+- `vector-metrics` — vector `kind`, metric defaults and the unsuited-metric warning.
 <!-- feature: MAT_PCA -->
 - `op-mat-pca`
 <!-- /feature -->

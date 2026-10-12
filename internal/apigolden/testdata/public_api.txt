@@ -1494,6 +1494,7 @@ pulse/descriptor: type MatrixCapability field MergeBlockSize int "json:\"merge_b
 pulse/descriptor: type MatrixCapability field Metrics []pulse/descriptor.MetricMeta "json:\"metrics\""
 pulse/descriptor: type MatrixCapability field MissingModes []string "json:\"missing_modes\""
 pulse/descriptor: type MatrixCapability field Name string "json:\"name\""
+pulse/descriptor: type MatrixCapability field VectorKinds []pulse/descriptor.VectorKindMeta "json:\"vector_kinds\""
 pulse/descriptor: type MatrixMeta struct
 pulse/descriptor: type MatrixMeta field AcceptsTypes []string "json:\"accepts_types\""
 pulse/descriptor: type MatrixMeta field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
@@ -1838,6 +1839,10 @@ pulse/descriptor: type TestMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type TestMeta field Tier int "json:\"tier\""
 pulse/descriptor: type TestMeta field Variant string "json:\"variant,omitempty\""
 pulse/descriptor: type TestMeta field WeightKinds []pulse/types.WeightKind "json:\"weight_kinds,omitempty\""
+pulse/descriptor: type VectorKindMeta struct
+pulse/descriptor: type VectorKindMeta field DistanceDefault string "json:\"distance_default\""
+pulse/descriptor: type VectorKindMeta field Name string "json:\"name\""
+pulse/descriptor: type VectorKindMeta field SimilarityDefault string "json:\"similarity_default\""
 pulse/descriptor: type Verdict string
 pulse/descriptor: const VerdictDescriptive pulse/descriptor.Verdict = "descriptive"
 pulse/descriptor: const VerdictEvidenceOfAssociation pulse/descriptor.Verdict = "evidence_of_association"
@@ -2457,6 +2462,7 @@ pulse/errors: const PULSE_VECTOR_LABELS_MISMATCH pulse/errors.Code = "PULSE_VECT
 pulse/errors: const PULSE_VECTOR_MEMBER_TYPE pulse/errors.Code = "PULSE_VECTOR_MEMBER_TYPE"
 pulse/errors: const PULSE_VECTOR_METRIC_REQUIRED pulse/errors.Code = "PULSE_VECTOR_METRIC_REQUIRED"
 pulse/errors: const PULSE_VECTOR_METRIC_UNKNOWN pulse/errors.Code = "PULSE_VECTOR_METRIC_UNKNOWN"
+pulse/errors: const PULSE_VECTOR_METRIC_UNSUITED pulse/errors.Code = "PULSE_VECTOR_METRIC_UNSUITED"
 pulse/errors: const PULSE_VECTOR_NAME_COLLISION pulse/errors.Code = "PULSE_VECTOR_NAME_COLLISION"
 pulse/errors: const PULSE_VECTOR_UNKNOWN pulse/errors.Code = "PULSE_VECTOR_UNKNOWN"
 pulse/errors: const PULSE_VECTOR_UNREFERENCED pulse/errors.Code = "PULSE_VECTOR_UNREFERENCED"
@@ -3021,6 +3027,8 @@ pulse/linalg/metric: const ConsumerMatDistance pulse/linalg/metric.Consumer = "M
 pulse/linalg/metric: const ConsumerProfileSimilarity pulse/linalg/metric.Consumer = "ATTR_PROFILE_SIMILARITY"
 pulse/linalg/metric: const ConsumerVecDistance pulse/linalg/metric.Consumer = "ATTR_VEC_DISTANCE"
 pulse/linalg/metric: func Consumers() []pulse/linalg/metric.Consumer
+pulse/linalg/metric: func Default(k pulse/linalg/metric.Kind, f pulse/linalg/metric.Form) (pulse/linalg/metric.Metric, bool)
+pulse/linalg/metric: func DefaultFor(c pulse/linalg/metric.Consumer, k pulse/linalg/metric.Kind, f pulse/linalg/metric.Form, admit func(pulse/linalg/metric.Metric) bool) (pulse/linalg/metric.Metric, bool)
 pulse/linalg/metric: const Distance pulse/linalg/metric.Form = "distance"
 pulse/linalg/metric: type Domain string
 pulse/linalg/metric: const DomainBinary pulse/linalg/metric.Domain = "binary"
@@ -3886,6 +3894,7 @@ pulse/types: func AllSweepModes() []pulse/types.SweepMode
 pulse/types: func AllSweepRankOrders() []pulse/types.SweepRankOrder
 pulse/types: func AllTestTypes() []pulse/types.TestType
 pulse/types: func AllVectorCoerces() []pulse/types.VectorCoerce
+pulse/types: func AllVectorKinds() []pulse/types.VectorKind
 pulse/types: func AllWindowTypes() []pulse/types.WindowType
 pulse/types: type AppliedMultiplicity struct
 pulse/types: type AppliedMultiplicity field Alpha float64 "json:\"alpha\""
@@ -4836,12 +4845,20 @@ pulse/types: func ValidPairwisePSource(s string) bool
 pulse/types: func ValidPanelNSource(s string) bool
 pulse/types: type VectorCoerce string
 pulse/types: const VectorCoerceBinary pulse/types.VectorCoerce = "binary"
+pulse/types: type VectorKind string
+pulse/types: const VectorKindBinary pulse/types.VectorKind = "binary"
+pulse/types: const VectorKindComposition pulse/types.VectorKind = "composition"
+pulse/types: const VectorKindMeasure pulse/types.VectorKind = "measure"
+pulse/types: const VectorKindScale pulse/types.VectorKind = "scale"
 pulse/types: type VectorSpec struct
 pulse/types: type VectorSpec field Coerce pulse/types.VectorCoerce "json:\"coerce,omitempty\""
 pulse/types: type VectorSpec field Fields []string "json:\"fields,omitempty\""
+pulse/types: type VectorSpec field Kind pulse/types.VectorKind "json:\"kind,omitempty\""
 pulse/types: type VectorSpec field Labels []string "json:\"labels,omitempty\""
 pulse/types: type VectorSpec field Name string "json:\"name\""
 pulse/types: type VectorSpec field Pattern string "json:\"pattern,omitempty\""
+pulse/types: type VectorSpec field ScaleMax *float64 "json:\"scale_max,omitempty\""
+pulse/types: type VectorSpec field ScaleMin *float64 "json:\"scale_min,omitempty\""
 pulse/types: type VersionResponse struct
 pulse/types: type VersionResponse field BuildDate string "json:\"build_date,omitempty\""
 pulse/types: type VersionResponse field GoVersion string "json:\"go_version,omitempty\""
@@ -4876,4 +4893,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 64cb53afb1cc296b7cb9733dc9dec96fab26e526ce2da7c0cc787a888d18fa82
+// golden-hash: 832082c3d2162982a8010c667cd332fc3e96d58ec0d8bb46b71e67ff3588812e

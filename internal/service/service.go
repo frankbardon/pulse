@@ -648,6 +648,12 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if cerr := model.CheckRequestSaves(req); cerr != nil {
 		return nil, markLocated(cerr)
 	}
+	// Strict mode: an explicit metric that fits its vector's kind
+	// poorly (PULSE_VECTOR_METRIC_UNSUITED) is refused here, before any
+	// record is read — the issue list predict reports as errors.
+	if err := metricUnsuitedRefusal(s.strict, req); err != nil {
+		return nil, markLocated(err)
+	}
 	// The request's `models`: every file read and decoded, bound beside
 	// what ctx already binds (a Compose pre-pass binds a slot's ahead),
 	// before any record is read — predict loads them at the same point.

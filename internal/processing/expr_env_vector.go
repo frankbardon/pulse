@@ -48,8 +48,8 @@ var exprBuiltinImpls = map[string]exprBuiltinFunc{
 	"norm":       vecReduce("norm", vecmath.Norm),
 	"vcount":     vecCountBuiltin,
 	"dot":        vecPair("dot", vecmath.Dot),
-	"dist":       vecPair("dist", exprMetricKernel("euclidean", metric.Distance)),
-	"cosine":     vecPair("cosine", exprMetricKernel("cosine", metric.Similarity)),
+	"dist":       vecPair("dist", exprMetricKernel(builtinMetric("dist"))),
+	"cosine":     vecPair("cosine", exprMetricKernel(builtinMetric("cosine"))),
 	"argmax":     vecArg("argmax", vecmath.ArgMax),
 	"argmin":     vecArg("argmin", vecmath.ArgMin),
 	"vcenter":    vecMap("vcenter", vecmath.Center),
@@ -59,10 +59,21 @@ var exprBuiltinImpls = map[string]exprBuiltinFunc{
 	"log":        scalarUnary("log", vecmath.Log),
 	"exp":        scalarUnary("exp", vecmath.Exp),
 	"pow":        scalarPowBuiltin,
-	"jaccard":    setSimilarity("jaccard", exprMetric("jaccard", metric.Similarity)),
-	"dice":       setSimilarity("dice", exprMetric("dice", metric.Similarity)),
+	"jaccard":    setSimilarity("jaccard", exprMetric(builtinMetric("jaccard"))),
+	"dice":       setSimilarity("dice", exprMetric(builtinMetric("dice"))),
 	"hamming":    setHammingBuiltin,
-	"overlap":    setSimilarity("overlap", exprMetric("overlap", metric.Similarity)),
+	"overlap":    setSimilarity("overlap", exprMetric(builtinMetric("overlap"))),
+}
+
+// builtinMetric is the registry metric and form the reserved built-in
+// fn evaluates (exprbuiltins.Metric, the one table the vector-kind fit
+// check also reads); a name outside it is a programming error.
+func builtinMetric(fn string) (string, metric.Form) {
+	mf, ok := exprbuiltins.Metric(fn)
+	if !ok {
+		panic("expr built-in " + fn + " evaluates no registry metric")
+	}
+	return mf.Metric, metric.Form(mf.Form)
 }
 
 // exprMetric resolves name in form f for the expression layer through

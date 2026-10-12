@@ -146,7 +146,7 @@ func setSimilarity(fn string, r exprMetricRef) exprBuiltinFunc {
 }
 
 // exprHamming is the registry's hamming, resolved once.
-var exprHamming = exprMetric("hamming", metric.Distance)
+var exprHamming = exprMetric(builtinMetric("hamming"))
 
 // setHammingBuiltin returns an int count, NaN when either set is null.
 func setHammingBuiltin(args ...any) (any, error) {

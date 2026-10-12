@@ -475,7 +475,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 		}
 	}
 
-	predictVectors(env, result, req, schema)
+	predictVectors(env, result, req, schema, opts.Strict)
 	// The merge-block count the matrix state scales with: per shard for
 	// an archive, else over the record count; unknown without one.
 	blocks := int64(-1)

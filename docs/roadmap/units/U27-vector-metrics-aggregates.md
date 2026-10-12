@@ -31,7 +31,7 @@ The shared metric registry `linalg/metric`, vector `kind` (measure/scale/composi
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
 - [ ] **#141** (10. Vector & matrix — operators › E5 — Row-wise vector vocabulary & similarity) Shared metric registry `linalg/metric`
-- [ ] **#142** (10. Vector & matrix — operators › E5 — Row-wise vector vocabulary & similarity) Vector `kind` (`measure` / `scale` / `composition` / `binary`) with metric defaults and `PULSE_VECTOR_METRIC_UNSUITED`
+- [x] **#142** (10. Vector & matrix — operators › E5 — Row-wise vector vocabulary & similarity) Vector `kind` (`measure` / `scale` / `composition` / `binary`) with metric defaults and `PULSE_VECTOR_METRIC_UNSUITED`
 - [ ] **#143** (10. Vector & matrix — operators › E5 — Row-wise vector vocabulary & similarity) `ATTR_SCALE_SCORE`
 - [ ] **#144** (10. Vector & matrix — operators › E5 — Row-wise vector vocabulary & similarity) `AGG_VEC_MEAN`, `AGG_VEC_SUM` (array value, `expand` option)
 - [x] **#407** (10. Vector & matrix — operators › Follow-ups from U25) Fold `MAT_DISTANCE`'s local metric list (`euclidean`, `sqeuclidean`, `manhattan`, `chebyshev`, `cosine`, `mahalanobis`) into the shared `linalg/metric` registry once it lands; one definition per metric
@@ -62,7 +62,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(vector-metrics-ag
 
 ## Acceptance criteria
 
-- [ ] Raw cosine on a `kind: scale` vector warns, naming the suggested metric; this is `PULSE_ADVISORY_COSINE_ON_SCALE`, moved here from [U22](U22-recommend-explain.md) because it needs `kind: scale` vectors, and it rides the predict `advisories[]` slot (the `predict-advisories` skill pattern, suppressible through `Options.SuppressAdvisories`)
+- [x] Raw cosine on a `kind: scale` vector warns, naming the suggested metric. Delivered (E1-S3) as the `PULSE_VECTOR_METRIC_UNSUITED` warning (an error under strict) on predict and the runtime, matrix slots and expression calls alike; the separate `PULSE_ADVISORY_COSINE_ON_SCALE` advisory moved here from [U22](U22-recommend-explain.md) was dropped by the U27 interview — one channel, so the same condition never reports twice
 - [ ] Vector aggregators merge exactly (streaming/shards)
 - [ ] `expand: true` yields per-element columns
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))

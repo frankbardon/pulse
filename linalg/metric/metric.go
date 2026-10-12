@@ -451,3 +451,43 @@ func (m Metric) get() *definition {
 	}
 	return m.def
 }
+
+// kindDefaults is the kind → default metric table, per form. A kind
+// with no default in a form (measure has no similarity default) is
+// absent from that form's map.
+var kindDefaults = map[Form]map[Kind]string{
+	Distance:   {Measure: "std_euclidean", Scale: "euclidean", Composition: "aitchison", Binary: "hamming"},
+	Similarity: {Scale: "correlation", Composition: "cosine", Binary: "jaccard"},
+}
+
+// Default returns the metric a vector of kind k defaults to in form f;
+// false when the kind has no default in that form (measure has no
+// similarity default) or k is not a kind.
+func Default(k Kind, f Form) (Metric, bool) {
+	name, ok := kindDefaults[f][k]
+	if !ok {
+		return Metric{}, false
+	}
+	return Metric{def: byName[name]}, true
+}
+
+// DefaultFor is Default for consumer c: the kind's default when c
+// accepts it in form f, else the first metric in canonical order that c
+// accepts in form f, that suits k and for which admit (nil admits every
+// metric) reports true. A poor fit is never chosen. False when none
+// qualifies.
+func DefaultFor(c Consumer, k Kind, f Form, admit func(Metric) bool) (Metric, bool) {
+	ok := func(d *definition) bool {
+		return d.serves(c, f) && slices.Contains(d.suited, k) && !slices.Contains(d.poor, k) &&
+			(admit == nil || admit(Metric{def: d}))
+	}
+	if m, has := Default(k, f); has && ok(m.def) {
+		return m, true
+	}
+	for _, d := range registry {
+		if ok(d) {
+			return Metric{def: d}, true
+		}
+	}
+	return Metric{}, false
+}

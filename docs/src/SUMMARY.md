@@ -342,6 +342,7 @@
     - [type-u4](guide/skills/type-u4.md)
     - [type-u64](guide/skills/type-u64.md)
     - [type-u8](guide/skills/type-u8.md)
+    - [vector-metrics](guide/skills/vector-metrics.md)
     - [weighting](guide/skills/weighting.md)
     - [window-design](guide/skills/window-design.md)
 <!-- docgen:summary end -->

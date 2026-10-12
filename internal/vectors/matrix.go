@@ -82,7 +82,8 @@ type Matrix struct {
 	// co-moment. Nil when nothing is reversed.
 	Reverse []int
 	// HasScale reports a declared battery-wide params.scale_min /
-	// scale_max (both or neither; required with a reverse list): every
+	// scale_max (both or neither; required with a reverse list) — or,
+	// with neither, the kind "scale" vector's declared bounds: every
 	// present member value must lie in [ScaleMin, ScaleMax], or the run
 	// is refused with PROCESSING_CONFIG — never clamped, never inferred
 	// from the data.
@@ -1131,17 +1132,19 @@ func decodeRepair(at string, repair *string, m *Matrix) *errors.CodedError {
 
 // decodeScale applies MAT_RELIABILITY's params.scale_min / scale_max
 // (both or neither, finite, min < max) and keeps the reverse names for
-// resolveReliability. A reverse list without a range, half a range, or
-// a range that is not a finite min < max is PROCESSING_CONFIG: the
-// reversal x' = min + max − x needs the declared range, which is never
-// inferred from the data.
+// resolveReliability. Half a range, or a range that is not a finite
+// min < max, is PROCESSING_CONFIG. Without a range of its own the
+// matrix falls back to its vector's declared scale_min / scale_max
+// (resolveReliability); a reverse list with neither is PROCESSING_CONFIG
+// there: the reversal x' = min + max − x needs the declared range,
+// which is never inferred from the data.
 func decodeScale(at string, p reliabilityParams, m *Matrix) *errors.CodedError {
 	switch {
 	case p.ScaleMin == nil && p.ScaleMax == nil:
-		if len(p.Reverse) > 0 {
-			return scaleConfig(at, at+" params.reverse needs the battery's scale range: set params.scale_min and params.scale_max (the range is never inferred from the data)",
-				map[string]any{"param": "scale_min", "reverse": append([]string(nil), p.Reverse...)})
-		}
+		// No range of its own: the vector's declared bounds stand in
+		// (resolveReliability, once the members are known), else a
+		// reverse list is refused there.
+		m.reverseNames = p.Reverse
 		return nil
 	case p.ScaleMin == nil || p.ScaleMax == nil:
 		return scaleConfig(at, at+" params.scale_min and params.scale_max are set together", map[string]any{"param": "scale_min"})
@@ -1173,7 +1176,9 @@ const ReliabilityMinItems = 2
 // resolveReliability places MAT_RELIABILITY's reverse names on the
 // resolved members (each must be a member, listed once) and refuses a
 // battery of fewer than ReliabilityMinItems members — both
-// SERVICE_VALIDATION bad_params.
+// SERVICE_VALIDATION bad_params. A matrix without params.scale_min /
+// scale_max takes its vector's declared bounds (explicit params win);
+// a reverse list with no range from either is PROCESSING_CONFIG.
 func resolveReliability(at string, spec types.MatrixSpec, m *Matrix) *errors.CodedError {
 	if spec.Type != types.MAT_RELIABILITY {
 		return nil
@@ -1185,6 +1190,15 @@ func resolveReliability(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 	}
 	names := m.reverseNames
 	m.reverseNames = nil
+	if !m.HasScale && m.Members.HasScale {
+		// Explicit params win; otherwise the kind "scale" vector's
+		// declared bounds are the battery's range.
+		m.HasScale, m.ScaleMin, m.ScaleMax = true, m.Members.ScaleMin, m.Members.ScaleMax
+	}
+	if len(names) > 0 && !m.HasScale {
+		return scaleConfig(at, at+" params.reverse needs the battery's scale range: set params.scale_min and params.scale_max, or scale_min / scale_max on its kind \"scale\" vector (the range is never inferred from the data)",
+			map[string]any{"param": "scale_min", "reverse": append([]string(nil), names...)})
+	}
 	if len(names) == 0 {
 		return nil
 	}

@@ -330,5 +330,6 @@
     - [type-u4](skills/type-u4.md)
     - [type-u64](skills/type-u64.md)
     - [type-u8](skills/type-u8.md)
+    - [vector-metrics](skills/vector-metrics.md)
     - [weighting](skills/weighting.md)
     - [window-design](skills/window-design.md)

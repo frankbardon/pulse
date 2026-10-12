@@ -310,5 +310,6 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`type-u4`](skills/type-u4.md): 4-bit unsigned integer; bit-packed with adjacent u4 / packed_bool fields.
 - [`type-u64`](skills/type-u64.md): 8-byte unsigned integer; for sub-day timestamps and very wide cardinals.
 - [`type-u8`](skills/type-u8.md): 1-byte unsigned integer; fits cardinals through 255.
+- [`vector-metrics`](skills/vector-metrics.md): Declaring what a battery's values mean (vector kind measure, scale, composition or binary) so similarity and distance pick a suitable metric by default, the scale bounds a kind "scale" battery carries, and the warning (an error under strict) an explicit metric that fits the kind poorly raises. Topical design; per-operator params in the atomic skills.
 - [`weighting`](skills/weighting.md): Row weights on a Request — the request / per-slot weight and the instance default, probability vs frequency kinds, resolution order, invalid-weight exclusion, which operators honour, skip or refuse a weight, weighted inference on the effective sample size, the unweighted-base recipe and the weighted floor keys.
 - [`window-design`](skills/window-design.md): Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills.

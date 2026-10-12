@@ -520,6 +520,9 @@ var errorOwners = map[errors.Code][]string{
 	// ownMetricConsumers.
 	errors.PULSE_VECTOR_METRIC_UNKNOWN:  ownMetricConsumers,
 	errors.PULSE_VECTOR_METRIC_REQUIRED: ownMetricConsumers,
+	// The kind-fit warning reads a vector's `kind`, which only the
+	// `vectors` slot (capability:matrices) declares.
+	errors.PULSE_VECTOR_METRIC_UNSUITED: own(featMatrices),
 
 	// The matrix-source refusals fire only on a request carrying the
 	// `matrices` slot, which capability:matrices gates; the MAT_ family

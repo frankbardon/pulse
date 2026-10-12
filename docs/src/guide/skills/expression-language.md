@@ -35,7 +35,7 @@ Arithmetic on a categorical errors — branch on the label and emit a number.
 
 ## Vector and maths built-ins
 
-A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is NaN. A request's named vector binds by name, `vmean(battery)` (null member → NaN). Reductions skip NaN; none valid (or empty) → NaN, `vsum` too.
+A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is NaN. A request's named vector binds by name, `vmean(battery)` (null member → NaN); `cosine` / `dist` on a poorly fitting `kind` warns ([`vector-metrics`](vector-metrics.md)). Reductions skip NaN; none valid (or empty) → NaN, `vsum` too.
 
 | Function | Result |
 |---|---|
@@ -71,10 +71,6 @@ The program compiles once per request: bad syntax or a type error is `PROCESSING
 
 ```json
 {"label": "bmi", "expression": "weight_kg / (height_m ** 2)"}
-```
-
-```json
-{"label": "is_premium", "expression": "brand in [\"Apple\", \"Samsung\"] ? 1 : 0"}
 ```
 
 A formula's result is coerced to a scalar (`bool` → `1.0` / `0.0`); a filter's must be `bool` — a non-bool on a non-null row is `PROCESSING_RUNTIME`.

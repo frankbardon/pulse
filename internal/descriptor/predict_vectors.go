@@ -11,10 +11,13 @@ import (
 )
 
 // predictVectors fills PredictResult.ResolvedVectors from the one
-// resolver (internal/vectors) and adds a PULSE_VECTOR_UNREFERENCED
-// warning per vector no operator slot references. A refused vector is
-// reported by the field-reference pass, so nothing is echoed for it.
-func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema) {
+// resolver (internal/vectors), adds a PULSE_VECTOR_UNREFERENCED
+// warning per vector no operator slot references, and reports each
+// PULSE_VECTOR_METRIC_UNSUITED issue (vectors.MetricUnsuitedIssues, the
+// list the runtime reads) as a warning — an error under strict. A
+// refused vector is reported by the field-reference pass, so nothing is
+// echoed for it.
+func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, strict bool) {
 	if req == nil || len(req.Vectors) == 0 {
 		return
 	}
@@ -29,6 +32,13 @@ func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, 
 	for _, name := range vectors.Unreferenced(req) {
 		w := vectors.UnreferencedWarning(name)
 		env.AddWarning(string(w.Code), w.Message, w.Details)
+	}
+	for _, w := range vectors.MetricUnsuitedIssues(req) {
+		if strict {
+			env.AddError(string(w.Code), w.Message, w.Details)
+		} else {
+			env.AddWarning(string(w.Code), w.Message, w.Details)
+		}
 	}
 }
 
