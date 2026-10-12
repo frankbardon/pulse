@@ -233,23 +233,8 @@ func MetricUnsuitedIssues(req *types.Request) []*errors.CodedError {
 			}
 		}
 	}
-	filters := func(prefix string, fs []*types.Filterer) {
-		for j, f := range fs {
-			if f != nil && f.Type == types.FILTER_EXPRESSION {
-				scan(prefix+"["+strconv.Itoa(j)+"].expression", f.Expression)
-			}
-		}
-	}
-	filters("filterers", req.Filterers)
-	for i, a := range req.Attributes {
-		if a == nil {
-			continue
-		}
-		at := "attributes[" + strconv.Itoa(i) + "]"
-		if a.Type == types.ATTR_FORMULA {
-			scan(at+".expression", a.Expression)
-		}
-		filters(at+".params.fit_on", AttributeFitOn(a.Type, a))
+	for _, slot := range ExprSlots(req) {
+		scan(slot.Path, slot.Src)
 	}
 	return out
 }

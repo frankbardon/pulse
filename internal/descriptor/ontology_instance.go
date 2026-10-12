@@ -63,6 +63,8 @@ const (
 	tableKindLabel  = "label"
 	tableKindRange  = "range"
 	tableKindLookup = "lookup"
+	// tableKindReference: a reference-vector table (ref()).
+	tableKindReference = "reference"
 )
 
 // instanceOntology returns the graph the instance walks: the base, plus
@@ -96,7 +98,7 @@ func extensionsAddNodes(ext *ExtensionsSnapshot) bool {
 			return true
 		}
 	}
-	return len(ext.LookupTables)+len(ext.LabelTables)+len(ext.RangeTables)+len(ext.Skills)+len(ext.Examples) > 0
+	return len(ext.LookupTables)+len(ext.ReferenceVectors)+len(ext.LabelTables)+len(ext.RangeTables)+len(ext.Skills)+len(ext.Examples) > 0
 }
 
 // extendOntology returns a new graph: base plus ext's operator and table
@@ -138,6 +140,9 @@ func extendOntology(base *OntologyGraph, ext *ExtensionsSnapshot) *OntologyGraph
 	}
 	for _, t := range ext.LookupTables {
 		b.node(descriptor.OntologyNodeTable, tableNodeName(tableKindLookup, t.Name))
+	}
+	for _, t := range ext.ReferenceVectors {
+		b.node(descriptor.OntologyNodeTable, tableNodeName(tableKindReference, t.Name))
 	}
 	extExamples := b.addExtensionExamples(ext.Examples)
 	b.addExtensionSkills(ext.Skills, extExamples)

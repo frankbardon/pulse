@@ -26,6 +26,7 @@ type ExtensionsSnapshot struct {
 	SynthDistributions []descriptor.OperatorMeta
 	ExprFunctions      []descriptor.ExprFunctionMeta
 	LookupTables       []descriptor.LookupTableMeta
+	ReferenceVectors   []descriptor.ReferenceVectorMeta
 	LabelTables        []descriptor.LabelTableMeta
 	RangeTables        []descriptor.RangeTableMeta
 
@@ -153,6 +154,7 @@ func emptyExtensionsManifest() descriptor.ExtensionsManifest {
 		SynthDistributions: []descriptor.OperatorMeta{},
 		ExprFunctions:      []descriptor.ExprFunctionMeta{},
 		LookupTables:       []descriptor.LookupTableMeta{},
+		ReferenceVectors:   []descriptor.ReferenceVectorMeta{},
 		LabelTables:        []descriptor.LabelTableMeta{},
 		RangeTables:        []descriptor.RangeTableMeta{},
 	}
@@ -176,6 +178,7 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 		SynthDistributions: snap.withExtIntents(sortOperatorMeta(snap.SynthDistributions)),
 		ExprFunctions:      sortExprFunctionMeta(snap.ExprFunctions),
 		LookupTables:       sortLookupTableMeta(snap.LookupTables),
+		ReferenceVectors:   sortReferenceVectorMeta(snap.ReferenceVectors),
 		LabelTables:        sortLabelTableMeta(snap.LabelTables),
 		RangeTables:        sortRangeTableMeta(snap.RangeTables),
 	}
@@ -208,6 +211,9 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 	}
 	if out.LookupTables == nil {
 		out.LookupTables = []descriptor.LookupTableMeta{}
+	}
+	if out.ReferenceVectors == nil {
+		out.ReferenceVectors = []descriptor.ReferenceVectorMeta{}
 	}
 	if out.LabelTables == nil {
 		out.LabelTables = []descriptor.LabelTableMeta{}
@@ -264,6 +270,29 @@ func sortLookupTableMeta(in []descriptor.LookupTableMeta) []descriptor.LookupTab
 	out := make([]descriptor.LookupTableMeta, len(in))
 	copy(out, in)
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+func sortReferenceVectorMeta(in []descriptor.ReferenceVectorMeta) []descriptor.ReferenceVectorMeta {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]descriptor.ReferenceVectorMeta, len(in))
+	copy(out, in)
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+// ReferenceTables is the predict view of the snapshot's reference-vector
+// tables: labels and keys, no profile values (vectors.ReferenceTable).
+func (s *ExtensionsSnapshot) ReferenceTables() vectors.ReferenceTables {
+	if s == nil || len(s.ReferenceVectors) == 0 {
+		return nil
+	}
+	out := make(vectors.ReferenceTables, len(s.ReferenceVectors))
+	for _, m := range s.ReferenceVectors {
+		out[m.Name] = vectors.ReferenceTable{Labels: m.Labels, Keys: m.Keys}
+	}
 	return out
 }
 

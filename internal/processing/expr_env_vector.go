@@ -63,6 +63,7 @@ var exprBuiltinImpls = map[string]exprBuiltinFunc{
 	"dice":       setSimilarity("dice", exprMetric(builtinMetric("dice"))),
 	"hamming":    setHammingBuiltin,
 	"overlap":    setSimilarity("overlap", exprMetric(builtinMetric("overlap"))),
+	"ref":        refBuiltin,
 }
 
 // builtinMetric is the registry metric and form the reserved built-in
@@ -109,11 +110,12 @@ var exprBuiltinArity = map[string][2]int{
 	"dot": {2, 2}, "dist": {2, 2}, "cosine": {2, 2},
 	"vnormalize": {2, 2}, "pow": {2, 2},
 	"jaccard": {2, 2}, "dice": {2, 2}, "hamming": {2, 2}, "overlap": {2, 2},
+	"ref": {2, 2},
 }
 
 // exprBuiltinVectorResult names the built-ins that return a vector.
 var exprBuiltinVectorResult = map[string]bool{
-	"vcenter": true, "vzscore": true, "vnormalize": true,
+	"vcenter": true, "vzscore": true, "vnormalize": true, "ref": true,
 }
 
 // vectorExprOptions registers every reserved built-in, in the
@@ -443,7 +445,7 @@ func exprRefusal(err error) *errors.CodedError {
 		if !stderrors.As(e, &ce) {
 			return nil
 		}
-		if ce.Code == errors.PROCESSING_VECTOR_LENGTH_MISMATCH ||
+		if ce.Code == errors.PROCESSING_VECTOR_LENGTH_MISMATCH || refRefusalCode(ce.Code) ||
 			(ce.Code == errors.PROCESSING_CONFIG && stderrors.Is(ce.Cause, vecmath.ErrInvalidNormalizeMode)) {
 			return ce
 		}

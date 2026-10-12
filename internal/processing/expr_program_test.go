@@ -631,7 +631,7 @@ func TestExprProgram_ConcurrentRuns(t *testing.T) {
 		r.injectValue("extra", 1) // a non-schema name: the compile defers
 	}
 	for _, src := range []string{"x > 8 && cat != 'c1'", "extra > 0 && x > 3"} {
-		prog, err := newExprProgram(src, "filter", s, nil, nil)
+		prog, err := newExprProgram(src, "filter", s, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

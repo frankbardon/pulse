@@ -79,7 +79,7 @@ func (a *formulaAttribute) prepareTotals() (*exprProgram, error) {
 	argOpts := a.exts.exprOptionsWithModels(a.models)
 	for i, key := range t.keys {
 		t.index[key] = i
-		prog, err := newExprProgram(key, "formula total() argument", a.schema, a.vecs, argOpts)
+		prog, err := newExprProgram(key, "formula total() argument", a.schema, a.vecs, a.exts.referenceTables(), argOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -90,7 +90,7 @@ func (a *formulaAttribute) prepareTotals() (*exprProgram, error) {
 		expr.Function(totalcall.Func, t.read, new(func(int) float64)),
 		expr.Patch(&totalPatcher{index: t.index}),
 	)
-	return newExprProgram(a.expression, "formula", a.schema, a.vecs, opts)
+	return newExprProgram(a.expression, "formula", a.schema, a.vecs, a.exts.referenceTables(), opts)
 }
 
 // read is the patched total(i): slot i's published sum. Reading before

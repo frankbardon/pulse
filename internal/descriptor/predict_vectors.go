@@ -42,6 +42,27 @@ func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, 
 	}
 }
 
+// predictReferences reports every reference-vector issue of the
+// request's expressions (vectors.ReferenceIssues — the rules the runtime
+// build refuses with, its first issue failing the build) as an error:
+// an unregistered table or key, a table argument that is not a literal,
+// and a ref() whose labels are not the compared vector's. The named
+// vectors bind as the runtime binds them; a request whose vectors do not
+// resolve is judged without them (the field-reference pass reports
+// that).
+func predictReferences(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot) {
+	if req == nil || (len(req.Filterers) == 0 && len(req.Attributes) == 0) {
+		return
+	}
+	var resolved []vectors.Resolved
+	if len(req.Vectors) > 0 {
+		resolved, _ = vectors.Resolve(req.Vectors, schema)
+	}
+	for _, ce := range vectors.ReferenceIssues(req, schema, resolved, snap.ReferenceTables()) {
+		env.AddError(string(ce.Code), ce.Message, ce.Details)
+	}
+}
+
 // predictMatrices fills PredictResult.Matrices from the one resolver
 // (internal/vectors.ResolveMatrices, the field-reference pass's own
 // call) and the shared per-matrix rules (vectors.Matrix.PSDRisk /

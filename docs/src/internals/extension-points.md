@@ -149,8 +149,9 @@ ext := pulse.Extensions{
     Tests:              []pulse.TestRegistration{...},
     SynthDistributions: []pulse.DistributionRegistration{...},
 
-    ExprFunctions: []pulse.ExprFunction{...},
-    LookupTables:  map[string]pulse.LookupTable{...},
+    ExprFunctions:    []pulse.ExprFunction{...},
+    LookupTables:     map[string]pulse.LookupTable{...},
+    ReferenceVectors: map[string]types.ReferenceVectorTable{...},
 
     Skills:   skillsFS,   // fs.FS of embedder skill files — see "Embedder skills"
     Examples: examplesFS, // fs.FS of embedder request examples — see "Embedder examples"
@@ -558,6 +559,66 @@ wrap into `PROCESSING_RUNTIME` when surfaced through `ATTR_FORMULA` /
 `FILTER_EXPRESSION` — use `errors.HasCode(err, errors.PULSE_LOOKUP_MISS)`
 to detect inside the chain.
 
+### Reference vectors
+
+Named sets of labelled target profiles — an ideal brand profile, a
+segment centroid, a benchmark battery — that a row is compared with.
+An expression reads one with the reserved `ref("table", key)` built-in:
+
+```go
+ReferenceVectors: map[string]types.ReferenceVectorTable{
+    "ideal": {
+        Description: "Target satisfaction profile per tier.",
+        Labels:      []string{"price", "quality", "service"},
+        Profiles: map[string][]float64{
+            "premium": {3, 5, 5},
+            "budget":  {5, 3, 3},
+        },
+    },
+},
+```
+
+```text
+cosine(vcenter(sat), vcenter(ref("ideal", "premium")))
+```
+
+A profile is matched to the vector it is compared with **by label,
+never by position**. Inside `dot` / `dist` / `cosine` — directly or
+under `vcenter` / `vzscore` / `vnormalize` — `ref()` is reordered to the
+other argument's labels: a named vector (`Request.Vectors`, its
+`labels` or its member names), or another `ref()` (the second aligns to
+the first). The two label sets must be equal, else
+`PULSE_VECTOR_REFERENCE_MISMATCH` (`reason` `labels_differ`, with
+`missing` / `extra`); a literal-array or computed partner carries no
+labels and is refused (`unlabeled_partner`). Anywhere else (`vsum(ref(…))`,
+an embedder function's argument) the profile keeps the table's own label
+order. The table argument must be a string literal; an unknown table or
+literal key is `PULSE_VECTOR_REFERENCE_UNKNOWN` (`table_unknown`,
+`table_not_literal`, `key_unknown`). Predict and the build check
+literals with the same rules; a computed key (`ref("ideal", tier)`) is
+checked per row — a miss fails the run under
+`PULSE_VECTOR_REFERENCE_UNKNOWN`, a null key makes the row's input null.
+A literal key inside a pair is folded to a constant at build, so the
+row path reads nothing for it.
+
+Validation at `pulse.New` (`PULSE_EXTENSION_PARAM_INVALID`,
+`details.reason`): a non-empty table name, at least one label, labels
+non-empty and unique, at least one profile, non-empty keys, one value
+per label, every value finite. The instance copies the tables (later
+mutation of your maps has no effect), lists each in the manifest
+`extensions.reference_vectors` (`name`, `description`, `labels`,
+`keys` — never the values) and as an ontology table node, and merges
+several `Extensions` values like the other named tables (a later table
+of the same name wins). Reference vectors are programmatic only — no
+environment directory loads them — and, like lookup tables, they are
+not features: no feature profile gates them.
+
+`ref` is a reserved expression name (an `ExprFunction` claiming it is
+`PULSE_EXTENSION_NAME_RESERVED`), and the attribute names
+`ATTR_PROFILE_SIMILARITY` / `ATTR_VEC_DISTANCE` — the built-in
+reference-comparison operators — are reserved against extensions
+(`PULSE_EXTENSION_NAME_COLLISION`).
+
 ## Component schemas (v0.20.0)
 
 `Response.Components` is the operator-keyed sibling payload that runs
@@ -801,6 +862,9 @@ components-contract failures are listed in the table above.
     ],
     "lookup_tables": [
       {"name": "adjustments", "has_rows_data": true}
+    ],
+    "reference_vectors": [
+      {"name": "ideal", "labels": ["price", "quality", "service"], "keys": ["budget", "premium"]}
     ]
   }
 }
@@ -1461,8 +1525,8 @@ Fetch the Message + Fixup template for any of these via
 | Code | Trigger |
 |---|---|
 | `PULSE_EXTENSION_NAME_INVALID` | name fails the registration regex |
-| `PULSE_EXTENSION_NAME_RESERVED` | namespace is BUILTIN/STANDARD/CORE/PULSE, or an `ExprFunction` is named `total` (engine-owned) |
-| `PULSE_EXTENSION_NAME_COLLISION` | name matches a built-in |
+| `PULSE_EXTENSION_NAME_RESERVED` | namespace is BUILTIN/STANDARD/CORE/PULSE, or an `ExprFunction` is named `total` (engine-owned) or a reserved built-in (`vsum` … `overlap`, `ref`) |
+| `PULSE_EXTENSION_NAME_COLLISION` | name matches a built-in (or a reserved built-in name: `ATTR_PROFILE_SIMILARITY`, `ATTR_VEC_DISTANCE`) |
 | `PULSE_EXTENSION_DUPLICATE` | same name registered twice |
 | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | declared streaming tier does not match factory interface |
 | `PULSE_EXTENSION_FANOUT_MISMATCH` | grouper `FansOut` disagrees with `extend.MultiKeyStreamingGrouper`, either direction |
@@ -1470,7 +1534,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_MERGEABLE_MISMATCH` | aggregator / grouper `Mergeable` without `Streamable`, value lacks `extend.MergeableAggregator` (or, for a grouper that emits components, `extend.MergeableGrouper`), or `ComponentSchema` keys classified `None` |
 | `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH` | aggregator `MarginReducibility` is not a known class, or is a fusable class (summable / mean_reducible / independent) without `Mergeable` |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe |
-| `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, lookup table with neither `Rows` nor `Lookup`, etc. |
+| `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, lookup table with neither `Rows` nor `Lookup`, a malformed reference-vector table, etc. |
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (closure or sibling interface) but `ComponentSchema.Keys` empty |
 | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` | emitter returned a key not in `ComponentSchema.Keys`, or re-emitted a floor key |
 | `PULSE_EXTENSION_SKILL_INVALID` | an `Extensions.Skills` file breaks a rule in "Embedder skills" — `details.reason` names which |
@@ -1481,6 +1545,8 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_NOT_WEIGHT_AWARE` | a row weight reached a registration without `WeightAware` — explicit on an aggregator, or any weight in force on an attribute or test |
 | `PULSE_LOOKUP_TABLE_UNKNOWN` | expression referenced an unregistered table |
 | `PULSE_LOOKUP_MISS` | lookup key not present |
+| `PULSE_VECTOR_REFERENCE_UNKNOWN` | `ref()` names an unregistered table or key, or a non-literal table |
+| `PULSE_VECTOR_REFERENCE_MISMATCH` | a `ref()` profile's labels are not the compared vector's label set, or its partner carries no labels |
 
 Naming-policy violations and probe failures are also enforced by the
 gates listed in [The Update Demand](update-demand.md) — any change to

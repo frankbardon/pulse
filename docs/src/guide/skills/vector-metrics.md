@@ -50,6 +50,10 @@ It is a warning in predict's `warnings` and in the response's `warnings`. Under 
 
 Expressions are checked too, statically: `cosine(sat, other)` or `dist(shares, other)` where the argument IS the kind-declared vector warns with `function` in its details. A transformed argument is not the vector and is not judged — `cosine(vcenter(a), vcenter(b))` is the correlation a scale battery suits.
 
+## Reference profiles
+
+An embedder registers target profiles in `Options.Extensions.ReferenceVectors` (manifest `extensions.reference_vectors`: each table's `labels` and `keys`). `ref("table", "key")` reads one as a vector: `cosine(vcenter(sat), vcenter(ref("ideal", "premium")))`. Inside `dot` / `dist` / `cosine` (directly or under `vcenter` / `vzscore` / `vnormalize`) it is matched BY LABEL to the other side — a named vector or another `ref` — never by position; elsewhere it keeps the table's label order. Different label sets, or a literal-array partner, are `PULSE_VECTOR_REFERENCE_MISMATCH`; an unknown table or key, or a non-literal table, is `PULSE_VECTOR_REFERENCE_UNKNOWN`. Predict and the build check literals; a computed key is checked per row.
+
 ## Choosing anyway
 
 - Profiles of ratings: correlate (`correlation`) or center first; level differences are then ignored by design.

@@ -309,7 +309,7 @@ func (f *expressionFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 	if err := f.exts.coefStaticRefusal(filter.Expression, f.models); err != nil {
 		return nil, err
 	}
-	prog, err := newExprProgram(filter.Expression, "filter", schema, f.vecs, f.exts.exprOptionsWithModels(f.models))
+	prog, err := newExprProgram(filter.Expression, "filter", schema, f.vecs, f.exts.referenceTables(), f.exts.exprOptionsWithModels(f.models))
 	if err != nil {
 		return nil, err
 	}

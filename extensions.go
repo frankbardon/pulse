@@ -108,6 +108,19 @@ type Extensions struct {
 	// pulse.New.
 	LookupTables map[string]LookupTable
 
+	// ReferenceVectors expose named sets of labelled reference profiles
+	// to the runtime expression environment. Callers reference them as
+	//   ref("table_name", key)
+	// which yields the profile as a numeric vector aligned BY LABEL to
+	// the vector it is compared with (dot / dist / cosine, directly or
+	// under vcenter / vzscore / vnormalize); a label set that differs is
+	// PULSE_VECTOR_REFERENCE_MISMATCH, an unregistered table or key
+	// PULSE_VECTOR_REFERENCE_UNKNOWN — both at predict and at build
+	// when the names are literals. Validated at pulse.New
+	// (types.ReferenceVectorTable); programmatic only (no environment
+	// directory). Tables are read-only after pulse.New.
+	ReferenceVectors map[string]types.ReferenceVectorTable
+
 	// LabelTables expose static ID→label maps used by the output-time
 	// categorical-label overlay (per-request Labels slot on Request /
 	// SampleRequest / FacetRequest / ExportJob). Each table accepts a

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -15,6 +16,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprbuiltins"
 	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/vectors"
 )
@@ -106,6 +108,9 @@ type exprProgram struct {
 	// per-row member buffers.
 	vecs   []exprVectorBinding
 	frames sync.Pool
+	// refPatch rewrites the expression's ref() calls on every compile
+	// (nil: it calls none).
+	refPatch *refPatcher
 
 	typed   atomic.Pointer[vm.Program]
 	untyped atomic.Pointer[vm.Program]
@@ -122,11 +127,23 @@ type exprProgram struct {
 // none), or the expression does not parse, it compiles now and returns
 // any compile error; otherwise the compile is deferred to the first
 // record.
-func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Resolved, opts []expr.Option) (*exprProgram, error) {
+//
+// refTables are the instance's reference-vector tables (nil: none). An
+// expression calling ref() is judged against them and the named vectors
+// at build (refStaticRefusal — predict's rules) and every compile
+// patches its ref() calls (refPatcher).
+func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Resolved, refTables vectors.ReferenceTables, opts []expr.Option) (*exprProgram, error) {
 	if err := vectorStaticRefusal(src, what); err != nil {
 		return nil, err
 	}
 	p := &exprProgram{src: src, what: what, opts: opts, decl: exprPrototype(schema)}
+	if callees, _ := exprident.Callees(src); slices.Contains(callees, exprbuiltins.RefFunc) {
+		scope := refScope(src, refTables, vecs, func(name string) bool { return schema != nil && schema.Field(name) != nil })
+		if err := refStaticRefusal(src, scope); err != nil {
+			return nil, err
+		}
+		p.refPatch = &refPatcher{scope: scope}
+	}
 	refs, wholeEnv, parsed := exprFreeIdentifiers(src)
 	p.refs, p.wholeEnv = refs, wholeEnv
 	if err := p.bindVectors(vecs); err != nil {
@@ -156,9 +173,12 @@ func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Re
 // compile runs expr.Compile against decl with the extension options.
 func (p *exprProgram) compile(decl exprtypes.Map) (*vm.Program, error) {
 	exprCompiles.Add(1)
-	opts := make([]expr.Option, 0, 1+len(p.opts))
+	opts := make([]expr.Option, 0, 2+len(p.opts))
 	opts = append(opts, expr.Env(decl))
 	opts = append(opts, p.opts...)
+	if p.refPatch != nil {
+		opts = append(opts, expr.Patch(p.refPatch))
+	}
 	return expr.Compile(p.src, opts...)
 }
 

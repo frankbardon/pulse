@@ -139,6 +139,11 @@ type ExtensionRegistry struct {
 	// via the built-in lookup() function. Mirrors pulse.LookupTable.
 	LookupTables map[string]LookupTable
 
+	// ReferenceVectors are the registered reference-vector tables
+	// (pulse.Options.Extensions.ReferenceVectors, copied read-only by
+	// vectors.NewReferenceTables) the ref() expression built-in reads.
+	ReferenceVectors vectors.ReferenceTables
+
 	// LabelTables are the string-valued ID→label maps consumed by the
 	// output-time label resolver. Mirrors pulse.LabelTable. Indexed
 	// by the user-facing table name.
@@ -267,6 +272,15 @@ const (
 	featureLabels      = "capability:labels"
 	featureRangeTables = "capability:range_tables"
 )
+
+// referenceTables returns the registry's reference-vector tables;
+// nil-safe.
+func (r *ExtensionRegistry) referenceTables() vectors.ReferenceTables {
+	if r == nil {
+		return nil
+	}
+	return r.ReferenceVectors
+}
 
 // LookupRangeTable returns the RangeTable registered under name, and the
 // standard "found" signal. Nil-safe: a nil registry or absent name

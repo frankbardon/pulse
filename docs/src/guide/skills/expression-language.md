@@ -9,9 +9,9 @@ covers: [expression, expr-lang, formula, set-helpers, vector-functions, lookup, 
 
 # Expression language
 
-Two operators evaluate an `expr-lang/expr` (v1.17.x) string once per row: the formula attribute (the result becomes a new column) and the expression filter (a truthy result keeps the row). Both compile through one environment, so everything below holds for both; only null handling differs. Per-operator params live in their atomic `op-*` skills.
+Two operators evaluate an `expr-lang/expr` (v1.17.x) string once per row: the formula attribute (the result is a new column) and the expression filter (a truthy result keeps the row). Both compile through one environment, so everything below holds for both; only null handling differs.
 
-This is NOT request templating: `$var` / `{{}}` / `$when` are substituted into the request before decode ([`request-templating`](request-templating.md)); an expression runs over row fields at execution time. There is no interop.
+This is NOT request templating: `$var` / `{{}}` / `$when` are substituted into the request before decode ([`request-templating`](request-templating.md)); an expression runs over row fields at execution time.
 
 ## Field binding
 
@@ -47,6 +47,7 @@ A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is
 | `vcenter` `vzscore` `vnormalize` (mode `"l1"` / `"l2"`, case-sensitive) | a vector, only inside a call: `vmax(vzscore([q1, q2, q3]))`; top-level → `PROCESSING_CONFIG` |
 | `sqrt` `log` (natural) `exp` `pow(score, 2)` | IEEE scalar (`sqrt(-1)` NaN); the only built-ins an overlay formula admits |
 | `jaccard` `dice` `overlap` `hamming` (two sets: field or `["a", "b"]`, matched by label; a dictionary-less set pairs only with another) | float, `hamming` int; null set → NaN; two empty → NaN, `hamming` 0 |
+| `ref` (table, key) | a reference profile, aligned by label ([`vector-metrics`](vector-metrics.md)) |
 
 A non-finite result is `null` on the wire. These names are reserved: an embedder `ExprFunctions` entry using one → `PULSE_EXTENSION_NAME_RESERVED`.
 
@@ -61,7 +62,7 @@ The program compiles once per request: bad syntax or a type error is `PROCESSING
 
 ## Embedder extensions
 
-`pulse.Options.Extensions.ExprFunctions` merges custom functions into the environment; `LookupTables` is reachable as `lookup(table, keys...)` — an unknown table is `PULSE_LOOKUP_TABLE_UNKNOWN`, a missing key `PULSE_LOOKUP_MISS`. Both hosts see them. Recipe: `docs/src/internals/extension-points.md`.
+`pulse.Options.Extensions.ExprFunctions` merges custom functions into the environment; `LookupTables` is reachable as `lookup(table, keys...)` — an unknown table is `PULSE_LOOKUP_TABLE_UNKNOWN`, a missing key `PULSE_LOOKUP_MISS`; `ReferenceVectors` as `ref`. Recipe: `docs/src/internals/extension-points.md`.
 
 ## Bound models
 

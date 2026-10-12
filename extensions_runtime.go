@@ -61,6 +61,8 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		}
 	}
 
+	r.ReferenceVectors = vectors.NewReferenceTables(ext.ReferenceVectors)
+
 	if len(ext.LabelTables) > 0 {
 		r.LabelTables = make(map[string]processing.LabelTable, len(ext.LabelTables))
 		for name, t := range ext.LabelTables {
@@ -220,6 +222,7 @@ func hasAnyRegistrations(ext Extensions) bool {
 		len(ext.SynthDistributions) > 0 ||
 		len(ext.ExprFunctions) > 0 ||
 		len(ext.LookupTables) > 0 ||
+		len(ext.ReferenceVectors) > 0 ||
 		len(ext.LabelTables) > 0 ||
 		len(ext.RangeTables) > 0
 }

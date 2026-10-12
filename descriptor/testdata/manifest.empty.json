@@ -597,6 +597,7 @@
       "synth_distributions": [],
       "expr_functions": [],
       "lookup_tables": [],
+      "reference_vectors": [],
       "label_tables": [],
       "range_tables": []
     },
@@ -768,4 +769,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2cb0898a2b2a55dc2ee175a2416c407a2b1825f3db6540c7e2420679eaa5dfbd
+// golden-hash: 48f50399d6a3e569656903a5eb5ee5ee1d2e6d1aa4a0c2e5759f8a91297dfcce

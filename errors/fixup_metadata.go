@@ -3697,6 +3697,31 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_VECTOR_REFERENCE_UNKNOWN: {
+		Message: "A reference vector could not be resolved: ref(\"table\", key) names a table not registered in Options.Extensions.ReferenceVectors, its table argument is not a string literal (the table's labels must be known before any row), or the key names no profile of the table. The cause is under `reason`, the table under `table`, the key under `key` and the registered names (or the table's keys) under `valid`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"expression"},
+				Hint:   "Name a table and key listed under `valid` (the manifest's extensions.reference_vectors lists every table with its labels and keys), and spell the table as a string literal.",
+			},
+		},
+	},
+	PULSE_VECTOR_REFERENCE_MISMATCH: {
+		Message: "A reference vector's labels do not match the vector it is compared with. A reference is matched by label, never by position: the two label sets must be equal (reason `labels_differ`; `missing` lists the vector's labels the reference lacks, `extra` the reference's labels the vector lacks), and a reference cannot be compared with a vector that carries no labels, such as a literal array (reason `unlabeled_partner`).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"vectors", "labels"},
+				Hint:   "Give the compared vector labels equal to the reference's `reference_labels` (any order), or compare with a reference table whose labels are the vector's.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"expression"},
+				Hint:   "For `unlabeled_partner`, compare ref() with a named vector (Request `vectors`), another ref(), or vcenter / vzscore / vnormalize of one, not a literal array.",
+			},
+		},
+	},
 	PULSE_MATRIX_UNSUPPORTED_SOURCE: {
 		Message: "A `matrices` slot sits on a request whose rows the matrix operators cannot fold, so the request is refused before any record is read — predict refuses it identically. Matrices read cohort rows directly: a Request that also carries `joins` (details `source` = `join`) and a ProcessChain stage after stage 0 (details `source` = `chain_stage`, which reads the previous stage's output rows; the stage is under `stage` / `stage_name`) are not supported. The number of matrix slots is under `matrices`.",
 		Fixups: []Fixup{

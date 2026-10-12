@@ -476,6 +476,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	}
 
 	predictVectors(env, result, req, schema, opts.Strict)
+	predictReferences(env, req, schema, extensionsFromOpts(opts))
 	// The merge-fragment count the matrix state scales with: over the
 	// per-shard counts for an archive (plus the rows non-head fragments
 	// buffer), else over the record count; unknown without one.

@@ -284,6 +284,7 @@ pulse: type Extensions field Groupers []pulse.GrouperRegistration
 pulse: type Extensions field LabelTables map[string]pulse.LabelTable
 pulse: type Extensions field LookupTables map[string]pulse.LookupTable
 pulse: type Extensions field RangeTables map[string]pulse.RangeTable
+pulse: type Extensions field ReferenceVectors map[string]pulse/types.ReferenceVectorTable
 pulse: type Extensions field Skills io/fs.FS
 pulse: type Extensions field SynthDistributions []pulse.DistributionRegistration
 pulse: type Extensions field Tests []pulse.TestRegistration
@@ -1305,6 +1306,7 @@ pulse/descriptor: type ExtensionsManifest field Groupers []pulse/descriptor.Oper
 pulse/descriptor: type ExtensionsManifest field LabelTables []pulse/descriptor.LabelTableMeta "json:\"label_tables\""
 pulse/descriptor: type ExtensionsManifest field LookupTables []pulse/descriptor.LookupTableMeta "json:\"lookup_tables\""
 pulse/descriptor: type ExtensionsManifest field RangeTables []pulse/descriptor.RangeTableMeta "json:\"range_tables\""
+pulse/descriptor: type ExtensionsManifest field ReferenceVectors []pulse/descriptor.ReferenceVectorMeta "json:\"reference_vectors\""
 pulse/descriptor: type ExtensionsManifest field SynthDistributions []pulse/descriptor.OperatorMeta "json:\"synth_distributions\""
 pulse/descriptor: type ExtensionsManifest field Tests []pulse/descriptor.OperatorMeta "json:\"tests\""
 pulse/descriptor: type ExtensionsManifest field Windows []pulse/descriptor.OperatorMeta "json:\"windows\""
@@ -1749,6 +1751,11 @@ pulse/descriptor: type Recommendation field Operator string "json:\"operator\""
 pulse/descriptor: type Recommendation field Placeholders []string "json:\"placeholders,omitempty\""
 pulse/descriptor: type Recommendation field Request encoding/json.RawMessage "json:\"request\""
 pulse/descriptor: type Recommendation field Why string "json:\"why\""
+pulse/descriptor: type ReferenceVectorMeta struct
+pulse/descriptor: type ReferenceVectorMeta field Description string "json:\"description,omitempty\""
+pulse/descriptor: type ReferenceVectorMeta field Keys []string "json:\"keys\""
+pulse/descriptor: type ReferenceVectorMeta field Labels []string "json:\"labels\""
+pulse/descriptor: type ReferenceVectorMeta field Name string "json:\"name\""
 pulse/descriptor: type RegressionMeta struct
 pulse/descriptor: type RegressionMeta field AcceptsTypes []string "json:\"accepts_types\""
 pulse/descriptor: type RegressionMeta field Description string "json:\"description\""
@@ -2476,6 +2483,8 @@ pulse/errors: const PULSE_VECTOR_METRIC_REQUIRED pulse/errors.Code = "PULSE_VECT
 pulse/errors: const PULSE_VECTOR_METRIC_UNKNOWN pulse/errors.Code = "PULSE_VECTOR_METRIC_UNKNOWN"
 pulse/errors: const PULSE_VECTOR_METRIC_UNSUITED pulse/errors.Code = "PULSE_VECTOR_METRIC_UNSUITED"
 pulse/errors: const PULSE_VECTOR_NAME_COLLISION pulse/errors.Code = "PULSE_VECTOR_NAME_COLLISION"
+pulse/errors: const PULSE_VECTOR_REFERENCE_MISMATCH pulse/errors.Code = "PULSE_VECTOR_REFERENCE_MISMATCH"
+pulse/errors: const PULSE_VECTOR_REFERENCE_UNKNOWN pulse/errors.Code = "PULSE_VECTOR_REFERENCE_UNKNOWN"
 pulse/errors: const PULSE_VECTOR_UNKNOWN pulse/errors.Code = "PULSE_VECTOR_UNKNOWN"
 pulse/errors: const PULSE_VECTOR_UNREFERENCED pulse/errors.Code = "PULSE_VECTOR_UNREFERENCED"
 pulse/errors: const PULSE_WEIGHT_INVALID_ROWS pulse/errors.Code = "PULSE_WEIGHT_INVALID_ROWS"
@@ -4607,6 +4616,10 @@ pulse/types: type RankEntry struct
 pulse/types: type RankEntry field Label string "json:\"label\""
 pulse/types: type RankEntry field Rank int "json:\"rank\""
 pulse/types: type RankEntry field Value float64 "json:\"value\""
+pulse/types: type ReferenceVectorTable struct
+pulse/types: type ReferenceVectorTable field Description string
+pulse/types: type ReferenceVectorTable field Labels []string
+pulse/types: type ReferenceVectorTable field Profiles map[string][]float64
 pulse/types: type RegressionCovariance struct
 pulse/types: type RegressionCovariance field Cluster string "json:\"cluster,omitempty\""
 pulse/types: type RegressionCovariance field Lags pulse/types.CovarianceLags "json:\"lags,omitzero\""
@@ -4919,4 +4932,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 19315894c73d31337fdd7063052945ab03a8c8b573721bf543966d5f9f35e252
+// golden-hash: c3501ad44f3f8dc1366b3f27b8f5f4be41ac1ae398f2135f0901eed97e351b3d

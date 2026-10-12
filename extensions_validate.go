@@ -2,7 +2,9 @@ package pulse
 
 import (
 	"fmt"
+	"math"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -139,6 +141,9 @@ func validateExtensions(ext Extensions) error {
 		return err
 	}
 	if err := validateLookupTables(ext.LookupTables); err != nil {
+		return err
+	}
+	if err := validateReferenceVectors(ext.ReferenceVectors); err != nil {
 		return err
 	}
 	if err := validateLabelTables(ext.LabelTables); err != nil {
@@ -679,6 +684,73 @@ func validateLookupTables(tables map[string]LookupTable) error {
 	return nil
 }
 
+// validateReferenceVectors asserts every reference-vector table is
+// well formed: a non-empty name, at least one label, labels non-empty
+// and unique, at least one profile, every profile key non-empty, every
+// profile one value per label, every value finite. Failures are
+// PULSE_EXTENSION_PARAM_INVALID with details.reason. Tables are checked
+// in name order so the first failure reported is deterministic.
+func validateReferenceVectors(tables map[string]types.ReferenceVectorTable) error {
+	names := make([]string, 0, len(tables))
+	for name := range tables {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	invalid := func(name, reason, msg string, extra map[string]any) error {
+		details := map[string]any{"category": "reference_vectors", "name": name, "reason": reason}
+		for k, v := range extra {
+			details[k] = v
+		}
+		return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_PARAM_INVALID, msg, details)
+	}
+	for _, name := range names {
+		t := tables[name]
+		if strings.TrimSpace(name) == "" {
+			return invalid(name, "empty_name", "reference vector table has empty name", nil)
+		}
+		if len(t.Labels) == 0 {
+			return invalid(name, "no_labels", fmt.Sprintf("reference vector table %q declares no Labels", name), nil)
+		}
+		seen := make(map[string]bool, len(t.Labels))
+		for i, l := range t.Labels {
+			if strings.TrimSpace(l) == "" {
+				return invalid(name, "empty_label", fmt.Sprintf("reference vector table %q label %d is empty", name, i), map[string]any{"index": i})
+			}
+			if seen[l] {
+				return invalid(name, "duplicate_label", fmt.Sprintf("reference vector table %q lists label %q more than once", name, l), map[string]any{"label": l})
+			}
+			seen[l] = true
+		}
+		if len(t.Profiles) == 0 {
+			return invalid(name, "no_profiles", fmt.Sprintf("reference vector table %q declares no Profiles", name), nil)
+		}
+		keys := make([]string, 0, len(t.Profiles))
+		for k := range t.Profiles {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			v := t.Profiles[k]
+			if strings.TrimSpace(k) == "" {
+				return invalid(name, "empty_key", fmt.Sprintf("reference vector table %q has a profile with an empty key", name), nil)
+			}
+			if len(v) != len(t.Labels) {
+				return invalid(name, "length_mismatch",
+					fmt.Sprintf("reference vector table %q profile %q has %d values for %d labels", name, k, len(v), len(t.Labels)),
+					map[string]any{"key": k, "values": len(v), "labels": len(t.Labels)})
+			}
+			for i, x := range v {
+				if math.IsNaN(x) || math.IsInf(x, 0) {
+					return invalid(name, "non_finite",
+						fmt.Sprintf("reference vector table %q profile %q value %d (label %q) is not finite", name, k, i, t.Labels[i]),
+						map[string]any{"key": k, "label": t.Labels[i]})
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // validateLabelTables asserts exactly one of Rows / Lookup is set per
 // table and that the table name is non-empty. Label tables are
 // referenced by name from per-request LabelBinding entries.
@@ -770,8 +842,19 @@ func builtinAttributeNames() map[string]struct{} {
 	for _, t := range types.AllAttributeTypes() {
 		out[string(t)] = struct{}{}
 	}
+	for _, n := range reservedAttributeNames {
+		out[n] = struct{}{}
+	}
 	return out
 }
+
+// reservedAttributeNames are the built-in attribute names reserved
+// against embedders ahead of their operators (the reference-comparison
+// pair that reads Extensions.ReferenceVectors): an extension claiming
+// one is refused as a built-in collision now, so registering the
+// built-in later breaks no embedder. Harmless once each is in
+// types.AllAttributeTypes().
+var reservedAttributeNames = []string{"ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE"}
 
 func builtinFiltererNames() map[string]struct{} {
 	out := make(map[string]struct{}, 16)

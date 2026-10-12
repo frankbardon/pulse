@@ -38,6 +38,8 @@ var reserved = []string{
 	"sqrt", "log", "exp", "pow",
 	// Set similarity over two label sets.
 	"jaccard", "dice", "hamming", "overlap",
+	// Reference vectors (Options.Extensions.ReferenceVectors).
+	"ref",
 }
 
 // reservedSet indexes reserved for IsReserved.
@@ -155,3 +157,29 @@ func MetricFunctionNames() []string {
 	}
 	return out
 }
+
+// vectorPairs are the reserved built-ins that read two numeric vectors
+// position by position. A ref() argument of one (directly, or under the
+// label-preserving transforms) is aligned BY LABEL to the other
+// argument before the call: internal/vectors judges the alignment
+// (predict and the runtime build) and internal/processing patches it
+// in, both from this one list.
+var vectorPairs = map[string]bool{"dot": true, "dist": true, "cosine": true}
+
+// IsVectorPair reports whether name is a reserved built-in that reads
+// two numeric vectors position by position (dot, dist, cosine).
+func IsVectorPair(name string) bool { return vectorPairs[name] }
+
+// labelPreserving are the reserved vector-returning built-ins whose
+// first argument's labels carry through to their result unchanged
+// (element i of the result is element i of the argument, transformed).
+var labelPreserving = map[string]bool{"vcenter": true, "vzscore": true, "vnormalize": true}
+
+// PreservesLabels reports whether the reserved built-in name returns a
+// vector labelled exactly like its first argument (vcenter, vzscore,
+// vnormalize).
+func PreservesLabels(name string) bool { return labelPreserving[name] }
+
+// RefFunc is the reserved built-in that reads a registered reference
+// vector: ref("table", key).
+const RefFunc = "ref"

@@ -525,6 +525,11 @@ var errorOwners = map[errors.Code][]string{
 	// The kind-fit warning reads a vector's `kind`, which only the
 	// `vectors` slot (capability:matrices) declares.
 	errors.PULSE_VECTOR_METRIC_UNSUITED: own(featMatrices),
+	// A reference vector (Extensions.ReferenceVectors) is read by ref()
+	// in the two row expressions — OVERLAY_FORMULA refuses the vector
+	// built-ins, ref() among them.
+	errors.PULSE_VECTOR_REFERENCE_UNKNOWN:  own("ATTR_FORMULA", "FILTER_EXPRESSION"),
+	errors.PULSE_VECTOR_REFERENCE_MISMATCH: own("ATTR_FORMULA", "FILTER_EXPRESSION"),
 
 	// The matrix-source refusals fire only on a request carrying the
 	// `matrices` slot, which capability:matrices gates; the MAT_ family

@@ -2,6 +2,7 @@ package pulse
 
 import (
 	"encoding/json"
+	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -183,6 +184,19 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Name:        name,
 			Description: t.Description,
 			HasRowsData: t.Rows != nil,
+		})
+	}
+	for name, t := range ext.ReferenceVectors {
+		keys := make([]string, 0, len(t.Profiles))
+		for k := range t.Profiles {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		snap.ReferenceVectors = append(snap.ReferenceVectors, descriptor.ReferenceVectorMeta{
+			Name:        name,
+			Description: t.Description,
+			Labels:      append([]string(nil), t.Labels...),
+			Keys:        keys,
 		})
 	}
 	for name, t := range ext.LabelTables {

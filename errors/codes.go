@@ -2975,6 +2975,29 @@ const (
 	// absent when the kind has none).
 	PULSE_VECTOR_METRIC_UNSUITED Code = "PULSE_VECTOR_METRIC_UNSUITED"
 
+	// PULSE_VECTOR_REFERENCE_UNKNOWN indicates a reference vector that
+	// cannot be resolved: ref("table", key) naming a table not registered
+	// in Options.Extensions.ReferenceVectors, a table argument that is not
+	// a string literal (its labels must be known before any row), or a
+	// key the table has no profile for. Details carry "reason"
+	// ("table_unknown" | "table_not_literal" | "key_unknown"), "table",
+	// "key" (key_unknown) and "valid" (the registered names, or the
+	// table's keys; "key_count" instead when a table has many), plus
+	// "slot" (the request path) at predict.
+	PULSE_VECTOR_REFERENCE_UNKNOWN Code = "PULSE_VECTOR_REFERENCE_UNKNOWN"
+
+	// PULSE_VECTOR_REFERENCE_MISMATCH indicates a reference vector whose
+	// labels cannot be matched to the vector it is compared with. A
+	// reference is matched BY LABEL, never by position: the two label
+	// sets must be equal (reason "labels_differ", with "missing" — the
+	// vector's labels the reference lacks — and "extra" — the
+	// reference's labels the vector lacks — beside "reference_labels",
+	// "vector_labels", "table" and "vector"), and a reference compared
+	// with an unlabelled vector (a literal array, a computed vector) is
+	// refused (reason "unlabeled_partner"). Details also carry
+	// "function" for an expression call and "slot" at predict.
+	PULSE_VECTOR_REFERENCE_MISMATCH Code = "PULSE_VECTOR_REFERENCE_MISMATCH"
+
 	// PULSE_MATRIX_UNSUPPORTED_SOURCE indicates a `matrices` slot on a
 	// request whose rows are not cohort rows the matrix operators can
 	// fold: a Request carrying Joins (details "source" = "join",
@@ -3691,6 +3714,8 @@ var allCodes = []Code{
 	PULSE_VECTOR_METRIC_UNKNOWN,
 	PULSE_VECTOR_METRIC_REQUIRED,
 	PULSE_VECTOR_METRIC_UNSUITED,
+	PULSE_VECTOR_REFERENCE_UNKNOWN,
+	PULSE_VECTOR_REFERENCE_MISMATCH,
 	PULSE_MATRIX_UNSUPPORTED_SOURCE,
 	PULSE_MATRIX_HOST_CONFLICT,
 	PULSE_MATRIX_NOT_PSD,
