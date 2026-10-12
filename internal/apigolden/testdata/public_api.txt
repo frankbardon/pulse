@@ -15,6 +15,7 @@ pulse: type AggregatorRegistration field ComponentSchema pulse/descriptor.Compon
 pulse: type AggregatorRegistration field ComponentsFunc pulse.AggregatorComponentsFunc
 pulse: type AggregatorRegistration field DependsOn []string
 pulse: type AggregatorRegistration field Description string
+pulse: type AggregatorRegistration field EmitsInputValue bool
 pulse: type AggregatorRegistration field Factory pulse/extend.AggregatorFactory
 pulse: type AggregatorRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type AggregatorRegistration field MarginReducibility pulse/types.MarginReducibility
@@ -1611,6 +1612,7 @@ pulse/descriptor: type OperatorMeta field Accepts []string "json:\"accepts,omite
 pulse/descriptor: type OperatorMeta field ArrayValued bool "json:\"array_valued,omitempty\""
 pulse/descriptor: type OperatorMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type OperatorMeta field Emits string "json:\"emits,omitempty\""
+pulse/descriptor: type OperatorMeta field EmitsInputValue bool "json:\"emits_input_value,omitempty\""
 pulse/descriptor: type OperatorMeta field FansOut bool "json:\"fans_out,omitempty\""
 pulse/descriptor: type OperatorMeta field Intents []string "json:\"intents,omitempty\""
 pulse/descriptor: type OperatorMeta field MarginReducibility string "json:\"margin_reducibility,omitempty\""
@@ -4944,4 +4946,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7bb667a5da18ae3462e1a02f950ecebae899655e7196b9939acc916e0c76fb8b
+// golden-hash: 1b2cc1d14f800db7c5c292065add409a6e875b946d83c69acb5b7aa7e324c65c

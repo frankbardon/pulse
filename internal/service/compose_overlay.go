@@ -4,6 +4,7 @@ import (
 	"context"
 	stderrors "errors"
 
+	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
@@ -99,13 +100,10 @@ func distributeComposeWarnings(layers []types.OverlayLayer, warnings []types.Ove
 // holes for failed slots under FailFast=false). The caller MUST gate
 // this hook with the FailFast policy — see the package doc above.
 //
-// The context parameter is accepted to match the canonical signature
-// `applyComposeOverlays(ctx, req, responses) ([]OverlayLayer, error)`
-// even though the v1 dispatch does not touch ctx today. Future
-// per-kind handlers (multi-ref kinds) may issue follow-up cohort opens
-// or population reads that consume the deadline.
+// ctx carries the deadline for the one cohort read the hook may make:
+// the categorical-code rule opens a slot's cohort header (and a joined
+// right side) when its scored aggregation is input-valued.
 func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedRequest, requests []*types.Request, responses []*types.Response) ([]types.OverlayLayer, []types.OverlayWarning, error) {
-	_ = ctx
 	if req == nil || len(req.Overlays) == 0 {
 		// Byte-identity guarantee for overlay-free composes: the
 		// caller's facade slot stays nil (no make-with-zero-len
@@ -141,11 +139,16 @@ func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedR
 	if err := descx.ComposeOverlayHiddenFloorRefusal(req.Overlays, requests, labels, s.defaultWeight, s.instance, s.componentsGateClosed); err != nil {
 		return nil, nil, err
 	}
-	// A slot the overlay reads carries an array-valued (vector)
-	// aggregation: the handler would fold its array as NaN (or an
-	// expanded element column as the value). Same rule, same slots as
-	// ValidateComposeWithOptions.
-	if err := descx.ComposeOverlayArrayValuedRefusal(req.Overlays, requests, labels, s.instance); err != nil {
+	// A slot the overlay reads scores an array-valued (vector),
+	// non-scalar or categorical-code aggregation: the handler would fold
+	// its array as NaN (or an expanded element column as the value), no
+	// value, or a dictionary index as a magnitude. Same rule, same slots
+	// as ValidateComposeWithOptions; the code rule reads the slot's
+	// input schema (requestInputSchema), opened only for an input-valued
+	// scored aggregation.
+	if err := descx.ComposeOverlayArrayValuedRefusal(req.Overlays, requests, labels, s.instance, func(j int) *encoding.Schema {
+		return s.requestInputSchema(ctx, requests[j])
+	}); err != nil {
 		return nil, nil, err
 	}
 	// A T / Z vs-ref kind scoring a slot's AGG_WELFORD reads that

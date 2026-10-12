@@ -202,6 +202,10 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 	// resolved), index-aligned with req.Stages; the whole-chain overlay
 	// walk resolves its params.field labels against it.
 	stagedReqs := make([]*types.Request, len(req.Stages))
+	// stage0Schema is the schema stage 0 executes over (the joined one
+	// for a joined stage 0) — the whole-chain categorical-code rule's
+	// stage-0 input types.
+	var stage0Schema *encoding.Schema
 	for i, stage := range req.Stages {
 		if stage == nil || stage.Request == nil {
 			env.AddError(string(errors.PULSE_CHAIN_EMPTY),
@@ -240,6 +244,9 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		}
 		staged := chainStageDefaulted(stage.Request, gateSchema, opts)
 		stagedReqs[i] = staged
+		if i == 0 {
+			stage0Schema = gateSchema
+		}
 		// fieldsReached: the runtime gets as far as the field-reference
 		// rule (no earlier located refusal on this stage).
 		fieldsReached := true
@@ -326,7 +333,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 	// Whole-chain overlay walk. Runs after the per-stage gate so
 	// stage-level errors and overlay-level errors land in the same
 	// envelope; the walk is a no-op when req.Overlays is empty.
-	validateChainOverlays(env, result, req, stagedReqs, opts)
+	validateChainOverlays(env, result, req, stagedReqs, stage0Schema, opts)
 
 	if len(env.Errors) > 0 {
 		result.Valid = false

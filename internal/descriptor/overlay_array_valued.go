@@ -3,6 +3,7 @@ package descriptor
 import (
 	"strconv"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -27,8 +28,21 @@ import (
 //     NonScalar): details.reason "non_scalar". A kind that declares it
 //     reads that aggregator's payload (overlayReadsPayload — the
 //     OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF Welford triple) is exempt.
+//   - categorical code (IsCode — an aggregation whose value is one of
+//     its input field's own encoded values, the built-in AGG_MODE or an
+//     extension declared EmitsInputValue, over a categorical_* field
+//     (the dictionary index) or a packed_bool field (the 0/1 truth
+//     value)): one number, but a code, not a magnitude — an index /
+//     delta / share of codes is meaningless, and a 0 code warns
+//     PULSE_OVERLAY_REF_ZERO. details.reason "categorical_code", plus
+//     the input `field` and its `field_type`. It depends on the INPUT
+//     field's schema type, so it is judged against the schema the slot
+//     executes over (the cohort's, the joined one for a joined slot, a
+//     chain stage >= 1's synthesised one — where a group key column is
+//     categorical and an aggregation output column f64): no schema, no
+//     judgement.
 //
-// Both are PROCESSING_CONFIG. Predict (ValidateCompose /
+// All are PROCESSING_CONFIG. Predict (ValidateCompose /
 // ValidateChain) and the runtime (Service.applyComposeOverlays /
 // Service.processChain) call the same functions; the Process-host half
 // rides the field-reference walk, which predict and the runtime
@@ -47,16 +61,101 @@ import (
 // scoredValueReasons are the details.reason values, and the message
 // phrase each one reads as.
 const (
-	reasonArrayValued = "array_valued"
-	reasonNonScalar   = "non_scalar"
+	reasonArrayValued     = "array_valued"
+	reasonNonScalar       = "non_scalar"
+	reasonCategoricalCode = "categorical_code"
 )
 
 // scoredValueLong is the reason's message clause ("... is <clause>").
 func scoredValueLong(reason string) string {
-	if reason == reasonNonScalar {
+	switch reason {
+	case reasonNonScalar:
 		return "non-scalar (its value is a label list, a count map or a struct, not one number)"
+	case reasonCategoricalCode:
+		return codeClause
 	}
 	return "array-valued (one figure per vector member; expanded columns are presentation only)"
+}
+
+// codeClause is the categorical-code reason's message clause.
+const codeClause = "a categorical code (its value is a value of its categorical or packed_bool input field — a dictionary index or a 0/1 truth value — not a magnitude)"
+
+// codeFix is the categorical-code refusal's remedy.
+const codeFix = "score a count or share instead (AGG_FREQUENCY of one label, AGG_AVERAGE of a packed_bool)"
+
+// scoredValueRemedy is the Compose / chain refusal message's tail.
+func scoredValueRemedy(reason string) string {
+	if reason == reasonCategoricalCode {
+		return "; an overlay compares magnitudes across host rows — " + codeFix
+	}
+	return "; an overlay folds one number per host row — compare a scalar aggregation instead"
+}
+
+// lazyFieldTypes is a fieldTypeLookup over the schema load returns,
+// called at most once and only when a lookup is made (an input-valued
+// scored aggregation); nil when load is nil.
+func lazyFieldTypes(load func() *encoding.Schema) fieldTypeLookup {
+	if load == nil {
+		return nil
+	}
+	var (
+		done   bool
+		lookup fieldTypeLookup
+	)
+	return func(field string) (encoding.FieldType, bool) {
+		if !done {
+			done, lookup = true, schemaFieldTypes(load())
+		}
+		if lookup == nil {
+			return 0, false
+		}
+		return lookup(field)
+	}
+}
+
+// fieldTypeLookup returns the type of a field of the schema a slot
+// executes over (ok false: not a schema field); nil judges no input
+// type.
+type fieldTypeLookup func(field string) (encoding.FieldType, bool)
+
+// schemaFieldTypes is schema's fieldTypeLookup; nil for a nil schema.
+func schemaFieldTypes(schema *encoding.Schema) fieldTypeLookup {
+	if schema == nil {
+		return nil
+	}
+	return func(field string) (encoding.FieldType, bool) {
+		if f := schema.Field(field); f != nil {
+			return f.Type, true
+		}
+		return 0, false
+	}
+}
+
+// codeInput returns the input field type that makes a a categorical
+// code under kinds (IsCode), ok false when it is not one. inputType nil
+// judges nothing.
+func codeInput(a *types.Aggregation, kinds vectors.AggregationKinds, inputType fieldTypeLookup) (encoding.FieldType, bool) {
+	if a == nil || inputType == nil || a.Field == "" || !kinds.EmitsInputValue(a.Type) {
+		return 0, false
+	}
+	ft, ok := inputType(a.Field)
+	if !ok || !kinds.IsCode(a.Type, ft) {
+		return 0, false
+	}
+	return ft, true
+}
+
+// withCodeDetails adds the categorical-code refusal's `field` and
+// `field_type` to details when reason is categorical_code.
+func withCodeDetails(details map[string]any, reason string, a *types.Aggregation, kinds vectors.AggregationKinds, inputType fieldTypeLookup) map[string]any {
+	if reason != reasonCategoricalCode {
+		return details
+	}
+	if ft, ok := codeInput(a, kinds, inputType); ok {
+		details["field"] = a.Field
+		details["field_type"] = ft.String()
+	}
+	return details
 }
 
 // overlayReadsPayload reports whether kind declares it reads the
@@ -72,15 +171,20 @@ func overlayReadsPayload(kind types.OverlayKind, t types.AggregationType) bool {
 	return false
 }
 
-// scoredValueReason is the refusal reason for kind scoring t, or "".
+// scoredValueReason is the refusal reason for kind scoring a, or "".
 // gateOwns (nil: none) names a non-scalar type another, earlier rule
-// refuses on both sides, which keeps it.
-func scoredValueReason(kind types.OverlayKind, t types.AggregationType, kinds vectors.AggregationKinds, gateOwns func(types.AggregationType) bool) string {
+// refuses on both sides, which keeps it. inputType (nil: none) types
+// a's input field for the categorical-code rule.
+func scoredValueReason(kind types.OverlayKind, a *types.Aggregation, kinds vectors.AggregationKinds, gateOwns func(types.AggregationType) bool, inputType fieldTypeLookup) string {
+	t := a.Type
 	switch {
 	case kinds.IsArrayValued(t):
 		return reasonArrayValued
 	case kinds.IsNonScalar(t) && !overlayReadsPayload(kind, kinds.Routed(t)) && (gateOwns == nil || !gateOwns(t)):
 		return reasonNonScalar
+	}
+	if _, ok := codeInput(a, kinds, inputType); ok {
+		return reasonCategoricalCode
 	}
 	return ""
 }
@@ -100,8 +204,9 @@ func firstArrayValuedAggregation(r *types.Request, kinds vectors.AggregationKind
 }
 
 // scoredNonScalarAggregation returns the index, slot and refusal
-// reason of the aggregation kind scores on r when it is array-valued
-// or non-scalar (scoredValueReason), else -1, nil, "". scored resolves
+// reason of the aggregation kind scores on r when it is array-valued,
+// non-scalar or a categorical code (scoredValueReason; inputType nil
+// skips the code rule), else -1, nil, "". scored resolves
 // that aggregation's index (params.field, else 0 — the narrowing's own
 // reading); a resolution error is left to the field rule
 // (PULSE_OVERLAY_FIELD_UNKNOWN), which owns it. A crosstab request is
@@ -109,7 +214,7 @@ func firstArrayValuedAggregation(r *types.Request, kinds vectors.AggregationKind
 // array-valued rule only. kinds is the instance's aggregation routing
 // (aggregationKinds). The Process host (fieldRefWalk's overlay step),
 // the Compose host and the chain host all judge through it.
-func scoredNonScalarAggregation(r *types.Request, kind types.OverlayKind, kinds vectors.AggregationKinds, gateOwns func(types.AggregationType) bool, scored func([]*types.Aggregation) (int, error)) (int, *types.Aggregation, string) {
+func scoredNonScalarAggregation(r *types.Request, kind types.OverlayKind, kinds vectors.AggregationKinds, gateOwns func(types.AggregationType) bool, inputType fieldTypeLookup, scored func([]*types.Aggregation) (int, error)) (int, *types.Aggregation, string) {
 	if r == nil {
 		return -1, nil, ""
 	}
@@ -127,7 +232,7 @@ func scoredNonScalarAggregation(r *types.Request, kind types.OverlayKind, kinds 
 	if a == nil {
 		return -1, nil, ""
 	}
-	if reason := scoredValueReason(kind, a.Type, kinds, gateOwns); reason != "" {
+	if reason := scoredValueReason(kind, a, kinds, gateOwns, inputType); reason != "" {
 		return ai, a, reason
 	}
 	return -1, nil, ""
@@ -138,18 +243,22 @@ func scoredNonScalarAggregation(r *types.Request, kind types.OverlayKind, kinds 
 // array-valued aggregation: the one params.field names on a kind
 // seriesfield.AppliesCompose accepts, else the slot's Aggregations[0]
 // (any aggregation on a crosstab slot). labels are the slots' labels
-// (index-aligned with requests, defaults applied). Nil when no overlay
-// reads one; a kind the instance hides is left to the kind rule.
-func ComposeOverlayArrayValuedRefusal(overlays []types.ComposeOverlaySpec, requests []*types.Request, labels []string, inst *InstanceSnapshot) error {
+// (index-aligned with requests, defaults applied). slotSchema (nil:
+// none) returns the schema slot j executes over (its cohort's, or the
+// joined one; nil when unreadable) for the categorical-code rule; it
+// is called only for a slot whose scored aggregation is input-valued.
+// Nil when no overlay reads one; a kind the instance hides is left to
+// the kind rule.
+func ComposeOverlayArrayValuedRefusal(overlays []types.ComposeOverlaySpec, requests []*types.Request, labels []string, inst *InstanceSnapshot, slotSchema func(j int) *encoding.Schema) error {
 	for i := range overlays {
-		if err := composeOverlayArrayValuedRefusal(i, &overlays[i], requests, labels, inst); err != nil {
+		if err := composeOverlayArrayValuedRefusal(i, &overlays[i], requests, labels, inst, slotSchema); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func composeOverlayArrayValuedRefusal(i int, spec *types.ComposeOverlaySpec, requests []*types.Request, labels []string, inst *InstanceSnapshot) *errors.CodedError {
+func composeOverlayArrayValuedRefusal(i int, spec *types.ComposeOverlaySpec, requests []*types.Request, labels []string, inst *InstanceSnapshot, slotSchema func(j int) *encoding.Schema) *errors.CodedError {
 	kind := string(spec.Kind)
 	if inst.Hidden(kind) {
 		return nil
@@ -170,7 +279,13 @@ func composeOverlayArrayValuedRefusal(i int, spec *types.ComposeOverlaySpec, req
 			continue
 		}
 		slot := labels[j]
-		ai, agg, reason := scoredNonScalarAggregation(r, spec.Kind, aggregationKinds(inst, nil), nil, func(aggs []*types.Aggregation) (int, error) {
+		var inputType fieldTypeLookup
+		if slotSchema != nil {
+			j := j
+			inputType = lazyFieldTypes(func() *encoding.Schema { return slotSchema(j) })
+		}
+		kinds := aggregationKinds(inst, nil)
+		ai, agg, reason := scoredNonScalarAggregation(r, spec.Kind, kinds, nil, inputType, func(aggs []*types.Aggregation) (int, error) {
 			if !seriesfield.AppliesCompose(spec.Kind) {
 				return 0, nil
 			}
@@ -183,9 +298,9 @@ func composeOverlayArrayValuedRefusal(i int, spec *types.ComposeOverlaySpec, req
 		host := "requests[" + strconv.Itoa(j) + "].aggregations[" + strconv.Itoa(ai) + "]"
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			"overlays["+strconv.Itoa(i)+"] ("+kind+") reads slot "+strconv.Quote(labels[j])+", whose "+host+" "+label+" ("+string(agg.Type)+
-				") is "+scoredValueLong(reason)+"; an overlay folds one number per host row — compare a scalar aggregation instead",
-			map[string]any{"overlay_index": i, "kind": kind, "slot": labels[j], "host": host,
-				"aggregation": string(agg.Type), "label": label, "reason": reason})
+				") is "+scoredValueLong(reason)+scoredValueRemedy(reason),
+			withCodeDetails(map[string]any{"overlay_index": i, "kind": kind, "slot": labels[j], "host": host,
+				"aggregation": string(agg.Type), "label": label, "reason": reason}, reason, agg, kinds, inputType))
 	}
 	return nil
 }
@@ -197,20 +312,53 @@ func composeOverlayArrayValuedRefusal(i int, spec *types.ComposeOverlaySpec, req
 // seriesfield.AppliesChain accepts, else the stage's Aggregations[0]
 // (any aggregation on a crosstab stage). A
 // spec whose stage references do not resolve is left to the
-// stage-reference rules. Nil when no overlay reads one.
-func ChainOverlayArrayValuedRefusal(req *types.ChainRequest, inst *InstanceSnapshot) error {
+// stage-reference rules. stage0 (nil: no judgement) is the schema
+// stage 0 executes over (the cohort's, or the joined one) for the
+// categorical-code rule; a later stage is judged against the schema
+// synthesised from the stage before it (synthChainSchema: group key
+// columns categorical, aggregation outputs f64), so the stages must
+// carry their smart defaults by then. Nil when no overlay reads one.
+func ChainOverlayArrayValuedRefusal(req *types.ChainRequest, inst *InstanceSnapshot, stage0 *encoding.Schema) error {
 	if req == nil {
 		return nil
 	}
 	for i, spec := range req.Overlays {
-		if err := chainOverlayArrayValuedRefusal(req, i, spec, inst); err != nil {
+		if err := chainOverlayArrayValuedRefusal(req, i, spec, inst, chainStagedRequests(req.Stages), stage0); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func chainOverlayArrayValuedRefusal(req *types.ChainRequest, i int, spec *types.ChainOverlaySpec, inst *InstanceSnapshot) *errors.CodedError {
+// chainStageInputSchema is the schema chain stage idx executes over:
+// stage0 for stage 0, else the one synthesised from staged[idx-1] (the
+// stage as executed — smart defaults resolved); nil when stage0 is nil
+// or the previous stage is missing.
+func chainStageInputSchema(staged []*types.Request, idx int, stage0 *encoding.Schema) *encoding.Schema {
+	if stage0 == nil {
+		return nil
+	}
+	if idx == 0 {
+		return stage0
+	}
+	if idx-1 >= len(staged) || staged[idx-1] == nil {
+		return nil
+	}
+	return synthChainSchema(staged[idx-1])
+}
+
+// chainStagedRequests is req's stages' requests, index-aligned.
+func chainStagedRequests(stages []*types.ChainStage) []*types.Request {
+	out := make([]*types.Request, len(stages))
+	for i, st := range stages {
+		if st != nil {
+			out[i] = st.Request
+		}
+	}
+	return out
+}
+
+func chainOverlayArrayValuedRefusal(req *types.ChainRequest, i int, spec *types.ChainOverlaySpec, inst *InstanceSnapshot, staged []*types.Request, stage0 *encoding.Schema) *errors.CodedError {
 	if spec == nil || inst.Hidden(string(spec.Kind)) {
 		return nil
 	}
@@ -224,7 +372,13 @@ func chainOverlayArrayValuedRefusal(req *types.ChainRequest, i int, spec *types.
 			continue
 		}
 		role := side.role
-		ai, agg, reason := scoredNonScalarAggregation(req.Stages[idx].Request, spec.Kind, aggregationKinds(inst, nil), chainGateOwns(inst), func(aggs []*types.Aggregation) (int, error) {
+		var inputType fieldTypeLookup
+		if stage0 != nil {
+			idx := idx
+			inputType = lazyFieldTypes(func() *encoding.Schema { return chainStageInputSchema(staged, idx, stage0) })
+		}
+		kinds := aggregationKinds(inst, nil)
+		ai, agg, reason := scoredNonScalarAggregation(req.Stages[idx].Request, spec.Kind, kinds, chainGateOwns(inst), inputType, func(aggs []*types.Aggregation) (int, error) {
 			if !seriesfield.AppliesChain(spec.Kind) {
 				return 0, nil
 			}
@@ -236,10 +390,10 @@ func chainOverlayArrayValuedRefusal(req *types.ChainRequest, i int, spec *types.
 		label := types.AggregationLabelOf(agg)
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			"chain overlays["+strconv.Itoa(i)+"] ("+string(spec.Kind)+") "+side.role+" stage "+strconv.Itoa(idx)+" aggregation "+label+" ("+string(agg.Type)+
-				") is "+scoredValueLong(reason)+"; an overlay folds one number per host row — compare a scalar aggregation instead",
-			map[string]any{"overlay_index": i, "kind": string(spec.Kind), "role": side.role, "stage_index": idx,
+				") is "+scoredValueLong(reason)+scoredValueRemedy(reason),
+			withCodeDetails(map[string]any{"overlay_index": i, "kind": string(spec.Kind), "role": side.role, "stage_index": idx,
 				"stage_name": req.Stages[idx].Name, "aggregation_index": ai, "aggregation": string(agg.Type),
-				"label": label, "reason": reason})
+				"label": label, "reason": reason}, reason, agg, kinds, inputType))
 	}
 	return nil
 }
@@ -291,9 +445,11 @@ func chainStageIndex(req *types.ChainRequest, ref types.StageRef, dflt bool) (in
 // reads the first aggregation as its host value). A crosstab request is
 // out of scope here (its overlays read cells). An unresolvable field is
 // left to PULSE_OVERLAY_FIELD_UNKNOWN. Details {aggregation, label,
-// slot, reason: "array_valued" | "non_scalar"}; slot is
-// "aggregations[<i>]".
-func processOverlayArrayValuedRefusals(req *types.Request, kinds vectors.AggregationKinds) []*errors.CodedError {
+// slot, reason: "array_valued" | "non_scalar" | "categorical_code"}
+// (the last adds the input field and field_type); slot is
+// "aggregations[<i>]". schema is the schema the request executes over
+// (nil: no categorical-code judgement).
+func processOverlayArrayValuedRefusals(req *types.Request, kinds vectors.AggregationKinds, schema *encoding.Schema) []*errors.CodedError {
 	if req == nil || len(req.Overlays) == 0 || req.Crosstab != nil {
 		return nil
 	}
@@ -301,7 +457,8 @@ func processOverlayArrayValuedRefusals(req *types.Request, kinds vectors.Aggrega
 	seen := map[int]bool{}
 	for i := range req.Overlays {
 		spec := &req.Overlays[i]
-		ai, host, reason := scoredNonScalarAggregation(req, spec.Kind, kinds, nil, func(aggs []*types.Aggregation) (int, error) {
+		inputType := schemaFieldTypes(schema)
+		ai, host, reason := scoredNonScalarAggregation(req, spec.Kind, kinds, nil, inputType, func(aggs []*types.Aggregation) (int, error) {
 			if !seriesfield.Applies(spec.Kind) {
 				return 0, nil
 			}
@@ -314,17 +471,23 @@ func processOverlayArrayValuedRefusals(req *types.Request, kinds vectors.Aggrega
 		label := types.AggregationLabelOf(host)
 		short := "array-valued"
 		long := "array-valued (one figure per vector member)"
-		if reason == reasonNonScalar {
+		first, named := "put a scalar aggregation first", "an overlay folds one number per host row — name a scalar aggregation instead"
+		switch reason {
+		case reasonNonScalar:
 			short = "non-scalar (a label list, a count map or a struct, not one number)"
 			long = short
+		case reasonCategoricalCode:
+			short, long = codeClause, codeClause
+			first, named = codeFix, "an overlay compares magnitudes across host rows — "+codeFix
 		}
-		msg := "overlays read the first aggregation as their host value, and " + label + " (" + string(host.Type) + ") is " + short + "; put a scalar aggregation first"
+		msg := "overlays read the first aggregation as their host value, and " + label + " (" + string(host.Type) + ") is " + short + "; " + first
 		if ai != 0 {
 			msg = "overlays[" + strconv.Itoa(i) + "] (" + string(spec.Kind) + ") params.field scores " + label + " (" + string(host.Type) +
-				"), which is " + long + "; an overlay folds one number per host row — name a scalar aggregation instead"
+				"), which is " + long + "; " + named
 		}
 		out = append(out, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG, msg,
-			map[string]any{"aggregation": string(host.Type), "label": label, "slot": "aggregations[" + strconv.Itoa(ai) + "]", "reason": reason}))
+			withCodeDetails(map[string]any{"aggregation": string(host.Type), "label": label, "slot": "aggregations[" + strconv.Itoa(ai) + "]", "reason": reason},
+				reason, host, kinds, inputType)))
 	}
 	return out
 }

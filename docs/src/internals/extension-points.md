@@ -1242,6 +1242,23 @@ as for the built-in `AGG_WELFORD`, `AGG_SET_UNION`,
 `Rich` value an overlay scores folds as no value — the layer comes back
 empty. The manifest's extension entry carries `non_scalar`.
 
+Add `EmitsInputValue: true` when the slot's one number is one of its
+input field's own encoded values — a value picked from the column (a
+mode, a first / last pick), not a figure computed over it. Over a
+`categorical_*` field that value is the dictionary index (what
+`extend.Record.NumericValue` returns), over a `packed_bool` field the
+0/1 truth value: a code, not a magnitude. Predict (from the request and
+the schema, no records) and the runtime then refuse the slot over such
+a field as the aggregation an overlay scores (request, Compose or
+chain, chosen as above) with `PROCESSING_CONFIG`, reason
+`categorical_code` (Details add `field` and `field_type`), exactly as
+for the built-in `AGG_MODE`; over a numeric field, or unscored, it
+runs. A later chain stage reads a forwarded aggregation column as `f64`,
+so a pick over it there scores; a pick over a forwarded group key
+(`categorical_u32`) is refused. Undeclared, an overlay scores the code
+as a magnitude. The manifest's extension entry carries
+`emits_input_value`.
+
 A mergeable extension's partials fold through its own `Merge`, so —
 unlike the built-in `AGG_VEC_*`, which key their partials by global
 record ordinal — its figures under `ShardWorkers` / `DecodeWorkers` may

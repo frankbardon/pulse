@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -191,6 +192,48 @@ func TestAggregationKinds_NonScalar(t *testing.T) {
 	hidden := AggregationKinds{Route: func(types.AggregationType) types.AggregationType { return "" }, Extension: k.Extension}
 	if hidden.IsNonScalar(types.AGG_WELFORD) || hidden.IsNonScalar("AGG_ACME_N") {
 		t.Error("a hidden type still classed non-scalar")
+	}
+}
+
+// TestAggregationKinds_Code: a categorical code is an input-valued
+// aggregation (built-in AGG_MODE, or an extension declared
+// EmitsInputValue) over a categorical_* or packed_bool input; over a
+// numeric or date input it is a magnitude, and a figure computed over
+// a categorical (AGG_MODE_COUNT, AGG_DISTINCT_COUNT) is never a code.
+func TestAggregationKinds_Code(t *testing.T) {
+	k := AggregationKinds{Extension: func(name string) ExtensionAggregation {
+		switch name {
+		case "AGG_ACME_PICK":
+			return ExtensionAggregation{Registered: true, EmitsInputValue: true}
+		case "AGG_ACME_X":
+			return ExtensionAggregation{Registered: true}
+		}
+		return ExtensionAggregation{}
+	}}
+	codeInputs := []encoding.FieldType{encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32, encoding.FieldTypePackedBool}
+	magnitudeInputs := []encoding.FieldType{encoding.FieldTypeF64, encoding.FieldTypeU8, encoding.FieldTypeU4, encoding.FieldTypeDate, encoding.FieldTypeDateTime, encoding.FieldTypeDecimal128}
+	for _, typ := range []types.AggregationType{types.AGG_MODE, "AGG_ACME_PICK"} {
+		for _, ft := range codeInputs {
+			if !k.IsCode(typ, ft) {
+				t.Errorf("%s over %s not classed a code", typ, ft)
+			}
+		}
+		for _, ft := range magnitudeInputs {
+			if k.IsCode(typ, ft) {
+				t.Errorf("%s over %s classed a code", typ, ft)
+			}
+		}
+	}
+	for _, typ := range []types.AggregationType{types.AGG_MODE_COUNT, types.AGG_DISTINCT_COUNT, types.AGG_FREQUENCY, types.AGG_COUNT, "AGG_ACME_X", "AGG_ACME_UNKNOWN"} {
+		for _, ft := range codeInputs {
+			if k.IsCode(typ, ft) {
+				t.Errorf("%s over %s classed a code", typ, ft)
+			}
+		}
+	}
+	hidden := AggregationKinds{Route: func(types.AggregationType) types.AggregationType { return "" }, Extension: k.Extension}
+	if hidden.IsCode(types.AGG_MODE, encoding.FieldTypeCategoricalU8) || hidden.IsCode("AGG_ACME_PICK", encoding.FieldTypeCategoricalU8) {
+		t.Error("a hidden type still classed a code")
 	}
 }
 

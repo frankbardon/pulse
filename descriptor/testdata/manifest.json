@@ -1413,7 +1413,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64 (the modal value; for a categorical field, its dictionary index)",
+          "emits_type_note": "scalar float64 (the modal value; for a categorical field, its dictionary index, for a packed_bool field its 0/1 truth value — a code, not a magnitude, so an overlay scoring it over such a field (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason categorical_code)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -16427,4 +16427,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: eea3140b5957a07813fe38876d08837284d7d7d552e32d58af4dbec5cf8b88a5
+// golden-hash: 7ecb2c503d0ec0e217e5348db2b0f6901f085463c3858e7a6e57bfc7d8ba4995

@@ -107,7 +107,9 @@ type ExtensionRegistry struct {
 	// vector rules (vectors.ResolveAggregations), and an ArrayValued one
 	// is refused wherever one number is needed and honours expand —
 	// and those declared NonScalar (pulse.AggregatorRegistration.
-	// NonScalar), refused as an overlay's scored aggregation.
+	// NonScalar), refused as an overlay's scored aggregation, or
+	// EmitsInputValue (pulse.AggregatorRegistration.EmitsInputValue),
+	// refused as one over a categorical / packed_bool input.
 	// Read through AggregationKinds. Absent reads as a field-reading,
 	// scalar operator.
 	VectorAggregators map[types.AggregationType]vectors.ExtensionAggregation

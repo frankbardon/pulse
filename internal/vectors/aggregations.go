@@ -57,10 +57,12 @@ import (
 // ExtensionAggregation is what an instance declares about one
 // aggregation type its extensions register: Registered (the name is an
 // extension aggregator), VectorInput (it reads vector / fields),
-// ArrayValued (its value is one figure per member) and NonScalar (its
-// value is not one number — pulse.AggregatorRegistration.NonScalar).
+// ArrayValued (its value is one figure per member), NonScalar (its
+// value is not one number — pulse.AggregatorRegistration.NonScalar) and
+// EmitsInputValue (its value is one of its input field's own encoded
+// values — pulse.AggregatorRegistration.EmitsInputValue).
 type ExtensionAggregation struct {
-	Registered, VectorInput, ArrayValued, NonScalar bool
+	Registered, VectorInput, ArrayValued, NonScalar, EmitsInputValue bool
 }
 
 // AggregationKinds is one instance's view of the aggregation types the
@@ -141,6 +143,46 @@ func NonScalarAggregationTypes() []types.AggregationType {
 		}
 	}
 	return out
+}
+
+// EmitsInputValueAggregationTypes returns the built-in aggregation
+// types whose one number is one of the INPUT field's own encoded
+// values — a value picked from the column, not a figure computed over
+// it: AGG_MODE (the modal value). Over a numeric field that value is a
+// magnitude; over a categorical_* field it is the dictionary INDEX and
+// over a packed_bool field the 0/1 truth value (IsCodeInputType) — a
+// code, so an overlay scoring it would compare codes as magnitudes.
+// AGG_MODE_COUNT (a count), AGG_FREQUENCY (a count of a value matched
+// by label) and AGG_DISTINCT_COUNT (a cardinality) are figures, not
+// picks. processing's TestEmitsInputValueAggregationTypes_MatchRowValues
+// holds the list to what every built-in writes.
+func EmitsInputValueAggregationTypes() []types.AggregationType {
+	return []types.AggregationType{types.AGG_MODE}
+}
+
+// IsCodeInputType reports whether a value picked from a field of type
+// ft is a code rather than a magnitude: a categorical_* field's value
+// is its dictionary index, a packed_bool field's its 0/1 truth value.
+func IsCodeInputType(ft encoding.FieldType) bool {
+	return ft.IsCategorical() || ft == encoding.FieldTypePackedBool
+}
+
+// EmitsInputValue reports whether t's value is one of its input
+// field's own encoded values: a built-in in
+// EmitsInputValueAggregationTypes or an extension declared
+// EmitsInputValue. Declared metadata only.
+func (k AggregationKinds) EmitsInputValue(t types.AggregationType) bool {
+	r := k.Routed(t)
+	return slices.Contains(EmitsInputValueAggregationTypes(), r) || k.extension(r).EmitsInputValue
+}
+
+// IsCode reports whether t over an input field of type input writes a
+// code, not a magnitude, into its Response.Data row: EmitsInputValue
+// over an IsCodeInputType field. It depends on the input field's
+// schema type, so predict judges it from the request plus the schema
+// (no records), as the runtime does.
+func (k AggregationKinds) IsCode(t types.AggregationType, input encoding.FieldType) bool {
+	return IsCodeInputType(input) && k.EmitsInputValue(t)
 }
 
 // VectorAggregationTypes returns the built-in aggregation types that

@@ -451,7 +451,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Category:      "aggregator",
 			Description:   "Most-frequent value of the field (ties broken by the smallest value).",
 			AcceptsTypes:  nonSetFieldTypes,
-			EmitsTypeNote: "scalar float64 (the modal value; for a categorical field, its dictionary index)",
+			EmitsTypeNote: "scalar float64 (the modal value; for a categorical field, its dictionary index, for a packed_bool field its 0/1 truth value — a code, not a magnitude, so an overlay scoring it over such a field (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason categorical_code)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Partial,
 				descriptor.ComponentKey{Name: "value", Type: "any", Description: "Most-frequent value observed (smallest-value tie-break)."},

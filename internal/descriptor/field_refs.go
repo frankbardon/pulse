@@ -602,7 +602,7 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 	}
 	// A request overlay reads ONE aggregation as its host value: the one
 	// a series kind's params.field names, else the first.
-	w.out = append(w.out, processOverlayArrayValuedRefusals(req, aggregationKinds(inst, w.snap))...)
+	w.out = append(w.out, processOverlayArrayValuedRefusals(req, aggregationKinds(inst, w.snap), schema)...)
 	if req.Crosstab == nil {
 		for i, t := range req.PostTests {
 			if t != nil {

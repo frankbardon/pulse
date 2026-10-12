@@ -61,7 +61,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	// A whole-chain overlay over a stage carrying an array-valued
 	// (vector) aggregation, before any stage runs (ValidateChain's
 	// rule).
-	if err := descx.ChainOverlayArrayValuedRefusal(req, s.instance); err != nil {
+	if err := descx.ChainOverlayArrayValuedRefusal(req, s.instance, nil); err != nil {
 		return nil, err
 	}
 	// Then every stage's item for_each expands in place (the expansion
@@ -215,6 +215,15 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	// `ChainResponse.Overlays` slice keyed to `req.Overlays` in matching
 	// index order. Empty / nil `req.Overlays` short-circuits with no
 	// allocation (byte-identical JSON for overlay-free chains).
+	// A whole-chain overlay scoring a categorical code (an input-valued
+	// aggregation over a categorical / packed_bool input — the input
+	// schema decides, so it is judged here, once every stage ran with
+	// its defaults resolved: stage 0 against gateSchema, a later stage
+	// against the schema synthesised from the stage before it). The
+	// same call ValidateChain makes.
+	if err := descx.ChainOverlayArrayValuedRefusal(req, s.instance, gateSchema); err != nil {
+		return nil, err
+	}
 	if err := s.applyChainOverlays(req, out); err != nil {
 		return nil, err
 	}
@@ -245,6 +254,22 @@ func (s *Service) chainStage0Schema(ctx context.Context, stage0 *types.Request, 
 		return left
 	}
 	return joined
+}
+
+// requestInputSchema is the schema r executes over: its cohort's, or
+// for a request carrying one JoinSpec the joined one
+// (chainStage0Schema); nil when r names no cohort or it does not open.
+// The Compose categorical-code overlay rule reads it; predict's twin is
+// internal/descriptor.composeSlotInputSchema.
+func (s *Service) requestInputSchema(ctx context.Context, r *types.Request) *encoding.Schema {
+	if r == nil || r.Cohort == nil {
+		return nil
+	}
+	cohort, err := s.Open(ctx, resolveCohortPath(r.Cohort))
+	if err != nil {
+		return nil
+	}
+	return s.chainStage0Schema(ctx, r, cohort.Schema())
 }
 
 // runChainStageChild runs chain stage i (i >= 1) over the previous

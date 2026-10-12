@@ -69,6 +69,7 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			VectorInput:        r.VectorInput,
 			ArrayValued:        r.ArrayValued,
 			NonScalar:          r.NonScalar,
+			EmitsInputValue:    r.EmitsInputValue,
 			WeightAware:        r.WeightAware,
 			Accepts:            fieldTypeStrings(r.Accepts),
 			Params:             paramMetaSnapshot(r.Params),

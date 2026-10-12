@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/seriesfield"
@@ -95,7 +96,7 @@ func chainOverlayKindAllowed(kind types.OverlayKind) bool {
 // alongside the per-stage ones in a single envelope (mirrors how
 // Predict accumulates errors across overlay / field / streamability
 // gates).
-func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResult, req *types.ChainRequest, staged []*types.Request, opts *PredictOptions) {
+func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResult, req *types.ChainRequest, staged []*types.Request, stage0 *encoding.Schema, opts *PredictOptions) {
 	if req == nil || len(req.Overlays) == 0 {
 		return
 	}
@@ -157,10 +158,14 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 		if targetIdx >= 0 && targetIdx < stagesCount && req.Stages[targetIdx] != nil {
 			targetReq = req.Stages[targetIdx].Request
 		}
-		// An array-valued (vector) aggregation on either stage
-		// (PROCESSING_CONFIG, reason array_valued) — the runtime's
-		// check in Service.processChain, before any stage runs.
-		if aerr := chainOverlayArrayValuedRefusal(req, i, spec, opts.instance()); aerr != nil {
+		// An array-valued (vector) or non-scalar scored aggregation on
+		// either stage (PROCESSING_CONFIG, reason array_valued /
+		// non_scalar) — the runtime's check in Service.processChain,
+		// before any stage runs — or a categorical-code one, judged
+		// against the stage's input schema (stage0, else synthesised
+		// from the defaulted stage before it): the runtime's second
+		// call, once every stage ran.
+		if aerr := chainOverlayArrayValuedRefusal(req, i, spec, opts.instance(), staged, stage0); aerr != nil {
 			addCodedError(env, aerr)
 			continue
 		}

@@ -538,10 +538,11 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	if ferr := composeOverlayHiddenFloorRefusal(specIdx, spec, req.Requests, labels, defaultWeight, opts.instance(), opts.componentsDisabled); ferr != nil {
 		addCodedError(env, ferr)
 	}
-	// Gate 2d: a slot the overlay reads carries an array-valued
-	// (vector) aggregation (PROCESSING_CONFIG, reason array_valued) —
+	// Gate 2d: a slot the overlay reads scores an array-valued (vector),
+	// non-scalar or categorical-code aggregation (PROCESSING_CONFIG,
+	// reason array_valued / non_scalar / categorical_code) —
 	// the runtime's check in Service.applyComposeOverlays.
-	if aerr := composeOverlayArrayValuedRefusal(specIdx, spec, req.Requests, labels, opts.instance()); aerr != nil {
+	if aerr := composeOverlayArrayValuedRefusal(specIdx, spec, req.Requests, labels, opts.instance(), composeSlotInputSchema(req.Requests, opts)); aerr != nil {
 		addCodedError(env, aerr)
 	}
 	// Gate 2e: a kind that reads a slot's AGG_WELFORD moments from its
@@ -1020,6 +1021,20 @@ func requestLabelsDeferred(req *types.Request) bool {
 		}
 	}
 	return false
+}
+
+// composeSlotInputSchema returns the schema Compose slot j executes
+// over — its cohort's, or the joined one for a joined slot
+// (joinedDefaultsSchema) — read through opts.SchemaLoader; nil when it
+// cannot be read (no judgement). The runtime's twin is
+// Service.requestInputSchema.
+func composeSlotInputSchema(requests []*types.Request, opts *PredictOptions) func(j int) *encoding.Schema {
+	return func(j int) *encoding.Schema {
+		if j < 0 || j >= len(requests) || requests[j] == nil || requests[j].Cohort == nil {
+			return nil
+		}
+		return joinedDefaultsSchema(requests[j], cohortSchemaFor(requests[j].Cohort, opts), opts)
+	}
 }
 
 // composeSlotAsExecuted is a Compose slot as the runtime executes it

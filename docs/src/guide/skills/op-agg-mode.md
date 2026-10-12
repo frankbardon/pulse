@@ -58,6 +58,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 - Ties go to the SMALLEST value (or index), not the first seen; `tie_count > 1` flags a tie.
 - High cardinality costs memory; pre-filter.
 - `set_*` → `PROCESSING_CONFIG` (no modal scalar).
+- Over `categorical_*` / `packed_bool` the value is a CODE: an overlay scoring it (any host; `params.field`, else `aggregations[0]`) is refused `PROCESSING_CONFIG`, reason `categorical_code` (+ `field`, `field_type`). Score a count or share instead. A chain stage over a forwarded mode column reads a number.
 
 ## See
 

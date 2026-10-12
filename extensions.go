@@ -315,8 +315,22 @@ type AggregatorRegistration struct {
 	// a non-scalar Rich value scored by an overlay folds as no value.
 	// Projected as the manifest's non_scalar.
 	NonScalar bool
-	Accepts   []encoding.FieldType
-	Params    []ParamMeta
+	// EmitsInputValue declares that the slot's one number is one of its
+	// INPUT field's own encoded values — a value picked from the column
+	// (a mode, a first / last pick), not a figure computed over it. Over
+	// a categorical_* field that value is the dictionary index
+	// (extend.Record.NumericValue), over a packed_bool field the 0/1
+	// truth value: a code, not a magnitude. Predict (from request plus
+	// schema) and the runtime then refuse the slot over such a field as
+	// the aggregation an overlay scores (request, Compose or chain host:
+	// params.field where the kind honours it, else aggregations[0]) with
+	// PROCESSING_CONFIG, reason "categorical_code", exactly as for the
+	// built-in AGG_MODE; over a numeric field, or unscored, it runs.
+	// Undeclared, an overlay scores the code as a magnitude. Projected
+	// as the manifest's emits_input_value.
+	EmitsInputValue bool
+	Accepts         []encoding.FieldType
+	Params          []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc. Omit to keep the operator opaque to
 	// projection (runtime widens the field set when this operator
