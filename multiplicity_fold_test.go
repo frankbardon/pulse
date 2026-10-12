@@ -94,7 +94,9 @@ func TestMultiplicityNoneIsIdentity(t *testing.T) {
 			return &types.Request{
 				Cohort:       &types.Cohort{Filename: cohort},
 				Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "x", Label: "m"}},
-				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+				// Grouped on an x range, not g: each test runs once per
+				// group, and a split on its own grouper is refused.
+				Groups: []*types.Group{{Type: types.GROUP_RANGE, Field: "x", Interval: 25}},
 				Tests: []*types.Test{
 					{Type: types.TEST_T, Field: "x", SplitBy: "g", Label: "t"},
 					{Type: types.TEST_PEARSON_R, Field: "x", Field2: "y", Label: "r"},

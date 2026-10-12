@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_PAIRWISE_TWO_MEANS_Z
 description: Intra-matrix axis-pairwise two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df).
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise, welford-triple]
 ```
 

@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/groupedtests"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -57,8 +58,21 @@ func validateTests(env *descriptor.Envelope, req *types.Request, schema *encodin
 	for _, t := range req.Tests {
 		validateOneTest(env, t, schema, projected, true /*tier1*/, opts)
 	}
+	// A grouped request runs every tier-1 test once per group: a test
+	// splitting on a grouper's field is refused — the runtime's refusal
+	// (groupedtests.SplitRefusal), code, message and Details alike.
+	if err := groupedtests.SplitRefusal(req.Tests, req.Groups); err != nil {
+		env.AddError(string(err.Code), err.Message, err.Details)
+	}
 	for _, t := range req.PostTests {
 		validateOneTest(env, t, schema, projected, false /*tier1*/, opts)
+	}
+	// A grouped request runs every post-test once per partition (every
+	// key but the last by default): a partition_by off the prefix rule,
+	// post-tests at mixed depths, or a split on a partition key column is
+	// refused — the runtime's refusal (groupedtests.PostTestDepth).
+	if _, err := groupedtests.PostTestDepth(req.PostTests, req.Groups); err != nil {
+		env.AddError(string(err.Code), err.Message, err.Details)
 	}
 }
 
@@ -256,7 +270,7 @@ func streamableTestReasons(req *types.Request, opts *PredictOptions) []string {
 	}
 	if len(req.Tests) > 0 {
 		if len(req.Groups) > 0 {
-			reasons = append(reasons, "tier-1 tests do not yet compose with groupers in the streaming path")
+			reasons = append(reasons, "grouped tier-1 tests run once per group via the buffered path")
 		}
 		if len(req.Features) > 0 {
 			reasons = append(reasons, "tier-1 tests do not yet compose with features in the streaming path")

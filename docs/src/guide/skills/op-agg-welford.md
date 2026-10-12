@@ -66,6 +66,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 - Sample variance (`n-1`), not population (`n`).
 - The rich triple is what cell-level t / z overlays read, via `Components.Crosstab.CellComponents`.
 - Margin reducibility = recompute, not pool by addition.
+- Non-scalar row value: an overlay scoring it (request, Compose or whole-chain: `params.field` where the kind honours it, else `aggregations[0]`) is refused (`PROCESSING_CONFIG`, reason `non_scalar`) — except the two-sample t / z vs-ref overlays, which read the triple from the slot's per-group components (disabled → `PULSE_OVERLAY_COMPONENTS_REQUIRED`); an unscored one beside a scalar runs.
 
 ## See
 

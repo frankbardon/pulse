@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_SHARE_OF_ROW
 description: Per-cell share-of-row ratio (cell / row_margin) — raw share, sums to 1.0 per row.
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, proportion-analysis]
 ```
 
@@ -44,6 +44,7 @@ MATRIX — `Cells[r][c].Value = cell / row_margin` (raw ratio, no ×100). Cells 
 - Scope MUST be `cell`. Empty `Ref.Margin` or non-row Axis → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Buffered (host crosstab always recomputes margins from raw rows).
 - Weighted host → weighted figure (reads the host payload).
+- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 
 ## See
 

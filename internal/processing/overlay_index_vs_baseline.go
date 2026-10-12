@@ -91,9 +91,6 @@ import (
 // dispatch, but the defense matches the INDEX_VS_TOTAL / SHARE_OF_TOTAL
 // SERIES / INDEX_VS_PRIOR safety pattern.
 func applyIndexVsBaseline(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
-	if err := refuseCompositeSeriesHost(spec, host); err != nil {
-		return types.OverlayLayer{}, nil, err
-	}
 	baselineValue, err := ResolveBaselineIndex(host, spec.Ref.BaselineIndex)
 	if err != nil {
 		return types.OverlayLayer{}, nil, err

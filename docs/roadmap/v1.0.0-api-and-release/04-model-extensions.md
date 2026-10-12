@@ -40,7 +40,7 @@ R keeps its current role as the reference oracle ([U36](../units/U36-reference-o
 
 ## After v1.0.0 (not committed)
 
-- **Casebook repository.** Created after the units that convert the in-repo examples land (U44–U52, and U41–U43 for the MMM fixture), so those units keep updating their example in the same PR. Then `docs/showcase/` and `docs/roadmap/fixtures/mmm-harbor-pine/` move there and the unit links are rewritten.
+- **Casebook repository.** Created after the units that convert the in-repo examples land (U44–U52, and U41–U43 for the MMM fixture), so those units keep updating their example in the same PR. The showcase examples have already moved there; `docs/roadmap/fixtures/mmm-harbor-pine/` follows and the unit links are rewritten.
   - Each example: a narrative README, data or its generator, `req/`, `run.sh`, expected numbers, and a `GAPS.md` ledger of what was still done by hand, each line pointing at a Pulse TODO item (the existing "Still outside Pulse" table).
   - CI: a pinned-version run that must pass, and a nightly run against Pulse `main` that reports regressions and closed gaps.
   - The gap ladder: by hand → in a pack → in core.

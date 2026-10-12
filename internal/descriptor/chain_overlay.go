@@ -2,7 +2,10 @@ package descriptor
 
 import (
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -25,10 +28,11 @@ import (
 //     PULSE_OVERLAY_REFERENCE_UNKNOWN / PULSE_OVERLAY_TARGET_UNKNOWN per arm.
 //
 //   - Shape divergence: when inferChainStageShape(stages[ref]) differs
-//     from inferChainStageShape(stages[target]) the validator fires
-//     PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT and appends the rejected
-//     (ref, target) pair to ChainValidationResult.OverlaysSchemaDivergence
-//     per PRD §I-FR-I3.
+//     from inferChainStageShape(stages[target]) the validator WARNS
+//     PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (warning-class, as the
+//     runtime's empty layer + warning; the chain stays valid) and
+//     appends the (ref, target) pair to
+//     ChainValidationResult.OverlaysSchemaDivergence per PRD §I-FR-I3.
 //
 // Pure function of *types.ChainRequest — no record decode, no
 // service / processing imports. Descriptor's no-execute contract holds.
@@ -82,7 +86,8 @@ func chainOverlayKindAllowed(kind types.OverlayKind) bool {
 }
 
 // validateChainOverlays walks req.Overlays and appends per-spec
-// validation errors / divergence pairs onto env / result. Called from
+// validation errors, shape-divergence warnings and divergence pairs
+// onto env / result. Called from
 // ValidateChain in internal/descriptor/chain.go after the per-stage gate loop
 // finishes; no-op when req.Overlays is empty.
 //
@@ -91,7 +96,7 @@ func chainOverlayKindAllowed(kind types.OverlayKind) bool {
 // alongside the per-stage ones in a single envelope (mirrors how
 // Predict accumulates errors across overlay / field / streamability
 // gates).
-func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResult, req *types.ChainRequest, opts *PredictOptions) {
+func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResult, req *types.ChainRequest, staged []*types.Request, stage0 *encoding.Schema, opts *PredictOptions) {
 	if req == nil || len(req.Overlays) == 0 {
 		return
 	}
@@ -118,6 +123,13 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 		// OVERLAY_DELTA_VS_STAGE accepted in ChainOverlaySpec.Kind. A
 		// kind the instance hides keys on its route, as a kind not in
 		// the catalog.
+		// A catalog kind that runs on another slot gets the shared
+		// overlayhost refusal the runtime chain dispatcher raises; only
+		// a kind outside the catalog stays PULSE_OVERLAY_KIND_UNKNOWN.
+		if cerr := overlayhost.Refusal(overlayhost.Chain, spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
+			addCodedError(env, cerr)
+			continue
+		}
 		if !chainOverlayKindAllowed(opts.overlayRoute(spec.Kind)) {
 			env.AddError(string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
 				"chain overlay kind not supported on ChainRequest.Overlays: "+string(spec.Kind),
@@ -146,29 +158,55 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 		if targetIdx >= 0 && targetIdx < stagesCount && req.Stages[targetIdx] != nil {
 			targetReq = req.Stages[targetIdx].Request
 		}
-		// An array-valued (vector) aggregation on either stage
-		// (PROCESSING_CONFIG, reason array_valued) — the runtime's
-		// check in Service.processChain, before any stage runs.
-		if aerr := chainOverlayArrayValuedRefusal(req, i, spec, opts.instance()); aerr != nil {
+		// An array-valued (vector) or non-scalar scored aggregation on
+		// either stage (PROCESSING_CONFIG, reason array_valued /
+		// non_scalar) — the runtime's check in Service.processChain,
+		// before any stage runs — or a categorical-code one, judged
+		// against the stage's input schema (stage0, else synthesised
+		// from the defaulted stage before it): the runtime's second
+		// call, once every stage ran.
+		if aerr := chainOverlayArrayValuedRefusal(req, i, spec, opts.instance(), staged, stage0); aerr != nil {
 			addCodedError(env, aerr)
 			continue
+		}
+		// The SERIES value rule (U46): a non-crosstab stage is scored on
+		// the aggregation params.field names (else Aggregations[0]), the
+		// runtime's processing.projectChainSeriesStages — target first,
+		// then ref. A stage whose untyped, unlabelled aggregation still
+		// has no Type after defaults (DisableDefaults, an unknown field)
+		// is left to the runtime, which refuses it first.
+		// Labels resolve on the stage as executed (stagedAt: smart
+		// defaults applied against the stage's input schema, the joined
+		// one for a joined stage 0).
+		validateChainOverlaySeriesField(env, spec, opts.overlayRoute(spec.Kind), i, "target", targetIdx, stagedAt(staged, targetIdx, targetReq))
+		if refIdx != targetIdx {
+			validateChainOverlaySeriesField(env, spec, opts.overlayRoute(spec.Kind), i, "ref", refIdx, stagedAt(staged, refIdx, refReq))
 		}
 		refShape := inferChainStageShape(refReq)
 		targetShape := inferChainStageShape(targetReq)
 		if refShape == targetShape {
 			continue
 		}
-		env.AddError(string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT),
-			"chain overlay reference and target stages produce different host shapes",
+		// Warning-class, as at runtime (U46 E4-S9): the runtime answers
+		// an empty layer plus one warning and the chain still runs, so
+		// predict reports the divergence as an envelope WARNING and the
+		// chain stays valid. Neither side escalates it under Strict —
+		// the runtime never promotes an overlay layer warning, and the
+		// chain validator reads no Strict flag. Details carry every key
+		// the runtime warning does (overlay_index included), so the two
+		// deep-equal.
+		env.AddWarning(string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT),
+			"chain overlay reference and target stages produce different host shapes; the runtime surfaces an empty layer",
 			map[string]any{
-				"index":        i,
-				"kind":         string(spec.Kind),
-				"ref_index":    refIdx,
-				"ref_shape":    string(refShape),
-				"target_index": targetIdx,
-				"target_shape": string(targetShape),
-				"stage_index":  targetIdx,
-				"stage_name":   stageNameAt(req, targetIdx),
+				"index":         i,
+				"overlay_index": i,
+				"kind":          string(spec.Kind),
+				"ref_index":     refIdx,
+				"ref_shape":     string(refShape),
+				"target_index":  targetIdx,
+				"target_shape":  string(targetShape),
+				"stage_index":   targetIdx,
+				"stage_name":    stageNameAt(req, targetIdx),
 			})
 		if result != nil {
 			result.OverlaysSchemaDivergence = append(result.OverlaysSchemaDivergence,
@@ -181,6 +219,28 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 					TargetShape: targetShape,
 				})
 		}
+	}
+}
+
+// stagedAt is stage idx as the runtime executes it (staged[idx], its
+// defaults resolved), else the stage as written.
+func stagedAt(staged []*types.Request, idx int, written *types.Request) *types.Request {
+	if idx >= 0 && idx < len(staged) && staged[idx] != nil {
+		return staged[idx]
+	}
+	return written
+}
+
+// validateChainOverlaySeriesField refuses a params.field that names no
+// aggregation of one stage, PULSE_OVERLAY_FIELD_UNKNOWN via the
+// seriesfield.ResolveChainStage call the runtime makes on the same
+// stage Request.
+func validateChainOverlaySeriesField(env *descriptor.Envelope, spec *types.ChainOverlaySpec, route types.OverlayKind, specIdx int, which string, stageIdx int, req *types.Request) {
+	if !seriesfield.AppliesChain(route) || req == nil || req.Crosstab != nil || requestLabelsDeferred(req) {
+		return
+	}
+	if _, err := seriesfield.ResolveChainStage(req.Aggregations, spec, specIdx, which, stageIdx); err != nil {
+		addCodedError(env, err)
 	}
 }
 

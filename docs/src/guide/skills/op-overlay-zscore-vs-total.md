@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_ZSCORE_VS_TOTAL
 description: Per-group streamable z-score against the SERIES host's grand-total distribution (population SD).
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, outlier-detection, streaming-friendly]
 ```
 
@@ -26,11 +26,11 @@ Use something else:
 
 ## Params
 
-`Scope` required, must be `group`. `Ref` empty (implicit grand-total; populated → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`). `Level` / `Within` must be `0`.
+`Scope` required, must be `group`. `Ref` empty (implicit grand-total; populated → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`). `Level` / `Within` must be `0`. `params.field` (string, optional) — OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`. `params.partition_by` (string list, optional) — a leading prefix of the group key columns (Host shape); anything else → `PULSE_OVERLAY_PARTITION_INVALID`.
 
 ## Host shape
 
-SERIES grouped Process host. Streamable alongside the total index and grand-total share.
+SERIES grouped Process host. Over two or more `groups` the mean and SD are each partition's own — the rows sharing the leading keys `params.partition_by` names (default all but the last; `[]` = every row), matched by key equality. Streamable alongside the total index and grand-total share.
 
 ## Output
 

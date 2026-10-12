@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U02c]
 blocks: [U32]
-todo_items: [198, 199, 201, 207, 213, 214, 215, 221, 248, 249, 253, 254, 255, 256, 259, 260, 267, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419, 427, 431, 432]
+todo_items: [198, 199, 201, 207, 213, 214, 215, 221, 248, 249, 253, 254, 255, 256, 259, 260, 267, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419, 427, 431, 432, 436, 437, 439, 440, 442, 448]
 branch: predict-runtime-parity
 ---
 
@@ -200,3 +200,14 @@ Filed from the U54 series-overlay refusal follow-up ([U54](U54-multi-grouper.md)
 
 - [ ] **#431** (Grouped analysis › Follow-ups from U54) `OVERLAY_INDEX_VS_ROLLING_MEAN` / `OVERLAY_ZSCORE_VS_ROLLING` with `params.window: 1` answer NaN from the second present point on: `rollingCarrier`'s eviction divides by `count - 1 == 0` (`internal/processing/overlay_index_vs_rolling_mean.go`), while predict accepts window 1 (`validateOverlayRollingWindowParam` checks only `> 0`). Fix the window-1 eviction (or refuse window 1 at predict and runtime alike).
 - [ ] **#432** (Grouped analysis › Follow-ups from U54) `OVERLAY_FORMULA` on a grouped Process (SERIES) host passes predict — the SERIES namespace `value` / `total` / `prior` / `baseline` validates — but the runtime refuses it `PULSE_OVERLAY_KIND_UNKNOWN`: `seriesOverlayHandlers` has no FORMULA entry. Either wire a SERIES FORMULA handler or refuse it at predict; a wired handler's `prior` is a lag-1 read, so it needs the multi-grouper refusal (`refuseCompositeSeriesHost`) the prior / rolling kinds carry. The Compose-predict side is #400.
+
+## Inherited from U46
+
+Filed from [U46](U46-grouped-analysis.md); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#436** (Grouped analysis › Follow-ups from U46) predict-compose / predict-chain report an unknown overlay `field` on both compared stages as two errors where the runtime raises one; align the count. Found in U46 (E1-S4).
+- [ ] **#437** (Grouped analysis › Follow-ups from U46) `MaxEstimatedMemory` ignores the per-group state a grouped tier-1 test holds (tests x groups), though `MaxGroups` grades the product; decide whether the memory estimate should count it. Found in U46 (E3-S1).
+- [ ] **#439** (Grouped analysis › Follow-ups from U46) An ungrouped (SCALAR) Process host: predict accepts overlay kinds (e.g. `OVERLAY_FORMULA`) the runtime silently returns no layer for; refuse identically on both sides. Found in U46 (E4-S15).
+- [ ] **#440** (Grouped analysis › Follow-ups from U46) Request-host MATRIX `OVERLAY_FORMULA` with an unknown identifier: predict `PULSE_OVERLAY_FORMULA_INVALID_IDENT` vs runtime `PULSE_OVERLAY_FORMULA_PARSE_ERROR`; reuse `internal/formulaident` on the Request host. Found in U46 (E4-S15).
+- [ ] **#442** (Grouped analysis › Follow-ups from U46) A Compose overlay spec with no targets passes predict-compose but the runtime refuses `PULSE_OVERLAY_TARGET_UNKNOWN` (every single-target kind); refuse on predict. Found in U46 (E4-S15).
+- [ ] **#448** (Grouped analysis › Follow-ups from U46) Moment pairwise kinds (`OVERLAY_PAIRWISE_WELCH_T` / `_TWO_MEANS_Z` / `_WEIGHTED_TWO_MEANS_Z`) over an `AGG_MODE` cell are refused only by the runtime cell-shape rule; predict may be silent. Found in U46 (E4-S17).

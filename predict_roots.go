@@ -23,7 +23,8 @@ type (
 	// the source schema and each stage's inferred output columns.
 	ChainPredictResult = descx.ChainValidationResult
 	// ChainOverlaySchemaDivergence is one chain-overlay (ref, target)
-	// pair ChainPredictResult rejects.
+	// pair ChainPredictResult reports as shape-divergent (warning-class:
+	// the runtime answers it with an empty layer, the chain still runs).
 	ChainOverlaySchemaDivergence = descx.ChainOverlaySchemaDivergence
 )
 

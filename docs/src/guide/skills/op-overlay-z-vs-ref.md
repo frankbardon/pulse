@@ -26,13 +26,13 @@ Use something else:
 
 ## Params
 
-`Scope` required, must be `group`. `Reference` / `Targets` required slot labels. Optional `params.variance_target/_ref` (float, `1.0`), `params.sample_size_target/_ref` (int, `2`). Without `AGG_WELFORD` these apply to EVERY group: p-values then describe the supplied values, not each group.
+`Scope` required, must be `group`. `Reference` / `Targets` required slot labels. A scalar scored aggregation (anything but `AGG_WELFORD`) REQUIRES `params.variance_target/_ref` and `params.sample_size_target/_ref` (or symmetric `variance` / `sample_size`), each > 0 — no default: missing → `PULSE_OVERLAY_PARAM_MISSING` (`side`, `params`), predict and runtime. They apply to EVERY group: p-values then describe the supplied values, not each group. `params.field` (string, optional, series slots) — OUTPUT LABEL of the aggregation to score on every slot (`label`, else `TYPE_field`); absent = each slot's `aggregations[0]`; rows key on group columns only; a slot lacking it → `PULSE_OVERLAY_FIELD_UNKNOWN`.
 
 - `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Host shape
 
-COMPOSE — SERIES grouped Process on both slots. **Parity overlay** — reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents` (matrix arms via `AGG_WELFORD`), else the `params` triple. Renders as a per-group strip.
+COMPOSE — SERIES grouped Process on both slots. **Parity overlay** — reads `{n, mean, variance}` from the scored `AGG_WELFORD`'s per-group `Response.Components` (weighted floor included; components disabled on that slot → `PULSE_OVERLAY_COMPONENTS_REQUIRED`, reason `components_disabled`, predict and runtime), else the required `params`. Any other non-scalar scored aggregation is refused (`non_scalar`); crosstab slots → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (use the cell twin). Renders as a per-group strip.
 
 ## Output
 

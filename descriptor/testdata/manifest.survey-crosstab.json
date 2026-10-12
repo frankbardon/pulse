@@ -375,7 +375,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}",
+          "emits_type_note": "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar — except the two-sample t / z vs-ref overlays, which read the triple from the slot's per-group components (components disabled on that slot: PULSE_OVERLAY_COMPONENTS_REQUIRED reason components_disabled)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -748,7 +748,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 168,
+    "error_codes_count": 171,
     "error_domains": [
       "CLI",
       "DATA",
@@ -853,9 +853,11 @@
       "PULSE_OVERLAY_COMPONENTS_REQUIRED",
       "PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED",
       "PULSE_OVERLAY_EXPECTED_LOW",
+      "PULSE_OVERLAY_FIELD_UNKNOWN",
       "PULSE_OVERLAY_KIND_UNKNOWN",
       "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE",
       "PULSE_OVERLAY_PARAM_MISSING",
+      "PULSE_OVERLAY_PARTITION_INVALID",
       "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE",
       "PULSE_OVERLAY_REF_UNKNOWN",
       "PULSE_OVERLAY_REF_ZERO",
@@ -917,6 +919,7 @@
       "PULSE_TEST_FIELD_NOT_NUMERIC",
       "PULSE_TEST_INSUFFICIENT_N",
       "PULSE_TEST_INVALID_ALPHA",
+      "PULSE_TEST_PARTITION_INVALID",
       "PULSE_TEST_SPLIT_GROUPS_LT_2",
       "PULSE_TEST_TIES_DOMINATE",
       "PULSE_TEST_UNKNOWN_TYPE",
@@ -2098,6 +2101,7 @@
           "crosstab",
           "tests[*].label",
           "tests[*].type",
+          "tests[*].group_key",
           "tests[*].variant",
           "tests[*].statistic",
           "tests[*].df",
@@ -2107,6 +2111,7 @@
           "tests[*].details.effect_size",
           "post_tests[*].label",
           "post_tests[*].type",
+          "post_tests[*].group_key",
           "post_tests[*].variant",
           "post_tests[*].statistic",
           "post_tests[*].df",
@@ -2157,11 +2162,13 @@
           "crosstab.matrix",
           "tests[*].label",
           "tests[*].type",
+          "tests[*].group_key",
           "tests[*].statistic",
           "tests[*].p_value",
           "tests[*].reject_null",
           "post_tests[*].label",
           "post_tests[*].type",
+          "post_tests[*].group_key",
           "post_tests[*].statistic",
           "post_tests[*].p_value",
           "post_tests[*].reject_null",
@@ -2236,4 +2243,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 644eff0a2e29b490177a4c78641941be351a7852ab577e76d6c6603b1d2c3a4a
+// golden-hash: 1c3847e79f126ee9fea6eacc75043c4b2621e2eec6a589adc5f628968477eb14

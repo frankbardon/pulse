@@ -33,6 +33,13 @@ import (
 // or falls back to `req.Groups[0].Params["frequency"]` (the canonical
 // GROUP_DATE authoring slot).
 //
+// Grouped Process with N groupers (U46 E2-S3): the request must carry
+// exactly one GROUP_DATE grouper, anywhere in groups; the fold runs
+// this handler once per combination of the OTHER keys, each sub-host
+// holding the date key alone (seriespartition.YoY — the one reading
+// predict shares — and runSeriesHandlerPartitioned). The frequency
+// fallback reads that date grouper's Params, not Groups[0]'s.
+//
 // Required GROUP_DATE host grouper (runtime mirror of predict gate):
 // the kind only operates against a SERIES host whose first grouper is
 // `GROUP_DATE`. The runtime introspection reads the grouper kind via
@@ -134,9 +141,12 @@ func applyYoY(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer
 	// GROUP_DATE" requirement at runtime. When the list is empty (legacy
 	// constructors) defer to the predict gate's earlier rejection.
 	if kinds := host.GrouperKinds(); len(kinds) > 0 {
-		// Two or more groupers: the host series is the composite rows
-		// (U54), not one date axis — refused, mirroring
-		// descriptor.validateOverlayYoY (U46 #429 owns the semantics).
+		// Two or more grouper kinds: a composite host handed to the
+		// handler directly. The grouped-Process fold never does — it
+		// partitions by every non-date key and hands each partition the
+		// date key alone (seriesPartitionFor / seriespartition.YoY,
+		// U46 E2-S3) — so this is defense in depth for a caller-built
+		// host.
 		if len(kinds) > 1 {
 			return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 				errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,

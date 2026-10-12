@@ -1148,6 +1148,7 @@
           "crosstab",
           "tests[*].label",
           "tests[*].type",
+          "tests[*].group_key",
           "tests[*].variant",
           "tests[*].statistic",
           "tests[*].df",
@@ -1157,6 +1158,7 @@
           "tests[*].details.effect_size",
           "post_tests[*].label",
           "post_tests[*].type",
+          "post_tests[*].group_key",
           "post_tests[*].variant",
           "post_tests[*].statistic",
           "post_tests[*].df",
@@ -1207,11 +1209,13 @@
           "crosstab.matrix",
           "tests[*].label",
           "tests[*].type",
+          "tests[*].group_key",
           "tests[*].statistic",
           "tests[*].p_value",
           "tests[*].reject_null",
           "post_tests[*].label",
           "post_tests[*].type",
+          "post_tests[*].group_key",
           "post_tests[*].statistic",
           "post_tests[*].p_value",
           "post_tests[*].reject_null",
@@ -1286,4 +1290,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8d86fad0b88093e2c69000fb1d7702392ad77b5a5f43d81533e30963a8a1f13f
+// golden-hash: c8c0049f7e71e30a0f2f4a1ed27089ba69b3dea1b2cec13cfa495fabfbc7f7db

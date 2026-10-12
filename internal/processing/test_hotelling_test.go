@@ -133,7 +133,7 @@ func oracleWeight(kind string) *types.WeightSpec {
 }
 
 // runHotelling runs one Hotelling request through the processor on the
-// streaming path (tests only) and the buffered one (grouped), asserts
+// streaming path (tests only) and the buffered one (forced), asserts
 // each path ran and that the two results are byte-identical, and
 // returns the result and the response.
 func runHotelling(t *testing.T, schema *encoding.Schema, recs []*Record, build func() *types.Request) (*types.TestResult, *types.Response) {
@@ -144,15 +144,19 @@ func runHotelling(t *testing.T, schema *encoding.Schema, recs []*Record, build f
 	for i, grouped := range []bool{false, true} {
 		req := build()
 		// A tests-only request has nothing to stream into: an
-		// aggregation keeps the ungrouped run on the streaming path,
-		// and grouping it forces the buffered one.
+		// aggregation keeps the run on the streaming path; the second
+		// arm forces the buffered one (a grouped request now runs the
+		// test once per group).
 		gf := groupField(schema)
 		req.Aggregations = []*types.Aggregation{{Type: types.AGG_COUNT, Field: gf, Label: "n", Weight: types.NullSlotWeight()}}
-		if grouped {
-			req.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: gf}}
-		}
 		p := NewProcessor(schema)
-		resp, err := p.Process(context.Background(), req, NewSliceIterator(recs))
+		var resp *types.Response
+		var err error
+		if grouped {
+			resp, err = processBuffered(p, req, recs)
+		} else {
+			resp, err = p.Process(context.Background(), req, NewSliceIterator(recs))
+		}
 		if err != nil {
 			t.Fatalf("grouped=%v: %v", grouped, err)
 		}

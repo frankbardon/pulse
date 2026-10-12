@@ -70,6 +70,7 @@ func chainOverlayCapabilities() []descriptor.OverlayCapability {
 	for _, k := range kinds {
 		streamable, _ := types.OverlayStreamable(k)
 		entry := overlayCapabilityFor(k)
+		entry.Description += seriesFieldNoteFor(k)
 		entry.Buffered = !streamable
 		entry.Zone = ZoneCapabilityOf(string(k))
 		sort.Slice(entry.Shapes, func(i, j int) bool {

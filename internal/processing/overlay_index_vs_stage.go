@@ -83,26 +83,7 @@ func applyIndexVsStage(spec *types.ChainOverlaySpec, target, ref *types.Response
 	// sees the divergence diagnostic + an empty layer instead of a
 	// malformed arithmetic crash.
 	if targetShape != refShape {
-		layer := types.OverlayLayer{
-			Name:  chainOverlayLayerName(spec),
-			Kind:  spec.Kind,
-			Scope: spec.Scope,
-			Payload: types.OverlayPayload{
-				Shape: targetShape,
-			},
-		}
-		warnings := []types.OverlayWarning{{
-			Code:    string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT),
-			Message: "overlay " + string(spec.Kind) + " target and reference stages disagree on host shape; surfacing empty payload",
-			Details: map[string]any{
-				"kind":         string(spec.Kind),
-				"target_index": targetIdx,
-				"ref_index":    refIdx,
-				"target_shape": string(targetShape),
-				"ref_shape":    string(refShape),
-			},
-		}}
-		return layer, warnings, nil
+		return chainShapeDivergentLayer(spec, targetShape, refShape, targetIdx, refIdx)
 	}
 
 	switch targetShape {
@@ -139,6 +120,37 @@ func chainStageShape(resp *types.Response) types.OverlayShape {
 		return types.OverlayShapeSeries
 	}
 	return types.OverlayShapeScalar
+}
+
+// chainShapeDivergentLayer is the whole-chain shape-divergence
+// answer: an empty layer that inherits the target stage's shape plus
+// ONE PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT warning naming both
+// shapes. The per-kind handlers raise it off the Response shapes; the
+// dispatcher (ApplyChainOverlaysWithRequests) raises it first off the
+// stages' AUTHORED shapes (AuthoredHostShape), the ones predict-chain
+// reads, so a grouped stage against an ungrouped one — whose single
+// aggregate row still sits in Data — diverges on both sides.
+func chainShapeDivergentLayer(spec *types.ChainOverlaySpec, targetShape, refShape types.OverlayShape, targetIdx, refIdx int) (types.OverlayLayer, []types.OverlayWarning, error) {
+	layer := types.OverlayLayer{
+		Name:  chainOverlayLayerName(spec),
+		Kind:  spec.Kind,
+		Scope: spec.Scope,
+		Payload: types.OverlayPayload{
+			Shape: targetShape,
+		},
+	}
+	warnings := []types.OverlayWarning{{
+		Code:    string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT),
+		Message: "overlay " + string(spec.Kind) + " target and reference stages disagree on host shape; surfacing empty payload",
+		Details: map[string]any{
+			"kind":         string(spec.Kind),
+			"target_index": targetIdx,
+			"ref_index":    refIdx,
+			"target_shape": string(targetShape),
+			"ref_shape":    string(refShape),
+		},
+	}}
+	return layer, warnings, nil
 }
 
 // chainOverlayLayerName resolves the layer's renderer-facing Name from
@@ -452,6 +464,17 @@ func anyToCanonicalString(v any) string {
 	return "\x01unknown"
 }
 
+// canonicalKeyValue reports whether anyToCanonicalString renders v as
+// itself (a group-key-shaped scalar) rather than the "\x01unknown"
+// fallback a RichAggregator payload gets.
+func canonicalKeyValue(v any) bool {
+	switch v.(type) {
+	case nil, string, bool, float64, float32, int, int32, int64, uint, uint32, uint64:
+		return true
+	}
+	return false
+}
+
 // applyIndexVsStageSeries implements the series arm of
 // OVERLAY_INDEX_VS_STAGE for grouped Process responses. The target's
 // Response.Data is walked in order; each row's canonical row-key
@@ -628,6 +651,21 @@ func buildSeriesRowLookup(rows []map[string]any) (map[string]float64, string) {
 //
 // Returns hasValue=false when the row has no numeric column at all
 // (no aggregator output to fold).
+//
+// Compose-host and chain-stage rows never reach it multi-aggregation:
+// both dispatchers first narrow every SERIES slot / stage to its group
+// columns plus the one scored aggregation (projectComposeSeriesSlots,
+// projectChainSeriesStages), so there the key is the group columns and
+// the value the named aggregation. The sorted-first rule decides only
+// a caller that hands no Request (the bare ApplyChainOverlays /
+// ApplyComposeOverlays entries).
+//
+// A column whose value is not a key-shaped scalar (canonicalKeyValue —
+// a RichAggregator payload: a label list, a count map, a moment
+// struct) is never a group column, so it is left out of the key. It
+// once rendered as a constant "\x01unknown" there and leaked into
+// PULSE_OVERLAY_KEY_SET_DIVERGENT Details as "<label>=\x01unknown";
+// dropping it never merges two rows the constant kept apart.
 func encodeSeriesRow(row map[string]any) (key string, valueCol string, value float64, hasValue bool) {
 	if len(row) == 0 {
 		return "", "", 0, false
@@ -650,6 +688,9 @@ func encodeSeriesRow(row map[string]any) (key string, valueCol string, value flo
 			// Subsequent numeric columns participate in the key so
 			// multi-aggregator rows still produce unique keys.
 			keyParts = append(keyParts, col+"="+anyToCanonicalString(v))
+			continue
+		}
+		if !canonicalKeyValue(v) {
 			continue
 		}
 		keyParts = append(keyParts, col+"="+anyToCanonicalString(v))

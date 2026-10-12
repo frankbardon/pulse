@@ -8,6 +8,15 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
+// testComposeStubKind / testComposeStubKind2 are kinds outside the
+// catalog: the only kinds that still reach the chassis stub, since every
+// catalog kind either has a Compose handler or is refused by the shared
+// wrong-slot gate (overlayhost.Refusal).
+const (
+	testComposeStubKind  types.OverlayKind = "OVERLAY_TEST_COMPOSE_STUB"
+	testComposeStubKind2 types.OverlayKind = "OVERLAY_TEST_COMPOSE_STUB_2"
+)
+
 // composeSlotOf returns a *types.Response whose host shape matches the
 // requested OverlayShape. Used by the COMPOSE-host dispatch chassis
 // tests to build synthetic per-slot results without going through the
@@ -134,14 +143,14 @@ func TestApplyComposeOverlays_StubLayerOrderPreserved(t *testing.T) {
 	specs := []types.ComposeOverlaySpec{
 		{
 			Name:      "first",
-			Kind:      types.OverlayKindIndexVsStage,
+			Kind:      testComposeStubKind,
 			Scope:     types.OverlayScopeTotal,
 			Reference: "baseline",
 			Targets:   []string{"treatment"},
 		},
 		{
 			Name:      "second",
-			Kind:      types.OverlayKindDeltaVsStage,
+			Kind:      testComposeStubKind2,
 			Scope:     types.OverlayScopeTotal,
 			Reference: "baseline",
 			Targets:   []string{"treatment"},
@@ -155,10 +164,10 @@ func TestApplyComposeOverlays_StubLayerOrderPreserved(t *testing.T) {
 	if got, want := len(layers), 2; got != want {
 		t.Fatalf("len(layers) = %d, want %d", got, want)
 	}
-	if got, want := layers[0].Kind, types.OverlayKindIndexVsStage; got != want {
+	if got, want := layers[0].Kind, testComposeStubKind; got != want {
 		t.Errorf("layers[0].Kind = %q, want %q", got, want)
 	}
-	if got, want := layers[1].Kind, types.OverlayKindDeltaVsStage; got != want {
+	if got, want := layers[1].Kind, testComposeStubKind2; got != want {
 		t.Errorf("layers[1].Kind = %q, want %q", got, want)
 	}
 	if got, want := layers[0].Name, "first"; got != want {
@@ -188,7 +197,7 @@ func TestApplyComposeOverlays_StubShapeInheritsReference(t *testing.T) {
 			labels := []string{"ref_slot", "target_slot"}
 			specs := []types.ComposeOverlaySpec{{
 				Name:      "shape_check",
-				Kind:      types.OverlayKindIndexVsStage,
+				Kind:      testComposeStubKind,
 				Scope:     types.OverlayScopeTotal,
 				Reference: "ref_slot",
 				Targets:   []string{"target_slot"},
@@ -212,7 +221,7 @@ func TestApplyComposeOverlays_ReferenceUnknown_CodedError(t *testing.T) {
 	labels := []string{"baseline", "treatment"}
 	specs := []types.ComposeOverlaySpec{{
 		Name:      "bad_ref",
-		Kind:      types.OverlayKindIndexVsStage,
+		Kind:      testComposeStubKind,
 		Scope:     types.OverlayScopeTotal,
 		Reference: "does_not_exist",
 		Targets:   []string{"treatment"},
@@ -232,7 +241,7 @@ func TestApplyComposeOverlays_TargetUnknown_CodedError(t *testing.T) {
 	labels := []string{"baseline", "treatment"}
 	specs := []types.ComposeOverlaySpec{{
 		Name:      "bad_target",
-		Kind:      types.OverlayKindIndexVsStage,
+		Kind:      testComposeStubKind,
 		Scope:     types.OverlayScopeTotal,
 		Reference: "baseline",
 		Targets:   []string{"does_not_exist"},
@@ -264,7 +273,7 @@ func TestApplyComposeOverlays_TargetsEmpty_CodedError(t *testing.T) {
 	labels := []string{"baseline"}
 	specs := []types.ComposeOverlaySpec{{
 		Name:      "empty_targets",
-		Kind:      types.OverlayKindIndexVsStage,
+		Kind:      testComposeStubKind,
 		Scope:     types.OverlayScopeTotal,
 		Reference: "baseline",
 		Targets:   nil,
@@ -288,7 +297,7 @@ func TestApplyComposeOverlays_NilSlot_CodedError(t *testing.T) {
 	labels := []string{"baseline", "treatment"}
 	specs := []types.ComposeOverlaySpec{{
 		Name:      "nil_target",
-		Kind:      types.OverlayKindIndexVsStage,
+		Kind:      testComposeStubKind,
 		Scope:     types.OverlayScopeTotal,
 		Reference: "baseline",
 		Targets:   []string{"treatment"},

@@ -38,6 +38,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 - Streamable — running Welford state per `SplitBy` group.
 - Constant Field within a group → `PULSE_TEST_VARIANCE_ZERO`.
 - n < 2 (per group) → `PULSE_TEST_INSUFFICIENT_N`.
+- With `groups`: one result per group, each with `group_key`; `split_by` a grouper → `PULSE_TEST_SPLIT_GROUPS_LT_2`; a too-sparse group → `null` figures + a warning (`statistical-testing`).
 
 ## See
 

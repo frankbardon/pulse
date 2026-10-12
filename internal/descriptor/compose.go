@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -8,11 +9,15 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprbuiltins"
 	"github.com/frankbardon/pulse/internal/exprident"
+	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/internal/totalcall"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -437,6 +442,16 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 		appendComposeSlotPair(result, spec.Reference, "", "kind-unknown")
 		return
 	}
+	// Gate 0a: a catalog kind that does not run on
+	// ComposedRequest.Overlays (a Process, whole-chain or FACET kind) —
+	// the shared overlayhost refusal the runtime dispatcher
+	// (processing.ApplyComposeOverlaysWithRequests) raises first, same
+	// code and Details. Before, the runtime answered an empty stub layer.
+	if cerr := overlayhost.Refusal(overlayhost.Compose, spec.Kind, opts.overlayRoute(spec.Kind), specIdx); cerr != nil {
+		addCodedError(env, cerr)
+		appendComposeSlotPair(result, spec.Reference, "", "host-incompatible")
+		return
+	}
 
 	// Gate 0b: a Compose-host OVERLAY_FORMULA may not call total() —
 	// the cohort-total term is ATTR_FORMULA's alone. The runtime twin
@@ -524,11 +539,23 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	if ferr := composeOverlayHiddenFloorRefusal(specIdx, spec, req.Requests, labels, defaultWeight, opts.instance(), opts.componentsDisabled); ferr != nil {
 		addCodedError(env, ferr)
 	}
-	// Gate 2d: a slot the overlay reads carries an array-valued
-	// (vector) aggregation (PROCESSING_CONFIG, reason array_valued) —
+	// Gate 2d: a slot the overlay reads scores an array-valued (vector),
+	// non-scalar or categorical-code aggregation (PROCESSING_CONFIG,
+	// reason array_valued / non_scalar / categorical_code) —
 	// the runtime's check in Service.applyComposeOverlays.
-	if aerr := composeOverlayArrayValuedRefusal(specIdx, spec, req.Requests, labels, opts.instance()); aerr != nil {
+	if aerr := composeOverlayArrayValuedRefusal(specIdx, spec, req.Requests, labels, opts.instance(), composeSlotInputSchema(req.Requests, opts)); aerr != nil {
 		addCodedError(env, aerr)
+	}
+	// Gate 2e: a two-sample kind (OVERLAY_T_VS_REF / _Z_VS_REF /
+	// _T_CELL / _Z_CELL) on a route that yields no mean, variance or n
+	// for a side — AGG_WELFORD moments with components disabled
+	// (PULSE_OVERLAY_COMPONENTS_REQUIRED), a scalar mean without the
+	// side's variance / sample-size params (PULSE_OVERLAY_PARAM_MISSING),
+	// a vs-ref kind over a crosstab slot
+	// (PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) — the runtime's check
+	// in Service.applyComposeOverlays.
+	if werr := composeOverlayTwoSampleInputsRefusal(specIdx, spec, req.Requests, labels, opts.instance(), opts.componentsDisabled); werr != nil {
+		addCodedError(env, werr)
 	}
 
 	// Gate 3: multi-reference panel target cap. Fires before the
@@ -632,7 +659,58 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	// host itself. The kindRequiresMatrix table mirrors the runtime
 	// processing.kindRequiresMatrix (see compose_test.go for the
 	// lock-step sync test).
+	//
+	// Gate 4a, the SERIES value + key rule (U46): a non-crosstab slot is
+	// scored on the aggregation params.field names (else
+	// Aggregations[0]) and keyed on its GROUP columns alone — the
+	// runtime's processing.projectComposeSeriesSlots. An unknown label
+	// is PULSE_OVERLAY_FIELD_UNKNOWN (reference first, then targets),
+	// and two SERIES slots whose group key columns differ by name can
+	// never align: PULSE_OVERLAY_KEY_SET_DIVERGENT, the code the
+	// runtime key-set gate raises.
+	if seriesfield.AppliesCompose(opts.overlayRoute(spec.Kind)) {
+		slots := append([]resolvedTarget{{label: spec.Reference, req: refReq}}, resolved...)
+		for _, s := range slots {
+			if s.req == nil || s.req.Crosstab != nil {
+				continue
+			}
+			// An aggregation authored without a Type takes its smart
+			// default (and so its TYPE_field label) from the slot's
+			// schema — the joined one for a joined slot — read header
+			// only (composeSlotAsExecuted). Only a slot whose schema
+			// does not load, or whose defaults are off, stays unknown
+			// here; the runtime refuses its untyped aggregation first.
+			sreq := composeSlotAsExecuted(s.req, opts)
+			if requestLabelsDeferred(sreq) {
+				continue
+			}
+			if _, ferr := seriesfield.ResolveComposeSlot(sreq.Aggregations, spec, specIdx, s.label); ferr != nil {
+				addCodedError(env, ferr)
+				appendComposeSlotPair(result, spec.Reference, s.label, "field-unknown")
+			}
+		}
+	}
 	refShape := inferComposeSlotShape(refReq)
+	if refShape == types.OverlayShapeSeries {
+		refKeys := composeSeriesKeyFields(refReq)
+		for _, target := range resolved {
+			if inferComposeSlotShape(target.req) != types.OverlayShapeSeries {
+				continue
+			}
+			if tKeys := composeSeriesKeyFields(target.req); !composeStringTuplesEqual(refKeys, tKeys) {
+				env.AddError(string(errors.PULSE_OVERLAY_KEY_SET_DIVERGENT),
+					"compose overlay key set divergent: reference and target SERIES slots key on differently named group columns",
+					map[string]any{
+						"index":            specIdx,
+						"reference":        spec.Reference,
+						"target":           target.label,
+						"reference_fields": refKeys,
+						"target_fields":    tKeys,
+					})
+				appendComposeSlotPair(result, spec.Reference, target.label, "key-set-divergent")
+			}
+		}
+	}
 	if kindRequiresMatrixCompose(spec.Kind) && refShape != types.OverlayShapeMatrix {
 		env.AddError(string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
 			"compose overlay kind requires a MATRIX-shape host but the reference slot is not a crosstab",
@@ -701,6 +779,22 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 					"target_schema":    composeRequestSchemaCanonical(target.req),
 				})
 			appendComposeSlotPair(result, spec.Reference, target.label, "schema-divergent")
+		}
+	}
+
+	// Gate 5: a Compose OVERLAY_FORMULA reads only its namespace — the
+	// reference slot's shape variables, its ref variable and the
+	// `slot.<label>.<field>` paths of the slots it names. The runtime
+	// dispatcher (processing.applyComposeFormula) raises the same
+	// formulaident.ComposeRefusal before it compiles the formula.
+	if opts.overlayRoute(spec.Kind) == types.OverlayKindFormula {
+		slots := make([]formulaident.Slot, 0, 1+len(resolved))
+		slots = append(slots, formulaident.Slot{Label: spec.Reference, Shape: refShape})
+		for _, target := range resolved {
+			slots = append(slots, formulaident.Slot{Label: target.label, Shape: inferComposeSlotShape(target.req)})
+		}
+		if cerr := formulaident.ComposeRefusal(spec.Kind, spec.Params, specIdx, refShape, slots, buildFormulaAllowedFuncs(opts)); cerr != nil {
+			addCodedError(env, cerr)
 		}
 	}
 
@@ -834,6 +928,7 @@ func kindRequiresMatrixCompose(kind types.OverlayKind) bool {
 	case types.OverlayKindPropZCell,
 		types.OverlayKindPropZPanel,
 		types.OverlayKindTCell,
+		types.OverlayKindZCell,
 		types.OverlayKindChiSqVsRef,
 		types.OverlayKindRank:
 		return true
@@ -932,6 +1027,67 @@ func composeRequestAxisTuples(req *types.Request) ([]string, []string) {
 		return row, nil
 	}
 	return nil, nil
+}
+
+// requestLabelsDeferred reports whether a Compose slot or chain stage
+// Request carries an aggregation with neither a Label nor a Type: its
+// output label is the smart default's TYPE_field, which only its
+// (post-join) schema decides. Callers resolve defaults first
+// (composeSlotAsExecuted, the chain's staged stages), so it is true
+// only when that schema is unknown or defaults are off.
+func requestLabelsDeferred(req *types.Request) bool {
+	for _, a := range req.Aggregations {
+		if a != nil && a.Label == "" && a.Type == "" {
+			return true
+		}
+	}
+	return false
+}
+
+// composeSlotInputSchema returns the schema Compose slot j executes
+// over — its cohort's, or the joined one for a joined slot
+// (joinedDefaultsSchema) — read through opts.SchemaLoader; nil when it
+// cannot be read (no judgement). The runtime's twin is
+// Service.requestInputSchema.
+func composeSlotInputSchema(requests []*types.Request, opts *PredictOptions) func(j int) *encoding.Schema {
+	return func(j int) *encoding.Schema {
+		if j < 0 || j >= len(requests) || requests[j] == nil || requests[j].Cohort == nil {
+			return nil
+		}
+		return joinedDefaultsSchema(requests[j], cohortSchemaFor(requests[j].Cohort, opts), opts)
+	}
+}
+
+// composeSlotAsExecuted is a Compose slot as the runtime executes it
+// for label resolution: when an aggregation is untyped and unlabelled,
+// a clone with smart defaults resolved against the slot's cohort
+// schema, or the joined schema for a joined slot (joinedDefaultsSchema
+// — processWithJoin's preflight); otherwise the slot itself. Header and
+// schema reads only.
+func composeSlotAsExecuted(req *types.Request, opts *PredictOptions) *types.Request {
+	if !requestLabelsDeferred(req) || opts == nil || opts.DisableDefaults {
+		return req
+	}
+	schema := joinedDefaultsSchema(req, cohortSchemaFor(req.Cohort, opts), opts)
+	if schema == nil {
+		return req
+	}
+	return defaultedForValidation(req, schema, opts)
+}
+
+// composeSeriesKeyFields returns the sorted group key columns a SERIES
+// slot's Data rows key on (vectors.GroupKeyField of every Groups
+// entry) — the column names the runtime row key encodes, in its sorted
+// order.
+func composeSeriesKeyFields(req *types.Request) []string {
+	out := make([]string, 0, len(req.Groups))
+	for _, g := range req.Groups {
+		if g != nil {
+			out = append(out, vectors.GroupKeyField(g.Type, g))
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // composeStringTuplesEqual reports byte-equality between two string

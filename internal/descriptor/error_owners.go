@@ -200,7 +200,9 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_ADVISORY_ORDINAL_PARAMETRIC:      own(advisoryParametricTestNames()...),
 	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED: own(featWeighting),
 	errors.PULSE_ADVISORY_EXTRA_PASS:              own("ATTR_FORMULA"),
-	errors.PULSE_SUPPRESS_ADVISORY_UNKNOWN:        shared,
+	// Fires only on the ordered series overlays (seriespartition.Ordered).
+	errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE: own(advisoryOrderedOverlayNames()...),
+	errors.PULSE_SUPPRESS_ADVISORY_UNKNOWN:     shared,
 	// Raised by recommend AND by the core examples search's intent
 	// filter, which every instance carries.
 	errors.PULSE_RECOMMEND_INTENT_UNKNOWN: shared,
@@ -231,6 +233,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_TEST_INSUFFICIENT_N:           ownAllTests,
 	errors.PULSE_TEST_VARIANCE_ZERO:            ownAllTests,
 	errors.PULSE_TEST_SPLIT_GROUPS_LT_2:        ownAllTests,
+	errors.PULSE_TEST_PARTITION_INVALID:        ownAllTests,
 	errors.PULSE_TEST_CONTINGENCY_DEGENERATE:   ownChiSq,
 	errors.PULSE_TEST_EXPECTED_COUNT_TOO_LOW:   ownChiSq,
 	errors.PULSE_TEST_FIELD2_NOT_NUMERIC:       own("TEST_PEARSON_R", "TEST_SPEARMAN_R", "TEST_KENDALL_TAU", "TEST_PAIRED_T", "TEST_WILCOXON_SR"),
@@ -390,6 +393,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_OVERLAY_FORMULA_TYPE_MISMATCH:         own("OVERLAY_FORMULA"),
 	errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT:         own("OVERLAY_FORMULA"),
 	errors.PULSE_OVERLAY_REF_UNKNOWN:                   ownAllOverlays,
+	errors.PULSE_OVERLAY_FIELD_UNKNOWN:                 ownAllOverlays,
+	errors.PULSE_OVERLAY_PARTITION_INVALID:             ownAllOverlays,
 	errors.PULSE_OVERLAY_YOY_FREQUENCY_MISSING:         own("OVERLAY_YOY"),
 	errors.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY:    own("OVERLAY_YOY"),
 	errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT:   own(featProcessChain),

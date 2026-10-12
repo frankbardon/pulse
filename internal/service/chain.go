@@ -61,7 +61,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	// A whole-chain overlay over a stage carrying an array-valued
 	// (vector) aggregation, before any stage runs (ValidateChain's
 	// rule).
-	if err := descx.ChainOverlayArrayValuedRefusal(req, s.instance); err != nil {
+	if err := descx.ChainOverlayArrayValuedRefusal(req, s.instance, nil); err != nil {
 		return nil, err
 	}
 	// Then every stage's item for_each expands in place (the expansion
@@ -127,7 +127,14 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	}
 	ei.Lap(observe.PhaseOpen)
 
-	s.applyDefaults(stage0, cohort.Schema())
+	// Stage 0's defaults and chain gate read its input schema — for a
+	// joined stage 0 the JOINED one (chainStage0Schema), the schema
+	// Process executes it against. Against the bare cohort an untyped
+	// aggregation over a right-side field stayed untyped: the gate
+	// refused it, and the overlays and the next stage could not name
+	// its default TYPE_field label.
+	gateSchema := s.chainStage0Schema(ctx, stage0, cohort.Schema())
+	s.applyDefaults(stage0, gateSchema)
 	// Zones resolve before the chain gate on every stage. A joined
 	// stage 0 resolves inside Process against the joined schema
 	// instead (its refusal is located below).
@@ -137,7 +144,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 			return nil, locate(err, "stage", 0)
 		}
 	}
-	if err := processing.ChainRefusal(stage0, cohort.Schema(), s.extensions, 0, req.Stages[0].Name); err != nil {
+	if err := processing.ChainRefusal(stage0, gateSchema, s.extensions, 0, req.Stages[0].Name); err != nil {
 		return nil, err
 	}
 	if err := mergegate.StageArrayValuedRefusal(stage0, 0, len(req.Stages), req.Stages[0].Name, s.extensions.AggregationKinds()); err != nil {
@@ -180,7 +187,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	for i := 1; i < len(req.Stages); i++ {
 		stage := req.Stages[i].Request
 		stage.Cohort = nil // chain stages >= 1 do not name a cohort
-		resp, err := s.runChainStageChild(withModelsBound(ctx, stageSets[i]), req, i, stage, priorReq, priorResp, plans[i], rets[i], &normStages)
+		resp, err := s.runChainStageChild(withModelsBound(ctx, stageSets[i]), req, i, stage, priorReq, priorResp, gateSchema, plans[i], rets[i], &normStages)
 		if err != nil {
 			return nil, err
 		}
@@ -208,6 +215,15 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	// `ChainResponse.Overlays` slice keyed to `req.Overlays` in matching
 	// index order. Empty / nil `req.Overlays` short-circuits with no
 	// allocation (byte-identical JSON for overlay-free chains).
+	// A whole-chain overlay scoring a categorical code (an input-valued
+	// aggregation over a categorical / packed_bool input — the input
+	// schema decides, so it is judged here, once every stage ran with
+	// its defaults resolved: stage 0 against gateSchema, a later stage
+	// against the schema synthesised from the stage before it). The
+	// same call ValidateChain makes.
+	if err := descx.ChainOverlayArrayValuedRefusal(req, s.instance, gateSchema); err != nil {
+		return nil, err
+	}
 	if err := s.applyChainOverlays(req, out); err != nil {
 		return nil, err
 	}
@@ -217,11 +233,52 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	return out, nil
 }
 
+// chainStage0Schema is the schema a chain stage 0's smart defaults and
+// chain gate read: left, or — when the stage carries exactly one
+// JoinSpec whose right side opens (header only, no record) and joins
+// without a field collision — the joined schema processWithJoin runs
+// it against. Any failure falls back to left, so Process raises the
+// join's own refusal where it always did. The join keys are not judged
+// here (the joined schema does not depend on them). Predict's twin is
+// internal/descriptor.joinedDefaultsSchema.
+func (s *Service) chainStage0Schema(ctx context.Context, stage0 *types.Request, left *encoding.Schema) *encoding.Schema {
+	if len(stage0.Joins) != 1 || stage0.Joins[0] == nil {
+		return left
+	}
+	right, err := s.Open(ctx, stage0.Joins[0].Right)
+	if err != nil {
+		return left
+	}
+	joined, err := processing.JoinedSchema(left, right.Schema(), stage0.Joins[0])
+	if err != nil {
+		return left
+	}
+	return joined
+}
+
+// requestInputSchema is the schema r executes over: its cohort's, or
+// for a request carrying one JoinSpec the joined one
+// (chainStage0Schema); nil when r names no cohort or it does not open.
+// The Compose categorical-code overlay rule reads it; predict's twin is
+// internal/descriptor.composeSlotInputSchema.
+func (s *Service) requestInputSchema(ctx context.Context, r *types.Request) *encoding.Schema {
+	if r == nil || r.Cohort == nil {
+		return nil
+	}
+	cohort, err := s.Open(ctx, resolveCohortPath(r.Cohort))
+	if err != nil {
+		return nil
+	}
+	return s.chainStage0Schema(ctx, r, cohort.Schema())
+}
+
 // runChainStageChild runs chain stage i (i >= 1) over the previous
 // stage's rows as a child operation: startChild gives it its own
 // observability carrier, which it stamps with the serial arm the stage
 // ran and the stage's row counters (no-ops off).
-func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainRequest, i int, stage, priorReq *types.Request, priorResp *types.Response, plan *descx.MultiplicityPlan, ret *returnplan.Plan, normStages *[]*types.ChainStage) (resp *types.Response, err error) {
+// stage0Schema is the schema stage 0 executed over (its gate schema):
+// the root the stage's inherited code columns are judged from.
+func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainRequest, i int, stage, priorReq *types.Request, priorResp *types.Response, stage0Schema *encoding.Schema, plan *descx.MultiplicityPlan, ret *returnplan.Plan, normStages *[]*types.ChainStage) (resp *types.Response, err error) {
 	ctx, end := startChild(ctx, i, stage)
 	defer func() { end(err) }()
 	// Only stage 0 may join: a later stage reads the previous
@@ -255,7 +312,12 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 	if err := mergegate.StageArrayValuedRefusal(stage, i, len(req.Stages), req.Stages[i].Name, s.extensions.AggregationKinds()); err != nil {
 		return nil, err
 	}
-	if err := s.checkFieldRefs(ctx, stage, synthSchema); err != nil {
+	// The stage's overlays judge a forwarded code column (an upstream
+	// code-emitting aggregation's output, f64 in synthSchema) as the
+	// code it is — the code columns ValidateChain threads, from the one
+	// shared rule over this side's ChainOutputSchema.
+	codes := s.extensions.AggregationKinds().ChainCodeColumns(chainStageRequests(req), i, stage0Schema, chainOutputSchemaOrNil)
+	if err := s.checkChainStageFieldRefs(ctx, stage, synthSchema, codes); err != nil {
 		return nil, locate(err, "stage", i)
 	}
 	if err := s.limitsPreflight(stage, synthSchema, descx.LimitInputs{
@@ -301,11 +363,13 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 //
 // Per FR-F2 ("PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT raises at
 // runtime here when target stage and reference stage host shapes
-// diverge"): the stub handlers in `processing.ApplyChainOverlays`
-// skip the divergence check entirely and the layer inherits the target
-// stage's shape; the FIXME comment in
-// `internal/processing/overlay_chain_dispatch.go` documents the deferred
-// surface.
+// diverge"): processing.ApplyChainOverlaysWithRequests judges each
+// stage's host shape off its AUTHORED request (the shape predict-chain
+// reads) before the handler runs, and the handlers keep their own
+// Response-shape check behind it. A divergence is an empty layer that
+// inherits the target stage's shape plus ONE warning whose Details
+// carry predict's keys (index, kind, target/ref index + shape,
+// stage_index, stage_name) and overlay_index.
 func (s *Service) applyChainOverlays(req *types.ChainRequest, out *types.ChainResponse) error {
 	if len(req.Overlays) == 0 {
 		// Byte-identity guarantee for overlay-free chains: the slot
@@ -314,13 +378,18 @@ func (s *Service) applyChainOverlays(req *types.ChainRequest, out *types.ChainRe
 		return nil
 	}
 	stageNames := make([]string, len(req.Stages))
+	// Each stage's Request as it ran (smart defaults resolved in place
+	// by the stage loop): a SERIES stage keys on its group columns and
+	// scores the aggregation params.field names.
+	stageReqs := make([]*types.Request, len(req.Stages))
 	for i, st := range req.Stages {
 		if st == nil {
 			continue
 		}
 		stageNames[i] = st.Name
+		stageReqs[i] = st.Request
 	}
-	layers, warnings, err := processing.ApplyChainOverlaysWithExtensions(req.Overlays, out.Stages, stageNames, s.extensions)
+	layers, warnings, err := processing.ApplyChainOverlaysWithRequests(req.Overlays, out.Stages, stageNames, stageReqs, s.extensions)
 	if err != nil {
 		return err
 	}
@@ -418,4 +487,27 @@ func (s *Service) runChainStage(ctx context.Context, req *types.Request, plan *d
 		return nil, err
 	}
 	return resp, nil
+}
+
+// chainStageRequests is req's stages' requests, index-aligned (as
+// executed: the stage loop resolves each stage's defaults in place).
+func chainStageRequests(req *types.ChainRequest) []*types.Request {
+	out := make([]*types.Request, len(req.Stages))
+	for i, st := range req.Stages {
+		if st != nil {
+			out[i] = st.Request
+		}
+	}
+	return out
+}
+
+// chainOutputSchemaOrNil is processing.ChainOutputSchema with a refusal
+// as nil (no code judgement past it; the stage loop raises the refusal
+// itself).
+func chainOutputSchemaOrNil(r *types.Request) *encoding.Schema {
+	out, err := processing.ChainOutputSchema(r)
+	if err != nil {
+		return nil
+	}
+	return out
 }

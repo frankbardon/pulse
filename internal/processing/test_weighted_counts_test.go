@@ -340,19 +340,23 @@ func TestWeightedCountTests_ProcessorStamps(t *testing.T) {
 	for _, r := range countFixture() {
 		recs = append(recs, countRecord(schema, r))
 	}
-	req := func(grouped bool) *types.Request {
+	req := func() *types.Request {
 		pz, cs := propZSpec, chiSqSpec
-		r := &types.Request{Weight: &types.WeightSpec{Field: "w", Kind: types.WeightKindProbability},
+		return &types.Request{Weight: &types.WeightSpec{Field: "w", Kind: types.WeightKindProbability},
 			Tests:        []*types.Test{&pz, &cs},
 			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "w", Weight: types.NullSlotWeight()}}}
-		if grouped {
-			r.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}}
-		}
-		return r
 	}
 	var out [2][]byte
 	for i, grouped := range []bool{false, true} {
-		resp, err := NewProcessor(schema).Process(context.Background(), req(grouped), NewSliceIterator(recs))
+		// grouped names the forced-buffered arm (a grouped request now
+		// runs every test once per group).
+		var resp *types.Response
+		var err error
+		if grouped {
+			resp, err = processBuffered(NewProcessor(schema), req(), recs)
+		} else {
+			resp, err = NewProcessor(schema).Process(context.Background(), req(), NewSliceIterator(recs))
+		}
 		if err != nil {
 			t.Fatal(err)
 		}

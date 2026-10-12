@@ -2,6 +2,7 @@ package processing
 
 import (
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -138,6 +139,7 @@ var composeOverlayHandlers = map[types.OverlayKind]composeOverlayHandler{
 	types.OverlayKindZVsRef:     applyZVsRef,
 	types.OverlayKindChiSqVsRef: applyChiSqVsRef,
 	types.OverlayKindRank:       applyRank,
+	types.OverlayKindFormula:    applyComposeFormula,
 }
 
 // composeOverlayMultiLayerHandlers is the per-kind dispatch table for
@@ -195,7 +197,9 @@ var composeOverlayMultiLayerHandlers = map[types.OverlayKind]composeOverlayMulti
 // Stub fallback: kinds without a registered handler route through
 // `applyComposeStub`, which emits a zero-payload OverlayLayer that
 // inherits the reference slot's host shape. The stub emits no
-// warnings and no per-coordinate values.
+// warnings and no per-coordinate values. Every catalog kind Compose
+// runs has a handler (OVERLAY_FORMULA since U46 E4-S15), so only a
+// kind outside the catalog — an embedder kind — reaches it.
 func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.Response, labels []string) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	return ApplyComposeOverlaysWithRequests(specs, responses, labels, nil, nil)
 }
@@ -242,6 +246,14 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 		// instance feature set hides routes as never registered
 		// (falling through to the stub, as an unknown kind does).
 		route := exts.overlayRoute(spec.Kind)
+		// A catalog kind that does not run on ComposedRequest.Overlays
+		// (a Process, whole-chain or FACET kind) is refused first — the
+		// shared wrong-slot refusal predict-compose raises right after
+		// its unknown-kind gate. It once fell through to the stub and
+		// answered an empty layer.
+		if cerr := overlayhost.Refusal(overlayhost.Compose, spec.Kind, route, i); cerr != nil {
+			return nil, nil, cerr
+		}
 		// total() is ATTR_FORMULA's alone: a Compose-host
 		// OVERLAY_FORMULA calling it is PULSE_FORMULA_TOTAL_SITE, refused
 		// before reference resolution — the order predict-compose
@@ -309,13 +321,30 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 		if err := checkPanelSlabPartition(spec, i, refIdx, targetIdxs, requests, exts); err != nil {
 			return nil, nil, err
 		}
+		// SERIES slots narrow to their group columns plus the scored
+		// aggregation (params.field, else Aggregations[0]) BEFORE any
+		// gate reads a Data row, so a multi-aggregation slot keys on its
+		// groups alone. The field refusal sits where predict-compose
+		// raises it: after label resolution, before the key-set gate.
+		refResp, targetResps, err = projectComposeSeriesSlots(spec, route, i, refResp, refIdx, targetResps, targetIdxs, requests)
+		if err != nil {
+			return nil, nil, err
+		}
 		// Strict cross-Request key-set alignment. Runs AFTER reference
 		// + targets have resolved to concrete *Response objects but
 		// BEFORE the per-kind handler dispatches — key-set divergence
 		// is the cheapest signal to fail on so we surface it before any
 		// per-kind handler walks the matrix / series payload a second
 		// time. Schema-match and dict-drift gates fire AFTER this one.
-		if err := checkKeySetAlignment(refResp, targetResps, *spec, i); err != nil {
+		//
+		// Both this gate and the schema match below judge each slot's
+		// host SHAPE by its authored Request (authoredSlotShapes) — the
+		// shape predict-compose reads — so an ungrouped slot, whose one
+		// aggregate row still sits in Data, is SCALAR and a grouped
+		// slot paired with it is PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT, not
+		// a key-set divergence.
+		shapes := authoredSlotShapes(refResp, targetResps, refIdx, targetIdxs, requests)
+		if err := checkKeySetAlignmentShaped(refResp, targetResps, shapes, *spec, i); err != nil {
 			return nil, nil, err
 		}
 		// Strict structural schema match across slots. Runs AFTER
@@ -327,7 +356,7 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 		// by `kindRequiresMatrix`), and PULSE_OVERLAY_SCHEMA_DIVERGENT
 		// (per-axis grouper-kind tuples disagree across slots).
 		// Dict-drift fires AFTER this one.
-		if err := checkSlotShapeAndSchemaRouted(refResp, targetResps, *spec, route, i); err != nil {
+		if err := checkSlotShapeAndSchemaShaped(refResp, targetResps, shapes, *spec, route, i); err != nil {
 			return nil, nil, err
 		}
 		// Categorical dictionary-prefix drift probe. Runs ONLY when
@@ -345,6 +374,19 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 			if err := checkDictPrefixEquality(refResp, targetResps, *spec, i); err != nil {
 				return nil, nil, err
 			}
+		}
+		// OVERLAY_FORMULA reads each slot's AUTHORED shape and the
+		// instance's ExprFunctions, which the handler signature carries
+		// neither of: dispatch it here (its table entry serves the bare
+		// handler-signature path). Its identifier gate is the one
+		// predict-compose raises (formulaident.ComposeRefusal).
+		if route == types.OverlayKindFormula {
+			layer, _, err := applyComposeFormulaWith(spec, i, shapes, refResp, targetResps, exts)
+			if err != nil {
+				return nil, nil, err
+			}
+			layers = append(layers, layer)
+			continue
 		}
 		// Multi-layer dispatch runs FIRST — kinds in this table
 		// emit N layers per spec (one per target). The single-layer

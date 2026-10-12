@@ -410,7 +410,7 @@ func aggregationKinds(inst *InstanceSnapshot, snap *ExtensionsSnapshot) vectors.
 			if !ok {
 				return vectors.ExtensionAggregation{}
 			}
-			return vectors.ExtensionAggregation{Registered: true, VectorInput: m.VectorInput, ArrayValued: m.ArrayValued}
+			return vectors.ExtensionAggregation{Registered: true, VectorInput: m.VectorInput, ArrayValued: m.ArrayValued, NonScalar: m.NonScalar, EmitsInputValue: m.EmitsInputValue}
 		}
 	}
 	return k

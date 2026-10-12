@@ -270,7 +270,8 @@ func TestFoldOverlayMultiplicity_PSites(t *testing.T) {
 				if !moved && c.wantM > 1 {
 					t.Error("no adjusted p moved; the case proves nothing")
 				}
-				wantEcho := &types.AppliedMultiplicity{Method: method, Family: layer, Alpha: c.alpha, M: c.wantM}
+				// Every NaN raw p is a member left out of m: excluded.
+				wantEcho := &types.AppliedMultiplicity{Method: method, Family: layer, Alpha: c.alpha, M: c.wantM, Excluded: len(c.raw) - c.wantM}
 				if !reflect.DeepEqual(got.Multiplicity, wantEcho) {
 					t.Errorf("echo %+v, want %+v", got.Multiplicity, wantEcho)
 				}
@@ -601,6 +602,7 @@ func TestFoldOverlayMultiplicity_RowColumn(t *testing.T) {
 					// cells in row-major order, panel elements in place.
 					want := map[[2]int][]float64{}
 					wantMPer := make([]int, nIdx)
+					wantExcluded := 0 // NaN p-values left out of m, summed like m
 					moved := false
 					for idx := 0; idx < nIdx; idx++ {
 						var coords [][2]int
@@ -619,6 +621,7 @@ func TestFoldOverlayMultiplicity_RowColumn(t *testing.T) {
 							t.Fatal(err)
 						}
 						wantMPer[idx] = multiplicity.FamilySize(ps)
+						wantExcluded += len(ps) - wantMPer[idx]
 						off := 0
 						for _, rc := range coords {
 							n := len(flat(g[rc[0]][rc[1]]))
@@ -659,7 +662,7 @@ func TestFoldOverlayMultiplicity_RowColumn(t *testing.T) {
 								}
 							}
 						}
-						wantEcho := &types.AppliedMultiplicity{Method: method, Family: family, Alpha: 0.05, M: total, MPer: wantMPer}
+						wantEcho := &types.AppliedMultiplicity{Method: method, Family: family, Alpha: 0.05, M: total, MPer: wantMPer, Excluded: wantExcluded}
 						if !reflect.DeepEqual(l.Multiplicity, wantEcho) {
 							t.Errorf("layer %d echo %+v, want %+v", li, l.Multiplicity, wantEcho)
 						}

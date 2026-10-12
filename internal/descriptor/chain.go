@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -33,19 +34,20 @@ type ChainValidationResult struct {
 	// when stage N+1 cannot find a field stage N was expected to emit.
 	StageSchemas [][]string `json:"stage_schemas,omitempty"`
 
-	// OverlaysSchemaDivergence lists every rejected (Ref, Target)
+	// OverlaysSchemaDivergence lists every shape-divergent (Ref, Target)
 	// chain-overlay pair from the ValidateChain overlay walk per
 	// kind-catalog-v1 PRD §I-FR-I3. Populated alongside the matching
-	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT envelope error so LLM
+	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT envelope WARNING (the
+	// runtime answers that pair with an empty layer) so LLM
 	// planners can budget reshapes without re-parsing envelope details.
 	// Empty (and omitted on the wire) when every chain-overlay spec
 	// passes the shape-match gate.
 	OverlaysSchemaDivergence []ChainOverlaySchemaDivergence `json:"overlays_schema_divergence,omitempty"`
 }
 
-// ChainOverlaySchemaDivergence carries one rejected (Ref, Target)
-// chain-overlay pair from ValidateChain's overlay walk. Mirrors the
-// per-spec envelope-error Details shape so wire consumers can read the
+// ChainOverlaySchemaDivergence carries one shape-divergent (Ref,
+// Target) chain-overlay pair from ValidateChain's overlay walk. Mirrors
+// the per-spec envelope-warning Details shape so wire consumers can read the
 // list directly instead of stitching envelope entries together.
 type ChainOverlaySchemaDivergence struct {
 	// Index is the position of the offending spec in
@@ -196,6 +198,14 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 	}
 
 	current := schema
+	// stagedReqs is every stage as the runtime executes it (defaults
+	// resolved), index-aligned with req.Stages; the whole-chain overlay
+	// walk resolves its params.field labels against it.
+	stagedReqs := make([]*types.Request, len(req.Stages))
+	// stage0Schema is the schema stage 0 executes over (the joined one
+	// for a joined stage 0) — the whole-chain categorical-code rule's
+	// stage-0 input types.
+	var stage0Schema *encoding.Schema
 	for i, stage := range req.Stages {
 		if stage == nil || stage.Request == nil {
 			env.AddError(string(errors.PULSE_CHAIN_EMPTY),
@@ -204,10 +214,12 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			continue
 		}
 		// The runtime applies smart defaults to every stage against
-		// its input schema (the cohort's for stage 0, even when it
-		// joins) BEFORE the chain gate, so the gate, the field checks
-		// and the next stage's synthesised schema (whose aggregator
-		// labels embed the Type) all see the defaulted stage. The
+		// its input schema (for a joined stage 0 the JOINED schema,
+		// joinedDefaultsSchema — else an untyped aggregation over a
+		// right-side field stays untyped) BEFORE the chain gate, so the
+		// gate, the field checks, the next stage's synthesised schema
+		// (whose aggregator labels embed the Type) and the whole-chain
+		// overlays' label resolution all see the defaulted stage. The
 		// echoed Request stays as written.
 		// Only stage 0 may join (the runtime refuses a later stage's
 		// Joins before its defaults, zones and gate).
@@ -220,11 +232,21 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		if stageMatErr != nil {
 			addCodedError(env, stageMatErr)
 		}
-		staged := chainStageDefaulted(stage.Request, current, opts)
 		// A joined stage 0 resolves zones inside Process — after the
 		// gate and the join-count rule; every other stage resolves
 		// before the gate.
 		joined := i == 0 && len(stage.Request.Joins) > 0
+		// The schema the stage's defaults and gate read: its input
+		// schema, or for a joined stage 0 the joined one.
+		gateSchema := current
+		if joined {
+			gateSchema = joinedDefaultsSchema(stage.Request, current, opts)
+		}
+		staged := chainStageDefaulted(stage.Request, gateSchema, opts)
+		stagedReqs[i] = staged
+		if i == 0 {
+			stage0Schema = gateSchema
+		}
 		// fieldsReached: the runtime gets as far as the field-reference
 		// rule (no earlier located refusal on this stage).
 		fieldsReached := true
@@ -234,7 +256,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 				fieldsReached = false
 			}
 		}
-		gerr := mergegate.ChainRefusal(staged, current, snap.mergeFacts(opts.instance()), i, stage.Name)
+		gerr := mergegate.ChainRefusal(staged, gateSchema, snap.mergeFacts(opts.instance()), i, stage.Name)
 		if gerr == nil {
 			// The runtime's next check: an array-valued aggregation may
 			// not feed a later stage.
@@ -282,7 +304,11 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			}
 		}
 		if fieldsReached {
-			refs := fieldRefRefusalsWithModels(fieldReq, fieldSchema, extensionsFromOpts(opts), opts.instance(), stageModels[i])
+			// A later stage's overlays judge a forwarded code column (an
+			// upstream code-emitting aggregation's output, f64 here) as
+			// the code it is — the runtime's ScopedChainStageFieldRefRefusal.
+			codes := aggregationKinds(opts.instance(), snap).ChainCodeColumns(stagedReqs, i, stage0Schema, synthChainSchema)
+			refs := fieldRefRefusalsCoded(fieldReq, fieldSchema, codes, extensionsFromOpts(opts), opts.instance(), stageModels[i])
 			for _, ce := range refs {
 				addCodedError(env, RefusalAt(ce, "stage", i))
 			}
@@ -303,7 +329,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 				}
 			}
 		}
-		next := chainPredictedOutputFields(staged, current, aggregationKinds(opts.instance(), snap))
+		next := chainPredictedOutputFields(staged, gateSchema, aggregationKinds(opts.instance(), snap))
 		result.StageSchemas = append(result.StageSchemas, next)
 		current = synthChainSchema(staged)
 	}
@@ -311,7 +337,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 	// Whole-chain overlay walk. Runs after the per-stage gate so
 	// stage-level errors and overlay-level errors land in the same
 	// envelope; the walk is a no-op when req.Overlays is empty.
-	validateChainOverlays(env, result, req, opts)
+	validateChainOverlays(env, result, req, stagedReqs, stage0Schema, opts)
 
 	if len(env.Errors) > 0 {
 		result.Valid = false
@@ -359,6 +385,29 @@ func chainStageDefaulted(req *types.Request, in *encoding.Schema, opts *PredictO
 	return clone
 }
 
+// joinedDefaultsSchema is the schema a joined chain stage 0's smart
+// defaults and chain gate read — the runtime's
+// Service.chainStage0Schema: the JOINED schema when the stage carries
+// exactly one JoinSpec whose right side's schema loads and joins
+// without a field collision, else base (Process then raises the join's
+// own refusal). The join keys are not judged here: the joined schema
+// does not depend on them, and the key refusal surfaces after the gate
+// on both sides.
+func joinedDefaultsSchema(req *types.Request, base *encoding.Schema, opts *PredictOptions) *encoding.Schema {
+	if base == nil || req == nil || len(req.Joins) != 1 || req.Joins[0] == nil || opts == nil || opts.SchemaLoader == nil {
+		return base
+	}
+	right, err := opts.SchemaLoader(req.Joins[0].Right)
+	if err != nil {
+		return base
+	}
+	joined, err := encx.JoinedSchema(base, right, req.Joins[0].As)
+	if err != nil {
+		return base
+	}
+	return joined
+}
+
 // chainPredictedOutputFields names the output columns a chain stage
 // produces over its input schema in. Mirrors processing.ChainOutputSchema's
 // layout without importing processing; an expanding vector aggregation
@@ -374,11 +423,12 @@ func chainPredictedOutputFields(req *types.Request, in *encoding.Schema, kinds v
 		if g == nil {
 			continue
 		}
-		if _, dup := seen[g.Field]; dup {
+		key := vectors.GroupKeyField(g.Type, g)
+		if _, dup := seen[key]; dup {
 			continue
 		}
-		seen[g.Field] = struct{}{}
-		out = append(out, g.Field)
+		seen[key] = struct{}{}
+		out = append(out, key)
 	}
 	for _, agg := range req.Aggregations {
 		if agg == nil {
@@ -397,7 +447,9 @@ func chainPredictedOutputFields(req *types.Request, in *encoding.Schema, kinds v
 }
 
 // synthChainSchema produces the inferred input schema for the next
-// stage. Categorical_u32 for grouper keys, f64 for aggregator outputs.
+// stage. Categorical_u32 for grouper keys (named as the runtime writes
+// them, vectors.GroupKeyField — processing.ChainOutputSchema's rule),
+// f64 for aggregator outputs.
 // Empty dictionaries — ValidateChain never reads records.
 func synthChainSchema(req *types.Request) *encoding.Schema {
 	fields := make([]encoding.Field, 0, len(req.Groups)+len(req.Aggregations))
@@ -406,12 +458,13 @@ func synthChainSchema(req *types.Request) *encoding.Schema {
 		if g == nil {
 			continue
 		}
-		if _, dup := seen[g.Field]; dup {
+		key := vectors.GroupKeyField(g.Type, g)
+		if _, dup := seen[key]; dup {
 			continue
 		}
-		seen[g.Field] = struct{}{}
+		seen[key] = struct{}{}
 		fields = append(fields, encoding.Field{
-			Name:       g.Field,
+			Name:       key,
 			Type:       encoding.FieldTypeCategoricalU32,
 			Dictionary: encoding.NewDictionary(),
 		})

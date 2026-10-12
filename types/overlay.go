@@ -1028,11 +1028,11 @@ const (
 	//
 	// Shape-divergence rule (PRD §6 FR-F2): when the target stage's host
 	// shape (matrix vs series vs scalar) differs from the reference
-	// stage's host shape the handler emits
-	// `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` and surfaces
-	// NaN values across every coordinate. The shape-divergence check
-	// runs at the whole-chain barrier — predict cannot catch it because
-	// the stage shapes are not known until the chain has executed.
+	// stage's host shape the divergence is a
+	// `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` WARNING on predict-chain
+	// and at runtime alike (shapes read off the authored stage
+	// requests): the chain runs and the layer is an empty payload in the
+	// target stage's shape.
 	//
 	// Unknown stage path: when `Target` or `Ref` names a stage that does
 	// not exist (Index out of range OR Name does not match any
@@ -1084,9 +1084,9 @@ const (
 	//
 	// Shape-divergence rule (PRD §6 FR-F2): same as
 	// `OVERLAY_INDEX_VS_STAGE` — when the target stage's host shape
-	// differs from the reference stage's host shape the handler emits
-	// `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` and surfaces
-	// NaN values across every coordinate.
+	// differs from the reference stage's host shape the divergence is a
+	// `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` WARNING on predict-chain
+	// and at runtime alike, over an empty layer.
 	//
 	// Default Target / Unknown-stage / Scope / Level / Within / Buffered
 	// rules: identical to `OVERLAY_INDEX_VS_STAGE`.
@@ -2176,8 +2176,7 @@ const (
 	// against the reference slot's matching cell. CELL scope over a
 	// MATRIX (crosstab) host with MATRIX payload — each cell's value is
 	// the two-sided p-value as a float64. Each cell is treated as a
-	// sample mean; the variance defaults to `1.0` and the sample size
-	// defaults to `Params["sample_size"]` (or `2` when not supplied).
+	// sample mean (see Inputs below).
 	// The Welch t-test reuses the same Welch-Satterthwaite degrees-of-
 	// freedom recurrence that backs `TEST_T` two-sample (see
 	// `internal/processing/test_t.go`):
@@ -2193,17 +2192,14 @@ const (
 	// overlay and the row-test surface produce identical p-values for
 	// the same (mean, variance, n) triple.
 	//
-	// Default-variance and default-sample-size policy: v1 ships with
-	// `var = 1.0` and `n = 2` defaults so the per-cell handler stays
-	// well-defined against a minimal Compose authoring surface. Callers
-	// who want a real Welch test should supply
-	// `Params["variance_target"]`, `Params["variance_ref"]`,
-	// `Params["sample_size_target"]`, `Params["sample_size_ref"]`.
-	// Forward-compat: future work may lift the per-cell `(mean,
-	// variance, n)` triple into a richer Compose authoring surface (the
-	// crosstab cell carrier could grow to carry sample statistics
-	// alongside the scalar mean); when that lands the defaults become
-	// opt-in fallbacks rather than universal defaults.
+	// Inputs: a side whose value comes from components (AGG_WELFORD,
+	// or a crosstab cell whose components carry mean and variance)
+	// reads its (mean, variance, n) there. A scalar side REQUIRES
+	// `Params["variance_target"]` / `Params["variance_ref"]` and
+	// `Params["sample_size_target"]` / `Params["sample_size_ref"]` (or the
+	// symmetric `variance` / `sample_size`), each a finite number > 0;
+	// there is no default — PULSE_OVERLAY_PARAM_MISSING on predict and
+	// runtime (U46 E4-S16; it was var = 1.0, n = 2).
 	//
 	// Buffered. Same rationale as `OVERLAY_PROP_Z_CELL`.
 	OverlayKindTCell OverlayKind = "OVERLAY_T_CELL"
@@ -2212,8 +2208,7 @@ const (
 	// the means against the reference slot's matching cell. CELL scope
 	// over a MATRIX (crosstab) host with MATRIX payload — each cell's
 	// value is the two-sided p-value as a float64. Each cell is treated
-	// as a sample mean; the variance defaults to `1.0` and the sample
-	// size defaults to `Params["sample_size"]` (or `2` when not supplied).
+	// as a sample mean (see Inputs below).
 	// The z-test reuses the same Welch-style standard-error recurrence
 	// that backs `OVERLAY_T_CELL` and finalises against the standard
 	// normal survival helper that backs `TEST_Z_TWO_SAMPLE` (see
@@ -2227,17 +2222,14 @@ const (
 	// the overlay and the row-test surface produce identical p-values for
 	// the same (mean, variance, n) triple.
 	//
-	// Default-variance and default-sample-size policy: v1 ships with
-	// `var = 1.0` and `n = 2` defaults so the per-cell handler stays
-	// well-defined against a minimal Compose authoring surface. Callers
-	// who want a real z-test should supply
-	// `Params["variance_target"]`, `Params["variance_ref"]`,
-	// `Params["sample_size_target"]`, `Params["sample_size_ref"]`.
-	// Forward-compat: future work may lift the per-cell `(mean,
-	// variance, n)` triple into a richer Compose authoring surface (the
-	// crosstab cell carrier could grow to carry sample statistics
-	// alongside the scalar mean); when that lands the defaults become
-	// opt-in fallbacks rather than universal defaults.
+	// Inputs: a side whose value comes from components (AGG_WELFORD,
+	// or a crosstab cell whose components carry mean and variance)
+	// reads its (mean, variance, n) there. A scalar side REQUIRES
+	// `Params["variance_target"]` / `Params["variance_ref"]` and
+	// `Params["sample_size_target"]` / `Params["sample_size_ref"]` (or the
+	// symmetric `variance` / `sample_size`), each a finite number > 0;
+	// there is no default — PULSE_OVERLAY_PARAM_MISSING on predict and
+	// runtime (U46 E4-S16; it was var = 1.0, n = 2).
 	//
 	// Buffered. Same rationale as `OVERLAY_PROP_Z_CELL`.
 	OverlayKindZCell OverlayKind = "OVERLAY_Z_CELL"
@@ -2290,10 +2282,10 @@ const (
 	//
 	//	target_val = target_slot.SeriesValue(i)
 	//	ref_val    = ref_slot.SeriesValue(i)
-	//	var_target = Params["variance_target"] (default 1.0)
-	//	var_ref    = Params["variance_ref"]    (default 1.0)
-	//	n_target   = Params["sample_size_target"] (default 2)
-	//	n_ref      = Params["sample_size_ref"]    (default 2)
+	//	var_target = Params["variance_target"]    (required on a scalar side)
+	//	var_ref    = Params["variance_ref"]       (required on a scalar side)
+	//	n_target   = Params["sample_size_target"] (required on a scalar side)
+	//	n_ref      = Params["sample_size_ref"]    (required on a scalar side)
 	//	se         = sqrt(var_target/n_target + var_ref/n_ref)
 	//	t          = (target_val - ref_val) / se
 	//	df         = (var_target/n_target + var_ref/n_ref)^2 /
@@ -2304,9 +2296,10 @@ const (
 	// Reuses the `studentTTwoSidedP` helper backing `TEST_T` so the
 	// overlay and the row-test surface produce identical p-values for
 	// the same (mean, variance, n) triple. Mirrors `OVERLAY_T_CELL`'s
-	// default-variance and default-sample-size policy verbatim — v1
-	// ships well-defined defaults so the per-group handler stays usable
-	// against minimal Compose authoring surfaces.
+	// inputs rule: an AGG_WELFORD group reads its slot's per-group
+	// components; a scalar group requires the params above — no default
+	// (PULSE_OVERLAY_PARAM_MISSING). Over crosstab slots the kind is
+	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 	//
 	// Missing reference rows (target row key not present in the
 	// reference series) emit `PULSE_OVERLAY_REF_ZERO` with a
@@ -2338,10 +2331,10 @@ const (
 	//
 	//	target_val = target_slot.SeriesValue(i)
 	//	ref_val    = ref_slot.SeriesValue(i)
-	//	var_target = Params["variance_target"] (default 1.0)
-	//	var_ref    = Params["variance_ref"]    (default 1.0)
-	//	n_target   = Params["sample_size_target"] (default 2)
-	//	n_ref      = Params["sample_size_ref"]    (default 2)
+	//	var_target = Params["variance_target"]    (required on a scalar side)
+	//	var_ref    = Params["variance_ref"]       (required on a scalar side)
+	//	n_target   = Params["sample_size_target"] (required on a scalar side)
+	//	n_ref      = Params["sample_size_ref"]    (required on a scalar side)
 	//	se         = sqrt(var_target/n_target + var_ref/n_ref)
 	//	z          = (target_val - ref_val) / se
 	//	p_value    = 2 * (1 - Φ(|z|))
@@ -2349,14 +2342,10 @@ const (
 	// Reuses the `standardNormalCDF` helper backing `TEST_Z_TWO_SAMPLE` so
 	// the overlay and the row-test surface produce identical p-values for
 	// the same (mean, variance, n) triple. Mirrors `OVERLAY_Z_CELL`'s
-	// default-variance and default-sample-size policy verbatim — v1
-	// ships well-defined defaults (`var = 1.0`, `n = 2`) so the per-group
-	// handler stays usable against minimal Compose authoring surfaces.
-	// Forward-compat: future work may lift the per-group `(mean,
-	// variance, n)` triple into a richer Compose authoring surface (the
-	// SERIES entry carrier could grow to carry sample statistics
-	// alongside the scalar mean); when that lands the defaults become
-	// opt-in fallbacks rather than universal defaults.
+	// inputs rule: an AGG_WELFORD group reads its slot's per-group
+	// components; a scalar group requires the params above — no default
+	// (PULSE_OVERLAY_PARAM_MISSING). Over crosstab slots the kind is
+	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 	//
 	// Missing reference rows (target row key not present in the
 	// reference series) emit `PULSE_OVERLAY_REF_ZERO` with a

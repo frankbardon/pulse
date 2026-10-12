@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/twosample"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -11,8 +12,8 @@ import (
 // OVERLAY_Z_VS_REF. Per-group two-sample z-test on the means against
 // the reference slot's matching group. Series sibling of
 // `OVERLAY_Z_CELL` — same Welch-style SE recurrence, same
-// `standardNormalCDF` finaliser, same default-variance /
-// default-sample-size policy. Mirrors the SERIES arm of
+// `standardNormalCDF` finaliser, same explicit per-side params rule
+// (twoSampleLegs: no default variance or sample size). Mirrors the SERIES arm of
 // `applyTVsRef` (overlay_compose_handlers_series.go) — only the
 // finaliser swaps from `statdist.StudentTTwoSidedP` to `standardNormalCDF`.
 //
@@ -20,10 +21,10 @@ import (
 // `map[string]any{"mean", "variance", "n", ...}` value column — the
 // components-source emission from AGG_WELFORD via the MetaAggregator
 // path — the handler reads `(mean, variance, n)` off the map and
-// bypasses the per-side `Params` defaults for that group. Scalar rows
-// fall back to the Params defaults (`variance_target` /
-// `variance_ref` default 1.0, `sample_size_target` /
-// `sample_size_ref` default 2). Mixed rows (one triple, one scalar)
+// needs no params for that side. Scalar rows read the side's params
+// (`variance_target` / `variance_ref`, `sample_size_target` /
+// `sample_size_ref`, or the symmetric `variance` / `sample_size`) —
+// required: PULSE_OVERLAY_PARAM_MISSING when absent. Mixed rows (one triple, one scalar)
 // pull `(variance, n)` from each side independently per the additive
 // contract. Triple-aware row encoding / lookup routes through
 // `encodeSeriesRowAnyMap` + `buildSeriesRowLookupAnyMap` so the SERIES
@@ -59,10 +60,7 @@ func applyZVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			})
 	}
 
-	varTargetDefault := varianceFromParams(spec.Params, "variance_target", 1.0)
-	varRefDefault := varianceFromParams(spec.Params, "variance_ref", 1.0)
-	nTargetDefault := sampleSizeFromParams(spec.Params, "sample_size_target", 2.0)
-	nRefDefault := sampleSizeFromParams(spec.Params, "sample_size_ref", 2.0)
+	legs := newTwoSampleLegs(spec, refIdx, targetIdx)
 
 	refIndex := buildSeriesRowLookupAnyMap(reference.Data)
 
@@ -96,9 +94,11 @@ func applyZVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			targetN = leg.nStar
 			tally.add(leg)
 		} else {
+			var err error
+			if targetVar, targetN, err = legs.scalar(twosample.Target); err != nil {
+				return types.OverlayLayer{}, nil, err
+			}
 			targetMean = scalar
-			targetVar = varTargetDefault
-			targetN = nTargetDefault
 		}
 
 		entry := types.SeriesEntry{Key: types.AxisKey{keyStr}}
@@ -134,9 +134,11 @@ func applyZVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			refN = refEntry.Leg.nStar
 			tally.add(refEntry.Leg)
 		} else {
+			var err error
+			if refVar, refN, err = legs.scalar(twosample.Reference); err != nil {
+				return types.OverlayLayer{}, nil, err
+			}
 			refMean = refEntry.Scalar
-			refVar = varRefDefault
-			refN = nRefDefault
 		}
 
 		p, ok := welchZTest(targetMean, targetVar, targetN, refMean, refVar, refN)

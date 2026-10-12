@@ -241,7 +241,8 @@ type KMeansConfig struct {
 // KMeansParams decodes GROUP_KMEANS's params: k (required, an integer
 // ≥ 2), seed (int64; 0 = the fixed default), max_iter (≥ 1, default
 // 100), n_init (≥ 1, default 10), standardize (default true) and
-// missing ("listwise" only). Unknown keys are refused. at is the slot
+// missing ("listwise" only). fit is accepted and left to
+// internal/groupfit. Unknown keys are refused. at is the slot
 // path. Predict and the runtime factory both call it.
 func KMeansParams(at string, raw json.RawMessage) (KMeansConfig, *errors.CodedError) {
 	cfg := KMeansConfig{Seed: KMeansDefaultSeed, MaxIter: KMeansDefaultMaxIter, NInit: KMeansDefaultNInit, Standardize: true}
@@ -257,10 +258,14 @@ func KMeansParams(at string, raw json.RawMessage) (KMeansConfig, *errors.CodedEr
 		NInit       *json.Number `json:"n_init"`
 		Standardize *bool        `json:"standardize"`
 		Missing     *string      `json:"missing"`
+		// Fit is params.fit, read and refused by internal/groupfit
+		// (shared with GROUP_QUANTILE); accepted here so the strict
+		// decode does not refuse the key.
+		Fit json.RawMessage `json:"fit"`
 	}
 	if err := decodeStrict(raw, &p); err != nil {
 		return KMeansConfig{}, groupInvalid(at, "bad_params",
-			at+" GROUP_KMEANS params: "+err.Error()+" (keys: k, seed, max_iter, n_init, standardize, missing)", nil)
+			at+" GROUP_KMEANS params: "+err.Error()+" (keys: k, seed, max_iter, n_init, standardize, missing, fit)", nil)
 	}
 	intParam := func(name string, n *json.Number, min int) (int, *errors.CodedError) {
 		v, err := strconv.ParseInt(n.String(), 10, 32)

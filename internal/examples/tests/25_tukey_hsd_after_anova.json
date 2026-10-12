@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "tests",
-    "description": "Tier-2 Tukey HSD pairwise comparisons over per-region means after a tier-1 one-way ANOVA on the same Process call.",
+    "description": "Tier-2 Tukey HSD pairwise comparisons over per-region means, reading ms_within / df_within from a one-way TEST_ANOVA_F run ungrouped (a grouped request runs tier-1 tests once per group, so the ANOVA across regions is its own call).",
     "intents": [
       "compare_groups"
     ],
@@ -10,7 +10,6 @@
       "AGG_AVERAGE",
       "AGG_COUNT",
       "GROUP_CATEGORY",
-      "TEST_ANOVA_F",
       "TEST_TUKEY_HSD"
     ],
     "tags": [
@@ -57,15 +56,5 @@
         "df_within": 396.0
       }
     }
-  ],
-  "tests": [
-    {
-      "type": "TEST_ANOVA_F",
-      "field": "revenue",
-      "split_by": "region",
-      "alpha": 0.05,
-      "label": "regional_anova"
-    }
   ]
-
 }

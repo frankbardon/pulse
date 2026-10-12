@@ -99,11 +99,12 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 			}
 			r.MarginReducibility[reg.Name] = reg.MarginReducibility
 			r.WeightAware[processing.StreamabilityKey("aggregator", string(reg.Name))] = reg.WeightAware
-			if reg.VectorInput {
+			if reg.VectorInput || reg.NonScalar || reg.EmitsInputValue {
 				if r.VectorAggregators == nil {
 					r.VectorAggregators = make(map[types.AggregationType]vectors.ExtensionAggregation)
 				}
-				r.VectorAggregators[reg.Name] = vectors.ExtensionAggregation{Registered: true, VectorInput: true, ArrayValued: reg.ArrayValued}
+				r.VectorAggregators[reg.Name] = vectors.ExtensionAggregation{Registered: true, VectorInput: reg.VectorInput,
+					ArrayValued: reg.ArrayValued, NonScalar: reg.NonScalar, EmitsInputValue: reg.EmitsInputValue}
 			}
 			addFieldInputs("aggregator", string(reg.Name), reg.FieldInputs)
 		}

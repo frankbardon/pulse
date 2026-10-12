@@ -494,6 +494,15 @@ const (
 	// formula label, the distinct total() arguments and added_scans.
 	PULSE_ADVISORY_EXTRA_PASS Code = "PULSE_ADVISORY_EXTRA_PASS"
 
+	// PULSE_ADVISORY_SERIES_AXIS_NOT_DATE is a predict advisory: a
+	// series overlay that reads its rows in order (prior, rolling,
+	// baseline, sibling) runs over two or more groupers with no
+	// params.partition_by, so it partitions by every key but the last
+	// and runs its series down the last grouper — which is not a date
+	// grouper. One per such overlay; details carry the slot, the kind,
+	// the series axis, its grouper and the group key columns.
+	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE Code = "PULSE_ADVISORY_SERIES_AXIS_NOT_DATE"
+
 	// PULSE_SUPPRESS_ADVISORY_UNKNOWN is raised by pulse.New when
 	// Options.SuppressAdvisories names a code that is not a registered
 	// PULSE_ADVISORY_* advisory code.
@@ -655,6 +664,18 @@ const (
 	// observed fewer than the required number of distinct groups in the
 	// SplitBy field after filtering.
 	PULSE_TEST_SPLIT_GROUPS_LT_2 Code = "PULSE_TEST_SPLIT_GROUPS_LT_2"
+
+	// PULSE_TEST_PARTITION_INVALID indicates a post-test's partition on a
+	// grouped request cannot be read: Params["partition_by"] is not a
+	// leading prefix of the group key columns (reason not_string_list,
+	// unknown_field, not_prefix — the series-overlay prefix rule), or two
+	// post-tests resolve to different partition depths (reason
+	// mixed_depth: Response.PostTests is one flat post-tests x partitions
+	// list, so every post-test of a request partitions alike). Raised at
+	// predict and at runtime by the one shared reading
+	// (internal/groupedtests.PostTestDepth), Details {index, type,
+	// partition_by, groups, reason[, field][, depths]}.
+	PULSE_TEST_PARTITION_INVALID Code = "PULSE_TEST_PARTITION_INVALID"
 
 	// PULSE_TEST_CONTINGENCY_DEGENERATE indicates a chi-square contingency
 	// table is empty or has a single row/column, making the test
@@ -1496,7 +1517,9 @@ const (
 	// OverlaySpec's Ref does not match the host shape required by the
 	// chosen Kind. For OVERLAY_INDEX_VS_MARGIN this fires in three
 	// cases: missing Ref.Margin pointer, unknown Ref.Margin.Axis, or
-	// non-MATRIX host (Request.Crosstab is nil).
+	// non-MATRIX host (Request.Crosstab is nil). A Compose
+	// OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF over a crosstab slot raises it
+	// too (details.slot, shape matrix, shapes [series]).
 	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE Code = "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE"
 
 	// PULSE_OVERLAY_COMPONENTS_REQUIRED indicates an overlay kind that
@@ -1506,7 +1529,10 @@ const (
 	// handler entry: without the components block there is no sample-size
 	// leg to divide by. Re-run with components enabled (clear
 	// DisableComponents / the per-request override) so the host carries
-	// the counters the pairwise test needs.
+	// the counters the pairwise test needs. A Compose OVERLAY_T_VS_REF /
+	// OVERLAY_Z_VS_REF scoring a grouped AGG_WELFORD slot built with
+	// components disabled raises it too (reason components_disabled),
+	// on predict and runtime alike.
 	PULSE_OVERLAY_COMPONENTS_REQUIRED Code = "PULSE_OVERLAY_COMPONENTS_REQUIRED"
 
 	// PULSE_OVERLAY_SCOPE_UNSUPPORTED indicates an OverlaySpec named a
@@ -1554,7 +1580,12 @@ const (
 	// (descriptor.validateOverlayIndexVsRollingMean) and runtime
 	// (processing.applyIndexVsRollingMean) with Details carrying the
 	// kind and the missing param name. Reused by other windowed kinds
-	// (e.g. OVERLAY_ZSCORE_VS_ROLLING) for the missing-window case.
+	// (e.g. OVERLAY_ZSCORE_VS_ROLLING) for the missing-window case. A
+	// Compose two-sample overlay (OVERLAY_T_VS_REF / _Z_VS_REF /
+	// _T_CELL / _Z_CELL) scoring a scalar mean on a side raises it, on
+	// predict and runtime alike, when params carry no usable variance /
+	// sample size for that side (reason params_missing): there is no
+	// default.
 	PULSE_OVERLAY_PARAM_MISSING Code = "PULSE_OVERLAY_PARAM_MISSING"
 
 	// PULSE_OVERLAY_FORMULA_PARSE_ERROR indicates an OVERLAY_FORMULA spec's
@@ -1640,6 +1671,33 @@ const (
 	// division by zero is undefined).
 	PULSE_OVERLAY_REF_UNKNOWN Code = "PULSE_OVERLAY_REF_UNKNOWN"
 
+	// PULSE_OVERLAY_FIELD_UNKNOWN indicates a series overlay's
+	// Params["field"] does not name the output label of a request
+	// aggregation (the explicit Label, else TYPE_field), or is not a
+	// string. Absent field scores Request.Aggregations[0]. Raised at
+	// predict and at runtime by the one shared reading
+	// (internal/seriesfield.Resolve), Details {index, kind, field,
+	// available} — available lists the request's aggregation labels.
+	// A Compose overlay's SERIES arm resolves it per slot
+	// (seriesfield.ResolveComposeSlot) and adds Details.slot.
+	// A whole-chain overlay (INDEX_VS_STAGE, DELTA_VS_STAGE) resolves
+	// it on the target, then the reference stage
+	// (seriesfield.ResolveChainStage) and adds Details.which and
+	// Details.stage_index.
+	PULSE_OVERLAY_FIELD_UNKNOWN Code = "PULSE_OVERLAY_FIELD_UNKNOWN"
+
+	// PULSE_OVERLAY_PARTITION_INVALID indicates a series overlay's
+	// Params["partition_by"] is not a leading prefix of the request's
+	// group key columns: a non-string-list value, a column no grouper
+	// writes, or a column out of prefix order. Absent partition_by
+	// partitions by every key but the last; [] means no partition.
+	// OVERLAY_YOY's partition_by must instead name exactly the non-date
+	// key columns (reason not_non_date_keys; seriespartition.YoY).
+	// Raised at predict and at runtime by the one shared reading
+	// (internal/seriespartition.Depth / YoY), Details {index, kind,
+	// partition_by, groups, reason[, field]}.
+	PULSE_OVERLAY_PARTITION_INVALID Code = "PULSE_OVERLAY_PARTITION_INVALID"
+
 	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT indicates a whole-chain
 	// overlay spec (OVERLAY_INDEX_VS_STAGE / OVERLAY_DELTA_VS_STAGE)
 	// where the resolved target stage and reference stage produce
@@ -1655,10 +1713,15 @@ const (
 	// mismatch caught at predict time, but for CHAIN-host kinds the
 	// divergence is between two stages, not between a single Ref and
 	// the host). Surfaced at both predict (internal/descriptor.ValidateChain
-	// shape-divergence gate) and runtime (processing.applyIndexVsStage /
-	// processing.applyDeltaVsStage shape-divergence defence).
-	// Warning-class — surfaced as a Response.Warning, never as an
-	// envelope error.
+	// shape-divergence gate) and runtime (the dispatcher's authored-shape
+	// pre-check, then processing.applyIndexVsStage /
+	// processing.applyDeltaVsStage shape-divergence defence), with
+	// deep-equal Details {index, overlay_index, kind, ref_index,
+	// ref_shape, target_index, target_shape, stage_index, stage_name}.
+	// Warning-class on BOTH sides — predict-chain's envelope warning (the
+	// chain stays valid), the runtime's OverlayLayer.Warnings entry (the
+	// chain runs); never an envelope error, and Strict escalates it on
+	// neither side.
 	PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT Code = "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT"
 
 	// PULSE_OVERLAY_TARGET_UNKNOWN indicates a whole-chain
@@ -1708,8 +1771,11 @@ const (
 	// post-slot-barrier inside processing.ApplyComposeOverlays, BEFORE
 	// the schema-match and dict-drift gates fire — key-set
 	// divergence is the cheapest signal so it fails fast. Surfaced at
-	// runtime; the internal/descriptor.ValidateCompose predict-time
-	// companion is deferred.
+	// runtime from the data; predict-compose (Gate 4) raises the
+	// structural half — two SERIES slots whose group key columns differ
+	// by name, Details {index, reference, target, reference_fields,
+	// target_fields}. A SERIES slot keys on its group columns alone
+	// (U46): aggregation values never enter the key.
 	PULSE_OVERLAY_KEY_SET_DIVERGENT Code = "PULSE_OVERLAY_KEY_SET_DIVERGENT"
 
 	// PULSE_OVERLAY_SCHEMA_DIVERGENT indicates a Compose overlay spec
@@ -1737,18 +1803,21 @@ const (
 	// SERIES, or one is SCALAR while the other is non-SCALAR). Compose
 	// overlays compare across slots cell-for-cell at byte-equal
 	// coordinates; without a shared shape there is no coordinate grid
-	// to fold. Details carry the offending `target_label`, the
-	// `reference_shape`, and the `target_shape`. Sibling of
+	// to fold. A slot's shape is its AUTHORED request's — crosstab =
+	// MATRIX, groups + aggregations = SERIES, else SCALAR — so a
+	// grouped slot paired with an ungrouped one is this code, never a
+	// key-set divergence. Details (identical on predict and runtime):
+	// `index`, `kind`, `reference`, `target_label`, `reference_shape`,
+	// `target_shape`. Sibling of
 	// PULSE_OVERLAY_SLOT_NOT_CROSSTAB — both surface shape-level
 	// rejections at the same gate, distinguished by whether the
 	// rejection is "shapes disagree" (this code) or "the chosen kind
 	// requires a specific shape and a target violates it" (the other
 	// code). The check runs once per overlay spec at the post-slot-
 	// barrier inside processing.ApplyComposeOverlays AFTER
-	// PULSE_OVERLAY_KEY_SET_DIVERGENT and BEFORE
-	// PULSE_OVERLAY_SCHEMA_DIVERGENT. Surfaced at runtime; the
-	// internal/descriptor.ValidateCompose predict-time companion is
-	// deferred.
+	// PULSE_OVERLAY_KEY_SET_DIVERGENT (which skips mixed-shape pairs)
+	// and BEFORE PULSE_OVERLAY_SCHEMA_DIVERGENT. Surfaced at runtime
+	// and by internal/descriptor.ValidateCompose.
 	PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT Code = "PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT"
 
 	// PULSE_OVERLAY_DICT_PREFIX_DRIFT indicates a Compose overlay spec
@@ -3497,6 +3566,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_ORDINAL_PARAMETRIC,
 	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED,
 	PULSE_ADVISORY_EXTRA_PASS,
+	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN,
 	PULSE_RECOMMEND_INTENT_UNKNOWN,
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,
@@ -3521,6 +3591,7 @@ var allCodes = []Code{
 	PULSE_TEST_INSUFFICIENT_N,
 	PULSE_TEST_VARIANCE_ZERO,
 	PULSE_TEST_SPLIT_GROUPS_LT_2,
+	PULSE_TEST_PARTITION_INVALID,
 	PULSE_TEST_CONTINGENCY_DEGENERATE,
 	PULSE_TEST_EXPECTED_COUNT_TOO_LOW,
 	PULSE_TEST_FIELD2_NOT_NUMERIC,
@@ -3642,6 +3713,8 @@ var allCodes = []Code{
 	PULSE_OVERLAY_FORMULA_TYPE_MISMATCH,
 	PULSE_OVERLAY_FORMULA_INVALID_IDENT,
 	PULSE_OVERLAY_REF_UNKNOWN,
+	PULSE_OVERLAY_FIELD_UNKNOWN,
+	PULSE_OVERLAY_PARTITION_INVALID,
 	PULSE_OVERLAY_YOY_FREQUENCY_MISSING,
 	PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY,
 	PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT,

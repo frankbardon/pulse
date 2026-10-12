@@ -282,7 +282,7 @@ func (f *mgFixture) lastArm() observe.Arm {
 // groupers (the built-in mergeable set plus the gate's mergeable
 // extension grouper), i.e. whether a parallel mode must fan out.
 func mgMergeable(req *types.Request) bool {
-	if len(req.Windows) > 0 || len(req.PostTests) > 0 {
+	if len(req.Windows) > 0 || len(req.PostTests) > 0 || len(req.Tests) > 0 {
 		return false // the merge gate excludes them, with one grouper as with several
 	}
 	for _, g := range req.Groups {
@@ -1498,8 +1498,8 @@ func TestMultiGrouper_ChainFiltersOnInnerKeyColumn(t *testing.T) {
 // post-tests run over the composite rows in every mode. A WIN_LAG
 // partitioned by the OUTER key column and ordered by the inner one
 // lags within each region (F has no prior; M's prior is its region's F
-// count), and a TEST_PEARSON_R post-test over the six (region, sex)
-// rows correlates their counts with their id sums — both hand-computed
+// count), and a TEST_PEARSON_R post-test with partition_by [] over the
+// six (region, sex) rows correlates their counts with their id sums — both hand-computed
 // from mgRows. (ProcessStream's row iterator carries no post-tests.)
 func TestMultiGrouper_WindowsAndPostTestsOverCompositeRows(t *testing.T) {
 	f := newMGFixture(t, pulse.Options{})
@@ -1518,7 +1518,10 @@ func TestMultiGrouper_WindowsAndPostTestsOverCompositeRows(t *testing.T) {
 				&types.Aggregation{Type: types.AGG_SUM, Field: "id", Label: "s"})
 			req.Windows = []*types.Window{{Type: types.WIN_LAG, Field: "n", Label: "prev",
 				PartitionBy: []string{"region"}, OrderBy: []types.OrderKey{{Field: "sex"}}}}
-			req.PostTests = []*types.Test{{Type: types.TEST_PEARSON_R, Field: "n", Field2: "s", Label: "r"}}
+			// partition_by [] runs the post-test once over every composite
+			// row (absent, it would run once per region — U46 E3-S2).
+			req.PostTests = []*types.Test{{Type: types.TEST_PEARSON_R, Field: "n", Field2: "s", Label: "r",
+				Params: json.RawMessage(`{"partition_by": []}`)}}
 			if !mode.admitsRequest(req) {
 				t.Skip("mode admits mergeable stages only")
 			}
@@ -1615,55 +1618,6 @@ func TestMultiGrouper_ReturnKeyColumns(t *testing.T) {
 		requireCodedError(t, err, perr.PULSE_RETURN_PATH_UNKNOWN)
 		if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PULSE_RETURN_PATH_UNKNOWN) {
 			t.Errorf("include %s: predict errors %+v, want PULSE_RETURN_PATH_UNKNOWN", c.col, env.Errors)
-		}
-	}
-}
-
-// TestMultiGrouper_YoYRefused: OVERLAY_YOY assumes its host series is
-// one date axis; over two or more groupers it is the composite rows, so
-// the request is refused PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE by
-// predict and by every runtime mode — wherever GROUP_DATE sits — rather
-// than folded over interleaved rows (U46 #429 owns the semantics). The
-// same overlay over the date grouper alone runs.
-func TestMultiGrouper_YoYRefused(t *testing.T) {
-	f := newMGFixture(t, pulse.Options{})
-	yoy := func(groups ...*types.Group) *types.Request {
-		req := mgRequest(f, groups)
-		req.Overlays = []types.OverlaySpec{{
-			Name: "yoy", Kind: types.OverlayKindYoY, Scope: types.OverlayScopeGroup,
-			Ref:    types.OverlayRef{YoY: &types.OverlayYoYRef{}},
-			Params: json.RawMessage(`{"frequency": "monthly"}`),
-		}}
-		return req
-	}
-	if env := predictEnvelope(t, f.p, f.fs, f.cohort, yoy(mgDay())); len(env.Errors) > 0 {
-		t.Fatalf("one GROUP_DATE grouper: predict %+v", env.Errors)
-	}
-	if _, err := f.p.Process(context.Background(), yoy(mgDay())); err != nil {
-		t.Fatalf("one GROUP_DATE grouper: %v", err)
-	}
-	for name, groups := range map[string]func() []*types.Group{
-		"date outer": func() []*types.Group { return []*types.Group{mgDay(), mgSex()} },
-		"date inner": func() []*types.Group { return []*types.Group{mgSex(), mgDay()} },
-	} {
-		env := predictEnvelope(t, f.p, f.fs, f.cohort, yoy(groups()...))
-		if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
-			t.Errorf("%s: predict errors %+v, want PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE", name, env.Errors)
-		}
-		for _, mode := range mgModes {
-			t.Run(mode.name+"/"+name, func(t *testing.T) {
-				if !mode.admits(groups()) {
-					t.Skip("mode admits mergeable groupers only")
-				}
-				resp, err := mode.run(t, f, yoy(groups()...))
-				if resp != nil && len(resp.Overlays) > 0 {
-					t.Fatalf("a YoY layer over composite rows: %+v", resp.Overlays)
-				}
-				ce := requireCodedError(t, err, perr.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE)
-				if ce.Details["groupers"] != 2 {
-					t.Errorf("details = %v, want groupers 2", ce.Details)
-				}
-			})
 		}
 	}
 }

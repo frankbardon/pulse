@@ -1206,9 +1206,10 @@ instance implements `extend.RichAggregator` and `Rich` returns a
 `missing_rich_interface`); a `Rich` value of another shape is
 `PROCESSING_INTERNAL` at run time. Predict and the runtime then treat
 the slot as they treat `AGG_VEC_MEAN`: refused as a crosstab cell or
-margin aggregation, a sort key, an overlay host (request, Compose,
-chain) and a chain stage feeding another (`PROCESSING_CONFIG`, reason
-`array_valued`), and `params.expand: true` writes one column per member,
+margin aggregation, a sort key, the value an overlay scores (request, Compose or
+chain: `params.field` where the kind honours it, else
+`aggregations[0]` — an unscored one beside it runs) and a chain stage
+feeding another (`PROCESSING_CONFIG`, reason `array_valued`), and `params.expand: true` writes one column per member,
 `<label>[<element label>]`, which predict lists in
 `aggregations[i].columns`. `expand` on a slot whose aggregator is not
 `ArrayValued` is refused (`expand_not_array_valued`). The manifest's
@@ -1227,6 +1228,39 @@ pulse.AggregatorRegistration{
     },
 }
 ```
+
+Add `NonScalar: true` when the value a `Response.Data` row carries is
+not one number for any other reason — the instance implements
+`extend.RichAggregator` and `Rich` returns a label list, a count map or
+a struct (`ArrayValued` implies it). An overlay reads one number per
+host row, so predict and the runtime then refuse the slot as the
+aggregation an overlay scores (request, Compose or chain: `params.field`
+where the kind honours it, else `aggregations[0]` — an unscored one
+beside it runs) with `PROCESSING_CONFIG`, reason `non_scalar`, exactly
+as for the built-in `AGG_WELFORD`, `AGG_SET_UNION`,
+`AGG_SET_INTERSECTION` and `AGG_SET_FREQUENCY` — and refuse a chain stage carrying it that feeds another (same reason). Undeclared, a non-scalar
+`Rich` value an overlay scores folds as no value — the layer comes back
+empty. The manifest's extension entry carries `non_scalar`.
+
+Add `EmitsInputValue: true` when the slot's one number is one of its
+input field's own encoded values — a value picked from the column (a
+mode, a first / last pick), not a figure computed over it. Over a
+`categorical_*` field that value is the dictionary index (what
+`extend.Record.NumericValue` returns), over a `packed_bool` field the
+0/1 truth value: a code, not a magnitude. Predict (from the request and
+the schema, no records) and the runtime then refuse the slot over such
+a field as the aggregation an overlay scores (request, Compose or
+chain, chosen as above) with `PROCESSING_CONFIG`, reason
+`categorical_code` (Details add `field` and `field_type`), exactly as
+for the built-in `AGG_MODE`; over a numeric field, or unscored, it
+runs. A later chain stage reads a forwarded aggregation column as `f64`,
+so a pick over it there scores — unless a code-emitting aggregation (a
+declared pick over a code, or `AGG_MODE`) wrote it: code-ness propagates
+through every stage. A pick over a forwarded group key
+(`categorical_u32`) is refused. As a crosstab cell over a code field it
+is refused under every MATRIX overlay kind that reads cell values. Undeclared, an overlay scores the code
+as a magnitude. The manifest's extension entry carries
+`emits_input_value`.
 
 A mergeable extension's partials fold through its own `Merge`, so —
 unlike the built-in `AGG_VEC_*`, which key their partials by global

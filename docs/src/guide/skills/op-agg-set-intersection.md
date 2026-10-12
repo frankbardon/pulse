@@ -54,6 +54,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - AND across all rows ≠ AND across cells; do NOT pool margins.
 - One row with all-zero bits → empty intersection for the group.
+- Non-scalar row value: an overlay scoring it (request, Compose or whole-chain: `params.field` where the kind honours it, else `aggregations[0]`) is refused (`PROCESSING_CONFIG`, reason `non_scalar`), as is a chain stage carrying it that feeds another; an unscored one beside a scalar runs.
 
 ## See
 

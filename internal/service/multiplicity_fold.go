@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/groupedtests"
 	"github.com/frankbardon/pulse/internal/processing/multiplicity"
 	"github.com/frankbardon/pulse/types"
 )
@@ -29,11 +30,12 @@ import (
 // chain stage folds its own response like a standalone Process.
 
 // multSite is one p-value joining a correction family. write receives
-// the adjusted p (NaN when p is NaN) and the family size m, and records
-// them beside the raw figure.
+// the adjusted p (NaN when p is NaN), the family size m and the number
+// of members excluded from m (NaN p-values), and records them beside the
+// raw figure.
 type multSite struct {
 	p     float64
-	write func(adjusted float64, m int)
+	write func(adjusted float64, m, excluded int)
 }
 
 // multFamily is one correction family: its resolved method and the
@@ -79,7 +81,8 @@ func (f *multFamilies) add(key string, family types.MultiplicityFamily, method t
 }
 
 // fold adjusts every collected family once and writes each site's
-// adjusted figure. NaN p-values are excluded from m and come back NaN.
+// adjusted figure. NaN p-values are excluded from m, come back NaN and
+// are counted as the family's excluded members.
 func (f *multFamilies) fold() error {
 	for _, key := range f.order {
 		fam := f.byKey[key]
@@ -95,8 +98,9 @@ func (f *multFamilies) fold() error {
 				map[string]any{"family": string(fam.family), "method": string(fam.method)})
 		}
 		m := multiplicity.FamilySize(ps)
+		excluded := len(ps) - m
 		for i, s := range fam.sites {
-			s.write(adj[i], m)
+			s.write(adj[i], m, excluded)
 		}
 	}
 	return nil
@@ -120,19 +124,25 @@ func collectRequestSites(fams *multFamilies, scope string, plan *descx.Multiplic
 	collectOverlaySites(fams, scope, plan.Overlays, resp.Overlays)
 }
 
-// collectTestSites files each member test result (index-aligned with
-// its resolved slot) under its family.
+// collectTestSites files each member test result under its slot's
+// family. Results pair with slots by groupedtests.SpecIndex: one per
+// slot ungrouped; on a grouped request one per (slot x group),
+// test-major, every group's result joining its slot's family.
 func collectTestSites(fams *multFamilies, scope string, slots []descx.ResolvedMultiplicity, results []*types.TestResult) {
-	for i, rm := range slots {
-		if !rm.Member || i >= len(results) || results[i] == nil {
+	for k, r := range results {
+		i := groupedtests.SpecIndex(k, len(slots), len(results))
+		if i < 0 || r == nil {
 			continue
 		}
-		r := results[i]
+		rm := slots[i]
+		if !rm.Member {
+			continue
+		}
 		method, family := rm.Method, rm.Family
 		fams.add(multFamilyKey(scope, family), family, method, multSite{
 			p: r.PValue,
-			write: func(adjusted float64, m int) {
-				writeTestAdjusted(r, method, family, adjusted, m)
+			write: func(adjusted float64, m, excluded int) {
+				writeTestAdjusted(r, method, family, adjusted, m, excluded)
 			},
 		})
 	}
@@ -141,15 +151,15 @@ func collectTestSites(fams *multFamilies, scope string, slots []descx.ResolvedMu
 // writeTestAdjusted records a test's adjusted p beside its raw one.
 // significant_adjusted reads the test's own alpha with the same strict
 // comparison as reject_null; it is absent when the adjusted p is
-// undefined.
-func writeTestAdjusted(r *types.TestResult, method types.MultiplicityMethod, family types.MultiplicityFamily, adjusted float64, m int) {
+// undefined. The echo stamps the family's excluded (NaN-p) member count.
+func writeTestAdjusted(r *types.TestResult, method types.MultiplicityMethod, family types.MultiplicityFamily, adjusted float64, m, excluded int) {
 	r.PAdjusted = &adjusted
 	r.SignificantAdjusted = nil
 	if !math.IsNaN(adjusted) {
 		sig := adjusted < r.Alpha
 		r.SignificantAdjusted = &sig
 	}
-	r.Multiplicity = &types.AppliedMultiplicity{Method: method, Family: family, Alpha: r.Alpha, M: m}
+	r.Multiplicity = &types.AppliedMultiplicity{Method: method, Family: family, Alpha: r.Alpha, M: m, Excluded: excluded}
 }
 
 // foldRequestMultiplicity corrects one standalone Request's response in

@@ -67,6 +67,9 @@ func TestMergeRefusal(t *testing.T) {
 		{"nil group", &types.Request{Aggregations: sum("n"), Groups: []*types.Group{nil}}, nil, "group slot is nil"},
 		{"mergeable extension grouper", &types.Request{Aggregations: sum("n"), Groups: []*types.Group{{Type: "GROUP_X_MERGE"}}}, fakeExt{}, ""},
 		{"non-mergeable extension grouper", &types.Request{Aggregations: sum("n"), Groups: []*types.Group{{Type: "GROUP_X_SOLO"}}}, fakeExt{}, "grouper GROUP_X_SOLO is not mergeable"},
+		// A vector-input grouper's renamed key column is typed by the chain
+		// schema (vectors.GroupKeyField), but GROUP_KMEANS stays refused.
+		{"vector-input GROUP_KMEANS stays refused", &types.Request{Aggregations: sum("n"), Groups: []*types.Group{{Type: types.GROUP_KMEANS, Vector: "v"}}}, nil, "grouper GROUP_KMEANS is not mergeable"},
 		{"nil filterer", &types.Request{Aggregations: sum("n"), Filterers: []*types.Filterer{nil}}, nil, "filterer slot is nil"},
 		{"built-in filterer", &types.Request{Aggregations: sum("n"), Filterers: []*types.Filterer{{Type: types.FILTER_INCLUDE}}}, nil, ""},
 		{"extension filterer", &types.Request{Aggregations: sum("n"), Filterers: []*types.Filterer{{Type: "FILTER_X_ROW"}}}, fakeExt{}, ""},

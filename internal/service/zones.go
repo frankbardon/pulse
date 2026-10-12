@@ -66,9 +66,17 @@ func (s *Service) zoned(req *types.Request, zones []descriptor.ResolvedZone) *ty
 // references pass, so every caller resolves weights at the same point
 // predict does.
 func (s *Service) checkFieldRefs(ctx context.Context, req *types.Request, schema *encoding.Schema) error {
+	return s.checkChainStageFieldRefs(ctx, req, schema, nil)
+}
+
+// checkChainStageFieldRefs is checkFieldRefs for a chain stage >= 1:
+// codes are the input columns carrying a categorical code
+// (vectors.AggregationKinds.ChainCodeColumns), read by the overlay
+// categorical-code rule. Nil codes is checkFieldRefs.
+func (s *Service) checkChainStageFieldRefs(ctx context.Context, req *types.Request, schema *encoding.Schema, codes map[string]encoding.FieldType) error {
 	// ctx carries the request's bound models (a Compose slot's fits), the
 	// names an ATTR_REG_PREDICT slot resolves.
-	if err := descx.ScopedFieldRefRefusalWithModels(req, schema, s.instance, model.SetFrom(ctx)); err != nil {
+	if err := descx.ScopedChainStageFieldRefRefusal(req, schema, codes, s.instance, model.SetFrom(ctx)); err != nil {
 		return markLocated(err)
 	}
 	// `return` data columns — the rule predict applies right after the

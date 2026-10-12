@@ -29,12 +29,12 @@ func makeSeriesResponseTriples(keys []string, triples []WelfordTriple) *types.Re
 
 // TestApplyZVsRef_ScalarKnownAnswer pins a per-group z-test p-value
 // for the scalar+Params fallback path. Both sides carry scalar means
-// (10 vs 9); the Params defaults supply variance=1, n=2 ⇒
+// (10 vs 9); explicit params supply variance=1, n=2 ⇒
 // se = sqrt(1/2 + 1/2) = 1, z = 1, p ≈ 0.3173.
 func TestApplyZVsRef_ScalarKnownAnswer(t *testing.T) {
 	ref := makeSeriesResponse([]string{"north", "south", "east", "west"}, []float64{9, 9, 9, 9})
 	target := makeSeriesResponse([]string{"north", "south", "east", "west"}, []float64{10, 10, 10, 10})
-	spec := composeSpecSeriesRef(types.OverlayKindZVsRef, nil)
+	spec := composeSpecSeriesRef(types.OverlayKindZVsRef, legacyTwoSampleParams(nil))
 	layer, warnings, err := applyZVsRef(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {
 		t.Fatalf("applyZVsRef: %v", err)
@@ -129,7 +129,7 @@ func TestApplyZVsRef_TripleBypassesParamsDefaults(t *testing.T) {
 func TestApplyZVsRef_MissingRefGroup(t *testing.T) {
 	ref := makeSeriesResponse([]string{"north", "south", "east"}, []float64{9, 9, 9})
 	target := makeSeriesResponse([]string{"north", "south", "east", "west"}, []float64{10, 10, 10, 10})
-	spec := composeSpecSeriesRef(types.OverlayKindZVsRef, nil)
+	spec := composeSpecSeriesRef(types.OverlayKindZVsRef, legacyTwoSampleParams(nil))
 	layer, warnings, err := applyZVsRef(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {
 		t.Fatalf("applyZVsRef: %v", err)
@@ -159,10 +159,10 @@ func TestApplyZVsRef_MissingRefGroup(t *testing.T) {
 func TestApplyZVsRef_DegenerateInsufficientN(t *testing.T) {
 	ref := makeSeriesResponse([]string{"north", "south"}, []float64{9, 9})
 	target := makeSeriesResponse([]string{"north", "south"}, []float64{10, 10})
-	spec := composeSpecSeriesRef(types.OverlayKindZVsRef, map[string]any{
+	spec := composeSpecSeriesRef(types.OverlayKindZVsRef, legacyTwoSampleParams(map[string]any{
 		"sample_size_target": 1.0,
 		"sample_size_ref":    1.0,
-	})
+	}))
 	layer, warnings, err := applyZVsRef(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {
 		t.Fatalf("applyZVsRef: %v", err)
@@ -183,9 +183,9 @@ func TestApplyZVsRef_DegenerateInsufficientN(t *testing.T) {
 }
 
 // TestApplyZVsRef_DegenerateZeroVariance exercises the
-// both-variances-zero arm via the triple path (the Params variance
-// reader clamps non-positive defaults to 1.0, so the triple path is
-// the only way to drive degenerate variance through the handler).
+// both-variances-zero arm via the triple path (a non-positive params
+// variance is refused, so the triple path is the only way to drive
+// degenerate variance through the handler).
 func TestApplyZVsRef_DegenerateZeroVariance(t *testing.T) {
 	targetTriples := []WelfordTriple{
 		{Mean: 10, Variance: 0, N: 10},
@@ -232,7 +232,7 @@ func TestApplyZVsRef_MatchesMatrixForSameInputs(t *testing.T) {
 	// SERIES: target=10, ref=9, var defaults, n defaults
 	refSeries := makeSeriesResponse([]string{"only"}, []float64{9})
 	targetSeries := makeSeriesResponse([]string{"only"}, []float64{10})
-	specSeries := composeSpecSeriesRef(types.OverlayKindZVsRef, nil)
+	specSeries := composeSpecSeriesRef(types.OverlayKindZVsRef, legacyTwoSampleParams(nil))
 	layerSeries, _, err := applyZVsRef(&specSeries, refSeries, []*types.Response{targetSeries}, 0, []int{1})
 	if err != nil {
 		t.Fatalf("applyZVsRef: %v", err)
@@ -250,7 +250,7 @@ func TestApplyZVsRef_MatchesMatrixForSameInputs(t *testing.T) {
 		{10, 10, 10},
 		{10, 10, 10},
 	})
-	specMatrix := composeSpecMatrixRef(types.OverlayKindZCell, nil)
+	specMatrix := composeSpecMatrixRef(types.OverlayKindZCell, legacyTwoSampleParams(nil))
 	layerMatrix, _, err := applyZCell(&specMatrix, refMatrix, []*types.Response{targetMatrix}, 0, []int{1})
 	if err != nil {
 		t.Fatalf("applyZCell: %v", err)

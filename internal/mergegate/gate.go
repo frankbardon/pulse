@@ -163,11 +163,13 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 // ChainRefusal is the v1 ProcessChain stage gate: nil when req passes
 // MergeRefusal, else a PULSE_CHAIN_NOT_MERGEABLE "chain stage is not
 // mergeable: <reason>" with details {stage_index, stage_name}. Every
-// mergeable built-in aggregator emits one float64 per output row the
+// mergeable scalar built-in aggregator emits one float64 per output row the
 // next stage's f64 column reads — AGG_MODE's modal value (on a
 // categorical field, the dictionary index, not the label),
 // AGG_MODE_COUNT's modal count and AGG_FREQUENCY's value count
-// included — so mergeability is the whole rule.
+// included — so mergeability is the whole rule here; the mergeable
+// non-scalar folds (AGG_SET_UNION / _INTERSECTION / _FREQUENCY) are
+// StageArrayValuedRefusal's.
 //
 // A stage's `matrices` slot is not part of the rule: a matrix result
 // lands in Response.Matrices, never in the rows the next stage reads,
@@ -264,18 +266,28 @@ func StageMatrixRefusal(req *types.Request, stageIndex int, stageName string) er
 // right after ChainRefusal. kinds is the instance's view (a declared
 // ArrayValued extension aggregator is array-valued too); the zero value
 // is the built-in view.
+//
+// A non-scalar aggregation (AggregationKinds.IsNonScalar — a mergeable
+// set fold's label list or count map, an extension declared NonScalar)
+// is refused the same way, reason "non_scalar": its column read as
+// null (a sum over it 0) in the next stage, silently (U46 E4-S11). A
+// non-mergeable one never gets here — ChainRefusal refuses it first.
 func StageArrayValuedRefusal(req *types.Request, stageIndex, stageCount int, stageName string, kinds vectors.AggregationKinds) error {
 	if req == nil || stageIndex >= stageCount-1 {
 		return nil
 	}
 	for _, agg := range req.Aggregations {
-		if agg == nil || !kinds.IsArrayValued(agg.Type) {
+		if agg == nil || !kinds.IsNonScalar(agg.Type) {
 			continue
 		}
 		label := types.AggregationLabelOf(agg)
+		what, reason := "array-valued", "array_valued"
+		if !kinds.IsArrayValued(agg.Type) {
+			what, reason = "non-scalar (a label list, a count map or a struct, not one number)", "non_scalar"
+		}
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("chain stage %d aggregation %s (%s) is array-valued and cannot feed a later stage, which reads one number per column; make it the last stage", stageIndex, label, agg.Type),
-			map[string]any{"stage_index": stageIndex, "stage_name": stageName, "aggregation": string(agg.Type), "label": label, "reason": "array_valued"})
+			fmt.Sprintf("chain stage %d aggregation %s (%s) is %s and cannot feed a later stage, which reads one number per column; make it the last stage", stageIndex, label, agg.Type, what),
+			map[string]any{"stage_index": stageIndex, "stage_name": stageName, "aggregation": string(agg.Type), "label": label, "reason": reason})
 	}
 	return nil
 }

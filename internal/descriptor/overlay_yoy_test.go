@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -369,49 +370,84 @@ func TestValidateOverlay_YoYLevelWithinRejected(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_YoYMultiGrouperRefused: with two or more groupers
-// the SERIES host is the composite rows (U54), not one date axis, so
-// OVERLAY_YOY is refused PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
-// whatever position GROUP_DATE holds — never folded over interleaved
-// rows. Details name the grouper count. One GROUP_DATE grouper stays
-// accepted (TestValidateOverlay_YoYHappyPathAccepted).
-func TestValidateOverlay_YoYMultiGrouperRefused(t *testing.T) {
+// TestValidateOverlay_YoYMultiGrouper: OVERLAY_YOY finds its GROUP_DATE
+// grouper wherever it sits and partitions by every other key (U46
+// E2-S3), so the date grouper outer or inner is accepted; zero or two
+// date groupers are refused PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
+// with {groupers, date_groupers} (internal/seriespartition.YoY, the
+// reading the runtime fold shares). The frequency fallback reads the
+// date grouper's Params, not Groups[0]'s.
+func TestValidateOverlay_YoYMultiGrouper(t *testing.T) {
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
-	date := func() *types.Group { return &types.Group{Type: types.GROUP_DATE, Field: "order_date"} }
-	region := func() *types.Group { return &types.Group{Type: types.GROUP_CATEGORY, Field: "region"} }
+	date := func(params string) *types.Group {
+		g := &types.Group{Type: types.GROUP_DATE, Field: "order_date"}
+		if params != "" {
+			g.Params = json.RawMessage(params)
+		}
+		return g
+	}
+	shipped := &types.Group{Type: types.GROUP_DATE, Field: "ship_date"}
+	region := func(params string) *types.Group {
+		g := &types.Group{Type: types.GROUP_CATEGORY, Field: "region"}
+		if params != "" {
+			g.Params = json.RawMessage(params)
+		}
+		return g
+	}
+	yoyCodes := []errors.Code{
+		errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+		errors.PULSE_OVERLAY_PARTITION_INVALID,
+		errors.PULSE_OVERLAY_YOY_FREQUENCY_MISSING,
+		errors.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY,
+	}
 	for _, c := range []struct {
 		name   string
 		groups []*types.Group
+		params string
+		code   errors.Code // "" = accepted
+		want   map[string]any
 	}{
-		{"date outer", []*types.Group{date(), region()}},
-		{"date inner", []*types.Group{region(), date()}},
+		{"date outer", []*types.Group{date(""), region("")}, `{"frequency": "monthly"}`, "", nil},
+		{"date inner", []*types.Group{region(""), date("")}, `{"frequency": "monthly"}`, "", nil},
+		{"frequency from the inner date grouper", []*types.Group{region(""), date(`{"frequency": "monthly"}`)}, "", "", nil},
+		{"frequency on groups[0] is not the date grouper's", []*types.Group{region(`{"frequency": "monthly"}`), date("")}, "", errors.PULSE_OVERLAY_YOY_FREQUENCY_MISSING, nil},
+		{"no date grouper", []*types.Group{region(""), {Type: types.GROUP_CATEGORY, Field: "segment"}}, `{"frequency": "monthly"}`, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+			map[string]any{"index": 0, "kind": "OVERLAY_YOY", "groupers": 2, "date_groupers": 0, "required": "GROUP_DATE"}},
+		{"two date groupers", []*types.Group{date(""), region(""), shipped}, `{"frequency": "monthly"}`, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+			map[string]any{"index": 0, "kind": "OVERLAY_YOY", "groupers": 3, "date_groupers": 2, "required": "GROUP_DATE"}},
+		{"partition_by not the non-date keys", []*types.Group{region(""), date("")}, `{"frequency": "monthly", "partition_by": []}`, errors.PULSE_OVERLAY_PARTITION_INVALID,
+			map[string]any{"index": 0, "kind": "OVERLAY_YOY", "partition_by": []string{}, "groups": []string{"region", "order_date"}, "reason": "not_non_date_keys", "field": "region"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			req := yoyHostReq()
 			req.Groups = c.groups
 			req.Overlays = []types.OverlaySpec{{
 				Name: "yoy", Kind: types.OverlayKindYoY, Scope: types.OverlayScopeGroup,
-				Ref:    types.OverlayRef{YoY: &types.OverlayYoYRef{}},
-				Params: json.RawMessage(`{"frequency": "monthly"}`),
+				Ref: types.OverlayRef{YoY: &types.OverlayYoYRef{}},
 			}}
+			if c.params != "" {
+				req.Overlays[0].Params = json.RawMessage(c.params)
+			}
 			env := predictFromBytes(data, req, nil)
-			var found bool
+			for _, code := range yoyCodes {
+				if code != c.code && hasErrorCode(env, code) {
+					t.Errorf("unexpected %s: %+v", code, env.Errors)
+				}
+			}
+			if c.code == "" {
+				return
+			}
 			for _, e := range env.Errors {
-				if e.Code != string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
+				if e.Code != string(c.code) {
 					continue
 				}
-				found = true
-				if got := e.Details["groupers"]; got != 2 {
-					t.Errorf("details.groupers = %v, want 2", got)
+				if c.want != nil && !reflect.DeepEqual(e.Details, c.want) {
+					t.Errorf("details %#v, want %#v", e.Details, c.want)
 				}
-				if got := e.Details["required"]; got != string(types.GROUP_DATE) {
-					t.Errorf("details.required = %v, want GROUP_DATE", got)
-				}
+				return
 			}
-			if !found {
-				t.Fatalf("no PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE for a %d-grouper YoY host: %+v", len(c.groups), env.Errors)
-			}
+			t.Fatalf("no %s: %+v", c.code, env.Errors)
 		})
 	}
 }

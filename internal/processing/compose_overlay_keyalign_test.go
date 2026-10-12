@@ -317,7 +317,7 @@ func TestApplyComposeOverlays_KeySetDivergenceFailsLoud(t *testing.T) {
 	labels := []string{"baseline", "treatment"}
 	specs := []types.ComposeOverlaySpec{{
 		Name:      "diverging_keys",
-		Kind:      types.OverlayKindIndexVsStage,
+		Kind:      testComposeStubKind,
 		Scope:     types.OverlayScopeTotal,
 		Reference: "baseline",
 		Targets:   []string{"treatment"},

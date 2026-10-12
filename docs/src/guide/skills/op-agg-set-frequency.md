@@ -57,6 +57,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 - Survey-friendly default ("respondents per issuer").
 - Used as Crosstab Cell aggregator the result is a map-valued cell payload.
 - Per-row a respondent may contribute to multiple bins — `total_label_observations` can exceed `n`.
+- Non-scalar row value: an overlay scoring it (request, Compose or whole-chain: `params.field` where the kind honours it, else `aggregations[0]`) is refused (`PROCESSING_CONFIG`, reason `non_scalar`), as is a chain stage carrying it that feeds another; an unscored one beside a scalar runs.
 
 ## See
 

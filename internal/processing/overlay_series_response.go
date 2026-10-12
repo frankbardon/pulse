@@ -3,6 +3,9 @@ package processing
 import (
 	"encoding/json"
 
+	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/seriesfield"
+	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -90,6 +93,14 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 	if req == nil || len(req.Overlays) == 0 || !compute.Overlays {
 		return nil
 	}
+	// A Compose, whole-chain or FACET kind on Request.Overlays, or a
+	// kind over the wrong Process shape (a MATRIX-only kind on a grouped
+	// request) — the shared wrong-slot / wrong-shape refusals predict
+	// raises first (ValidateOverlays), ahead of every shape and payload
+	// guard below so an ungrouped or empty result refuses it too.
+	if err := refuseWrongHostOverlays(req, exts, compute.overlayKeep()); err != nil {
+		return err
+	}
 	if req.Crosstab != nil {
 		// Crosstab requests own a MATRIX host; their hook lives in
 		// internal/processing/crosstab.go (applyOverlaysToResponse). Predict
@@ -112,9 +123,34 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 		return nil
 	}
 
-	host := buildSeriesHostFromGroupedResponse(req, resp)
-	if host == nil {
+	if len(resp.Data) == 0 {
+		// No host groups, no entries to fold over.
 		return nil
+	}
+	hosts := map[int]*SeriesHostView{}
+	// hostFor hands each spec the host scoring its params.field and the
+	// plan it partitions by (params.partition_by, or OVERLAY_YOY's
+	// non-date keys; runSeriesHandlerPartitioned runs the handler once
+	// per partition).
+	hostFor := func(i int, spec *types.OverlaySpec, kind types.OverlayKind) (*SeriesHostView, seriesPartitionPlan, error) {
+		aggIndex := 0
+		if seriesfield.Applies(kind) {
+			idx, err := seriesfield.Resolve(req.Aggregations, spec, i)
+			if err != nil {
+				return nil, seriesPartitionPlan{}, err
+			}
+			aggIndex = idx
+		}
+		plan, err := seriesPartitionFor(req, spec, kind, i)
+		if err != nil {
+			return nil, seriesPartitionPlan{}, err
+		}
+		if h, ok := hosts[aggIndex]; ok {
+			return h, plan, nil
+		}
+		h := buildSeriesHostFromGroupedResponse(req, resp, aggIndex)
+		hosts[aggIndex] = h
+		return h, plan, nil
 	}
 	// OVERLAY_YOY frequency promotion. The YoY handler reads
 	// the frequency value from spec.Params["frequency"] only; the
@@ -124,7 +160,7 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 	// spec already carries its own frequency Param (the override path),
 	// the orchestrator leaves it unchanged.
 	specs := promoteYoYFrequencyFromGroupParams(req, exts)
-	layers, warnings, err := applyOverlaysSeriesWith(specs, host, exts, compute.overlayKeep())
+	layers, warnings, err := applyOverlaysSeriesPerSpec(specs, hostFor, exts, compute.overlayKeep())
 	if err != nil {
 		return err
 	}
@@ -144,9 +180,12 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 // buildSeriesHostFromGroupedResponse builds a SeriesHostView wrapping
 // the per-group rows on resp.Data. Each row's group-key entry (under
 // req.Groups[i].Field) becomes one element of the AxisKey tuple at the
-// row's ordinal; the primary aggregator's value (under
-// AggregationLabel(req.Aggregations[0])) becomes the host's resolver
-// output for that ordinal.
+// row's ordinal; the scored aggregation's value (under
+// AggregationLabel(req.Aggregations[aggIndex])) becomes the host's
+// resolver output for that ordinal. aggIndex is the spec's resolved
+// params.field (internal/seriesfield.Resolve; 0 when absent) — resolved
+// once per spec by applyOverlaysSeriesToResponse, which every tail
+// (buffered, streaming, parallel) calls.
 //
 // Group-key extraction: the row map carries the canonical group-key
 // representation the grouped path emits (string-typed for category /
@@ -155,8 +194,8 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 // AxisKey[i] so resolveSibling and absent-key handlers see the same
 // shape they would against a Crosstab MATRIX axis.
 //
-// Resolver wiring: the primary aggregator is req.Aggregations[0]; its
-// emitted label resolves via processing.AggregationLabel. The resolver
+// Resolver wiring: the scored aggregator is req.Aggregations[aggIndex];
+// its emitted label resolves via processing.AggregationLabel. The resolver
 // returns (val, present) where val is the row's labeled value coerced
 // to float64 (via toFloat64) and present=true iff the row map carries
 // the label AND the value coerces to a finite number. RichAggregator
@@ -173,11 +212,11 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 // OVERLAY_INDEX_VS_SIBLING / OVERLAY_DELTA_VS_SIBLING spec can resolve
 // `Ref.Sibling.Field` to the matching axis-key element index without
 // scanning every element.
-func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response) *SeriesHostView {
+func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response, aggIndex int) *SeriesHostView {
 	if resp == nil || len(resp.Data) == 0 {
 		return nil
 	}
-	if len(req.Groups) == 0 || len(req.Aggregations) == 0 {
+	if len(req.Groups) == 0 || aggIndex < 0 || aggIndex >= len(req.Aggregations) {
 		return nil
 	}
 	groupFields := make([]string, 0, len(req.Groups))
@@ -186,21 +225,14 @@ func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response
 		if g == nil {
 			continue
 		}
-		groupFields = append(groupFields, g.Field)
+		// The key column the grouper writes (vectors.GroupKeyField): Field,
+		// or <TYPE>_<first field> for a vector-input grouper with none.
+		groupFields = append(groupFields, seriespartition.KeyColumns([]*types.Group{g})[0])
 		grouperKinds = append(grouperKinds, g.Type)
 	}
-	primaryLabel := AggregationLabel(req.Aggregations[0])
+	primaryLabel := AggregationLabel(req.Aggregations[aggIndex])
 	data := resp.Data
-	keys := make([]types.AxisKey, len(data))
-	for i, row := range data {
-		key := make(types.AxisKey, len(groupFields))
-		for j, field := range groupFields {
-			if v, ok := row[field]; ok {
-				key[j] = v
-			}
-		}
-		keys[i] = key
-	}
+	keys := seriespartition.RowKeys(data, groupFields)
 	resolver := func(i int) (float64, bool) {
 		if i < 0 || i >= len(data) {
 			return 0, false
@@ -227,7 +259,7 @@ func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response
 // YoY handler reads the frequency from spec.Params["frequency"] only
 // (the runtime surface is intentionally narrow — the handler does NOT
 // see req.Groups), so the orchestrator centralises the spec.Params /
-// req.Groups[0].Params fallback chain here. When the spec already
+// date-grouper Params fallback chain here. When the spec already
 // carries its own frequency Param (the override path), the slot is
 // left unchanged; when the host grouper does not carry a frequency
 // Param either, the spec is left unchanged and the runtime handler
@@ -250,11 +282,17 @@ func promoteYoYFrequencyFromGroupParams(req *types.Request, exts *ExtensionRegis
 	if len(req.Groups) == 0 {
 		return req.Overlays
 	}
-	// Read req.Groups[0].Params["frequency"] once up front. The grouper
-	// Params is a raw JSON blob; a missing / empty / non-object blob
-	// surfaces as ("", false) and the caller's slice is returned
-	// unchanged.
-	groupFrequency, hasGroupFrequency := readYoYFrequencyFromParams(req.Groups[0].Params)
+	// Read the GROUP_DATE grouper's Params["frequency"] once up front —
+	// the date grouper wherever it sits in groups (U46 E2-S3), not
+	// Groups[0]. No date grouper promotes nothing (the fold refuses the
+	// shape first). The grouper Params is a raw JSON blob; a missing /
+	// empty / non-object blob surfaces as ("", false) and the caller's
+	// slice is returned unchanged.
+	date := seriespartition.DateGrouper(req.Groups, isDateGrouper)
+	if date < 0 {
+		return req.Overlays
+	}
+	groupFrequency, hasGroupFrequency := readYoYFrequencyFromParams(req.Groups[date].Params)
 	if !hasGroupFrequency {
 		return req.Overlays
 	}
@@ -342,8 +380,15 @@ func canStreamOverlays(req *types.Request, exts *ExtensionRegistry) bool {
 		return true
 	}
 	for i := range req.Overlays {
-		streamable, known := types.OverlayStreamable(exts.overlayRoute(req.Overlays[i].Kind))
+		route := exts.overlayRoute(req.Overlays[i].Kind)
+		streamable, known := types.OverlayStreamable(route)
 		if !known {
+			return false
+		}
+		// A kind that does not run on a Process host, or not on this
+		// request's Process shape, routes buffered, whose hook raises
+		// the wrong-slot / wrong-shape refusal.
+		if !overlayhost.Accepts(overlayhost.Request, route) || !overlayhost.AcceptsShape(AuthoredHostShape(req), route) {
 			return false
 		}
 		if !streamable {

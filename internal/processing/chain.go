@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/mergegate"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -127,7 +128,8 @@ func AggregationLabel(agg *types.Aggregation) string {
 // SliceIterator over RecordsFromChainRows.
 //
 // Layout:
-//   - One categorical_u32 field per Group entry (named grp.Field),
+//   - One categorical_u32 field per Group entry (named by its key
+//     column, vectors.GroupKeyField — the Data row key the stage writes),
 //     with an empty Dictionary that the caller populates as rows are
 //     materialized.
 //   - One f64 field per Aggregation entry (named via
@@ -148,12 +150,13 @@ func ChainOutputSchema(req *types.Request) (*encoding.Schema, error) {
 		if g == nil {
 			continue
 		}
-		if _, dup := seen[g.Field]; dup {
+		key := vectors.GroupKeyField(g.Type, g)
+		if _, dup := seen[key]; dup {
 			continue
 		}
-		seen[g.Field] = struct{}{}
+		seen[key] = struct{}{}
 		fields = append(fields, encoding.Field{
-			Name:       g.Field,
+			Name:       key,
 			Type:       encoding.FieldTypeCategoricalU32,
 			Dictionary: encoding.NewDictionary(),
 		})

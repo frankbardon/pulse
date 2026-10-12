@@ -23,7 +23,7 @@ func TestApplyZCell_ScalarKnownAnswer(t *testing.T) {
 		{10, 10, 10},
 		{10, 10, 10},
 	})
-	spec := composeSpecMatrixRef(types.OverlayKindZCell, nil)
+	spec := composeSpecMatrixRef(types.OverlayKindZCell, legacyTwoSampleParams(nil))
 	layer, warnings, err := applyZCell(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {
 		t.Fatalf("applyZCell: %v", err)
@@ -49,9 +49,8 @@ func TestApplyZCell_ScalarKnownAnswer(t *testing.T) {
 //	z      = 1 / 0.8944 ≈ 1.118
 //	p      = 2*(1 - Φ(1.118)) ≈ 0.2636
 //
-// Params defaults are intentionally left at their defaults (variance=1,
-// n=2) — when a triple is present the handler MUST bypass the defaults
-// so the test pins the triple-vs-default precedence.
+// Params are left unset — when a triple is present the handler reads
+// no params at all, so the test pins that a components side needs none.
 func TestApplyZCell_TripleKnownAnswer(t *testing.T) {
 	targetTriple := WelfordTriple{Mean: 10, Variance: 4, N: 10}
 	refTriple := WelfordTriple{Mean: 9, Variance: 4, N: 10}
@@ -128,10 +127,10 @@ func TestApplyZCell_DegenerateInsufficientN(t *testing.T) {
 		{10, 10, 10},
 		{10, 10, 10},
 	})
-	spec := composeSpecMatrixRef(types.OverlayKindZCell, map[string]any{
+	spec := composeSpecMatrixRef(types.OverlayKindZCell, legacyTwoSampleParams(map[string]any{
 		"sample_size_target": 1.0,
 		"sample_size_ref":    1.0,
-	})
+	}))
 	layer, warnings, err := applyZCell(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {
 		t.Fatalf("applyZCell: %v", err)
@@ -152,10 +151,9 @@ func TestApplyZCell_DegenerateInsufficientN(t *testing.T) {
 
 // TestApplyZCell_DegenerateZeroVariance exercises the
 // both-variances-zero rejection arm. The triple path is the only way
-// to drive a degenerate variance through the handler — the Params
-// `varianceFromParams` reader clamps non-positive values back to its
-// dflt (1.0), so this test uses WelfordTriple cells with Variance=0
-// on both sides to collapse the SE.
+// to drive a degenerate variance through the handler — a non-positive
+// params variance is refused (twosample.Inputs), so this test uses
+// WelfordTriple cells with Variance=0 on both sides to collapse the SE.
 func TestApplyZCell_DegenerateZeroVariance(t *testing.T) {
 	targetTriple := WelfordTriple{Mean: 10, Variance: 0, N: 10}
 	refTriple := WelfordTriple{Mean: 9, Variance: 0, N: 10}
@@ -203,7 +201,7 @@ func TestApplyZCell_MissingRefCell(t *testing.T) {
 		{10, 10, 10},
 		{10, 10, 10},
 	})
-	spec := composeSpecMatrixRef(types.OverlayKindZCell, nil)
+	spec := composeSpecMatrixRef(types.OverlayKindZCell, legacyTwoSampleParams(nil))
 	layer, warnings, err := applyZCell(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {
 		t.Fatalf("applyZCell: %v", err)

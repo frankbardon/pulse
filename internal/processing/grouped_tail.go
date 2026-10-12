@@ -108,9 +108,11 @@ type GroupedTail struct {
 	// processor's (or the service's) resolved plan.
 	Compute ComputePlan
 
-	// PostTests runs Request.PostTests over the finished rows; nil
-	// means none (the parallel reducers' merge gate refuses post-tests).
-	PostTests func(rows []map[string]any) ([]*types.TestResult, error)
+	// PostTests runs Request.PostTests over the finished rows (per
+	// partition on a grouped request) and returns the results plus the
+	// sparse-partition warnings; nil means none (the parallel reducers'
+	// merge gate refuses post-tests).
+	PostTests func(rows []map[string]any) ([]*types.TestResult, []*types.ResponseWarning, error)
 
 	// Matrices is the run's per-bucket Request.Matrices state (nil
 	// without matrices). Its results are rendered in the FINAL Data row
@@ -194,9 +196,10 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 	}
 
 	var postResults []*types.TestResult
+	var postWarnings []*types.ResponseWarning
 	if t.PostTests != nil {
 		var err error
-		if postResults, err = t.PostTests(data); err != nil {
+		if postResults, postWarnings, err = t.PostTests(data); err != nil {
 			return nil, err
 		}
 	}
@@ -209,6 +212,7 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 		},
 		PostTests: postResults,
 		Matrices:  matrices,
+		Warnings:  postWarnings,
 	}
 
 	if t.Compute.Aggs && len(req.Aggregations) > 0 {

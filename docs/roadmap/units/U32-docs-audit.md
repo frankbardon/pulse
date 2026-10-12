@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53]
 soft_depends_on: [all feature units]
 blocks: [U33]
-todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413]
+todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413, 435]
 branch: docs-audit
 ---
 
@@ -131,6 +131,12 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(docs-audit/E<n>-S
 |---|---|
 | ~~`statistical-testing.md` budget~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #412 |
 | ~~`op-test-*` soft budgets~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #413 |
+
+## Inherited from U46
+
+Filed from [U46](U46-grouped-analysis.md); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#435** (Grouped analysis › Follow-ups from U46) `skills/op-test-trend.md` is about 30% over the `op-*` soft body budget; bring it within before #161 flips `TestSkillTokenBudget` to hard-failing. Found in U46 (E3-S2).
 
 ## Human inputs & decisions
 

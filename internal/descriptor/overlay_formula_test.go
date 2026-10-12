@@ -27,16 +27,6 @@ func TestValidateOverlay_FormulaInvalidIdent(t *testing.T) {
 			wantUnknownIdent: "undefined_var",
 		},
 		{
-			name: "series_host_rejects_matrix_var",
-			req: &types.Request{
-				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "value"}},
-				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
-			},
-			formula:          "cell + value",
-			wantErrFragment:  "cell",
-			wantUnknownIdent: "cell",
-		},
-		{
 			name: "scalar_host_rejects_series_var",
 			req: &types.Request{
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "value"}},
@@ -44,16 +34,6 @@ func TestValidateOverlay_FormulaInvalidIdent(t *testing.T) {
 			formula:          "value + total",
 			wantErrFragment:  "total",
 			wantUnknownIdent: "total",
-		},
-		{
-			name: "series_host_baseline_without_param",
-			req: &types.Request{
-				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "value"}},
-				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
-			},
-			formula:          "value / baseline",
-			wantErrFragment:  "baseline",
-			wantUnknownIdent: "baseline",
 		},
 		{
 			name: "request_host_rejects_slot_namespace",
@@ -245,40 +225,17 @@ func TestValidateOverlay_FormulaHappyPath(t *testing.T) {
 			formula: "(cell - margin_grand) / sd_grand",
 		},
 		{
-			name: "series_host_value_total_prior",
-			req: &types.Request{
-				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "value"}},
-				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
-			},
-			formula: "value / total * (value - prior)",
-		},
-		{
 			name: "scalar_host_value_only",
 			req: &types.Request{
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "value"}},
 			},
 			formula: "value * 2.0",
 		},
-		{
-			name: "series_host_baseline_opt_in",
-			req: &types.Request{
-				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "value"}},
-				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
-			},
-			formula: "value / baseline",
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			req := tc.req
-			// Build the formula spec; the baseline_position param is set
-			// on the baseline-opt-in arm.
-			var params json.RawMessage
-			if tc.name == "series_host_baseline_opt_in" {
-				params = json.RawMessage(`{"formula":"` + tc.formula + `","baseline_position":0}`)
-			} else {
-				params = json.RawMessage(`{"formula":"` + tc.formula + `"}`)
-			}
+			params := json.RawMessage(`{"formula":"` + tc.formula + `"}`)
 			req.Overlays = []types.OverlaySpec{
 				{
 					Kind:   types.OverlayKindFormula,
@@ -476,5 +433,25 @@ func TestValidateOverlay_FormulaSetHelpersAndLookup(t *testing.T) {
 				t.Fatalf("errors = %+v, want %s on %q", env.Errors, errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT, tc.wantIdent)
 			}
 		})
+	}
+}
+
+// TestValidateOverlay_FormulaSeriesHostRefusedByShape: a Process
+// OVERLAY_FORMULA runs on a MATRIX host only (its SERIES namespace
+// executes on a Compose host), so a grouped request refuses it with the
+// shared overlayhost shape refusal before any identifier walk — the
+// refusal the runtime's Process hooks raise.
+func TestValidateOverlay_FormulaSeriesHostRefusedByShape(t *testing.T) {
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "value"}},
+		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+		Overlays: []types.OverlaySpec{{Kind: types.OverlayKindFormula, Scope: types.OverlayScopeGroup,
+			Params: json.RawMessage(`{"formula":"value / total"}`)}},
+	}
+	env := descriptor.NewEnvelope(nil)
+	ValidateOverlays(env, req, nil, nil)
+	if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) ||
+		env.Errors[0].Details["shape"] != "series" {
+		t.Fatalf("errors = %+v, want one shape refusal over a series host", env.Errors)
 	}
 }

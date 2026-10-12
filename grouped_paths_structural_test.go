@@ -24,9 +24,9 @@ import (
 // a new read nor a second read in a listed function slips through.
 //
 // Legitimate reads are guarded by len(Groups) == 1 (the single-grouper
-// fast path), take Groups[0] as the outer position of a loop over every
-// grouper, or belong to OVERLAY_YOY, which refuses two or more groupers
-// (U46 #429 owns its multi-grouper semantics).
+// fast path) or take Groups[0] as the outer position of a loop over
+// every grouper. OVERLAY_YOY reads its GROUP_DATE grouper wherever it
+// sits (seriespartition.DateGrouper / YoY, U46 #429).
 
 // groupsZeroAllow maps "<slash path>:<func>" to the expected number of
 // first-grouper reads there and the reason it is legitimate.
@@ -42,12 +42,8 @@ var groupsZeroAllow = map[string]struct {
 		"the non-composite branch (t.KeySet == nil, one grouper) writes the plain key; composite rows write every column from the tuple"},
 	"internal/processing/matrix_grouped.go:BuildGroupedMatrices": {1,
 		"nil check only (no grouped matrices without a grouper); buckets key off every grouper's composite key"},
-	"internal/processing/overlay_series_response.go:promoteYoYFrequencyFromGroupParams": {1,
-		"OVERLAY_YOY frequency fallback to its GROUP_DATE grouper's Params; YoY refuses len(Groups) > 1 (applyYoY / validateOverlayYoY)"},
-	"internal/descriptor/overlay.go:validateOverlayYoY": {1,
-		"after the len(req.Groups) > 1 refusal: the one grouper must be GROUP_DATE"},
-	"internal/descriptor/overlay.go:readYoYFrequencyForPredict": {2,
-		"OVERLAY_YOY frequency fallback to its GROUP_DATE grouper's Params; YoY refuses len(Groups) > 1"},
+	"internal/seriespartition/seriespartition.go:YoY": {2,
+		"guarded by len(groups) == 1: the lone non-date grouper named in the OVERLAY_YOY refusal; N >= 2 groupers partition on every non-date key"},
 }
 
 func TestGroupedPathsReadEveryGrouper(t *testing.T) {

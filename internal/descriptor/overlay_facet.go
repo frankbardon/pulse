@@ -2,11 +2,11 @@ package descriptor
 
 import (
 	"encoding/json"
-	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -117,16 +117,11 @@ func validateFacetOverlaySpec(env *descriptor.Envelope, req *types.FacetRequest,
 			})
 		return
 	}
-	// FACET host accepts only the four FACET-host kinds. Any other
-	// kind belongs on a Request.Overlays slot, not FacetRequest.Overlays.
-	if !isFacetOverlayKind(spec.Kind) {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" is not a FACET-host kind; "+facetOverlayKindsAdvice(opts),
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"host":  "facet",
-			})
+	// A catalog kind that runs on another slot gets the shared
+	// overlayhost refusal the runtime FACET dispatcher raises, same code
+	// and Details.
+	if cerr := overlayhost.Refusal(overlayhost.Facet, spec.Kind, opts.overlayRoute(spec.Kind), index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 	// Shared shape contract — Ref.Population only, GROUP scope,
@@ -151,37 +146,6 @@ func validateFacetOverlaySpec(env *descriptor.Envelope, req *types.FacetRequest,
 	// KS_VS_POP rejects categorical). INDEX_VS_POP / ZSCORE_VS_POP
 	// accept both arms (the runtime handler dispatches internally).
 	validateFacetOverlayHostArm(env, schema, spec, hostField, index)
-}
-
-// isFacetOverlayKind reports whether kind is one of the four FACET-host
-// overlay kinds. Used as the gate for FacetRequest.Overlays — non-FACET
-// kinds belong on Request.Overlays instead.
-func isFacetOverlayKind(kind types.OverlayKind) bool {
-	switch kind {
-	case types.OverlayKindIndexVsPop,
-		types.OverlayKindZScoreVsPop,
-		types.OverlayKindChiSqVsPop,
-		types.OverlayKindKSVsPop:
-		return true
-	}
-	return false
-}
-
-// facetOverlayKindsAdvice names the FACET-host kinds FacetRequest.Overlays
-// accepts — only those the instance offers, so the refusal never
-// advertises a hidden kind.
-func facetOverlayKindsAdvice(opts *PredictOptions) string {
-	var offered []string
-	for _, k := range []types.OverlayKind{types.OverlayKindIndexVsPop, types.OverlayKindZScoreVsPop,
-		types.OverlayKindChiSqVsPop, types.OverlayKindKSVsPop} {
-		if opts.overlayRoute(k) != "" {
-			offered = append(offered, string(k))
-		}
-	}
-	if len(offered) == 0 {
-		return "FacetRequest.Overlays accepts no kind on this instance"
-	}
-	return "FacetRequest.Overlays accepts only " + strings.Join(offered, " / ")
 }
 
 // validateFacetOverlayRef enforces the Ref.Population-only contract for

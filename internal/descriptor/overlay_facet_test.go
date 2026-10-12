@@ -390,8 +390,8 @@ func TestValidateFacetOverlays_NonFacetKindOnFacetHost(t *testing.T) {
 		t.Errorf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE on non-FACET kind, got %+v", env.Errors)
 	}
 	msgs := errorMessagesContaining(env, string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE))
-	if len(msgs) == 0 || !strings.Contains(msgs[0], "FACET-host kind") {
-		t.Errorf("expected error mentioning FACET-host kind, got %+v", msgs)
+	if len(msgs) == 0 || !strings.Contains(msgs[0], "does not run on FacetRequest.Overlays; attach it to Request.Overlays") {
+		t.Errorf("expected the wrong-slot refusal naming both slots, got %+v", msgs)
 	}
 }
 

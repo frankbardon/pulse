@@ -264,6 +264,7 @@ func TestOverlay_TCell_KnownAnswer(t *testing.T) {
 	runComposeOverlayCase(t, composeOverlayCase{
 		Name:       "t_cell_3x3",
 		Kind:       types.OverlayKindTCell,
+		Params:     legacyTwoSampleParams(nil),
 		Scope:      types.OverlayScopeCell,
 		Reference:  "baseline",
 		Targets:    []string{"treatment"},
@@ -640,6 +641,7 @@ func TestComposeOverlayIntegration_AllKinds_Smoke(t *testing.T) {
 		{
 			Name:       "t_cell_3x3",
 			Kind:       types.OverlayKindTCell,
+			Params:     legacyTwoSampleParams(nil),
 			Scope:      types.OverlayScopeCell,
 			Reference:  "baseline",
 			Targets:    []string{"treatment"},
@@ -796,6 +798,7 @@ func TestComposeOverlayDispatch_ZKinds_RouteToHandlers(t *testing.T) {
 		runComposeOverlayCase(t, composeOverlayCase{
 			Name:       "z_cell_3x3",
 			Kind:       types.OverlayKindZCell,
+			Params:     legacyTwoSampleParams(nil),
 			Scope:      types.OverlayScopeCell,
 			Reference:  "baseline",
 			Targets:    []string{"treatment"},
@@ -830,6 +833,7 @@ func TestComposeOverlayDispatch_ZKinds_RouteToHandlers(t *testing.T) {
 		runComposeOverlayCase(t, composeOverlayCase{
 			Name:      "z_vs_ref_4groups",
 			Kind:      types.OverlayKindZVsRef,
+			Params:    legacyTwoSampleParams(nil),
 			Scope:     types.OverlayScopeGroup,
 			Reference: "baseline",
 			Targets:   []string{"treatment"},

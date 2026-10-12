@@ -3,6 +3,7 @@ package descriptor
 import (
 	"testing"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -145,23 +146,28 @@ func TestInferChainStageShape_NilFallthrough(t *testing.T) {
 	}
 }
 
-// TestValidateChain_OverlayKindUnknown confirms that any
-// OverlayKind outside the whole-chain catalog (today: only
-// OVERLAY_INDEX_VS_STAGE / OVERLAY_DELTA_VS_STAGE) on
-// ChainOverlaySpec.Kind raises PULSE_OVERLAY_KIND_UNKNOWN.
+// TestValidateChain_OverlayKindUnknown confirms that a kind outside the
+// overlay catalog on ChainOverlaySpec.Kind raises
+// PULSE_OVERLAY_KIND_UNKNOWN, while a catalog kind that runs on another
+// slot (here the MATRIX-host OVERLAY_INDEX_VS_MARGIN) gets the shared
+// wrong-slot refusal, PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestValidateChain_OverlayKindUnknown(t *testing.T) {
 	data := buildSimplePulseBytes(t)
-	req := twoStageScalarChainRequest([]*types.ChainOverlaySpec{
-		{
-			Kind:   types.OverlayKindIndexVsMargin, // MATRIX-host kind; not allowed on ChainRequest.Overlays
+	spec := func(kind types.OverlayKind) []*types.ChainOverlaySpec {
+		return []*types.ChainOverlaySpec{{
+			Kind:   kind,
 			Ref:    types.StageRef{Index: intPtr(0)},
 			Target: types.StageRef{Index: intPtr(1)},
 			Scope:  types.OverlayScopeCell,
-		},
-	})
-	env := ValidateChainFromBytes(data, req)
+		}}
+	}
+	env := ValidateChainFromBytes(data, twoStageScalarChainRequest(spec("OVERLAY_NOT_IN_CATALOG")))
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_KIND_UNKNOWN) {
-		t.Fatalf("expected PULSE_OVERLAY_KIND_UNKNOWN; got %+v", env.Errors)
+		t.Fatalf("out-of-catalog kind: expected PULSE_OVERLAY_KIND_UNKNOWN; got %+v", env.Errors)
+	}
+	env = ValidateChainFromBytes(data, twoStageScalarChainRequest(spec(types.OverlayKindIndexVsMargin)))
+	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) || hasErrorCode(env, errors.PULSE_OVERLAY_KIND_UNKNOWN) {
+		t.Fatalf("MATRIX kind on a chain: expected only PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE; got %+v", env.Errors)
 	}
 }
 
@@ -229,6 +235,24 @@ func TestValidateChain_OverlayStageRefXORViolated(t *testing.T) {
 	}
 }
 
+// assertShapeDivergentWarning requires PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT
+// as an envelope WARNING and never an error: the runtime answers the
+// divergence with an empty layer plus one warning, so predict-chain
+// warns too (U46 E4-S9).
+func assertShapeDivergentWarning(t *testing.T, env *descriptor.Envelope) {
+	t.Helper()
+	code := string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT)
+	if hasErrorCode(env, errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
+		t.Fatalf("PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT raised as an error: %+v", env.Errors)
+	}
+	for _, w := range env.Warnings {
+		if w.Code == code {
+			return
+		}
+	}
+	t.Fatalf("expected PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT warning; got %+v", env.Warnings)
+}
+
 // TestValidateChain_OverlayShapeDivergent exercises the MATRIX vs SERIES
 // divergence path: stage 0 carries Crosstab (MATRIX), stage 1 carries a
 // grouper + aggregator (SERIES). The spec's Ref points to stage 0 and
@@ -244,9 +268,7 @@ func TestValidateChain_OverlayShapeDivergent(t *testing.T) {
 		},
 	})
 	env := ValidateChainFromBytes(data, req)
-	if !hasErrorCode(env, errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
-		t.Fatalf("expected PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT; got %+v", env.Errors)
-	}
+	assertShapeDivergentWarning(t, env)
 }
 
 // TestValidateChain_OverlayShapeDivergent_SeriesVsScalar exercises the
@@ -263,9 +285,7 @@ func TestValidateChain_OverlayShapeDivergent_SeriesVsScalar(t *testing.T) {
 		},
 	})
 	env := ValidateChainFromBytes(data, req)
-	if !hasErrorCode(env, errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
-		t.Fatalf("expected PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT; got %+v", env.Errors)
-	}
+	assertShapeDivergentWarning(t, env)
 }
 
 // TestValidateChain_OverlayShapeMatch_HappyPath confirms that when both
@@ -392,9 +412,7 @@ func TestValidateOverlay_ChainStageShapeDivergent(t *testing.T) {
 		},
 	})
 	env := ValidateChainFromBytes(data, req)
-	if !hasErrorCode(env, errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
-		t.Fatalf("expected PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT; got %+v", env.Errors)
-	}
+	assertShapeDivergentWarning(t, env)
 	// FR-I3 echo: divergence pair must also surface on the structured
 	// result so LLM planners can budget reshapes without re-parsing
 	// envelope details.

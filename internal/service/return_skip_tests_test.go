@@ -207,11 +207,18 @@ func TestReturnSkipsTests_MultiplicityVeto(t *testing.T) {
 	if len(full.PostTests) != 1 || full.PostTests[0].PAdjusted == nil || full.PostTests[0].Multiplicity == nil || full.PostTests[0].Multiplicity.M < 3 {
 		t.Fatalf("full run's post-test not corrected over a family: %+v", full.PostTests)
 	}
+	// The request is grouped, so every test runs once per group:
+	// full.Tests holds tests x groups results, test-major (U46 E3-S1).
+	nTests := len(mk(nil, true).Tests)
+	groups := len(full.Tests) / nTests
+	if groups < 2 || len(full.Tests) != nTests*groups {
+		t.Fatalf("fixture: %d results for %d tests; want several groups each", len(full.Tests), nTests)
+	}
 	var shaped *types.Response
 	exclTests := &types.Return{Exclude: []string{"tests"}}
 	folds, _, _ := inferentialWork(t, func() { shaped = mustProcess(t, svc, mk(exclTests, true)) })
-	if want := int64(len(full.Tests) - 1); folds != want {
-		t.Errorf("multiplicity veto: %d test folds; want the %d members", folds, want)
+	if want := int64((nTests - 1) * groups); folds != want {
+		t.Errorf("multiplicity veto: %d test folds; want the %d members x groups", folds, want)
 	}
 	if !bytes.Equal(mustMarshal(t, full.PostTests), mustMarshal(t, shaped.PostTests)) {
 		t.Errorf("kept post-test moved under the tests skip\n got  %s\n want %s", mustMarshal(t, shaped.PostTests), mustMarshal(t, full.PostTests))
@@ -219,10 +226,12 @@ func TestReturnSkipsTests_MultiplicityVeto(t *testing.T) {
 	if len(shaped.Tests) != len(full.Tests) {
 		t.Fatalf("shaped run holds %d test positions; want %d, index-aligned", len(shaped.Tests), len(full.Tests))
 	}
-	if shaped.Tests[0] != nil {
-		t.Errorf("non-member test 0 was folded: %+v", shaped.Tests[0])
+	for i := 0; i < groups; i++ {
+		if shaped.Tests[i] != nil {
+			t.Errorf("non-member test 0 was folded for group %d: %+v", i, shaped.Tests[i])
+		}
 	}
-	for i := 1; i < len(full.Tests); i++ {
+	for i := groups; i < len(full.Tests); i++ {
 		if !bytes.Equal(mustMarshal(t, full.Tests[i]), mustMarshal(t, shaped.Tests[i])) {
 			t.Errorf("member test %d differs from the full run's", i)
 		}
@@ -289,8 +298,10 @@ func TestReturnSkipsTests_MergeGateArmUnchanged(t *testing.T) {
 	svc.SetShardWorkers(2)
 	mk := func(ret *types.Return, inferential bool) *types.Request {
 		r := &types.Request{
-			Cohort:       &types.Cohort{Filename: "arch.pulse"},
-			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+			Cohort: &types.Cohort{Filename: "arch.pulse"},
+			// Grouped on h, not g: a grouped test splitting on its
+			// grouper is refused (U46 E3-S1).
+			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "h"}},
 			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x", Label: "s"}},
 			Return:       ret,
 		}

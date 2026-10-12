@@ -139,13 +139,13 @@ func collectLayerSites(fams *multFamilies, key string, rm descx.ResolvedMultipli
 		collectGeometricSites(fams, key, rm, layer, site == pSiteMatrixPanel)
 		return
 	}
-	echo := func(m int) {
-		layer.Multiplicity = &types.AppliedMultiplicity{Method: method, Family: family, Alpha: alpha, M: m}
+	echo := func(m, excluded int) {
+		layer.Multiplicity = &types.AppliedMultiplicity{Method: method, Family: family, Alpha: alpha, M: m, Excluded: excluded}
 	}
 	add := func(p float64, write func(adjusted float64)) {
-		fams.add(key, family, method, multSite{p: p, write: func(adjusted float64, m int) {
+		fams.add(key, family, method, multSite{p: p, write: func(adjusted float64, m, excluded int) {
 			write(adjusted)
-			echo(m)
+			echo(m, excluded)
 		}})
 	}
 	summarySite := func(s *types.OverlaySummary, p *float64) {
@@ -194,22 +194,24 @@ func collectGeometricSites(fams *multFamilies, base string, rm descx.ResolvedMul
 		}
 	}
 	mPer := make([]int, n)
-	echo := func(idx, m int) {
-		mPer[idx] = m
-		total := 0
-		for _, v := range mPer {
+	exPer := make([]int, n)
+	echo := func(idx, m, excluded int) {
+		mPer[idx], exPer[idx] = m, excluded
+		total, totalExcluded := 0, 0
+		for i, v := range mPer {
 			total += v
+			totalExcluded += exPer[i]
 		}
-		layer.Multiplicity = &types.AppliedMultiplicity{Method: method, Family: family, Alpha: alpha, M: total, MPer: mPer}
+		layer.Multiplicity = &types.AppliedMultiplicity{Method: method, Family: family, Alpha: alpha, M: total, MPer: mPer, Excluded: totalExcluded}
 	}
 	collectMatrixSites(layer, alpha, panel, func(r, c int, p float64, write func(adjusted float64)) {
 		idx := r
 		if family == types.MultiplicityFamilyColumn {
 			idx = c
 		}
-		fams.add(geometricKey(base, idx), family, method, multSite{p: p, write: func(adjusted float64, m int) {
+		fams.add(geometricKey(base, idx), family, method, multSite{p: p, write: func(adjusted float64, m, excluded int) {
 			write(adjusted)
-			echo(idx, m)
+			echo(idx, m, excluded)
 		}})
 	})
 }

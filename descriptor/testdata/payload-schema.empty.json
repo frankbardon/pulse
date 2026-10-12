@@ -2106,6 +2106,13 @@
             "null"
           ]
         },
+        "group_key": {
+          "items": true,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "label": {
           "type": "string"
         },
@@ -2220,4 +2227,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: adfa05ade76d4ff77d913119c624345c6805c46925d634ef20a282cfcb3fe3f9
+// golden-hash: 76a68341d4340d1e5414aefa1dd987d25fb39f57dfc81db260205e8c2d6fb8ab

@@ -130,7 +130,8 @@ type lowNEffReporter interface {
 
 // applyLowNEff attaches one PULSE_WEIGHT_LOW_NEFF warning per short
 // group the finalized row tests recorded — details {test, type, group
-// (split tests only), n_eff, min_required} — or, under strict, returns
+// (split tests only), group_key (a grouped run's bucket), n_eff,
+// min_required} — or, under strict, returns
 // the first as an error instead.
 func applyLowNEff(resp *types.Response, entries []rowTestEntry, strict bool) error {
 	if resp == nil {
@@ -147,6 +148,12 @@ func applyLowNEff(resp *types.Response, entries []rowTestEntry, strict bool) err
 			if l.split {
 				details["group"] = l.group
 				where = fmt.Sprintf(" group %q", l.group)
+			}
+			// A grouped run's entry folds one bucket: its warning names
+			// the bucket's group_key (one per short group per bucket).
+			if e.groupKey != nil {
+				details["group_key"] = e.groupKey
+				where = fmt.Sprintf(" in group_key %v", []any(e.groupKey)) + where
 			}
 			msg := fmt.Sprintf("%s%s: effective sample size n_eff = %.4g is below the %d the test needs; its inference reads n_eff and is fragile", l.label, where, l.nEff, l.min)
 			if strict {

@@ -298,8 +298,18 @@ func TestExtensions_TestsAuthoredAgainstExtend(t *testing.T) {
 		Tests:        []*types.Test{{Type: "TEST_ACME_E2E_SUM", Field: "score", Label: "sum"}},
 		PostTests:    []*types.Test{{Type: "TEST_ACME_E2E_ROWS", Field: "s", Label: "rows"}},
 	})
-	if len(resp.Tests) != 1 || resp.Tests[0].Statistic != want {
-		t.Errorf("tier-1 tests = %+v; want statistic %v", resp.Tests, want)
+	// Grouped, the extension row test runs once per region (U46 E3-S1):
+	// one result per Data row, each carrying its group_key, the
+	// per-group sums adding up to the whole-set sum.
+	var total float64
+	for i, r := range resp.Tests {
+		if i < len(resp.Data) && (len(r.GroupKey) != 1 || r.GroupKey[0] != resp.Data[i]["region"]) {
+			t.Errorf("tier-1 tests[%d] group_key %v; want Data[%d]'s region", i, r.GroupKey, i)
+		}
+		total += r.Statistic
+	}
+	if len(resp.Tests) != len(resp.Data) || total != want {
+		t.Errorf("tier-1 tests = %+v; want one per group summing to %v", resp.Tests, want)
 	}
 	if len(resp.PostTests) != 1 || resp.PostTests[0].Statistic != float64(len(resp.Data)) || len(resp.Data) != 4 {
 		t.Errorf("tier-2 tests = %+v over %d rows; want statistic 4", resp.PostTests, len(resp.Data))

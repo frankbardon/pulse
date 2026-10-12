@@ -3,6 +3,7 @@ package processing
 import (
 	stderrors "errors"
 	"math"
+	"reflect"
 	"testing"
 
 	pulseerrors "github.com/frankbardon/pulse/errors"
@@ -329,7 +330,7 @@ func TestApplyTCell_KnownAnswer(t *testing.T) {
 		{10, 10, 10},
 		{10, 10, 10},
 	})
-	spec := composeSpecMatrixRef(types.OverlayKindTCell, nil)
+	spec := composeSpecMatrixRef(types.OverlayKindTCell, legacyTwoSampleParams(nil))
 	layer, _, err := applyTCell(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {
 		t.Fatalf("applyTCell: %v", err)
@@ -585,7 +586,7 @@ func TestApplyComposeOverlays_SixKindsDispatch(t *testing.T) {
 		{Kind: types.OverlayKindIndexVsRef, Scope: types.OverlayScopeCell, Reference: "baseline", Targets: []string{"treatment"}},
 		{Kind: types.OverlayKindDeltaVsRef, Scope: types.OverlayScopeCell, Reference: "baseline", Targets: []string{"treatment"}},
 		{Kind: types.OverlayKindPropZCell, Scope: types.OverlayScopeCell, Reference: "baseline", Targets: []string{"treatment"}},
-		{Kind: types.OverlayKindTCell, Scope: types.OverlayScopeCell, Reference: "baseline", Targets: []string{"treatment"}},
+		{Kind: types.OverlayKindTCell, Scope: types.OverlayScopeCell, Reference: "baseline", Targets: []string{"treatment"}, Params: legacyTwoSampleParams(nil)},
 		{Kind: types.OverlayKindChiSqVsRef, Scope: types.OverlayScopeMatrix, Reference: "baseline", Targets: []string{"treatment"}},
 		{Kind: types.OverlayKindRank, Scope: types.OverlayScopeCell, Reference: "baseline", Targets: []string{"treatment"}},
 	}
@@ -844,7 +845,7 @@ func TestApplyTCell_ScalarFallbackByteIdentical(t *testing.T) {
 		{10, 10, 10},
 		{10, 10, 10},
 	})
-	spec := composeSpecMatrixRef(types.OverlayKindTCell, nil)
+	spec := composeSpecMatrixRef(types.OverlayKindTCell, legacyTwoSampleParams(nil))
 	layer, warnings, err := applyTCell(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {
 		t.Fatalf("applyTCell: %v", err)
@@ -934,6 +935,79 @@ func TestApplyPropZCell_MissingRowMarginIsNaN(t *testing.T) {
 			}
 			if n != 3 {
 				t.Errorf("row-0 REF_ZERO warnings = %d, want 3 (one per affected cell)", n)
+			}
+		})
+	}
+}
+
+// legacyTwoSampleParams merges the explicit per-side inputs the
+// two-sample handlers once defaulted to (variance 1, sample size 2 on
+// both sides, via the symmetric keys) under extra. A scalar side has no
+// default any more (U46 E4-S16); the known answers below keep their
+// figures by supplying them.
+func legacyTwoSampleParams(extra map[string]any) map[string]any {
+	out := map[string]any{"variance": 1.0, "sample_size": 2.0}
+	for k, v := range extra {
+		out[k] = v
+	}
+	return out
+}
+
+// TestTwoSampleHandlers_ScalarSideRequiresParams: every two-sample
+// handler, reached through the bare entry (no Requests to judge), refuses
+// a scalar side whose variance / sample size params are absent or
+// unusable — PULSE_OVERLAY_PARAM_MISSING naming the side and its keys —
+// instead of computing from variance 1, n 2 (U46 E4-S16).
+func TestTwoSampleHandlers_ScalarSideRequiresParams(t *testing.T) {
+	matrix := func() (*types.Response, *types.Response) {
+		return makeMatrixFromValues([3][3]float64{{9, 9, 9}, {9, 9, 9}, {9, 9, 9}}),
+			makeMatrixFromValues([3][3]float64{{10, 10, 10}, {10, 10, 10}, {10, 10, 10}})
+	}
+	series := func() (*types.Response, *types.Response) {
+		return makeSeriesResponse([]string{"north", "south"}, []float64{9, 9}),
+			makeSeriesResponse([]string{"north", "south"}, []float64{10, 10})
+	}
+	type handler func(*types.ComposeOverlaySpec, *types.Response, []*types.Response, int, []int) (types.OverlayLayer, []types.OverlayWarning, error)
+	kinds := []struct {
+		kind  types.OverlayKind
+		apply handler
+		slots func() (*types.Response, *types.Response)
+		spec  func(types.OverlayKind, map[string]any) types.ComposeOverlaySpec
+	}{
+		{types.OverlayKindTCell, applyTCell, matrix, composeSpecMatrixRef},
+		{types.OverlayKindZCell, applyZCell, matrix, composeSpecMatrixRef},
+		{types.OverlayKindTVsRef, applyTVsRef, series, composeSpecSeriesRef},
+		{types.OverlayKindZVsRef, applyZVsRef, series, composeSpecSeriesRef},
+	}
+	cases := []struct {
+		name    string
+		params  map[string]any
+		side    string
+		missing []string
+	}{
+		{"no params", nil, "target", []string{"variance_target", "sample_size_target"}},
+		{"target only", map[string]any{"variance_target": 1.0, "sample_size_target": 2.0}, "reference", []string{"variance_ref", "sample_size_ref"}},
+		{"zero variance", map[string]any{"variance": 0.0, "sample_size": 2.0}, "target", []string{"variance_target"}},
+		{"string size", map[string]any{"variance": 1.0, "sample_size": "2"}, "target", []string{"sample_size_target"}},
+	}
+	for _, k := range kinds {
+		for _, c := range cases {
+			t.Run(string(k.kind)+"/"+c.name, func(t *testing.T) {
+				ref, target := k.slots()
+				spec := k.spec(k.kind, c.params)
+				_, _, err := k.apply(&spec, ref, []*types.Response{target}, 0, []int{1})
+				ce, ok := err.(*pulseerrors.CodedError)
+				if !ok || ce.Code != pulseerrors.PULSE_OVERLAY_PARAM_MISSING || ce.Details["side"] != c.side ||
+					!reflect.DeepEqual(ce.Details["params"], c.missing) || ce.Details["reason"] != "params_missing" {
+					t.Fatalf("err = %v, want PULSE_OVERLAY_PARAM_MISSING side %s params %v", err, c.side, c.missing)
+				}
+			})
+		}
+		t.Run(string(k.kind)+"/symmetric params run", func(t *testing.T) {
+			ref, target := k.slots()
+			spec := k.spec(k.kind, legacyTwoSampleParams(nil))
+			if _, _, err := k.apply(&spec, ref, []*types.Response{target}, 0, []int{1}); err != nil {
+				t.Fatal(err)
 			}
 		})
 	}

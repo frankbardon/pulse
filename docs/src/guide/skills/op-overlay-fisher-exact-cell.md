@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_FISHER_EXACT_CELL
 description: Per-cell Fisher's exact two-sided p-value over a 2×2 contingency formed from each host crosstab cell + its margins.
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, hypothesis-test, exact-test, small-sample]
 ```
 
@@ -52,6 +52,7 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors host Ro
 - `grand_total <= 0` → absent cells everywhere + ONE `PULSE_OVERLAY_REF_ZERO`.
 - Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Buffered (inherent).
+- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 
 ## See
 

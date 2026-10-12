@@ -1,10 +1,12 @@
 package descriptor
 
 import (
+	"math"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/groupedtests"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -25,7 +27,8 @@ var pvalueBasisRank = map[string]int{
 // countPValues builds PredictResult.PValues for req (defaults resolved)
 // over schema, under plan (ResolveMultiplicity's; nil when nothing names
 // a block, so nothing is corrected). Tests and post-tests contribute one
-// p-value each, the Tukey HSD post-test none (already corrected). An
+// p-value each — a grouped request's tier-1 tests one per group and its
+// post-tests one per partition (see below) — the Tukey HSD post-test none (already corrected). An
 // inferential overlay kind contributes the p-values its payload carries,
 // derived from the crosstab axes' dictionaries where an axis is one
 // GROUP_CATEGORY over a categorical or packed_bool field, else counted
@@ -46,10 +49,23 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 	if plan != nil {
 		tests, postTests, overlays = plan.Tests, plan.PostTests, plan.Overlays
 	}
+	// A grouped request runs every tier-1 test once per group: each
+	// contributes the EstimateGroups bound (an upper bound read off the
+	// dictionaries) or, when a grouper's keys depend on the data, one
+	// p-value as a lower bound.
+	perTest, perTestBasis := groupsPValues(req.Groups, schema, inst)
+	// A grouped request runs every post-test once per partition — the
+	// leading PostTestDepth keys (every key but the last by default).
+	perPost, perPostBasis := 1, descriptor.PValueBasisExact
+	if depth, err := groupedtests.PostTestDepth(req.PostTests, req.Groups); err == nil && depth > 0 {
+		perPost, perPostBasis = groupsPValues(req.Groups[:depth], schema, inst)
+	}
 	for _, tier := range []struct {
-		list []*types.Test
-		plan []ResolvedMultiplicity
-	}{{req.Tests, tests}, {req.PostTests, postTests}} {
+		list  []*types.Test
+		plan  []ResolvedMultiplicity
+		n     int
+		basis string
+	}{{req.Tests, tests, perTest, perTestBasis}, {req.PostTests, postTests, perPost, perPostBasis}} {
 		for i, t := range tier.list {
 			if t == nil {
 				continue
@@ -58,7 +74,7 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 			if routed == types.TEST_TUKEY_HSD || (!isKnownTestType(routed) && !isExtensionTestType(opts, t.Type)) {
 				continue
 			}
-			add(1, descriptor.PValueBasisExact, member(tier.plan, i))
+			add(tier.n, tier.basis, member(tier.plan, i))
 		}
 	}
 	rows, cols := 0, 0
@@ -79,6 +95,20 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 		return nil
 	}
 	return out
+}
+
+// groupsPValues is how many times a test runs over groups' buckets and
+// on what basis: once (exact) ungrouped; else the EstimateGroups bound
+// (an upper bound read off the dictionaries), or one as a lower bound
+// when a grouper's keys depend on the data.
+func groupsPValues(groups []*types.Group, schema *encoding.Schema, inst *InstanceSnapshot) (int, string) {
+	if len(groups) == 0 {
+		return 1, descriptor.PValueBasisExact
+	}
+	if g, ok := EstimateGroups(groups, schema, inst, -1); ok && g > 0 && g <= math.MaxInt32 {
+		return int(g), descriptor.PValueBasisDictionary
+	}
+	return 1, descriptor.PValueBasisLowerBound
 }
 
 // axisBuckets is the bucket count of a crosstab axis read off the

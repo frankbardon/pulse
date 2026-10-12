@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_DELTA_VS_MARGIN
 description: Per-cell additive delta against the matching axis margin (cell − margin).
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, before-after]
 ```
 
@@ -42,6 +42,7 @@ MATRIX — `OverlayLayer.Payload.Matrix.Cells[r][c].Value` = `cell - margin`. Mi
 - No division — never raises `PULSE_OVERLAY_REF_ZERO`. Unlike the margin index and the share overlays.
 - `Axis = grand` is supported (all three axes).
 - Buffered (inherent — host crosstab path always recomputes margins from raw rows).
+- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 
 ## See
 

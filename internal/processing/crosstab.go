@@ -48,6 +48,18 @@ type CrosstabAxisPartition struct {
 // multi-grouper partitioning without going through the full Process
 // pipeline.
 func (p *Processor) PartitionByAxis(axis []*types.Group, records []*Record) (*CrosstabAxisPartition, error) {
+	return p.partitionByAxis(axis, records, nil, nil)
+}
+
+// partitionByAxis is PartitionByAxis that, when warns is non-nil,
+// collects the warnings of every params.fit "within" refit it runs
+// (refitWarnings), each stamped with its outer segment: outer (the
+// tuple of the composite positions before axis[0] — empty for the row
+// axis, the row tuple for a per-row-bucket column partition) plus this
+// axis's own prefix. Only RunCrosstab's two cell partitions collect, so
+// each outer bucket's refit is reported once; the margin, normalisation
+// and component passes refit too but stay silent.
+func (p *Processor) partitionByAxis(axis []*types.Group, records []*Record, outer types.AxisKey, warns *[]*types.ResponseWarning) (*CrosstabAxisPartition, error) {
 	if len(axis) == 0 {
 		recs := records
 		if recs == nil {
@@ -73,19 +85,25 @@ func (p *Processor) PartitionByAxis(axis []*types.Group, records []*Record) (*Cr
 	ApplyGrouperExtensions(grouper, p.exts)
 	var buckets map[string][]*Record
 	order := buildIncludeFilter(grp.Include)
-	if ws := p.wholeSetAxes[grp]; ws != nil {
-		// A whole-set axis (GROUP_KMEANS) was fitted once over every
-		// filtered record (fitWholeSetAxes); this level only routes its
-		// records by that assignment, so a nested position — and the
+	if ws := p.wholeSetAxes[grp]; ws != nil && ws.route {
+		// A whole-set axis (GROUP_QUANTILE / GROUP_KMEANS under
+		// params.fit "global") was fitted once over every filtered
+		// record (fitWholeSetAxes); this level only routes its records
+		// by that assignment, so a nested position — and the
 		// per-row-bucket column partition — never refits a subset.
 		buckets = ws.partition(records)
-		order = ws.order
+		if ws.order != nil {
+			order = ws.order
+		}
 	} else {
 		if buckets, err = grouper.Group(records, grp.Field); err != nil {
 			return nil, err
 		}
 		if eo, ok := grouper.(emissionOrderer); ok {
 			order = eo.emissionOrder()
+		}
+		if warns != nil {
+			*warns = append(*warns, refitWarnings(grouper, outer)...)
 		}
 	}
 
@@ -115,7 +133,11 @@ func (p *Processor) PartitionByAxis(axis []*types.Group, records []*Record) (*Cr
 	}
 
 	for _, k := range headKeys {
-		child, err := p.PartitionByAxis(axis[1:], buckets[k])
+		var childOuter types.AxisKey
+		if warns != nil {
+			childOuter = append(append(make(types.AxisKey, 0, len(outer)+1), outer...), k)
+		}
+		child, err := p.partitionByAxis(axis[1:], buckets[k], childOuter, warns)
 		if err != nil {
 			return nil, err
 		}
@@ -296,6 +318,8 @@ func (p *Processor) axisComponentsFor(axis []*types.Group, filtered []*Record) (
 		}
 		ApplyGrouperExtensions(grouper, p.exts)
 		if ws := p.wholeSetAxes[grp]; ws != nil {
+			// Whole-set fit (a "within" position's too: its Components
+			// describe the whole-set fit, as on plain groups).
 			out[i] = ws.components
 			continue
 		}
@@ -515,9 +539,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	if err != nil {
 		return nil, err
 	}
-	// Whole-set axis groupers (GROUP_KMEANS) fit once over the filtered
-	// set before any partition; their warnings join the attribute
-	// pass's.
+	// Whole-set axis groupers (GROUP_QUANTILE / GROUP_KMEANS under
+	// params.fit "global") fit once over the filtered set before any
+	// partition; their warnings join the attribute pass's.
 	axisWarnings, err := p.fitWholeSetAxes(spec, filtered)
 	if err != nil {
 		return nil, err
@@ -528,7 +552,11 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	totalRows := int64(len(records))
 	filteredRows := int64(len(filtered))
 
-	rowPart, err := p.PartitionByAxis(spec.Rows, filtered)
+	// refitWarns collects the params.fit "within" refits of the two
+	// cell partitions (rows over the filtered set, columns per row
+	// bucket), each naming its outer segment — the plain-groups set.
+	var refitWarns []*types.ResponseWarning
+	rowPart, err := p.partitionByAxis(spec.Rows, filtered, types.AxisKey{}, &refitWarns)
 	if err != nil {
 		return nil, err
 	}
@@ -589,12 +617,12 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		cellComponents = make(map[crosstabCellKey]map[string]any, len(rowPart.Keys)*len(colPart.Keys))
 	}
 
-	for _, rkey := range rowPart.Keys {
+	for ri, rkey := range rowPart.Keys {
 		rowRecs := rowPart.Records[rkey]
 		if len(rowRecs) == 0 {
 			continue
 		}
-		innerCol, err := p.PartitionByAxis(spec.Columns, rowRecs)
+		innerCol, err := p.partitionByAxis(spec.Columns, rowRecs, rowPart.Tuples[ri], &refitWarns)
 		if err != nil {
 			return nil, err
 		}
@@ -974,7 +1002,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		},
 		Tests: testResults,
 		// Fit warnings from the attribute pass (declared order).
-		Warnings: attrWarnings,
+		Warnings: append(attrWarnings, refitWarns...),
 	}
 
 	shape := spec.ShapeOrDefault()
@@ -1069,7 +1097,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// cell-row view; for shape=long the cell rows are already
 	// addressable as the non-margin subset of resp.Data.
 	postRows := buildCellRowsForPostTest(spec, rowPart, colPart, cellValues, cellPresent, cellLabel)
-	postResults, err := p.runPostTests(req.PostTests, postRows)
+	postResults, _, err := p.runPostTests(req.PostTests, nil, postRows)
 	if err != nil {
 		return nil, err
 	}
@@ -1150,6 +1178,12 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *ExtensionRegistry, compute ComputePlan) error {
 	if req == nil || len(req.Overlays) == 0 || !compute.Overlays {
 		return nil
+	}
+	// A Compose, whole-chain or FACET kind on Request.Overlays, or a
+	// SERIES-only kind over this MATRIX host — the shared wrong-slot /
+	// wrong-shape refusals predict raises first (ValidateOverlays).
+	if err := refuseWrongHostOverlays(req, exts, compute.overlayKeep()); err != nil {
+		return err
 	}
 	// Distinct-key slab partition gate — the RUNTIME twin of the predict
 	// arm in descriptor.validateOverlayPairwise. It lives here rather

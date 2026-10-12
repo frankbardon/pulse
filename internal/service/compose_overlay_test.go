@@ -9,6 +9,15 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
+// testComposeStubKind / testComposeStubKind2 are kinds outside the
+// catalog, the only kinds that still reach the Compose chassis stub:
+// every catalog kind has a Compose handler or is refused by the shared
+// wrong-slot gate.
+const (
+	testComposeStubKind  types.OverlayKind = "OVERLAY_TEST_COMPOSE_STUB"
+	testComposeStubKind2 types.OverlayKind = "OVERLAY_TEST_COMPOSE_STUB_2"
+)
+
 // composeOverlayBaseRequest builds a 2-slot ComposedRequest of simple
 // AGG_COUNT-on-score requests, each carrying a caller-supplied label.
 // Used by the COMPOSE-host overlay barrier tests to exercise the
@@ -74,7 +83,7 @@ func TestCompose_StubOverlayRoundTrip(t *testing.T) {
 	composed.Overlays = []types.ComposeOverlaySpec{
 		{
 			Name:      "stub_layer_one",
-			Kind:      types.OverlayKindIndexVsStage,
+			Kind:      testComposeStubKind,
 			Scope:     types.OverlayScopeTotal,
 			Reference: "baseline",
 			Targets:   []string{"treatment"},
@@ -99,14 +108,14 @@ func TestCompose_StubOverlayOrderPreserved(t *testing.T) {
 	composed.Overlays = []types.ComposeOverlaySpec{
 		{
 			Name:      "first",
-			Kind:      types.OverlayKindIndexVsStage,
+			Kind:      testComposeStubKind,
 			Scope:     types.OverlayScopeTotal,
 			Reference: "baseline",
 			Targets:   []string{"treatment"},
 		},
 		{
 			Name:      "second",
-			Kind:      types.OverlayKindDeltaVsStage,
+			Kind:      testComposeStubKind2,
 			Scope:     types.OverlayScopeTotal,
 			Reference: "baseline",
 			Targets:   []string{"treatment"},
@@ -144,10 +153,10 @@ func TestCompose_StubOverlayOrderPreserved(t *testing.T) {
 	if got, want := layers[1].Name, "second"; got != want {
 		t.Errorf("layers[1].Name = %q, want %q", got, want)
 	}
-	if got, want := layers[0].Kind, types.OverlayKindIndexVsStage; got != want {
+	if got, want := layers[0].Kind, testComposeStubKind; got != want {
 		t.Errorf("layers[0].Kind = %q, want %q", got, want)
 	}
-	if got, want := layers[1].Kind, types.OverlayKindDeltaVsStage; got != want {
+	if got, want := layers[1].Kind, testComposeStubKind2; got != want {
 		t.Errorf("layers[1].Kind = %q, want %q", got, want)
 	}
 }
@@ -193,14 +202,14 @@ func TestComposeParallel_StubOverlayRoundTrip(t *testing.T) {
 	composed.Overlays = []types.ComposeOverlaySpec{
 		{
 			Name:      "first",
-			Kind:      types.OverlayKindIndexVsStage,
+			Kind:      testComposeStubKind,
 			Scope:     types.OverlayScopeTotal,
 			Reference: "baseline",
 			Targets:   []string{"treatment"},
 		},
 		{
 			Name:      "second",
-			Kind:      types.OverlayKindDeltaVsStage,
+			Kind:      testComposeStubKind2,
 			Scope:     types.OverlayScopeTotal,
 			Reference: "baseline",
 			Targets:   []string{"treatment"},
@@ -276,7 +285,7 @@ func TestCompose_FailFast_SkipsOverlays(t *testing.T) {
 		Overlays: []types.ComposeOverlaySpec{
 			{
 				Name:      "should_not_run",
-				Kind:      types.OverlayKindIndexVsStage,
+				Kind:      testComposeStubKind,
 				Scope:     types.OverlayScopeTotal,
 				Reference: "broken",
 				Targets:   []string{"ok"},
@@ -316,7 +325,7 @@ func TestCompose_NoFailFast_RunsOverlaysOnSucceededSlots(t *testing.T) {
 	composed.Overlays = []types.ComposeOverlaySpec{
 		{
 			Name:      "ran",
-			Kind:      types.OverlayKindIndexVsStage,
+			Kind:      testComposeStubKind,
 			Scope:     types.OverlayScopeTotal,
 			Reference: "baseline",
 			Targets:   []string{"treatment"},

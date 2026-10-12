@@ -414,6 +414,8 @@ func TestComposeOverlayParity_OVERLAY_T_CELL(t *testing.T) {
 		scope:   types.OverlayScopeCell,
 		targets: 1,
 		shape:   "matrix",
+		// A scalar side needs explicit variance / sample size (U46 E4-S16).
+		params: map[string]any{"variance": 1.0, "sample_size": 2.0},
 	})
 }
 
@@ -427,6 +429,8 @@ func TestComposeOverlayParity_OVERLAY_T_VS_REF(t *testing.T) {
 		scope:   types.OverlayScopeGroup,
 		targets: 1,
 		shape:   "series",
+		// A scalar side needs explicit variance / sample size (U46 E4-S16).
+		params: map[string]any{"variance": 1.0, "sample_size": 2.0},
 	})
 }
 
@@ -438,6 +442,8 @@ func TestComposeOverlayParity_OVERLAY_Z_CELL(t *testing.T) {
 		scope:   types.OverlayScopeCell,
 		targets: 1,
 		shape:   "matrix",
+		// A scalar side needs explicit variance / sample size (U46 E4-S16).
+		params: map[string]any{"variance": 1.0, "sample_size": 2.0},
 	})
 }
 
@@ -449,6 +455,8 @@ func TestComposeOverlayParity_OVERLAY_Z_VS_REF(t *testing.T) {
 		scope:   types.OverlayScopeGroup,
 		targets: 1,
 		shape:   "series",
+		// A scalar side needs explicit variance / sample size (U46 E4-S16).
+		params: map[string]any{"variance": 1.0, "sample_size": 2.0},
 	})
 }
 

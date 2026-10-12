@@ -306,8 +306,10 @@ func explainCases(t *testing.T) []explainCase {
 		out = append(out, explainCase{"explain.request." + string(d) + ".json", descriptor.ExplainRequest{
 			Detail: d,
 			Request: &types.Request{
-				Cohort:       &types.Cohort{Filename: recommendGoldenCohort},
-				Groups:       []*types.Group{{Field: "region"}},
+				Cohort: &types.Cohort{Filename: recommendGoldenCohort},
+				// Grouped by plan, not region: a grouped test runs once per
+				// group, and a split on its own grouper is refused.
+				Groups:       []*types.Group{{Field: "plan"}},
 				Aggregations: []*types.Aggregation{{Field: "revenue"}, {Type: types.AGG_AVERAGE, Field: "score"}},
 				Tests:        []*types.Test{{Type: types.TEST_T, Field: "score", SplitBy: "region"}},
 			},

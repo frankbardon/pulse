@@ -44,7 +44,7 @@ Floor `{n, n_null}` — a row is present when ANY member answered (weighted adds
 
 ## Gotchas
 
-- Array-valued: refused (`PROCESSING_CONFIG`, reason `array_valued`) as a crosstab cell, a Sort key, a window or post-test input, an overlay host (request, Compose, whole-chain) and a chain stage feeding another.
+- Array-valued: refused (`PROCESSING_CONFIG`, reason `array_valued`) as a crosstab cell, a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: `params.field` where the kind honours it, else `aggregations[0]` — an unscored one beside it runs) and a chain stage feeding another.
 - Expanded columns are presentation only — refused in the same places. A `return` path cannot name a bracketed column: keep them with `data[*].<label>*`.
 
 ## See

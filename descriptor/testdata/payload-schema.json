@@ -212,6 +212,9 @@
             "null"
           ]
         },
+        "excluded": {
+          "type": "integer"
+        },
         "family": {
           "$ref": "#/$defs/MultiplicityFamily"
         },
@@ -4156,6 +4159,13 @@
             "null"
           ]
         },
+        "group_key": {
+          "items": true,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "label": {
           "type": "string"
         },
@@ -4451,4 +4461,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: f664e3a1e88bde2017b0b01515ee3b86b35331b2c73245ba6121f8efc53dba2c
+// golden-hash: e1dd9f9da71dd9f622f0a279e859226a3e368a9750a767fa31ddbce9a0f0837b

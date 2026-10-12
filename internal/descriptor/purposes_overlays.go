@@ -75,7 +75,7 @@ const (
 		"to add adjusted p-values beside the raw ones."
 	overlayWelfordInputs = "Cells must use AGG_WELFORD, which supplies each cell's mean, variance and n. Without it the test " +
 		"uses one variance and n per side for every cell (params variance_target / variance_ref / sample_size_target / " +
-		"sample_size_ref, default variance 1 and n 2). Those p-values describe the values you supplied, not each cell's own " +
+		"sample_size_ref, required: there is no default). Those p-values describe the values you supplied, not each cell's own " +
 		"spread, and they change with the measure's units."
 	overlayDescriptiveZ = "It describes rather than tests: there is no p-value behind it, and a value of 2 or 3 is not a " +
 		"probability statement about the data."
@@ -575,7 +575,7 @@ var (
 			{When: "you want the size of the change rather than a p-value", Use: "OVERLAY_DELTA_VS_REF"},
 		},
 		Assumptions: []string{
-			"Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, default variance 1 and n 2); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.",
+			"Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, required: there is no default); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.",
 			"Target and reference are separate, independent samples. Equal variances are not assumed, and each mean should be roughly normal.",
 			"The null hypothesis is equal means in the group; the two-sided p-value is carried in summary.statistic.",
 			"Each group is a separate test, so with many groups some small p-values turn up by luck; to adjust for multiple comparisons, " + overlayCorrectWith,
@@ -606,7 +606,7 @@ var (
 			{When: "you want the size of the change rather than a p-value", Use: "OVERLAY_DELTA_VS_REF"},
 		},
 		Assumptions: []string{
-			"Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, default variance 1 and n 2); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.",
+			"Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, required: there is no default); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.",
 			"Target and reference are separate, independent samples. It reads p from the normal curve, so with small groups the p-values come out too small.",
 			"The null hypothesis is equal means in the group; the two-sided p-value is carried in summary.statistic.",
 			"Each group is a separate test, so with many groups some small p-values turn up by luck; to adjust for multiple comparisons, " + overlayCorrectWith,

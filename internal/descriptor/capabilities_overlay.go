@@ -4,6 +4,8 @@ import (
 	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/seriesfield"
+	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -72,6 +74,7 @@ func OverlayCapabilities() []descriptor.OverlayCapability {
 	for _, k := range kinds {
 		streamable, _ := types.OverlayStreamable(k)
 		entry := overlayCapabilityFor(k)
+		entry.Description += seriesFieldNoteFor(k)
 		entry.Buffered = !streamable
 		entry.Zone = ZoneCapabilityOf(string(k))
 		sort.Slice(entry.Shapes, func(i, j int) bool {
@@ -86,6 +89,69 @@ func OverlayCapabilities() []descriptor.OverlayCapability {
 	}
 	return caps
 }
+
+// seriesFieldNoteFor is the params.field note closing kind's
+// Description on every manifest surface that lists it (Manifest.Overlays
+// and the ProcessChain capability block): the host family's note, else
+// "".
+func seriesFieldNoteFor(k types.OverlayKind) string {
+	switch {
+	case seriespartition.Ordered(k):
+		return seriesFieldNote + seriesPartitionNote + seriesAxisNote
+	case seriespartition.Applies(k):
+		return seriesFieldNote + seriesPartitionNote + seriesTotalNote
+	case seriesfield.Applies(k):
+		return seriesFieldNote
+	case seriesfield.AppliesCompose(k):
+		return composeSeriesFieldNote
+	case seriesfield.AppliesChain(k):
+		return chainSeriesFieldNote
+	}
+	return ""
+}
+
+// seriesFieldNote closes the Description of every series kind that
+// scores one host aggregation (internal/seriesfield): the params.field
+// rule, stated once so the twelve rows cannot drift.
+const seriesFieldNote = " Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL " +
+	"Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. " +
+	"A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime."
+
+// seriesPartitionNote follows seriesFieldNote on every kind that runs
+// once per partition of a composite-row host
+// (internal/seriespartition): the params.partition_by rule. An ordered
+// kind (seriespartition.Ordered) adds seriesAxisNote; a _TOTAL kind adds
+// seriesTotalNote.
+const seriesPartitionNote = " Partition: with two or more groupers the overlay runs once per partition, the rows sharing " +
+	"the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); " +
+	"partitions match by key equality, so a sort may interleave them. A list " +
+	"that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime."
+
+// seriesAxisNote closes the partition note of an ordered kind: the
+// series runs down the last grouper, and predict advises when that axis
+// is not a date grouper.
+const seriesAxisNote = " The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, " +
+	"predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE."
+
+// seriesTotalNote closes the partition note of a _TOTAL kind: each row
+// is scored against its partition's total, and [] restores the grand
+// total.
+const seriesTotalNote = " Each row is scored against its partition's total (and, for the z-score, its partition's mean and SD); " +
+	"partition_by [] restores the grand total over every row."
+
+// composeSeriesFieldNote closes the Description of every Compose kind
+// whose SERIES arm scores one slot aggregation
+// (seriesfield.AppliesCompose).
+const composeSeriesFieldNote = " Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores " +
+	"the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on every slot it reads; " +
+	"absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime."
+
+// chainSeriesFieldNote closes the Description of every whole-chain
+// kind whose SERIES arm scores one stage aggregation
+// (seriesfield.AppliesChain).
+const chainSeriesFieldNote = " Measure: on SERIES stages the overlay keys each row on the stage's group columns alone and scores " +
+	"the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on the target and the reference stage; " +
+	"absent, each stage's Aggregations[0]. A label a stage lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.which, stage_index) at predict and at runtime."
 
 // overlayCapabilityFor returns the static per-kind capability shape
 // (Shapes / Scopes / RefKinds / Description). Buffered is filled by
@@ -442,8 +508,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"arm) — both canonical chain-overlay missing-stage codes. " +
 				"Shape-divergence rule (PRD §6 FR-F2): when " +
 				"the target stage's host shape differs from the reference stage's host shape the " +
-				"handler emits PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT and " +
-				"surfaces NaN across every coordinate. Unlike OVERLAY_INDEX_VS_STAGE (divides by the " +
+				"divergence is a PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT WARNING on predict-chain " +
+				"and at runtime (the chain runs; the layer is an empty payload in the target stage's shape). Unlike OVERLAY_INDEX_VS_STAGE (divides by the " +
 				"reference value), DELTA_VS_STAGE performs subtraction and is mathematically defined " +
 				"for every finite reference value including zero — the handler does NOT emit " +
 				"PULSE_OVERLAY_REF_ZERO. Mirrors the OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_MARGIN " +
@@ -531,16 +597,10 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 		return descriptor.OverlayCapability{
 			Kind: types.OverlayKindFormula,
 			Shapes: []types.OverlayShape{
-				// FORMULA declares its full per-shape surface across
-				// MATRIX (evaluator spine + per-shape binder), SERIES
-				// (SERIES binder via grouped Process hosts), and SCALAR
-				// (SCALAR binder via whole-matrix p-value / whole-chain
-				// SCALAR hosts). Runtime dispatch is still MATRIX-only at
-				// v1 via internal/processing/overlay.go; the SERIES + SCALAR host
-				// glue lands in a follow-up story. Declaring the full
-				// shape surface here keeps the capability manifest aligned
-				// with the per-shape binders + the predict-time namespace
-				// tables FormulaNamespace serves.
+				// Every shape FORMULA computes on some slot: MATRIX on
+				// Request.Overlays (a crosstab — the one Process shape it
+				// runs on, overlayhost.Shapes) and on Compose; SERIES and
+				// SCALAR on ComposedRequest.Overlays (U46 E4-S15).
 				types.OverlayShapeMatrix,
 				types.OverlayShapeScalar,
 				types.OverlayShapeSeries,
@@ -578,25 +638,21 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// OverlayRef pointer at predict or runtime.
 			RefKinds: []string{},
 			Description: "Custom user-defined overlay via expr-lang formula; namespace varies by host shape; buffered-only. " +
-				"The handler compiles `OverlaySpec.Params[\"formula\"]` ONCE per spec via expr-lang/expr (the same " +
-				"evaluator that backs ATTR_FORMULA and FILTER_EXPRESSION — the scalar built-ins sqrt / log / exp / pow, the set helpers, lookup() with a registered LookupTable and embedder ExprFunctions registered at " +
-				"pulse.New time are reachable from FORMULA expressions with no additional registration) then runs " +
-				"the compiled program per cell / entry / scalar against a per-host-shape variable namespace " +
-				"(MATRIX hosts: cell, margin_row, margin_col, margin_grand, sd_row, sd_col, sd_grand; SERIES " +
-				"hosts: value, total, prior, baseline; SCALAR hosts: value; Compose hosts add the dotted " +
-				"`slot.<label>.{cell|value}` namespace tied to Request.Label). Compile-once / run-many: O(1) " +
-				"compile per overlay layer; O(cells) / O(entries) / O(1) run cost per evaluation. Return-type " +
-				"coercion: float64 / float32 / int / int64 widen natively; bool widens to 0.0 / 1.0; everything " +
-				"else fires PULSE_OVERLAY_FORMULA_TYPE_MISMATCH. Predict-time identifier validation walks " +
-				"the parsed AST via expr-lang/expr/parser + expr-lang/expr/ast and rejects every identifier not " +
-				"in the per-shape variable table (types.FormulaNamespace), sqrt / log / exp / pow, the set helpers, lookup() (with a LookupTable), or the embedder ExprFunctions function " +
-				"set with PULSE_OVERLAY_FORMULA_INVALID_IDENT. INHERENTLY BUFFERED at v1 across every host shape " +
-				"— the variable namespace depends on post-fold state (margins / totals / SDs are not available " +
-				"mid-stream); a streamable variant under a distinct kind constant may land in future work without " +
-				"re-opening this kind's contract. The MATRIX-host evaluator spine + the per-shape binder fill the " +
-				"full namespace across MATRIX / SERIES / SCALAR hosts. SERIES + SCALAR runtime host glue lands in " +
-				"a follow-up; this capability row declares the full per-shape surface for predict / " +
-				"manifest alignment.",
+				"The handler compiles `params.formula` ONCE per spec via expr-lang/expr (the same evaluator that backs " +
+				"ATTR_FORMULA and FILTER_EXPRESSION — the scalar built-ins sqrt / log / exp / pow, the set helpers, " +
+				"lookup() with a registered LookupTable and embedder ExprFunctions are reachable) then runs it per " +
+				"cell / entry / scalar against a per-host-shape namespace. On Request.Overlays it runs on a MATRIX " +
+				"(crosstab) host only — cell, margin_row, margin_col, margin_grand, sd_row, sd_col, sd_grand; a grouped " +
+				"request is refused PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (details.shapes). On ComposedRequest.Overlays " +
+				"the host is the first target slot, of the reference slot's shape: MATRIX adds ref_cell; SERIES binds " +
+				"value, total, prior and ref_value; SCALAR binds value and ref; every shape adds " +
+				"`slot.<label>.cell` (MATRIX) / `slot.<label>.value` for the reference and each target, aligned by key " +
+				"(no figure at a coordinate binds NaN, so the result is null). Return-type coercion: float64 / float32 " +
+				"/ int / int64 widen natively; bool widens to 0.0 / 1.0; anything else fires " +
+				"PULSE_OVERLAY_FORMULA_TYPE_MISMATCH. Predict walks the parsed AST and refuses every identifier, " +
+				"function or slot path outside that namespace with PULSE_OVERLAY_FORMULA_INVALID_IDENT; on a Compose host " +
+				"the runtime raises the same refusal before it compiles. INHERENTLY BUFFERED — margins, totals and SDs " +
+				"are post-fold state.",
 		}
 	case types.OverlayKindIndexVsBaseline:
 		return descriptor.OverlayCapability{
@@ -901,9 +957,9 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"arm) or PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref arm) — both canonical chain-overlay " +
 				"missing-stage codes. " +
 				"Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from " +
-				"the reference stage's host shape the handler emits " +
-				"PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT and surfaces NaN " +
-				"across every coordinate. Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN " +
+				"the reference stage's host shape the divergence is a " +
+				"PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT WARNING on predict-chain and at runtime (the " +
+				"chain runs; the layer is an empty payload in the target stage's shape). Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN " +
 				"on the affected coordinates (mirrors the rest of the INDEX_VS_* family). Ref MUST " +
 				"populate Ref.Stage (StageRef); any other ref-family pointer fires " +
 				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. " +
@@ -1273,18 +1329,12 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			RefKinds: []string{},
 			Description: "COMPOSE-host per-cell Welch t-test against the reference slot's matching cell. CELL scope " +
 				"over a MATRIX (crosstab) host with MATRIX payload — each cell's value is the two-sided p-value as a float64. " +
-				"Each cell is treated as a sample mean; the variance defaults to 1.0 and the sample size defaults to 2 " +
-				"(`Params[\"sample_size\"]` accepts an integer override; `Params[\"variance_target\"]` / " +
-				"`Params[\"variance_ref\"]` / `Params[\"sample_size_target\"]` / `Params[\"sample_size_ref\"]` give finer " +
-				"per-side control). Math reuses the same Welch-Satterthwaite degrees-of-freedom recurrence that backs " +
+				twoSampleCellInputs + " Math reuses the same Welch-Satterthwaite degrees-of-freedom recurrence that backs " +
 				"TEST_T two-sample: se = sqrt(var_target/n_target + var_ref/n_ref); t = (target_cell - ref_cell) / se; " +
 				"df = (var_target/n_target + var_ref/n_ref)² / ((var_target/n_target)²/(n_target-1) + " +
 				"(var_ref/n_ref)²/(n_ref-1)); p_value = studentTTwoSidedP(t, df). Reuses the studentTTwoSidedP helper backing " +
 				"TEST_T so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) " +
-				"triple. Default-variance and default-sample-size policy: v1 ships well-defined defaults so the per-cell " +
-				"handler stays usable against a minimal Compose authoring surface; future work may lift the per-cell " +
-				"(mean, variance, n) triple into a richer Compose authoring surface (the crosstab cell carrier could grow " +
-				"to carry sample statistics alongside the scalar mean). Inherently buffered — inferential overlays as a " +
+				"triple. Inherently buffered — inferential overlays as a " +
 				"family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals).",
 		}
 	case types.OverlayKindTVsRef:
@@ -1306,8 +1356,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"host group key in host order, each carrying the two-sided p-value on Summary.Statistic. Series-shape sibling " +
 				"of OVERLAY_T_CELL (the per-cell MATRIX-host Welch t-test) and twin to the SERIES arm of OVERLAY_INDEX_VS_REF " +
 				"/ OVERLAY_DELTA_VS_REF (descriptive series-shape Compose-only kinds). Each per-group target / reference value " +
-				"is treated as a sample mean; variance defaults to 1.0 and sample size defaults to 2 (Params[\"variance_target\"] " +
-				"/ Params[\"variance_ref\"] / Params[\"sample_size_target\"] / Params[\"sample_size_ref\"] override). Math " +
+				"is treated as a sample mean. " + twoSampleSeriesInputs + " Math " +
 				"reuses the Welch-Satterthwaite recurrence backing TEST_T (and OVERLAY_T_CELL): se = " +
 				"sqrt(var_target/n_target + var_ref/n_ref); t = (target - ref) / se; df = (var_target/n_target + " +
 				"var_ref/n_ref)² / ((var_target/n_target)²/(n_target-1) + (var_ref/n_ref)²/(n_ref-1)); p_value = " +
@@ -1331,24 +1380,28 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// consumer of the empty `Ref.YoY` marker. The empty marker
 			// struct tags the family — the v1 frequency value lives on
 			// OverlaySpec.Params["frequency"] (the YoY's own override) or
-			// falls back to req.Groups[0].Params["frequency"] (the
-			// canonical GROUP_DATE authoring slot) per the WIN_* operator
+			// falls back to the GROUP_DATE grouper's Params["frequency"]
+			// (wherever it sits in groups) per the WIN_* operator
 			// convention.
 			RefKinds: []string{"YoY"},
 			Description: "Per-point year-over-year ratio against the same period one year prior in an ordered SERIES " +
-				"(grouped Process) host whose grouper is GROUP_DATE: point_value / prior_year_value * 100. " +
+				"(grouped Process) host with one GROUP_DATE grouper: point_value / prior_year_value * 100. " +
 				"GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host " +
 				"order, each carrying the YoY ratio on Summary.Statistic. Member of the windowed-Process overlay " +
 				"family alongside OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE / " +
 				"OVERLAY_INDEX_VS_ROLLING_MEAN / OVERLAY_ZSCORE_VS_ROLLING, and the first consumer of the empty " +
 				"Ref.YoY marker arm of the OverlayRef discriminated union. The frequency value (annual | quarterly | monthly | weekly | daily | " +
 				"hourly) lives on OverlaySpec.Params[\"frequency\"] (the YoY's own override) or falls back to " +
-				"req.Groups[0].Params[\"frequency\"] (the canonical GROUP_DATE authoring slot). Per-frequency stride: " +
+				"the GROUP_DATE grouper's Params[\"frequency\"] wherever it sits in groups. Per-frequency stride: " +
 				"annual ⇒ i-1, quarterly ⇒ i-4, monthly ⇒ i-12, weekly ⇒ i-52 (calendar-week aligned; no day-of-week " +
 				"realignment in v1), daily ⇒ exact-date 365-days-prior lookup against the host key index (Feb 29 in a " +
 				"non-leap prior year emits NaN — no exact-key match), hourly ⇒ exact-hour 365×24-hour-prior lookup. " +
-				"The host's first grouper MUST be GROUP_DATE; non-DATE hosts fire " +
-				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at both predict and runtime. Missing frequency Param fires " +
+				"The host MUST carry exactly one GROUP_DATE grouper, anywhere in groups; zero or two or more fire " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE ({groupers, date_groupers}) at both predict and runtime. " +
+				"Over two or more groupers the overlay runs once per combination of every OTHER key (the " +
+				"prior-year lookup never crosses a segment) and each entry keeps its full composite key; an explicit " +
+				"params.partition_by must name exactly the non-date key columns, else PULSE_OVERLAY_PARTITION_INVALID " +
+				"(reason not_non_date_keys). Missing frequency Param fires " +
 				"PULSE_OVERLAY_YOY_FREQUENCY_MISSING; out-of-set frequency value fires " +
 				"PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY with {frequency, supported} Details. First-year ordinals " +
 				"(coarse-frequency arms whose prior-year index lands at <0; fine-frequency arms whose prior-year " +
@@ -1544,19 +1597,12 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			RefKinds: []string{},
 			Description: "COMPOSE-host per-cell two-sample z-test on the means against the reference slot's matching cell. " +
 				"CELL scope over a MATRIX (crosstab) host with MATRIX payload — each cell's value is the " +
-				"two-sided p-value as a float64. Each cell is treated as a sample mean; the variance defaults to 1.0 " +
-				"and the sample size defaults to 2 (`Params[\"sample_size\"]` accepts an integer override; " +
-				"`Params[\"variance_target\"]` / `Params[\"variance_ref\"]` / `Params[\"sample_size_target\"]` / " +
-				"`Params[\"sample_size_ref\"]` give finer per-side control). Math reuses the same Welch-style " +
+				"two-sided p-value as a float64. " + twoSampleCellInputs + " Math reuses the same Welch-style " +
 				"standard-error recurrence that backs OVERLAY_T_CELL and finalises against the standard normal " +
 				"survival helper that backs TEST_Z_TWO_SAMPLE: se = sqrt(var_target/n_target + var_ref/n_ref); " +
 				"z = (target_cell - ref_cell) / se; p_value = 2 * (1 - Φ(|z|)). Reuses the standardNormalCDF helper " +
 				"backing TEST_Z_TWO_SAMPLE so the overlay and the row-test surface produce identical p-values for " +
-				"the same (mean, variance, n) triple. Default-variance and default-sample-size policy: v1 ships " +
-				"well-defined defaults so the per-cell handler stays usable against a minimal Compose authoring " +
-				"surface; future work may lift the per-cell (mean, variance, n) triple into a richer Compose " +
-				"authoring surface (the crosstab cell carrier could grow to carry sample statistics alongside the " +
-				"scalar mean). Inherently buffered — inferential overlays as a family stay buffered until a " +
+				"the same (mean, variance, n) triple. Inherently buffered — inferential overlays as a family stay buffered until a " +
 				"streamable-test path is plumbed (PRD §2 Non-Goals).",
 		}
 	case types.OverlayKindZVsRef:
@@ -1579,8 +1625,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"Series-shape sibling of OVERLAY_Z_CELL (the per-cell MATRIX-host z-test) and twin to the SERIES arm of " +
 				"OVERLAY_T_VS_REF (Welch t-test sibling on the same fold-and-finalise shape; different distribution — " +
 				"standard normal instead of Student's t). Each per-group target / reference value is treated as a sample " +
-				"mean; variance defaults to 1.0 and sample size defaults to 2 (Params[\"variance_target\"] / " +
-				"Params[\"variance_ref\"] / Params[\"sample_size_target\"] / Params[\"sample_size_ref\"] override). Math " +
+				"mean. " + twoSampleSeriesInputs + " Math " +
 				"reuses the Welch-style standard-error recurrence backing OVERLAY_Z_CELL and finalises against the " +
 				"standard normal survival helper backing TEST_Z_TWO_SAMPLE: se = sqrt(var_target/n_target + var_ref/n_ref); " +
 				"z = (target - ref) / se; p_value = 2 * (1 - Φ(|z|)). Reuses standardNormalCDF so the overlay and the " +
@@ -1594,3 +1639,22 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 	}
 	return descriptor.OverlayCapability{Kind: kind}
 }
+
+// twoSampleParamsRule is the explicit-inputs sentence the four Compose
+// two-sample kinds share (twosample.Inputs; U46 E4-S16).
+const twoSampleParamsRule = "A scalar side REQUIRES its variance and sample size in params — variance_target / variance_ref " +
+	"and sample_size_target / sample_size_ref, or the symmetric variance / sample_size for both sides, each a finite " +
+	"number > 0; there is no default (PULSE_OVERLAY_PARAM_MISSING on predict and runtime, details.side and " +
+	"details.params naming what is missing)."
+
+// twoSampleCellInputs is OVERLAY_T_CELL / OVERLAY_Z_CELL's inputs rule.
+const twoSampleCellInputs = "A cell whose components carry mean and variance (AGG_WELFORD, AGG_VARIANCE, AGG_STDDEV, or an " +
+	"extension declaring both keys) reads its mean, variance and n from Response.Components.Crosstab with no params; " +
+	"any other cell — or any cell of a slot built with components disabled — is a scalar mean. " + twoSampleParamsRule
+
+// twoSampleSeriesInputs is OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF's inputs
+// rule.
+const twoSampleSeriesInputs = "A group scoring AGG_WELFORD reads its mean, variance and n from the slot's per-group " +
+	"components with no params (PULSE_OVERLAY_COMPONENTS_REQUIRED when that slot's components are disabled); any other " +
+	"scored aggregation is a scalar mean. " + twoSampleParamsRule + " Over crosstab slots the kind is " +
+	"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE — compare cells with the _CELL twin."

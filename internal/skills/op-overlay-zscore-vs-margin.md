@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_ZSCORE_VS_MARGIN
 description: Per-cell standardized-margin z-score — (cell − margin) / sd where sd is the population SD within the same margin slice.
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, outlier-detection]
 ---
 
@@ -34,6 +34,9 @@ MATRIX — `Cells[r][c].Value = (cell - margin) / sd`. Mirrors host RowKeys / Co
 - Empty `Ref.Margin` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Population SD convention (divide by N, not N-1) — like the row z-score attribute and the total z-score overlay.
 - Buffered (host crosstab path + per-slice Welford recurrence both need materialised matrix).
+<!-- feature: AGG_MODE -->
+- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
+<!-- /feature -->
 
 ## See
 

@@ -902,6 +902,22 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE: {
+		Message: "A series overlay that reads its rows in order (a prior, rolling, baseline or sibling overlay) runs over two or more groupers with no params.partition_by, so it partitions by every key but the last and runs its series down the last grouper, which is not a date grouper; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups"},
+				Hint:   "Put the date grouper (details.date_axis, when present) last in Request.Groups so the series runs through time within each segment.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "partition_by"},
+				Hint:     "If the last grouper is the order you mean, set params.partition_by to the leading key columns to state it; an explicit partition_by silences the advisory.",
+				Examples: []any{map[string]any{"partition_by": []any{"warehouse"}}},
+			},
+		},
+	},
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN: {
 		Message: "Options.SuppressAdvisories names a code that is not a registered PULSE_ADVISORY_* advisory code.",
 		Fixups: []Fixup{
@@ -1127,22 +1143,54 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_TEST_PARTITION_INVALID: {
+		Message: "A post-test's partition on a grouped request cannot be read. With two or more groupers every post_tests entry runs once per partition — the result rows sharing the leading group keys, every key but the last by default — so a trend runs down the last grouper within each segment. params.partition_by must be a leading prefix of the group key columns ([] means no partition: one run over every row), and every post-test of one request must partition alike, because Response.PostTests is one flat post-tests x partitions list. Raised at predict and at runtime with the same Details {index, type, partition_by, groups, reason, field, depths}: reason is not_string_list, unknown_field, not_prefix or mixed_depth.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"PostTests", "*", "Params", "partition_by"},
+				Hint:     "Name the first k entries of Details.groups, in order (groups [warehouse, week] admits [warehouse]); omit partition_by to partition by every key but the last, or pass [] for one run over every row.",
+				Examples: []any{map[string]any{"partition_by": []any{"warehouse"}}, map[string]any{"partition_by": []any{}}},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"PostTests", "*", "Params", "partition_by"},
+				Hint:   "mixed_depth: give every post-test the same partition_by (Details.depths lists each one's depth), or put the post-tests that partition differently in their own request (a Compose slot each).",
+			},
+		},
+	},
 	PULSE_TEST_SPLIT_GROUPS_LT_2: {
-		Message: "A two-sample or ANOVA test observed fewer than the required number of distinct groups in the SplitBy field.",
+		Message: "A two-sample or ANOVA test observed fewer than the required number of distinct groups in the SplitBy field. On a grouped request it is also raised at predict and runtime when SplitBy names a grouper field (details.reason split_is_grouper: every group holds one level) or a post-test's SplitBy names one of its partition key columns (details.reason split_is_partition_key: every partition holds one level), and it rides a warning naming details.group_key when one group is too sparse (that group's statistic and p_value are null; the others proceed).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Tests", "*", "SplitBy"},
 				Hint:   "Pick a SplitBy field that resolves to >= 2 distinct categories after filtering, or relax upstream filters.",
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups", "*", "Field"},
+				Hint:   "split_is_grouper: a grouped request runs the test once per group; drop the SplitBy field from groups, or run the across-groups test as its own ungrouped request.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"PostTests", "*", "Params", "partition_by"},
+				Hint:     "split_is_partition_key: a post-test runs once per partition (every key but the last by default); pass partition_by [] to compare across the partition keys in one run, or reorder Request.Groups so the split key comes last.",
+				Examples: []any{map[string]any{"partition_by": []any{}}},
+			},
 		},
 	},
 	PULSE_TEST_CONTINGENCY_DEGENERATE: {
-		Message: "A chi-square contingency table is empty or has a single row/column.",
+		Message: "A chi-square contingency table is empty or has a single row/column. On a grouped request it is also raised at predict and runtime when Rows or Cols names a grouper field (details.reason split_is_grouper), and it rides a warning naming details.group_key when one group's table is degenerate (that group's statistic and p_value are null; the others proceed).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Verify both Rows and Cols resolve to fields with more than one observed level; aggregate rare levels into an \"other\" bucket if needed.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups", "*", "Field"},
+				Hint:   "split_is_grouper: a grouped request runs the test once per group; drop the Rows / Cols field from groups.",
 			},
 		},
 	},
@@ -2299,22 +2347,29 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Groups"},
-				Hint:   "OVERLAY_YOY needs a host whose ONLY grouper is GROUP_DATE (details.groupers counts the groups sent): two or more groups give composite rows, not one date axis. Keep the GROUP_DATE grouper alone, and split the other key into a FILTER_INCLUDE per value or a Compose slot per value.",
+				Hint:   "OVERLAY_YOY needs EXACTLY ONE GROUP_DATE grouper (details.date_groupers counts those sent, details.groupers every group; a lone non-date grouper names itself in details.host_grouper). Add the GROUP_DATE grouper, or drop the extra one; the other keys may stay — YoY runs once per combination of them.",
 			},
 			{
-				Action: FixupReplaceField,
-				Path:   []string{"Groups"},
-				Hint:   "The series overlays that read the host as one ordered series (DELTA / INDEX_VS_PRIOR, INDEX_VS_ROLLING_MEAN, ZSCORE_VS_ROLLING, DELTA / INDEX_VS_BASELINE, DELTA / INDEX_VS_SIBLING) need exactly one grouper (details.groupers counts the groups sent): over two or more, a lag, window, baseline or sibling would cross outer buckets of the composite rows. Keep the ordered grouper alone, and split the other key into a FILTER_INCLUDE per value or a Compose slot per value.",
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Kind"},
+				Hint:     "When details.hosts is present the kind runs on another overlay slot: details.host is the slot it was sent on (request | compose | chain | facet), details.hosts every slot that runs it. Move the spec there (a Compose kind such as OVERLAY_T_VS_REF goes on ComposedRequest.Overlays, comparing two slots; a stage kind on ChainRequest.Overlays; a population kind on FacetRequest.Overlays), or pick a kind this slot runs.",
+				Examples: []any{"compose", "chain", "facet", "request"},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Kind"},
+				Hint:     "When details.shapes is present the kind runs on Request.Overlays but not over this Process host shape: details.shape is the host the request makes (matrix = a crosstab; series = groups + aggregations, no crosstab), details.shapes every shape the kind runs on. Pick a kind for this shape (a share or margin kind on a crosstab, a prior / baseline / total kind on a grouped request), or reshape the request. A series OVERLAY_FORMULA runs on ComposedRequest.Overlays. On ComposedRequest.Overlays a two-sample t / z vs-ref kind over a crosstab slot (details.slot) carries the same keys: compare grouped slots, or use its per-cell twin over the crosstab slots.",
+				Examples: []any{"matrix", "series"},
 			},
 		},
 	},
 	PULSE_OVERLAY_COMPONENTS_REQUIRED: {
-		Message: "An overlay kind that reads per-cell components (n / weight sums / Welford triples / margin counts) ran against a host built with components disabled. The OVERLAY_PAIRWISE_* family needs the components block to resolve each pair leg's sample size.",
+		Message: "An overlay kind that reads per-cell components (n / weight sums / Welford triples / margin counts) ran against a host built with components disabled. The OVERLAY_PAIRWISE_* family needs the components block to resolve each pair leg's sample size; a Compose two-sample vs-ref overlay scoring a grouped slot's moment aggregation reads each group's mean / variance / n from that slot's per-group components (details.reason components_disabled, details.slot the slot).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"DisableComponents"},
-				Hint:     "Re-run with components enabled: clear Options.DisableComponents (and any per-request disable_components override) so Response.Components.Crosstab carries the cell n / Welford triples the pairwise overlay divides by.",
+				Hint:     "Re-run with components enabled: clear Options.DisableComponents (and any per-request disable_components override) so Response.Components.Crosstab carries the cell n / Welford triples the pairwise overlay divides by. On Compose the override is per slot: set disable_components: false on the slot details.slot names (it re-opens an engine-off gate), or score a scalar mean with the params triple instead.",
 				Examples: []any{false},
 			},
 		},
@@ -2372,13 +2427,19 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_PARAM_MISSING: {
-		Message: "An OverlaySpec did not supply a Params entry that the chosen Kind requires. The rolling-mean index overlay requires Params[\"window\"] (positive integer) per the WIN_* operator convention; the window width lives on Params, not on Ref. Surfaced at both predict (descriptor.validateOverlayIndexVsRollingMean) and runtime (processing.applyIndexVsRollingMean) with Details carrying the kind and the missing param name.",
+		Message: "An OverlaySpec did not supply a Params entry that the chosen Kind requires. The rolling-mean index overlay requires Params[\"window\"] (positive integer) per the WIN_* operator convention; the window width lives on Params, not on Ref. Surfaced at both predict (descriptor.validateOverlayIndexVsRollingMean) and runtime (processing.applyIndexVsRollingMean) with Details carrying the kind and the missing param name. A Compose two-sample t / z overlay (vs-ref or per-cell) scoring a bare scalar mean on a side needs that side's variance and sample size — there is no default (details.reason params_missing; details.side reference | target, details.params the missing keys, details.slot the slot).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params"},
 				Hint:     "Set Params on the OverlaySpec to a JSON object containing the required keys for the chosen Kind. For OVERLAY_INDEX_VS_ROLLING_MEAN populate `{\"window\": N}` where N is a positive integer naming the rolling-window width (e.g. {\"window\": 3} for a 3-point rolling mean). Per the WIN_* operator convention, the window width is the only required param today.",
 				Examples: []any{map[string]any{"window": 3}, map[string]any{"window": 7}, map[string]any{"window": 12}},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params"},
+				Hint:     "Two-sample overlay (details.reason params_missing): supply the keys details.params names — variance_target / variance_ref and sample_size_target / sample_size_ref, or the symmetric variance / sample_size for both sides — each a finite number > 0. Or let the slot carry the moments: score the moment aggregator (Welford mean, variance and n — on a crosstab cell, any aggregator whose components carry mean and variance) with components enabled, and no params are read.",
+				Examples: []any{map[string]any{"variance": 4.0, "sample_size": 30}, map[string]any{"variance_target": 2.5, "variance_ref": 3.1, "sample_size_target": 40, "sample_size_ref": 38}},
 			},
 		},
 	},
@@ -2412,6 +2473,34 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"Overlays", "*", "Params", "formula"},
 				Hint:     "Check the allowed identifier set for shape Details.host_shape against Details.allowed (variables) or Details.allowed_funcs (functions) — the per-shape namespace table lives in the FORMULA section of skills/overlay-system.md. If the identifier was meant to be a custom function, register it via pulse.Options.Extensions.ExprFunctions before calling pulse.New (see docs/src/internals/extension-points.md for the registration recipe — naming policy ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_*$ applies to operators, not to expr functions; expr function names are free-form). If the identifier was meant to be a variable not in the per-shape table, register a custom kind via pulse.Options.Extensions.OverlayKinds — FORMULA cannot widen its variable namespace from outside. Compose `slot.<label>.<field>` identifiers only resolve on Compose-host overlays (FacetRequest.Overlays / ComposedRequest.Overlays), not on Request.Overlays.",
 				Examples: []any{map[string]any{"formula": "(cell - margin_grand) / sd_grand"}, map[string]any{"formula": "value / total"}, map[string]any{"formula": "(slot.us.cell - slot.uk.cell) / slot.world.cell"}},
+			},
+		},
+	},
+	PULSE_OVERLAY_FIELD_UNKNOWN: {
+		Message: "A series overlay's params.field does not name a request aggregation. The param takes the OUTPUT LABEL of one Request.Aggregations entry — its explicit Label, else its TYPE_field default — and the overlay scores that aggregation; absent, it scores the first aggregation. Raised at predict and at runtime with the same Details {index, kind, field, available}, where available lists the request's aggregation labels in order. A Compose overlay (INDEX_VS_REF, DELTA_VS_REF, T_VS_REF, Z_VS_REF, PANEL_INDEX_VS_REF) resolves the label on every non-crosstab slot it reads, reference first, and adds Details.slot naming the slot that lacks it. A whole-chain overlay (INDEX_VS_STAGE, DELTA_VS_STAGE) resolves it on the target, then the reference non-crosstab stage, and adds Details.which (target | ref) and Details.stage_index.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "field"},
+				Hint:     "Set params.field to one of the labels in Details.available, or give the aggregation you mean an explicit Label and name that. Two aggregations over one input field (AGG_SUM and AGG_MEAN of spend) differ by label, not by field. Omit params.field to score the first aggregation.",
+				Examples: []any{map[string]any{"field": "orders"}, map[string]any{"field": "AGG_SUM_spend"}},
+			},
+		},
+	},
+	PULSE_OVERLAY_PARTITION_INVALID: {
+		Message: "A series overlay's params.partition_by is not a leading prefix of the request's group key columns. With two or more groupers a prior, rolling, baseline, sibling or _TOTAL overlay runs once per partition — the rows sharing the leading keys — so a series never crosses a segment and a total is the partition's own. Absent, it partitions by every key but the last (the series runs down the last grouper); [] means no partition. The year-over-year overlay instead partitions by every non-date key, so its partition_by must name exactly those columns (any order). Raised at predict and at runtime with the same Details {index, kind, partition_by, groups, reason, field}: reason is not_string_list, unknown_field, not_prefix or (year-over-year) not_non_date_keys, groups lists the key columns in order.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "partition_by"},
+				Hint:     "Name the first k entries of Details.groups, in order (groups [region, store, day] admits [region] or [region, store]); reorder Request.Groups to put the segment keys first, or omit partition_by to partition by every key but the last. Pass [] to walk every composite row as one series.",
+				Examples: []any{map[string]any{"partition_by": []any{"region"}}, map[string]any{"partition_by": []any{}}},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "partition_by"},
+				Hint:     "For the year-over-year overlay (reason not_non_date_keys) name every entry of Details.groups except the GROUP_DATE column, once each, or omit partition_by — that is the default.",
+				Examples: []any{map[string]any{"partition_by": []any{"region", "store"}}},
 			},
 		},
 	},
@@ -2458,7 +2547,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT: {
-		Message: "A whole-chain overlay spec (the index-vs-stage or delta-vs-stage overlay) resolved a Target stage and a Ref stage whose host result shapes disagree (one is matrix, the other series; one is scalar, the other series; etc.). The handler cannot fold per-coordinate arithmetic when target and reference do not share a coordinate grid; the layer surfaces an empty payload that inherits the target stage's shape and the warning carries the offending pair of shapes plus the originating (target_index, ref_index) so callers can audit the chain and collapse one stage so both produce the same shape, or remove the overlay.",
+		Message: "A whole-chain overlay spec (the index-vs-stage or delta-vs-stage overlay) resolved a Target stage and a Ref stage whose host result shapes disagree (one is matrix, the other series; one is scalar, the other series; etc.). A stage's shape is its authored request's — a crosstab is matrix, groups plus aggregations is series, an ungrouped stage is scalar — so a grouped stage against an ungrouped one lands here, never as per-row reference misses. It is warning-class on both sides: predict-chain warns and the chain stays valid, the runtime runs the chain and attaches the warning to the overlay layer; Strict escalates it on neither side. The handler cannot fold per-coordinate arithmetic when target and reference do not share a coordinate grid; the layer surfaces an empty payload that inherits the target stage's shape and the warning carries the offending pair of shapes plus the originating (target_index, ref_index) so callers can audit the chain and collapse one stage so both produce the same shape, or remove the overlay.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
@@ -2522,7 +2611,7 @@ var codeMetadata = map[Code]Metadata{
 	PULSE_OVERLAY_KEY_SET_DIVERGENT: {
 		// Minimal entry — full polish (richer Message + per-shape Fixup
 		// hints) is deferred.
-		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose per-coordinate key sets disagree — matrix (row × column) tuples present on one slot but absent on another, or series group-keys diverging across slots. Compose-only overlays require strict cross-Request key alignment so the renderer can fold target values against the reference at byte-equal coordinates; tolerant alignment is an explicit non-goal for v1. Details carry the reference slot label, the offending target slot label, and the symmetric difference of the two key sets (`missing` keys present on reference but absent from target; `extra` keys present on target but absent from reference).",
+		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose per-coordinate key sets disagree — matrix (row × column) tuples present on one slot but absent on another, or series group-keys diverging across slots. Compose-only overlays require strict cross-Request key alignment so the renderer can fold target values against the reference at byte-equal coordinates; tolerant alignment is an explicit non-goal for v1. Details carry the reference slot label, the offending target slot label, and the symmetric difference of the two key sets (`missing` keys present on reference but absent from target; `extra` keys present on target but absent from reference). A SERIES slot keys on its group columns alone, so predict-compose refuses two SERIES slots whose group key columns differ by name, Details {index, reference, target, reference_fields, target_fields}. Only slots of the same shape are compared: a grouped slot against an ungrouped one is PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2551,12 +2640,12 @@ var codeMetadata = map[Code]Metadata{
 	},
 	PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT: {
 		// Minimal entry — full polish is deferred.
-		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose host result shapes disagree (one is MATRIX while the other is SERIES, or one is SCALAR while the other is non-SCALAR). Compose overlays fold target values against the reference at byte-equal coordinates; without a shared shape there is no coordinate grid. Details carry the offending `target_label`, the `reference_shape`, and the `target_shape`.",
+		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose host result shapes disagree (one is MATRIX while the other is SERIES, or one is SCALAR while the other is non-SCALAR). A slot's shape is its authored request's: a crosstab is MATRIX, groups plus aggregations is SERIES, anything else (an ungrouped request) is SCALAR — so a grouped slot paired with an ungrouped one lands here on predict-compose and runtime alike, not under PULSE_OVERLAY_KEY_SET_DIVERGENT. Compose overlays fold target values against the reference at byte-equal coordinates; without a shared shape there is no coordinate grid. Details carry the spec `index` and `kind`, the `reference` slot label, the offending `target_label`, the `reference_shape`, and the `target_shape`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Requests"},
-				Hint:   "Re-issue the diverging slot Request so its host result shape matches the reference slot's — either both crosstabs (set Crosstab on both) or both grouped Process results (set Groups + Aggregations on both, no Crosstab on either).",
+				Hint:   "Re-issue the diverging slot Request so its host result shape matches the reference slot's — either both crosstabs (set Crosstab on both), both grouped Process results (set Groups + Aggregations on both, no Crosstab on either), or both ungrouped (drop Groups from both).",
 			},
 		},
 	},

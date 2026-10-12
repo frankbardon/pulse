@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_CHISQ_MATRIX
 description: Whole-matrix χ² independence test across the host crosstab's row × column contingency table.
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, hypothesis-test]
 ---
 
@@ -39,6 +39,9 @@ SCALAR — `OverlayLayer.Payload.Shape = "scalar"`. `Payload.Scalar` carries χ�
 - Absent host cell treated as observed count of 0.
 - Scope MUST be `matrix`. Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Buffered (inherent — margins recomputed from raw rows).
+<!-- feature: AGG_MODE -->
+- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
+<!-- /feature -->
 
 ## See
 

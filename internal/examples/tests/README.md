@@ -30,7 +30,7 @@ its cohort from the shared `.data` directory and assumes
 | `22_brown_forsythe_homogeneity.json` | 1 | `TEST_BROWN_FORSYTHE` | variance-homogeneity gate pre-flight for ANOVA |
 | `23_rm_anova_three_conditions.json` | 1 | `TEST_ANOVA_RM` | repeated-measures ANOVA on a 40-subject × 3-condition cohort |
 | `24_anova_robustness_battery.json` | 1 | three ANOVA variants | classical F + Welch F + Brown-Forsythe side by side on revenue × region |
-| `25_tukey_hsd_after_anova.json` | 1+2 | `TEST_ANOVA_F` + `TEST_TUKEY_HSD` | one-way ANOVA on regions followed by pairwise Tukey HSD in a single request |
+| `25_tukey_hsd_after_anova.json` | 2 | `TEST_TUKEY_HSD` | pairwise Tukey HSD over per-region means, `ms_within` / `df_within` from an ungrouped `TEST_ANOVA_F` run (a grouped request runs tier-1 tests once per group) |
 | `26_fisher_exact_small_sample.json` | 1 | `TEST_CHISQ` + `TEST_FISHER_EXACT` | filtered cohort with small marginals; chi-square and Fisher exact side by side |
 | `27_shapiro_wilk_normality.json` | 1 | `TEST_SHAPIRO_WILK` | per-treatment normality check on the log-normal revenue field |
 | `29_hotelling_t2_profile.json` | 1 | `TEST_HOTELLING_T2` | revenue and session_minutes as one profile: two-sample by treatment on a named vector, one-sample against a benchmark `mu` |

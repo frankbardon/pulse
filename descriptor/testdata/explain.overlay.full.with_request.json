@@ -52,7 +52,7 @@
       "2 p-values here carry no adjustment for multiple comparisons, so some may fall below alpha by chance alone; this is the concern the PULSE_ADVISORY_MANY_TESTS advisory raises.",
       "Adding a multiplicity block (for example holm) adjusts them for multiple comparisons; then read p_adjusted beside each raw p-value.",
       "OVERLAY_T_CELL carries no alpha of its own unless it is adjusted, so its p-values are read here against 0.05.",
-      "OVERLAY_T_CELL: Cells must use AGG_WELFORD, which supplies each cell's mean, variance and n. Without it the test uses one variance and n per side for every cell (params variance_target / variance_ref / sample_size_target / sample_size_ref, default variance 1 and n 2). Those p-values describe the values you supplied, not each cell's own spread, and they change with the measure's units.",
+      "OVERLAY_T_CELL: Cells must use AGG_WELFORD, which supplies each cell's mean, variance and n. Without it the test uses one variance and n per side for every cell (params variance_target / variance_ref / sample_size_target / sample_size_ref, required: there is no default). Those p-values describe the values you supplied, not each cell's own spread, and they change with the measure's units.",
       "OVERLAY_T_CELL: Target and reference are separate, independent samples. Equal variances are not assumed, and each mean should be roughly normal.",
       "OVERLAY_T_CELL: The null hypothesis is equal means in the cell; the p-value is two-sided.",
       "OVERLAY_T_CELL: Every cell is a separate test, so with many cells some small p-values turn up by luck; to adjust for multiple comparisons, set multiplicity on the overlay (holm or bonferroni hold the family-wise error, bh or by the false discovery rate) to add adjusted p-values beside the raw ones."
@@ -61,4 +61,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 227d33477498d017048979bf4da63d9bf691e8d08420368329e2273f9cb68917
+// golden-hash: d4fdaf32ddb10c7c4389b752749b8bab7b93c156316f3dab1f63388ad3b4c16c

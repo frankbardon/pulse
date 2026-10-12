@@ -122,10 +122,19 @@ const DefaultMultiplicityAlpha = 0.05
 // index-aligned with the matrix rows (row) or columns (column), and M
 // is their sum — every defined p-value the layer corrected. MPer is
 // absent for every other family.
+//
+// Excluded counts the family's members whose p-value was undefined
+// (NaN — e.g. a grouped test's sparse group or partition, whose
+// statistic and p_value are null) and so left out of M; their
+// p_adjusted is null. It is absent (0) when every member was defined,
+// so a family with no undefined p-value is byte-identical. For a `row`
+// / `column` family it is the sum over the layer's row / column
+// families, like M.
 type AppliedMultiplicity struct {
-	Method MultiplicityMethod `json:"method"`
-	Family MultiplicityFamily `json:"family"`
-	Alpha  float64            `json:"alpha"`
-	M      int                `json:"m"`
-	MPer   []int              `json:"m_per,omitempty"`
+	Method   MultiplicityMethod `json:"method"`
+	Family   MultiplicityFamily `json:"family"`
+	Alpha    float64            `json:"alpha"`
+	M        int                `json:"m"`
+	MPer     []int              `json:"m_per,omitempty"`
+	Excluded int                `json:"excluded,omitempty"`
 }

@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U42]
 blocks: [U32]
-todo_items: [339, 340, 341, 342, 343, 344, 345, 346, 347]
+todo_items: [339, 340, 341, 342, 343, 344, 345, 346, 347, 395]
 branch: model-workbench
 ---
 
@@ -22,7 +22,7 @@ branch: model-workbench
 
 The credit example found a fitting bug and several missing pieces. `REG_GLM` binomial fails on a strong but not separated binary predictor (2% vs 93% default) with `PROCESSING_REGRESSION_RANK_DEFICIENT`: IRLS starts from the global mean and takes full Newton steps with no step-halving, so the linear predictor diverges; R's `glm` converges on the same data. The error blames collinearity, and one failing regression slot fails the whole request. There is no penalised GLM, no AUC, and the leave-one-out jackknife is unusable at 42,000 rows. The documented leakage-safe alternative to `FEAT_TARGET_ENCODE` means transcribing 40 per-category means into a formula. Decile labels sort D1, D10, D2.
 
-**Source of inspiration:** the showcase examples under `docs/showcase/` ([credit risk model](../../showcase/credit-risk-model/README.md)), each a worked analysis run end to end in Pulse with a `REPRODUCE.md` of expected numbers. The items below are the gaps those runs hit. Where a fix simplifies an example, this unit's PR converts that example and refreshes its expected numbers.
+**Source of inspiration:** the showcase examples under the `pulse-casebook` repository ([credit risk model](https://github.com/frankbardon/pulse-casebook/blob/main/showcase/credit-risk-model/README.md)), each a worked analysis run end to end in Pulse with a `REPRODUCE.md` of expected numbers. The items below are the gaps those runs hit. Where a fix simplifies an example, this unit's PR converts that example and refreshes its expected numbers.
 
 Numbering note: appended after U43, not renumbered. This unit was not in the original plan. **Release intent:** v1.0.0 (owner decision 2026-10-10: Pulse should be as self-sufficient as possible at v1).
 
@@ -96,6 +96,12 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(model-workbench/E
 - Atomic skills for every new operator, `capabilities_*.go`, example tags, `Purpose` / `Interpretation`, `features.go`, weight class in `weighting.md`, `make docs`
 - `skills/regression-modeling.md` gotchas (the misleading remedy for divergence), `skills/feature-engineering.md` (the leakage trap now has a parameter)
 - CLAUDE.md only where a contract it states moves (keep it ≤ 40,000 bytes)
+
+## Inherited from U42
+
+Filed from [U42 handed on](U42-fit-scoring.md#handed-on) and moved here from [U46](U46-grouped-analysis.md) (U46 E4-S3): a numeric-range grouper is the train/holdout split a model workbench needs. Tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#395** — A grouper over explicit numeric ranges (e.g. 0–90 and 91–103), so a train/holdout split that is not a multiple of the `GROUP_RANGE` interval is one slot instead of a filter or two slots. Found in U42 (E2-S1).
 
 ## Human inputs & decisions
 

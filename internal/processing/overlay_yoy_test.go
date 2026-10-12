@@ -3,6 +3,8 @@ package processing
 import (
 	"encoding/json"
 	"math"
+	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -594,11 +596,12 @@ func TestOverlay_YoY_FrequencyPromotionSkipsWhenSpecHasOverride(t *testing.T) {
 	}
 }
 
-// TestOverlay_YoY_MultiGrouperHostRejected: a SERIES host built from
-// two or more groupers is the composite rows (U54), not one date axis —
-// the handler refuses it PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
-// whatever position GROUP_DATE holds (mirrors
-// descriptor.validateOverlayYoY), and so does a grouped Process run.
+// TestOverlay_YoY_MultiGrouperHostRejected: a composite host handed to
+// the HANDLER directly (a caller-built view) is still refused
+// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE whatever position GROUP_DATE
+// holds — defense in depth. The grouped-Process fold never does that: it
+// partitions by the non-date keys and hands each partition the date key
+// alone (TestOverlay_YoY_GroupedPartitions).
 func TestOverlay_YoY_MultiGrouperHostRejected(t *testing.T) {
 	keys := []types.AxisKey{{"2020-01", "east"}, {"2021-01", "east"}}
 	values := func(i int) (float64, bool) { return 10.0, true }
@@ -615,5 +618,146 @@ func TestOverlay_YoY_MultiGrouperHostRejected(t *testing.T) {
 		if coded.Code != errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE || coded.Details["groupers"] != 2 {
 			t.Errorf("%v: refusal %s %v, want PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE groupers=2", kinds, coded.Code, coded.Details)
 		}
+	}
+}
+
+// yoyGroupedRun runs spec through the grouped-Process hook over rows
+// (each "col=value" keys plus the measure under "v"), grouped by groups.
+func yoyGroupedRun(t *testing.T, groups []*types.Group, spec types.OverlaySpec, rows []map[string]any) (*types.Response, error) {
+	t.Helper()
+	req := &types.Request{Groups: groups, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x", Label: "v"}}, Overlays: []types.OverlaySpec{spec}}
+	resp := &types.Response{Data: rows}
+	err := applyOverlaysSeriesToResponse(req, resp, nil, FullComputePlan())
+	return resp, err
+}
+
+// TestOverlay_YoY_GroupedPartitions: over [region, day] and [day,
+// region] the grouped-Process hook runs YoY once per region, the date
+// key alone on each sub-host, so the daily exact-date lookup (which
+// reads the key's date element) finds the prior year inside the region
+// and never across it, and every entry keeps its full composite key in
+// host order. The frequency is promoted from the GROUP_DATE grouper
+// wherever it sits.
+func TestOverlay_YoY_GroupedPartitions(t *testing.T) {
+	// east: 2023-03-01=10, 2024-03-01=15; west: 2023-03-01=40,
+	// 2024-03-01=20, 2024-03-02=7 (no 2023-03-02 anywhere).
+	type pt struct {
+		region, day string
+		v           float64
+	}
+	pts := []pt{
+		{"east", "2023-03-01", 10}, {"west", "2023-03-01", 40},
+		{"east", "2024-03-01", 15}, {"west", "2024-03-01", 20}, {"west", "2024-03-02", 7},
+	}
+	want := map[string]string{
+		"east|2023-03-01": "NaN", "west|2023-03-01": "NaN",
+		"east|2024-03-01": "150", "west|2024-03-01": "50", "west|2024-03-02": "NaN",
+	}
+	day := func() *types.Group {
+		return &types.Group{Type: types.GROUP_DATE, Field: "day", Params: json.RawMessage(`{"frequency": "daily"}`)}
+	}
+	region := &types.Group{Type: types.GROUP_CATEGORY, Field: "region"}
+	spec := types.OverlaySpec{Name: "yoy", Kind: types.OverlayKindYoY, Scope: types.OverlayScopeGroup, Ref: types.OverlayRef{YoY: &types.OverlayYoYRef{}}}
+	for name, groups := range map[string][]*types.Group{
+		"region×day": {region, day()},
+		"day×region": {day(), region},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var rows []map[string]any
+			for _, p := range pts {
+				rows = append(rows, map[string]any{"region": p.region, "day": p.day, "v": p.v})
+			}
+			resp, err := yoyGroupedRun(t, groups, spec, rows)
+			if err != nil {
+				t.Fatalf("hook: %v", err)
+			}
+			entries := resp.Overlays[0].Payload.Series.Entries
+			if len(entries) != len(pts) {
+				t.Fatalf("%d entries for %d rows", len(entries), len(pts))
+			}
+			dateAt := 1
+			if groups[0].Type == types.GROUP_DATE {
+				dateAt = 0
+			}
+			for i, e := range entries {
+				p := pts[i]
+				if len(e.Key) != 2 || e.Key[dateAt] != p.day || e.Key[1-dateAt] != p.region {
+					t.Fatalf("entry %d key %v, want the full composite key of row %v", i, e.Key, p)
+				}
+				got := "absent"
+				if st := e.Summary.Statistic; st != nil {
+					got = strconv.FormatFloat(*st, 'g', -1, 64)
+				}
+				if w := want[p.region+"|"+p.day]; got != w {
+					t.Errorf("%s %s: yoy %s, want %s", p.region, p.day, got, w)
+				}
+			}
+			if c := resp.Overlays[0].Summary.Count; c == nil || *c != 2 {
+				t.Errorf("summary count %v, want 2 (one comparison per region)", c)
+			}
+		})
+	}
+}
+
+// TestOverlay_YoY_GroupedRefused: the hook refuses two date groupers
+// and a partition_by other than the non-date keys with the
+// seriespartition.YoY Details predict echoes; no layer is written.
+func TestOverlay_YoY_GroupedRefused(t *testing.T) {
+	region := &types.Group{Type: types.GROUP_CATEGORY, Field: "region"}
+	day := &types.Group{Type: types.GROUP_DATE, Field: "day"}
+	shipped := &types.Group{Type: types.GROUP_DATE, Field: "shipped"}
+	rows := func() []map[string]any {
+		return []map[string]any{{"region": "east", "day": "2024-03-01", "shipped": "2024-03-02", "v": 1.0}}
+	}
+	for _, c := range []struct {
+		name   string
+		groups []*types.Group
+		params string
+		code   errors.Code
+		want   map[string]any
+	}{
+		{"two date groupers", []*types.Group{day, region, shipped}, `{"frequency": "daily"}`, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+			map[string]any{"index": 0, "kind": "OVERLAY_YOY", "groupers": 3, "date_groupers": 2, "required": "GROUP_DATE"}},
+		{"no date grouper", []*types.Group{region, {Type: types.GROUP_CATEGORY, Field: "shipped"}}, `{"frequency": "daily"}`, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+			map[string]any{"index": 0, "kind": "OVERLAY_YOY", "groupers": 2, "date_groupers": 0, "required": "GROUP_DATE"}},
+		{"partition_by the date", []*types.Group{region, day}, `{"frequency": "daily", "partition_by": ["day"]}`, errors.PULSE_OVERLAY_PARTITION_INVALID,
+			map[string]any{"index": 0, "kind": "OVERLAY_YOY", "partition_by": []string{"day"}, "groups": []string{"region", "day"}, "reason": "not_non_date_keys", "field": "day"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			spec := types.OverlaySpec{Name: "yoy", Kind: types.OverlayKindYoY, Scope: types.OverlayScopeGroup,
+				Ref: types.OverlayRef{YoY: &types.OverlayYoYRef{}}, Params: json.RawMessage(c.params)}
+			resp, err := yoyGroupedRun(t, c.groups, spec, rows())
+			if len(resp.Overlays) > 0 {
+				t.Fatalf("a layer survived: %+v", resp.Overlays)
+			}
+			ce, ok := err.(*errors.CodedError)
+			if !ok || ce.Code != c.code {
+				t.Fatalf("err = %v, want %s", err, c.code)
+			}
+			if !reflect.DeepEqual(ce.Details, c.want) {
+				t.Errorf("details %#v, want %#v", ce.Details, c.want)
+			}
+		})
+	}
+}
+
+// TestPromoteYoYFrequency_FromDateGrouperAnywhere: the frequency
+// fallback reads the GROUP_DATE grouper's Params wherever it sits, never
+// a non-date groups[0]'s.
+func TestPromoteYoYFrequency_FromDateGrouperAnywhere(t *testing.T) {
+	spec := types.OverlaySpec{Name: "yoy", Kind: types.OverlayKindYoY, Scope: types.OverlayScopeGroup, Ref: types.OverlayRef{YoY: &types.OverlayYoYRef{}}}
+	req := &types.Request{
+		Groups: []*types.Group{
+			{Type: types.GROUP_CATEGORY, Field: "region", Params: json.RawMessage(`{"frequency": "weekly"}`)},
+			{Type: types.GROUP_DATE, Field: "day", Params: json.RawMessage(`{"frequency": "quarterly"}`)},
+		},
+		Overlays: []types.OverlaySpec{spec},
+	}
+	if freq, _ := readYoYFrequencyFromParams(promoteYoYFrequencyFromGroupParams(req, nil)[0].Params); freq != "quarterly" {
+		t.Errorf("promoted frequency %q, want the date grouper's quarterly", freq)
+	}
+	req.Groups = req.Groups[:1]
+	if _, ok := readYoYFrequencyFromParams(promoteYoYFrequencyFromGroupParams(req, nil)[0].Params); ok {
+		t.Error("promoted a non-date grouper's frequency")
 	}
 }

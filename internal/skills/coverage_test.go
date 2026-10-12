@@ -3,9 +3,11 @@ package skills
 import (
 	"io/fs"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/frankbardon/pulse/types"
 )
@@ -148,6 +150,48 @@ func TestSkillsCoverAllOverlayKinds(t *testing.T) {
 		stem := "op-overlay-" + kebabName(strings.TrimPrefix(string(k), "OVERLAY_"))
 		if !embedded[stem] {
 			t.Errorf("overlay kind %s: missing atomic skill skills/%s.md", k, stem)
+		}
+	}
+}
+
+// TestOverlaySkillsAppliesToMatchesHosts pins every op-overlay-* skill's
+// applies_to frontmatter to internal/overlayhost, the one declaration of
+// which slot each kind runs on. Slot -> CLI leaf: Request -> process,
+// Compose -> compose, Chain -> process (a chain runs through the process
+// family; there is no chain leaf), Facet -> facet. A kind moved to another
+// slot, or a loose skill list, fails here.
+func TestOverlaySkillsAppliesToMatchesHosts(t *testing.T) {
+	leaf := map[overlayhost.Host]string{
+		overlayhost.Request: "process",
+		overlayhost.Compose: "compose",
+		overlayhost.Chain:   "process",
+		overlayhost.Facet:   "facet",
+	}
+	for _, k := range types.AllOverlayKinds() {
+		stem := "op-overlay-" + kebabName(strings.TrimPrefix(string(k), "OVERLAY_"))
+		raw, ok := Get(stem)
+		if !ok {
+			t.Errorf("%s: skill missing", stem)
+			continue
+		}
+		set := map[string]bool{}
+		for _, h := range overlayhost.Hosts(k) {
+			set[leaf[h]] = true
+		}
+		var want []string
+		for l := range set {
+			want = append(want, l)
+		}
+		sort.Strings(want)
+		md, ok := ParseMetadata(raw)
+		if !ok {
+			t.Errorf("%s: unparseable frontmatter", stem)
+			continue
+		}
+		got := append([]string(nil), md.AppliesTo...)
+		sort.Strings(got)
+		if strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Errorf("%s: applies_to = %v, want %v (overlayhost slots %v)", stem, got, want, overlayhost.Hosts(k))
 		}
 	}
 }

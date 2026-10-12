@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -100,6 +101,13 @@ func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetReques
 
 	for i := range req.Overlays {
 		spec := &req.Overlays[i]
+		// A catalog kind that does not run on FacetRequest.Overlays —
+		// the shared wrong-slot refusal predict raises
+		// (validateFacetOverlaySpec), ahead of the host-field and
+		// population work every FACET kind needs.
+		if err := processing.WrongHostRefusal(overlayhost.Facet, spec.Kind, s.extensions, i); err != nil {
+			return err
+		}
 		hostFieldName, err := resolveFacetOverlayHostFieldRuntime(req, spec, i)
 		if err != nil {
 			return err

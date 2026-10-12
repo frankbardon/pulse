@@ -15,7 +15,7 @@ Lives on `ChainRequest.Overlays` (dual-slot host — `ChainOverlaySpec`). Decora
 
 ## Params
 
-`Scope` required, echoed verbatim — the capability declares `total` (there is no `chain` scope). `ChainOverlaySpec` has no `Level` / `Within`. `Ref` (a `StageRef`) required — `{Index: N}` or `{Name: "stage-id"}`. `Target` — `{Index}` or `{Name}`, default the latest stage.
+`Scope` required, echoed verbatim — the capability declares `total` (there is no `chain` scope). `ChainOverlaySpec` has no `Level` / `Within`. `Ref` (a `StageRef`) required — `{Index: N}` or `{Name: "stage-id"}`. `Target` — `{Index}` or `{Name}`, default the latest stage. `params.field` (string, optional, series stages) — OUTPUT LABEL of the aggregation to score on the target and the reference stage (`label`, else `TYPE_field`); absent = each stage's `aggregations[0]`; rows key on group columns only; a stage lacking it → `PULSE_OVERLAY_FIELD_UNKNOWN` (`details.which` / `stage_index`).
 
 ## Host shape
 
@@ -28,7 +28,7 @@ Shape inherited from target stage. Per-coordinate `delta = target_val - ref_val`
 ## Gotchas
 
 - No division — zero reference never raises `PULSE_OVERLAY_REF_ZERO`. Distinct from the ratio twin.
-- Target shape ≠ ref shape → `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` + NaN across coordinates.
+- Target shape ≠ ref shape → `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` WARNING on predict-chain and at runtime (chain stays valid and runs; empty layer).
 - Unknown stage → `PULSE_OVERLAY_REF_UNKNOWN` (`PULSE_OVERLAY_TARGET_UNKNOWN` when it lands).
 - Buffered (whole-chain barrier runs after every stage finalises by construction).
 

@@ -37,6 +37,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 - Robust alternative to a t-test when normality fails.
 - Tests stochastic equality, not mean difference — disagreeing with a t-test is signal, not a bug.
 - Asymptotic only (no exact p); n < 2 per group is `PULSE_TEST_INSUFFICIENT_N`.
+- With `groups`: one result per group, each with `group_key`; `split_by` a grouper → `PULSE_TEST_SPLIT_GROUPS_LT_2`; a too-sparse group → `null` figures + a warning (`statistical-testing`).
 
 ## See
 

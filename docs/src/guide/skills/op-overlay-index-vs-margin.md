@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_INDEX_VS_MARGIN
 description: Per-cell index against the matching axis margin (100 × cell / margin).
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, comparison]
 ```
 
@@ -44,6 +44,7 @@ MATRIX (cell scope) or SERIES (row/column scope). `Cells[r][c].Value = 100 × ce
 - Distinct from `OVERLAY_SHARE_OF_*` (raw ratio, no ×100). Kind names kept distinct — don't authoring-confuse.
 - Buffered (host crosstab always recomputes margins from raw rows).
 - Weighted host → weighted figure (reads the host payload).
+- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 
 ## See
 

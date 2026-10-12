@@ -216,7 +216,7 @@ func TestApplyDeltaVsRef_SeriesMissingRefKeyWarns(t *testing.T) {
 func TestApplyTVsRef_SeriesKnownAnswer(t *testing.T) {
 	ref := makeSeriesResponse([]string{"north", "south"}, []float64{2, 5})
 	target := makeSeriesResponse([]string{"north", "south"}, []float64{4, 5})
-	spec := composeSpecSeriesRef(types.OverlayKindTVsRef, nil)
+	spec := composeSpecSeriesRef(types.OverlayKindTVsRef, legacyTwoSampleParams(nil))
 	layer, warnings, err := applyTVsRef(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {
 		t.Fatalf("applyTVsRef: %v", err)
@@ -245,7 +245,7 @@ func TestApplyTVsRef_SeriesKnownAnswer(t *testing.T) {
 func TestApplyTVsRef_SeriesMissingRefKeyWarns(t *testing.T) {
 	ref := makeSeriesResponse([]string{"north"}, []float64{1})
 	target := makeSeriesResponse([]string{"north", "south"}, []float64{5, 10})
-	spec := composeSpecSeriesRef(types.OverlayKindTVsRef, nil)
+	spec := composeSpecSeriesRef(types.OverlayKindTVsRef, legacyTwoSampleParams(nil))
 	layer, warnings, err := applyTVsRef(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {
 		t.Fatalf("applyTVsRef: %v", err)

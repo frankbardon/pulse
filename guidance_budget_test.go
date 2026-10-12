@@ -19,8 +19,9 @@ const guidanceCohort = "guidance.pulse"
 // four-region cohort with two numeric measures.
 func guidanceExemplarRequest() *types.Request {
 	return &types.Request{
-		Cohort:       &types.Cohort{Filename: guidanceCohort},
-		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+		Cohort: &types.Cohort{Filename: guidanceCohort},
+		// Ungrouped: a grouped request runs each test once per group,
+		// and an ANOVA split on its own grouper is refused.
 		Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "score", Label: "avg_score"}},
 		Tests: []*types.Test{
 			{Type: types.TEST_ANOVA_F, Field: "score", SplitBy: "region"},

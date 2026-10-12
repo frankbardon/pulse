@@ -3,9 +3,11 @@ package processing
 import (
 	"math"
 	"sort"
+	"strings"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/statdist"
+	"github.com/frankbardon/pulse/internal/twosample"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -153,84 +155,50 @@ func populationFromParams(params map[string]any) string {
 	return s
 }
 
-// sampleSizeFromParams reads an integer sample-size param from the spec's
-// Params map. Used by OVERLAY_T_CELL to read per-side sample sizes via
-// the "sample_size_target" / "sample_size_ref" keys (or the symmetric
-// "sample_size" fallback). Defaults to dflt (2) when missing.
-func sampleSizeFromParams(params map[string]any, key string, dflt float64) float64 {
-	if params == nil {
-		return dflt
-	}
-	v, ok := params[key]
-	if !ok {
-		// Try the symmetric "sample_size" fallback.
-		v, ok = params["sample_size"]
-		if !ok {
-			return dflt
-		}
-	}
-	switch x := v.(type) {
-	case float64:
-		if x > 0 {
-			return x
-		}
-	case float32:
-		if x > 0 {
-			return float64(x)
-		}
-	case int:
-		if x > 0 {
-			return float64(x)
-		}
-	case int32:
-		if x > 0 {
-			return float64(x)
-		}
-	case int64:
-		if x > 0 {
-			return float64(x)
-		}
-	}
-	return dflt
+// twoSampleLegs holds a two-sample overlay's explicit per-side inputs
+// (variance, sample size) read through twosample.Inputs — the same
+// reading predict judges — for the sides whose mean arrives as a bare
+// scalar. There is no default: a scalar side without them is refused
+// (U46 E4-S16; before, it computed from variance 1, n 2).
+type twoSampleLegs struct {
+	spec                *types.ComposeOverlaySpec
+	refIdx, targetIdx   int
+	varTarget, nTarget  float64
+	varRef, nRef        float64
+	missTarget, missRef []string
 }
 
-// varianceFromParams reads a per-side variance param. Defaults to dflt
-// (1.0) when missing.
-func varianceFromParams(params map[string]any, key string, dflt float64) float64 {
-	if params == nil {
-		return dflt
+func newTwoSampleLegs(spec *types.ComposeOverlaySpec, refIdx, targetIdx int) *twoSampleLegs {
+	l := &twoSampleLegs{spec: spec, refIdx: refIdx, targetIdx: targetIdx}
+	l.varTarget, l.nTarget, l.missTarget = twosample.Inputs(spec.Params, twosample.Target)
+	l.varRef, l.nRef, l.missRef = twosample.Inputs(spec.Params, twosample.Reference)
+	return l
+}
+
+// scalar returns side's explicit (variance, n), or the defensive
+// PULSE_OVERLAY_PARAM_MISSING refusal when params do not carry them.
+// The Compose service refuses the same request before any slot folds
+// (descriptor.ComposeOverlayTwoSampleInputsRefusal); this guards the
+// bare ApplyComposeOverlays entry, which has no Requests to judge.
+func (l *twoSampleLegs) scalar(side twosample.Side) (float64, float64, error) {
+	v, n, missing := l.varTarget, l.nTarget, l.missTarget
+	if side == twosample.Reference {
+		v, n, missing = l.varRef, l.nRef, l.missRef
 	}
-	v, ok := params[key]
-	if !ok {
-		// Try the symmetric "variance" fallback.
-		v, ok = params["variance"]
-		if !ok {
-			return dflt
-		}
+	if len(missing) == 0 {
+		return v, n, nil
 	}
-	switch x := v.(type) {
-	case float64:
-		if x > 0 {
-			return x
-		}
-	case float32:
-		if x > 0 {
-			return float64(x)
-		}
-	case int:
-		if x > 0 {
-			return float64(x)
-		}
-	case int32:
-		if x > 0 {
-			return float64(x)
-		}
-	case int64:
-		if x > 0 {
-			return float64(x)
-		}
-	}
-	return dflt
+	return 0, 0, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING,
+		"overlay "+string(l.spec.Kind)+" scores a scalar mean on its "+string(side)+" side and params carry no usable "+
+			strings.Join(missing, " / ")+" (a finite number > 0); there is no default variance or sample size",
+		map[string]any{
+			"kind":         string(l.spec.Kind),
+			"ref_index":    l.refIdx,
+			"target_index": l.targetIdx,
+			"side":         string(side),
+			"params":       missing,
+			"reason":       "params_missing",
+		})
 }
 
 // buildEmptyMatrixLike constructs a [rows][cols] MatrixCell grid
@@ -819,15 +787,17 @@ func welchTTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 // Response.Components.Crosstab.CellComponents[r][c] containing the
 // `{mean, variance, n}` triple — emitted by AGG_WELFORD via the
 // MetaAggregator path — the handler reads the triple directly from
-// the components map and bypasses the Params defaults. The overlay
+// the components map and needs no params. The overlay
 // p-value matches TEST_WELCH / TEST_T against the same (mean,
 // variance, n) inputs byte-equal because both surfaces share the
 // welchTTest helper and source identical inputs.
 //
-// Scalar fallback: when one side has no CellComponents triple and
-// MatrixCell.Value is a scalar float64, the handler falls back to the
-// Params-default path (`variance_target`, `variance_ref`,
-// `sample_size_target`, `sample_size_ref`) — additive contract.
+// Scalar route: when the cells carry no CellComponents triple and
+// MatrixCell.Value is a scalar float64, each side's variance and
+// sample size come from params (`variance_target` / `variance_ref` /
+// `sample_size_target` / `sample_size_ref`, or the symmetric
+// `variance` / `sample_size`) — required, no default
+// (twoSampleLegs; PULSE_OVERLAY_PARAM_MISSING).
 //
 // Mixed cell shapes (one triple, one scalar) are blocked upstream by
 // the compose schema-match gate. The handler still emits a defensive
@@ -851,10 +821,7 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 
 	refCellLookup := buildMatrixCellRawLookup(refMx)
 	refCoordLookup := buildMatrixCellCoordLookup(refMx)
-	varTarget := varianceFromParams(spec.Params, "variance_target", 1.0)
-	varRef := varianceFromParams(spec.Params, "variance_ref", 1.0)
-	nTarget := sampleSizeFromParams(spec.Params, "sample_size_target", 2.0)
-	nRef := sampleSizeFromParams(spec.Params, "sample_size_ref", 2.0)
+	legs := newTwoSampleLegs(spec, refIdx, targetIdx)
 
 	rowCount := len(targetMx.RowKeys)
 	colCount := len(targetMx.ColumnKeys)
@@ -947,12 +914,15 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 				targetVal = meanT
 				refVal = meanR
 			} else if tHasScalar && rHasScalar {
+				var err error
+				if vT, nT, err = legs.scalar(twosample.Target); err != nil {
+					return types.OverlayLayer{}, nil, err
+				}
+				if vR, nR, err = legs.scalar(twosample.Reference); err != nil {
+					return types.OverlayLayer{}, nil, err
+				}
 				meanT = tScalar
-				vT = varTarget
-				nT = nTarget
 				meanR = rScalar
-				vR = varRef
-				nR = nRef
 				targetVal = tScalar
 				refVal = rScalar
 			} else {

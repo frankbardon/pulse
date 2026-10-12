@@ -5,7 +5,7 @@ category: OVERLAY
 operator: OVERLAY_PAIRWISE_PROP_Z
 description: Intra-matrix axis-pairwise pooled-SE two-proportion z-test (row-vs-row or col-vs-col within one crosstab).
 type: reference
-applies_to: process, compose
+applies_to: process
 examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise]
 ```
 
@@ -53,6 +53,7 @@ MATRIX (`Payload.Shape = "matrix"`). PAIR axis = one entry per evaluated `(i, j)
 - **`p_source` mismatch fails silently and totally.** `cell_value` over a real 0..100 percentage drives pooled p outside `[0,1]`, so EVERY pair skips and the layer returns empty.
 - **The three distinct-KEY n modes are admitted only on a distinct-key cell aggregator** (sum-of-distinct or distinct count) — the modal aggregators spell a `distinct_count` too, but theirs counts answer codes. `n_within_distinct` additionally refuses a fan-out grouper at a summed-across depth (`PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`, predict AND runtime); the margin modes are exact by construction and never gated. Null rules and the direct-caller bypass: [`pairwise-n-sources`](pairwise-n-sources.md).
 - Flagged buffered in `OverlayStreamability`, but the HOST crosstab still FUSES on a mergeable cell aggregator (a weighted mean included, even over a per-element set axis).
+- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 
 ## See
 

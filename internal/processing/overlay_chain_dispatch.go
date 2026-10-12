@@ -2,6 +2,7 @@ package processing
 
 import (
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -162,10 +163,11 @@ var chainOverlayHandlers = map[types.OverlayKind]chainOverlayHandler{
 // Shape divergence: the per-kind CHAIN handlers (applyIndexVsStage /
 // applyDeltaVsStage) emit PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT
 // when the resolved target stage and reference stage host shapes
-// disagree. The dispatcher itself does not gate on shape — the per-kind
-// handlers own the shape-divergence defence so each kind picks its own
-// fallback payload (the canonical rule today is "empty payload that
-// inherits the target stage's shape").
+// disagree; ApplyChainOverlaysWithRequests raises the same answer
+// first off the stages' AUTHORED shapes (chainShapeDivergentLayer —
+// an empty payload that inherits the target stage's shape). Either
+// way the dispatcher stamps the warning with predict-chain's keys
+// (index, stage_index, stage_name) beside overlay_index.
 func ApplyChainOverlays(specs []*types.ChainOverlaySpec, stages []*types.Response, stageNames []string) ([]*types.OverlayLayer, []types.OverlayWarning, error) {
 	return ApplyChainOverlaysWithExtensions(specs, stages, stageNames, nil)
 }
@@ -175,6 +177,16 @@ func ApplyChainOverlays(specs []*types.ChainOverlaySpec, stages []*types.Respons
 // kind the instance feature set hides misses the CHAIN table exactly
 // like a never-registered kind. A nil exts is ApplyChainOverlays.
 func ApplyChainOverlaysWithExtensions(specs []*types.ChainOverlaySpec, stages []*types.Response, stageNames []string, exts *ExtensionRegistry) ([]*types.OverlayLayer, []types.OverlayWarning, error) {
+	return ApplyChainOverlaysWithRequests(specs, stages, stageNames, nil, exts)
+}
+
+// ApplyChainOverlaysWithRequests is ApplyChainOverlaysWithExtensions
+// with each stage's executed Request in reach (stageReqs, parallel to
+// stages): a SERIES stage then keys on its group columns alone and
+// scores the aggregation params.field names, else its Aggregations[0]
+// (projectChainSeriesStages). A nil stageReqs keeps the legacy
+// whole-row reading of encodeSeriesRow.
+func ApplyChainOverlaysWithRequests(specs []*types.ChainOverlaySpec, stages []*types.Response, stageNames []string, stageReqs []*types.Request, exts *ExtensionRegistry) ([]*types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
@@ -202,6 +214,11 @@ func ApplyChainOverlaysWithExtensions(specs []*types.ChainOverlaySpec, stages []
 					"index": i,
 				})
 		}
+		// A catalog kind that runs on another slot: the shared wrong-slot
+		// refusal predict-chain raises (validateChainOverlays).
+		if cerr := overlayhost.Refusal(overlayhost.Chain, spec.Kind, exts.overlayRoute(spec.Kind), i); cerr != nil {
+			return nil, nil, cerr
+		}
 		handler, ok := chainOverlayHandlers[exts.overlayRoute(spec.Kind)]
 		if !ok {
 			return nil, nil, errors.NewCodedErrorWithDetails(
@@ -224,7 +241,30 @@ func ApplyChainOverlaysWithExtensions(specs []*types.ChainOverlaySpec, stages []
 		if err != nil {
 			return nil, nil, err
 		}
-		layer, ws, err := handler(spec, stages[targetIdx], stages[refIdx], targetIdx, refIdx)
+		// SERIES stages narrow to their group columns plus the scored
+		// aggregation BEFORE the handler reads a Data row; the field
+		// refusal sits where predict-chain raises it, after stage
+		// resolution.
+		target, ref, err := projectChainSeriesStages(spec, exts.overlayRoute(spec.Kind), i, stages[targetIdx], stages[refIdx], targetIdx, refIdx, stageReqs)
+		if err != nil {
+			return nil, nil, err
+		}
+		// Shape is judged off each stage's AUTHORED request when it is
+		// in reach (the shape predict-chain reads): an ungrouped stage
+		// keeps its one aggregate row in Data, so the handlers' Response
+		// probe would call it SERIES and fold it against a grouped
+		// stage. Equal authored shapes leave the handler to decide.
+		var (
+			layer types.OverlayLayer
+			ws    []types.OverlayWarning
+		)
+		tShape := hostShapeAt(stageReqs, targetIdx, chainStageShape(target))
+		rShape := hostShapeAt(stageReqs, refIdx, chainStageShape(ref))
+		if target != nil && ref != nil && tShape != rShape {
+			layer, ws, err = chainShapeDivergentLayer(spec, tShape, rShape, targetIdx, refIdx)
+		} else {
+			layer, ws, err = handler(spec, target, ref, targetIdx, refIdx)
+		}
 		if err != nil {
 			return nil, nil, err
 		}
@@ -248,6 +288,19 @@ func ApplyChainOverlaysWithExtensions(specs []*types.ChainOverlaySpec, stages []
 					ws[j].Details = map[string]any{}
 				}
 				ws[j].Details["overlay_index"] = i
+				// A shape divergence also carries the keys predict-chain
+				// raises it with (index, stage_index, stage_name — the
+				// target stage), so the shared keys deep-equal on both
+				// sides wherever the divergence is judged.
+				if ws[j].Code == string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
+					name := ""
+					if targetIdx < len(stageNames) {
+						name = stageNames[targetIdx]
+					}
+					ws[j].Details["index"] = i
+					ws[j].Details["stage_index"] = targetIdx
+					ws[j].Details["stage_name"] = name
+				}
 			}
 			warnings = append(warnings, ws...)
 		}
