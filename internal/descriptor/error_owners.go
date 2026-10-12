@@ -391,6 +391,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT:         own("OVERLAY_FORMULA"),
 	errors.PULSE_OVERLAY_REF_UNKNOWN:                   ownAllOverlays,
 	errors.PULSE_OVERLAY_FIELD_UNKNOWN:                 ownAllOverlays,
+	errors.PULSE_OVERLAY_PARTITION_INVALID:             ownAllOverlays,
 	errors.PULSE_OVERLAY_YOY_FREQUENCY_MISSING:         own("OVERLAY_YOY"),
 	errors.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY:    own("OVERLAY_YOY"),
 	errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT:   own(featProcessChain),

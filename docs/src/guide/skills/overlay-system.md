@@ -53,7 +53,7 @@ Implicit-margin kinds (the χ² and Fisher cell tests) leave `ref` empty.
 The carrying request decides the host; the host decides the legal kinds:
 
 - **MATRIX** — a crosstab (`Request.Crosstab` + `Request.Overlays`): share, margin compare, cell tests, intra-matrix pairwise. Pairwise n: [`pairwise-n-sources`](pairwise-n-sources.md).
-- **SERIES** — a grouped Process with no crosstab: per-group self-compare (sibling, baseline, prior, rolling, year-over-year). ONE grouper only: two or more `groups` (composite rows) are refused `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. Scores the aggregation whose output label `params.field` names; absent, `aggregations[0]`.
+- **SERIES** — a grouped Process with no crosstab: per-group self-compare (sibling, baseline, prior, rolling, year-over-year). Over N ≥ 2 `groups` it runs per partition: `params.partition_by`, a leading key prefix (default all but the last; `[]` none); YoY: one grouper. Scores the aggregation `params.field` labels; absent, `aggregations[0]`.
 - **FACET** — `FacetRequest.Overlays` (NOT `Request.Overlays`): population comparisons, layers on `FacetResult.Overlays` ([`facet-design`](facet-design.md)).
 - **CHAIN** — whole-chain `ChainRequest.Overlays` against an earlier stage; layers on the chain response, per-stage overlays untouched. Stages of divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` ([`process-chain`](process-chain.md)).
 - **FORMULA** — an expression over earlier layers, referenced by `name`.
@@ -61,7 +61,7 @@ The carrying request decides the host; the host decides the legal kinds:
 
 ## Per-layer warnings (`OverlayLayer.Warnings`)
 
-Additive `warnings: [{code, message, details}]` on each layer, `omitempty` — overlay-free responses stay byte-identical. Canonical: `PULSE_OVERLAY_REF_ZERO` (zero reference, undefined ratio), `PULSE_OVERLAY_EXPECTED_LOW` (χ² expected count below 5). A warning lands on the layer that raised it; on Compose and chain hosts it rides `Overlays[i].Warnings` of the matching layer. Warnings never fail the request — read them before reporting a figure.
+Additive `warnings: [{code, message, details}]` on each layer, `omitempty` — overlay-free responses stay byte-identical. Canonical: `PULSE_OVERLAY_REF_ZERO` (zero reference, undefined ratio), `PULSE_OVERLAY_EXPECTED_LOW` (χ² expected count below 5). A warning lands on the layer that raised it; on Compose and chain hosts it rides `Overlays[i].Warnings` of the matching layer. A partitioned SERIES layer raises each code once (`details.partitions`). Warnings never fail the request — read them before reporting a figure.
 
 ## Multiplicity
 
@@ -73,7 +73,7 @@ Manifest `overlays[].buffered`. Descriptive SERIES kinds stream; inferential kin
 
 ## Weighted hosts
 
-A weighted host yields a weighted payload, so every descriptive kind (shares, indices, deltas) reads weighted figures with no overlay setting. An inferential kind refuses a weight that reaches it (request, instance default, its own `weight`) with `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` on the spec opts out. The weighted pairwise two-means z is exempt and takes a weighted-mean or weighted-average cell.
+A weighted host yields a weighted payload, so every descriptive kind (shares, indices, deltas) reads weighted figures with no overlay setting. An inferential kind refuses a weight that reaches it (request, instance default, its own `weight`) with `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` on the spec opts out.
 
 ## Parity overlays — Welford migration
 

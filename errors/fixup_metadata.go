@@ -2426,6 +2426,17 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_OVERLAY_PARTITION_INVALID: {
+		Message: "A series overlay's params.partition_by is not a leading prefix of the request's group key columns. With two or more groupers a prior, rolling, baseline or sibling overlay runs once per partition — the rows sharing the leading keys — so the series never crosses a segment. Absent, it partitions by every key but the last (the series runs down the last grouper); [] means no partition. Raised at predict and at runtime with the same Details {index, kind, partition_by, groups, reason, field}: reason is not_string_list, unknown_field or not_prefix, groups lists the key columns in order.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "partition_by"},
+				Hint:     "Name the first k entries of Details.groups, in order (groups [region, store, day] admits [region] or [region, store]); reorder Request.Groups to put the segment keys first, or omit partition_by to partition by every key but the last. Pass [] to walk every composite row as one series.",
+				Examples: []any{map[string]any{"partition_by": []any{"region"}}, map[string]any{"partition_by": []any{}}},
+			},
+		},
+	},
 	PULSE_OVERLAY_REF_UNKNOWN: {
 		Message: "An overlay handler named a reference that does not resolve to a known slot on the host. Three arms today: (1) sibling-reference overlays (delta- and index-vs-sibling) name a Sibling (Field, Value) pair that does not match any observed axis-key value on the SERIES host; (2) baseline-index overlays (index- and delta-vs-baseline, rolling-mean index, year-over-year) name a Position ordinal outside [0, host.GroupCount()) — Details carry {baseline_index, series_length}; (3) Facet-host population overlays (index, z-score, chi-square and KS vs population) name a population field absent from the host FacetResult — Details carry {field, available_fields}. The affected layer surfaces NaN statistics across every present entry (arms 1–2) or fails fast (arm 3). Warning-class for arms 1–2, runtime error for arm 3 — surfaced as a Response.Warning or envelope error depending on arm.",
 		Fixups: []Fixup{

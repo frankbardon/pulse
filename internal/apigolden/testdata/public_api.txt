@@ -2353,6 +2353,7 @@ pulse/errors: const PULSE_OVERLAY_KIND_UNKNOWN pulse/errors.Code = "PULSE_OVERLA
 pulse/errors: const PULSE_OVERLAY_LEVEL_OUT_OF_RANGE pulse/errors.Code = "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE"
 pulse/errors: const PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP pulse/errors.Code = "PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP"
 pulse/errors: const PULSE_OVERLAY_PARAM_MISSING pulse/errors.Code = "PULSE_OVERLAY_PARAM_MISSING"
+pulse/errors: const PULSE_OVERLAY_PARTITION_INVALID pulse/errors.Code = "PULSE_OVERLAY_PARTITION_INVALID"
 pulse/errors: const PULSE_OVERLAY_REFERENCE_UNKNOWN pulse/errors.Code = "PULSE_OVERLAY_REFERENCE_UNKNOWN"
 pulse/errors: const PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE pulse/errors.Code = "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE"
 pulse/errors: const PULSE_OVERLAY_REF_UNKNOWN pulse/errors.Code = "PULSE_OVERLAY_REF_UNKNOWN"
@@ -4937,4 +4938,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: a8f62d7c531ca585095248accabd7a0f14cd6fa5dcb9848f85fba5d166bb62e0
+// golden-hash: 091230550eb6106104f82b85e45250d36847c2f3b6573e29f0f178fb9b7028ea

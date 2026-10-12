@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/seriesfield"
+	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -95,6 +96,8 @@ func OverlayCapabilities() []descriptor.OverlayCapability {
 // "".
 func seriesFieldNoteFor(k types.OverlayKind) string {
 	switch {
+	case seriespartition.Applies(k):
+		return seriesFieldNote + seriesPartitionNote
 	case seriesfield.Applies(k):
 		return seriesFieldNote
 	case seriesfield.AppliesCompose(k):
@@ -111,6 +114,14 @@ func seriesFieldNoteFor(k types.OverlayKind) string {
 const seriesFieldNote = " Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL " +
 	"Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. " +
 	"A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime."
+
+// seriesPartitionNote follows seriesFieldNote on every kind that runs
+// once per partition of a composite-row host
+// (internal/seriespartition): the params.partition_by rule.
+const seriesPartitionNote = " Partition: with two or more groupers the overlay runs once per partition, the rows sharing " +
+	"the leading keys Params[\"partition_by\"] names (default every key but the last, so the series runs down the last " +
+	"grouper; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list " +
+	"that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime."
 
 // composeSeriesFieldNote closes the Description of every Compose kind
 // whose SERIES arm scores one slot aggregation

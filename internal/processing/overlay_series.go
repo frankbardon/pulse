@@ -1,8 +1,6 @@
 package processing
 
 import (
-	"strconv"
-
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -443,35 +441,6 @@ func computeSeriesGrandTotal(host *SeriesHostView) (grandTotal float64, presentM
 	return grandTotal, presentMask, values
 }
 
-// refuseCompositeSeriesHost is the runtime twin of
-// descriptor.refuseCompositeSeriesHost: a series overlay that reads the
-// host as ONE ordered series (lag-1 prior, rolling window, positional
-// baseline, first-match sibling) is refused
-// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when the host carries two
-// or more groupers. Composite rows (U54) are ordered outer → inner, so
-// a lag or window would straddle outer buckets and a positional or
-// sibling reference would sit in another bucket — a silently wrong
-// figure. Per-partition semantics are U46 #320's. A host built without
-// a grouper-kind list (legacy constructors) defers to predict, as
-// applyYoY does. Returns nil for a nil host so each handler's own
-// nil-host defense still fires.
-func refuseCompositeSeriesHost(spec *types.OverlaySpec, host *SeriesHostView) error {
-	if host == nil {
-		return nil
-	}
-	n := len(host.GrouperKinds())
-	if n <= 1 {
-		return nil
-	}
-	return errors.NewCodedErrorWithDetails(
-		errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-		"overlay "+string(spec.Kind)+" requires a SERIES host with exactly one grouper; got "+strconv.Itoa(n)+" groupers (composite rows are not one ordered series)",
-		map[string]any{
-			"kind":     string(spec.Kind),
-			"groupers": n,
-		})
-}
-
 // ApplyOverlaysSeries executes every spec in specs against the SERIES
 // host view and returns one OverlayLayer per spec in matching order
 // (FR-A2: stable spec-order layer emission), plus a flat warning slice.
@@ -516,17 +485,19 @@ func ApplyOverlaysSeries(specs []types.OverlaySpec, host *SeriesHostView) ([]typ
 // spec runs no handler and raises nothing, and its position holds a
 // zero layer so the result stays index-aligned with specs.
 func applyOverlaysSeriesWith(specs []types.OverlaySpec, host *SeriesHostView, exts *ExtensionRegistry, keep func(int) bool) ([]types.OverlayLayer, []types.OverlayWarning, error) {
-	return applyOverlaysSeriesPerSpec(specs, func(int, *types.OverlaySpec, types.OverlayKind) (*SeriesHostView, error) {
-		return host, nil
+	return applyOverlaysSeriesPerSpec(specs, func(int, *types.OverlaySpec, types.OverlayKind) (*SeriesHostView, int, error) {
+		return host, 0, nil
 	}, exts, keep)
 }
 
 // applyOverlaysSeriesPerSpec is applyOverlaysSeriesWith with the host
 // chosen per spec: hostFor receives the spec's index, the spec and its
 // routed kind, and returns the view that spec folds over (the grouped
-// Process hook hands each spec the host scoring its params.field). An
-// error from hostFor aborts the fold like a handler error.
-func applyOverlaysSeriesPerSpec(specs []types.OverlaySpec, hostFor func(int, *types.OverlaySpec, types.OverlayKind) (*SeriesHostView, error), exts *ExtensionRegistry, keep func(int) bool) ([]types.OverlayLayer, []types.OverlayWarning, error) {
+// Process hook hands each spec the host scoring its params.field) plus
+// the number of leading key elements the spec partitions by (0: one
+// walk over the whole host; runSeriesHandlerPartitioned). An error from
+// hostFor aborts the fold like a handler error.
+func applyOverlaysSeriesPerSpec(specs []types.OverlaySpec, hostFor func(int, *types.OverlaySpec, types.OverlayKind) (*SeriesHostView, int, error), exts *ExtensionRegistry, keep func(int) bool) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
@@ -551,11 +522,11 @@ func applyOverlaysSeriesPerSpec(specs []types.OverlaySpec, hostFor func(int, *ty
 					"host":  "series",
 				})
 		}
-		host, err := hostFor(i, spec, route)
+		host, depth, err := hostFor(i, spec, route)
 		if err != nil {
 			return nil, nil, err
 		}
-		layer, ws, err := handler(spec, host)
+		layer, ws, err := runSeriesHandlerPartitioned(handler, spec, host, depth)
 		if err != nil {
 			return nil, nil, err
 		}

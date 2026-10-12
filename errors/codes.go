@@ -1655,6 +1655,16 @@ const (
 	// Details.stage_index.
 	PULSE_OVERLAY_FIELD_UNKNOWN Code = "PULSE_OVERLAY_FIELD_UNKNOWN"
 
+	// PULSE_OVERLAY_PARTITION_INVALID indicates a series overlay's
+	// Params["partition_by"] is not a leading prefix of the request's
+	// group key columns: a non-string-list value, a column no grouper
+	// writes, or a column out of prefix order. Absent partition_by
+	// partitions by every key but the last; [] means no partition.
+	// Raised at predict and at runtime by the one shared reading
+	// (internal/seriespartition.Depth), Details {index, kind,
+	// partition_by, groups, reason[, field]}.
+	PULSE_OVERLAY_PARTITION_INVALID Code = "PULSE_OVERLAY_PARTITION_INVALID"
+
 	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT indicates a whole-chain
 	// overlay spec (OVERLAY_INDEX_VS_STAGE / OVERLAY_DELTA_VS_STAGE)
 	// where the resolved target stage and reference stage produce
@@ -3661,6 +3671,7 @@ var allCodes = []Code{
 	PULSE_OVERLAY_FORMULA_INVALID_IDENT,
 	PULSE_OVERLAY_REF_UNKNOWN,
 	PULSE_OVERLAY_FIELD_UNKNOWN,
+	PULSE_OVERLAY_PARTITION_INVALID,
 	PULSE_OVERLAY_YOY_FREQUENCY_MISSING,
 	PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY,
 	PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT,

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/frankbardon/pulse/internal/seriesfield"
+	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -118,21 +119,28 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 		return nil
 	}
 	hosts := map[int]*SeriesHostView{}
-	hostFor := func(i int, spec *types.OverlaySpec, kind types.OverlayKind) (*SeriesHostView, error) {
+	// hostFor hands each spec the host scoring its params.field and the
+	// leading-key depth it partitions by (params.partition_by;
+	// runSeriesHandlerPartitioned runs the handler once per partition).
+	hostFor := func(i int, spec *types.OverlaySpec, kind types.OverlayKind) (*SeriesHostView, int, error) {
 		aggIndex := 0
 		if seriesfield.Applies(kind) {
 			idx, err := seriesfield.Resolve(req.Aggregations, spec, i)
 			if err != nil {
-				return nil, err
+				return nil, 0, err
 			}
 			aggIndex = idx
 		}
+		depth, err := seriesPartitionDepth(req, spec, kind, i)
+		if err != nil {
+			return nil, 0, err
+		}
 		if h, ok := hosts[aggIndex]; ok {
-			return h, nil
+			return h, depth, nil
 		}
 		h := buildSeriesHostFromGroupedResponse(req, resp, aggIndex)
 		hosts[aggIndex] = h
-		return h, nil
+		return h, depth, nil
 	}
 	// OVERLAY_YOY frequency promotion. The YoY handler reads
 	// the frequency value from spec.Params["frequency"] only; the
@@ -207,21 +215,14 @@ func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response
 		if g == nil {
 			continue
 		}
-		groupFields = append(groupFields, g.Field)
+		// The key column the grouper writes (vectors.GroupKeyField): Field,
+		// or <TYPE>_<first field> for a vector-input grouper with none.
+		groupFields = append(groupFields, seriespartition.KeyColumns([]*types.Group{g})[0])
 		grouperKinds = append(grouperKinds, g.Type)
 	}
 	primaryLabel := AggregationLabel(req.Aggregations[aggIndex])
 	data := resp.Data
-	keys := make([]types.AxisKey, len(data))
-	for i, row := range data {
-		key := make(types.AxisKey, len(groupFields))
-		for j, field := range groupFields {
-			if v, ok := row[field]; ok {
-				key[j] = v
-			}
-		}
-		keys[i] = key
-	}
+	keys := seriespartition.RowKeys(data, groupFields)
 	resolver := func(i int) (float64, bool) {
 		if i < 0 || i >= len(data) {
 			return 0, false

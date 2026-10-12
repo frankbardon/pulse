@@ -3,7 +3,10 @@ package pulse_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -13,8 +16,9 @@ import (
 )
 
 // mgSeriesOverlaySpecs is every SERIES overlay that reads the host as
-// ONE ordered series: the lag-1 prior, the rolling window, the
-// positional baseline and the first-match sibling.
+// an ordered series: the lag-1 prior, the rolling window, the
+// positional baseline and the sibling. With two or more groupers each
+// runs once per partition (internal/seriespartition).
 func mgSeriesOverlaySpecs() []types.OverlaySpec {
 	window := json.RawMessage(`{"window": 2}`)
 	sib := &types.OverlaySiblingRef{Field: "region", Value: "north"}
@@ -30,112 +34,231 @@ func mgSeriesOverlaySpecs() []types.OverlaySpec {
 	}
 }
 
-// TestMultiGrouper_SeriesOverlaysRefused: over (region, sex) the host
-// is the six composite rows north|F 7, north|M 5, south|F 4, south|M 6,
-// west|F 3, west|M 5. Before the refusal OVERLAY_DELTA_VS_PRIOR gave
-// south|F a delta of -1 (4 minus north|M's 5) where its own bucket has
-// no prior; rolling windows straddled buckets the same way, the
-// positional baseline indexed every region to north|F, and a sibling
-// named by one key column resolved to the first matching row for every
-// row. Each such kind is now refused
-// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (details.groupers) by
-// predict and by every runtime mode, as OVERLAY_YOY is; over the
-// region grouper alone each still runs, and DELTA_VS_PRIOR's figures
-// are the plain lag-1 deltas.
-func TestMultiGrouper_SeriesOverlaysRefused(t *testing.T) {
-	f := newMGFixture(t, pulse.Options{})
-	for _, spec := range mgSeriesOverlaySpecs() {
-		t.Run(string(spec.Kind), func(t *testing.T) {
-			build := func(groups ...*types.Group) *types.Request {
-				req := mgRequest(f, groups)
-				req.Overlays = []types.OverlaySpec{spec}
-				return req
+// psSpecs is the eight partitioned kinds over a series key: the sibling
+// pair names sibling (the series key column and a value every partition
+// carries); without one the sibling pair is left out.
+func psSpecs(sibField, sibValue string) []types.OverlaySpec {
+	var out []types.OverlaySpec
+	for _, s := range mgSeriesOverlaySpecs() {
+		if s.Ref.Sibling != nil {
+			if sibField == "" {
+				continue
 			}
-			// One grouper: accepted and folded. Region counts 12, 10, 8.
-			if env := predictEnvelope(t, f.p, f.fs, f.cohort, build(mgRegion())); len(env.Errors) > 0 {
-				t.Fatalf("one grouper: predict %+v", env.Errors)
-			}
-			resp, err := f.p.Process(context.Background(), build(mgRegion()))
-			if err != nil {
-				t.Fatalf("one grouper: %v", err)
-			}
-			if len(resp.Overlays) != 1 || resp.Overlays[0].Payload.Series == nil || len(resp.Overlays[0].Payload.Series.Entries) != 3 {
-				t.Fatalf("one grouper: overlays %+v, want one 3-entry series layer", resp.Overlays)
-			}
-			if spec.Kind == types.OverlayKindDeltaVsPrior {
-				entries := resp.Overlays[0].Payload.Series.Entries
-				if st := entries[0].Summary.Statistic; st == nil || !math.IsNaN(*st) {
-					t.Errorf("first delta = %v, want NaN (no prior)", st)
-				}
-				for i, want := range []float64{-2, -2} {
-					if st := entries[i+1].Summary.Statistic; st == nil || *st != want {
-						t.Errorf("delta[%d] = %v, want %v", i+1, st, want)
-					}
-				}
-			}
+			s.Ref.Sibling = &types.OverlaySiblingRef{Field: sibField, Value: sibValue}
+		}
+		out = append(out, s)
+	}
+	return out
+}
 
-			for name, groups := range map[string]func() []*types.Group{
-				"region outer": func() []*types.Group { return []*types.Group{mgRegion(), mgSex()} },
-				"region inner": func() []*types.Group { return []*types.Group{mgSex(), mgRegion()} },
-			} {
-				env := predictEnvelope(t, f.p, f.fs, f.cohort, build(groups()...))
-				if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) || env.Errors[0].Details["groupers"] != 2 {
-					t.Errorf("%s: predict errors %+v, want PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE groupers 2", name, env.Errors)
+// psWithPartition sets params.partition_by on every spec.
+func psWithPartition(t *testing.T, specs []types.OverlaySpec, pb []string) []types.OverlaySpec {
+	t.Helper()
+	out := make([]types.OverlaySpec, len(specs))
+	for i, s := range specs {
+		m := map[string]any{}
+		if len(s.Params) > 0 {
+			if err := json.Unmarshal(s.Params, &m); err != nil {
+				t.Fatal(err)
+			}
+		}
+		m["partition_by"] = pb
+		b, err := json.Marshal(m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.Params = b
+		out[i] = s
+	}
+	return out
+}
+
+// psCase is one partitioned shape: the composite groups, how many lead
+// the partition, the composite request's specs and the specs each
+// per-partition run takes over the remaining groups.
+type psCase struct {
+	name      string
+	groups    func() []*types.Group
+	depth     int
+	specs     []types.OverlaySpec
+	perSingle []types.OverlaySpec
+}
+
+// psScoreBy2 buckets score (= id) in pairs, so every region carries a
+// series of four to seven points.
+func psScoreBy2() *types.Group {
+	return &types.Group{Type: types.GROUP_RANGE, Field: "score", Interval: 2}
+}
+
+// psYSum is the scored measure: Σy over the bucket varies point to
+// point (y = id mod 3, +100 past id 18), so the rolling SD is non-zero.
+func psYSum() *types.Aggregation {
+	return &types.Aggregation{Type: types.AGG_SUM, Field: "y", Label: "ys"}
+}
+
+// psStreamable reports whether every grouper and overlay kind of req
+// streams, so the streaming mode must take the streaming arm.
+func psStreamable(req *types.Request) bool {
+	for _, g := range req.Groups {
+		if !g.Type.Streamable() {
+			return false
+		}
+	}
+	for _, o := range req.Overlays {
+		if !types.OverlayStreamability[o.Kind] {
+			return false
+		}
+	}
+	return true
+}
+
+// psStat renders a statistic bit for bit.
+func psStat(p *float64) string {
+	switch {
+	case p == nil:
+		return "absent"
+	case math.IsNaN(*p):
+		return "NaN"
+	}
+	return fmt.Sprintf("%x", math.Float64bits(*p))
+}
+
+// psRender splits each layer of resp by the first depth key elements:
+// layer → partition prefix → the partition's entries in order, each as
+// "suffix-key=statistic".
+func psRender(t *testing.T, resp *types.Response, nSpecs, depth int) []map[string][]string {
+	t.Helper()
+	if resp == nil || len(resp.Overlays) != nSpecs {
+		t.Fatalf("want %d layers, got %+v", nSpecs, resp)
+	}
+	out := make([]map[string][]string, nSpecs)
+	for i, layer := range resp.Overlays {
+		if layer.Payload.Series == nil {
+			t.Fatalf("layer %d carries no series payload", i)
+		}
+		out[i] = map[string][]string{}
+		for _, e := range layer.Payload.Series.Entries {
+			prefix := fmt.Sprint([]any(e.Key[:depth]))
+			out[i][prefix] = append(out[i][prefix], fmt.Sprint([]any(e.Key[depth:]))+"="+psStat(e.Summary.Statistic))
+		}
+	}
+	return out
+}
+
+// TestMultiGrouper_SeriesOverlaysPartitioned: with two or more
+// groupers every prior / rolling / baseline / sibling overlay runs once
+// per partition — every key but the last by default, or an explicit
+// leading prefix — and equals, entry for entry and bit for bit, the
+// same overlay run separately on each partition's rows (a FILTER_INCLUDE
+// on the partition keys, grouped by the remaining keys). It holds on
+// the buffered, streaming and both parallel arms (shard archive and
+// parallel decode), under a sort on the keys, under a sort on the
+// aggregate that interleaves partitions, through Compose and a `return`
+// allowlist. Shapes: [region, score/2], [region, sex] (the sibling pair
+// names sex = F), the story's segment × day [region, day], and three
+// groupers [region, sex, score/2] partitioned by both prefixes
+// (partition_by [region] against per-region runs with partition_by []).
+// The prior pair alone over streamable groupers must ride the
+// streaming arm.
+func TestMultiGrouper_SeriesOverlaysPartitioned(t *testing.T) {
+	f := newMGFixture(t, pulse.Options{})
+	cases := []psCase{
+		{name: "region×score", groups: func() []*types.Group { return []*types.Group{mgRegion(), psScoreBy2()} }, depth: 1,
+			specs: psSpecs("", ""), perSingle: psSpecs("", "")},
+		{name: "region×sex", groups: func() []*types.Group { return []*types.Group{mgRegion(), mgSex()} }, depth: 1,
+			specs: psSpecs("sex", "F"), perSingle: psSpecs("sex", "F")},
+		{name: "region×day", groups: func() []*types.Group { return []*types.Group{mgRegion(), mgDay()} }, depth: 1,
+			specs: psSpecs("", ""), perSingle: psSpecs("", "")},
+		{name: "region×score streamable kinds", groups: func() []*types.Group { return []*types.Group{mgRegion(), psScoreBy2()} }, depth: 1,
+			specs: psSpecs("", "")[:2], perSingle: psSpecs("", "")[:2]},
+		{name: "region×sex×score default", groups: func() []*types.Group { return []*types.Group{mgRegion(), mgSex(), psScoreBy2()} }, depth: 2,
+			specs: psSpecs("", ""), perSingle: psSpecs("", "")},
+		{name: "region×sex×score partition_by [region]", groups: func() []*types.Group { return []*types.Group{mgRegion(), mgSex(), psScoreBy2()} }, depth: 1,
+			specs: psWithPartition(t, psSpecs("", ""), []string{"region"}), perSingle: psWithPartition(t, psSpecs("", ""), []string{})},
+	}
+	var modes []mgMode
+	for _, m := range mgModes {
+		switch m.name {
+		case "ProcessStream", "ProcessChain":
+			// ProcessStream yields rows, not layers; a chain stage's
+			// own overlays are the chain-host contract.
+			continue
+		}
+		modes = append(modes, m)
+	}
+	for _, c := range cases {
+		for _, mode := range modes {
+			t.Run(c.name+"/"+mode.name, func(t *testing.T) {
+				run := func(groups []*types.Group, specs []types.OverlaySpec, filters ...*types.Filterer) *types.Response {
+					t.Helper()
+					req := mgRequest(f, groups, psYSum())
+					req.Filterers = filters
+					req.Overlays = specs
+					if env := predictEnvelope(t, f.p, f.fs, f.cohort, req); len(env.Errors) > 0 {
+						t.Fatalf("predict: %+v", env.Errors)
+					}
+					resp, err := mode.run(t, f, req)
+					if err != nil {
+						t.Fatalf("run: %v", err)
+					}
+					if mode.name == "Streaming" && psStreamable(req) && f.lastArm() != observe.ArmStreaming {
+						t.Fatalf("streamable request ran on arm %q, want streaming", f.lastArm())
+					}
+					return resp
 				}
-				for _, mode := range mgModes {
-					t.Run(mode.name+"/"+name, func(t *testing.T) {
-						if !mode.admits(groups()) {
-							t.Skip("mode admits mergeable groupers only")
-						}
-						switch mode.name {
-						case "Streaming":
-							// mgRequireStreamable predicts first, and predict
-							// refuses; run the engine directly, and a
-							// streamable kind must still take the streaming arm.
-							resp, err := f.p.Process(context.Background(), build(groups()...))
-							if resp != nil && len(resp.Overlays) > 0 {
-								t.Fatalf("a layer over composite rows: %+v", resp.Overlays)
-							}
-							requireCodedError(t, err, perr.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE)
-							// An error exit records no arm. Routing reads only
-							// the kinds' streamability flags, so a twin carrying
-							// the streamable, non-refused INDEX_VS_TOTAL proves
-							// a streamable refused kind rode the streaming arm.
-							if types.OverlayStreamability[spec.Kind] {
-								twin := mgRequest(f, groups())
-								twin.Overlays = []types.OverlaySpec{{Name: "it", Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeGroup}}
-								if _, err := f.p.Process(context.Background(), twin); err != nil {
-									t.Fatalf("streamable twin: %v", err)
-								}
-								if f.lastArm() != observe.ArmStreaming {
-									t.Errorf("streamable twin ran on arm %q, want streaming", f.lastArm())
-								}
-							}
-							return
-						case "ProcessStream":
-							iter, err := f.p.ProcessStream(context.Background(), build(groups()...))
-							if err == nil {
-								defer func() { _ = iter.Close() }()
-								for {
-									var ok bool
-									if _, ok, err = iter.Next(context.Background()); err != nil || !ok {
-										break
-									}
-								}
-							}
-							requireCodedError(t, err, perr.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE)
-							return
-						}
-						resp, err := mode.run(t, f, build(groups()...))
-						if resp != nil && len(resp.Overlays) > 0 {
-							t.Fatalf("a layer over composite rows: %+v", resp.Overlays)
-						}
-						ce := requireCodedError(t, err, perr.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE)
-						if ce.Details["groupers"] != 2 || ce.Details["kind"] != string(spec.Kind) {
-							t.Errorf("details = %v, want kind %s groupers 2", ce.Details, spec.Kind)
-						}
-					})
+				groups := c.groups()
+				composite := psRender(t, run(groups, c.specs), len(c.specs), c.depth)
+				cols := make([]string, c.depth)
+				for i := range cols {
+					cols[i] = mgKeyColumn(groups[i])
 				}
+				// One run per partition the composite layer carries.
+				seen := 0
+				for prefix := range composite[0] {
+					vals := strings.Fields(strings.Trim(prefix, "[]"))
+					if len(vals) != c.depth {
+						t.Fatalf("prefix %q does not split into %d keys", prefix, c.depth)
+					}
+					filters := make([]*types.Filterer, c.depth)
+					for i := range filters {
+						filters[i] = &types.Filterer{Type: types.FILTER_INCLUDE, Field: cols[i], Values: []string{vals[i]}}
+					}
+					single := psRender(t, run(c.groups()[c.depth:], c.perSingle, filters...), len(c.perSingle), 0)
+					for i := range c.specs {
+						if got, want := composite[i][prefix], single[i]["[]"]; !reflect.DeepEqual(got, want) {
+							t.Errorf("%s partition %s:\n got  %v\n want %v (the partition run alone)", c.specs[i].Kind, prefix, got, want)
+						}
+					}
+					seen++
+				}
+				if seen < 3 {
+					t.Fatalf("only %d partitions; the fixture must split into several", seen)
+				}
+			})
+		}
+	}
+}
+
+// TestMultiGrouper_SeriesOverlayPartitionRefused: a non-prefix or
+// unknown partition_by is refused PULSE_OVERLAY_PARTITION_INVALID by
+// predict and by the engine with the same Details.
+func TestMultiGrouper_SeriesOverlayPartitionRefused(t *testing.T) {
+	f := newMGFixture(t, pulse.Options{})
+	for name, pb := range map[string][]string{"not a prefix": {"sex"}, "unknown": {"warehouse"}} {
+		t.Run(name, func(t *testing.T) {
+			req := mgRequest(f, []*types.Group{mgRegion(), mgSex()}, psYSum())
+			req.Overlays = psWithPartition(t, psSpecs("sex", "F")[3:4], pb)
+			env := predictEnvelope(t, f.p, f.fs, f.cohort, req)
+			if len(env.Errors) != 1 || env.Errors[0].Code != string(perr.PULSE_OVERLAY_PARTITION_INVALID) {
+				t.Fatalf("predict errors %+v, want PULSE_OVERLAY_PARTITION_INVALID", env.Errors)
+			}
+			resp, err := f.p.Process(context.Background(), req)
+			if resp != nil && len(resp.Overlays) > 0 {
+				t.Fatalf("a layer survived the refusal: %+v", resp.Overlays)
+			}
+			ce := requireCodedError(t, err, perr.PULSE_OVERLAY_PARTITION_INVALID)
+			if !reflect.DeepEqual(any(ce.Details), any(env.Errors[0].Details)) {
+				t.Errorf("runtime details %#v, predict %#v", ce.Details, env.Errors[0].Details)
 			}
 		})
 	}

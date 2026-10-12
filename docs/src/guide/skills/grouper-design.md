@@ -36,9 +36,9 @@ With N ≥ 2 entries a row's key is the tuple `(g0, ..., gN-1)`; this is the can
 - **Null key** at any position drops the record from every row; each grouper still sees it once, so `n_null` matches its single-grouper run.
 - **Fan-out** groupers multiply: a record lands in each key-set product.
 - **Whole-set fit:** `GROUP_QUANTILE` and `GROUP_KMEANS` fit once over the filtered set, then cross; position never changes a record's band.
-- **Refused:** two entries on one key column (`SERVICE_VALIDATION`); an extension key containing NUL (`PROCESSING_GROUP`); `OVERLAY_YOY` and the prior / rolling / baseline / sibling series overlays with N ≥ 2 (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`: they would cross outer buckets).
+- **Refused:** two entries on one key column (`SERVICE_VALIDATION`); an extension key containing NUL (`PROCESSING_GROUP`); `OVERLAY_YOY` with N ≥ 2 (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`).
 - **`max_groups`:** predict reports the PRODUCT of per-grouper estimates, an upper bound; the run enforces it on observed ones.
-- **Downstream:** `sort`, `return`, windows, post-tests and grouped matrices follow the composite rows.
+- **Downstream:** `sort`, `return`, windows, post-tests and grouped matrices follow the composite rows. Prior / rolling / baseline / sibling overlays run once per partition: the leading keys (`params.partition_by`; default all but the last), never crossing a segment ([`overlay-system`](overlay-system.md)).
 
 ## Smart defaults
 
@@ -68,8 +68,6 @@ Other groupers ignore `include`; use a value filter instead.
 ## Fused crosstab eligibility
 
 A crosstab builds its grid in one decode pass (much lower peak memory) when every axis grouper keys records one at a time. Every built-in does EXCEPT the equal-count (quantile) grouper, which needs a finalize-time sorted view and forces a buffered crosstab. Fan-out groupers fuse at any axis position. Overlays never prevent fusing.
-
-Embedders opt in via `extend.StreamingGrouper` or `extend.MultiKeyStreamingGrouper`, returning `extend.ErrGrouperKeyNull` on nulls; neither stays correct, buffered.
 
 ## Components
 

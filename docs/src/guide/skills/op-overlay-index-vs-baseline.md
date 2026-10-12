@@ -26,11 +26,11 @@ Use something else:
 
 ## Params
 
-`Scope` must be `group`. `Ref.BaselineIndex.Position` (int, required) — `>= 0`; positional anchor in host order. `Level`/`Within` must be `0`. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `params.field` (string, optional) — OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`.
+`Scope` must be `group`. `Ref.BaselineIndex.Position` (int, required) — `>= 0`; positional anchor in host order. `Level`/`Within` must be `0`. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `params.field` (string, optional) — OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`. `params.partition_by` (string list, optional) — a leading prefix of the group key columns (Host shape); anything else → `PULSE_OVERLAY_PARTITION_INVALID`.
 
 ## Host shape
 
-SERIES — ordered grouped Process host (e.g. a date grouper) with ONE grouper; two or more `groups` (composite rows) → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`details.groupers`), predict and runtime. Ratio twin of the baseline delta.
+SERIES — ordered grouped Process host (e.g. a date grouper). Over two or more `groups` it runs once per partition — the rows sharing the leading keys `params.partition_by` names (default all but the last, so the series runs down the last grouper; `[]` = one walk over every row), matched by key equality so a `sort` may interleave them — never crossing a segment. Ratio twin of the baseline delta.
 
 ## Output
 

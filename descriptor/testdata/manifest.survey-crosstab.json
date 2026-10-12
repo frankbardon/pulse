@@ -748,7 +748,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 169,
+    "error_codes_count": 170,
     "error_domains": [
       "CLI",
       "DATA",
@@ -857,6 +857,7 @@
       "PULSE_OVERLAY_KIND_UNKNOWN",
       "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE",
       "PULSE_OVERLAY_PARAM_MISSING",
+      "PULSE_OVERLAY_PARTITION_INVALID",
       "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE",
       "PULSE_OVERLAY_REF_UNKNOWN",
       "PULSE_OVERLAY_REF_ZERO",
@@ -2237,4 +2238,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f299e4c58e98ea63246f9c6b28b241862b84297b4b72fea42030f6fb98193f60
+// golden-hash: 9754c4a05b10a4763c3440850e2eb91c6c25b1fb146b84c1fdc48d68abd82f7d
