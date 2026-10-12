@@ -374,11 +374,12 @@ func chainPredictedOutputFields(req *types.Request, in *encoding.Schema, kinds v
 		if g == nil {
 			continue
 		}
-		if _, dup := seen[g.Field]; dup {
+		key := vectors.GroupKeyField(g.Type, g)
+		if _, dup := seen[key]; dup {
 			continue
 		}
-		seen[g.Field] = struct{}{}
-		out = append(out, g.Field)
+		seen[key] = struct{}{}
+		out = append(out, key)
 	}
 	for _, agg := range req.Aggregations {
 		if agg == nil {
@@ -397,7 +398,9 @@ func chainPredictedOutputFields(req *types.Request, in *encoding.Schema, kinds v
 }
 
 // synthChainSchema produces the inferred input schema for the next
-// stage. Categorical_u32 for grouper keys, f64 for aggregator outputs.
+// stage. Categorical_u32 for grouper keys (named as the runtime writes
+// them, vectors.GroupKeyField — processing.ChainOutputSchema's rule),
+// f64 for aggregator outputs.
 // Empty dictionaries — ValidateChain never reads records.
 func synthChainSchema(req *types.Request) *encoding.Schema {
 	fields := make([]encoding.Field, 0, len(req.Groups)+len(req.Aggregations))
@@ -406,12 +409,13 @@ func synthChainSchema(req *types.Request) *encoding.Schema {
 		if g == nil {
 			continue
 		}
-		if _, dup := seen[g.Field]; dup {
+		key := vectors.GroupKeyField(g.Type, g)
+		if _, dup := seen[key]; dup {
 			continue
 		}
-		seen[g.Field] = struct{}{}
+		seen[key] = struct{}{}
 		fields = append(fields, encoding.Field{
-			Name:       g.Field,
+			Name:       key,
 			Type:       encoding.FieldTypeCategoricalU32,
 			Dictionary: encoding.NewDictionary(),
 		})
