@@ -154,6 +154,9 @@ func fusionParityCorpus() []fusionCase {
 	add("attr/ATTR_CODE_IN_u32", with(func(r *types.Request) {
 		r.Attributes = []*types.Attribute{{Type: types.ATTR_CODE_IN, Field: "qty", Label: "a", Params: json.RawMessage(`{"codes":[1, 2]}`)}}
 	}))
+	add("attr/ATTR_SCALE_SCORE", with(func(r *types.Request) {
+		r.Attributes = []*types.Attribute{{Type: types.ATTR_SCALE_SCORE, Fields: []string{"score", "qty"}, Label: "a", Params: json.RawMessage(`{"stat":"sum","min_valid":1}`)}}
+	}))
 	add("formula_expression", with(func(r *types.Request) {
 		r.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "score * 2", Label: "f"}}
 	}))

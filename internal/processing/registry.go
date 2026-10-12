@@ -62,6 +62,8 @@ var attributeRegistry = map[types.AttributeType]AttributeFactory{
 	types.ATTR_SET_HAS:      newSetHasAttribute,
 
 	types.ATTR_CODE_IN: newCodeInAttribute,
+
+	types.ATTR_SCALE_SCORE: newScaleScoreAttribute,
 }
 
 // filtererRegistry maps filterer types to their factory functions.

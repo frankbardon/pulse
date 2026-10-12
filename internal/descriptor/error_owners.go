@@ -185,6 +185,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL: shared,
 	// Predict only: an ATTR_CODE_IN code absent from a categorical dictionary.
 	errors.PULSE_ATTR_CODE_NOT_IN_DICTIONARY: own("ATTR_CODE_IN"),
+	errors.PULSE_ATTR_SCALE_OUT_OF_RANGE:     own("ATTR_SCALE_SCORE"),
 	// Predict advisories: the two-group rule fires only on the two
 	// two-sample tests; the many-tests rule needs the p-value count,
 	// which a hidden capability:multiplicity withholds. The suppression
@@ -535,7 +536,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATRIX_LISTWISE_HEAVY_DROP: ownAllMats,
 	// TEST_BARTLETT_SPHERICITY raises it on its result (MAT_PCA's
 	// Bartlett rule, the shared core).
-	errors.PULSE_MATRIX_INSUFFICIENT_N: plus(ownAllMats, own("TEST_BARTLETT_SPHERICITY"), vectorAttributeOwners()),
+	errors.PULSE_MATRIX_INSUFFICIENT_N: plus(ownAllMats, own("TEST_BARTLETT_SPHERICITY"), fittedAttributeOwners()),
 	errors.PULSE_MATRIX_ZERO_VARIANCE:  ownAllMats,
 	// Only MAT_DISTANCE resolves a non-negative-domain metric
 	// (hellinger, aitchison) over centroids.
@@ -595,12 +596,21 @@ func vectorTestOwners() []string {
 	return out
 }
 
-// vectorAttributeOwners returns the vector-input (fitted) attribute
-// types as owner names: their inline fields resolve by the vector rules
-// and their fit can be too small (PULSE_MATRIX_INSUFFICIENT_N).
+// vectorAttributeOwners returns the vector-input attribute types as
+// owner names: their inline fields resolve by the vector rules.
 func vectorAttributeOwners() []string {
 	var out []string
 	for _, t := range vectors.VectorAttributeTypes() {
+		out = append(out, string(t))
+	}
+	return out
+}
+
+// fittedAttributeOwners returns the fitted vector attribute types as
+// owner names: their fit can be too small (PULSE_MATRIX_INSUFFICIENT_N).
+func fittedAttributeOwners() []string {
+	var out []string
+	for _, t := range vectors.FittedAttributeTypes() {
 		out = append(out, string(t))
 	}
 	return out

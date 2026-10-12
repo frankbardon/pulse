@@ -107,6 +107,7 @@
     - [op-attr-reg-leverage](guide/skills/op-attr-reg-leverage.md)
     - [op-attr-reg-predict](guide/skills/op-attr-reg-predict.md)
     - [op-attr-reg-residual](guide/skills/op-attr-reg-residual.md)
+    - [op-attr-scale-score](guide/skills/op-attr-scale-score.md)
     - [op-attr-set-has](guide/skills/op-attr-set-has.md)
     - [op-attr-set-popcount](guide/skills/op-attr-set-popcount.md)
     - [op-attr-tscore](guide/skills/op-attr-tscore.md)

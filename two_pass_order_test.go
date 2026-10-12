@@ -226,6 +226,7 @@ func TestTwoPassOrder_UpstreamRowLocal(t *testing.T) {
 		"set_popcount": {Type: types.ATTR_SET_POPCOUNT, Field: "tags", Label: "u"},
 		"set_has":      {Type: types.ATTR_SET_HAS, Field: "tags", Params: []byte(`{"label":"t001"}`), Label: "u"},
 		"code_in":      {Type: types.ATTR_CODE_IN, Field: "region", Params: []byte(`{"codes":["north","east"]}`), Label: "u"},
+		"scale_score":  {Type: types.ATTR_SCALE_SCORE, Fields: []string{"qty", "score"}, Params: []byte(`{"stat":"sum","min_valid":1}`), Label: "u"},
 	}
 	twoPass := map[string]*types.Attribute{
 		"zscore":       {Type: types.ATTR_ZSCORE, Field: "u", Label: "out"},

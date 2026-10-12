@@ -401,6 +401,19 @@ const (
 	// (fit_on, listwise, null member → null, singular or N* ≤ p → every
 	// score null).
 	ATTR_FACTOR_SCORE AttributeType = "ATTR_FACTOR_SCORE"
+
+	// ATTR_SCALE_SCORE emits each row's rating-battery score across the
+	// p members of Vector / Fields: the mean of the row's valid items
+	// (params.stat "mean", the default) or the PRORATED sum, that mean ×
+	// p ("sum"). params.min_valid (default p) is the fewest valid items a
+	// score needs — below it the score is null, never 0. params.reverse
+	// names reverse-keyed member labels, scored lo + hi − x on the
+	// declared range (params.scale_min / scale_max, else the kind "scale"
+	// vector's bounds; a reverse list with neither is refused). With a
+	// declared range an out-of-range value is MISSING (never clamped),
+	// counted and warned (PULSE_ATTR_SCALE_OUT_OF_RANGE). Row-local:
+	// single pass, streamable; the weight is irrelevant.
+	ATTR_SCALE_SCORE AttributeType = "ATTR_SCALE_SCORE"
 )
 
 // AllAttributeTypes returns all defined attribute types.
@@ -418,6 +431,7 @@ func AllAttributeTypes() []AttributeType {
 		ATTR_REG_LEVERAGE,
 		ATTR_REG_PREDICT,
 		ATTR_REG_RESIDUAL,
+		ATTR_SCALE_SCORE,
 		ATTR_SET_HAS,
 		ATTR_SET_POPCOUNT,
 		ATTR_TSCORE,

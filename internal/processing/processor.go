@@ -846,6 +846,9 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	// One MatrixComponents entry per Response.Matrices result (nil when
 	// the plan skips them: finalizeMatrixSlots built none).
 	attachMatrixComponents(resp, matrixComps)
+	// Row-local attribute warnings (ATTR_SCALE_SCORE's out-of-range
+	// tally), first and in declared order — the buffered arm's order.
+	resp.Warnings = prependRowLocalWarnings(resp.Warnings, rowLocalAttrs)
 	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
 	}
@@ -1110,6 +1113,8 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	if err != nil {
 		return nil, err
 	}
+	// Row-local attribute warnings, first and in declared order.
+	resp.Warnings = prependRowLocalWarnings(resp.Warnings, rowLocalAttrs)
 	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
 	}
@@ -1444,6 +1449,21 @@ type rowLocalAttrEntry struct {
 	label    string
 	// nullable: the computer writes NaN as a null (EmitsNull).
 	nullable bool
+}
+
+// prependRowLocalWarnings returns warns with the Response-level
+// warnings the row-local attributes raised (AttributeWarnings — the
+// out-of-range tally of ATTR_SCALE_SCORE) in front, in declared order:
+// the buffered arm (applyAttributes) puts attribute warnings first.
+func prependRowLocalWarnings(warns []*types.ResponseWarning, attrs []rowLocalAttrEntry) []*types.ResponseWarning {
+	var out []*types.ResponseWarning
+	for _, ra := range attrs {
+		out = append(out, AttributeWarnings(ra.computer)...)
+	}
+	if len(out) == 0 {
+		return warns
+	}
+	return append(out, warns...)
 }
 
 // buildRowLocalAttributes constructs RowLocalAttribute instances for the

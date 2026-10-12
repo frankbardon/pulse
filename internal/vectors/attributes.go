@@ -14,9 +14,10 @@ import (
 // Vector-input attributes — the types.Attribute Vector / Fields slots,
 // resolved by the one leaf predict (the field-reference walk), the
 // runtime and projection all call (the Test.Vector / Fields mirror).
-// They are the FITTED attributes: a fit pass folds one co-moment over
-// the filtered rows params.fit_on admits, then every filtered row is
-// scored.
+// Most are FITTED attributes (FittedAttributeTypes): a fit pass folds
+// one co-moment over the filtered rows params.fit_on admits, then every
+// filtered row is scored. ATTR_SCALE_SCORE is the row-local one: each
+// row's score reads only its own members (no fit, no fit_on).
 //
 // Rules (the contract), per attribute slot "attributes[i]":
 //
@@ -27,8 +28,12 @@ import (
 //     (`vector`, `slot`, `defined`); inline fields resolve by the vector
 //     rules (ResolveSpec at "attributes[i].fields"). Members are source
 //     columns only, never an earlier attribute's label.
-//   - Params (strict: unknown keys refused) share fit_on and missing
-//     (FittedCommon): fit_on is "filtered" (the default) or a non-empty
+//   - ATTR_SCALE_SCORE's params (ScaleScoreParams: stat, min_valid,
+//     reverse by member label, scale_min / scale_max with the kind
+//     "scale" vector's bounds as fallback) are judged once the members
+//     resolve.
+//   - A fitted type's params (strict: unknown keys refused) share
+//     fit_on and missing (FittedCommon): fit_on is "filtered" (the default) or a non-empty
 //     inline array of Filterer objects; missing is "listwise" (the only
 //     mode; "pairwise" refused). An operator adds its own keys
 //     (ATTR_MAHALANOBIS: MahalanobisParams — output "d2" | "p";
@@ -51,6 +56,14 @@ import (
 // VectorAttributeTypes returns the built-in attribute types that read
 // their columns from Vector / Fields, in AllAttributeTypes order.
 func VectorAttributeTypes() []types.AttributeType {
+	return []types.AttributeType{types.ATTR_FACTOR_SCORE, types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE, types.ATTR_SCALE_SCORE}
+}
+
+// FittedAttributeTypes returns the vector-input attribute types that
+// fit before they score (two-pass, params.fit_on), in AllAttributeTypes
+// order: every VectorAttributeTypes entry but the row-local
+// ATTR_SCALE_SCORE.
+func FittedAttributeTypes() []types.AttributeType {
 	return []types.AttributeType{types.ATTR_FACTOR_SCORE, types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE}
 }
 
@@ -58,6 +71,12 @@ func VectorAttributeTypes() []types.AttributeType {
 // attribute type.
 func IsVectorAttribute(t types.AttributeType) bool {
 	return slices.Contains(VectorAttributeTypes(), t)
+}
+
+// IsFittedAttribute reports whether t is a built-in fitted vector
+// attribute type (FittedAttributeTypes).
+func IsFittedAttribute(t types.AttributeType) bool {
+	return slices.Contains(FittedAttributeTypes(), t)
 }
 
 // HasAttributeVectorInput reports whether a sets any vector-input slot.
@@ -192,6 +211,11 @@ func resolveAttribute(at string, a *types.Attribute, typ types.AttributeType, sp
 	}
 	if err := fittedMemberBounds(at, typ, a.Params, len(members.Members)); err != nil {
 		return AttributeInput{}, err
+	}
+	if typ == types.ATTR_SCALE_SCORE {
+		if _, err := ScaleScoreParams(at, a.Params, members); err != nil {
+			return AttributeInput{}, err
+		}
 	}
 	return AttributeInput{Members: members, FitOn: fitOn}, nil
 }

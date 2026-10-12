@@ -26,6 +26,7 @@ Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-r
 | Which rows are unusual across the fields as a whole? | `ATTR_MAHALANOBIS` (a row score) |
 | Each row's score on a component (a summary column)? | `ATTR_PC_SCORE` (a row score) |
 | Each row's score on a factor (a construct estimate)? | `ATTR_FACTOR_SCORE` (a row score) |
+| Each row's score on a rating battery (mean or prorated sum, reverse-keyed items)? | `ATTR_SCALE_SCORE` (a row score) |
 | Which segments do the rows fall into across the fields? | `GROUP_KMEANS` (a grouper) |
 | How far apart are the segments' centres across the fields? | `MAT_DISTANCE` (`params.between` a grouper) |
 
@@ -65,5 +66,6 @@ Per-test correction on other operators: [`multiplicity-correction`](multiplicity
 - [`op-mat-factor`](op-mat-factor.md)
 - [`op-mat-distance`](op-mat-distance.md)
 - [`op-mat-reliability`](op-mat-reliability.md)
+- [`op-attr-scale-score`](op-attr-scale-score.md)
 - [`op-mat-collinearity`](op-mat-collinearity.md)
 - [`regression-inference`](regression-inference.md) — coefficient covariance.

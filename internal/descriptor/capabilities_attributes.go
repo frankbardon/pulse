@@ -336,5 +336,43 @@ func attributeCapabilities() []descriptor.Operator {
 			Streamable:     true,
 			StreamableHint: "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per group.",
 		},
+		{
+			Name:        string(types.ATTR_SCALE_SCORE),
+			Category:    "attribute",
+			Description: "Per-row rating-battery score across the p members of vector / fields (exactly one): the mean of the row's valid items, or the prorated sum (that mean × p). Reverse-keyed items score lo + hi − x on the declared range; a value outside the range is missing (never clamped) and warned; fewer than min_valid valid items score null, never 0. Row-local and single-pass; the weight is irrelevant.",
+			Params: []descriptor.Param{
+				{
+					Name:        "stat",
+					Type:        "enum",
+					Default:     "mean",
+					EnumValues:  []string{"mean", "sum"},
+					Description: "mean: the valid-item mean; sum: the PRORATED sum, valid-item mean × item count (there is no raw sum, so a skipped item never reads as 0).",
+				},
+				{
+					Name:        "min_valid",
+					Type:        "int",
+					Description: "Fewest valid (present, in-range) items a row needs for a score, 1 to the item count; below it the score is null. Default: every item.",
+				},
+				{
+					Name:        "reverse",
+					Type:        "list",
+					Description: "Member labels of the reverse-keyed items, each scored lo + hi − x. Needs a declared range (scale_min / scale_max, or the kind \"scale\" vector's bounds); refused without one.",
+				},
+				{
+					Name:        "scale_min",
+					Type:        "float",
+					Description: "Lower end of the battery's declared range; set with scale_max (min < max). Without both, a kind \"scale\" vector's bounds apply. A value outside the range is scored as missing and counted in a PULSE_ATTR_SCALE_OUT_OF_RANGE warning.",
+				},
+				{
+					Name:        "scale_max",
+					Type:        "float",
+					Description: "Upper end of the battery's declared range; set with scale_min.",
+				},
+			},
+			AcceptsTypes:  numericFieldTypesNoDecimal,
+			EmitsType:     "f64",
+			EmitsTypeNote: "one score per record on the item scale (sum: × item count); null when fewer than min_valid items are valid",
+			Streamable:    true,
+		},
 	}
 }

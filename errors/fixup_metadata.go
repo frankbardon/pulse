@@ -826,6 +826,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ATTR_SCALE_OUT_OF_RANGE: {
+		Message: "An ATTR_SCALE_SCORE member value lies outside the battery's declared scale range, so it was scored as missing (never clamped or reversed); rows left below min_valid score null.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Attributes", "*", "Params", "scale_min"},
+				Hint:   "Check the declared range against the data: set params.scale_min / scale_max (or the kind \"scale\" vector's bounds) to the battery's true range, or drop the out-of-range codes (e.g. a 99 'don't know') with a filter or recode first. details.n_out_of_range counts the values, details.n_rows the rows.",
+			},
+		},
+	},
 	PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS: {
 		Message: "A two-sample test splits its field by a grouping with more than two groups, but it compares exactly two; this is an advisory, not an error.",
 		Fixups: []Fixup{

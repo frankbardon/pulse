@@ -2172,6 +2172,7 @@ pulse/errors: const PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL pulse/errors.Code = "PU
 pulse/errors: const PULSE_ARCHIVE_CORRUPT pulse/errors.Code = "PULSE_ARCHIVE_CORRUPT"
 pulse/errors: const PULSE_ARCHIVE_MAGIC_INVALID pulse/errors.Code = "PULSE_ARCHIVE_MAGIC_INVALID"
 pulse/errors: const PULSE_ATTR_CODE_NOT_IN_DICTIONARY pulse/errors.Code = "PULSE_ATTR_CODE_NOT_IN_DICTIONARY"
+pulse/errors: const PULSE_ATTR_SCALE_OUT_OF_RANGE pulse/errors.Code = "PULSE_ATTR_SCALE_OUT_OF_RANGE"
 pulse/errors: const PULSE_CHAIN_EMPTY pulse/errors.Code = "PULSE_CHAIN_EMPTY"
 pulse/errors: const PULSE_CHAIN_NOT_MERGEABLE pulse/errors.Code = "PULSE_CHAIN_NOT_MERGEABLE"
 pulse/errors: const PULSE_CHAIN_STAGE_JOIN pulse/errors.Code = "PULSE_CHAIN_STAGE_JOIN"
@@ -3841,6 +3842,7 @@ pulse/types: const ATTR_REG_FITTED pulse/types.AttributeType = "ATTR_REG_FITTED"
 pulse/types: const ATTR_REG_LEVERAGE pulse/types.AttributeType = "ATTR_REG_LEVERAGE"
 pulse/types: const ATTR_REG_PREDICT pulse/types.AttributeType = "ATTR_REG_PREDICT"
 pulse/types: const ATTR_REG_RESIDUAL pulse/types.AttributeType = "ATTR_REG_RESIDUAL"
+pulse/types: const ATTR_SCALE_SCORE pulse/types.AttributeType = "ATTR_SCALE_SCORE"
 pulse/types: const ATTR_SET_HAS pulse/types.AttributeType = "ATTR_SET_HAS"
 pulse/types: const ATTR_SET_POPCOUNT pulse/types.AttributeType = "ATTR_SET_POPCOUNT"
 pulse/types: const ATTR_TSCORE pulse/types.AttributeType = "ATTR_TSCORE"
@@ -4893,4 +4895,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 832082c3d2162982a8010c667cd332fc3e96d58ec0d8bb46b71e67ff3588812e
+// golden-hash: 298ec9fe53b49cb9945a954f1e1fc0b03e167fcaaca808631b88d05d09b54d1e

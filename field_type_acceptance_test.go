@@ -181,6 +181,7 @@ var acceptanceTemplates = map[string]string{
 	"ATTR_MAHALANOBIS":  `{"attributes":[{"type":"ATTR_MAHALANOBIS","fields":["$F","x"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_FACTOR_SCORE": `{"attributes":[{"type":"ATTR_FACTOR_SCORE","fields":["$F","x","y"],"label":"o","params":{"factor":1,"factors":1}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_PC_SCORE":     `{"attributes":[{"type":"ATTR_PC_SCORE","fields":["$F","x"],"label":"o","params":{"component":1}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_SCALE_SCORE":  `{"attributes":[{"type":"ATTR_SCALE_SCORE","fields":["$F","x"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 
 	// Features.
 	"FEAT_LOG":              `{"features":[{"type":"FEAT_LOG","field":"$F"}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,

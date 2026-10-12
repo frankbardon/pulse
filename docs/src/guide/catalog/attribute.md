@@ -16,6 +16,7 @@ The attributes this instance offers: what each is for, the questions it answers 
 | [`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) | Adds to every row its leverage: how unusual its predictor values are, and so how hard it can pull a straight-line fit. | Which rows have predictor values so far from the rest that they could steer the model? | advanced | [`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want rows the model predicts badly.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want the model itself. |
 | [`ATTR_REG_PREDICT`](#op-attr_reg_predict) | Adds to every row the value a model fitted once, elsewhere in the request, predicts for it from the row's own predictor values. | How close are the model's predictions on weeks it was not fitted to (a holdout)? | advanced | [`ATTR_REG_FITTED`](#op-attr_reg_fitted) when the model should be fitted to these same rows inside the slot.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want the coefficients, their standard errors and p-values. |
 | [`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) | Adds to every row its residual: the actual target value minus the value a straight-line model predicts for it. | Which stores sell far more or less than their size and footfall predict? | advanced | [`REG_OLS`](regression.md#op-reg_ols) when you want the model's summary (coefficients, R-squared).<br>[`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) when you want how unusual each row's predictor values are.<br>[`ATTR_ZSCORE`](#op-attr_zscore) when you want how far a value is from the mean, with no model. |
+| [`ATTR_SCALE_SCORE`](#op-attr_scale_score) | Adds to every row its score on a rating battery: the average of its answered items or a prorated total, reverse-worded items flipped. | What is each respondent's satisfaction score across the five satisfaction items, counting only people who answered at least four? | intermediate | [`MAT_RELIABILITY`](matrix.md#op-mat_reliability) when you want how consistently the items measure one thing.<br>[`ATTR_FACTOR_SCORE`](#op-attr_factor_score) when the items should be weighted by how much each reflects a common trait.<br>[`ATTR_FORMULA`](#op-attr_formula) when you want an arbitrary formula of the items. |
 | [`ATTR_SET_HAS`](#op-attr_set_has) | Adds a 1 / 0 column saying whether each row's multi-select field includes one named option. | Which respondents ticked 'price' among their reasons, as a column to cross with other answers? | basic | [`FILTER_SET_CONTAINS_ANY`](filterer.md#op-filter_set_contains_any) when you want to keep only rows that include any of several options.<br>[`AGG_SET_FREQUENCY`](aggregator.md#op-agg_set_frequency) when you want how often each option was chosen. |
 | [`ATTR_SET_POPCOUNT`](#op-attr_set_popcount) | Adds to every row the number of options its multi-select field has selected. | How many reasons did each respondent tick? | basic | [`AGG_SET_CARDINALITY_AVG`](aggregator.md#op-agg_set_cardinality_avg) when you want the average number of selections per group.<br>[`ATTR_SET_HAS`](#op-attr_set_has) when you want whether one particular option was chosen. |
 | [`ATTR_TSCORE`](#op-attr_tscore) | Adds to every row its T-score: the z-score rescaled so the mean is 50 and one standard deviation is 10. | How does each candidate's test result compare with the group, on a 50-centred scale? | intermediate | [`ATTR_ZSCORE`](#op-attr_zscore) when you want plain standard-deviation units centred on 0.<br>[`ATTR_PERCENTILE`](#op-attr_percentile) when you want each row's percentile rank (the share at or below it when values are untied). |
@@ -443,6 +444,43 @@ Adds to every row its residual: the actual target value minus the value a straig
 **Glossary:** [`residual`](../glossary.md#term-residual), [`heteroscedasticity`](../glossary.md#term-heteroscedasticity), [`outlier`](../glossary.md#term-outlier), [`listwise-deletion`](../glossary.md#term-listwise-deletion)
 
 **Skill:** [`op-attr-reg-residual`](../skills/op-attr-reg-residual.md)
+
+<a id="op-attr_scale_score"></a>
+
+### `ATTR_SCALE_SCORE`
+
+Adds to every row its score on a rating battery: the average of its answered items or a prorated total, reverse-worded items flipped.
+
+**Level:** intermediate
+
+**Also known as:** `scale score`, `summated rating scale`, `composite score`
+
+**Questions it answers:**
+
+- What is each respondent's satisfaction score across the five satisfaction items, counting only people who answered at least four?
+- What is each patient's symptom total when two of the items are worded the other way round?
+
+**Use cases by domain:**
+
+- *survey:* Turn an agree-disagree battery into one score per respondent, flipping the negatively worded items.
+- *science:* Score a questionnaire instrument per participant, prorating the total when an item is skipped.
+
+**Assumptions:**
+
+- Each row is scored from its own answers only; no other row changes it, and a row weight does not apply.
+- A skipped item is left out, not counted as 0: the sum is the average of the answered items times the item count.
+- A row with fewer answered items than min_valid gets no score rather than a low one.
+- Flipping an item needs the scale's true range, which is declared and never guessed from the data; an answer outside it is treated as skipped and reported.
+
+**Use something else:**
+
+- [`MAT_RELIABILITY`](matrix.md#op-mat_reliability) when you want how consistently the items measure one thing.
+- [`ATTR_FACTOR_SCORE`](#op-attr_factor_score) when the items should be weighted by how much each reflects a common trait.
+- [`ATTR_FORMULA`](#op-attr_formula) when you want an arbitrary formula of the items.
+
+**Glossary:** [`mean`](../glossary.md#term-mean), [`missing-value`](../glossary.md#term-missing-value), [`reliability`](../glossary.md#term-reliability)
+
+**Skill:** [`op-attr-scale-score`](../skills/op-attr-scale-score.md)
 
 <a id="op-attr_set_has"></a>
 

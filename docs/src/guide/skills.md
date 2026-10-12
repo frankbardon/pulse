@@ -75,6 +75,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-attr-reg-leverage`](skills/op-attr-reg-leverage.md): Per-row hat-matrix diagonal hᵢᵢ from an unpenalized OLS refit — leverage diagnostic.
 - [`op-attr-reg-predict`](skills/op-attr-reg-predict.md): Per-row score from a bound model (a compose `fits` entry or a loaded `models` file) — no refit; whole model or a terms subset.
 - [`op-attr-reg-residual`](skills/op-attr-reg-residual.md): Per-row residual yᵢ − ŷᵢ from an OLS refit during the attribute prepass.
+- [`op-attr-scale-score`](skills/op-attr-scale-score.md): Per-row rating-battery score — the valid-item mean or prorated sum across a vector of members, with reverse-keyed items and a min_valid floor.
 - [`op-attr-set-has`](skills/op-attr-set-has.md): Per-row 0/1 — whether the configured label's bit is set on a set field.
 - [`op-attr-set-popcount`](skills/op-attr-set-popcount.md): Per-row popcount of a set field — number of selected labels.
 - [`op-attr-tscore`](skills/op-attr-tscore.md): Per-row T-score column — z-score rescaled to mean 50, stddev 10.

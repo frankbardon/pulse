@@ -237,22 +237,20 @@ func (m *matrixSlot) readRow(r *Record) (float64, error) {
 // scale_max] — a value outside it is PROCESSING_CONFIG (never clamped:
 // a reversal of an out-of-range value would be silently wrong) — and
 // each reverse-keyed member is flipped x' = min + max − x before the
-// fold, so the co-moment (and every merge) sees the keyed battery.
+// fold, so the co-moment (and every merge) sees the keyed battery. The
+// range check and the flip are the shared vectors.ScaleKey
+// ATTR_SCALE_SCORE also reads — which, unlike this slot, scores an
+// out-of-range value as missing instead of refusing the run.
 func (m *matrixSlot) scoreReliability() error {
-	lo, hi := m.plan.ScaleMin, m.plan.ScaleMax
-	for i, v := range m.x {
-		if !math.IsNaN(v) && (v < lo || v > hi) {
-			return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-				"matrix "+m.plan.Name+": item "+m.cols[i]+" holds "+strconv.FormatFloat(v, 'g', -1, 64)+
-					", outside the declared scale range ["+strconv.FormatFloat(lo, 'g', -1, 64)+", "+strconv.FormatFloat(hi, 'g', -1, 64)+"]; fix params.scale_min / scale_max or the data (values are never clamped)",
-				map[string]any{"matrix": m.plan.Name, "field": m.cols[i], "value": v, "scale_min": lo, "scale_max": hi})
-		}
+	key := m.plan.ScaleKey()
+	if i := key.FirstOutOfRange(m.x); i >= 0 {
+		lo, hi, v := key.Lo, key.Hi, m.x[i]
+		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+			"matrix "+m.plan.Name+": item "+m.cols[i]+" holds "+strconv.FormatFloat(v, 'g', -1, 64)+
+				", outside the declared scale range ["+strconv.FormatFloat(lo, 'g', -1, 64)+", "+strconv.FormatFloat(hi, 'g', -1, 64)+"]; fix params.scale_min / scale_max or the data (values are never clamped)",
+			map[string]any{"matrix": m.plan.Name, "field": m.cols[i], "value": v, "scale_min": lo, "scale_max": hi})
 	}
-	for _, i := range m.plan.Reverse {
-		if v := m.x[i]; !math.IsNaN(v) {
-			m.x[i] = lo + hi - v
-		}
-	}
+	key.ApplyReverse(m.x)
 	return nil
 }
 

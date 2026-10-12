@@ -46,6 +46,9 @@ Every operator here reads one vector (`vectors`, see `matrix-results`) and answe
 <!-- feature: ATTR_FACTOR_SCORE -->
 | Each row's score on a factor (a construct estimate)? | `ATTR_FACTOR_SCORE` (a row score) |
 <!-- /feature -->
+<!-- feature: ATTR_SCALE_SCORE -->
+| Each row's score on a rating battery (mean or prorated sum, reverse-keyed items)? | `ATTR_SCALE_SCORE` (a row score) |
+<!-- /feature -->
 <!-- feature: GROUP_KMEANS -->
 | Which segments do the rows fall into across the fields? | `GROUP_KMEANS` (a grouper) |
 <!-- /feature -->
@@ -102,6 +105,9 @@ Per-test correction on other operators: `multiplicity-correction`.
 <!-- /feature -->
 <!-- feature: MAT_RELIABILITY -->
 - `op-mat-reliability`
+<!-- /feature -->
+<!-- feature: ATTR_SCALE_SCORE -->
+- `op-attr-scale-score`
 <!-- /feature -->
 <!-- feature: MAT_COLLINEARITY -->
 - `op-mat-collinearity`

@@ -444,6 +444,16 @@ const (
 	// unsigned-integer field.
 	PULSE_ATTR_CODE_NOT_IN_DICTIONARY Code = "PULSE_ATTR_CODE_NOT_IN_DICTIONARY"
 
+	// PULSE_ATTR_SCALE_OUT_OF_RANGE is a runtime Response warning raised
+	// once per ATTR_SCALE_SCORE slot whose rows held one or more member
+	// values outside the declared scale range (params.scale_min /
+	// scale_max or the kind "scale" vector's bounds). Each such value was
+	// scored as MISSING — never clamped, never reversed — and details
+	// carry n_out_of_range (member values) and n_rows (rows holding at
+	// least one). MAT_RELIABILITY refuses the same data with
+	// PROCESSING_CONFIG instead.
+	PULSE_ATTR_SCALE_OUT_OF_RANGE Code = "PULSE_ATTR_SCALE_OUT_OF_RANGE"
+
 	// PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS is a predict advisory
 	// (PredictResult.Advisories, never a warning or error): a TEST_T or
 	// TEST_WELCH whose split_by grouping resolves to more than two
@@ -3425,6 +3435,7 @@ var allCodes = []Code{
 	PULSE_DECIMAL_DIVIDE_BY_ZERO,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL,
 	PULSE_ATTR_CODE_NOT_IN_DICTIONARY,
+	PULSE_ATTR_SCALE_OUT_OF_RANGE,
 	PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS,
 	PULSE_ADVISORY_MANY_TESTS,
 	PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC,

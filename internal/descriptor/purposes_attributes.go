@@ -31,6 +31,7 @@ var attributePurposes = map[string]descriptor.Purpose{
 	"ATTR_REG_LEVERAGE": purposeAttrRegLeverage,
 	"ATTR_REG_PREDICT":  purposeAttrRegPredict,
 	"ATTR_REG_RESIDUAL": purposeAttrRegResidual,
+	"ATTR_SCALE_SCORE":  purposeAttrScaleScore,
 	"ATTR_SET_HAS":      purposeAttrSetHas,
 	"ATTR_SET_POPCOUNT": purposeAttrSetPopcount,
 	"ATTR_TSCORE":       purposeAttrTScore,
@@ -417,6 +418,33 @@ var (
 			"distance", "outlier", "covariance", "mean", "listwise-deletion",
 			"chi-square", "p-value", "normal-distribution", "degrees-of-freedom",
 		},
+	}
+
+	purposeAttrScaleScore = descriptor.Purpose{
+		Plain:   "Adds to every row its score on a rating battery: the average of its answered items or a prorated total, reverse-worded items flipped.",
+		KnownAs: []string{"scale score", "summated rating scale", "composite score"},
+		Intents: []string{IntentMeasureConstruct, IntentPrepare},
+		Questions: []string{
+			"What is each respondent's satisfaction score across the five satisfaction items, counting only people who answered at least four?",
+			"What is each patient's symptom total when two of the items are worded the other way round?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Turn an agree-disagree battery into one score per respondent, flipping the negatively worded items.",
+			descriptor.DomainScience: "Score a questionnaire instrument per participant, prorating the total when an item is skipped.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want how consistently the items measure one thing", Use: "MAT_RELIABILITY"},
+			{When: "the items should be weighted by how much each reflects a common trait", Use: "ATTR_FACTOR_SCORE"},
+			{When: "you want an arbitrary formula of the items", Use: "ATTR_FORMULA"},
+		},
+		Assumptions: []string{
+			"Each row is scored from its own answers only; no other row changes it, and a row weight does not apply.",
+			"A skipped item is left out, not counted as 0: the sum is the average of the answered items times the item count.",
+			"A row with fewer answered items than min_valid gets no score rather than a low one.",
+			"Flipping an item needs the scale's true range, which is declared and never guessed from the data; an answer outside it is treated as skipped and reported.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"mean", "missing-value", "reliability"},
 	}
 
 	purposeAttrPCScore = descriptor.Purpose{

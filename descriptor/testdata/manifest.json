@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:d31ab9216060ab72684ff4923349294e72df14aec840979c3c110b7a6ba989c6",
+    "feature_set_digest": "fs1:9b101a1db67f0c220241137f11bdb3d5ec8f3c61c5ef2c985f806afd2b0f399b",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -3416,6 +3416,68 @@
           "intents": [
             "benchmark",
             "data_quality"
+          ]
+        },
+        {
+          "name": "ATTR_SCALE_SCORE",
+          "category": "attribute",
+          "description": "Per-row rating-battery score across the p members of vector / fields (exactly one): the mean of the row's valid items, or the prorated sum (that mean × p). Reverse-keyed items score lo + hi − x on the declared range; a value outside the range is missing (never clamped) and warned; fewer than min_valid valid items score null, never 0. Row-local and single-pass; the weight is irrelevant.",
+          "params": [
+            {
+              "name": "stat",
+              "type": "enum",
+              "required": false,
+              "default": "mean",
+              "description": "mean: the valid-item mean; sum: the PRORATED sum, valid-item mean × item count (there is no raw sum, so a skipped item never reads as 0).",
+              "enum_values": [
+                "mean",
+                "sum"
+              ]
+            },
+            {
+              "name": "min_valid",
+              "type": "int",
+              "required": false,
+              "description": "Fewest valid (present, in-range) items a row needs for a score, 1 to the item count; below it the score is null. Default: every item."
+            },
+            {
+              "name": "reverse",
+              "type": "list",
+              "required": false,
+              "description": "Member labels of the reverse-keyed items, each scored lo + hi − x. Needs a declared range (scale_min / scale_max, or the kind \"scale\" vector's bounds); refused without one."
+            },
+            {
+              "name": "scale_min",
+              "type": "float",
+              "required": false,
+              "description": "Lower end of the battery's declared range; set with scale_max (min \u003c max). Without both, a kind \"scale\" vector's bounds apply. A value outside the range is scored as missing and counted in a PULSE_ATTR_SCALE_OUT_OF_RANGE warning."
+            },
+            {
+              "name": "scale_max",
+              "type": "float",
+              "required": false,
+              "description": "Upper end of the battery's declared range; set with scale_min."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one score per record on the item scale (sum: × item count); null when fewer than min_valid items are valid",
+          "streamable": true,
+          "component_schema": {
+            "mergeability": ""
+          },
+          "intents": [
+            "measure_construct",
+            "prepare"
           ]
         },
         {
@@ -8395,7 +8457,7 @@
         ]
       }
     ],
-    "error_codes_count": 340,
+    "error_codes_count": 341,
     "error_domains": [
       "CLI",
       "DATA",
@@ -8443,6 +8505,7 @@
       "PULSE_ARCHIVE_CORRUPT",
       "PULSE_ARCHIVE_MAGIC_INVALID",
       "PULSE_ATTR_CODE_NOT_IN_DICTIONARY",
+      "PULSE_ATTR_SCALE_OUT_OF_RANGE",
       "PULSE_CHAIN_EMPTY",
       "PULSE_CHAIN_NOT_MERGEABLE",
       "PULSE_CHAIN_STAGE_JOIN",
@@ -8894,6 +8957,7 @@
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
+          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -8979,6 +9043,7 @@
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
+          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -9064,6 +9129,7 @@
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
+          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -9149,6 +9215,7 @@
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
+          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -9233,6 +9300,7 @@
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
+          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -9317,6 +9385,7 @@
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
+          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -9401,6 +9470,7 @@
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
+          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -9482,6 +9552,7 @@
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
+          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
           "ATTR_ZSCORE"
         ],
@@ -10352,6 +10423,10 @@
       {
         "name": "op-attr-reg-residual",
         "description": "Per-row residual yᵢ − ŷᵢ from an OLS refit during the attribute prepass."
+      },
+      {
+        "name": "op-attr-scale-score",
+        "description": "Per-row rating-battery score — the valid-item mean or prorated sum across a vector of members, with reverse-keyed items and a min_valid floor."
       },
       {
         "name": "op-attr-set-has",
@@ -11306,7 +11381,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 206,
+    "examples_count": 207,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -15584,4 +15659,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e05ead05c6ce9abbf60ed34b55d8f76e9ada8a1653d7cf088c242945a23ab437
+// golden-hash: 126bf38966d64adc56971b297db6209a75dc896f296d86ffc4df3c2cfe69af1e

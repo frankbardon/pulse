@@ -159,6 +159,9 @@ func (p *Processor) RunCrosstabFused(ctx context.Context, req *types.Request, it
 	if err := applyOverlaysToResponse(req, resp, p.exts, p.compute); err != nil {
 		return nil, err
 	}
+	// Row-local attribute warnings, first and in declared order (the
+	// buffered RunCrosstab carries applyAttributes' warnings first).
+	resp.Warnings = prependRowLocalWarnings(resp.Warnings, rowLocalAttrs)
 	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
 	}

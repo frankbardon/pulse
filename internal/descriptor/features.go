@@ -278,6 +278,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("ATTR_REG_LEVERAGE"),
 	op("ATTR_REG_PREDICT"),
 	op("ATTR_REG_RESIDUAL"),
+	op("ATTR_SCALE_SCORE"),
 	op("ATTR_SET_HAS"),
 	op("ATTR_SET_POPCOUNT"),
 	op("ATTR_TSCORE"),

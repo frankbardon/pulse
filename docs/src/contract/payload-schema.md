@@ -344,10 +344,14 @@ refused). Shape refusals are `SERVICE_VALIDATION` with
 ## Attribute vector inputs
 
 `Attribute` carries two additive slots, the same mirror: `vector` /
-`fields`. A vector-input (fitted) attribute (`ATTR_MAHALANOBIS`,
-`ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`) sets exactly one of them and no
-`field`; every other attribute refuses both.
-Members are source columns only. Its `params` share `fit_on` —
+`fields`. A vector-input attribute (the fitted `ATTR_MAHALANOBIS`,
+`ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`, and the row-local
+`ATTR_SCALE_SCORE`) sets exactly one of them and no `field`; every other
+attribute refuses both.
+Members are source columns only. `ATTR_SCALE_SCORE`'s `params` are
+`stat` (`mean` | `sum`, prorated), `min_valid`, `reverse` (member
+labels) and `scale_min` / `scale_max` (else the kind `scale` vector's
+bounds). A fitted attribute's `params` share `fit_on` —
 `"filtered"` (the default) or an inline array of `Filterer` objects
 choosing the fit rows among the filtered ones (every filtered row is
 still scored) — and `missing` (`"listwise"` only). The default label is

@@ -1159,6 +1159,12 @@ func decodeScale(at string, p reliabilityParams, m *Matrix) *errors.CodedError {
 	return nil
 }
 
+// ScaleKey is the matrix's declared range and reverse positions as the
+// shared ScaleKey (meaningful only when HasScale).
+func (m Matrix) ScaleKey() ScaleKey {
+	return ScaleKey{Lo: m.ScaleMin, Hi: m.ScaleMax, Reverse: m.Reverse}
+}
+
 // scaleConfig is a MAT_RELIABILITY scale-range refusal: PROCESSING_CONFIG
 // naming the matrix slot.
 func scaleConfig(at, msg string, extra map[string]any) *errors.CodedError {

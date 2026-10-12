@@ -400,6 +400,14 @@ func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
 		if cp.Label == "" {
 			cp.Label = defaultAttributeLabel(a)
 		}
+		if cp.Type == types.ATTR_SCALE_SCORE && !p.exts.isHidden(string(cp.Type)) {
+			// The literal members lose the vector's labels and kind
+			// bounds: hand the factory canonical params (reverse by
+			// member name, the declared range explicit).
+			if params, ok := vectors.ScaleScoreSlotParams(a, inputs[i].Members); ok {
+				cp.Params = params
+			}
+		}
 		cp.Vector = ""
 		cp.Fields = append([]string(nil), inputs[i].Members.Members...)
 		c.Attributes[i] = &cp
