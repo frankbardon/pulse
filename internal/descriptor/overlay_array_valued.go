@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -13,13 +14,18 @@ import (
 // AGG_VEC_SUM — or an extension declared ArrayValued; aggregationKinds)
 // holds one figure per member, and under params.expand its
 // per-element columns are presentation only. An overlay handler reads
-// one number per host row (a SERIES host takes the row's first numeric
-// column), so a slot or stage carrying one would fold an array as NaN —
-// or, expanded, whichever element column sorts first — silently. Both
-// rules refuse instead: PROCESSING_CONFIG, details.reason
-// "array_valued". Predict (ValidateCompose / ValidateChain) and the
-// runtime (Service.applyComposeOverlays / Service.processChain) call the
-// same functions.
+// one number per host row, so scoring one would fold an array as NaN —
+// silently. Both rules refuse instead: PROCESSING_CONFIG,
+// details.reason "array_valued". Predict (ValidateCompose /
+// ValidateChain) and the runtime (Service.applyComposeOverlays /
+// Service.processChain) call the same functions.
+//
+// Only the SCORED aggregation is judged (scoredArrayValuedAggregation):
+// a non-crosstab slot or stage is narrowed to its group columns plus
+// that one value column before any gate or handler reads a row
+// (processing.narrowSeriesHost), so an unscored array-valued
+// aggregation never reaches the fold. A crosstab slot or stage is not
+// narrowed, and keeps the whole-request rule.
 
 // firstArrayValuedAggregation returns the index and slot of r's first
 // array-valued aggregation under the instance's routing, or -1, nil.
@@ -36,9 +42,34 @@ func firstArrayValuedAggregation(r *types.Request, inst *InstanceSnapshot) (int,
 	return -1, nil
 }
 
-// ComposeOverlayArrayValuedRefusal refuses a Compose overlay that reads
-// (as its reference, a target, or — no targets — every slot) a slot
-// carrying an array-valued aggregation. labels are the slots' labels
+// scoredArrayValuedAggregation returns the index and slot of the
+// aggregation an overlay scores on r when it is array-valued, else -1,
+// nil. scored resolves that aggregation's index (params.field, else 0 —
+// the narrowing's own reading); a resolution error is left to the field
+// rule (PULSE_OVERLAY_FIELD_UNKNOWN), which owns it. A crosstab request
+// is never narrowed, so every aggregation counts there.
+func scoredArrayValuedAggregation(r *types.Request, inst *InstanceSnapshot, scored func([]*types.Aggregation) (int, error)) (int, *types.Aggregation) {
+	if r == nil {
+		return -1, nil
+	}
+	if r.Crosstab != nil {
+		return firstArrayValuedAggregation(r, inst)
+	}
+	ai, err := scored(r.Aggregations)
+	if err != nil || ai < 0 || ai >= len(r.Aggregations) {
+		return -1, nil
+	}
+	if a := r.Aggregations[ai]; a != nil && aggregationKinds(inst, nil).IsArrayValued(a.Type) {
+		return ai, a
+	}
+	return -1, nil
+}
+
+// ComposeOverlayArrayValuedRefusal refuses a Compose overlay that
+// scores (on its reference, a target, or — no targets — every slot) an
+// array-valued aggregation: the one params.field names on a kind
+// seriesfield.AppliesCompose accepts, else the slot's Aggregations[0]
+// (any aggregation on a crosstab slot). labels are the slots' labels
 // (index-aligned with requests, defaults applied). Nil when no overlay
 // reads one; a kind the instance hides is left to the kind rule.
 func ComposeOverlayArrayValuedRefusal(overlays []types.ComposeOverlaySpec, requests []*types.Request, labels []string, inst *InstanceSnapshot) error {
@@ -70,7 +101,13 @@ func composeOverlayArrayValuedRefusal(i int, spec *types.ComposeOverlaySpec, req
 		if r == nil || j >= len(labels) || !reads(labels[j]) {
 			continue
 		}
-		ai, agg := firstArrayValuedAggregation(r, inst)
+		slot := labels[j]
+		ai, agg := scoredArrayValuedAggregation(r, inst, func(aggs []*types.Aggregation) (int, error) {
+			if !seriesfield.AppliesCompose(spec.Kind) {
+				return 0, nil
+			}
+			return seriesfield.ResolveComposeSlot(aggs, spec, i, slot)
+		})
 		if agg == nil {
 			continue
 		}
@@ -85,9 +122,12 @@ func composeOverlayArrayValuedRefusal(i int, spec *types.ComposeOverlaySpec, req
 	return nil
 }
 
-// ChainOverlayArrayValuedRefusal refuses a whole-chain overlay whose
-// target or reference stage carries an array-valued aggregation (only
-// the last stage can: an array-valued stage may not feed another). A
+// ChainOverlayArrayValuedRefusal refuses a whole-chain overlay that
+// scores an array-valued aggregation on its target or reference stage
+// (only the last stage can carry one: an array-valued stage may not
+// feed another) — the one params.field names on a kind
+// seriesfield.AppliesChain accepts, else the stage's Aggregations[0]
+// (any aggregation on a crosstab stage). A
 // spec whose stage references do not resolve is left to the
 // stage-reference rules. Nil when no overlay reads one.
 func ChainOverlayArrayValuedRefusal(req *types.ChainRequest, inst *InstanceSnapshot) error {
@@ -115,7 +155,13 @@ func chainOverlayArrayValuedRefusal(req *types.ChainRequest, i int, spec *types.
 		if !ok || req.Stages[idx] == nil {
 			continue
 		}
-		ai, agg := firstArrayValuedAggregation(req.Stages[idx].Request, inst)
+		role := side.role
+		ai, agg := scoredArrayValuedAggregation(req.Stages[idx].Request, inst, func(aggs []*types.Aggregation) (int, error) {
+			if !seriesfield.AppliesChain(spec.Kind) {
+				return 0, nil
+			}
+			return seriesfield.ResolveChainStage(aggs, spec, i, role, idx)
+		})
 		if agg == nil {
 			continue
 		}

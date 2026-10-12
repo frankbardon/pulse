@@ -127,7 +127,8 @@ func TestComposeSeriesOverlay_UngroupedPairStillRuns(t *testing.T) {
 // stage against an ungrouped one is PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT
 // on both sides — predict's envelope error, the runtime's layer warning
 // over an empty payload — with the same shapes and stage indices, in
-// either direction. Before, the runtime saw two non-empty Data slices,
+// either direction, and with deep-equal Details (the runtime adds
+// overlay_index only). Before, the runtime saw two non-empty Data slices,
 // folded them as SERIES and answered PULSE_OVERLAY_REF_ZERO.
 func TestChainSeriesOverlay_GroupedVsUngroupedShapeParity(t *testing.T) {
 	f := newMGFixture(t, pulse.Options{})
@@ -151,21 +152,25 @@ func TestChainSeriesOverlay_GroupedVsUngroupedShapeParity(t *testing.T) {
 					req.Overlays[0].Target = types.StageRef{Index: &target}
 					return req
 				}
+				// Every key predict raises the divergence with — index,
+				// stage_index and stage_name (the target stage) included —
+				// rides the runtime warning too (E4-S8).
 				want := map[string]any{
+					"index":        0,
 					"kind":         string(kind),
 					"ref_index":    c.refIdx,
 					"ref_shape":    c.refShape,
 					"target_index": c.targetIdx,
 					"target_shape": c.tShape,
+					"stage_index":  c.targetIdx,
+					"stage_name":   []string{"base", "regroup"}[c.targetIdx],
 				}
 				env := chPredict(t, f.p, build())
 				if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
 					t.Fatalf("predict-chain: want PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT first, got %+v", env.Errors)
 				}
-				for k, v := range want {
-					if got := env.Errors[0].Details[k]; !reflect.DeepEqual(got, v) {
-						t.Errorf("predict details[%s] = %#v, want %#v", k, got, v)
-					}
+				if !reflect.DeepEqual(env.Errors[0].Details, want) {
+					t.Errorf("predict details = %#v, want %#v", env.Errors[0].Details, want)
 				}
 				resp, err := f.p.ProcessChain(context.Background(), build())
 				if err != nil {
@@ -175,10 +180,17 @@ func TestChainSeriesOverlay_GroupedVsUngroupedShapeParity(t *testing.T) {
 				if len(l.Warnings) != 1 || l.Warnings[0].Code != string(perr.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
 					t.Fatalf("runtime: want one PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT warning, got %+v", l.Warnings)
 				}
-				for k, v := range want {
-					if got := l.Warnings[0].Details[k]; !reflect.DeepEqual(got, v) {
-						t.Errorf("runtime details[%s] = %#v, want %#v", k, got, v)
-					}
+				// The runtime adds only overlay_index (its layer router).
+				got := map[string]any{}
+				for k, v := range l.Warnings[0].Details {
+					got[k] = v
+				}
+				if got["overlay_index"] != 0 {
+					t.Errorf("runtime details[overlay_index] = %#v, want 0", got["overlay_index"])
+				}
+				delete(got, "overlay_index")
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("runtime details = %#v, want %#v", got, want)
 				}
 				if string(l.Payload.Shape) != c.tShape || l.Payload.Series != nil {
 					t.Errorf("runtime payload: want an empty %s payload, got %+v", c.tShape, l.Payload)

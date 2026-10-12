@@ -331,11 +331,13 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 //
 // Per FR-F2 ("PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT raises at
 // runtime here when target stage and reference stage host shapes
-// diverge"): the stub handlers in `processing.ApplyChainOverlays`
-// skip the divergence check entirely and the layer inherits the target
-// stage's shape; the FIXME comment in
-// `internal/processing/overlay_chain_dispatch.go` documents the deferred
-// surface.
+// diverge"): processing.ApplyChainOverlaysWithRequests judges each
+// stage's host shape off its AUTHORED request (the shape predict-chain
+// reads) before the handler runs, and the handlers keep their own
+// Response-shape check behind it. A divergence is an empty layer that
+// inherits the target stage's shape plus ONE warning whose Details
+// carry predict's keys (index, kind, target/ref index + shape,
+// stage_index, stage_name) and overlay_index.
 func (s *Service) applyChainOverlays(req *types.ChainRequest, out *types.ChainResponse) error {
 	if len(req.Overlays) == 0 {
 		// Byte-identity guarantee for overlay-free chains: the slot

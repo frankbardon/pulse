@@ -162,10 +162,11 @@ var chainOverlayHandlers = map[types.OverlayKind]chainOverlayHandler{
 // Shape divergence: the per-kind CHAIN handlers (applyIndexVsStage /
 // applyDeltaVsStage) emit PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT
 // when the resolved target stage and reference stage host shapes
-// disagree. The dispatcher itself does not gate on shape — the per-kind
-// handlers own the shape-divergence defence so each kind picks its own
-// fallback payload (the canonical rule today is "empty payload that
-// inherits the target stage's shape").
+// disagree; ApplyChainOverlaysWithRequests raises the same answer
+// first off the stages' AUTHORED shapes (chainShapeDivergentLayer —
+// an empty payload that inherits the target stage's shape). Either
+// way the dispatcher stamps the warning with predict-chain's keys
+// (index, stage_index, stage_name) beside overlay_index.
 func ApplyChainOverlays(specs []*types.ChainOverlaySpec, stages []*types.Response, stageNames []string) ([]*types.OverlayLayer, []types.OverlayWarning, error) {
 	return ApplyChainOverlaysWithExtensions(specs, stages, stageNames, nil)
 }
@@ -281,6 +282,19 @@ func ApplyChainOverlaysWithRequests(specs []*types.ChainOverlaySpec, stages []*t
 					ws[j].Details = map[string]any{}
 				}
 				ws[j].Details["overlay_index"] = i
+				// A shape divergence also carries the keys predict-chain
+				// raises it with (index, stage_index, stage_name — the
+				// target stage), so the shared keys deep-equal on both
+				// sides wherever the divergence is judged.
+				if ws[j].Code == string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
+					name := ""
+					if targetIdx < len(stageNames) {
+						name = stageNames[targetIdx]
+					}
+					ws[j].Details["index"] = i
+					ws[j].Details["stage_index"] = targetIdx
+					ws[j].Details["stage_name"] = name
+				}
 			}
 			warnings = append(warnings, ws...)
 		}
