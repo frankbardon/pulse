@@ -29,7 +29,11 @@ import (
 //   - Params are strict (unknown keys refused): `labels` — one display
 //     label per member, inline fields only (a named vector carries its
 //     own labels: labels_with_vector); a count other than the member
-//     count is PULSE_VECTOR_LABELS_MISMATCH.
+//     count is PULSE_VECTOR_LABELS_MISMATCH. `expand` (bool) replaces
+//     the array with one scalar column per member, "<label>[<element
+//     label>]" (ExpandedColumn); two members sharing a display label
+//     would write one column twice, so expand refuses them
+//     (expand_duplicate_labels).
 //   - Any OTHER aggregator — built-in or a registered extension —
 //     refuses a vector input (vector_not_accepted): the extension
 //     aggregator contract reads one field.
@@ -69,6 +73,9 @@ type AggregationInput struct {
 	// Members is the member set (axis order) with its display labels:
 	// the named vector's, else params.labels, else the member names.
 	Members Resolved
+	// Expand is params.expand: the value is written as one column per
+	// member (ExpandedColumn) instead of an array.
+	Expand bool
 }
 
 // Has reports whether the slot resolved a vector input.
@@ -105,11 +112,48 @@ func AggregationSlots(req *types.Request) []AggregationSlot {
 	return out
 }
 
+// anyAggregationSlot reports whether pred holds for any aggregation
+// slot of req (AggregationSlots' set, walk order) — without building
+// the slot list, so the vector-free request every caller sees most
+// pays no allocation for the check.
+func anyAggregationSlot(req *types.Request, pred func(*types.Aggregation) bool) bool {
+	if req == nil {
+		return false
+	}
+	for _, a := range req.Aggregations {
+		if a != nil && pred(a) {
+			return true
+		}
+	}
+	if ct := req.Crosstab; ct != nil {
+		if ct.Cell != nil && pred(ct.Cell) {
+			return true
+		}
+		for _, a := range ct.MarginAggregations {
+			if a != nil && pred(a) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// AnyAggregationVectorInput reports whether any aggregation slot of req
+// sets vector or fields (allocation-free).
+func AnyAggregationVectorInput(req *types.Request) bool {
+	return anyAggregationSlot(req, HasAggregationVectorInput)
+}
+
 // VecAggParams is a vector aggregator's decoded params.
 type VecAggParams struct {
 	// Labels is params.labels: one display label per member (inline
 	// fields only).
 	Labels []string `json:"labels,omitempty"`
+	// Expand replaces the array value with one scalar column per member,
+	// named ExpandedColumn(label, element label). Presentation only: the
+	// columns are refused wherever the array is (Sort, overlays, a
+	// window, a feeding chain stage).
+	Expand bool `json:"expand,omitempty"`
 }
 
 // DecodeVecAggParams decodes a vector aggregator's params strictly
@@ -122,7 +166,7 @@ func DecodeVecAggParams(at string, typ types.AggregationType, raw json.RawMessag
 	}
 	if err := decodeStrict(raw, &p); err != nil {
 		return VecAggParams{}, aggregationInvalid(at, "bad_params",
-			at+" "+string(typ)+" params: "+err.Error()+" (keys: labels)", nil)
+			at+" "+string(typ)+" params: "+err.Error()+" (keys: labels, expand)", nil)
 	}
 	return p, nil
 }
@@ -138,13 +182,18 @@ func DecodeVecAggParams(at string, typ types.AggregationType, raw json.RawMessag
 // resolved a vector input; the first refusal is returned. Like Resolve
 // it reads only the schema.
 func ResolveAggregations(req *types.Request, schema *encoding.Schema, route func(types.AggregationType) types.AggregationType, ext func(string) bool) (map[*types.Aggregation]AggregationInput, *errors.CodedError) {
-	slots := AggregationSlots(req)
-	if len(slots) == 0 {
-		return nil, nil
-	}
 	if route == nil {
 		route = func(t types.AggregationType) types.AggregationType { return t }
 	}
+	// Nothing to judge when no slot reads a vector or is a vector
+	// aggregator: return before building the slot list (the common
+	// request allocates nothing here).
+	if !anyAggregationSlot(req, func(a *types.Aggregation) bool {
+		return HasAggregationVectorInput(a) || IsVectorAggregation(route(a.Type))
+	}) {
+		return nil, nil
+	}
+	slots := AggregationSlots(req)
 	resolved, verr := Resolve(req.Vectors, schema)
 	if verr != nil {
 		return nil, verr
@@ -205,7 +254,69 @@ func resolveAggregation(at string, a *types.Aggregation, typ types.AggregationTy
 	if err != nil {
 		return AggregationInput{}, err
 	}
-	return AggregationInput{Slot: at, Members: members}, nil
+	if p.Expand {
+		seen := make(map[string]int, len(members.Labels))
+		for i, l := range members.Labels {
+			if first, dup := seen[l]; dup {
+				return AggregationInput{}, aggregationInvalid(at, "expand_duplicate_labels",
+					at+" ("+name+") params.expand names one column per member by its display label, and members "+
+						strconv.Itoa(first)+" and "+strconv.Itoa(i)+" share the label "+strconv.Quote(l)+"; give the members distinct labels",
+					map[string]any{"type": name, "label": l, "members": []int{first, i}})
+			}
+			seen[l] = i
+		}
+	}
+	return AggregationInput{Slot: at, Members: members, Expand: p.Expand}, nil
+}
+
+// ExpandedColumn is the Response.Data column an expanded vector
+// aggregation writes element by element: "<label>[<element label>]".
+func ExpandedColumn(label, element string) string {
+	return label + "[" + element + "]"
+}
+
+// AggregationExpands reports whether a is a built-in vector aggregation
+// whose params set expand (a params blob that does not decode never
+// expands — the resolver refuses it).
+func AggregationExpands(a *types.Aggregation) bool {
+	if a == nil || !IsVectorAggregation(a.Type) {
+		return false
+	}
+	p, err := DecodeVecAggParams("aggregation", a.Type, a.Params)
+	return err == nil && p.Expand
+}
+
+// AggregationOutputColumns returns the Response.Data columns slot a of
+// req emits over schema: its label (types.AggregationLabelOf unless
+// Label is set), or — on an expanding vector aggregation — one
+// ExpandedColumn per member in member order, the label itself absent.
+// The second result is false when an expanding slot's members do not
+// resolve (the resolver refuses the request); the label is returned
+// then. Predict (return planning, chain stage columns, the per-slot
+// columns) and the field-reference walk share it, so they name the
+// columns the runtime writes.
+func AggregationOutputColumns(req *types.Request, a *types.Aggregation, schema *encoding.Schema) ([]string, bool) {
+	label := types.AggregationLabelOf(a)
+	if !AggregationExpands(a) {
+		return []string{label}, true
+	}
+	var specs []types.VectorSpec
+	if req != nil {
+		specs = req.Vectors
+	}
+	resolved, verr := Resolve(specs, schema)
+	if verr != nil || schema == nil {
+		return []string{label}, false
+	}
+	in, err := resolveAggregation("aggregation", a, a.Type, specs, resolved, schema)
+	if err != nil {
+		return []string{label}, false
+	}
+	out := make([]string, len(in.Members.Labels))
+	for i, l := range in.Members.Labels {
+		out[i] = ExpandedColumn(label, l)
+	}
+	return out, true
 }
 
 // AggregationSlotRewrite is the slot a vector aggregator's factory
@@ -237,6 +348,9 @@ func AggregationSlotRewrite(a *types.Aggregation, in AggregationInput) *types.Ag
 // projection decodes wide otherwise.
 func AggregationInputMembers(req *types.Request, schema *encoding.Schema) (members []string, ok bool) {
 	ok = true
+	if !anyAggregationSlot(req, func(a *types.Aggregation) bool { return len(a.Fields) > 0 }) {
+		return nil, ok
+	}
 	for _, s := range AggregationSlots(req) {
 		if len(s.Agg.Fields) == 0 {
 			continue

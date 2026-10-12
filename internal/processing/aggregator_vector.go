@@ -111,6 +111,9 @@ type vecAggregator struct {
 	labels  []string
 	// weight is the applied slot weight; nil on an unweighted slot.
 	weight *types.WeightSpec
+	// expand is params.expand: the row carries one scalar column per
+	// member (vectors.ExpandedColumn) instead of the array.
+	expand bool
 
 	blocks map[BlockKey]*vecBlock
 	loose  *vecBlock // rows with no merge position, in arrival order
@@ -155,7 +158,7 @@ func newVecAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregat
 	if len(labels) != len(members) {
 		labels = members
 	}
-	a := &vecAggregator{typ: agg.Type, members: members, labels: append([]string(nil), labels...)}
+	a := &vecAggregator{typ: agg.Type, members: members, labels: append([]string(nil), labels...), expand: p.Expand}
 	if w := slotWeight(agg); w != nil {
 		ew := effectiveWeight(w)
 		a.weight = &ew
@@ -316,6 +319,19 @@ func (a *vecAggregator) Components() (map[string]any, error) {
 // keys a presentation of the array (expand) names its elements by.
 func (a *vecAggregator) ElementLabels() []string { return append([]string(nil), a.labels...) }
 
+// ExpandedElements reports, on a slot whose params set expand, the
+// element labels and the per-member figures the row carries as one
+// column each; ok is false on an array slot.
+func (a *vecAggregator) ExpandedElements() (labels []string, values []float64, ok bool) {
+	if !a.expand {
+		return nil, nil, false
+	}
+	if !a.frozen {
+		a.finish()
+	}
+	return append([]string(nil), a.labels...), append([]float64(nil), a.value...), true
+}
+
 // MergeOnline absorbs another partition's partials. Partitions cover
 // disjoint merge blocks, so this is a map union and order-free; a
 // block present on both sides, or loose (unpositioned) rows on both,
@@ -351,4 +367,5 @@ var (
 	_ MetaAggregator      = (*vecAggregator)(nil)
 	_ MergeableAggregator = (*vecAggregator)(nil)
 	_ RichAggregator      = (*vecAggregator)(nil)
+	_ elementExpander     = (*vecAggregator)(nil)
 )

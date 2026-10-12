@@ -146,6 +146,13 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 		if targetIdx >= 0 && targetIdx < stagesCount && req.Stages[targetIdx] != nil {
 			targetReq = req.Stages[targetIdx].Request
 		}
+		// An array-valued (vector) aggregation on either stage
+		// (PROCESSING_CONFIG, reason array_valued) — the runtime's
+		// check in Service.processChain, before any stage runs.
+		if aerr := chainOverlayArrayValuedRefusal(req, i, spec, opts.instance()); aerr != nil {
+			addCodedError(env, aerr)
+			continue
+		}
 		refShape := inferChainStageShape(refReq)
 		targetShape := inferChainStageShape(targetReq)
 		if refShape == targetShape {

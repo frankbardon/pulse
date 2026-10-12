@@ -95,6 +95,12 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(matrix-extensions
 | ~~`MAT_DISTANCE` over date and extension groupers~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #411 |
 | ~~Factor-score refusal drops the not-converged note~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #415 |
 
+## Handed on from U27
+
+| Item | Source |
+|---|---|
+| Sort / overlays / ratios over expanded vector-aggregate columns (refused as presentation only today) | [U27](U27-vector-metrics-aggregates.md) #420 |
+
 ## Human inputs & decisions
 
 - None.

@@ -170,3 +170,65 @@ func TestArrayValuedCrosstabRefusal(t *testing.T) {
 		t.Errorf("a hidden type is refused as unknown elsewhere, not here: %v", hidden)
 	}
 }
+
+// TestAggregationOutputColumns: an array slot writes its label; an
+// expanding slot writes "<label>[<element label>]" per member in member
+// order (a named vector's labels, params.labels, else the members) and
+// keeps expand through the slot rewrite; an unresolvable expanding slot
+// falls back to its label and reports it.
+func TestAggregationOutputColumns(t *testing.T) {
+	vecs := []types.VectorSpec{{Name: "v", Fields: []string{"q_*"}, Labels: []string{"first", "second"}}}
+	exp := json.RawMessage(`{"expand":true}`)
+	cases := []struct {
+		name   string
+		agg    *types.Aggregation
+		want   []string
+		ok     bool
+		expand bool
+	}{
+		{"array", &types.Aggregation{Type: types.AGG_VEC_MEAN, Vector: "v"}, []string{"AGG_VEC_MEAN_v"}, true, false},
+		{"scalar", &types.Aggregation{Type: types.AGG_SUM, Field: "q_1"}, []string{"AGG_SUM_q_1"}, true, false},
+		{"named vector", &types.Aggregation{Type: types.AGG_VEC_MEAN, Vector: "v", Params: exp}, []string{"AGG_VEC_MEAN_v[first]", "AGG_VEC_MEAN_v[second]"}, true, true},
+		{"inline fields", &types.Aggregation{Type: types.AGG_VEC_SUM, Fields: []string{"q_2", "q_1"}, Label: "s", Params: exp}, []string{"s[q_2]", "s[q_1]"}, true, true},
+		{"inline labels", &types.Aggregation{Type: types.AGG_VEC_SUM, Fields: []string{"q_*"}, Label: "s",
+			Params: json.RawMessage(`{"expand":true,"labels":["a","b"]}`)}, []string{"s[a]", "s[b]"}, true, true},
+		{"unresolvable", &types.Aggregation{Type: types.AGG_VEC_SUM, Vector: "nope", Label: "s", Params: exp}, []string{"s"}, false, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := &types.Request{Vectors: vecs, Aggregations: []*types.Aggregation{c.agg}}
+			got, ok := AggregationOutputColumns(req, c.agg, groupSchema())
+			if !reflect.DeepEqual(got, c.want) || ok != c.ok {
+				t.Errorf("columns = %v, %v; want %v, %v", got, ok, c.want, c.ok)
+			}
+			if AggregationExpands(c.agg) != c.expand {
+				t.Errorf("AggregationExpands = %v, want %v", !c.expand, c.expand)
+			}
+		})
+	}
+
+	// expand survives the factory rewrite (the runtime reads it there).
+	a := &types.Aggregation{Type: types.AGG_VEC_MEAN, Vector: "v", Params: exp}
+	req := &types.Request{Vectors: vecs, Aggregations: []*types.Aggregation{a}}
+	in, err := ResolveAggregations(req, groupSchema(), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !in[a].Expand {
+		t.Error("resolved input lost expand")
+	}
+	if rw := AggregationSlotRewrite(a, in[a]); !AggregationExpands(rw) {
+		t.Errorf("rewrite dropped expand: %s", rw.Params)
+	}
+
+	// Duplicate element labels: refused under expand only.
+	dup := &types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"q_*"}, Params: json.RawMessage(`{"expand":true,"labels":["x","x"]}`)}
+	if _, err := ResolveAggregations(&types.Request{Aggregations: []*types.Aggregation{dup}}, groupSchema(), nil, nil); err == nil ||
+		err.Details["reason"] != "expand_duplicate_labels" {
+		t.Errorf("duplicate labels under expand = %v, want expand_duplicate_labels", err)
+	}
+	dup.Params = json.RawMessage(`{"labels":["x","x"]}`)
+	if _, err := ResolveAggregations(&types.Request{Aggregations: []*types.Aggregation{dup}}, groupSchema(), nil, nil); err != nil {
+		t.Errorf("duplicate labels on an array slot refused: %v", err)
+	}
+}

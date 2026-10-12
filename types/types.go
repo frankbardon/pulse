@@ -158,7 +158,10 @@ const (
 	// Σw·x per element (0 when none did). Streamable and mergeable:
 	// per-merge-block sums combined in a fixed tree, so the figure is
 	// bit-identical for every worker count. Refused by crosstab, Sort,
-	// overlays and a chain stage that feeds another stage.
+	// windows, post-tests, overlays and a chain stage that feeds another
+	// stage. params.expand writes one scalar column per member,
+	// "<label>[<element label>]", instead of the array — presentation
+	// only, refused in the same places.
 	AGG_VEC_MEAN AggregationType = "AGG_VEC_MEAN"
 	AGG_VEC_SUM  AggregationType = "AGG_VEC_SUM"
 )

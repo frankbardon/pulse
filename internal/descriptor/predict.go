@@ -597,7 +597,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// block arrives only on terminal flush. Predict stays no-execute
 	// — the schema is looked up via aggregatorComponentSchemaIndex,
 	// never via constructed operators.
-	populateAggregationPredicts(result, req, opts)
+	populateAggregationPredicts(result, req, schema, opts)
 
 	// Populate the per-grouper predict surface: one GroupPredict
 	// descriptor per req.Groups slot in matching order.
@@ -1314,7 +1314,7 @@ func populateGroupPredicts(result *descriptor.PredictResult, req *types.Request,
 //
 // Predict stays no-execute: this helper reads only the static
 // capabilities table — no `internal/service/` or `internal/processing/` imports.
-func populateAggregationPredicts(result *descriptor.PredictResult, req *types.Request, opts *PredictOptions) {
+func populateAggregationPredicts(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, opts *PredictOptions) {
 	if result == nil || req == nil {
 		return
 	}
@@ -1329,14 +1329,22 @@ func populateAggregationPredicts(result *descriptor.PredictResult, req *types.Re
 		if agg == nil {
 			continue
 		}
-		schema := idx[string(opRoute(opts.instance(), agg.Type))]
-		out = append(out, descriptor.AggregationPredict{
+		cs := idx[string(opRoute(opts.instance(), agg.Type))]
+		ap := descriptor.AggregationPredict{
 			Type:               agg.Type,
 			Field:              agg.Field,
 			Label:              agg.Label,
-			ComponentSchema:    schema,
-			BufferedComponents: schema.Mergeability == descriptor.None,
-		})
+			ComponentSchema:    cs,
+			BufferedComponents: cs.Mergeability == descriptor.None,
+		}
+		// An expanding vector aggregation (params.expand) names the
+		// per-element columns it writes in place of its label.
+		if vectors.AggregationExpands(agg) {
+			if cols, ok := vectors.AggregationOutputColumns(req, agg, schema); ok {
+				ap.Columns = cols
+			}
+		}
+		out = append(out, ap)
 	}
 	result.Aggregations = out
 }

@@ -740,8 +740,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		if label == "" {
 			label = types.AggregationLabelOf(e.agg)
 		}
-		row[label], err = dispatchAggregatorResult(e.online, val)
-		if err != nil {
+		if err = writeAggregationResult(row, label, e.online, val); err != nil {
 			return nil, err
 		}
 		finalized = append(finalized, finalizedEntry{
@@ -1364,8 +1363,7 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		if label == "" {
 			label = types.AggregationLabelOf(e.agg)
 		}
-		row[label], err = dispatchAggregatorResult(e.online, val)
-		if err != nil {
+		if err = writeAggregationResult(row, label, e.online, val); err != nil {
 			return nil, err
 		}
 	}
@@ -2213,8 +2211,7 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 		if err != nil {
 			return nil, nil, err
 		}
-		row[label], err = dispatchAggregatorResult(aggregator, val)
-		if err != nil {
+		if err = writeAggregationResult(row, label, aggregator, val); err != nil {
 			return nil, nil, err
 		}
 		if collectComponents {
@@ -2259,6 +2256,45 @@ func dispatchAggregatorResult(agg any, scalar float64) (any, error) {
 		}
 	}
 	return scalar, nil
+}
+
+// elementExpander is an array-valued aggregator whose slot asked for
+// its value as one scalar column per element (AGG_VEC_* params.expand).
+type elementExpander interface {
+	ExpandedElements() (labels []string, values []float64, ok bool)
+}
+
+// writeAggregationResult writes one aggregation slot's finished value
+// into row under label: the Rich-or-scalar lift
+// (dispatchAggregatorResult), or — on an expanding vector aggregation —
+// one float64 column per element, vectors.ExpandedColumn(label, element
+// label), the label itself absent. Every row builder (serial streaming,
+// two-pass, buffered, the grouped tail and both parallel reducers)
+// writes through it, so the keys are the same whatever arm runs.
+func writeAggregationResult(row map[string]any, label string, agg any, scalar float64) error {
+	if ex, ok := agg.(elementExpander); ok {
+		if labels, values, expand := ex.ExpandedElements(); expand {
+			for i, l := range labels {
+				row[vectors.ExpandedColumn(label, l)] = values[i]
+			}
+			return nil
+		}
+	}
+	v, err := dispatchAggregatorResult(agg, scalar)
+	if err != nil {
+		return err
+	}
+	row[label] = v
+	return nil
+}
+
+// WriteAggregationResult is the exported form of writeAggregationResult
+// for the reducers outside this package that finalise merged
+// aggregator state themselves (service.finalizeMergedPartial). They
+// MUST write through it, for the reason DispatchAggregatorResult
+// documents and because an expanding slot names its columns here.
+func WriteAggregationResult(row map[string]any, label string, agg any, scalar float64) error {
+	return writeAggregationResult(row, label, agg, scalar)
 }
 
 // DispatchAggregatorResult is the exported form of

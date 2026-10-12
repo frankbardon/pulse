@@ -405,6 +405,25 @@ aggregation (the manifest lists them in
 another. `format_version` stays `"1.1"`; an aggregation without them is
 byte-identical.
 
+`params.expand: true` on a vector aggregator replaces the array with one
+scalar column per member, `<label>[<element label>]` in member order
+(grouped: per row); the label column is absent. Every execution mode
+writes the same keys. `PredictResult.aggregations[i].columns` lists them
+(omitted on every other slot, whose one column is its label), the
+`return` column check and `PredictChain`'s `stage_schemas` use them, and
+duplicate element labels are refused (`SERVICE_VALIDATION`, reason
+`expand_duplicate_labels`). The columns are presentation only: like the
+array they are refused `PROCESSING_CONFIG` (`array_valued`) as a `sort`
+key, a window's `field` / `order_by` / `partition_by`, a post-test
+field and an overlay host. A Compose overlay reading a slot, or a
+whole-chain overlay reading a stage, that carries a vector aggregation
+(expanded or not) is refused the same way. A `return` path cannot name a
+bracketed column; a prefix glob (`data[*].<label>*`) keeps them.
+
+`field` is optional on `Aggregation`, `Group` and `Attribute` (a vector
+aggregator or grouper reads `vector` / `fields`, `ATTR_FORMULA` an
+`expression`); the Go wire form still writes it.
+
 ## Matrix slots
 
 `matrices` on `Request` is an additive array of `MatrixSpec`

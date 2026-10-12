@@ -836,8 +836,9 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 			// knob while the serial path emitted labels and a
 			// label→count map — the same request answering in two
 			// different shapes depending on worker count.
-			row[label], err = processing.DispatchAggregatorResult(oa, val)
-			if err != nil {
+			// (WriteAggregationResult also names an expanding vector
+			// aggregation's per-element columns.)
+			if err = processing.WriteAggregationResult(row, label, oa, val); err != nil {
 				return nil, err
 			}
 		}

@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -302,7 +303,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 				}
 			}
 		}
-		next := chainPredictedOutputFields(staged)
+		next := chainPredictedOutputFields(staged, current)
 		result.StageSchemas = append(result.StageSchemas, next)
 		current = synthChainSchema(staged)
 	}
@@ -359,9 +360,14 @@ func chainStageDefaulted(req *types.Request, in *encoding.Schema, opts *PredictO
 }
 
 // chainPredictedOutputFields names the output columns a chain stage
-// produces. Mirrors processing.ChainOutputSchema's layout without
-// importing processing.
-func chainPredictedOutputFields(req *types.Request) []string {
+// produces over its input schema in. Mirrors processing.ChainOutputSchema's
+// layout without importing processing; an expanding vector aggregation
+// names its per-element columns (vectors.AggregationOutputColumns — the
+// runtime row writer's names). Such a stage is always the last (an
+// array-valued stage may not feed another: mergegate.
+// StageArrayValuedRefusal), so its columns are never typed as a next
+// stage's input.
+func chainPredictedOutputFields(req *types.Request, in *encoding.Schema) []string {
 	out := make([]string, 0, len(req.Groups)+len(req.Aggregations))
 	seen := make(map[string]struct{})
 	for _, g := range req.Groups {
@@ -378,15 +384,14 @@ func chainPredictedOutputFields(req *types.Request) []string {
 		if agg == nil {
 			continue
 		}
-		label := agg.Label
-		if label == "" {
-			label = types.AggregationLabelOf(agg)
+		cols, _ := vectors.AggregationOutputColumns(req, agg, in)
+		for _, label := range cols {
+			if _, dup := seen[label]; dup {
+				continue
+			}
+			seen[label] = struct{}{}
+			out = append(out, label)
 		}
-		if _, dup := seen[label]; dup {
-			continue
-		}
-		seen[label] = struct{}{}
-		out = append(out, label)
 	}
 	return out
 }

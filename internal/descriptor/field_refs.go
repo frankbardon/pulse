@@ -151,9 +151,12 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     (internal/vectors.ResolveAggregations): the exactly-one shape, a
 //     vector input on an aggregator that reads a field (an extension's
 //     included), an undefined vector, the inline-fields vector rules and
-//     params.labels. A vector aggregator's array value is refused at
-//     step 5 as a Sort key or a request overlay's host (the first
-//     aggregation) — PROCESSING_CONFIG, details.reason "array_valued".
+//     params.labels / params.expand. A vector aggregator's array value
+//     — and, under params.expand, each per-element column, which is
+//     presentation only — is refused at step 5 as a Sort key, a
+//     window's field / order_by / partition_by, a post-test's field, or
+//     a request overlay's host (the first aggregation) —
+//     PROCESSING_CONFIG, details.reason "array_valued".
 //     Steps 6 to 11 contribute one refusal at most between them.
 //
 // Derived names follow the runtime's own naming (featureOutputLabels,
@@ -470,32 +473,52 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 			if agg == nil {
 				continue
 			}
-			label := agg.Label
-			if label == "" {
-				label = types.AggregationLabelOf(agg)
-			}
-			// Output-namespace collision: the row map holds one value
-			// per name, so an aggregation label equal to a group field
-			// was overwritten by the group key (the aggregation
-			// silently dropped) and a duplicate label kept only the
-			// last aggregation's figure.
-			if prior, ok := owner[label]; ok && label != "" {
-				details := map[string]any{"label": label, "aggregation_index": ai, "aggregation": string(agg.Type)}
-				var with string
-				if gi, isGroup := prior["group_index"]; isGroup {
-					with = "group[" + strconv.Itoa(gi.(int)) + "] field"
-				} else {
-					with = "aggregation[" + strconv.Itoa(prior["other_aggregation_index"].(int)) + "] label"
+			// The columns the slot writes: its label, or an expanding
+			// vector aggregation's per-element columns
+			// (vectors.AggregationOutputColumns — the names the
+			// runtime's row writer uses). A scalar slot takes the
+			// allocation-free path (the observability-off gate).
+			label := types.AggregationLabelOf(agg)
+			cols := [1]string{label}
+			outCols := cols[:]
+			if opRoute(inst, agg.Type).ArrayValued() {
+				if vectors.AggregationExpands(agg) {
+					outCols, _ = vectors.AggregationOutputColumns(req, agg, schema)
 				}
-				for k, v := range prior {
-					details[k] = v
+				// An array-valued slot's label, and every expanded
+				// column, are presentation only (judged below).
+				if w.arrayCols == nil {
+					w.arrayCols = map[string]*types.Aggregation{}
 				}
-				w.out = append(w.out, refusal("aggregation["+strconv.Itoa(ai)+"] label "+label+" collides with "+with+" "+label,
-					details))
-				continue
+				w.arrayCols[label] = agg
+				for _, c := range outCols {
+					w.arrayCols[c] = agg
+				}
 			}
-			out[label] = true
-			owner[label] = map[string]any{"other_aggregation_index": ai, "other_aggregation": string(agg.Type)}
+			for _, label := range outCols {
+				// Output-namespace collision: the row map holds one value
+				// per name, so an aggregation label equal to a group field
+				// was overwritten by the group key (the aggregation
+				// silently dropped) and a duplicate label kept only the
+				// last aggregation's figure.
+				if prior, ok := owner[label]; ok && label != "" {
+					details := map[string]any{"label": label, "aggregation_index": ai, "aggregation": string(agg.Type)}
+					var with string
+					if gi, isGroup := prior["group_index"]; isGroup {
+						with = "group[" + strconv.Itoa(gi.(int)) + "] field"
+					} else {
+						with = "aggregation[" + strconv.Itoa(prior["other_aggregation_index"].(int)) + "] label"
+					}
+					for k, v := range prior {
+						details[k] = v
+					}
+					w.out = append(w.out, refusal("aggregation["+strconv.Itoa(ai)+"] label "+label+" collides with "+with+" "+label,
+						details))
+					break
+				}
+				out[label] = true
+				owner[label] = map[string]any{"other_aggregation_index": ai, "other_aggregation": string(agg.Type)}
+			}
 		}
 		w.cols = out
 	}
@@ -505,7 +528,7 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 		}
 		idx := strconv.Itoa(i)
 		for _, ok := range win.OrderBy {
-			if ok.Field == "" {
+			if ok.Field == "" || w.arrayRef(ok.Field, "window["+idx+"] order_by", map[string]any{"window_index": i}) {
 				continue
 			}
 			w.check(ok.Field, func() *errors.CodedError {
@@ -522,7 +545,7 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 			}
 		}
 		for _, p := range win.PartitionBy {
-			if p == "" {
+			if p == "" || w.arrayRef(p, "window["+idx+"] partition_by", map[string]any{"window_index": i}) {
 				continue
 			}
 			w.check(p, func() *errors.CodedError {
@@ -534,7 +557,8 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 		// Only a value-bearing operator reads Field (WIN_ROW_NUMBER /
 		// RANK / DENSE_RANK name none, and an extension window's Field
 		// is its own business).
-		if win.Field != "" && windowFieldRequired[opRoute(inst, win.Type)] {
+		if win.Field != "" && windowFieldRequired[opRoute(inst, win.Type)] &&
+			!w.arrayRef(win.Field, "window["+idx+"] ("+string(win.Type)+") field", map[string]any{"window_index": i, "type": string(win.Type)}) {
 			w.check(win.Field, func() *errors.CodedError {
 				return refusal("window["+idx+"] ("+string(win.Type)+"): field "+win.Field+" does not exist in schema or upstream pipeline output",
 					map[string]any{"window_index": i, "field": win.Field, "type": string(win.Type)})
@@ -549,32 +573,21 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 		w.cols[label] = true
 		w.claim(label, map[string]any{"slot": "window[" + idx + "] " + string(win.Type), "window_index": i, "window": string(win.Type)})
 	}
-	// An array-valued aggregation's output column (AGG_VEC_*) holds one
-	// figure per vector member: no single number to order by, host an
-	// overlay on. Not on a crosstab (its cell slot is refused by the
-	// crosstab rule).
-	arrayLabels := map[string]*types.Aggregation{}
-	if req.Crosstab == nil {
-		for _, agg := range req.Aggregations {
-			if agg != nil && opRoute(inst, agg.Type).ArrayValued() {
-				arrayLabels[types.AggregationLabelOf(agg)] = agg
-			}
-		}
-	}
+	// An array-valued aggregation's output (AGG_VEC_*: its label, or
+	// with params.expand its per-element columns — w.arrayCols) is
+	// presentation only: no single number to order by.
 	for i, k := range req.Sort {
 		if k.Field == "" {
 			continue
 		}
 		idx := strconv.Itoa(i)
+		if w.arrayRef(k.Field, "sort["+idx+"]", map[string]any{"sort_index": i}) {
+			continue
+		}
 		w.check(k.Field, func() *errors.CodedError {
 			return refusal("sort["+idx+"]: field "+k.Field+" is not produced by the pipeline (no schema field, aggregation, attribute, group, or window output matches)",
 				map[string]any{"sort_index": i, "field": k.Field})
 		})
-		if agg, ok := arrayLabels[k.Field]; ok {
-			w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-				"sort["+idx+"]: "+k.Field+" is array-valued ("+string(agg.Type)+", one figure per vector member) and has no single number to order by; sort by a scalar column",
-				map[string]any{"sort_index": i, "field": k.Field, "aggregation": string(agg.Type), "reason": "array_valued"}))
-		}
 	}
 	if len(req.Overlays) > 0 && req.Crosstab == nil && len(req.Aggregations) > 0 && req.Aggregations[0] != nil {
 		// A request overlay reads the PRIMARY aggregation (the first)
@@ -713,6 +726,35 @@ type fieldRefWalk struct {
 	// names (its first claimer's slot, for the details of a vector-name
 	// collision at step 6).
 	labels map[string]map[string]any
+	// arrayCols maps every output column of an array-valued aggregation
+	// (AGG_VEC_*) — its label and, under params.expand, each
+	// per-element column — to its slot: presentation-only columns a
+	// Sort key, a window or a post-test may not read (arrayRef).
+	arrayCols map[string]*types.Aggregation
+}
+
+// arrayRef refuses a downstream read (a Sort key, a window's field /
+// order_by / partition_by, a post-test's field) of an array-valued
+// aggregation's output — the array, or one of its expanded per-element
+// columns, which stay presentation only — with PROCESSING_CONFIG
+// {field, aggregation, reason: "array_valued"} plus extra. It reports
+// whether it refused, so the caller skips its own existence check.
+func (w *fieldRefWalk) arrayRef(name, at string, extra map[string]any) bool {
+	agg, ok := w.arrayCols[name]
+	if !ok {
+		return false
+	}
+	details := map[string]any{"field": name, "aggregation": string(agg.Type), "reason": "array_valued"}
+	for k, v := range extra {
+		details[k] = v
+	}
+	what := "is array-valued (" + string(agg.Type) + ", one figure per vector member)"
+	if name != types.AggregationLabelOf(agg) {
+		what = "is an expanded element column of " + types.AggregationLabelOf(agg) + " (" + string(agg.Type) + "), presentation only"
+	}
+	w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+		at+": "+name+" "+what+"; it cannot be ordered by, windowed or tested — read a scalar column", details))
+	return true
 }
 
 // claim records label as a derived column of the slot described by who
@@ -865,6 +907,10 @@ func (w *fieldRefWalk) shadow(label string, mk func() *errors.CodedError) {
 func (w *fieldRefWalk) checkTest(t *types.Test, postIndex int) {
 	add := func(name, msg string, details map[string]any) {
 		if name == "" {
+			return
+		}
+		if postIndex >= 0 && w.arrayRef(name, "post_tests["+strconv.Itoa(postIndex)+"] ("+string(t.Type)+")",
+			map[string]any{"post_test_index": postIndex, "type": string(t.Type)}) {
 			return
 		}
 		w.check(name, func() *errors.CodedError {

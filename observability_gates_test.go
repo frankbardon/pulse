@@ -550,10 +550,19 @@ func TestHookPanicRecovered(t *testing.T) {
 // → aggregatorCapabilities → withWeightAware), so the three new
 // weight-aware rows AGG_MAPE / AGG_RMSE / AGG_MAE add their per-row
 // allocations — registry growth, not observability work on the off path.
+//
+// Re-pinned by vector-metrics-aggregates E2-S3 (branch
+// vector-metrics-aggregates, on 0524c940 + the change, go1.27, arm64):
+// predict 251 → 259 is the same capability-table rebuild growing by the
+// AGG_VEC_MEAN / AGG_VEC_SUM rows (measured: 251 exactly with those two
+// rows removed); process 164 → 162 because a request no aggregation
+// slot of which reads a vector now skips the aggregation-slot walks
+// (vectors.anyAggregationSlot) the resolver, projection and
+// Referenced used to build per call.
 var obsOffAllocBaseline = map[string]float64{
-	"process":       164,
+	"process":       162,
 	"count_records": 45,
-	"predict":       251,
+	"predict":       259,
 	"inspect":       66,
 }
 

@@ -2,6 +2,7 @@ package processing
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"math/rand"
 	"reflect"
@@ -271,5 +272,58 @@ func TestVecAgg_MergeRefusals(t *testing.T) {
 	}
 	if err := mk(true).MergeOnline(newVecAggForTest(t, types.AGG_VEC_MEAN, false, "")); err == nil {
 		t.Error("mean merged into sum")
+	}
+}
+
+// TestVecAgg_WriteAggregationResult: the row writer puts an array slot's
+// value under its label and an expanding slot's figures under one
+// "<label>[<element label>]" column each (no label key); a scalar
+// aggregator keeps the plain dispatch.
+func TestVecAgg_WriteAggregationResult(t *testing.T) {
+	s := vecAggSchema()
+	rows := []*Record{vecRec(s, 1, 2, math.NaN(), 1), vecRec(s, 3, math.NaN(), math.NaN(), 1)}
+	cases := []struct {
+		name   string
+		params string
+		want   map[string]any
+	}{
+		{"array", "", map[string]any{"m": []float64{2, 2, math.NaN()}}},
+		{"expand", `{"expand":true}`, map[string]any{"m[a]": 2.0, "m[b]": 2.0, "m[c]": math.NaN()}},
+		{"expand labels", `{"expand":true,"labels":["x","y","z"]}`, map[string]any{"m[x]": 2.0, "m[y]": 2.0, "m[z]": math.NaN()}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			a := newVecAggForTest(t, types.AGG_VEC_MEAN, false, c.params)
+			for _, r := range rows {
+				if err := a.UpdateRow(r, ""); err != nil {
+					t.Fatal(err)
+				}
+			}
+			val, err := a.Finalize()
+			if err != nil {
+				t.Fatal(err)
+			}
+			row := map[string]any{}
+			if err := WriteAggregationResult(row, "m", a, val); err != nil {
+				t.Fatal(err)
+			}
+			if len(row) != len(c.want) {
+				t.Fatalf("row = %v, want %v", row, c.want)
+			}
+			for k, w := range c.want {
+				g, ok := row[k]
+				if !ok {
+					t.Fatalf("row lacks %s: %v", k, row)
+				}
+				gs, ws := fmt.Sprint(g), fmt.Sprint(w)
+				if gs != ws {
+					t.Errorf("%s = %s, want %s", k, gs, ws)
+				}
+			}
+		})
+	}
+	row := map[string]any{}
+	if err := WriteAggregationResult(row, "n", &countAggregator{}, 7); err != nil || row["n"] != 7.0 {
+		t.Errorf("scalar write = %v, %v", row, err)
 	}
 }

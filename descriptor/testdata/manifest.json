@@ -2618,13 +2618,19 @@
         {
           "name": "AGG_VEC_MEAN",
           "category": "aggregator",
-          "description": "Per-member mean of a vector (vector or fields, exactly one; never field): one figure per member, in member order — the group's average profile. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) / sum(w) per element. An element no row answered is NaN (null in JSON). Array-valued: refused as a crosstab cell, a Sort key, a request overlay's host and a chain stage that feeds another.",
+          "description": "Per-member mean of a vector (vector or fields, exactly one; never field): one figure per member, in member order — the group's average profile. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) / sum(w) per element. An element no row answered is NaN (null in JSON). Array-valued: refused as a crosstab cell, a Sort key, a window or post-test input, an overlay host (request, Compose or whole-chain) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"\u003clabel\u003e[\u003celement label\u003e]\" — presentation only, refused wherever the array is.",
           "params": [
             {
               "name": "labels",
               "type": "list",
               "required": false,
               "description": "Display label per member, inline fields only (a named vector carries its own Request.Vectors labels); one per resolved member. Names the elements in labels (components). Default: the member names."
+            },
+            {
+              "name": "expand",
+              "type": "bool",
+              "required": false,
+              "description": "true: replace the array with one scalar column per member, \"\u003clabel\u003e[\u003celement label\u003e]\" in member order (grouped: per row); the label itself is absent. Predict lists the columns (aggregations[i].columns). Presentation only: Sort, windows, post-tests, overlays and a feeding chain stage refuse them (PROCESSING_CONFIG, reason array_valued); element labels must be distinct (expand_duplicate_labels). Return paths cannot name a bracketed column — select them with a prefix glob, data[*].\u003clabel\u003e*. Default false."
             }
           ],
           "accepts_types": [
@@ -2706,13 +2712,19 @@
         {
           "name": "AGG_VEC_SUM",
           "category": "aggregator",
-          "description": "Per-member total of a vector (vector or fields, exactly one; never field): one figure per member, in member order. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) per element. An element no row answered is 0. Array-valued: refused as a crosstab cell, a Sort key, a request overlay's host and a chain stage that feeds another.",
+          "description": "Per-member total of a vector (vector or fields, exactly one; never field): one figure per member, in member order. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) per element. An element no row answered is 0. Array-valued: refused as a crosstab cell, a Sort key, a window or post-test input, an overlay host (request, Compose or whole-chain) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"\u003clabel\u003e[\u003celement label\u003e]\" — presentation only, refused wherever the array is.",
           "params": [
             {
               "name": "labels",
               "type": "list",
               "required": false,
               "description": "Display label per member, inline fields only (a named vector carries its own Request.Vectors labels); one per resolved member. Names the elements in labels (components). Default: the member names."
+            },
+            {
+              "name": "expand",
+              "type": "bool",
+              "required": false,
+              "description": "true: replace the array with one scalar column per member, \"\u003clabel\u003e[\u003celement label\u003e]\" in member order (grouped: per row); the label itself is absent. Predict lists the columns (aggregations[i].columns). Presentation only: Sort, windows, post-tests, overlays and a feeding chain stage refuse them (PROCESSING_CONFIG, reason array_valued); element labels must be distinct (expand_duplicate_labels). Return paths cannot name a bracketed column — select them with a prefix glob, data[*].\u003clabel\u003e*. Default false."
             }
           ],
           "accepts_types": [
@@ -15973,4 +15985,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 887dfba292831ef6abc113cbb7c6e1521a9a41270eb8ad9193c79834b399c34c
+// golden-hash: 82e477f9cacd5817e70b0846e6882dd211de297191ba2dc0fc528b0df5693b30

@@ -671,11 +671,16 @@ func returnOutputColumns(req *types.Request, schema *encoding.Schema, inst *Inst
 			if agg == nil {
 				continue
 			}
-			label := agg.Label
-			if label == "" {
-				label = types.AggregationLabelOf(agg)
+			// An expanding vector aggregation writes its per-element
+			// columns, not its label.
+			if !vectors.AggregationExpands(agg) {
+				cols[types.AggregationLabelOf(agg)] = true
+				continue
 			}
-			cols[label] = true
+			out, _ := vectors.AggregationOutputColumns(req, agg, schema)
+			for _, c := range out {
+				cols[c] = true
+			}
 		}
 	}
 	for _, win := range req.Windows {

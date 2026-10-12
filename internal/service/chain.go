@@ -58,6 +58,12 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	if err := s.slotRefusal(req); err != nil {
 		return nil, err
 	}
+	// A whole-chain overlay over a stage carrying an array-valued
+	// (vector) aggregation, before any stage runs (ValidateChain's
+	// rule).
+	if err := descx.ChainOverlayArrayValuedRefusal(req, s.instance); err != nil {
+		return nil, err
+	}
 	// Then every stage's item for_each expands in place (the expansion
 	// ValidateChain runs), before the cohort opens.
 	for i, st := range req.Stages {

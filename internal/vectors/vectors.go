@@ -302,11 +302,12 @@ func Referenced(req *types.Request) map[string]bool {
 			refs[s.Group.Vector] = true
 		}
 	}
-	for _, s := range AggregationSlots(req) {
-		if s.Agg.Vector != "" {
-			refs[s.Agg.Vector] = true
+	anyAggregationSlot(req, func(a *types.Aggregation) bool {
+		if a.Vector != "" {
+			refs[a.Vector] = true
 		}
-	}
+		return false
+	})
 	exprReferenced(req, refs)
 	return refs
 }

@@ -484,7 +484,8 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 						"params": map[string]any{},
 						"weight": slotWeightSchema(c),
 					},
-					"required":             []string{"type", "field"},
+					"required":             []string{"type"},
+					"anyOf":                columnInputAnyOf(),
 					"additionalProperties": true,
 				},
 			},
@@ -500,7 +501,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 						"params":     map[string]any{},
 						"weight":     slotWeightSchema(c),
 					},
-					"required":             []string{"type", "field"},
+					"required":             []string{"type"}, // ATTR_FORMULA reads an expression, ATTR_REG_PREDICT params.fit, a vector attribute vector / fields
 					"additionalProperties": true,
 				},
 			},
@@ -530,7 +531,8 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 						"params":   map[string]any{},
 						"weight":   slotWeightSchema(c),
 					},
-					"required":             []string{"type", "field"},
+					"required":             []string{"type"},
+					"anyOf":                columnInputAnyOf(),
 					"additionalProperties": true,
 				},
 			},
@@ -1159,6 +1161,20 @@ func overlayMultiplicitySchema(facade overlayFacade) map[string]any {
 	return multiplicitySchema(desc, families, true)
 }
 
+// columnInputAnyOf is the "reads a column" rule of an aggregation or
+// grouper item: field, vector or fields — at least one present. `field`
+// alone is not required: a vector aggregator / grouper reads vector or
+// fields instead, and a strict client would otherwise demand a field of
+// it. The exactly-one and per-operator rules are the server's, with
+// their own refusals.
+func columnInputAnyOf() []any {
+	return []any{
+		map[string]any{"required": []string{"field"}},
+		map[string]any{"required": []string{"vector"}},
+		map[string]any{"required": []string{"fields"}},
+	}
+}
+
 // crosstabArrayValuedVectorSchema / crosstabArrayValuedFieldsSchema
 // declare a crosstab aggregation slot's vector input: accepted on the
 // wire like every aggregation slot's, refused by the crosstab rule.
@@ -1181,7 +1197,8 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 			"params":   map[string]any{},
 			"weight":   slotWeightSchema(c),
 		},
-		"required":             []string{"type", "field"},
+		"required":             []string{"type"},
+		"anyOf":                columnInputAnyOf(),
 		"additionalProperties": true,
 	}
 	return map[string]any{
@@ -1210,7 +1227,8 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 					"vector": crosstabArrayValuedVectorSchema(),
 					"fields": crosstabArrayValuedFieldsSchema(),
 				},
-				"required":             []string{"type", "field"},
+				"required":             []string{"type"},
+				"anyOf":                columnInputAnyOf(),
 				"additionalProperties": true,
 			},
 			"margin_aggregations": map[string]any{
@@ -1227,7 +1245,8 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 						"vector": crosstabArrayValuedVectorSchema(),
 						"fields": crosstabArrayValuedFieldsSchema(),
 					},
-					"required":             []string{"type", "field"},
+					"required":             []string{"type"},
+					"anyOf":                columnInputAnyOf(),
 					"additionalProperties": true,
 				},
 			},

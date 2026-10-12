@@ -14,6 +14,7 @@ examples_tags: [multivariate, streaming-friendly]
 ## Params
 
 - `labels` — inline `fields` only: one display label per member (default the member names).
+- `expand` — `true`: one scalar column per member, `<label>[<element label>]`, instead of the array (grouped: per row); the label is absent. Predict lists them (`aggregations[i].columns`). Element labels must be distinct.
 
 Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry, its labels kept)<!-- /feature --> / `fields`; no `field`. Default label `AGG_VEC_SUM_<vector>`.<!-- feature: capability:weighting --> Weight-aware: Σw·x per member.<!-- /feature -->
 
@@ -31,7 +32,8 @@ Floor `{n, n_null}` — a row is present when ANY member answered<!-- feature: c
 
 ## Gotchas
 
-- Array-valued: refused (`PROCESSING_CONFIG`) as a crosstab cell, a Sort key, the first aggregation under overlays, and a chain stage feeding another.
+- Array-valued: refused (`PROCESSING_CONFIG`, reason `array_valued`) as a crosstab cell, a Sort key, a window or post-test input, an overlay host (request, Compose, whole-chain) and a chain stage feeding another.
+- Expanded columns are presentation only — refused in the same places. A `return` path cannot name a bracketed column: keep them with `data[*].<label>*`.
 
 ## See
 

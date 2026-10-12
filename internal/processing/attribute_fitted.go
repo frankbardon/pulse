@@ -440,14 +440,7 @@ func ResolveAggregationInputs(req *types.Request, schema *encoding.Schema, exts 
 	if req == nil {
 		return req
 	}
-	has := false
-	for _, s := range vectors.AggregationSlots(req) {
-		if vectors.HasAggregationVectorInput(s.Agg) {
-			has = true
-			break
-		}
-	}
-	if !has {
+	if !vectors.AnyAggregationVectorInput(req) {
 		return req
 	}
 	inputs, err := vectors.ResolveAggregations(req, schema, func(t types.AggregationType) types.AggregationType {

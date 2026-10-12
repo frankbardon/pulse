@@ -141,6 +141,13 @@ func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedR
 	if err := descx.ComposeOverlayHiddenFloorRefusal(req.Overlays, requests, labels, s.defaultWeight, s.instance, s.componentsGateClosed); err != nil {
 		return nil, nil, err
 	}
+	// A slot the overlay reads carries an array-valued (vector)
+	// aggregation: the handler would fold its array as NaN (or an
+	// expanded element column as the value). Same rule, same slots as
+	// ValidateComposeWithOptions.
+	if err := descx.ComposeOverlayArrayValuedRefusal(req.Overlays, requests, labels, s.instance); err != nil {
+		return nil, nil, err
+	}
 	// Same rule against what the slots actually returned. The refusal
 	// above and the compute plan's Compose veto (composeSlotVetoes)
 	// should guarantee every probability-weighted slot such a kind reads

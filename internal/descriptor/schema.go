@@ -474,6 +474,19 @@ var fieldOverrides = map[fieldKey]any{
 	},
 }
 
+// optionalFields are wire keys whose Go field carries no omitempty (the
+// marshalled form always writes them) but that a caller may omit: an
+// aggregation or grouper reads vector / fields instead of field on its
+// vector operators (AGG_VEC_*, GROUP_KMEANS), and an attribute may read
+// none (ATTR_FORMULA's expression, ATTR_REG_PREDICT's params.fit, a
+// vector attribute's vector / fields). Requiring them made a strict
+// validator refuse requests the server runs.
+var optionalFields = map[fieldKey]bool{
+	{reflect.TypeFor[types.Aggregation](), "field"}: true,
+	{reflect.TypeFor[types.Group](), "field"}:       true,
+	{reflect.TypeFor[types.Attribute](), "field"}:   true,
+}
+
 // structSchema reflects a struct into an object schema, honouring json
 // tags, omitempty/omitzero (→ optional), and "-" (→ skipped).
 //
@@ -514,7 +527,7 @@ func (b *schemaBuilder) structSchema(t reflect.Type) any {
 		} else {
 			props[name] = b.schemaFor(f.Type, false)
 		}
-		if !opts["omitempty"] && !opts["omitzero"] {
+		if !opts["omitempty"] && !opts["omitzero"] && !optionalFields[fieldKey{t, name}] {
 			required = append(required, name)
 		}
 	}

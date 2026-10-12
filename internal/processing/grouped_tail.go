@@ -148,8 +148,7 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 			if err != nil {
 				return nil, err
 			}
-			row[labels[i]], err = dispatchAggregatorResult(oa, val)
-			if err != nil {
+			if err = writeAggregationResult(row, labels[i], oa, val); err != nil {
 				return nil, err
 			}
 		}

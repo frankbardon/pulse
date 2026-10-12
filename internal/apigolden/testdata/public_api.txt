@@ -1112,6 +1112,7 @@ pulse/descriptor: type Advisory field Details map[string]any "json:\"details,omi
 pulse/descriptor: type Advisory field Message string "json:\"message\""
 pulse/descriptor: type AggregationPredict struct
 pulse/descriptor: type AggregationPredict field BufferedComponents bool "json:\"buffered_components,omitempty\""
+pulse/descriptor: type AggregationPredict field Columns []string "json:\"columns,omitempty\""
 pulse/descriptor: type AggregationPredict field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
 pulse/descriptor: type AggregationPredict field Field string "json:\"field,omitempty\""
 pulse/descriptor: type AggregationPredict field Label string "json:\"label,omitempty\""
@@ -4901,4 +4902,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d27275995f30cdff6d1c7a20f616b4a7c5ed4680ff3404719342011f8f2712f3
+// golden-hash: 99f768d7b9453ccd8dd1aa7855eaa82fcbd9ef8eb42eca0294e97f36435e332c

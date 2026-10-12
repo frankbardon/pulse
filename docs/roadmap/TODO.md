@@ -548,12 +548,15 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#141** Shared metric registry `linalg/metric` · [U27](units/U27-vector-metrics-aggregates.md)
 - [x] **#142** Vector `kind` (`measure` / `scale` / `composition` / `binary`) with metric defaults and `PULSE_VECTOR_METRIC_UNSUITED`; also owns `PULSE_ADVISORY_COSINE_ON_SCALE` (moved from U22) · [U27](units/U27-vector-metrics-aggregates.md)
 - [ ] **#143** `ATTR_SCALE_SCORE` · [U27](units/U27-vector-metrics-aggregates.md)
-- [ ] **#144** `AGG_VEC_MEAN`, `AGG_VEC_SUM` (array value, `expand` option) · [U27](units/U27-vector-metrics-aggregates.md)
+- [x] **#144** `AGG_VEC_MEAN`, `AGG_VEC_SUM` (array value, `expand` option) · [U27](units/U27-vector-metrics-aggregates.md)
 
 #### Follow-ups from U26
 - [ ] **#417** Reference vectors from a `LookupTable`: let expression and profile similarity compare a row's vector or set against a stored reference profile (deferred from U26) · [U27](units/U27-vector-metrics-aggregates.md)
 - [ ] **#418** Overlay-formula callee parity: request-host `OVERLAY_FORMULA` predict reports an unknown callee (neither built-in nor embedder) as `PULSE_OVERLAY_FORMULA_INVALID_IDENT` while the runtime gives a parse error; compose-host predict checks no unknown callee beyond the vector built-ins. Found in U26 (E2-S2) · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#419** Static `PROCESSING_VECTOR_LENGTH_MISMATCH` at predict for `dot` / `dist` / `cosine` over named vectors of known, differing lengths (runtime already refuses). Found in U26 (E2-S2) · [U35](units/U35-predict-runtime-parity.md)
+
+#### Follow-ups from U27
+- [ ] **#420** Sort, overlays and ratios over a vector aggregation's expanded element columns (`params.expand`, `<label>[<element label>]`): today they are presentation only — a `sort` key, a window / post-test input, and every overlay host (request, Compose, whole-chain) refuse them with `PROCESSING_CONFIG` `array_valued`, and a stage carrying one may not feed a chain. Lift the refusal per consumer with an explicit element-column contract (which column a SERIES overlay reads, a chain stage typing them `f64`). Deferred from U27 (E2-S3) · [U30](units/U30-matrix-extensions-hardening.md)
 
 ### E6 — Matrix operations on results (overlays)
 - [ ] **#145** MATRIX_RESULT overlay host and the `Ref.Matrix` reference family · [U28](units/U28-matrix-overlays.md)

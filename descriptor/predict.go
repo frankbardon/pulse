@@ -600,6 +600,14 @@ type AggregationPredict struct {
 	// data slice still streams). AGG_MEDIAN and AGG_PERCENTILE are the
 	// canonical Nones today.
 	BufferedComponents bool `json:"buffered_components,omitempty"`
+
+	// Columns names the Response.Data columns the slot writes when they
+	// are not its label: an expanding vector aggregation (AGG_VEC_MEAN /
+	// AGG_VEC_SUM with params.expand) writes one scalar column per
+	// member, "<label>[<element label>]" in member order, and no column
+	// under the label itself. Omitted on every other slot (its one
+	// column is the label).
+	Columns []string `json:"columns,omitempty"`
 }
 
 // GroupPredict is the per-slot predict surface for one entry of
