@@ -139,6 +139,9 @@ func encodeSeriesRowAnyMap(row map[string]any) (key string, valueCol string, sca
 			keyParts = append(keyParts, col+"="+anyToCanonicalString(v))
 			continue
 		}
+		if !canonicalKeyValue(v) { // never a group column (encodeSeriesRow)
+			continue
+		}
 		keyParts = append(keyParts, col+"="+anyToCanonicalString(v))
 	}
 	if len(keyParts) == 0 {

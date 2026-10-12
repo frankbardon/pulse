@@ -1229,6 +1229,19 @@ pulse.AggregatorRegistration{
 }
 ```
 
+Add `NonScalar: true` when the value a `Response.Data` row carries is
+not one number for any other reason — the instance implements
+`extend.RichAggregator` and `Rich` returns a label list, a count map or
+a struct (`ArrayValued` implies it). An overlay reads one number per
+host row, so predict and the runtime then refuse the slot as the
+aggregation an overlay scores (request, Compose or chain: `params.field`
+where the kind honours it, else `aggregations[0]` — an unscored one
+beside it runs) with `PROCESSING_CONFIG`, reason `non_scalar`, exactly
+as for the built-in `AGG_WELFORD`, `AGG_SET_UNION`,
+`AGG_SET_INTERSECTION` and `AGG_SET_FREQUENCY` — and refuse a chain stage carrying it that feeds another (same reason). Undeclared, a non-scalar
+`Rich` value an overlay scores folds as no value — the layer comes back
+empty. The manifest's extension entry carries `non_scalar`.
+
 A mergeable extension's partials fold through its own `Merge`, so —
 unlike the built-in `AGG_VEC_*`, which key their partials by global
 record ordinal — its figures under `ShardWorkers` / `DecodeWorkers` may

@@ -162,6 +162,38 @@ func TestAggregationKinds_Extension(t *testing.T) {
 	}
 }
 
+// TestAggregationKinds_NonScalar: the non-scalar class is the built-in
+// rich lifts plus the array-valued class plus an extension declared
+// NonScalar; a hidden type is not classed.
+func TestAggregationKinds_NonScalar(t *testing.T) {
+	k := AggregationKinds{Extension: func(name string) ExtensionAggregation {
+		switch name {
+		case "AGG_ACME_N":
+			return ExtensionAggregation{Registered: true, NonScalar: true}
+		case "AGG_ACME_A":
+			return ExtensionAggregation{Registered: true, VectorInput: true, ArrayValued: true}
+		case "AGG_ACME_X":
+			return ExtensionAggregation{Registered: true}
+		}
+		return ExtensionAggregation{}
+	}}
+	for _, typ := range []types.AggregationType{types.AGG_WELFORD, types.AGG_SET_UNION, types.AGG_SET_INTERSECTION,
+		types.AGG_SET_FREQUENCY, types.AGG_VEC_MEAN, types.AGG_VEC_SUM, "AGG_ACME_N", "AGG_ACME_A"} {
+		if !k.IsNonScalar(typ) {
+			t.Errorf("%s not classed non-scalar", typ)
+		}
+	}
+	for _, typ := range []types.AggregationType{types.AGG_SUM, types.AGG_MODE, types.AGG_SET_CARDINALITY_SUM, "AGG_ACME_X", "AGG_ACME_UNKNOWN"} {
+		if k.IsNonScalar(typ) {
+			t.Errorf("%s classed non-scalar", typ)
+		}
+	}
+	hidden := AggregationKinds{Route: func(types.AggregationType) types.AggregationType { return "" }, Extension: k.Extension}
+	if hidden.IsNonScalar(types.AGG_WELFORD) || hidden.IsNonScalar("AGG_ACME_N") {
+		t.Error("a hidden type still classed non-scalar")
+	}
+}
+
 // TestAggregationSlotRewrite_ExtensionKeepsParams: an extension's
 // rewritten slot keeps its own params beside the resolved labels.
 func TestAggregationSlotRewrite_ExtensionKeepsParams(t *testing.T) {

@@ -464,6 +464,17 @@ func anyToCanonicalString(v any) string {
 	return "\x01unknown"
 }
 
+// canonicalKeyValue reports whether anyToCanonicalString renders v as
+// itself (a group-key-shaped scalar) rather than the "\x01unknown"
+// fallback a RichAggregator payload gets.
+func canonicalKeyValue(v any) bool {
+	switch v.(type) {
+	case nil, string, bool, float64, float32, int, int32, int64, uint, uint32, uint64:
+		return true
+	}
+	return false
+}
+
 // applyIndexVsStageSeries implements the series arm of
 // OVERLAY_INDEX_VS_STAGE for grouped Process responses. The target's
 // Response.Data is walked in order; each row's canonical row-key
@@ -648,6 +659,13 @@ func buildSeriesRowLookup(rows []map[string]any) (map[string]float64, string) {
 // the value the named aggregation. The sorted-first rule decides only
 // a caller that hands no Request (the bare ApplyChainOverlays /
 // ApplyComposeOverlays entries).
+//
+// A column whose value is not a key-shaped scalar (canonicalKeyValue —
+// a RichAggregator payload: a label list, a count map, a moment
+// struct) is never a group column, so it is left out of the key. It
+// once rendered as a constant "\x01unknown" there and leaked into
+// PULSE_OVERLAY_KEY_SET_DIVERGENT Details as "<label>=\x01unknown";
+// dropping it never merges two rows the constant kept apart.
 func encodeSeriesRow(row map[string]any) (key string, valueCol string, value float64, hasValue bool) {
 	if len(row) == 0 {
 		return "", "", 0, false
@@ -670,6 +688,9 @@ func encodeSeriesRow(row map[string]any) (key string, valueCol string, value flo
 			// Subsequent numeric columns participate in the key so
 			// multi-aggregator rows still produce unique keys.
 			keyParts = append(keyParts, col+"="+anyToCanonicalString(v))
+			continue
+		}
+		if !canonicalKeyValue(v) {
 			continue
 		}
 		keyParts = append(keyParts, col+"="+anyToCanonicalString(v))

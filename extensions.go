@@ -301,8 +301,22 @@ type AggregatorRegistration struct {
 	// array. A Rich value of another shape is PROCESSING_INTERNAL at
 	// run time.
 	ArrayValued bool
-	Accepts     []encoding.FieldType
-	Params      []ParamMeta
+	// NonScalar declares that the value the slot writes into a
+	// Response.Data row is not one number: the instance implements
+	// extend.RichAggregator and Rich returns a label list, a count map,
+	// a struct — anything but a single figure (ArrayValued implies it).
+	// Predict and the runtime then refuse the slot as the aggregation
+	// an overlay scores (request, Compose or chain host: params.field
+	// where the kind honours it, else aggregations[0]) with
+	// PROCESSING_CONFIG, reason "non_scalar", exactly as for the
+	// built-in AGG_WELFORD / AGG_SET_UNION / AGG_SET_INTERSECTION /
+	// AGG_SET_FREQUENCY, and so is a chain stage carrying it that feeds
+	// another; an unscored one beside it runs. Undeclared,
+	// a non-scalar Rich value scored by an overlay folds as no value.
+	// Projected as the manifest's non_scalar.
+	NonScalar bool
+	Accepts   []encoding.FieldType
+	Params    []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc. Omit to keep the operator opaque to
 	// projection (runtime widens the field set when this operator

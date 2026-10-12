@@ -2147,7 +2147,7 @@
             "set_u64",
             "set_u8"
           ],
-          "emits_type_note": "rich map[string]int (label→row count; map[string]float64 of weight sums when weighted); scalar fallback = max single-label frequency",
+          "emits_type_note": "rich map[string]int (label→row count; map[string]float64 of weight sums when weighted); scalar fallback = max single-label frequency; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar (so is a chain stage carrying it that feeds another)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -2220,7 +2220,7 @@
             "set_u64",
             "set_u8"
           ],
-          "emits_type_note": "rich []string (resolved labels); scalar fallback = popcount of the intersection mask",
+          "emits_type_note": "rich []string (resolved labels); scalar fallback = popcount of the intersection mask; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar (so is a chain stage carrying it that feeds another)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -2269,7 +2269,7 @@
             "set_u64",
             "set_u8"
           ],
-          "emits_type_note": "rich []string (resolved labels); scalar fallback = popcount of the union mask",
+          "emits_type_note": "rich []string (resolved labels); scalar fallback = popcount of the union mask; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar (so is a chain stage carrying it that feeds another)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -2906,7 +2906,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}",
+          "emits_type_note": "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar — except the two-sample t / z vs-ref overlays, which read the triple",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -16427,4 +16427,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d64012ba02522bd0735df6b10e4101139c8393c0bd07a29edb475bb4c1329051
+// golden-hash: 4fb73758ed89b50e1450b07ae5fd63e0a74226941d58fec4ff2ad4402ca67be3

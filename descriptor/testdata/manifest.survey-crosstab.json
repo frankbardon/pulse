@@ -375,7 +375,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}",
+          "emits_type_note": "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar — except the two-sample t / z vs-ref overlays, which read the triple",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -2243,4 +2243,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d43dd0b0999a6923a53d0f19962bb2b02f5aca46bca0be1349744c5c689e71e6
+// golden-hash: f358be8feea8afd31ba1429f09e6ed7a87b8167bbd9a9b0bc0d803d480df0c0c

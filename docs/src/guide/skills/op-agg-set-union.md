@@ -56,6 +56,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - Empty mask is a valid "no selection" — distinct from null.
 - Union mask only honors bits seen in non-null rows.
+- Non-scalar row value: an overlay scoring it (request, Compose or whole-chain: `params.field` where the kind honours it, else `aggregations[0]`) is refused (`PROCESSING_CONFIG`, reason `non_scalar`), as is a chain stage carrying it that feeds another; an unscored one beside a scalar runs.
 
 ## See
 

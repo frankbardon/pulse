@@ -97,6 +97,7 @@ func narrowSeriesHost(req *types.Request, aggIdx int, resp *types.Response) *typ
 		}
 	}
 	keep = append(keep, valueCol)
+	groups := scoredGroupComponents(resp, valueCol, aggIdx)
 	narrowed := *resp
 	narrowed.Data = make([]map[string]any, len(resp.Data))
 	for r, row := range resp.Data {
@@ -106,9 +107,66 @@ func narrowSeriesHost(req *types.Request, aggIdx int, resp *types.Response) *typ
 				nr[col] = v
 			}
 		}
+		if leg, ok := welfordComponentsLeg(nr[valueCol], groups, r); ok {
+			nr[valueCol] = leg
+		}
 		narrowed.Data[r] = nr
 	}
 	return &narrowed
+}
+
+// scoredGroupComponents returns the per-row components (Groups, in
+// Response.Data order) of the scored aggregation — the
+// Components.Aggregations entry labelled valueCol, else the one at
+// aggIdx — or nil when the response carries none.
+func scoredGroupComponents(resp *types.Response, valueCol string, aggIdx int) []types.AggregationGroupComponents {
+	if resp.Components == nil {
+		return nil
+	}
+	aggs := resp.Components.Aggregations
+	for _, a := range aggs {
+		if a.Label == valueCol {
+			return a.Groups
+		}
+	}
+	if aggIdx < len(aggs) {
+		return aggs[aggIdx].Groups
+	}
+	return nil
+}
+
+// welfordComponentsLeg is the components-source reading of an
+// AGG_WELFORD row value: the in-process value is the WelfordTriple
+// struct, which the two-sample vs-ref handlers (OVERLAY_T_VS_REF /
+// OVERLAY_Z_VS_REF) never read — it carries no weighting — so a
+// Compose / chain slot scoring it came back as an empty layer. The
+// row's bucket components carry the full leg (mean, variance, m2, n
+// and, weighted, sum_weights / n_eff): they replace the struct with
+// the {mean, variance, n, …} map the handlers read through the
+// weighted-host rule (readMeanLeg), exactly as a JSON-decoded slot's
+// components would. ok is false — the value kept — for any other
+// value, or when the bucket's components are absent (components
+// disabled) or lack the Welford keys.
+func welfordComponentsLeg(v any, groups []types.AggregationGroupComponents, r int) (map[string]any, bool) {
+	if _, isTriple := v.(WelfordTriple); !isTriple || r >= len(groups) {
+		return nil, false
+	}
+	g := groups[r]
+	leg := map[string]any{"n": g.N}
+	for _, k := range []string{"mean", "variance", "m2"} {
+		x, ok := g.Operator[k]
+		if !ok {
+			return nil, false
+		}
+		leg[k] = x
+	}
+	if g.SumWeights != nil {
+		leg["sum_weights"] = *g.SumWeights
+	}
+	if g.NEff != nil {
+		leg["n_eff"] = *g.NEff
+	}
+	return leg, true
 }
 
 // projectChainSeriesStages is projectComposeSeriesSlots for a

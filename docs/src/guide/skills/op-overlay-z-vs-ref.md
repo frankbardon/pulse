@@ -32,7 +32,7 @@ Use something else:
 
 ## Host shape
 
-COMPOSE — SERIES grouped Process on both slots. **Parity overlay** — reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents` (matrix arms via `AGG_WELFORD`), else the `params` triple. Renders as a per-group strip.
+COMPOSE — SERIES grouped Process on both slots. **Parity overlay** — reads `{n, mean, variance}` from the scored `AGG_WELFORD`'s per-group `Response.Components` (weighted floor included; components off → empty layer), else the `params` triple. Any other non-scalar scored aggregation is refused (`non_scalar`). Renders as a per-group strip.
 
 ## Output
 

@@ -76,6 +76,12 @@ type OperatorMeta struct {
 	// stage feeding another, and params.expand writes one column per
 	// member. Omitted otherwise.
 	ArrayValued bool `json:"array_valued,omitempty"`
+	// NonScalar is the aggregator-only projection of
+	// pulse.AggregatorRegistration.NonScalar: the value a Data row
+	// carries is not one number (a label list, a count map, a struct),
+	// so the slot is refused as the aggregation an overlay scores.
+	// Omitted otherwise.
+	NonScalar bool `json:"non_scalar,omitempty"`
 	// WeightAware is the aggregator / attribute / test projection of
 	// the registration's WeightAware declaration — the extension half
 	// of the built-in Operator.WeightAware. True means the operator

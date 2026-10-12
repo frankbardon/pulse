@@ -138,11 +138,22 @@ func overlayParityCases() []overlayParityCase {
 					`{"name":"z","kind":"OVERLAY_Z_CELL","scope":"cell","reference":"total","targets":["sub"]}`),
 		},
 		{
-			// A grouped Process emits AGG_WELFORD as a Go struct the
-			// series reader does not take (the layer comes back empty,
-			// weighted or not), so the series kinds run on their
-			// scalar-mean arm: a weighted AGG_AVERAGE, spread and n from
-			// params.
+			// The series kinds' triple arm: each narrowed slot reads its
+			// AGG_WELFORD leg (weighted floor included) from the row's
+			// bucket components, not from the in-process struct, which
+			// once left the layer empty (U46 E4-S11).
+			name:    "compose_welford_series",
+			compose: true,
+			kinds:   []types.OverlayKind{types.OverlayKindTVsRef, types.OverlayKindZVsRef},
+			req: compose([]string{
+				slot("total", "", `"groups":[{"type":"GROUP_CATEGORY","field":"k"}],"aggregations":[`+welford+`]`),
+				slot("sub", "id % 5 != 0", `"groups":[{"type":"GROUP_CATEGORY","field":"k"}],"aggregations":[`+welford+`]`)},
+				`{"name":"t","kind":"OVERLAY_T_VS_REF","scope":"group","reference":"total","targets":["sub"]},`+
+					`{"name":"z","kind":"OVERLAY_Z_VS_REF","scope":"group","reference":"total","targets":["sub"]}`),
+		},
+		{
+			// The series kinds' scalar-mean arm: a weighted AGG_AVERAGE,
+			// spread and n from params.
 			name:    "compose_mean_series",
 			compose: true,
 			noFloor: true,
