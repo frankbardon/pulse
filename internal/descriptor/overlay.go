@@ -1562,6 +1562,31 @@ func validateOverlayIndexVsTotal(env *descriptor.Envelope, req *types.Request, s
 	}
 }
 
+// refuseCompositeSeriesHost refuses a series overlay that reads the
+// host as ONE ordered series — the lag-1 prior (INDEX / DELTA_VS_PRIOR),
+// the rolling window (INDEX_VS_ROLLING_MEAN, ZSCORE_VS_ROLLING), the
+// positional baseline (INDEX / DELTA_VS_BASELINE) and the first-match
+// sibling (INDEX / DELTA_VS_SIBLING) — when the request carries two or
+// more groupers. The host is then the composite rows (U54), ordered
+// outer → inner, so a lag or window would straddle outer buckets and a
+// positional or sibling reference would sit in another bucket: a
+// silently wrong figure. Refused under the OVERLAY_YOY shape (index,
+// kind, groupers) until per-partition semantics land (U46 #320).
+// Mirrored at runtime by processing.refuseCompositeSeriesHost.
+func refuseCompositeSeriesHost(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) bool {
+	if req == nil || len(req.Groups) <= 1 {
+		return false
+	}
+	env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+		"overlay "+string(spec.Kind)+" requires a SERIES host with exactly one grouper; got "+strconv.Itoa(len(req.Groups))+" groupers (composite rows are not one ordered series)",
+		map[string]any{
+			"index":    index,
+			"kind":     string(spec.Kind),
+			"groupers": len(req.Groups),
+		})
+	return true
+}
+
 // validateOverlayIndexVsPrior enforces the per-kind contract for
 // OVERLAY_INDEX_VS_PRIOR (first windowed-Process kind in the catalog and
 // first consumer of the `Ref.Prior` arm of the discriminated
@@ -1632,6 +1657,12 @@ func validateOverlayIndexVsPrior(env *descriptor.Envelope, req *types.Request, s
 				"index": index,
 				"kind":  string(spec.Kind),
 			})
+		return
+	}
+
+	// Exactly one grouper: two or more make the host the composite
+	// rows, not one ordered series (refuseCompositeSeriesHost).
+	if refuseCompositeSeriesHost(env, req, spec, index) {
 		return
 	}
 
@@ -1727,6 +1758,12 @@ func validateOverlayDeltaVsPrior(env *descriptor.Envelope, req *types.Request, s
 		return
 	}
 
+	// Exactly one grouper: two or more make the host the composite
+	// rows, not one ordered series (refuseCompositeSeriesHost).
+	if refuseCompositeSeriesHost(env, req, spec, index) {
+		return
+	}
+
 	// Scope must be GROUP. DELTA_VS_PRIOR emits one entry per host group
 	// key (the ordered windowed series) — CELL / ROW / COLUMN / MATRIX /
 	// TOTAL scopes are not meaningful for the per-group statistic the
@@ -1814,6 +1851,12 @@ func validateOverlayIndexVsRollingMean(env *descriptor.Envelope, req *types.Requ
 				"index": index,
 				"kind":  string(spec.Kind),
 			})
+		return
+	}
+
+	// Exactly one grouper: two or more make the host the composite
+	// rows, not one ordered series (refuseCompositeSeriesHost).
+	if refuseCompositeSeriesHost(env, req, spec, index) {
 		return
 	}
 
@@ -1916,6 +1959,12 @@ func validateOverlayZScoreVsRolling(env *descriptor.Envelope, req *types.Request
 				"index": index,
 				"kind":  string(spec.Kind),
 			})
+		return
+	}
+
+	// Exactly one grouper: two or more make the host the composite
+	// rows, not one ordered series (refuseCompositeSeriesHost).
+	if refuseCompositeSeriesHost(env, req, spec, index) {
 		return
 	}
 
@@ -2358,6 +2407,12 @@ func validateOverlayIndexVsBaseline(env *descriptor.Envelope, req *types.Request
 		return
 	}
 
+	// Exactly one grouper: two or more make the host the composite
+	// rows, not one ordered series (refuseCompositeSeriesHost).
+	if refuseCompositeSeriesHost(env, req, spec, index) {
+		return
+	}
+
 	// Scope must be GROUP. INDEX_VS_BASELINE emits one entry per host
 	// group key (the ordered windowed series) — CELL / ROW / COLUMN /
 	// MATRIX / TOTAL scopes are not meaningful for the per-group statistic
@@ -2451,6 +2506,12 @@ func validateOverlayDeltaVsBaseline(env *descriptor.Envelope, req *types.Request
 				"index": index,
 				"kind":  string(spec.Kind),
 			})
+		return
+	}
+
+	// Exactly one grouper: two or more make the host the composite
+	// rows, not one ordered series (refuseCompositeSeriesHost).
+	if refuseCompositeSeriesHost(env, req, spec, index) {
 		return
 	}
 
@@ -3320,6 +3381,12 @@ func validateOverlaySiblingKind(
 				"index": index,
 				"kind":  string(spec.Kind),
 			})
+		return
+	}
+
+	// Exactly one grouper: two or more make the host the composite
+	// rows, not one ordered series (refuseCompositeSeriesHost).
+	if refuseCompositeSeriesHost(env, req, spec, index) {
 		return
 	}
 

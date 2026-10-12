@@ -19,7 +19,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-SERIES — grouped Process host. Ratio twin of the sibling delta. Sibling resolved via `internal/processing/overlay_sibling_resolver.go`.
+SERIES — grouped Process host with ONE grouper; two or more `groups` (composite rows) → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`details.groupers`), predict and runtime (one key column names no unique sibling row). Ratio twin of the sibling delta.
 
 ## Output
 

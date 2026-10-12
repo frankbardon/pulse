@@ -19,7 +19,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-SERIES ordered grouped Process host, mirroring the `WIN_*` window-via-Params convention.
+SERIES ordered grouped Process host with ONE grouper; two or more `groups` (composite rows) → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`details.groupers`), predict and runtime. Window via Params, as `WIN_*`.
 
 ## Output
 

@@ -30,7 +30,7 @@ Use something else:
 
 ## Host shape
 
-SERIES — ordered grouped Process host. Family: windowed prior (`Ref.Prior`). First streamable windowed kind.
+SERIES — ordered grouped Process host with ONE grouper; two or more `groups` (composite rows) → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`details.groupers`), predict and runtime. Family: windowed prior (`Ref.Prior`).
 
 ## Output
 

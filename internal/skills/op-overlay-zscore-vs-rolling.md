@@ -19,7 +19,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-SERIES ordered grouped Process host. Shares the per-group ring buffer + Welford trio with the rolling-mean index, reading `mean` + `M2`.
+SERIES ordered grouped Process host with ONE grouper; two or more `groups` (composite rows) → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`details.groupers`), predict and runtime. Shares the rolling-mean index's ring buffer + Welford trio, reading `mean` + `M2`.
 
 ## Output
 

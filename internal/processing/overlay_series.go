@@ -1,6 +1,8 @@
 package processing
 
 import (
+	"strconv"
+
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -439,6 +441,35 @@ func computeSeriesGrandTotal(host *SeriesHostView) (grandTotal float64, presentM
 		grandTotal += v
 	}
 	return grandTotal, presentMask, values
+}
+
+// refuseCompositeSeriesHost is the runtime twin of
+// descriptor.refuseCompositeSeriesHost: a series overlay that reads the
+// host as ONE ordered series (lag-1 prior, rolling window, positional
+// baseline, first-match sibling) is refused
+// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when the host carries two
+// or more groupers. Composite rows (U54) are ordered outer → inner, so
+// a lag or window would straddle outer buckets and a positional or
+// sibling reference would sit in another bucket — a silently wrong
+// figure. Per-partition semantics are U46 #320's. A host built without
+// a grouper-kind list (legacy constructors) defers to predict, as
+// applyYoY does. Returns nil for a nil host so each handler's own
+// nil-host defense still fires.
+func refuseCompositeSeriesHost(spec *types.OverlaySpec, host *SeriesHostView) error {
+	if host == nil {
+		return nil
+	}
+	n := len(host.GrouperKinds())
+	if n <= 1 {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(
+		errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+		"overlay "+string(spec.Kind)+" requires a SERIES host with exactly one grouper; got "+strconv.Itoa(n)+" groupers (composite rows are not one ordered series)",
+		map[string]any{
+			"kind":     string(spec.Kind),
+			"groupers": n,
+		})
 }
 
 // ApplyOverlaysSeries executes every spec in specs against the SERIES

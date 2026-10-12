@@ -158,6 +158,9 @@ func (c *rollingCarrier) rollingSampleSD() float64 {
 // runtime defense is cheap and matches the INDEX_VS_ROLLING_MEAN safety
 // pattern).
 func applyZScoreVsRolling(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
+	if err := refuseCompositeSeriesHost(spec, host); err != nil {
+		return types.OverlayLayer{}, nil, err
+	}
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,

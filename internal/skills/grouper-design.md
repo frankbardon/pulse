@@ -36,9 +36,9 @@ With N ≥ 2 entries a row's key is the tuple `(g0, ..., gN-1)`; this is the can
 - **Null key** at any position drops the record from every row; each grouper still sees it once, so `n_null` matches its single-grouper run.
 - **Fan-out** groupers multiply: a record lands in each key-set product.
 - **Whole-set fit:** <!-- feature: GROUP_QUANTILE -->`GROUP_QUANTILE`<!-- /feature --> and <!-- feature: GROUP_KMEANS -->`GROUP_KMEANS`<!-- /feature --> fit once over the filtered set, then cross; position never changes a record's band.
-- **Refused:** two entries on one key column (`SERVICE_VALIDATION`); an extension key containing NUL (`PROCESSING_GROUP`); <!-- feature: OVERLAY_YOY -->`OVERLAY_YOY`<!-- /feature --> with N ≥ 2.
+- **Refused:** two entries on one key column (`SERVICE_VALIDATION`); an extension key containing NUL (`PROCESSING_GROUP`); <!-- feature: OVERLAY_YOY -->`OVERLAY_YOY`<!-- /feature --> and the prior / rolling / baseline / sibling series overlays with N ≥ 2 (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`: they would cross outer buckets).
 - **`max_groups`:** predict reports the PRODUCT of per-grouper estimates, an upper bound; the run enforces it on observed ones.
-- **Downstream:** `sort`, `return`, windows, post-tests<!-- feature: capability:matrices --> and grouped matrices<!-- /feature --> follow the composite rows. Series overlays (<!-- feature: OVERLAY_DELTA_VS_PRIOR -->`OVERLAY_DELTA_VS_PRIOR`<!-- /feature -->, rolling z-score, share) run down all rows and cross outer-bucket boundaries; keep one grouper for them.
+- **Downstream:** `sort`, `return`, windows, post-tests<!-- feature: capability:matrices --> and grouped matrices<!-- /feature --> follow the composite rows.
 
 ## Smart defaults
 

@@ -30,7 +30,7 @@ Use something else:
 
 ## Host shape
 
-SERIES — grouped Process host. Subtractive twin of the sibling index. Sibling resolved via `internal/processing/overlay_sibling_resolver.go`.
+SERIES — grouped Process host with ONE grouper; two or more `groups` (composite rows) → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`details.groupers`), predict and runtime (one key column names no unique sibling row). Subtractive twin of the sibling index.
 
 ## Output
 
