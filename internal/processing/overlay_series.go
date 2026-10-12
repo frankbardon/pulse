@@ -485,8 +485,8 @@ func ApplyOverlaysSeries(specs []types.OverlaySpec, host *SeriesHostView) ([]typ
 // spec runs no handler and raises nothing, and its position holds a
 // zero layer so the result stays index-aligned with specs.
 func applyOverlaysSeriesWith(specs []types.OverlaySpec, host *SeriesHostView, exts *ExtensionRegistry, keep func(int) bool) ([]types.OverlayLayer, []types.OverlayWarning, error) {
-	return applyOverlaysSeriesPerSpec(specs, func(int, *types.OverlaySpec, types.OverlayKind) (*SeriesHostView, int, error) {
-		return host, 0, nil
+	return applyOverlaysSeriesPerSpec(specs, func(int, *types.OverlaySpec, types.OverlayKind) (*SeriesHostView, seriesPartitionPlan, error) {
+		return host, noPartition, nil
 	}, exts, keep)
 }
 
@@ -494,10 +494,10 @@ func applyOverlaysSeriesWith(specs []types.OverlaySpec, host *SeriesHostView, ex
 // chosen per spec: hostFor receives the spec's index, the spec and its
 // routed kind, and returns the view that spec folds over (the grouped
 // Process hook hands each spec the host scoring its params.field) plus
-// the number of leading key elements the spec partitions by (0: one
-// walk over the whole host; runSeriesHandlerPartitioned). An error from
+// the plan the spec partitions it by (noPartition: one walk over the
+// whole host; runSeriesHandlerPartitioned). An error from
 // hostFor aborts the fold like a handler error.
-func applyOverlaysSeriesPerSpec(specs []types.OverlaySpec, hostFor func(int, *types.OverlaySpec, types.OverlayKind) (*SeriesHostView, int, error), exts *ExtensionRegistry, keep func(int) bool) ([]types.OverlayLayer, []types.OverlayWarning, error) {
+func applyOverlaysSeriesPerSpec(specs []types.OverlaySpec, hostFor func(int, *types.OverlaySpec, types.OverlayKind) (*SeriesHostView, seriesPartitionPlan, error), exts *ExtensionRegistry, keep func(int) bool) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
@@ -522,11 +522,11 @@ func applyOverlaysSeriesPerSpec(specs []types.OverlaySpec, hostFor func(int, *ty
 					"host":  "series",
 				})
 		}
-		host, depth, err := hostFor(i, spec, route)
+		host, plan, err := hostFor(i, spec, route)
 		if err != nil {
 			return nil, nil, err
 		}
-		layer, ws, err := runSeriesHandlerPartitioned(handler, spec, host, depth)
+		layer, ws, err := runSeriesHandlerPartitioned(handler, spec, host, plan)
 		if err != nil {
 			return nil, nil, err
 		}

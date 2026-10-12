@@ -1397,24 +1397,28 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// consumer of the empty `Ref.YoY` marker. The empty marker
 			// struct tags the family — the v1 frequency value lives on
 			// OverlaySpec.Params["frequency"] (the YoY's own override) or
-			// falls back to req.Groups[0].Params["frequency"] (the
-			// canonical GROUP_DATE authoring slot) per the WIN_* operator
+			// falls back to the GROUP_DATE grouper's Params["frequency"]
+			// (wherever it sits in groups) per the WIN_* operator
 			// convention.
 			RefKinds: []string{"YoY"},
 			Description: "Per-point year-over-year ratio against the same period one year prior in an ordered SERIES " +
-				"(grouped Process) host whose grouper is GROUP_DATE: point_value / prior_year_value * 100. " +
+				"(grouped Process) host with one GROUP_DATE grouper: point_value / prior_year_value * 100. " +
 				"GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host " +
 				"order, each carrying the YoY ratio on Summary.Statistic. Member of the windowed-Process overlay " +
 				"family alongside OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE / " +
 				"OVERLAY_INDEX_VS_ROLLING_MEAN / OVERLAY_ZSCORE_VS_ROLLING, and the first consumer of the empty " +
 				"Ref.YoY marker arm of the OverlayRef discriminated union. The frequency value (annual | quarterly | monthly | weekly | daily | " +
 				"hourly) lives on OverlaySpec.Params[\"frequency\"] (the YoY's own override) or falls back to " +
-				"req.Groups[0].Params[\"frequency\"] (the canonical GROUP_DATE authoring slot). Per-frequency stride: " +
+				"the GROUP_DATE grouper's Params[\"frequency\"] wherever it sits in groups. Per-frequency stride: " +
 				"annual ⇒ i-1, quarterly ⇒ i-4, monthly ⇒ i-12, weekly ⇒ i-52 (calendar-week aligned; no day-of-week " +
 				"realignment in v1), daily ⇒ exact-date 365-days-prior lookup against the host key index (Feb 29 in a " +
 				"non-leap prior year emits NaN — no exact-key match), hourly ⇒ exact-hour 365×24-hour-prior lookup. " +
-				"The host's first grouper MUST be GROUP_DATE; non-DATE hosts fire " +
-				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at both predict and runtime. Missing frequency Param fires " +
+				"The host MUST carry exactly one GROUP_DATE grouper, anywhere in groups; zero or two or more fire " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE ({groupers, date_groupers}) at both predict and runtime. " +
+				"Over two or more groupers the overlay runs once per combination of every OTHER key (the " +
+				"prior-year lookup never crosses a segment) and each entry keeps its full composite key; an explicit " +
+				"params.partition_by must name exactly the non-date key columns, else PULSE_OVERLAY_PARTITION_INVALID " +
+				"(reason not_non_date_keys). Missing frequency Param fires " +
 				"PULSE_OVERLAY_YOY_FREQUENCY_MISSING; out-of-set frequency value fires " +
 				"PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY with {frequency, supported} Details. First-year ordinals " +
 				"(coarse-frequency arms whose prior-year index lands at <0; fine-frequency arms whose prior-year " +

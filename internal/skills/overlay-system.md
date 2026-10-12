@@ -53,7 +53,7 @@ Implicit-margin kinds (the χ² and Fisher cell tests) leave `ref` empty.
 The carrying request decides the host; the host decides the legal kinds:
 
 - **MATRIX** — a crosstab (`Request.Crosstab` + `Request.Overlays`): share, margin compare, cell tests, intra-matrix pairwise.<!-- feature: capability:crosstab --> Pairwise n: `pairwise-n-sources`.<!-- /feature -->
-- **SERIES** — a grouped Process with no crosstab: per-group self-compare (sibling, baseline, prior, rolling, year-over-year). Over N ≥ 2 `groups` it runs per partition: `params.partition_by`, a leading key prefix (default all but the last; `[]` none); YoY: one grouper. Scores the aggregation `params.field` labels; absent, `aggregations[0]`.
+- **SERIES** — a grouped Process with no crosstab: per-group self-compare (sibling, baseline, prior, rolling, year-over-year). Over N ≥ 2 `groups` it runs per partition: `params.partition_by`, a leading key prefix (default all but the last; `[]` none); YoY: every non-date key. Scores the aggregation `params.field` labels; absent, `aggregations[0]`.
 - **FACET** — `FacetRequest.Overlays` (NOT `Request.Overlays`): population comparisons, layers on `FacetResult.Overlays`<!-- feature: capability:facet --> (`facet-design`)<!-- /feature -->.
 - **CHAIN** — whole-chain `ChainRequest.Overlays` against an earlier stage; layers on the chain response, per-stage overlays untouched. Stages of divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->.
 - **FORMULA** — an expression over earlier layers, referenced by `name`.

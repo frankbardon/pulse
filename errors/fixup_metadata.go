@@ -2315,12 +2315,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Groups"},
-				Hint:   "OVERLAY_YOY needs a host whose ONLY grouper is GROUP_DATE (details.groupers counts the groups sent): two or more groups give composite rows, not one date axis. Keep the GROUP_DATE grouper alone, and split the other key into a FILTER_INCLUDE per value or a Compose slot per value.",
-			},
-			{
-				Action: FixupReplaceField,
-				Path:   []string{"Groups"},
-				Hint:   "The series overlays that read the host as one ordered series (DELTA / INDEX_VS_PRIOR, INDEX_VS_ROLLING_MEAN, ZSCORE_VS_ROLLING, DELTA / INDEX_VS_BASELINE, DELTA / INDEX_VS_SIBLING) need exactly one grouper (details.groupers counts the groups sent): over two or more, a lag, window, baseline or sibling would cross outer buckets of the composite rows. Keep the ordered grouper alone, and split the other key into a FILTER_INCLUDE per value or a Compose slot per value.",
+				Hint:   "OVERLAY_YOY needs EXACTLY ONE GROUP_DATE grouper (details.date_groupers counts those sent, details.groupers every group; a lone non-date grouper names itself in details.host_grouper). Add the GROUP_DATE grouper, or drop the extra one; the other keys may stay — YoY runs once per combination of them.",
 			},
 		},
 	},
@@ -2443,13 +2438,19 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_PARTITION_INVALID: {
-		Message: "A series overlay's params.partition_by is not a leading prefix of the request's group key columns. With two or more groupers a prior, rolling, baseline, sibling or _TOTAL overlay runs once per partition — the rows sharing the leading keys — so a series never crosses a segment and a total is the partition's own. Absent, it partitions by every key but the last (the series runs down the last grouper); [] means no partition. Raised at predict and at runtime with the same Details {index, kind, partition_by, groups, reason, field}: reason is not_string_list, unknown_field or not_prefix, groups lists the key columns in order.",
+		Message: "A series overlay's params.partition_by is not a leading prefix of the request's group key columns. With two or more groupers a prior, rolling, baseline, sibling or _TOTAL overlay runs once per partition — the rows sharing the leading keys — so a series never crosses a segment and a total is the partition's own. Absent, it partitions by every key but the last (the series runs down the last grouper); [] means no partition. The year-over-year overlay instead partitions by every non-date key, so its partition_by must name exactly those columns (any order). Raised at predict and at runtime with the same Details {index, kind, partition_by, groups, reason, field}: reason is not_string_list, unknown_field, not_prefix or (year-over-year) not_non_date_keys, groups lists the key columns in order.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params", "partition_by"},
 				Hint:     "Name the first k entries of Details.groups, in order (groups [region, store, day] admits [region] or [region, store]); reorder Request.Groups to put the segment keys first, or omit partition_by to partition by every key but the last. Pass [] to walk every composite row as one series.",
 				Examples: []any{map[string]any{"partition_by": []any{"region"}}, map[string]any{"partition_by": []any{}}},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "partition_by"},
+				Hint:     "For the year-over-year overlay (reason not_non_date_keys) name every entry of Details.groups except the GROUP_DATE column, once each, or omit partition_by — that is the default.",
+				Examples: []any{map[string]any{"partition_by": []any{"region", "store"}}},
 			},
 		},
 	},

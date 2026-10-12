@@ -1669,8 +1669,10 @@ const (
 	// group key columns: a non-string-list value, a column no grouper
 	// writes, or a column out of prefix order. Absent partition_by
 	// partitions by every key but the last; [] means no partition.
+	// OVERLAY_YOY's partition_by must instead name exactly the non-date
+	// key columns (reason not_non_date_keys; seriespartition.YoY).
 	// Raised at predict and at runtime by the one shared reading
-	// (internal/seriespartition.Depth), Details {index, kind,
+	// (internal/seriespartition.Depth / YoY), Details {index, kind,
 	// partition_by, groups, reason[, field]}.
 	PULSE_OVERLAY_PARTITION_INVALID Code = "PULSE_OVERLAY_PARTITION_INVALID"
 

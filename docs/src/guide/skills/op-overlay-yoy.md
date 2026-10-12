@@ -3,7 +3,7 @@ name: op-overlay-yoy
 kind: operator
 category: OVERLAY
 operator: OVERLAY_YOY
-description: Per-point year-over-year ratio against the same period one year prior; requires GROUP_DATE host.
+description: Per-point year-over-year ratio against the same period one year prior; requires one GROUP_DATE grouper, partitions by the other keys.
 type: reference
 applies_to: process, compose
 examples_tags: [overlay, time-series, comparison, trend-detection]
@@ -30,7 +30,7 @@ Use something else:
 
 ## Host shape
 
-SERIES Process host whose ONLY grouper is `GROUP_DATE`, else `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` — two or more `groups` (composite rows, not one date axis) are refused on predict and runtime (`details.groupers`). `frequency` from `spec.Params`, else the `GROUP_DATE` grouper's `Params`. No `tz` — follows the host grouper's zone (`zone: following`): keys are the host's local labels.
+SERIES Process host with EXACTLY ONE `GROUP_DATE` grouper, anywhere in `groups`. Over N ≥ 2 `groups` it runs once per combination of every OTHER key; each entry keeps its full key. `params.partition_by`, if set, must name exactly the non-date keys (`PULSE_OVERLAY_PARTITION_INVALID`, `reason: not_non_date_keys`). Zero or 2+ `GROUP_DATE` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`details.date_groupers`), predict and runtime. `frequency` from `spec.Params`, else the `GROUP_DATE` grouper's `Params`. No `tz` — follows the host grouper's zone (`zone: following`): keys are the host's local labels.
 
 ## Output
 

@@ -120,27 +120,28 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 	}
 	hosts := map[int]*SeriesHostView{}
 	// hostFor hands each spec the host scoring its params.field and the
-	// leading-key depth it partitions by (params.partition_by;
-	// runSeriesHandlerPartitioned runs the handler once per partition).
-	hostFor := func(i int, spec *types.OverlaySpec, kind types.OverlayKind) (*SeriesHostView, int, error) {
+	// plan it partitions by (params.partition_by, or OVERLAY_YOY's
+	// non-date keys; runSeriesHandlerPartitioned runs the handler once
+	// per partition).
+	hostFor := func(i int, spec *types.OverlaySpec, kind types.OverlayKind) (*SeriesHostView, seriesPartitionPlan, error) {
 		aggIndex := 0
 		if seriesfield.Applies(kind) {
 			idx, err := seriesfield.Resolve(req.Aggregations, spec, i)
 			if err != nil {
-				return nil, 0, err
+				return nil, seriesPartitionPlan{}, err
 			}
 			aggIndex = idx
 		}
-		depth, err := seriesPartitionDepth(req, spec, kind, i)
+		plan, err := seriesPartitionFor(req, spec, kind, i)
 		if err != nil {
-			return nil, 0, err
+			return nil, seriesPartitionPlan{}, err
 		}
 		if h, ok := hosts[aggIndex]; ok {
-			return h, depth, nil
+			return h, plan, nil
 		}
 		h := buildSeriesHostFromGroupedResponse(req, resp, aggIndex)
 		hosts[aggIndex] = h
-		return h, depth, nil
+		return h, plan, nil
 	}
 	// OVERLAY_YOY frequency promotion. The YoY handler reads
 	// the frequency value from spec.Params["frequency"] only; the
@@ -249,7 +250,7 @@ func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response
 // YoY handler reads the frequency from spec.Params["frequency"] only
 // (the runtime surface is intentionally narrow — the handler does NOT
 // see req.Groups), so the orchestrator centralises the spec.Params /
-// req.Groups[0].Params fallback chain here. When the spec already
+// date-grouper Params fallback chain here. When the spec already
 // carries its own frequency Param (the override path), the slot is
 // left unchanged; when the host grouper does not carry a frequency
 // Param either, the spec is left unchanged and the runtime handler
@@ -272,11 +273,17 @@ func promoteYoYFrequencyFromGroupParams(req *types.Request, exts *ExtensionRegis
 	if len(req.Groups) == 0 {
 		return req.Overlays
 	}
-	// Read req.Groups[0].Params["frequency"] once up front. The grouper
-	// Params is a raw JSON blob; a missing / empty / non-object blob
-	// surfaces as ("", false) and the caller's slice is returned
-	// unchanged.
-	groupFrequency, hasGroupFrequency := readYoYFrequencyFromParams(req.Groups[0].Params)
+	// Read the GROUP_DATE grouper's Params["frequency"] once up front —
+	// the date grouper wherever it sits in groups (U46 E2-S3), not
+	// Groups[0]. No date grouper promotes nothing (the fold refuses the
+	// shape first). The grouper Params is a raw JSON blob; a missing /
+	// empty / non-object blob surfaces as ("", false) and the caller's
+	// slice is returned unchanged.
+	date := seriespartition.DateGrouper(req.Groups, isDateGrouper)
+	if date < 0 {
+		return req.Overlays
+	}
+	groupFrequency, hasGroupFrequency := readYoYFrequencyFromParams(req.Groups[date].Params)
 	if !hasGroupFrequency {
 		return req.Overlays
 	}

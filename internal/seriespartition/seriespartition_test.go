@@ -168,7 +168,7 @@ func TestKinds(t *testing.T) {
 		}
 	}
 	if Applies(types.OverlayKindYoY) || Ordered(types.OverlayKindYoY) {
-		t.Error("YoY partitions before its story lands")
+		t.Error("YoY reads its own rule (YoY), not the prefix rule")
 	}
 }
 
@@ -188,5 +188,128 @@ func TestExplicit(t *testing.T) {
 	}
 	if Explicit(nil) {
 		t.Error("Explicit(nil)")
+	}
+}
+
+func isDate(g *types.Group) bool { return g.Type == types.GROUP_DATE }
+
+func yoySpec(params string) *types.OverlaySpec {
+	s := &types.OverlaySpec{Kind: types.OverlayKindYoY}
+	if params != "" {
+		s.Params = json.RawMessage(params)
+	}
+	return s
+}
+
+// PartitionOn splits by key equality on the named elements wherever they
+// sit; Partition(depth) is PartitionOn over the leading depth indices.
+func TestPartitionOn(t *testing.T) {
+	keys := []types.AxisKey{{"m1", "east"}, {"m1", "west"}, {"m2", "east"}, {"m2", "west"}, {"m3", "east"}}
+	for _, c := range []struct {
+		on   []int
+		want [][]int
+	}{
+		{nil, [][]int{{0, 1, 2, 3, 4}}},
+		{[]int{1}, [][]int{{0, 2, 4}, {1, 3}}},
+		{[]int{0}, [][]int{{0, 1}, {2, 3}, {4}}},
+		{[]int{1, 0}, [][]int{{0}, {1}, {2}, {3}, {4}}},
+	} {
+		if got := PartitionOn(keys, c.on); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("on %v: %v, want %v", c.on, got, c.want)
+		}
+	}
+	if got, want := PartitionOn(keys, []int{0}), Partition(keys, 1); !reflect.DeepEqual(got, want) {
+		t.Errorf("PartitionOn([0]) %v != Partition(1) %v", got, want)
+	}
+}
+
+// YoY finds the one date grouper wherever it sits and partitions on
+// every other key, in group order; an explicit partition_by naming
+// exactly those keys (any order) is the same.
+func TestYoY(t *testing.T) {
+	region := &types.Group{Type: types.GROUP_CATEGORY, Field: "region"}
+	store := &types.Group{Type: types.GROUP_CATEGORY, Field: "store"}
+	day := &types.Group{Type: types.GROUP_DATE, Field: "day"}
+	for _, c := range []struct {
+		groups []*types.Group
+		params string
+		date   int
+		on     []int
+	}{
+		{[]*types.Group{day}, "", 0, []int{}},
+		{[]*types.Group{day}, `{"partition_by": []}`, 0, []int{}},
+		{[]*types.Group{region, day}, "", 1, []int{0}},
+		{[]*types.Group{day, region}, "", 0, []int{1}},
+		{[]*types.Group{region, day, store}, "", 1, []int{0, 2}},
+		{[]*types.Group{region, day, store}, `{"partition_by": ["store", "region"]}`, 1, []int{0, 2}},
+		{[]*types.Group{region, day, store}, `{"partition_by": null, "frequency": "annual"}`, 1, []int{0, 2}},
+	} {
+		date, on, err := YoY(c.groups, isDate, yoySpec(c.params), 0)
+		if err != nil || date != c.date || !reflect.DeepEqual(on, c.on) {
+			t.Errorf("%v %s: YoY = (%d, %v, %v), want (%d, %v)", KeyColumns(c.groups), c.params, date, on, err, c.date, c.on)
+		}
+	}
+	if got := DateGrouper([]*types.Group{region, store, day}, isDate); got != 2 {
+		t.Errorf("DateGrouper = %d, want 2", got)
+	}
+	if got := DateGrouper([]*types.Group{region, nil}, isDate); got != -1 {
+		t.Errorf("DateGrouper with no date grouper = %d, want -1", got)
+	}
+}
+
+// YoY refuses the date-grouper count and a partition_by that is not
+// exactly the non-date keys, with the Details predict and the runtime
+// both echo.
+func TestYoY_Refused(t *testing.T) {
+	region := &types.Group{Type: types.GROUP_CATEGORY, Field: "region"}
+	store := &types.Group{Type: types.GROUP_CATEGORY, Field: "store"}
+	day := &types.Group{Type: types.GROUP_DATE, Field: "day"}
+	month := &types.Group{Type: types.GROUP_DATE, Field: "month"}
+	shape := func(extra map[string]any) map[string]any {
+		out := map[string]any{"index": 3, "kind": "OVERLAY_YOY", "required": "GROUP_DATE"}
+		for k, v := range extra {
+			out[k] = v
+		}
+		return out
+	}
+	part := func(given any, cols []string, reason, field string) map[string]any {
+		out := map[string]any{"index": 3, "kind": "OVERLAY_YOY", "partition_by": given, "groups": cols, "reason": reason}
+		if field != "" {
+			out["field"] = field
+		}
+		return out
+	}
+	for _, c := range []struct {
+		groups []*types.Group
+		params string
+		code   errors.Code
+		want   map[string]any
+	}{
+		{[]*types.Group{region}, "", errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, shape(map[string]any{"host_grouper": "GROUP_CATEGORY"})},
+		{[]*types.Group{region, store}, "", errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, shape(map[string]any{"groupers": 2, "date_groupers": 0})},
+		{[]*types.Group{day, region, month}, "", errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, shape(map[string]any{"groupers": 3, "date_groupers": 2})},
+		{[]*types.Group{region, day, store}, `{"partition_by": ["region"]}`, errors.PULSE_OVERLAY_PARTITION_INVALID,
+			part([]string{"region"}, []string{"region", "day", "store"}, "not_non_date_keys", "store")},
+		{[]*types.Group{region, day}, `{"partition_by": ["region", "day"]}`, errors.PULSE_OVERLAY_PARTITION_INVALID,
+			part([]string{"region", "day"}, []string{"region", "day"}, "not_non_date_keys", "day")},
+		{[]*types.Group{region, day}, `{"partition_by": ["region", "region"]}`, errors.PULSE_OVERLAY_PARTITION_INVALID,
+			part([]string{"region", "region"}, []string{"region", "day"}, "not_non_date_keys", "region")},
+		{[]*types.Group{region, day}, `{"partition_by": []}`, errors.PULSE_OVERLAY_PARTITION_INVALID,
+			part([]string{}, []string{"region", "day"}, "not_non_date_keys", "region")},
+		{[]*types.Group{day}, `{"partition_by": ["day"]}`, errors.PULSE_OVERLAY_PARTITION_INVALID,
+			part([]string{"day"}, []string{"day"}, "not_non_date_keys", "day")},
+		{[]*types.Group{region, day}, `{"partition_by": ["warehouse"]}`, errors.PULSE_OVERLAY_PARTITION_INVALID,
+			part([]string{"warehouse"}, []string{"region", "day"}, "unknown_field", "warehouse")},
+		{[]*types.Group{region, day}, `{"partition_by": "region"}`, errors.PULSE_OVERLAY_PARTITION_INVALID,
+			part("region", []string{"region", "day"}, "not_string_list", "")},
+	} {
+		_, _, err := YoY(c.groups, isDate, yoySpec(c.params), 3)
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != c.code {
+			t.Fatalf("%v %s: err = %v, want %s", KeyColumns(c.groups), c.params, err, c.code)
+		}
+		if !reflect.DeepEqual(ce.Details, c.want) {
+			t.Errorf("%v %s: details %#v, want %#v", KeyColumns(c.groups), c.params, ce.Details, c.want)
+		}
 	}
 }

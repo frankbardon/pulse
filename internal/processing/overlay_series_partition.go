@@ -6,7 +6,7 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Per-partition SERIES overlay fold (U46 E2-S1).
+// Per-partition SERIES overlay fold (U46 E2-S1; OVERLAY_YOY E2-S3).
 //
 // With two or more groupers the grouped-Process host is the composite
 // rows. A kind that reads the host as an ordered series (the prior,
@@ -41,14 +41,42 @@ import (
 // bucket) runs the handler on the host itself: byte-identical to the
 // unpartitioned walk.
 
+// seriesPartitionPlan is how one spec splits the grouped host: the key
+// indices it partitions on by key equality (none: one walk), and, for
+// OVERLAY_YOY, the one key element each sub-host keeps (project >= 0).
+type seriesPartitionPlan struct {
+	on      []int
+	project int
+}
+
+// noPartition is one walk over the whole host with full keys.
+var noPartition = seriesPartitionPlan{project: -1}
+
+// prefixPlan partitions on the first depth key elements.
+func prefixPlan(depth int) seriesPartitionPlan {
+	plan := seriesPartitionPlan{project: -1}
+	for j := 0; j < depth; j++ {
+		plan.on = append(plan.on, j)
+	}
+	return plan
+}
+
 // runSeriesHandlerPartitioned runs handler over host once per partition
-// of its first depth key elements and merges the per-partition layers.
-func runSeriesHandlerPartitioned(handler seriesOverlayHandler, spec *types.OverlaySpec, host *SeriesHostView, depth int) (types.OverlayLayer, []types.OverlayWarning, error) {
-	if depth <= 0 || host == nil {
+// of plan.on and merges the per-partition layers. A projecting plan
+// (OVERLAY_YOY, U46 E2-S3) hands each sub-host only the date key
+// element — its key, group field and grouper kind — so the unchanged
+// single-date handler runs inside every segment; each entry then gets
+// its full composite key back.
+func runSeriesHandlerPartitioned(handler seriesOverlayHandler, spec *types.OverlaySpec, host *SeriesHostView, plan seriesPartitionPlan) (types.OverlayLayer, []types.OverlayWarning, error) {
+	if host == nil {
 		return handler(spec, host)
 	}
-	parts := seriespartition.Partition(host.groupKeys, depth)
-	if len(parts) <= 1 {
+	project := plan.project
+	if project >= 0 && len(host.grouperKinds) <= 1 {
+		project = -1 // one key element already: nothing to drop
+	}
+	parts := seriespartition.PartitionOn(host.groupKeys, plan.on)
+	if len(parts) <= 1 && project < 0 {
 		return handler(spec, host)
 	}
 	entries := make([]types.SeriesEntry, host.GroupCount())
@@ -59,7 +87,7 @@ func runSeriesHandlerPartitioned(handler seriesOverlayHandler, spec *types.Overl
 		raised   = map[string]int{}
 	)
 	for p, rows := range parts {
-		layer, ws, err := handler(spec, host.subset(rows))
+		layer, ws, err := handler(spec, host.subset(rows, project))
 		if err != nil {
 			return types.OverlayLayer{}, nil, err
 		}
@@ -69,6 +97,11 @@ func runSeriesHandlerPartitioned(handler seriesOverlayHandler, spec *types.Overl
 				map[string]any{"kind": string(spec.Kind), "partition": p})
 		}
 		for j, e := range layer.Payload.Series.Entries {
+			if project >= 0 {
+				if full := host.groupKeys[rows[j]]; full != nil {
+					e.Key = append(types.AxisKey(nil), full...)
+				}
+			}
 			entries[rows[j]] = e
 		}
 		if p == 0 {
@@ -133,11 +166,20 @@ func mergeSeriesSummary(acc, next *types.OverlaySummary) *types.OverlaySummary {
 
 // subset is the sub-host over host ordinals rows (ascending): their key
 // tuples in order, the resolver remapped onto them, and the host's
-// group fields and grouper kinds unchanged.
-func (h *SeriesHostView) subset(rows []int) *SeriesHostView {
+// group fields and grouper kinds unchanged — or, with project >= 0,
+// each key, the group fields and the grouper kinds narrowed to that one
+// element.
+func (h *SeriesHostView) subset(rows []int, project int) *SeriesHostView {
 	keys := make([]types.AxisKey, len(rows))
 	for j, i := range rows {
 		keys[j] = h.groupKeys[i]
+		if project >= 0 {
+			var v any
+			if project < len(keys[j]) {
+				v = keys[j][project]
+			}
+			keys[j] = types.AxisKey{v}
+		}
 	}
 	var resolver func(int) (float64, bool)
 	if h.resolver != nil {
@@ -148,15 +190,44 @@ func (h *SeriesHostView) subset(rows []int) *SeriesHostView {
 			return h.resolver(rows[j])
 		}
 	}
-	return &SeriesHostView{groupKeys: keys, resolver: resolver, groupFields: h.groupFields, grouperKinds: h.grouperKinds}
+	fields, kinds := h.groupFields, h.grouperKinds
+	if project >= 0 {
+		fields, kinds = nil, nil
+		if project < len(h.groupFields) {
+			fields = []string{h.groupFields[project]}
+		}
+		if project < len(h.grouperKinds) {
+			kinds = []types.GroupType{h.grouperKinds[project]}
+		}
+	}
+	return &SeriesHostView{groupKeys: keys, resolver: resolver, groupFields: fields, grouperKinds: kinds}
 }
 
-// seriesPartitionDepth is the leading-key depth spec partitions the
-// grouped host by: seriespartition.Depth for a kind that runs per
-// partition (seriespartition.Applies on its route), else 0.
-func seriesPartitionDepth(req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int) (int, error) {
-	if !seriespartition.Applies(route) {
-		return 0, nil
+// seriesPartitionFor is how spec splits the grouped host: OVERLAY_YOY
+// partitions on every non-date key and projects onto the date key
+// (seriespartition.YoY, which also refuses zero / 2+ date groupers and
+// a partition_by other than the non-date keys); a kind that runs per
+// partition (seriespartition.Applies on its route) on the leading
+// seriespartition.Depth keys; any other kind walks the whole host.
+func seriesPartitionFor(req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int) (seriesPartitionPlan, error) {
+	if route == types.OverlayKindYoY {
+		date, on, err := seriespartition.YoY(req.Groups, isDateGrouper, spec, index)
+		if err != nil {
+			return seriesPartitionPlan{}, err
+		}
+		return seriesPartitionPlan{on: on, project: date}, nil
 	}
-	return seriespartition.Depth(req.Groups, spec, index)
+	if !seriespartition.Applies(route) {
+		return noPartition, nil
+	}
+	depth, err := seriespartition.Depth(req.Groups, spec, index)
+	if err != nil {
+		return seriesPartitionPlan{}, err
+	}
+	return prefixPlan(depth), nil
 }
+
+// isDateGrouper is OVERLAY_YOY's runtime date-grouper test: the
+// authored type (a hidden GROUP_DATE never reaches the fold — grouping
+// refuses it first).
+func isDateGrouper(g *types.Group) bool { return g.Type == types.GROUP_DATE }

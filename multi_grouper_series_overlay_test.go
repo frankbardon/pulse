@@ -322,3 +322,190 @@ func TestMultiGrouper_SeriesOverlayPartitionRefused(t *testing.T) {
 		})
 	}
 }
+
+// yoySpec is an annual OVERLAY_YOY (stride 1: the fixture's two days,
+// 2024-01-15 and 2024-02-15, give one comparison per segment), with
+// params merged in; frequency "" leaves it to the date grouper.
+func yoySpec(t *testing.T, frequency string, params map[string]any) types.OverlaySpec {
+	t.Helper()
+	m := map[string]any{}
+	for k, v := range params {
+		m[k] = v
+	}
+	if frequency != "" {
+		m["frequency"] = frequency
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return types.OverlaySpec{Name: "yoy", Kind: types.OverlayKindYoY, Scope: types.OverlayScopeGroup,
+		Ref: types.OverlayRef{YoY: &types.OverlayYoYRef{}}, Params: b}
+}
+
+// TestMultiGrouper_YoYPerPartition: OVERLAY_YOY finds its GROUP_DATE
+// grouper wherever it sits and runs once per combination of every OTHER
+// key; each segment's entries equal, bit for bit and in order, the same
+// overlay run alone on that segment (a FILTER_INCLUDE per non-date key,
+// grouped by the date alone). Shapes put the date first, last and in
+// the middle; one case leaves frequency to the date grouper's Params,
+// which is not groups[0]; an explicit partition_by naming the non-date
+// keys in another order equals the implicit default. Every entry keeps
+// its full composite key. Runs on every mode that returns layers.
+func TestMultiGrouper_YoYPerPartition(t *testing.T) {
+	f := newMGFixture(t, pulse.Options{})
+	dayAnnual := func() *types.Group {
+		g := mgDay()
+		g.Params = json.RawMessage(`{"frequency": "annual"}`)
+		return g
+	}
+	cases := []struct {
+		name   string
+		groups func() []*types.Group
+		date   int
+		spec   types.OverlaySpec
+		single types.OverlaySpec
+	}{
+		{"region×day", func() []*types.Group { return []*types.Group{mgRegion(), mgDay()} }, 1,
+			yoySpec(t, "annual", nil), yoySpec(t, "annual", nil)},
+		{"day×region", func() []*types.Group { return []*types.Group{mgDay(), mgRegion()} }, 0,
+			yoySpec(t, "annual", nil), yoySpec(t, "annual", nil)},
+		{"region×day×sex frequency from the date grouper", func() []*types.Group { return []*types.Group{mgRegion(), dayAnnual(), mgSex()} }, 1,
+			yoySpec(t, "", nil), yoySpec(t, "", nil)},
+		{"sex×region×day explicit partition_by", func() []*types.Group { return []*types.Group{mgSex(), mgRegion(), mgDay()} }, 2,
+			yoySpec(t, "annual", map[string]any{"partition_by": []string{"region", "sex"}}), yoySpec(t, "annual", map[string]any{"partition_by": []string{}})},
+	}
+	var modes []mgMode
+	for _, m := range mgModes {
+		switch m.name {
+		case "ProcessStream", "ProcessChain":
+			continue
+		}
+		modes = append(modes, m)
+	}
+	for _, c := range cases {
+		for _, mode := range modes {
+			t.Run(c.name+"/"+mode.name, func(t *testing.T) {
+				run := func(groups []*types.Group, spec types.OverlaySpec, filters ...*types.Filterer) *types.Response {
+					t.Helper()
+					req := mgRequest(f, groups, psYSum())
+					req.Filterers = filters
+					req.Overlays = []types.OverlaySpec{spec}
+					if env := predictEnvelope(t, f.p, f.fs, f.cohort, req); len(env.Errors) > 0 {
+						t.Fatalf("predict: %+v", env.Errors)
+					}
+					resp, err := mode.run(t, f, req)
+					if err != nil {
+						t.Fatalf("run: %v", err)
+					}
+					if resp == nil || len(resp.Overlays) != 1 || resp.Overlays[0].Payload.Series == nil {
+						t.Fatalf("want one series layer, got %+v", resp)
+					}
+					return resp
+				}
+				groups := c.groups()
+				resp := run(groups, c.spec)
+				if n := len(resp.Overlays[0].Payload.Series.Entries); n != len(resp.Data) {
+					t.Fatalf("%d entries for %d rows", n, len(resp.Data))
+				}
+				// segment (the non-date key values) → its entries in order.
+				composite := map[string][]string{}
+				segVals := map[string][]any{}
+				compared := 0
+				for _, e := range resp.Overlays[0].Payload.Series.Entries {
+					if len(e.Key) != len(groups) {
+						t.Fatalf("entry key %v is not the full composite key", e.Key)
+					}
+					var seg []any
+					for i, v := range e.Key {
+						if i != c.date {
+							seg = append(seg, v)
+						}
+					}
+					id := fmt.Sprint(seg)
+					segVals[id] = seg
+					composite[id] = append(composite[id], fmt.Sprint(e.Key[c.date])+"="+psStat(e.Summary.Statistic))
+					if e.Summary.Statistic != nil && !math.IsNaN(*e.Summary.Statistic) {
+						compared++
+					}
+				}
+				if len(composite) < 3 || compared < 3 {
+					t.Fatalf("%d segments, %d comparisons; the fixture must split into several", len(composite), compared)
+				}
+				for id, seg := range segVals {
+					var filters []*types.Filterer
+					j := 0
+					for i, g := range groups {
+						if i == c.date {
+							continue
+						}
+						filters = append(filters, &types.Filterer{Type: types.FILTER_INCLUDE, Field: mgKeyColumn(g), Values: []string{fmt.Sprint(seg[j])}})
+						j++
+					}
+					alone := run([]*types.Group{c.groups()[c.date]}, c.single, filters...)
+					var want []string
+					for _, e := range alone.Overlays[0].Payload.Series.Entries {
+						want = append(want, fmt.Sprint(e.Key[0])+"="+psStat(e.Summary.Statistic))
+					}
+					if !reflect.DeepEqual(composite[id], want) {
+						t.Errorf("segment %s:\n got  %v\n want %v (the segment run alone)", id, composite[id], want)
+					}
+				}
+			})
+		}
+	}
+}
+
+// TestMultiGrouper_YoYRefused: no GROUP_DATE grouper, or a
+// partition_by other than exactly the non-date keys, is refused by
+// predict and by the engine with the same code and Details — no layer
+// survives. (Two date groupers need two date columns; the fixture has
+// one, so that refusal's parity is pinned in internal/seriespartition,
+// internal/descriptor and internal/processing, which share the one
+// reading.)
+func TestMultiGrouper_YoYRefused(t *testing.T) {
+	f := newMGFixture(t, pulse.Options{})
+	cases := []struct {
+		name   string
+		groups []*types.Group
+		params map[string]any
+		code   perr.Code
+		detail map[string]any
+	}{
+		{"no date grouper", []*types.Group{mgRegion(), mgSex()}, nil, perr.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+			map[string]any{"groupers": 2, "date_groupers": 0}},
+		{"one non-date grouper", []*types.Group{mgRegion()}, nil, perr.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+			map[string]any{"host_grouper": "GROUP_CATEGORY"}},
+		{"partition_by misses a key", []*types.Group{mgRegion(), mgDay(), mgSex()}, map[string]any{"partition_by": []string{"region"}}, perr.PULSE_OVERLAY_PARTITION_INVALID,
+			map[string]any{"reason": "not_non_date_keys", "field": "sex"}},
+		{"partition_by names the date", []*types.Group{mgRegion(), mgDay()}, map[string]any{"partition_by": []string{"region", "day"}}, perr.PULSE_OVERLAY_PARTITION_INVALID,
+			map[string]any{"reason": "not_non_date_keys", "field": "day"}},
+		{"partition_by none", []*types.Group{mgRegion(), mgDay()}, map[string]any{"partition_by": []string{}}, perr.PULSE_OVERLAY_PARTITION_INVALID,
+			map[string]any{"reason": "not_non_date_keys", "field": "region"}},
+		{"partition_by unknown", []*types.Group{mgRegion(), mgDay()}, map[string]any{"partition_by": []string{"warehouse"}}, perr.PULSE_OVERLAY_PARTITION_INVALID,
+			map[string]any{"reason": "unknown_field", "field": "warehouse"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := mgRequest(f, c.groups, psYSum())
+			req.Overlays = []types.OverlaySpec{yoySpec(t, "annual", c.params)}
+			env := predictEnvelope(t, f.p, f.fs, f.cohort, req)
+			if len(env.Errors) != 1 || env.Errors[0].Code != string(c.code) {
+				t.Fatalf("predict errors %+v, want one %s", env.Errors, c.code)
+			}
+			for k, v := range c.detail {
+				if got := env.Errors[0].Details[k]; !reflect.DeepEqual(got, v) {
+					t.Errorf("predict details[%s] = %v, want %v", k, got, v)
+				}
+			}
+			resp, err := f.p.Process(context.Background(), req)
+			if resp != nil && len(resp.Overlays) > 0 {
+				t.Fatalf("a layer survived the refusal: %+v", resp.Overlays)
+			}
+			ce := requireCodedError(t, err, c.code)
+			if !reflect.DeepEqual(any(ce.Details), any(env.Errors[0].Details)) {
+				t.Errorf("runtime details %#v, predict %#v", ce.Details, env.Errors[0].Details)
+			}
+		})
+	}
+}

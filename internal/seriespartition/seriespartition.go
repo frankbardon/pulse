@@ -15,6 +15,11 @@
 //     out of prefix order, a non-string-list value — is refused
 //     PULSE_OVERLAY_PARTITION_INVALID.
 //
+// OVERLAY_YOY reads its own rule (YoY): exactly one GROUP_DATE grouper,
+// anywhere in groups, and one partition per combination of every OTHER
+// key — not a prefix, so PartitionOn splits by key indices. An explicit
+// partition_by must name exactly those non-date keys.
+//
 // Partitions are built by KEY EQUALITY on the prefix, never by
 // contiguity: a user `sort` can interleave buckets, so two rows of one
 // partition need not be adjacent. Within a partition rows keep host
@@ -32,6 +37,7 @@ package seriespartition
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
@@ -156,7 +162,7 @@ func Depth(groups []*types.Group, spec *types.OverlaySpec, index int) (int, erro
 		var given any
 		_ = json.Unmarshal(raw, &given)
 		return 0, refusal(spec.Kind, index, given, cols, "not_string_list", "",
-			"params.partition_by must be a list of group key columns")
+			"params.partition_by must be a list of group key columns", prefixFix)
 	}
 	for i, name := range names {
 		known := false
@@ -168,18 +174,25 @@ func Depth(groups []*types.Group, spec *types.OverlaySpec, index int) (int, erro
 		}
 		if !known {
 			return 0, refusal(spec.Kind, index, names, cols, "unknown_field", name,
-				"params.partition_by names \""+name+"\", which is not a group key column")
+				"params.partition_by names \""+name+"\", which is not a group key column", prefixFix)
 		}
 		if i >= len(cols) || cols[i] != name {
 			return 0, refusal(spec.Kind, index, names, cols, "not_prefix", name,
-				"params.partition_by must be a leading prefix of the group key columns; \""+name+"\" is out of place")
+				"params.partition_by must be a leading prefix of the group key columns; \""+name+"\" is out of place", prefixFix)
 		}
 	}
 	return len(names), nil
 }
 
+// prefixFix / yoyFix close a PULSE_OVERLAY_PARTITION_INVALID message
+// with the remedy for the prefix rule (Depth) or the YoY rule (YoY).
+const (
+	prefixFix = "omit it for every key but the last, or pass [] for no partition"
+	yoyFix    = "omit it to partition by every non-date key"
+)
+
 // refusal builds the one PULSE_OVERLAY_PARTITION_INVALID error.
-func refusal(kind types.OverlayKind, index int, given any, cols []string, reason, field, why string) error {
+func refusal(kind types.OverlayKind, index int, given any, cols []string, reason, field, why, fix string) error {
 	details := map[string]any{
 		"index":        index,
 		"kind":         string(kind),
@@ -191,7 +204,7 @@ func refusal(kind types.OverlayKind, index int, given any, cols []string, reason
 		details["field"] = field
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARTITION_INVALID,
-		"overlay "+string(kind)+" "+why+" (groups: "+strings.Join(cols, ", ")+"); omit it for every key but the last, or pass [] for no partition",
+		"overlay "+string(kind)+" "+why+" (groups: "+strings.Join(cols, ", ")+"); "+fix,
 		details)
 }
 
@@ -219,10 +232,23 @@ func RowKeys(rows []map[string]any, cols []string) []types.AxisKey {
 // empty host yields one partition holding every row (none when keys is
 // empty).
 func Partition(keys []types.AxisKey, depth int) [][]int {
+	on := make([]int, 0, max(depth, 0))
+	for j := 0; j < depth; j++ {
+		on = append(on, j)
+	}
+	return PartitionOn(keys, on)
+}
+
+// PartitionOn is Partition by KEY EQUALITY on the key elements at the
+// indices on (in any order; an element past a key's end compares as
+// nil) rather than a leading prefix — the split OVERLAY_YOY uses, whose
+// partition keys are every non-date key wherever the date grouper sits.
+// An empty on yields one partition holding every row.
+func PartitionOn(keys []types.AxisKey, on []int) [][]int {
 	if len(keys) == 0 {
 		return nil
 	}
-	if depth <= 0 {
+	if len(on) == 0 {
 		all := make([]int, len(keys))
 		for i := range all {
 			all[i] = i
@@ -232,7 +258,7 @@ func Partition(keys []types.AxisKey, depth int) [][]int {
 	index := map[string]int{}
 	var parts [][]int
 	for i, k := range keys {
-		id := prefixID(k, depth)
+		id := keyID(k, on)
 		p, ok := index[id]
 		if !ok {
 			p = len(parts)
@@ -244,12 +270,12 @@ func Partition(keys []types.AxisKey, depth int) [][]int {
 	return parts
 }
 
-// prefixID is an injective identity for the first depth elements of k:
+// keyID is an injective identity for the elements of k at indices on:
 // each element contributes its dynamic type and value, so the string
 // "1" and the number 1 stay distinct, as do nil and "".
-func prefixID(k types.AxisKey, depth int) string {
+func keyID(k types.AxisKey, on []int) string {
 	var b strings.Builder
-	for j := 0; j < depth; j++ {
+	for _, j := range on {
 		var v any
 		if j < len(k) {
 			v = k[j]
@@ -258,4 +284,129 @@ func prefixID(k types.AxisKey, depth int) string {
 		fmt.Fprintf(&b, "%d:%s", len(s), s)
 	}
 	return b.String()
+}
+
+// DateGrouper is the index of the first group isDate accepts, or -1 —
+// the grouper whose Params carry OVERLAY_YOY's fallback `frequency`
+// wherever it sits in groups (predict and the runtime promotion both
+// read it).
+func DateGrouper(groups []*types.Group, isDate func(*types.Group) bool) int {
+	for i, g := range groups {
+		if g != nil && isDate(g) {
+			return i
+		}
+	}
+	return -1
+}
+
+// YoY is the one reading of an OVERLAY_YOY spec's host shape and
+// partition (U46 #429): the request must carry EXACTLY ONE date grouper
+// (isDate decides; predict passes the instance route, the runtime the
+// authored type), wherever it sits in groups, and the overlay runs once
+// per combination of every OTHER key — the prior-year lookup never
+// crosses a segment. It returns the date grouper's index and the
+// non-date key indices to partition on (in group order; empty for a
+// lone date grouper).
+//
+// Refusals, identical on predict and runtime because both call this:
+//
+//   - one grouper that is not a date grouper:
+//     PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, Details {index, kind,
+//     host_grouper, required} (the pre-U46 shape);
+//   - two or more groupers with zero or two or more date groupers:
+//     PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, Details {index, kind,
+//     groupers, date_groupers, required};
+//   - an explicit, non-null params.partition_by that is not exactly the
+//     non-date key columns (any order, no repeats):
+//     PULSE_OVERLAY_PARTITION_INVALID, Details as Depth's with reason
+//     "not_string_list", "unknown_field" or "not_non_date_keys" (field:
+//     the column repeated, a date column, or a non-date column left out).
+//
+// groups must be non-empty (the caller's SERIES-host gate owns that).
+func YoY(groups []*types.Group, isDate func(*types.Group) bool, spec *types.OverlaySpec, index int) (int, []int, error) {
+	var kind types.OverlayKind
+	if spec != nil {
+		kind = spec.Kind
+	}
+	date := -1
+	dates := 0
+	for i, g := range groups {
+		if g != nil && isDate(g) {
+			dates++
+			if date < 0 {
+				date = i
+			}
+		}
+	}
+	if len(groups) == 1 && dates == 0 {
+		actual := ""
+		if groups[0] != nil {
+			actual = string(groups[0].Type)
+		}
+		return 0, nil, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+			"overlay "+string(kind)+" requires the host's first grouper to be GROUP_DATE; got "+actual,
+			map[string]any{
+				"index":        index,
+				"kind":         string(kind),
+				"host_grouper": actual,
+				"required":     string(types.GROUP_DATE),
+			})
+	}
+	if dates != 1 {
+		return 0, nil, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+			"overlay "+string(kind)+" requires exactly one GROUP_DATE grouper among its "+strconv.Itoa(len(groups))+" groupers; got "+strconv.Itoa(dates),
+			map[string]any{
+				"index":         index,
+				"kind":          string(kind),
+				"groupers":      len(groups),
+				"date_groupers": dates,
+				"required":      string(types.GROUP_DATE),
+			})
+	}
+	on := make([]int, 0, len(groups)-1)
+	for i := range groups {
+		if i != date {
+			on = append(on, i)
+		}
+	}
+	if !Explicit(spec) {
+		return date, on, nil
+	}
+	var m map[string]json.RawMessage
+	_ = json.Unmarshal(spec.Params, &m) // Explicit decoded it already
+	raw := m[Param]
+	cols := KeyColumns(groups)
+	var names []string
+	if err := json.Unmarshal(raw, &names); err != nil {
+		var given any
+		_ = json.Unmarshal(raw, &given)
+		return 0, nil, refusal(kind, index, given, cols, "not_string_list", "",
+			"params.partition_by must be a list of group key columns", yoyFix)
+	}
+	seen := map[string]bool{}
+	for _, name := range names {
+		at := -1
+		for i, c := range cols {
+			if c == name {
+				at = i
+				break
+			}
+		}
+		if at < 0 {
+			return 0, nil, refusal(kind, index, names, cols, "unknown_field", name,
+				"params.partition_by names \""+name+"\", which is not a group key column", yoyFix)
+		}
+		if at == date || seen[name] {
+			return 0, nil, refusal(kind, index, names, cols, "not_non_date_keys", name,
+				"params.partition_by must name exactly the non-date group key columns; \""+name+"\" is not one of them or is repeated", yoyFix)
+		}
+		seen[name] = true
+	}
+	for _, i := range on {
+		if !seen[cols[i]] {
+			return 0, nil, refusal(kind, index, names, cols, "not_non_date_keys", cols[i],
+				"params.partition_by must name exactly the non-date group key columns; \""+cols[i]+"\" is missing", yoyFix)
+		}
+	}
+	return date, on, nil
 }

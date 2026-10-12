@@ -2044,11 +2044,11 @@ func validateOverlayYoY(env *descriptor.Envelope, req *types.Request, spec *type
 
 	// Ref.YoY is required — the empty marker tags the ref family. The
 	// actual frequency value lives on Params["frequency"] per the WIN_*
-	// operator convention OR on req.Groups[0].Params["frequency"] per the
+	// operator convention OR on the GROUP_DATE grouper's Params["frequency"] per the
 	// canonical GROUP_DATE authoring slot.
 	if spec.Ref.YoY == nil {
 		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.YoY (windowed year-over-year reference; frequency lives on Params[\"frequency\"] or Groups[0].Params[\"frequency\"])",
+			"overlay "+string(spec.Kind)+" requires Ref.YoY (windowed year-over-year reference; frequency lives on Params[\"frequency\"] or the GROUP_DATE grouper's Params[\"frequency\"])",
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),
@@ -2069,42 +2069,16 @@ func validateOverlayYoY(env *descriptor.Envelope, req *types.Request, spec *type
 		return
 	}
 
-	// Exactly one grouper. With two or more, the SERIES host is the
-	// composite rows (one per observed key combination, U54), not one
-	// date axis, so "the same period one year prior" has no single
-	// ordinal stride. Per-partition YoY semantics belong to U46 (#429);
-	// until then the request is refused, never folded over the
-	// interleaved rows. Mirrored at runtime by processing.applyYoY.
-	if len(req.Groups) > 1 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host with exactly one grouper (GROUP_DATE); got "+strconv.Itoa(len(req.Groups))+" groupers",
-			map[string]any{
-				"index":    index,
-				"kind":     string(spec.Kind),
-				"groupers": len(req.Groups),
-				"required": string(types.GROUP_DATE),
-			})
-		return
-	}
-
-	// The only grouper MUST be GROUP_DATE. The YoY kind cannot resolve
-	// "same period one year prior" semantics against non-DATE groupers.
-	// A GROUP_DATE the instance hides is not GROUP_DATE here; the
-	// message keeps naming the authored type. len(req.Groups) == 1
-	// here, so Groups[0] is the whole grouper list.
-	if g := req.Groups[0]; g == nil || opRoute(inst, g.Type) != types.GROUP_DATE {
-		actual := ""
-		if g != nil {
-			actual = string(g.Type)
-		}
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires the host's first grouper to be GROUP_DATE; got "+actual,
-			map[string]any{
-				"index":        index,
-				"kind":         string(spec.Kind),
-				"host_grouper": actual,
-				"required":     string(types.GROUP_DATE),
-			})
+	// Exactly one GROUP_DATE grouper, anywhere in groups; the overlay
+	// runs once per combination of every other key, and an explicit
+	// params.partition_by must name exactly those non-date keys (U46
+	// E2-S3, #429). seriespartition.YoY is the one reading — the
+	// runtime fold (processing.seriesPartitionFor) calls it too — so the
+	// refusals cannot drift. A GROUP_DATE the instance hides is not a
+	// date grouper here; messages keep naming the authored type.
+	isDate := func(g *types.Group) bool { return opRoute(inst, g.Type) == types.GROUP_DATE }
+	if _, _, err := seriespartition.YoY(req.Groups, isDate, spec, index); err != nil {
+		addCodedError(env, err)
 		return
 	}
 
@@ -2125,25 +2099,25 @@ func validateOverlayYoY(env *descriptor.Envelope, req *types.Request, spec *type
 
 	// Frequency resolution. The handler reads spec.Params["frequency"]
 	// first (the YoY's own override) and falls back to
-	// req.Groups[0].Params["frequency"] (the canonical GROUP_DATE
-	// authoring slot). The predict gate walks both surfaces. Missing
+	// the GROUP_DATE grouper's Params["frequency"] (wherever it sits
+	// in groups). The predict gate walks both surfaces. Missing
 	// both fires PULSE_OVERLAY_YOY_FREQUENCY_MISSING; out-of-set value
 	// fires PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY.
-	validateOverlayYoYFrequency(env, req, spec, index)
+	validateOverlayYoYFrequency(env, req, spec, index, seriespartition.DateGrouper(req.Groups, isDate))
 }
 
 // validateOverlayYoYFrequency validates the OVERLAY_YOY `frequency`
 // Param against the supported set. Reads spec.Params["frequency"]
 // first (the YoY's own override) and falls back to
-// req.Groups[0].Params["frequency"] (the canonical GROUP_DATE
-// authoring slot). Surfaces PULSE_OVERLAY_YOY_FREQUENCY_MISSING when
+// the GROUP_DATE grouper's Params["frequency"] (groups[date],
+// wherever it sits). Surfaces PULSE_OVERLAY_YOY_FREQUENCY_MISSING when
 // neither carries the slot and PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY
 // when the value is out-of-set. Mirrors the runtime gate in
 // processing.extractYoYFrequency — the predict gate surfaces the same
 // failure shapes so MCP / CLI envelopes carry the same structured
 // context the runtime would have emitted.
-func validateOverlayYoYFrequency(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	frequency, source := readYoYFrequencyForPredict(spec, req)
+func validateOverlayYoYFrequency(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index, date int) {
+	frequency, source := readYoYFrequencyForPredict(spec, req, date)
 	hostGrouper := string(types.GROUP_DATE)
 	if frequency == "" {
 		env.AddError(string(errors.PULSE_OVERLAY_YOY_FREQUENCY_MISSING),
@@ -2177,12 +2151,12 @@ func validateOverlayYoYFrequency(env *descriptor.Envelope, req *types.Request, s
 // came from ("spec_params" | "group_params" | ""). When neither slot
 // carries a usable frequency the helper returns ("", "") and the
 // caller surfaces PULSE_OVERLAY_YOY_FREQUENCY_MISSING.
-func readYoYFrequencyForPredict(spec *types.OverlaySpec, req *types.Request) (string, string) {
+func readYoYFrequencyForPredict(spec *types.OverlaySpec, req *types.Request, date int) (string, string) {
 	if freq, ok := readYoYFrequencyJSON(spec.Params); ok {
 		return freq, "spec_params"
 	}
-	if req != nil && len(req.Groups) > 0 && req.Groups[0] != nil {
-		if freq, ok := readYoYFrequencyJSON(req.Groups[0].Params); ok {
+	if req != nil && date >= 0 && date < len(req.Groups) && req.Groups[date] != nil {
+		if freq, ok := readYoYFrequencyJSON(req.Groups[date].Params); ok {
 			return freq, "group_params"
 		}
 	}
