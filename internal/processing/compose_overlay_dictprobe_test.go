@@ -112,7 +112,7 @@ func TestOverlay_DictDrift_ByLabelDefault(t *testing.T) {
 	specs := []types.ComposeOverlaySpec{
 		{
 			Name:      "by-label-default",
-			Kind:      types.OverlayKindIndexVsStage,
+			Kind:      testComposeStubKind,
 			Scope:     types.OverlayScopeCell,
 			Reference: "baseline",
 			Targets:   []string{"treatment"},
@@ -126,8 +126,8 @@ func TestOverlay_DictDrift_ByLabelDefault(t *testing.T) {
 	if len(layers) != 1 {
 		t.Fatalf("len(layers) = %d, want 1", len(layers))
 	}
-	if layers[0].Kind != types.OverlayKindIndexVsStage {
-		t.Errorf("layers[0].Kind = %q, want %q", layers[0].Kind, types.OverlayKindIndexVsStage)
+	if layers[0].Kind != testComposeStubKind {
+		t.Errorf("layers[0].Kind = %q, want %q", layers[0].Kind, testComposeStubKind)
 	}
 }
 
@@ -144,7 +144,7 @@ func TestOverlay_DictDrift_PrefixFastOpt_MatchingPrefix(t *testing.T) {
 	specs := []types.ComposeOverlaySpec{
 		{
 			Name:      "fast-path-match",
-			Kind:      types.OverlayKindIndexVsStage,
+			Kind:      testComposeStubKind,
 			Scope:     types.OverlayScopeCell,
 			Reference: "baseline",
 			Targets:   []string{"treatment"},
@@ -197,7 +197,7 @@ func TestApplyComposeOverlays_DictDrift_ByLabelHappyPath(t *testing.T) {
 	labels := []string{"baseline", "treatment"}
 	specs := []types.ComposeOverlaySpec{
 		{
-			Kind:      types.OverlayKindIndexVsStage,
+			Kind:      testComposeStubKind,
 			Reference: "baseline",
 			Targets:   []string{"treatment"},
 			// No Options → DictPrefixFast=false → by-label safe path.
@@ -226,7 +226,7 @@ func TestApplyComposeOverlays_DictDrift_FastPathFailsLoud(t *testing.T) {
 	labels := []string{"baseline", "treatment"}
 	specs := []types.ComposeOverlaySpec{
 		{
-			Kind:      types.OverlayKindIndexVsStage,
+			Kind:      testComposeStubKind,
 			Reference: "baseline",
 			Targets:   []string{"treatment"},
 			Options:   &types.OverlayOptions{DictPrefixFast: true},
@@ -311,7 +311,7 @@ func TestOverlay_DictDrift_PrefixFastOpt_NilOptionsSkipsProbe(t *testing.T) {
 	labels := []string{"baseline", "treatment"}
 	specs := []types.ComposeOverlaySpec{
 		{
-			Kind:      types.OverlayKindIndexVsStage,
+			Kind:      testComposeStubKind,
 			Reference: "baseline",
 			Targets:   []string{"treatment"},
 			Options:   &types.OverlayOptions{DictPrefixFast: false}, // explicit false

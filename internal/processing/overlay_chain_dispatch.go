@@ -2,6 +2,7 @@ package processing
 
 import (
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -212,6 +213,11 @@ func ApplyChainOverlaysWithRequests(specs []*types.ChainOverlaySpec, stages []*t
 				map[string]any{
 					"index": i,
 				})
+		}
+		// A catalog kind that runs on another slot: the shared wrong-slot
+		// refusal predict-chain raises (validateChainOverlays).
+		if cerr := overlayhost.Refusal(overlayhost.Chain, spec.Kind, exts.overlayRoute(spec.Kind), i); cerr != nil {
+			return nil, nil, cerr
 		}
 		handler, ok := chainOverlayHandlers[exts.overlayRoute(spec.Kind)]
 		if !ok {

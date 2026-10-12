@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -382,6 +383,9 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 		// Every kind-keyed decision below takes the route: a kind the
 		// instance feature set hides routes as never registered.
 		route := exts.overlayRoute(spec.Kind)
+		if cerr := overlayhost.Refusal(overlayhost.Request, spec.Kind, route, i); cerr != nil {
+			return nil, nil, cerr
+		}
 		if err := validateOverlayLevelWithinRuntime(spec, route, host, i); err != nil {
 			return nil, nil, err
 		}

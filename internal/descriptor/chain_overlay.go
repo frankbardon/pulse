@@ -3,6 +3,7 @@ package descriptor
 import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/types"
 )
@@ -121,6 +122,13 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 		// OVERLAY_DELTA_VS_STAGE accepted in ChainOverlaySpec.Kind. A
 		// kind the instance hides keys on its route, as a kind not in
 		// the catalog.
+		// A catalog kind that runs on another slot gets the shared
+		// overlayhost refusal the runtime chain dispatcher raises; only
+		// a kind outside the catalog stays PULSE_OVERLAY_KIND_UNKNOWN.
+		if cerr := overlayhost.Refusal(overlayhost.Chain, spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
+			addCodedError(env, cerr)
+			continue
+		}
 		if !chainOverlayKindAllowed(opts.overlayRoute(spec.Kind)) {
 			env.AddError(string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
 				"chain overlay kind not supported on ChainRequest.Overlays: "+string(spec.Kind),

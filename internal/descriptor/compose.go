@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/internal/totalcall"
@@ -438,6 +439,16 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 			"compose overlay spec carries unknown kind: "+string(spec.Kind),
 			map[string]any{"index": specIdx, "kind": string(spec.Kind)})
 		appendComposeSlotPair(result, spec.Reference, "", "kind-unknown")
+		return
+	}
+	// Gate 0a: a catalog kind that does not run on
+	// ComposedRequest.Overlays (a Process, whole-chain or FACET kind) —
+	// the shared overlayhost refusal the runtime dispatcher
+	// (processing.ApplyComposeOverlaysWithRequests) raises first, same
+	// code and Details. Before, the runtime answered an empty stub layer.
+	if cerr := overlayhost.Refusal(overlayhost.Compose, spec.Kind, opts.overlayRoute(spec.Kind), specIdx); cerr != nil {
+		addCodedError(env, cerr)
+		appendComposeSlotPair(result, spec.Reference, "", "host-incompatible")
 		return
 	}
 

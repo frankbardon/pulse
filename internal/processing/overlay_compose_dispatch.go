@@ -2,6 +2,7 @@ package processing
 
 import (
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -242,6 +243,14 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 		// instance feature set hides routes as never registered
 		// (falling through to the stub, as an unknown kind does).
 		route := exts.overlayRoute(spec.Kind)
+		// A catalog kind that does not run on ComposedRequest.Overlays
+		// (a Process, whole-chain or FACET kind) is refused first — the
+		// shared wrong-slot refusal predict-compose raises right after
+		// its unknown-kind gate. It once fell through to the stub and
+		// answered an empty layer.
+		if cerr := overlayhost.Refusal(overlayhost.Compose, spec.Kind, route, i); cerr != nil {
+			return nil, nil, cerr
+		}
 		// total() is ATTR_FORMULA's alone: a Compose-host
 		// OVERLAY_FORMULA calling it is PULSE_FORMULA_TOTAL_SITE, refused
 		// before reference resolution — the order predict-compose

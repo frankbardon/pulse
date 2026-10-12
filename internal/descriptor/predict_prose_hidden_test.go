@@ -61,20 +61,6 @@ func TestPairwiseAdvice_NamesOnlyOffered(t *testing.T) {
 	}
 }
 
-func TestFacetOverlayKindsAdvice_NamesOnlyOffered(t *testing.T) {
-	if got, want := facetOverlayKindsAdvice(nil), "FacetRequest.Overlays accepts only OVERLAY_INDEX_VS_POP / OVERLAY_ZSCORE_VS_POP / OVERLAY_CHISQ_VS_POP / OVERLAY_KS_VS_POP"; got != want {
-		t.Errorf("unscoped = %q, want %q", got, want)
-	}
-	opts := &PredictOptions{Instance: scopedExcept("OVERLAY_ZSCORE_VS_POP", "OVERLAY_KS_VS_POP")}
-	if got, want := facetOverlayKindsAdvice(opts), "FacetRequest.Overlays accepts only OVERLAY_INDEX_VS_POP / OVERLAY_CHISQ_VS_POP"; got != want {
-		t.Errorf("scoped = %q, want %q", got, want)
-	}
-	opts = &PredictOptions{Instance: scopedExcept("OVERLAY_INDEX_VS_POP", "OVERLAY_ZSCORE_VS_POP", "OVERLAY_CHISQ_VS_POP", "OVERLAY_KS_VS_POP")}
-	if got, want := facetOverlayKindsAdvice(opts), "FacetRequest.Overlays accepts no kind on this instance"; got != want {
-		t.Errorf("none offered = %q, want %q", got, want)
-	}
-}
-
 func TestTrainTestSplitName_NamesOnlyOffered(t *testing.T) {
 	if got := trainTestSplitName(nil); got != "FEAT_TRAIN_TEST_SPLIT" {
 		t.Errorf("unscoped = %q", got)

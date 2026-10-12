@@ -27,7 +27,7 @@ Use an overlay for a figure DERIVED from the result — a share, an index agains
 
 `kind`, `scope`, `ref`, optional `name` / `level` / `within` / `params`; Compose-only `reference` / `targets`. `scope` ∈ `cell|row|column|group|matrix|total`. `level` / `within` mirror the crosstab's `normalize_level` / `normalize_within` (same-axis rollup, opposite-axis prefix).
 
-Predict and runtime refuse a misshapen spec under the SAME code (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, `_LEVEL_OUT_OF_RANGE`, `_SCOPE_UNSUPPORTED`, …), carried as `errors[0].code` so `pulse_errors_lookup` resolves it.
+Predict and runtime refuse a misshapen spec — or a kind on a slot that does not run it — under the SAME code (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, `_LEVEL_OUT_OF_RANGE`, `_SCOPE_UNSUPPORTED`, …), carried as `errors[0].code` so `pulse_errors_lookup` resolves it.
 
 ## Six reference families
 
@@ -54,7 +54,7 @@ The carrying request decides the host; the host decides the legal kinds:
 
 - **MATRIX** — a crosstab (`Request.Crosstab` + `Request.Overlays`): share, margin compare, cell tests, intra-matrix pairwise. Pairwise n: [`pairwise-n-sources`](pairwise-n-sources.md).
 - **SERIES** — a grouped Process with no crosstab: per-group self-compare (sibling, baseline, prior, rolling, year-over-year). Over N ≥ 2 `groups` it runs per partition: `params.partition_by`, a leading key prefix (default all but the last; `[]` none); YoY: every non-date key. Scores the aggregation `params.field` labels; absent, `aggregations[0]`.
-- **FACET** — `FacetRequest.Overlays` (NOT `Request.Overlays`): population comparisons, layers on `FacetResult.Overlays` ([`facet-design`](facet-design.md)).
+- **FACET** — `FacetRequest.Overlays`: population comparisons, layers on `FacetResult.Overlays` ([`facet-design`](facet-design.md)).
 - **CHAIN** — whole-chain `ChainRequest.Overlays` against an earlier stage; layers on the chain response, per-stage overlays untouched. Stages of divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` ([`process-chain`](process-chain.md)).
 - **FORMULA** — an expression over earlier layers, referenced by `name`.
 - **COMPOSE** — the post-slot fold compares slots (`reference` vs `targets`); slots must align on keys, schema and dictionaries. Layers on `ComposedResponse.Overlays[i]` (top-level `return` prunes post-fold), buffered only ([`compose-requests`](compose-requests.md)).
@@ -77,7 +77,7 @@ A weighted host yields a weighted payload, so every descriptive kind (shares, in
 
 ## Parity overlays — Welford migration
 
-The cell t / z kinds and their Compose vs-ref twins read `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]`, so the cell aggregator must emit that triple; with no triple at the coordinate they fall back to `params` (`variance_*`, `sample_size_*`).
+The Compose t / z kinds (cell, vs-ref) read `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]`, so the cell aggregator must emit that triple; with no triple at the coordinate they fall back to `params` (`variance_*`, `sample_size_*`).
 
 ## See
 

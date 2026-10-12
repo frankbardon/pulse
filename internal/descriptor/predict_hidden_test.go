@@ -362,34 +362,6 @@ func TestPredict_HiddenOverlayHostGrouper(t *testing.T) {
 	}
 }
 
-// TestPredict_HiddenOverlayHostAggregator: OVERLAY_T_VS_REF reads its
-// moments off a map-valued aggregator and otherwise requires Params; an
-// AGG_WELFORD the instance hides is not map-valued, so the Params are
-// required. (Its message names AGG_WELFORD as the remedy, so
-// substitution parity cannot pin it.)
-func TestPredict_HiddenOverlayHostAggregator(t *testing.T) {
-	data := buildTestPulseFile(t, hiddenPredictSchema(t))
-	req := &types.Request{
-		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "grade"}},
-		Aggregations: []*types.Aggregation{{Type: types.AGG_WELFORD, Field: "score", Label: "m"}},
-		Overlays:     []types.OverlaySpec{{Kind: types.OverlayKindTVsRef, Scope: types.OverlayScopeGroup}},
-	}
-	paramsRequired := func(opts *PredictOptions) bool {
-		for _, e := range predictFromBytes(data, req, opts).Errors {
-			if e.Code == "PULSE_OVERLAY_PARAM_MISSING" {
-				return true
-			}
-		}
-		return false
-	}
-	if paramsRequired(nil) {
-		t.Fatal("vacuous: unscoped AGG_WELFORD host requires Params")
-	}
-	if !paramsRequired(hiddenPredictOpts(string(types.AGG_WELFORD))) {
-		t.Error("a hidden AGG_WELFORD host makes OVERLAY_T_VS_REF Params optional")
-	}
-}
-
 // TestScopedFieldRefRefusals_HiddenIsNeverRegistered: the field-
 // reference walk (shared by predict and the runtime) decides which
 // slots, params and output labels a type reads off the type's route,
@@ -468,35 +440,6 @@ func TestPredict_HiddenDecimalAggregation(t *testing.T) {
 	}
 	if !refused(hiddenPredictOpts(string(types.AGG_SUM))) {
 		t.Error("a hidden AGG_SUM keeps its decimal128 implementation")
-	}
-}
-
-// TestPredict_HiddenOverlayCellAggregator: OVERLAY_T_CELL reads its
-// moments off a map-valued crosstab cell and otherwise requires Params;
-// a hidden AGG_WELFORD cell is not map-valued.
-func TestPredict_HiddenOverlayCellAggregator(t *testing.T) {
-	data := buildTestPulseFile(t, hiddenPredictSchema(t))
-	req := &types.Request{
-		Crosstab: &types.CrosstabSpec{
-			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "grade"}},
-			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "grade"}},
-			Cell:    &types.Aggregation{Type: types.AGG_WELFORD, Field: "score"},
-		},
-		Overlays: []types.OverlaySpec{{Kind: types.OverlayKindTCell, Scope: types.OverlayScopeCell}},
-	}
-	paramsRequired := func(opts *PredictOptions) bool {
-		for _, e := range predictFromBytes(data, req, opts).Errors {
-			if e.Code == "PULSE_OVERLAY_PARAM_MISSING" {
-				return true
-			}
-		}
-		return false
-	}
-	if paramsRequired(nil) {
-		t.Fatal("vacuous: unscoped AGG_WELFORD cell requires Params")
-	}
-	if !paramsRequired(hiddenPredictOpts(string(types.AGG_WELFORD))) {
-		t.Error("a hidden AGG_WELFORD cell makes OVERLAY_T_CELL Params optional")
 	}
 }
 

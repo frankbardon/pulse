@@ -2,6 +2,7 @@ package processing
 
 import (
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -511,6 +512,9 @@ func applyOverlaysSeriesPerSpec(specs []types.OverlaySpec, hostFor func(int, *ty
 		workOverlayLayerRuns.Add(1)
 		spec := &specs[i]
 		route := exts.overlayRoute(spec.Kind)
+		if cerr := overlayhost.Refusal(overlayhost.Request, spec.Kind, route, i); cerr != nil {
+			return nil, nil, cerr
+		}
 		handler, ok := seriesOverlayHandlers[route]
 		if !ok {
 			return nil, nil, errors.NewCodedErrorWithDetails(

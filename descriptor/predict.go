@@ -796,6 +796,7 @@ type OverlayAppliedDescriptor struct {
 // Reason values are stable identifiers the renderer can branch on:
 //
 //   - "kind-unknown"          — spec.Kind absent from the overlay catalog.
+//   - "host-incompatible"     — spec.Kind runs on another overlay slot.
 //   - "reference-unknown"     — Reference label does not resolve to a slot.
 //   - "target-unknown"        — Targets[j] does not resolve to a slot.
 //   - "slot-shape-divergent"  — ref and target host shapes differ.

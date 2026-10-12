@@ -266,10 +266,10 @@ func TestApplyChainOverlays_UnknownKind_CodedError(t *testing.T) {
 	stages := []*types.Response{chainStageOf(types.OverlayShapeSeries)}
 	specs := []*types.ChainOverlaySpec{
 		{
-			// OVERLAY_INDEX_VS_MARGIN is a MATRIX-host kind — it has
-			// no entry in the chainOverlayHandlers table. Defense in
-			// depth: validates the dispatcher's unknown-kind branch.
-			Kind:   types.OverlayKindIndexVsMargin,
+			// A kind outside the catalog. A catalog kind with no CHAIN
+			// handler (OVERLAY_INDEX_VS_MARGIN, say) is the shared
+			// wrong-slot refusal instead (overlay_host_parity_test.go).
+			Kind:   types.OverlayKind("OVERLAY_TEST_CHAIN_UNKNOWN"),
 			Scope:  types.OverlayScopeTotal,
 			Ref:    types.StageRef{Index: ptrInt(0)},
 			Target: types.StageRef{Index: ptrInt(0)},

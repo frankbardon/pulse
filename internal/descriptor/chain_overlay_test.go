@@ -146,23 +146,28 @@ func TestInferChainStageShape_NilFallthrough(t *testing.T) {
 	}
 }
 
-// TestValidateChain_OverlayKindUnknown confirms that any
-// OverlayKind outside the whole-chain catalog (today: only
-// OVERLAY_INDEX_VS_STAGE / OVERLAY_DELTA_VS_STAGE) on
-// ChainOverlaySpec.Kind raises PULSE_OVERLAY_KIND_UNKNOWN.
+// TestValidateChain_OverlayKindUnknown confirms that a kind outside the
+// overlay catalog on ChainOverlaySpec.Kind raises
+// PULSE_OVERLAY_KIND_UNKNOWN, while a catalog kind that runs on another
+// slot (here the MATRIX-host OVERLAY_INDEX_VS_MARGIN) gets the shared
+// wrong-slot refusal, PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestValidateChain_OverlayKindUnknown(t *testing.T) {
 	data := buildSimplePulseBytes(t)
-	req := twoStageScalarChainRequest([]*types.ChainOverlaySpec{
-		{
-			Kind:   types.OverlayKindIndexVsMargin, // MATRIX-host kind; not allowed on ChainRequest.Overlays
+	spec := func(kind types.OverlayKind) []*types.ChainOverlaySpec {
+		return []*types.ChainOverlaySpec{{
+			Kind:   kind,
 			Ref:    types.StageRef{Index: intPtr(0)},
 			Target: types.StageRef{Index: intPtr(1)},
 			Scope:  types.OverlayScopeCell,
-		},
-	})
-	env := ValidateChainFromBytes(data, req)
+		}}
+	}
+	env := ValidateChainFromBytes(data, twoStageScalarChainRequest(spec("OVERLAY_NOT_IN_CATALOG")))
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_KIND_UNKNOWN) {
-		t.Fatalf("expected PULSE_OVERLAY_KIND_UNKNOWN; got %+v", env.Errors)
+		t.Fatalf("out-of-catalog kind: expected PULSE_OVERLAY_KIND_UNKNOWN; got %+v", env.Errors)
+	}
+	env = ValidateChainFromBytes(data, twoStageScalarChainRequest(spec(types.OverlayKindIndexVsMargin)))
+	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) || hasErrorCode(env, errors.PULSE_OVERLAY_KIND_UNKNOWN) {
+		t.Fatalf("MATRIX kind on a chain: expected only PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE; got %+v", env.Errors)
 	}
 }
 

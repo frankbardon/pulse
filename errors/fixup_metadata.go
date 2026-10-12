@@ -2349,6 +2349,12 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"Groups"},
 				Hint:   "OVERLAY_YOY needs EXACTLY ONE GROUP_DATE grouper (details.date_groupers counts those sent, details.groupers every group; a lone non-date grouper names itself in details.host_grouper). Add the GROUP_DATE grouper, or drop the extra one; the other keys may stay — YoY runs once per combination of them.",
 			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Kind"},
+				Hint:     "When details.hosts is present the kind runs on another overlay slot: details.host is the slot it was sent on (request | compose | chain | facet), details.hosts every slot that runs it. Move the spec there (a Compose kind such as OVERLAY_T_VS_REF goes on ComposedRequest.Overlays, comparing two slots; a stage kind on ChainRequest.Overlays; a population kind on FacetRequest.Overlays), or pick a kind this slot runs.",
+				Examples: []any{"compose", "chain", "facet", "request"},
+			},
 		},
 	},
 	PULSE_OVERLAY_COMPONENTS_REQUIRED: {

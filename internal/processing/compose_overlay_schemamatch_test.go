@@ -539,7 +539,7 @@ func TestApplyComposeOverlays_SchemaDivergenceFailsLoud(t *testing.T) {
 	labels := []string{"baseline", "treatment"}
 	specs := []types.ComposeOverlaySpec{{
 		Name:      "diverging_schema",
-		Kind:      types.OverlayKindIndexVsStage,
+		Kind:      testComposeStubKind,
 		Scope:     types.OverlayScopeTotal,
 		Reference: "baseline",
 		Targets:   []string{"treatment"},
@@ -839,7 +839,7 @@ func TestApplyComposeOverlays_SlotShapeDivergenceFailsLoud(t *testing.T) {
 	labels := []string{"baseline", "treatment"}
 	specs := []types.ComposeOverlaySpec{{
 		Name:      "diverging_shape",
-		Kind:      types.OverlayKindIndexVsStage,
+		Kind:      testComposeStubKind,
 		Scope:     types.OverlayScopeTotal,
 		Reference: "baseline",
 		Targets:   []string{"treatment"},

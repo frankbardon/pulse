@@ -11,9 +11,8 @@ import (
 //
 // ComposedRequest.Overlays is the ONLY slot the panel can execute out
 // of — internal/processing/overlay_compose_dispatch.go is the only dispatch
-// table carrying the kind, ChainRequest.Overlays refuses it via
-// chainOverlayKindAllowed and FacetRequest.Overlays via
-// isFacetOverlayKind — so descriptor.ValidateCompose is the only
+// table carrying the kind, and every other slot refuses it via the
+// shared overlayhost refusal — so descriptor.ValidateCompose is the only
 // predict arm that has to judge its params.
 
 // composePanelRequest builds a minimal reference + one-target panel
