@@ -357,8 +357,8 @@ func ccChainRuns(t *testing.T, p *pulse.Pulse, req func() *pulse.ChainRequest) *
 // Stage 0 is judged against the cohort schema; a later stage against
 // the schema synthesised from the stage before it, where a group key
 // column is categorical (AGG_MODE over it is a code, refused) and an
-// aggregation output column is f64 (AGG_MODE over it scores — the
-// chain contract reads a forwarded code as a number).
+// aggregation output column is f64 — AGG_MODE over it scores, unless a
+// code-emitting aggregation wrote it (still a code, refused: E4-S17).
 func TestChainOverlay_CategoricalCodeScoredRefused(t *testing.T) {
 	p, _ := ccFixture(t, pulse.Options{})
 	for _, kind := range seriesfield.ChainKinds() {
@@ -391,9 +391,19 @@ func TestChainOverlay_CategoricalCodeScoredRefused(t *testing.T) {
 				"aggregation_index": 0, "aggregation": "AGG_MODE", "label": "s", "reason": "categorical_code",
 				"field": "region", "field_type": "categorical_u32"})
 		})
-		t.Run(string(kind)+"/stage1_mode_over_forwarded_column_scores", func(t *testing.T) {
-			ccChainRuns(t, p, func() *pulse.ChainRequest {
+		// A forwarded aggregation column is f64 in the synthesised
+		// schema, but one a code-emitting aggregation wrote is still a
+		// code (E4-S17): refused, field_type the type it is a code of.
+		t.Run(string(kind)+"/stage1_mode_over_forwarded_code_refused", func(t *testing.T) {
+			ccChainRefused(t, p, func() *pulse.ChainRequest {
 				return ccChain(s0(), stage1(&types.Aggregation{Type: types.AGG_MODE, Field: "mc", Label: "s"}), kind, 1, nil)
+			}, map[string]any{"overlay_index": 0, "kind": string(kind), "role": "target", "stage_index": 1, "stage_name": "s1",
+				"aggregation_index": 0, "aggregation": "AGG_MODE", "label": "s", "reason": "categorical_code",
+				"field": "mc", "field_type": "categorical_u8"})
+		})
+		t.Run(string(kind)+"/stage1_mode_over_forwarded_magnitude_scores", func(t *testing.T) {
+			ccChainRuns(t, p, func() *pulse.ChainRequest {
+				return ccChain(s0(), stage1(&types.Aggregation{Type: types.AGG_MODE, Field: "s", Label: "s"}), kind, 1, nil)
 			})
 		})
 	}

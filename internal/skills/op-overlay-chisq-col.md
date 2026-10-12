@@ -38,6 +38,9 @@ SERIES — `OverlayLayer.Payload.Shape = "series"`. One `SeriesEntry` per column
 - Any `expected < 5` in a column emits ONE `PULSE_OVERLAY_EXPECTED_LOW` per offending column.
 - Absent host cell treated as observed count of 0.
 - Buffered (inherent — host crosstab path always recomputes margins from raw rows).
+<!-- feature: AGG_MODE -->
+- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
+<!-- /feature -->
 
 ## See
 

@@ -49,6 +49,7 @@ MATRIX — `Cells[r][c].Value = (cell - margin) / sd`. Mirrors host RowKeys / Co
 - Empty `Ref.Margin` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Population SD convention (divide by N, not N-1) — like the row z-score attribute and the total z-score overlay.
 - Buffered (host crosstab path + per-slice Welford recurrence both need materialised matrix).
+- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 
 ## See
 

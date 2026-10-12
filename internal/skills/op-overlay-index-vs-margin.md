@@ -33,6 +33,9 @@ MATRIX (cell scope) or SERIES (row/column scope). `Cells[r][c].Value = 100 × ce
 - Distinct from `OVERLAY_SHARE_OF_*` (raw ratio, no ×100). Kind names kept distinct — don't authoring-confuse.
 - Buffered (host crosstab always recomputes margins from raw rows).
 - Weighted host → weighted figure (reads the host payload).
+<!-- feature: AGG_MODE -->
+- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
+<!-- /feature -->
 
 ## See
 

@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -45,7 +46,17 @@ func ScopedFieldRefRefusal(req *types.Request, schema *encoding.Schema, inst *In
 // runtime's bound set (a Compose slot's fits), predict's static
 // model.FitCatalog. Nil binds nothing.
 func ScopedFieldRefRefusalWithModels(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, models model.Catalog) error {
-	if all := fieldRefRefusalsWithModels(req, schema, inst.Extensions(), inst, models); len(all) > 0 {
+	return ScopedChainStageFieldRefRefusal(req, schema, nil, inst, models)
+}
+
+// ScopedChainStageFieldRefRefusal is ScopedFieldRefRefusalWithModels for
+// a chain stage >= 1, whose synthesised input schema types every
+// forwarded aggregation column f64: codes are the input columns that
+// carry a categorical code (vectors.AggregationKinds.ChainCodeColumns),
+// so the stage's own overlays judge an input-valued aggregation over
+// one as the code it is. Nil codes is ScopedFieldRefRefusalWithModels.
+func ScopedChainStageFieldRefRefusal(req *types.Request, schema *encoding.Schema, codes map[string]encoding.FieldType, inst *InstanceSnapshot, models model.Catalog) error {
+	if all := fieldRefRefusalsCoded(req, schema, codes, inst.Extensions(), inst, models); len(all) > 0 {
 		return all[0]
 	}
 	return nil
@@ -200,6 +211,13 @@ func fieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 // fieldRefRefusalsWithModels is fieldRefRefusals with the models an
 // ATTR_REG_PREDICT slot resolves against (nil: none bound).
 func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, models model.Catalog) []*errors.CodedError {
+	return fieldRefRefusalsCoded(req, schema, nil, snap, inst, models)
+}
+
+// fieldRefRefusalsCoded is fieldRefRefusalsWithModels with the code
+// columns a chain stage >= 1 inherits (nil: none) — read only by the
+// overlay categorical-code rule.
+func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes map[string]encoding.FieldType, snap *ExtensionsSnapshot, inst *InstanceSnapshot, models model.Catalog) []*errors.CodedError {
 	if req == nil || schema == nil {
 		return nil
 	}
@@ -602,7 +620,8 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 	}
 	// A request overlay reads ONE aggregation as its host value: the one
 	// a series kind's params.field names, else the first.
-	w.out = append(w.out, processOverlayArrayValuedRefusals(req, aggregationKinds(inst, w.snap), schema)...)
+	w.out = append(w.out, processOverlayArrayValuedRefusals(req, aggregationKinds(inst, w.snap), vectors.CodeFieldTypes(schema, codes),
+		func(k types.OverlayKind) bool { return !inst.Hidden(string(k)) && overlayhost.ReadsCellValue(k) })...)
 	if req.Crosstab == nil {
 		for i, t := range req.PostTests {
 			if t != nil {

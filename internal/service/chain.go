@@ -187,7 +187,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	for i := 1; i < len(req.Stages); i++ {
 		stage := req.Stages[i].Request
 		stage.Cohort = nil // chain stages >= 1 do not name a cohort
-		resp, err := s.runChainStageChild(withModelsBound(ctx, stageSets[i]), req, i, stage, priorReq, priorResp, plans[i], rets[i], &normStages)
+		resp, err := s.runChainStageChild(withModelsBound(ctx, stageSets[i]), req, i, stage, priorReq, priorResp, gateSchema, plans[i], rets[i], &normStages)
 		if err != nil {
 			return nil, err
 		}
@@ -276,7 +276,9 @@ func (s *Service) requestInputSchema(ctx context.Context, r *types.Request) *enc
 // stage's rows as a child operation: startChild gives it its own
 // observability carrier, which it stamps with the serial arm the stage
 // ran and the stage's row counters (no-ops off).
-func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainRequest, i int, stage, priorReq *types.Request, priorResp *types.Response, plan *descx.MultiplicityPlan, ret *returnplan.Plan, normStages *[]*types.ChainStage) (resp *types.Response, err error) {
+// stage0Schema is the schema stage 0 executed over (its gate schema):
+// the root the stage's inherited code columns are judged from.
+func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainRequest, i int, stage, priorReq *types.Request, priorResp *types.Response, stage0Schema *encoding.Schema, plan *descx.MultiplicityPlan, ret *returnplan.Plan, normStages *[]*types.ChainStage) (resp *types.Response, err error) {
 	ctx, end := startChild(ctx, i, stage)
 	defer func() { end(err) }()
 	// Only stage 0 may join: a later stage reads the previous
@@ -310,7 +312,12 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 	if err := mergegate.StageArrayValuedRefusal(stage, i, len(req.Stages), req.Stages[i].Name, s.extensions.AggregationKinds()); err != nil {
 		return nil, err
 	}
-	if err := s.checkFieldRefs(ctx, stage, synthSchema); err != nil {
+	// The stage's overlays judge a forwarded code column (an upstream
+	// code-emitting aggregation's output, f64 in synthSchema) as the
+	// code it is — the code columns ValidateChain threads, from the one
+	// shared rule over this side's ChainOutputSchema.
+	codes := s.extensions.AggregationKinds().ChainCodeColumns(chainStageRequests(req), i, stage0Schema, chainOutputSchemaOrNil)
+	if err := s.checkChainStageFieldRefs(ctx, stage, synthSchema, codes); err != nil {
 		return nil, locate(err, "stage", i)
 	}
 	if err := s.limitsPreflight(stage, synthSchema, descx.LimitInputs{
@@ -480,4 +487,27 @@ func (s *Service) runChainStage(ctx context.Context, req *types.Request, plan *d
 		return nil, err
 	}
 	return resp, nil
+}
+
+// chainStageRequests is req's stages' requests, index-aligned (as
+// executed: the stage loop resolves each stage's defaults in place).
+func chainStageRequests(req *types.ChainRequest) []*types.Request {
+	out := make([]*types.Request, len(req.Stages))
+	for i, st := range req.Stages {
+		if st != nil {
+			out[i] = st.Request
+		}
+	}
+	return out
+}
+
+// chainOutputSchemaOrNil is processing.ChainOutputSchema with a refusal
+// as nil (no code judgement past it; the stage loop raises the refusal
+// itself).
+func chainOutputSchemaOrNil(r *types.Request) *encoding.Schema {
+	out, err := processing.ChainOutputSchema(r)
+	if err != nil {
+		return nil
+	}
+	return out
 }

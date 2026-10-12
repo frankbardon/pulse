@@ -52,6 +52,7 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors host Ro
 - `grand_total <= 0` → absent cells everywhere + ONE `PULSE_OVERLAY_REF_ZERO`.
 - Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Buffered (inherent).
+- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 
 ## See
 

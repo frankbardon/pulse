@@ -283,3 +283,27 @@ func ShapeRefusal(shape types.OverlayShape, kind, route types.OverlayKind, index
 			"shapes": names,
 		})
 }
+
+// ReadsCellValue reports whether kind, on a MATRIX Process host, reads
+// the crosstab cell aggregation's VALUE — the one number per cell and
+// per margin (CellAt / MarginFor): the share / index / delta / z-score
+// vs-margin kinds, the χ² and Fisher kinds (cell values as observed
+// counts), the proportion pairwise kinds (OVERLAY_PAIRWISE_PROP_Z /
+// _PROBIT_T: the cell value as a proportion) and OVERLAY_FORMULA
+// (`cell`, the margins and their SDs). The moment pairwise kinds
+// (types.PairwiseKindUsesWelford, PairwiseKindUsesWeightedMoments)
+// read only the cell's component moments and counts, never its value,
+// and are false; so is every kind that does not run on a MATRIX host.
+// The categorical-code overlay rule refuses a value-reading kind over
+// a crosstab whose cell is a code; processing's
+// TestOverlayReadsCellValue_MatchesHandlers pins this to what each
+// MATRIX handler reads.
+func ReadsCellValue(kind types.OverlayKind) bool {
+	matrix := false
+	for _, s := range processShapes[kind] {
+		if s == types.OverlayShapeMatrix {
+			matrix = true
+		}
+	}
+	return matrix && !types.PairwiseKindUsesWelford(kind) && !types.PairwiseKindUsesWeightedMoments(kind)
+}

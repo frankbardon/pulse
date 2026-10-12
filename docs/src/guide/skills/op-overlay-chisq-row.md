@@ -51,6 +51,7 @@ SERIES — `OverlayLayer.Payload.Shape = "series"`. One `SeriesEntry` per row ke
 - Absent host cell treated as observed count of 0.
 - Scope MUST be `row`. Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Buffered (inherent).
+- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 
 ## See
 

@@ -44,6 +44,7 @@ MATRIX or SERIES — raw share (no ×100). A whole matrix / complete partition s
 - Absent host coordinate → unset entry, no contribution to the grand total.
 - A share, not an index (×100); the kind names are kept distinct.
 - Weighted host → weighted figure (reads the host payload).
+- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 
 ## See
 

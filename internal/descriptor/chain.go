@@ -304,7 +304,11 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			}
 		}
 		if fieldsReached {
-			refs := fieldRefRefusalsWithModels(fieldReq, fieldSchema, extensionsFromOpts(opts), opts.instance(), stageModels[i])
+			// A later stage's overlays judge a forwarded code column (an
+			// upstream code-emitting aggregation's output, f64 here) as
+			// the code it is — the runtime's ScopedChainStageFieldRefRefusal.
+			codes := aggregationKinds(opts.instance(), snap).ChainCodeColumns(stagedReqs, i, stage0Schema, synthChainSchema)
+			refs := fieldRefRefusalsCoded(fieldReq, fieldSchema, codes, extensionsFromOpts(opts), opts.instance(), stageModels[i])
 			for _, ce := range refs {
 				addCodedError(env, RefusalAt(ce, "stage", i))
 			}

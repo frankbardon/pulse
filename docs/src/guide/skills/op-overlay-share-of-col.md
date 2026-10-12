@@ -43,6 +43,7 @@ MATRIX — `Cells[r][c].Value = cell / col_margin` (raw ratio, no ×100). Cells 
 - Absent host cells stay absent on the overlay.
 - Buffered (host crosstab always recomputes margins from raw rows).
 - Weighted host → weighted figure (reads the host payload).
+- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 
 ## See
 

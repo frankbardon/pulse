@@ -39,7 +39,9 @@ import (
 //     field's schema type, so it is judged against the schema the slot
 //     executes over (the cohort's, the joined one for a joined slot, a
 //     chain stage >= 1's synthesised one — where a group key column is
-//     categorical and an aggregation output column f64): no schema, no
+//     categorical and an aggregation output column f64, except that a
+//     column an upstream code-emitting aggregation wrote stays the code
+//     it is, vectors.AggregationKinds.ChainCodeColumns): no schema, no
 //     judgement.
 //
 // All are PROCESSING_CONFIG. Predict (ValidateCompose /
@@ -56,7 +58,10 @@ import (
 // (processing.narrowSeriesHost), so an unscored one never reaches the
 // fold. A crosstab slot or stage is not narrowed, and keeps the
 // whole-request array-valued rule (its cells carry rich payloads the
-// cell kinds read).
+// cell kinds read). On a Process crosstab host the categorical-code
+// rule judges the CELL aggregation instead (crosstabCellCodeRefusal),
+// for the MATRIX kinds that read cell values
+// (overlayhost.ReadsCellValue).
 
 // scoredValueReasons are the details.reason values, and the message
 // phrase each one reads as.
@@ -316,8 +321,11 @@ func composeOverlayArrayValuedRefusal(i int, spec *types.ComposeOverlaySpec, req
 // stage 0 executes over (the cohort's, or the joined one) for the
 // categorical-code rule; a later stage is judged against the schema
 // synthesised from the stage before it (synthChainSchema: group key
-// columns categorical, aggregation outputs f64), so the stages must
-// carry their smart defaults by then. Nil when no overlay reads one.
+// columns categorical, aggregation outputs f64) plus the code columns
+// it inherits (vectors.AggregationKinds.ChainCodeColumns — an output
+// column an upstream code-emitting aggregation wrote is still a code),
+// so the stages must carry their smart defaults by then. Nil when no
+// overlay reads one.
 func ChainOverlayArrayValuedRefusal(req *types.ChainRequest, inst *InstanceSnapshot, stage0 *encoding.Schema) error {
 	if req == nil {
 		return nil
@@ -347,6 +355,29 @@ func chainStageInputSchema(staged []*types.Request, idx int, stage0 *encoding.Sc
 	return synthChainSchema(staged[idx-1])
 }
 
+// lazyChainStageFieldTypes is the code judgement's lookup over chain
+// stage idx's input: chainStageInputSchema plus the code columns it
+// inherits (vectors.ChainCodeColumns over synthChainSchema — a column a
+// code-emitting aggregation wrote upstream answers the type it is a
+// code of), built at most once and only when a lookup is made.
+func lazyChainStageFieldTypes(staged []*types.Request, idx int, stage0 *encoding.Schema, kinds vectors.AggregationKinds) fieldTypeLookup {
+	var (
+		done   bool
+		lookup fieldTypeLookup
+	)
+	return func(field string) (encoding.FieldType, bool) {
+		if !done {
+			done = true
+			lookup = vectors.CodeFieldTypes(chainStageInputSchema(staged, idx, stage0),
+				kinds.ChainCodeColumns(staged, idx, stage0, synthChainSchema))
+		}
+		if lookup == nil {
+			return 0, false
+		}
+		return lookup(field)
+	}
+}
+
 // chainStagedRequests is req's stages' requests, index-aligned.
 func chainStagedRequests(stages []*types.ChainStage) []*types.Request {
 	out := make([]*types.Request, len(stages))
@@ -372,12 +403,12 @@ func chainOverlayArrayValuedRefusal(req *types.ChainRequest, i int, spec *types.
 			continue
 		}
 		role := side.role
+		kinds := aggregationKinds(inst, nil)
 		var inputType fieldTypeLookup
 		if stage0 != nil {
 			idx := idx
-			inputType = lazyFieldTypes(func() *encoding.Schema { return chainStageInputSchema(staged, idx, stage0) })
+			inputType = lazyChainStageFieldTypes(staged, idx, stage0, kinds)
 		}
-		kinds := aggregationKinds(inst, nil)
 		ai, agg, reason := scoredNonScalarAggregation(req.Stages[idx].Request, spec.Kind, kinds, chainGateOwns(inst), inputType, func(aggs []*types.Aggregation) (int, error) {
 			if !seriesfield.AppliesChain(spec.Kind) {
 				return 0, nil
@@ -442,22 +473,32 @@ func chainStageIndex(req *types.ChainRequest, ref types.StageRef, dflt bool) (in
 // refusal per distinct array-valued or non-scalar aggregation an entry
 // of req.Overlays scores — the one params.field names on a kind
 // seriesfield.Applies accepts, else Aggregations[0] (every other kind
-// reads the first aggregation as its host value). A crosstab request is
-// out of scope here (its overlays read cells). An unresolvable field is
+// reads the first aggregation as its host value). A crosstab request's
+// overlays read cells, so only its cell's categorical-code rule applies
+// (below). An unresolvable field is
 // left to PULSE_OVERLAY_FIELD_UNKNOWN. Details {aggregation, label,
 // slot, reason: "array_valued" | "non_scalar" | "categorical_code"}
 // (the last adds the input field and field_type); slot is
-// "aggregations[<i>]". schema is the schema the request executes over
-// (nil: no categorical-code judgement).
-func processOverlayArrayValuedRefusals(req *types.Request, kinds vectors.AggregationKinds, schema *encoding.Schema) []*errors.CodedError {
-	if req == nil || len(req.Overlays) == 0 || req.Crosstab != nil {
+// "aggregations[<i>]". inputType types the fields the request executes
+// over (nil: no categorical-code judgement) — the schema's, plus on a
+// chain stage >= 1 the code columns it inherits
+// (vectors.CodeFieldTypes). A crosstab request is judged by
+// crosstabCellCodeRefusal instead; readsCell reports whether a kind
+// reads its cell values (the instance's overlayhost.ReadsCellValue).
+func processOverlayArrayValuedRefusals(req *types.Request, kinds vectors.AggregationKinds, inputType fieldTypeLookup, readsCell func(types.OverlayKind) bool) []*errors.CodedError {
+	if req == nil || len(req.Overlays) == 0 {
+		return nil
+	}
+	if req.Crosstab != nil {
+		if ce := crosstabCellCodeRefusal(req, kinds, inputType, readsCell); ce != nil {
+			return []*errors.CodedError{ce}
+		}
 		return nil
 	}
 	var out []*errors.CodedError
 	seen := map[int]bool{}
 	for i := range req.Overlays {
 		spec := &req.Overlays[i]
-		inputType := schemaFieldTypes(schema)
 		ai, host, reason := scoredNonScalarAggregation(req, spec.Kind, kinds, nil, inputType, func(aggs []*types.Aggregation) (int, error) {
 			if !seriesfield.Applies(spec.Kind) {
 				return 0, nil
@@ -490,4 +531,40 @@ func processOverlayArrayValuedRefusals(req *types.Request, kinds vectors.Aggrega
 				reason, host, kinds, inputType)))
 	}
 	return out
+}
+
+// crosstabCellCodeRefusal is the MATRIX half of the categorical-code
+// rule: a crosstab request whose cell aggregation is a categorical code
+// (IsCode over its input field — AGG_MODE over a categorical_* /
+// packed_bool field writes the modal dictionary index / truth value
+// into every cell and margin) refused for the first overlay of a kind
+// that reads the cell VALUES (readsCell — overlayhost.ReadsCellValue:
+// the share / index / delta / z-score vs-margin kinds, χ², Fisher, the
+// proportion pairwise kinds, OVERLAY_FORMULA). A kind reading only the
+// cell's component moments, or no overlay that reads values, leaves it
+// alone. One refusal per request (one cell aggregation): the E4-S14
+// Details shape {aggregation, label, slot: "crosstab.cell", reason:
+// "categorical_code", field, field_type}, PROCESSING_CONFIG. The array-
+// valued cell keeps its own whole-request crosstab refusal.
+func crosstabCellCodeRefusal(req *types.Request, kinds vectors.AggregationKinds, inputType fieldTypeLookup, readsCell func(types.OverlayKind) bool) *errors.CodedError {
+	cell := req.Crosstab.Cell
+	if readsCell == nil {
+		return nil
+	}
+	if _, ok := codeInput(cell, kinds, inputType); !ok {
+		return nil
+	}
+	for i := range req.Overlays {
+		kind := req.Overlays[i].Kind
+		if !readsCell(kind) {
+			continue
+		}
+		label := types.AggregationLabelOf(cell)
+		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+			"overlays["+strconv.Itoa(i)+"] ("+string(kind)+") reads the crosstab cell values, and the cell "+label+" ("+string(cell.Type)+
+				") is "+codeClause+"; an overlay compares magnitudes across cells — score a count instead (an AGG_COUNT cell, AGG_FREQUENCY of one label, AGG_AVERAGE of a packed_bool)",
+			withCodeDetails(map[string]any{"aggregation": string(cell.Type), "label": label, "slot": "crosstab.cell", "reason": reasonCategoricalCode},
+				reasonCategoricalCode, cell, kinds, inputType))
+	}
+	return nil
 }

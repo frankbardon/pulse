@@ -1254,8 +1254,11 @@ chain, chosen as above) with `PROCESSING_CONFIG`, reason
 `categorical_code` (Details add `field` and `field_type`), exactly as
 for the built-in `AGG_MODE`; over a numeric field, or unscored, it
 runs. A later chain stage reads a forwarded aggregation column as `f64`,
-so a pick over it there scores; a pick over a forwarded group key
-(`categorical_u32`) is refused. Undeclared, an overlay scores the code
+so a pick over it there scores — unless a code-emitting aggregation (a
+declared pick over a code, or `AGG_MODE`) wrote it: code-ness propagates
+through every stage. A pick over a forwarded group key
+(`categorical_u32`) is refused. As a crosstab cell over a code field it
+is refused under every MATRIX overlay kind that reads cell values. Undeclared, an overlay scores the code
 as a magnitude. The manifest's extension entry carries
 `emits_input_value`.
 

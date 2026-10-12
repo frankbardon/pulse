@@ -1413,7 +1413,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64 (the modal value; for a categorical field, its dictionary index, for a packed_bool field its 0/1 truth value — a code, not a magnitude, so an overlay scoring it over such a field (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason categorical_code)",
+          "emits_type_note": "scalar float64 (the modal value; for a categorical field, its dictionary index, for a packed_bool field its 0/1 truth value — a code, not a magnitude, so an overlay scoring it over such a field (params.field, else aggregations[0]; as a crosstab cell, any MATRIX kind reading cell values; on a later chain stage, over a column a code-emitting aggregation wrote) is refused PROCESSING_CONFIG reason categorical_code)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -16427,4 +16427,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 92571ab960f1b41feded1f02f2bb9713674193b70c49b78be58906aff989fa7b
+// golden-hash: 31b8a767dbf5dcdcbfbb63650e0e7e28463c94a46c6fd44ab61ff3781c17e3d6
