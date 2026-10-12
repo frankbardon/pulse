@@ -10,7 +10,7 @@
         {"type": "AGG_DISTINCT_COUNT", "field": "customer_id", "label": "customers"}
       ],
       "sort": [{"field": "revenue", "desc": true}],
-      "overlays": [{"name": "revenue_share", "kind": "OVERLAY_SHARE_OF_TOTAL", "scope": "group"}]
+      "overlays": [{"name": "revenue_share", "kind": "OVERLAY_SHARE_OF_TOTAL", "scope": "group", "params": {"field": "revenue"}}]
     },
     {
       "label": "by_category",
@@ -22,7 +22,7 @@
         {"type": "AGG_AVERAGE", "field": "returned", "label": "return_rate"}
       ],
       "sort": [{"field": "revenue", "desc": true}],
-      "overlays": [{"name": "revenue_share", "kind": "OVERLAY_SHARE_OF_TOTAL", "scope": "group"}]
+      "overlays": [{"name": "revenue_share", "kind": "OVERLAY_SHARE_OF_TOTAL", "scope": "group", "params": {"field": "revenue"}}]
     },
     {
       "label": "by_channel",
@@ -34,7 +34,7 @@
         {"type": "AGG_AVERAGE", "field": "quantity", "label": "avg_units_per_line"}
       ],
       "sort": [{"field": "revenue", "desc": true}],
-      "overlays": [{"name": "revenue_share", "kind": "OVERLAY_SHARE_OF_TOTAL", "scope": "group"}]
+      "overlays": [{"name": "revenue_share", "kind": "OVERLAY_SHARE_OF_TOTAL", "scope": "group", "params": {"field": "revenue"}}]
     },
     {
       "label": "loyalty_vs_not",
@@ -46,7 +46,7 @@
         {"type": "AGG_DISTINCT_COUNT", "field": "customer_id", "label": "customers"},
         {"type": "AGG_AVERAGE", "field": "net_amount", "label": "avg_line_value"}
       ],
-      "overlays": [{"name": "revenue_share", "kind": "OVERLAY_SHARE_OF_TOTAL", "scope": "group"}]
+      "overlays": [{"name": "revenue_share", "kind": "OVERLAY_SHARE_OF_TOTAL", "scope": "group", "params": {"field": "revenue"}}]
     },
     {
       "label": "by_discount",
@@ -57,7 +57,7 @@
         {"type": "AGG_COUNT", "field": "line_id", "label": "lines"}
       ],
       "sort": [{"field": "discount_pct"}],
-      "overlays": [{"name": "revenue_share", "kind": "OVERLAY_SHARE_OF_TOTAL", "scope": "group"}]
+      "overlays": [{"name": "revenue_share", "kind": "OVERLAY_SHARE_OF_TOTAL", "scope": "group", "params": {"field": "revenue"}}]
     }
   ]
 }

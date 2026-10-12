@@ -209,7 +209,8 @@ helps latency on row-level outputs, not on grouped totals.
 `req/04_dashboard_compose.json` holds five slots over `orders-2025-12.pulse`:
 region, category, channel, loyalty and discount. Each slot carries an
 `OVERLAY_SHARE_OF_TOTAL` overlay so the revenue share comes back with the
-numbers. `pulse api predict-compose` validates it in 0.17 s. `pulse api compose`
+numbers. The overlay's `params.field` names the `revenue` aggregation, so its
+position in the slot's `aggregations` list does not matter. `pulse api predict-compose` validates it in 0.17 s. `pulse api compose`
 runs it in **4.84 s** serial or **4.23 s** with `--parallel 4` (769 MB), and the
 two return identical data.
 
@@ -294,7 +295,8 @@ than as January acquisitions.
 **Spend concentration** (`req/06_spend_distribution_chain.json`). Stage 0 gives
 per-customer `spend`, `orders` and `is_member` (`AGG_MAX loyalty_member`). Stage 1
 buckets spend with an `ATTR_FORMULA` band, groups by band, and adds
-`OVERLAY_SHARE_OF_TOTAL` for each band's share of panel spend. Run time:
+`OVERLAY_SHARE_OF_TOTAL` (`params.field: "spend"`) for each band's share of
+panel spend. Run time:
 **71.8 s, 3.7 GB**.
 
 | 2025 spend band | customers | spend (USD) | share of panel spend | avg orders | loyalty members |

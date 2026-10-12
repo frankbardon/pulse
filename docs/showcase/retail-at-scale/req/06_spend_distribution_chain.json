@@ -86,7 +86,10 @@
           {
             "name": "share",
             "kind": "OVERLAY_SHARE_OF_TOTAL",
-            "scope": "group"
+            "scope": "group",
+            "params": {
+              "field": "spend"
+            }
           }
         ]
       }

@@ -1,7 +1,7 @@
 {
   "requests": [
     {
-      "label": "aided_delta",
+      "label": "kpi_deltas",
       "cohort": {
         "filename": "brand_tracker.pulse",
         "data_dir": "."
@@ -21,13 +21,82 @@
           "type": "AGG_AVERAGE",
           "field": "aware_aided",
           "label": "aided"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "aware_unaided",
+          "label": "unaided"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "consider",
+          "label": "consider"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "intent_t2b",
+          "label": "intent_t2b"
+        },
+        {
+          "type": "AGG_AVERAGE",
+          "field": "nps_score",
+          "label": "nps"
         }
       ],
       "overlays": [
         {
-          "name": "delta_vs_prior_wave",
+          "name": "delta_vs_prior_aided",
           "kind": "OVERLAY_DELTA_VS_PRIOR",
-          "scope": "group"
+          "scope": "group",
+          "params": {
+            "field": "aided"
+          }
+        },
+        {
+          "name": "delta_vs_prior_unaided",
+          "kind": "OVERLAY_DELTA_VS_PRIOR",
+          "scope": "group",
+          "params": {
+            "field": "unaided"
+          }
+        },
+        {
+          "name": "delta_vs_prior_consider",
+          "kind": "OVERLAY_DELTA_VS_PRIOR",
+          "scope": "group",
+          "params": {
+            "field": "consider"
+          }
+        },
+        {
+          "name": "delta_vs_prior_intent_t2b",
+          "kind": "OVERLAY_DELTA_VS_PRIOR",
+          "scope": "group",
+          "params": {
+            "field": "intent_t2b"
+          }
+        },
+        {
+          "name": "delta_vs_prior_nps",
+          "kind": "OVERLAY_DELTA_VS_PRIOR",
+          "scope": "group",
+          "params": {
+            "field": "nps"
+          }
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_FORMULA",
+          "field": "intent",
+          "label": "intent_t2b",
+          "expression": "intent == nil ? nil : (intent >= 4 ? 1 : 0)"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "field": "nps",
+          "label": "nps_score",
+          "expression": "nps == nil ? nil : (nps >= 9 ? 100 : (nps <= 6 ? -100 : 0))"
         }
       ]
     },
@@ -72,37 +141,6 @@
       ]
     },
     {
-      "label": "unaided_delta",
-      "cohort": {
-        "filename": "brand_tracker.pulse",
-        "data_dir": "."
-      },
-      "weight": {
-        "field": "weight",
-        "kind": "probability"
-      },
-      "groups": [
-        {
-          "type": "GROUP_CATEGORY",
-          "field": "wave"
-        }
-      ],
-      "aggregations": [
-        {
-          "type": "AGG_AVERAGE",
-          "field": "aware_unaided",
-          "label": "unaided"
-        }
-      ],
-      "overlays": [
-        {
-          "name": "delta_vs_prior_wave",
-          "kind": "OVERLAY_DELTA_VS_PRIOR",
-          "scope": "group"
-        }
-      ]
-    },
-    {
       "label": "unaided_tests",
       "cohort": {
         "filename": "brand_tracker.pulse",
@@ -139,46 +177,6 @@
           "params": {
             "p_source": "cell_value"
           }
-        }
-      ]
-    },
-    {
-      "label": "consider_delta",
-      "cohort": {
-        "filename": "brand_tracker.pulse",
-        "data_dir": "."
-      },
-      "weight": {
-        "field": "weight",
-        "kind": "probability"
-      },
-      "filterers": [
-        {
-          "type": "FILTER_NULL",
-          "field": "consider",
-          "values": [
-            "is_not_null"
-          ]
-        }
-      ],
-      "groups": [
-        {
-          "type": "GROUP_CATEGORY",
-          "field": "wave"
-        }
-      ],
-      "aggregations": [
-        {
-          "type": "AGG_AVERAGE",
-          "field": "consider",
-          "label": "consider"
-        }
-      ],
-      "overlays": [
-        {
-          "name": "delta_vs_prior_wave",
-          "kind": "OVERLAY_DELTA_VS_PRIOR",
-          "scope": "group"
         }
       ]
     },
@@ -228,59 +226,6 @@
           "params": {
             "p_source": "cell_value"
           }
-        }
-      ]
-    },
-    {
-      "label": "intent_t2b_delta",
-      "cohort": {
-        "filename": "brand_tracker.pulse",
-        "data_dir": "."
-      },
-      "weight": {
-        "field": "weight",
-        "kind": "probability"
-      },
-      "filterers": [
-        {
-          "type": "FILTER_NULL",
-          "field": "intent",
-          "values": [
-            "is_not_null"
-          ]
-        }
-      ],
-      "attributes": [
-        {
-          "type": "ATTR_CODE_IN",
-          "field": "intent",
-          "label": "intent_t2b",
-          "params": {
-            "codes": [
-              4,
-              5
-            ]
-          }
-        }
-      ],
-      "groups": [
-        {
-          "type": "GROUP_CATEGORY",
-          "field": "wave"
-        }
-      ],
-      "aggregations": [
-        {
-          "type": "AGG_AVERAGE",
-          "field": "intent_t2b",
-          "label": "intent_t2b"
-        }
-      ],
-      "overlays": [
-        {
-          "name": "delta_vs_prior_wave",
-          "kind": "OVERLAY_DELTA_VS_PRIOR",
-          "scope": "group"
         }
       ]
     },
@@ -343,54 +288,6 @@
           "params": {
             "p_source": "cell_value"
           }
-        }
-      ]
-    },
-    {
-      "label": "nps_delta",
-      "cohort": {
-        "filename": "brand_tracker.pulse",
-        "data_dir": "."
-      },
-      "weight": {
-        "field": "weight",
-        "kind": "probability"
-      },
-      "filterers": [
-        {
-          "type": "FILTER_NULL",
-          "field": "nps",
-          "values": [
-            "is_not_null"
-          ]
-        }
-      ],
-      "attributes": [
-        {
-          "type": "ATTR_FORMULA",
-          "field": "nps",
-          "label": "nps_score",
-          "expression": "nps >= 9 ? 100 : (nps <= 6 ? -100 : 0)"
-        }
-      ],
-      "groups": [
-        {
-          "type": "GROUP_CATEGORY",
-          "field": "wave"
-        }
-      ],
-      "aggregations": [
-        {
-          "type": "AGG_AVERAGE",
-          "field": "nps_score",
-          "label": "nps"
-        }
-      ],
-      "overlays": [
-        {
-          "name": "delta_vs_prior_wave",
-          "kind": "OVERLAY_DELTA_VS_PRIOR",
-          "scope": "group"
         }
       ]
     },

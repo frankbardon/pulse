@@ -201,23 +201,29 @@ Within each age band the weighted and unweighted NPS agree to within 0.7 points.
 
 ### Step 5: The KPI tracker: deltas and tests, corrected across all KPIs (`req/05_kpi_tracker.json`)
 
-This is a ten-slot Compose with two slots per KPI:
+This is a six-slot Compose: one grouped Process for every KPI's change, and one pairwise-test crosstab per KPI.
 
-- A grouped Process by wave with `OVERLAY_DELTA_VS_PRIOR`. It gives the change against the previous wave in the KPI's own units.
-- The Step 3 crosstab with pairwise wave tests.
+- One grouped Process by wave carries all five KPIs as aggregations, with one `OVERLAY_DELTA_VS_PRIOR` per KPI. Each overlay's `params.field` names the aggregation it scores, so the change against the previous wave comes out in that KPI's own units. The two derived KPIs (top-2-box intent and NPS) are null-safe formula attributes, so a respondent not asked the question drops out of that KPI's base without a filter that would cut the other KPIs.
+- The Step 3 crosstab with pairwise wave tests, once per KPI.
 
 A request-level `"multiplicity": {"method": "holm", "family": "compose"}` pools all 30 pairwise p-values (5 KPIs × 6 wave pairs). Each overlay then carries `p_adjusted` beside the untouched raw `p_value`.
 
 ```json
 {"requests": [
-   {"label": "consider_delta", "...": "...",
+   {"label": "kpi_deltas", "...": "...",
     "groups": [{"type": "GROUP_CATEGORY", "field": "wave"}],
-    "aggregations": [{"type": "AGG_AVERAGE", "field": "consider", "label": "consider"}],
-    "overlays": [{"name": "delta_vs_prior_wave", "kind": "OVERLAY_DELTA_VS_PRIOR", "scope": "group"}]},
+    "aggregations": [{"type": "AGG_AVERAGE", "field": "aware_aided", "label": "aided"},
+                     {"type": "AGG_AVERAGE", "field": "consider", "label": "consider"},
+                     "... three more KPIs ..."],
+    "overlays": [{"name": "delta_vs_prior_aided", "kind": "OVERLAY_DELTA_VS_PRIOR", "scope": "group",
+                  "params": {"field": "aided"}},
+                 {"name": "delta_vs_prior_consider", "kind": "OVERLAY_DELTA_VS_PRIOR", "scope": "group",
+                  "params": {"field": "consider"}},
+                 "... three more, one per KPI ..."]},
    {"label": "consider_tests", "...": "wave x market crosstab as in Step 3",
     "overlays": [{"name": "wave_vs_wave", "kind": "OVERLAY_PAIRWISE_PROP_Z", "scope": "row",
                   "params": {"p_source": "cell_value"}}]},
-   "... four more KPI pairs; NPS uses OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z with n_basis kish ..."],
+   "... four more KPI tests; NPS uses OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z with n_basis kish ..."],
  "multiplicity": {"method": "holm", "family": "compose"}}
 ```
 

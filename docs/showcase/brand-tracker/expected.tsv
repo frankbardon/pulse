@@ -10,7 +10,7 @@ out/03_unaided_phantom_gain.json	.data.responses[0].overlays[0].payload.matrix.c
 out/03_unaided_phantom_gain.json	.data.responses[1].overlays[0].payload.matrix.cells[2][0].value	0.867	Q1 vs Q4 unaided p, weighted
 out/04_nps_reversal.json	.data.responses[0].data[0].nps_unweighted	5.604	NPS, unweighted
 out/04_nps_reversal.json	.data.responses[0].data[0].nps_weighted	-3.176	NPS, weighted
-out/05_kpi_tracker.json	.data.responses[5].overlays[0].payload.p_adjusted.cells[5][0].value	0.012	consideration Q3 vs Q4, Holm-adjusted p
+out/05_kpi_tracker.json	.data.responses[3].overlays[0].payload.p_adjusted.cells[5][0].value	0.012	consideration Q3 vs Q4, Holm-adjusted p
 out/05_kpi_tracker.json	.data.responses[1].overlays[0].payload.matrix.cells[5][0].value	0.046	aided Q3 vs Q4, raw p
 out/05_kpi_tracker.json	.data.responses[1].overlays[0].payload.p_adjusted.cells[5][0].value	1	aided Q3 vs Q4, Holm-adjusted p
 out/06_q4_banner.json	.data.responses[11].overlays[0].payload.matrix.cells[0][2].value	0.046	Q4 top-2-box Midwest vs West, raw p
