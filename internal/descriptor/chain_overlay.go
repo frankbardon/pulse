@@ -92,7 +92,7 @@ func chainOverlayKindAllowed(kind types.OverlayKind) bool {
 // alongside the per-stage ones in a single envelope (mirrors how
 // Predict accumulates errors across overlay / field / streamability
 // gates).
-func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResult, req *types.ChainRequest, opts *PredictOptions) {
+func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResult, req *types.ChainRequest, staged []*types.Request, opts *PredictOptions) {
 	if req == nil || len(req.Overlays) == 0 {
 		return
 	}
@@ -157,11 +157,15 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 		// The SERIES value rule (U46): a non-crosstab stage is scored on
 		// the aggregation params.field names (else Aggregations[0]), the
 		// runtime's processing.projectChainSeriesStages — target first,
-		// then ref. A stage with an untyped, unlabelled aggregation takes
-		// its labels from the schema at run time, so the runtime judges it.
-		validateChainOverlaySeriesField(env, spec, opts.overlayRoute(spec.Kind), i, "target", targetIdx, targetReq)
+		// then ref. A stage whose untyped, unlabelled aggregation still
+		// has no Type after defaults (DisableDefaults, an unknown field)
+		// is left to the runtime, which refuses it first.
+		// Labels resolve on the stage as executed (stagedAt: smart
+		// defaults applied against the stage's input schema, the joined
+		// one for a joined stage 0).
+		validateChainOverlaySeriesField(env, spec, opts.overlayRoute(spec.Kind), i, "target", targetIdx, stagedAt(staged, targetIdx, targetReq))
 		if refIdx != targetIdx {
-			validateChainOverlaySeriesField(env, spec, opts.overlayRoute(spec.Kind), i, "ref", refIdx, refReq)
+			validateChainOverlaySeriesField(env, spec, opts.overlayRoute(spec.Kind), i, "ref", refIdx, stagedAt(staged, refIdx, refReq))
 		}
 		refShape := inferChainStageShape(refReq)
 		targetShape := inferChainStageShape(targetReq)
@@ -192,6 +196,15 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 				})
 		}
 	}
+}
+
+// stagedAt is stage idx as the runtime executes it (staged[idx], its
+// defaults resolved), else the stage as written.
+func stagedAt(staged []*types.Request, idx int, written *types.Request) *types.Request {
+	if idx >= 0 && idx < len(staged) && staged[idx] != nil {
+		return staged[idx]
+	}
+	return written
 }
 
 // validateChainOverlaySeriesField refuses a params.field that names no

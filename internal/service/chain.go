@@ -127,7 +127,14 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	}
 	ei.Lap(observe.PhaseOpen)
 
-	s.applyDefaults(stage0, cohort.Schema())
+	// Stage 0's defaults and chain gate read its input schema — for a
+	// joined stage 0 the JOINED one (chainStage0Schema), the schema
+	// Process executes it against. Against the bare cohort an untyped
+	// aggregation over a right-side field stayed untyped: the gate
+	// refused it, and the overlays and the next stage could not name
+	// its default TYPE_field label.
+	gateSchema := s.chainStage0Schema(ctx, stage0, cohort.Schema())
+	s.applyDefaults(stage0, gateSchema)
 	// Zones resolve before the chain gate on every stage. A joined
 	// stage 0 resolves inside Process against the joined schema
 	// instead (its refusal is located below).
@@ -137,7 +144,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 			return nil, locate(err, "stage", 0)
 		}
 	}
-	if err := processing.ChainRefusal(stage0, cohort.Schema(), s.extensions, 0, req.Stages[0].Name); err != nil {
+	if err := processing.ChainRefusal(stage0, gateSchema, s.extensions, 0, req.Stages[0].Name); err != nil {
 		return nil, err
 	}
 	if err := mergegate.StageArrayValuedRefusal(stage0, 0, len(req.Stages), req.Stages[0].Name, s.extensions.AggregationKinds()); err != nil {
@@ -215,6 +222,29 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 		ei.Lap(observe.PhaseOverlay)
 	}
 	return out, nil
+}
+
+// chainStage0Schema is the schema a chain stage 0's smart defaults and
+// chain gate read: left, or — when the stage carries exactly one
+// JoinSpec whose right side opens (header only, no record) and joins
+// without a field collision — the joined schema processWithJoin runs
+// it against. Any failure falls back to left, so Process raises the
+// join's own refusal where it always did. The join keys are not judged
+// here (the joined schema does not depend on them). Predict's twin is
+// internal/descriptor.joinedDefaultsSchema.
+func (s *Service) chainStage0Schema(ctx context.Context, stage0 *types.Request, left *encoding.Schema) *encoding.Schema {
+	if len(stage0.Joins) != 1 || stage0.Joins[0] == nil {
+		return left
+	}
+	right, err := s.Open(ctx, stage0.Joins[0].Right)
+	if err != nil {
+		return left
+	}
+	joined, err := processing.JoinedSchema(left, right.Schema(), stage0.Joins[0])
+	if err != nil {
+		return left
+	}
+	return joined
 }
 
 // runChainStageChild runs chain stage i (i >= 1) over the previous

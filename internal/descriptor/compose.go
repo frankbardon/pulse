@@ -651,13 +651,16 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 				continue
 			}
 			// An aggregation authored without a Type takes its smart
-			// default (and so its TYPE_field label) from the cohort
-			// schema, which predict-compose never reads: such a slot's
-			// labels are unknown here, so the runtime judges it.
-			if requestLabelsDeferred(s.req) {
+			// default (and so its TYPE_field label) from the slot's
+			// schema — the joined one for a joined slot — read header
+			// only (composeSlotAsExecuted). Only a slot whose schema
+			// does not load, or whose defaults are off, stays unknown
+			// here; the runtime refuses its untyped aggregation first.
+			sreq := composeSlotAsExecuted(s.req, opts)
+			if requestLabelsDeferred(sreq) {
 				continue
 			}
-			if _, ferr := seriesfield.ResolveComposeSlot(s.req.Aggregations, spec, specIdx, s.label); ferr != nil {
+			if _, ferr := seriesfield.ResolveComposeSlot(sreq.Aggregations, spec, specIdx, s.label); ferr != nil {
 				addCodedError(env, ferr)
 				appendComposeSlotPair(result, spec.Reference, s.label, "field-unknown")
 			}
@@ -987,8 +990,10 @@ func composeRequestAxisTuples(req *types.Request) ([]string, []string) {
 
 // requestLabelsDeferred reports whether a Compose slot or chain stage
 // Request carries an aggregation with neither a Label nor a Type: its
-// output label is the smart default's TYPE_field, decided by the
-// cohort schema at run time.
+// output label is the smart default's TYPE_field, which only its
+// (post-join) schema decides. Callers resolve defaults first
+// (composeSlotAsExecuted, the chain's staged stages), so it is true
+// only when that schema is unknown or defaults are off.
 func requestLabelsDeferred(req *types.Request) bool {
 	for _, a := range req.Aggregations {
 		if a != nil && a.Label == "" && a.Type == "" {
@@ -996,6 +1001,23 @@ func requestLabelsDeferred(req *types.Request) bool {
 		}
 	}
 	return false
+}
+
+// composeSlotAsExecuted is a Compose slot as the runtime executes it
+// for label resolution: when an aggregation is untyped and unlabelled,
+// a clone with smart defaults resolved against the slot's cohort
+// schema, or the joined schema for a joined slot (joinedDefaultsSchema
+// — processWithJoin's preflight); otherwise the slot itself. Header and
+// schema reads only.
+func composeSlotAsExecuted(req *types.Request, opts *PredictOptions) *types.Request {
+	if !requestLabelsDeferred(req) || opts == nil || opts.DisableDefaults {
+		return req
+	}
+	schema := joinedDefaultsSchema(req, cohortSchemaFor(req.Cohort, opts), opts)
+	if schema == nil {
+		return req
+	}
+	return defaultedForValidation(req, schema, opts)
 }
 
 // composeSeriesKeyFields returns the sorted group key columns a SERIES

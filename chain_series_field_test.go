@@ -217,7 +217,7 @@ func TestChainSeriesOverlay_FieldUnknownParity(t *testing.T) {
 // without a Type is labelled by its smart default (AGG_SUM_y over the
 // f64 y), which only the cohort schema decides. The runtime scores the
 // field naming that label exactly as the explicitly typed twin;
-// predict-chain defers that stage instead of refusing.
+// predict-chain resolves the same default on the stage and admits it.
 func TestChainSeriesOverlay_DefaultedLabel(t *testing.T) {
 	f := newMGFixture(t, pulse.Options{})
 	run := func(y *types.Aggregation) string {

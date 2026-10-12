@@ -241,7 +241,8 @@ func TestComposeSeriesOverlay_KeyFieldsDivergentParity(t *testing.T) {
 // without a Type is labelled by its smart default (AGG_SUM_y over the
 // f64 y), which only the cohort schema decides. The runtime scores the
 // field naming that label exactly as the explicitly typed twin;
-// predict-compose, which reads no schema, defers instead of refusing.
+// predict-compose resolves the same default from the slot's schema
+// (header only) and admits it.
 func TestComposeSeriesOverlay_DefaultedLabel(t *testing.T) {
 	f := newMGFixture(t, pulse.Options{})
 	untyped := func() *types.Aggregation { return &types.Aggregation{Field: "y"} }
