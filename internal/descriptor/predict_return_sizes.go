@@ -127,11 +127,18 @@ func (in returnSizeInputs) clamp(n int64) int64 {
 func (in returnSizeInputs) dataRows() (int64, string, bool) {
 	req := in.req
 	if len(req.Groups) > 0 {
-		b, _, known := vectors.EstimateBuckets(req.Groups, in.schema)
+		// The MaxGroups bound: every grouper's key count multiplied (a
+		// composite row per observed combination), clamped by the
+		// record count unless a grouper fans out.
+		records := int64(-1)
+		if in.recordsKnown {
+			records = in.records
+		}
+		b, known := EstimateGroups(req.Groups, in.schema, in.inst, records)
 		if !known {
 			return 0, "", false
 		}
-		return in.clamp(b), returnSizeUpperBound, true
+		return b, returnSizeUpperBound, true
 	}
 	if len(req.Aggregations) > 0 {
 		return 1, returnSizeExact, true

@@ -465,10 +465,19 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 				continue
 			}
 			key := vectors.GroupKeyField(opRoute(inst, grp.Type), grp)
-			out[key] = true
-			if _, ok := owner[key]; !ok {
-				owner[key] = map[string]any{"group_index": gi, "group": string(grp.Type)}
+			// Two groupers writing one key column: each composite row
+			// carries one value per column, so the second grouper's
+			// key would overwrite the first's and the row would no
+			// longer name its combination.
+			if prior, ok := owner[key]; ok {
+				pi := prior["group_index"].(int)
+				w.out = append(w.out, refusal("group["+strconv.Itoa(gi)+"] field "+key+" collides with group["+strconv.Itoa(pi)+"] field "+key,
+					map[string]any{"field": key, "group_index": gi, "group": string(grp.Type),
+						"other_group_index": pi, "other_group": prior["group"]}))
+				continue
 			}
+			out[key] = true
+			owner[key] = map[string]any{"group_index": gi, "group": string(grp.Type)}
 		}
 		for ai, agg := range req.Aggregations {
 			if agg == nil {

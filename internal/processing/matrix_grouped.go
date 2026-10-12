@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/processing/window"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -20,19 +21,19 @@ import (
 // function of that bucket's rows alone, whatever path or worker count
 // delivered them.
 //
-// Bucket keys come from the grouper the grouped path executes — the
-// same GroupKeyer / Grouper.Group partition and the same
-// orderKeysByInclude order the Data rows use, then permuted by an
-// explicit Request.Sort exactly as the rows are (sortGroupedRows). The
-// engine executes Request.Groups[0] only today (multi-entry Groups is
-// U35's), and the matrices follow the FINAL Data order, Sort included.
+// Bucket keys come from the groupers the grouped path executes — the
+// same GroupKeyer / Grouper.Group partition (the composite key of two
+// or more groupers) and the same order the Data rows use, then permuted
+// by an explicit Request.Sort exactly as the rows are
+// (sortGroupedRows); the matrices follow the FINAL Data order, Sort
+// included. A composite bucket's GroupKey is its per-grouper tuple and
+// its GroupHeader names every grouper.
 
 // GroupedMatrices is a grouped run's matrix state: the resolved specs
 // and one slot set per bucket key. A nil *GroupedMatrices is a request
 // without matrices (or without groups): every method is a no-op.
 type GroupedMatrices struct {
 	set     *matrixPlanSet
-	header  types.AxisHeader
 	buckets map[string][]*matrixSlot
 	// limits bounds the bucket count (MaxGroups) at the mint.
 	limits limits.Limits
@@ -52,10 +53,8 @@ func BuildGroupedMatrices(req *types.Request, schema *encoding.Schema, exts *Ext
 	if err != nil || set == nil {
 		return nil, err
 	}
-	grp := req.Groups[0]
 	return &GroupedMatrices{
 		set:     set,
-		header:  types.AxisHeader{Fields: []string{grp.Field}, Types: []string{string(grp.Type)}},
 		buckets: make(map[string][]*matrixSlot),
 		limits:  l,
 	}, nil
@@ -209,12 +208,22 @@ func sortGroupedRows(data []map[string]any, order []types.OrderKey, keys []strin
 // finalize renders the per-bucket results over keys — the final order
 // of the Data rows (sortGroupedRows) — spec-major, then bucket. Each
 // result (and Components entry) carries its bucket's GroupKey and the
-// executed grouper's GroupHeader. A key with no matrix state (no row
-// reached its slots) renders from empty slots, so it is still emitted,
-// as the thin bucket it is.
-func (g *GroupedMatrices) finalize(keys []string) ([]types.MatrixResult, []types.MatrixComponents, error) {
+// executed groupers' GroupHeader (groups, the run's grouper slots). set
+// is a multi-grouper run's observed composite keys: GroupKey is then the
+// key's tuple, never the composite string; nil keeps the one-element
+// GroupKey. A key with no matrix state (no row reached its slots)
+// renders from empty slots, so it is still emitted, as the thin bucket
+// it is.
+func (g *GroupedMatrices) finalize(keys []string, groups []*types.Group, set *CompositeKeySet) ([]types.MatrixResult, []types.MatrixComponents, error) {
 	if g == nil {
 		return nil, nil, nil
+	}
+	header := groupedMatrixHeader(groups)
+	groupKey := func(key string) types.AxisKey {
+		if set != nil {
+			return set.Tuple(key)
+		}
+		return types.AxisKey{key}
 	}
 	sets := make([][]*matrixSlot, len(keys))
 	for k, key := range keys {
@@ -236,18 +245,34 @@ func (g *GroupedMatrices) finalize(keys []string) ([]types.MatrixResult, []types
 				return nil, nil, err
 			}
 			if g.set.compute.MatricesSlot {
-				res.GroupKey = types.AxisKey{key}
+				res.GroupKey = groupKey(key)
 				res.GroupHeader = &types.AxisHeader{
-					Fields: append([]string(nil), g.header.Fields...),
-					Types:  append([]string(nil), g.header.Types...),
+					Fields: append([]string(nil), header.Fields...),
+					Types:  append([]string(nil), header.Types...),
 				}
 				out = append(out, res)
 			}
 			if c != nil {
-				c.GroupKey = types.AxisKey{key}
+				c.GroupKey = groupKey(key)
 				comps = append(comps, *c)
 			}
 		}
 	}
 	return out, comps, nil
+}
+
+// groupedMatrixHeader is a grouped matrix's GroupHeader: one entry per
+// grouper slot, each the slot's Data key column and type. One grouper
+// names its Field (the pre-composite header, unchanged); two or more
+// name each key column as the Data rows carry it (vectors.GroupKeyField).
+func groupedMatrixHeader(groups []*types.Group) types.AxisHeader {
+	h := types.AxisHeader{Fields: make([]string, len(groups)), Types: make([]string, len(groups))}
+	for i, grp := range groups {
+		h.Fields[i] = grp.Field
+		if len(groups) > 1 {
+			h.Fields[i] = vectors.GroupKeyField(grp.Type, grp)
+		}
+		h.Types[i] = string(grp.Type)
+	}
+	return h
 }

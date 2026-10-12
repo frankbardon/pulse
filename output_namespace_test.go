@@ -31,6 +31,19 @@ func outputCollisionRequests(cohort string) map[string]struct {
 		message string
 		details map[string]any
 	}{
+		// Two groupers writing one key column: a composite row would
+		// carry one of the two keys, so it could not name its
+		// combination.
+		"repeated group field": {func() *types.Request {
+			return &types.Request{Cohort: co(), Groups: append(cat(), &types.Group{Type: types.GROUP_CATEGORY, Field: "cat"}),
+				Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "n"}}}
+		}, "group[1] field cat collides with group[0] field cat",
+			map[string]any{"field": "cat", "group_index": 1, "group": "GROUP_CATEGORY", "other_group_index": 0, "other_group": "GROUP_CATEGORY"}},
+		"different groupers on one field": {func() *types.Request {
+			return &types.Request{Cohort: co(), Groups: []*types.Group{{Type: types.GROUP_RANGE, Field: "n", Interval: 10}, {Type: types.GROUP_QUANTILE, Field: "n"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "n"}}}
+		}, "group[1] field n collides with group[0] field n",
+			map[string]any{"field": "n", "group_index": 1, "group": "GROUP_QUANTILE", "other_group_index": 0, "other_group": "GROUP_RANGE"}},
 		"aggregation label equals group field": {func() *types.Request {
 			return &types.Request{Cohort: co(), Groups: cat(),
 				Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "n"}, {Type: types.AGG_SUM, Field: "n", Label: "cat"}}}
@@ -137,9 +150,9 @@ func TestOutputNamespace_CollisionRefusedOnEverySide(t *testing.T) {
 // TestOutputNamespace_DistinctNamesAccepted: names that only LOOK alike
 // are not collisions — an aggregation labelled like the field it reads
 // (not an output column), distinct labels over one field, a label equal
-// to an attribute label (attributes are not output columns), and a
-// repeated group field (one output column). Both sides accept, and the
-// figures all reach the row.
+// to an attribute label (attributes are not output columns). Both
+// sides accept, and the figures all reach the row. (A repeated group
+// field is a collision since U54: outputCollisionRequests.)
 func TestOutputNamespace_DistinctNamesAccepted(t *testing.T) {
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
@@ -147,7 +160,7 @@ func TestOutputNamespace_DistinctNamesAccepted(t *testing.T) {
 	req := func() *types.Request {
 		return &types.Request{Cohort: &types.Cohort{Filename: cohort},
 			Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "x", Expression: "n * 2"}},
-			Groups:     []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}, {Type: types.GROUP_CATEGORY, Field: "cat"}},
+			Groups:     []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
 			Aggregations: []*types.Aggregation{
 				{Type: types.AGG_SUM, Field: "n", Label: "n"},
 				{Type: types.AGG_MAX, Field: "n"},

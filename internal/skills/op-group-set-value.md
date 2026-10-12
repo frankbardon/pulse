@@ -13,7 +13,7 @@ examples_tags: [cardinality-analysis, cohort-analysis]
 
 ## Params
 
-None. `Group.Label` overrides the output column name; `Group.Include []string` allow-lists composite keys (pipe-joined sorted labels, `"AMEX|VISA"`) and sets emission order.
+None. The key column is named `Field`; `Group.Include []string` allow-lists composite keys (pipe-joined sorted labels, `"AMEX|VISA"`) and sets emission order.
 
 ## Inputs
 

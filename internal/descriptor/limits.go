@@ -52,8 +52,9 @@ type LimitInputs struct {
 // record is decoded. Reads only the schema.
 //
 //   - MaxGroups (Possible): the group-bucket upper bound EstimateGroups
-//     derives for Groups[0], clamped by in.Records when known.
-//     Unknown-cardinality groupers yield no finding.
+//     derives — the product of every grouper's bound, clamped by
+//     in.Records when known (unless a grouper fans out). Any
+//     unknown-cardinality grouper yields no finding.
 //   - MaxCrosstabCells (Possible): the crosstab grid upper bound
 //     EstimateCrosstabCells derives (rows x cols, each axis clamped by
 //     records). An axis with an unknown-cardinality grouper yields no
@@ -333,47 +334,51 @@ func addSaturating(a, b int64) int64 {
 
 // EstimateGroups is the schema-only upper bound on the distinct group
 // buckets a grouped request can mint — the figure the MaxGroups rule
-// grades. It reads Groups[0] only (the engine executes Groups[0];
-// multi-entry Groups is U35's) and returns false when the request is
-// ungrouped or the keys depend on the data (GROUP_RANGE, GROUP_DATE,
-// GROUP_ROUNDED, GROUP_SET_VALUE, extension groupers, a categorical
-// grouper over a numeric field).
+// grades. Two or more groupers mint composite keys, so the bound is the
+// PRODUCT of every grouper's own bound (the crosstab-axis rule,
+// crosstabAxisEstimate): an upper bound, since the runtime emits only
+// the combinations the data produces. False when the request is
+// ungrouped or ANY grouper's keys depend on the data (GROUP_RANGE,
+// GROUP_DATE, GROUP_ROUNDED, GROUP_SET_VALUE, extension groupers, a
+// categorical grouper over a numeric field).
 //
-//   - Built-in dictionary / boolean / include / quantile cases wrap
-//     vectors.EstimateBuckets, the estimator the matrix and return-size
-//     predictions share.
+// Per grouper (groupEstimate):
+//   - Built-in dictionary / boolean / include / quantile / k-means
+//     cases wrap vectors.EstimateBuckets, the estimator the matrix and
+//     return-size predictions share.
 //   - GROUP_DATE_RANGES: the range count (inline `ranges`, or the named
 //     table's range_count from the instance snapshot) plus the
 //     unmatched bucket. An unknown table yields no estimate (the
 //     runtime reports PULSE_RANGE_TABLE_UNKNOWN).
 //
-// records >= 0 clamps the estimate (a run cannot mint more single-key
-// buckets than it has records). GROUP_SET_PER_ELEMENT is the exception:
-// it fans one record into several keys, so the record count does not
-// bound it and only its dictionary size does.
+// records >= 0 clamps the product (a run cannot mint more buckets than
+// it has records) unless a grouper fans one record into several keys
+// (GROUP_SET_PER_ELEMENT): then only the dictionary sizes bound it.
 func EstimateGroups(groups []*types.Group, schema *encoding.Schema, inst *InstanceSnapshot, records int64) (int64, bool) {
-	if len(groups) == 0 || groups[0] == nil {
+	if len(groups) == 0 {
 		return 0, false
 	}
-	g := groups[0]
-	var n int64
+	return crosstabAxisEstimate(groups, schema, inst, records)
+}
+
+// groupEstimate is one grouper's unclamped schema-only key-count bound;
+// false for a nil grouper or one whose keys depend on the data.
+func groupEstimate(g *types.Group, schema *encoding.Schema, inst *InstanceSnapshot) (int64, bool) {
+	if g == nil {
+		return 0, false
+	}
 	if g.Type == types.GROUP_DATE_RANGES {
 		ranges, ok := dateRangeCount(g, inst)
 		if !ok {
 			return 0, false
 		}
-		n = ranges + 1 // + the unmatched bucket
-	} else {
-		b, _, known := vectors.EstimateBuckets(groups, schema)
-		if !known {
-			return 0, false
-		}
-		n = b
+		return ranges + 1, true // + the unmatched bucket
 	}
-	if records >= 0 && n > records && g.Type != types.GROUP_SET_PER_ELEMENT {
-		n = records
+	b, _, known := vectors.EstimateBuckets([]*types.Group{g}, schema)
+	if !known {
+		return 0, false
 	}
-	return n, true
+	return b, true
 }
 
 // EstimateCrosstabCells is the schema-only upper bound on a crosstab's
@@ -397,7 +402,7 @@ func EstimateCrosstabCells(spec *types.CrosstabSpec, schema *encoding.Schema, in
 }
 
 // crosstabAxisEstimate is one crosstab axis's distinct composite-key
-// upper bound: the product of each position's EstimateGroups bound,
+// upper bound: the product of each position's groupEstimate bound,
 // clamped by records (>= 0) unless a position fans one record into
 // several keys. False when any position is unknown. The return-size
 // model reads it with records = -1.
@@ -405,7 +410,7 @@ func crosstabAxisEstimate(axis []*types.Group, schema *encoding.Schema, inst *In
 	n := int64(1)
 	fanout := false
 	for _, g := range axis {
-		b, ok := EstimateGroups([]*types.Group{g}, schema, inst, -1)
+		b, ok := groupEstimate(g, schema, inst)
 		if !ok {
 			return 0, false
 		}
@@ -447,7 +452,10 @@ func dateRangeCount(g *types.Group, inst *InstanceSnapshot) (int64, bool) {
 	}
 	name := strings.TrimSpace(params.Table)
 	ext := inst.Extensions()
-	if name == "" || ext == nil {
+	// A table riding a hidden capability:range_tables is one the
+	// instance does not offer — sized exactly like a never-registered
+	// one (unknown), so predict cannot leak it.
+	if name == "" || ext == nil || inst.Hidden(featRangeTables) {
 		return 0, false
 	}
 	for _, t := range ext.RangeTables {

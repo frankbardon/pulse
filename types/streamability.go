@@ -335,10 +335,8 @@ func (t FiltererType) Streamable() bool {
 // input is exhausted. CATEGORY/ROUNDED/RANGE bucket per row;
 // QUANTILE/DATE/KMEANS require finalize-time work over the full set.
 //
-// The streaming Process path does not currently emit grouped output even
-// for streamable groupers — Request.Streamable returns false whenever
-// groups are present. The method is wired through so a future grouped
-// streaming iterator can flip the gate without re-deriving the rule.
+// A grouped request streams when every grouper (and every other slot)
+// is streamable — with two or more groupers, by composite key.
 func (t GroupType) Streamable() bool {
 	switch t {
 	case GROUP_CATEGORY, GROUP_ROUNDED, GROUP_RANGE, GROUP_DATE_RANGES,

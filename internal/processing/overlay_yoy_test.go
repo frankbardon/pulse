@@ -593,3 +593,27 @@ func TestOverlay_YoY_FrequencyPromotionSkipsWhenSpecHasOverride(t *testing.T) {
 		t.Errorf("promoted frequency = %q, want %q (spec override should win)", freq, "quarterly")
 	}
 }
+
+// TestOverlay_YoY_MultiGrouperHostRejected: a SERIES host built from
+// two or more groupers is the composite rows (U54), not one date axis —
+// the handler refuses it PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
+// whatever position GROUP_DATE holds (mirrors
+// descriptor.validateOverlayYoY), and so does a grouped Process run.
+func TestOverlay_YoY_MultiGrouperHostRejected(t *testing.T) {
+	keys := []types.AxisKey{{"2020-01", "east"}, {"2021-01", "east"}}
+	values := func(i int) (float64, bool) { return 10.0, true }
+	for _, kinds := range [][]types.GroupType{
+		{types.GROUP_DATE, types.GROUP_CATEGORY},
+		{types.GROUP_CATEGORY, types.GROUP_DATE},
+	} {
+		host := NewSeriesHostViewWithGrouper(keys, values, []string{"order_date", "region"}, kinds)
+		_, _, err := ApplyOverlaysSeries([]types.OverlaySpec{newYoYSpec("yoy", "annual")}, host)
+		coded, ok := err.(*errors.CodedError)
+		if !ok {
+			t.Fatalf("%v: err = %v (%T), want a coded refusal", kinds, err, err)
+		}
+		if coded.Code != errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE || coded.Details["groupers"] != 2 {
+			t.Errorf("%v: refusal %s %v, want PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE groupers=2", kinds, coded.Code, coded.Details)
+		}
+	}
+}

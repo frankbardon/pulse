@@ -1,6 +1,8 @@
 package vectors
 
 import (
+	"math"
+
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/types"
 )
@@ -144,21 +146,63 @@ const (
 	// BucketBasisUnknown: the grouper's keys depend on the data (ranges,
 	// dates, numeric categories, set compositions) — no estimate.
 	BucketBasisUnknown = "unknown"
+	// BucketBasisProduct: two or more groupers, every one sized — the
+	// product of their bounds (an upper bound on the observed
+	// combinations).
+	BucketBasisProduct = "product"
 )
 
 // EstimateBuckets is the schema-only upper bound on the number of
 // matrix buckets — the grouped Response.Data rows a request can emit —
 // and how it was derived; known is false when the keys depend on the
-// data. The engine executes Groups[0] only (U35 owns multi-entry
-// Groups), so the estimate reads Groups[0] only. It is an upper bound:
-// a dictionary entry no row carries (or that a filter removes) yields
-// no bucket, so a run emits AT MOST this many results per spec.
-// Header + schema only — importable from internal/descriptor.
+// data. One grouper reports its own bound and basis; two or more report
+// the PRODUCT of every grouper's bound (saturating at math.MaxInt64)
+// with basis BucketBasisProduct, and are unknown when ANY grouper is —
+// the composite keys a multi-grouper run mints are a subset of that
+// cartesian product. It is an upper bound: a key no row carries (or
+// that a filter removes, or a combination never observed) yields no
+// bucket, so a run emits AT MOST this many results per spec. Unclamped
+// by the record count (callers clamp). Header + schema only —
+// importable from internal/descriptor.
 func EstimateBuckets(groups []*types.Group, schema *encoding.Schema) (buckets int64, basis string, known bool) {
-	if len(groups) == 0 || groups[0] == nil {
-		return 1, BucketBasisUngrouped, true
+	var live []*types.Group
+	for _, g := range groups {
+		if g != nil {
+			live = append(live, g)
+		}
 	}
-	g := groups[0]
+	switch len(live) {
+	case 0:
+		return 1, BucketBasisUngrouped, true
+	case 1:
+		return estimateGrouperBuckets(live[0], schema)
+	}
+	buckets = 1
+	for _, g := range live {
+		b, _, ok := estimateGrouperBuckets(g, schema)
+		if !ok {
+			return 0, BucketBasisUnknown, false
+		}
+		buckets = mulSaturating(buckets, b)
+	}
+	return buckets, BucketBasisProduct, true
+}
+
+// mulSaturating multiplies two non-negative estimates, saturating at
+// math.MaxInt64 rather than wrapping.
+func mulSaturating(a, b int64) int64 {
+	if a == 0 || b == 0 {
+		return 0
+	}
+	if a > math.MaxInt64/b {
+		return math.MaxInt64
+	}
+	return a * b
+}
+
+// estimateGrouperBuckets is one grouper's schema-only bucket bound and
+// basis (EstimateBuckets' per-position rule).
+func estimateGrouperBuckets(g *types.Group, schema *encoding.Schema) (buckets int64, basis string, known bool) {
 	var field *encoding.Field
 	if schema != nil {
 		field = schema.Field(g.Field)

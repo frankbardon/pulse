@@ -476,6 +476,18 @@ Complete for U27 (no release tag cut by the unit). Contract: `.claude/reference/
 | (none) | `errors.PULSE_VECTOR_METRIC_DOMAIN` and `errors.PULSE_VECTOR_REFERENCE_MISSING` (runtime warnings: rows a reference comparison nulls because of a metric-domain violation, or a missing / null `key_field` key; the keys named are the 10 smallest unmatched) | added | `pulse errors lookup CODE`; the manifest error list changed. Both are absent on a clean run | U27 |
 | `key_field` on a reference lookup (new) | a categorical or unsigned-integer (`u4`–`u64`) column; a float, date or set `key_field` is refused (`key_field_type`). A `u64` key above 2^53 is matched via its float64 value | added | none | U27 |
 
+## Changes from U54 (multi-grouper)
+
+Complete for U54 (no release tag cut by the unit). Contract: `.claude/reference/execution-modes.md` (Two or more groupers), `.claude/reference/predict-inspect.md`; skill `grouper-design`. `format_version` stays `"1.1"`; a single-grouper request is byte-identical.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| `groups` with two or more entries silently ran only `Groups[0]` | every entry executes: one row per OBSERVED key combination, ordered by each grouper's native key order (outer to inner), every grouper's key column on each row; `Components.Groupers` holds one entry per slot and `groups[].group_key` / grouped matrix `group_key` carry the full tuple | behaviour change | read every key column; stop re-grouping by the first entry or issuing one slot per outer bucket | U54 |
+| two groupers writing the same key column were accepted (the second was ignored) | refused `SERVICE_VALIDATION` (output-namespace collision) | behaviour change (refusal) | give each entry a distinct `field` or `label` | U54 |
+| an extension grouper key containing `"\x00"` was harmless in a single grouper | refused `PROCESSING_GROUP` once a request has two or more groupers | behaviour change (refusal) | do not emit NUL in extension grouper keys | U54 |
+| `OVERLAY_YOY` on a request with two or more `groups` | refused `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`details.groupers`) on predict and runtime | behaviour change (refusal) | use one date grouper, or a Compose slot per outer bucket (#429, U46) | U54 |
+| predict `max_groups` / group estimate for several groupers was the first grouper's | the PRODUCT of the per-grouper estimates, an upper bound (runtime enforces on observed combinations); the matrix `bucket_basis` is `"product"` | behaviour change (estimate) | treat the estimate as a ceiling, not a row count | U54 |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

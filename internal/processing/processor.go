@@ -870,12 +870,16 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 }
 
 // processStreamingGrouped runs the streaming execution path for
-// requests with one streamable grouper. Each filter-passing record's
-// group key indexes a per-key bucket of fresh OnlineAggregator
+// requests whose groupers are all streamable. Each filter-passing
+// record's group key indexes a per-key bucket of fresh OnlineAggregator
 // instances; finalize emits one output row per distinct key with the
-// group field set to the key string. Matches the buffered processGrouped
-// contract: only the first group is consulted (multi-grouper composite
-// keys are not supported in either path today).
+// group field set to the key string. Two or more groupers key the
+// record by its composite key (CompositeKeySet.Expand over every
+// grouper's key set — the buffered processGroupedComposite contract):
+// every grouper is driven exactly once per record, even after an
+// earlier position's null key, and a record with an empty key set at
+// any position joins no bucket. One grouper keeps the plain-key fast
+// path.
 //
 // Memory bound: O(distinct_groups × per_aggregator_state). High-cardinality
 // groups still hold every key's aggregator in memory; the win is avoiding
@@ -883,20 +887,24 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
 	poll := NewCtxPoller(ctx)
 	EnableReuse(iter)
-	grp := req.Groups[0]
-	grouperFactory, ok := p.exts.LookupGrouper(grp.Type)
-	if !ok {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("unknown group type: %s", grp.Type))
-	}
-	grouperInstance, err := grouperFactory(grp, p.schema)
+	groupers, err := p.newRequestGroupers(req.Groups)
 	if err != nil {
 		return nil, err
 	}
-	ApplyGrouperExtensions(grouperInstance, p.exts)
-	keyer, err := NewGroupKeyer(grouperInstance)
-	if err != nil {
-		return nil, err
+	keyers := make([]*GroupKeyer, len(groupers))
+	for i, g := range groupers {
+		if keyers[i], err = NewGroupKeyer(g); err != nil {
+			return nil, err
+		}
+	}
+	grp, keyer := req.Groups[0], keyers[0]
+	// Two or more groupers: the observed composite keys and their
+	// tuples, plus the per-record per-position key sets (reused).
+	var keySet *CompositeKeySet
+	var keySets [][]string
+	if len(groupers) > 1 {
+		keySet = NewCompositeKeySet(len(groupers))
+		keySets = make([][]string, len(groupers))
 	}
 
 	// Pre-compute aggregator labels so per-key bucket construction is cheap.
@@ -992,7 +1000,50 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	var primaryNullRecords int64
 	weights := NewWeightRowTally(req)
 
-	var totalRows, filteredRows, assignments int64
+	// route folds r into key's bucket, minting the bucket (and its
+	// floors and matrix slots) on the key's first record.
+	route := func(key string, r *Record) error {
+		b, exists := buckets[key]
+		if !exists {
+			// MaxGroups, counted at the mint: one check per new
+			// (composite) key, never per row.
+			if err := limits.Check(p.limits, limits.MaxGroups, int64(len(buckets))+1); err != nil {
+				return err
+			}
+			online := make([]OnlineAggregator, len(specs))
+			for i, s := range specs {
+				inst, err := s.factory(s.agg, p.schema)
+				if err != nil {
+					return err
+				}
+				oa, ok := inst.(OnlineAggregator)
+				if !ok {
+					return errors.NewCodedError(errors.PROCESSING_INTERNAL,
+						fmt.Sprintf("aggregator %s does not implement OnlineAggregator", s.agg.Type))
+				}
+				online[i] = oa
+			}
+			b = online
+			buckets[key] = b
+			if bucketFloors != nil {
+				bucketFloors[key] = NewSlotFloors(req.Aggregations)
+			}
+		}
+		for i, oa := range b {
+			if err := oa.UpdateRow(r, specs[i].agg.Field); err != nil {
+				return err
+			}
+		}
+		ObserveSlotFloors(bucketFloors[key], r)
+		return matrices.UpdateRow(key, r)
+	}
+	// The composite arm's Expand callback: routes the current record.
+	var cur *Record
+	emit := func(key string) error { return route(key, cur) }
+
+	// assignments[i]: grouper i's (record, key) routings.
+	assignments := make([]int64, len(groupers))
+	var totalRows, filteredRows int64
 	for iter.Next() {
 		if err := poll.Poll(); err != nil {
 			return nil, err
@@ -1043,6 +1094,30 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		weights.Observe(r)
 		ObserveSlotFloors(slotTotals, r)
 
+		if keySet != nil {
+			// ONCE-PER-RECORD: every grouper is driven for the record —
+			// its live state is its own Components.Groupers entry — even
+			// after an earlier position's null key; Expand then emits
+			// nothing when any position's set is empty.
+			for i, k := range keyers {
+				ks, ok, err := k.Keys(r, req.Groups[i].Field)
+				if err != nil {
+					return nil, err
+				}
+				if !ok {
+					keySets[i] = nil
+					continue
+				}
+				keySets[i] = ks
+				assignments[i] += int64(len(ks))
+			}
+			cur = r
+			if err := keySet.Expand(keySets, emit); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
 		rowKeys, ok, err := keyer.Keys(r, grp.Field)
 		if err != nil {
 			return nil, err
@@ -1050,42 +1125,10 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		if !ok {
 			continue // null group key — buffered path skips these too
 		}
-		assignments += int64(len(rowKeys))
+		assignments[0] += int64(len(rowKeys))
 
 		for _, key := range rowKeys {
-			b, exists := buckets[key]
-			if !exists {
-				// MaxGroups, counted at the mint: one check per new
-				// key, never per row.
-				if err := limits.Check(p.limits, limits.MaxGroups, int64(len(buckets))+1); err != nil {
-					return nil, err
-				}
-				online := make([]OnlineAggregator, len(specs))
-				for i, s := range specs {
-					inst, err := s.factory(s.agg, p.schema)
-					if err != nil {
-						return nil, err
-					}
-					oa, ok := inst.(OnlineAggregator)
-					if !ok {
-						return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-							fmt.Sprintf("aggregator %s does not implement OnlineAggregator", s.agg.Type))
-					}
-					online[i] = oa
-				}
-				b = online
-				buckets[key] = b
-				if bucketFloors != nil {
-					bucketFloors[key] = NewSlotFloors(req.Aggregations)
-				}
-			}
-			for i, oa := range b {
-				if err := oa.UpdateRow(r, specs[i].agg.Field); err != nil {
-					return nil, err
-				}
-			}
-			ObserveSlotFloors(bucketFloors[key], r)
-			if err := matrices.UpdateRow(key, r); err != nil {
+			if err := route(key, r); err != nil {
 				return nil, err
 			}
 		}
@@ -1098,8 +1141,9 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	// a single iterator whatever the cohort topology); the service stamps
 	// Run.ShardCount on an archive.
 	resp, err := FinalizeGroupedStream(req, GroupedTail{
-		Group:          grp,
-		Grouper:        grouperInstance,
+		Groups:         req.Groups,
+		Groupers:       groupers,
+		KeySet:         keySet,
 		Buckets:        buckets,
 		SlotTotals:     slotTotals,
 		BucketFloors:   bucketFloors,
@@ -1647,6 +1691,9 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// key; assembled over the final (sorted) keys below. Nil when
 	// components are disabled.
 	var bucketAggComponents map[string][]types.AggregationComponents
+	// The observed composite keys of a multi-grouper run (nil for one
+	// grouper): the tuple each groups[] entry's GroupKey carries.
+	var groupKeySet *CompositeKeySet
 
 	recordRows := false
 	if len(req.Groups) > 0 {
@@ -1654,7 +1701,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 			return nil, err
 		}
 		var grpWarnings []*types.ResponseWarning
-		data, grpComponents, bucketAggComponents, groupKeys, grpWarnings, err = p.processGrouped(req, filtered, groupedMatrices)
+		data, grpComponents, bucketAggComponents, groupKeys, groupKeySet, grpWarnings, err = p.processGrouped(req, filtered, groupedMatrices)
 		if err != nil {
 			return nil, err
 		}
@@ -1741,7 +1788,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	var matrixResults []types.MatrixResult
 	var matrixComps []types.MatrixComponents
 	if len(req.Groups) > 0 {
-		matrixResults, matrixComps, err = groupedMatrices.finalize(groupKeys)
+		matrixResults, matrixComps, err = groupedMatrices.finalize(groupKeys, req.Groups, groupKeySet)
 		if err != nil {
 			return nil, err
 		}
@@ -1796,7 +1843,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 			grouped := slotTotalComponents(req.Aggregations, filtered)
 			if p.compute.Groups {
 				var err error
-				if grouped, err = GroupedAggregationComponents(grouped, bucketAggComponents, groupKeys); err != nil {
+				if grouped, err = GroupedAggregationComponents(grouped, bucketAggComponents, groupKeys, groupKeySet); err != nil {
 					return nil, err
 				}
 			}
@@ -1809,8 +1856,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// Attach per-slot GrouperComponents emitted by processGrouped (nil
 	// when the plan skips them). The ungrouped path leaves grpComponents
 	// nil so nothing is appended; the grouped exit appends exactly one
-	// entry per Request.Groups slot (the single-grouper limit matches
-	// processGrouped today).
+	// entry per Request.Groups slot.
 	for _, entry := range grpComponents {
 		attachGrouperComponents(resp, entry)
 	}
@@ -2066,13 +2112,25 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 }
 
 // processGrouped is the buffered grouped exit: one Data row per bucket
-// of Request.Groups[0] in emission order, plus the grouper's Components.
+// in emission order, plus each grouper's Components.
 // matrices (nil without Request.Matrices) receives each bucket's
 // records, in record order, so the per-bucket matrices fold exactly the
 // rows (and blocks) the streaming-grouped path folds; the ordered bucket
 // keys are returned for their emission.
-func (p *Processor) processGrouped(req *types.Request, records []*Record, matrices *GroupedMatrices) ([]map[string]any, []types.GrouperComponents, map[string][]types.AggregationComponents, []string, []*types.ResponseWarning, error) {
-	// Use the first group for now (single-level grouping)
+//
+// Two or more groupers take processGroupedComposite (one row per
+// observed key combination); the single-grouper body below is the
+// unchanged fast path.
+func (p *Processor) processGrouped(req *types.Request, records []*Record, matrices *GroupedMatrices) ([]map[string]any, []types.GrouperComponents, map[string][]types.AggregationComponents, []string, *CompositeKeySet, []*types.ResponseWarning, error) {
+	if len(req.Groups) > 1 {
+		return p.processGroupedComposite(req, records, matrices)
+	}
+	data, grpComps, bucketComps, keys, warns, err := p.processGroupedSingle(req, records, matrices)
+	return data, grpComps, bucketComps, keys, nil, warns, err
+}
+
+// processGroupedSingle is the single-grouper buffered exit.
+func (p *Processor) processGroupedSingle(req *types.Request, records []*Record, matrices *GroupedMatrices) ([]map[string]any, []types.GrouperComponents, map[string][]types.AggregationComponents, []string, []*types.ResponseWarning, error) {
 	grp := req.Groups[0]
 	factory, ok := p.exts.LookupGrouper(grp.Type)
 	if !ok {
@@ -2485,10 +2543,11 @@ func attachAggregationComponents(resp *types.Response, entry types.AggregationCo
 // Single-key groupers contribute one row to exactly one bucket so
 // TotalN ≤ totalFiltered; the difference equals NNull. Multi-key
 // streaming groupers (GROUP_SET_PER_ELEMENT) contribute one row to
-// every selected label, so TotalN here would over-count; the buffered
-// path does not currently invoke multi-key groupers (KeysForRow lives
-// on the streaming path), so the simple subtraction stays correct for
-// the single-key buffered grouped exit.
+// every selected label, so TotalN here would over-count. The buffered
+// single-grouper exit never drives a multi-key grouper, so the simple
+// subtraction holds there; requests with two or more groupers build
+// their per-slot entries in composite_groups.go from per-record
+// assignment counts instead.
 func buildGrouperComponents(grouper Grouper, slot *types.Group, groups map[string][]*Record, totalFiltered int) (types.GrouperComponents, error) {
 	workGrouperComponentBuilds.Add(1)
 	totalN := 0

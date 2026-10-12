@@ -125,8 +125,10 @@ func slotTotalComponents(aggs []*types.Aggregation, records []*Record) []types.A
 // aggregators (already Finalized) and floor tallies, over the FINAL Data
 // order. Each bucket entry comes off the same builder the ungrouped
 // streaming exit uses (buildAggregationComponents + the weighted floor),
-// so it equals the buffered arm's entry for that bucket.
-func streamedGroupedAggregationComponents(aggs []*types.Aggregation, totals []SlotFloor, buckets map[string][]OnlineAggregator, floors map[string][]SlotFloor, keys []string) ([]types.AggregationComponents, error) {
+// so it equals the buffered arm's entry for that bucket. set is the
+// multi-grouper run's observed composite keys (each groups[] GroupKey
+// then carries the full tuple); nil for one grouper.
+func streamedGroupedAggregationComponents(aggs []*types.Aggregation, totals []SlotFloor, buckets map[string][]OnlineAggregator, floors map[string][]SlotFloor, keys []string, set *CompositeKeySet) ([]types.AggregationComponents, error) {
 	if len(totals) != len(aggs) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 			"grouped components: cohort-wide slot floors missing",
@@ -151,7 +153,7 @@ func streamedGroupedAggregationComponents(aggs []*types.Aggregation, totals []Sl
 		}
 		entries[key] = row
 	}
-	return GroupedAggregationComponents(slotFloorTotals(aggs, totals), entries, keys)
+	return GroupedAggregationComponents(slotFloorTotals(aggs, totals), entries, keys, set)
 }
 
 // AggregationGroupEntry converts one bucket's slot entry — built by the
@@ -174,8 +176,11 @@ func AggregationGroupEntry(key string, e types.AggregationComponents) types.Aggr
 // per slot, declared order), buckets maps each bucket key to its
 // per-slot entries (same order), and keys is the FINAL Data order —
 // after sortGroupedRows — so groups[i] describes Data[i]. totals is
-// returned with Groups filled in.
-func GroupedAggregationComponents(totals []types.AggregationComponents, buckets map[string][]types.AggregationComponents, keys []string) ([]types.AggregationComponents, error) {
+// returned with Groups filled in. set is the multi-grouper run's
+// observed composite keys: each entry's GroupKey is then the key's full
+// tuple (one element per grouper); nil keeps the single-grouper
+// one-element GroupKey.
+func GroupedAggregationComponents(totals []types.AggregationComponents, buckets map[string][]types.AggregationComponents, keys []string, set *CompositeKeySet) ([]types.AggregationComponents, error) {
 	workGroupFloorBuilds.Add(1)
 	for i := range totals {
 		groups := make([]types.AggregationGroupComponents, 0, len(keys))
@@ -186,7 +191,11 @@ func GroupedAggregationComponents(totals []types.AggregationComponents, buckets 
 					"grouped components: a Data row's bucket has no aggregation components",
 					map[string]any{"group_key": key, "slot": i})
 			}
-			groups = append(groups, AggregationGroupEntry(key, entries[i]))
+			g := AggregationGroupEntry(key, entries[i])
+			if set != nil {
+				g.GroupKey = set.Tuple(key)
+			}
+			groups = append(groups, g)
 		}
 		totals[i].Groups = groups
 	}

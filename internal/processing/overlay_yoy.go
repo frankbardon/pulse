@@ -3,6 +3,7 @@ package processing
 import (
 	"encoding/json"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/frankbardon/pulse/errors"
@@ -133,6 +134,19 @@ func applyYoY(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer
 	// GROUP_DATE" requirement at runtime. When the list is empty (legacy
 	// constructors) defer to the predict gate's earlier rejection.
 	if kinds := host.GrouperKinds(); len(kinds) > 0 {
+		// Two or more groupers: the host series is the composite rows
+		// (U54), not one date axis — refused, mirroring
+		// descriptor.validateOverlayYoY (U46 #429 owns the semantics).
+		if len(kinds) > 1 {
+			return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+				errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+				"overlay "+string(spec.Kind)+" requires a SERIES host with exactly one grouper (GROUP_DATE); got "+strconv.Itoa(len(kinds))+" groupers",
+				map[string]any{
+					"kind":     string(spec.Kind),
+					"groupers": len(kinds),
+					"required": string(types.GROUP_DATE),
+				})
+		}
 		if kinds[0] != types.GROUP_DATE {
 			return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 				errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,

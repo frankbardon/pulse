@@ -64,7 +64,7 @@ Reading a result: `primary` is the matrix (`row_keys` = members, `labels` only w
 
 ## 4. Per group
 
-A request with `groups` returns one `MatrixResult` per non-empty bucket and spec, each with `group_key` / `group_header`, in the same order as `Response.data` (`sort` included). A thin bucket is emitted with nulls and `PULSE_MATRIX_INSUFFICIENT_N`. Each bucket equals the ungrouped matrix over exactly its rows. Only the first `groups` entry is executed.
+A request with `groups` returns one `MatrixResult` per non-empty bucket and spec, each with `group_key` / `group_header`, in the same order as `Response.data` (`sort` included). With several `groups`, a bucket is one key combination (`group_key` is the tuple). A thin bucket gets nulls and `PULSE_MATRIX_INSUFFICIENT_N`. Each bucket equals the ungrouped matrix over its rows.
 
 ## 5. Components and cost
 
@@ -74,7 +74,7 @@ A request with `groups` returns one `MatrixResult` per non-empty bucket and spec
 
 | Key | Meaning |
 |---|---|
-| `bucket_basis` | where the bucket count comes from: `ungrouped`, `dictionary`, `boolean`, `include`, `quantile_bins`, `unknown` |
+| `bucket_basis` | where the bucket count comes from: `ungrouped`, `dictionary`, `boolean`, `include`, `quantile_bins`, `clusters`, `product` (several groupers), `unknown` |
 | `estimated_buckets` | upper bound on buckets (omitted when `unknown`) |
 | `estimated_cells` | buckets × p² |
 | `estimated_bytes` | merge blocks (`ceil(records / 4096)`, per shard) × buckets × `accumulator_bytes` — the run's state |

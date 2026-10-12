@@ -78,12 +78,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PROCESSING_GROUP: {
-		Message: "Group construction failed (e.g., quantile with zero-variance input, malformed bucket key).",
+		Message: "Group construction failed (e.g., quantile with zero-variance input, malformed bucket key, a key containing the NUL composite-key separator under two or more groupers).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Groups", "*", "Type"},
 				Hint:   "Swap GROUP_QUANTILE for GROUP_RANGE on near-constant fields, or GROUP_CATEGORY for a high-cardinality numeric to GROUP_ROUNDED.",
+			},
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Groups", "*", "Type"},
+				Hint:   "A grouper key containing a NUL byte (\\x00) cannot be combined with another grouper (details.reason key_contains_separator): fix the extension grouper to emit NUL-free keys, or run it as the only grouper.",
 			},
 		},
 	},
@@ -2290,6 +2295,11 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"Overlays", "*", "Ref", "Margin"},
 				Hint:     "Set Ref.Margin = {Axis: \"row\" | \"column\" | \"grand\"} for OVERLAY_INDEX_VS_MARGIN; add Request.Crosstab to provide a MATRIX host so the margin slot has a denominator.",
 				Examples: []any{"row", "column", "grand"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups"},
+				Hint:   "OVERLAY_YOY needs a host whose ONLY grouper is GROUP_DATE (details.groupers counts the groups sent): two or more groups give composite rows, not one date axis. Keep the GROUP_DATE grouper alone, and split the other key into a FILTER_INCLUDE per value or a Compose slot per value.",
 			},
 		},
 	},

@@ -4,7 +4,7 @@ slug: multi-grouper
 title: "Two or more groupers give one row per key combination, in every execution path"
 track: API & release
 size: M
-status: not-started
+status: done
 depends_on: []
 soft_depends_on: [U27]
 blocks: [U32, U46]
@@ -34,10 +34,10 @@ Found 2026-10-11 during U27 (owner report: "groupers have broken when there is m
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#200** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) A request with more than one `Groups` entry executes every group or is refused; today only `Groups[0]` runs
-- [ ] **#318** (Grouped analysis) Composite group keys: `groups` with N ≥ 2 forms the cartesian key product in streaming and buffered grouped Process, with grouped Components and predict cardinality; delivers the "execute" half of #200
-- [ ] **#421** (Grouped analysis) Every reducer and consumer honours composite keys: parallel decode, shard archive (`shard_reduce.go`), Compose slots, ProcessChain stage typing, `sort`, `return` shaping, windows / post-tests partitioning, grouped matrices (`matrix_grouped.go`) and `EstimateGroups` / `max_groups` (product of all groupers' cardinalities)
-- [ ] **#422** (Grouped analysis) Regression gate: a table-driven test with 2 and 3 groupers (category × category, range × category, date × category; empty-combination and null-key cases) checked against hand-computed counts in every execution mode, plus a predict/runtime parity row; `grouper-design.md` and the `op-group-*` skills describe exactly what runs
+- [x] **#200** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) A request with more than one `Groups` entry executes every group or is refused; today only `Groups[0]` runs
+- [x] **#318** (Grouped analysis) Composite group keys: `groups` with N ≥ 2 forms the cartesian key product in streaming and buffered grouped Process, with grouped Components and predict cardinality; delivers the "execute" half of #200
+- [x] **#421** (Grouped analysis) Every reducer and consumer honours composite keys: parallel decode, shard archive (`shard_reduce.go`), Compose slots, ProcessChain stage typing, `sort`, `return` shaping, windows / post-tests partitioning, grouped matrices (`matrix_grouped.go`) and `EstimateGroups` / `max_groups` (product of all groupers' cardinalities)
+- [x] **#422** (Grouped analysis) Regression gate: a table-driven test with 2 and 3 groupers (category × category, range × category, date × category; empty-combination and null-key cases) checked against hand-computed counts in every execution mode, plus a predict/runtime parity row; `grouper-design.md` and the `op-group-*` skills describe exactly what runs
 
 ## Scope
 
@@ -67,11 +67,11 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(multi-grouper/E<n
 
 ## Acceptance criteria
 
-- [ ] `[region, sex]` over the 30-row repro returns 6 rows, each carrying `region` and `sex`, in buffered, streaming, parallel-decode, shard-archive, sort, Compose and `return`-shaped runs.
-- [ ] No grouped path reads `Groups[0]` alone. A grep gate or a structural test enforces this.
-- [ ] Predict's group cardinality and the `max_groups` limit agree with the runtime row count.
-- [ ] Single-grouper output is byte-identical to before (goldens unchanged).
-- [ ] Whatever cannot run on composite keys is refused with a coded error on both predict and runtime. No path silently drops a grouper.
+- [x] `[region, sex]` over the 30-row repro returns 6 rows, each carrying `region` and `sex`, in buffered, streaming, parallel-decode, shard-archive, sort, Compose and `return`-shaped runs.
+- [x] No grouped path reads `Groups[0]` alone. A grep gate or a structural test enforces this.
+- [x] Predict's group cardinality and the `max_groups` limit agree with the runtime row count.
+- [x] Single-grouper output is byte-identical to before (goldens unchanged).
+- [x] Whatever cannot run on composite keys is refused with a coded error on both predict and runtime. No path silently drops a grouper.
 
 ## Gates & tests
 
@@ -83,6 +83,14 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(multi-grouper/E<n
 - `skills/grouper-design.md`, the `op-group-*` atomic skills, `skills/matrix-results.md`, `skills/crosstab-guide.md` (when to use `groups` vs `crosstab`)
 - `.claude/reference/execution-modes.md` (grouped paths), `.claude/reference/response-components.md` (composite-row Components)
 - Payload-schema golden only if the wire shape changes (it should not: every key column is a plain Data field)
+
+## Handed on
+
+| Item | To | Why |
+|---|---|---|
+| #428 crosstab refits a nested `GROUP_QUANTILE` per outer bucket (plain `groups` fit once) | [U46](U46-grouped-analysis.md) | Owner decision: crosstab behaviour is not changed in U54; the two rules must be reconciled deliberately |
+| #429 `OVERLAY_YOY` over two or more groupers (refused in U54) | [U46](U46-grouped-analysis.md) | U46 owns series-overlay partitioning (#320); YoY's per-partition semantics belong with it |
+| #430 chain stage typing names a grouped key column `g.Field`, not `vectors.GroupKeyField` (only `GROUP_KMEANS`, refused in chains today) | [U46](U46-grouped-analysis.md) | Latent: nothing wrong until a chain accepts a k-means grouper |
 
 ## Human inputs & decisions
 

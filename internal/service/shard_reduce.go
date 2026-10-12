@@ -257,26 +257,45 @@ type shardPartial struct {
 	// foldGroupedRow and merge key by key, so each bucket's matrices
 	// carry the serial bits under any worker count.
 	groupedMats *processing.GroupedMatrices
-	// grouper is this partition's own grouper instance. Its live
-	// components state is folded across partitions through
-	// processing.MergeableGrouper, so the merged instance's Components()
-	// describes the whole cohort exactly as the serial instance does.
-	grouper processing.Grouper
+	// groupSpecs and groupers are this partition's grouper slots
+	// (Request.Groups, declared order) and its own instance per slot.
+	// Each instance's live components state is folded across
+	// partitions through processing.MergeableGrouper, slot by slot, so
+	// every merged instance's Components() describes the whole cohort
+	// exactly as the serial instance does.
+	groupSpecs []*types.Group
+	groupers   []processing.Grouper
 	// limits is the run's effective resource limits (Service.Limits),
 	// handed in by newShardPartial because the parallel reducers bypass
 	// newProcessor. MaxGroups bounds groups (and groupedMats) here and
 	// the merged key count in mergeShardPartials.
 	limits limits.Limits
-	// keyer is the partition grouper's resolved key dispatch.
-	keyer *processing.GroupKeyer
-	// assignments counts (record, bucket) routings — one per key a
-	// record is keyed into — exactly as the serial streaming-grouped
-	// path does. It is Components.Groupers' TotalN for a grouper whose
-	// components carry no "buckets" list (a bucket-less extension
-	// grouper), so the merge sums it and hands it to GroupedTail; a
-	// merged tail without it reported total_n 0 and n_null = every
-	// filtered record.
-	assignments int64
+	// keyers is each partition grouper's resolved key dispatch.
+	keyers []*processing.GroupKeyer
+	// assignments[i] counts grouper i's (record, key) routings — one
+	// per key the grouper gave a record, even when another position's
+	// null key drops the record from every composite bucket — exactly
+	// as the serial streaming-grouped path does. It is
+	// Components.Groupers' TotalN for a grouper whose components carry
+	// no "buckets" list (a bucket-less extension grouper), so the merge
+	// sums it slot by slot and hands it to GroupedTail; a merged tail
+	// without it reported total_n 0 and n_null = every filtered record.
+	assignments []int64
+	// keySet is the observed composite keys of a run with two or more
+	// groupers, with their per-grouper tuples (nil for one grouper,
+	// whose buckets are keyed by the plain key). Keys are minted only
+	// through processing.CompositeKeySet.Expand — the serial arms'
+	// keying, "\x00" refusal included — and merged by union.
+	keySet *processing.CompositeKeySet
+	// keySets is the per-record per-position key-set scratch of a
+	// composite partition; cur and emit are the record being routed and
+	// the Expand callback bound to it once (no per-record closure).
+	keySets [][]string
+	cur     *processing.Record
+	emit    func(key string) error
+	// specs and schema mint a new bucket's aggregators.
+	specs  []aggSpec
+	schema *encoding.Schema
 	// keyOrder preserves the order distinct group keys were first seen
 	// in this shard. The merger's stable sort by key ensures the
 	// final response row order is deterministic across worker
@@ -330,33 +349,26 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		specs[i] = aggSpec{agg: agg, factory: factory}
 	}
 
-	var grouperSpec *types.Group
-	var grouper processing.Grouper
-	if len(req.Groups) > 0 {
-		grouperSpec = req.Groups[0]
-		grouperFactory, ok := s.extensions.LookupGrouper(grouperSpec.Type)
-		if !ok {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("unknown group type: %s", grouperSpec.Type))
-		}
-		grp, err := grouperFactory(grouperSpec, schema)
-		if err != nil {
-			return nil, err
-		}
-		processing.ApplyGrouperExtensions(grp, s.extensions)
-		grouper = grp
+	grouperFactories, err := lookupGrouperFactories(req, s.extensions)
+	if err != nil {
+		return nil, err
 	}
+	groupers, err := newPartitionGroupers(req.Groups, grouperFactories, schema, s.extensions)
+	if err != nil {
+		return nil, err
+	}
+	grouped := len(groupers) > 0
 
 	// Resolve the primary aggregation field for the per-shard null
 	// counter (see primaryNullFieldFor).
 	primaryNullField := primaryNullFieldFor(req)
 
 	out := newShardPartial(req, specs, s.Limits())
-	if err := out.buildMatrices(req, schema, s.extensions, grouper != nil, s.computePlanFor(ctx, req)); err != nil {
+	if err := out.buildMatrices(req, schema, s.extensions, grouped, s.computePlanFor(ctx, req)); err != nil {
 		return nil, err
 	}
 	var aggsUngrouped []processing.OnlineAggregator
-	if grouper == nil {
+	if !grouped {
 		aggsUngrouped = make([]processing.OnlineAggregator, len(specs))
 		for i, sp := range specs {
 			inst, err := sp.factory(sp.agg, schema)
@@ -371,15 +383,8 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 			aggsUngrouped[i] = online
 		}
 		out.aggs = aggsUngrouped
-	} else {
-		out.groups = make(map[string][]processing.OnlineAggregator)
-		if s.computePlanFor(ctx, req).Groups && len(req.Aggregations) > 0 {
-			out.groupFloors = processing.NewGroupFloors()
-		}
-		out.grouper = grouper
-		if out.keyer, err = processing.NewGroupKeyer(grouper); err != nil {
-			return nil, err
-		}
+	} else if err := out.initGrouped(req.Groups, groupers, specs, schema, s.computePlanFor(ctx, req).Groups && len(req.Aggregations) > 0); err != nil {
+		return nil, err
 	}
 
 	// A grouped archive: the reader and the record share the CANONICAL
@@ -446,7 +451,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 			return nil, err
 		}
 
-		if grouper == nil {
+		if !grouped {
 			for i, oa := range aggsUngrouped {
 				if err := oa.UpdateRow(rec, specs[i].agg.Field); err != nil {
 					return nil, err
@@ -454,7 +459,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 			}
 			continue
 		}
-		if err := out.foldGroupedRow(rec, grouperSpec.Field, specs, schema); err != nil {
+		if err := out.foldGroupedRow(rec); err != nil {
 			return nil, err
 		}
 	}
@@ -507,57 +512,146 @@ func (sp *shardPartial) observeFloor(rec *processing.Record, specs []aggSpec) {
 	processing.ObserveSlotFloors(sp.aggFloor, rec)
 }
 
-// foldGroupedRow fans one filter-passing record into every bucket this
-// partition's grouper keys it to — one for a single-key grouper, one per
-// selected label for GROUP_SET_PER_ELEMENT — creating a bucket of fresh
-// aggregators on a key's first sighting. Shared by both parallel
-// reducers; the key dispatch is processing.GroupKeyer, the same one
-// the serial streaming-grouped path uses.
-func (sp *shardPartial) foldGroupedRow(rec *processing.Record, field string, specs []aggSpec, schema *encoding.Schema) error {
-	keys, ok, err := sp.keyer.Keys(rec, field)
-	if err != nil || !ok {
-		return err
+// lookupGrouperFactories resolves one factory per Request.Groups slot,
+// once per run (both parallel reducers call it before fanning out).
+func lookupGrouperFactories(req *types.Request, exts *processing.ExtensionRegistry) ([]processing.GrouperFactory, error) {
+	out := make([]processing.GrouperFactory, len(req.Groups))
+	for i, grp := range req.Groups {
+		f, ok := exts.LookupGrouper(grp.Type)
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("unknown group type: %s", grp.Type))
+		}
+		out[i] = f
 	}
-	sp.assignments += int64(len(keys))
-	for _, key := range keys {
-		bucket, exists := sp.groups[key]
-		if !exists {
-			// MaxGroups on this partition's count: a partition never
-			// holds more keys than the whole run, so a local breach is
-			// a global one. Checked once per new key, never per row.
-			if err := limits.Check(sp.limits, limits.MaxGroups, int64(len(sp.groups))+1); err != nil {
+	return out, nil
+}
+
+// newPartitionGroupers builds one fresh grouper instance per slot for
+// one partition (shard or decode worker), extension hooks applied —
+// every grouper of the request, not only Groups[0]'s.
+func newPartitionGroupers(groups []*types.Group, factories []processing.GrouperFactory, schema *encoding.Schema, exts *processing.ExtensionRegistry) ([]processing.Grouper, error) {
+	out := make([]processing.Grouper, len(groups))
+	for i, grp := range groups {
+		g, err := factories[i](grp, schema)
+		if err != nil {
+			return nil, err
+		}
+		processing.ApplyGrouperExtensions(g, exts)
+		out[i] = g
+	}
+	return out, nil
+}
+
+// initGrouped makes sp a grouped partition over groupers (one per
+// groups slot): empty buckets, per-bucket floors when withFloors, each
+// grouper's key dispatch, per-grouper assignment counts and — for two
+// or more groupers — the composite key set. Shared by both parallel
+// reducers.
+func (sp *shardPartial) initGrouped(groups []*types.Group, groupers []processing.Grouper, specs []aggSpec, schema *encoding.Schema, withFloors bool) error {
+	sp.groups = make(map[string][]processing.OnlineAggregator)
+	if withFloors {
+		sp.groupFloors = processing.NewGroupFloors()
+	}
+	sp.groupSpecs, sp.groupers = groups, groupers
+	sp.specs, sp.schema = specs, schema
+	sp.keyers = make([]*processing.GroupKeyer, len(groupers))
+	for i, g := range groupers {
+		k, err := processing.NewGroupKeyer(g)
+		if err != nil {
+			return err
+		}
+		sp.keyers[i] = k
+	}
+	sp.assignments = make([]int64, len(groupers))
+	if len(groupers) > 1 {
+		sp.keySet = processing.NewCompositeKeySet(len(groupers))
+		sp.keySets = make([][]string, len(groupers))
+		sp.emit = func(key string) error { return sp.route(key, sp.cur) }
+	}
+	return nil
+}
+
+// foldGroupedRow fans one filter-passing record into every bucket this
+// partition's groupers key it to — one for a single-key grouper, one per
+// selected label for GROUP_SET_PER_ELEMENT — creating a bucket of fresh
+// aggregators on a key's first sighting. Two or more groupers key the
+// record by its composite keys exactly as processStreamingGrouped does:
+// every grouper is driven once for the record (ONCE-PER-RECORD — its
+// live state is its own Components.Groupers entry), even after an
+// earlier position's null key, and CompositeKeySet.Expand emits the
+// per-record cartesian product, nothing when any position is empty.
+// Shared by both parallel reducers; the key dispatch is
+// processing.GroupKeyer, the same one the serial streaming-grouped path
+// uses.
+func (sp *shardPartial) foldGroupedRow(rec *processing.Record) error {
+	if sp.keySet == nil {
+		keys, ok, err := sp.keyers[0].Keys(rec, sp.groupSpecs[0].Field)
+		if err != nil || !ok {
+			return err
+		}
+		sp.assignments[0] += int64(len(keys))
+		for _, key := range keys {
+			if err := sp.route(key, rec); err != nil {
 				return err
 			}
-			bucket = make([]processing.OnlineAggregator, len(specs))
-			for i, spec := range specs {
-				inst, err := spec.factory(spec.agg, schema)
-				if err != nil {
-					return err
-				}
-				online, ok := inst.(processing.OnlineAggregator)
-				if !ok {
-					return errors.NewCodedError(errors.PROCESSING_INTERNAL,
-						fmt.Sprintf("aggregator %s does not implement OnlineAggregator", spec.agg.Type))
-				}
-				bucket[i] = online
-			}
-			sp.groups[key] = bucket
-			sp.keyOrder = append(sp.keyOrder, key)
-			if sp.groupFloors != nil {
-				sp.groupFloors[key] = processing.NewSlotFloors(sp.slotAggs(specs))
-			}
 		}
-		for i, oa := range bucket {
-			if err := oa.UpdateRow(rec, specs[i].agg.Field); err != nil {
+		return nil
+	}
+	for i, k := range sp.keyers {
+		ks, ok, err := k.Keys(rec, sp.groupSpecs[i].Field)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			sp.keySets[i] = nil
+			continue
+		}
+		sp.keySets[i] = ks
+		sp.assignments[i] += int64(len(ks))
+	}
+	sp.cur = rec
+	return sp.keySet.Expand(sp.keySets, sp.emit)
+}
+
+// route folds rec into key's bucket, minting the bucket (its
+// aggregators, floors and matrix slots) on the key's first sighting.
+func (sp *shardPartial) route(key string, rec *processing.Record) error {
+	bucket, exists := sp.groups[key]
+	if !exists {
+		// MaxGroups on this partition's (composite) key count: a
+		// partition never holds more keys than the whole run, so a
+		// local breach is a global one. Checked once per new key,
+		// never per row.
+		if err := limits.Check(sp.limits, limits.MaxGroups, int64(len(sp.groups))+1); err != nil {
+			return err
+		}
+		bucket = make([]processing.OnlineAggregator, len(sp.specs))
+		for i, spec := range sp.specs {
+			inst, err := spec.factory(spec.agg, sp.schema)
+			if err != nil {
 				return err
 			}
+			online, ok := inst.(processing.OnlineAggregator)
+			if !ok {
+				return errors.NewCodedError(errors.PROCESSING_INTERNAL,
+					fmt.Sprintf("aggregator %s does not implement OnlineAggregator", spec.agg.Type))
+			}
+			bucket[i] = online
 		}
-		processing.ObserveSlotFloors(sp.groupFloors[key], rec)
-		if err := sp.groupedMats.UpdateRow(key, rec); err != nil {
+		sp.groups[key] = bucket
+		sp.keyOrder = append(sp.keyOrder, key)
+		if sp.groupFloors != nil {
+			sp.groupFloors[key] = processing.NewSlotFloors(sp.slotAggs(sp.specs))
+		}
+	}
+	for i, oa := range bucket {
+		if err := oa.UpdateRow(rec, sp.specs[i].agg.Field); err != nil {
 			return err
 		}
 	}
-	return nil
+	processing.ObserveSlotFloors(sp.groupFloors[key], rec)
+	return sp.groupedMats.UpdateRow(key, rec)
 }
 
 // slotAggs returns the slot declarations behind specs, in order.
@@ -692,7 +786,6 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 		merged.totalRows += p.totalRows
 		merged.filteredRows += p.filteredRows
 		merged.nullRecords += p.nullRecords
-		merged.assignments += p.assignments
 
 		// Universal-floor and filter counters are plain tallies: the
 		// fold is a slot-wise sum, associative and commutative, so no
@@ -733,16 +826,28 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 		}
 
 		if merged.groups != nil {
-			if merged.grouper != nil && p.grouper != nil {
-				m, ok := merged.grouper.(processing.MergeableGrouper)
+			// Per grouper slot: its live components state and its
+			// assignment count, folded in partition order.
+			if len(p.groupers) != len(merged.groupers) || len(p.assignments) != len(merged.assignments) {
+				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+					"shard partial grouper count mismatch during merge",
+					map[string]any{"merged": len(merged.groupers), "partial": len(p.groupers)})
+			}
+			for gi, g := range merged.groupers {
+				m, ok := g.(processing.MergeableGrouper)
 				if !ok {
 					return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-						fmt.Sprintf("grouper %s does not implement MergeableGrouper", req.Groups[0].Type))
+						fmt.Sprintf("grouper %s does not implement MergeableGrouper", req.Groups[gi].Type))
 				}
-				if err := m.MergeGrouperState(p.grouper); err != nil {
+				if err := m.MergeGrouperState(p.groupers[gi]); err != nil {
 					return nil, err
 				}
+				merged.assignments[gi] += p.assignments[gi]
 			}
+			// The composite keys' tuples: a union (a key's tuple is a
+			// function of the key, so which partition minted it is
+			// immaterial).
+			merged.keySet.Merge(p.keySet)
 			for _, key := range p.keyOrder {
 				bucket := p.groups[key]
 				existing, exists := merged.groups[key]
@@ -869,9 +974,13 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 		// merged buckets and the merged floors (cohort-wide aggFloor,
 		// per-bucket groupFloors), as do the per-bucket matrices,
 		// rendered over the same ordered keys as the rows.
+		// Every grouper slot rides the tail: two or more key the buckets
+		// by composite key, whose merged tuples (KeySet) write every key
+		// column and order the rows exactly as the serial arms do.
 		tail := processing.GroupedTail{
-			Group:          req.Groups[0],
-			Grouper:        merged.grouper,
+			Groups:         merged.groupSpecs,
+			Groupers:       merged.groupers,
+			KeySet:         merged.keySet,
 			Buckets:        merged.groups,
 			TotalRows:      merged.totalRows,
 			FilteredRows:   merged.filteredRows,

@@ -109,17 +109,12 @@ func (s *Service) reduceParallelBuffered(
 		specs[i] = aggSpec{agg: agg, factory: factory}
 	}
 
-	var grouperSpec *types.Group
-	var grouperFactory processing.GrouperFactory
-	if len(req.Groups) > 0 {
-		grouperSpec = req.Groups[0]
-		f, ok := s.extensions.LookupGrouper(grouperSpec.Type)
-		if !ok {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("unknown group type: %s", grouperSpec.Type))
-		}
-		grouperFactory = f
+	// One factory per grouper slot — every slot, not Groups[0] only.
+	grouperFactories, err := lookupGrouperFactories(req, s.extensions)
+	if err != nil {
+		return nil, err
 	}
+	grouped := len(grouperFactories) > 0
 
 	// Primary-field null tally for Run.NullRecords — resolved once,
 	// through the same helper the per-shard reducer uses.
@@ -150,7 +145,7 @@ func (s *Service) reduceParallelBuffered(
 			buildErr      error
 			filterFns     []processing.FilterFunc
 			rowLocalAttrs []rowLocalAttrSpec
-			grouperInst   processing.Grouper
+			groupers      []processing.Grouper
 			ungroupedAggs []processing.OnlineAggregator
 		)
 
@@ -159,21 +154,15 @@ func (s *Service) reduceParallelBuffered(
 		if buildErr == nil {
 			rowLocalAttrs, buildErr = buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, model.SetFrom(ctx), vecs)
 		}
-		if buildErr == nil && grouperFactory != nil {
-			grp, err := grouperFactory(grouperSpec, schema)
-			if err != nil {
-				buildErr = err
-			} else {
-				processing.ApplyGrouperExtensions(grp, s.extensions)
-				grouperInst = grp
-			}
+		if buildErr == nil && grouped {
+			groupers, buildErr = newPartitionGroupers(req.Groups, grouperFactories, schema, s.extensions)
 		}
 
 		out := newShardPartial(req, specs, s.Limits())
 		if buildErr == nil {
-			buildErr = out.buildMatrices(req, schema, s.extensions, grouperInst != nil, compute)
+			buildErr = out.buildMatrices(req, schema, s.extensions, grouped, compute)
 		}
-		if buildErr == nil && grouperInst == nil {
+		if buildErr == nil && !grouped {
 			ungroupedAggs = make([]processing.OnlineAggregator, len(specs))
 			for i, sp := range specs {
 				inst, err := sp.factory(sp.agg, schema)
@@ -193,12 +182,7 @@ func (s *Service) reduceParallelBuffered(
 				out.aggs = ungroupedAggs
 			}
 		} else if buildErr == nil {
-			out.groups = make(map[string][]processing.OnlineAggregator)
-			if compute.Groups && len(req.Aggregations) > 0 {
-				out.groupFloors = processing.NewGroupFloors()
-			}
-			out.grouper = grouperInst
-			out.keyer, buildErr = processing.NewGroupKeyer(grouperInst)
+			buildErr = out.initGrouped(req.Groups, groupers, specs, schema, compute.Groups && len(req.Aggregations) > 0)
 		}
 
 		// Worker progress counter so we can publish the partial on the
@@ -253,13 +237,13 @@ func (s *Service) reduceParallelBuffered(
 					return err
 				}
 
-				if grouperInst == nil {
+				if !grouped {
 					for i, oa := range ungroupedAggs {
 						if err := oa.UpdateRow(rec, specs[i].agg.Field); err != nil {
 							return err
 						}
 					}
-				} else if err := out.foldGroupedRow(rec, grouperSpec.Field, specs, schema); err != nil {
+				} else if err := out.foldGroupedRow(rec); err != nil {
 					return err
 				}
 			}

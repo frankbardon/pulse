@@ -30,7 +30,7 @@ Use something else:
 
 ## Host shape
 
-SERIES Process host whose single grouper is `GROUP_DATE`, else `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `frequency` from `spec.Params`, else `req.Groups[0].Params`. No `tz` — follows the host grouper's zone (`zone: following`): keys are the host's local labels.
+SERIES Process host whose ONLY grouper is `GROUP_DATE`, else `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` — two or more `groups` (composite rows, not one date axis) are refused on predict and runtime (`details.groupers`). `frequency` from `spec.Params`, else the `GROUP_DATE` grouper's `Params`. No `tz` — follows the host grouper's zone (`zone: following`): keys are the host's local labels.
 
 ## Output
 

@@ -41,9 +41,10 @@ Filled by the ENGINE, not the operator — every slot carries it, even a floor-o
 <!-- /feature -->
 | `attributes` | one per attribute slot whose operator declares a schema · `label` + `type`, NOT index | `n` / `n_null` (present / null outputs) + `operator`; cohort-wide, never per bucket |
 
-- **Grouped runs** (`Request.Groups`, no crosstab): each `aggregations[i]` carries the COHORT-WIDE floor (every filter-passing record, no `operator`) and `groups[]` — one `{group_key, n, n_null, weighted floor, operator}` per `Data` row, in `Data` order (`sort` included), equal to an ungrouped run over that bucket. A stream carries `groups[]` on its terminal chunk only.
-- A fan-out grouper's bucket sum may EXCEED `total_n` — correct.
-- `run` coexists with `Response.Metadata`: `Metadata.TotalRows == Run.TotalRecords`; `Metadata` keeps non-numerical run facts (cohort filename), `run` the typed counters.
+- **Grouped runs** (`Request.Groups`, no crosstab): each `aggregations[i]` carries the COHORT-WIDE floor (all filter-passing records, no `operator`) and `groups[]` — one `{group_key, n, n_null, weighted floor, operator}` per `Data` row, in `Data` order (`sort` included), equal to an ungrouped run over that bucket. A stream: terminal chunk only.
+- Several `groups`: `group_key` is the tuple; one `groupers` entry per slot.
+- A fan-out grouper's bucket sum may EXCEED `total_n`.
+- `run` coexists with `Response.Metadata`: `Metadata.TotalRows == Run.TotalRecords`; `Metadata` keeps non-numerical facts (cohort filename), `run` the counters.
 
 ## Crosstab block
 
