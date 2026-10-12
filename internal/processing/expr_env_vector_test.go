@@ -14,6 +14,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprbuiltins"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -48,6 +49,17 @@ var vectorBuiltinCases = map[string]struct {
 	"dice":       {`dice(["a", "b", "c"], ["b", "c", "d", "e"]) * 7`, 4},
 	"hamming":    {`hamming(["a", "b"], ["b", "c", "d"]) + x`, 4},
 	"overlap":    {`overlap(["a", "b"], ["b", "c", "d"])`, 0.5},
+	// vectorTestRefs: t = {p: 1, q: 2, r: 3}; u relabels them {r: 4, p: 0, q: 0}.
+	"ref": {`vsum(ref("t", "k")) + dot(ref("t", "k"), ref("u", "k")) + x`, 6 + 12 + 1},
+}
+
+// vectorTestRefs are the reference-vector tables processVector registers
+// for the ref() case.
+func vectorTestRefs() vectors.ReferenceTables {
+	return vectors.NewReferenceTables(map[string]types.ReferenceVectorTable{
+		"t": {Labels: []string{"p", "q", "r"}, Profiles: map[string][]float64{"k": {1, 2, 3}}},
+		"u": {Labels: []string{"r", "p", "q"}, Profiles: map[string][]float64{"k": {4, 0, 0}}},
+	})
 }
 
 func vectorTestSchema() *encoding.Schema {
@@ -66,7 +78,7 @@ func vectorTestRecords(schema *encoding.Schema) []*Record {
 func processVector(t *testing.T, req *types.Request) (*types.Response, error) {
 	t.Helper()
 	schema := vectorTestSchema()
-	proc := NewProcessorWithExtensions(schema, &ExtensionRegistry{})
+	proc := NewProcessorWithExtensions(schema, &ExtensionRegistry{ReferenceVectors: vectorTestRefs()})
 	return proc.Process(context.Background(), req, NewSliceIterator(vectorTestRecords(schema)))
 }
 
@@ -394,7 +406,7 @@ func TestVectorBuiltins_StaticRefusalsAtBuild(t *testing.T) {
 		{`pow(x)`, perr.PROCESSING_CONFIG},
 		{`vsum([x], [y])`, perr.PROCESSING_CONFIG},
 	} {
-		_, err := newExprProgram(tc.src, "formula", vectorTestSchema(), nil, setExprOptions())
+		_, err := newExprProgram(tc.src, "formula", vectorTestSchema(), nil, nil, setExprOptions())
 		if got := topCode(err); got != tc.want {
 			t.Errorf("newExprProgram(%s): %v, want %s", tc.src, err, tc.want)
 		}

@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U25, U28, U29]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [156, 157, 158, 270, 402, 403, 406, 408, 411, 415]
+todo_items: [156, 157, 158, 270, 402, 403, 406, 408, 411, 415, 420, 423, 424, 425]
 branch: matrix-extensions-hardening
 ---
 
@@ -94,6 +94,15 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(matrix-extensions
 | ~~Singularity rule~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #408 |
 | ~~`MAT_DISTANCE` over date and extension groupers~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #411 |
 | ~~Factor-score refusal drops the not-converged note~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #415 |
+
+## Handed on from U27
+
+| Item | Source |
+|---|---|
+| Sort / overlays / ratios over expanded vector-aggregate columns (refused as presentation only today) | [U27](U27-vector-metrics-aggregates.md) #420 |
+| Group-centroid references for `ATTR_PROFILE_SIMILARITY` / `ATTR_VEC_DISTANCE` (an `AGG_VEC_MEAN` of a named filter, two-pass) | [U27](U27-vector-metrics-aggregates.md) #423 |
+| Point-lookup-record references ("rows like customer #4411") | [U27](U27-vector-metrics-aggregates.md) #424 |
+| `AGG_VEC_SD` (per-element standard deviation) | [U27](U27-vector-metrics-aggregates.md) #425 |
 
 ## Human inputs & decisions
 

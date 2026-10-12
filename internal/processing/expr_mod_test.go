@@ -77,7 +77,7 @@ func TestExprMod_FormulaSemantics(t *testing.T) {
 func TestExprMod_NonNumericStillFailsAtCompile(t *testing.T) {
 	s := exprParitySchema()
 	for _, src := range []string{"cat % 2", "amt % 2", "x % 'a'"} {
-		_, err := newExprProgram(src, "filter", s, nil, (*ExtensionRegistry)(nil).ExprOptions())
+		_, err := newExprProgram(src, "filter", s, nil, nil, (*ExtensionRegistry)(nil).ExprOptions())
 		var ce *errors.CodedError
 		if !stderrors.As(err, &ce) || !strings.HasPrefix(ce.Message, "compiling filter expression") {
 			t.Errorf("%q: err %v, want a build-time compile error", src, err)

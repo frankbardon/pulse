@@ -3,6 +3,7 @@ package descriptor
 import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/totalcall"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -66,25 +67,33 @@ func attributeTwoPass(opts *PredictOptions, t types.AttributeType) bool {
 }
 
 // attrTwoPass is the per-attribute twin of attributeTwoPass: the
-// type-keyed answer, or an ATTR_FORMULA the instance offers whose
-// expression calls total(expr) — the cohort-total term's pre-pass
+// type-keyed answer, an ATTR_VEC_DISTANCE over a fitted metric, or an
+// ATTR_FORMULA the instance offers whose expression calls total(expr) —
+// the cohort-total term's pre-pass
 // (mirrors processing.ExtensionRegistry.attrRequiresTwoPass through the
 // shared internal/totalcall predicate).
-func attrTwoPass(opts *PredictOptions, attr *types.Attribute) bool {
+func attrTwoPass(opts *PredictOptions, attr *types.Attribute, specs []types.VectorSpec) bool {
 	if attr == nil {
 		return false
 	}
 	if attributeTwoPass(opts, attr.Type) {
 		return true
 	}
-	return opRoute(opts.instance(), attr.Type) == types.ATTR_FORMULA && totalcall.Contains(attr.Expression)
+	route := opRoute(opts.instance(), attr.Type)
+	if route == types.ATTR_FORMULA && totalcall.Contains(attr.Expression) {
+		return true
+	}
+	// An ATTR_VEC_DISTANCE over std_euclidean / mahalanobis (explicit,
+	// or the named vector kind's default) fits first — the runtime's
+	// attrRequiresTwoPassIn through the shared vectors predicate.
+	return vectors.ComparisonFitted(route, attr, specs)
 }
 
 // firstTwoPassAttribute returns the first attribute on req that takes
 // the two-pass drive, or "" when there is none.
 func firstTwoPassAttribute(req *types.Request, opts *PredictOptions) types.AttributeType {
 	for _, attr := range req.Attributes {
-		if attrTwoPass(opts, attr) {
+		if attrTwoPass(opts, attr, req.Vectors) {
 			return attr.Type
 		}
 	}

@@ -339,8 +339,8 @@ func TestCoMomentMergeTree_WorkerInvariant(t *testing.T) {
 		if err := afero.WriteFile(cfg.Fs(), "archive.pulse", coMomentArchive(t, schema, shardRows), 0o644); err != nil {
 			t.Fatalf("WriteFile: %v", err)
 		}
-		// The single-file twin holds the same rows in the same order,
-		// for the documented caveat below.
+		// The single-file twin holds the same rows in the same order;
+		// shard edges fall inside merge blocks.
 		recs, nullAt := coMomentRows(total, 0)
 		if err := afero.WriteFile(cfg.Fs(), "single.pulse", writeNullablePulse(t, schema, recs, nullAt), 0o644); err != nil {
 			t.Fatalf("WriteFile: %v", err)
@@ -363,14 +363,12 @@ func TestCoMomentMergeTree_WorkerInvariant(t *testing.T) {
 					}
 				}
 
-				// Documented caveat: an archive and its single-file twin
-				// cut blocks at different places, so they agree to
-				// rounding but may differ in the last bits. Asserted to
-				// a tolerance only; the bit difference is logged.
+				// Blocks key by the GLOBAL record ordinal, so the archive
+				// and its single-file twin fold the same blocks in the
+				// same tree: the same bits.
 				single := runCoMomentVehicle(t, cfg, coMomentRequest("single.pulse", v.mode, v.weighted), 0, 0)
-				assertWordsClose(t, single.words, serial.words)
 				if i := firstWordDiff(single.words, serial.words); i != -1 {
-					t.Logf("caveat observed: archive vs single file differ from word %d", i)
+					t.Errorf("archive differs from its single-file twin at word %d", i)
 				}
 			})
 		}

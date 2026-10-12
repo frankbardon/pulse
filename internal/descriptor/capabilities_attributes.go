@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -19,6 +20,28 @@ var codeInFieldTypes = []string{
 	"u4",
 	"u64",
 	"u8",
+}
+
+// attributeFloorKeys is the attribute floor every
+// Response.Components.Attributes entry carries ahead of the operator's
+// own keys: the filter-passing rows the attribute scored, split by
+// output presence (n + n_null = the post-filter record count).
+func attributeFloorKeys() []descriptor.ComponentKey {
+	return []descriptor.ComponentKey{
+		{Name: "n", Type: "int", Description: "Filter-passing rows whose attribute output is present (non-null)."},
+		{Name: "n_null", Type: "int", Description: "Filter-passing rows whose attribute output is null."},
+	}
+}
+
+// attrSchema composes an attribute ComponentSchema: the attribute floor,
+// then the operator's own keys in emission order. Only an attribute
+// that declares one emits a Response.Components.Attributes entry.
+func attrSchema(merge descriptor.ComponentsMergeability, extra ...descriptor.ComponentKey) descriptor.ComponentSchema {
+	floor := attributeFloorKeys()
+	keys := make([]descriptor.ComponentKey, 0, len(floor)+len(extra))
+	keys = append(keys, floor...)
+	keys = append(keys, extra...)
+	return descriptor.ComponentSchema{Keys: keys, Mergeability: merge}
 }
 
 // attributeCapabilities returns the metadata for every registered
@@ -336,5 +359,138 @@ func attributeCapabilities() []descriptor.Operator {
 			Streamable:     true,
 			StreamableHint: "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per group.",
 		},
+		{
+			Name:        string(types.ATTR_SCALE_SCORE),
+			Category:    "attribute",
+			Description: "Per-row rating-battery score across the p members of vector / fields (exactly one): the mean of the row's valid items, or the prorated sum (that mean × p). Reverse-keyed items score lo + hi − x on the declared range; a value outside the range is missing (never clamped) and warned; fewer than min_valid valid items score null, never 0. Row-local and single-pass; the weight is irrelevant.",
+			Params: []descriptor.Param{
+				{
+					Name:        "stat",
+					Type:        "enum",
+					Default:     "mean",
+					EnumValues:  []string{"mean", "sum"},
+					Description: "mean: the valid-item mean; sum: the PRORATED sum, valid-item mean × item count (there is no raw sum, so a skipped item never reads as 0).",
+				},
+				{
+					Name:        "min_valid",
+					Type:        "int",
+					Description: "Fewest valid (present, in-range) items a row needs for a score, 1 to the item count; below it the score is null. Default: every item.",
+				},
+				{
+					Name:        "reverse",
+					Type:        "list",
+					Description: "Member labels of the reverse-keyed items, each scored lo + hi − x. Needs a declared range (scale_min / scale_max, or the kind \"scale\" vector's bounds); refused without one.",
+				},
+				{
+					Name:        "scale_min",
+					Type:        "float",
+					Description: "Lower end of the battery's declared range; set with scale_max (min < max). Without both, a kind \"scale\" vector's bounds apply. A value outside the range is scored as missing and counted in a PULSE_ATTR_SCALE_OUT_OF_RANGE warning.",
+				},
+				{
+					Name:        "scale_max",
+					Type:        "float",
+					Description: "Upper end of the battery's declared range; set with scale_min.",
+				},
+			},
+			AcceptsTypes:  numericFieldTypesNoDecimal,
+			EmitsType:     "f64",
+			EmitsTypeNote: "one score per record on the item scale (sum: × item count); null when fewer than min_valid items are valid",
+			Streamable:    true,
+			ComponentSchema: attrSchema(descriptor.Mergeable,
+				descriptor.ComponentKey{Name: "n_out_of_range", Type: "int", Optional: true,
+					Description: "Member values read as missing for lying outside the declared range (never clamped); emitted only when a range is declared (scale_min / scale_max or a kind \"scale\" vector's bounds)."},
+				descriptor.ComponentKey{Name: "n_rows_out_of_range", Type: "int", Optional: true,
+					Description: "Rows holding at least one out-of-range member value; emitted only when a range is declared."},
+			),
+		},
+		comparisonCapability(types.ATTR_PROFILE_SIMILARITY),
+		comparisonCapability(types.ATTR_VEC_DISTANCE),
 	}
+}
+
+// comparisonCapability is the manifest entry of a reference-comparison
+// attribute (ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE): one engine,
+// split by direction; its metric enum is the registry's accepted list
+// for the operator's consumer (vectors.ComparisonConsumer).
+func comparisonCapability(t types.AttributeType) descriptor.Operator {
+	c, form, other := vectors.ComparisonConsumer(t)
+	accepted := []string{}
+	for _, m := range metric.Accepted(c) {
+		if mm, _ := metric.Lookup(m); mm.HasForm(form) {
+			accepted = append(accepted, m)
+		}
+	}
+	params := []descriptor.Param{
+		{
+			Name:        "metric",
+			Type:        "enum",
+			EnumValues:  accepted,
+			Description: "The " + string(form) + " metric (capabilities.matrix.metrics). Default: the named vector kind's " + string(form) + " default; with no kind and no metric the slot is refused (PULSE_VECTOR_METRIC_REQUIRED). A " + string(otherForm(form)) + "-direction metric is refused with a pointer to " + string(other) + ", never converted.",
+		},
+		{
+			Name:        "reference",
+			Type:        "any",
+			Required:    true,
+			Description: "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label or an unsigned-integer field's (u4, u8, u16, u32, u64) canonical base-10 value; any other field type is refused, SERVICE_VALIDATION reason key_field_type). A table or map is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field is null or has no profile is null, counted in n_reference_missing and warned once per slot (PULSE_VECTOR_REFERENCE_MISSING, components on or off; strict does not escalate it).",
+		},
+		{
+			Name:        "min_valid",
+			Type:        "int",
+			Default:     1,
+			Description: "Fewest complete member pairs (member and reference both present) a row needs, 1 to the member count; below it the value is null. Distance sums are rescaled by p / p_observed.",
+		},
+		{
+			Name:        "labels",
+			Type:        "list",
+			Description: "Inline fields only: one unique label per member, the names a label map or table aligns to (default: the field names). A named vector carries its own labels.",
+		},
+	}
+	desc := "Per-row similarity to a reference across the p members of vector / fields (exactly one): correlation, cosine or a set similarity, pairwise-complete (a null member drops its pair). Row-local and single-pass; the weight is irrelevant."
+	note := "one similarity per record (correlation / cosine in [-1, 1], set similarities in [0, 1]); null below min_valid or when the row's reference is missing"
+	hint := ""
+	if t == types.ATTR_VEC_DISTANCE {
+		desc = "Per-row distance to a reference across the p members of vector / fields (exactly one), pairwise-complete with the p / p_observed rescaling. Row-local metrics are single-pass; std_euclidean (per-member SDs) and mahalanobis (inverse covariance, every member needed) fit first on the filtered rows params.fit_on admits — ATTR_MAHALANOBIS's fit pass, two-pass, weighted when a weight is in force; N* ≤ p or a singular fit nulls every value with a warning."
+		note = "one distance (≥ 0) per record; null below min_valid, when the row's reference is missing or the fit cannot score"
+		hint = "Row-local metrics stream in one pass; std_euclidean / mahalanobis take the two-pass drive (with groupers or features the request runs buffered). The fit is cohort-wide, never per group."
+		params = append(params,
+			descriptor.Param{
+				Name:        "fit_on",
+				Type:        "any",
+				Default:     "filtered",
+				Description: "Fitted metrics only (refused beside a row-local one): the fit population, \"filtered\" (every filtered row) or an inline array of filterer objects; every filtered row is still scored.",
+			},
+			descriptor.Param{
+				Name:        "missing",
+				Type:        "enum",
+				Default:     "listwise",
+				EnumValues:  []string{"listwise"},
+				Description: "Fitted metrics only: the fit's missing-data mode; only listwise (a row with a null member is left out of the fit, and is still scored pairwise-complete).",
+			},
+		)
+	}
+	return descriptor.Operator{
+		Name:           string(t),
+		Category:       "attribute",
+		Description:    desc,
+		Params:         params,
+		AcceptsTypes:   numericFieldTypesNoDecimal,
+		EmitsType:      "f64",
+		EmitsTypeNote:  note,
+		Streamable:     true,
+		StreamableHint: hint,
+		ComponentSchema: attrSchema(descriptor.Mergeable,
+			descriptor.ComponentKey{Name: "n_reference_missing", Type: "int",
+				Description: "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."},
+			descriptor.ComponentKey{Name: "n_domain_invalid", Type: "int",
+				Description: "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). Non-zero also raises PULSE_VECTOR_METRIC_DOMAIN."},
+		),
+	}
+}
+
+// otherForm is the direction f is not.
+func otherForm(f metric.Form) metric.Form {
+	if f == metric.Distance {
+		return metric.Similarity
+	}
+	return metric.Distance
 }

@@ -300,7 +300,7 @@ func (a *formulaAttribute) prepare() error {
 			a.prog, a.progErr = a.prepareTotals()
 			return
 		}
-		a.prog, a.progErr = newExprProgram(a.expression, "formula", a.schema, a.vecs, a.exts.exprOptionsWithModels(a.models))
+		a.prog, a.progErr = newExprProgram(a.expression, "formula", a.schema, a.vecs, a.exts.referenceTables(), a.exts.exprOptionsWithModels(a.models))
 	})
 	return a.progErr
 }

@@ -38,6 +38,8 @@ var reserved = []string{
 	"sqrt", "log", "exp", "pow",
 	// Set similarity over two label sets.
 	"jaccard", "dice", "hamming", "overlap",
+	// Reference vectors (Options.Extensions.ReferenceVectors).
+	"ref",
 }
 
 // reservedSet indexes reserved for IsReserved.
@@ -114,3 +116,70 @@ func SetHelperNames() []string {
 // OverlayRefused reports whether name is a reserved built-in that
 // OVERLAY_FORMULA must refuse (reserved, but outside the overlay subset).
 func OverlayRefused(name string) bool { return reservedSet[name] && !overlayAllowedSet[name] }
+
+// MetricFunction is the linalg/metric registry metric a reserved
+// built-in evaluates and the form it answers in ("distance" or
+// "similarity", the metric.Form spellings: this leaf imports nothing).
+type MetricFunction struct {
+	Metric string
+	Form   string
+}
+
+// metricFunctions maps every reserved built-in that evaluates a
+// registry metric to it. internal/processing registers each through
+// this table (so the function and the metric cannot drift) and the
+// vector-kind fit check (internal/vectors) reads it to judge
+// `cosine(v, w)` on a kind-declared vector.
+var metricFunctions = map[string]MetricFunction{
+	"dist":    {Metric: "euclidean", Form: "distance"},
+	"cosine":  {Metric: "cosine", Form: "similarity"},
+	"jaccard": {Metric: "jaccard", Form: "similarity"},
+	"dice":    {Metric: "dice", Form: "similarity"},
+	"hamming": {Metric: "hamming", Form: "distance"},
+	"overlap": {Metric: "overlap", Form: "similarity"},
+}
+
+// Metric returns the registry metric the reserved built-in name
+// evaluates; false for a name that evaluates none.
+func Metric(name string) (MetricFunction, bool) {
+	m, ok := metricFunctions[name]
+	return m, ok
+}
+
+// MetricFunctionNames returns, in declaration order of [reserved], every
+// reserved built-in that evaluates a registry metric.
+func MetricFunctionNames() []string {
+	var out []string
+	for _, n := range reserved {
+		if _, ok := metricFunctions[n]; ok {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// vectorPairs are the reserved built-ins that read two numeric vectors
+// position by position. A ref() argument of one (directly, or under the
+// label-preserving transforms) is aligned BY LABEL to the other
+// argument before the call: internal/vectors judges the alignment
+// (predict and the runtime build) and internal/processing patches it
+// in, both from this one list.
+var vectorPairs = map[string]bool{"dot": true, "dist": true, "cosine": true}
+
+// IsVectorPair reports whether name is a reserved built-in that reads
+// two numeric vectors position by position (dot, dist, cosine).
+func IsVectorPair(name string) bool { return vectorPairs[name] }
+
+// labelPreserving are the reserved vector-returning built-ins whose
+// first argument's labels carry through to their result unchanged
+// (element i of the result is element i of the argument, transformed).
+var labelPreserving = map[string]bool{"vcenter": true, "vzscore": true, "vnormalize": true}
+
+// PreservesLabels reports whether the reserved built-in name returns a
+// vector labelled exactly like its first argument (vcenter, vzscore,
+// vnormalize).
+func PreservesLabels(name string) bool { return labelPreserving[name] }
+
+// RefFunc is the reserved built-in that reads a registered reference
+// vector: ref("table", key).
+const RefFunc = "ref"

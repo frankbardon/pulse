@@ -232,7 +232,7 @@ func TestFactorScore_SignAgreesWithMATFactor(t *testing.T) {
 			schema, _ := hotellingFixture(t, "attitude", "")
 			_, recs := hotellingFixture(t, "attitude", "")
 			for i, r := range recs {
-				r.SetMergePosition(0, i) // the matrix slot's blocked merge reads it
+				r.SetMergePosition(0, 0, i) // the matrix slot's blocked merge reads it
 			}
 			matParams := map[string]any{}
 			if c.factors != nil {

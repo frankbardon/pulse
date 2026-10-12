@@ -114,11 +114,15 @@ const (
 	// the date family, GROUP_KMEANS included) cuts the rows into. A
 	// centroid is the bucket's (weighted) mean of every member; the
 	// primary is square symmetric, keyed by the bucket labels in the
-	// grouper's emission order, with a zero diagonal. params.metric
-	// "euclidean" (the default), "sqeuclidean", "manhattan",
-	// "chebyshev", "cosine" or "mahalanobis" (the pooled within-bucket
-	// covariance); params.standardize z-scores the members over the
-	// bucketed rows first. Rows the grouper puts in no bucket (a null
+	// grouper's emission order, with a zero diagonal. params.metric is
+	// a linalg/metric registry name the MAT_DISTANCE consumer accepts:
+	// "euclidean" (the default), "sq_euclidean", "manhattan",
+	// "chebyshev", "cosine", "hellinger", "aitchison" or "mahalanobis"
+	// (the pooled within-bucket covariance); params.standardize
+	// z-scores the members over the bucketed rows first; params.min_valid
+	// (default 1) is the fewest complete member pairs a distance needs.
+	// An undefined coordinate is dropped pairwise, the element sums
+	// rescaled by p/p_observed. Rows the grouper puts in no bucket (a null
 	// key) are excluded and counted. vectors.sizes carries each
 	// bucket's mass, auxiliary.centroids the k × p centroids. Listwise
 	// only. Streamable and mergeable when the grouper is (one co-moment
@@ -256,8 +260,9 @@ type MatrixSpec struct {
 	// "oblimin", "kappa" (promax), "gamma" (oblimin), "conf_level" (ml:
 	// the RMSEA interval's coverage, default 0.9), "repair": "nearest";
 	// MAT_DISTANCE: "between": a grouper spec, "metric":
-	// "euclidean" | "sqeuclidean" | "manhattan" | "chebyshev" | "cosine" |
-	// "mahalanobis", "standardize": bool).
+	// "euclidean" | "sq_euclidean" | "manhattan" | "chebyshev" | "cosine" |
+	// "hellinger" | "aitchison" | "mahalanobis", "standardize": bool,
+	// "min_valid": int ≥ 1).
 	Params json.RawMessage `json:"params,omitempty"`
 	// Weight is the per-slot weight override: absent inherits
 	// Request.Weight (then Options.DefaultWeight); null opts the slot

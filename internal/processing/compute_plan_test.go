@@ -63,6 +63,16 @@ func TestComputePlanFor(t *testing.T) {
 			want: func() ComputePlan { c := full; c.Run = false; return c }()},
 		{name: "exclude_component_matrices", exclude: []string{"components.matrices"},
 			want: func() ComputePlan { c := full; c.Matrices = false; return c }()},
+		{name: "exclude_component_attributes", exclude: []string{"components.attributes"},
+			want: func() ComputePlan { c := full; c.Attributes = false; return c }()},
+		{name: "include_attribute_floor_only", include: []string{"components.attributes[*].n"},
+			want: func() ComputePlan {
+				c := none
+				c.Attributes = true
+				c.MatricesSlot, c.Tests, c.PostTests, c.Regressions, c.Overlays = false, false, false, false, false
+				c.MatrixAuxiliary, c.MatrixScalars, c.MatrixVectors = false, false, false
+				return c
+			}()},
 		// The matrices slot takes its sub-parts with it; each sub-part
 		// alone leaves the slot (and its fold) computed.
 		{name: "exclude_matrices_slot", exclude: []string{"matrices"},

@@ -189,7 +189,7 @@ func singularityMatrix(t *testing.T, schema *encoding.Schema, recs []*Record, sp
 		t.Fatalf("%s: buildMatrixSlotsFor: %d slots, %v", spec.Type, len(slots), err)
 	}
 	for i, rec := range recs {
-		rec.SetMergePosition(0, i)
+		rec.SetMergePosition(0, 0, i)
 		if err := slots[0].UpdateRow(rec, ""); err != nil {
 			t.Fatalf("%s: UpdateRow: %v", spec.Type, err)
 		}

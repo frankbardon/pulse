@@ -20,8 +20,12 @@ type ExtensionsManifest struct {
 	SynthDistributions []OperatorMeta     `json:"synth_distributions"`
 	ExprFunctions      []ExprFunctionMeta `json:"expr_functions"`
 	LookupTables       []LookupTableMeta  `json:"lookup_tables"`
-	LabelTables        []LabelTableMeta   `json:"label_tables"`
-	RangeTables        []RangeTableMeta   `json:"range_tables"`
+	// ReferenceVectors lists the registered reference-vector tables
+	// (Options.Extensions.ReferenceVectors) an expression reads with
+	// ref("table", key).
+	ReferenceVectors []ReferenceVectorMeta `json:"reference_vectors"`
+	LabelTables      []LabelTableMeta      `json:"label_tables"`
+	RangeTables      []RangeTableMeta      `json:"range_tables"`
 }
 
 // OperatorMeta is the manifest projection for an embedder-registered
@@ -59,6 +63,19 @@ type OperatorMeta struct {
 	// cell. Omitted when undeclared, which reads as "recompute": the
 	// crosstab cell runs buffered.
 	MarginReducibility string `json:"margin_reducibility,omitempty"`
+	// VectorInput is the aggregator-only projection of
+	// pulse.AggregatorRegistration.VectorInput: the slot reads a member
+	// set from vector or fields (exactly one; field refused), resolved
+	// by the built-in vector rules, like AGG_VEC_MEAN. Omitted
+	// otherwise: the slot reads field.
+	VectorInput bool `json:"vector_input,omitempty"`
+	// ArrayValued is the aggregator-only projection of
+	// pulse.AggregatorRegistration.ArrayValued (implies VectorInput):
+	// the value is one figure per member, so the slot is refused as a
+	// crosstab cell or margin, a sort key, an overlay host and a chain
+	// stage feeding another, and params.expand writes one column per
+	// member. Omitted otherwise.
+	ArrayValued bool `json:"array_valued,omitempty"`
 	// WeightAware is the aggregator / attribute / test projection of
 	// the registration's WeightAware declaration — the extension half
 	// of the built-in Operator.WeightAware. True means the operator
@@ -105,6 +122,17 @@ type LookupTableMeta struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	HasRowsData bool   `json:"has_rows_data"`
+}
+
+// ReferenceVectorMeta is the manifest projection of a registered
+// reference-vector table: its element labels and its profile keys —
+// what an author needs to write ref("table", key) and give the compared
+// vector matching labels — without the profile values.
+type ReferenceVectorMeta struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	Labels      []string `json:"labels"`
+	Keys        []string `json:"keys"`
 }
 
 // LabelTableMeta is the manifest projection of a registered string-

@@ -48,6 +48,21 @@ type GrouperComponentsFunc func(instance extend.Grouper) (map[string]any, error)
 // in is the extend.FiltererBuilder the registration's Factory returned.
 type FiltererComponentsFunc func(instance extend.FiltererBuilder) (map[string]any, error)
 
+// AttributeComponentsFunc is the attribute-shape sibling. The
+// orchestrator invokes the func ONCE after the attribute has scored
+// every filter-passing row and routes the result onto that slot's
+// Response.Components.Attributes entry (Operator); the attribute floor
+// ({n, n_null}: rows whose output is present / null) is filled by the
+// orchestrator. Only a registration that supplies it (with a
+// ComponentSchema) emits an entry. The instance passed in is the
+// extend.AttributeComputer the registration's Factory returned.
+//
+// A registration that supplies it is not admitted to the parallel
+// reducers or ProcessChain even when its Mode is row_local: one
+// instance per worker would leave per-worker figures no orchestrator
+// merge can fold, so the request runs on the serial arm instead.
+type AttributeComponentsFunc func(instance extend.AttributeComputer) (map[string]any, error)
+
 // FieldInputsFunc is the optional introspection callback an extension
 // registration may supply so the buffered-projection extractor can
 // determine which extra schema fields the operator reads beyond the
@@ -92,6 +107,19 @@ type Extensions struct {
 	// whenever LookupTables is non-empty. Tables are read-only after
 	// pulse.New.
 	LookupTables map[string]LookupTable
+
+	// ReferenceVectors expose named sets of labelled reference profiles
+	// to the runtime expression environment. Callers reference them as
+	//   ref("table_name", key)
+	// which yields the profile as a numeric vector aligned BY LABEL to
+	// the vector it is compared with (dot / dist / cosine, directly or
+	// under vcenter / vzscore / vnormalize); a label set that differs is
+	// PULSE_VECTOR_REFERENCE_MISMATCH, an unregistered table or key
+	// PULSE_VECTOR_REFERENCE_UNKNOWN — both at predict and at build
+	// when the names are literals. Validated at pulse.New
+	// (types.ReferenceVectorTable); programmatic only (no environment
+	// directory). Tables are read-only after pulse.New.
+	ReferenceVectors map[string]types.ReferenceVectorTable
 
 	// LabelTables expose static ID→label maps used by the output-time
 	// categorical-label overlay (per-request Labels slot on Request /
@@ -244,6 +272,35 @@ type AggregatorRegistration struct {
 	// and the instance default is skipped. Projected as the manifest's
 	// weight_aware.
 	WeightAware bool
+	// VectorInput declares that the operator reads a member set instead
+	// of one field: the slot names a Request.Vectors entry (vector) or
+	// inline members (fields — names and globs), exactly one, and no
+	// field. Predict and the runtime resolve it by the built-in vector
+	// rules (the AGG_VEC_MEAN contract: PULSE_VECTOR_* refusals,
+	// numeric source columns only, labels) and the factory receives a
+	// copy of the spec whose Fields are the resolved literal members,
+	// Vector empty, Label the default "<NAME>_<vector or first fields
+	// entry>" when unset, and params.labels the resolved display label
+	// per member (every other params key is kept). Each row's members
+	// read through Record.Value / IsNull as usual. params.labels and
+	// params.expand are the engine's: a VectorInput registration may not
+	// declare a ParamMeta of either name (PULSE_EXTENSION_PARAM_INVALID,
+	// reason reserved_vector_param). The universal floor counts a row
+	// present when ANY member answered. Undeclared, a vector input on
+	// the slot is refused (vector_not_accepted).
+	VectorInput bool
+	// ArrayValued declares that the value is one figure per member, in
+	// member order: the instance implements extend.RichAggregator and
+	// Rich returns a []float64 of the member count (NaN is null on the
+	// wire). It requires VectorInput and leaves MarginReducibility empty
+	// (PULSE_EXTENSION_ARRAY_VALUED_MISMATCH). The slot is then refused
+	// wherever one number is needed — a crosstab cell or margin
+	// aggregation, a sort key, an overlay host, a chain stage feeding
+	// another — exactly like AGG_VEC_MEAN, and params.expand writes one
+	// column per member, "<label>[<element label>]", in place of the
+	// array. A Rich value of another shape is PROCESSING_INTERNAL at
+	// run time.
+	ArrayValued bool
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
@@ -339,6 +396,16 @@ type AttributeRegistration struct {
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc.
 	FieldInputs FieldInputsFunc
+	// ComponentSchema declares the per-operator components contract
+	// surfaced through the slot's Response.Components.Attributes entry
+	// (Operator). Empty (zero Keys and Mergeability) emits no entry.
+	// When Keys is non-empty ComponentsFunc MUST be supplied and its
+	// returned keys MUST be a subset of the declared set; probe-
+	// validation enforces both at pulse.New time.
+	ComponentSchema descriptor.ComponentSchema
+	// ComponentsFunc is the optional emitter (see
+	// AttributeComponentsFunc). Nil emits no entry.
+	ComponentsFunc AttributeComponentsFunc
 }
 
 // FiltererRegistration installs a custom FILTER_* operator. Filterers

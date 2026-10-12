@@ -82,6 +82,10 @@ type parityOp struct {
 	// invariance (weights × testScaleC answer the same figure, within
 	// tolerance) instead.
 	kishScaled bool
+	// vector marks an array-valued vector aggregator: ONE slot reads
+	// every entry of fields as its members (label op_<fields[0]>), and
+	// the crosstab arms do not apply (refused unconditionally).
+	vector bool
 }
 
 func (o parityOp) baselineOp() types.AggregationType {
@@ -133,6 +137,11 @@ var parityOps = []parityOp{
 	{op: types.AGG_MAPE, fields: []string{"x", "y"}, params: json.RawMessage(`{"prediction_field":"g"}`)},
 	{op: types.AGG_RMSE, fields: []string{"x", "y"}, params: json.RawMessage(`{"prediction_field":"g"}`), expandExact: []string{"x"}},
 	{op: types.AGG_MAE, fields: []string{"x", "y"}, params: json.RawMessage(`{"prediction_field":"g"}`), expandExact: []string{"x"}},
+	// vector-metrics-aggregates E2-S2: ONE vector slot over x and y
+	// (array-valued: per element Σw·x, Σw·x / Σw). y is fractional, so
+	// no element is exact on expansion. Never a crosstab cell (refused).
+	{op: types.AGG_VEC_MEAN, fields: []string{"x", "y"}, vector: true},
+	{op: types.AGG_VEC_SUM, fields: []string{"x", "y"}, vector: true},
 }
 
 // --- fixture ------------------------------------------------------------
@@ -491,6 +500,11 @@ func paritySources() []paritySource {
 
 func parityRequest(path string, row parityOp, op types.AggregationType) *types.Request {
 	req := &types.Request{Cohort: &types.Cohort{Filename: path}}
+	if row.vector {
+		req.Aggregations = []*types.Aggregation{{Type: op, Fields: append([]string(nil), row.fields...),
+			Label: string(row.op) + "_" + row.fields[0], Params: row.params}}
+		return req
+	}
 	for _, f := range row.fields {
 		req.Aggregations = append(req.Aggregations, &types.Aggregation{
 			Type: op, Field: f, Label: string(row.op) + "_" + f, Params: row.params})
@@ -902,6 +916,15 @@ func compareExpanded(t *testing.T, where string, got, want any, exact bool, skip
 				continue
 			}
 			compareExpanded(t, where+"."+k, g[k], wv, exact, skip)
+		}
+	case []any:
+		g, ok := got.([]any)
+		if !ok || len(g) != len(w) {
+			t.Errorf("%s: %v, expanded %v", where, got, want)
+			return
+		}
+		for i := range w {
+			compareExpanded(t, fmt.Sprintf("%s[%d]", where, i), g[i], w[i], exact, skip)
 		}
 	default:
 		gf, gok := parityFloat(got)

@@ -26,20 +26,25 @@ func TestRecordMergePosition_FitsPadding(t *testing.T) {
 }
 
 func TestRecordMergePosition(t *testing.T) {
+	B := linalg.MergeBlockSize
 	cases := []struct {
-		name          string
-		shard, record int
-		want          BlockKey
-		ok            bool
+		name                 string
+		shard, start, record int
+		want                 BlockKey
+		ok                   bool
 	}{
-		{"first row", 0, 0, BlockKey{0, 0}, true},
-		{"last row of block 0", 0, linalg.MergeBlockSize - 1, BlockKey{0, 0}, true},
-		{"first row of block 1", 0, linalg.MergeBlockSize, BlockKey{0, 1}, true},
-		{"shard and block", 7, 5*linalg.MergeBlockSize + 3, BlockKey{7, 5}, true},
-		{"max shard", math.MaxUint16, 0, BlockKey{math.MaxUint16, 0}, true},
-		{"shard overflow", math.MaxUint16 + 1, 0, BlockKey{}, false},
-		{"negative record", 0, -1, BlockKey{}, false},
-		{"negative shard", -1, 0, BlockKey{}, false},
+		{"first row", 0, 0, 0, BlockKey{Block: 0, Shard: 0, Head: true}, true},
+		{"last row of block 0", 0, 0, B - 1, BlockKey{Block: 0, Shard: 0, Head: true}, true},
+		{"first row of block 1", 0, 0, B, BlockKey{Block: 1, Shard: 0, Head: true}, true},
+		{"shard and block", 7, 0, 5*B + 3, BlockKey{Block: 5, Shard: 7, Head: true}, true},
+		{"global ordinal", 3, 2*B + 10, B - 11, BlockKey{Block: 2, Shard: 3, Head: false}, true},
+		{"shard start on the block edge", 3, 2 * B, 0, BlockKey{Block: 2, Shard: 3, Head: true}, true},
+		{"next block of a mid-block shard", 3, 2*B + 10, B - 10, BlockKey{Block: 3, Shard: 3, Head: true}, true},
+		{"max shard", math.MaxUint16, 0, 0, BlockKey{Block: 0, Shard: math.MaxUint16, Head: true}, true},
+		{"shard overflow", math.MaxUint16 + 1, 0, 0, BlockKey{}, false},
+		{"negative record", 0, 0, -1, BlockKey{}, false},
+		{"negative start", 1, -1, 0, BlockKey{}, false},
+		{"negative shard", -1, 0, 0, BlockKey{}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -47,8 +52,8 @@ func TestRecordMergePosition(t *testing.T) {
 			if _, ok := r.MergeBlock(); ok {
 				t.Fatal("a fresh record reports a merge position")
 			}
-			r.SetMergePosition(2, 9) // a stale position must not survive a bad stamp
-			r.SetMergePosition(tc.shard, tc.record)
+			r.SetMergePosition(2, 0, 9) // a stale position must not survive a bad stamp
+			r.SetMergePosition(tc.shard, tc.start, tc.record)
 			got, ok := r.MergeBlock()
 			if ok != tc.ok || got != tc.want {
 				t.Fatalf("MergeBlock() = %v, %v; want %v, %v", got, ok, tc.want, tc.ok)
@@ -58,13 +63,14 @@ func TestRecordMergePosition(t *testing.T) {
 }
 
 type posRow struct {
-	shard, record int
-	x             []float64
-	w             float64
+	shard, start, record int
+	x                    []float64
+	w                    float64
 }
 
 func blockRows(r *rand.Rand, shards []int, p int) []posRow {
 	var out []posRow
+	start := 0
 	for s, n := range shards {
 		for i := 0; i < n; i++ {
 			x := make([]float64, p)
@@ -74,8 +80,9 @@ func blockRows(r *rand.Rand, shards []int, p int) []posRow {
 					x[j] = math.NaN()
 				}
 			}
-			out = append(out, posRow{shard: s, record: i, x: x, w: 0.25 + r.Float64()})
+			out = append(out, posRow{shard: s, start: start, record: i, x: x, w: 0.25 + r.Float64()})
 		}
+		start += n
 	}
 	return out
 }
@@ -119,7 +126,7 @@ func foldPartitioned(t *testing.T, rows []posRow, p int, mode linalg.CoMomentMod
 		}
 		for _, row := range rows[bounds[i]:bounds[i+1]] {
 			rec := NewReusableRecord(blockTestSchema())
-			rec.SetMergePosition(row.shard, row.record)
+			rec.SetMergePosition(row.shard, row.start, row.record)
 			if err := b.Add(rec, row.x, row.w); err != nil {
 				t.Fatal(err)
 			}
@@ -139,51 +146,46 @@ func foldPartitioned(t *testing.T, rows []posRow, p int, mode linalg.CoMomentMod
 	return root
 }
 
-// Absorb order and partition boundaries (at block multiples or shard
-// edges) never reach the bits; Tree is the two-level shard/block tree.
+// Absorb order and partition boundaries (at global block multiples or
+// shard edges) never reach the bits, and Tree is the single file's
+// tree: one sequential fold per GLOBAL block in ordinal order — shard
+// edges fall inside blocks here — then MergeTree over the blocks.
+// Falsified by keying blocks per shard (ignoring the shard start).
 func TestBlockCoMoments_PartitionAndOrderInvariant(t *testing.T) {
 	r := rand.New(rand.NewPCG(11, 12))
 	const p = 3
 	B := linalg.MergeBlockSize
-	shards := []int{3*B + 17, B, 5, 2 * B}
+	shards := []int{3*B + 17, B, 5, 1, 0, 2 * B}
 	rows := blockRows(r, shards, p)
-	shardStart := []int{0, 3*B + 17, 4*B + 17, 4*B + 22}
+	shardStart := []int{0, 3*B + 17, 4*B + 17, 4*B + 22, 4*B + 23, 4*B + 23}
 
 	for _, mode := range []linalg.CoMomentMode{linalg.Listwise, linalg.Pairwise} {
 		want := foldPartitioned(t, rows, p, mode, nil, []int{0})
 
-		// The two-level reference: MergeTree per shard, then over shards.
-		var roots []*linalg.CoMoment
-		for s, n := range shards {
-			var blocks []*linalg.CoMoment
-			for b := 0; b*B < n; b++ {
-				acc, _ := linalg.NewCoMoment(p, mode)
-				for i := b * B; i < n && i < (b+1)*B; i++ {
-					row := rows[shardStart[s]+i]
-					acc.Add(row.x, row.w)
-				}
-				blocks = append(blocks, acc)
+		// The single-file reference: Add every row of a global block in
+		// ordinal order, then MergeTree over the blocks.
+		var blocks []*linalg.CoMoment
+		for b := 0; b*B < len(rows); b++ {
+			acc, _ := linalg.NewCoMoment(p, mode)
+			for i := b * B; i < len(rows) && i < (b+1)*B; i++ {
+				acc.Add(rows[i].x, rows[i].w)
 			}
-			root, err := linalg.MergeTree(blocks)
-			if err != nil {
-				t.Fatal(err)
-			}
-			roots = append(roots, root)
+			blocks = append(blocks, acc)
 		}
-		ref, err := linalg.MergeTree(roots)
+		ref, err := linalg.MergeTree(blocks)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !equalWords(coMomentWords(want), coMomentWords(ref)) {
-			t.Fatalf("%v: Tree is not the per-shard-then-across-shards MergeTree", mode)
+			t.Fatalf("%v: Tree is not the single file's global-block MergeTree", mode)
 		}
 
 		splits := []struct {
 			cuts, order []int
 		}{
 			{[]int{B, 2 * B, 3 * B}, []int{3, 1, 0, 2}},
-			{[]int{shardStart[1], shardStart[2], shardStart[3]}, []int{2, 0, 3, 1}},
-			{[]int{2 * B, shardStart[3] + B}, []int{2, 1, 0}},
+			{[]int{shardStart[1], shardStart[2], shardStart[3], shardStart[5]}, []int{2, 0, 4, 3, 1}},
+			{[]int{2 * B, 5 * B}, []int{2, 1, 0}},
 		}
 		for _, sp := range splits {
 			got := foldPartitioned(t, rows, p, mode, sp.cuts, sp.order)
@@ -191,6 +193,25 @@ func TestBlockCoMoments_PartitionAndOrderInvariant(t *testing.T) {
 				t.Fatalf("%v: cuts %v absorbed in order %v changed the bits", mode, sp.cuts, sp.order)
 			}
 		}
+	}
+}
+
+// A block's head fragment must be its first: a head behind a non-head
+// fragment means inconsistent stamps, refused PROCESSING_INTERNAL.
+func TestBlockCoMoments_HeadNotFirstRefused(t *testing.T) {
+	b, _ := NewBlockCoMoments(1, linalg.Listwise)
+	if err := b.AddAt(BlockKey{Block: 0, Shard: 0, Head: false}, []float64{1}, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.AddAt(BlockKey{Block: 0, Shard: 1, Head: true}, []float64{2}, 1); err != nil {
+		t.Fatal(err)
+	}
+	_, err := b.Tree()
+	if ce, ok := err.(*errors.CodedError); !ok || ce.Code != errors.PROCESSING_INTERNAL {
+		t.Fatalf("head behind a fragment: err = %v, want PROCESSING_INTERNAL", err)
+	}
+	if err := b.AddAt(BlockKey{Block: 1, Shard: 0}, []float64{1, 2}, 1); err == nil {
+		t.Fatal("a buffered row of the wrong length was accepted")
 	}
 }
 
@@ -205,12 +226,12 @@ func TestBlockCoMoments_Refusals(t *testing.T) {
 		t.Fatalf("unpositioned row: err = %v, want PROCESSING_INTERNAL", err)
 	}
 
-	rec.SetMergePosition(0, 10)
+	rec.SetMergePosition(0, 0, 10)
 	if err := b.Add(rec, []float64{1, 2}, 1); err != nil {
 		t.Fatal(err)
 	}
 	split, _ := NewBlockCoMoments(2, linalg.Listwise)
-	rec.SetMergePosition(0, 20) // same block 0 on another partition
+	rec.SetMergePosition(0, 0, 20) // same block 0 on another partition
 	if err := split.Add(rec, []float64{3, 4}, 1); err != nil {
 		t.Fatal(err)
 	}

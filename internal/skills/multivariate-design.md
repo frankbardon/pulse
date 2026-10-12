@@ -10,7 +10,7 @@ requires: [capability:matrices]
 
 # Choosing a multivariate operator
 
-Every operator here reads one vector (`vectors`, see `matrix-results`) and answers with a matrix plus vectors and scalars. Pick by the QUESTION, then set the missing-data mode.
+Every operator here reads one vector (`vectors`, see `matrix-results`) and answers with a matrix plus vectors and scalars. Pick by the QUESTION, then set the missing-data mode. Comparing rows or segments by distance or similarity? Declare the vector's `kind` first so the metric fits the values (`vector-metrics`).
 
 ## Which operator answers my question
 
@@ -45,6 +45,21 @@ Every operator here reads one vector (`vectors`, see `matrix-results`) and answe
 <!-- /feature -->
 <!-- feature: ATTR_FACTOR_SCORE -->
 | Each row's score on a factor (a construct estimate)? | `ATTR_FACTOR_SCORE` (a row score) |
+<!-- /feature -->
+<!-- feature: ATTR_SCALE_SCORE -->
+| Each row's score on a rating battery (mean or prorated sum, reverse-keyed items)? | `ATTR_SCALE_SCORE` (a row score) |
+<!-- /feature -->
+<!-- feature: ATTR_PROFILE_SIMILARITY -->
+| How closely does each row match a target profile? | `ATTR_PROFILE_SIMILARITY` (a row score) |
+<!-- /feature -->
+<!-- feature: ATTR_VEC_DISTANCE -->
+| How far is each row from a target profile? | `ATTR_VEC_DISTANCE` (a row score) |
+<!-- /feature -->
+<!-- feature: AGG_VEC_MEAN -->
+| Each group's average profile across the items, as one list? | `AGG_VEC_MEAN` |
+<!-- /feature -->
+<!-- feature: AGG_VEC_SUM -->
+| Each group's total per item, as one list? | `AGG_VEC_SUM` |
 <!-- /feature -->
 <!-- feature: GROUP_KMEANS -->
 | Which segments do the rows fall into across the fields? | `GROUP_KMEANS` (a grouper) |
@@ -90,6 +105,7 @@ Per-test correction on other operators: `multiplicity-correction`.
 
 - `matrix-results` — slot, encodings, refusals.
 - `multivariate-outputs` — how the PCA, factor, distance, score and vector-test figures are laid out.
+- `vector-metrics` — vector `kind`, metric defaults and the unsuited-metric warning.
 <!-- feature: MAT_PCA -->
 - `op-mat-pca`
 <!-- /feature -->
@@ -101,6 +117,12 @@ Per-test correction on other operators: `multiplicity-correction`.
 <!-- /feature -->
 <!-- feature: MAT_RELIABILITY -->
 - `op-mat-reliability`
+<!-- /feature -->
+<!-- feature: ATTR_SCALE_SCORE -->
+- `op-attr-scale-score`
+<!-- /feature -->
+<!-- feature: AGG_VEC_MEAN -->
+- `op-agg-vec-mean`
 <!-- /feature -->
 <!-- feature: MAT_COLLINEARITY -->
 - `op-mat-collinearity`

@@ -658,7 +658,8 @@ func (s *CrosstabSpec) CellLabel() string {
 
 // AggregationLabelOf returns the output label an aggregation emits in a
 // long-form result row: the explicit Label when set, otherwise
-// TYPE_field. Mirrors processing.AggregationLabel without importing
+// TYPE_field (TYPE_vector, or TYPE_<first fields entry>, for a vector
+// aggregator, which has no field). Mirrors processing.AggregationLabel without importing
 // internal/processing/ (types must stay dependency-free). A nil aggregation
 // yields the empty string.
 func AggregationLabelOf(a *Aggregation) string {
@@ -667,6 +668,16 @@ func AggregationLabelOf(a *Aggregation) string {
 	}
 	if a.Label != "" {
 		return a.Label
+	}
+	if a.Field == "" {
+		// A vector aggregator reads Vector or Fields: "<TYPE>_<vector>",
+		// or "<TYPE>_<first fields entry as written>".
+		if a.Vector != "" {
+			return string(a.Type) + "_" + a.Vector
+		}
+		if len(a.Fields) > 0 {
+			return string(a.Type) + "_" + a.Fields[0]
+		}
 	}
 	return string(a.Type) + "_" + a.Field
 }

@@ -34,8 +34,8 @@ with a feature profile gets a narrower document:
   names;
 - a request slot the instance does not offer (`crosstab`, `joins`,
   `overlays`, `vectors`, `matrices`, `weight`) is not a property of its
-  request root (a hidden `vectors` takes `VectorSpec` and `VectorCoerce`
-  with it; hidden `matrices` takes `MatrixSpec`, the `Response.matrices`
+  request root (a hidden `vectors` takes `VectorSpec`, `VectorCoerce` and
+  `VectorKind` with it; hidden `matrices` takes `MatrixSpec`, the `Response.matrices`
   and `ResponseComponents.matrices` slots and `MatrixResult` /
   `MatrixComponents` with it — `MatrixValues` stays, shared with the
   regression `vcov` / `correlation`); without
@@ -300,9 +300,16 @@ rules and the unweighted-base recipe: [Row Weighting](../library/weighting.md).
 ## Vector slot
 
 `vectors` on `Request` is an additive array of `VectorSpec`
-`{name, fields | pattern, labels?, coerce?}` (`format_version` stays
-`"1.1"`; a request with no vectors is byte-identical and hashes
-identically). `coerce` is the closed `VectorCoerce` enum (`binary`).
+`{name, fields | pattern, labels?, coerce?, kind?, scale_min?, scale_max?}`
+(`format_version` stays `"1.1"`; a request with no vectors is
+byte-identical and hashes identically). `coerce` is the closed
+`VectorCoerce` enum (`binary`); `kind` the closed `VectorKind` enum
+(`measure`, `scale`, `composition`, `binary`) — what the values mean,
+which fills a metric-taking operator's default metric (reported in
+predict's `defaults_applied`, category `metric`) and flags an explicit
+poorly fitting one (`PULSE_VECTOR_METRIC_UNSUITED`, a warning, an
+error under strict). `scale_min` / `scale_max` are numbers, accepted
+only beside `kind: "scale"`, both or neither, min below max.
 What the schema cannot say, predict and the runtime enforce
 identically before any record is read: exactly one of `fields` /
 `pattern`; literal `fields` entries keep the caller's order while glob
@@ -337,10 +344,21 @@ refused). Shape refusals are `SERVICE_VALIDATION` with
 ## Attribute vector inputs
 
 `Attribute` carries two additive slots, the same mirror: `vector` /
-`fields`. A vector-input (fitted) attribute (`ATTR_MAHALANOBIS`,
-`ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`) sets exactly one of them and no
-`field`; every other attribute refuses both.
-Members are source columns only. Its `params` share `fit_on` —
+`fields`. A vector-input attribute (the fitted `ATTR_MAHALANOBIS`,
+`ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`, the row-local
+`ATTR_SCALE_SCORE`, and the reference comparisons
+`ATTR_PROFILE_SIMILARITY` / `ATTR_VEC_DISTANCE`) sets exactly one of
+them and no `field`; every other attribute refuses both.
+Members are source columns only. `ATTR_SCALE_SCORE`'s `params` are
+`stat` (`mean` | `sum`, prorated), `min_valid`, `reverse` (member
+labels) and `scale_min` / `scale_max` (else the kind `scale` vector's
+bounds). The comparisons' `params` are `metric` (similarity / distance
+direction respectively; default from the vector's `kind`), `min_valid`
+(complete pairs, default 1), `labels` (inline fields only) and
+`reference` — a literal array (member order), a label map
+`{label: value}`, `{table, key}` or `{table, key_field}` over
+`Extensions.ReferenceVectors`, matched by label; `ATTR_VEC_DISTANCE`
+adds `fit_on` / `missing` beside its fitted metrics. A fitted attribute's `params` share `fit_on` —
 `"filtered"` (the default) or an inline array of `Filterer` objects
 choosing the fit rows among the filtered ones (every filtered row is
 still scored) — and `missing` (`"listwise"` only). The default label is
@@ -371,6 +389,47 @@ best start stopped at `params.max_iter` adds a
 `kmeans_lloyd`). Predict's `groups[i].row_buffer_bytes` reports its point
 store. `format_version` stays `"1.1"`; a grouper without them is
 byte-identical.
+
+## Aggregation vector inputs
+
+`Aggregation` carries the same two additive slots, `vector` / `fields`,
+on `aggregations`, `crosstab.cell` and `crosstab.margin_aggregations`.
+A vector aggregator (`AGG_VEC_MEAN`, `AGG_VEC_SUM`) sets exactly one of
+them and no `field`; every other aggregator (extensions included)
+refuses both. Members are source columns only; `params.labels` (one per
+member) is accepted with `fields` only. The default label is
+`<TYPE>_<vector>` or `<TYPE>_<first fields entry>`. The value in
+`data` is a JSON ARRAY, one figure per member in member order (a
+non-finite element is `null`); its components entry adds `labels`,
+`element_n`, `element_sum` and, weighted, `element_sum_weights`. Shape
+refusals are `SERVICE_VALIDATION` with `details.aggregation` and
+`details.reason`; an undefined vector is `PULSE_VECTOR_UNKNOWN`. An
+array-valued aggregator is refused `PROCESSING_CONFIG`
+(`details.reason` `array_valued`) as a crosstab cell or margin
+aggregation (the manifest lists them in
+`crosstab.array_valued_aggregators`), as a `sort` key, as
+`aggregations[0]` under `overlays` and in a chain stage that feeds
+another. `format_version` stays `"1.1"`; an aggregation without them is
+byte-identical.
+
+`params.expand: true` on a vector aggregator replaces the array with one
+scalar column per member, `<label>[<element label>]` in member order
+(grouped: per row); the label column is absent. Every execution mode
+writes the same keys. `PredictResult.aggregations[i].columns` lists them
+(omitted on every other slot, whose one column is its label), the
+`return` column check and `PredictChain`'s `stage_schemas` use them, and
+duplicate element labels are refused (`SERVICE_VALIDATION`, reason
+`expand_duplicate_labels`). The columns are presentation only: like the
+array they are refused `PROCESSING_CONFIG` (`array_valued`) as a `sort`
+key, a window's `field` / `order_by` / `partition_by`, a post-test
+field and an overlay host. A Compose overlay reading a slot, or a
+whole-chain overlay reading a stage, that carries a vector aggregation
+(expanded or not) is refused the same way. A `return` path cannot name a
+bracketed column; a prefix glob (`data[*].<label>*`) keeps them.
+
+`field` is optional on `Aggregation`, `Group` and `Attribute` (a vector
+aggregator or grouper reads `vector` / `fields`, `ATTR_FORMULA` an
+`expression`); the Go wire form still writes it.
 
 ## Matrix slots
 
@@ -423,9 +482,11 @@ integer k ≤ p or `"kaiser"` (default), `extraction` `minres` (default),
 or `oblimin`, `kappa` (promax only) and `gamma` (oblimin only), and
 `repair` `"nearest"`; `MAT_DISTANCE` only: `between` (required) a grouper
 spec as in `groups` — any built-in but `GROUP_DATE` / `GROUP_DATE_RANGES`,
-no own `weight` or `tz` — `metric` `euclidean` (default), `sqeuclidean`,
-`manhattan`, `chebyshev`, `cosine` or `mahalanobis`, `standardize`
-(boolean, default `false`), listwise only). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
+no own `weight` or `tz` — `metric` a `linalg/metric` registry name
+(`capabilities.matrix.metrics`, consumer `MAT_DISTANCE`): `euclidean`
+(default), `sq_euclidean`, `manhattan`, `chebyshev`, `cosine`,
+`hellinger`, `aitchison` or `mahalanobis`, `standardize` (boolean, default
+`false`), `min_valid` (integer 1 … p, default 1), listwise only). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
 the same shape and encoding holding each pair's row count. `vectors` is an
 open object: with `summary.top_pairs`, `vectors.top_pairs` is
 `[{row, col, r, n}]` — the k off-diagonal pairs with the largest `|r|`,
@@ -561,6 +622,24 @@ execution arm (buffered, streaming, parallel) emits the same figures, and
 a stream carries them on its terminal chunk only. Contract:
 `.claude/reference/response-components.md` (Per-group aggregation
 components).
+
+## Attribute components
+
+`attributes` on `ResponseComponents` is an additive `omitempty` array of
+`AttributeComponents` `{label, type, n, n_null, operator?}`
+(`format_version` stays `"1.1"`; a response with no attribute slot whose
+operator declares a `ComponentSchema` has no `attributes` key and is
+byte-identical). What the schema cannot say: an entry exists only for a
+slot whose operator declares a schema (`ATTR_SCALE_SCORE`, an extension
+attribute registered with one) — `manifest.components_schemas.attributes`
+lists them — so entries are keyed back by `label` (the effective output
+label) and `type`, never by index into `attributes`; `n` / `n_null`
+count the filter-passing rows whose output is present / null; entries
+are cohort-wide (a grouped or crosstab run carries one per slot, never
+per bucket) and carry no weighted floor keys. `ATTR_SCALE_SCORE`'s
+`operator` holds `n_out_of_range` / `n_rows_out_of_range` only when a
+range is declared. Contract: `.claude/reference/response-components.md`
+(Attribute components).
 
 ## Return slot
 

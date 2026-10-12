@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/mergegate"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -25,6 +26,7 @@ type ExtensionsSnapshot struct {
 	SynthDistributions []descriptor.OperatorMeta
 	ExprFunctions      []descriptor.ExprFunctionMeta
 	LookupTables       []descriptor.LookupTableMeta
+	ReferenceVectors   []descriptor.ReferenceVectorMeta
 	LabelTables        []descriptor.LabelTableMeta
 	RangeTables        []descriptor.RangeTableMeta
 
@@ -152,6 +154,7 @@ func emptyExtensionsManifest() descriptor.ExtensionsManifest {
 		SynthDistributions: []descriptor.OperatorMeta{},
 		ExprFunctions:      []descriptor.ExprFunctionMeta{},
 		LookupTables:       []descriptor.LookupTableMeta{},
+		ReferenceVectors:   []descriptor.ReferenceVectorMeta{},
 		LabelTables:        []descriptor.LabelTableMeta{},
 		RangeTables:        []descriptor.RangeTableMeta{},
 	}
@@ -175,6 +178,7 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 		SynthDistributions: snap.withExtIntents(sortOperatorMeta(snap.SynthDistributions)),
 		ExprFunctions:      sortExprFunctionMeta(snap.ExprFunctions),
 		LookupTables:       sortLookupTableMeta(snap.LookupTables),
+		ReferenceVectors:   sortReferenceVectorMeta(snap.ReferenceVectors),
 		LabelTables:        sortLabelTableMeta(snap.LabelTables),
 		RangeTables:        sortRangeTableMeta(snap.RangeTables),
 	}
@@ -207,6 +211,9 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 	}
 	if out.LookupTables == nil {
 		out.LookupTables = []descriptor.LookupTableMeta{}
+	}
+	if out.ReferenceVectors == nil {
+		out.ReferenceVectors = []descriptor.ReferenceVectorMeta{}
 	}
 	if out.LabelTables == nil {
 		out.LabelTables = []descriptor.LabelTableMeta{}
@@ -263,6 +270,29 @@ func sortLookupTableMeta(in []descriptor.LookupTableMeta) []descriptor.LookupTab
 	out := make([]descriptor.LookupTableMeta, len(in))
 	copy(out, in)
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+func sortReferenceVectorMeta(in []descriptor.ReferenceVectorMeta) []descriptor.ReferenceVectorMeta {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]descriptor.ReferenceVectorMeta, len(in))
+	copy(out, in)
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+// ReferenceTables is the predict view of the snapshot's reference-vector
+// tables: labels and keys, no profile values (vectors.ReferenceTable).
+func (s *ExtensionsSnapshot) ReferenceTables() vectors.ReferenceTables {
+	if s == nil || len(s.ReferenceVectors) == 0 {
+		return nil
+	}
+	out := make(vectors.ReferenceTables, len(s.ReferenceVectors))
+	for _, m := range s.ReferenceVectors {
+		out[m.Name] = vectors.ReferenceTable{Labels: m.Labels, Keys: m.Keys}
+	}
 	return out
 }
 
@@ -360,6 +390,30 @@ func (s *ExtensionsSnapshot) WeightAwareness(category, name string) (registered,
 		}
 	}
 	return false, false
+}
+
+// aggregationKinds is the descriptor's view of the aggregation types
+// for the vector rules — the twin of processing.ExtensionRegistry.
+// AggregationKinds: a type the instance hides routes to "" (unknown),
+// and a registered extension aggregator (snap, else the instance's own
+// projection) reports its declared VectorInput / ArrayValued.
+func aggregationKinds(inst *InstanceSnapshot, snap *ExtensionsSnapshot) vectors.AggregationKinds {
+	if snap == nil {
+		snap = inst.Extensions()
+	}
+	k := vectors.AggregationKinds{
+		Route: func(t types.AggregationType) types.AggregationType { return opRoute(inst, t) },
+	}
+	if snap != nil && len(snap.Aggregators) > 0 {
+		k.Extension = func(name string) vectors.ExtensionAggregation {
+			m, ok := findMeta(snap.Aggregators, name)
+			if !ok {
+				return vectors.ExtensionAggregation{}
+			}
+			return vectors.ExtensionAggregation{Registered: true, VectorInput: m.VectorInput, ArrayValued: m.ArrayValued}
+		}
+	}
+	return k
 }
 
 // HasAggregator reports whether name is an embedder-registered
@@ -464,5 +518,8 @@ func (f snapshotMergeFacts) Attribute(name string) (bool, bool) {
 		return false, false
 	}
 	m, ok := findMeta(f.s.Attributes, name)
-	return m.Mode == "row_local", ok
+	// An attribute emitting Components entries (a declared
+	// ComponentSchema) runs serial: per-worker figures do not merge.
+	_, emits := f.s.ComponentSchemas[name]
+	return m.Mode == "row_local" && !emits, ok
 }

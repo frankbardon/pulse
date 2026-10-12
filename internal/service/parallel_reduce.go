@@ -92,6 +92,9 @@ func (s *Service) reduceParallelBuffered(
 	// Every worker builds its aggregators off the stamped spec, so each
 	// slot carries its resolved weight (processing.StampWeightsWith).
 	req = processing.StampWeightsWith(req, s.defaultWeight, s.extensions)
+	// A vector aggregator's factory reads its resolved members (the
+	// rewrite Processor.prepare applies on every other arm).
+	req = processing.ResolveAggregationInputs(req, schema, s.extensions)
 
 	// Pre-resolve aggregator factories once; the per-worker factory
 	// closure re-uses these so we do not pay an extensions.LookupAggregator

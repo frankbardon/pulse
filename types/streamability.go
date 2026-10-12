@@ -66,7 +66,8 @@ func (t AggregationType) Streamable() bool {
 		AGG_WELFORD,
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
-		AGG_SET_DISTINCT_VALUES:
+		AGG_SET_DISTINCT_VALUES,
+		AGG_VEC_MEAN, AGG_VEC_SUM:
 		return true
 	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE:
 		return false
@@ -103,7 +104,10 @@ func (t AggregationType) Mergeable() bool {
 		AGG_MAPE, AGG_RMSE, AGG_MAE,
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
-		AGG_SET_DISTINCT_VALUES:
+		AGG_SET_DISTINCT_VALUES,
+		// Per-merge-block element sums combined in a fixed tree: the
+		// merged figure is bit-identical to the serial one.
+		AGG_VEC_MEAN, AGG_VEC_SUM:
 		return true
 	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE,
 		AGG_SKEWNESS, AGG_KURTOSIS:
@@ -192,7 +196,10 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 		AGG_WELFORD,
 		// AND across cells ≠ AND across all rows in general — recompute
 		// from raw rows.
-		AGG_SET_INTERSECTION:
+		AGG_SET_INTERSECTION,
+		// Array-valued: never a crosstab cell or margin (ArrayValued —
+		// refused unconditionally); classed with the honest default.
+		AGG_VEC_MEAN, AGG_VEC_SUM:
 		return MarginRecompute
 	}
 	return MarginRecompute
@@ -210,6 +217,21 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 func (t AggregationType) MapValued() bool {
 	switch t {
 	case AGG_SET_FREQUENCY, AGG_WELFORD:
+		return true
+	}
+	return false
+}
+
+// ArrayValued reports whether the aggregator emits one figure per
+// vector member — a JSON array through the RichAggregator lift, with
+// no meaningful scalar (AGG_VEC_MEAN, AGG_VEC_SUM). An array value has
+// no single number to place in a crosstab cell, order a Sort by, host
+// an overlay on or hand a later chain stage's f64 column, so each of
+// those is refused with PROCESSING_CONFIG whatever else the request
+// says — unlike MapValued, which only gates crosstab normalize.
+func (t AggregationType) ArrayValued() bool {
+	switch t {
+	case AGG_VEC_MEAN, AGG_VEC_SUM:
 		return true
 	}
 	return false
@@ -259,11 +281,13 @@ func (t GroupType) Mergeable() bool {
 // Streamable reports whether this attribute type can be computed in a
 // streaming path. Three tiers exist at runtime:
 //
-//   - Row-local: FORMULA, DATE_PART (and REG_PREDICT, whose model is
-//     bound before the row pass) implement processing.RowLocalAttribute
+//   - Row-local: FORMULA, DATE_PART, SCALE_SCORE, PROFILE_SIMILARITY
+//     and VEC_DISTANCE over a row-local metric (and REG_PREDICT,
+//     whose model is bound before the row pass) implement processing.RowLocalAttribute
 //     and execute inline with no PrePass.
 //   - Two-pass: ZSCORE, TSCORE, NORMALIZED (and the fitted vector
-//     attributes, MAHALANOBIS, PC_SCORE, FACTOR_SCORE) implement
+//     attributes, MAHALANOBIS, PC_SCORE, FACTOR_SCORE, and VEC_DISTANCE
+//     over a fitted metric) implement
 //     processing.TwoPassAttribute and need a PrePass over filter-passing
 //     records, Finalize, then per-row Row() in pass 2 (iter.Reset()).
 //   - Buffered-only: PERCENTILE needs a sorted view of every value;
@@ -271,8 +295,9 @@ func (t GroupType) Mergeable() bool {
 //
 // Streamable() returns true for the first two tiers since both routes
 // avoid materializing the full record set in memory. The tier is per
-// TYPE here; an ATTR_FORMULA calling total(expr) is two-pass per
-// attribute (still streamable, via the two-pass drive) — routing asks
+// TYPE here; an ATTR_FORMULA calling total(expr) and an ATTR_VEC_DISTANCE
+// over std_euclidean / mahalanobis are two-pass per attribute (still
+// streamable, via the two-pass drive) — routing asks
 // the engine's per-attribute predicate, never this method alone.
 func (t AttributeType) Streamable() bool {
 	switch t {
@@ -280,7 +305,8 @@ func (t AttributeType) Streamable() bool {
 		ATTR_ZSCORE, ATTR_TSCORE, ATTR_NORMALIZED,
 		ATTR_REG_FITTED, ATTR_REG_RESIDUAL, ATTR_REG_LEVERAGE,
 		ATTR_SET_POPCOUNT, ATTR_SET_HAS,
-		ATTR_CODE_IN, ATTR_REG_PREDICT,
+		ATTR_CODE_IN, ATTR_REG_PREDICT, ATTR_SCALE_SCORE,
+		ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE,
 		ATTR_MAHALANOBIS, ATTR_PC_SCORE, ATTR_FACTOR_SCORE:
 		return true
 	case ATTR_PERCENTILE:

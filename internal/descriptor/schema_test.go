@@ -350,3 +350,45 @@ func TestPayloadSchemaForInstance_EnabledCapabilityKeepsRoot(t *testing.T) {
 		}
 	}
 }
+
+// TestPayloadSchema_ColumnInputOptionalField: an aggregation, grouper or
+// attribute that reads vector / fields (or an expression) instead of
+// field validates without a `field` key — the server runs it — while
+// `type` stays required.
+func TestPayloadSchema_ColumnInputOptionalField(t *testing.T) {
+	c := jsonschema.NewCompiler()
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(BuildPayloadSchema()))
+	if err != nil {
+		t.Fatalf("unmarshal schema: %v", err)
+	}
+	if err := c.AddResource(payloadSchemaID, doc); err != nil {
+		t.Fatalf("add resource: %v", err)
+	}
+	cases := []struct {
+		def, body string
+		ok        bool
+	}{
+		{"Aggregation", `{"type": "AGG_VEC_MEAN", "vector": "battery", "params": {"expand": true}}`, true},
+		{"Aggregation", `{"type": "AGG_VEC_SUM", "fields": ["b1", "b2"]}`, true},
+		{"Aggregation", `{"field": "b1"}`, false},
+		{"Group", `{"type": "GROUP_KMEANS", "vector": "battery"}`, true},
+		{"Attribute", `{"type": "ATTR_FORMULA", "label": "x", "expression": "a * 2"}`, true},
+	}
+	for _, tc := range cases {
+		sch, err := c.Compile(payloadSchemaID + "#/$defs/" + tc.def)
+		if err != nil {
+			t.Fatalf("compile %s: %v", tc.def, err)
+		}
+		inst, err := jsonschema.UnmarshalJSON(strings.NewReader(tc.body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		verr := sch.Validate(inst)
+		if tc.ok && verr != nil {
+			t.Errorf("%s %s rejected: %v", tc.def, tc.body, verr)
+		}
+		if !tc.ok && verr == nil {
+			t.Errorf("%s %s accepted, want rejected", tc.def, tc.body)
+		}
+	}
+}

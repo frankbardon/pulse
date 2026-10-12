@@ -61,33 +61,52 @@ func TestAdaptAttribute_ForwardsExactlyTheImplementedTier(t *testing.T) {
 		{"row_local", adaptAttrRow{}, true, false},
 		{"two_pass", adaptAttrTwoPass{prePasses: &pre, finalized: &fin}, true, true},
 	}
+	emit := func(inst extend.AttributeComputer) (map[string]any, error) {
+		return map[string]any{"seen": inst != nil}, nil
+	}
 	for _, c := range cases {
-		got := adaptAttribute(c.inner, nil)
-		vals, err := got.Compute(recs, "x")
-		if err != nil || len(vals) != 2 || vals[0] != 2 || vals[1] != 4 {
-			t.Errorf("%s: Compute = %v, %v; want [2 4]", c.name, vals, err)
-		}
-		row, isRow := got.(processing.RowLocalAttribute)
-		two, isTwo := got.(processing.TwoPassAttribute)
-		if isRow != c.rowLocal || isTwo != c.two {
-			t.Errorf("%s: row_local=%v two_pass=%v; want %v %v", c.name, isRow, isTwo, c.rowLocal, c.two)
-		}
-		if isRow {
-			if v, err := row.Row(recs[1], "x"); err != nil || v != 6 {
-				t.Errorf("%s: Row = %v, %v; want 6", c.name, v, err)
+		for _, withMeta := range []bool{false, true} {
+			var e AttributeComponentsFunc
+			if withMeta {
+				e = emit
 			}
-		}
-		if isTwo {
-			for _, r := range recs {
-				if err := two.PrePass(r, "x"); err != nil {
-					t.Fatalf("%s: PrePass: %v", c.name, err)
+			got := adaptAttribute(c.inner, nil, e)
+			meta, isMeta := got.(processing.MetaAttribute)
+			if isMeta != withMeta {
+				t.Errorf("%s: MetaAttribute=%v; want %v", c.name, isMeta, withMeta)
+			}
+			if isMeta {
+				if m, err := meta.Components(); err != nil || m["seen"] != true {
+					t.Errorf("%s: Components = %v, %v; want the emitter's map over the embedder value", c.name, m, err)
 				}
 			}
-			if err := two.Finalize(); err != nil {
-				t.Fatalf("%s: Finalize: %v", c.name, err)
+			vals, err := got.Compute(recs, "x")
+			if err != nil || len(vals) != 2 || vals[0] != 2 || vals[1] != 4 {
+				t.Errorf("%s: Compute = %v, %v; want [2 4]", c.name, vals, err)
 			}
-			if pre != 2 || !fin {
-				t.Errorf("%s: prePasses=%d finalized=%v; want 2 true", c.name, pre, fin)
+			row, isRow := got.(processing.RowLocalAttribute)
+			two, isTwo := got.(processing.TwoPassAttribute)
+			if isRow != c.rowLocal || isTwo != c.two {
+				t.Errorf("%s: row_local=%v two_pass=%v; want %v %v", c.name, isRow, isTwo, c.rowLocal, c.two)
+			}
+			if isRow {
+				if v, err := row.Row(recs[1], "x"); err != nil || v != 6 {
+					t.Errorf("%s: Row = %v, %v; want 6", c.name, v, err)
+				}
+			}
+			if isTwo {
+				for _, r := range recs {
+					if err := two.PrePass(r, "x"); err != nil {
+						t.Fatalf("%s: PrePass: %v", c.name, err)
+					}
+				}
+				if err := two.Finalize(); err != nil {
+					t.Fatalf("%s: Finalize: %v", c.name, err)
+				}
+				if pre != 2 || !fin {
+					t.Errorf("%s: prePasses=%d finalized=%v; want 2 true", c.name, pre, fin)
+				}
+				pre, fin = 0, false
 			}
 		}
 	}

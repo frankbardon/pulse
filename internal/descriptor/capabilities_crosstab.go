@@ -55,7 +55,8 @@ func crosstabCapability() descriptor.CrosstabCapability {
 		},
 	}
 	cap.RejectionRules = append(cap.RejectionRules,
-		"map-valued cell aggregators (AGG_SET_FREQUENCY) cannot pair with normalize=row/column/total (PULSE_CROSSTAB_NORMALIZE_MAP_VALUED)")
+		"map-valued cell aggregators (AGG_SET_FREQUENCY) cannot pair with normalize=row/column/total (PULSE_CROSSTAB_NORMALIZE_MAP_VALUED)",
+		"array-valued aggregators (array_valued_aggregators: AGG_VEC_MEAN, AGG_VEC_SUM) are refused as the cell or a margin aggregation, whatever normalize says (PROCESSING_CONFIG, reason array_valued)")
 	for _, t := range types.AllAggregationTypes() {
 		// One arm per MarginReducibility class, deliberately with NO
 		// default: an unhandled class would fall out of every list
@@ -75,11 +76,15 @@ func crosstabCapability() descriptor.CrosstabCapability {
 		if t.MapValued() {
 			cap.MapValuedCellAggregators = append(cap.MapValuedCellAggregators, string(t))
 		}
+		if t.ArrayValued() {
+			cap.ArrayValuedAggregators = append(cap.ArrayValuedAggregators, string(t))
+		}
 	}
 	sort.Strings(cap.SummableAggregators)
 	sort.Strings(cap.MeanReducibleAggregators)
 	sort.Strings(cap.IndependentAggregators)
 	sort.Strings(cap.RecomputeAggregators)
 	sort.Strings(cap.MapValuedCellAggregators)
+	sort.Strings(cap.ArrayValuedAggregators)
 	return cap
 }

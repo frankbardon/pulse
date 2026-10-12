@@ -166,6 +166,7 @@ func TestMarshalFinite_PublicResultTypes(t *testing.T) {
 		"ResponseComponents":         {resp.Components, []string{`"ratio":null`}},
 		"AggregationComponents":      {aggComp, []string{`"ratio":null`, `"sum_weights":null`}},
 		"AggregationGroupComponents": {AggregationGroupComponents{GroupKey: AxisKey{"a"}, NEff: &nan, Operator: map[string]any{"mean": inf}}, []string{`"mean":null`, `"n_eff":null`}},
+		"AttributeComponents":        {AttributeComponents{Label: "s", Type: ATTR_SCALE_SCORE, Operator: map[string]any{"x": nan}}, []string{`"x":null`, `"label":"s"`, `"n_null":0`}},
 		"GrouperComponents":          {GrouperComponents{Field: "g", Operator: map[string]any{"edge": inf}}, []string{`"edge":null`}},
 		"CrosstabComponents":         {xtComp, []string{`"ratio":null`, `"value":null`}},
 		"TestResult":                 {test, []string{`"statistic":null`, `"df":null`, `"p_value":null`}},

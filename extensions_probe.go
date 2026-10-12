@@ -82,6 +82,9 @@ func probeAggregators(regs []AggregatorRegistration) error {
 		if err := verifyAggregatorMarginReducibility(reg); err != nil {
 			return err
 		}
+		if err := verifyAggregatorArrayValued(reg, instance); err != nil {
+			return err
+		}
 		if reg.ComponentsFunc != nil {
 			if err := verifyComponentSchemaPresence(
 				"aggregator", string(reg.Name), reg.ComponentSchema, true,
@@ -230,6 +233,23 @@ func verifyAggregatorMarginReducibility(reg AggregatorRegistration) error {
 	}
 	return mismatch("unknown_class",
 		`the class is unknown (want "summable", "mean_reducible", "independent" or "recompute")`)
+}
+
+// verifyAggregatorArrayValued checks an ArrayValued=true registration's
+// value carries the array: it must implement extend.RichAggregator
+// (PULSE_EXTENSION_ARRAY_VALUED_MISMATCH, reason
+// missing_rich_interface). The declaration-only rules run at
+// validation (validateAggregatorVectorInputs).
+func verifyAggregatorArrayValued(reg AggregatorRegistration, instance extend.Aggregator) error {
+	if !reg.ArrayValued {
+		return nil
+	}
+	if _, ok := instance.(extend.RichAggregator); ok {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_ARRAY_VALUED_MISMATCH,
+		fmt.Sprintf("aggregator %q declares ArrayValued=true but factory does not return extend.RichAggregator (the per-member figures ride Rich)", reg.Name),
+		map[string]any{"category": "aggregator", "name": string(reg.Name), "reason": "missing_rich_interface"})
 }
 
 // probeGroupers validates every registered grouper. A Streamable=true
@@ -420,9 +440,51 @@ func probeAttributes(regs []AttributeRegistration) error {
 				// AttributeComputer is the minimum interface; the factory
 				// signature already enforces this at compile time.
 			}
+			if weighted {
+				continue
+			}
+			if err := verifyComponentSchemaPresence(
+				"attribute", string(reg.Name), reg.ComponentSchema, reg.ComponentsFunc != nil,
+			); err != nil {
+				return err
+			}
+			if reg.ComponentsFunc == nil {
+				continue
+			}
+			emitted, err := safeInvokeAttributeComponents(reg, instance)
+			if err != nil {
+				return err
+			}
+			if err := verifyComponentKeysSubset("attribute", string(reg.Name), reg.ComponentSchema, emitted); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+// safeInvokeAttributeComponents mirrors safeInvokeFiltererComponents
+// for attribute registrations: the emitter runs once against the probe
+// instance (which has scored no row).
+func safeInvokeAttributeComponents(reg AttributeRegistration, instance extend.AttributeComputer) (out map[string]any, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_FACTORY_PANIC,
+				fmt.Sprintf("attribute %q ComponentsFunc panicked during probe-validation: %v", reg.Name, r),
+				map[string]any{"category": "attribute", "name": string(reg.Name), "panic": fmt.Sprintf("%v", r)},
+			)
+		}
+	}()
+	out, err = reg.ComponentsFunc(instance)
+	if err != nil {
+		return nil, errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_FACTORY_PANIC,
+			fmt.Sprintf("attribute %q ComponentsFunc returned error during probe-validation: %v", reg.Name, err),
+			map[string]any{"category": "attribute", "name": string(reg.Name), "components_error": err.Error()},
+		)
+	}
+	return out, nil
 }
 
 // probeTests constructs every WeightAware test factory (tier 1 or tier

@@ -343,6 +343,16 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		return out
 	}
 	addAllKnown(groupMembers)
+	// A vector aggregator's inline fields (aggregations, the crosstab
+	// cell and its margin aggregations) resolve by the same rules; a
+	// member left out decodes null on every row and the element would
+	// silently read as unanswered.
+	aggMembers, ok := vectors.AggregationInputMembers(req, schema)
+	if !ok {
+		out.Widen()
+		return out
+	}
+	addAllKnown(aggMembers)
 
 	for _, k := range req.Sort {
 		// Sort keys may name output labels rather than schema fields;

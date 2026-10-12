@@ -40,6 +40,12 @@ type Facts interface {
 	// drive — the built-in two-pass set or an extension registered with
 	// the two_pass mode. Hidden: false.
 	AttributeTwoPass(t types.AttributeType) bool
+	// AttributeSlotTwoPass reports whether one attribute slot of a
+	// request whose Request.Vectors are specs takes the two-pass drive
+	// beyond its type — an ATTR_VEC_DISTANCE over a fitted metric
+	// (std_euclidean / mahalanobis, explicit or a vector kind's default).
+	// Hidden: false.
+	AttributeSlotTwoPass(a *types.Attribute, specs []types.VectorSpec) bool
 	// GrouperKeyable reports whether grouper g derives its bucket key(s)
 	// per record (StreamableGrouper or MultiKeyStreamingGrouper on the
 	// engine side). A built-in answers from BuiltinGrouperKeyable; an
@@ -172,7 +178,7 @@ func Decide(req *types.Request, schema *encoding.Schema, facts Facts) (bool, []s
 	}
 
 	for _, a := range req.Attributes {
-		if a != nil && facts.AttributeTwoPass(a.Type) {
+		if a != nil && (facts.AttributeTwoPass(a.Type) || facts.AttributeSlotTwoPass(a, req.Vectors)) {
 			decline(fmt.Sprintf("two-pass attribute (%s)", a.Type))
 		}
 	}

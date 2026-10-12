@@ -65,6 +65,8 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	for _, a := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE, types.ATTR_FACTOR_SCORE} {
 		want[string(a)] = ClassAware
 	}
+	// U27 E3-S2: the fitted metrics read ATTR_MAHALANOBIS's weighted fit.
+	want[string(types.ATTR_VEC_DISTANCE)] = ClassAware
 	for _, gt := range types.AllGroupTypes() {
 		want[string(gt)] = ClassNone
 	}

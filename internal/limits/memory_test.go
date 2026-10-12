@@ -27,15 +27,44 @@ func TestMergeBlocks(t *testing.T) {
 		{[]int64{MergeBlockSize}, 1},
 		{[]int64{MergeBlockSize + 1}, 2},
 		{[]int64{2*MergeBlockSize + 31}, 3},
-		// Per shard: numbering restarts, so 4,097 + 5 rows take three
-		// blocks where one file of 4,102 takes two.
+		// Global ordinals: 4,097 + 5 rows touch blocks 0, 1 (shard 0)
+		// and 1 (shard 1) — three fragments where one file of 4,102
+		// holds two blocks.
 		{[]int64{MergeBlockSize + 1, 5}, 3},
 		{[]int64{MergeBlockSize + 6}, 2},
+		// Aligned shards add no fragment.
+		{[]int64{MergeBlockSize, MergeBlockSize, 3}, 3},
+		// 1-row shards inside one block: one fragment each.
+		{[]int64{1, 1, 0, 1}, 3},
+		// A shard straddling a block edge touches two blocks.
+		{[]int64{MergeBlockSize - 1, 2}, 3},
 		{[]int64{-1, 3}, 1},
 	}
 	for _, c := range cases {
 		if got := MergeBlocks(c.shards...); got != c.want {
 			t.Errorf("MergeBlocks(%v) = %d, want %d", c.shards, got, c.want)
+		}
+	}
+}
+
+func TestMergeBufferedRows(t *testing.T) {
+	cases := []struct {
+		shards []int64
+		want   int64
+	}{
+		{nil, 0},
+		{[]int64{3 * MergeBlockSize}, 0},
+		{[]int64{MergeBlockSize, MergeBlockSize, 3}, 0},
+		{[]int64{MergeBlockSize + 1, 5}, 5},
+		// Shard 1 starts 1 short of the edge: it buffers 1 row, the
+		// rest of its rows fold in head fragments.
+		{[]int64{MergeBlockSize - 1, 10}, 1},
+		{[]int64{1, 1, 0, 1}, 2},
+		{[]int64{-1, 3}, 0},
+	}
+	for _, c := range cases {
+		if got := MergeBufferedRows(c.shards...); got != c.want {
+			t.Errorf("MergeBufferedRows(%v) = %d, want %d", c.shards, got, c.want)
 		}
 	}
 }

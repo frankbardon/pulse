@@ -524,6 +524,12 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	if ferr := composeOverlayHiddenFloorRefusal(specIdx, spec, req.Requests, labels, defaultWeight, opts.instance(), opts.componentsDisabled); ferr != nil {
 		addCodedError(env, ferr)
 	}
+	// Gate 2d: a slot the overlay reads carries an array-valued
+	// (vector) aggregation (PROCESSING_CONFIG, reason array_valued) —
+	// the runtime's check in Service.applyComposeOverlays.
+	if aerr := composeOverlayArrayValuedRefusal(specIdx, spec, req.Requests, labels, opts.instance()); aerr != nil {
+		addCodedError(env, aerr)
+	}
 
 	// Gate 3: multi-reference panel target cap. Fires before the
 	// per-target shape walk so a wildly over-cap spec does not also

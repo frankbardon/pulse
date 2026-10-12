@@ -114,12 +114,12 @@ func TestMaxGroups_GroupedMatricesMint(t *testing.T) {
 		t.Fatalf("BuildGroupedMatrices = %v, %v", g, err)
 	}
 	for i, key := range []string{"a", "b", "a"} {
-		recs[i].SetMergePosition(0, i)
+		recs[i].SetMergePosition(0, 0, i)
 		if err := g.UpdateRow(key, recs[i]); err != nil {
 			t.Fatalf("UpdateRow(%s) under the limit: %v", key, err)
 		}
 	}
-	recs[3].SetMergePosition(0, 3)
+	recs[3].SetMergePosition(0, 0, 3)
 	if obs := requireMaxGroups(t, g.UpdateRow("c", recs[3]), 2); obs != 3 {
 		t.Errorf("observed = %d, want 3", obs)
 	}

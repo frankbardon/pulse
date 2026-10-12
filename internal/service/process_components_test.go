@@ -363,7 +363,7 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 			req := &types.Request{
 				Cohort: &types.Cohort{Filename: fix.cohortName},
 				Aggregations: []*types.Aggregation{
-					{Type: op, Field: fix.field, Label: "primary", Params: fix.params},
+					{Type: op, Field: fix.field, Fields: fix.fields, Label: "primary", Params: fix.params},
 				},
 			}
 
@@ -377,7 +377,7 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 			hdr := buildHeaderOnlyPulseBytes(t, fix.schema)
 			predictReq := &types.Request{
 				Aggregations: []*types.Aggregation{
-					{Type: op, Field: fix.field, Label: "primary", Params: fix.params},
+					{Type: op, Field: fix.field, Fields: fix.fields, Label: "primary", Params: fix.params},
 				},
 			}
 			env := descx.Predict(bytes.NewReader(hdr), predictReq, nil)
@@ -897,6 +897,7 @@ type aggServiceFixture struct {
 	schema     *encoding.Schema
 	cohortName string
 	field      string
+	fields     []string // a vector aggregator's members (field empty)
 	params     json.RawMessage
 }
 
@@ -1047,6 +1048,10 @@ func allAggServiceFixtures(t *testing.T) map[types.AggregationType]aggServiceFix
 		types.AGG_SET_CARDINALITY_SUM: {svc: setSvc, schema: setSchema, cohortName: "predict_tags.pulse", field: "tags"},
 		types.AGG_SET_CARDINALITY_AVG: {svc: setSvc, schema: setSchema, cohortName: "predict_tags.pulse", field: "tags"},
 		types.AGG_SET_DISTINCT_VALUES: {svc: setSvc, schema: setSchema, cohortName: "predict_tags.pulse", field: "tags"},
+
+		// Vector aggregators read num and den of the ratio cohort.
+		types.AGG_VEC_MEAN: {svc: ratioSvc, schema: ratioSchema, cohortName: "predict_ratio.pulse", fields: []string{"num", "den"}},
+		types.AGG_VEC_SUM:  {svc: ratioSvc, schema: ratioSchema, cohortName: "predict_ratio.pulse", fields: []string{"num", "den"}},
 	}
 
 	// Sanity: the fixture map must cover every registered aggregator.

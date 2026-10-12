@@ -455,6 +455,10 @@ func TestRegistryStreamabilityMatchesTypes(t *testing.T) {
 			continue
 		}
 		spec := &types.Aggregation{Type: aggType, Field: "x"}
+		if aggType.ArrayValued() {
+			// A vector aggregator reads its prepared members.
+			spec.Field, spec.Fields = "", []string{"x", "y"}
+		}
 		if raw, ok := paramsByType[aggType]; ok {
 			spec.Params = []byte(raw)
 		}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/limits"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -467,7 +468,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// counts stay raw (.claude/reference/weighting.md "Crosstab").
 	req = p.prepare(req)
 	spec := req.Crosstab
-	if err := validateCrosstabSpec(spec, req); err != nil {
+	if err := validateCrosstabSpec(spec, req, p.exts); err != nil {
 		return nil, err
 	}
 	// Map-valued aggregators (AGG_SET_FREQUENCY today) cannot normalize —
@@ -494,7 +495,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	if err != nil {
 		return nil, err
 	}
-	attrWarnings, err := p.applyAttributes(req.Attributes, filtered)
+	attrWarnings, attrComps, err := p.applyAttributes(req.Attributes, filtered)
 	if err != nil {
 		return nil, err
 	}
@@ -1086,6 +1087,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	if err := applyOverlaysToResponse(req, resp, p.exts, p.compute); err != nil {
 		return nil, err
 	}
+	// Attribute slots' Components entries (cohort-wide; the fused arm
+	// attaches them at the same point).
+	attachAttributeComponents(resp, attrComps)
 
 	// One PULSE_WEIGHT_INVALID_ROWS warning per weight field the cell or
 	// an auxiliary margin reads, over the filter-passing rows (after
@@ -1851,7 +1855,7 @@ func coerceFloat64(v any) float64 {
 // at orchestrator entry. Schema-level checks (field existence, type
 // compatibility) live in internal/descriptor (validateCrosstab, crosstab.go) and run earlier in
 // the predict path.
-func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request) error {
+func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request, ext *ExtensionRegistry) error {
 	if spec == nil {
 		return errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"validateCrosstabSpec called with nil spec")
@@ -1871,6 +1875,13 @@ func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request) error {
 	if req != nil && (len(req.Groups) > 0 || len(req.Aggregations) > 0) {
 		return errors.NewCodedError(errors.PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS,
 			"crosstab cannot coexist with top-level groups or aggregations on the same request")
+	}
+	// An array-valued cell or margin aggregation (AGG_VEC_*, or an
+	// extension declared ArrayValued) has no one number for a cell:
+	// refused whatever normalize says. Shared with predict
+	// (vectors.ArrayValuedCrosstabRefusal).
+	if cerr := vectors.ArrayValuedCrosstabRefusal(spec, ext.AggregationKinds()); cerr != nil {
+		return cerr
 	}
 	if !types.IsValidNormalize(spec.Normalize) {
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,

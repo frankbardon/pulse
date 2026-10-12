@@ -1,6 +1,6 @@
 # v1.0.0 Units of Work
 
-The v1.0.0 roadmap broken into **55 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
+The v1.0.0 roadmap broken into **56 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
 - machine-readable frontmatter: `id`, `slug`, `depends_on`, `blocks`, `todo_items`, `size`, `status`;
 - the outcome and scope;
 - the exact TODO items it delivers, quoted verbatim with their `TODO.md` number;
@@ -32,7 +32,7 @@ These files were generated once from the theme documents and `TODO.md`, and are 
 
 ## Suggested order
 
-The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U38 (skill sync, appended after U21) lands after U21 and before U32. U39 (code-in attribute, appended after U38) is done and has no dependencies. U40 (compose sweep, added after U39) is done and lands before U32; U41 (derived cohort), U42 (fit scoring) and U43 (post-aggregation ratios) are done; U41, U42 and U43 follow it in a chain (derived cohort, fit scoring, post-aggregation ratios) and ship in v1.0.0 (owner decision 2026-10-10). U44–U52 (from the [showcase examples](../../showcase/)) also ship in v1.0.0 and land before U32; they have no hard dependencies on each other, so they can run in parallel sessions, with the soft dependencies in each unit's frontmatter. U53 (custom regressions, appended after U52) ships in v1.0.0 (owner decision 2026-10-10) and lands before U32; it has no hard dependency, with U34, U36 and U42 soft. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
+The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U38 (skill sync, appended after U21) lands after U21 and before U32. U39 (code-in attribute, appended after U38) is done and has no dependencies. U40 (compose sweep, added after U39) is done and lands before U32; U41 (derived cohort), U42 (fit scoring) and U43 (post-aggregation ratios) are done; U41, U42 and U43 follow it in a chain (derived cohort, fit scoring, post-aggregation ratios) and ship in v1.0.0 (owner decision 2026-10-10). U44–U52 (from the [showcase examples](../../showcase/)) also ship in v1.0.0 and land before U32; they have no hard dependencies on each other, so they can run in parallel sessions, with the soft dependencies in each unit's frontmatter. U53 (custom regressions, appended after U52) ships in v1.0.0 (owner decision 2026-10-10) and lands before U32; it has no hard dependency, with U34, U36 and U42 soft. U54 (multi-grouper, appended after U53 on 2026-10-11) runs NEXT, immediately after U27 (owner decision): plain `groups` has only ever executed its first grouper, silently; it takes #200 from U35 and #318 from U46, and U46 now depends on it. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
 
 | # | Unit | Track | Size | Depends on | TODO items |
 |---|---|---|---|---|---|
@@ -64,7 +64,7 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U24 | [matrix-operators](U24-matrix-operators.md): Analysts get the core multivariate toolkit: rank correlations, partial correlations, reliability, PCA, collinearity | Vector & matrix | L | U16 | 124, 125, 126, 127, 128, 129, 130, 172, 258 |
 | U25 | [multivariate-tests-segmentation](U25-multivariate-tests-segmentation.md): Analysts can test whole profiles, flag unusual rows, score components and segment records | Vector & matrix | L | U24 | 131, 132, 133, 134, 135, 136, 262, 263, 264, 295 |
 | U26 | [vector-expr-functions](U26-vector-expr-functions.md): Formulas and filters can work with whole vectors and sets | Vector & matrix | M | U16 | 137, 138, 139, 140 |
-| U27 | [vector-metrics-aggregates](U27-vector-metrics-aggregates.md): Similarity is safe by default, and groups can be summarized as profiles | Vector & matrix | M | U26 | 141, 142, 143, 144, 407, 417 |
+| U27 | [vector-metrics-aggregates](U27-vector-metrics-aggregates.md): Similarity is safe by default, and groups can be summarized as profiles | Vector & matrix | L | U26 | 141, 142, 143, 144, 407, 417 |
 | U28 | [matrix-overlays](U28-matrix-overlays.md): Crosstabs and matrices gain residuals, perceptual maps, flow projections, raking and corrected p-values | Vector & matrix | L | U24, U13 | 145, 146, 147, 148, 149, 150, 261, 265 |
 | U29 | [vector-field-types](U29-vector-field-types.md): Cohorts can store fixed-length numeric vectors natively | Vector & matrix | L | U16, U27 | 151, 152, 153, 154, 155 |
 | U30 | [matrix-extensions-hardening](U30-matrix-extensions-hardening.md): Embedders can add their own matrix operators, and the matrix stack is proven at scale | Vector & matrix | M | U25, U28, U29 | 156, 157, 158, 270, 402, 403, 406, 408, 411, 415 |
@@ -83,7 +83,7 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U43 | [post-aggregation-ratios](U43-post-aggregation-ratios.md): A ratio of two aggregates and a scalar derived from an aggregate are native, so ROI and a scenario scale factor need no hand arithmetic | API & release | M | U42 | 290, 291, 292 |
 | U44 | [strict-input](U44-strict-input.md): Pulse never silently ignores what it is given: a misspelled key, a dropped row or a failed run is always visible | API & release | M | — (U35 soft) | 301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311, 375, 397 |
 | U45 | [binary-and-decimal](U45-binary-and-decimal.md): A 0/1 flag and an exact decimal work wherever a category or a number does, and a formula can say what it means | API & release | M | — (U35 soft) | 312, 313, 314, 315, 316, 317 |
-| U46 | [grouped-analysis](U46-grouped-analysis.md): Grouped analysis is one request: composite keys, overlays that pick their measure and partition, and tests per group | API & release | L | — (U35 soft) | 318, 319, 320, 321, 322, 323, 395 |
+| U46 | [grouped-analysis](U46-grouped-analysis.md): Grouped analysis is one request: composite keys, overlays that pick their measure and partition, and tests per group | API & release | L | U54 (U35 soft) | 319, 320, 321, 322, 323, 395 |
 | U47 | [survey-tables](U47-survey-tables.md): A weighted banner table with significance letters is one request, and Pulse can compute the weights | Statistical integrity | L | — (U46, U11, U12 soft) | 324, 325, 326, 327, 328, 329, 330, 331, 398 |
 | U48 | [experiment-readout](U48-experiment-readout.md): An experiment readout is one request: sample-ratio check, a named reference arm, an adjusted effect with its interval, all in one correction family | Statistical integrity | M | — (U43, U46 soft) | 332, 333, 334, 335, 336, 337, 338 |
 | U49 | [model-workbench](U49-model-workbench.md): Models fit reliably and are validated with standard metrics, and leakage-safe encoding is one parameter | Statistical integrity | L | — (U42 soft) | 339, 340, 341, 342, 343, 344, 345, 346, 347 |
@@ -91,6 +91,7 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U51 | [archive-scale](U51-archive-scale.md): A 50-million-row shard archive runs on a 16 GB machine: header-only operations read headers, and appending costs only the new shard | Embedder operations | L | — (U19 soft) | 354, 355, 356, 357, 358, 359, 360, 361, 373, 390, 399 |
 | U52 | [synth-realism](U52-synth-realism.md): Pulse can synthesize time series, outcomes drawn from a model, and privacy-checked twins without outside tooling | API & release | L | — (U50 soft) | 362, 363, 364, 365, 366, 367, 368, 369, 370 |
 | U53 | [custom-regressions](U53-custom-regressions.md): Embedders register their own regression models, treated exactly like built-ins, and the core gains the model options media-mix work needs | API & release | L | — (U34, U36, U42 soft) | 381, 382, 383, 384, 385, 386, 387, 388, 389 |
+| U54 | [multi-grouper](U54-multi-grouper.md): Two or more groupers give one row per key combination, in every execution path | API & release | M | — (U27 soft) | 200, 318, 421, 422 |
 
 ## Dependency graph
 
@@ -151,6 +152,7 @@ graph TD
   U51["U51 archive-scale"]
   U52["U52 synth-realism"]
   U53["U53 custom-regressions"]
+  U54["U54 multi-grouper"]
   U02 --> U02b
   U02 --> U02c
   U02 --> U04
@@ -236,6 +238,8 @@ graph TD
   U51 --> U32
   U52 --> U32
   U53 --> U32
+  U54 --> U32
+  U54 --> U46
   U35 -.-> U44
   U35 -.-> U45
   U35 -.-> U46

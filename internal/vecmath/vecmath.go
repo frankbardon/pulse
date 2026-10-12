@@ -1,9 +1,9 @@
 // Package vecmath holds the stateless vector and scalar maths kernels
 // behind the expression-language vector built-ins (vsum, vmean, dot,
-// cosine, argmax, vzscore, vnormalize, sqrt, ...). The expr closures in
-// internal/processing only adapt arguments; every numeric rule lives
-// here so later units (reference-vector lookups) reuse one
-// implementation.
+// argmax, vzscore, vnormalize, sqrt, ...). The expr closures in
+// internal/processing only adapt arguments. The metric functions (dist,
+// cosine, jaccard, dice, hamming, overlap) are not here: they resolve
+// through the one linalg/metric registry.
 //
 // It is a LEAF: standard library only, so internal/processing,
 // internal/descriptor and any future caller import it without a cycle.
@@ -15,10 +15,9 @@
 //     all-NaN input gives NaN — Sum included, so "unanswered" never
 //     masquerades as 0. SD (ddof = 1) needs at least two valid values.
 //     Count is the number of non-NaN values.
-//   - Dot, Dist and Cosine are pairwise-complete: index i is dropped
-//     when either side is NaN. No complete pair gives NaN; a zero-norm
-//     Cosine gives NaN. Unequal lengths return a *LengthMismatchError
-//     (errors.Is ErrLengthMismatch), never NaN.
+//   - Dot is pairwise-complete: index i is dropped when either side is
+//     NaN. No complete pair gives NaN. Unequal lengths return a
+//     *LengthMismatchError (errors.Is ErrLengthMismatch), never NaN.
 //   - ArgMax / ArgMin return a 0-based index; the first index wins a
 //     tie; an empty or all-NaN input returns ok == false.
 //   - Center, ZScore and Normalize return a NEW slice (the input is
@@ -50,8 +49,8 @@ var ErrLengthMismatch = errors.New("vecmath: vector length mismatch")
 // matches under errors.Is.
 var ErrInvalidNormalizeMode = errors.New("vecmath: invalid normalize mode")
 
-// LengthMismatchError reports two vectors of unequal length handed to a
-// pairwise kernel (Dot, Dist, Cosine).
+// LengthMismatchError reports two vectors of unequal length handed to
+// Dot.
 type LengthMismatchError struct {
 	Left, Right int
 }
@@ -187,50 +186,6 @@ func Dot(a, b []float64) (float64, error) {
 		return math.NaN(), nil
 	}
 	return s, nil
-}
-
-// Dist returns the pairwise-complete Euclidean distance between a and
-// b; NaN when no index has both sides valid.
-func Dist(a, b []float64) (float64, error) {
-	if err := sameLen(a, b); err != nil {
-		return 0, err
-	}
-	ss, n := 0.0, 0
-	for i := range a {
-		if math.IsNaN(a[i]) || math.IsNaN(b[i]) {
-			continue
-		}
-		d := a[i] - b[i]
-		ss += float64(d * d)
-		n++
-	}
-	if n == 0 {
-		return math.NaN(), nil
-	}
-	return math.Sqrt(ss), nil
-}
-
-// Cosine returns the pairwise-complete cosine similarity of a and b:
-// the dot product and both norms are taken over the same complete
-// pairs. NaN when no complete pair exists or either norm is zero.
-func Cosine(a, b []float64) (float64, error) {
-	if err := sameLen(a, b); err != nil {
-		return 0, err
-	}
-	dot, aa, bb, n := 0.0, 0.0, 0.0, 0
-	for i := range a {
-		if math.IsNaN(a[i]) || math.IsNaN(b[i]) {
-			continue
-		}
-		dot += float64(a[i] * b[i])
-		aa += float64(a[i] * a[i])
-		bb += float64(b[i] * b[i])
-		n++
-	}
-	if n == 0 || aa == 0 || bb == 0 {
-		return math.NaN(), nil
-	}
-	return dot / (math.Sqrt(aa) * math.Sqrt(bb)), nil
 }
 
 // ArgMax returns the 0-based index of the largest non-NaN value in v;

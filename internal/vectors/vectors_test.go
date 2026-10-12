@@ -1,11 +1,13 @@
 package vectors
 
 import (
+	"math"
 	"slices"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -108,6 +110,14 @@ func TestResolve_Refusals(t *testing.T) {
 		{"datetime", []types.VectorSpec{{Name: "v", Fields: []string{"ts"}}}, errors.PULSE_VECTOR_MEMBER_TYPE, "field", "ts"},
 		{"decimal128", []types.VectorSpec{{Name: "v", Fields: []string{"amount"}}}, errors.PULSE_VECTOR_MEMBER_TYPE, "field", "amount"},
 		{"refused type reached by pattern", []types.VectorSpec{{Name: "v", Pattern: "^(q_1|region)$"}}, errors.PULSE_VECTOR_MEMBER_TYPE, "field_type", "categorical_u8"},
+		{"unknown kind", []types.VectorSpec{{Name: "v", Fields: []string{"q_1"}, Kind: "ordinal"}}, errors.PULSE_VECTOR_INVALID, "reason", "unknown_kind"},
+		{"scale bounds without kind", []types.VectorSpec{{Name: "v", Fields: []string{"q_1"}, ScaleMin: f64(1), ScaleMax: f64(5)}}, errors.PULSE_VECTOR_INVALID, "reason", "scale_bounds_without_scale_kind"},
+		{"scale bounds on a measure", []types.VectorSpec{{Name: "v", Fields: []string{"q_1"}, Kind: types.VectorKindMeasure, ScaleMin: f64(1), ScaleMax: f64(5)}}, errors.PULSE_VECTOR_INVALID, "reason", "scale_bounds_without_scale_kind"},
+		{"scale_min alone", []types.VectorSpec{{Name: "v", Fields: []string{"q_1"}, Kind: types.VectorKindScale, ScaleMin: f64(1)}}, errors.PULSE_VECTOR_INVALID, "reason", "scale_bounds_partial"},
+		{"scale_max alone", []types.VectorSpec{{Name: "v", Fields: []string{"q_1"}, Kind: types.VectorKindScale, ScaleMax: f64(5)}}, errors.PULSE_VECTOR_INVALID, "reason", "scale_bounds_partial"},
+		{"scale bounds inverted", []types.VectorSpec{{Name: "v", Fields: []string{"q_1"}, Kind: types.VectorKindScale, ScaleMin: f64(5), ScaleMax: f64(1)}}, errors.PULSE_VECTOR_INVALID, "reason", "scale_bounds_invalid"},
+		{"scale bounds equal", []types.VectorSpec{{Name: "v", Fields: []string{"q_1"}, Kind: types.VectorKindScale, ScaleMin: f64(3), ScaleMax: f64(3)}}, errors.PULSE_VECTOR_INVALID, "reason", "scale_bounds_invalid"},
+		{"scale bound infinite", []types.VectorSpec{{Name: "v", Fields: []string{"q_1"}, Kind: types.VectorKindScale, ScaleMin: f64(1), ScaleMax: f64(math.Inf(1))}}, errors.PULSE_VECTOR_INVALID, "reason", "scale_bounds_invalid"},
 		{"binary coerce does not admit categorical", []types.VectorSpec{{Name: "v", Fields: []string{"region"}, Coerce: types.VectorCoerceBinary}}, errors.PULSE_VECTOR_MEMBER_TYPE, "field", "region"},
 	}
 	for _, c := range cases {
@@ -300,5 +310,41 @@ func TestReferenced_CountsExpressionReads(t *testing.T) {
 				t.Errorf("Unreferenced = %v, want %v", got, c.want)
 			}
 		})
+	}
+}
+
+func f64(v float64) *float64 { return &v }
+
+// TestResolve_KindAndScaleBounds: Resolved carries the declared kind
+// and scale bounds; a kind-free spec carries neither, and every kind
+// in types.AllVectorKinds is a linalg/metric kind.
+func TestResolve_KindAndScaleBounds(t *testing.T) {
+	got, err := Resolve([]types.VectorSpec{
+		{Name: "a", Fields: []string{"q_1", "q_2"}, Kind: types.VectorKindScale, ScaleMin: f64(1), ScaleMax: f64(7)},
+		{Name: "b", Fields: []string{"q_1"}, Kind: types.VectorKindComposition},
+		{Name: "c", Fields: []string{"q_1"}},
+	}, testSchema())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[0].Kind != types.VectorKindScale || !got[0].HasScale || got[0].ScaleMin != 1 || got[0].ScaleMax != 7 {
+		t.Errorf("scale vector = %+v", got[0])
+	}
+	if got[1].Kind != types.VectorKindComposition || got[1].HasScale {
+		t.Errorf("composition vector = %+v", got[1])
+	}
+	if got[2].Kind != "" || got[2].HasScale {
+		t.Errorf("kind-free vector = %+v", got[2])
+	}
+	kinds := make([]string, 0)
+	for _, k := range types.AllVectorKinds() {
+		kinds = append(kinds, string(k))
+	}
+	var want []string
+	for _, k := range metric.Kinds() {
+		want = append(want, string(k))
+	}
+	if !slices.Equal(kinds, want) {
+		t.Errorf("types.AllVectorKinds %v != metric.Kinds %v", kinds, want)
 	}
 }

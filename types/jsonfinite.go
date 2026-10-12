@@ -468,6 +468,13 @@ func (v AggregationGroupComponents) MarshalJSON() ([]byte, error) {
 	return MarshalFinite((*alias)(&v))
 }
 
+// MarshalJSON writes one attribute slot's components with every
+// non-finite float as null; see MarshalFinite.
+func (v AttributeComponents) MarshalJSON() ([]byte, error) {
+	type alias AttributeComponents
+	return MarshalFinite((*alias)(&v))
+}
+
 // MarshalJSON writes the grouper components with every non-finite float as null;
 // see MarshalFinite.
 func (v GrouperComponents) MarshalJSON() ([]byte, error) {

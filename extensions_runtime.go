@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/window"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -60,6 +61,8 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		}
 	}
 
+	r.ReferenceVectors = vectors.NewReferenceTables(ext.ReferenceVectors)
+
 	if len(ext.LabelTables) > 0 {
 		r.LabelTables = make(map[string]processing.LabelTable, len(ext.LabelTables))
 		for name, t := range ext.LabelTables {
@@ -96,6 +99,12 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 			}
 			r.MarginReducibility[reg.Name] = reg.MarginReducibility
 			r.WeightAware[processing.StreamabilityKey("aggregator", string(reg.Name))] = reg.WeightAware
+			if reg.VectorInput {
+				if r.VectorAggregators == nil {
+					r.VectorAggregators = make(map[types.AggregationType]vectors.ExtensionAggregation)
+				}
+				r.VectorAggregators[reg.Name] = vectors.ExtensionAggregation{Registered: true, VectorInput: true, ArrayValued: reg.ArrayValued}
+			}
 			addFieldInputs("aggregator", string(reg.Name), reg.FieldInputs)
 		}
 	}
@@ -111,6 +120,12 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 					r.TwoPassAttributes = make(map[types.AttributeType]bool)
 				}
 				r.TwoPassAttributes[reg.Name] = true
+			}
+			if reg.ComponentsFunc != nil {
+				if r.ComponentAttributes == nil {
+					r.ComponentAttributes = make(map[types.AttributeType]bool)
+				}
+				r.ComponentAttributes[reg.Name] = true
 			}
 			addFieldInputs("attribute", string(reg.Name), reg.FieldInputs)
 		}
@@ -207,6 +222,7 @@ func hasAnyRegistrations(ext Extensions) bool {
 		len(ext.SynthDistributions) > 0 ||
 		len(ext.ExprFunctions) > 0 ||
 		len(ext.LookupTables) > 0 ||
+		len(ext.ReferenceVectors) > 0 ||
 		len(ext.LabelTables) > 0 ||
 		len(ext.RangeTables) > 0
 }

@@ -74,7 +74,7 @@ func foldFinalizeRows(t *testing.T, s *matrixSlot, rows []finalizeRow) {
 			nulls["y"] = true
 		}
 		rec := NewRecordWithNulls(schema, map[string]float64{"x": r.x, "y": r.y, "w": r.w}, nulls)
-		rec.SetMergePosition(0, i)
+		rec.SetMergePosition(0, 0, i)
 		if err := s.UpdateRow(rec, ""); err != nil {
 			t.Fatalf("UpdateRow: %v", err)
 		}

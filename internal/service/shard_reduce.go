@@ -91,6 +91,9 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	req = processing.StampWeightsWith(req, s.defaultWeight, s.extensions)
 	shards := cohort.Shards()
 	schema := cohort.Schema()
+	// A vector aggregator's factory reads its resolved members (the
+	// rewrite Processor.prepare applies on every other arm).
+	req = processing.ResolveAggregationInputs(req, schema, s.extensions)
 
 	// Read the archive once. Each worker re-wraps the byte buffer in a
 	// bytes.Reader (which is an io.ReaderAt under the hood) so worker
@@ -113,6 +116,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	ei.Lap(observe.PhaseOpen)
 
 	partials := make([]*shardPartial, len(shards))
+	starts := shardStarts(shards)
 	jobs := make(chan int, len(shards))
 	var (
 		wg       sync.WaitGroup
@@ -130,7 +134,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 				if cctx.Err() != nil {
 					return
 				}
-				p, err := s.processOneShard(cctx, req, schema, arch, idx, shards[idx].Filename)
+				p, err := s.processOneShard(cctx, req, schema, arch, idx, starts[idx], shards[idx].Filename)
 				if err != nil {
 					errOnce.Do(func() { firstErr = err; cancel() })
 					return
@@ -283,10 +287,11 @@ type shardPartial struct {
 // processOneShard streams one shard's records through fresh per-shard
 // OnlineAggregator instances (and per-group buckets when req.Groups is
 // non-empty). Returns a partial state ready for merging. shardIdx is
-// the shard's archive index: with the in-shard record index it is each
+// the shard's archive index and shardStart its first global record
+// ordinal (shardStarts): with the in-shard record index they are each
 // row's merge-block position, stamped exactly as the serial shardIter
 // stamps it.
-func (s *Service) processOneShard(ctx context.Context, req *types.Request, schema *encoding.Schema, arch *encx.Archive, shardIdx int, shardName string) (*shardPartial, error) {
+func (s *Service) processOneShard(ctx context.Context, req *types.Request, schema *encoding.Schema, arch *encx.Archive, shardIdx, shardStart int, shardName string) (*shardPartial, error) {
 	sect, err := arch.OpenAt(shardName)
 	if err != nil {
 		return nil, err
@@ -405,7 +410,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		if groupIdx != nil && readGroupIndices(rr, groupIdx) {
 			rec.SetGroupIndices(schema, groupIdx)
 		}
-		rec.SetMergePosition(shardIdx, int(out.totalRows))
+		rec.SetMergePosition(shardIdx, shardStart, int(out.totalRows))
 		out.totalRows++
 
 		pass, ferr := processing.ApplyFilterPass(rec, req.Filterers, filterFns, out.filterCounters)
@@ -577,11 +582,18 @@ func primaryNullFieldFor(req *types.Request) string {
 	if req == nil {
 		return ""
 	}
-	if len(req.Aggregations) > 0 && req.Aggregations[0] != nil && req.Aggregations[0].Field != "" {
-		return req.Aggregations[0].Field
+	// The serial arms' rule (processing.primaryNullFieldName): the first
+	// aggregation that names a Field — a vector aggregator names none —
+	// else the first grouper that names one.
+	for _, agg := range req.Aggregations {
+		if agg != nil && agg.Field != "" {
+			return agg.Field
+		}
 	}
-	if len(req.Groups) > 0 && req.Groups[0] != nil {
-		return req.Groups[0].Field
+	for _, grp := range req.Groups {
+		if grp != nil && grp.Field != "" {
+			return grp.Field
+		}
 	}
 	return ""
 }
@@ -816,7 +828,7 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 			}
 			label := req.Aggregations[i].Label
 			if label == "" {
-				label = fmt.Sprintf("%s_%s", req.Aggregations[i].Type, req.Aggregations[i].Field)
+				label = types.AggregationLabelOf(req.Aggregations[i])
 			}
 			// Lift through the Rich-or-scalar dispatch the serial
 			// Processor uses. Finalize() alone returns a
@@ -826,8 +838,9 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 			// knob while the serial path emitted labels and a
 			// label→count map — the same request answering in two
 			// different shapes depending on worker count.
-			row[label], err = processing.DispatchAggregatorResult(oa, val)
-			if err != nil {
+			// (WriteAggregationResult also names an expanding vector
+			// aggregation's per-element columns.)
+			if err = processing.WriteAggregationResult(row, label, oa, val); err != nil {
 				return nil, err
 			}
 		}

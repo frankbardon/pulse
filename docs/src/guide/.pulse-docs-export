@@ -81,6 +81,8 @@ skills/op-agg-skewness.md
 skills/op-agg-stddev.md
 skills/op-agg-sum.md
 skills/op-agg-variance.md
+skills/op-agg-vec-mean.md
+skills/op-agg-vec-sum.md
 skills/op-agg-weighted-mean.md
 skills/op-agg-welford.md
 skills/op-agg-zscore.md
@@ -92,13 +94,16 @@ skills/op-attr-mahalanobis.md
 skills/op-attr-normalized.md
 skills/op-attr-pc-score.md
 skills/op-attr-percentile.md
+skills/op-attr-profile-similarity.md
 skills/op-attr-reg-fitted.md
 skills/op-attr-reg-leverage.md
 skills/op-attr-reg-predict.md
 skills/op-attr-reg-residual.md
+skills/op-attr-scale-score.md
 skills/op-attr-set-has.md
 skills/op-attr-set-popcount.md
 skills/op-attr-tscore.md
+skills/op-attr-vec-distance.md
 skills/op-attr-zscore.md
 skills/op-feat-bucketize.md
 skills/op-feat-date-features.md
@@ -331,5 +336,6 @@ skills/type-u32.md
 skills/type-u4.md
 skills/type-u64.md
 skills/type-u8.md
+skills/vector-metrics.md
 skills/weighting.md
 skills/window-design.md

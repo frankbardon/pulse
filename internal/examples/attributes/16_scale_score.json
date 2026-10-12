@@ -1,0 +1,77 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Score a two-item battery per row with ATTR_SCALE_SCORE on experiment.pulse, averaged per treatment arm. The named vector spend (revenue_before, revenue; labels before / after) declares kind scale with scale_min 0 and scale_max 400. spend_mean is the mean of the valid items with min_valid defaulting to both: the few rows holding a value above 400 read that value as missing (never clamped), so they score null, and the run carries one PULSE_ATTR_SCALE_OUT_OF_RANGE warning with n_out_of_range. spend_keyed reverse-keys the item labelled before (scored 0 + 400 - x on the vector's declared range) and needs only one valid item. spend_total reads the same columns as inline fields with no declared range (no range check) and stat sum: the PRORATED sum, the valid-item mean times the item count, so a skipped item never reads as 0. Row-local, single pass and streamable; the weight is irrelevant.",
+    "intents": [
+      "measure_construct",
+      "prepare"
+    ],
+    "name": "attr_scale_score",
+    "operators": [
+      "AGG_AVERAGE",
+      "ATTR_SCALE_SCORE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "feature-engineering",
+      "multivariate",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {
+      "name": "spend",
+      "fields": ["revenue_before", "revenue"],
+      "labels": ["before", "after"],
+      "kind": "scale",
+      "scale_min": 0,
+      "scale_max": 400
+    }
+  ],
+  "attributes": [
+    {
+      "type": "ATTR_SCALE_SCORE",
+      "label": "spend_mean",
+      "vector": "spend"
+    },
+    {
+      "type": "ATTR_SCALE_SCORE",
+      "label": "spend_keyed",
+      "vector": "spend",
+      "params": {"reverse": ["before"], "min_valid": 1}
+    },
+    {
+      "type": "ATTR_SCALE_SCORE",
+      "label": "spend_total",
+      "fields": ["revenue_before", "revenue"],
+      "params": {"stat": "sum", "min_valid": 1}
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "treatment"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "spend_mean",
+      "label": "avg_spend_mean"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "spend_keyed",
+      "label": "avg_spend_keyed"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "spend_total",
+      "label": "avg_spend_total"
+    }
+  ]
+}

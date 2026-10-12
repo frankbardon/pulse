@@ -34,6 +34,8 @@ The aggregators this instance offers: what each is for, the questions it answers
 | [`AGG_STDDEV`](#op-agg_stddev) | Typical distance of a numeric field's values from their average, in the field's own units, over all rows or per group. | How much do delivery times vary around the average in each region? | basic | [`AGG_CI_LOWER`](#op-agg_ci_lower) when you want how precisely the average itself is known.<br>[`AGG_WELFORD`](#op-agg_welford) when you want the sample form (dividing by n - 1) together with the mean and n.<br>[`AGG_PERCENTILE`](#op-agg_percentile) when the field has extreme values and you want a spread they cannot drag. |
 | [`AGG_SUM`](#op-agg_sum) | Total of a numeric field, over all rows or per group. | What is total revenue by region? | basic | [`AGG_AVERAGE`](#op-agg_average) when you want the typical value per row rather than the total.<br>[`AGG_WEIGHTED_MEAN`](#op-agg_weighted_mean) when rows carry weights and you want a weighted average.<br>[`AGG_DISTINCT_SUM`](#op-agg_distinct_sum) when a value repeats on several rows of the same key and must be added once per key.<br>[`WIN_RUNNING_SUM`](window.md#op-win_running_sum) when you want the total so far, row by row. |
 | [`AGG_VARIANCE`](#op-agg_variance) | Spread of a numeric field as the average squared distance from its mean, in squared units, over all rows or per group. | How much does the order value vary within each channel, in squared units? | intermediate | [`AGG_STDDEV`](#op-agg_stddev) when you want the spread in the field's own units, which is easier to read.<br>[`AGG_WELFORD`](#op-agg_welford) when you want the sample variance (dividing by n - 1) with the mean and n, as pooling and study-size planning expect. |
+| [`AGG_VEC_MEAN`](#op-agg_vec_mean) | Average of each item of a battery or mix, as one list per group: the group's average profile across the items. | What is each segment's average rating on each of the eight brand attributes? | intermediate | [`ATTR_SCALE_SCORE`](attribute.md#op-attr_scale_score) when you want one score per row from the items.<br>[`AGG_AVERAGE`](#op-agg_average) when you want the average of a single field.<br>[`MAT_COVARIANCE`](matrix.md#op-mat_covariance) when you want how the items vary together. |
+| [`AGG_VEC_SUM`](#op-agg_vec_sum) | Total of each item of a set of related fields, as one list per group. | How many units of each of the six products did each store sell? | intermediate | [`AGG_VEC_MEAN`](#op-agg_vec_mean) when you want each item's average rather than its total.<br>[`AGG_SUM`](#op-agg_sum) when you want the total of a single field. |
 | [`AGG_WEIGHTED_MEAN`](#op-agg_weighted_mean) | Average of a numeric field where each row counts in proportion to a weight field, such as a survey weight. | What is the weighted average satisfaction per region? | intermediate | [`AGG_AVERAGE`](#op-agg_average) when every row should count equally.<br>[`AGG_RATIO`](#op-agg_ratio) when you want one total divided by another. |
 | [`AGG_WELFORD`](#op-agg_welford) | Mean, sample variance and row count of a numeric field in one result: what a comparison of group means needs. | What are the mean, variance and size of each cell, so cells can be tested against each other? | intermediate | [`AGG_AVERAGE`](#op-agg_average) when you want only the average.<br>[`AGG_STDDEV`](#op-agg_stddev) when you want the population spread (dividing by n) on its own.<br>[`TEST_WELCH`](test.md#op-test_welch) when you want the comparison itself on raw rows. |
 | [`AGG_ZSCORE`](#op-agg_zscore) | Population mean and standard deviation of a numeric field, for standardizing it; the value itself is always 0. | What centre and scale standardize this field in each group? | intermediate | [`ATTR_ZSCORE`](attribute.md#op-attr_zscore) when you want a z-score on every row.<br>[`OVERLAY_ZSCORE_VS_TOTAL`](overlay.md#op-overlay_zscore_vs_total) when you want each group's value against all groups.<br>[`AGG_STDDEV`](#op-agg_stddev) when you want only the spread. |
@@ -1041,6 +1043,77 @@ Spread of a numeric field as the average squared distance from its mean, in squa
 **Glossary:** [`variance`](../glossary.md#term-variance), [`standard-deviation`](../glossary.md#term-standard-deviation), [`mean`](../glossary.md#term-mean)
 
 **Skill:** [`op-agg-variance`](../skills/op-agg-variance.md)
+
+<a id="op-agg_vec_mean"></a>
+
+### `AGG_VEC_MEAN`
+
+Average of each item of a battery or mix, as one list per group: the group's average profile across the items.
+
+**Level:** intermediate
+
+**Also known as:** `average profile`, `mean vector`, `centroid`, `item means`
+
+**Questions it answers:**
+
+- What is each segment's average rating on each of the eight brand attributes?
+- What does the typical store's channel mix look like in each region?
+
+**Use cases by domain:**
+
+- *survey:* Per-segment average of every item in an agree-disagree battery, ready to chart as profile lines.
+- *ops:* Average share of each sales channel per region, read from one list.
+- *science:* Mean of each measured variable per treatment group, kept together as one profile.
+
+**Assumptions:**
+
+- Each item is averaged over the rows that answered it; a skipped item leaves only that item out of the row.
+- An item no row answered has no average rather than 0.
+
+**Use something else:**
+
+- [`ATTR_SCALE_SCORE`](attribute.md#op-attr_scale_score) when you want one score per row from the items.
+- [`AGG_AVERAGE`](#op-agg_average) when you want the average of a single field.
+- [`MAT_COVARIANCE`](matrix.md#op-mat_covariance) when you want how the items vary together.
+
+**Glossary:** [`mean`](../glossary.md#term-mean), [`missing-value`](../glossary.md#term-missing-value)
+
+**Skill:** [`op-agg-vec-mean`](../skills/op-agg-vec-mean.md)
+
+<a id="op-agg_vec_sum"></a>
+
+### `AGG_VEC_SUM`
+
+Total of each item of a set of related fields, as one list per group.
+
+**Level:** intermediate
+
+**Also known as:** `item totals`, `column totals`, `sum vector`
+
+**Questions it answers:**
+
+- How many units of each of the six products did each store sell?
+- What is the total spend per channel for every region, in one list?
+
+**Use cases by domain:**
+
+- *survey:* Count of yes answers to each item of a checklist battery per segment.
+- *ops:* Total volume per product line per site, kept together as one list.
+- *science:* Total count of each observed category per sample site.
+
+**Assumptions:**
+
+- Each item is totalled over the rows that answered it; a skipped item adds nothing to that item.
+- An item no row answered totals 0.
+
+**Use something else:**
+
+- [`AGG_VEC_MEAN`](#op-agg_vec_mean) when you want each item's average rather than its total.
+- [`AGG_SUM`](#op-agg_sum) when you want the total of a single field.
+
+**Glossary:** [`missing-value`](../glossary.md#term-missing-value)
+
+**Skill:** [`op-agg-vec-sum`](../skills/op-agg-vec-sum.md)
 
 <a id="op-agg_weighted_mean"></a>
 

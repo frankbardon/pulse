@@ -374,7 +374,24 @@ func NewWeightFloor(agg *types.Aggregation) WeightFloor {
 // present contributes its weight when valid and counts as invalid
 // otherwise; a null value contributes nothing (it is n_null).
 func (f *WeightFloor) Observe(r *Record, field string) {
-	if f.spec == nil || !FieldPresent(r, field) {
+	if f.spec == nil {
+		return
+	}
+	f.observePresent(r, FieldPresent(r, field))
+}
+
+// ObserveSlot is Observe under the slot's presence rule
+// (AggregationPresent — a vector aggregator's row is present when any
+// member answered).
+func (f *WeightFloor) ObserveSlot(r *Record, agg *types.Aggregation) {
+	if f.spec == nil {
+		return
+	}
+	f.observePresent(r, AggregationPresent(r, agg))
+}
+
+func (f *WeightFloor) observePresent(r *Record, present bool) {
+	if !present {
 		return
 	}
 	w, reason := readWeight(r, f.spec)

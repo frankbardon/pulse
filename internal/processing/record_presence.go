@@ -1,5 +1,7 @@
 package processing
 
+import "github.com/frankbardon/pulse/types"
+
 // Presence vs value on a Record.
 //
 // Most of the engine asks a Record one of two questions and the two
@@ -41,4 +43,40 @@ func FieldPresent(r *Record, field string) bool {
 	}
 	_, ok := r.SetMaskValue(field)
 	return ok
+}
+
+// AggregationPresent is the universal floor's presence question for an
+// aggregation slot: FieldPresent on its Field, except a vector
+// aggregator (no Field; its prepared Fields are the literal members),
+// whose row is present when ANY member answered — so n counts the rows
+// that fed at least one element and n_null the rows whose every member
+// is null. Every floor site (buffered, streaming, grouped, the
+// reducers' SlotFloor) asks it, so the arms cannot disagree.
+func AggregationPresent(r *Record, agg *types.Aggregation) bool {
+	if agg == nil {
+		return false
+	}
+	if agg.Field == "" && len(agg.Fields) > 0 {
+		for _, f := range agg.Fields {
+			if FieldPresent(r, f) {
+				return true
+			}
+		}
+		return false
+	}
+	return FieldPresent(r, agg.Field)
+}
+
+// aggregationFloorKey keys the buffered floor cache: the Field, or the
+// member list of a vector aggregator (NUL-joined; no field name holds a
+// NUL).
+func aggregationFloorKey(agg *types.Aggregation) string {
+	if agg.Field == "" && len(agg.Fields) > 0 {
+		key := "\x00"
+		for _, f := range agg.Fields {
+			key += f + "\x00"
+		}
+		return key
+	}
+	return agg.Field
 }

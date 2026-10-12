@@ -329,10 +329,14 @@ func TestPredictKeyComposerMatchesAggregatorKey(t *testing.T) {
 			// Model error compares field with a required prediction column.
 			agg.Params = json.RawMessage(`{"prediction_field":"val"}`)
 		}
+		if aggType.ArrayValued() {
+			// A vector aggregator reads fields, never field.
+			agg.Field, agg.Fields = "", []string{"val"}
+		}
 		req := &types.Request{Aggregations: []*types.Aggregation{agg}}
 		env := predictFromBytes(data, req, nil)
 		if len(env.Errors) != 0 {
-			t.Errorf("aggregation %s produced errors: %v", aggType, env.Errors)
+			t.Errorf("aggregation %s produced errors: %+v", aggType, env.Errors[0])
 		}
 	}
 }

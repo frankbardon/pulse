@@ -55,7 +55,7 @@ func (p *Processor) RunCrosstabFused(ctx context.Context, req *types.Request, it
 	req = p.prepare(req)
 
 	spec := req.Crosstab
-	if err := validateCrosstabSpec(spec, req); err != nil {
+	if err := validateCrosstabSpec(spec, req, p.exts); err != nil {
 		return nil, err
 	}
 
@@ -126,6 +126,7 @@ func (p *Processor) RunCrosstabFused(ctx context.Context, req *types.Request, it
 				return nil, rerr
 			}
 			SetAttributeOutput(rec, ra.label, val, ra.nullable)
+			ra.floor.observe(val, ra.nullable)
 		}
 
 		weights.Observe(rec)
@@ -157,6 +158,12 @@ func (p *Processor) RunCrosstabFused(ctx context.Context, req *types.Request, it
 	// neither the *types.Request nor the ExtensionRegistry the fold
 	// needs; RunCrosstabFused has both.
 	if err := applyOverlaysToResponse(req, resp, p.exts, p.compute); err != nil {
+		return nil, err
+	}
+	// Row-local attribute warnings, first and in declared order (the
+	// buffered RunCrosstab carries applyAttributes' warnings first).
+	resp.Warnings = prependRowLocalWarnings(resp.Warnings, rowLocalAttrs)
+	if err := attachRowLocalAttributeComponents(resp, rowLocalAttrs); err != nil {
 		return nil, err
 	}
 	if err := weights.Apply(resp, p.strictWeights); err != nil {

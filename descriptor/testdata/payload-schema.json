@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:d31ab9216060ab72684ff4923349294e72df14aec840979c3c110b7a6ba989c6",
+  "$comment": "feature_set_digest: fs1:f6b6ec312915decc6d37f5b5d85503625d7e87783c4cbee05538b7ea958e25ff",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -27,6 +27,15 @@
         "field": {
           "type": "string"
         },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "label": {
           "type": "string"
         },
@@ -36,12 +45,14 @@
         "type": {
           "$ref": "#/$defs/AggregationType"
         },
+        "vector": {
+          "type": "string"
+        },
         "weight": {
           "$ref": "#/$defs/SlotWeight"
         }
       },
       "required": [
-        "field",
         "type"
       ],
       "type": "object"
@@ -168,6 +179,8 @@
         "AGG_STDDEV",
         "AGG_SUM",
         "AGG_VARIANCE",
+        "AGG_VEC_MEAN",
+        "AGG_VEC_SUM",
         "AGG_WEIGHTED_MEAN",
         "AGG_WELFORD",
         "AGG_ZSCORE"
@@ -288,7 +301,34 @@
         }
       },
       "required": [
-        "field",
+        "type"
+      ],
+      "type": "object"
+    },
+    "AttributeComponents": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "n": {
+          "type": "integer"
+        },
+        "n_null": {
+          "type": "integer"
+        },
+        "operator": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "type": {
+          "$ref": "#/$defs/AttributeType"
+        }
+      },
+      "required": [
+        "label",
+        "n",
+        "n_null",
         "type"
       ],
       "type": "object"
@@ -303,13 +343,16 @@
         "ATTR_NORMALIZED",
         "ATTR_PC_SCORE",
         "ATTR_PERCENTILE",
+        "ATTR_PROFILE_SIMILARITY",
         "ATTR_REG_FITTED",
         "ATTR_REG_LEVERAGE",
         "ATTR_REG_PREDICT",
         "ATTR_REG_RESIDUAL",
+        "ATTR_SCALE_SCORE",
         "ATTR_SET_HAS",
         "ATTR_SET_POPCOUNT",
         "ATTR_TSCORE",
+        "ATTR_VEC_DISTANCE",
         "ATTR_ZSCORE"
       ],
       "type": "string"
@@ -1736,7 +1779,6 @@
         }
       },
       "required": [
-        "field",
         "type"
       ],
       "type": "object"
@@ -3618,6 +3660,15 @@
             "null"
           ]
         },
+        "attributes": {
+          "items": {
+            "$ref": "#/$defs/AttributeComponents"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "crosstab": {
           "$ref": "#/$defs/CrosstabComponents"
         },
@@ -4197,6 +4248,15 @@
       ],
       "type": "string"
     },
+    "VectorKind": {
+      "enum": [
+        "binary",
+        "composition",
+        "measure",
+        "scale"
+      ],
+      "type": "string"
+    },
     "VectorSpec": {
       "additionalProperties": false,
       "properties": {
@@ -4212,6 +4272,9 @@
             "null"
           ]
         },
+        "kind": {
+          "$ref": "#/$defs/VectorKind"
+        },
         "labels": {
           "items": {
             "type": "string"
@@ -4226,6 +4289,12 @@
         },
         "pattern": {
           "type": "string"
+        },
+        "scale_max": {
+          "type": "number"
+        },
+        "scale_min": {
+          "type": "number"
         }
       },
       "required": [
@@ -4382,4 +4451,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: dca335bcfc3a1326ca802aeb5c27709dce7c84ab4a74698cf9fb8330f8487fc6
+// golden-hash: f664e3a1e88bde2017b0b01515ee3b86b35331b2c73245ba6121f8efc53dba2c

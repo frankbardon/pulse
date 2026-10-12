@@ -384,6 +384,58 @@ func TestResolveMatrices_Reliability(t *testing.T) {
 	}
 }
 
+// TestResolveMatrices_ReliabilityVectorBounds: without its own
+// scale_min / scale_max MAT_RELIABILITY takes its kind "scale" vector's
+// declared bounds (so a reverse list needs no params range); explicit
+// params win; inline fields and a bound-free vector have none.
+func TestResolveMatrices_ReliabilityVectorBounds(t *testing.T) {
+	vecs := []types.VectorSpec{
+		{Name: "sat", Fields: []string{"q_1", "q_2", "q_3"}, Kind: types.VectorKindScale, ScaleMin: f64(1), ScaleMax: f64(5)},
+		{Name: "plain", Fields: []string{"q_1", "q_2", "q_3"}, Kind: types.VectorKindScale},
+	}
+	resolve := func(spec types.MatrixSpec) (Matrix, *errors.CodedError) {
+		spec.Type = types.MAT_RELIABILITY
+		got, err := ResolveMatrices(&types.Request{Vectors: vecs, Matrices: []types.MatrixSpec{spec}}, testSchema(), nil)
+		if err != nil {
+			return Matrix{}, err
+		}
+		return got[0], nil
+	}
+	cases := []struct {
+		name     string
+		spec     types.MatrixSpec
+		scale    bool
+		lo, hi   float64
+		reverse  []int
+		code     errors.Code
+		refusing bool
+	}{
+		{"vector bounds stand in", types.MatrixSpec{Vector: "sat"}, true, 1, 5, nil, "", false},
+		{"vector bounds feed reverse", types.MatrixSpec{Vector: "sat", Params: json.RawMessage(`{"reverse": ["q_3"]}`)}, true, 1, 5, []int{2}, "", false},
+		{"explicit params win", types.MatrixSpec{Vector: "sat", Params: json.RawMessage(`{"scale_min": 0, "scale_max": 10}`)}, true, 0, 10, nil, "", false},
+		{"bound-free vector", types.MatrixSpec{Vector: "plain"}, false, 0, 0, nil, "", false},
+		{"bound-free vector refuses reverse", types.MatrixSpec{Vector: "plain", Params: json.RawMessage(`{"reverse": ["q_1"]}`)}, false, 0, 0, nil, errors.PROCESSING_CONFIG, true},
+		{"inline fields refuse reverse", types.MatrixSpec{Fields: []string{"q_1", "q_2"}, Params: json.RawMessage(`{"reverse": ["q_1"]}`)}, false, 0, 0, nil, errors.PROCESSING_CONFIG, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m, err := resolve(c.spec)
+			if c.refusing {
+				if err == nil || err.Code != c.code {
+					t.Fatalf("err %v, want %s", err, c.code)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if m.HasScale != c.scale || m.ScaleMin != c.lo || m.ScaleMax != c.hi || !reflect.DeepEqual(m.Reverse, c.reverse) {
+				t.Errorf("scale %v [%v, %v] reverse %v", m.HasScale, m.ScaleMin, m.ScaleMax, m.Reverse)
+			}
+		})
+	}
+}
+
 // TestResolveMatrices_PCA: MAT_PCA's params.on (correlation default),
 // params.components (kaiser default on a correlation; an integer ≤ p;
 // {"variance": share}) and their refusals — covariance needs an

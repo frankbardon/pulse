@@ -113,7 +113,7 @@ func TestSetSimilarity_DecodePaths(t *testing.T) {
 		{`overlap(mw, mw)`, [3]float64{1, nan, 1}},
 	}
 	for _, tc := range cases {
-		prog, err := newExprProgram(tc.src, "formula", s, nil, setExprOptions())
+		prog, err := newExprProgram(tc.src, "formula", s, nil, nil, setExprOptions())
 		if err != nil {
 			t.Fatalf("%s: compile: %v", tc.src, err)
 		}
@@ -146,7 +146,7 @@ func TestSetSimilarity_MixedMaskAndLabelsRefused(t *testing.T) {
 		{"a": bitsMask(1), "b": bitsMask(1), "c": bitsMask(0), "ma": bitsMask(1), "mb": bitsMask(1), "mw": bitsMask(1)},
 	})
 	for _, src := range []string{`jaccard(a, ma)`, `dice(mw, b)`, `hamming(ma, ["T1"])`, `overlap([], mw)`} {
-		prog, err := newExprProgram(src, "formula", s, nil, setExprOptions())
+		prog, err := newExprProgram(src, "formula", s, nil, nil, setExprOptions())
 		if err != nil {
 			t.Fatalf("%s: compile: %v", src, err)
 		}

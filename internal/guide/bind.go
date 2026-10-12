@@ -263,6 +263,14 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 			slots = append(slots, bslot{key: "fields", list: true, min: 2, accept: kindIs(descriptor.FieldKindNumeric)})
 			break
 		}
+		// A vector aggregator (built-in, or an extension declared
+		// VectorInput: opInfo.vectorInput) reads its members from an
+		// inline fields list, never field; each member must be a type
+		// the operator accepts.
+		if op.vectorInput {
+			slots = append(slots, bslot{key: "fields", list: true, min: 2, accept: both(typeIn(op.accepts), kindIs(descriptor.FieldKindNumeric))})
+			break
+		}
 		if !op.ignoresField {
 			slots = append(slots, bslot{key: "field", accept: fieldAccept})
 		}

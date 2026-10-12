@@ -117,3 +117,29 @@ func TestSetHelperNames(t *testing.T) {
 		}
 	}
 }
+
+// TestMetricFunctions_AreReservedAndTyped: every metric-evaluating
+// built-in is a reserved name, its form one of the two metric forms,
+// and the declaration-order list carries exactly the table.
+func TestMetricFunctions_AreReservedAndTyped(t *testing.T) {
+	names := MetricFunctionNames()
+	want := []string{"dist", "cosine", "jaccard", "dice", "hamming", "overlap"}
+	if strings.Join(names, ",") != strings.Join(want, ",") {
+		t.Fatalf("MetricFunctionNames = %v, want %v", names, want)
+	}
+	for _, n := range names {
+		mf, ok := Metric(n)
+		if !ok || !IsReserved(n) || mf.Metric == "" || (mf.Form != "distance" && mf.Form != "similarity") {
+			t.Errorf("Metric(%q) = %+v, %v (reserved %v)", n, mf, ok, IsReserved(n))
+		}
+	}
+	if mf, _ := Metric("dist"); mf.Metric != "euclidean" || mf.Form != "distance" {
+		t.Errorf("dist = %+v", mf)
+	}
+	if mf, _ := Metric("cosine"); mf.Metric != "cosine" || mf.Form != "similarity" {
+		t.Errorf("cosine = %+v", mf)
+	}
+	if _, ok := Metric("vmean"); ok {
+		t.Error("vmean evaluates no metric")
+	}
+}

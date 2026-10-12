@@ -380,11 +380,13 @@ type MatrixPredict struct {
 	// EstimatedCells is EstimatedBuckets × p² — the primary cells the
 	// spec's results carry in full encoding (MAT_DISTANCE: × k²).
 	EstimatedCells *int64 `json:"estimated_cells,omitempty"`
-	// EstimatedBytes is the run's co-moment state: merge blocks ×
-	// EstimatedBuckets × AccumulatorBytes, the blocks being
-	// ceil(records / merge_block_size) — per shard for an archive, whose
-	// block numbering restarts per shard. An upper bound (a bucket holds
-	// one state per block its rows touch). Omitted with the bucket count
+	// EstimatedBytes is the run's co-moment state: merge fragments ×
+	// EstimatedBuckets × AccumulatorBytes, the fragments being
+	// ceil(records / merge_block_size) — on an archive, one per global
+	// block each shard's rows touch (blocks key by the global record
+	// ordinal), plus the rows a shard starting inside a block buffers
+	// until finalize. An upper bound (a bucket holds one state per
+	// block its rows touch). Omitted with the bucket count
 	// unknown. A buffered spec adds its RowBufferBytes. It is the matrix
 	// term of the MaxEstimatedMemory estimate.
 	EstimatedBytes *int64 `json:"estimated_bytes,omitempty"`
@@ -600,6 +602,14 @@ type AggregationPredict struct {
 	// data slice still streams). AGG_MEDIAN and AGG_PERCENTILE are the
 	// canonical Nones today.
 	BufferedComponents bool `json:"buffered_components,omitempty"`
+
+	// Columns names the Response.Data columns the slot writes when they
+	// are not its label: an expanding vector aggregation (AGG_VEC_MEAN /
+	// AGG_VEC_SUM with params.expand) writes one scalar column per
+	// member, "<label>[<element label>]" in member order, and no column
+	// under the label itself. Omitted on every other slot (its one
+	// column is the label).
+	Columns []string `json:"columns,omitempty"`
 }
 
 // GroupPredict is the per-slot predict surface for one entry of

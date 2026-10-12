@@ -160,6 +160,8 @@ var acceptanceTemplates = map[string]string{
 	"AGG_SET_CARDINALITY_SUM": `{"aggregations":[{"type":"AGG_SET_CARDINALITY_SUM","field":"$F"}]}`,
 	"AGG_SET_CARDINALITY_AVG": `{"aggregations":[{"type":"AGG_SET_CARDINALITY_AVG","field":"$F"}]}`,
 	"AGG_SET_DISTINCT_VALUES": `{"aggregations":[{"type":"AGG_SET_DISTINCT_VALUES","field":"$F"}]}`,
+	"AGG_VEC_MEAN":            `{"aggregations":[{"type":"AGG_VEC_MEAN","fields":["$F","x"]}]}`,
+	"AGG_VEC_SUM":             `{"aggregations":[{"type":"AGG_VEC_SUM","fields":["$F","x"]}]}`,
 
 	// Attributes (aggregated afterwards so the label is consumed).
 	"ATTR_ZSCORE":     `{"attributes":[{"type":"ATTR_ZSCORE","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
@@ -172,15 +174,18 @@ var acceptanceTemplates = map[string]string{
 	// Scores a model bound by a compose fit, which a plain request never
 	// has; its predictor-type parity is pinned by
 	// TestRegPredict_PredictRuntimeParity.
-	"ATTR_REG_PREDICT":  ``,
-	"ATTR_REG_RESIDUAL": `{"attributes":[{"type":"ATTR_REG_RESIDUAL","target":"x","predictors":["$F"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
-	"ATTR_REG_LEVERAGE": `{"attributes":[{"type":"ATTR_REG_LEVERAGE","target":"x","predictors":["$F"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
-	"ATTR_SET_POPCOUNT": `{"attributes":[{"type":"ATTR_SET_POPCOUNT","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
-	"ATTR_SET_HAS":      `{"attributes":[{"type":"ATTR_SET_HAS","field":"$F","label":"o","params":{"label":"a"}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
-	"ATTR_CODE_IN":      `{"attributes":[{"type":"ATTR_CODE_IN","field":"$F","label":"o","params":{"codes":["$V"]}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
-	"ATTR_MAHALANOBIS":  `{"attributes":[{"type":"ATTR_MAHALANOBIS","fields":["$F","x"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
-	"ATTR_FACTOR_SCORE": `{"attributes":[{"type":"ATTR_FACTOR_SCORE","fields":["$F","x","y"],"label":"o","params":{"factor":1,"factors":1}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
-	"ATTR_PC_SCORE":     `{"attributes":[{"type":"ATTR_PC_SCORE","fields":["$F","x"],"label":"o","params":{"component":1}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_REG_PREDICT":        ``,
+	"ATTR_REG_RESIDUAL":       `{"attributes":[{"type":"ATTR_REG_RESIDUAL","target":"x","predictors":["$F"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_REG_LEVERAGE":       `{"attributes":[{"type":"ATTR_REG_LEVERAGE","target":"x","predictors":["$F"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_SET_POPCOUNT":       `{"attributes":[{"type":"ATTR_SET_POPCOUNT","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_SET_HAS":            `{"attributes":[{"type":"ATTR_SET_HAS","field":"$F","label":"o","params":{"label":"a"}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_CODE_IN":            `{"attributes":[{"type":"ATTR_CODE_IN","field":"$F","label":"o","params":{"codes":["$V"]}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_MAHALANOBIS":        `{"attributes":[{"type":"ATTR_MAHALANOBIS","fields":["$F","x"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_FACTOR_SCORE":       `{"attributes":[{"type":"ATTR_FACTOR_SCORE","fields":["$F","x","y"],"label":"o","params":{"factor":1,"factors":1}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_PC_SCORE":           `{"attributes":[{"type":"ATTR_PC_SCORE","fields":["$F","x"],"label":"o","params":{"component":1}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_SCALE_SCORE":        `{"attributes":[{"type":"ATTR_SCALE_SCORE","fields":["$F","x"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_PROFILE_SIMILARITY": `{"attributes":[{"type":"ATTR_PROFILE_SIMILARITY","fields":["$F","x"],"label":"o","params":{"metric":"cosine","reference":[1,2]}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_VEC_DISTANCE":       `{"attributes":[{"type":"ATTR_VEC_DISTANCE","fields":["$F","x"],"label":"o","params":{"metric":"euclidean","reference":[1,2]}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 
 	// Features.
 	"FEAT_LOG":              `{"features":[{"type":"FEAT_LOG","field":"$F"}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,

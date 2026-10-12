@@ -53,6 +53,44 @@
         ]
       },
       {
+        "operator": "ATTR_SCALE_SCORE",
+        "category": "attribute",
+        "level": "intermediate",
+        "why": "Adds to every row its score on a rating battery: the average of its answered items or a prorated total, reverse-worded items flipped. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "attributes": [
+            {
+              "fields": [
+                "\u003cfields\u003e"
+              ],
+              "type": "ATTR_SCALE_SCORE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "fields"
+        ],
+        "alternatives": [
+          {
+            "when": "you want how consistently the items measure one thing",
+            "use": "MAT_RELIABILITY"
+          },
+          {
+            "when": "the items should be weighted by how much each reflects a common trait",
+            "use": "ATTR_FACTOR_SCORE"
+          },
+          {
+            "when": "you want an arbitrary formula of the items",
+            "use": "ATTR_FORMULA"
+          }
+        ]
+      },
+      {
         "operator": "TEST_BARTLETT_SPHERICITY",
         "category": "test",
         "level": "advanced",
@@ -234,9 +272,9 @@
       }
     ],
     "truncated": false,
-    "candidates_considered": 6
+    "candidates_considered": 7
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: a3613a44372f1eab297cae5d0e44b13dd30ff6deafa84d449c2b727a390947da
+// golden-hash: 8a8b359513ae8a2e11fa9787c3c3ffa2ef5036ae43ac9353d53e72390daf065e

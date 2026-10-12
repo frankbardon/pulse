@@ -29,16 +29,22 @@
 //     packed_bool needs Coerce "binary"; categorical, set_*, date,
 //     datetime and decimal128 are refused naming the field.
 //   - Labels, when set, carry one entry per resolved member.
+//   - Kind, when set, is one of types.AllVectorKinds (unknown_kind);
+//     scale_min / scale_max are set only under kind "scale"
+//     (scale_bounds_without_scale_kind), together (scale_bounds_partial)
+//     and finite with min < max (scale_bounds_invalid).
 //
 // Checks run spec by spec in request order; within one spec in the
 // order: name, duplicate name, field-name collision, fields/pattern
-// shape, coerce, expansion (unknown literal, bad glob / regex, duplicate
+// shape, coerce, kind and scale bounds, expansion (unknown literal, bad glob / regex, duplicate
 // member), empty, member types, labels. The first failure is returned.
 package vectors
 
 import (
+	"math"
 	"path"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -59,6 +65,12 @@ type Resolved struct {
 	Labels []string
 	// Coerce is the spec's coercion ("" when none).
 	Coerce types.VectorCoerce
+	// Kind is the spec's declared kind ("" when none).
+	Kind types.VectorKind
+	// HasScale reports declared scale bounds (kind "scale" only):
+	// ScaleMin < ScaleMax, both finite.
+	HasScale           bool
+	ScaleMin, ScaleMax float64
 }
 
 // Resolve resolves every spec in specs against schema, in order. It
@@ -115,6 +127,9 @@ func ResolveSpec(at string, spec types.VectorSpec, schema *encoding.Schema) (Res
 			"vector "+describe(at, spec.Name)+" has unknown coerce "+strconv.Quote(string(spec.Coerce)),
 			map[string]any{"value": string(spec.Coerce), "valid": coerceNames()})
 	}
+	if err := checkKind(at, spec); err != nil {
+		return Resolved{}, err
+	}
 
 	var members []string
 	var err *errors.CodedError
@@ -163,12 +178,58 @@ func ResolveSpec(at string, spec types.VectorSpec, schema *encoding.Schema) (Res
 	if len(labels) == 0 {
 		labels = members
 	}
-	return Resolved{
+	r := Resolved{
 		Name:    spec.Name,
 		Members: members,
 		Labels:  append([]string(nil), labels...),
 		Coerce:  spec.Coerce,
-	}, nil
+		Kind:    spec.Kind,
+	}
+	if spec.ScaleMin != nil {
+		r.HasScale, r.ScaleMin, r.ScaleMax = true, *spec.ScaleMin, *spec.ScaleMax
+	}
+	return r, nil
+}
+
+// checkKind judges a spec's kind and scale bounds: a known kind, bounds
+// only under kind "scale", both or neither, finite, min < max — each a
+// PULSE_VECTOR_INVALID naming its reason.
+func checkKind(at string, spec types.VectorSpec) *errors.CodedError {
+	if spec.Kind != "" && !slices.Contains(types.AllVectorKinds(), spec.Kind) {
+		return invalid(at, spec.Name, "unknown_kind",
+			"vector "+describe(at, spec.Name)+" has unknown kind "+strconv.Quote(string(spec.Kind)),
+			map[string]any{"value": string(spec.Kind), "valid": kindNames()})
+	}
+	lo, hi := spec.ScaleMin, spec.ScaleMax
+	if lo == nil && hi == nil {
+		return nil
+	}
+	if spec.Kind != types.VectorKindScale {
+		return invalid(at, spec.Name, "scale_bounds_without_scale_kind",
+			"vector "+describe(at, spec.Name)+" sets scale_min / scale_max, which only a kind \"scale\" vector declares",
+			map[string]any{"kind": string(spec.Kind)})
+	}
+	if lo == nil || hi == nil {
+		return invalid(at, spec.Name, "scale_bounds_partial",
+			"vector "+describe(at, spec.Name)+" sets one of scale_min / scale_max; set both or neither", nil)
+	}
+	if !finite(*lo) || !finite(*hi) || !(*lo < *hi) {
+		return invalid(at, spec.Name, "scale_bounds_invalid",
+			"vector "+describe(at, spec.Name)+" scale_min must be finite and below a finite scale_max",
+			map[string]any{"scale_min": *lo, "scale_max": *hi})
+	}
+	return nil
+}
+
+func finite(f float64) bool { return !math.IsNaN(f) && !math.IsInf(f, 0) }
+
+func kindNames() []string {
+	all := types.AllVectorKinds()
+	out := make([]string, len(all))
+	for i, k := range all {
+		out[i] = string(k)
+	}
+	return out
 }
 
 // MemberTypeAllowed reports whether a field of type ft may be a vector
@@ -199,7 +260,9 @@ func Find(resolved []Resolved, name string) (Resolved, bool) {
 // Referenced returns the vector names req's operator slots reference:
 // every Request.Matrices spec's `vector`, every tier-1 test's
 // `vector` / `vector2`, every attribute's `vector`, every grouper
-// slot's `vector` (groups and both crosstab axes), and every
+// slot's `vector` (groups and both crosstab axes), every aggregation
+// slot's `vector` (aggregations, the crosstab cell and its margin
+// aggregations), and every
 // Request.Vectors name an expression reads as a free identifier — an
 // ATTR_FORMULA expression, a FILTER_EXPRESSION filterer's expression
 // (Request.Filterers and a vector attribute's params.fit_on) and so a
@@ -239,6 +302,12 @@ func Referenced(req *types.Request) map[string]bool {
 			refs[s.Group.Vector] = true
 		}
 	}
+	anyAggregationSlot(req, func(a *types.Aggregation) bool {
+		if a.Vector != "" {
+			refs[a.Vector] = true
+		}
+		return false
+	})
 	exprReferenced(req, refs)
 	return refs
 }

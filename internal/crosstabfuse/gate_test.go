@@ -18,6 +18,7 @@ type fakeFacts struct {
 	extGroupers map[types.GroupType]bool       // name → keyable
 	fieldInputs map[string]bool
 	hidden      map[string]bool
+	slotTwoPass func(*types.Attribute) bool
 }
 
 func (f fakeFacts) Hidden(name string) bool { return f.hidden[name] }
@@ -36,6 +37,9 @@ func (f fakeFacts) AggregatorMarginClass(t types.AggregationType) types.MarginRe
 }
 func (f fakeFacts) AttributeTwoPass(t types.AttributeType) bool {
 	return t == types.ATTR_ZSCORE || f.extAttrs[t]
+}
+func (f fakeFacts) AttributeSlotTwoPass(a *types.Attribute, _ []types.VectorSpec) bool {
+	return f.slotTwoPass != nil && f.slotTwoPass(a)
 }
 func (f fakeFacts) GrouperKeyable(g *types.Group, _ *encoding.Schema) bool {
 	if k, ok := f.extGroupers[g.Type]; ok {

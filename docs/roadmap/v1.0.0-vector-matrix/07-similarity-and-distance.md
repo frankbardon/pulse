@@ -133,7 +133,7 @@ Pulse already stores multi-selects as bitmasks over a dictionary, so set similar
 
 ## What this changes elsewhere in the roadmap
 
-- **00 feature map:** adds the metric registry, vector `kind`, set similarity, centering functions (Committed), and `MAT_SET_AFFINITY` and exact top-k (Stretch).
+- **00 feature map:** adds the metric registry, vector `kind`, set similarity, centering functions, `ATTR_VEC_DISTANCE` and `ATTR_PROFILE_SIMILARITY` (Committed, promoted from Stretch in U27), and `MAT_SET_AFFINITY` and exact top-k (Stretch).
 - **01 F5:** the expr function table gains `vcenter`, `vzscore`, `vnormalize`, `jaccard`, `dice`, `hamming`, `overlap`.
 - **03:** `MAT_DISTANCE`, `ATTR_VEC_DISTANCE`, `ATTR_PROFILE_SIMILARITY` and `GROUP_KMEANS` take `metric` from the registry; `GROUP_KMEANS` is Euclidean-only.
 - **05 X6 error codes:** add `PULSE_VECTOR_METRIC_UNSUITED` (warning) and `PULSE_VECTOR_METRIC_UNKNOWN`.

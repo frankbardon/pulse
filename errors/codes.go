@@ -444,6 +444,16 @@ const (
 	// unsigned-integer field.
 	PULSE_ATTR_CODE_NOT_IN_DICTIONARY Code = "PULSE_ATTR_CODE_NOT_IN_DICTIONARY"
 
+	// PULSE_ATTR_SCALE_OUT_OF_RANGE is a runtime Response warning raised
+	// once per ATTR_SCALE_SCORE slot whose rows held one or more member
+	// values outside the declared scale range (params.scale_min /
+	// scale_max or the kind "scale" vector's bounds). Each such value was
+	// scored as MISSING — never clamped, never reversed — and details
+	// carry n_out_of_range (member values) and n_rows (rows holding at
+	// least one). MAT_RELIABILITY refuses the same data with
+	// PROCESSING_CONFIG instead.
+	PULSE_ATTR_SCALE_OUT_OF_RANGE Code = "PULSE_ATTR_SCALE_OUT_OF_RANGE"
+
 	// PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS is a predict advisory
 	// (PredictResult.Advisories, never a warning or error): a TEST_T or
 	// TEST_WELCH whose split_by grouping resolves to more than two
@@ -840,6 +850,16 @@ const (
 	// the declared class and a reason discriminator. Wired into
 	// extensions_probe.probeAggregators.
 	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH Code = "PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH"
+
+	// PULSE_EXTENSION_ARRAY_VALUED_MISMATCH indicates an aggregator
+	// registration declared ArrayValued it cannot honour: without
+	// VectorInput (an array value is one figure per vector member), with
+	// a MarginReducibility (a crosstab refuses an array-valued cell), or
+	// with a factory whose value does not implement
+	// extend.RichAggregator (the array rides Rich). Details carry the
+	// category, name and a reason discriminator. Wired into
+	// extensions_validate and extensions_probe.probeAggregators.
+	PULSE_EXTENSION_ARRAY_VALUED_MISMATCH Code = "PULSE_EXTENSION_ARRAY_VALUED_MISMATCH"
 
 	// PULSE_EXTENSION_FACTORY_PANIC indicates an embedder factory
 	// panicked during probe-validation at registration time.
@@ -2927,6 +2947,79 @@ const (
 	// computes nothing. Details carry "name".
 	PULSE_VECTOR_UNREFERENCED Code = "PULSE_VECTOR_UNREFERENCED"
 
+	// PULSE_VECTOR_METRIC_UNKNOWN indicates a distance / similarity
+	// metric the shared metric registry (linalg/metric) refuses: a name
+	// it does not register, a metric with no form in the direction the
+	// consumer asked for (cosine is the one metric with both a
+	// similarity and a distance form; no other metric is transformed
+	// between the two), or a metric the consumer does not accept.
+	// Details carry "metric", "reason" ("unregistered" | "no_form" |
+	// "not_accepted"), "form", "consumer" (when one asked) and "valid"
+	// (the names that would be accepted).
+	PULSE_VECTOR_METRIC_UNKNOWN Code = "PULSE_VECTOR_METRIC_UNKNOWN"
+
+	// PULSE_VECTOR_METRIC_REQUIRED indicates an operator that needs a
+	// distance / similarity metric was given none and has no default to
+	// fall back on. Details carry "form", "consumer" (when one asked)
+	// and "valid" (the names that would be accepted).
+	PULSE_VECTOR_METRIC_REQUIRED Code = "PULSE_VECTOR_METRIC_REQUIRED"
+
+	// PULSE_VECTOR_METRIC_UNSUITED is a WARNING (an error under strict
+	// mode): an explicitly named metric fits the declared kind of the
+	// vector it reads poorly — cosine on a scale or measure vector, the
+	// Euclidean family on a composition. A defaulted metric never
+	// raises it, and a vector without a kind never does. Details carry
+	// "vector", "kind", "metric", "slot" (the request path), "form",
+	// "consumer" (the operator, or "expr" with "function" for an
+	// expression call) and "suggested" (the kind's default in that form,
+	// absent when the kind has none).
+	PULSE_VECTOR_METRIC_UNSUITED Code = "PULSE_VECTOR_METRIC_UNSUITED"
+
+	// PULSE_VECTOR_REFERENCE_UNKNOWN indicates a reference vector that
+	// cannot be resolved: ref("table", key) naming a table not registered
+	// in Options.Extensions.ReferenceVectors, a table argument that is not
+	// a string literal (its labels must be known before any row), or a
+	// key the table has no profile for. Details carry "reason"
+	// ("table_unknown" | "table_not_literal" | "key_unknown"), "table",
+	// "key" (key_unknown) and "valid" (the registered names, or the
+	// table's keys; "key_count" instead when a table has many), plus
+	// "slot" (the request path) at predict.
+	PULSE_VECTOR_REFERENCE_UNKNOWN Code = "PULSE_VECTOR_REFERENCE_UNKNOWN"
+
+	// PULSE_VECTOR_REFERENCE_MISMATCH indicates a reference vector whose
+	// labels cannot be matched to the vector it is compared with. A
+	// reference is matched BY LABEL, never by position: the two label
+	// sets must be equal (reason "labels_differ", with "missing" — the
+	// vector's labels the reference lacks — and "extra" — the
+	// reference's labels the vector lacks — beside "reference_labels",
+	// "vector_labels", "table" and "vector"), and a reference compared
+	// with an unlabelled vector (a literal array, a computed vector) is
+	// refused (reason "unlabeled_partner"). Details also carry
+	// "function" for an expression call and "slot" at predict.
+	PULSE_VECTOR_REFERENCE_MISMATCH Code = "PULSE_VECTOR_REFERENCE_MISMATCH"
+
+	// PULSE_VECTOR_REFERENCE_MISSING is a runtime Response WARNING raised
+	// once per ATTR_PROFILE_SIMILARITY / ATTR_VEC_DISTANCE slot whose
+	// {table, key_field} reference left one or more rows without a
+	// profile: the row's key is null, or its value (a categorical label,
+	// an unsigned integer's base-10 form) is not a key of the table. Each
+	// such row scored null. Details carry "attribute" (the slot label),
+	// "type", "table", "key_field", "n_reference_missing" (the rows),
+	// "n_key_null" and "n_key_unmatched" (its two parts) and "keys" (up
+	// to 10 of the unmatched values, smallest first). Raised whether or
+	// not components are enabled; never under a clean run.
+	PULSE_VECTOR_REFERENCE_MISSING Code = "PULSE_VECTOR_REFERENCE_MISSING"
+
+	// PULSE_VECTOR_METRIC_DOMAIN is a runtime Response WARNING raised
+	// once per ATTR_PROFILE_SIMILARITY / ATTR_VEC_DISTANCE slot with one
+	// or more rows whose values fall outside the metric's domain (a
+	// negative part under hellinger / aitchison, an aitchison zero, a
+	// non-0/1 value under a set metric), each scored null. Details carry
+	// "attribute" (the slot label), "type", "metric", "n_domain_invalid"
+	// (the rows) and "reasons". The per-row twin of MAT_DISTANCE's
+	// PULSE_MATRIX_METRIC_DOMAIN.
+	PULSE_VECTOR_METRIC_DOMAIN Code = "PULSE_VECTOR_METRIC_DOMAIN"
+
 	// PULSE_MATRIX_UNSUPPORTED_SOURCE indicates a `matrices` slot on a
 	// request whose rows are not cohort rows the matrix operators can
 	// fold: a Request carrying Joins (details "source" = "join",
@@ -2987,6 +3080,13 @@ const (
 	// "members"), so every correlation touching them is null and their
 	// covariance row and column are 0.
 	PULSE_MATRIX_ZERO_VARIANCE Code = "PULSE_MATRIX_ZERO_VARIANCE"
+
+	// PULSE_MATRIX_METRIC_DOMAIN is a per-matrix WARNING: MAT_DISTANCE's
+	// metric reads non-negative values (hellinger, aitchison) and some
+	// centroids hold a negative coordinate, or an aitchison zero part
+	// whose log-ratio is undefined (details "metric", "pairs",
+	// "buckets", "reasons"), so the distances touching them are null.
+	PULSE_MATRIX_METRIC_DOMAIN Code = "PULSE_MATRIX_METRIC_DOMAIN"
 
 	// PULSE_MATRIX_NOT_CONVERGED is a per-matrix WARNING: an iterative
 	// matrix routine stopped at its documented iteration cap before
@@ -3390,6 +3490,7 @@ var allCodes = []Code{
 	PULSE_DECIMAL_DIVIDE_BY_ZERO,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL,
 	PULSE_ATTR_CODE_NOT_IN_DICTIONARY,
+	PULSE_ATTR_SCALE_OUT_OF_RANGE,
 	PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS,
 	PULSE_ADVISORY_MANY_TESTS,
 	PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC,
@@ -3445,6 +3546,7 @@ var allCodes = []Code{
 	PULSE_EXTENSION_EXAMPLE_COLLISION,
 	PULSE_EXTENSION_MERGEABLE_MISMATCH,
 	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH,
+	PULSE_EXTENSION_ARRAY_VALUED_MISMATCH,
 	PULSE_EXTENSION_FACTORY_PANIC,
 	PULSE_EXTENSION_PARAM_INVALID,
 	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH,
@@ -3631,12 +3733,20 @@ var allCodes = []Code{
 	PULSE_VECTOR_LABELS_MISMATCH,
 	PULSE_VECTOR_UNKNOWN,
 	PULSE_VECTOR_UNREFERENCED,
+	PULSE_VECTOR_METRIC_UNKNOWN,
+	PULSE_VECTOR_METRIC_REQUIRED,
+	PULSE_VECTOR_METRIC_UNSUITED,
+	PULSE_VECTOR_REFERENCE_UNKNOWN,
+	PULSE_VECTOR_REFERENCE_MISMATCH,
+	PULSE_VECTOR_REFERENCE_MISSING,
+	PULSE_VECTOR_METRIC_DOMAIN,
 	PULSE_MATRIX_UNSUPPORTED_SOURCE,
 	PULSE_MATRIX_HOST_CONFLICT,
 	PULSE_MATRIX_NOT_PSD,
 	PULSE_MATRIX_LISTWISE_HEAVY_DROP,
 	PULSE_MATRIX_INSUFFICIENT_N,
 	PULSE_MATRIX_ZERO_VARIANCE,
+	PULSE_MATRIX_METRIC_DOMAIN,
 	PULSE_MATRIX_NOT_CONVERGED,
 	PULSE_MATRIX_HEYWOOD,
 	PULSE_MATRIX_NOT_IDENTIFIED,

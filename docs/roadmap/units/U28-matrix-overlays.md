@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U24, U13]
 soft_depends_on: []
 blocks: [U30, U31]
-todo_items: [145, 146, 147, 148, 149, 150, 261, 265, 296]
+todo_items: [145, 146, 147, 148, 149, 150, 261, 265, 296, 426]
 branch: matrix-overlays
 ---
 
@@ -94,6 +94,12 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(matrix-overlays/E
 - **MATRIX_RESULT host.** Overlays read `types.MatrixValues` (kind, encoding `full` / `upper`, `row_keys`, `column_keys`, `values`), NOT the crosstab `MatrixPayload`; handle `upper` and `null` cells, and per-bucket results (`group_key`).
 - **Matrices inside crosstab arms.** Today `Crosstab + Matrices` is refused `PULSE_MATRIX_HOST_CONFLICT` by one shared rule (`mergegate.MatrixRefusal`); lifting it means the fused arm (`crosstabfuse.Decide`) learns the slot. A crosstab-free request with only matrices on a chain stage is still refused (`ChainRefusal` needs an aggregator): decide with this unit.
 
+
+## Handed on from U27
+
+| Item | Source |
+|---|---|
+| Expose the registered-but-unexposed `chi_square` metric (takes column masses explicitly) through the crosstab-profile overlays | [U27](U27-vector-metrics-aggregates.md) #426 |
 
 ## Human inputs & decisions
 

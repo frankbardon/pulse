@@ -484,7 +484,8 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 						"params": map[string]any{},
 						"weight": slotWeightSchema(c),
 					},
-					"required":             []string{"type", "field"},
+					"required":             []string{"type"},
+					"anyOf":                columnInputAnyOf(),
 					"additionalProperties": true,
 				},
 			},
@@ -500,7 +501,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 						"params":     map[string]any{},
 						"weight":     slotWeightSchema(c),
 					},
-					"required":             []string{"type", "field"},
+					"required":             []string{"type"}, // ATTR_FORMULA reads an expression, ATTR_REG_PREDICT params.fit, a vector attribute vector / fields
 					"additionalProperties": true,
 				},
 			},
@@ -530,7 +531,8 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 						"params":   map[string]any{},
 						"weight":   slotWeightSchema(c),
 					},
-					"required":             []string{"type", "field"},
+					"required":             []string{"type"},
+					"anyOf":                columnInputAnyOf(),
 					"additionalProperties": true,
 				},
 			},
@@ -765,13 +767,16 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	itemProps("groups")["include"] = groupIncludeSchema()
 	itemProps("groups")["vector"] = groupVectorSchema()
 	itemProps("groups")["fields"] = groupFieldsSchema()
+	aggs := itemProps("aggregations")
+	aggs["vector"] = map[string]any{"type": "string", "description": "Vector aggregators (AGG_VEC_MEAN, AGG_VEC_SUM, and any extension aggregator whose manifest entry declares vector_input): the Request.Vectors entry whose members are aggregated; exactly one of vector / fields, and no field."}
+	aggs["fields"] = map[string]any{"type": "array", "description": "Vector aggregators (built-in, or an extension declaring vector_input): inline members (names and / or globs); exactly one of vector / fields.", "items": map[string]any{"type": "string"}}
 	attr := itemProps("attributes")
 	attr["target"] = enumStringField(c.Numeric, "Dependent variable for the regression attributes (ATTR_REG_FITTED / RESIDUAL / LEVERAGE).")
 	attr["predictors"] = map[string]any{"type": "array", "description": "Independent variables for the regression attributes; at least one.", "items": enumStringField(c.Numeric, "")}
 	attr["penalty"] = enumStringField([]string{"l1", "l2", "elasticnet"}, "Regression-attribute OLS penalty; omit for none. ATTR_REG_LEVERAGE refuses one.")
 	attr["alpha"] = map[string]any{"type": "number", "description": "Penalty strength (> 0) when penalty is set."}
 	attr["l1_ratio"] = map[string]any{"type": "number", "description": "Elastic-net mixing in (0, 1) when penalty is elasticnet."}
-	attr["vector"] = map[string]any{"type": "string", "description": "Vector-input attributes (ATTR_MAHALANOBIS, ATTR_PC_SCORE, ATTR_FACTOR_SCORE): the Request.Vectors entry whose members are the attribute's columns; exactly one of vector / fields."}
+	attr["vector"] = map[string]any{"type": "string", "description": "Vector-input attributes (ATTR_MAHALANOBIS, ATTR_PC_SCORE, ATTR_FACTOR_SCORE, ATTR_SCALE_SCORE, ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE): the Request.Vectors entry whose members are the attribute's columns; exactly one of vector / fields."}
 	attr["fields"] = map[string]any{"type": "array", "description": "Vector-input attributes: inline members (names and / or globs); exactly one of vector / fields.", "items": map[string]any{"type": "string"}}
 	itemProps("windows")["frame"] = frameSchema()
 	if inst.Enabled(descx.FeatureForEach) {
@@ -979,11 +984,14 @@ func vectorsSchema() map[string]any {
 		"items": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"name":    map[string]any{"type": "string", "description": "Request-scoped vector name."},
-				"fields":  map[string]any{"type": "array", "description": "Member names and / or globs (`*`, `?`, `[`), expanded in schema order.", "items": map[string]any{"type": "string"}},
-				"pattern": map[string]any{"type": "string", "description": "Go regular expression over field names (unanchored)."},
-				"labels":  map[string]any{"type": "array", "description": "Display labels, one per resolved member.", "items": map[string]any{"type": "string"}},
-				"coerce":  enumStringField(stringSlice(types.AllVectorCoerces()), "binary admits packed_bool members as 0 / 1."),
+				"name":      map[string]any{"type": "string", "description": "Request-scoped vector name."},
+				"fields":    map[string]any{"type": "array", "description": "Member names and / or globs (`*`, `?`, `[`), expanded in schema order.", "items": map[string]any{"type": "string"}},
+				"pattern":   map[string]any{"type": "string", "description": "Go regular expression over field names (unanchored)."},
+				"labels":    map[string]any{"type": "array", "description": "Display labels, one per resolved member.", "items": map[string]any{"type": "string"}},
+				"coerce":    enumStringField(stringSlice(types.AllVectorCoerces()), "binary admits packed_bool members as 0 / 1."),
+				"kind":      enumStringField(stringSlice(types.AllVectorKinds()), "What the values mean; picks the default metric when an operator names none and flags a poorly fitting explicit one (PULSE_VECTOR_METRIC_UNSUITED)."),
+				"scale_min": map[string]any{"type": "number", "description": "kind scale only, with scale_max: the battery's response range (stands in for MAT_RELIABILITY's own)."},
+				"scale_max": map[string]any{"type": "number", "description": "kind scale only, with scale_min: the battery's response range."},
 			},
 			"required":             []string{"name"},
 			"additionalProperties": false,
@@ -1153,6 +1161,31 @@ func overlayMultiplicitySchema(facade overlayFacade) map[string]any {
 	return multiplicitySchema(desc, families, true)
 }
 
+// columnInputAnyOf is the "reads a column" rule of an aggregation or
+// grouper item: field, vector or fields — at least one present. `field`
+// alone is not required: a vector aggregator / grouper reads vector or
+// fields instead, and a strict client would otherwise demand a field of
+// it. The exactly-one and per-operator rules are the server's, with
+// their own refusals.
+func columnInputAnyOf() []any {
+	return []any{
+		map[string]any{"required": []string{"field"}},
+		map[string]any{"required": []string{"vector"}},
+		map[string]any{"required": []string{"fields"}},
+	}
+}
+
+// crosstabArrayValuedVectorSchema / crosstabArrayValuedFieldsSchema
+// declare a crosstab aggregation slot's vector input: accepted on the
+// wire like every aggregation slot's, refused by the crosstab rule.
+func crosstabArrayValuedVectorSchema() map[string]any {
+	return map[string]any{"type": "string", "description": "Vector aggregators only (AGG_VEC_*, or an extension declaring vector_input), which a crosstab refuses when array-valued (Manifest.Crosstab.ArrayValuedAggregators, an extension's array_valued)."}
+}
+
+func crosstabArrayValuedFieldsSchema() map[string]any {
+	return map[string]any{"type": "array", "description": "Vector aggregators only (AGG_VEC_*), which a crosstab refuses (array-valued).", "items": map[string]any{"type": "string"}}
+}
+
 // crosstabSchema returns the JSON Schema for the Crosstab section.
 func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[string]any {
 	groupItem := map[string]any{
@@ -1164,7 +1197,8 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 			"params":   map[string]any{},
 			"weight":   slotWeightSchema(c),
 		},
-		"required":             []string{"type", "field"},
+		"required":             []string{"type"},
+		"anyOf":                columnInputAnyOf(),
 		"additionalProperties": true,
 	}
 	return map[string]any{
@@ -1190,8 +1224,11 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 					"label":  map[string]any{"type": "string"},
 					"params": map[string]any{},
 					"weight": slotWeightSchema(c),
+					"vector": crosstabArrayValuedVectorSchema(),
+					"fields": crosstabArrayValuedFieldsSchema(),
 				},
-				"required":             []string{"type", "field"},
+				"required":             []string{"type"},
+				"anyOf":                columnInputAnyOf(),
 				"additionalProperties": true,
 			},
 			"margin_aggregations": map[string]any{
@@ -1205,8 +1242,11 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 						"label":  map[string]any{"type": "string"},
 						"params": map[string]any{},
 						"weight": slotWeightSchema(c),
+						"vector": crosstabArrayValuedVectorSchema(),
+						"fields": crosstabArrayValuedFieldsSchema(),
 					},
-					"required":             []string{"type", "field"},
+					"required":             []string{"type"},
+					"anyOf":                columnInputAnyOf(),
 					"additionalProperties": true,
 				},
 			},

@@ -322,7 +322,17 @@ func TestManifestIntents_EntriesAndHidePath(t *testing.T) {
 		}
 	}
 	scoped := BuildManifestForInstance(NewInstanceSnapshot(nil, FeatureSet{Enabled: enabled, Hidden: hidden}))
-	b, err := json.Marshal(scoped)
+	// The metric registry's and the vector_kinds table's vector kinds
+	// ("composition", ...) are not intents but share their spelling;
+	// count intents without them.
+	counted := *scoped
+	if counted.Matrix != nil {
+		mc := *counted.Matrix
+		mc.Metrics = nil
+		mc.VectorKinds = nil
+		counted.Matrix = &mc
+	}
+	b, err := json.Marshal(&counted)
 	if err != nil {
 		t.Fatal(err)
 	}

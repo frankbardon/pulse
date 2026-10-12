@@ -9,9 +9,9 @@ covers: [expression, expr-lang, formula, set-helpers, vector-functions, lookup, 
 
 # Expression language
 
-Two operators evaluate an `expr-lang/expr` (v1.17.x) string once per row: the formula attribute (the result becomes a new column) and the expression filter (a truthy result keeps the row). Both compile through one environment, so everything below holds for both; only null handling differs. Per-operator params live in their atomic `op-*` skills.
+Two operators evaluate an `expr-lang/expr` (v1.17.x) string once per row: the formula attribute (the result is a new column) and the expression filter (a truthy result keeps the row). Both compile through one environment, so everything below holds for both; only null handling differs.
 
-This is NOT request templating: `$var` / `{{}}` / `$when` are substituted into the request before decode<!-- feature: capability:templates --> (`request-templating`)<!-- /feature -->; an expression runs over row fields at execution time. There is no interop.
+This is NOT request templating: `$var` / `{{}}` / `$when` are substituted into the request before decode<!-- feature: capability:templates --> (`request-templating`)<!-- /feature -->; an expression runs over row fields at execution time.
 
 ## Field binding
 
@@ -35,18 +35,19 @@ Arithmetic on a categorical errors — branch on the label and emit a number.
 
 ## Vector and maths built-ins
 
-A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is NaN.<!-- feature: capability:matrices --> A request's named vector binds by name, `vmean(battery)` (null member → NaN).<!-- /feature --> Reductions skip NaN; none valid (or empty) → NaN, `vsum` too.
+A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is NaN.<!-- feature: capability:matrices --> A request's named vector binds by name, `vmean(battery)` (null member → NaN); `cosine` / `dist` on a poorly fitting `kind` warns (`vector-metrics`).<!-- /feature --> Reductions skip NaN; none valid (or empty) → NaN, `vsum` too.
 
 | Function | Result |
 |---|---|
 | `vsum` `vmean` `vmin` `vmax` `norm` (L2) | float |
 | `vcount` | int count of valid elements |
 | `vsd` | sample SD (ddof 1); < 2 valid → NaN |
-| `dot` `dist` `cosine` (vector pair) | pairwise-complete; zero norm → `cosine` NaN; unequal lengths → `PROCESSING_VECTOR_LENGTH_MISMATCH` |
+| `dot` `dist` `cosine` (vector pair) | pairwise-complete; `dist` (euclidean) rescales by p/p_observed; `cosine` is the similarity, zero norm → NaN; unequal lengths → `PROCESSING_VECTOR_LENGTH_MISMATCH` |
 | `argmax` `argmin` | 0-based int index; none valid → NaN |
 | `vcenter` `vzscore` `vnormalize` (mode `"l1"` / `"l2"`, case-sensitive) | a vector, only inside a call: `vmax(vzscore([q1, q2, q3]))`; top-level → `PROCESSING_CONFIG` |
 | `sqrt` `log` (natural) `exp` `pow(score, 2)` | IEEE scalar (`sqrt(-1)` NaN); the only built-ins an overlay formula admits |
 | `jaccard` `dice` `overlap` `hamming` (two sets: field or `["a", "b"]`, matched by label; a dictionary-less set pairs only with another) | float, `hamming` int; null set → NaN; two empty → NaN, `hamming` 0 |
+| `ref` (table, key) | a reference profile, aligned by label<!-- feature: capability:matrices --> (`vector-metrics`)<!-- /feature --> |
 
 A non-finite result is `null` on the wire. These names are reserved: an embedder `ExprFunctions` entry using one → `PULSE_EXTENSION_NAME_RESERVED`.
 
@@ -61,7 +62,7 @@ The program compiles once per request: bad syntax or a type error is `PROCESSING
 
 ## Embedder extensions
 
-`pulse.Options.Extensions.ExprFunctions` merges custom functions into the environment; `LookupTables` is reachable as `lookup(table, keys...)` — an unknown table is `PULSE_LOOKUP_TABLE_UNKNOWN`, a missing key `PULSE_LOOKUP_MISS`. Both hosts see them. Recipe: `docs/src/internals/extension-points.md`.
+`pulse.Options.Extensions.ExprFunctions` merges custom functions into the environment; `LookupTables` is reachable as `lookup(table, keys...)` — an unknown table is `PULSE_LOOKUP_TABLE_UNKNOWN`, a missing key `PULSE_LOOKUP_MISS`; `ReferenceVectors` as `ref`. Recipe: `docs/src/internals/extension-points.md`.
 
 <!-- feature: capability:compose_fits -->
 ## Bound models
@@ -73,10 +74,6 @@ The program compiles once per request: bad syntax or a type error is `PROCESSING
 
 ```json
 {"label": "bmi", "expression": "weight_kg / (height_m ** 2)"}
-```
-
-```json
-{"label": "is_premium", "expression": "brand in [\"Apple\", \"Samsung\"] ? 1 : 0"}
 ```
 
 A formula's result is coerced to a scalar (`bool` → `1.0` / `0.0`); a filter's must be `bool` — a non-bool on a non-null row is `PROCESSING_RUNTIME`.

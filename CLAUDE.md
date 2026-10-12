@@ -46,7 +46,7 @@ Between them the rows carry every word `TestUpdateDemandTableCovers` checks; kee
 
 ## Architecture
 
-**Public packages** (frozen at v1.0.0, `TestPublicAPIGolden`): root `pulse`, `types`, `errors`, `encoding` (schema nouns + ungrouped raw-byte primitives), `descriptor` (result/envelope types), `io` + `synth` (alias facades over `internal/io` / `internal/synth`), `mcp/gosdk`, `mcpserve`, `extend` (operator-authoring API), `linalg` (FMA-free reference kernels + gonum-backed decompositions), `observe` (stdlib-only hooks + metrics vocabulary for `Options.Hooks` / `Metrics`). Everything else is under `internal/` — engine `internal/processing`, orchestration `internal/service`, NO-EXECUTE `internal/descriptor`, `internal/io/<fmt>` adapters. **Contract: `.claude/reference/architecture.md` (full tree, facade technique, root aliases, `io` boundary, `linalg` split, MCP split) — load it before moving a package or adding a public symbol.**
+**Public packages** (frozen at v1.0.0, `TestPublicAPIGolden`): root `pulse`, `types`, `errors`, `encoding` (schema nouns + ungrouped raw-byte primitives), `descriptor` (result/envelope types), `io` + `synth` (alias facades over `internal/io` / `internal/synth`), `mcp/gosdk`, `mcpserve`, `extend` (operator-authoring API), `linalg` (FMA-free kernels, gonum decompositions; `/metric` registry), `observe` (stdlib-only hooks + metrics vocabulary for `Options.Hooks` / `Metrics`). Everything else is under `internal/` — engine `internal/processing`, orchestration `internal/service`, NO-EXECUTE `internal/descriptor`, `internal/io/<fmt>` adapters. **Contract: `.claude/reference/architecture.md` (full tree, facade technique, root aliases, `io` boundary, `linalg` split, MCP split) — load it before moving a package or adding a public symbol.**
 
 Docs: <https://frankbardon.github.io/pulse/>.
 
@@ -88,7 +88,7 @@ Field descriptions in `.pulse` capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_T
 
 ### Smart defaults
 
-A slot naming a field but omitting `Type` gets an operator inferred from the schema type (`internal/descriptor/defaults.go`, `defaultRules`; numeric -> `AGG_SUM`/`GROUP_RANGE`, categorical and `packed_bool` -> `AGG_MODE_COUNT`/`GROUP_CATEGORY`, date-family -> `GROUP_DATE` only). Defaults never override `Type`, cross categories or default tests/filters/attributes/windows/features; disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`; predict always computes `DefaultsApplied`. Table: `execution-modes.md` (Smart defaults).
+A slot naming a field but omitting `Type` gets an operator inferred from the schema type (`internal/descriptor/defaults.go`, `defaultRules`; numeric -> `AGG_SUM`/`GROUP_RANGE`, categorical and `packed_bool` -> `AGG_MODE_COUNT`/`GROUP_CATEGORY`, date-family -> `GROUP_DATE` only); a metric slot on a `kind` vector gets its kind's metric. Defaults never override `Type`/`metric`, cross categories or default tests/filters/attributes/windows/features; disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`; predict always computes `DefaultsApplied`. Table: `execution-modes.md` (Smart defaults).
 
 **Date-family field types.** `GROUP_DATE`, `GROUP_DATE_RANGES` and `FILTER_DATE_RANGES` accept both `date` and `datetime`; zone math lives only in `internal/temporal` (`TestNoZoneMathOutsideTemporal`). Long form: `execution-modes.md` (Date-family field types, Time zones); `skills/time-zones.md`.
 
@@ -103,7 +103,7 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 - **Undefined figures are `null`.** A non-finite float is JSON `null` in place, key kept (`types.MarshalFinite`); Go keeps NaN; a result read back decodes `null` → NaN (`internal/jsonfinite`), never 0. Long form: `.claude/reference/response-components.md` (Undefined figures on the wire).
 - `request` is an opt-in echo of the *normalized* request, omitted unless `Options.EchoRequest` / `--echo-request`; its shape follows the operation (one of the five request roots). Streaming skips the echo. Additive `omitempty`; no `format_version` bump.
 
-**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, not the legacy array; `--stream` bypasses the envelope with per-row NDJSON. Optional `sweep` expands into ordinary slots before any run, optional `rank` adds `ranking` (`skills/compose-sweeps.md`); `fits` run once first and add `fits` (`skills/compose-fits.md`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
+**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, not the legacy array; `--stream` bypasses the envelope with per-row NDJSON. `sweep` / `rank` / `fits` add slots (`skills/compose-sweeps.md`, `skills/compose-fits.md`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
 
 **Item fan-out.** A `for_each` on a window / feature / attribute item expands in place before validation (absent = byte-identical). Long form: `execution-modes.md` (Item fan-out).
 
@@ -111,7 +111,7 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 
 **Response shaping.** Opt-in `Request.Return {preset, include, exclude, precision}`; an excluded part is ABSENT on the wire (never `null`), output stamped `returned`. Long form: `update-demand.md` (`Request.Return` row), `skills/response-shaping.md`.
 
-**Matrices.** `Request.Vectors` + `Request.Matrices` → `Response.Matrices` (`MatrixResult`, each matrix a dedicated `MatrixValues`, never the crosstab `MatrixPayload`). Long form: `matrix-and-vectors.md` (Matrix slot); skill `multivariate-design` picks the operator. `Test` / `Attribute` `vector` / `fields` reuse the vector rules (Virtual vectors). Opt-in `RegressionSpec.Vcov` adds `RegressionResult.Vcov` + `Correlation` (`MatrixValues`), `Covariance` robust SEs (off = byte-identical): `matrix-and-vectors.md` (Regression vcov).
+**Matrices.** `Request.Vectors` + `Request.Matrices` → `Response.Matrices` (`MatrixResult`, each matrix a dedicated `MatrixValues`, never the crosstab `MatrixPayload`). Long form: `matrix-and-vectors.md` (Matrix slot); skill `multivariate-design` picks the operator. `Test` / `Attribute` `vector` / `fields` reuse the vector rules (Virtual vectors), where a vector's `kind` and `PULSE_VECTOR_METRIC_UNSUITED` live. Opt-in `RegressionSpec.Vcov` (`RegressionResult.Vcov` / `Correlation`; off = byte-identical): `matrix-and-vectors.md` (Regression vcov).
 
 ### Response.Components
 
@@ -120,15 +120,16 @@ Every `Response` carries an optional `Components *ResponseComponents` (additive 
 - `Aggregations []AggregationComponents` — one entry per aggregator slot; universal floor `{n, n_null}` + operator-specific `Operator map[string]any` keyed by the manifest schema. Grouped: cohort-wide floor + per-row `Groups` (reference).
 - `Groupers []GrouperComponents` — universal floor `{total_n, n_null}` + operator-specific bucket layout.
 - `Crosstab *CrosstabComponents` — `CellCounts[r][c]`, `CellComponents[r][c]`, row/column/grand-total margin counterparts, axis-key components. Mirrors `MatrixPayload` coordinate-for-coordinate. Auxiliary `crosstab.margin_aggregations` margin figures extend this bullet — reference below.
-- `Filterers []FiltererComponents` — uniform `{n_in, n_out, n_null_input}` across all 11 filterers.
+- `Filterers []FiltererComponents` — uniform `{n_in, n_out, n_null_input}` on every filterer.
 - `Run *RunComponents` — `total_records`, `filtered_records`, `null_records`, `shard_count`, `partial_cohort_reason`. Coexists with `Response.Metadata`: `Metadata` keeps non-numerical run facts (cohort filename); `Run` carries the typed counters.
 - `Matrices []MatrixComponents` — one per `Response.Matrices` result: floor `{n, n_null, n_listwise_dropped}` (weight-0 rows count in `n`), pairwise `{min_pair_n, max_pair_n}`, the weighted floor keys, operator map (`ddof`). Rides `capability:matrices`.
+- `Attributes []AttributeComponents` — per attribute slot declaring a `ComponentSchema`, keyed by `label` + `type` (not index): floor `{n, n_null}` (present / null outputs) + `Operator`; cohort-wide.
 
-Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators,Groupers,Filterers,Matrices}`, each carrying a mergeability class — `Mergeable` / `Partial` / `None` (`types.ComponentsMergeability`). Streaming chunks emit running state for mergeable operators; non-mergeable ones surface only at terminal flush.
+Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators,Groupers,Filterers,Matrices,Attributes}`, each carrying a mergeability class — `Mergeable` / `Partial` / `None` (`types.ComponentsMergeability`). Streaming chunks emit running state for mergeable operators; non-mergeable ones surface only at terminal flush.
 
 **Opt-out.** `Options.DisableComponents` (engine default) + `types.Request.DisableComponents *bool` (`nil` inherits; a `return` never re-opens an engine-off gate, only explicit `false` does); CLI `--no-components`. Disabled leaves `Components` `nil`, byte-identical — `format_version` NOT bumped. Full contract: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
 
-**Weighted slots** add `omitempty` aggregator-floor keys `sum_weights`, `n_eff` (probability only), `n_weight_invalid` — absent means unweighted; `n` / `n_null` and every count stay raw ints. Long form: `.claude/reference/weighting.md`.
+**Weighted slots** add `omitempty` aggregator-floor keys `sum_weights`, `n_eff` (probability only), `n_weight_invalid` — absent means unweighted; `n` / `n_null` and every count stay raw ints (`weighting.md`).
 
 **Long form: `.claude/reference/response-components.md`** (auxiliary margins, opt-out, Compose surface); skill `skills/response-components.md`.
 
@@ -150,7 +151,7 @@ Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators
 **Contract: `.claude/reference/predict-inspect.md` — load it before changing predict, inspect, `pulse_inspect` or `CountRecords`.** The always-load half:
 
 - **Predict structural ban:** `internal/descriptor/predict.go` MUST NOT import `internal/service/` or `internal/processing/`. Enforced by `TestPredictNoExecutionImports`. Reads only header + schema, never records.
-- **Predict streamability:** `PredictResult.Streamable` mirrors per-type `Streamable()` methods plus schema gates (decimal). Runtime parity via the engine's internal streamability gate (`TestPredict_Streamable_MatchesRuntime`). Beside it, `CrosstabFusable` (nil ⇔ no crosstab) + `CrosstabFusionReasons`: the fused-crosstab dispatch answer from the shared `internal/crosstabfuse` rule, instance-aware (`DisableCrosstabFusion`) — `TestPredict_CrosstabFusableMatchesRuntime`.
+- **Predict streamability:** `PredictResult.Streamable` mirrors per-type `Streamable()` methods plus schema gates (decimal). Runtime parity: `TestPredict_Streamable_MatchesRuntime`. `CrosstabFusable` / `CrosstabFusionReasons` (fused-crosstab dispatch): `predict-inspect.md`.
 - **Inspect reads no record:** header + schema + sidecar metadata (`suggested_weight`); dictionaries truncated to `DefaultDictionaryLimit` (100) unless `FullDict: true`; `RecordCount` derives from the file LENGTH. **`Pulse.Inspect` drops `env.Warnings`** — CLI and `pulse_inspect` read `Pulse.InspectEnvelope`.
 - **Advisories:** `PredictResult.Advisories` (`PULSE_ADVISORY_*`) — coded fit notes, never warnings, never escalated by Strict, never change execution; `Options.SuppressAdvisories` validated at `New`. Long form: `predict-inspect.md` (Advisories).
 - **CountRecords header-fast:** no payload decode; the single-file floor division exists ONCE (`encoding.Schema.RecordCountForPayload`, shared with `Inspect`). `Inspect` warns on a truncated tail, `CountRecords` floors SILENTLY — deliberately; never make it error.
@@ -173,7 +174,7 @@ Other load-bearing gates (`TestManifest*Complete`, `TestStreamability_*`, `TestE
 
 ## Build / Env
 
-`make contrib` / `make contrib-tidy` (nested adapter modules; a root dependency bump needs `contrib-tidy` in its PR). `make build` (default; injects `VERSION` from `git describe` via ldflags into `internal/buildinfo`, read by `pulse.Version()`), `test`, `fmt`, `vet`, `lint`, `cover`, `clean`, `dist` (6-platform archives + `checksums.txt` into `dist/`), `docs` (runs `docs-generate` first, which regenerates the committed `docs/src/guide`), `docs-serve`, `docs-clean`. A `v*.*.*` tag push runs `release.yml`: `ci.yml` via `workflow_call`, then `make dist`, assets attached to the GitHub Release (`-` tags pre-release). A `.env` at repo root is auto-loaded. `make lint` = `go vet` + `staticcheck`, and must pass before any push.
+`make contrib` / `make contrib-tidy` (nested adapter modules; a root dependency bump needs `contrib-tidy` in its PR). `make build` (default; injects `VERSION` from `git describe` via ldflags into `internal/buildinfo`, read by `pulse.Version()`), `test`, `fmt`, `vet`, `lint`, `cover`, `clean`, `dist` (6-platform archives + `checksums.txt` into `dist/`), `docs` (runs `docs-generate` first, which regenerates the committed `docs/src/guide`), `docs-serve`, `docs-clean`. A `v*.*.*` tag push runs `release.yml` (`ci.yml`, then `make dist` assets onto the GitHub Release; `-` tags pre-release). A `.env` at repo root is auto-loaded. `make lint` = `go vet` + `staticcheck`, and must pass before any push.
 
 **Environment variables** — one line each; `pulse.Options` always overrides:
 

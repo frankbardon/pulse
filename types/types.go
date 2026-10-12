@@ -148,6 +148,22 @@ const (
 	// (treats each combination as atomic). Mergeable via the union of
 	// seen-mask sets.
 	AGG_SET_DISTINCT_VALUES AggregationType = "AGG_SET_DISTINCT_VALUES"
+
+	// Vector aggregators (U27). Each reads a vector input — the slot's
+	// Vector (a Request.Vectors name) or inline Fields, never Field —
+	// and emits one figure PER MEMBER, in member order: a JSON array
+	// through the RichAggregator lift (ArrayValued). Missing data is per
+	// element: a null member skips that element only. AGG_VEC_MEAN is
+	// Σw·x / Σw per element (null when no row answered it), AGG_VEC_SUM
+	// Σw·x per element (0 when none did). Streamable and mergeable:
+	// per-merge-block sums combined in a fixed tree, so the figure is
+	// bit-identical for every worker count. Refused by crosstab, Sort,
+	// windows, post-tests, overlays and a chain stage that feeds another
+	// stage. params.expand writes one scalar column per member,
+	// "<label>[<element label>]", instead of the array — presentation
+	// only, refused in the same places.
+	AGG_VEC_MEAN AggregationType = "AGG_VEC_MEAN"
+	AGG_VEC_SUM  AggregationType = "AGG_VEC_SUM"
 )
 
 // AllAggregationTypes returns all defined aggregation types.
@@ -167,6 +183,7 @@ func AllAggregationTypes() []AggregationType {
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES,
+		AGG_VEC_MEAN, AGG_VEC_SUM,
 	}
 }
 
@@ -401,6 +418,44 @@ const (
 	// (fit_on, listwise, null member → null, singular or N* ≤ p → every
 	// score null).
 	ATTR_FACTOR_SCORE AttributeType = "ATTR_FACTOR_SCORE"
+
+	// ATTR_SCALE_SCORE emits each row's rating-battery score across the
+	// p members of Vector / Fields: the mean of the row's valid items
+	// (params.stat "mean", the default) or the PRORATED sum, that mean ×
+	// p ("sum"). params.min_valid (default p) is the fewest valid items a
+	// score needs — below it the score is null, never 0. params.reverse
+	// names reverse-keyed member labels, scored lo + hi − x on the
+	// declared range (params.scale_min / scale_max, else the kind "scale"
+	// vector's bounds; a reverse list with neither is refused). With a
+	// declared range an out-of-range value is MISSING (never clamped),
+	// counted and warned (PULSE_ATTR_SCALE_OUT_OF_RANGE). Row-local:
+	// single pass, streamable; the weight is irrelevant.
+	ATTR_SCALE_SCORE AttributeType = "ATTR_SCALE_SCORE"
+
+	// ATTR_PROFILE_SIMILARITY emits each row's similarity to a
+	// reference across the p members of Vector / Fields: params.metric
+	// (a similarity-direction metric — correlation, cosine, jaccard,
+	// dice, overlap; default from the vector's kind), params.reference
+	// (a literal array in member order, a label map, {table, key} or
+	// {table, key_field} over Extensions.ReferenceVectors, matched by
+	// label) and params.min_valid (fewest complete pairs, default 1).
+	// key_field is a categorical label or an unsigned integer's base-10
+	// value. A row whose key_field is null or has no profile is null,
+	// counted (n_reference_missing) and warned
+	// (PULSE_VECTOR_REFERENCE_MISSING); a domain violation likewise
+	// (PULSE_VECTOR_METRIC_DOMAIN). Row-local: single pass, streamable; the
+	// weight is irrelevant. A distance metric is refused with a pointer
+	// to ATTR_VEC_DISTANCE.
+	ATTR_PROFILE_SIMILARITY AttributeType = "ATTR_PROFILE_SIMILARITY"
+
+	// ATTR_VEC_DISTANCE emits each row's distance to a reference across
+	// the p members of Vector / Fields: ATTR_PROFILE_SIMILARITY's params
+	// with a distance-direction metric (the row-local ones, plus the
+	// fitted std_euclidean and mahalanobis, whose per-member SDs /
+	// covariance come from ATTR_MAHALANOBIS's fit pass — two-pass,
+	// params.fit_on, weighted when a weight is in force). A similarity
+	// metric is refused with a pointer to ATTR_PROFILE_SIMILARITY.
+	ATTR_VEC_DISTANCE AttributeType = "ATTR_VEC_DISTANCE"
 )
 
 // AllAttributeTypes returns all defined attribute types.
@@ -414,13 +469,16 @@ func AllAttributeTypes() []AttributeType {
 		ATTR_NORMALIZED,
 		ATTR_PC_SCORE,
 		ATTR_PERCENTILE,
+		ATTR_PROFILE_SIMILARITY,
 		ATTR_REG_FITTED,
 		ATTR_REG_LEVERAGE,
 		ATTR_REG_PREDICT,
 		ATTR_REG_RESIDUAL,
+		ATTR_SCALE_SCORE,
 		ATTR_SET_HAS,
 		ATTR_SET_POPCOUNT,
 		ATTR_TSCORE,
+		ATTR_VEC_DISTANCE,
 		ATTR_ZSCORE,
 	}
 }
@@ -970,8 +1028,20 @@ type Aggregation struct {
 	// Type is the aggregation operation to perform.
 	Type AggregationType `json:"type"`
 
-	// Field is the name of the data field to aggregate.
+	// Field is the name of the data field to aggregate. Empty on a
+	// vector aggregator (AGG_VEC_*), which reads Vector or Fields.
 	Field string `json:"field"`
+
+	// Vector names the Request.Vectors entry whose members a vector
+	// aggregator (AGG_VEC_MEAN / AGG_VEC_SUM) aggregates element by
+	// element; exactly one of Vector and Fields. Any other aggregator
+	// refuses it.
+	Vector string `json:"vector,omitempty"`
+
+	// Fields lists a vector aggregator's members inline (literal names
+	// and / or globs, resolved by the Request.Vectors rules); exactly
+	// one of Vector and Fields.
+	Fields []string `json:"fields,omitempty"`
 
 	// Label is an optional output label for the aggregation result.
 	Label string `json:"label,omitempty"`
@@ -1533,6 +1603,11 @@ type Response struct {
 //     the floor {n, n_null, n_listwise_dropped}, pairwise
 //     {min_pair_n, max_pair_n}, the weighted floor keys and the
 //     operator's own keys (MatrixComponents).
+//   - Attributes: one entry per Request.Attributes slot whose operator
+//     declares a ComponentSchema, in declared order — NOT index-aligned
+//     with Request.Attributes; Label + Type key it back. The attribute
+//     floor {n, n_null} counts the rows the attribute scored, by
+//     output presence (AttributeComponents).
 type ResponseComponents struct {
 	// Aggregations carries one AggregationComponents entry per
 	// Request.Aggregations slot in matching declared order.
@@ -1561,6 +1636,15 @@ type ResponseComponents struct {
 	// result, in the same order (keyed back by Name, and GroupKey on a
 	// grouped result).
 	Matrices []MatrixComponents `json:"matrices,omitempty"`
+
+	// Attributes carries one AttributeComponents entry per
+	// Request.Attributes slot whose operator declares a ComponentSchema
+	// (ATTR_SCALE_SCORE, ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE; an
+	// extension attribute registered with one),
+	// in declared order. A slot whose operator declares none has no
+	// entry, so the slice is keyed back by Label (and Type), never by
+	// index.
+	Attributes []AttributeComponents `json:"attributes,omitempty"`
 
 	// plan is the resolved `return` selection a STANDALONE components
 	// payload (a streamed chunk's) was shaped under, rooted at the
@@ -1714,6 +1798,37 @@ type GrouperComponents struct {
 // components, axis-key grouper components, and include / exclude
 // record sanity counters — mirroring MatrixPayload coordinate-for-
 // coordinate so consumers can index components by the same (r, c).
+
+// AttributeComponents carries one attribute slot's constituent-parts
+// metadata: the attribute floor plus the operator's own
+// ComponentSchema keys. Attributes are cohort-wide on every arm — they
+// run over the filter-passing records before any grouping — so a
+// grouped or crosstab run carries one entry per slot, never per
+// bucket. Attributes are weight-irrelevant here: no weighted floor
+// keys ride the entry.
+type AttributeComponents struct {
+	// Label is the slot's EFFECTIVE output label — Attribute.Label, or
+	// the default label the engine wrote the column under when the
+	// request left it empty — so it always names the Data column.
+	Label string `json:"label"`
+
+	// Type is the slot's operator (Attribute.Type).
+	Type AttributeType `json:"type"`
+
+	// N is the number of filter-passing rows whose attribute output is
+	// PRESENT (non-null). Attribute floor.
+	N int `json:"n"`
+
+	// NNull is the number of filter-passing rows whose attribute
+	// output is null. N + NNull is the post-filter record count the
+	// attribute scored. Attribute floor.
+	NNull int `json:"n_null"`
+
+	// Operator carries the operator's schema-declared keys (the
+	// manifest's components_schemas.attributes entry). Absent when the
+	// operator emitted none.
+	Operator map[string]any `json:"operator,omitempty"`
+}
 
 // FiltererComponents carries per-filterer constituent-parts metadata —
 // records in (post-prior-stage), records out (post-this-filter), and

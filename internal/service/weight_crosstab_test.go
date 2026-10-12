@@ -171,6 +171,9 @@ func TestWeightCrosstabUnityParity(t *testing.T) {
 	ran := map[string]int{}
 	for _, arm := range crosstabArms() {
 		for _, row := range parityOps {
+			if row.vector {
+				continue // array-valued: refused as a crosstab cell
+			}
 			t.Run(arm.name+"/"+string(row.op), func(t *testing.T) {
 				base := runCrosstabOn(t, store, crosstabParityRequest(path, row, row.baselineOp()), nil, arm)
 				if base == nil {
@@ -783,7 +786,7 @@ func TestWeightCrosstabFusedMatchesBuffered(t *testing.T) {
 	ran := 0
 	for _, v := range crosstabVariants() {
 		for _, row := range parityOps {
-			if v.scalarOnly && row.op.MapValued() {
+			if (v.scalarOnly && row.op.MapValued()) || row.vector {
 				continue
 			}
 			t.Run(v.name+"/"+string(row.op), func(t *testing.T) {

@@ -388,6 +388,34 @@ var emitsTypeProbes = map[string]func(t *testing.T) emitted{
 			Params: json.RawMessage(`{"output":"p"}`)}, s, emitsRegRecords(s))
 		return append(d2, p...)
 	},
+	string(types.ATTR_SCALE_SCORE): func(t *testing.T) emitted {
+		// Mean and prorated sum, with a reversed item and a null score.
+		s := scaleSchema()
+		mean := attrEmitted(t, &types.Attribute{Type: types.ATTR_SCALE_SCORE, Label: "out", Fields: []string{"q1", "q2", "q3", "q4"},
+			Params: json.RawMessage(`{"scale_min":1,"scale_max":5,"reverse":["q2"],"min_valid":2}`)}, s, scaleRecords(s))
+		sum := attrEmitted(t, &types.Attribute{Type: types.ATTR_SCALE_SCORE, Label: "out", Fields: []string{"q1", "q2", "q3", "q4"},
+			Params: json.RawMessage(`{"stat":"sum"}`)}, s, scaleRecords(s))
+		return append(mean, sum...)
+	},
+	string(types.ATTR_PROFILE_SIMILARITY): func(t *testing.T) emitted {
+		// Correlation and a set similarity, with a null row.
+		s := cmpSchema()
+		cor := attrEmitted(t, &types.Attribute{Type: types.ATTR_PROFILE_SIMILARITY, Label: "out", Fields: []string{"x", "y", "z"},
+			Params: json.RawMessage(`{"metric":"correlation","reference":[2,3,1]}`)}, s, cmpRecords(s))
+		cos := attrEmitted(t, &types.Attribute{Type: types.ATTR_PROFILE_SIMILARITY, Label: "out", Fields: []string{"x", "y", "z"},
+			Params: json.RawMessage(`{"metric":"cosine","reference":{"x":1,"y":0,"z":2}}`)}, s, cmpRecords(s))
+		return append(cor, cos...)
+	},
+	string(types.ATTR_VEC_DISTANCE): func(t *testing.T) emitted {
+		// A row-local and both fitted metrics.
+		s := cmpSchema()
+		var out emitted
+		for _, m := range []string{"euclidean", "std_euclidean", "mahalanobis"} {
+			out = append(out, attrEmitted(t, &types.Attribute{Type: types.ATTR_VEC_DISTANCE, Label: "out", Fields: []string{"x", "y", "z"},
+				Params: json.RawMessage(`{"metric":"` + m + `","reference":[2,3,1]}`)}, s, cmpRecords(s))...)
+		}
+		return out
+	},
 	string(types.ATTR_FACTOR_SCORE): func(t *testing.T) emitted {
 		// Factor scores: unbounded reals, regression and Bartlett.
 		s := mahaSchema()

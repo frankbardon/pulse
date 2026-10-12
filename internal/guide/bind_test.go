@@ -503,3 +503,33 @@ func TestRecommend_NeedsWhyLint(t *testing.T) {
 		}
 	}
 }
+
+// TestRecommendBound_VectorAggregatorDraftsFields: a vector aggregator
+// (AGG_VEC_MEAN / AGG_VEC_SUM) is drafted fully bound with its members
+// as an inline fields list of the schema's numeric fields — never a
+// scalar field — and the draft decodes to a vector-input aggregation.
+func TestRecommendBound_VectorAggregatorDraftsFields(t *testing.T) {
+	for _, op := range []string{"AGG_VEC_MEAN", "AGG_VEC_SUM"} {
+		found := false
+		for _, r := range boundAll(t, nil, descx.IntentDescribe).Recommendations {
+			if r.Operator != op {
+				continue
+			}
+			found = true
+			var req types.Request
+			if err := json.Unmarshal(r.Request, &req); err != nil {
+				t.Fatalf("%s: draft does not decode: %v", op, err)
+			}
+			if !r.Bound || len(req.Aggregations) != 1 {
+				t.Fatalf("%s: bound=%v draft %s", op, r.Bound, r.Request)
+			}
+			a := req.Aggregations[0]
+			if a.Field != "" || !slices.Equal(a.Fields, []string{"score", "hours"}) {
+				t.Errorf("%s: field=%q fields=%v, want fields [score hours]: %s", op, a.Field, a.Fields, r.Request)
+			}
+		}
+		if !found {
+			t.Errorf("%s: no describe draft", op)
+		}
+	}
+}

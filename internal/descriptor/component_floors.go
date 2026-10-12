@@ -8,7 +8,8 @@ import "github.com/frankbardon/pulse/descriptor"
 // with them (TestComponentFloors_PrefixEverySchema).
 type ComponentFloor struct {
 	// Slot is the Response.Components field the floor belongs to
-	// ("aggregations", "groupers", "filterers", "matrices"), which is
+	// ("aggregations", "groupers", "filterers", "matrices",
+	// "attributes"), which is
 	// also the Manifest.ComponentsSchemas sub-map of its operators.
 	Slot string
 	// Keys are the floor keys, in emission order.
@@ -25,6 +26,7 @@ func ComponentFloors() []ComponentFloor {
 		{Slot: "groupers", Keys: universalGrouperFloorKeys()},
 		{Slot: "filterers", Keys: universalFiltererFloorKeys()},
 		{Slot: "matrices", Keys: matrixFloorKeys()},
+		{Slot: "attributes", Keys: attributeFloorKeys()},
 	}
 }
 

@@ -32,7 +32,7 @@ func TestGroupedMatrices_TouchedBlocksOnly(t *testing.T) {
 	}
 	feed := func(g *GroupedMatrices, key string, pos int) {
 		r := NewRecordWithWide(schema, map[string]float64{"x": float64(pos), "y": float64(pos * pos)}, nil, nil)
-		r.SetMergePosition(0, pos)
+		r.SetMergePosition(0, 0, pos)
 		if err := g.UpdateRow(key, r); err != nil {
 			t.Fatalf("UpdateRow: %v", err)
 		}

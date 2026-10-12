@@ -696,6 +696,7 @@ func TestChunkComponents_CarriesEveryBlock(t *testing.T) {
 		Filterers:    []types.FiltererComponents{{NIn: 1}},
 		Run:          &types.RunComponents{TotalRecords: 1},
 		Matrices:     []types.MatrixComponents{{Name: "m", N: 1}},
+		Attributes:   []types.AttributeComponents{{Label: "s", Type: types.ATTR_SCALE_SCORE, N: 1, Operator: map[string]any{"n_out_of_range": 1}}},
 	}
 	bv := reflect.ValueOf(buffered).Elem()
 	for i := 0; i < bv.NumField(); i++ {
@@ -717,6 +718,38 @@ func TestChunkComponents_CarriesEveryBlock(t *testing.T) {
 		if !reflect.DeepEqual(mv.Field(i).Interface(), bv.Field(i).Interface()) {
 			t.Errorf("mid-stream chunk drops or alters ResponseComponents.%s", mv.Type().Field(i).Name)
 		}
+	}
+}
+
+// TestChunkComponents_AttributeMergeability: a mid-stream chunk keeps
+// every attribute entry's floor and strips the operator keys of a None
+// attribute only (none is built in today, so the set is swapped), on a
+// copy — the terminal chunk carries the buffered entries verbatim.
+func TestChunkComponents_AttributeMergeability(t *testing.T) {
+	if len(attributeNoneTypes()) != 0 {
+		t.Fatalf("a built-in attribute is None now (%v): cover it with a real request", attributeNoneTypes())
+	}
+	saved := attributeNoneTypes
+	t.Cleanup(func() { attributeNoneTypes = saved })
+	attributeNoneTypes = func() map[types.AttributeType]bool {
+		return map[types.AttributeType]bool{types.ATTR_PERCENTILE: true}
+	}
+	buffered := &types.ResponseComponents{Attributes: []types.AttributeComponents{
+		{Label: "s", Type: types.ATTR_SCALE_SCORE, N: 3, NNull: 1, Operator: map[string]any{"n_out_of_range": 2}},
+		{Label: "p", Type: types.ATTR_PERCENTILE, N: 4, Operator: map[string]any{"k": 1}},
+	}}
+	mid := chunkComponents(buffered, nil, nil, false)
+	if mid.Attributes[0].Operator == nil || mid.Attributes[0].N != 3 || mid.Attributes[0].NNull != 1 {
+		t.Errorf("mergeable attribute altered mid-stream: %+v", mid.Attributes[0])
+	}
+	if mid.Attributes[1].Operator != nil || mid.Attributes[1].N != 4 {
+		t.Errorf("None attribute mid-stream = %+v, want floor only", mid.Attributes[1])
+	}
+	if buffered.Attributes[1].Operator == nil {
+		t.Error("the mid-stream projection mutated the buffered original")
+	}
+	if end := chunkComponents(buffered, nil, nil, true); !reflect.DeepEqual(end.Attributes, buffered.Attributes) {
+		t.Errorf("terminal chunk attributes = %+v", end.Attributes)
 	}
 }
 

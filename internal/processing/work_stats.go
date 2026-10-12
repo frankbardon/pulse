@@ -8,23 +8,24 @@ import "sync/atomic"
 // deltas to prove an excluded part was never computed
 // (TestReturnSkipsComputation).
 var (
-	workAggComponentBuilds      atomic.Int64
-	workGroupFloorBuilds        atomic.Int64
-	workGrouperComponentBuilds  atomic.Int64
-	workFiltererComponentBuilds atomic.Int64
-	workRunComponentBuilds      atomic.Int64
-	workMatrixComponentBuilds   atomic.Int64
-	workCrosstabComponentMaps   atomic.Int64
-	workAuxMarginAccumulators   atomic.Int64
-	workMatrixAccumulators      atomic.Int64
-	workMatrixResultBuilds      atomic.Int64
-	workMatrixAuxiliaryBuilds   atomic.Int64
-	workMatrixScalarBuilds      atomic.Int64
-	workMatrixVectorBuilds      atomic.Int64
-	workOverlayLayerRuns        atomic.Int64
-	workRowTestFolds            atomic.Int64
-	workPostTestRuns            atomic.Int64
-	workRegressionFits          atomic.Int64
+	workAggComponentBuilds       atomic.Int64
+	workGroupFloorBuilds         atomic.Int64
+	workGrouperComponentBuilds   atomic.Int64
+	workFiltererComponentBuilds  atomic.Int64
+	workRunComponentBuilds       atomic.Int64
+	workMatrixComponentBuilds    atomic.Int64
+	workAttributeComponentBuilds atomic.Int64
+	workCrosstabComponentMaps    atomic.Int64
+	workAuxMarginAccumulators    atomic.Int64
+	workMatrixAccumulators       atomic.Int64
+	workMatrixResultBuilds       atomic.Int64
+	workMatrixAuxiliaryBuilds    atomic.Int64
+	workMatrixScalarBuilds       atomic.Int64
+	workMatrixVectorBuilds       atomic.Int64
+	workOverlayLayerRuns         atomic.Int64
+	workRowTestFolds             atomic.Int64
+	workPostTestRuns             atomic.Int64
+	workRegressionFits           atomic.Int64
 )
 
 // WorkStatsSnapshot is a snapshot of the process-wide work counters.
@@ -46,6 +47,10 @@ type WorkStatsSnapshot struct {
 	RunComponentBuilds int64
 	// MatrixComponentBuilds counts Components.Matrices entries built.
 	MatrixComponentBuilds int64
+	// AttributeComponentBuilds counts Components.Attributes entries
+	// built: one per attribute slot whose operator declares a
+	// ComponentSchema.
+	AttributeComponentBuilds int64
 	// CrosstabCellComponentMaps counts crosstab component maps built
 	// (buildCellComponentMap): one per occupied cell, per row / column
 	// margin slot, the grand margin, and per auxiliary margin figure.
@@ -101,6 +106,7 @@ func WorkStats() WorkStatsSnapshot {
 		FiltererComponentBuilds:   workFiltererComponentBuilds.Load(),
 		RunComponentBuilds:        workRunComponentBuilds.Load(),
 		MatrixComponentBuilds:     workMatrixComponentBuilds.Load(),
+		AttributeComponentBuilds:  workAttributeComponentBuilds.Load(),
 		CrosstabCellComponentMaps: workCrosstabComponentMaps.Load(),
 		AuxMarginAccumulators:     workAuxMarginAccumulators.Load(),
 		MatrixAccumulators:        workMatrixAccumulators.Load(),
@@ -124,6 +130,7 @@ func (s WorkStatsSnapshot) Sub(o WorkStatsSnapshot) WorkStatsSnapshot {
 		FiltererComponentBuilds:   s.FiltererComponentBuilds - o.FiltererComponentBuilds,
 		RunComponentBuilds:        s.RunComponentBuilds - o.RunComponentBuilds,
 		MatrixComponentBuilds:     s.MatrixComponentBuilds - o.MatrixComponentBuilds,
+		AttributeComponentBuilds:  s.AttributeComponentBuilds - o.AttributeComponentBuilds,
 		CrosstabCellComponentMaps: s.CrosstabCellComponentMaps - o.CrosstabCellComponentMaps,
 		AuxMarginAccumulators:     s.AuxMarginAccumulators - o.AuxMarginAccumulators,
 		MatrixAccumulators:        s.MatrixAccumulators - o.MatrixAccumulators,

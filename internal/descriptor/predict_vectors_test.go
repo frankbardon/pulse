@@ -155,7 +155,7 @@ func TestPayloadSchema_MatricesHidden(t *testing.T) {
 			if !strings.Contains(s, `"MatrixValues"`) {
 				t.Errorf("MatrixValues absent; the regressions slot's vcov reaches it on every instance")
 			}
-			for _, tok := range []string{`"vectors"`, `"VectorSpec"`, `"VectorCoerce"`,
+			for _, tok := range []string{`"vectors"`, `"VectorSpec"`, `"VectorCoerce"`, `"VectorKind"`,
 				`"matrices"`, `"MatrixSpec"`, `"MatrixResult"`, `"MatrixComponents"`, `"MatrixType"`, `"MAT_COVARIANCE"`} {
 				if got := strings.Contains(s, tok); got != c.want {
 					t.Errorf("%s present = %v, want %v", tok, got, c.want)

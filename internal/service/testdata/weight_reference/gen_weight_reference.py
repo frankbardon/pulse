@@ -66,6 +66,10 @@ definition:
     form with N* = Kish n_eff, cross-checked against statsmodels
     DescrStatsW(w*).zconfint_mean; the same closed form must equal R on
     the frequency column (1e-12) first.
+  * AGG_VEC_SUM / AGG_VEC_MEAN (vector-metrics-aggregates E2-S2) —
+    statsmodels DescrStatsW .sum / .mean per member over that member's
+    own contributing rows (one slot over x and y; figures keyed by
+    element position "0", "1").
   * AGG_MAE / AGG_RMSE / AGG_MAPE (fit-scoring E2-S1) — scikit-learn
     metrics mean_absolute_error / mean_squared_error (RMSE = its root) /
     mean_absolute_percentage_error with sample_weight, actual x against
@@ -138,6 +142,13 @@ every row with x2 present scored against the fit over the complete rows
 with a valid, positive weight; frequency = R stats::mahalanobis against
 colMeans / cov of the expanded rows (reg_reference.R), probability =
 the w* closed form (mean, covariance M2·(n_eff/Σw)/(n_eff − 1))
+cross-checked with statsmodels DescrStatsW(w*, ddof=1).
+
+ATTR_VEC_DISTANCE (U27 E3-S2) — the same fixture, members and fit as
+ATTR_MAHALANOBIS, against a literal reference: std_euclidean (each
+difference over the fitted sd, pairwise-complete with p/p_observed, so a
+null-x2 row is scored) and mahalanobis (sqrt of the quadratic form, a
+null-x2 row null); both kinds as the w* closed form, the covariance
 cross-checked with statsmodels DescrStatsW(w*, ddof=1).
 
 Per-group N*: the split t / Welch / z, ANOVA F (c_g = N*_g/Σw_g, so
@@ -245,6 +256,8 @@ def present_rows(col):
         return [i for i, r in enumerate(ROWS) if r[0] is not NULL]
     if col == "s":
         return [i for i, r in enumerate(ROWS) if r[2] is not NULL]
+    if col == "y":
+        return [i for i, r in enumerate(ROWS) if r[1] is not NULL]
     raise ValueError(col)
 
 
@@ -493,6 +506,18 @@ def cases():
         add("AGG_SET_CARDINALITY_SUM", {"": csum}, col="s", floor_=sfl, src=nsrc + " Σw·popcount")
         add("AGG_SET_CARDINALITY_AVG", {"": csum / float(np.sum(sw))}, col="s", floor_=sfl,
             src=nsrc + " Σw·popcount / Σw")
+
+        # Vector aggregators (vector-metrics-aggregates E2-S2): ONE slot
+        # over x and y, figures keyed by element position. Each element is
+        # the DescrStatsW of that member's own contributing rows (present,
+        # weight valid) — missing data is per element. The floor counts a
+        # row present when ANY member answered; y is never null, so it is
+        # y's floor.
+        yidx = [i for i in present_rows("y") if valid(ws[i], kind)]
+        dy = DescrStatsW(np.array([ROWS[i][1] for i in yidx]), weights=np.array([ws[i] for i in yidx]), ddof=0)
+        vfl = floor("y", wname, kind)
+        add("AGG_VEC_SUM", {"0": d0.sum, "1": dy.sum}, col="x,y", floor_=vfl, src=sm + ".sum per member")
+        add("AGG_VEC_MEAN", {"0": d0.mean, "1": dy.mean}, col="x,y", floor_=vfl, src=sm + ".mean per member")
 
     # Cross-check: where the normalized probability weights are
     # integers the transcription must equal numpy type 7 on the
@@ -1999,6 +2024,49 @@ def mahalanobis_closed_form(ws, kind):
     return out
 
 
+VEC_DISTANCE_REF = [2.0, 1.5, 4.0]
+
+
+def vec_distance_closed_form(ws, kind, metric):
+    """ATTR_VEC_DISTANCE (U27 E3-S2) per row id against the literal
+    reference VEC_DISTANCE_REF over MAHA_FIELDS, reading ATTR_MAHALANOBIS's
+    fit (complete rows with a valid, positive weight; the w* mean and
+    ddof = 1 covariance M2·(N*/Σw)/(N* − 1)). std_euclidean: each
+    difference over the member's fitted sd, the sum over the complete
+    pairs rescaled by p/p_observed (a null-x2 row is scored on two
+    members); mahalanobis: sqrt(d' S^-1 d), a null-x2 row null and
+    omitted."""
+    idx = reg_fit_rows(ws, kind)
+    X = np.array([[REG_ROWS[i][REG_COL[c]] for c in MAHA_FIELDS] for i in idx])
+    w = np.array([ws[i] for i in idx])
+    sw = float(w.sum())
+    nstar = kish(w) if kind == "probability" else sw
+    mean = (w[:, None] * X).sum(axis=0) / sw
+    dev = X - mean
+    cov = (dev.T @ (w[:, None] * dev)) * (nstar / sw) / (nstar - 1)
+    d1 = DescrStatsW(X, weights=w * nstar / sw, ddof=1)
+    assert np.allclose(d1.cov, cov, rtol=1e-12), (kind, d1.cov, cov)
+    ref = np.array(VEC_DISTANCE_REF)
+    out = {}
+    for r in REG_ROWS:
+        x = [r[REG_COL[c]] for c in MAHA_FIELDS]
+        if metric == "mahalanobis":
+            if any(v is NULL for v in x):
+                continue
+            d = np.array(x) - ref
+            out[r[0]] = float(np.sqrt(d @ np.linalg.inv(cov) @ d))
+            continue
+        total, n = 0.0, 0
+        for j, v in enumerate(x):
+            if v is NULL:
+                continue
+            z = (v - ref[j]) / np.sqrt(cov[j, j])
+            total += z * z
+            n += 1
+        out[r[0]] = float(np.sqrt(total * len(x) / n))
+    return out
+
+
 FACTOR_FIELDS = ["x1", "y", "yb"]
 
 
@@ -2264,6 +2332,18 @@ def regression_cases():
                "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
         out.append(dict(weight=wname, kind=kind, name="attr_factor_score", request=req,
                         figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
+        for metric in ("std_euclidean", "mahalanobis"):
+            figs = vec_distance_closed_form(ws, kind, metric)
+            src = ("closed form: ATTR_MAHALANOBIS's fit (w* mean, covariance M2·(N*/Σw)/(N* − 1)) cross-checked with "
+                   "statsmodels " + statsmodels.__version__ + " DescrStatsW(w*, ddof=1); " +
+                   ("sd-scaled pairwise distance rescaled by p/p_observed" if metric == "std_euclidean"
+                    else "sqrt(d' S^-1 d) with numpy inv"))
+            req = {"attributes": [{"type": "ATTR_VEC_DISTANCE", "fields": MAHA_FIELDS, "label": "attr",
+                                   "params": {"metric": metric, "reference": VEC_DISTANCE_REF}}],
+                   "groups": [{"type": "GROUP_CATEGORY", "field": "id"}],
+                   "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
+            out.append(dict(weight=wname, kind=kind, name="attr_vec_distance_" + metric, request=req,
+                            figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
         if not prob:
             out.append(kmeans_case(wname, kind, ws, rfigs["group_kmeans_k2"]))
         for k in QUANTILE_KS:

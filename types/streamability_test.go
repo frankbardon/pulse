@@ -42,6 +42,9 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 		AGG_SET_CARDINALITY_SUM: true,
 		AGG_SET_CARDINALITY_AVG: true,
 		AGG_SET_DISTINCT_VALUES: true,
+
+		AGG_VEC_MEAN: true,
+		AGG_VEC_SUM:  true,
 	}
 	for _, agg := range AllAggregationTypes() {
 		want, ok := expected[agg]
@@ -111,6 +114,9 @@ func TestStreamability_MarginReducibilityKnown(t *testing.T) {
 		AGG_SET_DISTINCT_VALUES: MarginSummable,
 		AGG_SET_CARDINALITY_AVG: MarginMeanReducible,
 		AGG_SET_INTERSECTION:    MarginRecompute,
+
+		AGG_VEC_MEAN: MarginRecompute,
+		AGG_VEC_SUM:  MarginRecompute,
 	}
 	for _, agg := range AllAggregationTypes() {
 		want, ok := expected[agg]
@@ -184,6 +190,10 @@ func TestStreamability_AttributesKnown(t *testing.T) {
 		ATTR_MAHALANOBIS:  true,
 		ATTR_PC_SCORE:     true,
 		ATTR_FACTOR_SCORE: true,
+		ATTR_SCALE_SCORE:  true,
+
+		ATTR_PROFILE_SIMILARITY: true,
+		ATTR_VEC_DISTANCE:       true,
 	}
 	for _, a := range AllAttributeTypes() {
 		want, ok := expected[a]
@@ -495,5 +505,44 @@ func TestMarginReducibility_ModeCountIndependentFrequencySums(t *testing.T) {
 	}
 	if got := AGG_FREQUENCY.MarginReducibility(); got != MarginSummable {
 		t.Errorf("AGG_FREQUENCY = %q, want %q", got, MarginSummable)
+	}
+}
+
+// TestAggregationClassification_ArrayValued pins the vector aggregators
+// (U27 E2-S2): array-valued, streamable and mergeable, never map-valued
+// — and no other aggregator is array-valued, so the unconditional
+// crosstab / Sort / overlay / chain refusals reach exactly these two.
+func TestAggregationClassification_ArrayValued(t *testing.T) {
+	want := map[AggregationType]bool{AGG_VEC_MEAN: true, AGG_VEC_SUM: true}
+	for _, agg := range AllAggregationTypes() {
+		if got := agg.ArrayValued(); got != want[agg] {
+			t.Errorf("%s.ArrayValued() = %v, want %v", agg, got, want[agg])
+		}
+		if want[agg] {
+			if !agg.Streamable() || !agg.Mergeable() {
+				t.Errorf("%s: streamable %v, mergeable %v; want both", agg, agg.Streamable(), agg.Mergeable())
+			}
+			if agg.MapValued() {
+				t.Errorf("%s.MapValued() = true; an array value is not a map", agg)
+			}
+		}
+	}
+}
+
+// TestAggregationLabelOf_Vector: a vector aggregator's default label
+// names its vector, else its first inline fields entry as written.
+func TestAggregationLabelOf_Vector(t *testing.T) {
+	for _, tc := range []struct {
+		agg  Aggregation
+		want string
+	}{
+		{Aggregation{Type: AGG_VEC_MEAN, Vector: "battery"}, "AGG_VEC_MEAN_battery"},
+		{Aggregation{Type: AGG_VEC_SUM, Fields: []string{"b*", "c"}}, "AGG_VEC_SUM_b*"},
+		{Aggregation{Type: AGG_VEC_SUM, Vector: "v", Label: "mine"}, "mine"},
+		{Aggregation{Type: AGG_SUM, Field: "x"}, "AGG_SUM_x"},
+	} {
+		if got := AggregationLabelOf(&tc.agg); got != tc.want {
+			t.Errorf("AggregationLabelOf(%+v) = %q, want %q", tc.agg, got, tc.want)
+		}
 	}
 }

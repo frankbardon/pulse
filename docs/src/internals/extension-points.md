@@ -149,8 +149,9 @@ ext := pulse.Extensions{
     Tests:              []pulse.TestRegistration{...},
     SynthDistributions: []pulse.DistributionRegistration{...},
 
-    ExprFunctions: []pulse.ExprFunction{...},
-    LookupTables:  map[string]pulse.LookupTable{...},
+    ExprFunctions:    []pulse.ExprFunction{...},
+    LookupTables:     map[string]pulse.LookupTable{...},
+    ReferenceVectors: map[string]types.ReferenceVectorTable{...},
 
     Skills:   skillsFS,   // fs.FS of embedder skill files — see "Embedder skills"
     Examples: examplesFS, // fs.FS of embedder request examples — see "Embedder examples"
@@ -341,8 +342,17 @@ snapshot.
 `extend.AttributeComputer` (`Compute(rows extend.Rows, field)
 ([]float64, error)`, one value per row, aligned with `rows`). The probe
 asserts the `extend` sibling on the factory's own value; the adapter
-forwards exactly the tier it implements. Attributes do NOT declare a
-`ComponentSchema` (see the table in the **Component schemas** section).
+forwards exactly the tier it implements. An attribute MAY declare a
+`ComponentSchema` + `ComponentsFunc` (`pulse.AttributeComponentsFunc`,
+called once after the attribute scored every filter-passing row): its
+slot then carries one `Response.Components.Attributes` entry — the
+attribute floor `{n, n_null}` (rows whose output is present / null,
+filled by the orchestrator) plus the emitter's keys as `operator`. Only
+the registration-level `ComponentsFunc` emits; a value's own
+`Components()` method is not consulted for attributes. Such an
+attribute is never admitted to the parallel reducers or
+`ProcessChain`, whatever its `Mode` — one instance per worker would
+leave figures no merge folds — so a request carrying it runs serial.
 `Mode` also picks the run-time drive on `Process`: `row_local` streams
 through `Row`, `two_pass` takes the streaming `PrePass` → `Finalize` →
 `Row` drive, `buffered` runs `Compute` over the materialised rows. Like
@@ -549,15 +559,79 @@ wrap into `PROCESSING_RUNTIME` when surfaced through `ATTR_FORMULA` /
 `FILTER_EXPRESSION` — use `errors.HasCode(err, errors.PULSE_LOOKUP_MISS)`
 to detect inside the chain.
 
+### Reference vectors
+
+Named sets of labelled target profiles — an ideal brand profile, a
+segment centroid, a benchmark battery — that a row is compared with.
+An expression reads one with the reserved `ref("table", key)` built-in:
+
+```go
+ReferenceVectors: map[string]types.ReferenceVectorTable{
+    "ideal": {
+        Description: "Target satisfaction profile per tier.",
+        Labels:      []string{"price", "quality", "service"},
+        Profiles: map[string][]float64{
+            "premium": {3, 5, 5},
+            "budget":  {5, 3, 3},
+        },
+    },
+},
+```
+
+```text
+cosine(vcenter(sat), vcenter(ref("ideal", "premium")))
+```
+
+A profile is matched to the vector it is compared with **by label,
+never by position**. Inside `dot` / `dist` / `cosine` — directly or
+under `vcenter` / `vzscore` / `vnormalize` — `ref()` is reordered to the
+other argument's labels: a named vector (`Request.Vectors`, its
+`labels` or its member names), or another `ref()` (the second aligns to
+the first). The two label sets must be equal, else
+`PULSE_VECTOR_REFERENCE_MISMATCH` (`reason` `labels_differ`, with
+`missing` / `extra`); a literal-array or computed partner carries no
+labels and is refused (`unlabeled_partner`). Anywhere else (`vsum(ref(…))`,
+an embedder function's argument) the profile keeps the table's own label
+order. The table argument must be a string literal; an unknown table or
+literal key is `PULSE_VECTOR_REFERENCE_UNKNOWN` (`table_unknown`,
+`table_not_literal`, `key_unknown`). Predict and the build check
+literals with the same rules; a computed key (`ref("ideal", tier)`) is
+checked per row — a miss fails the run under
+`PULSE_VECTOR_REFERENCE_UNKNOWN`, a null key makes the row's input null.
+A literal key inside a pair is folded to a constant at build, so the
+row path reads nothing for it.
+
+Validation at `pulse.New` (`PULSE_EXTENSION_PARAM_INVALID`,
+`details.reason`): a non-empty table name, at least one label, labels
+non-empty and unique, at least one profile, non-empty keys, one value
+per label, every value finite. The instance copies the tables (later
+mutation of your maps has no effect), lists each in the manifest
+`extensions.reference_vectors` (`name`, `description`, `labels`,
+`keys` — never the values) and as an ontology table node, and merges
+several `Extensions` values like the other named tables (a later table
+of the same name wins). Reference vectors are programmatic only — no
+environment directory loads them — and, like lookup tables, they are
+not features: no feature profile gates them.
+
+`ref` is a reserved expression name (an `ExprFunction` claiming it is
+`PULSE_EXTENSION_NAME_RESERVED`). The built-in reference-comparison
+attributes `ATTR_PROFILE_SIMILARITY` / `ATTR_VEC_DISTANCE` read the same
+tables through their `reference` param (`{table, key}` or
+`{table, key_field}`, matched by label); as built-ins their names are
+refused to an extension (`PULSE_EXTENSION_NAME_COLLISION`).
+
 ## Component schemas (v0.20.0)
 
 `Response.Components` is the operator-keyed sibling payload that runs
 alongside `Response.Data`. Every aggregator, grouper, and filterer in
 a request lands a typed map under
 `Response.Components.Aggregations[i].Operator`, `.Groupers[i].Operator`,
-or `.Filterers[i].Operator`. Embedder-registered operators participate
+or `.Filterers[i].Operator`, and an attribute whose operator declares a
+schema lands one under `.Attributes[j].Operator` (keyed by `label` +
+`type`, not by slot index). Embedder-registered operators participate
 via two coupled optional fields on `AggregatorRegistration`,
-`GrouperRegistration`, and `FiltererRegistration`. The universal
+`GrouperRegistration`, `FiltererRegistration` and
+`AttributeRegistration`. The universal
 contract — typed shells, floor keys, additive `omitempty` shape —
 lives in
 [`skills/response-components.md`](https://github.com/frankbardon/pulse/blob/main/internal/skills/response-components.md);
@@ -570,7 +644,7 @@ this section covers only the extension-side wiring.
 | Aggregator | Yes | Universal floor `{n, n_null}` filled by orchestrator. |
 | Grouper | Yes | Universal floor `{total_n, n_null}` filled by orchestrator. |
 | Filterer | Yes (floor-only valid) | Universal floor `{n_in, n_out, n_null_input}` filled by orchestrator; in v1 no built-in filterer adds operator-specific keys. |
-| Attribute | No | Attributes do not flow into `Response.Components`. |
+| Attribute | Optional | Only a registration with a `ComponentsFunc` emits a `Response.Components.Attributes` entry; attribute floor `{n, n_null}` (present / null outputs) filled by orchestrator; no weighted floor keys. Built-in example: `ATTR_SCALE_SCORE` (`n_out_of_range`, `n_rows_out_of_range`). |
 | Window | No | Window outputs land in `Response.Data` rows. |
 | Feature | No | Pre-filter; no components surface. |
 | Test | No | Test results carry their own typed shape. |
@@ -789,6 +863,9 @@ components-contract failures are listed in the table above.
     ],
     "lookup_tables": [
       {"name": "adjustments", "has_rows_data": true}
+    ],
+    "reference_vectors": [
+      {"name": "ideal", "labels": ["price", "quality", "service"], "keys": ["budget", "premium"]}
     ]
   }
 }
@@ -1088,7 +1165,8 @@ ranges.
 
 ## Vector inputs (`vector` / `fields`)
 
-An extension test, attribute or grouper may read a member set from the
+An extension test, attribute or grouper — and an aggregator declared
+`VectorInput` (below) — may read a member set from the
 slot's `vector` (a `Request.Vectors` name) or `fields` (inline names
 and globs), and a test also a second set from `vector2` / `fields2`.
 Predict and the runtime judge those member sets exactly as a
@@ -1104,6 +1182,56 @@ params, `field` / `field2` beside the vector, `split_by` and whether
 the two sets must match in length. A test or attribute that reads a
 vector may leave `field` empty; a grouper keeps its `field`, which
 names its key column.
+
+An **aggregator** reads a vector only when its registration declares
+`VectorInput: true` — otherwise a `vector` / `fields` on its slot is
+refused (`vector_not_accepted`), as for a built-in scalar aggregator.
+A vector-input aggregator follows the `AGG_VEC_MEAN` slot rules exactly:
+one of `vector` / `fields`, never `field`, numeric source columns only;
+its factory receives the literal members in `spec.Fields` and the
+display label per member in `params.labels` (a named vector's labels,
+else the slot's `params.labels`, else the member names), with every
+other params key kept for the operator. `params.labels` and
+`params.expand` belong to the engine, so the registration may not
+declare a `ParamMeta` of either name (`PULSE_EXTENSION_PARAM_INVALID`,
+`reserved_vector_param`). The universal floor counts a row present when
+ANY member answered.
+
+Add `ArrayValued: true` when the value is one figure per member: the
+instance implements `extend.RichAggregator` and `Rich` returns a
+`[]float64` with one entry per member, in member order (`NaN` is
+`null` on the wire). `ArrayValued` needs `VectorInput` and no
+`MarginReducibility` (`PULSE_EXTENSION_ARRAY_VALUED_MISMATCH`, reasons
+`array_valued_without_vector_input`, `array_valued_margin_reducibility`,
+`missing_rich_interface`); a `Rich` value of another shape is
+`PROCESSING_INTERNAL` at run time. Predict and the runtime then treat
+the slot as they treat `AGG_VEC_MEAN`: refused as a crosstab cell or
+margin aggregation, a sort key, an overlay host (request, Compose,
+chain) and a chain stage feeding another (`PROCESSING_CONFIG`, reason
+`array_valued`), and `params.expand: true` writes one column per member,
+`<label>[<element label>]`, which predict lists in
+`aggregations[i].columns`. `expand` on a slot whose aggregator is not
+`ArrayValued` is refused (`expand_not_array_valued`). The manifest's
+extension entry carries `vector_input` / `array_valued`, which the
+recommend planner reads to draft a `fields` list.
+
+```go
+pulse.AggregatorRegistration{
+    Name:        "AGG_ACME_PROFILE",
+    VectorInput: true,
+    ArrayValued: true,
+    Streamable:  true,
+    Mergeable:   true,
+    Factory: func(spec *types.Aggregation, _ *encoding.Schema) (extend.Aggregator, error) {
+        return newProfile(spec.Fields), nil // Rich() returns []float64, len(spec.Fields)
+    },
+}
+```
+
+A mergeable extension's partials fold through its own `Merge`, so —
+unlike the built-in `AGG_VEC_*`, which key their partials by global
+record ordinal — its figures under `ShardWorkers` / `DecodeWorkers` may
+differ from the serial run in the last bits (see `MergeableAggregator`).
 
 ## Streamability contract
 
@@ -1398,7 +1526,7 @@ Fetch the Message + Fixup template for any of these via
 | Code | Trigger |
 |---|---|
 | `PULSE_EXTENSION_NAME_INVALID` | name fails the registration regex |
-| `PULSE_EXTENSION_NAME_RESERVED` | namespace is BUILTIN/STANDARD/CORE/PULSE, or an `ExprFunction` is named `total` (engine-owned) |
+| `PULSE_EXTENSION_NAME_RESERVED` | namespace is BUILTIN/STANDARD/CORE/PULSE, or an `ExprFunction` is named `total` (engine-owned) or a reserved built-in (`vsum` … `overlap`, `ref`) |
 | `PULSE_EXTENSION_NAME_COLLISION` | name matches a built-in |
 | `PULSE_EXTENSION_DUPLICATE` | same name registered twice |
 | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | declared streaming tier does not match factory interface |
@@ -1407,7 +1535,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_MERGEABLE_MISMATCH` | aggregator / grouper `Mergeable` without `Streamable`, value lacks `extend.MergeableAggregator` (or, for a grouper that emits components, `extend.MergeableGrouper`), or `ComponentSchema` keys classified `None` |
 | `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH` | aggregator `MarginReducibility` is not a known class, or is a fusable class (summable / mean_reducible / independent) without `Mergeable` |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe |
-| `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, lookup table with neither `Rows` nor `Lookup`, etc. |
+| `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, lookup table with neither `Rows` nor `Lookup`, a malformed reference-vector table, etc. |
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (closure or sibling interface) but `ComponentSchema.Keys` empty |
 | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` | emitter returned a key not in `ComponentSchema.Keys`, or re-emitted a floor key |
 | `PULSE_EXTENSION_SKILL_INVALID` | an `Extensions.Skills` file breaks a rule in "Embedder skills" — `details.reason` names which |
@@ -1418,6 +1546,8 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_NOT_WEIGHT_AWARE` | a row weight reached a registration without `WeightAware` — explicit on an aggregator, or any weight in force on an attribute or test |
 | `PULSE_LOOKUP_TABLE_UNKNOWN` | expression referenced an unregistered table |
 | `PULSE_LOOKUP_MISS` | lookup key not present |
+| `PULSE_VECTOR_REFERENCE_UNKNOWN` | `ref()` names an unregistered table or key, or a non-literal table |
+| `PULSE_VECTOR_REFERENCE_MISMATCH` | a `ref()` profile's labels are not the compared vector's label set, or its partner carries no labels |
 
 Naming-policy violations and probe failures are also enforced by the
 gates listed in [The Update Demand](update-demand.md) — any change to

@@ -71,8 +71,6 @@ var exampleIntentExemptions = []guidanceExemption{}
 // glossaryOrphanExemptions — glossary terms no built-in Purpose links
 // (TestGlossary_OrphanReport). Key: the term ID.
 var glossaryOrphanExemptions = []guidanceExemption{
-	// Vector metrics.
-	{Key: "similarity", Owner: "U27", Why: "Written ahead of the vector metrics U27 ships."},
 	// Matrix overlays (raking, Markov flows).
 	{Key: "raking", Owner: "U28", Why: "Written ahead of the raking overlay U28 ships."},
 	{Key: "stochastic-matrix", Owner: "U28", Why: "Written ahead of the flow overlays U28 ships."},

@@ -10,6 +10,7 @@ pulse: type AddShardResult field Widened []pulse/internal/service.SetWidening "j
 pulse: type AggregatorComponentsFunc func(instance pulse/extend.Aggregator) (map[string]any, error)
 pulse: type AggregatorRegistration struct
 pulse: type AggregatorRegistration field Accepts []pulse/encoding.FieldType
+pulse: type AggregatorRegistration field ArrayValued bool
 pulse: type AggregatorRegistration field ComponentSchema pulse/descriptor.ComponentSchema
 pulse: type AggregatorRegistration field ComponentsFunc pulse.AggregatorComponentsFunc
 pulse: type AggregatorRegistration field DependsOn []string
@@ -22,7 +23,9 @@ pulse: type AggregatorRegistration field Name pulse/types.AggregationType
 pulse: type AggregatorRegistration field Params []pulse.ParamMeta
 pulse: type AggregatorRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type AggregatorRegistration field Streamable bool
+pulse: type AggregatorRegistration field VectorInput bool
 pulse: type AggregatorRegistration field WeightAware bool
+pulse: type AttributeComponentsFunc func(instance pulse/extend.AttributeComputer) (map[string]any, error)
 pulse: const AttributeEmitBool pulse.AttributeEmitType = "bool"
 pulse: const AttributeEmitFloat64 pulse.AttributeEmitType = "float64"
 pulse: const AttributeEmitString pulse.AttributeEmitType = "string"
@@ -33,6 +36,8 @@ pulse: const AttributeModeRowLocal pulse.AttributeMode = "row_local"
 pulse: const AttributeModeTwoPass pulse.AttributeMode = "two_pass"
 pulse: type AttributeRegistration struct
 pulse: type AttributeRegistration field Accepts []pulse/encoding.FieldType
+pulse: type AttributeRegistration field ComponentSchema pulse/descriptor.ComponentSchema
+pulse: type AttributeRegistration field ComponentsFunc pulse.AttributeComponentsFunc
 pulse: type AttributeRegistration field DependsOn []string
 pulse: type AttributeRegistration field Description string
 pulse: type AttributeRegistration field Emits pulse.AttributeEmitType
@@ -279,6 +284,7 @@ pulse: type Extensions field Groupers []pulse.GrouperRegistration
 pulse: type Extensions field LabelTables map[string]pulse.LabelTable
 pulse: type Extensions field LookupTables map[string]pulse.LookupTable
 pulse: type Extensions field RangeTables map[string]pulse.RangeTable
+pulse: type Extensions field ReferenceVectors map[string]pulse/types.ReferenceVectorTable
 pulse: type Extensions field Skills io/fs.FS
 pulse: type Extensions field SynthDistributions []pulse.DistributionRegistration
 pulse: type Extensions field Tests []pulse.TestRegistration
@@ -1112,6 +1118,7 @@ pulse/descriptor: type Advisory field Details map[string]any "json:\"details,omi
 pulse/descriptor: type Advisory field Message string "json:\"message\""
 pulse/descriptor: type AggregationPredict struct
 pulse/descriptor: type AggregationPredict field BufferedComponents bool "json:\"buffered_components,omitempty\""
+pulse/descriptor: type AggregationPredict field Columns []string "json:\"columns,omitempty\""
 pulse/descriptor: type AggregationPredict field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
 pulse/descriptor: type AggregationPredict field Field string "json:\"field,omitempty\""
 pulse/descriptor: type AggregationPredict field Label string "json:\"label,omitempty\""
@@ -1160,10 +1167,12 @@ pulse/descriptor: type ComponentsMergeability = pulse/types.ComponentsMergeabili
 pulse/descriptor: type ComponentsMergeability underlying string
 pulse/descriptor: type ComponentsSchemasBlock struct
 pulse/descriptor: type ComponentsSchemasBlock field Aggregators map[string]pulse/descriptor.ComponentSchema "json:\"aggregators,omitempty\""
+pulse/descriptor: type ComponentsSchemasBlock field Attributes map[string]pulse/descriptor.ComponentSchema "json:\"attributes,omitempty\""
 pulse/descriptor: type ComponentsSchemasBlock field Filterers map[string]pulse/descriptor.ComponentSchema "json:\"filterers,omitempty\""
 pulse/descriptor: type ComponentsSchemasBlock field Groupers map[string]pulse/descriptor.ComponentSchema "json:\"groupers,omitempty\""
 pulse/descriptor: type ComponentsSchemasBlock field Matrices map[string]pulse/descriptor.ComponentSchema "json:\"matrices,omitempty\""
 pulse/descriptor: type CrosstabCapability struct
+pulse/descriptor: type CrosstabCapability field ArrayValuedAggregators []string "json:\"array_valued_aggregators,omitempty\""
 pulse/descriptor: type CrosstabCapability field IndependentAggregators []string "json:\"independent_aggregators\""
 pulse/descriptor: type CrosstabCapability field MapValuedCellAggregators []string "json:\"map_valued_cell_aggregators\""
 pulse/descriptor: type CrosstabCapability field MarginAggregationRules []string "json:\"margin_aggregation_rules\""
@@ -1297,6 +1306,7 @@ pulse/descriptor: type ExtensionsManifest field Groupers []pulse/descriptor.Oper
 pulse/descriptor: type ExtensionsManifest field LabelTables []pulse/descriptor.LabelTableMeta "json:\"label_tables\""
 pulse/descriptor: type ExtensionsManifest field LookupTables []pulse/descriptor.LookupTableMeta "json:\"lookup_tables\""
 pulse/descriptor: type ExtensionsManifest field RangeTables []pulse/descriptor.RangeTableMeta "json:\"range_tables\""
+pulse/descriptor: type ExtensionsManifest field ReferenceVectors []pulse/descriptor.ReferenceVectorMeta "json:\"reference_vectors\""
 pulse/descriptor: type ExtensionsManifest field SynthDistributions []pulse/descriptor.OperatorMeta "json:\"synth_distributions\""
 pulse/descriptor: type ExtensionsManifest field Tests []pulse/descriptor.OperatorMeta "json:\"tests\""
 pulse/descriptor: type ExtensionsManifest field Windows []pulse/descriptor.OperatorMeta "json:\"windows\""
@@ -1491,8 +1501,10 @@ pulse/descriptor: type MatrixCapability field Encodings []string "json:\"encodin
 pulse/descriptor: type MatrixCapability field Kinds []string "json:\"kinds\""
 pulse/descriptor: type MatrixCapability field Limitations []string "json:\"limitations\""
 pulse/descriptor: type MatrixCapability field MergeBlockSize int "json:\"merge_block_size\""
+pulse/descriptor: type MatrixCapability field Metrics []pulse/descriptor.MetricMeta "json:\"metrics\""
 pulse/descriptor: type MatrixCapability field MissingModes []string "json:\"missing_modes\""
 pulse/descriptor: type MatrixCapability field Name string "json:\"name\""
+pulse/descriptor: type MatrixCapability field VectorKinds []pulse/descriptor.VectorKindMeta "json:\"vector_kinds\""
 pulse/descriptor: type MatrixMeta struct
 pulse/descriptor: type MatrixMeta field AcceptsTypes []string "json:\"accepts_types\""
 pulse/descriptor: type MatrixMeta field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
@@ -1527,6 +1539,21 @@ pulse/descriptor: type MatrixPredict field Shape [2]int "json:\"shape\""
 pulse/descriptor: type MatrixPredict field Streamable bool "json:\"streamable\""
 pulse/descriptor: type MatrixPredict field Type pulse/types.MatrixType "json:\"type\""
 pulse/descriptor: const Mergeable pulse/types.ComponentsMergeability = "mergeable"
+pulse/descriptor: type MetricMeta struct
+pulse/descriptor: type MetricMeta field Complete bool "json:\"complete,omitempty\""
+pulse/descriptor: type MetricMeta field Consumers []string "json:\"consumers\""
+pulse/descriptor: type MetricMeta field Description string "json:\"description\""
+pulse/descriptor: type MetricMeta field Direction string "json:\"direction\""
+pulse/descriptor: type MetricMeta field Domain string "json:\"domain\""
+pulse/descriptor: type MetricMeta field Family string "json:\"family\""
+pulse/descriptor: type MetricMeta field FitStat string "json:\"fit_stat,omitempty\""
+pulse/descriptor: type MetricMeta field Fitted bool "json:\"fitted\""
+pulse/descriptor: type MetricMeta field Forms []string "json:\"forms\""
+pulse/descriptor: type MetricMeta field KindsSuited []string "json:\"kinds_suited\""
+pulse/descriptor: type MetricMeta field Name string "json:\"name\""
+pulse/descriptor: type MetricMeta field PoorFit []string "json:\"poor_fit\""
+pulse/descriptor: type MetricMeta field Scaled bool "json:\"scaled,omitempty\""
+pulse/descriptor: type MetricMeta field ZeroUndefined bool "json:\"zero_undefined,omitempty\""
 pulse/descriptor: const MultiplicityTriggerThreshold untyped int = 10
 pulse/descriptor: func NewEnvelope(data any) *pulse/descriptor.Envelope
 pulse/descriptor: func NewEnvelopeWithRequest(data any, request any) *pulse/descriptor.Envelope
@@ -1580,6 +1607,7 @@ pulse/descriptor: type Operator field WeightKinds []pulse/types.WeightKind "json
 pulse/descriptor: type Operator field Zone string "json:\"zone,omitempty\""
 pulse/descriptor: type OperatorMeta struct
 pulse/descriptor: type OperatorMeta field Accepts []string "json:\"accepts,omitempty\""
+pulse/descriptor: type OperatorMeta field ArrayValued bool "json:\"array_valued,omitempty\""
 pulse/descriptor: type OperatorMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type OperatorMeta field Emits string "json:\"emits,omitempty\""
 pulse/descriptor: type OperatorMeta field FansOut bool "json:\"fans_out,omitempty\""
@@ -1592,6 +1620,7 @@ pulse/descriptor: type OperatorMeta field Namespace string "json:\"namespace\""
 pulse/descriptor: type OperatorMeta field Params []pulse/descriptor.OperatorParamMeta "json:\"params,omitempty\""
 pulse/descriptor: type OperatorMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type OperatorMeta field Tier string "json:\"tier,omitempty\""
+pulse/descriptor: type OperatorMeta field VectorInput bool "json:\"vector_input,omitempty\""
 pulse/descriptor: type OperatorMeta field WeightAware bool "json:\"weight_aware,omitempty\""
 pulse/descriptor: type OperatorParamMeta struct
 pulse/descriptor: type OperatorParamMeta field Default any "json:\"default,omitempty\""
@@ -1722,6 +1751,11 @@ pulse/descriptor: type Recommendation field Operator string "json:\"operator\""
 pulse/descriptor: type Recommendation field Placeholders []string "json:\"placeholders,omitempty\""
 pulse/descriptor: type Recommendation field Request encoding/json.RawMessage "json:\"request\""
 pulse/descriptor: type Recommendation field Why string "json:\"why\""
+pulse/descriptor: type ReferenceVectorMeta struct
+pulse/descriptor: type ReferenceVectorMeta field Description string "json:\"description,omitempty\""
+pulse/descriptor: type ReferenceVectorMeta field Keys []string "json:\"keys\""
+pulse/descriptor: type ReferenceVectorMeta field Labels []string "json:\"labels\""
+pulse/descriptor: type ReferenceVectorMeta field Name string "json:\"name\""
 pulse/descriptor: type RegressionMeta struct
 pulse/descriptor: type RegressionMeta field AcceptsTypes []string "json:\"accepts_types\""
 pulse/descriptor: type RegressionMeta field Description string "json:\"description\""
@@ -1822,6 +1856,10 @@ pulse/descriptor: type TestMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type TestMeta field Tier int "json:\"tier\""
 pulse/descriptor: type TestMeta field Variant string "json:\"variant,omitempty\""
 pulse/descriptor: type TestMeta field WeightKinds []pulse/types.WeightKind "json:\"weight_kinds,omitempty\""
+pulse/descriptor: type VectorKindMeta struct
+pulse/descriptor: type VectorKindMeta field DistanceDefault string "json:\"distance_default\""
+pulse/descriptor: type VectorKindMeta field Name string "json:\"name\""
+pulse/descriptor: type VectorKindMeta field SimilarityDefault string "json:\"similarity_default\""
 pulse/descriptor: type Verdict string
 pulse/descriptor: const VerdictDescriptive pulse/descriptor.Verdict = "descriptive"
 pulse/descriptor: const VerdictEvidenceOfAssociation pulse/descriptor.Verdict = "evidence_of_association"
@@ -2151,6 +2189,7 @@ pulse/errors: const PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL pulse/errors.Code = "PU
 pulse/errors: const PULSE_ARCHIVE_CORRUPT pulse/errors.Code = "PULSE_ARCHIVE_CORRUPT"
 pulse/errors: const PULSE_ARCHIVE_MAGIC_INVALID pulse/errors.Code = "PULSE_ARCHIVE_MAGIC_INVALID"
 pulse/errors: const PULSE_ATTR_CODE_NOT_IN_DICTIONARY pulse/errors.Code = "PULSE_ATTR_CODE_NOT_IN_DICTIONARY"
+pulse/errors: const PULSE_ATTR_SCALE_OUT_OF_RANGE pulse/errors.Code = "PULSE_ATTR_SCALE_OUT_OF_RANGE"
 pulse/errors: const PULSE_CHAIN_EMPTY pulse/errors.Code = "PULSE_CHAIN_EMPTY"
 pulse/errors: const PULSE_CHAIN_NOT_MERGEABLE pulse/errors.Code = "PULSE_CHAIN_NOT_MERGEABLE"
 pulse/errors: const PULSE_CHAIN_STAGE_JOIN pulse/errors.Code = "PULSE_CHAIN_STAGE_JOIN"
@@ -2179,6 +2218,7 @@ pulse/errors: const PULSE_DEDUP_LOW_RATIO pulse/errors.Code = "PULSE_DEDUP_LOW_R
 pulse/errors: const PULSE_DOCS_EXPORT_DIR_NOT_EMPTY pulse/errors.Code = "PULSE_DOCS_EXPORT_DIR_NOT_EMPTY"
 pulse/errors: const PULSE_EXPORT_FIELD_UNKNOWN pulse/errors.Code = "PULSE_EXPORT_FIELD_UNKNOWN"
 pulse/errors: const PULSE_EXPORT_ROW_ERROR pulse/errors.Code = "PULSE_EXPORT_ROW_ERROR"
+pulse/errors: const PULSE_EXTENSION_ARRAY_VALUED_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_ARRAY_VALUED_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_DUPLICATE pulse/errors.Code = "PULSE_EXTENSION_DUPLICATE"
 pulse/errors: const PULSE_EXTENSION_EXAMPLE_COLLISION pulse/errors.Code = "PULSE_EXTENSION_EXAMPLE_COLLISION"
@@ -2272,6 +2312,7 @@ pulse/errors: const PULSE_MATRIX_HEYWOOD pulse/errors.Code = "PULSE_MATRIX_HEYWO
 pulse/errors: const PULSE_MATRIX_HOST_CONFLICT pulse/errors.Code = "PULSE_MATRIX_HOST_CONFLICT"
 pulse/errors: const PULSE_MATRIX_INSUFFICIENT_N pulse/errors.Code = "PULSE_MATRIX_INSUFFICIENT_N"
 pulse/errors: const PULSE_MATRIX_LISTWISE_HEAVY_DROP pulse/errors.Code = "PULSE_MATRIX_LISTWISE_HEAVY_DROP"
+pulse/errors: const PULSE_MATRIX_METRIC_DOMAIN pulse/errors.Code = "PULSE_MATRIX_METRIC_DOMAIN"
 pulse/errors: const PULSE_MATRIX_NOT_CONVERGED pulse/errors.Code = "PULSE_MATRIX_NOT_CONVERGED"
 pulse/errors: const PULSE_MATRIX_NOT_IDENTIFIED pulse/errors.Code = "PULSE_MATRIX_NOT_IDENTIFIED"
 pulse/errors: const PULSE_MATRIX_NOT_PSD pulse/errors.Code = "PULSE_MATRIX_NOT_PSD"
@@ -2438,7 +2479,14 @@ pulse/errors: const PULSE_VECTOR_EMPTY pulse/errors.Code = "PULSE_VECTOR_EMPTY"
 pulse/errors: const PULSE_VECTOR_INVALID pulse/errors.Code = "PULSE_VECTOR_INVALID"
 pulse/errors: const PULSE_VECTOR_LABELS_MISMATCH pulse/errors.Code = "PULSE_VECTOR_LABELS_MISMATCH"
 pulse/errors: const PULSE_VECTOR_MEMBER_TYPE pulse/errors.Code = "PULSE_VECTOR_MEMBER_TYPE"
+pulse/errors: const PULSE_VECTOR_METRIC_DOMAIN pulse/errors.Code = "PULSE_VECTOR_METRIC_DOMAIN"
+pulse/errors: const PULSE_VECTOR_METRIC_REQUIRED pulse/errors.Code = "PULSE_VECTOR_METRIC_REQUIRED"
+pulse/errors: const PULSE_VECTOR_METRIC_UNKNOWN pulse/errors.Code = "PULSE_VECTOR_METRIC_UNKNOWN"
+pulse/errors: const PULSE_VECTOR_METRIC_UNSUITED pulse/errors.Code = "PULSE_VECTOR_METRIC_UNSUITED"
 pulse/errors: const PULSE_VECTOR_NAME_COLLISION pulse/errors.Code = "PULSE_VECTOR_NAME_COLLISION"
+pulse/errors: const PULSE_VECTOR_REFERENCE_MISMATCH pulse/errors.Code = "PULSE_VECTOR_REFERENCE_MISMATCH"
+pulse/errors: const PULSE_VECTOR_REFERENCE_MISSING pulse/errors.Code = "PULSE_VECTOR_REFERENCE_MISSING"
+pulse/errors: const PULSE_VECTOR_REFERENCE_UNKNOWN pulse/errors.Code = "PULSE_VECTOR_REFERENCE_UNKNOWN"
 pulse/errors: const PULSE_VECTOR_UNKNOWN pulse/errors.Code = "PULSE_VECTOR_UNKNOWN"
 pulse/errors: const PULSE_VECTOR_UNREFERENCED pulse/errors.Code = "PULSE_VECTOR_UNREFERENCED"
 pulse/errors: const PULSE_WEIGHT_INVALID_ROWS pulse/errors.Code = "PULSE_WEIGHT_INVALID_ROWS"
@@ -2988,6 +3036,104 @@ pulse/linalg: type Vec method (*Vec) At(i int) float64
 pulse/linalg: type Vec method (*Vec) Len() int
 pulse/linalg: type Vec method (*Vec) Set(i int, x float64)
 pulse/linalg: type Vec method (*Vec) Slice() []float64
+pulse/linalg/metric: package metric
+pulse/linalg/metric: func Accepted(c pulse/linalg/metric.Consumer) []string
+pulse/linalg/metric: func Accepts(c pulse/linalg/metric.Consumer, name string) bool
+pulse/linalg/metric: func All() []pulse/linalg/metric.Metric
+pulse/linalg/metric: const Binary pulse/linalg/metric.Kind = "binary"
+pulse/linalg/metric: const Composition pulse/linalg/metric.Kind = "composition"
+pulse/linalg/metric: type Consumer string
+pulse/linalg/metric: type Consumer method (Consumer) Forms() []pulse/linalg/metric.Form
+pulse/linalg/metric: const ConsumerExpr pulse/linalg/metric.Consumer = "expr"
+pulse/linalg/metric: const ConsumerKMeans pulse/linalg/metric.Consumer = "GROUP_KMEANS"
+pulse/linalg/metric: const ConsumerMatDistance pulse/linalg/metric.Consumer = "MAT_DISTANCE"
+pulse/linalg/metric: const ConsumerProfileSimilarity pulse/linalg/metric.Consumer = "ATTR_PROFILE_SIMILARITY"
+pulse/linalg/metric: const ConsumerVecDistance pulse/linalg/metric.Consumer = "ATTR_VEC_DISTANCE"
+pulse/linalg/metric: func Consumers() []pulse/linalg/metric.Consumer
+pulse/linalg/metric: func Default(k pulse/linalg/metric.Kind, f pulse/linalg/metric.Form) (pulse/linalg/metric.Metric, bool)
+pulse/linalg/metric: func DefaultFor(c pulse/linalg/metric.Consumer, k pulse/linalg/metric.Kind, f pulse/linalg/metric.Form, admit func(pulse/linalg/metric.Metric) bool) (pulse/linalg/metric.Metric, bool)
+pulse/linalg/metric: const Distance pulse/linalg/metric.Form = "distance"
+pulse/linalg/metric: type Domain string
+pulse/linalg/metric: const DomainBinary pulse/linalg/metric.Domain = "binary"
+pulse/linalg/metric: type DomainError struct
+pulse/linalg/metric: type DomainError field Index int
+pulse/linalg/metric: type DomainError field Metric string
+pulse/linalg/metric: type DomainError field Reason string
+pulse/linalg/metric: type DomainError field Value float64
+pulse/linalg/metric: type DomainError method (*DomainError) Error() string
+pulse/linalg/metric: type DomainError method (*DomainError) Is(target error) bool
+pulse/linalg/metric: const DomainNonNegative pulse/linalg/metric.Domain = "non_negative"
+pulse/linalg/metric: const DomainReal pulse/linalg/metric.Domain = "real"
+pulse/linalg/metric: var ErrDomain error
+pulse/linalg/metric: var ErrLengthMismatch error
+pulse/linalg/metric: var ErrStats error
+pulse/linalg/metric: type Family string
+pulse/linalg/metric: const FamilyFitted pulse/linalg/metric.Family = "fitted"
+pulse/linalg/metric: const FamilyPlain pulse/linalg/metric.Family = "plain"
+pulse/linalg/metric: const FamilySet pulse/linalg/metric.Family = "set"
+pulse/linalg/metric: type Fit string
+pulse/linalg/metric: const FitColumnMasses pulse/linalg/metric.Fit = "column_masses"
+pulse/linalg/metric: const FitInverseCovariance pulse/linalg/metric.Fit = "inverse_covariance"
+pulse/linalg/metric: const FitNone pulse/linalg/metric.Fit = ""
+pulse/linalg/metric: const FitSD pulse/linalg/metric.Fit = "sd"
+pulse/linalg/metric: type Form string
+pulse/linalg/metric: type Kind string
+pulse/linalg/metric: func Kinds() []pulse/linalg/metric.Kind
+pulse/linalg/metric: type LengthMismatchError struct
+pulse/linalg/metric: type LengthMismatchError field Left int
+pulse/linalg/metric: type LengthMismatchError field Right int
+pulse/linalg/metric: type LengthMismatchError method (*LengthMismatchError) Error() string
+pulse/linalg/metric: type LengthMismatchError method (*LengthMismatchError) Is(target error) bool
+pulse/linalg/metric: func Lookup(name string) (pulse/linalg/metric.Metric, bool)
+pulse/linalg/metric: const Measure pulse/linalg/metric.Kind = "measure"
+pulse/linalg/metric: type Metric struct
+pulse/linalg/metric: type Metric method (Metric) Complete() bool
+pulse/linalg/metric: type Metric method (Metric) Consumers() []pulse/linalg/metric.Consumer
+pulse/linalg/metric: type Metric method (Metric) Description() string
+pulse/linalg/metric: type Metric method (Metric) Direction() pulse/linalg/metric.Form
+pulse/linalg/metric: type Metric method (Metric) Domain() pulse/linalg/metric.Domain
+pulse/linalg/metric: type Metric method (Metric) Eval(f pulse/linalg/metric.Form, a []float64, b []float64, s *pulse/linalg/metric.Stats) (float64, error)
+pulse/linalg/metric: type Metric method (Metric) EvalSets(f pulse/linalg/metric.Form, c pulse/linalg/metric.SetCounts) (float64, error)
+pulse/linalg/metric: type Metric method (Metric) Family() pulse/linalg/metric.Family
+pulse/linalg/metric: type Metric method (Metric) Fit() pulse/linalg/metric.Fit
+pulse/linalg/metric: type Metric method (Metric) Fitted() bool
+pulse/linalg/metric: type Metric method (Metric) Forms() []pulse/linalg/metric.Form
+pulse/linalg/metric: type Metric method (Metric) HasForm(f pulse/linalg/metric.Form) bool
+pulse/linalg/metric: type Metric method (Metric) KindsSuited() []pulse/linalg/metric.Kind
+pulse/linalg/metric: type Metric method (Metric) Name() string
+pulse/linalg/metric: type Metric method (Metric) PoorFit() []pulse/linalg/metric.Kind
+pulse/linalg/metric: type Metric method (Metric) PoorFitFor(k pulse/linalg/metric.Kind) bool
+pulse/linalg/metric: type Metric method (Metric) Scaled() bool
+pulse/linalg/metric: type Metric method (Metric) Valid() bool
+pulse/linalg/metric: type Metric method (Metric) ZeroUndefined() bool
+pulse/linalg/metric: func Names() []string
+pulse/linalg/metric: func Observed(a []float64, b []float64) (int, error)
+pulse/linalg/metric: const ReasonInvalid untyped string = "invalid"
+pulse/linalg/metric: const ReasonLength untyped string = "length"
+pulse/linalg/metric: const ReasonMissing untyped string = "missing"
+pulse/linalg/metric: const ReasonNegative untyped string = "negative"
+pulse/linalg/metric: const ReasonNotBinary untyped string = "not_binary"
+pulse/linalg/metric: const ReasonSetCounts untyped string = "set_counts"
+pulse/linalg/metric: const ReasonZero untyped string = "zero"
+pulse/linalg/metric: func Resolve(name string, f pulse/linalg/metric.Form) (pulse/linalg/metric.Metric, error)
+pulse/linalg/metric: func ResolveFor(c pulse/linalg/metric.Consumer, name string, f pulse/linalg/metric.Form) (pulse/linalg/metric.Metric, error)
+pulse/linalg/metric: const Scale pulse/linalg/metric.Kind = "scale"
+pulse/linalg/metric: type SetCounts struct
+pulse/linalg/metric: type SetCounts field A int
+pulse/linalg/metric: type SetCounts field B int
+pulse/linalg/metric: type SetCounts field Inter int
+pulse/linalg/metric: const Similarity pulse/linalg/metric.Form = "similarity"
+pulse/linalg/metric: type Stats struct
+pulse/linalg/metric: type Stats field ColumnMasses []float64
+pulse/linalg/metric: type Stats field InverseCovariance *pulse/linalg.Sym
+pulse/linalg/metric: type Stats field SD []float64
+pulse/linalg/metric: type StatsError struct
+pulse/linalg/metric: type StatsError field Index int
+pulse/linalg/metric: type StatsError field Metric string
+pulse/linalg/metric: type StatsError field Reason string
+pulse/linalg/metric: type StatsError field Stat pulse/linalg/metric.Fit
+pulse/linalg/metric: type StatsError method (*StatsError) Error() string
+pulse/linalg/metric: type StatsError method (*StatsError) Is(target error) bool
 pulse/mcp/gosdk: package gosdk
 pulse/mcp/gosdk: const CohortURIScheme untyped string = "pulse://"
 pulse/mcp/gosdk: const CohortURITemplate untyped string = "pulse://{+path}"
@@ -3703,6 +3849,8 @@ pulse/types: const AGG_SKEWNESS pulse/types.AggregationType = "AGG_SKEWNESS"
 pulse/types: const AGG_STDDEV pulse/types.AggregationType = "AGG_STDDEV"
 pulse/types: const AGG_SUM pulse/types.AggregationType = "AGG_SUM"
 pulse/types: const AGG_VARIANCE pulse/types.AggregationType = "AGG_VARIANCE"
+pulse/types: const AGG_VEC_MEAN pulse/types.AggregationType = "AGG_VEC_MEAN"
+pulse/types: const AGG_VEC_SUM pulse/types.AggregationType = "AGG_VEC_SUM"
 pulse/types: const AGG_WEIGHTED_MEAN pulse/types.AggregationType = "AGG_WEIGHTED_MEAN"
 pulse/types: const AGG_WELFORD pulse/types.AggregationType = "AGG_WELFORD"
 pulse/types: const AGG_ZSCORE pulse/types.AggregationType = "AGG_ZSCORE"
@@ -3714,19 +3862,24 @@ pulse/types: const ATTR_MAHALANOBIS pulse/types.AttributeType = "ATTR_MAHALANOBI
 pulse/types: const ATTR_NORMALIZED pulse/types.AttributeType = "ATTR_NORMALIZED"
 pulse/types: const ATTR_PC_SCORE pulse/types.AttributeType = "ATTR_PC_SCORE"
 pulse/types: const ATTR_PERCENTILE pulse/types.AttributeType = "ATTR_PERCENTILE"
+pulse/types: const ATTR_PROFILE_SIMILARITY pulse/types.AttributeType = "ATTR_PROFILE_SIMILARITY"
 pulse/types: const ATTR_REG_FITTED pulse/types.AttributeType = "ATTR_REG_FITTED"
 pulse/types: const ATTR_REG_LEVERAGE pulse/types.AttributeType = "ATTR_REG_LEVERAGE"
 pulse/types: const ATTR_REG_PREDICT pulse/types.AttributeType = "ATTR_REG_PREDICT"
 pulse/types: const ATTR_REG_RESIDUAL pulse/types.AttributeType = "ATTR_REG_RESIDUAL"
+pulse/types: const ATTR_SCALE_SCORE pulse/types.AttributeType = "ATTR_SCALE_SCORE"
 pulse/types: const ATTR_SET_HAS pulse/types.AttributeType = "ATTR_SET_HAS"
 pulse/types: const ATTR_SET_POPCOUNT pulse/types.AttributeType = "ATTR_SET_POPCOUNT"
 pulse/types: const ATTR_TSCORE pulse/types.AttributeType = "ATTR_TSCORE"
+pulse/types: const ATTR_VEC_DISTANCE pulse/types.AttributeType = "ATTR_VEC_DISTANCE"
 pulse/types: const ATTR_ZSCORE pulse/types.AttributeType = "ATTR_ZSCORE"
 pulse/types: type Aggregation struct
 pulse/types: type Aggregation field Field string "json:\"field\""
+pulse/types: type Aggregation field Fields []string "json:\"fields,omitempty\""
 pulse/types: type Aggregation field Label string "json:\"label,omitempty\""
 pulse/types: type Aggregation field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type Aggregation field Type pulse/types.AggregationType "json:\"type\""
+pulse/types: type Aggregation field Vector string "json:\"vector,omitempty\""
 pulse/types: type Aggregation field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type AggregationComponents struct
 pulse/types: type AggregationComponents field Groups []pulse/types.AggregationGroupComponents "json:\"groups,omitempty\""
@@ -3749,6 +3902,7 @@ pulse/types: type AggregationGroupComponents field SumWeights *float64 "json:\"s
 pulse/types: type AggregationGroupComponents method (AggregationGroupComponents) MarshalJSON() ([]byte, error)
 pulse/types: func AggregationLabelOf(a *pulse/types.Aggregation) string
 pulse/types: type AggregationType string
+pulse/types: type AggregationType method (AggregationType) ArrayValued() bool
 pulse/types: type AggregationType method (AggregationType) MapValued() bool
 pulse/types: type AggregationType method (AggregationType) MarginReducibility() pulse/types.MarginReducibility
 pulse/types: type AggregationType method (AggregationType) Mergeable() bool
@@ -3771,6 +3925,7 @@ pulse/types: func AllSweepModes() []pulse/types.SweepMode
 pulse/types: func AllSweepRankOrders() []pulse/types.SweepRankOrder
 pulse/types: func AllTestTypes() []pulse/types.TestType
 pulse/types: func AllVectorCoerces() []pulse/types.VectorCoerce
+pulse/types: func AllVectorKinds() []pulse/types.VectorKind
 pulse/types: func AllWindowTypes() []pulse/types.WindowType
 pulse/types: type AppliedMultiplicity struct
 pulse/types: type AppliedMultiplicity field Alpha float64 "json:\"alpha\""
@@ -3794,6 +3949,13 @@ pulse/types: type Attribute field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Attribute field Type pulse/types.AttributeType "json:\"type\""
 pulse/types: type Attribute field Vector string "json:\"vector,omitempty\""
 pulse/types: type Attribute field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
+pulse/types: type AttributeComponents struct
+pulse/types: type AttributeComponents field Label string "json:\"label\""
+pulse/types: type AttributeComponents field N int "json:\"n\""
+pulse/types: type AttributeComponents field NNull int "json:\"n_null\""
+pulse/types: type AttributeComponents field Operator map[string]any "json:\"operator,omitempty\""
+pulse/types: type AttributeComponents field Type pulse/types.AttributeType "json:\"type\""
+pulse/types: type AttributeComponents method (AttributeComponents) MarshalJSON() ([]byte, error)
 pulse/types: type AttributeType string
 pulse/types: type AttributeType method (AttributeType) Streamable() bool
 pulse/types: func AutoHACLags(n int) int
@@ -4458,6 +4620,10 @@ pulse/types: type RankEntry struct
 pulse/types: type RankEntry field Label string "json:\"label\""
 pulse/types: type RankEntry field Rank int "json:\"rank\""
 pulse/types: type RankEntry field Value float64 "json:\"value\""
+pulse/types: type ReferenceVectorTable struct
+pulse/types: type ReferenceVectorTable field Description string
+pulse/types: type ReferenceVectorTable field Labels []string
+pulse/types: type ReferenceVectorTable field Profiles map[string][]float64
 pulse/types: type RegressionCovariance struct
 pulse/types: type RegressionCovariance field Cluster string "json:\"cluster,omitempty\""
 pulse/types: type RegressionCovariance field Lags pulse/types.CovarianceLags "json:\"lags,omitzero\""
@@ -4580,6 +4746,7 @@ pulse/types: type Response field Warnings []*pulse/types.ResponseWarning "json:\
 pulse/types: type Response method (Response) MarshalJSON() ([]byte, error)
 pulse/types: type ResponseComponents struct
 pulse/types: type ResponseComponents field Aggregations []pulse/types.AggregationComponents "json:\"aggregations,omitempty\""
+pulse/types: type ResponseComponents field Attributes []pulse/types.AttributeComponents "json:\"attributes,omitempty\""
 pulse/types: type ResponseComponents field Crosstab *pulse/types.CrosstabComponents "json:\"crosstab,omitempty\""
 pulse/types: type ResponseComponents field Filterers []pulse/types.FiltererComponents "json:\"filterers,omitempty\""
 pulse/types: type ResponseComponents field Groupers []pulse/types.GrouperComponents "json:\"groupers,omitempty\""
@@ -4721,12 +4888,20 @@ pulse/types: func ValidPairwisePSource(s string) bool
 pulse/types: func ValidPanelNSource(s string) bool
 pulse/types: type VectorCoerce string
 pulse/types: const VectorCoerceBinary pulse/types.VectorCoerce = "binary"
+pulse/types: type VectorKind string
+pulse/types: const VectorKindBinary pulse/types.VectorKind = "binary"
+pulse/types: const VectorKindComposition pulse/types.VectorKind = "composition"
+pulse/types: const VectorKindMeasure pulse/types.VectorKind = "measure"
+pulse/types: const VectorKindScale pulse/types.VectorKind = "scale"
 pulse/types: type VectorSpec struct
 pulse/types: type VectorSpec field Coerce pulse/types.VectorCoerce "json:\"coerce,omitempty\""
 pulse/types: type VectorSpec field Fields []string "json:\"fields,omitempty\""
+pulse/types: type VectorSpec field Kind pulse/types.VectorKind "json:\"kind,omitempty\""
 pulse/types: type VectorSpec field Labels []string "json:\"labels,omitempty\""
 pulse/types: type VectorSpec field Name string "json:\"name\""
 pulse/types: type VectorSpec field Pattern string "json:\"pattern,omitempty\""
+pulse/types: type VectorSpec field ScaleMax *float64 "json:\"scale_max,omitempty\""
+pulse/types: type VectorSpec field ScaleMin *float64 "json:\"scale_min,omitempty\""
 pulse/types: type VersionResponse struct
 pulse/types: type VersionResponse field BuildDate string "json:\"build_date,omitempty\""
 pulse/types: type VersionResponse field GoVersion string "json:\"go_version,omitempty\""
@@ -4761,4 +4936,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 85859b7705db60b6efc33a615d0d6c311462ca334c069529be44e2737604136c
+// golden-hash: 02f8f4c6754b22a18ff6d410e8e2d6a338f267497a2a5987b82805da2995a10b

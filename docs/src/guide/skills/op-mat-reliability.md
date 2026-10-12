@@ -29,7 +29,7 @@ Use something else:
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `reverse` | [fields] | none | Reverse-keyed items: x' = min + max − x before the fold. |
-| `scale_min`, `scale_max` | number | none | Battery range; both or neither, required with `reverse`. |
+| `scale_min`, `scale_max` | number | the vector's | Battery range; both or neither, required with `reverse`. Absent: a `kind: "scale"` vector's bounds ([`vector-metrics`](vector-metrics.md)). |
 | `repair` | `nearest` | none | Fit omega on the nearest correlation matrix. |
 | `missing`, `max_drop_share`, `weight`, `encoding` | | | As [`op-mat-correlation`](op-mat-correlation.md). |
 
@@ -62,4 +62,4 @@ omega = (Σλ)² / ((Σλ)² + Σψ) from the minres fit (the model form, not ps
 ## See
 
 - `pulse_examples_search tags=[matrix, correlation-analysis]`
-- Skills: [`matrix-results`](matrix-results.md), [`op-mat-correlation`](op-mat-correlation.md), [`weighting`](weighting.md)
+- Skills: [`matrix-results`](matrix-results.md), [`op-mat-correlation`](op-mat-correlation.md), [`weighting`](weighting.md), [`vector-metrics`](vector-metrics.md)

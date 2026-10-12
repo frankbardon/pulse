@@ -160,9 +160,9 @@ func vectorPredictCohort(t *testing.T, n int) []byte {
 }
 
 // TestPredict_MatrixEstimatedBytesCountsBlocks pins
-// MatrixPredict.EstimatedBytes as the real state — merge blocks x
-// buckets x accumulator bytes, blocks counted PER SHARD on an archive
-// (block numbering restarts per shard).
+// MatrixPredict.EstimatedBytes as the real state — merge fragments x
+// buckets x accumulator bytes, plus the rows a shard starting inside a
+// block buffers (blocks key by the global record ordinal).
 func TestPredict_MatrixEstimatedBytesCountsBlocks(t *testing.T) {
 	req := func() *types.Request {
 		return &types.Request{
@@ -198,9 +198,12 @@ func TestPredict_MatrixEstimatedBytesCountsBlocks(t *testing.T) {
 		data []byte
 		want int64
 	}{
-		// 4,097 + 5 records: two blocks in the first shard, one in the
-		// second — three, where the same 4,102 rows in one file hold two.
-		{"archive blocks per shard", shards(linalg.MergeBlockSize+1, 5), 3 * acc},
+		// 4,097 + 5 records: the first shard touches blocks 0 and 1, the
+		// second block 1 — three fragments, where the same 4,102 rows in
+		// one file hold two blocks; the second shard starts inside block
+		// 1 and buffers its 5 rows (id, score, weight: 24 bytes each).
+		{"archive fragments", shards(linalg.MergeBlockSize+1, 5), 3*acc + 5*24},
+		{"aligned shards buffer nothing", shards(linalg.MergeBlockSize, linalg.MergeBlockSize), 2 * acc},
 		{"one shard", shards(linalg.MergeBlockSize + 5), 2 * acc},
 		{"exactly one block", shards(linalg.MergeBlockSize), acc},
 		{"no records", shards(0), 0},

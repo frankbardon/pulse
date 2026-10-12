@@ -1,10 +1,12 @@
 package descriptor
 
 import (
+	"slices"
 	"strconv"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -84,8 +86,11 @@ const defaultRangeInterval = 10.0
 const defaultDateComponent = "day"
 
 // ResolveDefaults inspects every aggregation and grouper slot in req,
-// fills in the Type for slots that name a field but omit the Type, and
-// returns one DefaultApplied entry per change made. Mutates req in place.
+// fills in the Type for slots that name a field but omit the Type, fills
+// the metric of a metric-taking matrix or comparison attribute slot
+// reading a kind-declared vector (resolveMetricDefaults, Category
+// "metric"), and returns one
+// DefaultApplied entry per change made. Mutates req in place.
 //
 // Rules:
 //   - Defaults never override an explicit Type.
@@ -157,6 +162,84 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema, inst *Instance
 		})
 	}
 
+	applied = append(applied, resolveMetricDefaults(req, inst)...)
+
+	return applied
+}
+
+// resolveMetricDefaults fills the metric of every metric-taking matrix
+// slot that reads a kind-declared vector and names none
+// (vectors.MatrixMetricDefaults: the kind's default for the slot's
+// consumer, never a poor fit) and reports each as a "metric"
+// DefaultApplied at ["Matrices", i, "Params", "metric"]. The Matrices
+// slice is copied before the first write, so the caller's backing array
+// never changes. A slot whose operator inst hides is left alone. No
+// kind, no fill: MAT_DISTANCE then keeps its implicit euclidean.
+func resolveMetricDefaults(req *types.Request, inst *InstanceSnapshot) []descriptor.DefaultApplied {
+	fills := vectors.MatrixMetricDefaults(req)
+	var applied []descriptor.DefaultApplied
+	copied := false
+	for _, d := range fills {
+		typ := req.Matrices[d.Index].Type
+		if inst.Hidden(string(typ)) {
+			continue
+		}
+		if !copied {
+			req.Matrices = slices.Clone(req.Matrices)
+			copied = true
+		}
+		req.Matrices[d.Index].Params = d.Params
+		reason := "kind " + string(d.Kind) + " → " + d.Metric + " (rule: " + string(d.Kind) + " default"
+		if d.TableDefault != "" && d.TableDefault != d.Metric {
+			reason += "; " + d.TableDefault + " is not offered by " + string(typ) + " here"
+		}
+		applied = append(applied, descriptor.DefaultApplied{
+			Path:     []string{"Matrices", strconv.Itoa(d.Index), "Params", "metric"},
+			Field:    d.Vector,
+			Type:     d.Metric,
+			Category: "metric",
+			Reason:   reason + ")",
+		})
+	}
+	return append(applied, resolveAttributeMetricDefaults(req, inst)...)
+}
+
+// resolveAttributeMetricDefaults fills the metric of every comparison
+// attribute slot (ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE) that reads
+// a kind-declared vector and names none (vectors.AttributeMetricDefaults
+// — the default the operator's own resolution takes) and reports each as
+// a "metric" DefaultApplied at ["Attributes", i, "Params", "metric"].
+// The Attributes slice and each filled *Attribute are copied before the
+// write, so the caller's request never changes. A slot whose operator
+// inst hides is left alone.
+func resolveAttributeMetricDefaults(req *types.Request, inst *InstanceSnapshot) []descriptor.DefaultApplied {
+	fills := vectors.AttributeMetricDefaults(req)
+	var applied []descriptor.DefaultApplied
+	copied := false
+	for _, d := range fills {
+		a := req.Attributes[d.Index]
+		if inst.Hidden(string(a.Type)) {
+			continue
+		}
+		if !copied {
+			req.Attributes = slices.Clone(req.Attributes)
+			copied = true
+		}
+		cp := *a
+		cp.Params = d.Params
+		req.Attributes[d.Index] = &cp
+		reason := "kind " + string(d.Kind) + " → " + d.Metric + " (rule: " + string(d.Kind) + " default"
+		if d.TableDefault != "" && d.TableDefault != d.Metric {
+			reason += "; " + d.TableDefault + " is not offered by " + string(a.Type)
+		}
+		applied = append(applied, descriptor.DefaultApplied{
+			Path:     []string{"Attributes", strconv.Itoa(d.Index), "Params", "metric"},
+			Field:    d.Vector,
+			Type:     d.Metric,
+			Category: "metric",
+			Reason:   reason + ")",
+		})
+	}
 	return applied
 }
 
@@ -193,7 +276,9 @@ func applyDefaultGroupParams(grp *types.Group) {
 //
 // The clone is a shallow-deep hybrid identical to the one Predict uses
 // internally: Aggregations and Groups are deep-cloned (the slots
-// ResolveDefaults mutates), every other slot is shared with the input.
+// ResolveDefaults mutates in place); the metric fill copies Matrices
+// itself before its first write (resolveMetricDefaults); every other
+// slot is shared with the input.
 // Safe to expose on read-only paths. inst is the instance feature set:
 // a default whose target it hides is never inferred (nil hides
 // nothing), as in ResolveDefaults.

@@ -58,6 +58,12 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	if err := s.slotRefusal(req); err != nil {
 		return nil, err
 	}
+	// A whole-chain overlay over a stage carrying an array-valued
+	// (vector) aggregation, before any stage runs (ValidateChain's
+	// rule).
+	if err := descx.ChainOverlayArrayValuedRefusal(req, s.instance); err != nil {
+		return nil, err
+	}
 	// Then every stage's item for_each expands in place (the expansion
 	// ValidateChain runs), before the cohort opens.
 	for i, st := range req.Stages {
@@ -132,6 +138,9 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 		}
 	}
 	if err := processing.ChainRefusal(stage0, cohort.Schema(), s.extensions, 0, req.Stages[0].Name); err != nil {
+		return nil, err
+	}
+	if err := mergegate.StageArrayValuedRefusal(stage0, 0, len(req.Stages), req.Stages[0].Name, s.extensions.AggregationKinds()); err != nil {
 		return nil, err
 	}
 
@@ -241,6 +250,9 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 		return nil, locate(err, "stage", i)
 	}
 	if err := processing.ChainRefusal(stage, synthSchema, s.extensions, i, req.Stages[i].Name); err != nil {
+		return nil, err
+	}
+	if err := mergegate.StageArrayValuedRefusal(stage, i, len(req.Stages), req.Stages[i].Name, s.extensions.AggregationKinds()); err != nil {
 		return nil, err
 	}
 	if err := s.checkFieldRefs(ctx, stage, synthSchema); err != nil {

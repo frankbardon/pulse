@@ -361,6 +361,7 @@ func (g *gen) componentSlots() []componentSlot {
 		"groupers":     {"Groupers", block.Groupers},
 		"filterers":    {"Filterers", block.Filterers},
 		"matrices":     {"Matrix operators", block.Matrices},
+		"attributes":   {"Attributes", block.Attributes},
 	}
 	var out []componentSlot
 	for _, f := range descx.ComponentFloors() {

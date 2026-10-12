@@ -10,7 +10,7 @@ requires: [capability:matrices]
 
 # Choosing a multivariate operator
 
-Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-results.md)) and answers with a matrix plus vectors and scalars. Pick by the QUESTION, then set the missing-data mode.
+Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-results.md)) and answers with a matrix plus vectors and scalars. Pick by the QUESTION, then set the missing-data mode. Comparing rows or segments by distance or similarity? Declare the vector's `kind` first so the metric fits the values ([`vector-metrics`](vector-metrics.md)).
 
 ## Which operator answers my question
 
@@ -26,6 +26,11 @@ Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-r
 | Which rows are unusual across the fields as a whole? | `ATTR_MAHALANOBIS` (a row score) |
 | Each row's score on a component (a summary column)? | `ATTR_PC_SCORE` (a row score) |
 | Each row's score on a factor (a construct estimate)? | `ATTR_FACTOR_SCORE` (a row score) |
+| Each row's score on a rating battery (mean or prorated sum, reverse-keyed items)? | `ATTR_SCALE_SCORE` (a row score) |
+| How closely does each row match a target profile? | `ATTR_PROFILE_SIMILARITY` (a row score) |
+| How far is each row from a target profile? | `ATTR_VEC_DISTANCE` (a row score) |
+| Each group's average profile across the items, as one list? | `AGG_VEC_MEAN` |
+| Each group's total per item, as one list? | `AGG_VEC_SUM` |
 | Which segments do the rows fall into across the fields? | `GROUP_KMEANS` (a grouper) |
 | How far apart are the segments' centres across the fields? | `MAT_DISTANCE` (`params.between` a grouper) |
 
@@ -60,9 +65,12 @@ Per-test correction on other operators: [`multiplicity-correction`](multiplicity
 
 - [`matrix-results`](matrix-results.md) — slot, encodings, refusals.
 - [`multivariate-outputs`](multivariate-outputs.md) — how the PCA, factor, distance, score and vector-test figures are laid out.
+- [`vector-metrics`](vector-metrics.md) — vector `kind`, metric defaults and the unsuited-metric warning.
 - [`op-mat-pca`](op-mat-pca.md)
 - [`op-mat-factor`](op-mat-factor.md)
 - [`op-mat-distance`](op-mat-distance.md)
 - [`op-mat-reliability`](op-mat-reliability.md)
+- [`op-attr-scale-score`](op-attr-scale-score.md)
+- [`op-agg-vec-mean`](op-agg-vec-mean.md)
 - [`op-mat-collinearity`](op-mat-collinearity.md)
 - [`regression-inference`](regression-inference.md) — coefficient covariance.

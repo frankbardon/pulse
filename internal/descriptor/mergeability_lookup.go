@@ -69,3 +69,17 @@ func GrouperMergeability(name string) descriptor.ComponentsMergeability {
 func GroupMergeability(t types.GroupType) descriptor.ComponentsMergeability {
 	return GrouperMergeability(string(t))
 }
+
+// AttributeMergeability returns the ComponentsMergeability declared in
+// the built-in attribute capability table for t, or "" when t declares
+// no ComponentSchema (it emits no Response.Components.Attributes
+// entry) or is unknown — the streaming projection then keeps the
+// entry as-is.
+func AttributeMergeability(t types.AttributeType) descriptor.ComponentsMergeability {
+	for _, op := range attributeCapabilities() {
+		if op.Name == string(t) {
+			return op.ComponentSchema.Mergeability
+		}
+	}
+	return ""
+}

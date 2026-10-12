@@ -126,7 +126,7 @@ func skeleton(op opInfo, intent string) (draft, bool) {
 		entry["order_by"] = []map[string]any{{"field": placeholder("order_by")}}
 	default: // aggregator, attribute, grouper, feature
 		if (op.category == catAttribute && vectors.IsVectorAttribute(types.AttributeType(op.name))) ||
-			(op.category == catGrouper && vectors.IsVectorGroup(types.GroupType(op.name))) {
+			(op.category == catGrouper && vectors.IsVectorGroup(types.GroupType(op.name))) || op.vectorInput {
 			entry["fields"] = list("fields")
 			break
 		}

@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "Average and total spend profile per treatment arm on experiment.pulse in one slot each: a named vector lists revenue_before, revenue and session_minutes with display labels, AGG_VEC_MEAN returns one mean per member as a JSON array (in member order) and AGG_VEC_SUM one total per member. Missing data is per element: a null member skips only that element, so components.aggregations[i].operator.element_n can differ by member while the floor n counts rows where any member answered. An element no row answered is null in the mean and 0 in the sum. Array-valued: never a crosstab cell, a Sort key or an overlay host.",
+    "intents": [
+      "describe",
+      "compare_groups"
+    ],
+    "name": "vector_profile_per_arm",
+    "operators": [
+      "AGG_VEC_MEAN",
+      "AGG_VEC_SUM",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "multivariate",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {
+      "name": "spend",
+      "fields": ["revenue_before", "revenue", "session_minutes"],
+      "labels": ["before", "after", "minutes"]
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "treatment"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_VEC_MEAN",
+      "vector": "spend",
+      "label": "spend_profile"
+    },
+    {
+      "type": "AGG_VEC_SUM",
+      "fields": ["revenue_before", "revenue"],
+      "label": "revenue_totals",
+      "params": {"labels": ["before", "after"]}
+    }
+  ]
+}

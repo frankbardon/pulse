@@ -1,0 +1,65 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Score each row's fit to a target profile with ATTR_PROFILE_SIMILARITY on experiment.pulse, averaged per treatment arm. The named vector spend (revenue_before, revenue; labels before / after) declares kind scale, so match_shape takes the scale similarity default, correlation (reported in predict's defaults_applied) — with two members it is +1 or -1, the direction of the change. match_cosine names cosine against a label map {after, before}, matched BY LABEL (never by position): cosine on a kind scale vector is a poor fit, so the run carries a PULSE_VECTOR_METRIC_UNSUITED warning naming the correlation default. A reference whose labels are not the vector's is refused at predict with PULSE_VECTOR_REFERENCE_MISMATCH. Row-local, single pass and streamable; the weight is irrelevant. An embedder's Extensions.ReferenceVectors tables are read with reference {table, key} or {table, key_field}.",
+    "intents": [
+      "benchmark",
+      "prepare"
+    ],
+    "name": "attr_profile_similarity",
+    "operators": [
+      "AGG_AVERAGE",
+      "ATTR_PROFILE_SIMILARITY",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "feature-engineering",
+      "multivariate",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {
+      "name": "spend",
+      "fields": ["revenue_before", "revenue"],
+      "labels": ["before", "after"],
+      "kind": "scale"
+    }
+  ],
+  "attributes": [
+    {
+      "type": "ATTR_PROFILE_SIMILARITY",
+      "label": "match_shape",
+      "vector": "spend",
+      "params": {"reference": [100, 150]}
+    },
+    {
+      "type": "ATTR_PROFILE_SIMILARITY",
+      "label": "match_cosine",
+      "vector": "spend",
+      "params": {"metric": "cosine", "reference": {"after": 150, "before": 100}}
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "treatment"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "match_shape",
+      "label": "avg_match_shape"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "match_cosine",
+      "label": "avg_match_cosine"
+    }
+  ]
+}

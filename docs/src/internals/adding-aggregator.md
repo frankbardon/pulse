@@ -220,6 +220,27 @@ leave `Mergeable()` returning false. See [Cohort schema design — Parallel
 decode](https://github.com/frankbardon/pulse/blob/main/internal/skills/cohort-schema-design.md)
 for the gate composition and observed perf characteristics.
 
+## 6d. Vector-input and array-valued aggregators
+
+A built-in that reads a member set instead of one field (the
+`AGG_VEC_*` shape) joins `vectors.VectorAggregationTypes`
+(`internal/vectors/aggregations.go`); one whose value is one figure per
+member also returns true from `AggregationType.ArrayValued()`
+(`types/streamability.go`) and implements `Rich` (the `[]float64`) and
+`ExpandedElements` (`params.expand`). Every consumer — predict's field
+references, the runtime slot rewrite, the crosstab / sort / overlay /
+chain refusals, the expanded output columns and the recommend planner —
+asks the one classifier, `vectors.AggregationKinds` (`IsVector`,
+`IsArrayValued`), so nothing else needs a list. An extension declares
+the same two facts on its registration (`VectorInput`, `ArrayValued`)
+and is classified identically — see [Extension Points — Vector
+inputs](extension-points.md#vector-inputs-vector--fields).
+
+A bit-exact merge keys its partials by the row's GLOBAL record ordinal
+(`Record.MergeBlock`: block, shard, head) and combines them in the fixed
+`MergeTree` shape, so a shard archive answers its single-file twin's
+bits (`aggregator_vector.go`, `block_merge.go`).
+
 ## 7. CLAUDE.md and registered-component lists
 
 There is **no registered-aggregator count or list in CLAUDE.md to update** —

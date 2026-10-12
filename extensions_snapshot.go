@@ -2,6 +2,7 @@ package pulse
 
 import (
 	"encoding/json"
+	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -65,6 +66,8 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Mergeable:   r.Mergeable,
 			// The declared crosstab margin class; empty stays omitted.
 			MarginReducibility: string(r.MarginReducibility),
+			VectorInput:        r.VectorInput,
+			ArrayValued:        r.ArrayValued,
 			WeightAware:        r.WeightAware,
 			Accepts:            fieldTypeStrings(r.Accepts),
 			Params:             paramMetaSnapshot(r.Params),
@@ -85,6 +88,9 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Mode:        string(r.Mode),
 			Params:      paramMetaSnapshot(r.Params),
 		})
+		if len(r.ComponentSchema.Keys) > 0 || r.ComponentSchema.Mergeability != "" {
+			snap.ComponentSchemas[string(r.Name)] = r.ComponentSchema
+		}
 	}
 	for _, r := range ext.Filterers {
 		snap.Filterers = append(snap.Filterers, descriptor.OperatorMeta{
@@ -178,6 +184,19 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Name:        name,
 			Description: t.Description,
 			HasRowsData: t.Rows != nil,
+		})
+	}
+	for name, t := range ext.ReferenceVectors {
+		keys := make([]string, 0, len(t.Profiles))
+		for k := range t.Profiles {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		snap.ReferenceVectors = append(snap.ReferenceVectors, descriptor.ReferenceVectorMeta{
+			Name:        name,
+			Description: t.Description,
+			Labels:      append([]string(nil), t.Labels...),
+			Keys:        keys,
 		})
 	}
 	for name, t := range ext.LabelTables {

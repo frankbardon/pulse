@@ -400,6 +400,22 @@ func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
 		if cp.Label == "" {
 			cp.Label = defaultAttributeLabel(a)
 		}
+		if cp.Type == types.ATTR_SCALE_SCORE && !p.exts.isHidden(string(cp.Type)) {
+			// The literal members lose the vector's labels and kind
+			// bounds: hand the factory canonical params (reverse by
+			// member name, the declared range explicit).
+			if params, ok := vectors.ScaleScoreSlotParams(a, inputs[i].Members); ok {
+				cp.Params = params
+			}
+		}
+		if vectors.IsComparisonAttribute(cp.Type) && !p.exts.isHidden(string(cp.Type)) {
+			// The literal members lose the vector's labels and kind:
+			// hand the factory canonical params (the metric written out,
+			// the reference in member order, the labels it aligns to).
+			if params, ok := vectors.ComparisonSlotParams(a, inputs[i].Members, p.schema); ok {
+				cp.Params = params
+			}
+		}
 		cp.Vector = ""
 		cp.Fields = append([]string(nil), inputs[i].Members.Members...)
 		c.Attributes[i] = &cp
@@ -413,5 +429,60 @@ func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
 // for the expression operators (Processor.exprVectors).
 func (p *Processor) prepare(req *types.Request) *types.Request {
 	p.exprVectors = ExprVectors(req, p.schema)
-	return p.resolveGroupInputs(p.resolveAttributeInputs(p.stampWeights(req)))
+	return ResolveAggregationInputs(p.resolveGroupInputs(p.resolveAttributeInputs(p.stampWeights(req))), p.schema, p.exts)
+}
+
+// ResolveAggregationInputs returns req with every vector aggregator
+// slot — aggregations, the crosstab cell and its margin aggregations —
+// rewritten for its factory by vectors.AggregationSlotRewrite: Fields =
+// the resolved literal members, Vector cleared, Label = the default
+// label when empty, params.labels = the resolved display labels (the
+// literal-member rewrite would otherwise drop a named vector's labels).
+// Processor.prepare applies it, and so must every arm that builds
+// aggregators off a request without a Processor (the parallel decode
+// and shard reducers). req itself is returned when no slot reads a
+// vector or resolution fails (the field-reference pass has refused
+// that request; the factory refuses an unresolved Vector). The
+// caller's request is never mutated.
+func ResolveAggregationInputs(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) *types.Request {
+	if req == nil {
+		return req
+	}
+	if !vectors.AnyAggregationVectorInput(req) {
+		return req
+	}
+	inputs, err := vectors.ResolveAggregations(req, schema, exts.AggregationKinds())
+	if err != nil || len(inputs) == 0 {
+		return req
+	}
+	rewrite := func(a *types.Aggregation) *types.Aggregation {
+		if in, ok := inputs[a]; ok && in.Has() {
+			return vectors.AggregationSlotRewrite(a, in)
+		}
+		return a
+	}
+	c := *req
+	if len(req.Aggregations) > 0 {
+		c.Aggregations = make([]*types.Aggregation, len(req.Aggregations))
+		for i, a := range req.Aggregations {
+			c.Aggregations[i] = rewrite(a)
+		}
+	}
+	if ct := req.Crosstab; ct != nil {
+		cc := *ct
+		if ct.Cell != nil {
+			cc.Cell = rewrite(ct.Cell)
+		}
+		if len(ct.MarginAggregations) > 0 {
+			cc.MarginAggregations = make([]*types.Aggregation, len(ct.MarginAggregations))
+			for i, a := range ct.MarginAggregations {
+				cc.MarginAggregations[i] = a
+				if a != nil {
+					cc.MarginAggregations[i] = rewrite(a)
+				}
+			}
+		}
+		c.Crosstab = &cc
+	}
+	return &c
 }

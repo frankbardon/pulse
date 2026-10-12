@@ -84,3 +84,49 @@ func TestRecommendBound_OneOfNeedNamesAlternatives(t *testing.T) {
 		t.Fatal("no WIN_EWMA draft with an alpha need under change_over_time")
 	}
 }
+
+// TestCatalog_VectorAggregatorDraftsFields: a vector aggregator — the
+// built-in AGG_VEC_* and an extension declared vector_input — is
+// drafted with an inline fields list, never a field, bound (plan) and
+// unbound (skeleton) alike; a plain extension aggregator keeps field.
+func TestCatalog_VectorAggregatorDraftsFields(t *testing.T) {
+	m := descx.BuildManifestForInstance(nil)
+	m.Extensions.Aggregators = []descriptor.OperatorMeta{
+		{Name: "AGG_ACME_PROFILE", VectorInput: true, ArrayValued: true},
+		{Name: "AGG_ACME_PLAIN"},
+	}
+	cat := catalog(m)
+	for _, c := range []struct {
+		op     string
+		fields bool
+	}{
+		{"AGG_VEC_MEAN", true},
+		{"AGG_ACME_PROFILE", true},
+		{"AGG_ACME_PLAIN", false},
+		{"AGG_SUM", false},
+	} {
+		info := cat[c.op]
+		if info.vectorInput != c.fields {
+			t.Errorf("%s: vectorInput = %v, want %v", c.op, info.vectorInput, c.fields)
+		}
+		slots, _, ok := plan(info, descriptor.Intent{})
+		if !ok {
+			t.Fatalf("%s: no plan", c.op)
+		}
+		var keys []string
+		for _, s := range slots {
+			keys = append(keys, s.key)
+		}
+		if got := slices.Contains(keys, "fields"); got != c.fields || slices.Contains(keys, "field") == c.fields {
+			t.Errorf("%s: bound slots %v, want fields=%v", c.op, keys, c.fields)
+		}
+		d, ok := skeleton(info, "describe")
+		if !ok {
+			t.Fatalf("%s: no skeleton", c.op)
+		}
+		body := string(d.request)
+		if strings.Contains(body, `"fields"`) != c.fields || strings.Contains(body, `"field"`) == c.fields {
+			t.Errorf("%s: skeleton %s, want fields=%v", c.op, body, c.fields)
+		}
+	}
+}

@@ -44,6 +44,13 @@ Pulse fills these keys on every entry of a slot, ahead of the operator's own key
 | `min_pair_n` | int | when its condition holds | Pairwise only: the smallest pair N (the minimum of auxiliary.n). |
 | `max_pair_n` | int | when its condition holds | Pairwise only: the largest pair N (the maximum of auxiliary.n). |
 
+### Attributes
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `n` | int | always | Filter-passing rows whose attribute output is present (non-null). |
+| `n_null` | int | always | Filter-passing rows whose attribute output is null. |
+
 <a id="weighted-floor"></a>
 
 ## Weighted floor keys
@@ -433,6 +440,32 @@ Only the floor keys.
 | `m2` | float64 | always | Welford second-moment accumulator (sum of squared deviations from the running mean). |
 | `variance` | float64 | always | Population variance derived from m2 / n. |
 
+<a id="op-agg_vec_mean"></a>
+
+#### `AGG_VEC_MEAN`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/aggregator.md#op-agg_vec_mean).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `labels` | []string | always | Display label per member, in member order: the vector's labels, else params.labels, else the member names. |
+| `element_n` | []int | always | Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered). |
+| `element_sum` | []float64 | always | Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count. |
+| `element_sum_weights` | []float64 | when its condition holds | Weighted slot only: per member, the sum of contributing rows' weights (valid and > 0) — AGG_VEC_MEAN's denominator. |
+
+<a id="op-agg_vec_sum"></a>
+
+#### `AGG_VEC_SUM`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/aggregator.md#op-agg_vec_sum).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `labels` | []string | always | Display label per member, in member order: the vector's labels, else params.labels, else the member names. |
+| `element_n` | []int | always | Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered). |
+| `element_sum` | []float64 | always | Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count. |
+| `element_sum_weights` | []float64 | when its condition holds | Weighted slot only: per member, the sum of contributing rows' weights (valid and > 0) — AGG_VEC_MEAN's denominator. |
+
 <a id="op-agg_weighted_mean"></a>
 
 #### `AGG_WEIGHTED_MEAN`
@@ -775,3 +808,38 @@ Only the floor keys.
 |---|---|---|---|
 | `iterations` | int | when its condition holds | Coordinate sweeps the one-factor minres fit behind omega ran (cap 1000); absent when no fit ran (2 items, an undefined or unrepaired non-PSD input). |
 | `converged` | bool | when its condition holds | Whether the minres fit met its tolerance (1e-12) within the cap; false comes with PULSE_MATRIX_NOT_CONVERGED. Absent when no fit ran. |
+
+### Attributes
+
+<a id="op-attr_profile_similarity"></a>
+
+#### `ATTR_PROFILE_SIMILARITY`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/attribute.md#op-attr_profile_similarity).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `n_reference_missing` | int | always | Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING. |
+| `n_domain_invalid` | int | always | Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). Non-zero also raises PULSE_VECTOR_METRIC_DOMAIN. |
+
+<a id="op-attr_scale_score"></a>
+
+#### `ATTR_SCALE_SCORE`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/attribute.md#op-attr_scale_score).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `n_out_of_range` | int | when its condition holds | Member values read as missing for lying outside the declared range (never clamped); emitted only when a range is declared (scale_min / scale_max or a kind "scale" vector's bounds). |
+| `n_rows_out_of_range` | int | when its condition holds | Rows holding at least one out-of-range member value; emitted only when a range is declared. |
+
+<a id="op-attr_vec_distance"></a>
+
+#### `ATTR_VEC_DISTANCE`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/attribute.md#op-attr_vec_distance).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `n_reference_missing` | int | always | Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING. |
+| `n_domain_invalid` | int | always | Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). Non-zero also raises PULSE_VECTOR_METRIC_DOMAIN. |

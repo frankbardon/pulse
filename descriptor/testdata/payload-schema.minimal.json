@@ -27,6 +27,15 @@
         "field": {
           "type": "string"
         },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "label": {
           "type": "string"
         },
@@ -35,10 +44,12 @@
         },
         "type": {
           "$ref": "#/$defs/AggregationType"
+        },
+        "vector": {
+          "type": "string"
         }
       },
       "required": [
-        "field",
         "type"
       ],
       "type": "object"
@@ -196,7 +207,34 @@
         }
       },
       "required": [
-        "field",
+        "type"
+      ],
+      "type": "object"
+    },
+    "AttributeComponents": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "n": {
+          "type": "integer"
+        },
+        "n_null": {
+          "type": "integer"
+        },
+        "operator": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "type": {
+          "$ref": "#/$defs/AttributeType"
+        }
+      },
+      "required": [
+        "label",
+        "n",
+        "n_null",
         "type"
       ],
       "type": "object"
@@ -627,7 +665,6 @@
         }
       },
       "required": [
-        "field",
         "type"
       ],
       "type": "object"
@@ -1776,6 +1813,15 @@
             "null"
           ]
         },
+        "attributes": {
+          "items": {
+            "$ref": "#/$defs/AttributeComponents"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "crosstab": {
           "$ref": "#/$defs/CrosstabComponents"
         },
@@ -2180,4 +2226,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 5e95f432bd1be735c1a19837a47d5a95a4c0e2b5d3a19c4038e34a4d3dc71c6a
+// golden-hash: 401c91ca9fa7d69fd30bc57c3335f287503899deb7e926a4630b6cd9b15a0115

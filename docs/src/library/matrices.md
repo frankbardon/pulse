@@ -204,14 +204,25 @@ buffered `Group`, so the spec runs buffered and serial.
             "metric": "euclidean", "standardize": true}}
 ```
 
-`params.metric` is `euclidean` (default, `stats::dist`), `sqeuclidean`,
-`manhattan`, `chebyshev`, `cosine` (1 − cos, null against a zero-length
-centroid) or `mahalanobis` — over the pooled within-bucket covariance,
-which allows for how the members vary together (it reads the raw
-centroids; it is scale-free, so `standardize` changes nothing).
-`params.standardize` z-scores every member over the bucketed rows first
-(their mean and N* − 1 spread, R `scale()`). The metric list is local to
-`MAT_DISTANCE`; the shared vector-metric registry will absorb it later.
+`params.metric` is a name from the shared `linalg/metric` registry
+(listed under `capabilities.matrix.metrics`): `euclidean` (default,
+`stats::dist`), `sq_euclidean`, `manhattan`, `chebyshev`, `cosine` (1 − cos,
+null against a zero-length centroid), `hellinger` and `aitchison` (for
+compositions: they read non-negative centroids, are refused beside
+`standardize`, and null a distance touching a negative coordinate — or an
+aitchison zero part — with `PULSE_MATRIX_METRIC_DOMAIN`) or `mahalanobis` —
+over the pooled within-bucket covariance, which allows for how the members
+vary together (it reads the raw centroids; it is scale-free, so
+`standardize` changes nothing). `params.standardize` z-scores every member
+over the bucketed rows first (their mean and N* − 1 spread, R `scale()`); a
+member with zero spread has no z-score and is skipped.
+
+Missing coordinates follow the registry's one policy: a coordinate
+undefined on either centroid is dropped pairwise and the element sums
+(`euclidean`, `sq_euclidean`, `manhattan`) are rescaled by p / p_observed,
+as R `stats::dist()` does; `mahalanobis` needs every coordinate.
+`params.min_valid` (default 1) is the fewest complete member pairs a
+distance needs — below it the distance is null.
 `auxiliary.centroids` holds the k × p centroids (rows the buckets),
 `centroids_standardized` and `pooled_covariance` ride their options, and
 `vectors.sizes` / `counts` give each bucket's weight mass and rows. Rows
@@ -341,9 +352,10 @@ chain stage after the first (`PULSE_MATRIX_UNSUPPORTED_SOURCE`), and with
 
 ## Determinism
 
-Serial, parallel-decode and sharded runs return bit-identical matrices
-for a cohort file; a multi-shard archive matches its single-file twin
-within rounding. A correlation cell agrees with the corresponding
+Serial, parallel-decode and sharded runs return bit-identical matrices,
+and a multi-shard archive matches its single-file twin bit for bit
+(merge blocks key by the global record ordinal, whatever the shard
+split). A correlation cell agrees with the corresponding
 `TEST_PEARSON_R` within `1e-12 + 1e-12 * |r|`.
 
 Contract: `.claude/reference/matrix-and-vectors.md`; payload shapes:

@@ -107,6 +107,9 @@ func TestTwoPass_DeclaredOrder_UpstreamRowLocalFeedsTwoPass(t *testing.T) {
 		"set_popcount": {Type: types.ATTR_SET_POPCOUNT, Field: "tags", Label: "u"},
 		"set_has":      {Type: types.ATTR_SET_HAS, Field: "tags", Params: []byte(`{"label":"AMEX"}`), Label: "u"},
 		"code_in":      {Type: types.ATTR_CODE_IN, Field: "c", Params: []byte(`{"codes":[1, 3]}`), Label: "u"},
+		"scale_score":  {Type: types.ATTR_SCALE_SCORE, Fields: []string{"x", "y"}, Params: []byte(`{"stat":"sum","min_valid":1}`), Label: "u"},
+		"vec_distance": {Type: types.ATTR_VEC_DISTANCE, Fields: []string{"x", "y"}, Params: []byte(`{"metric":"manhattan","reference":[1,2]}`), Label: "u"},
+		"profile_sim":  {Type: types.ATTR_PROFILE_SIMILARITY, Fields: []string{"x", "y"}, Params: []byte(`{"metric":"cosine","reference":[1,2]}`), Label: "u"},
 	}
 	twoPass := map[string]*types.Attribute{
 		"zscore":       {Type: types.ATTR_ZSCORE, Field: "u", Label: "out"},

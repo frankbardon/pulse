@@ -61,6 +61,10 @@ var (
 	// is reached from the three expression operators; FilterToFile
 	// compiles to FILTER_EXPRESSION, which it hard-depends on.
 	ownExpr = own("ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA")
+	// ownMetricConsumers: every consumer of the shared metric
+	// registry (linalg/metric) — the expression operators, MAT_DISTANCE
+	// and GROUP_KMEANS.
+	ownMetricConsumers = plus(ownExpr, own("MAT_DISTANCE", "GROUP_KMEANS", "ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE"))
 	// ownChiSq: the contingency-table checks run in the chi-square /
 	// Fisher row tests and in the crosstab chi-square overlays.
 	ownChiSq = own("TEST_CHISQ", "TEST_FISHER_EXACT", "OVERLAY_CHISQ_COL", "OVERLAY_CHISQ_MATRIX",
@@ -181,6 +185,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL: shared,
 	// Predict only: an ATTR_CODE_IN code absent from a categorical dictionary.
 	errors.PULSE_ATTR_CODE_NOT_IN_DICTIONARY: own("ATTR_CODE_IN"),
+	errors.PULSE_ATTR_SCALE_OUT_OF_RANGE:     own("ATTR_SCALE_SCORE"),
 	// Predict advisories: the two-group rule fires only on the two
 	// two-sample tests; the many-tests rule needs the p-value count,
 	// which a hidden capability:multiplicity withholds. The suppression
@@ -253,6 +258,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_EXTENSION_EXAMPLE_COLLISION:            shared,
 	errors.PULSE_EXTENSION_MERGEABLE_MISMATCH:           shared,
 	errors.PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH: shared,
+	errors.PULSE_EXTENSION_ARRAY_VALUED_MISMATCH:        shared,
 	errors.PULSE_EXTENSION_FACTORY_PANIC:                shared,
 	errors.PULSE_EXTENSION_PARAM_INVALID:                shared,
 	errors.PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH:    shared,
@@ -508,6 +514,29 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_VECTOR_UNKNOWN:         ownVectorInputs,
 	errors.PULSE_VECTOR_UNREFERENCED:    own(featMatrices),
 
+	// The shared metric registry (linalg/metric) refuses an unknown,
+	// wrong-direction or unaccepted metric, and a missing one, for every
+	// consumer that resolves a metric through it: the expression
+	// operators' metric functions and the operators with a metric
+	// choice. A later operator that takes a metric joins
+	// ownMetricConsumers.
+	errors.PULSE_VECTOR_METRIC_UNKNOWN:  ownMetricConsumers,
+	errors.PULSE_VECTOR_METRIC_REQUIRED: ownMetricConsumers,
+	// The kind-fit warning reads a vector's `kind`, which only the
+	// `vectors` slot (capability:matrices) declares.
+	errors.PULSE_VECTOR_METRIC_UNSUITED: own(featMatrices),
+	// A reference vector (Extensions.ReferenceVectors) is read by ref()
+	// in the two row expressions — OVERLAY_FORMULA refuses the vector
+	// built-ins, ref() among them — and by the comparison attributes'
+	// params.reference (a literal of the wrong length or a label map
+	// whose labels are not the vector's is a mismatch too).
+	errors.PULSE_VECTOR_REFERENCE_UNKNOWN:  own("ATTR_FORMULA", "FILTER_EXPRESSION", "ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE"),
+	errors.PULSE_VECTOR_REFERENCE_MISMATCH: own("ATTR_FORMULA", "FILTER_EXPRESSION", "ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE"),
+	// The comparison attributes' runtime row warnings: a key_field row
+	// with no profile, and a row outside the metric's domain.
+	errors.PULSE_VECTOR_REFERENCE_MISSING: own("ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE"),
+	errors.PULSE_VECTOR_METRIC_DOMAIN:     own("ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE"),
+
 	// The matrix-source refusals fire only on a request carrying the
 	// `matrices` slot, which capability:matrices gates; the MAT_ family
 	// raises them alike.
@@ -518,9 +547,13 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATRIX_NOT_PSD:             ownAllMats,
 	errors.PULSE_MATRIX_LISTWISE_HEAVY_DROP: ownAllMats,
 	// TEST_BARTLETT_SPHERICITY raises it on its result (MAT_PCA's
-	// Bartlett rule, the shared core).
-	errors.PULSE_MATRIX_INSUFFICIENT_N: plus(ownAllMats, own("TEST_BARTLETT_SPHERICITY"), vectorAttributeOwners()),
+	// Bartlett rule, the shared core); ATTR_VEC_DISTANCE's fitted
+	// metrics read the fitted attributes' fit pass.
+	errors.PULSE_MATRIX_INSUFFICIENT_N: plus(ownAllMats, own("TEST_BARTLETT_SPHERICITY", "ATTR_VEC_DISTANCE"), fittedAttributeOwners()),
 	errors.PULSE_MATRIX_ZERO_VARIANCE:  ownAllMats,
+	// Only MAT_DISTANCE resolves a non-negative-domain metric
+	// (hellinger, aitchison) over centroids.
+	errors.PULSE_MATRIX_METRIC_DOMAIN: own("MAT_DISTANCE"),
 	// ATTR_PC_SCORE's varimax rotation and ATTR_FACTOR_SCORE's
 	// extraction or rotation can stop at their caps (a fit-scoped
 	// warning; the scores stand);
@@ -576,12 +609,21 @@ func vectorTestOwners() []string {
 	return out
 }
 
-// vectorAttributeOwners returns the vector-input (fitted) attribute
-// types as owner names: their inline fields resolve by the vector rules
-// and their fit can be too small (PULSE_MATRIX_INSUFFICIENT_N).
+// vectorAttributeOwners returns the vector-input attribute types as
+// owner names: their inline fields resolve by the vector rules.
 func vectorAttributeOwners() []string {
 	var out []string
 	for _, t := range vectors.VectorAttributeTypes() {
+		out = append(out, string(t))
+	}
+	return out
+}
+
+// fittedAttributeOwners returns the fitted vector attribute types as
+// owner names: their fit can be too small (PULSE_MATRIX_INSUFFICIENT_N).
+func fittedAttributeOwners() []string {
+	var out []string
+	for _, t := range vectors.FittedAttributeTypes() {
 		out = append(out, string(t))
 	}
 	return out

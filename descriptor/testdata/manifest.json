@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:d31ab9216060ab72684ff4923349294e72df14aec840979c3c110b7a6ba989c6",
+    "feature_set_digest": "fs1:f6b6ec312915decc6d37f5b5d85503625d7e87783c4cbee05538b7ea958e25ff",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -2616,6 +2616,193 @@
           ]
         },
         {
+          "name": "AGG_VEC_MEAN",
+          "category": "aggregator",
+          "description": "Per-member mean of a vector (vector or fields, exactly one; never field): one figure per member, in member order — the group's average profile. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) / sum(w) per element. An element no row answered is NaN (null in JSON). Array-valued: refused as a crosstab cell, a Sort key, a window or post-test input, an overlay host (request, Compose or whole-chain) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"\u003clabel\u003e[\u003celement label\u003e]\" — presentation only, refused wherever the array is.",
+          "params": [
+            {
+              "name": "labels",
+              "type": "list",
+              "required": false,
+              "description": "Display label per member, inline fields only (a named vector carries its own Request.Vectors labels); one per resolved member. Names the elements in labels (components). Default: the member names."
+            },
+            {
+              "name": "expand",
+              "type": "bool",
+              "required": false,
+              "description": "true: replace the array with one scalar column per member, \"\u003clabel\u003e[\u003celement label\u003e]\" in member order (grouped: per row); the label itself is absent. Predict lists the columns (aggregations[i].columns). Presentation only: Sort, windows, post-tests, overlays and a feeding chain stage refuse them (PROCESSING_CONFIG, reason array_valued); element labels must be distinct (expand_duplicate_labels). Return paths cannot name a bracketed column — select them with a prefix glob, data[*].\u003clabel\u003e*. Default false."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "rich []float64, one mean per member in member order (an element no row answered is NaN, null in JSON); no scalar figure",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
+                "name": "labels",
+                "type": "[]string",
+                "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names."
+              },
+              {
+                "name": "element_n",
+                "type": "[]int",
+                "description": "Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered)."
+              },
+              {
+                "name": "element_sum",
+                "type": "[]float64",
+                "description": "Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count."
+              },
+              {
+                "name": "element_sum_weights",
+                "type": "[]float64",
+                "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator.",
+                "optional": true
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "compare_groups",
+            "describe"
+          ]
+        },
+        {
+          "name": "AGG_VEC_SUM",
+          "category": "aggregator",
+          "description": "Per-member total of a vector (vector or fields, exactly one; never field): one figure per member, in member order. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) per element. An element no row answered is 0. Array-valued: refused as a crosstab cell, a Sort key, a window or post-test input, an overlay host (request, Compose or whole-chain) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"\u003clabel\u003e[\u003celement label\u003e]\" — presentation only, refused wherever the array is.",
+          "params": [
+            {
+              "name": "labels",
+              "type": "list",
+              "required": false,
+              "description": "Display label per member, inline fields only (a named vector carries its own Request.Vectors labels); one per resolved member. Names the elements in labels (components). Default: the member names."
+            },
+            {
+              "name": "expand",
+              "type": "bool",
+              "required": false,
+              "description": "true: replace the array with one scalar column per member, \"\u003clabel\u003e[\u003celement label\u003e]\" in member order (grouped: per row); the label itself is absent. Predict lists the columns (aggregations[i].columns). Presentation only: Sort, windows, post-tests, overlays and a feeding chain stage refuse them (PROCESSING_CONFIG, reason array_valued); element labels must be distinct (expand_duplicate_labels). Return paths cannot name a bracketed column — select them with a prefix glob, data[*].\u003clabel\u003e*. Default false."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "rich []float64, one total per member in member order (0 where no row answered); no scalar figure",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
+                "name": "labels",
+                "type": "[]string",
+                "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names."
+              },
+              {
+                "name": "element_n",
+                "type": "[]int",
+                "description": "Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered)."
+              },
+              {
+                "name": "element_sum",
+                "type": "[]float64",
+                "description": "Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count."
+              },
+              {
+                "name": "element_sum_weights",
+                "type": "[]float64",
+                "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator.",
+                "optional": true
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "describe"
+          ]
+        },
+        {
           "name": "AGG_WEIGHTED_MEAN",
           "category": "aggregator",
           "description": "Weighted arithmetic mean: sum(field * weight) / sum(weight) — the weighted average under its own name and components.",
@@ -3263,6 +3450,87 @@
           ]
         },
         {
+          "name": "ATTR_PROFILE_SIMILARITY",
+          "category": "attribute",
+          "description": "Per-row similarity to a reference across the p members of vector / fields (exactly one): correlation, cosine or a set similarity, pairwise-complete (a null member drops its pair). Row-local and single-pass; the weight is irrelevant.",
+          "params": [
+            {
+              "name": "metric",
+              "type": "enum",
+              "required": false,
+              "description": "The similarity metric (capabilities.matrix.metrics). Default: the named vector kind's similarity default; with no kind and no metric the slot is refused (PULSE_VECTOR_METRIC_REQUIRED). A distance-direction metric is refused with a pointer to ATTR_VEC_DISTANCE, never converted.",
+              "enum_values": [
+                "cosine",
+                "correlation",
+                "jaccard",
+                "dice",
+                "overlap"
+              ]
+            },
+            {
+              "name": "reference",
+              "type": "any",
+              "required": true,
+              "description": "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label or an unsigned-integer field's (u4, u8, u16, u32, u64) canonical base-10 value; any other field type is refused, SERVICE_VALIDATION reason key_field_type). A table or map is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field is null or has no profile is null, counted in n_reference_missing and warned once per slot (PULSE_VECTOR_REFERENCE_MISSING, components on or off; strict does not escalate it)."
+            },
+            {
+              "name": "min_valid",
+              "type": "int",
+              "required": false,
+              "default": 1,
+              "description": "Fewest complete member pairs (member and reference both present) a row needs, 1 to the member count; below it the value is null. Distance sums are rescaled by p / p_observed."
+            },
+            {
+              "name": "labels",
+              "type": "list",
+              "required": false,
+              "description": "Inline fields only: one unique label per member, the names a label map or table aligns to (default: the field names). A named vector carries its own labels."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one similarity per record (correlation / cosine in [-1, 1], set similarities in [0, 1]); null below min_valid or when the row's reference is missing",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Filter-passing rows whose attribute output is present (non-null)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Filter-passing rows whose attribute output is null."
+              },
+              {
+                "name": "n_reference_missing",
+                "type": "int",
+                "description": "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
+              },
+              {
+                "name": "n_domain_invalid",
+                "type": "int",
+                "description": "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). Non-zero also raises PULSE_VECTOR_METRIC_DOMAIN."
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "intents": [
+            "benchmark",
+            "prepare"
+          ]
+        },
+        {
           "name": "ATTR_REG_FITTED",
           "category": "attribute",
           "description": "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own RegressionSpec-shaped fields (Target, Predictors, Penalty, Alpha, L1Ratio); each ATTR_REG_* attribute refits independently (Option A). Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet).",
@@ -3419,6 +3687,92 @@
           ]
         },
         {
+          "name": "ATTR_SCALE_SCORE",
+          "category": "attribute",
+          "description": "Per-row rating-battery score across the p members of vector / fields (exactly one): the mean of the row's valid items, or the prorated sum (that mean × p). Reverse-keyed items score lo + hi − x on the declared range; a value outside the range is missing (never clamped) and warned; fewer than min_valid valid items score null, never 0. Row-local and single-pass; the weight is irrelevant.",
+          "params": [
+            {
+              "name": "stat",
+              "type": "enum",
+              "required": false,
+              "default": "mean",
+              "description": "mean: the valid-item mean; sum: the PRORATED sum, valid-item mean × item count (there is no raw sum, so a skipped item never reads as 0).",
+              "enum_values": [
+                "mean",
+                "sum"
+              ]
+            },
+            {
+              "name": "min_valid",
+              "type": "int",
+              "required": false,
+              "description": "Fewest valid (present, in-range) items a row needs for a score, 1 to the item count; below it the score is null. Default: every item."
+            },
+            {
+              "name": "reverse",
+              "type": "list",
+              "required": false,
+              "description": "Member labels of the reverse-keyed items, each scored lo + hi − x. Needs a declared range (scale_min / scale_max, or the kind \"scale\" vector's bounds); refused without one."
+            },
+            {
+              "name": "scale_min",
+              "type": "float",
+              "required": false,
+              "description": "Lower end of the battery's declared range; set with scale_max (min \u003c max). Without both, a kind \"scale\" vector's bounds apply. A value outside the range is scored as missing and counted in a PULSE_ATTR_SCALE_OUT_OF_RANGE warning."
+            },
+            {
+              "name": "scale_max",
+              "type": "float",
+              "required": false,
+              "description": "Upper end of the battery's declared range; set with scale_min."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one score per record on the item scale (sum: × item count); null when fewer than min_valid items are valid",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Filter-passing rows whose attribute output is present (non-null)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Filter-passing rows whose attribute output is null."
+              },
+              {
+                "name": "n_out_of_range",
+                "type": "int",
+                "description": "Member values read as missing for lying outside the declared range (never clamped); emitted only when a range is declared (scale_min / scale_max or a kind \"scale\" vector's bounds).",
+                "optional": true
+              },
+              {
+                "name": "n_rows_out_of_range",
+                "type": "int",
+                "description": "Rows holding at least one out-of-range member value; emitted only when a range is declared.",
+                "optional": true
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "intents": [
+            "measure_construct",
+            "prepare"
+          ]
+        },
+        {
           "name": "ATTR_SET_HAS",
           "category": "attribute",
           "description": "Per-row boolean: whether the configured label's bit is set on the set field.",
@@ -3492,6 +3846,115 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "benchmark",
+            "prepare"
+          ]
+        },
+        {
+          "name": "ATTR_VEC_DISTANCE",
+          "category": "attribute",
+          "description": "Per-row distance to a reference across the p members of vector / fields (exactly one), pairwise-complete with the p / p_observed rescaling. Row-local metrics are single-pass; std_euclidean (per-member SDs) and mahalanobis (inverse covariance, every member needed) fit first on the filtered rows params.fit_on admits — ATTR_MAHALANOBIS's fit pass, two-pass, weighted when a weight is in force; N* ≤ p or a singular fit nulls every value with a warning.",
+          "params": [
+            {
+              "name": "metric",
+              "type": "enum",
+              "required": false,
+              "description": "The distance metric (capabilities.matrix.metrics). Default: the named vector kind's distance default; with no kind and no metric the slot is refused (PULSE_VECTOR_METRIC_REQUIRED). A similarity-direction metric is refused with a pointer to ATTR_PROFILE_SIMILARITY, never converted.",
+              "enum_values": [
+                "euclidean",
+                "sq_euclidean",
+                "manhattan",
+                "chebyshev",
+                "cosine",
+                "hellinger",
+                "aitchison",
+                "hamming",
+                "std_euclidean",
+                "mahalanobis"
+              ]
+            },
+            {
+              "name": "reference",
+              "type": "any",
+              "required": true,
+              "description": "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label or an unsigned-integer field's (u4, u8, u16, u32, u64) canonical base-10 value; any other field type is refused, SERVICE_VALIDATION reason key_field_type). A table or map is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field is null or has no profile is null, counted in n_reference_missing and warned once per slot (PULSE_VECTOR_REFERENCE_MISSING, components on or off; strict does not escalate it)."
+            },
+            {
+              "name": "min_valid",
+              "type": "int",
+              "required": false,
+              "default": 1,
+              "description": "Fewest complete member pairs (member and reference both present) a row needs, 1 to the member count; below it the value is null. Distance sums are rescaled by p / p_observed."
+            },
+            {
+              "name": "labels",
+              "type": "list",
+              "required": false,
+              "description": "Inline fields only: one unique label per member, the names a label map or table aligns to (default: the field names). A named vector carries its own labels."
+            },
+            {
+              "name": "fit_on",
+              "type": "any",
+              "required": false,
+              "default": "filtered",
+              "description": "Fitted metrics only (refused beside a row-local one): the fit population, \"filtered\" (every filtered row) or an inline array of filterer objects; every filtered row is still scored."
+            },
+            {
+              "name": "missing",
+              "type": "enum",
+              "required": false,
+              "default": "listwise",
+              "description": "Fitted metrics only: the fit's missing-data mode; only listwise (a row with a null member is left out of the fit, and is still scored pairwise-complete).",
+              "enum_values": [
+                "listwise"
+              ]
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one distance (≥ 0) per record; null below min_valid, when the row's reference is missing or the fit cannot score",
+          "streamable": true,
+          "streamable_hint": "Row-local metrics stream in one pass; std_euclidean / mahalanobis take the two-pass drive (with groupers or features the request runs buffered). The fit is cohort-wide, never per group.",
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Filter-passing rows whose attribute output is present (non-null)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Filter-passing rows whose attribute output is null."
+              },
+              {
+                "name": "n_reference_missing",
+                "type": "int",
+                "description": "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
+              },
+              {
+                "name": "n_domain_invalid",
+                "type": "int",
+                "description": "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). Non-zero also raises PULSE_VECTOR_METRIC_DOMAIN."
+              }
+            ],
+            "mergeability": "mergeable"
           },
           "weight_aware": true,
           "weight_kinds": [
@@ -7281,15 +7744,24 @@
             "type": "enum",
             "required": false,
             "default": "euclidean",
-            "description": "euclidean (stats::dist), sqeuclidean (its square), manhattan (sum of absolute differences), chebyshev (the largest absolute difference), cosine (1 - cos of the angle between the centroids, null for a zero-length one) or mahalanobis (over the pooled within-bucket covariance, on the raw centroids: scale-free, standardize changes nothing). The list is local to MAT_DISTANCE.",
+            "description": "A linalg/metric registry name (capabilities.matrix.metrics, consumer MAT_DISTANCE), in the distance form. Absent over a kind-declared vector, the smart defaults fill the kind's default this operator accepts (capabilities.matrix.vector_kinds: measure euclidean, scale euclidean, composition aitchison — manhattan under standardize — binary cosine; reported in defaults_applied); absent otherwise, euclidean. An explicit metric that fits the vector's kind poorly warns PULSE_VECTOR_METRIC_UNSUITED (an error under strict). The metrics: euclidean (stats::dist), sq_euclidean (its square), manhattan (sum of absolute differences), chebyshev (the largest absolute difference), cosine (1 - cos of the angle between the centroids, clamped to [0, 2]; null for a zero-length one), hellinger and aitchison (compositions: non-negative centroids, refused beside standardize; a negative coordinate or an aitchison zero part nulls the distance with PULSE_MATRIX_METRIC_DOMAIN) or mahalanobis (over the pooled within-bucket covariance, on the raw centroids: scale-free, standardize changes nothing; null on any undefined coordinate). An undefined coordinate (a zero-spread member under standardize) is dropped pairwise and the element sums rescaled by p/p_observed (R stats::dist()).",
             "enum_values": [
               "euclidean",
-              "sqeuclidean",
+              "sq_euclidean",
               "manhattan",
               "chebyshev",
               "cosine",
+              "hellinger",
+              "aitchison",
               "mahalanobis"
             ]
+          },
+          {
+            "name": "min_valid",
+            "type": "int",
+            "required": false,
+            "default": 1,
+            "description": "The fewest complete member pairs (coordinates defined on both centroids) a distance needs, 1 to the member count; below it the distance is null."
           },
           {
             "name": "standardize",
@@ -8386,7 +8858,7 @@
         ]
       }
     ],
-    "error_codes_count": 336,
+    "error_codes_count": 346,
     "error_domains": [
       "CLI",
       "DATA",
@@ -8434,6 +8906,7 @@
       "PULSE_ARCHIVE_CORRUPT",
       "PULSE_ARCHIVE_MAGIC_INVALID",
       "PULSE_ATTR_CODE_NOT_IN_DICTIONARY",
+      "PULSE_ATTR_SCALE_OUT_OF_RANGE",
       "PULSE_CHAIN_EMPTY",
       "PULSE_CHAIN_NOT_MERGEABLE",
       "PULSE_CHAIN_STAGE_JOIN",
@@ -8462,6 +8935,7 @@
       "PULSE_DOCS_EXPORT_DIR_NOT_EMPTY",
       "PULSE_EXPORT_FIELD_UNKNOWN",
       "PULSE_EXPORT_ROW_ERROR",
+      "PULSE_EXTENSION_ARRAY_VALUED_MISMATCH",
       "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH",
       "PULSE_EXTENSION_DUPLICATE",
       "PULSE_EXTENSION_EXAMPLE_COLLISION",
@@ -8555,6 +9029,7 @@
       "PULSE_MATRIX_HOST_CONFLICT",
       "PULSE_MATRIX_INSUFFICIENT_N",
       "PULSE_MATRIX_LISTWISE_HEAVY_DROP",
+      "PULSE_MATRIX_METRIC_DOMAIN",
       "PULSE_MATRIX_NOT_CONVERGED",
       "PULSE_MATRIX_NOT_IDENTIFIED",
       "PULSE_MATRIX_NOT_PSD",
@@ -8721,7 +9196,14 @@
       "PULSE_VECTOR_INVALID",
       "PULSE_VECTOR_LABELS_MISMATCH",
       "PULSE_VECTOR_MEMBER_TYPE",
+      "PULSE_VECTOR_METRIC_DOMAIN",
+      "PULSE_VECTOR_METRIC_REQUIRED",
+      "PULSE_VECTOR_METRIC_UNKNOWN",
+      "PULSE_VECTOR_METRIC_UNSUITED",
       "PULSE_VECTOR_NAME_COLLISION",
+      "PULSE_VECTOR_REFERENCE_MISMATCH",
+      "PULSE_VECTOR_REFERENCE_MISSING",
+      "PULSE_VECTOR_REFERENCE_UNKNOWN",
       "PULSE_VECTOR_UNKNOWN",
       "PULSE_VECTOR_UNREFERENCED",
       "PULSE_WEIGHT_INVALID_ROWS",
@@ -8865,6 +9347,8 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_VEC_MEAN",
+          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
           "AGG_ZSCORE"
@@ -8877,11 +9361,14 @@
           "ATTR_NORMALIZED",
           "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
+          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
+          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
+          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -8950,6 +9437,8 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_VEC_MEAN",
+          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
           "AGG_ZSCORE"
@@ -8962,11 +9451,14 @@
           "ATTR_NORMALIZED",
           "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
+          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
+          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
+          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -9035,6 +9527,8 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_VEC_MEAN",
+          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
           "AGG_ZSCORE"
@@ -9047,11 +9541,14 @@
           "ATTR_NORMALIZED",
           "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
+          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
+          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
+          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -9120,6 +9617,8 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_VEC_MEAN",
+          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
           "AGG_ZSCORE"
@@ -9132,11 +9631,14 @@
           "ATTR_NORMALIZED",
           "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
+          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
+          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
+          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -9205,6 +9707,8 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_VEC_MEAN",
+          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
           "AGG_ZSCORE"
@@ -9216,11 +9720,14 @@
           "ATTR_NORMALIZED",
           "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
+          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
+          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
+          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -9289,6 +9796,8 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_VEC_MEAN",
+          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
           "AGG_ZSCORE"
@@ -9300,11 +9809,14 @@
           "ATTR_NORMALIZED",
           "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
+          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
+          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
+          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -9373,6 +9885,8 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_VEC_MEAN",
+          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
         ],
@@ -9384,11 +9898,14 @@
           "ATTR_NORMALIZED",
           "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
+          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
+          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
+          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -9454,6 +9971,8 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_VEC_MEAN",
+          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
         ],
@@ -9465,11 +9984,14 @@
           "ATTR_NORMALIZED",
           "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
+          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
+          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
+          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -10281,6 +10803,14 @@
         "description": "Population variance via Welford's online algorithm."
       },
       {
+        "name": "op-agg-vec-mean",
+        "description": "Per-member mean of a vector — one average per member, in member order (a group's average profile)."
+      },
+      {
+        "name": "op-agg-vec-sum",
+        "description": "Per-member total of a vector — one sum per member, in member order."
+      },
+      {
         "name": "op-agg-weighted-mean",
         "description": "Weighted arithmetic mean — sum(field * weight) / sum(weight)."
       },
@@ -10325,6 +10855,10 @@
         "description": "Per-row percentile rank column against the post-filter value set; requires sorting."
       },
       {
+        "name": "op-attr-profile-similarity",
+        "description": "Per-row similarity to a target profile — correlation, cosine or a set similarity across a vector's members, against a literal, label-map or registered reference."
+      },
+      {
         "name": "op-attr-reg-fitted",
         "description": "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from an OLS refit during the attribute prepass."
       },
@@ -10341,6 +10875,10 @@
         "description": "Per-row residual yᵢ − ŷᵢ from an OLS refit during the attribute prepass."
       },
       {
+        "name": "op-attr-scale-score",
+        "description": "Per-row rating-battery score — the valid-item mean or prorated sum across a vector of members, with reverse-keyed items and a min_valid floor."
+      },
+      {
         "name": "op-attr-set-has",
         "description": "Per-row 0/1 — whether the configured label's bit is set on a set field."
       },
@@ -10351,6 +10889,10 @@
       {
         "name": "op-attr-tscore",
         "description": "Per-row T-score column — z-score rescaled to mean 50, stddev 10."
+      },
+      {
+        "name": "op-attr-vec-distance",
+        "description": "Per-row distance to a target profile — plain, set or fitted (std_euclidean, mahalanobis) metrics across a vector's members, against a literal, label-map or registered reference."
       },
       {
         "name": "op-attr-zscore",
@@ -10490,7 +11032,7 @@
       },
       {
         "name": "op-mat-distance",
-        "description": "Distances between segment centroids — a k × k matrix over the buckets a grouper (params.between: any built-in, date family included, or a registered extension grouper) cuts the rows into; euclidean, sqeuclidean, manhattan, chebyshev, cosine or mahalanobis (pooled within-bucket covariance); optional standardize; weighted centroids."
+        "description": "Distances between segment centroids — a k × k matrix over the buckets a grouper (params.between: any built-in, date family included, or a registered extension grouper) cuts the rows into; any registry metric MAT_DISTANCE accepts (euclidean, sq_euclidean, manhattan, chebyshev, cosine, hellinger, aitchison, mahalanobis); optional standardize; weighted centroids."
       },
       {
         "name": "op-mat-factor",
@@ -11281,6 +11823,10 @@
         "description": "1-byte unsigned integer; fits cardinals through 255."
       },
       {
+        "name": "vector-metrics",
+        "description": "Declaring what a battery's values mean (vector kind measure, scale, composition or binary) so similarity and distance pick a suitable metric by default, the scale bounds a kind \"scale\" battery carries, and the warning (an error under strict) an explicit metric that fits the kind poorly raises. Topical design; per-operator params in the atomic skills."
+      },
+      {
         "name": "weighting",
         "description": "Row weights on a Request — the request / per-slot weight and the instance default, probability vs frequency kinds, resolution order, invalid-weight exclusion, which operators honour, skip or refuse a weight, weighted inference on the effective sample size, the unweighted-base recipe and the weighted floor keys."
       },
@@ -11289,7 +11835,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 206,
+    "examples_count": 210,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -11385,6 +11931,7 @@
       "synth_distributions": [],
       "expr_functions": [],
       "lookup_tables": [],
+      "reference_vectors": [],
       "label_tables": [],
       "range_tables": []
     },
@@ -11552,6 +12099,8 @@
         "AGG_SKEWNESS",
         "AGG_STDDEV",
         "AGG_VARIANCE",
+        "AGG_VEC_MEAN",
+        "AGG_VEC_SUM",
         "AGG_WELFORD",
         "AGG_ZSCORE"
       ],
@@ -11564,7 +12113,8 @@
         "crosstab requires a cell aggregation (PULSE_CROSSTAB_MISSING_CELL)",
         "crosstab cannot coexist with top-level groups or aggregations (PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS)",
         "matrix shape, any margin, or any normalization forces the buffered path",
-        "map-valued cell aggregators (AGG_SET_FREQUENCY) cannot pair with normalize=row/column/total (PULSE_CROSSTAB_NORMALIZE_MAP_VALUED)"
+        "map-valued cell aggregators (AGG_SET_FREQUENCY) cannot pair with normalize=row/column/total (PULSE_CROSSTAB_NORMALIZE_MAP_VALUED)",
+        "array-valued aggregators (array_valued_aggregators: AGG_VEC_MEAN, AGG_VEC_SUM) are refused as the cell or a margin aggregation, whatever normalize says (PROCESSING_CONFIG, reason array_valued)"
       ],
       "supports_normalize_level": true,
       "normalize_level_rules": [
@@ -11587,6 +12137,10 @@
       "map_valued_cell_aggregators": [
         "AGG_SET_FREQUENCY",
         "AGG_WELFORD"
+      ],
+      "array_valued_aggregators": [
+        "AGG_VEC_MEAN",
+        "AGG_VEC_SUM"
       ]
     },
     "export": {
@@ -11722,6 +12276,339 @@
         "pairwise"
       ],
       "merge_block_size": 4096,
+      "metrics": [
+        {
+          "name": "euclidean",
+          "family": "plain",
+          "description": "sqrt(sum((a-b)^2)), the sum rescaled by p/p_observed",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "measure",
+            "scale"
+          ],
+          "poor_fit": [
+            "composition"
+          ],
+          "fitted": false,
+          "domain": "real",
+          "scaled": true,
+          "consumers": [
+            "expr",
+            "ATTR_VEC_DISTANCE",
+            "MAT_DISTANCE",
+            "GROUP_KMEANS"
+          ]
+        },
+        {
+          "name": "sq_euclidean",
+          "family": "plain",
+          "description": "sum((a-b)^2), rescaled by p/p_observed",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "measure",
+            "scale"
+          ],
+          "poor_fit": [
+            "composition"
+          ],
+          "fitted": false,
+          "domain": "real",
+          "scaled": true,
+          "consumers": [
+            "ATTR_VEC_DISTANCE",
+            "MAT_DISTANCE",
+            "GROUP_KMEANS"
+          ]
+        },
+        {
+          "name": "manhattan",
+          "family": "plain",
+          "description": "sum(|a-b|), rescaled by p/p_observed",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "measure",
+            "composition"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "real",
+          "scaled": true,
+          "consumers": [
+            "ATTR_VEC_DISTANCE",
+            "MAT_DISTANCE"
+          ]
+        },
+        {
+          "name": "chebyshev",
+          "family": "plain",
+          "description": "max(|a-b|)",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "measure"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "real",
+          "consumers": [
+            "ATTR_VEC_DISTANCE",
+            "MAT_DISTANCE"
+          ]
+        },
+        {
+          "name": "cosine",
+          "family": "plain",
+          "description": "similarity a.b/(|a||b|); distance 1-cos clamped to [0,2]",
+          "direction": "similarity",
+          "forms": [
+            "similarity",
+            "distance"
+          ],
+          "kinds_suited": [
+            "composition",
+            "binary"
+          ],
+          "poor_fit": [
+            "measure",
+            "scale"
+          ],
+          "fitted": false,
+          "domain": "real",
+          "consumers": [
+            "expr",
+            "ATTR_VEC_DISTANCE",
+            "ATTR_PROFILE_SIMILARITY",
+            "MAT_DISTANCE"
+          ]
+        },
+        {
+          "name": "correlation",
+          "family": "plain",
+          "description": "Pearson r of the two vectors' elements (centered cosine)",
+          "direction": "similarity",
+          "forms": [
+            "similarity"
+          ],
+          "kinds_suited": [
+            "scale"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "real",
+          "consumers": [
+            "ATTR_PROFILE_SIMILARITY"
+          ]
+        },
+        {
+          "name": "hellinger",
+          "family": "plain",
+          "description": "sqrt(sum((sqrt(a/sum a)-sqrt(b/sum b))^2)/2), in [0,1]",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "composition"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "non_negative",
+          "consumers": [
+            "ATTR_VEC_DISTANCE",
+            "MAT_DISTANCE"
+          ]
+        },
+        {
+          "name": "aitchison",
+          "family": "plain",
+          "description": "Euclidean distance between the centered log-ratio transforms; a zero part is undefined",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "composition"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "non_negative",
+          "zero_undefined": true,
+          "consumers": [
+            "ATTR_VEC_DISTANCE",
+            "MAT_DISTANCE"
+          ]
+        },
+        {
+          "name": "jaccard",
+          "family": "set",
+          "description": "|A and B| / |A or B|",
+          "direction": "similarity",
+          "forms": [
+            "similarity"
+          ],
+          "kinds_suited": [
+            "binary"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "binary",
+          "consumers": [
+            "expr",
+            "ATTR_PROFILE_SIMILARITY"
+          ]
+        },
+        {
+          "name": "dice",
+          "family": "set",
+          "description": "2|A and B| / (|A|+|B|)",
+          "direction": "similarity",
+          "forms": [
+            "similarity"
+          ],
+          "kinds_suited": [
+            "binary"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "binary",
+          "consumers": [
+            "expr",
+            "ATTR_PROFILE_SIMILARITY"
+          ]
+        },
+        {
+          "name": "hamming",
+          "family": "set",
+          "description": "the number of elements in exactly one set, rescaled by p/p_observed",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "binary"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "binary",
+          "scaled": true,
+          "consumers": [
+            "expr",
+            "ATTR_VEC_DISTANCE"
+          ]
+        },
+        {
+          "name": "overlap",
+          "family": "set",
+          "description": "|A and B| / min(|A|,|B|)",
+          "direction": "similarity",
+          "forms": [
+            "similarity"
+          ],
+          "kinds_suited": [
+            "binary"
+          ],
+          "poor_fit": [],
+          "fitted": false,
+          "domain": "binary",
+          "consumers": [
+            "expr",
+            "ATTR_PROFILE_SIMILARITY"
+          ]
+        },
+        {
+          "name": "std_euclidean",
+          "family": "fitted",
+          "description": "sqrt(sum(((a-b)/sd)^2)) over fitted per-element SDs, the sum rescaled by p/p_observed",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "measure"
+          ],
+          "poor_fit": [
+            "composition"
+          ],
+          "fitted": true,
+          "fit_stat": "sd",
+          "domain": "real",
+          "scaled": true,
+          "consumers": [
+            "ATTR_VEC_DISTANCE"
+          ]
+        },
+        {
+          "name": "mahalanobis",
+          "family": "fitted",
+          "description": "sqrt(d' S^-1 d), d = a-b, over a fitted inverse covariance; needs every element",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "measure"
+          ],
+          "poor_fit": [],
+          "fitted": true,
+          "fit_stat": "inverse_covariance",
+          "domain": "real",
+          "complete": true,
+          "consumers": [
+            "ATTR_VEC_DISTANCE",
+            "MAT_DISTANCE"
+          ]
+        },
+        {
+          "name": "chi_square",
+          "family": "fitted",
+          "description": "sqrt(sum((a/sum a - b/sum b)^2 / mass)) over fitted column masses (correspondence-analysis profile distance)",
+          "direction": "distance",
+          "forms": [
+            "distance"
+          ],
+          "kinds_suited": [
+            "composition"
+          ],
+          "poor_fit": [],
+          "fitted": true,
+          "fit_stat": "column_masses",
+          "domain": "non_negative",
+          "consumers": []
+        }
+      ],
+      "vector_kinds": [
+        {
+          "name": "measure",
+          "distance_default": "std_euclidean",
+          "similarity_default": ""
+        },
+        {
+          "name": "scale",
+          "distance_default": "euclidean",
+          "similarity_default": "correlation"
+        },
+        {
+          "name": "composition",
+          "distance_default": "aitchison",
+          "similarity_default": "cosine"
+        },
+        {
+          "name": "binary",
+          "distance_default": "hamming",
+          "similarity_default": "jaccard"
+        }
+      ],
       "limitations": [
         "Matrices follow Request.Groups: a grouped request returns one result per spec per non-empty bucket (group_key, group_header), spec-major then bucket in the final Data row order (Request.Sort included); a thin bucket is still emitted, with PULSE_MATRIX_INSUFFICIENT_N.",
         "A request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results, per bucket on a grouped request.",
@@ -13856,6 +14743,114 @@
           ],
           "mergeability": "mergeable"
         },
+        "AGG_VEC_MEAN": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "labels",
+              "type": "[]string",
+              "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names."
+            },
+            {
+              "name": "element_n",
+              "type": "[]int",
+              "description": "Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered)."
+            },
+            {
+              "name": "element_sum",
+              "type": "[]float64",
+              "description": "Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count."
+            },
+            {
+              "name": "element_sum_weights",
+              "type": "[]float64",
+              "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator.",
+              "optional": true
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_VEC_SUM": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "labels",
+              "type": "[]string",
+              "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names."
+            },
+            {
+              "name": "element_n",
+              "type": "[]int",
+              "description": "Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered)."
+            },
+            {
+              "name": "element_sum",
+              "type": "[]float64",
+              "description": "Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count."
+            },
+            {
+              "name": "element_sum_weights",
+              "type": "[]float64",
+              "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator.",
+              "optional": true
+            }
+          ],
+          "mergeability": "mergeable"
+        },
         "AGG_WEIGHTED_MEAN": {
           "keys": [
             {
@@ -15048,6 +16043,85 @@
           ],
           "mergeability": "mergeable"
         }
+      },
+      "attributes": {
+        "ATTR_PROFILE_SIMILARITY": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Filter-passing rows whose attribute output is present (non-null)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Filter-passing rows whose attribute output is null."
+            },
+            {
+              "name": "n_reference_missing",
+              "type": "int",
+              "description": "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
+            },
+            {
+              "name": "n_domain_invalid",
+              "type": "int",
+              "description": "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). Non-zero also raises PULSE_VECTOR_METRIC_DOMAIN."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "ATTR_SCALE_SCORE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Filter-passing rows whose attribute output is present (non-null)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Filter-passing rows whose attribute output is null."
+            },
+            {
+              "name": "n_out_of_range",
+              "type": "int",
+              "description": "Member values read as missing for lying outside the declared range (never clamped); emitted only when a range is declared (scale_min / scale_max or a kind \"scale\" vector's bounds).",
+              "optional": true
+            },
+            {
+              "name": "n_rows_out_of_range",
+              "type": "int",
+              "description": "Rows holding at least one out-of-range member value; emitted only when a range is declared.",
+              "optional": true
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "ATTR_VEC_DISTANCE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Filter-passing rows whose attribute output is present (non-null)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Filter-passing rows whose attribute output is null."
+            },
+            {
+              "name": "n_reference_missing",
+              "type": "int",
+              "description": "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
+            },
+            {
+              "name": "n_domain_invalid",
+              "type": "int",
+              "description": "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). Non-zero also raises PULSE_VECTOR_METRIC_DOMAIN."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
       }
     },
     "intents": [
@@ -15251,4 +16325,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0204cdb1345949ed89feba80d01729fc891bc7a253e7c7ac1d6bc2f9d882536a
+// golden-hash: bbf80daf8f6d741e43269e036dfb2735898e5b4a472b14ef262796237c6c2c4d

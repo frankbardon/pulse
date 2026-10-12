@@ -95,9 +95,10 @@ var selfReadingOperators = []string{
 	string(types.AGG_SET_CARDINALITY_SUM), string(types.AGG_SET_DISTINCT_VALUES),
 	string(types.AGG_SET_FREQUENCY), string(types.AGG_SET_INTERSECTION),
 	string(types.AGG_SET_UNION), string(types.AGG_SUM),
+	string(types.AGG_VEC_MEAN), string(types.AGG_VEC_SUM),
 	// attribute
-	string(types.ATTR_CODE_IN), string(types.ATTR_DATE_PART), string(types.ATTR_FORMULA), string(types.ATTR_SET_HAS),
-	string(types.ATTR_SET_POPCOUNT),
+	string(types.ATTR_CODE_IN), string(types.ATTR_DATE_PART), string(types.ATTR_FORMULA), string(types.ATTR_SCALE_SCORE), string(types.ATTR_SET_HAS),
+	string(types.ATTR_SET_POPCOUNT), string(types.ATTR_PROFILE_SIMILARITY), string(types.ATTR_VEC_DISTANCE),
 	// filterer
 	string(types.FILTER_DATE_RANGES), string(types.FILTER_EXCLUDE), string(types.FILTER_EXPRESSION),
 	string(types.FILTER_FALSE), string(types.FILTER_INCLUDE), string(types.FILTER_NULL),

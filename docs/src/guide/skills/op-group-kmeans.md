@@ -44,6 +44,7 @@ Keys `cluster_1`…`cluster_k`, emitted largest first (ties: lexicographic centr
 
 ## Gotchas
 
+- Squared Euclidean only (the `sq_euclidean` registry metric); no `metric` param.
 - Labels depend only on the member tuples, never on row or shard order.
 - Buffered, never merged; predict `row_buffer_bytes` = n·p·8 + k·p·8.
 - Best start at `max_iter`: `PULSE_MATRIX_NOT_CONVERGED` (solver `kmeans_lloyd`).

@@ -108,7 +108,7 @@ An atomic skill may carry the marker LINES `<!-- generated: use-when -->` (after
 | `type-*` | `## Bytes`, `## Range`, `## Null`, `## Dictionary`, `## See` |
 | `tool-*` | `## When to use`, `## Input`, `## Output`, `## Gotchas`, `## See` |
 
-`TestAtomicSkillHasRequiredSections` keys off the `category:` frontmatter field; stem prefix is the fallback.
+`TestAtomicSkillHasRequiredSections` keys off the `category:` frontmatter field; stem prefix is the fallback. An `op-attr-*` (or `op-mat-*`) skill whose operator declares a `ComponentSchema` also owes `## Components` naming every key — enforced per operator by `TestSkillsCoverAllOperatorComponents`, not by the family table (most attributes declare none).
 
 A `tool-*` skill's `## When to use` opens with ONE line holding ONE `CALL …` trigger sentence (no fence; the rest goes on the next line), and that sentence is also the first sentence of the tool's `internal/mcp/toolmeta/meta.go` description — `TestToolDescriptionsLeadWithWhenToUse` (`internal/skills`).
 

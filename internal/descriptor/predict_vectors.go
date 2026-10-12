@@ -11,10 +11,13 @@ import (
 )
 
 // predictVectors fills PredictResult.ResolvedVectors from the one
-// resolver (internal/vectors) and adds a PULSE_VECTOR_UNREFERENCED
-// warning per vector no operator slot references. A refused vector is
-// reported by the field-reference pass, so nothing is echoed for it.
-func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema) {
+// resolver (internal/vectors), adds a PULSE_VECTOR_UNREFERENCED
+// warning per vector no operator slot references, and reports each
+// PULSE_VECTOR_METRIC_UNSUITED issue (vectors.MetricUnsuitedIssues, the
+// list the runtime reads) as a warning — an error under strict. A
+// refused vector is reported by the field-reference pass, so nothing is
+// echoed for it.
+func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, strict bool) {
 	if req == nil || len(req.Vectors) == 0 {
 		return
 	}
@@ -30,6 +33,34 @@ func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, 
 		w := vectors.UnreferencedWarning(name)
 		env.AddWarning(string(w.Code), w.Message, w.Details)
 	}
+	for _, w := range vectors.MetricUnsuitedIssues(req) {
+		if strict {
+			env.AddError(string(w.Code), w.Message, w.Details)
+		} else {
+			env.AddWarning(string(w.Code), w.Message, w.Details)
+		}
+	}
+}
+
+// predictReferences reports every reference-vector issue of the
+// request's expressions (vectors.ReferenceIssues — the rules the runtime
+// build refuses with, its first issue failing the build) as an error:
+// an unregistered table or key, a table argument that is not a literal,
+// and a ref() whose labels are not the compared vector's. The named
+// vectors bind as the runtime binds them; a request whose vectors do not
+// resolve is judged without them (the field-reference pass reports
+// that).
+func predictReferences(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot) {
+	if req == nil || (len(req.Filterers) == 0 && len(req.Attributes) == 0) {
+		return
+	}
+	var resolved []vectors.Resolved
+	if len(req.Vectors) > 0 {
+		resolved, _ = vectors.Resolve(req.Vectors, schema)
+	}
+	for _, ce := range vectors.ReferenceIssues(req, schema, resolved, snap.ReferenceTables()) {
+		env.AddError(string(ce.Code), ce.Message, ce.Details)
+	}
 }
 
 // predictMatrices fills PredictResult.Matrices from the one resolver
@@ -38,16 +69,19 @@ func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, 
 // AccumulatorBytes, vectors.EstimateBuckets) the engine honours. A refused spec is reported by
 // the field-reference pass, so nothing is echoed then.
 //
-// blocks is the merge-block count the run populates (limits.MergeBlocks
-// over the record count, per shard for an archive; -1 when unknown).
+// blocks is the merge-fragment count the run populates
+// (limits.MergeBlocks over the record count, over the per-shard counts
+// for an archive; -1 when unknown) and buffered the rows non-head
+// fragments keep (limits.MergeBufferedRows; 0 on a single file).
 // EstimatedBytes is the real state, limits.MatrixStateBytes: one
-// CoMoment per populated block per bucket — omitted with the block
-// count unknown.
+// CoMoment per populated fragment per bucket, plus the buffered rows
+// (vectors.Matrix.FragmentRowBytes each, per bucket) — omitted with the
+// block count unknown.
 //
 // records is the cohort's record count (-1 when unknown): a buffered
 // spec's RowBufferBytes is records × vectors.Matrix.RowBytes, added to
 // EstimatedBytes.
-func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, blocks, records int64) {
+func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, blocks, buffered, records int64) {
 	if req == nil || len(req.Matrices) == 0 {
 		return
 	}
@@ -113,6 +147,14 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 			mp.EstimatedBuckets, mp.EstimatedCells = &b, &cells
 			if blocks >= 0 {
 				bytes := limits.MatrixStateBytes(blocks, b, m.AccumulatorBytes()*m.StateCount(schema))
+				if buffered > 0 {
+					fb := limits.MatrixStateBytes(buffered, b, m.FragmentRowBytes()*m.StateCount(schema))
+					if bytes > math.MaxInt64-fb {
+						bytes = math.MaxInt64
+					} else {
+						bytes += fb
+					}
+				}
 				if bytes > math.MaxInt64-rowBytes {
 					bytes = math.MaxInt64
 				} else {

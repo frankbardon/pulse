@@ -60,6 +60,8 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-agg-stddev`](skills/op-agg-stddev.md): Population standard deviation via Welford's online algorithm.
 - [`op-agg-sum`](skills/op-agg-sum.md): Sum the numeric values of a field across the input set.
 - [`op-agg-variance`](skills/op-agg-variance.md): Population variance via Welford's online algorithm.
+- [`op-agg-vec-mean`](skills/op-agg-vec-mean.md): Per-member mean of a vector — one average per member, in member order (a group's average profile).
+- [`op-agg-vec-sum`](skills/op-agg-vec-sum.md): Per-member total of a vector — one sum per member, in member order.
 - [`op-agg-weighted-mean`](skills/op-agg-weighted-mean.md): Weighted arithmetic mean — sum(field * weight) / sum(weight).
 - [`op-agg-welford`](skills/op-agg-welford.md): Streaming Welford-Pébaÿ moment triple — running mean, sample variance (n-1), and observed count.
 - [`op-agg-zscore`](skills/op-agg-zscore.md): Standardized z-score aggregate — mean-centered, stddev-scaled summary.
@@ -71,13 +73,16 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-attr-normalized`](skills/op-attr-normalized.md): Per-row min-max normalized column — (value − min) / (max − min) ∈ [0, 1].
 - [`op-attr-pc-score`](skills/op-attr-pc-score.md): Per-row standardized score on one principal component of a vector of numeric members, with the PCA matrix operator's sign and order and optional varimax; fit_on fits on a subset and still scores every row.
 - [`op-attr-percentile`](skills/op-attr-percentile.md): Per-row percentile rank column against the post-filter value set; requires sorting.
+- [`op-attr-profile-similarity`](skills/op-attr-profile-similarity.md): Per-row similarity to a target profile — correlation, cosine or a set similarity across a vector's members, against a literal, label-map or registered reference.
 - [`op-attr-reg-fitted`](skills/op-attr-reg-fitted.md): Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from an OLS refit during the attribute prepass.
 - [`op-attr-reg-leverage`](skills/op-attr-reg-leverage.md): Per-row hat-matrix diagonal hᵢᵢ from an unpenalized OLS refit — leverage diagnostic.
 - [`op-attr-reg-predict`](skills/op-attr-reg-predict.md): Per-row score from a bound model (a compose `fits` entry or a loaded `models` file) — no refit; whole model or a terms subset.
 - [`op-attr-reg-residual`](skills/op-attr-reg-residual.md): Per-row residual yᵢ − ŷᵢ from an OLS refit during the attribute prepass.
+- [`op-attr-scale-score`](skills/op-attr-scale-score.md): Per-row rating-battery score — the valid-item mean or prorated sum across a vector of members, with reverse-keyed items and a min_valid floor.
 - [`op-attr-set-has`](skills/op-attr-set-has.md): Per-row 0/1 — whether the configured label's bit is set on a set field.
 - [`op-attr-set-popcount`](skills/op-attr-set-popcount.md): Per-row popcount of a set field — number of selected labels.
 - [`op-attr-tscore`](skills/op-attr-tscore.md): Per-row T-score column — z-score rescaled to mean 50, stddev 10.
+- [`op-attr-vec-distance`](skills/op-attr-vec-distance.md): Per-row distance to a target profile — plain, set or fitted (std_euclidean, mahalanobis) metrics across a vector's members, against a literal, label-map or registered reference.
 - [`op-attr-zscore`](skills/op-attr-zscore.md): Per-row standardized z-score column — (value − mean) / stddev via two-pass Welford.
 - [`op-feat-bucketize`](skills/op-feat-bucketize.md): Bin a numeric column into ordered buckets — explicit boundaries or N equal-population quantiles.
 - [`op-feat-date-features`](skills/op-feat-date-features.md): Expand a date or datetime field into year / month / day / day-of-week / quarter (+ hour) columns.
@@ -112,7 +117,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-mat-collinearity`](skills/op-mat-collinearity.md): Collinearity check of candidate regression predictors (no response) — VIF and tolerance per predictor, Belsley's condition indices and variance-decomposition proportions (uncentered with the intercept, or centered), listwise or pairwise, weighted.
 - [`op-mat-correlation`](skills/op-mat-correlation.md): Correlation matrix of a vector's numeric members — Pearson (default), Spearman or Kendall tau-b via params.method — listwise or pairwise, weighted; one MatrixResult per spec (per group bucket when grouped), no p-values.
 - [`op-mat-covariance`](skills/op-mat-covariance.md): Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped).
-- [`op-mat-distance`](skills/op-mat-distance.md): Distances between segment centroids — a k × k matrix over the buckets a grouper (params.between: any built-in, date family included, or a registered extension grouper) cuts the rows into; euclidean, sqeuclidean, manhattan, chebyshev, cosine or mahalanobis (pooled within-bucket covariance); optional standardize; weighted centroids.
+- [`op-mat-distance`](skills/op-mat-distance.md): Distances between segment centroids — a k × k matrix over the buckets a grouper (params.between: any built-in, date family included, or a registered extension grouper) cuts the rows into; any registry metric MAT_DISTANCE accepts (euclidean, sq_euclidean, manhattan, chebyshev, cosine, hellinger, aitchison, mahalanobis); optional standardize; weighted centroids.
 - [`op-mat-factor`](skills/op-mat-factor.md): Exploratory factor analysis of a battery — minres, principal-axis or maximum-likelihood extraction from the SMC, varimax / promax / oblimin rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett, ML's likelihood chi-square, TLI, RMSEA with its interval and BIC; listwise or pairwise, weighted.
 - [`op-mat-partial-correlation`](skills/op-mat-partial-correlation.md): Partial correlation matrix of a vector's numeric members — each pair with every other member, or the params.control fields, held fixed — listwise or pairwise, weighted; non-PSD input refused unless repair "nearest", singular input refused.
 - [`op-mat-pca`](skills/op-mat-pca.md): Principal component analysis of a battery — loadings and eigenvectors (p × k, rectangular), every eigenvalue with explained / cumulative shares, communalities, KMO (overall and per member) and Bartlett's sphericity test; correlation or covariance input, listwise or pairwise, weighted.
@@ -310,5 +315,6 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`type-u4`](skills/type-u4.md): 4-bit unsigned integer; bit-packed with adjacent u4 / packed_bool fields.
 - [`type-u64`](skills/type-u64.md): 8-byte unsigned integer; for sub-day timestamps and very wide cardinals.
 - [`type-u8`](skills/type-u8.md): 1-byte unsigned integer; fits cardinals through 255.
+- [`vector-metrics`](skills/vector-metrics.md): Declaring what a battery's values mean (vector kind measure, scale, composition or binary) so similarity and distance pick a suitable metric by default, the scale bounds a kind "scale" battery carries, and the warning (an error under strict) an explicit metric that fits the kind poorly raises. Topical design; per-operator params in the atomic skills.
 - [`weighting`](skills/weighting.md): Row weights on a Request — the request / per-slot weight and the instance default, probability vs frequency kinds, resolution order, invalid-weight exclusion, which operators honour, skip or refuse a weight, weighted inference on the effective sample size, the unweighted-base recipe and the weighted floor keys.
 - [`window-design`](skills/window-design.md): Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills.

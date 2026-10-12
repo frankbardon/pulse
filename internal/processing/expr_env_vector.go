@@ -12,14 +12,20 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprbuiltins"
 	"github.com/frankbardon/pulse/internal/vecmath"
+	"github.com/frankbardon/pulse/linalg/metric"
 )
 
 // Built-in vector and scalar-maths expression functions (vsum, dot,
 // cosine, vcenter, sqrt, ...). The names live in ONE list,
 // internal/exprbuiltins, read by this registration, by filter-precompute
 // purity (filter_precompute.go) and by the embedder reservation
-// (extensions_validate.go). Every numeric rule lives in
-// internal/vecmath; the closures here only adapt arguments.
+// (extensions_validate.go). The metric functions — dist (euclidean),
+// cosine (its similarity form) and the set similarities (jaccard, dice,
+// hamming, overlap; expr_env_setsim.go) — resolve their metric through
+// the linalg/metric registry (consumer "expr"), so they share one
+// definition and one NaN policy with every other metric consumer; the
+// remaining numeric rules (reductions, dot, the maps) live in
+// internal/vecmath. The closures here only adapt arguments.
 //
 // A vector argument is a []float64 or an expr literal array ([]any) of
 // numbers; a nil element (a null field inside `[a, b, c]`) reads as NaN
@@ -42,8 +48,8 @@ var exprBuiltinImpls = map[string]exprBuiltinFunc{
 	"norm":       vecReduce("norm", vecmath.Norm),
 	"vcount":     vecCountBuiltin,
 	"dot":        vecPair("dot", vecmath.Dot),
-	"dist":       vecPair("dist", vecmath.Dist),
-	"cosine":     vecPair("cosine", vecmath.Cosine),
+	"dist":       vecPair("dist", exprMetricKernel(builtinMetric("dist"))),
+	"cosine":     vecPair("cosine", exprMetricKernel(builtinMetric("cosine"))),
 	"argmax":     vecArg("argmax", vecmath.ArgMax),
 	"argmin":     vecArg("argmin", vecmath.ArgMin),
 	"vcenter":    vecMap("vcenter", vecmath.Center),
@@ -53,10 +59,49 @@ var exprBuiltinImpls = map[string]exprBuiltinFunc{
 	"log":        scalarUnary("log", vecmath.Log),
 	"exp":        scalarUnary("exp", vecmath.Exp),
 	"pow":        scalarPowBuiltin,
-	"jaccard":    setSimilarity("jaccard", vecmath.Jaccard),
-	"dice":       setSimilarity("dice", vecmath.Dice),
+	"jaccard":    setSimilarity("jaccard", exprMetric(builtinMetric("jaccard"))),
+	"dice":       setSimilarity("dice", exprMetric(builtinMetric("dice"))),
 	"hamming":    setHammingBuiltin,
-	"overlap":    setSimilarity("overlap", vecmath.Overlap),
+	"overlap":    setSimilarity("overlap", exprMetric(builtinMetric("overlap"))),
+	"ref":        refBuiltin,
+}
+
+// builtinMetric is the registry metric and form the reserved built-in
+// fn evaluates (exprbuiltins.Metric, the one table the vector-kind fit
+// check also reads); a name outside it is a programming error.
+func builtinMetric(fn string) (string, metric.Form) {
+	mf, ok := exprbuiltins.Metric(fn)
+	if !ok {
+		panic("expr built-in " + fn + " evaluates no registry metric")
+	}
+	return mf.Metric, metric.Form(mf.Form)
+}
+
+// exprMetric resolves name in form f for the expression layer through
+// the linalg/metric registry. The names are fixed at build time, so a
+// refusal is a programming error (TestExprMetrics_ResolveThroughRegistry
+// pins every one).
+func exprMetric(name string, f metric.Form) exprMetricRef {
+	m, err := metric.ResolveFor(metric.ConsumerExpr, name, f)
+	if err != nil {
+		panic("expr metric " + name + ": " + err.Error())
+	}
+	return exprMetricRef{m: m, form: f}
+}
+
+// exprMetricRef is a resolved expression metric and the form it answers
+// in.
+type exprMetricRef struct {
+	m    metric.Metric
+	form metric.Form
+}
+
+// exprMetricKernel is the vecPair kernel of a registry metric: the
+// pairwise-complete value (Scaled metrics rescaled by p/p_observed), a
+// *metric.LengthMismatchError for unequal lengths.
+func exprMetricKernel(name string, f metric.Form) func(a, b []float64) (float64, error) {
+	r := exprMetric(name, f)
+	return func(a, b []float64) (float64, error) { return r.m.Eval(r.form, a, b, nil) }
 }
 
 // exprBuiltinArity is each reserved built-in's [min, max] argument
@@ -65,11 +110,12 @@ var exprBuiltinArity = map[string][2]int{
 	"dot": {2, 2}, "dist": {2, 2}, "cosine": {2, 2},
 	"vnormalize": {2, 2}, "pow": {2, 2},
 	"jaccard": {2, 2}, "dice": {2, 2}, "hamming": {2, 2}, "overlap": {2, 2},
+	"ref": {2, 2},
 }
 
 // exprBuiltinVectorResult names the built-ins that return a vector.
 var exprBuiltinVectorResult = map[string]bool{
-	"vcenter": true, "vzscore": true, "vnormalize": true,
+	"vcenter": true, "vzscore": true, "vnormalize": true, "ref": true,
 }
 
 // vectorExprOptions registers every reserved built-in, in the
@@ -209,9 +255,13 @@ func vecPair(fn string, k func(a, b []float64) (float64, error)) exprBuiltinFunc
 		}
 		out, err := k(a, b)
 		if err != nil {
-			var lm *vecmath.LengthMismatchError
+			var lm *metric.LengthMismatchError
 			if stderrors.As(err, &lm) {
 				return nil, vectorLengthMismatch(fn, lm.Left, lm.Right, err)
+			}
+			var vm *vecmath.LengthMismatchError
+			if stderrors.As(err, &vm) {
+				return nil, vectorLengthMismatch(fn, vm.Left, vm.Right, err)
 			}
 			return nil, errors.WrapCodedError(err, errors.PROCESSING_RUNTIME, fn+"(): "+err.Error())
 		}
@@ -395,7 +445,7 @@ func exprRefusal(err error) *errors.CodedError {
 		if !stderrors.As(e, &ce) {
 			return nil
 		}
-		if ce.Code == errors.PROCESSING_VECTOR_LENGTH_MISMATCH ||
+		if ce.Code == errors.PROCESSING_VECTOR_LENGTH_MISMATCH || refRefusalCode(ce.Code) ||
 			(ce.Code == errors.PROCESSING_CONFIG && stderrors.Is(ce.Cause, vecmath.ErrInvalidNormalizeMode)) {
 			return ce
 		}

@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -234,6 +235,11 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			}
 		}
 		gerr := mergegate.ChainRefusal(staged, current, snap.mergeFacts(opts.instance()), i, stage.Name)
+		if gerr == nil {
+			// The runtime's next check: an array-valued aggregation may
+			// not feed a later stage.
+			gerr = mergegate.StageArrayValuedRefusal(staged, i, len(req.Stages), stage.Name, aggregationKinds(opts.instance(), snap))
+		}
 		if gerr != nil {
 			addCodedError(env, gerr)
 		}
@@ -297,7 +303,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 				}
 			}
 		}
-		next := chainPredictedOutputFields(staged)
+		next := chainPredictedOutputFields(staged, current, aggregationKinds(opts.instance(), snap))
 		result.StageSchemas = append(result.StageSchemas, next)
 		current = synthChainSchema(staged)
 	}
@@ -354,9 +360,14 @@ func chainStageDefaulted(req *types.Request, in *encoding.Schema, opts *PredictO
 }
 
 // chainPredictedOutputFields names the output columns a chain stage
-// produces. Mirrors processing.ChainOutputSchema's layout without
-// importing processing.
-func chainPredictedOutputFields(req *types.Request) []string {
+// produces over its input schema in. Mirrors processing.ChainOutputSchema's
+// layout without importing processing; an expanding vector aggregation
+// names its per-element columns (vectors.AggregationOutputColumns — the
+// runtime row writer's names). Such a stage is always the last (an
+// array-valued stage may not feed another: mergegate.
+// StageArrayValuedRefusal), so its columns are never typed as a next
+// stage's input.
+func chainPredictedOutputFields(req *types.Request, in *encoding.Schema, kinds vectors.AggregationKinds) []string {
 	out := make([]string, 0, len(req.Groups)+len(req.Aggregations))
 	seen := make(map[string]struct{})
 	for _, g := range req.Groups {
@@ -373,15 +384,14 @@ func chainPredictedOutputFields(req *types.Request) []string {
 		if agg == nil {
 			continue
 		}
-		label := agg.Label
-		if label == "" {
-			label = string(agg.Type) + "_" + agg.Field
+		cols, _ := vectors.AggregationOutputColumns(req, agg, in, kinds)
+		for _, label := range cols {
+			if _, dup := seen[label]; dup {
+				continue
+			}
+			seen[label] = struct{}{}
+			out = append(out, label)
 		}
-		if _, dup := seen[label]; dup {
-			continue
-		}
-		seen[label] = struct{}{}
-		out = append(out, label)
 	}
 	return out
 }
@@ -412,7 +422,7 @@ func synthChainSchema(req *types.Request) *encoding.Schema {
 		}
 		label := agg.Label
 		if label == "" {
-			label = string(agg.Type) + "_" + agg.Field
+			label = types.AggregationLabelOf(agg)
 		}
 		if _, dup := seen[label]; dup {
 			continue

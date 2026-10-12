@@ -782,6 +782,45 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "labels", Type: "[]string", Description: "Resolved dictionary labels for every bit set in mask_union."},
 			),
 		},
+		vecAggCapability(types.AGG_VEC_MEAN,
+			"Per-member mean of a vector (vector or fields, exactly one; never field): one figure per member, in member order — the group's average profile. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) / sum(w) per element. An element no row answered is NaN (null in JSON). Array-valued: refused as a crosstab cell, a Sort key, a window or post-test input, an overlay host (request, Compose or whole-chain) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"<label>[<element label>]\" — presentation only, refused wherever the array is.",
+			"rich []float64, one mean per member in member order (an element no row answered is NaN, null in JSON); no scalar figure"),
+		vecAggCapability(types.AGG_VEC_SUM,
+			"Per-member total of a vector (vector or fields, exactly one; never field): one figure per member, in member order. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) per element. An element no row answered is 0. Array-valued: refused as a crosstab cell, a Sort key, a window or post-test input, an overlay host (request, Compose or whole-chain) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"<label>[<element label>]\" — presentation only, refused wherever the array is.",
+			"rich []float64, one total per member in member order (0 where no row answered); no scalar figure"),
+	}
+}
+
+// vecAggCapability declares a vector aggregator (AGG_VEC_MEAN /
+// AGG_VEC_SUM). Its columns are the slot's vector / fields members;
+// AcceptsTypes is the member types a vector carries without coerce
+// (packed_bool members need the vector's coerce "binary").
+func vecAggCapability(op types.AggregationType, desc, emits string) descriptor.Operator {
+	return descriptor.Operator{
+		Name:        string(op),
+		Category:    "aggregator",
+		Description: desc,
+		Params: []descriptor.Param{
+			{
+				Name:        "labels",
+				Type:        "list",
+				Description: "Display label per member, inline fields only (a named vector carries its own Request.Vectors labels); one per resolved member. Names the elements in labels (components). Default: the member names.",
+			},
+			{
+				Name:        "expand",
+				Type:        "bool",
+				Description: "true: replace the array with one scalar column per member, \"<label>[<element label>]\" in member order (grouped: per row); the label itself is absent. Predict lists the columns (aggregations[i].columns). Presentation only: Sort, windows, post-tests, overlays and a feeding chain stage refuse them (PROCESSING_CONFIG, reason array_valued); element labels must be distinct (expand_duplicate_labels). Return paths cannot name a bracketed column — select them with a prefix glob, data[*].<label>*. Default false.",
+			},
+		},
+		AcceptsTypes:  numericFieldTypesNoDecimal,
+		EmitsTypeNote: emits,
+		Streamable:    true,
+		ComponentSchema: aggSchema(descriptor.Mergeable,
+			descriptor.ComponentKey{Name: "labels", Type: "[]string", Description: "Display label per member, in member order: the vector's labels, else params.labels, else the member names."},
+			descriptor.ComponentKey{Name: "element_n", Type: "[]int", Description: "Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered)."},
+			descriptor.ComponentKey{Name: "element_sum", Type: "[]float64", Description: "Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count."},
+			descriptor.ComponentKey{Name: "element_sum_weights", Type: "[]float64", Description: "Weighted slot only: per member, the sum of contributing rows' weights (valid and > 0) — AGG_VEC_MEAN's denominator.", Optional: true},
+		),
 	}
 }
 

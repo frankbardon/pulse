@@ -68,6 +68,22 @@ func TestSkillsCoverAllOperatorComponents(t *testing.T) {
 		}
 	})
 
+	// Attributes: only an operator that declares a ComponentSchema
+	// (it emits a Response.Components.Attributes entry) owes the
+	// section.
+	t.Run("attributes", func(t *testing.T) {
+		for _, op := range attributeCapabilities() {
+			if len(op.ComponentSchema.Keys) == 0 {
+				continue
+			}
+			op := op
+			t.Run(op.Name, func(t *testing.T) {
+				stem := "op-attr-" + atomicKebab(strings.TrimPrefix(op.Name, "ATTR_"))
+				check(t, op.Name, stem, componentKeyNames(op.ComponentSchema))
+			})
+		}
+	})
+
 	// Matrices: the manifest's declaration (weighted keys spliced in),
 	// so the skill names the weighted floor keys too.
 	t.Run("matrices", func(t *testing.T) {

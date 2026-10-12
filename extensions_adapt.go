@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/window"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -151,7 +152,63 @@ func (v *rowView) of(rec *processing.Record) (extend.Record, bool) {
 type aggCore struct {
 	inner extend.Aggregator
 	wt    *slotWeighting
+	// arr is an ArrayValued registration's slot shape (nil otherwise).
+	arr *arrayShape
 }
+
+// arrayShape is an ArrayValued registration's slot: the element label
+// per member (the resolved params.labels, member order) and whether
+// params.expand asked for one column per member.
+type arrayShape struct {
+	name   types.AggregationType
+	labels []string
+	expand bool
+}
+
+// values checks an ArrayValued instance's Rich value: a []float64 of
+// the member count, else PROCESSING_INTERNAL — the registration
+// promised one figure per member.
+func (s *arrayShape) values(v any) ([]float64, error) {
+	vals, ok := v.([]float64)
+	if !ok || len(vals) != len(s.labels) {
+		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			fmt.Sprintf("extension aggregator %s is registered ArrayValued, so Rich must return a []float64 of %d (one per member); it returned %T of length %d", s.name, len(s.labels), v, richLen(v)),
+			map[string]any{"aggregation_type": string(s.name), "members": len(s.labels), "rich_type": fmt.Sprintf("%T", v)})
+	}
+	return vals, nil
+}
+
+func richLen(v any) int {
+	if vals, ok := v.([]float64); ok {
+		return len(vals)
+	}
+	return -1
+}
+
+// ExpandedElements is processing's expand hook (ElementExpander), on
+// every adapted aggregator: an ArrayValued slot whose params set expand
+// writes the Rich array as one column per member; any other answers
+// ok=false and is written as usual.
+func (a aggCore) ExpandedElements() ([]string, []float64, bool, error) {
+	if a.arr == nil || !a.arr.expand {
+		return nil, nil, false, nil
+	}
+	rich, ok := a.inner.(extend.RichAggregator)
+	if !ok {
+		return nil, nil, false, nil
+	}
+	v, err := rich.Rich()
+	if err != nil {
+		return nil, nil, false, err
+	}
+	vals, err := a.arr.values(v)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	return append([]string(nil), a.arr.labels...), vals, true, nil
+}
+
+var _ processing.ElementExpander = aggCore{}
 
 func (a aggCore) Aggregate(records []*processing.Record, field string) (float64, error) {
 	if a.wt != nil {
@@ -216,10 +273,23 @@ func (a aggMerge) MergeOnline(other processing.OnlineAggregator) error {
 	return a.merge.Merge(partner)
 }
 
-// aggRich forwards extend.RichAggregator.
-type aggRich struct{ rich extend.RichAggregator }
+// aggRich forwards extend.RichAggregator; on an ArrayValued slot (arr
+// non-nil) the value must be the per-member []float64.
+type aggRich struct {
+	rich extend.RichAggregator
+	arr  *arrayShape
+}
 
-func (a aggRich) Rich() (any, error) { return a.rich.Rich() }
+func (a aggRich) Rich() (any, error) {
+	v, err := a.rich.Rich()
+	if err != nil || a.arr == nil {
+		return v, err
+	}
+	if _, err := a.arr.values(v); err != nil {
+		return nil, err
+	}
+	return v, nil
+}
 
 // aggMeta synthesizes processing.MetaAggregator from the registration's
 // ComponentsFunc. The emitter receives the embedder's own instance, so
@@ -319,12 +389,19 @@ const (
 // adopted as the emitter, exactly as the engine's MetaAggregator
 // assertion saw it before adaptation.
 func adaptAggregator(name types.AggregationType, inner extend.Aggregator, emit AggregatorComponentsFunc, wt *slotWeighting) processing.Aggregator {
+	return adaptAggregatorShaped(name, inner, emit, wt, nil)
+}
+
+// adaptAggregatorShaped is adaptAggregator with an ArrayValued slot's
+// shape (nil for any other slot): Rich is checked against it and
+// ExpandedElements honours its expand.
+func adaptAggregatorShaped(name types.AggregationType, inner extend.Aggregator, emit AggregatorComponentsFunc, wt *slotWeighting, arr *arrayShape) processing.Aggregator {
 	if emit == nil {
 		if self, ok := inner.(componentsEmitter); ok {
 			emit = func(extend.Aggregator) (map[string]any, error) { return self.Components() }
 		}
 	}
-	core := aggCore{inner: inner, wt: wt}
+	core := aggCore{inner: inner, wt: wt, arr: arr}
 	online, isOnline := inner.(extend.OnlineAggregator)
 	rich, isRich := inner.(extend.RichAggregator)
 	merge, isMerge := inner.(extend.MergeableAggregator)
@@ -332,7 +409,7 @@ func adaptAggregator(name types.AggregationType, inner extend.Aggregator, emit A
 	if wt != nil {
 		o.view = &rowView{s: wt}
 	}
-	r := aggRich{rich: rich}
+	r := aggRich{rich: rich, arr: arr}
 	m := aggMeta{inner: inner, emit: emit}
 	g := aggMerge{merge: merge, name: name}
 	caps := 0
@@ -383,7 +460,7 @@ func adaptAggregator(name types.AggregationType, inner extend.Aggregator, emit A
 // registration on a slot stamped with a weight reads it through
 // extend.Record.Weight().
 func adaptAggregatorFactory(reg AggregatorRegistration) processing.AggregatorFactory {
-	inner, emit, name, aware := reg.Factory, reg.ComponentsFunc, reg.Name, reg.WeightAware
+	inner, emit, name, aware, array := reg.Factory, reg.ComponentsFunc, reg.Name, reg.WeightAware, reg.ArrayValued
 	return func(agg *types.Aggregation, schema *encoding.Schema) (processing.Aggregator, error) {
 		instance, err := inner(agg, schema)
 		if err != nil {
@@ -396,8 +473,29 @@ func adaptAggregatorFactory(reg AggregatorRegistration) processing.AggregatorFac
 		if agg != nil {
 			wt = newSlotWeighting(aware, agg.Weight)
 		}
-		return adaptAggregator(name, instance, emit, wt), nil
+		var arr *arrayShape
+		if array && agg != nil {
+			if arr, err = arrayShapeOf(name, agg); err != nil {
+				return nil, err
+			}
+		}
+		return adaptAggregatorShaped(name, instance, emit, wt, arr), nil
 	}
+}
+
+// arrayShapeOf reads an ArrayValued slot's shape off the prepared spec
+// (vectors.AggregationSlotRewrite: Fields the literal members,
+// params.labels their display labels, params.expand as written).
+func arrayShapeOf(name types.AggregationType, agg *types.Aggregation) (*arrayShape, error) {
+	p, cerr := vectors.DecodeExtensionVecAggParams("aggregation", name, agg.Params)
+	if cerr != nil {
+		return nil, cerr
+	}
+	labels := p.Labels
+	if len(labels) != len(agg.Fields) {
+		labels = agg.Fields
+	}
+	return &arrayShape{name: name, labels: append([]string(nil), labels...), expand: p.Expand}, nil
 }
 
 // ---- groupers ----------------------------------------------------------
@@ -835,9 +933,19 @@ func (a attrTwoPass) PrePass(rec *processing.Record, field string) error {
 
 func (a attrTwoPass) Finalize() error { return a.two.Finalize() }
 
+// attrMeta synthesizes processing.MetaAttribute from the
+// registration's ComponentsFunc.
+type attrMeta struct {
+	inner extend.AttributeComputer
+	emit  AttributeComponentsFunc
+}
+
+func (a attrMeta) Components() (map[string]any, error) { return a.emit(a.inner) }
+
 // One wrapper per capability tier: buffered, (R)ow-local, (T)wo-pass.
 // TwoPassAttribute embeds RowLocalAttribute, so the tiers nest and
-// there is no fourth combination.
+// there is no fourth combination. The M variants add MetaAttribute
+// (a registration with a ComponentsFunc).
 type (
 	attrAdapted  struct{ attrCore }
 	attrAdaptedR struct {
@@ -849,23 +957,49 @@ type (
 		attrRow
 		attrTwoPass
 	}
+	attrAdaptedM struct {
+		attrCore
+		attrMeta
+	}
+	attrAdaptedRM struct {
+		attrCore
+		attrRow
+		attrMeta
+	}
+	attrAdaptedTM struct {
+		attrCore
+		attrRow
+		attrTwoPass
+		attrMeta
+	}
 )
 
 // adaptAttribute wraps an extend.AttributeComputer so the engine's
 // RowLocalAttribute / TwoPassAttribute assertions succeed iff the
-// embedder value implements the matching extend sibling. ExtensionAware
-// is engine-only and never forwarded.
-func adaptAttribute(inner extend.AttributeComputer, wt *slotWeighting) processing.AttributeComputer {
+// embedder value implements the matching extend sibling, and
+// MetaAttribute iff emit is non-nil. ExtensionAware is engine-only and
+// never forwarded.
+func adaptAttribute(inner extend.AttributeComputer, wt *slotWeighting, emit AttributeComponentsFunc) processing.AttributeComputer {
 	core := attrCore{inner: inner, wt: wt}
 	var view *rowView
 	if wt != nil {
 		view = &rowView{s: wt}
 	}
+	meta := attrMeta{inner: inner, emit: emit}
 	if two, ok := inner.(extend.TwoPassAttribute); ok {
+		if emit != nil {
+			return &attrAdaptedTM{core, attrRow{row: two, view: view}, attrTwoPass{two: two, view: view}, meta}
+		}
 		return &attrAdaptedT{core, attrRow{row: two, view: view}, attrTwoPass{two: two, view: view}}
 	}
 	if row, ok := inner.(extend.RowLocalAttribute); ok {
+		if emit != nil {
+			return &attrAdaptedRM{core, attrRow{row: row, view: view}, meta}
+		}
 		return &attrAdaptedR{core, attrRow{row: row, view: view}}
+	}
+	if emit != nil {
+		return &attrAdaptedM{core, meta}
 	}
 	return &attrAdapted{core}
 }
@@ -873,7 +1007,7 @@ func adaptAttribute(inner extend.AttributeComputer, wt *slotWeighting) processin
 // adaptAttributeFactory turns a registration's extend factory into the
 // engine factory. A nil instance passes through as nil.
 func adaptAttributeFactory(reg AttributeRegistration) processing.AttributeFactory {
-	inner, aware := reg.Factory, reg.WeightAware
+	inner, aware, emit := reg.Factory, reg.WeightAware, reg.ComponentsFunc
 	return func(attr *types.Attribute, schema *encoding.Schema) (processing.AttributeComputer, error) {
 		instance, err := inner(attr, schema)
 		if err != nil {
@@ -886,7 +1020,7 @@ func adaptAttributeFactory(reg AttributeRegistration) processing.AttributeFactor
 		if attr != nil {
 			wt = newSlotWeighting(aware, attr.Weight)
 		}
-		return adaptAttribute(instance, wt), nil
+		return adaptAttribute(instance, wt, emit), nil
 	}
 }
 

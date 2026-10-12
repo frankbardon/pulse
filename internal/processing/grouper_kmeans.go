@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
+	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -596,14 +597,24 @@ func nearestCentroid(z []float64, centroids [][]float64) int {
 	return best
 }
 
-// sqDist is the FMA-free squared Euclidean distance.
-func sqDist(a, b []float64) float64 {
-	var s float64
-	for j := range a {
-		d := a[j] - b[j]
-		s += float64(d * d)
+// kmeansMetric is the registry's sq_euclidean, the one metric k-means
+// minimises (consumer GROUP_KMEANS accepts the Euclidean family only).
+var kmeansMetric = func() metric.Metric {
+	m, err := metric.ResolveFor(metric.ConsumerKMeans, "sq_euclidean", metric.Distance)
+	if err != nil {
+		panic("GROUP_KMEANS metric: " + err.Error())
 	}
-	return s
+	return m
+}()
+
+// sqDist is the squared Euclidean distance through the linalg/metric
+// registry: FMA-free, summed left to right over the members. The
+// canonical points and centroids are finite and complete, so the
+// registry's pairwise-complete rescaling never fires and the bits are
+// exactly the plain sum's (TestKMeans_SqDistIsRegistrySqEuclidean).
+func sqDist(a, b []float64) float64 {
+	v, _ := kmeansMetric.Eval(metric.Distance, a, b, nil)
+	return v
 }
 
 var (

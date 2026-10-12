@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -156,6 +157,13 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 					" — drop normalize or pick a scalar aggregator",
 				map[string]any{"aggregation": string(spec.Cell.Type), "normalize": string(mode)})
 		}
+	}
+
+	// An array-valued cell or margin aggregation (AGG_VEC_*): refused
+	// unconditionally — the runtime twin is processing's
+	// validateCrosstabSpec, one helper for both.
+	if cerr := vectors.ArrayValuedCrosstabRefusal(spec, aggregationKinds(opts.instance(), extensionsFromOpts(opts))); cerr != nil {
+		addCodedError(env, cerr)
 	}
 
 	validateCrosstabMarginAggregations(env, spec, schema, opts)

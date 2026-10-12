@@ -104,64 +104,53 @@ func TestCount(t *testing.T) {
 	}
 }
 
+// TestPairwise pins Dot's pairwise-complete rule. dist and cosine
+// moved to the linalg/metric registry (TestExprMetrics_* in
+// internal/processing pins them through the expression layer).
 func TestPairwise(t *testing.T) {
 	cases := []struct {
-		name              string
-		a, b              []float64
-		dot, dist, cosine float64
+		name string
+		a, b []float64
+		dot  float64
 	}{
-		{"empty", []float64{}, []float64{}, nan, nan, nan},
-		{"no-complete-pair", []float64{nan, 1}, []float64{2, nan}, nan, nan, nan},
-		{"plain", []float64{1, 2, 3}, []float64{4, 5, 6}, 32, math.Sqrt(27), 32 / (math.Sqrt(14) * math.Sqrt(77))},
-		{"pair-dropped-either-side", []float64{1, nan, 3, 10}, []float64{1, 7, nan, 1}, 11, 9, 11 / (math.Sqrt(101) * math.Sqrt(2))},
-		{"orthogonal", []float64{1, 0}, []float64{0, 1}, 0, math.Sqrt2, 0},
-		{"parallel", []float64{2, 4}, []float64{1, 2}, 10, math.Sqrt(5), 1},
-		{"zero-norm-left", []float64{0, 0}, []float64{1, 2}, 0, math.Sqrt(5), nan},
-		{"zero-norm-right", []float64{3, 4}, []float64{0, 0}, 0, 5, nan},
-		{"zero-norm-after-drop", []float64{0, 5}, []float64{1, nan}, 0, 1, nan},
-		// a*a underflows to 0 while a*b does not: the explicit zero-norm
-		// guard must still give NaN, not +Inf.
-		{"underflowed-norm-left", []float64{1e-200}, []float64{1}, 1e-200, 1, nan},
-		{"underflowed-norm-right", []float64{1}, []float64{1e-200}, 1e-200, 1, nan},
+		{"empty", []float64{}, []float64{}, nan},
+		{"no-complete-pair", []float64{nan, 1}, []float64{2, nan}, nan},
+		{"plain", []float64{1, 2, 3}, []float64{4, 5, 6}, 32},
+		{"pair-dropped-either-side", []float64{1, nan, 3, 10}, []float64{1, 7, nan, 1}, 11},
+		{"orthogonal", []float64{1, 0}, []float64{0, 1}, 0},
+		{"parallel", []float64{2, 4}, []float64{1, 2}, 10},
+		{"zero-norm-left", []float64{0, 0}, []float64{1, 2}, 0},
+		{"underflowed-norm-left", []float64{1e-200}, []float64{1}, 1e-200},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			if got, err := Dot(c.a, c.b); err != nil || !near(got, c.dot) {
 				t.Errorf("Dot = %v, %v; want %v", got, err, c.dot)
 			}
-			if got, err := Dist(c.a, c.b); err != nil || !near(got, c.dist) {
-				t.Errorf("Dist = %v, %v; want %v", got, err, c.dist)
-			}
-			if got, err := Cosine(c.a, c.b); err != nil || !near(got, c.cosine) {
-				t.Errorf("Cosine = %v, %v; want %v", got, err, c.cosine)
-			}
 		})
 	}
 }
 
 func TestPairwiseLengthMismatch(t *testing.T) {
-	fns := map[string]func(a, b []float64) (float64, error){"Dot": Dot, "Dist": Dist, "Cosine": Cosine}
 	pairs := []struct{ a, b []float64 }{
 		{[]float64{1, 2}, []float64{1}},
 		{nil, []float64{nan}},
 		{[]float64{nan, nan, nan}, []float64{nan}},
 	}
-	for name, f := range fns {
-		for _, p := range pairs {
-			got, err := f(p.a, p.b)
-			if !errors.Is(err, ErrLengthMismatch) {
-				t.Fatalf("%s(%v,%v) err = %v, want ErrLengthMismatch", name, p.a, p.b, err)
-			}
-			var lm *LengthMismatchError
-			if !errors.As(err, &lm) || lm.Left != len(p.a) || lm.Right != len(p.b) {
-				t.Fatalf("%s: err %#v does not carry lengths %d/%d", name, err, len(p.a), len(p.b))
-			}
-			if math.IsNaN(got) {
-				t.Fatalf("%s: mismatch must not yield NaN", name)
-			}
-			if !strings.Contains(err.Error(), strconv.Itoa(len(p.a))) {
-				t.Fatalf("%s: message %q lacks the left length", name, err.Error())
-			}
+	for _, p := range pairs {
+		got, err := Dot(p.a, p.b)
+		if !errors.Is(err, ErrLengthMismatch) {
+			t.Fatalf("Dot(%v,%v) err = %v, want ErrLengthMismatch", p.a, p.b, err)
+		}
+		var lm *LengthMismatchError
+		if !errors.As(err, &lm) || lm.Left != len(p.a) || lm.Right != len(p.b) {
+			t.Fatalf("err %#v does not carry lengths %d/%d", err, len(p.a), len(p.b))
+		}
+		if math.IsNaN(got) {
+			t.Fatal("mismatch must not yield NaN")
+		}
+		if !strings.Contains(err.Error(), strconv.Itoa(len(p.a))) {
+			t.Fatalf("message %q lacks the left length", err.Error())
 		}
 	}
 	if errors.Is(&LengthMismatchError{}, ErrInvalidNormalizeMode) {

@@ -46,7 +46,7 @@ func TestMatrixCorrelation_ZeroWeightRowsCountTowardN(t *testing.T) {
 					w, zero = 0, zero+1
 				}
 				rec := NewRecordWithNulls(schema, map[string]float64{"x": x, "y": y, "w": w}, nil)
-				rec.SetMergePosition(0, i)
+				rec.SetMergePosition(0, 0, i)
 				if err := slots[0].UpdateRow(rec, ""); err != nil {
 					t.Fatalf("matrix UpdateRow: %v", err)
 				}

@@ -110,8 +110,8 @@ Each needs a fitted matrix. Pulse already has the two-pass pattern in `ATTR_REG_
 | `ATTR_PC_SCORE` | C | score on component `params.component` (1-based) | turn 25 items into 3 indices that feed crosstabs |
 | `ATTR_FACTOR_SCORE` | S | regression / Bartlett factor score | follows `MAT_FACTOR` |
 | `ATTR_SCALE_SCORE` | C | mean or sum of a battery with `min_valid` and reverse-scoring | the everyday "compute scale score" step; single-pass and streamable (no fit needed) |
-| `ATTR_PROFILE_SIMILARITY` | S | correlation / cosine of the row's vector to a reference profile (literal, lookup table, or a group centroid) | "how closely does this respondent match the ideal profile"; customer-to-segment fit |
-| `ATTR_VEC_DISTANCE` | S | Euclidean / Mahalanobis distance to a reference vector | assignment to nearest segment centroid |
+| `ATTR_PROFILE_SIMILARITY` | C | correlation / cosine of the row's vector to a reference profile (literal, a registered `ReferenceVectors` profile, or a group centroid; the group centroid is deferred to U30) | "how closely does this respondent match the ideal profile"; customer-to-segment fit |
+| `ATTR_VEC_DISTANCE` | C | Euclidean / Mahalanobis distance to a reference vector | assignment to nearest segment centroid |
 
 **Fitting scope.** `params.fit_on` is either `"filtered"` (default: the same rows being scored) or a named sub-population filter. The second lets a scoring model be fitted on, say, a "clean" base and applied to everyone.
 

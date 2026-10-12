@@ -326,7 +326,8 @@ func CanMergeRequestWithExtensions(req *types.Request, schema *encoding.Schema, 
 // attribute_fitted.go: ZSCORE/TSCORE/NORMALIZED need population stats;
 // ATTR_REG_FITTED/RESIDUAL/LEVERAGE need a finalize-time regression fit;
 // the fitted vector attributes (MAHALANOBIS, PC_SCORE, FACTOR_SCORE) a finalize-time co-moment
-// fit; FORMULA/DATE_PART are pure row-local.
+// fit; FORMULA/DATE_PART are pure row-local. ATTR_VEC_DISTANCE is
+// two-pass per slot (attrRequiresTwoPass), never by type.
 func requiresTwoPass(t types.AttributeType) bool {
 	switch t {
 	case types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED,
@@ -343,7 +344,7 @@ func requiresTwoPass(t types.AttributeType) bool {
 // ATTR_FORMULA calling total(expr) (ExtensionRegistry.attrRequiresTwoPass).
 func hasTwoPassAttribute(req *types.Request, exts *ExtensionRegistry) bool {
 	for _, attr := range req.Attributes {
-		if exts.attrRequiresTwoPass(attr) {
+		if exts.attrRequiresTwoPassIn(attr, req.Vectors) {
 			return true
 		}
 	}
@@ -462,7 +463,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 		if !p.exts.IsStreamable("attribute", string(attr.Type)) {
 			return false
 		}
-		if p.exts.attrRequiresTwoPass(attr) {
+		if p.exts.attrRequiresTwoPassIn(attr, req.Vectors) {
 			hasTwoPassAttr = true
 		}
 	}
@@ -687,17 +688,18 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 				return nil, err
 			}
 			SetAttributeOutput(r, ra.label, val, ra.nullable)
+			ra.floor.observe(val, ra.nullable)
 		}
 
 		weights.Observe(r)
 		for i := range entries {
 			e := &entries[i]
-			if FieldPresent(r, e.agg.Field) {
+			if AggregationPresent(r, e.agg) {
 				e.n++
 			} else {
 				e.nNull++
 			}
-			e.weight.Observe(r, e.agg.Field)
+			e.weight.ObserveSlot(r, e.agg)
 			if err := e.online.UpdateRow(r, e.agg.Field); err != nil {
 				return nil, err
 			}
@@ -738,10 +740,9 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		}
 		label := e.agg.Label
 		if label == "" {
-			label = fmt.Sprintf("%s_%s", e.agg.Type, e.agg.Field)
+			label = types.AggregationLabelOf(e.agg)
 		}
-		row[label], err = dispatchAggregatorResult(e.online, val)
-		if err != nil {
+		if err = writeAggregationResult(row, label, e.online, val); err != nil {
 			return nil, err
 		}
 		finalized = append(finalized, finalizedEntry{
@@ -846,6 +847,12 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	// One MatrixComponents entry per Response.Matrices result (nil when
 	// the plan skips them: finalizeMatrixSlots built none).
 	attachMatrixComponents(resp, matrixComps)
+	// Row-local attribute warnings (ATTR_SCALE_SCORE's out-of-range
+	// tally), first and in declared order — the buffered arm's order.
+	resp.Warnings = prependRowLocalWarnings(resp.Warnings, rowLocalAttrs)
+	if err := attachRowLocalAttributeComponents(resp, rowLocalAttrs); err != nil {
+		return nil, err
+	}
 	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
 	}
@@ -903,7 +910,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		factory, _ := p.exts.LookupAggregator(agg.Type) // canStream verified
 		label := agg.Label
 		if label == "" {
-			label = fmt.Sprintf("%s_%s", agg.Type, agg.Field)
+			label = types.AggregationLabelOf(agg)
 		}
 		specs[i] = aggSpec{agg: agg, label: label, factory: factory}
 	}
@@ -1022,6 +1029,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 				return nil, err
 			}
 			SetAttributeOutput(r, ra.label, val, ra.nullable)
+			ra.floor.observe(val, ra.nullable)
 		}
 
 		// Tallied AFTER row-local attributes land: the primary field
@@ -1110,6 +1118,11 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	if err != nil {
 		return nil, err
 	}
+	// Row-local attribute warnings, first and in declared order.
+	resp.Warnings = prependRowLocalWarnings(resp.Warnings, rowLocalAttrs)
+	if err := attachRowLocalAttributeComponents(resp, rowLocalAttrs); err != nil {
+		return nil, err
+	}
 	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
 	}
@@ -1126,6 +1139,9 @@ type twoPassStage struct {
 	label string
 	// nullable: the computer writes NaN as a null (EmitsNull).
 	nullable bool
+	// floor tallies the slot's Components.Attributes floor on the
+	// emission scan only; nil when the slot emits no entry.
+	floor *attributeFloor
 }
 
 // buildTwoPassStages constructs every attribute in declared order and
@@ -1151,7 +1167,7 @@ func (p *Processor) buildTwoPassStages(attrs []*types.Attribute) ([]twoPassStage
 		if label == "" {
 			label = defaultAttributeLabel(attr)
 		}
-		st := twoPassStage{attr: attr, label: label, nullable: EmitsNull(computer)}
+		st := twoPassStage{attr: attr, label: label, nullable: EmitsNull(computer), floor: attributeFloorFor(computer, p.compute)}
 		if tp, ok := computer.(TwoPassAttribute); ok {
 			st.tp, st.row = tp, tp
 		} else if rl, ok := computer.(RowLocalAttribute); ok {
@@ -1244,12 +1260,17 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		}
 		return true, nil
 	}
-	setRow := func(st *twoPassStage, r *Record) error {
+	// emit is the emission scan: only it tallies the Components floor
+	// (a prepass evaluation of a needed stage is a re-read, not a row).
+	setRow := func(st *twoPassStage, r *Record, emit bool) error {
 		val, err := st.row.Row(r, st.attr.Field)
 		if err != nil {
 			return err
 		}
 		SetAttributeOutput(r, st.label, val, st.nullable)
+		if emit {
+			st.floor.observe(val, st.nullable)
+		}
 		return nil
 	}
 
@@ -1291,7 +1312,7 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 			for i := range stages {
 				if k < len(needed) && needed[k] == i {
 					k++
-					if err := setRow(&stages[i], r); err != nil {
+					if err := setRow(&stages[i], r, false); err != nil {
 						return nil, err
 					}
 					continue
@@ -1312,6 +1333,14 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		}
 	}
 	iter.Reset()
+	// A stage a prepass layer needed already scored every row once:
+	// reset its own counters (attributeTallyResetter) so the emission
+	// scan's tally — the one every other arm takes — is the whole of it.
+	for i := range stages {
+		if rs, ok := stages[i].row.(attributeTallyResetter); ok {
+			rs.resetTally()
+		}
+	}
 
 	// Emission scan: re-apply filters, emit every attribute in declared
 	// order (each sees every earlier label, as on the buffered arm),
@@ -1329,19 +1358,19 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 			continue
 		}
 		for i := range stages {
-			if err := setRow(&stages[i], r); err != nil {
+			if err := setRow(&stages[i], r, true); err != nil {
 				return nil, err
 			}
 		}
 		weights.Observe(r)
 		for i := range entries {
 			e := &entries[i]
-			if FieldPresent(r, e.agg.Field) {
+			if AggregationPresent(r, e.agg) {
 				e.n++
 			} else {
 				e.nNull++
 			}
-			e.weight.Observe(r, e.agg.Field)
+			e.weight.ObserveSlot(r, e.agg)
 			if err := e.online.UpdateRow(r, e.agg.Field); err != nil {
 				return nil, err
 			}
@@ -1357,10 +1386,9 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		}
 		label := e.agg.Label
 		if label == "" {
-			label = fmt.Sprintf("%s_%s", e.agg.Type, e.agg.Field)
+			label = types.AggregationLabelOf(e.agg)
 		}
-		row[label], err = dispatchAggregatorResult(e.online, val)
-		if err != nil {
+		if err = writeAggregationResult(row, label, e.online, val); err != nil {
 			return nil, err
 		}
 	}
@@ -1429,6 +1457,15 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 	for i := range stages {
 		resp.Warnings = append(resp.Warnings, AttributeWarnings(stages[i].row)...)
 	}
+	for i := range stages {
+		entry, ok, err := attributeComponents(stages[i].attr, stages[i].label, stages[i].row, stages[i].floor)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			attachAttributeComponents(resp, []types.AttributeComponents{entry})
+		}
+	}
 	if err := weights.Apply(resp, p.strictWeights); err != nil {
 		return nil, err
 	}
@@ -1444,6 +1481,35 @@ type rowLocalAttrEntry struct {
 	label    string
 	// nullable: the computer writes NaN as a null (EmitsNull).
 	nullable bool
+	// floor tallies the slot's Components.Attributes floor; nil when
+	// the slot emits no entry (attributeFloorFor).
+	floor *attributeFloor
+}
+
+// attachRowLocalAttributeComponents attaches the row-local slots'
+// Components.Attributes entries (nil floors build none).
+func attachRowLocalAttributeComponents(resp *types.Response, attrs []rowLocalAttrEntry) error {
+	entries, err := rowLocalAttributeComponents(attrs)
+	if err != nil {
+		return err
+	}
+	attachAttributeComponents(resp, entries)
+	return nil
+}
+
+// prependRowLocalWarnings returns warns with the Response-level
+// warnings the row-local attributes raised (AttributeWarnings — the
+// out-of-range tally of ATTR_SCALE_SCORE) in front, in declared order:
+// the buffered arm (applyAttributes) puts attribute warnings first.
+func prependRowLocalWarnings(warns []*types.ResponseWarning, attrs []rowLocalAttrEntry) []*types.ResponseWarning {
+	var out []*types.ResponseWarning
+	for _, ra := range attrs {
+		out = append(out, AttributeWarnings(ra.computer)...)
+	}
+	if len(out) == 0 {
+		return warns
+	}
+	return append(out, warns...)
 }
 
 // buildRowLocalAttributes constructs RowLocalAttribute instances for the
@@ -1476,7 +1542,8 @@ func (p *Processor) buildRowLocalAttributes(attrs []*types.Attribute) ([]rowLoca
 		if label == "" {
 			label = defaultAttributeLabel(attr)
 		}
-		out = append(out, rowLocalAttrEntry{attr: attr, computer: rowLocal, label: label, nullable: EmitsNull(computer)})
+		out = append(out, rowLocalAttrEntry{attr: attr, computer: rowLocal, label: label, nullable: EmitsNull(computer),
+			floor: attributeFloorFor(computer, p.compute)})
 	}
 	return out, nil
 }
@@ -1562,7 +1629,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	}
 
 	// Step 2: Compute attributes (adds derived fields to records)
-	attrWarnings, err := p.applyAttributes(req.Attributes, filtered)
+	attrWarnings, attrComps, err := p.applyAttributes(req.Attributes, filtered)
 	if err != nil {
 		return nil, err
 	}
@@ -1798,6 +1865,9 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// One MatrixComponents entry per Response.Matrices result (nil when
 	// the plan skips them).
 	attachMatrixComponents(resp, matrixComps)
+	// One AttributeComponents entry per attribute slot that emits one
+	// (nil when the plan skips them: applyAttributes tallied none).
+	attachAttributeComponents(resp, attrComps)
 	p.lap(observe.PhasePost)
 
 	// SERIES-host overlay hook. Wraps the finalized per-group
@@ -1938,25 +2008,27 @@ func (p *Processor) applyFeatures(features []*types.Feature, records []*Record) 
 // filtered set), writing each output under its label, and returns the
 // Response-level warnings the attributes raised (AttributeWarnings —
 // a fitted vector attribute's singular or insufficient fit), in
-// declared order.
-func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record) ([]*types.ResponseWarning, error) {
+// declared order, and the Components.Attributes entries of the slots
+// that emit one (under ComputePlan.Attributes), in declared order.
+func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record) ([]*types.ResponseWarning, []types.AttributeComponents, error) {
 	var warns []*types.ResponseWarning
+	var comps []types.AttributeComponents
 	for _, attr := range attrs {
 		factory, ok := p.exts.LookupAttribute(attr.Type)
 		if !ok {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			return nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown attribute type: %s", attr.Type))
 		}
 		computer, err := factory(attr, p.schema)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if err := p.bindAttribute(computer); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		values, err := computer.Compute(records, attr.Field)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		warns = append(warns, AttributeWarnings(computer)...)
 
@@ -1966,8 +2038,10 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 			label = defaultAttributeLabel(attr)
 		}
 		nullable := EmitsNull(computer)
+		floor := attributeFloorFor(computer, p.compute)
 		for i, r := range records {
 			if i < len(values) {
+				floor.observe(values[i], nullable)
 				if attributeOutputNull(values[i], nullable) {
 					// A null output (AttributeNull, or a NullEmitter's
 					// NaN): the row has no value under the label, so
@@ -1980,8 +2054,15 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 				r.injectValue(label, values[i])
 			}
 		}
+		entry, ok, err := attributeComponents(attr, label, computer, floor)
+		if err != nil {
+			return nil, nil, err
+		}
+		if ok {
+			comps = append(comps, entry)
+		}
 	}
-	return warns, nil
+	return warns, comps, nil
 }
 
 // processGrouped is the buffered grouped exit: one Data row per bucket
@@ -2118,19 +2199,20 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 		nNull int
 	}
 	floorCache := make(map[string]floor)
-	floorFor := func(field string) floor {
-		if f, ok := floorCache[field]; ok {
+	floorFor := func(agg *types.Aggregation) floor {
+		key := aggregationFloorKey(agg)
+		if f, ok := floorCache[key]; ok {
 			return f
 		}
 		var f floor
 		for _, r := range records {
-			if FieldPresent(r, field) {
+			if AggregationPresent(r, agg) {
 				f.n++
 			} else {
 				f.nNull++
 			}
 		}
-		floorCache[field] = f
+		floorCache[key] = f
 		return f
 	}
 
@@ -2144,7 +2226,7 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 	for _, agg := range aggs {
 		label := agg.Label
 		if label == "" {
-			label = fmt.Sprintf("%s_%s", agg.Type, agg.Field)
+			label = types.AggregationLabelOf(agg)
 		}
 		// Decimal-typed fields dispatch to AggregateDecimalField. A
 		// registered extension aggregator owns its decimal semantics
@@ -2163,7 +2245,7 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 				row[label] = out
 				if collectComponents {
 					workAggComponentBuilds.Add(1)
-					fl := floorFor(agg.Field)
+					fl := floorFor(agg)
 					components = append(components, types.AggregationComponents{
 						Label: agg.Label,
 						N:     fl.n,
@@ -2192,12 +2274,11 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 		if err != nil {
 			return nil, nil, err
 		}
-		row[label], err = dispatchAggregatorResult(aggregator, val)
-		if err != nil {
+		if err = writeAggregationResult(row, label, aggregator, val); err != nil {
 			return nil, nil, err
 		}
 		if collectComponents {
-			fl := floorFor(agg.Field)
+			fl := floorFor(agg)
 			entry, err := buildAggregationComponents(aggregator, agg, fl.n, fl.nNull)
 			if err != nil {
 				return nil, nil, err
@@ -2205,7 +2286,7 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 			wf := NewWeightFloor(agg)
 			if wf.spec != nil {
 				for _, r := range records {
-					wf.Observe(r, agg.Field)
+					wf.ObserveSlot(r, agg)
 				}
 				wf.Stamp(&entry)
 			}
@@ -2238,6 +2319,55 @@ func dispatchAggregatorResult(agg any, scalar float64) (any, error) {
 		}
 	}
 	return scalar, nil
+}
+
+// elementExpander is an array-valued aggregator whose slot asked for
+// its value as one scalar column per element (AGG_VEC_* params.expand,
+// or an extension declared ArrayValued). ok false: write the value as
+// usual (Rich-or-scalar).
+type elementExpander interface {
+	ExpandedElements() (labels []string, values []float64, ok bool, err error)
+}
+
+// ElementExpander is the exported elementExpander, for the adapter that
+// gives an ArrayValued extension aggregator the expand path.
+type ElementExpander = elementExpander
+
+// writeAggregationResult writes one aggregation slot's finished value
+// into row under label: the Rich-or-scalar lift
+// (dispatchAggregatorResult), or — on an expanding vector aggregation —
+// one float64 column per element, vectors.ExpandedColumn(label, element
+// label), the label itself absent. Every row builder (serial streaming,
+// two-pass, buffered, the grouped tail and both parallel reducers)
+// writes through it, so the keys are the same whatever arm runs.
+func writeAggregationResult(row map[string]any, label string, agg any, scalar float64) error {
+	if ex, ok := agg.(elementExpander); ok {
+		labels, values, expand, err := ex.ExpandedElements()
+		if err != nil {
+			return err
+		}
+		if expand {
+			for i, l := range labels {
+				row[vectors.ExpandedColumn(label, l)] = values[i]
+			}
+			return nil
+		}
+	}
+	v, err := dispatchAggregatorResult(agg, scalar)
+	if err != nil {
+		return err
+	}
+	row[label] = v
+	return nil
+}
+
+// WriteAggregationResult is the exported form of writeAggregationResult
+// for the reducers outside this package that finalise merged
+// aggregator state themselves (service.finalizeMergedPartial). They
+// MUST write through it, for the reason DispatchAggregatorResult
+// documents and because an expanding slot names its columns here.
+func WriteAggregationResult(row map[string]any, label string, agg any, scalar float64) error {
+	return writeAggregationResult(row, label, agg, scalar)
 }
 
 // DispatchAggregatorResult is the exported form of

@@ -81,7 +81,7 @@ func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter 
 	if err != nil {
 		return err
 	}
-	warns, err := p.applyAttributes(req.Attributes, filtered)
+	warns, _, err := p.applyAttributes(req.Attributes, filtered)
 	if err != nil {
 		return err
 	}

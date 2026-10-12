@@ -93,6 +93,23 @@ type ExtensionRegistry struct {
 	// compose with grouped or feature streaming. Absent reads false.
 	TwoPassAttributes map[types.AttributeType]bool
 
+	// ComponentAttributes records which extension attributes emit a
+	// Response.Components.Attributes entry (a registration with a
+	// ComponentsFunc). Such an attribute is never admitted to the
+	// parallel reducers or ProcessChain (registryMergeFacts.Attribute):
+	// per-worker instances leave figures no orchestrator merge folds,
+	// so the request runs serial. Absent reads false.
+	ComponentAttributes map[types.AttributeType]bool
+
+	// VectorAggregators records the extension aggregators declared
+	// VectorInput (pulse.AggregatorRegistration.VectorInput, with
+	// ArrayValued): their slots read vector / fields by the built-in
+	// vector rules (vectors.ResolveAggregations), and an ArrayValued one
+	// is refused wherever one number is needed and honours expand.
+	// Read through AggregationKinds. Absent reads as a field-reading
+	// operator.
+	VectorAggregators map[types.AggregationType]vectors.ExtensionAggregation
+
 	// FansOut is the per-grouper fan-out declaration recorded from
 	// pulse.GrouperRegistration.FansOut — true when one record can
 	// land in MORE THAN ONE bucket, so the bucket counts SUM to more
@@ -121,6 +138,11 @@ type ExtensionRegistry struct {
 	// LookupTables are exposed to the runtime expression environment
 	// via the built-in lookup() function. Mirrors pulse.LookupTable.
 	LookupTables map[string]LookupTable
+
+	// ReferenceVectors are the registered reference-vector tables
+	// (pulse.Options.Extensions.ReferenceVectors, copied read-only by
+	// vectors.NewReferenceTables) the ref() expression built-in reads.
+	ReferenceVectors vectors.ReferenceTables
 
 	// LabelTables are the string-valued ID→label maps consumed by the
 	// output-time label resolver. Mirrors pulse.LabelTable. Indexed
@@ -180,6 +202,34 @@ func (r *ExtensionRegistry) isHidden(name string) bool {
 	return r != nil && r.hidden != nil && r.hidden(name)
 }
 
+// AggregationKinds is the runtime's view of the aggregation types for
+// the vector rules: a hidden name routes to "" (unknown), and a
+// registered extension aggregator reports its declared VectorInput /
+// ArrayValued. Predict builds the same view from the extensions
+// snapshot. Nil-receiver-safe (the built-in view).
+func (r *ExtensionRegistry) AggregationKinds() vectors.AggregationKinds {
+	if r == nil {
+		return vectors.AggregationKinds{}
+	}
+	return vectors.AggregationKinds{
+		Route: func(t types.AggregationType) types.AggregationType {
+			if r.isHidden(string(t)) {
+				return ""
+			}
+			return t
+		},
+		Extension: func(name string) vectors.ExtensionAggregation {
+			t := types.AggregationType(name)
+			if !r.isExtensionAggregator(t) {
+				return vectors.ExtensionAggregation{}
+			}
+			e := r.VectorAggregators[t]
+			e.Registered = true
+			return e
+		},
+	}
+}
+
 // ExprFunction is the runtime-side mirror of pulse.ExprFunction. The
 // processor injects every entry into the expr-lang environment when
 // compiling ATTR_FORMULA / FILTER_EXPRESSION expressions.
@@ -222,6 +272,15 @@ const (
 	featureLabels      = "capability:labels"
 	featureRangeTables = "capability:range_tables"
 )
+
+// referenceTables returns the registry's reference-vector tables;
+// nil-safe.
+func (r *ExtensionRegistry) referenceTables() vectors.ReferenceTables {
+	if r == nil {
+		return nil
+	}
+	return r.ReferenceVectors
+}
 
 // LookupRangeTable returns the RangeTable registered under name, and the
 // standard "found" signal. Nil-safe: a nil registry or absent name
@@ -605,19 +664,33 @@ func (r *ExtensionRegistry) attributeRequiresTwoPass(t types.AttributeType) bool
 }
 
 // attrRequiresTwoPass is the PER-ATTRIBUTE two-pass predicate: the
-// type rule (attributeRequiresTwoPass) or an ATTR_FORMULA whose
+// type rule (attributeRequiresTwoPass), an ATTR_FORMULA whose
 // expression calls total(expr) (formula_total.go), which is row-local
-// by type but needs a pre-pass over the post-filter rows. Every
+// by type but needs a pre-pass over the post-filter rows, or an
+// ATTR_VEC_DISTANCE over a fitted metric (vectors.ComparisonFitted:
+// std_euclidean / mahalanobis read ATTR_MAHALANOBIS's fit pass). Every
 // routing decision that schedules attributes asks this, never the type
-// alone. Nil-receiver-safe.
+// alone. It reads the slot's params.metric — written out by
+// Processor.prepare's rewrite; attrRequiresTwoPassIn also reads a kind
+// default off the request's vectors. Nil-receiver-safe.
 func (r *ExtensionRegistry) attrRequiresTwoPass(attr *types.Attribute) bool {
+	return r.attrRequiresTwoPassIn(attr, nil)
+}
+
+// attrRequiresTwoPassIn is attrRequiresTwoPass over a slot of a request
+// whose Request.Vectors are specs (a named vector's kind decides an
+// absent metric).
+func (r *ExtensionRegistry) attrRequiresTwoPassIn(attr *types.Attribute, specs []types.VectorSpec) bool {
 	if attr == nil {
 		return false
 	}
 	if r.attributeRequiresTwoPass(attr.Type) {
 		return true
 	}
-	return !r.isHidden(string(attr.Type)) && formulaCallsTotal(attr)
+	if r.isHidden(string(attr.Type)) {
+		return false
+	}
+	return formulaCallsTotal(attr) || vectors.ComparisonFitted(attr.Type, attr, specs)
 }
 
 // isExtensionAggregator reports whether t is an embedder-registered

@@ -442,6 +442,7 @@ func mergeExtensions(ext []Extensions) Extensions {
 		out.SynthDistributions = append(out.SynthDistributions, e.SynthDistributions...)
 		out.ExprFunctions = append(out.ExprFunctions, e.ExprFunctions...)
 		out.LookupTables = mergeTables(out.LookupTables, e.LookupTables)
+		out.ReferenceVectors = mergeTables(out.ReferenceVectors, e.ReferenceVectors)
 		out.LabelTables = mergeTables(out.LabelTables, e.LabelTables)
 		out.RangeTables = mergeTables(out.RangeTables, e.RangeTables)
 		if e.Skills != nil {

@@ -92,11 +92,11 @@ func TestMaxGroups_ParallelShardPartition(t *testing.T) {
 	shard := cohort.Shards()[0].Filename
 
 	svc.SetLimits(withMaxGroups(3))
-	if p, err := svc.processOneShard(ctx, req, cohort.Schema(), arch, 0, shard); err != nil || len(p.groups) != 3 {
+	if p, err := svc.processOneShard(ctx, req, cohort.Schema(), arch, 0, 0, shard); err != nil || len(p.groups) != 3 {
 		t.Fatalf("at the limit: partial %v, %v", p, err)
 	}
 	svc.SetLimits(withMaxGroups(2))
-	p, err := svc.processOneShard(ctx, req, cohort.Schema(), arch, 0, shard)
+	p, err := svc.processOneShard(ctx, req, cohort.Schema(), arch, 0, 0, shard)
 	if p != nil {
 		t.Fatalf("a tripped partition returned its partial: %+v", p)
 	}
@@ -302,7 +302,7 @@ func TestMaxGroups_PartitionMatricesCarryLimits(t *testing.T) {
 	}
 	rec := func(pos int) *processing.Record {
 		r := processing.NewRecord(schema, map[string]float64{"x": float64(pos)})
-		r.SetMergePosition(0, pos)
+		r.SetMergePosition(0, 0, pos)
 		return r
 	}
 	if err := sp.groupedMats.UpdateRow("a", rec(0)); err != nil {

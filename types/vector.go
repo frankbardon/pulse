@@ -37,6 +37,36 @@ type VectorSpec struct {
 	// Coerce admits a member type a vector refuses by default; empty
 	// admits none. VectorCoerceBinary admits packed_bool as 0 / 1.
 	Coerce VectorCoerce `json:"coerce,omitempty"`
+	// Kind is what the members' values mean: measure, scale,
+	// composition or binary. Empty declares nothing (no metric default,
+	// no fit warning).
+	Kind VectorKind `json:"kind,omitempty"`
+	// ScaleMin and ScaleMax are a kind "scale" battery's declared
+	// response range (both or neither).
+	ScaleMin *float64 `json:"scale_min,omitempty"`
+	ScaleMax *float64 `json:"scale_max,omitempty"`
+}
+
+// VectorKind is what a vector's values mean, which decides the metrics
+// that suit it. The names are the linalg/metric kinds.
+type VectorKind string
+
+const (
+	// VectorKindMeasure: magnitude matters (a load curve, spend per
+	// category).
+	VectorKindMeasure VectorKind = "measure"
+	// VectorKindScale: bounded ratings (a Likert battery).
+	VectorKindScale VectorKind = "scale"
+	// VectorKindComposition: parts of a whole (share of wallet,
+	// channel mix).
+	VectorKindComposition VectorKind = "composition"
+	// VectorKindBinary: membership (a multi-select, a yes/no battery).
+	VectorKindBinary VectorKind = "binary"
+)
+
+// AllVectorKinds returns every vector kind, in canonical order.
+func AllVectorKinds() []VectorKind {
+	return []VectorKind{VectorKindMeasure, VectorKindScale, VectorKindComposition, VectorKindBinary}
 }
 
 // VectorCoerce names a member-type coercion a VectorSpec opts into.

@@ -1,0 +1,80 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Measure each row's distance to a benchmark profile with ATTR_VEC_DISTANCE on experiment.pulse, averaged per treatment arm. The named vector spend (revenue_before, revenue) declares kind measure, so gap_std takes the measure distance default, std_euclidean: each difference is divided by that member's standard deviation from a fit over the filtered rows (ATTR_MAHALANOBIS's fit pass — two-pass, listwise, weighted when a weight is set), so members on different units compare. gap_mahal reads the fit's inverse covariance (mahalanobis, every member needed) and fits only on the control arm (fit_on) while scoring every row. gap_abs is the row-local manhattan distance over inline fields, single pass. A distance metric's sum is rescaled by p / p_observed when a member is null; a row with fewer than min_valid complete pairs is null.",
+    "intents": [
+      "benchmark",
+      "prepare"
+    ],
+    "name": "attr_vec_distance",
+    "operators": [
+      "AGG_AVERAGE",
+      "ATTR_VEC_DISTANCE",
+      "FILTER_INCLUDE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "feature-engineering",
+      "multivariate",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {
+      "name": "spend",
+      "fields": ["revenue_before", "revenue"],
+      "kind": "measure"
+    }
+  ],
+  "attributes": [
+    {
+      "type": "ATTR_VEC_DISTANCE",
+      "label": "gap_std",
+      "vector": "spend",
+      "params": {"reference": [100, 150]}
+    },
+    {
+      "type": "ATTR_VEC_DISTANCE",
+      "label": "gap_mahal",
+      "vector": "spend",
+      "params": {
+        "metric": "mahalanobis",
+        "reference": [100, 150],
+        "fit_on": [{"type": "FILTER_INCLUDE", "field": "treatment", "values": ["control"]}]
+      }
+    },
+    {
+      "type": "ATTR_VEC_DISTANCE",
+      "label": "gap_abs",
+      "fields": ["revenue_before", "revenue"],
+      "params": {"metric": "manhattan", "min_valid": 2, "reference": [100, 150]}
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "treatment"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "gap_std",
+      "label": "avg_gap_std"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "gap_mahal",
+      "label": "avg_gap_mahal"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "gap_abs",
+      "label": "avg_gap_abs"
+    }
+  ]
+}

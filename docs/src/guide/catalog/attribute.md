@@ -12,13 +12,16 @@ The attributes this instance offers: what each is for, the questions it answers 
 | [`ATTR_NORMALIZED`](#op-attr_normalized) | Rescales a numeric field to 0 to 1 on every row: 0 is the smallest value, 1 the largest. | How can fields on very different scales be put on one 0-to-1 scale before combining them? | basic | [`ATTR_PERCENTILE`](#op-attr_percentile) when the field has extreme values that would squeeze the rest of the range.<br>[`ATTR_ZSCORE`](#op-attr_zscore) when you want distance from the mean in standard deviations.<br>[`ATTR_FORMULA`](#op-attr_formula) when you want a composite on the scales' fixed endpoints (1-5, 0-10), such as (x - 1) / 4. |
 | [`ATTR_PC_SCORE`](#op-attr_pc_score) | Adds to every row its score on one principal component of several related numeric fields: one number standing in for what they share. | What is each respondent's score on the main dimension behind these rating questions? | advanced | [`MAT_PCA`](matrix.md#op-mat_pca) when you want how many dimensions there are and which fields load on each.<br>[`ATTR_MAHALANOBIS`](#op-attr_mahalanobis) when you want how unusual a row is across the fields. |
 | [`ATTR_PERCENTILE`](#op-attr_percentile) | Adds to every row its percentile rank, rank / n * 100: the share of rows at or below it when values are untied. | Where does each store's revenue rank among all stores, as a percentage? | basic | [`AGG_PERCENTILE`](aggregator.md#op-agg_percentile) when you want the value at a chosen percentile, such as the 90th.<br>[`WIN_RANK`](window.md#op-win_rank) when you want ranks within partitions, or tied values to share a rank.<br>[`GROUP_QUANTILE`](grouper.md#op-group_quantile) when you want rows split into equal-sized bands. |
+| [`ATTR_PROFILE_SIMILARITY`](#op-attr_profile_similarity) | Adds to every row how closely its related fields match a target profile: an ideal pattern, a benchmark, or its own segment target. | How closely does each respondent's brand ratings follow the ideal loyalist profile? | intermediate | [`ATTR_VEC_DISTANCE`](#op-attr_vec_distance) when you want how far apart the values are rather than how alike the pattern is.<br>[`ATTR_MAHALANOBIS`](#op-attr_mahalanobis) when you want how unusual a row is against the whole cohort.<br>[`MAT_DISTANCE`](matrix.md#op-mat_distance) when you want how far apart whole groups are. |
 | [`ATTR_REG_FITTED`](#op-attr_reg_fitted) | Adds to every row the value a straight-line model predicts for its target from its predictors. | What order value would we expect for each customer given their visits and tenure? | advanced | [`REG_OLS`](regression.md#op-reg_ols) when you want the coefficients, R-squared and p-values of the model.<br>[`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want how far each row sits from its prediction.<br>[`REG_GLM`](regression.md#op-reg_glm) when the target is yes/no or a count. |
 | [`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) | Adds to every row its leverage: how unusual its predictor values are, and so how hard it can pull a straight-line fit. | Which rows have predictor values so far from the rest that they could steer the model? | advanced | [`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want rows the model predicts badly.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want the model itself. |
 | [`ATTR_REG_PREDICT`](#op-attr_reg_predict) | Adds to every row the value a model fitted once, elsewhere in the request, predicts for it from the row's own predictor values. | How close are the model's predictions on weeks it was not fitted to (a holdout)? | advanced | [`ATTR_REG_FITTED`](#op-attr_reg_fitted) when the model should be fitted to these same rows inside the slot.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want the coefficients, their standard errors and p-values. |
 | [`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) | Adds to every row its residual: the actual target value minus the value a straight-line model predicts for it. | Which stores sell far more or less than their size and footfall predict? | advanced | [`REG_OLS`](regression.md#op-reg_ols) when you want the model's summary (coefficients, R-squared).<br>[`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) when you want how unusual each row's predictor values are.<br>[`ATTR_ZSCORE`](#op-attr_zscore) when you want how far a value is from the mean, with no model. |
+| [`ATTR_SCALE_SCORE`](#op-attr_scale_score) | Adds to every row its score on a rating battery: the average of its answered items or a prorated total, reverse-worded items flipped. | What is each respondent's satisfaction score across the five satisfaction items, counting only people who answered at least four? | intermediate | [`MAT_RELIABILITY`](matrix.md#op-mat_reliability) when you want how consistently the items measure one thing.<br>[`ATTR_FACTOR_SCORE`](#op-attr_factor_score) when the items should be weighted by how much each reflects a common trait.<br>[`ATTR_FORMULA`](#op-attr_formula) when you want an arbitrary formula of the items. |
 | [`ATTR_SET_HAS`](#op-attr_set_has) | Adds a 1 / 0 column saying whether each row's multi-select field includes one named option. | Which respondents ticked 'price' among their reasons, as a column to cross with other answers? | basic | [`FILTER_SET_CONTAINS_ANY`](filterer.md#op-filter_set_contains_any) when you want to keep only rows that include any of several options.<br>[`AGG_SET_FREQUENCY`](aggregator.md#op-agg_set_frequency) when you want how often each option was chosen. |
 | [`ATTR_SET_POPCOUNT`](#op-attr_set_popcount) | Adds to every row the number of options its multi-select field has selected. | How many reasons did each respondent tick? | basic | [`AGG_SET_CARDINALITY_AVG`](aggregator.md#op-agg_set_cardinality_avg) when you want the average number of selections per group.<br>[`ATTR_SET_HAS`](#op-attr_set_has) when you want whether one particular option was chosen. |
 | [`ATTR_TSCORE`](#op-attr_tscore) | Adds to every row its T-score: the z-score rescaled so the mean is 50 and one standard deviation is 10. | How does each candidate's test result compare with the group, on a 50-centred scale? | intermediate | [`ATTR_ZSCORE`](#op-attr_zscore) when you want plain standard-deviation units centred on 0.<br>[`ATTR_PERCENTILE`](#op-attr_percentile) when you want each row's percentile rank (the share at or below it when values are untied). |
+| [`ATTR_VEC_DISTANCE`](#op-attr_vec_distance) | Adds to every row how far its set of related fields lies from a target profile, optionally in units of each field's spread. | How far is each store's KPI profile from the benchmark store, with every KPI on its own scale? | intermediate | [`ATTR_PROFILE_SIMILARITY`](#op-attr_profile_similarity) when you want how alike the pattern is rather than how far apart the values are.<br>[`ATTR_MAHALANOBIS`](#op-attr_mahalanobis) when the target is the cohort's own centre.<br>[`MAT_DISTANCE`](matrix.md#op-mat_distance) when you want how far apart whole groups are. |
 | [`ATTR_ZSCORE`](#op-attr_zscore) | Adds to every row its z-score: how many standard deviations the row's value sits above or below the mean. | Which orders are unusually large compared with all orders? | intermediate | [`AGG_ZSCORE`](aggregator.md#op-agg_zscore) when you want the centre and spread of each group, not a score per row.<br>[`ATTR_PERCENTILE`](#op-attr_percentile) when the field is skewed or has extreme values and you want a position they cannot distort.<br>[`OVERLAY_ZSCORE_VS_TOTAL`](overlay.md#op-overlay_zscore_vs_total) when you want each group's value against all groups. |
 
 ## Operators
@@ -304,6 +307,43 @@ Adds to every row its percentile rank, rank / n * 100: the share of rows at or b
 
 **Skill:** [`op-attr-percentile`](../skills/op-attr-percentile.md)
 
+<a id="op-attr_profile_similarity"></a>
+
+### `ATTR_PROFILE_SIMILARITY`
+
+Adds to every row how closely its related fields match a target profile: an ideal pattern, a benchmark, or its own segment target.
+
+**Level:** intermediate
+
+**Also known as:** `profile similarity`, `profile match`, `pattern similarity`, `fit to target`
+
+**Questions it answers:**
+
+- How closely does each respondent's brand ratings follow the ideal loyalist profile?
+- How similar is each store's channel mix to its region's target mix?
+
+**Use cases by domain:**
+
+- *survey:* Score each respondent's fit to an ideal rating profile, the pattern rather than the level (correlation).
+- *ops:* Compare each account's spend mix with the target mix for its segment, kept in a registered reference table.
+
+**Assumptions:**
+
+- The target is matched to the fields by label, never by position; a target whose labels differ is refused before any row is read.
+- Each row is compared from its own values only; a row weight does not apply.
+- A field missing on a row drops that pair; a row with fewer complete pairs than min_valid gets no value.
+- A row whose segment has no target profile gets no value and is counted, rather than refusing the run.
+
+**Use something else:**
+
+- [`ATTR_VEC_DISTANCE`](#op-attr_vec_distance) when you want how far apart the values are rather than how alike the pattern is.
+- [`ATTR_MAHALANOBIS`](#op-attr_mahalanobis) when you want how unusual a row is against the whole cohort.
+- [`MAT_DISTANCE`](matrix.md#op-mat_distance) when you want how far apart whole groups are.
+
+**Glossary:** [`similarity`](../glossary.md#term-similarity), [`correlation`](../glossary.md#term-correlation), [`pairwise-deletion`](../glossary.md#term-pairwise-deletion)
+
+**Skill:** [`op-attr-profile-similarity`](../skills/op-attr-profile-similarity.md)
+
 <a id="op-attr_reg_fitted"></a>
 
 ### `ATTR_REG_FITTED`
@@ -444,6 +484,43 @@ Adds to every row its residual: the actual target value minus the value a straig
 
 **Skill:** [`op-attr-reg-residual`](../skills/op-attr-reg-residual.md)
 
+<a id="op-attr_scale_score"></a>
+
+### `ATTR_SCALE_SCORE`
+
+Adds to every row its score on a rating battery: the average of its answered items or a prorated total, reverse-worded items flipped.
+
+**Level:** intermediate
+
+**Also known as:** `scale score`, `summated rating scale`, `composite score`
+
+**Questions it answers:**
+
+- What is each respondent's satisfaction score across the five satisfaction items, counting only people who answered at least four?
+- What is each patient's symptom total when two of the items are worded the other way round?
+
+**Use cases by domain:**
+
+- *survey:* Turn an agree-disagree battery into one score per respondent, flipping the negatively worded items.
+- *science:* Score a questionnaire instrument per participant, prorating the total when an item is skipped.
+
+**Assumptions:**
+
+- Each row is scored from its own answers only; no other row changes it, and a row weight does not apply.
+- A skipped item is left out, not counted as 0: the sum is the average of the answered items times the item count.
+- A row with fewer answered items than min_valid gets no score rather than a low one.
+- Flipping an item needs the scale's true range, which is declared and never guessed from the data; an answer outside it is treated as skipped and reported.
+
+**Use something else:**
+
+- [`MAT_RELIABILITY`](matrix.md#op-mat_reliability) when you want how consistently the items measure one thing.
+- [`ATTR_FACTOR_SCORE`](#op-attr_factor_score) when the items should be weighted by how much each reflects a common trait.
+- [`ATTR_FORMULA`](#op-attr_formula) when you want an arbitrary formula of the items.
+
+**Glossary:** [`mean`](../glossary.md#term-mean), [`missing-value`](../glossary.md#term-missing-value), [`reliability`](../glossary.md#term-reliability)
+
+**Skill:** [`op-attr-scale-score`](../skills/op-attr-scale-score.md)
+
 <a id="op-attr_set_has"></a>
 
 ### `ATTR_SET_HAS`
@@ -539,6 +616,43 @@ Adds to every row its T-score: the z-score rescaled so the mean is 50 and one st
 **Glossary:** [`z-score`](../glossary.md#term-z-score), [`standard-deviation`](../glossary.md#term-standard-deviation), [`mean`](../glossary.md#term-mean)
 
 **Skill:** [`op-attr-tscore`](../skills/op-attr-tscore.md)
+
+<a id="op-attr_vec_distance"></a>
+
+### `ATTR_VEC_DISTANCE`
+
+Adds to every row how far its set of related fields lies from a target profile, optionally in units of each field's spread.
+
+**Level:** intermediate
+
+**Also known as:** `distance to target`, `gap to benchmark`, `profile distance`, `standardized distance`
+
+**Questions it answers:**
+
+- How far is each store's KPI profile from the benchmark store, with every KPI on its own scale?
+- Which respondents' ratings sit furthest from the target profile?
+
+**Use cases by domain:**
+
+- *ops:* Rank stores by their standardized gap to a benchmark KPI profile.
+- *science:* Measure each specimen's distance from a reference composition.
+
+**Assumptions:**
+
+- The target is matched to the fields by label, never by position; a target whose labels differ is refused before any row is read.
+- A field missing on a row drops that pair and the sum is scaled up for the dropped pairs; a row with fewer complete pairs than min_valid gets no value.
+- The standardized and covariance-based distances learn each field's spread from one fit over the filtered rows (weighted when a weight is set), never per group; the plain ones read each row alone.
+- A row whose segment has no target profile gets no value and is counted, rather than refusing the run.
+
+**Use something else:**
+
+- [`ATTR_PROFILE_SIMILARITY`](#op-attr_profile_similarity) when you want how alike the pattern is rather than how far apart the values are.
+- [`ATTR_MAHALANOBIS`](#op-attr_mahalanobis) when the target is the cohort's own centre.
+- [`MAT_DISTANCE`](matrix.md#op-mat_distance) when you want how far apart whole groups are.
+
+**Glossary:** [`distance`](../glossary.md#term-distance), [`standard-deviation`](../glossary.md#term-standard-deviation), [`covariance`](../glossary.md#term-covariance), [`pairwise-deletion`](../glossary.md#term-pairwise-deletion)
+
+**Skill:** [`op-attr-vec-distance`](../skills/op-attr-vec-distance.md)
 
 <a id="op-attr_zscore"></a>
 

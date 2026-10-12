@@ -51,6 +51,42 @@
         ]
       },
       {
+        "operator": "ATTR_SCALE_SCORE",
+        "category": "attribute",
+        "level": "intermediate",
+        "why": "Adds to every row its score on a rating battery: the average of its answered items or a prorated total, reverse-worded items flipped. It uses revenue (f64), seats (u16) and score (f64).",
+        "bound": true,
+        "request": {
+          "attributes": [
+            {
+              "fields": [
+                "revenue",
+                "seats",
+                "score"
+              ],
+              "type": "ATTR_SCALE_SCORE"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want how consistently the items measure one thing",
+            "use": "MAT_RELIABILITY"
+          },
+          {
+            "when": "the items should be weighted by how much each reflects a common trait",
+            "use": "ATTR_FACTOR_SCORE"
+          },
+          {
+            "when": "you want an arbitrary formula of the items",
+            "use": "ATTR_FORMULA"
+          }
+        ]
+      },
+      {
         "operator": "TEST_BARTLETT_SPHERICITY",
         "category": "test",
         "level": "advanced",
@@ -242,9 +278,9 @@
       }
     ],
     "truncated": false,
-    "candidates_considered": 6
+    "candidates_considered": 7
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9796a45f8edc7bdc8b5c65729e30d18c22653757069f3e1bc0ccf8336388f217
+// golden-hash: 90565e847e75811990b265577e28c24521e5b54275362c22b77f480eff1d9b33

@@ -19,11 +19,15 @@ import "github.com/frankbardon/pulse/descriptor"
 // a missing input reads 0 (50 for the T-score), never null, and
 // ATTR_PERCENTILE gives tied values distinct ranks.
 var attributePurposes = map[string]descriptor.Purpose{
-	"ATTR_CODE_IN":      purposeAttrCodeIn,
-	"ATTR_DATE_PART":    purposeAttrDatePart,
-	"ATTR_FORMULA":      purposeAttrFormula,
-	"ATTR_NORMALIZED":   purposeAttrNormalized,
-	"ATTR_PERCENTILE":   purposeAttrPercentile,
+	"ATTR_CODE_IN":    purposeAttrCodeIn,
+	"ATTR_DATE_PART":  purposeAttrDatePart,
+	"ATTR_FORMULA":    purposeAttrFormula,
+	"ATTR_NORMALIZED": purposeAttrNormalized,
+	"ATTR_PERCENTILE": purposeAttrPercentile,
+
+	"ATTR_PROFILE_SIMILARITY": purposeAttrProfileSimilarity,
+	"ATTR_VEC_DISTANCE":       purposeAttrVecDistance,
+
 	"ATTR_REG_FITTED":   purposeAttrRegFitted,
 	"ATTR_MAHALANOBIS":  purposeAttrMahalanobis,
 	"ATTR_PC_SCORE":     purposeAttrPCScore,
@@ -31,6 +35,7 @@ var attributePurposes = map[string]descriptor.Purpose{
 	"ATTR_REG_LEVERAGE": purposeAttrRegLeverage,
 	"ATTR_REG_PREDICT":  purposeAttrRegPredict,
 	"ATTR_REG_RESIDUAL": purposeAttrRegResidual,
+	"ATTR_SCALE_SCORE":  purposeAttrScaleScore,
 	"ATTR_SET_HAS":      purposeAttrSetHas,
 	"ATTR_SET_POPCOUNT": purposeAttrSetPopcount,
 	"ATTR_TSCORE":       purposeAttrTScore,
@@ -417,6 +422,87 @@ var (
 			"distance", "outlier", "covariance", "mean", "listwise-deletion",
 			"chi-square", "p-value", "normal-distribution", "degrees-of-freedom",
 		},
+	}
+
+	purposeAttrScaleScore = descriptor.Purpose{
+		Plain:   "Adds to every row its score on a rating battery: the average of its answered items or a prorated total, reverse-worded items flipped.",
+		KnownAs: []string{"scale score", "summated rating scale", "composite score"},
+		Intents: []string{IntentMeasureConstruct, IntentPrepare},
+		Questions: []string{
+			"What is each respondent's satisfaction score across the five satisfaction items, counting only people who answered at least four?",
+			"What is each patient's symptom total when two of the items are worded the other way round?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Turn an agree-disagree battery into one score per respondent, flipping the negatively worded items.",
+			descriptor.DomainScience: "Score a questionnaire instrument per participant, prorating the total when an item is skipped.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want how consistently the items measure one thing", Use: "MAT_RELIABILITY"},
+			{When: "the items should be weighted by how much each reflects a common trait", Use: "ATTR_FACTOR_SCORE"},
+			{When: "you want an arbitrary formula of the items", Use: "ATTR_FORMULA"},
+		},
+		Assumptions: []string{
+			"Each row is scored from its own answers only; no other row changes it, and a row weight does not apply.",
+			"A skipped item is left out, not counted as 0: the sum is the average of the answered items times the item count.",
+			"A row with fewer answered items than min_valid gets no score rather than a low one.",
+			"Flipping an item needs the scale's true range, which is declared and never guessed from the data; an answer outside it is treated as skipped and reported.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"mean", "missing-value", "reliability"},
+	}
+
+	purposeAttrProfileSimilarity = descriptor.Purpose{
+		Plain:   "Adds to every row how closely its related fields match a target profile: an ideal pattern, a benchmark, or its own segment target.",
+		KnownAs: []string{"profile similarity", "profile match", "pattern similarity", "fit to target"},
+		Intents: []string{IntentBenchmark, IntentPrepare},
+		Questions: []string{
+			"How closely does each respondent's brand ratings follow the ideal loyalist profile?",
+			"How similar is each store's channel mix to its region's target mix?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey: "Score each respondent's fit to an ideal rating profile, the pattern rather than the level (correlation).",
+			descriptor.DomainOps:    "Compare each account's spend mix with the target mix for its segment, kept in a registered reference table.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want how far apart the values are rather than how alike the pattern is", Use: "ATTR_VEC_DISTANCE"},
+			{When: "you want how unusual a row is against the whole cohort", Use: "ATTR_MAHALANOBIS"},
+			{When: "you want how far apart whole groups are", Use: "MAT_DISTANCE"},
+		},
+		Assumptions: []string{
+			"The target is matched to the fields by label, never by position; a target whose labels differ is refused before any row is read.",
+			"Each row is compared from its own values only; a row weight does not apply.",
+			"A field missing on a row drops that pair; a row with fewer complete pairs than min_valid gets no value.",
+			"A row whose segment has no target profile gets no value and is counted, rather than refusing the run.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"similarity", "correlation", "pairwise-deletion"},
+	}
+
+	purposeAttrVecDistance = descriptor.Purpose{
+		Plain:   "Adds to every row how far its set of related fields lies from a target profile, optionally in units of each field's spread.",
+		KnownAs: []string{"distance to target", "gap to benchmark", "profile distance", "standardized distance"},
+		Intents: []string{IntentBenchmark, IntentPrepare},
+		Questions: []string{
+			"How far is each store's KPI profile from the benchmark store, with every KPI on its own scale?",
+			"Which respondents' ratings sit furthest from the target profile?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainOps:     "Rank stores by their standardized gap to a benchmark KPI profile.",
+			descriptor.DomainScience: "Measure each specimen's distance from a reference composition.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want how alike the pattern is rather than how far apart the values are", Use: "ATTR_PROFILE_SIMILARITY"},
+			{When: "the target is the cohort's own centre", Use: "ATTR_MAHALANOBIS"},
+			{When: "you want how far apart whole groups are", Use: "MAT_DISTANCE"},
+		},
+		Assumptions: []string{
+			"The target is matched to the fields by label, never by position; a target whose labels differ is refused before any row is read.",
+			"A field missing on a row drops that pair and the sum is scaled up for the dropped pairs; a row with fewer complete pairs than min_valid gets no value.",
+			"The standardized and covariance-based distances learn each field's spread from one fit over the filtered rows (weighted when a weight is set), never per group; the plain ones read each row alone.",
+			"A row whose segment has no target profile gets no value and is counted, rather than refusing the run.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"distance", "standard-deviation", "covariance", "pairwise-deletion"},
 	}
 
 	purposeAttrPCScore = descriptor.Purpose{

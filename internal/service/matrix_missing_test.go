@@ -436,10 +436,12 @@ func TestMatrixWarnings_ZeroVariance(t *testing.T) {
 					return
 				}
 				if typ == types.MAT_DISTANCE {
-					// Standardized: the constant member's z is undefined,
-					// so is every distance (one bucket: the diagonal).
-					if !math.IsNaN(res.Primary.Values[0][0]) {
-						t.Errorf("standardized distance over a constant member = %v, want null", res.Primary.Values[0][0])
+					// Standardized: the constant member has no z-score,
+					// so the registry's pairwise-complete policy skips it
+					// (U27) and the distance rests on the other members
+					// (one bucket: the diagonal, exactly 0).
+					if v := res.Primary.Values[0][0]; v != 0 {
+						t.Errorf("standardized distance over a constant member = %v, want 0 (the member skipped)", v)
 					}
 					return
 				}

@@ -18,7 +18,7 @@ Slot and members as for `op-mat-covariance`; at least 2 items.
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `reverse` | [fields] | none | Reverse-keyed items: x' = min + max − x before the fold. |
-| `scale_min`, `scale_max` | number | none | Battery range; both or neither, required with `reverse`. |
+| `scale_min`, `scale_max` | number | the vector's | Battery range; both or neither, required with `reverse`. Absent: a `kind: "scale"` vector's bounds (`vector-metrics`). |
 | `repair` | `nearest` | none | Fit omega on the nearest correlation matrix. |
 | `missing`, `max_drop_share`, `weight`, `encoding` | | | As `op-mat-correlation`. |
 
@@ -47,4 +47,4 @@ omega = (Σλ)² / ((Σλ)² + Σψ) from the minres fit (the model form, not ps
 ## See
 
 - `pulse_examples_search tags=[matrix, correlation-analysis]`
-- Skills: `matrix-results`, `op-mat-correlation`, `weighting`
+- Skills: `matrix-results`, `op-mat-correlation`, `weighting`, `vector-metrics`

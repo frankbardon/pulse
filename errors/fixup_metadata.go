@@ -826,6 +826,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ATTR_SCALE_OUT_OF_RANGE: {
+		Message: "An ATTR_SCALE_SCORE member value lies outside the battery's declared scale range, so it was scored as missing (never clamped or reversed); rows left below min_valid score null.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Attributes", "*", "Params", "scale_min"},
+				Hint:   "Check the declared range against the data: set params.scale_min / scale_max (or the kind \"scale\" vector's bounds) to the battery's true range, or drop the out-of-range codes (e.g. a 99 'don't know') with a filter or recode first. details.n_out_of_range counts the values, details.n_rows the rows.",
+			},
+		},
+	},
 	PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS: {
 		Message: "A two-sample test splits its field by a grouping with more than two groups, but it compares exactly two; this is an advisory, not an error.",
 		Fixups: []Fixup{
@@ -1359,6 +1369,15 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Declare MarginReducibility as one of summable, mean_reducible, independent or recompute; a fusable class (anything but recompute) admits the operator as a fused crosstab cell and needs Mergeable=true and Streamable=true alongside it — or omit it and the crosstab cell runs buffered.",
+			},
+		},
+	},
+	PULSE_EXTENSION_ARRAY_VALUED_MISMATCH: {
+		Message: "An aggregator registration declared ArrayValued it cannot honour: without VectorInput, with a MarginReducibility, or with a factory whose value does not implement extend.RichAggregator.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "An array value is one figure per vector member: declare VectorInput=true beside ArrayValued, leave MarginReducibility empty (a crosstab refuses an array-valued cell), and return a value implementing extend.RichAggregator whose Rich gives a []float64 of the member count — or drop ArrayValued and return one figure.",
 			},
 		},
 	},
@@ -3643,6 +3662,66 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_VECTOR_METRIC_UNKNOWN: {
+		Message: "A distance or similarity metric was refused: the name is not registered, the metric has no form in the direction the operator needs (only cosine has both a similarity and a distance form; no other metric is converted between the two), or the operator does not accept it. The metric is under `metric`, the cause under `reason`, the direction under `form` and the accepted names under `valid`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"params", "metric"},
+				Hint:   "Use one of the metric names listed under `valid`; for the opposite direction pick a metric registered in that direction rather than converting one.",
+			},
+		},
+	},
+	PULSE_VECTOR_METRIC_REQUIRED: {
+		Message: "An operator that compares rows needs a distance or similarity metric and was given none, with no default to fall back on. The direction it needs is under `form` and the accepted names under `valid`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"params", "metric"},
+				Hint:   "Set `metric` to one of the names listed under `valid`.",
+			},
+		},
+	},
+	PULSE_VECTOR_METRIC_UNSUITED: {
+		Message: "An explicitly named metric fits the declared kind of the vector it reads poorly: cosine ignores magnitude and level, which a scale or measure vector's values carry, and the Euclidean family ignores that a composition's parts sum to a whole. It is a warning (an error under strict mode); the run uses the metric as named. The vector is under `vector`, its kind under `kind`, the metric under `metric`, the request path under `slot` and the kind's default in that direction under `suggested`. A defaulted metric never raises it.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"params", "metric"},
+				Hint:   "Use the metric under `suggested`, or drop `metric` and let the vector's kind pick it; in an expression, cosine(vcenter(a), vcenter(b)) is the correlation a scale vector suits.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"vectors", "kind"},
+				Hint:   "If the kind is wrong (the values are not what it says), correct the vector's `kind`.",
+			},
+		},
+	},
+	PULSE_VECTOR_REFERENCE_UNKNOWN: {
+		Message: "A reference vector could not be resolved: ref(\"table\", key) names a table not registered in Options.Extensions.ReferenceVectors, its table argument is not a string literal (the table's labels must be known before any row), or the key names no profile of the table. The cause is under `reason`, the table under `table`, the key under `key` and the registered names (or the table's keys) under `valid`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"expression"},
+				Hint:   "Name a table and key listed under `valid` (the manifest's extensions.reference_vectors lists every table with its labels and keys), and spell the table as a string literal.",
+			},
+		},
+	},
+	PULSE_VECTOR_REFERENCE_MISMATCH: {
+		Message: "A reference vector's labels do not match the vector it is compared with. A reference is matched by label, never by position: the two label sets must be equal (reason `labels_differ`; `missing` lists the vector's labels the reference lacks, `extra` the reference's labels the vector lacks), and a reference cannot be compared with a vector that carries no labels, such as a literal array (reason `unlabeled_partner`).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"vectors", "labels"},
+				Hint:   "Give the compared vector labels equal to the reference's `reference_labels` (any order), or compare with a reference table whose labels are the vector's.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"expression"},
+				Hint:   "For `unlabeled_partner`, compare ref() with a named vector (Request `vectors`), another ref(), or vcenter / vzscore / vnormalize of one, not a literal array.",
+			},
+		},
+	},
 	PULSE_MATRIX_UNSUPPORTED_SOURCE: {
 		Message: "A `matrices` slot sits on a request whose rows the matrix operators cannot fold, so the request is refused before any record is read — predict refuses it identically. Matrices read cohort rows directly: a Request that also carries `joins` (details `source` = `join`) and a ProcessChain stage after stage 0 (details `source` = `chain_stage`, which reads the previous stage's output rows; the stage is under `stage` / `stage_name`) are not supported. The number of matrix slots is under `matrices`.",
 		Fixups: []Fixup{
@@ -3710,6 +3789,36 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRemoveParam,
 				Path:   []string{"vectors", "*", "fields"},
 				Hint:   "Drop the constant member from the vector or the inline `fields`.",
+			},
+		},
+	},
+	PULSE_VECTOR_REFERENCE_MISSING: {
+		Message: "A reference-comparison attribute slot's {table, key_field} reference found no profile for some rows: the key was null (`n_key_null`) or its value is not a key of the table (`n_key_unmatched`; `keys` lists up to 10 of them). Those rows score null; `n_reference_missing` counts them. A runtime warning, raised with or without components.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Attributes", "*", "Params", "reference"},
+				Hint:   "Register a profile for each value in details.keys in the Extensions.ReferenceVectors table (an unsigned-integer key_field matches by its base-10 form, e.g. \"7\", never \"07\"), filter the rows out first, or compare against one profile with {table, key}.",
+			},
+		},
+	},
+	PULSE_VECTOR_METRIC_DOMAIN: {
+		Message: "A reference-comparison attribute's metric reads values only within its domain (hellinger / aitchison: non-negative parts, aitchison no zero; a set metric: 0/1 values), and some rows hold values outside it. Those rows score null; details carry `attribute`, `type`, `metric`, `n_domain_invalid` (the rows) and `reasons`. A runtime warning, raised with or without components.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Attributes", "*", "Params", "metric"},
+				Hint:   "Pick a metric defined on the members' values (euclidean or manhattan for signed values, cosine for direction), or recode the members first (replace aitchison zero parts, dichotomise for a set metric).",
+			},
+		},
+	},
+	PULSE_MATRIX_METRIC_DOMAIN: {
+		Message: "MAT_DISTANCE's metric reads non-negative values (hellinger, aitchison) and some bucket centroids hold a negative coordinate, or an aitchison zero part whose log-ratio is undefined. The distances touching those centroids are null; details carry `matrix`, `metric`, `pairs` (the refused centroid pairs), `buckets` and `reasons` (`negative`, `zero`).",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"matrices", "*", "params", "metric"},
+				Hint:   "Drop `params.metric` (euclidean) or pick a metric defined on signed values (manhattan, cosine) for members that can be negative; for aitchison, replace zero parts before comparing compositions.",
 			},
 		},
 	},

@@ -125,3 +125,53 @@ func FirstCallee(src string, match func(string) bool) string {
 	}
 	return ""
 }
+
+// Call is one call of a named function: the callee name and, per
+// argument, the free identifier the argument IS — "" for any other
+// argument (a literal, a nested call such as vcenter(v), an operator
+// expression, a let-bound name or $env).
+type Call struct {
+	Name string
+	Args []string
+}
+
+// Calls returns every call of a named function in the expression, in
+// walk order (post-order: an inner call before the call enclosing it);
+// parsed=false when the expression does not parse. The vector-kind fit
+// check reads it to judge `cosine(v, w)` on a kind-declared vector: a
+// bare identifier argument is the vector itself, anything else is a
+// transform of it and is not judged.
+func Calls(src string) (calls []Call, parsed bool) {
+	tree, err := exprparser.Parse(src)
+	if err != nil {
+		return nil, false
+	}
+	v := &freeVisitor{skip: map[*exprast.IdentifierNode]bool{}, lets: map[string]bool{}, seen: map[string]bool{}}
+	exprast.Walk(&tree.Node, &freeMarker{v: v})
+	cv := &callVisitor{lets: v.lets}
+	exprast.Walk(&tree.Node, cv)
+	return cv.calls, true
+}
+
+type callVisitor struct {
+	lets  map[string]bool
+	calls []Call
+}
+
+func (v *callVisitor) Visit(node *exprast.Node) {
+	c, ok := (*node).(*exprast.CallNode)
+	if !ok {
+		return
+	}
+	id, ok := c.Callee.(*exprast.IdentifierNode)
+	if !ok {
+		return
+	}
+	call := Call{Name: id.Value, Args: make([]string, len(c.Arguments))}
+	for i, a := range c.Arguments {
+		if aid, ok := a.(*exprast.IdentifierNode); ok && aid.Value != "$env" && !v.lets[aid.Value] {
+			call.Args[i] = aid.Value
+		}
+	}
+	v.calls = append(v.calls, call)
+}

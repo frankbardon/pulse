@@ -44,9 +44,14 @@ type shardIter struct {
 	shardIdx int
 	reader   *encx.RecordReader
 	// shardRec is the in-shard record index of the next row Next hands
-	// out; with shardIdx it is the row's merge-block position (the key
-	// a processing.BlockMerger folds the row under). openShard zeroes it.
+	// out; with shardIdx and starts[shardIdx] it is the row's
+	// merge-block position (the key a processing.BlockMerger folds the
+	// row under). openShard zeroes it.
 	shardRec int
+	// starts is each shard's first global record ordinal
+	// (shardStarts), so a row keys by the ordinal its single-file twin
+	// gives it.
+	starts []int
 
 	current *processing.Record
 	done    bool
@@ -95,7 +100,24 @@ func newShardIter(fs afero.Fs, path string, schema *encoding.Schema, shards []Sh
 		path:   path,
 		schema: schema,
 		shards: out,
+		starts: shardStarts(out),
 	}
+}
+
+// shardStarts returns each shard's first GLOBAL record ordinal: the
+// record counts of the shards before it, in archive order — the
+// ordinal its rows carry in the single file holding the same rows in
+// the same order. The serial iterator and the per-shard reducer both
+// stamp merge positions from it, so a processing.BlockMerger keys a
+// row identically on either path and on the single-file twin.
+func shardStarts(shards []ShardEntry) []int {
+	out := make([]int, len(shards))
+	next := 0
+	for i, s := range shards {
+		out[i] = next
+		next += int(s.RecordCount)
+	}
+	return out
 }
 
 // initArchive loads the archive bytes once and parses the central
@@ -153,13 +175,14 @@ func (it *shardIter) openShard(idx int) error {
 // Next advances to the next record. When a shard is exhausted it
 // transparently rolls to the next shard. Returns false on global
 // exhaustion or on the first error encountered. Every record carries
-// its merge-block position: the shard's archive index and its in-shard
-// record index — the same keys the per-shard parallel reducer stamps.
+// its merge-block position: the shard's archive index, its first
+// global ordinal and the in-shard record index — the same keys the
+// per-shard parallel reducer stamps.
 func (it *shardIter) Next() bool {
 	if !it.next() {
 		return false
 	}
-	it.current.SetMergePosition(it.shardIdx, it.shardRec)
+	it.current.SetMergePosition(it.shardIdx, it.starts[it.shardIdx], it.shardRec)
 	it.shardRec++
 	return true
 }

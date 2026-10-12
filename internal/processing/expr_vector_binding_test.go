@@ -56,7 +56,7 @@ func TestExprVectors_BindingSemantics(t *testing.T) {
 		{"vcount(v) >= 3 ? vmean(v) : nil", 3.0, nil, nil},
 	}
 	for _, tc := range cases {
-		prog, err := newExprProgram(tc.src, "formula", s, vecs, setExprOptions())
+		prog, err := newExprProgram(tc.src, "formula", s, vecs, nil, setExprOptions())
 		if err != nil {
 			t.Fatalf("%q: %v", tc.src, err)
 		}
@@ -90,7 +90,7 @@ func sameExprValue(got, want any) bool {
 // and no frame work — the no-vector path is the pre-binding program.
 func TestExprVectors_UnreferencedBindsNothing(t *testing.T) {
 	vecs, rec := vecBindSchemaAndVectors(t)
-	prog, err := newExprProgram("a + b", "formula", mkSchema("a", "b", "c", "x"), vecs, setExprOptions())
+	prog, err := newExprProgram("a + b", "formula", mkSchema("a", "b", "c", "x"), vecs, nil, setExprOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestExprVectors_UnreferencedBindsNothing(t *testing.T) {
 // vectors reuses the pooled frame — no allocation per row.
 func TestExprVectors_FillAllocationFree(t *testing.T) {
 	vecs, rec := vecBindSchemaAndVectors(t)
-	prog, err := newExprProgram("vsum(v) + vsum(w)", "formula", mkSchema("a", "b", "c", "x"), vecs, setExprOptions())
+	prog, err := newExprProgram("vsum(v) + vsum(w)", "formula", mkSchema("a", "b", "c", "x"), vecs, nil, setExprOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestExprVectors_FillAllocationFree(t *testing.T) {
 func TestExprVectors_TopLevelVectorRefused(t *testing.T) {
 	vecs, _ := vecBindSchemaAndVectors(t)
 	for _, what := range []string{"formula", "filter", "formula total() argument"} {
-		_, err := newExprProgram("v", what, mkSchema("a", "b", "c", "x"), vecs, setExprOptions())
+		_, err := newExprProgram("v", what, mkSchema("a", "b", "c", "x"), vecs, nil, setExprOptions())
 		var ce *errors.CodedError
 		if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_CONFIG || ce.Details["expression_site"] != what {
 			t.Errorf("%s: err %v, want the PROCESSING_CONFIG vector-result refusal", what, err)
@@ -208,7 +208,7 @@ func TestAppendExprIdents_ExpandsVectors(t *testing.T) {
 // into a pooled copy, never into the record's shared cache.
 func TestExprVectors_DeferredAndCachedPaths(t *testing.T) {
 	vecs, rec := vecBindSchemaAndVectors(t)
-	prog, err := newExprProgram("vsum(v) + extra", "formula", mkSchema("a", "b", "c", "x"), vecs, setExprOptions())
+	prog, err := newExprProgram("vsum(v) + extra", "formula", mkSchema("a", "b", "c", "x"), vecs, nil, setExprOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +262,7 @@ func BenchmarkVectorFormula8(b *testing.B) {
 		{"scalar", "(q1 + q2 + q4 + q5 + q6 + q7 + q8) / 7"},
 	} {
 		b.Run(bc.name, func(b *testing.B) {
-			prog, err := newExprProgram(bc.src, "formula", s, vecs, setExprOptions())
+			prog, err := newExprProgram(bc.src, "formula", s, vecs, nil, setExprOptions())
 			if err != nil {
 				b.Fatal(err)
 			}
