@@ -3079,6 +3079,20 @@ const (
 	// "attribute", or "window" / "window_index").
 	PULSE_VECTOR_NAME_COLLISION Code = "PULSE_VECTOR_NAME_COLLISION"
 
+	// PULSE_VECTOR_FIELD_NOT_SCALAR indicates a native vector field
+	// (vec_f32 / vec_f64) named where a single value is read: a scalar
+	// aggregation, grouper, attribute, feature, filter, test or
+	// regression slot (an operator param naming a field included), a
+	// window field / order_by / partition_by or sort key, a weight, a
+	// date / zone slot or a point-lookup index key (a join key is
+	// PULSE_JOIN_TYPE_MISMATCH, details.reason "vector_key").
+	// Presence-only slots (AGG_COUNT, AGG_NULL_COUNT, FILTER_NULL),
+	// AGG_RATIO's ignored field and every vector slot accept the field.
+	// Refused identically by predict and the runtime before any record
+	// is read. Details carry "field", "field_type", "dim", "slot" and,
+	// where a vector operator replaces the slot, "suggest".
+	PULSE_VECTOR_FIELD_NOT_SCALAR Code = "PULSE_VECTOR_FIELD_NOT_SCALAR"
+
 	// PULSE_VECTOR_LABELS_MISMATCH indicates a vector whose `labels`
 	// count differs from its resolved member count. Details carry
 	// "vector", "name", "labels" and "members" (both counts) and
@@ -3889,6 +3903,7 @@ var allCodes = []Code{
 	PULSE_VECTOR_MEMBER_TYPE,
 	PULSE_VECTOR_DUPLICATE,
 	PULSE_VECTOR_NAME_COLLISION,
+	PULSE_VECTOR_FIELD_NOT_SCALAR,
 	PULSE_VECTOR_LABELS_MISMATCH,
 	PULSE_VECTOR_UNKNOWN,
 	PULSE_VECTOR_UNREFERENCED,

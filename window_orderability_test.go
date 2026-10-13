@@ -133,6 +133,23 @@ func TestWindowOrderBy_OrderabilityPredictMatchesRuntime(t *testing.T) {
 			t.Fatalf("predict %s %q %v != runtime %s %q %v", e.Code, e.Message, e.Details, ce.Code, ce.Message, ce.Details)
 		}
 	})
+
+	// A vector (IsOrderableType false) is refused on both sides too, by
+	// the vector-in-a-scalar-slot rule the walk applies before the
+	// orderability one — one error, the same from either side.
+	t.Run("vector refused on both sides", func(t *testing.T) {
+		writeVnatCohorts(t, p, encoding.FieldTypeVecF64, false)
+		_, err := p.Process(ctx, req("native.pulse", "emb"))
+		ce := requireCode(t, err, errors.PULSE_VECTOR_FIELD_NOT_SCALAR)
+		env := predictEnvelope(t, p, fs, "native.pulse", req("native.pulse", "emb"))
+		if len(env.Errors) != 1 {
+			t.Fatalf("predict errors = %+v, want exactly the vector refusal", env.Errors)
+		}
+		e := env.Errors[0]
+		if e.Code != string(ce.Code) || e.Message != ce.Message || fmt.Sprint(e.Details) != fmt.Sprint(ce.Details) {
+			t.Fatalf("predict %s %q %v != runtime %s %q %v", e.Code, e.Message, e.Details, ce.Code, ce.Message, ce.Details)
+		}
+	})
 }
 
 func toF64(v any) (float64, bool) {

@@ -642,6 +642,25 @@ func (r *Record) VectorValue(name string) ([]float64, bool) {
 	return append([]float64(nil), vec...), true
 }
 
+// vectorPresent reports whether the named field carries a vector value
+// (vec_f32 / vec_f64, a NaN element included) on this record — false
+// when null, missing, projected out or not a vector. VectorValue's
+// presence half, without the copy.
+func (r *Record) vectorPresent(name string) bool {
+	if r.nullMarked(name) {
+		return false
+	}
+	if i := r.pos(name); i >= 0 && r.test(planeWide, i) {
+		return r.layout.wideKind[i] == wideVector
+	}
+	v, ok := r.getWide(name)
+	if !ok {
+		return false
+	}
+	_, ok = v.([]float64)
+	return ok
+}
+
 // SetWide assigns a typed wide value to a field. Used by readers and
 // feature operators that produce non-float values (decimal128, set
 // bitmasks).

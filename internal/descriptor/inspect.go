@@ -4,6 +4,8 @@ import (
 	"bytes"
 	stderrors "errors"
 	"io"
+	"slices"
+	"strconv"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -94,7 +96,7 @@ func InspectWith(fileData io.ReadSeeker, opts *descriptor.InspectOptions, meta I
 	result.FieldCount = len(schema.Fields)
 	result.Fields = make([]*descriptor.InspectField, len(schema.Fields))
 	for i, f := range schema.Fields {
-		result.Fields[i] = renderInspectField(f, limit)
+		result.Fields[i] = renderInspectField(schema, i, f, limit)
 	}
 	result.SuggestedWeight = SuggestWeight(schema, meta.WeightVariable, meta.Instance)
 
@@ -249,7 +251,7 @@ func inspectArchive(data []byte, opts *descriptor.InspectOptions, meta InspectMe
 	result.FieldCount = len(schema.Fields)
 	result.Fields = make([]*descriptor.InspectField, len(schema.Fields))
 	for i, f := range schema.Fields {
-		result.Fields[i] = renderInspectField(f, limit)
+		result.Fields[i] = renderInspectField(schema, i, f, limit)
 	}
 	result.SuggestedWeight = SuggestWeight(schema, meta.WeightVariable, meta.Instance)
 
@@ -290,14 +292,21 @@ func inspectArchive(data []byte, opts *descriptor.InspectOptions, meta InspectMe
 	return env
 }
 
-// renderInspectField builds the InspectField record for a single
-// encoding.Field, applying the dictionary truncation limit. Shared
-// between the single-file path (in Inspect) and the archive path.
-func renderInspectField(f encoding.Field, limit int) *descriptor.InspectField {
+// renderInspectField builds the InspectField record for field i (f) of
+// schema, applying the dictionary truncation limit — to a categorical or
+// set dictionary and to a vector's element labels alike. Shared between
+// the single-file path (in Inspect) and the archive path. Header-only:
+// a vector's dim, kind, scale range and labels are its VECTORS-section
+// schema metadata.
+func renderInspectField(schema *encoding.Schema, i int, f encoding.Field, limit int) *descriptor.InspectField {
+	vf, isVec := schema.Vector(i)
 	desc := f.Description
 	descSource := "schema"
 	if desc == "" {
 		desc = synthesizeDescription(f)
+		if isVec {
+			desc += " (" + strconv.Itoa(vf.Dim) + " elements)"
+		}
 		descSource = "synthesized"
 	}
 
@@ -319,19 +328,32 @@ func renderInspectField(f encoding.Field, limit int) *descriptor.InspectField {
 	}
 
 	if f.Type.HasDictionary() && f.Dictionary != nil {
-		values := f.Dictionary.Values()
-		dictInfo := &descriptor.DictionaryInfo{
-			TotalEntries: len(values),
-			Truncated:    false,
-			Values:       values,
+		field.Dictionary = truncatedEntries(f.Dictionary.Values(), limit)
+	}
+	if isVec {
+		v := &descriptor.InspectVector{Dim: vf.Dim, Kind: vf.Kind.String()}
+		if vf.HasScale {
+			lo, hi := vf.ScaleMin, vf.ScaleMax
+			v.ScaleMin, v.ScaleMax = &lo, &hi
 		}
-		if limit > 0 && len(values) > limit {
-			dictInfo.Truncated = true
-			dictInfo.Values = values[:limit]
+		if vf.Labels != nil {
+			v.Labels = truncatedEntries(slices.Clone(vf.Labels), limit)
 		}
-		field.Dictionary = dictInfo
+		field.Vector = v
 	}
 	return field
+}
+
+// truncatedEntries is the DictionaryInfo of values cut to limit entries
+// (limit <= 0: no cut) — the one truncation rule for dictionaries and
+// vector element labels.
+func truncatedEntries(values []string, limit int) *descriptor.DictionaryInfo {
+	info := &descriptor.DictionaryInfo{TotalEntries: len(values), Values: values}
+	if limit > 0 && len(values) > limit {
+		info.Truncated = true
+		info.Values = values[:limit]
+	}
+	return info
 }
 
 // synthesizeDescription generates a fallback description for fields
@@ -344,6 +366,8 @@ func synthesizeDescription(f encoding.Field) string {
 		return "Set field: " + f.Name
 	case f.Type.IsDecimal():
 		return "Decimal field: " + f.Name
+	case f.Type.IsVector():
+		return "Vector field: " + f.Name
 	}
 	return "Numeric field: " + f.Name
 }

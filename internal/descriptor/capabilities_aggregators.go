@@ -211,6 +211,22 @@ var setFieldTypes = []string{
 // GROUP_SET_* / ATTR_SET_* families instead.
 var nonSetFieldTypes = nonSetSubset(allCohortFieldTypes)
 
+// nonVectorFieldTypes is allCohortFieldTypes minus the vector types:
+// the operators that read a field's single value whatever its type
+// (FILTER_TRUE / FILTER_FALSE truthiness, a window's ORDER BY key, a
+// stratify key). A vector has dim values per row, so every such slot
+// refuses it with PULSE_VECTOR_FIELD_NOT_SCALAR (the field-reference
+// walk's vectorScalarRefusals).
+var nonVectorFieldTypes = func() []string {
+	out := make([]string, 0, len(allCohortFieldTypes))
+	for _, n := range allCohortFieldTypes {
+		if !strings.HasPrefix(n, "vec_") {
+			out = append(out, n)
+		}
+	}
+	return out
+}()
+
 // nonSetNonDecimalFieldTypes is nonSetFieldTypes without decimal128,
 // for a value-matching aggregator with no decimal implementation
 // (AGG_FREQUENCY).

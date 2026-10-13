@@ -346,7 +346,8 @@ func ValidateWeightSpec(spec *types.WeightSpec, where string) error {
 }
 
 // weightFieldTypeRefusal refuses a weight field the schema carries
-// under a type a weight cannot live in. A field the schema does not
+// under a type a weight cannot live in (a vec_f32 / vec_f64 field with
+// PULSE_VECTOR_FIELD_NOT_SCALAR, any other with PROCESSING_CONFIG). A field the schema does not
 // carry is not judged here (the field-reference rule owns it); a nil
 // schema judges nothing.
 func weightFieldTypeRefusal(schema *encoding.Schema, where, field string) error {
@@ -356,6 +357,9 @@ func weightFieldTypeRefusal(schema *encoding.Schema, where, field string) error 
 	f := schema.Field(field)
 	if f == nil || IsWeightFieldType(f.Type) {
 		return nil
+	}
+	if ce := vectors.ScalarRefusal(schema, field, where, "", nil); ce != nil {
+		return ce
 	}
 	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 		fmt.Sprintf("%s: weight field %q is of type %s; a weight must be an unsigned integer (u4, u8, u16, u32, u64) or float (f32, f64) field", where, field, f.Type.String()),

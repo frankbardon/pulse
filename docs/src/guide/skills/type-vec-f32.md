@@ -16,11 +16,11 @@ Dim 2..1024. Elements are ~7 significant digits; each element widens exactly to 
 
 ## Null
 
-Orthogonal. A null vector is a zeroed full stride plus its null-bitmap bit — no in-band sentinel. A NaN element is a stored value, not a null. `IsNumeric()` and `IsNumericForAnalytics()` are both `false`: a vector is not a scalar.
+Orthogonal. A null vector is a zeroed full stride plus its null-bitmap bit — no in-band sentinel. A NaN element is a stored value, not a null. `IsNumeric()` and `IsNumericForAnalytics()` are both `false`: a vector is not a scalar. Presence-only slots count a null vector as null and a NaN-element vector as present. Every slot that reads ONE value — a scalar aggregation, grouper, attribute, feature, filter, test or regression input, a window field / order key, a sort key, a weight, a date / zone slot, a point-lookup key — refuses a vector field with `PULSE_VECTOR_FIELD_NOT_SCALAR`, predict and runtime alike (`details.suggest` names the vector operator replacing a bare aggregation / grouper slot); a join key is `PULSE_JOIN_TYPE_MISMATCH` (`reason: vector_key`). Name the field under `vector` instead.
 
 ## Dictionary
 
-Absent. Element labels live in the VECTORS section, not a dictionary block.
+Absent. Element labels live in the VECTORS section, not a dictionary block. Inspect reports them under the field's `vector` block (`dim`, `kind`, `scale_min` / `scale_max`, `labels`), truncated like a dictionary unless `FullDict`.
 
 ## See
 

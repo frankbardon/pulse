@@ -1956,6 +1956,11 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"Joins", "*", "On"},
 				Hint:   "Re-import the right cohort with a matching type for the key field (e.g. cast u32 → u64 to align with the left side), or pre-aggregate one side to expose a compatible key column.",
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Joins", "*", "On"},
+				Hint:   "When `details.reason` is \"set_key\" or \"vector_key\", the key is a set_* or vec_f32 / vec_f64 column, which has no single equality value on either side: join on a scalar key column instead (the set or vector column still rides through the join).",
+			},
 		},
 	},
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED: {
@@ -3836,6 +3841,28 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRemoveParam,
 				Path:   []string{"vectors", "*", "fields"},
 				Hint:   "Drop the literal entry a glob already covers, or narrow the glob so the member appears once.",
+			},
+		},
+	},
+	PULSE_VECTOR_FIELD_NOT_SCALAR: {
+		Message: "A native vector field (vec_f32 / vec_f64) was named where a single value is read — a scalar aggregation, grouper, attribute, feature, filter, test or regression slot (or an operator param naming a field), a window field / order_by / partition_by, a sort key, a weight, a date / zone slot or a point-lookup index key. A vector has dim values per row, so there is no one number to read. `details.field` / `field_type` / `dim` describe the field and `details.slot` the slot; `details.suggest`, when present, names the vector operator that replaces the slot. A slot that asks only whether the field answered (a count of present or null rows, a null filter) accepts a vector field, as does every vector slot.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"aggregations", "*", "type"},
+				Hint:     "Aggregate the whole vector with a vector aggregator naming it under `vector` (drop `field`): AGG_VEC_MEAN for the element-wise mean, AGG_VEC_SUM for the element-wise sum.",
+				Examples: []any{"AGG_VEC_MEAN", "AGG_VEC_SUM"},
+			},
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"groups", "*", "type"},
+				Hint:     "Group rows by the vector with GROUP_KMEANS naming it under `vector` (drop `field`); a vector has no category or range to bucket.",
+				Examples: []any{"GROUP_KMEANS"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"vectors", "*", "fields"},
+				Hint:   "To read ONE element as a number, declare a virtual vector whose `fields` name it as `field[k]` (1-based) and use a vector slot or an expression over it; scalar slots read scalar columns only. Matrices (MAT_*), vector tests and vector attributes take the field directly under `vector`.",
 			},
 		},
 	},

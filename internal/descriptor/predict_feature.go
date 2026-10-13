@@ -134,9 +134,12 @@ func validateFeatureSpec(env *descriptor.Envelope, feat *types.Feature, schema *
 		return
 	}
 
+	// A vector field is the field-reference walk's refusal
+	// (vectorScalarRefusals); the type checks below would only repeat it.
+	vec := f.Type.IsVector()
 	switch feat.Type {
 	case types.FEAT_ONE_HOT, types.FEAT_FREQUENCY_ENCODE, types.FEAT_TARGET_ENCODE:
-		if !f.Type.IsCategorical() {
+		if !vec && !f.Type.IsCategorical() {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"feature "+string(feat.Type)+" requires a categorical field",
@@ -147,7 +150,7 @@ func validateFeatureSpec(env *descriptor.Envelope, feat *types.Feature, schema *
 			validateTargetEncodeParams(env, feat, schema)
 		}
 	case types.FEAT_DATE_FEATURES:
-		if f.Type != encoding.FieldTypeDate && f.Type != encoding.FieldTypeDateTime {
+		if !vec && f.Type != encoding.FieldTypeDate && f.Type != encoding.FieldTypeDateTime {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"feature FEAT_DATE_FEATURES requires a date or datetime field",
@@ -157,7 +160,7 @@ func validateFeatureSpec(env *descriptor.Envelope, feat *types.Feature, schema *
 	case types.FEAT_BUCKETIZE:
 		validateBucketizeParams(env, feat)
 	case types.FEAT_POLY:
-		if !featureAcceptsType(feat.Type, f.Type) {
+		if !vec && !featureAcceptsType(feat.Type, f.Type) {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"feature FEAT_POLY requires a numeric field",
@@ -218,7 +221,7 @@ func validateSplitParams(env *descriptor.Envelope, feat *types.Feature, schema *
 	}
 	if p.Stratify != "" {
 		// An unknown name is FieldRefRefusals' refusal.
-		if f := schema.Field(p.Stratify); f != nil && !f.Type.IsCategorical() {
+		if f := schema.Field(p.Stratify); f != nil && !f.Type.IsVector() && !f.Type.IsCategorical() {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"feature FEAT_TRAIN_TEST_SPLIT: stratify field must be categorical",

@@ -25,10 +25,11 @@ import "github.com/frankbardon/pulse/types"
 // the numeric value is discarded.
 
 // FieldPresent reports whether the named field carries a value on this
-// record — a number, a wide typed value (decimal128), or a set mask
-// (any rung, empty mask included). It is false exactly when the field
-// is null or absent, which is the same condition Record.IsNull reports
-// true for.
+// record — a number, a wide typed value (decimal128), a set mask (any
+// rung, empty mask included) or a vector (vec_f32 / vec_f64, NaN
+// elements included: a NaN element is a missing MEMBER, not a missing
+// vector). It is false exactly when the field is null or absent, which
+// is the same condition Record.IsNull reports true for.
 //
 // The empty mask is deliberately PRESENT. `set_*` nulls ride the
 // per-record null bitmap with no in-band sentinel, so an all-zero mask
@@ -41,8 +42,10 @@ func FieldPresent(r *Record, field string) bool {
 	if _, ok := r.NumericValue(field); ok {
 		return true
 	}
-	_, ok := r.SetMaskValue(field)
-	return ok
+	if _, ok := r.SetMaskValue(field); ok {
+		return true
+	}
+	return r.vectorPresent(field)
 }
 
 // AggregationPresent is the universal floor's presence question for an

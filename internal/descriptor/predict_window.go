@@ -183,7 +183,7 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 					"window["+idx+"] ("+string(w.Type)+"): field is required",
 					map[string]any{"window_index": i, "type": string(w.Type)},
 				)
-			} else if f := schema.Field(w.Field); f != nil && windowNumericFieldRequired[w.Type] && !isNumericType(f.Type) {
+			} else if f := schema.Field(w.Field); f != nil && !f.Type.IsVector() && windowNumericFieldRequired[w.Type] && !isNumericType(f.Type) {
 				env.AddError(
 					string(errors.PULSE_WINDOW_INVALID),
 					"window["+idx+"] ("+string(w.Type)+"): field "+w.Field+" must be numeric (got "+f.Type.String()+")",

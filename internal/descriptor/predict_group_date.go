@@ -69,7 +69,7 @@ func validateDatePartParams(env *descriptor.Envelope, req *types.Request, schema
 		}
 		part, err := datepart.Parse(a.Params)
 		if err == nil && schema != nil {
-			if f := schema.Field(a.Field); f != nil {
+			if f := schema.Field(a.Field); f != nil && !f.Type.IsVector() {
 				err = datepart.CheckField(part, a.Field, f)
 			}
 		}

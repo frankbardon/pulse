@@ -524,7 +524,12 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_VECTOR_LABELS_MISMATCH: own(featMatrices),
 	errors.PULSE_VECTOR_NAME_COLLISION:  own(featMatrices),
 	errors.PULSE_VECTOR_UNKNOWN:         ownVectorInputs,
-	errors.PULSE_VECTOR_UNREFERENCED:    own(featMatrices),
+	// A native vector field named in a scalar slot: any request slot
+	// over a cohort carrying a vec field can raise it (the walk, the
+	// zone pass, weight resolution, the point-lookup index), whatever
+	// the instance enables.
+	errors.PULSE_VECTOR_FIELD_NOT_SCALAR: shared,
+	errors.PULSE_VECTOR_UNREFERENCED:     own(featMatrices),
 
 	// The shared metric registry (linalg/metric) refuses an unknown,
 	// wrong-direction or unaccepted metric, and a missing one, for every

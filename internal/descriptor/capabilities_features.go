@@ -106,7 +106,7 @@ func featureCapabilities() []descriptor.Operator {
 				{Name: "seed", Type: "int", Required: false, Default: 0, Description: "RNG seed; same seed produces byte-identical assignments."},
 				{Name: "stratify", Type: "field", Required: false, FieldFilter: "categorical", Description: "Optional categorical field; ratios are applied per category for class balance."},
 			},
-			AcceptsTypes:  allCohortFieldTypes,
+			AcceptsTypes:  nonVectorFieldTypes,
 			EmitsType:     "u8",
 			EmitsTypeNote: "single column \"<label>\" with split assignment per row",
 			Streamable:    true,

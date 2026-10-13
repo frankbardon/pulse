@@ -62,7 +62,7 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		} else {
 			// An unknown name is the field-reference rule's refusal
 			// (FieldRefRefusals); only a schema field is type-checked.
-			if f := schema.Field(reg.Target); f != nil && !regressionAcceptsType(reg.Type, f.Type) {
+			if f := schema.Field(reg.Target); f != nil && !f.Type.IsVector() && !regressionAcceptsType(reg.Type, f.Type) {
 				env.AddError(
 					string(errors.SERVICE_VALIDATION),
 					"regression target field "+reg.Target+" is not numeric (got "+f.Type.String()+")",
@@ -80,8 +80,8 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		}
 		for _, p := range reg.Predictors {
 			f := schema.Field(p)
-			if f == nil {
-				continue // unknown: FieldRefRefusals; derived: untyped
+			if f == nil || f.Type.IsVector() {
+				continue // unknown: FieldRefRefusals; derived: untyped; vector: vectorScalarRefusals
 			}
 			if !regressionAcceptsType(reg.Type, f.Type) {
 				env.AddError(

@@ -319,6 +319,15 @@ func bind(slots []bslot, schema *encoding.Schema, hints []string, k int) []bindi
 	for i, s := range slots {
 		for j := range schema.Fields {
 			f := &schema.Fields[j]
+			// A native vector field (FieldKindVector) binds no slot: every
+			// field / param slot reads ONE value and refuses a vector
+			// (PULSE_VECTOR_FIELD_NOT_SCALAR), and the vector slots draft
+			// inline member lists of numeric columns. Judged here, not
+			// left to the predict probe, whose needs match is a substring
+			// test the refusal's prose could satisfy.
+			if f.Type.IsVector() {
+				continue
+			}
 			if s.accept(f) {
 				cands[i] = append(cands[i], f)
 			}

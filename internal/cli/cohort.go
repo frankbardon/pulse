@@ -109,6 +109,9 @@ func printInspectResult(cmd *cli.Command, result *descriptor.InspectResult) {
 			}
 			writeText(cmd.Writer, "\n")
 		}
+		if v := f.Vector; v != nil {
+			printInspectVector(cmd, v)
+		}
 		if f.Group != nil {
 			key := ""
 			if f.Group.Key {
@@ -120,6 +123,28 @@ func printInspectResult(cmd *cli.Command, result *descriptor.InspectResult) {
 	printInspectGroups(cmd, result)
 	if sw := result.SuggestedWeight; sw != nil {
 		writeText(cmd.Writer, "Suggested weight: %s (%s, kind %s; not applied)\n", sw.Field, sw.Source, sw.Kind)
+	}
+}
+
+// printInspectVector renders a vec_f32 / vec_f64 field's metadata line
+// — dim, kind, scale range — and its element labels, truncated exactly
+// as descriptor.Inspect truncated them (DefaultDictionaryLimit unless
+// --full-dict).
+func printInspectVector(cmd *cli.Command, v *descriptor.InspectVector) {
+	writeText(cmd.Writer, "    vector: dim %d", v.Dim)
+	if v.Kind != "" {
+		writeText(cmd.Writer, ", kind %s", v.Kind)
+	}
+	if v.ScaleMin != nil && v.ScaleMax != nil {
+		writeText(cmd.Writer, ", scale %g..%g", *v.ScaleMin, *v.ScaleMax)
+	}
+	writeText(cmd.Writer, "\n")
+	if l := v.Labels; l != nil {
+		writeText(cmd.Writer, "    labels: %s", strings.Join(l.Values, ", "))
+		if l.Truncated {
+			writeText(cmd.Writer, " (%d of %d, truncated)", len(l.Values), l.TotalEntries)
+		}
+		writeText(cmd.Writer, "\n")
 	}
 }
 

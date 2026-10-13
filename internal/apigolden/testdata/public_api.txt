@@ -1370,6 +1370,7 @@ pulse/descriptor: type InspectField field Name string "json:\"name\""
 pulse/descriptor: type InspectField field Precision *uint8 "json:\"precision,omitempty\""
 pulse/descriptor: type InspectField field Scale *uint8 "json:\"scale,omitempty\""
 pulse/descriptor: type InspectField field Type string "json:\"type\""
+pulse/descriptor: type InspectField field Vector *pulse/descriptor.InspectVector "json:\"vector,omitempty\""
 pulse/descriptor: type InspectFieldGroup struct
 pulse/descriptor: type InspectFieldGroup field Group int "json:\"group\""
 pulse/descriptor: type InspectFieldGroup field Key bool "json:\"key\""
@@ -1407,6 +1408,12 @@ pulse/descriptor: type InspectResult field Layout *pulse/descriptor.InspectLayou
 pulse/descriptor: type InspectResult field RecordCount int64 "json:\"record_count\""
 pulse/descriptor: type InspectResult field Shards []pulse/descriptor.ShardInfo "json:\"shards\""
 pulse/descriptor: type InspectResult field SuggestedWeight *pulse/descriptor.SuggestedWeight "json:\"suggested_weight,omitempty\""
+pulse/descriptor: type InspectVector struct
+pulse/descriptor: type InspectVector field Dim int "json:\"dim\""
+pulse/descriptor: type InspectVector field Kind string "json:\"kind,omitempty\""
+pulse/descriptor: type InspectVector field Labels *pulse/descriptor.DictionaryInfo "json:\"labels,omitempty\""
+pulse/descriptor: type InspectVector field ScaleMax *float64 "json:\"scale_max,omitempty\""
+pulse/descriptor: type InspectVector field ScaleMin *float64 "json:\"scale_min,omitempty\""
 pulse/descriptor: type Intent struct
 pulse/descriptor: type Intent field Analytic bool "json:\"analytic\""
 pulse/descriptor: type Intent field ID string "json:\"id\""
@@ -2532,6 +2539,7 @@ pulse/errors: const PULSE_TIMEZONE_UNKNOWN pulse/errors.Code = "PULSE_TIMEZONE_U
 pulse/errors: const PULSE_TRANSFER_INVALID pulse/errors.Code = "PULSE_TRANSFER_INVALID"
 pulse/errors: const PULSE_VECTOR_DUPLICATE pulse/errors.Code = "PULSE_VECTOR_DUPLICATE"
 pulse/errors: const PULSE_VECTOR_EMPTY pulse/errors.Code = "PULSE_VECTOR_EMPTY"
+pulse/errors: const PULSE_VECTOR_FIELD_NOT_SCALAR pulse/errors.Code = "PULSE_VECTOR_FIELD_NOT_SCALAR"
 pulse/errors: const PULSE_VECTOR_INVALID pulse/errors.Code = "PULSE_VECTOR_INVALID"
 pulse/errors: const PULSE_VECTOR_LABELS_MISMATCH pulse/errors.Code = "PULSE_VECTOR_LABELS_MISMATCH"
 pulse/errors: const PULSE_VECTOR_MEMBER_TYPE pulse/errors.Code = "PULSE_VECTOR_MEMBER_TYPE"
@@ -5018,4 +5026,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 49320382aa9a0eeea8d439189f1ac698be9f52cfba21430919e13fa1aa81bd1a
+// golden-hash: 70a17f7bfb4c7bfa7e99d00f227159d98ab924dec6d94a734393301408c3c3a0

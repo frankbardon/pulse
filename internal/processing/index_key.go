@@ -79,15 +79,19 @@ func IsIndexKeyableFieldType(ft encoding.FieldType) bool {
 
 // IndexKeyRejectionMessage returns a field-type-specific explanation for
 // why ft cannot be used as a point-lookup index key, for callers
-// building a PROCESSING_CONFIG coded error around a
-// !IsIndexKeyableFieldType(ft) check (processing.ResolveLookupKeyBytes
-// and internal/service.BuildIndex both surface this text). set_* gets a
-// dedicated explanation of the ambiguous-equality rationale; every
-// other (hypothetical future) rejected type falls back to a generic
-// message.
+// building a coded error around a !IsIndexKeyableFieldType(ft) check
+// (processing.ResolveLookupKeyBytes and internal/service.BuildIndex
+// both surface this text). set_* gets a dedicated explanation of the
+// ambiguous-equality rationale and vec_f32 / vec_f64 one of the
+// no-single-value rationale (BuildIndex raises it as
+// PULSE_VECTOR_FIELD_NOT_SCALAR, vectors.FieldNotScalar); every other
+// (hypothetical future) rejected type falls back to a generic message.
 func IndexKeyRejectionMessage(ft encoding.FieldType) string {
 	if ft.IsSet() {
 		return "set_* fields cannot be a point-lookup index key: a multi-select bitmask has no single unambiguous equality value (empty selection, single-member, and multi-member masks are all distinct legal states) — use a FILTER_SET membership predicate instead"
+	}
+	if ft.IsVector() {
+		return "vec_f32 / vec_f64 fields cannot be a point-lookup index key: a vector has dim values per row and no single equality value — key the index on a scalar field"
 	}
 	return "field type is not supported as a point-lookup index key"
 }

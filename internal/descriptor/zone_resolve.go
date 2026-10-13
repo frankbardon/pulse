@@ -188,6 +188,13 @@ func resolveZoneSlots(slots []zoneSlot, requestZone string, schema *encoding.Sch
 			continue
 		}
 
+		// A date-family slot over a vector field is not a zone question:
+		// the field-reference walk, which runs right after this pass on
+		// both sides, refuses it (PULSE_VECTOR_FIELD_NOT_SCALAR) whatever
+		// the zone, so judging it here too would report it twice.
+		if _, _, isVec := vectors.VectorField(schema, s.field); isVec {
+			continue
+		}
 		fieldType, known := "", false
 		if schema != nil && s.field != "" {
 			if f := schema.Field(s.field); f != nil {

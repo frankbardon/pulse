@@ -169,12 +169,33 @@ type InspectField struct {
 	// Scale is the decimal128 scale (0-precision). Present only for
 	// decimal128 / nullable_decimal128 fields.
 	Scale *uint8 `json:"scale,omitempty"`
+	// Vector is present only for a vec_f32 / vec_f64 field: its dim,
+	// kind, scale range and element labels (the schema's VECTORS
+	// section — header-only, like a dictionary).
+	Vector *InspectVector `json:"vector,omitempty"`
 	// Group is present only when the field is a parent-group member
 	// (0x02): its value lives in that group's dictionary, not the row.
 	// In a grouped cohort every field's ByteOffset is its LOGICAL-row
 	// offset (the schema keeps the ungrouped descriptors), never a
 	// physical one — Layout.PhysicalRecordStride is the on-disk row.
 	Group *InspectFieldGroup `json:"group,omitempty"`
+}
+
+// InspectVector describes a vec_f32 / vec_f64 field's schema metadata.
+type InspectVector struct {
+	// Dim is the element count.
+	Dim int `json:"dim"`
+	// Kind is the declared vector kind (measure, scale, composition,
+	// binary); absent when none is declared.
+	Kind string `json:"kind,omitempty"`
+	// ScaleMin and ScaleMax are the declared value range; both absent
+	// when none is declared.
+	ScaleMin *float64 `json:"scale_min,omitempty"`
+	ScaleMax *float64 `json:"scale_max,omitempty"`
+	// Labels are the element labels, in element order — truncated
+	// exactly like a dictionary (DefaultDictionaryLimit unless
+	// FullDict); absent when the field declares none.
+	Labels *DictionaryInfo `json:"labels,omitempty"`
 }
 
 // DictionaryInfo describes the categorical dictionary for a field.

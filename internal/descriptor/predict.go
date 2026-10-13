@@ -546,7 +546,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// A slot still without an operator Type is refused by the runtime's
 	// operator construction; report it with the runtime's code and
 	// message.
-	validateOperatorTypes(env, req)
+	validateOperatorTypes(env, req, schema)
 	validateAggregationParams(env, req, opts.instance())
 	validateGroupDateParams(env, req, schema, opts.instance())
 	validateGroupFitParams(env, req, opts.instance())
@@ -1686,16 +1686,23 @@ func predictJoinedSchema(env *descriptor.Envelope, req *types.Request, schema *e
 // Type is still empty once defaults have (or, under DisableDefaults,
 // have not) run. The runtime refuses each one at operator construction
 // with PROCESSING_CONFIG "unknown <family> type: "; predict mirrors
-// code and message, adding the slot path.
-func validateOperatorTypes(env *descriptor.Envelope, req *types.Request) {
+// code and message, adding the slot path. An aggregation or group slot
+// naming a vector field is the field-reference walk's refusal instead
+// (PULSE_VECTOR_FIELD_NOT_SCALAR, suggesting the vector operator), which
+// the runtime meets first.
+func validateOperatorTypes(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema) {
 	if req == nil {
 		return
 	}
 	report := func(family, slot string) {
 		env.AddError(string(errors.PROCESSING_CONFIG), "unknown "+family+" type: ", map[string]any{"slot": slot})
 	}
+	isVec := func(field string) bool {
+		_, _, ok := vectors.VectorField(schema, field)
+		return ok
+	}
 	for i, a := range req.Aggregations {
-		if a != nil && a.Type == "" {
+		if a != nil && a.Type == "" && !isVec(a.Field) {
 			report("aggregation", "aggregations["+strconv.Itoa(i)+"]")
 		}
 	}
@@ -1715,7 +1722,7 @@ func validateOperatorTypes(env *descriptor.Envelope, req *types.Request) {
 		}
 	}
 	for i, g := range req.Groups {
-		if g != nil && g.Type == "" {
+		if g != nil && g.Type == "" && !isVec(g.Field) {
 			report("group", "groups["+strconv.Itoa(i)+"]")
 		}
 	}
