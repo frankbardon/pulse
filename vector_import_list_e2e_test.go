@@ -12,17 +12,17 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/internal/cli"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 )
 
 // TestVectorImport_ListColumnEndToEnd is the list-source arm of the U29
 // import acceptance: an NDJSON array column imported with a bare
-// `--vector v` (library and CLI, byte-identically) holds one vec_f64
-// field of dim 3, and AGG_VEC_MEAN over it answers exactly what it
-// answers over the same data imported as sibling columns folded with
-// `--vector v:v_a,v_b,v_c` (null lists and null elements included).
+// `--vector v` holds one vec_f64 field of dim 3, and AGG_VEC_MEAN over
+// it answers exactly what it answers over the same data imported as
+// sibling columns folded with `--vector v:v_a,v_b,v_c` (null lists and
+// null elements included). The CLI ≡ library byte identity is internal/cli's
+// TestImportCLI_VectorMatchesLibrary.
 func TestVectorImport_ListColumnEndToEnd(t *testing.T) {
 	dir := t.TempDir()
 	var nd, csv strings.Builder
@@ -72,16 +72,9 @@ func TestVectorImport_ListColumnEndToEnd(t *testing.T) {
 	importLib(pio.FormatNDJSON, ndPath, "list.pulse", pio.VectorDecl{Name: "v"})
 	importLib(pio.FormatCSV, csvPath, "wide.pulse", pio.VectorDecl{Name: "v", Columns: []string{"v_a", "v_b", "v_c"}})
 
-	var out bytes.Buffer
-	root := cli.ImportCommand()
-	root.Writer = &out
-	if err := root.Run(ctx, []string{"import", "ndjson", "-i", ndPath, "-o", filepath.Join(dir, "cli.pulse"), "--vector", "v", "--json"}); err != nil {
-		t.Fatalf("cli: %v\n%s", err, out.String())
-	}
-	libBytes, _ := os.ReadFile(filepath.Join(dir, "list.pulse"))
-	cliBytes, _ := os.ReadFile(filepath.Join(dir, "cli.pulse"))
-	if len(libBytes) == 0 || !bytes.Equal(libBytes, cliBytes) {
-		t.Fatalf("CLI cohort (%d bytes) differs from the library's (%d bytes)\n%s", len(cliBytes), len(libBytes), out.String())
+	libBytes, err := os.ReadFile(filepath.Join(dir, "list.pulse"))
+	if err != nil {
+		t.Fatal(err)
 	}
 	r := bytes.NewReader(libBytes)
 	ver, err := encoding.ReadHeader(r)

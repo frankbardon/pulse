@@ -13,19 +13,20 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/internal/cli"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 )
 
 // TestVectorImport_EndToEnd is the U29 import acceptance: a wide CSV
 // (rate_a..rate_e) imported with `--vector brand_rating:/^rate_(.*)$/
-// --vector-kind brand_rating:scale:1:7` — through the library and
-// through the CLI, byte-identically — holds ONE vec_f64 field of dim 5,
+// --vector-kind brand_rating:scale:1:7` holds ONE vec_f64 field of dim 5,
 // labels a..e, kind scale 1..7; and a request naming that field in
 // AGG_VEC_MEAN and MAT_CORRELATION answers exactly what the
 // virtual-vector request over the raw columns of a plain import does
-// (a null vector row and NaN elements included).
+// (a null vector row and NaN elements included). The CLI ≡ library
+// byte identity of the same import is internal/cli's
+// TestImportCLI_VectorMatchesLibrary: a root test must not import
+// internal/cli (TestRootTestGraphExcludesCLI).
 func TestVectorImport_EndToEnd(t *testing.T) {
 	dir := t.TempDir()
 	var csv strings.Builder
@@ -72,18 +73,9 @@ func TestVectorImport_EndToEnd(t *testing.T) {
 	importLib("native.pulse", true)
 	importLib("raw.pulse", false)
 
-	// The CLI path, same declaration in its flag syntax.
-	var out bytes.Buffer
-	root := cli.ImportCommand()
-	root.Writer = &out
-	if err := root.Run(ctx, []string{"import", "csv", "-i", src, "-o", filepath.Join(dir, "cli.pulse"),
-		"--vector", "brand_rating:/^rate_(.*)$/", "--vector-kind", "brand_rating:scale:1:7", "--json"}); err != nil {
-		t.Fatalf("cli: %v\n%s", err, out.String())
-	}
-	libBytes, _ := os.ReadFile(filepath.Join(dir, "native.pulse"))
-	cliBytes, _ := os.ReadFile(filepath.Join(dir, "cli.pulse"))
-	if len(libBytes) == 0 || !bytes.Equal(libBytes, cliBytes) {
-		t.Fatalf("CLI cohort (%d bytes) differs from the library's (%d bytes)\n%s", len(cliBytes), len(libBytes), out.String())
+	libBytes, err := os.ReadFile(filepath.Join(dir, "native.pulse"))
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	r := bytes.NewReader(libBytes)
