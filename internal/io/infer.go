@@ -82,6 +82,12 @@ type InferOptions struct {
 	// from observed sample values during the inference pass; the
 	// override only fixes the column's storage type.
 	ColumnTypeOverrides map[string]encoding.FieldType
+
+	// vectors names the folded vector columns (import_vectors.go): each
+	// takes its declared vec type and VECTORS metadata outright — no
+	// heuristic runs on a fold's presence marker — and is nullable when
+	// a sampled row's vector is null.
+	vectors map[string]resolvedVector
 }
 
 // InferenceResult bundles the inference output. The Delimiters map is
@@ -183,7 +189,15 @@ func InferSchemaWithOptions(reader Reader, opts InferOptions) (*InferenceResult,
 			colWarnings      []InferenceWarning
 			precision, scale uint8
 		)
-		if override, forced := opts.ColumnTypeOverrides[colName]; forced {
+		if rv, folded := opts.vectors[colName]; folded {
+			ft, err = rv.typ, nil
+			for _, v := range samples[i] {
+				if isNullToken(strings.TrimSpace(v)) {
+					nullable = true
+					break
+				}
+			}
+		} else if override, forced := opts.ColumnTypeOverrides[colName]; forced {
 			var ov forcedColumn
 			ov, colWarnings, err = applyTypeOverride(colName, samples[i], override)
 			ft, nullable, delim, precision, scale = ov.Type, ov.Nullable, ov.Delim, ov.Precision, ov.Scale
@@ -208,6 +222,14 @@ func InferSchemaWithOptions(reader Reader, opts InferOptions) (*InferenceResult,
 		}
 	}
 	schema := &encoding.Schema{Fields: fields}
+	for i := range fields {
+		if rv, folded := opts.vectors[fields[i].Name]; folded {
+			meta := rv.meta
+			meta.FieldIndex = i
+			meta.Labels = append([]string(nil), rv.meta.Labels...)
+			schema.Vectors = append(schema.Vectors, meta)
+		}
+	}
 	encx.LayoutFields(schema)
 
 	return &InferenceResult{

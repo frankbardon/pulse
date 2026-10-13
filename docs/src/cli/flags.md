@@ -467,6 +467,45 @@ declarations as structured `groups: [{key, members}]` entries, plus
 `suggest_groups` to return measured candidates in the same shape. See
 [parent groups](../format/parent-groups.md).
 
+### `--vector` / `--vector-kind`
+
+Available on: every `import <format>` leaf, `import predict`, `import auto`.
+Repeatable — one vector per flag.
+
+`--vector NAME:COL1,COL2,...` folds sibling source columns into ONE
+native vector field (`vec_f64`; `NAME:f32:COL1,...` for `vec_f32`), the
+elements in the listed order. `--vector NAME:/REGEX/` takes every column
+the Go regular expression matches, in source column order. Labels are
+the regex's first capture group, else the full column names, and are
+always written. The members vanish from the cohort; the vector takes
+the position of its first member.
+
+```sh
+pulse import csv -i survey.csv -o survey.pulse \
+  --vector 'brand_rating:/^rate_(.*)$/' \
+  --vector-kind brand_rating:scale:1:7
+```
+
+`--vector-kind NAME:KIND[:MIN:MAX]` declares a declared vector's kind
+(`measure`, `scale`, `composition`, `binary`) and optional value range;
+kind is never inferred.
+
+Per row: every element cell empty is a null vector (an inferred field is
+promoted to nullable), some empty are `NaN` elements, and a non-numeric
+cell fails the row (`PULSE_IMPORT_ROW_ERROR`). Refused before any row is
+read with `PULSE_IMPORT_VECTOR_INVALID` (`details.reason`): a fold of
+fewer than 2 or more than 1024 columns, a regex matching no column, a
+column claimed twice (two vectors, or a vector and a `--group`), an
+unknown column, a `--vector-kind` naming no declared vector, a bad kind
+or range, a vector named after a column it does not fold, or an SPSS
+source. With `--schema`, type the field `vec_f64` / `vec_f32` with the
+same `dim` (the schema file's `dim`, `labels`, `kind`, `scale_min`,
+`scale_max` keys; a `vec_*` entry without `dim` is
+`PULSE_IMPORT_SCHEMA_INVALID`). A column type override to a `vec_*` type
+is `PULSE_IMPORT_OVERRIDE_INVALID`. Writes a format `0x02` cohort.
+`pulse_import` (MCP) takes the same strings as `vectors` /
+`vector_kinds`.
+
 ### `--source-tz` / `--dst-policy`
 
 Available on: every `import <format>` leaf, `import auto`, `import predict`,
@@ -599,7 +638,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse features init` | Print strict feature-profile JSON listing every feature this build offers, or `--from NAME` seeded from an example feature profile | [feature profiles](../library/feature-profiles.md) |
 | `pulse features show` | Describe every feature a feature profile lists: kind, category, source, since and dependencies | [feature profiles](../library/feature-profiles.md) |
 | `pulse import arrow` | Import Arrow IPC into `.pulse` | `--help` |
-| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--group` parent-group declarations, `--source-tz` / `--dst-policy`, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
+| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--group` parent-group declarations, `--vector` / `--vector-kind` vector folds, `--source-tz` / `--dst-policy`, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
 | `pulse import csv` | Import CSV into `.pulse` | `--help` |
 | `pulse import drop` | Remove a managed-import handle | `--help` |
 | `pulse import excel` | Import Excel into `.pulse` | `--help` |

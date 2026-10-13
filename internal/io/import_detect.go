@@ -631,6 +631,9 @@ func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, i
 	conv := newRowConverter(schema, inferred, dicts, delimFor, widenable)
 	conv.force(j.ColumnTypeOverrides)
 	conv.zones = zones
+	if fr, ok := j.Source.(*foldReader); ok {
+		conv.vecCells = fr.vectorCells()
+	}
 	l := newMeasuredLayout(schema)
 	byName := make(map[string]int, len(schema.Fields))
 	for i := range schema.Fields {

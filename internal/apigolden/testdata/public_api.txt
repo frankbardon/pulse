@@ -530,6 +530,7 @@ pulse: type ImportSidecar field SourceFormat string "json:\"source_format\""
 pulse: type ImportSidecar field SourcePath string "json:\"source_path\""
 pulse: type ImportSidecar field SourceTZ string "json:\"source_tz,omitempty\""
 pulse: type ImportSidecar field TTLSeconds int64 "json:\"ttl_seconds\""
+pulse: type ImportSidecar field Vectors []pulse/io.VectorDecl "json:\"vectors,omitempty\""
 pulse: type ImportSidecar method (ImportSidecar) Pinned() bool
 pulse: type ImportSpec = pulse/internal/imports.Spec
 pulse: type ImportSpec underlying struct
@@ -551,6 +552,7 @@ pulse: type ImportSpec field SourcePath string
 pulse: type ImportSpec field SourceTZ string
 pulse: type ImportSpec field SuggestGroups bool
 pulse: type ImportSpec field TTL time.Duration
+pulse: type ImportSpec field Vectors []pulse/io.VectorDecl
 pulse: type IndexFreshnessReason = pulse/internal/service.IndexFreshnessReason
 pulse: type IndexFreshnessReason underlying string
 pulse: type IndexInfo = pulse/internal/service.IndexInfo
@@ -2329,6 +2331,7 @@ pulse/errors: const PULSE_IMPORT_SET_OVERFLOW pulse/errors.Code = "PULSE_IMPORT_
 pulse/errors: const PULSE_IMPORT_SOURCE_FORBIDDEN pulse/errors.Code = "PULSE_IMPORT_SOURCE_FORBIDDEN"
 pulse/errors: const PULSE_IMPORT_SOURCE_MISSING pulse/errors.Code = "PULSE_IMPORT_SOURCE_MISSING"
 pulse/errors: const PULSE_IMPORT_TIMESTAMP_TRUNCATED pulse/errors.Code = "PULSE_IMPORT_TIMESTAMP_TRUNCATED"
+pulse/errors: const PULSE_IMPORT_VECTOR_INVALID pulse/errors.Code = "PULSE_IMPORT_VECTOR_INVALID"
 pulse/errors: const PULSE_IMPORT_WIDTH_PROMOTED pulse/errors.Code = "PULSE_IMPORT_WIDTH_PROMOTED"
 pulse/errors: const PULSE_INDEX_MANIFEST_INVALID pulse/errors.Code = "PULSE_INDEX_MANIFEST_INVALID"
 pulse/errors: const PULSE_INDEX_MANIFEST_STALE pulse/errors.Code = "PULSE_INDEX_MANIFEST_STALE"
@@ -2849,6 +2852,7 @@ pulse/io: type ImportJob field SourceTZ string
 pulse/io: type ImportJob field StrictDedup bool
 pulse/io: type ImportJob field SuggestGroups bool
 pulse/io: type ImportJob field Target string
+pulse/io: type ImportJob field Vectors []pulse/internal/io.VectorDecl
 pulse/io: type ImportJob method (*ImportJob) Predict(ctx context.Context) (*pulse/internal/io.PredictReport, error)
 pulse/io: type ImportJob method (*ImportJob) Run(ctx context.Context) (*pulse/internal/io.ImportReport, error)
 pulse/io: type ImportProjection = pulse/internal/io.ImportProjection
@@ -3017,6 +3021,15 @@ pulse/io: type TransferReport field Output string "json:\"output\""
 pulse/io: type TransferReport field Ratio float64 "json:\"ratio\""
 pulse/io: type TransferReport field SHA256 string "json:\"sha256\""
 pulse/io: type TransferReport field Source string "json:\"source\""
+pulse/io: type VectorDecl = pulse/internal/io.VectorDecl
+pulse/io: type VectorDecl underlying struct
+pulse/io: type VectorDecl field Columns []string "json:\"columns,omitempty\""
+pulse/io: type VectorDecl field Element string "json:\"element,omitempty\""
+pulse/io: type VectorDecl field Kind string "json:\"kind,omitempty\""
+pulse/io: type VectorDecl field Name string "json:\"name\""
+pulse/io: type VectorDecl field Pattern string "json:\"pattern,omitempty\""
+pulse/io: type VectorDecl field ScaleMax *float64 "json:\"scale_max,omitempty\""
+pulse/io: type VectorDecl field ScaleMin *float64 "json:\"scale_min,omitempty\""
 pulse/io: type Writer = pulse/internal/iocore.Writer
 pulse/io: type Writer underlying interface
 pulse/io: type Writer imethod Close() error
@@ -5026,4 +5039,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 70a17f7bfb4c7bfa7e99d00f227159d98ab924dec6d94a734393301408c3c3a0
+// golden-hash: 3c55b026166093b9720d1097c11c0b730bed27a519a70a6a5c575a8840613f02

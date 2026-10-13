@@ -602,6 +602,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_IMPORT_VECTOR_INVALID: {
+		Message: "An import-time vector declaration cannot be folded, so the import is refused before any row is read and no cohort is written. details.reason names the case: malformed (the `--vector` / `--vector-kind` value does not parse), element_invalid, kind_invalid, scale_invalid (not both bounds, non-finite, or min >= max), kind_unknown_vector (a kind for an undeclared vector), kind_duplicate, duplicate_name, column_unknown, pattern_invalid, pattern_no_match, no_columns, dim_out_of_range (the folded column count is outside 2..1024), column_claimed (a column folded by two vectors, or by a vector and a parent group), name_collision (the vector's name is a source column it does not fold), authoritative_source (an SPSS source), and against an explicit schema not_declared, dim_mismatch or type_mismatch.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Vectors"},
+				Hint:   "Write each vector as `--vector NAME[:f32|f64]:COL1,COL2,...` (members in element order) or `--vector NAME:/REGEX/` (members are the matching columns in source order; the first capture group becomes each element's label), folding 2..1024 columns, each column in at most one vector and in no `--group`. Give a kind with `--vector-kind NAME:measure|scale|composition|binary[:MIN:MAX]` naming a declared vector.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema", "*", "dim"},
+				Hint:   "With an explicit schema, type the vector field vec_f32 / vec_f64 with the dim its declaration folds, and declare it with --vector so the import knows which columns hold its elements.",
+			},
+		},
+	},
 	PULSE_GROUP_DECLARATION_INVALID: {
 		Message: "A parent-group declaration is malformed: it does not parse as `KEY[,KEY...]:MEMBER[,MEMBER...]` (or `MEMBER[,MEMBER...]`), declares no members, names a field twice within one group, or names a key that is not a member of its group.",
 		Fixups: []Fixup{

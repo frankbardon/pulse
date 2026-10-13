@@ -324,6 +324,21 @@ type ImportJob struct {
 	// distinct tuple, or that makes the file no smaller, is written with
 	// PULSE_DEDUP_LOW_RATIO. Both land in ImportReport.GroupWarnings.
 	Groups []GroupDecl
+	// Vectors folds sibling source columns into native vec_f32 /
+	// vec_f64 fields (see VectorDecl) — a format 0x02 cohort. Each
+	// vector takes its first member's source position; its members
+	// vanish from the cohort. Per row: every element cell empty is a
+	// null vector (an inferred field is promoted to nullable), some
+	// empty are NaN elements, a non-numeric cell fails the row
+	// (PULSE_IMPORT_ROW_ERROR). Refused before any row is read with
+	// PULSE_IMPORT_VECTOR_INVALID: a dim outside 2..1024, a pattern
+	// matching no column, a column claimed twice (two vectors, or a
+	// vector and a Groups entry), an unknown column, a bad kind or
+	// scale, or an authoritative-schema (SPSS) source. With an explicit
+	// Schema each vec field must be a declared vector of the schema's
+	// dim. Empty (the default) imports unchanged. CLI `--vector` /
+	// `--vector-kind`.
+	Vectors []VectorDecl
 	// DedupRatioFloor is the rows-per-distinct-tuple floor below which
 	// a declared group draws PULSE_DEDUP_LOW_RATIO. Zero (the default)
 	// selects encoding.DefaultDedupRatioFloor (2); a value in (0, 1]

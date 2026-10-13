@@ -303,6 +303,11 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 				"parent groups apply only when a source is converted; a .pulse source is used as-is and never re-encoded",
 				map[string]any{"source_path": spec.SourcePath, "format": format})
 		}
+		if len(spec.Vectors) > 0 {
+			return nil, perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_VECTOR_INVALID,
+				"vector declarations apply only when a source is converted; a .pulse source is used as-is and never re-encoded",
+				map[string]any{"reason": "passthrough", "source_path": spec.SourcePath, "format": format})
+		}
 		if spec.InlineBytes != nil {
 			return nil, perr.NewCodedError(perr.PULSE_IMPORT_FORMAT_UNKNOWN,
 				"inline pulse-format imports are not supported; write the bytes to disk and import by path")
@@ -398,6 +403,7 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 		SourceTZ:            spec.SourceTZ,
 		ColumnSourceTZ:      spec.ColumnSourceTZ,
 		DSTPolicy:           string(spec.DSTPolicy),
+		Vectors:             spec.Vectors,
 	}
 	if ttl > 0 {
 		sidecar.ExpiresAt = now.Add(ttl)
@@ -615,6 +621,7 @@ func (m *Manager) newJob(spec Spec, format, target string) (*pio.ImportJob, erro
 		job.ColumnTypeOverrides = overrides
 	}
 	job.Groups = spec.Groups
+	job.Vectors = spec.Vectors
 	job.SourceTZ = spec.SourceTZ
 	job.ColumnSourceTZ = spec.ColumnSourceTZ
 	job.DSTPolicy = spec.DSTPolicy

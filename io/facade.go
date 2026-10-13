@@ -257,6 +257,17 @@ type GroupDetection = iio.GroupDetection
 // members per row.
 type GroupReport = iio.GroupReport
 
+// VectorDecl declares one native vector field at import
+// (ImportJob.Vectors, CLI `--vector` / `--vector-kind`): Name is the
+// cohort field; Element "f64" (default) or "f32"; exactly one of
+// Columns (members in element order) and Pattern (a Go regexp; members
+// are the matching columns in source order, labels its first capture
+// group, else the column names); Kind and ScaleMin / ScaleMax the
+// optional kind and value range. The members fold into one vec_f32 /
+// vec_f64 field at the first member's position. Refusals are
+// PULSE_IMPORT_VECTOR_INVALID, before any row is read.
+type VectorDecl = iio.VectorDecl
+
 // ImportJob converts tabular source data into a .pulse file.
 type ImportJob = iio.ImportJob
 

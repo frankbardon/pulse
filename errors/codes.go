@@ -319,6 +319,19 @@ const (
 	// CLI invocation cannot reach arbitrary files on the host.
 	PULSE_IMPORT_SOURCE_FORBIDDEN Code = "PULSE_IMPORT_SOURCE_FORBIDDEN"
 
+	// PULSE_IMPORT_VECTOR_INVALID indicates an import-time vector
+	// declaration (`--vector` / `--vector-kind`, ImportJob.Vectors) that
+	// cannot be folded, refused before any row is read. details.reason
+	// tells the cases apart: malformed, element_invalid, kind_invalid,
+	// scale_invalid, kind_unknown_vector, kind_duplicate,
+	// duplicate_name, column_unknown, pattern_invalid,
+	// pattern_no_match, no_columns, dim_out_of_range, column_claimed
+	// (two vectors, or a vector and a parent group), name_collision,
+	// authoritative_source, passthrough (a managed .pulse source), and —
+	// against an explicit schema —
+	// not_declared, dim_mismatch, type_mismatch.
+	PULSE_IMPORT_VECTOR_INVALID Code = "PULSE_IMPORT_VECTOR_INVALID"
+
 	// PULSE_GROUP_DECLARATION_INVALID indicates a parent-group
 	// declaration that is malformed before any field is resolved: a
 	// declaration string that does not parse, a group with no members,
@@ -3631,6 +3644,7 @@ var allCodes = []Code{
 	PULSE_IMPORT_SOURCE_MISSING,
 	PULSE_IMPORT_HANDLE_EXISTS,
 	PULSE_IMPORT_SOURCE_FORBIDDEN,
+	PULSE_IMPORT_VECTOR_INVALID,
 	PULSE_GROUP_DECLARATION_INVALID,
 	PULSE_GROUP_FIELD_UNKNOWN,
 	PULSE_GROUP_FIELD_CONFLICT,

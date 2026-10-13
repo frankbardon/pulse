@@ -46,6 +46,34 @@ var importFlags = []cli.Flag{
 	&cli.BoolFlag{Name: "strict", Usage: "Treat parent-group viability warnings (PULSE_GROUP_TOO_NARROW, PULSE_DEDUP_LOW_RATIO) as errors: the import fails and writes nothing"},
 	&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage},
 	&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
+	&cli.StringSliceFlag{Name: "vector", Usage: vectorFlagUsage},
+	&cli.StringSliceFlag{Name: "vector-kind", Usage: vectorKindFlagUsage},
+}
+
+// vectorFlagUsage / vectorKindFlagUsage are the one-line help for
+// --vector / --vector-kind, shared by every import leaf so the wording
+// cannot drift.
+const (
+	vectorFlagUsage     = "Fold sibling columns into one native vector field: NAME[:f32|f64]:COL1,COL2,... (element order as listed) or NAME:/REGEX/ (matching columns in source order; the first capture group labels each element, else the column name). 2..1024 columns, default f64; all elements empty = null vector, some empty = NaN. Repeatable, one vector per flag (writes format 0x02)"
+	vectorKindFlagUsage = "Declare a --vector's kind: NAME:measure|scale|composition|binary[:MIN:MAX] (MIN:MAX the declared value range). Repeatable; never inferred"
+)
+
+// parseVectorFlags parses --vector and applies --vector-kind with the
+// library's own parsers (io.ParseVectorDecl / io.ApplyVectorKinds), so
+// every leaf and the MCP slot read one syntax.
+func parseVectorFlags(cmd *cli.Command) ([]iio.VectorDecl, error) {
+	var decls []iio.VectorDecl
+	for _, s := range cmd.StringSlice("vector") {
+		d, err := iio.ParseVectorDecl(s)
+		if err != nil {
+			return nil, err
+		}
+		decls = append(decls, d)
+	}
+	if err := iio.ApplyVectorKinds(decls, cmd.StringSlice("vector-kind")); err != nil {
+		return nil, err
+	}
+	return decls, nil
 }
 
 // importLeaf finishes an import leaf. Slice flags are not split on ','
@@ -168,6 +196,12 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 		}
 		job.Groups = append(job.Groups, g)
 	}
+	if job.Vectors, err = parseVectorFlags(cmd); err != nil {
+		if jsonOut {
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
+		}
+		return err
+	}
 	if err := applySourceZoneFlags(cmd, job); err != nil {
 		if jsonOut {
 			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
@@ -253,6 +287,8 @@ func importPredictCmd() *cli.Command {
 			&cli.BoolFlag{Name: "strict", Usage: "Fail as 'import <format> --strict' would when a --group draws a viability warning"},
 			&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage},
 			&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
+			&cli.StringSliceFlag{Name: "vector", Usage: vectorFlagUsage},
+			&cli.StringSliceFlag{Name: "vector-kind", Usage: vectorKindFlagUsage},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			input := cmd.String("input")
@@ -300,6 +336,14 @@ func importPredictCmd() *cli.Command {
 				}
 				job.Groups = append(job.Groups, g)
 			}
+			vecs, verr := parseVectorFlags(cmd)
+			if verr != nil {
+				if jsonOut {
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", verr)
+				}
+				return verr
+			}
+			job.Vectors = vecs
 			if zerr := applySourceZoneFlags(cmd, job); zerr != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", zerr)

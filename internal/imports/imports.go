@@ -138,6 +138,15 @@ type Spec struct {
 	// io.ImportJob carries them for callers that want them.
 	Groups []pio.GroupDecl
 
+	// Vectors folds sibling source columns into native vec_f32 /
+	// vec_f64 fields exactly as io.ImportJob.Vectors does (CLI
+	// `--vector` / `--vector-kind`; refusals PULSE_IMPORT_VECTOR_INVALID
+	// before any row is read). Persisted onto the sidecar, beside
+	// ColumnTypeOverrides, as the import recipe. Empty (the default)
+	// imports unchanged. Rejected with PULSE_IMPORT_VECTOR_INVALID on a
+	// .pulse passthrough, which is never re-encoded.
+	Vectors []pio.VectorDecl
+
 	// SuggestGroups runs candidate-group detection (io.ImportJob
 	// SuggestGroups, the engine behind `pulse import predict
 	// --suggest-groups`) over the source before importing it, and
@@ -262,6 +271,10 @@ type Sidecar struct {
 	SourceTZ       string            `json:"source_tz,omitempty"`
 	ColumnSourceTZ map[string]string `json:"column_source_tz,omitempty"`
 	DSTPolicy      string            `json:"dst_policy,omitempty"`
+	// Vectors records the vector declarations the handle was imported
+	// with (Spec.Vectors). Omitted when none, so a vector-free sidecar
+	// is unchanged.
+	Vectors []pio.VectorDecl `json:"vectors,omitempty"`
 }
 
 // Entry is one row of Manager.List output — the snapshot returned to

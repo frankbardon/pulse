@@ -52,6 +52,14 @@ type rowConverter struct {
 	// zones is the pass's source-zone context (import_zone.go); nil
 	// when no field reads in a source zone.
 	zones *sourceZones
+
+	// vecCells hands a vector field its element cells for the current
+	// row (and the member column names, for errors), keyed by the
+	// field's column in the row the converter is given. The import's
+	// fold step (import_vectors.go) supplies it; nil when no vector is
+	// folded, and a vec field with no element source fails the row.
+	vecCells func(col int) ([]string, []string)
+	vecVals  []float64
 }
 
 // force marks the fields overrides names (by field name) as forced.
@@ -136,6 +144,32 @@ func (c *rowConverter) convert(rowNum int, row []string, declaredNulls []bool) *
 				c.promoted[i] = true
 			}
 			c.setNull(i, f.Type)
+			continue
+		}
+
+		if f.Type.IsVector() {
+			// The element cells come through the fold, never the cell
+			// text: a vector is element × dim bytes, far past the
+			// wideFieldBytes scratch, and its row cell is a marker.
+			var cells, cols []string
+			if c.vecCells != nil {
+				cells, cols = c.vecCells(colIdx)
+			}
+			dim := c.schema.VectorDim(i)
+			if cells == nil {
+				return rowErr(f, "vector field has no element source (declare the columns it folds)")
+			}
+			if len(cells) != dim {
+				return rowErr(f, fmt.Sprintf("vector has %d elements, %s field dim is %d", len(cells), f.Type, dim))
+			}
+			vals, err := parseVectorCells(cells, c.vecVals, cols)
+			if err != nil {
+				return rowErr(f, err.Error())
+			}
+			c.vecVals = vals
+			if err := c.setVector(i, f.Type, dim, vals); err != nil {
+				return rowErr(f, err.Error())
+			}
 			continue
 		}
 

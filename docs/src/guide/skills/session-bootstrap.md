@@ -48,11 +48,11 @@ Read every `errors[]` / `warnings[]` entry (`{code, message, details}`) → `pul
 
 Roots auto-loaded at `pulse.New`:
 
-- `PULSE_LABEL_TABLES_DIR` — output-time label tables. **Give it its own directory.** Every `*.json` beneath it is parsed as a label table and an unparseable file hard-fails `pulse.New`; Pulse's own `.spss.json` / `.meta.json` sidecars are excluded by suffix, nothing else is.
+- `PULSE_LABEL_TABLES_DIR` — output-time label tables. **Use its own dir.** Every `*.json` in it is parsed as a label table; an unparseable one hard-fails `pulse.New`; Pulse's own `.spss.json` / `.meta.json` sidecars are excluded by suffix, nothing else is.
 - `PULSE_RANGE_TABLES_DIR` — named labeled-date-range tables (`{label,start,end}` sets referenced by the date-range grouper and filter). Same sidecar exclusion.
 - `PULSE_TEMPLATES_DIR` — parameterised request templates; `os.PathListSeparator`-separated roots in precedence order, first root wins. Render via `RenderTemplate` / `RenderTemplateRequest`, then predict the rendered request. See [`request-templating`](request-templating.md).
 
-Managed imports (`PULSE_IMPORTS_DIR`) persist each handle's read settings in a sidecar (`format`, `source_path`, `ttl_seconds`, `column_type_overrides`, `source_tz`, `column_source_tz`, `dst_policy`); a handle read in one zone is never reused for another — re-import with `overwrite: true`. See [`time-zones`](time-zones.md).
+Managed imports (`PULSE_IMPORTS_DIR`) persist each handle's read settings in a sidecar (`format`, `source_path`, `ttl_seconds`, `column_type_overrides`, `source_tz`, `column_source_tz`, `dst_policy`, `--vector` folds); a handle read in one zone is never reused for another — re-import with `overwrite: true`. See [`time-zones`](time-zones.md).
 
 Server-side (`pulse mcp` / an embedder's `mcpserve`): `PULSE_MCP_NO_COHORT_SCAN` (flag `--no-cohort-scan`) suppresses the startup walk that enumerates `pulse://<path>` resources. **On such a server `resources/list` names no cohorts and that is not evidence there are none** — a `resources/read pulse://<path>` and `pulse_inspect` both still resolve, so ask the user for the cohort path instead of concluding the data root is empty. Tool responses default to the `standard` preset (no `components`; host flag `--return`); send `"return": {"preset": "full"}` for everything — see [`response-shaping`](response-shaping.md). The host caps resources (flag `--limit name=value`); read the effective caps from `manifest.limits` (`-1` = none), plan within them, and re-fetch the manifest when `limits_digest` changes — a breach is `PULSE_LIMIT_EXCEEDED`. Host diagnostics (`--log-level`, `--metrics-addr`) never reach tool responses.
 

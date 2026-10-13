@@ -308,13 +308,25 @@ func HandleImport(ctx context.Context, p *pulse.Pulse, in ImportIn) (ImportOut, 
 		IgnoreExtra:    in.IgnoreExtra,
 		FloatWidth:     in.Float,
 	}
+	// vectors / vector_kinds parse with the CLI's own parsers.
+	for _, v := range in.Vectors {
+		d, err := iio.ParseVectorDecl(v)
+		if err != nil {
+			return ImportOut{}, err
+		}
+		spec.Vectors = append(spec.Vectors, d)
+	}
+	if err := iio.ApplyVectorKinds(spec.Vectors, in.VectorKinds); err != nil {
+		return ImportOut{}, err
+	}
 	// A present schema (even an empty array, which SchemaFromFields
 	// refuses) goes through the CLI's own decoder; nil infers.
 	if in.Schema != nil {
 		defs := make([]iio.SchemaFileField, len(in.Schema))
 		for i, f := range in.Schema {
 			defs[i] = iio.SchemaFileField{Name: f.Name, Type: f.Type, Nullable: f.Nullable,
-				Description: f.Description, Precision: f.Precision, Scale: f.Scale}
+				Description: f.Description, Precision: f.Precision, Scale: f.Scale,
+				Dim: f.Dim, Labels: f.Labels, Kind: f.Kind, ScaleMin: f.ScaleMin, ScaleMax: f.ScaleMax}
 		}
 		schema, err := iio.SchemaFromFields(defs)
 		if err != nil {
