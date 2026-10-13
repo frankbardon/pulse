@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -91,19 +92,19 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 	_, cohortWriter := j.Target.(CohortWriter)
 	listWriter, listAware := j.Target.(ListAwareWriter)
 	expand := !listAware && !cohortWriter && schema.HasVectors()
-	layout, err := planExportColumns(schema, includeMask, augmentInsertAfter, expand)
+	layout, err := planExportColumns(schema, includeMask, augmentInsertAfter, replaceFields, expand)
 	if err != nil {
 		return nil, err
 	}
 
 	// Hand the source schema to schema-aware writers so they can build
-	// native typed columns for decimal128. Schema-aware writers see
-	// the full source schema; the writer is expected to ignore values
-	// for projected-out columns because we never emit them. Projection
-	// over typed columnar formats (parquet / arrow / excel) is a
-	// follow-up — see ExportJob.Includes doc. An expanding export hands
-	// the schema with each vector replaced by its element columns, so a
-	// writer typing columns by position stays aligned with the row.
+	// native typed columns for decimal128. Schema-aware writers see the
+	// full source schema (an expanding export hands it with each vector
+	// replaced by its element fields), NOT one field per header column:
+	// projection and label augment move every later column off its
+	// field's index, so a column is typed from the column plan below or,
+	// failing that, from the schema field of the same NAME — never by
+	// position (iocore.ColumnFields).
 	if saw, ok := j.Target.(SchemaAwareWriter); ok {
 		if expand {
 			saw.SetPulseSchema(expandedSchema(schema))
@@ -135,6 +136,13 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		if oaw, ok := j.Target.(OverlayAwareWriter); ok {
 			oaw.SetOverlays(j.Overlays)
 		}
+	}
+
+	// The explicit per-column plan, for typed writers: column i is typed
+	// from plan[i], whatever field index it came from. The same plan
+	// names Predict's PredictReport.Columns.
+	if caw, ok := j.Target.(iocore.ColumnAwareWriter); ok && !cohortWriter {
+		caw.SetExportColumns(layout.plan)
 	}
 
 	// Native list columns are declared before the header, and only when
@@ -604,9 +612,9 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 			if err != nil {
 				return nil, err
 			}
-			insertAfter, _, _ := planLabelColumns(schema, j.LabelResolver, includeMask)
+			insertAfter, _, replaceFields := planLabelColumns(schema, j.LabelResolver, includeMask)
 			_, listAware := j.Target.(ListAwareWriter)
-			layout, err := planExportColumns(schema, includeMask, insertAfter, !listAware && schema.HasVectors())
+			layout, err := planExportColumns(schema, includeMask, insertAfter, replaceFields, !listAware && schema.HasVectors())
 			if err != nil {
 				return nil, err
 			}

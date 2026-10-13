@@ -663,6 +663,13 @@ type SchemaAwareReader = iocore.SchemaAwareReader
 //
 // Writers that do not implement SchemaAwareWriter receive only canonical
 // strings, which is the prior text-only export contract.
+//
+// The schema is the SOURCE schema (each vector replaced by its element
+// fields when the export expands vectors), not one field per header
+// column: projection (ExportJob.Includes) drops fields and a label
+// augment inserts `<field>_label` columns, so a writer must type a
+// header column by the schema field of the same NAME, never by its
+// position.
 type SchemaAwareWriter = iocore.SchemaAwareWriter
 
 // SidecarEmitter is an optional extension a Reader can implement to

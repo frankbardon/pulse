@@ -264,6 +264,14 @@ type Writer struct {
 	// WriteHeader so the writer can apply scale-driven number formats
 	// to decimal columns and use text encoding for point/h3 columns.
 	pulseSchema *encoding.Schema
+	// exportCols is the export's explicit column plan
+	// (iocore.ColumnAwareWriter); colFields is the field typing each
+	// header column, resolved at WriteHeader from it — or, without a
+	// plan, from the pulseSchema field of the same name. Never the
+	// schema's i-th field: projection and label augment move columns
+	// off their field's index.
+	exportCols []iocore.ExportColumn
+	colFields  []*encoding.Field
 	// decimalStyleIDs caches per-column number-format style ids,
 	// computed lazily on first write of a decimal column. The slice is
 	// indexed by column position; -1 means no cached style yet.
@@ -285,6 +293,12 @@ type Writer struct {
 // for decimal128 columns.
 func (w *Writer) SetPulseSchema(s *encoding.Schema) {
 	w.pulseSchema = s
+}
+
+// SetExportColumns implements iocore.ColumnAwareWriter: column i is typed
+// from cols[i].Field, whatever source field index it came from.
+func (w *Writer) SetExportColumns(cols []iocore.ExportColumn) {
+	w.exportCols = cols
 }
 
 // SetOverlays records the Response.Overlays layers the export pipeline
@@ -371,6 +385,7 @@ func (w *Writer) WriteHeader(columns []string) error {
 		return err
 	}
 	w.numCols = len(columns)
+	w.colFields = iocore.ColumnFields(w.exportCols, w.pulseSchema, columns)
 	w.rowNum++
 
 	row := make([]interface{}, len(columns))
@@ -406,11 +421,11 @@ func (w *Writer) WriteRow(values []any) error {
 // formatCell applies type-aware Excel cell rendering when a Pulse
 // schema is present.
 func (w *Writer) formatCell(col int, v any) excelize.Cell {
-	if w.pulseSchema != nil && col < len(w.pulseSchema.Fields) {
-		f := w.pulseSchema.Fields[col]
+	if col < len(w.colFields) && w.colFields[col] != nil {
+		f := w.colFields[col]
 		switch f.Type {
 		case encoding.FieldTypeDecimal128:
-			return w.decimalCell(col, f, v)
+			return w.decimalCell(col, *f, v)
 		}
 	}
 	return excelize.Cell{Value: v}

@@ -448,7 +448,15 @@ type ListAwareWriter interface {
   field's place; each cell is the element's text (the scalar `f32` /
   `f64` rendering) and `nil` for a NaN element or a null vector. A
   `SchemaAwareWriter` is handed the schema with each vector replaced by
-  those nullable scalar fields, so positional typing stays aligned. An
+  those nullable scalar fields. That schema is NOT one field per header
+  column — projection and a `_label` sibling move columns off their
+  field's index — so type a column by its NAME, never by its position.
+  The built-in typed writers (Excel, Arrow, Parquet) go further and take
+  the export's explicit column plan through the internal
+  `iocore.ColumnAwareWriter` (`SetExportColumns`, one `ExportColumn` per
+  header column: name, kind, source field and the field that types it,
+  nil for text), resolved by `iocore.ColumnFields`; `PredictReport.Columns`
+  is that same plan's names. An
   expanded name equal to any other column refuses the export with
   `PULSE_EXPORT_COLUMN_COLLISION` before the header is written.
 - **Projection and labels** work on fields: `Includes` names the vector,

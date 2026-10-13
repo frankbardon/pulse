@@ -400,6 +400,15 @@ type Writer struct {
 	// whatever the rest of the layout falls back to.
 	lists map[int]iocore.ListColumn
 
+	// exportCols is the export's explicit column plan
+	// (iocore.ColumnAwareWriter); colFields is the field typing each
+	// header column, resolved from it — or, without a plan, from the
+	// pulseSchema field of the same name — when the writer initialises.
+	// Never the schema's i-th field: projection and label augment move
+	// columns off their field's index.
+	exportCols []iocore.ExportColumn
+	colFields  []*encoding.Field
+
 	// Lazily-initialized arrow writer state. Built on first WriteRow once
 	// the schema (column names) is known. Reused across all batches.
 	alloc   memory.Allocator
@@ -416,6 +425,12 @@ type Writer struct {
 // iocore.SchemaAwareWriter.
 func (w *Writer) SetPulseSchema(s *encoding.Schema) {
 	w.pulseSchema = s
+}
+
+// SetExportColumns implements iocore.ColumnAwareWriter: column i is typed
+// from cols[i].Field, whatever source field index it came from.
+func (w *Writer) SetExportColumns(cols []iocore.ExportColumn) {
+	w.exportCols = cols
 }
 
 // SetExplicitNulls implements iocore.NullAwareWriter.
@@ -492,15 +507,14 @@ func (w *Writer) initWriter() error {
 		totalFields++
 	}
 	arrowFields := make([]arrow.Field, totalFields)
-	if w.pulseSchema != nil && len(w.pulseSchema.Fields) == len(w.columns) {
-		for i, pf := range w.pulseSchema.Fields {
-			arrowFields[i] = FieldFromPulse(pf)
-			arrowFields[i].Name = w.columns[i]
+	w.colFields = iocore.ColumnFields(w.exportCols, w.pulseSchema, w.columns)
+	for i, name := range w.columns {
+		if f := w.colFields[i]; f != nil {
+			arrowFields[i] = FieldFromPulse(*f)
+			arrowFields[i].Name = name
+			continue
 		}
-	} else {
-		for i, name := range w.columns {
-			arrowFields[i] = arrow.Field{Name: name, Type: arrow.BinaryTypes.String}
-		}
+		arrowFields[i] = arrow.Field{Name: name, Type: arrow.BinaryTypes.String}
 	}
 	for c, lc := range w.lists {
 		if c < hostFieldCount {
@@ -669,11 +683,10 @@ func (w *Writer) appendCell(c int, v any) error {
 	if lc, ok := w.lists[c]; ok {
 		return AppendVectorList(w.bldr.Field(c), lc.Dim, v)
 	}
-	if w.pulseSchema != nil && c < len(w.pulseSchema.Fields) {
-		f := w.pulseSchema.Fields[c]
+	if f := w.colFields[c]; f != nil {
 		switch {
 		case f.Type == encoding.FieldTypeDecimal128:
-			return w.appendDecimal(c, f, v)
+			return w.appendDecimal(c, *f, v)
 		case f.Type.IsSet():
 			if done, err := w.appendSet(c, v); done {
 				return err
