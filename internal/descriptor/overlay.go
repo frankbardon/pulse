@@ -1238,7 +1238,8 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	case types.OverlayKindChiSqCol,
 		types.OverlayKindChiSqMatrix,
 		types.OverlayKindChiSqRow,
-		types.OverlayKindFisherExactCell:
+		types.OverlayKindFisherExactCell,
+		types.OverlayKindStdResidual:
 		// Inferential family — Level / Within must both be zero.
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
@@ -1406,6 +1407,9 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 		validateOverlayHiddenFloor(env, req, spec, opts, index)
 	case types.OverlayKindChiSqMatrix:
 		validateOverlayChiSqMatrix(env, req, spec, index)
+		validateOverlayHiddenFloor(env, req, spec, opts, index)
+	case types.OverlayKindStdResidual:
+		validateOverlayStdResidual(env, req, spec, index)
 		validateOverlayHiddenFloor(env, req, spec, opts, index)
 	case types.OverlayKindChiSqRow:
 		validateOverlayChiSqRow(env, req, spec, index)

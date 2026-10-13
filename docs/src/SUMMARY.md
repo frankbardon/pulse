@@ -189,6 +189,7 @@
     - [op-overlay-share-of-col](guide/skills/op-overlay-share-of-col.md)
     - [op-overlay-share-of-row](guide/skills/op-overlay-share-of-row.md)
     - [op-overlay-share-of-total](guide/skills/op-overlay-share-of-total.md)
+    - [op-overlay-std-residual](guide/skills/op-overlay-std-residual.md)
     - [op-overlay-t-cell](guide/skills/op-overlay-t-cell.md)
     - [op-overlay-t-vs-ref](guide/skills/op-overlay-t-vs-ref.md)
     - [op-overlay-yoy](guide/skills/op-overlay-yoy.md)

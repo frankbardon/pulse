@@ -84,6 +84,7 @@ var hosts = map[types.OverlayKind][]Host{
 	types.OverlayKindPairwiseWelchT:            requestOnly,
 	types.OverlayKindShareOfCol:                requestOnly,
 	types.OverlayKindShareOfRow:                requestOnly,
+	types.OverlayKindStdResidual:               requestOnly,
 	types.OverlayKindZScoreVsMargin:            requestOnly,
 	// Process SERIES (grouped) kinds; SHARE_OF_TOTAL runs on both
 	// Process shapes.
@@ -202,6 +203,7 @@ var processShapes = map[types.OverlayKind][]types.OverlayShape{
 	types.OverlayKindPairwiseWelchT:            matrixOnly,
 	types.OverlayKindShareOfCol:                matrixOnly,
 	types.OverlayKindShareOfRow:                matrixOnly,
+	types.OverlayKindStdResidual:               matrixOnly,
 	types.OverlayKindZScoreVsMargin:            matrixOnly,
 	types.OverlayKindDeltaVsBaseline:           seriesOnly,
 	types.OverlayKindDeltaVsPrior:              seriesOnly,
@@ -287,7 +289,7 @@ func ShapeRefusal(shape types.OverlayShape, kind, route types.OverlayKind, index
 // ReadsCellValue reports whether kind, on a MATRIX Process host, reads
 // the crosstab cell aggregation's VALUE — the one number per cell and
 // per margin (CellAt / MarginFor): the share / index / delta / z-score
-// vs-margin kinds, the χ² and Fisher kinds (cell values as observed
+// vs-margin kinds, the χ², Fisher and STD_RESIDUAL kinds (cell values as observed
 // counts), the proportion pairwise kinds (OVERLAY_PAIRWISE_PROP_Z /
 // _PROBIT_T: the cell value as a proportion) and OVERLAY_FORMULA
 // (`cell`, the margins and their SDs). The moment pairwise kinds

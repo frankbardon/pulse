@@ -297,8 +297,10 @@ var pValueFieldsByOperator = map[string][]string{
 	"OVERLAY_PAIRWISE_WELCH_T":              {"cells.value"},
 	"OVERLAY_PROP_Z_CELL":                   {"cells.value"},
 	"OVERLAY_PROP_Z_PANEL":                  {"cells.value"},
-	"OVERLAY_T_CELL":                        {"cells.value"},
-	"OVERLAY_Z_CELL":                        {"cells.value"},
+	// MATRIX-payload kinds whose p-value rides a named part.
+	"OVERLAY_STD_RESIDUAL": {"parts.p.cells.value"},
+	"OVERLAY_T_CELL":       {"cells.value"},
+	"OVERLAY_Z_CELL":       {"cells.value"},
 }
 
 func isPValueField(op, field string) bool {

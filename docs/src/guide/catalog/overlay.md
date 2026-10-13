@@ -39,6 +39,7 @@ The overlays this instance offers: what each is for, the questions it answers an
 | [`OVERLAY_SHARE_OF_COL`](#op-overlay_share_of_col) | Each crosstab cell as a share of its column margin (0 to 1): the mix of rows within each column, as a 100% stacked column shows it. | Within each channel, what share of orders comes from each region? | basic | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want the mix within each row.<br>[`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) when you want each cell's share of the whole table.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether the column mixes differ. |
 | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) | Each crosstab cell as a share of its row margin (0 to 1): the mix of columns within each row, as a 100% stacked bar shows it. | Within each region, what share of orders goes to each channel? | basic | [`OVERLAY_SHARE_OF_COL`](#op-overlay_share_of_col) when you want the mix within each column.<br>[`OVERLAY_INDEX_VS_MARGIN`](#op-overlay_index_vs_margin) when you want the same figure on a 0 to 100 index scale.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether the row mixes differ. |
 | [`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) | Each crosstab cell or group of a grouped result as a share of the grand total (0 to 1): what part of the whole each piece makes up. | What share of all revenue does each region bring in? | basic | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want the share within each row of a crosstab.<br>[`OVERLAY_INDEX_VS_TOTAL`](#op-overlay_index_vs_total) when you want the same figure x 100 on a grouped result.<br>[`OVERLAY_ZSCORE_VS_TOTAL`](#op-overlay_zscore_vs_total) when you want each group's position against the average group. |
+| [`OVERLAY_STD_RESIDUAL`](#op-overlay_std_residual) | Adjusted residual for every crosstab cell: how far its count sits above or below what its row and column totals predict. | Which cells drive the association in this crosstab? | advanced | [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test for the whole table.<br>[`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when counts are small and you want an exact per-cell test.<br>[`OVERLAY_ZSCORE_VS_MARGIN`](#op-overlay_zscore_vs_margin) when you want each cell's distance from its margin without a test. |
 | [`OVERLAY_T_CELL`](#op-overlay_t_cell) | Welch t-test for every crosstab cell in a Compose request: does the target's mean in that cell differ from the reference's? | Which segment-by-product cells changed in average rating since last wave? | advanced | [`OVERLAY_Z_CELL`](#op-overlay_z_cell) when every cell is large and you want the normal-curve version.<br>[`OVERLAY_T_VS_REF`](#op-overlay_t_vs_ref) when the results are grouped series rather than crosstabs.<br>[`OVERLAY_PROP_Z_CELL`](#op-overlay_prop_z_cell) when the cells hold shares rather than averages.<br>[`OVERLAY_PAIRWISE_WELCH_T`](#op-overlay_pairwise_welch_t) when the groups are rows or columns of one crosstab. |
 | [`OVERLAY_T_VS_REF`](#op-overlay_t_vs_ref) | Welch t-test for every group of a grouped result in a Compose request: does the target's mean differ from the reference's? | Which regions' average spend changed between this quarter and last? | advanced | [`OVERLAY_Z_VS_REF`](#op-overlay_z_vs_ref) when every group is large and you want the normal-curve version.<br>[`OVERLAY_T_CELL`](#op-overlay_t_cell) when the results are crosstabs rather than grouped series.<br>[`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the size of the change rather than a p-value. |
 | [`OVERLAY_YOY`](#op-overlay_yoy) | Each period of a date-grouped series as an index value against the same period one year earlier (x 100): year-over-year change. | How do this year's monthly sales compare with the same months last year? | basic | [`OVERLAY_INDEX_VS_PRIOR`](#op-overlay_index_vs_prior) when you want each period against the one before.<br>[`OVERLAY_INDEX_VS_BASELINE`](#op-overlay_index_vs_baseline) when you want each period against one fixed starting period.<br>[`TEST_TREND`](test.md#op-test_trend) when you want to test for a steady rise or fall across the series. |
@@ -123,7 +124,8 @@ Chi-square test on a whole crosstab: checks whether the row and column categorie
 
 **Follow up with:**
 
-- [`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when the table shows an association and you want to see which cells drive it.
+- [`OVERLAY_STD_RESIDUAL`](#op-overlay_std_residual) when the table shows an association and you want to see which cells drive it.
+- [`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when counts are small and you want an exact test for each cell.
 - [`OVERLAY_CHISQ_ROW`](#op-overlay_chisq_row) when you want to see which rows depart from the overall column mix.
 
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`independence`](../glossary.md#term-independence), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size)
@@ -1275,6 +1277,42 @@ Each crosstab cell or group of a grouped result as a share of the grand total (0
 **Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`margin`](../glossary.md#term-margin)
 
 **Skill:** [`op-overlay-share-of-total`](../skills/op-overlay-share-of-total.md)
+
+<a id="op-overlay_std_residual"></a>
+
+### `OVERLAY_STD_RESIDUAL`
+
+Adjusted residual for every crosstab cell: how far its count sits above or below what its row and column totals predict.
+
+**Level:** advanced
+
+**Questions it answers:**
+
+- Which cells drive the association in this crosstab?
+- Which brand-by-attribute cells are over- or under-represented?
+
+**Use cases by domain:**
+
+- *survey:* Find the brand-by-attribute cells of a banner table that respondents pick more or less often than the totals predict.
+- *ops:* Find the site-by-fault cells that occur more or less often than the site and fault totals predict.
+- *science:* Find the arm-by-outcome cells that depart from independence, and in which direction.
+
+**Assumptions:**
+
+- Cells must hold counts of independent rows (AGG_COUNT); Pulse runs it on any cell aggregator, but sums, averages or weighted counts make the test meaningless.
+- The null hypothesis is that row and column categories are independent; each residual is about standard normal under it, so beyond plus or minus 1.96 is unusual at the 5% level, and the p-value is two-sided.
+- The normal approximation needs expected counts of about 5 or more; a warning flags tables where some are lower, and a cell with an expected count of 0 gets no residual.
+- Every cell is a separate test, so with many cells some small p-values turn up by luck; to adjust for multiple comparisons, set multiplicity on the overlay (holm or bonferroni hold the family-wise error, bh or by the false discovery rate) to add adjusted p-values beside the raw ones.
+
+**Use something else:**
+
+- [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test for the whole table.
+- [`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when counts are small and you want an exact per-cell test.
+- [`OVERLAY_ZSCORE_VS_MARGIN`](#op-overlay_zscore_vs_margin) when you want each cell's distance from its margin without a test.
+
+**Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`independence`](../glossary.md#term-independence), [`margin`](../glossary.md#term-margin), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`normal-distribution`](../glossary.md#term-normal-distribution), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`residual`](../glossary.md#term-residual), [`two-tailed`](../glossary.md#term-two-tailed)
+
+**Skill:** [`op-overlay-std-residual`](../skills/op-overlay-std-residual.md)
 
 <a id="op-overlay_t_cell"></a>
 

@@ -147,6 +147,7 @@ var overlayWeightClasses = map[types.OverlayKind]overlayWeighting{
 	types.OverlayKindChiSqRow:        {class: weighting.ClassAware},
 	types.OverlayKindChiSqCol:        {class: weighting.ClassAware},
 	types.OverlayKindChiSqMatrix:     {class: weighting.ClassAware},
+	types.OverlayKindStdResidual:     {class: weighting.ClassAware},
 	types.OverlayKindChiSqVsRef:      {class: weighting.ClassAware},
 	types.OverlayKindPropZCell:       {class: weighting.ClassAware},
 	types.OverlayKindPropZPanel:      {class: weighting.ClassAware},

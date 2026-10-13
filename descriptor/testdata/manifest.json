@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:f6b6ec312915decc6d37f5b5d85503625d7e87783c4cbee05538b7ea958e25ff",
+    "feature_set_digest": "fs1:44e68b56c4910e2fc2f26ff1d37fa53c96b47ed29a6279472fb74724508277b0",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -11290,6 +11290,10 @@
         "description": "Share-of-grand-total ratio — dual-shape (matrix per-cell or series per-group); raw share sums to 1.0."
       },
       {
+        "name": "op-overlay-std-residual",
+        "description": "Per-cell Haberman adjusted standardized residual of the host crosstab, with expected counts and two-sided p-values as parts."
+      },
+      {
         "name": "op-overlay-t-cell",
         "description": "Compose-host per-cell Welch t-test against the reference slot's matching cell; parity overlay reading from CellComponents."
       },
@@ -11934,7 +11938,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 210,
+    "examples_count": 211,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -13371,6 +13375,26 @@
         "description": "Share-of-grand-total ratio. Dual-shape overload: MATRIX dispatch emits per-cell cell / grand_total against a CELL-scoped crosstab host, completing the matrix share triad (row / col / total) — the spec must populate Ref.Margin (grand-axis-locked even though the handler ignores the axis value) and declares the level / within fields for renderer-facing parity with the rest of the share family (the grand-axis denominator makes both slots inert at runtime). SERIES dispatch emits per-group group_val / grand_total against a GROUP-scoped grouped Process host with scale 1.0 (no ×100 — sibling to INDEX_VS_TOTAL but with the SHARE scaling so cells over a complete partition sum to 1.0 within ULP) — Ref MUST be empty (implicit-grand-total). Sibling SERIES kind to OVERLAY_INDEX_VS_TOTAL — shares the same computeSeriesGrandTotal accumulator so a request carrying both overlays folds the grand-total only once in the streaming pass. Zero grand_total emits PULSE_OVERLAY_REF_ZERO with NaN statistics on every present entry; absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset. Streamable via the SERIES dispatch (the MATRIX route is forced buffered through canFuseCrosstab's overlays-force-buffered arm). Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. Each row is scored against its partition's total (and, for the z-score, its partition's mean and SD); partition_by [] restores the grand total over every row.",
         "intents": [
           "composition"
+        ]
+      },
+      {
+        "kind": "OVERLAY_STD_RESIDUAL",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "cell"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Haberman adjusted standardized residual of every host crosstab cell, (O - E) / sqrt(E (1 - r/N) (1 - c/N)) with E = r c / N — R's chisq.test()$stdres. CELL scope over a MATRIX (crosstab) host with MATRIX payload: each cell's value is its residual (about standard normal under independence; |z| \u003e 1.96 marks a cell driving the table's chi-square). payload.parts carries \"expected\" (the expected counts) and \"p\" (the two-sided normal p-value of each residual), both MATRIX on the host coordinates; a multiplicity block adjusts the p part into payload.p_adjusted / significant_adjusted. The Ref union is left empty (implicit-margin). Weighted hosts follow OVERLAY_CHISQ_MATRIX (the Σw table; under kind probability scaled to its Kish n_eff first). A zero-expected cell's residual and p are null; any expected count below 5 emits one PULSE_OVERLAY_EXPECTED_LOW. A host smaller than 2 x 2 or with a zero grand total is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.",
+        "intents": [
+          "relationship"
+        ],
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
         ]
       },
       {
@@ -16428,4 +16452,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2aafac32212f069b346669dfd2179993b51bfe67ddeda0122e4b7fde488c4804
+// golden-hash: 10a28f5993ca150f00f70dd37e7a93cec0fafbc4e5bef2c68e1802f74c442963

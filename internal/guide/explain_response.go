@@ -77,6 +77,7 @@ var overlayClass = map[string]string{
 	"OVERLAY_PAIRWISE_WELCH_T":              classDifference,
 	"OVERLAY_PROP_Z_CELL":                   classDifference,
 	"OVERLAY_PROP_Z_PANEL":                  classDifference,
+	"OVERLAY_STD_RESIDUAL":                  classAssociation,
 	"OVERLAY_T_CELL":                        classDifference,
 	"OVERLAY_T_VS_REF":                      classDifference,
 	"OVERLAY_Z_CELL":                        classDifference,
@@ -485,7 +486,7 @@ func (e *explainer) overlayFinding(rr *responseReader, n int, l *types.OverlayLa
 	setNum(f.Numbers, "alpha", alpha)
 	class := e.classOf(op, overlayClass)
 	ps, sig := overlayPValues(l, pField)
-	if len(ps) == 1 && pField != "cells.value" && l.Payload.Series == nil {
+	if len(ps) == 1 && !strings.HasSuffix(pField, "cells.value") && l.Payload.Series == nil {
 		p := ps[0]
 		setNum(f.Numbers, pField, p)
 		if s := l.Summary; s != nil && s.Statistic != nil && pField != "summary.statistic" {
@@ -572,6 +573,31 @@ func overlayPValues(l *types.OverlayLayer, pField string) (ps []float64, sig []b
 		for _, en := range ser.Entries {
 			ps = append(ps, summaryValue(&en.Summary, pField))
 			sig = append(sig, en.Summary.SignificantAdjusted != nil && *en.Summary.SignificantAdjusted)
+		}
+		return ps, sig
+	}
+	if name, ok := strings.CutSuffix(strings.TrimPrefix(pField, "parts."), ".cells.value"); ok && strings.HasPrefix(pField, "parts.") {
+		// A p-value matrix carried as a named part: the adjusted twins
+		// ride the payload on the part's coordinates, so each cell's
+		// significance is read at the same coordinate (absent when its
+		// adjusted p is undefined).
+		part := l.Payload.Parts[name]
+		if part == nil || part.Matrix == nil {
+			return nil, nil
+		}
+		adj := l.Payload.SignificantAdjusted
+		for r, row := range part.Matrix.Cells {
+			for c, cell := range row {
+				if !cell.Present {
+					continue
+				}
+				ps = append(ps, floatsOf(cell.Value)...)
+				s := false
+				if adj != nil && r < len(adj.Cells) && c < len(adj.Cells[r]) && adj.Cells[r][c].Present {
+					s, _ = adj.Cells[r][c].Value.(bool)
+				}
+				sig = append(sig, s)
+			}
 		}
 		return ps, sig
 	}

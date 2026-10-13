@@ -365,8 +365,9 @@ The χ² and proportion overlays also run weighted under both kinds. A
 weighted host's cells and margins are weight sums (Σw). Under
 `frequency` the χ² overlays run Pearson's test on the Σw table, which
 equals the test on the expanded rows. Under `probability` the table
-(for `OVERLAY_CHISQ_MATRIX`), each row (`_ROW`), each column (`_COL`)
-or the target table (`_VS_REF`) is first scaled to its Kish n_eff.
+(for `OVERLAY_CHISQ_MATRIX` and `OVERLAY_STD_RESIDUAL`), each row
+(`_ROW`), each column (`_COL`) or the target table (`_VS_REF`) is
+first scaled to its Kish n_eff.
 This is a first-order Kish approximation, not the Rao-Scott correction
 survey packages apply, so expect it to differ from `svychisq`. The
 low-expected-count warning reads the scaled table. The proportion

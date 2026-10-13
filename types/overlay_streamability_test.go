@@ -106,10 +106,12 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// orchestrator before ApplyOverlays runs.
 		OverlayKindShareOfRow:   false,
 		OverlayKindShareOfTotal: true,
-		OverlayKindTCell:        false,
-		OverlayKindTVsRef:       false,
-		OverlayKindYoY:          false,
-		OverlayKindZCell:        false,
+		// STD_RESIDUAL reads the whole table's totals (CHISQ_MATRIX).
+		OverlayKindStdResidual: false,
+		OverlayKindTCell:       false,
+		OverlayKindTVsRef:      false,
+		OverlayKindYoY:         false,
+		OverlayKindZCell:       false,
 		// ZSCORE_VS_MARGIN shares INDEX_VS_MARGIN's buffered footprint —
 		// both the per-slice Welford recurrence and the margin
 		// centerpoint require a fully-materialised matrix, so the host

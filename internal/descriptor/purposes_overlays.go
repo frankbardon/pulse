@@ -50,6 +50,7 @@ var overlayPurposes = map[string]descriptor.Purpose{
 	"OVERLAY_SHARE_OF_COL":                  purposeOverlayShareOfCol,
 	"OVERLAY_SHARE_OF_ROW":                  purposeOverlayShareOfRow,
 	"OVERLAY_SHARE_OF_TOTAL":                purposeOverlayShareOfTotal,
+	"OVERLAY_STD_RESIDUAL":                  purposeOverlayStdResidual,
 	"OVERLAY_T_CELL":                        purposeOverlayTCell,
 	"OVERLAY_T_VS_REF":                      purposeOverlayTVsRef,
 	"OVERLAY_YOY":                           purposeOverlayYoY,
@@ -104,7 +105,8 @@ var (
 			{When: "you compare this table's mix with another Compose request's table", Use: "OVERLAY_CHISQ_VS_REF"},
 		},
 		FollowUps: []descriptor.Alternative{
-			{When: "the table shows an association and you want to see which cells drive it", Use: "OVERLAY_FISHER_EXACT_CELL"},
+			{When: "the table shows an association and you want to see which cells drive it", Use: "OVERLAY_STD_RESIDUAL"},
+			{When: "counts are small and you want an exact test for each cell", Use: "OVERLAY_FISHER_EXACT_CELL"},
 			{When: "you want to see which rows depart from the overall column mix", Use: "OVERLAY_CHISQ_ROW"},
 		},
 		Assumptions: []string{
@@ -275,6 +277,38 @@ var (
 			"chi-square", "cross-tabulation", "exact-test", "false-discovery-rate", "family-wise-error",
 			"independence", "margin", "multiple-comparisons", "null-hypothesis", "p-value",
 			"two-tailed",
+		},
+	}
+
+	purposeOverlayStdResidual = descriptor.Purpose{
+		Plain:   "Adjusted residual for every crosstab cell: how far its count sits above or below what its row and column totals predict.",
+		Intents: []string{IntentRelationship},
+		Questions: []string{
+			"Which cells drive the association in this crosstab?",
+			"Which brand-by-attribute cells are over- or under-represented?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Find the brand-by-attribute cells of a banner table that respondents pick more or less often than the totals predict.",
+			descriptor.DomainOps:     "Find the site-by-fault cells that occur more or less often than the site and fault totals predict.",
+			descriptor.DomainScience: "Find the arm-by-outcome cells that depart from independence, and in which direction.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want one test for the whole table", Use: "OVERLAY_CHISQ_MATRIX"},
+			{When: "counts are small and you want an exact per-cell test", Use: "OVERLAY_FISHER_EXACT_CELL"},
+			{When: "you want each cell's distance from its margin without a test", Use: "OVERLAY_ZSCORE_VS_MARGIN"},
+		},
+		Assumptions: []string{
+			overlayCountsOnly,
+			"The null hypothesis is that row and column categories are independent; each residual is about standard normal under it, so beyond plus or minus 1.96 is unusual at the 5% level, and the p-value is two-sided.",
+			"The normal approximation needs expected counts of about 5 or more; a warning flags tables where some are lower, and a cell with an expected count of 0 gets no residual.",
+			"Every cell is a separate test, so with many cells some small p-values turn up by luck; " +
+				"to adjust for multiple comparisons, " + overlayCorrectWith,
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"chi-square", "cross-tabulation", "false-discovery-rate", "family-wise-error",
+			"independence", "margin", "multiple-comparisons", "normal-distribution", "null-hypothesis",
+			"p-value", "residual", "two-tailed",
 		},
 	}
 

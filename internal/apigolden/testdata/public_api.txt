@@ -4474,6 +4474,7 @@ pulse/types: const OverlayKindRank pulse/types.OverlayKind = "OVERLAY_RANK"
 pulse/types: const OverlayKindShareOfCol pulse/types.OverlayKind = "OVERLAY_SHARE_OF_COL"
 pulse/types: const OverlayKindShareOfRow pulse/types.OverlayKind = "OVERLAY_SHARE_OF_ROW"
 pulse/types: const OverlayKindShareOfTotal pulse/types.OverlayKind = "OVERLAY_SHARE_OF_TOTAL"
+pulse/types: const OverlayKindStdResidual pulse/types.OverlayKind = "OVERLAY_STD_RESIDUAL"
 pulse/types: const OverlayKindTCell pulse/types.OverlayKind = "OVERLAY_T_CELL"
 pulse/types: const OverlayKindTVsRef pulse/types.OverlayKind = "OVERLAY_T_VS_REF"
 pulse/types: const OverlayKindYoY pulse/types.OverlayKind = "OVERLAY_YOY"
@@ -4948,4 +4949,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0b74b5166872f3650746689b8ded4a3881b94e9220fbb50c45bf122bea002a20
+// golden-hash: 602961d58f0cfa0f408f8486eaa3b6d203c809d9f4858bcf7c9db196a0fdef45

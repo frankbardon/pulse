@@ -306,6 +306,10 @@ for (j in lo) {
   out("ov_chisq", sprintf("2/entry[%s].summary.p_value", j), g$p.value)
 }
 
+# OVERLAY_STD_RESIDUAL: chisq.test()$stdres on the same h × o counts.
+sr <- cm$stdres
+for (i in lh) for (j in lo) out("ov_std_residual", sprintf("0/cell[%s|%s]", i, j), sr[i, j])
+
 # OVERLAY_FISHER_EXACT_CELL: cell vs the rest of its row / column.
 for (i in lh) for (j in lo) {
   a <- tb[i, j]

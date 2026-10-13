@@ -42,6 +42,11 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			Scope: types.OverlayScopeCell,
 		},
 		{
+			Name:  "std_residual",
+			Kind:  types.OverlayKindStdResidual,
+			Scope: types.OverlayScopeCell,
+		},
+		{
 			Name:   "formula",
 			Kind:   types.OverlayKindFormula,
 			Scope:  types.OverlayScopeCell,
@@ -517,6 +522,11 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 			Kind:  types.OverlayKindFisherExactCell,
 			Scope: types.OverlayScopeCell,
 		},
+		types.OverlayKindStdResidual: {
+			Name:  "std_residual",
+			Kind:  types.OverlayKindStdResidual,
+			Scope: types.OverlayScopeCell,
+		},
 		types.OverlayKindPairwiseProbitT: {
 			Name:  "pairwise_probit_t",
 			Kind:  types.OverlayKindPairwiseProbitT,
@@ -737,6 +747,11 @@ func TestPredict_OverlaysApplied_AllKinds_DescriptorCoverage(t *testing.T) {
 		types.OverlayKindFisherExactCell: {
 			Name:  "fisher_exact_cell",
 			Kind:  types.OverlayKindFisherExactCell,
+			Scope: types.OverlayScopeCell,
+		},
+		types.OverlayKindStdResidual: {
+			Name:  "std_residual",
+			Kind:  types.OverlayKindStdResidual,
 			Scope: types.OverlayScopeCell,
 		},
 		types.OverlayKindPairwiseProbitT: {
@@ -1201,6 +1216,11 @@ func TestPredict_OverlayCost_AllKindsHaveMultiplier(t *testing.T) {
 		types.OverlayKindFisherExactCell: {
 			Name:  "fisher_exact_cell",
 			Kind:  types.OverlayKindFisherExactCell,
+			Scope: types.OverlayScopeCell,
+		},
+		types.OverlayKindStdResidual: {
+			Name:  "std_residual",
+			Kind:  types.OverlayKindStdResidual,
 			Scope: types.OverlayScopeCell,
 		},
 		types.OverlayKindPairwiseProbitT: {

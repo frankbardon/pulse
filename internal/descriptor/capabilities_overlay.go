@@ -1313,6 +1313,26 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"Summary leaves Statistic unset. Streamable via the SERIES dispatch (the MATRIX route is forced " +
 				"buffered through canFuseCrosstab's overlays-force-buffered arm).",
 		}
+	case types.OverlayKindStdResidual:
+		return descriptor.OverlayCapability{
+			Kind:        types.OverlayKindStdResidual,
+			Inferential: true,
+			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
+			Scopes:      []types.OverlayScope{types.OverlayScopeCell},
+			// No Ref family — implicit-margin like the CHISQ_* kinds.
+			RefKinds: []string{},
+			Description: "Haberman adjusted standardized residual of every host crosstab cell, " +
+				"(O - E) / sqrt(E (1 - r/N) (1 - c/N)) with E = r c / N — R's chisq.test()$stdres. CELL scope " +
+				"over a MATRIX (crosstab) host with MATRIX payload: each cell's value is its residual (about " +
+				"standard normal under independence; |z| > 1.96 marks a cell driving the table's chi-square). " +
+				"payload.parts carries \"expected\" (the expected counts) and \"p\" (the two-sided normal p-value " +
+				"of each residual), both MATRIX on the host coordinates; a multiplicity block adjusts the p part " +
+				"into payload.p_adjusted / significant_adjusted. The Ref union is left empty (implicit-margin). " +
+				"Weighted hosts follow OVERLAY_CHISQ_MATRIX (the Σw table; under kind probability scaled to its " +
+				"Kish n_eff first). A zero-expected cell's residual and p are null; any expected count below 5 " +
+				"emits one PULSE_OVERLAY_EXPECTED_LOW. A host smaller than 2 x 2 or with a zero grand total is " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.",
+		}
 	case types.OverlayKindTCell:
 		return descriptor.OverlayCapability{
 			Kind:        types.OverlayKindTCell,

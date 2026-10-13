@@ -1398,6 +1398,21 @@ const (
 	// confuse `share` with `index / 100` at the spec authoring surface.
 	OverlayKindShareOfTotal OverlayKind = "OVERLAY_SHARE_OF_TOTAL"
 
+	// OverlayKindStdResidual emits the Haberman adjusted standardized
+	// residual of every host crosstab cell,
+	// (O − E) / sqrt(E · (1 − r/N) · (1 − c/N)) with E = r·c/N, so a
+	// reader sees which cells drive the table's χ² and in which
+	// direction. CELL-scoped over a MATRIX (crosstab) host, implicit-
+	// margin (Ref empty). Primary payload: a MATRIX of residuals on the
+	// host coordinates; OverlayPayload.Parts carries "expected" (the
+	// expected counts, MATRIX) and "p" (the two-sided normal p-value of
+	// each residual, MATRIX). Inferential: a multiplicity block adjusts
+	// the "p" part (layer / row / column / request families). Weighted
+	// hosts follow OVERLAY_CHISQ_MATRIX (the Σw table; under kind
+	// probability scaled to its Kish n_eff first). A zero-expected cell
+	// has an undefined (null) residual and p. Inherently buffered.
+	OverlayKindStdResidual OverlayKind = "OVERLAY_STD_RESIDUAL"
+
 	// OverlayKindZScoreVsRolling emits a per-point windowed z-score against
 	// the rolling-window mean + sample SD of the W immediately preceding
 	// points of an ordered SERIES (grouped Process) host:
@@ -2442,6 +2457,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindShareOfCol,
 		OverlayKindShareOfRow,
 		OverlayKindShareOfTotal,
+		OverlayKindStdResidual,
 		OverlayKindTCell,
 		OverlayKindTVsRef,
 		OverlayKindYoY,

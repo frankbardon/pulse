@@ -360,3 +360,8 @@ script_dir <- local({
   if (length(f) == 1) dirname(normalizePath(f)) else "scripts/reference"
 })
 source(file.path(script_dir, "gen_multivariate.R"), local = FALSE)
+
+# The OVERLAY_STD_RESIDUAL golden (std_residual.json: chisq.test
+# adjusted residuals, expected counts, two-sided normal p and per-row
+# p.adjust); base stats only, reuses out_dir and write_golden().
+source(file.path(script_dir, "gen_std_residual.R"), local = FALSE)

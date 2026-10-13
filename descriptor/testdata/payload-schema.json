@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:f6b6ec312915decc6d37f5b5d85503625d7e87783c4cbee05538b7ea958e25ff",
+  "$comment": "feature_set_digest: fs1:44e68b56c4910e2fc2f26ff1d37fa53c96b47ed29a6279472fb74724508277b0",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -2481,6 +2481,7 @@
         "OVERLAY_SHARE_OF_COL",
         "OVERLAY_SHARE_OF_ROW",
         "OVERLAY_SHARE_OF_TOTAL",
+        "OVERLAY_STD_RESIDUAL",
         "OVERLAY_T_CELL",
         "OVERLAY_T_VS_REF",
         "OVERLAY_YOY",
@@ -4545,4 +4546,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: ea2c06b7af84b5aa01282cd2ffced935163e2f572a83cb8aac85396e2184126e
+// golden-hash: 53fe4200e8a710726fcdb0869f0b146c4c0dedc2c9b67b1439dd4d2c79d39419

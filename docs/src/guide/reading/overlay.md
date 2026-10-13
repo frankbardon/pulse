@@ -352,6 +352,45 @@ Two-proportion z-tests between every pair of requests in a Compose panel, for ea
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
+<a id="op-overlay_std_residual"></a>
+
+### `OVERLAY_STD_RESIDUAL`
+
+Adjusted residual for every crosstab cell: how far its count sits above or below what its row and column totals predict. See its [catalog entry](../catalog/overlay.md#op-overlay_std_residual).
+
+#### `cells.value`
+
+The cell's adjusted standardized residual: (observed - expected) divided by its standard error, where expected is the count the row and column totals predict if the two fields were independent. Under independence it is about standard normal, so a value beyond plus or minus 1.96 is unusual at the 5% level; the cells with the largest absolute values are the ones driving the table's chi-square.
+
+**Sign:**
+
+- `+`: the cell holds more cases than its row and column totals predict
+- `-`: the cell holds fewer cases than its row and column totals predict
+
+**Caveats:**
+
+- A cell whose expected count is 0 (an empty row or column) has no residual and is null.
+- It is meaningful only when the cells count independent rows (AGG_COUNT); on sums or averages it is not a valid residual.
+- On a probability-weighted host the table is first scaled to its effective sample size (summary.parameters.n_eff): a first-order Kish approximation, not the Rao-Scott correction.
+
+#### `parts.expected.cells.value`
+
+The count the cell would hold if the row and column fields were independent: its row total times its column total, divided by the grand total.
+
+**Caveats:**
+
+- On a probability-weighted host it is on the effective-sample-size scale, not the weighted-total scale.
+
+#### `parts.p.cells.value`
+
+**Caveats:**
+
+- Each cell holds the two-sided normal p-value of its own residual; it says how surprising the departure is, the residual says which way.
+- It comes from a normal approximation that weakens when expected counts fall below about 5; Pulse warns (PULSE_OVERLAY_EXPECTED_LOW) when they do.
+- Every cell is a separate test and Pulse reports the p-values raw: with many cells some small ones turn up by luck, so before flagging cells adjust for multiple comparisons: set multiplicity on the overlay and read payload.p_adjusted.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
 <a id="op-overlay_t_cell"></a>
 
 ### `OVERLAY_T_CELL`

@@ -139,6 +139,11 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// is plumbed (PRD § 4.C FR-C2 — the canonical low-count contingency
 	// overlay closing the inferential family).
 	OverlayKindFisherExactCell: false,
+	// OVERLAY_STD_RESIDUAL is inherently buffered — each cell's
+	// adjusted residual reads the whole table's row, column and grand
+	// totals, which only the buffered / fused crosstab host has
+	// materialised (the CHISQ_MATRIX recurrence).
+	OverlayKindStdResidual: false,
 	// OVERLAY_FORMULA is buffered-only at v1 for every host shape.
 	// The per-host-shape variable namespace (research note
 	// `.planning/result-overlay-system/research/formula-namespace.md` § 2)

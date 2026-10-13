@@ -137,9 +137,9 @@ func axisBuckets(axis []*types.Group, schema *encoding.Schema, inst *InstanceSna
 // overlay layer carries over a rows x cols crosstab (0 = unknown
 // extent): one for a whole-table kind; one per row / column for the
 // per-row / per-column chi-square kinds; one per cell for Fisher's
-// exact cell test; one per index pair per opposite-axis entry for the
-// pairwise kinds. A kind or extent it cannot derive counts as one, a
-// lower bound.
+// exact cell test and the adjusted residuals; one per index pair per
+// opposite-axis entry for the pairwise kinds. A kind or extent it
+// cannot derive counts as one, a lower bound.
 func overlayPValueCount(kind types.OverlayKind, scope types.OverlayScope, rows, cols int) (int, string) {
 	pairs := func(k int) int { return k * (k - 1) / 2 }
 	derived := func(n int, known bool) (int, string) {
@@ -156,7 +156,7 @@ func overlayPValueCount(kind types.OverlayKind, scope types.OverlayScope, rows, 
 		return derived(rows, rows > 0)
 	case kind == types.OverlayKindChiSqCol:
 		return derived(cols, cols > 0)
-	case kind == types.OverlayKindFisherExactCell:
+	case kind == types.OverlayKindFisherExactCell, kind == types.OverlayKindStdResidual:
 		return derived(rows*cols, rows > 0 && cols > 0)
 	case strings.HasPrefix(string(kind), "OVERLAY_PAIRWISE_") && scope == types.OverlayScopeRow:
 		return derived(pairs(rows)*cols, rows > 0 && cols > 0)

@@ -299,6 +299,7 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 	types.OverlayKindShareOfCol:                applyShareOfCol,
 	types.OverlayKindShareOfRow:                applyShareOfRow,
 	types.OverlayKindShareOfTotal:              applyShareOfTotal,
+	types.OverlayKindStdResidual:               applyStdResidual,
 	types.OverlayKindZScoreVsMargin:            applyZScoreVsMargin,
 }
 
@@ -495,7 +496,8 @@ func validateOverlayLevelWithinRuntime(spec *types.OverlaySpec, route types.Over
 	case types.OverlayKindChiSqCol,
 		types.OverlayKindChiSqMatrix,
 		types.OverlayKindChiSqRow,
-		types.OverlayKindFisherExactCell:
+		types.OverlayKindFisherExactCell,
+		types.OverlayKindStdResidual:
 		// Inferential family — Level / Within must both be zero. Non-
 		// zero values alter the implicit-margin contract those kinds
 		// rely on (they compute contingency from the host's row + col
@@ -2872,6 +2874,10 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// bare-kind shape so renderers can use it directly as a tab /
 		// legend label without uppercasing.
 		return "fisher_exact_cell"
+	case types.OverlayKindStdResidual:
+		// STD_RESIDUAL is implicit-margin (no axis dispatch);
+		// lower-case bare-kind default like the CHISQ_* family.
+		return "std_residual"
 	case types.OverlayKindIndexVsBaseline:
 		// INDEX_VS_BASELINE is the windowed positional-baseline kind; the
 		// synthesised default surfaces the lower-case bare-kind string

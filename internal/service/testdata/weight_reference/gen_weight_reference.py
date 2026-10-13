@@ -1318,8 +1318,8 @@ def test_cases():
 # (test_reference.R, "ov_*" cases, which print the Go figure keys
 # directly). Probability: the closed form of the one formula rule on the
 # overlay's legs — a cell / slot table scaled by c = Kish n_eff / Σw of
-# the rows it covers (χ² matrix: the whole table; row / column: that
-# row / column; CHISQ_VS_REF: the target table; proportions: the row
+# the rows it covers (χ² matrix and STD_RESIDUAL: the whole table; row /
+# column: that row / column; CHISQ_VS_REF: the target table; proportions: the row
 # base), a mean leg read as Sample(w*) with N* = n_eff. The same closed
 # form must reproduce R on the frequency configuration (1e-9) before a
 # row is written. Figure keys: "<layer>/<path>" — a wire path from the
@@ -1363,6 +1363,9 @@ def ov_request(case, kind):
     if case == "ov_fisher":
         return {"crosstab": ov_xt("h", "o", OV_COUNT), "overlays": [
             {"name": "f", "kind": "OVERLAY_FISHER_EXACT_CELL", "scope": "cell"}]}
+    if case == "ov_std_residual":
+        return {"crosstab": ov_xt("h", "o", OV_COUNT), "overlays": [
+            {"name": "sr", "kind": "OVERLAY_STD_RESIDUAL", "scope": "cell"}]}
     if case == "ov_pairwise_welch":
         return {"crosstab": ov_xt("k", "h", OV_WELFORD), "overlays": [
             {"name": "pw", "kind": "OVERLAY_PAIRWISE_WELCH_T", "scope": "column"}]}
@@ -1400,7 +1403,7 @@ def ov_request(case, kind):
     raise ValueError(case)
 
 
-OV_CASES = ["ov_chisq", "ov_fisher", "ov_pairwise_welch", "ov_pairwise_prop",
+OV_CASES = ["ov_chisq", "ov_std_residual", "ov_fisher", "ov_pairwise_welch", "ov_pairwise_prop",
             "ov_pairwise_weighted_z", "ov_compose_means", "ov_compose_series", "ov_compose_props"]
 OV_FREQUENCY_ONLY = {"ov_fisher"}
 
@@ -1459,6 +1462,24 @@ def ov_closed_form(case, rows, prob):
     """{figure key: value}, expected overlay warning codes."""
     rows = [r for r in rows if r[5] > 0]
     out, warn = {}, set()
+    if case == "ov_std_residual":
+        # Haberman adjusted residuals on the table OVERLAY_CHISQ_MATRIX
+        # reads: Σw (frequency) or scaled to its Kish n_eff (probability).
+        T, W2 = ov_table(rows)
+        N = T.sum()
+        Ts = ov_scale(N, W2.sum(), prob) * T
+        n, R, C = Ts.sum(), Ts.sum(1), Ts.sum(0)
+        E = np.outer(R, C) / n
+        if E.min() < 5:
+            warn.add("PULSE_OVERLAY_EXPECTED_LOW")
+        for i, h in enumerate(H_LEVELS):
+            for j, o in enumerate(O_LEVELS):
+                v = E[i, j] * (1 - R[i] / n) * (1 - C[j] / n)
+                out[f"0/cell[{h}|{o}]"] = float((Ts[i, j] - E[i, j]) / math.sqrt(v))
+        out["0/summary.parameters.sum_weights"] = float(N)
+        if prob:
+            out["0/summary.parameters.n_eff"] = float(N * N / W2.sum())
+        return out, warn
     if case in ("ov_chisq", "ov_fisher"):
         T, W2 = ov_table(rows)
         N, R, C = T.sum(), T.sum(1), T.sum(0)

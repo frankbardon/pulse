@@ -509,3 +509,40 @@ func TestExplainResponse_GroupedTests(t *testing.T) {
 		}
 	}
 }
+
+// TestExplainResponse_PartPValues: OVERLAY_STD_RESIDUAL carries its
+// p-values in the "p" part, not in its (residual) cells: the finding
+// counts the part's defined p-values and, once corrected, reads each
+// cell's adjusted significance at the same coordinate — a NaN p (no
+// adjusted cell, here the first) does not shift the cells after it.
+func TestExplainResponse_PartPValues(t *testing.T) {
+	layer := func(adjusted bool) types.OverlayLayer {
+		l := types.OverlayLayer{Name: "sr", Kind: types.OverlayKindStdResidual, Payload: types.OverlayPayload{
+			Shape: types.OverlayShapeMatrix,
+			// Residuals: large values that would read as p-values ≥ alpha.
+			Matrix: &types.MatrixPayload{Cells: [][]types.MatrixCell{
+				{{Value: math.NaN(), Present: true}, {Value: 4.5, Present: true}, {Value: -0.7, Present: true}},
+			}},
+			Parts: map[string]*types.OverlayPayload{"p": {Shape: types.OverlayShapeMatrix, Matrix: &types.MatrixPayload{Cells: [][]types.MatrixCell{
+				{{Value: math.NaN(), Present: true}, {Value: 0.00001, Present: true}, {Value: 0.48, Present: true}},
+			}}}},
+		}}
+		if adjusted {
+			l.Multiplicity = &types.AppliedMultiplicity{Method: types.MultiplicityMethodHolm, Family: types.MultiplicityFamilyRow, Alpha: 0.05, M: 2}
+			// The NaN cell has no adjusted significance; the last
+			// cell's flag is false.
+			l.Payload.SignificantAdjusted = &types.MatrixPayload{Cells: [][]types.MatrixCell{
+				{{}, {Value: true, Present: true}, {Value: false, Present: true}},
+			}}
+		}
+		return l
+	}
+	f := readResponse(t, nil, &types.Response{Overlays: []types.OverlayLayer{layer(false)}}, nil, descriptor.ExplainTerse).Findings[0]
+	if f.Verdict == descriptor.VerdictDescriptive || *f.Numbers["tests"] != 2 || *f.Numbers["below_alpha"] != 1 {
+		t.Errorf("uncorrected residual layer = %+v", f)
+	}
+	f = readResponse(t, nil, &types.Response{Overlays: []types.OverlayLayer{layer(true)}}, nil, descriptor.ExplainTerse).Findings[0]
+	if f.Multiplicity == nil || *f.Numbers["below_alpha_adjusted"] != 1 {
+		t.Errorf("corrected residual layer = %+v", f)
+	}
+}

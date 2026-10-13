@@ -408,6 +408,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("OVERLAY_SHARE_OF_COL"),
 	op("OVERLAY_SHARE_OF_ROW"),
 	op("OVERLAY_SHARE_OF_TOTAL"),
+	op("OVERLAY_STD_RESIDUAL"),
 	op("OVERLAY_T_CELL"),
 	op("OVERLAY_T_VS_REF"),
 	op("OVERLAY_YOY"),
@@ -579,6 +580,7 @@ var overlayHostKinds = map[string][]string{
 		"OVERLAY_SHARE_OF_COL",
 		"OVERLAY_SHARE_OF_ROW",
 		"OVERLAY_SHARE_OF_TOTAL",
+		"OVERLAY_STD_RESIDUAL",
 		"OVERLAY_ZSCORE_VS_MARGIN",
 	},
 	featCompose: {

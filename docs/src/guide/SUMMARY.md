@@ -177,6 +177,7 @@
     - [op-overlay-share-of-col](skills/op-overlay-share-of-col.md)
     - [op-overlay-share-of-row](skills/op-overlay-share-of-row.md)
     - [op-overlay-share-of-total](skills/op-overlay-share-of-total.md)
+    - [op-overlay-std-residual](skills/op-overlay-std-residual.md)
     - [op-overlay-t-cell](skills/op-overlay-t-cell.md)
     - [op-overlay-t-vs-ref](skills/op-overlay-t-vs-ref.md)
     - [op-overlay-yoy](skills/op-overlay-yoy.md)

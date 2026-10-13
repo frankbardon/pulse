@@ -41,6 +41,7 @@ var overlayInterpretations = map[string][]descriptor.Interpretation{
 	"OVERLAY_PAIRWISE_WELCH_T":              interpOverlayPairwiseWelchT,
 	"OVERLAY_PROP_Z_CELL":                   interpOverlayPropZCell,
 	"OVERLAY_PROP_Z_PANEL":                  interpOverlayPropZPanel,
+	"OVERLAY_STD_RESIDUAL":                  interpOverlayStdResidual,
 	"OVERLAY_T_CELL":                        interpOverlayTCell,
 	"OVERLAY_T_VS_REF":                      interpOverlayTVsRef,
 	"OVERLAY_Z_CELL":                        interpOverlayZCell,
@@ -239,6 +240,40 @@ var (
 			Caveats: []string{
 				"Each cell holds the two-sided exact p-value of its own 2x2 table: this row versus the rest, by this column versus the rest.",
 				"It does not say which way or how far the cell departs: compare the cell's count with what its row and column totals predict (or an OVERLAY_INDEX_VS_MARGIN layer) for direction and size.",
+				overlayCellMultiComp,
+			},
+		},
+	}
+
+	interpOverlayStdResidual = []descriptor.Interpretation{
+		{
+			Field: "cells.value",
+			Means: "The cell's adjusted standardized residual: (observed - expected) divided by its standard error, where expected is the count the row and column totals predict " +
+				"if the two fields were independent. Under independence it is about standard normal, so a value beyond plus or minus 1.96 is unusual at the 5% level; " +
+				"the cells with the largest absolute values are the ones driving the table's chi-square.",
+			Sign: map[string]string{
+				"+": "the cell holds more cases than its row and column totals predict",
+				"-": "the cell holds fewer cases than its row and column totals predict",
+			},
+			Caveats: []string{
+				"A cell whose expected count is 0 (an empty row or column) has no residual and is null.",
+				"It is meaningful only when the cells count independent rows (AGG_COUNT); on sums or averages it is not a valid residual.",
+				"On a probability-weighted host the table is first scaled to its effective sample size (summary.parameters.n_eff): a first-order Kish approximation, not the Rao-Scott correction.",
+			},
+		},
+		{
+			Field: "parts.expected.cells.value",
+			Means: "The count the cell would hold if the row and column fields were independent: its row total times its column total, divided by the grand total.",
+			Caveats: []string{
+				"On a probability-weighted host it is on the effective-sample-size scale, not the weighted-total scale.",
+			},
+		},
+		{
+			Field:  "parts.p.cells.value",
+			Shared: SharedPValue,
+			Caveats: []string{
+				"Each cell holds the two-sided normal p-value of its own residual; it says how surprising the departure is, the residual says which way.",
+				"It comes from a normal approximation that weakens when expected counts fall below about 5; Pulse warns (PULSE_OVERLAY_EXPECTED_LOW) when they do.",
 				overlayCellMultiComp,
 			},
 		},

@@ -400,6 +400,16 @@ func overlayOutputResolver(kind types.OverlayKind) OutputResolver {
 			}
 			return FieldUnknown, fmt.Sprintf("%s declares no matrix shape", kind)
 		}
+		if rest, ok := strings.CutPrefix(field, "parts."); ok {
+			// A declared payload part (overlayPartShapes): its own
+			// cells.value (MATRIX part) or scalar (SCALAR part).
+			name, sub, _ := strings.Cut(rest, ".")
+			if sh, ok := overlayPartShapes[kind][name]; ok &&
+				((sh == types.OverlayShapeMatrix && sub == "cells.value") || (sh == types.OverlayShapeScalar && sub == "scalar")) {
+				return FieldStatic, ""
+			}
+			return FieldUnknown, fmt.Sprintf("%s declares no part path %q", kind, field)
+		}
 		if rest, ok := strings.CutPrefix(field, "summary.parameters."); ok && rest != "" {
 			return FieldDeferred, ""
 		}

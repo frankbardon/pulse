@@ -28,6 +28,7 @@ func TestOverlayPSites_CoverEveryInferentialKind(t *testing.T) {
 		pSiteSeriesStatistic: types.OverlayShapeSeries,
 		pSiteMatrixCell:      types.OverlayShapeMatrix,
 		pSiteMatrixPanel:     types.OverlayShapeMatrix,
+		pSiteMatrixPart:      types.OverlayShapeMatrix,
 	}
 	caps := descx.OverlayCapabilities()
 	if len(caps) != len(types.AllOverlayKinds()) {
@@ -46,6 +47,10 @@ func TestOverlayPSites_CoverEveryInferentialKind(t *testing.T) {
 		inferential++
 		if !slices.Contains(c.Shapes, wantShape[site]) {
 			t.Errorf("%s: p-site %d reads a %s payload, kind emits %v", c.Kind, site, wantShape[site], c.Shapes)
+		}
+		// A part site names its part; no other site does.
+		if _, named := overlayPParts[c.Kind]; named != (site == pSiteMatrixPart) {
+			t.Errorf("%s: p-site %d, overlayPParts entry present=%v", c.Kind, site, named)
 		}
 	}
 	if inferential != len(overlayPSites) {
