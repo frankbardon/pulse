@@ -119,6 +119,12 @@ func assertCoMomentClose(t *testing.T, label string, got, want *linalg.CoMoment)
 			if !within(got.PairW(i, j), want.PairW(i, j), math.Max(1, want.PairW(i, j))) {
 				t.Fatalf("%s: PairW(%d,%d) %v vs %v", label, i, j, got.PairW(i, j), want.PairW(i, j))
 			}
+			if !within(got.PairW2(i, j), want.PairW2(i, j), math.Max(1, want.PairW2(i, j))) {
+				t.Fatalf("%s: PairW2(%d,%d) %v vs %v", label, i, j, got.PairW2(i, j), want.PairW2(i, j))
+			}
+			if !within(got.PairNEff(i, j), want.PairNEff(i, j), math.Max(1, want.PairNEff(i, j))) {
+				t.Fatalf("%s: PairNEff(%d,%d) %v vs %v", label, i, j, got.PairNEff(i, j), want.PairNEff(i, j))
+			}
 			scale := math.Sqrt(math.Abs(wc.At(i, i))*math.Abs(wc.At(j, j))) + 1e-300
 			if !within(gc.At(i, j), wc.At(i, j), scale) {
 				t.Fatalf("%s: cov(%d,%d) %v vs %v", label, i, j, gc.At(i, j), wc.At(i, j))
@@ -229,6 +235,7 @@ func coMomentBits(c *linalg.CoMoment) []uint64 {
 		out = append(out, math.Float64bits(m.At(i)))
 		for j := i; j < p; j++ {
 			out = append(out, uint64(c.PairN(i, j)), math.Float64bits(c.PairW(i, j)),
+				math.Float64bits(c.PairW2(i, j)), math.Float64bits(c.PairNEff(i, j)),
 				math.Float64bits(cov.At(i, j)), math.Float64bits(corr.At(i, j)))
 		}
 	}
@@ -292,7 +299,7 @@ func TestCoMomentMergeIdentityBitwise(t *testing.T) {
 				idx++
 				for j := i; j < p; j++ {
 					zb[idx] = uint64(a.PairN(i, j) + 2)
-					idx += 4
+					idx += 6
 				}
 			}
 			if !sameWords(gotBits, zb) {
@@ -357,6 +364,10 @@ func TestCoMomentWeightSemantics(t *testing.T) {
 		if c.PairN(0, 1) != 3 || c.PairW(0, 1) != 5 {
 			t.Fatalf("%s: pair N/W %d/%v", mode, c.PairN(0, 1), c.PairW(0, 1))
 		}
+		// Σw² = 2² + 3² = 13: invalid weights and the w=0 row add nothing.
+		if c.PairW2(0, 1) != 13 || c.PairNEff(1, 0) != 25.0/13.0 {
+			t.Fatalf("%s: pair W2/NEff %v/%v, want 13/%v", mode, c.PairW2(0, 1), c.PairNEff(1, 0), 25.0/13.0)
+		}
 	}
 
 	// A row the mode already discards for a missing value is never
@@ -397,16 +408,21 @@ func TestCoMomentPairwiseMissing(t *testing.T) {
 	if pw.N() != 4 || pw.W() != 5 {
 		t.Fatalf("pairwise N/W %d/%v", pw.N(), pw.W())
 	}
+	// Row weights are 1, 2, 1, 1, so a pair's Σw² sums the squares of the
+	// weights of the rows where both of its values are present.
 	cases := []struct {
-		i, j int
-		n    int64
-		w    float64
-	}{{0, 0, 3, 4}, {0, 1, 2, 2}, {0, 2, 2, 3}, {1, 1, 3, 3}, {1, 2, 2, 2}, {2, 2, 3, 4}}
+		i, j  int
+		n     int64
+		w, w2 float64
+	}{{0, 0, 3, 4, 6}, {0, 1, 2, 2, 2}, {0, 2, 2, 3, 5}, {1, 1, 3, 3, 3}, {1, 2, 2, 2, 2}, {2, 2, 3, 4, 6}}
 	for _, tc := range cases {
 		if pw.PairN(tc.i, tc.j) != tc.n || pw.PairW(tc.i, tc.j) != tc.w ||
 			pw.PairN(tc.j, tc.i) != tc.n {
 			t.Fatalf("pair (%d,%d): N=%d W=%v, want %d/%v", tc.i, tc.j,
 				pw.PairN(tc.i, tc.j), pw.PairW(tc.i, tc.j), tc.n, tc.w)
+		}
+		if pw.PairW2(tc.i, tc.j) != tc.w2 || pw.PairW2(tc.j, tc.i) != tc.w2 {
+			t.Fatalf("pair (%d,%d): W2=%v, want %v", tc.i, tc.j, pw.PairW2(tc.i, tc.j), tc.w2)
 		}
 	}
 	// Pair (0,1) sees rows 0 and 2 only: x0 {1,3}, x1 {10,30} → r = 1.
@@ -421,6 +437,90 @@ func TestCoMomentPairwiseMissing(t *testing.T) {
 	lw := feed(t, 3, linalg.Listwise, rows)
 	if lw.N() != 1 || lw.W() != 1 || lw.PairN(0, 1) != 1 || lw.PairW(2, 0) != 1 {
 		t.Fatalf("listwise N/W %d/%v pair %d", lw.N(), lw.W(), lw.PairN(0, 1))
+	}
+	if lw.PairW2(2, 0) != 1 || lw.PairNEff(0, 1) != 1 {
+		t.Fatalf("listwise W2/NEff %v/%v", lw.PairW2(2, 0), lw.PairNEff(0, 1))
+	}
+}
+
+// TestCoMomentPairNEffHandComputed pins PairNEff = PairW²/PairW2 (Kish)
+// against hand-computed figures, per pair under Pairwise and as the
+// global NEff for every pair under Listwise.
+func TestCoMomentPairNEffHandComputed(t *testing.T) {
+	nan := math.NaN()
+	rows := []wrow{
+		{[]float64{1, 4}, 1},
+		{[]float64{2, nan}, 3},
+		{[]float64{3, 5}, 2},
+		{[]float64{nan, 6}, 0.5},
+		{[]float64{4, 7}, 0},
+	}
+	cases := []struct {
+		name   string
+		mode   linalg.CoMomentMode
+		i, j   int
+		w, w2  float64
+		neff   float64
+		pairN  int64
+		reason string
+	}{
+		// x0 rows 0,1,2,4: Σw = 6, Σw² = 1+9+4 = 14, n_eff = 36/14.
+		{"pairwise x0", linalg.Pairwise, 0, 0, 6, 14, 36.0 / 14.0, 4, "w=0 row counts, adds no mass"},
+		// both present rows 0,2,4: Σw = 3, Σw² = 5, n_eff = 9/5.
+		{"pairwise x0x1", linalg.Pairwise, 0, 1, 3, 5, 9.0 / 5.0, 3, "rows 1 and 3 drop out"},
+		// x1 rows 0,2,3,4: Σw = 3.5, Σw² = 5.25, n_eff = 12.25/5.25.
+		{"pairwise x1", linalg.Pairwise, 1, 1, 3.5, 5.25, 12.25 / 5.25, 4, "fractional weights"},
+		// listwise keeps rows 0,2,4 for every pair.
+		{"listwise x0", linalg.Listwise, 0, 0, 3, 5, 9.0 / 5.0, 3, "global Σw²"},
+		{"listwise x1x0", linalg.Listwise, 1, 0, 3, 5, 9.0 / 5.0, 3, "global Σw²"},
+	}
+	for _, tc := range cases {
+		c := feed(t, 2, tc.mode, rows)
+		if c.PairN(tc.i, tc.j) != tc.pairN || c.PairW(tc.i, tc.j) != tc.w || c.PairW2(tc.i, tc.j) != tc.w2 {
+			t.Fatalf("%s (%s): N/W/W2 %d/%v/%v, want %d/%v/%v", tc.name, tc.reason,
+				c.PairN(tc.i, tc.j), c.PairW(tc.i, tc.j), c.PairW2(tc.i, tc.j), tc.pairN, tc.w, tc.w2)
+		}
+		if got := c.PairNEff(tc.i, tc.j); got != tc.neff {
+			t.Fatalf("%s (%s): PairNEff %v, want %v", tc.name, tc.reason, got, tc.neff)
+		}
+		if tc.mode == linalg.Listwise && c.PairNEff(tc.i, tc.j) != c.NEff() {
+			t.Fatalf("%s: listwise PairNEff %v != NEff %v", tc.name, c.PairNEff(tc.i, tc.j), c.NEff())
+		}
+	}
+
+	// No mass on the pair: Kish is 0 (as NEff), never NaN.
+	for _, mode := range bothModes {
+		z := feed(t, 2, mode, []wrow{{[]float64{1, 2}, 0}})
+		if z.PairW2(0, 1) != 0 || z.PairNEff(0, 1) != 0 || z.PairN(0, 1) != 1 {
+			t.Fatalf("%s: zero-mass pair W2/NEff/N %v/%v/%d", mode, z.PairW2(0, 1), z.PairNEff(0, 1), z.PairN(0, 1))
+		}
+	}
+	// Unit weights: the pair's n_eff is its row count.
+	u := feed(t, 2, linalg.Pairwise, []wrow{{[]float64{1, nan}, 1}, {[]float64{2, 3}, 1}, {[]float64{4, 5}, 1}})
+	if u.PairNEff(0, 0) != 3 || u.PairNEff(0, 1) != 2 {
+		t.Fatalf("unit weights: PairNEff %v/%v, want 3/2", u.PairNEff(0, 0), u.PairNEff(0, 1))
+	}
+}
+
+// TestCoMomentPairAccessorsPanicOutOfRange: every per-pair read panics on
+// an out-of-range index, like PairN.
+func TestCoMomentPairAccessorsPanicOutOfRange(t *testing.T) {
+	c := mustCoMoment(t, 2, linalg.Pairwise)
+	reads := map[string]func(){
+		"PairN":    func() { c.PairN(0, 2) },
+		"PairW":    func() { c.PairW(-1, 0) },
+		"PairW2":   func() { c.PairW2(2, 0) },
+		"PairNEff": func() { c.PairNEff(0, -1) },
+	}
+	for name, read := range reads {
+		func() {
+			defer func() {
+				if r := recover(); r == nil || !strings.Contains(r.(string), "out of range") {
+					t.Fatalf("%s: want an out-of-range panic, got %v", name, r)
+				}
+			}()
+			read()
+		}()
 	}
 }
 
@@ -478,6 +578,32 @@ func twoPass(rows []wrow, p int, mode linalg.CoMomentMode, ddof float64) (cov, c
 	return cov, corr
 }
 
+// twoPassW2 is the naive per-pair Σw² over the rows the mode admits
+// with a valid weight.
+func twoPassW2(rows []wrow, p int, mode linalg.CoMomentMode) [][]float64 {
+	out := make([][]float64, p)
+	for i := range out {
+		out[i] = make([]float64, p)
+		for j := range out[i] {
+			for _, r := range rows {
+				if math.IsNaN(r.w) || math.IsInf(r.w, 0) || r.w < 0 {
+					continue
+				}
+				ok := !math.IsNaN(r.x[i]) && !math.IsNaN(r.x[j])
+				if mode == linalg.Listwise {
+					for _, v := range r.x {
+						ok = ok && !math.IsNaN(v)
+					}
+				}
+				if ok {
+					out[i][j] += r.w * r.w
+				}
+			}
+		}
+	}
+	return out
+}
+
 // TestCoMomentMatchesTwoPass: Cov and Corr equal the naive two-pass
 // reference within tolerance, in both modes and for ddof 0 and 1.
 func TestCoMomentMatchesTwoPass(t *testing.T) {
@@ -487,6 +613,14 @@ func TestCoMomentMatchesTwoPass(t *testing.T) {
 			p := 1 + r.IntN(5)
 			rows := randomRows(r, 20+r.IntN(200), p)
 			c := feed(t, p, mode, rows)
+			wantW2 := twoPassW2(rows, p, mode)
+			for i := 0; i < p; i++ {
+				for j := 0; j < p; j++ {
+					if !within(c.PairW2(i, j), wantW2[i][j], math.Max(1, wantW2[i][j])) {
+						t.Fatalf("%s PairW2(%d,%d) %v vs %v", mode, i, j, c.PairW2(i, j), wantW2[i][j])
+					}
+				}
+			}
 			for _, ddof := range []int{0, 1} {
 				wantCov, wantCorr := twoPass(rows, p, mode, float64(ddof))
 				gotCov := c.Cov(ddof)

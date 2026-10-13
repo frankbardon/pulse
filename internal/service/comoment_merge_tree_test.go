@@ -96,8 +96,8 @@ func (a *coMomentAgg) Aggregate(records []*processing.Record, field string) (flo
 func (a *coMomentAgg) Rich() (any, error) { return coMomentResultWords(a.root), nil }
 
 // coMomentResultWords renders N, the invalid-weight count, W, the
-// means, and per upper-triangle pair its count, weight and M2 (read as
-// Cov(0) = M2 / W, plus Cov(1)) as raw words.
+// means, and per upper-triangle pair its count, weight, squared-weight
+// sum and M2 (read as Cov(0) = M2 / W, plus Cov(1)) as raw words.
 func coMomentResultWords(c *linalg.CoMoment) []uint64 {
 	out := []uint64{uint64(c.N()), uint64(c.NWeightInvalid()), math.Float64bits(c.W())}
 	m := c.Mean()
@@ -105,7 +105,7 @@ func coMomentResultWords(c *linalg.CoMoment) []uint64 {
 	for i := 0; i < c.P(); i++ {
 		out = append(out, math.Float64bits(m.At(i)))
 		for j := i; j < c.P(); j++ {
-			out = append(out, uint64(c.PairN(i, j)), math.Float64bits(c.PairW(i, j)),
+			out = append(out, uint64(c.PairN(i, j)), math.Float64bits(c.PairW(i, j)), math.Float64bits(c.PairW2(i, j)),
 				math.Float64bits(cov0.At(i, j)), math.Float64bits(cov1.At(i, j)))
 		}
 	}
@@ -435,7 +435,7 @@ func assertWordsClose(t *testing.T, a, b []uint64) {
 	if len(a) != len(b) {
 		t.Fatalf("result shapes differ: %d vs %d words", len(a), len(b))
 	}
-	// Layout: N, nInvalid, W, then per i: mean, per j>=i: pairN, pairW, cov0, cov1.
+	// Layout: N, nInvalid, W, then per i: mean, per j>=i: pairN, pairW, pairW2, cov0, cov1.
 	isCount := map[int]bool{0: true, 1: true}
 	k := 3
 	const p = 3
@@ -443,7 +443,7 @@ func assertWordsClose(t *testing.T, a, b []uint64) {
 		k++
 		for j := i; j < p; j++ {
 			isCount[k] = true
-			k += 4
+			k += 5
 		}
 	}
 	for i := range a {

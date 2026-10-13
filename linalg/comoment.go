@@ -31,11 +31,12 @@ func (m CoMomentMode) String() string {
 }
 
 // pairMoment is one pair's running state: raw row count, weight sum,
-// the two means and the weighted co-moments Σw(xi−mi)², Σw(xj−mj)²,
-// Σw(xi−mi)(xj−mj) over the rows the pair admits.
+// squared-weight sum, the two means and the weighted co-moments
+// Σw(xi−mi)², Σw(xj−mj)², Σw(xi−mi)(xj−mj) over the rows the pair admits.
 type pairMoment struct {
 	n             int64
 	w             float64
+	w2            float64
 	mi, mj        float64
 	mii, mjj, cij float64
 }
@@ -80,8 +81,9 @@ type pairMoment struct {
 // Floating-point addition is not associative, so merging the pieces of
 // a split is not bit-identical to one serial pass. It agrees within
 // 1e-10 relative to the figure's scale: |Δmean_i| ≤ 1e-10·(|mean_i| +
-// sd_i + 1), |ΔCov_ij| ≤ 1e-10·sd_i·sd_j, |ΔCorr_ij| ≤ 1e-10, W and NEff
-// to 1e-10 relative. Counts (N, NWeightInvalid, PairN) are exact. Merge
+// sd_i + 1), |ΔCov_ij| ≤ 1e-10·sd_i·sd_j, |ΔCorr_ij| ≤ 1e-10, the
+// weight sums (W, PairW, PairW2) and the Kish sizes (NEff, PairNEff) to
+// 1e-10 relative. Counts (N, NWeightInvalid, PairN) are exact. Merge
 // is associative to the same tolerance, and merging with an
 // accumulator that carries no mass (empty, or zero-weight rows only)
 // leaves every moment bit-identical on either side.
@@ -232,6 +234,7 @@ func (s *pairMoment) add(xi, xj, w float64) {
 	}
 	wOld := s.w
 	s.w += w
+	s.w2 += float64(w * w)
 	if wOld == 0 {
 		s.mi, s.mj = xi, xj
 		return
@@ -268,6 +271,7 @@ func (s *pairMoment) merge(o pairMoment) {
 	s.mjj = s.mjj + o.mjj + float64(float64(dj*dj)*f)/w
 	s.cij = s.cij + o.cij + float64(float64(di*dj)*f)/w
 	s.w = w
+	s.w2 += o.w2
 }
 
 // Merge folds other into the receiver (the receiver is MUTATED; other is
@@ -376,6 +380,33 @@ func (c *CoMoment) PairW(i, j int) float64 {
 		return c.pairs[c.index(i, j)].w
 	}
 	return c.w
+}
+
+// PairW2 returns Σw² for the pair (i, j) — the squared-weight sum over
+// the rows the pair admits, accumulated (and merged) beside PairW, so
+// the pair's Kish n_eff is PairW²/PairW2 (see PairNEff). In Listwise mode
+// it is the global Σw² for every pair. Zero-weight rows add nothing; it
+// is 0 when the pair carries no mass. It panics when i or j is out of
+// range.
+func (c *CoMoment) PairW2(i, j int) float64 {
+	c.check(i, j)
+	if c.mode == Pairwise {
+		return c.pairs[c.index(i, j)].w2
+	}
+	return c.w2
+}
+
+// PairNEff returns Kish's effective sample size (Σw)²/Σw² for the pair
+// (i, j), over the rows the pair admits — NEff for every pair in
+// Listwise mode — and 0 when the pair carries no mass. It is exactly
+// PairW(i, j)²/PairW2(i, j), the arithmetic the probability-weight
+// inference basis uses for N*. It panics when i or j is out of range.
+func (c *CoMoment) PairNEff(i, j int) float64 {
+	w, w2 := c.PairW(i, j), c.PairW2(i, j)
+	if w2 == 0 {
+		return 0
+	}
+	return w * w / w2
 }
 
 func (c *CoMoment) check(i, j int) {

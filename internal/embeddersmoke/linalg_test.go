@@ -91,6 +91,10 @@ func TestLinalgCoMomentFlow(t *testing.T) {
 	if a.Cov(1).N() != 2 || a.NEff() <= 0 || a.PairN(0, 1) != 3 {
 		t.Fatal("cov / neff / pair reads")
 	}
+	// Per-pair Kish n_eff: Σw = 4, Σw² = 1 + 1 + 4 = 6.
+	if a.PairW2(0, 1) != 6 || a.PairNEff(1, 0) != 16.0/6.0 {
+		t.Fatalf("pair W2/NEff %v/%v", a.PairW2(0, 1), a.PairNEff(1, 0))
+	}
 	p, _ := linalg.NewCoMoment(2, linalg.Pairwise)
 	var ce *perrors.CodedError
 	if err := a.Merge(p); !stderrors.As(err, &ce) || ce.Code != perrors.PULSE_MATRIX_SHAPE_MISMATCH {

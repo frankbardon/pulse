@@ -316,6 +316,8 @@ var (
 	_ func(*linalg.CoMoment) float64                                           = (*linalg.CoMoment).NEff
 	_ func(*linalg.CoMoment, int, int) int64                                   = (*linalg.CoMoment).PairN
 	_ func(*linalg.CoMoment, int, int) float64                                 = (*linalg.CoMoment).PairW
+	_ func(*linalg.CoMoment, int, int) float64                                 = (*linalg.CoMoment).PairW2
+	_ func(*linalg.CoMoment, int, int) float64                                 = (*linalg.CoMoment).PairNEff
 	_ func(*linalg.CoMoment) *linalg.Vec                                       = (*linalg.CoMoment).Mean
 	_ func(*linalg.CoMoment, int) *linalg.Sym                                  = (*linalg.CoMoment).Cov
 	_ func(*linalg.CoMoment) *linalg.Sym                                       = (*linalg.CoMoment).Corr

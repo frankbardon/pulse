@@ -2989,7 +2989,9 @@ pulse/linalg: type CoMoment method (*CoMoment) NEff() float64
 pulse/linalg: type CoMoment method (*CoMoment) NWeightInvalid() int64
 pulse/linalg: type CoMoment method (*CoMoment) P() int
 pulse/linalg: type CoMoment method (*CoMoment) PairN(i int, j int) int64
+pulse/linalg: type CoMoment method (*CoMoment) PairNEff(i int, j int) float64
 pulse/linalg: type CoMoment method (*CoMoment) PairW(i int, j int) float64
+pulse/linalg: type CoMoment method (*CoMoment) PairW2(i int, j int) float64
 pulse/linalg: type CoMoment method (*CoMoment) W() float64
 pulse/linalg: type CoMomentMode int
 pulse/linalg: type CoMomentMode method (CoMomentMode) String() string
@@ -4965,4 +4967,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7b98a0a602c2ac373a682e75c4d654f481ee6d1127df86bca4e61c781304f236
+// golden-hash: aac6ca78056d7ea7b4664b0828290f61d9bf05b74c5be82a1a593e51fccf2ef7
