@@ -716,7 +716,7 @@ Spearman's rho is Pearson's r computed on ranks, from -1 to +1: how consistently
 
 - Correlation is not causation: a third factor may drive both fields.
 - There are no sourced bands for rho, so none are attached: Cohen's r benchmarks were set for Pearson's r.
-- The p-value uses a t approximation with n - 2 degrees of freedom; many ties make it unreliable (Pulse warns).
+- The p-value is exact for untied samples up to 1290 rows, otherwise a t approximation with n - 2 degrees of freedom; many ties make it unreliable (Pulse warns).
 
 #### `p_value`
 

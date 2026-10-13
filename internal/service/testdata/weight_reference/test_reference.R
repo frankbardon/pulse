@@ -153,16 +153,19 @@ out("kruskal", "p_value", kw$p.value)
 rs <- tapply(rank(xs$x), xs$k, sum)
 for (g in names(rs)) out("kruskal", paste0("rank_sum_", g), rs[[g]])
 
-# TEST_SPEARMAN_R: rho and the t_{n-2} p-value (exact = FALSE).
-sp <- suppressWarnings(cor.test(pr$x, pr$y, method = "spearman", exact = FALSE))
+# TEST_SPEARMAN_R: rho and cor.test's default p (exact = NULL: the
+# expansion is tied, so the t_{n-2} approximation).
+sp <- suppressWarnings(cor.test(pr$x, pr$y, method = "spearman"))
 nsp <- nrow(pr)
 out("spearman", "rho", sp$estimate)
 out("spearman", "p_value", sp$p.value)
 out("spearman", "t", sp$estimate * sqrt((nsp - 2) / (1 - sp$estimate^2)))
 out("spearman", "df", nsp - 2)
 
-# TEST_KENDALL_TAU: tau-b, tie-adjusted variance, continuity-corrected z.
-kt <- cor.test(pr$x, pr$y, method = "kendall", exact = FALSE, continuity = TRUE)
+# TEST_KENDALL_TAU: tau-b and cor.test's default p (exact = NULL,
+# continuity = FALSE: the expansion is tied, so the tie-adjusted normal
+# approximation, z = S / sqrt(Var(S))).
+kt <- suppressWarnings(cor.test(pr$x, pr$y, method = "kendall"))
 out("kendall", "tau", kt$estimate)
 out("kendall", "z", kt$statistic)
 out("kendall", "p_value", kt$p.value)

@@ -32,7 +32,7 @@ import (
 
 // rankCorrelation returns the slot's rank correlation matrix and, when
 // withP (params.inference with the auxiliaries rendered), each cell's
-// two-sided p-value over the cell's own massed rows (rankCellP,
+// two-sided p-value over the cell's own massed rows (kendallCorTestP / spearmanCorTestP,
 // matrix_rank_inference.go; NaN where ρ / τ is undefined and on the
 // diagonal) — nil otherwise.
 func rankCorrelation(in *matrixFinalizeInput, withP bool) (*linalg.Sym, [][]float64, error) {
@@ -94,12 +94,12 @@ func rankCorrelation(in *matrixFinalizeInput, withP bool) (*linalg.Sym, [][]floa
 					c, d, tx, ty := kendallCounts(cols[i], cols[j], ws)
 					out.Set(i, j, kendallCellOf(c, d, tx, ty))
 					if withP {
-						setP(i, j, kendallCellP(out.At(i, j), c, d, nW, ties[i], ties[j]))
+						setP(i, j, kendallCorTestP(out.At(i, j), c, d, nW, ties[i], ties[j]))
 					}
 				} else {
 					out.Set(i, j, spearmanCell(ranks[i], ranks[j], ws, nW))
 					if withP {
-						setP(i, j, spearmanCellP(out.At(i, j), ranks[i], ranks[j], nW, ties[i], ties[j]))
+						setP(i, j, spearmanCorTestP(out.At(i, j), ranks[i], ranks[j], nW, ties[i], ties[j]))
 					}
 				}
 			}
@@ -123,7 +123,7 @@ func rankCorrelation(in *matrixFinalizeInput, withP bool) (*linalg.Sym, [][]floa
 				if withP {
 					_, tiesX := weightedMidRanks(xs, ws)
 					_, tiesY := weightedMidRanks(ys, ws)
-					setP(i, j, kendallCellP(out.At(i, j), c, d, nW, tiesX, tiesY))
+					setP(i, j, kendallCorTestP(out.At(i, j), c, d, nW, tiesX, tiesY))
 				}
 				continue
 			}
@@ -131,7 +131,7 @@ func rankCorrelation(in *matrixFinalizeInput, withP bool) (*linalg.Sym, [][]floa
 			ry, tiesY := weightedMidRanks(ys, ws)
 			out.Set(i, j, spearmanCell(rx, ry, ws, nW))
 			if withP {
-				setP(i, j, spearmanCellP(out.At(i, j), rx, ry, nW, tiesX, tiesY))
+				setP(i, j, spearmanCorTestP(out.At(i, j), rx, ry, nW, tiesX, tiesY))
 			}
 		}
 	}

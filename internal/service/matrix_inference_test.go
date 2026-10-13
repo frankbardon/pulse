@@ -651,3 +651,70 @@ func TestMatrixInference_ZeroWeightRowsFloorLikeTest(t *testing.T) {
 		})
 	}
 }
+
+// untiedRankRows: n rows, every member untied (x1 = i + ½, x2 / x3 the
+// multiplicative residues i·a mod m for a prime m > n), unit weights.
+func untiedRankRows(n, m, a, b int) [][5]float64 {
+	rows := make([][5]float64, n)
+	for i := range rows {
+		rows[i] = [5]float64{float64(i) + 0.5, float64((i * a) % m), float64((i*b)%m) + 0.25, 1, 1}
+	}
+	return rows
+}
+
+// TestMatrixInference_RankTestParity: under a rank method every
+// auxiliary.p cell equals TEST_SPEARMAN_R / TEST_KENDALL_TAU's p_value
+// on the same pair, bit for bit (U28 E3-G2: one cor.test helper,
+// kendallCorTestP / spearmanCorTestP) — across every cor.test switch:
+// untied small n (both exact), untied n = 60 (Kendall normal, Spearman
+// AS 89 Edgeworth), untied n = 1400 (Spearman t), ties with nulls
+// (pairwise), unit frequency weights (exact) and integer frequency
+// weights with weight-0 rows (ties).
+func TestMatrixInference_RankTestParity(t *testing.T) {
+	members := []string{"x1", "x2", "x3"}
+	cases := []struct {
+		name    string
+		rows    [][5]float64
+		weight  string
+		missing string
+	}{
+		{"untied8", untiedRankRows(8, 11, 3, 5), "", "listwise"},
+		{"untied12_unit_freq", untiedRankRows(12, 13, 5, 7), "f", "listwise"},
+		{"untied60", untiedRankRows(60, 61, 37, 23), "", "listwise"},
+		{"untied1400", untiedRankRows(1400, 1409, 37, 101), "", "listwise"},
+		{"tied_nulls", rankRows(80), "", "pairwise"},
+		{"tied_freq", rankRows(80), "f", "pairwise"},
+	}
+	for _, c := range cases {
+		cfg := writeMatrixCohort(t, "rp.pulse", c.rows)
+		for _, method := range []string{"spearman", "kendall"} {
+			t.Run(c.name+"/"+method, func(t *testing.T) {
+				typ := types.TEST_SPEARMAN_R
+				if method == "kendall" {
+					typ = types.TEST_KENDALL_TAU
+				}
+				var tests []*types.Test
+				for i := range members {
+					for j := i + 1; j < len(members); j++ {
+						tests = append(tests, &types.Test{Type: typ, Field: members[i], Field2: members[j],
+							Label: members[i] + "~" + members[j], Weight: covSpec("", "", 0, c.weight, "").Weight})
+					}
+				}
+				spec := missingSpec(types.MAT_CORRELATION, members, c.weight,
+					`{"inference": true, "method": "`+method+`", "missing": "`+c.missing+`"}`)
+				resp := processMatrices(t, cfg, &types.Request{Cohort: &types.Cohort{Filename: "rp.pulse"}, Matrices: []types.MatrixSpec{spec}, Tests: tests})
+				p := resp.Matrices[0].Auxiliary["p"].Values
+				k := 0
+				for i := range members {
+					for j := i + 1; j < len(members); j++ {
+						tr := resp.Tests[k]
+						k++
+						if math.IsNaN(tr.PValue) || p[i][j] != tr.PValue || p[j][i] != tr.PValue {
+							t.Errorf("p[%d][%d] = %.17g / %.17g, %s(%s) = %.17g", i, j, p[i][j], p[j][i], typ, tr.Label, tr.PValue)
+						}
+					}
+				}
+			})
+		}
+	}
+}

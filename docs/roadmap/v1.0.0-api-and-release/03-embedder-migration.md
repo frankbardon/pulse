@@ -530,6 +530,12 @@ Complete for U46 (no release tag cut by the unit). Contract: `.claude/reference/
 | extension aggregators had no way to declare a non-scalar `Rich` value, or that their value is picked from the input column (a code over a categorical) | `AggregatorRegistration.NonScalar` (manifest `non_scalar`) and `AggregatorRegistration.EmitsInputValue` (manifest `emits_input_value`) — declared, the slot is refused as an overlay's scored aggregation like the built-ins (`AGG_WELFORD` / the set folds; `AGG_MODE`); undeclared, `NonScalar` folds as no value and an overlay scores the code as a magnitude | added | declare `NonScalar: true` on an aggregator whose `Rich` returns a label list, map or struct, and `EmitsInputValue: true` on a mode / first / last-style aggregator | U46 |
 | the bundled example `25_tukey_hsd_after_anova` carried a tier-1 `TEST_ANOVA_F` beside `groups` | the example drops its tier-1 ANOVA (a grouped request now runs the test per group, and a test splitting on a grouper is refused); the ANOVA runs as its own ungrouped request, then the Tukey HSD post-test | behaviour change (example) | read the example again through `pulse_examples_get`; a stored copy of the old request must split the ANOVA out | U46 |
 
+## Changes from U28 (matrix overlays)
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| `TEST_KENDALL_TAU` (row and `tau_b_post`) p used the normal approximation with a continuity correction, z = (S − sign(S))/√Var(S); `TEST_SPEARMAN_R` (row and `rank_pearson_post`) p always used the t approximation (p = 0 at \|ρ\| = 1) | both take R `cor.test`'s default p (`exact = NULL`, `continuity = FALSE`), the one helper `MAT_CORRELATION`'s rank cells call: Kendall exact when untied and n < 50, else normal with no continuity correction (`details.z` = S/√Var(S)); Spearman AS 89 when untied and n ≤ 1290, else t on n − 2. Statistic, `df`, `details.t` / `s` / `var_s` unchanged bit for bit; frequency weights as before (a weight above 1 is a tie) | behaviour change (p-values) | re-baseline stored Kendall / small untied Spearman p-values and anything adjusted from them (`p_adjusted`, `reject_null`); the test now equals a matrix rank cell on the same pair | U28 |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

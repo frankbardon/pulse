@@ -111,9 +111,9 @@ Under a rank method (`spearman` / `kendall`) each cell's p is R
 (n = N*, Σw under a frequency weight — every weight above 1 is a tie):
 without ties the exact test (Kendall below n = 50; Spearman's AS 89 up
 to n = 1290), otherwise the tie-corrected normal approximation
-(Kendall, no continuity correction) or t on n − 2 (Spearman). So a
-cell can differ from `TEST_KENDALL_TAU` (continuity-corrected) or
-`TEST_SPEARMAN_R` (t only) on the same pair. `cor.test` reports no
+(Kendall, no continuity correction) or t on n − 2 (Spearman) — the
+same p `TEST_KENDALL_TAU` and `TEST_SPEARMAN_R` report, so a cell
+equals the two-field test on the same pair. `cor.test` reports no
 interval for a rank correlation; Pulse's is Fisher z with the method's
 standard error — √((1 + ρ²/2)/(n − 3)) for Spearman (Bonett & Wright,
 2000), √(0.437/(n − 4)) for Kendall (Fieller, Hartley & Pearson, 1957;

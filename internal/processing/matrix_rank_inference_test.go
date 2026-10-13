@@ -144,10 +144,10 @@ func TestRankCellP_MatchesCorTest(t *testing.T) {
 			if c.Method == "kendall" {
 				cc, d, tx2, ty2 := kendallCounts(c.X, c.Y, ws)
 				r = kendallCellOf(cc, d, tx2, ty2)
-				p = kendallCellP(r, cc, d, n, tx, ty)
+				p = kendallCorTestP(r, cc, d, n, tx, ty)
 			} else {
 				r = spearmanCell(rx, ry, ws, n)
-				p = spearmanCellP(r, rx, ry, n, tx, ty)
+				p = spearmanCorTestP(r, rx, ry, n, tx, ty)
 			}
 			if !rankPClose(r, *c.R) {
 				t.Errorf("estimate = %.17g, R = %.17g", r, *c.R)

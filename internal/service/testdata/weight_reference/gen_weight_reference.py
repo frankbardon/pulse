@@ -999,9 +999,8 @@ def test_closed_form(case, rows, prob):
 def rank_closed_form(case, xr):
     """A frequency-weighted rank test = scipy's unweighted test on the
     np.repeat-expanded rows (raw n / Σw reported per Pulse's details).
-    R on the same expansion must agree (test_cases); scipy's Kendall p
-    omits the continuity correction Pulse and R apply, so only tau is
-    cross-checked there."""
+    R on the same expansion must agree (test_cases); Kendall's z is
+    R-only (scipy reports none)."""
     out = {}
     if case in ("mann_whitney", "kruskal"):
         col, levels = (2, H_LEVELS) if case == "mann_whitney" else (3, K_LEVELS)
@@ -1056,7 +1055,7 @@ def rank_closed_form(case, xr):
         return out
     if case == "kendall":
         res = scipy.stats.kendalltau(ex, ey, variant="b", method="asymptotic")
-        out.update(statistic=float(res.statistic))
+        out.update(statistic=float(res.statistic), p_value=float(res.pvalue))
         return out
     raise ValueError(case)
 
@@ -1202,7 +1201,8 @@ R_FIGURES.update({
                             "rank_sum_p": "rank_sums[p]", "rank_sum_q": "rank_sums[q]",
                             "rank_sum_r": "rank_sums[r]"}),
     "spearman": ("spearman", {"rho": "statistic", "p_value": "p_value", "t": "t", "df": "df"}),
-    # scipy's Kendall p has no continuity correction: z / p are R's only.
+    # cor.test's default (no continuity correction): scipy's asymptotic
+    # p cross-checks it; z is R's only.
     "kendall": ("kendall", {"tau": "statistic", "z": "z", "p_value": "p_value"}),
     # R's fisher.test estimate is the conditional MLE (not Pulse's
     # sample OR) and its ks.test p is the uncorrected asymptotic: R pins
@@ -1304,7 +1304,7 @@ def test_cases():
                     if fname in figs:
                         assert close(figs[fname], rv, 1e-9), (case, fname, figs[fname], rv)
                     else:
-                        assert case == "kendall", (case, fname)  # R-only z / p
+                        assert case == "kendall", (case, fname)  # R-only z
                     figs[fname] = rv
                 src = f"{RTEST[0]} stats on rep()-expanded rows (test_reference.R)"
             out.append(dict(weight=wname, kind=kind, name=case, spec=spec, figs=figs, src=src))

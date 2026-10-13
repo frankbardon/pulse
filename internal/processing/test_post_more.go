@@ -173,15 +173,9 @@ func (s *spearmanRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 		rho = -1
 	}
 	df := float64(n - 2)
-	var t, p float64
-	switch {
-	case rho == 1 || rho == -1:
-		t = math.Inf(int(math.Copysign(1, rho)))
-		p = 0
-	default:
-		t = rho * math.Sqrt(df/(1-rho*rho))
-		p = statdist.StudentTTwoSidedP(t, df)
-	}
+	t := spearmanT(rho, df)
+	// The tier-1 test's p (R cor.test's default, shared helper).
+	p := spearmanCorTestP(rho, rx, ry, float64(n), intsToFloats(tiesX), intsToFloats(tiesY))
 	res := &types.TestResult{
 		Label:      testLabel(s.spec),
 		Type:       types.TEST_SPEARMAN_R,
@@ -283,31 +277,14 @@ func (k *kendallTauPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	_, tiesX := midRanks(xs)
 	_, tiesY := midRanks(ys)
 	nf := float64(n)
-	v0 := nf * (nf - 1) * (2*nf + 5)
-	vt := tieKendallSum(tiesX)
-	vu := tieKendallSum(tiesY)
-	v1 := 0.0
-	if n > 1 {
-		v1 = tieKendallV1(tiesX) * tieKendallV1(tiesY) / (2 * nf * (nf - 1))
-	}
-	v2 := 0.0
-	if n > 2 {
-		v2 = tieKendallV2(tiesX) * tieKendallV2(tiesY) / (9 * nf * (nf - 1) * (nf - 2))
-	}
-	varS := (v0-vt-vu)/18 + v1 + v2
-	var z, p float64
-	if varS <= 0 || S == 0 {
-		z = 0
-		p = 1
-	} else {
-		corrected := S
-		if S > 0 {
-			corrected -= 1
-		} else {
-			corrected += 1
-		}
-		z = corrected / math.Sqrt(varS)
-		p = normalTwoSidedP(z)
+	fx, fy := intsToFloats(tiesX), intsToFloats(tiesY)
+	varS := kendallVarS(nf, fx, fy)
+	// The tier-1 test's p (R cor.test's default, shared helper) and its
+	// uncorrected normal deviate.
+	p := kendallCorTestP(tau, float64(c), float64(d), nf, fx, fy)
+	z := 0.0
+	if varS > 0 {
+		z = S / math.Sqrt(varS)
 	}
 	res := &types.TestResult{
 		Label:      testLabel(k.spec),

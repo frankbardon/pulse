@@ -692,7 +692,7 @@ var (
 			Caveats: []string{
 				causationCaveatText,
 				"There are no sourced bands for rho, so none are attached: Cohen's r benchmarks were set for Pearson's r.",
-				"The p-value uses a t approximation with n - 2 degrees of freedom; many ties make it unreliable (Pulse warns).",
+				"The p-value is exact for untied samples up to 1290 rows, otherwise a t approximation with n - 2 degrees of freedom; many ties make it unreliable (Pulse warns).",
 			},
 		},
 		interpPValue,

@@ -207,10 +207,19 @@ func TestWilcoxonSRPost_TinyP(t *testing.T) {
 
 // kendallTinyPWant: x = 1..45, y = x² (perfect concordance, no ties) ⇒
 // z = (S − 1)/sqrt(n(n−1)(2n+5)/18) ≈ 9.675. R: cor.test(1:45,
-// (1:45)^2, method="kendall", exact=FALSE, continuity=TRUE)$p.value.
-// TEST_TREND's Mann-Kendall S on the same series is the identical
-// statistic, so it shares the literal.
+// (1:45)^2, method="kendall", exact=FALSE, continuity=TRUE)$p.value —
+// TEST_TREND's Mann-Kendall S with its continuity correction.
 const kendallTinyPWant = 3.861689407088341e-22
+
+// kendallTauTinyPN / kendallTauTinyPWant: TEST_KENDALL_TAU's p is
+// cor.test's default (exact below n = 50, where 1 − P[T ≤ q − 1] floors
+// at ~4.4e-16, R's figure too), so the tail check runs at n = 50 — the
+// normal approximation, no continuity correction, z = S/√Var(S) ≈ 10.2.
+// R: cor.test(1:50, (1:50)^2, method = "kendall")$p.value.
+const (
+	kendallTauTinyPN    = 50
+	kendallTauTinyPWant = 1.2213583807296492e-24
+)
 
 // TestKendallTau_TinyP — TEST_KENDALL_TAU, row tier.
 func TestKendallTau_TinyP(t *testing.T) {
@@ -222,7 +231,7 @@ func TestKendallTau_TinyP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newKendallTauRow: %v", err)
 	}
-	for i := 1; i <= 45; i++ {
+	for i := 1; i <= kendallTauTinyPN; i++ {
 		x := float64(i)
 		_ = rt.UpdateRow(NewRecord(schema, map[string]float64{"x": x, "y": x * x}))
 	}
@@ -230,18 +239,18 @@ func TestKendallTau_TinyP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
-	assertTinyP(t, "TEST_KENDALL_TAU row", res.PValue, kendallTinyPWant)
+	assertTinyP(t, "TEST_KENDALL_TAU row", res.PValue, kendallTauTinyPWant)
 }
 
 // TestKendallTauPost_TinyP — TEST_KENDALL_TAU, post tier.
 func TestKendallTauPost_TinyP(t *testing.T) {
 	var rows []map[string]any
-	for i := 1; i <= 45; i++ {
+	for i := 1; i <= kendallTauTinyPN; i++ {
 		x := float64(i)
 		rows = append(rows, map[string]any{"x": x, "y": x * x})
 	}
 	res := runRegisteredPost(t, &types.Test{Type: types.TEST_KENDALL_TAU, Field: "x", Field2: "y"}, rows)
-	assertTinyP(t, "TEST_KENDALL_TAU post", res.PValue, kendallTinyPWant)
+	assertTinyP(t, "TEST_KENDALL_TAU post", res.PValue, kendallTauTinyPWant)
 }
 
 // TestTrend_TinyP — TEST_TREND (Mann-Kendall) on a strictly rising
