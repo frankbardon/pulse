@@ -8998,7 +8998,7 @@
         ]
       }
     ],
-    "error_codes_count": 360,
+    "error_codes_count": 361,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9313,6 +9313,7 @@
       "PULSE_SYNTH_RULE_OWNERSHIP_INVALID",
       "PULSE_SYNTH_RULE_VALUE_INVALID",
       "PULSE_SYNTH_SOURCE_REQUIRED",
+      "PULSE_SYNTH_VECTOR_UNSUPPORTED",
       "PULSE_TEMPLATE_AXIS_COLLISION",
       "PULSE_TEMPLATE_INVALID",
       "PULSE_TEMPLATE_NOT_FOUND",
@@ -16722,4 +16723,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f36369b171b66c439ac6cba7ae7f2f8eea803bf6a24bd79f099987fc70f84a8e
+// golden-hash: 54314e4593fb676f2dcd8c684f90e2b816bf8edfcaff37171cdf1acd5db5091a

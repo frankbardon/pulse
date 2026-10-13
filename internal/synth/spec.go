@@ -472,6 +472,9 @@ func validateSpec(s *Spec) error {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				"field has empty type", map[string]any{"name": f.Name})
 		}
+		if err := refuseVectorSpecType(f); err != nil {
+			return err
+		}
 		if f.Distribution == "" {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				"field has empty distribution", map[string]any{"name": f.Name})

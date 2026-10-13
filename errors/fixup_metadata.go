@@ -1099,6 +1099,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SYNTH_VECTOR_UNSUPPORTED: {
+		Message: "Synthetic data cannot model a vector field (vec_f32 / vec_f64) yet: a spec declaring one, or a source cohort carrying one for profile capture or a tagged top-up, is refused rather than generated element by element. Vector synthesis is planned (roadmap U52, synth realism).",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Fields", "*"},
+				Hint:   "Drop the vector field from the spec, or synthesize from a cohort written without it (export the other columns and re-import them).",
+			},
+		},
+	},
 	PULSE_SYNTH_RULE_OWNERSHIP_INVALID: {
 		Message: "A synth rule declares `\"owns_nulls\": true` but names no field in `set_null`, so the ownership claim has nothing to apply to.",
 		Fixups: []Fixup{
@@ -1611,12 +1621,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SHARD_DESCRIPTION_DIVERGENCE: {
-		Message: "An incoming shard's per-field description differs from the canonical schema's; descriptions are advisory and the canonical description wins, but the divergence is surfaced as a warning so embedders can keep cohort metadata in sync.",
+		Message: "An incoming shard's per-field description — or a vector field's element labels, kind or scale range (details.dimension vector_labels / vector_kind / vector_scale) — differs from the canonical schema's; this metadata is advisory and the canonical copy wins, but the divergence is surfaced as a warning so embedders can keep cohort metadata in sync.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Schema", "Fields", "*", "Description"},
-				Hint:   "Update the source data's per-field description to match the canonical archive's, or accept the warning (downstream consumers see the canonical description).",
+				Hint:   "Update the source data's per-field description (or the vector's labels / kind / scale range) to match the canonical archive's, or accept the warning (downstream consumers see the canonical metadata).",
 			},
 		},
 	},

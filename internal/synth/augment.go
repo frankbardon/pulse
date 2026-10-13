@@ -67,6 +67,9 @@ func AugmentFromProfile(fs afero.Fs, spec *Spec, sourcePath, output string, opts
 	if err != nil {
 		return nil, err
 	}
+	if err := refuseVectorSchema(srcSchema, "synth top-up source"); err != nil {
+		return nil, err
+	}
 	if srcSchema.Field(SyntheticFieldName) != nil {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SYNTH_ALREADY_TAGGED,
 			"source cohort already has a _synthetic field", map[string]any{"path": sourcePath})

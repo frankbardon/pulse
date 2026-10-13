@@ -2,6 +2,8 @@ package encoding
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -32,10 +34,15 @@ type CohesionWarning struct {
 //   - Categorical-width identity (a categorical_u8 cannot become a
 //     categorical_u16 across shards — the width is fixed at folder
 //     creation)
+//   - Vector dim, for a vec_f32 / vec_f64 field (the element type is
+//     the type byte). The dim decides the stride but is not in the type
+//     byte, so a trailing vector's dim mismatch is caught nowhere else.
 //
 // Descriptions are advisory and may diverge across shards; per-field
 // divergence emits a PULSE_SHARD_DESCRIPTION_DIVERGENCE warning but
-// does NOT fail validation. Any other mismatch returns a coded
+// does NOT fail validation. A vec field's labels, kind and scale range
+// are description-class the same way (details.dimension vector_labels /
+// vector_kind / vector_scale). Any other mismatch returns a coded
 // PULSE_SHARD_SCHEMA_MISMATCH error.
 //
 // This validator does NOT compare dictionaries — dictionary cohesion
@@ -81,6 +88,31 @@ func ValidateStructuralCohesion(canonical, incoming *encoding.Schema) ([]Cohesio
 					"canonical_type": cf.Type.String(),
 					"incoming_type":  nf.Type.String(),
 				})
+		}
+		// A vec field's width is VectorElemSize x dim, and the dim lives in
+		// the VECTORS section, not the type byte — so two shards can agree
+		// on name, type, offset and bit position and still have different
+		// strides. For a TRAILING vector nothing downstream catches that
+		// (no later field's offset moves): every shard would decode at the
+		// canonical stride and the misaligned rows would read as plausible
+		// numbers. The dim is therefore checked explicitly, here, at the
+		// vec field itself. The element type is the type byte, checked
+		// above.
+		if cf.Type.IsVector() {
+			cv, cok := canonical.Vector(i)
+			nv, nok := incoming.Vector(i)
+			if !cok || !nok || cv.Dim != nv.Dim {
+				return warnings, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
+					fmt.Sprintf("field %q vector dim differs: canonical=%d, incoming=%d",
+						cf.Name, cv.Dim, nv.Dim),
+					map[string]any{
+						"field":         cf.Name,
+						"dimension":     "vector_dim",
+						"canonical_dim": cv.Dim,
+						"incoming_dim":  nv.Dim,
+					})
+			}
+			warnings = append(warnings, vectorMetadataWarnings(cf.Name, cv, nv)...)
 		}
 		if cf.ByteOffset != nf.ByteOffset {
 			return warnings, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
@@ -140,6 +172,56 @@ func ValidateStructuralCohesion(canonical, incoming *encoding.Schema) ([]Cohesio
 		return warnings, err
 	}
 	return warnings, nil
+}
+
+// vectorMetadataWarnings reports the descriptive vector metadata — the
+// element labels, the kind and the declared scale range — on which two
+// shards' copies of one vec field diverge. None of it decides a byte
+// position (the decoder needs only the dim), so it is description-class:
+// tolerated, the canonical schema's copy wins, and every divergence is
+// reported as PULSE_SHARD_DESCRIPTION_DIVERGENCE (details.dimension names
+// which piece) so a renamed battery item never changes meaning silently.
+func vectorMetadataWarnings(field string, cv, nv encoding.VectorField) []CohesionWarning {
+	var out []CohesionWarning
+	add := func(dim string, c, n any) {
+		out = append(out, CohesionWarning{
+			Code: string(errors.PULSE_SHARD_DESCRIPTION_DIVERGENCE),
+			Message: fmt.Sprintf("field %q vector %s diverges between canonical and incoming shard; canonical %s wins",
+				field, strings.TrimPrefix(dim, "vector_"), strings.TrimPrefix(dim, "vector_")),
+			Details: map[string]any{
+				"field":     field,
+				"dimension": dim,
+				"canonical": c,
+				"incoming":  n,
+			},
+		})
+	}
+	if !slices.Equal(cv.Labels, nv.Labels) {
+		add("vector_labels", labelsOrEmpty(cv.Labels), labelsOrEmpty(nv.Labels))
+	}
+	if cv.Kind != nv.Kind {
+		add("vector_kind", cv.Kind.String(), nv.Kind.String())
+	}
+	if cv.HasScale != nv.HasScale || (cv.HasScale && (cv.ScaleMin != nv.ScaleMin || cv.ScaleMax != nv.ScaleMax)) {
+		add("vector_scale", scaleOf(cv), scaleOf(nv))
+	}
+	return out
+}
+
+func labelsOrEmpty(l []string) []string {
+	if l == nil {
+		return []string{}
+	}
+	return l
+}
+
+// scaleOf is a vector's declared scale range for a warning's details:
+// [min, max], or nil when none is declared.
+func scaleOf(v encoding.VectorField) any {
+	if !v.HasScale {
+		return nil
+	}
+	return []float64{v.ScaleMin, v.ScaleMax}
 }
 
 // ValidateDictPrefixRule enforces the append-only prefix rule for

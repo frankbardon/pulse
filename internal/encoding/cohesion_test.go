@@ -249,3 +249,70 @@ func stringOfIndex(i int) string {
 	c := letters[(i/(26*26))%26]
 	return string([]byte{a, b, c})
 }
+
+// vecCohesionSchema: a vector in the middle and one at the end, laid out
+// canonically for the given dims.
+func vecCohesionSchema(midDim, lastDim int) *encoding.Schema {
+	s := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "id", Type: encoding.FieldTypeU32},
+		{Name: "mid", Type: encoding.FieldTypeVecF32},
+		{Name: "n", Type: encoding.FieldTypeU8},
+		{Name: "last", Type: encoding.FieldTypeVecF64, Nullable: true},
+	}, Vectors: []encoding.VectorField{
+		{FieldIndex: 1, Dim: midDim, Labels: nil},
+		{FieldIndex: 3, Dim: lastDim, Kind: encoding.VectorKindScale, HasScale: true, ScaleMin: 1, ScaleMax: 5},
+	}}
+	encx.LayoutFields(s)
+	return s
+}
+
+// TestShardArchiveStructuralCohesion_Vectors: the dim is strict at the
+// vec field itself (details.dimension vector_dim) — including the
+// TRAILING vector, where no later offset moves — the element type is
+// the type byte, and labels / kind / scale are description-class
+// warnings.
+func TestShardArchiveStructuralCohesion_Vectors(t *testing.T) {
+	dimOf := func(err error) any {
+		t.Helper()
+		assertCode(t, err, errors.PULSE_SHARD_SCHEMA_MISMATCH)
+		return err.(*errors.CodedError).Details["dimension"]
+	}
+	if _, err := encx.ValidateStructuralCohesion(vecCohesionSchema(2, 3), vecCohesionSchema(2, 4)); dimOf(err) != "vector_dim" {
+		t.Fatalf("trailing dim mismatch: %v", err)
+	}
+	if _, err := encx.ValidateStructuralCohesion(vecCohesionSchema(2, 3), vecCohesionSchema(5, 3)); dimOf(err) != "vector_dim" {
+		t.Fatalf("middle dim mismatch must name the vector, not the next offset: %v", err)
+	}
+	f32 := vecCohesionSchema(2, 6)
+	f32.Fields[3].Type = encoding.FieldTypeVecF32 // 6 x 4 == 3 x 8: same stride
+	if _, err := encx.ValidateStructuralCohesion(vecCohesionSchema(2, 3), f32); err == nil {
+		t.Fatal("vec_f64 x 3 vs vec_f32 x 6 (equal stride) accepted")
+	}
+
+	inc := vecCohesionSchema(2, 3)
+	inc.Vectors[0].Labels = []string{"p", "q"}
+	inc.Vectors[1].Kind = encoding.VectorKindMeasure
+	inc.Vectors[1].HasScale = false
+	warnings, err := encx.ValidateStructuralCohesion(vecCohesionSchema(2, 3), inc)
+	if err != nil {
+		t.Fatalf("metadata divergence refused: %v", err)
+	}
+	got := map[string]bool{}
+	for _, w := range warnings {
+		if w.Code != string(errors.PULSE_SHARD_DESCRIPTION_DIVERGENCE) {
+			t.Fatalf("unexpected warning code %s", w.Code)
+		}
+		got[w.Details["field"].(string)+"/"+w.Details["dimension"].(string)] = true
+	}
+	for _, k := range []string{"mid/vector_labels", "last/vector_kind", "last/vector_scale"} {
+		if !got[k] {
+			t.Fatalf("missing %s warning; got %v", k, got)
+		}
+	}
+	if len(warnings) != 3 {
+		t.Fatalf("warnings = %d, want 3: %+v", len(warnings), warnings)
+	}
+	if w, err := encx.ValidateStructuralCohesion(vecCohesionSchema(2, 3), vecCohesionSchema(2, 3)); err != nil || len(w) != 0 {
+		t.Fatalf("identical vector schemas: warnings %v err %v", w, err)
+	}
+}

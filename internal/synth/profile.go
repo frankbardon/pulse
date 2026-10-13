@@ -912,6 +912,9 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 // a segment boundary as a break, because adjacent rows in two shards
 // are not adjacent on disk.
 func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOptions) (*Profile, error) {
+	if err := refuseVectorSchema(schema, "profile capture"); err != nil {
+		return nil, err
+	}
 	if opts.TopK == 0 {
 		opts.TopK = 32
 	}

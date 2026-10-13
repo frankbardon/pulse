@@ -45,6 +45,7 @@ One reference level per categorical drops into the intercept (full level set + i
 - `shrinkage_alpha` `omitempty`; absent ⇔ unpenalized OLS ([`synth-model-selection`](synth-model-selection.md)).
 - Fitted **residual reservoir** (`FieldModel.Residuals` / `ResidualPresent`) also `json:"-"` — reach it via `synth.Profile.FittedModels()`, never a re-read document.
 - No flag ⇒ no `models` key ⇒ byte-identical to a pre-flag document. An unsolvable design, or a fit that would serialise a non-finite float, loses only ITS model, named in `Profile.Warnings`. Never a refusal.
+- A source carrying a vector field is refused before any fit (`PULSE_SYNTH_VECTOR_UNSUPPORTED`): a vector is never a target or predictor.
 
 ## Latent-scale effects
 
