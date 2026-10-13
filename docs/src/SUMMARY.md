@@ -354,6 +354,7 @@
     - [type-u8](guide/skills/type-u8.md)
     - [type-vec-f32](guide/skills/type-vec-f32.md)
     - [type-vec-f64](guide/skills/type-vec-f64.md)
+    - [vector-fields](guide/skills/vector-fields.md)
     - [vector-metrics](guide/skills/vector-metrics.md)
     - [weighting](guide/skills/weighting.md)
     - [window-design](guide/skills/window-design.md)

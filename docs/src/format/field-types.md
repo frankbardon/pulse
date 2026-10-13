@@ -28,7 +28,7 @@ operator the engine infers for it.
 
 Type bytes are the `FieldType` iota order. Note that it is **not**
 grouped by family — `datetime` (17) and the two wide set rungs (18, 19)
-were appended after the original block, and appending is the only way
+and the two vector types (20, 21) were appended after the original block, and appending is the only way
 to add a type without invalidating every existing file.
 
 | Type | Byte | ByteSize | Notes |
@@ -53,6 +53,8 @@ to add a type without invalidating every existing file.
 | `datetime`        | 17 | 8  | Epoch **SECONDS** as signed int64 |
 | `set_u128`        | 18 | 16 | ≤ 128 labels; two little-endian 64-bit words, `words[0]` = bits 0–63 |
 | `set_u256`        | 19 | 32 | ≤ 256 labels; four little-endian words. Widest set rung — a hard ceiling |
+| `vec_f32`         | 20 | 0 (4 × dim) | Fixed-dim vector of `float32`, dim 2..1024. Width is `Schema.FieldWidth`, not `ByteSize()` |
+| `vec_f64`         | 21 | 0 (8 × dim) | Fixed-dim vector of `float64`, dim 2..1024 |
 
 ## Type families
 
@@ -123,6 +125,33 @@ not acceptable. See the `financial-cohorts` skill for full semantics
 including banker's rounding and divide-by-zero policy. `decimal128`
 nulls ride the bitmap only — there is no in-band sentinel.
 
+### Vector fields
+
+`vec_f32` / `vec_f64` store dim little-endian IEEE-754 elements per
+row, element 0 first. The **dim is not in the type byte**: it rides the
+schema's VECTORS section (extension-block tag `2`, always REQUIRED), so
+a vector's width is `element size × dim`, a property of the field in its
+schema. That is why `ByteSize()` is 0 and every stride, offset and skip
+sums `encoding.Schema.FieldWidth` instead. Any vector makes the cohort
+format `0x02`; an older binary refuses it loudly (unknown type byte, or
+unknown REQUIRED section), never mis-strides it.
+
+The VECTORS section lists, per vector field in strictly ascending field
+index: `u16 field_index`, `u16 dim`, `u8 flags` (bit 0 labels, bit 1
+kind, bit 2 scale range), then the optional kind byte, `f64 scale_min` /
+`f64 scale_max`, and `dim` length-prefixed UTF-8 element labels. Dim
+outside 2..1024, a missing entry for a vector field, a label count other
+than 0 or dim, or `scale_min >= scale_max` is `ENCODING_INVALID`, on
+write and on read.
+
+A null vector is a zeroed stride plus its null-bitmap bit; a NaN element
+is a stored value, not a null. The `uint64` value API refuses both types
+(`ENCODING_TYPE_MISMATCH`); use `encoding.ReadVector` / `WriteVector`,
+which take the dim explicitly. A `vec_f32` finite value beyond ±3.4e38
+is refused on write rather than stored as ±Inf. Import, naming in
+requests and export: the `vector-fields` skill and the `--vector`
+section of the [CLI flags](../cli/flags.md).
+
 ## Unknown type bytes
 
 The schema reader rejects unknown `FieldType` bytes at parse time
@@ -137,6 +166,7 @@ during row decode where the corruption could go unnoticed.
 |---|---|
 | Which aggregators are meaningful on which types | `skills/aggregation-design.md` (LLM) / [api process](../cli/api-process.md) (CLI) |
 | Per-type depth, one file per type | `skills/type-<name>.md` (LLM) |
+| Vector fields: import, request naming, export | `skills/vector-fields.md` (LLM) |
 | Decimal arithmetic semantics | `skills/financial-cohorts.md` (LLM) |
 | Categorical and set dictionary limits | [Dictionary Blocks](dictionaries.md) |
 | Multiple-response set import | [import spss](../cli/import-spss.md) |

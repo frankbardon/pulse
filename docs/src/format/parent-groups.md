@@ -46,7 +46,8 @@ u64 extension_length
 An unknown REQUIRED section is refused (`ENCODING_INVALID`); an unknown
 optional one is skipped. Reserved flag bits, a duplicated tag, or a
 payload not consumed exactly are refused. Section tag `1` is GROUPS
-(always REQUIRED):
+(always REQUIRED); tag `2` is VECTORS, the dim and metadata of every
+`vec_*` field ([Vector fields](field-types.md#vector-fields)). GROUPS:
 
 ```
 u16 group_count (>= 1)
