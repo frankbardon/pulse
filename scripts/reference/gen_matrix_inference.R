@@ -306,9 +306,36 @@ for (method in c("spearman", "kendall")) {
     x <- rnorm(n); add_pair(x, 0.4 * x + rnorm(n), method, "untied")
   }
 }
-for (n in c(1290, 1291)) {
-  x <- rnorm(n); add_pair(x, 0.05 * x + rnorm(n), "spearman", "AS 89 / t boundary")
+# The AS 89 / t boundary (n = 1290 / 1291) needs untied pairs too large
+# to store, so they are GENERATED — by a recurrence R and Go evaluate to
+# the same integers (every product below 2^53, exact in a double), and
+# only its parameters and cor.test's answer are committed:
+#
+#   s_0 = seed,  s_{k+1} = 48271 * s_k mod (2^31 - 1)   (Park-Miller)
+#   x_i = s_{2i-1},  y_i = s_{2i} + floor(x_i / y_div)   (i = 1..n)
+#
+# The multiplicative LCG never repeats within its period, so x is
+# untied; y is checked untied here (and the Go test re-checks). y_div
+# 20 gives a weak positive correlation (r about 0.05, p mid-range),
+# the case the stored rnorm pair covered before.
+mi_park_miller <- function(n, seed, y_div) {
+  s <- seed
+  x <- numeric(n); y <- numeric(n)
+  for (i in seq_len(n)) {
+    s <- (48271 * s) %% 2147483647; x[i] <- s
+    s <- (48271 * s) %% 2147483647; y[i] <- s + floor(x[i] / y_div)
+  }
+  list(x = x, y = y)
 }
+add_gen_pair <- function(n, seed, y_div, method, why) {
+  g <- mi_park_miller(n, seed, y_div)
+  if (anyDuplicated(g$x) || anyDuplicated(g$y)) stop("generated pair has ties: n = ", n)
+  ct <- suppressWarnings(cor.test(g$x, g$y, method = method))
+  mi_pairs[[length(mi_pairs) + 1]] <<- list(method = method, why = why,
+                                            gen = list(kind = "park_miller", n = n, seed = seed, y_div = y_div),
+                                            r = mi_num(unname(ct$estimate)), p = mi_num(ct$p.value))
+}
+for (n in c(1290, 1291)) add_gen_pair(n, 20261012, 20, "spearman", "AS 89 / t boundary")
 
 write_golden("matrix_inference", list(
   generator = "scripts/reference/gen_matrix_inference.R",
@@ -316,7 +343,7 @@ write_golden("matrix_inference", list(
   packages = list(stats = as.character(packageVersion("stats")),
                   jsonlite = as.character(packageVersion("jsonlite")),
                   ppcor = as.character(packageVersion("ppcor"))),
-  note = "Per-pair p-values and Fisher-z intervals for MAT_CORRELATION (cor.test; frequency = rep() expansion, probability = Kish n_eff closed form; rank methods: cor.test's default p, interval Fisher z with Bonett-Wright (spearman) / Fieller (kendall) se) and MAT_PARTIAL_CORRELATION (df = N* - 2 - g, se = 1/sqrt(N* - 3 - g); ppcor asserted). Diagonals null. rank_rho / rank_kendall: R's C_pRho / C_pKendall; rank_pairs: cor.test on single pairs.",
+  note = "Per-pair p-values and Fisher-z intervals for MAT_CORRELATION (cor.test; frequency = rep() expansion, probability = Kish n_eff closed form; rank methods: cor.test's default p, interval Fisher z with Bonett-Wright (spearman) / Fieller (kendall) se) and MAT_PARTIAL_CORRELATION (df = N* - 2 - g, se = 1/sqrt(N* - 3 - g); ppcor asserted). Diagonals null. rank_rho / rank_kendall: R's C_pRho / C_pKendall; rank_pairs: cor.test on single pairs (x / y stored, or `gen` = the Park-Miller recurrence s_{k+1} = 48271 s_k mod 2^31-1 from seed, x_i = s_{2i-1}, y_i = s_{2i} + floor(x_i / y_div)).",
   cases = mi_cases,
   rank_rho = mi_rho,
   rank_kendall = mi_kendall,

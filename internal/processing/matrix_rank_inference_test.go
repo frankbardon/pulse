@@ -34,9 +34,39 @@ type rankInferenceOracle struct {
 		Why    string    `json:"why"`
 		X      []float64 `json:"x"`
 		Y      []float64 `json:"y"`
-		R      *float64  `json:"r"`
-		P      *float64  `json:"p"`
+		// Gen, when set, generates X and Y (parkMillerPair) — the
+		// n = 1290 / 1291 pairs too large to store.
+		Gen *rankPairGen `json:"gen"`
+		R   *float64     `json:"r"`
+		P   *float64     `json:"p"`
 	} `json:"rank_pairs"`
+}
+
+// rankPairGen is a generated rank pair's recurrence parameters
+// (gen_matrix_inference.R mi_park_miller).
+type rankPairGen struct {
+	Kind string `json:"kind"`
+	N    int    `json:"n"`
+	Seed int64  `json:"seed"`
+	YDiv int64  `json:"y_div"`
+}
+
+// parkMillerPair is gen_matrix_inference.R's mi_park_miller, integer
+// for integer: s_{k+1} = 48271·s_k mod (2³¹ − 1) from the seed,
+// x_i = s_{2i−1}, y_i = s_{2i} + ⌊x_i / y_div⌋. Every value is an
+// integer below 2⁵³, so R's doubles and these agree exactly.
+func parkMillerPair(g rankPairGen) (x, y []float64) {
+	const mod = 2147483647
+	s := g.Seed
+	x, y = make([]float64, g.N), make([]float64, g.N)
+	for i := 0; i < g.N; i++ {
+		s = 48271 * s % mod
+		x[i] = float64(s)
+		xi := s
+		s = 48271 * s % mod
+		y[i] = float64(s + xi/g.YDiv)
+	}
+	return x, y
 }
 
 func loadRankInferenceOracle(t *testing.T) rankInferenceOracle {
@@ -96,6 +126,12 @@ func TestPKendall_MatchesR(t *testing.T) {
 func TestRankCellP_MatchesCorTest(t *testing.T) {
 	doc := loadRankInferenceOracle(t)
 	for i, c := range doc.RankPairs {
+		if c.Gen != nil {
+			if c.Gen.Kind != "park_miller" || len(c.X) != 0 {
+				t.Fatalf("pair %d: unknown generator %+v (or x stored beside it)", i, *c.Gen)
+			}
+			c.X, c.Y = parkMillerPair(*c.Gen)
+		}
 		t.Run(fmt.Sprintf("%d/%s/%s/n=%d", i, c.Method, c.Why, len(c.X)), func(t *testing.T) {
 			ws := make([]float64, len(c.X))
 			for k := range ws {
@@ -120,6 +156,35 @@ func TestRankCellP_MatchesCorTest(t *testing.T) {
 				t.Errorf("p = %.17g, cor.test = %.17g", p, *c.P)
 			}
 		})
+	}
+}
+
+// TestRankPairs_CoverSpearmanBoundary: the oracle reaches both sides of
+// cor.test's AS 89 / t switch with UNTIED pairs (the generated ones —
+// a tie would route n = 1290 to the t branch and the boundary would go
+// untested), and the recurrence reproduces R's integers (the cell test
+// matches cor.test's estimate on them).
+func TestRankPairs_CoverSpearmanBoundary(t *testing.T) {
+	doc := loadRankInferenceOracle(t)
+	seen := map[int]bool{}
+	for _, c := range doc.RankPairs {
+		if c.Gen == nil || c.Method != "spearman" {
+			continue
+		}
+		x, y := parkMillerPair(*c.Gen)
+		ws := make([]float64, len(x))
+		for k := range ws {
+			ws[k] = 1
+		}
+		_, tx := weightedMidRanks(x, ws)
+		_, ty := weightedMidRanks(y, ws)
+		if len(tx) != 0 || len(ty) != 0 {
+			t.Errorf("generated n = %d pair has ties (%d x groups, %d y groups)", c.Gen.N, len(tx), len(ty))
+		}
+		seen[len(x)] = true
+	}
+	if !seen[spearmanExactMaxN] || !seen[spearmanExactMaxN+1] {
+		t.Errorf("generated Spearman pairs cover n = %v, want %d and %d", seen, spearmanExactMaxN, spearmanExactMaxN+1)
 	}
 }
 
