@@ -321,7 +321,9 @@ type discreteConditional struct {
 func buildBernoulliConditionals(wfs []*writerField) map[string]bool {
 	var out map[string]bool
 	for _, wf := range wfs {
-		if wf.spec.Distribution != DistBernoulli {
+		// A vector's Distribution names its ELEMENT family, not a scalar
+		// marginal a pair could target.
+		if wf.spec.Distribution != DistBernoulli || wf.dim > 0 {
 			continue
 		}
 		if out == nil {
@@ -379,7 +381,9 @@ func bernoulliFlagWarnings(catNum []CategoricalNumericPairSpec, setNum []SetNume
 func buildDiscreteConditionals(wfs []*writerField) (map[string]*discreteConditional, error) {
 	var out map[string]*discreteConditional
 	for _, wf := range wfs {
-		if wf.spec.Distribution != DistDiscrete {
+		// A vector's Distribution names its ELEMENT family (whose values
+		// may come from the kind's bounds), not a scalar marginal.
+		if wf.spec.Distribution != DistDiscrete || wf.dim > 0 {
 			continue
 		}
 		levels, err := parseDiscreteLevels(wf.spec)

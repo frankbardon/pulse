@@ -339,6 +339,22 @@ _synthetic`), and every **categorical** field with `TEST_CHISQ`
 (`date`, `datetime`, `packed_bool`, `u4`, `set_*`) are out of scope for
 this section today.
 
+A **vector** field (`vec_f32` / `vec_f64`) gets its own `vector_fields`
+section instead: per element the source and synthetic mean, std and NaN
+rate with their deltas, and over the element correlation matrix the
+number of pairs measurable on both partitions, the mean and the maximum
+absolute correlation delta and the worst pair (`max_correlation_pair`,
+1-based). A vector wider than 64 elements reports `correlation_skipped`.
+
+```json
+"vector_fields": [{"field": "rating", "source_n": 3600, "synthetic_n": 3612,
+  "elements": [{"element": 1, "label": "price", "source_mean": 3.1, "source_std": 1.2,
+                "synthetic_mean": 3.09, "synthetic_std": 1.21, "mean_delta": 0.01,
+                "std_delta": 0.01, "source_nan_rate": 0, "synthetic_nan_rate": 0}],
+  "correlation_pairs": 3, "mean_correlation_delta": 0.02,
+  "max_correlation_delta": 0.04, "max_correlation_pair": [1, 3]}]
+```
+
 Shape:
 
 ```json

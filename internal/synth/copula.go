@@ -1008,5 +1008,7 @@ func isNumericFieldType(typeName string) bool {
 	if !ok {
 		return false
 	}
-	return !ft.IsCategorical() && !ft.IsSet()
+	// A vector is not a scalar: its row value is a []float64, and its
+	// correlation structure is the within-field `vector.correlations`.
+	return !ft.IsCategorical() && !ft.IsSet() && !ft.IsVector()
 }

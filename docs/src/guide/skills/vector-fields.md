@@ -32,12 +32,16 @@ A null vector is the field's null bit; a NaN element is a stored value. In a vec
 
 ## What refuses a vector
 
-Anything reading ONE value per record: a scalar aggregation, grouper, attribute, feature, test or regression input, window or sort key, weight, date slot, lookup key. All return `PULSE_VECTOR_FIELD_NOT_SCALAR` (predict and runtime alike; `details.suggest` names the vector operator to use). A join key is `PULSE_JOIN_TYPE_MISMATCH` (`reason: vector_key`). Synth refuses it (`PULSE_SYNTH_VECTOR_UNSUPPORTED`). `pulse convert` refuses a vector schema (`PULSE_IMPORT_VECTOR_INVALID`, `not_declared`). `pulse_recommend` proposes `vector: "<field>"` in vector slots, never a vector in a scalar slot.
+Anything reading ONE value per record: a scalar aggregation, grouper, attribute, feature, test or regression input, window or sort key, weight, date slot, lookup key. All return `PULSE_VECTOR_FIELD_NOT_SCALAR` (predict and runtime alike; `details.suggest` names the vector operator to use). A join key is `PULSE_JOIN_TYPE_MISMATCH` (`reason: vector_key`). `pulse convert` refuses a vector schema (`PULSE_IMPORT_VECTOR_INVALID`, `not_declared`). `pulse_recommend` proposes `vector: "<field>"` in vector slots, never a vector in a scalar slot.
 A vector cohort cannot take the SPSS metadata sidecar path (`PULSE_SPSS_SIDECAR_INVALID`; `--ignore-sidecar`).
 
 ## Export
 
 CSV, TSV and Excel expand it to `<name>_<label>` columns (`<name>_1..N` unlabelled; empty for a NaN element or null vector). The source header comes back only when the vector is named after the column prefix: `rate:/^rate_(.*)$/` exports `rate_<label>`. A name clash is `PULSE_EXPORT_COLUMN_COLLISION`. NDJSON and JSON array write one array (`null` for a non-finite element or a null vector). Arrow writes `FixedSizeList`; Parquet the same, but `LIST` when the field is nullable. An all-NaN vector re-imports as null in every format.
+
+## Synthetic data
+
+A vector is ONE joint draw, never dim scalars. A spec field typed `vec_*` needs a `vector` block: `dim`, optional `kind`, `scale_min` / `scale_max`, `labels`, `nan_rate`, `elements` (per-element `{distribution, params, nan_rate}`) and `correlations` (`{a, b, correlation}`, 1-based). The field's `distribution` is the default element family (`normal`, `uniform`, `lognormal`, `exponential`, `bernoulli`, `discrete`, `mixture`). The kind bounds every element: scale clamps to the range (`discrete` with no `values` = the integers in it), binary rounds to 0/1, composition rows sum to 1. `profile create` captures per-element marginals, NaN rates and pairwise-complete correlations (none above 64 elements, with a warning); from-profile and the top-up regenerate them; the fidelity report adds `vector_fields`. A vector never joins a correlation, pair or model, and a rule may only `set_null` it.
 
 ## Shards
 

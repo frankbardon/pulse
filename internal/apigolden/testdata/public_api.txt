@@ -2510,7 +2510,6 @@ pulse/errors: const PULSE_SYNTH_RULE_FIELD_UNKNOWN pulse/errors.Code = "PULSE_SY
 pulse/errors: const PULSE_SYNTH_RULE_OWNERSHIP_INVALID pulse/errors.Code = "PULSE_SYNTH_RULE_OWNERSHIP_INVALID"
 pulse/errors: const PULSE_SYNTH_RULE_VALUE_INVALID pulse/errors.Code = "PULSE_SYNTH_RULE_VALUE_INVALID"
 pulse/errors: const PULSE_SYNTH_SOURCE_REQUIRED pulse/errors.Code = "PULSE_SYNTH_SOURCE_REQUIRED"
-pulse/errors: const PULSE_SYNTH_VECTOR_UNSUPPORTED pulse/errors.Code = "PULSE_SYNTH_VECTOR_UNSUPPORTED"
 pulse/errors: const PULSE_TEMPLATE_AXIS_COLLISION pulse/errors.Code = "PULSE_TEMPLATE_AXIS_COLLISION"
 pulse/errors: const PULSE_TEMPLATE_INVALID pulse/errors.Code = "PULSE_TEMPLATE_INVALID"
 pulse/errors: const PULSE_TEMPLATE_NOT_FOUND pulse/errors.Code = "PULSE_TEMPLATE_NOT_FOUND"
@@ -3564,6 +3563,7 @@ pulse/synth: type FidelityReport field SetNumericPairwise []*pulse/internal/synt
 pulse/synth: type FidelityReport field SetSetPairwise []*pulse/internal/synth.SetSetPairFidelity "json:\"set_set_pairwise,omitempty\""
 pulse/synth: type FidelityReport field SourceRows int "json:\"source_rows\""
 pulse/synth: type FidelityReport field SyntheticRows int "json:\"synthetic_rows\""
+pulse/synth: type FidelityReport field VectorFields []*pulse/internal/synth.VectorFieldFidelity "json:\"vector_fields,omitempty\""
 pulse/synth: type FidelityReport field Warnings []string "json:\"warnings,omitempty\""
 pulse/synth: type FieldContinuation = pulse/internal/synth.FieldContinuation
 pulse/synth: type FieldContinuation underlying struct
@@ -3608,6 +3608,7 @@ pulse/synth: type FieldProfile field Precision uint8 "json:\"precision,omitempty
 pulse/synth: type FieldProfile field Scale uint8 "json:\"scale,omitempty\""
 pulse/synth: type FieldProfile field Set *pulse/internal/synth.SetProfile "json:\"set,omitempty\""
 pulse/synth: type FieldProfile field Type string "json:\"type\""
+pulse/synth: type FieldProfile field Vector *pulse/internal/synth.VectorProfile "json:\"vector,omitempty\""
 pulse/synth: type FieldSpec = pulse/internal/synth.FieldSpec
 pulse/synth: type FieldSpec underlying struct
 pulse/synth: type FieldSpec field Description string "json:\"description,omitempty\""
@@ -3619,6 +3620,7 @@ pulse/synth: type FieldSpec field Params map[string]any "json:\"params,omitempty
 pulse/synth: type FieldSpec field Precision uint8 "json:\"precision,omitempty\""
 pulse/synth: type FieldSpec field Scale uint8 "json:\"scale,omitempty\""
 pulse/synth: type FieldSpec field Type string "json:\"type\""
+pulse/synth: type FieldSpec field Vector *pulse/internal/synth.VectorSpec "json:\"vector,omitempty\""
 pulse/synth: type ModelFidelity = pulse/internal/synth.ModelFidelity
 pulse/synth: type ModelFidelity underlying struct
 pulse/synth: type ModelFidelity field CapturedIntercept float64 "json:\"captured_intercept\""
@@ -3964,6 +3966,71 @@ pulse/synth: type Spec method (*Spec) Hash() string
 pulse/synth: func SpecFromProfile(p *pulse/synth.Profile, rowCount int) (*pulse/synth.Spec, []string)
 pulse/synth: func Synth(fs github.com/spf13/afero.Fs, spec *pulse/synth.Spec, output string, opts pulse/synth.Options) (*pulse/synth.Result, error)
 pulse/synth: func SynthBytes(spec *pulse/synth.Spec, opts pulse/synth.Options) ([]byte, *pulse/synth.Result, error)
+pulse/synth: type VectorCorrelationSpec = pulse/internal/synth.VectorCorrelationSpec
+pulse/synth: type VectorCorrelationSpec underlying struct
+pulse/synth: type VectorCorrelationSpec field A int "json:\"a\""
+pulse/synth: type VectorCorrelationSpec field B int "json:\"b\""
+pulse/synth: type VectorCorrelationSpec field Correlation float64 "json:\"correlation\""
+pulse/synth: type VectorCorrelationStat = pulse/internal/synth.VectorCorrelationStat
+pulse/synth: type VectorCorrelationStat underlying struct
+pulse/synth: type VectorCorrelationStat field A int "json:\"a\""
+pulse/synth: type VectorCorrelationStat field B int "json:\"b\""
+pulse/synth: type VectorCorrelationStat field N int "json:\"n\""
+pulse/synth: type VectorCorrelationStat field Rho float64 "json:\"rho\""
+pulse/synth: type VectorElementFidelity = pulse/internal/synth.VectorElementFidelity
+pulse/synth: type VectorElementFidelity underlying struct
+pulse/synth: type VectorElementFidelity field Element int "json:\"element\""
+pulse/synth: type VectorElementFidelity field Error string "json:\"error,omitempty\""
+pulse/synth: type VectorElementFidelity field Label string "json:\"label,omitempty\""
+pulse/synth: type VectorElementFidelity field MeanDelta float64 "json:\"mean_delta,omitempty\""
+pulse/synth: type VectorElementFidelity field SourceMean float64 "json:\"source_mean\""
+pulse/synth: type VectorElementFidelity field SourceNaNRate float64 "json:\"source_nan_rate\""
+pulse/synth: type VectorElementFidelity field SourceStd float64 "json:\"source_std\""
+pulse/synth: type VectorElementFidelity field StdDelta float64 "json:\"std_delta,omitempty\""
+pulse/synth: type VectorElementFidelity field SyntheticMean float64 "json:\"synthetic_mean,omitempty\""
+pulse/synth: type VectorElementFidelity field SyntheticNaNRate float64 "json:\"synthetic_nan_rate\""
+pulse/synth: type VectorElementFidelity field SyntheticStd float64 "json:\"synthetic_std,omitempty\""
+pulse/synth: type VectorElementProfile = pulse/internal/synth.VectorElementProfile
+pulse/synth: type VectorElementProfile underlying struct
+pulse/synth: type VectorElementProfile field NaNRate float64 "json:\"nan_rate\""
+pulse/synth: type VectorElementProfile field Numeric *pulse/internal/synth.NumericProfile "json:\"numeric,omitempty\""
+pulse/synth: type VectorElementSpec = pulse/internal/synth.VectorElementSpec
+pulse/synth: type VectorElementSpec underlying struct
+pulse/synth: type VectorElementSpec field Distribution string "json:\"distribution,omitempty\""
+pulse/synth: type VectorElementSpec field NaNRate *float64 "json:\"nan_rate,omitempty\""
+pulse/synth: type VectorElementSpec field Params map[string]any "json:\"params,omitempty\""
+pulse/synth: type VectorFieldFidelity = pulse/internal/synth.VectorFieldFidelity
+pulse/synth: type VectorFieldFidelity underlying struct
+pulse/synth: type VectorFieldFidelity field CorrelationPairs int "json:\"correlation_pairs,omitempty\""
+pulse/synth: type VectorFieldFidelity field CorrelationSkipped string "json:\"correlation_skipped,omitempty\""
+pulse/synth: type VectorFieldFidelity field Elements []*pulse/internal/synth.VectorElementFidelity "json:\"elements,omitempty\""
+pulse/synth: type VectorFieldFidelity field Error string "json:\"error,omitempty\""
+pulse/synth: type VectorFieldFidelity field Field string "json:\"field\""
+pulse/synth: type VectorFieldFidelity field MaxCorrelationDelta float64 "json:\"max_correlation_delta,omitempty\""
+pulse/synth: type VectorFieldFidelity field MaxCorrelationPair []int "json:\"max_correlation_pair,omitempty\""
+pulse/synth: type VectorFieldFidelity field MeanCorrelationDelta float64 "json:\"mean_correlation_delta,omitempty\""
+pulse/synth: type VectorFieldFidelity field SourceN int "json:\"source_n\""
+pulse/synth: type VectorFieldFidelity field SyntheticN int "json:\"synthetic_n\""
+pulse/synth: type VectorProfile = pulse/internal/synth.VectorProfile
+pulse/synth: type VectorProfile underlying struct
+pulse/synth: type VectorProfile field Correlations []pulse/internal/synth.VectorCorrelationStat "json:\"correlations,omitempty\""
+pulse/synth: type VectorProfile field Dim int "json:\"dim\""
+pulse/synth: type VectorProfile field Elements []pulse/internal/synth.VectorElementProfile "json:\"elements,omitempty\""
+pulse/synth: type VectorProfile field Kind string "json:\"kind,omitempty\""
+pulse/synth: type VectorProfile field Labels []string "json:\"labels,omitempty\""
+pulse/synth: type VectorProfile field N int "json:\"n\""
+pulse/synth: type VectorProfile field ScaleMax *float64 "json:\"scale_max,omitempty\""
+pulse/synth: type VectorProfile field ScaleMin *float64 "json:\"scale_min,omitempty\""
+pulse/synth: type VectorSpec = pulse/internal/synth.VectorSpec
+pulse/synth: type VectorSpec underlying struct
+pulse/synth: type VectorSpec field Correlations []pulse/internal/synth.VectorCorrelationSpec "json:\"correlations,omitempty\""
+pulse/synth: type VectorSpec field Dim int "json:\"dim\""
+pulse/synth: type VectorSpec field Elements []pulse/internal/synth.VectorElementSpec "json:\"elements,omitempty\""
+pulse/synth: type VectorSpec field Kind string "json:\"kind,omitempty\""
+pulse/synth: type VectorSpec field Labels []string "json:\"labels,omitempty\""
+pulse/synth: type VectorSpec field NaNRate float64 "json:\"nan_rate,omitempty\""
+pulse/synth: type VectorSpec field ScaleMax *float64 "json:\"scale_max,omitempty\""
+pulse/synth: type VectorSpec field ScaleMin *float64 "json:\"scale_min,omitempty\""
 pulse/synth: func WriteSpec(fs github.com/spf13/afero.Fs, spec *pulse/synth.Spec, path string) error
 pulse/types: package types
 pulse/types: const AGG_AVERAGE pulse/types.AggregationType = "AGG_AVERAGE"
@@ -5097,4 +5164,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e64806edc7d05620483feea49c2b8ac16ef69c2f4ea7e23749a170182cef0961
+// golden-hash: 3527739fa9626536b8f3872d1eef9507543c066e21293f32fb54f25a8b7662e2

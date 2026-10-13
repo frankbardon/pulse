@@ -787,6 +787,44 @@ type ShapeProfile = isynth.ShapeProfile
 // from the Profile and shares the rest of the writer pipeline.
 type Spec = isynth.Spec
 
+// VectorCorrelationSpec is one inter-element correlation: elements A and
+// B (1-based, distinct) at target Pearson correlation in [-1, 1] on the
+// latent (copula) scale.
+type VectorCorrelationSpec = isynth.VectorCorrelationSpec
+
+// VectorCorrelationStat is one measured element pair: 1-based elements
+// A < B, Pearson Rho over N co-present rows.
+type VectorCorrelationStat = isynth.VectorCorrelationStat
+
+// VectorElementFidelity is one element's marginal comparison inside a
+// VectorFieldFidelity.
+type VectorElementFidelity = isynth.VectorElementFidelity
+
+// VectorElementProfile is one element's marginal: the share of non-null
+// vectors on which it is NaN, and the scalar numeric summary over the
+// rest.
+type VectorElementProfile = isynth.VectorElementProfile
+
+// VectorElementSpec overrides one element's marginal. Distribution
+// empty inherits FieldSpec.Distribution with Params laid over
+// FieldSpec.Params key by key; a non-empty Distribution replaces both.
+type VectorElementSpec = isynth.VectorElementSpec
+
+// VectorFieldFidelity is one row of FidelityReport.VectorFields: a
+// vector field's per-element marginal comparison and its inter-element
+// correlation comparison between the source and synthetic partitions.
+type VectorFieldFidelity = isynth.VectorFieldFidelity
+
+// VectorProfile is a vector field's capture (FieldProfile.Vector): the
+// schema's own vector metadata plus one marginal per element and the
+// pairwise-complete inter-element correlation.
+type VectorProfile = isynth.VectorProfile
+
+// VectorSpec declares a vec_f32 / vec_f64 field's shape and joint
+// distribution (FieldSpec.Vector): dim, kind, scale range, labels,
+// per-element families and the inter-element correlation.
+type VectorSpec = isynth.VectorSpec
+
 // Synth materializes a synthetic .pulse file from a Spec into output on
 // fs. When opts.SourceCohort is non-empty the source cohort's real rows
 // are copied into output tagged _synthetic=false and spec.RowCount new

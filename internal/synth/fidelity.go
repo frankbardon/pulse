@@ -305,6 +305,11 @@ type FidelityReport struct {
 	SetCategoricalPairwise     []*SetCategoricalPairFidelity     `json:"set_categorical_pairwise,omitempty"`
 	SetNumericPairwise         []*SetNumericPairFidelity         `json:"set_numeric_pairwise,omitempty"`
 	SetSetPairwise             []*SetSetPairFidelity             `json:"set_set_pairwise,omitempty"`
+	// VectorFields is the vec_f32 / vec_f64 section: per-element
+	// marginal deltas plus the inter-element correlation delta, one entry
+	// per vector field (internal/synth/vector_fidelity.go). Absent
+	// (omitempty) for every cohort without a vector field.
+	VectorFields []*VectorFieldFidelity `json:"vector_fields,omitempty"`
 	// Models is the per-field MODEL-RECOVERY section (E5-S1): for every
 	// linear model generation actually applied, the captured coefficients
 	// beside the ones a refit on the generated partition recovers. It
@@ -383,6 +388,10 @@ func BuildFidelityReport(mergedSchema *encoding.Schema, records []byte, sourceRo
 
 		if f.Type.IsSet() {
 			report.SetFields = append(report.SetFields, computeSetFieldFidelity(mergedSchema, records, f.Name))
+			continue
+		}
+		if f.Type.IsVector() {
+			report.VectorFields = append(report.VectorFields, computeVectorFieldFidelity(mergedSchema, records, i))
 			continue
 		}
 

@@ -77,6 +77,11 @@ func buildSampler(f FieldSpec) (sampler, error) {
 }
 
 func buildBaseSampler(f FieldSpec) (sampler, error) {
+	// A vector field is ONE joint draw over its elements, whatever its
+	// (default element) distribution names — see internal/synth/vector.go.
+	if isVectorFieldType(f.Type) {
+		return newVectorSampler(f)
+	}
 	switch f.Distribution {
 	case DistUniform:
 		return newUniformSampler(f)
@@ -118,6 +123,16 @@ func buildBaseSampler(f FieldSpec) (sampler, error) {
 type nullableSampler struct {
 	inner sampler
 	rate  float64
+}
+
+// baseVectorSampler unwraps the null wrapper to reach a vector field's
+// own sampler, for the compile-time warnings it carries.
+func baseVectorSampler(s sampler) (*vectorSampler, bool) {
+	if n, ok := s.(*nullableSampler); ok {
+		s = n.inner
+	}
+	vs, ok := s.(*vectorSampler)
+	return vs, ok
 }
 
 func (n *nullableSampler) next(rng *rand.Rand) (any, bool) {
@@ -434,6 +449,11 @@ func constantRowValue(f FieldSpec, v any) (any, error) {
 			map[string]any{"field": f.Name, "type": f.Type})
 	}
 	switch {
+	case ft.IsVector():
+		// A vector is drawn jointly from its `vector` block, never from a
+		// document literal: there is no constant vector family and no
+		// rule `set` / `set_expr` onto one.
+		return nil, bad("drawn from its `vector` block (a vector field takes no literal value)")
 	case ft.IsCategorical():
 		if _, isStr := v.(string); !isStr {
 			return nil, bad("a string")

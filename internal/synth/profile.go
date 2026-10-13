@@ -573,6 +573,11 @@ type FieldProfile struct {
 	// Numeric/Categorical/Date — exactly one of the four is non-nil per
 	// field, based on the field's schema type.
 	Set *SetProfile `json:"set,omitempty"`
+	// Vector is a vec_f32 / vec_f64 column's capture: its dim, kind,
+	// scale range and labels, one marginal per element and the measured
+	// inter-element correlation (internal/synth/vector_profile.go).
+	// Additive + omitempty — a vector-free document is byte-identical.
+	Vector *VectorProfile `json:"vector,omitempty"`
 	// Precision/Scale carry decimal128 metadata so synth-from-profile can
 	// reconstruct the original field shape.
 	Precision uint8 `json:"precision,omitempty"`
@@ -901,6 +906,35 @@ func (p *Profile) MarshalJSON() ([]byte, error) {
 	return json.Marshal((*alias)(p))
 }
 
+// numericProfileFrom builds a NumericProfile from one scalar
+// accumulator — nil when it saw no non-null value. Shared by a scalar
+// column and every element of a vector column, so the two are
+// summarised by one definition.
+func numericProfileFrom(na *numAcc, includeStats, fitShape bool) *NumericProfile {
+	if na.count == 0 {
+		return nil
+	}
+	mean := na.sum / float64(na.count)
+	variance := sampleVariance(na.count, na.sum, na.sumSq)
+	num := &NumericProfile{
+		Min:  na.min,
+		Max:  na.max,
+		Mean: mean,
+		Std:  math.Sqrt(variance),
+	}
+	if includeStats && len(na.samples) > 0 {
+		num.Percentiles = computePercentiles(na.samples,
+			[]float64{0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99})
+	}
+	if fitShape && len(na.samples) > 0 {
+		num.Shape = fitNumericShape(na.samples, mean, num.Std)
+	}
+	if len(na.levels) > 0 {
+		num.Discrete = discreteProfileFrom(na.levels, na.count)
+	}
+	return num
+}
+
 func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (*Profile, error) {
 	return profileSegments(schema, []io.Reader{r}, opts)
 }
@@ -912,9 +946,6 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 // a segment boundary as a break, because adjacent rows in two shards
 // are not adjacent on disk.
 func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOptions) (*Profile, error) {
-	if err := refuseVectorSchema(schema, "profile capture"); err != nil {
-		return nil, err
-	}
 	if opts.TopK == 0 {
 		opts.TopK = 32
 	}
@@ -952,6 +983,7 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 	catAccs := make(map[string]*catAcc)
 	dateAccs := make(map[string]*dateAcc)
 	setAccs := make(map[string]*setAcc)
+	vecAccs := make(map[string]*vecAcc)
 	warnings := []string{}
 
 	// jointFieldNames, jointRows and jointNulls back
@@ -991,8 +1023,16 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 	var jointSetFieldNames []string
 	setOptionNames := make(map[string][]string)
 
-	for _, f := range schema.Fields {
+	for fi, f := range schema.Fields {
 		switch {
+		case f.Type.IsVector():
+			// A vector is captured as ONE joint column — per-element
+			// marginals plus the inter-element correlation (vector_profile.go)
+			// — and never reaches the scalar numeric branch below: the
+			// decoder echoes nothing into `values` for it, so the default
+			// arm would summarise a column of zeros.
+			meta, _ := schema.Vector(fi)
+			vecAccs[f.Name] = newVecAcc(meta, includeStats || opts.FitShape)
 		case f.Type == encoding.FieldTypeDate:
 			dateAccs[f.Name] = &dateAcc{minDays: math.MaxInt64, maxDays: math.MinInt64}
 		case f.Type.IsCategorical():
@@ -1267,6 +1307,11 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 		for _, f := range schema.Fields {
 			isNull := nulls[f.Name]
 			switch {
+			case f.Type.IsVector():
+				// The map decoder puts the elements in the wide map as a
+				// []float64 (vec_f32 widened exactly).
+				v, _ := wide[f.Name].([]float64)
+				vecAccs[f.Name].observe(v, isNull)
 			case f.Type == encoding.FieldTypeDate:
 				da := dateAccs[f.Name]
 				if isNull {
@@ -1577,6 +1622,8 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 			Scale:       f.Scale,
 		}
 		switch {
+		case f.Type.IsVector():
+			fp.Vector, fp.NullRate = vecAccs[f.Name].finish(f.Name, includeStats, opts.FitShape, &warnings)
 		case f.Type == encoding.FieldTypeDate:
 			da := dateAccs[f.Name]
 			total := da.count + da.nulls
@@ -1635,27 +1682,7 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 			if total > 0 {
 				fp.NullRate = float64(na.nulls) / float64(total)
 			}
-			if na.count > 0 {
-				mean := na.sum / float64(na.count)
-				variance := sampleVariance(na.count, na.sum, na.sumSq)
-				num := &NumericProfile{
-					Min:  na.min,
-					Max:  na.max,
-					Mean: mean,
-					Std:  math.Sqrt(variance),
-				}
-				if includeStats && len(na.samples) > 0 {
-					num.Percentiles = computePercentiles(na.samples,
-						[]float64{0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99})
-				}
-				if opts.FitShape && len(na.samples) > 0 {
-					num.Shape = fitNumericShape(na.samples, mean, num.Std)
-				}
-				if len(na.levels) > 0 {
-					num.Discrete = discreteProfileFrom(na.levels, na.count)
-				}
-				fp.Numeric = num
-			}
+			fp.Numeric = numericProfileFrom(na, includeStats, opts.FitShape)
 		}
 		pf.Fields = append(pf.Fields, fp)
 	}
@@ -2521,6 +2548,11 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			Scale:     fp.Scale,
 		}
 		switch {
+		case isVectorFieldType(fp.Type):
+			// A vector rebuilds as ONE joint field — per-element families
+			// plus the captured inter-element correlation — never as dim
+			// scalars, and ahead of every scalar arm below.
+			fs = vectorFieldSpecFromProfile(fs, fp.Vector)
 		case fp.Set != nil:
 			// E5-S3: each dictionary entry's per-option marginal
 			// Bernoulli frequency (E5-S1) becomes one entry of the

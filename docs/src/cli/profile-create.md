@@ -55,6 +55,7 @@ pulse profile create --input PATH --output PATH
 | `packed_bool` | The same numeric summary (a boolean falls to the numeric accumulator), but **reconstructed as `bernoulli`, not as a clamped normal** — see "Boolean fields" below |
 | Categorical | Cardinality, plus the top-K most-frequent values with their observed weights. The tail below the cut is **not** retained as an `"other"` bucket — `synth from-profile` renormalises the retained weights, so a 1,900-level field regenerates as `--top-k` levels and the tail's share is redistributed across them. (The `"other"` spelling that *does* appear in `conditional.*` tables and in `--fit-models` designs is a different, per-section collapse.) |
 | `date` | Min, max, count |
+| Vector (`vec_f32`, `vec_f64`) | A `vector` section: dim, kind, scale range and labels from the schema; `n` non-null vectors; per element its NaN rate and the numeric summary above (with the `discrete` histogram when every value is an integer); and `correlations`, the Pearson correlation of every measurable element pair over the rows where both are present. Above 64 elements the correlation is not captured (a warning says so) and generation draws the elements independent. See "Vector fields" below |
 | Any **nullable** field (`Field.Nullable`, any type) | Null count alongside the above. Nullability is a per-field flag, not a type — there are no `nullable_*` types |
 
 ## Boolean fields
@@ -179,6 +180,28 @@ default reconstruction being wrong rather than an enhancement. It rides the
 existing single scan (one bounded map per eligible column) and adds one
 `omitempty` key: a document captured before the key existed still
 reconstructs exactly as it did, through the clamped normal.
+
+## Vector fields
+
+A vector column is profiled as ONE joint field, never as `dim` unrelated
+numerics:
+
+```json
+{"name": "rating", "type": "vec_f32", "null_rate": 0.1,
+ "vector": {"dim": 3, "kind": "scale", "scale_min": 1, "scale_max": 5, "n": 3600,
+            "elements": [{"nan_rate": 0, "numeric": {"min": 1, "max": 5, "mean": 3.1, "std": 1.2,
+                                                     "discrete": {"levels": [ ... ]}}}, ...],
+            "correlations": [{"a": 1, "b": 2, "rho": 0.62, "n": 3600}, ...]}}
+```
+
+`null_rate` is the null-VECTOR rate; `nan_rate` is the share of non-null
+vectors on which that element is NaN. A pair with fewer than 3 co-present
+rows, or a constant element, is absent from `correlations` and is counted
+in one warning; a pair resting on fewer than 30 rows is counted in another.
+`synth from-profile` rebuilds each element from its summary (the
+histogram when present, else a `normal` clamped to the observed range),
+restores the NaN rates and draws the elements through the captured
+correlations.
 
 ## What the profile does NOT capture
 

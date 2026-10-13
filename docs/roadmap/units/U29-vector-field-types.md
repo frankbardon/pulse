@@ -88,7 +88,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(vector-field-type
 
 | Item | Destination |
 |---|---|
-| Vector synthesis: every synth surface refuses a `vec_*` field with `PULSE_SYNTH_VECTOR_UNSUPPORTED` | [U52](U52-synth-realism.md) #450 |
+| Vector synthesis: every synth surface refused a `vec_*` field with `PULSE_SYNTH_VECTOR_UNSUPPORTED` | done in U29 (#450, story F3): vectors are generated, captured, augmented and scored; the refusal code was removed before release |
 | Public per-output-column export plan for external writers (`iocore.ExportColumn` / `ColumnAwareWriter`) | Done in U29 (not handed on): `io.ColumnAwareWriter`, `io.ExportColumn`, `io.ExportColumnKind` + constants, `io.ColumnFields`; #451 ticked in [U34](U34-extension-validation.md) |
 
 ## Landed deviations

@@ -49,6 +49,42 @@ Full spec grammar (correlations, regex, …) lives in
 `skills/synthetic-data.md` and the `synth` package; `constraints[]` and the
 `rules[]` structural surface live in `skills/synth-structural-rules.md`.
 
+## Vector fields
+
+A `vec_f32` / `vec_f64` field is generated as ONE joint draw per row, never
+as `dim` independent scalars. It needs a `vector` block; the field's
+`distribution` / `params` are the default family for every element:
+
+```json
+{"name": "rating", "type": "vec_f32", "distribution": "discrete",
+ "vector": {"dim": 5, "kind": "scale", "scale_min": 1, "scale_max": 7,
+            "labels": ["price", "service", "speed", "quality", "value"],
+            "nan_rate": 0.05,
+            "elements": [{}, {}, {}, {}, {"distribution": "uniform"}],
+            "correlations": [{"a": 1, "b": 2, "correlation": 0.6}]}}
+```
+
+- `dim` (2..1024) is required; `kind` (`measure`, `scale`, `composition`,
+  `binary`), the scale range and `labels` are written to the output
+  cohort's schema exactly as declared.
+- Element families: `normal`, `uniform`, `lognormal`, `exponential`,
+  `bernoulli`, `discrete`, `mixture`. An `elements` entry overrides one
+  element; an empty `distribution` inherits the field's, with its `params`
+  laid over the field's.
+- The kind bounds every element: a scale range clamps (and `discrete` with
+  no `values` draws the integers inside it, `uniform` with no `min`/`max`
+  spans it), `binary` rounds to 0/1 (`discrete` with no `values` draws
+  `{0, 1}`), `composition` floors negatives at 0 and rescales each row to
+  sum to 1.
+- `correlations` pairs are 1-based element indices; the elements are drawn
+  through the same Gaussian copula `correlations[]` uses between fields. An
+  unlisted pair is independent and counted in a warning.
+- `null_rate` nulls the whole vector; `nan_rate` (field default, or per
+  element) stores a NaN element — a missing member, not a null.
+- A vector cannot appear in `correlations[]`, a conditional pair or a
+  model, and a rule may `set_null` it but never `set` / `set_expr` it. A
+  constraint reads it as a list (`rating[0] >= 4`, 0-based).
+
 ## Categorical / numeric / set joint structure (advanced)
 
 Beyond independent per-field distributions and `correlations`, a

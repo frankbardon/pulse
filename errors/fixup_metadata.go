@@ -1099,16 +1099,6 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
-	PULSE_SYNTH_VECTOR_UNSUPPORTED: {
-		Message: "Synthetic data cannot model a vector field (vec_f32 / vec_f64) yet: a spec declaring one, or a source cohort carrying one for profile capture or a tagged top-up, is refused rather than generated element by element. Vector synthesis is planned (roadmap U52, synth realism).",
-		Fixups: []Fixup{
-			{
-				Action: FixupRemoveParam,
-				Path:   []string{"Fields", "*"},
-				Hint:   "Drop the vector field from the spec, or synthesize from a cohort written without it (export the other columns and re-import them).",
-			},
-		},
-	},
 	PULSE_SYNTH_RULE_OWNERSHIP_INVALID: {
 		Message: "A synth rule declares `\"owns_nulls\": true` but names no field in `set_null`, so the ownership claim has nothing to apply to.",
 		Fixups: []Fixup{

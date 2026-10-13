@@ -436,11 +436,11 @@ func TestVectorGroups_ConstantDetectionComparesWholeStride(t *testing.T) {
 	}
 }
 
-// TestVectorSynth_Refused: every synth surface refuses a vector field
-// with PULSE_SYNTH_VECTOR_UNSUPPORTED — a spec declaring one (from-schema),
-// profile capture of a cohort or shard archive carrying one (profile
-// create / from-profile), and a tagged top-up whose source carries one.
-func TestVectorSynth_Refused(t *testing.T) {
+// TestVectorSynth_EverySurface: every synth surface that used to refuse
+// a vector field now carries it through the public facade — a spec
+// declaring one (from-schema), profile capture of a single-file cohort
+// and of a shard archive, and a tagged top-up whose source carries one.
+func TestVectorSynth_EverySurface(t *testing.T) {
 	ctx := context.Background()
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs})
@@ -448,31 +448,47 @@ func TestVectorSynth_Refused(t *testing.T) {
 		t.Fatal(err)
 	}
 	vecArchiveFixture(t, p, "v.pulse", trailingVecSchema(encoding.FieldTypeVecF32, 3),
-		trailingVecRows(encoding.FieldTypeVecF32, 3, 9, 0), pulse.CohortBuilderOptions{})
+		trailingVecRows(encoding.FieldTypeVecF32, 3, 40, 0), pulse.CohortBuilderOptions{})
 	vecArchiveFixture(t, p, "sh.pulse", trailingVecSchema(encoding.FieldTypeVecF64, 2),
-		trailingVecRows(encoding.FieldTypeVecF64, 2, 9, 0), pulse.CohortBuilderOptions{Shards: &pulse.ShardSplit{MaxRecords: 4}})
+		trailingVecRows(encoding.FieldTypeVecF64, 2, 40, 0), pulse.CohortBuilderOptions{Shards: &pulse.ShardSplit{MaxRecords: 15}})
 
 	for _, ft := range []string{"vec_f32", "vec_f64"} {
 		spec := &pulse.SynthSpec{RowCount: 5, Fields: []synth.FieldSpec{
 			{Name: "id", Type: "u32", Distribution: synth.DistUniform, Params: map[string]any{"min": 0.0, "max": 100.0}},
-			{Name: "emb", Type: ft, Distribution: "normal", Params: map[string]any{"mean": 0.0, "std": 1.0}},
+			{Name: "emb", Type: ft, Distribution: "normal", Params: map[string]any{"mean": 0.0, "std": 1.0},
+				Vector: &synth.VectorSpec{Dim: 4, Kind: "measure"}},
 		}}
-		_, err := p.Synth(ctx, spec, "out_"+ft+".pulse", pulse.SynthOptions{})
-		ce := assertCodeIs(t, err, errors.PULSE_SYNTH_VECTOR_UNSUPPORTED)
-		if ce.Details["field"] != "emb" {
-			t.Fatalf("%s spec refusal details %v", ft, ce.Details)
+		if _, err := p.Synth(ctx, spec, "out_"+ft+".pulse", pulse.SynthOptions{}); err != nil {
+			t.Fatalf("%s spec: %v", ft, err)
 		}
-		if ok, _ := afero.Exists(fs, "out_"+ft+".pulse"); ok {
-			t.Fatalf("%s: a refused synth wrote its output", ft)
+		if n, err := p.CountRecords(ctx, "out_"+ft+".pulse"); err != nil || n != 5 {
+			t.Fatalf("%s: %d rows (%v)", ft, n, err)
 		}
 	}
-	for _, src := range []string{"v.pulse", "sh.pulse"} {
-		_, err := p.Profile(ctx, src, pulse.ProfileOptions{IncludeStats: true})
-		assertCodeIs(t, err, errors.PULSE_SYNTH_VECTOR_UNSUPPORTED)
+	for src, dim := range map[string]int{"v.pulse": 3, "sh.pulse": 2} {
+		prof, err := p.Profile(ctx, src, pulse.ProfileOptions{IncludeStats: true})
+		if err != nil {
+			t.Fatalf("profile %s: %v", src, err)
+		}
+		vp := prof.Fields[1].Vector
+		if vp == nil || vp.Dim != dim || vp.N != 40 || len(vp.Elements) != dim {
+			t.Fatalf("profile %s vector section %+v", src, vp)
+		}
+		// The fixture's elements all rise with the row, so every pair
+		// is captured near +1 — across shard boundaries too.
+		if len(vp.Correlations) == 0 || vp.Correlations[0].Rho < 0.99 {
+			t.Fatalf("profile %s correlations %+v", src, vp.Correlations)
+		}
 	}
-	top := &pulse.SynthSpec{RowCount: 3, Fields: []synth.FieldSpec{
-		{Name: "id", Type: "u32", Distribution: synth.DistUniform, Params: map[string]any{"min": 0.0, "max": 100.0}},
-	}}
-	_, err = p.Synth(ctx, top, "topped.pulse", pulse.SynthOptions{SourceCohort: "v.pulse"})
-	assertCodeIs(t, err, errors.PULSE_SYNTH_VECTOR_UNSUPPORTED)
+	prof, err := p.Profile(ctx, "v.pulse", pulse.ProfileOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	top, _ := synth.SpecFromProfile(prof, 10)
+	if _, err := p.Synth(ctx, top, "topped.pulse", pulse.SynthOptions{SourceCohort: "v.pulse"}); err != nil {
+		t.Fatalf("top-up over a vector source: %v", err)
+	}
+	if n, err := p.CountRecords(ctx, "topped.pulse"); err != nil || n != 50 {
+		t.Fatalf("top-up rows %d (%v), want 50", n, err)
+	}
 }

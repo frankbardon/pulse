@@ -43,7 +43,7 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 - [ ] **#368** (Synth realism) Sharing workflow: `--synthetic-only` output from the profile path, `constraints[]` accepted on the profile path, and disclosure metrics (exact-match rate, distance to closest record) beside the fidelity report; differential privacy is a decision below
 - [ ] **#369** (Synth realism) Docs: join keys never match on null (`join-design.md`), and synth rules bind `set_*` as a map while query formulas bind a list, cross-linked
 - [ ] **#370** (Synth realism) Acceptance: the multi-time-zone and credit datasets regenerate from synth specs alone with no helper columns; the privacy twin keeps the source's churn drivers (pseudo-R² gap closed materially, TV-without-broadband at zero) and ships with a disclosure report
-- [ ] **#450** (Synth realism) Vector synthesis: generate a `vec_f32` / `vec_f64` field (dim, kind and scale range honoured; per-element marginals plus the inter-element correlation captured from a profile), and drop the `PULSE_SYNTH_VECTOR_UNSUPPORTED` refusal on `from-schema`, `from-profile`, `profile create` and augment. Found in U29 (E3-S4)
+- [x] **#450** (Synth realism) Vector synthesis: generate a `vec_f32` / `vec_f64` field (dim, kind and scale range honoured; per-element marginals plus the inter-element correlation captured from a profile), and drop the `PULSE_SYNTH_VECTOR_UNSUPPORTED` refusal on `from-schema`, `from-profile`, `profile create` and augment. Found in U29 (E3-S4) (landed in [U29](U29-vector-field-types.md))
 
 ## Scope
 
@@ -95,7 +95,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(synth-realism/E<n
 
 ## Handed on from U29
 
-- **Vector synthesis (#450).** [U29](U29-vector-field-types.md) added `vec_f32` / `vec_f64` and made every synth surface refuse them with `PULSE_SYNTH_VECTOR_UNSUPPORTED` (`.claude/reference/synthetic-data.md`, `skills/synthetic-data.md`), because a silent scalar treatment would write a wrong cohort. Lifting it means a distribution family per element plus the inter-element correlation (the `kind` and scale range are the generation bounds), a fidelity-report arm, and removing the refusal at each of the four entry points in one change.
+- **Vector synthesis (#450) — DONE in [U29](U29-vector-field-types.md).** U29 first made every synth surface refuse `vec_f32` / `vec_f64`, then lifted it before release in the same effort: `FieldSpec.Vector` (dim, kind, scale range, labels, a distribution family per element, the inter-element correlation through the scalar copula), the `FieldProfile.Vector` capture, augment, and the fidelity report's `vector_fields` arm. The refusal code never shipped and was removed. Contract: `.claude/reference/synthetic-data.md` (Vector fields).
 
 ## Human inputs & decisions
 

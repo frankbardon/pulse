@@ -232,7 +232,7 @@ func resolveConflicts(s *Spec) conflictResolution {
 	// claimed here exactly as it always was, and everything downstream
 	// behaves identically for it.
 	for _, fs := range s.Fields {
-		if fs.Distribution == DistMixture {
+		if fs.Distribution == DistMixture && !isVectorFieldType(fs.Type) {
 			claim(claimTarget{field: fs.Name}, "captured shape (--fit-shape)")
 		}
 	}

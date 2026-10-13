@@ -114,6 +114,10 @@ func ruleValueFault(slot, name string, f FieldSpec, ft encoding.FieldType, value
 		return ruleFaultValue, fmt.Sprintf(format, args...), nil
 	}
 	switch {
+	case ft.IsVector():
+		// A vector is drawn jointly from its `vector` block; no rule can
+		// write one (set_null still masks it — that slot writes no value).
+		return typeFault("rule %s[%q]: a vector field cannot be assigned by a rule; only set_null applies to it", slot, name)
 	case ft.IsCategorical():
 		s, isStr := value.(string)
 		if !isStr {

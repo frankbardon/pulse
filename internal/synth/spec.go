@@ -369,6 +369,15 @@ type FieldSpec struct {
 	// NullRate is the per-row probability that the field will be null.
 	// Only meaningful when Nullable is true; ignored otherwise.
 	NullRate float64 `json:"null_rate,omitempty"`
+
+	// Vector declares a vec_f32 / vec_f64 field's dim, kind, scale
+	// range, labels, per-element families and inter-element correlation
+	// (internal/synth/vector.go). Required on a vector field, refused on
+	// any other; additive + omitempty, so a vector-free spec is
+	// byte-identical. On a vector field Distribution / Params are the
+	// default ELEMENT family and Distribution may be empty when every
+	// element names its own.
+	Vector *VectorSpec `json:"vector,omitempty"`
 }
 
 // ConstraintSpec wraps an expression evaluated against the in-memory row.
@@ -458,6 +467,7 @@ func validateSpec(s *Spec) error {
 		return errors.NewCodedError(errors.SERVICE_VALIDATION, "spec must declare at least one field")
 	}
 	seen := make(map[string]bool, len(s.Fields))
+	vectorFields := make(map[string]bool)
 	for i, f := range s.Fields {
 		if f.Name == "" {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
@@ -472,10 +482,13 @@ func validateSpec(s *Spec) error {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				"field has empty type", map[string]any{"name": f.Name})
 		}
-		if err := refuseVectorSpecType(f); err != nil {
+		if err := validateVectorField(f); err != nil {
 			return err
 		}
-		if f.Distribution == "" {
+		if isVectorFieldType(f.Type) {
+			vectorFields[f.Name] = true
+		}
+		if f.Distribution == "" && !isVectorFieldType(f.Type) {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				"field has empty distribution", map[string]any{"name": f.Name})
 		}
@@ -483,6 +496,9 @@ func validateSpec(s *Spec) error {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				"null_rate must be in [0, 1]", map[string]any{"name": f.Name, "null_rate": f.NullRate})
 		}
+	}
+	if err := refuseVectorCrossFieldUse(s, vectorFields); err != nil {
+		return err
 	}
 	for _, c := range s.Correlations {
 		if c.A == c.B {

@@ -656,17 +656,6 @@ const (
 	// and no number anywhere says the flag did nothing.
 	PULSE_SYNTH_RULE_OWNERSHIP_INVALID Code = "PULSE_SYNTH_RULE_OWNERSHIP_INVALID"
 
-	// PULSE_SYNTH_VECTOR_UNSUPPORTED indicates a synth surface met a
-	// vector field (vec_f32 / vec_f64): a spec declaring one, a source
-	// cohort carrying one for profile capture (`synth from-profile`,
-	// `pulse profile create`), or a tagged top-up source. Synth has no
-	// model for a fixed-length vector — its elements are jointly
-	// distributed, and drawing each from an independent marginal would
-	// produce a cohort that parses and is quietly wrong — so every
-	// surface refuses up front rather than skipping or flattening it.
-	// Vector synthesis is planned work (roadmap U52, synth realism).
-	PULSE_SYNTH_VECTOR_UNSUPPORTED Code = "PULSE_SYNTH_VECTOR_UNSUPPORTED"
-
 	// PULSE_PROFILE_FIELD_UNSUPPORTED indicates a field type the profile
 	// layer cannot summarize. The field is skipped with a warning rather
 	// than failing the whole profile.
@@ -3718,7 +3707,6 @@ var allCodes = []Code{
 	PULSE_SYNTH_RULE_BLOCK_INVALID,
 	PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE,
 	PULSE_SYNTH_RULE_OWNERSHIP_INVALID,
-	PULSE_SYNTH_VECTOR_UNSUPPORTED,
 	PULSE_PROFILE_FIELD_UNSUPPORTED,
 	PULSE_TEST_UNKNOWN_TYPE,
 	PULSE_TEST_FIELD_NOT_NUMERIC,
