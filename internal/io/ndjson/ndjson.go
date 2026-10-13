@@ -56,7 +56,26 @@ type Reader struct {
 	// iocore.LateKeyRefuser state, armed by an explicit-schema import.
 	rowNum   int
 	lateKeys jsonshared.LateKeys
+
+	// curObj is the object most recently handed to the ReadRows
+	// callback, for iocore.ListAwareReader. Valid only inside the
+	// callback.
+	curObj map[string]any
 }
+
+// RowList implements iocore.ListAwareReader: the current object's value
+// under header column col read as a typed numeric list
+// (jsonshared.ListCellOf).
+func (r *Reader) RowList(col int, dst *iocore.ListCell) {
+	if col < 0 || col >= len(r.header) {
+		dst.Reset(iocore.ListNull)
+		return
+	}
+	v, ok := r.curObj[r.header[col]]
+	jsonshared.ListCellOf(v, ok, dst)
+}
+
+var _ iocore.ListAwareReader = (*Reader)(nil)
 
 // RefuseLateKeys implements iocore.LateKeyRefuser: when on, a key first
 // seen after the first object fails ReadRows with
@@ -248,6 +267,7 @@ func (r *Reader) emitObj(obj map[string]any, fn func(row []string) error) error 
 		r.nulls[i] = !ok || v == nil
 	}
 
+	r.curObj = obj
 	if err := fn(row); err != nil {
 		if err == iocore.ErrStopIteration() {
 			return errStop

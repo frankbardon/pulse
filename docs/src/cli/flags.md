@@ -506,6 +506,26 @@ is `PULSE_IMPORT_OVERRIDE_INVALID`. Writes a format `0x02` cohort.
 `pulse_import` (MCP) takes the same strings as `vectors` /
 `vector_kinds`.
 
+A bare `--vector NAME` (or `NAME:f32`) reads the NATIVE list column
+`NAME` — Arrow `FixedSizeList` / `LIST`, Parquet `LIST`, an NDJSON or
+JSON-array array — as one vector field at that column's position. The
+elements are read typed off the source (never through the pipe-joined
+text the set ladder sees); the dim is the length of the first non-null
+list; no labels are written. A null list, or a list of nulls only, is a
+null vector; a null element is `NaN`. The whole import is refused with
+`PULSE_IMPORT_VECTOR_INVALID` on a list of a different length
+(`list_length_varies`), a non-number element — a quoted `"3"` included
+(`element_not_numeric`), a non-list cell (`not_a_list`), a length
+outside 2..1024 (`dim_out_of_range`), or no non-null list at all
+(`list_dim_unknown`); CSV / TSV / Excel have no typed lists
+(`no_columns`). Without the flag a list column imports as a `set_*`
+field exactly as before.
+
+```sh
+pulse import parquet -i embeddings.parquet -o emb.pulse \
+  --vector embedding:f32 --vector-kind embedding:measure
+```
+
 ### `--source-tz` / `--dst-policy`
 
 Available on: every `import <format>` leaf, `import auto`, `import predict`,

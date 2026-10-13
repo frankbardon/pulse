@@ -156,3 +156,16 @@ func TestScrubManifest_LineAware(t *testing.T) {
 		t.Errorf("list = %q, want %q", list, want)
 	}
 }
+
+// TestProseScrub_ImportVectorsHomonym: hiding capability:matrices drops
+// a sentence about the request's `vectors` slot but keeps pulse_import's
+// same-spelled `vectors` argument, which declares native vec_f32 /
+// vec_f64 FIELDS (a format feature no profile gates).
+func TestProseScrub_ImportVectorsHomonym(t *testing.T) {
+	s := NewProseScrub(scopedExcept(featMatrices))
+	in := "Imports a file. `vectors` folds sibling columns into one vec_f64 field. A bad one fails PULSE_IMPORT_VECTOR_INVALID; a name no vectors entry declares too. Name reusable vectors on the request. The end."
+	want := "Imports a file. `vectors` folds sibling columns into one vec_f64 field. A bad one fails PULSE_IMPORT_VECTOR_INVALID; a name no vectors entry declares too. The end."
+	if got := s.Text(in); got != want {
+		t.Errorf("Text = %q, want %q", got, want)
+	}
+}

@@ -683,3 +683,69 @@ type TargetWarningEmitter interface {
 type OverlayWarningEmitter interface {
 	OverlayWarnings() []*errors.CodedError
 }
+
+// ListState classifies one row's cell as a native list (ListAwareReader).
+type ListState uint8
+
+const (
+	// ListNull is a null (or absent) cell: a null vector.
+	ListNull ListState = iota
+	// ListValues is a present list whose every element is numeric or
+	// null; Values / Nulls carry it.
+	ListValues
+	// ListNotList is a present cell that is not a list at all (a JSON
+	// scalar in a column a vector declaration reads as a list).
+	ListNotList
+	// ListNonNumeric is a present list holding an element that is not a
+	// number (a string, a boolean); BadIndex / BadValue name the first.
+	ListNonNumeric
+)
+
+// ListCell is one row's cell read as a typed numeric list, straight off
+// the source's own typed state — never parsed back out of the row text,
+// which a list source pipe-joins for the set_* ladder.
+//
+// Values[e] is element e (NaN at a null element) and Nulls[e] marks the
+// null elements; both are len(list) for a ListValues cell. The slices
+// are reused across calls: valid only until the next RowList.
+type ListCell struct {
+	State    ListState
+	Values   []float64
+	Nulls    []bool
+	BadIndex int
+	BadValue string
+}
+
+// Reset empties c for reuse, keeping its slices' capacity.
+func (c *ListCell) Reset(state ListState) {
+	c.State = state
+	c.Values = c.Values[:0]
+	c.Nulls = c.Nulls[:0]
+	c.BadIndex = 0
+	c.BadValue = ""
+}
+
+// Append adds one element (null → NaN).
+func (c *ListCell) Append(v float64, null bool) {
+	c.Values = append(c.Values, v)
+	c.Nulls = append(c.Nulls, null)
+}
+
+// ListAwareReader is an optional extension of Reader for sources whose
+// cells can hold NATIVE lists — Arrow FixedSizeList / LIST, Parquet
+// LIST, a JSON array. The []string row renders such a cell pipe-joined
+// for the set_* ladder; a vector declaration with no column list
+// (import `--vector NAME`) reads the cell typed through this channel
+// instead, so the elements never round-trip through text.
+//
+// It is consulted ONLY under such a declaration: without one, an
+// import of a list source is byte-identical whether or not the source
+// implements this interface. A source without it (CSV / TSV / Excel)
+// refuses a column-less vector declaration.
+type ListAwareReader interface {
+	Reader
+	// RowList fills dst with the current row's column col (an index into
+	// the header ReadHeader returned) read as a numeric list. Valid only
+	// inside the ReadRows callback.
+	RowList(col int, dst *ListCell)
+}

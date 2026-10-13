@@ -76,7 +76,34 @@ type Reader struct {
 	// truncated tallies the native timestamp cells the latest ReadRows
 	// pass floored to whole seconds (iocore.SourceWarningEmitter).
 	truncated parrow.TimestampTally
+
+	// curChunks / curRow locate the row most recently handed to the
+	// ReadRows callback, for iocore.ListAwareReader. Valid only inside
+	// the callback.
+	curChunks [][]arrow.Array
+	curRow    int
 }
+
+// RowList implements iocore.ListAwareReader: the current row's column
+// col read off the typed Arrow list array pqarrow decoded the Parquet
+// LIST into (parrow.ListCellAt).
+func (r *Reader) RowList(col int, dst *iocore.ListCell) {
+	if col < 0 || col >= len(r.curChunks) {
+		dst.Reset(iocore.ListNull)
+		return
+	}
+	offset := r.curRow
+	for _, chunk := range r.curChunks[col] {
+		if offset < chunk.Len() {
+			parrow.ListCellAt(chunk, offset, dst)
+			return
+		}
+		offset -= chunk.Len()
+	}
+	dst.Reset(iocore.ListNull)
+}
+
+var _ iocore.ListAwareReader = (*Reader)(nil)
 
 // Warnings implements iocore.SourceWarningEmitter: the one
 // PULSE_IMPORT_TIMESTAMP_TRUNCATED warning of the latest ReadRows pass,
@@ -242,6 +269,10 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		}
 	}
 	r.truncated.Reset()
+	r.curChunks = make([][]arrow.Array, numCols)
+	for c := range cols {
+		r.curChunks[c] = cols[c].chunks
+	}
 
 	// Iterate over rows.
 	row := make([]string, numCols)
@@ -269,6 +300,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 			row[c], r.nulls[c] = getValueAsString(cols[c].chunks, rowIdx)
 		}
 
+		r.curRow = rowIdx
 		if err := fn(row); err != nil {
 			if err == iocore.ErrStopIteration() {
 				return nil

@@ -46,7 +46,25 @@ type Reader struct {
 	// truncated tallies the native timestamp cells the latest ReadRows
 	// pass floored to whole seconds (iocore.SourceWarningEmitter).
 	truncated TimestampTally
+
+	// curCols / curRow locate the row most recently handed to the
+	// ReadRows callback, for iocore.ListAwareReader. Valid only inside
+	// the callback.
+	curCols []arrow.Array
+	curRow  int
 }
+
+// RowList implements iocore.ListAwareReader: the current row's column
+// col read off the typed Arrow list array (ListCellAt).
+func (r *Reader) RowList(col int, dst *iocore.ListCell) {
+	if col < 0 || col >= len(r.curCols) {
+		dst.Reset(iocore.ListNull)
+		return
+	}
+	ListCellAt(r.curCols[col], r.curRow, dst)
+}
+
+var _ iocore.ListAwareReader = (*Reader)(nil)
 
 // Warnings implements iocore.SourceWarningEmitter: the one
 // PULSE_IMPORT_TIMESTAMP_TRUNCATED warning of the latest ReadRows pass,
@@ -221,6 +239,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 				row[c] = FormatValue(cols[c], i)
 			}
 
+			r.curCols, r.curRow = cols, i
 			if err := fn(row); err != nil {
 				if err == iocore.ErrStopIteration() {
 					return nil

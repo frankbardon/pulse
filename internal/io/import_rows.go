@@ -58,7 +58,9 @@ type rowConverter struct {
 	// field's column in the row the converter is given. The import's
 	// fold step (import_vectors.go) supplies it; nil when no vector is
 	// folded, and a vec field with no element source fails the row.
-	vecCells func(col int) ([]string, []string)
+	// A list vector's elements arrive typed (vals, NaN at a null
+	// element) instead of as cells.
+	vecCells func(col int) ([]string, []string, []float64)
 	vecVals  []float64
 }
 
@@ -152,10 +154,20 @@ func (c *rowConverter) convert(rowNum int, row []string, declaredNulls []bool) *
 			// text: a vector is element × dim bytes, far past the
 			// wideFieldBytes scratch, and its row cell is a marker.
 			var cells, cols []string
+			var typed []float64
 			if c.vecCells != nil {
-				cells, cols = c.vecCells(colIdx)
+				cells, cols, typed = c.vecCells(colIdx)
 			}
 			dim := c.schema.VectorDim(i)
+			if typed != nil {
+				if len(typed) != dim {
+					return rowErr(f, fmt.Sprintf("vector has %d elements, %s field dim is %d", len(typed), f.Type, dim))
+				}
+				if err := c.setVector(i, f.Type, dim, typed); err != nil {
+					return rowErr(f, err.Error())
+				}
+				continue
+			}
 			if cells == nil {
 				return rowErr(f, "vector field has no element source (declare the columns it folds)")
 			}

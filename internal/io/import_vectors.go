@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/iocore"
 )
 
 // Import-time vector folding (format 0x02, VECTORS section).
@@ -30,9 +31,21 @@ import (
 // measured predict) sees one column per field exactly as before.
 //
 // A declaration with no Columns and no Pattern names a NATIVE list
-// column (Arrow / Parquet LIST, a JSON array) of the same name; folding
-// one needs a typed source and is refused here with reason
-// "no_columns" until such a source can hand its elements over.
+// column (Arrow FixedSizeList / LIST, Parquet LIST, a JSON array) of the
+// same name. Its elements are read TYPED through iocore.ListAwareReader
+// — the fork happens before the source's pipe-joined row text is ever
+// consulted — and the vector keeps the column's position. Its dim is
+// the length of the first non-null list (a plan-time probe pass, then a
+// Reset); every list must have that length, hold only numbers and nulls
+// (a null element is NaN, an all-null list a null vector, a null cell a
+// null vector), and anything else refuses the whole import with
+// PULSE_IMPORT_VECTOR_INVALID (reasons list_length_varies,
+// element_not_numeric, not_a_list, list_dim_unknown, dim_out_of_range).
+// No labels are written: no list format carries element names. A source
+// with no typed lists (CSV / TSV / Excel) refuses the declaration with
+// reason "no_columns". Without a column-less declaration the list
+// channel is never consulted, so a list column still rides the set_*
+// ladder byte-identically.
 
 // VectorDecl declares one native vector field at import.
 //
@@ -243,6 +256,9 @@ type resolvedVector struct {
 	members []int    // source column indices, element order
 	cols    []string // the member column names, element order
 	meta    encoding.VectorField
+	// list marks a native list column (members is that one column);
+	// its elements come through iocore.ListAwareReader.
+	list bool
 }
 
 // vectorFold is the resolved fold plan of a header: which source
@@ -257,10 +273,14 @@ type vectorFold struct {
 	// byName maps a vector's name to its index.
 	byName map[string]int
 
-	// Per-row scratch, reused across rows.
+	// Per-row scratch, reused across rows. lists[k] is list vector k's
+	// typed cell (unused for a column fold).
 	row   []string
 	nulls []bool
 	cells [][]string
+	lists []iocore.ListCell
+	// rowNum counts the source rows folded, for refusal details.
+	rowNum int
 }
 
 // vectorPresent is the folded cell of a vector with at least one
@@ -269,8 +289,10 @@ type vectorFold struct {
 const vectorPresent = "\x1evector"
 
 // planVectorFold resolves decls against the source header and the
-// declared groups. Every refusal is PULSE_IMPORT_VECTOR_INVALID.
-func planVectorFold(header []string, decls []VectorDecl, groups []GroupDecl) (*vectorFold, error) {
+// declared groups. lists is the source's typed list channel (nil when
+// it has none). A list vector leaves planning with dim 0: probeListDims
+// takes it from the data. Every refusal is PULSE_IMPORT_VECTOR_INVALID.
+func planVectorFold(header []string, decls []VectorDecl, groups []GroupDecl, lists iocore.ListAwareReader) (*vectorFold, error) {
 	colIdx := make(map[string]int, len(header))
 	for i, c := range header {
 		if _, dup := colIdx[c]; !dup {
@@ -340,10 +362,20 @@ func planVectorFold(header []string, decls []VectorDecl, groups []GroupDecl) (*v
 					fmt.Sprintf("vector %q: pattern %q matches no source column", d.Name, d.Pattern),
 					map[string]any{"vector": d.Name, "pattern": d.Pattern, "columns": append([]string(nil), header...)})
 			}
-		default:
+		case lists == nil:
 			return nil, vectorInvalid("no_columns",
-				fmt.Sprintf("vector %q declares no columns or pattern; folding a native list column needs a source that hands over typed lists, which this one does not", d.Name),
+				fmt.Sprintf("vector %q declares no columns or pattern; reading a native list column needs a source with typed lists (Arrow, Parquet, NDJSON, JSON array), which this one is not — declare the member columns with --vector %s:COL1,COL2,...", d.Name, d.Name),
 				map[string]any{"vector": d.Name})
+		default:
+			i, ok := colIdx[d.Name]
+			if !ok {
+				return nil, vectorInvalid("column_unknown",
+					fmt.Sprintf("vector %q names list column %q, which the source header does not carry", d.Name, d.Name),
+					map[string]any{"vector": d.Name, "column": d.Name, "columns": append([]string(nil), header...)})
+			}
+			rv.members = []int{i}
+			rv.cols = []string{d.Name}
+			rv.list = true
 		}
 		for _, m := range rv.members {
 			if prev, taken := claimed[m]; taken {
@@ -353,12 +385,15 @@ func planVectorFold(header []string, decls []VectorDecl, groups []GroupDecl) (*v
 			}
 			claimed[m] = d.Name
 		}
-		if n := len(rv.members); n < encoding.MinVectorDim || n > encoding.MaxVectorDim {
+		dim := len(rv.members)
+		if rv.list {
+			dim = 0 // probeListDims
+		} else if dim < encoding.MinVectorDim || dim > encoding.MaxVectorDim {
 			return nil, vectorInvalid("dim_out_of_range",
-				fmt.Sprintf("vector %q folds %d columns; a vector's dim must be %d..%d", d.Name, n, encoding.MinVectorDim, encoding.MaxVectorDim),
-				map[string]any{"vector": d.Name, "dim": n, "min_dim": encoding.MinVectorDim, "max_dim": encoding.MaxVectorDim})
+				fmt.Sprintf("vector %q folds %d columns; a vector's dim must be %d..%d", d.Name, dim, encoding.MinVectorDim, encoding.MaxVectorDim),
+				map[string]any{"vector": d.Name, "dim": dim, "min_dim": encoding.MinVectorDim, "max_dim": encoding.MaxVectorDim})
 		}
-		rv.meta = encoding.VectorField{Dim: len(rv.members), Kind: kind, ScaleMin: lo, ScaleMax: hi, HasScale: hasScale, Labels: labels}
+		rv.meta = encoding.VectorField{Dim: dim, Kind: kind, ScaleMin: lo, ScaleMax: hi, HasScale: hasScale, Labels: labels}
 		fold.byName[d.Name] = len(fold.vectors)
 		fold.vectors = append(fold.vectors, rv)
 	}
@@ -413,18 +448,135 @@ func planVectorFold(header []string, decls []VectorDecl, groups []GroupDecl) (*v
 		}
 	}
 	fold.cells = make([][]string, len(fold.vectors))
+	fold.lists = make([]iocore.ListCell, len(fold.vectors))
 	for k := range fold.vectors {
 		fold.cells[k] = make([]string, len(fold.vectors[k].members))
 	}
 	return fold, nil
 }
 
+// hasLists reports whether any vector reads a native list column.
+func (f *vectorFold) hasLists() bool {
+	for k := range f.vectors {
+		if f.vectors[k].list {
+			return true
+		}
+	}
+	return false
+}
+
+// probeListDims fixes every list vector's dim to the length of its
+// first non-null list, reading rows off src until each has one (the
+// cells read on the way are checked exactly as the row pass checks
+// them), then rewinds src and re-reads its header. A list column with
+// no non-null list at all is list_dim_unknown; a dim outside
+// MinVectorDim..MaxVectorDim is dim_out_of_range.
+func (f *vectorFold) probeListDims(ctx context.Context, src iocore.ListAwareReader) error {
+	pending := 0
+	for k := range f.vectors {
+		if f.vectors[k].list && f.vectors[k].meta.Dim == 0 {
+			pending++
+		}
+	}
+	if pending == 0 {
+		return nil
+	}
+	rr, ok := src.(ResetReader)
+	if !ok {
+		return vectorInvalid("no_columns",
+			"reading a native list column needs a source that can be rewound after its dim is probed, which this one cannot",
+			nil)
+	}
+	ns, _ := src.(NullAwareReader)
+	row := 0
+	err := src.ReadRows(ctx, func([]string) error {
+		row++
+		var srcNulls []bool
+		if ns != nil {
+			srcNulls = ns.RowNulls()
+		}
+		for k := range f.vectors {
+			v := &f.vectors[k]
+			if !v.list || v.meta.Dim != 0 {
+				continue
+			}
+			col := v.members[0]
+			if srcNulls != nil && col < len(srcNulls) && srcNulls[col] {
+				continue
+			}
+			cell := &f.lists[k]
+			src.RowList(col, cell)
+			if err := checkListCell(v, cell, row, false); err != nil {
+				return err
+			}
+			if cell.State != iocore.ListValues {
+				continue
+			}
+			n := len(cell.Values)
+			if n < encoding.MinVectorDim || n > encoding.MaxVectorDim {
+				return vectorInvalid("dim_out_of_range",
+					fmt.Sprintf("vector %q: list column %q holds %d-element lists (row %d); a vector's dim must be %d..%d", v.name, v.cols[0], n, row, encoding.MinVectorDim, encoding.MaxVectorDim),
+					map[string]any{"vector": v.name, "column": v.cols[0], "dim": n, "row": row, "min_dim": encoding.MinVectorDim, "max_dim": encoding.MaxVectorDim})
+			}
+			v.meta.Dim = n
+			pending--
+		}
+		if pending == 0 {
+			return errStopIteration
+		}
+		return nil
+	})
+	if err != nil && err != errStopIteration {
+		return err
+	}
+	for k := range f.vectors {
+		v := &f.vectors[k]
+		if v.list && v.meta.Dim == 0 {
+			return vectorInvalid("list_dim_unknown",
+				fmt.Sprintf("vector %q: list column %q holds no non-null list to take a dim from", v.name, v.cols[0]),
+				map[string]any{"vector": v.name, "column": v.cols[0]})
+		}
+	}
+	if err := rr.Reset(); err != nil {
+		return fmt.Errorf("resetting reader after the vector list probe: %w", err)
+	}
+	_, err = src.ReadHeader()
+	return err
+}
+
+// checkListCell refuses a list cell a vector cannot hold: a non-list
+// value (not_a_list), a non-numeric element (element_not_numeric) and,
+// when sized, a list whose length is not the vector's dim
+// (list_length_varies). row is the 1-based source row.
+func checkListCell(v *resolvedVector, cell *iocore.ListCell, row int, sized bool) error {
+	switch cell.State {
+	case iocore.ListNotList:
+		return vectorInvalid("not_a_list",
+			fmt.Sprintf("vector %q: column %q holds %q at row %d, which is not a list", v.name, v.cols[0], cell.BadValue, row),
+			map[string]any{"vector": v.name, "column": v.cols[0], "row": row, "value": cell.BadValue})
+	case iocore.ListNonNumeric:
+		return vectorInvalid("element_not_numeric",
+			fmt.Sprintf("vector %q: column %q row %d element %d is %s, which is not a number", v.name, v.cols[0], row, cell.BadIndex, cell.BadValue),
+			map[string]any{"vector": v.name, "column": v.cols[0], "row": row, "element": cell.BadIndex, "value": cell.BadValue})
+	case iocore.ListValues:
+		if sized && len(cell.Values) != v.meta.Dim {
+			return vectorInvalid("list_length_varies",
+				fmt.Sprintf("vector %q: column %q row %d holds a %d-element list, but the vector's dim is %d (every list must have the same length)", v.name, v.cols[0], row, len(cell.Values), v.meta.Dim),
+				map[string]any{"vector": v.name, "column": v.cols[0], "row": row, "length": len(cell.Values), "dim": v.meta.Dim})
+		}
+	}
+	return nil
+}
+
 // foldRow assembles the folded row (and folded declared-null channel)
 // of one source row into the fold's scratch. A vector's cell is "" when
 // every element cell is null (a null vector) and vectorPresent
 // otherwise; its element cells — a declared-null element blanked — are
-// left in fold.cells for the converter.
-func (f *vectorFold) foldRow(src []string, srcNulls []bool) ([]string, []bool) {
+// left in fold.cells for the converter. A list vector's typed cell is
+// read off lists into fold.lists (a null cell, or a list of nulls only,
+// is a null vector); a cell it cannot hold refuses the import.
+func (f *vectorFold) foldRow(src []string, srcNulls []bool, lists iocore.ListAwareReader) ([]string, []bool, error) {
+	f.rowNum++
 	f.row = f.row[:0]
 	f.nulls = f.nulls[:0]
 	for c := range f.header {
@@ -441,7 +593,30 @@ func (f *vectorFold) foldRow(src []string, srcNulls []bool) ([]string, []bool) {
 		}
 		k := f.vecOf[c]
 		allNull := true
+		if v := &f.vectors[k]; v.list {
+			col := v.members[0]
+			cell := &f.lists[k]
+			if (srcNulls != nil && col < len(srcNulls) && srcNulls[col]) || lists == nil {
+				cell.Reset(iocore.ListNull)
+			} else {
+				lists.RowList(col, cell)
+			}
+			if err := checkListCell(v, cell, f.rowNum, true); err != nil {
+				return nil, nil, err
+			}
+			if cell.State == iocore.ListValues {
+				for _, null := range cell.Nulls {
+					if !null {
+						allNull = false
+						break
+					}
+				}
+			}
+		}
 		for e, m := range f.vectors[k].members {
+			if f.vectors[k].list {
+				break
+			}
 			var cell string
 			if m < len(src) {
 				cell = strings.TrimSpace(src[m])
@@ -464,20 +639,24 @@ func (f *vectorFold) foldRow(src []string, srcNulls []bool) ([]string, []bool) {
 		}
 	}
 	if srcNulls == nil {
-		return f.row, nil
+		return f.row, nil, nil
 	}
-	return f.row, f.nulls
+	return f.row, f.nulls, nil
 }
 
 // elements returns the current row's element cells of the vector at
-// folded column col and the member column names (for errors), or nil
-// when col is not a vector.
-func (f *vectorFold) elements(col int) ([]string, []string) {
+// folded column col and the member column names (for errors) — or, for
+// a list vector, its typed element values (NaN at a null element) —
+// all nil when col is not a vector.
+func (f *vectorFold) elements(col int) ([]string, []string, []float64) {
 	if col < 0 || col >= len(f.vecOf) || f.vecOf[col] < 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	k := f.vecOf[col]
-	return f.cells[k], f.vectors[k].cols
+	if f.vectors[k].list {
+		return nil, f.vectors[k].cols, f.lists[k].Values
+	}
+	return f.cells[k], f.vectors[k].cols, nil
 }
 
 // field returns the vec field and its VECTORS metadata the vector named
@@ -513,12 +692,24 @@ func (r *foldReader) plan() (*vectorFold, error) {
 	if r.fold != nil {
 		return r.fold, nil
 	}
-	fold, err := planVectorFold(h, r.decls, r.group)
+	lists := r.lists()
+	fold, err := planVectorFold(h, r.decls, r.group, lists)
 	if err != nil {
 		return nil, err
 	}
+	if fold.hasLists() {
+		if err := fold.probeListDims(context.Background(), lists); err != nil {
+			return nil, err
+		}
+	}
 	r.fold = fold
 	return fold, nil
+}
+
+// lists is the inner source's typed list channel, or nil.
+func (r *foldReader) lists() iocore.ListAwareReader {
+	l, _ := r.inner.(iocore.ListAwareReader)
+	return l
 }
 
 // ReadHeader returns the folded header.
@@ -540,13 +731,18 @@ func (r *foldReader) ReadRows(ctx context.Context, fn func(row []string) error) 
 		}
 	}
 	ns, _ := r.inner.(NullAwareReader)
+	lists := r.lists()
+	fold.rowNum = 0
 	return r.inner.ReadRows(ctx, func(row []string) error {
 		var srcNulls []bool
 		if ns != nil {
 			srcNulls = ns.RowNulls()
 		}
-		var folded []string
-		folded, r.nulls = fold.foldRow(row, srcNulls)
+		folded, nulls, err := fold.foldRow(row, srcNulls, lists)
+		if err != nil {
+			return err
+		}
+		r.nulls = nulls
 		return fn(folded)
 	})
 }
@@ -610,7 +806,7 @@ func (j *ImportJob) beginVectorFold() (func(), *foldReader, error) {
 }
 
 // vectorCells is the converter's element source (nil without a fold).
-func (fr *foldReader) vectorCells() func(col int) ([]string, []string) {
+func (fr *foldReader) vectorCells() func(col int) ([]string, []string, []float64) {
 	if fr == nil || fr.fold == nil {
 		return nil
 	}

@@ -603,7 +603,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_IMPORT_VECTOR_INVALID: {
-		Message: "An import-time vector declaration cannot be folded, so the import is refused before any row is read and no cohort is written. details.reason names the case: malformed (the `--vector` / `--vector-kind` value does not parse), element_invalid, kind_invalid, scale_invalid (not both bounds, non-finite, or min >= max), kind_unknown_vector (a kind for an undeclared vector), kind_duplicate, duplicate_name, column_unknown, pattern_invalid, pattern_no_match, no_columns, dim_out_of_range (the folded column count is outside 2..1024), column_claimed (a column folded by two vectors, or by a vector and a parent group), name_collision (the vector's name is a source column it does not fold), authoritative_source (an SPSS source), and against an explicit schema not_declared, dim_mismatch or type_mismatch.",
+		Message: "An import-time vector declaration cannot be folded, so the import is refused before any row is read and no cohort is written. details.reason names the case: malformed (the `--vector` / `--vector-kind` value does not parse), element_invalid, kind_invalid, scale_invalid (not both bounds, non-finite, or min >= max), kind_unknown_vector (a kind for an undeclared vector), kind_duplicate, duplicate_name, column_unknown, pattern_invalid, pattern_no_match, no_columns (a bare `--vector NAME` on a source with no typed lists — CSV / TSV / Excel), dim_out_of_range (the folded column count, or a native list's length, is outside 2..1024), column_claimed (a column folded by two vectors, or by a vector and a parent group), name_collision (the vector's name is a source column it does not fold), authoritative_source (an SPSS source), and against an explicit schema not_declared, dim_mismatch or type_mismatch. A native list column (bare `--vector NAME`, Arrow / Parquet LIST, a JSON array) is also refused mid-pass, with no cohort written, on list_length_varies (a list whose length differs from the first non-null list's), element_not_numeric (a string — a quoted number included — or boolean element), not_a_list (a scalar cell) and list_dim_unknown (no non-null list to take a dim from); details carry column and row.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -614,6 +614,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Schema", "*", "dim"},
 				Hint:   "With an explicit schema, type the vector field vec_f32 / vec_f64 with the dim its declaration folds, and declare it with --vector so the import knows which columns hold its elements.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Vectors"},
+				Hint:   "A native list column becomes a vector only when every non-null list has the same length (2..1024) and holds only numbers and nulls: pad or drop the ragged rows at the source, cast string elements to numbers, or leave the column undeclared to import it as a set_* field; on CSV / TSV / Excel name the element columns instead (`--vector NAME:COL1,COL2,...`).",
 			},
 		},
 	},

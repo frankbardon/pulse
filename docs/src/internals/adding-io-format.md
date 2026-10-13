@@ -173,6 +173,19 @@ with `PULSE_IMPORT_SCHEMA_KEY_LATE` (`column`, `row`, `columns`) at the
 first record carrying a key the header lacks, instead of dropping it.
 `jsonshared.LateKeys` holds the shared state and refusal.
 
+A format whose cells can hold NATIVE lists (Arrow, Parquet, JSON) should
+implement the optional `iocore.ListAwareReader`
+(`RowList(col int, dst *iocore.ListCell)`, valid inside the `ReadRows`
+callback): it hands a column-less vector declaration (`--vector NAME`)
+the cell's elements typed — `ListNull`, `ListValues` (NaN at a null
+element), `ListNotList` or `ListNonNumeric` — so they never round-trip
+through the pipe-joined text the set ladder reads. Reuse
+`internal/io/arrow.ListCellAt` over an Arrow array and
+`jsonshared.ListCellOf` over a decoded JSON value. The import consults
+it only under such a declaration and needs a `ResetReader` (it probes
+the dim, then rewinds); a format without it refuses the declaration
+(`no_columns`). Cover it in `internal/io/veclist`.
+
 ### Native datetimes: instant or wall clock
 
 The row path is text, and an import source zone (`ImportJob.SourceTZ`)
