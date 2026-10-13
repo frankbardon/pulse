@@ -11,8 +11,8 @@ import (
 // rakeParts declares the named part OVERLAY_RAKE writes beside its
 // primary fitted table, with its payload shape. overlayPartShapes reads
 // it.
-var rakeParts = map[string]types.OverlayShape{
-	"factors": types.OverlayShapeMatrix,
+var rakeParts = map[string]overlayPart{
+	"factors": {Shape: types.OverlayShapeMatrix},
 }
 
 // validateOverlayRake enforces the predict contract of OVERLAY_RAKE

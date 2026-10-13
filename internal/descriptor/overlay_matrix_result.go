@@ -9,10 +9,10 @@ import (
 // matrixGroupSummaryParts declares the named parts
 // OVERLAY_MATRIX_GROUP_SUMMARY writes beside its primary per-cell mean,
 // with their payload shapes. overlayPartShapes reads it.
-var matrixGroupSummaryParts = func() map[string]types.OverlayShape {
-	out := map[string]types.OverlayShape{}
+var matrixGroupSummaryParts = func() map[string]overlayPart {
+	out := map[string]overlayPart{}
 	for _, p := range overlayhost.GroupSummaryParts() {
-		out[p] = types.OverlayShapeMatrix
+		out[p] = overlayPart{Shape: types.OverlayShapeMatrix}
 	}
 	return out
 }()

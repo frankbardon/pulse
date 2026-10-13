@@ -409,11 +409,11 @@ func overlayOutputResolver(kind types.OverlayKind) OutputResolver {
 			return FieldUnknown, fmt.Sprintf("%s declares no matrix shape", kind)
 		}
 		if rest, ok := strings.CutPrefix(field, "parts."); ok {
-			// A declared payload part (overlayPartShapes): its own
+			// A declared fixed-name payload part (overlayPartShape): its own
 			// cells.value (MATRIX part), scalar (SCALAR part) or an
 			// entry's scalar summary.<key> (SERIES part).
 			name, sub, _ := strings.Cut(rest, ".")
-			sh, ok := overlayPartShapes[kind][name]
+			sh, ok := overlayPartShape(kind, name)
 			key, seriesKey := strings.CutPrefix(sub, "summary.")
 			if t, known := summary[key]; ok && seriesKey && sh == types.OverlayShapeSeries {
 				if known && isScalarOutput(t) {

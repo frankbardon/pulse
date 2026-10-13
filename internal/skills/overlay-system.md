@@ -51,7 +51,7 @@ Implicit-margin kinds (the χ² and Fisher cell tests) leave `ref` empty.
 
 ## Parts (multi-output kinds)
 
-A multi-output kind adds `payload.parts`: named secondary payloads beside the primary. Each is a plain scalar | series | matrix payload, never nested; the kind's skill names them. A points × dimensions part keys its columns `["dim_1"]`, `["dim_2"]`, …. Select one via `return`: `overlays[*].payload.parts.<part>`.
+A multi-output kind adds `payload.parts`: named secondary payloads beside the primary. Each is a plain scalar | series | matrix payload, never nested; manifest `overlays[].parts` lists them (`when` = condition). A points × dimensions part keys its columns `["dim_1"]`, `["dim_2"]`, …. Select one via `return`: `overlays[*].payload.parts.<part>`.
 
 ## Host-arm wiring
 

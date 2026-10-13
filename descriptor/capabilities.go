@@ -502,6 +502,27 @@ type OverlayCapability struct {
 	// payload), a refused kind, and on an instance that hides
 	// capability:weighting. See Operator.WeightKinds.
 	WeightKinds []types.WeightKind `json:"weight_kinds,omitempty"`
+
+	// Parts lists the named secondary payloads a multi-output kind
+	// writes beside its primary (types.OverlayPayload.Parts), sorted by
+	// Name. Omitted for a kind that writes none.
+	Parts []OverlayPart `json:"parts,omitempty"`
+}
+
+// OverlayPart declares one named part of a multi-output overlay kind's
+// payload (types.OverlayPayload.Parts).
+type OverlayPart struct {
+	// Name is the key under payload.parts. A name holding "<n>" is a
+	// template (step_<n> → step_1, step_3, …): one part per value the
+	// When note names, never addressable by a fixed path.
+	Name string `json:"name"`
+
+	// Shape is the part's payload shape (scalar / series / matrix).
+	Shape types.OverlayShape `json:"shape"`
+
+	// When states the condition under which the part is written;
+	// omitted when the kind always writes it.
+	When string `json:"when,omitempty"`
 }
 
 // RegressionMeta describes a registered REG_* operator in the manifest.

@@ -11,13 +11,13 @@ import (
 // correspondenceParts declares the named parts OVERLAY_CORRESPONDENCE
 // writes beside its primary inertia series, each with its payload
 // shape. overlayPartShapes reads it.
-var correspondenceParts = map[string]types.OverlayShape{
-	"row_coordinates":     types.OverlayShapeMatrix,
-	"column_coordinates":  types.OverlayShapeMatrix,
-	"row_quality":         types.OverlayShapeSeries,
-	"column_quality":      types.OverlayShapeSeries,
-	"row_contribution":    types.OverlayShapeMatrix,
-	"column_contribution": types.OverlayShapeMatrix,
+var correspondenceParts = map[string]overlayPart{
+	"row_coordinates":     {Shape: types.OverlayShapeMatrix},
+	"column_coordinates":  {Shape: types.OverlayShapeMatrix},
+	"row_quality":         {Shape: types.OverlayShapeSeries},
+	"column_quality":      {Shape: types.OverlayShapeSeries},
+	"row_contribution":    {Shape: types.OverlayShapeMatrix},
+	"column_contribution": {Shape: types.OverlayShapeMatrix},
 }
 
 // validateOverlayCorrespondence enforces the predict contract of

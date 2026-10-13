@@ -7,14 +7,17 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// markovParts declares the fixed-name parts OVERLAY_MARKOV writes beside
-// its primary transition matrix, each with its payload shape.
+// markovParts declares the parts OVERLAY_MARKOV writes beside its
+// primary transition matrix, each with its payload shape and condition.
 // overlayPartShapes reads it. The per-step parts step_<n> (MATRIX) and
-// distribution_<n> (SERIES) are named by params.steps, so they are not
-// listed: an Interpretation cannot address them by a fixed path.
-var markovParts = map[string]types.OverlayShape{
-	"steady_state":    types.OverlayShapeSeries,
-	"absorption_time": types.OverlayShapeSeries,
+// distribution_<n> (SERIES) are templates named by params.steps: the
+// manifest lists them, but an Interpretation cannot address them by a
+// fixed path (overlayPartShape).
+var markovParts = map[string]overlayPart{
+	"step_<n>":         {Shape: types.OverlayShapeMatrix, When: "one per params.steps entry (default 1, 3, 6, 12)"},
+	"distribution_<n>": {Shape: types.OverlayShapeSeries, When: "one per params.steps entry, only with params.initial"},
+	"steady_state":     {Shape: types.OverlayShapeSeries, When: "only for an irreducible aperiodic chain"},
+	"absorption_time":  {Shape: types.OverlayShapeSeries, When: "only with params.absorbing"},
 }
 
 // validateOverlayMarkov enforces the predict contract of OVERLAY_MARKOV

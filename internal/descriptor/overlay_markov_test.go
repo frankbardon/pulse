@@ -90,17 +90,20 @@ func TestValidateOverlay_Markov(t *testing.T) {
 }
 
 // TestOverlayOutputResolver_MarkovParts: the fixed-name SERIES parts
-// resolve; the per-step parts (named by params.steps) are not
-// declared, so an Interpretation cannot address them.
+// resolve; the per-step parts (templates named by params.steps) are
+// declared for the manifest only, so an Interpretation cannot address
+// them — neither a concrete step_1 nor the template itself.
 func TestOverlayOutputResolver_MarkovParts(t *testing.T) {
 	r := overlayOutputResolver(types.OverlayKindMarkov)
 	for field, want := range map[string]FieldCheck{
-		"cells.value":                             FieldStatic,
-		"parts.steady_state.summary.statistic":    FieldStatic,
-		"parts.absorption_time.summary.statistic": FieldStatic,
-		"parts.step_1.cells.value":                FieldUnknown,
-		"parts.steady_state.cells.value":          FieldUnknown,
-		"summary.parameters.classes":              FieldDeferred,
+		"cells.value":                              FieldStatic,
+		"parts.steady_state.summary.statistic":     FieldStatic,
+		"parts.absorption_time.summary.statistic":  FieldStatic,
+		"parts.step_1.cells.value":                 FieldUnknown,
+		"parts.step_<n>.cells.value":               FieldUnknown,
+		"parts.distribution_<n>.summary.statistic": FieldUnknown,
+		"parts.steady_state.cells.value":           FieldUnknown,
+		"summary.parameters.classes":               FieldDeferred,
 	} {
 		if got, why := r(field); got != want {
 			t.Errorf("%s: %v (%s), want %v", field, got, why, want)

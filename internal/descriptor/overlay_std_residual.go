@@ -1,6 +1,9 @@
 package descriptor
 
 import (
+	"sort"
+	"strings"
+
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
@@ -13,25 +16,66 @@ var stdResidualSupportedScopes = map[types.OverlayScope]bool{
 }
 
 // stdResidualParts declares the named parts OVERLAY_STD_RESIDUAL writes
-// beside its primary residual matrix (types.OverlayPayload.Parts), each
-// with its payload shape. overlayPartShapes reads it.
-var stdResidualParts = map[string]types.OverlayShape{
-	"expected": types.OverlayShapeMatrix,
-	"p":        types.OverlayShapeMatrix,
+// beside its primary residual matrix (types.OverlayPayload.Parts).
+// overlayPartShapes reads it.
+var stdResidualParts = map[string]overlayPart{
+	"expected": {Shape: types.OverlayShapeMatrix},
+	"p":        {Shape: types.OverlayShapeMatrix},
 }
 
-// overlayPartShapes is the per-kind table of declared payload parts:
-// the Interpretation resolver admits `parts.<name>.cells.value` (MATRIX
+// overlayPart is one declared payload part: its shape and, when the kind
+// writes it only under a condition, that condition (manifest `when`). A
+// name holding "<n>" is a template (overlayPartTemplated).
+type overlayPart struct {
+	Shape types.OverlayShape
+	When  string
+}
+
+// overlayPartShapes is the per-kind table of declared payload parts —
+// the single source of truth for both readers: the manifest
+// (OverlayCapability.Parts, overlayPartsFor) lists every entry, and the
+// Interpretation resolver admits `parts.<name>.cells.value` (MATRIX
 // part), `parts.<name>.scalar` (SCALAR part) or
 // `parts.<name>.summary.<key>` (SERIES part: each entry's summary key)
-// only for a part listed here. A kind without parts is absent.
-var overlayPartShapes = map[types.OverlayKind]map[string]types.OverlayShape{
+// only for a fixed-name entry (overlayPartShape). A kind without parts
+// is absent.
+var overlayPartShapes = map[types.OverlayKind]map[string]overlayPart{
 	types.OverlayKindStdResidual:    stdResidualParts,
 	types.OverlayKindCorrespondence: correspondenceParts,
 	types.OverlayKindMarkov:         markovParts,
 	types.OverlayKindRake:           rakeParts,
 
 	types.OverlayKindMatrixGroupSummary: matrixGroupSummaryParts,
+}
+
+// overlayPartTemplated reports whether a declared part name is a
+// template (step_<n>): it names a family of parts, not one key.
+func overlayPartTemplated(name string) bool { return strings.Contains(name, "<") }
+
+// overlayPartShape is the Interpretation resolver's view of
+// overlayPartShapes: the shape of kind's fixed-name part, ok false for
+// an undeclared or templated name.
+func overlayPartShape(kind types.OverlayKind, name string) (types.OverlayShape, bool) {
+	p, ok := overlayPartShapes[kind][name]
+	if !ok || overlayPartTemplated(name) {
+		return "", false
+	}
+	return p.Shape, true
+}
+
+// overlayPartsFor is the manifest's view of overlayPartShapes: kind's
+// declared parts sorted by name, nil for a kind without parts.
+func overlayPartsFor(kind types.OverlayKind) []descriptor.OverlayPart {
+	decl := overlayPartShapes[kind]
+	if len(decl) == 0 {
+		return nil
+	}
+	out := make([]descriptor.OverlayPart, 0, len(decl))
+	for name, p := range decl {
+		out = append(out, descriptor.OverlayPart{Name: name, Shape: p.Shape, When: p.When})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }
 
 // validateOverlayStdResidual enforces the per-kind contract for
