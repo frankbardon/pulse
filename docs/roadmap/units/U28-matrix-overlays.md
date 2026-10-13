@@ -100,6 +100,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(matrix-overlays/E
 | Item | Destination |
 |---|---|
 | Expose the registered-but-unexposed `chi_square` metric (takes column masses explicitly) through the crosstab-profile overlays | [U30](U30-matrix-extensions-hardening.md) #426 (deferred from [U27](U27-vector-metrics-aggregates.md); U28 shipped `OVERLAY_STD_RESIDUAL` / `OVERLAY_CORRESPONDENCE` without consuming it) |
+| The `flows` intent needs ≥3 declaring operators (`intentDeclarerExemptions`); `OVERLAY_MARKOV` is the only one, and tagging operators whose Purpose does not answer a from-state to to-state question would mislead Recommend and the ontology | [U30](U30-matrix-extensions-hardening.md) #449 |
 
 ## Human inputs & decisions
 

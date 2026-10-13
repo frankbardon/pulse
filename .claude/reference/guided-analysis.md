@@ -151,7 +151,7 @@ A new key joins `testEffectSizeKeys`, the glossary `effectSizeKeys` list, a glos
 |---|---|---|---|
 | `purposeExemptions` | `TestSkillsCoverAllPurposes` | operator / family / kind name | (empty: every built-in declares a Purpose) |
 | `interpretationExemptions` | `TestInterpretationCoversOutputs` | `<operator>:<field>` | (empty: every inferential output and needs-reading primary result is read) |
-| `intentDeclarerExemptions` | `TestPurposeQuestionsResolve` | intent ID | `lookup` permanent; `flows` → U28 (`OVERLAY_MARKOV` is its first declarer since E2-S2); (`measure_construct` closed in U25 E1-S4: `TEST_BARTLETT_SPHERICITY` joined `MAT_RELIABILITY` and `MAT_PCA`; `MAT_FACTOR` is a fourth since E2-S2) |
+| `intentDeclarerExemptions` | `TestPurposeQuestionsResolve` | intent ID | `lookup` permanent; `flows` → U30, TODO #449 (`OVERLAY_MARKOV` is its only declarer since U28 E2-S2; U28 handed the gap on rather than tag operators whose Purpose does not answer a flows question); (`measure_construct` closed in U25 E1-S4: `TEST_BARTLETT_SPHERICITY` joined `MAT_RELIABILITY` and `MAT_PCA`; `MAT_FACTOR` is a fourth since E2-S2) |
 | `intentExampleExemptions` | `TestPurposeQuestionsResolve` | intent ID | `lookup` and `simulate` permanent (synth specs are a separate surface, not library examples); (`flows` closed in U28 E2-S2: `crosstab-markov` tags it); (`measure_construct` closed in U24 E2-S2: `scale_reliability` tags it) |
 | `exampleIntentExemptions` | `TestExamples_EveryExampleHasIntent` | example category directory | (empty: every directory is tagged) |
 | `glossaryOrphanExemptions` | `TestGlossary_OrphanReport` | term ID | (factor closed in U25 E2-S2: `MAT_FACTOR` links it; eigenvalue / loading / principal-component closed in U24 E3-S1: `MAT_PCA` links them; reliability closed in U24 E2-S2: `MAT_RELIABILITY` links it); (centroid and distance closed in U25: `GROUP_KMEANS` and `ATTR_MAHALANOBIS` link them, `MAT_DISTANCE` links both); (similarity closed in U27 E3-S2: `ATTR_PROFILE_SIMILARITY` links it); (raking closed in U28 E2-S3: `OVERLAY_RAKE` links it); (stochastic-matrix / steady-state closed in U28 E2-S2: `OVERLAY_MARKOV` links them); (pairwise-deletion closed in U24 E1-S4: `MAT_PARTIAL_CORRELATION` links it) |
@@ -207,7 +207,7 @@ Delivered: `internal/docgen` and the committed book tree `docs/src/guide` (`make
 
 ## Out of scope (owned later)
 
-- U24 / U25 / U27 / U28 — the ledger's remaining owners: the `measure_construct` and `flows` intents plus the glossary terms their operators will link (Gates, exemption ledger). Each closes its own entries; a covered gap or an owner marked `status: done` makes the entry fail as stale.
+- U24 / U25 / U27 / U30 — the ledger's remaining owners: the `measure_construct` and `flows` intents plus the glossary terms their operators will link (Gates, exemption ledger). Each closes its own entries; a covered gap or an owner marked `status: done` makes the entry fail as stale.
 - U36 also owns the runtime defects U09 documented rather than fixed (split-aware `FEAT_TARGET_ENCODE`, `AGG_ZSCORE`'s always-zero value, normal-z `AGG_CI_*`, tied `ATTR_PERCENTILE`, attributes writing 0 for missing inputs) — the Interpretations and skills describe today's behaviour.
 - U10 — profile-aware skill rendering.
 - U38 — syncing the hand-written atomic skills that drifted from the registries (U21 delivered the rendering; see Generated reference above and `skill-pack.md` Generated sections).

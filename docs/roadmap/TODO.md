@@ -598,6 +598,9 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#149** `OVERLAY_RAKE` · [U28](units/U28-matrix-overlays.md)
 - [x] **#150** `MatrixSpec.multiplicity` → `p_adjusted` auxiliary matrix via the shared correction core (replaces the dropped `OVERLAY_CORR_PVALUE`) · [U28](units/U28-matrix-overlays.md)
 
+#### Follow-ups from U28
+- [ ] **#449** The `flows` intent needs ≥3 declaring operators: `OVERLAY_MARKOV` is its only declarer, and no other built-in's Purpose answers a from-state to to-state question (`WIN_LAG` / `WIN_LEAD` are numeric and run on result rows, so they cannot pair a record's earlier state with its current one; `OVERLAY_SHARE_OF_ROW` reads a from-by-to table as one-step switching shares but is a general composition overlay). Ship flows operators (a paired-change test such as McNemar / Bowker symmetry on a from-by-to table, a per-subject previous-state attribute, retention / churn rates) and drop the `intentDeclarerExemptions` entry. Deferred from U28 (E4-G2) · [U30](units/U30-matrix-extensions-hardening.md)
+
 ### E7 — Native vector field types
 - [ ] **#151** `vec_f32` / `vec_f64` encoding and the `VECTORS` schema extension section (tag 2); `ReadVector` accessor · [U29](units/U29-vector-field-types.md)
 - [ ] **#152** Compatibility test: older cohorts unchanged; older binaries refuse loudly · [U29](units/U29-vector-field-types.md)
