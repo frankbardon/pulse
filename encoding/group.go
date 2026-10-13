@@ -95,15 +95,16 @@ type Group struct {
 // whether its physical row differs from its logical row.
 func (s *Schema) HasGroups() bool { return len(s.Groups) > 0 }
 
-// Logical returns the schema's ungrouped view: the same Fields (the
-// slice is SHARED, so *Field pointers and field indices agree), with no
-// group declared. Its RecordByteSize / BitmapByteSize / HasBitmap
-// describe the logical row. For a schema without groups it returns s.
+// Logical returns the schema's ungrouped view: the same Fields and
+// Vectors (both slices SHARED, so *Field pointers, field indices and
+// vector dims agree), with no group declared. Its RecordByteSize /
+// BitmapByteSize / HasBitmap describe the logical row. For a schema
+// without groups it returns s.
 func (s *Schema) Logical() *Schema {
 	if !s.HasGroups() {
 		return s
 	}
-	return &Schema{Fields: s.Fields}
+	return &Schema{Fields: s.Fields, Vectors: s.Vectors}
 }
 
 // memberSets returns, per logical field, the owning group (or -1) and

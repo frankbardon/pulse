@@ -4,7 +4,7 @@ description: Entry point for .pulse cohort schemas — the 20-type field matrix,
 type: guide
 kind: design
 applies_to: inspect, predict, process, compose, sample, facet
-covers: [u4, u8, u16, u32, u64, f32, f64, decimal128, categorical_u8, categorical_u16, categorical_u32, packed_bool, date, datetime, set_u8, set_u16, set_u32, set_u64, set_u128, set_u256]
+covers: [u4, u8, u16, u32, u64, f32, f64, decimal128, categorical_u8, categorical_u16, categorical_u32, packed_bool, date, datetime, set_u8, set_u16, set_u32, set_u64, set_u128, set_u256, vec_f32, vec_f64]
 ```
 
 # Cohort schema design
@@ -47,6 +47,8 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 | `set_u64` | 8 | shared, ≤64 | no | |
 | `set_u128` | 16 | shared, ≤128 | no | |
 | `set_u256` | 32 | shared, ≤256 | no | widest rung; 256 is a hard ceiling |
+| `vec_f32` | 4 × dim | no | no | fixed-dim vector, dim 2..1024 in the `0x02` VECTORS section; **not** index-keyable |
+| `vec_f64` | 8 × dim | no | no | |
 
 `set_*` mask bit `i` = label `dict[i]` selected; empty mask is a valid value (NOT null). Nullability is opt-in per field via the bitmap; all 20 types participate identically. How null, empty and selected stay apart in every format: [`cohort-null-states`](cohort-null-states.md).
 

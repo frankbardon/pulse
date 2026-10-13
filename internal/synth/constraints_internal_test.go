@@ -70,6 +70,8 @@ func representativeFieldSpecs() map[string]FieldSpec {
 // representativeFieldSpecs above.
 var undeclarableFieldTypes = map[string]string{
 	"datetime": "fieldTypeFromName has no case for it",
+	"vec_f32":  "synth has no vector write path; fieldTypeFromName has no case for it",
+	"vec_f64":  "synth has no vector write path; fieldTypeFromName has no case for it",
 }
 
 // declarableTypeNames walks the encoding.FieldType enum by value so a

@@ -33,6 +33,12 @@ func everyTypeCohort(t *testing.T, fs afero.Fs, path string) *encoding.Schema {
 	var fields []encoding.Field
 	off := 0
 	for ft := encoding.FieldType(0); ft.IsKnown(); ft++ {
+		if ft.IsVector() {
+			// Stub (vector-field-types E1-S2): no decode path returns a
+			// vector cell yet; E1-S3 adds the record-layer vector kind
+			// and this table's vec columns.
+			continue
+		}
 		f := encoding.Field{Name: "t_" + ft.String(), Type: ft, Nullable: ft != encoding.FieldTypeU8, ByteOffset: off}
 		switch {
 		case ft == encoding.FieldTypeDecimal128:
@@ -50,7 +56,7 @@ func everyTypeCohort(t *testing.T, fs afero.Fs, path string) *encoding.Schema {
 		fields = append(fields, f)
 	}
 	if len(fields) != 20 {
-		t.Fatalf("walked %d field types, want 20", len(fields))
+		t.Fatalf("walked %d non-vector field types, want 20", len(fields))
 	}
 	sch := &encoding.Schema{Fields: fields}
 	var buf bytes.Buffer

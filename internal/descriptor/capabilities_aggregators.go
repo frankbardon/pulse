@@ -168,6 +168,8 @@ var allCohortFieldTypes = []string{
 	"u4",
 	"u64",
 	"u8",
+	"vec_f32",
+	"vec_f64",
 }
 
 // setFieldTypes lists the bitmask multi-select field types. Used by every
@@ -187,7 +189,8 @@ var setFieldTypes = []string{
 	"set_u8",
 }
 
-// nonSetFieldTypes is allCohortFieldTypes minus every set rung. It
+// nonSetFieldTypes is allCohortFieldTypes minus every set rung (and
+// minus the vector types, which have no scalar value either). It
 // belongs to the operators that accept "any field" in the sense of "any
 // field that has a NUMBER" — they read Record.NumericValue, which
 // refuses set columns outright.
@@ -221,14 +224,15 @@ var nonSetNonDecimalFieldTypes = func() []string {
 	return out
 }()
 
-// nonSetSubset returns names with every "set_" prefixed entry removed,
-// preserving order. Derived from allCohortFieldTypes rather than
+// nonSetSubset returns names with every "set_" and "vec_" prefixed
+// entry removed, preserving order — neither a set bitmask nor a vector
+// has the single NUMBER these operators read. Derived from allCohortFieldTypes rather than
 // written out so a newly registered rung cannot land in one list and
 // miss the other.
 func nonSetSubset(names []string) []string {
 	out := make([]string, 0, len(names))
 	for _, n := range names {
-		if strings.HasPrefix(n, "set_") {
+		if strings.HasPrefix(n, "set_") || strings.HasPrefix(n, "vec_") {
 			continue
 		}
 		out = append(out, n)

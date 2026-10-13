@@ -647,6 +647,7 @@ func cloneSchema(s *encoding.Schema) *encoding.Schema {
 		}
 	}
 	out.Groups = cloneGroups(s.Groups)
+	out.Vectors = CloneVectors(s.Vectors)
 	return out
 }
 
@@ -672,3 +673,21 @@ func cloneGroups(groups []encoding.Group) []encoding.Group {
 // CloneGroups is cloneGroups for callers outside the package that build
 // a schema copy of their own (the shard-archive canonical seed).
 func CloneGroups(groups []encoding.Group) []encoding.Group { return cloneGroups(groups) }
+
+// CloneVectors deep-copies vector-field metadata (labels included), so a
+// schema clone keeps every vec field's dim — a clone that dropped it
+// would size each vec field at 0 bytes and misalign every later field.
+// nil for none.
+func CloneVectors(vs []encoding.VectorField) []encoding.VectorField {
+	if len(vs) == 0 {
+		return nil
+	}
+	out := make([]encoding.VectorField, len(vs))
+	for i, v := range vs {
+		out[i] = v
+		if v.Labels != nil {
+			out[i].Labels = append([]string(nil), v.Labels...)
+		}
+	}
+	return out
+}

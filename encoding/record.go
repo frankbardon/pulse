@@ -13,7 +13,8 @@ import (
 // For decimal128 (16-byte type), use the dedicated WriteDecimal128 helper;
 // this function will reject those types with ENCODING_TYPE_MISMATCH.
 // The wide set rungs (set_u128, set_u256) are rejected the same way:
-// their bitmask is wider than the uint64 this API speaks.
+// their bitmask is wider than the uint64 this API speaks — and so are the
+// vector types (vec_f32, vec_f64): use WriteVector.
 func WriteFieldValue(w io.Writer, ft FieldType, val uint64) error {
 	switch ft {
 	case FieldTypeU8, FieldTypeCategoricalU8, FieldTypeSetU8:
@@ -40,6 +41,11 @@ func WriteFieldValue(w io.Writer, ft FieldType, val uint64) error {
 		// it here would silently persist only the low 64 bits.
 		return errors.NewCodedError(errors.ENCODING_TYPE_MISMATCH,
 			fmt.Sprintf("use wide-set API for %s", ft))
+	case FieldTypeVecF32, FieldTypeVecF64:
+		// A vector is dim elements, not one scalar: writing a uint64 here
+		// would fill one element and misalign every field after it.
+		return errors.NewCodedError(errors.ENCODING_TYPE_MISMATCH,
+			fmt.Sprintf("use the vector API (WriteVector) for %s", ft))
 	default:
 		return errors.NewCodedError(errors.ENCODING_TYPE_MISMATCH,
 			fmt.Sprintf("unknown field type %d", ft))
@@ -48,8 +54,9 @@ func WriteFieldValue(w io.Writer, ft FieldType, val uint64) error {
 
 // ReadFieldValue reads a single field value from r, returning raw bits as uint64.
 // For bit-packed types (U4, PackedBool), use ReadBit/ReadNibble instead.
-// decimal128 and the wide set rungs (set_u128, set_u256) exceed the
-// uint64 return and are rejected with ENCODING_TYPE_MISMATCH.
+// decimal128, the wide set rungs (set_u128, set_u256) and the vector
+// types (vec_f32, vec_f64 — use ReadVector) exceed the uint64 return and
+// are rejected with ENCODING_TYPE_MISMATCH.
 func ReadFieldValue(r io.Reader, ft FieldType) (uint64, error) {
 	switch ft {
 	case FieldTypeU8, FieldTypeCategoricalU8, FieldTypeSetU8:
@@ -87,6 +94,9 @@ func ReadFieldValue(r io.Reader, ft FieldType) (uint64, error) {
 		// so refuse rather than hand back a truncated selection.
 		return 0, errors.NewCodedError(errors.ENCODING_TYPE_MISMATCH,
 			fmt.Sprintf("use wide-set API for %s", ft))
+	case FieldTypeVecF32, FieldTypeVecF64:
+		return 0, errors.NewCodedError(errors.ENCODING_TYPE_MISMATCH,
+			fmt.Sprintf("use the vector API (ReadVector) for %s", ft))
 	default:
 		return 0, errors.NewCodedError(errors.ENCODING_TYPE_MISMATCH,
 			fmt.Sprintf("unknown field type %d", ft))

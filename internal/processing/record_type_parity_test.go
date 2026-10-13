@@ -51,6 +51,11 @@ func paritySchema(t *testing.T) *encoding.Schema {
 	var fields []encoding.Field
 	n := 0
 	for ft := encoding.FieldType(0); ft.IsKnown(); ft++ {
+		if ft.IsVector() {
+			// Stub (vector-field-types E1-S2): the record layer has no
+			// vector kind yet; E1-S3 adds it and the vec rows here.
+			continue
+		}
 		n++
 		f := encoding.Field{Name: "f_" + ft.String(), Type: ft, Nullable: true}
 		switch {
@@ -70,7 +75,7 @@ func paritySchema(t *testing.T) *encoding.Schema {
 		}
 	}
 	if n != 20 {
-		t.Fatalf("walked %d field types, want 20", n)
+		t.Fatalf("walked %d non-vector field types, want 20", n)
 	}
 	return &encoding.Schema{Fields: fields}
 }

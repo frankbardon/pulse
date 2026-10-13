@@ -37,6 +37,11 @@ type Schema struct {
 	// row, and RecordByteSize / BitmapByteSize / HasBitmap describe the
 	// PHYSICAL (reduced) row; Logical() is the ungrouped view.
 	Groups []Group
+	// Vectors describes every vec_f32 / vec_f64 field — its dim and
+	// optional kind, scale range and element labels (format 0x02, the
+	// VECTORS section; see vector.go). Exactly one entry per vec field;
+	// empty for a vector-free cohort.
+	Vectors []VectorField
 }
 
 // HasBitmap reports whether the record carries a per-record null
@@ -98,8 +103,11 @@ func (s *Schema) RecordByteSize() int {
 // FieldWidth returns the on-wire bytes LOGICAL field i occupies — in an
 // ungrouped row and, for a parent-group member, in its group entry: one
 // whole byte for a bit-packed type (u4, packed_bool — FieldType.ByteSize
-// reports 0 for those), FieldType.ByteSize for every other known type,
-// and 0 for an unknown type byte or an i outside Fields.
+// reports 0 for those), VectorElemSize × dim for a vector type (the dim
+// from Schema.Vectors; 0 while the field has no entry, which
+// ValidateVectors refuses on every write and read), FieldType.ByteSize
+// for every other known type, and 0 for an unknown type byte or an i
+// outside Fields.
 //
 // It is the ONE field-aware width. Every stride, offset and skip — this
 // package's RecordByteSize and group geometry, the decode plans, the
@@ -115,6 +123,9 @@ func (s *Schema) FieldWidth(i int) int {
 	ft := s.Fields[i].Type
 	if ft.IsBitPacked() {
 		return 1
+	}
+	if ft.IsVector() {
+		return ft.VectorElemSize() * s.VectorDim(i)
 	}
 	return ft.ByteSize()
 }
@@ -154,9 +165,10 @@ func (s *Schema) SetField(name string) (*Dictionary, bool) {
 // is chosen — never a global flag — so a schema that uses no 0x02
 // feature is always written at 0x01, byte-identical to a pre-0x02 file.
 //
-// A schema requires 0x02 exactly when it declares a parent group.
+// A schema requires 0x02 exactly when it declares a parent group or a
+// vector field (whose dim rides the VECTORS section).
 func (s *Schema) RequiredFormatVersion() byte {
-	if s.HasGroups() {
+	if s.HasGroups() || s.HasVectors() {
 		return FormatVersionV2
 	}
 	return FormatVersionV1
@@ -199,8 +211,13 @@ func WriteSchema(w io.Writer, s *Schema) error {
 	return writeSchemaVersion(w, s, FormatVersion)
 }
 
-// writeSchemaVersion writes the schema block in version v's layout.
+// writeSchemaVersion writes the schema block in version v's layout. A
+// vec field without exactly one valid VECTORS entry is refused before a
+// byte is written, at every version: its width would be unknown.
 func writeSchemaVersion(w io.Writer, s *Schema, v byte) error {
+	if err := s.ValidateVectors(); err != nil {
+		return err
+	}
 	if err := writeFieldDescriptors(w, s); err != nil {
 		return err
 	}
@@ -308,6 +325,11 @@ func ReadSchema(r io.Reader, v byte) (*Schema, error) {
 		if err := readSchemaExtension(r, s); err != nil {
 			return nil, err
 		}
+		return s, nil
+	}
+	// 0x01 has no VECTORS section, so a vec field here is uncovered.
+	if err := s.ValidateVectors(); err != nil {
+		return nil, err
 	}
 	return s, nil
 }

@@ -66,6 +66,9 @@ const (
 	FieldKindBool FieldKind = "bool"
 	// FieldKindSet covers the set_* multi-select field types.
 	FieldKindSet FieldKind = "set"
+	// FieldKindVector covers the vec_f32 / vec_f64 fixed-dim vector
+	// field types. No scalar role accepts it.
+	FieldKindVector FieldKind = "vector"
 )
 
 // RoleUnbounded is the Role.Max value meaning "no upper bound on how

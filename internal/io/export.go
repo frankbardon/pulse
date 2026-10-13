@@ -176,6 +176,17 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		schema = logical
 	}
 
+	// A vector field has no export column mapping yet, and its read
+	// below would fail like a truncated tail — ending the export early
+	// with zero rows and no error. Refuse it up front instead.
+	for _, f := range schema.Fields {
+		if f.Type.IsVector() {
+			return nil, errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
+				fmt.Sprintf("export: field %q is a %s vector, which export does not write", f.Name, f.Type),
+				map[string]any{"field": f.Name, "type": f.Type.String()})
+		}
+	}
+
 	// Read and export records until EOF. The values slice is hoisted out of
 	// the loop and reused per row; every Writer implementation either
 	// stringifies, marshals, or copies values before returning, so retaining

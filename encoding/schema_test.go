@@ -2,16 +2,17 @@ package encoding
 
 import "testing"
 
-func TestFieldTypes_All20Present(t *testing.T) {
-	// Verify we have exactly 20 field types (0..19). Bytes 13–16 are the
+func TestFieldTypes_AllPresent(t *testing.T) {
+	// Verify we have exactly 22 field types (0..21). Bytes 13–16 are the
 	// set_u8/u16/u32/u64 multi-select family added alongside the
 	// categorical family — same inline dictionary block, fixed-width
 	// bitmask payload. Byte 17 is datetime, an 8-byte epoch-seconds u64
 	// appended additively (no existing byte moved). Bytes 18–19 are the
 	// wide set rungs set_u128 / set_u256 (16- and 32-byte bitmasks),
-	// likewise appended without moving anything.
-	if fieldTypeCount != 20 {
-		t.Fatalf("expected 20 field types, got %d", fieldTypeCount)
+	// likewise appended without moving anything. Bytes 20–21 are the
+	// vector types vec_f32 / vec_f64, whose dim rides the VECTORS section.
+	if fieldTypeCount != 22 {
+		t.Fatalf("expected 22 field types, got %d", fieldTypeCount)
 	}
 
 	types := []FieldType{
@@ -24,6 +25,7 @@ func TestFieldTypes_All20Present(t *testing.T) {
 		FieldTypeSetU8, FieldTypeSetU16, FieldTypeSetU32, FieldTypeSetU64,
 		FieldTypeDateTime,
 		FieldTypeSetU128, FieldTypeSetU256,
+		FieldTypeVecF32, FieldTypeVecF64,
 	}
 	if len(types) != int(fieldTypeCount) {
 		t.Fatalf("type list has %d entries, sentinel says %d", len(types), fieldTypeCount)

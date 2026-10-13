@@ -46,5 +46,12 @@ func JoinedSchema(left, right *encoding.Schema, as string) (*encoding.Schema, er
 		copied.Name = name
 		fields = append(fields, copied)
 	}
-	return &encoding.Schema{Fields: fields}, nil
+	// Vector metadata follows its field: left indices are unchanged,
+	// right ones shift past the left fields.
+	vectors := CloneVectors(left.Vectors)
+	for _, v := range CloneVectors(right.Vectors) {
+		v.FieldIndex += len(left.Fields)
+		vectors = append(vectors, v)
+	}
+	return &encoding.Schema{Fields: fields, Vectors: vectors}, nil
 }

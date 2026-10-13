@@ -70,6 +70,13 @@ func checkSchemaShape(schema *encoding.Schema) error {
 			return invalid(fmt.Sprintf("field %q has an unknown type", f.Name),
 				map[string]any{"field": f.Name, "type_byte": int(f.Type)})
 		}
+		if f.Type.IsVector() {
+			// Vector cells have no builder encode path yet: refuse at
+			// construction rather than fail mid-build or write a cohort
+			// whose vec field has no dim.
+			return invalid(fmt.Sprintf("field %q: the cohort builder does not write %s fields", f.Name, f.Type),
+				map[string]any{"field": f.Name, "type": f.Type.String()})
+		}
 		if f.Type.IsDecimal() && (f.Precision < 1 || f.Precision > encoding.MaxDecimalPrecision || f.Scale > f.Precision) {
 			return invalid(fmt.Sprintf("field %q: decimal128 needs precision 1..%d and scale <= precision", f.Name, encoding.MaxDecimalPrecision),
 				map[string]any{"field": f.Name, "precision": f.Precision, "scale": f.Scale})

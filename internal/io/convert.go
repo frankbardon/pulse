@@ -527,7 +527,7 @@ func (j *ConvertJob) offerConvertSource(
 		for i := range fields {
 			fields[i].CsvColumnIdx = i
 		}
-		src.Schema = &encoding.Schema{Fields: fields}
+		src.Schema = &encoding.Schema{Fields: fields, Vectors: schema.Vectors}
 	}
 	if src.Schema == nil && src.Sidecar == nil {
 		return

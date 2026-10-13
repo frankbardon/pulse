@@ -144,7 +144,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "emits_type_note": "scalar int64",
           "streamable": true,
@@ -721,6 +723,22 @@
         "compatible_aggregators": [
           "AGG_COUNT"
         ]
+      },
+      {
+        "name": "vec_f32",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT"
+        ]
+      },
+      {
+        "name": "vec_f64",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT"
+        ]
       }
     ],
     "skills": [
@@ -963,6 +981,14 @@
       {
         "name": "type-u8",
         "description": "1-byte unsigned integer; fits cardinals through 255."
+      },
+      {
+        "name": "type-vec-f32",
+        "description": "Fixed-dim vector of float32 elements (dim 2..1024) stored as one field, with its kind, scale range and labels in the schema."
+      },
+      {
+        "name": "type-vec-f64",
+        "description": "Fixed-dim vector of float64 elements (dim 2..1024) stored as one field, with its kind, scale range and labels in the schema."
       },
       {
         "name": "window-design",
@@ -1289,4 +1315,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8f70224023616320de1c855d534b9ab0e8f6125f3a8486dd2a0624a396c58f83
+// golden-hash: 7068d52e49ad0a84637464b66cfc9b6ff36bf8c8d03c0a7b9ddbb422ea3d3a14

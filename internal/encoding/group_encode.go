@@ -95,7 +95,7 @@ func NewGroupEncoder(flat *encoding.Schema, specs []GroupSpec) (*GroupEncoder, e
 		byName[flat.Fields[i].Name] = i
 	}
 	owner := make(map[int]int)
-	out := &encoding.Schema{Fields: append([]encoding.Field(nil), flat.Fields...)}
+	out := &encoding.Schema{Fields: append([]encoding.Field(nil), flat.Fields...), Vectors: CloneVectors(flat.Vectors)}
 	keyed := make([]map[int]bool, len(specs))
 	labels := make([]string, len(specs))
 	for g, sp := range specs {

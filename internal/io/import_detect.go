@@ -662,7 +662,7 @@ func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, i
 	// logical row of an all-nullable twin of the schema: a field that
 	// ends non-nullable has a zero null bit on every row, so the verdict
 	// matches the final schema's.
-	twin := &encoding.Schema{Fields: append([]encoding.Field(nil), schema.Fields...)}
+	twin := &encoding.Schema{Fields: append([]encoding.Field(nil), schema.Fields...), Vectors: schema.Vectors}
 	for i := range twin.Fields {
 		twin.Fields[i].Nullable = true
 	}
@@ -758,7 +758,7 @@ func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, i
 
 	// sizing is the final schema carrying the dictionaries the pass
 	// built — what Run would write for the flat cohort.
-	sizing := &encoding.Schema{Fields: append([]encoding.Field(nil), schema.Fields...)}
+	sizing := &encoding.Schema{Fields: append([]encoding.Field(nil), schema.Fields...), Vectors: schema.Vectors}
 	for i, d := range dicts {
 		sizing.Fields[i].Dictionary = d
 	}

@@ -355,6 +355,16 @@
         "name": "set_u256",
         "categorical": false,
         "sharded_capable": true
+      },
+      {
+        "name": "vec_f32",
+        "categorical": false,
+        "sharded_capable": true
+      },
+      {
+        "name": "vec_f64",
+        "categorical": false,
+        "sharded_capable": true
       }
     ],
     "skills": [
@@ -579,6 +589,14 @@
         "description": "1-byte unsigned integer; fits cardinals through 255."
       },
       {
+        "name": "type-vec-f32",
+        "description": "Fixed-dim vector of float32 elements (dim 2..1024) stored as one field, with its kind, scale range and labels in the schema."
+      },
+      {
+        "name": "type-vec-f64",
+        "description": "Fixed-dim vector of float64 elements (dim 2..1024) stored as one field, with its kind, scale range and labels in the schema."
+      },
+      {
         "name": "window-design",
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
@@ -772,4 +790,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4cb6954370158041499a4506c7915c91930071c8237fc74665b89acc6db96b01
+// golden-hash: 45466dcbac46d2a17e7abfd9378612c6f735b63f60870618dac22ddf2d746734

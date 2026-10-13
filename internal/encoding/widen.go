@@ -97,7 +97,7 @@ func WidenSchemaSetField(s *encoding.Schema, field string, target encoding.Field
 	if err := CheckSetWiden(s.Fields[idx].Type, target); err != nil {
 		return nil, err
 	}
-	out := &encoding.Schema{Fields: append([]encoding.Field(nil), s.Fields...)}
+	out := &encoding.Schema{Fields: append([]encoding.Field(nil), s.Fields...), Vectors: CloneVectors(s.Vectors)}
 	out.Fields[idx].Type = target
 	offsets, _ := widenFieldOffsets(out)
 	for i := range out.Fields {

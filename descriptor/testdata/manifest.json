@@ -716,7 +716,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "emits_type_note": "scalar int64",
           "streamable": true,
@@ -1583,7 +1585,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "emits_type_note": "scalar int64",
           "streamable": true,
@@ -1795,7 +1799,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "ignores_field": true,
           "emits_type_note": "scalar float64 (NaN, null in JSON, when denominator sum == 0)",
@@ -3240,7 +3246,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "reads_expression": true,
           "emits_type": "f64",
@@ -4109,7 +4117,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "reads_expression": true,
           "emits_type_note": "record-level predicate",
@@ -4164,7 +4174,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "emits_type_note": "record-level predicate",
           "streamable": true,
@@ -4264,7 +4276,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "emits_type_note": "record-level predicate",
           "streamable": true,
@@ -4517,7 +4531,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "emits_type_note": "record-level predicate",
           "streamable": true,
@@ -5315,7 +5331,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "emits_type": "u32",
           "emits_type_note": "one integer per row",
@@ -5532,7 +5550,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "emits_type": "u32",
           "emits_type_note": "one integer per row",
@@ -5569,7 +5589,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "emits_type": "u32",
           "emits_type_note": "one integer per row (resets per partition)",
@@ -5903,7 +5925,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "emits_type": "u8",
           "emits_type_note": "single column \"\u003clabel\u003e\" with split assignment per row",
@@ -10706,6 +10730,60 @@
         "compatible_features": [
           "FEAT_TRAIN_TEST_SPLIT"
         ]
+      },
+      {
+        "name": "vec_f32",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_NULL_COUNT",
+          "AGG_RATIO"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXPRESSION",
+          "FILTER_FALSE",
+          "FILTER_NULL",
+          "FILTER_TRUE"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
+      },
+      {
+        "name": "vec_f64",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_NULL_COUNT",
+          "AGG_RATIO"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXPRESSION",
+          "FILTER_FALSE",
+          "FILTER_NULL",
+          "FILTER_TRUE"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       }
     ],
     "skills": [
@@ -11980,6 +12058,14 @@
       {
         "name": "type-u8",
         "description": "1-byte unsigned integer; fits cardinals through 255."
+      },
+      {
+        "name": "type-vec-f32",
+        "description": "Fixed-dim vector of float32 elements (dim 2..1024) stored as one field, with its kind, scale range and labels in the schema."
+      },
+      {
+        "name": "type-vec-f64",
+        "description": "Fixed-dim vector of float64 elements (dim 2..1024) stored as one field, with its kind, scale range and labels in the schema."
       },
       {
         "name": "vector-metrics",
@@ -16664,4 +16750,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: cedb94a56109ebcd105e074b04eee3a5174dc540c4a15c8a4cfbb999144a08e1
+// golden-hash: aa00db7ce41ecf10c79b3ccdd33e671f3a80702d46e44d60d4841fbff08866c4

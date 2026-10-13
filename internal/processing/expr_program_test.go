@@ -59,6 +59,11 @@ func exprAllTypesSchema(t testing.TB) *encoding.Schema {
 		if !ft.IsKnown() {
 			break
 		}
+		if ft.IsVector() {
+			// Stub (vector-field-types E1-S2): the record layer has no
+			// vector kind yet; E1-S3 adds it and the vec rows here.
+			continue
+		}
 		f := encoding.Field{Name: "f_" + ft.String(), Type: ft, Nullable: true}
 		switch {
 		case ft.IsCategorical():

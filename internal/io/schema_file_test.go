@@ -43,7 +43,7 @@ func TestParseSchemaFieldType_UnknownRefused(t *testing.T) {
 		for ft := encoding.FieldType(0); ft.IsKnown(); ft++ {
 			known++
 		}
-		if len(valid) != known || valid[0] != "u8" || valid[len(valid)-1] != "set_u256" {
+		if len(valid) != known || valid[0] != "u8" || valid[len(valid)-1] != "vec_f64" {
 			t.Errorf("details.valid = %v, want the %d registered names in type-byte order", valid, known)
 		}
 	}

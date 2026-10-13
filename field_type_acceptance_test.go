@@ -20,10 +20,15 @@ import (
 
 // acceptanceFieldTypes is every registered field type, in type-byte
 // order; the cohort carries one column per type, named t_<type>.
+//
+// Stub (vector-field-types E1-S2): the vector types are left out until
+// the cohort builder and the decoders carry vectors and the predict
+// vector slots accept native vectors; vector-field-types E2-S3 adds
+// their cells and drops this skip.
 func acceptanceFieldTypes() []encoding.FieldType {
 	var out []encoding.FieldType
 	for b := 0; b < 256; b++ {
-		if ft := encoding.FieldType(b); ft.IsKnown() {
+		if ft := encoding.FieldType(b); ft.IsKnown() && !ft.IsVector() {
 			out = append(out, ft)
 		}
 	}

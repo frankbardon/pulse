@@ -1328,6 +1328,7 @@ pulse/descriptor: const FieldKindCategorical pulse/descriptor.FieldKind = "categ
 pulse/descriptor: const FieldKindDate pulse/descriptor.FieldKind = "date"
 pulse/descriptor: const FieldKindNumeric pulse/descriptor.FieldKind = "numeric"
 pulse/descriptor: const FieldKindSet pulse/descriptor.FieldKind = "set"
+pulse/descriptor: const FieldKindVector pulse/descriptor.FieldKind = "vector"
 pulse/descriptor: type FiltererPredict struct
 pulse/descriptor: type FiltererPredict field BufferedComponents bool "json:\"buffered_components,omitempty\""
 pulse/descriptor: type FiltererPredict field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
@@ -1949,11 +1950,13 @@ pulse/encoding: type FieldType method (FieldType) IsKnown() bool
 pulse/encoding: type FieldType method (FieldType) IsNumeric() bool
 pulse/encoding: type FieldType method (FieldType) IsNumericForAnalytics() bool
 pulse/encoding: type FieldType method (FieldType) IsSet() bool
+pulse/encoding: type FieldType method (FieldType) IsVector() bool
 pulse/encoding: type FieldType method (FieldType) IsWideSet() bool
 pulse/encoding: type FieldType method (FieldType) MaxCategoricalEntries() uint32
 pulse/encoding: type FieldType method (FieldType) MaxDictEntries() uint32
 pulse/encoding: type FieldType method (FieldType) MaxSetEntries() uint32
 pulse/encoding: type FieldType method (FieldType) String() string
+pulse/encoding: type FieldType method (FieldType) VectorElemSize() int
 pulse/encoding: const FieldTypeCategoricalU16 pulse/encoding.FieldType = 10
 pulse/encoding: const FieldTypeCategoricalU32 pulse/encoding.FieldType = 11
 pulse/encoding: const FieldTypeCategoricalU8 pulse/encoding.FieldType = 9
@@ -1974,6 +1977,8 @@ pulse/encoding: const FieldTypeU32 pulse/encoding.FieldType = 2
 pulse/encoding: const FieldTypeU4 pulse/encoding.FieldType = 6
 pulse/encoding: const FieldTypeU64 pulse/encoding.FieldType = 3
 pulse/encoding: const FieldTypeU8 pulse/encoding.FieldType = 0
+pulse/encoding: const FieldTypeVecF32 pulse/encoding.FieldType = 20
+pulse/encoding: const FieldTypeVecF64 pulse/encoding.FieldType = 21
 pulse/encoding: func FormatDateTime(raw uint64) string
 pulse/encoding: const FormatVersion byte = 1
 pulse/encoding: const FormatVersionV1 byte = 1
@@ -1997,7 +2002,9 @@ pulse/encoding: var MagicBytes [8]byte
 pulse/encoding: const MaxDecimalPrecision untyped int = 38
 pulse/encoding: const MaxDescriptionBytes untyped int = 1000
 pulse/encoding: var MaxGroupEntries uint64
+pulse/encoding: const MaxVectorDim untyped int = 1024
 pulse/encoding: const MinDecimalScale untyped int = 4
+pulse/encoding: const MinVectorDim untyped int = 2
 pulse/encoding: func NewDecimal128FromBigInt(m *math/big.Int) (pulse/encoding.Decimal128, error)
 pulse/encoding: func NewDecimal128FromInt(i int64) pulse/encoding.Decimal128
 pulse/encoding: func NewDictionary() *pulse/encoding.Dictionary
@@ -2006,7 +2013,9 @@ pulse/encoding: func ParseDate(raw string) (uint32, error)
 pulse/encoding: func ParseDateTime(raw string) (uint64, error)
 pulse/encoding: func ParseDecimal128(s string) (pulse/encoding.Decimal128, uint8, error)
 pulse/encoding: func ParseFieldType(name string) (pulse/encoding.FieldType, bool)
+pulse/encoding: func ParseVectorKind(name string) (pulse/encoding.VectorKind, bool)
 pulse/encoding: func PutSetMask(dst []byte, ft pulse/encoding.FieldType, m pulse/encoding.SetMask) error
+pulse/encoding: func PutVector(dst []byte, ft pulse/encoding.FieldType, dim int, v []float64) error
 pulse/encoding: func ReadBit(r io.Reader, bitPos uint) (bool, error)
 pulse/encoding: func ReadBitmap(r io.Reader, byteLen int) ([]byte, error)
 pulse/encoding: func ReadDecimal128(r io.Reader) (pulse/encoding.Decimal128, error)
@@ -2016,6 +2025,7 @@ pulse/encoding: func ReadHeader(r io.Reader) (byte, error)
 pulse/encoding: func ReadNibble(r io.Reader, high bool) (uint8, error)
 pulse/encoding: func ReadSchema(r io.Reader, v byte) (*pulse/encoding.Schema, error)
 pulse/encoding: func ReadSetMask(r io.Reader, ft pulse/encoding.FieldType) (pulse/encoding.SetMask, error)
+pulse/encoding: func ReadVector(r io.Reader, ft pulse/encoding.FieldType, dim int, dst []float64) ([]float64, error)
 pulse/encoding: type RecordLocator struct
 pulse/encoding: type RecordLocator field RecordRegionStart int64
 pulse/encoding: type RecordLocator field Schema *pulse/encoding.Schema
@@ -2025,6 +2035,7 @@ pulse/encoding: type RecordLocator method (*RecordLocator) Offset(i uint64) int6
 pulse/encoding: type Schema struct
 pulse/encoding: type Schema field Fields []pulse/encoding.Field
 pulse/encoding: type Schema field Groups []pulse/encoding.Group
+pulse/encoding: type Schema field Vectors []pulse/encoding.VectorField
 pulse/encoding: type Schema method (*Schema) BitmapByteSize() int
 pulse/encoding: type Schema method (*Schema) Categorical(name string) (*pulse/encoding.Dictionary, bool)
 pulse/encoding: type Schema method (*Schema) Field(name string) *pulse/encoding.Field
@@ -2039,12 +2050,16 @@ pulse/encoding: type Schema method (*Schema) GroupMemberIsNull(g int, k int, ent
 pulse/encoding: type Schema method (*Schema) GroupMemberRowBytes(g int) int
 pulse/encoding: type Schema method (*Schema) HasBitmap() bool
 pulse/encoding: type Schema method (*Schema) HasGroups() bool
+pulse/encoding: type Schema method (*Schema) HasVectors() bool
 pulse/encoding: type Schema method (*Schema) Logical() *pulse/encoding.Schema
 pulse/encoding: type Schema method (*Schema) RecordByteSize() int
 pulse/encoding: type Schema method (*Schema) RecordCountForPayload(payloadBytes int64) (count int64, trailing int64, ok bool)
 pulse/encoding: type Schema method (*Schema) RequiredFormatVersion() byte
 pulse/encoding: type Schema method (*Schema) SetField(name string) (*pulse/encoding.Dictionary, bool)
 pulse/encoding: type Schema method (*Schema) ValidateGroups() error
+pulse/encoding: type Schema method (*Schema) ValidateVectors() error
+pulse/encoding: type Schema method (*Schema) Vector(i int) (pulse/encoding.VectorField, bool)
+pulse/encoding: type Schema method (*Schema) VectorDim(i int) int
 pulse/encoding: const SecondsPerDay untyped int = 86400
 pulse/encoding: type SetMask struct
 pulse/encoding: type SetMask method (SetMask) Bits() iter.Seq[int]
@@ -2075,6 +2090,23 @@ pulse/encoding: type SetWidthHeadroom field NextType string "json:\"next_type,om
 pulse/encoding: type SetWidthHeadroom field Type string "json:\"type\""
 pulse/encoding: type SetWidthHeadroom field Used int "json:\"used\""
 pulse/encoding: func SupportedFormatVersions() []byte
+pulse/encoding: type VectorField struct
+pulse/encoding: type VectorField field Dim int
+pulse/encoding: type VectorField field FieldIndex int
+pulse/encoding: type VectorField field HasScale bool
+pulse/encoding: type VectorField field Kind pulse/encoding.VectorKind
+pulse/encoding: type VectorField field Labels []string
+pulse/encoding: type VectorField field ScaleMax float64
+pulse/encoding: type VectorField field ScaleMin float64
+pulse/encoding: func VectorFromBytes(src []byte, ft pulse/encoding.FieldType, dim int, dst []float64) ([]float64, error)
+pulse/encoding: type VectorKind uint8
+pulse/encoding: type VectorKind method (VectorKind) IsKnown() bool
+pulse/encoding: type VectorKind method (VectorKind) String() string
+pulse/encoding: const VectorKindBinary pulse/encoding.VectorKind = 4
+pulse/encoding: const VectorKindComposition pulse/encoding.VectorKind = 3
+pulse/encoding: const VectorKindMeasure pulse/encoding.VectorKind = 1
+pulse/encoding: const VectorKindNone pulse/encoding.VectorKind = 0
+pulse/encoding: const VectorKindScale pulse/encoding.VectorKind = 2
 pulse/encoding: type WidenReport struct
 pulse/encoding: type WidenReport field Field string
 pulse/encoding: type WidenReport field From pulse/encoding.FieldType
@@ -2091,6 +2123,7 @@ pulse/encoding: func WriteHeader(w io.Writer) error
 pulse/encoding: func WriteNibble(w io.Writer, high bool, val uint8) error
 pulse/encoding: func WriteSchema(w io.Writer, s *pulse/encoding.Schema) error
 pulse/encoding: func WriteSetMask(w io.Writer, ft pulse/encoding.FieldType, m pulse/encoding.SetMask) error
+pulse/encoding: func WriteVector(w io.Writer, ft pulse/encoding.FieldType, dim int, v []float64) error
 pulse/encoding: func ZeroDecimal128() pulse/encoding.Decimal128
 pulse/encoding: var ZstdMagic [4]byte
 pulse/errors: package errors
@@ -4984,4 +5017,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: dc1b3b2524b3f4a8d9bda9b87501b4dcd0775842637646fe38514675626b7356
+// golden-hash: 6dd548ada6363982eb9b1d154cae9bf4bc3a0d49ed9a78d003edecc43b6e60f5

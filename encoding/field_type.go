@@ -30,6 +30,8 @@ const (
 	FieldTypeDateTime                        // 17 (epoch seconds, 8-byte u64)
 	FieldTypeSetU128                         // 18 (16-byte bitmask, ≤128 members)
 	FieldTypeSetU256                         // 19 (32-byte bitmask, ≤256 members)
+	FieldTypeVecF32                          // 20 (fixed-dim float32 vector; width = 4 × dim)
+	FieldTypeVecF64                          // 21 (fixed-dim float64 vector; width = 8 × dim)
 
 	fieldTypeCount // sentinel
 )
@@ -37,6 +39,9 @@ const (
 // ByteSize returns the number of bytes this field type occupies in a record.
 // Bit-packed types (U4, PackedBool) share bytes with adjacent fields and
 // return 0 here; their on-wire stride is handled by Schema.RecordByteSize.
+// The vector types (vec_f32, vec_f64) also return 0: their width is
+// VectorElemSize × the field's dim, a property of the field within its
+// schema (Schema.FieldWidth), never of the type byte alone.
 func (ft FieldType) ByteSize() int {
 	switch ft {
 	case FieldTypeU8, FieldTypeCategoricalU8, FieldTypeSetU8:
@@ -101,6 +106,10 @@ func (ft FieldType) String() string {
 		return "set_u128"
 	case FieldTypeSetU256:
 		return "set_u256"
+	case FieldTypeVecF32:
+		return "vec_f32"
+	case FieldTypeVecF64:
+		return "vec_f64"
 	default:
 		return fmt.Sprintf("unknown(%d)", ft)
 	}
@@ -154,6 +163,10 @@ func ParseFieldType(name string) (FieldType, bool) {
 		return FieldTypeSetU128, true
 	case "set_u256":
 		return FieldTypeSetU256, true
+	case "vec_f32":
+		return FieldTypeVecF32, true
+	case "vec_f64":
+		return FieldTypeVecF64, true
 	}
 	return 0, false
 }
@@ -228,6 +241,28 @@ func (ft FieldType) IsNumericForAnalytics() bool {
 		return true
 	}
 	return false
+}
+
+// IsVector reports whether the field type is a fixed-dim numeric vector
+// (vec_f32, vec_f64). A vector is not a scalar: IsNumeric and
+// IsNumericForAnalytics are false for it, the uint64 value API refuses
+// it (use ReadVector / WriteVector), and its dim and metadata live in
+// the schema's VECTORS section (Schema.Vectors).
+func (ft FieldType) IsVector() bool {
+	return ft == FieldTypeVecF32 || ft == FieldTypeVecF64
+}
+
+// VectorElemSize returns the on-wire bytes of ONE element of a vector
+// type: 4 for vec_f32, 8 for vec_f64, 0 for every non-vector type. A
+// vector field's width is VectorElemSize × its dim (Schema.FieldWidth).
+func (ft FieldType) VectorElemSize() int {
+	switch ft {
+	case FieldTypeVecF32:
+		return 4
+	case FieldTypeVecF64:
+		return 8
+	}
+	return 0
 }
 
 // IsDecimal reports whether the field type is decimal128.
