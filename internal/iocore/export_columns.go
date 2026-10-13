@@ -51,14 +51,20 @@ type ExportColumn struct {
 }
 
 // ColumnAwareWriter is an optional extension of Writer for typed targets
-// that want the export's explicit column plan. ExportJob.Run calls
-// SetExportColumns once, before WriteHeader, with one entry per header
-// column in header order; the writer types column i from cols[i].Field
-// rather than from the source schema's i-th field. A CohortWriter target
-// is never called (it lays out its own columns), nor is any writer under
-// ConvertJob (its columns are source text).
+// that want the export's explicit column plan; public as
+// io.ColumnAwareWriter. ExportJob.Run calls SetExportColumns once,
+// before WriteHeader, with one entry per header column in header order;
+// the writer types column i from cols[i].Field rather than from the
+// source schema's i-th field. Call order: SetPulseSchema,
+// SetExplicitNulls, SetOverlays, SetExportColumns, SetListColumns,
+// WriteHeader. A CohortWriter target is never called (it lays out its
+// own columns), nor is any writer under ConvertJob (its columns are
+// source text) or ExportJob.Predict.
 type ColumnAwareWriter interface {
 	Writer
+	// SetExportColumns hands the writer the column plan: cols[i]
+	// describes the i-th name WriteHeader will receive. cols and the
+	// fields it points at are the writer's to retain, read-only.
 	SetExportColumns(cols []ExportColumn)
 }
 

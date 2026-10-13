@@ -2665,6 +2665,13 @@ pulse/io: type CohortWriter imethod Close() error
 pulse/io: type CohortWriter imethod WriteCohort(ctx context.Context, src pulse/internal/iocore.CohortSource) (int, error)
 pulse/io: type CohortWriter imethod WriteHeader(columns []string) error
 pulse/io: type CohortWriter imethod WriteRow(values []any) error
+pulse/io: type ColumnAwareWriter = pulse/internal/iocore.ColumnAwareWriter
+pulse/io: type ColumnAwareWriter underlying interface
+pulse/io: type ColumnAwareWriter imethod Close() error
+pulse/io: type ColumnAwareWriter imethod SetExportColumns(cols []pulse/internal/iocore.ExportColumn)
+pulse/io: type ColumnAwareWriter imethod WriteHeader(columns []string) error
+pulse/io: type ColumnAwareWriter imethod WriteRow(values []any) error
+pulse/io: func ColumnFields(cols []pulse/io.ExportColumn, schema *pulse/encoding.Schema, header []string) []*pulse/encoding.Field
 pulse/io: type ConvertJob = pulse/internal/io.ConvertJob
 pulse/io: type ConvertJob underlying struct
 pulse/io: type ConvertJob field ColumnSourceTZ map[string]string
@@ -2742,6 +2749,19 @@ pulse/io: type DiscardableWriter imethod WriteHeader(columns []string) error
 pulse/io: type DiscardableWriter imethod WriteRow(values []any) error
 pulse/io: type ExcelReaderOptions struct
 pulse/io: type ExcelReaderOptions field Sheet string
+pulse/io: type ExportColumn = pulse/internal/iocore.ExportColumn
+pulse/io: type ExportColumn underlying struct
+pulse/io: type ExportColumn field Element int
+pulse/io: type ExportColumn field Field *pulse/encoding.Field
+pulse/io: type ExportColumn field Kind pulse/internal/iocore.ExportColumnKind
+pulse/io: type ExportColumn field Name string
+pulse/io: type ExportColumn field Source string
+pulse/io: const ExportColumnElement pulse/internal/iocore.ExportColumnKind = 2
+pulse/io: const ExportColumnField pulse/internal/iocore.ExportColumnKind = 0
+pulse/io: type ExportColumnKind = pulse/internal/iocore.ExportColumnKind
+pulse/io: type ExportColumnKind underlying uint8
+pulse/io: const ExportColumnLabel pulse/internal/iocore.ExportColumnKind = 1
+pulse/io: const ExportColumnList pulse/internal/iocore.ExportColumnKind = 3
 pulse/io: type ExportJob = pulse/internal/io.ExportJob
 pulse/io: type ExportJob underlying struct
 pulse/io: type ExportJob field FS github.com/spf13/afero.Fs
@@ -5077,4 +5097,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: de1a56416cde67c9480e54cbd6ce2dca7359cbd0703b147b52e21eeeb2ec5ffd
+// golden-hash: e64806edc7d05620483feea49c2b8ac16ef69c2f4ea7e23749a170182cef0961

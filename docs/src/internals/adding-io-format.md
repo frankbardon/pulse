@@ -460,14 +460,9 @@ type ListAwareWriter interface {
   `SchemaAwareWriter` is handed the schema with each vector replaced by
   those nullable scalar fields. That schema is NOT one field per header
   column — projection and a `_label` sibling move columns off their
-  field's index — so type a column by its NAME, never by its position.
-  The built-in typed writers (Excel, Arrow, Parquet) go further and take
-  the export's explicit column plan through the internal
-  `iocore.ColumnAwareWriter` (`SetExportColumns`, one `ExportColumn` per
-  header column: name, kind, source field and the field that types it,
-  nil for text), resolved by `iocore.ColumnFields`; `PredictReport.Columns`
-  is that same plan's names. An
-  expanded name equal to any other column refuses the export with
+  field's index — so never type a column by its position: take the
+  export's column plan through `io.ColumnAwareWriter` (next section).
+  An expanded name equal to any other column refuses the export with
   `PULSE_EXPORT_COLUMN_COLLISION` before the header is written.
 - **Projection and labels** work on fields: `Includes` names the vector,
   never an element column, and a `_label` sibling lands after its field
@@ -481,6 +476,72 @@ type ListAwareWriter interface {
 `io/list_writer_test.go` pins a custom writer against the NDJSON export
 of the same cohort, and `internal/embeddersmoke` proves the interface is
 reachable from an external module.
+
+### Typing columns on export: `io.ColumnAwareWriter`
+
+A typed target — one with a type per column, like Arrow, Parquet or a
+spreadsheet — must know which field each header column comes from, and
+the header is not the schema's field list: `ExportJob.Includes` drops
+fields, a label augment inserts a `<field>_label` text column right
+after its field, and a vector is expanded into dim element columns
+unless the writer is a `ListAwareWriter`. Typing column `i` from the
+schema's `i`-th field typed columns with another field's type — every
+row failed in Arrow / Parquet and Excel wrote mis-formatted cells, and
+it was silent whenever the value happened to parse. So the export hands
+typed writers its explicit column plan:
+
+```go
+type ColumnAwareWriter interface {
+    Writer
+    SetExportColumns(cols []ExportColumn)
+}
+
+type ExportColumn struct {
+    Name    string           // the header name
+    Kind    ExportColumnKind // ExportColumnField | Label | Element | List
+    Source  string           // the source field (the augmented field, the vector)
+    Element int              // 0-based vector element, -1 for other kinds
+    Field   *encoding.Field  // what TYPES the column; nil = text
+}
+```
+
+- **When.** `ExportJob.Run` calls `SetExportColumns` once per export,
+  vector or not, before `WriteHeader`; `cols[i]` describes the `i`-th
+  name `WriteHeader` receives. The order a writer sees is
+  `SetPulseSchema`, `SetExplicitNulls`, `SetOverlays`,
+  `SetExportColumns`, `SetListColumns` (only when a vector rides as a
+  native list), `WriteHeader`, then the rows. A `CohortWriter` is never
+  called (it lays out its own columns), nor is any writer under
+  `ConvertJob` (its columns are source text with no field behind them)
+  or `ExportJob.Predict`. The plan, and the fields it points at, are
+  the writer's to retain, read-only.
+- **The typing field.** `ExportColumnField` and `ExportColumnList` are
+  typed by the source field itself; `ExportColumnElement` by a
+  synthesized nullable `f32` / `f64` field named after the column (a
+  NaN element is a null cell); `ExportColumnLabel` — and a field whose
+  cells a label REPLACE binding rewrites to text (a decimal is never
+  replaced) — has a nil `Field`: write it as text.
+- **Resolving it.** `io.ColumnFields(cols, schema, header)` returns one
+  `*encoding.Field` per header column. With a plan whose names match
+  the header it returns the plan's fields; otherwise it falls back to
+  the schema field of the SAME NAME (nil — text — for a name with no
+  field). Call it in `WriteHeader` with whatever the writer was handed,
+  and a writer implementing both `ColumnAwareWriter` and
+  `SchemaAwareWriter` types correctly either way.
+- **Without it.** A typed writer that implements only
+  `SchemaAwareWriter` gets no plan: type each header column by the
+  schema field of the same NAME (`io.ColumnFields(nil, schema,
+  header)`), never by its position, and treat a name with no field —
+  a `_label` column — as text. That fallback cannot see a label
+  REPLACE, so a replaced numeric column will hold label text in a
+  numeric-typed column; implement `ColumnAwareWriter` to get it right.
+
+The built-in Excel, Arrow and Parquet writers implement it.
+`ExportJob.Predict`'s `PredictReport.Columns` lists the same plan's
+names. `io/column_writer_test.go` pins an external writer's plan for a
+projected, `_label`-augmented, vector-expanded export (and the
+list-aware variant), and `internal/embeddersmoke` proves the interface
+is reachable from an external module.
 
 ### Authoritative schemas: `io.SchemaAwareReader`
 

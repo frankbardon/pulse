@@ -89,11 +89,11 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(vector-field-type
 | Item | Destination |
 |---|---|
 | Vector synthesis: every synth surface refuses a `vec_*` field with `PULSE_SYNTH_VECTOR_UNSUPPORTED` | [U52](U52-synth-realism.md) #450 |
-| Public per-output-column export plan for external writers (`iocore.ExportColumn` / `ColumnAwareWriter`; they receive the source schema today and type by name) | [U34](U34-extension-validation.md) #451 |
+| Public per-output-column export plan for external writers (`iocore.ExportColumn` / `ColumnAwareWriter`) | Done in U29 (not handed on): `io.ColumnAwareWriter`, `io.ExportColumn`, `io.ExportColumnKind` + constants, `io.ColumnFields`; #451 ticked in [U34](U34-extension-validation.md) |
 
 ## Landed deviations
 
-- Owner decisions during the unit: vector import is not feature-profile gated (only the matrix operators that consume vectors are); `io.ListAwareReader` / `ListCell` / `ListState` and `io.ListAwareWriter` are public; `extend.Record.NumericValue` resolves native element members `emb[k]`; `pulse_recommend` drafts native vectors in vector slots.
+- Owner decisions during the unit: vector import is not feature-profile gated (only the matrix operators that consume vectors are); `io.ListAwareReader` / `ListCell` / `ListState` and `io.ListAwareWriter` are public (`RowList` returns an error for a cell the source failed to read); the export column plan (`io.ColumnAwareWriter` / `ExportColumn` / `ColumnFields`) is public; `extend.Record.NumericValue` resolves native element members `emb[k]`; `pulse_recommend` drafts native vectors in vector slots.
 - Found and fixed in-unit: presence slots counted every native vector as null; Excel / Arrow / Parquet export typed columns by position (projected or `_label`-augmented exports failed or mis-formatted).
 - The effort grew past the original three epics (format, engine, import/export, docs); the migration guide's "Changes from U29" is the complete list.
 

@@ -11,6 +11,7 @@
 package io
 
 import (
+	"github.com/frankbardon/pulse/encoding"
 	iio "github.com/frankbardon/pulse/internal/io"
 	iocore "github.com/frankbardon/pulse/internal/iocore"
 )
@@ -485,6 +486,72 @@ type ListAwareWriter = iocore.ListAwareWriter
 // nullable flag.
 type ListColumn = iocore.ListColumn
 
+// ColumnAwareWriter is an optional extension of Writer for typed
+// targets (a columnar or spreadsheet format with a type per column)
+// that want the export's explicit column plan instead of reconstructing
+// it from the schema.
+//
+// # Why
+//
+// An export's header is not the source schema's field list: projection
+// (ExportJob.Includes) drops fields, a label augment inserts a
+// `<field>_label` text column after its field, and a vector is expanded
+// into dim element columns unless the writer is a ListAwareWriter. The
+// schema SchemaAwareWriter receives therefore says nothing about which
+// field types header column i. The plan does: one ExportColumn per
+// header column, in header order, each naming the field that types it.
+//
+// # When ExportJob.Run calls it
+//
+// Once per Run, before WriteHeader, with cols[i] describing the i-th
+// name WriteHeader will receive (cols[i].Name == header[i]). The calls
+// a writer can see happen in this order: SetPulseSchema
+// (SchemaAwareWriter), SetExplicitNulls (NullAwareWriter), SetOverlays
+// (OverlayAwareWriter), SetExportColumns, SetListColumns
+// (ListAwareWriter, only when a vector rides as a native list), then
+// WriteHeader and the WriteRow calls. Every export calls it, vector or
+// not. It is never called on a CohortWriter (which lays out its own
+// columns from the cohort), never by ConvertJob (its columns are source
+// text with no field behind them) and never by ExportJob.Predict.
+//
+// cols and the fields it points at are the writer's to retain for the
+// rest of the export; do not modify them. ColumnFields turns the plan
+// into one *encoding.Field per header column (nil for text).
+type ColumnAwareWriter = iocore.ColumnAwareWriter
+
+// ExportColumn describes one header column of an export, as
+// ColumnAwareWriter.SetExportColumns receives it: the header Name, what
+// the column carries (Kind), the Source field it comes from (the
+// augmented field for a label column, the vector for an element), the
+// 0-based vector Element for an ExportColumnElement (-1 otherwise), and
+// the Field that TYPES the column — the source field for
+// ExportColumnField / ExportColumnList, a synthesized nullable scalar
+// f32 / f64 field named Name for ExportColumnElement, and nil (a text
+// column) for ExportColumnLabel and for a field whose cells a label
+// REPLACE binding rewrites to text. ExportJob.Predict's
+// PredictReport.Columns lists the same plan's names.
+type ExportColumn = iocore.ExportColumn
+
+// ExportColumnKind classifies an ExportColumn by what it carries.
+type ExportColumnKind = iocore.ExportColumnKind
+
+const (
+	// ExportColumnField is a source field's own cell, typed by that
+	// field (or text under a label REPLACE binding, Field nil).
+	ExportColumnField = iocore.ExportColumnField
+	// ExportColumnLabel is a `<field>_label` augment column: label text,
+	// Field nil, placed right after its source field's column(s).
+	ExportColumnLabel = iocore.ExportColumnLabel
+	// ExportColumnElement is one element of a vector EXPANDED into
+	// scalar columns (a writer that is not a ListAwareWriter): a
+	// nullable f32 / f64 cell named `<field>_<label>` or `<field>_<k>`.
+	ExportColumnElement = iocore.ExportColumnElement
+	// ExportColumnList is a vector carried as ONE native list cell (a
+	// ListAwareWriter target); the same column appears in
+	// SetListColumns with its dim and labels.
+	ExportColumnList = iocore.ExportColumnList
+)
+
 // OverlayAwareWriter is an optional extension of Writer for targets that
 // can embed Response.Overlays in the exported artefact (Arrow / Parquet /
 // Excel / NDJSON per research/export-embedding-shape.md). The ExportJob
@@ -680,9 +747,10 @@ type SchemaAwareReader = iocore.SchemaAwareReader
 // The schema is the SOURCE schema (each vector replaced by its element
 // fields when the export expands vectors), not one field per header
 // column: projection (ExportJob.Includes) drops fields and a label
-// augment inserts `<field>_label` columns, so a writer must type a
-// header column by the schema field of the same NAME, never by its
-// position.
+// augment inserts `<field>_label` columns, so a writer must never type
+// a header column by its position. Implement ColumnAwareWriter to be
+// handed the explicit per-column plan; without it, type a header column
+// by the schema field of the same NAME. ColumnFields resolves either.
 type SchemaAwareWriter = iocore.SchemaAwareWriter
 
 // SidecarEmitter is an optional extension a Reader can implement to
@@ -816,6 +884,19 @@ type TransferReport = iio.TransferReport
 
 // Writer writes tabular data to a target format.
 type Writer = iocore.Writer
+
+// ColumnFields resolves, for each name in header (the list WriteHeader
+// received), the field that types that column — nil for a text column.
+// With a column plan from ColumnAwareWriter.SetExportColumns whose names
+// match header one for one, the plan decides. Otherwise (no plan, or a
+// plan for a different header) each column is typed by the schema field
+// of the SAME NAME, never by position, and a column with no such field
+// is text; a nil schema and no plan yields all text. A writer that
+// implements both ColumnAwareWriter and SchemaAwareWriter can call it
+// in WriteHeader with whatever it was handed.
+func ColumnFields(cols []ExportColumn, schema *encoding.Schema, header []string) []*encoding.Field {
+	return iocore.ColumnFields(cols, schema, header)
+}
 
 // NewExportJob creates an ExportJob.
 func NewExportJob(source string, target Writer) *ExportJob {

@@ -134,4 +134,4 @@ Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`]
 
 Filed from [U29 handed on](U29-vector-field-types.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#451** — Expose the per-output-column export plan (`iocore.ExportColumn` / `ColumnAwareWriter`) on the public `io` facade, so an embedder's export writer learns which field types each output column. Today it receives the source schema and must type by column name (`docs/src/internals/adding-io-format.md`). Found in U29 (E3-G2).
+- [x] **#451** — Expose the per-output-column export plan (`iocore.ExportColumn` / `ColumnAwareWriter`) on the public `io` facade, so an embedder's export writer learns which field types each output column. Today it receives the source schema and must type by column name (`docs/src/internals/adding-io-format.md`). Found in U29 (E3-G2). Done in U29 before release: `io.ColumnAwareWriter`, `io.ExportColumn`, `io.ExportColumnKind` + its four constants and `io.ColumnFields` (contract: `adding-io-format.md`, "Typing columns on export").

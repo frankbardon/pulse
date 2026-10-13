@@ -959,3 +959,58 @@ func TestCustomListWriterExportsVector(t *testing.T) {
 		}
 	}
 }
+
+// planSink is an embedder's own typed target: it implements the public
+// io.ColumnAwareWriter, so an export hands it the per-column plan and it
+// types each header column from the field behind it.
+type planSink struct {
+	plan   []pio.ExportColumn
+	header []string
+}
+
+func (w *planSink) SetExportColumns(cols []pio.ExportColumn) { w.plan = cols }
+func (w *planSink) WriteHeader(cols []string) error {
+	if w.plan == nil {
+		return stderrors.New("WriteHeader before SetExportColumns")
+	}
+	w.header = append([]string(nil), cols...)
+	return nil
+}
+func (w *planSink) WriteRow([]any) error { return nil }
+func (w *planSink) Close() error         { return nil }
+
+var _ pio.ColumnAwareWriter = (*planSink)(nil)
+
+func TestCustomColumnWriterGetsPlan(t *testing.T) {
+	p, fs := newEngine(t, pulse.Options{})
+	ctx := context.Background()
+	src := &listSource{lists: [][]float64{{1, 2, 3}, {4, 5, 6}}}
+	imp := pio.NewImportJob(src, "emb.pulse")
+	imp.FS = fs
+	imp.Vectors = []pio.VectorDecl{{Name: "emb"}}
+	if _, err := p.Import(ctx, imp); err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+
+	sink := &planSink{}
+	job := pio.NewExportJob("emb.pulse", sink)
+	job.FS = fs
+	job.Includes = []string{"emb"}
+	if _, err := p.Export(ctx, job); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	want := []string{"emb_1", "emb_2", "emb_3"}
+	if len(sink.header) != len(want) || len(sink.plan) != len(want) {
+		t.Fatalf("header %v plan %+v, want %v", sink.header, sink.plan, want)
+	}
+	fields := pio.ColumnFields(sink.plan, nil, sink.header)
+	for i, col := range sink.plan {
+		if col.Name != want[i] || sink.header[i] != want[i] || col.Kind != pio.ExportColumnElement ||
+			col.Source != "emb" || col.Element != i {
+			t.Fatalf("plan[%d] = %+v, want element %d of emb named %s", i, col, i, want[i])
+		}
+		if fields[i] == nil || fields[i].Type != encoding.FieldTypeF64 || !fields[i].Nullable {
+			t.Fatalf("column %s typed by %+v, want a nullable f64 element field", want[i], fields[i])
+		}
+	}
+}
