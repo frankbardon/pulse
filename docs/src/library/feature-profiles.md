@@ -522,7 +522,7 @@ Pulse publishes example profiles to copy, in the repository's
 | Name | Offers |
 |---|---|
 | `minimal` | `capability:process` plus core aggregators and the default groupers |
-| `survey-crosstab` | Process, Compose, crosstab, facet, labels, row weighting and multiple-comparison correction, with survey tests and the crosstab, compose and facet overlays they feed, closed over their dependencies |
+| `survey-crosstab` | Process, Compose, crosstab, facet, labels, row weighting and multiple-comparison correction, with survey tests, the crosstab, compose and facet overlays they feed, and the residual / correspondence / raking crosstab overlays, closed over their dependencies |
 | `read-only-analyst` | Every analytic capability and operator; nothing that writes data (`import`, `export`, `filter_to_file`, `dedup`, `materialize`, `widen`, `shard`, `index`, `synth`, `model_save`) and no I/O formats |
 
 ```go

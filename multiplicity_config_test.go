@@ -254,7 +254,7 @@ func TestMultiplicity_DefaultValidatedAtNew(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	for _, bad := range []*types.Multiplicity{
 		multBlock("holm-bonferroni", "", 0),
-		multBlock("", "matrix", 0),
+		multBlock("", "triangle", 0),
 		multBlock("", "", 1),
 	} {
 		_, err := pulse.New(pulse.Options{FS: fs, DefaultMultiplicity: bad})
@@ -263,7 +263,8 @@ func TestMultiplicity_DefaultValidatedAtNew(t *testing.T) {
 			t.Errorf("details = %v", ce.Details)
 		}
 	}
-	for _, good := range []*types.Multiplicity{nil, multBlock(types.MultiplicityMethodNone, "", 0), multBlock(types.MultiplicityMethodBY, types.MultiplicityFamilyCompose, 0.1)} {
+	for _, good := range []*types.Multiplicity{nil, multBlock(types.MultiplicityMethodNone, "", 0), multBlock(types.MultiplicityMethodBY, types.MultiplicityFamilyCompose, 0.1),
+		multBlock(types.MultiplicityMethodHolm, types.MultiplicityFamilyMatrix, 0)} {
 		if _, err := pulse.New(pulse.Options{FS: fs, DefaultMultiplicity: good}); err != nil {
 			t.Errorf("New refused %+v: %v", good, err)
 		}
@@ -271,7 +272,7 @@ func TestMultiplicity_DefaultValidatedAtNew(t *testing.T) {
 }
 
 func multiplicityProfile(with bool) *pulse.FeatureProfile {
-	f := []string{"capability:process", "capability:compose", "AGG_SUM", "TEST_T"}
+	f := []string{"capability:process", "capability:compose", "capability:matrices", "AGG_SUM", "TEST_T", "MAT_CORRELATION"}
 	if with {
 		f = append(f, descx.FeatureMultiplicity)
 	}
@@ -302,6 +303,10 @@ func TestHiddenMultiplicity_RefusedAsUnknownField(t *testing.T) {
 		"tests[0]": func() *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x"}},
 				Tests: []*types.Test{{Type: types.TEST_T, Field: "x", SplitBy: "g", Multiplicity: holm}}}
+		},
+		"matrices[0]": func() *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x"}},
+				Matrices: []types.MatrixSpec{{Type: types.MAT_CORRELATION, Fields: []string{"x", "y"}, Multiplicity: holm}}}
 		},
 	}
 	for path, f := range mk {

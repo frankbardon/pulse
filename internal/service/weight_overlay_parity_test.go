@@ -109,6 +109,13 @@ func overlayParityCases() []overlayParityCase {
 					`{"name":"c","kind":"OVERLAY_CHISQ_COL","scope":"column"}`),
 		},
 		{
+			// Residuals, expected counts and p on the Σw table (Kish-
+			// scaled under probability) — the chisq table rule.
+			name:  "std_residual",
+			kinds: []types.OverlayKind{types.OverlayKindStdResidual},
+			req:   process(xt("g", "o", count, ""), `{"name":"sr","kind":"OVERLAY_STD_RESIDUAL","scope":"cell"}`),
+		},
+		{
 			name:  "fisher",
 			kinds: []types.OverlayKind{types.OverlayKindFisherExactCell},
 			req:   process(xt("h", "o", count, ""), `{"name":"f","kind":"OVERLAY_FISHER_EXACT_CELL","scope":"cell"}`),

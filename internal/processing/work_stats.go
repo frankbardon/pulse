@@ -22,6 +22,7 @@ var (
 	workMatrixAuxiliaryBuilds    atomic.Int64
 	workMatrixScalarBuilds       atomic.Int64
 	workMatrixVectorBuilds       atomic.Int64
+	workMatrixInferenceBuilds    atomic.Int64
 	workOverlayLayerRuns         atomic.Int64
 	workRowTestFolds             atomic.Int64
 	workPostTestRuns             atomic.Int64
@@ -79,6 +80,11 @@ type WorkStatsSnapshot struct {
 	MatrixAuxiliaryBuilds int64
 	MatrixScalarBuilds    int64
 	MatrixVectorBuilds    int64
+	// MatrixInferenceBuilds counts params.inference computations (the
+	// per-pair p-values and intervals behind auxiliary.p / ci_lower /
+	// ci_upper): one per rendered MatrixResult that computes them, none
+	// when the run's plan drops matrices[*].auxiliary.
+	MatrixInferenceBuilds int64
 	// OverlayLayerRuns counts overlay layer folds: one per spec a
 	// request-host (crosstab or series) or Compose-host dispatch loop
 	// runs through its handler. A layer the ComputePlan skips counts
@@ -114,6 +120,7 @@ func WorkStats() WorkStatsSnapshot {
 		MatrixAuxiliaryBuilds:     workMatrixAuxiliaryBuilds.Load(),
 		MatrixScalarBuilds:        workMatrixScalarBuilds.Load(),
 		MatrixVectorBuilds:        workMatrixVectorBuilds.Load(),
+		MatrixInferenceBuilds:     workMatrixInferenceBuilds.Load(),
 		OverlayLayerRuns:          workOverlayLayerRuns.Load(),
 		RowTestFolds:              workRowTestFolds.Load(),
 		PostTestRuns:              workPostTestRuns.Load(),
@@ -138,6 +145,7 @@ func (s WorkStatsSnapshot) Sub(o WorkStatsSnapshot) WorkStatsSnapshot {
 		MatrixAuxiliaryBuilds:     s.MatrixAuxiliaryBuilds - o.MatrixAuxiliaryBuilds,
 		MatrixScalarBuilds:        s.MatrixScalarBuilds - o.MatrixScalarBuilds,
 		MatrixVectorBuilds:        s.MatrixVectorBuilds - o.MatrixVectorBuilds,
+		MatrixInferenceBuilds:     s.MatrixInferenceBuilds - o.MatrixInferenceBuilds,
 		OverlayLayerRuns:          s.OverlayLayerRuns - o.OverlayLayerRuns,
 		RowTestFolds:              s.RowTestFolds - o.RowTestFolds,
 		PostTestRuns:              s.PostTestRuns - o.PostTestRuns,

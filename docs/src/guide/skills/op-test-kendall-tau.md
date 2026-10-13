@@ -39,7 +39,7 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 
 ## Output
 
-`Statistic` = τ_b (Kendall tau-b, `[-1, 1]`); `PValue` two-sided via normal approximation with tie-variance adjustment. `Details.concordant`, `Details.discordant`, `Details.ties_x`, `Details.ties_y`, `Details.s`, `Details.var_s`, `Details.z`, `Details.n`.
+`Statistic` = τ_b (Kendall tau-b, `[-1, 1]`); `PValue` two-sided, R `cor.test` default: exact when untied and n < 50, else normal approximation (tie-adjusted variance, no continuity correction); `Details.z` = S/√Var(S). `Details.concordant`, `Details.discordant`, `Details.ties_x`, `Details.ties_y`, `Details.s`, `Details.var_s`, `Details.z`, `Details.n`.
 
 ## Reading the output
 
@@ -54,6 +54,7 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 - Suits small samples and heavy ties (tau-b corrects for ties in either column).
 - Distribution-free; no normality assumption.
 - Tier-2 variant `TEST_KENDALL_TAU/tau_b_post` runs over result columns.
+- Same p as a `MAT_CORRELATION` kendall cell on the same rows.
 - For high-cardinality numeric fields the O(n²) cost dominates.
 
 ## See

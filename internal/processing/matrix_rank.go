@@ -30,20 +30,36 @@ import (
 // otherwise — the Pearson matrix's zero-spread rule, so a flat member's
 // whole row and column are null.
 
-// rankCorrelation returns the slot's rank correlation matrix.
-func rankCorrelation(in *matrixFinalizeInput) (*linalg.Sym, error) {
+// rankCorrelation returns the slot's rank correlation matrix and, when
+// withP (params.inference with the auxiliaries rendered), each cell's
+// two-sided p-value over the cell's own massed rows (kendallCorTestP / spearmanCorTestP,
+// matrix_rank_inference.go; NaN where ρ / τ is undefined and on the
+// diagonal) — nil otherwise.
+func rankCorrelation(in *matrixFinalizeInput, withP bool) (*linalg.Sym, [][]float64, error) {
 	rows := in.Rows
 	if rows == nil {
-		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 			"rank correlation matrix finalized without its row buffer",
 			map[string]any{"matrix": in.Plan().Name, "method": in.Plan().Method})
 	}
 	p := len(in.Members())
 	out, err := linalg.NewSym(p, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	kendall := in.Plan().Method == vectors.CorrelationKendall
+	var pv [][]float64
+	setP := func(i, j int, v float64) {}
+	if withP {
+		pv = make([][]float64, p)
+		for i := range pv {
+			pv[i] = make([]float64, p)
+			for j := range pv[i] {
+				pv[i][j] = math.NaN()
+			}
+		}
+		setP = func(i, j int, v float64) { pv[i][j], pv[j][i] = v, v }
+	}
 
 	if !rows.pairwise {
 		// Listwise: one row set for every cell.
@@ -60,12 +76,12 @@ func rankCorrelation(in *matrixFinalizeInput) (*linalg.Sym, error) {
 			}
 			ws = append(ws, w)
 		}
-		var ranks [][]float64
+		ranks := make([][]float64, p)
+		ties := make([][]float64, p)
 		var nW float64
-		if !kendall {
-			ranks = make([][]float64, p)
+		if !kendall || withP {
 			for i := range cols {
-				ranks[i], _ = weightedMidRanks(cols[i], ws)
+				ranks[i], ties[i] = weightedMidRanks(cols[i], ws)
 			}
 			for _, w := range ws {
 				nW += w
@@ -75,13 +91,20 @@ func rankCorrelation(in *matrixFinalizeInput) (*linalg.Sym, error) {
 			out.Set(i, i, rankDiagonal(cols[i]))
 			for j := i + 1; j < p; j++ {
 				if kendall {
-					out.Set(i, j, kendallCell(cols[i], cols[j], ws))
+					c, d, tx, ty := kendallCounts(cols[i], cols[j], ws)
+					out.Set(i, j, kendallCellOf(c, d, tx, ty))
+					if withP {
+						setP(i, j, kendallCorTestP(out.At(i, j), c, d, nW, ties[i], ties[j]))
+					}
 				} else {
 					out.Set(i, j, spearmanCell(ranks[i], ranks[j], ws, nW))
+					if withP {
+						setP(i, j, spearmanCorTestP(out.At(i, j), ranks[i], ranks[j], nW, ties[i], ties[j]))
+					}
 				}
 			}
 		}
-		return out, nil
+		return out, pv, nil
 	}
 
 	// Pairwise: each cell over its own massed rows.
@@ -90,20 +113,29 @@ func rankCorrelation(in *matrixFinalizeInput) (*linalg.Sym, error) {
 		out.Set(i, i, rankDiagonal(xs))
 		for j := i + 1; j < p; j++ {
 			xs, ys, ws := massedPair(rows, i, j)
-			if kendall {
-				out.Set(i, j, kendallCell(xs, ys, ws))
-				continue
-			}
-			rx, _ := weightedMidRanks(xs, ws)
-			ry, _ := weightedMidRanks(ys, ws)
 			var nW float64
 			for _, w := range ws {
 				nW += w
 			}
+			if kendall {
+				c, d, tx, ty := kendallCounts(xs, ys, ws)
+				out.Set(i, j, kendallCellOf(c, d, tx, ty))
+				if withP {
+					_, tiesX := weightedMidRanks(xs, ws)
+					_, tiesY := weightedMidRanks(ys, ws)
+					setP(i, j, kendallCorTestP(out.At(i, j), c, d, nW, tiesX, tiesY))
+				}
+				continue
+			}
+			rx, tiesX := weightedMidRanks(xs, ws)
+			ry, tiesY := weightedMidRanks(ys, ws)
 			out.Set(i, j, spearmanCell(rx, ry, ws, nW))
+			if withP {
+				setP(i, j, spearmanCorTestP(out.At(i, j), rx, ry, nW, tiesX, tiesY))
+			}
 		}
 	}
-	return out, nil
+	return out, pv, nil
 }
 
 // massedPair is matrixRows.Pair without the weight-0 rows.
@@ -129,9 +161,9 @@ func spearmanCell(rx, ry, ws []float64, nW float64) float64 {
 	return rho
 }
 
-// kendallCell is τ-b over two value columns, NaN when undefined.
-func kendallCell(xs, ys, ws []float64) float64 {
-	tau, ok := kendallTauB(kendallCounts(xs, ys, ws))
+// kendallCellOf is τ-b off the Knight counts, NaN when undefined.
+func kendallCellOf(c, d, tx, ty float64) float64 {
+	tau, ok := kendallTauB(c, d, tx, ty)
 	if !ok {
 		return math.NaN()
 	}

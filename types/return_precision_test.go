@@ -94,6 +94,7 @@ var precisionClass = map[string]string{
 	"matrices[*].primary.values[*][*]":     "round",
 	"matrices[*].auxiliary.*.values[*][*]": "keyed",
 	"matrices[*].scalars.*":                "keyed",
+	"matrices[*].multiplicity.alpha":       "round",
 	"overlays[*].payload.scalar":           "round",
 	"overlays[*].summary.min":              "round", "overlays[*].summary.max": "round",
 	"overlays[*].summary.baseline": "round", "overlays[*].summary.statistic": "round",

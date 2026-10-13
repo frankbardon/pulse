@@ -217,9 +217,11 @@ type ExportJob = iio.ExportJob
 //
 // OverlayWarnings carries the warn-and-skip codes the target Writer
 // surfaced through the optional OverlayWarningEmitter contract (currently
-// the CSV / TSV adapters via PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED).
-// Empty / nil when the target adapter embedded the overlays natively
-// (Arrow / Parquet / Excel / NDJSON), when no overlays were supplied,
+// the CSV / TSV / SPSS adapters via PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED,
+// and Excel via PULSE_OVERLAY_EXPORT_PARTS_DROPPED when a layer carries
+// named parts). Empty / nil when the target adapter embedded the
+// overlays whole (Arrow / Parquet / NDJSON; Excel for parts-free
+// layers), when no overlays were supplied,
 // or when IncludeOverlays explicitly opted out.
 type ExportReport = iio.ExportReport
 
@@ -376,9 +378,12 @@ type OverlayAwareWriter = iocore.OverlayAwareWriter
 // the ExportReport / ConvertReport. The canonical user is the CSV / TSV
 // adapter which emits PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED via this
 // surface whenever the dispatcher hands it a non-empty overlay slate.
-// Writers that embed overlays natively (Arrow / Parquet / Excel /
-// NDJSON) do not implement this interface; their overlay output rides
-// in the format-native sidecar instead.
+// The Excel adapter implements it too, for one narrower loss: its
+// one-sheet-per-layer layout carries each layer's primary payload but
+// not its named parts (OverlayPayload.Parts), so it emits
+// PULSE_OVERLAY_EXPORT_PARTS_DROPPED when a layer carries parts. Arrow /
+// Parquet / NDJSON write each layer as JSON, parts included, and do not
+// implement this interface.
 type OverlayWarningEmitter = iocore.OverlayWarningEmitter
 
 // PredictReport summarizes a validation-only run.

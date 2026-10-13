@@ -284,6 +284,13 @@ type ReturnPlan struct {
 	// Keep is the nested `warnings` slots retained wherever their parent
 	// object is emitted (unless excluded).
 	Keep []string `json:"keep"`
+	// Companions is the preset's CONDITIONAL selections, each spelled
+	// `<path> (with <key>)`: the map key at path is kept wherever its
+	// parent map also holds a kept <key> (`standard` keeps a matrix's
+	// pairwise `auxiliary.n` beside an inference `auxiliary.p`). An
+	// exclude or include covering the path removes it. Omitted when
+	// none.
+	Companions []string `json:"companions,omitempty"`
 	// Precision is the wire float significant-digit count; omitted when
 	// unlimited.
 	Precision int `json:"precision,omitempty"`

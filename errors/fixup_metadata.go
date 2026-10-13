@@ -2386,7 +2386,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_REF_ZERO: {
-		Message: "An overlay handler observed a zero, missing, or non-finite margin denominator. The affected cell stays absent on the overlay payload; the warning carries the row / column index and margin axis so callers can audit the failing cells. Warning-class — surfaced as a Response.Warning, never as an envelope error.",
+		Message: "An overlay handler observed a zero, missing, or non-finite margin denominator. The affected cell stays absent on the overlay payload; the warning carries the row / column index and margin axis so callers can audit the failing cells. A transition-chain overlay also raises it, details `reason` zero_row_absorbing / absorbing_row_synthesized, for a state with no observed move out that it makes absorbing (the unit row). Warning-class — surfaced as a Response.Warning, never as an envelope error.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
@@ -2588,7 +2588,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_REFERENCE_UNKNOWN: {
-		Message: "An overlay spec named a Reference that does not resolve to a known slot or stage. Two host families share this code distinguished by the `which: \"reference\"` Detail: (1) Compose overlay spec — `ComposeOverlaySpec.Reference` is empty, names a slot label absent from `ComposedRequest.Requests[].Label`, or resolved to nil because that slot failed under FailFast=false; Details carry `slot_label` and the spec `index`. (2) Chain overlay spec — a whole-chain `ChainOverlaySpec.Ref` StageRef whose `Index` is out of range OR `Name` is unmatched, or the spec did not populate Ref at all (Ref has no default unlike Target). The code also covers the missing-reference-cell / missing-reference-row warning on the CHAIN-host DELTA family (the delta-vs-stage overlay) with `ref_missing: true` (handler folds against an implicit zero reference).",
+		Message: "An overlay spec named a Reference that does not resolve to a known slot or stage. Two host families share this code distinguished by the `which: \"reference\"` Detail: (1) Compose overlay spec — `ComposeOverlaySpec.Reference` is empty, names a slot label absent from `ComposedRequest.Requests[].Label`, or resolved to nil because that slot failed under FailFast=false; Details carry `slot_label` and the spec `index`. (2) Chain overlay spec — a whole-chain `ChainOverlaySpec.Ref` StageRef whose `Index` is out of range OR `Name` is unmatched, or the spec did not populate Ref at all (Ref has no default unlike Target). The code also covers the missing-reference-cell / missing-reference-row warning on the CHAIN-host DELTA family (the delta-vs-stage overlay) with `ref_missing: true` (handler folds against an implicit zero reference). (3) MATRIX_RESULT overlay — `Ref.Matrix.Name` names no `Request.Matrices` spec by its effective name (`MatrixSpec.Name`, else `<TYPE>_<vector>` / `<TYPE>`); Details carry `which: \"matrix\"`, `name`, the request's effective names under `matrices`, the spec `index` and `kind`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2605,6 +2605,12 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Ref", "Name"},
 				Hint:   "Chain-overlay arm: set Ref.Name to the Name of an existing ChainStage on the request. Names must match exactly (case-sensitive). Run pulse predict --json on the chain request to confirm the stage names the chain executor sees.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Ref", "Matrix", "Name"},
+				Hint:     "MATRIX_RESULT arm: set Ref.Matrix.Name to one of the names under details.matrices — a matrix spec's `name`, or for an unnamed spec its default `<TYPE>_<vector>` (vector spec) / `<TYPE>` (inline fields).",
+				Examples: []any{"MAT_CORRELATION_scores"},
 			},
 		},
 	},
@@ -2727,7 +2733,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"ExportJob", "Target"},
-				Hint:     "To preserve overlays in cross-format export, target an overlay-aware writer instead of CSV / TSV. Arrow (--format arrow) carries overlays as a top-level LIST<STRUCT> column family; Parquet (--format parquet) rides the same Arrow schema through the pqarrow bridge; Excel (--format excel) emits one sheet per layer named `__overlay_<layer_name>`; NDJSON (--format ndjson) appends a single trailing line `{\"_overlays\": [...]}` after the last record. All four formats carry the full layer slate without dropping any payload.",
+				Hint:     "To preserve overlays in cross-format export, target an overlay-aware writer instead of CSV / TSV. Arrow (--format arrow) carries overlays as a top-level LIST<STRUCT> column family; Parquet (--format parquet) rides the same Arrow schema through the pqarrow bridge; Excel (--format excel) emits one sheet per layer named `__overlay_<layer_name>`; NDJSON (--format ndjson) appends a single trailing line `{\"_overlays\": [...]}` after the last record. All four formats carry every layer; Arrow, Parquet and NDJSON also carry a layer's named parts, while Excel writes the primary payload only (PULSE_OVERLAY_EXPORT_PARTS_DROPPED).",
 				Examples: []any{"arrow", "parquet", "excel", "ndjson"},
 			},
 			{
@@ -2740,6 +2746,118 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Request"},
 				Hint:   "To inspect overlay results without exporting, use `pulse api process` with --echo-request and read the JSON envelope's `data.overlays` slot. The envelope renders the full OverlayLayer slate inline so callers can audit the payload before deciding which export format preserves the layers they care about.",
+			},
+		},
+	},
+	PULSE_OVERLAY_EXPORT_PARTS_DROPPED: {
+		Message: "Export embeds the primary payload only; %d overlay layer(s) lost their named parts. Warning-class — each layer's primary payload is written as usual and its `parts` (the secondary payloads of a multi-output kind, OverlayPayload.Parts) are dropped because the target's per-layer layout has no slot for them (Excel: one sheet per layer). Details carry `layer_count`, `layer_names` and `parts` (layer name → part names) so callers can audit what fell off.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"ExportJob", "Target"},
+				Hint:     "To keep the parts, export to a format that writes each overlay layer as JSON: NDJSON (--format ndjson, a trailing `_overlays` line), Arrow (--format arrow) or Parquet (--format parquet). Each carries the layer's `payload.parts` byte-for-byte as the JSON envelope does.",
+				Examples: []any{"ndjson", "arrow", "parquet"},
+			},
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Request"},
+				Hint:   "To read the parts without exporting, take them from the JSON envelope: `data.overlays[i].payload.parts.<part>`. A `return` include of `overlays[*].payload.parts.<part>` selects one part.",
+			},
+		},
+	},
+	PULSE_OVERLAY_NONNEGATIVE_REQUIRED: {
+		Message: "The overlay reads its crosstab host as a table of non-negative masses (counts or sums), and the host is not one: either the cell aggregation is not a count or a sum (an average, a rate or a code is not a mass a row or column profile can be built from), or a cell holds a negative or non-finite value. Correspondence analysis — and the Markov and raking kinds — divide each cell by its row and column totals, which only means something when every cell is a non-negative amount. Details carry `kind` plus `aggregation` and `slot` (the cell aggregation) or `row`, `column` and `value` (the first offending cell).",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"Crosstab", "Cell", "Type"},
+				Hint:     "Score the crosstab cell with a count (AGG_COUNT, weighted or not) or a sum of a non-negative field (AGG_SUM), so every cell is a mass the overlay can turn into row and column profiles.",
+				Examples: []any{"AGG_COUNT", "AGG_SUM"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Crosstab", "Cell", "Field"},
+				Hint:   "An AGG_SUM cell went negative: sum a field that cannot be negative (a quantity, an amount spent), or filter out the negative records with a FILTER_EXPRESSION before the crosstab runs.",
+			},
+		},
+	},
+	PULSE_OVERLAY_MATRIX_NOT_SQUARE: {
+		Message: "The overlay reads its crosstab host as a square table of transitions — rows are the from-state, columns the to-state (OVERLAY_MARKOV) — and the two axes do not name the same states. States are matched by key, never by position, so the row and column key sets must be equal as sets: the same number of groupers on both axes, and every state that appears as a row must appear as a column and the reverse. A crosstab only emits keys it observed, so a state nobody leaves (or nobody enters) during the window is missing from one axis; a column-only state named in params.absorbing is the one exception — its row is known by definition (the unit row), so the overlay synthesizes it instead of refusing. Details carry `kind` plus either `row_fields` / `column_fields` (the axes have different grouper counts) or `row_only` / `column_only` (the state names found on one axis only).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Crosstab", "Columns"},
+				Hint:   "Group the rows and the columns the same way — one grouper each, on the from-state and the to-state fields (the same categories on both, e.g. from_tier x to_tier) — so both axes carry the same kind of key.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Crosstab", "Rows"},
+				Hint:   "A state appears on one axis only. A column-only state nobody leaves (churned) is absorbing: name it in params.absorbing and the overlay adds its unit row. Otherwise record a transition for it on the other axis, or filter out the records that mention it with a FILTER_EXPRESSION before the crosstab runs.",
+			},
+		},
+	},
+	PULSE_OVERLAY_MARKOV_NOT_ERGODIC: {
+		Message: "Warning: the OVERLAY_MARKOV chain has no single long-run distribution, so the layer omits its steady_state part. Either the chain is reducible — some states cannot be reached from others (an absorbing state, or two groups of states that never exchange members; details `classes` lists the communicating classes) — or it is periodic, cycling through groups of states with a fixed rhythm (details `period`). With reason `absorption_not_certain` the warning instead lists the `states` that can wander off into a closed group outside params.absorbing: their absorption_time is null (infinite). Every other part still emits.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Overlays", "Params", "absorbing"},
+				Hint:     "A chain with absorbing states (churned, closed) is reducible by design: read the absorption_time part (time to reach them) and the step_<n> / distribution_<n> projections instead of a steady state, and name every absorbing state in params.absorbing.",
+				Examples: []any{[]string{"churned"}},
+			},
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Crosstab", "Rows"},
+				Hint:   "A periodic or split chain often comes from too short an observation window or too fine states: widen the window or merge states so every state can reach every other, then the steady state is defined.",
+			},
+		},
+	},
+	PULSE_OVERLAY_RAKE_TARGET_MISMATCH: {
+		Message: "The OVERLAY_RAKE targets do not line up with the crosstab host. With reason `keys`, an axis's target map and the host's keys on that axis differ: `target_only` lists target keys the host does not carry, `host_only` host keys the targets leave out. Raking refuses rather than dropping either side, because a silently dropped key would mislabel the fit. A crosstab only emits keys it observed, so a category with no records is missing from the host even when the field's dictionary holds it. With reason `totals_differ`, targets_as `counts` gave row and column totals that differ (`row_total`, `column_total`): no table can match both margins.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Overlays", "Params", "row_targets"},
+				Hint:     "Give exactly one target per host key on each axis — the same spelling as the crosstab's row and column keys — and drop targets for categories the data never holds (or filter the host so it holds only the targeted categories).",
+				Examples: []any{map[string]any{"north": 0.25, "south": 0.25, "east": 0.25, "west": 0.25}},
+			},
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Overlays", "Params", "targets_as"},
+				Hint:     "Counts targets must share one grand total across rows and columns; when the sources disagree, pass shares instead (targets_as \"shares\"), which are normalized per axis and scaled to the host grand total.",
+				Examples: []any{"shares"},
+			},
+		},
+	},
+	PULSE_OVERLAY_GROUPS_REQUIRED: {
+		Message: "The overlay summarizes a result across its group buckets, but the request carries no Request.Groups: an ungrouped matrix spec has one result, so there is nothing to summarize across. OVERLAY_MATRIX_GROUP_SUMMARY needs the matrix spec computed once per group bucket.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Groups"},
+				Hint:     "Add a grouper so every matrix spec is computed once per bucket, then the summary reads every bucket's matrix.",
+				Examples: []any{[]map[string]any{{"type": "GROUP_CATEGORY", "field": "region"}}},
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Overlays", "*"},
+				Hint:   "On an ungrouped request the matrix result already is the whole-cohort figure: drop the group-summary overlay and read Response.Matrices directly.",
+			},
+		},
+	},
+	PULSE_OVERLAY_RAKE_NOT_CONVERGED: {
+		Message: "Warning: the OVERLAY_RAKE fit stopped at params.max_iter sweeps with a fitted margin still further than params.tolerance (relative) from its target. The fitted table and factors still emit, with summary.parameters.converged 0 and the final residual. A fit that cannot converge usually meets structural zeros that make the targets unreachable — a row whose cells are all zero cannot gain a positive target — or targets far from the observed table.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Overlays", "Params", "max_iter"},
+				Hint:     "Raise max_iter (or loosen tolerance) when the residual is still falling; a residual that stalls means the targets are unreachable from this table's pattern of zeros.",
+				Examples: []any{1000},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "Params", "row_targets"},
+				Hint:   "Check targets against the table's zeros: a category with no observed cells cannot be raked to a positive target — merge it with a neighbour or give it a zero target.",
 			},
 		},
 	},

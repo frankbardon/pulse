@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:f6b6ec312915decc6d37f5b5d85503625d7e87783c4cbee05538b7ea958e25ff",
+  "$comment": "feature_set_digest: fs1:3aa32c5284bdcf6923a2d6d667e1503c4564aee3f8351ad5b4fd066e351c8d8e",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -2162,6 +2162,9 @@
             "null"
           ]
         },
+        "multiplicity": {
+          "$ref": "#/$defs/AppliedMultiplicity"
+        },
         "name": {
           "type": "string"
         },
@@ -2215,6 +2218,9 @@
             "array",
             "null"
           ]
+        },
+        "multiplicity": {
+          "$ref": "#/$defs/Multiplicity"
         },
         "name": {
           "type": "string"
@@ -2350,6 +2356,7 @@
         "column",
         "compose",
         "layer",
+        "matrix",
         "request",
         "row"
       ],
@@ -2451,6 +2458,7 @@
         "OVERLAY_CHISQ_ROW",
         "OVERLAY_CHISQ_VS_POP",
         "OVERLAY_CHISQ_VS_REF",
+        "OVERLAY_CORRESPONDENCE",
         "OVERLAY_DELTA_VS_BASELINE",
         "OVERLAY_DELTA_VS_MARGIN",
         "OVERLAY_DELTA_VS_PRIOR",
@@ -2469,6 +2477,8 @@
         "OVERLAY_INDEX_VS_STAGE",
         "OVERLAY_INDEX_VS_TOTAL",
         "OVERLAY_KS_VS_POP",
+        "OVERLAY_MARKOV",
+        "OVERLAY_MATRIX_GROUP_SUMMARY",
         "OVERLAY_PAIRWISE_PROBIT_T",
         "OVERLAY_PAIRWISE_PROP_Z",
         "OVERLAY_PAIRWISE_TWO_MEANS_Z",
@@ -2477,10 +2487,12 @@
         "OVERLAY_PANEL_INDEX_VS_REF",
         "OVERLAY_PROP_Z_CELL",
         "OVERLAY_PROP_Z_PANEL",
+        "OVERLAY_RAKE",
         "OVERLAY_RANK",
         "OVERLAY_SHARE_OF_COL",
         "OVERLAY_SHARE_OF_ROW",
         "OVERLAY_SHARE_OF_TOTAL",
+        "OVERLAY_STD_RESIDUAL",
         "OVERLAY_T_CELL",
         "OVERLAY_T_VS_REF",
         "OVERLAY_YOY",
@@ -2545,6 +2557,18 @@
       },
       "required": [
         "axis"
+      ],
+      "type": "object"
+    },
+    "OverlayMatrixRef": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
       ],
       "type": "object"
     },
@@ -2614,6 +2638,90 @@
         "p_adjusted": {
           "$ref": "#/$defs/MatrixPayload"
         },
+        "parts": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "shape": {
+                      "const": "matrix"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "matrix"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "shape": {
+                      "const": "scalar"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "scalar"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "shape": {
+                      "const": "series"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "series"
+                  ]
+                }
+              }
+            ],
+            "description": "Discriminated union keyed by shape; the matching arm (scalar/series/matrix) is required for the declared shape.",
+            "properties": {
+              "matrix": {
+                "$ref": "#/$defs/MatrixPayload"
+              },
+              "p_adjusted": {
+                "$ref": "#/$defs/MatrixPayload"
+              },
+              "scalar": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "series": {
+                "$ref": "#/$defs/SeriesPayload"
+              },
+              "shape": {
+                "enum": [
+                  "matrix",
+                  "scalar",
+                  "series"
+                ],
+                "type": "string"
+              },
+              "significant_adjusted": {
+                "$ref": "#/$defs/MatrixPayload"
+              }
+            },
+            "required": [
+              "shape"
+            ],
+            "type": "object"
+          },
+          "description": "Named secondary payloads of a multi-output kind, beside the primary. Each part is a scalar | series | matrix payload; parts never nest.",
+          "type": "object"
+        },
         "scalar": {
           "type": [
             "number",
@@ -2668,6 +2776,9 @@
         },
         "margin": {
           "$ref": "#/$defs/OverlayMarginRef"
+        },
+        "matrix": {
+          "$ref": "#/$defs/OverlayMatrixRef"
         },
         "population": {
           "$ref": "#/$defs/OverlayPopulationRef"
@@ -4461,4 +4572,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: e1dd9f9da71dd9f622f0a279e859226a3e368a9750a767fa31ddbce9a0f0837b
+// golden-hash: 1c3a3cb271e4ade3dd352a9aa8ad20e5e3b7926f527934bf1868038891353188

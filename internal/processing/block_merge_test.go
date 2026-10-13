@@ -94,7 +94,8 @@ func coMomentWords(c *linalg.CoMoment) []uint64 {
 	for i := 0; i < c.P(); i++ {
 		out = append(out, math.Float64bits(m.At(i)))
 		for j := i; j < c.P(); j++ {
-			out = append(out, uint64(c.PairN(i, j)), math.Float64bits(c.PairW(i, j)), math.Float64bits(cov.At(i, j)))
+			out = append(out, uint64(c.PairN(i, j)), uint64(c.PairNMass(i, j)), math.Float64bits(c.PairW(i, j)),
+				math.Float64bits(c.PairW2(i, j)), math.Float64bits(cov.At(i, j)))
 		}
 	}
 	return out

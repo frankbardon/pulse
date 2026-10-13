@@ -131,7 +131,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	reflect.TypeOf(types.Test{}):               {weightSlotGate, multiplicitySlotGate},
 	reflect.TypeOf(types.RegressionSpec{}):     {weightSlotGate, modelSaveSlotGate},
 	reflect.TypeOf(types.FitSpec{}):            {modelSaveSlotGate},
-	reflect.TypeOf(types.MatrixSpec{}):         {weightSlotGate},
+	reflect.TypeOf(types.MatrixSpec{}):         {weightSlotGate, multiplicitySlotGate},
 	reflect.TypeOf(types.Attribute{}):          {weightSlotGate, forEachSlotGate},
 	reflect.TypeOf(types.Window{}):             {forEachSlotGate},
 	reflect.TypeOf(types.Feature{}):            {forEachSlotGate},
@@ -158,6 +158,10 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "significant_adjusted", visible: capabilityGate(featMultiplicity)},
 	},
 	reflect.TypeOf(types.OverlayLayer{}): {multiplicitySlotGate},
+	// The matrix echo; auxiliary.p_adjusted / significant_adjusted are
+	// keys of the open auxiliary map, so no request on a hidden
+	// instance ever reaches them.
+	reflect.TypeOf(types.MatrixResult{}): {multiplicitySlotGate},
 	// The matrix results ride capability:matrices with the request
 	// slots that produce them.
 	reflect.TypeOf(types.Response{}): {
@@ -524,7 +528,7 @@ func overlayWeightRefusal(overlays []types.OverlaySpec, inst *InstanceSnapshot) 
 
 // nestedMultiplicityRefusal refuses the first `multiplicity` block set
 // inside req when inst hides capability:multiplicity, in the
-// resolver's slot order: tests, post-tests, overlays. The refusal is
+// resolver's slot order: tests, post-tests, overlays, matrices. The refusal is
 // PULSE_REQUEST_UNKNOWN_FIELD at that object (details.path), valid_keys
 // over its visible keys.
 func nestedMultiplicityRefusal(req *types.Request, inst *InstanceSnapshot) *errors.CodedError {
@@ -542,7 +546,16 @@ func nestedMultiplicityRefusal(req *types.Request, inst *InstanceSnapshot) *erro
 			}
 		}
 	}
-	return overlayMultiplicityRefusal(req.Overlays, inst)
+	if err := overlayMultiplicityRefusal(req.Overlays, inst); err != nil {
+		return err
+	}
+	for i := range req.Matrices {
+		if req.Matrices[i].Multiplicity != nil {
+			return unknownFieldErrorAt(fmt.Sprintf("matrices[%d]", i), []string{multiplicityKey},
+				VisibleSlotKeys(&req.Matrices[i], inst))
+		}
+	}
+	return nil
 }
 
 // overlayMultiplicityRefusal is nestedMultiplicityRefusal over one

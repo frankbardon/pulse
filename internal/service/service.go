@@ -680,7 +680,8 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if err != nil {
 		return nil, markLocated(err)
 	}
-	ctx = withComputePlan(ctx, s.resolveComputePlan(ctx, req, retPlan, plan))
+	compute := s.resolveComputePlan(ctx, req, retPlan, plan)
+	ctx = withComputePlan(ctx, compute)
 
 	resp, err := s.processDispatch(ctx, req)
 	if err != nil {
@@ -694,6 +695,12 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	// buffered orchestration) — is corrected here, once, after the arm
 	// returns. Raw p-values are never modified.
 	if err := foldRequestMultiplicity(plan, resp); err != nil {
+		return nil, err
+	}
+	// The MATRIX_RESULT overlays read Response.Matrices AFTER the fold,
+	// so they see auxiliary.p_adjusted; a Compose slot's run after the
+	// batch's barrier fold instead (deferMatrixResultOverlays).
+	if err := s.matrixResultOverlays(ctx, req, resp, compute); err != nil {
 		return nil, err
 	}
 	appendVectorWarnings(req, resp)
@@ -1215,12 +1222,13 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	ei := execInfoFrom(ctx)
 	ei.Lap(observe.PhasePlan)
 	responses := make([]*types.Response, len(requests))
+	deferred := make([]func() error, len(requests))
 	for i, req := range requests {
 		slotSet, err := pre.slotSet(models, i)
 		if err != nil {
 			return nil, err
 		}
-		slotCtx, end := startChild(bindSlotModels(rankSlotContext(composeSlotContext(ctx, vetoes, multPlan, i), rank, i), slotSet, req), i, req)
+		slotCtx, end := startChild(bindSlotModels(rankSlotContext(deferMatrixResultOverlays(composeSlotContext(ctx, vetoes, multPlan, i), &deferred[i]), rank, i), slotSet, req), i, req)
 		resp, err := s.Process(slotCtx, req)
 		end(err)
 		if err != nil {
@@ -1275,6 +1283,10 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// each slot's own families correct inside the slot. Shared with the
 	// other orchestrator, so serial and parallel answer identically.
 	if err := foldComposeMultiplicity(multPlan, out); err != nil {
+		return nil, err
+	}
+	// Each slot's own MATRIX_RESULT overlays, after the barrier fold.
+	if err := runDeferredMatrixResultOverlays(deferred); err != nil {
 		return nil, err
 	}
 	// The sweep rank reads the finished, folded, still-unshaped slots.

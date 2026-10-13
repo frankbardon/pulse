@@ -496,7 +496,12 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	} else if sizeIn.recordsKnown {
 		matrixRecords = sizeIn.records
 	}
-	predictMatrices(result, req, schema, extensionsFromOpts(opts), opts.Instance, blocks, buffered, matrixRecords)
+	if multPlan != nil {
+		for _, rm := range multPlan.Matrices {
+			sizeIn.matrixMembers = append(sizeIn.matrixMembers, rm.Member)
+		}
+	}
+	sizeIn.matrixPlans = predictMatrices(result, req, schema, extensionsFromOpts(opts), opts.Instance, blocks, buffered, matrixRecords)
 	// Instance resource limits — the rule the process pre-flight
 	// refuses with (LimitRefusal), on the defaults-resolved request over
 	// the schema it executes over. A certain finding is a predict error.

@@ -25,6 +25,7 @@ func refuseWrongHostOverlays(req *types.Request, exts *ExtensionRegistry, keep f
 		return nil
 	}
 	shape := AuthoredHostShape(req)
+	matrices := len(req.Matrices) > 0
 	for i := range req.Overlays {
 		if keep != nil && !keep(i) {
 			continue
@@ -33,7 +34,9 @@ func refuseWrongHostOverlays(req *types.Request, exts *ExtensionRegistry, keep f
 		if cerr := overlayhost.Refusal(overlayhost.Request, req.Overlays[i].Kind, route, i); cerr != nil {
 			return cerr
 		}
-		if cerr := overlayhost.ShapeRefusal(shape, req.Overlays[i].Kind, route, i); cerr != nil {
+		// A request carrying matrices offers the MATRIX_RESULT host too
+		// (overlayhost.JudgedShape).
+		if cerr := overlayhost.ShapeRefusal(overlayhost.JudgedShape(shape, matrices, route), req.Overlays[i].Kind, route, i); cerr != nil {
 			return cerr
 		}
 	}

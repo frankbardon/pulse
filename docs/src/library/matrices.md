@@ -46,7 +46,7 @@ request order:
 | Key | Meaning |
 |---|---|
 | `primary` | the matrix, a `types.MatrixValues` `{kind, encoding, row_keys, column_keys, labels?, values}` |
-| `auxiliary` | pairwise only: `n`, each pair's row count, same shape |
+| `auxiliary` | pairwise: `n`, each pair's row count, same shape; under `params.inference`: `p`, `ci_lower`, `ci_upper` (see Inference) |
 | `vectors` | `top_pairs` (`[{row, col, r, n}]`) for `MAT_CORRELATION` with `summary.top_pairs` |
 | `scalars` | `determinant`, null unless the matrix is positive definite |
 | `warnings` | `PULSE_MATRIX_*` data-quality findings |
@@ -68,7 +68,8 @@ from the diagonal). Undefined cells are `null`, keys kept.
   or constant members. A constant member nulls its correlation row and
   column; the covariance keeps an exact 0.
 - Weights follow [Row Weighting](weighting.md); a weight-0 row counts
-  toward `n` and adds no mass.
+  toward `n` and adds no mass. Inference's row floors (`params.inference`)
+  count only rows with a positive weight, as the single-pair tests do.
 
 ## Rank correlation
 
@@ -80,7 +81,52 @@ each pair re-ranked over its own rows, as R's
 every admitted row until finalize, so the request runs buffered and
 serially (predict: `streamable` and `mergeable` false,
 `row_buffer_bytes`); it takes frequency weights only (a probability
-weight is `PULSE_WEIGHT_UNSUPPORTED`) and emits no p-values.
+weight is `PULSE_WEIGHT_UNSUPPORTED`); `params.inference` gives its
+p-values and intervals (see Inference).
+
+## Inference
+
+`params.inference: true` on `MAT_CORRELATION` (any `method`) and
+`MAT_PARTIAL_CORRELATION` adds three auxiliary matrices, the primary's
+twins cell for cell (same axis, same `encoding`, diagonal `null`):
+
+- `p` — each pair's two-sided p-value, t = r·√(df / (1 − r²)) on
+  Student's t, the arithmetic `TEST_PEARSON_R` runs;
+- `ci_lower`, `ci_upper` — the 1 − `params.alpha` (default 0.05)
+  Fisher-z interval tanh(atanh(r) ∓ z·se).
+
+df and se rest on the inference size N*: the rows unweighted, Σw under
+frequency weights, Kish's n_eff under probability weights. A Pearson
+cell uses its own pair's N* under `missing: "pairwise"`: df = N* − 2,
+se = 1/√(N* − 3). A partial correlation over g held-fixed fields uses
+df = N* − 2 − g and se = 1/√(N* − 3 − g), with one N* for the matrix —
+the fold's under listwise, the smallest pair's under pairwise (warned
+`PULSE_MATRIX_PAIRWISE_N_STAR`), as `ppcor` does. A cell too thin for
+its p or interval is `null` (never collapsed to r) and
+`PULSE_MATRIX_INSUFFICIENT_N` (scope `inference`) names it; under
+probability weights a too-small n_eff adds `PULSE_WEIGHT_LOW_NEFF`.
+
+Under a rank method (`spearman` / `kendall`) each cell's p is R
+`cor.test(method = …)`'s at its defaults, over the cell's own rows
+(n = N*, Σw under a frequency weight — every weight above 1 is a tie):
+without ties the exact test (Kendall below n = 50; Spearman's AS 89 up
+to n = 1290), otherwise the tie-corrected normal approximation
+(Kendall, no continuity correction) or t on n − 2 (Spearman) — the
+same p `TEST_KENDALL_TAU` and `TEST_SPEARMAN_R` report, so a cell
+equals the two-field test on the same pair. `cor.test` reports no
+interval for a rank correlation; Pulse's is Fisher z with the method's
+standard error — √((1 + ρ²/2)/(n − 3)) for Spearman (Bonett & Wright,
+2000), √(0.437/(n − 4)) for Kendall (Fieller, Hartley & Pearson, 1957;
+5 rows) — and [r, r] at |r| = 1.
+
+The figures ride `matrices[*].auxiliary`. The `standard` preset (the MCP
+default) keeps them on every spec that set `inference` — with the
+pairwise `auxiliary.n` beside `p` and, under a multiplicity block, the
+adjusted twins — and drops the auxiliary of a spec that did not; a
+`return` that drops them (`minimal`, or an exclude) skips the
+computation. Without a multiplicity block nothing corrects for the many
+pairs. Off (the default) the response is
+byte-identical to a request without the key.
 
 ## Partial correlation
 
@@ -93,8 +139,9 @@ merges and takes both weight kinds). `params.control` is `"all"`
 controls for exactly those (`ppcor::pcor.test(x, y, Z)`), a listed
 member leaves the output axis, and a listed field outside the members
 joins the fold and its missing-data mode (projection and
-`Components.Matrices` count it). No p-values, no scalars; pairwise adds
-`auxiliary.n`. If any input correlation is undefined every cell is
+`Components.Matrices` count it). No scalars; pairwise adds
+`auxiliary.n`, and `params.inference` the per-pair p-values and
+intervals (see Inference). If any input correlation is undefined every cell is
 `null`.
 
 It is a **decomposition** operator, so its input must be usable: a

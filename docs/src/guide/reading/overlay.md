@@ -174,6 +174,65 @@ Degrees of freedom: the number of cells present in both requests with a positive
 
 - Because the reference shares are taken as fixed, df is cells - 1, not the (rows - 1) x (columns - 1) of a test that treats both tables as samples (TEST_CHISQ on stacked rows).
 
+<a id="op-overlay_correspondence"></a>
+
+### `OVERLAY_CORRESPONDENCE`
+
+Correspondence analysis of a crosstab: a perceptual map placing rows and columns in a few dimensions so similar profiles sit close together. See its [catalog entry](../catalog/overlay.md#op-overlay_correspondence).
+
+#### `summary.statistic`
+
+In each series entry (one per dimension, dim_1 first): the dimension's principal inertia, the part of the table's association it accounts for. On the layer summary: the total inertia, the chi-square statistic divided by the grand total; 0 means rows and columns are independent.
+
+**Caveats:**
+
+- Inertia is scale-free: it does not grow with the sample size, so compare it across tables of different sizes, not the chi-square.
+
+#### `summary.parameters.share`
+
+In each series entry: the dimension's share of the total inertia (0 to 1); cumulative_share adds the dimensions before it.
+
+**Caveats:**
+
+- A map of the first two dimensions shows only their cumulative share of the table; a low share means much of the association is not on the map.
+
+#### `parts.row_coordinates.cells.value`
+
+Each row's position on a dimension (columns dim_1, dim_2, ...). Rows with similar profiles across the columns sit close together; a row far from the origin departs most from the average profile.
+
+**Caveats:**
+
+- The sign of a dimension is arbitrary: Pulse orients it so the column point that weighs most on it is positive; read which points share a side, not left or right.
+- In the symmetric map (the default) rows and columns are both scaled by the dimension's singular value; the distance between a row and a column point is not directly interpretable there.
+
+#### `parts.column_coordinates.cells.value`
+
+Each column's position on a dimension, read like the row coordinates: columns with similar profiles across the rows sit close together.
+
+**Caveats:**
+
+- In a row_principal map the columns are standard coordinates (vertices the rows are pulled toward); in a column_principal map the rows are.
+
+#### `parts.row_quality.summary.statistic`
+
+In each series entry: how well the retained dimensions show the row (0 to 1) — the share of the row's distance from the average profile they capture. Near 1 the map shows the row faithfully.
+
+**Caveats:**
+
+- A row whose profile equals the average profile has no distance to show and gets no value (null).
+
+#### `parts.column_quality.summary.statistic`
+
+In each series entry: how well the retained dimensions show the column (0 to 1), read like the row quality.
+
+#### `parts.row_contribution.cells.value`
+
+The row's share (0 to 1) of a dimension's inertia; each dimension's row contributions sum to 1. The rows with the largest contributions are the ones that define the dimension.
+
+#### `parts.column_contribution.cells.value`
+
+The column's share (0 to 1) of a dimension's inertia; each dimension's column contributions sum to 1.
+
 <a id="op-overlay_fisher_exact_cell"></a>
 
 ### `OVERLAY_FISHER_EXACT_CELL`
@@ -230,6 +289,62 @@ The number of rows behind the population's numeric summary; the other count the 
 **Caveats:**
 
 - When the subset is part of the population these rows include the subset's, so the two samples overlap: D shrinks and this count overstates the comparison sample, and the p-value comes out too large (conservative).
+
+<a id="op-overlay_markov"></a>
+
+### `OVERLAY_MARKOV`
+
+Markov chain of a from-state by to-state crosstab: transition probabilities, n-step projections, steady state and time to absorption. See its [catalog entry](../catalog/overlay.md#op-overlay_markov).
+
+#### `cells.value`
+
+The probability (0 to 1) of moving from the row's state to the column's state in one period; each row adds up to 1. The step_&lt;n&gt; parts read the same way over n periods.
+
+**Caveats:**
+
+- A row built from few moves gives noisy probabilities, and every projection compounds that noise.
+
+#### `parts.steady_state.summary.statistic`
+
+In each series entry: the share of the population that would sit in the state in the long run if the switching probabilities never change; the shares add up to 1.
+
+**Caveats:**
+
+- It is a what-if, not a forecast: it assumes today's switching behaviour holds forever, and it is absent when the chain has no single long-run mix.
+
+#### `parts.absorption_time.summary.statistic`
+
+In each series entry: the expected number of periods a member starting in the state takes to first reach one of the absorbing states (for example churned).
+
+**Caveats:**
+
+- null means the state can wander into a group of states it never leaves without reaching an absorbing one, so the expected time is infinite.
+
+#### `summary.parameters.classes`
+
+The number of communicating classes: groups of states that can all reach one another. 1 means every state can reach every other; more (an absorbing churned state is its own class) means there is no single long-run mix, so steady_state is absent.
+
+<a id="op-overlay_matrix_group_summary"></a>
+
+### `OVERLAY_MATRIX_GROUP_SUMMARY`
+
+Summarize a grouped matrix across its groups: each cell's mean, minimum, maximum and range, and how many groups fed it. See its [catalog entry](../catalog/overlay.md#op-overlay_matrix_group_summary).
+
+#### `cells.value`
+
+The cell's average across the groups: each group's matrix value for the pair, averaged with every group counting once.
+
+**Caveats:**
+
+- Read it beside parts.range: a mean over groups that disagree hides that disagreement.
+
+#### `parts.range.cells.value`
+
+How far apart the groups sit on the cell: the largest group value minus the smallest (0 when one group fed it).
+
+#### `parts.n_groups.cells.value`
+
+How many groups had a defined value for the cell; null cells elsewhere in the layer have 0 here.
 
 <a id="op-overlay_pairwise_probit_t"></a>
 
@@ -349,6 +464,75 @@ Two-proportion z-tests between every pair of requests in a Compose panel, for ea
 - The normal approximation needs roughly 10 successes and 10 failures per side.
 - A pair involving a slot whose row margin is missing or zero is NaN, with a warning: it gets no test.
 - The layer does not report an effect size: compare the slots' cell shares (cell / row total) for how big each gap is.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+<a id="op-overlay_rake"></a>
+
+### `OVERLAY_RAKE`
+
+Rake a crosstab to known row and column totals: the fitted table, per-cell adjustment factors and whether the fit converged. See its [catalog entry](../catalog/overlay.md#op-overlay_rake).
+
+#### `cells.value`
+
+The raked count for the cell: the table rescaled so its row and column totals match the targets while keeping its internal pattern.
+
+**Caveats:**
+
+- Read it only when summary.parameters.converged is 1; otherwise the margins are still off their targets.
+
+#### `parts.factors.cells.value`
+
+How much the cell was scaled: the raked count over the observed one (above 1 = scaled up). null where the observed cell was 0, which stays 0.
+
+**Caveats:**
+
+- Very large or very small factors mean the targets sit far from the sample, and the raked cells lean heavily on few records.
+
+#### `summary.parameters.converged`
+
+1 when every fitted margin is within the tolerance of its target, 0 when the fit stopped at max_iter first (the table still ships, with a warning).
+
+#### `summary.parameters.residual`
+
+The largest relative gap left between a fitted margin and its target (0.01 = 1%).
+
+<a id="op-overlay_std_residual"></a>
+
+### `OVERLAY_STD_RESIDUAL`
+
+Adjusted residual for every crosstab cell: how far its count sits above or below what its row and column totals predict. See its [catalog entry](../catalog/overlay.md#op-overlay_std_residual).
+
+#### `cells.value`
+
+The cell's adjusted standardized residual: (observed - expected) divided by its standard error, where expected is the count the row and column totals predict if the two fields were independent. Under independence it is about standard normal, so a value beyond plus or minus 1.96 is unusual at the 5% level; the cells with the largest absolute values are the ones driving the table's chi-square.
+
+**Sign:**
+
+- `+`: the cell holds more cases than its row and column totals predict
+- `-`: the cell holds fewer cases than its row and column totals predict
+
+**Caveats:**
+
+- A cell whose expected count is 0 (an empty row or column) has no residual and is null.
+- It is meaningful only when the cells count independent rows (AGG_COUNT); on sums or averages it is not a valid residual.
+- On a probability-weighted host the table is first scaled to its effective sample size (summary.parameters.n_eff): a first-order Kish approximation, not the Rao-Scott correction.
+
+#### `parts.expected.cells.value`
+
+The count the cell would hold if the row and column fields were independent: its row total times its column total, divided by the grand total.
+
+**Caveats:**
+
+- On a probability-weighted host it is on the effective-sample-size scale, not the weighted-total scale.
+
+#### `parts.p.cells.value`
+
+**Caveats:**
+
+- Each cell holds the two-sided normal p-value of its own residual; it says how surprising the departure is, the residual says which way.
+- It comes from a normal approximation that weakens when expected counts fall below about 5; Pulse warns (PULSE_OVERLAY_EXPECTED_LOW) when they do.
+- Every cell is a separate test and Pulse reports the p-values raw: with many cells some small ones turn up by luck, so before flagging cells adjust for multiple comparisons: set multiplicity on the overlay and read payload.p_adjusted.
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 

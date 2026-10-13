@@ -1740,7 +1740,10 @@ const (
 	// PULSE_OVERLAY_REFERENCE_UNKNOWN indicates a whole-chain
 	// ChainOverlaySpec named a Ref StageRef that does not resolve to a
 	// known stage on the chain (Index out of range OR Name unmatched),
-	// or the spec did not populate Ref at all. Sibling of
+	// or the spec did not populate Ref at all — or a MATRIX_RESULT
+	// overlay's Ref.Matrix.Name names no Request.Matrices spec
+	// (`which: "matrix"`, Details {index, kind, which, name, matrices};
+	// predict and runtime alike via overlayhost.MatrixResultRefusal). Sibling of
 	// PULSE_OVERLAY_TARGET_UNKNOWN distinguished by `which: "ref"`. The
 	// code also covers the missing-reference-cell / missing-reference-
 	// row surface on the CHAIN-host DELTA family
@@ -2022,6 +2025,82 @@ const (
 	// IncludeOverlays=false opt-out that suppresses the warning while
 	// keeping CSV output.
 	PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED Code = "PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED"
+
+	// PULSE_OVERLAY_EXPORT_PARTS_DROPPED is a WARNING-class code emitted
+	// by an export adapter that embeds an overlay layer's PRIMARY payload
+	// but cannot carry its named parts (OverlayPayload.Parts) — today the
+	// Excel adapter, whose one-sheet-per-layer layout has no slot for a
+	// secondary payload. The primary rides its sheet unchanged; the parts
+	// are dropped. Details carry `layer_count` (layers with parts),
+	// `layer_names` and `parts` (layer name → sorted part names). Never an
+	// envelope error: the export succeeds. Formats that write the layer
+	// as JSON (Arrow, Parquet, NDJSON) carry parts whole; the warn-and-
+	// skip formats (CSV, TSV, SPSS) drop the whole layer under
+	// PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED instead.
+	PULSE_OVERLAY_EXPORT_PARTS_DROPPED Code = "PULSE_OVERLAY_EXPORT_PARTS_DROPPED"
+
+	// PULSE_OVERLAY_NONNEGATIVE_REQUIRED indicates an overlay that reads
+	// its crosstab host as a table of non-negative masses (counts or
+	// sums — OVERLAY_CORRESPONDENCE, later the Markov and raking kinds)
+	// met a host that is not one: a cell aggregation other than
+	// AGG_COUNT / AGG_SUM (predict and runtime twins, details
+	// {kind, aggregation, slot: "crosstab.cell"}, plus index on
+	// predict), or a cell value that is negative or not finite (runtime
+	// only — predict reads no record; details {kind, row, column,
+	// value}). Raised with its own code, never PROCESSING_INTERNAL.
+	PULSE_OVERLAY_NONNEGATIVE_REQUIRED Code = "PULSE_OVERLAY_NONNEGATIVE_REQUIRED"
+
+	// PULSE_OVERLAY_MATRIX_NOT_SQUARE indicates an overlay that reads its
+	// crosstab host as a square from-state × to-state table
+	// (OVERLAY_MARKOV) met a host whose row and column key sets differ.
+	// States align by key, never by position, so the two axes must name
+	// the same states. Predict raises it when the shape alone decides it
+	// (row and column axes with different grouper counts — their keys
+	// can never match; details {kind, index, row_fields, column_fields});
+	// runtime raises the same arity refusal plus the key-set one (details
+	// {kind, index, row_only, column_only}: the state names found on one
+	// axis only). Raised with its own code, never PROCESSING_INTERNAL.
+	PULSE_OVERLAY_MATRIX_NOT_SQUARE Code = "PULSE_OVERLAY_MATRIX_NOT_SQUARE"
+
+	// PULSE_OVERLAY_MARKOV_NOT_ERGODIC is a WARNING (never an error) an
+	// OVERLAY_MARKOV layer carries when its chain has no unique limiting
+	// distribution, so the steady_state part is omitted: the chain is
+	// reducible (more than one communicating class — details {kind,
+	// reason: "reducible", classes}) or periodic (details {kind, reason:
+	// "periodic", period}). It also flags states whose absorption is not
+	// certain (reason "absorption_not_certain", details states): their
+	// absorption_time is null. Every other part still emits.
+	PULSE_OVERLAY_MARKOV_NOT_ERGODIC Code = "PULSE_OVERLAY_MARKOV_NOT_ERGODIC"
+
+	// PULSE_OVERLAY_RAKE_TARGET_MISMATCH indicates an OVERLAY_RAKE
+	// spec whose targets do not line up with its crosstab host. Reason
+	// "keys": a target key the host axis does not carry (target_only)
+	// or a host key the targets leave out (host_only) — details {kind,
+	// reason, axis: row | column, target_only, host_only}; predict raises
+	// it when a single GROUP_CATEGORY axis over a categorical field
+	// cannot hold a target key (not in the dictionary), runtime on the
+	// host's observed keys. Reason "totals_differ": targets_as "counts"
+	// whose row and column totals differ by more than the tolerance —
+	// details {kind, reason, row_total, column_total}, predict and
+	// runtime alike. Raised with its own code, never PROCESSING_INTERNAL.
+	PULSE_OVERLAY_RAKE_TARGET_MISMATCH Code = "PULSE_OVERLAY_RAKE_TARGET_MISMATCH"
+
+	// PULSE_OVERLAY_RAKE_NOT_CONVERGED is a WARNING (never an error) an
+	// OVERLAY_RAKE layer carries when iterative proportional fitting
+	// stopped at params.max_iter sweeps with a fitted margin still off
+	// its target by more than params.tolerance (relative). The fitted
+	// table and factors still emit, summary.parameters.converged is 0.
+	// Details {kind, iterations, residual, tolerance}.
+	PULSE_OVERLAY_RAKE_NOT_CONVERGED Code = "PULSE_OVERLAY_RAKE_NOT_CONVERGED"
+
+	// PULSE_OVERLAY_GROUPS_REQUIRED indicates an overlay that summarizes
+	// a result across its group buckets (OVERLAY_MATRIX_GROUP_SUMMARY on
+	// the MATRIX_RESULT host) authored on a request with no
+	// Request.Groups: an ungrouped matrix spec has one result, so there
+	// is nothing to summarize across. Details {index, kind, name}.
+	// Raised by predict and runtime alike through the shared
+	// overlayhost.MatrixResultRefusal, with its own code.
+	PULSE_OVERLAY_GROUPS_REQUIRED Code = "PULSE_OVERLAY_GROUPS_REQUIRED"
 
 	// PULSE_TEMPLATE_NOT_FOUND indicates a render was asked for a
 	// template name that is not registered — neither declared
@@ -3728,6 +3807,13 @@ var allCodes = []Code{
 	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP,
 	PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED,
 	PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED,
+	PULSE_OVERLAY_EXPORT_PARTS_DROPPED,
+	PULSE_OVERLAY_NONNEGATIVE_REQUIRED,
+	PULSE_OVERLAY_MATRIX_NOT_SQUARE,
+	PULSE_OVERLAY_MARKOV_NOT_ERGODIC,
+	PULSE_OVERLAY_RAKE_TARGET_MISMATCH,
+	PULSE_OVERLAY_RAKE_NOT_CONVERGED,
+	PULSE_OVERLAY_GROUPS_REQUIRED,
 	PULSE_INDEX_MISSING,
 	PULSE_LOOKUP_NOT_FOUND,
 	PULSE_LOOKUP_AMBIGUOUS,

@@ -103,8 +103,11 @@ drift from the engine:
    registries the engine executes against, so registering a new operator
    changes the schema.
 3. **Hand-tuned strict unions** for the two shapes reflection cannot
-   express: `OverlayRef` (at most one arm populated) and `OverlayPayload`
-   (shape-discriminated `scalar` / `series` / `matrix`).
+   express: `OverlayRef` (at most one arm populated — ten arms, the
+   newest `matrix {name}` naming a `Request.Matrices` spec for the
+   matrix-result overlay host) and `OverlayPayload`
+   (shape-discriminated `scalar` / `series` / `matrix`, plus named
+   `parts` that never nest).
 
 A golden test (`TestPayloadSchemaGolden`) pins the output and an
 enum-parity test (`TestPayloadSchema_EnumsMatchRegistry`) fails CI on
@@ -189,23 +192,28 @@ Multiple-comparison correction adds one additive block shape,
 `format_version` stays `"1.1"`; a request that names no block is
 byte-identical to the earlier wire form and hashes identically). It rides
 as `multiplicity` on `Request`, `Test` (`tests[]` and `post_tests[]`),
-`OverlaySpec` (request and facet overlays), `ComposeOverlaySpec` and
-`ComposedRequest`. `method` is the closed enum `MultiplicityMethod`
-(`none`, `bonferroni`, `holm`, `bh`, `by`) and `family` the closed enum
-`MultiplicityFamily` (`layer`, `row`, `column`, `request`, `compose`);
+`OverlaySpec` (request and facet overlays), `MatrixSpec` (`matrices[]`),
+`ComposeOverlaySpec` and `ComposedRequest`. `method` is the closed enum
+`MultiplicityMethod` (`none`, `bonferroni`, `holm`, `bh`, `by`) and
+`family` the closed enum `MultiplicityFamily` (`layer`, `row`, `column`,
+`request`, `compose`, `matrix`);
 both are full vocabularies on every instance (not features). `alpha` is a
 number in (0, 1).
 
 Each key falls through on its own: slot → request (a Compose slot: then
 the `ComposedRequest`) → the engine's `DefaultMultiplicity` → none, and an
 omitted family takes the surface default (`request` for tests, `layer`
-for overlays). `{"method": "none"}` is the explicit opt-out. What the
+for overlays, `matrix` for a matrix spec). `{"method": "none"}` is the explicit opt-out. What the
 schema cannot say is enforced identically by `pulse predict` and the
 runtime (`PULSE_MULTIPLICITY_INVALID`): the families each surface offers
 (`row` / `column` only on a MATRIX-payload overlay kind, `compose` only
 inside Compose, never `request` on a Compose overlay or anything but
-`layer` / `row` / `column` on a facet overlay), no `alpha` on a test's
-own block, and no explicit correction on the Tukey HSD post-test. Members
+`layer` / `row` / `column` on a facet overlay, `matrix` only — with
+`request` — on a matrix spec), no `alpha` on a test's own block, no
+explicit correction on the Tukey HSD post-test, and no block on a matrix
+operator without p-values (only `MAT_CORRELATION` /
+`MAT_PARTIAL_CORRELATION` take one; it implies `params.inference`, and an
+explicit `params.inference: false` beside it is refused). Members
 of one `request` or `compose` family that resolve to different methods
 are refused `PULSE_MULTIPLICITY_CONFLICT`.
 
@@ -280,6 +288,56 @@ index with no defined p-value, and `m` is their sum. A facet overlay
 (`FacetResult.overlays[]`) is corrected per layer with the same slots
 and the engine's `DefaultMultiplicity` applying. These keys ride
 `capability:multiplicity` like the test outputs.
+
+A matrix spec under `params.inference` (set, or implied by its own
+block) is corrected over its DISTINCT pairs: the off-diagonal upper
+triangle of each `square_symmetric` result (m = k(k − 1)/2 for k
+members — the diagonal and the mirrored lower triangle are not separate
+hypotheses), every cell of a rectangular one. The result's open
+`auxiliary` map gains `p_adjusted` and `significant_adjusted`, two
+`MatrixValues` of `auxiliary.p`'s kind, encoding and keys (mirrored into
+both triangles under `full`, diagonal `null`; `significant_adjusted` is
+`1` when `p_adjusted` < the block's `alpha`, else `0`, `null` beside a
+null `p_adjusted`), and the `MatrixResult` gains a `multiplicity` echo
+(`AppliedMultiplicity`). `auxiliary.p` never changes. Family `matrix`
+(the default) is one family per result — per spec and per group
+bucket; `request` pools every bucket of the spec with the request's
+other `request`-family members. An inherited block reaches only a spec
+already under `params.inference`. The echo key rides
+`capability:multiplicity`.
+
+## Overlay payload parts
+
+`OverlayPayload.parts` (additive, `omitempty`) carries a multi-output
+overlay kind's named secondary payloads BESIDE its primary: one spec
+still produces one layer, and the primary (`shape` + its arm) stays where
+every renderer already reads it.
+
+```json
+{"shape": "matrix", "matrix": {"…": "residuals"},
+ "parts": {"expected": {"shape": "matrix", "matrix": {"…": "…"}},
+           "p":        {"shape": "matrix", "matrix": {"…": "…"}}}}
+```
+
+- Each part is a plain `scalar` | `series` | `matrix` payload under the
+  same shape rule as the primary. Parts never nest: the schema's per-part
+  definition has no `parts` key, and the engine refuses a handler that
+  builds one (`PROCESSING_INTERNAL`).
+- Part names are fixed per kind and listed in the kind's skill.
+- A coordinate-style matrix part whose columns are dimensions rather than
+  host keys (points × dimensions) keys them `["dim_1"]`, `["dim_2"]`, …
+  in dimension order.
+- A layer without parts — every single-output kind — writes no `parts`
+  key, so its bytes are unchanged; `format_version` stays `"1.1"`.
+- `return` addresses one part as `overlays[*].payload.parts.<part>`. A
+  part name is a map key, so the path is Open: an excluded part is
+  ABSENT (never `null`), an include naming no existing part raises
+  `PULSE_RETURN_PATH_UNMATCHED`, and excluding every part drops the
+  `parts` key.
+- Export: NDJSON, Arrow and Parquet write each layer as JSON, parts
+  included; Excel writes the primary on the layer's sheet and drops the
+  parts under one `PULSE_OVERLAY_EXPORT_PARTS_DROPPED` warning; CSV, TSV
+  and SPSS drop whole layers under `PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED`.
 
 ## Weight slots
 
@@ -483,6 +541,12 @@ diagonal (`upper`). `kind` is `square_symmetric` or `rectangular`
 `MAT_DISTANCE`'s primary is `square_symmetric` but keyed by its
 between grouper's bucket labels, and its `auxiliary.centroids` is k × p:
 `row_keys` the buckets, `column_keys` the members).
+`MAT_CORRELATION` (every `method`) and `MAT_PARTIAL_CORRELATION` take
+`params.inference` (bool) and `params.alpha` (0 < alpha < 1, default
+0.05): on, `auxiliary` gains `p`, `ci_lower` and `ci_upper`, square
+twins of `primary` (same axis and `encoding`, diagonal `null`); off or
+absent, the response is byte-identical. `params` stays an open object
+in the schema — its keys are the manifest's per-operator `params`.
 Undefined cells and scalars (no mass, too few rows, a determinant of a
 matrix that is not positive definite) are `null`, keys kept. What the
 schema cannot say, predict and the runtime enforce identically before
@@ -738,14 +802,19 @@ library walkthrough: `library/response-shaping.md`.
 
 The presets are defined once (`internal/descriptor/return_resolve.go`,
 `returnPresetPaths`) and listed in the manifest as `return_presets`
-(`[{name, paths}]`, in `full` / `standard` / `minimal` order) with each
+(`[{name, paths, companions?}]`, in `full` / `standard` / `minimal` order) with each
 preset's paths **expanded against the instance**: a path a hidden
 feature owns (e.g. `matrices[*]` without `capability:matrices`,
 `tests[*].p_adjusted` without `capability:multiplicity`) is absent from
 the listing and from the selection, never an error. A preset is an
 include allowlist, so a caller's `include` can always add a part back.
 Nested `*.warnings` are not listed: each is kept wherever its parent is
-emitted. Every listed path must resolve against this schema
+emitted. `companions` lists a preset's CONDITIONAL selections, each
+`<path> (with <key>)`: the map key at `path` is kept wherever its parent
+map also holds a kept `<key>` (`returnPresetCompanions`). `standard` has
+one, `matrices[*].auxiliary.n (with p)`; predict's `return` plan echoes
+it as `companions` and its digest covers it. An include or exclude
+covering the path removes it; excluding `<key>` drops it too. Every listed path must resolve against this schema
 (`TestReturnPathsMatchSchema`).
 
 | Slot | `minimal` (primary result) | `standard` |
@@ -753,7 +822,7 @@ emitted. Every listed path must resolve against this schema
 | `data`, `warnings` | yes | yes |
 | `metadata` | no | yes |
 | `crosstab` | `shape`, `matrix` | whole |
-| `matrices[*]` | `name`, `type`, `group_key`, `primary` | all but `auxiliary` |
+| `matrices[*]` | `name`, `type`, `group_key`, `primary` | all but `auxiliary`, except the inference figures a spec asked for: `auxiliary.p` / `ci_lower` / `ci_upper` (`params.inference`), `p_adjusted` / `significant_adjusted` (a multiplicity family), and the pairwise `auxiliary.n` beside a kept `p` (a companion). They exist only on that spec's result, so a spec without inference keeps no auxiliary |
 | `tests[*]` / `post_tests[*]` | `label`, `type`, `group_key`, `statistic`, `p_value`, `reject_null`, `p_adjusted`, `significant_adjusted` | minimal's keys + `variant`, `df`, `alpha`, `multiplicity`, `details.effect_size` (no other `details` key) |
 | `regressions[*]` | `name`, `type`, `coefficients`, `p_values` | all but `credible_intervals` and `selection` (so `ci_lower` / `ci_upper` / `df` / `conf_level`, and `vcov` / `correlation` / `covariance` when asked for) |
 | `overlays[*]` | `name`, `kind`, `ref`, `summary` (no `payload`) | whole |

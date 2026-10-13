@@ -159,6 +159,7 @@ func (s *Service) composeParallel(
 	// inter-slot synchronization is required beyond the slot itself.
 	responses := make([]*types.Response, n)
 	errs := make([]error, n)
+	deferred := make([]func() error, n)
 
 	// Cancellation context: derived once so FailFast can fan out cancellation
 	// to every in-flight goroutine via cancel().
@@ -197,7 +198,7 @@ func (s *Service) composeParallel(
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			reqCtx := bindSlotModels(rankSlotContext(composeSlotContext(runCtx, vetoes, multPlan, i), rank, i), slotSets[i], req)
+			reqCtx := bindSlotModels(rankSlotContext(deferMatrixResultOverlays(composeSlotContext(runCtx, vetoes, multPlan, i), &deferred[i]), rank, i), slotSets[i], req)
 			if o.PerRequestTimeout > 0 {
 				var reqCancel context.CancelFunc
 				reqCtx, reqCancel = context.WithTimeout(reqCtx, o.PerRequestTimeout)
@@ -299,6 +300,10 @@ func (s *Service) composeParallel(
 	// each slot's own families correct inside the slot. Shared with the
 	// other orchestrator, so serial and parallel answer identically.
 	if err := foldComposeMultiplicity(multPlan, out); err != nil {
+		return nil, err
+	}
+	// Each slot's own MATRIX_RESULT overlays, after the barrier fold.
+	if err := runDeferredMatrixResultOverlays(deferred); err != nil {
 		return nil, err
 	}
 	// The sweep rank reads the finished, folded, still-unshaped slots.

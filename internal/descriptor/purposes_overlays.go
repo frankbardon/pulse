@@ -20,6 +20,7 @@ var overlayPurposes = map[string]descriptor.Purpose{
 	"OVERLAY_CHISQ_ROW":                     purposeOverlayChiSqRow,
 	"OVERLAY_CHISQ_VS_POP":                  purposeOverlayChiSqVsPop,
 	"OVERLAY_CHISQ_VS_REF":                  purposeOverlayChiSqVsRef,
+	"OVERLAY_CORRESPONDENCE":                purposeOverlayCorrespondence,
 	"OVERLAY_DELTA_VS_BASELINE":             purposeOverlayDeltaVsBaseline,
 	"OVERLAY_DELTA_VS_MARGIN":               purposeOverlayDeltaVsMargin,
 	"OVERLAY_DELTA_VS_PRIOR":                purposeOverlayDeltaVsPrior,
@@ -38,6 +39,8 @@ var overlayPurposes = map[string]descriptor.Purpose{
 	"OVERLAY_INDEX_VS_STAGE":                purposeOverlayIndexVsStage,
 	"OVERLAY_INDEX_VS_TOTAL":                purposeOverlayIndexVsTotal,
 	"OVERLAY_KS_VS_POP":                     purposeOverlayKSVsPop,
+	"OVERLAY_MATRIX_GROUP_SUMMARY":          purposeOverlayMatrixGroupSummary,
+	"OVERLAY_MARKOV":                        purposeOverlayMarkov,
 	"OVERLAY_PAIRWISE_PROBIT_T":             purposeOverlayPairwiseProbitT,
 	"OVERLAY_PAIRWISE_PROP_Z":               purposeOverlayPairwisePropZ,
 	"OVERLAY_PAIRWISE_TWO_MEANS_Z":          purposeOverlayPairwiseTwoMeansZ,
@@ -46,10 +49,12 @@ var overlayPurposes = map[string]descriptor.Purpose{
 	"OVERLAY_PANEL_INDEX_VS_REF":            purposeOverlayPanelIndexVsRef,
 	"OVERLAY_PROP_Z_CELL":                   purposeOverlayPropZCell,
 	"OVERLAY_PROP_Z_PANEL":                  purposeOverlayPropZPanel,
+	"OVERLAY_RAKE":                          purposeOverlayRake,
 	"OVERLAY_RANK":                          purposeOverlayRank,
 	"OVERLAY_SHARE_OF_COL":                  purposeOverlayShareOfCol,
 	"OVERLAY_SHARE_OF_ROW":                  purposeOverlayShareOfRow,
 	"OVERLAY_SHARE_OF_TOTAL":                purposeOverlayShareOfTotal,
+	"OVERLAY_STD_RESIDUAL":                  purposeOverlayStdResidual,
 	"OVERLAY_T_CELL":                        purposeOverlayTCell,
 	"OVERLAY_T_VS_REF":                      purposeOverlayTVsRef,
 	"OVERLAY_YOY":                           purposeOverlayYoY,
@@ -104,7 +109,8 @@ var (
 			{When: "you compare this table's mix with another Compose request's table", Use: "OVERLAY_CHISQ_VS_REF"},
 		},
 		FollowUps: []descriptor.Alternative{
-			{When: "the table shows an association and you want to see which cells drive it", Use: "OVERLAY_FISHER_EXACT_CELL"},
+			{When: "the table shows an association and you want to see which cells drive it", Use: "OVERLAY_STD_RESIDUAL"},
+			{When: "counts are small and you want an exact test for each cell", Use: "OVERLAY_FISHER_EXACT_CELL"},
 			{When: "you want to see which rows depart from the overall column mix", Use: "OVERLAY_CHISQ_ROW"},
 		},
 		Assumptions: []string{
@@ -275,6 +281,160 @@ var (
 			"chi-square", "cross-tabulation", "exact-test", "false-discovery-rate", "family-wise-error",
 			"independence", "margin", "multiple-comparisons", "null-hypothesis", "p-value",
 			"two-tailed",
+		},
+	}
+
+	purposeOverlayCorrespondence = descriptor.Purpose{
+		Plain:   "Correspondence analysis of a crosstab: a perceptual map placing rows and columns in a few dimensions so similar profiles sit close together.",
+		Intents: []string{IntentComposition, IntentRelationship},
+		Questions: []string{
+			"Which brands sit closest to which attributes on a perceptual map?",
+			"Which segments share a similar mix of answers, and which answers set each apart?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Draw the brand-by-attribute perceptual map of a banner table and see which attributes each brand owns.",
+			descriptor.DomainOps:     "Map sites and fault types together to see which sites share a fault profile.",
+			descriptor.DomainScience: "Summarise a large species-by-site count table in two dimensions to spot gradients.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want one test of whether rows and columns are associated", Use: "OVERLAY_CHISQ_MATRIX"},
+			{When: "you want which individual cells are over- or under-represented", Use: "OVERLAY_STD_RESIDUAL"},
+			{When: "the fields are numeric measures, not a table of counts", Use: "MAT_PCA"},
+		},
+		FollowUps: []descriptor.Alternative{
+			{When: "a point sits apart on the map and you want the cells behind it", Use: "OVERLAY_STD_RESIDUAL"},
+		},
+		Assumptions: []string{
+			"Cells must be non-negative counts or sums (AGG_COUNT or AGG_SUM); any other cell, or a negative cell, is refused. Rows or columns with a zero total are dropped with a warning.",
+			"It is descriptive: the map shows how row and column profiles differ from the average profile, not whether the differences are significant.",
+			"Two points of the SAME kind (two rows) sit close when their profiles are similar; how close a row sits to a column is only directly meaningful in a row_principal or column_principal map.",
+			"Read a dimension's share of the total inertia before trusting the map: a two-dimensional map that keeps little of the inertia hides most of the table, and points with low quality are poorly shown.",
+		},
+		Level:   descriptor.LevelAdvanced,
+		KnownAs: []string{"correspondence analysis", "perceptual map"},
+		Glossary: []string{
+			"centroid", "chi-square", "cross-tabulation", "distance", "independence", "margin", "residual",
+		},
+	}
+
+	purposeOverlayMarkov = descriptor.Purpose{
+		Plain:   "Markov chain of a from-state by to-state crosstab: transition probabilities, n-step projections, steady state and time to absorption.",
+		Intents: []string{IntentFlows},
+		Questions: []string{
+			"Where will customers sit across the tiers in 6 or 12 periods if they keep switching as they did?",
+			"On average, how many periods does a customer in each tier take to churn?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainOps:     "Project tier migration forward and estimate the expected months until churn from each tier.",
+			descriptor.DomainSurvey:  "Turn a last-brand by current-brand table into a switching matrix and project brand shares forward.",
+			descriptor.DomainScience: "Model moves between disease stages and the expected time to an absorbing outcome.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want one test of whether the from-state and the to-state are associated", Use: "OVERLAY_CHISQ_MATRIX"},
+			{When: "you only want each cell's share of its row, with no projection", Use: "OVERLAY_SHARE_OF_ROW"},
+		},
+		Assumptions: []string{
+			"Rows are the from-state and columns the to-state, over the same set of states; the table counts moves over one period of equal length.",
+			"The next state depends only on the current one, and the switching probabilities stay the same every period (a time-homogeneous Markov chain).",
+			"A state no one leaves in the data (a zero row) is treated as absorbing; a chain that splits into groups that never mix, or cycles with a fixed rhythm, has no steady state and is warned about.",
+			"It is descriptive: the projections carry no confidence intervals, and a state seen on few moves gives noisy probabilities.",
+		},
+		Level:   descriptor.LevelAdvanced,
+		KnownAs: []string{"markov chain", "transition matrix"},
+		Glossary: []string{
+			"cross-tabulation", "margin", "stochastic-matrix", "steady-state",
+		},
+	}
+
+	purposeOverlayMatrixGroupSummary = descriptor.Purpose{
+		Plain:   "Summarize a grouped matrix across its groups: each cell's mean, minimum, maximum and range, and how many groups fed it.",
+		Intents: []string{IntentCompareGroups, IntentRelationship},
+		Questions: []string{
+			"How stable is each correlation across regions: what is its average, and how far apart are the extremes?",
+			"Which pairs of measures relate strongly in some segments but weakly in others?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Check whether item correlations hold across waves or regions before pooling the scale.",
+			descriptor.DomainOps:     "See which metric pairs move together in every site and which only in a few.",
+			descriptor.DomainScience: "Compare a covariance structure across cohorts: the mean matrix beside its per-cell range.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want one matrix over every row, ignoring the groups", Use: "MAT_CORRELATION"},
+			{When: "you want to test whether two groups' means differ", Use: "TEST_T"},
+		},
+		Assumptions: []string{
+			"Every group counts once: the mean is unweighted across groups, so a small group weighs as much as a large one.",
+			"A cell missing from a group, or undefined there, is skipped for that group; n_groups says how many groups fed each cell.",
+			"It is descriptive: the range says how far the groups spread, not whether the difference is significant.",
+		},
+		Level:   descriptor.LevelIntermediate,
+		KnownAs: []string{"pooled correlation matrix", "matrix across groups"},
+		Glossary: []string{
+			"mean", "correlation", "covariance",
+		},
+	}
+
+	purposeOverlayRake = descriptor.Purpose{
+		Plain:   "Rake a crosstab to known row and column totals: the fitted table, per-cell adjustment factors and whether the fit converged.",
+		Intents: []string{IntentComposition, IntentBenchmark},
+		Questions: []string{
+			"What would this age by region table look like if its margins matched the census shares?",
+			"By how much does each cell have to be scaled up or down to hit the population totals?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Rake an age by region table to census margins before reading the cell shares.",
+			descriptor.DomainOps:     "Rebalance a site by shift table to planned headcount totals while keeping its internal pattern.",
+			descriptor.DomainScience: "Standardize a sample's exposure by age table to a reference population's margins.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want each cell's share of its row, with no target margins", Use: "OVERLAY_SHARE_OF_ROW"},
+			{When: "you want to test whether rows and columns are associated", Use: "OVERLAY_CHISQ_MATRIX"},
+		},
+		Assumptions: []string{
+			"Every row key and every column key of the table has exactly one target; targets for categories the table does not hold are refused, not dropped.",
+			"Raking keeps the table's internal pattern (its odds ratios) and only rescales rows and columns, so a cell observed as zero stays zero.",
+			"A row or column with no observed cells cannot reach a positive target; the fit then stops short and says so.",
+			"It reweights the table only: it writes no weights back to the records, and it is descriptive, with no confidence intervals.",
+		},
+		Level:   descriptor.LevelAdvanced,
+		KnownAs: []string{"raking", "iterative proportional fitting", "IPF"},
+		Glossary: []string{
+			"cross-tabulation", "margin", "raking", "weighting",
+		},
+	}
+
+	purposeOverlayStdResidual = descriptor.Purpose{
+		Plain:   "Adjusted residual for every crosstab cell: how far its count sits above or below what its row and column totals predict.",
+		Intents: []string{IntentRelationship},
+		Questions: []string{
+			"Which cells drive the association in this crosstab?",
+			"Which brand-by-attribute cells are over- or under-represented?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Find the brand-by-attribute cells of a banner table that respondents pick more or less often than the totals predict.",
+			descriptor.DomainOps:     "Find the site-by-fault cells that occur more or less often than the site and fault totals predict.",
+			descriptor.DomainScience: "Find the arm-by-outcome cells that depart from independence, and in which direction.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want one test for the whole table", Use: "OVERLAY_CHISQ_MATRIX"},
+			{When: "counts are small and you want an exact per-cell test", Use: "OVERLAY_FISHER_EXACT_CELL"},
+			{When: "you want each cell's distance from its margin without a test", Use: "OVERLAY_ZSCORE_VS_MARGIN"},
+		},
+		Assumptions: []string{
+			overlayCountsOnly,
+			"The null hypothesis is that row and column categories are independent; each residual is about standard normal under it, so beyond plus or minus 1.96 is unusual at the 5% level, and the p-value is two-sided.",
+			"The normal approximation needs expected counts of about 5 or more; a warning flags tables where some are lower, and a cell with an expected count of 0 gets no residual.",
+			"Every cell is a separate test, so with many cells some small p-values turn up by luck; " +
+				"to adjust for multiple comparisons, " + overlayCorrectWith,
+		},
+		FollowUps: []descriptor.Alternative{
+			{When: "the table is large and you want the overall pattern of rows and columns on one map", Use: "OVERLAY_CORRESPONDENCE"},
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"chi-square", "cross-tabulation", "false-discovery-rate", "family-wise-error",
+			"independence", "margin", "multiple-comparisons", "normal-distribution", "null-hypothesis",
+			"p-value", "residual", "two-tailed",
 		},
 	}
 

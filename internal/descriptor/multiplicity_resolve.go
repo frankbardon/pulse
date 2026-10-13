@@ -1,12 +1,14 @@
 package descriptor
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"sort"
 	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -24,11 +26,16 @@ import (
 // → none / surface default).
 type ResolvedMultiplicity struct {
 	// Slot is the slot path inside its request ("tests[0]",
-	// "post_tests[1]", "overlays[2]"); a Compose-host overlay is
-	// "overlays[i]" of the ComposedRequest.
+	// "post_tests[1]", "overlays[2]", "matrices[3]"); a Compose-host
+	// overlay is "overlays[i]" of the ComposedRequest.
 	Slot string
-	// Operator is the slot's test type or overlay kind as authored.
+	// Operator is the slot's test type, overlay kind or matrix type as
+	// authored.
 	Operator string
+	// Name is a matrix spec's result name (MatrixSpec.EffectiveName):
+	// the fold pairs every Response.Matrices entry (one per group
+	// bucket) with its slot by it. Empty on every other slot.
+	Name string
 	// Method is the resolved method; MultiplicityMethodNone when
 	// nothing names one.
 	Method types.MultiplicityMethod
@@ -41,10 +48,11 @@ type ResolvedMultiplicity struct {
 	// test: a test's adjusted flag reads its own Test.Alpha.
 	Alpha float64
 	// Member reports whether the slot's p-values join Family under
-	// Method: Method is not none, the slot emits p-values (a test, or
-	// an inferential overlay kind the instance offers), and it is not
-	// skipped (an inherited correction never reaches the Tukey HSD
-	// post-test, which is already corrected).
+	// Method: Method is not none, the slot emits p-values (a test, an
+	// inferential overlay kind the instance offers, or a matrix spec
+	// under params.inference — set, or implied by its own block), and
+	// it is not skipped (an inherited correction never reaches the
+	// Tukey HSD post-test, which is already corrected).
 	Member bool
 }
 
@@ -54,6 +62,8 @@ type MultiplicityPlan struct {
 	Tests     []ResolvedMultiplicity
 	PostTests []ResolvedMultiplicity
 	Overlays  []ResolvedMultiplicity
+	// Matrices is index-aligned with Request.Matrices.
+	Matrices []ResolvedMultiplicity
 }
 
 // Active reports whether any slot of the plan is a family member.
@@ -61,7 +71,7 @@ func (p *MultiplicityPlan) Active() bool {
 	if p == nil {
 		return false
 	}
-	for _, list := range [][]ResolvedMultiplicity{p.Tests, p.PostTests, p.Overlays} {
+	for _, list := range p.lists() {
 		for _, r := range list {
 			if r.Member {
 				return true
@@ -69,6 +79,11 @@ func (p *MultiplicityPlan) Active() bool {
 		}
 	}
 	return false
+}
+
+// lists is every slot list of the plan, in resolution order.
+func (p *MultiplicityPlan) lists() [][]ResolvedMultiplicity {
+	return [][]ResolvedMultiplicity{p.Tests, p.PostTests, p.Overlays, p.Matrices}
 }
 
 // ComposeMultiplicityPlan is the resolved correction of one
@@ -89,33 +104,48 @@ const (
 	surfaceRequestOverlay
 	surfaceComposeOverlay
 	surfaceFacetOverlay
+	// surfaceMatrix is a MatrixSpec's own block (U28 E3-S4).
+	surfaceMatrix
 )
 
 // defaultFamily is the family a slot of surface takes when nothing (or
 // only an inapplicable inherited family) names one.
 func (s multSurface) defaultFamily() types.MultiplicityFamily {
-	if s == surfaceTest {
+	switch s {
+	case surfaceTest:
 		return types.MultiplicityFamilyRequest
+	case surfaceMatrix:
+		return types.MultiplicityFamilyMatrix
 	}
 	return types.MultiplicityFamilyLayer
 }
 
+// overlay reports whether s is one of the overlay surfaces.
+func (s multSurface) overlay() bool {
+	return s == surfaceRequestOverlay || s == surfaceComposeOverlay || s == surfaceFacetOverlay
+}
+
 // families returns the families surface offers, in the canonical
 // order. inCompose admits `compose` on the surfaces that can carry it;
-// matrix admits `row` / `column` on an overlay surface.
+// matrix admits `row` / `column` on an overlay surface. A matrix spec
+// offers `matrix` (its own, the default) and `request` only: `layer` /
+// `row` / `column` belong to overlay layers, and `compose` is not
+// offered (an inherited one falls back to `matrix`).
 func (s multSurface) families(inCompose, matrix bool) []types.MultiplicityFamily {
 	var out []types.MultiplicityFamily
 	for _, f := range types.AllMultiplicityFamilies() {
 		ok := false
 		switch f {
 		case types.MultiplicityFamilyLayer:
-			ok = s != surfaceTest
+			ok = s.overlay()
 		case types.MultiplicityFamilyRow, types.MultiplicityFamilyColumn:
-			ok = s != surfaceTest && matrix
+			ok = s.overlay() && matrix
 		case types.MultiplicityFamilyRequest:
-			ok = s == surfaceTest || s == surfaceRequestOverlay
+			ok = s == surfaceTest || s == surfaceRequestOverlay || s == surfaceMatrix
 		case types.MultiplicityFamilyCompose:
-			ok = inCompose && s != surfaceFacetOverlay
+			ok = inCompose && s != surfaceFacetOverlay && s != surfaceMatrix
+		case types.MultiplicityFamilyMatrix:
+			ok = s == surfaceMatrix
 		}
 		if ok {
 			out = append(out, f)
@@ -134,6 +164,9 @@ const (
 	multReasonSurface        = "family not offered on this slot"
 	multReasonNotMatrix      = "row and column families need an overlay kind with a MATRIX payload"
 	multReasonTukey          = "the Tukey HSD post-test is already corrected for its own comparisons; an explicit correction would correct it twice"
+	multReasonMatrixFamily   = "the matrix family corrects one matrix result's cells and exists only on a matrix spec (matrices[i].multiplicity)"
+	multReasonMatrixSpec     = "a matrix spec corrects its cells as one matrix (matrix) or pooled with the request (request); layer, row and column belong to overlay layers and compose is not offered on a matrix spec"
+	multReasonMatrixType     = "emits no p-values; a multiplicity block applies only to the matrix operators that take params.inference"
 )
 
 func stringsOf[T ~string](in []T) []string {
@@ -239,6 +272,10 @@ func (r multResolver) family(where string, s multSurface, own *types.Multiplicit
 		}
 		reason := multReasonSurface
 		switch {
+		case s == surfaceMatrix:
+			reason = multReasonMatrixSpec
+		case own.Family == types.MultiplicityFamilyMatrix:
+			reason = multReasonMatrixFamily
 		case own.Family == types.MultiplicityFamilyCompose && !r.inCompose && s != surfaceFacetOverlay:
 			reason = multReasonComposeOutside
 		case (own.Family == types.MultiplicityFamilyRow || own.Family == types.MultiplicityFamilyColumn) && s != surfaceTest && !matrix:
@@ -329,6 +366,56 @@ func (r multResolver) overlay(slot string, s multSurface, kind types.OverlayKind
 	return rm, nil
 }
 
+// matrix resolves one matrix spec at slot. Its own block is checked
+// like any other, then refused on a known matrix operator that emits no
+// p-values (any type outside vectors.InferenceTypes); an unknown or
+// hidden type is the matrix validators' refusal, so it joins no family
+// here. The spec is under inference when its own params set
+// `inference: true` or when it carries its own block (a block implies
+// params.inference — an inherited one never turns inference on, so a
+// request- or instance-level block reaches only specs that asked for
+// p-values). A member corrects every off-diagonal p-value of each of
+// its results.
+func (r multResolver) matrix(slot string, spec *types.MatrixSpec, chain multChain) (ResolvedMultiplicity, error) {
+	rm := ResolvedMultiplicity{Slot: slot, Operator: string(spec.Type), Name: spec.EffectiveName(),
+		Method: types.MultiplicityMethodNone, Family: types.MultiplicityFamilyMatrix}
+	own := spec.Multiplicity
+	where := slot + ".multiplicity"
+	if err := ValidateMultiplicitySpec(own, where); err != nil {
+		return rm, err
+	}
+	routed := opRoute(r.inst, spec.Type)
+	inferential := slices.Contains(vectors.InferenceTypes(), routed)
+	if own != nil && isBuiltinMatrixType(routed) && !inferential {
+		valid := stringsOf(vectors.InferenceTypes())
+		return rm, errors.NewCodedErrorWithDetails(errors.PULSE_MULTIPLICITY_INVALID,
+			fmt.Sprintf("%s: %s %s (valid: %v)", where, spec.Type, multReasonMatrixType, valid),
+			map[string]any{"slot": where, "key": "type", "value": string(spec.Type), "reason": multReasonMatrixType, "valid": valid})
+	}
+	family, err := r.family(where, surfaceMatrix, own, chain, false)
+	if err != nil {
+		return rm, err
+	}
+	rm.Family = family
+	rm.Method = chain.method(own)
+	rm.Alpha = chain.alpha(own)
+	rm.Member = inferential && (own != nil || paramsInference(spec.Params)) && rm.Method != types.MultiplicityMethodNone
+	return rm, nil
+}
+
+// paramsInference reports whether a matrix spec's params set
+// `inference: true`. Lenient: a params object that does not decode is
+// the matrix validators' refusal, and reads as false here.
+func paramsInference(raw json.RawMessage) bool {
+	var p struct {
+		Inference *bool `json:"inference"`
+	}
+	if len(raw) == 0 || json.Unmarshal(raw, &p) != nil {
+		return false
+	}
+	return p.Inference != nil && *p.Inference
+}
+
 // request resolves one Request's tests, post-tests and overlays, then
 // refuses a `request` family whose members disagree on the method.
 // composed is the ComposedRequest's block (nil outside Compose).
@@ -367,8 +454,15 @@ func (r multResolver) request(req *types.Request, composed, def *types.Multiplic
 		}
 		plan.Overlays = append(plan.Overlays, rm)
 	}
+	for i := range req.Matrices {
+		rm, err := r.matrix("matrices["+strconv.Itoa(i)+"]", &req.Matrices[i], chain)
+		if err != nil {
+			return nil, err
+		}
+		plan.Matrices = append(plan.Matrices, rm)
+	}
 	var members []ResolvedMultiplicity
-	for _, list := range [][]ResolvedMultiplicity{plan.Tests, plan.PostTests, plan.Overlays} {
+	for _, list := range plan.lists() {
 		members = append(members, list...)
 	}
 	if err := familyConflict(types.MultiplicityFamilyRequest, members, nil); err != nil {
@@ -438,6 +532,11 @@ func requestNamesMultiplicity(req *types.Request, inherited ...*types.Multiplici
 			return true
 		}
 	}
+	for i := range req.Matrices {
+		if req.Matrices[i].Multiplicity != nil {
+			return true
+		}
+	}
 	return false
 }
 
@@ -461,12 +560,16 @@ func requestNamesMultiplicity(req *types.Request, inherited ...*types.Multiplici
 //     refused; an inherited method skips it (Member false);
 //   - an overlay's own family must be `layer`, `request`, or — for a
 //     kind whose payload is MATRIX — `row` / `column`;
+//   - a matrix spec's own block is refused on a matrix operator that
+//     emits no p-values (outside vectors.InferenceTypes); its own
+//     family must be `matrix` or `request`; it becomes a member only
+//     under params.inference (set, or implied by its own block);
 //   - an inherited family the slot's surface does not offer falls back
 //     to the surface default (`request` for tests, `layer` for
-//     overlays), never refused;
-//   - members of the `request` family (tests, post-tests and
-//     inferential overlays whose method is not none) must agree on one
-//     method, else PULSE_MULTIPLICITY_CONFLICT.
+//     overlays, `matrix` for matrix specs), never refused;
+//   - members of the `request` family (tests, post-tests, inferential
+//     overlays and inferential matrix specs whose method is not none)
+//     must agree on one method, else PULSE_MULTIPLICITY_CONFLICT.
 //
 // The plan is nil when nothing — the request, any slot, or def — names
 // a block. inst routes hidden test types and overlay kinds as
@@ -524,7 +627,7 @@ func ResolveComposeMultiplicity(req *types.ComposedRequest, def *types.Multiplic
 			return nil, RefusalAt(err, "request", i)
 		}
 		out.Requests[i] = plan
-		for _, list := range [][]ResolvedMultiplicity{plan.Tests, plan.PostTests, plan.Overlays} {
+		for _, list := range plan.lists() {
 			for _, m := range list {
 				members = append(members, m)
 				owners = append(owners, i)

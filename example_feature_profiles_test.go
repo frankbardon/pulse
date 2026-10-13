@@ -141,10 +141,16 @@ func TestExampleFeatureProfiles_Content(t *testing.T) {
 	for _, f := range []string{
 		"capability:crosstab", "capability:facet", "capability:labels", "capability:weighting",
 		"TEST_CHISQ", "TEST_T", "OVERLAY_SHARE_OF_ROW", "OVERLAY_PAIRWISE_WELCH_T", "AGG_WELFORD",
+		"OVERLAY_STD_RESIDUAL", "OVERLAY_CORRESPONDENCE", "OVERLAY_RAKE",
 	} {
 		if !survey[f] {
 			t.Errorf("survey-crosstab lacks %s", f)
 		}
+	}
+	// Transition chains are not survey crosstab work: the flows intent
+	// stays absent from this profile.
+	if survey["OVERLAY_MARKOV"] {
+		t.Error("survey-crosstab enables OVERLAY_MARKOV")
 	}
 
 	// read-only-analyst: every built-in feature as of its written_with,

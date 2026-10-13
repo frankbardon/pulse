@@ -782,11 +782,17 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		// overlayhost shape refusal, judged on the authored shape
 		// (inferComposeSlotShape, the runtime's AuthoredHostShape rule)
 		// before any per-kind validator.
-		if cerr := overlayhost.ShapeRefusal(inferComposeSlotShape(req), spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
+		// A request carrying matrices offers the MATRIX_RESULT host too
+		// (overlayhost.JudgedShape — the runtime hooks' rule).
+		if cerr := overlayhost.ShapeRefusal(overlayhost.JudgedShape(inferComposeSlotShape(req), len(req.Matrices) > 0, opts.overlayRoute(spec.Kind)), spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
 			addCodedError(env, cerr)
 			continue
 		}
 		validateOverlaySpec(env, req, spec, opts, i)
+		validateOverlayMatrixResult(env, req, spec, opts.overlayRoute(spec.Kind), i)
+		validateOverlayCorrespondence(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
+		validateOverlayMarkov(env, req, spec, opts.overlayRoute(spec.Kind), i)
+		validateOverlayRake(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
 		validateOverlayLevelWithinPredict(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		validateOverlayBaselineIndexPredict(env, req, spec, schema, opts.instance(), i)
 		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i)
@@ -1238,8 +1244,13 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	case types.OverlayKindChiSqCol,
 		types.OverlayKindChiSqMatrix,
 		types.OverlayKindChiSqRow,
-		types.OverlayKindFisherExactCell:
-		// Inferential family — Level / Within must both be zero.
+		types.OverlayKindFisherExactCell,
+		types.OverlayKindStdResidual,
+		types.OverlayKindCorrespondence,
+		types.OverlayKindMarkov,
+		types.OverlayKindRake:
+		// Inferential family (and the implicit-margin whole-table
+		// CORRESPONDENCE / MARKOV / RAKE) — Level / Within must both be zero.
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (implicit-margin inferential kind)",
@@ -1406,6 +1417,9 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 		validateOverlayHiddenFloor(env, req, spec, opts, index)
 	case types.OverlayKindChiSqMatrix:
 		validateOverlayChiSqMatrix(env, req, spec, index)
+		validateOverlayHiddenFloor(env, req, spec, opts, index)
+	case types.OverlayKindStdResidual:
+		validateOverlayStdResidual(env, req, spec, index)
 		validateOverlayHiddenFloor(env, req, spec, opts, index)
 	case types.OverlayKindChiSqRow:
 		validateOverlayChiSqRow(env, req, spec, index)

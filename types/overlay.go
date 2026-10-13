@@ -1398,6 +1398,105 @@ const (
 	// confuse `share` with `index / 100` at the spec authoring surface.
 	OverlayKindShareOfTotal OverlayKind = "OVERLAY_SHARE_OF_TOTAL"
 
+	// OverlayKindCorrespondence runs a simple correspondence analysis
+	// (CA) of the host crosstab — a perceptual map of its rows and
+	// columns. It takes the SVD (linalg.SVD) of the standardized
+	// residual matrix S = D_r^-1/2 (P − r cᵀ) D_c^-1/2 (P the cell
+	// shares, r / c the row / column masses). MATRIX-scoped over a
+	// MATRIX (crosstab) host, implicit-margin (Ref empty), descriptive
+	// (no p-value). Primary payload: a SERIES of principal inertia per
+	// dimension (keys dim_1, dim_2, …; share and cumulative share in
+	// each entry's Parameters); Summary.Statistic is the total inertia.
+	// OverlayPayload.Parts: row_coordinates / column_coordinates (MATRIX
+	// points × retained dimensions, synthetic dim_k column keys),
+	// row_quality / column_quality (SERIES, cos² summed over the
+	// retained dimensions), row_contribution / column_contribution
+	// (MATRIX points × dimensions, share of each dimension's inertia).
+	// Params: dimensions (default 2, at most min(r, c) − 1) and
+	// normalization (symmetric | row_principal | column_principal).
+	// Cells must be non-negative counts or sums (AGG_COUNT / AGG_SUM,
+	// else PULSE_OVERLAY_NONNEGATIVE_REQUIRED); zero-margin rows and
+	// columns are dropped with PULSE_OVERLAY_REF_ZERO. Coordinates are
+	// scale-invariant, so a weighted host's Σw table needs no Kish
+	// scaling. Signs follow linalg.SVD: per dimension, the dominant
+	// component of the column singular vector is positive. Inherently
+	// buffered.
+	OverlayKindCorrespondence OverlayKind = "OVERLAY_CORRESPONDENCE"
+
+	// OverlayKindMarkov reads the host crosstab as a from-state (row) ×
+	// to-state (column) transition count table and projects the flow as
+	// a Markov chain. MATRIX-scoped over a MATRIX (crosstab) host,
+	// implicit-margin (Ref empty), descriptive (no p-value). The row and
+	// column key sets must be equal as sets (aligned by key, never by
+	// position; the states take the row order), else
+	// PULSE_OVERLAY_MATRIX_NOT_SQUARE. Primary payload: the MATRIX of the
+	// row-stochastic transition matrix P (each row's cells over its
+	// total; a zero row becomes the unit row — the state absorbs — with a
+	// PULSE_OVERLAY_REF_ZERO warning). OverlayPayload.Parts: step_<n>
+	// (MATRIX Pⁿ per params.steps), distribution_<n> (SERIES, the initial
+	// distribution times Pⁿ; only with params.initial), steady_state
+	// (SERIES, power iteration; only for an irreducible aperiodic chain,
+	// else the PULSE_OVERLAY_MARKOV_NOT_ERGODIC warning) and
+	// absorption_time (SERIES, the expected steps to reach the
+	// params.absorbing set, (I − Q)⁻¹·1 through linalg.FactorLU; only
+	// with params.absorbing). Params: steps (default [1, 3, 6, 12], each
+	// an integer 1–1000), absorbing (state keys) and initial ("margin" or
+	// a key → share map). Cells must be non-negative counts or sums
+	// (AGG_COUNT / AGG_SUM, else PULSE_OVERLAY_NONNEGATIVE_REQUIRED).
+	// Scale-invariant: a weighted host's Σw table needs no Kish scaling.
+	// Inherently buffered.
+	OverlayKindMarkov OverlayKind = "OVERLAY_MARKOV"
+
+	// OverlayKindRake rakes the host crosstab to target margins by
+	// iterative proportional fitting (IPF): rows and columns are scaled in
+	// turn until every fitted margin matches its target within
+	// params.tolerance (max relative margin error) or params.max_iter
+	// sweeps have run. MATRIX-scoped over a MATRIX (crosstab) host,
+	// implicit-margin (Ref empty), descriptive (no p-value); it never
+	// mutates the host. Params: row_targets and col_targets (host key →
+	// value maps covering every host key, else
+	// PULSE_OVERLAY_RAKE_TARGET_MISMATCH), targets_as ("shares", the
+	// default — normalized and scaled to the host grand total — or
+	// "counts", whose row and column totals must agree), max_iter
+	// (default 100) and tolerance (default 1e-8). Primary payload: the
+	// MATRIX of the fitted table (structural zeros stay zero).
+	// OverlayPayload.Parts: factors (MATRIX fitted / observed; null where
+	// the observed cell is 0). Summary.Parameters: iterations, residual,
+	// converged (1 / 0); a fit short of the tolerance still ships, with a
+	// PULSE_OVERLAY_RAKE_NOT_CONVERGED warning. Cells must be
+	// non-negative counts or sums (AGG_COUNT / AGG_SUM, else
+	// PULSE_OVERLAY_NONNEGATIVE_REQUIRED). Inherently buffered.
+	OverlayKindRake OverlayKind = "OVERLAY_RAKE"
+
+	// OverlayKindMatrixGroupSummary summarizes a GROUPED matrix result
+	// across its group buckets. It is the first kind on the MATRIX_RESULT
+	// host: Ref.Matrix names a Request.Matrices spec by its effective
+	// name, and the overlay reads every bucket's Primary
+	// (types.MatrixValues; an "upper" encoding is expanded first).
+	// MATRIX-scoped, descriptive (no p-value); it never mutates the
+	// results. Primary payload: the MATRIX of the per-cell unweighted
+	// mean across buckets. OverlayPayload.Parts: min, max, range and
+	// n_groups (MATRIX each). The key sets are the union of every
+	// bucket's row / column keys; a NaN / null cell contributes nothing,
+	// and a cell no bucket contributes to is null. An ungrouped request
+	// is PULSE_OVERLAY_GROUPS_REQUIRED. No params. Inherently buffered.
+	OverlayKindMatrixGroupSummary OverlayKind = "OVERLAY_MATRIX_GROUP_SUMMARY"
+
+	// OverlayKindStdResidual emits the Haberman adjusted standardized
+	// residual of every host crosstab cell,
+	// (O − E) / sqrt(E · (1 − r/N) · (1 − c/N)) with E = r·c/N, so a
+	// reader sees which cells drive the table's χ² and in which
+	// direction. CELL-scoped over a MATRIX (crosstab) host, implicit-
+	// margin (Ref empty). Primary payload: a MATRIX of residuals on the
+	// host coordinates; OverlayPayload.Parts carries "expected" (the
+	// expected counts, MATRIX) and "p" (the two-sided normal p-value of
+	// each residual, MATRIX). Inferential: a multiplicity block adjusts
+	// the "p" part (layer / row / column / request families). Weighted
+	// hosts follow OVERLAY_CHISQ_MATRIX (the Σw table; under kind
+	// probability scaled to its Kish n_eff first). A zero-expected cell
+	// has an undefined (null) residual and p. Inherently buffered.
+	OverlayKindStdResidual OverlayKind = "OVERLAY_STD_RESIDUAL"
+
 	// OverlayKindZScoreVsRolling emits a per-point windowed z-score against
 	// the rolling-window mean + sample SD of the W immediately preceding
 	// points of an ordered SERIES (grouped Process) host:
@@ -2412,6 +2511,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindChiSqRow,
 		OverlayKindChiSqVsPop,
 		OverlayKindChiSqVsRef,
+		OverlayKindCorrespondence,
 		OverlayKindDeltaVsBaseline,
 		OverlayKindDeltaVsMargin,
 		OverlayKindDeltaVsPrior,
@@ -2430,6 +2530,8 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindIndexVsStage,
 		OverlayKindIndexVsTotal,
 		OverlayKindKSVsPop,
+		OverlayKindMarkov,
+		OverlayKindMatrixGroupSummary,
 		OverlayKindPairwiseProbitT,
 		OverlayKindPairwisePropZ,
 		OverlayKindPairwiseTwoMeansZ,
@@ -2438,10 +2540,12 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindPanelIndexVsRef,
 		OverlayKindPropZCell,
 		OverlayKindPropZPanel,
+		OverlayKindRake,
 		OverlayKindRank,
 		OverlayKindShareOfCol,
 		OverlayKindShareOfRow,
 		OverlayKindShareOfTotal,
+		OverlayKindStdResidual,
 		OverlayKindTCell,
 		OverlayKindTVsRef,
 		OverlayKindYoY,
@@ -2761,6 +2865,16 @@ type OverlaySlotRef struct {
 	Name string `json:"name,omitempty"`
 }
 
+// OverlayMatrixRef selects a Request.Matrices spec by its effective
+// name (MatrixSpec.EffectiveName) — every group bucket of its result
+// (the MATRIX_RESULT overlay host). OVERLAY_MATRIX_GROUP_SUMMARY is the
+// first consumer.
+type OverlayMatrixRef struct {
+	// Name is the matrix spec's effective name: MatrixSpec.Name, else
+	// "<TYPE>_<vector>" / "<TYPE>".
+	Name string `json:"name"`
+}
+
 // OverlayRef is the discriminated union identifying what an overlay
 // compares against. Each pointer field corresponds to one comparison
 // family; exactly one is meaningfully populated per OverlaySpec. The
@@ -2816,6 +2930,11 @@ type OverlayRef struct {
 
 	// Slot selects a named slot on the base result. Reserved.
 	Slot *OverlaySlotRef `json:"slot,omitempty"`
+
+	// Matrix selects a Request.Matrices spec by effective name — every
+	// group bucket of its result — for a kind on the MATRIX_RESULT host
+	// (OVERLAY_MATRIX_GROUP_SUMMARY).
+	Matrix *OverlayMatrixRef `json:"matrix,omitempty"`
 }
 
 // OverlaySpec is the request-side definition of one overlay layer.
@@ -3052,6 +3171,28 @@ type OverlayPayload struct {
 	// adjusted p is undefined). A cell whose adjusted p is undefined is
 	// absent. Nil when no correction ran.
 	SignificantAdjusted *MatrixPayload `json:"significant_adjusted,omitempty"`
+
+	// Parts carries a multi-output kind's NAMED secondary payloads beside
+	// the primary (Shape + its arm): e.g. the expected-count and p-value
+	// matrices next to a residual matrix, or the row / column coordinate
+	// matrices next to an inertia series. One spec still produces one
+	// layer; the primary stays where every renderer already reads it.
+	//
+	// Each part is a plain scalar | series | matrix payload. Parts never
+	// nest: a part carrying Parts of its own is a handler fault the
+	// dispatcher refuses. Part names are lowercase snake_case, fixed per
+	// kind (the kind's atomic skill lists them).
+	//
+	// A coordinate-style matrix part whose columns are not host keys
+	// (points × dimensions) keys those columns with the synthetic
+	// single-element AxisKeys "dim_1", "dim_2", … in dimension order.
+	//
+	// Nil (and therefore absent on the wire) for every single-output
+	// kind, so a layer without parts serializes byte-identically to the
+	// pre-Parts shape. A `return` addresses one part as
+	// `overlays[*].payload.parts.<part>`; an excluded part is absent,
+	// never null.
+	Parts map[string]*OverlayPayload `json:"parts,omitempty"`
 }
 
 // OverlaySummary carries optional renderer-friendly metadata for one

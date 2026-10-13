@@ -37,6 +37,11 @@ type Plan struct {
 	Include []Path
 	Exclude []Path
 	Keep    []Path
+	// Companions are the CONDITIONAL selections a preset carries: each
+	// one keeps a map key beside a kept sibling (Companion). Canonical
+	// like Keep: one an include or exclude covers is removed. Answered by
+	// VisitIn, never by Visit (which cannot see the parent map).
+	Companions []Companion
 	// Precision is the wire float significant-digit count, 0 unlimited.
 	Precision int
 	// Exact lists the REQUEST-DERIVED precision exemptions: nodes (and
@@ -52,27 +57,55 @@ type Plan struct {
 	// root, so the root itself is selected whole.
 	SelectsAll bool
 	// Digest identifies the resolved selection (Include, Exclude, Keep,
-	// Precision — not the preset name), so equivalent spellings share
-	// it.
+	// Companions, Precision — not the preset name), so equivalent
+	// spellings share it.
 	Digest string
 }
+
+// Companion is a conditional selection over a map: the map key Path
+// names (its last segment) is selected whole wherever its parent map
+// also holds the key With AND the plan keeps that sibling. It is how a
+// preset keeps a figure that only means something beside another one
+// (the pairwise `auxiliary.n` beside an inference `auxiliary.p`) without
+// emitting it everywhere. An exclude covering Path (or the sibling)
+// wins, as everywhere.
+type Companion struct {
+	Path Path
+	With string
+}
+
+// String renders the companion as `<path> (with <sibling>)`.
+func (c Companion) String() string { return c.Path.String() + " (with " + c.With + ")" }
 
 // New canonicalizes include / exclude / keep and computes the digest.
 // rootKeys is every visible top-level key of the root object; an
 // include set covering all of them selects the root whole.
 func New(preset string, include, exclude, keep []Path, precision int, rootKeys []string) *Plan {
+	return NewWithCompanions(preset, include, exclude, keep, nil, precision, rootKeys)
+}
+
+// NewWithCompanions is New plus the preset's conditional selections
+// (Companion). A companion an exclude or an include covers is dropped
+// (excluded, or already selected unconditionally).
+func NewWithCompanions(preset string, include, exclude, keep []Path, companions []Companion, precision int, rootKeys []string) *Plan {
 	exclude = reduce(exclude)
 	include = reduce(include)
 	include = dropCovered(include, exclude)
 	keep = dropCovered(reduce(keep), exclude)
 	keep = dropCovered(keep, include)
-	exclude = relevant(exclude, include, keep)
+	companions = canonicalCompanions(companions, include, exclude)
+	cpaths := make([]Path, len(companions))
+	for i, c := range companions {
+		cpaths[i] = c.Path
+	}
+	exclude = relevant(exclude, include, append(append([]Path(nil), keep...), cpaths...))
 	p := &Plan{
-		Preset:    preset,
-		Include:   include,
-		Exclude:   exclude,
-		Keep:      keep,
-		Precision: precision,
+		Preset:     preset,
+		Include:    include,
+		Exclude:    exclude,
+		Keep:       keep,
+		Companions: companions,
+		Precision:  precision,
 	}
 	p.SelectsAll = len(rootKeys) > 0
 	for _, k := range rootKeys {
@@ -152,6 +185,69 @@ func (p *Plan) Visit(c []Segment) Verdict {
 	return Verdict{}
 }
 
+// VisitIn is Visit for the map key at c (a Key segment last) whose
+// parent map holds the keys has reports: on top of Visit's verdict it
+// answers the plan's Companions — a companion key is kept whole beside
+// a kept With sibling the parent holds. Exclude wins. Use it wherever a
+// walker iterates a map's keys; Visit alone never keeps a companion.
+func (p *Plan) VisitIn(c []Segment, has func(key string) bool) Verdict {
+	v := p.Visit(c)
+	if v.Keep || p == nil || len(p.Companions) == 0 || len(c) == 0 {
+		return v
+	}
+	for _, e := range p.Exclude {
+		if matchPrefix(e, c) {
+			return v
+		}
+	}
+	for _, cp := range p.Companions {
+		if !cp.Path.Matches(c) || !has(cp.With) {
+			continue
+		}
+		sib := append(append(make([]Segment, 0, len(c)), c[:len(c)-1]...), Key(cp.With))
+		if !p.Visit(sib).Keep {
+			continue
+		}
+		whole := true
+		for _, e := range p.Exclude {
+			if isAncestor(c, e) {
+				whole = false
+				break
+			}
+		}
+		return Verdict{Keep: true, Whole: whole}
+	}
+	return v
+}
+
+// canonicalCompanions drops the companions an exclude or an include
+// covers, deduplicates and sorts them.
+func canonicalCompanions(cs []Companion, include, exclude []Path) []Companion {
+	if len(cs) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []Companion
+	for _, c := range cs {
+		if seen[c.String()] || len(dropCovered([]Path{c.Path}, exclude)) == 0 || len(dropCovered([]Path{c.Path}, include)) == 0 {
+			continue
+		}
+		seen[c.String()] = true
+		out = append(out, c)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].String() < out[j].String() })
+	return out
+}
+
+// CompanionStrings renders the companions in canonical spelling.
+func CompanionStrings(cs []Companion) []string {
+	out := make([]string, len(cs))
+	for i, c := range cs {
+		out[i] = c.String()
+	}
+	return out
+}
+
 // includesWhole reports whether some include path matches c or one of
 // its ancestors.
 func (p *Plan) includesWhole(c []Segment) bool {
@@ -164,12 +260,19 @@ func (p *Plan) includesWhole(c []Segment) bool {
 }
 
 func (p *Plan) digest() string {
+	// Companions are omitempty: a plan without one digests exactly as
+	// before they existed.
+	var companions []string
+	if len(p.Companions) > 0 {
+		companions = CompanionStrings(p.Companions)
+	}
 	body, _ := json.Marshal(struct {
-		Include   []string `json:"include"`
-		Exclude   []string `json:"exclude"`
-		Keep      []string `json:"keep"`
-		Precision int      `json:"precision"`
-	}{Strings(p.Include), Strings(p.Exclude), Strings(p.Keep), p.Precision})
+		Include    []string `json:"include"`
+		Exclude    []string `json:"exclude"`
+		Keep       []string `json:"keep"`
+		Companions []string `json:"companions,omitempty"`
+		Precision  int      `json:"precision"`
+	}{Strings(p.Include), Strings(p.Exclude), Strings(p.Keep), companions, p.Precision})
 	sum := sha256.Sum256(body)
 	return DigestPrefix + hex.EncodeToString(sum[:])
 }

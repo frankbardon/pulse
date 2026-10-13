@@ -158,3 +158,76 @@ func TestMultiplicityTriggerThreshold(t *testing.T) {
 		t.Errorf("threshold = %d, want 10", descriptor.MultiplicityTriggerThreshold)
 	}
 }
+
+// TestPredict_PValuesMatrixInference: a matrix under params.inference
+// counts one p-value per output pair — C(p, 2), the non-control members
+// for a partial control list — times the buckets on a grouped request;
+// inference off counts none. No multiplicity block reaches it.
+func TestPredict_PValuesMatrixInference(t *testing.T) {
+	cohort := buildTestPulseFile(t, &encoding.Schema{Fields: []encoding.Field{
+		{Name: "x1", Type: encoding.FieldTypeF64, Description: "First measured score"},
+		{Name: "x2", Type: encoding.FieldTypeF64, Description: "Second measured score"},
+		{Name: "x3", Type: encoding.FieldTypeF64, Description: "Third measured score"},
+		{Name: "x4", Type: encoding.FieldTypeF64, Description: "Fourth measured score"},
+		{Name: "g", Type: encoding.FieldTypeCategoricalU8, Description: "Region of the respondent", Dictionary: makeDictionary(t, "n", "s", "e")},
+	}})
+	spec := func(typ types.MatrixType, params string) types.MatrixSpec {
+		return types.MatrixSpec{Type: typ, Fields: []string{"x1", "x2", "x3", "x4"}, Params: []byte(params)}
+	}
+	pv := func(total int, basis string) *descriptor.PValueCount {
+		return &descriptor.PValueCount{Total: total, Uncorrected: total, Basis: basis, Threshold: descriptor.MultiplicityTriggerThreshold}
+	}
+	corrected := func(total, members int, basis string) *descriptor.PValueCount {
+		return &descriptor.PValueCount{Total: total, Uncorrected: total - members, Basis: basis, Threshold: descriptor.MultiplicityTriggerThreshold}
+	}
+	named := func(s types.MatrixSpec, name string) types.MatrixSpec {
+		s.Name = name
+		return s
+	}
+	withMult := func(s types.MatrixSpec, method types.MultiplicityMethod) types.MatrixSpec {
+		s.Multiplicity = mult(method, "", 0)
+		return s
+	}
+	cases := []struct {
+		name string
+		req  *types.Request
+		want *descriptor.PValueCount
+	}{
+		{"off", &types.Request{Matrices: []types.MatrixSpec{spec(types.MAT_CORRELATION, `{}`)}}, nil},
+		{"pearson", &types.Request{Matrices: []types.MatrixSpec{spec(types.MAT_CORRELATION, `{"inference": true}`)}}, pv(6, descriptor.PValueBasisExact)},
+		{"spearman", &types.Request{Matrices: []types.MatrixSpec{spec(types.MAT_CORRELATION, `{"inference": true, "method": "spearman"}`)}}, pv(6, descriptor.PValueBasisExact)},
+		{"kendall", &types.Request{Matrices: []types.MatrixSpec{spec(types.MAT_CORRELATION, `{"inference": true, "method": "kendall"}`)}}, pv(6, descriptor.PValueBasisExact)},
+		{"partial control list", &types.Request{Matrices: []types.MatrixSpec{spec(types.MAT_PARTIAL_CORRELATION, `{"inference": true, "control": ["x4"]}`)}},
+			pv(3, descriptor.PValueBasisExact)},
+		{"grouped", &types.Request{
+			Groups:   []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+			Matrices: []types.MatrixSpec{spec(types.MAT_CORRELATION, `{"inference": true, "missing": "pairwise"}`)},
+		}, pv(18, descriptor.PValueBasisDictionary)},
+		// U28 E3-S4: a spec's own block implies inference and corrects
+		// its k(k-1)/2 pairs, per bucket when grouped; an inherited block
+		// corrects only a spec already under inference.
+		{"own block corrects", &types.Request{Matrices: []types.MatrixSpec{withMult(spec(types.MAT_CORRELATION, `{}`), mHolm)}},
+			corrected(6, 6, descriptor.PValueBasisExact)},
+		{"own block grouped", &types.Request{
+			Groups:   []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+			Matrices: []types.MatrixSpec{withMult(spec(types.MAT_CORRELATION, `{"method": "kendall"}`), mBH)},
+		}, corrected(18, 18, descriptor.PValueBasisDictionary)},
+		{"inherited block reaches an inferential spec", &types.Request{Multiplicity: mult(mHolm, "", 0),
+			Matrices: []types.MatrixSpec{spec(types.MAT_CORRELATION, `{"inference": true}`), spec(types.MAT_PARTIAL_CORRELATION, `{"inference": true, "control": ["x4"]}`)}},
+			corrected(9, 9, descriptor.PValueBasisExact)},
+		{"inherited block skips a spec without inference", &types.Request{Multiplicity: mult(mHolm, "", 0),
+			Matrices: []types.MatrixSpec{spec(types.MAT_CORRELATION, `{}`), named(spec(types.MAT_CORRELATION, `{"inference": true}`), "on")}},
+			corrected(6, 6, descriptor.PValueBasisExact)},
+		{"own none leaves the implied p-values uncorrected", &types.Request{Matrices: []types.MatrixSpec{withMult(spec(types.MAT_CORRELATION, `{}`), mNone)}},
+			pv(6, descriptor.PValueBasisExact)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			env := predictFromBytes(cohort, c.req, &PredictOptions{})
+			got := env.Data.(*descriptor.PredictResult).PValues
+			if !reflect.DeepEqual(got, c.want) {
+				t.Errorf("PValues = %+v, want %+v (errors %v)", got, c.want, env.Errors)
+			}
+		})
+	}
+}

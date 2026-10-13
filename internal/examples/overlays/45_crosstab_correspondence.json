@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Crosstab count of region x segment decorated with an OVERLAY_CORRESPONDENCE matrix-scope overlay: a correspondence analysis whose primary series is the principal inertia of each dimension and whose parts carry the row and column map coordinates (symmetric map, two dimensions), quality and contribution — plot parts.row_coordinates against parts.column_coordinates as a perceptual map (implicit-margin contract; no ref pointer).",
+    "intents": [
+      "composition",
+      "relationship"
+    ],
+    "name": "crosstab-correspondence",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "cohort-analysis",
+      "overlay"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "segment"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  },
+  "overlays": [
+    {
+      "name": "map",
+      "kind": "OVERLAY_CORRESPONDENCE",
+      "scope": "matrix",
+      "params": {
+        "dimensions": 2,
+        "normalization": "symmetric"
+      }
+    }
+  ]
+}

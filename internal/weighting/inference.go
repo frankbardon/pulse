@@ -224,13 +224,14 @@ func FrequencyOnlyHostRefusal(slot, operator string) (string, map[string]any) {
 // ScalesByHostFloor reports whether an overlay kind reads its host's
 // payload Σw (a cell, a margin, a table) as counts and, under weight
 // kind probability, scales them onto Kish n_eff with the n_eff it reads
-// off the host's weighted floor (Response.Components): the χ² kinds and
-// the Compose proportion kinds. Under kind frequency Σw already IS N*,
-// so the floor is not needed there.
+// off the host's weighted floor (Response.Components): the χ² kinds,
+// OVERLAY_STD_RESIDUAL and the Compose proportion kinds. Under kind
+// frequency Σw already IS N*, so the floor is not needed there.
 func ScalesByHostFloor(kind types.OverlayKind) bool {
 	switch kind {
 	case types.OverlayKindChiSqRow, types.OverlayKindChiSqCol, types.OverlayKindChiSqMatrix,
-		types.OverlayKindChiSqVsRef, types.OverlayKindPropZCell, types.OverlayKindPropZPanel:
+		types.OverlayKindChiSqVsRef, types.OverlayKindPropZCell, types.OverlayKindPropZPanel,
+		types.OverlayKindStdResidual:
 		return true
 	}
 	return false

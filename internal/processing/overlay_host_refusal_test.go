@@ -12,11 +12,12 @@ import (
 // Process-shape tables (overlayhost, read by predict and every runtime
 // dispatcher) to the runtime handler tables, so a kind is declared on
 // exactly the slots — and, on Request.Overlays, exactly the MATRIX /
-// SERIES host shapes — that can execute it.
+// SERIES / MATRIX_RESULT host shapes — that can execute it.
 func TestOverlayHostTable_MatchesRuntimeHandlers(t *testing.T) {
 	for _, k := range types.AllOverlayKinds() {
 		_, matrix := overlayHandlers[k]
 		_, series := seriesOverlayHandlers[k]
+		_, matrixResult := matrixResultOverlayHandlers[k]
 		_, compose := composeOverlayHandlers[k]
 		_, composeMulti := composeOverlayMultiLayerHandlers[k]
 		_, chain := chainOverlayHandlers[k]
@@ -25,7 +26,7 @@ func TestOverlayHostTable_MatchesRuntimeHandlers(t *testing.T) {
 			host overlayhost.Host
 			runs bool
 		}{
-			{overlayhost.Request, matrix || series},
+			{overlayhost.Request, matrix || series || matrixResult},
 			{overlayhost.Compose, compose || composeMulti},
 			{overlayhost.Chain, chain},
 			{overlayhost.Facet, facet},
@@ -40,6 +41,7 @@ func TestOverlayHostTable_MatchesRuntimeHandlers(t *testing.T) {
 		}{
 			{types.OverlayShapeMatrix, matrix},
 			{types.OverlayShapeSeries, series},
+			{overlayhost.ShapeMatrixResult, matrixResult},
 		} {
 			declared := false
 			for _, s := range overlayhost.Shapes(k) {

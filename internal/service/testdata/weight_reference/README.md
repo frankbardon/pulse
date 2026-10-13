@@ -89,9 +89,10 @@ pinned by `TestWeightReferenceValues/tests`) come from the same run:
   `test_reference.R` (base R `stats` only, no package to install; the
   script refuses any R but 4.6.1). The frequency-only rank tests
   (`FREQUENCY_ONLY`: `wilcox.test`, `kruskal.test`,
-  `cor.test(exact = FALSE)` for Spearman / Kendall with continuity) have
-  only this row, cross-checked against scipy on the same expansion
-  (Kendall: tau only — scipy's p omits the continuity correction).
+  `cor.test` at its defaults for Spearman / Kendall — `exact = NULL`,
+  `continuity = FALSE`, the p every Pulse rank test and matrix rank cell
+  shares) have only this row, cross-checked against scipy on the same
+  expansion (Kendall: tau and p; z is R-only).
   Fisher / KS / Brown-Forsythe (E2-S2) likewise: `fisher.test` p (its
   estimate is the conditional MLE, so the sample odds ratio is
   scipy-only), `ks.test` D (Pulse's p is the Stephens-corrected

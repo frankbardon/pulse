@@ -321,9 +321,10 @@ func (s *returnPruner) prune(v reflect.Value, path []returnplan.Segment) (reflec
 		if v.IsNil() || v.Type().Key().Kind() != reflect.String || opaqueType(v.Type()) {
 			return v, true
 		}
+		has := func(key string) bool { return v.MapIndex(reflect.ValueOf(key).Convert(v.Type().Key())).IsValid() }
 		for _, k := range v.MapKeys() {
 			child := appendSeg(path, returnplan.Key(k.String()))
-			vd := s.plan.Visit(child)
+			vd := s.plan.VisitIn(child, has)
 			if !vd.Keep {
 				v.SetMapIndex(k, reflect.Value{})
 				continue
@@ -661,6 +662,10 @@ func (e *planEncoder) encodeMap(v reflect.Value, path []returnplan.Segment, whol
 		entries = append(entries, kv{key: iter.Key().String(), val: iter.Value()})
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].key < entries[j].key })
+	has := func(key string) bool {
+		i := sort.Search(len(entries), func(i int) bool { return entries[i].key >= key })
+		return i < len(entries) && entries[i].key == key
+	}
 	var buf bytes.Buffer
 	buf.WriteByte('{')
 	n := 0
@@ -668,7 +673,7 @@ func (e *planEncoder) encodeMap(v reflect.Value, path []returnplan.Segment, whol
 		child := appendSeg(path, returnplan.Key(en.key))
 		vd := returnplan.Verdict{Keep: true, Whole: true}
 		if !whole {
-			vd = e.plan.Visit(child)
+			vd = e.plan.VisitIn(child, has)
 		}
 		if !vd.Keep {
 			continue

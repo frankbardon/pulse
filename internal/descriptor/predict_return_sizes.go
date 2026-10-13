@@ -51,6 +51,10 @@ type sizeNode struct {
 	count int64
 	own   int64
 	kids  []*sizeNode
+	// omitEmpty marks an `omitempty` map (matrices[*].auxiliary): kept
+	// only as the ancestor of selected keys, none of which it holds, it
+	// is absent on the wire, so it sizes 0.
+	omitEmpty bool
 }
 
 // leaf is a scalar key: the key text plus its value bytes.
@@ -84,9 +88,20 @@ func (n *sizeNode) full() int64 {
 // shaped is the node's size under plan, its parent at path. A node the
 // plan drops is 0; a whole-kept node is its full size; a partially kept
 // node keeps its own bytes and asks for each child.
-func (n *sizeNode) shaped(plan *returnplan.Plan, path []returnplan.Segment) int64 {
+//
+// siblings are the node's siblings (its parent's kids): a map key the
+// plan keeps only as a companion (returnplan.Companion) is kept iff its
+// sibling is — the runtime walkers' VisitIn rule.
+func (n *sizeNode) shaped(plan *returnplan.Plan, path []returnplan.Segment, siblings []*sizeNode) int64 {
 	c := append(append(make([]returnplan.Segment, 0, len(path)+1), path...), n.seg)
-	v := plan.Visit(c)
+	v := plan.VisitIn(c, func(name string) bool {
+		for _, s := range siblings {
+			if !s.seg.Index && s.seg.Name == name {
+				return true
+			}
+		}
+		return false
+	})
 	if !v.Keep {
 		return 0
 	}
@@ -94,8 +109,14 @@ func (n *sizeNode) shaped(plan *returnplan.Plan, path []returnplan.Segment) int6
 		return n.full()
 	}
 	sum := n.own
+	kept := false
 	for _, k := range n.kids {
-		sum += k.shaped(plan, c)
+		ks := k.shaped(plan, c, n.kids)
+		kept = kept || ks > 0
+		sum += ks
+	}
+	if n.omitEmpty && !kept {
+		return 0
 	}
 	return n.count * sum
 }
@@ -106,6 +127,13 @@ type returnSizeInputs struct {
 	schema   *encoding.Schema
 	inst     *InstanceSnapshot
 	matrices []descriptor.MatrixPredict
+	// matrixPlans are the resolved specs behind matrices, index for
+	// index (the auxiliaries a spec emits follow its params).
+	matrixPlans []vectors.Matrix
+	// matrixMembers marks, index for index with matrixPlans, the specs
+	// a resolved multiplicity family claims (their results gain the
+	// adjusted twins and the echo).
+	matrixMembers []bool
 	// records is the cohort's record count; recordsKnown is false when
 	// it cannot be derived from the file length.
 	records      int64
@@ -250,7 +278,7 @@ func returnSections(in returnSizeInputs) []returnSection {
 		var kids []*sizeNode
 		basis := returnSizeExact
 		known := true
-		for _, m := range in.matrices {
+		for i, m := range in.matrices {
 			if m.EstimatedBuckets == nil {
 				known = false
 				break
@@ -259,15 +287,22 @@ func returnSections(in returnSizeInputs) []returnSection {
 				basis = returnSizeUpperBound
 			}
 			p := int64(m.Shape[0])
-			values := func(name string) *sizeNode {
-				return key(name, leaf("kind", sizeLabel), leaf("encoding", sizeLabel),
-					key("row_keys", elemValues(p, sizeLabel)), key("column_keys", elemValues(p, sizeLabel)),
-					key("values", elemValues(p*p, sizeNumber)))
-			}
-			kids = append(kids, elems(in.clamp(*m.EstimatedBuckets),
+			result := []*sizeNode{
 				leaf("name", sizeLabel), leaf("type", sizeLabel), leaf("group_key", sizeLabel),
-				values("primary"), key("vectors", elemValues(p, sizeNumber)),
-				leaf("scalars", sizeNumber)))
+				matrixValuesNode("primary", p, p), key("vectors", elemValues(p, sizeNumber)),
+				leaf("scalars", sizeNumber)}
+			if i < len(in.matrixPlans) {
+				member := i < len(in.matrixMembers) && in.matrixMembers[i]
+				if aux := matrixAuxiliaryNodes(in.matrixPlans[i], m, member); len(aux) > 0 {
+					auxNode := key("auxiliary", aux...)
+					auxNode.omitEmpty = true
+					result = append(result, auxNode)
+				}
+				if member {
+					result = append(result, leaf("multiplicity", sizeHeader))
+				}
+			}
+			kids = append(kids, elems(in.clamp(*m.EstimatedBuckets), result...))
 		}
 		if known {
 			add(key("matrices", kids...), basis)
@@ -357,7 +392,7 @@ func responseSizes(plan *returnplan.Plan, in returnSizeInputs) []descriptor.Resp
 		full := s.node.full()
 		shaped := full
 		if plan != nil {
-			shaped = s.node.shaped(plan, nil)
+			shaped = s.node.shaped(plan, nil, nil)
 		}
 		out = append(out, descriptor.ResponseSectionSize{
 			Section:     s.node.seg.Name,
@@ -438,4 +473,64 @@ func attributeComponentSlots(req *types.Request, inst *InstanceSnapshot) int {
 		}
 	}
 	return n
+}
+
+// matrixValuesNode is one MatrixValues of rows x cols cells: its kind,
+// encoding, axis keys and values (every square matrix sized in full
+// encoding, the upper bound, as the primary is).
+func matrixValuesNode(name string, rows, cols int64) *sizeNode {
+	return key(name, leaf("kind", sizeLabel), leaf("encoding", sizeLabel),
+		key("row_keys", elemValues(rows, sizeLabel)), key("column_keys", elemValues(cols, sizeLabel)),
+		key("values", elemValues(rows*cols, sizeNumber)))
+}
+
+// matrixAuxiliaryNodes sizes the auxiliary matrices spec m emits — every
+// key its operator declares (capabilities_matrix.go OutputKeys.Auxiliary)
+// under the params that emit it, by the runtime's shapes: p is the
+// output axis (mp.Shape[0]), k the loadings' columns (mp.Shape[1]: an
+// integer component / factor count, else the p upper bound), and on
+// MAT_DISTANCE b the bucket bound (mp.Shape[0]) over the p members.
+//
+//   - n (pairwise, every operator but MAT_DISTANCE): p x p pair N.
+//   - p, ci_lower, ci_upper (params.inference on MAT_CORRELATION /
+//     MAT_PARTIAL_CORRELATION): p x p each; p_adjusted and
+//     significant_adjusted too when member (a multiplicity family
+//     claims the spec).
+//   - MAT_PCA: eigenvectors p x k; unrotated p x k under a rotation.
+//   - MAT_FACTOR: unrotated p x k under a rotation; factor_correlation
+//     k x k under an oblique one (promax, oblimin).
+//   - MAT_COLLINEARITY: variance_decomposition q x q, q = p (+ 1 for
+//     the intercept unless params.center).
+//   - MAT_DISTANCE: centroids b x p; centroids_standardized b x p under
+//     standardize; pooled_covariance p x p under a fitted inverse
+//     covariance metric (mahalanobis).
+func matrixAuxiliaryNodes(m vectors.Matrix, mp descriptor.MatrixPredict, member bool) []*sizeNode {
+	p, k := int64(mp.Shape[0]), int64(mp.Shape[1])
+	keys, _ := m.AuxiliaryKeys()
+	if m.Inference && member {
+		keys = append(keys, "p_adjusted", "significant_adjusted")
+	}
+	out := make([]*sizeNode, 0, len(keys))
+	for _, name := range keys {
+		switch name {
+		case "eigenvectors", "unrotated":
+			out = append(out, matrixValuesNode(name, p, k))
+		case "factor_correlation":
+			out = append(out, matrixValuesNode(name, k, k))
+		case "variance_decomposition":
+			q := p
+			if !m.Center {
+				q++
+			}
+			out = append(out, matrixValuesNode(name, q, q))
+		case "centroids", "centroids_standardized":
+			out = append(out, matrixValuesNode(name, p, int64(len(m.Members.Members))))
+		case "pooled_covariance":
+			members := int64(len(m.Members.Members))
+			out = append(out, matrixValuesNode(name, members, members))
+		default: // n and the inference squares: p x p over the output axis
+			out = append(out, matrixValuesNode(name, p, p))
+		}
+	}
+	return out
 }

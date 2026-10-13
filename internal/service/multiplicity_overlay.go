@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -40,7 +41,19 @@ const (
 	// pSiteMatrixPanel: a vector of p-values per present MATRIX cell,
 	// its []float64 Value; every element joins the family.
 	pSiteMatrixPanel
+	// pSiteMatrixPart: one p per present cell of the kind's named
+	// MATRIX part (overlayPParts), its float64 Value. The primary
+	// matrix carries another figure (OVERLAY_STD_RESIDUAL's residuals);
+	// the adjusted twins still ride OverlayPayload.PAdjusted /
+	// SignificantAdjusted, on the part's coordinates.
+	pSiteMatrixPart
 )
+
+// overlayPParts names the payload part a pSiteMatrixPart kind carries
+// its p-values in.
+var overlayPParts = map[types.OverlayKind]string{
+	types.OverlayKindStdResidual: processing.StdResidualPartP,
+}
 
 // overlayPSites is the p-site table: every overlay kind the catalog
 // flags Inferential has exactly one entry
@@ -57,6 +70,7 @@ var overlayPSites = map[types.OverlayKind]overlayPSite{
 	types.OverlayKindPairwiseWelchT:            pSiteMatrixCell,
 	types.OverlayKindPairwiseTwoMeansZ:         pSiteMatrixCell,
 	types.OverlayKindPairwiseWeightedTwoMeansZ: pSiteMatrixCell,
+	types.OverlayKindStdResidual:               pSiteMatrixPart,
 	// Compose host.
 	types.OverlayKindPropZCell:  pSiteMatrixCell,
 	types.OverlayKindTCell:      pSiteMatrixCell,
@@ -131,12 +145,13 @@ func collectOverlaySites(fams *multFamilies, scope string, slots []descx.Resolve
 // each cell under its row / column index's own family.
 func collectLayerSites(fams *multFamilies, key string, rm descx.ResolvedMultiplicity, layer *types.OverlayLayer, site overlayPSite) {
 	method, family, alpha := rm.Method, rm.Family, rm.Alpha
-	matrixSite := site == pSiteMatrixCell || site == pSiteMatrixPanel
+	matrixSite := site == pSiteMatrixCell || site == pSiteMatrixPanel || site == pSiteMatrixPart
 	if geometric(family) {
-		if !matrixSite || layer.Payload.Matrix == nil {
+		src := pMatrixOf(layer, site)
+		if !matrixSite || src == nil {
 			return
 		}
-		collectGeometricSites(fams, key, rm, layer, site == pSiteMatrixPanel)
+		collectGeometricSites(fams, key, rm, layer, src, site == pSiteMatrixPanel)
 		return
 	}
 	echo := func(m, excluded int) {
@@ -171,8 +186,8 @@ func collectLayerSites(fams *multFamilies, key string, rm descx.ResolvedMultipli
 				summarySite(s, s.Statistic)
 			}
 		}
-	case pSiteMatrixCell, pSiteMatrixPanel:
-		collectMatrixSites(layer, alpha, site == pSiteMatrixPanel, func(_, _ int, p float64, write func(adjusted float64)) {
+	case pSiteMatrixCell, pSiteMatrixPanel, pSiteMatrixPart:
+		collectMatrixSites(layer, pMatrixOf(layer, site), alpha, site == pSiteMatrixPanel, func(_, _ int, p float64, write func(adjusted float64)) {
 			add(p, write)
 		})
 	}
@@ -184,12 +199,12 @@ func collectLayerSites(fams *multFamilies, key string, rm descx.ResolvedMultipli
 // joins its cell's row / column. The echo carries m_per, index-aligned
 // with the matrix rows (columns) — 0 for an index with no defined
 // p-value — and m, their sum.
-func collectGeometricSites(fams *multFamilies, base string, rm descx.ResolvedMultiplicity, layer *types.OverlayLayer, panel bool) {
+func collectGeometricSites(fams *multFamilies, base string, rm descx.ResolvedMultiplicity, layer *types.OverlayLayer, src *types.MatrixPayload, panel bool) {
 	method, family, alpha := rm.Method, rm.Family, rm.Alpha
-	n := len(layer.Payload.Matrix.Cells)
+	n := len(src.Cells)
 	if family == types.MultiplicityFamilyColumn {
 		n = 0
-		for _, row := range layer.Payload.Matrix.Cells {
+		for _, row := range src.Cells {
 			n = max(n, len(row))
 		}
 	}
@@ -204,7 +219,7 @@ func collectGeometricSites(fams *multFamilies, base string, rm descx.ResolvedMul
 		}
 		layer.Multiplicity = &types.AppliedMultiplicity{Method: method, Family: family, Alpha: alpha, M: total, MPer: mPer, Excluded: totalExcluded}
 	}
-	collectMatrixSites(layer, alpha, panel, func(r, c int, p float64, write func(adjusted float64)) {
+	collectMatrixSites(layer, src, alpha, panel, func(r, c int, p float64, write func(adjusted float64)) {
 		idx := r
 		if family == types.MultiplicityFamilyColumn {
 			idx = c
@@ -228,13 +243,27 @@ func writeSummaryAdjusted(s *types.OverlaySummary, adjusted, alpha float64) {
 	}
 }
 
+// pMatrixOf is the MATRIX a matrix p-site reads its p-values from: the
+// named part for pSiteMatrixPart (nil when the layer lacks it), the
+// primary matrix otherwise.
+func pMatrixOf(layer *types.OverlayLayer, site overlayPSite) *types.MatrixPayload {
+	if site != pSiteMatrixPart {
+		return layer.Payload.Matrix
+	}
+	part := layer.Payload.Parts[overlayPParts[layer.Kind]]
+	if part == nil {
+		return nil
+	}
+	return part.Matrix
+}
+
 // collectMatrixSites allocates the parallel p_adjusted /
-// significant_adjusted matrices on the base matrix's coordinates and
-// files each present p-cell (or each panel element) as a site writing
-// into them; add receives the cell's (row, column) coordinate so a
-// geometric family can key it. The base matrix is read, never written.
-func collectMatrixSites(layer *types.OverlayLayer, alpha float64, panel bool, add func(r, c int, p float64, write func(adjusted float64))) {
-	base := layer.Payload.Matrix
+// significant_adjusted matrices on base's coordinates (the p-value
+// matrix pMatrixOf picked) and files each present p-cell (or each panel
+// element) as a site writing into them; add receives the cell's (row,
+// column) coordinate so a geometric family can key it. The twins land
+// on the layer's OverlayPayload; base is read, never written.
+func collectMatrixSites(layer *types.OverlayLayer, base *types.MatrixPayload, alpha float64, panel bool, add func(r, c int, p float64, write func(adjusted float64))) {
 	if base == nil {
 		return
 	}

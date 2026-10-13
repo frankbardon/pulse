@@ -6,7 +6,6 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -15,11 +14,14 @@ import (
 // association). Buffer paired values, mid-rank each column independently,
 // then compute Pearson r on the ranks.
 //
-// p-value via the t-statistic
+// p-value: R cor.test(method = "spearman")'s default (exact = NULL)
+// via spearmanCorTestP (rank_cortest.go) — AS 89 on S = Σd² when untied
+// and n ≤ 1290, else the t approximation
 //
 //	t = ρ · √((n−2) / (1−ρ²))   with df = n − 2
 //
-// driven by statdist.StudentTTwoSidedP. Tie handling is the standard mid-rank
+// — the same function the matrix's Spearman cells call. Details.t is
+// that t on both paths. Tie handling is the standard mid-rank
 // correction; degenerate edge cases (zero variance in ranks, |ρ|=1)
 // match the parametric TEST_PEARSON_R behavior.
 //
@@ -116,15 +118,11 @@ func (s *spearmanRRow) Finalize() (*types.TestResult, error) {
 			map[string]any{"n": n})
 	}
 	df := nW - 2
-	var t, p float64
-	switch {
-	case rho == 1 || rho == -1:
-		t = math.Inf(int(math.Copysign(1, rho)))
-		p = 0
-	default:
-		t = rho * math.Sqrt(df/(1-rho*rho))
-		p = statdist.StudentTTwoSidedP(t, df)
-	}
+	t := spearmanT(rho, df)
+	// p is R cor.test's default (spearmanCorTestP, shared with the
+	// matrix's Spearman cells): AS 89 when untied and n ≤ 1290, else
+	// the t approximation on df.
+	p := spearmanCorTestP(rho, rx, ry, nW, tiesX, tiesY)
 	res := &types.TestResult{
 		Label:      testLabel(s.spec),
 		Type:       types.TEST_SPEARMAN_R,
@@ -152,6 +150,15 @@ func (s *spearmanRRow) Finalize() (*types.TestResult, error) {
 func (s *spearmanRRow) reset() {
 	s.xs = rankSample{}
 	s.ys = nil
+}
+
+// spearmanT is the t approximation's statistic ρ·√(df/(1 − ρ²)),
+// ±Inf at |ρ| = 1 (Details.t of both TEST_SPEARMAN_R variants).
+func spearmanT(rho, df float64) float64 {
+	if rho == 1 || rho == -1 {
+		return math.Inf(int(math.Copysign(1, rho)))
+	}
+	return rho * math.Sqrt(df/(1-rho*rho))
 }
 
 // rankPearson is Spearman's ρ off two columns of (weighted) mid-ranks:

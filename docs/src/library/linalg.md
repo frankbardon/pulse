@@ -21,6 +21,7 @@ Accessors: `At`, `Set`, `Rows` / `Cols` / `N` / `Len`, `ToRows`, `RowMajor`, `Sl
 | Need | Routine | Same bits on every architecture? |
 |---|---|---|
 | Factor, solve or invert a symmetric positive-definite matrix, with reproducible output | `Cholesky`, `CholeskyRidge`, `SolveSPD`, `InverseSPD` | **yes**: pure Go, FMA-free |
+| Solve a general (non-symmetric or indefinite) square system, with reproducible output | `Solve`, `FactorLU` → `LUFactor.Solve` / `SolveMatrix` / `Inverse` / `ConditionNumber` | **yes** for the values: pure Go, FMA-free (the singularity decision uses the rank tolerance) |
 | Running means and covariances, mergeable | `CoMoment`, `MergeTree` | **yes**: pure Go, FMA-free |
 | Factor once, then solve many right-hand sides, with a condition check | `FactorSPD` → `SPDFactor.Solve` / `Inverse` / `ConditionNumber`; `Mul` | no; gonum-backed, but identical bits run to run on one machine |
 | Eigen, singular value, QR, rank, condition number | `SymEigen`, `SVD`, `QR`, `Rank`, `ConditionNumber` | values may differ in the last ulps; order, sign and rank decisions are fixed |
@@ -41,6 +42,21 @@ if ridge > 0 {
 ```
 
 `DefaultRidgeSchedule()` makes eight attempts. Before each retry it adds the next increment, `1e-6`, `1e-5`, …, `1e1`. The returned ridge is the sum of the increments actually added. Pass your own `RidgeSchedule` to change the steps.
+
+## General solve (LU)
+
+```go
+a, _ := linalg.NewMatrixFromRows([][]float64{{1, -0.5, 0}, {-0.5, 1, -0.5}, {0, -0.5, 1}})
+x, err := linalg.Solve(a, linalg.NewVec([]float64{1, 1, 1})) // x = (3, 4, 3)
+
+// Many right-hand sides: factor once.
+f, err := linalg.FactorLU(a)
+X, err := f.SolveMatrix(B) // column j of X solves a·x = column j of B
+inv, err := f.Inverse()
+k := f.ConditionNumber()   // 2-norm condition number, always finite
+```
+
+`FactorLU` is LU with partial pivoting (P·A = L·U, the largest pivot in each column, ties to the lowest row). It refuses a matrix that is rank-deficient under the rank tolerance below (exactly where `ConditionNumber` is `+Inf`) with `PULSE_MATRIX_SINGULAR`, so you get an error, never a `NaN` solution. A full-rank but ill-conditioned matrix still solves; expect to lose about log10(κ) digits, and check `f.ConditionNumber()` if you need a stricter gate. A solve meets the round-trip tolerance ‖A·x − b‖∞ ≤ 8·n·`Epsilon`·(‖A‖∞·‖x‖∞ + ‖b‖∞). For a symmetric positive-definite matrix, `SolveSPD` is the cheaper reference route.
 
 ## Eigen, SVD, QR and rank
 
@@ -72,7 +88,7 @@ corr := acc.Corr() // C/√(M2_x·M2_y), TEST_PEARSON_R's arithmetic
 mean := acc.Mean()
 ```
 
-- **Missing values.** A `NaN` in `x` is missing. `Listwise` drops the row. `Pairwise` drops it only for the pairs it touches; `PairN(i, j)` / `PairW(i, j)` report each pair's count and weight.
+- **Missing values.** A `NaN` in `x` is missing. `Listwise` drops the row. `Pairwise` drops it only for the pairs it touches; `PairN(i, j)` / `PairW(i, j)` / `PairW2(i, j)` report each pair's count, weight sum and squared-weight sum, `PairNMass(i, j)` the pair's rows with a positive weight (`PairN` less its weight-0 rows), and `PairNEff(i, j)` its Kish effective sample size `PairW²/PairW2`. Under `Listwise` they equal `N()`, `W()`, the global positive-weight count, the global Σw² and `NEff()` for every pair.
 - **Weights.**
   - A `NaN`, `±Inf` or negative weight skips the row and is counted in `NWeightInvalid()`.
   - A weight of `0` is valid: the row counts in `N()` but carries no mass.
@@ -122,5 +138,5 @@ Every failure is an `*errors.CodedError`. Look up its prose with `pulse errors l
   - `non_finite` (a `NaN` / `Inf` element in a decomposition);
   - `no_convergence`.
 
-  A reference Cholesky failure carries `pivot`; an exhausted ridge schedule carries `attempts` and `ridge`.
+  A refused `FactorLU` / `Solve` carries `reason` = `singular`, `n`, `rank` and `condition_number` (`+Inf`), plus `pivot` for an exactly zero pivot. A reference Cholesky failure carries `pivot`; an exhausted ridge schedule carries `attempts` and `ridge`.
   A failed `Cholesky` (so `SolveSPD` / `InverseSPD`) or `FactorSPD` on a finite matrix also carries `rank`, `condition_number` (`+Inf`, `null` on the wire, when rank-deficient) and, for a rank-deficient one, `dependent_indices`: the axis indices in the linear dependency. A matrix operator names them as `dependent_fields`.

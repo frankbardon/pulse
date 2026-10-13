@@ -229,7 +229,7 @@ func TestRefusalReasons_ShapiroWilkStatesObstacle(t *testing.T) {
 }
 
 // TestHiddenFloorRefusal: the floor-scaling kinds are exactly the χ²
-// and Compose proportion kinds (the pairwise proportion kind already
+// kinds, OVERLAY_STD_RESIDUAL and the Compose proportion kinds (the pairwise proportion kind already
 // needs components to run at all; Fisher has no probability form; the
 // mean kinds read their own legs), and the refusal names the overlay
 // slot, the kind and the host.
@@ -237,6 +237,7 @@ func TestHiddenFloorRefusal(t *testing.T) {
 	want := map[types.OverlayKind]bool{
 		types.OverlayKindChiSqRow: true, types.OverlayKindChiSqCol: true, types.OverlayKindChiSqMatrix: true,
 		types.OverlayKindChiSqVsRef: true, types.OverlayKindPropZCell: true, types.OverlayKindPropZPanel: true,
+		types.OverlayKindStdResidual: true,
 	}
 	for _, k := range types.AllOverlayKinds() {
 		if ScalesByHostFloor(k) != want[k] {

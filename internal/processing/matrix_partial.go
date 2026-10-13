@@ -27,7 +27,9 @@ import (
 // mergeable like MAT_CORRELATION.
 //
 // Outputs: primary (the partials, diagonal 1), pairwise auxiliary.n
-// (each output pair's own N) and the warnings; no scalars, no vectors.
+// (each output pair's own N), under params.inference auxiliary.p /
+// ci_lower / ci_upper on df = N* − 2 − g (partialInference,
+// matrix_inference.go) and the warnings; no scalars, no vectors.
 //
 // Undefined figures: when any input correlation is undefined (a
 // zero-spread member, a thin pair, no rows) every partial cell is NaN —
@@ -51,7 +53,13 @@ func finalizePartialCorrelation(in *matrixFinalizeInput) (matrixOutput, error) {
 		}
 	}
 	if !judgeable(r) {
-		out.Primary = in.Square(func(int, int) float64 { return math.NaN() })
+		nan := func(int, int) float64 { return math.NaN() }
+		out.Primary = in.Square(nan)
+		if plan.Inference && in.WantAuxiliary() {
+			// Every partial is undefined; the co-moment warnings say why.
+			aux, _ := in.partialInference(nan)
+			out.addAuxiliary(aux)
+		}
 		return out, nil
 	}
 	r, warns, err := in.guardPSD(r, nil)
@@ -64,6 +72,11 @@ func finalizePartialCorrelation(in *matrixFinalizeInput) (matrixOutput, error) {
 		return matrixOutput{}, singularMatrixError(err, plan.Name, in.Members())
 	}
 	out.Primary = in.Square(pc.At)
+	if plan.Inference && in.WantAuxiliary() {
+		aux, warns := in.partialInference(pc.At)
+		out.addAuxiliary(aux)
+		out.Warnings = append(out.Warnings, warns...)
+	}
 	return out, nil
 }
 

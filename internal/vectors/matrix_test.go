@@ -721,3 +721,68 @@ func TestFactorIdentified(t *testing.T) {
 		}
 	}
 }
+
+// TestResolveMatrices_Inference: params.inference / params.alpha on
+// MAT_CORRELATION (every method, rank methods included) and
+// MAT_PARTIAL_CORRELATION — off by default (alpha 0), on with alpha
+// 0.05 unless set; alpha without inference, alpha outside (0, 1) and
+// either key on another operator are bad_params (param named).
+func TestResolveMatrices_Inference(t *testing.T) {
+	ok := []struct {
+		typ       types.MatrixType
+		params    string
+		inference bool
+		alpha     float64
+	}{
+		{types.MAT_CORRELATION, ``, false, 0},
+		{types.MAT_CORRELATION, `{"inference": false}`, false, 0},
+		{types.MAT_CORRELATION, `{"inference": true}`, true, InferenceDefaultAlpha},
+		{types.MAT_CORRELATION, `{"inference": true, "alpha": 0.1, "method": "pearson"}`, true, 0.1},
+		{types.MAT_PARTIAL_CORRELATION, `{"inference": true, "alpha": 0.01}`, true, 0.01},
+		{types.MAT_PARTIAL_CORRELATION, `{"inference": null}`, false, 0},
+		{types.MAT_CORRELATION, `{"method": "spearman", "inference": false}`, false, 0},
+		{types.MAT_CORRELATION, `{"method": "spearman", "inference": true}`, true, InferenceDefaultAlpha},
+		{types.MAT_CORRELATION, `{"inference": true, "alpha": 0.2, "method": "kendall"}`, true, 0.2},
+	}
+	for _, c := range ok {
+		t.Run(string(c.typ)+c.params, func(t *testing.T) {
+			req := &types.Request{Matrices: []types.MatrixSpec{{Type: c.typ, Fields: []string{"q_1", "q_2", "score"}, Params: json.RawMessage(c.params)}}}
+			got, err := ResolveMatrices(req, testSchema(), nil)
+			if err != nil {
+				t.Fatalf("unexpected refusal: %v", err)
+			}
+			if got[0].Inference != c.inference || got[0].Alpha != c.alpha {
+				t.Errorf("Inference, Alpha = %v, %v; want %v, %v", got[0].Inference, got[0].Alpha, c.inference, c.alpha)
+			}
+		})
+	}
+	bad := []struct {
+		name   string
+		typ    types.MatrixType
+		params string
+		param  string
+	}{
+		{"alpha without inference", types.MAT_CORRELATION, `{"alpha": 0.1}`, "alpha"},
+		{"alpha with inference false", types.MAT_PARTIAL_CORRELATION, `{"inference": false, "alpha": 0.1}`, "alpha"},
+		{"alpha 0", types.MAT_CORRELATION, `{"inference": true, "alpha": 0}`, "alpha"},
+		{"alpha 1", types.MAT_CORRELATION, `{"inference": true, "alpha": 1}`, "alpha"},
+		{"spearman alpha without inference", types.MAT_CORRELATION, `{"method": "spearman", "alpha": 0.1}`, "alpha"},
+		{"covariance", types.MAT_COVARIANCE, `{"inference": true}`, ""},
+		{"pca", types.MAT_PCA, `{"inference": true}`, ""},
+	}
+	for _, c := range bad {
+		t.Run(c.name, func(t *testing.T) {
+			req := &types.Request{Matrices: []types.MatrixSpec{{Type: c.typ, Fields: []string{"q_1", "q_2", "score"}, Params: json.RawMessage(c.params)}}}
+			_, err := ResolveMatrices(req, testSchema(), nil)
+			if err == nil {
+				t.Fatal("accepted")
+			}
+			if err.Code != errors.SERVICE_VALIDATION || err.Details["reason"] != "bad_params" {
+				t.Fatalf("refusal = %s %v, want SERVICE_VALIDATION bad_params", err.Code, err.Details)
+			}
+			if c.param != "" && err.Details["param"] != c.param {
+				t.Errorf("details.param = %v, want %s (%s)", err.Details["param"], c.param, err.Message)
+			}
+		})
+	}
+}

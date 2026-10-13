@@ -318,14 +318,19 @@ func BuiltinOutputResolver(name string) OutputResolver {
 }
 
 // matrixOutputResolver reads a MAT_* operator's MatrixResult: every
-// cell of the primary matrix as primary.values, and each declared
-// whole-matrix figure as scalars.<key> (MatrixOutputKeys.Scalars).
+// cell of the primary matrix as primary.values, each declared
+// whole-matrix figure as scalars.<key> (MatrixOutputKeys.Scalars) and
+// each declared auxiliary matrix as auxiliary.<key>
+// (MatrixOutputKeys.Auxiliary — its cells, e.g. params.inference's p).
 func matrixOutputResolver(name string) OutputResolver {
-	scalars := map[string]bool{}
+	scalars, aux := map[string]bool{}, map[string]bool{}
 	for _, m := range matrixCapabilities() {
 		if m.Name == name {
 			for _, k := range m.OutputKeys.Scalars {
 				scalars[k] = true
+			}
+			for _, k := range m.OutputKeys.Auxiliary {
+				aux[k] = true
 			}
 		}
 	}
@@ -336,7 +341,10 @@ func matrixOutputResolver(name string) OutputResolver {
 		if k, ok := strings.CutPrefix(field, "scalars."); ok && scalars[k] {
 			return FieldStatic, ""
 		}
-		return FieldUnknown, fmt.Sprintf("%s does not emit %q (want primary.values or a declared scalars.<key>)", name, field)
+		if k, ok := strings.CutPrefix(field, "auxiliary."); ok && aux[k] {
+			return FieldStatic, ""
+		}
+		return FieldUnknown, fmt.Sprintf("%s does not emit %q (want primary.values, a declared scalars.<key> or auxiliary.<key>)", name, field)
 	}
 }
 
@@ -399,6 +407,26 @@ func overlayOutputResolver(kind types.OverlayKind) OutputResolver {
 				return FieldStatic, ""
 			}
 			return FieldUnknown, fmt.Sprintf("%s declares no matrix shape", kind)
+		}
+		if rest, ok := strings.CutPrefix(field, "parts."); ok {
+			// A declared fixed-name payload part (overlayPartShape): its own
+			// cells.value (MATRIX part), scalar (SCALAR part) or an
+			// entry's scalar summary.<key> (SERIES part).
+			name, sub, _ := strings.Cut(rest, ".")
+			sh, ok := overlayPartShape(kind, name)
+			key, seriesKey := strings.CutPrefix(sub, "summary.")
+			if t, known := summary[key]; ok && seriesKey && sh == types.OverlayShapeSeries {
+				if known && isScalarOutput(t) {
+					return FieldStatic, ""
+				}
+				if strings.HasPrefix(key, "parameters.") && key != "parameters." {
+					return FieldDeferred, ""
+				}
+			}
+			if ok && ((sh == types.OverlayShapeMatrix && sub == "cells.value") || (sh == types.OverlayShapeScalar && sub == "scalar")) {
+				return FieldStatic, ""
+			}
+			return FieldUnknown, fmt.Sprintf("%s declares no part path %q", kind, field)
 		}
 		if rest, ok := strings.CutPrefix(field, "summary.parameters."); ok && rest != "" {
 			return FieldDeferred, ""

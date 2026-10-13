@@ -1406,7 +1406,7 @@
       },
       {
         "name": "overlay-system",
-        "description": "Overlay framework — OverlaySpec composition, six reference families, three payload shapes, host-arm wiring (SERIES / FACET / CHAIN / FORMULA), parity overlays + Welford migration. Per-kind detail lives in op-overlay-* atomics."
+        "description": "Overlay framework — OverlaySpec composition, reference families, three payload shapes, host-arm wiring (SERIES / MATRIX_RESULT / FACET / CHAIN / FORMULA), named payload parts of multi-output kinds. Per-kind detail lives in op-overlay-* atomics."
       },
       {
         "name": "pairwise-n-sources",
@@ -2072,7 +2072,6 @@
       "composition",
       "data_quality",
       "describe",
-      "flows",
       "lookup",
       "prepare",
       "relationship"
@@ -2243,4 +2242,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1c3847e79f126ee9fea6eacc75043c4b2621e2eec6a589adc5f628968477eb14
+// golden-hash: 1581db8577dc732ea78ac769306a132736524428bf5a5c12cee9aefb6c218ff3

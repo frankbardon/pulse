@@ -460,7 +460,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#293** `REG_OLS` `penalty` with an `unpenalized: [..]` predictor list, so ridge can leave a predictor subset unshrunk; add an oracle case · [U36](units/U36-reference-oracles.md)
 - [ ] **#294** Window lag default `null` and post-tests that honour null (`WIN_LAG` `default: 0` biases lag-1 autocorrelation) · [U36](units/U36-reference-oracles.md)
 - [x] **#295** Clustered and HAC covariance options on `REG_OLS` `Vcov` · [U25](units/U25-multivariate-tests-segmentation.md)
-- [ ] **#296** Summary of a matrix across groups (mean and range per cell over a grouped matrix result) · [U28](units/U28-matrix-overlays.md)
+- [x] **#296** Summary of a matrix across groups (mean and range per cell over a grouped matrix result) · [U28](units/U28-matrix-overlays.md)
 - [ ] **#371** Docs from the showcase examples: `--source-tz` accepts fixed `+HH:MM` offsets while request `time_zone` refuses them (state the asymmetry); projection's benefit is schema-dependent (the retail example measured no gain on 15 fields of 53 bytes); the brand-tracker, A/B and other showcase READMEs are re-verified after the units that simplify them land · [U32](units/U32-docs-audit.md)
 
 ---
@@ -529,11 +529,11 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#130** Topical skill `multivariate-design.md` · [U24](units/U24-matrix-operators.md)
 
 #### Follow-ups from U24
-- [ ] **#261** Raw p-values and confidence intervals on `MAT_CORRELATION` `params.method` `spearman` / `kendall` (the `cor.test` analogues, exact Kendall with ties), as `auxiliary.p` / interval matrices; U24 ships the figures only · [U28](units/U28-matrix-overlays.md)
+- [x] **#261** Raw p-values and confidence intervals on `MAT_CORRELATION` `params.method` `spearman` / `kendall` (the `cor.test` analogues, exact Kendall with ties), as `auxiliary.p` / interval matrices; U24 ships the figures only · [U28](units/U28-matrix-overlays.md)
 - [x] **#262** `MAT_FACTOR`: multi-factor minres factor analysis, reusing `minresOneFactor`, the `PULSE_MATRIX_HEYWOOD` / `_NOT_IDENTIFIED` / `_NOT_CONVERGED` warnings (add it as an owner) and the PSD guard · [U25](units/U25-multivariate-tests-segmentation.md)
 - [x] **#263** Factor rotation (varimax, promax) for `MAT_FACTOR`, including a varimax option on `MAT_PCA` loadings (U24 ships unrotated components) · [U25](units/U25-multivariate-tests-segmentation.md)
 - [x] **#264** Link the `factor` glossary entry to `MAT_FACTOR` and add it as the third `measure_construct` declarer, clearing both exemption-ledger entries (`factor`, `measure_construct`) in `guidance_exemptions_test.go` · [U25](units/U25-multivariate-tests-segmentation.md)
-- [ ] **#265** Partial-correlation statistic and p-value (df = n − 2 − g; the `ppcor` values already sit in `mv_partial_correlation.json`) as `auxiliary.p` beside the multiplicity core · [U28](units/U28-matrix-overlays.md)
+- [x] **#265** Partial-correlation statistic and p-value (df = n − 2 − g; the `ppcor` values already sit in `mv_partial_correlation.json`) as `auxiliary.p` beside the multiplicity core · [U28](units/U28-matrix-overlays.md)
 - [ ] **#266** Matrix oracle gaps: add weighted pairwise PCA, collinearity and reliability `item_sd` cases (the unweighted pairwise PCA and collinearity cases landed in U24) · [U36](units/U36-reference-oracles.md)
 - [ ] **#267** Predict `row_buffer_bytes` is an upper bound for ordinary groupers only: a fan-out grouper (`GROUP_SET_PER_ELEMENT` and kin) copies a row into every label bucket, so the true buffer can exceed it; add the fan-out multiplicity, and confirm `limits.MatrixStateBytes` counts the buffered rank-method row store · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#268** Trim the soft-budget overruns in the `op-mat-*` atomic skills (`op-mat-correlation` body 1970 B against 1200) with the other over-budget atomic bodies · [U32](units/U32-docs-audit.md)
@@ -587,16 +587,19 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#423** Group-centroid references: `ATTR_PROFILE_SIMILARITY` / `ATTR_VEC_DISTANCE` compare a row against the `AGG_VEC_MEAN` of a named filter or group (a two-pass fit), not only a literal or a registered `ReferenceVectors` profile. Deferred from U27 (E3) · [U30](units/U30-matrix-extensions-hardening.md)
 - [ ] **#424** Point-lookup-record references: compare rows against a single stored record ("rows like customer #4411") via the point-lookup index. Deferred from U27 (E3) · [U30](units/U30-matrix-extensions-hardening.md)
 - [ ] **#425** `AGG_VEC_SD`: the per-element standard deviation of a vector, an array-valued aggregator beside `AGG_VEC_MEAN` / `AGG_VEC_SUM` (mergeable via the co-moment). Deferred from U27 (E2) · [U30](units/U30-matrix-extensions-hardening.md)
-- [ ] **#426** Expose the registered-but-unexposed `chi_square` metric through a consumer (crosstab-profile overlays; it takes its column masses explicitly). Deferred from U27 (E1) · [U28](units/U28-matrix-overlays.md)
+- [ ] **#426** Expose the registered-but-unexposed `chi_square` metric through a consumer (crosstab-profile overlays; it takes its column masses explicitly). Deferred from U27 (E1) · [U30](units/U30-matrix-extensions-hardening.md)
 - [ ] **#427** A `u64` `key_field` value above 2^53 is matched via its float64 value (records carry numbers as float64; the same limit as `ATTR_CODE_IN`), so two distinct large keys can collide; give record access an exact `u64` path. Deferred from U27 (E3-S4); no unit owns exact `u64` record access, so it sits with predict / runtime parity · [U35](units/U35-predict-runtime-parity.md)
 
 ### E6 — Matrix operations on results (overlays)
-- [ ] **#145** MATRIX_RESULT overlay host and the `Ref.Matrix` reference family · [U28](units/U28-matrix-overlays.md)
-- [ ] **#146** `OVERLAY_STD_RESIDUAL` · [U28](units/U28-matrix-overlays.md)
-- [ ] **#147** `OVERLAY_CORRESPONDENCE` · [U28](units/U28-matrix-overlays.md)
-- [ ] **#148** `OVERLAY_MARKOV` · [U28](units/U28-matrix-overlays.md)
-- [ ] **#149** `OVERLAY_RAKE` · [U28](units/U28-matrix-overlays.md)
-- [ ] **#150** `MatrixSpec.multiplicity` → `p_adjusted` auxiliary matrix via the shared correction core (replaces the dropped `OVERLAY_CORR_PVALUE`) · [U28](units/U28-matrix-overlays.md)
+- [x] **#145** MATRIX_RESULT overlay host and the `Ref.Matrix` reference family · [U28](units/U28-matrix-overlays.md)
+- [x] **#146** `OVERLAY_STD_RESIDUAL` · [U28](units/U28-matrix-overlays.md)
+- [x] **#147** `OVERLAY_CORRESPONDENCE` · [U28](units/U28-matrix-overlays.md)
+- [x] **#148** `OVERLAY_MARKOV` · [U28](units/U28-matrix-overlays.md)
+- [x] **#149** `OVERLAY_RAKE` · [U28](units/U28-matrix-overlays.md)
+- [x] **#150** `MatrixSpec.multiplicity` → `p_adjusted` auxiliary matrix via the shared correction core (replaces the dropped `OVERLAY_CORR_PVALUE`) · [U28](units/U28-matrix-overlays.md)
+
+#### Follow-ups from U28
+- [ ] **#449** The `flows` intent needs ≥3 declaring operators: `OVERLAY_MARKOV` is its only declarer, and no other built-in's Purpose answers a from-state to to-state question (`WIN_LAG` / `WIN_LEAD` are numeric and run on result rows, so they cannot pair a record's earlier state with its current one; `OVERLAY_SHARE_OF_ROW` reads a from-by-to table as one-step switching shares but is a general composition overlay). Ship flows operators (a paired-change test such as McNemar / Bowker symmetry on a from-by-to table, a per-subject previous-state attribute, retention / churn rates) and drop the `intentDeclarerExemptions` entry. Deferred from U28 (E4-G2) · [U30](units/U30-matrix-extensions-hardening.md)
 
 ### E7 — Native vector field types
 - [ ] **#151** `vec_f32` / `vec_f64` encoding and the `VECTORS` schema extension section (tag 2); `ReadVector` accessor · [U29](units/U29-vector-field-types.md)

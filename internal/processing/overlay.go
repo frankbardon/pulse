@@ -77,6 +77,13 @@ type CrosstabHostView struct {
 	// (share, index, χ², Fisher) ignore this field. Read-only.
 	components *types.CrosstabComponents
 
+	// cellType is the host crosstab cell's aggregation type when the
+	// caller knows it from the request (applyOverlaysToResponse); empty
+	// otherwise. The non-negative-mass kinds (OVERLAY_CORRESPONDENCE)
+	// refuse a cell other than AGG_COUNT / AGG_SUM through it — the
+	// runtime twin of the predict refusal.
+	cellType types.AggregationType
+
 	// basis / basisKnown carry the weight basis of the host's crosstab
 	// cell when the caller knows it from the STAMPED request
 	// (applyOverlaysToResponse): the cell's resolved weight. Unset, the
@@ -287,6 +294,9 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 	types.OverlayKindChiSqCol:                  applyChiSqCol,
 	types.OverlayKindChiSqMatrix:               applyChiSqMatrix,
 	types.OverlayKindChiSqRow:                  applyChiSqRow,
+	types.OverlayKindCorrespondence:            applyCorrespondence,
+	types.OverlayKindMarkov:                    applyMarkov,
+	types.OverlayKindRake:                      applyRake,
 	types.OverlayKindDeltaVsMargin:             applyDeltaVsMargin,
 	types.OverlayKindFisherExactCell:           applyFisherExactCell,
 	types.OverlayKindFormula:                   applyFormula,
@@ -299,6 +309,7 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 	types.OverlayKindShareOfCol:                applyShareOfCol,
 	types.OverlayKindShareOfRow:                applyShareOfRow,
 	types.OverlayKindShareOfTotal:              applyShareOfTotal,
+	types.OverlayKindStdResidual:               applyStdResidual,
 	types.OverlayKindZScoreVsMargin:            applyZScoreVsMargin,
 }
 
@@ -405,6 +416,9 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 			if err != nil {
 				return nil, nil, err
 			}
+			if cerr := overlayhost.PartsRefusal(&layer, i); cerr != nil {
+				return nil, nil, cerr
+			}
 			layers = append(layers, layer)
 			if len(ws) > 0 {
 				warnings = append(warnings, ws...)
@@ -438,9 +452,30 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 					"kind":  string(spec.Kind),
 				})
 		}
-		layer, ws, err := handler(spec, host)
+		var (
+			layer types.OverlayLayer
+			ws    []types.OverlayWarning
+			err   error
+		)
+		switch route {
+		// Index-aware kinds: their param / cell / shape refusals carry
+		// the spec index exactly as predict's do.
+		case types.OverlayKindCorrespondence:
+			layer, ws, err = applyCorrespondenceAt(spec, host, i)
+		case types.OverlayKindMarkov:
+			layer, ws, err = applyMarkovAt(spec, host, i)
+		case types.OverlayKindRake:
+			layer, ws, err = applyRakeAt(spec, host, i)
+		default:
+			layer, ws, err = handler(spec, host)
+		}
 		if err != nil {
 			return nil, nil, err
+		}
+		// A multi-output kind's parts are flat: a handler that nests
+		// them is refused here, never shipped (OverlayPayload.Parts).
+		if cerr := overlayhost.PartsRefusal(&layer, i); cerr != nil {
+			return nil, nil, cerr
 		}
 		layers = append(layers, layer)
 		if len(ws) > 0 {
@@ -487,7 +522,11 @@ func validateOverlayLevelWithinRuntime(spec *types.OverlaySpec, route types.Over
 	case types.OverlayKindChiSqCol,
 		types.OverlayKindChiSqMatrix,
 		types.OverlayKindChiSqRow,
-		types.OverlayKindFisherExactCell:
+		types.OverlayKindFisherExactCell,
+		types.OverlayKindStdResidual,
+		types.OverlayKindCorrespondence,
+		types.OverlayKindMarkov,
+		types.OverlayKindRake:
 		// Inferential family — Level / Within must both be zero. Non-
 		// zero values alter the implicit-margin contract those kinds
 		// rely on (they compute contingency from the host's row + col
@@ -2864,6 +2903,28 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// bare-kind shape so renderers can use it directly as a tab /
 		// legend label without uppercasing.
 		return "fisher_exact_cell"
+	case types.OverlayKindCorrespondence:
+		// CORRESPONDENCE is implicit-margin (the whole table);
+		// lower-case bare-kind default like the CHISQ_* family.
+		return "correspondence"
+	case types.OverlayKindMarkov:
+		// MARKOV is implicit-margin (the whole table); lower-case
+		// bare-kind default like the CHISQ_* family.
+		return "markov"
+	case types.OverlayKindRake:
+		// RAKE is implicit-margin (the whole table); lower-case
+		// bare-kind default like the CHISQ_* family.
+		return "rake"
+	case types.OverlayKindMatrixGroupSummary:
+		// The MATRIX_RESULT summary is named after the matrix it reads.
+		if spec.Ref.Matrix != nil && spec.Ref.Matrix.Name != "" {
+			return "group_summary_" + spec.Ref.Matrix.Name
+		}
+		return "group_summary"
+	case types.OverlayKindStdResidual:
+		// STD_RESIDUAL is implicit-margin (no axis dispatch);
+		// lower-case bare-kind default like the CHISQ_* family.
+		return "std_residual"
 	case types.OverlayKindIndexVsBaseline:
 		// INDEX_VS_BASELINE is the windowed positional-baseline kind; the
 		// synthesised default surfaces the lower-case bare-kind string

@@ -1,6 +1,9 @@
 package returnplan
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"go/parser"
 	"go/token"
 	"os"
@@ -243,5 +246,66 @@ func TestPath_Matches(t *testing.T) {
 		if got := mustParse(tc.path).Matches(c); got != tc.want {
 			t.Errorf("%s.Matches(%v) = %v, want %v", tc.path, c, got, tc.want)
 		}
+	}
+}
+
+// TestVisitIn_Companions (U28 E4-G1): a companion key is kept whole only
+// beside a sibling the parent holds AND the plan keeps; Visit alone
+// never keeps it; an exclude covering it (or its sibling) wins, an
+// include covering it makes it unconditional, and a plan without
+// companions digests as New always did.
+func TestVisitIn_Companions(t *testing.T) {
+	comp := []Companion{{Path: mustParse(t, "m[*].aux.n")[0], With: "p"}}
+	n := []Segment{Key("m"), Elem(), Key("aux"), Key("n")}
+	has := func(keys ...string) func(string) bool {
+		return func(k string) bool { return slices.Contains(keys, k) }
+	}
+	for _, c := range []struct {
+		name     string
+		include  []string
+		exclude  []string
+		siblings []string
+		keep     bool
+		comps    int
+	}{
+		{"beside_kept_p", []string{"m[*].aux.p"}, nil, []string{"n", "p"}, true, 1},
+		{"no_p_in_parent", []string{"m[*].aux.p"}, nil, []string{"n"}, false, 1},
+		{"p_not_kept", []string{"m[*].name"}, nil, []string{"n", "p"}, false, 1},
+		{"p_excluded", []string{"m[*].aux"}, []string{"m[*].aux.p"}, []string{"n", "p"}, true, 0},
+		{"p_excluded_partial", []string{"m[*].aux.p", "m[*].aux.ci"}, []string{"m[*].aux.p"}, []string{"n", "p", "ci"}, false, 1},
+		{"n_excluded", []string{"m[*].aux.p"}, []string{"m[*].aux.n"}, []string{"n", "p"}, false, 0},
+		{"n_included", []string{"m[*].aux.p", "m[*].aux.n"}, nil, []string{"n"}, true, 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			p := NewWithCompanions("standard", mustParse(t, c.include...), mustParse(t, c.exclude...), nil, comp, 0, []string{"m"})
+			if len(p.Companions) != c.comps {
+				t.Errorf("companions = %v, want %d", CompanionStrings(p.Companions), c.comps)
+			}
+			if v := p.VisitIn(n, has(c.siblings...)); v.Keep != c.keep {
+				t.Errorf("VisitIn(n) = %+v, want keep %v", v, c.keep)
+			}
+		})
+	}
+	with := NewWithCompanions("standard", mustParse(t, "m[*].aux.p"), nil, nil, comp, 0, []string{"m"})
+	if v := with.Visit(n); v.Keep {
+		t.Errorf("Visit kept a companion it cannot judge: %+v", v)
+	}
+	without := New("standard", mustParse(t, "m[*].aux.p"), nil, nil, 0, []string{"m"})
+	if with.Digest == without.Digest {
+		t.Error("a companion does not enter the digest")
+	}
+	if nilComp := NewWithCompanions("standard", mustParse(t, "m[*].aux.p"), nil, nil, nil, 0, []string{"m"}); nilComp.Digest != without.Digest {
+		t.Error("a plan without companions digests differently from New")
+	}
+	// The pre-companion digest body: no "companions" key at all.
+	body, _ := json.Marshal(struct {
+		Include   []string `json:"include"`
+		Exclude   []string `json:"exclude"`
+		Keep      []string `json:"keep"`
+		Precision int      `json:"precision"`
+	}{[]string{"m[*].aux.p"}, []string{}, []string{}, 0})
+	sum := sha256.Sum256(body)
+	if want := DigestPrefix + hex.EncodeToString(sum[:]); without.Digest != want {
+		t.Errorf("companion-free digest %s, want the pre-companion %s", without.Digest, want)
 	}
 }

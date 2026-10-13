@@ -399,7 +399,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY:    own("OVERLAY_YOY"),
 	errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT:   own(featProcessChain),
 	errors.PULSE_OVERLAY_TARGET_UNKNOWN:                own(featCompose, featProcessChain),
-	errors.PULSE_OVERLAY_REFERENCE_UNKNOWN:             own(featCompose, featProcessChain),
+	errors.PULSE_OVERLAY_REFERENCE_UNKNOWN:             own(featCompose, featProcessChain, "OVERLAY_MATRIX_GROUP_SUMMARY"),
 	errors.PULSE_OVERLAY_KEY_SET_DIVERGENT:             own(featCompose),
 	errors.PULSE_OVERLAY_SCHEMA_DIVERGENT:              own(featCompose),
 	errors.PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT:          own(featCompose, featCrosstab),
@@ -408,6 +408,13 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP:        own("OVERLAY_PROP_Z_PANEL", "OVERLAY_PANEL_INDEX_VS_REF"),
 	errors.PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED: own(featCrosstab, featCompose),
 	errors.PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED:        own(featExport),
+	errors.PULSE_OVERLAY_EXPORT_PARTS_DROPPED:          own(featExport),
+	errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED:          own("OVERLAY_CORRESPONDENCE", "OVERLAY_MARKOV", "OVERLAY_RAKE"),
+	errors.PULSE_OVERLAY_MATRIX_NOT_SQUARE:             own("OVERLAY_MARKOV"),
+	errors.PULSE_OVERLAY_MARKOV_NOT_ERGODIC:            own("OVERLAY_MARKOV"),
+	errors.PULSE_OVERLAY_RAKE_TARGET_MISMATCH:          own("OVERLAY_RAKE"),
+	errors.PULSE_OVERLAY_RAKE_NOT_CONVERGED:            own("OVERLAY_RAKE"),
+	errors.PULSE_OVERLAY_GROUPS_REQUIRED:               own("OVERLAY_MATRIX_GROUP_SUMMARY"),
 
 	// Point lookup and its sidecar index.
 	errors.PULSE_INDEX_MISSING:             own(featIndex, featLookup),

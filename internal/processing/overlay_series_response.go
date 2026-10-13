@@ -2,6 +2,7 @@ package processing
 
 import (
 	"encoding/json"
+	"slices"
 
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/seriesfield"
@@ -160,7 +161,17 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 	// spec already carries its own frequency Param (the override path),
 	// the orchestrator leaves it unchanged.
 	specs := promoteYoYFrequencyFromGroupParams(req, exts)
-	layers, warnings, err := applyOverlaysSeriesPerSpec(specs, hostFor, exts, compute.overlayKeep())
+	// Every MATRIX_RESULT spec is left out: its position stays a zero
+	// layer the service's post-fold MATRIX_RESULT pass fills
+	// (ApplyMatrixResultOverlays).
+	keep := compute.overlayKeep()
+	if mr := matrixResultSpecs(req, exts, compute); len(mr) > 0 {
+		outer := keep
+		keep = func(i int) bool {
+			return !slices.Contains(mr, i) && (outer == nil || outer(i))
+		}
+	}
+	layers, warnings, err := applyOverlaysSeriesPerSpec(specs, hostFor, exts, keep)
 	if err != nil {
 		return err
 	}
@@ -388,7 +399,7 @@ func canStreamOverlays(req *types.Request, exts *ExtensionRegistry) bool {
 		// A kind that does not run on a Process host, or not on this
 		// request's Process shape, routes buffered, whose hook raises
 		// the wrong-slot / wrong-shape refusal.
-		if !overlayhost.Accepts(overlayhost.Request, route) || !overlayhost.AcceptsShape(AuthoredHostShape(req), route) {
+		if !overlayhost.Accepts(overlayhost.Request, route) || !overlayhost.AcceptsShape(overlayhost.JudgedShape(AuthoredHostShape(req), len(req.Matrices) > 0, route), route) {
 			return false
 		}
 		if !streamable {

@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U25, U28, U29]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [156, 157, 158, 270, 402, 403, 406, 408, 411, 415, 420, 423, 424, 425]
+todo_items: [156, 157, 158, 270, 402, 403, 406, 408, 411, 415, 420, 423, 424, 425, 426, 449]
 branch: matrix-extensions-hardening
 ---
 
@@ -40,6 +40,7 @@ branch: matrix-extensions-hardening
 - [x] **#408** (10. Vector & matrix — operators › Follow-ups from U25) One singularity rule across the multivariate stack: the tests decide singular by `gonum` `SymEigen` against `RankTolerance`, while `MAT_PCA` is singular only when `InverseSPD` fails; align them and add the borderline case to the oracle
 - [x] **#411** (10. Vector & matrix — operators › Follow-ups from U25) `MAT_DISTANCE` `between` refuses date-family groupers (the time-zone pass does not reach `params`) and extension groupers; resolve the zone for the date family and give extension groupers a centroid hook, or document the refusal as final
 - [x] **#415** (10. Vector & matrix — operators › Follow-ups from U25) `ATTR_FACTOR_SCORE`: a refusal (`PULSE_MATRIX_NOT_IDENTIFIED` / `_HEYWOOD`) drops the fit's not-converged note; carry it on the refusal warning
+- [ ] **#449** (10. Vector & matrix — operators › Follow-ups from U28) The `flows` intent needs ≥3 declaring operators; `OVERLAY_MARKOV` is its only declarer. Add genuine flows operators and drop the `intentDeclarerExemptions` entry
 
 ## Scope
 
@@ -103,6 +104,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(matrix-extensions
 | Group-centroid references for `ATTR_PROFILE_SIMILARITY` / `ATTR_VEC_DISTANCE` (an `AGG_VEC_MEAN` of a named filter, two-pass) | [U27](U27-vector-metrics-aggregates.md) #423 |
 | Point-lookup-record references ("rows like customer #4411") | [U27](U27-vector-metrics-aggregates.md) #424 |
 | `AGG_VEC_SD` (per-element standard deviation) | [U27](U27-vector-metrics-aggregates.md) #425 |
+| Expose the registered-but-unexposed `chi_square` metric (takes column masses explicitly) through the crosstab-profile overlays (handed on again from [U28](U28-matrix-overlays.md)) | [U27](U27-vector-metrics-aggregates.md) #426 |
 
 ## Human inputs & decisions
 

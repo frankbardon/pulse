@@ -30,7 +30,7 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 
 ## Output
 
-`Statistic` = ρ (Spearman correlation, `[-1, 1]`); `DF` = n − 2; `PValue` two-sided via `t = ρ·√((n−2)/(1−ρ²))`. `Details.n_ties_x` and `Details.n_ties_y` surface tie counts.
+`Statistic` = ρ (Spearman correlation, `[-1, 1]`); `DF` = n − 2; `PValue` two-sided, R `cor.test` default: exact (AS 89) when untied and n ≤ 1290, else `t = ρ·√((n−2)/(1−ρ²))`. `Details.n_ties_x` and `Details.n_ties_y` surface tie counts.
 
 <!-- generated: reading-the-output -->
 
@@ -39,6 +39,9 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 - Buffered — mid-ranks each column under tie correction before running Pearson on the ranks.
 - Detects monotonic association; robust to outliers (rank transform).
 - Tier-2 variant `TEST_SPEARMAN_R/rank_pearson_post` runs over result columns.
+<!-- feature: MAT_CORRELATION -->
+- Same p as a `MAT_CORRELATION` spearman cell on the same rows.
+<!-- /feature -->
 - Heavy ties degrade the asymptotic p-value.
 
 ## See

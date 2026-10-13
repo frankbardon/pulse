@@ -9,6 +9,7 @@ The overlays this instance offers: what each is for, the questions it answers an
 | [`OVERLAY_CHISQ_ROW`](#op-overlay_chisq_row) | Chi-square test per crosstab row: checks whether each row's spread across the columns departs from the table's overall column mix. | Which regions have an answer mix unlike the overall mix? | intermediate | [`OVERLAY_CHISQ_COL`](#op-overlay_chisq_col) when the groups are the columns rather than the rows.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test for the whole table.<br>[`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when you want to know which single cells stand out. |
 | [`OVERLAY_CHISQ_VS_POP`](#op-overlay_chisq_vs_pop) | Chi-square goodness-of-fit test on a facet: checks whether a subset's category mix departs from a comparison population's mix. | Does this segment's brand mix differ from the whole customer base's? | intermediate | [`OVERLAY_KS_VS_POP`](#op-overlay_ks_vs_pop) when the field is numeric.<br>[`OVERLAY_INDEX_VS_POP`](#op-overlay_index_vs_pop) when you want to see which categories are over- or under-represented rather than one test.<br>[`TEST_CHISQ`](test.md#op-test_chisq) when you compare two separate groups from raw rows rather than a subset with a population. |
 | [`OVERLAY_CHISQ_VS_REF`](#op-overlay_chisq_vs_ref) | Chi-square test in a Compose request: checks whether a target request's crosstab mix departs from the reference request's mix. | Has the mix of answers in this wave shifted from last wave? | advanced | [`TEST_CHISQ`](test.md#op-test_chisq) when both results are samples of similar size and you want a test that allows for uncertainty in both: stack the rows, label each source and cross them.<br>[`OVERLAY_PROP_Z_CELL`](#op-overlay_prop_z_cell) when you want to see which cells moved rather than one overall test.<br>[`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the size of each cell's change. |
+| [`OVERLAY_CORRESPONDENCE`](#op-overlay_correspondence) | Correspondence analysis of a crosstab: a perceptual map placing rows and columns in a few dimensions so similar profiles sit close together. | Which brands sit closest to which attributes on a perceptual map? | advanced | [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test of whether rows and columns are associated.<br>[`OVERLAY_STD_RESIDUAL`](#op-overlay_std_residual) when you want which individual cells are over- or under-represented.<br>[`MAT_PCA`](matrix.md#op-mat_pca) when the fields are numeric measures, not a table of counts. |
 | [`OVERLAY_DELTA_VS_BASELINE`](#op-overlay_delta_vs_baseline) | Each point of an ordered series minus a chosen baseline point, in the value's own units: how much it has moved since then. | How many more orders a week do we get than in the launch week? | basic | [`OVERLAY_INDEX_VS_BASELINE`](#op-overlay_index_vs_baseline) when you want a ratio rather than a gap.<br>[`OVERLAY_DELTA_VS_PRIOR`](#op-overlay_delta_vs_prior) when you want each point against the one before it.<br>[`TEST_TREND`](test.md#op-test_trend) when you want to test for a steady rise or fall across the series. |
 | [`OVERLAY_DELTA_VS_MARGIN`](#op-overlay_delta_vs_margin) | Each crosstab cell minus its row, column or grand margin, in the cell's own units: how far a cell sits above or below its margin. | How many points above or below the overall average rating is each segment, per question? | basic | [`OVERLAY_INDEX_VS_MARGIN`](#op-overlay_index_vs_margin) when you want a ratio rather than a gap.<br>[`OVERLAY_ZSCORE_VS_MARGIN`](#op-overlay_zscore_vs_margin) when you want the gaps in standard deviations.<br>[`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when you want a test of whether a cell's count departs from what the margins predict. |
 | [`OVERLAY_DELTA_VS_PRIOR`](#op-overlay_delta_vs_prior) | Each point of an ordered series minus the point before it, in the value's own units: how much it changed from the previous period. | How many more or fewer orders did we get than the month before? | basic | [`OVERLAY_INDEX_VS_PRIOR`](#op-overlay_index_vs_prior) when you want the change as a ratio.<br>[`WIN_DELTA`](window.md#op-win_delta) when you want the change as a window column on the result rather than an overlay.<br>[`OVERLAY_DELTA_VS_BASELINE`](#op-overlay_delta_vs_baseline) when you want each point against a fixed starting point. |
@@ -27,6 +28,8 @@ The overlays this instance offers: what each is for, the questions it answers an
 | [`OVERLAY_INDEX_VS_STAGE`](#op-overlay_index_vs_stage) | Index value of a process-chain stage's result against an earlier stage's result at the same coordinate (target / reference x 100). | What share of the starting figure is left after each filtering stage, scaled to 100? | intermediate | [`OVERLAY_DELTA_VS_STAGE`](#op-overlay_delta_vs_stage) when you want the gap in the value's own units.<br>[`OVERLAY_INDEX_VS_REF`](#op-overlay_index_vs_ref) when the results come from separate requests rather than chain stages. |
 | [`OVERLAY_INDEX_VS_TOTAL`](#op-overlay_index_vs_total) | Each group's value on a grouped result as an index value against the sum over all groups (group / total x 100). | How big is each region relative to the whole, on a 0 to 100 scale? | basic | [`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) when you want the raw share (0 to 1).<br>[`OVERLAY_ZSCORE_VS_TOTAL`](#op-overlay_zscore_vs_total) when you want each group against the average group.<br>[`OVERLAY_INDEX_VS_SIBLING`](#op-overlay_index_vs_sibling) when you want each group against one chosen group. |
 | [`OVERLAY_KS_VS_POP`](#op-overlay_ks_vs_pop) | Kolmogorov-Smirnov test on a numeric facet: checks whether a subset's distribution departs from a comparison population's. | Does this segment's spend distribution differ from all customers'? | advanced | [`OVERLAY_CHISQ_VS_POP`](#op-overlay_chisq_vs_pop) when the field is categorical.<br>[`TEST_KS`](test.md#op-test_ks) when you have two separate groups of raw rows.<br>[`OVERLAY_INDEX_VS_POP`](#op-overlay_index_vs_pop) when you want to see where the shapes differ rather than one test. |
+| [`OVERLAY_MARKOV`](#op-overlay_markov) | Markov chain of a from-state by to-state crosstab: transition probabilities, n-step projections, steady state and time to absorption. | Where will customers sit across the tiers in 6 or 12 periods if they keep switching as they did? | advanced | [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test of whether the from-state and the to-state are associated.<br>[`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you only want each cell's share of its row, with no projection. |
+| [`OVERLAY_MATRIX_GROUP_SUMMARY`](#op-overlay_matrix_group_summary) | Summarize a grouped matrix across its groups: each cell's mean, minimum, maximum and range, and how many groups fed it. | How stable is each correlation across regions: what is its average, and how far apart are the extremes? | intermediate | [`MAT_CORRELATION`](matrix.md#op-mat_correlation) when you want one matrix over every row, ignoring the groups.<br>[`TEST_T`](test.md#op-test_t) when you want to test whether two groups' means differ. |
 | [`OVERLAY_PAIRWISE_PROBIT_T`](#op-overlay_pairwise_probit_t) | Pairwise t-tests on probit-transformed shares between rows (or columns) of one crosstab, matching a convention some survey tools use. | Which segments differ in share when tested the way our survey tool does? | advanced | [`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) when you want the standard test of two shares.<br>[`OVERLAY_PAIRWISE_WELCH_T`](#op-overlay_pairwise_welch_t) when the cells are averages of a numeric measure. |
 | [`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) | Two-proportion z-tests between every pair of rows (or columns) of one crosstab, per column (or row): which segments differ in share? | Which age bands differ from each other in the share choosing each brand? | advanced | [`OVERLAY_PAIRWISE_WELCH_T`](#op-overlay_pairwise_welch_t) when the cells are averages of a numeric measure rather than shares.<br>[`OVERLAY_PROP_Z_PANEL`](#op-overlay_prop_z_panel) when the groups are separate Compose requests.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one overall test of whether the rows differ at all. |
 | [`OVERLAY_PAIRWISE_TWO_MEANS_Z`](#op-overlay_pairwise_two_means_z) | Large-sample z-tests between every pair of rows (or columns) of one crosstab of averages: which segments differ in mean? | With thousands of respondents per cell, which segments differ in average rating? | advanced | [`OVERLAY_PAIRWISE_WELCH_T`](#op-overlay_pairwise_welch_t) when any cell is small; the t-based version is more honest there.<br>[`OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z`](#op-overlay_pairwise_weighted_two_means_z) when the cells are weighted averages.<br>[`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) when the cells are shares rather than averages. |
@@ -35,10 +38,12 @@ The overlays this instance offers: what each is for, the questions it answers an
 | [`OVERLAY_PANEL_INDEX_VS_REF`](#op-overlay_panel_index_vs_ref) | Index values of several target Compose requests against one shared reference request, one layer per target (target / reference x 100). | How do the last four waves each compare with the benchmark wave? | intermediate | [`OVERLAY_INDEX_VS_REF`](#op-overlay_index_vs_ref) when there is only one target.<br>[`OVERLAY_PROP_Z_PANEL`](#op-overlay_prop_z_panel) when you want tests between every pair of requests. |
 | [`OVERLAY_PROP_Z_CELL`](#op-overlay_prop_z_cell) | Two-proportion z-test for every crosstab cell in a Compose request: does the target's share in that cell differ from the reference's? | Which answer shares changed between this wave and last wave? | intermediate | [`OVERLAY_PROP_Z_PANEL`](#op-overlay_prop_z_panel) when you compare three or more requests at once.<br>[`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) when the groups are rows or columns of one crosstab.<br>[`TEST_FISHER_EXACT`](test.md#op-test_fisher_exact) when a cell has only a handful of successes or failures: stack both sources' rows and run an exact 2x2 test.<br>[`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the size of the change rather than a p-value. |
 | [`OVERLAY_PROP_Z_PANEL`](#op-overlay_prop_z_panel) | Two-proportion z-tests between every pair of requests in a Compose panel, for each crosstab cell: which waves or markets differ in share? | Across four waves, which pairs of waves differ in this answer's share? | advanced | [`OVERLAY_PROP_Z_CELL`](#op-overlay_prop_z_cell) when there is only one target.<br>[`OVERLAY_PANEL_INDEX_VS_REF`](#op-overlay_panel_index_vs_ref) when you want index values against one reference rather than tests.<br>[`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) when the groups are rows or columns of one crosstab. |
+| [`OVERLAY_RAKE`](#op-overlay_rake) | Rake a crosstab to known row and column totals: the fitted table, per-cell adjustment factors and whether the fit converged. | What would this age by region table look like if its margins matched the census shares? | advanced | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want each cell's share of its row, with no target margins.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether rows and columns are associated. |
 | [`OVERLAY_RANK`](#op-overlay_rank) | Ranks each cell of a target Compose request's crosstab (1 = largest) within its row, its column or the whole table. | Which product is the top seller in each region? | basic | [`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) when you want each cell's share of the whole.<br>[`OVERLAY_ZSCORE_VS_MARGIN`](#op-overlay_zscore_vs_margin) when you want how far each cell sits from its row or column.<br>[`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the change from the reference request. |
 | [`OVERLAY_SHARE_OF_COL`](#op-overlay_share_of_col) | Each crosstab cell as a share of its column margin (0 to 1): the mix of rows within each column, as a 100% stacked column shows it. | Within each channel, what share of orders comes from each region? | basic | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want the mix within each row.<br>[`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) when you want each cell's share of the whole table.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether the column mixes differ. |
 | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) | Each crosstab cell as a share of its row margin (0 to 1): the mix of columns within each row, as a 100% stacked bar shows it. | Within each region, what share of orders goes to each channel? | basic | [`OVERLAY_SHARE_OF_COL`](#op-overlay_share_of_col) when you want the mix within each column.<br>[`OVERLAY_INDEX_VS_MARGIN`](#op-overlay_index_vs_margin) when you want the same figure on a 0 to 100 index scale.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether the row mixes differ. |
 | [`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) | Each crosstab cell or group of a grouped result as a share of the grand total (0 to 1): what part of the whole each piece makes up. | What share of all revenue does each region bring in? | basic | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want the share within each row of a crosstab.<br>[`OVERLAY_INDEX_VS_TOTAL`](#op-overlay_index_vs_total) when you want the same figure x 100 on a grouped result.<br>[`OVERLAY_ZSCORE_VS_TOTAL`](#op-overlay_zscore_vs_total) when you want each group's position against the average group. |
+| [`OVERLAY_STD_RESIDUAL`](#op-overlay_std_residual) | Adjusted residual for every crosstab cell: how far its count sits above or below what its row and column totals predict. | Which cells drive the association in this crosstab? | advanced | [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test for the whole table.<br>[`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when counts are small and you want an exact per-cell test.<br>[`OVERLAY_ZSCORE_VS_MARGIN`](#op-overlay_zscore_vs_margin) when you want each cell's distance from its margin without a test. |
 | [`OVERLAY_T_CELL`](#op-overlay_t_cell) | Welch t-test for every crosstab cell in a Compose request: does the target's mean in that cell differ from the reference's? | Which segment-by-product cells changed in average rating since last wave? | advanced | [`OVERLAY_Z_CELL`](#op-overlay_z_cell) when every cell is large and you want the normal-curve version.<br>[`OVERLAY_T_VS_REF`](#op-overlay_t_vs_ref) when the results are grouped series rather than crosstabs.<br>[`OVERLAY_PROP_Z_CELL`](#op-overlay_prop_z_cell) when the cells hold shares rather than averages.<br>[`OVERLAY_PAIRWISE_WELCH_T`](#op-overlay_pairwise_welch_t) when the groups are rows or columns of one crosstab. |
 | [`OVERLAY_T_VS_REF`](#op-overlay_t_vs_ref) | Welch t-test for every group of a grouped result in a Compose request: does the target's mean differ from the reference's? | Which regions' average spend changed between this quarter and last? | advanced | [`OVERLAY_Z_VS_REF`](#op-overlay_z_vs_ref) when every group is large and you want the normal-curve version.<br>[`OVERLAY_T_CELL`](#op-overlay_t_cell) when the results are crosstabs rather than grouped series.<br>[`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the size of the change rather than a p-value. |
 | [`OVERLAY_YOY`](#op-overlay_yoy) | Each period of a date-grouped series as an index value against the same period one year earlier (x 100): year-over-year change. | How do this year's monthly sales compare with the same months last year? | basic | [`OVERLAY_INDEX_VS_PRIOR`](#op-overlay_index_vs_prior) when you want each period against the one before.<br>[`OVERLAY_INDEX_VS_BASELINE`](#op-overlay_index_vs_baseline) when you want each period against one fixed starting period.<br>[`TEST_TREND`](test.md#op-test_trend) when you want to test for a steady rise or fall across the series. |
@@ -123,7 +128,8 @@ Chi-square test on a whole crosstab: checks whether the row and column categorie
 
 **Follow up with:**
 
-- [`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when the table shows an association and you want to see which cells drive it.
+- [`OVERLAY_STD_RESIDUAL`](#op-overlay_std_residual) when the table shows an association and you want to see which cells drive it.
+- [`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when counts are small and you want an exact test for each cell.
 - [`OVERLAY_CHISQ_ROW`](#op-overlay_chisq_row) when you want to see which rows depart from the overall column mix.
 
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`independence`](../glossary.md#term-independence), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size)
@@ -239,6 +245,48 @@ Chi-square test in a Compose request: checks whether a target request's crosstab
 **Glossary:** [`baseline`](../glossary.md#term-baseline), [`chi-square`](../glossary.md#term-chi-square), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`goodness-of-fit`](../glossary.md#term-goodness-of-fit), [`independence`](../glossary.md#term-independence), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value)
 
 **Skill:** [`op-overlay-chisq-vs-ref`](../skills/op-overlay-chisq-vs-ref.md)
+
+<a id="op-overlay_correspondence"></a>
+
+### `OVERLAY_CORRESPONDENCE`
+
+Correspondence analysis of a crosstab: a perceptual map placing rows and columns in a few dimensions so similar profiles sit close together.
+
+**Level:** advanced
+
+**Also known as:** `correspondence analysis`, `perceptual map`
+
+**Questions it answers:**
+
+- Which brands sit closest to which attributes on a perceptual map?
+- Which segments share a similar mix of answers, and which answers set each apart?
+
+**Use cases by domain:**
+
+- *survey:* Draw the brand-by-attribute perceptual map of a banner table and see which attributes each brand owns.
+- *ops:* Map sites and fault types together to see which sites share a fault profile.
+- *science:* Summarise a large species-by-site count table in two dimensions to spot gradients.
+
+**Assumptions:**
+
+- Cells must be non-negative counts or sums (AGG_COUNT or AGG_SUM); any other cell, or a negative cell, is refused. Rows or columns with a zero total are dropped with a warning.
+- It is descriptive: the map shows how row and column profiles differ from the average profile, not whether the differences are significant.
+- Two points of the SAME kind (two rows) sit close when their profiles are similar; how close a row sits to a column is only directly meaningful in a row_principal or column_principal map.
+- Read a dimension's share of the total inertia before trusting the map: a two-dimensional map that keeps little of the inertia hides most of the table, and points with low quality are poorly shown.
+
+**Use something else:**
+
+- [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test of whether rows and columns are associated.
+- [`OVERLAY_STD_RESIDUAL`](#op-overlay_std_residual) when you want which individual cells are over- or under-represented.
+- [`MAT_PCA`](matrix.md#op-mat_pca) when the fields are numeric measures, not a table of counts.
+
+**Follow up with:**
+
+- [`OVERLAY_STD_RESIDUAL`](#op-overlay_std_residual) when a point sits apart on the map and you want the cells behind it.
+
+**Glossary:** [`centroid`](../glossary.md#term-centroid), [`chi-square`](../glossary.md#term-chi-square), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`distance`](../glossary.md#term-distance), [`independence`](../glossary.md#term-independence), [`margin`](../glossary.md#term-margin), [`residual`](../glossary.md#term-residual)
+
+**Skill:** [`op-overlay-correspondence`](../skills/op-overlay-correspondence.md)
 
 <a id="op-overlay_delta_vs_baseline"></a>
 
@@ -855,6 +903,79 @@ Kolmogorov-Smirnov test on a numeric facet: checks whether a subset's distributi
 
 **Skill:** [`op-overlay-ks-vs-pop`](../skills/op-overlay-ks-vs-pop.md)
 
+<a id="op-overlay_markov"></a>
+
+### `OVERLAY_MARKOV`
+
+Markov chain of a from-state by to-state crosstab: transition probabilities, n-step projections, steady state and time to absorption.
+
+**Level:** advanced
+
+**Also known as:** `markov chain`, `transition matrix`
+
+**Questions it answers:**
+
+- Where will customers sit across the tiers in 6 or 12 periods if they keep switching as they did?
+- On average, how many periods does a customer in each tier take to churn?
+
+**Use cases by domain:**
+
+- *survey:* Turn a last-brand by current-brand table into a switching matrix and project brand shares forward.
+- *ops:* Project tier migration forward and estimate the expected months until churn from each tier.
+- *science:* Model moves between disease stages and the expected time to an absorbing outcome.
+
+**Assumptions:**
+
+- Rows are the from-state and columns the to-state, over the same set of states; the table counts moves over one period of equal length.
+- The next state depends only on the current one, and the switching probabilities stay the same every period (a time-homogeneous Markov chain).
+- A state no one leaves in the data (a zero row) is treated as absorbing; a chain that splits into groups that never mix, or cycles with a fixed rhythm, has no steady state and is warned about.
+- It is descriptive: the projections carry no confidence intervals, and a state seen on few moves gives noisy probabilities.
+
+**Use something else:**
+
+- [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test of whether the from-state and the to-state are associated.
+- [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you only want each cell's share of its row, with no projection.
+
+**Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`margin`](../glossary.md#term-margin), [`stochastic-matrix`](../glossary.md#term-stochastic-matrix), [`steady-state`](../glossary.md#term-steady-state)
+
+**Skill:** [`op-overlay-markov`](../skills/op-overlay-markov.md)
+
+<a id="op-overlay_matrix_group_summary"></a>
+
+### `OVERLAY_MATRIX_GROUP_SUMMARY`
+
+Summarize a grouped matrix across its groups: each cell's mean, minimum, maximum and range, and how many groups fed it.
+
+**Level:** intermediate
+
+**Also known as:** `pooled correlation matrix`, `matrix across groups`
+
+**Questions it answers:**
+
+- How stable is each correlation across regions: what is its average, and how far apart are the extremes?
+- Which pairs of measures relate strongly in some segments but weakly in others?
+
+**Use cases by domain:**
+
+- *survey:* Check whether item correlations hold across waves or regions before pooling the scale.
+- *ops:* See which metric pairs move together in every site and which only in a few.
+- *science:* Compare a covariance structure across cohorts: the mean matrix beside its per-cell range.
+
+**Assumptions:**
+
+- Every group counts once: the mean is unweighted across groups, so a small group weighs as much as a large one.
+- A cell missing from a group, or undefined there, is skipped for that group; n_groups says how many groups fed each cell.
+- It is descriptive: the range says how far the groups spread, not whether the difference is significant.
+
+**Use something else:**
+
+- [`MAT_CORRELATION`](matrix.md#op-mat_correlation) when you want one matrix over every row, ignoring the groups.
+- [`TEST_T`](test.md#op-test_t) when you want to test whether two groups' means differ.
+
+**Glossary:** [`mean`](../glossary.md#term-mean), [`correlation`](../glossary.md#term-correlation), [`covariance`](../glossary.md#term-covariance)
+
+**Skill:** [`op-overlay-matrix-group-summary`](../skills/op-overlay-matrix-group-summary.md)
+
 <a id="op-overlay_pairwise_probit_t"></a>
 
 ### `OVERLAY_PAIRWISE_PROBIT_T`
@@ -1139,6 +1260,43 @@ Two-proportion z-tests between every pair of requests in a Compose panel, for ea
 
 **Skill:** [`op-overlay-prop-z-panel`](../skills/op-overlay-prop-z-panel.md)
 
+<a id="op-overlay_rake"></a>
+
+### `OVERLAY_RAKE`
+
+Rake a crosstab to known row and column totals: the fitted table, per-cell adjustment factors and whether the fit converged.
+
+**Level:** advanced
+
+**Also known as:** `raking`, `iterative proportional fitting`, `IPF`
+
+**Questions it answers:**
+
+- What would this age by region table look like if its margins matched the census shares?
+- By how much does each cell have to be scaled up or down to hit the population totals?
+
+**Use cases by domain:**
+
+- *survey:* Rake an age by region table to census margins before reading the cell shares.
+- *ops:* Rebalance a site by shift table to planned headcount totals while keeping its internal pattern.
+- *science:* Standardize a sample's exposure by age table to a reference population's margins.
+
+**Assumptions:**
+
+- Every row key and every column key of the table has exactly one target; targets for categories the table does not hold are refused, not dropped.
+- Raking keeps the table's internal pattern (its odds ratios) and only rescales rows and columns, so a cell observed as zero stays zero.
+- A row or column with no observed cells cannot reach a positive target; the fit then stops short and says so.
+- It reweights the table only: it writes no weights back to the records, and it is descriptive, with no confidence intervals.
+
+**Use something else:**
+
+- [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want each cell's share of its row, with no target margins.
+- [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether rows and columns are associated.
+
+**Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`margin`](../glossary.md#term-margin), [`raking`](../glossary.md#term-raking), [`weighting`](../glossary.md#term-weighting)
+
+**Skill:** [`op-overlay-rake`](../skills/op-overlay-rake.md)
+
 <a id="op-overlay_rank"></a>
 
 ### `OVERLAY_RANK`
@@ -1275,6 +1433,46 @@ Each crosstab cell or group of a grouped result as a share of the grand total (0
 **Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`margin`](../glossary.md#term-margin)
 
 **Skill:** [`op-overlay-share-of-total`](../skills/op-overlay-share-of-total.md)
+
+<a id="op-overlay_std_residual"></a>
+
+### `OVERLAY_STD_RESIDUAL`
+
+Adjusted residual for every crosstab cell: how far its count sits above or below what its row and column totals predict.
+
+**Level:** advanced
+
+**Questions it answers:**
+
+- Which cells drive the association in this crosstab?
+- Which brand-by-attribute cells are over- or under-represented?
+
+**Use cases by domain:**
+
+- *survey:* Find the brand-by-attribute cells of a banner table that respondents pick more or less often than the totals predict.
+- *ops:* Find the site-by-fault cells that occur more or less often than the site and fault totals predict.
+- *science:* Find the arm-by-outcome cells that depart from independence, and in which direction.
+
+**Assumptions:**
+
+- Cells must hold counts of independent rows (AGG_COUNT); Pulse runs it on any cell aggregator, but sums, averages or weighted counts make the test meaningless.
+- The null hypothesis is that row and column categories are independent; each residual is about standard normal under it, so beyond plus or minus 1.96 is unusual at the 5% level, and the p-value is two-sided.
+- The normal approximation needs expected counts of about 5 or more; a warning flags tables where some are lower, and a cell with an expected count of 0 gets no residual.
+- Every cell is a separate test, so with many cells some small p-values turn up by luck; to adjust for multiple comparisons, set multiplicity on the overlay (holm or bonferroni hold the family-wise error, bh or by the false discovery rate) to add adjusted p-values beside the raw ones.
+
+**Use something else:**
+
+- [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test for the whole table.
+- [`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when counts are small and you want an exact per-cell test.
+- [`OVERLAY_ZSCORE_VS_MARGIN`](#op-overlay_zscore_vs_margin) when you want each cell's distance from its margin without a test.
+
+**Follow up with:**
+
+- [`OVERLAY_CORRESPONDENCE`](#op-overlay_correspondence) when the table is large and you want the overall pattern of rows and columns on one map.
+
+**Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`independence`](../glossary.md#term-independence), [`margin`](../glossary.md#term-margin), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`normal-distribution`](../glossary.md#term-normal-distribution), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`residual`](../glossary.md#term-residual), [`two-tailed`](../glossary.md#term-two-tailed)
+
+**Skill:** [`op-overlay-std-residual`](../skills/op-overlay-std-residual.md)
 
 <a id="op-overlay_t_cell"></a>
 

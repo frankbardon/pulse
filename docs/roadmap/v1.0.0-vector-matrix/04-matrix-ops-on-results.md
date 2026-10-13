@@ -16,7 +16,7 @@
 
 **Payload shapes.** The existing `scalar | series | matrix` set covers almost everything. Correspondence analysis needs coordinates for **both** axes, and the cleanest representation is two series payloads (row points and column points). Proposal: allow an overlay to emit an additive `Payload.Series2` slot, or alternatively emit two layers. **Open question in 06.**
 
-**Selecting a MATRIX_RESULT host.** A spec on that host carries `Ref.Matrix{Name}`, naming the `MatrixSpec`. This is a new reference family, the seventh, exactly one arm populated as today.
+**Selecting a MATRIX_RESULT host.** A spec on that host carries `Ref.Matrix{Name}`, naming the `MatrixSpec`. This is a new reference family, the tenth arm, exactly one arm populated as today.
 
 ---
 

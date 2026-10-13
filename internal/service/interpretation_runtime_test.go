@@ -52,6 +52,16 @@ var overlayInterpretationProbes = map[string]overlayInterpretationProbe{
 	"OVERLAY_CHISQ_COL": {fields: []string{"summary.parameters.df"}, run: func(t *testing.T) types.OverlayLayer {
 		return crosstabOverlayLayer(t, types.OverlayKindChiSqCol, types.OverlayScopeColumn)
 	}},
+	// The per-dimension share rides each inertia series entry.
+	"OVERLAY_CORRESPONDENCE": {fields: []string{"summary.parameters.share"}, run: func(t *testing.T) types.OverlayLayer {
+		return crosstabOverlayLayer(t, types.OverlayKindCorrespondence, types.OverlayScopeMatrix)
+	}},
+	// The class count rides every Markov layer's summary (region x
+	// region: a square, diagonal host).
+	"OVERLAY_MARKOV": {fields: []string{"summary.parameters.classes"}, run: markovOverlayLayer},
+	// Convergence rides every Rake layer's summary (region x segment
+	// raked to share targets; east x wholesale is a structural zero).
+	"OVERLAY_RAKE":         {fields: []string{"summary.parameters.converged", "summary.parameters.residual"}, run: rakeOverlayLayer},
 	"OVERLAY_CHISQ_VS_POP": {fields: []string{"summary.parameters.df"}, run: chiSqVsPopFacetLayer},
 	"OVERLAY_CHISQ_VS_REF": {fields: []string{"summary.parameters.df"}, run: chiSqVsRefComposeLayer},
 	"OVERLAY_KS_VS_POP":    {fields: []string{"summary.parameters.n_pop", "summary.parameters.n_subset"}, run: ksVsPopFacetLayer},
@@ -101,6 +111,55 @@ func crosstabOverlayLayer(t *testing.T, kind types.OverlayKind, scope types.Over
 	})
 	if err != nil {
 		t.Fatalf("Process(%s): %v", kind, err)
+	}
+	if len(resp.Overlays) != 1 {
+		t.Fatalf("Response.Overlays = %d layers, want 1", len(resp.Overlays))
+	}
+	return resp.Overlays[0]
+}
+
+// markovOverlayLayer runs OVERLAY_MARKOV over a region x region count
+// crosstab (the same field on both axes, so the key sets are equal).
+func markovOverlayLayer(t *testing.T) types.OverlayLayer {
+	t.Helper()
+	cfg := setupTestFS(t, "ct.pulse", crosstabSchema(), crosstabRecords())
+	resp, err := New(cfg).Process(context.Background(), &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Shape:   types.CrosstabShapeMatrix,
+		},
+		Overlays: []types.OverlaySpec{{Name: "probe", Kind: types.OverlayKindMarkov, Scope: types.OverlayScopeMatrix}},
+	})
+	if err != nil {
+		t.Fatalf("Process(OVERLAY_MARKOV): %v", err)
+	}
+	if len(resp.Overlays) != 1 {
+		t.Fatalf("Response.Overlays = %d layers, want 1", len(resp.Overlays))
+	}
+	return resp.Overlays[0]
+}
+
+// rakeOverlayLayer runs OVERLAY_RAKE over the region x segment count
+// crosstab with share targets for every observed key.
+func rakeOverlayLayer(t *testing.T) types.OverlayLayer {
+	t.Helper()
+	cfg := setupTestFS(t, "ct.pulse", crosstabSchema(), crosstabRecords())
+	resp, err := New(cfg).Process(context.Background(), &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Shape:   types.CrosstabShapeMatrix,
+		},
+		Overlays: []types.OverlaySpec{{Name: "probe", Kind: types.OverlayKindRake, Scope: types.OverlayScopeMatrix,
+			Params: json.RawMessage(`{"row_targets":{"north":0.4,"south":0.4,"east":0.2},"col_targets":{"retail":0.5,"wholesale":0.5}}`)}},
+	})
+	if err != nil {
+		t.Fatalf("Process(OVERLAY_RAKE): %v", err)
 	}
 	if len(resp.Overlays) != 1 {
 		t.Fatalf("Response.Overlays = %d layers, want 1", len(resp.Overlays))

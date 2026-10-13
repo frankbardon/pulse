@@ -148,6 +148,7 @@ skills/op-overlay-chisq-matrix.md
 skills/op-overlay-chisq-row.md
 skills/op-overlay-chisq-vs-pop.md
 skills/op-overlay-chisq-vs-ref.md
+skills/op-overlay-correspondence.md
 skills/op-overlay-delta-vs-baseline.md
 skills/op-overlay-delta-vs-margin.md
 skills/op-overlay-delta-vs-prior.md
@@ -166,6 +167,8 @@ skills/op-overlay-index-vs-sibling.md
 skills/op-overlay-index-vs-stage.md
 skills/op-overlay-index-vs-total.md
 skills/op-overlay-ks-vs-pop.md
+skills/op-overlay-markov.md
+skills/op-overlay-matrix-group-summary.md
 skills/op-overlay-pairwise-probit-t.md
 skills/op-overlay-pairwise-prop-z.md
 skills/op-overlay-pairwise-two-means-z.md
@@ -174,10 +177,12 @@ skills/op-overlay-pairwise-welch-t.md
 skills/op-overlay-panel-index-vs-ref.md
 skills/op-overlay-prop-z-cell.md
 skills/op-overlay-prop-z-panel.md
+skills/op-overlay-rake.md
 skills/op-overlay-rank.md
 skills/op-overlay-share-of-col.md
 skills/op-overlay-share-of-row.md
 skills/op-overlay-share-of-total.md
+skills/op-overlay-std-residual.md
 skills/op-overlay-t-cell.md
 skills/op-overlay-t-vs-ref.md
 skills/op-overlay-yoy.md

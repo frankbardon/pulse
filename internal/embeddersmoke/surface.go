@@ -276,6 +276,13 @@ var (
 	_ func() linalg.RidgeSchedule                                              = linalg.DefaultRidgeSchedule
 	_ func(*linalg.Sym, *linalg.Vec) (*linalg.Vec, error)                      = linalg.SolveSPD
 	_ func(*linalg.Sym) (*linalg.Sym, error)                                   = linalg.InverseSPD
+	_ func(*linalg.Matrix, *linalg.Vec) (*linalg.Vec, error)                   = linalg.Solve
+	_ func(*linalg.Matrix) (*linalg.LUFactor, error)                           = linalg.FactorLU
+	_ func(*linalg.LUFactor) int                                               = (*linalg.LUFactor).N
+	_ func(*linalg.LUFactor) float64                                           = (*linalg.LUFactor).ConditionNumber
+	_ func(*linalg.LUFactor, *linalg.Vec) (*linalg.Vec, error)                 = (*linalg.LUFactor).Solve
+	_ func(*linalg.LUFactor, *linalg.Matrix) (*linalg.Matrix, error)           = (*linalg.LUFactor).SolveMatrix
+	_ func(*linalg.LUFactor) (*linalg.Matrix, error)                           = (*linalg.LUFactor).Inverse
 	_ func(int, int, float64) float64                                          = linalg.RankTolerance
 	_ float64                                                                  = linalg.Epsilon
 	_ float64                                                                  = linalg.DominanceTolerance
@@ -308,7 +315,10 @@ var (
 	_ func(*linalg.CoMoment) float64                                           = (*linalg.CoMoment).W
 	_ func(*linalg.CoMoment) float64                                           = (*linalg.CoMoment).NEff
 	_ func(*linalg.CoMoment, int, int) int64                                   = (*linalg.CoMoment).PairN
+	_ func(*linalg.CoMoment, int, int) int64                                   = (*linalg.CoMoment).PairNMass
 	_ func(*linalg.CoMoment, int, int) float64                                 = (*linalg.CoMoment).PairW
+	_ func(*linalg.CoMoment, int, int) float64                                 = (*linalg.CoMoment).PairW2
+	_ func(*linalg.CoMoment, int, int) float64                                 = (*linalg.CoMoment).PairNEff
 	_ func(*linalg.CoMoment) *linalg.Vec                                       = (*linalg.CoMoment).Mean
 	_ func(*linalg.CoMoment, int) *linalg.Sym                                  = (*linalg.CoMoment).Cov
 	_ func(*linalg.CoMoment) *linalg.Sym                                       = (*linalg.CoMoment).Corr

@@ -9,7 +9,7 @@ covers: [return, presets, include, exclude, precision, returned]
 
 # Response shaping (`return`)
 
-`return` trims a response to what the caller reads, saving tokens. Absent `return` (or `preset: full`) the response is byte-identical to before and hashes identically. Predict validates it before any record is read; `pulse_predict` echoes `data.return` (`{preset, include, exclude, keep, precision?, identity, digest, unresolved_includes?}`) and, on every request, `data.sizes` (per section `{section, full_bytes, shaped_bytes, basis}`; shaped = full without `return`).
+`return` trims a response to what the caller reads, saving tokens. Absent `return` (or `preset: full`) the response is byte-identical to before and hashes identically. Predict validates it before any record is read; `pulse_predict` echoes `data.return` (`{preset, include, exclude, keep, companions?, precision?, identity, digest, unresolved_includes?}`) and, on every request, `data.sizes` (per section `{section, full_bytes, shaped_bytes, basis}`; shaped = full without `return`).
 
 ```json
 {"return": {"preset": "standard", "exclude": ["warnings"], "precision": 4}}
@@ -22,7 +22,7 @@ Order: **preset, then `include` adds, then `exclude` removes — exclude wins.**
 Presets (closed enum; the manifest `return_presets` lists each one's paths, already narrowed to what this instance offers):
 
 - `full` — the identity.
-- `standard` — data, warnings, metadata, whole crosstab / overlays, trimmed tests and regressions; no `components`.
+- `standard` — data, warnings, metadata, whole crosstab / overlays, trimmed tests and regressions; no `components`.<!-- feature: capability:matrices --> Matrix `auxiliary` only where a spec asked for inference (`p`, `ci_*`, adjusted twins; pairwise `n` beside `p`).<!-- /feature -->
 - `minimal` — the PRIMARY RESULT only: `data`, `warnings`, crosstab matrix, matrix primaries, test statistic and p-value, regression coefficients. No `metadata`, no `components`.
 
 ## Path grammar

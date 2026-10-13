@@ -15,7 +15,9 @@
 //
 // Within a Process host (Request.Overlays) it also declares the host
 // SHAPE(s) each Process kind runs on — MATRIX (a crosstab), SERIES (a
-// grouped request with aggregations) or both — and owns the one
+// grouped request with aggregations), both, or MATRIX_RESULT (the
+// Request.Matrices results of a request without a crosstab;
+// ShapeMatrixResult, judged per kind by JudgedShape) — and owns the one
 // refusal a kind authored over the other shape gets (ShapeRefusal),
 // raised right after the slot refusal and before any per-kind rule, on
 // predict and runtime alike. The processing-side drift test pins the
@@ -74,6 +76,9 @@ var hosts = map[types.OverlayKind][]Host{
 	types.OverlayKindChiSqCol:                  requestOnly,
 	types.OverlayKindChiSqMatrix:               requestOnly,
 	types.OverlayKindChiSqRow:                  requestOnly,
+	types.OverlayKindCorrespondence:            requestOnly,
+	types.OverlayKindMarkov:                    requestOnly,
+	types.OverlayKindRake:                      requestOnly,
 	types.OverlayKindDeltaVsMargin:             requestOnly,
 	types.OverlayKindFisherExactCell:           requestOnly,
 	types.OverlayKindIndexVsMargin:             requestOnly,
@@ -84,7 +89,11 @@ var hosts = map[types.OverlayKind][]Host{
 	types.OverlayKindPairwiseWelchT:            requestOnly,
 	types.OverlayKindShareOfCol:                requestOnly,
 	types.OverlayKindShareOfRow:                requestOnly,
+	types.OverlayKindStdResidual:               requestOnly,
 	types.OverlayKindZScoreVsMargin:            requestOnly,
+	// Process MATRIX_RESULT (Request.Matrices) kinds; a Compose slot's
+	// own Request.Overlays runs them too.
+	types.OverlayKindMatrixGroupSummary: requestOnly,
 	// Process SERIES (grouped) kinds; SHARE_OF_TOTAL runs on both
 	// Process shapes.
 	types.OverlayKindDeltaVsBaseline:    requestOnly,
@@ -177,10 +186,19 @@ func Refusal(host Host, kind, route types.OverlayKind, index int) *errors.CodedE
 		})
 }
 
+// ShapeMatrixResult is the MATRIX_RESULT Process host shape: the
+// Response.Matrices results of a request carrying Request.Matrices and
+// no Request.Crosstab (Crosstab + Matrices is refused, so a request
+// never carries both a crosstab overlay and a matrix-result one). It is
+// a host-judging value only — no overlay payload ever carries it — so
+// it lives here, not among the payload shapes in types.
+const ShapeMatrixResult types.OverlayShape = "matrix_result"
+
 var (
-	matrixOnly  = []types.OverlayShape{types.OverlayShapeMatrix}
-	seriesOnly  = []types.OverlayShape{types.OverlayShapeSeries}
-	bothProcess = []types.OverlayShape{types.OverlayShapeMatrix, types.OverlayShapeSeries}
+	matrixOnly       = []types.OverlayShape{types.OverlayShapeMatrix}
+	seriesOnly       = []types.OverlayShape{types.OverlayShapeSeries}
+	bothProcess      = []types.OverlayShape{types.OverlayShapeMatrix, types.OverlayShapeSeries}
+	matrixResultOnly = []types.OverlayShape{ShapeMatrixResult}
 )
 
 // processShapes maps every kind that runs on Request.Overlays to the
@@ -191,6 +209,9 @@ var processShapes = map[types.OverlayKind][]types.OverlayShape{
 	types.OverlayKindChiSqCol:                  matrixOnly,
 	types.OverlayKindChiSqMatrix:               matrixOnly,
 	types.OverlayKindChiSqRow:                  matrixOnly,
+	types.OverlayKindCorrespondence:            matrixOnly,
+	types.OverlayKindMarkov:                    matrixOnly,
+	types.OverlayKindRake:                      matrixOnly,
 	types.OverlayKindDeltaVsMargin:             matrixOnly,
 	types.OverlayKindFisherExactCell:           matrixOnly,
 	types.OverlayKindFormula:                   matrixOnly,
@@ -202,6 +223,7 @@ var processShapes = map[types.OverlayKind][]types.OverlayShape{
 	types.OverlayKindPairwiseWelchT:            matrixOnly,
 	types.OverlayKindShareOfCol:                matrixOnly,
 	types.OverlayKindShareOfRow:                matrixOnly,
+	types.OverlayKindStdResidual:               matrixOnly,
 	types.OverlayKindZScoreVsMargin:            matrixOnly,
 	types.OverlayKindDeltaVsBaseline:           seriesOnly,
 	types.OverlayKindDeltaVsPrior:              seriesOnly,
@@ -215,6 +237,7 @@ var processShapes = map[types.OverlayKind][]types.OverlayShape{
 	types.OverlayKindZScoreVsRolling:           seriesOnly,
 	types.OverlayKindZScoreVsTotal:             seriesOnly,
 	types.OverlayKindShareOfTotal:              bothProcess,
+	types.OverlayKindMatrixGroupSummary:        matrixResultOnly,
 }
 
 // Shapes returns the Process host shapes kind runs on, or nil for a
@@ -225,29 +248,68 @@ func Shapes(kind types.OverlayKind) []types.OverlayShape {
 }
 
 // AcceptsShape reports whether kind runs on a Process host of shape.
-// Only MATRIX and SERIES are judged: a SCALAR (ungrouped) host, a kind
-// outside the Process table (the slot refusal owns it) and a kind
-// outside the catalog are accepted here.
+// MATRIX, SERIES and MATRIX_RESULT hosts run exactly the kinds that
+// declare them. A SCALAR (ungrouped, no matrices) host accepts every
+// kind but a MATRIX_RESULT one — nothing runs on it, and the per-kind
+// rules own the refusal — while a MATRIX_RESULT kind needs its matrix
+// results. A kind outside the Process table (the slot refusal owns it)
+// and a kind outside the catalog are accepted here.
 func AcceptsShape(shape types.OverlayShape, kind types.OverlayKind) bool {
-	if shape != types.OverlayShapeMatrix && shape != types.OverlayShapeSeries {
-		return true
-	}
 	ss, known := processShapes[kind]
 	if !known {
 		return true
 	}
-	for _, s := range ss {
-		if s == shape {
+	switch shape {
+	case types.OverlayShapeMatrix, types.OverlayShapeSeries, ShapeMatrixResult:
+		for _, s := range ss {
+			if s == shape {
+				return true
+			}
+		}
+		return false
+	}
+	return !RunsOnMatrixResult(kind)
+}
+
+// RunsOnMatrixResult reports whether kind runs on the MATRIX_RESULT
+// Process host (Request.Matrices results).
+func RunsOnMatrixResult(kind types.OverlayKind) bool {
+	for _, s := range processShapes[kind] {
+		if s == ShapeMatrixResult {
 			return true
 		}
 	}
 	return false
 }
 
+// JudgedShape is the Process host shape a Request.Overlays spec whose
+// kind routes to route is judged against, given the request's authored
+// shape (crosstab MATRIX, grouped-with-aggregations SERIES, else SCALAR)
+// and whether it carries Request.Matrices. A request with matrices and
+// no crosstab offers the MATRIX_RESULT host beside its authored one: a
+// MATRIX_RESULT kind is judged against it, and so is every other kind
+// over a SCALAR authored shape (a crosstab or series kind on a
+// matrices-only request is refused, not silently run on nothing). A
+// SERIES kind on a grouped request that also carries matrices keeps its
+// SERIES host. Predict (ValidateOverlays) and every runtime hook judge
+// by it.
+func JudgedShape(authored types.OverlayShape, matrices bool, route types.OverlayKind) types.OverlayShape {
+	if !matrices || authored == types.OverlayShapeMatrix {
+		return authored
+	}
+	if RunsOnMatrixResult(route) || authored == types.OverlayShapeScalar {
+		return ShapeMatrixResult
+	}
+	return authored
+}
+
 // shapeHost names the request slot that makes a Process host shape.
 func shapeHost(shape types.OverlayShape) string {
-	if shape == types.OverlayShapeMatrix {
+	switch shape {
+	case types.OverlayShapeMatrix:
 		return "a matrix host (Request.Crosstab)"
+	case ShapeMatrixResult:
+		return "a matrix-result host (Request.Matrices, no Request.Crosstab)"
 	}
 	return "a series host (Request.Groups + Request.Aggregations, no Request.Crosstab)"
 }
@@ -287,8 +349,8 @@ func ShapeRefusal(shape types.OverlayShape, kind, route types.OverlayKind, index
 // ReadsCellValue reports whether kind, on a MATRIX Process host, reads
 // the crosstab cell aggregation's VALUE — the one number per cell and
 // per margin (CellAt / MarginFor): the share / index / delta / z-score
-// vs-margin kinds, the χ² and Fisher kinds (cell values as observed
-// counts), the proportion pairwise kinds (OVERLAY_PAIRWISE_PROP_Z /
+// vs-margin kinds, the χ², Fisher, STD_RESIDUAL, CORRESPONDENCE,
+// MARKOV and RAKE kinds (cell values as observed counts), the proportion pairwise kinds (OVERLAY_PAIRWISE_PROP_Z /
 // _PROBIT_T: the cell value as a proportion) and OVERLAY_FORMULA
 // (`cell`, the margins and their SDs). The moment pairwise kinds
 // (types.PairwiseKindUsesWelford, PairwiseKindUsesWeightedMoments)

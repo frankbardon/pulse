@@ -24,6 +24,7 @@ const (
 	fColumn  = types.MultiplicityFamilyColumn
 	fRequest = types.MultiplicityFamilyRequest
 	fCompose = types.MultiplicityFamilyCompose
+	fMatrix  = types.MultiplicityFamilyMatrix
 )
 
 // matrixKind is an inferential MATRIX-payload overlay kind; seriesKind
@@ -75,7 +76,8 @@ func TestValidateMultiplicitySpec(t *testing.T) {
 		{"every method", mult(types.MultiplicityMethodBY, fCompose, 0.1), ""},
 		{"unknown method", mult("sidak", "", 0), "method"},
 		{"case-sensitive method", mult("BH", "", 0), "method"},
-		{"unknown family", mult(mHolm, "matrix", 0), "family"},
+		{"unknown family", mult(mHolm, "triangle", 0), "family"},
+		{"matrix family is known", mult(mHolm, fMatrix, 0), ""},
 		{"alpha zero means unset", mult(mHolm, "", 0), ""},
 		{"alpha one", mult(mHolm, "", 1), "alpha"},
 		{"alpha negative", mult(mHolm, "", -0.05), "alpha"},
@@ -238,7 +240,7 @@ func TestResolveMultiplicity_Refusals(t *testing.T) {
 		reason string
 	}{
 		{"unknown method on a test", &types.Request{Tests: []*types.Test{ttest(mult("sidak", "", 0))}}, nil, "tests[0].multiplicity", "method", multReasonUnknownMethod},
-		{"unknown family on the request", &types.Request{Multiplicity: mult("", "matrix", 0)}, nil, "multiplicity", "family", multReasonUnknownFamily},
+		{"unknown family on the request", &types.Request{Multiplicity: mult("", "triangle", 0)}, nil, "multiplicity", "family", multReasonUnknownFamily},
 		{"alpha out of range on an overlay", &types.Request{Overlays: []types.OverlaySpec{ov(matrixKind, mult("", "", 1))}}, nil, "overlays[0].multiplicity", "alpha", multReasonAlphaRange},
 		{"bad instance default", &types.Request{Tests: []*types.Test{ttest(nil)}}, mult("", "", -1), "Options.DefaultMultiplicity", "alpha", multReasonAlphaRange},
 		{"alpha on a test", &types.Request{PostTests: []*types.Test{ttest(mult("", "", 0.01))}}, nil, "post_tests[0].multiplicity", "alpha", multReasonTestAlpha},

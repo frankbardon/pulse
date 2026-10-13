@@ -142,6 +142,80 @@ type Matrix struct {
 	// betweenRaw carries params.between from decode to resolveDistance
 	// (members resolve in between).
 	betweenRaw json.RawMessage
+	// Inference is params.inference on MAT_CORRELATION (every method)
+	// and MAT_PARTIAL_CORRELATION: the result carries per-pair
+	// auxiliary.p, auxiliary.ci_lower and auxiliary.ci_upper. False
+	// (the default) builds none of them.
+	Inference bool
+	// Alpha is params.alpha, the two-sided level of the inference
+	// confidence intervals (coverage 1 − Alpha): InferenceDefaultAlpha
+	// under Inference, 0 otherwise.
+	Alpha float64
+}
+
+// AuxiliaryKeys lists the matrices[*].auxiliary keys m's finalizer
+// emits under its params, in a fixed order — the ONE list the predict
+// size model (matrixAuxiliaryNodes) and the runtime's per-spec
+// auxiliary compute gate (processing.ComputePlan) read, so predict
+// sizes and the computed auxiliaries cannot drift. The multiplicity
+// twins (p_adjusted, significant_adjusted) are written later by the
+// service fold and are not listed. known is false for an operator this
+// list does not model (every built-in is modelled): a caller then
+// assumes it may emit any key.
+//
+//   - n: params.missing pairwise, every operator but MAT_DISTANCE.
+//   - p, ci_lower, ci_upper: params.inference (MAT_CORRELATION /
+//     MAT_PARTIAL_CORRELATION).
+//   - MAT_PCA: eigenvectors; unrotated under a rotation.
+//   - MAT_FACTOR: unrotated under a rotation; factor_correlation under
+//     an oblique one.
+//   - MAT_COLLINEARITY: variance_decomposition.
+//   - MAT_DISTANCE: centroids; centroids_standardized under
+//     standardize; pooled_covariance under a fitted inverse-covariance
+//     metric.
+func (m Matrix) AuxiliaryKeys() (keys []string, known bool) {
+	if !slices.Contains(types.AllMatrixTypes(), m.Type) {
+		return nil, false
+	}
+	if m.Pairwise && m.Type != types.MAT_DISTANCE {
+		keys = append(keys, "n")
+	}
+	if m.Inference {
+		keys = append(keys, "p", "ci_lower", "ci_upper")
+	}
+	switch m.Type {
+	case types.MAT_PCA:
+		keys = append(keys, "eigenvectors")
+		if m.Rotation != "" {
+			keys = append(keys, "unrotated")
+		}
+	case types.MAT_FACTOR:
+		if m.Rotation != "" {
+			keys = append(keys, "unrotated")
+			if m.Rotation != RotationVarimax {
+				keys = append(keys, "factor_correlation")
+			}
+		}
+	case types.MAT_COLLINEARITY:
+		keys = append(keys, "variance_decomposition")
+	case types.MAT_DISTANCE:
+		keys = append(keys, "centroids")
+		if m.Standardize {
+			keys = append(keys, "centroids_standardized")
+		}
+		if met, err := metric.ResolveFor(metric.ConsumerMatDistance, m.Metric, metric.Distance); err == nil && met.Fit() == metric.FitInverseCovariance {
+			keys = append(keys, "pooled_covariance")
+		}
+	}
+	return keys, true
+}
+
+// InferenceDefaultAlpha is params.alpha's default: 95% intervals.
+const InferenceDefaultAlpha = 0.05
+
+// InferenceTypes are the matrix operators that take params.inference.
+func InferenceTypes() []types.MatrixType {
+	return []types.MatrixType{types.MAT_CORRELATION, types.MAT_PARTIAL_CORRELATION}
 }
 
 // DistanceDefaultMetric is MAT_DISTANCE's params.metric default. The
@@ -418,7 +492,15 @@ type covarianceParams struct {
 type correlationParams struct {
 	Method  *string        `json:"method"`
 	Summary *summaryParams `json:"summary"`
+	inferenceParams
 	missingParams
+}
+
+// inferenceParams are the per-pair inference knobs MAT_CORRELATION and
+// MAT_PARTIAL_CORRELATION take (decodeInference).
+type inferenceParams struct {
+	Inference *bool    `json:"inference"`
+	Alpha     *float64 `json:"alpha"`
 }
 
 // partialParams is MAT_PARTIAL_CORRELATION's params object: the
@@ -427,6 +509,7 @@ type correlationParams struct {
 type partialParams struct {
 	Control json.RawMessage `json:"control"`
 	Repair  *string         `json:"repair"`
+	inferenceParams
 	missingParams
 }
 
@@ -645,6 +728,9 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 		if spec.Type == types.MAT_DISTANCE {
 			return betweenRequired(at)
 		}
+		if slices.Contains(InferenceTypes(), spec.Type) {
+			return decodeInference(at, inferenceParams{}, spec.Multiplicity != nil, m)
+		}
 		return nil
 	}
 	var miss missingParams
@@ -692,6 +778,9 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 			}
 			m.TopPairs = *k
 		}
+		if err := decodeInference(at, p.inferenceParams, spec.Multiplicity != nil, m); err != nil {
+			return err
+		}
 		miss = p.missingParams
 	case types.MAT_PARTIAL_CORRELATION:
 		var p partialParams
@@ -704,6 +793,9 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 		}
 		m.Controls = controls
 		if err := decodeRepair(at, p.Repair, m); err != nil {
+			return err
+		}
+		if err := decodeInference(at, p.inferenceParams, spec.Multiplicity != nil, m); err != nil {
 			return err
 		}
 		miss = p.missingParams
@@ -1373,6 +1465,43 @@ func decodeMissing(at string, p missingParams, m *Matrix) *errors.CodedError {
 		}
 		v := s
 		m.MaxDropShare = &v
+	}
+	return nil
+}
+
+// decodeInference applies params.inference / params.alpha (after
+// params.method): inference true turns the per-pair p-values and
+// confidence intervals on; alpha is the intervals' two-sided level,
+// strictly between 0 and 1 (default InferenceDefaultAlpha), and applies
+// with inference on only, on every MAT_CORRELATION method (a rank
+// method's p is cor.test's for that method). implied is the spec's own
+// `multiplicity` block (U28 E3-S4): a block needs the p-values, so it
+// turns inference on when params leave it unset and refuses an
+// explicit `inference: false`. Every refusal is bad_params.
+func decodeInference(at string, p inferenceParams, implied bool, m *Matrix) *errors.CodedError {
+	if implied && p.Inference != nil && !*p.Inference {
+		return matrixInvalid(at, "bad_params", at+" params.inference is false, but the spec's multiplicity block corrects its p-values and implies inference; drop one of them",
+			map[string]any{"param": "inference", "value": false})
+	}
+	on := implied || (p.Inference != nil && *p.Inference)
+	if p.Alpha != nil {
+		a := *p.Alpha
+		if !on {
+			return matrixInvalid(at, "bad_params", at+" params.alpha applies with params.inference true only",
+				map[string]any{"param": "alpha", "value": a})
+		}
+		if !(a > 0 && a < 1) {
+			return matrixInvalid(at, "bad_params", at+" params.alpha must be a number strictly between 0 and 1",
+				map[string]any{"param": "alpha", "value": a})
+		}
+	}
+	if !on {
+		return nil
+	}
+	m.Inference = true
+	m.Alpha = InferenceDefaultAlpha
+	if p.Alpha != nil {
+		m.Alpha = *p.Alpha
 	}
 	return nil
 }

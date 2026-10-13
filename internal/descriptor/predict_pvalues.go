@@ -32,7 +32,9 @@ var pvalueBasisRank = map[string]int{
 // inferential overlay kind contributes the p-values its payload carries,
 // derived from the crosstab axes' dictionaries where an axis is one
 // GROUP_CATEGORY over a categorical or packed_bool field, else counted
-// as one (a lower bound). A test type or overlay kind the instance does
+// as one (a lower bound). A MAT_CORRELATION / MAT_PARTIAL_CORRELATION
+// under params.inference contributes one per output pair (per bucket
+// when grouped). A test type or overlay kind the instance does
 // not offer (hidden or never registered) is not counted. Nil when the
 // request emits no p-value.
 func countPValues(req *types.Request, schema *encoding.Schema, plan *MultiplicityPlan, opts *PredictOptions) *descriptor.PValueCount {
@@ -91,6 +93,28 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 		n, basis := overlayPValueCount(routed, spec.Scope, rows, cols)
 		add(n, basis, member(overlays, i))
 	}
+	// A matrix under params.inference (set, or implied by its own
+	// multiplicity block) carries one p per distinct output pair — the
+	// off-diagonal upper triangle, k(k-1)/2, the `matrix` family's m —
+	// per bucket on a grouped request (the tier-1 tests' bound); a
+	// member spec's pairs are corrected.
+	if len(req.Matrices) > 0 {
+		var matrices []ResolvedMultiplicity
+		if plan != nil {
+			matrices = plan.Matrices
+		}
+		if plans, err := resolveMatricesFor(req, schema, nil, inst); err == nil {
+			for _, m := range plans {
+				if !m.Inference {
+					continue
+				}
+				k := len(m.OutputIndices())
+				if pairs := k * (k - 1) / 2; pairs > 0 {
+					add(pairs*perTest, perTestBasis, member(matrices, m.Index))
+				}
+			}
+		}
+	}
 	if out.Total == 0 {
 		return nil
 	}
@@ -137,9 +161,9 @@ func axisBuckets(axis []*types.Group, schema *encoding.Schema, inst *InstanceSna
 // overlay layer carries over a rows x cols crosstab (0 = unknown
 // extent): one for a whole-table kind; one per row / column for the
 // per-row / per-column chi-square kinds; one per cell for Fisher's
-// exact cell test; one per index pair per opposite-axis entry for the
-// pairwise kinds. A kind or extent it cannot derive counts as one, a
-// lower bound.
+// exact cell test and the adjusted residuals; one per index pair per
+// opposite-axis entry for the pairwise kinds. A kind or extent it
+// cannot derive counts as one, a lower bound.
 func overlayPValueCount(kind types.OverlayKind, scope types.OverlayScope, rows, cols int) (int, string) {
 	pairs := func(k int) int { return k * (k - 1) / 2 }
 	derived := func(n int, known bool) (int, string) {
@@ -156,7 +180,7 @@ func overlayPValueCount(kind types.OverlayKind, scope types.OverlayScope, rows, 
 		return derived(rows, rows > 0)
 	case kind == types.OverlayKindChiSqCol:
 		return derived(cols, cols > 0)
-	case kind == types.OverlayKindFisherExactCell:
+	case kind == types.OverlayKindFisherExactCell, kind == types.OverlayKindStdResidual:
 		return derived(rows*cols, rows > 0 && cols > 0)
 	case strings.HasPrefix(string(kind), "OVERLAY_PAIRWISE_") && scope == types.OverlayScopeRow:
 		return derived(pairs(rows)*cols, rows > 0 && cols > 0)

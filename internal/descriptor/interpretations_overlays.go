@@ -32,8 +32,10 @@ var overlayInterpretations = map[string][]descriptor.Interpretation{
 	"OVERLAY_CHISQ_ROW":                     interpOverlayChiSqRow,
 	"OVERLAY_CHISQ_VS_POP":                  interpOverlayChiSqVsPop,
 	"OVERLAY_CHISQ_VS_REF":                  interpOverlayChiSqVsRef,
+	"OVERLAY_CORRESPONDENCE":                interpOverlayCorrespondence,
 	"OVERLAY_FISHER_EXACT_CELL":             interpOverlayFisherExactCell,
 	"OVERLAY_KS_VS_POP":                     interpOverlayKSVsPop,
+	"OVERLAY_MARKOV":                        interpOverlayMarkov,
 	"OVERLAY_PAIRWISE_PROBIT_T":             interpOverlayPairwiseProbitT,
 	"OVERLAY_PAIRWISE_PROP_Z":               interpOverlayPairwisePropZ,
 	"OVERLAY_PAIRWISE_TWO_MEANS_Z":          interpOverlayPairwiseTwoMeansZ,
@@ -41,6 +43,9 @@ var overlayInterpretations = map[string][]descriptor.Interpretation{
 	"OVERLAY_PAIRWISE_WELCH_T":              interpOverlayPairwiseWelchT,
 	"OVERLAY_PROP_Z_CELL":                   interpOverlayPropZCell,
 	"OVERLAY_PROP_Z_PANEL":                  interpOverlayPropZPanel,
+	"OVERLAY_MATRIX_GROUP_SUMMARY":          interpOverlayMatrixGroupSummary,
+	"OVERLAY_RAKE":                          interpOverlayRake,
+	"OVERLAY_STD_RESIDUAL":                  interpOverlayStdResidual,
 	"OVERLAY_T_CELL":                        interpOverlayTCell,
 	"OVERLAY_T_VS_REF":                      interpOverlayTVsRef,
 	"OVERLAY_Z_CELL":                        interpOverlayZCell,
@@ -239,6 +244,164 @@ var (
 			Caveats: []string{
 				"Each cell holds the two-sided exact p-value of its own 2x2 table: this row versus the rest, by this column versus the rest.",
 				"It does not say which way or how far the cell departs: compare the cell's count with what its row and column totals predict (or an OVERLAY_INDEX_VS_MARGIN layer) for direction and size.",
+				overlayCellMultiComp,
+			},
+		},
+	}
+
+	interpOverlayCorrespondence = []descriptor.Interpretation{
+		{
+			Field: "summary.statistic",
+			Means: "In each series entry (one per dimension, dim_1 first): the dimension's principal inertia, the part of the table's association it accounts for. " +
+				"On the layer summary: the total inertia, the chi-square statistic divided by the grand total; 0 means rows and columns are independent.",
+			Caveats: []string{
+				"Inertia is scale-free: it does not grow with the sample size, so compare it across tables of different sizes, not the chi-square.",
+			},
+		},
+		{
+			Field: "summary.parameters.share",
+			Means: "In each series entry: the dimension's share of the total inertia (0 to 1); cumulative_share adds the dimensions before it.",
+			Caveats: []string{
+				"A map of the first two dimensions shows only their cumulative share of the table; a low share means much of the association is not on the map.",
+			},
+		},
+		{
+			Field: "parts.row_coordinates.cells.value",
+			Means: "Each row's position on a dimension (columns dim_1, dim_2, ...). Rows with similar profiles across the columns sit close together; " +
+				"a row far from the origin departs most from the average profile.",
+			Caveats: []string{
+				"The sign of a dimension is arbitrary: Pulse orients it so the column point that weighs most on it is positive; read which points share a side, not left or right.",
+				"In the symmetric map (the default) rows and columns are both scaled by the dimension's singular value; the distance between a row and a column point is not directly interpretable there.",
+			},
+		},
+		{
+			Field: "parts.column_coordinates.cells.value",
+			Means: "Each column's position on a dimension, read like the row coordinates: columns with similar profiles across the rows sit close together.",
+			Caveats: []string{
+				"In a row_principal map the columns are standard coordinates (vertices the rows are pulled toward); in a column_principal map the rows are.",
+			},
+		},
+		{
+			Field: "parts.row_quality.summary.statistic",
+			Means: "In each series entry: how well the retained dimensions show the row (0 to 1) — the share of the row's distance from the average profile they capture. Near 1 the map shows the row faithfully.",
+			Caveats: []string{
+				"A row whose profile equals the average profile has no distance to show and gets no value (null).",
+			},
+		},
+		{
+			Field: "parts.column_quality.summary.statistic",
+			Means: "In each series entry: how well the retained dimensions show the column (0 to 1), read like the row quality.",
+		},
+		{
+			Field: "parts.row_contribution.cells.value",
+			Means: "The row's share (0 to 1) of a dimension's inertia; each dimension's row contributions sum to 1. The rows with the largest contributions are the ones that define the dimension.",
+		},
+		{
+			Field: "parts.column_contribution.cells.value",
+			Means: "The column's share (0 to 1) of a dimension's inertia; each dimension's column contributions sum to 1.",
+		},
+	}
+
+	interpOverlayMarkov = []descriptor.Interpretation{
+		{
+			Field: "cells.value",
+			Means: "The probability (0 to 1) of moving from the row's state to the column's state in one period; each row adds up to 1. The step_<n> parts read the same way over n periods.",
+			Caveats: []string{
+				"A row built from few moves gives noisy probabilities, and every projection compounds that noise.",
+			},
+		},
+		{
+			Field: "parts.steady_state.summary.statistic",
+			Means: "In each series entry: the share of the population that would sit in the state in the long run if the switching probabilities never change; the shares add up to 1.",
+			Caveats: []string{
+				"It is a what-if, not a forecast: it assumes today's switching behaviour holds forever, and it is absent when the chain has no single long-run mix.",
+			},
+		},
+		{
+			Field: "parts.absorption_time.summary.statistic",
+			Means: "In each series entry: the expected number of periods a member starting in the state takes to first reach one of the absorbing states (for example churned).",
+			Caveats: []string{
+				"null means the state can wander into a group of states it never leaves without reaching an absorbing one, so the expected time is infinite.",
+			},
+		},
+		{
+			Field: "summary.parameters.classes",
+			Means: "The number of communicating classes: groups of states that can all reach one another. 1 means every state can reach every other; more (an absorbing churned state is its own class) means there is no single long-run mix, so steady_state is absent.",
+		},
+	}
+
+	interpOverlayMatrixGroupSummary = []descriptor.Interpretation{
+		{
+			Field: "cells.value",
+			Means: "The cell's average across the groups: each group's matrix value for the pair, averaged with every group counting once.",
+			Caveats: []string{
+				"Read it beside parts.range: a mean over groups that disagree hides that disagreement.",
+			},
+		},
+		{
+			Field: "parts.range.cells.value",
+			Means: "How far apart the groups sit on the cell: the largest group value minus the smallest (0 when one group fed it).",
+		},
+		{
+			Field: "parts.n_groups.cells.value",
+			Means: "How many groups had a defined value for the cell; null cells elsewhere in the layer have 0 here.",
+		},
+	}
+
+	interpOverlayRake = []descriptor.Interpretation{
+		{
+			Field: "cells.value",
+			Means: "The raked count for the cell: the table rescaled so its row and column totals match the targets while keeping its internal pattern.",
+			Caveats: []string{
+				"Read it only when summary.parameters.converged is 1; otherwise the margins are still off their targets.",
+			},
+		},
+		{
+			Field: "parts.factors.cells.value",
+			Means: "How much the cell was scaled: the raked count over the observed one (above 1 = scaled up). null where the observed cell was 0, which stays 0.",
+			Caveats: []string{
+				"Very large or very small factors mean the targets sit far from the sample, and the raked cells lean heavily on few records.",
+			},
+		},
+		{
+			Field: "summary.parameters.converged",
+			Means: "1 when every fitted margin is within the tolerance of its target, 0 when the fit stopped at max_iter first (the table still ships, with a warning).",
+		},
+		{
+			Field: "summary.parameters.residual",
+			Means: "The largest relative gap left between a fitted margin and its target (0.01 = 1%).",
+		},
+	}
+
+	interpOverlayStdResidual = []descriptor.Interpretation{
+		{
+			Field: "cells.value",
+			Means: "The cell's adjusted standardized residual: (observed - expected) divided by its standard error, where expected is the count the row and column totals predict " +
+				"if the two fields were independent. Under independence it is about standard normal, so a value beyond plus or minus 1.96 is unusual at the 5% level; " +
+				"the cells with the largest absolute values are the ones driving the table's chi-square.",
+			Sign: map[string]string{
+				"+": "the cell holds more cases than its row and column totals predict",
+				"-": "the cell holds fewer cases than its row and column totals predict",
+			},
+			Caveats: []string{
+				"A cell whose expected count is 0 (an empty row or column) has no residual and is null.",
+				"It is meaningful only when the cells count independent rows (AGG_COUNT); on sums or averages it is not a valid residual.",
+				"On a probability-weighted host the table is first scaled to its effective sample size (summary.parameters.n_eff): a first-order Kish approximation, not the Rao-Scott correction.",
+			},
+		},
+		{
+			Field: "parts.expected.cells.value",
+			Means: "The count the cell would hold if the row and column fields were independent: its row total times its column total, divided by the grand total.",
+			Caveats: []string{
+				"On a probability-weighted host it is on the effective-sample-size scale, not the weighted-total scale.",
+			},
+		},
+		{
+			Field:  "parts.p.cells.value",
+			Shared: SharedPValue,
+			Caveats: []string{
+				"Each cell holds the two-sided normal p-value of its own residual; it says how surprising the departure is, the residual says which way.",
+				"It comes from a normal approximation that weakens when expected counts fall below about 5; Pulse warns (PULSE_OVERLAY_EXPECTED_LOW) when they do.",
 				overlayCellMultiComp,
 			},
 		},

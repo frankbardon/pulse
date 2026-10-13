@@ -209,3 +209,39 @@ func TestMCPReturnDefault_ValidateRefusesUnknownPreset(t *testing.T) {
 		}
 	}
 }
+
+// TestMCPReturnDefault_StandardKeepsMatrixInference (U28 E4-G1): the
+// MCP default `standard` keeps the auxiliaries a matrix spec asked for —
+// params.inference's p / ci_lower / ci_upper reach the caller through
+// pulse_process — while a spec without inference in the same request
+// still carries no auxiliary.
+func TestMCPReturnDefault_StandardKeepsMatrixInference(t *testing.T) {
+	p := returnDefaultPulse(t, pulse.Options{})
+	body := `{"cohort":{"filename":"imports/data.pulse"},"matrices":[` +
+		`{"name":"inf","type":"MAT_CORRELATION","fields":["id","amount"],"params":{"inference":true}},` +
+		`{"name":"plain","type":"MAT_CORRELATION","fields":["id","amount"],"params":{"missing":"pairwise"}}]}`
+	b := invokeTool(t, p, Config{}, toolmeta.ToolProcess, body)
+	if got := presetOf(t, b); got != "standard" {
+		t.Fatalf("preset %q, want the MCP default standard: %s", got, b)
+	}
+	var wire struct {
+		Matrices []struct {
+			Name      string                     `json:"name"`
+			Auxiliary map[string]json.RawMessage `json:"auxiliary"`
+		} `json:"matrices"`
+	}
+	if err := json.Unmarshal(b, &wire); err != nil {
+		t.Fatal(err)
+	}
+	if len(wire.Matrices) != 2 {
+		t.Fatalf("matrices = %s", b)
+	}
+	for _, k := range []string{"p", "ci_lower", "ci_upper"} {
+		if _, ok := wire.Matrices[0].Auxiliary[k]; !ok {
+			t.Errorf("inference spec lost auxiliary.%s under the MCP default: %s", k, b)
+		}
+	}
+	if wire.Matrices[1].Auxiliary != nil {
+		t.Errorf("spec without inference kept auxiliary %v under standard", wire.Matrices[1].Auxiliary)
+	}
+}

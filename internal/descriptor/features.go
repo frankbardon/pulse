@@ -378,6 +378,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("OVERLAY_CHISQ_ROW"),
 	op("OVERLAY_CHISQ_VS_POP"),
 	op("OVERLAY_CHISQ_VS_REF"),
+	op("OVERLAY_CORRESPONDENCE"),
 	op("OVERLAY_DELTA_VS_BASELINE"),
 	op("OVERLAY_DELTA_VS_MARGIN"),
 	op("OVERLAY_DELTA_VS_PRIOR"),
@@ -396,6 +397,8 @@ var builtinFeatures = withDependencies([]Feature{
 	op("OVERLAY_INDEX_VS_STAGE"),
 	op("OVERLAY_INDEX_VS_TOTAL"),
 	op("OVERLAY_KS_VS_POP"),
+	op("OVERLAY_MARKOV"),
+	op("OVERLAY_MATRIX_GROUP_SUMMARY"),
 	op("OVERLAY_PAIRWISE_PROBIT_T"),
 	op("OVERLAY_PAIRWISE_PROP_Z"),
 	op("OVERLAY_PAIRWISE_TWO_MEANS_Z"),
@@ -404,10 +407,12 @@ var builtinFeatures = withDependencies([]Feature{
 	op("OVERLAY_PANEL_INDEX_VS_REF"),
 	op("OVERLAY_PROP_Z_CELL"),
 	op("OVERLAY_PROP_Z_PANEL"),
+	op("OVERLAY_RAKE"),
 	op("OVERLAY_RANK"),
 	op("OVERLAY_SHARE_OF_COL"),
 	op("OVERLAY_SHARE_OF_ROW"),
 	op("OVERLAY_SHARE_OF_TOTAL"),
+	op("OVERLAY_STD_RESIDUAL"),
 	op("OVERLAY_T_CELL"),
 	op("OVERLAY_T_VS_REF"),
 	op("OVERLAY_YOY"),
@@ -560,6 +565,8 @@ func SlotTokensOf(capability string) ([]string, bool) {
 //     compose capability gates)
 //   - capability:process_chain ← chainOverlayHandlers
 //   - capability:facet         ← facetOverlayHandlers
+//   - capability:matrices      ← matrixResultOverlayHandlers (the
+//     MATRIX_RESULT host a Request.Matrices request produces)
 //
 // An overlay kind depends on the any-of set of every host listing it.
 var overlayHostKinds = map[string][]string{
@@ -567,18 +574,22 @@ var overlayHostKinds = map[string][]string{
 		"OVERLAY_CHISQ_COL",
 		"OVERLAY_CHISQ_MATRIX",
 		"OVERLAY_CHISQ_ROW",
+		"OVERLAY_CORRESPONDENCE",
 		"OVERLAY_DELTA_VS_MARGIN",
 		"OVERLAY_FISHER_EXACT_CELL",
 		"OVERLAY_FORMULA",
 		"OVERLAY_INDEX_VS_MARGIN",
+		"OVERLAY_MARKOV",
 		"OVERLAY_PAIRWISE_PROBIT_T",
 		"OVERLAY_PAIRWISE_PROP_Z",
 		"OVERLAY_PAIRWISE_TWO_MEANS_Z",
 		"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z",
 		"OVERLAY_PAIRWISE_WELCH_T",
+		"OVERLAY_RAKE",
 		"OVERLAY_SHARE_OF_COL",
 		"OVERLAY_SHARE_OF_ROW",
 		"OVERLAY_SHARE_OF_TOTAL",
+		"OVERLAY_STD_RESIDUAL",
 		"OVERLAY_ZSCORE_VS_MARGIN",
 	},
 	featCompose: {
@@ -609,6 +620,11 @@ var overlayHostKinds = map[string][]string{
 		"OVERLAY_YOY",
 		"OVERLAY_ZSCORE_VS_ROLLING",
 		"OVERLAY_ZSCORE_VS_TOTAL",
+	},
+	featMatrices: {
+		// matrixResultOverlayHandlers: the MATRIX_RESULT host reads
+		// Response.Matrices, which capability:matrices gates.
+		"OVERLAY_MATRIX_GROUP_SUMMARY",
 	},
 	featProcessChain: {
 		"OVERLAY_DELTA_VS_STAGE",

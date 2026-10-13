@@ -139,6 +139,24 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// is plumbed (PRD § 4.C FR-C2 — the canonical low-count contingency
 	// overlay closing the inferential family).
 	OverlayKindFisherExactCell: false,
+	// OVERLAY_CORRESPONDENCE is inherently buffered — the SVD reads
+	// the whole table (every cell and both margins) at once.
+	OverlayKindCorrespondence: false,
+	// OVERLAY_MARKOV is inherently buffered — the transition matrix
+	// normalizes every row by its total and aligns the row and column
+	// key sets, which only the finished table has.
+	OverlayKindMarkov: false,
+	// OVERLAY_RAKE is inherently buffered — each IPF sweep rescales
+	// whole rows and columns against the finished table's margins.
+	OverlayKindRake: false,
+	// OVERLAY_MATRIX_GROUP_SUMMARY is inherently buffered — it reads
+	// every group bucket's finished matrix result.
+	OverlayKindMatrixGroupSummary: false,
+	// OVERLAY_STD_RESIDUAL is inherently buffered — each cell's
+	// adjusted residual reads the whole table's row, column and grand
+	// totals, which only the buffered / fused crosstab host has
+	// materialised (the CHISQ_MATRIX recurrence).
+	OverlayKindStdResidual: false,
 	// OVERLAY_FORMULA is buffered-only at v1 for every host shape.
 	// The per-host-shape variable namespace (research note
 	// `.planning/result-overlay-system/research/formula-namespace.md` § 2)

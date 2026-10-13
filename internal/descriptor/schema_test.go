@@ -392,3 +392,48 @@ func TestPayloadSchema_ColumnInputOptionalField(t *testing.T) {
 		}
 	}
 }
+
+// TestPayloadSchema_OverlayParts: a layer carrying flat parts of every
+// shape validates; a part carrying parts of its own is refused (parts
+// never nest), as is a part whose declared shape lacks its arm.
+func TestPayloadSchema_OverlayParts(t *testing.T) {
+	c := jsonschema.NewCompiler()
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(BuildPayloadSchema()))
+	if err != nil {
+		t.Fatalf("unmarshal schema: %v", err)
+	}
+	if err := c.AddResource(payloadSchemaID, doc); err != nil {
+		t.Fatalf("add resource: %v", err)
+	}
+	one, nan := 1.0, math.NaN()
+	layer := types.OverlayLayer{
+		Name: "m", Kind: types.OverlayKindChiSqMatrix, Scope: types.OverlayScopeCell,
+		Payload: types.OverlayPayload{Shape: types.OverlayShapeScalar, Scalar: &one,
+			Parts: map[string]*types.OverlayPayload{
+				"total": {Shape: types.OverlayShapeScalar, Scalar: &nan},
+				"steady_state": {Shape: types.OverlayShapeSeries, Series: &types.SeriesPayload{
+					Entries: []types.SeriesEntry{{Key: types.AxisKey{"a"}}}}},
+				"row_coordinates": {Shape: types.OverlayShapeMatrix, Matrix: &types.MatrixPayload{
+					RowKeys: []types.AxisKey{{"a"}}, ColumnKeys: []types.AxisKey{{"dim_1"}},
+					Cells: [][]types.MatrixCell{{{Value: 0.5, Present: true}}}}},
+			}},
+	}
+	validateAgainst(t, c, "#/$defs/Response", types.Response{Overlays: []types.OverlayLayer{layer}})
+
+	sch, err := c.Compile(payloadSchemaID + "#/$defs/OverlayPayload")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, raw := range map[string]string{
+		"nested parts":  `{"shape":"scalar","scalar":1,"parts":{"p":{"shape":"scalar","scalar":2,"parts":{"q":{"shape":"scalar","scalar":3}}}}}`,
+		"part arm gone": `{"shape":"scalar","scalar":1,"parts":{"p":{"shape":"matrix"}}}`,
+	} {
+		inst, err := jsonschema.UnmarshalJSON(strings.NewReader(raw))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if sch.Validate(inst) == nil {
+			t.Errorf("%s: the schema accepted %s", name, raw)
+		}
+	}
+}

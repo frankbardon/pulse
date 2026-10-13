@@ -213,7 +213,9 @@ func TestKruskalWallis_KnownStatistic(t *testing.T) {
 	}
 }
 
-// TestSpearman_PerfectRank verifies ρ=1 on a strictly increasing pair.
+// TestSpearman_PerfectRank verifies ρ=1 on a strictly increasing pair;
+// p is cor.test's exact (AS 89) figure, 2/6! — R: cor.test(0:5,
+// (0:5)^2, method = "spearman")$p.value.
 func TestSpearman_PerfectRank(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -234,13 +236,14 @@ func TestSpearman_PerfectRank(t *testing.T) {
 	if math.Abs(res.Statistic-1) > 1e-9 {
 		t.Errorf("ρ: got %g, want 1", res.Statistic)
 	}
-	if res.PValue > 1e-6 {
-		t.Errorf("PValue: got %g, want ~0", res.PValue)
+	if want := 0.0027777777777777779; math.Abs(res.PValue-want) > 1e-15 {
+		t.Errorf("PValue: got %.17g, want %.17g (R cor.test exact)", res.PValue, want)
 	}
 }
 
 // TestSpearman_KnownTies verifies a worked example with tied ranks.
-// scipy.stats.spearmanr([1,2,2,4,5], [1,3,2,4,5]) returns ρ ≈ 0.9747, p ≈ 0.0048.
+// scipy.stats.spearmanr([1,2,2,4,5], [1,3,2,4,5]) returns ρ ≈ 0.9747, p ≈ 0.0048;
+// R cor.test (ties ⇒ the t approximation) p = 0.0048182304681985404.
 func TestSpearman_KnownTies(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -261,6 +264,9 @@ func TestSpearman_KnownTies(t *testing.T) {
 	}
 	if math.Abs(res.Statistic-0.9747) > 0.005 {
 		t.Errorf("ρ: got %g, want ~0.9747", res.Statistic)
+	}
+	if want := 0.0048182304681985404; math.Abs(res.PValue-want) > 1e-12*want {
+		t.Errorf("PValue: got %.17g, want %.17g (R cor.test)", res.PValue, want)
 	}
 }
 
@@ -316,5 +322,10 @@ func TestKendallTau_NoTies(t *testing.T) {
 	}
 	if d, _ := res.Details["discordant"].(int64); d != 2 {
 		t.Errorf("discordant: got %v, want 2", d)
+	}
+	// Untied, n < 50: cor.test's exact p. R: cor.test(x, y,
+	// method = "kendall")$p.value.
+	if want := 0.23333333333333339; math.Abs(res.PValue-want) > 1e-15 {
+		t.Errorf("PValue: got %.17g, want %.17g (R cor.test exact)", res.PValue, want)
 	}
 }

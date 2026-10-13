@@ -1,0 +1,36 @@
+{
+  "_meta": {
+    "name": "correlation_inference",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "correlation-analysis"
+    ],
+    "operators": [
+      "MAT_CORRELATION",
+      "MAT_PARTIAL_CORRELATION"
+    ],
+    "description": "Per-pair p-values and confidence intervals on correlation matrices (params.inference) over training_data.pulse: the Pearson matrix of price, income and label with auxiliary.p and 95% Fisher-z intervals (auxiliary.ci_lower / ci_upper; each pair on its own rows under pairwise deletion), and the partial correlation of price and income holding label fixed with 90% intervals (params.alpha 0.1, df = N* - 2 - 1). The diagonal and any pair too thin for its figure are null (PULSE_MATRIX_INSUFFICIENT_N, scope inference). Nothing corrects for the many pairs. The auxiliaries ride matrices[*].auxiliary: a return preset standard drops them.",
+    "intents": [
+      "relationship"
+    ]
+  },
+  "cohort": {
+    "filename": "training_data.pulse",
+    "data_dir": ".data"
+  },
+  "matrices": [
+    {
+      "type": "MAT_CORRELATION",
+      "name": "corr_with_p",
+      "fields": ["price", "income", "label"],
+      "params": {"inference": true, "missing": "pairwise"}
+    },
+    {
+      "type": "MAT_PARTIAL_CORRELATION",
+      "name": "price_income_given_label",
+      "fields": ["price", "income"],
+      "params": {"control": ["label"], "repair": "nearest", "inference": true, "alpha": 0.1}
+    }
+  ]
+}

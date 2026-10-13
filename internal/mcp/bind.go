@@ -1014,6 +1014,9 @@ func matricesSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[str
 				"params":   map[string]any{"description": "Operator parameters (ddof, missing, max_drop_share, summary); see the operator's skill."},
 				"encoding": enumStringField(stringSlice(types.AllMatrixEncodings()), "Values layout; full when omitted."),
 				"weight":   slotWeightSchema(c),
+				"multiplicity": multiplicitySchema(
+					"This spec's own multiple-comparison correction (MAT_CORRELATION / MAT_PARTIAL_CORRELATION only); setting it implies params.inference. Family `matrix` (default) corrects one result's distinct pairs (the upper triangle, per group bucket), `request` pools them with the request's tests. Adds auxiliary.p_adjusted / significant_adjusted beside auxiliary.p. Omit to inherit the request's (it reaches only a spec with params.inference true).",
+					[]types.MultiplicityFamily{types.MultiplicityFamilyRequest, types.MultiplicityFamilyMatrix}, true),
 			},
 			"required":             []string{"type"},
 			"additionalProperties": false,
@@ -1057,6 +1060,7 @@ func overlayRefSchema() map[string]any {
 			"population":     obj("Population cohort (facet kinds).", map[string]any{"cohort": map[string]any{"type": "string"}}),
 			"slot":           obj("Compose slot reference.", map[string]any{"name": map[string]any{"type": "string"}}),
 			"stage":          obj("Chain stage reference; one of index / name.", map[string]any{"index": map[string]any{"type": "integer", "minimum": 0}, "name": map[string]any{"type": "string"}}),
+			"matrix":         obj("Matrix-result reference: a Request.Matrices spec by effective name (every group bucket).", map[string]any{"name": map[string]any{"type": "string"}}),
 		},
 		"additionalProperties": false,
 	}

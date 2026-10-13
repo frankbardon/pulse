@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:f6b6ec312915decc6d37f5b5d85503625d7e87783c4cbee05538b7ea958e25ff",
+    "feature_set_digest": "fs1:3aa32c5284bdcf6923a2d6d667e1503c4564aee3f8351ad5b4fd066e351c8d8e",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -7574,7 +7574,7 @@
       },
       {
         "name": "MAT_CORRELATION",
-        "description": "Correlation matrix of a vector's members (listwise or pairwise): Pearson r by default, or Spearman rho / Kendall tau-b under params.method; a zero-spread member's row and column are null. Pearson is weighted under frequency and probability weights, a rank method under frequency weights only. No p-values.",
+        "description": "Correlation matrix of a vector's members (listwise or pairwise): Pearson r by default, or Spearman rho / Kendall tau-b under params.method; a zero-spread member's row and column are null. Pearson is weighted under frequency and probability weights, a rank method under frequency weights only. params.inference adds each pair's two-sided p-value and Fisher-z confidence interval as auxiliary.p / ci_lower / ci_upper: TEST_PEARSON_R's arithmetic on the pair's inference size (pearson), R cor.test's p with a Bonett-Wright / Fieller interval (spearman / kendall).",
         "accepts_types": [
           "f32",
           "f64",
@@ -7620,12 +7620,29 @@
             "type": "object",
             "required": false,
             "description": "{\"top_pairs\": k}, k a positive integer: list the k off-diagonal pairs with the largest |r| as vectors.top_pairs [{row, col, r, n}], ties in axis order; undefined pairs are skipped and k past the pair count lists every pair."
+          },
+          {
+            "name": "inference",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "true: add auxiliary.p (two-sided p-value), auxiliary.ci_lower and auxiliary.ci_upper (the 1 - alpha confidence interval), square matrices over the output axis in the primary's encoding, diagonal null: a pair's t = r*sqrt((N*-2)/(1-r^2)) on df = N*-2 (TEST_PEARSON_R's arithmetic) and its Fisher-z interval with se = 1/sqrt(N*-3); N* is the pair's own size under pairwise (rows unweighted, sum of weights under frequency, Kish n_eff under probability). Rank methods: R cor.test's default p over the pair's rows (n = N*): without ties exact for kendall below n = 50 and AS 89 for spearman up to n = 1290, otherwise the tie-corrected normal (kendall) or t on n-2 (spearman) approximation; the interval is Fisher z with se = sqrt((1+rho^2/2)/(n-3)) (spearman, Bonett-Wright) or sqrt(0.437/(n-4)) (kendall, Fieller; needs 5 rows). A cell too thin for its p-value or interval is null with PULSE_MATRIX_INSUFFICIENT_N (scope inference); under probability weights an effective size below its floor adds PULSE_WEIGHT_LOW_NEFF. The auxiliaries ride matrices[*].auxiliary, so a return that drops it (preset standard, the MCP default) skips them. The spec's own multiplicity block implies inference and adds auxiliary.p_adjusted and auxiliary.significant_adjusted (1 below the block's alpha, else 0) over the distinct pairs (family matrix: the upper triangle of one result, m = p(p - 1) / 2; family request: pooled with the request), mirrored, diagonal null, plus a multiplicity echo; the raw p never moves."
+          },
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "The confidence intervals' two-sided level, strictly between 0 and 1 (coverage 1 - alpha). Applies with inference on only. Under a multiplicity block inference is on even when unset, and significant_adjusted reads the block's own alpha, not this one."
           }
         ],
         "output_keys": {
           "primary": "correlation",
           "auxiliary": [
-            "n"
+            "ci_lower",
+            "ci_upper",
+            "n",
+            "p"
           ],
           "vectors": [
             "top_pairs"
@@ -8163,7 +8180,7 @@
       },
       {
         "name": "MAT_PARTIAL_CORRELATION",
-        "description": "Partial correlation matrix: each pair's Pearson correlation with other fields held fixed, from the precision matrix of the folded columns' correlation (listwise or pairwise). params.control \"all\" (default) controls each pair for every other member; a field list controls each pair for exactly those fields and drops any member it names from the output. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\", a singular one is PULSE_MATRIX_SINGULAR. Weighted under frequency and probability weights. No p-values.",
+        "description": "Partial correlation matrix: each pair's Pearson correlation with other fields held fixed, from the precision matrix of the folded columns' correlation (listwise or pairwise). params.control \"all\" (default) controls each pair for every other member; a field list controls each pair for exactly those fields and drops any member it names from the output. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\", a singular one is PULSE_MATRIX_SINGULAR. Weighted under frequency and probability weights. params.inference adds each pair's two-sided p-value and Fisher-z confidence interval (df = N* - 2 - g, g the controls) as auxiliary.p / ci_lower / ci_upper.",
         "accepts_types": [
           "f32",
           "f64",
@@ -8192,6 +8209,20 @@
             ]
           },
           {
+            "name": "inference",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "true: add auxiliary.p (two-sided p-value), auxiliary.ci_lower and auxiliary.ci_upper (the 1 - alpha confidence interval), square matrices over the output axis in the primary's encoding, diagonal null: a pair's t = r*sqrt((N*-2-g)/(1-r^2)) on df = N*-2-g, g the controls (every other folded column under control all, else the control count), as ppcor::pcor, and its Fisher-z interval with se = 1/sqrt(N*-3-g); N* is the whole fold's under listwise, the smallest folded pair's under pairwise (PULSE_MATRIX_PAIRWISE_N_STAR names it). A cell too thin for its p-value or interval is null with PULSE_MATRIX_INSUFFICIENT_N (scope inference); under probability weights an effective size below its floor adds PULSE_WEIGHT_LOW_NEFF. The auxiliaries ride matrices[*].auxiliary, so a return that drops it (preset standard, the MCP default) skips them. The spec's own multiplicity block implies inference and adds auxiliary.p_adjusted and auxiliary.significant_adjusted (1 below the block's alpha, else 0) over the distinct pairs (family matrix: the upper triangle of one result, m = p(p - 1) / 2; family request: pooled with the request), mirrored, diagonal null, plus a multiplicity echo; the raw p never moves."
+          },
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "The confidence intervals' two-sided level, strictly between 0 and 1 (coverage 1 - alpha). Applies with inference on only. Under a multiplicity block inference is on even when unset, and significant_adjusted reads the block's own alpha, not this one."
+          },
+          {
             "name": "missing",
             "type": "enum",
             "required": false,
@@ -8212,7 +8243,10 @@
         "output_keys": {
           "primary": "partial_correlation",
           "auxiliary": [
-            "n"
+            "ci_lower",
+            "ci_upper",
+            "n",
+            "p"
           ]
         },
         "streamable": true,
@@ -8952,7 +8986,7 @@
         ]
       }
     ],
-    "error_codes_count": 350,
+    "error_codes_count": 357,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9156,16 +9190,23 @@
       "PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED",
       "PULSE_OVERLAY_EXPECTED_LOW",
       "PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED",
+      "PULSE_OVERLAY_EXPORT_PARTS_DROPPED",
       "PULSE_OVERLAY_FIELD_UNKNOWN",
       "PULSE_OVERLAY_FORMULA_INVALID_IDENT",
       "PULSE_OVERLAY_FORMULA_PARSE_ERROR",
       "PULSE_OVERLAY_FORMULA_TYPE_MISMATCH",
+      "PULSE_OVERLAY_GROUPS_REQUIRED",
       "PULSE_OVERLAY_KEY_SET_DIVERGENT",
       "PULSE_OVERLAY_KIND_UNKNOWN",
       "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE",
+      "PULSE_OVERLAY_MARKOV_NOT_ERGODIC",
+      "PULSE_OVERLAY_MATRIX_NOT_SQUARE",
+      "PULSE_OVERLAY_NONNEGATIVE_REQUIRED",
       "PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP",
       "PULSE_OVERLAY_PARAM_MISSING",
       "PULSE_OVERLAY_PARTITION_INVALID",
+      "PULSE_OVERLAY_RAKE_NOT_CONVERGED",
+      "PULSE_OVERLAY_RAKE_TARGET_MISMATCH",
       "PULSE_OVERLAY_REFERENCE_UNKNOWN",
       "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE",
       "PULSE_OVERLAY_REF_UNKNOWN",
@@ -11122,7 +11163,7 @@
       },
       {
         "name": "op-mat-correlation",
-        "description": "Correlation matrix of a vector's numeric members — Pearson (default), Spearman or Kendall tau-b via params.method — listwise or pairwise, weighted; one MatrixResult per spec (per group bucket when grouped), no p-values."
+        "description": "Correlation matrix of a vector's numeric members — Pearson (default), Spearman or Kendall tau-b via params.method — listwise or pairwise, weighted; one MatrixResult per spec (per group bucket when grouped); per-pair p-values and confidence intervals on request (params.inference, every method)."
       },
       {
         "name": "op-mat-covariance",
@@ -11138,7 +11179,7 @@
       },
       {
         "name": "op-mat-partial-correlation",
-        "description": "Partial correlation matrix of a vector's numeric members — each pair with every other member, or the params.control fields, held fixed — listwise or pairwise, weighted; non-PSD input refused unless repair \"nearest\", singular input refused."
+        "description": "Partial correlation matrix of a vector's numeric members — each pair with every other member, or the params.control fields, held fixed — listwise or pairwise, weighted; non-PSD input refused unless repair \"nearest\", singular input refused; p-values and confidence intervals on request (params.inference)."
       },
       {
         "name": "op-mat-pca",
@@ -11167,6 +11208,10 @@
       {
         "name": "op-overlay-chisq-vs-ref",
         "description": "Compose-host whole-matrix χ² comparing target slot's matrix against the reference slot's matrix (rescaled to target N)."
+      },
+      {
+        "name": "op-overlay-correspondence",
+        "description": "Correspondence analysis of the host crosstab — inertia per dimension, row and column map coordinates, quality and contribution as parts."
       },
       {
         "name": "op-overlay-delta-vs-baseline",
@@ -11241,6 +11286,14 @@
         "description": "Kolmogorov-Smirnov distance + p-value comparing host Facet NUMERIC distribution against the resolved population."
       },
       {
+        "name": "op-overlay-markov",
+        "description": "Markov chain of a from × to transition crosstab — transition matrix, n-step powers, projections, steady state and time to absorption."
+      },
+      {
+        "name": "op-overlay-matrix-group-summary",
+        "description": "Summarize a grouped matrix result across its group buckets — per-cell mean, min, max, range and contributing-group count; the results are never changed."
+      },
+      {
         "name": "op-overlay-pairwise-probit-t",
         "description": "Intra-matrix axis-pairwise probit t-test (Φ⁻¹ transform of each leg's proportion, Student-t tail)."
       },
@@ -11273,6 +11326,10 @@
         "description": "Compose-host multi-reference per-cell pairwise two-proportion z-test across N+1 slots."
       },
       {
+        "name": "op-overlay-rake",
+        "description": "Rake a crosstab to target row and column margins (IPF) — fitted table, adjustment factors and a convergence report; the host is never changed."
+      },
+      {
         "name": "op-overlay-rank",
         "description": "Compose-host per-cell rank of each target cell within a configurable population (row / column / matrix)."
       },
@@ -11287,6 +11344,10 @@
       {
         "name": "op-overlay-share-of-total",
         "description": "Share-of-grand-total ratio — dual-shape (matrix per-cell or series per-group); raw share sums to 1.0."
+      },
+      {
+        "name": "op-overlay-std-residual",
+        "description": "Per-cell Haberman adjusted standardized residual of the host crosstab, with expected counts and two-sided p-values as parts."
       },
       {
         "name": "op-overlay-t-cell",
@@ -11554,7 +11615,7 @@
       },
       {
         "name": "overlay-system",
-        "description": "Overlay framework — OverlaySpec composition, six reference families, three payload shapes, host-arm wiring (SERIES / FACET / CHAIN / FORMULA), parity overlays + Welford migration. Per-kind detail lives in op-overlay-* atomics."
+        "description": "Overlay framework — OverlaySpec composition, reference families, three payload shapes, host-arm wiring (SERIES / MATRIX_RESULT / FACET / CHAIN / FORMULA), named payload parts of multi-output kinds. Per-kind detail lives in op-overlay-* atomics."
       },
       {
         "name": "pairwise-n-sources",
@@ -11933,7 +11994,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 210,
+    "examples_count": 216,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -12817,6 +12878,48 @@
         ]
       },
       {
+        "kind": "OVERLAY_CORRESPONDENCE",
+        "shapes": [
+          "series"
+        ],
+        "scopes": [
+          "matrix"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Simple correspondence analysis (R's ca::ca) of the host crosstab — a perceptual map placing rows and columns in a few shared dimensions — from the SVD (linalg.SVD) of the standardized residual matrix S = D_r^-1/2 (P - r c^T) D_c^-1/2. MATRIX scope over a MATRIX (crosstab) host. The primary SERIES holds the principal inertia of each of the min(r, c) - 1 dimensions (keys dim_1, dim_2, ...; entry parameters share, cumulative_share, singular_value); Summary.Statistic is the total inertia (chi-square / n) and its parameters carry dimensions, retained_share and share_dim_\u003ck\u003e. payload.parts: row_coordinates / column_coordinates (MATRIX points x retained dimensions, columns keyed dim_1 ...), row_quality / column_quality (SERIES, cos^2 summed over the retained dimensions; parameters mass, inertia) and row_contribution / column_contribution (MATRIX, each point's share of a dimension's inertia). params: dimensions (integer, default 2 capped at min(r, c) - 1; an explicit value above it is PULSE_OVERLAY_PARAM_MISSING) and normalization (symmetric [default: both principal] | row_principal | column_principal). Signs follow linalg.SVD: per dimension the dominant component of the column singular vector is positive. Cells must be non-negative masses: a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED. Zero-total rows / columns are dropped with one PULSE_OVERLAY_REF_ZERO per axis; fewer than 2 x 2 kept points is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Scale-invariant: a weighted host's sum-of-weights table is read as is under either weight kind. Descriptive (no p-value).",
+        "intents": [
+          "composition",
+          "relationship"
+        ],
+        "parts": [
+          {
+            "name": "column_contribution",
+            "shape": "matrix"
+          },
+          {
+            "name": "column_coordinates",
+            "shape": "matrix"
+          },
+          {
+            "name": "column_quality",
+            "shape": "series"
+          },
+          {
+            "name": "row_contribution",
+            "shape": "matrix"
+          },
+          {
+            "name": "row_coordinates",
+            "shape": "matrix"
+          },
+          {
+            "name": "row_quality",
+            "shape": "series"
+          }
+        ]
+      },
+      {
         "kind": "OVERLAY_DELTA_VS_BASELINE",
         "shapes": [
           "series"
@@ -13139,6 +13242,79 @@
         "inferential": true
       },
       {
+        "kind": "OVERLAY_MARKOV",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "matrix"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Markov-chain projection of a from-state (rows) x to-state (columns) transition crosstab. MATRIX scope over a MATRIX (crosstab) host. The row and column key sets must be equal as sets (states align by key, never by position, in row order), else PULSE_OVERLAY_MATRIX_NOT_SQUARE (predict refuses different grouper counts on the two axes; runtime also refuses differing key sets) — except that a column-only state named in params.absorbing gets a synthesized unit row (appended after the rows; a PULSE_OVERLAY_REF_ZERO warning with reason absorbing_row_synthesized and Summary.Parameters synthesized_rows). The primary MATRIX is the row-stochastic transition matrix P (each row over its total); a zero row becomes the unit row (the state absorbs) with a PULSE_OVERLAY_REF_ZERO warning. payload.parts: step_\u003cn\u003e (MATRIX P^n for each params.steps entry), distribution_\u003cn\u003e (SERIES initial x P^n, only with params.initial), steady_state (SERIES, power iteration to 1e-12 within 10,000 iterations, else the exact linear solve; only for an irreducible aperiodic chain — otherwise the PULSE_OVERLAY_MARKOV_NOT_ERGODIC warning and no part) and absorption_time (SERIES over the non-absorbing states: expected steps to reach the params.absorbing set, (I - Q)^-1 1 through linalg.FactorLU; null with a PULSE_OVERLAY_MARKOV_NOT_ERGODIC warning for a state that may never be absorbed; only with params.absorbing). Summary.Parameters: states, classes, irreducible, period, steady_state_iterations, steady_state_converged, synthesized_rows (only when \u003e 0). params: steps (default [1, 3, 6, 12]; distinct integers 1-1000, at most 64), absorbing (state keys present in the host) and initial (\"margin\" = the observed row-margin distribution, or a state -\u003e share map over host states, normalized; omitted states start at 0); a bad or unknown param, or a key the host lacks, is PULSE_OVERLAY_PARAM_MISSING. Cells must be non-negative masses: a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED. Scale-invariant: a weighted host's sum-of-weights table is read as is under either weight kind. Descriptive (no p-value).",
+        "intents": [
+          "flows"
+        ],
+        "parts": [
+          {
+            "name": "absorption_time",
+            "shape": "series",
+            "when": "only with params.absorbing"
+          },
+          {
+            "name": "distribution_\u003cn\u003e",
+            "shape": "series",
+            "when": "one per params.steps entry, only with params.initial"
+          },
+          {
+            "name": "steady_state",
+            "shape": "series",
+            "when": "only for an irreducible aperiodic chain"
+          },
+          {
+            "name": "step_\u003cn\u003e",
+            "shape": "matrix",
+            "when": "one per params.steps entry (default 1, 3, 6, 12)"
+          }
+        ]
+      },
+      {
+        "kind": "OVERLAY_MATRIX_GROUP_SUMMARY",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "matrix"
+        ],
+        "ref_kinds": [
+          "Matrix"
+        ],
+        "buffered": true,
+        "description": "Summary of a GROUPED matrix result across its group buckets — the MATRIX_RESULT host: Request.Overlays on a request carrying Request.Matrices and Request.Groups (no crosstab), on a process request or a Compose slot. Ref.Matrix.name names the Request.Matrices spec by its effective name (name, else \u003cTYPE\u003e_\u003cvector\u003e / \u003cTYPE\u003e; unknown is PULSE_OVERLAY_REFERENCE_UNKNOWN), and every bucket's primary matrix is read (an upper encoding expanded first) after the multiplicity fold. The primary MATRIX is the per-cell unweighted mean across buckets; payload.parts: min, max, range and n_groups (MATRIX each). Keys are the union of the buckets' row / column keys; a null cell or a key a bucket lacks contributes nothing, and a cell no bucket contributes to is null (n_groups 0). An ungrouped request is PULSE_OVERLAY_GROUPS_REQUIRED. No params; scope matrix; Level / Within 0. Refused on the Compose, chain and facet overlay slots and on a ProcessChain stage. Descriptive (no p-value).",
+        "intents": [
+          "compare_groups",
+          "relationship"
+        ],
+        "parts": [
+          {
+            "name": "max",
+            "shape": "matrix"
+          },
+          {
+            "name": "min",
+            "shape": "matrix"
+          },
+          {
+            "name": "n_groups",
+            "shape": "matrix"
+          },
+          {
+            "name": "range",
+            "shape": "matrix"
+          }
+        ]
+      },
+      {
         "kind": "OVERLAY_PAIRWISE_PROBIT_T",
         "shapes": [
           "matrix"
@@ -13293,6 +13469,28 @@
         ]
       },
       {
+        "kind": "OVERLAY_RAKE",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "matrix"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Raking (iterative proportional fitting) of a crosstab to target margins, without mutating the host. MATRIX scope over a MATRIX (crosstab) host. Each sweep scales every row to its target, then every column; sweeps stop once the largest relative margin error is within params.tolerance or params.max_iter have run. The primary MATRIX is the fitted table on the host keys (a zero cell stays zero: structural zeros are kept). payload.parts: factors (MATRIX fitted / observed, null where the observed cell is 0). Summary.Parameters: iterations, residual (the final largest relative margin error), converged (1 / 0); a fit short of the tolerance still emits, converged 0, with the PULSE_OVERLAY_RAKE_NOT_CONVERGED warning. params: row_targets and col_targets (required key -\u003e value maps naming every host key of their axis and no other, else PULSE_OVERLAY_RAKE_TARGET_MISMATCH — predict refuses a target key outside a categorical axis's dictionary, runtime any mismatch with the observed keys), targets_as (\"shares\" default: each axis normalized and scaled to the host grand total; \"counts\": taken as given, and row and column totals that differ are PULSE_OVERLAY_RAKE_TARGET_MISMATCH), max_iter (default 100, 1-100,000) and tolerance (default 1e-8, above 0 and below 1); a bad or unknown param is PULSE_OVERLAY_PARAM_MISSING. Cells must be non-negative masses: a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED. A weighted host's sum-of-weights table is raked as is under either weight kind. Writing raked weights back to a cohort is out of scope. Descriptive (no p-value).",
+        "intents": [
+          "benchmark",
+          "composition"
+        ],
+        "parts": [
+          {
+            "name": "factors",
+            "shape": "matrix"
+          }
+        ]
+      },
+      {
         "kind": "OVERLAY_RANK",
         "shapes": [
           "matrix"
@@ -13370,6 +13568,36 @@
         "description": "Share-of-grand-total ratio. Dual-shape overload: MATRIX dispatch emits per-cell cell / grand_total against a CELL-scoped crosstab host, completing the matrix share triad (row / col / total) — the spec must populate Ref.Margin (grand-axis-locked even though the handler ignores the axis value) and declares the level / within fields for renderer-facing parity with the rest of the share family (the grand-axis denominator makes both slots inert at runtime). SERIES dispatch emits per-group group_val / grand_total against a GROUP-scoped grouped Process host with scale 1.0 (no ×100 — sibling to INDEX_VS_TOTAL but with the SHARE scaling so cells over a complete partition sum to 1.0 within ULP) — Ref MUST be empty (implicit-grand-total). Sibling SERIES kind to OVERLAY_INDEX_VS_TOTAL — shares the same computeSeriesGrandTotal accumulator so a request carrying both overlays folds the grand-total only once in the streaming pass. Zero grand_total emits PULSE_OVERLAY_REF_ZERO with NaN statistics on every present entry; absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset. Streamable via the SERIES dispatch (the MATRIX route is forced buffered through canFuseCrosstab's overlays-force-buffered arm). Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. Each row is scored against its partition's total (and, for the z-score, its partition's mean and SD); partition_by [] restores the grand total over every row.",
         "intents": [
           "composition"
+        ]
+      },
+      {
+        "kind": "OVERLAY_STD_RESIDUAL",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "cell"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Haberman adjusted standardized residual of every host crosstab cell, (O - E) / sqrt(E (1 - r/N) (1 - c/N)) with E = r c / N — R's chisq.test()$stdres. CELL scope over a MATRIX (crosstab) host with MATRIX payload: each cell's value is its residual (about standard normal under independence; |z| \u003e 1.96 marks a cell driving the table's chi-square). payload.parts carries \"expected\" (the expected counts) and \"p\" (the two-sided normal p-value of each residual), both MATRIX on the host coordinates; a multiplicity block adjusts the p part into payload.p_adjusted / significant_adjusted. The Ref union is left empty (implicit-margin). Weighted hosts follow OVERLAY_CHISQ_MATRIX (the Σw table; under kind probability scaled to its Kish n_eff first). A zero-expected cell's residual and p are null; any expected count below 5 emits one PULSE_OVERLAY_EXPECTED_LOW. A host smaller than 2 x 2 or with a zero grand total is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.",
+        "intents": [
+          "relationship"
+        ],
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ],
+        "parts": [
+          {
+            "name": "expected",
+            "shape": "matrix"
+          },
+          {
+            "name": "p",
+            "shape": "matrix"
+          }
         ]
       },
       {
@@ -16269,6 +16497,12 @@
           "matrices[*].primary",
           "matrices[*].vectors",
           "matrices[*].scalars",
+          "matrices[*].multiplicity",
+          "matrices[*].auxiliary.p",
+          "matrices[*].auxiliary.ci_lower",
+          "matrices[*].auxiliary.ci_upper",
+          "matrices[*].auxiliary.p_adjusted",
+          "matrices[*].auxiliary.significant_adjusted",
           "tests[*].label",
           "tests[*].type",
           "tests[*].group_key",
@@ -16327,6 +16561,9 @@
           "regressions[*].correlation",
           "regressions[*].covariance",
           "overlays"
+        ],
+        "companions": [
+          "matrices[*].auxiliary.n (with p)"
         ]
       },
       {
@@ -16427,4 +16664,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 31b8a767dbf5dcdcbfbb63650e0e7e28463c94a46c6fd44ab61ff3781c17e3d6
+// golden-hash: cedb94a56109ebcd105e074b04eee3a5174dc540c4a15c8a4cfbb999144a08e1

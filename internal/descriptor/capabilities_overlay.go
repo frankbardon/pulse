@@ -77,6 +77,7 @@ func OverlayCapabilities() []descriptor.OverlayCapability {
 		entry.Description += seriesFieldNoteFor(k)
 		entry.Buffered = !streamable
 		entry.Zone = ZoneCapabilityOf(string(k))
+		entry.Parts = overlayPartsFor(k)
 		sort.Slice(entry.Shapes, func(i, j int) bool {
 			return string(entry.Shapes[i]) < string(entry.Shapes[j])
 		})
@@ -1312,6 +1313,128 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"statistics on every present entry; absent host groups surface a present SeriesEntry whose " +
 				"Summary leaves Statistic unset. Streamable via the SERIES dispatch (the MATRIX route is forced " +
 				"buffered through canFuseCrosstab's overlays-force-buffered arm).",
+		}
+	case types.OverlayKindCorrespondence:
+		return descriptor.OverlayCapability{
+			Kind: types.OverlayKindCorrespondence,
+			// Descriptive: no p-value, so no multiplicity site.
+			Inferential: false,
+			Shapes:      []types.OverlayShape{types.OverlayShapeSeries},
+			Scopes:      []types.OverlayScope{types.OverlayScopeMatrix},
+			// No Ref family — implicit-margin like the CHISQ_* kinds.
+			RefKinds: []string{},
+			Description: "Simple correspondence analysis (R's ca::ca) of the host crosstab — a perceptual map placing rows and " +
+				"columns in a few shared dimensions — from the SVD (linalg.SVD) of the standardized residual matrix " +
+				"S = D_r^-1/2 (P - r c^T) D_c^-1/2. MATRIX scope over a MATRIX (crosstab) host. The primary SERIES holds the " +
+				"principal inertia of each of the min(r, c) - 1 dimensions (keys dim_1, dim_2, ...; entry parameters share, " +
+				"cumulative_share, singular_value); Summary.Statistic is the total inertia (chi-square / n) and its parameters " +
+				"carry dimensions, retained_share and share_dim_<k>. payload.parts: row_coordinates / column_coordinates " +
+				"(MATRIX points x retained dimensions, columns keyed dim_1 ...), row_quality / column_quality (SERIES, cos^2 " +
+				"summed over the retained dimensions; parameters mass, inertia) and row_contribution / column_contribution " +
+				"(MATRIX, each point's share of a dimension's inertia). params: dimensions (integer, default 2 capped at " +
+				"min(r, c) - 1; an explicit value above it is PULSE_OVERLAY_PARAM_MISSING) and normalization (symmetric " +
+				"[default: both principal] | row_principal | column_principal). Signs follow linalg.SVD: per dimension the " +
+				"dominant component of the column singular vector is positive. Cells must be non-negative masses: a cell " +
+				"aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED. " +
+				"Zero-total rows / columns are dropped with one PULSE_OVERLAY_REF_ZERO per axis; fewer than 2 x 2 kept points " +
+				"is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Scale-invariant: a weighted host's sum-of-weights table is " +
+				"read as is under either weight kind. Descriptive (no p-value).",
+		}
+	case types.OverlayKindMarkov:
+		return descriptor.OverlayCapability{
+			Kind: types.OverlayKindMarkov,
+			// Descriptive: no p-value, so no multiplicity site.
+			Inferential: false,
+			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
+			Scopes:      []types.OverlayScope{types.OverlayScopeMatrix},
+			// No Ref family — implicit-margin like the CHISQ_* kinds.
+			RefKinds: []string{},
+			Description: "Markov-chain projection of a from-state (rows) x to-state (columns) transition crosstab. MATRIX scope " +
+				"over a MATRIX (crosstab) host. The row and column key sets must be equal as sets (states align by key, " +
+				"never by position, in row order), else PULSE_OVERLAY_MATRIX_NOT_SQUARE (predict refuses different grouper " +
+				"counts on the two axes; runtime also refuses differing key sets) — except that a column-only state named in " +
+				"params.absorbing gets a synthesized unit row (appended after the rows; a PULSE_OVERLAY_REF_ZERO warning with " +
+				"reason absorbing_row_synthesized and Summary.Parameters synthesized_rows). The primary MATRIX is the row-stochastic " +
+				"transition matrix P (each row over its total); a zero row becomes the unit row (the state absorbs) with a " +
+				"PULSE_OVERLAY_REF_ZERO warning. payload.parts: step_<n> (MATRIX P^n for each params.steps entry), " +
+				"distribution_<n> (SERIES initial x P^n, only with params.initial), steady_state (SERIES, power iteration to " +
+				"1e-12 within 10,000 iterations, else the exact linear solve; only for an irreducible aperiodic chain — " +
+				"otherwise the PULSE_OVERLAY_MARKOV_NOT_ERGODIC warning and no part) and absorption_time (SERIES over the " +
+				"non-absorbing states: expected steps to reach the params.absorbing set, (I - Q)^-1 1 through linalg.FactorLU; " +
+				"null with a PULSE_OVERLAY_MARKOV_NOT_ERGODIC warning for a state that may never be absorbed; only with " +
+				"params.absorbing). Summary.Parameters: states, classes, irreducible, period, steady_state_iterations, " +
+				"steady_state_converged, synthesized_rows (only when > 0). params: steps (default [1, 3, 6, 12]; distinct integers 1-1000, at most 64), " +
+				"absorbing (state keys present in the host) and initial (\"margin\" = the observed row-margin distribution, " +
+				"or a state -> share map over host states, normalized; omitted states start at 0); a bad or unknown param, " +
+				"or a key the host lacks, is PULSE_OVERLAY_PARAM_MISSING. Cells must be non-negative masses: a cell " +
+				"aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED. " +
+				"Scale-invariant: a weighted host's sum-of-weights table is read as is under either weight kind. " +
+				"Descriptive (no p-value).",
+		}
+	case types.OverlayKindRake:
+		return descriptor.OverlayCapability{
+			Kind: types.OverlayKindRake,
+			// Descriptive: no p-value, so no multiplicity site.
+			Inferential: false,
+			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
+			Scopes:      []types.OverlayScope{types.OverlayScopeMatrix},
+			// No Ref family — implicit-margin like the CHISQ_* kinds.
+			RefKinds: []string{},
+			Description: "Raking (iterative proportional fitting) of a crosstab to target margins, without mutating the host. " +
+				"MATRIX scope over a MATRIX (crosstab) host. Each sweep scales every row to its target, then every column; " +
+				"sweeps stop once the largest relative margin error is within params.tolerance or params.max_iter have run. " +
+				"The primary MATRIX is the fitted table on the host keys (a zero cell stays zero: structural zeros are kept). " +
+				"payload.parts: factors (MATRIX fitted / observed, null where the observed cell is 0). Summary.Parameters: " +
+				"iterations, residual (the final largest relative margin error), converged (1 / 0); a fit short of the " +
+				"tolerance still emits, converged 0, with the PULSE_OVERLAY_RAKE_NOT_CONVERGED warning. params: row_targets " +
+				"and col_targets (required key -> value maps naming every host key of their axis and no other, else " +
+				"PULSE_OVERLAY_RAKE_TARGET_MISMATCH — predict refuses a target key outside a categorical axis's dictionary, " +
+				"runtime any mismatch with the observed keys), targets_as (\"shares\" default: each axis normalized and " +
+				"scaled to the host grand total; \"counts\": taken as given, and row and column totals that differ are " +
+				"PULSE_OVERLAY_RAKE_TARGET_MISMATCH), max_iter (default 100, 1-100,000) and tolerance (default 1e-8, " +
+				"above 0 and below 1); a bad or unknown param is PULSE_OVERLAY_PARAM_MISSING. Cells must be non-negative " +
+				"masses: a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is " +
+				"PULSE_OVERLAY_NONNEGATIVE_REQUIRED. A weighted host's sum-of-weights table is raked as is under either " +
+				"weight kind. Writing raked weights back to a cohort is out of scope. Descriptive (no p-value).",
+		}
+	case types.OverlayKindMatrixGroupSummary:
+		return descriptor.OverlayCapability{
+			Kind: types.OverlayKindMatrixGroupSummary,
+			// Descriptive: no p-value, so no multiplicity site.
+			Inferential: false,
+			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
+			Scopes:      []types.OverlayScope{types.OverlayScopeMatrix},
+			RefKinds:    []string{"Matrix"},
+			Description: "Summary of a GROUPED matrix result across its group buckets — the MATRIX_RESULT host: " +
+				"Request.Overlays on a request carrying Request.Matrices and Request.Groups (no crosstab), on a process " +
+				"request or a Compose slot. Ref.Matrix.name names the Request.Matrices spec by its effective name " +
+				"(name, else <TYPE>_<vector> / <TYPE>; unknown is PULSE_OVERLAY_REFERENCE_UNKNOWN), and every bucket's " +
+				"primary matrix is read (an upper encoding expanded first) after the multiplicity fold. The primary " +
+				"MATRIX is the per-cell unweighted mean across buckets; payload.parts: min, max, range and n_groups " +
+				"(MATRIX each). Keys are the union of the buckets' row / column keys; a null cell or a key a bucket lacks " +
+				"contributes nothing, and a cell no bucket contributes to is null (n_groups 0). An ungrouped request is " +
+				"PULSE_OVERLAY_GROUPS_REQUIRED. No params; scope matrix; Level / Within 0. Refused on the Compose, chain " +
+				"and facet overlay slots and on a ProcessChain stage. Descriptive (no p-value).",
+		}
+	case types.OverlayKindStdResidual:
+		return descriptor.OverlayCapability{
+			Kind:        types.OverlayKindStdResidual,
+			Inferential: true,
+			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
+			Scopes:      []types.OverlayScope{types.OverlayScopeCell},
+			// No Ref family — implicit-margin like the CHISQ_* kinds.
+			RefKinds: []string{},
+			Description: "Haberman adjusted standardized residual of every host crosstab cell, " +
+				"(O - E) / sqrt(E (1 - r/N) (1 - c/N)) with E = r c / N — R's chisq.test()$stdres. CELL scope " +
+				"over a MATRIX (crosstab) host with MATRIX payload: each cell's value is its residual (about " +
+				"standard normal under independence; |z| > 1.96 marks a cell driving the table's chi-square). " +
+				"payload.parts carries \"expected\" (the expected counts) and \"p\" (the two-sided normal p-value " +
+				"of each residual), both MATRIX on the host coordinates; a multiplicity block adjusts the p part " +
+				"into payload.p_adjusted / significant_adjusted. The Ref union is left empty (implicit-margin). " +
+				"Weighted hosts follow OVERLAY_CHISQ_MATRIX (the Σw table; under kind probability scaled to its " +
+				"Kish n_eff first). A zero-expected cell's residual and p are null; any expected count below 5 " +
+				"emits one PULSE_OVERLAY_EXPECTED_LOW. A host smaller than 2 x 2 or with a zero grand total is " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.",
 		}
 	case types.OverlayKindTCell:
 		return descriptor.OverlayCapability{

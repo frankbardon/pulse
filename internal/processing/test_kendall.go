@@ -31,8 +31,11 @@ import (
 //	         − Σ t_x(t_x−1)(2t_x+5) − Σ t_y(t_y−1)(2t_y+5) ) / 18
 //	         + extra ties cross-term (Kendall 1948 formula).
 //
-// p-value via the standard normal: z = (S − sign(S)) / √Var(S);
-// p = 2(1−Φ(|z|)).
+// p-value: R cor.test(method = "kendall")'s default (exact = NULL,
+// continuity = FALSE) via kendallCorTestP (rank_cortest.go) — the exact
+// null distribution of C when untied and n < 50, else
+// z = S / √Var(S), p = 2(1−Φ(|z|)) — the same function the matrix's
+// Kendall cells call.
 //
 // Frequency-weighted (ClassFrequencyOnly), each pair stands for w
 // identical pairs: a row pair (i, j) counts w_i·w_j times in C, D, T_x
@@ -132,31 +135,15 @@ func (k *kendallTauRow) Finalize() (*types.TestResult, error) {
 	_, tiesX := weightedMidRanks(xs, ws)
 	_, tiesY := weightedMidRanks(k.ys, ws)
 	nf := k.xs.sumW // n unweighted
-	v0 := nf * (nf - 1) * (2*nf + 5)
-	vt := tieKendallSumW(tiesX)
-	vu := tieKendallSumW(tiesY)
-	v1 := 0.0
-	if nf > 1 {
-		v1 = tieKendallV1W(tiesX) * tieKendallV1W(tiesY) / (2 * nf * (nf - 1))
-	}
-	v2 := 0.0
-	if nf > 2 {
-		v2 = tieKendallV2W(tiesX) * tieKendallV2W(tiesY) / (9 * nf * (nf - 1) * (nf - 2))
-	}
-	varS := (v0-vt-vu)/18 + v1 + v2
-	var z, p float64
-	if varS <= 0 || S == 0 {
-		z = 0
-		p = 1
-	} else {
-		corrected := S
-		if S > 0 {
-			corrected -= 1
-		} else {
-			corrected += 1
-		}
-		z = corrected / math.Sqrt(varS)
-		p = normalTwoSidedP(z)
+	varS := kendallVarS(nf, tiesX, tiesY)
+	// p is R cor.test's default (kendallCorTestP, shared with the
+	// matrix's Kendall cells): exact when untied and n < 50, else the
+	// normal approximation with no continuity correction. z is that
+	// approximation's deviate S/√Var(S), reported on both paths.
+	p := kendallCorTestP(tau, c, d, nf, tiesX, tiesY)
+	z := 0.0
+	if varS > 0 {
+		z = S / math.Sqrt(varS)
 	}
 	res := &types.TestResult{
 		Label:      testLabel(k.spec),
@@ -199,10 +186,8 @@ func kendallPairMass(v float64, weighted bool) any {
 	return int64(v)
 }
 
-// tieKendallSum returns Σ t_i(t_i−1)(2t_i+5) used by Var(S).
-func tieKendallSum(ties []int) float64 { return tieKendallSumW(intsToFloats(ties)) }
-
-// tieKendallSumW is tieKendallSum over weighted tie-group sizes.
+// tieKendallSumW returns Σ t_i(t_i−1)(2t_i+5) over (weighted) tie-group
+// sizes, used by Var(S).
 func tieKendallSumW(ties []float64) float64 {
 	sum := 0.0
 	for _, t := range ties {
@@ -211,10 +196,8 @@ func tieKendallSumW(ties []float64) float64 {
 	return sum
 }
 
-// tieKendallV1 returns Σ t_i(t_i−1) used by the Kendall v1 cross-term.
-func tieKendallV1(ties []int) float64 { return tieKendallV1W(intsToFloats(ties)) }
-
-// tieKendallV1W is tieKendallV1 over weighted tie-group sizes.
+// tieKendallV1W returns Σ t_i(t_i−1) over (weighted) tie-group sizes,
+// used by the Kendall v1 cross-term.
 func tieKendallV1W(ties []float64) float64 {
 	sum := 0.0
 	for _, t := range ties {
@@ -223,10 +206,8 @@ func tieKendallV1W(ties []float64) float64 {
 	return sum
 }
 
-// tieKendallV2 returns Σ t_i(t_i−1)(t_i−2) used by the v2 cross-term.
-func tieKendallV2(ties []int) float64 { return tieKendallV2W(intsToFloats(ties)) }
-
-// tieKendallV2W is tieKendallV2 over weighted tie-group sizes.
+// tieKendallV2W returns Σ t_i(t_i−1)(t_i−2) over (weighted) tie-group
+// sizes, used by the v2 cross-term.
 func tieKendallV2W(ties []float64) float64 {
 	sum := 0.0
 	for _, t := range ties {

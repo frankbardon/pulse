@@ -105,7 +105,7 @@ E6 (result overlays on crosstabs) depends only on `linalg` and the MATRIX_RESULT
 ## Open questions (need a decision before the relevant epic)
 
 1. ~~**Vector-valued aggregator output (E5).**~~ **Decided:** an array in `Response.Data`, with `params.expand: true` for tabular consumers.
-2. **Correspondence-analysis payload (E6).** Should it be a two-axis payload (`Series2`), two layers, or a new `coordinates` shape? A new shape is cleanest but widens the overlay payload union.
+2. ~~**Correspondence-analysis payload (E6).**~~ **Decided (U28):** one overlay payload with `Parts` (named row-coordinate and column-coordinate parts, declared per kind in the manifest as `OverlayCapability.Parts`); no new top-level shape.
 3. ~~**Request-level default weight (X1).**~~ **Decided:** its own theme, [statistical integrity 01](../v1.0.0-statistical-integrity/01-weighting.md), landing before E2.
 4. **Pairwise-deletion default.** `listwise` is safe; SPSS defaults vary by procedure. Should Pulse ever default to pairwise for `MAT_CORRELATION` alone?
 5. **Probability vs frequency weights in inference.** Should probability weights use Kish effective-n in v1.0.0, or should design-based variance (stratification, clustering) be out of scope? The latter is recommended.

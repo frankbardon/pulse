@@ -81,13 +81,16 @@ func predictReferences(env *descriptor.Envelope, req *types.Request, schema *enc
 // records is the cohort's record count (-1 when unknown): a buffered
 // spec's RowBufferBytes is records × vectors.Matrix.RowBytes, added to
 // EstimatedBytes.
-func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, blocks, buffered, records int64) {
+//
+// It returns the resolved plans, one per result.Matrices entry in the
+// same order (nil when nothing was echoed), for the response size model.
+func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, blocks, buffered, records int64) []vectors.Matrix {
 	if req == nil || len(req.Matrices) == 0 {
-		return
+		return nil
 	}
 	plans, err := resolveMatricesFor(req, schema, snap, inst)
 	if err != nil {
-		return
+		return nil
 	}
 	buckets, basis, known := vectors.EstimateBuckets(req.Groups, schema)
 	out := make([]descriptor.MatrixPredict, 0, len(plans))
@@ -172,4 +175,5 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 		out = append(out, mp)
 	}
 	result.Matrices = out
+	return plans
 }

@@ -85,6 +85,11 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 		}
 		stageSets[i] = set
 	}
+	// A MATRIX_RESULT overlay on a stage's own Request.Overlays is
+	// refused before any stage runs (ValidateChain's rule, same point).
+	if err := descx.ChainStageOverlayRefusal(req.Stages, s.instance); err != nil {
+		return nil, err
+	}
 	// Every stage's multiplicity blocks resolve before the cohort opens
 	// — each stage a standalone Request with its own `request` family,
 	// the order ValidateChain reports in. plans is index-aligned with
