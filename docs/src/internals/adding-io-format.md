@@ -362,6 +362,61 @@ inventing an empty-string value where the cohort held a null would be
 new data. `internal/io/nullcell/` pins every row of that table, including the
 three gaps — flipping an entry fails the matrix.
 
+### Native list cells: `io.ListAwareReader`
+
+A source whose cells can hold a typed numeric list — Arrow
+FixedSizeList / LIST, Parquet LIST, a JSON array, or an embedder's own
+in-memory or remote source — implements the optional
+`io.ListAwareReader` so a column-less vector declaration
+(`ImportJob.Vectors` entry carrying only a `Name`; CLI `--vector NAME`)
+reads that column as one native `vec_f64` / `vec_f32` field without the
+elements ever round-tripping through the `[]string` row:
+
+```go
+type ListAwareReader interface {
+    Reader
+    RowList(col int, dst *ListCell)
+}
+```
+
+The contract, which an embedder's reader gets on exactly the same
+terms as the built-ins:
+
+- **When.** `RowList` is called only under a column-less declaration,
+  only inside the `ReadRows` callback, for the row that call was
+  handed, and only for the declared column (`col` indexes the header
+  `ReadHeader` returned). It is never called for a cell the source
+  declares null through `io.NullAwareReader.RowNulls`. Without such a
+  declaration an import never calls it, so implementing it moves no
+  byte of any other import. The cell's row TEXT is never read under the
+  declaration — render it however the source likes.
+- **Rewind.** The dim is probed before the import pass (rows are read
+  until the column shows a non-null list, then `Reset` and `ReadHeader`
+  again), so the reader must also be an `io.ResetReader`.
+- **The cell.** Fill `dst` with `Reset(state)` then `Append(v, null)`;
+  both reuse the slices' capacity, and the import hands the same
+  `ListCell` back every row, so never retain it. `io.ListNull` is a
+  null vector; `io.ListValues` carries `Values` (and `Nulls`, which may
+  be left nil when no element is null, else exactly `len(Values)`).
+  A vector has no per-element null: a null element is stored as NaN
+  whatever `Values` holds there, and a list whose elements are all null
+  is a null vector. Every list must have the first non-null list's
+  length.
+- **Refusals.** `RowList` returns no error. A cell the vector cannot
+  hold is reported through `State` — `io.ListNotList` (with `BadValue`)
+  or `io.ListNonNumeric` (with the 0-based `BadIndex` and `BadValue`)
+  — and the import refuses with `PULSE_IMPORT_VECTOR_INVALID`
+  (`not_a_list`, `element_not_numeric`); a cell outside the contract
+  (an undeclared `State`, a `Nulls` of the wrong length) is
+  `malformed_list_cell`. A read failure belongs to `ReadRows`. A
+  source WITHOUT the interface refuses the declaration with
+  `no_columns`.
+
+`io/list_reader_test.go` pins a custom reader against the NDJSON list
+import of the same data, byte for byte, and
+`internal/embeddersmoke` proves the interface is reachable from an
+external module.
+
 ### Authoritative schemas: `io.SchemaAwareReader`
 
 By default `ImportJob.Run` samples up to `SampleRows` rows and votes

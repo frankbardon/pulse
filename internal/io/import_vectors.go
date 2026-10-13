@@ -40,7 +40,8 @@ import (
 // (a null element is NaN, an all-null list a null vector, a null cell a
 // null vector), and anything else refuses the whole import with
 // PULSE_IMPORT_VECTOR_INVALID (reasons list_length_varies,
-// element_not_numeric, not_a_list, list_dim_unknown, dim_out_of_range).
+// element_not_numeric, not_a_list, list_dim_unknown, dim_out_of_range,
+// malformed_list_cell for a ListCell outside its contract).
 // No labels are written: no list format carries element names. A source
 // with no typed lists (CSV / TSV / Excel) refuses the declaration with
 // reason "no_columns". Without a column-less declaration the list
@@ -558,11 +559,45 @@ func checkListCell(v *resolvedVector, cell *iocore.ListCell, row int, sized bool
 		return vectorInvalid("element_not_numeric",
 			fmt.Sprintf("vector %q: column %q row %d element %d is %s, which is not a number", v.name, v.cols[0], row, cell.BadIndex, cell.BadValue),
 			map[string]any{"vector": v.name, "column": v.cols[0], "row": row, "element": cell.BadIndex, "value": cell.BadValue})
+	case iocore.ListNull:
 	case iocore.ListValues:
+		if err := normalizeListCell(v, cell, row); err != nil {
+			return err
+		}
 		if sized && len(cell.Values) != v.meta.Dim {
 			return vectorInvalid("list_length_varies",
 				fmt.Sprintf("vector %q: column %q row %d holds a %d-element list, but the vector's dim is %d (every list must have the same length)", v.name, v.cols[0], row, len(cell.Values), v.meta.Dim),
 				map[string]any{"vector": v.name, "column": v.cols[0], "row": row, "length": len(cell.Values), "dim": v.meta.Dim})
+		}
+	default:
+		return vectorInvalid("malformed_list_cell",
+			fmt.Sprintf("vector %q: the source reported list state %d for column %q row %d, which is not a ListState", v.name, cell.State, v.cols[0], row),
+			map[string]any{"vector": v.name, "column": v.cols[0], "row": row, "state": int(cell.State)})
+	}
+	return nil
+}
+
+// normalizeListCell holds a ListValues cell to the ListCell contract a
+// reader outside this module may not have kept: Nulls nil means no null
+// element (padded to len(Values) so the all-null check sees every
+// element), any other length mismatch is malformed_list_cell, and a
+// null element is NaN whatever Values held. The built-in sources fill
+// cells through Append, which already keeps all three.
+func normalizeListCell(v *resolvedVector, cell *iocore.ListCell, row int) error {
+	switch {
+	case len(cell.Nulls) == len(cell.Values):
+	case len(cell.Nulls) == 0:
+		for range cell.Values {
+			cell.Nulls = append(cell.Nulls, false)
+		}
+	default:
+		return vectorInvalid("malformed_list_cell",
+			fmt.Sprintf("vector %q: the source reported %d element values but %d null marks for column %q row %d; Nulls must be nil or as long as Values", v.name, len(cell.Values), len(cell.Nulls), v.cols[0], row),
+			map[string]any{"vector": v.name, "column": v.cols[0], "row": row, "length": len(cell.Values), "nulls_length": len(cell.Nulls)})
+	}
+	for e, null := range cell.Nulls {
+		if null {
+			cell.Values[e] = math.NaN()
 		}
 	}
 	return nil

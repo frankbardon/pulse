@@ -2,6 +2,7 @@ package iocore
 
 import (
 	"context"
+	"math"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -684,39 +685,72 @@ type OverlayWarningEmitter interface {
 	OverlayWarnings() []*errors.CodedError
 }
 
-// ListState classifies one row's cell as a native list (ListAwareReader).
+// ListState classifies one row's cell as read through
+// [ListAwareReader.RowList]. The zero value is ListNull.
 type ListState uint8
 
 const (
-	// ListNull is a null (or absent) cell: a null vector.
+	// ListNull is a null (or absent) cell: the vector is null for this
+	// row. Values / Nulls are ignored.
 	ListNull ListState = iota
-	// ListValues is a present list whose every element is numeric or
-	// null; Values / Nulls carry it.
+	// ListValues is a present list whose every element is a number or a
+	// null; Values / Nulls carry it. A list whose elements are ALL null
+	// is a null vector too, exactly as a ListNull cell.
 	ListValues
 	// ListNotList is a present cell that is not a list at all (a JSON
-	// scalar in a column a vector declaration reads as a list).
+	// scalar where a list was expected). BadValue names the cell as the
+	// refusal should quote it. The import is refused.
 	ListNotList
 	// ListNonNumeric is a present list holding an element that is not a
-	// number (a string, a boolean); BadIndex / BadValue name the first.
+	// number (a string, a boolean, a value float64 cannot hold).
+	// BadIndex is that element's 0-based index and BadValue names it.
+	// The import is refused.
 	ListNonNumeric
 )
 
 // ListCell is one row's cell read as a typed numeric list, straight off
-// the source's own typed state — never parsed back out of the row text,
-// which a list source pipe-joins for the set_* ladder.
+// the source's own typed state — never parsed back out of the []string
+// row text, which a list source is free to render however it likes (the
+// built-in list sources pipe-join it for the set_* ladder).
 //
-// Values[e] is element e (NaN at a null element) and Nulls[e] marks the
-// null elements; both are len(list) for a ListValues cell. The slices
-// are reused across calls: valid only until the next RowList.
+// # Elements
+//
+// For a ListValues cell, Values[e] is element e as a float64 and Nulls
+// marks the null elements. Nulls is either nil (no element is null) or
+// exactly len(Values) long; any other length is a malformed cell and
+// refuses the import. A vector has no per-element null: a null element
+// is stored as a NaN element whatever Values holds at its index, and a
+// NaN in Values is stored as-is. Nulls matters for one more thing — a
+// list whose elements are all null is a null vector. The list's
+// length is the vector's dim: the first non-null list fixes it and
+// every later list must match it.
+//
+// # Ownership
+//
+// The import owns the ListCell and hands the same one back on every
+// call for a given column, so a reader should fill it with Reset then
+// Append — which reuse the slices' capacity — rather than allocating.
+// The reader must not retain dst, or any slice in it, after RowList
+// returns; the import reads it before the next RowList call.
 type ListCell struct {
-	State    ListState
-	Values   []float64
-	Nulls    []bool
+	// State classifies the cell. A value outside the declared
+	// ListState constants is a malformed cell and refuses the import.
+	State ListState
+	// Values holds the elements of a ListValues cell, in order.
+	Values []float64
+	// Nulls marks the null elements of a ListValues cell: nil, or
+	// len(Values) long.
+	Nulls []bool
+	// BadIndex is the 0-based index of the offending element of a
+	// ListNonNumeric cell.
 	BadIndex int
+	// BadValue is the offending value of a ListNotList or ListNonNumeric
+	// cell, rendered for the refusal's message and details.
 	BadValue string
 }
 
-// Reset empties c for reuse, keeping its slices' capacity.
+// Reset empties c for reuse as a state cell, keeping its slices'
+// capacity and clearing BadIndex / BadValue.
 func (c *ListCell) Reset(state ListState) {
 	c.State = state
 	c.Values = c.Values[:0]
@@ -725,27 +759,50 @@ func (c *ListCell) Reset(state ListState) {
 	c.BadValue = ""
 }
 
-// Append adds one element (null → NaN).
+// Append adds one element to a ListValues cell; a null element is
+// stored as NaN whatever v is.
 func (c *ListCell) Append(v float64, null bool) {
+	if null {
+		v = math.NaN()
+	}
 	c.Values = append(c.Values, v)
 	c.Nulls = append(c.Nulls, null)
 }
 
 // ListAwareReader is an optional extension of Reader for sources whose
 // cells can hold NATIVE lists — Arrow FixedSizeList / LIST, Parquet
-// LIST, a JSON array. The []string row renders such a cell pipe-joined
-// for the set_* ladder; a vector declaration with no column list
-// (import `--vector NAME`) reads the cell typed through this channel
-// instead, so the elements never round-trip through text.
+// LIST, a JSON array, or an embedder's own typed source. A vector
+// declaration with no columns and no pattern (ImportJob.Vectors entry
+// carrying only a Name; CLI `--vector NAME`) reads the source column of
+// that name through this channel as one native vector, so the elements
+// never round-trip through text.
 //
-// It is consulted ONLY under such a declaration: without one, an
-// import of a list source is byte-identical whether or not the source
-// implements this interface. A source without it (CSV / TSV / Excel)
-// refuses a column-less vector declaration.
+// # When it is consulted
+//
+// ONLY under such a declaration: without one an import never calls
+// RowList, and a source is imported byte-identically whether or not it
+// implements this interface. A source without it refuses a column-less
+// declaration with PULSE_IMPORT_VECTOR_INVALID (details.reason
+// "no_columns"). The vector's dim is probed from the data before the
+// import pass, so a list-aware source must also implement ResetReader
+// (else the same refusal); the probe reads rows until each list vector
+// has seen a non-null list, then calls Reset and ReadHeader again.
+//
+// # Refusals
+//
+// RowList returns no error: a cell the vector cannot hold is reported
+// through ListCell.State (ListNotList, ListNonNumeric) and the import
+// turns it into PULSE_IMPORT_VECTOR_INVALID with the row and column,
+// refusing the whole import. A failure to read the source belongs to
+// ReadRows, which RowList runs inside.
 type ListAwareReader interface {
 	Reader
 	// RowList fills dst with the current row's column col (an index into
-	// the header ReadHeader returned) read as a numeric list. Valid only
-	// inside the ReadRows callback.
+	// the header ReadHeader returned) read as a numeric list. It is
+	// called only inside the ReadRows callback, for the row that call
+	// was handed, and only for a column a column-less vector
+	// declaration names. It is not called for a cell the source declares
+	// null through NullAwareReader.RowNulls; the import treats that cell
+	// as ListNull itself.
 	RowList(col int, dst *ListCell)
 }

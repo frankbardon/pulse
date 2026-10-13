@@ -2890,6 +2890,27 @@ pulse/io: type LabelWarning underlying struct
 pulse/io: type LabelWarning field Code string
 pulse/io: type LabelWarning field Details map[string]any
 pulse/io: type LabelWarning field Message string
+pulse/io: type ListAwareReader = pulse/internal/iocore.ListAwareReader
+pulse/io: type ListAwareReader underlying interface
+pulse/io: type ListAwareReader imethod Close() error
+pulse/io: type ListAwareReader imethod ReadHeader() ([]string, error)
+pulse/io: type ListAwareReader imethod ReadRows(ctx context.Context, fn func(row []string) error) error
+pulse/io: type ListAwareReader imethod RowList(col int, dst *pulse/internal/iocore.ListCell)
+pulse/io: type ListCell = pulse/internal/iocore.ListCell
+pulse/io: type ListCell underlying struct
+pulse/io: type ListCell field BadIndex int
+pulse/io: type ListCell field BadValue string
+pulse/io: type ListCell field Nulls []bool
+pulse/io: type ListCell field State pulse/internal/iocore.ListState
+pulse/io: type ListCell field Values []float64
+pulse/io: type ListCell method (*ListCell) Append(v float64, null bool)
+pulse/io: type ListCell method (*ListCell) Reset(state pulse/internal/iocore.ListState)
+pulse/io: const ListNonNumeric pulse/internal/iocore.ListState = 3
+pulse/io: const ListNotList pulse/internal/iocore.ListState = 2
+pulse/io: const ListNull pulse/internal/iocore.ListState = 0
+pulse/io: type ListState = pulse/internal/iocore.ListState
+pulse/io: type ListState underlying uint8
+pulse/io: const ListValues pulse/internal/iocore.ListState = 1
 pulse/io: func NewExportJob(source string, target pulse/io.Writer) *pulse/io.ExportJob
 pulse/io: func NewImportJob(source pulse/io.Reader, target string) *pulse/io.ImportJob
 pulse/io: func NewReader(f pulse/io.Format, fs github.com/spf13/afero.Fs, path string, opts pulse/io.ReaderOptions) (pulse/io.Reader, error)
@@ -5039,4 +5060,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 3c55b026166093b9720d1097c11c0b730bed27a519a70a6a5c575a8840613f02
+// golden-hash: 4ebb6250f68caad1d84f987d79aec35d8928c0dd392f4343e24ae37dc8873e9d

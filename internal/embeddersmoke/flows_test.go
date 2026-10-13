@@ -787,3 +787,61 @@ func TestTemplateConstants(t *testing.T) {
 		t.Fatalf("rendered = %+v", rendered)
 	}
 }
+
+// listSource is an embedder's own typed source: it implements the
+// public io.ListAwareReader, so a column-less vector declaration reads
+// its "emb" column as one native vector, exactly as a built-in Arrow /
+// Parquet / JSON list source would.
+type listSource struct {
+	lists [][]float64
+	cur   int
+}
+
+func (s *listSource) ReadHeader() ([]string, error) { return []string{"id", "emb"}, nil }
+func (s *listSource) Reset() error                  { return nil }
+func (s *listSource) Close() error                  { return nil }
+func (s *listSource) ReadRows(ctx context.Context, fn func([]string) error) error {
+	for i := range s.lists {
+		s.cur = i
+		if err := fn([]string{itoa(i + 1), ""}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (s *listSource) RowList(col int, dst *pio.ListCell) {
+	dst.Reset(pio.ListValues)
+	for _, v := range s.lists[s.cur] {
+		dst.Append(v, false)
+	}
+}
+
+var _ pio.ListAwareReader = (*listSource)(nil)
+
+func TestCustomListReaderImportsVector(t *testing.T) {
+	p, fs := newEngine(t, pulse.Options{})
+	ctx := context.Background()
+	src := &listSource{lists: [][]float64{{1, 2, 3}, {4, 5, 6}}}
+	job := pio.NewImportJob(src, "emb.pulse")
+	job.FS = fs
+	job.Vectors = []pio.VectorDecl{{Name: "emb"}}
+	if _, err := p.Import(ctx, job); err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	c, err := p.Open(ctx, "emb.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := c.Reader()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	got, err := r.RecordAt(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := got[1].([]float64); !ok || len(v) != 3 || v[0] != 4 || v[2] != 6 {
+		t.Fatalf("RecordAt(1)[emb] = %#v, want [4 5 6]", got[1])
+	}
+}

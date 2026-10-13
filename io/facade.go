@@ -327,6 +327,83 @@ type LabelResolver = iio.LabelResolver
 // CLI / MCP envelope wrapper promotes them to envelope warnings.
 type LabelWarning = iio.LabelWarning
 
+// ListAwareReader is an optional extension of Reader for sources whose
+// cells can hold NATIVE lists — Arrow FixedSizeList / LIST, Parquet
+// LIST, a JSON array, or an embedder's own typed source. A vector
+// declaration with no columns and no pattern (ImportJob.Vectors entry
+// carrying only a Name; CLI `--vector NAME`) reads the source column of
+// that name through this channel as one native vector, so the elements
+// never round-trip through text.
+//
+// # When it is consulted
+//
+// ONLY under such a declaration: without one an import never calls
+// RowList, and a source is imported byte-identically whether or not it
+// implements this interface. A source without it refuses a column-less
+// declaration with PULSE_IMPORT_VECTOR_INVALID (details.reason
+// "no_columns"). The vector's dim is probed from the data before the
+// import pass, so a list-aware source must also implement ResetReader
+// (else the same refusal); the probe reads rows until each list vector
+// has seen a non-null list, then calls Reset and ReadHeader again.
+//
+// # Refusals
+//
+// RowList returns no error: a cell the vector cannot hold is reported
+// through ListCell.State (ListNotList, ListNonNumeric) and the import
+// turns it into PULSE_IMPORT_VECTOR_INVALID with the row and column,
+// refusing the whole import. A failure to read the source belongs to
+// ReadRows, which RowList runs inside.
+type ListAwareReader = iocore.ListAwareReader
+
+// ListCell is one row's cell read as a typed numeric list, straight off
+// the source's own typed state — never parsed back out of the []string
+// row text, which a list source is free to render however it likes (the
+// built-in list sources pipe-join it for the set_* ladder).
+//
+// # Elements
+//
+// For a ListValues cell, Values[e] is element e as a float64 and Nulls
+// marks the null elements. Nulls is either nil (no element is null) or
+// exactly len(Values) long; any other length is a malformed cell and
+// refuses the import. A vector has no per-element null: a null element
+// is stored as a NaN element whatever Values holds at its index, and a
+// NaN in Values is stored as-is. Nulls matters for one more thing — a
+// list whose elements are all null is a null vector. The list's
+// length is the vector's dim: the first non-null list fixes it and
+// every later list must match it.
+//
+// # Ownership
+//
+// The import owns the ListCell and hands the same one back on every
+// call for a given column, so a reader should fill it with Reset then
+// Append — which reuse the slices' capacity — rather than allocating.
+// The reader must not retain dst, or any slice in it, after RowList
+// returns; the import reads it before the next RowList call.
+type ListCell = iocore.ListCell
+
+// ListState classifies one row's cell as read through
+// [ListAwareReader.RowList]. The zero value is ListNull.
+type ListState = iocore.ListState
+
+const (
+	// ListNull is a null (or absent) cell: the vector is null for this
+	// row. Values / Nulls are ignored.
+	ListNull = iocore.ListNull
+	// ListValues is a present list whose every element is a number or a
+	// null; Values / Nulls carry it. A list whose elements are ALL null
+	// is a null vector too, exactly as a ListNull cell.
+	ListValues = iocore.ListValues
+	// ListNotList is a present cell that is not a list at all (a JSON
+	// scalar where a list was expected). BadValue names the cell as the
+	// refusal should quote it. The import is refused.
+	ListNotList = iocore.ListNotList
+	// ListNonNumeric is a present list holding an element that is not a
+	// number (a string, a boolean, a value float64 cannot hold).
+	// BadIndex is that element's 0-based index and BadValue names it.
+	// The import is refused.
+	ListNonNumeric = iocore.ListNonNumeric
+)
+
 // NullAwareReader is an optional extension of Reader for sources whose
 // format carries an explicit null channel — JSON null, an Arrow or
 // Parquet validity bit — that the []string row cannot express.
