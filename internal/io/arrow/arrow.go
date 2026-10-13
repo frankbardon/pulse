@@ -395,6 +395,11 @@ type Writer struct {
 	// source null token, so a convert's Arrow output is unchanged.
 	explicitNulls bool
 
+	// lists are the native vector columns (iocore.ListAwareWriter), by
+	// header position: FixedSizeList<float32|float64, dim> columns
+	// whatever the rest of the layout falls back to.
+	lists map[int]iocore.ListColumn
+
 	// Lazily-initialized arrow writer state. Built on first WriteRow once
 	// the schema (column names) is known. Reused across all batches.
 	alloc   memory.Allocator
@@ -415,6 +420,14 @@ func (w *Writer) SetPulseSchema(s *encoding.Schema) {
 
 // SetExplicitNulls implements iocore.NullAwareWriter.
 func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
+
+// SetListColumns implements iocore.ListAwareWriter: each named column is
+// a FixedSizeList<float32|float64, dim>, by position, so it holds even
+// when projection or a label augment drops the rest of the layout to
+// strings.
+func (w *Writer) SetListColumns(cols []iocore.ListColumn) {
+	w.lists = ListColumnIndex(cols)
+}
 
 // SetOverlays records the Response.Overlays layers the export pipeline
 // wants the writer to embed in the Arrow file. The layers ride as a
@@ -487,6 +500,11 @@ func (w *Writer) initWriter() error {
 	} else {
 		for i, name := range w.columns {
 			arrowFields[i] = arrow.Field{Name: name, Type: arrow.BinaryTypes.String}
+		}
+	}
+	for c, lc := range w.lists {
+		if c < hostFieldCount {
+			arrowFields[c] = VectorArrowField(lc, true)
 		}
 	}
 	if hasOverlays {
@@ -648,6 +666,9 @@ func AppendOverlayLayerStruct(structBldr *array.StructBuilder, layer *types.Over
 // appendCell appends a single cell value to column c's builder, picking
 // the typed builder when the source schema declared a non-string type.
 func (w *Writer) appendCell(c int, v any) error {
+	if lc, ok := w.lists[c]; ok {
+		return AppendVectorList(w.bldr.Field(c), lc.Dim, v)
+	}
 	if w.pulseSchema != nil && c < len(w.pulseSchema.Fields) {
 		f := w.pulseSchema.Fields[c]
 		switch {
@@ -815,6 +836,7 @@ var _ iocore.ResetReader = (*Reader)(nil)
 var _ iocore.Writer = (*Writer)(nil)
 var _ iocore.SchemaAwareWriter = (*Writer)(nil)
 var _ iocore.NullAwareWriter = (*Writer)(nil)
+var _ iocore.ListAwareWriter = (*Writer)(nil)
 var _ iocore.NullAwareReader = (*Reader)(nil)
 var _ iocore.SourceWarningEmitter = (*Reader)(nil)
 var _ iocore.OverlayAwareWriter = (*Writer)(nil)

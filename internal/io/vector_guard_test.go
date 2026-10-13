@@ -21,18 +21,21 @@ func vecGuardSchema() *encoding.Schema {
 	}, Vectors: []encoding.VectorField{{FieldIndex: 1, Dim: 2}}}
 }
 
-// TestExport_VectorFieldRefused: export has no column mapping for a
-// vector yet; its read would end the loop like a truncated tail and
-// export zero rows with no error, so it is refused up front.
-func TestExport_VectorFieldRefused(t *testing.T) {
+// TestExport_VectorFieldExported: a vector cohort written byte by byte
+// exports every record — the vector arm reads element × dim bytes, where
+// the uint64 value API's refusal used to end the loop like a truncated
+// tail and export zero rows with no error.
+func TestExport_VectorFieldExported(t *testing.T) {
 	s := vecGuardSchema()
 	var b bytes.Buffer
 	if err := encx.WritePreamble(&b, s); err != nil {
 		t.Fatal(err)
 	}
-	b.WriteByte(1)
-	if err := encoding.WriteVector(&b, encoding.FieldTypeVecF64, 2, []float64{1, 2}); err != nil {
-		t.Fatal(err)
+	for _, row := range [][]float64{{1, 2}, {3, 4}} {
+		b.WriteByte(byte(row[0]))
+		if err := encoding.WriteVector(&b, encoding.FieldTypeVecF64, 2, row); err != nil {
+			t.Fatal(err)
+		}
 	}
 	fs := afero.NewMemMapFs()
 	if err := afero.WriteFile(fs, "vec.pulse", b.Bytes(), 0o644); err != nil {
@@ -41,12 +44,15 @@ func TestExport_VectorFieldRefused(t *testing.T) {
 	w := &collectWriter{}
 	job := NewExportJob("vec.pulse", w)
 	job.FS = fs
-	_, err := job.Run(context.Background())
-	if !errors.HasCode(err, errors.ENCODING_TYPE_MISMATCH) {
-		t.Fatalf("err = %v, want ENCODING_TYPE_MISMATCH", err)
+	rep, err := job.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(w.rows) != 0 {
-		t.Fatalf("exported %d rows before refusing", len(w.rows))
+	if rep.RowsExported != 2 || len(w.rows) != 2 {
+		t.Fatalf("exported %d rows (%d written), want 2", rep.RowsExported, len(w.rows))
+	}
+	if got := fmt.Sprint(w.rows); got != "[[1 1 2] [3 3 4]]" {
+		t.Fatalf("rows %s", got)
 	}
 }
 
@@ -147,5 +153,30 @@ func TestCohortBuilder_VectorCells(t *testing.T) {
 	}
 	if rows[1][0] != nil || !nullA[1] || fmt.Sprint(rows[1][1]) != "[0 0 0]" {
 		t.Errorf("row 1 = %v (null a %v) / %v, want null a and zeros", rows[1][0], nullA[1], rows[1][1])
+	}
+}
+
+// TestConvert_VectorSchemaRefused: a convert is a text pass with no vector
+// declaration, so a declared vector field is refused before the target
+// sees a header — never passed through as the source column's raw text.
+func TestConvert_VectorSchemaRefused(t *testing.T) {
+	rd := newMockReader([]string{"id", "v"}, [][]string{{"1", "1|2"}})
+	w := &collectWriter{}
+	job := NewConvertJob(rd, w)
+	job.Schema = vecGuardSchema()
+	job.Schema.Fields[1].Name = "v"
+	_, err := job.Run(context.Background())
+	if !errors.HasCode(err, errors.PULSE_IMPORT_VECTOR_INVALID) {
+		t.Fatalf("err = %v, want PULSE_IMPORT_VECTOR_INVALID", err)
+	}
+	if w.header != nil || len(w.rows) != 0 {
+		t.Fatalf("convert wrote header %v / %d rows", w.header, len(w.rows))
+	}
+	rd = newMockReader([]string{"id", "v"}, [][]string{{"1", "1|2"}})
+	job = NewConvertJob(rd, w)
+	job.Schema = vecGuardSchema()
+	job.Schema.Fields[1].Name = "v"
+	if _, err := job.Predict(context.Background()); !errors.HasCode(err, errors.PULSE_IMPORT_VECTOR_INVALID) {
+		t.Fatalf("predict err = %v, want PULSE_IMPORT_VECTOR_INVALID", err)
 	}
 }

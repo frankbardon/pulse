@@ -517,6 +517,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_EXPORT_COLUMN_COLLISION: {
+		Message: "Expanding a vector field into one column per element would emit a column name another column of the export already has.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Includes", "*"},
+				Hint:   "Drop the colliding scalar field (or the vector) from the export with --include, or export to a format with native list cells (ndjson, jsonarray, arrow, parquet), which keep the vector as one column.",
+			},
+		},
+	},
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW: {
 		Message: "A categorical column's observed dictionary exceeded the declared width capacity (u8 / u16 / u32).",
 		Fixups: []Fixup{

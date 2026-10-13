@@ -4,8 +4,12 @@ package jsonshared
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
+
+	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/iocore"
 )
 
 // SetArrayDelimiter is the delimiter ValueToString uses when joining
@@ -111,4 +115,45 @@ func CoerceValueExplicitNull(v any) any {
 		return s
 	}
 	return CoerceValue(v)
+}
+
+// ListColumns indexes an export's native list columns
+// (iocore.ListAwareWriter) by header position, for the two JSON writers.
+type ListColumns map[int]bool
+
+// NewListColumns records which header columns are vector cells and
+// whether each holds float32 elements.
+func NewListColumns(cols []iocore.ListColumn) ListColumns {
+	out := make(ListColumns, len(cols))
+	for _, c := range cols {
+		out[c.Index] = c.Type == encoding.FieldTypeVecF32
+	}
+	return out
+}
+
+// Value renders column col's cell: a vector cell becomes a JSON array —
+// float32 elements at float32 precision, a non-finite element (NaN,
+// ±Inf, which JSON cannot spell) null, a null vector null. ok is false
+// for a column that is not a list column.
+func (l ListColumns) Value(col int, v any) (any, bool) {
+	f32, ok := l[col]
+	if !ok {
+		return nil, false
+	}
+	vec, _ := v.([]float64)
+	if vec == nil {
+		return nil, true
+	}
+	out := make([]any, len(vec))
+	for i, e := range vec {
+		switch {
+		case math.IsNaN(e) || math.IsInf(e, 0):
+			out[i] = nil
+		case f32:
+			out[i] = float32(e)
+		default:
+			out[i] = e
+		}
+	}
+	return out, true
 }

@@ -462,10 +462,24 @@ type Writer struct {
 	// iocore.NullAwareWriter, set by ExportJob.Run and never by
 	// ConvertJob. See the arrow Writer's field of the same name.
 	explicitNulls bool
+
+	// lists are the native vector columns (iocore.ListAwareWriter), by
+	// header position: FixedSizeList<float32|float64, dim> columns
+	// whatever the rest of the layout falls back to.
+	lists map[int]iocore.ListColumn
 }
 
 // SetExplicitNulls implements iocore.NullAwareWriter.
 func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
+
+// SetListColumns implements iocore.ListAwareWriter: each named column is
+// a FixedSizeList<float32|float64, dim> — or, for a NULLABLE vector, a
+// LIST<float32|float64>, because pqarrow cannot write a null fixed-size
+// list (see arrow.VectorArrowField) — by position, so it holds even when
+// projection or a label augment drops the rest of the layout to strings.
+func (w *Writer) SetListColumns(cols []iocore.ListColumn) {
+	w.lists = parrow.ListColumnIndex(cols)
+}
 
 // SetPulseSchema records the source .pulse schema so subsequent
 // initWriter can build native typed Parquet columns. Implements
@@ -528,6 +542,11 @@ func (w *Writer) initWriter() error {
 	} else {
 		for i, name := range w.columns {
 			arrowFields[i] = arrow.Field{Name: name, Type: arrow.BinaryTypes.String}
+		}
+	}
+	for c, lc := range w.lists {
+		if c < hostFieldCount {
+			arrowFields[c] = parrow.VectorArrowField(lc, !lc.Nullable)
 		}
 	}
 	if hasOverlays {
@@ -620,6 +639,9 @@ func (w *Writer) WriteRow(values []any) error {
 // appendCell appends a single cell value to column c's builder, picking
 // the typed builder when the source schema declared a non-string type.
 func (w *Writer) appendCell(c int, v any) error {
+	if lc, ok := w.lists[c]; ok {
+		return parrow.AppendVectorList(w.bldr.Field(c), lc.Dim, v)
+	}
 	if w.pulseSchema != nil && c < len(w.pulseSchema.Fields) {
 		f := w.pulseSchema.Fields[c]
 		switch {
@@ -730,6 +752,7 @@ var _ iocore.Reader = (*Reader)(nil)
 var _ iocore.ResetReader = (*Reader)(nil)
 var _ iocore.Writer = (*Writer)(nil)
 var _ iocore.NullAwareWriter = (*Writer)(nil)
+var _ iocore.ListAwareWriter = (*Writer)(nil)
 var _ iocore.NullAwareReader = (*Reader)(nil)
 var _ iocore.SourceWarningEmitter = (*Reader)(nil)
 var _ iocore.SchemaAwareWriter = (*Writer)(nil)

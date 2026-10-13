@@ -229,6 +229,12 @@ const (
 	// set: [ColumnPlan.SetBit] of the source `set_*` mask decides between
 	// the counted value and 0.
 	EncodeSetMember
+
+	// EncodeVectorElement writes one element variable of an expanded
+	// vec_f32 / vec_f64 column: element [ColumnPlan.VecElem] of the
+	// cohort's vector, system-missing for a NaN element and for every
+	// element of a null vector.
+	EncodeVectorElement
 )
 
 // String renders the encoding for diagnostics.
@@ -248,6 +254,8 @@ func (e ValueEncoding) String() string {
 		return "text"
 	case EncodeSetMember:
 		return "set_member"
+	case EncodeVectorElement:
+		return "vector_element"
 	default:
 		return "ValueEncoding(" + strconv.Itoa(int(e)) + ")"
 	}
@@ -380,6 +388,10 @@ type ColumnPlan struct {
 	// CountedValue is the numeric value meaning "selected", for
 	// EncodeSetMember.
 	CountedValue float64
+
+	// VecElem is the 0-based element of the source vector field this
+	// variable carries, for EncodeVectorElement; meaningless otherwise.
+	VecElem int
 
 	// MissingField is the cohort field index of the `<var>_missing` reason
 	// sibling this variable folds back from, or -1 when it has none.
@@ -575,6 +587,7 @@ type outVar struct {
 	categories   []CategoryCode
 	setBit       int
 	countedValue float64
+	vecElem      int
 }
 
 // outLabel is one value label awaiting emission.
@@ -863,6 +876,7 @@ func (v *outVar) columnPlan() ColumnPlan {
 		Categories:   append([]CategoryCode(nil), v.categories...),
 		SetBit:       v.setBit,
 		CountedValue: v.countedValue,
+		VecElem:      v.vecElem,
 
 		// -1 until foldDerived says otherwise. Zero would name cohort field
 		// 0 as every variable's reason sibling, which is exactly the kind of

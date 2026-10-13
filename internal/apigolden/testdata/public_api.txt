@@ -2271,6 +2271,7 @@ pulse/errors: const PULSE_DECIMAL_OVERFLOW pulse/errors.Code = "PULSE_DECIMAL_OV
 pulse/errors: const PULSE_DECIMAL_PRECISION_LOSS pulse/errors.Code = "PULSE_DECIMAL_PRECISION_LOSS"
 pulse/errors: const PULSE_DEDUP_LOW_RATIO pulse/errors.Code = "PULSE_DEDUP_LOW_RATIO"
 pulse/errors: const PULSE_DOCS_EXPORT_DIR_NOT_EMPTY pulse/errors.Code = "PULSE_DOCS_EXPORT_DIR_NOT_EMPTY"
+pulse/errors: const PULSE_EXPORT_COLUMN_COLLISION pulse/errors.Code = "PULSE_EXPORT_COLUMN_COLLISION"
 pulse/errors: const PULSE_EXPORT_FIELD_UNKNOWN pulse/errors.Code = "PULSE_EXPORT_FIELD_UNKNOWN"
 pulse/errors: const PULSE_EXPORT_ROW_ERROR pulse/errors.Code = "PULSE_EXPORT_ROW_ERROR"
 pulse/errors: const PULSE_EXTENSION_ARRAY_VALUED_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_ARRAY_VALUED_MISMATCH"
@@ -2896,6 +2897,12 @@ pulse/io: type ListAwareReader imethod Close() error
 pulse/io: type ListAwareReader imethod ReadHeader() ([]string, error)
 pulse/io: type ListAwareReader imethod ReadRows(ctx context.Context, fn func(row []string) error) error
 pulse/io: type ListAwareReader imethod RowList(col int, dst *pulse/internal/iocore.ListCell)
+pulse/io: type ListAwareWriter = pulse/internal/iocore.ListAwareWriter
+pulse/io: type ListAwareWriter underlying interface
+pulse/io: type ListAwareWriter imethod Close() error
+pulse/io: type ListAwareWriter imethod SetListColumns(cols []pulse/internal/iocore.ListColumn)
+pulse/io: type ListAwareWriter imethod WriteHeader(columns []string) error
+pulse/io: type ListAwareWriter imethod WriteRow(values []any) error
 pulse/io: type ListCell = pulse/internal/iocore.ListCell
 pulse/io: type ListCell underlying struct
 pulse/io: type ListCell field BadIndex int
@@ -2905,6 +2912,14 @@ pulse/io: type ListCell field State pulse/internal/iocore.ListState
 pulse/io: type ListCell field Values []float64
 pulse/io: type ListCell method (*ListCell) Append(v float64, null bool)
 pulse/io: type ListCell method (*ListCell) Reset(state pulse/internal/iocore.ListState)
+pulse/io: type ListColumn = pulse/internal/iocore.ListColumn
+pulse/io: type ListColumn underlying struct
+pulse/io: type ListColumn field Dim int
+pulse/io: type ListColumn field Index int
+pulse/io: type ListColumn field Labels []string
+pulse/io: type ListColumn field Name string
+pulse/io: type ListColumn field Nullable bool
+pulse/io: type ListColumn field Type pulse/encoding.FieldType
 pulse/io: const ListNonNumeric pulse/internal/iocore.ListState = 3
 pulse/io: const ListNotList pulse/internal/iocore.ListState = 2
 pulse/io: const ListNull pulse/internal/iocore.ListState = 0
@@ -2940,6 +2955,7 @@ pulse/io: type OverlayWarningEmitter underlying interface
 pulse/io: type OverlayWarningEmitter imethod OverlayWarnings() []*pulse/errors.CodedError
 pulse/io: type PredictReport = pulse/internal/io.PredictReport
 pulse/io: type PredictReport underlying struct
+pulse/io: type PredictReport field Columns []string "json:\"Columns,omitempty\""
 pulse/io: type PredictReport field ElidedConstants []string "json:\"ElidedConstants,omitempty\""
 pulse/io: type PredictReport field EstimatedRows int
 pulse/io: type PredictReport field GroupCandidates *pulse/internal/io.GroupDetection "json:\"GroupCandidates,omitempty\""
@@ -5060,4 +5076,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 4ebb6250f68caad1d84f987d79aec35d8928c0dd392f4343e24ae37dc8873e9d
+// golden-hash: 4123085c2e633a9e4992062ee4671428db8bb29fc85215e3711955cc0cb85fd6

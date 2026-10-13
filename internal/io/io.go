@@ -162,6 +162,15 @@ type PredictReport struct {
 	// CohortValidator, which is every format but `.sav` today, and nil
 	// for a validating target that raised nothing.
 	TargetWarnings []*errors.CodedError
+	// Columns is the header an ExportJob.Predict with a Target says the
+	// export of a cohort WITH A VECTOR FIELD would write: one column per
+	// projected field, a `_label` sibling per augment binding, and each
+	// vector as ONE column for a ListAwareWriter or as its dim expanded
+	// `<field>_<label>` / `<field>_1..N` columns for every other row
+	// writer. Nil for a vector-free cohort (its header is its field
+	// list), for a predict with no Target, for a CohortWriter target
+	// (which lays out its own variables) and for every ImportJob.Predict.
+	Columns []string `json:"Columns,omitempty"`
 	// The fields below are filled only by an ImportJob.Predict that runs
 	// the MEASURED pass — the job declares Groups, sets ElideConstants
 	// or sets SuggestGroups — and are nil (omitted from JSON) otherwise,

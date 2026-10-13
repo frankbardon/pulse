@@ -417,6 +417,52 @@ import of the same data, byte for byte, and
 `internal/embeddersmoke` proves the interface is reachable from an
 external module.
 
+### Native list cells on export: `io.ListAwareWriter`
+
+The write-side peer. A `vec_f32` / `vec_f64` field is one cell in the
+record but not one column in every target, so `ExportJob.Run` asks the
+writer which shape it takes:
+
+```go
+type ListAwareWriter interface {
+    Writer
+    SetListColumns(cols []ListColumn)
+}
+```
+
+- **With it** (the built-in NDJSON, JSON array, Arrow and Parquet
+  writers): `SetListColumns` is called once, before `WriteHeader`, when
+  a projected field is a vector. Each `io.ListColumn` names the
+  header position (`Index`), the field, its vector type, dim, element
+  labels and nullable flag. That column's `WriteRow` cell is a
+  `[]float64` of exactly `Dim` elements (`vec_f32` widened exactly;
+  NaN / ±Inf verbatim) or `nil` for a null vector, and the slice is
+  reused by the next row — encode or copy it before returning. The
+  built-ins write a JSON array (a non-finite element and a null vector
+  as `null`) or a `FixedSizeList<float32|float64, dim>`; Parquet writes
+  a NULLABLE vector as `LIST<…>` because pqarrow cannot encode a null
+  fixed-size list. The list import (`--vector NAME`) reads every one of
+  these shapes back to the same vector.
+- **Without it** the export expands each vector into `Dim` scalar
+  columns named `<field>_<label>` (`<field>_1..N` with no labels) in the
+  field's place; each cell is the element's text (the scalar `f32` /
+  `f64` rendering) and `nil` for a NaN element or a null vector. A
+  `SchemaAwareWriter` is handed the schema with each vector replaced by
+  those nullable scalar fields, so positional typing stays aligned. An
+  expanded name equal to any other column refuses the export with
+  `PULSE_EXPORT_COLUMN_COLLISION` before the header is written.
+- **Projection and labels** work on fields: `Includes` names the vector,
+  never an element column, and a `_label` sibling lands after its field
+  whichever shape the vector takes. A `CohortWriter` (`.sav`) lays out
+  its own variables — one numeric per element, the element label as the
+  variable label, under the ordinary SPSS name policy.
+- **Predict.** `ExportJob.Predict` with a Target reports the header it
+  would write for a vector cohort on `PredictReport.Columns` (and
+  refuses an expansion collision on the same terms).
+
+`io/list_writer_test.go` pins a custom writer against the NDJSON export
+of the same cohort.
+
 ### Authoritative schemas: `io.SchemaAwareReader`
 
 By default `ImportJob.Run` samples up to `SampleRows` rows and votes

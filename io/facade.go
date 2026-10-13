@@ -449,6 +449,29 @@ type NullAwareReader = iocore.NullAwareReader
 // conventions are spelled once.
 type NullAwareWriter = iocore.NullAwareWriter
 
+// ListAwareWriter is an optional extension of Writer for targets whose
+// format holds a NATIVE list cell — the write-side peer of
+// ListAwareReader, implemented by the built-in NDJSON, JSON array, Arrow
+// and Parquet writers.
+//
+// ExportJob.Run calls SetListColumns before WriteHeader when the cohort
+// has a projected vector field (vec_f32 / vec_f64); each such field is
+// then ONE header column whose WriteRow cell is a []float64 of exactly
+// its dim (vec_f32 widened exactly; NaN / ±Inf verbatim) or nil for a
+// null vector, valid only during that WriteRow call. A writer without it
+// gets each vector EXPANDED into dim scalar columns `<field>_<label>`
+// (`<field>_1..N` without labels), text cells with nil for a NaN element
+// or a null vector, and an expanded name colliding with another column
+// refuses the export (PULSE_EXPORT_COLUMN_COLLISION). ConvertJob never
+// calls it.
+type ListAwareWriter = iocore.ListAwareWriter
+
+// ListColumn describes one native vector column of an export, as
+// ListAwareWriter.SetListColumns receives it: its header position, name,
+// vector type, dim, element labels (nil or dim entries) and the field's
+// nullable flag.
+type ListColumn = iocore.ListColumn
+
 // OverlayAwareWriter is an optional extension of Writer for targets that
 // can embed Response.Overlays in the exported artefact (Arrow / Parquet /
 // Excel / NDJSON per research/export-embedding-shape.md). The ExportJob

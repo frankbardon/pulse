@@ -402,10 +402,22 @@ type Writer struct {
 	// CoerceValue, where "" is the source null token), so a convert is
 	// byte-identical.
 	explicitNulls bool
+
+	// lists marks the header columns that carry a native vector cell —
+	// iocore.ListAwareWriter, set by ExportJob.Run. Such a cell is a
+	// []float64 (nil for a null vector) written as a JSON array.
+	lists jsonshared.ListColumns
 }
 
 // SetExplicitNulls implements iocore.NullAwareWriter.
 func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
+
+// SetListColumns implements iocore.ListAwareWriter: each named column's
+// cell is written as a JSON array of numbers, a NaN / ±Inf element as
+// null and a null vector as null.
+func (w *Writer) SetListColumns(cols []iocore.ListColumn) {
+	w.lists = jsonshared.NewListColumns(cols)
+}
 
 // NewWriter creates an NDJSON writer targeting a filesystem path.
 func NewWriter(fs afero.Fs, path string) *Writer {
@@ -441,6 +453,10 @@ func (w *Writer) WriteRow(values []any) error {
 	obj := make(map[string]any, len(w.columns))
 	for i, col := range w.columns {
 		if i < len(values) {
+			if lv, ok := w.lists.Value(i, values[i]); ok {
+				obj[col] = lv
+				continue
+			}
 			obj[col] = coerce(values[i])
 		} else {
 			obj[col] = nil
@@ -493,4 +509,5 @@ func (w *Writer) Bytes() []byte {
 var _ iocore.Writer = (*Writer)(nil)
 var _ iocore.OverlayAwareWriter = (*Writer)(nil)
 var _ iocore.NullAwareWriter = (*Writer)(nil)
+var _ iocore.ListAwareWriter = (*Writer)(nil)
 var _ iocore.NullAwareReader = (*Reader)(nil)

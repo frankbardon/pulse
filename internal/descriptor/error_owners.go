@@ -143,6 +143,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_IMPORT_TIMESTAMP_TRUNCATED:    ownImportExport,
 	errors.PULSE_EXPORT_ROW_ERROR:              own(featExport),
 	errors.PULSE_EXPORT_FIELD_UNKNOWN:          own(featExport),
+	errors.PULSE_EXPORT_COLUMN_COLLISION:       own(featExport),
 	errors.PULSE_IMPORT_CATEGORICAL_OVERFLOW:   ownImportExport,
 	// The synth writer refuses an over-wide set dictionary with it too.
 	errors.PULSE_IMPORT_SET_OVERFLOW:          plus(ownImportExport, own(featSynth)),

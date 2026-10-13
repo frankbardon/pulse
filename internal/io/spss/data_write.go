@@ -130,6 +130,10 @@ type CaseValue struct {
 	// precisely so that narrowing cannot happen by accident.
 	Mask encoding.SetMask
 
+	// Vec is a vec_f32 / vec_f64 column's elements (vec_f32 widened
+	// exactly), nil for every other type. The buffer is reused case to case.
+	Vec []float64
+
 	// Null reports that the cohort's null bitmap marks this field missing for
 	// this record. It is authoritative: Num and Mask are zero when it is set,
 	// and carry no information.
@@ -299,6 +303,17 @@ func (e *DataEncoder) checkColumns() error {
 					", which addresses bits 0.."+strconv.Itoa(max-1))
 			}
 		}
+		// A vector element variable is bounded against its field's dim
+		// here, for the reason the set-member bound above is: a bound on
+		// the per-case path is one `pulse export predict` cannot see.
+		if col.Encoding == EncodeVectorElement {
+			fld := e.schema.Fields[col.Field]
+			dim := e.schema.VectorDim(col.Field)
+			if !fld.Type.IsVector() || col.VecElem < 0 || col.VecElem >= dim {
+				return cannotWrite(col, "it is a vector element variable standing for element "+strconv.Itoa(col.VecElem)+
+					" of the "+fld.Type.String()+" column "+strconv.Quote(fld.Name)+", which has "+strconv.Itoa(dim)+" element(s)")
+			}
+		}
 		// The folded reason sibling is bounded here, once, so putNull can
 		// index the case without a check on the per-case path.
 		if col.MissingField >= len(e.schema.Fields) {
@@ -430,6 +445,16 @@ func (e *DataEncoder) writeColumn(col *ColumnPlan, c Case) error {
 		} else {
 			e.putNumber(col, 0)
 		}
+
+	case EncodeVectorElement:
+		// Bounded against the field's dim at plan time (checkColumns).
+		if v.Null || col.VecElem >= len(v.Vec) || math.IsNaN(v.Vec[col.VecElem]) {
+			// SPSS has one numeric missing state, and both a null vector
+			// and a NaN element are "no value here".
+			e.putSysmis(col)
+			return nil
+		}
+		e.putNumber(col, v.Vec[col.VecElem])
 
 	default:
 		return cannotWrite(col, "its value encoding is "+col.Encoding.String()+", which the data encoder cannot write")
@@ -791,9 +816,20 @@ func (e *DataEncoder) WriteCohort(r io.Reader) error {
 func readCohortCase(r io.Reader, s *encoding.Schema, c Case) error {
 	for i := range s.Fields {
 		f := &s.Fields[i]
+		vec := c[i].Vec
 		c[i] = CaseValue{}
 
 		switch {
+		case f.Type.IsVector():
+			// element × dim bytes. ReadFieldValue refuses a vector, so
+			// without this arm the export failed on the first record; the
+			// dim is the schema's (VECTORS section), never a type width.
+			v, err := encoding.ReadVector(r, f.Type, s.VectorDim(i), vec)
+			if err != nil {
+				return cohortReadError(err, i, len(s.Fields))
+			}
+			c[i].Vec = v
+
 		case f.Type == encoding.FieldTypePackedBool:
 			v, err := encoding.ReadBit(r, uint(f.BitPosition))
 			if err != nil {
@@ -853,7 +889,9 @@ func readCohortCase(r io.Reader, s *encoding.Schema, c Case) error {
 		}
 		for i := range s.Fields {
 			if s.Fields[i].Nullable && encoding.BitmapIsNull(bitmap, i) {
-				c[i] = CaseValue{Null: true}
+				// Keep a vector's buffer for the next case; Null is the
+				// authority and the encoder reads nothing else.
+				c[i] = CaseValue{Null: true, Vec: c[i].Vec[:0]}
 			}
 		}
 	}

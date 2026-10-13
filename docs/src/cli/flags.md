@@ -603,6 +603,24 @@ library knob is `io.ExportJob.TimeZone`; the manifest's
 pulse export csv -i orders.pulse -o orders.csv --tz Asia/Kolkata
 ```
 
+### Vector fields (export)
+
+Not a flag — how every `export <format>` leaf writes a `vec_f32` /
+`vec_f64` field. `csv`, `tsv` and `excel` expand it in place into one
+column per element, `<name>_<label>` (`<name>_1..N` without labels), so
+a battery folded with `--vector rate:/^rate_(.*)$/` exports back as its
+`rate_*` columns and re-imports with the same flag to an identical
+cohort; a NaN element and every element of a null vector are empty
+cells. `ndjson` and `jsonarray` write one JSON array per cell (`null`
+for a null vector and for a NaN / ±Inf element); `arrow` writes a
+`FixedSizeList<float32|float64, dim>`, `parquet` the same for a
+non-nullable vector and a `LIST` for a nullable one; each re-imports
+under `--vector NAME`. `spss` writes one numeric variable per element
+with the element label as its variable label. `--include` names the
+vector field, never an element column. An expanded name that another
+column already has refuses the export (`PULSE_EXPORT_COLUMN_COLLISION`),
+and `export predict --format F` prints the `Columns:` it would write.
+
 ## Command index
 
 Every runnable leaf the binary exposes, with the page that documents it

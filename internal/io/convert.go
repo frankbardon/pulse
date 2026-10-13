@@ -87,6 +87,10 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		schema = resolved
 	}
 
+	if err := refuseConvertVectors(schema); err != nil {
+		return nil, err
+	}
+
 	// Infer schema if not provided.
 	if schema == nil {
 		rr, ok := j.Source.(ResetReader)
@@ -407,6 +411,10 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 		}
 	}
 
+	if err := refuseConvertVectors(schema); err != nil {
+		return nil, err
+	}
+
 	zones, err := j.zoneJob().resolveSourceZones(schema)
 	if err != nil {
 		return nil, err
@@ -446,6 +454,27 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 		SourceWarnings: j.sourceWarnings(),
 		ZoneWarnings:   zones.warnings(),
 	}, nil
+}
+
+// refuseConvertVectors refuses a resolved convert schema carrying a vector
+// field. A convert is a TEXT pass with no vector declaration, so its row
+// loop would hand the target the one source column of that name as raw
+// text (a list's pipe-joined rendering) under a schema claiming a vector,
+// and a KeepPulseAt intermediate would refuse it anyway. ImportJob refuses
+// the same explicit schema without a declaration ("not_declared"): import
+// with --vector, then export, instead. Shared by Run and Predict.
+func refuseConvertVectors(schema *encoding.Schema) error {
+	if schema == nil {
+		return nil
+	}
+	for _, f := range schema.Fields {
+		if f.Type.IsVector() {
+			return vectorInvalid("not_declared",
+				fmt.Sprintf("convert cannot write vector field %q (%s): a convert has no vector declaration; import with --vector, then export the cohort", f.Name, f.Type),
+				map[string]any{"field": f.Name, "type": f.Type.String()})
+		}
+	}
+	return nil
 }
 
 // zoneJob carries the convert's source-zone options in the ImportJob

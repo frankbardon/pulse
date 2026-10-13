@@ -275,6 +275,17 @@ const (
 	// without re-fetching the schema.
 	PULSE_EXPORT_FIELD_UNKNOWN Code = "PULSE_EXPORT_FIELD_UNKNOWN"
 
+	// PULSE_EXPORT_COLUMN_COLLISION indicates an export expanding a
+	// vector field (vec_f32 / vec_f64) into one scalar column per
+	// element — `<field>_<label>`, or `<field>_1..N` without labels —
+	// would emit a column whose name another column of the same export
+	// already has (a scalar field, a `_label` sibling, or another
+	// vector's element). Details carry the column, the vector field and
+	// what it collides with. Raised before a byte is written; a target
+	// with native list cells (NDJSON, JSON array, Arrow, Parquet) does
+	// not expand and cannot collide.
+	PULSE_EXPORT_COLUMN_COLLISION Code = "PULSE_EXPORT_COLUMN_COLLISION"
+
 	// PULSE_IMPORT_CATEGORICAL_OVERFLOW indicates dictionary exceeds width capacity.
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW Code = "PULSE_IMPORT_CATEGORICAL_OVERFLOW"
 
@@ -3635,6 +3646,7 @@ var allCodes = []Code{
 	PULSE_IMPORT_TIMESTAMP_TRUNCATED,
 	PULSE_EXPORT_ROW_ERROR,
 	PULSE_EXPORT_FIELD_UNKNOWN,
+	PULSE_EXPORT_COLUMN_COLLISION,
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW,
 	PULSE_IMPORT_SET_OVERFLOW,
 	PULSE_IMPORT_CATEGORICAL_UNBOUNDED,

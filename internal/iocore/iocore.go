@@ -806,3 +806,58 @@ type ListAwareReader interface {
 	// as ListNull itself.
 	RowList(col int, dst *ListCell)
 }
+
+// ListColumn describes one header column of an export that carries a
+// native vector cell rather than a scalar: the column's position in the
+// WriteHeader list, its name (the vector field's name), the field's
+// `.pulse` vector type (encoding.FieldTypeVecF32 or FieldTypeVecF64),
+// its dim and its element labels (nil, or exactly Dim entries).
+type ListColumn struct {
+	// Index is the column's position in the columns WriteHeader receives.
+	Index int
+	// Name is the column's header name — the vector field's own name.
+	Name string
+	// Type is the field's vector type; vec_f32 cells hold float32 values
+	// widened exactly, so a writer narrowing them back loses nothing.
+	Type encoding.FieldType
+	// Dim is the element count of every non-null cell.
+	Dim int
+	// Labels names each element, or is nil.
+	Labels []string
+	// Nullable is the field's nullable flag: false promises no cell of
+	// the column is nil.
+	Nullable bool
+}
+
+// ListAwareWriter is an optional extension of Writer for targets whose
+// format holds a NATIVE list cell — Arrow / Parquet FixedSizeList, a
+// JSON array — and the write-side peer of ListAwareReader.
+//
+// # What changes for a writer that implements it
+//
+// ExportJob.Run calls SetListColumns before WriteHeader, once, when the
+// exported cohort has at least one vector field (vec_f32 / vec_f64)
+// among the projected columns. Each such field is then ONE header
+// column, and its cell in every WriteRow is a []float64 of exactly Dim
+// elements (vec_f32 widened exactly; NaN and ±Inf verbatim), or an
+// untyped nil for a null vector. The slice is valid only for the
+// duration of the WriteRow call — the export reuses it — so a writer
+// must encode or copy it before returning.
+//
+// A writer that does NOT implement it never sees a slice: the export
+// expands each vector into Dim scalar columns named `<field>_<label>`
+// (`<field>_1..N` without labels), each cell the element's text (the
+// scalar float rendering, vec_f32 at float32 precision) and nil for a
+// NaN element or a null vector; a SchemaAwareWriter is handed a schema
+// with each vector replaced by Dim nullable f32 / f64 fields under
+// those names. An expanded name that equals any other column is refused
+// with PULSE_EXPORT_COLUMN_COLLISION before a byte is written.
+//
+// ConvertJob never calls it: a convert passes source text through and
+// produces no vector field.
+type ListAwareWriter interface {
+	Writer
+	// SetListColumns declares which header columns carry native vector
+	// cells. cols is ordered by Index and is the writer's to retain.
+	SetListColumns(cols []ListColumn)
+}

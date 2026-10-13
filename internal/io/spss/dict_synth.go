@@ -38,6 +38,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	iio "github.com/frankbardon/pulse/internal/io"
 )
 
 // Synthesised print/write formats. SPSS has exactly two storage types, so
@@ -112,6 +113,9 @@ func synthesiseField(s *encoding.Schema, at int, minter *nameMinter, f *outFile)
 	fld := &s.Fields[at]
 	if fld.Type.IsSet() {
 		return synthesiseSet(s, at, minter, f)
+	}
+	if fld.Type.IsVector() {
+		return synthesiseVector(s, at, minter)
 	}
 
 	v := &outVar{
@@ -244,6 +248,59 @@ func synthesiseSet(s *encoding.Schema, at int, minter *nameMinter, f *outFile) (
 		CountedValue: &counted,
 	})
 	return members, nil
+}
+
+// synthesiseVector expands a vec_f32 / vec_f64 column into one numeric
+// variable per element — the second place synthesis expands, for the same
+// reason a set does: SPSS has no vector type, but it has the shape a vector
+// came from, a battery of sibling numerics.
+//
+// Each element variable is named `<field>_<label>` (`<field>_1..N` without
+// labels) — the export's shared expansion rule, io.VectorElementColumn — and
+// carries its element label as the VARIABLE label, the one place SPSS keeps a
+// per-column description. Those names go through the same minter and the same
+// name policy as every other variable: an element label that makes an illegal
+// SPSS name is PULSE_SPSS_NAME_INVALID (repaired under --sanitize-names), and
+// one that repeats another variable's name is PULSE_SPSS_NAME_COLLISION —
+// never a silent rename. The value is the element as a double; a NaN element
+// and every element of a null vector go out system-missing, which is the only
+// missing state a numeric SPSS variable has.
+func synthesiseVector(s *encoding.Schema, at int, minter *nameMinter) ([]*outVar, error) {
+	fld := &s.Fields[at]
+	meta, ok := s.Vector(at)
+	if !ok {
+		return nil, cannotExpress(fld.Name,
+			"it is a vector field with no VECTORS entry, so its dim — and therefore its element variables — is unknown")
+	}
+	elem := encoding.Field{Name: fld.Name, Type: encoding.FieldTypeF64}
+	if fld.Type == encoding.FieldTypeVecF32 {
+		elem.Type = encoding.FieldTypeF32
+	}
+	vars := make([]*outVar, 0, meta.Dim)
+	for e := 0; e < meta.Dim; e++ {
+		name := iio.VectorElementColumn(fld.Name, meta.Labels, e)
+		v := &outVar{
+			name:      name,
+			field:     at,
+			fieldName: fld.Name,
+			fieldType: fld.Type,
+			setBit:    -1,
+			vecElem:   e,
+			print:     numericFormat(&elem),
+			measure:   numericMeasure(elem.Type),
+			align:     int32(alignRight),
+			enc:       EncodeVectorElement,
+		}
+		if e < len(meta.Labels) {
+			v.label, v.hasLabel = meta.Labels[e], meta.Labels[e] != ""
+		}
+		v.write = v.print
+		mintNames(v, minter, name)
+		v.segments = numericSegment(v.shortName)
+		v.displayWidth = int32(v.print.Width)
+		vars = append(vars, v)
+	}
+	return vars, nil
 }
 
 // ---------------------------------------------------------------------------

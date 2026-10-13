@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	perrors "github.com/frankbardon/pulse/errors"
 	iio "github.com/frankbardon/pulse/internal/io"
@@ -322,6 +323,11 @@ func exportPredictCmd() *cli.Command {
 				writeText(cmd.Writer, "Target: not checked (pass --format to validate against the format you will export to)\n")
 			} else {
 				writeText(cmd.Writer, "Target format: %s\n", format)
+			}
+			if len(report.Columns) > 0 {
+				// A vector field is one column for a native-list target
+				// and dim expanded columns for every other row writer.
+				writeText(cmd.Writer, "Columns: %d (%s)\n", len(report.Columns), strings.Join(report.Columns, ", "))
 			}
 			writeSourceWarnings(cmd.Writer, report.TargetWarnings)
 			return nil
