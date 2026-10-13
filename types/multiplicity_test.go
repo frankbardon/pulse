@@ -104,7 +104,7 @@ func TestMultiplicityRoundTrip(t *testing.T) {
 }
 
 // TestAllMultiplicityVocabularies pins the closed method and family
-// sets (R p.adjust names; the five U13 families).
+// sets (R p.adjust names; the five U13 families plus U28's matrix).
 func TestAllMultiplicityVocabularies(t *testing.T) {
 	methods := []string{}
 	for _, m := range AllMultiplicityMethods() {
@@ -117,7 +117,7 @@ func TestAllMultiplicityVocabularies(t *testing.T) {
 	for _, f := range AllMultiplicityFamilies() {
 		families = append(families, string(f))
 	}
-	if got, want := strings.Join(families, ","), "layer,row,column,request,compose"; got != want {
+	if got, want := strings.Join(families, ","), "layer,row,column,request,compose,matrix"; got != want {
 		t.Errorf("families = %s, want %s", got, want)
 	}
 }

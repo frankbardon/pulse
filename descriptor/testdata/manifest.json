@@ -7626,14 +7626,14 @@
             "type": "bool",
             "required": false,
             "default": false,
-            "description": "true: add auxiliary.p (two-sided p-value), auxiliary.ci_lower and auxiliary.ci_upper (the 1 - alpha confidence interval), square matrices over the output axis in the primary's encoding, diagonal null: a pair's t = r*sqrt((N*-2)/(1-r^2)) on df = N*-2 (TEST_PEARSON_R's arithmetic) and its Fisher-z interval with se = 1/sqrt(N*-3); N* is the pair's own size under pairwise (rows unweighted, sum of weights under frequency, Kish n_eff under probability). Rank methods: R cor.test's default p over the pair's rows (n = N*): without ties exact for kendall below n = 50 and AS 89 for spearman up to n = 1290, otherwise the tie-corrected normal (kendall) or t on n-2 (spearman) approximation; the interval is Fisher z with se = sqrt((1+rho^2/2)/(n-3)) (spearman, Bonett-Wright) or sqrt(0.437/(n-4)) (kendall, Fieller; needs 5 rows). A cell too thin for its p-value or interval is null with PULSE_MATRIX_INSUFFICIENT_N (scope inference); under probability weights an effective size below its floor adds PULSE_WEIGHT_LOW_NEFF. The auxiliaries ride matrices[*].auxiliary, so a return that drops it (preset standard, the MCP default) skips them. No multiple-comparison correction."
+            "description": "true: add auxiliary.p (two-sided p-value), auxiliary.ci_lower and auxiliary.ci_upper (the 1 - alpha confidence interval), square matrices over the output axis in the primary's encoding, diagonal null: a pair's t = r*sqrt((N*-2)/(1-r^2)) on df = N*-2 (TEST_PEARSON_R's arithmetic) and its Fisher-z interval with se = 1/sqrt(N*-3); N* is the pair's own size under pairwise (rows unweighted, sum of weights under frequency, Kish n_eff under probability). Rank methods: R cor.test's default p over the pair's rows (n = N*): without ties exact for kendall below n = 50 and AS 89 for spearman up to n = 1290, otherwise the tie-corrected normal (kendall) or t on n-2 (spearman) approximation; the interval is Fisher z with se = sqrt((1+rho^2/2)/(n-3)) (spearman, Bonett-Wright) or sqrt(0.437/(n-4)) (kendall, Fieller; needs 5 rows). A cell too thin for its p-value or interval is null with PULSE_MATRIX_INSUFFICIENT_N (scope inference); under probability weights an effective size below its floor adds PULSE_WEIGHT_LOW_NEFF. The auxiliaries ride matrices[*].auxiliary, so a return that drops it (preset standard, the MCP default) skips them. The spec's own multiplicity block implies inference and adds auxiliary.p_adjusted and auxiliary.significant_adjusted (1 below the block's alpha, else 0) over the distinct pairs (family matrix: the upper triangle of one result, m = p(p - 1) / 2; family request: pooled with the request), mirrored, diagonal null, plus a multiplicity echo; the raw p never moves."
           },
           {
             "name": "alpha",
             "type": "float",
             "required": false,
             "default": 0.05,
-            "description": "The confidence intervals' two-sided level, strictly between 0 and 1 (coverage 1 - alpha). Applies with inference true only."
+            "description": "The confidence intervals' two-sided level, strictly between 0 and 1 (coverage 1 - alpha). Applies with inference on only. Under a multiplicity block inference is on even when unset, and significant_adjusted reads the block's own alpha, not this one."
           }
         ],
         "output_keys": {
@@ -8213,14 +8213,14 @@
             "type": "bool",
             "required": false,
             "default": false,
-            "description": "true: add auxiliary.p (two-sided p-value), auxiliary.ci_lower and auxiliary.ci_upper (the 1 - alpha confidence interval), square matrices over the output axis in the primary's encoding, diagonal null: a pair's t = r*sqrt((N*-2-g)/(1-r^2)) on df = N*-2-g, g the controls (every other folded column under control all, else the control count), as ppcor::pcor, and its Fisher-z interval with se = 1/sqrt(N*-3-g); N* is the whole fold's under listwise, the smallest folded pair's under pairwise (PULSE_MATRIX_PAIRWISE_N_STAR names it). A cell too thin for its p-value or interval is null with PULSE_MATRIX_INSUFFICIENT_N (scope inference); under probability weights an effective size below its floor adds PULSE_WEIGHT_LOW_NEFF. The auxiliaries ride matrices[*].auxiliary, so a return that drops it (preset standard, the MCP default) skips them. No multiple-comparison correction."
+            "description": "true: add auxiliary.p (two-sided p-value), auxiliary.ci_lower and auxiliary.ci_upper (the 1 - alpha confidence interval), square matrices over the output axis in the primary's encoding, diagonal null: a pair's t = r*sqrt((N*-2-g)/(1-r^2)) on df = N*-2-g, g the controls (every other folded column under control all, else the control count), as ppcor::pcor, and its Fisher-z interval with se = 1/sqrt(N*-3-g); N* is the whole fold's under listwise, the smallest folded pair's under pairwise (PULSE_MATRIX_PAIRWISE_N_STAR names it). A cell too thin for its p-value or interval is null with PULSE_MATRIX_INSUFFICIENT_N (scope inference); under probability weights an effective size below its floor adds PULSE_WEIGHT_LOW_NEFF. The auxiliaries ride matrices[*].auxiliary, so a return that drops it (preset standard, the MCP default) skips them. The spec's own multiplicity block implies inference and adds auxiliary.p_adjusted and auxiliary.significant_adjusted (1 below the block's alpha, else 0) over the distinct pairs (family matrix: the upper triangle of one result, m = p(p - 1) / 2; family request: pooled with the request), mirrored, diagonal null, plus a multiplicity echo; the raw p never moves."
           },
           {
             "name": "alpha",
             "type": "float",
             "required": false,
             "default": 0.05,
-            "description": "The confidence intervals' two-sided level, strictly between 0 and 1 (coverage 1 - alpha). Applies with inference true only."
+            "description": "The confidence intervals' two-sided level, strictly between 0 and 1 (coverage 1 - alpha). Applies with inference on only. Under a multiplicity block inference is on even when unset, and significant_adjusted reads the block's own alpha, not this one."
           },
           {
             "name": "missing",
@@ -16550,4 +16550,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 08ac571eb0022fdcdaaf54fe615976bd3c674d2429f0e531f24c7b554608902a
+// golden-hash: aceaa3fe43af2aec45b9972fa582c967ed75db87a4b9309402400410febd40bf

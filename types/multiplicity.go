@@ -5,12 +5,14 @@ package types
 // together, and the Alpha an overlay's adjusted significance flag reads.
 // It rides as an optional `multiplicity` slot on Request, Test (tier-1
 // and post-tests), OverlaySpec (the Request and Facet overlay hosts),
-// ComposeOverlaySpec and ComposedRequest.
+// MatrixSpec (MAT_CORRELATION / MAT_PARTIAL_CORRELATION, where a block
+// implies params.inference), ComposeOverlaySpec and ComposedRequest.
 //
 // Every field falls through on its own when empty: slot → request (a
 // Compose slot: then the ComposedRequest) → pulse.Options.
 // DefaultMultiplicity → none, and an omitted family takes the
-// surface's default (`request` for tests, `layer` for overlays).
+// surface's default (`request` for tests, `layer` for overlays,
+// `matrix` for a matrix spec).
 // `{"method":"none"}` is the explicit opt-out. Raw p-values are never
 // modified; the correction rides beside them.
 //
@@ -91,6 +93,14 @@ const (
 	// across a ComposedRequest's slots and its Compose-host overlay
 	// layers. Valid only inside Compose.
 	MultiplicityFamilyCompose MultiplicityFamily = "compose"
+	// MultiplicityFamilyMatrix corrects the p-values of one matrix
+	// result together: the off-diagonal upper-triangle cells of a
+	// square_symmetric matrix (m = p(p-1)/2 for p members — the
+	// diagonal and the mirrored lower triangle are not separate
+	// hypotheses), every cell of a rectangular one; one family per
+	// group bucket on a grouped request. The matrix spec default; valid
+	// only on a MatrixSpec's block.
+	MultiplicityFamilyMatrix MultiplicityFamily = "matrix"
 )
 
 // AllMultiplicityFamilies returns every correction family, in a stable
@@ -102,6 +112,7 @@ func AllMultiplicityFamilies() []MultiplicityFamily {
 		MultiplicityFamilyColumn,
 		MultiplicityFamilyRequest,
 		MultiplicityFamilyCompose,
+		MultiplicityFamilyMatrix,
 	}
 }
 

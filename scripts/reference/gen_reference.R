@@ -386,3 +386,9 @@ source(file.path(script_dir, "gen_rake.R"), local = FALSE)
 # partial-correlation p and intervals on df = N* - 2 - g); reads the
 # fixture CSVs gen_multivariate.R wrote; base stats + ppcor.
 source(file.path(script_dir, "gen_matrix_inference.R"), local = FALSE)
+
+# The matrix multiplicity golden (matrix_multiplicity.json: p.adjust
+# bonferroni / holm / BH / BY over the upper-triangle cor.test / ppcor
+# p-values of a correlation matrix, per result or pooled across buckets
+# and specs); base stats + ppcor.
+source(file.path(script_dir, "gen_matrix_multiplicity.R"), local = FALSE)

@@ -145,6 +145,40 @@ func TestBindForInstance_MultiplicitySurfaceFamilies(t *testing.T) {
 	}
 }
 
+// TestBindForInstance_MatrixMultiplicity (U28 E3-S4): a matrix spec's
+// own block advertises the matrix-surface families (`request`,
+// `matrix`) and alpha, and disappears with capability:multiplicity.
+func TestBindForInstance_MatrixMultiplicity(t *testing.T) {
+	const path = "properties.matrices.items.properties.multiplicity"
+	for _, with := range []bool{true, false} {
+		features := []string{"capability:process", "capability:matrices", "AGG_SUM", "MAT_CORRELATION"}
+		if with {
+			features = append(features, descx.FeatureMultiplicity)
+		}
+		_, inst := instanceFor(t, &pulse.FeatureProfile{Features: features}, pulse.Extensions{})
+		bound, err := BindForInstance(makeBindSchema(), inst)
+		if err != nil {
+			t.Fatal(err)
+		}
+		m := schemaAt(decodeBoundRequest(t, bound[toolmeta.ToolProcess]), path)
+		if !with {
+			if m != nil {
+				t.Errorf("hidden multiplicity still binds %s", path)
+			}
+			continue
+		}
+		if m == nil {
+			t.Fatalf("no %s", path)
+		}
+		if got := toStrings(schemaAt(m, "properties.family")["enum"]); !slices.Equal(got, []string{"request", "matrix"}) {
+			t.Errorf("family enum %v, want [request matrix]", got)
+		}
+		if schemaAt(m, "properties.alpha") == nil {
+			t.Error("alpha not advertised on a matrix block")
+		}
+	}
+}
+
 // TestBindForInstance_MultiplicityHidden: with capability:multiplicity
 // hidden no bound tool schema carries a `multiplicity` property — root,
 // nested or under a pulse_predict alternative root.

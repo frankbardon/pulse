@@ -368,9 +368,9 @@ func matrixCapability(offered func(metric.Consumer) bool) descriptor.MatrixCapab
 func inferenceParam(how string) descriptor.Param {
 	return descriptor.Param{Name: "inference", Type: "bool", Required: false, Default: false,
 		Description: "true: add auxiliary.p (two-sided p-value), auxiliary.ci_lower and auxiliary.ci_upper (the 1 - alpha confidence interval), square matrices over the output axis in the primary's encoding, diagonal null: " + how +
-			" A cell too thin for its p-value or interval is null with PULSE_MATRIX_INSUFFICIENT_N (scope inference); under probability weights an effective size below its floor adds PULSE_WEIGHT_LOW_NEFF. The auxiliaries ride matrices[*].auxiliary, so a return that drops it (preset standard, the MCP default) skips them. No multiple-comparison correction."}
+			" A cell too thin for its p-value or interval is null with PULSE_MATRIX_INSUFFICIENT_N (scope inference); under probability weights an effective size below its floor adds PULSE_WEIGHT_LOW_NEFF. The auxiliaries ride matrices[*].auxiliary, so a return that drops it (preset standard, the MCP default) skips them. The spec's own multiplicity block implies inference and adds auxiliary.p_adjusted and auxiliary.significant_adjusted (1 below the block's alpha, else 0) over the distinct pairs (family matrix: the upper triangle of one result, m = p(p - 1) / 2; family request: pooled with the request), mirrored, diagonal null, plus a multiplicity echo; the raw p never moves."}
 }
 
 // matrixAlphaParam is params.alpha beside params.inference.
 var matrixAlphaParam = descriptor.Param{Name: "alpha", Type: "float", Required: false, Default: vectors.InferenceDefaultAlpha,
-	Description: "The confidence intervals' two-sided level, strictly between 0 and 1 (coverage 1 - alpha). Applies with inference true only."}
+	Description: "The confidence intervals' two-sided level, strictly between 0 and 1 (coverage 1 - alpha). Applies with inference on only. Under a multiplicity block inference is on even when unset, and significant_adjusted reads the block's own alpha, not this one."}

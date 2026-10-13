@@ -671,6 +671,9 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 		if spec.Type == types.MAT_DISTANCE {
 			return betweenRequired(at)
 		}
+		if slices.Contains(InferenceTypes(), spec.Type) {
+			return decodeInference(at, inferenceParams{}, spec.Multiplicity != nil, m)
+		}
 		return nil
 	}
 	var miss missingParams
@@ -718,7 +721,7 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 			}
 			m.TopPairs = *k
 		}
-		if err := decodeInference(at, p.inferenceParams, m); err != nil {
+		if err := decodeInference(at, p.inferenceParams, spec.Multiplicity != nil, m); err != nil {
 			return err
 		}
 		miss = p.missingParams
@@ -735,7 +738,7 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 		if err := decodeRepair(at, p.Repair, m); err != nil {
 			return err
 		}
-		if err := decodeInference(at, p.inferenceParams, m); err != nil {
+		if err := decodeInference(at, p.inferenceParams, spec.Multiplicity != nil, m); err != nil {
 			return err
 		}
 		miss = p.missingParams
@@ -1413,11 +1416,17 @@ func decodeMissing(at string, p missingParams, m *Matrix) *errors.CodedError {
 // params.method): inference true turns the per-pair p-values and
 // confidence intervals on; alpha is the intervals' two-sided level,
 // strictly between 0 and 1 (default InferenceDefaultAlpha), and applies
-// with inference true only, on every MAT_CORRELATION method (a rank
-// method's p is cor.test's for that method). Every refusal is
-// bad_params.
-func decodeInference(at string, p inferenceParams, m *Matrix) *errors.CodedError {
-	on := p.Inference != nil && *p.Inference
+// with inference on only, on every MAT_CORRELATION method (a rank
+// method's p is cor.test's for that method). implied is the spec's own
+// `multiplicity` block (U28 E3-S4): a block needs the p-values, so it
+// turns inference on when params leave it unset and refuses an
+// explicit `inference: false`. Every refusal is bad_params.
+func decodeInference(at string, p inferenceParams, implied bool, m *Matrix) *errors.CodedError {
+	if implied && p.Inference != nil && !*p.Inference {
+		return matrixInvalid(at, "bad_params", at+" params.inference is false, but the spec's multiplicity block corrects its p-values and implies inference; drop one of them",
+			map[string]any{"param": "inference", "value": false})
+	}
+	on := implied || (p.Inference != nil && *p.Inference)
 	if p.Alpha != nil {
 		a := *p.Alpha
 		if !on {

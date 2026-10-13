@@ -177,6 +177,17 @@ func TestPredict_PValuesMatrixInference(t *testing.T) {
 	pv := func(total int, basis string) *descriptor.PValueCount {
 		return &descriptor.PValueCount{Total: total, Uncorrected: total, Basis: basis, Threshold: descriptor.MultiplicityTriggerThreshold}
 	}
+	corrected := func(total, members int, basis string) *descriptor.PValueCount {
+		return &descriptor.PValueCount{Total: total, Uncorrected: total - members, Basis: basis, Threshold: descriptor.MultiplicityTriggerThreshold}
+	}
+	named := func(s types.MatrixSpec, name string) types.MatrixSpec {
+		s.Name = name
+		return s
+	}
+	withMult := func(s types.MatrixSpec, method types.MultiplicityMethod) types.MatrixSpec {
+		s.Multiplicity = mult(method, "", 0)
+		return s
+	}
 	cases := []struct {
 		name string
 		req  *types.Request
@@ -192,6 +203,23 @@ func TestPredict_PValuesMatrixInference(t *testing.T) {
 			Groups:   []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
 			Matrices: []types.MatrixSpec{spec(types.MAT_CORRELATION, `{"inference": true, "missing": "pairwise"}`)},
 		}, pv(18, descriptor.PValueBasisDictionary)},
+		// U28 E3-S4: a spec's own block implies inference and corrects
+		// its k(k-1)/2 pairs, per bucket when grouped; an inherited block
+		// corrects only a spec already under inference.
+		{"own block corrects", &types.Request{Matrices: []types.MatrixSpec{withMult(spec(types.MAT_CORRELATION, `{}`), mHolm)}},
+			corrected(6, 6, descriptor.PValueBasisExact)},
+		{"own block grouped", &types.Request{
+			Groups:   []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+			Matrices: []types.MatrixSpec{withMult(spec(types.MAT_CORRELATION, `{"method": "kendall"}`), mBH)},
+		}, corrected(18, 18, descriptor.PValueBasisDictionary)},
+		{"inherited block reaches an inferential spec", &types.Request{Multiplicity: mult(mHolm, "", 0),
+			Matrices: []types.MatrixSpec{spec(types.MAT_CORRELATION, `{"inference": true}`), spec(types.MAT_PARTIAL_CORRELATION, `{"inference": true, "control": ["x4"]}`)}},
+			corrected(9, 9, descriptor.PValueBasisExact)},
+		{"inherited block skips a spec without inference", &types.Request{Multiplicity: mult(mHolm, "", 0),
+			Matrices: []types.MatrixSpec{spec(types.MAT_CORRELATION, `{}`), named(spec(types.MAT_CORRELATION, `{"inference": true}`), "on")}},
+			corrected(6, 6, descriptor.PValueBasisExact)},
+		{"own none leaves the implied p-values uncorrected", &types.Request{Matrices: []types.MatrixSpec{withMult(spec(types.MAT_CORRELATION, `{}`), mNone)}},
+			pv(6, descriptor.PValueBasisExact)},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

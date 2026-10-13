@@ -4388,6 +4388,7 @@ pulse/types: type MatrixResult struct
 pulse/types: type MatrixResult field Auxiliary map[string]*pulse/types.MatrixValues "json:\"auxiliary,omitempty\""
 pulse/types: type MatrixResult field GroupHeader *pulse/types.AxisHeader "json:\"group_header,omitempty\""
 pulse/types: type MatrixResult field GroupKey pulse/types.AxisKey "json:\"group_key,omitempty\""
+pulse/types: type MatrixResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type MatrixResult field Name string "json:\"name\""
 pulse/types: type MatrixResult field Primary *pulse/types.MatrixValues "json:\"primary\""
 pulse/types: type MatrixResult field Scalars map[string]float64 "json:\"scalars,omitempty\""
@@ -4398,6 +4399,7 @@ pulse/types: type MatrixResult method (MatrixResult) MarshalJSON() ([]byte, erro
 pulse/types: type MatrixSpec struct
 pulse/types: type MatrixSpec field Encoding pulse/types.MatrixEncoding "json:\"encoding,omitempty\""
 pulse/types: type MatrixSpec field Fields []string "json:\"fields,omitempty\""
+pulse/types: type MatrixSpec field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type MatrixSpec field Name string "json:\"name,omitempty\""
 pulse/types: type MatrixSpec field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type MatrixSpec field Type pulse/types.MatrixType "json:\"type\""
@@ -4429,6 +4431,7 @@ pulse/types: type MultiplicityFamily string
 pulse/types: const MultiplicityFamilyColumn pulse/types.MultiplicityFamily = "column"
 pulse/types: const MultiplicityFamilyCompose pulse/types.MultiplicityFamily = "compose"
 pulse/types: const MultiplicityFamilyLayer pulse/types.MultiplicityFamily = "layer"
+pulse/types: const MultiplicityFamilyMatrix pulse/types.MultiplicityFamily = "matrix"
 pulse/types: const MultiplicityFamilyRequest pulse/types.MultiplicityFamily = "request"
 pulse/types: const MultiplicityFamilyRow pulse/types.MultiplicityFamily = "row"
 pulse/types: type MultiplicityMethod string
@@ -4968,4 +4971,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 5fe5e35dd94af8f26465dabc6511c9108d252e415378095cc5d22c499508eb10
+// golden-hash: 1c1f58b08b949bc494d1c36e83bdb6e511e54a865787e838c1210e1a5ed40c6b

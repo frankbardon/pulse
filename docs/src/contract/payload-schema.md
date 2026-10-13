@@ -190,23 +190,28 @@ Multiple-comparison correction adds one additive block shape,
 `format_version` stays `"1.1"`; a request that names no block is
 byte-identical to the earlier wire form and hashes identically). It rides
 as `multiplicity` on `Request`, `Test` (`tests[]` and `post_tests[]`),
-`OverlaySpec` (request and facet overlays), `ComposeOverlaySpec` and
-`ComposedRequest`. `method` is the closed enum `MultiplicityMethod`
-(`none`, `bonferroni`, `holm`, `bh`, `by`) and `family` the closed enum
-`MultiplicityFamily` (`layer`, `row`, `column`, `request`, `compose`);
+`OverlaySpec` (request and facet overlays), `MatrixSpec` (`matrices[]`),
+`ComposeOverlaySpec` and `ComposedRequest`. `method` is the closed enum
+`MultiplicityMethod` (`none`, `bonferroni`, `holm`, `bh`, `by`) and
+`family` the closed enum `MultiplicityFamily` (`layer`, `row`, `column`,
+`request`, `compose`, `matrix`);
 both are full vocabularies on every instance (not features). `alpha` is a
 number in (0, 1).
 
 Each key falls through on its own: slot → request (a Compose slot: then
 the `ComposedRequest`) → the engine's `DefaultMultiplicity` → none, and an
 omitted family takes the surface default (`request` for tests, `layer`
-for overlays). `{"method": "none"}` is the explicit opt-out. What the
+for overlays, `matrix` for a matrix spec). `{"method": "none"}` is the explicit opt-out. What the
 schema cannot say is enforced identically by `pulse predict` and the
 runtime (`PULSE_MULTIPLICITY_INVALID`): the families each surface offers
 (`row` / `column` only on a MATRIX-payload overlay kind, `compose` only
 inside Compose, never `request` on a Compose overlay or anything but
-`layer` / `row` / `column` on a facet overlay), no `alpha` on a test's
-own block, and no explicit correction on the Tukey HSD post-test. Members
+`layer` / `row` / `column` on a facet overlay, `matrix` only — with
+`request` — on a matrix spec), no `alpha` on a test's own block, no
+explicit correction on the Tukey HSD post-test, and no block on a matrix
+operator without p-values (only `MAT_CORRELATION` /
+`MAT_PARTIAL_CORRELATION` take one; it implies `params.inference`, and an
+explicit `params.inference: false` beside it is refused). Members
 of one `request` or `compose` family that resolve to different methods
 are refused `PULSE_MULTIPLICITY_CONFLICT`.
 
@@ -281,6 +286,23 @@ index with no defined p-value, and `m` is their sum. A facet overlay
 (`FacetResult.overlays[]`) is corrected per layer with the same slots
 and the engine's `DefaultMultiplicity` applying. These keys ride
 `capability:multiplicity` like the test outputs.
+
+A matrix spec under `params.inference` (set, or implied by its own
+block) is corrected over its DISTINCT pairs: the off-diagonal upper
+triangle of each `square_symmetric` result (m = k(k − 1)/2 for k
+members — the diagonal and the mirrored lower triangle are not separate
+hypotheses), every cell of a rectangular one. The result's open
+`auxiliary` map gains `p_adjusted` and `significant_adjusted`, two
+`MatrixValues` of `auxiliary.p`'s kind, encoding and keys (mirrored into
+both triangles under `full`, diagonal `null`; `significant_adjusted` is
+`1` when `p_adjusted` < the block's `alpha`, else `0`, `null` beside a
+null `p_adjusted`), and the `MatrixResult` gains a `multiplicity` echo
+(`AppliedMultiplicity`). `auxiliary.p` never changes. Family `matrix`
+(the default) is one family per result — per spec and per group
+bucket; `request` pools every bucket of the spec with the request's
+other `request`-family members. An inherited block reaches only a spec
+already under `params.inference`. The echo key rides
+`capability:multiplicity`.
 
 ## Overlay payload parts
 

@@ -110,6 +110,10 @@ type returnSizeInputs struct {
 	// matrixPlans are the resolved specs behind matrices, index for
 	// index (the auxiliaries a spec emits follow its params).
 	matrixPlans []vectors.Matrix
+	// matrixMembers marks, index for index with matrixPlans, the specs
+	// a resolved multiplicity family claims (their results gain the
+	// adjusted twins and the echo).
+	matrixMembers []bool
 	// records is the cohort's record count; recordsKnown is false when
 	// it cannot be derived from the file length.
 	records      int64
@@ -268,8 +272,12 @@ func returnSections(in returnSizeInputs) []returnSection {
 				matrixValuesNode("primary", p, p), key("vectors", elemValues(p, sizeNumber)),
 				leaf("scalars", sizeNumber)}
 			if i < len(in.matrixPlans) {
-				if aux := matrixAuxiliaryNodes(in.matrixPlans[i], m); len(aux) > 0 {
+				member := i < len(in.matrixMembers) && in.matrixMembers[i]
+				if aux := matrixAuxiliaryNodes(in.matrixPlans[i], m, member); len(aux) > 0 {
 					result = append(result, key("auxiliary", aux...))
+				}
+				if member {
+					result = append(result, leaf("multiplicity", sizeHeader))
 				}
 			}
 			kids = append(kids, elems(in.clamp(*m.EstimatedBuckets), result...))
@@ -463,7 +471,9 @@ func matrixValuesNode(name string, rows, cols int64) *sizeNode {
 //
 //   - n (pairwise, every operator but MAT_DISTANCE): p x p pair N.
 //   - p, ci_lower, ci_upper (params.inference on MAT_CORRELATION /
-//     MAT_PARTIAL_CORRELATION): p x p each.
+//     MAT_PARTIAL_CORRELATION): p x p each; p_adjusted and
+//     significant_adjusted too when member (a multiplicity family
+//     claims the spec).
 //   - MAT_PCA: eigenvectors p x k; unrotated p x k under a rotation.
 //   - MAT_FACTOR: unrotated p x k under a rotation; factor_correlation
 //     k x k under an oblique one (promax, oblimin).
@@ -472,14 +482,18 @@ func matrixValuesNode(name string, rows, cols int64) *sizeNode {
 //   - MAT_DISTANCE: centroids b x p; centroids_standardized b x p under
 //     standardize; pooled_covariance p x p under a fitted inverse
 //     covariance metric (mahalanobis).
-func matrixAuxiliaryNodes(m vectors.Matrix, mp descriptor.MatrixPredict) []*sizeNode {
+func matrixAuxiliaryNodes(m vectors.Matrix, mp descriptor.MatrixPredict, member bool) []*sizeNode {
 	p, k := int64(mp.Shape[0]), int64(mp.Shape[1])
 	var out []*sizeNode
 	if m.Pairwise && m.Type != types.MAT_DISTANCE {
 		out = append(out, matrixValuesNode("n", p, p))
 	}
 	if m.Inference {
-		for _, name := range []string{"p", "ci_lower", "ci_upper"} {
+		names := []string{"p", "ci_lower", "ci_upper"}
+		if member {
+			names = append(names, "p_adjusted", "significant_adjusted")
+		}
+		for _, name := range names {
 			out = append(out, matrixValuesNode(name, p, p))
 		}
 	}

@@ -37,6 +37,8 @@ Use something else:
 | `weight` | slot weight | inherited | Pearson: both kinds; rank: frequency only. `null` opts out. |
 | `encoding` | `full` \| `upper` | `full` | `upper`: row r holds p − r cells. |
 
+Spec `multiplicity` `{method, family, alpha}` (optional) implies `inference` (explicit `false` refused) and adds `auxiliary.p_adjusted` / `significant_adjusted` (1 below its `alpha`, else 0) over the distinct pairs, mirrored, diagonal null, plus a `multiplicity` echo. Family `matrix` (default: one result, m = p(p − 1)/2, per bucket) or `request`. Raw `p` untouched ([`multiplicity-correction`](multiplicity-correction.md)).
+
 ## Inputs
 
 Integer / float members; `packed_bool` under `coerce: "binary"`.
@@ -57,7 +59,7 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 ## Gotchas
 
 - Each cell is the matching two-field test (Pearson, Spearman, Kendall) over its pair's rows. Weight-0 rows count in `n`, add no mass.
-- `inference` rides `auxiliary`: `return` preset `standard` (the MCP default) drops it; use `full` or include `matrices[*].auxiliary`. Thin cells: `PULSE_MATRIX_INSUFFICIENT_N` scope `inference`; uncorrected.
+- `inference` rides `auxiliary`: `return` preset `standard` (the MCP default) drops it; use `full` or include `matrices[*].auxiliary`. Thin cells: `PULSE_MATRIX_INSUFFICIENT_N` scope `inference`, null p left out of any correction family.
 - Rank methods: predict `streamable` / `mergeable` false; a probability weight is `PULSE_WEIGHT_UNSUPPORTED`. Kendall τ-b runs smaller than ρ.
 - Pairwise r at p ≥ 3 can be non-PSD (predict `pairwise_psd_risk`) → `PULSE_MATRIX_NOT_PSD`; also `_INSUFFICIENT_N`, `_ZERO_VARIANCE`, `_LISTWISE_HEAVY_DROP`.
 - Refusals and grouping: [`matrix-results`](matrix-results.md).

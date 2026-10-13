@@ -24,7 +24,7 @@ Raw `p_value` / `reject_null` never change, and a request with no block
 | Key | Values | Meaning |
 |---|---|---|
 | `method` | `none`, `bonferroni`, `holm`, `bh`, `by` | the procedure; matches R `p.adjust` (`bh` / `by` are R's `BH` / `BY`) |
-| `family` | `layer`, `row`, `column`, `request`, `compose` | which p-values are corrected together |
+| `family` | `layer`, `row`, `column`, `request`, `compose`, `matrix` | which p-values are corrected together |
 | `alpha` | a number in (0, 1), default `0.05` | the level an overlay's `significant_adjusted` reads (a test uses its own `alpha`) |
 
 `bonferroni` and `holm` control the family-wise error rate (the chance
@@ -33,7 +33,9 @@ discovery rate (the expected share of false positives among the hits),
 `by` under any dependence. `{"method": "none"}` is the explicit opt-out.
 
 It rides on the `Request`, each `tests[]` / `post_tests[]` entry, each
-overlay spec, the `ComposedRequest` and its overlay specs, and
+overlay spec, each `MAT_CORRELATION` / `MAT_PARTIAL_CORRELATION`
+`matrices[]` spec (where it implies `params.inference`), the
+`ComposedRequest` and its overlay specs, and
 engine-wide as `Options.DefaultMultiplicity`. Each key falls through on
 its own: slot, request, `ComposedRequest`, engine default, none.
 
@@ -45,12 +47,16 @@ its own: slot, request, `ComposedRequest`, engine default, none.
 | `row` / `column` | each row / column of one layer's matrix | overlays with a MATRIX payload |
 | `request` | the request's tests, post-tests and `request`-family overlays | tests (the test default), request overlays |
 | `compose` | every `compose` member across all slots and Compose-host layers | inside Compose |
+| `matrix` | one matrix result's distinct pairs (the upper triangle: m = k(k − 1)/2 for k members), one family per group bucket | matrix specs (the matrix default; `request` also offered) |
 
 An inherited family the surface does not offer takes the surface
 default; an explicit one is refused (`PULSE_MULTIPLICITY_INVALID`):
 `row` / `column` on a non-matrix kind, `compose` outside Compose,
 `request` on a Compose-host overlay, `request` / `compose` on a facet
-overlay. Members of one `request` / `compose` family that resolve to
+overlay, `matrix` anywhere but a matrix spec and anything but `matrix` /
+`request` on one, and a block on a matrix operator that emits no
+p-values. An inherited block corrects only a matrix spec that already
+sets `params.inference: true`. Members of one `request` / `compose` family that resolve to
 different methods are `PULSE_MULTIPLICITY_CONFLICT`. `alpha` on a test's
 own block is refused (the test's `alpha` is used), and so is an explicit
 correction on Tukey HSD, which is already family-wise and never joins a
@@ -75,6 +81,11 @@ All additive, present only when a correction ran:
   coordinates; a panel cell's vector maps element for element.
 - **Overlay layers**: a `multiplicity` echo, with `m_per` for `row` /
   `column` (each family's size, aligned with the rows or columns).
+- **Correlation matrices**: `auxiliary.p_adjusted` and
+  `auxiliary.significant_adjusted` (`1` below the block's `alpha`, else
+  `0`) beside `auxiliary.p`, in its encoding, mirrored into both
+  triangles with a null diagonal, plus a `multiplicity` echo on the
+  matrix result.
 
 `m` is the number of defined p-values corrected together. An undefined
 (NaN) p is left out of `m` and shows `p_adjusted: null`. Field shapes:

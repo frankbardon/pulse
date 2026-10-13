@@ -102,7 +102,7 @@ func TestMatrixAuxiliaryNodes_PerOperator(t *testing.T) {
 				}
 			}
 			var got []auxShape
-			for _, n := range matrixAuxiliaryNodes(plans[0], result.Matrices[0]) {
+			for _, n := range matrixAuxiliaryNodes(plans[0], result.Matrices[0], false) {
 				if !declared[n.seg.Name] {
 					t.Errorf("%s sizes auxiliary.%s, which the operator does not declare", c.spec.Type, n.seg.Name)
 				}
@@ -163,5 +163,43 @@ func TestPredict_ReturnSizes_MatrixAuxiliary(t *testing.T) {
 	inc := run(`{"inference": true}`, &types.Return{Preset: types.ReturnPresetStandard, Include: []string{"matrices[*].auxiliary.p"}})
 	if want := stdOff.ShapedBytes + auxKey + square; inc.ShapedBytes != want {
 		t.Errorf("include auxiliary.p: shaped %d, want %d", inc.ShapedBytes, want)
+	}
+}
+
+// TestPredict_ReturnSizes_MatrixMultiplicity (U28 E3-S4): a spec a
+// multiplicity family claims grows by its two p x p twins
+// (p_adjusted, significant_adjusted) and the multiplicity echo; a
+// block that resolves to none, or an inherited one on a spec without
+// inference, adds nothing.
+func TestPredict_ReturnSizes_MatrixMultiplicity(t *testing.T) {
+	data := auxSizesCohort(t, 50)
+	fields := []string{"x1", "x2", "x3"}
+	run := func(params string, own, req *types.Multiplicity) int64 {
+		t.Helper()
+		spec := auxSpec(types.MAT_CORRELATION, fields, params)
+		spec.Multiplicity = own
+		rp := predictSizes(t, data, &types.Request{Matrices: []types.MatrixSpec{spec}, Multiplicity: req})
+		s, ok := sizeOf(rp, "matrices")
+		if !ok {
+			t.Fatalf("matrices not sized")
+		}
+		return s.FullBytes
+	}
+	holm := &types.Multiplicity{Method: types.MultiplicityMethodHolm}
+	none := &types.Multiplicity{Method: types.MultiplicityMethodNone}
+	inference := run(`{"inference": true}`, nil, nil)
+	twins := matrixValuesNode("p_adjusted", 3, 3).full() + matrixValuesNode("significant_adjusted", 3, 3).full() +
+		leaf("multiplicity", sizeHeader).full()
+	if got := run("", holm, nil); got != inference+twins {
+		t.Errorf("own block: %d, want %d (inference %d + twins and echo %d)", got, inference+twins, inference, twins)
+	}
+	if got := run(`{"inference": true}`, nil, holm); got != inference+twins {
+		t.Errorf("inherited block on an inferential spec: %d, want %d", got, inference+twins)
+	}
+	if got := run("", none, nil); got != inference {
+		t.Errorf("own none: %d, want the implied inference alone %d", got, inference)
+	}
+	if got, off := run("", nil, holm), run("", nil, nil); got != off {
+		t.Errorf("inherited block on a spec without inference: %d, want %d", got, off)
 	}
 }

@@ -271,6 +271,20 @@ type MatrixSpec struct {
 	// Encoding selects the Values layout of every matrix in the result
 	// (MatrixEncodingFull when empty).
 	Encoding MatrixEncoding `json:"encoding,omitempty"`
+	// Multiplicity is the spec's own multiple-comparison block
+	// (MAT_CORRELATION / MAT_PARTIAL_CORRELATION only; any other type
+	// is refused with PULSE_MULTIPLICITY_INVALID). Setting it implies
+	// params.inference (an explicit params.inference false beside it is
+	// refused), and the result gains auxiliary.p_adjusted /
+	// auxiliary.significant_adjusted beside the raw auxiliary.p plus a
+	// MatrixResult.Multiplicity echo. Families: `matrix` (default: the
+	// off-diagonal upper triangle of one result, one family per group
+	// bucket) and `request` (pooled with the request's other
+	// request-family members, every bucket of the spec included). Absent
+	// inherits Request.Multiplicity / Options.DefaultMultiplicity field
+	// by field — but only a spec already under params.inference takes an
+	// inherited correction; nil is byte-identical.
+	Multiplicity *Multiplicity `json:"multiplicity,omitempty"`
 }
 
 // Streamable reports whether this concrete spec folds row by row, so a
@@ -401,6 +415,10 @@ type MatrixResult struct {
 	Vectors     map[string]any           `json:"vectors,omitempty"`
 	Scalars     map[string]float64       `json:"scalars,omitempty"`
 	Warnings    []*ResponseWarning       `json:"warnings,omitempty"`
+	// Multiplicity echoes the correction behind auxiliary.p_adjusted /
+	// auxiliary.significant_adjusted (method, family, alpha, m and the
+	// excluded null-p cells). Nil when no correction reached the result.
+	Multiplicity *AppliedMultiplicity `json:"multiplicity,omitempty"`
 }
 
 // MatrixPair is one entry of a MAT_CORRELATION result's

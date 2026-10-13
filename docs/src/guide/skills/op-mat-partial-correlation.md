@@ -34,6 +34,8 @@ Use something else:
 | `alpha` | (0, 1) | `0.05` | Interval level; needs `inference`. |
 | `missing`, `max_drop_share`, `weight`, `encoding` | | | As [`op-mat-correlation`](op-mat-correlation.md). |
 
+Spec `multiplicity` `{method, family, alpha}` (optional) implies `inference` (explicit `false` refused) and adds `auxiliary.p_adjusted` / `significant_adjusted` (1 below its `alpha`, else 0) over the distinct pairs, mirrored, diagonal null, plus a `multiplicity` echo. Family `matrix` (default: one result, m = p(p − 1)/2, per bucket) or `request`. Raw `p` untouched ([`multiplicity-correction`](multiplicity-correction.md)).
+
 ## Inputs
 
 Integer / float members and controls.

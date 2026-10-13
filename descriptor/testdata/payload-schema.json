@@ -2162,6 +2162,9 @@
             "null"
           ]
         },
+        "multiplicity": {
+          "$ref": "#/$defs/AppliedMultiplicity"
+        },
         "name": {
           "type": "string"
         },
@@ -2215,6 +2218,9 @@
             "array",
             "null"
           ]
+        },
+        "multiplicity": {
+          "$ref": "#/$defs/Multiplicity"
         },
         "name": {
           "type": "string"
@@ -2350,6 +2356,7 @@
         "column",
         "compose",
         "layer",
+        "matrix",
         "request",
         "row"
       ],
@@ -4549,4 +4556,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 64e1b7b1b1b0ce2e38ee0132f02f100850e518c78ebf5e678e217e9d282d8f51
+// golden-hash: 2d8edd22fc4fb3f624b11fa5c684732e04d5a0358bee2c74b65731eec0b09282

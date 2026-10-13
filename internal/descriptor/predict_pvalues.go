@@ -93,10 +93,16 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 		n, basis := overlayPValueCount(routed, spec.Scope, rows, cols)
 		add(n, basis, member(overlays, i))
 	}
-	// A matrix under params.inference carries one p per output pair,
-	// per bucket on a grouped request (the tier-1 tests' bound). No
-	// multiplicity block reaches a matrix yet.
+	// A matrix under params.inference (set, or implied by its own
+	// multiplicity block) carries one p per distinct output pair — the
+	// off-diagonal upper triangle, k(k-1)/2, the `matrix` family's m —
+	// per bucket on a grouped request (the tier-1 tests' bound); a
+	// member spec's pairs are corrected.
 	if len(req.Matrices) > 0 {
+		var matrices []ResolvedMultiplicity
+		if plan != nil {
+			matrices = plan.Matrices
+		}
 		if plans, err := resolveMatricesFor(req, schema, nil, inst); err == nil {
 			for _, m := range plans {
 				if !m.Inference {
@@ -104,7 +110,7 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 				}
 				k := len(m.OutputIndices())
 				if pairs := k * (k - 1) / 2; pairs > 0 {
-					add(pairs*perTest, perTestBasis, false)
+					add(pairs*perTest, perTestBasis, member(matrices, m.Index))
 				}
 			}
 		}
