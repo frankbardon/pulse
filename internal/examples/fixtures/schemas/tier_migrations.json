@@ -1,0 +1,5 @@
+[
+  {"name": "id", "type": "u32", "description": "Membership-period identifier: one row per member per month, the move observed between consecutive monthly snapshots"},
+  {"name": "from_tier", "type": "categorical_u8", "description": "Loyalty tier at the start of the month: bronze, silver, gold or churned (churned members stay churned)"},
+  {"name": "to_tier", "type": "categorical_u8", "description": "Loyalty tier at the end of the same month, on the same four states as from_tier, so the pair forms a square transition table"}
+]

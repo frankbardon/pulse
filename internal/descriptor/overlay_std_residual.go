@@ -28,6 +28,7 @@ var stdResidualParts = map[string]types.OverlayShape{
 var overlayPartShapes = map[types.OverlayKind]map[string]types.OverlayShape{
 	types.OverlayKindStdResidual:    stdResidualParts,
 	types.OverlayKindCorrespondence: correspondenceParts,
+	types.OverlayKindMarkov:         markovParts,
 }
 
 // validateOverlayStdResidual enforces the per-kind contract for

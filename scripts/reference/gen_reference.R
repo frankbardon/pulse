@@ -370,3 +370,8 @@ source(file.path(script_dir, "gen_std_residual.R"), local = FALSE)
 # inertias, masses, standard / map coordinates under the three
 # normalizations, quality and contribution); needs the ca package.
 source(file.path(script_dir, "gen_correspondence.R"), local = FALSE)
+
+# The OVERLAY_MARKOV golden (markov.json: transition matrices, n-step
+# powers, projected distributions, steady states, period /
+# irreducibility, mean absorption times); needs the markovchain package.
+source(file.path(script_dir, "gen_markov.R"), local = FALSE)

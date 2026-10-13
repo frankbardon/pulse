@@ -1423,6 +1423,30 @@ const (
 	// buffered.
 	OverlayKindCorrespondence OverlayKind = "OVERLAY_CORRESPONDENCE"
 
+	// OverlayKindMarkov reads the host crosstab as a from-state (row) ×
+	// to-state (column) transition count table and projects the flow as
+	// a Markov chain. MATRIX-scoped over a MATRIX (crosstab) host,
+	// implicit-margin (Ref empty), descriptive (no p-value). The row and
+	// column key sets must be equal as sets (aligned by key, never by
+	// position; the states take the row order), else
+	// PULSE_OVERLAY_MATRIX_NOT_SQUARE. Primary payload: the MATRIX of the
+	// row-stochastic transition matrix P (each row's cells over its
+	// total; a zero row becomes the unit row — the state absorbs — with a
+	// PULSE_OVERLAY_REF_ZERO warning). OverlayPayload.Parts: step_<n>
+	// (MATRIX Pⁿ per params.steps), distribution_<n> (SERIES, the initial
+	// distribution times Pⁿ; only with params.initial), steady_state
+	// (SERIES, power iteration; only for an irreducible aperiodic chain,
+	// else the PULSE_OVERLAY_MARKOV_NOT_ERGODIC warning) and
+	// absorption_time (SERIES, the expected steps to reach the
+	// params.absorbing set, (I − Q)⁻¹·1 through linalg.FactorLU; only
+	// with params.absorbing). Params: steps (default [1, 3, 6, 12], each
+	// an integer 1–1000), absorbing (state keys) and initial ("margin" or
+	// a key → share map). Cells must be non-negative counts or sums
+	// (AGG_COUNT / AGG_SUM, else PULSE_OVERLAY_NONNEGATIVE_REQUIRED).
+	// Scale-invariant: a weighted host's Σw table needs no Kish scaling.
+	// Inherently buffered.
+	OverlayKindMarkov OverlayKind = "OVERLAY_MARKOV"
+
 	// OverlayKindStdResidual emits the Haberman adjusted standardized
 	// residual of every host crosstab cell,
 	// (O − E) / sqrt(E · (1 − r/N) · (1 − c/N)) with E = r·c/N, so a
@@ -2471,6 +2495,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindIndexVsStage,
 		OverlayKindIndexVsTotal,
 		OverlayKindKSVsPop,
+		OverlayKindMarkov,
 		OverlayKindPairwiseProbitT,
 		OverlayKindPairwisePropZ,
 		OverlayKindPairwiseTwoMeansZ,

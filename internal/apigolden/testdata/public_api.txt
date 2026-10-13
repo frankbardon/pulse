@@ -2357,6 +2357,8 @@ pulse/errors: const PULSE_OVERLAY_FORMULA_TYPE_MISMATCH pulse/errors.Code = "PUL
 pulse/errors: const PULSE_OVERLAY_KEY_SET_DIVERGENT pulse/errors.Code = "PULSE_OVERLAY_KEY_SET_DIVERGENT"
 pulse/errors: const PULSE_OVERLAY_KIND_UNKNOWN pulse/errors.Code = "PULSE_OVERLAY_KIND_UNKNOWN"
 pulse/errors: const PULSE_OVERLAY_LEVEL_OUT_OF_RANGE pulse/errors.Code = "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE"
+pulse/errors: const PULSE_OVERLAY_MARKOV_NOT_ERGODIC pulse/errors.Code = "PULSE_OVERLAY_MARKOV_NOT_ERGODIC"
+pulse/errors: const PULSE_OVERLAY_MATRIX_NOT_SQUARE pulse/errors.Code = "PULSE_OVERLAY_MATRIX_NOT_SQUARE"
 pulse/errors: const PULSE_OVERLAY_NONNEGATIVE_REQUIRED pulse/errors.Code = "PULSE_OVERLAY_NONNEGATIVE_REQUIRED"
 pulse/errors: const PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP pulse/errors.Code = "PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP"
 pulse/errors: const PULSE_OVERLAY_PARAM_MISSING pulse/errors.Code = "PULSE_OVERLAY_PARAM_MISSING"
@@ -4472,6 +4474,7 @@ pulse/types: const OverlayKindIndexVsSibling pulse/types.OverlayKind = "OVERLAY_
 pulse/types: const OverlayKindIndexVsStage pulse/types.OverlayKind = "OVERLAY_INDEX_VS_STAGE"
 pulse/types: const OverlayKindIndexVsTotal pulse/types.OverlayKind = "OVERLAY_INDEX_VS_TOTAL"
 pulse/types: const OverlayKindKSVsPop pulse/types.OverlayKind = "OVERLAY_KS_VS_POP"
+pulse/types: const OverlayKindMarkov pulse/types.OverlayKind = "OVERLAY_MARKOV"
 pulse/types: const OverlayKindPairwiseProbitT pulse/types.OverlayKind = "OVERLAY_PAIRWISE_PROBIT_T"
 pulse/types: const OverlayKindPairwisePropZ pulse/types.OverlayKind = "OVERLAY_PAIRWISE_PROP_Z"
 pulse/types: const OverlayKindPairwiseTwoMeansZ pulse/types.OverlayKind = "OVERLAY_PAIRWISE_TWO_MEANS_Z"
@@ -4959,4 +4962,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 73bf9b12742d8dd95f004da1c807d7c5c71ab375cc70527e1bb7b147ff1c264d
+// golden-hash: b0eee36a3ff3fbb69a0ecae767a88288d4b02debb99290500cbb80e41f7f5454

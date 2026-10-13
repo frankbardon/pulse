@@ -1339,6 +1339,35 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Scale-invariant: a weighted host's sum-of-weights table is " +
 				"read as is under either weight kind. Descriptive (no p-value).",
 		}
+	case types.OverlayKindMarkov:
+		return descriptor.OverlayCapability{
+			Kind: types.OverlayKindMarkov,
+			// Descriptive: no p-value, so no multiplicity site.
+			Inferential: false,
+			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
+			Scopes:      []types.OverlayScope{types.OverlayScopeMatrix},
+			// No Ref family — implicit-margin like the CHISQ_* kinds.
+			RefKinds: []string{},
+			Description: "Markov-chain projection of a from-state (rows) x to-state (columns) transition crosstab. MATRIX scope " +
+				"over a MATRIX (crosstab) host. The row and column key sets must be equal as sets (states align by key, " +
+				"never by position, in row order), else PULSE_OVERLAY_MATRIX_NOT_SQUARE (predict refuses different grouper " +
+				"counts on the two axes; runtime also refuses differing key sets). The primary MATRIX is the row-stochastic " +
+				"transition matrix P (each row over its total); a zero row becomes the unit row (the state absorbs) with a " +
+				"PULSE_OVERLAY_REF_ZERO warning. payload.parts: step_<n> (MATRIX P^n for each params.steps entry), " +
+				"distribution_<n> (SERIES initial x P^n, only with params.initial), steady_state (SERIES, power iteration to " +
+				"1e-12 within 10,000 iterations, else the exact linear solve; only for an irreducible aperiodic chain — " +
+				"otherwise the PULSE_OVERLAY_MARKOV_NOT_ERGODIC warning and no part) and absorption_time (SERIES over the " +
+				"non-absorbing states: expected steps to reach the params.absorbing set, (I - Q)^-1 1 through linalg.FactorLU; " +
+				"null with a PULSE_OVERLAY_MARKOV_NOT_ERGODIC warning for a state that may never be absorbed; only with " +
+				"params.absorbing). Summary.Parameters: states, classes, irreducible, period, steady_state_iterations, " +
+				"steady_state_converged. params: steps (default [1, 3, 6, 12]; distinct integers 1-1000, at most 64), " +
+				"absorbing (state keys present in the host) and initial (\"margin\" = the observed row-margin distribution, " +
+				"or a state -> share map over host states, normalized; omitted states start at 0); a bad or unknown param, " +
+				"or a key the host lacks, is PULSE_OVERLAY_PARAM_MISSING. Cells must be non-negative masses: a cell " +
+				"aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED. " +
+				"Scale-invariant: a weighted host's sum-of-weights table is read as is under either weight kind. " +
+				"Descriptive (no p-value).",
+		}
 	case types.OverlayKindStdResidual:
 		return descriptor.OverlayCapability{
 			Kind:        types.OverlayKindStdResidual,

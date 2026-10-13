@@ -1120,7 +1120,6 @@
       "composition",
       "describe",
       "distribution_shape",
-      "flows",
       "lookup",
       "segment"
     ],
@@ -1290,4 +1289,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3225e4fd23382da6bcf443c1ab51134fc41f12d983122f282e5db3e658389c2c
+// golden-hash: b3634bae3e5c0cf67d2af2d73f8c45bedd3dc6afa64ca79c67c63c43ab22e9ea

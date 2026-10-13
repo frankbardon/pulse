@@ -28,6 +28,7 @@ The overlays this instance offers: what each is for, the questions it answers an
 | [`OVERLAY_INDEX_VS_STAGE`](#op-overlay_index_vs_stage) | Index value of a process-chain stage's result against an earlier stage's result at the same coordinate (target / reference x 100). | What share of the starting figure is left after each filtering stage, scaled to 100? | intermediate | [`OVERLAY_DELTA_VS_STAGE`](#op-overlay_delta_vs_stage) when you want the gap in the value's own units.<br>[`OVERLAY_INDEX_VS_REF`](#op-overlay_index_vs_ref) when the results come from separate requests rather than chain stages. |
 | [`OVERLAY_INDEX_VS_TOTAL`](#op-overlay_index_vs_total) | Each group's value on a grouped result as an index value against the sum over all groups (group / total x 100). | How big is each region relative to the whole, on a 0 to 100 scale? | basic | [`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) when you want the raw share (0 to 1).<br>[`OVERLAY_ZSCORE_VS_TOTAL`](#op-overlay_zscore_vs_total) when you want each group against the average group.<br>[`OVERLAY_INDEX_VS_SIBLING`](#op-overlay_index_vs_sibling) when you want each group against one chosen group. |
 | [`OVERLAY_KS_VS_POP`](#op-overlay_ks_vs_pop) | Kolmogorov-Smirnov test on a numeric facet: checks whether a subset's distribution departs from a comparison population's. | Does this segment's spend distribution differ from all customers'? | advanced | [`OVERLAY_CHISQ_VS_POP`](#op-overlay_chisq_vs_pop) when the field is categorical.<br>[`TEST_KS`](test.md#op-test_ks) when you have two separate groups of raw rows.<br>[`OVERLAY_INDEX_VS_POP`](#op-overlay_index_vs_pop) when you want to see where the shapes differ rather than one test. |
+| [`OVERLAY_MARKOV`](#op-overlay_markov) | Markov chain of a from-state by to-state crosstab: transition probabilities, n-step projections, steady state and time to absorption. | Where will customers sit across the tiers in 6 or 12 periods if they keep switching as they did? | advanced | [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test of whether the from-state and the to-state are associated.<br>[`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you only want each cell's share of its row, with no projection. |
 | [`OVERLAY_PAIRWISE_PROBIT_T`](#op-overlay_pairwise_probit_t) | Pairwise t-tests on probit-transformed shares between rows (or columns) of one crosstab, matching a convention some survey tools use. | Which segments differ in share when tested the way our survey tool does? | advanced | [`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) when you want the standard test of two shares.<br>[`OVERLAY_PAIRWISE_WELCH_T`](#op-overlay_pairwise_welch_t) when the cells are averages of a numeric measure. |
 | [`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) | Two-proportion z-tests between every pair of rows (or columns) of one crosstab, per column (or row): which segments differ in share? | Which age bands differ from each other in the share choosing each brand? | advanced | [`OVERLAY_PAIRWISE_WELCH_T`](#op-overlay_pairwise_welch_t) when the cells are averages of a numeric measure rather than shares.<br>[`OVERLAY_PROP_Z_PANEL`](#op-overlay_prop_z_panel) when the groups are separate Compose requests.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one overall test of whether the rows differ at all. |
 | [`OVERLAY_PAIRWISE_TWO_MEANS_Z`](#op-overlay_pairwise_two_means_z) | Large-sample z-tests between every pair of rows (or columns) of one crosstab of averages: which segments differ in mean? | With thousands of respondents per cell, which segments differ in average rating? | advanced | [`OVERLAY_PAIRWISE_WELCH_T`](#op-overlay_pairwise_welch_t) when any cell is small; the t-based version is more honest there.<br>[`OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z`](#op-overlay_pairwise_weighted_two_means_z) when the cells are weighted averages.<br>[`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) when the cells are shares rather than averages. |
@@ -899,6 +900,43 @@ Kolmogorov-Smirnov test on a numeric facet: checks whether a subset's distributi
 **Glossary:** [`goodness-of-fit`](../glossary.md#term-goodness-of-fit), [`independence`](../glossary.md#term-independence), [`non-parametric`](../glossary.md#term-non-parametric), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`percentile`](../glossary.md#term-percentile), [`statistical-power`](../glossary.md#term-statistical-power), [`two-tailed`](../glossary.md#term-two-tailed)
 
 **Skill:** [`op-overlay-ks-vs-pop`](../skills/op-overlay-ks-vs-pop.md)
+
+<a id="op-overlay_markov"></a>
+
+### `OVERLAY_MARKOV`
+
+Markov chain of a from-state by to-state crosstab: transition probabilities, n-step projections, steady state and time to absorption.
+
+**Level:** advanced
+
+**Also known as:** `markov chain`, `transition matrix`
+
+**Questions it answers:**
+
+- Where will customers sit across the tiers in 6 or 12 periods if they keep switching as they did?
+- On average, how many periods does a customer in each tier take to churn?
+
+**Use cases by domain:**
+
+- *survey:* Turn a last-brand by current-brand table into a switching matrix and project brand shares forward.
+- *ops:* Project tier migration forward and estimate the expected months until churn from each tier.
+- *science:* Model moves between disease stages and the expected time to an absorbing outcome.
+
+**Assumptions:**
+
+- Rows are the from-state and columns the to-state, over the same set of states; the table counts moves over one period of equal length.
+- The next state depends only on the current one, and the switching probabilities stay the same every period (a time-homogeneous Markov chain).
+- A state no one leaves in the data (a zero row) is treated as absorbing; a chain that splits into groups that never mix, or cycles with a fixed rhythm, has no steady state and is warned about.
+- It is descriptive: the projections carry no confidence intervals, and a state seen on few moves gives noisy probabilities.
+
+**Use something else:**
+
+- [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test of whether the from-state and the to-state are associated.
+- [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you only want each cell's share of its row, with no projection.
+
+**Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`margin`](../glossary.md#term-margin), [`stochastic-matrix`](../glossary.md#term-stochastic-matrix), [`steady-state`](../glossary.md#term-steady-state)
+
+**Skill:** [`op-overlay-markov`](../skills/op-overlay-markov.md)
 
 <a id="op-overlay_pairwise_probit_t"></a>
 

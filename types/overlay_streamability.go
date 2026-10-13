@@ -142,6 +142,10 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// OVERLAY_CORRESPONDENCE is inherently buffered — the SVD reads
 	// the whole table (every cell and both margins) at once.
 	OverlayKindCorrespondence: false,
+	// OVERLAY_MARKOV is inherently buffered — the transition matrix
+	// normalizes every row by its total and aligns the row and column
+	// key sets, which only the finished table has.
+	OverlayKindMarkov: false,
 	// OVERLAY_STD_RESIDUAL is inherently buffered — each cell's
 	// adjusted residual reads the whole table's row, column and grand
 	// totals, which only the buffered / fused crosstab host has

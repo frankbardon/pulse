@@ -290,6 +290,40 @@ The number of rows behind the population's numeric summary; the other count the 
 
 - When the subset is part of the population these rows include the subset's, so the two samples overlap: D shrinks and this count overstates the comparison sample, and the p-value comes out too large (conservative).
 
+<a id="op-overlay_markov"></a>
+
+### `OVERLAY_MARKOV`
+
+Markov chain of a from-state by to-state crosstab: transition probabilities, n-step projections, steady state and time to absorption. See its [catalog entry](../catalog/overlay.md#op-overlay_markov).
+
+#### `cells.value`
+
+The probability (0 to 1) of moving from the row's state to the column's state in one period; each row adds up to 1. The step_&lt;n&gt; parts read the same way over n periods.
+
+**Caveats:**
+
+- A row built from few moves gives noisy probabilities, and every projection compounds that noise.
+
+#### `parts.steady_state.summary.statistic`
+
+In each series entry: the share of the population that would sit in the state in the long run if the switching probabilities never change; the shares add up to 1.
+
+**Caveats:**
+
+- It is a what-if, not a forecast: it assumes today's switching behaviour holds forever, and it is absent when the chain has no single long-run mix.
+
+#### `parts.absorption_time.summary.statistic`
+
+In each series entry: the expected number of periods a member starting in the state takes to first reach one of the absorbing states (for example churned).
+
+**Caveats:**
+
+- null means the state can wander into a group of states it never leaves without reaching an absorbing one, so the expected time is infinite.
+
+#### `summary.parameters.classes`
+
+The number of communicating classes: groups of states that can all reach one another. 1 means every state can reach every other; more (an absorbing churned state is its own class) means there is no single long-run mix, so steady_state is absent.
+
 <a id="op-overlay_pairwise_probit_t"></a>
 
 ### `OVERLAY_PAIRWISE_PROBIT_T`

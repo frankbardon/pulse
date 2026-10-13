@@ -108,6 +108,8 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		OverlayKindShareOfTotal: true,
 		// CORRESPONDENCE takes the SVD of the whole table.
 		OverlayKindCorrespondence: false,
+		// MARKOV row-normalizes and key-aligns the whole table.
+		OverlayKindMarkov: false,
 		// STD_RESIDUAL reads the whole table's totals (CHISQ_MATRIX).
 		OverlayKindStdResidual: false,
 		OverlayKindTCell:       false,

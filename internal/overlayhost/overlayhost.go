@@ -75,6 +75,7 @@ var hosts = map[types.OverlayKind][]Host{
 	types.OverlayKindChiSqMatrix:               requestOnly,
 	types.OverlayKindChiSqRow:                  requestOnly,
 	types.OverlayKindCorrespondence:            requestOnly,
+	types.OverlayKindMarkov:                    requestOnly,
 	types.OverlayKindDeltaVsMargin:             requestOnly,
 	types.OverlayKindFisherExactCell:           requestOnly,
 	types.OverlayKindIndexVsMargin:             requestOnly,
@@ -194,6 +195,7 @@ var processShapes = map[types.OverlayKind][]types.OverlayShape{
 	types.OverlayKindChiSqMatrix:               matrixOnly,
 	types.OverlayKindChiSqRow:                  matrixOnly,
 	types.OverlayKindCorrespondence:            matrixOnly,
+	types.OverlayKindMarkov:                    matrixOnly,
 	types.OverlayKindDeltaVsMargin:             matrixOnly,
 	types.OverlayKindFisherExactCell:           matrixOnly,
 	types.OverlayKindFormula:                   matrixOnly,
@@ -291,8 +293,8 @@ func ShapeRefusal(shape types.OverlayShape, kind, route types.OverlayKind, index
 // ReadsCellValue reports whether kind, on a MATRIX Process host, reads
 // the crosstab cell aggregation's VALUE — the one number per cell and
 // per margin (CellAt / MarginFor): the share / index / delta / z-score
-// vs-margin kinds, the χ², Fisher, STD_RESIDUAL and CORRESPONDENCE kinds
-// (cell values as observed counts), the proportion pairwise kinds (OVERLAY_PAIRWISE_PROP_Z /
+// vs-margin kinds, the χ², Fisher, STD_RESIDUAL, CORRESPONDENCE and
+// MARKOV kinds (cell values as observed counts), the proportion pairwise kinds (OVERLAY_PAIRWISE_PROP_Z /
 // _PROBIT_T: the cell value as a proportion) and OVERLAY_FORMULA
 // (`cell`, the margins and their SDs). The moment pairwise kinds
 // (types.PairwiseKindUsesWelford, PairwiseKindUsesWeightedMoments)

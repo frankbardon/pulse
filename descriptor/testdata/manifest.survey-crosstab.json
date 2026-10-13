@@ -2072,7 +2072,6 @@
       "composition",
       "data_quality",
       "describe",
-      "flows",
       "lookup",
       "prepare",
       "relationship"
@@ -2243,4 +2242,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 319ff444f6d8a86f5079fc8b0c212bbb69ed0289ce47c67e6877bce473c6c4eb
+// golden-hash: 42ccce50fb3d49719c30a79e5717563579a8ebd00d3fb9f571a4184bc5ff0122

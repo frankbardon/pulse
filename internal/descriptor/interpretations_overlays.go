@@ -35,6 +35,7 @@ var overlayInterpretations = map[string][]descriptor.Interpretation{
 	"OVERLAY_CORRESPONDENCE":                interpOverlayCorrespondence,
 	"OVERLAY_FISHER_EXACT_CELL":             interpOverlayFisherExactCell,
 	"OVERLAY_KS_VS_POP":                     interpOverlayKSVsPop,
+	"OVERLAY_MARKOV":                        interpOverlayMarkov,
 	"OVERLAY_PAIRWISE_PROBIT_T":             interpOverlayPairwiseProbitT,
 	"OVERLAY_PAIRWISE_PROP_Z":               interpOverlayPairwisePropZ,
 	"OVERLAY_PAIRWISE_TWO_MEANS_Z":          interpOverlayPairwiseTwoMeansZ,
@@ -296,6 +297,34 @@ var (
 		{
 			Field: "parts.column_contribution.cells.value",
 			Means: "The column's share (0 to 1) of a dimension's inertia; each dimension's column contributions sum to 1.",
+		},
+	}
+
+	interpOverlayMarkov = []descriptor.Interpretation{
+		{
+			Field: "cells.value",
+			Means: "The probability (0 to 1) of moving from the row's state to the column's state in one period; each row adds up to 1. The step_<n> parts read the same way over n periods.",
+			Caveats: []string{
+				"A row built from few moves gives noisy probabilities, and every projection compounds that noise.",
+			},
+		},
+		{
+			Field: "parts.steady_state.summary.statistic",
+			Means: "In each series entry: the share of the population that would sit in the state in the long run if the switching probabilities never change; the shares add up to 1.",
+			Caveats: []string{
+				"It is a what-if, not a forecast: it assumes today's switching behaviour holds forever, and it is absent when the chain has no single long-run mix.",
+			},
+		},
+		{
+			Field: "parts.absorption_time.summary.statistic",
+			Means: "In each series entry: the expected number of periods a member starting in the state takes to first reach one of the absorbing states (for example churned).",
+			Caveats: []string{
+				"null means the state can wander into a group of states it never leaves without reaching an absorbing one, so the expected time is infinite.",
+			},
+		},
+		{
+			Field: "summary.parameters.classes",
+			Means: "The number of communicating classes: groups of states that can all reach one another. 1 means every state can reach every other; more (an absorbing churned state is its own class) means there is no single long-run mix, so steady_state is absent.",
 		},
 	}
 

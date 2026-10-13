@@ -2047,6 +2047,28 @@ const (
 	// value}). Raised with its own code, never PROCESSING_INTERNAL.
 	PULSE_OVERLAY_NONNEGATIVE_REQUIRED Code = "PULSE_OVERLAY_NONNEGATIVE_REQUIRED"
 
+	// PULSE_OVERLAY_MATRIX_NOT_SQUARE indicates an overlay that reads its
+	// crosstab host as a square from-state × to-state table
+	// (OVERLAY_MARKOV) met a host whose row and column key sets differ.
+	// States align by key, never by position, so the two axes must name
+	// the same states. Predict raises it when the shape alone decides it
+	// (row and column axes with different grouper counts — their keys
+	// can never match; details {kind, index, row_fields, column_fields});
+	// runtime raises the same arity refusal plus the key-set one (details
+	// {kind, index, row_only, column_only}: the state names found on one
+	// axis only). Raised with its own code, never PROCESSING_INTERNAL.
+	PULSE_OVERLAY_MATRIX_NOT_SQUARE Code = "PULSE_OVERLAY_MATRIX_NOT_SQUARE"
+
+	// PULSE_OVERLAY_MARKOV_NOT_ERGODIC is a WARNING (never an error) an
+	// OVERLAY_MARKOV layer carries when its chain has no unique limiting
+	// distribution, so the steady_state part is omitted: the chain is
+	// reducible (more than one communicating class — details {kind,
+	// reason: "reducible", classes}) or periodic (details {kind, reason:
+	// "periodic", period}). It also flags states whose absorption is not
+	// certain (reason "absorption_not_certain", details states): their
+	// absorption_time is null. Every other part still emits.
+	PULSE_OVERLAY_MARKOV_NOT_ERGODIC Code = "PULSE_OVERLAY_MARKOV_NOT_ERGODIC"
+
 	// PULSE_TEMPLATE_NOT_FOUND indicates a render was asked for a
 	// template name that is not registered — neither declared
 	// programmatically nor loaded from a template directory. Details
@@ -3754,6 +3776,8 @@ var allCodes = []Code{
 	PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED,
 	PULSE_OVERLAY_EXPORT_PARTS_DROPPED,
 	PULSE_OVERLAY_NONNEGATIVE_REQUIRED,
+	PULSE_OVERLAY_MATRIX_NOT_SQUARE,
+	PULSE_OVERLAY_MARKOV_NOT_ERGODIC,
 	PULSE_INDEX_MISSING,
 	PULSE_LOOKUP_NOT_FOUND,
 	PULSE_LOOKUP_AMBIGUOUS,

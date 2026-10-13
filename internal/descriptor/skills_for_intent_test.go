@@ -81,11 +81,13 @@ func TestSkillsForIntent_Ranking(t *testing.T) {
 }
 
 // TestSkillsForIntent_NoServingOperator: an intent no operator serves
-// answers its reference skill only.
+// answers its reference skill only — lookup, which routes to tooling
+// (flows served none until OVERLAY_MARKOV, and hiding an intent's only
+// operator prunes the intent itself).
 func TestSkillsForIntent_NoServingOperator(t *testing.T) {
-	got, err := hidingSnapshot().SkillsForIntent(IntentFlows)
+	got, err := hidingSnapshot().SkillsForIntent(IntentLookup)
 	if err != nil || !slices.Equal(skillNames(got), []string{skills.VirtualIntents}) {
-		t.Fatalf("flows = %v, err %v", skillNames(got), err)
+		t.Fatalf("lookup = %v, err %v", skillNames(got), err)
 	}
 }
 

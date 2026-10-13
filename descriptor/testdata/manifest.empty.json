@@ -604,7 +604,6 @@
     "overlays": [],
     "components_schemas": {},
     "intents": [
-      "flows",
       "lookup"
     ],
     "return_presets": [
@@ -773,4 +772,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f58bd833b6888bfefefcc30bd19dbbd6d82d950cba31433f518a4d6c72a45803
+// golden-hash: 3ea13b52dc1433b86396a0d0c99c5e13c5ac7e1fb01529dcfe639c0f4d7b1294

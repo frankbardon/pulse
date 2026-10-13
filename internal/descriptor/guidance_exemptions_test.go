@@ -58,7 +58,6 @@ var intentDeclarerExemptions = []guidanceExemption{
 // (TestPurposeQuestionsResolve). Key: the intent ID.
 var intentExampleExemptions = []guidanceExemption{
 	{Key: IntentLookup, Owner: ownerPermanent, Why: "Non-analytic intent served by pulse_lookup; the example library holds request payloads, and a lookup is not one."},
-	{Key: IntentFlows, Owner: "U28", Why: "No flow operator exists to exemplify until U28 ships the matrix overlays."},
 	{Key: IntentSimulate, Owner: ownerPermanent, Why: "Synth specs are a separate surface (pulse synth); the raw internal/examples/synth/*.synth.json specs sit outside the embedded library and carry no _meta, so no library example can carry simulate."},
 }
 
@@ -71,10 +70,8 @@ var exampleIntentExemptions = []guidanceExemption{}
 // glossaryOrphanExemptions — glossary terms no built-in Purpose links
 // (TestGlossary_OrphanReport). Key: the term ID.
 var glossaryOrphanExemptions = []guidanceExemption{
-	// Matrix overlays (raking, Markov flows).
+	// Matrix overlays (raking).
 	{Key: "raking", Owner: "U28", Why: "Written ahead of the raking overlay U28 ships."},
-	{Key: "stochastic-matrix", Owner: "U28", Why: "Written ahead of the flow overlays U28 ships."},
-	{Key: "steady-state", Owner: "U28", Why: "Written ahead of the flow overlays U28 ships."},
 }
 
 // exemptionTables is every ledger table above, keyed by its gate's

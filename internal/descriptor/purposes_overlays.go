@@ -39,6 +39,7 @@ var overlayPurposes = map[string]descriptor.Purpose{
 	"OVERLAY_INDEX_VS_STAGE":                purposeOverlayIndexVsStage,
 	"OVERLAY_INDEX_VS_TOTAL":                purposeOverlayIndexVsTotal,
 	"OVERLAY_KS_VS_POP":                     purposeOverlayKSVsPop,
+	"OVERLAY_MARKOV":                        purposeOverlayMarkov,
 	"OVERLAY_PAIRWISE_PROBIT_T":             purposeOverlayPairwiseProbitT,
 	"OVERLAY_PAIRWISE_PROP_Z":               purposeOverlayPairwisePropZ,
 	"OVERLAY_PAIRWISE_TWO_MEANS_Z":          purposeOverlayPairwiseTwoMeansZ,
@@ -311,6 +312,35 @@ var (
 		KnownAs: []string{"correspondence analysis", "perceptual map"},
 		Glossary: []string{
 			"centroid", "chi-square", "cross-tabulation", "distance", "independence", "margin", "residual",
+		},
+	}
+
+	purposeOverlayMarkov = descriptor.Purpose{
+		Plain:   "Markov chain of a from-state by to-state crosstab: transition probabilities, n-step projections, steady state and time to absorption.",
+		Intents: []string{IntentFlows},
+		Questions: []string{
+			"Where will customers sit across the tiers in 6 or 12 periods if they keep switching as they did?",
+			"On average, how many periods does a customer in each tier take to churn?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainOps:     "Project tier migration forward and estimate the expected months until churn from each tier.",
+			descriptor.DomainSurvey:  "Turn a last-brand by current-brand table into a switching matrix and project brand shares forward.",
+			descriptor.DomainScience: "Model moves between disease stages and the expected time to an absorbing outcome.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want one test of whether the from-state and the to-state are associated", Use: "OVERLAY_CHISQ_MATRIX"},
+			{When: "you only want each cell's share of its row, with no projection", Use: "OVERLAY_SHARE_OF_ROW"},
+		},
+		Assumptions: []string{
+			"Rows are the from-state and columns the to-state, over the same set of states; the table counts moves over one period of equal length.",
+			"The next state depends only on the current one, and the switching probabilities stay the same every period (a time-homogeneous Markov chain).",
+			"A state no one leaves in the data (a zero row) is treated as absorbing; a chain that splits into groups that never mix, or cycles with a fixed rhythm, has no steady state and is warned about.",
+			"It is descriptive: the projections carry no confidence intervals, and a state seen on few moves gives noisy probabilities.",
+		},
+		Level:   descriptor.LevelAdvanced,
+		KnownAs: []string{"markov chain", "transition matrix"},
+		Glossary: []string{
+			"cross-tabulation", "margin", "stochastic-matrix", "steady-state",
 		},
 	}
 

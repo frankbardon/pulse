@@ -146,6 +146,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-overlay-index-vs-stage`](skills/op-overlay-index-vs-stage.md): Whole-chain ratio index of target stage's result against the reference stage's result (×100).
 - [`op-overlay-index-vs-total`](skills/op-overlay-index-vs-total.md): Per-group streamable ratio index against the SERIES host's grand total (×100).
 - [`op-overlay-ks-vs-pop`](skills/op-overlay-ks-vs-pop.md): Kolmogorov-Smirnov distance + p-value comparing host Facet NUMERIC distribution against the resolved population.
+- [`op-overlay-markov`](skills/op-overlay-markov.md): Markov chain of a from × to transition crosstab — transition matrix, n-step powers, projections, steady state and time to absorption.
 - [`op-overlay-pairwise-probit-t`](skills/op-overlay-pairwise-probit-t.md): Intra-matrix axis-pairwise probit t-test (Φ⁻¹ transform of each leg's proportion, Student-t tail).
 - [`op-overlay-pairwise-prop-z`](skills/op-overlay-pairwise-prop-z.md): Intra-matrix axis-pairwise pooled-SE two-proportion z-test (row-vs-row or col-vs-col within one crosstab).
 - [`op-overlay-pairwise-two-means-z`](skills/op-overlay-pairwise-two-means-z.md): Intra-matrix axis-pairwise two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df).

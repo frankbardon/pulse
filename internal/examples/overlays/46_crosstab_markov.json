@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Crosstab count of from_tier x to_tier (one row per member-month move) decorated with an OVERLAY_MARKOV matrix-scope overlay: the primary matrix is the row-stochastic transition matrix, and the parts carry the 1/3/6/12-step transition powers, the tier mix projected from the observed starting margin, and the expected months to churn from each tier (churned is absorbing, so the chain is reducible and the steady state is omitted with a PULSE_OVERLAY_MARKOV_NOT_ERGODIC warning). Rows and columns must carry the same tiers (implicit-margin contract; no ref pointer).",
+    "intents": [
+      "flows"
+    ],
+    "name": "crosstab-markov",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "cohort-analysis",
+      "overlay"
+    ]
+  },
+  "cohort": {
+    "filename": "tier_migrations.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "from_tier"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "to_tier"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  },
+  "overlays": [
+    {
+      "name": "flow",
+      "kind": "OVERLAY_MARKOV",
+      "scope": "matrix",
+      "params": {
+        "steps": [1, 3, 6, 12],
+        "absorbing": ["churned"],
+        "initial": "margin"
+      }
+    }
+  ]
+}

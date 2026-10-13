@@ -2775,6 +2775,37 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_OVERLAY_MATRIX_NOT_SQUARE: {
+		Message: "The overlay reads its crosstab host as a square table of transitions — rows are the from-state, columns the to-state (OVERLAY_MARKOV) — and the two axes do not name the same states. States are matched by key, never by position, so the row and column key sets must be equal as sets: the same number of groupers on both axes, and every state that appears as a row must appear as a column and the reverse. A crosstab only emits keys it observed, so a state nobody leaves (or nobody enters) during the window is missing from one axis. Details carry `kind` plus either `row_fields` / `column_fields` (the axes have different grouper counts) or `row_only` / `column_only` (the state names found on one axis only).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Crosstab", "Columns"},
+				Hint:   "Group the rows and the columns the same way — one grouper each, on the from-state and the to-state fields (the same categories on both, e.g. from_tier x to_tier) — so both axes carry the same kind of key.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Crosstab", "Rows"},
+				Hint:   "A state appears on one axis only: record a transition for it on the other (an absorbing state such as churned needs at least one churned -> churned row), or filter out the records that mention it with a FILTER_EXPRESSION before the crosstab runs.",
+			},
+		},
+	},
+	PULSE_OVERLAY_MARKOV_NOT_ERGODIC: {
+		Message: "Warning: the OVERLAY_MARKOV chain has no single long-run distribution, so the layer omits its steady_state part. Either the chain is reducible — some states cannot be reached from others (an absorbing state, or two groups of states that never exchange members; details `classes` lists the communicating classes) — or it is periodic, cycling through groups of states with a fixed rhythm (details `period`). With reason `absorption_not_certain` the warning instead lists the `states` that can wander off into a closed group outside params.absorbing: their absorption_time is null (infinite). Every other part still emits.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Overlays", "Params", "absorbing"},
+				Hint:     "A chain with absorbing states (churned, closed) is reducible by design: read the absorption_time part (time to reach them) and the step_<n> / distribution_<n> projections instead of a steady state, and name every absorbing state in params.absorbing.",
+				Examples: []any{[]string{"churned"}},
+			},
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Crosstab", "Rows"},
+				Hint:   "A periodic or split chain often comes from too short an observation window or too fine states: widen the window or merge states so every state can reach every other, then the steady state is defined.",
+			},
+		},
+	},
 	PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY: {
 		Message: "An OVERLAY_YOY spec named a `frequency` Param outside the supported set (`annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`). The supported set is the minimum frequency catalog needed to cover the GROUP_DATE component family — finer-than-hourly or coarser-than-annual frequencies are explicit non-goals in v1. Calendar-week / day-of-week realignment is also an explicit non-goal: weekly frequency uses calendar-week-aligned `i - 52` arithmetic and daily frequency uses exact-key lookup against the host key index (Feb 29 in a non-leap prior year emits NaN). Surfaced at both predict (descriptor.validateOverlayYoY) and runtime (processing.applyYoY) with Details carrying the offending `frequency` value plus the supported list.",
 		Fixups: []Fixup{
