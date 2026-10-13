@@ -49,7 +49,7 @@ func newMemberFill(r vectors.Resolved) memberFill {
 // schema: a name that is an element member "f[k]" of a native vector
 // field of schema (vectors.ParseElementMember, the resolver's own
 // reading) reads that element in place; every other name is a scalar
-// column. A scalar member's read falls back to Record.memberValue, so a
+// column. A scalar member's read falls back to Record.MemberValue, so a
 // slot whose schema lost its vector metadata still reads an element
 // member by name rather than seeing it null.
 func memberFillOf(names []string, schema *encoding.Schema) memberFill {
@@ -80,7 +80,7 @@ func (f memberFill) fill(rec *Record, dst []float64, present []bool) int {
 		var x float64
 		ok := false
 		if m.Element < 0 {
-			x, ok = rec.memberValue(m.Field)
+			x, ok = rec.MemberValue(m.Field)
 		} else {
 			if m.Field != curField {
 				curField = m.Field
@@ -141,14 +141,16 @@ func (r *Record) vectorView(name string) ([]float64, bool) {
 	return vec, ok
 }
 
-// memberValue reads one resolved member by NAME from r: a scalar
+// MemberValue reads one resolved member by NAME from r: a scalar
 // column's numeric value, or — when name is an element member
 // "f[k]" of a vector field f on r (vectors.ElementMember) — that
 // element, a NaN element or a null vector being a null member. It is
 // the name-only form of memberFill for the sites that hold a slot's
 // prepared member list but no plan (the aggregation floor's presence
-// question).
-func (r *Record) memberValue(name string) (float64, bool) {
+// question), and the read behind extend.Record.NumericValue on the
+// root adapter's extension view (extRecord), so an extension operator
+// sees a native element member exactly as the fill does.
+func (r *Record) MemberValue(name string) (float64, bool) {
 	if x, ok := r.NumericValue(name); ok {
 		return x, true
 	}

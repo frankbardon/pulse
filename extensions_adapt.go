@@ -31,10 +31,38 @@ import (
 // path. Embedding the small concrete forwarders below is safe: a
 // struct's promoted methods are its full method set.
 
-// The engine's row type satisfies the public read contract directly, so
-// a per-row adapter costs nothing: *processing.Record is handed to
-// extend operators as-is.
-var _ extend.Record = (*processing.Record)(nil)
+// extRecord is the extend.Record view of an engine row: every handoff
+// to an extend operator wraps its *processing.Record in it. It is a
+// one-pointer struct, so converting it to the interface allocates
+// nothing and a per-row adapter costs nothing.
+//
+// It overrides two reads so an element member "f[k]" of a native
+// vector field f (vec_f32 / vec_f64) — the literal member names a
+// VectorInput slot hands its factory — reads like the scalar twin's
+// column: NumericValue resolves it through the shared member reader
+// (processing.Record.MemberValue, the fill's own rule: a NaN element
+// and a null vector are a null member) and IsNull agrees. A plain name
+// is looked up first, so a real column spelled "x[2]" and every
+// non-element name behave exactly as on the engine row. Built-ins never
+// see this view; they keep the concrete *processing.Record path.
+type extRecord struct{ *processing.Record }
+
+var _ extend.Record = extRecord{}
+
+// NumericValue is the engine row's, plus native element members.
+func (r extRecord) NumericValue(field string) (float64, bool) {
+	return r.Record.MemberValue(field)
+}
+
+// IsNull is the engine row's, except that a native element member
+// holding a value is not null.
+func (r extRecord) IsNull(field string) bool {
+	if !r.Record.IsNull(field) {
+		return false
+	}
+	_, ok := r.Record.MemberValue(field)
+	return !ok
+}
 
 // recordRows is the zero-copy extend.Rows view over the engine's
 // buffered row slice. Converting the slice header to recordRows copies
@@ -42,7 +70,7 @@ var _ extend.Record = (*processing.Record)(nil)
 type recordRows []*processing.Record
 
 func (r recordRows) Len() int               { return len(r) }
-func (r recordRows) At(i int) extend.Record { return r[i] }
+func (r recordRows) At(i int) extend.Record { return extRecord{r[i]} }
 
 // ---- row weights -------------------------------------------------------
 
@@ -77,7 +105,7 @@ func (s *slotWeighting) judge(rec *processing.Record) (float64, bool) {
 // the engine row plus its valid weight. Its Weight shadows the engine
 // row's always-false one.
 type weightedRecord struct {
-	*processing.Record
+	extRecord
 	w float64
 }
 
@@ -96,7 +124,7 @@ func (s *slotWeighting) validWeightRows(records []*processing.Record) weightedRo
 	out := make(weightedRows, 0, len(records))
 	for _, rec := range records {
 		if w, ok := s.judge(rec); ok {
-			out = append(out, weightedRecord{Record: rec, w: w})
+			out = append(out, weightedRecord{extRecord: extRecord{rec}, w: w})
 		}
 	}
 	return out
@@ -117,11 +145,11 @@ func (s *slotWeighting) allRows(records []*processing.Record) mixedRows {
 	out := make(mixedRows, len(records))
 	for i, rec := range records {
 		if w, ok := s.judge(rec); ok {
-			views[i] = weightedRecord{Record: rec, w: w}
+			views[i] = weightedRecord{extRecord: extRecord{rec}, w: w}
 			out[i] = &views[i]
 			continue
 		}
-		out[i] = rec
+		out[i] = extRecord{rec}
 	}
 	return out
 }
@@ -138,9 +166,9 @@ type rowView struct {
 func (v *rowView) of(rec *processing.Record) (extend.Record, bool) {
 	w, ok := v.s.judge(rec)
 	if !ok {
-		return rec, false
+		return extRecord{rec}, false
 	}
-	v.view = weightedRecord{Record: rec, w: w}
+	v.view = weightedRecord{extRecord: extRecord{rec}, w: w}
 	return &v.view, true
 }
 
@@ -243,7 +271,7 @@ func (a aggOnline) UpdateRow(rec *processing.Record, field string) error {
 		}
 		return a.online.UpdateRow(v, field)
 	}
-	return a.online.UpdateRow(rec, field)
+	return a.online.UpdateRow(extRecord{rec}, field)
 }
 
 func (a aggOnline) Finalize() (float64, error) { return a.online.Finalize() }
@@ -552,7 +580,7 @@ func (g grpStreaming) KeyForRow(rec *processing.Record, field string) (string, b
 	if field == "" {
 		field = g.field
 	}
-	key, ok, err := g.streaming.KeyForRow(rec, field)
+	key, ok, err := g.streaming.KeyForRow(extRecord{rec}, field)
 	if err != nil {
 		if stderrors.Is(err, extend.ErrGrouperKeyNull) {
 			return "", false, nil
@@ -583,7 +611,7 @@ type grpMulti struct {
 }
 
 func (g grpMulti) KeysForRow(rec *processing.Record, field string) ([]string, bool, error) {
-	keys, ok, err := g.multi.KeysForRow(rec, field)
+	keys, ok, err := g.multi.KeysForRow(extRecord{rec}, field)
 	if err != nil {
 		if stderrors.Is(err, extend.ErrGrouperKeyNull) {
 			return nil, false, nil
@@ -825,7 +853,8 @@ func adaptGrouperFactory(reg GrouperRegistration) processing.GrouperFactory {
 // ---- filterers ---------------------------------------------------------
 
 // fltCore forwards Build, wrapping the extend FilterFunc onto the
-// engine's *processing.Record signature (the record is passed as-is).
+// engine's *processing.Record signature (the record is passed as its
+// extRecord view).
 type fltCore struct{ inner extend.FiltererBuilder }
 
 func (f fltCore) Build(spec *types.Filterer, schema *encoding.Schema) (processing.FilterFunc, error) {
@@ -833,7 +862,7 @@ func (f fltCore) Build(spec *types.Filterer, schema *encoding.Schema) (processin
 	if err != nil || fn == nil {
 		return nil, err
 	}
-	return func(rec *processing.Record) (bool, error) { return fn(rec) }, nil
+	return func(rec *processing.Record) (bool, error) { return fn(extRecord{rec}) }, nil
 }
 
 // fltMeta synthesizes processing.MetaFilterer from the registration's
@@ -903,7 +932,7 @@ func (a attrCore) Compute(records []*processing.Record, field string) ([]float64
 // or the record as-is when view is nil.
 func attrView(view *rowView, rec *processing.Record) extend.Record {
 	if view == nil {
-		return rec
+		return extRecord{rec}
 	}
 	v, _ := view.of(rec)
 	return v
@@ -1043,7 +1072,7 @@ func (t *rowTestAdapted) UpdateRow(rec *processing.Record) error {
 		}
 		return t.inner.UpdateRow(v)
 	}
-	return t.inner.UpdateRow(rec)
+	return t.inner.UpdateRow(extRecord{rec})
 }
 
 func (t *rowTestAdapted) Finalize() (*types.TestResult, error) { return t.inner.Finalize() }
@@ -1105,11 +1134,14 @@ func adaptWindowFactory(reg WindowRegistration) window.WindowFactory {
 // ---- features ----------------------------------------------------------
 
 // featureRecord returns the read-only extend view of a feature.Record.
-// The engine always hands features its own *processing.Record, which
-// satisfies extend.Record directly; any other implementation of the
+// The engine always hands features its own *processing.Record, viewed
+// through extRecord like every other handoff; any other implementation of the
 // narrow feature.Record contract degrades to featureRecordView rather
 // than panicking.
 func featureRecord(r feature.Record) extend.Record {
+	if rec, ok := r.(*processing.Record); ok {
+		return extRecord{rec}
+	}
 	if rec, ok := r.(extend.Record); ok {
 		return rec
 	}

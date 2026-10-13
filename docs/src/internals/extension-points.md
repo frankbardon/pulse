@@ -50,7 +50,8 @@ silent cases: `NumericValue` is false for a null, projected-out or
 missing field AND for every `set_*` field (read those with
 `SetMaskValue`) and every `vec_f32` / `vec_f64` field (read those with
 `VectorValue`: the elements as `float64`, a fresh copy safe to keep,
-NaN elements verbatim); a categorical field's
+NaN elements verbatim) — though a native vector's element member
+`f[k]` (below) reads through `NumericValue`; a categorical field's
 `NumericValue` is its dictionary INDEX; `date` is epoch days and
 `datetime` epoch seconds; `u64` above 2^53 loses precision through the
 float echo; `decimal128` needs `DecimalValue` for exactness.
@@ -1180,7 +1181,21 @@ inline member must exist, be numeric (`PULSE_VECTOR_MEMBER_TYPE`) and
 appear once (`PULSE_VECTOR_DUPLICATE`). The factory then receives a
 copy of the spec whose `Fields` / `Fields2` are the resolved literal
 member names and whose `Vector` / `Vector2` are empty, so it never
-resolves a vector itself. Everything else is the operator's: its
+resolves a vector itself.
+
+**Native vector members.** On a native `vec_f32` / `vec_f64` field the
+literal members are element names `emb[1]` .. `emb[dim]` (1-based),
+and the operator reads them through `Record.NumericValue` / `IsNull`
+like any column: `NumericValue("emb[k]")` resolves element `k` in place
+(zero allocations per row), a `NaN` element and a null vector are a
+null member (`false`; `IsNull` true) — the rule every built-in vector
+consumer applies — so a native vector answers exactly as its
+scalar-column twin read through a virtual vector. The plain name is
+looked up first: a real column spelled `x[2]`, a name whose base is not
+a native vector, and an out-of-range or non-canonical `k` keep the
+ordinary lookup. `VectorValue("emb")` still returns the whole vector.
+
+Everything else is the operator's: its
 params, `field` / `field2` beside the vector, `split_by` and whether
 the two sets must match in length. A test or attribute that reads a
 vector may leave `field` empty; a grouper keeps its `field`, which

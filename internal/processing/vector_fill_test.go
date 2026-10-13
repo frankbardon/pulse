@@ -94,9 +94,9 @@ func TestMemberFill_NullAndNaN(t *testing.T) {
 			}
 			// The name-only reader agrees member by member.
 			for i, m := range []string{"raw[2]", "x", "emb[1]", "emb[2]", "emb[3]"} {
-				x, ok := c.rec.memberValue(m)
+				x, ok := c.rec.MemberValue(m)
 				if ok != c.present[i] || (ok && !sameFloats([]float64{x}, []float64{c.want[i]})) {
-					t.Errorf("memberValue(%s) = %v, %v; fill says %v, %v", m, x, ok, c.want[i], c.present[i])
+					t.Errorf("MemberValue(%s) = %v, %v; fill says %v, %v", m, x, ok, c.want[i], c.present[i])
 				}
 			}
 		})
@@ -157,7 +157,7 @@ func TestMemberFill_DecodedRecordAllocatesNothing(t *testing.T) {
 // rewrite a vector-input factory receives) compiles to the same reads
 // as the resolved vector — element members against the schema, a
 // non-canonical "f[k]" spelling never an element — and, with no schema,
-// still reads element members by name (the memberValue fallback).
+// still reads element members by name (the MemberValue fallback).
 func TestMemberFillOf_LiteralMembers(t *testing.T) {
 	s := fillSchema()
 	nan := math.NaN()
@@ -200,10 +200,10 @@ func TestMemberValue_AllocatesNothing(t *testing.T) {
 	rec := NewRecordWithWide(s, nil, nil, map[string]any{"big": v})
 	var x float64
 	var ok bool
-	if allocs := testing.AllocsPerRun(10, func() { x, ok = rec.memberValue("big[150]") }); allocs != 0 {
-		t.Errorf("memberValue allocates %v, want 0", allocs)
+	if allocs := testing.AllocsPerRun(10, func() { x, ok = rec.MemberValue("big[150]") }); allocs != 0 {
+		t.Errorf("MemberValue allocates %v, want 0", allocs)
 	}
 	if !ok || x != 149 {
-		t.Errorf("memberValue(big[150]) = %v, %v, want 149, true", x, ok)
+		t.Errorf("MemberValue(big[150]) = %v, %v, want 149, true", x, ok)
 	}
 }

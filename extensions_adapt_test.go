@@ -154,7 +154,7 @@ func TestAdaptAggregator_RowsViewIsZeroCopy(t *testing.T) {
 		t.Fatalf("Len = %d, want 2", view.Len())
 	}
 	for i := range recs {
-		if view.At(i).(*processing.Record) != recs[i] {
+		if view.At(i).(extRecord).Record != recs[i] {
 			t.Errorf("At(%d) is not the engine's record", i)
 		}
 	}

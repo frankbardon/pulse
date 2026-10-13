@@ -62,9 +62,9 @@ func AggregationPresent(r *Record, agg *types.Aggregation) bool {
 	}
 	if agg.Field == "" && len(agg.Fields) > 0 {
 		for _, f := range agg.Fields {
-			// memberValue also reads an element member of a native
+			// MemberValue also reads an element member of a native
 			// vector field (a NaN element or a null vector: absent).
-			if _, ok := r.memberValue(f); ok || FieldPresent(r, f) {
+			if _, ok := r.MemberValue(f); ok || FieldPresent(r, f) {
 				return true
 			}
 		}

@@ -406,7 +406,7 @@ func TestAdaptFilterer_BuildForwardsRecordAndMeta(t *testing.T) {
 			if err != nil || got != want {
 				t.Errorf("emit=%v row %d: %v, %v; want %v", withEmit, i, got, err, want)
 			}
-			if seen.(*processing.Record) != recs[i] {
+			if seen.(extRecord).Record != recs[i] {
 				t.Errorf("emit=%v row %d: FilterFunc did not see the engine record", withEmit, i)
 			}
 		}

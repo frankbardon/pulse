@@ -12,7 +12,9 @@ type Record interface {
 	Schema() *encoding.Schema
 
 	// IsNull reports whether the named field is null on this row. A
-	// field that is missing or projected out also reports null.
+	// field that is missing or projected out also reports null. It
+	// agrees with NumericValue on a native vector element member
+	// "f[k]": null exactly when that read reports false.
 	IsNull(field string) bool
 
 	// NumericValue returns the field's value as float64 and true, or
@@ -23,6 +25,16 @@ type Record interface {
 	// days and datetime epoch seconds; u64 values above 2^53 lose
 	// precision through the float64 echo; decimal128 yields only a
 	// rounded echo (use DecimalValue).
+	//
+	// An element member "f[k]" of a native vector field f — the
+	// literal member names a vector-input slot hands its factory in
+	// spec.Fields — reads element k (1-based, canonical base-10, 1..dim)
+	// in place, without allocating: a NaN element and a null vector
+	// are a null member (false), as in every built-in vector consumer,
+	// so a native vector reads exactly like its scalar-column twin. The
+	// plain name is looked up first, so a real column spelled "x[2]"
+	// and every name whose base is not a vector field (or whose k is
+	// out of range or non-canonical) keep the ordinary lookup.
 	NumericValue(field string) (float64, bool)
 
 	// StringValue returns the dictionary-resolved label of a
