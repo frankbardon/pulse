@@ -25,6 +25,9 @@ func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, 
 	if err != nil {
 		return
 	}
+	// The echo is the request's own vectors; the native fields Resolve
+	// appends after them are schema metadata, not request content.
+	resolved = resolved[:len(req.Vectors)]
 	result.ResolvedVectors = make(map[string][]string, len(resolved))
 	for _, r := range resolved {
 		result.ResolvedVectors[r.Name] = append([]string(nil), r.Members...)
@@ -54,10 +57,9 @@ func predictReferences(env *descriptor.Envelope, req *types.Request, schema *enc
 	if req == nil || (len(req.Filterers) == 0 && len(req.Attributes) == 0) {
 		return
 	}
-	var resolved []vectors.Resolved
-	if len(req.Vectors) > 0 {
-		resolved, _ = vectors.Resolve(req.Vectors, schema)
-	}
+	// Resolve also yields the schema's native vector fields (nil, nil
+	// when there are no vectors at all).
+	resolved, _ := vectors.Resolve(req.Vectors, schema)
 	for _, ce := range vectors.ReferenceIssues(req, schema, resolved, snap.ReferenceTables()) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}

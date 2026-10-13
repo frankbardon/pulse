@@ -713,7 +713,7 @@ func AttributeInputMembers(req *types.Request, schema *encoding.Schema) (members
 			ok = false
 			continue
 		}
-		members = append(members, r.Members...)
+		members = append(members, r.SourceFields()...)
 	}
 	return members, ok
 }

@@ -15,7 +15,12 @@
 //
 //   - Vector names are non-empty, unique per request and never a
 //     schema field's name (an expression binds a named vector as an
-//     identifier beside the fields: PULSE_VECTOR_NAME_COLLISION).
+//     identifier beside the fields: PULSE_VECTOR_NAME_COLLISION;
+//     details.native when the field is a native vector field).
+//   - A native vector field (vec_f32 / vec_f64) is a vector with no
+//     spec: Resolve appends one Resolved per native field after the
+//     spec-backed ones, and a fields entry / glob / pattern naming one
+//     expands to its element members ("f[k]", 1-based) — see native.go.
 //   - Exactly one of Fields and Pattern is set.
 //   - A Fields entry without a glob metacharacter (`*`, `?`, `[`) is a
 //     literal member and keeps its position (caller order is axis order);
@@ -71,16 +76,26 @@ type Resolved struct {
 	// ScaleMin < ScaleMax, both finite.
 	HasScale           bool
 	ScaleMin, ScaleMax float64
+	// Native is set when the vector IS one native vector field named
+	// directly (no Request.Vectors entry): its metadata is the schema's.
+	Native *NativeVector
+	// Refs locates each member (index-aligned with Members) when any
+	// member is an element of a native vector field; nil when every
+	// member is a scalar column (Ref reads Members then).
+	Refs []MemberRef
 }
 
 // Resolve resolves every spec in specs against schema, in order. It
-// returns the resolved vectors (index-aligned with specs) or the first
-// refusal. A nil / empty specs resolves to nil, nil.
+// returns the resolved vectors — index-aligned with specs, followed by
+// the schema's native vector fields (Natives), so every by-name lookup
+// (Find) accepts a native field named directly — or the first refusal.
+// A nil / empty specs over a vector-free schema resolves to nil, nil.
 func Resolve(specs []types.VectorSpec, schema *encoding.Schema) ([]Resolved, *errors.CodedError) {
+	natives := Natives(schema)
 	if len(specs) == 0 {
-		return nil, nil
+		return natives, nil
 	}
-	out := make([]Resolved, 0, len(specs))
+	out := make([]Resolved, 0, len(specs)+len(natives))
 	seen := make(map[string]int, len(specs))
 	for i := range specs {
 		spec := specs[i]
@@ -94,6 +109,11 @@ func Resolve(specs []types.VectorSpec, schema *encoding.Schema) ([]Resolved, *er
 				map[string]any{"name": spec.Name, "indices": []int{first, i}})
 		}
 		seen[spec.Name] = i
+		if IsNativeVector(spec.Name, schema) {
+			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_VECTOR_NAME_COLLISION,
+				"vector name "+strconv.Quote(spec.Name)+" ("+at+") is a native vector field of the cohort; name the field directly in the slot (no vectors entry), or list it in a differently named vector's fields to re-kind it",
+				map[string]any{"vector": at, "name": spec.Name, "field": spec.Name, "native": true})
+		}
 		if schema != nil && schema.Field(spec.Name) != nil {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_VECTOR_NAME_COLLISION,
 				"vector name "+strconv.Quote(spec.Name)+" ("+at+") is also a schema field's name; an expression could not tell the two apart",
@@ -105,7 +125,7 @@ func Resolve(specs []types.VectorSpec, schema *encoding.Schema) ([]Resolved, *er
 		}
 		out = append(out, r)
 	}
-	return out, nil
+	return append(out, natives...), nil
 }
 
 // ResolveSpec resolves one spec against schema. at is the spec's path in
@@ -131,16 +151,17 @@ func ResolveSpec(at string, spec types.VectorSpec, schema *encoding.Schema) (Res
 		return Resolved{}, err
 	}
 
-	var members []string
+	var x expansion
 	var err *errors.CodedError
 	if hasFields {
-		members, err = expandFields(at, spec, schema)
+		x, err = expandFields(at, spec, schema)
 	} else {
-		members, err = expandPattern(at, spec, schema)
+		x, err = expandPattern(at, spec, schema)
 	}
 	if err != nil {
 		return Resolved{}, err
 	}
+	members := x.members
 	if len(members) == 0 {
 		details := map[string]any{"vector": at, "name": spec.Name}
 		if hasFields {
@@ -152,7 +173,10 @@ func ResolveSpec(at string, spec types.VectorSpec, schema *encoding.Schema) (Res
 			"vector "+describe(at, spec.Name)+" matches no field", details)
 	}
 
-	for _, m := range members {
+	for i, m := range members {
+		if x.refs != nil && x.refs[i].Native() {
+			continue // a native element is a float: always a member
+		}
 		f := schema.Field(m)
 		if f == nil {
 			continue // unreachable: members come from the schema
@@ -177,6 +201,9 @@ func ResolveSpec(at string, spec types.VectorSpec, schema *encoding.Schema) (Res
 	}
 	if len(labels) == 0 {
 		labels = members
+		if x.refs != nil {
+			labels = x.defaultLabels(schema)
+		}
 	}
 	r := Resolved{
 		Name:    spec.Name,
@@ -184,6 +211,7 @@ func ResolveSpec(at string, spec types.VectorSpec, schema *encoding.Schema) (Res
 		Labels:  append([]string(nil), labels...),
 		Coerce:  spec.Coerce,
 		Kind:    spec.Kind,
+		Refs:    x.refs,
 	}
 	if spec.ScaleMin != nil {
 		r.HasScale, r.ScaleMin, r.ScaleMax = true, *spec.ScaleMin, *spec.ScaleMax
@@ -395,7 +423,7 @@ func Members(req *types.Request, schema *encoding.Schema) (members []string, ok 
 			ok = false
 			continue
 		}
-		members = append(members, r.Members...)
+		members = append(members, r.SourceFields()...)
 	}
 	return members, ok
 }
@@ -430,74 +458,137 @@ func Normalize(req *types.Request, schema *encoding.Schema) *types.Request {
 	return &clone
 }
 
-// expandFields expands a Fields list: literals in place, globs in schema
-// order at their position.
-func expandFields(at string, spec types.VectorSpec, schema *encoding.Schema) ([]string, *errors.CodedError) {
-	var out []string
-	seen := map[string]bool{}
-	add := func(name string) *errors.CodedError {
-		if seen[name] {
-			return duplicateMember(at, spec.Name, name)
-		}
-		seen[name] = true
-		out = append(out, name)
-		return nil
+// expansion is a spec's resolved member list: the member names and,
+// when any member is a native vector element, every member's location
+// (nil otherwise — the vector-free shape, byte-identical).
+type expansion struct {
+	at, name string // the spec's path and name, for a duplicate refusal
+	members  []string
+	refs     []MemberRef
+	seen     map[string]bool
+}
+
+// add appends one member, refusing a repeat.
+func (x *expansion) add(name string, ref MemberRef) *errors.CodedError {
+	if x.seen == nil {
+		x.seen = map[string]bool{}
 	}
+	if x.seen[name] {
+		return duplicateMember(x.at, x.name, name)
+	}
+	x.seen[name] = true
+	if ref.Native() && x.refs == nil {
+		x.refs = make([]MemberRef, len(x.members), len(x.members)+1)
+		for i, m := range x.members {
+			x.refs[i] = MemberRef{Field: m, Element: -1}
+		}
+	}
+	x.members = append(x.members, name)
+	if x.refs != nil {
+		x.refs = append(x.refs, ref)
+	}
+	return nil
+}
+
+// addField appends schema field f: a scalar column as one member, a
+// native vector field as its elements in element order.
+func (x *expansion) addField(schema *encoding.Schema, f *encoding.Field) *errors.CodedError {
+	if !f.Type.IsVector() {
+		return x.add(f.Name, MemberRef{Field: f.Name, Element: -1})
+	}
+	dim := schema.VectorDim(fieldIndex(schema, f.Name))
+	for e := 0; e < dim; e++ {
+		if err := x.add(ElementMember(f.Name, e), MemberRef{Field: f.Name, Element: e}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// defaultLabels is one label per member when the spec sets none: a
+// scalar member's name, a native element's schema label (else
+// ElementLabel).
+func (x *expansion) defaultLabels(schema *encoding.Schema) []string {
+	out := make([]string, len(x.members))
+	for i, ref := range x.refs {
+		if !ref.Native() {
+			out[i] = x.members[i]
+			continue
+		}
+		vf, _ := schema.Vector(fieldIndex(schema, ref.Field))
+		out[i] = elementLabel(vf, ref.Field, ref.Element)
+	}
+	return out
+}
+
+// expandFields expands a Fields list: literals in place, globs in schema
+// order at their position, a native vector field to its elements, an
+// element member ("f[k]") to that one element.
+func expandFields(at string, spec types.VectorSpec, schema *encoding.Schema) (expansion, *errors.CodedError) {
+	x := expansion{at: at, name: spec.Name}
 	for j, entry := range spec.Fields {
 		entryPath := at + ".fields[" + strconv.Itoa(j) + "]"
 		if entry == "" {
-			return nil, invalid(at, spec.Name, "empty_field_entry",
+			return expansion{}, invalid(at, spec.Name, "empty_field_entry",
 				"vector "+describe(at, spec.Name)+" has an empty entry at "+entryPath, nil)
+		}
+		if field, e, ok := ParseElementMember(entry, schema); ok {
+			if err := x.add(entry, MemberRef{Field: field, Element: e}); err != nil {
+				return expansion{}, err
+			}
+			continue
 		}
 		if !isGlob(entry) {
 			if schema == nil || schema.Field(entry) == nil {
-				return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				return expansion{}, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 					"vector references unknown field: "+entry,
 					map[string]any{"field": entry, "vector": spec.Name, "slot": entryPath})
 			}
-			if err := add(entry); err != nil {
-				return nil, err
+			if err := x.addField(schema, schema.Field(entry)); err != nil {
+				return expansion{}, err
 			}
 			continue
 		}
 		if _, err := path.Match(entry, ""); err != nil {
-			return nil, invalid(at, spec.Name, "bad_glob",
+			return expansion{}, invalid(at, spec.Name, "bad_glob",
 				"vector "+describe(at, spec.Name)+" glob "+strconv.Quote(entry)+" is malformed",
 				map[string]any{"value": entry})
 		}
 		if schema == nil {
 			continue
 		}
-		for _, f := range schema.Fields {
-			if ok, _ := path.Match(entry, f.Name); ok {
-				if err := add(f.Name); err != nil {
-					return nil, err
+		for i := range schema.Fields {
+			if ok, _ := path.Match(entry, schema.Fields[i].Name); ok {
+				if err := x.addField(schema, &schema.Fields[i]); err != nil {
+					return expansion{}, err
 				}
 			}
 		}
 	}
-	return out, nil
+	return x, nil
 }
 
 // expandPattern takes every schema field the regular expression matches,
-// in schema order.
-func expandPattern(at string, spec types.VectorSpec, schema *encoding.Schema) ([]string, *errors.CodedError) {
+// in schema order (a native vector field as its elements).
+func expandPattern(at string, spec types.VectorSpec, schema *encoding.Schema) (expansion, *errors.CodedError) {
 	re, err := regexp.Compile(spec.Pattern)
 	if err != nil {
-		return nil, invalid(at, spec.Name, "bad_pattern",
+		return expansion{}, invalid(at, spec.Name, "bad_pattern",
 			"vector "+describe(at, spec.Name)+" pattern does not compile: "+err.Error(),
 			map[string]any{"value": spec.Pattern})
 	}
+	x := expansion{at: at, name: spec.Name}
 	if schema == nil {
-		return nil, nil
+		return x, nil
 	}
-	var out []string
-	for _, f := range schema.Fields {
-		if re.MatchString(f.Name) {
-			out = append(out, f.Name)
+	for i := range schema.Fields {
+		if re.MatchString(schema.Fields[i].Name) {
+			if err := x.addField(schema, &schema.Fields[i]); err != nil {
+				return expansion{}, err
+			}
 		}
 	}
-	return out, nil
+	return x, nil
 }
 
 func isGlob(s string) bool { return strings.ContainsAny(s, "*?[") }

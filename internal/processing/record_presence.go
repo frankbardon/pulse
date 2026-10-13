@@ -47,18 +47,21 @@ func FieldPresent(r *Record, field string) bool {
 
 // AggregationPresent is the universal floor's presence question for an
 // aggregation slot: FieldPresent on its Field, except a vector
-// aggregator (no Field; its prepared Fields are the literal members),
-// whose row is present when ANY member answered — so n counts the rows
+// aggregator (no Field; its prepared Fields are the literal members, a
+// native vector's element members included), whose row is present when
+// ANY member answered — so n counts the rows
 // that fed at least one element and n_null the rows whose every member
 // is null. Every floor site (buffered, streaming, grouped, the
 // reducers' SlotFloor) asks it, so the arms cannot disagree.
 func AggregationPresent(r *Record, agg *types.Aggregation) bool {
-	if agg == nil {
+	if agg == nil || r == nil {
 		return false
 	}
 	if agg.Field == "" && len(agg.Fields) > 0 {
 		for _, f := range agg.Fields {
-			if FieldPresent(r, f) {
+			// memberValue also reads an element member of a native
+			// vector field (a NaN element or a null vector: absent).
+			if _, ok := r.memberValue(f); ok || FieldPresent(r, f) {
 				return true
 			}
 		}

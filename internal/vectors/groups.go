@@ -343,7 +343,7 @@ func GroupInputMembers(req *types.Request, schema *encoding.Schema) (members []s
 			ok = false
 			continue
 		}
-		members = append(members, r.Members...)
+		members = append(members, r.SourceFields()...)
 	}
 	return members, ok
 }

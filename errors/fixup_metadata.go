@@ -3840,12 +3840,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_VECTOR_NAME_COLLISION: {
-		Message: "A vector's name is also a schema field's name, or a feature output, attribute or window label of the same request. An expression (a formula attribute, an expression filter, a total() argument) reads a named vector as an identifier beside those columns, so a vector may not share one's name. The vector is under `vector` / `name`; a field under `field`, a derived column under `label` with its slot (`feature`, `attribute`, or `window` / `window_index`).",
+		Message: "A vector's name is also a schema field's name, or a feature output, attribute or window label of the same request. An expression (a formula attribute, an expression filter, a total() argument) reads a named vector as an identifier beside those columns, so a vector may not share one's name. The vector is under `vector` / `name`; a field under `field`, a derived column under `label` with its slot (`feature`, `attribute`, or `window` / `window_index`). `details.native` is true when the field is a native vector field (vec_f32 / vec_f64): it is already a vector every slot and expression can name directly, and a request never shadows it.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"vectors", "*", "name"},
 				Hint:   "Rename the vector to a name no schema field or output label uses (for example add a `_vec` suffix), and update every slot and expression that names it.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"vectors", "*"},
+				Hint:   "When `details.native` is true, drop the vectors entry and name the native vector field directly in the slot or expression; to re-kind, re-label or re-scope it, keep the entry under a different name whose `fields` list the native field (or single elements as `field[k]`, 1-based).",
 			},
 		},
 	},

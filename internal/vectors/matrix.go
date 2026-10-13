@@ -677,7 +677,13 @@ func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known fu
 					map[string]any{"vector": spec.Vector, "slot": at + ".vector", "defined": defined})
 			}
 			m.Members = r
-			m.ExplicitLabels = len(req.Vectors[indexOfVector(req.Vectors, spec.Vector)].Labels) > 0
+			if r.Native != nil {
+				// A native vector's labels are never its member names
+				// (schema labels, else the "f_<i>" defaults).
+				m.ExplicitLabels = true
+			} else {
+				m.ExplicitLabels = len(req.Vectors[indexOfVector(req.Vectors, spec.Vector)].Labels) > 0
+			}
 		} else {
 			r, err := ResolveSpec(at+".fields", types.VectorSpec{Name: name, Fields: spec.Fields}, schema)
 			if err != nil {
@@ -1538,7 +1544,7 @@ func MatrixMembers(req *types.Request, schema *encoding.Schema) (members []strin
 			ok = false
 			continue
 		}
-		members = append(members, r.Members...)
+		members = append(members, r.SourceFields()...)
 	}
 	return members, ok
 }
@@ -1583,7 +1589,7 @@ func appendBetweenFields(members []string, ok bool, at string, spec types.Matrix
 		if err != nil {
 			return members, false
 		}
-		members = append(members, r.Members...)
+		members = append(members, r.SourceFields()...)
 	}
 	if g.Field == "" {
 		return members, ok && (g.Vector != "" || len(g.Fields) > 0)
