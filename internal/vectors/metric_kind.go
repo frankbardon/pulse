@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strconv"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprbuiltins"
 	"github.com/frankbardon/pulse/internal/exprident"
@@ -52,6 +53,49 @@ func KindOf(specs []types.VectorSpec, name string) types.VectorKind {
 		}
 	}
 	return ""
+}
+
+// KindIn returns the declared kind of the vector named name: a
+// Request.Vectors spec's kind, else — a native vector field of schema
+// named directly (vec_f32 / vec_f64) — the kind its VECTORS section
+// declares; "" when neither declares one. A spec and a native field
+// never share a name (PULSE_VECTOR_NAME_COLLISION), so the order is
+// immaterial.
+func KindIn(specs []types.VectorSpec, schema *encoding.Schema, name string) types.VectorKind {
+	if k := KindOf(specs, name); k != "" {
+		return k
+	}
+	return nativeKind(schema, name)
+}
+
+// nativeKind is the schema kind of native vector field name ("" when
+// it is none or declares no kind).
+func nativeKind(schema *encoding.Schema, name string) types.VectorKind {
+	if name == "" || !IsNativeVector(name, schema) {
+		return ""
+	}
+	if vf, ok := schema.Vector(fieldIndex(schema, name)); ok {
+		return types.VectorKind(vf.Kind.String())
+	}
+	return ""
+}
+
+// kindsIn maps every vector name in reach of a request to its declared
+// kind: the specs', then each native vector field of schema. Names
+// without a kind are absent.
+func kindsIn(specs []types.VectorSpec, schema *encoding.Schema) map[string]types.VectorKind {
+	kinds := map[string]types.VectorKind{}
+	for _, v := range specs {
+		if v.Kind != "" {
+			kinds[v.Name] = v.Kind
+		}
+	}
+	for _, r := range Natives(schema) {
+		if _, spec := kinds[r.Name]; !spec && r.Kind != "" {
+			kinds[r.Name] = r.Kind
+		}
+	}
+	return kinds
 }
 
 // KindDefault returns the metric consumer c defaults to for a vector of
@@ -114,11 +158,12 @@ type MetricDefault struct {
 // reading a kind-declared vector by `vector` whose params are a JSON
 // object naming no metric (absent or null). Inline `fields` carry no
 // kind and are never filled; malformed params are left for decode to
-// refuse. Under MAT_DISTANCE's standardize a non-negative-domain metric
+// refuse. A native vector field named directly is read with its schema
+// kind (KindIn). Under MAT_DISTANCE's standardize a non-negative-domain metric
 // (aitchison, hellinger) is not admitted — z-scored centroids are
 // signed — so the next suitable one is filled.
-func MatrixMetricDefaults(req *types.Request) []MetricDefault {
-	if req == nil || len(req.Vectors) == 0 {
+func MatrixMetricDefaults(req *types.Request, schema *encoding.Schema) []MetricDefault {
+	if req == nil || (len(req.Vectors) == 0 && !hasNatives(schema)) {
 		return nil
 	}
 	var out []MetricDefault
@@ -127,7 +172,7 @@ func MatrixMetricDefaults(req *types.Request) []MetricDefault {
 		if !ok || spec.Vector == "" {
 			continue
 		}
-		kind := KindOf(req.Vectors, spec.Vector)
+		kind := KindIn(req.Vectors, schema, spec.Vector)
 		if kind == "" {
 			continue
 		}
@@ -190,9 +235,10 @@ type AttributeMetricDefault struct {
 // is ResolveKindMetric's own default, so the slot executes the metric
 // reported whether or not the fill is applied. Inline `fields` carry no
 // kind and are never filled; malformed params are left for decode to
-// refuse.
-func AttributeMetricDefaults(req *types.Request) []AttributeMetricDefault {
-	if req == nil || len(req.Vectors) == 0 {
+// refuse. A native vector field named directly is read with its schema
+// kind (KindIn).
+func AttributeMetricDefaults(req *types.Request, schema *encoding.Schema) []AttributeMetricDefault {
+	if req == nil || (len(req.Vectors) == 0 && !hasNatives(schema)) {
 		return nil
 	}
 	var out []AttributeMetricDefault
@@ -200,7 +246,7 @@ func AttributeMetricDefaults(req *types.Request) []AttributeMetricDefault {
 		if a == nil || !IsComparisonAttribute(a.Type) || a.Vector == "" {
 			continue
 		}
-		kind := KindOf(req.Vectors, a.Vector)
+		kind := KindIn(req.Vectors, schema, a.Vector)
 		if kind == "" {
 			continue
 		}
@@ -245,17 +291,13 @@ func AttributeMetricDefaults(req *types.Request) []AttributeMetricDefault {
 // argument (cosine(vcenter(v), …)) is a transform of the vector, not
 // the vector, and is not judged. A defaulted metric is never a poor fit
 // (KindDefault), and a vector without a kind raises nothing. The caller
-// decides the channel: a warning, or under strict an error.
-func MetricUnsuitedIssues(req *types.Request) []*errors.CodedError {
-	if req == nil || len(req.Vectors) == 0 {
+// decides the channel: a warning, or under strict an error. A native
+// vector field of schema named directly carries its schema kind.
+func MetricUnsuitedIssues(req *types.Request, schema *encoding.Schema) []*errors.CodedError {
+	if req == nil || (len(req.Vectors) == 0 && !hasNatives(schema)) {
 		return nil
 	}
-	kinds := map[string]types.VectorKind{}
-	for _, v := range req.Vectors {
-		if v.Kind != "" {
-			kinds[v.Name] = v.Kind
-		}
-	}
+	kinds := kindsIn(req.Vectors, schema)
 	if len(kinds) == 0 {
 		return nil
 	}
@@ -325,6 +367,51 @@ func MetricUnsuitedIssues(req *types.Request) []*errors.CodedError {
 	return out
 }
 
+// NativeKindsMatter reports whether req names, in a slot
+// MetricUnsuitedIssues judges, a vector no Request.Vectors spec defines
+// — a name only a native vector field's schema kind can decide. A
+// caller holding no schema yet (the runtime's pre-dispatch strict
+// refusal and post-dispatch warnings) opens the cohort's schema for the
+// issue list only then; with false, MetricUnsuitedIssues(req, nil) is
+// the full list.
+func NativeKindsMatter(req *types.Request) bool {
+	if req == nil {
+		return false
+	}
+	specs := make(map[string]bool, len(req.Vectors))
+	for _, v := range req.Vectors {
+		specs[v.Name] = true
+	}
+	outside := func(name string) bool { return name != "" && !specs[name] }
+	for _, spec := range req.Matrices {
+		if _, _, ok := MatrixMetricConsumer(spec.Type); ok && outside(spec.Vector) {
+			return true
+		}
+	}
+	for _, a := range req.Attributes {
+		if a != nil && IsComparisonAttribute(a.Type) && outside(a.Vector) {
+			return true
+		}
+	}
+	for _, slot := range ExprSlots(req) {
+		if slot.Src == "" {
+			continue
+		}
+		calls, _ := exprident.Calls(slot.Src)
+		for _, call := range calls {
+			if _, ok := exprbuiltins.Metric(call.Name); !ok {
+				continue
+			}
+			for _, arg := range call.Args {
+				if outside(arg) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // unsuited builds the PULSE_VECTOR_METRIC_UNSUITED issue for metric
 // name read over vector (of kind) at slot, or nil when it fits (or is
 // not a registered metric — the consumer's own resolution refuses
@@ -367,3 +454,7 @@ func unsuited(slot, vector string, kind types.VectorKind, name string, f metric.
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_VECTOR_METRIC_UNSUITED, msg, details)
 }
+
+// hasNatives reports whether schema (nil-safe) declares a native vector
+// field.
+func hasNatives(schema *encoding.Schema) bool { return schema != nil && schema.HasVectors() }

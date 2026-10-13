@@ -152,3 +152,58 @@ func TestMemberFill_DecodedRecordAllocatesNothing(t *testing.T) {
 		t.Errorf("first row = %v, want %v", dst, want)
 	}
 }
+
+// TestMemberFillOf_LiteralMembers: a slot's literal member list (the
+// rewrite a vector-input factory receives) compiles to the same reads
+// as the resolved vector — element members against the schema, a
+// non-canonical "f[k]" spelling never an element — and, with no schema,
+// still reads element members by name (the memberValue fallback).
+func TestMemberFillOf_LiteralMembers(t *testing.T) {
+	s := fillSchema()
+	nan := math.NaN()
+	rec := NewRecordWithWide(s, map[string]float64{"x": 1.5}, nil,
+		map[string]any{"emb": []float64{1, nan, 3}, "raw": []float64{8, 9}})
+	names := []string{"raw[2]", "x", "emb[1]", "emb[2]", "emb[3]", "emb[01]", "emb[+1]", "emb[4]"}
+	want := []float64{9, 1.5, 1, nan, 3, nan, nan, nan}
+	for _, schema := range []*encoding.Schema{s, nil} {
+		f := memberFillOf(names, schema)
+		dst := make([]float64, f.Len())
+		f.fill(rec, dst, nil)
+		if !sameFloats(dst, want) {
+			t.Errorf("schema=%v: values = %v, want %v", schema != nil, dst, want)
+		}
+	}
+	if f := memberFillOf(names, s); f.refs[2] != (vectors.MemberRef{Field: "emb", Element: 0}) || f.refs[5].Element >= 0 {
+		t.Errorf("compiled refs = %+v, want emb[1] an element, emb[01] a scalar name", f.refs)
+	}
+	// complete: the listwise question — any null member or NaN is a drop.
+	full := memberFillOf([]string{"x", "emb[1]", "raw[1]"}, s)
+	if !full.complete(rec, make([]float64, 3)) {
+		t.Error("complete = false on a row with every member present")
+	}
+	if memberFillOf([]string{"x", "emb[2]"}, s).complete(rec, make([]float64, 2)) {
+		t.Error("complete = true on a row with a NaN element")
+	}
+}
+
+// TestMemberValue_AllocatesNothing: the name-only reader parses an
+// element member without allocating, at any element index.
+func TestMemberValue_AllocatesNothing(t *testing.T) {
+	s := &encoding.Schema{
+		Fields:  []encoding.Field{{Name: "big", Type: encoding.FieldTypeVecF64}},
+		Vectors: []encoding.VectorField{{FieldIndex: 0, Dim: 200}},
+	}
+	v := make([]float64, 200)
+	for i := range v {
+		v[i] = float64(i)
+	}
+	rec := NewRecordWithWide(s, nil, nil, map[string]any{"big": v})
+	var x float64
+	var ok bool
+	if allocs := testing.AllocsPerRun(10, func() { x, ok = rec.memberValue("big[150]") }); allocs != 0 {
+		t.Errorf("memberValue allocates %v, want 0", allocs)
+	}
+	if !ok || x != 149 {
+		t.Errorf("memberValue(big[150]) = %v, %v, want 149, true", x, ok)
+	}
+}

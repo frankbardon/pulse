@@ -61,8 +61,8 @@ func (f snapshotFuseFacts) AttributeTwoPass(t types.AttributeType) bool {
 
 // AttributeSlotTwoPass mirrors the runtime: an ATTR_VEC_DISTANCE the
 // instance offers over a fitted metric (vectors.ComparisonFitted).
-func (f snapshotFuseFacts) AttributeSlotTwoPass(a *types.Attribute, specs []types.VectorSpec) bool {
-	return a != nil && !f.inst.Hidden(string(a.Type)) && vectors.ComparisonFitted(a.Type, a, specs)
+func (f snapshotFuseFacts) AttributeSlotTwoPass(a *types.Attribute, specs []types.VectorSpec, schema *encoding.Schema) bool {
+	return a != nil && !f.inst.Hidden(string(a.Type)) && vectors.ComparisonFitted(a.Type, a, specs, schema)
 }
 
 // GrouperKeyable answers a built-in from the static table and an

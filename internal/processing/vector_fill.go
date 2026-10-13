@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/vectors"
 )
 
@@ -42,6 +43,26 @@ func newMemberFill(r vectors.Resolved) memberFill {
 	return memberFill{refs: refs}
 }
 
+// memberFillOf compiles a slot's literal member-name list — the
+// resolved members a vector-input slot is rewritten to before its
+// factory runs (Vector cleared, Fields = Resolved.Members) — against
+// schema: a name that is an element member "f[k]" of a native vector
+// field of schema (vectors.ParseElementMember, the resolver's own
+// reading) reads that element in place; every other name is a scalar
+// column. A scalar member's read falls back to Record.memberValue, so a
+// slot whose schema lost its vector metadata still reads an element
+// member by name rather than seeing it null.
+func memberFillOf(names []string, schema *encoding.Schema) memberFill {
+	refs := make([]vectors.MemberRef, len(names))
+	for i, n := range names {
+		refs[i] = vectors.MemberRef{Field: n, Element: -1}
+		if f, e, ok := vectors.ParseElementMember(n, schema); ok {
+			refs[i] = vectors.MemberRef{Field: f, Element: e}
+		}
+	}
+	return memberFill{refs: refs}
+}
+
 // Len is the member count.
 func (f memberFill) Len() int { return len(f.refs) }
 
@@ -59,7 +80,7 @@ func (f memberFill) fill(rec *Record, dst []float64, present []bool) int {
 		var x float64
 		ok := false
 		if m.Element < 0 {
-			x, ok = rec.NumericValue(m.Field)
+			x, ok = rec.memberValue(m.Field)
 		} else {
 			if m.Field != curField {
 				curField = m.Field
@@ -81,6 +102,19 @@ func (f memberFill) fill(rec *Record, dst []float64, present []bool) int {
 		}
 	}
 	return n
+}
+
+// complete fills dst like fill and reports whether every member is
+// present and not NaN — the listwise question (a stored NaN in a scalar
+// member is missing to every listwise consumer, as is a null member).
+func (f memberFill) complete(rec *Record, dst []float64) bool {
+	f.fill(rec, dst, nil)
+	for _, v := range dst[:len(f.refs)] {
+		if math.IsNaN(v) {
+			return false
+		}
+	}
+	return true
 }
 
 // vectorView returns the named vector field's elements on this record
@@ -126,8 +160,11 @@ func (r *Record) memberValue(name string) (float64, bool) {
 		return 0, false
 	}
 	digits := name[open+1 : len(name)-1]
+	if digits == "" || digits[0] == '0' {
+		return 0, false // canonical base-10, 1..dim: no sign, no leading zero
+	}
 	k, err := strconv.Atoi(digits)
-	if err != nil || k < 1 || strconv.Itoa(k) != digits {
+	if err != nil || k < 1 || digits[0] == '+' {
 		return 0, false
 	}
 	vec, ok := r.vectorView(name[:open])

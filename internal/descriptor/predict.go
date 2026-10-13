@@ -749,7 +749,7 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		if len(req.Tests) > 0 {
 			reasons = append(reasons, "regression with tier-1 tests runs via the buffered path")
 		}
-		if tp := firstTwoPassAttribute(req, opts); tp != "" {
+		if tp := firstTwoPassAttribute(req, schema, opts); tp != "" {
 			reasons = append(reasons, "regression with two-pass attribute "+string(tp)+" runs via the buffered path")
 		}
 	}
@@ -778,7 +778,7 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 				reasons = append(reasons, "matrix "+string(m.Type)+" requires the buffered path")
 			}
 		}
-		if tp := firstTwoPassAttribute(req, opts); tp != "" {
+		if tp := firstTwoPassAttribute(req, schema, opts); tp != "" {
 			reasons = append(reasons, "matrices with two-pass attribute "+string(tp)+" run via the buffered path")
 		}
 	}
@@ -798,7 +798,7 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	}
 	// Two-pass attributes do not yet compose with grouped or feature
 	// streaming (mirrors processing.canStream's combination gate).
-	if tp := firstTwoPassAttribute(req, opts); tp != "" && (len(req.Groups) > 0 || len(req.Features) > 0) {
+	if tp := firstTwoPassAttribute(req, schema, opts); tp != "" && (len(req.Groups) > 0 || len(req.Features) > 0) {
 		reasons = append(reasons, "two-pass attribute "+string(tp)+" with groupers or features runs via the buffered path")
 	}
 	if len(req.Windows) > 0 {
@@ -828,7 +828,7 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		}
 	}
 
-	reasons = append(reasons, streamableTestReasons(req, opts)...)
+	reasons = append(reasons, streamableTestReasons(req, schema, opts)...)
 
 	return len(reasons) == 0, reasons
 }

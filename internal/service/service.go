@@ -651,7 +651,7 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	// Strict mode: an explicit metric that fits its vector's kind
 	// poorly (PULSE_VECTOR_METRIC_UNSUITED) is refused here, before any
 	// record is read — the issue list predict reports as errors.
-	if err := metricUnsuitedRefusal(s.strict, req); err != nil {
+	if err := s.metricUnsuitedRefusal(ctx, req); err != nil {
 		return nil, markLocated(err)
 	}
 	// The request's `models`: every file read and decoded, bound beside
@@ -703,7 +703,7 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if err := s.matrixResultOverlays(ctx, req, resp, compute); err != nil {
 		return nil, err
 	}
-	appendVectorWarnings(req, resp)
+	s.appendVectorWarnings(ctx, req, resp)
 	// Model files: every regression `save`, from the full-precision
 	// results (a `return` shapes the response later, in the facade).
 	if err := s.saveRegressionModels(ctx, req, resp); err != nil {

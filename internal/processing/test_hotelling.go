@@ -53,9 +53,11 @@ type hotellingRow struct {
 	alpha    float64
 	mu       []float64
 
-	x      []float64
-	groups map[string]*linalg.CoMoment
-	order  []string
+	// fill / fill2 read members / members2 (the shared member fill).
+	fill, fill2 memberFill
+	x, x2       []float64
+	groups      map[string]*linalg.CoMoment
+	order       []string
 	// dropped counts filter-passing rows (split key present) skipped
 	// because a member was null: the listwise drop.
 	dropped int64
@@ -103,6 +105,7 @@ func newHotellingRow(spec *types.Test, schema *encoding.Schema) (RowTest, error)
 	h := &hotellingRow{
 		spec:       spec,
 		members:    append([]string(nil), spec.Fields...),
+		fill:       memberFillOf(spec.Fields, schema),
 		splitBy:    spec.SplitBy,
 		one:        spec.SplitBy == "",
 		paired:     paired,
@@ -115,6 +118,8 @@ func newHotellingRow(spec *types.Test, schema *encoding.Schema) (RowTest, error)
 	}
 	if paired {
 		h.members2 = append([]string(nil), spec.Fields2...)
+		h.fill2 = memberFillOf(spec.Fields2, schema)
+		h.x2 = make([]float64, p)
 	}
 	return h, nil
 }
@@ -131,21 +136,14 @@ func (h *hotellingRow) UpdateRow(record *Record) error {
 		}
 		key = s
 	}
-	for i, f := range h.members {
-		v, ok := record.NumericValue(f)
-		if !ok || math.IsNaN(v) {
-			h.dropped++
-			return nil
-		}
-		h.x[i] = v
+	if !h.fill.complete(record, h.x) || (h.paired && !h.fill2.complete(record, h.x2)) {
+		h.dropped++
+		return nil
 	}
-	for i, f := range h.members2 {
-		v, ok := record.NumericValue(f)
-		if !ok || math.IsNaN(v) {
-			h.dropped++
-			return nil
+	if h.paired {
+		for i, v := range h.x2 {
+			h.x[i] = float64(h.x[i] - v)
 		}
-		h.x[i] = float64(h.x[i] - v)
 	}
 	w, ok := h.rowWeight(record)
 	if !ok {

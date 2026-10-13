@@ -43,8 +43,10 @@ import (
 // member, a linear dependency) warns PULSE_MATRIX_SINGULAR and leaves
 // every figure null.
 type mardiaRow struct {
-	spec      *types.Test
-	members   []string
+	spec    *types.Test
+	members []string
+	// fill reads members (the shared member fill).
+	fill      memberFill
 	alpha     float64
 	statistic string
 
@@ -59,7 +61,7 @@ type mardiaRow struct {
 	testWeight
 }
 
-func newMardiaRow(spec *types.Test, _ *encoding.Schema) (RowTest, error) {
+func newMardiaRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 	p := len(spec.Fields)
 	if p < 1 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
@@ -86,6 +88,7 @@ func newMardiaRow(spec *types.Test, _ *encoding.Schema) (RowTest, error) {
 	return &mardiaRow{
 		spec:       spec,
 		members:    append([]string(nil), spec.Fields...),
+		fill:       memberFillOf(spec.Fields, schema),
 		alpha:      alpha,
 		statistic:  statistic,
 		x:          make([]float64, p),
@@ -98,13 +101,9 @@ func newMardiaRow(spec *types.Test, _ *encoding.Schema) (RowTest, error) {
 // (listwise) and counts it; a weighted test then skips a row whose
 // weight is invalid or zero.
 func (m *mardiaRow) UpdateRow(record *Record) error {
-	for i, f := range m.members {
-		v, ok := record.NumericValue(f)
-		if !ok || math.IsNaN(v) {
-			m.dropped++
-			return nil
-		}
-		m.x[i] = v
+	if !m.fill.complete(record, m.x) {
+		m.dropped++
+		return nil
 	}
 	w, ok := m.rowWeight(record)
 	if !ok {

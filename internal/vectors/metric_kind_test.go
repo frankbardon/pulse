@@ -52,7 +52,7 @@ func TestMatrixMetricDefaults(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			req := &types.Request{Vectors: kindVectors(), Matrices: []types.MatrixSpec{c.spec}}
-			got := MatrixMetricDefaults(req)
+			got := MatrixMetricDefaults(req, nil)
 			if c.want == "" {
 				if len(got) != 0 {
 					t.Fatalf("filled %+v", got)
@@ -76,7 +76,7 @@ func TestMatrixMetricDefaults(t *testing.T) {
 			if err != nil || ms[0].Metric != c.want {
 				t.Fatalf("resolve filled: %v %+v", err, ms)
 			}
-			if w := MetricUnsuitedIssues(req); len(w) != 0 {
+			if w := MetricUnsuitedIssues(req, nil); len(w) != 0 {
 				t.Errorf("a defaulted metric warns: %v", w)
 			}
 		})
@@ -159,7 +159,7 @@ func TestMetricUnsuitedIssues(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			req := c.req
 			req.Vectors = kindVectors()
-			got := MetricUnsuitedIssues(&req)
+			got := MetricUnsuitedIssues(&req, nil)
 			if len(got) != len(c.want) {
 				t.Fatalf("got %d issues %v, want %d", len(got), got, len(c.want))
 			}
@@ -178,7 +178,7 @@ func TestMetricUnsuitedIssues(t *testing.T) {
 			}
 		})
 	}
-	if MetricUnsuitedIssues(&types.Request{Matrices: []types.MatrixSpec{distSpec("s", `{"metric": "cosine"}`)}}) != nil {
+	if MetricUnsuitedIssues(&types.Request{Matrices: []types.MatrixSpec{distSpec("s", `{"metric": "cosine"}`)}}, nil) != nil {
 		t.Error("a vector-free request raises an issue")
 	}
 }

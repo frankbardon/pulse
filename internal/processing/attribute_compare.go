@@ -60,6 +60,7 @@ type comparisonCore struct {
 	typ     types.AttributeType
 	label   string
 	members []string
+	fill    memberFill // reads members (the shared member fill)
 	cfg     vectors.ComparisonConfig
 	form    metric.Form
 
@@ -109,7 +110,8 @@ func newComparisonCore(attr *types.Attribute, schema *encoding.Schema) (comparis
 		label = defaultAttributeLabel(attr)
 	}
 	_, form, _ := vectors.ComparisonConsumer(attr.Type)
-	c := comparisonCore{typ: attr.Type, label: label, members: append([]string(nil), attr.Fields...), form: form}
+	c := comparisonCore{typ: attr.Type, label: label, members: append([]string(nil), attr.Fields...), form: form,
+		fill: memberFillOf(attr.Fields, schema)}
 	if len(c.members) == 0 {
 		return c, false, nil
 	}
@@ -210,13 +212,7 @@ func (c *comparisonCore) noteUnmatched(key string) {
 
 // readMembers fills c.x with rec's members (a null member is NaN).
 func (c *comparisonCore) readMembers(rec *Record) {
-	for i, f := range c.members {
-		v, ok := rec.NumericValue(f)
-		if !ok {
-			v = math.NaN()
-		}
-		c.x[i] = v
-	}
+	c.fill.fill(rec, c.x, nil)
 }
 
 // eval is the metric between the row's members and ref.

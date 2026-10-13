@@ -44,6 +44,8 @@ import (
 type boxMRow struct {
 	spec    *types.Test
 	members []string
+	// fill reads members (the shared member fill).
+	fill    memberFill
 	splitBy string
 	alpha   float64
 
@@ -85,6 +87,7 @@ func newBoxMRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 	return &boxMRow{
 		spec:       spec,
 		members:    append([]string(nil), spec.Fields...),
+		fill:       memberFillOf(spec.Fields, schema),
 		splitBy:    spec.SplitBy,
 		alpha:      alpha,
 		x:          make([]float64, p),
@@ -101,13 +104,9 @@ func (m *boxMRow) UpdateRow(record *Record) error {
 	if !ok {
 		return nil
 	}
-	for i, f := range m.members {
-		v, ok := record.NumericValue(f)
-		if !ok || math.IsNaN(v) {
-			m.dropped++
-			return nil
-		}
-		m.x[i] = v
+	if !m.fill.complete(record, m.x) {
+		m.dropped++
+		return nil
 	}
 	w, ok := m.rowWeight(record)
 	if !ok {

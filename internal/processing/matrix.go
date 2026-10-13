@@ -39,6 +39,9 @@ type matrixSlot struct {
 	// axis.
 	cols []string
 	x    []float64
+	// fill reads cols off a record (the shared member fill: a native
+	// vector's element members read the vector in place).
+	fill memberFill
 	// rows is a BUFFERED slot's admitted rows (the plan is not
 	// Streamable: a finalizer that needs the whole row set, e.g. a
 	// rank method); nil on a co-moment slot. A buffered slot still
@@ -157,6 +160,7 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 			state:   st,
 			cols:    cols,
 			x:       make([]float64, len(cols)),
+			fill:    memberFillOf(cols, s.schema),
 			compute: s.compute.ForMatrix(plan),
 		}
 		switch {
@@ -200,15 +204,11 @@ func (m *matrixSlot) UpdateRow(r *Record, _ string) error {
 // weight: 1 unweighted, NaN when the row weight is invalid.
 func (m *matrixSlot) readRow(r *Record) (float64, error) {
 	null, all := false, true
-	for i, f := range m.cols {
-		v, ok := r.NumericValue(f)
-		if !ok {
-			v = math.NaN()
-		}
+	m.fill.fill(r, m.x, nil)
+	for _, v := range m.x {
 		isNaN := math.IsNaN(v)
 		null = null || isNaN
 		all = all && isNaN
-		m.x[i] = v
 	}
 	if m.plan.HasScale {
 		if err := m.scoreReliability(); err != nil {

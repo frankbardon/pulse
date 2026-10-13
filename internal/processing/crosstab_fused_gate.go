@@ -183,8 +183,8 @@ func (f registryFuseFacts) AttributeTwoPass(t types.AttributeType) bool {
 // AttributeSlotTwoPass is the per-slot two-pass case the type cannot
 // tell: an ATTR_VEC_DISTANCE over a fitted metric
 // (attrRequiresTwoPassIn's vectors.ComparisonFitted).
-func (f registryFuseFacts) AttributeSlotTwoPass(a *types.Attribute, specs []types.VectorSpec) bool {
-	return a != nil && !f.r.isHidden(string(a.Type)) && vectors.ComparisonFitted(a.Type, a, specs)
+func (f registryFuseFacts) AttributeSlotTwoPass(a *types.Attribute, specs []types.VectorSpec, schema *encoding.Schema) bool {
+	return a != nil && !f.r.isHidden(string(a.Type)) && vectors.ComparisonFitted(a.Type, a, specs, schema)
 }
 
 // GrouperKeyable answers from the static table (built-in) or the

@@ -1,6 +1,9 @@
 package service
 
 import (
+	"context"
+
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -12,7 +15,7 @@ import (
 // metricUnsuitedRefusal refused the run before dispatch). Vector resolution itself runs in the
 // field-reference pass (checkFieldRefs), before any record is read, so
 // every vector reaching here resolved.
-func appendVectorWarnings(req *types.Request, resp *types.Response) {
+func (s *Service) appendVectorWarnings(ctx context.Context, req *types.Request, resp *types.Response) {
 	if resp == nil {
 		return
 	}
@@ -24,7 +27,7 @@ func appendVectorWarnings(req *types.Request, resp *types.Response) {
 			Details: w.Details,
 		})
 	}
-	for _, w := range vectors.MetricUnsuitedIssues(req) {
+	for _, w := range vectors.MetricUnsuitedIssues(req, s.metricKindSchema(ctx, req)) {
 		resp.Warnings = append(resp.Warnings, &types.ResponseWarning{
 			Code:    string(w.Code),
 			Message: w.Message,
@@ -37,12 +40,24 @@ func appendVectorWarnings(req *types.Request, resp *types.Response) {
 // PULSE_VECTOR_METRIC_UNSUITED: under strict the first issue refuses the
 // run before any record is read (predict reports every issue as an
 // error); otherwise nil and appendVectorWarnings carries them.
-func metricUnsuitedRefusal(strict bool, req *types.Request) error {
-	if !strict {
+func (s *Service) metricUnsuitedRefusal(ctx context.Context, req *types.Request) error {
+	if !s.strict {
 		return nil
 	}
-	if issues := vectors.MetricUnsuitedIssues(req); len(issues) > 0 {
+	if issues := vectors.MetricUnsuitedIssues(req, s.metricKindSchema(ctx, req)); len(issues) > 0 {
 		return issues[0]
 	}
 	return nil
+}
+
+// metricKindSchema is the schema MetricUnsuitedIssues reads native
+// vector kinds from: the request's input schema, opened only when the
+// request names a vector no spec defines (vectors.NativeKindsMatter —
+// a native vector field named directly carries its schema kind); nil
+// otherwise, which is the spec-only list.
+func (s *Service) metricKindSchema(ctx context.Context, req *types.Request) *encoding.Schema {
+	if !vectors.NativeKindsMatter(req) {
+		return nil
+	}
+	return s.requestInputSchema(ctx, req)
 }

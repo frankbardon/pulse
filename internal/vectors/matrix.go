@@ -682,7 +682,9 @@ func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known fu
 				// (schema labels, else the "f_<i>" defaults).
 				m.ExplicitLabels = true
 			} else {
-				m.ExplicitLabels = len(req.Vectors[indexOfVector(req.Vectors, spec.Vector)].Labels) > 0
+				// A spec reading native elements carries their labels
+				// even when it sets none (the inline rule below).
+				m.ExplicitLabels = len(req.Vectors[indexOfVector(req.Vectors, spec.Vector)].Labels) > 0 || r.Refs != nil
 			}
 		} else {
 			r, err := ResolveSpec(at+".fields", types.VectorSpec{Name: name, Fields: spec.Fields}, schema)
@@ -690,6 +692,10 @@ func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known fu
 				return nil, err
 			}
 			m.Members = r
+			// An inline list reading a native vector's elements carries
+			// their labels (schema labels, else "f_<k>"), never the
+			// "f[k]" member names; scalar members keep their names.
+			m.ExplicitLabels = r.Refs != nil
 		}
 		if err := resolveControls(at, schema, &m); err != nil {
 			return nil, err

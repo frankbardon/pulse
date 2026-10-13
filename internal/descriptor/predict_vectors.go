@@ -18,25 +18,29 @@ import (
 // refused vector is reported by the field-reference pass, so nothing is
 // echoed for it.
 func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, strict bool) {
-	if req == nil || len(req.Vectors) == 0 {
+	if req == nil {
 		return
 	}
-	resolved, err := vectors.Resolve(req.Vectors, schema)
-	if err != nil {
-		return
+	if len(req.Vectors) > 0 {
+		resolved, err := vectors.Resolve(req.Vectors, schema)
+		if err != nil {
+			return
+		}
+		// The echo is the request's own vectors; the native fields Resolve
+		// appends after them are schema metadata, not request content.
+		resolved = resolved[:len(req.Vectors)]
+		result.ResolvedVectors = make(map[string][]string, len(resolved))
+		for _, r := range resolved {
+			result.ResolvedVectors[r.Name] = append([]string(nil), r.Members...)
+		}
+		for _, name := range vectors.Unreferenced(req) {
+			w := vectors.UnreferencedWarning(name)
+			env.AddWarning(string(w.Code), w.Message, w.Details)
+		}
 	}
-	// The echo is the request's own vectors; the native fields Resolve
-	// appends after them are schema metadata, not request content.
-	resolved = resolved[:len(req.Vectors)]
-	result.ResolvedVectors = make(map[string][]string, len(resolved))
-	for _, r := range resolved {
-		result.ResolvedVectors[r.Name] = append([]string(nil), r.Members...)
-	}
-	for _, name := range vectors.Unreferenced(req) {
-		w := vectors.UnreferencedWarning(name)
-		env.AddWarning(string(w.Code), w.Message, w.Details)
-	}
-	for _, w := range vectors.MetricUnsuitedIssues(req) {
+	// A native vector field named directly carries its schema kind, so a
+	// request with no Request.Vectors can still pair a metric poorly.
+	for _, w := range vectors.MetricUnsuitedIssues(req, schema) {
 		if strict {
 			env.AddError(string(w.Code), w.Message, w.Details)
 		} else {

@@ -49,6 +49,7 @@ import (
 type scaleScoreAttribute struct {
 	label   string
 	members []string
+	fill    memberFill // reads members (the shared member fill)
 	cfg     vectors.ScaleScoreConfig
 	x       []float64
 
@@ -71,7 +72,7 @@ var (
 // newScaleScoreAttribute builds the computer over attr's resolved
 // literal members. A registry probe (no members) builds a computer over
 // none, whose every score is null.
-func newScaleScoreAttribute(attr *types.Attribute, _ *encoding.Schema) (AttributeComputer, error) {
+func newScaleScoreAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
 	if attr == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "ATTR_SCALE_SCORE requires an attribute spec")
 	}
@@ -84,7 +85,8 @@ func newScaleScoreAttribute(attr *types.Attribute, _ *encoding.Schema) (Attribut
 	if label == "" {
 		label = defaultAttributeLabel(attr)
 	}
-	a := &scaleScoreAttribute{label: label, members: append([]string(nil), attr.Fields...)}
+	a := &scaleScoreAttribute{label: label, members: append([]string(nil), attr.Fields...),
+		fill: memberFillOf(attr.Fields, schema)}
 	if len(a.members) == 0 {
 		return a, nil
 	}
@@ -110,11 +112,8 @@ func (a *scaleScoreAttribute) Row(rec *Record, _ string) (float64, error) {
 		return math.NaN(), nil
 	}
 	rowOut := false
-	for i, f := range a.members {
-		v, ok := rec.NumericValue(f)
-		if !ok {
-			v = math.NaN()
-		}
+	a.fill.fill(rec, a.x, nil)
+	for i, v := range a.x {
 		if a.cfg.HasScale && a.cfg.Key.OutOfRange(v) {
 			a.nOutOfRange++
 			rowOut = true

@@ -261,7 +261,7 @@ func isKnownTestType(t types.TestType) bool {
 // streamableTestReasons reports the streamability gates triggered by
 // req.Tests (tier-1). Tier-2 tests never affect streamability — they
 // run on the materialized result row set after windows.
-func streamableTestReasons(req *types.Request, opts *PredictOptions) []string {
+func streamableTestReasons(req *types.Request, schema *encoding.Schema, opts *PredictOptions) []string {
 	var reasons []string
 	for _, t := range req.Tests {
 		if !streamableWithOverlay(opts, "test", string(t.Type), opRoute(opts.instance(), t.Type).Streamable()) {
@@ -275,7 +275,7 @@ func streamableTestReasons(req *types.Request, opts *PredictOptions) []string {
 		if len(req.Features) > 0 {
 			reasons = append(reasons, "tier-1 tests do not yet compose with features in the streaming path")
 		}
-		if tp := firstTwoPassAttribute(req, opts); tp != "" {
+		if tp := firstTwoPassAttribute(req, schema, opts); tp != "" {
 			reasons = append(reasons, "tier-1 tests do not yet compose with two-pass attribute "+string(tp))
 		}
 	}

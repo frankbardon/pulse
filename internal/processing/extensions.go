@@ -678,13 +678,13 @@ func (r *ExtensionRegistry) attributeRequiresTwoPass(t types.AttributeType) bool
 // Processor.prepare's rewrite; attrRequiresTwoPassIn also reads a kind
 // default off the request's vectors. Nil-receiver-safe.
 func (r *ExtensionRegistry) attrRequiresTwoPass(attr *types.Attribute) bool {
-	return r.attrRequiresTwoPassIn(attr, nil)
+	return r.attrRequiresTwoPassIn(attr, nil, nil)
 }
 
 // attrRequiresTwoPassIn is attrRequiresTwoPass over a slot of a request
-// whose Request.Vectors are specs (a named vector's kind decides an
-// absent metric).
-func (r *ExtensionRegistry) attrRequiresTwoPassIn(attr *types.Attribute, specs []types.VectorSpec) bool {
+// whose Request.Vectors are specs, over schema (a named vector's kind —
+// a native vector field's from schema — decides an absent metric).
+func (r *ExtensionRegistry) attrRequiresTwoPassIn(attr *types.Attribute, specs []types.VectorSpec, schema *encoding.Schema) bool {
 	if attr == nil {
 		return false
 	}
@@ -694,7 +694,7 @@ func (r *ExtensionRegistry) attrRequiresTwoPassIn(attr *types.Attribute, specs [
 	if r.isHidden(string(attr.Type)) {
 		return false
 	}
-	return formulaCallsTotal(attr) || vectors.ComparisonFitted(attr.Type, attr, specs)
+	return formulaCallsTotal(attr) || vectors.ComparisonFitted(attr.Type, attr, specs, schema)
 }
 
 // isExtensionAggregator reports whether t is an embedder-registered
