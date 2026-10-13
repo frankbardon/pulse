@@ -37,7 +37,7 @@ Use something else:
 | `weight` | slot weight | inherited | Pearson: both kinds; rank: frequency only. `null` opts out. |
 | `encoding` | `full` \| `upper` | `full` | `upper`: row r holds p − r cells. |
 
-Spec `multiplicity` `{method, family, alpha}` (optional) implies `inference` (explicit `false` refused) and adds `auxiliary.p_adjusted` / `significant_adjusted` (1 below its `alpha`, else 0) over the distinct pairs, mirrored, diagonal null, plus a `multiplicity` echo. Family `matrix` (default: one result, m = p(p − 1)/2, per bucket) or `request`. Raw `p` untouched ([`multiplicity-correction`](multiplicity-correction.md)).
+Spec `multiplicity` implies `inference` and adds `auxiliary.p_adjusted` / `significant_adjusted` over the distinct pairs, plus a `multiplicity` echo; family `matrix` (default) or `request`. Raw `p` untouched ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Inputs
 
@@ -45,7 +45,7 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 ## Output
 
-`primary`: r (ρ / τ-b under a rank method) in [−1, 1], diagonal 1; a zero-spread member's row and column are null. `scalars.determinant` (null unless PD); pairwise `auxiliary.n` (pair N); `warnings`. `inference`: per pair `auxiliary.p` (two-sided; rank: `cor.test`'s, exact when untied and small) and `ci_lower` / `ci_upper` (Fisher z; rank se Bonett–Wright / Fieller, Kendall needs 5 rows; floors skip weight-0 rows); N* per pair (pairwise), Kish under probability weights; diagonal and thin cells null. `vectors.top_pairs` `[{row, col, r, n}]`: by |r| desc, ties in axis order, no diagonal / null pairs.
+`primary`: r (ρ / τ-b under a rank method), diagonal 1; a zero-spread member's row and column are null. `scalars.determinant`; pairwise `auxiliary.n`. `inference`: per pair `auxiliary.p` (two-sided; rank: `cor.test`'s) and `ci_lower` / `ci_upper` (Fisher z; rank: Bonett–Wright / Fieller); diagonal and thin cells null. `vectors.top_pairs` `[{row, col, r, n}]` by |r| desc.
 
 ## Reading the output
 
@@ -59,9 +59,9 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 ## Gotchas
 
 - Each cell is the matching two-field test (Pearson, Spearman, Kendall) over its pair's rows. Weight-0 rows count in `n`, add no mass.
-- `inference` rides `auxiliary`: `return` preset `standard` (the MCP default) keeps `p` / `ci_lower` / `ci_upper` (and the pairwise `n`) on the specs that asked; `minimal` drops them. Thin cells: `PULSE_MATRIX_INSUFFICIENT_N` scope `inference`, null p left out of any correction family.
+- `inference` rides `auxiliary`: preset `standard` keeps it on the specs that asked, `minimal` drops it. Thin cells: `PULSE_MATRIX_INSUFFICIENT_N` scope `inference`.
 - Rank methods: predict `streamable` / `mergeable` false; a probability weight is `PULSE_WEIGHT_UNSUPPORTED`. Kendall τ-b runs smaller than ρ.
-- Pairwise r at p ≥ 3 can be non-PSD (predict `pairwise_psd_risk`) → `PULSE_MATRIX_NOT_PSD`; also `_INSUFFICIENT_N`, `_ZERO_VARIANCE`, `_LISTWISE_HEAVY_DROP`.
+- Pairwise r at p ≥ 3 can be non-PSD → `PULSE_MATRIX_NOT_PSD`; also `_INSUFFICIENT_N`, `_ZERO_VARIANCE`, `_LISTWISE_HEAVY_DROP`.
 - Refusals and grouping: [`matrix-results`](matrix-results.md).
 
 ## See

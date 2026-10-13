@@ -25,12 +25,12 @@ Questions it answers:
 `Scope` `matrix`. `Ref` empty. `Level`/`Within` `0`.
 
 - `steps` — default `[1,3,6,12]`; distinct integers 1–1000 (≤ 64).
-- `absorbing` — state keys (e.g. `["churned"]`).
-- `initial` — `"margin"` (observed row mix) or `{state: share}` (normalized; missing = 0).
+- `absorbing` — state keys, e.g. `["churned"]`.
+- `initial` — `"margin"` or `{state: share}`.
 
 ## Host shape
 
-MATRIX crosstab: rows = from-state, columns = to-state, same key set (aligned by key). Count or sum cells.
+MATRIX crosstab, from-state rows × to-state columns, same keys (aligned by key); count or sum cells.
 
 ## Output
 
@@ -44,10 +44,10 @@ Primary MATRIX: transition P (rows sum to 1). Parts: `step_<n>` (MATRIX Pⁿ), `
 
 ## Gotchas
 
-- Key sets differ ⇒ `PULSE_OVERLAY_MATRIX_NOT_SQUARE`, unless every column-only state is in `absorbing` — its unit row is synthesized (`REF_ZERO` warning, `synthesized_rows`).
+- Key sets differ ⇒ `PULSE_OVERLAY_MATRIX_NOT_SQUARE`, unless every column-only state is in `absorbing` (unit row synthesized, `REF_ZERO` warning).
 - Reducible / periodic ⇒ `PULSE_OVERLAY_MARKOV_NOT_ERGODIC`, no `steady_state`.
 - Zero row ⇒ absorbing + `PULSE_OVERLAY_REF_ZERO`.
-- Never-absorbed state ⇒ `null` time + warning.
+- Never-absorbed state ⇒ `null` time.
 - Bad cell ⇒ `PULSE_OVERLAY_NONNEGATIVE_REQUIRED`.
 
 ## See

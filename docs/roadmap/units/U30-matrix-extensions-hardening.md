@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U25, U28, U29]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [156, 157, 158, 270, 402, 403, 406, 408, 411, 415, 420, 423, 424, 425]
+todo_items: [156, 157, 158, 270, 402, 403, 406, 408, 411, 415, 420, 423, 424, 425, 426]
 branch: matrix-extensions-hardening
 ---
 
@@ -103,6 +103,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(matrix-extensions
 | Group-centroid references for `ATTR_PROFILE_SIMILARITY` / `ATTR_VEC_DISTANCE` (an `AGG_VEC_MEAN` of a named filter, two-pass) | [U27](U27-vector-metrics-aggregates.md) #423 |
 | Point-lookup-record references ("rows like customer #4411") | [U27](U27-vector-metrics-aggregates.md) #424 |
 | `AGG_VEC_SD` (per-element standard deviation) | [U27](U27-vector-metrics-aggregates.md) #425 |
+| Expose the registered-but-unexposed `chi_square` metric (takes column masses explicitly) through the crosstab-profile overlays (handed on again from [U28](U28-matrix-overlays.md)) | [U27](U27-vector-metrics-aggregates.md) #426 |
 
 ## Human inputs & decisions
 

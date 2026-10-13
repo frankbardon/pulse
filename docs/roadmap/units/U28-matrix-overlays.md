@@ -4,11 +4,11 @@ slug: matrix-overlays
 title: "Crosstabs and matrices gain residuals, perceptual maps, flow projections, raking and corrected p-values"
 track: Vector & matrix
 size: L
-status: not-started
+status: done
 depends_on: [U24, U13]
 soft_depends_on: []
 blocks: [U30, U31]
-todo_items: [145, 146, 147, 148, 149, 150, 261, 265, 296, 426]
+todo_items: [145, 146, 147, 148, 149, 150, 261, 265, 296]
 branch: matrix-overlays
 ---
 
@@ -95,11 +95,11 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(matrix-overlays/E
 - **Matrices inside crosstab arms.** Today `Crosstab + Matrices` is refused `PULSE_MATRIX_HOST_CONFLICT` by one shared rule (`mergegate.MatrixRefusal`); lifting it means the fused arm (`crosstabfuse.Decide`) learns the slot. A crosstab-free request with only matrices on a chain stage is still refused (`ChainRefusal` needs an aggregator): decide with this unit.
 
 
-## Handed on from U27
+## Handed on to U30
 
-| Item | Source |
+| Item | Destination |
 |---|---|
-| Expose the registered-but-unexposed `chi_square` metric (takes column masses explicitly) through the crosstab-profile overlays | [U27](U27-vector-metrics-aggregates.md) #426 |
+| Expose the registered-but-unexposed `chi_square` metric (takes column masses explicitly) through the crosstab-profile overlays | [U30](U30-matrix-extensions-hardening.md) #426 (deferred from [U27](U27-vector-metrics-aggregates.md); U28 shipped `OVERLAY_STD_RESIDUAL` / `OVERLAY_CORRESPONDENCE` without consuming it) |
 
 ## Human inputs & decisions
 
