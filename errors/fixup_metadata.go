@@ -1464,6 +1464,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH: {
+		Message: "A matrix registration's operator, finalized at pulse.New over a synthetic three-member co-moment, returned no Primary matrix or filled an Auxiliary, Vectors or Scalars key its OutputKeys do not declare.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Always return MatrixOutput.Primary, and list every Auxiliary, Vectors and Scalars key Finalize can fill in the registration's OutputKeys (a declared key the operator leaves unfilled on some input is fine) — or stop filling the undeclared key named in details.undeclared.",
+			},
+		},
+	},
 	PULSE_EXTENSION_FACTORY_PANIC: {
 		Message: "An embedder factory panicked during probe-validation at registration time.",
 		Fixups: []Fixup{

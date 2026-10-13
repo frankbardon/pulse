@@ -762,7 +762,10 @@ type MatrixOpRegistration struct {
 	// OutputKeys names the MatrixResult parts the operator fills —
 	// Primary's meaning (required) and the Auxiliary, Vectors and
 	// Scalars keys, each a non-empty name listed once. Finalize may
-	// fill only declared keys; probe-validation at pulse.New checks it.
+	// fill only declared keys (a declared key it leaves unfilled is
+	// fine); probe-validation at pulse.New finalizes the operator over
+	// a synthetic co-moment and refuses an undeclared key or a missing
+	// Primary with PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH.
 	OutputKeys descriptor.MatrixOutputKeys
 	// ComponentSchema declares the operator's own keys of its
 	// Response.Components.Matrices entry (extend.MatrixOutput.Components),

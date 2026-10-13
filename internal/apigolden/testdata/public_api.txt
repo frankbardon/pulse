@@ -2296,6 +2296,7 @@ pulse/errors: const PULSE_EXTENSION_EXAMPLE_INVALID pulse/errors.Code = "PULSE_E
 pulse/errors: const PULSE_EXTENSION_FACTORY_PANIC pulse/errors.Code = "PULSE_EXTENSION_FACTORY_PANIC"
 pulse/errors: const PULSE_EXTENSION_FANOUT_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_FANOUT_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH"
+pulse/errors: const PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_MERGEABLE_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_MERGEABLE_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA pulse/errors.Code = "PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA"
 pulse/errors: const PULSE_EXTENSION_NAME_COLLISION pulse/errors.Code = "PULSE_EXTENSION_NAME_COLLISION"
@@ -5207,4 +5208,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 57d6bb57fa1d1aec19b532c3ba0d660d0bae1ea2766e4d626329508dea943777
+// golden-hash: 3b09e6b751e82945254f7579cf9ba1ab2444d173a65e4e1f246b55cd39f208d2

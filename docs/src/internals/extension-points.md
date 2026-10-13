@@ -575,6 +575,25 @@ Validation at `pulse.New`, beyond the naming policy and the
 A matrix registration has no `ComponentsFunc`: its components ride
 `MatrixOutput.Components`, after the engine's floor.
 
+The probe at `pulse.New` is the one that feeds data: it builds the
+factory against a synthetic schema of three `f64` members (plus a
+weight column) with a spec naming them, and runs `Finalize` over a
+small well-conditioned listwise co-moment of six rows with every part
+wanted — rows attached only on the `Streamable: false` tier. A
+`WeightAware` registration is probed a second time with a weight on the
+spec, a weighted co-moment and `WeightKind` `probability` (a failure
+there carries `details.weighted: true`); any other is probed
+unweighted only. `Finalize` must be pure and succeed on that input.
+
+| Probe failure | Code | `details` |
+|---|---|---|
+| factory panics, errors or returns nil | `PULSE_EXTENSION_FACTORY_PANIC` | `stage: factory` |
+| `Finalize` panics or errors | `PULSE_EXTENSION_FACTORY_PANIC` | `stage: finalize` |
+| `Streamable: true` but `Finalize` fails without `Rows` and succeeds with them | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | `reason: reads_rows` |
+| no `Primary` | `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | `reason: missing_primary` |
+| an `Auxiliary` / `Vectors` / `Scalars` key `OutputKeys` does not declare (a declared key left unfilled is fine) | `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | `reason: undeclared_output_key`, `part`, `undeclared`, `declared_keys` |
+| a `Components` key `ComponentSchema` does not declare (a floor key included) | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` | `reason: components_schema_mismatch` |
+
 ### Synth distribution
 
 Reserved for embedders shipping bespoke samplers. There is no `extend`
@@ -1658,6 +1677,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_PURPOSE_INVALID` | a `Purpose` breaks a guidance validity rule, or a test `Interpretation` is structurally invalid |
 | `PULSE_EXTENSION_MERGEABLE_MISMATCH` | aggregator / grouper `Mergeable` without `Streamable`, value lacks `extend.MergeableAggregator` (or, for a grouper that emits components, `extend.MergeableGrouper`), or `ComponentSchema` keys classified `None` |
 | `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH` | aggregator `MarginReducibility` is not a known class, or is a fusable class (summable / mean_reducible / independent) without `Mergeable` |
+| `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | a matrix operator, finalized over the probe's synthetic co-moment, returned no `Primary` or an output key its `OutputKeys` does not declare |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe |
 | `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, lookup table with neither `Rows` nor `Lookup`, a malformed reference-vector table, etc. |
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (closure or sibling interface) but `ComponentSchema.Keys` empty |

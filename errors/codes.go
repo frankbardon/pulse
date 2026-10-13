@@ -906,6 +906,16 @@ const (
 	// extensions_validate and extensions_probe.probeAggregators.
 	PULSE_EXTENSION_ARRAY_VALUED_MISMATCH Code = "PULSE_EXTENSION_ARRAY_VALUED_MISMATCH"
 
+	// PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH indicates a matrix
+	// registration's operator, finalized at pulse.New over a synthetic
+	// three-member co-moment, returned a MatrixOutput its OutputKeys do
+	// not declare: no Primary matrix, or an Auxiliary / Vectors /
+	// Scalars key the registration does not list. Details carry the
+	// category, name, a reason discriminator (missing_primary,
+	// undeclared_output_key), the part, the undeclared keys and the
+	// declared ones. Wired into extensions_probe.probeMatrixOps.
+	PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH Code = "PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH"
+
 	// PULSE_EXTENSION_FACTORY_PANIC indicates an embedder factory
 	// panicked during probe-validation at registration time.
 	PULSE_EXTENSION_FACTORY_PANIC Code = "PULSE_EXTENSION_FACTORY_PANIC"
@@ -3741,6 +3751,7 @@ var allCodes = []Code{
 	PULSE_EXTENSION_MERGEABLE_MISMATCH,
 	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH,
 	PULSE_EXTENSION_ARRAY_VALUED_MISMATCH,
+	PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH,
 	PULSE_EXTENSION_FACTORY_PANIC,
 	PULSE_EXTENSION_PARAM_INVALID,
 	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH,

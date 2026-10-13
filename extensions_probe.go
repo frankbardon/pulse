@@ -27,7 +27,9 @@ import (
 // attribute or test factory is constructed a second time with a row
 // weight on its spec (probeWeight) and must pass the same checks both
 // times; a failure carries details "weighted": true. Tests are probed
-// only when they declare WeightAware.
+// only when they declare WeightAware. Matrix operators are the one
+// category the probe feeds data: probeMatrixOps finalizes each over a
+// synthetic three-member co-moment (extensions_probe_matrix.go).
 func probeExtensions(ext Extensions) error {
 	if err := probeAggregators(ext.Aggregators); err != nil {
 		return err
@@ -42,6 +44,9 @@ func probeExtensions(ext Extensions) error {
 		return err
 	}
 	if err := probeFilterers(ext.Filterers); err != nil {
+		return err
+	}
+	if err := probeMatrixOps(ext.MatrixOps); err != nil {
 		return err
 	}
 	return nil
