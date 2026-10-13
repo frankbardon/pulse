@@ -15,7 +15,7 @@ Get ranked drafts instead of JSON built from memory. CLI twin: `pulse recommend 
 
 - `intent` (string, required): an ID from the `intents` skill. Unknown or empty → `PULSE_RECOMMEND_INTENT_UNKNOWN`; `details.valid` lists every ID.
 - `cohort` (string): a `.pulse` path. Set → drafts BOUND to its fields, each predict-checked. Omit → UNBOUND skeletons.
-- `fields` (array, cohort only): hints; each pins the first role of the intent it fits. Not a field, or fits no role → `SERVICE_VALIDATION`.
+- `fields` (array, cohort only): hints; each pins the first role of the intent it fits. Not a field, or fits no role → `SERVICE_VALIDATION`. A `vec_f32` / `vec_f64` field fits only a vector slot.
 - `level` (`basic` / `intermediate` / `advanced`): rank that level first. Default: simplest first.
 - `limit` (int): cap, default 10.
 
@@ -31,6 +31,7 @@ Get ranked drafts instead of JSON built from memory. CLI twin: `pulse recommend 
 - Empty `recommendations` + `routes_to` is not an error: tooling answers it, or nothing serves it yet.
 - Reads header, schema and sidecar only. Unreadable cohort → `DATA_FILE`.
 - Ranking: hints, fully bound, level, fewest advisories.
+- A native vector field is drafted whole as `"vector": "<field>"`, before a list of numeric columns, and only where its schema `kind` suits the operator; never in a scalar slot.
 
 ## See
 

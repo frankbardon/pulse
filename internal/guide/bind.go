@@ -57,6 +57,14 @@ type bslot struct {
 	// prefer orders candidates (lower first) before schema order; nil
 	// keeps schema order.
 	prefer func(*encoding.Field) int
+	// vector marks a member-list slot that also takes ONE native vector
+	// field (vec_f32 / vec_f64) by name, drafted as "vector": "<field>"
+	// in place of the "fields" list (the slot's Vector / Fields pair).
+	// accept judges the field's element type; min is its least dim.
+	vector bool
+	// kindOK, when set, admits a native vector by its schema kind
+	// ("" = none declared); nil admits every kind.
+	kindOK func(types.VectorKind) bool
 }
 
 // bneed is one value only the caller can choose.
@@ -67,6 +75,45 @@ type bneed struct {
 	// alternatives are the other members of key's exactly_one_of
 	// group: the caller may give one of them instead.
 	alternatives []string
+}
+
+// itemBattery admits the native vector kinds an item-battery operator
+// suits: items answered on one scale (kind scale), yes/no items (kind
+// binary), or a vector declaring no kind. A measure (magnitudes) or a
+// composition (shares of a whole) is not a battery of items, so the
+// binder never drafts one into a reliability check or a scale score.
+func itemBattery(k types.VectorKind) bool {
+	return k == "" || k == types.VectorKindScale || k == types.VectorKindBinary
+}
+
+// batteryKinds maps an operator to the native vector kinds its vector
+// slot admits; an operator absent here admits every kind (the metric
+// operators judge a kind through its metric default instead:
+// nativeNeeds).
+var batteryKinds = map[string]func(types.VectorKind) bool{
+	string(types.MAT_RELIABILITY):  itemBattery,
+	string(types.ATTR_SCALE_SCORE): itemBattery,
+}
+
+// nativeNeeds drops the needs a native vector binding answers from its
+// schema: a comparison attribute's metric, when the vector's declared
+// kind has a default for that attribute (vectors.KindDefault — never a
+// poor fit), is the kind's to supply, as predict and the runtime
+// resolve it. A kind-less native still needs the metric.
+func nativeNeeds(op opInfo, needs []bneed, b binding, schema *encoding.Schema) []bneed {
+	if op.category != catAttribute || !vectors.IsComparisonAttribute(types.AttributeType(op.name)) {
+		return needs
+	}
+	c, f, _ := vectors.ComparisonConsumer(types.AttributeType(op.name))
+	for i, isVec := range b.vector {
+		if !isVec {
+			continue
+		}
+		if _, ok := vectors.KindDefault(c, vectors.KindIn(nil, schema, b.fields[i][0]), f, nil); ok {
+			return slices.DeleteFunc(slices.Clone(needs), func(n bneed) bool { return n.key == "metric" })
+		}
+	}
+	return needs
 }
 
 // fieldNameParams are required params whose manifest type is a plain
@@ -190,9 +237,23 @@ func testSlot(op opInfo, key string) bslot {
 		return bslot{key: key, accept: numeric}
 	case "order_by":
 		return bslot{key: key, loc: locOrderBy, accept: kindIs(descriptor.FieldKindDate, descriptor.FieldKindNumeric), prefer: preferDate}
-	default: // split_by, subject_field, rows, cols
+	case "split_by":
+		if op.name == string(types.TEST_HOTELLING_T2) {
+			// The two-sample form refuses a split without exactly two
+			// levels at run time (PULSE_TEST_SPLIT_GROUPS_LT_2), which
+			// predict cannot see: the dictionary is the schema's word.
+			return bslot{key: key, accept: twoLevels}
+		}
+		return bslot{key: key, accept: categoricalField}
+	default: // subject_field, rows, cols
 		return bslot{key: key, accept: categoricalField}
 	}
+}
+
+// twoLevels accepts a categorical field whose dictionary holds exactly
+// two values.
+func twoLevels(f *encoding.Field) bool {
+	return f.Type.IsCategorical() && f.Dictionary != nil && f.Dictionary.Count() == 2
 }
 
 // fieldFilterAccept turns a manifest field_filter into a predicate.
@@ -226,7 +287,7 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 		// list (vectors.IsVectorTest), the matrix slot's shape.
 		vector := vectors.IsVectorTest(types.TestType(op.name))
 		if vector {
-			slots = append([]bslot{{key: "fields", list: true, min: 2, accept: kindIs(descriptor.FieldKindNumeric)}}, slots...)
+			slots = append([]bslot{{key: "fields", list: true, min: 2, vector: true, accept: kindIs(descriptor.FieldKindNumeric)}}, slots...)
 		}
 		for _, n := range oneSampleNeeds[[2]string{op.name, in.ID}] {
 			needs = append(needs, bneed{key: n, loc: locParams, list: vector})
@@ -234,7 +295,7 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 	case catRegression:
 		// target / predictors are declared params (below).
 	case catMatrix:
-		slots = append(slots, bslot{key: "fields", list: true, min: 2, accept: kindIs(descriptor.FieldKindNumeric)})
+		slots = append(slots, bslot{key: "fields", list: true, min: 2, vector: true, accept: kindIs(descriptor.FieldKindNumeric), kindOK: batteryKinds[op.name]})
 	case catFilterer:
 		shape, known := filtererShape[op.name]
 		if !shape.noField {
@@ -260,7 +321,7 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 		// fields list (vectors.IsVectorAttribute), like a vector test.
 		if (op.category == catAttribute && vectors.IsVectorAttribute(types.AttributeType(op.name))) ||
 			(op.category == catGrouper && vectors.IsVectorGroup(types.GroupType(op.name))) {
-			slots = append(slots, bslot{key: "fields", list: true, min: 2, accept: kindIs(descriptor.FieldKindNumeric)})
+			slots = append(slots, bslot{key: "fields", list: true, min: 2, vector: true, accept: kindIs(descriptor.FieldKindNumeric), kindOK: batteryKinds[op.name]})
 			break
 		}
 		// A vector aggregator (built-in, or an extension declared
@@ -268,7 +329,7 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 		// inline fields list, never field; each member must be a type
 		// the operator accepts.
 		if op.vectorInput {
-			slots = append(slots, bslot{key: "fields", list: true, min: 2, accept: both(typeIn(op.accepts), kindIs(descriptor.FieldKindNumeric))})
+			slots = append(slots, bslot{key: "fields", list: true, min: 2, vector: true, accept: both(typeIn(op.accepts), kindIs(descriptor.FieldKindNumeric))})
 			break
 		}
 		if !op.ignoresField {
@@ -307,25 +368,62 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 // binding is one assignment of fields to an operator's slots.
 type binding struct {
 	fields [][]string // per slot
-	hints  int        // hinted fields it uses
+	// vector marks a vector slot bound to ONE native vector field
+	// (fields[i] is that field's name), drafted as "vector".
+	vector []bool
+	hints  int // hinted fields it uses
+}
+
+// elemType is the scalar type of a native vector field's elements.
+func elemType(ft encoding.FieldType) encoding.FieldType {
+	if ft == encoding.FieldTypeVecF32 {
+		return encoding.FieldTypeF32
+	}
+	return encoding.FieldTypeF64
+}
+
+// fieldIdx is the logical index of field name in schema, -1 if absent.
+func fieldIdx(schema *encoding.Schema, name string) int {
+	return slices.IndexFunc(schema.Fields, func(f encoding.Field) bool { return f.Name == name })
+}
+
+// nativeFits reports whether native vector field f (logical index i of
+// schema) fills vector slot s: its elements are a type s accepts and
+// it has at least s.min of them.
+func nativeFits(s bslot, schema *encoding.Schema, i int) bool {
+	f := &schema.Fields[i]
+	if !s.vector || !f.Type.IsVector() || schema.VectorDim(i) < max(s.min, 1) {
+		return false
+	}
+	if s.kindOK != nil && !s.kindOK(vectors.KindIn(nil, schema, f.Name)) {
+		return false
+	}
+	return s.accept(&encoding.Field{Name: f.Name, Type: elemType(f.Type)})
 }
 
 // bind finds up to k bindings of slots over schema. Each hint pins the
 // first slot that takes it (a list slot takes every hint that fits);
 // the other slots take schema fields in order. With hints, an operator
 // no hint fits gets no binding.
+//
+// A native vector field (vec_f32 / vec_f64) binds only a vector slot
+// (bslot.vector), whole and by name; every other slot reads ONE value
+// and refuses it (PULSE_VECTOR_FIELD_NOT_SCALAR) — judged here, not
+// left to the predict probe, whose needs match is a substring test the
+// refusal's prose could satisfy. A vector slot tries each fitting
+// native field (schema order) BEFORE a list of numeric member columns:
+// the cohort's own vector, with its schema kind, scale and labels, is
+// the better draft. A hinted native pins the slot to itself alone.
 func bind(slots []bslot, schema *encoding.Schema, hints []string, k int) []binding {
 	cands := make([][]*encoding.Field, len(slots))
+	natives := make([][]string, len(slots))
 	for i, s := range slots {
 		for j := range schema.Fields {
 			f := &schema.Fields[j]
-			// A native vector field (FieldKindVector) binds no slot: every
-			// field / param slot reads ONE value and refuses a vector
-			// (PULSE_VECTOR_FIELD_NOT_SCALAR), and the vector slots draft
-			// inline member lists of numeric columns. Judged here, not
-			// left to the predict probe, whose needs match is a substring
-			// test the refusal's prose could satisfy.
 			if f.Type.IsVector() {
+				if nativeFits(s, schema, j) {
+					natives[i] = append(natives[i], f.Name)
+				}
 				continue
 			}
 			if s.accept(f) {
@@ -337,9 +435,21 @@ func bind(slots []bslot, schema *encoding.Schema, hints []string, k int) []bindi
 		}
 	}
 	pinned := make([][]string, len(slots))
+	pinnedNative := make([]string, len(slots))
 	used := 0
 	for _, h := range hints {
 		for i, s := range slots {
+			if pinnedNative[i] != "" {
+				continue
+			}
+			if slices.Contains(natives[i], h) {
+				if len(pinned[i]) > 0 {
+					continue
+				}
+				pinnedNative[i] = h
+				used++
+				break
+			}
 			if (!s.list && len(pinned[i]) > 0) || !slices.ContainsFunc(cands[i], func(f *encoding.Field) bool { return f.Name == h }) {
 				continue
 			}
@@ -356,8 +466,29 @@ func bind(slots []bslot, schema *encoding.Schema, hints []string, k int) []bindi
 		taken[h] = true // a hint never fills a slot it was not pinned to
 	}
 
+	// choices[i] is vector slot i's native options in draft order: the
+	// pinned native alone, else each fitting native unhinted then ""
+	// (the member list). A non-vector slot has the one choice "".
+	choices := make([][]string, len(slots))
+	for i := range slots {
+		switch {
+		case pinnedNative[i] != "":
+			choices[i] = []string{pinnedNative[i]}
+		case len(pinned[i]) > 0:
+			choices[i] = []string{""}
+		default:
+			for _, n := range natives[i] {
+				if !taken[n] {
+					choices[i] = append(choices[i], n)
+				}
+			}
+			choices[i] = append(choices[i], "")
+		}
+	}
+
 	var out []binding
 	cur := make([]string, len(slots))
+	nat := make([]string, len(slots))
 	budget := dfsBudget
 	var dfs func(i int)
 	dfs = func(i int) {
@@ -366,7 +497,7 @@ func bind(slots []bslot, schema *encoding.Schema, hints []string, k int) []bindi
 		}
 		budget--
 		if i == len(slots) {
-			if b, ok := fillLists(slots, cands, pinned, cur, taken); ok {
+			if b, ok := fillLists(slots, cands, pinned, nat, cur, taken); ok {
 				b.hints = used
 				out = append(out, b)
 			}
@@ -394,14 +525,35 @@ func bind(slots []bslot, schema *encoding.Schema, hints []string, k int) []bindi
 			}
 		}
 	}
-	dfs(0)
+	// pick walks every vector slot's native choices (natives first),
+	// then runs the scalar search under that choice.
+	var pick func(i int)
+	pick = func(i int) {
+		if len(out) >= k || budget <= 0 {
+			return
+		}
+		if i == len(slots) {
+			dfs(0)
+			return
+		}
+		for _, n := range choices[i] {
+			nat[i] = n
+			pick(i + 1)
+			if len(out) >= k || budget <= 0 {
+				return
+			}
+		}
+		nat[i] = ""
+	}
+	pick(0)
 	return out
 }
 
-// fillLists completes one scalar assignment: each list slot takes its
-// pinned hints, then free candidates up to listFieldCap.
-func fillLists(slots []bslot, cands [][]*encoding.Field, pinned [][]string, cur []string, taken map[string]bool) (binding, bool) {
-	b := binding{fields: make([][]string, len(slots))}
+// fillLists completes one scalar assignment: a vector slot bound to a
+// native field (nat) takes that field alone; each other list slot takes
+// its pinned hints, then free candidates up to listFieldCap.
+func fillLists(slots []bslot, cands [][]*encoding.Field, pinned [][]string, nat, cur []string, taken map[string]bool) (binding, bool) {
+	b := binding{fields: make([][]string, len(slots)), vector: make([]bool, len(slots))}
 	local := map[string]bool{}
 	for i, s := range slots {
 		if !s.list {
@@ -410,6 +562,11 @@ func fillLists(slots []bslot, cands [][]*encoding.Field, pinned [][]string, cur 
 	}
 	for i, s := range slots {
 		if !s.list {
+			continue
+		}
+		if nat[i] != "" {
+			b.fields[i] = []string{nat[i]}
+			b.vector[i] = true
 			continue
 		}
 		vals := append([]string(nil), pinned[i]...)
@@ -449,6 +606,10 @@ func boundDraft(op opInfo, cohort *types.Cohort, slots []bslot, b binding, needs
 			}
 		}
 		for i, s := range slots {
+			if b.vector[i] {
+				put(s.loc, "vector", b.fields[i][0])
+				continue
+			}
 			var v any = b.fields[i][0]
 			if s.list {
 				v = b.fields[i]
@@ -525,6 +686,9 @@ func boundWhy(plain string, schema *encoding.Schema, b binding, needs []bneed) s
 				continue
 			}
 			d := name + " (" + f.Type.String()
+			if i := fieldIdx(schema, name); f.Type.IsVector() && i >= 0 {
+				d += ", " + strconv.Itoa(schema.VectorDim(i)) + " elements"
+			}
 			if f.Type.IsCategorical() && f.Dictionary != nil {
 				d += ", " + strconv.Itoa(f.Dictionary.Count()) + " groups"
 			}
@@ -549,9 +713,11 @@ func joinAnd(parts []string) string {
 }
 
 // validateHints holds every hint to the cohort: it must name a schema
-// field whose kind some role of the intent takes. A miss is
-// SERVICE_VALIDATION naming the hint, never a silent drop.
-func validateHints(hints []string, schema *encoding.Schema, in descriptor.Intent) ([]string, error) {
+// field whose kind some role of the intent takes — or, a native vector
+// field, an intent some serving operator drafts a vector slot for
+// (vectorSlots). A miss is SERVICE_VALIDATION naming the hint, never a
+// silent drop.
+func validateHints(hints []string, schema *encoding.Schema, in descriptor.Intent, vectorSlots bool) ([]string, error) {
 	kinds := intentKinds(in)
 	var out []string
 	for _, h := range hints {
@@ -564,7 +730,7 @@ func validateHints(hints []string, schema *encoding.Schema, in descriptor.Intent
 				"recommend: field hint "+quote(h)+" is not in the cohort schema",
 				map[string]any{"field": "fields", "hint": h})
 		}
-		if k := kindOf(f); !slices.Contains(kinds, k) {
+		if k := kindOf(f); !slices.Contains(kinds, k) && (k != descriptor.FieldKindVector || !vectorSlots) {
 			names := make([]string, len(kinds))
 			for i, k := range kinds {
 				names[i] = string(k)
