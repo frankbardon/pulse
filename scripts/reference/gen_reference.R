@@ -380,3 +380,9 @@ source(file.path(script_dir, "gen_markov.R"), local = FALSE)
 # share and count targets, structural zeros, a capped non-converged fit,
 # adjustment factors); base stats loglin, cross-checked by survey::rake.
 source(file.path(script_dir, "gen_rake.R"), local = FALSE)
+
+# The matrix params.inference golden (matrix_inference.json: per-pair
+# cor.test p-values and Fisher-z intervals on MAT_CORRELATION, ppcor
+# partial-correlation p and intervals on df = N* - 2 - g); reads the
+# fixture CSVs gen_multivariate.R wrote; base stats + ppcor.
+source(file.path(script_dir, "gen_matrix_inference.R"), local = FALSE)

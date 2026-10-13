@@ -1,0 +1,413 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"math"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/types"
+)
+
+// matrix_inference_test.go is params.inference end to end: the per-pair
+// auxiliary.p / ci_lower / ci_upper on MAT_CORRELATION (pearson) and
+// MAT_PARTIAL_CORRELATION against R (matrix_inference.json: cor.test,
+// the rep() expansion, Kish n_eff, ppcor) and the ppcor p-values of
+// mv_partial_correlation.json; parity with TEST_PEARSON_R; the
+// inference-free byte identity; the size nulls and their warnings; the
+// `return` gate.
+
+// inferenceOracle is one matrix_inference.json case.
+type inferenceOracle struct {
+	Type     types.MatrixType `json:"type"`
+	Fixture  string           `json:"fixture"`
+	Members  []string         `json:"members"`
+	Controls []string         `json:"controls"`
+	Missing  string           `json:"missing"`
+	Weight   string           `json:"weight"`
+	Alpha    float64          `json:"alpha"`
+	R        [][]*float64     `json:"r"`
+	P        [][]*float64     `json:"p"`
+	CILower  [][]*float64     `json:"ci_lower"`
+	CIUpper  [][]*float64     `json:"ci_upper"`
+}
+
+// inferenceOracleTol: 1e-10 absolute + relative. R's pt / qnorm and
+// LAPACK solve against Pulse's statdist and the FMA-free reference
+// kernels; the fixtures agree to ~1e-13.
+const inferenceOracleTol = 1e-10
+
+func inferenceSpec(typ types.MatrixType, name string, members []string, params map[string]any, weight string) types.MatrixSpec {
+	raw, _ := json.Marshal(params)
+	s := partialSpec(name, members, nil, weight)
+	s.Type, s.Params = typ, raw
+	return s
+}
+
+func checkMatrixCells(t *testing.T, what string, got [][]float64, want [][]*float64, diagNull bool) {
+	t.Helper()
+	for i := range want {
+		for j := range want[i] {
+			g := got[i][j]
+			if i == j && diagNull {
+				if !math.IsNaN(g) {
+					t.Errorf("%s [%d][%d] = %v, want null on the diagonal", what, i, j, g)
+				}
+				continue
+			}
+			if want[i][j] == nil {
+				if !math.IsNaN(g) {
+					t.Errorf("%s [%d][%d] = %v, R gives NA", what, i, j, g)
+				}
+				continue
+			}
+			if w := *want[i][j]; !(math.Abs(g-w) <= inferenceOracleTol*(1+math.Abs(w))) {
+				t.Errorf("%s [%d][%d] = %.17g, R = %.17g", what, i, j, g, w)
+			}
+		}
+	}
+}
+
+// TestMatrixInference_MatchesROracle pins every matrix_inference.json
+// case: Pearson (cor.test; frequency the rep() expansion; probability
+// the Kish closed form; pairwise per pair) and partial correlations
+// (control all / a list, listwise / pairwise, df = N* − 2 − g), at
+// alpha 0.05, 0.1 and 0.01.
+func TestMatrixInference_MatchesROracle(t *testing.T) {
+	var golden struct {
+		Cases []inferenceOracle `json:"cases"`
+	}
+	dir := loadMV(t, "matrix_inference.json", &golden)
+	cfg := fixtureFS(t, dir)
+	if len(golden.Cases) < 20 {
+		t.Fatalf("oracle has %d cases", len(golden.Cases))
+	}
+	for _, c := range golden.Cases {
+		t.Run(fmt.Sprintf("%s/%s/%s/%s/%s/alpha=%g", c.Type, c.Fixture, strings.Join(c.Controls, "+"), c.Missing, c.Weight, c.Alpha), func(t *testing.T) {
+			params := map[string]any{"missing": c.Missing, "inference": true}
+			if c.Alpha != 0.05 {
+				params["alpha"] = c.Alpha
+			}
+			if len(c.Controls) > 0 {
+				params["control"] = c.Controls
+			}
+			res := processMatrices(t, cfg, &types.Request{
+				Cohort:   &types.Cohort{Filename: filepath.Join(dir, c.Fixture+".pulse")},
+				Matrices: []types.MatrixSpec{inferenceSpec(c.Type, "m", c.Members, params, c.Weight)},
+			}).Matrices[0]
+			checkMatrixCells(t, "primary", res.Primary.Values, c.R, false)
+			for key, want := range map[string][][]*float64{"p": c.P, "ci_lower": c.CILower, "ci_upper": c.CIUpper} {
+				aux := res.Auxiliary[key]
+				if aux == nil {
+					t.Fatalf("auxiliary.%s missing (auxiliary keys %v)", key, auxKeys(res))
+				}
+				if aux.Kind != types.MatrixKindSquareSymmetric || len(aux.RowKeys) != len(c.Members) {
+					t.Fatalf("auxiliary.%s shape = %s %v", key, aux.Kind, aux.RowKeys)
+				}
+				checkMatrixCells(t, "auxiliary."+key, aux.Values, want, true)
+			}
+		})
+	}
+}
+
+func auxKeys(res types.MatrixResult) []string {
+	var out []string
+	for k := range res.Auxiliary {
+		out = append(out, k)
+	}
+	return out
+}
+
+// TestMatrixInference_PartialMatchesPpcorP: every mv_partial_correlation.json
+// case's ppcor p-value (n = N*, min pair n pairwise) is auxiliary.p.
+func TestMatrixInference_PartialMatchesPpcorP(t *testing.T) {
+	var golden struct {
+		Cases []struct {
+			partialOracle
+			PValue [][]*float64 `json:"p_value"`
+		} `json:"cases"`
+	}
+	dir := loadMV(t, "mv_partial_correlation.json", &golden)
+	cfg := fixtureFS(t, dir)
+	for _, c := range golden.Cases {
+		t.Run(fmt.Sprintf("%s/%s/%s/%s", c.Fixture, strings.Join(c.Controls, "+"), c.Missing, c.Weight), func(t *testing.T) {
+			params := map[string]any{"missing": c.Missing, "inference": true}
+			if len(c.Controls) > 0 {
+				params["control"] = c.Controls
+			}
+			res := processMatrices(t, cfg, &types.Request{
+				Cohort:   &types.Cohort{Filename: filepath.Join(dir, c.Fixture+".pulse")},
+				Matrices: []types.MatrixSpec{inferenceSpec(types.MAT_PARTIAL_CORRELATION, "m", c.Members, params, c.Weight)},
+			}).Matrices[0]
+			checkMatrixCells(t, "auxiliary.p", res.Auxiliary["p"].Values, c.PValue, true)
+			if c.Missing == "pairwise" && findWarning(res, errors.PULSE_MATRIX_PAIRWISE_N_STAR) == nil {
+				t.Error("pairwise partial inference names no PULSE_MATRIX_PAIRWISE_N_STAR")
+			}
+		})
+	}
+}
+
+// TestMatrixInference_PearsonParity: every auxiliary cell equals
+// TEST_PEARSON_R's p_value / ci_low / ci_high on the same pair (the one
+// shared arithmetic, correlationInference), unweighted and under both
+// weight kinds, one block and several, listwise and pairwise.
+func TestMatrixInference_PearsonParity(t *testing.T) {
+	members := []string{"x1", "x2", "x3"}
+	for _, n := range []int{40, 3*4096 + 17} {
+		for _, missing := range []string{"listwise", "pairwise"} {
+			// Listwise on null-free rows (the test then reads the same
+			// rows); pairwise over nulls, each test over its pair's rows.
+			rows := pearsonParityRows(n)
+			if missing == "pairwise" {
+				rows = matrixRows(n)
+			}
+			cfg := writeMatrixCohort(t, "parity.pulse", rows)
+			for _, w := range []string{"", "f", "p"} {
+				t.Run(fmt.Sprintf("n=%d/%s/weight=%q", n, missing, w), func(t *testing.T) {
+					var tests []*types.Test
+					for i := range members {
+						for j := i + 1; j < len(members); j++ {
+							tests = append(tests, &types.Test{
+								Type: types.TEST_PEARSON_R, Field: members[i], Field2: members[j],
+								Label: members[i] + "~" + members[j], Alpha: 0.1,
+								Weight: covSpec("", "", 0, w, "").Weight,
+							})
+						}
+					}
+					spec := corrSpec("corr", members, w)
+					spec.Params = json.RawMessage(`{"inference": true, "alpha": 0.1, "missing": "` + missing + `"}`)
+					req := &types.Request{Cohort: &types.Cohort{Filename: "parity.pulse"}, Matrices: []types.MatrixSpec{spec}, Tests: tests}
+					resp := processMatrices(t, cfg, req)
+					aux := resp.Matrices[0].Auxiliary
+					k := 0
+					for i := range members {
+						for j := i + 1; j < len(members); j++ {
+							tr := resp.Tests[k]
+							k++
+							for _, c := range []struct {
+								key  string
+								want float64
+							}{{"p", tr.PValue}, {"ci_lower", tr.Details["ci_low"].(float64)}, {"ci_upper", tr.Details["ci_high"].(float64)}} {
+								for _, cell := range [][2]int{{i, j}, {j, i}} {
+									got := aux[c.key].Values[cell[0]][cell[1]]
+									if !(math.Abs(got-c.want) <= 1e-10*(1+math.Abs(c.want))) {
+										t.Errorf("%s[%d][%d] = %.17g, TEST_PEARSON_R(%s) = %.17g", c.key, cell[0], cell[1], got, tr.Label, c.want)
+									}
+								}
+							}
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
+// TestMatrixInference_OffIsByteIdentical: params.inference absent or
+// false leaves the response byte-identical (no auxiliary p / ci, no new
+// warning, no new component); on adds exactly the three auxiliaries
+// and leaves every other part's bytes alone.
+func TestMatrixInference_OffIsByteIdentical(t *testing.T) {
+	cfg := writeMatrixCohort(t, "m.pulse", matrixRows(300))
+	run := func(typ types.MatrixType, params string) (map[string]any, *types.Response) {
+		t.Helper()
+		spec := missingSpec(typ, []string{"x1", "x2", "x3"}, "p", params)
+		resp := processMatrices(t, cfg, &types.Request{Cohort: &types.Cohort{Filename: "m.pulse"}, Matrices: []types.MatrixSpec{spec}})
+		raw, err := json.Marshal(resp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m map[string]any
+		_ = json.Unmarshal(raw, &m)
+		return m, resp
+	}
+	for _, typ := range []types.MatrixType{types.MAT_CORRELATION, types.MAT_PARTIAL_CORRELATION} {
+		for _, missing := range []string{"", `"missing": "pairwise"`} {
+			if missing != "" && typ == types.MAT_PARTIAL_CORRELATION {
+				missing += `, "repair": "nearest"` // the pairwise input is not PSD
+			}
+			t.Run(string(typ)+missing, func(t *testing.T) {
+				join := func(extra string) string {
+					parts := []string{}
+					for _, s := range []string{missing, extra} {
+						if s != "" {
+							parts = append(parts, s)
+						}
+					}
+					if len(parts) == 0 {
+						return ""
+					}
+					return "{" + strings.Join(parts, ", ") + "}"
+				}
+				base, _ := run(typ, join(""))
+				off, _ := run(typ, join(`"inference": false`))
+				if a, b := mustJSON(t, base), mustJSON(t, off); a != b {
+					t.Errorf("inference false moved the response:\n  absent: %s\n  false:  %s", a, b)
+				}
+				on, resp := run(typ, join(`"inference": true`))
+				for _, k := range []string{"p", "ci_lower", "ci_upper"} {
+					if resp.Matrices[0].Auxiliary[k] == nil {
+						t.Fatalf("inference true: auxiliary.%s missing", k)
+					}
+				}
+				mat := on["matrices"].([]any)[0].(map[string]any)
+				aux := mat["auxiliary"].(map[string]any)
+				for _, k := range []string{"p", "ci_lower", "ci_upper"} {
+					delete(aux, k)
+				}
+				if len(aux) == 0 {
+					delete(mat, "auxiliary")
+				}
+				// The inference's own warnings (the pairwise partial's N*
+				// choice) are the other addition.
+				if ws, ok := mat["warnings"].([]any); ok {
+					var kept []any
+					for _, w := range ws {
+						d := w.(map[string]any)["details"].(map[string]any)
+						if fmt.Sprint(d["outputs"]) == "[p ci_lower ci_upper]" {
+							continue
+						}
+						kept = append(kept, w)
+					}
+					mat["warnings"] = kept
+				}
+				if a, b := mustJSON(t, base), mustJSON(t, on); a != b {
+					t.Errorf("inference true moved a part besides its three auxiliaries:\n  off: %s\n  on:  %s", a, b)
+				}
+			})
+		}
+	}
+}
+
+// TestMatrixInference_SizeNulls: a cell too thin for inference is null
+// (never collapsed to r) with PULSE_MATRIX_INSUFFICIENT_N scope
+// "inference" naming the null outputs; a probability-weighted fold
+// whose Kish n_eff is below 3 adds PULSE_WEIGHT_LOW_NEFF.
+func TestMatrixInference_SizeNulls(t *testing.T) {
+	// Three complete rows, then x1 only on more rows: listwise n = 3.
+	rows := [][5]float64{
+		{1, 2, 4, 1, 1}, {2, 1, 5, 1, 1}, {3, 5, 3, 1, 1},
+	}
+	nan := math.NaN()
+	pairwiseRows := append(append([][5]float64(nil), rows...),
+		[5]float64{4, nan, 9, 1, 1}, [5]float64{5, nan, 1, 1, 1}, [5]float64{6, nan, 7, 1, 1})
+	cases := []struct {
+		name     string
+		rows     [][5]float64
+		typ      types.MatrixType
+		params   string
+		weight   string
+		pNull    bool // p null on the (x1, x2) cell
+		ciNull   bool
+		scope    string // "", or the INSUFFICIENT_N inference shape: "matrix" | "pairs"
+		outputs  []any
+		lowNEff  bool
+		pairwise bool
+	}{
+		// n = 3: df = 1 (p defined); the interval needs n ≥ 4.
+		{name: "pearson_n3", rows: rows, typ: types.MAT_CORRELATION, params: `{"inference": true}`,
+			ciNull: true, scope: "matrix", outputs: []any{"ci_lower", "ci_upper"}},
+		// Frequency weight 2 on 3 rows: N* = 6 would carry an interval,
+		// but the row floor (n ≥ 4, TEST_PEARSON_R's) nulls it.
+		{name: "pearson_freq_n3", rows: [][5]float64{{1, 2, 4, 2, 1}, {2, 1, 5, 2, 1}, {3, 5, 3, 2, 1}}, typ: types.MAT_CORRELATION,
+			params: `{"inference": true}`, weight: "f", ciNull: true, scope: "matrix", outputs: []any{"ci_lower", "ci_upper"}},
+		// Partial over 3 members (g = 1) on 4 rows: df = 4 − 2 − 1 = 1
+		// (p defined); the interval needs 4 + g rows and N* − 3 − g > 0.
+		{name: "partial_n4", rows: append(append([][5]float64(nil), rows...), [5]float64{4, 4, 1, 1, 1}), typ: types.MAT_PARTIAL_CORRELATION, params: `{"inference": true}`,
+			ciNull: true, scope: "matrix", outputs: []any{"ci_lower", "ci_upper"}},
+		// Pairwise: (x1, x2) and (x2, x3) on 3 rows (interval null),
+		// (x1, x3) on 6.
+		{name: "pearson_pairwise", rows: pairwiseRows, typ: types.MAT_CORRELATION, params: `{"inference": true, "missing": "pairwise"}`,
+			ciNull: true, scope: "pairs", outputs: []any{"ci_lower", "ci_upper"}, pairwise: true},
+		// Probability weights 1, 1, 50: Kish n_eff ≈ 1.08 < 3 → df ≤ 0.
+		{name: "pearson_low_neff", rows: [][5]float64{{1, 2, 4, 1, 1}, {2, 1, 5, 1, 1}, {3, 5, 3, 1, 50}, {4, 4, 4, 1, 1}},
+			typ: types.MAT_CORRELATION, params: `{"inference": true}`, weight: "p",
+			pNull: true, ciNull: true, scope: "matrix", outputs: []any{"p", "ci_lower", "ci_upper"}, lowNEff: true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			res := runOneMatrix(t, c.rows, missingSpec(c.typ, []string{"x1", "x2", "x3"}, c.weight, c.params))
+			if r := res.Primary.Values[0][1]; math.IsNaN(r) {
+				t.Fatalf("fixture: r(x1, x2) is null")
+			}
+			p, lo, hi := res.Auxiliary["p"].Values[0][1], res.Auxiliary["ci_lower"].Values[0][1], res.Auxiliary["ci_upper"].Values[0][1]
+			if math.IsNaN(p) != c.pNull {
+				t.Errorf("p = %v, want null %v", p, c.pNull)
+			}
+			if math.IsNaN(lo) != c.ciNull || math.IsNaN(hi) != c.ciNull {
+				t.Errorf("interval = [%v, %v], want null %v (never collapsed to r = %v)", lo, hi, c.ciNull, res.Primary.Values[0][1])
+			}
+			if c.pairwise {
+				if v := res.Auxiliary["ci_lower"].Values[0][2]; math.IsNaN(v) {
+					t.Errorf("pairwise (x1, x3) rests on 6 rows, yet its interval is null")
+				}
+			}
+			var w *types.ResponseWarning
+			for _, x := range res.Warnings {
+				if x.Code == string(errors.PULSE_MATRIX_INSUFFICIENT_N) && x.Details["scope"] == "inference" {
+					w = x
+				}
+			}
+			if w == nil {
+				t.Fatalf("no PULSE_MATRIX_INSUFFICIENT_N scope inference (warnings %v)", matWarningCodes(res))
+			}
+			if c.scope == "pairs" {
+				pairs := w.Details["pairs"].([]map[string]any)
+				if len(pairs) != 2 || pairs[0]["row"] != "x1" || pairs[0]["col"] != "x2" || pairs[1]["row"] != "x2" || pairs[1]["col"] != "x3" ||
+					fmt.Sprint(pairs[0]["outputs"]) != fmt.Sprint(c.outputs) {
+					t.Errorf("pairs = %v, want (x1, x2) and (x2, x3) with outputs %v", pairs, c.outputs)
+				}
+			} else if fmt.Sprint(w.Details["outputs"]) != fmt.Sprint(c.outputs) {
+				t.Errorf("outputs = %v, want %v", w.Details["outputs"], c.outputs)
+			}
+			if got := findWarning(res, errors.PULSE_WEIGHT_LOW_NEFF) != nil; got != c.lowNEff {
+				t.Errorf("PULSE_WEIGHT_LOW_NEFF present = %v, want %v", got, c.lowNEff)
+			}
+			for _, k := range []string{"p", "ci_lower", "ci_upper"} {
+				if v := res.Auxiliary[k].Values[1][1]; !math.IsNaN(v) {
+					t.Errorf("%s diagonal = %v, want null", k, v)
+				}
+			}
+		})
+	}
+}
+
+// TestMatrixInference_ReturnGate: a `return` that drops
+// matrices[*].auxiliary skips the inference computation (no work, no
+// warning), the rest of the result unchanged; kept, it runs.
+func TestMatrixInference_ReturnGate(t *testing.T) {
+	cfg := writeMatrixCohort(t, "m.pulse", matrixRows(200))
+	spec := missingSpec(types.MAT_CORRELATION, []string{"x1", "x2", "x3"}, "", `{"inference": true}`)
+	for _, c := range []struct {
+		name string
+		ret  *types.Return
+		runs bool
+	}{
+		{"absent", nil, true},
+		{"full", &types.Return{Preset: types.ReturnPresetFull}, true},
+		{"standard", &types.Return{Preset: types.ReturnPresetStandard}, false},
+		{"exclude_auxiliary", &types.Return{Exclude: []string{"matrices[*].auxiliary"}}, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			before := processing.WorkStats()
+			resp, err := New(cfg).Process(context.Background(), &types.Request{
+				Cohort: &types.Cohort{Filename: "m.pulse"}, Matrices: []types.MatrixSpec{spec}, Return: c.ret,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := processing.WorkStats().Sub(before).MatrixInferenceBuilds
+			if c.runs != (got > 0) {
+				t.Errorf("inference builds = %d, want runs %v", got, c.runs)
+			}
+			if has := resp.Matrices[0].Auxiliary["p"] != nil; has != c.runs {
+				t.Errorf("auxiliary.p present = %v, want %v", has, c.runs)
+			}
+		})
+	}
+}

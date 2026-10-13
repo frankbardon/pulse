@@ -246,23 +246,12 @@ func finalizePearsonR(spec *types.Test, variant string, m pearsonMoments, alpha 
 		r = -1
 	}
 	df := nStar - 2
-	var t, pvalue float64
-	switch {
-	case r == 1 || r == -1:
-		t = math.Inf(int(math.Copysign(1, r)))
-		pvalue = 0
-	default:
-		t = r * math.Sqrt(df/(1-r*r))
-		pvalue = statdist.StudentTTwoSidedP(t, df)
-	}
-	var ciLow, ciHigh float64
-	if n >= 4 && nStar > 3 && math.Abs(r) < 1 {
-		zr := math.Atanh(r)
-		seZ := 1.0 / math.Sqrt(nStar-3)
-		zCrit := normalCriticalTwoSided(alpha)
-		ciLow = math.Tanh(zr - zCrit*seZ)
-		ciHigh = math.Tanh(zr + zCrit*seZ)
-	} else {
+	inf := correlationInference(r, df, nStar-3, n >= 4 && nStar > 3, alpha)
+	t, pvalue := inf.T, inf.P
+	ciLow, ciHigh := inf.Lo, inf.Hi
+	if !inf.CI {
+		// The test's historical form: an undefined interval collapses
+		// to r (the matrix auxiliaries leave it null instead).
 		ciLow, ciHigh = r, r
 	}
 	res := &types.TestResult{
@@ -291,4 +280,47 @@ func finalizePearsonR(spec *types.Test, variant string, m pearsonMoments, alpha 
 		tw.checkNEff(spec, false, "", weighting.KishNEff(m.sumW, m.sumWSq), 3)
 	}
 	return res, nil
+}
+
+// corrInference is one correlation's inference: the t statistic, its
+// two-sided Student-t p and the Fisher-z confidence bounds (CI false —
+// and Lo / Hi NaN — when the interval is undefined).
+type corrInference struct {
+	T, P   float64
+	Lo, Hi float64
+	CI     bool
+}
+
+// correlationInference is the ONE (partial) correlation inference
+// arithmetic TEST_PEARSON_R and the MAT_CORRELATION /
+// MAT_PARTIAL_CORRELATION auxiliaries share: t = r·√(df/(1 − r²)),
+// p = statdist.StudentTTwoSidedP(t, df) (|r| = 1: t = ±Inf, p = 0), and,
+// when ciOK, the Fisher-z interval tanh(atanh(r) ∓ z_{α/2}·se) with
+// se = 1/√zDF (|r| = 1: the degenerate [r, r], the formula's limit and
+// R cor.test's). df and zDF are the caller's: N* − 2 and N* − 3 for a
+// plain r, N* − 2 − g and N* − 3 − g for a partial r over g controls.
+// The caller guarantees df > 0.
+func correlationInference(r, df, zDF float64, ciOK bool, alpha float64) corrInference {
+	out := corrInference{Lo: math.NaN(), Hi: math.NaN()}
+	if r == 1 || r == -1 {
+		out.T = math.Inf(int(math.Copysign(1, r)))
+		out.P = 0
+	} else {
+		out.T = r * math.Sqrt(df/(1-r*r))
+		out.P = statdist.StudentTTwoSidedP(out.T, df)
+	}
+	if !ciOK {
+		return out
+	}
+	out.CI = true
+	if math.Abs(r) >= 1 {
+		out.Lo, out.Hi = r, r
+		return out
+	}
+	zr := math.Atanh(r)
+	seZ := 1.0 / math.Sqrt(zDF)
+	zCrit := normalCriticalTwoSided(alpha)
+	out.Lo = math.Tanh(zr - zCrit*seZ)
+	out.Hi = math.Tanh(zr + zCrit*seZ)
+	return out
 }

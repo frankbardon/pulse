@@ -28,7 +28,7 @@ A **vector** names numeric fields once; a **matrix** slot turns a vector into a 
 - `MAT_COVARIANCE` — covariance; `params.ddof` 0 or 1 (default 1).
 <!-- /feature -->
 <!-- feature: MAT_CORRELATION -->
-- `MAT_CORRELATION` — Pearson r, or `params.method` `spearman` / `kendall` (frequency weights only); no p-values; `params.summary.top_pairs: k` lists the k strongest pairs.
+- `MAT_CORRELATION` — Pearson r, or `params.method` `spearman` / `kendall` (frequency weights only); Pearson p / CI via `params.inference`; `params.summary.top_pairs: k`.
 <!-- /feature -->
 <!-- feature: MAT_PARTIAL_CORRELATION -->
 - `MAT_PARTIAL_CORRELATION` — partial r, `params.control` `"all"` or fields held fixed; non-PSD input fatal unless `params.repair: "nearest"` (a repair stopped at its iteration cap also warns `PULSE_MATRIX_NOT_CONVERGED`).

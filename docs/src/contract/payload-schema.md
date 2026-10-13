@@ -517,6 +517,12 @@ diagonal (`upper`). `kind` is `square_symmetric` or `rectangular`
 `MAT_DISTANCE`'s primary is `square_symmetric` but keyed by its
 between grouper's bucket labels, and its `auxiliary.centroids` is k × p:
 `row_keys` the buckets, `column_keys` the members).
+`MAT_CORRELATION` (Pearson) and `MAT_PARTIAL_CORRELATION` take
+`params.inference` (bool) and `params.alpha` (0 < alpha < 1, default
+0.05): on, `auxiliary` gains `p`, `ci_lower` and `ci_upper`, square
+twins of `primary` (same axis and `encoding`, diagonal `null`); off or
+absent, the response is byte-identical. `params` stays an open object
+in the schema — its keys are the manifest's per-operator `params`.
 Undefined cells and scalars (no mass, too few rows, a determinant of a
 matrix that is not positive definite) are `null`, keys kept. What the
 schema cannot say, predict and the runtime enforce identically before

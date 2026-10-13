@@ -25,7 +25,7 @@ A **vector** names numeric fields once; a **matrix** slot turns a vector into a 
 `matrices: [{name?, type, vector | fields, params?, weight?, encoding?}]`; the answer is `Response.matrices[]`, one `MatrixResult` per spec in request order.
 
 - `MAT_COVARIANCE` — covariance; `params.ddof` 0 or 1 (default 1).
-- `MAT_CORRELATION` — Pearson r, or `params.method` `spearman` / `kendall` (frequency weights only); no p-values; `params.summary.top_pairs: k` lists the k strongest pairs.
+- `MAT_CORRELATION` — Pearson r, or `params.method` `spearman` / `kendall` (frequency weights only); Pearson p / CI via `params.inference`; `params.summary.top_pairs: k`.
 - `MAT_PARTIAL_CORRELATION` — partial r, `params.control` `"all"` or fields held fixed; non-PSD input fatal unless `params.repair: "nearest"` (a repair stopped at its iteration cap also warns `PULSE_MATRIX_NOT_CONVERGED`).
 - `MAT_COLLINEARITY` — VIF, tolerance, Belsley condition indices + variance decomposition; `params.center`.
 - `MAT_DISTANCE` — bucket × bucket centroid distances (square, keyed by bucket label), centroids (rectangular k × p), sizes; `params.between`, `metric`, `standardize`.

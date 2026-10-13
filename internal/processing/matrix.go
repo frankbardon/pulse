@@ -418,6 +418,8 @@ func finalizeCovariance(in *matrixFinalizeInput) (matrixOutput, error) {
 }
 
 // finalizeCorrelation is MAT_CORRELATION. Pearson (the default):
+// under params.inference the primary's per-pair p-values and Fisher-z
+// intervals join the auxiliaries (pearsonInference, matrix_inference.go).
 // C_ij / √(M2_ii·M2_jj) clamped to [−1, 1] — CoMoment.Corr, whose
 // one-root form is TEST_PEARSON_R's arithmetic. A member with zero
 // spread (constant, a single massed row, no rows) has no defined
@@ -434,7 +436,27 @@ func finalizeCorrelation(in *matrixFinalizeInput) (matrixOutput, error) {
 		}
 		return in.coMomentOutput(r), nil
 	}
-	return in.coMomentOutput(in.CM.Corr()), nil
+	r := in.CM.Corr()
+	out := in.coMomentOutput(r)
+	if in.Plan().Inference && in.WantAuxiliary() {
+		aux, warns := in.pearsonInference(r)
+		out.addAuxiliary(aux)
+		out.Warnings = append(out.Warnings, warns...)
+	}
+	return out, nil
+}
+
+// addAuxiliary merges aux into the output's auxiliary matrices.
+func (o *matrixOutput) addAuxiliary(aux map[string]*types.MatrixValues) {
+	if len(aux) == 0 {
+		return
+	}
+	if o.Auxiliary == nil {
+		o.Auxiliary = make(map[string]*types.MatrixValues, len(aux))
+	}
+	for k, v := range aux {
+		o.Auxiliary[k] = v
+	}
 }
 
 // values renders a square symmetric matrix over the slot's OUTPUT

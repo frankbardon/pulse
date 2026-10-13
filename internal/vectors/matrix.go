@@ -142,6 +142,23 @@ type Matrix struct {
 	// betweenRaw carries params.between from decode to resolveDistance
 	// (members resolve in between).
 	betweenRaw json.RawMessage
+	// Inference is params.inference on MAT_CORRELATION (method
+	// pearson) and MAT_PARTIAL_CORRELATION: the result carries per-pair
+	// auxiliary.p, auxiliary.ci_lower and auxiliary.ci_upper. False
+	// (the default) builds none of them.
+	Inference bool
+	// Alpha is params.alpha, the two-sided level of the inference
+	// confidence intervals (coverage 1 − Alpha): InferenceDefaultAlpha
+	// under Inference, 0 otherwise.
+	Alpha float64
+}
+
+// InferenceDefaultAlpha is params.alpha's default: 95% intervals.
+const InferenceDefaultAlpha = 0.05
+
+// InferenceTypes are the matrix operators that take params.inference.
+func InferenceTypes() []types.MatrixType {
+	return []types.MatrixType{types.MAT_CORRELATION, types.MAT_PARTIAL_CORRELATION}
 }
 
 // DistanceDefaultMetric is MAT_DISTANCE's params.metric default. The
@@ -418,7 +435,15 @@ type covarianceParams struct {
 type correlationParams struct {
 	Method  *string        `json:"method"`
 	Summary *summaryParams `json:"summary"`
+	inferenceParams
 	missingParams
+}
+
+// inferenceParams are the per-pair inference knobs MAT_CORRELATION and
+// MAT_PARTIAL_CORRELATION take (decodeInference).
+type inferenceParams struct {
+	Inference *bool    `json:"inference"`
+	Alpha     *float64 `json:"alpha"`
 }
 
 // partialParams is MAT_PARTIAL_CORRELATION's params object: the
@@ -427,6 +452,7 @@ type correlationParams struct {
 type partialParams struct {
 	Control json.RawMessage `json:"control"`
 	Repair  *string         `json:"repair"`
+	inferenceParams
 	missingParams
 }
 
@@ -692,6 +718,9 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 			}
 			m.TopPairs = *k
 		}
+		if err := decodeInference(at, p.inferenceParams, m); err != nil {
+			return err
+		}
 		miss = p.missingParams
 	case types.MAT_PARTIAL_CORRELATION:
 		var p partialParams
@@ -704,6 +733,9 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 		}
 		m.Controls = controls
 		if err := decodeRepair(at, p.Repair, m); err != nil {
+			return err
+		}
+		if err := decodeInference(at, p.inferenceParams, m); err != nil {
 			return err
 		}
 		miss = p.missingParams
@@ -1373,6 +1405,41 @@ func decodeMissing(at string, p missingParams, m *Matrix) *errors.CodedError {
 		}
 		v := s
 		m.MaxDropShare = &v
+	}
+	return nil
+}
+
+// decodeInference applies params.inference / params.alpha (after
+// params.method): inference true turns the per-pair p-values and
+// confidence intervals on; alpha is the intervals' two-sided level,
+// strictly between 0 and 1 (default InferenceDefaultAlpha), and applies
+// with inference true only. A rank method (spearman / kendall) refuses
+// inference: its p-values are not implemented, and a silent Pearson
+// figure beside a rank cell would mislead. Every refusal is bad_params.
+func decodeInference(at string, p inferenceParams, m *Matrix) *errors.CodedError {
+	on := p.Inference != nil && *p.Inference
+	if p.Alpha != nil {
+		a := *p.Alpha
+		if !on {
+			return matrixInvalid(at, "bad_params", at+" params.alpha applies with params.inference true only",
+				map[string]any{"param": "alpha", "value": a})
+		}
+		if !(a > 0 && a < 1) {
+			return matrixInvalid(at, "bad_params", at+" params.alpha must be a number strictly between 0 and 1",
+				map[string]any{"param": "alpha", "value": a})
+		}
+	}
+	if !on {
+		return nil
+	}
+	if IsRankMethod(m.Method) {
+		return matrixInvalid(at, "bad_params", at+" params.inference is not available for method \""+m.Method+"\"; it applies to method \"pearson\" only (run TEST_SPEARMAN_R or TEST_KENDALL_TAU on a pair for its p-value)",
+			map[string]any{"param": "inference", "method": m.Method, "valid_methods": []string{CorrelationPearson}})
+	}
+	m.Inference = true
+	m.Alpha = InferenceDefaultAlpha
+	if p.Alpha != nil {
+		m.Alpha = *p.Alpha
 	}
 	return nil
 }

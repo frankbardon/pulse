@@ -24,16 +24,18 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 	return []descriptor.MatrixMeta{
 		{
 			Name:         string(types.MAT_CORRELATION),
-			Description:  "Correlation matrix of a vector's members (listwise or pairwise): Pearson r by default, or Spearman rho / Kendall tau-b under params.method; a zero-spread member's row and column are null. Pearson is weighted under frequency and probability weights, a rank method under frequency weights only. No p-values.",
+			Description:  "Correlation matrix of a vector's members (listwise or pairwise): Pearson r by default, or Spearman rho / Kendall tau-b under params.method; a zero-spread member's row and column are null. Pearson is weighted under frequency and probability weights, a rank method under frequency weights only. params.inference (pearson) adds each pair's two-sided p-value and Fisher-z confidence interval as auxiliary.p / ci_lower / ci_upper, TEST_PEARSON_R's arithmetic on the pair's inference size.",
 			AcceptsTypes: memberTypes,
 			Params: append(append([]descriptor.Param{
 				{Name: "method", Type: "enum", Required: false, Default: vectors.CorrelationPearson, EnumValues: vectors.CorrelationMethods(), Description: "pearson (r over the co-moments; streamable, mergeable); spearman (rho, r on mid-ranks) or kendall (tau-b): each cell equals TEST_SPEARMAN_R / TEST_KENDALL_TAU over the pair's rows (pairwise re-ranks per pair); buffered and not mergeable, so the request runs serially; frequency weights only (a probability weight is PULSE_WEIGHT_UNSUPPORTED)."},
 			}, missing...),
 				descriptor.Param{Name: "summary", Type: "object", Required: false, Description: "{\"top_pairs\": k}, k a positive integer: list the k off-diagonal pairs with the largest |r| as vectors.top_pairs [{row, col, r, n}], ties in axis order; undefined pairs are skipped and k past the pair count lists every pair."},
+				inferenceParam("a pair's t = r*sqrt((N*-2)/(1-r^2)) on df = N*-2 (TEST_PEARSON_R's arithmetic) and its Fisher-z interval with se = 1/sqrt(N*-3); N* is the pair's own size under pairwise (rows unweighted, sum of weights under frequency, Kish n_eff under probability). Method pearson only: spearman or kendall with inference is refused."),
+				matrixAlphaParam,
 			),
 			OutputKeys: descriptor.MatrixOutputKeys{
 				Primary:   "correlation",
-				Auxiliary: []string{"n"},
+				Auxiliary: []string{"ci_lower", "ci_upper", "n", "p"},
 				Vectors:   []string{"top_pairs"},
 				Scalars:   []string{"determinant"},
 			},
@@ -43,15 +45,17 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 		},
 		{
 			Name:         string(types.MAT_PARTIAL_CORRELATION),
-			Description:  "Partial correlation matrix: each pair's Pearson correlation with other fields held fixed, from the precision matrix of the folded columns' correlation (listwise or pairwise). params.control \"all\" (default) controls each pair for every other member; a field list controls each pair for exactly those fields and drops any member it names from the output. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\", a singular one is PULSE_MATRIX_SINGULAR. Weighted under frequency and probability weights. No p-values.",
+			Description:  "Partial correlation matrix: each pair's Pearson correlation with other fields held fixed, from the precision matrix of the folded columns' correlation (listwise or pairwise). params.control \"all\" (default) controls each pair for every other member; a field list controls each pair for exactly those fields and drops any member it names from the output. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\", a singular one is PULSE_MATRIX_SINGULAR. Weighted under frequency and probability weights. params.inference adds each pair's two-sided p-value and Fisher-z confidence interval (df = N* - 2 - g, g the controls) as auxiliary.p / ci_lower / ci_upper.",
 			AcceptsTypes: memberTypes,
 			Params: append([]descriptor.Param{
 				{Name: "control", Type: "list", Required: false, Default: vectors.ControlAll, Description: "\"all\" (each pair controls for every other member: -P_ij/sqrt(P_ii*P_jj) of the precision matrix P) or a list of numeric field names: each output pair controls for exactly those fields. A listed member leaves the output axis; a listed field outside the members joins the co-moment and the missing-data mode."},
 				{Name: "repair", Type: "enum", Required: false, EnumValues: []string{vectors.RepairNearest}, Description: "nearest: replace a non-PSD input correlation by its nearest correlation matrix (Higham alternating projections with Dykstra's correction, Matrix::nearPD corr = TRUE; at most 100 iterations, convergence 1e-7) and warn PULSE_MATRIX_NOT_PSD with frobenius_adjustment. Absent: a non-PSD input is refused (fatal PULSE_MATRIX_NOT_PSD)."},
+				inferenceParam("a pair's t = r*sqrt((N*-2-g)/(1-r^2)) on df = N*-2-g, g the controls (every other folded column under control all, else the control count), as ppcor::pcor, and its Fisher-z interval with se = 1/sqrt(N*-3-g); N* is the whole fold's under listwise, the smallest folded pair's under pairwise (PULSE_MATRIX_PAIRWISE_N_STAR names it)."),
+				matrixAlphaParam,
 			}, missing...),
 			OutputKeys: descriptor.MatrixOutputKeys{
 				Primary:   "partial_correlation",
-				Auxiliary: []string{"n"},
+				Auxiliary: []string{"ci_lower", "ci_upper", "n", "p"},
 			},
 			Streamable:      types.MAT_PARTIAL_CORRELATION.Streamable(),
 			Mergeable:       types.MAT_PARTIAL_CORRELATION.Mergeable(),
@@ -358,3 +362,15 @@ func matrixCapability(offered func(metric.Consumer) bool) descriptor.MatrixCapab
 		},
 	}
 }
+
+// inferenceParam is MAT_CORRELATION / MAT_PARTIAL_CORRELATION's
+// params.inference descriptor; how names the operator's arithmetic.
+func inferenceParam(how string) descriptor.Param {
+	return descriptor.Param{Name: "inference", Type: "bool", Required: false, Default: false,
+		Description: "true: add auxiliary.p (two-sided p-value), auxiliary.ci_lower and auxiliary.ci_upper (the 1 - alpha confidence interval), square matrices over the output axis in the primary's encoding, diagonal null: " + how +
+			" A cell too thin for its p-value or interval is null with PULSE_MATRIX_INSUFFICIENT_N (scope inference); under probability weights an effective size below its floor adds PULSE_WEIGHT_LOW_NEFF. The auxiliaries ride matrices[*].auxiliary, so a return that drops it (preset standard, the MCP default) skips them. No multiple-comparison correction."}
+}
+
+// matrixAlphaParam is params.alpha beside params.inference.
+var matrixAlphaParam = descriptor.Param{Name: "alpha", Type: "float", Required: false, Default: vectors.InferenceDefaultAlpha,
+	Description: "The confidence intervals' two-sided level, strictly between 0 and 1 (coverage 1 - alpha). Applies with inference true only."}

@@ -32,7 +32,9 @@ var pvalueBasisRank = map[string]int{
 // inferential overlay kind contributes the p-values its payload carries,
 // derived from the crosstab axes' dictionaries where an axis is one
 // GROUP_CATEGORY over a categorical or packed_bool field, else counted
-// as one (a lower bound). A test type or overlay kind the instance does
+// as one (a lower bound). A MAT_CORRELATION / MAT_PARTIAL_CORRELATION
+// under params.inference contributes one per output pair (per bucket
+// when grouped). A test type or overlay kind the instance does
 // not offer (hidden or never registered) is not counted. Nil when the
 // request emits no p-value.
 func countPValues(req *types.Request, schema *encoding.Schema, plan *MultiplicityPlan, opts *PredictOptions) *descriptor.PValueCount {
@@ -90,6 +92,22 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 		}
 		n, basis := overlayPValueCount(routed, spec.Scope, rows, cols)
 		add(n, basis, member(overlays, i))
+	}
+	// A matrix under params.inference carries one p per output pair,
+	// per bucket on a grouped request (the tier-1 tests' bound). No
+	// multiplicity block reaches a matrix yet.
+	if len(req.Matrices) > 0 {
+		if plans, err := resolveMatricesFor(req, schema, nil, inst); err == nil {
+			for _, m := range plans {
+				if !m.Inference {
+					continue
+				}
+				k := len(m.OutputIndices())
+				if pairs := k * (k - 1) / 2; pairs > 0 {
+					add(pairs*perTest, perTestBasis, false)
+				}
+			}
+		}
 	}
 	if out.Total == 0 {
 		return nil

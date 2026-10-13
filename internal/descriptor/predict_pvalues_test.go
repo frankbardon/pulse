@@ -158,3 +158,46 @@ func TestMultiplicityTriggerThreshold(t *testing.T) {
 		t.Errorf("threshold = %d, want 10", descriptor.MultiplicityTriggerThreshold)
 	}
 }
+
+// TestPredict_PValuesMatrixInference: a matrix under params.inference
+// counts one p-value per output pair — C(p, 2), the non-control members
+// for a partial control list — times the buckets on a grouped request;
+// inference off counts none. No multiplicity block reaches it.
+func TestPredict_PValuesMatrixInference(t *testing.T) {
+	cohort := buildTestPulseFile(t, &encoding.Schema{Fields: []encoding.Field{
+		{Name: "x1", Type: encoding.FieldTypeF64, Description: "First measured score"},
+		{Name: "x2", Type: encoding.FieldTypeF64, Description: "Second measured score"},
+		{Name: "x3", Type: encoding.FieldTypeF64, Description: "Third measured score"},
+		{Name: "x4", Type: encoding.FieldTypeF64, Description: "Fourth measured score"},
+		{Name: "g", Type: encoding.FieldTypeCategoricalU8, Description: "Region of the respondent", Dictionary: makeDictionary(t, "n", "s", "e")},
+	}})
+	spec := func(typ types.MatrixType, params string) types.MatrixSpec {
+		return types.MatrixSpec{Type: typ, Fields: []string{"x1", "x2", "x3", "x4"}, Params: []byte(params)}
+	}
+	pv := func(total int, basis string) *descriptor.PValueCount {
+		return &descriptor.PValueCount{Total: total, Uncorrected: total, Basis: basis, Threshold: descriptor.MultiplicityTriggerThreshold}
+	}
+	cases := []struct {
+		name string
+		req  *types.Request
+		want *descriptor.PValueCount
+	}{
+		{"off", &types.Request{Matrices: []types.MatrixSpec{spec(types.MAT_CORRELATION, `{}`)}}, nil},
+		{"pearson", &types.Request{Matrices: []types.MatrixSpec{spec(types.MAT_CORRELATION, `{"inference": true}`)}}, pv(6, descriptor.PValueBasisExact)},
+		{"partial control list", &types.Request{Matrices: []types.MatrixSpec{spec(types.MAT_PARTIAL_CORRELATION, `{"inference": true, "control": ["x4"]}`)}},
+			pv(3, descriptor.PValueBasisExact)},
+		{"grouped", &types.Request{
+			Groups:   []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+			Matrices: []types.MatrixSpec{spec(types.MAT_CORRELATION, `{"inference": true, "missing": "pairwise"}`)},
+		}, pv(18, descriptor.PValueBasisDictionary)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			env := predictFromBytes(cohort, c.req, &PredictOptions{})
+			got := env.Data.(*descriptor.PredictResult).PValues
+			if !reflect.DeepEqual(got, c.want) {
+				t.Errorf("PValues = %+v, want %+v (errors %v)", got, c.want, env.Errors)
+			}
+		})
+	}
+}

@@ -318,14 +318,19 @@ func BuiltinOutputResolver(name string) OutputResolver {
 }
 
 // matrixOutputResolver reads a MAT_* operator's MatrixResult: every
-// cell of the primary matrix as primary.values, and each declared
-// whole-matrix figure as scalars.<key> (MatrixOutputKeys.Scalars).
+// cell of the primary matrix as primary.values, each declared
+// whole-matrix figure as scalars.<key> (MatrixOutputKeys.Scalars) and
+// each declared auxiliary matrix as auxiliary.<key>
+// (MatrixOutputKeys.Auxiliary — its cells, e.g. params.inference's p).
 func matrixOutputResolver(name string) OutputResolver {
-	scalars := map[string]bool{}
+	scalars, aux := map[string]bool{}, map[string]bool{}
 	for _, m := range matrixCapabilities() {
 		if m.Name == name {
 			for _, k := range m.OutputKeys.Scalars {
 				scalars[k] = true
+			}
+			for _, k := range m.OutputKeys.Auxiliary {
+				aux[k] = true
 			}
 		}
 	}
@@ -336,7 +341,10 @@ func matrixOutputResolver(name string) OutputResolver {
 		if k, ok := strings.CutPrefix(field, "scalars."); ok && scalars[k] {
 			return FieldStatic, ""
 		}
-		return FieldUnknown, fmt.Sprintf("%s does not emit %q (want primary.values or a declared scalars.<key>)", name, field)
+		if k, ok := strings.CutPrefix(field, "auxiliary."); ok && aux[k] {
+			return FieldStatic, ""
+		}
+		return FieldUnknown, fmt.Sprintf("%s does not emit %q (want primary.values, a declared scalars.<key> or auxiliary.<key>)", name, field)
 	}
 }
 
