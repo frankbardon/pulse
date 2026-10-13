@@ -195,10 +195,7 @@ type measuredLayout struct {
 func newMeasuredLayout(s *encoding.Schema) measuredLayout {
 	l := measuredLayout{offs: make([]int, len(s.Fields)), widths: make([]int, len(s.Fields))}
 	for i := range s.Fields {
-		w := s.Fields[i].Type.ByteSize()
-		if s.Fields[i].Type.IsBitPacked() {
-			w = 1
-		}
+		w := s.FieldWidth(i)
 		l.offs[i], l.widths[i] = l.bmOff, w
 		l.bmOff += w
 	}

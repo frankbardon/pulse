@@ -90,13 +90,13 @@ func resolveExplicitSchema(source Reader, schema *encoding.Schema, ignoreExtra b
 	out := *schema
 	out.Fields = append([]encoding.Field(nil), schema.Fields...)
 	// Caller-supplied ByteOffset / BitPosition are ignored: the record
-	// writer and the decoder place every field by a type-derived cursor,
+	// writer and the decoder place every field by a width-derived cursor,
 	// so the stored values must be that same layout. A caller-authored
 	// offset (an embedder schema that never set one is all zeros) would
 	// otherwise be written into the schema block, refused by shard
 	// cohesion against an inferred twin, and — on BitPosition — read
 	// back from a bit the writer never set.
-	encx.LayoutFields(out.Fields)
+	encx.LayoutFields(&out)
 	if len(header) == 0 {
 		return &out, nil
 	}

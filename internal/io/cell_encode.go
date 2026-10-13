@@ -164,7 +164,7 @@ func (c *rowCells) writeFields(buf *bytes.Buffer, schema *encoding.Schema) error
 			// set_u128, 32 for set_u256. Writing the whole scratch
 			// array would pad every decimal by 16 zero bytes and
 			// desynchronize the stride for the rest of the file.
-			if _, err := buf.Write(c.wide[i][:f.Type.ByteSize()]); err != nil {
+			if _, err := buf.Write(c.wide[i][:schema.FieldWidth(i)]); err != nil {
 				return err
 			}
 			continue

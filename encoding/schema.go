@@ -73,8 +73,8 @@ func (s *Schema) BitmapByteSize() int {
 }
 
 // RecordByteSize returns the on-wire stride of one record under this
-// schema. Bit-packed fields (U4, PackedBool) report ByteSize()==0 but the
-// wire format still consumes one whole byte per such field. When the
+// schema: the sum of FieldWidth over the fields (a bit-packed field still
+// consumes one whole byte). When the
 // schema declares at least one nullable field, the trailing null bitmap
 // of ceil(field_count/8) bytes is appended to every record and included
 // in the stride.
@@ -89,15 +89,34 @@ func (s *Schema) RecordByteSize() int {
 	}
 	stride := 0
 	for i := range s.Fields {
-		ft := s.Fields[i].Type
-		if ft.IsBitPacked() {
-			stride++
-			continue
-		}
-		stride += ft.ByteSize()
+		stride += s.FieldWidth(i)
 	}
 	stride += s.BitmapByteSize()
 	return stride
+}
+
+// FieldWidth returns the on-wire bytes LOGICAL field i occupies — in an
+// ungrouped row and, for a parent-group member, in its group entry: one
+// whole byte for a bit-packed type (u4, packed_bool — FieldType.ByteSize
+// reports 0 for those), FieldType.ByteSize for every other known type,
+// and 0 for an unknown type byte or an i outside Fields.
+//
+// It is the ONE field-aware width. Every stride, offset and skip — this
+// package's RecordByteSize and group geometry, the decode plans, the
+// readers, import, widen, synth — is a sum of FieldWidth, never of a
+// type-only width: a field's width is a property of the field within its
+// schema, not of its type byte alone, and a site that sizes a field from
+// its type alone silently misaligns every field after it the day the two
+// differ. TestNoTypeOnlyWidthInStridePaths keeps it that way.
+func (s *Schema) FieldWidth(i int) int {
+	if i < 0 || i >= len(s.Fields) {
+		return 0
+	}
+	ft := s.Fields[i].Type
+	if ft.IsBitPacked() {
+		return 1
+	}
+	return ft.ByteSize()
 }
 
 // Field returns a pointer to the named field, or nil if not found.

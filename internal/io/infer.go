@@ -207,10 +207,11 @@ func InferSchemaWithOptions(reader Reader, opts InferOptions) (*InferenceResult,
 			Scale:        scale,
 		}
 	}
-	encx.LayoutFields(fields)
+	schema := &encoding.Schema{Fields: fields}
+	encx.LayoutFields(schema)
 
 	return &InferenceResult{
-		Schema:     &encoding.Schema{Fields: fields},
+		Schema:     schema,
 		Warnings:   warnings,
 		Delimiters: delimiters,
 	}, nil

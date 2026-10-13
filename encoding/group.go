@@ -106,9 +106,6 @@ func (s *Schema) Logical() *Schema {
 	return &Schema{Fields: s.Fields}
 }
 
-// onWireWidth is declared in reader_runskip.go: 1 byte for a bit-packed
-// field, 16 for decimal128, fixedWidthBytes otherwise.
-
 // memberSets returns, per logical field, the owning group (or -1) and
 // the member slot within it. It trusts the descriptor's shape only as
 // far as bounds; ValidateGroups is the full check.
@@ -175,7 +172,7 @@ func (s *Schema) groupEntryGeometry(g int) (width, bmOff int) {
 		if m.Field < 0 || m.Field >= len(s.Fields) {
 			continue
 		}
-		width += onWireWidth(s.Fields[m.Field].Type)
+		width += s.FieldWidth(m.Field)
 		anyNullable = anyNullable || s.Fields[m.Field].Nullable
 	}
 	if !anyNullable {
@@ -205,7 +202,7 @@ func (s *Schema) GroupEntry(g, e int) []byte {
 func (s *Schema) GroupMemberBytes(g, k int, entry []byte) []byte {
 	off := 0
 	for j, m := range s.Groups[g].Members {
-		w := onWireWidth(s.Fields[m.Field].Type)
+		w := s.FieldWidth(m.Field)
 		if j == k {
 			return entry[off : off+w]
 		}
@@ -254,7 +251,7 @@ func (s *Schema) groupedRowSizes() (body, bm int, hasBM bool) {
 			continue
 		}
 		rowFields++
-		body += onWireWidth(s.Fields[i].Type)
+		body += s.FieldWidth(i)
 		hasBM = hasBM || s.Fields[i].Nullable
 	}
 	if hasBM {
@@ -356,16 +353,4 @@ func (k GroupKind) String() string {
 		return "constant"
 	}
 	return fmt.Sprintf("kind(%d)", uint8(k))
-}
-
-// onWireWidth is one field's on-wire width inside a group entry or a
-// logical row: 1 byte for a bit-packed field, ByteSize otherwise (0 =
-// unknown type). The decode side in internal/encoding keeps its own
-// copy built on its fixed-width table; TestOnWireWidthMatchesByteSize
-// pins the two definitions together for every field type.
-func onWireWidth(ft FieldType) int {
-	if ft.IsBitPacked() {
-		return 1
-	}
-	return ft.ByteSize()
 }

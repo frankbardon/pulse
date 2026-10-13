@@ -376,9 +376,9 @@ func (r *Reader) InferPulseSchema() (*encoding.Schema, error) {
 			CsvColumnIdx: i,
 		}
 	}
-	encx.LayoutFields(fields)
-
-	return &encoding.Schema{Fields: fields}, nil
+	s := &encoding.Schema{Fields: fields}
+	encx.LayoutFields(s)
+	return s, nil
 }
 
 // defaultRowGroupSize is the target number of rows per Parquet row group.

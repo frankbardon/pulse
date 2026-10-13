@@ -199,7 +199,7 @@ func newGroupedDecoder(s *encoding.Schema) (*groupedDecoder, error) {
 			continue
 		}
 		f := &s.Fields[fi]
-		w := onWireWidth(f.Type)
+		w := s.FieldWidth(fi)
 		if w == 0 {
 			return nil, errors.NewCodedError(errors.ENCODING_INVALID, fmt.Sprintf("unknown field type %d", f.Type))
 		}
@@ -226,7 +226,7 @@ func newGroupedDecoder(s *encoding.Schema) (*groupedDecoder, error) {
 		eoff := 0
 		for _, m := range grp.Members {
 			f := &s.Fields[m.Field]
-			w := onWireWidth(f.Type)
+			w := s.FieldWidth(m.Field)
 			if w == 0 {
 				return nil, errors.NewCodedError(errors.ENCODING_INVALID, fmt.Sprintf("unknown field type %d", f.Type))
 			}

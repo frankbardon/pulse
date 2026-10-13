@@ -176,7 +176,6 @@ func buildMergedSchema(src, gen *encoding.Schema) (*encoding.Schema, error) {
 	}
 
 	fields := make([]encoding.Field, len(src.Fields)+1)
-	byteOffset := 0
 	for i := range src.Fields {
 		sf, gf := &src.Fields[i], &gen.Fields[i]
 		if sf.Name != gf.Name || sf.Type != gf.Type {
@@ -237,7 +236,6 @@ func buildMergedSchema(src, gen *encoding.Schema) (*encoding.Schema, error) {
 		} else if sf.Type.HasDictionary() {
 			f.Dictionary = encoding.NewDictionary()
 		}
-		f.ByteOffset, f.BitPosition = nextFieldLayout(sf.Type, &byteOffset)
 		fields[i] = f
 	}
 
@@ -247,10 +245,13 @@ func buildMergedSchema(src, gen *encoding.Schema) (*encoding.Schema, error) {
 		Description:  syntheticFieldDescription,
 		CsvColumnIdx: len(src.Fields),
 	}
-	tag.ByteOffset, tag.BitPosition = nextFieldLayout(tag.Type, &byteOffset)
 	fields[len(src.Fields)] = tag
 
-	return &encoding.Schema{Fields: fields}, nil
+	// The canonical layout over the merged schema, exactly as buildSchema
+	// and import lay a row out.
+	merged := &encoding.Schema{Fields: fields}
+	encx.LayoutFields(merged)
+	return merged, nil
 }
 
 // reencodeRecords decodes every record from from's on-wire shape and

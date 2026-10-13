@@ -51,7 +51,7 @@ func compileRowLayout(s *encoding.Schema) (*rowLayout, error) {
 	off := 0
 	for i := range s.Fields {
 		logOff[i] = off
-		off += onWireWidth(s.Fields[i].Type)
+		off += s.FieldWidth(i)
 	}
 	l.logBody = off
 	l.logBM = s.Logical().BitmapByteSize()
@@ -68,7 +68,7 @@ func compileRowLayout(s *encoding.Schema) (*rowLayout, error) {
 		if groupOf[i] >= 0 {
 			continue
 		}
-		w := onWireWidth(s.Fields[i].Type)
+		w := s.FieldWidth(i)
 		l.rows = appendSpan(l.rows, span{a: phys, b: logOff[i], n: w})
 		if s.Fields[i].Nullable {
 			l.rowNulls = append(l.rowNulls, bitMove{a: rowBit, b: i})
@@ -93,7 +93,7 @@ func compileRowLayout(s *encoding.Schema) (*rowLayout, error) {
 		}
 		eoff := 0
 		for k, m := range grp.Members {
-			w := onWireWidth(s.Fields[m.Field].Type)
+			w := s.FieldWidth(m.Field)
 			gs.members = appendSpan(gs.members, span{a: eoff, b: logOff[m.Field], n: w})
 			if s.Fields[m.Field].Nullable {
 				gs.nulls = append(gs.nulls, bitMove{a: k, b: m.Field})

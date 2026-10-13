@@ -86,8 +86,9 @@ func SchemaFromFields(defs []SchemaFileField) (*encoding.Schema, error) {
 		}
 		fields[i] = f
 	}
-	encx.LayoutFields(fields)
-	return &encoding.Schema{Fields: fields}, nil
+	s := &encoding.Schema{Fields: fields}
+	encx.LayoutFields(s)
+	return s, nil
 }
 
 // LoadSchemaFile reads an explicit schema document from path on fs and

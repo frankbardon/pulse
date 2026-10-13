@@ -64,7 +64,7 @@ func NewGroupEntryDecoder(s *encoding.Schema, g int, fields []int) (*GroupEntryD
 		off, found := 0, false
 		for k, m := range s.Groups[g].Members {
 			f := &s.Fields[m.Field]
-			w := onWireWidth(f.Type)
+			w := s.FieldWidth(m.Field)
 			if m.Field == fi {
 				d.members = append(d.members, gMember{fi: fi, off: off, w: w, nullable: f.Nullable, field: f})
 				d.slots = append(d.slots, k)

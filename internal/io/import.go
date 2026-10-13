@@ -219,12 +219,11 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	conv := newRowConverter(schema, inferredSchema, dicts, setDelimiterFor, widenable)
 	conv.force(j.ColumnTypeOverrides)
 	conv.zones = zones
-	// bufTypes is the field layout the rows already in recordsBuf were
+	// bufSchema is the field layout the rows already in recordsBuf were
 	// written with; a promotion re-strides them to the new width.
-	bufTypes := make([]encoding.FieldType, len(schema.Fields))
-	for i := range schema.Fields {
-		bufTypes[i] = schema.Fields[i].Type
-	}
+	bufSchema := &encoding.Schema{}
+	*bufSchema = *schema
+	bufSchema.Fields = append([]encoding.Field(nil), schema.Fields...)
 
 	// Optional source-declared null channel. A []string row cannot tell
 	// a JSON null from an empty JSON string, or an Arrow validity bit
@@ -251,10 +250,11 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		// already held, BEFORE this one is appended at the new width —
 		// whether or not this row itself goes on to import.
 		for _, step := range conv.takePending() {
-			if err := widenBufferedColumn(&recordsBuf, rowsImported, bufTypes, step.field, step.to); err != nil {
+			held, err := widenBufferedColumn(&recordsBuf, rowsImported, bufSchema, step.field, step.to)
+			if err != nil {
 				return err
 			}
-			bufTypes[step.field] = step.to
+			bufSchema = held
 		}
 		if re != nil {
 			// A forced column's value the override cannot hold refuses

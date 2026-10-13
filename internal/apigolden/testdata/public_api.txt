@@ -2029,6 +2029,7 @@ pulse/encoding: type Schema method (*Schema) BitmapByteSize() int
 pulse/encoding: type Schema method (*Schema) Categorical(name string) (*pulse/encoding.Dictionary, bool)
 pulse/encoding: type Schema method (*Schema) Field(name string) *pulse/encoding.Field
 pulse/encoding: type Schema method (*Schema) FieldGroup(fi int) (g int, k int, ok bool)
+pulse/encoding: type Schema method (*Schema) FieldWidth(i int) int
 pulse/encoding: type Schema method (*Schema) GroupEntry(g int, e int) []byte
 pulse/encoding: type Schema method (*Schema) GroupEntryCount(g int) int
 pulse/encoding: type Schema method (*Schema) GroupEntryWidth(g int) int
@@ -4983,4 +4984,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 2e6afcf97e94a08df1e755501d6238f0a428822b70cebaa89bee77812b9c4b71
+// golden-hash: dc1b3b2524b3f4a8d9bda9b87501b4dcd0775842637646fe38514675626b7356

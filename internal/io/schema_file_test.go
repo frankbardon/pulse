@@ -175,7 +175,7 @@ func TestSchemaFileTemplate_RoundTrips(t *testing.T) {
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Nullable: true, Precision: 12, Scale: 2},
 		{Name: "level", Type: encoding.FieldTypeU4},
 	}}
-	encx.LayoutFields(src.Fields)
+	encx.LayoutFields(src)
 	for i := range src.Fields {
 		src.Fields[i].CsvColumnIdx = i
 	}

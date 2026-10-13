@@ -1201,8 +1201,9 @@ func (m *mapping) schema() *encoding.Schema {
 		}
 		fields[i] = f
 	}
-	encx.LayoutFields(fields)
-	return &encoding.Schema{Fields: fields}
+	s := &encoding.Schema{Fields: fields}
+	encx.LayoutFields(s)
+	return s
 }
 
 // missingSiblingDescription is the Pulse field description of a generated

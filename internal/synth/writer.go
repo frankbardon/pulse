@@ -66,19 +66,6 @@ type writerField struct {
 	sampler sampler
 }
 
-// nextFieldLayout advances the running byteOffset cursor by one field of
-// type ft and returns that field's own (byteOffset, bitPosition). The
-// width is the canonical layout's (encx.CellWidth, the per-field step of
-// encx.LayoutFields): a bit-packed type (u4, packed_bool) consumes one
-// whole fresh byte at bit 0 rather than sharing a byte with a
-// neighbour, exactly as import lays it out. Shared by buildSchema and
-// augment.go's buildMergedSchema so both lay out fields identically.
-func nextFieldLayout(ft encoding.FieldType, byteOffset *int) (offset, bitPosition int) {
-	offset = *byteOffset
-	*byteOffset += encx.CellWidth(ft)
-	return offset, 0
-}
-
 // buildSchema returns the encoding.Schema and per-field samplers laid
 // out in record order. Byte offsets / bit positions are populated.
 func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
@@ -94,7 +81,6 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 	// spec byte-identical. See internal/synth/rules_ownership.go.
 	ownedNulls := ruleOwnedNullFields(s.Rules)
 
-	byteOffset := 0
 	for i, fs := range s.Fields {
 		ft, ok := fieldTypeFromName(fs.Type)
 		if !ok {
@@ -169,7 +155,6 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 			field.Precision = prec
 			field.Scale = scale
 		}
-		field.ByteOffset, field.BitPosition = nextFieldLayout(ft, &byteOffset)
 
 		smp, err := buildSampler(fs)
 		if err != nil {
@@ -189,7 +174,11 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 		wfs[i] = &writerField{spec: fs, field: &fields[i], sampler: smp}
 	}
 
+	// Byte offsets / bit positions come from the canonical layout over
+	// the finished schema (Schema.FieldWidth per field), exactly as
+	// import lays a row out.
 	schema := &encoding.Schema{Fields: fields}
+	encx.LayoutFields(schema)
 	for i := range wfs {
 		wfs[i].field = &schema.Fields[i]
 	}

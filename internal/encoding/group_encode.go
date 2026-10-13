@@ -167,7 +167,7 @@ func NewGroupEncoder(flat *encoding.Schema, specs []GroupSpec) (*GroupEncoder, e
 			}
 		}
 		for k, m := range out.Groups[g].Members {
-			w := onWireWidth(out.Fields[m.Field].Type)
+			w := out.FieldWidth(m.Field)
 			if m.Key {
 				eg.keySp = append(eg.keySp, span{a: eoff, b: koff, n: w})
 				if out.Fields[m.Field].Nullable {

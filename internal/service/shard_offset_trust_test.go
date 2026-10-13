@@ -16,7 +16,7 @@ import (
 // offsetTrustShard writes a single-file .pulse whose schema block
 // carries the caller's STORED offsets verbatim while the record bytes
 // are laid out the way every writer lays them out — a running cursor
-// over encx.CellWidth, the layout the decoder walks. The two disagree
+// over Schema.FieldWidth, the layout the decoder walks. The two disagree
 // whenever the stored offsets are not canonical.
 func offsetTrustShard(t *testing.T, fsys afero.Fs, path string, fields []encoding.Field, dict []string, rows [][]uint64) {
 	t.Helper()
@@ -40,10 +40,10 @@ func offsetTrustShard(t *testing.T, fsys afero.Fs, path string, fields []encodin
 		t.Fatalf("WriteSchema: %v", err)
 	}
 	for _, row := range rows {
-		for fi, f := range schema.Fields {
+		for fi := range schema.Fields {
 			var cell [8]byte
 			binary.LittleEndian.PutUint64(cell[:], row[fi])
-			buf.Write(cell[:encx.CellWidth(f.Type)])
+			buf.Write(cell[:schema.FieldWidth(fi)])
 		}
 	}
 	if err := afero.WriteFile(fsys, path, buf.Bytes(), 0o644); err != nil {

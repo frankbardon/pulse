@@ -389,17 +389,14 @@ func (rr *RecordReader) planBitmapIdx(plan *DecodePlan) int {
 }
 
 // groupOnWireBytes returns the on-wire byte width of a contiguous
-// DecodeFields group: 1 byte per bit-packed member (u4, packed_bool —
-// ReadBit/ReadNibble each consume a whole byte) and ByteSize() for every
-// other field. Mirrors Schema.RecordByteSize accounting for the group.
-func groupOnWireBytes(fields []*encoding.Field) int {
+// DecodeFields group whose members sit at the given schema positions:
+// the sum of Schema.FieldWidth (1 byte per bit-packed member — ReadBit /
+// ReadNibble each consume a whole byte). Mirrors Schema.RecordByteSize
+// accounting for the group.
+func groupOnWireBytes(s *encoding.Schema, indices []int) int {
 	total := 0
-	for _, f := range fields {
-		if f.Type.IsBitPacked() {
-			total++
-			continue
-		}
-		total += f.Type.ByteSize()
+	for _, fi := range indices {
+		total += s.FieldWidth(fi)
 	}
 	return total
 }
@@ -414,7 +411,7 @@ func groupOnWireBytes(fields []*encoding.Field) int {
 // indices[k] is the schema position of fields[k] (DecodeFields.Indices,
 // resolved by segmentIndices); every sink write is keyed by it.
 func (rr *RecordReader) decodeFieldGroupReused(sink IndexedReusableRecord, keep FieldFilter, fields []*encoding.Field, indices []int) error {
-	groupBytes := groupOnWireBytes(fields)
+	groupBytes := groupOnWireBytes(rr.schema, indices)
 	if groupBytes <= 0 {
 		return nil
 	}

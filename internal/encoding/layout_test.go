@@ -6,14 +6,26 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 )
 
+// TestCellWidth: LayoutFields steps every field by Schema.FieldWidth —
+// one whole byte for a bit-packed type, ByteSize otherwise — for every
+// registered type, each placed after a one-byte lead field.
 func TestCellWidth(t *testing.T) {
 	for ft := encoding.FieldType(0); ft.IsKnown(); ft++ {
 		want := ft.ByteSize()
 		if ft.IsBitPacked() {
 			want = 1
 		}
-		if got := CellWidth(ft); got != want {
-			t.Errorf("CellWidth(%s) = %d, want %d", ft, got, want)
+		s := &encoding.Schema{Fields: []encoding.Field{
+			{Name: "lead", Type: encoding.FieldTypeU8},
+			{Name: "x", Type: ft},
+			{Name: "tail", Type: encoding.FieldTypeU8},
+		}}
+		payload := LayoutFields(s)
+		if got := s.FieldWidth(1); got != want {
+			t.Errorf("FieldWidth(%s) = %d, want %d", ft, got, want)
+		}
+		if s.Fields[2].ByteOffset != 1+want || payload != 2+want {
+			t.Errorf("%s: tail offset %d / payload %d, want %d / %d", ft, s.Fields[2].ByteOffset, payload, 1+want, 2+want)
 		}
 	}
 }
@@ -29,7 +41,7 @@ func TestLayoutFields_BitPacked(t *testing.T) {
 		{Name: "e", Type: encoding.FieldTypeSetU128},
 		{Name: "f", Type: encoding.FieldTypeU4},
 	}}
-	payload := LayoutFields(s.Fields)
+	payload := LayoutFields(s)
 	for i, want := range []int{0, 1, 2, 4, 5, 21} {
 		f := s.Fields[i]
 		if f.ByteOffset != want || f.BitPosition != 0 {

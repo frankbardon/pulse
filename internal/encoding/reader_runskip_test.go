@@ -50,7 +50,7 @@ func fieldSpans(schema *encoding.Schema) [][2]int {
 	out := make([][2]int, len(schema.Fields))
 	c := 0
 	for i := range schema.Fields {
-		w := onWireWidth(schema.Fields[i].Type)
+		w := schema.FieldWidth(i)
 		out[i] = [2]int{c, c + w}
 		c += w
 	}
