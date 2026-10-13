@@ -443,6 +443,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#368** Sharing workflow: `--synthetic-only` output from the profile path, `constraints[]` accepted on the profile path, and disclosure metrics (exact-match rate, distance to closest record) beside the fidelity report; differential privacy is a decision below · [U52](units/U52-synth-realism.md)
 - [ ] **#369** Docs: join keys never match on null (`join-design.md`), and synth rules bind `set_*` as a map while query formulas bind a list, cross-linked · [U52](units/U52-synth-realism.md)
 - [ ] **#370** Acceptance: the multi-time-zone and credit datasets regenerate from synth specs alone with no helper columns; the privacy twin keeps the source's churn drivers (pseudo-R² gap closed materially, TV-without-broadband at zero) and ships with a disclosure report · [U52](units/U52-synth-realism.md)
+- [ ] **#450** Vector synthesis: generate a `vec_f32` / `vec_f64` field (dim, kind and scale range honoured; per-element marginals plus the inter-element correlation captured from a profile), and drop the `PULSE_SYNTH_VECTOR_UNSUPPORTED` refusal on `from-schema`, `from-profile`, `profile create` and augment. Found in U29 (E3-S4) · [U52](units/U52-synth-realism.md)
 
 
 ### Custom regressions — added after the plan ([U53](units/U53-custom-regressions.md); design in [api-and-release 04](v1.0.0-api-and-release/04-model-extensions.md))
@@ -559,6 +560,7 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#407** Fold `MAT_DISTANCE`'s local metric list (`euclidean`, `sqeuclidean`, `manhattan`, `chebyshev`, `cosine`, `mahalanobis`) into the shared `linalg/metric` registry once it lands; one definition per metric · [U27](units/U27-vector-metrics-aggregates.md)
 - [x] **#408** One singularity rule across the multivariate stack: the tests decide singular by `gonum` `SymEigen` against `RankTolerance`, while `MAT_PCA` is singular only when `InverseSPD` fails; align them and add the borderline case to the oracle · [U30](units/U30-matrix-extensions-hardening.md)
 - [x] **#409** Extension statistical tests that take a vector (`vector` / `fields`) are not validated: `ResolveTests` skips non-built-in types, so a bad member list reaches the runtime. Validate extension test vectors as built-ins' · [U34](units/U34-extension-validation.md)
+- [ ] **#451** Expose the per-output-column export plan (`iocore.ExportColumn` / `ColumnAwareWriter`) on the public `io` facade, so an embedder's export writer is told which field TYPES each output column under a projection, a `_label` augment or a vector expansion (today it receives the source schema and must type by column name). Found in U29 (E3-G2) · [U34](units/U34-extension-validation.md)
 - [x] **#410** A non-Heywood weighted fixture for the `ATTR_FACTOR_SCORE` Bartlett path: most weighted oracle fixtures are Heywood cases, which null every Bartlett score, so weighted Bartlett scoring is thinly pinned to `psych` · [U36](units/U36-reference-oracles.md)
 - [x] **#411** `MAT_DISTANCE` `between` refuses date-family groupers (the time-zone pass does not reach `params`) and extension groupers; resolve the zone for the date family and give extension groupers a centroid hook, or document the refusal as final · [U30](units/U30-matrix-extensions-hardening.md)
 - [x] **#412** `skills/statistical-testing.md` sits within 15 B of its 6000 B hard budget, so no multivariate or other test can add a line; split the multivariate tests into their own topical skill or compress it · [U32](units/U32-docs-audit.md)
@@ -602,11 +604,11 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#449** The `flows` intent needs ≥3 declaring operators: `OVERLAY_MARKOV` is its only declarer, and no other built-in's Purpose answers a from-state to to-state question (`WIN_LAG` / `WIN_LEAD` are numeric and run on result rows, so they cannot pair a record's earlier state with its current one; `OVERLAY_SHARE_OF_ROW` reads a from-by-to table as one-step switching shares but is a general composition overlay). Ship flows operators (a paired-change test such as McNemar / Bowker symmetry on a from-by-to table, a per-subject previous-state attribute, retention / churn rates) and drop the `intentDeclarerExemptions` entry. Deferred from U28 (E4-G2) · [U30](units/U30-matrix-extensions-hardening.md)
 
 ### E7 — Native vector field types
-- [ ] **#151** `vec_f32` / `vec_f64` encoding and the `VECTORS` schema extension section (tag 2); `ReadVector` accessor · [U29](units/U29-vector-field-types.md)
-- [ ] **#152** Compatibility test: older cohorts unchanged; older binaries refuse loudly · [U29](units/U29-vector-field-types.md)
-- [ ] **#153** Import `--vector` folding (CSV, NDJSON, Arrow, Parquet) · [U29](units/U29-vector-field-types.md)
-- [ ] **#154** Export expansion; shard cohesion; parent-group membership · [U29](units/U29-vector-field-types.md)
-- [ ] **#155** `type-vec-f32.md`, `type-vec-f64.md`, `byte-layout.md`, CLAUDE.md byte-layout invariants (20 → 22 types) · [U29](units/U29-vector-field-types.md)
+- [x] **#151** `vec_f32` / `vec_f64` encoding and the `VECTORS` schema extension section (tag 2); `ReadVector` accessor · [U29](units/U29-vector-field-types.md)
+- [x] **#152** Compatibility test: older cohorts unchanged; older binaries refuse loudly · [U29](units/U29-vector-field-types.md)
+- [x] **#153** Import `--vector` folding (CSV, NDJSON, Arrow, Parquet) · [U29](units/U29-vector-field-types.md)
+- [x] **#154** Export expansion; shard cohesion; parent-group membership · [U29](units/U29-vector-field-types.md)
+- [x] **#155** `type-vec-f32.md`, `type-vec-f64.md`, `byte-layout.md`, CLAUDE.md byte-layout invariants (20 → 22 types) · [U29](units/U29-vector-field-types.md)
 
 ### E10 — Extensions & hardening (committed part)
 - [ ] **#156** `MatrixOpRegistration` and the `MAT` naming-policy namespace; probe validation · [U30](units/U30-matrix-extensions-hardening.md)

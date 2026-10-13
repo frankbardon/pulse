@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U02b]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [194, 195, 196, 197, 216, 231, 374, 409]
+todo_items: [194, 195, 196, 197, 216, 231, 374, 409, 451]
 branch: extension-validation
 ---
 
@@ -129,3 +129,9 @@ Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`]
 
 - [ ] **#374** — `LateKeyRefuser` on the public `io` facade, so an embedder's keyed reader can arm the late-key refusal (`PULSE_IMPORT_SCHEMA_KEY_LATE`) like the built-in NDJSON and JSON-array readers. Found in U41 (E1-S1).
 - [x] **#409** (10. Vector & matrix — operators › Follow-ups from U25) Extension statistical tests that take a vector (`vector` / `fields`) are not validated: `ResolveTests` skips non-built-in types, so a bad member list reaches the runtime. Validate extension test vectors as built-ins'
+
+## Inherited from U29
+
+Filed from [U29 handed on](U29-vector-field-types.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#451** — Expose the per-output-column export plan (`iocore.ExportColumn` / `ColumnAwareWriter`) on the public `io` facade, so an embedder's export writer learns which field types each output column. Today it receives the source schema and must type by column name (`docs/src/internals/adding-io-format.md`). Found in U29 (E3-G2).
