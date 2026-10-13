@@ -845,3 +845,73 @@ func TestCustomListReaderImportsVector(t *testing.T) {
 		t.Fatalf("RecordAt(1)[emb] = %#v, want [4 5 6]", got[1])
 	}
 }
+
+// listSink is an embedder's own typed target: it implements the public
+// io.ListAwareWriter, so an export hands it each vector field as ONE
+// column of native []float64 cells instead of expanding it into
+// per-element text columns.
+type listSink struct {
+	header []string
+	lists  []pio.ListColumn
+	rows   [][]any
+}
+
+func (w *listSink) WriteHeader(cols []string) error {
+	w.header = append([]string(nil), cols...)
+	return nil
+}
+func (w *listSink) WriteRow(values []any) error {
+	row := make([]any, len(values))
+	for i, v := range values {
+		if vec, ok := v.([]float64); ok {
+			v = append([]float64(nil), vec...) // the export reuses the slice
+		}
+		row[i] = v
+	}
+	w.rows = append(w.rows, row)
+	return nil
+}
+func (w *listSink) Close() error                         { return nil }
+func (w *listSink) SetListColumns(cols []pio.ListColumn) { w.lists = cols }
+
+var _ pio.ListAwareWriter = (*listSink)(nil)
+
+func TestCustomListWriterExportsVector(t *testing.T) {
+	p, fs := newEngine(t, pulse.Options{})
+	ctx := context.Background()
+	src := &listSource{lists: [][]float64{{1, 2, 3}, {4, 5, 6}}}
+	imp := pio.NewImportJob(src, "emb.pulse")
+	imp.FS = fs
+	imp.Vectors = []pio.VectorDecl{{Name: "emb"}}
+	if _, err := p.Import(ctx, imp); err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+
+	sink := &listSink{}
+	job := pio.NewExportJob("emb.pulse", sink)
+	job.FS = fs
+	rep, err := p.Export(ctx, job)
+	if err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	if rep.RowsExported != 2 {
+		t.Fatalf("RowsExported = %d, want 2", rep.RowsExported)
+	}
+	if len(sink.header) != 2 || sink.header[0] != "id" || sink.header[1] != "emb" {
+		t.Fatalf("header = %v, want [id emb] (one column for the vector)", sink.header)
+	}
+	if len(sink.lists) != 1 {
+		t.Fatalf("SetListColumns = %+v, want one column", sink.lists)
+	}
+	lc := sink.lists[0]
+	if lc.Index != 1 || lc.Name != "emb" || lc.Type != encoding.FieldTypeVecF64 || lc.Dim != 3 {
+		t.Fatalf("ListColumn = %+v, want Index 1, emb, vec_f64, dim 3", lc)
+	}
+	want := [][]float64{{1, 2, 3}, {4, 5, 6}}
+	for r, row := range sink.rows {
+		v, ok := row[1].([]float64)
+		if !ok || len(v) != 3 || v[0] != want[r][0] || v[1] != want[r][1] || v[2] != want[r][2] {
+			t.Fatalf("row %d emb cell = %#v, want %v", r, row[1], want[r])
+		}
+	}
+}

@@ -469,7 +469,8 @@ type ListAwareWriter interface {
   refuses an expansion collision on the same terms).
 
 `io/list_writer_test.go` pins a custom writer against the NDJSON export
-of the same cohort.
+of the same cohort, and `internal/embeddersmoke` proves the interface is
+reachable from an external module.
 
 ### Authoritative schemas: `io.SchemaAwareReader`
 
