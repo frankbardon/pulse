@@ -76,7 +76,35 @@ type Reader struct {
 	// truncated tallies the native timestamp cells the latest ReadRows
 	// pass floored to whole seconds (iocore.SourceWarningEmitter).
 	truncated parrow.TimestampTally
+
+	// curChunks / curRow locate the row most recently handed to the
+	// ReadRows callback, for iocore.ListAwareReader. Valid only inside
+	// the callback.
+	curChunks [][]arrow.Array
+	curRow    int
 }
+
+// RowList implements iocore.ListAwareReader: the current row's column
+// col read off the typed Arrow list array pqarrow decoded the Parquet
+// LIST into (parrow.ListCellAt).
+func (r *Reader) RowList(col int, dst *iocore.ListCell) error {
+	if col < 0 || col >= len(r.curChunks) {
+		dst.Reset(iocore.ListNull)
+		return nil
+	}
+	offset := r.curRow
+	for _, chunk := range r.curChunks[col] {
+		if offset < chunk.Len() {
+			parrow.ListCellAt(chunk, offset, dst)
+			return nil
+		}
+		offset -= chunk.Len()
+	}
+	dst.Reset(iocore.ListNull)
+	return nil
+}
+
+var _ iocore.ListAwareReader = (*Reader)(nil)
 
 // Warnings implements iocore.SourceWarningEmitter: the one
 // PULSE_IMPORT_TIMESTAMP_TRUNCATED warning of the latest ReadRows pass,
@@ -242,6 +270,10 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		}
 	}
 	r.truncated.Reset()
+	r.curChunks = make([][]arrow.Array, numCols)
+	for c := range cols {
+		r.curChunks[c] = cols[c].chunks
+	}
 
 	// Iterate over rows.
 	row := make([]string, numCols)
@@ -269,6 +301,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 			row[c], r.nulls[c] = getValueAsString(cols[c].chunks, rowIdx)
 		}
 
+		r.curRow = rowIdx
 		if err := fn(row); err != nil {
 			if err == iocore.ErrStopIteration() {
 				return nil
@@ -376,9 +409,9 @@ func (r *Reader) InferPulseSchema() (*encoding.Schema, error) {
 			CsvColumnIdx: i,
 		}
 	}
-	encx.LayoutFields(fields)
-
-	return &encoding.Schema{Fields: fields}, nil
+	s := &encoding.Schema{Fields: fields}
+	encx.LayoutFields(s)
+	return s, nil
 }
 
 // defaultRowGroupSize is the target number of rows per Parquet row group.
@@ -430,16 +463,45 @@ type Writer struct {
 	// iocore.NullAwareWriter, set by ExportJob.Run and never by
 	// ConvertJob. See the arrow Writer's field of the same name.
 	explicitNulls bool
+
+	// lists are the native vector columns (iocore.ListAwareWriter), by
+	// header position: FixedSizeList<float32|float64, dim> columns
+	// whatever the rest of the layout falls back to.
+	lists map[int]iocore.ListColumn
+
+	// exportCols is the export's explicit column plan
+	// (iocore.ColumnAwareWriter); colFields is the field typing each
+	// header column, resolved from it — or, without a plan, from the
+	// pulseSchema field of the same name — when the writer initialises.
+	// Never the schema's i-th field: projection and label augment move
+	// columns off their field's index.
+	exportCols []iocore.ExportColumn
+	colFields  []*encoding.Field
 }
 
 // SetExplicitNulls implements iocore.NullAwareWriter.
 func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
+
+// SetListColumns implements iocore.ListAwareWriter: each named column is
+// a FixedSizeList<float32|float64, dim> — or, for a NULLABLE vector, a
+// LIST<float32|float64>, because pqarrow cannot write a null fixed-size
+// list (see arrow.VectorArrowField) — by position, so it holds even when
+// projection or a label augment drops the rest of the layout to strings.
+func (w *Writer) SetListColumns(cols []iocore.ListColumn) {
+	w.lists = parrow.ListColumnIndex(cols)
+}
 
 // SetPulseSchema records the source .pulse schema so subsequent
 // initWriter can build native typed Parquet columns. Implements
 // iocore.SchemaAwareWriter.
 func (w *Writer) SetPulseSchema(s *encoding.Schema) {
 	w.pulseSchema = s
+}
+
+// SetExportColumns implements iocore.ColumnAwareWriter: column i is typed
+// from cols[i].Field, whatever source field index it came from.
+func (w *Writer) SetExportColumns(cols []iocore.ExportColumn) {
+	w.exportCols = cols
 }
 
 // NewWriter creates a Parquet writer targeting a filesystem path.
@@ -488,14 +550,18 @@ func (w *Writer) initWriter() error {
 		totalFields++
 	}
 	arrowFields := make([]arrow.Field, totalFields)
-	if w.pulseSchema != nil && len(w.pulseSchema.Fields) == len(w.columns) {
-		for i, pf := range w.pulseSchema.Fields {
-			arrowFields[i] = parrow.FieldFromPulse(pf)
-			arrowFields[i].Name = w.columns[i]
+	w.colFields = iocore.ColumnFields(w.exportCols, w.pulseSchema, w.columns)
+	for i, name := range w.columns {
+		if f := w.colFields[i]; f != nil {
+			arrowFields[i] = parrow.FieldFromPulse(*f)
+			arrowFields[i].Name = name
+			continue
 		}
-	} else {
-		for i, name := range w.columns {
-			arrowFields[i] = arrow.Field{Name: name, Type: arrow.BinaryTypes.String}
+		arrowFields[i] = arrow.Field{Name: name, Type: arrow.BinaryTypes.String}
+	}
+	for c, lc := range w.lists {
+		if c < hostFieldCount {
+			arrowFields[c] = parrow.VectorArrowField(lc, !lc.Nullable)
 		}
 	}
 	if hasOverlays {
@@ -588,11 +654,13 @@ func (w *Writer) WriteRow(values []any) error {
 // appendCell appends a single cell value to column c's builder, picking
 // the typed builder when the source schema declared a non-string type.
 func (w *Writer) appendCell(c int, v any) error {
-	if w.pulseSchema != nil && c < len(w.pulseSchema.Fields) {
-		f := w.pulseSchema.Fields[c]
+	if lc, ok := w.lists[c]; ok {
+		return parrow.AppendVectorList(w.bldr.Field(c), lc.Dim, v)
+	}
+	if f := w.colFields[c]; f != nil {
 		switch {
 		case f.Type == encoding.FieldTypeDecimal128:
-			return parrow.AppendDecimal128(w.bldr.Field(c), f, v)
+			return parrow.AppendDecimal128(w.bldr.Field(c), *f, v)
 		case f.Type.IsSet():
 			// A Pulse set maps to LIST<UTF8> (parrow.TypeFromPulse), and
 			// internal/io/export.go hands over ONE delimiter-joined token string
@@ -698,6 +766,7 @@ var _ iocore.Reader = (*Reader)(nil)
 var _ iocore.ResetReader = (*Reader)(nil)
 var _ iocore.Writer = (*Writer)(nil)
 var _ iocore.NullAwareWriter = (*Writer)(nil)
+var _ iocore.ListAwareWriter = (*Writer)(nil)
 var _ iocore.NullAwareReader = (*Reader)(nil)
 var _ iocore.SourceWarningEmitter = (*Reader)(nil)
 var _ iocore.SchemaAwareWriter = (*Writer)(nil)

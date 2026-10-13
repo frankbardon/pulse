@@ -517,6 +517,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_EXPORT_COLUMN_COLLISION: {
+		Message: "Expanding a vector field into one column per element would emit a column name another column of the export already has.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Includes", "*"},
+				Hint:   "Drop the colliding scalar field (or the vector) from the export with --include, or export to a format with native list cells (ndjson, jsonarray, arrow, parquet), which keep the vector as one column.",
+			},
+		},
+	},
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW: {
 		Message: "A categorical column's observed dictionary exceeded the declared width capacity (u8 / u16 / u32).",
 		Fixups: []Fixup{
@@ -599,6 +609,26 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Move the source file under the jail root (typically the directory the CLI / MCP server was invoked from), or pass a different root via pulse.Options.ImportSourceJailRoot.",
+			},
+		},
+	},
+	PULSE_IMPORT_VECTOR_INVALID: {
+		Message: "An import-time vector declaration cannot be folded, so the import is refused before any row is read and no cohort is written. details.reason names the case: malformed (the `--vector` / `--vector-kind` value does not parse), element_invalid, kind_invalid, scale_invalid (not both bounds, non-finite, or min >= max), kind_unknown_vector (a kind for an undeclared vector), kind_duplicate, duplicate_name, column_unknown, pattern_invalid, pattern_no_match, no_columns (a bare `--vector NAME` on a source with no typed lists — CSV / TSV / Excel), dim_out_of_range (the folded column count, or a native list's length, is outside 2..1024), column_claimed (a column folded by two vectors, or by a vector and a parent group), name_collision (the vector's name is a source column it does not fold), authoritative_source (an SPSS source), and against an explicit schema not_declared, dim_mismatch or type_mismatch. A native list column (bare `--vector NAME`, Arrow / Parquet LIST, a JSON array) is also refused mid-pass, with no cohort written, on list_length_varies (a list whose length differs from the first non-null list's), element_not_numeric (a string — a quoted number included — or boolean element), not_a_list (a scalar cell), list_dim_unknown (no non-null list to take a dim from) and malformed_list_cell (an io.ListAwareReader filled a ListCell outside its contract: an undeclared State, or Nulls neither nil nor as long as Values); details carry column and row.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Vectors"},
+				Hint:   "Write each vector as `--vector NAME[:f32|f64]:COL1,COL2,...` (members in element order) or `--vector NAME:/REGEX/` (members are the matching columns in source order; the first capture group becomes each element's label), folding 2..1024 columns, each column in at most one vector and in no `--group`. Give a kind with `--vector-kind NAME:measure|scale|composition|binary[:MIN:MAX]` naming a declared vector.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema", "*", "dim"},
+				Hint:   "With an explicit schema, type the vector field vec_f32 / vec_f64 with the dim its declaration folds, and declare it with --vector so the import knows which columns hold its elements.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Vectors"},
+				Hint:   "A native list column becomes a vector only when every non-null list has the same length (2..1024) and holds only numbers and nulls: pad or drop the ragged rows at the source, cast string elements to numbers, or leave the column undeclared to import it as a set_* field; on CSV / TSV / Excel name the element columns instead (`--vector NAME:COL1,COL2,...`).",
 			},
 		},
 	},
@@ -1581,12 +1611,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SHARD_DESCRIPTION_DIVERGENCE: {
-		Message: "An incoming shard's per-field description differs from the canonical schema's; descriptions are advisory and the canonical description wins, but the divergence is surfaced as a warning so embedders can keep cohort metadata in sync.",
+		Message: "An incoming shard's per-field description — or a vector field's element labels, kind or scale range (details.dimension vector_labels / vector_kind / vector_scale) — differs from the canonical schema's; this metadata is advisory and the canonical copy wins, but the divergence is surfaced as a warning so embedders can keep cohort metadata in sync.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Schema", "Fields", "*", "Description"},
-				Hint:   "Update the source data's per-field description to match the canonical archive's, or accept the warning (downstream consumers see the canonical description).",
+				Hint:   "Update the source data's per-field description (or the vector's labels / kind / scale range) to match the canonical archive's, or accept the warning (downstream consumers see the canonical metadata).",
 			},
 		},
 	},
@@ -1955,6 +1985,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Joins", "*", "On"},
 				Hint:   "Re-import the right cohort with a matching type for the key field (e.g. cast u32 → u64 to align with the left side), or pre-aggregate one side to expose a compatible key column.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Joins", "*", "On"},
+				Hint:   "When `details.reason` is \"set_key\" or \"vector_key\", the key is a set_* or vec_f32 / vec_f64 column, which has no single equality value on either side: join on a scalar key column instead (the set or vector column still rides through the join).",
 			},
 		},
 	},
@@ -3839,13 +3874,40 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_VECTOR_FIELD_NOT_SCALAR: {
+		Message: "A native vector field (vec_f32 / vec_f64) was named where a single value is read — a scalar aggregation, grouper, attribute, feature, filter, test or regression slot (or an operator param naming a field), a window field / order_by / partition_by, a sort key, a weight, a date / zone slot or a point-lookup index key. A vector has dim values per row, so there is no one number to read. `details.field` / `field_type` / `dim` describe the field and `details.slot` the slot; `details.suggest`, when present, names the vector operator that replaces the slot. A slot that asks only whether the field answered (a count of present or null rows, a null filter) accepts a vector field, as does every vector slot.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"aggregations", "*", "type"},
+				Hint:     "Aggregate the whole vector with a vector aggregator naming it under `vector` (drop `field`): AGG_VEC_MEAN for the element-wise mean, AGG_VEC_SUM for the element-wise sum.",
+				Examples: []any{"AGG_VEC_MEAN", "AGG_VEC_SUM"},
+			},
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"groups", "*", "type"},
+				Hint:     "Group rows by the vector with GROUP_KMEANS naming it under `vector` (drop `field`); a vector has no category or range to bucket.",
+				Examples: []any{"GROUP_KMEANS"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"vectors", "*", "fields"},
+				Hint:   "To read ONE element as a number, declare a virtual vector whose `fields` name it as `field[k]` (1-based) and use a vector slot or an expression over it; scalar slots read scalar columns only. Matrices (MAT_*), vector tests and vector attributes take the field directly under `vector`.",
+			},
+		},
+	},
 	PULSE_VECTOR_NAME_COLLISION: {
-		Message: "A vector's name is also a schema field's name, or a feature output, attribute or window label of the same request. An expression (a formula attribute, an expression filter, a total() argument) reads a named vector as an identifier beside those columns, so a vector may not share one's name. The vector is under `vector` / `name`; a field under `field`, a derived column under `label` with its slot (`feature`, `attribute`, or `window` / `window_index`).",
+		Message: "A vector's name is also a schema field's name, or a feature output, attribute or window label of the same request. An expression (a formula attribute, an expression filter, a total() argument) reads a named vector as an identifier beside those columns, so a vector may not share one's name. The vector is under `vector` / `name`; a field under `field`, a derived column under `label` with its slot (`feature`, `attribute`, or `window` / `window_index`). `details.native` is true when the field is a native vector field (vec_f32 / vec_f64): it is already a vector every slot and expression can name directly, and a request never shadows it.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"vectors", "*", "name"},
 				Hint:   "Rename the vector to a name no schema field or output label uses (for example add a `_vec` suffix), and update every slot and expression that names it.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"vectors", "*"},
+				Hint:   "When `details.native` is true, drop the vectors entry and name the native vector field directly in the slot or expression; to re-kind, re-label or re-scope it, keep the entry under a different name whose `fields` list the native field (or single elements as `field[k]`, 1-based).",
 			},
 		},
 	},

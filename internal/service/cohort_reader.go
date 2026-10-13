@@ -300,8 +300,9 @@ func (r *CohortRecordReader) Close() error {
 // value: integers uint64; f32/f64 float32/float64; date int32 epoch
 // days; datetime int64 epoch seconds; decimal128 encoding.Decimal128;
 // categorical the label string; set_* the labels in dictionary order
-// ([]string, empty non-nil for no selection); packed_bool bool. Every
-// value comes from the raw word or the wide map, never the float echo.
+// ([]string, empty non-nil for no selection); packed_bool bool; vec_f32
+// / vec_f64 []float32 / []float64 (NaN elements verbatim). Every value
+// comes from the raw word or the wide map, never the float echo.
 func exactValue(f *encoding.Field, values map[string]float64, wide map[string]any, raw map[string]uint64) (any, error) {
 	switch f.Type {
 	case encoding.FieldTypePackedBool:
@@ -320,6 +321,24 @@ func exactValue(f *encoding.Field, values map[string]float64, wide map[string]an
 			return nil, missingExact(f)
 		}
 		return m.Labels(f.Dictionary), nil
+	case encoding.FieldTypeVecF64:
+		v, ok := wide[f.Name].([]float64)
+		if !ok {
+			return nil, missingExact(f)
+		}
+		return v, nil
+	case encoding.FieldTypeVecF32:
+		// The decoder widened each element exactly, so narrowing back
+		// returns the stored value (a NaN stays NaN).
+		v, ok := wide[f.Name].([]float64)
+		if !ok {
+			return nil, missingExact(f)
+		}
+		out := make([]float32, len(v))
+		for k, x := range v {
+			out[k] = float32(x)
+		}
+		return out, nil
 	}
 	w, ok := raw[f.Name]
 	if !ok {

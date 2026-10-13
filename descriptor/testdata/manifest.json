@@ -716,7 +716,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "emits_type_note": "scalar int64",
           "streamable": true,
@@ -1583,7 +1585,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "emits_type_note": "scalar int64",
           "streamable": true,
@@ -1795,7 +1799,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "ignores_field": true,
           "emits_type_note": "scalar float64 (NaN, null in JSON, when denominator sum == 0)",
@@ -3240,7 +3246,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "reads_expression": true,
           "emits_type": "f64",
@@ -4109,7 +4117,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "reads_expression": true,
           "emits_type_note": "record-level predicate",
@@ -4264,7 +4274,9 @@
             "u32",
             "u4",
             "u64",
-            "u8"
+            "u8",
+            "vec_f32",
+            "vec_f64"
           ],
           "emits_type_note": "record-level predicate",
           "streamable": true,
@@ -8986,7 +8998,7 @@
         ]
       }
     ],
-    "error_codes_count": 357,
+    "error_codes_count": 360,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9062,6 +9074,7 @@
       "PULSE_DECIMAL_PRECISION_LOSS",
       "PULSE_DEDUP_LOW_RATIO",
       "PULSE_DOCS_EXPORT_DIR_NOT_EMPTY",
+      "PULSE_EXPORT_COLUMN_COLLISION",
       "PULSE_EXPORT_FIELD_UNKNOWN",
       "PULSE_EXPORT_ROW_ERROR",
       "PULSE_EXTENSION_ARRAY_VALUED_MISMATCH",
@@ -9122,6 +9135,7 @@
       "PULSE_IMPORT_SOURCE_FORBIDDEN",
       "PULSE_IMPORT_SOURCE_MISSING",
       "PULSE_IMPORT_TIMESTAMP_TRUNCATED",
+      "PULSE_IMPORT_VECTOR_INVALID",
       "PULSE_IMPORT_WIDTH_PROMOTED",
       "PULSE_INDEX_MANIFEST_INVALID",
       "PULSE_INDEX_MANIFEST_STALE",
@@ -9332,6 +9346,7 @@
       "PULSE_TRANSFER_INVALID",
       "PULSE_VECTOR_DUPLICATE",
       "PULSE_VECTOR_EMPTY",
+      "PULSE_VECTOR_FIELD_NOT_SCALAR",
       "PULSE_VECTOR_INVALID",
       "PULSE_VECTOR_LABELS_MISMATCH",
       "PULSE_VECTOR_MEMBER_TYPE",
@@ -9393,7 +9408,7 @@
       },
       {
         "name": "pulse_import",
-        "description": "CALL TO BRING AN EXTERNAL DATA FILE INTO PULSE AS A COHORT. Import a tabular source file (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss) into a managed .pulse handle, or pass through an existing .pulse file unchanged. Auto-detects format from the extension; override via `format`. SPSS `.sav` / `.zsav` sources are schema-AUTHORITATIVE: the file's own dictionary supplies every column type, nullability and categorical dictionary ORDER, so inference is skipped entirely — and the cohort's categorical dictionaries hold the SPSS numeric CODES, not the value labels (two codes may share a label, so a label-keyed dictionary would collapse them); resolve labels at output time with a LabelTable. SPSS is now writable too: `pulse export spss` emits a `.sav` from a cohort, reproducing the source dictionary from the metadata sidecar an import wrote beside it. Managed handles live in $PULSE_DATA_DIR/imports/ with a TTL-tracked sidecar — every subsequent inspect/predict/process/sample/facet against the handle slides expiry forward. TTL accepts Go duration form (`24h`, `30m`, `3600s`, `1h30m`) plus day suffix (`7d`, `30d`) and `pin` for never-expire. Returns the handle, managed path, format, row count, expiry, and a managed flag. Pulse-format sources skip the copy + sidecar; they pass through with managed=false.\n\nSPSS read knobs: `charset` overrides the encoding a `.sav` declares about itself and is the ONLY recourse for a file that is wrong about itself — a stale record 7/20 name, or a pre-Unicode file declaring nothing at all, which reads as strict UTF-8 and fails PULSE_SPSS_CHARSET_INVALID on its first 8-bit byte. It is ignored for every other format. There is deliberately NO missing-value mode here: the default is the fidelity-preserving split (numeric user-missing values are null in the analytic column, and a generated `\u003cvar\u003e_missing` sibling records why), and the only alternative discards those siblings — ask for that explicitly with `pulse import spss --spss-missing=null`.\n\nParent groups (denormalized joins): `groups` takes `[{key: [...], members: [...]}]` — each distinct member tuple is stored once and every row carries a 4-byte index, a smaller format 0x02 cohort; a member that varies within its key fails PULSE_GROUP_MEMBER_NOT_CONSTANT. Do not guess declarations: set `suggest_groups: true` to get measured `group_candidates` (ratio, resident dictionary bytes, projected size, verdict) whose key/members paste straight back as `groups`, then re-import with `overwrite: true`. Weak groups are reported as coded `group_warnings` (PULSE_GROUP_TOO_NARROW dropped, PULSE_DEDUP_LOW_RATIO written; default floor 2 rows per tuple), never failures; per-group figures ride `groups`.\n\nExplicit schema: `schema` takes `[{name, type, nullable, description}]` (the `pulse import --schema` document; omit it to infer). Fields match source columns BY NAME, never position, and each mismatch is refused before any row is read with its own code: PULSE_IMPORT_SCHEMA_FIELD_MISSING, _COLUMN_UNMAPPED, _DUPLICATE, _KEY_LATE, _TYPE_UNKNOWN, _INVALID. `ignore_extra: true` drops unnamed columns instead. `float` picks the inferred float width: `f64` (default, exact decimals) or `f32`."
+        "description": "CALL TO BRING AN EXTERNAL DATA FILE INTO PULSE AS A COHORT. Import a tabular source file (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss) into a managed .pulse handle, or pass through an existing .pulse file unchanged. Auto-detects format from the extension; override via `format`. SPSS `.sav` / `.zsav` sources are schema-AUTHORITATIVE: the file's own dictionary supplies every column type, nullability and categorical dictionary ORDER, so inference is skipped entirely — and the cohort's categorical dictionaries hold the SPSS numeric CODES, not the value labels (two codes may share a label, so a label-keyed dictionary would collapse them); resolve labels at output time with a LabelTable. SPSS is now writable too: `pulse export spss` emits a `.sav` from a cohort, reproducing the source dictionary from the metadata sidecar an import wrote beside it. Managed handles live in $PULSE_DATA_DIR/imports/ with a TTL-tracked sidecar — every subsequent inspect/predict/process/sample/facet against the handle slides expiry forward. TTL accepts Go duration form (`24h`, `30m`, `3600s`, `1h30m`) plus day suffix (`7d`, `30d`) and `pin` for never-expire. Returns the handle, managed path, format, row count, expiry, and a managed flag. Pulse-format sources skip the copy + sidecar; they pass through with managed=false.\n\nSPSS read knobs: `charset` overrides the encoding a `.sav` declares about itself and is the ONLY recourse for a file that is wrong about itself — a stale record 7/20 name, or a pre-Unicode file declaring nothing at all, which reads as strict UTF-8 and fails PULSE_SPSS_CHARSET_INVALID on its first 8-bit byte. It is ignored for every other format. There is deliberately NO missing-value mode here: the default is the fidelity-preserving split (numeric user-missing values are null in the analytic column, and a generated `\u003cvar\u003e_missing` sibling records why), and the only alternative discards those siblings — ask for that explicitly with `pulse import spss --spss-missing=null`.\n\nParent groups (denormalized joins): `groups` takes `[{key: [...], members: [...]}]` — each distinct member tuple is stored once and every row carries a 4-byte index, a smaller format 0x02 cohort; a member that varies within its key fails PULSE_GROUP_MEMBER_NOT_CONSTANT. Do not guess declarations: set `suggest_groups: true` to get measured `group_candidates` (ratio, resident dictionary bytes, projected size, verdict) whose key/members paste straight back as `groups`, then re-import with `overwrite: true`. Weak groups are reported as coded `group_warnings` (PULSE_GROUP_TOO_NARROW dropped, PULSE_DEDUP_LOW_RATIO written; default floor 2 rows per tuple), never failures; per-group figures ride `groups`.\n\nExplicit schema: `schema` takes `[{name, type, nullable, description}]` (the `pulse import --schema` document; omit it to infer). Fields match source columns BY NAME, never position, and each mismatch is refused before any row is read with its own code: PULSE_IMPORT_SCHEMA_FIELD_MISSING, _COLUMN_UNMAPPED, _DUPLICATE, _KEY_LATE, _TYPE_UNKNOWN, _INVALID. `ignore_extra: true` drops unnamed columns instead. `float` picks the inferred float width: `f64` (default, exact decimals) or `f32`.\n\nNative vectors (wide-format batteries such as rate_a..rate_e): `vectors` folds sibling columns into ONE vec_f64 / vec_f32 field — `[\"brand_rating:/^rate_(.*)$/\"]` (regex: matching columns in source order, first capture group labels each element) or `[\"brand_rating:rate_a,rate_b,rate_c\"]` (listed order); `vector_kinds` adds `[\"brand_rating:scale:1:7\"]`. A bare name (`[\"emb\"]`, `[\"emb:f32\"]`) reads the NATIVE list column of that name (Arrow FixedSizeList / LIST, Parquet LIST, an NDJSON / JSON array) as a vec_f64 / vec_f32 field whose dim is the list length; csv / tsv / excel refuse it. 2..1024 columns or elements; all elements empty (or null) = null vector, some = NaN. Bad declarations fail PULSE_IMPORT_VECTOR_INVALID before any row, and so does a variable-length, non-numeric or out-of-range list; requests then name the vector field directly in vector slots."
       },
       {
         "name": "pulse_imports_list",
@@ -10706,6 +10721,40 @@
         "compatible_features": [
           "FEAT_TRAIN_TEST_SPLIT"
         ]
+      },
+      {
+        "name": "vec_f32",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_NULL_COUNT",
+          "AGG_RATIO"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXPRESSION",
+          "FILTER_NULL"
+        ]
+      },
+      {
+        "name": "vec_f64",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_NULL_COUNT",
+          "AGG_RATIO"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXPRESSION",
+          "FILTER_NULL"
+        ]
       }
     ],
     "skills": [
@@ -10727,7 +10776,7 @@
       },
       {
         "name": "cohort-schema-design",
-        "description": "Entry point for .pulse cohort schemas — the 20-type field matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
+        "description": "Entry point for .pulse cohort schemas — the 22-type field matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
       },
       {
         "name": "cohort-sharding",
@@ -11982,6 +12031,18 @@
         "description": "1-byte unsigned integer; fits cardinals through 255."
       },
       {
+        "name": "type-vec-f32",
+        "description": "Fixed-dim vector of float32 elements (dim 2..1024) stored as one field, with its kind, scale range and labels in the schema."
+      },
+      {
+        "name": "type-vec-f64",
+        "description": "Fixed-dim vector of float64 elements (dim 2..1024) stored as one field, with its kind, scale range and labels in the schema."
+      },
+      {
+        "name": "vector-fields",
+        "description": "Native vector fields (vec_f32 / vec_f64) end to end — importing a battery or a list column into one field, naming it directly in vector slots, f[k] element references, how its member identity differs from a scalar twin, null vs NaN, export shapes, and what refuses it. Use when a cohort stores embeddings or a rating battery as one field."
+      },
+      {
         "name": "vector-metrics",
         "description": "Declaring what a battery's values mean (vector kind measure, scale, composition or binary) so similarity and distance pick a suitable metric by default, the scale bounds a kind \"scale\" battery carries, and the warning (an error under strict) an explicit metric that fits the kind poorly raises. Topical design; per-operator params in the atomic skills."
       },
@@ -12204,6 +12265,7 @@
         "v1: build side is always the spec.Right cohort; smaller-side detection arrives in a follow-up.",
         "Per-OnPair type compatibility: identical types match, categorical_* match each other, the unsigned-int + float + date family is interchangeable. decimal128 keys reject cross-type comparisons and compare on their exact 128-bit mantissa, never the float64 echo.",
         "set_* columns cannot be a join key at any rung — PULSE_JOIN_TYPE_MISMATCH with details.reason=\"set_key\", even when both sides carry the identical rung. A multi-select bitmask has no unambiguous equality value; use a FILTER_SET_* membership predicate. Carrying a set column THROUGH a join is unaffected.",
+        "vec_f32 / vec_f64 columns cannot be a join key — PULSE_JOIN_TYPE_MISMATCH with details.reason=\"vector_key\", even against an identical type and dim: a vector has no single equality value. Carrying a vector column THROUGH a join is unaffected.",
         "Joined records flow through the standard processor pipeline (filter / attribute / group / aggregator).",
         "A crosstab (Request.Crosstab) honours its one JoinSpec: rows, columns and cell resolve against the joined schema and every cell / margin / Components count is over joined rows. It always runs the buffered crosstab arm — the fused walk declines a joined request."
       ]
@@ -16664,4 +16726,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: cedb94a56109ebcd105e074b04eee3a5174dc540c4a15c8a4cfbb999144a08e1
+// golden-hash: d4499ec79b01c3de050d5d723c68446b5fe3ef6d7df8238ce6a2c8c584ad4de4

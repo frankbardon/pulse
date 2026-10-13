@@ -89,6 +89,7 @@ type kmeansFit struct {
 
 type kmeansGrouper struct {
 	members []string
+	fill    memberFill // reads members (the shared member fill)
 	cfg     vectors.KMeansConfig
 	key     string
 	weight  *types.WeightSpec
@@ -127,6 +128,7 @@ func newKMeansGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error
 	}
 	return &kmeansGrouper{
 		members: append([]string(nil), members...),
+		fill:    memberFillOf(members, schema),
 		cfg:     cfg,
 		key:     vectors.GroupKeyField(types.GROUP_KMEANS, grp),
 		weight:  grp.Weight.Spec(),
@@ -149,16 +151,7 @@ func (g *kmeansGrouper) Group(records []*Record, _ string) (map[string][]*Record
 	p := len(g.members)
 	for _, r := range records {
 		x := make([]float64, p)
-		ok := true
-		for j, m := range g.members {
-			v, present := r.NumericValue(m)
-			if !present || math.IsNaN(v) || math.IsInf(v, 0) {
-				ok = false
-				break
-			}
-			x[j] = v
-		}
-		if !ok {
+		if !g.fill.complete(r, x) || slices.ContainsFunc(x, func(v float64) bool { return math.IsInf(v, 0) }) {
 			continue
 		}
 		mass := 1.0

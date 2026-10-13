@@ -299,6 +299,10 @@ func sentinelFor(typeName string) any {
 		return ""
 	case ft.IsSet():
 		return map[string]bool{}
+	case ft.IsVector():
+		// A vector's row value is its []float64 of dim elements (NaN for a
+		// missing member), so a constraint can index it (`emb[0] > 0`).
+		return []float64{}
 	default:
 		return float64(0)
 	}

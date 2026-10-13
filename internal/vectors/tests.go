@@ -516,7 +516,7 @@ func TestInputMembers(req *types.Request, schema *encoding.Schema) (members []st
 				ok = false
 				continue
 			}
-			members = append(members, r.Members...)
+			members = append(members, r.SourceFields()...)
 		}
 	}
 	return members, ok

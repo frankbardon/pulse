@@ -18,6 +18,13 @@ import (
 // selections collapse onto one key and rows join that share no answer.
 const JoinKeySetRejection = "a set_* column cannot be a join key: a multi-select bitmask has no single unambiguous equality value (empty selection, single-member and multi-member masks are all distinct legal states), and its numeric echo is lossy — use a FILTER_SET_* membership predicate instead"
 
+// JoinKeyVectorRejection is the one explanation for refusing a native
+// vector column (vec_f32 / vec_f64) as a join key, whichever side asks:
+// a vector has dim values per row and no single equality value, and
+// the hash join's key reads a row's ONE numeric value, which a vector
+// does not have — every row would key as missing and join nothing.
+const JoinKeyVectorRejection = "a vec_f32 / vec_f64 column cannot be a join key: a vector has dim values per row and no single equality value — join on a scalar key column; a vector column is carried THROUGH a join unchanged"
+
 // JoinKeysRefusals is the ONE join-key rule. It judges a JoinSpec's
 // kind and OnPairs against the left and right cohort schemas and
 // returns every refusal, in the order the runtime meets them:
@@ -29,7 +36,9 @@ const JoinKeySetRejection = "a set_* column cannot be a join key: a multi-select
 //     right schema lacks — PULSE_JOIN_FIELD_UNKNOWN {field, index}; key
 //     types that cannot be compared — PULSE_JOIN_TYPE_MISMATCH
 //     {left_field, left_type, right_field, right_type, index}, plus
-//     reason "set_key" with JoinKeySetRejection for a set_* key.
+//     reason "set_key" with JoinKeySetRejection for a set_* key, reason
+//     "vector_key" with JoinKeyVectorRejection for a vec_f32 / vec_f64
+//     key.
 //
 // The runtime (processing.NewHashJoinIterator, and the service before it
 // materialises the right side) refuses with the first entry; predict,
@@ -80,11 +89,15 @@ func JoinKeysRefusals(left, right *encoding.Schema, spec *types.JoinSpec) []*err
 				"index":       i,
 			}
 			msg := "join key types are not compatible"
-			if lf.Type.IsSet() || rf.Type.IsSet() {
+			switch {
+			case lf.Type.IsSet() || rf.Type.IsSet():
 				// Same rung on both sides still lands here, so say why
 				// rather than leave "not compatible" reading as a typo.
 				msg = JoinKeySetRejection
 				details["reason"] = "set_key"
+			case lf.Type.IsVector() || rf.Type.IsVector():
+				msg = JoinKeyVectorRejection
+				details["reason"] = "vector_key"
 			}
 			out = append(out, errors.NewCodedErrorWithDetails(errors.PULSE_JOIN_TYPE_MISMATCH, msg, details))
 		}
@@ -104,12 +117,13 @@ func JoinKeysRefusal(left, right *encoding.Schema, spec *types.JoinSpec) error {
 // JoinKeyTypesCompatible reports whether two schema types can be
 // compared as equi-join keys after normalisation. The conservative v1
 // rule: a set_* column never (not even against an identical rung — see
-// JoinKeySetRejection); identical types match; categorical types of
+// JoinKeySetRejection), nor a vector column (JoinKeyVectorRejection);
+// identical types match; categorical types of
 // any width match each other (dict strings normalise to text); the
 // unsigned-int / float / date family matches within itself. decimal128
 // matches only decimal128 (precision differences matter).
 func JoinKeyTypesCompatible(a, b encoding.FieldType) bool {
-	if a.IsSet() || b.IsSet() {
+	if a.IsSet() || b.IsSet() || a.IsVector() || b.IsVector() {
 		return false
 	}
 	if a == b {

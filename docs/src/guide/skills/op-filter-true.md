@@ -27,7 +27,7 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `Values` | `[]string` | empty (strict) | Omit, or `["strict"]`, requires `packed_bool` and matches raw `1`. `["truthy"]` enables JavaScript-style coercion across any field type. Other values → `PROCESSING_CONFIG`. |
+| `Values` | `[]string` | empty (strict) | Omit, or `["strict"]`, requires `packed_bool` and matches raw `1`. `["truthy"]` enables JavaScript-style coercion across any scalar field type (a `vec_f32` / `vec_f64` field is refused, `PULSE_VECTOR_FIELD_NOT_SCALAR`). Other values → `PROCESSING_CONFIG`. |
 
 ## Inputs
 

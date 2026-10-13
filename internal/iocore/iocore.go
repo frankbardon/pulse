@@ -2,6 +2,7 @@ package iocore
 
 import (
 	"context"
+	"math"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -88,6 +89,14 @@ func DiscardWriter(w Writer) error {
 //
 // Writers that do not implement SchemaAwareWriter receive only canonical
 // strings, which is the prior text-only export contract.
+//
+// The schema is the SOURCE schema (each vector replaced by its element
+// fields when the export expands vectors), not one field per header
+// column: projection (ExportJob.Includes) drops fields and a label
+// augment inserts `<field>_label` columns, so a writer must never type
+// a header column by its position. Implement ColumnAwareWriter to be
+// handed the explicit per-column plan; without it, type a header column
+// by the schema field of the same NAME. ColumnFields resolves either.
 type SchemaAwareWriter interface {
 	Writer
 	SetPulseSchema(s *encoding.Schema)
@@ -682,4 +691,196 @@ type TargetWarningEmitter interface {
 // implement this interface.
 type OverlayWarningEmitter interface {
 	OverlayWarnings() []*errors.CodedError
+}
+
+// ListState classifies one row's cell as read through
+// [ListAwareReader.RowList]. The zero value is ListNull.
+type ListState uint8
+
+const (
+	// ListNull is a null (or absent) cell: the vector is null for this
+	// row. Values / Nulls are ignored.
+	ListNull ListState = iota
+	// ListValues is a present list whose every element is a number or a
+	// null; Values / Nulls carry it. A list whose elements are ALL null
+	// is a null vector too, exactly as a ListNull cell.
+	ListValues
+	// ListNotList is a present cell that is not a list at all (a JSON
+	// scalar where a list was expected). BadValue names the cell as the
+	// refusal should quote it. The import is refused.
+	ListNotList
+	// ListNonNumeric is a present list holding an element that is not a
+	// number (a string, a boolean, a value float64 cannot hold).
+	// BadIndex is that element's 0-based index and BadValue names it.
+	// The import is refused.
+	ListNonNumeric
+)
+
+// ListCell is one row's cell read as a typed numeric list, straight off
+// the source's own typed state — never parsed back out of the []string
+// row text, which a list source is free to render however it likes (the
+// built-in list sources pipe-join it for the set_* ladder).
+//
+// # Elements
+//
+// For a ListValues cell, Values[e] is element e as a float64 and Nulls
+// marks the null elements. Nulls is either nil (no element is null) or
+// exactly len(Values) long; any other length is a malformed cell and
+// refuses the import. A vector has no per-element null: a null element
+// is stored as a NaN element whatever Values holds at its index, and a
+// NaN in Values is stored as-is. Nulls matters for one more thing — a
+// list whose elements are all null is a null vector. The list's
+// length is the vector's dim: the first non-null list fixes it and
+// every later list must match it.
+//
+// # Ownership
+//
+// The import owns the ListCell and hands the same one back on every
+// call for a given column, so a reader should fill it with Reset then
+// Append — which reuse the slices' capacity — rather than allocating.
+// The reader must not retain dst, or any slice in it, after RowList
+// returns; the import reads it before the next RowList call.
+type ListCell struct {
+	// State classifies the cell. A value outside the declared
+	// ListState constants is a malformed cell and refuses the import.
+	State ListState
+	// Values holds the elements of a ListValues cell, in order.
+	Values []float64
+	// Nulls marks the null elements of a ListValues cell: nil, or
+	// len(Values) long.
+	Nulls []bool
+	// BadIndex is the 0-based index of the offending element of a
+	// ListNonNumeric cell.
+	BadIndex int
+	// BadValue is the offending value of a ListNotList or ListNonNumeric
+	// cell, rendered for the refusal's message and details.
+	BadValue string
+}
+
+// Reset empties c for reuse as a state cell, keeping its slices'
+// capacity and clearing BadIndex / BadValue.
+func (c *ListCell) Reset(state ListState) {
+	c.State = state
+	c.Values = c.Values[:0]
+	c.Nulls = c.Nulls[:0]
+	c.BadIndex = 0
+	c.BadValue = ""
+}
+
+// Append adds one element to a ListValues cell; a null element is
+// stored as NaN whatever v is.
+func (c *ListCell) Append(v float64, null bool) {
+	if null {
+		v = math.NaN()
+	}
+	c.Values = append(c.Values, v)
+	c.Nulls = append(c.Nulls, null)
+}
+
+// ListAwareReader is an optional extension of Reader for sources whose
+// cells can hold NATIVE lists — Arrow FixedSizeList / LIST, Parquet
+// LIST, a JSON array, or an embedder's own typed source. A vector
+// declaration with no columns and no pattern (ImportJob.Vectors entry
+// carrying only a Name; CLI `--vector NAME`) reads the source column of
+// that name through this channel as one native vector, so the elements
+// never round-trip through text.
+//
+// # When it is consulted
+//
+// ONLY under such a declaration: without one an import never calls
+// RowList, and a source is imported byte-identically whether or not it
+// implements this interface. A source without it refuses a column-less
+// declaration with PULSE_IMPORT_VECTOR_INVALID (details.reason
+// "no_columns"). The vector's dim is probed from the data before the
+// import pass, so a list-aware source must also implement ResetReader
+// (else the same refusal); the probe reads rows until each list vector
+// has seen a non-null list, then calls Reset and ReadHeader again.
+//
+// # Refusals
+//
+// Two different things can go wrong with a cell, and they travel on two
+// different channels:
+//
+//   - A cell the source READ but the vector cannot hold (a scalar where
+//     a list belongs, a non-numeric element) is reported through
+//     ListCell.State (ListNotList, ListNonNumeric) with a nil error.
+//     The import turns it into PULSE_IMPORT_VECTOR_INVALID with the row
+//     and column, refusing the whole import.
+//   - A cell the source FAILED TO READ (an I/O error, a decode failure,
+//     a corrupt batch) is RowList's non-nil error. The import aborts —
+//     in the dim probe and in the row pass alike — and no cohort is
+//     written. The error is handled exactly as a ReadRows failure is:
+//     it is never restamped, so a *errors.CodedError keeps its own code
+//     (found with errors.As, its details gaining the vector, column and
+//     row where it set none of them) and an uncoded error stays
+//     uncoded, wrapped with the vector, column and row in its message.
+//
+// dst's content is ignored when RowList returns an error.
+type ListAwareReader interface {
+	Reader
+	// RowList fills dst with the current row's column col (an index into
+	// the header ReadHeader returned) read as a numeric list. It is
+	// called only inside the ReadRows callback, for the row that call
+	// was handed, and only for a column a column-less vector
+	// declaration names. It is not called for a cell the source declares
+	// null through NullAwareReader.RowNulls; the import treats that cell
+	// as ListNull itself. A non-nil error means the source could not
+	// read the cell and aborts the import (see Refusals); a readable
+	// cell the vector cannot hold returns nil and says so in dst.State.
+	RowList(col int, dst *ListCell) error
+}
+
+// ListColumn describes one header column of an export that carries a
+// native vector cell rather than a scalar: the column's position in the
+// WriteHeader list, its name (the vector field's name), the field's
+// `.pulse` vector type (encoding.FieldTypeVecF32 or FieldTypeVecF64),
+// its dim and its element labels (nil, or exactly Dim entries).
+type ListColumn struct {
+	// Index is the column's position in the columns WriteHeader receives.
+	Index int
+	// Name is the column's header name — the vector field's own name.
+	Name string
+	// Type is the field's vector type; vec_f32 cells hold float32 values
+	// widened exactly, so a writer narrowing them back loses nothing.
+	Type encoding.FieldType
+	// Dim is the element count of every non-null cell.
+	Dim int
+	// Labels names each element, or is nil.
+	Labels []string
+	// Nullable is the field's nullable flag: false promises no cell of
+	// the column is nil.
+	Nullable bool
+}
+
+// ListAwareWriter is an optional extension of Writer for targets whose
+// format holds a NATIVE list cell — Arrow / Parquet FixedSizeList, a
+// JSON array — and the write-side peer of ListAwareReader.
+//
+// # What changes for a writer that implements it
+//
+// ExportJob.Run calls SetListColumns before WriteHeader, once, when the
+// exported cohort has at least one vector field (vec_f32 / vec_f64)
+// among the projected columns. Each such field is then ONE header
+// column, and its cell in every WriteRow is a []float64 of exactly Dim
+// elements (vec_f32 widened exactly; NaN and ±Inf verbatim), or an
+// untyped nil for a null vector. The slice is valid only for the
+// duration of the WriteRow call — the export reuses it — so a writer
+// must encode or copy it before returning.
+//
+// A writer that does NOT implement it never sees a slice: the export
+// expands each vector into Dim scalar columns named `<field>_<label>`
+// (`<field>_1..N` without labels), each cell the element's text (the
+// scalar float rendering, vec_f32 at float32 precision) and nil for a
+// NaN element or a null vector; a SchemaAwareWriter is handed a schema
+// with each vector replaced by Dim nullable f32 / f64 fields under
+// those names. An expanded name that equals any other column is refused
+// with PULSE_EXPORT_COLUMN_COLLISION before a byte is written.
+//
+// ConvertJob never calls it: a convert passes source text through and
+// produces no vector field.
+type ListAwareWriter interface {
+	Writer
+	// SetListColumns declares which header columns carry native vector
+	// cells. cols is ordered by Index and is the writer's to retain.
+	SetListColumns(cols []ListColumn)
 }

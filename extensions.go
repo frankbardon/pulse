@@ -282,7 +282,9 @@ type AggregatorRegistration struct {
 	// Vector empty, Label the default "<NAME>_<vector or first fields
 	// entry>" when unset, and params.labels the resolved display label
 	// per member (every other params key is kept). Each row's members
-	// read through Record.Value / IsNull as usual. params.labels and
+	// read through extend.Record.NumericValue / IsNull as usual — a
+	// native vector's element member "f[k]" included (a NaN element or
+	// a null vector is a null member). params.labels and
 	// params.expand are the engine's: a VectorInput registration may not
 	// declare a ParamMeta of either name (PULSE_EXTENSION_PARAM_INVALID,
 	// reason reserved_vector_param). The universal floor counts a row

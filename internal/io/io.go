@@ -162,6 +162,15 @@ type PredictReport struct {
 	// CohortValidator, which is every format but `.sav` today, and nil
 	// for a validating target that raised nothing.
 	TargetWarnings []*errors.CodedError
+	// Columns is the header an ExportJob.Predict with a Target says the
+	// export of a cohort WITH A VECTOR FIELD would write: one column per
+	// projected field, a `_label` sibling per augment binding, and each
+	// vector as ONE column for a ListAwareWriter or as its dim expanded
+	// `<field>_<label>` / `<field>_1..N` columns for every other row
+	// writer. Nil for a vector-free cohort (its header is its field
+	// list), for a predict with no Target, for a CohortWriter target
+	// (which lays out its own variables) and for every ImportJob.Predict.
+	Columns []string `json:"Columns,omitempty"`
 	// The fields below are filled only by an ImportJob.Predict that runs
 	// the MEASURED pass — the job declares Groups, sets ElideConstants
 	// or sets SuggestGroups — and are nil (omitted from JSON) otherwise,
@@ -324,6 +333,21 @@ type ImportJob struct {
 	// distinct tuple, or that makes the file no smaller, is written with
 	// PULSE_DEDUP_LOW_RATIO. Both land in ImportReport.GroupWarnings.
 	Groups []GroupDecl
+	// Vectors folds sibling source columns into native vec_f32 /
+	// vec_f64 fields (see VectorDecl) — a format 0x02 cohort. Each
+	// vector takes its first member's source position; its members
+	// vanish from the cohort. Per row: every element cell empty is a
+	// null vector (an inferred field is promoted to nullable), some
+	// empty are NaN elements, a non-numeric cell fails the row
+	// (PULSE_IMPORT_ROW_ERROR). Refused before any row is read with
+	// PULSE_IMPORT_VECTOR_INVALID: a dim outside 2..1024, a pattern
+	// matching no column, a column claimed twice (two vectors, or a
+	// vector and a Groups entry), an unknown column, a bad kind or
+	// scale, or an authoritative-schema (SPSS) source. With an explicit
+	// Schema each vec field must be a declared vector of the schema's
+	// dim. Empty (the default) imports unchanged. CLI `--vector` /
+	// `--vector-kind`.
+	Vectors []VectorDecl
 	// DedupRatioFloor is the rows-per-distinct-tuple floor below which
 	// a declared group draws PULSE_DEDUP_LOW_RATIO. Zero (the default)
 	// selects encoding.DefaultDedupRatioFloor (2); a value in (0, 1]

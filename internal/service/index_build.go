@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/spf13/afero"
 )
 
@@ -65,9 +66,12 @@ type BuildIndexResult struct {
 //
 // Key field types are gated by processing.IsIndexKeyableFieldType — see
 // that predicate's doc comment for the full, settled keyable-type
-// policy (E2-S3). Rejected types (currently only set_*) fail fast here
-// with PROCESSING_CONFIG and processing.IndexKeyRejectionMessage's
-// type-specific explanation, before any record is scanned.
+// policy (E2-S3). Rejected types fail fast here, before any record is
+// scanned: set_* with PROCESSING_CONFIG and
+// processing.IndexKeyRejectionMessage's type-specific explanation, a
+// vec_f32 / vec_f64 field with PULSE_VECTOR_FIELD_NOT_SCALAR
+// (vectors.FieldNotScalar, slot "index key", that explanation under
+// details.reason).
 func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []string) (*BuildIndexResult, error) {
 	if len(keyFields) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
@@ -94,6 +98,11 @@ func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []strin
 			return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				"index key field not found in schema",
 				map[string]any{"field": name})
+		}
+		// A vector field: the vector-in-a-scalar-slot refusal, whose
+		// fixups point at the vector operators.
+		if ce := vectors.ScalarRefusal(schema, name, "index key", "", map[string]any{"reason": processing.IndexKeyRejectionMessage(field.Type)}); ce != nil {
+			return nil, ce
 		}
 		if !processing.IsIndexKeyableFieldType(field.Type) {
 			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,

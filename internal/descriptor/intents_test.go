@@ -149,6 +149,8 @@ func TestFieldKindOf_Total(t *testing.T) {
 		encoding.FieldTypeDateTime:       descriptor.FieldKindDate,
 		encoding.FieldTypePackedBool:     descriptor.FieldKindBool,
 		encoding.FieldTypeSetU256:        descriptor.FieldKindSet,
+		encoding.FieldTypeVecF32:         descriptor.FieldKindVector,
+		encoding.FieldTypeVecF64:         descriptor.FieldKindVector,
 	}
 	for ft, want := range spot {
 		if got, _ := FieldKindOf(ft); got != want {

@@ -40,6 +40,8 @@ func importAutoCmd() *cli.Command {
 			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage + " (ignored for non-SPSS)"},
 			&cli.BoolFlag{Name: "overwrite", Usage: "Replace an existing managed handle"},
 			&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group, as on 'import <format> --group': KEY[,KEY...]:MEMBER[,MEMBER...] or MEMBER[,MEMBER...]. Repeatable, one group per flag; judged at the default ratio floor, findings reported as warnings (writes format 0x02)"},
+			&cli.StringSliceFlag{Name: "vector", Usage: vectorFlagUsage},
+			&cli.StringSliceFlag{Name: "vector-kind", Usage: vectorKindFlagUsage},
 			&cli.BoolFlag{Name: "json", Usage: "Emit the JSON envelope"},
 		}, sourceZoneCLIFlags()...),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -132,6 +134,7 @@ func importAutoCmd() *cli.Command {
 //
 // --source-tz / --dst-policy parse with the per-format leaves' own
 // parseSourceZoneFlags; the spec persists them onto the sidecar.
+// --vector / --vector-kind parse with the leaves' parseVectorFlags.
 func importAutoSpec(cmd *cli.Command, source string, ttl time.Duration) (pulse.ImportSpec, error) {
 	spec := pulse.ImportSpec{
 		SourcePath: source,
@@ -149,6 +152,11 @@ func importAutoSpec(cmd *cli.Command, source string, ttl time.Duration) (pulse.I
 		}
 		spec.Groups = append(spec.Groups, g)
 	}
+	vecs, err := parseVectorFlags(cmd)
+	if err != nil {
+		return pulse.ImportSpec{}, err
+	}
+	spec.Vectors = vecs
 	zf, err := parseSourceZoneFlags(cmd)
 	if err != nil {
 		return pulse.ImportSpec{}, err

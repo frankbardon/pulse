@@ -137,7 +137,7 @@ func checkSchemaShape(raw json.RawMessage) error {
 				reason = "unknown_key"
 			}
 			return perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_SCHEMA_INVALID,
-				"pulse_import schema["+strconv.Itoa(i)+`]: each entry is {"name", "type", "nullable", "description", "precision", "scale"} with no other keys: `+err.Error(),
+				"pulse_import schema["+strconv.Itoa(i)+`]: each entry is {"name", "type", "nullable", "description", "precision", "scale", "dim", "labels", "kind", "scale_min", "scale_max"} with no other keys: `+err.Error(),
 				map[string]any{"slot": "schema", "reason": reason, "index": i, "error": err.Error()})
 		}
 	}

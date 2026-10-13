@@ -38,8 +38,10 @@ func descriptionQualityFindings(schema *encoding.Schema, strict bool) ([]*errors
 // would resolve the wrong field), an unknown type, a decimal128
 // precision outside 1..38 or a scale past its precision, a pre-seeded
 // dictionary on a type that has none or longer than its rung holds,
-// and parent groups (declared through the builder options, never in
-// the schema). Every refusal is SERVICE_VALIDATION naming the field.
+// parent groups (declared through the builder options, never in the
+// schema), and vector metadata that fails Schema.ValidateVectors (a vec
+// field with no dim, a dim out of range, …). Every refusal is
+// SERVICE_VALIDATION naming the field.
 func checkSchemaShape(schema *encoding.Schema) error {
 	invalid := func(msg string, details map[string]any) error {
 		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION, msg, details)
@@ -85,6 +87,16 @@ func checkSchemaShape(schema *encoding.Schema) error {
 			}
 		}
 	}
+	// Every vec field needs its dim (Schema.Vectors): without it the
+	// row width is unknown. The format's own check, re-coded as the
+	// builder's validation refusal with the same details.
+	if err := schema.ValidateVectors(); err != nil {
+		msg, details := err.Error(), map[string]any(nil)
+		if ce, ok := err.(*errors.CodedError); ok {
+			msg, details = ce.Message, ce.Details
+		}
+		return invalid(msg, details)
+	}
 	return nil
 }
 
@@ -119,7 +131,7 @@ func prepareBuildSchema(in *encoding.Schema, strict bool) (*encoding.Schema, []*
 	if err != nil {
 		return nil, nil, err
 	}
-	out := &encoding.Schema{Fields: make([]encoding.Field, len(in.Fields))}
+	out := &encoding.Schema{Fields: make([]encoding.Field, len(in.Fields)), Vectors: encx.CloneVectors(in.Vectors)}
 	for i := range in.Fields {
 		src := &in.Fields[i]
 		f := encoding.Field{

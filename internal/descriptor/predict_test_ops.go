@@ -149,7 +149,7 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 			}
 		}
 		if t.SplitBy != "" {
-			if sf := schema.Field(t.SplitBy); sf != nil && !sf.Type.IsCategorical() {
+			if sf := schema.Field(t.SplitBy); sf != nil && !sf.Type.IsVector() && !sf.Type.IsCategorical() {
 				env.AddError(string(errors.SERVICE_VALIDATION),
 					string(t.Type)+" split_by "+t.SplitBy+" must be categorical, got "+sf.Type.String(),
 					map[string]any{"type": string(t.Type), "split_by": t.SplitBy, "field_type": sf.Type.String()})
@@ -160,7 +160,7 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 				env.AddError(string(errors.SERVICE_VALIDATION),
 					"TEST_ANOVA_RM requires subject_field",
 					map[string]any{"type": string(t.Type)})
-			} else if sf := schema.Field(t.SubjectField); sf != nil && !sf.Type.IsCategorical() {
+			} else if sf := schema.Field(t.SubjectField); sf != nil && !sf.Type.IsVector() && !sf.Type.IsCategorical() {
 				env.AddError(string(errors.SERVICE_VALIDATION),
 					"TEST_ANOVA_RM subject_field "+t.SubjectField+" must be categorical, got "+sf.Type.String(),
 					map[string]any{"type": string(t.Type), "subject_field": t.SubjectField, "field_type": sf.Type.String()})
@@ -200,7 +200,7 @@ func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encodi
 			continue
 		}
 		// An unknown name is FieldRefRefusals' refusal.
-		if f := schema.Field(name); f != nil && !f.Type.IsCategorical() {
+		if f := schema.Field(name); f != nil && !f.Type.IsVector() && !f.Type.IsCategorical() {
 			env.AddError(string(errors.PULSE_TEST_FIELD_NOT_NUMERIC),
 				"TEST_PROP_Z "+axis+" field "+name+" must be categorical, got "+f.Type.String(),
 				map[string]any{"axis": axis, "field": name, "field_type": f.Type.String()})
@@ -238,7 +238,7 @@ func validateChiSquareFields(env *descriptor.Envelope, t *types.Test, schema *en
 	}
 	for axis, field := range map[string]string{"rows": t.Rows, "cols": t.Cols} {
 		// An unknown name is FieldRefRefusals' refusal.
-		if f := schema.Field(field); f != nil && !f.Type.IsCategorical() {
+		if f := schema.Field(field); f != nil && !f.Type.IsVector() && !f.Type.IsCategorical() {
 			env.AddError(string(errors.PULSE_TEST_FIELD_NOT_NUMERIC),
 				"TEST_CHISQ "+axis+" field "+field+" must be categorical, got "+f.Type.String(),
 				map[string]any{"axis": axis, "field": field, "field_type": f.Type.String()})
@@ -261,7 +261,7 @@ func isKnownTestType(t types.TestType) bool {
 // streamableTestReasons reports the streamability gates triggered by
 // req.Tests (tier-1). Tier-2 tests never affect streamability — they
 // run on the materialized result row set after windows.
-func streamableTestReasons(req *types.Request, opts *PredictOptions) []string {
+func streamableTestReasons(req *types.Request, schema *encoding.Schema, opts *PredictOptions) []string {
 	var reasons []string
 	for _, t := range req.Tests {
 		if !streamableWithOverlay(opts, "test", string(t.Type), opRoute(opts.instance(), t.Type).Streamable()) {
@@ -275,7 +275,7 @@ func streamableTestReasons(req *types.Request, opts *PredictOptions) []string {
 		if len(req.Features) > 0 {
 			reasons = append(reasons, "tier-1 tests do not yet compose with features in the streaming path")
 		}
-		if tp := firstTwoPassAttribute(req, opts); tp != "" {
+		if tp := firstTwoPassAttribute(req, schema, opts); tp != "" {
 			reasons = append(reasons, "tier-1 tests do not yet compose with two-pass attribute "+string(tp))
 		}
 	}
@@ -289,7 +289,7 @@ func validateVectorTest(env *descriptor.Envelope, t *types.Test, schema *encodin
 	if !tier1 || schema == nil || t.SplitBy == "" {
 		return
 	}
-	if sf := schema.Field(t.SplitBy); sf != nil && !sf.Type.IsCategorical() {
+	if sf := schema.Field(t.SplitBy); sf != nil && !sf.Type.IsVector() && !sf.Type.IsCategorical() {
 		env.AddError(string(errors.SERVICE_VALIDATION),
 			string(t.Type)+" split_by "+t.SplitBy+" must be categorical, got "+sf.Type.String(),
 			map[string]any{"type": string(t.Type), "split_by": t.SplitBy, "field_type": sf.Type.String()})

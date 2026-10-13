@@ -148,6 +148,12 @@ type vecAggregator struct {
 	typ     types.AggregationType
 	members []string
 	labels  []string
+	// fill reads the members off a row (the shared fill: a native
+	// vector's NaN element or null vector is a null member, like its
+	// scalar twin's null column); xs / pres are its per-row scratch.
+	fill memberFill
+	xs   []float64
+	pres []bool
 	// weight is the applied slot weight; nil on an unweighted slot.
 	weight *types.WeightSpec
 	// expand is params.expand: the row carries one scalar column per
@@ -186,19 +192,21 @@ func newVecAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregat
 	if cerr != nil {
 		return nil, cerr
 	}
-	members := append([]string(nil), agg.Fields...)
+	resolved := vectors.Resolved{Members: append([]string(nil), agg.Fields...)}
 	if schema != nil {
 		r, rerr := vectors.ResolveSpec("aggregation.fields", types.VectorSpec{Fields: agg.Fields, Labels: p.Labels}, schema)
 		if rerr != nil {
 			return nil, rerr
 		}
-		members, p.Labels = r.Members, r.Labels
+		resolved, p.Labels = r, r.Labels
 	}
+	members := resolved.Members
 	labels := p.Labels
 	if len(labels) != len(members) {
 		labels = members
 	}
-	a := &vecAggregator{typ: agg.Type, members: members, labels: append([]string(nil), labels...), expand: p.Expand}
+	a := &vecAggregator{typ: agg.Type, members: members, labels: append([]string(nil), labels...), expand: p.Expand,
+		fill: newMemberFill(resolved), xs: make([]float64, len(members)), pres: make([]bool, len(members))}
 	if w := slotWeight(agg); w != nil {
 		ew := effectiveWeight(w)
 		a.weight = &ew
@@ -252,19 +260,17 @@ func (a *vecAggregator) fold(r *Record) {
 	case f.blk != nil:
 		b = f.blk
 	}
+	a.fill.fill(r, a.xs, a.pres)
 	if b != nil {
-		for i, m := range a.members {
-			if x, ok := r.NumericValue(m); ok {
+		for i, x := range a.xs {
+			if a.pres[i] {
 				b.add(i, x, w, contributes)
 			}
 		}
 		return
 	}
-	for _, m := range a.members {
-		x, ok := r.NumericValue(m)
-		f.xs = append(f.xs, x)
-		f.pres = append(f.pres, ok)
-	}
+	f.xs = append(f.xs, a.xs...)
+	f.pres = append(f.pres, a.pres...)
 	f.ws = append(f.ws, w)
 	f.contrib = append(f.contrib, contributes)
 }

@@ -585,7 +585,7 @@ func ComparisonKeyField(typ types.AttributeType, a *types.Attribute) string {
 // params.metric, else the kind default of the vector a names in specs
 // (before Processor.prepare's rewrite writes it out); params that do not
 // decode report false (refused elsewhere).
-func ComparisonFitted(typ types.AttributeType, a *types.Attribute, specs []types.VectorSpec) bool {
+func ComparisonFitted(typ types.AttributeType, a *types.Attribute, specs []types.VectorSpec, schema *encoding.Schema) bool {
 	if a == nil || typ != types.ATTR_VEC_DISTANCE {
 		return false
 	}
@@ -601,6 +601,6 @@ func ComparisonFitted(typ types.AttributeType, a *types.Attribute, specs []types
 	if p.Metric != nil {
 		name = *p.Metric
 	}
-	m, _, err := ResolveKindMetric(metric.ConsumerVecDistance, name, KindOf(specs, a.Vector), metric.Distance)
+	m, _, err := ResolveKindMetric(metric.ConsumerVecDistance, name, KindIn(specs, schema, a.Vector), metric.Distance)
 	return err == nil && m.Fitted()
 }

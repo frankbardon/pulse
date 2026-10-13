@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -75,14 +76,41 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		return nil, err
 	}
 
+	// Compute the augmented column layout when label-augment bindings
+	// add sibling "<field>_label" columns. augmentInsertAfter records,
+	// for each source field index, whether a sibling cell should be
+	// appended immediately after that field in every emitted row.
+	// Projection-excluded fields never emit augment siblings.
+	augmentInsertAfter, _, replaceFields := planLabelColumns(schema, j.LabelResolver, includeMask)
+
+	// A vector field is one cell in the record but not necessarily one
+	// column in the target: a ListAwareWriter takes it as a native list
+	// cell, every other row writer gets it expanded into one scalar
+	// column per element (see export_vectors.go). A CohortWriter lays
+	// out its own columns from the cohort, so it is handed the per-field
+	// header and the source schema unchanged.
+	_, cohortWriter := j.Target.(CohortWriter)
+	listWriter, listAware := j.Target.(ListAwareWriter)
+	expand := !listAware && !cohortWriter && schema.HasVectors()
+	layout, err := planExportColumns(schema, includeMask, augmentInsertAfter, replaceFields, expand)
+	if err != nil {
+		return nil, err
+	}
+
 	// Hand the source schema to schema-aware writers so they can build
-	// native typed columns for decimal128. Schema-aware writers see
-	// the full source schema; the writer is expected to ignore values
-	// for projected-out columns because we never emit them. Projection
-	// over typed columnar formats (parquet / arrow / excel) is a
-	// follow-up — see ExportJob.Includes doc.
+	// native typed columns for decimal128. Schema-aware writers see the
+	// full source schema (an expanding export hands it with each vector
+	// replaced by its element fields), NOT one field per header column:
+	// projection and label augment move every later column off its
+	// field's index, so a column is typed from the column plan below or,
+	// failing that, from the schema field of the same NAME — never by
+	// position (iocore.ColumnFields).
 	if saw, ok := j.Target.(SchemaAwareWriter); ok {
-		saw.SetPulseSchema(schema)
+		if expand {
+			saw.SetPulseSchema(expandedSchema(schema))
+		} else {
+			saw.SetPulseSchema(schema)
+		}
 	}
 
 	// Declare the export null convention to writers whose format has a
@@ -110,25 +138,20 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		}
 	}
 
-	// Compute the augmented column layout when label-augment bindings
-	// add sibling "<field>_label" columns. augmentInsertAfter records,
-	// for each source field index, whether a sibling cell should be
-	// appended immediately after that field in every emitted row.
-	// Projection-excluded fields never emit augment siblings.
-	augmentInsertAfter, augmentFieldNames, replaceFields := planLabelColumns(schema, j.LabelResolver, includeMask)
-
-	// Write header to target.
-	columns := make([]string, 0, len(schema.Fields)+len(augmentFieldNames))
-	for i, f := range schema.Fields {
-		if !includeMask[i] {
-			continue
-		}
-		columns = append(columns, f.Name)
-		if augmentInsertAfter[i] {
-			columns = append(columns, f.Name+"_label")
-		}
+	// The explicit per-column plan, for typed writers: column i is typed
+	// from plan[i], whatever field index it came from. The same plan
+	// names Predict's PredictReport.Columns.
+	if caw, ok := j.Target.(iocore.ColumnAwareWriter); ok && !cohortWriter {
+		caw.SetExportColumns(layout.plan)
 	}
-	if err := j.Target.WriteHeader(columns); err != nil {
+
+	// Native list columns are declared before the header, and only when
+	// there is one, so a vector-free export calls nothing new.
+	if listAware && len(layout.lists) > 0 {
+		listWriter.SetListColumns(layout.lists)
+	}
+
+	if err := j.Target.WriteHeader(layout.columns); err != nil {
 		return nil, err
 	}
 
@@ -184,6 +207,11 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 	exported := 0
 	row := 0
 	values := make([]any, len(schema.Fields))
+	var vecs *vectorCellReader
+	if schema.HasVectors() {
+		vecs = newVectorCellReader(schema)
+	}
+	var expanded []any
 
 	for {
 		select {
@@ -215,6 +243,20 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 				} else {
 					values[i] = d.String(f.Scale)
 				}
+				continue
+			}
+
+			if f.Type.IsVector() {
+				// element × dim bytes; ReadFieldValue refuses a vector,
+				// which would end the loop like a truncated tail and
+				// export zero rows with no error. The bitmap below turns
+				// a null vector's placeholder into nil.
+				v, err := vecs.read(r, schema, i)
+				if err != nil {
+					hitEOF = true
+					break
+				}
+				values[i] = v
 				continue
 			}
 
@@ -268,6 +310,10 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		}
 
 		out := applyExportLabels(values, schema, j.LabelResolver, augmentInsertAfter, replaceFields, includeMask)
+		if layout.cellVec != nil {
+			expanded = layout.expandRow(out, schema, expanded)
+			out = expanded
+		}
 		if err := j.Target.WriteRow(out); err != nil {
 			rowErrors = append(rowErrors, RowError{Row: row + 1, Err: err})
 			row++
@@ -551,6 +597,29 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	report := &PredictReport{
 		Schema:        schema,
 		EstimatedRows: estimatedRows,
+	}
+
+	// With a target and a vector field, describe the header the export
+	// would write for IT: a vector is one column for a ListAwareWriter
+	// and dim expanded columns for every other row writer, and an
+	// expansion collision is refused here exactly as Run refuses it. A
+	// CohortWriter lays out its own columns, so it reports none. A nil
+	// Target or a vector-free cohort is predicted exactly as before — no
+	// new slot, no new refusal.
+	if j.Target != nil && schema.HasVectors() {
+		if _, cw := j.Target.(CohortWriter); !cw {
+			includeMask, err := resolveIncludeMask(schema, j.Includes)
+			if err != nil {
+				return nil, err
+			}
+			insertAfter, _, replaceFields := planLabelColumns(schema, j.LabelResolver, includeMask)
+			_, listAware := j.Target.(ListAwareWriter)
+			layout, err := planExportColumns(schema, includeMask, insertAfter, replaceFields, !listAware && schema.HasVectors())
+			if err != nil {
+				return nil, err
+			}
+			report.Columns = layout.columns
+		}
 	}
 
 	// Ask the target whether it could encode this cohort. The assertion

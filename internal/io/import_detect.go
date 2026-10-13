@@ -195,10 +195,7 @@ type measuredLayout struct {
 func newMeasuredLayout(s *encoding.Schema) measuredLayout {
 	l := measuredLayout{offs: make([]int, len(s.Fields)), widths: make([]int, len(s.Fields))}
 	for i := range s.Fields {
-		w := s.Fields[i].Type.ByteSize()
-		if s.Fields[i].Type.IsBitPacked() {
-			w = 1
-		}
+		w := s.FieldWidth(i)
 		l.offs[i], l.widths[i] = l.bmOff, w
 		l.bmOff += w
 	}
@@ -634,6 +631,9 @@ func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, i
 	conv := newRowConverter(schema, inferred, dicts, delimFor, widenable)
 	conv.force(j.ColumnTypeOverrides)
 	conv.zones = zones
+	if fr, ok := j.Source.(*foldReader); ok {
+		conv.vecCells = fr.vectorCells()
+	}
 	l := newMeasuredLayout(schema)
 	byName := make(map[string]int, len(schema.Fields))
 	for i := range schema.Fields {
@@ -665,7 +665,7 @@ func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, i
 	// logical row of an all-nullable twin of the schema: a field that
 	// ends non-nullable has a zero null bit on every row, so the verdict
 	// matches the final schema's.
-	twin := &encoding.Schema{Fields: append([]encoding.Field(nil), schema.Fields...)}
+	twin := &encoding.Schema{Fields: append([]encoding.Field(nil), schema.Fields...), Vectors: schema.Vectors}
 	for i := range twin.Fields {
 		twin.Fields[i].Nullable = true
 	}
@@ -761,7 +761,7 @@ func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, i
 
 	// sizing is the final schema carrying the dictionaries the pass
 	// built — what Run would write for the flat cohort.
-	sizing := &encoding.Schema{Fields: append([]encoding.Field(nil), schema.Fields...)}
+	sizing := &encoding.Schema{Fields: append([]encoding.Field(nil), schema.Fields...), Vectors: schema.Vectors}
 	for i, d := range dicts {
 		sizing.Fields[i].Dictionary = d
 	}

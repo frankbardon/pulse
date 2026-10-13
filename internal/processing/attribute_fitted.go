@@ -129,6 +129,7 @@ type fittedVectorAttribute struct {
 	typ     types.AttributeType
 	label   string
 	members []string
+	fill    memberFill // reads members (the shared member fill)
 	schema  *encoding.Schema
 
 	fitOnSpec  []*types.Filterer
@@ -181,6 +182,7 @@ func newFittedVectorAttribute(attr *types.Attribute, schema *encoding.Schema, fi
 		typ:       attr.Type,
 		label:     label,
 		members:   append([]string(nil), attr.Fields...),
+		fill:      memberFillOf(attr.Fields, schema),
 		schema:    schema,
 		fitOnSpec: fitOn,
 		weight:    spec,
@@ -212,14 +214,7 @@ func (a *fittedVectorAttribute) attributeWarnings() []*types.ResponseWarning {
 // readMembers fills x with rec's member values; false when any is null
 // or NaN (listwise).
 func (a *fittedVectorAttribute) readMembers(rec *Record, x []float64) bool {
-	for i, f := range a.members {
-		v, ok := rec.NumericValue(f)
-		if !ok || math.IsNaN(v) {
-			return false
-		}
-		x[i] = v
-	}
-	return true
+	return a.fill.complete(rec, x)
 }
 
 // PrePass folds one filtered record into the fit when every member is

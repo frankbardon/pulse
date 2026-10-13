@@ -56,7 +56,27 @@ type Reader struct {
 	// iocore.LateKeyRefuser state, armed by an explicit-schema import.
 	rowNum   int
 	lateKeys jsonshared.LateKeys
+
+	// curObj is the object most recently handed to the ReadRows
+	// callback, for iocore.ListAwareReader. Valid only inside the
+	// callback.
+	curObj map[string]any
 }
+
+// RowList implements iocore.ListAwareReader: the current object's value
+// under header column col read as a typed numeric list
+// (jsonshared.ListCellOf).
+func (r *Reader) RowList(col int, dst *iocore.ListCell) error {
+	if col < 0 || col >= len(r.header) {
+		dst.Reset(iocore.ListNull)
+		return nil
+	}
+	v, ok := r.curObj[r.header[col]]
+	jsonshared.ListCellOf(v, ok, dst)
+	return nil
+}
+
+var _ iocore.ListAwareReader = (*Reader)(nil)
 
 // RefuseLateKeys implements iocore.LateKeyRefuser: when on, a key first
 // seen after the first object fails ReadRows with
@@ -248,6 +268,7 @@ func (r *Reader) emitObj(obj map[string]any, fn func(row []string) error) error 
 		r.nulls[i] = !ok || v == nil
 	}
 
+	r.curObj = obj
 	if err := fn(row); err != nil {
 		if err == iocore.ErrStopIteration() {
 			return errStop
@@ -382,10 +403,22 @@ type Writer struct {
 	// CoerceValue, where "" is the source null token), so a convert is
 	// byte-identical.
 	explicitNulls bool
+
+	// lists marks the header columns that carry a native vector cell —
+	// iocore.ListAwareWriter, set by ExportJob.Run. Such a cell is a
+	// []float64 (nil for a null vector) written as a JSON array.
+	lists jsonshared.ListColumns
 }
 
 // SetExplicitNulls implements iocore.NullAwareWriter.
 func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
+
+// SetListColumns implements iocore.ListAwareWriter: each named column's
+// cell is written as a JSON array of numbers, a NaN / ±Inf element as
+// null and a null vector as null.
+func (w *Writer) SetListColumns(cols []iocore.ListColumn) {
+	w.lists = jsonshared.NewListColumns(cols)
+}
 
 // NewWriter creates an NDJSON writer targeting a filesystem path.
 func NewWriter(fs afero.Fs, path string) *Writer {
@@ -421,6 +454,10 @@ func (w *Writer) WriteRow(values []any) error {
 	obj := make(map[string]any, len(w.columns))
 	for i, col := range w.columns {
 		if i < len(values) {
+			if lv, ok := w.lists.Value(i, values[i]); ok {
+				obj[col] = lv
+				continue
+			}
 			obj[col] = coerce(values[i])
 		} else {
 			obj[col] = nil
@@ -473,4 +510,5 @@ func (w *Writer) Bytes() []byte {
 var _ iocore.Writer = (*Writer)(nil)
 var _ iocore.OverlayAwareWriter = (*Writer)(nil)
 var _ iocore.NullAwareWriter = (*Writer)(nil)
+var _ iocore.ListAwareWriter = (*Writer)(nil)
 var _ iocore.NullAwareReader = (*Reader)(nil)

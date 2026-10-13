@@ -63,6 +63,12 @@ var exprResultKinds = []struct {
 // every declarable type name, so adding a type cannot skip a cell.
 func wantAdmitted(ft encoding.FieldType, kind string) bool {
 	switch {
+	case ft.IsVector():
+		// A vector is drawn jointly from its `vector` block and takes NO
+		// rule write — not even a []float64 of the right shape, because a
+		// written vector would bypass its kind's bounds and its element
+		// correlation. set_null still applies (it writes no value).
+		return false
 	case ft.IsCategorical():
 		return kind == "string"
 	case ft.IsSet():
@@ -128,7 +134,7 @@ func TestRuleCoercion_BoolIsOneOrZeroOnEveryScalarTarget(t *testing.T) {
 	specs := representativeFieldSpecs()
 	for _, typeName := range declarableTypeNames(t) {
 		ft, _ := fieldTypeFromName(typeName)
-		if ft.IsCategorical() || ft.IsSet() {
+		if ft.IsCategorical() || ft.IsSet() || ft.IsVector() {
 			continue
 		}
 		for _, tc := range []struct {

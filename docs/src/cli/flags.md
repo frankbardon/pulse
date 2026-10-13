@@ -467,6 +467,65 @@ declarations as structured `groups: [{key, members}]` entries, plus
 `suggest_groups` to return measured candidates in the same shape. See
 [parent groups](../format/parent-groups.md).
 
+### `--vector` / `--vector-kind`
+
+Available on: every `import <format>` leaf, `import predict`, `import auto`.
+Repeatable — one vector per flag.
+
+`--vector NAME:COL1,COL2,...` folds sibling source columns into ONE
+native vector field (`vec_f64`; `NAME:f32:COL1,...` for `vec_f32`), the
+elements in the listed order. `--vector NAME:/REGEX/` takes every column
+the Go regular expression matches, in source column order. Labels are
+the regex's first capture group, else the full column names, and are
+always written. The members vanish from the cohort; the vector takes
+the position of its first member.
+
+```sh
+pulse import csv -i survey.csv -o survey.pulse \
+  --vector 'brand_rating:/^rate_(.*)$/' \
+  --vector-kind brand_rating:scale:1:7
+```
+
+`--vector-kind NAME:KIND[:MIN:MAX]` declares a declared vector's kind
+(`measure`, `scale`, `composition`, `binary`) and optional value range;
+kind is never inferred.
+
+Per row: every element cell empty is a null vector (an inferred field is
+promoted to nullable), some empty are `NaN` elements, and a non-numeric
+cell fails the row (`PULSE_IMPORT_ROW_ERROR`). Refused before any row is
+read with `PULSE_IMPORT_VECTOR_INVALID` (`details.reason`): a fold of
+fewer than 2 or more than 1024 columns, a regex matching no column, a
+column claimed twice (two vectors, or a vector and a `--group`), an
+unknown column, a `--vector-kind` naming no declared vector, a bad kind
+or range, a vector named after a column it does not fold, or an SPSS
+source. With `--schema`, type the field `vec_f64` / `vec_f32` with the
+same `dim` (the schema file's `dim`, `labels`, `kind`, `scale_min`,
+`scale_max` keys; a `vec_*` entry without `dim` is
+`PULSE_IMPORT_SCHEMA_INVALID`). A column type override to a `vec_*` type
+is `PULSE_IMPORT_OVERRIDE_INVALID`. Writes a format `0x02` cohort.
+`pulse_import` (MCP) takes the same strings as `vectors` /
+`vector_kinds`.
+
+A bare `--vector NAME` (or `NAME:f32`) reads the NATIVE list column
+`NAME` — Arrow `FixedSizeList` / `LIST`, Parquet `LIST`, an NDJSON or
+JSON-array array — as one vector field at that column's position. The
+elements are read typed off the source (never through the pipe-joined
+text the set ladder sees); the dim is the length of the first non-null
+list; no labels are written. A null list, or a list of nulls only, is a
+null vector; a null element is `NaN`. The whole import is refused with
+`PULSE_IMPORT_VECTOR_INVALID` on a list of a different length
+(`list_length_varies`), a non-number element — a quoted `"3"` included
+(`element_not_numeric`), a non-list cell (`not_a_list`), a length
+outside 2..1024 (`dim_out_of_range`), or no non-null list at all
+(`list_dim_unknown`); CSV / TSV / Excel have no typed lists
+(`no_columns`). Without the flag a list column imports as a `set_*`
+field exactly as before.
+
+```sh
+pulse import parquet -i embeddings.parquet -o emb.pulse \
+  --vector embedding:f32 --vector-kind embedding:measure
+```
+
 ### `--source-tz` / `--dst-policy`
 
 Available on: every `import <format>` leaf, `import auto`, `import predict`,
@@ -544,6 +603,24 @@ library knob is `io.ExportJob.TimeZone`; the manifest's
 pulse export csv -i orders.pulse -o orders.csv --tz Asia/Kolkata
 ```
 
+### Vector fields (export)
+
+Not a flag — how every `export <format>` leaf writes a `vec_f32` /
+`vec_f64` field. `csv`, `tsv` and `excel` expand it in place into one
+column per element, `<name>_<label>` (`<name>_1..N` without labels), so
+a battery folded with `--vector rate:/^rate_(.*)$/` exports back as its
+`rate_*` columns and re-imports with the same flag to an identical
+cohort; a NaN element and every element of a null vector are empty
+cells. `ndjson` and `jsonarray` write one JSON array per cell (`null`
+for a null vector and for a NaN / ±Inf element); `arrow` writes a
+`FixedSizeList<float32|float64, dim>`, `parquet` the same for a
+non-nullable vector and a `LIST` for a nullable one; each re-imports
+under `--vector NAME`. `spss` writes one numeric variable per element
+with the element label as its variable label. `--include` names the
+vector field, never an element column. An expanded name that another
+column already has refuses the export (`PULSE_EXPORT_COLUMN_COLLISION`),
+and `export predict --format F` prints the `Columns:` it would write.
+
 ## Command index
 
 Every runnable leaf the binary exposes, with the page that documents it
@@ -599,7 +676,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse features init` | Print strict feature-profile JSON listing every feature this build offers, or `--from NAME` seeded from an example feature profile | [feature profiles](../library/feature-profiles.md) |
 | `pulse features show` | Describe every feature a feature profile lists: kind, category, source, since and dependencies | [feature profiles](../library/feature-profiles.md) |
 | `pulse import arrow` | Import Arrow IPC into `.pulse` | `--help` |
-| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--group` parent-group declarations, `--source-tz` / `--dst-policy`, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
+| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--group` parent-group declarations, `--vector` / `--vector-kind` vector folds, `--source-tz` / `--dst-policy`, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
 | `pulse import csv` | Import CSV into `.pulse` | `--help` |
 | `pulse import drop` | Remove a managed-import handle | `--help` |
 | `pulse import excel` | Import Excel into `.pulse` | `--help` |

@@ -180,6 +180,14 @@ var (
 	}
 	_ = pio.WriterOptions{SPSS: pio.SPSSWriterOptions{SanitizeNames: true}}
 	_ pio.RowError
+	// The export column plan a typed external writer is handed.
+	_ func([]pio.ExportColumn, *encoding.Schema, []string) []*encoding.Field = pio.ColumnFields
+	_ []pio.ExportColumnKind                                                 = []pio.ExportColumnKind{
+		pio.ExportColumnField, pio.ExportColumnLabel, pio.ExportColumnElement, pio.ExportColumnList,
+	}
+	_ func(pio.ColumnAwareWriter, []pio.ExportColumn) = pio.ColumnAwareWriter.SetExportColumns
+	// RowList's error return: a source's failure to READ a list cell.
+	_ func(pio.ListAwareReader, int, *pio.ListCell) error = pio.ListAwareReader.RowList
 )
 
 // encoding: schema nouns, the raw ungrouped write primitives and the

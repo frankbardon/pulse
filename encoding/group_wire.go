@@ -28,6 +28,9 @@ import (
 // without another header version. A tag appearing twice, reserved bits
 // set, or a payload not consumed exactly are all ENCODING_INVALID.
 //
+// Two sections are defined, both always REQUIRED and written in tag
+// order: tag 1 GROUPS (below) and tag 2 VECTORS (vector.go).
+//
 // Section tag 1, GROUPS (always REQUIRED):
 //
 //	u16 group_count                 >= 1
@@ -54,25 +57,40 @@ const (
 	memberFlagKey       uint8 = 1 << 0
 )
 
-// writeSchemaExtension writes the 0x02 extension block for s.
+// writeSchemaExtension writes the 0x02 extension block for s: one
+// section per 0x02 feature the schema uses, emitted in ascending tag
+// order (GROUPS = 1, VECTORS = 2), so the bytes are a function of the
+// schema's content alone.
 func writeSchemaExtension(w io.Writer, s *Schema) error {
+	if err := s.ValidateVectors(); err != nil {
+		return err
+	}
 	if err := s.ValidateGroups(); err != nil {
 		return err
 	}
-	var payload bytes.Buffer
-	var sections uint16
-	var groups bytes.Buffer
+	type section struct {
+		tag  uint16
+		body bytes.Buffer
+	}
+	var secs []*section
 	if s.HasGroups() {
-		sections++
-		writeGroupsSection(&groups, s)
+		sec := &section{tag: sectionTagGroups}
+		writeGroupsSection(&sec.body, s)
+		secs = append(secs, sec)
+	}
+	if s.HasVectors() {
+		sec := &section{tag: sectionTagVectors}
+		writeVectorsSection(&sec.body, s)
+		secs = append(secs, sec)
 	}
 	le := binary.LittleEndian
-	payload.Write(le.AppendUint16(nil, sections))
-	if s.HasGroups() {
-		payload.Write(le.AppendUint16(nil, sectionTagGroups))
-		payload.WriteByte(sectionFlagRequired)
-		payload.Write(le.AppendUint64(nil, uint64(groups.Len())))
-		payload.Write(groups.Bytes())
+	var payload bytes.Buffer
+	payload.Write(le.AppendUint16(nil, uint16(len(secs))))
+	for _, sec := range secs {
+		payload.Write(le.AppendUint16(nil, sec.tag))
+		payload.WriteByte(sectionFlagRequired) // every defined section is REQUIRED
+		payload.Write(le.AppendUint64(nil, uint64(sec.body.Len())))
+		payload.Write(sec.body.Bytes())
 	}
 	if _, err := w.Write(le.AppendUint64(nil, uint64(payload.Len()))); err != nil {
 		return errors.WrapCodedError(err, errors.ENCODING_IO, "writing schema extension length")
@@ -194,7 +212,13 @@ func (x *extReader) bytesN(n uint64, what string) ([]byte, error) {
 const exactAllocLimit = 64 << 20
 
 // readSchemaExtension reads the 0x02 extension block into s and
-// validates the resulting groups against s.Fields.
+// validates the resulting vectors and groups against s.Fields.
+//
+// Order matters and is NOT the disk order: a group's entry width is a
+// sum of its members' FieldWidth, and a vector member's width needs its
+// dim from VECTORS. So GROUPS records each group's declared entry width
+// as it is read, and that width is checked only after every section has
+// been read and the vectors validated — whichever section came first.
 func readSchemaExtension(r io.Reader, s *Schema) error {
 	var lenBuf [8]byte
 	if _, err := io.ReadFull(r, lenBuf[:]); err != nil {
@@ -213,6 +237,7 @@ func readSchemaExtension(r io.Reader, s *Schema) error {
 		return err
 	}
 	seen := map[uint16]bool{}
+	var declaredWidths []uint32
 	for i := 0; i < int(sections); i++ {
 		tag, err := x.u16("section tag")
 		if err != nil {
@@ -245,7 +270,11 @@ func readSchemaExtension(r io.Reader, s *Schema) error {
 		sec := &extReader{r: &io.LimitedReader{R: lr, N: int64(secLen)}}
 		switch tag {
 		case sectionTagGroups:
-			if err := readGroupsSection(sec, s); err != nil {
+			if declaredWidths, err = readGroupsSection(sec, s); err != nil {
+				return err
+			}
+		case sectionTagVectors:
+			if err := readVectorsSection(sec, s); err != nil {
 				return err
 			}
 		default:
@@ -269,30 +298,42 @@ func readSchemaExtension(r io.Reader, s *Schema) error {
 			"schema extension block carries trailing bytes",
 			map[string]any{"extension_length": extLen, "trailing": lr.N, "version": FormatVersionV2})
 	}
+	if err := s.ValidateVectors(); err != nil {
+		return err
+	}
+	for g, ew := range declaredWidths {
+		if want := s.GroupEntryWidth(g); int(ew) != want {
+			return groupErr("entry width disagrees with the members' widths", map[string]any{"group": g, "entry_width": ew, "want": want})
+		}
+	}
 	return s.ValidateGroups()
 }
 
-func readGroupsSection(x *extReader, s *Schema) error {
+// readGroupsSection parses the GROUPS section into s.Groups and returns
+// each group's DECLARED entry width, which the caller checks against the
+// members' widths once vector dims are known (see readSchemaExtension).
+func readGroupsSection(x *extReader, s *Schema) ([]uint32, error) {
 	n, err := x.u16("group count")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if n == 0 {
-		return groupErr("groups section declares no group", nil)
+		return nil, groupErr("groups section declares no group", nil)
 	}
+	widths := make([]uint32, n)
 	groups := make([]Group, n)
 	for g := range groups {
 		kind, err := x.u8("group kind")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		idxW, err := x.u8("group index width")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		flags, err := x.u8("group flags")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		grp := &groups[g]
 		grp.Kind = GroupKind(kind)
@@ -300,53 +341,51 @@ func readGroupsSection(x *extReader, s *Schema) error {
 		case grp.Kind == GroupKindIndexed && idxW == GroupIndexWidth:
 		case grp.Kind == GroupKindConstant && idxW == 0:
 		default:
-			return groupErr("unsupported group kind / index width", map[string]any{"group": g, "kind": kind, "index_width": idxW})
+			return nil, groupErr("unsupported group kind / index width", map[string]any{"group": g, "kind": kind, "index_width": idxW})
 		}
 		if flags != 0 {
-			return groupErr("group sets reserved flag bits", map[string]any{"group": g, "flags": flags})
+			return nil, groupErr("group sets reserved flag bits", map[string]any{"group": g, "flags": flags})
 		}
 		mc, err := x.u16("member count")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		grp.Members = make([]GroupMember, mc)
 		for k := range grp.Members {
 			fi, err := x.u16("member field index")
 			if err != nil {
-				return err
+				return nil, err
 			}
 			mf, err := x.u8("member flags")
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if mf&^memberFlagKey != 0 {
-				return groupErr("group member sets reserved flag bits", map[string]any{"group": g, "field_index": fi, "flags": mf})
+				return nil, groupErr("group member sets reserved flag bits", map[string]any{"group": g, "field_index": fi, "flags": mf})
 			}
 			grp.Members[k] = GroupMember{Field: int(fi), Key: mf&memberFlagKey != 0}
 		}
 		ew, err := x.u32("entry width")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		ec, err := x.u32("entry count")
 		if err != nil {
-			return err
+			return nil, err
 		}
-		// Validate members before trusting the width they imply.
-		probe := &Schema{Fields: s.Fields, Groups: []Group{*grp}}
 		for _, m := range grp.Members {
 			if m.Field >= len(s.Fields) {
-				return groupErr("group member names no field", map[string]any{"group": g, "field_index": m.Field, "field_count": len(s.Fields)})
+				return nil, groupErr("group member names no field", map[string]any{"group": g, "field_index": m.Field, "field_count": len(s.Fields)})
 			}
 		}
-		if want := probe.GroupEntryWidth(0); int(ew) != want {
-			return groupErr("entry width disagrees with the members' widths", map[string]any{"group": g, "entry_width": ew, "want": want})
-		}
+		// The declared width sizes the read; it is checked against the
+		// members' widths after VECTORS is applied (readSchemaExtension).
+		widths[g] = ew
 		grp.Entries, err = x.bytesN(uint64(ec)*uint64(ew), "group entries")
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 	s.Groups = groups
-	return nil
+	return widths, nil
 }

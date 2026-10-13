@@ -677,13 +677,25 @@ func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known fu
 					map[string]any{"vector": spec.Vector, "slot": at + ".vector", "defined": defined})
 			}
 			m.Members = r
-			m.ExplicitLabels = len(req.Vectors[indexOfVector(req.Vectors, spec.Vector)].Labels) > 0
+			if r.Native != nil {
+				// A native vector's labels are never its member names
+				// (schema labels, else the "f_<i>" defaults).
+				m.ExplicitLabels = true
+			} else {
+				// A spec reading native elements carries their labels
+				// even when it sets none (the inline rule below).
+				m.ExplicitLabels = len(req.Vectors[indexOfVector(req.Vectors, spec.Vector)].Labels) > 0 || r.Refs != nil
+			}
 		} else {
 			r, err := ResolveSpec(at+".fields", types.VectorSpec{Name: name, Fields: spec.Fields}, schema)
 			if err != nil {
 				return nil, err
 			}
 			m.Members = r
+			// An inline list reading a native vector's elements carries
+			// their labels (schema labels, else "f_<k>"), never the
+			// "f[k]" member names; scalar members keep their names.
+			m.ExplicitLabels = r.Refs != nil
 		}
 		if err := resolveControls(at, schema, &m); err != nil {
 			return nil, err
@@ -1538,7 +1550,7 @@ func MatrixMembers(req *types.Request, schema *encoding.Schema) (members []strin
 			ok = false
 			continue
 		}
-		members = append(members, r.Members...)
+		members = append(members, r.SourceFields()...)
 	}
 	return members, ok
 }
@@ -1583,7 +1595,7 @@ func appendBetweenFields(members []string, ok bool, at string, spec types.Matrix
 		if err != nil {
 			return members, false
 		}
-		members = append(members, r.Members...)
+		members = append(members, r.SourceFields()...)
 	}
 	if g.Field == "" {
 		return members, ok && (g.Vector != "" || len(g.Fields) > 0)

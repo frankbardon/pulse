@@ -382,13 +382,21 @@ func TestWidenTarget(t *testing.T) {
 // suffix bytes moved intact, the widened cell zero-extended — or
 // converted to the exactly-equal f64.
 func TestWidenBufferedColumn(t *testing.T) {
-	types := []encoding.FieldType{encoding.FieldTypeU16, encoding.FieldTypeU8, encoding.FieldTypeU4}
+	held := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "a", Type: encoding.FieldTypeU16},
+		{Name: "b", Type: encoding.FieldTypeU8},
+		{Name: "c", Type: encoding.FieldTypeU4},
+	}}
 	var buf bytes.Buffer
 	for k := 0; k < 3; k++ {
 		buf.Write([]byte{byte(0x10 + k), 0xAA, byte(200 + k), byte(k)})
 	}
-	if err := widenBufferedColumn(&buf, 3, types, 1, encoding.FieldTypeU32); err != nil {
+	next, err := widenBufferedColumn(&buf, 3, held, 1, encoding.FieldTypeU32)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if held.Fields[1].Type != encoding.FieldTypeU8 || next.Fields[1].Type != encoding.FieldTypeU32 {
+		t.Fatalf("held / next field 1 = %s / %s, want u8 / u32", held.Fields[1].Type, next.Fields[1].Type)
 	}
 	want := []byte{}
 	for k := 0; k < 3; k++ {
@@ -397,8 +405,7 @@ func TestWidenBufferedColumn(t *testing.T) {
 	if !bytes.Equal(buf.Bytes(), want) {
 		t.Fatalf("u8→u32:\n got %v\nwant %v", buf.Bytes(), want)
 	}
-	types[1] = encoding.FieldTypeU32
-	if err := widenBufferedColumn(&buf, 3, types, 2, encoding.FieldTypeF64); err != nil {
+	if _, err := widenBufferedColumn(&buf, 3, next, 2, encoding.FieldTypeF64); err != nil {
 		t.Fatal(err)
 	}
 	for k := 0; k < 3; k++ {

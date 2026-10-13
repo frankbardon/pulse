@@ -172,7 +172,7 @@ func TestAdaptRowTestFactory_ForwardsUpdateRowAndFinalize(t *testing.T) {
 		t.Fatalf("Finalize = %+v, %v; want statistic 2", res, err)
 	}
 	for i := range recs {
-		if seen[i].(*processing.Record) != recs[i] {
+		if seen[i].(extRecord).Record != recs[i] {
 			t.Errorf("UpdateRow %d did not receive the engine's record", i)
 		}
 	}
@@ -341,7 +341,7 @@ func TestAdaptFeature_ForwardsStreamingIffImplemented(t *testing.T) {
 	if err != nil || got["d"].Values[0] != 9 {
 		t.Fatalf("EmitRow = %+v, %v; want 9", got, err)
 	}
-	if len(seen) != 2 || seen[0].(*processing.Record) != recs[0] || seen[1].(*processing.Record) != recs[1] {
+	if len(seen) != 2 || seen[0].(extRecord).Record != recs[0] || seen[1].(extRecord).Record != recs[1] {
 		t.Errorf("streaming calls did not receive the engine's records: %v", seen)
 	}
 }
@@ -395,13 +395,13 @@ func (minimalFeatureRecord) SetNull(string)                         {}
 
 // TestFeatureRecord_EngineRecordPassesThroughAndMinimalDegrades pins
 // the read view: the engine's *processing.Record reaches the embedder
-// as itself; any other feature.Record degrades to a read-only view
-// that reports its numeric and categorical reads and "no value" for
+// as its extRecord view (the same row, no copy); any other
+// feature.Record degrades to a read-only view that reports its numeric and categorical reads and "no value" for
 // everything else.
 func TestFeatureRecord_EngineRecordPassesThroughAndMinimalDegrades(t *testing.T) {
 	recs := twoRecords()
-	if featureRecord(recs[0]).(*processing.Record) != recs[0] {
-		t.Error("engine record was wrapped instead of passed through")
+	if featureRecord(recs[0]).(extRecord).Record != recs[0] {
+		t.Error("engine record did not reach the embedder as its extRecord view")
 	}
 	v := featureRecord(minimalFeatureRecord{})
 	if _, wrapped := v.(featureRecordView); !wrapped {

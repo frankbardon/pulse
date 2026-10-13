@@ -42,6 +42,11 @@
 //     precision through NumericValue.
 //   - decimal128 values need DecimalValue for exact precision;
 //     NumericValue returns only a rounded float echo.
+//   - A vector field (vec_f32 / vec_f64) is false through NumericValue
+//     (read it with VectorValue), but its element member "f[k]" — the
+//     name a vector-input slot hands the factory for a native vector —
+//     reads element k (1-based); a NaN element or a null vector is a
+//     null member, exactly as for the scalar-column twin.
 //   - A decimal128 target does not change an aggregator's path. A
 //     registration declaring Streamable: true streams a decimal field
 //     like any other: UpdateRow sees decimal fields via DecimalValue,

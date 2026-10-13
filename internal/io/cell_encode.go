@@ -112,6 +112,10 @@ type rowCells struct {
 	wide     []wideFieldBytes
 	wideUsed []bool
 	null     []bool
+	// vec holds each vector field's on-wire payload (element × dim
+	// bytes, too wide for the wideFieldBytes scratch), allocated on the
+	// field's first value and reused per row; nil for every other field.
+	vec [][]byte
 }
 
 func newRowCells(n int) rowCells {
@@ -120,6 +124,7 @@ func newRowCells(n int) rowCells {
 		wide:     make([]wideFieldBytes, n),
 		wideUsed: make([]bool, n),
 		null:     make([]bool, n),
+		vec:      make([][]byte, n),
 	}
 }
 
@@ -149,6 +154,21 @@ func (c *rowCells) setNull(i int, ft encoding.FieldType) {
 	c.vals[i] = 0
 }
 
+// vecNullPlaceholder is the zeroed payload of the widest vector field
+// (vec_f64 at MaxVectorDim): a null vector cell writes its prefix.
+var vecNullPlaceholder [8 * encoding.MaxVectorDim]byte
+
+// setVector encodes v as vector field i's payload (ft, dim from the
+// schema). PutVector's refusals (a length other than dim, a finite
+// value a vec_f32 element cannot hold) are returned untouched.
+func (c *rowCells) setVector(i int, ft encoding.FieldType, dim int, v []float64) error {
+	w := ft.VectorElemSize() * dim
+	if cap(c.vec[i]) < w {
+		c.vec[i] = make([]byte, w)
+	}
+	return encoding.PutVector(c.vec[i][:w], ft, dim, v)
+}
+
 // setWide stores a wide field's raw bytes.
 func (c *rowCells) setWide(i int, b wideFieldBytes) {
 	c.wide[i] = b
@@ -159,12 +179,24 @@ func (c *rowCells) setWide(i int, b wideFieldBytes) {
 // schema order, bit-packed types as one whole byte — to buf.
 func (c *rowCells) writeFields(buf *bytes.Buffer, schema *encoding.Schema) error {
 	for i, f := range schema.Fields {
+		if f.Type.IsVector() {
+			// element × dim bytes: the converted payload, or for a null
+			// cell the zeroed placeholder of the full width (the null
+			// rides the bitmap).
+			w := schema.FieldWidth(i)
+			if c.null[i] || len(c.vec[i]) < w {
+				buf.Write(vecNullPlaceholder[:w])
+				continue
+			}
+			buf.Write(c.vec[i][:w])
+			continue
+		}
 		if c.wideUsed[i] {
 			// Slice to the field's own width: 16 for decimal128 and
 			// set_u128, 32 for set_u256. Writing the whole scratch
 			// array would pad every decimal by 16 zero bytes and
 			// desynchronize the stride for the rest of the file.
-			if _, err := buf.Write(c.wide[i][:f.Type.ByteSize()]); err != nil {
+			if _, err := buf.Write(c.wide[i][:schema.FieldWidth(i)]); err != nil {
 				return err
 			}
 			continue

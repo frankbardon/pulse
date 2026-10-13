@@ -497,6 +497,7 @@ func cloneSchemaForArchive(s *encoding.Schema) *encoding.Schema {
 	// A grouped seed keeps its group layout and dictionaries: the
 	// canonical schema decides every shard's physical stride.
 	out.Groups = encx.CloneGroups(s.Groups)
+	out.Vectors = encx.CloneVectors(s.Vectors)
 	return out
 }
 

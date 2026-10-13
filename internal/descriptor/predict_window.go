@@ -80,9 +80,10 @@ var windowFieldRequired = map[types.WindowType]bool{
 // set_* is refused: a set cell decodes to a label slice the comparator
 // cannot order, so every row would compare equal
 // (TestWindowOrderBy_OrderabilityPredictMatchesRuntime). Nulls sort last
-// for every admitted type.
+// for every admitted type. vec_f32 / vec_f64 are refused too: a vector
+// has no single value to order by.
 func IsOrderableType(ft encoding.FieldType) bool {
-	return !ft.IsSet()
+	return !ft.IsSet() && !ft.IsVector()
 }
 
 // isNumericType reports whether the field type carries a meaningful scalar
@@ -182,7 +183,7 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 					"window["+idx+"] ("+string(w.Type)+"): field is required",
 					map[string]any{"window_index": i, "type": string(w.Type)},
 				)
-			} else if f := schema.Field(w.Field); f != nil && windowNumericFieldRequired[w.Type] && !isNumericType(f.Type) {
+			} else if f := schema.Field(w.Field); f != nil && !f.Type.IsVector() && windowNumericFieldRequired[w.Type] && !isNumericType(f.Type) {
 				env.AddError(
 					string(errors.PULSE_WINDOW_INVALID),
 					"window["+idx+"] ("+string(w.Type)+"): field "+w.Field+" must be numeric (got "+f.Type.String()+")",

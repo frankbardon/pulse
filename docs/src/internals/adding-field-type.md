@@ -18,6 +18,17 @@ size is the wire footprint per record; bit-packed types
 (`packed_bool`, `u4`) return `0` and signal sharing via
 `FieldType.IsBitPacked()`.
 
+Every stride, offset and skip sizes a field through
+`encoding.Schema.FieldWidth(i)`, the one field-aware width — never
+through `ByteSize()` directly. If the new type's width is not a
+function of its type byte alone, teach `FieldWidth` (and only it).
+`TestNoTypeOnlyWidthInStridePaths` fails on a type-only width call
+outside its explained allow-list. `vec_f32` / `vec_f64` are the worked
+example: the dim lives in the schema's VECTORS section
+(`Schema.Vectors`), so a copy of the schema that drops it sizes the
+field at 0 bytes — keep `Vectors` through every schema copy
+(`Logical()`, `internal/encoding.CloneVectors`, join schemas).
+
 ## 2. Schema reader
 
 Wire the type byte into the schema reader case in `encoding/` (the public schema nouns; the decode-plan and group remainder is `internal/encoding/`). The

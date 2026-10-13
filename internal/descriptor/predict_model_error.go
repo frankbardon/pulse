@@ -100,7 +100,7 @@ func modelErrorPredictCheck(agg *types.Aggregation, schema *encoding.Schema) err
 	}
 	for _, side := range [...]struct{ role, col string }{{"field", agg.Field}, {"prediction_field", params.PredictionField}} {
 		f := schema.Field(side.col)
-		if f == nil || modelErrorTypeOK(f.Type) {
+		if f == nil || f.Type.IsVector() || modelErrorTypeOK(f.Type) {
 			continue
 		}
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,

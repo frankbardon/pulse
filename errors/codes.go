@@ -275,6 +275,17 @@ const (
 	// without re-fetching the schema.
 	PULSE_EXPORT_FIELD_UNKNOWN Code = "PULSE_EXPORT_FIELD_UNKNOWN"
 
+	// PULSE_EXPORT_COLUMN_COLLISION indicates an export expanding a
+	// vector field (vec_f32 / vec_f64) into one scalar column per
+	// element — `<field>_<label>`, or `<field>_1..N` without labels —
+	// would emit a column whose name another column of the same export
+	// already has (a scalar field, a `_label` sibling, or another
+	// vector's element). Details carry the column, the vector field and
+	// what it collides with. Raised before a byte is written; a target
+	// with native list cells (NDJSON, JSON array, Arrow, Parquet) does
+	// not expand and cannot collide.
+	PULSE_EXPORT_COLUMN_COLLISION Code = "PULSE_EXPORT_COLUMN_COLLISION"
+
 	// PULSE_IMPORT_CATEGORICAL_OVERFLOW indicates dictionary exceeds width capacity.
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW Code = "PULSE_IMPORT_CATEGORICAL_OVERFLOW"
 
@@ -318,6 +329,19 @@ const (
 	// reads to a configured root (default: process cwd) so an MCP /
 	// CLI invocation cannot reach arbitrary files on the host.
 	PULSE_IMPORT_SOURCE_FORBIDDEN Code = "PULSE_IMPORT_SOURCE_FORBIDDEN"
+
+	// PULSE_IMPORT_VECTOR_INVALID indicates an import-time vector
+	// declaration (`--vector` / `--vector-kind`, ImportJob.Vectors) that
+	// cannot be folded, refused before any row is read. details.reason
+	// tells the cases apart: malformed, element_invalid, kind_invalid,
+	// scale_invalid, kind_unknown_vector, kind_duplicate,
+	// duplicate_name, column_unknown, pattern_invalid,
+	// pattern_no_match, no_columns, dim_out_of_range, column_claimed
+	// (two vectors, or a vector and a parent group), name_collision,
+	// authoritative_source, passthrough (a managed .pulse source), and —
+	// against an explicit schema —
+	// not_declared, dim_mismatch, type_mismatch.
+	PULSE_IMPORT_VECTOR_INVALID Code = "PULSE_IMPORT_VECTOR_INVALID"
 
 	// PULSE_GROUP_DECLARATION_INVALID indicates a parent-group
 	// declaration that is malformed before any field is resolved: a
@@ -997,7 +1021,11 @@ const (
 	// an error) when an incoming shard's per-field description differs
 	// from the canonical schema's. Descriptions are advisory metadata;
 	// the canonical description in `_schema.pulse` wins for any
-	// downstream consumer.
+	// downstream consumer. A vector field's element labels, kind and
+	// scale range are description-class too: their divergence is this
+	// warning with details.dimension vector_labels / vector_kind /
+	// vector_scale (the vector's DIM is strict — a mismatch is
+	// PULSE_SHARD_SCHEMA_MISMATCH).
 	PULSE_SHARD_DESCRIPTION_DIVERGENCE Code = "PULSE_SHARD_DESCRIPTION_DIVERGENCE"
 
 	// PULSE_SHARD_SET_WIDENED is emitted as a WARNING (not an error)
@@ -3079,6 +3107,20 @@ const (
 	// "attribute", or "window" / "window_index").
 	PULSE_VECTOR_NAME_COLLISION Code = "PULSE_VECTOR_NAME_COLLISION"
 
+	// PULSE_VECTOR_FIELD_NOT_SCALAR indicates a native vector field
+	// (vec_f32 / vec_f64) named where a single value is read: a scalar
+	// aggregation, grouper, attribute, feature, filter, test or
+	// regression slot (an operator param naming a field included), a
+	// window field / order_by / partition_by or sort key, a weight, a
+	// date / zone slot or a point-lookup index key (a join key is
+	// PULSE_JOIN_TYPE_MISMATCH, details.reason "vector_key").
+	// Presence-only slots (AGG_COUNT, AGG_NULL_COUNT, FILTER_NULL),
+	// AGG_RATIO's ignored field and every vector slot accept the field.
+	// Refused identically by predict and the runtime before any record
+	// is read. Details carry "field", "field_type", "dim", "slot" and,
+	// where a vector operator replaces the slot, "suggest".
+	PULSE_VECTOR_FIELD_NOT_SCALAR Code = "PULSE_VECTOR_FIELD_NOT_SCALAR"
+
 	// PULSE_VECTOR_LABELS_MISMATCH indicates a vector whose `labels`
 	// count differs from its resolved member count. Details carry
 	// "vector", "name", "labels" and "members" (both counts) and
@@ -3608,6 +3650,7 @@ var allCodes = []Code{
 	PULSE_IMPORT_TIMESTAMP_TRUNCATED,
 	PULSE_EXPORT_ROW_ERROR,
 	PULSE_EXPORT_FIELD_UNKNOWN,
+	PULSE_EXPORT_COLUMN_COLLISION,
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW,
 	PULSE_IMPORT_SET_OVERFLOW,
 	PULSE_IMPORT_CATEGORICAL_UNBOUNDED,
@@ -3617,6 +3660,7 @@ var allCodes = []Code{
 	PULSE_IMPORT_SOURCE_MISSING,
 	PULSE_IMPORT_HANDLE_EXISTS,
 	PULSE_IMPORT_SOURCE_FORBIDDEN,
+	PULSE_IMPORT_VECTOR_INVALID,
 	PULSE_GROUP_DECLARATION_INVALID,
 	PULSE_GROUP_FIELD_UNKNOWN,
 	PULSE_GROUP_FIELD_CONFLICT,
@@ -3889,6 +3933,7 @@ var allCodes = []Code{
 	PULSE_VECTOR_MEMBER_TYPE,
 	PULSE_VECTOR_DUPLICATE,
 	PULSE_VECTOR_NAME_COLLISION,
+	PULSE_VECTOR_FIELD_NOT_SCALAR,
 	PULSE_VECTOR_LABELS_MISMATCH,
 	PULSE_VECTOR_UNKNOWN,
 	PULSE_VECTOR_UNREFERENCED,

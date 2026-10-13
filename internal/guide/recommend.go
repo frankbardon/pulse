@@ -1,6 +1,7 @@
 package guide
 
 import (
+	"slices"
 	"sort"
 	"strings"
 
@@ -112,14 +113,18 @@ func recommend(inst *descx.InstanceSnapshot, req descriptor.RecommendRequest, b 
 	if limit == 0 {
 		limit = DefaultLimit
 	}
+	g := inst.Ontology()
+	var cat map[string]opInfo
+	if intent.Analytic {
+		cat = catalog(descx.BuildManifestForInstance(inst))
+	}
 	var hints []string
 	if b != nil {
-		if hints, err = validateHints(req.Fields, b.Schema, intent); err != nil {
+		if hints, err = validateHints(req.Fields, b.Schema, intent, takesVector(inst, g, cat, intent)); err != nil {
 			return nil, err
 		}
 	}
 
-	g := inst.Ontology()
 	scrub := descx.NewProseScrub(inst)
 	out := &descriptor.RecommendResult{
 		Intent:          intent.ID,
@@ -129,7 +134,6 @@ func recommend(inst *descx.InstanceSnapshot, req descriptor.RecommendRequest, b 
 	}
 	var recs []scored
 	if intent.Analytic {
-		cat := catalog(descx.BuildManifestForInstance(inst))
 		for _, name := range g.OperatorsServing(intent.ID) {
 			info, ok := cat[name]
 			if !ok {
@@ -192,6 +196,7 @@ func boundRecommendations(op opInfo, in descriptor.Intent, base descriptor.Recom
 	}
 	var out []scored
 	for _, bnd := range bind(slots, b.Schema, hints, BindingsPerOperator) {
+		needs := nativeNeeds(op, needs, bnd, b.Schema)
 		request, probe, ok := boundDraft(op, b.Cohort, slots, bnd, needs)
 		if !ok {
 			continue
@@ -217,6 +222,26 @@ func boundRecommendations(op opInfo, in descriptor.Intent, base descriptor.Recom
 		out = append(out, scored{rec: rec, hints: bnd.hints})
 	}
 	return out
+}
+
+// takesVector reports whether some operator serving intent in on the
+// instance graph drafts a vector slot (bslot.vector), so a native
+// vector field may be hinted for it.
+func takesVector(inst *descx.InstanceSnapshot, g *descx.OntologyGraph, cat map[string]opInfo, in descriptor.Intent) bool {
+	for _, name := range g.OperatorsServing(in.ID) {
+		info, ok := cat[name]
+		if !ok {
+			continue
+		}
+		if _, ok := purposeOf(inst, name); !ok {
+			continue
+		}
+		slots, _, ok := plan(info, in)
+		if ok && slices.ContainsFunc(slots, func(s bslot) bool { return s.vector }) {
+			return true
+		}
+	}
+	return false
 }
 
 func findIntent(id string) (descriptor.Intent, bool) {

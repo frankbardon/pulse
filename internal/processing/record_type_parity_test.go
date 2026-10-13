@@ -14,7 +14,7 @@ import (
 	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
-// Full-type parity for the positional Record: every one of the 20 field
+// Full-type parity for the positional Record: every one of the 22 field
 // types, nullable, decoded through every record-population path — the
 // reused full-stride decoder, a fresh record per row (the buffered arm),
 // the plan decoder into a projected binding, the name-keyed shim and the
@@ -28,6 +28,7 @@ type parityCell struct {
 	raw  uint64 // numeric bits, categorical id, narrow mask, u4 / bool
 	mask encoding.SetMask
 	dec  encoding.Decimal128
+	vec  []float64 // vec_f32 / vec_f64 elements (nil on a null row)
 }
 
 type parityFixture struct {
@@ -49,9 +50,13 @@ func parityDict(prefix string, n int) *encoding.Dictionary {
 func paritySchema(t *testing.T) *encoding.Schema {
 	t.Helper()
 	var fields []encoding.Field
+	var vectors []encoding.VectorField
 	n := 0
 	for ft := encoding.FieldType(0); ft.IsKnown(); ft++ {
 		n++
+		if ft.IsVector() {
+			vectors = append(vectors, encoding.VectorField{FieldIndex: len(fields), Dim: parityVecDim(ft)})
+		}
 		f := encoding.Field{Name: "f_" + ft.String(), Type: ft, Nullable: true}
 		switch {
 		case ft == encoding.FieldTypeDecimal128:
@@ -69,10 +74,18 @@ func paritySchema(t *testing.T) *encoding.Schema {
 			fields = append(fields, encoding.Field{Name: "f_packed_bool_b1", Type: ft, BitPosition: 1, Nullable: true})
 		}
 	}
-	if n != 20 {
-		t.Fatalf("walked %d field types, want 20", n)
+	if n != 22 {
+		t.Fatalf("walked %d field types, want 22", n)
 	}
-	return &encoding.Schema{Fields: fields}
+	return &encoding.Schema{Fields: fields, Vectors: vectors}
+}
+
+// parityVecDim is the dim the parity schema gives a vector type.
+func parityVecDim(ft encoding.FieldType) int {
+	if ft == encoding.FieldTypeVecF32 {
+		return 3
+	}
+	return 4
 }
 
 // parityValue is row r's value for field f (rows 0, 2 and 3; row 1 is
@@ -80,7 +93,10 @@ func paritySchema(t *testing.T) *encoding.Schema {
 func parityValue(f *encoding.Field, row int) parityCell {
 	ft := f.Type
 	switch row {
-	case 2: // zero values, EMPTY masks — present, not null
+	case 2: // zero values, EMPTY masks, all-zero vectors — present, not null
+		if ft.IsVector() {
+			return parityCell{vec: make([]float64, parityVecDim(ft))}
+		}
 		return parityCell{dec: encoding.ZeroDecimal128()}
 	case 3: // extremes
 		switch {
@@ -93,6 +109,10 @@ func parityValue(f *encoding.Field, row int) parityCell {
 			return parityCell{mask: encoding.SetMaskFromUint64(1).WithBit(127).WithBit(64)}
 		case ft == encoding.FieldTypeSetU256:
 			return parityCell{mask: encoding.SetMaskFromUint64(1).WithBit(255).WithBit(128)}
+		case ft == encoding.FieldTypeVecF32:
+			return parityCell{vec: []float64{math.Inf(-1), math.MaxFloat32, math.SmallestNonzeroFloat32}}
+		case ft == encoding.FieldTypeVecF64:
+			return parityCell{vec: []float64{math.Inf(1), -math.MaxFloat64, math.SmallestNonzeroFloat64, -1}}
 		}
 	}
 	// row 0 (and row 3 for everything not special-cased above).
@@ -130,6 +150,10 @@ func parityValue(f *encoding.Field, row int) parityCell {
 		return parityCell{raw: 19_000}
 	case encoding.FieldTypeU64:
 		return parityCell{raw: 1 << 40}
+	case encoding.FieldTypeVecF32:
+		return parityCell{vec: []float64{-2.5, 0.125, 7}}
+	case encoding.FieldTypeVecF64:
+		return parityCell{vec: []float64{1234.0625, -1, 0.1, 9e300}}
 	}
 	return parityCell{raw: 200}
 }
@@ -166,6 +190,8 @@ func buildParityFixture(t *testing.T) *parityFixture {
 				must(encoding.WriteDecimal128(&buf, c.dec))
 			case f.Type.IsWideSet():
 				must(encoding.WriteSetMask(&buf, f.Type, c.mask))
+			case f.Type.IsVector():
+				must(encoding.WriteVector(&buf, f.Type, schema.VectorDim(i), c.vec))
 			default:
 				must(encoding.WriteFieldValue(&buf, f.Type, c.raw))
 			}
@@ -225,6 +251,9 @@ func checkParityRow(t *testing.T, where string, rec *Record, fields []*encoding.
 			if _, ok := rec.StringValue(f.Name); ok {
 				t.Errorf("%s: StringValue ok on a null field", at)
 			}
+			if v, ok := rec.VectorValue(f.Name); ok {
+				t.Errorf("%s: VectorValue = %v, true on a null field", at, v)
+			}
 			if inAll {
 				t.Errorf("%s: null field present in AllValues", at)
 			}
@@ -235,6 +264,35 @@ func checkParityRow(t *testing.T, where string, rec *Record, fields []*encoding.
 		}
 		if !inAll {
 			t.Errorf("%s: present field missing from AllValues", at)
+		}
+		if f.Type.IsVector() {
+			got, ok := rec.VectorValue(f.Name)
+			if !ok || !reflect.DeepEqual(got, c.vec) {
+				t.Errorf("%s: VectorValue = %v, %v; want %v, true", at, got, ok, c.vec)
+			}
+			if ok && len(got) > 0 {
+				// A fresh copy: scribbling on it never reaches the record.
+				got[0] = 42
+				if again, _ := rec.VectorValue(f.Name); again[0] == 42 {
+					t.Errorf("%s: VectorValue aliases the record's storage", at)
+				}
+			}
+			if v, ok := rec.NumericValue(f.Name); ok {
+				t.Errorf("%s: NumericValue = %v, true on a vector field", at, v)
+			}
+			if w, ok := rec.WideValue(f.Name); !ok || !reflect.DeepEqual(w, c.vec) {
+				t.Errorf("%s: WideValue = %#v, %v; want %v", at, w, ok, c.vec)
+			}
+			if !reflect.DeepEqual(all[f.Name], c.vec) {
+				t.Errorf("%s: AllValues = %#v, want %v", at, all[f.Name], c.vec)
+			}
+			if _, ok := rec.SetMaskValue(f.Name); ok {
+				t.Errorf("%s: SetMaskValue ok on a vector field", at)
+			}
+			continue
+		}
+		if v, ok := rec.VectorValue(f.Name); ok {
+			t.Errorf("%s: VectorValue = %v, true on a %s field", at, v, f.Type)
 		}
 		if f.Type.IsSet() {
 			want := c.wantMask(f)
@@ -308,6 +366,16 @@ func assertNoStaleWideAfterSet(t *testing.T, where string, rec *Record, fields [
 		if _, ok := rec.SetMaskValue(f.Name); ok {
 			t.Errorf("%s %s: stale set mask resurfaced after Set", where, f.Name)
 		}
+		if v, ok := rec.VectorValue(f.Name); ok {
+			t.Errorf("%s %s: stale vector %v resurfaced after Set", where, f.Name, v)
+		}
+		if f.Type.IsVector() {
+			// A vector field is never numeric, whatever was written.
+			if v, ok := rec.NumericValue(f.Name); ok {
+				t.Errorf("%s %s: NumericValue after Set = %v, true on a vector field", where, f.Name, v)
+			}
+			continue
+		}
 		if v, ok := rec.NumericValue(f.Name); !ok || v != 7 {
 			t.Errorf("%s %s: NumericValue after Set = %v, %v; want 7, true", where, f.Name, v, ok)
 		}
@@ -349,7 +417,7 @@ func TestRecord_AllFieldTypesPositionalParity(t *testing.T) {
 		t.Fatalf("map decoder read %d rows, want 4", len(mapRecs))
 	}
 
-	subset := []string{"f_u4_hi", "f_packed_bool_b1", "f_decimal128", "f_set_u16", "f_set_u256", "f_f32"}
+	subset := []string{"f_u4_hi", "f_packed_bool_b1", "f_decimal128", "f_set_u16", "f_set_u256", "f_f32", "f_vec_f64"}
 	type path struct {
 		name     string
 		retained []string // nil ⇒ every field
@@ -372,7 +440,7 @@ func TestRecord_AllFieldTypesPositionalParity(t *testing.T) {
 			}
 		}
 	}
-	planned := func(retained []string) func(t *testing.T) func() (*Record, error) {
+	planned := func(retained []string, shim bool) func(t *testing.T) func() (*Record, error) {
 		return func(t *testing.T) func() (*Record, error) {
 			plan, err := encx.BuildDecodePlan(schema, retained)
 			if err != nil {
@@ -387,7 +455,14 @@ func TestRecord_AllFieldTypesPositionalParity(t *testing.T) {
 			rr := encx.NewRecordReader(bytes.NewReader(fx.raw), schema)
 			return func() (*Record, error) {
 				rec := binding.NewRecord()
-				return rec, rr.ReadRecordReusedWithPlan(rec, keep, plan)
+				// The name-keyed shim is no RunSkipRecord, so the plan
+				// decodes group by group (decodeGroupBytes) instead of
+				// through the run-skip assembler.
+				var target encx.ReusableRecord = rec
+				if shim {
+					target = nameKeyedOnly{rec}
+				}
+				return rec, rr.ReadRecordReusedWithPlan(target, keep, plan)
 			}
 		}
 	}
@@ -408,8 +483,10 @@ func TestRecord_AllFieldTypesPositionalParity(t *testing.T) {
 		{name: "full-stride-reused", next: fullStride(false, false)},
 		{name: "full-stride-fresh", next: fullStride(true, false)},
 		{name: "full-stride-name-keyed", next: fullStride(false, true)},
-		{name: "plan-projected-all", retained: allNames, next: planned(allNames)},
-		{name: "plan-projected-subset", retained: subset, next: planned(subset)},
+		{name: "plan-projected-all", retained: allNames, next: planned(allNames, false)},
+		{name: "plan-projected-subset", retained: subset, next: planned(subset, false)},
+		{name: "plan-name-keyed-all", retained: allNames, next: planned(allNames, true)},
+		{name: "plan-name-keyed-subset", retained: subset, next: planned(subset, true)},
 	}
 	for _, p := range paths {
 		t.Run(p.name, func(t *testing.T) {
@@ -716,5 +793,39 @@ func TestRecord_CopyIntoProjectedAndDuplicateLayouts(t *testing.T) {
 	}
 	if !reflect.DeepEqual(dst.AllValues(), src.AllValues()) {
 		t.Errorf("AllValues after copy differ:\n dst %v\n src %v", dst.AllValues(), src.AllValues())
+	}
+}
+
+// TestRecord_VectorDecodeAllocatesNothing pins that the reuse decoder
+// hands a vector's payload to the Record (encoding.VectorRecord), which
+// decodes it into its own storage: boxing a []float64 through
+// SetWideFieldAt would cost an allocation per vector field per row.
+func TestRecord_VectorDecodeAllocatesNothing(t *testing.T) {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "a", Type: encoding.FieldTypeVecF32, Nullable: true},
+		{Name: "b", Type: encoding.FieldTypeVecF64},
+	}, Vectors: []encoding.VectorField{{FieldIndex: 0, Dim: 4}, {FieldIndex: 1, Dim: 8}}}
+	const rows = 64
+	var buf bytes.Buffer
+	for i := 0; i < rows; i++ {
+		_ = encoding.WriteVector(&buf, encoding.FieldTypeVecF32, 4, []float64{float64(i), 1, 2, 3})
+		_ = encoding.WriteVector(&buf, encoding.FieldTypeVecF64, 8, []float64{float64(i), 1, 2, 3, 4, 5, 6, 7})
+		buf.WriteByte(0)
+	}
+	rr := encx.NewRecordReader(bytes.NewReader(buf.Bytes()), schema)
+	rec := NewReusableRecord(schema)
+	if err := rr.ReadRecordReused(rec); err != nil { // warm: sizes aux storage
+		t.Fatal(err)
+	}
+	allocs := testing.AllocsPerRun(rows-2, func() {
+		if err := rr.ReadRecordReused(rec); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("reuse decode of two vector fields allocates %v per row, want 0", allocs)
+	}
+	if v, ok := rec.VectorValue("b"); !ok || v[0] != rows-1 || v[7] != 7 {
+		t.Fatalf("last row b = %v, %v", v, ok)
 	}
 }

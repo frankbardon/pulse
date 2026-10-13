@@ -107,6 +107,9 @@ func codeInPredictCheck(attr *types.Attribute, schema *encoding.Schema, projecte
 		}
 		return nil, nil
 	}
+	if f.Type.IsVector() {
+		return nil, nil // the field-reference walk's refusal (vectorScalarRefusals)
+	}
 	if !f.Type.IsCategorical() {
 		if _, ok := codeInPredictIntegerMax[f.Type]; !ok {
 			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,

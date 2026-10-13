@@ -452,11 +452,12 @@ type vectorBinder interface {
 }
 
 // ExprVectors resolves req's named vectors (Request.Vectors) against
-// schema for the expression operators: nil when the request defines
-// none, or when one fails to resolve (the field-reference pass refused
-// that request before any build).
+// schema for the expression operators, followed by the schema's native
+// vector fields (vectors.Resolve): nil when there are neither, or when
+// one fails to resolve (the field-reference pass refused that request
+// before any build).
 func ExprVectors(req *types.Request, schema *encoding.Schema) []vectors.Resolved {
-	if req == nil || len(req.Vectors) == 0 {
+	if req == nil || (len(req.Vectors) == 0 && (schema == nil || !schema.HasVectors())) {
 		return nil
 	}
 	resolved, err := vectors.Resolve(req.Vectors, schema)

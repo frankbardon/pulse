@@ -18,13 +18,25 @@ import (
 // a pure function of field order and types (encx.LayoutFields) — and no
 // column index: ImportJob / ConvertJob match each field to its source
 // column BY NAME (resolveExplicitSchema).
+//
+// dim, labels, kind, scale_min and scale_max apply to vec_f32 / vec_f64
+// only: dim (2..1024) is REQUIRED for a vector — its width is element ×
+// dim — labels are nil or exactly dim names, kind is measure, scale,
+// composition or binary, and the scale range is both bounds or
+// neither. A vector key on any other type, or a vector without dim, is
+// PULSE_IMPORT_SCHEMA_INVALID at parse.
 type SchemaFileField struct {
-	Name        string `json:"name"`
-	Type        string `json:"type"`
-	Description string `json:"description"`
-	Nullable    bool   `json:"nullable"`
-	Precision   uint8  `json:"precision,omitempty"`
-	Scale       uint8  `json:"scale,omitempty"`
+	Name        string   `json:"name"`
+	Type        string   `json:"type"`
+	Description string   `json:"description"`
+	Nullable    bool     `json:"nullable"`
+	Precision   uint8    `json:"precision,omitempty"`
+	Scale       uint8    `json:"scale,omitempty"`
+	Dim         int      `json:"dim,omitempty"`
+	Labels      []string `json:"labels,omitempty"`
+	Kind        string   `json:"kind,omitempty"`
+	ScaleMin    *float64 `json:"scale_min,omitempty"`
+	ScaleMax    *float64 `json:"scale_max,omitempty"`
 }
 
 // ParseSchemaJSON decodes an explicit schema document (a JSON array of
@@ -68,6 +80,7 @@ func SchemaFromFields(defs []SchemaFileField) (*encoding.Schema, error) {
 			map[string]any{"reason": "empty"})
 	}
 	fields := make([]encoding.Field, len(defs))
+	var vectors []encoding.VectorField
 	for i, d := range defs {
 		ft, err := ParseSchemaFieldType(d.Name, d.Type)
 		if err != nil {
@@ -85,9 +98,61 @@ func SchemaFromFields(defs []SchemaFileField) (*encoding.Schema, error) {
 			f.Scale = d.Scale
 		}
 		fields[i] = f
+		v, err := schemaFileVector(i, ft, d)
+		if err != nil {
+			return nil, err
+		}
+		if v != nil {
+			vectors = append(vectors, *v)
+		}
 	}
-	encx.LayoutFields(fields)
-	return &encoding.Schema{Fields: fields}, nil
+	s := &encoding.Schema{Fields: fields, Vectors: vectors}
+	if err := s.ValidateVectors(); err != nil {
+		// Same rule the writer applies, raised at parse with the
+		// schema-document code rather than at the first write.
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_IMPORT_SCHEMA_INVALID,
+			"explicit schema: "+err.Error(),
+			map[string]any{"reason": "vector_invalid", "error": err.Error()})
+	}
+	encx.LayoutFields(s)
+	return s, nil
+}
+
+// schemaFileVector reads entry i's vector keys: the VECTORS metadata of
+// a vec field (nil for any other type). A vec field without dim, a
+// vector key on another type, an unknown kind or a half scale range is
+// PULSE_IMPORT_SCHEMA_INVALID naming the field.
+func schemaFileVector(i int, ft encoding.FieldType, d SchemaFileField) (*encoding.VectorField, error) {
+	bad := func(reason, msg string) error {
+		return errors.NewCodedErrorWithDetails(errors.PULSE_IMPORT_SCHEMA_INVALID,
+			fmt.Sprintf("schema field %q: %s", d.Name, msg),
+			map[string]any{"reason": reason, "field": d.Name, "type": ft.String()})
+	}
+	hasVectorKeys := d.Dim != 0 || d.Labels != nil || d.Kind != "" || d.ScaleMin != nil || d.ScaleMax != nil
+	if !ft.IsVector() {
+		if hasVectorKeys {
+			return nil, bad("vector_keys_on_scalar", "dim / labels / kind / scale_min / scale_max apply to vec_f32 / vec_f64 only")
+		}
+		return nil, nil
+	}
+	if d.Dim == 0 {
+		return nil, bad("vector_dim_missing", fmt.Sprintf("a %s field needs \"dim\" (%d..%d): its width is element x dim", ft, encoding.MinVectorDim, encoding.MaxVectorDim))
+	}
+	v := &encoding.VectorField{FieldIndex: i, Dim: d.Dim, Labels: d.Labels}
+	if d.Kind != "" {
+		k, ok := encoding.ParseVectorKind(d.Kind)
+		if !ok {
+			return nil, bad("vector_kind_unknown", fmt.Sprintf("kind %q is not one of measure, scale, composition, binary", d.Kind))
+		}
+		v.Kind = k
+	}
+	if (d.ScaleMin == nil) != (d.ScaleMax == nil) {
+		return nil, bad("vector_scale_incomplete", "a scale range needs both scale_min and scale_max")
+	}
+	if d.ScaleMin != nil {
+		v.HasScale, v.ScaleMin, v.ScaleMax = true, *d.ScaleMin, *d.ScaleMax
+	}
+	return v, nil
 }
 
 // LoadSchemaFile reads an explicit schema document from path on fs and
@@ -104,9 +169,9 @@ func LoadSchemaFile(fs afero.Fs, path string) (*encoding.Schema, error) {
 // `import schema-template` output — in the SchemaFileField shape
 // ParseSchemaJSON reads back, so a template round-trips through the same
 // decoder. Descriptions are left empty for the author to fill in;
-// decimal128 fields carry their precision and scale (omitted for every
-// other type), without which the document could not be imported as
-// written.
+// decimal128 fields carry their precision and scale and vector fields
+// their dim, labels, kind and scale range (omitted for every other
+// type), without which the document could not be imported as written.
 func SchemaFileTemplate(schema *encoding.Schema) []SchemaFileField {
 	out := make([]SchemaFileField, len(schema.Fields))
 	for i := range schema.Fields {
@@ -114,6 +179,15 @@ func SchemaFileTemplate(schema *encoding.Schema) []SchemaFileField {
 		out[i] = SchemaFileField{Name: f.Name, Type: f.Type.String(), Nullable: f.Nullable}
 		if f.Type.IsDecimal() {
 			out[i].Precision, out[i].Scale = f.Precision, f.Scale
+		}
+		if v, ok := schema.Vector(i); ok {
+			out[i].Dim = v.Dim
+			out[i].Labels = append([]string(nil), v.Labels...)
+			out[i].Kind = v.Kind.String()
+			if v.HasScale {
+				lo, hi := v.ScaleMin, v.ScaleMax
+				out[i].ScaleMin, out[i].ScaleMax = &lo, &hi
+			}
 		}
 	}
 	return out

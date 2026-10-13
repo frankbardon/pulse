@@ -162,7 +162,7 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema, inst *Instance
 		})
 	}
 
-	applied = append(applied, resolveMetricDefaults(req, inst)...)
+	applied = append(applied, resolveMetricDefaults(req, schema, inst)...)
 
 	return applied
 }
@@ -175,8 +175,8 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema, inst *Instance
 // slice is copied before the first write, so the caller's backing array
 // never changes. A slot whose operator inst hides is left alone. No
 // kind, no fill: MAT_DISTANCE then keeps its implicit euclidean.
-func resolveMetricDefaults(req *types.Request, inst *InstanceSnapshot) []descriptor.DefaultApplied {
-	fills := vectors.MatrixMetricDefaults(req)
+func resolveMetricDefaults(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) []descriptor.DefaultApplied {
+	fills := vectors.MatrixMetricDefaults(req, schema)
 	var applied []descriptor.DefaultApplied
 	copied := false
 	for _, d := range fills {
@@ -201,7 +201,7 @@ func resolveMetricDefaults(req *types.Request, inst *InstanceSnapshot) []descrip
 			Reason:   reason + ")",
 		})
 	}
-	return append(applied, resolveAttributeMetricDefaults(req, inst)...)
+	return append(applied, resolveAttributeMetricDefaults(req, schema, inst)...)
 }
 
 // resolveAttributeMetricDefaults fills the metric of every comparison
@@ -212,8 +212,8 @@ func resolveMetricDefaults(req *types.Request, inst *InstanceSnapshot) []descrip
 // The Attributes slice and each filled *Attribute are copied before the
 // write, so the caller's request never changes. A slot whose operator
 // inst hides is left alone.
-func resolveAttributeMetricDefaults(req *types.Request, inst *InstanceSnapshot) []descriptor.DefaultApplied {
-	fills := vectors.AttributeMetricDefaults(req)
+func resolveAttributeMetricDefaults(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) []descriptor.DefaultApplied {
+	fills := vectors.AttributeMetricDefaults(req, schema)
 	var applied []descriptor.DefaultApplied
 	copied := false
 	for _, d := range fills {

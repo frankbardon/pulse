@@ -97,7 +97,7 @@ func WidenSchemaSetField(s *encoding.Schema, field string, target encoding.Field
 	if err := CheckSetWiden(s.Fields[idx].Type, target); err != nil {
 		return nil, err
 	}
-	out := &encoding.Schema{Fields: append([]encoding.Field(nil), s.Fields...)}
+	out := &encoding.Schema{Fields: append([]encoding.Field(nil), s.Fields...), Vectors: CloneVectors(s.Vectors)}
 	out.Fields[idx].Type = target
 	offsets, _ := widenFieldOffsets(out)
 	for i := range out.Fields {
@@ -249,8 +249,8 @@ func widenSetFieldStream(dst io.Writer, src io.Reader, field string, target enco
 			"widen: cohort schema has a zero-byte record stride")
 	}
 
-	srcWidth := from.ByteSize()
-	dstWidth := target.ByteSize()
+	srcWidth := srcSchema.FieldWidth(idx)
+	dstWidth := dstSchema.FieldWidth(idx)
 	srcSlot := srcOffsets[idx]
 	dstSlot := dstOffsets[idx]
 
@@ -308,21 +308,20 @@ func widenSetFieldStream(dst io.Writer, src io.Reader, field string, target enco
 }
 
 // widenFieldOffsets derives each field's byte offset within the record
-// payload from the field TYPES, together with the total payload width
+// payload from the field widths, together with the total payload width
 // (the stride minus any trailing null bitmap).
 //
 // It deliberately ignores the Field.ByteOffset the schema block carries:
-// stride is a pure function of the type bytes, the stored offset is a
-// cache of that derivation, and a widen is precisely the operation that
-// invalidates the cache. Bit-packed fields report ByteSize()==0 but
-// occupy one whole byte each on the wire, matching Schema.RecordByteSize
-// — the per-type width is CellWidth, the canonical layout's
+// stride is a pure function of the schema, the stored offset is a cache
+// of that derivation, and a widen is precisely the operation that
+// invalidates the cache. The per-field width is Schema.FieldWidth (one
+// whole byte for a bit-packed field), the canonical layout's
 // (LayoutFields), so a widened schema lays out exactly as import does.
 func widenFieldOffsets(s *encoding.Schema) (offsets []int, payload int) {
 	offsets = make([]int, len(s.Fields))
 	for i := range s.Fields {
 		offsets[i] = payload
-		payload += CellWidth(s.Fields[i].Type)
+		payload += s.FieldWidth(i)
 	}
 	return offsets, payload
 }

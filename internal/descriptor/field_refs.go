@@ -95,6 +95,9 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 // FieldRefRefusals walks every slot that names a field, in PIPELINE
 // order, against the columns available at that point:
 //
+//  0. vector fields — a native vec_f32 / vec_f64 field named in a slot
+//     that reads one value (vectorScalarRefusals):
+//     PULSE_VECTOR_FIELD_NOT_SCALAR, one per slot, reported first;
 //  1. features — the schema plus each earlier feature's outputs
 //     (Field; FEAT_TARGET_ENCODE params.target; FEAT_TRAIN_TEST_SPLIT
 //     params.stratify);
@@ -225,6 +228,11 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	for i := range schema.Fields {
 		w.cols[schema.Fields[i].Name] = true
 	}
+
+	// 0. A native vector field named in a slot that reads one value
+	// (vectorScalarRefusals) — PULSE_VECTOR_FIELD_NOT_SCALAR, judged
+	// first so it wins over the slot's own type refusals.
+	w.out = append(w.out, vectorScalarRefusals(req, schema, snap, inst)...)
 
 	// 1. Features.
 	for _, feat := range req.Features {
@@ -567,7 +575,8 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 			})
 			// Orderability (IsOrderableType) is judged by the schema
 			// type; a derived output column carries none.
-			if f := schema.Field(ok.Field); f != nil && !IsOrderableType(f.Type) {
+			// A vector field is step 0's refusal (vectorScalarRefusals).
+			if f := schema.Field(ok.Field); f != nil && !f.Type.IsVector() && !IsOrderableType(f.Type) {
 				w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PULSE_WINDOW_INVALID,
 					"window["+idx+"]: order_by field "+ok.Field+" is not orderable (type "+f.Type.String()+")",
 					map[string]any{"window_index": i, "field": ok.Field, "field_type": f.Type.String()}))

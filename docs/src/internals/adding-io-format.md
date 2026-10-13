@@ -173,6 +173,20 @@ with `PULSE_IMPORT_SCHEMA_KEY_LATE` (`column`, `row`, `columns`) at the
 first record carrying a key the header lacks, instead of dropping it.
 `jsonshared.LateKeys` holds the shared state and refusal.
 
+A format whose cells can hold NATIVE lists (Arrow, Parquet, JSON) should
+implement the optional `iocore.ListAwareReader`
+(`RowList(col int, dst *iocore.ListCell) error`, valid inside the
+`ReadRows` callback; return nil unless the source failed to READ the
+cell): it hands a column-less vector declaration (`--vector NAME`)
+the cell's elements typed — `ListNull`, `ListValues` (NaN at a null
+element), `ListNotList` or `ListNonNumeric` — so they never round-trip
+through the pipe-joined text the set ladder reads. Reuse
+`internal/io/arrow.ListCellAt` over an Arrow array and
+`jsonshared.ListCellOf` over a decoded JSON value. The import consults
+it only under such a declaration and needs a `ResetReader` (it probes
+the dim, then rewinds); a format without it refuses the declaration
+(`no_columns`). Cover it in `internal/io/veclist`.
+
 ### Native datetimes: instant or wall clock
 
 The row path is text, and an import source zone (`ImportJob.SourceTZ`)
@@ -348,6 +362,186 @@ is the pre-existing behaviour and is recoverable from the source;
 inventing an empty-string value where the cohort held a null would be
 new data. `internal/io/nullcell/` pins every row of that table, including the
 three gaps — flipping an entry fails the matrix.
+
+### Native list cells: `io.ListAwareReader`
+
+A source whose cells can hold a typed numeric list — Arrow
+FixedSizeList / LIST, Parquet LIST, a JSON array, or an embedder's own
+in-memory or remote source — implements the optional
+`io.ListAwareReader` so a column-less vector declaration
+(`ImportJob.Vectors` entry carrying only a `Name`; CLI `--vector NAME`)
+reads that column as one native `vec_f64` / `vec_f32` field without the
+elements ever round-tripping through the `[]string` row:
+
+```go
+type ListAwareReader interface {
+    Reader
+    RowList(col int, dst *ListCell) error
+}
+```
+
+The contract, which an embedder's reader gets on exactly the same
+terms as the built-ins:
+
+- **When.** `RowList` is called only under a column-less declaration,
+  only inside the `ReadRows` callback, for the row that call was
+  handed, and only for the declared column (`col` indexes the header
+  `ReadHeader` returned). It is never called for a cell the source
+  declares null through `io.NullAwareReader.RowNulls`. Without such a
+  declaration an import never calls it, so implementing it moves no
+  byte of any other import. The cell's row TEXT is never read under the
+  declaration — render it however the source likes.
+- **Rewind.** The dim is probed before the import pass (rows are read
+  until the column shows a non-null list, then `Reset` and `ReadHeader`
+  again), so the reader must also be an `io.ResetReader`.
+- **The cell.** Fill `dst` with `Reset(state)` then `Append(v, null)`;
+  both reuse the slices' capacity, and the import hands the same
+  `ListCell` back every row, so never retain it. `io.ListNull` is a
+  null vector; `io.ListValues` carries `Values` (and `Nulls`, which may
+  be left nil when no element is null, else exactly `len(Values)`).
+  A vector has no per-element null: a null element is stored as NaN
+  whatever `Values` holds there, and a list whose elements are all null
+  is a null vector. Every list must have the first non-null list's
+  length.
+- **Refusals.** Two channels, never mixed. A cell the source READ but
+  the vector cannot hold is reported through `State` with a nil error
+  — `io.ListNotList` (with `BadValue`) or `io.ListNonNumeric` (with the
+  0-based `BadIndex` and `BadValue`) — and the import refuses with
+  `PULSE_IMPORT_VECTOR_INVALID` (`not_a_list`, `element_not_numeric`);
+  a cell outside the contract (an undeclared `State`, a `Nulls` of the
+  wrong length) is `malformed_list_cell`. A cell the source FAILED to
+  read (I/O, decode, a corrupt batch) is `RowList`'s non-nil error: the
+  import aborts — in the dim probe as in the row pass — with no cohort
+  written, and the error travels exactly as a `ReadRows` failure does,
+  never restamped. A `*errors.CodedError` keeps its code (`errors.As`),
+  its details gaining `vector` / `column` / `row` where it set none; an
+  uncoded error stays uncoded, wrapped with the vector, column and row
+  in its message. `dst` is ignored when an error is returned. The
+  built-in list readers return nil (their read failures surface from
+  `ReadRows`). A source WITHOUT the interface refuses the declaration
+  with `no_columns`.
+
+`io/list_reader_test.go` pins a custom reader against the NDJSON list
+import of the same data, byte for byte, and its `RowList` read failures
+(plain, coded, and during the dim probe), and
+`internal/embeddersmoke` proves the interface is reachable from an
+external module.
+
+### Native list cells on export: `io.ListAwareWriter`
+
+The write-side peer. A `vec_f32` / `vec_f64` field is one cell in the
+record but not one column in every target, so `ExportJob.Run` asks the
+writer which shape it takes:
+
+```go
+type ListAwareWriter interface {
+    Writer
+    SetListColumns(cols []ListColumn)
+}
+```
+
+- **With it** (the built-in NDJSON, JSON array, Arrow and Parquet
+  writers): `SetListColumns` is called once, before `WriteHeader`, when
+  a projected field is a vector. Each `io.ListColumn` names the
+  header position (`Index`), the field, its vector type, dim, element
+  labels and nullable flag. That column's `WriteRow` cell is a
+  `[]float64` of exactly `Dim` elements (`vec_f32` widened exactly;
+  NaN / ±Inf verbatim) or `nil` for a null vector, and the slice is
+  reused by the next row — encode or copy it before returning. The
+  built-ins write a JSON array (a non-finite element and a null vector
+  as `null`) or a `FixedSizeList<float32|float64, dim>`; Parquet writes
+  a NULLABLE vector as `LIST<…>` because pqarrow cannot encode a null
+  fixed-size list. The list import (`--vector NAME`) reads every one of
+  these shapes back to the same vector.
+- **Without it** the export expands each vector into `Dim` scalar
+  columns named `<field>_<label>` (`<field>_1..N` with no labels) in the
+  field's place; each cell is the element's text (the scalar `f32` /
+  `f64` rendering) and `nil` for a NaN element or a null vector. A
+  `SchemaAwareWriter` is handed the schema with each vector replaced by
+  those nullable scalar fields. That schema is NOT one field per header
+  column — projection and a `_label` sibling move columns off their
+  field's index — so never type a column by its position: take the
+  export's column plan through `io.ColumnAwareWriter` (next section).
+  An expanded name equal to any other column refuses the export with
+  `PULSE_EXPORT_COLUMN_COLLISION` before the header is written.
+- **Projection and labels** work on fields: `Includes` names the vector,
+  never an element column, and a `_label` sibling lands after its field
+  whichever shape the vector takes. A `CohortWriter` (`.sav`) lays out
+  its own variables — one numeric per element, the element label as the
+  variable label, under the ordinary SPSS name policy.
+- **Predict.** `ExportJob.Predict` with a Target reports the header it
+  would write for a vector cohort on `PredictReport.Columns` (and
+  refuses an expansion collision on the same terms).
+
+`io/list_writer_test.go` pins a custom writer against the NDJSON export
+of the same cohort, and `internal/embeddersmoke` proves the interface is
+reachable from an external module.
+
+### Typing columns on export: `io.ColumnAwareWriter`
+
+A typed target — one with a type per column, like Arrow, Parquet or a
+spreadsheet — must know which field each header column comes from, and
+the header is not the schema's field list: `ExportJob.Includes` drops
+fields, a label augment inserts a `<field>_label` text column right
+after its field, and a vector is expanded into dim element columns
+unless the writer is a `ListAwareWriter`. Typing column `i` from the
+schema's `i`-th field typed columns with another field's type — every
+row failed in Arrow / Parquet and Excel wrote mis-formatted cells, and
+it was silent whenever the value happened to parse. So the export hands
+typed writers its explicit column plan:
+
+```go
+type ColumnAwareWriter interface {
+    Writer
+    SetExportColumns(cols []ExportColumn)
+}
+
+type ExportColumn struct {
+    Name    string           // the header name
+    Kind    ExportColumnKind // ExportColumnField | Label | Element | List
+    Source  string           // the source field (the augmented field, the vector)
+    Element int              // 0-based vector element, -1 for other kinds
+    Field   *encoding.Field  // what TYPES the column; nil = text
+}
+```
+
+- **When.** `ExportJob.Run` calls `SetExportColumns` once per export,
+  vector or not, before `WriteHeader`; `cols[i]` describes the `i`-th
+  name `WriteHeader` receives. The order a writer sees is
+  `SetPulseSchema`, `SetExplicitNulls`, `SetOverlays`,
+  `SetExportColumns`, `SetListColumns` (only when a vector rides as a
+  native list), `WriteHeader`, then the rows. A `CohortWriter` is never
+  called (it lays out its own columns), nor is any writer under
+  `ConvertJob` (its columns are source text with no field behind them)
+  or `ExportJob.Predict`. The plan, and the fields it points at, are
+  the writer's to retain, read-only.
+- **The typing field.** `ExportColumnField` and `ExportColumnList` are
+  typed by the source field itself; `ExportColumnElement` by a
+  synthesized nullable `f32` / `f64` field named after the column (a
+  NaN element is a null cell); `ExportColumnLabel` — and a field whose
+  cells a label REPLACE binding rewrites to text (a decimal is never
+  replaced) — has a nil `Field`: write it as text.
+- **Resolving it.** `io.ColumnFields(cols, schema, header)` returns one
+  `*encoding.Field` per header column. With a plan whose names match
+  the header it returns the plan's fields; otherwise it falls back to
+  the schema field of the SAME NAME (nil — text — for a name with no
+  field). Call it in `WriteHeader` with whatever the writer was handed,
+  and a writer implementing both `ColumnAwareWriter` and
+  `SchemaAwareWriter` types correctly either way.
+- **Without it.** A typed writer that implements only
+  `SchemaAwareWriter` gets no plan: type each header column by the
+  schema field of the same NAME (`io.ColumnFields(nil, schema,
+  header)`), never by its position, and treat a name with no field —
+  a `_label` column — as text. That fallback cannot see a label
+  REPLACE, so a replaced numeric column will hold label text in a
+  numeric-typed column; implement `ColumnAwareWriter` to get it right.
+
+The built-in Excel, Arrow and Parquet writers implement it.
+`ExportJob.Predict`'s `PredictReport.Columns` lists the same plan's
+names. `io/column_writer_test.go` pins an external writer's plan for a
+projected, `_label`-augmented, vector-expanded export (and the
+list-aware variant), and `internal/embeddersmoke` proves the interface
+is reachable from an external module.
 
 ### Authoritative schemas: `io.SchemaAwareReader`
 

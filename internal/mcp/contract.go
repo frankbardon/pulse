@@ -110,6 +110,11 @@ type ImportIn struct {
 	// slot beside them.
 	Groups        []pio.GroupDecl `json:"groups,omitempty" jsonschema:"Parent-group declarations, one object per group: {key: [fields...], members: [fields...]}. Each distinct member tuple is stored ONCE and every row carries a 4-byte index instead — use it when the source is a denormalized join, where a parent's attributes (members) repeat on every child row and are determined by the parent's ID (key). The import FAILS with PULSE_GROUP_MEMBER_NOT_CONSTANT if a member varies within its key; omit key for a plain tuple group with no such check. Take declarations from suggest_groups candidates (their key/members are this exact shape) rather than guessing. Weak groups are reported, not refused: group_warnings carries PULSE_GROUP_TOO_NARROW (dropped) or PULSE_DEDUP_LOW_RATIO (written, under 2 rows per distinct tuple or no smaller). Unknown keys inside an entry are rejected with PULSE_GROUP_DECLARATION_INVALID. Writes format 0x02, which older pulse binaries cannot read. Not allowed on a .pulse passthrough."`
 	SuggestGroups bool            `json:"suggest_groups,omitempty" jsonschema:"Also detect candidate parent groups and return them as group_candidates, each measured over every row (ratio, resident dictionary bytes, projected file size, verdict) with key/members ready to pass back as a groups entry. Suggests only: the import still writes exactly what groups declares. Costs one extra full pass over the source. The loop is: import with suggest_groups, read group_candidates (the suggested list is the non-overlapping viable set), then re-import with groups and overwrite=true."`
+	// Vectors / VectorKinds are io.ImportJob.Vectors in the CLI's own
+	// --vector / --vector-kind syntax, parsed by the same
+	// io.ParseVectorDecl / io.ApplyVectorKinds.
+	Vectors     []string `json:"vectors,omitempty" jsonschema:"Fold sibling columns into one native vector field (vec_f64 by default), one string per vector in the CLI --vector syntax: 'NAME:COL1,COL2,...' (element order as listed), 'NAME:/REGEX/' (matching columns in source order; the first capture group labels each element, else the full column name) or 'NAME:f32:...' for vec_f32; a bare 'NAME' / 'NAME:f32' reads the native list column NAME (Arrow FixedSizeList / LIST, Parquet LIST, an NDJSON / JSON array; no labels) as a vec_f64 / vec_f32 field whose dim is the list length — every list the same length, numbers and nulls only (a null element is NaN), csv / tsv / excel refused. Folds 2..1024 columns; the members vanish and the vector takes the first member's position. Per row: all element cells empty = null vector, some empty = NaN elements, a non-numeric cell fails the row (PULSE_IMPORT_ROW_ERROR). Refused before any row with PULSE_IMPORT_VECTOR_INVALID (details.reason): dim out of range, a regex matching nothing, a column claimed twice (two vectors, or a vector and a groups entry), an unknown column; a list column holding a variable-length, non-numeric or out-of-range list. Requests then name the vector field directly in vector slots. Writes format 0x02. Not allowed on a .pulse passthrough."`
+	VectorKinds []string `json:"vector_kinds,omitempty" jsonschema:"Kind of a declared vector, one string per vector: 'NAME:KIND' or 'NAME:KIND:MIN:MAX' with KIND one of measure, scale, composition, binary and MIN:MAX the declared value range (e.g. 'brand_rating:scale:1:7'). Never inferred. A name no vectors entry declares is PULSE_IMPORT_VECTOR_INVALID."`
 	// Schema / IgnoreExtra / Float are io.ImportJob's explicit-schema and
 	// float-width options, the CLI's --schema / --ignore-extra / --float.
 	// None is persisted on the sidecar (see imports.Spec.Schema).
@@ -126,11 +131,18 @@ type ImportIn struct {
 // layout resolve identically on both surfaces.
 type ImportSchemaField struct {
 	Name        string `json:"name" jsonschema:"Field name; must equal a source column header exactly (case and whitespace included). Matched BY NAME, never position."`
-	Type        string `json:"type" jsonschema:"Field type name as pulse import schema-template emits it: u4, u8, u16, u32, u64, f32, f64, date, datetime, packed_bool, categorical_u8/u16/u32, decimal128, set_u8/u16/u32/u64/u128/u256. An unknown name is PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN, never coerced."`
+	Type        string `json:"type" jsonschema:"Field type name as pulse import schema-template emits it: u4, u8, u16, u32, u64, f32, f64, date, datetime, packed_bool, categorical_u8/u16/u32, decimal128, set_u8/u16/u32/u64/u128/u256, vec_f32/vec_f64 (with dim). An unknown name is PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN, never coerced."`
 	Nullable    bool   `json:"nullable,omitempty" jsonschema:"Whether the field may hold null. Default false: a null in it is PULSE_IMPORT_ROW_ERROR, never a silent widening."`
 	Description string `json:"description,omitempty" jsonschema:"Field description stored in the cohort header (max 1000 bytes)."`
 	Precision   uint8  `json:"precision,omitempty" jsonschema:"decimal128 only: total significant digits."`
 	Scale       uint8  `json:"scale,omitempty" jsonschema:"decimal128 only: digits after the decimal point."`
+	// Dim / Labels / Kind / ScaleMin / ScaleMax are the vector keys of
+	// io.SchemaFileField (vec_f32 / vec_f64 only).
+	Dim      int      `json:"dim,omitempty" jsonschema:"vec_f32 / vec_f64 only, and REQUIRED for them: element count, 2..1024. A vec_f32 / vec_f64 field also needs a vectors entry of the same name (its columns, or a native list column)."`
+	Labels   []string `json:"labels,omitempty" jsonschema:"vec_f32 / vec_f64 only: one name per element (exactly dim). Absent takes the labels the vec_f32 / vec_f64 vectors entry derives (none for a list column)."`
+	Kind     string   `json:"kind,omitempty" jsonschema:"vec_f32 / vec_f64 only: measure, scale, composition or binary."`
+	ScaleMin *float64 `json:"scale_min,omitempty" jsonschema:"vec_f32 / vec_f64 only: declared value-range lower bound; needs scale_max."`
+	ScaleMax *float64 `json:"scale_max,omitempty" jsonschema:"vec_f32 / vec_f64 only: declared value-range upper bound; needs scale_min."`
 }
 
 // There is deliberately no spss_missing slot on ImportIn. The mode's default

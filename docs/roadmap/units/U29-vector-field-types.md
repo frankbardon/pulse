@@ -4,7 +4,7 @@ slug: vector-field-types
 title: "Cohorts can store fixed-length numeric vectors natively"
 track: Vector & matrix
 size: L
-status: not-started
+status: done
 depends_on: [U16, U27]
 soft_depends_on: []
 blocks: [U30]
@@ -30,11 +30,11 @@ branch: vector-field-types
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#151** (10. Vector & matrix — operators › E7 — Native vector field types) `vec_f32` / `vec_f64` encoding and the `VECTORS` schema extension section (tag 2); `ReadVector` accessor
-- [ ] **#152** (10. Vector & matrix — operators › E7 — Native vector field types) Compatibility test: older cohorts unchanged; older binaries refuse loudly
-- [ ] **#153** (10. Vector & matrix — operators › E7 — Native vector field types) Import `--vector` folding (CSV, NDJSON, Arrow, Parquet)
-- [ ] **#154** (10. Vector & matrix — operators › E7 — Native vector field types) Export expansion; shard cohesion; parent-group membership
-- [ ] **#155** (10. Vector & matrix — operators › E7 — Native vector field types) `type-vec-f32.md`, `type-vec-f64.md`, `byte-layout.md`, CLAUDE.md byte-layout invariants (20 → 22 types)
+- [x] **#151** (10. Vector & matrix — operators › E7 — Native vector field types) `vec_f32` / `vec_f64` encoding and the `VECTORS` schema extension section (tag 2); `ReadVector` accessor
+- [x] **#152** (10. Vector & matrix — operators › E7 — Native vector field types) Compatibility test: older cohorts unchanged; older binaries refuse loudly
+- [x] **#153** (10. Vector & matrix — operators › E7 — Native vector field types) Import `--vector` folding (CSV, NDJSON, Arrow, Parquet)
+- [x] **#154** (10. Vector & matrix — operators › E7 — Native vector field types) Export expansion; shard cohesion; parent-group membership
+- [x] **#155** (10. Vector & matrix — operators › E7 — Native vector field types) `type-vec-f32.md`, `type-vec-f64.md`, `byte-layout.md`, CLAUDE.md byte-layout invariants (20 → 22 types)
 
 ## Scope
 
@@ -83,6 +83,19 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(vector-field-type
 - `.claude/reference/byte-layout.md` (load before starting)
 - CLAUDE.md Byte-layout invariants
 - `docs/src/format/field-types.md`; `docs/src/cli/flags.md` (`--vector`)
+
+## Handed on
+
+| Item | Destination |
+|---|---|
+| Vector synthesis: every synth surface refused a `vec_*` field with `PULSE_SYNTH_VECTOR_UNSUPPORTED` | done in U29 (#450, story F3): vectors are generated, captured, augmented and scored; the refusal code was removed before release |
+| Public per-output-column export plan for external writers (`iocore.ExportColumn` / `ColumnAwareWriter`) | Done in U29 (not handed on): `io.ColumnAwareWriter`, `io.ExportColumn`, `io.ExportColumnKind` + constants, `io.ColumnFields`; #451 ticked in [U34](U34-extension-validation.md) |
+
+## Landed deviations
+
+- Owner decisions during the unit: vector import is not feature-profile gated (only the matrix operators that consume vectors are); `io.ListAwareReader` / `ListCell` / `ListState` and `io.ListAwareWriter` are public (`RowList` returns an error for a cell the source failed to read); the export column plan (`io.ColumnAwareWriter` / `ExportColumn` / `ColumnFields`) is public; `extend.Record.NumericValue` resolves native element members `emb[k]`; `pulse_recommend` drafts native vectors in vector slots.
+- Found and fixed in-unit: presence slots counted every native vector as null; Excel / Arrow / Parquet export typed columns by position (projected or `_label`-augmented exports failed or mis-formatted).
+- The effort grew past the original three epics (format, engine, import/export, docs); the migration guide's "Changes from U29" is the complete list.
 
 ## Human inputs & decisions
 

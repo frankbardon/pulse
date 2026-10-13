@@ -139,7 +139,7 @@ func TestComparisonParams_Rules(t *testing.T) {
 			if c.fitted != (len(got[0].FitOn) > 0) && c.name == "fit_on beside a fitted metric" {
 				t.Errorf("fit_on %v not carried", got[0].FitOn)
 			}
-			if f := ComparisonFitted(c.attr.Type, c.attr, req.Vectors); f != c.fitted {
+			if f := ComparisonFitted(c.attr.Type, c.attr, req.Vectors, nil); f != c.fitted {
 				t.Errorf("ComparisonFitted = %v, want %v", f, c.fitted)
 			}
 			// The canonical rewrite over the literal members decodes back
@@ -254,7 +254,7 @@ func TestComparisonKindReadings(t *testing.T) {
 			{Type: types.ATTR_VEC_DISTANCE, Vector: "vcomp", Params: json.RawMessage(`{"metric":"euclidean","reference":[1,2]}`)},
 		},
 	}
-	fills := AttributeMetricDefaults(req)
+	fills := AttributeMetricDefaults(req, nil)
 	if len(fills) != 2 || fills[0].Index != 0 || fills[0].Metric != "correlation" || fills[1].Index != 1 || fills[1].Metric != "std_euclidean" {
 		t.Fatalf("fills = %+v, want [0]=correlation, [1]=std_euclidean", fills)
 	}
@@ -265,7 +265,7 @@ func TestComparisonKindReadings(t *testing.T) {
 	if err := json.Unmarshal(fills[1].Params, &back); err != nil || back.Metric != "std_euclidean" || !reflect.DeepEqual(back.Reference, []float64{1, 2}) {
 		t.Errorf("filled params %s", fills[1].Params)
 	}
-	issues := MetricUnsuitedIssues(req)
+	issues := MetricUnsuitedIssues(req, nil)
 	var slots []string
 	for _, w := range issues {
 		slots = append(slots, w.Details["slot"].(string))
@@ -274,7 +274,7 @@ func TestComparisonKindReadings(t *testing.T) {
 		t.Errorf("unsuited slots %v, want %v", slots, want)
 	}
 	for i, want := range []bool{false, true, false, false, false, false} {
-		if got := ComparisonFitted(req.Attributes[i].Type, req.Attributes[i], req.Vectors); got != want {
+		if got := ComparisonFitted(req.Attributes[i].Type, req.Attributes[i], req.Vectors, nil); got != want {
 			t.Errorf("ComparisonFitted[%d] = %v, want %v", i, got, want)
 		}
 	}

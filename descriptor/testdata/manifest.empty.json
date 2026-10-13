@@ -121,7 +121,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 89,
+    "error_codes_count": 90,
     "error_domains": [
       "CLI",
       "DATA",
@@ -216,6 +216,7 @@
       "PULSE_SUPPRESS_ADVISORY_UNKNOWN",
       "PULSE_TEST_UNKNOWN_TYPE",
       "PULSE_TIMEZONE_UNKNOWN",
+      "PULSE_VECTOR_FIELD_NOT_SCALAR",
       "SERVICE_INTERNAL",
       "SERVICE_REGISTRY",
       "SERVICE_RESOURCE",
@@ -355,6 +356,16 @@
         "name": "set_u256",
         "categorical": false,
         "sharded_capable": true
+      },
+      {
+        "name": "vec_f32",
+        "categorical": false,
+        "sharded_capable": true
+      },
+      {
+        "name": "vec_f64",
+        "categorical": false,
+        "sharded_capable": true
       }
     ],
     "skills": [
@@ -376,7 +387,7 @@
       },
       {
         "name": "cohort-schema-design",
-        "description": "Entry point for .pulse cohort schemas — the 20-type field matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
+        "description": "Entry point for .pulse cohort schemas — the 22-type field matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
       },
       {
         "name": "cohort-sharding",
@@ -579,6 +590,18 @@
         "description": "1-byte unsigned integer; fits cardinals through 255."
       },
       {
+        "name": "type-vec-f32",
+        "description": "Fixed-dim vector of float32 elements (dim 2..1024) stored as one field, with its kind, scale range and labels in the schema."
+      },
+      {
+        "name": "type-vec-f64",
+        "description": "Fixed-dim vector of float64 elements (dim 2..1024) stored as one field, with its kind, scale range and labels in the schema."
+      },
+      {
+        "name": "vector-fields",
+        "description": "Native vector fields (vec_f32 / vec_f64) end to end — importing a battery or a list column into one field, naming it directly in vector slots, f[k] element references, how its member identity differs from a scalar twin, null vs NaN, export shapes, and what refuses it. Use when a cohort stores embeddings or a rating battery as one field."
+      },
+      {
         "name": "window-design",
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
@@ -772,4 +795,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4cb6954370158041499a4506c7915c91930071c8237fc74665b89acc6db96b01
+// golden-hash: f1a71ce6e52f50bc73bf6388141f881add73c93b6b686c585d4c0304eb57a9d3

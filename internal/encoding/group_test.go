@@ -332,7 +332,7 @@ func TestGroupedSchema_StrideBitmapAndCount(t *testing.T) {
 					continue
 				}
 				rowFields++
-				wantBody += onWireWidth(f.Type)
+				wantBody += gs.FieldWidth(i)
 				rowNullable = rowNullable || f.Nullable
 			}
 			wantBM := 0

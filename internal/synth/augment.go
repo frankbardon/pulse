@@ -176,7 +176,6 @@ func buildMergedSchema(src, gen *encoding.Schema) (*encoding.Schema, error) {
 	}
 
 	fields := make([]encoding.Field, len(src.Fields)+1)
-	byteOffset := 0
 	for i := range src.Fields {
 		sf, gf := &src.Fields[i], &gen.Fields[i]
 		if sf.Name != gf.Name || sf.Type != gf.Type {
@@ -194,6 +193,15 @@ func buildMergedSchema(src, gen *encoding.Schema) (*encoding.Schema, error) {
 				map[string]any{"name": sf.Name,
 					"source_precision": sf.Precision, "source_scale": sf.Scale,
 					"profile_precision": gf.Precision, "profile_scale": gf.Scale})
+		}
+		if sf.Type.IsVector() && src.VectorDim(i) != gen.VectorDim(i) {
+			// The dim is the vector's stride: a generated vector of a
+			// different length cannot share the source's column, and
+			// re-encoding one at the other's width would misalign every
+			// later field of every row.
+			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH,
+				"profile-derived vector field dim does not match source cohort field",
+				map[string]any{"name": sf.Name, "source_dim": src.VectorDim(i), "profile_dim": gen.VectorDim(i)})
 		}
 		if sf.Type.IsSet() {
 			// Both sides' dictionaries must name the exact same option
@@ -237,7 +245,6 @@ func buildMergedSchema(src, gen *encoding.Schema) (*encoding.Schema, error) {
 		} else if sf.Type.HasDictionary() {
 			f.Dictionary = encoding.NewDictionary()
 		}
-		f.ByteOffset, f.BitPosition = nextFieldLayout(sf.Type, &byteOffset)
 		fields[i] = f
 	}
 
@@ -247,10 +254,16 @@ func buildMergedSchema(src, gen *encoding.Schema) (*encoding.Schema, error) {
 		Description:  syntheticFieldDescription,
 		CsvColumnIdx: len(src.Fields),
 	}
-	tag.ByteOffset, tag.BitPosition = nextFieldLayout(tag.Type, &byteOffset)
 	fields[len(src.Fields)] = tag
 
-	return &encoding.Schema{Fields: fields}, nil
+	// The canonical layout over the merged schema, exactly as buildSchema
+	// and import lay a row out.
+	// The source's VECTORS entries carry over unchanged: field indices
+	// line up (the tag is appended LAST) and the source's kind, scale
+	// range and labels are the cohort's own, so they win.
+	merged := &encoding.Schema{Fields: fields, Vectors: encx.CloneVectors(src.Vectors)}
+	encx.LayoutFields(merged)
+	return merged, nil
 }
 
 // reencodeRecords decodes every record from from's on-wire shape and
@@ -284,7 +297,7 @@ func reencodeRecords(r io.Reader, from, to *encoding.Schema, synthetic bool, out
 		for i := range from.Fields {
 			sf, tf := &from.Fields[i], &to.Fields[i]
 			val, isNull := decodedFieldValue(sf, values, nulls, wide)
-			if err := writeFieldValueForField(out, tf, val, isNull); err != nil {
+			if err := writeFieldValueDim(out, tf, to.VectorDim(i), val, isNull); err != nil {
 				return count, err
 			}
 			if tf.Nullable && isNull {
@@ -390,6 +403,12 @@ func decodedFieldValue(f *encoding.Field, values map[string]float64, nulls map[s
 			}
 		}
 		return selected, false
+	case f.Type.IsVector():
+		// The map decoder puts a vector's elements in the wide map as a
+		// []float64 (vec_f32 widened exactly) and echoes nothing into
+		// values; a NaN element is a stored value and is copied as one.
+		v, _ := wide[f.Name].([]float64)
+		return v, false
 	case f.Type == encoding.FieldTypeDecimal128:
 		if d, ok := wide[f.Name].(encoding.Decimal128); ok {
 			return d, false

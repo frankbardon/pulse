@@ -62,6 +62,11 @@ func TestFieldTypePredicates_ClassifyEveryDeclarableType(t *testing.T) {
 		// when the bitmask outgrows a uint64.
 		"set_u128": {},
 		"set_u256": {},
+		// Vectors. The row value is a []float64 of dim elements, so the
+		// value-scale copula cannot write one back; a vector's correlation
+		// structure is its own `vector.correlations`.
+		"vec_f32": {},
+		"vec_f64": {},
 	}
 
 	declarable := declarableTypeNames(t)

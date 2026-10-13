@@ -33,6 +33,18 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	if _, err := ResolveFloatWidth(j.FloatWidth); err != nil {
 		return nil, err
 	}
+	// Vector declarations are planned against the source header before
+	// anything else reads it (import_vectors.go): a bad declaration is
+	// refused before a row is read, and every later step sees the
+	// folded view.
+	if err := refuseVectorOverrides(j.ColumnTypeOverrides); err != nil {
+		return nil, err
+	}
+	restore, fold, err := j.beginVectorFold()
+	if err != nil {
+		return nil, err
+	}
+	defer restore()
 
 	schema := j.Schema
 	var inferWarnings []InferenceWarning
@@ -85,7 +97,9 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		if err != nil {
 			return nil, err
 		}
-		schema = resolved
+		if schema, err = reconcileExplicitVectors(resolved, fold); err != nil {
+			return nil, err
+		}
 	}
 
 	// Infer schema if not provided.
@@ -99,6 +113,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 			SetInferenceMinPct:  j.SetInferenceMinPct,
 			FloatWidth:          j.FloatWidth,
 			ColumnTypeOverrides: j.ColumnTypeOverrides,
+			vectors:             fold.inferVectorColumns(),
 		})
 		if err != nil {
 			return nil, err
@@ -219,12 +234,12 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	conv := newRowConverter(schema, inferredSchema, dicts, setDelimiterFor, widenable)
 	conv.force(j.ColumnTypeOverrides)
 	conv.zones = zones
-	// bufTypes is the field layout the rows already in recordsBuf were
+	conv.vecCells = fold.vectorCells()
+	// bufSchema is the field layout the rows already in recordsBuf were
 	// written with; a promotion re-strides them to the new width.
-	bufTypes := make([]encoding.FieldType, len(schema.Fields))
-	for i := range schema.Fields {
-		bufTypes[i] = schema.Fields[i].Type
-	}
+	bufSchema := &encoding.Schema{}
+	*bufSchema = *schema
+	bufSchema.Fields = append([]encoding.Field(nil), schema.Fields...)
 
 	// Optional source-declared null channel. A []string row cannot tell
 	// a JSON null from an empty JSON string, or an Arrow validity bit
@@ -251,10 +266,11 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		// already held, BEFORE this one is appended at the new width —
 		// whether or not this row itself goes on to import.
 		for _, step := range conv.takePending() {
-			if err := widenBufferedColumn(&recordsBuf, rowsImported, bufTypes, step.field, step.to); err != nil {
+			held, err := widenBufferedColumn(&recordsBuf, rowsImported, bufSchema, step.field, step.to)
+			if err != nil {
 				return err
 			}
-			bufTypes[step.field] = step.to
+			bufSchema = held
 		}
 		if re != nil {
 			// A forced column's value the override cannot hold refuses
@@ -464,6 +480,14 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	if _, err := ResolveFloatWidth(j.FloatWidth); err != nil {
 		return nil, err
 	}
+	if err := refuseVectorOverrides(j.ColumnTypeOverrides); err != nil {
+		return nil, err
+	}
+	restore, fold, err := j.beginVectorFold()
+	if err != nil {
+		return nil, err
+	}
+	defer restore()
 	schema := j.Schema
 	var warnings []InferenceWarning
 
@@ -494,7 +518,9 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 		if err != nil {
 			return nil, err
 		}
-		schema = resolved
+		if schema, err = reconcileExplicitVectors(resolved, fold); err != nil {
+			return nil, err
+		}
 	}
 
 	var inferredDelims map[string]string
@@ -511,6 +537,7 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 			SetInferenceMinPct:  j.SetInferenceMinPct,
 			FloatWidth:          j.FloatWidth,
 			ColumnTypeOverrides: j.ColumnTypeOverrides,
+			vectors:             fold.inferVectorColumns(),
 		})
 		if err != nil {
 			return nil, err
@@ -636,7 +663,7 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 // implement the interface, keeping the report byte-identical for every
 // adapter that predates it.
 func (j *ImportJob) sourceWarnings() []*errors.CodedError {
-	swe, ok := j.Source.(SourceWarningEmitter)
+	swe, ok := j.rawSource().(SourceWarningEmitter)
 	if !ok {
 		return nil
 	}
@@ -657,7 +684,7 @@ func (j *ImportJob) sourceWarnings() []*errors.CodedError {
 // touching the filesystem, which is what keeps every other format's
 // import byte-identical.
 func (j *ImportJob) emitSidecar() error {
-	se, ok := j.Source.(SidecarEmitter)
+	se, ok := j.rawSource().(SidecarEmitter)
 	if !ok {
 		return nil
 	}
@@ -675,6 +702,10 @@ func (j *ImportJob) emitSidecar() error {
 // and failed to read it must not quietly produce a differently-typed
 // cohort from re-guessed cell text.
 func (j *ImportJob) sourceSchema() (*encoding.Schema, error) {
+	if _, folded := j.Source.(*foldReader); folded {
+		// beginVectorFold refused an authoritative source already.
+		return nil, nil
+	}
 	return readerSchema(j.Source)
 }
 

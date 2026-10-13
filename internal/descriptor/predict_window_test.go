@@ -170,10 +170,11 @@ func TestPredictWindow_OrderByOrderableAccepted(t *testing.T) {
 }
 
 // TestIsOrderableType_RefusesExactlySets pins the rule over every
-// registered field type (type bytes 0..19): only the six set_* rungs
-// are refused.
+// registered field type (type bytes 0..21): only the six set_* rungs
+// and the two vector types are refused.
 func TestIsOrderableType_RefusesExactlySets(t *testing.T) {
-	refused := map[string]bool{"set_u8": true, "set_u16": true, "set_u32": true, "set_u64": true, "set_u128": true, "set_u256": true}
+	refused := map[string]bool{"set_u8": true, "set_u16": true, "set_u32": true, "set_u64": true, "set_u128": true, "set_u256": true,
+		"vec_f32": true, "vec_f64": true}
 	n := 0
 	for b := 0; b < 256; b++ {
 		ft := encoding.FieldType(b)
@@ -185,8 +186,8 @@ func TestIsOrderableType_RefusesExactlySets(t *testing.T) {
 			t.Errorf("IsOrderableType(%s) = %v, want %v", ft, got, want)
 		}
 	}
-	if n != 20 {
-		t.Fatalf("walked %d known field types, want 20 — extend the table", n)
+	if n != 22 {
+		t.Fatalf("walked %d known field types, want 22 — extend the table", n)
 	}
 }
 

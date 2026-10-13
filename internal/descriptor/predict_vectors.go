@@ -18,22 +18,29 @@ import (
 // refused vector is reported by the field-reference pass, so nothing is
 // echoed for it.
 func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, strict bool) {
-	if req == nil || len(req.Vectors) == 0 {
+	if req == nil {
 		return
 	}
-	resolved, err := vectors.Resolve(req.Vectors, schema)
-	if err != nil {
-		return
+	if len(req.Vectors) > 0 {
+		resolved, err := vectors.Resolve(req.Vectors, schema)
+		if err != nil {
+			return
+		}
+		// The echo is the request's own vectors; the native fields Resolve
+		// appends after them are schema metadata, not request content.
+		resolved = resolved[:len(req.Vectors)]
+		result.ResolvedVectors = make(map[string][]string, len(resolved))
+		for _, r := range resolved {
+			result.ResolvedVectors[r.Name] = append([]string(nil), r.Members...)
+		}
+		for _, name := range vectors.Unreferenced(req) {
+			w := vectors.UnreferencedWarning(name)
+			env.AddWarning(string(w.Code), w.Message, w.Details)
+		}
 	}
-	result.ResolvedVectors = make(map[string][]string, len(resolved))
-	for _, r := range resolved {
-		result.ResolvedVectors[r.Name] = append([]string(nil), r.Members...)
-	}
-	for _, name := range vectors.Unreferenced(req) {
-		w := vectors.UnreferencedWarning(name)
-		env.AddWarning(string(w.Code), w.Message, w.Details)
-	}
-	for _, w := range vectors.MetricUnsuitedIssues(req) {
+	// A native vector field named directly carries its schema kind, so a
+	// request with no Request.Vectors can still pair a metric poorly.
+	for _, w := range vectors.MetricUnsuitedIssues(req, schema) {
 		if strict {
 			env.AddError(string(w.Code), w.Message, w.Details)
 		} else {
@@ -54,10 +61,9 @@ func predictReferences(env *descriptor.Envelope, req *types.Request, schema *enc
 	if req == nil || (len(req.Filterers) == 0 && len(req.Attributes) == 0) {
 		return
 	}
-	var resolved []vectors.Resolved
-	if len(req.Vectors) > 0 {
-		resolved, _ = vectors.Resolve(req.Vectors, schema)
-	}
+	// Resolve also yields the schema's native vector fields (nil, nil
+	// when there are no vectors at all).
+	resolved, _ := vectors.Resolve(req.Vectors, schema)
 	for _, ce := range vectors.ReferenceIssues(req, schema, resolved, snap.ReferenceTables()) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}

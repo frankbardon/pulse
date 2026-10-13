@@ -36,7 +36,9 @@ import (
 type bartlettSphericityRow struct {
 	spec    *types.Test
 	members []string
-	alpha   float64
+	// fill reads members (the shared member fill).
+	fill  memberFill
+	alpha float64
 
 	x      []float64
 	blocks *BlockCoMoments
@@ -50,7 +52,7 @@ type bartlettSphericityRow struct {
 	testWeight
 }
 
-func newBartlettSphericityRow(spec *types.Test, _ *encoding.Schema) (RowTest, error) {
+func newBartlettSphericityRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 	p := len(spec.Fields)
 	if p < 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
@@ -76,6 +78,7 @@ func newBartlettSphericityRow(spec *types.Test, _ *encoding.Schema) (RowTest, er
 	return &bartlettSphericityRow{
 		spec:       spec,
 		members:    append([]string(nil), spec.Fields...),
+		fill:       memberFillOf(spec.Fields, schema),
 		alpha:      alpha,
 		x:          make([]float64, p),
 		blocks:     blocks,
@@ -87,13 +90,9 @@ func newBartlettSphericityRow(spec *types.Test, _ *encoding.Schema) (RowTest, er
 // counts it; a weighted test then skips a row whose weight is invalid
 // or zero.
 func (b *bartlettSphericityRow) UpdateRow(record *Record) error {
-	for i, f := range b.members {
-		v, ok := record.NumericValue(f)
-		if !ok || math.IsNaN(v) {
-			b.dropped++
-			return nil
-		}
-		b.x[i] = v
+	if !b.fill.complete(record, b.x) {
+		b.dropped++
+		return nil
 	}
 	w, ok := b.rowWeight(record)
 	if !ok {

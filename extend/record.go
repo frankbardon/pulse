@@ -12,16 +12,29 @@ type Record interface {
 	Schema() *encoding.Schema
 
 	// IsNull reports whether the named field is null on this row. A
-	// field that is missing or projected out also reports null.
+	// field that is missing or projected out also reports null. It
+	// agrees with NumericValue on a native vector element member
+	// "f[k]": null exactly when that read reports false.
 	IsNull(field string) bool
 
 	// NumericValue returns the field's value as float64 and true, or
 	// (0, false) when the field is null, missing or projected out.
 	// It is ALWAYS false for set-typed fields — read them through
-	// SetMaskValue. A categorical field yields its dictionary index;
-	// date yields epoch days and datetime epoch seconds; u64 values
-	// above 2^53 lose precision through the float64 echo; decimal128
-	// yields only a rounded echo (use DecimalValue).
+	// SetMaskValue — and for vector fields (VectorValue). A
+	// categorical field yields its dictionary index; date yields epoch
+	// days and datetime epoch seconds; u64 values above 2^53 lose
+	// precision through the float64 echo; decimal128 yields only a
+	// rounded echo (use DecimalValue).
+	//
+	// An element member "f[k]" of a native vector field f — the
+	// literal member names a vector-input slot hands its factory in
+	// spec.Fields — reads element k (1-based, canonical base-10, 1..dim)
+	// in place, without allocating: a NaN element and a null vector
+	// are a null member (false), as in every built-in vector consumer,
+	// so a native vector reads exactly like its scalar-column twin. The
+	// plain name is looked up first, so a real column spelled "x[2]"
+	// and every name whose base is not a vector field (or whose k is
+	// out of range or non-canonical) keep the ordinary lookup.
 	NumericValue(field string) (float64, bool)
 
 	// StringValue returns the dictionary-resolved label of a
@@ -39,6 +52,14 @@ type Record interface {
 	// (zero, false) for a null, missing or non-decimal field. The value
 	// is safe to keep.
 	DecimalValue(field string) (encoding.Decimal128, bool)
+
+	// VectorValue returns the elements of a vector field (vec_f32 /
+	// vec_f64) as float64 — vec_f32 elements widen exactly — and true.
+	// It is (nil, false) for a null, missing, projected-out or
+	// non-vector field; NumericValue is always false for a vector. A
+	// NaN or ±Inf element is a stored value, returned verbatim. The
+	// slice is a fresh copy and safe to keep.
+	VectorValue(field string) ([]float64, bool)
 
 	// Weight returns the row weight the engine resolved for the slot
 	// this operator runs in (slot weight → request weight →

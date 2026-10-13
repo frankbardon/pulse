@@ -530,8 +530,21 @@ var slotTokens = map[string]slotTokenSet{
 // sentence as naming a DIFFERENT slot spelled the same way: such a
 // sentence is never a hit for that token. LookupRequest.multiplicity is
 // pulse_lookup's duplicate-key mode, not a correction block.
+// pulse_import's `vectors` argument declares native vec_f32 / vec_f64
+// FIELDS — a format feature no profile gates — not the request's
+// virtual-vector slot capability:matrices owns, so an import sentence
+// (one naming a field type, `vector_kinds` or the import refusal) keeps
+// its prose under a matrices-free profile.
 var slotTokenHomonyms = map[string][]string{
 	"multiplicity": {"assert_unique", "LookupMultiplicity", "PULSE_LOOKUP_AMBIGUOUS"},
+	"vectors":      {"vec_f32", "vec_f64", "vector_kinds", "PULSE_IMPORT_VECTOR_INVALID"},
+}
+
+// SlotTokenHomonymMarkers returns the marker tokens (a fresh slice,
+// possibly empty) that make a sentence naming slot token tok name a
+// different, same-spelled surface (slotTokenHomonyms).
+func SlotTokenHomonymMarkers(tok string) []string {
+	return append([]string(nil), slotTokenHomonyms[tok]...)
 }
 
 // SlotTokenCapabilities returns the capabilities with a slot-token

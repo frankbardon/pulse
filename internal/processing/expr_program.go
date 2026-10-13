@@ -2,7 +2,6 @@ package processing
 
 import (
 	"fmt"
-	"math"
 	"reflect"
 	"slices"
 	"sync"
@@ -138,7 +137,10 @@ func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Re
 	}
 	p := &exprProgram{src: src, what: what, opts: opts, decl: exprPrototype(schema)}
 	if callees, _ := exprident.Callees(src); slices.Contains(callees, exprbuiltins.RefFunc) {
-		scope := refScope(src, refTables, vecs, func(name string) bool { return schema != nil && schema.Field(name) != nil })
+		scope := refScope(src, refTables, vecs, func(name string) bool {
+			// A native vector field is a vector here, not a shadowing field.
+			return schema != nil && schema.Field(name) != nil && !vectors.IsNativeVector(name, schema)
+		})
 		if err := refStaticRefusal(src, scope); err != nil {
 			return nil, err
 		}
@@ -209,10 +211,11 @@ func (p *exprProgram) settleInputs() {
 }
 
 // exprVectorBinding is one named vector an expression reads: its
-// identifier and its member fields in axis order.
+// identifier and its member-read plan in axis order (memberFill — the
+// shared fill, so a native vector field reads like its scalar twin).
 type exprVectorBinding struct {
-	name    string
-	members []string
+	name string
+	fill memberFill
 }
 
 // exprVectorFrame is one row's member buffers, index-aligned with
@@ -232,8 +235,11 @@ type exprVectorFrame struct {
 var exprVectorType = exprtypes.TypeOf([]float64(nil))
 
 // bindVectors declares every named vector the expression references
-// (and no schema field shadows: a vector named like a field is refused
-// earlier, PULSE_VECTOR_NAME_COLLISION) as a []float64 identifier. An
+// as a []float64 identifier: a Request.Vectors entry (no schema field
+// shadows one: a vector named like a field is refused earlier,
+// PULSE_VECTOR_NAME_COLLISION), or a native vector field named directly
+// — bound through the shared fill, so a null vector reads all-NaN like
+// its all-null scalar twin, never nil and never a null-input row. An
 // unreferenced vector binds nothing. A vector that is the whole
 // expression is refused here, at build: a result is a scalar.
 func (p *exprProgram) bindVectors(vecs []vectors.Resolved) error {
@@ -241,14 +247,14 @@ func (p *exprProgram) bindVectors(vecs []vectors.Resolved) error {
 		return nil
 	}
 	for _, name := range p.refs {
-		if _, field := p.decl[name]; field {
-			continue
-		}
 		v, ok := vectors.Find(vecs, name)
 		if !ok {
 			continue
 		}
-		p.vecs = append(p.vecs, exprVectorBinding{name: name, members: v.Members})
+		if _, field := p.decl[name]; field && v.Native == nil {
+			continue
+		}
+		p.vecs = append(p.vecs, exprVectorBinding{name: name, fill: newMemberFill(v)})
 		p.decl[name] = exprVectorType
 	}
 	if len(p.vecs) == 0 {
@@ -262,7 +268,7 @@ func (p *exprProgram) bindVectors(vecs []vectors.Resolved) error {
 	p.frames.New = func() any {
 		f := &exprVectorFrame{bufs: make([][]float64, len(p.vecs)), boxed: make([]any, len(p.vecs))}
 		for i := range p.vecs {
-			f.bufs[i] = make([]float64, len(p.vecs[i].members))
+			f.bufs[i] = make([]float64, p.vecs[i].fill.Len())
 			f.boxed[i] = f.bufs[i]
 		}
 		return f
@@ -280,23 +286,16 @@ func (p *exprProgram) isVector(name string) bool {
 	return false
 }
 
-// fillVectors binds every named vector into env from r: member i reads
-// its field's numeric value, a null (or absent) member reads NaN, so a
-// row whose members are all null binds an all-NaN vector, never nil.
-// The returned frame goes back through releaseVectors once the
-// evaluation is done.
+// fillVectors binds every named vector into env from r through the
+// shared fill (memberFill): a null (or absent) member reads NaN, so a
+// row whose members are all null — a null native vector included —
+// binds an all-NaN vector, never nil. The returned frame goes back
+// through releaseVectors once the evaluation is done.
 func (p *exprProgram) fillVectors(env map[string]any, r *Record) *exprVectorFrame {
 	f := p.frames.Get().(*exprVectorFrame)
 	for i := range p.vecs {
 		b := &p.vecs[i]
-		buf := f.bufs[i]
-		for j, m := range b.members {
-			if x, ok := r.NumericValue(m); ok {
-				buf[j] = x
-			} else {
-				buf[j] = math.NaN()
-			}
-		}
+		b.fill.fill(r, f.bufs[i], nil)
 		env[b.name] = f.boxed[i]
 	}
 	return f
@@ -476,12 +475,14 @@ var (
 	exprUint64Type     = reflect.TypeOf(uint64(0))
 	exprSetMaskType    = reflect.TypeOf(encoding.SetMask{})
 	exprDecimal128Type = reflect.TypeOf(encoding.Decimal128{})
+	exprFloat64sType   = reflect.TypeOf([]float64(nil))
 )
 
 // exprValueType is the Go type Record.AllValues gives field f's value:
 // a dictionary-bearing categorical resolves to its label, a
 // dictionary-bearing set to its label slice, a decimal / dictionary-less
-// set rides its wide value, everything else is the float64 slot. Pinned
+// set rides its wide value, a vector its []float64 elements, everything
+// else is the float64 slot. Pinned
 // against every decode path by TestExprValueType_MatchesAllValues.
 func exprValueType(f *encoding.Field) reflect.Type {
 	switch {
@@ -499,6 +500,8 @@ func exprValueType(f *encoding.Field) reflect.Type {
 		return exprUint64Type
 	case f.Type == encoding.FieldTypeDecimal128:
 		return exprDecimal128Type
+	case f.Type.IsVector():
+		return exprFloat64sType
 	}
 	return exprFloat64Type
 }

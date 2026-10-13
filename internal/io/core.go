@@ -19,6 +19,10 @@ type (
 	SchemaAwareReader     = iocore.SchemaAwareReader
 	NullAwareReader       = iocore.NullAwareReader
 	LateKeyRefuser        = iocore.LateKeyRefuser
+	ListAwareReader       = iocore.ListAwareReader
+	ListCell              = iocore.ListCell
+	ListAwareWriter       = iocore.ListAwareWriter
+	ListColumn            = iocore.ListColumn
 	NullAwareWriter       = iocore.NullAwareWriter
 	OverlayAwareWriter    = iocore.OverlayAwareWriter
 	SourceWarningEmitter  = iocore.SourceWarningEmitter

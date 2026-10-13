@@ -35,7 +35,27 @@ type Reader struct {
 	// lateKeys is the iocore.LateKeyRefuser state, armed by an
 	// explicit-schema import.
 	lateKeys jsonshared.LateKeys
+
+	// curObj is the object most recently handed to the ReadRows
+	// callback, for iocore.ListAwareReader. Valid only inside the
+	// callback.
+	curObj map[string]any
 }
+
+// RowList implements iocore.ListAwareReader: the current object's value
+// under header column col read as a typed numeric list
+// (jsonshared.ListCellOf).
+func (r *Reader) RowList(col int, dst *iocore.ListCell) error {
+	if col < 0 || col >= len(r.header) {
+		dst.Reset(iocore.ListNull)
+		return nil
+	}
+	v, ok := r.curObj[r.header[col]]
+	jsonshared.ListCellOf(v, ok, dst)
+	return nil
+}
+
+var _ iocore.ListAwareReader = (*Reader)(nil)
 
 // RefuseLateKeys implements iocore.LateKeyRefuser: when on, a key first
 // seen after the first object fails ReadRows with
@@ -193,6 +213,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 			// iocore.NullAwareReader.
 			r.nulls[i] = !ok || v == nil
 		}
+		r.curObj = obj
 		if err := fn(row); err != nil {
 			if err == iocore.ErrStopIteration() {
 				return errStop
@@ -279,10 +300,20 @@ type Writer struct {
 	// iocore.NullAwareWriter, set by ExportJob.Run and never by
 	// ConvertJob. See the ndjson Writer's field of the same name.
 	explicitNulls bool
+
+	// lists marks the native vector columns; see the ndjson Writer's
+	// field of the same name.
+	lists jsonshared.ListColumns
 }
 
 // SetExplicitNulls implements iocore.NullAwareWriter.
 func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
+
+// SetListColumns implements iocore.ListAwareWriter; see the ndjson
+// Writer's method of the same name.
+func (w *Writer) SetListColumns(cols []iocore.ListColumn) {
+	w.lists = jsonshared.NewListColumns(cols)
+}
 
 // NewWriter creates a Writer targeting a filesystem path.
 func NewWriter(fs afero.Fs, path string) *Writer {
@@ -325,7 +356,9 @@ func (w *Writer) WriteRow(values []any) error {
 
 		var v any
 		if i < len(values) {
-			if w.explicitNulls {
+			if lv, ok := w.lists.Value(i, values[i]); ok {
+				v = lv
+			} else if w.explicitNulls {
 				v = jsonshared.CoerceValueExplicitNull(values[i])
 			} else {
 				v = jsonshared.CoerceValue(values[i])
@@ -365,3 +398,4 @@ func (w *Writer) Bytes() []byte {
 
 var _ iocore.NullAwareReader = (*Reader)(nil)
 var _ iocore.NullAwareWriter = (*Writer)(nil)
+var _ iocore.ListAwareWriter = (*Writer)(nil)

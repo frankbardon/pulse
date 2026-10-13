@@ -15,11 +15,13 @@ func joinKeySchemas() (*encoding.Schema, *encoding.Schema) {
 		{Name: "region", Type: encoding.FieldTypeCategoricalU8},
 		{Name: "amount", Type: encoding.FieldTypeDecimal128},
 		{Name: "picks", Type: encoding.FieldTypeSetU8},
+		{Name: "emb", Type: encoding.FieldTypeVecF64},
 	}}
 	right := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "id", Type: encoding.FieldTypeF64},
 		{Name: "region", Type: encoding.FieldTypeCategoricalU16},
 		{Name: "picks", Type: encoding.FieldTypeSetU8},
+		{Name: "emb", Type: encoding.FieldTypeVecF64},
 	}}
 	return left, right
 }
@@ -37,6 +39,8 @@ func TestJoinKeysRefusals_OrderCodesAndDetails(t *testing.T) {
 		{LeftField: "id", RightField: "zz"},         // unknown right
 		{LeftField: "amount", RightField: "id"},     // decimal vs float
 		{LeftField: "picks", RightField: "picks"},   // set key, same rung
+		{LeftField: "emb", RightField: "emb"},       // vector key, same type
+		{LeftField: "id", RightField: "emb"},        // scalar vs vector
 	}}
 	got := JoinKeysRefusals(left, right, spec)
 	want := []struct {
@@ -52,6 +56,10 @@ func TestJoinKeysRefusals_OrderCodesAndDetails(t *testing.T) {
 			`{"index":5,"left_field":"amount","left_type":"decimal128","right_field":"id","right_type":"f64"}`},
 		{errors.PULSE_JOIN_TYPE_MISMATCH, JoinKeySetRejection,
 			`{"index":6,"left_field":"picks","left_type":"set_u8","reason":"set_key","right_field":"picks","right_type":"set_u8"}`},
+		{errors.PULSE_JOIN_TYPE_MISMATCH, JoinKeyVectorRejection,
+			`{"index":7,"left_field":"emb","left_type":"vec_f64","reason":"vector_key","right_field":"emb","right_type":"vec_f64"}`},
+		{errors.PULSE_JOIN_TYPE_MISMATCH, JoinKeyVectorRejection,
+			`{"index":8,"left_field":"id","left_type":"u32","reason":"vector_key","right_field":"emb","right_type":"vec_f64"}`},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d refusals, want %d: %v", len(got), len(want), got)
@@ -97,6 +105,9 @@ func TestJoinKeyTypesCompatible(t *testing.T) {
 		{encoding.FieldTypeSetU8, encoding.FieldTypeSetU8, false},
 		{encoding.FieldTypeDateTime, encoding.FieldTypeDateTime, true},
 		{encoding.FieldTypeDateTime, encoding.FieldTypeU64, false},
+		{encoding.FieldTypeVecF64, encoding.FieldTypeVecF64, false},
+		{encoding.FieldTypeVecF32, encoding.FieldTypeVecF32, false},
+		{encoding.FieldTypeVecF32, encoding.FieldTypeF32, false},
 	}
 	for _, c := range cases {
 		if got := JoinKeyTypesCompatible(c.a, c.b); got != c.want {

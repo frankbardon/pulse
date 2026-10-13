@@ -52,7 +52,11 @@ func fieldTypeFromName(name string) (encoding.FieldType, bool) {
 	// encoding knows and synth has no write path for — datetime today —
 	// stays undeclarable, which is the property
 	// internal/synth/constraints_internal_test.go's undeclarableFieldTypes pins.
-	if ft, ok := encoding.ParseFieldType(name); ok && ft.IsSet() {
+	//
+	// The vector types resolve the same way: vec_f32 / vec_f64 are
+	// declarable since #450, through the `vector` block
+	// (internal/synth/vector.go).
+	if ft, ok := encoding.ParseFieldType(name); ok && (ft.IsSet() || ft.IsVector()) {
 		return ft, true
 	}
 	return 0, false
@@ -64,19 +68,14 @@ type writerField struct {
 	spec    FieldSpec
 	field   *encoding.Field
 	sampler sampler
-}
-
-// nextFieldLayout advances the running byteOffset cursor by one field of
-// type ft and returns that field's own (byteOffset, bitPosition). The
-// width is the canonical layout's (encx.CellWidth, the per-field step of
-// encx.LayoutFields): a bit-packed type (u4, packed_bool) consumes one
-// whole fresh byte at bit 0 rather than sharing a byte with a
-// neighbour, exactly as import lays it out. Shared by buildSchema and
-// augment.go's buildMergedSchema so both lay out fields identically.
-func nextFieldLayout(ft encoding.FieldType, byteOffset *int) (offset, bitPosition int) {
-	offset = *byteOffset
-	*byteOffset += encx.CellWidth(ft)
-	return offset, 0
+	// dim is a vector field's element count (0 for every other type):
+	// the encode path needs it to write a null vector's placeholder,
+	// and it is a schema property rather than a Field one.
+	dim int
+	// warnings are compile-time facts about the field's own sampler — a
+	// vector whose element correlation matrix had to be completed or
+	// ridge-regularized. generate() folds them onto its warning channel.
+	warnings []string
 }
 
 // buildSchema returns the encoding.Schema and per-field samplers laid
@@ -93,8 +92,8 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 	// every spec that declares no ownership, which is what keeps such a
 	// spec byte-identical. See internal/synth/rules_ownership.go.
 	ownedNulls := ruleOwnedNullFields(s.Rules)
+	var vectors []encoding.VectorField
 
-	byteOffset := 0
 	for i, fs := range s.Fields {
 		ft, ok := fieldTypeFromName(fs.Type)
 		if !ok {
@@ -169,11 +168,24 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 			field.Precision = prec
 			field.Scale = scale
 		}
-		field.ByteOffset, field.BitPosition = nextFieldLayout(ft, &byteOffset)
+
+		var dim int
+		var fieldWarnings []string
+		if ft.IsVector() {
+			if err := validateVectorField(fs); err != nil {
+				return nil, nil, err
+			}
+			vf := vectorFieldFor(fs, i)
+			vectors = append(vectors, vf)
+			dim = vf.Dim
+		}
 
 		smp, err := buildSampler(fs)
 		if err != nil {
 			return nil, nil, err
+		}
+		if vs, ok := baseVectorSampler(smp); ok {
+			fieldWarnings = vs.warnings
 		}
 		if ownedNulls[fs.Name] {
 			// The field still DRAWS its null — same calls, same order —
@@ -186,10 +198,16 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 		}
 
 		fields[i] = field
-		wfs[i] = &writerField{spec: fs, field: &fields[i], sampler: smp}
+		wfs[i] = &writerField{spec: fs, field: &fields[i], sampler: smp, dim: dim, warnings: fieldWarnings}
 	}
 
-	schema := &encoding.Schema{Fields: fields}
+	// Byte offsets / bit positions come from the canonical layout over
+	// the finished schema (Schema.FieldWidth per field), exactly as
+	// import lays a row out. Vectors must be on the schema BEFORE the
+	// layout: a vector's width is its dim times its element size, and a
+	// schema without its VECTORS entries sizes the field at 0 bytes.
+	schema := &encoding.Schema{Fields: fields, Vectors: vectors}
+	encx.LayoutFields(schema)
 	for i := range wfs {
 		wfs[i].field = &schema.Fields[i]
 	}
@@ -222,6 +240,12 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	// silent last-write-wins. See internal/synth/conflict.go.
 	conflicts := resolveConflicts(s)
 	warnings = conflicts.warnings
+	// A vector field's own compile-time facts (its element correlation
+	// matrix completed by assumption or ridge-regularized). Empty for
+	// every vector-free spec, so nothing moves for one.
+	for _, wf := range wfs {
+		warnings = append(warnings, wf.warnings...)
+	}
 
 	// corrWarnings names what the correlation matrix had to invent to be
 	// usable — pairs never supplied and completed as independent, and a
@@ -516,7 +540,7 @@ func encodeRow(buf *bytes.Buffer, wfs []*writerField, row map[string]any, nullMa
 }
 
 func writeFieldValue(buf *bytes.Buffer, wf *writerField, val any, isNull bool) error {
-	return writeFieldValueForField(buf, wf.field, val, isNull)
+	return writeFieldValueDim(buf, wf.field, wf.dim, val, isNull)
 }
 
 // writeFieldValueForField encodes a single field's value into buf per

@@ -38,6 +38,28 @@ func dictionaryFromSidecar(req DictionaryRequest) (*outFile, error) {
 	p := &doc.Payload
 	cohort := req.Sidecar.Cohort
 
+	// A vector field is never an SPSS source variable — an SPSS import
+	// refuses a vector declaration (it carries an authoritative schema, not
+	// text to fold) and any rewrite of the cohort stales the sidecar — so a
+	// document that reaches here beside one does not describe this cohort.
+	// Refused rather than bound: a sidecar variable sharing the vector's
+	// name would otherwise be encoded from it as a scalar and write zeros,
+	// and a vector the document never mentions would surface only as an
+	// unmapped column. --ignore-sidecar synthesises its element variables.
+	for i := range req.Schema.Fields {
+		if fld := &req.Schema.Fields[i]; fld.Type.IsVector() {
+			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SPSS_SIDECAR_INVALID,
+				"spss: the cohort field "+strconv.Quote(fld.Name)+" is a "+fld.Type.String()+
+					" vector, which no SPSS import produces, so the metadata sidecar beside it does not describe this cohort; "+
+					"pass --ignore-sidecar to export the vector as one numeric variable per element",
+				map[string]any{
+					errors.DetailSPSSCohort:  cohort,
+					errors.DetailSPSSSidecar: req.Sidecar.Path,
+					errors.DetailSPSSField:   fld.Name,
+				})
+		}
+	}
+
 	byName := schemaIndex(req.Schema)
 
 	f := &outFile{

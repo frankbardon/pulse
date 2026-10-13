@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -72,7 +73,7 @@ func attributeTwoPass(opts *PredictOptions, t types.AttributeType) bool {
 // the cohort-total term's pre-pass
 // (mirrors processing.ExtensionRegistry.attrRequiresTwoPass through the
 // shared internal/totalcall predicate).
-func attrTwoPass(opts *PredictOptions, attr *types.Attribute, specs []types.VectorSpec) bool {
+func attrTwoPass(opts *PredictOptions, attr *types.Attribute, specs []types.VectorSpec, schema *encoding.Schema) bool {
 	if attr == nil {
 		return false
 	}
@@ -86,14 +87,14 @@ func attrTwoPass(opts *PredictOptions, attr *types.Attribute, specs []types.Vect
 	// An ATTR_VEC_DISTANCE over std_euclidean / mahalanobis (explicit,
 	// or the named vector kind's default) fits first — the runtime's
 	// attrRequiresTwoPassIn through the shared vectors predicate.
-	return vectors.ComparisonFitted(route, attr, specs)
+	return vectors.ComparisonFitted(route, attr, specs, schema)
 }
 
 // firstTwoPassAttribute returns the first attribute on req that takes
 // the two-pass drive, or "" when there is none.
-func firstTwoPassAttribute(req *types.Request, opts *PredictOptions) types.AttributeType {
+func firstTwoPassAttribute(req *types.Request, schema *encoding.Schema, opts *PredictOptions) types.AttributeType {
 	for _, attr := range req.Attributes {
-		if attrTwoPass(opts, attr, req.Vectors) {
+		if attrTwoPass(opts, attr, req.Vectors, schema) {
 			return attr.Type
 		}
 	}

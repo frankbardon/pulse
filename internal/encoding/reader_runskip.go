@@ -165,7 +165,7 @@ func (rr *RecordReader) strideLayout() *strideLayout {
 	ops := make([]strideOp, len(fields))
 	off := 0
 	for i := range fields {
-		w := onWireWidth(fields[i].Type)
+		w := rr.schema.FieldWidth(i)
 		ops[i] = strideOp{off: int32(off), w: int32(w)}
 		off += w
 	}
@@ -216,18 +216,6 @@ func (rr *RecordReader) readStrideRunSkip(rs RunSkipRecord) error {
 	}
 	rr.commitRunRow(rs, nil, buf)
 	return nil
-}
-
-// onWireWidth is one field's on-wire width: 1 byte for a bit-packed
-// field, 16 for decimal128, fixedWidthBytes otherwise (0 = unknown).
-func onWireWidth(ft encoding.FieldType) int {
-	switch {
-	case ft.IsBitPacked():
-		return 1
-	case ft == encoding.FieldTypeDecimal128:
-		return 16
-	}
-	return fixedWidthBytes(ft)
 }
 
 // decodeStrideChanged is decodeStrideIndexed for a row whose record
@@ -334,7 +322,8 @@ func (rr *RecordReader) settleNulls(rs RunSkipRecord, typed TypedSetRecord, keep
 
 // writeFieldBytes writes one non-null field's value (and typed wide
 // value) from its on-wire bytes: the per-field body of
-// decodeStrideIndexed, byte for byte.
+// decodeStrideIndexed, byte for byte. sub is exactly the field's
+// Schema.FieldWidth span — a vector's dim is its element count.
 func writeFieldBytes(sink IndexedReusableRecord, typed TypedSetRecord, field *encoding.Field, fi int, sub []byte) error {
 	switch field.Type {
 	case encoding.FieldTypePackedBool:
@@ -357,6 +346,10 @@ func writeFieldBytes(sink IndexedReusableRecord, typed TypedSetRecord, field *en
 		d := encoding.DecodeDecimal128(raw)
 		sink.SetNumericAt(fi, d.Float64(field.Scale))
 		sink.SetWideFieldAt(fi, d)
+	case encoding.FieldTypeVecF32, encoding.FieldTypeVecF64:
+		// sub is the field's whole Schema.FieldWidth span (element ×
+		// dim); fixedWidthBytes knows only the type and answers 0.
+		return putVectorField(sink, field.Type, fi, sub)
 	default:
 		if fixedWidthBytes(field.Type) == 0 {
 			return errors.NewCodedError(errors.ENCODING_INVALID,
@@ -435,7 +428,7 @@ func (rr *RecordReader) planShapeFor(plan *DecodePlan) (*runPlanShape, error) {
 			}
 			n := 0
 			for k, f := range seg.Fields {
-				w := onWireWidth(f.Type)
+				w := rr.schema.FieldWidth(indices[k])
 				if w == 0 {
 					return nil, errors.NewCodedError(errors.ENCODING_INVALID,
 						fmt.Sprintf("unknown field type %d", f.Type))

@@ -155,10 +155,7 @@ func newContinuationAcc(schema *encoding.Schema) *continuationAcc {
 	}
 	off := 0
 	for i := range schema.Fields {
-		w := 1
-		if !schema.Fields[i].Type.IsBitPacked() {
-			w = schema.Fields[i].Type.ByteSize()
-		}
+		w := schema.FieldWidth(i)
 		a.off[i], a.width[i] = off, w
 		off += w
 	}

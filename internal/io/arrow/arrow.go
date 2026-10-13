@@ -46,7 +46,26 @@ type Reader struct {
 	// truncated tallies the native timestamp cells the latest ReadRows
 	// pass floored to whole seconds (iocore.SourceWarningEmitter).
 	truncated TimestampTally
+
+	// curCols / curRow locate the row most recently handed to the
+	// ReadRows callback, for iocore.ListAwareReader. Valid only inside
+	// the callback.
+	curCols []arrow.Array
+	curRow  int
 }
+
+// RowList implements iocore.ListAwareReader: the current row's column
+// col read off the typed Arrow list array (ListCellAt).
+func (r *Reader) RowList(col int, dst *iocore.ListCell) error {
+	if col < 0 || col >= len(r.curCols) {
+		dst.Reset(iocore.ListNull)
+		return nil
+	}
+	ListCellAt(r.curCols[col], r.curRow, dst)
+	return nil
+}
+
+var _ iocore.ListAwareReader = (*Reader)(nil)
 
 // Warnings implements iocore.SourceWarningEmitter: the one
 // PULSE_IMPORT_TIMESTAMP_TRUNCATED warning of the latest ReadRows pass,
@@ -221,6 +240,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 				row[c] = FormatValue(cols[c], i)
 			}
 
+			r.curCols, r.curRow = cols, i
 			if err := fn(row); err != nil {
 				if err == iocore.ErrStopIteration() {
 					return nil
@@ -331,9 +351,9 @@ func (r *Reader) InferPulseSchema() (*encoding.Schema, error) {
 			CsvColumnIdx: i,
 		}
 	}
-	encx.LayoutFields(fields)
-
-	return &encoding.Schema{Fields: fields}, nil
+	s := &encoding.Schema{Fields: fields}
+	encx.LayoutFields(s)
+	return s, nil
 }
 
 // defaultRecordBatchSize is the target number of rows per Arrow record batch.
@@ -376,6 +396,20 @@ type Writer struct {
 	// source null token, so a convert's Arrow output is unchanged.
 	explicitNulls bool
 
+	// lists are the native vector columns (iocore.ListAwareWriter), by
+	// header position: FixedSizeList<float32|float64, dim> columns
+	// whatever the rest of the layout falls back to.
+	lists map[int]iocore.ListColumn
+
+	// exportCols is the export's explicit column plan
+	// (iocore.ColumnAwareWriter); colFields is the field typing each
+	// header column, resolved from it — or, without a plan, from the
+	// pulseSchema field of the same name — when the writer initialises.
+	// Never the schema's i-th field: projection and label augment move
+	// columns off their field's index.
+	exportCols []iocore.ExportColumn
+	colFields  []*encoding.Field
+
 	// Lazily-initialized arrow writer state. Built on first WriteRow once
 	// the schema (column names) is known. Reused across all batches.
 	alloc   memory.Allocator
@@ -394,8 +428,22 @@ func (w *Writer) SetPulseSchema(s *encoding.Schema) {
 	w.pulseSchema = s
 }
 
+// SetExportColumns implements iocore.ColumnAwareWriter: column i is typed
+// from cols[i].Field, whatever source field index it came from.
+func (w *Writer) SetExportColumns(cols []iocore.ExportColumn) {
+	w.exportCols = cols
+}
+
 // SetExplicitNulls implements iocore.NullAwareWriter.
 func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
+
+// SetListColumns implements iocore.ListAwareWriter: each named column is
+// a FixedSizeList<float32|float64, dim>, by position, so it holds even
+// when projection or a label augment drops the rest of the layout to
+// strings.
+func (w *Writer) SetListColumns(cols []iocore.ListColumn) {
+	w.lists = ListColumnIndex(cols)
+}
 
 // SetOverlays records the Response.Overlays layers the export pipeline
 // wants the writer to embed in the Arrow file. The layers ride as a
@@ -460,14 +508,18 @@ func (w *Writer) initWriter() error {
 		totalFields++
 	}
 	arrowFields := make([]arrow.Field, totalFields)
-	if w.pulseSchema != nil && len(w.pulseSchema.Fields) == len(w.columns) {
-		for i, pf := range w.pulseSchema.Fields {
-			arrowFields[i] = FieldFromPulse(pf)
-			arrowFields[i].Name = w.columns[i]
+	w.colFields = iocore.ColumnFields(w.exportCols, w.pulseSchema, w.columns)
+	for i, name := range w.columns {
+		if f := w.colFields[i]; f != nil {
+			arrowFields[i] = FieldFromPulse(*f)
+			arrowFields[i].Name = name
+			continue
 		}
-	} else {
-		for i, name := range w.columns {
-			arrowFields[i] = arrow.Field{Name: name, Type: arrow.BinaryTypes.String}
+		arrowFields[i] = arrow.Field{Name: name, Type: arrow.BinaryTypes.String}
+	}
+	for c, lc := range w.lists {
+		if c < hostFieldCount {
+			arrowFields[c] = VectorArrowField(lc, true)
 		}
 	}
 	if hasOverlays {
@@ -629,11 +681,13 @@ func AppendOverlayLayerStruct(structBldr *array.StructBuilder, layer *types.Over
 // appendCell appends a single cell value to column c's builder, picking
 // the typed builder when the source schema declared a non-string type.
 func (w *Writer) appendCell(c int, v any) error {
-	if w.pulseSchema != nil && c < len(w.pulseSchema.Fields) {
-		f := w.pulseSchema.Fields[c]
+	if lc, ok := w.lists[c]; ok {
+		return AppendVectorList(w.bldr.Field(c), lc.Dim, v)
+	}
+	if f := w.colFields[c]; f != nil {
 		switch {
 		case f.Type == encoding.FieldTypeDecimal128:
-			return w.appendDecimal(c, f, v)
+			return w.appendDecimal(c, *f, v)
 		case f.Type.IsSet():
 			if done, err := w.appendSet(c, v); done {
 				return err
@@ -796,6 +850,7 @@ var _ iocore.ResetReader = (*Reader)(nil)
 var _ iocore.Writer = (*Writer)(nil)
 var _ iocore.SchemaAwareWriter = (*Writer)(nil)
 var _ iocore.NullAwareWriter = (*Writer)(nil)
+var _ iocore.ListAwareWriter = (*Writer)(nil)
 var _ iocore.NullAwareReader = (*Reader)(nil)
 var _ iocore.SourceWarningEmitter = (*Reader)(nil)
 var _ iocore.OverlayAwareWriter = (*Writer)(nil)

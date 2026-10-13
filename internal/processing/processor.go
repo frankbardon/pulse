@@ -219,7 +219,7 @@ func (p *Processor) Process(ctx context.Context, req *types.Request, iter Record
 		switch {
 		case len(req.Groups) > 0:
 			resp, err = p.processStreamingGrouped(ctx, req, iter)
-		case hasTwoPassAttribute(req, p.exts):
+		case hasTwoPassAttribute(req, p.schema, p.exts):
 			resp, err = p.processStreamingTwoPass(ctx, req, iter)
 		default:
 			resp, err = p.processStreaming(ctx, req, iter)
@@ -342,9 +342,9 @@ func requiresTwoPass(t types.AttributeType) bool {
 // requires the two-pass streaming path — a built-in two-pass type, an
 // extension attribute that declared the two-pass mode on exts, or an
 // ATTR_FORMULA calling total(expr) (ExtensionRegistry.attrRequiresTwoPass).
-func hasTwoPassAttribute(req *types.Request, exts *ExtensionRegistry) bool {
+func hasTwoPassAttribute(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) bool {
 	for _, attr := range req.Attributes {
-		if exts.attrRequiresTwoPassIn(attr, req.Vectors) {
+		if exts.attrRequiresTwoPassIn(attr, req.Vectors, schema) {
 			return true
 		}
 	}
@@ -414,7 +414,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 				return false
 			}
 		}
-		if len(req.Groups) > 0 || len(req.Features) > 0 || hasTwoPassAttribute(req, p.exts) || len(req.Tests) > 0 {
+		if len(req.Groups) > 0 || len(req.Features) > 0 || hasTwoPassAttribute(req, p.schema, p.exts) || len(req.Tests) > 0 {
 			return false
 		}
 	}
@@ -432,7 +432,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 				return false
 			}
 		}
-		if hasTwoPassAttribute(req, p.exts) {
+		if hasTwoPassAttribute(req, p.schema, p.exts) {
 			return false
 		}
 	}
@@ -449,7 +449,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 		// attributes inside the streaming paths, and a grouped request
 		// runs every test once per group on the buffered path
 		// (test_grouped.go). Route those combinations buffered.
-		if len(req.Groups) > 0 || len(req.Features) > 0 || hasTwoPassAttribute(req, p.exts) {
+		if len(req.Groups) > 0 || len(req.Features) > 0 || hasTwoPassAttribute(req, p.schema, p.exts) {
 			return false
 		}
 	}
@@ -463,7 +463,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 		if !p.exts.IsStreamable("attribute", string(attr.Type)) {
 			return false
 		}
-		if p.exts.attrRequiresTwoPassIn(attr, req.Vectors) {
+		if p.exts.attrRequiresTwoPassIn(attr, req.Vectors, p.schema) {
 			hasTwoPassAttr = true
 		}
 	}

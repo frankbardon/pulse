@@ -158,11 +158,14 @@ func BuildDecodePlan(s *encoding.Schema, retained []string) (*DecodePlan, error)
 				}
 				j++
 			}
-			// On-wire byte size of the group: 1 byte per bit-packed
-			// field, mirroring Schema.RecordByteSize. ReadBit and
-			// ReadNibble each consume a full byte today even though the
-			// stored value is < 8 bits.
-			groupBytes := j - i
+			// On-wire byte size of the group: the sum of FieldWidth (1
+			// byte per bit-packed field), mirroring
+			// Schema.RecordByteSize. ReadBit and ReadNibble each consume
+			// a full byte today even though the stored value is < 8 bits.
+			groupBytes := 0
+			for k := i; k < j; k++ {
+				groupBytes += s.FieldWidth(k)
+			}
 
 			if anyRetained {
 				// Flush any pending skip so the decode segment starts
@@ -199,7 +202,7 @@ func BuildDecodePlan(s *encoding.Schema, retained []string) (*DecodePlan, error)
 			// Unprojected ⇒ flush any pending decode, then add this
 			// field's byte width to the skip accumulator.
 			flushDecode()
-			pendingSkip += f.Type.ByteSize()
+			pendingSkip += s.FieldWidth(i)
 		}
 		i++
 	}

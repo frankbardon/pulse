@@ -61,7 +61,7 @@ func NewConstantDetector(flat *encoding.Schema) (*ConstantDetector, error) {
 	off := 0
 	for i := range flat.Fields {
 		d.offs[i] = off
-		d.widths[i] = onWireWidth(flat.Fields[i].Type)
+		d.widths[i] = flat.FieldWidth(i)
 		off += d.widths[i]
 		d.live[i] = true
 	}
@@ -200,7 +200,7 @@ func PlanConstantElisionFor(flat *encoding.Schema, constant []int, rows int64, r
 	}
 	stride := 0
 	for i := range flat.Fields {
-		stride += onWireWidth(flat.Fields[i].Type)
+		stride += flat.FieldWidth(i)
 	}
 	stride += flat.BitmapByteSize()
 	return planConstantElision(flat, constant, rows, make([]byte, stride), reserved)

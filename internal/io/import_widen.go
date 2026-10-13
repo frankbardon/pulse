@@ -209,27 +209,34 @@ func convertOrWiden(schema *encoding.Schema, i int, raw string, dict *encoding.D
 }
 
 // widenBufferedColumn re-strides rows import rows held in buf, laid out
-// field by field per types (bit-packed = one byte), so field fi is
-// stored as to instead of types[fi]. It works in place, last row first:
-// a row's new position is never before its old one, so no row is
-// overwritten before it has been moved. Values are preserved — integers
-// and dictionary IDs zero-extend, and an integer bound for f64 is
-// written as the exactly-equal float, an f32 as the exactly-equal f64.
-func widenBufferedColumn(buf *bytes.Buffer, rows int, types []encoding.FieldType, fi int, to encoding.FieldType) error {
+// field by field per held (Schema.FieldWidth each, bit-packed = one
+// byte, no bitmap), so field fi is stored as to instead of its held type.
+// It returns the layout the rows now have — held with field fi retyped —
+// for the next promotion to start from; held itself is not modified. It
+// works in place, last row first: a row's new position is never before
+// its old one, so no row is overwritten before it has been moved. Values
+// are preserved — integers and dictionary IDs zero-extend, and an
+// integer bound for f64 is written as the exactly-equal float, an f32 as
+// the exactly-equal f64.
+func widenBufferedColumn(buf *bytes.Buffer, rows int, held *encoding.Schema, fi int, to encoding.FieldType) (*encoding.Schema, error) {
+	next := *held
+	next.Fields = append([]encoding.Field(nil), held.Fields...)
+	next.Fields[fi].Type = to
+	from := held.Fields[fi].Type
 	off, oldStride := 0, 0
-	for i, ft := range types {
+	for i := range held.Fields {
 		if i == fi {
 			off = oldStride
 		}
-		oldStride += encx.CellWidth(ft)
+		oldStride += held.FieldWidth(i)
 	}
-	wOld, wNew := encx.CellWidth(types[fi]), encx.CellWidth(to)
+	wOld, wNew := held.FieldWidth(fi), next.FieldWidth(fi)
 	newStride := oldStride - wOld + wNew
 	if rows == 0 || wNew == wOld && to != encoding.FieldTypeF64 {
-		return nil
+		return &next, nil
 	}
 	if buf.Len() != rows*oldStride {
-		return fmt.Errorf("import width promotion: %d buffered bytes are not %d rows of %d", buf.Len(), rows, oldStride)
+		return nil, fmt.Errorf("import width promotion: %d buffered bytes are not %d rows of %d", buf.Len(), rows, oldStride)
 	}
 	buf.Write(make([]byte, rows*(newStride-oldStride)))
 	b := buf.Bytes()
@@ -243,7 +250,7 @@ func widenBufferedColumn(buf *bytes.Buffer, rows int, types []encoding.FieldType
 		copy(b[dst:dst+off], b[src:src+off])
 		switch {
 		case to != encoding.FieldTypeF64:
-		case types[fi] == encoding.FieldTypeF32:
+		case from == encoding.FieldTypeF32:
 			v = math.Float64bits(float64(math.Float32frombits(uint32(v))))
 		default:
 			v = math.Float64bits(float64(v))
@@ -251,7 +258,7 @@ func widenBufferedColumn(buf *bytes.Buffer, rows int, types []encoding.FieldType
 		binary.LittleEndian.PutUint64(cell[:], v)
 		copy(b[dst+off:dst+off+wNew], cell[:wNew])
 	}
-	return nil
+	return &next, nil
 }
 
 // relayoutOffsets recomputes every field's ByteOffset from the field
@@ -259,7 +266,7 @@ func widenBufferedColumn(buf *bytes.Buffer, rows int, types []encoding.FieldType
 // promotion changed a width or when a caller-authored schema's own
 // offsets must not be trusted (the cohort builder).
 func relayoutOffsets(schema *encoding.Schema) {
-	encx.LayoutFields(schema.Fields)
+	encx.LayoutFields(schema)
 }
 
 // widthWarnings folds the rung steps into one PULSE_IMPORT_WIDTH_PROMOTED

@@ -254,12 +254,32 @@ func slotTokenLeaks(text string, tokens map[string]bool) []string {
 	var out []string
 	for _, line := range strings.Split(text, "\n") {
 		for _, sentence := range strings.Split(line, ". ") {
-			if namesHiddenToken(sentence, tokens) != "" && namesHiddenToken(sentence, map[string]bool{"assert_unique": true}) == "" {
+			if slotTokenLeak(sentence, tokens) {
 				out = append(out, sentence)
 			}
 		}
 	}
 	return out
+}
+
+// slotTokenLeak reports whether sentence names a hidden slot token that
+// is not, in this sentence, a homonym — a same-spelled different surface
+// (pulse_lookup's `multiplicity`, pulse_import's `vectors`) marked by one
+// of descx.SlotTokenHomonymMarkers.
+func slotTokenLeak(sentence string, tokens map[string]bool) bool {
+	for tok := range tokens {
+		if namesHiddenToken(sentence, map[string]bool{tok: true}) == "" {
+			continue
+		}
+		markers := map[string]bool{}
+		for _, m := range descx.SlotTokenHomonymMarkers(tok) {
+			markers[m] = true
+		}
+		if len(markers) == 0 || namesHiddenToken(sentence, markers) == "" {
+			return true
+		}
+	}
+	return false
 }
 
 // TestProfileHiddenSlotTokenSweep: an instance offering everything but

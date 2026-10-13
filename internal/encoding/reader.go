@@ -186,7 +186,8 @@ func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]b
 		delete(rr.raw, k)
 	}
 
-	for _, field := range rr.schema.Fields {
+	for fi := range rr.schema.Fields {
+		field := &rr.schema.Fields[fi]
 		keepField := keep == nil || keep(field.Name)
 		switch field.Type {
 		case encoding.FieldTypePackedBool:
@@ -255,6 +256,22 @@ func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]b
 				wide[field.Name] = m
 			}
 
+		case encoding.FieldTypeVecF32, encoding.FieldTypeVecF64:
+			// ReadFieldValue refuses a vector (its uint64 return cannot
+			// hold one), and a refusal here would read as a truncated
+			// tail. The vector rides the wide map as a []float64 and
+			// writes NO values echo: it has no scalar value.
+			v, err := readVectorField(rr.r, rr.schema, fi, keepField && wide != nil)
+			if err != nil {
+				if isEOF(err) {
+					return io.EOF
+				}
+				return err
+			}
+			if v != nil {
+				wide[field.Name] = v
+			}
+
 		default:
 			raw, err := encoding.ReadFieldValue(rr.r, field.Type)
 			if err != nil {
@@ -311,6 +328,19 @@ func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]b
 	}
 
 	return nil
+}
+
+// readVectorField consumes logical field fi's vector payload (its whole
+// Schema.FieldWidth) from r and, when keep is true, returns the elements
+// as a fresh []float64 (nil otherwise). The payload is always READ, never
+// skipped by seeking: a seek past the end succeeds, and a truncated tail
+// must surface as EOF exactly as any other field's short read does.
+func readVectorField(r io.Reader, s *encoding.Schema, fi int, keep bool) ([]float64, error) {
+	v, err := encoding.ReadVector(r, s.Fields[fi].Type, s.VectorDim(fi), nil)
+	if err != nil || !keep {
+		return nil, err
+	}
+	return v, nil
 }
 
 // isEOF checks if an error wraps an EOF.

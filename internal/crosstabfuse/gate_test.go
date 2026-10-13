@@ -38,7 +38,7 @@ func (f fakeFacts) AggregatorMarginClass(t types.AggregationType) types.MarginRe
 func (f fakeFacts) AttributeTwoPass(t types.AttributeType) bool {
 	return t == types.ATTR_ZSCORE || f.extAttrs[t]
 }
-func (f fakeFacts) AttributeSlotTwoPass(a *types.Attribute, _ []types.VectorSpec) bool {
+func (f fakeFacts) AttributeSlotTwoPass(a *types.Attribute, _ []types.VectorSpec, _ *encoding.Schema) bool {
 	return f.slotTwoPass != nil && f.slotTwoPass(a)
 }
 func (f fakeFacts) GrouperKeyable(g *types.Group, _ *encoding.Schema) bool {

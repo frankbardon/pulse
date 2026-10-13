@@ -530,6 +530,7 @@ pulse: type ImportSidecar field SourceFormat string "json:\"source_format\""
 pulse: type ImportSidecar field SourcePath string "json:\"source_path\""
 pulse: type ImportSidecar field SourceTZ string "json:\"source_tz,omitempty\""
 pulse: type ImportSidecar field TTLSeconds int64 "json:\"ttl_seconds\""
+pulse: type ImportSidecar field Vectors []pulse/io.VectorDecl "json:\"vectors,omitempty\""
 pulse: type ImportSidecar method (ImportSidecar) Pinned() bool
 pulse: type ImportSpec = pulse/internal/imports.Spec
 pulse: type ImportSpec underlying struct
@@ -551,6 +552,7 @@ pulse: type ImportSpec field SourcePath string
 pulse: type ImportSpec field SourceTZ string
 pulse: type ImportSpec field SuggestGroups bool
 pulse: type ImportSpec field TTL time.Duration
+pulse: type ImportSpec field Vectors []pulse/io.VectorDecl
 pulse: type IndexFreshnessReason = pulse/internal/service.IndexFreshnessReason
 pulse: type IndexFreshnessReason underlying string
 pulse: type IndexInfo = pulse/internal/service.IndexInfo
@@ -1328,6 +1330,7 @@ pulse/descriptor: const FieldKindCategorical pulse/descriptor.FieldKind = "categ
 pulse/descriptor: const FieldKindDate pulse/descriptor.FieldKind = "date"
 pulse/descriptor: const FieldKindNumeric pulse/descriptor.FieldKind = "numeric"
 pulse/descriptor: const FieldKindSet pulse/descriptor.FieldKind = "set"
+pulse/descriptor: const FieldKindVector pulse/descriptor.FieldKind = "vector"
 pulse/descriptor: type FiltererPredict struct
 pulse/descriptor: type FiltererPredict field BufferedComponents bool "json:\"buffered_components,omitempty\""
 pulse/descriptor: type FiltererPredict field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
@@ -1369,6 +1372,7 @@ pulse/descriptor: type InspectField field Name string "json:\"name\""
 pulse/descriptor: type InspectField field Precision *uint8 "json:\"precision,omitempty\""
 pulse/descriptor: type InspectField field Scale *uint8 "json:\"scale,omitempty\""
 pulse/descriptor: type InspectField field Type string "json:\"type\""
+pulse/descriptor: type InspectField field Vector *pulse/descriptor.InspectVector "json:\"vector,omitempty\""
 pulse/descriptor: type InspectFieldGroup struct
 pulse/descriptor: type InspectFieldGroup field Group int "json:\"group\""
 pulse/descriptor: type InspectFieldGroup field Key bool "json:\"key\""
@@ -1406,6 +1410,12 @@ pulse/descriptor: type InspectResult field Layout *pulse/descriptor.InspectLayou
 pulse/descriptor: type InspectResult field RecordCount int64 "json:\"record_count\""
 pulse/descriptor: type InspectResult field Shards []pulse/descriptor.ShardInfo "json:\"shards\""
 pulse/descriptor: type InspectResult field SuggestedWeight *pulse/descriptor.SuggestedWeight "json:\"suggested_weight,omitempty\""
+pulse/descriptor: type InspectVector struct
+pulse/descriptor: type InspectVector field Dim int "json:\"dim\""
+pulse/descriptor: type InspectVector field Kind string "json:\"kind,omitempty\""
+pulse/descriptor: type InspectVector field Labels *pulse/descriptor.DictionaryInfo "json:\"labels,omitempty\""
+pulse/descriptor: type InspectVector field ScaleMax *float64 "json:\"scale_max,omitempty\""
+pulse/descriptor: type InspectVector field ScaleMin *float64 "json:\"scale_min,omitempty\""
 pulse/descriptor: type Intent struct
 pulse/descriptor: type Intent field Analytic bool "json:\"analytic\""
 pulse/descriptor: type Intent field ID string "json:\"id\""
@@ -1949,11 +1959,13 @@ pulse/encoding: type FieldType method (FieldType) IsKnown() bool
 pulse/encoding: type FieldType method (FieldType) IsNumeric() bool
 pulse/encoding: type FieldType method (FieldType) IsNumericForAnalytics() bool
 pulse/encoding: type FieldType method (FieldType) IsSet() bool
+pulse/encoding: type FieldType method (FieldType) IsVector() bool
 pulse/encoding: type FieldType method (FieldType) IsWideSet() bool
 pulse/encoding: type FieldType method (FieldType) MaxCategoricalEntries() uint32
 pulse/encoding: type FieldType method (FieldType) MaxDictEntries() uint32
 pulse/encoding: type FieldType method (FieldType) MaxSetEntries() uint32
 pulse/encoding: type FieldType method (FieldType) String() string
+pulse/encoding: type FieldType method (FieldType) VectorElemSize() int
 pulse/encoding: const FieldTypeCategoricalU16 pulse/encoding.FieldType = 10
 pulse/encoding: const FieldTypeCategoricalU32 pulse/encoding.FieldType = 11
 pulse/encoding: const FieldTypeCategoricalU8 pulse/encoding.FieldType = 9
@@ -1974,6 +1986,8 @@ pulse/encoding: const FieldTypeU32 pulse/encoding.FieldType = 2
 pulse/encoding: const FieldTypeU4 pulse/encoding.FieldType = 6
 pulse/encoding: const FieldTypeU64 pulse/encoding.FieldType = 3
 pulse/encoding: const FieldTypeU8 pulse/encoding.FieldType = 0
+pulse/encoding: const FieldTypeVecF32 pulse/encoding.FieldType = 20
+pulse/encoding: const FieldTypeVecF64 pulse/encoding.FieldType = 21
 pulse/encoding: func FormatDateTime(raw uint64) string
 pulse/encoding: const FormatVersion byte = 1
 pulse/encoding: const FormatVersionV1 byte = 1
@@ -1997,7 +2011,9 @@ pulse/encoding: var MagicBytes [8]byte
 pulse/encoding: const MaxDecimalPrecision untyped int = 38
 pulse/encoding: const MaxDescriptionBytes untyped int = 1000
 pulse/encoding: var MaxGroupEntries uint64
+pulse/encoding: const MaxVectorDim untyped int = 1024
 pulse/encoding: const MinDecimalScale untyped int = 4
+pulse/encoding: const MinVectorDim untyped int = 2
 pulse/encoding: func NewDecimal128FromBigInt(m *math/big.Int) (pulse/encoding.Decimal128, error)
 pulse/encoding: func NewDecimal128FromInt(i int64) pulse/encoding.Decimal128
 pulse/encoding: func NewDictionary() *pulse/encoding.Dictionary
@@ -2006,7 +2022,9 @@ pulse/encoding: func ParseDate(raw string) (uint32, error)
 pulse/encoding: func ParseDateTime(raw string) (uint64, error)
 pulse/encoding: func ParseDecimal128(s string) (pulse/encoding.Decimal128, uint8, error)
 pulse/encoding: func ParseFieldType(name string) (pulse/encoding.FieldType, bool)
+pulse/encoding: func ParseVectorKind(name string) (pulse/encoding.VectorKind, bool)
 pulse/encoding: func PutSetMask(dst []byte, ft pulse/encoding.FieldType, m pulse/encoding.SetMask) error
+pulse/encoding: func PutVector(dst []byte, ft pulse/encoding.FieldType, dim int, v []float64) error
 pulse/encoding: func ReadBit(r io.Reader, bitPos uint) (bool, error)
 pulse/encoding: func ReadBitmap(r io.Reader, byteLen int) ([]byte, error)
 pulse/encoding: func ReadDecimal128(r io.Reader) (pulse/encoding.Decimal128, error)
@@ -2016,6 +2034,7 @@ pulse/encoding: func ReadHeader(r io.Reader) (byte, error)
 pulse/encoding: func ReadNibble(r io.Reader, high bool) (uint8, error)
 pulse/encoding: func ReadSchema(r io.Reader, v byte) (*pulse/encoding.Schema, error)
 pulse/encoding: func ReadSetMask(r io.Reader, ft pulse/encoding.FieldType) (pulse/encoding.SetMask, error)
+pulse/encoding: func ReadVector(r io.Reader, ft pulse/encoding.FieldType, dim int, dst []float64) ([]float64, error)
 pulse/encoding: type RecordLocator struct
 pulse/encoding: type RecordLocator field RecordRegionStart int64
 pulse/encoding: type RecordLocator field Schema *pulse/encoding.Schema
@@ -2025,10 +2044,12 @@ pulse/encoding: type RecordLocator method (*RecordLocator) Offset(i uint64) int6
 pulse/encoding: type Schema struct
 pulse/encoding: type Schema field Fields []pulse/encoding.Field
 pulse/encoding: type Schema field Groups []pulse/encoding.Group
+pulse/encoding: type Schema field Vectors []pulse/encoding.VectorField
 pulse/encoding: type Schema method (*Schema) BitmapByteSize() int
 pulse/encoding: type Schema method (*Schema) Categorical(name string) (*pulse/encoding.Dictionary, bool)
 pulse/encoding: type Schema method (*Schema) Field(name string) *pulse/encoding.Field
 pulse/encoding: type Schema method (*Schema) FieldGroup(fi int) (g int, k int, ok bool)
+pulse/encoding: type Schema method (*Schema) FieldWidth(i int) int
 pulse/encoding: type Schema method (*Schema) GroupEntry(g int, e int) []byte
 pulse/encoding: type Schema method (*Schema) GroupEntryCount(g int) int
 pulse/encoding: type Schema method (*Schema) GroupEntryWidth(g int) int
@@ -2038,12 +2059,16 @@ pulse/encoding: type Schema method (*Schema) GroupMemberIsNull(g int, k int, ent
 pulse/encoding: type Schema method (*Schema) GroupMemberRowBytes(g int) int
 pulse/encoding: type Schema method (*Schema) HasBitmap() bool
 pulse/encoding: type Schema method (*Schema) HasGroups() bool
+pulse/encoding: type Schema method (*Schema) HasVectors() bool
 pulse/encoding: type Schema method (*Schema) Logical() *pulse/encoding.Schema
 pulse/encoding: type Schema method (*Schema) RecordByteSize() int
 pulse/encoding: type Schema method (*Schema) RecordCountForPayload(payloadBytes int64) (count int64, trailing int64, ok bool)
 pulse/encoding: type Schema method (*Schema) RequiredFormatVersion() byte
 pulse/encoding: type Schema method (*Schema) SetField(name string) (*pulse/encoding.Dictionary, bool)
 pulse/encoding: type Schema method (*Schema) ValidateGroups() error
+pulse/encoding: type Schema method (*Schema) ValidateVectors() error
+pulse/encoding: type Schema method (*Schema) Vector(i int) (pulse/encoding.VectorField, bool)
+pulse/encoding: type Schema method (*Schema) VectorDim(i int) int
 pulse/encoding: const SecondsPerDay untyped int = 86400
 pulse/encoding: type SetMask struct
 pulse/encoding: type SetMask method (SetMask) Bits() iter.Seq[int]
@@ -2074,6 +2099,23 @@ pulse/encoding: type SetWidthHeadroom field NextType string "json:\"next_type,om
 pulse/encoding: type SetWidthHeadroom field Type string "json:\"type\""
 pulse/encoding: type SetWidthHeadroom field Used int "json:\"used\""
 pulse/encoding: func SupportedFormatVersions() []byte
+pulse/encoding: type VectorField struct
+pulse/encoding: type VectorField field Dim int
+pulse/encoding: type VectorField field FieldIndex int
+pulse/encoding: type VectorField field HasScale bool
+pulse/encoding: type VectorField field Kind pulse/encoding.VectorKind
+pulse/encoding: type VectorField field Labels []string
+pulse/encoding: type VectorField field ScaleMax float64
+pulse/encoding: type VectorField field ScaleMin float64
+pulse/encoding: func VectorFromBytes(src []byte, ft pulse/encoding.FieldType, dim int, dst []float64) ([]float64, error)
+pulse/encoding: type VectorKind uint8
+pulse/encoding: type VectorKind method (VectorKind) IsKnown() bool
+pulse/encoding: type VectorKind method (VectorKind) String() string
+pulse/encoding: const VectorKindBinary pulse/encoding.VectorKind = 4
+pulse/encoding: const VectorKindComposition pulse/encoding.VectorKind = 3
+pulse/encoding: const VectorKindMeasure pulse/encoding.VectorKind = 1
+pulse/encoding: const VectorKindNone pulse/encoding.VectorKind = 0
+pulse/encoding: const VectorKindScale pulse/encoding.VectorKind = 2
 pulse/encoding: type WidenReport struct
 pulse/encoding: type WidenReport field Field string
 pulse/encoding: type WidenReport field From pulse/encoding.FieldType
@@ -2090,6 +2132,7 @@ pulse/encoding: func WriteHeader(w io.Writer) error
 pulse/encoding: func WriteNibble(w io.Writer, high bool, val uint8) error
 pulse/encoding: func WriteSchema(w io.Writer, s *pulse/encoding.Schema) error
 pulse/encoding: func WriteSetMask(w io.Writer, ft pulse/encoding.FieldType, m pulse/encoding.SetMask) error
+pulse/encoding: func WriteVector(w io.Writer, ft pulse/encoding.FieldType, dim int, v []float64) error
 pulse/encoding: func ZeroDecimal128() pulse/encoding.Decimal128
 pulse/encoding: var ZstdMagic [4]byte
 pulse/errors: package errors
@@ -2228,6 +2271,7 @@ pulse/errors: const PULSE_DECIMAL_OVERFLOW pulse/errors.Code = "PULSE_DECIMAL_OV
 pulse/errors: const PULSE_DECIMAL_PRECISION_LOSS pulse/errors.Code = "PULSE_DECIMAL_PRECISION_LOSS"
 pulse/errors: const PULSE_DEDUP_LOW_RATIO pulse/errors.Code = "PULSE_DEDUP_LOW_RATIO"
 pulse/errors: const PULSE_DOCS_EXPORT_DIR_NOT_EMPTY pulse/errors.Code = "PULSE_DOCS_EXPORT_DIR_NOT_EMPTY"
+pulse/errors: const PULSE_EXPORT_COLUMN_COLLISION pulse/errors.Code = "PULSE_EXPORT_COLUMN_COLLISION"
 pulse/errors: const PULSE_EXPORT_FIELD_UNKNOWN pulse/errors.Code = "PULSE_EXPORT_FIELD_UNKNOWN"
 pulse/errors: const PULSE_EXPORT_ROW_ERROR pulse/errors.Code = "PULSE_EXPORT_ROW_ERROR"
 pulse/errors: const PULSE_EXTENSION_ARRAY_VALUED_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_ARRAY_VALUED_MISMATCH"
@@ -2288,6 +2332,7 @@ pulse/errors: const PULSE_IMPORT_SET_OVERFLOW pulse/errors.Code = "PULSE_IMPORT_
 pulse/errors: const PULSE_IMPORT_SOURCE_FORBIDDEN pulse/errors.Code = "PULSE_IMPORT_SOURCE_FORBIDDEN"
 pulse/errors: const PULSE_IMPORT_SOURCE_MISSING pulse/errors.Code = "PULSE_IMPORT_SOURCE_MISSING"
 pulse/errors: const PULSE_IMPORT_TIMESTAMP_TRUNCATED pulse/errors.Code = "PULSE_IMPORT_TIMESTAMP_TRUNCATED"
+pulse/errors: const PULSE_IMPORT_VECTOR_INVALID pulse/errors.Code = "PULSE_IMPORT_VECTOR_INVALID"
 pulse/errors: const PULSE_IMPORT_WIDTH_PROMOTED pulse/errors.Code = "PULSE_IMPORT_WIDTH_PROMOTED"
 pulse/errors: const PULSE_INDEX_MANIFEST_INVALID pulse/errors.Code = "PULSE_INDEX_MANIFEST_INVALID"
 pulse/errors: const PULSE_INDEX_MANIFEST_STALE pulse/errors.Code = "PULSE_INDEX_MANIFEST_STALE"
@@ -2498,6 +2543,7 @@ pulse/errors: const PULSE_TIMEZONE_UNKNOWN pulse/errors.Code = "PULSE_TIMEZONE_U
 pulse/errors: const PULSE_TRANSFER_INVALID pulse/errors.Code = "PULSE_TRANSFER_INVALID"
 pulse/errors: const PULSE_VECTOR_DUPLICATE pulse/errors.Code = "PULSE_VECTOR_DUPLICATE"
 pulse/errors: const PULSE_VECTOR_EMPTY pulse/errors.Code = "PULSE_VECTOR_EMPTY"
+pulse/errors: const PULSE_VECTOR_FIELD_NOT_SCALAR pulse/errors.Code = "PULSE_VECTOR_FIELD_NOT_SCALAR"
 pulse/errors: const PULSE_VECTOR_INVALID pulse/errors.Code = "PULSE_VECTOR_INVALID"
 pulse/errors: const PULSE_VECTOR_LABELS_MISMATCH pulse/errors.Code = "PULSE_VECTOR_LABELS_MISMATCH"
 pulse/errors: const PULSE_VECTOR_MEMBER_TYPE pulse/errors.Code = "PULSE_VECTOR_MEMBER_TYPE"
@@ -2566,6 +2612,7 @@ pulse/extend: type Record imethod NumericValue(field string) (float64, bool)
 pulse/extend: type Record imethod Schema() *pulse/encoding.Schema
 pulse/extend: type Record imethod SetMaskValue(field string) (pulse/encoding.SetMask, bool)
 pulse/extend: type Record imethod StringValue(field string) (string, bool)
+pulse/extend: type Record imethod VectorValue(field string) ([]float64, bool)
 pulse/extend: type Record imethod Weight() (float64, bool)
 pulse/extend: type RichAggregator interface
 pulse/extend: type RichAggregator imethod Rich() (any, error)
@@ -2617,6 +2664,13 @@ pulse/io: type CohortWriter imethod Close() error
 pulse/io: type CohortWriter imethod WriteCohort(ctx context.Context, src pulse/internal/iocore.CohortSource) (int, error)
 pulse/io: type CohortWriter imethod WriteHeader(columns []string) error
 pulse/io: type CohortWriter imethod WriteRow(values []any) error
+pulse/io: type ColumnAwareWriter = pulse/internal/iocore.ColumnAwareWriter
+pulse/io: type ColumnAwareWriter underlying interface
+pulse/io: type ColumnAwareWriter imethod Close() error
+pulse/io: type ColumnAwareWriter imethod SetExportColumns(cols []pulse/internal/iocore.ExportColumn)
+pulse/io: type ColumnAwareWriter imethod WriteHeader(columns []string) error
+pulse/io: type ColumnAwareWriter imethod WriteRow(values []any) error
+pulse/io: func ColumnFields(cols []pulse/io.ExportColumn, schema *pulse/encoding.Schema, header []string) []*pulse/encoding.Field
 pulse/io: type ConvertJob = pulse/internal/io.ConvertJob
 pulse/io: type ConvertJob underlying struct
 pulse/io: type ConvertJob field ColumnSourceTZ map[string]string
@@ -2694,6 +2748,19 @@ pulse/io: type DiscardableWriter imethod WriteHeader(columns []string) error
 pulse/io: type DiscardableWriter imethod WriteRow(values []any) error
 pulse/io: type ExcelReaderOptions struct
 pulse/io: type ExcelReaderOptions field Sheet string
+pulse/io: type ExportColumn = pulse/internal/iocore.ExportColumn
+pulse/io: type ExportColumn underlying struct
+pulse/io: type ExportColumn field Element int
+pulse/io: type ExportColumn field Field *pulse/encoding.Field
+pulse/io: type ExportColumn field Kind pulse/internal/iocore.ExportColumnKind
+pulse/io: type ExportColumn field Name string
+pulse/io: type ExportColumn field Source string
+pulse/io: const ExportColumnElement pulse/internal/iocore.ExportColumnKind = 2
+pulse/io: const ExportColumnField pulse/internal/iocore.ExportColumnKind = 0
+pulse/io: type ExportColumnKind = pulse/internal/iocore.ExportColumnKind
+pulse/io: type ExportColumnKind underlying uint8
+pulse/io: const ExportColumnLabel pulse/internal/iocore.ExportColumnKind = 1
+pulse/io: const ExportColumnList pulse/internal/iocore.ExportColumnKind = 3
 pulse/io: type ExportJob = pulse/internal/io.ExportJob
 pulse/io: type ExportJob underlying struct
 pulse/io: type ExportJob field FS github.com/spf13/afero.Fs
@@ -2806,6 +2873,7 @@ pulse/io: type ImportJob field SourceTZ string
 pulse/io: type ImportJob field StrictDedup bool
 pulse/io: type ImportJob field SuggestGroups bool
 pulse/io: type ImportJob field Target string
+pulse/io: type ImportJob field Vectors []pulse/internal/io.VectorDecl
 pulse/io: type ImportJob method (*ImportJob) Predict(ctx context.Context) (*pulse/internal/io.PredictReport, error)
 pulse/io: type ImportJob method (*ImportJob) Run(ctx context.Context) (*pulse/internal/io.ImportReport, error)
 pulse/io: type ImportProjection = pulse/internal/io.ImportProjection
@@ -2843,6 +2911,41 @@ pulse/io: type LabelWarning underlying struct
 pulse/io: type LabelWarning field Code string
 pulse/io: type LabelWarning field Details map[string]any
 pulse/io: type LabelWarning field Message string
+pulse/io: type ListAwareReader = pulse/internal/iocore.ListAwareReader
+pulse/io: type ListAwareReader underlying interface
+pulse/io: type ListAwareReader imethod Close() error
+pulse/io: type ListAwareReader imethod ReadHeader() ([]string, error)
+pulse/io: type ListAwareReader imethod ReadRows(ctx context.Context, fn func(row []string) error) error
+pulse/io: type ListAwareReader imethod RowList(col int, dst *pulse/internal/iocore.ListCell) error
+pulse/io: type ListAwareWriter = pulse/internal/iocore.ListAwareWriter
+pulse/io: type ListAwareWriter underlying interface
+pulse/io: type ListAwareWriter imethod Close() error
+pulse/io: type ListAwareWriter imethod SetListColumns(cols []pulse/internal/iocore.ListColumn)
+pulse/io: type ListAwareWriter imethod WriteHeader(columns []string) error
+pulse/io: type ListAwareWriter imethod WriteRow(values []any) error
+pulse/io: type ListCell = pulse/internal/iocore.ListCell
+pulse/io: type ListCell underlying struct
+pulse/io: type ListCell field BadIndex int
+pulse/io: type ListCell field BadValue string
+pulse/io: type ListCell field Nulls []bool
+pulse/io: type ListCell field State pulse/internal/iocore.ListState
+pulse/io: type ListCell field Values []float64
+pulse/io: type ListCell method (*ListCell) Append(v float64, null bool)
+pulse/io: type ListCell method (*ListCell) Reset(state pulse/internal/iocore.ListState)
+pulse/io: type ListColumn = pulse/internal/iocore.ListColumn
+pulse/io: type ListColumn underlying struct
+pulse/io: type ListColumn field Dim int
+pulse/io: type ListColumn field Index int
+pulse/io: type ListColumn field Labels []string
+pulse/io: type ListColumn field Name string
+pulse/io: type ListColumn field Nullable bool
+pulse/io: type ListColumn field Type pulse/encoding.FieldType
+pulse/io: const ListNonNumeric pulse/internal/iocore.ListState = 3
+pulse/io: const ListNotList pulse/internal/iocore.ListState = 2
+pulse/io: const ListNull pulse/internal/iocore.ListState = 0
+pulse/io: type ListState = pulse/internal/iocore.ListState
+pulse/io: type ListState underlying uint8
+pulse/io: const ListValues pulse/internal/iocore.ListState = 1
 pulse/io: func NewExportJob(source string, target pulse/io.Writer) *pulse/io.ExportJob
 pulse/io: func NewImportJob(source pulse/io.Reader, target string) *pulse/io.ImportJob
 pulse/io: func NewReader(f pulse/io.Format, fs github.com/spf13/afero.Fs, path string, opts pulse/io.ReaderOptions) (pulse/io.Reader, error)
@@ -2872,6 +2975,7 @@ pulse/io: type OverlayWarningEmitter underlying interface
 pulse/io: type OverlayWarningEmitter imethod OverlayWarnings() []*pulse/errors.CodedError
 pulse/io: type PredictReport = pulse/internal/io.PredictReport
 pulse/io: type PredictReport underlying struct
+pulse/io: type PredictReport field Columns []string "json:\"Columns,omitempty\""
 pulse/io: type PredictReport field ElidedConstants []string "json:\"ElidedConstants,omitempty\""
 pulse/io: type PredictReport field EstimatedRows int
 pulse/io: type PredictReport field GroupCandidates *pulse/internal/io.GroupDetection "json:\"GroupCandidates,omitempty\""
@@ -2974,6 +3078,15 @@ pulse/io: type TransferReport field Output string "json:\"output\""
 pulse/io: type TransferReport field Ratio float64 "json:\"ratio\""
 pulse/io: type TransferReport field SHA256 string "json:\"sha256\""
 pulse/io: type TransferReport field Source string "json:\"source\""
+pulse/io: type VectorDecl = pulse/internal/io.VectorDecl
+pulse/io: type VectorDecl underlying struct
+pulse/io: type VectorDecl field Columns []string "json:\"columns,omitempty\""
+pulse/io: type VectorDecl field Element string "json:\"element,omitempty\""
+pulse/io: type VectorDecl field Kind string "json:\"kind,omitempty\""
+pulse/io: type VectorDecl field Name string "json:\"name\""
+pulse/io: type VectorDecl field Pattern string "json:\"pattern,omitempty\""
+pulse/io: type VectorDecl field ScaleMax *float64 "json:\"scale_max,omitempty\""
+pulse/io: type VectorDecl field ScaleMin *float64 "json:\"scale_min,omitempty\""
 pulse/io: type Writer = pulse/internal/iocore.Writer
 pulse/io: type Writer underlying interface
 pulse/io: type Writer imethod Close() error
@@ -3450,6 +3563,7 @@ pulse/synth: type FidelityReport field SetNumericPairwise []*pulse/internal/synt
 pulse/synth: type FidelityReport field SetSetPairwise []*pulse/internal/synth.SetSetPairFidelity "json:\"set_set_pairwise,omitempty\""
 pulse/synth: type FidelityReport field SourceRows int "json:\"source_rows\""
 pulse/synth: type FidelityReport field SyntheticRows int "json:\"synthetic_rows\""
+pulse/synth: type FidelityReport field VectorFields []*pulse/internal/synth.VectorFieldFidelity "json:\"vector_fields,omitempty\""
 pulse/synth: type FidelityReport field Warnings []string "json:\"warnings,omitempty\""
 pulse/synth: type FieldContinuation = pulse/internal/synth.FieldContinuation
 pulse/synth: type FieldContinuation underlying struct
@@ -3494,6 +3608,7 @@ pulse/synth: type FieldProfile field Precision uint8 "json:\"precision,omitempty
 pulse/synth: type FieldProfile field Scale uint8 "json:\"scale,omitempty\""
 pulse/synth: type FieldProfile field Set *pulse/internal/synth.SetProfile "json:\"set,omitempty\""
 pulse/synth: type FieldProfile field Type string "json:\"type\""
+pulse/synth: type FieldProfile field Vector *pulse/internal/synth.VectorProfile "json:\"vector,omitempty\""
 pulse/synth: type FieldSpec = pulse/internal/synth.FieldSpec
 pulse/synth: type FieldSpec underlying struct
 pulse/synth: type FieldSpec field Description string "json:\"description,omitempty\""
@@ -3505,6 +3620,7 @@ pulse/synth: type FieldSpec field Params map[string]any "json:\"params,omitempty
 pulse/synth: type FieldSpec field Precision uint8 "json:\"precision,omitempty\""
 pulse/synth: type FieldSpec field Scale uint8 "json:\"scale,omitempty\""
 pulse/synth: type FieldSpec field Type string "json:\"type\""
+pulse/synth: type FieldSpec field Vector *pulse/internal/synth.VectorSpec "json:\"vector,omitempty\""
 pulse/synth: type ModelFidelity = pulse/internal/synth.ModelFidelity
 pulse/synth: type ModelFidelity underlying struct
 pulse/synth: type ModelFidelity field CapturedIntercept float64 "json:\"captured_intercept\""
@@ -3850,6 +3966,71 @@ pulse/synth: type Spec method (*Spec) Hash() string
 pulse/synth: func SpecFromProfile(p *pulse/synth.Profile, rowCount int) (*pulse/synth.Spec, []string)
 pulse/synth: func Synth(fs github.com/spf13/afero.Fs, spec *pulse/synth.Spec, output string, opts pulse/synth.Options) (*pulse/synth.Result, error)
 pulse/synth: func SynthBytes(spec *pulse/synth.Spec, opts pulse/synth.Options) ([]byte, *pulse/synth.Result, error)
+pulse/synth: type VectorCorrelationSpec = pulse/internal/synth.VectorCorrelationSpec
+pulse/synth: type VectorCorrelationSpec underlying struct
+pulse/synth: type VectorCorrelationSpec field A int "json:\"a\""
+pulse/synth: type VectorCorrelationSpec field B int "json:\"b\""
+pulse/synth: type VectorCorrelationSpec field Correlation float64 "json:\"correlation\""
+pulse/synth: type VectorCorrelationStat = pulse/internal/synth.VectorCorrelationStat
+pulse/synth: type VectorCorrelationStat underlying struct
+pulse/synth: type VectorCorrelationStat field A int "json:\"a\""
+pulse/synth: type VectorCorrelationStat field B int "json:\"b\""
+pulse/synth: type VectorCorrelationStat field N int "json:\"n\""
+pulse/synth: type VectorCorrelationStat field Rho float64 "json:\"rho\""
+pulse/synth: type VectorElementFidelity = pulse/internal/synth.VectorElementFidelity
+pulse/synth: type VectorElementFidelity underlying struct
+pulse/synth: type VectorElementFidelity field Element int "json:\"element\""
+pulse/synth: type VectorElementFidelity field Error string "json:\"error,omitempty\""
+pulse/synth: type VectorElementFidelity field Label string "json:\"label,omitempty\""
+pulse/synth: type VectorElementFidelity field MeanDelta float64 "json:\"mean_delta,omitempty\""
+pulse/synth: type VectorElementFidelity field SourceMean float64 "json:\"source_mean\""
+pulse/synth: type VectorElementFidelity field SourceNaNRate float64 "json:\"source_nan_rate\""
+pulse/synth: type VectorElementFidelity field SourceStd float64 "json:\"source_std\""
+pulse/synth: type VectorElementFidelity field StdDelta float64 "json:\"std_delta,omitempty\""
+pulse/synth: type VectorElementFidelity field SyntheticMean float64 "json:\"synthetic_mean,omitempty\""
+pulse/synth: type VectorElementFidelity field SyntheticNaNRate float64 "json:\"synthetic_nan_rate\""
+pulse/synth: type VectorElementFidelity field SyntheticStd float64 "json:\"synthetic_std,omitempty\""
+pulse/synth: type VectorElementProfile = pulse/internal/synth.VectorElementProfile
+pulse/synth: type VectorElementProfile underlying struct
+pulse/synth: type VectorElementProfile field NaNRate float64 "json:\"nan_rate\""
+pulse/synth: type VectorElementProfile field Numeric *pulse/internal/synth.NumericProfile "json:\"numeric,omitempty\""
+pulse/synth: type VectorElementSpec = pulse/internal/synth.VectorElementSpec
+pulse/synth: type VectorElementSpec underlying struct
+pulse/synth: type VectorElementSpec field Distribution string "json:\"distribution,omitempty\""
+pulse/synth: type VectorElementSpec field NaNRate *float64 "json:\"nan_rate,omitempty\""
+pulse/synth: type VectorElementSpec field Params map[string]any "json:\"params,omitempty\""
+pulse/synth: type VectorFieldFidelity = pulse/internal/synth.VectorFieldFidelity
+pulse/synth: type VectorFieldFidelity underlying struct
+pulse/synth: type VectorFieldFidelity field CorrelationPairs int "json:\"correlation_pairs,omitempty\""
+pulse/synth: type VectorFieldFidelity field CorrelationSkipped string "json:\"correlation_skipped,omitempty\""
+pulse/synth: type VectorFieldFidelity field Elements []*pulse/internal/synth.VectorElementFidelity "json:\"elements,omitempty\""
+pulse/synth: type VectorFieldFidelity field Error string "json:\"error,omitempty\""
+pulse/synth: type VectorFieldFidelity field Field string "json:\"field\""
+pulse/synth: type VectorFieldFidelity field MaxCorrelationDelta float64 "json:\"max_correlation_delta,omitempty\""
+pulse/synth: type VectorFieldFidelity field MaxCorrelationPair []int "json:\"max_correlation_pair,omitempty\""
+pulse/synth: type VectorFieldFidelity field MeanCorrelationDelta float64 "json:\"mean_correlation_delta,omitempty\""
+pulse/synth: type VectorFieldFidelity field SourceN int "json:\"source_n\""
+pulse/synth: type VectorFieldFidelity field SyntheticN int "json:\"synthetic_n\""
+pulse/synth: type VectorProfile = pulse/internal/synth.VectorProfile
+pulse/synth: type VectorProfile underlying struct
+pulse/synth: type VectorProfile field Correlations []pulse/internal/synth.VectorCorrelationStat "json:\"correlations,omitempty\""
+pulse/synth: type VectorProfile field Dim int "json:\"dim\""
+pulse/synth: type VectorProfile field Elements []pulse/internal/synth.VectorElementProfile "json:\"elements,omitempty\""
+pulse/synth: type VectorProfile field Kind string "json:\"kind,omitempty\""
+pulse/synth: type VectorProfile field Labels []string "json:\"labels,omitempty\""
+pulse/synth: type VectorProfile field N int "json:\"n\""
+pulse/synth: type VectorProfile field ScaleMax *float64 "json:\"scale_max,omitempty\""
+pulse/synth: type VectorProfile field ScaleMin *float64 "json:\"scale_min,omitempty\""
+pulse/synth: type VectorSpec = pulse/internal/synth.VectorSpec
+pulse/synth: type VectorSpec underlying struct
+pulse/synth: type VectorSpec field Correlations []pulse/internal/synth.VectorCorrelationSpec "json:\"correlations,omitempty\""
+pulse/synth: type VectorSpec field Dim int "json:\"dim\""
+pulse/synth: type VectorSpec field Elements []pulse/internal/synth.VectorElementSpec "json:\"elements,omitempty\""
+pulse/synth: type VectorSpec field Kind string "json:\"kind,omitempty\""
+pulse/synth: type VectorSpec field Labels []string "json:\"labels,omitempty\""
+pulse/synth: type VectorSpec field NaNRate float64 "json:\"nan_rate,omitempty\""
+pulse/synth: type VectorSpec field ScaleMax *float64 "json:\"scale_max,omitempty\""
+pulse/synth: type VectorSpec field ScaleMin *float64 "json:\"scale_min,omitempty\""
 pulse/synth: func WriteSpec(fs github.com/spf13/afero.Fs, spec *pulse/synth.Spec, path string) error
 pulse/types: package types
 pulse/types: const AGG_AVERAGE pulse/types.AggregationType = "AGG_AVERAGE"
@@ -4983,4 +5164,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 2e6afcf97e94a08df1e755501d6238f0a428822b70cebaa89bee77812b9c4b71
+// golden-hash: 3527739fa9626536b8f3872d1eef9507543c066e21293f32fb54f25a8b7662e2

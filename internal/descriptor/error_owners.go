@@ -129,6 +129,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_IMPORT_NULL_PROMOTED:          ownImportExport,
 	errors.PULSE_IMPORT_WIDTH_PROMOTED:         ownImportExport,
 	errors.PULSE_IMPORT_OVERRIDE_INVALID:       ownImportExport,
+	errors.PULSE_IMPORT_VECTOR_INVALID:         ownImportExport,
 	errors.PULSE_IMPORT_SCHEMA_FIELD_MISSING:   ownImportExport,
 	errors.PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED: ownImportExport,
 	errors.PULSE_IMPORT_SCHEMA_DUPLICATE:       ownImportExport,
@@ -142,6 +143,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_IMPORT_TIMESTAMP_TRUNCATED:    ownImportExport,
 	errors.PULSE_EXPORT_ROW_ERROR:              own(featExport),
 	errors.PULSE_EXPORT_FIELD_UNKNOWN:          own(featExport),
+	errors.PULSE_EXPORT_COLUMN_COLLISION:       own(featExport),
 	errors.PULSE_IMPORT_CATEGORICAL_OVERFLOW:   ownImportExport,
 	// The synth writer refuses an over-wide set dictionary with it too.
 	errors.PULSE_IMPORT_SET_OVERFLOW:          plus(ownImportExport, own(featSynth)),
@@ -524,7 +526,12 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_VECTOR_LABELS_MISMATCH: own(featMatrices),
 	errors.PULSE_VECTOR_NAME_COLLISION:  own(featMatrices),
 	errors.PULSE_VECTOR_UNKNOWN:         ownVectorInputs,
-	errors.PULSE_VECTOR_UNREFERENCED:    own(featMatrices),
+	// A native vector field named in a scalar slot: any request slot
+	// over a cohort carrying a vec field can raise it (the walk, the
+	// zone pass, weight resolution, the point-lookup index), whatever
+	// the instance enables.
+	errors.PULSE_VECTOR_FIELD_NOT_SCALAR: shared,
+	errors.PULSE_VECTOR_UNREFERENCED:     own(featMatrices),
 
 	// The shared metric registry (linalg/metric) refuses an unknown,
 	// wrong-direction or unaccepted metric, and a missing one, for every

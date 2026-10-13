@@ -19,7 +19,9 @@ import (
 )
 
 // acceptanceFieldTypes is every registered field type, in type-byte
-// order; the cohort carries one column per type, named t_<type>.
+// order; the cohort carries one column per type, named t_<type>. The
+// vector types are included: a vec_f32 / vec_f64 column (dim 2) is
+// judged by every operator like any other type.
 func acceptanceFieldTypes() []encoding.FieldType {
 	var out []encoding.FieldType
 	for b := 0; b < 256; b++ {
@@ -28,6 +30,21 @@ func acceptanceFieldTypes() []encoding.FieldType {
 		}
 	}
 	return out
+}
+
+// acceptanceVecDim is the dim of every vector column in the acceptance
+// cohort.
+const acceptanceVecDim = 2
+
+// acceptanceVecCell is row i's value for a vector column of type ft:
+// dim acceptanceVecDim, varying per row so a matrix over it is not
+// singular.
+func acceptanceVecCell(ft encoding.FieldType, i int) any {
+	v := []float64{1 + float64((i*7)%50)*0.5, float64((i*11)%13) + 0.25}
+	if ft == encoding.FieldTypeVecF64 {
+		return v
+	}
+	return []float32{float32(v[0]), float32(v[1])}
 }
 
 // acceptanceCell renders row i's value for a column of type ft.
@@ -65,7 +82,20 @@ func acceptanceCohort(t *testing.T) (*pulse.Pulse, afero.Fs, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The scalar columns import from CSV (the import path owns their
+	// dictionaries, decimals and temporal parsing); the vector columns,
+	// which have no CSV spelling yet, are appended by rebuilding that
+	// cohort with a CohortBuilder: every imported row reads back
+	// unchanged and gains its vector cells.
 	var fields []encoding.Field
+	var scalarTypes, vecTypes []encoding.FieldType
+	for _, ft := range acceptanceFieldTypes() {
+		if ft.IsVector() {
+			vecTypes = append(vecTypes, ft)
+		} else {
+			scalarTypes = append(scalarTypes, ft)
+		}
+	}
 	add := func(name string, ft encoding.FieldType) {
 		f := encoding.Field{Name: name, Type: ft, CsvColumnIdx: len(fields)}
 		if ft.HasDictionary() {
@@ -76,7 +106,7 @@ func acceptanceCohort(t *testing.T) (*pulse.Pulse, afero.Fs, string) {
 		}
 		fields = append(fields, f)
 	}
-	for _, ft := range acceptanceFieldTypes() {
+	for _, ft := range scalarTypes {
 		add("t_"+ft.String(), ft)
 	}
 	add("x", encoding.FieldTypeF64)
@@ -100,8 +130,9 @@ func acceptanceCohort(t *testing.T) (*pulse.Pulse, afero.Fs, string) {
 		b.WriteString(f.Name)
 	}
 	b.WriteByte('\n')
-	for i := range 48 {
-		for _, ft := range acceptanceFieldTypes() {
+	const rows = 48
+	for i := range rows {
+		for _, ft := range scalarTypes {
 			b.WriteString(acceptanceCell(ft, i))
 			b.WriteByte(',')
 		}
@@ -110,9 +141,43 @@ func acceptanceCohort(t *testing.T) (*pulse.Pulse, afero.Fs, string) {
 	if err := afero.WriteFile(fs, "acc.csv", []byte(b.String()), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	job := &pio.ImportJob{Source: csv.NewReader(fs, "acc.csv"), Target: "acc.pulse", Schema: &encoding.Schema{Fields: fields}, FS: fs}
-	if _, err := p.Import(context.Background(), job); err != nil {
+	ctx := context.Background()
+	job := &pio.ImportJob{Source: csv.NewReader(fs, "acc.csv"), Target: "acc_scalar.pulse", Schema: &encoding.Schema{Fields: fields}, FS: fs}
+	if _, err := p.Import(ctx, job); err != nil {
 		t.Fatalf("import: %v", err)
+	}
+	scalar, err := p.Open(ctx, "acc_scalar.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rd, err := scalar.Reader()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rd.Close()
+	schema := encoding.Schema{Fields: append([]encoding.Field(nil), rd.Schema().Fields...)}
+	for _, ft := range vecTypes {
+		schema.Vectors = append(schema.Vectors, encoding.VectorField{FieldIndex: len(schema.Fields), Dim: acceptanceVecDim})
+		schema.Fields = append(schema.Fields, encoding.Field{Name: "t_" + ft.String(), Type: ft})
+	}
+	bld, err := p.NewCohortBuilder(ctx, "acc.pulse", schema, pulse.CohortBuilderOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range int64(rd.Len()) {
+		row, err := rd.RecordAt(i)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, ft := range vecTypes {
+			row = append(row, acceptanceVecCell(ft, int(i)))
+		}
+		if err := bld.Append(row); err != nil {
+			t.Fatalf("row %d: %v", i, err)
+		}
+	}
+	if _, err := bld.Close(); err != nil {
+		t.Fatal(err)
 	}
 	return p, fs, "acc.pulse"
 }
@@ -344,7 +409,15 @@ var acceptanceDataOutcomes = map[errors.Code]bool{
 //
 // Predict stricter than a CORRECT runtime is never listed: that is a
 // predict bug and is fixed (FEAT_POLY on u4 / date was one).
+//
+// A vector type is never listed: every slot that reads one value
+// refuses a vec field on both sides with PULSE_VECTOR_FIELD_NOT_SCALAR
+// (one rule, the field-reference walk's vectorScalarRefusals), and
+// every vector slot accepts it on both sides.
 func knownTypeDivergence(op string, ft encoding.FieldType) string {
+	if ft.IsVector() {
+		return ""
+	}
 	set, cat := ft.IsSet(), ft.IsCategorical()
 	temporal := ft == encoding.FieldTypeDate || ft == encoding.FieldTypeDateTime
 	in := func(names ...string) bool {
@@ -417,6 +490,11 @@ func TestFieldTypeAcceptance_PredictMatchesRuntime(t *testing.T) {
 		for _, ft := range acceptanceFieldTypes() {
 			v, w, success := acceptanceValues(ft)
 			body := strings.NewReplacer("$F", "t_"+ft.String(), "$V", v, "$W", w, "$S", success).Replace(tmpl)
+			if ft.IsVector() {
+				// A vector field in a vector slot expands to its dim
+				// element members, so a literal reference grows with it.
+				body = strings.ReplaceAll(body, `"reference":[1,2]`, `"reference":[1,2,3]`)
+			}
 			mk := func() *types.Request {
 				var req types.Request
 				if err := json.Unmarshal([]byte(body), &req); err != nil {
@@ -445,6 +523,19 @@ func TestFieldTypeAcceptance_PredictMatchesRuntime(t *testing.T) {
 				t.Errorf("%s × %s: runtime accepts=%v, predict accepts=%v (%s)", op, ft, runtimeOK, predictOK, detail)
 			case runtimeOK == predictOK && known != "":
 				t.Errorf("%s × %s: listed as a known divergence (%s) but both sides now agree — remove the ledger entry", op, ft, known)
+			}
+			// A vector refusal is ONE rule on both sides: the runtime
+			// and every predict error carry PULSE_VECTOR_FIELD_NOT_SCALAR
+			// (no slot-specific type error repeats it).
+			if ft.IsVector() && !runtimeOK {
+				if ce == nil || ce.Code != errors.PULSE_VECTOR_FIELD_NOT_SCALAR {
+					t.Errorf("%s × %s: runtime refusal %v, want %s", op, ft, rerr, errors.PULSE_VECTOR_FIELD_NOT_SCALAR)
+				}
+				for _, e := range env.Errors {
+					if e.Code != string(errors.PULSE_VECTOR_FIELD_NOT_SCALAR) {
+						t.Errorf("%s × %s: predict error %s %q beside the vector refusal", op, ft, e.Code, e.Message)
+					}
+				}
 			}
 		}
 		if !anyAccepted {

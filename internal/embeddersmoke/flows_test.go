@@ -787,3 +787,230 @@ func TestTemplateConstants(t *testing.T) {
 		t.Fatalf("rendered = %+v", rendered)
 	}
 }
+
+// listSource is an embedder's own typed source: it implements the
+// public io.ListAwareReader, so a column-less vector declaration reads
+// its "emb" column as one native vector, exactly as a built-in Arrow /
+// Parquet / JSON list source would.
+type listSource struct {
+	lists [][]float64
+	cur   int
+	// failAt, when non-zero, is the 1-based row whose cell the source
+	// fails to READ, with fail as RowList's error.
+	failAt int
+	fail   error
+}
+
+func (s *listSource) ReadHeader() ([]string, error) { return []string{"id", "emb"}, nil }
+func (s *listSource) Reset() error                  { return nil }
+func (s *listSource) Close() error                  { return nil }
+func (s *listSource) ReadRows(ctx context.Context, fn func([]string) error) error {
+	for i := range s.lists {
+		s.cur = i
+		if err := fn([]string{itoa(i + 1), ""}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (s *listSource) RowList(col int, dst *pio.ListCell) error {
+	if s.failAt == s.cur+1 {
+		return s.fail
+	}
+	dst.Reset(pio.ListValues)
+	for _, v := range s.lists[s.cur] {
+		dst.Append(v, false)
+	}
+	return nil
+}
+
+var _ pio.ListAwareReader = (*listSource)(nil)
+
+func TestCustomListReaderImportsVector(t *testing.T) {
+	p, fs := newEngine(t, pulse.Options{})
+	ctx := context.Background()
+	src := &listSource{lists: [][]float64{{1, 2, 3}, {4, 5, 6}}}
+	job := pio.NewImportJob(src, "emb.pulse")
+	job.FS = fs
+	job.Vectors = []pio.VectorDecl{{Name: "emb"}}
+	if _, err := p.Import(ctx, job); err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	c, err := p.Open(ctx, "emb.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := c.Reader()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	got, err := r.RecordAt(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := got[1].([]float64); !ok || len(v) != 3 || v[0] != 4 || v[2] != 6 {
+		t.Fatalf("RecordAt(1)[emb] = %#v, want [4 5 6]", got[1])
+	}
+}
+
+// A RowList error is the source failing to READ a cell: the import
+// aborts with no cohort written, and a coded error keeps its own code.
+func TestCustomListReaderReadFailureAbortsImport(t *testing.T) {
+	ctx := context.Background()
+	plain := stderrors.New("decode failed")
+	coded := perrors.NewCodedError(perrors.DATA_FILE, "decode failed")
+	for _, c := range []struct {
+		name   string
+		failAt int
+		fail   error
+	}{
+		{"plain in row pass", 2, plain},
+		{"coded in row pass", 2, coded},
+		{"plain in dim probe", 1, plain},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			p, fs := newEngine(t, pulse.Options{})
+			src := &listSource{lists: [][]float64{{1, 2, 3}, {4, 5, 6}}, failAt: c.failAt, fail: c.fail}
+			job := pio.NewImportJob(src, "emb.pulse")
+			job.FS = fs
+			job.Vectors = []pio.VectorDecl{{Name: "emb"}}
+			_, err := p.Import(ctx, job)
+			if !stderrors.Is(err, c.fail) {
+				t.Fatalf("Import error = %v, want one wrapping %v", err, c.fail)
+			}
+			var ce *perrors.CodedError
+			if gotCoded := stderrors.As(err, &ce); gotCoded != (c.fail == coded) || (gotCoded && ce.Code != perrors.DATA_FILE) {
+				t.Fatalf("Import error %v: coded=%v, want the source's own coding", err, gotCoded)
+			}
+			if ok, _ := afero.Exists(fs, "emb.pulse"); ok {
+				t.Fatal("a refused import wrote emb.pulse")
+			}
+		})
+	}
+}
+
+// listSink is an embedder's own typed target: it implements the public
+// io.ListAwareWriter, so an export hands it each vector field as ONE
+// column of native []float64 cells instead of expanding it into
+// per-element text columns.
+type listSink struct {
+	header []string
+	lists  []pio.ListColumn
+	rows   [][]any
+}
+
+func (w *listSink) WriteHeader(cols []string) error {
+	w.header = append([]string(nil), cols...)
+	return nil
+}
+func (w *listSink) WriteRow(values []any) error {
+	row := make([]any, len(values))
+	for i, v := range values {
+		if vec, ok := v.([]float64); ok {
+			v = append([]float64(nil), vec...) // the export reuses the slice
+		}
+		row[i] = v
+	}
+	w.rows = append(w.rows, row)
+	return nil
+}
+func (w *listSink) Close() error                         { return nil }
+func (w *listSink) SetListColumns(cols []pio.ListColumn) { w.lists = cols }
+
+var _ pio.ListAwareWriter = (*listSink)(nil)
+
+func TestCustomListWriterExportsVector(t *testing.T) {
+	p, fs := newEngine(t, pulse.Options{})
+	ctx := context.Background()
+	src := &listSource{lists: [][]float64{{1, 2, 3}, {4, 5, 6}}}
+	imp := pio.NewImportJob(src, "emb.pulse")
+	imp.FS = fs
+	imp.Vectors = []pio.VectorDecl{{Name: "emb"}}
+	if _, err := p.Import(ctx, imp); err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+
+	sink := &listSink{}
+	job := pio.NewExportJob("emb.pulse", sink)
+	job.FS = fs
+	rep, err := p.Export(ctx, job)
+	if err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	if rep.RowsExported != 2 {
+		t.Fatalf("RowsExported = %d, want 2", rep.RowsExported)
+	}
+	if len(sink.header) != 2 || sink.header[0] != "id" || sink.header[1] != "emb" {
+		t.Fatalf("header = %v, want [id emb] (one column for the vector)", sink.header)
+	}
+	if len(sink.lists) != 1 {
+		t.Fatalf("SetListColumns = %+v, want one column", sink.lists)
+	}
+	lc := sink.lists[0]
+	if lc.Index != 1 || lc.Name != "emb" || lc.Type != encoding.FieldTypeVecF64 || lc.Dim != 3 {
+		t.Fatalf("ListColumn = %+v, want Index 1, emb, vec_f64, dim 3", lc)
+	}
+	want := [][]float64{{1, 2, 3}, {4, 5, 6}}
+	for r, row := range sink.rows {
+		v, ok := row[1].([]float64)
+		if !ok || len(v) != 3 || v[0] != want[r][0] || v[1] != want[r][1] || v[2] != want[r][2] {
+			t.Fatalf("row %d emb cell = %#v, want %v", r, row[1], want[r])
+		}
+	}
+}
+
+// planSink is an embedder's own typed target: it implements the public
+// io.ColumnAwareWriter, so an export hands it the per-column plan and it
+// types each header column from the field behind it.
+type planSink struct {
+	plan   []pio.ExportColumn
+	header []string
+}
+
+func (w *planSink) SetExportColumns(cols []pio.ExportColumn) { w.plan = cols }
+func (w *planSink) WriteHeader(cols []string) error {
+	if w.plan == nil {
+		return stderrors.New("WriteHeader before SetExportColumns")
+	}
+	w.header = append([]string(nil), cols...)
+	return nil
+}
+func (w *planSink) WriteRow([]any) error { return nil }
+func (w *planSink) Close() error         { return nil }
+
+var _ pio.ColumnAwareWriter = (*planSink)(nil)
+
+func TestCustomColumnWriterGetsPlan(t *testing.T) {
+	p, fs := newEngine(t, pulse.Options{})
+	ctx := context.Background()
+	src := &listSource{lists: [][]float64{{1, 2, 3}, {4, 5, 6}}}
+	imp := pio.NewImportJob(src, "emb.pulse")
+	imp.FS = fs
+	imp.Vectors = []pio.VectorDecl{{Name: "emb"}}
+	if _, err := p.Import(ctx, imp); err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+
+	sink := &planSink{}
+	job := pio.NewExportJob("emb.pulse", sink)
+	job.FS = fs
+	job.Includes = []string{"emb"}
+	if _, err := p.Export(ctx, job); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	want := []string{"emb_1", "emb_2", "emb_3"}
+	if len(sink.header) != len(want) || len(sink.plan) != len(want) {
+		t.Fatalf("header %v plan %+v, want %v", sink.header, sink.plan, want)
+	}
+	fields := pio.ColumnFields(sink.plan, nil, sink.header)
+	for i, col := range sink.plan {
+		if col.Name != want[i] || sink.header[i] != want[i] || col.Kind != pio.ExportColumnElement ||
+			col.Source != "emb" || col.Element != i {
+			t.Fatalf("plan[%d] = %+v, want element %d of emb named %s", i, col, i, want[i])
+		}
+		if fields[i] == nil || fields[i].Type != encoding.FieldTypeF64 || !fields[i].Nullable {
+			t.Fatalf("column %s typed by %+v, want a nullable f64 element field", want[i], fields[i])
+		}
+	}
+}

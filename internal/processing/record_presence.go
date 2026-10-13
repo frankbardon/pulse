@@ -25,10 +25,11 @@ import "github.com/frankbardon/pulse/types"
 // the numeric value is discarded.
 
 // FieldPresent reports whether the named field carries a value on this
-// record — a number, a wide typed value (decimal128), or a set mask
-// (any rung, empty mask included). It is false exactly when the field
-// is null or absent, which is the same condition Record.IsNull reports
-// true for.
+// record — a number, a wide typed value (decimal128), a set mask (any
+// rung, empty mask included) or a vector (vec_f32 / vec_f64, NaN
+// elements included: a NaN element is a missing MEMBER, not a missing
+// vector). It is false exactly when the field is null or absent, which
+// is the same condition Record.IsNull reports true for.
 //
 // The empty mask is deliberately PRESENT. `set_*` nulls ride the
 // per-record null bitmap with no in-band sentinel, so an all-zero mask
@@ -41,24 +42,29 @@ func FieldPresent(r *Record, field string) bool {
 	if _, ok := r.NumericValue(field); ok {
 		return true
 	}
-	_, ok := r.SetMaskValue(field)
-	return ok
+	if _, ok := r.SetMaskValue(field); ok {
+		return true
+	}
+	return r.vectorPresent(field)
 }
 
 // AggregationPresent is the universal floor's presence question for an
 // aggregation slot: FieldPresent on its Field, except a vector
-// aggregator (no Field; its prepared Fields are the literal members),
-// whose row is present when ANY member answered — so n counts the rows
+// aggregator (no Field; its prepared Fields are the literal members, a
+// native vector's element members included), whose row is present when
+// ANY member answered — so n counts the rows
 // that fed at least one element and n_null the rows whose every member
 // is null. Every floor site (buffered, streaming, grouped, the
 // reducers' SlotFloor) asks it, so the arms cannot disagree.
 func AggregationPresent(r *Record, agg *types.Aggregation) bool {
-	if agg == nil {
+	if agg == nil || r == nil {
 		return false
 	}
 	if agg.Field == "" && len(agg.Fields) > 0 {
 		for _, f := range agg.Fields {
-			if FieldPresent(r, f) {
+			// MemberValue also reads an element member of a native
+			// vector field (a NaN element or a null vector: absent).
+			if _, ok := r.MemberValue(f); ok || FieldPresent(r, f) {
 				return true
 			}
 		}

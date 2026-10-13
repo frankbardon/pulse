@@ -46,6 +46,17 @@ one `CreateShardArchive` call, and an anchored target
 `AddShard` call, with the same cohesion checks and mandatory warnings.
 See [Reading & Building Cohorts](../library/cohort-reader.md).
 
+### Vector fields
+
+A `vec_f32` / `vec_f64` field's dim is not in its type byte, so cohesion
+checks it explicitly: a shard whose vector has a different dim — or the
+other element type — is refused with `PULSE_SHARD_SCHEMA_MISMATCH`
+(`details.dimension: vector_dim`), even when the vector is the LAST field
+and no later offset moves. Element labels, kind and scale range may
+diverge: the shard is accepted, the canonical copy wins, and each
+divergence is a `PULSE_SHARD_DESCRIPTION_DIVERGENCE` warning naming
+`vector_labels`, `vector_kind` or `vector_scale`.
+
 ### Set-width auto-widen
 
 **Two** conditions trigger it, and they compose:

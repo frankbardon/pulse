@@ -420,7 +420,7 @@ func TestComparison_FittedIsTwoPassPerSlot(t *testing.T) {
 		{&types.Attribute{Type: types.ATTR_PROFILE_SIMILARITY, Params: json.RawMessage(`{"metric":"cosine"}`)}, false},
 	} {
 		var r *ExtensionRegistry
-		if got := r.attrRequiresTwoPassIn(c.attr, specs); got != c.want {
+		if got := r.attrRequiresTwoPassIn(c.attr, specs, nil); got != c.want {
 			t.Errorf("%s %s: two-pass %v, want %v", c.attr.Type, c.attr.Params, got, c.want)
 		}
 	}

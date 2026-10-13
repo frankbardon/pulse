@@ -31,6 +31,11 @@ func representativeFieldSpecs() map[string]FieldSpec {
 				"frequencies": []any{0.5, 0.5},
 			}}
 	}
+	vec := func(t string) FieldSpec {
+		return FieldSpec{Name: "x", Type: t, Distribution: DistNormal,
+			Params: map[string]any{"mean": 0.0, "std": 1.0},
+			Vector: &VectorSpec{Dim: 3}}
+	}
 	return map[string]FieldSpec{
 		"u4":  num("u4"),
 		"u8":  num("u8"),
@@ -56,12 +61,18 @@ func representativeFieldSpecs() map[string]FieldSpec {
 		"set_u64":  set("set_u64"),
 		"set_u128": set("set_u128"),
 		"set_u256": set("set_u256"),
+		"vec_f32":  vec("vec_f32"),
+		"vec_f64":  vec("vec_f64"),
 	}
 }
 
 // undeclarableFieldTypes names the encoding field types a Spec cannot
 // declare today, with the reason. datetime has no fieldTypeFromName case
 // (see skills/synthetic-data.md) so no spec reaches the writer with it.
+//
+// The vector types (vec_f32 / vec_f64) USED to be listed here too, as
+// refused up front; they are declarable since #450 through the `vector`
+// block (internal/synth/vector.go).
 //
 // The wide set rungs USED to be listed here. They are declarable as of
 // E5-S1: fieldTypeFromName resolves the whole set family through

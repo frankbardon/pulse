@@ -17,9 +17,9 @@ not directly supported.
 ## Computing record size
 
 Record size (`Schema.RecordByteSize`) is the sum of
-`FieldType.ByteSize()` over all schema fields, **plus one byte for
-each bit-packed field**, **plus the null bitmap** when the schema
-declares any nullable field. For non-packed types `ByteSize()` returns
+`Schema.FieldWidth(i)` over all schema fields — `FieldType.ByteSize()`,
+**plus one byte for each bit-packed field** — **plus the null bitmap**
+when the schema declares any nullable field. For non-packed types `ByteSize()` returns
 the obvious value (`u32` = 4, `f64` = 8, `decimal128` = 16,
 `set_u256` = 32); the bit-packed types (`u4`, `packed_bool`) return
 `0` and are counted as one byte each.

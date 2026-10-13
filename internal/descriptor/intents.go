@@ -224,15 +224,18 @@ func FieldKindOf(ft encoding.FieldType) (kind descriptor.FieldKind, ok bool) {
 	case encoding.FieldTypeSetU8, encoding.FieldTypeSetU16, encoding.FieldTypeSetU32,
 		encoding.FieldTypeSetU64, encoding.FieldTypeSetU128, encoding.FieldTypeSetU256:
 		return descriptor.FieldKindSet, true
+	case encoding.FieldTypeVecF32, encoding.FieldTypeVecF64:
+		return descriptor.FieldKindVector, true
 	}
 	return "", false
 }
 
-// isFieldKind reports whether k is one of the five coarse field kinds.
+// isFieldKind reports whether k is one of the six coarse field kinds.
 func isFieldKind(k descriptor.FieldKind) bool {
 	switch k {
 	case descriptor.FieldKindNumeric, descriptor.FieldKindCategorical,
-		descriptor.FieldKindDate, descriptor.FieldKindBool, descriptor.FieldKindSet:
+		descriptor.FieldKindDate, descriptor.FieldKindBool, descriptor.FieldKindSet,
+		descriptor.FieldKindVector:
 		return true
 	}
 	return false

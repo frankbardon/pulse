@@ -565,7 +565,7 @@ func AggregationInputMembers(req *types.Request, schema *encoding.Schema) (membe
 			ok = false
 			continue
 		}
-		members = append(members, r.Members...)
+		members = append(members, r.SourceFields()...)
 	}
 	return members, ok
 }

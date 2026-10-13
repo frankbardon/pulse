@@ -366,7 +366,7 @@ func ReferenceIssues(req *types.Request, schema *encoding.Schema, resolved []Res
 	scope := RefScope{
 		Tables: tables,
 		LabelsOf: func(name string) ([]string, bool) {
-			if schema != nil && schema.Field(name) != nil {
+			if schema != nil && schema.Field(name) != nil && !IsNativeVector(name, schema) {
 				return nil, false
 			}
 			v, ok := Find(resolved, name)

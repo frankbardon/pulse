@@ -313,6 +313,9 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		return out
 	}
 	addAllKnown(members)
+	// A native vector field a slot names directly (no Request.Vectors
+	// entry) decodes whole.
+	addAllKnown(vectors.ReferencedNatives(req, schema))
 	// A matrix spec's inline fields resolve by the same rules.
 	matMembers, ok := vectors.MatrixMembers(req, schema)
 	if !ok {
@@ -563,7 +566,7 @@ func exprVectorMembers(req *types.Request, schema *encoding.Schema) map[string][
 	}
 	m := make(map[string][]string, len(resolved))
 	for _, r := range resolved {
-		m[r.Name] = r.Members
+		m[r.Name] = r.SourceFields()
 	}
 	return m
 }

@@ -43,7 +43,7 @@ func TestParseSchemaFieldType_UnknownRefused(t *testing.T) {
 		for ft := encoding.FieldType(0); ft.IsKnown(); ft++ {
 			known++
 		}
-		if len(valid) != known || valid[0] != "u8" || valid[len(valid)-1] != "set_u256" {
+		if len(valid) != known || valid[0] != "u8" || valid[len(valid)-1] != "vec_f64" {
 			t.Errorf("details.valid = %v, want the %d registered names in type-byte order", valid, known)
 		}
 	}
@@ -175,7 +175,7 @@ func TestSchemaFileTemplate_RoundTrips(t *testing.T) {
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Nullable: true, Precision: 12, Scale: 2},
 		{Name: "level", Type: encoding.FieldTypeU4},
 	}}
-	encx.LayoutFields(src.Fields)
+	encx.LayoutFields(src)
 	for i := range src.Fields {
 		src.Fields[i].CsvColumnIdx = i
 	}
@@ -253,5 +253,55 @@ func TestSchemaFromFields_MatchesParseSchemaJSON(t *testing.T) {
 	}
 	if !reflect.DeepEqual(fromDoc, fromDefs) {
 		t.Errorf("SchemaFromFields = %+v, ParseSchemaJSON = %+v", fromDefs, fromDoc)
+	}
+}
+
+// TestSchemaFileField_VectorKeys: a vec field reads dim, labels, kind
+// and the scale range into the schema's VECTORS metadata at parse, and
+// a vector without dim is refused HERE with the schema code — not at
+// the first write as an ENCODING_INVALID about a missing section. The
+// template writes the keys back, so the document round-trips.
+func TestSchemaFileField_VectorKeys(t *testing.T) {
+	doc := `[{"name":"id","type":"u8"},
+		{"name":"r","type":"vec_f32","dim":3,"labels":["x","y","z"],"kind":"scale","scale_min":1,"scale_max":7,"nullable":true}]`
+	s, err := ParseSchemaJSON([]byte(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, ok := s.Vector(1)
+	if !ok || v.Dim != 3 || !reflect.DeepEqual(v.Labels, []string{"x", "y", "z"}) || v.Kind != encoding.VectorKindScale ||
+		!v.HasScale || v.ScaleMin != 1 || v.ScaleMax != 7 {
+		t.Fatalf("vector meta = %+v (ok %v)", v, ok)
+	}
+	if s.FieldWidth(1) != 12 || s.Fields[1].ByteOffset != 1 {
+		t.Fatalf("layout: width %d offset %d", s.FieldWidth(1), s.Fields[1].ByteOffset)
+	}
+	tmpl, err := json.Marshal(SchemaFileTemplate(s))
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := ParseSchemaJSON(tmpl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(back.Vectors, s.Vectors) {
+		t.Fatalf("template round trip: %+v != %+v", back.Vectors, s.Vectors)
+	}
+
+	for _, c := range []struct{ doc, reason string }{
+		{`[{"name":"r","type":"vec_f64"}]`, "vector_dim_missing"},
+		{`[{"name":"r","type":"f64","dim":3}]`, "vector_keys_on_scalar"},
+		{`[{"name":"r","type":"u8","labels":["a"]}]`, "vector_keys_on_scalar"},
+		{`[{"name":"r","type":"vec_f64","dim":3,"kind":"ordinal"}]`, "vector_kind_unknown"},
+		{`[{"name":"r","type":"vec_f64","dim":3,"scale_min":1}]`, "vector_scale_incomplete"},
+		{`[{"name":"r","type":"vec_f64","dim":1}]`, "vector_invalid"},
+		{`[{"name":"r","type":"vec_f64","dim":3,"labels":["a"]}]`, "vector_invalid"},
+		{`[{"name":"r","type":"vec_f64","dim":2,"scale_min":7,"scale_max":1}]`, "vector_invalid"},
+	} {
+		_, err := ParseSchemaJSON([]byte(c.doc))
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_IMPORT_SCHEMA_INVALID || ce.Details["reason"] != c.reason {
+			t.Fatalf("%s: err = %v, want PULSE_IMPORT_SCHEMA_INVALID reason %s", c.doc, err, c.reason)
+		}
 	}
 }

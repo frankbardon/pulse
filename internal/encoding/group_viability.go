@@ -184,7 +184,7 @@ func (gt DedupGate) ScreenWidths(flat *encoding.Schema, specs []GroupSpec) ([]Gr
 					fmt.Sprintf("%s names field %q, which is not in the schema", label, name),
 					map[string]any{"group": g, "group_label": label, "field": name})
 			}
-			memberBytes += onWireWidth(flat.Fields[fi].Type)
+			memberBytes += flat.FieldWidth(fi)
 			nullable = nullable || flat.Fields[fi].Nullable
 		}
 		entryWidth = memberBytes

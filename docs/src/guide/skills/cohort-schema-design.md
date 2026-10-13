@@ -1,10 +1,10 @@
 ```yaml
 name: cohort-schema-design
-description: Entry point for .pulse cohort schemas — the 20-type field matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect.
+description: Entry point for .pulse cohort schemas — the 22-type field matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect.
 type: guide
 kind: design
 applies_to: inspect, predict, process, compose, sample, facet
-covers: [u4, u8, u16, u32, u64, f32, f64, decimal128, categorical_u8, categorical_u16, categorical_u32, packed_bool, date, datetime, set_u8, set_u16, set_u32, set_u64, set_u128, set_u256]
+covers: [u4, u8, u16, u32, u64, f32, f64, decimal128, categorical_u8, categorical_u16, categorical_u32, packed_bool, date, datetime, set_u8, set_u16, set_u32, set_u64, set_u128, set_u256, vec_f32, vec_f64]
 ```
 
 # Cohort schema design
@@ -21,9 +21,10 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 | Shard archive cohesion, auto-widen, anchors, memory, concurrency, moving a cohort | [`cohort-sharding`](cohort-sharding.md) |
 | The point-lookup sidecar index: format, staleness, discovery, keyable types | [`cohort-sidecar-index`](cohort-sidecar-index.md) |
 | A cohort imported from `.sav` / `.zsav` | [`spss-cohorts`](spss-cohorts.md) |
+| Vector fields (`vec_*`): import a battery or list column, name it in a request, export, refusals | [`vector-fields`](vector-fields.md) |
 | One type's bytes, range, null and dictionary rules | atomic `type-<kebab>` |
 
-## Field-type matrix (all 20)
+## Field-type matrix (all 22)
 
 | Name | Bytes | Dict? | Bit-packed? | Notes |
 |---|---|---|---|---|
@@ -47,8 +48,10 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 | `set_u64` | 8 | shared, ≤64 | no | |
 | `set_u128` | 16 | shared, ≤128 | no | |
 | `set_u256` | 32 | shared, ≤256 | no | widest rung; 256 is a hard ceiling |
+| `vec_f32` | 4 × dim | no | no | fixed-dim vector, dim 2..1024 in the `0x02` VECTORS section; **not** index-keyable |
+| `vec_f64` | 8 × dim | no | no | |
 
-`set_*` mask bit `i` = label `dict[i]` selected; empty mask is a valid value (NOT null). Nullability is opt-in per field via the bitmap; all 20 types participate identically. How null, empty and selected stay apart in every format: [`cohort-null-states`](cohort-null-states.md).
+`set_*` mask bit `i` = label `dict[i]` selected; empty mask is a valid value (NOT null). Nullability is opt-in per field via the bitmap; all 22 types participate identically. How null, empty and selected stay apart in every format: [`cohort-null-states`](cohort-null-states.md).
 
 `date` and `datetime` are NOT interchangeable — days vs. seconds, a factor of 86,400. Both are accepted by the date grouper, the date-range grouper and the date-range filter, which day-truncate `datetime` to the UTC calendar day. Sub-second timestamps: `u64` microseconds. Resolution, timezone and text-format detail belong to [`type-date`](type-date.md) / [`type-datetime`](type-datetime.md).
 
@@ -66,7 +69,7 @@ Capped at 1000 bytes per field; over-cap → `PULSE_IMPORT_DESCRIPTION_TOO_LONG`
 
 ## Sharded cohorts
 
-A `.pulse` path resolves to one of two shapes, dispatched on the leading 4 bytes. **Single-file:** magic `PULSE\x00\x00\x00` + format byte `0x01` or `0x02`, then schema, dicts, records (`0x02` adds a length-prefixed schema extension block carrying parent groups before the records; writers emit `0x01` unless the schema declares a group; `0x01` cohorts stay readable forever, and a binary older than `0x02` refuses a `0x02` cohort loud). **Shard archive:** uncompressed Zip64 (Method 0), magic `PK\x03\x04`, a reserved `_schema.pulse` entry (header-only canonical schema + `SHRD` trailer with `aggregate_record_count` + `shard_count`) plus N standalone shard payloads. Old single-file readers fail loud on archive magic. `archive.pulse#shard.pulse` opens one shard. Go embedders read via `Cohort.Reader()` (archive-order index, canonical schema) and write via `Pulse.NewCohortBuilder` (= explicit-schema import; `Groups` / `ElideConstants` = `--group` / `--elide-constants`; `Shards` splits a new archive; target `a.pulse#new.pulse` appends one shard via `AddShard`): `docs/src/library/cohort-reader.md`. Cohesion, `set_*` auto-widen, grouped shards, memory and concurrency: [`cohort-sharding`](cohort-sharding.md).
+A `.pulse` path resolves to one of two shapes, dispatched on the leading 4 bytes. **Single-file:** magic `PULSE\x00\x00\x00` + format byte `0x01` or `0x02`, then schema, dicts, records (`0x02` adds a length-prefixed schema extension block — parent groups, vector dims — before the records; writers emit `0x01` unless the schema needs it; `0x01` cohorts stay readable forever, and an older binary refuses a `0x02` cohort loud). **Shard archive:** uncompressed Zip64, magic `PK\x03\x04`, a reserved `_schema.pulse` entry (header-only canonical schema + `SHRD` trailer) plus N standalone shards; `archive.pulse#shard.pulse` opens one. Go embedders read via `Cohort.Reader()` and write via `Pulse.NewCohortBuilder` (`Groups` / `ElideConstants` = `--group` / `--elide-constants`; `Shards` splits a new archive; `a.pulse#new.pulse` appends one shard): `docs/src/library/cohort-reader.md`. Cohesion, `set_*` auto-widen, grouped shards, memory and concurrency: [`cohort-sharding`](cohort-sharding.md).
 
 ## Cross-links
 
