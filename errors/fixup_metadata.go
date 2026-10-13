@@ -1342,8 +1342,8 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Hint:     "Rename the registration so it matches ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_[A-Z][A-Z0-9]+_[A-Z][A-Z0-9_]+$, e.g. AGG_ACME_BRAND_SCORE.",
-				Examples: []any{"AGG_ACME_BRAND_SCORE", "ATTR_ACME_ADJUSTMENT"},
+				Hint:     "Rename the registration so it matches ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH|MAT)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$ with the prefix of its registration slot (MatrixOps: MAT_), e.g. AGG_ACME_BRAND_SCORE.",
+				Examples: []any{"AGG_ACME_BRAND_SCORE", "ATTR_ACME_ADJUSTMENT", "MAT_ACME_SCATTER"},
 			},
 		},
 	},
@@ -2506,7 +2506,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params", "formula"},
-				Hint:     "Check the allowed identifier set for shape Details.host_shape against Details.allowed (variables) or Details.allowed_funcs (functions) — the per-shape namespace table lives in the FORMULA section of skills/overlay-system.md. If the identifier was meant to be a custom function, register it via pulse.Options.Extensions.ExprFunctions before calling pulse.New (see docs/src/internals/extension-points.md for the registration recipe — naming policy ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_*$ applies to operators, not to expr functions; expr function names are free-form). If the identifier was meant to be a variable not in the per-shape table, register a custom kind via pulse.Options.Extensions.OverlayKinds — FORMULA cannot widen its variable namespace from outside. Compose `slot.<label>.<field>` identifiers only resolve on Compose-host overlays (FacetRequest.Overlays / ComposedRequest.Overlays), not on Request.Overlays.",
+				Hint:     "Check the allowed identifier set for shape Details.host_shape against Details.allowed (variables) or Details.allowed_funcs (functions) — the per-shape namespace table lives in the FORMULA section of skills/overlay-system.md. If the identifier was meant to be a custom function, register it via pulse.Options.Extensions.ExprFunctions before calling pulse.New (see docs/src/internals/extension-points.md for the registration recipe — naming policy ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH|MAT)_*$ applies to operators, not to expr functions; expr function names are free-form). If the identifier was meant to be a variable not in the per-shape table, register a custom kind via pulse.Options.Extensions.OverlayKinds — FORMULA cannot widen its variable namespace from outside. Compose `slot.<label>.<field>` identifiers only resolve on Compose-host overlays (FacetRequest.Overlays / ComposedRequest.Overlays), not on Request.Overlays.",
 				Examples: []any{map[string]any{"formula": "(cell - margin_grand) / sd_grand"}, map[string]any{"formula": "value / total"}, map[string]any{"formula": "(slot.us.cell - slot.uk.cell) / slot.world.cell"}},
 			},
 		},

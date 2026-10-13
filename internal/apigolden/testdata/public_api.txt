@@ -285,6 +285,7 @@ pulse: type Extensions field Filterers []pulse.FiltererRegistration
 pulse: type Extensions field Groupers []pulse.GrouperRegistration
 pulse: type Extensions field LabelTables map[string]pulse.LabelTable
 pulse: type Extensions field LookupTables map[string]pulse.LookupTable
+pulse: type Extensions field MatrixOps []pulse.MatrixOpRegistration
 pulse: type Extensions field RangeTables map[string]pulse.RangeTable
 pulse: type Extensions field ReferenceVectors map[string]pulse/types.ReferenceVectorTable
 pulse: type Extensions field Skills io/fs.FS
@@ -639,6 +640,19 @@ pulse: type MaterializeResult field InvalidatedSidecars []pulse.StaleSidecar "js
 pulse: type MaterializeResult field Records int64 "json:\"records\""
 pulse: type MaterializeResult field Target string "json:\"target\""
 pulse: type MaterializeResult field Warnings []*pulse/errors.CodedError "json:\"warnings,omitempty\""
+pulse: type MatrixOpRegistration struct
+pulse: type MatrixOpRegistration field Accepts []pulse/encoding.FieldType
+pulse: type MatrixOpRegistration field ComponentSchema pulse/descriptor.ComponentSchema
+pulse: type MatrixOpRegistration field DependsOn []string
+pulse: type MatrixOpRegistration field Description string
+pulse: type MatrixOpRegistration field Factory pulse/extend.MatrixFactory
+pulse: type MatrixOpRegistration field FieldInputs pulse.FieldInputsFunc
+pulse: type MatrixOpRegistration field Name pulse/types.MatrixType
+pulse: type MatrixOpRegistration field OutputKeys pulse/descriptor.MatrixOutputKeys
+pulse: type MatrixOpRegistration field Params []pulse.ParamMeta
+pulse: type MatrixOpRegistration field Purpose *pulse/descriptor.Purpose
+pulse: type MatrixOpRegistration field Streamable bool
+pulse: type MatrixOpRegistration field WeightAware bool
 pulse: type MemberSet interface
 pulse: type MemberSet imethod Kind() string
 pulse: type MemberSet imethod Len() int
@@ -2590,6 +2604,34 @@ pulse/extend: type FiltererFactory func() pulse/extend.FiltererBuilder
 pulse/extend: type Grouper interface
 pulse/extend: type Grouper imethod Group(rows pulse/extend.Rows, field string) (map[string][]int, error)
 pulse/extend: type GrouperFactory func(spec *pulse/types.Group, schema *pulse/encoding.Schema) (pulse/extend.Grouper, error)
+pulse/extend: type MatrixFactory func(spec *pulse/types.MatrixSpec, schema *pulse/encoding.Schema) (pulse/extend.MatrixOperator, error)
+pulse/extend: type MatrixInput struct
+pulse/extend: type MatrixInput field CoMoment *pulse/linalg.CoMoment
+pulse/extend: type MatrixInput field Encoding pulse/types.MatrixEncoding
+pulse/extend: type MatrixInput field Labels []string
+pulse/extend: type MatrixInput field Members []string
+pulse/extend: type MatrixInput field Name string
+pulse/extend: type MatrixInput field Params encoding/json.RawMessage
+pulse/extend: type MatrixInput field Rows pulse/extend.MatrixRows
+pulse/extend: type MatrixInput field WantAuxiliary bool
+pulse/extend: type MatrixInput field WantScalars bool
+pulse/extend: type MatrixInput field WantVectors bool
+pulse/extend: type MatrixInput field WeightKind pulse/types.WeightKind
+pulse/extend: type MatrixInput method (*MatrixInput) Rect(columns []string, at func(r int, c int) float64) *pulse/types.MatrixValues
+pulse/extend: type MatrixInput method (*MatrixInput) Square(at func(r int, c int) float64) *pulse/types.MatrixValues
+pulse/extend: type MatrixOperator interface
+pulse/extend: type MatrixOperator imethod Finalize(in *pulse/extend.MatrixInput) (pulse/extend.MatrixOutput, error)
+pulse/extend: type MatrixOutput struct
+pulse/extend: type MatrixOutput field Auxiliary map[string]*pulse/types.MatrixValues
+pulse/extend: type MatrixOutput field Components map[string]any
+pulse/extend: type MatrixOutput field Primary *pulse/types.MatrixValues
+pulse/extend: type MatrixOutput field Scalars map[string]float64
+pulse/extend: type MatrixOutput field Vectors map[string]any
+pulse/extend: type MatrixOutput field Warnings []*pulse/types.ResponseWarning
+pulse/extend: type MatrixRows interface
+pulse/extend: type MatrixRows imethod Len() int
+pulse/extend: type MatrixRows imethod Row(i int) []float64
+pulse/extend: type MatrixRows imethod Weight(i int) float64
 pulse/extend: type MergeableAggregator interface
 pulse/extend: type MergeableAggregator imethod Finalize() (float64, error)
 pulse/extend: type MergeableAggregator imethod Merge(other pulse/extend.OnlineAggregator) error
@@ -3109,6 +3151,7 @@ pulse/linalg: type CoMoment method (*CoMoment) N() int64
 pulse/linalg: type CoMoment method (*CoMoment) NEff() float64
 pulse/linalg: type CoMoment method (*CoMoment) NWeightInvalid() int64
 pulse/linalg: type CoMoment method (*CoMoment) P() int
+pulse/linalg: type CoMoment method (*CoMoment) PairM2(i int, j int) float64
 pulse/linalg: type CoMoment method (*CoMoment) PairN(i int, j int) int64
 pulse/linalg: type CoMoment method (*CoMoment) PairNEff(i int, j int) float64
 pulse/linalg: type CoMoment method (*CoMoment) PairNMass(i int, j int) int64
@@ -5164,4 +5207,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 3527739fa9626536b8f3872d1eef9507543c066e21293f32fb54f25a8b7662e2
+// golden-hash: 57d6bb57fa1d1aec19b532c3ba0d660d0bae1ea2766e4d626329508dea943777

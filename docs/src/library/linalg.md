@@ -89,6 +89,7 @@ mean := acc.Mean()
 ```
 
 - **Missing values.** A `NaN` in `x` is missing. `Listwise` drops the row. `Pairwise` drops it only for the pairs it touches; `PairN(i, j)` / `PairW(i, j)` / `PairW2(i, j)` report each pair's count, weight sum and squared-weight sum, `PairNMass(i, j)` the pair's rows with a positive weight (`PairN` less its weight-0 rows), and `PairNEff(i, j)` its Kish effective sample size `PairW²/PairW2`. Under `Listwise` they equal `N()`, `W()`, the global positive-weight count, the global Σw² and `NEff()` for every pair.
+- **Raw co-moment.** `PairM2(i, j)` returns the pair's weighted co-moment Σw(xi−mi)(xj−mj) over the rows the pair admits — the numerator `Cov` divides, so `Cov(ddof)` at `(i, j)` equals `PairM2(i, j) / (PairW(i, j) − ddof)` exactly wherever that denominator is positive. `PairM2(i, i)` is variable `i`'s own Σw(xi−mi)². It is symmetric, 0 for a pair with no mass, and an extension matrix operator (`extend.MatrixOperator`) reads it to build a statistic `Cov` / `Corr` do not cover.
 - **Weights.**
   - A `NaN`, `±Inf` or negative weight skips the row and is counted in `NWeightInvalid()`.
   - A weight of `0` is valid: the row counts in `N()` but carries no mass.

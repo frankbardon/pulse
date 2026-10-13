@@ -152,6 +152,7 @@ ext := pulse.Extensions{
     Features:           []pulse.FeatureRegistration{...},
     Tests:              []pulse.TestRegistration{...},
     SynthDistributions: []pulse.DistributionRegistration{...},
+    MatrixOps:          []pulse.MatrixOpRegistration{...},
 
     ExprFunctions:    []pulse.ExprFunction{...},
     LookupTables:     map[string]pulse.LookupTable{...},
@@ -183,7 +184,7 @@ Embedder registrations MUST use a three-segment namespaced form:
 The regex enforced by `extensions_validate.go` is:
 
 ```
-^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$
+^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH|MAT)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$
 ```
 
 | Example | Category | Namespace | Name |
@@ -192,14 +193,18 @@ The regex enforced by `extensions_validate.go` is:
 | `ATTR_ACME_ADJUSTMENT` | attribute | ACME | ADJUSTMENT |
 | `FILTER_ACME_GEO_FENCE` | filterer | ACME | GEO_FENCE |
 | `TEST_FINANCE_VAR` | test | FINANCE | VAR |
+| `MAT_ACME_SCATTER` | matrix | ACME | SCATTER |
 
 Failure modes raised at registration time:
 
 - Name fails the regex → `PULSE_EXTENSION_NAME_INVALID`.
 - Namespace is one of the reserved values `BUILTIN`, `STANDARD`,
   `CORE`, `PULSE` → `PULSE_EXTENSION_NAME_RESERVED`.
-- Name collides with a built-in (e.g. registering `AGG_COUNT`) →
-  `PULSE_EXTENSION_NAME_COLLISION`.
+- Name collides with a built-in (e.g. registering `AGG_COUNT`, or
+  `MAT_PARTIAL_CORRELATION`, a built-in that happens to fit the
+  pattern) → `PULSE_EXTENSION_NAME_COLLISION`.
+- The category prefix does not match the registration slot (a
+  `MAT_*` name under `Aggregators`) → `PULSE_EXTENSION_NAME_INVALID`.
 - The same name appears twice in one `pulse.New` call →
   `PULSE_EXTENSION_DUPLICATE`.
 
@@ -207,7 +212,7 @@ Two embedders in the same process must use disjoint namespaces.
 
 ## Per-category registration shapes
 
-The eight operator categories plus expression functions and lookup
+The nine operator categories plus expression functions and lookup
 tables cover everything `pulse.Options.Extensions` accepts. Field-input
 introspection and component-schema emission attach to operator
 registrations as additional optional fields — see the dedicated
@@ -504,6 +509,72 @@ built-in: its headline `PValue` is one member of the `request` (or
 adds `p_adjusted`, `significant_adjusted` and `multiplicity` to its
 `TestResult`. The registration declares nothing for it.
 
+### Matrix operator (`MatrixOps`)
+
+A `MAT_<NS>_<NAME>` operator computes one matrix result from a
+`Request.Matrices` slot. It is **finalize-only**: the engine folds the
+member columns into per-block `linalg.CoMoment` state, merges the 4096-row
+blocks through its fixed merge tree, and calls `Finalize` once per
+result (once per group bucket) with the merged co-moment. The operator
+never folds rows, so a pure `Finalize` is bit-identical under every
+`DecodeWorkers` / `ShardWorkers` count and shard split. The engine's
+block merge is not part of `extend`.
+
+```go
+type scatter struct{}
+
+func (scatter) Finalize(in *extend.MatrixInput) (extend.MatrixOutput, error) {
+    cm := in.CoMoment // read-only: never Add or Merge
+    out := extend.MatrixOutput{Primary: in.Square(cm.PairM2)}
+    if in.WantScalars {
+        tr := 0.0
+        for i := 0; i < cm.P(); i++ {
+            tr += cm.PairM2(i, i)
+        }
+        out.Scalars = map[string]float64{"trace": tr}
+    }
+    return out, nil
+}
+
+reg := pulse.MatrixOpRegistration{
+    Name:        "MAT_ACME_SCATTER",
+    Description: "Scatter matrix: each pair's raw weighted co-moment.",
+    Factory: func(*types.MatrixSpec, *encoding.Schema) (extend.MatrixOperator, error) {
+        return scatter{}, nil
+    },
+    Streamable: true,
+    OutputKeys: descriptor.MatrixOutputKeys{Primary: "scatter", Scalars: []string{"trace"}},
+}
+```
+
+`extend.MatrixInput` carries the read-only `*linalg.CoMoment` (read it
+through `Cov`, `Corr`, `Mean`, the counts and weight sums, and the raw
+per-pair co-moment `PairM2`), the members in axis order, their explicit
+labels, the raw `params`, the folded weight's kind (`""` when
+unweighted), the requested encoding, and the `WantAuxiliary` /
+`WantVectors` / `WantScalars` flags a `return` exclusion clears.
+`Square` and `Rect` render a matrix in that encoding. A registration
+declaring `Streamable: false` also receives the admitted rows
+(`MatrixRows`) and runs buffered and serially. `extend.MatrixOutput`
+holds the primary (required), auxiliary matrices, vectors, scalars,
+warnings and the operator's own components keys.
+
+Validation at `pulse.New`, beyond the naming policy and the
+`ParamMeta` rules:
+
+| Rule | Code | `details.reason` |
+|---|---|---|
+| `Factory` is nil | `PULSE_EXTENSION_PARAM_INVALID` | `missing_factory` |
+| `OutputKeys.Primary` is empty | `PULSE_EXTENSION_PARAM_INVALID` | `missing_output_keys` |
+| an `Auxiliary` / `Vectors` / `Scalars` key is empty or listed twice | `PULSE_EXTENSION_PARAM_INVALID` | `invalid_output_key` |
+| `ComponentSchema.Mergeability` without `Keys` | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | `mergeability_without_keys` |
+| `ComponentSchema.Keys` without `Mergeability` | `PULSE_EXTENSION_PARAM_INVALID` | `missing_mergeability` |
+| a components key is empty or listed twice | `PULSE_EXTENSION_PARAM_INVALID` | `invalid_component_key` |
+| a components key restates the matrix floor (`n`, `n_null`, `n_listwise_dropped`, `min_pair_n`, `max_pair_n`) or the weighted floor (`sum_weights`, `n_eff`, `n_weight_invalid`) | `PULSE_EXTENSION_PARAM_INVALID` | `reserved_component_key` |
+
+A matrix registration has no `ComponentsFunc`: its components ride
+`MatrixOutput.Components`, after the engine's floor.
+
 ### Synth distribution
 
 Reserved for embedders shipping bespoke samplers. There is no `extend`
@@ -652,6 +723,7 @@ this section covers only the extension-side wiring.
 | Window | No | Window outputs land in `Response.Data` rows. |
 | Feature | No | Pre-filter; no components surface. |
 | Test | No | Test results carry their own typed shape. |
+| Matrix | Optional | Matrix floor `{n, n_null, n_listwise_dropped}` (+ pairwise and weighted floor keys) filled by the engine; the operator's own keys ride `MatrixOutput.Components` (no `ComponentsFunc`). See "Matrix operator (`MatrixOps`)". |
 | Synth | No | Generators, not aggregations. |
 
 A registration in a category that does not declare a `ComponentSchema`

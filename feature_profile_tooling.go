@@ -440,6 +440,7 @@ func mergeExtensions(ext []Extensions) Extensions {
 		out.Features = append(out.Features, e.Features...)
 		out.Tests = append(out.Tests, e.Tests...)
 		out.SynthDistributions = append(out.SynthDistributions, e.SynthDistributions...)
+		out.MatrixOps = append(out.MatrixOps, e.MatrixOps...)
 		out.ExprFunctions = append(out.ExprFunctions, e.ExprFunctions...)
 		out.LookupTables = mergeTables(out.LookupTables, e.LookupTables)
 		out.ReferenceVectors = mergeTables(out.ReferenceVectors, e.ReferenceVectors)

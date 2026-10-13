@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/daterange"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/exprbuiltins"
 	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/frankbardon/pulse/internal/totalcall"
@@ -18,15 +19,17 @@ import (
 
 // extensionNameRegex captures the embedder-registration naming policy:
 //
-//	^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_<NAMESPACE>_<NAME>$
+//	^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH|MAT)_<NAMESPACE>_<NAME>$
 //
 // with NAMESPACE and NAME drawn from uppercase ASCII (digits and
 // underscores allowed after the first letter). The Pulse-shipped
 // built-ins use the legacy two-segment form (AGG_COUNT, ATTR_ZSCORE)
 // and are exempt from this regex; they are registered statically by
-// the engine, not by embedders.
+// the engine, not by embedders. A built-in whose own name happens to
+// fit the pattern (MAT_PARTIAL_CORRELATION) is still reserved by the
+// built-in collision check, which runs first.
 var extensionNameRegex = regexp.MustCompile(
-	`^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_([A-Z][A-Z0-9]+)_([A-Z](?:[A-Z0-9_]*[A-Z0-9])?)$`,
+	`^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH|MAT)_([A-Z][A-Z0-9]+)_([A-Z](?:[A-Z0-9_]*[A-Z0-9])?)$`,
 )
 
 // extensionCategory tags every registration slot for validation
@@ -43,6 +46,7 @@ const (
 	categoryFeature      extensionCategory = "feature"
 	categoryTest         extensionCategory = "test"
 	categoryDistribution extensionCategory = "synth_distribution"
+	categoryMatrix       extensionCategory = "matrix"
 )
 
 // expectedPrefix is the category-token half of the registration name
@@ -65,6 +69,8 @@ func (c extensionCategory) expectedPrefix() string {
 		return "TEST"
 	case categoryDistribution:
 		return "SYNTH"
+	case categoryMatrix:
+		return "MAT"
 	}
 	return ""
 }
@@ -135,6 +141,14 @@ func validateExtensions(ext Extensions) error {
 	if err := validateOperatorSlice(ext.SynthDistributions, categoryDistribution, builtinDistributionNames(), func(r DistributionRegistration) (string, []ParamMeta) {
 		return r.Name, r.Params
 	}); err != nil {
+		return err
+	}
+	if err := validateOperatorSlice(ext.MatrixOps, categoryMatrix, builtinMatrixNames(), func(r MatrixOpRegistration) (string, []ParamMeta) {
+		return string(r.Name), r.Params
+	}); err != nil {
+		return err
+	}
+	if err := validateMatrixOps(ext.MatrixOps); err != nil {
 		return err
 	}
 	if err := validateExprFunctions(ext.ExprFunctions); err != nil {
@@ -341,6 +355,132 @@ func validateAggregatorVectorInputs(regs []AggregatorRegistration) error {
 		}
 	}
 	return nil
+}
+
+// validateMatrixOps enforces the MatrixOpRegistration shape beyond the
+// shared naming / params pass, every failure
+// PULSE_EXTENSION_PARAM_INVALID with details.reason:
+//
+//   - missing_factory — Factory is nil.
+//   - missing_output_keys — OutputKeys.Primary is empty (every matrix
+//     result carries a primary matrix, and the manifest names it).
+//   - invalid_output_key — an Auxiliary / Vectors / Scalars key is
+//     empty or listed twice within its part (details.part, .key).
+//
+// ComponentSchema follows validateMatrixComponentSchema.
+func validateMatrixOps(regs []MatrixOpRegistration) error {
+	for i, r := range regs {
+		invalid := func(reason, msg string, extra map[string]any) error {
+			details := map[string]any{"category": string(categoryMatrix), "name": string(r.Name), "index": i, "reason": reason}
+			for k, v := range extra {
+				details[k] = v
+			}
+			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("extension matrix %q %s", r.Name, msg), details)
+		}
+		if r.Factory == nil {
+			return invalid("missing_factory", "has nil Factory", nil)
+		}
+		if strings.TrimSpace(r.OutputKeys.Primary) == "" {
+			return invalid("missing_output_keys",
+				"declares no OutputKeys.Primary (name what the primary matrix holds, e.g. \"scatter\")", nil)
+		}
+		for _, part := range []struct {
+			name string
+			keys []string
+		}{
+			{"auxiliary", r.OutputKeys.Auxiliary},
+			{"vectors", r.OutputKeys.Vectors},
+			{"scalars", r.OutputKeys.Scalars},
+		} {
+			seen := make(map[string]bool, len(part.keys))
+			for _, k := range part.keys {
+				if strings.TrimSpace(k) == "" || seen[k] {
+					return invalid("invalid_output_key",
+						fmt.Sprintf("OutputKeys.%s key %q is empty or listed twice", part.name, k),
+						map[string]any{"part": part.name, "key": k})
+				}
+				seen[k] = true
+			}
+		}
+		if err := validateMatrixComponentSchema(r, i); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateMatrixComponentSchema checks a matrix registration's
+// ComponentSchema. A matrix operator emits through
+// extend.MatrixOutput.Components, so there is no separate emitter to
+// pair with; the schema is either empty (no operator keys) or complete:
+//
+//   - Mergeability without Keys — PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA,
+//     reason mergeability_without_keys (as for every category).
+//   - Keys without Mergeability — PULSE_EXTENSION_PARAM_INVALID, reason
+//     missing_mergeability.
+//   - an empty or repeated key Name — PULSE_EXTENSION_PARAM_INVALID,
+//     reason invalid_component_key.
+//   - a key restating the engine's matrix floor or weighted floor —
+//     PULSE_EXTENSION_PARAM_INVALID, reason reserved_component_key: the
+//     engine fills those, and an operator copy would shadow them.
+func validateMatrixComponentSchema(r MatrixOpRegistration, idx int) error {
+	schema := r.ComponentSchema
+	if len(schema.Keys) == 0 {
+		if schema.Mergeability != "" {
+			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA,
+				fmt.Sprintf("extension matrix %q declares ComponentSchema.Mergeability but no Keys (mergeability has nothing to classify)", r.Name),
+				map[string]any{"category": string(categoryMatrix), "name": string(r.Name), "index": idx,
+					"mergeability": string(schema.Mergeability), "reason": "mergeability_without_keys"})
+		}
+		return nil
+	}
+	invalid := func(reason, msg string, extra map[string]any) error {
+		details := map[string]any{"category": string(categoryMatrix), "name": string(r.Name), "index": idx, "reason": reason}
+		for k, v := range extra {
+			details[k] = v
+		}
+		return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_PARAM_INVALID,
+			fmt.Sprintf("extension matrix %q %s", r.Name, msg), details)
+	}
+	if schema.Mergeability == "" {
+		return invalid("missing_mergeability",
+			"declares ComponentSchema.Keys but no Mergeability (declare mergeable/partial/none, or leave the schema empty)", nil)
+	}
+	reserved := matrixFloorKeyNames()
+	seen := make(map[string]bool, len(schema.Keys))
+	for _, k := range schema.Keys {
+		if strings.TrimSpace(k.Name) == "" || seen[k.Name] {
+			return invalid("invalid_component_key",
+				fmt.Sprintf("ComponentSchema key %q is empty or listed twice", k.Name), map[string]any{"key": k.Name})
+		}
+		seen[k.Name] = true
+		if reserved[k.Name] {
+			return invalid("reserved_component_key",
+				fmt.Sprintf("ComponentSchema key %q is a matrix floor key the engine fills; rename it", k.Name),
+				map[string]any{"key": k.Name})
+		}
+	}
+	return nil
+}
+
+// matrixFloorKeyNames is the set of Response.Components.Matrices keys
+// the engine fills on every matrix entry: the matrix floor (with its
+// pairwise keys) and the optional weighted floor keys.
+func matrixFloorKeyNames() map[string]bool {
+	out := map[string]bool{}
+	for _, f := range descx.ComponentFloors() {
+		if f.Slot != "matrices" {
+			continue
+		}
+		for _, k := range f.Keys {
+			out[k.Name] = true
+		}
+	}
+	for _, k := range descx.WeightFloorKeys() {
+		out[k.Name] = true
+	}
+	return out
 }
 
 // validateOperatorSlice runs the common naming + duplicate + ParamMeta
@@ -880,6 +1020,14 @@ func builtinFeatureNames() map[string]struct{} {
 func builtinTestNames() map[string]struct{} {
 	out := make(map[string]struct{}, 32)
 	for _, t := range types.AllTestTypes() {
+		out[string(t)] = struct{}{}
+	}
+	return out
+}
+
+func builtinMatrixNames() map[string]struct{} {
+	out := make(map[string]struct{}, 16)
+	for _, t := range types.AllMatrixTypes() {
 		out[string(t)] = struct{}{}
 	}
 	return out
