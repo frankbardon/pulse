@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/internal/groupedtests"
 	"github.com/frankbardon/pulse/internal/returnplan"
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -106,6 +107,9 @@ type returnSizeInputs struct {
 	schema   *encoding.Schema
 	inst     *InstanceSnapshot
 	matrices []descriptor.MatrixPredict
+	// matrixPlans are the resolved specs behind matrices, index for
+	// index (the auxiliaries a spec emits follow its params).
+	matrixPlans []vectors.Matrix
 	// records is the cohort's record count; recordsKnown is false when
 	// it cannot be derived from the file length.
 	records      int64
@@ -250,7 +254,7 @@ func returnSections(in returnSizeInputs) []returnSection {
 		var kids []*sizeNode
 		basis := returnSizeExact
 		known := true
-		for _, m := range in.matrices {
+		for i, m := range in.matrices {
 			if m.EstimatedBuckets == nil {
 				known = false
 				break
@@ -259,15 +263,16 @@ func returnSections(in returnSizeInputs) []returnSection {
 				basis = returnSizeUpperBound
 			}
 			p := int64(m.Shape[0])
-			values := func(name string) *sizeNode {
-				return key(name, leaf("kind", sizeLabel), leaf("encoding", sizeLabel),
-					key("row_keys", elemValues(p, sizeLabel)), key("column_keys", elemValues(p, sizeLabel)),
-					key("values", elemValues(p*p, sizeNumber)))
-			}
-			kids = append(kids, elems(in.clamp(*m.EstimatedBuckets),
+			result := []*sizeNode{
 				leaf("name", sizeLabel), leaf("type", sizeLabel), leaf("group_key", sizeLabel),
-				values("primary"), key("vectors", elemValues(p, sizeNumber)),
-				leaf("scalars", sizeNumber)))
+				matrixValuesNode("primary", p, p), key("vectors", elemValues(p, sizeNumber)),
+				leaf("scalars", sizeNumber)}
+			if i < len(in.matrixPlans) {
+				if aux := matrixAuxiliaryNodes(in.matrixPlans[i], m); len(aux) > 0 {
+					result = append(result, key("auxiliary", aux...))
+				}
+			}
+			kids = append(kids, elems(in.clamp(*m.EstimatedBuckets), result...))
 		}
 		if known {
 			add(key("matrices", kids...), basis)
@@ -438,4 +443,75 @@ func attributeComponentSlots(req *types.Request, inst *InstanceSnapshot) int {
 		}
 	}
 	return n
+}
+
+// matrixValuesNode is one MatrixValues of rows x cols cells: its kind,
+// encoding, axis keys and values (every square matrix sized in full
+// encoding, the upper bound, as the primary is).
+func matrixValuesNode(name string, rows, cols int64) *sizeNode {
+	return key(name, leaf("kind", sizeLabel), leaf("encoding", sizeLabel),
+		key("row_keys", elemValues(rows, sizeLabel)), key("column_keys", elemValues(cols, sizeLabel)),
+		key("values", elemValues(rows*cols, sizeNumber)))
+}
+
+// matrixAuxiliaryNodes sizes the auxiliary matrices spec m emits — every
+// key its operator declares (capabilities_matrix.go OutputKeys.Auxiliary)
+// under the params that emit it, by the runtime's shapes: p is the
+// output axis (mp.Shape[0]), k the loadings' columns (mp.Shape[1]: an
+// integer component / factor count, else the p upper bound), and on
+// MAT_DISTANCE b the bucket bound (mp.Shape[0]) over the p members.
+//
+//   - n (pairwise, every operator but MAT_DISTANCE): p x p pair N.
+//   - p, ci_lower, ci_upper (params.inference on MAT_CORRELATION /
+//     MAT_PARTIAL_CORRELATION): p x p each.
+//   - MAT_PCA: eigenvectors p x k; unrotated p x k under a rotation.
+//   - MAT_FACTOR: unrotated p x k under a rotation; factor_correlation
+//     k x k under an oblique one (promax, oblimin).
+//   - MAT_COLLINEARITY: variance_decomposition q x q, q = p (+ 1 for
+//     the intercept unless params.center).
+//   - MAT_DISTANCE: centroids b x p; centroids_standardized b x p under
+//     standardize; pooled_covariance p x p under a fitted inverse
+//     covariance metric (mahalanobis).
+func matrixAuxiliaryNodes(m vectors.Matrix, mp descriptor.MatrixPredict) []*sizeNode {
+	p, k := int64(mp.Shape[0]), int64(mp.Shape[1])
+	var out []*sizeNode
+	if m.Pairwise && m.Type != types.MAT_DISTANCE {
+		out = append(out, matrixValuesNode("n", p, p))
+	}
+	if m.Inference {
+		for _, name := range []string{"p", "ci_lower", "ci_upper"} {
+			out = append(out, matrixValuesNode(name, p, p))
+		}
+	}
+	switch m.Type {
+	case types.MAT_PCA:
+		out = append(out, matrixValuesNode("eigenvectors", p, k))
+		if m.Rotation != "" {
+			out = append(out, matrixValuesNode("unrotated", p, k))
+		}
+	case types.MAT_FACTOR:
+		if m.Rotation != "" {
+			out = append(out, matrixValuesNode("unrotated", p, k))
+			if m.Rotation != vectors.RotationVarimax {
+				out = append(out, matrixValuesNode("factor_correlation", k, k))
+			}
+		}
+	case types.MAT_COLLINEARITY:
+		q := p
+		if !m.Center {
+			q++
+		}
+		out = append(out, matrixValuesNode("variance_decomposition", q, q))
+	case types.MAT_DISTANCE:
+		b := p
+		members := int64(len(m.Members.Members))
+		out = append(out, matrixValuesNode("centroids", b, members))
+		if m.Standardize {
+			out = append(out, matrixValuesNode("centroids_standardized", b, members))
+		}
+		if met, err := metric.ResolveFor(metric.ConsumerMatDistance, m.Metric, metric.Distance); err == nil && met.Fit() == metric.FitInverseCovariance {
+			out = append(out, matrixValuesNode("pooled_covariance", members, members))
+		}
+	}
+	return out
 }
