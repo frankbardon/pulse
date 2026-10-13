@@ -517,7 +517,7 @@ diagonal (`upper`). `kind` is `square_symmetric` or `rectangular`
 `MAT_DISTANCE`'s primary is `square_symmetric` but keyed by its
 between grouper's bucket labels, and its `auxiliary.centroids` is k × p:
 `row_keys` the buckets, `column_keys` the members).
-`MAT_CORRELATION` (Pearson) and `MAT_PARTIAL_CORRELATION` take
+`MAT_CORRELATION` (every `method`) and `MAT_PARTIAL_CORRELATION` take
 `params.inference` (bool) and `params.alpha` (0 < alpha < 1, default
 0.05): on, `auxiliary` gains `p`, `ci_lower` and `ci_upper`, square
 twins of `primary` (same axis and `encoding`, diagonal `null`); off or

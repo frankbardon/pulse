@@ -72,7 +72,7 @@ Each off-diagonal cell is the correlation of its row and column members under pa
 - A null cell means a member had no spread (constant, or too few rows), so its correlation is undefined, not 0.
 - A Pearson r near zero rules out only a straight-line link; a curved relationship can still be strong.
 - The bands are Cohen's for r; Kendall's tau-b runs smaller than r or rho for the same strength (about two thirds of rho), so read a kendall cell against lower cut-offs.
-- Set params.inference (pearson) for each pair's p-value and interval; for a rank method run TEST_SPEARMAN_R or TEST_KENDALL_TAU on a pair to test it.
+- Set params.inference for each pair's p-value and interval (every method).
 
 #### `auxiliary.p`
 
@@ -87,6 +87,7 @@ The lower bound of each pair's 1 − alpha confidence interval for its correlati
 - Null on the diagonal and where the pair is too thin for an interval (PULSE_MATRIX_INSUFFICIENT_N, scope inference), never collapsed to r.
 - Each interval covers its own pair; with many pairs some intervals miss by chance, and no multiple-comparison correction is applied.
 - Under a row weight it rests on the effective sample size (sum of weights for frequency, Kish n_eff for probability), unequal weights only, not a survey design.
+- Under method spearman or kendall the interval's standard error is an approximation (Bonett–Wright, Fieller) while the p-value can be exact, so near alpha the two can disagree.
 
 #### `auxiliary.ci_upper`
 
@@ -97,6 +98,7 @@ The upper bound of each pair's 1 − alpha confidence interval for its correlati
 - Null on the diagonal and where the pair is too thin for an interval (PULSE_MATRIX_INSUFFICIENT_N, scope inference), never collapsed to r.
 - Each interval covers its own pair; with many pairs some intervals miss by chance, and no multiple-comparison correction is applied.
 - Under a row weight it rests on the effective sample size (sum of weights for frequency, Kish n_eff for probability), unequal weights only, not a survey design.
+- Under method spearman or kendall the interval's standard error is an approximation (Bonett–Wright, Fieller) while the p-value can be exact, so near alpha the two can disagree.
 
 #### `scalars.determinant`
 

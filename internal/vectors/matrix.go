@@ -142,8 +142,8 @@ type Matrix struct {
 	// betweenRaw carries params.between from decode to resolveDistance
 	// (members resolve in between).
 	betweenRaw json.RawMessage
-	// Inference is params.inference on MAT_CORRELATION (method
-	// pearson) and MAT_PARTIAL_CORRELATION: the result carries per-pair
+	// Inference is params.inference on MAT_CORRELATION (every method)
+	// and MAT_PARTIAL_CORRELATION: the result carries per-pair
 	// auxiliary.p, auxiliary.ci_lower and auxiliary.ci_upper. False
 	// (the default) builds none of them.
 	Inference bool
@@ -1413,9 +1413,9 @@ func decodeMissing(at string, p missingParams, m *Matrix) *errors.CodedError {
 // params.method): inference true turns the per-pair p-values and
 // confidence intervals on; alpha is the intervals' two-sided level,
 // strictly between 0 and 1 (default InferenceDefaultAlpha), and applies
-// with inference true only. A rank method (spearman / kendall) refuses
-// inference: its p-values are not implemented, and a silent Pearson
-// figure beside a rank cell would mislead. Every refusal is bad_params.
+// with inference true only, on every MAT_CORRELATION method (a rank
+// method's p is cor.test's for that method). Every refusal is
+// bad_params.
 func decodeInference(at string, p inferenceParams, m *Matrix) *errors.CodedError {
 	on := p.Inference != nil && *p.Inference
 	if p.Alpha != nil {
@@ -1431,10 +1431,6 @@ func decodeInference(at string, p inferenceParams, m *Matrix) *errors.CodedError
 	}
 	if !on {
 		return nil
-	}
-	if IsRankMethod(m.Method) {
-		return matrixInvalid(at, "bad_params", at+" params.inference is not available for method \""+m.Method+"\"; it applies to method \"pearson\" only (run TEST_SPEARMAN_R or TEST_KENDALL_TAU on a pair for its p-value)",
-			map[string]any{"param": "inference", "method": m.Method, "valid_methods": []string{CorrelationPearson}})
 	}
 	m.Inference = true
 	m.Alpha = InferenceDefaultAlpha

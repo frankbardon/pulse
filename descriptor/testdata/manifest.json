@@ -7574,7 +7574,7 @@
       },
       {
         "name": "MAT_CORRELATION",
-        "description": "Correlation matrix of a vector's members (listwise or pairwise): Pearson r by default, or Spearman rho / Kendall tau-b under params.method; a zero-spread member's row and column are null. Pearson is weighted under frequency and probability weights, a rank method under frequency weights only. params.inference (pearson) adds each pair's two-sided p-value and Fisher-z confidence interval as auxiliary.p / ci_lower / ci_upper, TEST_PEARSON_R's arithmetic on the pair's inference size.",
+        "description": "Correlation matrix of a vector's members (listwise or pairwise): Pearson r by default, or Spearman rho / Kendall tau-b under params.method; a zero-spread member's row and column are null. Pearson is weighted under frequency and probability weights, a rank method under frequency weights only. params.inference adds each pair's two-sided p-value and Fisher-z confidence interval as auxiliary.p / ci_lower / ci_upper: TEST_PEARSON_R's arithmetic on the pair's inference size (pearson), R cor.test's p with a Bonett-Wright / Fieller interval (spearman / kendall).",
         "accepts_types": [
           "f32",
           "f64",
@@ -7626,7 +7626,7 @@
             "type": "bool",
             "required": false,
             "default": false,
-            "description": "true: add auxiliary.p (two-sided p-value), auxiliary.ci_lower and auxiliary.ci_upper (the 1 - alpha confidence interval), square matrices over the output axis in the primary's encoding, diagonal null: a pair's t = r*sqrt((N*-2)/(1-r^2)) on df = N*-2 (TEST_PEARSON_R's arithmetic) and its Fisher-z interval with se = 1/sqrt(N*-3); N* is the pair's own size under pairwise (rows unweighted, sum of weights under frequency, Kish n_eff under probability). Method pearson only: spearman or kendall with inference is refused. A cell too thin for its p-value or interval is null with PULSE_MATRIX_INSUFFICIENT_N (scope inference); under probability weights an effective size below its floor adds PULSE_WEIGHT_LOW_NEFF. The auxiliaries ride matrices[*].auxiliary, so a return that drops it (preset standard, the MCP default) skips them. No multiple-comparison correction."
+            "description": "true: add auxiliary.p (two-sided p-value), auxiliary.ci_lower and auxiliary.ci_upper (the 1 - alpha confidence interval), square matrices over the output axis in the primary's encoding, diagonal null: a pair's t = r*sqrt((N*-2)/(1-r^2)) on df = N*-2 (TEST_PEARSON_R's arithmetic) and its Fisher-z interval with se = 1/sqrt(N*-3); N* is the pair's own size under pairwise (rows unweighted, sum of weights under frequency, Kish n_eff under probability). Rank methods: R cor.test's default p over the pair's rows (n = N*): without ties exact for kendall below n = 50 and AS 89 for spearman up to n = 1290, otherwise the tie-corrected normal (kendall) or t on n-2 (spearman) approximation; the interval is Fisher z with se = sqrt((1+rho^2/2)/(n-3)) (spearman, Bonett-Wright) or sqrt(0.437/(n-4)) (kendall, Fieller; needs 5 rows). A cell too thin for its p-value or interval is null with PULSE_MATRIX_INSUFFICIENT_N (scope inference); under probability weights an effective size below its floor adds PULSE_WEIGHT_LOW_NEFF. The auxiliaries ride matrices[*].auxiliary, so a return that drops it (preset standard, the MCP default) skips them. No multiple-comparison correction."
           },
           {
             "name": "alpha",
@@ -11162,7 +11162,7 @@
       },
       {
         "name": "op-mat-correlation",
-        "description": "Correlation matrix of a vector's numeric members — Pearson (default), Spearman or Kendall tau-b via params.method — listwise or pairwise, weighted; one MatrixResult per spec (per group bucket when grouped); Pearson p-values and confidence intervals on request (params.inference)."
+        "description": "Correlation matrix of a vector's numeric members — Pearson (default), Spearman or Kendall tau-b via params.method — listwise or pairwise, weighted; one MatrixResult per spec (per group bucket when grouped); per-pair p-values and confidence intervals on request (params.inference, every method)."
       },
       {
         "name": "op-mat-covariance",
@@ -16550,4 +16550,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4665b01e1ddd06c942a724c6387c05eebdc58aaeeec89602c29deec52f31e49f
+// golden-hash: 08ac571eb0022fdcdaaf54fe615976bd3c674d2429f0e531f24c7b554608902a

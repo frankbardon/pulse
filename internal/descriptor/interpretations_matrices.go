@@ -249,8 +249,8 @@ var interpMatPartialCorrelation = []descriptor.Interpretation{
 		},
 	}),
 	matrixPInterpretation,
-	matrixCIInterpretation("ci_lower", "lower"),
-	matrixCIInterpretation("ci_upper", "upper"),
+	matrixCIInterpretation("ci_lower", "lower", false),
+	matrixCIInterpretation("ci_upper", "upper", false),
 }
 
 // matrixPInterpretation is a correlation matrix's auxiliary.p
@@ -261,9 +261,10 @@ var matrixPInterpretation = descriptor.Interpretation{
 }
 
 // matrixCIInterpretation reads one bound of a correlation matrix's
-// params.inference interval.
-func matrixCIInterpretation(key, side string) descriptor.Interpretation {
-	return descriptor.Interpretation{
+// params.inference interval; rank adds MAT_CORRELATION's rank-method
+// caveat (an approximate interval beside a possibly exact p).
+func matrixCIInterpretation(key, side string, rank bool) descriptor.Interpretation {
+	in := descriptor.Interpretation{
 		Field: "auxiliary." + key,
 		Means: "The " + side + " bound of each pair's 1 − alpha confidence interval for its correlation (Fisher's z, so the interval is lopsided toward 0): the range of correlations the data are consistent with. An interval that excludes 0 matches a p-value below alpha.",
 		Caveats: []string{
@@ -272,6 +273,10 @@ func matrixCIInterpretation(key, side string) descriptor.Interpretation {
 			"Under a row weight it rests on the effective sample size (sum of weights for frequency, Kish n_eff for probability), unequal weights only, not a survey design.",
 		},
 	}
+	if rank {
+		in.Caveats = append(in.Caveats, "Under method spearman or kendall the interval's standard error is an approximation (Bonett–Wright, Fieller) while the p-value can be exact, so near alpha the two can disagree.")
+	}
+	return in
 }
 
 var interpMatCorrelation = []descriptor.Interpretation{
@@ -284,12 +289,12 @@ var interpMatCorrelation = []descriptor.Interpretation{
 			"A null cell means a member had no spread (constant, or too few rows), so its correlation is undefined, not 0.",
 			"A Pearson r near zero rules out only a straight-line link; a curved relationship can still be strong.",
 			"The bands are Cohen's for r; Kendall's tau-b runs smaller than r or rho for the same strength (about two thirds of rho), so read a kendall cell against lower cut-offs.",
-			"Set params.inference (pearson) for each pair's p-value and interval; for a rank method run TEST_SPEARMAN_R or TEST_KENDALL_TAU on a pair to test it.",
+			"Set params.inference for each pair's p-value and interval (every method).",
 		},
 	}),
 	matrixPInterpretation,
-	matrixCIInterpretation("ci_lower", "lower"),
-	matrixCIInterpretation("ci_upper", "upper"),
+	matrixCIInterpretation("ci_lower", "lower", true),
+	matrixCIInterpretation("ci_upper", "upper", true),
 	{
 		Field: "scalars.determinant",
 		Means: "The determinant of the correlation table: 1 when no member is linearly related to the others, falling toward 0 as members become linear combinations of one another.",

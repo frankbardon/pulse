@@ -723,9 +723,9 @@ func TestFactorIdentified(t *testing.T) {
 }
 
 // TestResolveMatrices_Inference: params.inference / params.alpha on
-// MAT_CORRELATION (pearson) and MAT_PARTIAL_CORRELATION — off by
-// default (alpha 0), on with alpha 0.05 unless set; alpha without
-// inference, alpha outside (0, 1), a rank method with inference and
+// MAT_CORRELATION (every method, rank methods included) and
+// MAT_PARTIAL_CORRELATION — off by default (alpha 0), on with alpha
+// 0.05 unless set; alpha without inference, alpha outside (0, 1) and
 // either key on another operator are bad_params (param named).
 func TestResolveMatrices_Inference(t *testing.T) {
 	ok := []struct {
@@ -741,6 +741,8 @@ func TestResolveMatrices_Inference(t *testing.T) {
 		{types.MAT_PARTIAL_CORRELATION, `{"inference": true, "alpha": 0.01}`, true, 0.01},
 		{types.MAT_PARTIAL_CORRELATION, `{"inference": null}`, false, 0},
 		{types.MAT_CORRELATION, `{"method": "spearman", "inference": false}`, false, 0},
+		{types.MAT_CORRELATION, `{"method": "spearman", "inference": true}`, true, InferenceDefaultAlpha},
+		{types.MAT_CORRELATION, `{"inference": true, "alpha": 0.2, "method": "kendall"}`, true, 0.2},
 	}
 	for _, c := range ok {
 		t.Run(string(c.typ)+c.params, func(t *testing.T) {
@@ -764,8 +766,7 @@ func TestResolveMatrices_Inference(t *testing.T) {
 		{"alpha with inference false", types.MAT_PARTIAL_CORRELATION, `{"inference": false, "alpha": 0.1}`, "alpha"},
 		{"alpha 0", types.MAT_CORRELATION, `{"inference": true, "alpha": 0}`, "alpha"},
 		{"alpha 1", types.MAT_CORRELATION, `{"inference": true, "alpha": 1}`, "alpha"},
-		{"spearman", types.MAT_CORRELATION, `{"method": "spearman", "inference": true}`, "inference"},
-		{"kendall", types.MAT_CORRELATION, `{"inference": true, "method": "kendall"}`, "inference"},
+		{"spearman alpha without inference", types.MAT_CORRELATION, `{"method": "spearman", "alpha": 0.1}`, "alpha"},
 		{"covariance", types.MAT_COVARIANCE, `{"inference": true}`, ""},
 		{"pca", types.MAT_PCA, `{"inference": true}`, ""},
 	}

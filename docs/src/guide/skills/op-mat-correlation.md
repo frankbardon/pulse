@@ -1,6 +1,6 @@
 ```yaml
 name: op-mat-correlation
-description: Correlation matrix of a vector's numeric members — Pearson (default), Spearman or Kendall tau-b via params.method — listwise or pairwise, weighted; one MatrixResult per spec (per group bucket when grouped); Pearson p-values and confidence intervals on request (params.inference).
+description: Correlation matrix of a vector's numeric members — Pearson (default), Spearman or Kendall tau-b via params.method — listwise or pairwise, weighted; one MatrixResult per spec (per group bucket when grouped); per-pair p-values and confidence intervals on request (params.inference, every method).
 kind: operator
 category: MAT
 operator: MAT_CORRELATION
@@ -32,7 +32,7 @@ Use something else:
 | `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise: per-pair rows (rank methods re-rank per pair). |
 | `max_drop_share` | 0–1 | none | Listwise drop-share warning. |
 | `summary.top_pairs` | int ≥ 1 | none | k strongest pairs. |
-| `inference` | bool | `false` | Pearson only (rank → `bad_params`): `auxiliary.p` / `ci_lower` / `ci_upper`. |
+| `inference` | bool | `false` | `auxiliary.p` / `ci_lower` / `ci_upper`, every method. |
 | `alpha` | (0, 1) | `0.05` | Interval level; needs `inference`. |
 | `weight` | slot weight | inherited | Pearson: both kinds; rank: frequency only. `null` opts out. |
 | `encoding` | `full` \| `upper` | `full` | `upper`: row r holds p − r cells. |
@@ -43,7 +43,7 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 ## Output
 
-`primary`: r (ρ / τ-b under a rank method) in [−1, 1], diagonal 1; a zero-spread member's row and column are null. `scalars.determinant` (null unless PD); pairwise `auxiliary.n` (pair N); `warnings`. `inference`: `auxiliary.p` (two-sided, t on N* − 2) and `ci_lower` / `ci_upper` (Fisher z, se 1/√(N* − 3)) per pair, the two-field Pearson test's arithmetic; N* per pair (pairwise), Kish under probability weights; diagonal and thin cells null. `vectors.top_pairs` `[{row, col, r, n}]`: by |r| desc, ties in axis order, no diagonal / null pairs.
+`primary`: r (ρ / τ-b under a rank method) in [−1, 1], diagonal 1; a zero-spread member's row and column are null. `scalars.determinant` (null unless PD); pairwise `auxiliary.n` (pair N); `warnings`. `inference`: per pair `auxiliary.p` (two-sided; rank: `cor.test`'s, exact when untied and small) and `ci_lower` / `ci_upper` (Fisher z; rank se Bonett–Wright / Fieller, Kendall needs 5 rows); N* per pair (pairwise), Kish under probability weights; diagonal and thin cells null. `vectors.top_pairs` `[{row, col, r, n}]`: by |r| desc, ties in axis order, no diagonal / null pairs.
 
 ## Reading the output
 
@@ -56,7 +56,7 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 ## Gotchas
 
-- Each cell is the matching two-field test (Pearson, Spearman, Kendall) over its pair's rows. Rank p-values: run the test per pair. Weight-0 rows count in `n`, add no mass.
+- Each cell is the matching two-field test (Pearson, Spearman, Kendall) over its pair's rows. Weight-0 rows count in `n`, add no mass.
 - `inference` rides `auxiliary`: `return` preset `standard` (the MCP default) drops it; use `full` or include `matrices[*].auxiliary`. Thin cells: `PULSE_MATRIX_INSUFFICIENT_N` scope `inference`; uncorrected.
 - Rank methods: predict `streamable` / `mergeable` false; a probability weight is `PULSE_WEIGHT_UNSUPPORTED`. Kendall τ-b runs smaller than ρ.
 - Pairwise r at p ≥ 3 can be non-PSD (predict `pairwise_psd_risk`) → `PULSE_MATRIX_NOT_PSD`; also `_INSUFFICIENT_N`, `_ZERO_VARIANCE`, `_LISTWISE_HEAVY_DROP`.

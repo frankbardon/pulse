@@ -11,7 +11,8 @@ import (
 )
 
 // matrix_inference.go is params.inference: the per-pair p-values and
-// Fisher-z confidence intervals MAT_CORRELATION (pearson) and
+// Fisher-z confidence intervals MAT_CORRELATION (every method; the rank
+// methods' p and interval variance are matrix_rank_inference.go's) and
 // MAT_PARTIAL_CORRELATION carry as auxiliary.p, auxiliary.ci_lower and
 // auxiliary.ci_upper — square matrices over the output axis in the
 // slot's encoding, the primary's twins cell for cell, so a later reader
@@ -48,13 +49,31 @@ type pairInference struct {
 	nEff  float64 // Kish n_eff (probability weights only; else 0)
 }
 
+// inferenceRule is how a cell turns (r, N*) into its p and interval.
+// The zero rule is the Pearson / partial one: t on df = N* − 2 − g and
+// Fisher's z with se = 1/√(N* − 3 − g) on at least 4 + g rows. A rank
+// method (matrix_rank_inference.go) supplies its own p per cell and its
+// own Fisher-z variance.
+type inferenceRule struct {
+	// p, when set, is the cell's two-sided p-value (replacing the t
+	// test's); NaN leaves the cell's p null.
+	p func(a, b int) float64
+	// zDF, when set, is 1/se² of atanh(r) from (r, N*); unset, N* − 3 − g.
+	zDF func(r, nStar float64) float64
+	// ciRows is how many rows beyond 3 + g the interval needs (0 = 1).
+	ciRows int64
+	// ciNeed names the interval's floor in the thin-cell warning.
+	ciNeed string
+}
+
 // inferenceAux builds the three auxiliaries over the output axis for
 // the (partial) correlation r — r's coordinates are output positions —
 // with g controls, each cell's inference size from size(a, b), plus
 // the warnings. pairScoped reports whether size varies per cell (a
 // pairwise plain r): the warnings then list the cells; otherwise they
-// carry the matrix-wide size once.
-func (in *matrixFinalizeInput) inferenceAux(r func(a, b int) float64, g int, size func(a, b int) pairInference, pairScoped bool, extra []*types.ResponseWarning) (map[string]*types.MatrixValues, []*types.ResponseWarning) {
+// carry the matrix-wide size once. rule is the cell arithmetic (the
+// zero rule: Pearson / partial).
+func (in *matrixFinalizeInput) inferenceAux(r func(a, b int) float64, g int, size func(a, b int) pairInference, pairScoped bool, extra []*types.ResponseWarning, rule inferenceRule) (map[string]*types.MatrixValues, []*types.ResponseWarning) {
 	workMatrixInferenceBuilds.Add(1)
 	plan := in.Plan()
 	members, _ := plan.OutputMembers()
@@ -62,6 +81,14 @@ func (in *matrixFinalizeInput) inferenceAux(r func(a, b int) float64, g int, siz
 	alpha := plan.Alpha
 	gf := float64(g)
 	minRows := int64(3 + g)
+	ciRows := rule.ciRows
+	if ciRows == 0 {
+		ciRows = 1
+	}
+	ciNeed := rule.ciNeed
+	if ciNeed == "" {
+		ciNeed = "4 + g rows and N* − 3 − g > 0 for the interval"
+	}
 	probability := weighting.BasisOf(in.slot.weight) == weighting.Probability
 
 	type cell struct{ p, lo, hi float64 }
@@ -98,8 +125,14 @@ func (in *matrixFinalizeInput) inferenceAux(r func(a, b int) float64, g int, siz
 				continue
 			}
 			zDF := s.nStar - 3 - gf
-			ciOK := s.n >= minRows+1 && zDF > 0
+			if rule.zDF != nil {
+				zDF = rule.zDF(rv, s.nStar)
+			}
+			ciOK := s.n >= minRows+ciRows && zDF > 0
 			inf := correlationInference(rv, df, zDF, ciOK, alpha)
+			if rule.p != nil {
+				inf.P = rule.p(a, b)
+			}
 			c := cell{inf.P, inf.Lo, inf.Hi}
 			cells[a][b], cells[b][a] = c, c
 			if !ciOK && pairScoped {
@@ -111,7 +144,7 @@ func (in *matrixFinalizeInput) inferenceAux(r func(a, b int) float64, g int, siz
 	}
 
 	warns := extra
-	need := "3 + g rows and N* − 2 − g > 0 for p, 4 + g rows and N* − 3 − g > 0 for the interval (g = " + strconv.Itoa(g) + " controls)"
+	need := "3 + g rows and N* − 2 − g > 0 for p, " + ciNeed + " (g = " + strconv.Itoa(g) + " controls)"
 	if len(thin) > 0 {
 		warns = append(warns, matrixWarning(errors.PULSE_MATRIX_INSUFFICIENT_N,
 			"matrix "+plan.Name+" has pairs too thin for inference (needs "+need+"); their listed outputs are null",
@@ -171,7 +204,7 @@ func (in *matrixFinalizeInput) pearsonInference(r *linalg.Sym) (map[string]*type
 	basis := weighting.BasisOf(in.slot.weight)
 	return in.inferenceAux(r.At, 0, func(a, b int) pairInference {
 		return pairSize(in.CM, basis, a, b)
-	}, in.Plan().Pairwise, nil)
+	}, in.Plan().Pairwise, nil, inferenceRule{})
 }
 
 // partialInference is MAT_PARTIAL_CORRELATION's params.inference over
@@ -203,5 +236,5 @@ func (in *matrixFinalizeInput) partialInference(pc func(a, b int) float64) (map[
 				", pair "+cols[bi]+" × "+cols[bj]+"), the conservative choice; listwise deletion gives one N for every cell",
 			map[string]any{"matrix": plan.Name, "outputs": inferenceOutputs, "n_star": size.nStar, "row": cols[bi], "col": cols[bj]}))
 	}
-	return in.inferenceAux(pc, g, func(int, int) pairInference { return size }, false, extra)
+	return in.inferenceAux(pc, g, func(int, int) pairInference { return size }, false, extra, inferenceRule{})
 }

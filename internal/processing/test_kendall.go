@@ -132,18 +132,7 @@ func (k *kendallTauRow) Finalize() (*types.TestResult, error) {
 	_, tiesX := weightedMidRanks(xs, ws)
 	_, tiesY := weightedMidRanks(k.ys, ws)
 	nf := k.xs.sumW // n unweighted
-	v0 := nf * (nf - 1) * (2*nf + 5)
-	vt := tieKendallSumW(tiesX)
-	vu := tieKendallSumW(tiesY)
-	v1 := 0.0
-	if nf > 1 {
-		v1 = tieKendallV1W(tiesX) * tieKendallV1W(tiesY) / (2 * nf * (nf - 1))
-	}
-	v2 := 0.0
-	if nf > 2 {
-		v2 = tieKendallV2W(tiesX) * tieKendallV2W(tiesY) / (9 * nf * (nf - 1) * (nf - 2))
-	}
-	varS := (v0-vt-vu)/18 + v1 + v2
+	varS := kendallVarS(nf, tiesX, tiesY)
 	var z, p float64
 	if varS <= 0 || S == 0 {
 		z = 0

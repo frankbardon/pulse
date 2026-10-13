@@ -417,9 +417,10 @@ func finalizeCovariance(in *matrixFinalizeInput) (matrixOutput, error) {
 	return in.coMomentOutput(in.CM.Cov(in.Plan().DDOF)), nil
 }
 
-// finalizeCorrelation is MAT_CORRELATION. Pearson (the default):
-// under params.inference the primary's per-pair p-values and Fisher-z
-// intervals join the auxiliaries (pearsonInference, matrix_inference.go).
+// finalizeCorrelation is MAT_CORRELATION. Under params.inference the
+// primary's per-pair p-values and Fisher-z intervals join the
+// auxiliaries (pearsonInference / rankInference, matrix_inference.go,
+// matrix_rank_inference.go).
 // C_ij / √(M2_ii·M2_jj) clamped to [−1, 1] — CoMoment.Corr, whose
 // one-root form is TEST_PEARSON_R's arithmetic. A member with zero
 // spread (constant, a single massed row, no rows) has no defined
@@ -430,11 +431,18 @@ func finalizeCovariance(in *matrixFinalizeInput) (matrixOutput, error) {
 // shared co-moment set over that primary.
 func finalizeCorrelation(in *matrixFinalizeInput) (matrixOutput, error) {
 	if vectors.IsRankMethod(in.Plan().Method) {
-		r, err := rankCorrelation(in)
+		infer := in.Plan().Inference && in.WantAuxiliary()
+		r, pv, err := rankCorrelation(in, infer)
 		if err != nil {
 			return matrixOutput{}, err
 		}
-		return in.coMomentOutput(r), nil
+		out := in.coMomentOutput(r)
+		if infer {
+			aux, warns := in.rankInference(r, pv)
+			out.addAuxiliary(aux)
+			out.Warnings = append(out.Warnings, warns...)
+		}
+		return out, nil
 	}
 	r := in.CM.Corr()
 	out := in.coMomentOutput(r)

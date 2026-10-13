@@ -80,12 +80,12 @@ each pair re-ranked over its own rows, as R's
 every admitted row until finalize, so the request runs buffered and
 serially (predict: `streamable` and `mergeable` false,
 `row_buffer_bytes`); it takes frequency weights only (a probability
-weight is `PULSE_WEIGHT_UNSUPPORTED`) and emits no p-values
-(`params.inference` is refused on a rank method).
+weight is `PULSE_WEIGHT_UNSUPPORTED`); `params.inference` gives its
+p-values and intervals (see Inference).
 
 ## Inference
 
-`params.inference: true` on `MAT_CORRELATION` (Pearson) and
+`params.inference: true` on `MAT_CORRELATION` (any `method`) and
 `MAT_PARTIAL_CORRELATION` adds three auxiliary matrices, the primary's
 twins cell for cell (same axis, same `encoding`, diagonal `null`):
 
@@ -104,6 +104,20 @@ the fold's under listwise, the smallest pair's under pairwise (warned
 its p or interval is `null` (never collapsed to r) and
 `PULSE_MATRIX_INSUFFICIENT_N` (scope `inference`) names it; under
 probability weights a too-small n_eff adds `PULSE_WEIGHT_LOW_NEFF`.
+
+Under a rank method (`spearman` / `kendall`) each cell's p is R
+`cor.test(method = …)`'s at its defaults, over the cell's own rows
+(n = N*, Σw under a frequency weight — every weight above 1 is a tie):
+without ties the exact test (Kendall below n = 50; Spearman's AS 89 up
+to n = 1290), otherwise the tie-corrected normal approximation
+(Kendall, no continuity correction) or t on n − 2 (Spearman). So a
+cell can differ from `TEST_KENDALL_TAU` (continuity-corrected) or
+`TEST_SPEARMAN_R` (t only) on the same pair. `cor.test` reports no
+interval for a rank correlation; Pulse's is Fisher z with the method's
+standard error — √((1 + ρ²/2)/(n − 3)) for Spearman (Bonett & Wright,
+2000), √(0.437/(n − 4)) for Kendall (Fieller, Hartley & Pearson, 1957;
+5 rows) — and [r, r] at |r| = 1.
+
 The figures ride `matrices[*].auxiliary`, so a `return` that drops it
 (the `standard` preset, the MCP default) skips the computation. Nothing
 corrects for the many pairs. Off (the default) the response is

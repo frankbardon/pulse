@@ -184,6 +184,8 @@ func TestPredict_PValuesMatrixInference(t *testing.T) {
 	}{
 		{"off", &types.Request{Matrices: []types.MatrixSpec{spec(types.MAT_CORRELATION, `{}`)}}, nil},
 		{"pearson", &types.Request{Matrices: []types.MatrixSpec{spec(types.MAT_CORRELATION, `{"inference": true}`)}}, pv(6, descriptor.PValueBasisExact)},
+		{"spearman", &types.Request{Matrices: []types.MatrixSpec{spec(types.MAT_CORRELATION, `{"inference": true, "method": "spearman"}`)}}, pv(6, descriptor.PValueBasisExact)},
+		{"kendall", &types.Request{Matrices: []types.MatrixSpec{spec(types.MAT_CORRELATION, `{"inference": true, "method": "kendall"}`)}}, pv(6, descriptor.PValueBasisExact)},
 		{"partial control list", &types.Request{Matrices: []types.MatrixSpec{spec(types.MAT_PARTIAL_CORRELATION, `{"inference": true, "control": ["x4"]}`)}},
 			pv(3, descriptor.PValueBasisExact)},
 		{"grouped", &types.Request{

@@ -1,6 +1,7 @@
 # gen_matrix_inference.R — R oracle for Pulse's matrix params.inference
-# (U28 E3-S2): per-pair p-values and Fisher-z confidence intervals on
-# MAT_CORRELATION (pearson) and MAT_PARTIAL_CORRELATION.
+# (U28 E3-S2, E3-S3): per-pair p-values and Fisher-z confidence
+# intervals on MAT_CORRELATION (pearson, spearman, kendall) and
+# MAT_PARTIAL_CORRELATION.
 #
 # Writes <out_dir>/matrix_inference.json. Sourced at the end of
 # gen_reference.R (`make reference`), reusing its out_dir and
@@ -192,12 +193,132 @@ add_pearson("attitude", mi_att, c("rating", "complaints", "privileges", "learnin
 add_partial("nulls", mi_nl, paste0("x", 1:4), character(0), "none", "pairwise")
 add_partial("attitude", mi_att, c("rating", "privileges", "raises", "critical", "advance"), c("complaints", "learning"), "none", alpha = 0.01)
 
+# Rank methods (U28 E3-S3): MAT_CORRELATION method spearman / kendall
+# with inference. p is stats::cor.test(method = …) at its defaults
+# (exact = NULL, continuity = FALSE): Kendall exact below n = 50
+# without ties, else the tie-corrected normal approximation; Spearman
+# AS 89 (exact enumeration n <= 9, Edgeworth above) up to n = 1290
+# without ties, else the t approximation. Frequency = cor.test on the
+# rep() expansion (a weight above 1 is a tie). cor.test reports no
+# interval for a rank method; Pulse's is Fisher z with the method's se,
+# computed here by formula: Spearman se^2 = (1 + rho^2/2) / (n - 3)
+# (Bonett & Wright 2000; needs 4 rows), Kendall se^2 = 0.437 / (n - 4)
+# (Fieller, Hartley & Pearson 1957; needs 5 rows); |r| = 1 gives [r, r].
+mi_rank_ci <- function(r, n, rows, method, alpha) {
+  need <- if (method == "spearman") 4 else 5
+  zdf <- if (method == "spearman") (n - 3) / (1 + r^2 / 2) else (n - 4) / 0.437
+  if (is.na(r) || rows < need || !(zdf > 0)) return(c(NA, NA))
+  if (abs(r) >= 1) return(c(r, r))
+  z <- qnorm(1 - alpha / 2)
+  tanh(atanh(r) + c(-1, 1) * z / sqrt(zdf))
+}
+mi_rank_pair <- function(x, y, w, method, alpha) {
+  ok <- !is.na(x) & !is.na(y)
+  x <- x[ok]; y <- y[ok]; w <- w[ok]
+  rows <- length(x)
+  idx <- rep(seq_len(rows), w)
+  ct <- suppressWarnings(cor.test(x[idx], y[idx], method = method))
+  r <- unname(ct$estimate)
+  ci <- mi_rank_ci(r, length(idx), rows, method, alpha)
+  list(r = r, p = ct$p.value, lo = ci[1], hi = ci[2])
+}
+add_rank <- function(fx, df, members, method, kind, missing = "listwise", alpha = 0.05) {
+  d <- if (missing == "listwise") df[complete.cases(df[, members]), , drop = FALSE] else df
+  w <- mi_w(d, kind)
+  k <- length(members)
+  R <- matrix(NA_real_, k, k); P <- R; LO <- R; HI <- R
+  for (i in seq_len(k)) for (j in seq_len(k)) {
+    if (i == j) next
+    s <- mi_rank_pair(d[[members[i]]], d[[members[j]]], w, method, alpha)
+    R[i, j] <- s$r; P[i, j] <- s$p; LO[i, j] <- s$lo; HI[i, j] <- s$hi
+  }
+  diag(R) <- 1
+  mi_cases[[length(mi_cases) + 1]] <<- list(
+    type = "MAT_CORRELATION", method = method, fixture = fx, members = I(members), controls = I(character(0)),
+    missing = missing, weight = kind, alpha = mi_num(alpha),
+    r = mi_mat(R), p = mi_mat(P), ci_lower = mi_mat(LO), ci_upper = mi_mat(HI)
+  )
+}
+
+mi_lk <- mi_read("likert_ties")
+mi_tf <- mi_read("two_factor")
+for (method in c("spearman", "kendall")) {
+  for (kind in c("none", "frequency")) {
+    add_rank("weighted", mi_wd, paste0("x", 1:4), method, kind)                       # no ties, n = 40
+    add_rank("nulls", mi_nl, paste0("x", 1:4), method, kind, "pairwise")              # no ties, pairwise
+    add_rank("two_factor", mi_tf, paste0("v", 1:6), method, kind)                     # no ties, n = 80
+    add_rank("attitude", mi_att, c("rating", "complaints", "privileges", "learning"), method, kind) # ties
+    add_rank("likert_ties", mi_lk, paste0("q", 1:6), method, kind)                    # heavy ties, n = 60
+  }
+  add_rank("mtcars", mi_mt, c("mpg", "disp", "hp", "wt", "qsec"), method, "none", alpha = 0.1)
+}
+
+# The rank null distributions themselves (R's C entry points), so the
+# Go pRho / pKendall are pinned cell-free: AS 89 over every statistic
+# for n <= 9 (exact enumeration) and a grid above (Edgeworth), both
+# tails; pkendall over every q for n <= 10 and a grid to n = 49.
+mi_rho <- list()
+for (n in 2:9) {
+  n3 <- (n^3 - n) / 3
+  for (q in seq(0, n3 + 2)) for (lower in c(TRUE, FALSE)) {
+    mi_rho[[length(mi_rho) + 1]] <- list(n = n, q = q, lower = lower, p = mi_num(.Call(stats:::C_pRho, q, n, lower)))
+  }
+}
+for (n in c(10, 11, 20, 50, 200, 1290)) {
+  n3 <- (n^3 - n) / 3
+  for (f in c(0, 0.001, 0.01, 0.05, 0.2, 0.4, 0.5, 0.6, 0.8, 0.95, 0.99, 0.999, 1, 1.01)) {
+    q <- 2 * round(f * n3 / 2)
+    for (lower in c(TRUE, FALSE)) {
+      mi_rho[[length(mi_rho) + 1]] <- list(n = n, q = q, lower = lower, p = mi_num(.Call(stats:::C_pRho, q, n, lower)))
+    }
+  }
+}
+mi_kendall <- list()
+for (n in 2:10) for (q in seq(-1, n * (n - 1) / 2 + 1)) {
+  mi_kendall[[length(mi_kendall) + 1]] <- list(n = n, q = q, p = mi_num(.Call(stats:::C_pKendall, q, n)))
+}
+for (n in c(20, 35, 49)) {
+  u <- n * (n - 1) / 2
+  for (f in c(0, 0.01, 0.1, 0.3, 0.45, 0.5, 0.55, 0.7, 0.9, 0.99, 1)) {
+    q <- round(f * u)
+    mi_kendall[[length(mi_kendall) + 1]] <- list(n = n, q = q, p = mi_num(.Call(stats:::C_pKendall, q, n)))
+  }
+}
+
+# Single pairs through the whole cell rule (ties or not, both sides of
+# every switch: n 3..12, Kendall 49 / 50, Spearman 1290 / 1291, |r| = 1),
+# cor.test's p each — the Go cell functions read x and y directly.
+set.seed(20261012)
+mi_pairs <- list()
+add_pair <- function(x, y, method, why) {
+  ct <- suppressWarnings(cor.test(x, y, method = method))
+  mi_pairs[[length(mi_pairs) + 1]] <<- list(method = method, why = why, x = lapply(x, mi_num), y = lapply(y, mi_num),
+                                            r = mi_num(unname(ct$estimate)), p = mi_num(ct$p.value))
+}
+for (method in c("spearman", "kendall")) {
+  for (n in 3:12) for (rep_i in 1:3) add_pair(as.numeric(seq_len(n)), as.numeric(sample(n)), method, "untied small")
+  for (n in c(5, 20)) {
+    add_pair(as.numeric(1:n), as.numeric(1:n), method, "perfect")
+    add_pair(as.numeric(1:n), as.numeric(n:1), method, "perfect negative")
+  }
+  for (n in c(6, 10, 25, 49, 50, 120)) add_pair(as.numeric(sample(1:4, n, TRUE)), as.numeric(sample(1:5, n, TRUE)), method, "tied")
+  for (n in c(30, 49, 50, 80)) {
+    x <- rnorm(n); add_pair(x, 0.4 * x + rnorm(n), method, "untied")
+  }
+}
+for (n in c(1290, 1291)) {
+  x <- rnorm(n); add_pair(x, 0.05 * x + rnorm(n), "spearman", "AS 89 / t boundary")
+}
+
 write_golden("matrix_inference", list(
   generator = "scripts/reference/gen_matrix_inference.R",
   r_version = R.version.string,
   packages = list(stats = as.character(packageVersion("stats")),
                   jsonlite = as.character(packageVersion("jsonlite")),
                   ppcor = as.character(packageVersion("ppcor"))),
-  note = "Per-pair p-values and Fisher-z intervals for MAT_CORRELATION (cor.test; frequency = rep() expansion, probability = Kish n_eff closed form) and MAT_PARTIAL_CORRELATION (df = N* - 2 - g, se = 1/sqrt(N* - 3 - g); ppcor asserted). Diagonals null.",
-  cases = mi_cases
+  note = "Per-pair p-values and Fisher-z intervals for MAT_CORRELATION (cor.test; frequency = rep() expansion, probability = Kish n_eff closed form; rank methods: cor.test's default p, interval Fisher z with Bonett-Wright (spearman) / Fieller (kendall) se) and MAT_PARTIAL_CORRELATION (df = N* - 2 - g, se = 1/sqrt(N* - 3 - g); ppcor asserted). Diagonals null. rank_rho / rank_kendall: R's C_pRho / C_pKendall; rank_pairs: cor.test on single pairs.",
+  cases = mi_cases,
+  rank_rho = mi_rho,
+  rank_kendall = mi_kendall,
+  rank_pairs = mi_pairs
 ))

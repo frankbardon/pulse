@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"math"
 	"path/filepath"
@@ -25,6 +26,7 @@ import (
 // inferenceOracle is one matrix_inference.json case.
 type inferenceOracle struct {
 	Type     types.MatrixType `json:"type"`
+	Method   string           `json:"method"`
 	Fixture  string           `json:"fixture"`
 	Members  []string         `json:"members"`
 	Controls []string         `json:"controls"`
@@ -75,9 +77,12 @@ func checkMatrixCells(t *testing.T, what string, got [][]float64, want [][]*floa
 
 // TestMatrixInference_MatchesROracle pins every matrix_inference.json
 // case: Pearson (cor.test; frequency the rep() expansion; probability
-// the Kish closed form; pairwise per pair) and partial correlations
-// (control all / a list, listwise / pairwise, df = N* − 2 − g), at
-// alpha 0.05, 0.1 and 0.01.
+// the Kish closed form; pairwise per pair), the rank methods (cor.test
+// spearman / kendall p — exact or approximate, tied or not, n below and
+// above 50, pairwise, frequency the rep() expansion — and the
+// Bonett–Wright / Fieller intervals) and partial correlations (control
+// all / a list, listwise / pairwise, df = N* − 2 − g), at alpha 0.05,
+// 0.1 and 0.01.
 func TestMatrixInference_MatchesROracle(t *testing.T) {
 	var golden struct {
 		Cases []inferenceOracle `json:"cases"`
@@ -88,8 +93,11 @@ func TestMatrixInference_MatchesROracle(t *testing.T) {
 		t.Fatalf("oracle has %d cases", len(golden.Cases))
 	}
 	for _, c := range golden.Cases {
-		t.Run(fmt.Sprintf("%s/%s/%s/%s/%s/alpha=%g", c.Type, c.Fixture, strings.Join(c.Controls, "+"), c.Missing, c.Weight, c.Alpha), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s/%s/%s/%s/%s/%s/alpha=%g", c.Type, c.Method, c.Fixture, strings.Join(c.Controls, "+"), c.Missing, c.Weight, c.Alpha), func(t *testing.T) {
 			params := map[string]any{"missing": c.Missing, "inference": true}
+			if c.Method != "" {
+				params["method"] = c.Method
+			}
 			if c.Alpha != 0.05 {
 				params["alpha"] = c.Alpha
 			}
@@ -324,6 +332,19 @@ func TestMatrixInference_SizeNulls(t *testing.T) {
 		// (x1, x3) on 6.
 		{name: "pearson_pairwise", rows: pairwiseRows, typ: types.MAT_CORRELATION, params: `{"inference": true, "missing": "pairwise"}`,
 			ciNull: true, scope: "pairs", outputs: []any{"ci_lower", "ci_upper"}, pairwise: true},
+		// Rank methods: Spearman's interval (Bonett–Wright) needs 4
+		// rows, Kendall's (Fieller, se² = 0.437/(n − 4)) needs 5, so a
+		// 4-row Kendall matrix carries p and no interval.
+		{name: "spearman_n3", rows: rows, typ: types.MAT_CORRELATION, params: `{"inference": true, "method": "spearman"}`,
+			ciNull: true, scope: "matrix", outputs: []any{"ci_lower", "ci_upper"}},
+		{name: "kendall_n4", rows: append(append([][5]float64(nil), rows...), [5]float64{4, 4, 1, 1, 1}), typ: types.MAT_CORRELATION,
+			params: `{"inference": true, "method": "kendall"}`, ciNull: true, scope: "matrix", outputs: []any{"ci_lower", "ci_upper"}},
+		// Frequency weight 2 on 4 rows: n = 8 would carry Fieller's
+		// interval, but the 5-row floor nulls it.
+		{name: "kendall_freq_n4", rows: [][5]float64{{1, 2, 4, 2, 1}, {2, 1, 5, 2, 1}, {3, 5, 3, 2, 1}, {4, 4, 1, 2, 1}}, typ: types.MAT_CORRELATION,
+			params: `{"inference": true, "method": "kendall"}`, weight: "f", ciNull: true, scope: "matrix", outputs: []any{"ci_lower", "ci_upper"}},
+		{name: "kendall_pairwise", rows: pairwiseRows, typ: types.MAT_CORRELATION, params: `{"inference": true, "missing": "pairwise", "method": "kendall"}`,
+			ciNull: true, scope: "pairs", outputs: []any{"ci_lower", "ci_upper"}, pairwise: true},
 		// Probability weights 1, 1, 50: Kish n_eff ≈ 1.08 < 3 → df ≤ 0.
 		{name: "pearson_low_neff", rows: [][5]float64{{1, 2, 4, 1, 1}, {2, 1, 5, 1, 1}, {3, 5, 3, 1, 50}, {4, 4, 4, 1, 1}},
 			typ: types.MAT_CORRELATION, params: `{"inference": true}`, weight: "p",
@@ -409,5 +430,109 @@ func TestMatrixInference_ReturnGate(t *testing.T) {
 				t.Errorf("auxiliary.p present = %v, want %v", has, c.runs)
 			}
 		})
+	}
+}
+
+// TestMatrixInference_RankOffIsByteIdentical: on a rank method,
+// params.inference absent or false leaves the response byte-identical;
+// on adds exactly auxiliary.p / ci_lower / ci_upper (the primary, n,
+// determinant and every other part keep their bytes).
+func TestMatrixInference_RankOffIsByteIdentical(t *testing.T) {
+	cfg := writeMatrixCohort(t, "m.pulse", matrixRows(300))
+	run := func(params string) (map[string]any, *types.Response) {
+		t.Helper()
+		spec := missingSpec(types.MAT_CORRELATION, []string{"x1", "x2", "x3"}, "f", params)
+		resp := processMatrices(t, cfg, &types.Request{Cohort: &types.Cohort{Filename: "m.pulse"}, Matrices: []types.MatrixSpec{spec}})
+		raw, err := json.Marshal(resp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m map[string]any
+		_ = json.Unmarshal(raw, &m)
+		return m, resp
+	}
+	for _, method := range []string{"spearman", "kendall"} {
+		for _, missing := range []string{"listwise", "pairwise"} {
+			t.Run(method+"/"+missing, func(t *testing.T) {
+				head := `{"method": "` + method + `", "missing": "` + missing + `"`
+				base, _ := run(head + `}`)
+				off, _ := run(head + `, "inference": false}`)
+				if a, b := mustJSON(t, base), mustJSON(t, off); a != b {
+					t.Errorf("inference false moved the response:\n  absent: %s\n  false:  %s", a, b)
+				}
+				on, resp := run(head + `, "inference": true}`)
+				for _, k := range []string{"p", "ci_lower", "ci_upper"} {
+					v := resp.Matrices[0].Auxiliary[k]
+					if v == nil {
+						t.Fatalf("inference true: auxiliary.%s missing", k)
+					}
+					if math.IsNaN(v.Values[0][1]) {
+						t.Errorf("auxiliary.%s[0][1] is null on 300 rows", k)
+					}
+				}
+				mat := on["matrices"].([]any)[0].(map[string]any)
+				aux := mat["auxiliary"].(map[string]any)
+				for _, k := range []string{"p", "ci_lower", "ci_upper"} {
+					delete(aux, k)
+				}
+				if len(aux) == 0 {
+					delete(mat, "auxiliary")
+				}
+				if a, b := mustJSON(t, base), mustJSON(t, on); a != b {
+					t.Errorf("inference true moved a part besides its three auxiliaries:\n  off: %s\n  on:  %s", a, b)
+				}
+			})
+		}
+	}
+}
+
+// TestMatrixInference_RankWeightRules: a rank method stays
+// frequency-only under params.inference — a probability weight is
+// PULSE_WEIGHT_UNSUPPORTED — and a frequency weight is the expansion:
+// p and both bounds equal the unweighted run over the rows repeated w
+// times (weight-0 rows dropped), the cor.test oracle's rule.
+func TestMatrixInference_RankWeightRules(t *testing.T) {
+	cfg := writeMatrixCohort(t, "rank.pulse", rankRows(60))
+	for _, method := range []string{"spearman", "kendall"} {
+		spec := missingSpec(types.MAT_CORRELATION, []string{"x1", "x2", "x3"}, "p", `{"inference": true, "method": "`+method+`"}`)
+		_, err := New(cfg).Process(context.Background(), &types.Request{Cohort: &types.Cohort{Filename: "rank.pulse"}, Matrices: []types.MatrixSpec{spec}})
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_WEIGHT_UNSUPPORTED {
+			t.Errorf("%s with inference under a probability weight: err = %v, want PULSE_WEIGHT_UNSUPPORTED", method, err)
+		}
+	}
+
+	// Frequency weights 0..3 on 40 rows (with ties from the copies), and
+	// the rep() expansion of the same rows unweighted.
+	var weighted, expanded [][5]float64
+	for i := 0; i < 40; i++ {
+		x1 := float64((i*37)%41) + 0.5
+		x2 := float64((i*11)%17) + 0.25*float64(i%3)
+		x3 := float64((i * 7) % 13)
+		w := float64(i % 4)
+		weighted = append(weighted, [5]float64{x1, x2, x3, w, 1})
+		for k := 0; k < int(w); k++ {
+			expanded = append(expanded, [5]float64{x1, x2, x3, 1, 1})
+		}
+	}
+	for _, method := range []string{"spearman", "kendall"} {
+		for _, missing := range []string{"listwise", "pairwise"} {
+			params := `{"inference": true, "method": "` + method + `", "missing": "` + missing + `"}`
+			got := runOneMatrix(t, weighted, missingSpec(types.MAT_CORRELATION, []string{"x1", "x2", "x3"}, "f", params))
+			want := runOneMatrix(t, expanded, missingSpec(types.MAT_CORRELATION, []string{"x1", "x2", "x3"}, "", params))
+			for _, k := range []string{"p", "ci_lower", "ci_upper"} {
+				for i := 0; i < 3; i++ {
+					for j := 0; j < 3; j++ {
+						g, w := got.Auxiliary[k].Values[i][j], want.Auxiliary[k].Values[i][j]
+						if i == j {
+							continue
+						}
+						if !(math.Abs(g-w) <= 1e-12*(1+math.Abs(w))) {
+							t.Errorf("%s/%s %s[%d][%d] = %.17g, expansion = %.17g", method, missing, k, i, j, g, w)
+						}
+					}
+				}
+			}
+		}
 	}
 }
