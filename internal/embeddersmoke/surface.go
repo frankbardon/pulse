@@ -315,6 +315,7 @@ var (
 	_ func(*linalg.CoMoment) float64                                           = (*linalg.CoMoment).W
 	_ func(*linalg.CoMoment) float64                                           = (*linalg.CoMoment).NEff
 	_ func(*linalg.CoMoment, int, int) int64                                   = (*linalg.CoMoment).PairN
+	_ func(*linalg.CoMoment, int, int) int64                                   = (*linalg.CoMoment).PairNMass
 	_ func(*linalg.CoMoment, int, int) float64                                 = (*linalg.CoMoment).PairW
 	_ func(*linalg.CoMoment, int, int) float64                                 = (*linalg.CoMoment).PairW2
 	_ func(*linalg.CoMoment, int, int) float64                                 = (*linalg.CoMoment).PairNEff

@@ -68,7 +68,8 @@ from the diagonal). Undefined cells are `null`, keys kept.
   or constant members. A constant member nulls its correlation row and
   column; the covariance keeps an exact 0.
 - Weights follow [Row Weighting](weighting.md); a weight-0 row counts
-  toward `n` and adds no mass.
+  toward `n` and adds no mass. Inference's row floors (`params.inference`)
+  count only rows with a positive weight, as the single-pair tests do.
 
 ## Rank correlation
 

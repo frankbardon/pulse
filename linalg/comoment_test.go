@@ -116,6 +116,9 @@ func assertCoMomentClose(t *testing.T, label string, got, want *linalg.CoMoment)
 			if got.PairN(i, j) != want.PairN(i, j) {
 				t.Fatalf("%s: PairN(%d,%d) %d vs %d", label, i, j, got.PairN(i, j), want.PairN(i, j))
 			}
+			if got.PairNMass(i, j) != want.PairNMass(i, j) {
+				t.Fatalf("%s: PairNMass(%d,%d) %d vs %d", label, i, j, got.PairNMass(i, j), want.PairNMass(i, j))
+			}
 			if !within(got.PairW(i, j), want.PairW(i, j), math.Max(1, want.PairW(i, j))) {
 				t.Fatalf("%s: PairW(%d,%d) %v vs %v", label, i, j, got.PairW(i, j), want.PairW(i, j))
 			}
@@ -234,7 +237,7 @@ func coMomentBits(c *linalg.CoMoment) []uint64 {
 	for i := 0; i < p; i++ {
 		out = append(out, math.Float64bits(m.At(i)))
 		for j := i; j < p; j++ {
-			out = append(out, uint64(c.PairN(i, j)), math.Float64bits(c.PairW(i, j)),
+			out = append(out, uint64(c.PairN(i, j)), uint64(c.PairNMass(i, j)), math.Float64bits(c.PairW(i, j)),
 				math.Float64bits(c.PairW2(i, j)), math.Float64bits(c.PairNEff(i, j)),
 				math.Float64bits(cov.At(i, j)), math.Float64bits(corr.At(i, j)))
 		}
@@ -299,7 +302,7 @@ func TestCoMomentMergeIdentityBitwise(t *testing.T) {
 				idx++
 				for j := i; j < p; j++ {
 					zb[idx] = uint64(a.PairN(i, j) + 2)
-					idx += 6
+					idx += 7
 				}
 			}
 			if !sameWords(gotBits, zb) {
@@ -363,6 +366,10 @@ func TestCoMomentWeightSemantics(t *testing.T) {
 		}
 		if c.PairN(0, 1) != 3 || c.PairW(0, 1) != 5 {
 			t.Fatalf("%s: pair N/W %d/%v", mode, c.PairN(0, 1), c.PairW(0, 1))
+		}
+		// The w=0 row counts in PairN, not in PairNMass.
+		if c.PairNMass(1, 0) != 2 {
+			t.Fatalf("%s: PairNMass %d, want 2 (w=0 carries no mass)", mode, c.PairNMass(1, 0))
 		}
 		// Σw² = 2² + 3² = 13: invalid weights and the w=0 row add nothing.
 		if c.PairW2(0, 1) != 13 || c.PairNEff(1, 0) != 25.0/13.0 {
@@ -462,20 +469,24 @@ func TestCoMomentPairNEffHandComputed(t *testing.T) {
 		w, w2  float64
 		neff   float64
 		pairN  int64
+		nMass  int64
 		reason string
 	}{
 		// x0 rows 0,1,2,4: Σw = 6, Σw² = 1+9+4 = 14, n_eff = 36/14.
-		{"pairwise x0", linalg.Pairwise, 0, 0, 6, 14, 36.0 / 14.0, 4, "w=0 row counts, adds no mass"},
+		{"pairwise x0", linalg.Pairwise, 0, 0, 6, 14, 36.0 / 14.0, 4, 3, "w=0 row counts, adds no mass"},
 		// both present rows 0,2,4: Σw = 3, Σw² = 5, n_eff = 9/5.
-		{"pairwise x0x1", linalg.Pairwise, 0, 1, 3, 5, 9.0 / 5.0, 3, "rows 1 and 3 drop out"},
+		{"pairwise x0x1", linalg.Pairwise, 0, 1, 3, 5, 9.0 / 5.0, 3, 2, "rows 1 and 3 drop out"},
 		// x1 rows 0,2,3,4: Σw = 3.5, Σw² = 5.25, n_eff = 12.25/5.25.
-		{"pairwise x1", linalg.Pairwise, 1, 1, 3.5, 5.25, 12.25 / 5.25, 4, "fractional weights"},
+		{"pairwise x1", linalg.Pairwise, 1, 1, 3.5, 5.25, 12.25 / 5.25, 4, 3, "fractional weights"},
 		// listwise keeps rows 0,2,4 for every pair.
-		{"listwise x0", linalg.Listwise, 0, 0, 3, 5, 9.0 / 5.0, 3, "global Σw²"},
-		{"listwise x1x0", linalg.Listwise, 1, 0, 3, 5, 9.0 / 5.0, 3, "global Σw²"},
+		{"listwise x0", linalg.Listwise, 0, 0, 3, 5, 9.0 / 5.0, 3, 2, "global Σw²"},
+		{"listwise x1x0", linalg.Listwise, 1, 0, 3, 5, 9.0 / 5.0, 3, 2, "global Σw²"},
 	}
 	for _, tc := range cases {
 		c := feed(t, 2, tc.mode, rows)
+		if got := c.PairNMass(tc.i, tc.j); got != tc.nMass {
+			t.Fatalf("%s (%s): PairNMass %d, want %d", tc.name, tc.reason, got, tc.nMass)
+		}
 		if c.PairN(tc.i, tc.j) != tc.pairN || c.PairW(tc.i, tc.j) != tc.w || c.PairW2(tc.i, tc.j) != tc.w2 {
 			t.Fatalf("%s (%s): N/W/W2 %d/%v/%v, want %d/%v/%v", tc.name, tc.reason,
 				c.PairN(tc.i, tc.j), c.PairW(tc.i, tc.j), c.PairW2(tc.i, tc.j), tc.pairN, tc.w, tc.w2)
@@ -491,7 +502,7 @@ func TestCoMomentPairNEffHandComputed(t *testing.T) {
 	// No mass on the pair: Kish is 0 (as NEff), never NaN.
 	for _, mode := range bothModes {
 		z := feed(t, 2, mode, []wrow{{[]float64{1, 2}, 0}})
-		if z.PairW2(0, 1) != 0 || z.PairNEff(0, 1) != 0 || z.PairN(0, 1) != 1 {
+		if z.PairW2(0, 1) != 0 || z.PairNEff(0, 1) != 0 || z.PairN(0, 1) != 1 || z.PairNMass(0, 1) != 0 {
 			t.Fatalf("%s: zero-mass pair W2/NEff/N %v/%v/%d", mode, z.PairW2(0, 1), z.PairNEff(0, 1), z.PairN(0, 1))
 		}
 	}
@@ -507,10 +518,11 @@ func TestCoMomentPairNEffHandComputed(t *testing.T) {
 func TestCoMomentPairAccessorsPanicOutOfRange(t *testing.T) {
 	c := mustCoMoment(t, 2, linalg.Pairwise)
 	reads := map[string]func(){
-		"PairN":    func() { c.PairN(0, 2) },
-		"PairW":    func() { c.PairW(-1, 0) },
-		"PairW2":   func() { c.PairW2(2, 0) },
-		"PairNEff": func() { c.PairNEff(0, -1) },
+		"PairN":     func() { c.PairN(0, 2) },
+		"PairW":     func() { c.PairW(-1, 0) },
+		"PairW2":    func() { c.PairW2(2, 0) },
+		"PairNMass": func() { c.PairNMass(0, 2) },
+		"PairNEff":  func() { c.PairNEff(0, -1) },
 	}
 	for name, read := range reads {
 		func() {

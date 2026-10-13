@@ -32,7 +32,7 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 ## Output
 
-`primary`: r (ρ / τ-b under a rank method) in [−1, 1], diagonal 1; a zero-spread member's row and column are null. `scalars.determinant` (null unless PD); pairwise `auxiliary.n` (pair N); `warnings`. `inference`: per pair `auxiliary.p` (two-sided; rank: `cor.test`'s, exact when untied and small) and `ci_lower` / `ci_upper` (Fisher z; rank se Bonett–Wright / Fieller, Kendall needs 5 rows); N* per pair (pairwise), Kish under probability weights; diagonal and thin cells null. `vectors.top_pairs` `[{row, col, r, n}]`: by |r| desc, ties in axis order, no diagonal / null pairs.
+`primary`: r (ρ / τ-b under a rank method) in [−1, 1], diagonal 1; a zero-spread member's row and column are null. `scalars.determinant` (null unless PD); pairwise `auxiliary.n` (pair N); `warnings`. `inference`: per pair `auxiliary.p` (two-sided; rank: `cor.test`'s, exact when untied and small) and `ci_lower` / `ci_upper` (Fisher z; rank se Bonett–Wright / Fieller, Kendall needs 5 rows; floors skip weight-0 rows); N* per pair (pairwise), Kish under probability weights; diagonal and thin cells null. `vectors.top_pairs` `[{row, col, r, n}]`: by |r| desc, ties in axis order, no diagonal / null pairs.
 
 <!-- generated: reading-the-output -->
 

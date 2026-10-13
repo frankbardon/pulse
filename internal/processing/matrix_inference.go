@@ -21,7 +21,8 @@ import (
 // correlationInference (test_pearson.go), the one TEST_PEARSON_R runs.
 //
 // Inference size (weighting.md "Weighted inference"): N* = the pair's
-// row count unweighted, its Σw under frequency, its Kish n_eff
+// row count unweighted, its row floors on the rows carrying mass (a
+// weight-0 row is skipped, as the single-pair tests skip it), its Σw under frequency, its Kish n_eff
 // PairW²/PairW2 under probability — exact per pair under pairwise
 // (CoMoment.PairW / PairW2), the whole fold's under listwise. A plain r
 // tests on df = N* − 2 with se = 1/√(N* − 3); a partial r over g
@@ -32,9 +33,9 @@ import (
 //
 // Undefined figures are null (NaN), never collapsed: the diagonal; a
 // null r (its cause is in the co-moment warnings); a cell whose pair
-// leaves df ≤ 0 or fewer than 3 + g rows (p and both bounds); a cell
-// whose interval needs more (fewer than 4 + g rows or N* − 3 − g ≤ 0;
-// the bounds only). A null for size is reported by
+// leaves df ≤ 0 or fewer than 3 + g massed rows (p and both bounds); a
+// cell whose interval needs more (fewer than 4 + g massed rows or
+// N* − 3 − g ≤ 0; the bounds only). A null for size is reported by
 // PULSE_MATRIX_INSUFFICIENT_N (scope "inference"); under probability
 // weights an effective size below 3 + g adds PULSE_WEIGHT_LOW_NEFF —
 // both MatrixResult warnings, never escalated (no matrix warning is).
@@ -44,7 +45,11 @@ var inferenceOutputs = []string{"p", "ci_lower", "ci_upper"}
 
 // pairInference is one output cell's inference size.
 type pairInference struct {
-	n     int64   // rows (weight-0 rows included, as PairN counts them)
+	// n is the rows carrying mass (CoMoment.PairNMass): a weight-0 row
+	// counts in the matrix's components n but never in inference's row
+	// floors, as TEST_PEARSON_R / TEST_SPEARMAN_R / TEST_KENDALL_TAU
+	// skip it from their raw n. Unweighted it is PairN.
+	n     int64
 	nStar float64 // inference size N*
 	nEff  float64 // Kish n_eff (probability weights only; else 0)
 }
@@ -181,10 +186,12 @@ func (in *matrixFinalizeInput) inferenceAux(r func(a, b int) float64, g int, siz
 }
 
 // pairSize is the inference size of folded columns i and j off cm:
-// exact per pair under pairwise (CoMoment.PairN / PairW / PairW2; the
-// whole fold's under listwise, where they are the global figures).
+// exact per pair under pairwise (CoMoment.PairNMass / PairW / PairW2;
+// the whole fold's under listwise, where they are the global figures).
+// Unweighted N* is the row count — every row weighs 1, so PairNMass =
+// PairN and the figure is unchanged.
 func pairSize(cm *linalg.CoMoment, basis weighting.Basis, i, j int) pairInference {
-	s := pairInference{n: cm.PairN(i, j)}
+	s := pairInference{n: cm.PairNMass(i, j)}
 	switch basis {
 	case weighting.Unweighted:
 		s.nStar = float64(s.n)

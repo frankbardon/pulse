@@ -30,11 +30,13 @@ func (m CoMomentMode) String() string {
 	return "unknown"
 }
 
-// pairMoment is one pair's running state: raw row count, weight sum,
-// squared-weight sum, the two means and the weighted co-moments
-// Σw(xi−mi)², Σw(xj−mj)², Σw(xi−mi)(xj−mj) over the rows the pair admits.
+// pairMoment is one pair's running state: raw row count, the count of
+// rows carrying mass (w > 0), weight sum, squared-weight sum, the two
+// means and the weighted co-moments Σw(xi−mi)², Σw(xj−mj)²,
+// Σw(xi−mi)(xj−mj) over the rows the pair admits.
 type pairMoment struct {
 	n             int64
+	nMass         int64
 	w             float64
 	w2            float64
 	mi, mj        float64
@@ -83,8 +85,8 @@ type pairMoment struct {
 // 1e-10 relative to the figure's scale: |Δmean_i| ≤ 1e-10·(|mean_i| +
 // sd_i + 1), |ΔCov_ij| ≤ 1e-10·sd_i·sd_j, |ΔCorr_ij| ≤ 1e-10, the
 // weight sums (W, PairW, PairW2) and the Kish sizes (NEff, PairNEff) to
-// 1e-10 relative. Counts (N, NWeightInvalid, PairN) are exact. Merge
-// is associative to the same tolerance, and merging with an
+// 1e-10 relative. Counts (N, NWeightInvalid, PairN, PairNMass) are
+// exact. Merge is associative to the same tolerance, and merging with an
 // accumulator that carries no mass (empty, or zero-weight rows only)
 // leaves every moment bit-identical on either side.
 //
@@ -94,6 +96,7 @@ type CoMoment struct {
 	p        int
 	mode     CoMomentMode
 	n        int64 // rows counted (see N)
+	nMass    int64 // rows counted with w > 0 (Listwise PairNMass)
 	nInvalid int64
 	w, w2    float64
 
@@ -169,6 +172,7 @@ func (c *CoMoment) Add(x []float64, w float64) {
 	if w == 0 {
 		return
 	}
+	c.nMass++
 	wOld := c.w
 	c.w += w
 	c.w2 += float64(w * w)
@@ -232,6 +236,7 @@ func (s *pairMoment) add(xi, xj, w float64) {
 	if w == 0 {
 		return
 	}
+	s.nMass++
 	wOld := s.w
 	s.w += w
 	s.w2 += float64(w * w)
@@ -251,10 +256,13 @@ func (s *pairMoment) add(xi, xj, w float64) {
 // merge is the per-pair Chan–Golub–LeVeque combine.
 func (s *pairMoment) merge(o pairMoment) {
 	s.n += o.n
+	s.nMass += o.nMass
 	if o.w == 0 {
 		return
 	}
 	if s.w == 0 {
+		// No mass on the receiver, so no massed row: o's nMass is the
+		// sum already.
 		n := s.n
 		*s = o
 		s.n = n
@@ -291,6 +299,7 @@ func (c *CoMoment) Merge(other *CoMoment) error {
 				"mode": c.mode.String(), "other_mode": other.mode.String()})
 	}
 	c.n += other.n
+	c.nMass += other.nMass
 	c.nInvalid += other.nInvalid
 	if c.mode == Pairwise {
 		c.w += other.w
@@ -370,6 +379,20 @@ func (c *CoMoment) PairN(i, j int) int64 {
 		return c.pairs[c.index(i, j)].n
 	}
 	return c.n
+}
+
+// PairNMass returns the rows counted for the pair (i, j) that carry
+// mass (w > 0) — PairN less the pair's zero-weight rows, and PairN
+// itself under unit weights. A weighted test that skips a zero-weight
+// row (TEST_PEARSON_R's raw n) reads this count. In Listwise mode it is
+// the global count of complete rows with w > 0 for every pair. It
+// panics when i or j is out of range.
+func (c *CoMoment) PairNMass(i, j int) int64 {
+	c.check(i, j)
+	if c.mode == Pairwise {
+		return c.pairs[c.index(i, j)].nMass
+	}
+	return c.nMass
 }
 
 // PairW returns Σw for the pair (i, j) — W for every pair in Listwise

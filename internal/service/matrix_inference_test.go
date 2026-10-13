@@ -536,3 +536,118 @@ func TestMatrixInference_RankWeightRules(t *testing.T) {
 		}
 	}
 }
+
+// TestMatrixInference_ZeroWeightRowsFloorLikeTest: a weight-0 row counts
+// in the matrix's components n but never in inference's row floors —
+// the cell's p and interval rest on the rows carrying mass, as
+// TEST_PEARSON_R (and the rank tests) skip a weight-0 row from their raw
+// n. On the same pair and weights the cell is null exactly where the
+// test refuses (p: fewer than 3 massed rows) or collapses its interval
+// (fewer than 4), and equals the test's figure elsewhere; the matrix's
+// own n still counts the weight-0 rows.
+func TestMatrixInference_ZeroWeightRowsFloorLikeTest(t *testing.T) {
+	cases := []struct {
+		name           string
+		rows           [][5]float64 // x1, x2, x3, f, p
+		weight         string
+		method         string
+		pNull, ciNull  bool
+		componentsN    int
+		testRefused    bool
+		testCICollapse bool
+	}{
+		// Two massed rows (Σw = 10, so N* − 2 = 8 > 0) and a weight-0
+		// row: n counted 3 admitted p before; the test refuses n = 2.
+		{name: "freq_p_floor", weight: "f",
+			rows:  [][5]float64{{1, 2, 4, 5, 1}, {2, 5, 5, 5, 1}, {3, 1, 3, 0, 1}},
+			pNull: true, ciNull: true, componentsN: 3, testRefused: true},
+		// Three massed rows (Σw = 6) and a weight-0 row: the interval
+		// needs 4 massed rows; the test collapses it to r.
+		{name: "freq_ci_floor", weight: "f",
+			rows:   [][5]float64{{1, 2, 4, 2, 1}, {2, 1, 5, 2, 1}, {3, 5, 3, 2, 1}, {4, 4, 1, 0, 1}},
+			ciNull: true, componentsN: 4, testCICollapse: true},
+		// Probability weights: Kish n_eff never exceeds the massed rows,
+		// so N* already bounds the floor; parity with weight-0 rows.
+		{name: "prob_defined", weight: "p",
+			rows:        [][5]float64{{1, 2, 4, 1, 2}, {2, 1, 5, 1, 1}, {3, 5, 3, 1, 3}, {4, 4, 1, 1, 1}, {5, 3, 2, 1, 2}, {6, 7, 2, 1, 0}},
+			componentsN: 6},
+		// Four massed rows and two weight-0 rows: both defined, equal.
+		{name: "freq_defined", weight: "f",
+			rows:        [][5]float64{{1, 2, 4, 2, 1}, {2, 1, 5, 1, 1}, {3, 5, 3, 3, 1}, {4, 4, 1, 1, 1}, {5, 9, 9, 0, 1}, {6, 0, 2, 0, 1}},
+			componentsN: 6},
+		// Rank methods share the floor (Σw is large, so only the massed
+		// rows can refuse): Spearman's interval needs 4 massed rows,
+		// Kendall's p 3.
+		{name: "spearman_ci_floor", weight: "f", method: "spearman",
+			rows:   [][5]float64{{1, 2, 4, 2, 1}, {2, 1, 5, 2, 1}, {3, 5, 3, 2, 1}, {4, 4, 1, 0, 1}},
+			ciNull: true, componentsN: 4},
+		{name: "kendall_p_floor", weight: "f", method: "kendall",
+			rows:  [][5]float64{{1, 2, 4, 5, 1}, {2, 5, 5, 5, 1}, {3, 1, 3, 0, 1}},
+			pNull: true, ciNull: true, componentsN: 3},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			params := `{"inference": true}`
+			if c.method != "" {
+				params = `{"inference": true, "method": "` + c.method + `"}`
+			}
+			cfg := writeMatrixCohort(t, "zw.pulse", c.rows)
+			full := processMatrices(t, cfg, &types.Request{
+				Cohort:   &types.Cohort{Filename: "zw.pulse"},
+				Matrices: []types.MatrixSpec{missingSpec(types.MAT_CORRELATION, []string{"x1", "x2"}, c.weight, params)},
+			})
+			res := full.Matrices[0]
+			if math.IsNaN(res.Primary.Values[0][1]) {
+				t.Fatalf("fixture: r(x1, x2) is null")
+			}
+			p, lo, hi := res.Auxiliary["p"].Values[0][1], res.Auxiliary["ci_lower"].Values[0][1], res.Auxiliary["ci_upper"].Values[0][1]
+			if math.IsNaN(p) != c.pNull {
+				t.Errorf("p = %v, want null %v (massed-row floor)", p, c.pNull)
+			}
+			if math.IsNaN(lo) != c.ciNull || math.IsNaN(hi) != c.ciNull {
+				t.Errorf("interval = [%v, %v], want null %v (massed-row floor)", lo, hi, c.ciNull)
+			}
+			if c.pNull || c.ciNull {
+				if findWarning(res, errors.PULSE_MATRIX_INSUFFICIENT_N) == nil {
+					t.Errorf("no PULSE_MATRIX_INSUFFICIENT_N for the null outputs (warnings %v)", matWarningCodes(res))
+				}
+			}
+			if full.Components == nil || len(full.Components.Matrices) != 1 || full.Components.Matrices[0].N != c.componentsN {
+				t.Errorf("components = %+v, want matrix n %d (weight-0 rows still count)", full.Components, c.componentsN)
+			}
+			if c.method != "" {
+				return
+			}
+			// The single-pair test on the same rows and weight.
+			req := &types.Request{Cohort: &types.Cohort{Filename: "zw.pulse"}, Tests: []*types.Test{{
+				Type: types.TEST_PEARSON_R, Field: "x1", Field2: "x2", Label: "r",
+				Weight: covSpec("", "", 0, c.weight, "").Weight,
+			}}}
+			resp, err := New(cfg).Process(context.Background(), req)
+			if c.testRefused {
+				var ce *errors.CodedError
+				if err == nil || !stderrors.As(err, &ce) || ce.Code != errors.PULSE_TEST_INSUFFICIENT_N {
+					t.Fatalf("TEST_PEARSON_R err = %v, want PULSE_TEST_INSUFFICIENT_N", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("TEST_PEARSON_R: %v", err)
+			}
+			tr := resp.Tests[0]
+			if !(math.Abs(p-tr.PValue) <= 1e-12*(1+math.Abs(tr.PValue))) {
+				t.Errorf("p = %.17g, TEST_PEARSON_R p = %.17g", p, tr.PValue)
+			}
+			tlo, thi := tr.Details["ci_low"].(float64), tr.Details["ci_high"].(float64)
+			if c.testCICollapse {
+				if tlo != tr.Statistic || thi != tr.Statistic {
+					t.Errorf("fixture: TEST_PEARSON_R interval [%v, %v] not collapsed to r", tlo, thi)
+				}
+				return
+			}
+			if !(math.Abs(lo-tlo) <= 1e-12) || !(math.Abs(hi-thi) <= 1e-12) {
+				t.Errorf("interval = [%v, %v], TEST_PEARSON_R [%v, %v]", lo, hi, tlo, thi)
+			}
+		})
+	}
+}

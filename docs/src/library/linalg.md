@@ -88,7 +88,7 @@ corr := acc.Corr() // C/√(M2_x·M2_y), TEST_PEARSON_R's arithmetic
 mean := acc.Mean()
 ```
 
-- **Missing values.** A `NaN` in `x` is missing. `Listwise` drops the row. `Pairwise` drops it only for the pairs it touches; `PairN(i, j)` / `PairW(i, j)` / `PairW2(i, j)` report each pair's count, weight sum and squared-weight sum, and `PairNEff(i, j)` its Kish effective sample size `PairW²/PairW2`. Under `Listwise` they equal `N()`, `W()`, the global Σw² and `NEff()` for every pair.
+- **Missing values.** A `NaN` in `x` is missing. `Listwise` drops the row. `Pairwise` drops it only for the pairs it touches; `PairN(i, j)` / `PairW(i, j)` / `PairW2(i, j)` report each pair's count, weight sum and squared-weight sum, `PairNMass(i, j)` the pair's rows with a positive weight (`PairN` less its weight-0 rows), and `PairNEff(i, j)` its Kish effective sample size `PairW²/PairW2`. Under `Listwise` they equal `N()`, `W()`, the global positive-weight count, the global Σw² and `NEff()` for every pair.
 - **Weights.**
   - A `NaN`, `±Inf` or negative weight skips the row and is counted in `NWeightInvalid()`.
   - A weight of `0` is valid: the row counts in `N()` but carries no mass.

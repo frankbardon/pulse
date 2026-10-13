@@ -95,6 +95,10 @@ func TestLinalgCoMomentFlow(t *testing.T) {
 	if a.PairW2(0, 1) != 6 || a.PairNEff(1, 0) != 16.0/6.0 {
 		t.Fatalf("pair W2/NEff %v/%v", a.PairW2(0, 1), a.PairNEff(1, 0))
 	}
+	// Every merged row carries mass, so PairNMass equals PairN.
+	if a.PairNMass(0, 1) != 3 {
+		t.Fatalf("pair NMass %d", a.PairNMass(0, 1))
+	}
 	p, _ := linalg.NewCoMoment(2, linalg.Pairwise)
 	var ce *perrors.CodedError
 	if err := a.Merge(p); !stderrors.As(err, &ce) || ce.Code != perrors.PULSE_MATRIX_SHAPE_MISMATCH {
