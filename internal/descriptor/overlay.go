@@ -789,6 +789,7 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		validateOverlaySpec(env, req, spec, opts, i)
 		validateOverlayCorrespondence(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
 		validateOverlayMarkov(env, req, spec, opts.overlayRoute(spec.Kind), i)
+		validateOverlayRake(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
 		validateOverlayLevelWithinPredict(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		validateOverlayBaselineIndexPredict(env, req, spec, schema, opts.instance(), i)
 		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i)
@@ -1243,9 +1244,10 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 		types.OverlayKindFisherExactCell,
 		types.OverlayKindStdResidual,
 		types.OverlayKindCorrespondence,
-		types.OverlayKindMarkov:
+		types.OverlayKindMarkov,
+		types.OverlayKindRake:
 		// Inferential family (and the implicit-margin whole-table
-		// CORRESPONDENCE / MARKOV) — Level / Within must both be zero.
+		// CORRESPONDENCE / MARKOV / RAKE) — Level / Within must both be zero.
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (implicit-margin inferential kind)",

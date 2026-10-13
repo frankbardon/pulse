@@ -69,10 +69,7 @@ var exampleIntentExemptions = []guidanceExemption{}
 
 // glossaryOrphanExemptions — glossary terms no built-in Purpose links
 // (TestGlossary_OrphanReport). Key: the term ID.
-var glossaryOrphanExemptions = []guidanceExemption{
-	// Matrix overlays (raking).
-	{Key: "raking", Owner: "U28", Why: "Written ahead of the raking overlay U28 ships."},
-}
+var glossaryOrphanExemptions = []guidanceExemption{}
 
 // exemptionTables is every ledger table above, keyed by its gate's
 // table name. TestGuidanceExemptions_TablesComplete fails when a new

@@ -1,0 +1,62 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Crosstab count of region x segment decorated with an OVERLAY_RAKE matrix-scope overlay: iterative proportional fitting rakes the table to target region and segment shares (normalized and scaled to the sample total). The primary matrix is the fitted table, parts.factors the per-cell adjustment (fitted / observed), and summary.parameters carries iterations, residual and converged. The host crosstab is not changed; every host key needs exactly one target (implicit-margin contract; no ref pointer).",
+    "intents": [
+      "composition",
+      "benchmark"
+    ],
+    "name": "crosstab-rake",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "cohort-analysis",
+      "overlay"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "segment"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  },
+  "overlays": [
+    {
+      "name": "census",
+      "kind": "OVERLAY_RAKE",
+      "scope": "matrix",
+      "params": {
+        "row_targets": {"north": 0.22, "south": 0.31, "east": 0.20, "west": 0.27},
+        "col_targets": {"segment_a": 0.40, "segment_b": 0.35, "segment_c": 0.25},
+        "targets_as": "shares",
+        "max_iter": 100,
+        "tolerance": 1e-8
+      }
+    }
+  ]
+}

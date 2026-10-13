@@ -2069,6 +2069,27 @@ const (
 	// absorption_time is null. Every other part still emits.
 	PULSE_OVERLAY_MARKOV_NOT_ERGODIC Code = "PULSE_OVERLAY_MARKOV_NOT_ERGODIC"
 
+	// PULSE_OVERLAY_RAKE_TARGET_MISMATCH indicates an OVERLAY_RAKE
+	// spec whose targets do not line up with its crosstab host. Reason
+	// "keys": a target key the host axis does not carry (target_only)
+	// or a host key the targets leave out (host_only) — details {kind,
+	// reason, axis: row | column, target_only, host_only}; predict raises
+	// it when a single GROUP_CATEGORY axis over a categorical field
+	// cannot hold a target key (not in the dictionary), runtime on the
+	// host's observed keys. Reason "totals_differ": targets_as "counts"
+	// whose row and column totals differ by more than the tolerance —
+	// details {kind, reason, row_total, column_total}, predict and
+	// runtime alike. Raised with its own code, never PROCESSING_INTERNAL.
+	PULSE_OVERLAY_RAKE_TARGET_MISMATCH Code = "PULSE_OVERLAY_RAKE_TARGET_MISMATCH"
+
+	// PULSE_OVERLAY_RAKE_NOT_CONVERGED is a WARNING (never an error) an
+	// OVERLAY_RAKE layer carries when iterative proportional fitting
+	// stopped at params.max_iter sweeps with a fitted margin still off
+	// its target by more than params.tolerance (relative). The fitted
+	// table and factors still emit, summary.parameters.converged is 0.
+	// Details {kind, iterations, residual, tolerance}.
+	PULSE_OVERLAY_RAKE_NOT_CONVERGED Code = "PULSE_OVERLAY_RAKE_NOT_CONVERGED"
+
 	// PULSE_TEMPLATE_NOT_FOUND indicates a render was asked for a
 	// template name that is not registered — neither declared
 	// programmatically nor loaded from a template directory. Details
@@ -3778,6 +3799,8 @@ var allCodes = []Code{
 	PULSE_OVERLAY_NONNEGATIVE_REQUIRED,
 	PULSE_OVERLAY_MATRIX_NOT_SQUARE,
 	PULSE_OVERLAY_MARKOV_NOT_ERGODIC,
+	PULSE_OVERLAY_RAKE_TARGET_MISMATCH,
+	PULSE_OVERLAY_RAKE_NOT_CONVERGED,
 	PULSE_INDEX_MISSING,
 	PULSE_LOOKUP_NOT_FOUND,
 	PULSE_LOOKUP_AMBIGUOUS,

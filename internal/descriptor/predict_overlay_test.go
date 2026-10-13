@@ -57,6 +57,12 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			Scope: types.OverlayScopeMatrix,
 		},
 		{
+			Name:   "rake",
+			Kind:   types.OverlayKindRake,
+			Scope:  types.OverlayScopeMatrix,
+			Params: json.RawMessage(`{"row_targets":{"north":0.5,"south":0.5},"col_targets":{"retail":0.6,"wholesale":0.4}}`),
+		},
+		{
 			Name:   "formula",
 			Kind:   types.OverlayKindFormula,
 			Scope:  types.OverlayScopeCell,
@@ -547,6 +553,12 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 			Kind:  types.OverlayKindMarkov,
 			Scope: types.OverlayScopeMatrix,
 		},
+		types.OverlayKindRake: {
+			Name:   "rake",
+			Kind:   types.OverlayKindRake,
+			Scope:  types.OverlayScopeMatrix,
+			Params: json.RawMessage(`{"row_targets":{"north":0.5,"south":0.5},"col_targets":{"retail":0.6,"wholesale":0.4}}`),
+		},
 		types.OverlayKindPairwiseProbitT: {
 			Name:  "pairwise_probit_t",
 			Kind:  types.OverlayKindPairwiseProbitT,
@@ -783,6 +795,12 @@ func TestPredict_OverlaysApplied_AllKinds_DescriptorCoverage(t *testing.T) {
 			Name:  "markov",
 			Kind:  types.OverlayKindMarkov,
 			Scope: types.OverlayScopeMatrix,
+		},
+		types.OverlayKindRake: {
+			Name:   "rake",
+			Kind:   types.OverlayKindRake,
+			Scope:  types.OverlayScopeMatrix,
+			Params: json.RawMessage(`{"row_targets":{"north":0.5,"south":0.5},"col_targets":{"retail":0.6,"wholesale":0.4}}`),
 		},
 		types.OverlayKindPairwiseProbitT: {
 			Name:  "pairwise_probit_t",
@@ -1262,6 +1280,12 @@ func TestPredict_OverlayCost_AllKindsHaveMultiplier(t *testing.T) {
 			Name:  "markov",
 			Kind:  types.OverlayKindMarkov,
 			Scope: types.OverlayScopeMatrix,
+		},
+		types.OverlayKindRake: {
+			Name:   "rake",
+			Kind:   types.OverlayKindRake,
+			Scope:  types.OverlayScopeMatrix,
+			Params: json.RawMessage(`{"row_targets":{"north":0.5,"south":0.5},"col_targets":{"retail":0.6,"wholesale":0.4}}`),
 		},
 		types.OverlayKindPairwiseProbitT: {
 			Name:  "pairwise_probit_t",

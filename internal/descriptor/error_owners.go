@@ -409,9 +409,11 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED: own(featCrosstab, featCompose),
 	errors.PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED:        own(featExport),
 	errors.PULSE_OVERLAY_EXPORT_PARTS_DROPPED:          own(featExport),
-	errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED:          own("OVERLAY_CORRESPONDENCE", "OVERLAY_MARKOV"),
+	errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED:          own("OVERLAY_CORRESPONDENCE", "OVERLAY_MARKOV", "OVERLAY_RAKE"),
 	errors.PULSE_OVERLAY_MATRIX_NOT_SQUARE:             own("OVERLAY_MARKOV"),
 	errors.PULSE_OVERLAY_MARKOV_NOT_ERGODIC:            own("OVERLAY_MARKOV"),
+	errors.PULSE_OVERLAY_RAKE_TARGET_MISMATCH:          own("OVERLAY_RAKE"),
+	errors.PULSE_OVERLAY_RAKE_NOT_CONVERGED:            own("OVERLAY_RAKE"),
 
 	// Point lookup and its sidecar index.
 	errors.PULSE_INDEX_MISSING:             own(featIndex, featLookup),

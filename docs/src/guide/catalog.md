@@ -11,5 +11,5 @@ The operators this instance offers, one page per category. Each page opens with 
 - [Statistical tests](catalog/test.md) (26)
 - [Regressions](catalog/regression.md) (3)
 - [Matrix operators](catalog/matrix.md) (8)
-- [Overlays](catalog/overlay.md) (47)
+- [Overlays](catalog/overlay.md) (48)
 - [Synth distributions](catalog/synth_distribution.md) (15)

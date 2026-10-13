@@ -110,6 +110,8 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		OverlayKindCorrespondence: false,
 		// MARKOV row-normalizes and key-aligns the whole table.
 		OverlayKindMarkov: false,
+		// RAKE rescales whole rows and columns of the finished table.
+		OverlayKindRake: false,
 		// STD_RESIDUAL reads the whole table's totals (CHISQ_MATRIX).
 		OverlayKindStdResidual: false,
 		OverlayKindTCell:       false,

@@ -1368,6 +1368,32 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"Scale-invariant: a weighted host's sum-of-weights table is read as is under either weight kind. " +
 				"Descriptive (no p-value).",
 		}
+	case types.OverlayKindRake:
+		return descriptor.OverlayCapability{
+			Kind: types.OverlayKindRake,
+			// Descriptive: no p-value, so no multiplicity site.
+			Inferential: false,
+			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
+			Scopes:      []types.OverlayScope{types.OverlayScopeMatrix},
+			// No Ref family — implicit-margin like the CHISQ_* kinds.
+			RefKinds: []string{},
+			Description: "Raking (iterative proportional fitting) of a crosstab to target margins, without mutating the host. " +
+				"MATRIX scope over a MATRIX (crosstab) host. Each sweep scales every row to its target, then every column; " +
+				"sweeps stop once the largest relative margin error is within params.tolerance or params.max_iter have run. " +
+				"The primary MATRIX is the fitted table on the host keys (a zero cell stays zero: structural zeros are kept). " +
+				"payload.parts: factors (MATRIX fitted / observed, null where the observed cell is 0). Summary.Parameters: " +
+				"iterations, residual (the final largest relative margin error), converged (1 / 0); a fit short of the " +
+				"tolerance still emits, converged 0, with the PULSE_OVERLAY_RAKE_NOT_CONVERGED warning. params: row_targets " +
+				"and col_targets (required key -> value maps naming every host key of their axis and no other, else " +
+				"PULSE_OVERLAY_RAKE_TARGET_MISMATCH — predict refuses a target key outside a categorical axis's dictionary, " +
+				"runtime any mismatch with the observed keys), targets_as (\"shares\" default: each axis normalized and " +
+				"scaled to the host grand total; \"counts\": taken as given, and row and column totals that differ are " +
+				"PULSE_OVERLAY_RAKE_TARGET_MISMATCH), max_iter (default 100, 1-100,000) and tolerance (default 1e-8, " +
+				"above 0 and below 1); a bad or unknown param is PULSE_OVERLAY_PARAM_MISSING. Cells must be non-negative " +
+				"masses: a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is " +
+				"PULSE_OVERLAY_NONNEGATIVE_REQUIRED. A weighted host's sum-of-weights table is raked as is under either " +
+				"weight kind. Writing raked weights back to a cohort is out of scope. Descriptive (no p-value).",
+		}
 	case types.OverlayKindStdResidual:
 		return descriptor.OverlayCapability{
 			Kind:        types.OverlayKindStdResidual,

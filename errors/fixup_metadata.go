@@ -2806,6 +2806,39 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_OVERLAY_RAKE_TARGET_MISMATCH: {
+		Message: "The OVERLAY_RAKE targets do not line up with the crosstab host. With reason `keys`, an axis's target map and the host's keys on that axis differ: `target_only` lists target keys the host does not carry, `host_only` host keys the targets leave out. Raking refuses rather than dropping either side, because a silently dropped key would mislabel the fit. A crosstab only emits keys it observed, so a category with no records is missing from the host even when the field's dictionary holds it. With reason `totals_differ`, targets_as `counts` gave row and column totals that differ (`row_total`, `column_total`): no table can match both margins.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Overlays", "Params", "row_targets"},
+				Hint:     "Give exactly one target per host key on each axis — the same spelling as the crosstab's row and column keys — and drop targets for categories the data never holds (or filter the host so it holds only the targeted categories).",
+				Examples: []any{map[string]any{"north": 0.25, "south": 0.25, "east": 0.25, "west": 0.25}},
+			},
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Overlays", "Params", "targets_as"},
+				Hint:     "Counts targets must share one grand total across rows and columns; when the sources disagree, pass shares instead (targets_as \"shares\"), which are normalized per axis and scaled to the host grand total.",
+				Examples: []any{"shares"},
+			},
+		},
+	},
+	PULSE_OVERLAY_RAKE_NOT_CONVERGED: {
+		Message: "Warning: the OVERLAY_RAKE fit stopped at params.max_iter sweeps with a fitted margin still further than params.tolerance (relative) from its target. The fitted table and factors still emit, with summary.parameters.converged 0 and the final residual. A fit that cannot converge usually meets structural zeros that make the targets unreachable — a row whose cells are all zero cannot gain a positive target — or targets far from the observed table.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Overlays", "Params", "max_iter"},
+				Hint:     "Raise max_iter (or loosen tolerance) when the residual is still falling; a residual that stalls means the targets are unreachable from this table's pattern of zeros.",
+				Examples: []any{1000},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Overlays", "Params", "row_targets"},
+				Hint:   "Check targets against the table's zeros: a category with no observed cells cannot be raked to a positive target — merge it with a neighbour or give it a zero target.",
+			},
+		},
+	},
 	PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY: {
 		Message: "An OVERLAY_YOY spec named a `frequency` Param outside the supported set (`annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`). The supported set is the minimum frequency catalog needed to cover the GROUP_DATE component family — finer-than-hourly or coarser-than-annual frequencies are explicit non-goals in v1. Calendar-week / day-of-week realignment is also an explicit non-goal: weekly frequency uses calendar-week-aligned `i - 52` arithmetic and daily frequency uses exact-key lookup against the host key index (Feb 29 in a non-leap prior year emits NaN). Surfaced at both predict (descriptor.validateOverlayYoY) and runtime (processing.applyYoY) with Details carrying the offending `frequency` value plus the supported list.",
 		Fixups: []Fixup{

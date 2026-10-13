@@ -1447,6 +1447,27 @@ const (
 	// Inherently buffered.
 	OverlayKindMarkov OverlayKind = "OVERLAY_MARKOV"
 
+	// OverlayKindRake rakes the host crosstab to target margins by
+	// iterative proportional fitting (IPF): rows and columns are scaled in
+	// turn until every fitted margin matches its target within
+	// params.tolerance (max relative margin error) or params.max_iter
+	// sweeps have run. MATRIX-scoped over a MATRIX (crosstab) host,
+	// implicit-margin (Ref empty), descriptive (no p-value); it never
+	// mutates the host. Params: row_targets and col_targets (host key →
+	// value maps covering every host key, else
+	// PULSE_OVERLAY_RAKE_TARGET_MISMATCH), targets_as ("shares", the
+	// default — normalized and scaled to the host grand total — or
+	// "counts", whose row and column totals must agree), max_iter
+	// (default 100) and tolerance (default 1e-8). Primary payload: the
+	// MATRIX of the fitted table (structural zeros stay zero).
+	// OverlayPayload.Parts: factors (MATRIX fitted / observed; null where
+	// the observed cell is 0). Summary.Parameters: iterations, residual,
+	// converged (1 / 0); a fit short of the tolerance still ships, with a
+	// PULSE_OVERLAY_RAKE_NOT_CONVERGED warning. Cells must be
+	// non-negative counts or sums (AGG_COUNT / AGG_SUM, else
+	// PULSE_OVERLAY_NONNEGATIVE_REQUIRED). Inherently buffered.
+	OverlayKindRake OverlayKind = "OVERLAY_RAKE"
+
 	// OverlayKindStdResidual emits the Haberman adjusted standardized
 	// residual of every host crosstab cell,
 	// (O − E) / sqrt(E · (1 − r/N) · (1 − c/N)) with E = r·c/N, so a
@@ -2504,6 +2525,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindPanelIndexVsRef,
 		OverlayKindPropZCell,
 		OverlayKindPropZPanel,
+		OverlayKindRake,
 		OverlayKindRank,
 		OverlayKindShareOfCol,
 		OverlayKindShareOfRow,

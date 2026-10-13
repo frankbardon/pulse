@@ -2363,6 +2363,8 @@ pulse/errors: const PULSE_OVERLAY_NONNEGATIVE_REQUIRED pulse/errors.Code = "PULS
 pulse/errors: const PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP pulse/errors.Code = "PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP"
 pulse/errors: const PULSE_OVERLAY_PARAM_MISSING pulse/errors.Code = "PULSE_OVERLAY_PARAM_MISSING"
 pulse/errors: const PULSE_OVERLAY_PARTITION_INVALID pulse/errors.Code = "PULSE_OVERLAY_PARTITION_INVALID"
+pulse/errors: const PULSE_OVERLAY_RAKE_NOT_CONVERGED pulse/errors.Code = "PULSE_OVERLAY_RAKE_NOT_CONVERGED"
+pulse/errors: const PULSE_OVERLAY_RAKE_TARGET_MISMATCH pulse/errors.Code = "PULSE_OVERLAY_RAKE_TARGET_MISMATCH"
 pulse/errors: const PULSE_OVERLAY_REFERENCE_UNKNOWN pulse/errors.Code = "PULSE_OVERLAY_REFERENCE_UNKNOWN"
 pulse/errors: const PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE pulse/errors.Code = "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE"
 pulse/errors: const PULSE_OVERLAY_REF_UNKNOWN pulse/errors.Code = "PULSE_OVERLAY_REF_UNKNOWN"
@@ -4483,6 +4485,7 @@ pulse/types: const OverlayKindPairwiseWelchT pulse/types.OverlayKind = "OVERLAY_
 pulse/types: const OverlayKindPanelIndexVsRef pulse/types.OverlayKind = "OVERLAY_PANEL_INDEX_VS_REF"
 pulse/types: const OverlayKindPropZCell pulse/types.OverlayKind = "OVERLAY_PROP_Z_CELL"
 pulse/types: const OverlayKindPropZPanel pulse/types.OverlayKind = "OVERLAY_PROP_Z_PANEL"
+pulse/types: const OverlayKindRake pulse/types.OverlayKind = "OVERLAY_RAKE"
 pulse/types: const OverlayKindRank pulse/types.OverlayKind = "OVERLAY_RANK"
 pulse/types: const OverlayKindShareOfCol pulse/types.OverlayKind = "OVERLAY_SHARE_OF_COL"
 pulse/types: const OverlayKindShareOfRow pulse/types.OverlayKind = "OVERLAY_SHARE_OF_ROW"
@@ -4962,4 +4965,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: b0eee36a3ff3fbb69a0ecae767a88288d4b02debb99290500cbb80e41f7f5454
+// golden-hash: 7b98a0a602c2ac373a682e75c4d654f481ee6d1127df86bca4e61c781304f236

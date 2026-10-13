@@ -187,6 +187,7 @@
     - [op-overlay-panel-index-vs-ref](guide/skills/op-overlay-panel-index-vs-ref.md)
     - [op-overlay-prop-z-cell](guide/skills/op-overlay-prop-z-cell.md)
     - [op-overlay-prop-z-panel](guide/skills/op-overlay-prop-z-panel.md)
+    - [op-overlay-rake](guide/skills/op-overlay-rake.md)
     - [op-overlay-rank](guide/skills/op-overlay-rank.md)
     - [op-overlay-share-of-col](guide/skills/op-overlay-share-of-col.md)
     - [op-overlay-share-of-row](guide/skills/op-overlay-share-of-row.md)

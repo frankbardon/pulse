@@ -445,6 +445,36 @@ Two-proportion z-tests between every pair of requests in a Compose panel, for ea
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
+<a id="op-overlay_rake"></a>
+
+### `OVERLAY_RAKE`
+
+Rake a crosstab to known row and column totals: the fitted table, per-cell adjustment factors and whether the fit converged. See its [catalog entry](../catalog/overlay.md#op-overlay_rake).
+
+#### `cells.value`
+
+The raked count for the cell: the table rescaled so its row and column totals match the targets while keeping its internal pattern.
+
+**Caveats:**
+
+- Read it only when summary.parameters.converged is 1; otherwise the margins are still off their targets.
+
+#### `parts.factors.cells.value`
+
+How much the cell was scaled: the raked count over the observed one (above 1 = scaled up). null where the observed cell was 0, which stays 0.
+
+**Caveats:**
+
+- Very large or very small factors mean the targets sit far from the sample, and the raked cells lean heavily on few records.
+
+#### `summary.parameters.converged`
+
+1 when every fitted margin is within the tolerance of its target, 0 when the fit stopped at max_iter first (the table still ships, with a warning).
+
+#### `summary.parameters.residual`
+
+The largest relative gap left between a fitted margin and its target (0.01 = 1%).
+
 <a id="op-overlay_std_residual"></a>
 
 ### `OVERLAY_STD_RESIDUAL`

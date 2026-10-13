@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:a1dfbe4ff1a49e9114f5ca4e7697da7cbb60976af7facd67141b3b7760778676",
+    "feature_set_digest": "fs1:45178cb8b0c8eb6d4ad35f37ee448bb85fbc665c29509a588bda8ca8357c73a4",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -8952,7 +8952,7 @@
         ]
       }
     ],
-    "error_codes_count": 354,
+    "error_codes_count": 356,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9170,6 +9170,8 @@
       "PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP",
       "PULSE_OVERLAY_PARAM_MISSING",
       "PULSE_OVERLAY_PARTITION_INVALID",
+      "PULSE_OVERLAY_RAKE_NOT_CONVERGED",
+      "PULSE_OVERLAY_RAKE_TARGET_MISMATCH",
       "PULSE_OVERLAY_REFERENCE_UNKNOWN",
       "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE",
       "PULSE_OVERLAY_REF_UNKNOWN",
@@ -11285,6 +11287,10 @@
         "description": "Compose-host multi-reference per-cell pairwise two-proportion z-test across N+1 slots."
       },
       {
+        "name": "op-overlay-rake",
+        "description": "Rake a crosstab to target row and column margins (IPF) — fitted table, adjustment factors and a convergence report; the host is never changed."
+      },
+      {
         "name": "op-overlay-rank",
         "description": "Compose-host per-cell rank of each target cell within a configurable population (row / column / matrix)."
       },
@@ -11949,7 +11955,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 213,
+    "examples_count": 214,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -13337,6 +13343,22 @@
         "weight_kinds": [
           "frequency",
           "probability"
+        ]
+      },
+      {
+        "kind": "OVERLAY_RAKE",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "matrix"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Raking (iterative proportional fitting) of a crosstab to target margins, without mutating the host. MATRIX scope over a MATRIX (crosstab) host. Each sweep scales every row to its target, then every column; sweeps stop once the largest relative margin error is within params.tolerance or params.max_iter have run. The primary MATRIX is the fitted table on the host keys (a zero cell stays zero: structural zeros are kept). payload.parts: factors (MATRIX fitted / observed, null where the observed cell is 0). Summary.Parameters: iterations, residual (the final largest relative margin error), converged (1 / 0); a fit short of the tolerance still emits, converged 0, with the PULSE_OVERLAY_RAKE_NOT_CONVERGED warning. params: row_targets and col_targets (required key -\u003e value maps naming every host key of their axis and no other, else PULSE_OVERLAY_RAKE_TARGET_MISMATCH — predict refuses a target key outside a categorical axis's dictionary, runtime any mismatch with the observed keys), targets_as (\"shares\" default: each axis normalized and scaled to the host grand total; \"counts\": taken as given, and row and column totals that differ are PULSE_OVERLAY_RAKE_TARGET_MISMATCH), max_iter (default 100, 1-100,000) and tolerance (default 1e-8, above 0 and below 1); a bad or unknown param is PULSE_OVERLAY_PARAM_MISSING. Cells must be non-negative masses: a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED. A weighted host's sum-of-weights table is raked as is under either weight kind. Writing raked weights back to a cohort is out of scope. Descriptive (no p-value).",
+        "intents": [
+          "benchmark",
+          "composition"
         ]
       },
       {
@@ -16494,4 +16516,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: afb4ea085f41b2e2cfa63e16ca2d2f091138293ba2edb3a095364b3d73371f58
+// golden-hash: 83c5f71b5277e42bbb5ca154384050c34d942466158c0f79384671510e56c316

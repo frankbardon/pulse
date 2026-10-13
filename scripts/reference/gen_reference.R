@@ -375,3 +375,8 @@ source(file.path(script_dir, "gen_correspondence.R"), local = FALSE)
 # powers, projected distributions, steady states, period /
 # irreducibility, mean absorption times); needs the markovchain package.
 source(file.path(script_dir, "gen_markov.R"), local = FALSE)
+
+# The OVERLAY_RAKE golden (rake.json: 2-D iterative proportional fits to
+# share and count targets, structural zeros, a capped non-converged fit,
+# adjustment factors); base stats loglin, cross-checked by survey::rake.
+source(file.path(script_dir, "gen_rake.R"), local = FALSE)

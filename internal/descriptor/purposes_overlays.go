@@ -48,6 +48,7 @@ var overlayPurposes = map[string]descriptor.Purpose{
 	"OVERLAY_PANEL_INDEX_VS_REF":            purposeOverlayPanelIndexVsRef,
 	"OVERLAY_PROP_Z_CELL":                   purposeOverlayPropZCell,
 	"OVERLAY_PROP_Z_PANEL":                  purposeOverlayPropZPanel,
+	"OVERLAY_RAKE":                          purposeOverlayRake,
 	"OVERLAY_RANK":                          purposeOverlayRank,
 	"OVERLAY_SHARE_OF_COL":                  purposeOverlayShareOfCol,
 	"OVERLAY_SHARE_OF_ROW":                  purposeOverlayShareOfRow,
@@ -341,6 +342,35 @@ var (
 		KnownAs: []string{"markov chain", "transition matrix"},
 		Glossary: []string{
 			"cross-tabulation", "margin", "stochastic-matrix", "steady-state",
+		},
+	}
+
+	purposeOverlayRake = descriptor.Purpose{
+		Plain:   "Rake a crosstab to known row and column totals: the fitted table, per-cell adjustment factors and whether the fit converged.",
+		Intents: []string{IntentComposition, IntentBenchmark},
+		Questions: []string{
+			"What would this age by region table look like if its margins matched the census shares?",
+			"By how much does each cell have to be scaled up or down to hit the population totals?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Rake an age by region table to census margins before reading the cell shares.",
+			descriptor.DomainOps:     "Rebalance a site by shift table to planned headcount totals while keeping its internal pattern.",
+			descriptor.DomainScience: "Standardize a sample's exposure by age table to a reference population's margins.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want each cell's share of its row, with no target margins", Use: "OVERLAY_SHARE_OF_ROW"},
+			{When: "you want to test whether rows and columns are associated", Use: "OVERLAY_CHISQ_MATRIX"},
+		},
+		Assumptions: []string{
+			"Every row key and every column key of the table has exactly one target; targets for categories the table does not hold are refused, not dropped.",
+			"Raking keeps the table's internal pattern (its odds ratios) and only rescales rows and columns, so a cell observed as zero stays zero.",
+			"A row or column with no observed cells cannot reach a positive target; the fit then stops short and says so.",
+			"It reweights the table only: it writes no weights back to the records, and it is descriptive, with no confidence intervals.",
+		},
+		Level:   descriptor.LevelAdvanced,
+		KnownAs: []string{"raking", "iterative proportional fitting", "IPF"},
+		Glossary: []string{
+			"cross-tabulation", "margin", "raking", "weighting",
 		},
 	}
 

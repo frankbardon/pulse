@@ -155,6 +155,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-overlay-panel-index-vs-ref`](skills/op-overlay-panel-index-vs-ref.md): Compose-host multi-reference index — indexes every target slot against a shared reference; emits one layer per target.
 - [`op-overlay-prop-z-cell`](skills/op-overlay-prop-z-cell.md): Compose-host per-cell two-proportion z-test against the reference slot's matching cell.
 - [`op-overlay-prop-z-panel`](skills/op-overlay-prop-z-panel.md): Compose-host multi-reference per-cell pairwise two-proportion z-test across N+1 slots.
+- [`op-overlay-rake`](skills/op-overlay-rake.md): Rake a crosstab to target row and column margins (IPF) — fitted table, adjustment factors and a convergence report; the host is never changed.
 - [`op-overlay-rank`](skills/op-overlay-rank.md): Compose-host per-cell rank of each target cell within a configurable population (row / column / matrix).
 - [`op-overlay-share-of-col`](skills/op-overlay-share-of-col.md): Per-cell share-of-column ratio (cell / col_margin) — raw share, sums to 1.0 per column.
 - [`op-overlay-share-of-row`](skills/op-overlay-share-of-row.md): Per-cell share-of-row ratio (cell / row_margin) — raw share, sums to 1.0 per row.

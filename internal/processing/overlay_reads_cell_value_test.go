@@ -99,6 +99,9 @@ func TestOverlayReadsCellValue_MatchesHandlers(t *testing.T) {
 				spec.Ref = types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisGrand}}
 			case types.OverlayKindFormula:
 				spec.Params = json.RawMessage(`{"formula":"cell / margin_grand"}`)
+			case types.OverlayKindRake:
+				spec.Scope = types.OverlayScopeMatrix
+				spec.Params = json.RawMessage(`{"row_targets":{"a":1,"b":2,"c":3},"col_targets":{"x":3,"y":2,"z":1}}`)
 			}
 			run := func(cells [3][3]float64) string {
 				host := readsCellHost(cells, comps)
@@ -126,7 +129,7 @@ func TestOverlayReadsCellValue_MatchesHandlers(t *testing.T) {
 			judged++
 		})
 	}
-	if judged < 16 {
+	if judged < 17 {
 		t.Fatalf("judged %d MATRIX kinds, want every MATRIX handler", judged)
 	}
 }

@@ -43,6 +43,7 @@ var overlayInterpretations = map[string][]descriptor.Interpretation{
 	"OVERLAY_PAIRWISE_WELCH_T":              interpOverlayPairwiseWelchT,
 	"OVERLAY_PROP_Z_CELL":                   interpOverlayPropZCell,
 	"OVERLAY_PROP_Z_PANEL":                  interpOverlayPropZPanel,
+	"OVERLAY_RAKE":                          interpOverlayRake,
 	"OVERLAY_STD_RESIDUAL":                  interpOverlayStdResidual,
 	"OVERLAY_T_CELL":                        interpOverlayTCell,
 	"OVERLAY_T_VS_REF":                      interpOverlayTVsRef,
@@ -325,6 +326,31 @@ var (
 		{
 			Field: "summary.parameters.classes",
 			Means: "The number of communicating classes: groups of states that can all reach one another. 1 means every state can reach every other; more (an absorbing churned state is its own class) means there is no single long-run mix, so steady_state is absent.",
+		},
+	}
+
+	interpOverlayRake = []descriptor.Interpretation{
+		{
+			Field: "cells.value",
+			Means: "The raked count for the cell: the table rescaled so its row and column totals match the targets while keeping its internal pattern.",
+			Caveats: []string{
+				"Read it only when summary.parameters.converged is 1; otherwise the margins are still off their targets.",
+			},
+		},
+		{
+			Field: "parts.factors.cells.value",
+			Means: "How much the cell was scaled: the raked count over the observed one (above 1 = scaled up). null where the observed cell was 0, which stays 0.",
+			Caveats: []string{
+				"Very large or very small factors mean the targets sit far from the sample, and the raked cells lean heavily on few records.",
+			},
+		},
+		{
+			Field: "summary.parameters.converged",
+			Means: "1 when every fitted margin is within the tolerance of its target, 0 when the fit stopped at max_iter first (the table still ships, with a warning).",
+		},
+		{
+			Field: "summary.parameters.residual",
+			Means: "The largest relative gap left between a fitted margin and its target (0.01 = 1%).",
 		},
 	}
 

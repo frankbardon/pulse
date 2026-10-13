@@ -37,6 +37,7 @@ The overlays this instance offers: what each is for, the questions it answers an
 | [`OVERLAY_PANEL_INDEX_VS_REF`](#op-overlay_panel_index_vs_ref) | Index values of several target Compose requests against one shared reference request, one layer per target (target / reference x 100). | How do the last four waves each compare with the benchmark wave? | intermediate | [`OVERLAY_INDEX_VS_REF`](#op-overlay_index_vs_ref) when there is only one target.<br>[`OVERLAY_PROP_Z_PANEL`](#op-overlay_prop_z_panel) when you want tests between every pair of requests. |
 | [`OVERLAY_PROP_Z_CELL`](#op-overlay_prop_z_cell) | Two-proportion z-test for every crosstab cell in a Compose request: does the target's share in that cell differ from the reference's? | Which answer shares changed between this wave and last wave? | intermediate | [`OVERLAY_PROP_Z_PANEL`](#op-overlay_prop_z_panel) when you compare three or more requests at once.<br>[`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) when the groups are rows or columns of one crosstab.<br>[`TEST_FISHER_EXACT`](test.md#op-test_fisher_exact) when a cell has only a handful of successes or failures: stack both sources' rows and run an exact 2x2 test.<br>[`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the size of the change rather than a p-value. |
 | [`OVERLAY_PROP_Z_PANEL`](#op-overlay_prop_z_panel) | Two-proportion z-tests between every pair of requests in a Compose panel, for each crosstab cell: which waves or markets differ in share? | Across four waves, which pairs of waves differ in this answer's share? | advanced | [`OVERLAY_PROP_Z_CELL`](#op-overlay_prop_z_cell) when there is only one target.<br>[`OVERLAY_PANEL_INDEX_VS_REF`](#op-overlay_panel_index_vs_ref) when you want index values against one reference rather than tests.<br>[`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) when the groups are rows or columns of one crosstab. |
+| [`OVERLAY_RAKE`](#op-overlay_rake) | Rake a crosstab to known row and column totals: the fitted table, per-cell adjustment factors and whether the fit converged. | What would this age by region table look like if its margins matched the census shares? | advanced | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want each cell's share of its row, with no target margins.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether rows and columns are associated. |
 | [`OVERLAY_RANK`](#op-overlay_rank) | Ranks each cell of a target Compose request's crosstab (1 = largest) within its row, its column or the whole table. | Which product is the top seller in each region? | basic | [`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) when you want each cell's share of the whole.<br>[`OVERLAY_ZSCORE_VS_MARGIN`](#op-overlay_zscore_vs_margin) when you want how far each cell sits from its row or column.<br>[`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the change from the reference request. |
 | [`OVERLAY_SHARE_OF_COL`](#op-overlay_share_of_col) | Each crosstab cell as a share of its column margin (0 to 1): the mix of rows within each column, as a 100% stacked column shows it. | Within each channel, what share of orders comes from each region? | basic | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want the mix within each row.<br>[`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) when you want each cell's share of the whole table.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether the column mixes differ. |
 | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) | Each crosstab cell as a share of its row margin (0 to 1): the mix of columns within each row, as a 100% stacked bar shows it. | Within each region, what share of orders goes to each channel? | basic | [`OVERLAY_SHARE_OF_COL`](#op-overlay_share_of_col) when you want the mix within each column.<br>[`OVERLAY_INDEX_VS_MARGIN`](#op-overlay_index_vs_margin) when you want the same figure on a 0 to 100 index scale.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether the row mixes differ. |
@@ -1221,6 +1222,43 @@ Two-proportion z-tests between every pair of requests in a Compose panel, for ea
 **Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`independence`](../glossary.md#term-independence), [`margin`](../glossary.md#term-margin), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size), [`two-tailed`](../glossary.md#term-two-tailed)
 
 **Skill:** [`op-overlay-prop-z-panel`](../skills/op-overlay-prop-z-panel.md)
+
+<a id="op-overlay_rake"></a>
+
+### `OVERLAY_RAKE`
+
+Rake a crosstab to known row and column totals: the fitted table, per-cell adjustment factors and whether the fit converged.
+
+**Level:** advanced
+
+**Also known as:** `raking`, `iterative proportional fitting`, `IPF`
+
+**Questions it answers:**
+
+- What would this age by region table look like if its margins matched the census shares?
+- By how much does each cell have to be scaled up or down to hit the population totals?
+
+**Use cases by domain:**
+
+- *survey:* Rake an age by region table to census margins before reading the cell shares.
+- *ops:* Rebalance a site by shift table to planned headcount totals while keeping its internal pattern.
+- *science:* Standardize a sample's exposure by age table to a reference population's margins.
+
+**Assumptions:**
+
+- Every row key and every column key of the table has exactly one target; targets for categories the table does not hold are refused, not dropped.
+- Raking keeps the table's internal pattern (its odds ratios) and only rescales rows and columns, so a cell observed as zero stays zero.
+- A row or column with no observed cells cannot reach a positive target; the fit then stops short and says so.
+- It reweights the table only: it writes no weights back to the records, and it is descriptive, with no confidence intervals.
+
+**Use something else:**
+
+- [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want each cell's share of its row, with no target margins.
+- [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether rows and columns are associated.
+
+**Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`margin`](../glossary.md#term-margin), [`raking`](../glossary.md#term-raking), [`weighting`](../glossary.md#term-weighting)
+
+**Skill:** [`op-overlay-rake`](../skills/op-overlay-rake.md)
 
 <a id="op-overlay_rank"></a>
 
