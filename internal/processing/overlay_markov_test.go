@@ -596,3 +596,86 @@ func TestMarkov_ScaleInvariant(t *testing.T) {
 		}
 	}
 }
+
+// churnHost is the owner's churn table: states active / lapsed /
+// churned, no churned → * move observed, so churned is a column-only
+// key (columns reversed against the rows, so alignment stays by key).
+func churnHost() *CrosstabHostView {
+	mx := &types.MatrixPayload{
+		RowHeader:    types.AxisHeader{Fields: []string{"from"}, Types: []string{"GROUP_CATEGORY"}},
+		ColumnHeader: types.AxisHeader{Fields: []string{"to"}, Types: []string{"GROUP_CATEGORY"}},
+		CellLabel:    "n",
+		RowKeys:      []types.AxisKey{{"active"}, {"lapsed"}},
+		ColumnKeys:   []types.AxisKey{{"churned"}, {"lapsed"}, {"active"}},
+		Cells: [][]types.MatrixCell{
+			{{Value: 1.0, Present: true}, {Value: 3.0, Present: true}, {Value: 6.0, Present: true}},
+			{{Value: 4.0, Present: true}, {Value: 4.0, Present: true}, {Value: 2.0, Present: true}},
+		},
+	}
+	return NewCrosstabHostView(mx)
+}
+
+// TestMarkov_SynthesizedAbsorbingRow: a column-only key declared in
+// params.absorbing gets a synthesized unit row (it is absorbing by
+// declaration) and the chain runs; the absorption times equal the
+// closed form. Q = [[.6,.3],[.2,.4]] → (I − Q)⁻¹·1 = [0.9, 0.6] / 0.18
+// = [5, 10/3] (markovchain::meanAbsorptionTime agrees).
+func TestMarkov_SynthesizedAbsorbingRow(t *testing.T) {
+	states := []string{"active", "lapsed", "churned"}
+	layer, ws, err := applyMarkov(markovSpec(`{"absorbing":["churned"],"steps":[1],"initial":"margin"}`), churnHost())
+	if err != nil {
+		t.Fatal(err)
+	}
+	P := [][]float64{{0.6, 0.3, 0.1}, {0.2, 0.4, 0.4}, {0, 0, 1}}
+	assertStateMatrix(t, "P", &types.OverlayPayload{Shape: types.OverlayShapeMatrix, Matrix: layer.Payload.Matrix}, states, P, 1e-15)
+	assertStateMatrix(t, "step_1", layer.Payload.Parts["step_1"], states, P, 1e-15)
+	assertStateSeries(t, "absorption_time", layer.Payload.Parts[MarkovPartAbsorptionTime], states[:2], []float64{5, 10.0 / 3}, 1e-12)
+	// The observed row margin: churned starts at 0.
+	assertStateSeries(t, "distribution_1", layer.Payload.Parts["distribution_1"], states, []float64{0.4, 0.35, 0.25}, 1e-15)
+	if got := layer.Summary.Parameters["synthesized_rows"]; got != 1 {
+		t.Fatalf("summary synthesized_rows = %v, want 1", got)
+	}
+	syn := warningsWith(ws, errors.PULSE_OVERLAY_REF_ZERO, "absorbing_row_synthesized")
+	if len(syn) != 1 {
+		t.Fatalf("warnings %+v, want one absorbing_row_synthesized", ws)
+	}
+	if keys := syn[0].Details["states"].([]types.AxisKey); len(keys) != 1 || keys[0][0] != "churned" {
+		t.Fatalf("synthesized states %v", syn[0].Details["states"])
+	}
+	if z := warningsWith(ws, errors.PULSE_OVERLAY_REF_ZERO, "zero_row_absorbing"); len(z) != 0 {
+		t.Fatalf("a synthesized row is not an observed zero row: %+v", z)
+	}
+
+	// An observed row stays observed: no summary key, no warning.
+	layer, ws, err = applyMarkov(markovSpec(`{"absorbing":["c"]}`), markovHost([]string{"a", "b", "c"}, markovIdentity(3), [][]float64{{5, 3, 2}, {1, 6, 3}, {0, 1, 4}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := layer.Summary.Parameters["synthesized_rows"]; ok || len(warningsWith(ws, errors.PULSE_OVERLAY_REF_ZERO, "absorbing_row_synthesized")) != 0 {
+		t.Fatalf("an observed absorbing row was synthesized: %v / %+v", layer.Summary.Parameters, ws)
+	}
+	if c := layer.Payload.Matrix.Cells[2]; c[1].Value != 0.2 || c[2].Value != 0.8 {
+		t.Fatalf("observed absorbing row rewritten: %v", c)
+	}
+
+	// Refused unchanged: an undeclared column-only key, a row-only key
+	// (even when the column-only one is declared).
+	for name, c := range map[string]struct {
+		params string
+		host   func() *CrosstabHostView
+	}{
+		"undeclared column-only": {`{"absorbing":["lapsed"]}`, churnHost},
+		"no absorbing param":     {``, churnHost},
+		"row-only key": {`{"absorbing":["churned"]}`, func() *CrosstabHostView {
+			h := churnHost()
+			h.payload.RowKeys[1] = types.AxisKey{"dormant"}
+			return h
+		}},
+	} {
+		_, _, err := applyMarkovAt(markovSpec(c.params), c.host(), 0)
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_OVERLAY_MATRIX_NOT_SQUARE {
+			t.Fatalf("%s: err %v, want PULSE_OVERLAY_MATRIX_NOT_SQUARE", name, err)
+		}
+	}
+}

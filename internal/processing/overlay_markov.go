@@ -42,7 +42,12 @@ const (
 //
 //	states    = the row keys, in row order; the columns are aligned to
 //	            them BY KEY (overlayhost.MarkovStateName), never by
-//	            position — the two key sets must be equal as sets
+//	            position — the two key sets must be equal as sets, save
+//	            that a column-only state declared in params.absorbing
+//	            gets a synthesized unit row (appended in column order;
+//	            one PULSE_OVERLAY_REF_ZERO {kind, axis: row, states,
+//	            reason: absorbing_row_synthesized} plus the
+//	            synthesized_rows summary parameter)
 //	P_ij      = n_ij / Σ_j n_ij    (a zero row → the unit row: absorbing)
 //	step_n    = Pⁿ                 (binary powering)
 //	dist_n    = π₀ · Pⁿ            (π₀ = params.initial, normalized)
@@ -67,7 +72,8 @@ const (
 // The table: absent cells are 0; a cell aggregation other than
 // AGG_COUNT / AGG_SUM or a negative / non-finite cell is
 // PULSE_OVERLAY_NONNEGATIVE_REQUIRED; a different grouper count per
-// axis or differing key sets is PULSE_OVERLAY_MATRIX_NOT_SQUARE; fewer
+// axis, a row-only key or an undeclared column-only key is
+// PULSE_OVERLAY_MATRIX_NOT_SQUARE; fewer
 // than 2 states or a zero grand total is
 // PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE; an absorbing / initial key
 // naming no state is PULSE_OVERLAY_PARAM_MISSING. Every output is
@@ -99,24 +105,28 @@ func applyMarkovAt(spec *types.OverlaySpec, host *CrosstabHostView, index int) (
 	}
 
 	// Align the columns to the row states by key.
-	k := host.RowCount()
-	names := make([]string, k)
-	stateIndex := make(map[string]int, k)
-	for i := 0; i < k; i++ {
+	hostRows := host.RowCount()
+	names := make([]string, hostRows)
+	stateIndex := make(map[string]int, hostRows)
+	stateKeys := make([]types.AxisKey, hostRows)
+	for i := 0; i < hostRows; i++ {
 		names[i] = overlayhost.MarkovStateName(payload.RowKeys[i])
 		stateIndex[names[i]] = i
+		stateKeys[i] = payload.RowKeys[i]
 	}
-	colOf := make([]int, k) // colOf[state] = host column index
+	colOf := make([]int, hostRows) // colOf[state] = host column index
 	for i := range colOf {
 		colOf[i] = -1
 	}
 	var rowOnly, columnOnly []string
+	var columnOnlyAt []int
 	for j := 0; j < host.ColumnCount(); j++ {
 		name := overlayhost.MarkovStateName(payload.ColumnKeys[j])
 		if i, ok := stateIndex[name]; ok && colOf[i] < 0 {
 			colOf[i] = j
 		} else {
 			columnOnly = append(columnOnly, name)
+			columnOnlyAt = append(columnOnlyAt, j)
 		}
 	}
 	for i, j := range colOf {
@@ -124,15 +134,29 @@ func applyMarkovAt(spec *types.OverlaySpec, host *CrosstabHostView, index int) (
 			rowOnly = append(rowOnly, names[i])
 		}
 	}
+	// A column-only state the caller declared absorbing has a row known
+	// by definition (the unit row): synthesize it after the observed
+	// rows, in column order. Any other one-axis key is still refused.
+	if len(rowOnly) == 0 && len(columnOnly) > 0 && markovAllDeclared(columnOnly, params.Absorbing, stateIndex) {
+		for c, name := range columnOnly {
+			stateIndex[name] = len(names)
+			names = append(names, name)
+			stateKeys = append(stateKeys, payload.ColumnKeys[columnOnlyAt[c]])
+			colOf = append(colOf, columnOnlyAt[c])
+		}
+		rowOnly, columnOnly = nil, nil
+	}
 	if cerr := overlayhost.MarkovKeySetRefusal(spec.Kind, rowOnly, columnOnly, index); cerr != nil {
 		return types.OverlayLayer{}, nil, cerr
 	}
+	k := len(names)
+	synthesized := k - hostRows
 
 	// The count table and its row totals.
 	counts := make([]float64, k*k)
 	rowTotals := make([]float64, k)
 	var grand float64
-	for i := 0; i < k; i++ {
+	for i := 0; i < hostRows; i++ {
 		for s := 0; s < k; s++ {
 			j := colOf[s]
 			if i >= len(payload.Cells) || j >= len(payload.Cells[i]) || !payload.Cells[i][j].Present {
@@ -207,6 +231,10 @@ func applyMarkovAt(spec *types.OverlaySpec, host *CrosstabHostView, index int) (
 	var zeroRows []int
 	var zeroKeys []types.AxisKey
 	for i := 0; i < k; i++ {
+		if i >= hostRows { // a synthesized declared-absorbing row
+			P[i*k+i] = 1
+			continue
+		}
 		if rowTotals[i] > 0 {
 			for s := 0; s < k; s++ {
 				P[i*k+s] = counts[i*k+s] / rowTotals[i]
@@ -216,6 +244,19 @@ func applyMarkovAt(spec *types.OverlaySpec, host *CrosstabHostView, index int) (
 		P[i*k+i] = 1
 		zeroRows = append(zeroRows, i)
 		zeroKeys = append(zeroKeys, payload.RowKeys[i])
+	}
+	if synthesized > 0 {
+		warnings = append(warnings, types.OverlayWarning{
+			Code: string(errors.PULSE_OVERLAY_REF_ZERO),
+			Message: "overlay " + string(spec.Kind) + " added a unit row for column-only states declared in params.absorbing: " +
+				"no move out of them was observed, and an absorbing state keeps everyone it receives",
+			Details: map[string]any{
+				"kind":   string(spec.Kind),
+				"axis":   "row",
+				"states": append([]types.AxisKey(nil), stateKeys[hostRows:]...),
+				"reason": "absorbing_row_synthesized",
+			},
+		})
 	}
 	if len(zeroRows) > 0 {
 		warnings = append(warnings, types.OverlayWarning{
@@ -247,7 +288,7 @@ func applyMarkovAt(spec *types.OverlaySpec, host *CrosstabHostView, index int) (
 		return &types.OverlayPayload{Shape: types.OverlayShapeMatrix, Matrix: &types.MatrixPayload{
 			RowHeader:        payload.RowHeader,
 			ColumnHeader:     payload.ColumnHeader,
-			RowKeys:          append([]types.AxisKey(nil), payload.RowKeys[:k]...),
+			RowKeys:          append([]types.AxisKey(nil), stateKeys...),
 			ColumnKeys:       colKeys,
 			Cells:            cells,
 			CellLabel:        label,
@@ -261,7 +302,7 @@ func applyMarkovAt(spec *types.OverlaySpec, host *CrosstabHostView, index int) (
 				continue
 			}
 			v := v
-			es = append(es, types.SeriesEntry{Key: payload.RowKeys[i], Summary: types.OverlaySummary{Statistic: &v}})
+			es = append(es, types.SeriesEntry{Key: stateKeys[i], Summary: types.OverlaySummary{Statistic: &v}})
 		}
 		if es == nil {
 			es = []types.SeriesEntry{}
@@ -285,13 +326,16 @@ func applyMarkovAt(spec *types.OverlaySpec, host *CrosstabHostView, index int) (
 		"states":  float64(k),
 		"classes": float64(len(classes)),
 	}
+	if synthesized > 0 {
+		summary["synthesized_rows"] = float64(synthesized)
+	}
 	switch {
 	case len(classes) > 1:
 		summary["irreducible"] = 0
 		named := make([][]types.AxisKey, len(classes))
 		for c, members := range classes {
 			for _, i := range members {
-				named[c] = append(named[c], payload.RowKeys[i])
+				named[c] = append(named[c], stateKeys[i])
 			}
 		}
 		warnings = append(warnings, types.OverlayWarning{
@@ -348,7 +392,7 @@ func applyMarkovAt(spec *types.OverlaySpec, host *CrosstabHostView, index int) (
 			if len(uncertain) > 0 {
 				keys := make([]types.AxisKey, len(uncertain))
 				for u, i := range uncertain {
-					keys[u] = payload.RowKeys[i]
+					keys[u] = stateKeys[i]
 				}
 				warnings = append(warnings, types.OverlayWarning{
 					Code: string(errors.PULSE_OVERLAY_MARKOV_NOT_ERGODIC),
@@ -375,6 +419,24 @@ func applyMarkovAt(spec *types.OverlaySpec, host *CrosstabHostView, index int) (
 		Summary: &types.OverlaySummary{Parameters: summary},
 	}
 	return layer, warnings, nil
+}
+
+// markovAllDeclared reports whether every column-only state name is
+// declared in params.absorbing and names no row state (a duplicate
+// column key is never synthesized).
+func markovAllDeclared(columnOnly, absorbing []string, rows map[string]int) bool {
+	declared := make(map[string]bool, len(absorbing))
+	for _, n := range absorbing {
+		declared[n] = true
+	}
+	seen := make(map[string]bool, len(columnOnly))
+	for _, n := range columnOnly {
+		if _, isRow := rows[n]; isRow || seen[n] || !declared[n] {
+			return false
+		}
+		seen[n] = true
+	}
+	return true
 }
 
 // markovMul returns the k × k product a·b, FMA-free: each term is a

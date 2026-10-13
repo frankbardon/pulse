@@ -3,10 +3,17 @@ package pulse_test
 import (
 	"context"
 	"encoding/json"
+	"math"
+	"strings"
 	"testing"
 
+	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/io/csv"
+	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
+	"github.com/spf13/afero"
 )
 
 // OVERLAY_MARKOV refuses identically in predict and at runtime (code,
@@ -111,4 +118,88 @@ func TestMarkov_EndToEnd(t *testing.T) {
 			}
 		})
 	}
+}
+
+// churnCohort imports a from × to transition cohort where nobody leaves
+// churned: churned is a to-only (column-only) state.
+func churnCohort(t *testing.T) (*pulse.Pulse, afero.Fs, string) {
+	t.Helper()
+	fs := afero.NewMemMapFs()
+	p, err := pulse.New(pulse.Options{FS: fs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var b strings.Builder
+	b.WriteString("from,to\n")
+	for _, m := range []struct {
+		from, to string
+		n        int
+	}{{"active", "active", 6}, {"active", "lapsed", 3}, {"active", "churned", 1}, {"lapsed", "active", 2}, {"lapsed", "lapsed", 4}, {"lapsed", "churned", 4}} {
+		for range m.n {
+			b.WriteString(m.from + "," + m.to + "\n")
+		}
+	}
+	if err := afero.WriteFile(fs, "churn.csv", []byte(b.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fields := []encoding.Field{
+		{Name: "from", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary(), CsvColumnIdx: 0, ByteOffset: 0},
+		{Name: "to", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary(), CsvColumnIdx: 1, ByteOffset: 1},
+	}
+	job := &pio.ImportJob{Source: csv.NewReader(fs, "churn.csv"), Target: "churn.pulse", Schema: &encoding.Schema{Fields: fields}, FS: fs}
+	if _, err := p.Import(context.Background(), job); err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	return p, fs, "churn.pulse"
+}
+
+// TestMarkov_ColumnOnlyAbsorbing: a column-only state declared in
+// params.absorbing gets a synthesized unit row end to end (predict
+// accepts; the absorption times are the closed form [5, 10/3]); left
+// undeclared, the runtime still refuses it. Predict reads no record, so
+// it cannot see which keys were observed and accepts both: the key-set
+// judgement stays runtime-only.
+func TestMarkov_ColumnOnlyAbsorbing(t *testing.T) {
+	p, fs, cohort := churnCohort(t)
+	ctx := context.Background()
+	req := func(params string) *types.Request {
+		return &types.Request{
+			Cohort: &types.Cohort{Filename: cohort},
+			Crosstab: &types.CrosstabSpec{
+				Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "from"}},
+				Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "to"}},
+				Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "from", Label: "n"},
+			},
+			Overlays: []types.OverlaySpec{markovOverlay(params)},
+		}
+	}
+
+	declared := req(`{"absorbing":["churned"],"steps":[1]}`)
+	if env := predictEnvelope(t, p, fs, cohort, declared); len(env.Errors) != 0 {
+		t.Fatalf("predict: %+v", env.Errors)
+	}
+	resp, err := p.Process(ctx, declared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	times := resp.Overlays[0].Payload.Parts["absorption_time"]
+	if times == nil || times.Series == nil || len(times.Series.Entries) != 2 {
+		t.Fatalf("absorption_time %+v", times)
+	}
+	want := map[string]float64{"active": 5, "lapsed": 10.0 / 3}
+	for _, e := range times.Series.Entries {
+		if got := *e.Summary.Statistic; math.Abs(got-want[e.Key[0].(string)]) > 1e-12 {
+			t.Fatalf("absorption_time[%v] = %v, want %v", e.Key, got, want[e.Key[0].(string)])
+		}
+	}
+	if resp.Overlays[0].Summary.Parameters["synthesized_rows"] != 1 {
+		t.Fatalf("summary %v", resp.Overlays[0].Summary.Parameters)
+	}
+
+	undeclared := req(`{"steps":[1]}`)
+	if env := predictEnvelope(t, p, fs, cohort, undeclared); len(env.Errors) != 0 {
+		t.Fatalf("predict: %+v", env.Errors)
+	}
+	_, err = p.Process(ctx, undeclared)
+	requireCode(t, err, errors.PULSE_OVERLAY_MATRIX_NOT_SQUARE)
 }

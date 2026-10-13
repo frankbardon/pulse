@@ -1351,7 +1351,9 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			Description: "Markov-chain projection of a from-state (rows) x to-state (columns) transition crosstab. MATRIX scope " +
 				"over a MATRIX (crosstab) host. The row and column key sets must be equal as sets (states align by key, " +
 				"never by position, in row order), else PULSE_OVERLAY_MATRIX_NOT_SQUARE (predict refuses different grouper " +
-				"counts on the two axes; runtime also refuses differing key sets). The primary MATRIX is the row-stochastic " +
+				"counts on the two axes; runtime also refuses differing key sets) — except that a column-only state named in " +
+				"params.absorbing gets a synthesized unit row (appended after the rows; a PULSE_OVERLAY_REF_ZERO warning with " +
+				"reason absorbing_row_synthesized and Summary.Parameters synthesized_rows). The primary MATRIX is the row-stochastic " +
 				"transition matrix P (each row over its total); a zero row becomes the unit row (the state absorbs) with a " +
 				"PULSE_OVERLAY_REF_ZERO warning. payload.parts: step_<n> (MATRIX P^n for each params.steps entry), " +
 				"distribution_<n> (SERIES initial x P^n, only with params.initial), steady_state (SERIES, power iteration to " +
@@ -1360,7 +1362,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"non-absorbing states: expected steps to reach the params.absorbing set, (I - Q)^-1 1 through linalg.FactorLU; " +
 				"null with a PULSE_OVERLAY_MARKOV_NOT_ERGODIC warning for a state that may never be absorbed; only with " +
 				"params.absorbing). Summary.Parameters: states, classes, irreducible, period, steady_state_iterations, " +
-				"steady_state_converged. params: steps (default [1, 3, 6, 12]; distinct integers 1-1000, at most 64), " +
+				"steady_state_converged, synthesized_rows (only when > 0). params: steps (default [1, 3, 6, 12]; distinct integers 1-1000, at most 64), " +
 				"absorbing (state keys present in the host) and initial (\"margin\" = the observed row-margin distribution, " +
 				"or a state -> share map over host states, normalized; omitted states start at 0); a bad or unknown param, " +
 				"or a key the host lacks, is PULSE_OVERLAY_PARAM_MISSING. Cells must be non-negative masses: a cell " +

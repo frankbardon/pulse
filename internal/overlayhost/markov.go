@@ -221,7 +221,8 @@ func MarkovArityRefusal(kind types.OverlayKind, rowGroupers, columnGroupers, ind
 }
 
 // MarkovKeySetRefusal refuses a host whose row and column key sets
-// differ (runtime only: predict reads no record) —
+// differ (runtime only: predict reads no record) once the handler has
+// synthesized the column-only states declared in params.absorbing —
 // PULSE_OVERLAY_MATRIX_NOT_SQUARE, details {kind, row_only,
 // column_only} (sorted state names) plus index when >= 0. nil when both
 // lists are empty.

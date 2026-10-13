@@ -44,7 +44,7 @@ Primary MATRIX: transition P (rows sum to 1). Parts: `step_<n>` (MATRIX Pⁿ), `
 
 ## Gotchas
 
-- Key sets differ ⇒ `PULSE_OVERLAY_MATRIX_NOT_SQUARE`; a churned state needs a churned→churned row.
+- Key sets differ ⇒ `PULSE_OVERLAY_MATRIX_NOT_SQUARE`, unless every column-only state is in `absorbing` — its unit row is synthesized (`REF_ZERO` warning, `synthesized_rows`).
 - Reducible / periodic ⇒ `PULSE_OVERLAY_MARKOV_NOT_ERGODIC`, no `steady_state`.
 - Zero row ⇒ absorbing + `PULSE_OVERLAY_REF_ZERO`.
 - Never-absorbed state ⇒ `null` time + warning.
