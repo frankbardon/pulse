@@ -1060,6 +1060,7 @@ func overlayRefSchema() map[string]any {
 			"population":     obj("Population cohort (facet kinds).", map[string]any{"cohort": map[string]any{"type": "string"}}),
 			"slot":           obj("Compose slot reference.", map[string]any{"name": map[string]any{"type": "string"}}),
 			"stage":          obj("Chain stage reference; one of index / name.", map[string]any{"index": map[string]any{"type": "integer", "minimum": 0}, "name": map[string]any{"type": "string"}}),
+			"matrix":         obj("Matrix-result reference: a Request.Matrices spec by effective name (every group bucket).", map[string]any{"name": map[string]any{"type": "string"}}),
 		},
 		"additionalProperties": false,
 	}

@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:45178cb8b0c8eb6d4ad35f37ee448bb85fbc665c29509a588bda8ca8357c73a4",
+    "feature_set_digest": "fs1:3aa32c5284bdcf6923a2d6d667e1503c4564aee3f8351ad5b4fd066e351c8d8e",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -8986,7 +8986,7 @@
         ]
       }
     ],
-    "error_codes_count": 356,
+    "error_codes_count": 357,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9195,6 +9195,7 @@
       "PULSE_OVERLAY_FORMULA_INVALID_IDENT",
       "PULSE_OVERLAY_FORMULA_PARSE_ERROR",
       "PULSE_OVERLAY_FORMULA_TYPE_MISMATCH",
+      "PULSE_OVERLAY_GROUPS_REQUIRED",
       "PULSE_OVERLAY_KEY_SET_DIVERGENT",
       "PULSE_OVERLAY_KIND_UNKNOWN",
       "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE",
@@ -11289,6 +11290,10 @@
         "description": "Markov chain of a from × to transition crosstab — transition matrix, n-step powers, projections, steady state and time to absorption."
       },
       {
+        "name": "op-overlay-matrix-group-summary",
+        "description": "Summarize a grouped matrix result across its group buckets — per-cell mean, min, max, range and contributing-group count; the results are never changed."
+      },
+      {
         "name": "op-overlay-pairwise-probit-t",
         "description": "Intra-matrix axis-pairwise probit t-test (Φ⁻¹ transform of each leg's proportion, Student-t tail)."
       },
@@ -11610,7 +11615,7 @@
       },
       {
         "name": "overlay-system",
-        "description": "Overlay framework — OverlaySpec composition, six reference families, three payload shapes, host-arm wiring (SERIES / FACET / CHAIN / FORMULA), named payload parts of multi-output kinds. Per-kind detail lives in op-overlay-* atomics."
+        "description": "Overlay framework — OverlaySpec composition, reference families, three payload shapes, host-arm wiring (SERIES / MATRIX_RESULT / FACET / CHAIN / FORMULA), named payload parts of multi-output kinds. Per-kind detail lives in op-overlay-* atomics."
       },
       {
         "name": "pairwise-n-sources",
@@ -11989,7 +11994,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 215,
+    "examples_count": 216,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -13223,6 +13228,24 @@
         "description": "Markov-chain projection of a from-state (rows) x to-state (columns) transition crosstab. MATRIX scope over a MATRIX (crosstab) host. The row and column key sets must be equal as sets (states align by key, never by position, in row order), else PULSE_OVERLAY_MATRIX_NOT_SQUARE (predict refuses different grouper counts on the two axes; runtime also refuses differing key sets) — except that a column-only state named in params.absorbing gets a synthesized unit row (appended after the rows; a PULSE_OVERLAY_REF_ZERO warning with reason absorbing_row_synthesized and Summary.Parameters synthesized_rows). The primary MATRIX is the row-stochastic transition matrix P (each row over its total); a zero row becomes the unit row (the state absorbs) with a PULSE_OVERLAY_REF_ZERO warning. payload.parts: step_\u003cn\u003e (MATRIX P^n for each params.steps entry), distribution_\u003cn\u003e (SERIES initial x P^n, only with params.initial), steady_state (SERIES, power iteration to 1e-12 within 10,000 iterations, else the exact linear solve; only for an irreducible aperiodic chain — otherwise the PULSE_OVERLAY_MARKOV_NOT_ERGODIC warning and no part) and absorption_time (SERIES over the non-absorbing states: expected steps to reach the params.absorbing set, (I - Q)^-1 1 through linalg.FactorLU; null with a PULSE_OVERLAY_MARKOV_NOT_ERGODIC warning for a state that may never be absorbed; only with params.absorbing). Summary.Parameters: states, classes, irreducible, period, steady_state_iterations, steady_state_converged, synthesized_rows (only when \u003e 0). params: steps (default [1, 3, 6, 12]; distinct integers 1-1000, at most 64), absorbing (state keys present in the host) and initial (\"margin\" = the observed row-margin distribution, or a state -\u003e share map over host states, normalized; omitted states start at 0); a bad or unknown param, or a key the host lacks, is PULSE_OVERLAY_PARAM_MISSING. Cells must be non-negative masses: a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED. Scale-invariant: a weighted host's sum-of-weights table is read as is under either weight kind. Descriptive (no p-value).",
         "intents": [
           "flows"
+        ]
+      },
+      {
+        "kind": "OVERLAY_MATRIX_GROUP_SUMMARY",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "matrix"
+        ],
+        "ref_kinds": [
+          "Matrix"
+        ],
+        "buffered": true,
+        "description": "Summary of a GROUPED matrix result across its group buckets — the MATRIX_RESULT host: Request.Overlays on a request carrying Request.Matrices and Request.Groups (no crosstab), on a process request or a Compose slot. Ref.Matrix.name names the Request.Matrices spec by its effective name (name, else \u003cTYPE\u003e_\u003cvector\u003e / \u003cTYPE\u003e; unknown is PULSE_OVERLAY_REFERENCE_UNKNOWN), and every bucket's primary matrix is read (an upper encoding expanded first) after the multiplicity fold. The primary MATRIX is the per-cell unweighted mean across buckets; payload.parts: min, max, range and n_groups (MATRIX each). Keys are the union of the buckets' row / column keys; a null cell or a key a bucket lacks contributes nothing, and a cell no bucket contributes to is null (n_groups 0). An ungrouped request is PULSE_OVERLAY_GROUPS_REQUIRED. No params; scope matrix; Level / Within 0. Refused on the Compose, chain and facet overlay slots and on a ProcessChain stage. Descriptive (no p-value).",
+        "intents": [
+          "compare_groups",
+          "relationship"
         ]
       },
       {
@@ -16550,4 +16573,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: aceaa3fe43af2aec45b9972fa582c967ed75db87a4b9309402400410febd40bf
+// golden-hash: 5810fe2288aa4304126e5cf9615cb3aad1c5e89c86d38a4aea434b01a2144dce

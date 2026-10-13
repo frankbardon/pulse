@@ -2588,7 +2588,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_REFERENCE_UNKNOWN: {
-		Message: "An overlay spec named a Reference that does not resolve to a known slot or stage. Two host families share this code distinguished by the `which: \"reference\"` Detail: (1) Compose overlay spec — `ComposeOverlaySpec.Reference` is empty, names a slot label absent from `ComposedRequest.Requests[].Label`, or resolved to nil because that slot failed under FailFast=false; Details carry `slot_label` and the spec `index`. (2) Chain overlay spec — a whole-chain `ChainOverlaySpec.Ref` StageRef whose `Index` is out of range OR `Name` is unmatched, or the spec did not populate Ref at all (Ref has no default unlike Target). The code also covers the missing-reference-cell / missing-reference-row warning on the CHAIN-host DELTA family (the delta-vs-stage overlay) with `ref_missing: true` (handler folds against an implicit zero reference).",
+		Message: "An overlay spec named a Reference that does not resolve to a known slot or stage. Two host families share this code distinguished by the `which: \"reference\"` Detail: (1) Compose overlay spec — `ComposeOverlaySpec.Reference` is empty, names a slot label absent from `ComposedRequest.Requests[].Label`, or resolved to nil because that slot failed under FailFast=false; Details carry `slot_label` and the spec `index`. (2) Chain overlay spec — a whole-chain `ChainOverlaySpec.Ref` StageRef whose `Index` is out of range OR `Name` is unmatched, or the spec did not populate Ref at all (Ref has no default unlike Target). The code also covers the missing-reference-cell / missing-reference-row warning on the CHAIN-host DELTA family (the delta-vs-stage overlay) with `ref_missing: true` (handler folds against an implicit zero reference). (3) MATRIX_RESULT overlay — `Ref.Matrix.Name` names no `Request.Matrices` spec by its effective name (`MatrixSpec.Name`, else `<TYPE>_<vector>` / `<TYPE>`); Details carry `which: \"matrix\"`, `name`, the request's effective names under `matrices`, the spec `index` and `kind`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2605,6 +2605,12 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Ref", "Name"},
 				Hint:   "Chain-overlay arm: set Ref.Name to the Name of an existing ChainStage on the request. Names must match exactly (case-sensitive). Run pulse predict --json on the chain request to confirm the stage names the chain executor sees.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Ref", "Matrix", "Name"},
+				Hint:     "MATRIX_RESULT arm: set Ref.Matrix.Name to one of the names under details.matrices — a matrix spec's `name`, or for an unnamed spec its default `<TYPE>_<vector>` (vector spec) / `<TYPE>` (inline fields).",
+				Examples: []any{"MAT_CORRELATION_scores"},
 			},
 		},
 	},
@@ -2820,6 +2826,22 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"Overlays", "Params", "targets_as"},
 				Hint:     "Counts targets must share one grand total across rows and columns; when the sources disagree, pass shares instead (targets_as \"shares\"), which are normalized per axis and scaled to the host grand total.",
 				Examples: []any{"shares"},
+			},
+		},
+	},
+	PULSE_OVERLAY_GROUPS_REQUIRED: {
+		Message: "The overlay summarizes a result across its group buckets, but the request carries no Request.Groups: an ungrouped matrix spec has one result, so there is nothing to summarize across. OVERLAY_MATRIX_GROUP_SUMMARY needs the matrix spec computed once per group bucket.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Groups"},
+				Hint:     "Add a grouper so every matrix spec is computed once per bucket, then the summary reads every bucket's matrix.",
+				Examples: []any{[]map[string]any{{"type": "GROUP_CATEGORY", "field": "region"}}},
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Overlays", "*"},
+				Hint:   "On an ungrouped request the matrix result already is the whole-cohort figure: drop the group-summary overlay and read Response.Matrices directly.",
 			},
 		},
 	},

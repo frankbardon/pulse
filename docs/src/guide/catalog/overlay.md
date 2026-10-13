@@ -29,6 +29,7 @@ The overlays this instance offers: what each is for, the questions it answers an
 | [`OVERLAY_INDEX_VS_TOTAL`](#op-overlay_index_vs_total) | Each group's value on a grouped result as an index value against the sum over all groups (group / total x 100). | How big is each region relative to the whole, on a 0 to 100 scale? | basic | [`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) when you want the raw share (0 to 1).<br>[`OVERLAY_ZSCORE_VS_TOTAL`](#op-overlay_zscore_vs_total) when you want each group against the average group.<br>[`OVERLAY_INDEX_VS_SIBLING`](#op-overlay_index_vs_sibling) when you want each group against one chosen group. |
 | [`OVERLAY_KS_VS_POP`](#op-overlay_ks_vs_pop) | Kolmogorov-Smirnov test on a numeric facet: checks whether a subset's distribution departs from a comparison population's. | Does this segment's spend distribution differ from all customers'? | advanced | [`OVERLAY_CHISQ_VS_POP`](#op-overlay_chisq_vs_pop) when the field is categorical.<br>[`TEST_KS`](test.md#op-test_ks) when you have two separate groups of raw rows.<br>[`OVERLAY_INDEX_VS_POP`](#op-overlay_index_vs_pop) when you want to see where the shapes differ rather than one test. |
 | [`OVERLAY_MARKOV`](#op-overlay_markov) | Markov chain of a from-state by to-state crosstab: transition probabilities, n-step projections, steady state and time to absorption. | Where will customers sit across the tiers in 6 or 12 periods if they keep switching as they did? | advanced | [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test of whether the from-state and the to-state are associated.<br>[`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you only want each cell's share of its row, with no projection. |
+| [`OVERLAY_MATRIX_GROUP_SUMMARY`](#op-overlay_matrix_group_summary) | Summarize a grouped matrix across its groups: each cell's mean, minimum, maximum and range, and how many groups fed it. | How stable is each correlation across regions: what is its average, and how far apart are the extremes? | intermediate | [`MAT_CORRELATION`](matrix.md#op-mat_correlation) when you want one matrix over every row, ignoring the groups.<br>[`TEST_T`](test.md#op-test_t) when you want to test whether two groups' means differ. |
 | [`OVERLAY_PAIRWISE_PROBIT_T`](#op-overlay_pairwise_probit_t) | Pairwise t-tests on probit-transformed shares between rows (or columns) of one crosstab, matching a convention some survey tools use. | Which segments differ in share when tested the way our survey tool does? | advanced | [`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) when you want the standard test of two shares.<br>[`OVERLAY_PAIRWISE_WELCH_T`](#op-overlay_pairwise_welch_t) when the cells are averages of a numeric measure. |
 | [`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) | Two-proportion z-tests between every pair of rows (or columns) of one crosstab, per column (or row): which segments differ in share? | Which age bands differ from each other in the share choosing each brand? | advanced | [`OVERLAY_PAIRWISE_WELCH_T`](#op-overlay_pairwise_welch_t) when the cells are averages of a numeric measure rather than shares.<br>[`OVERLAY_PROP_Z_PANEL`](#op-overlay_prop_z_panel) when the groups are separate Compose requests.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one overall test of whether the rows differ at all. |
 | [`OVERLAY_PAIRWISE_TWO_MEANS_Z`](#op-overlay_pairwise_two_means_z) | Large-sample z-tests between every pair of rows (or columns) of one crosstab of averages: which segments differ in mean? | With thousands of respondents per cell, which segments differ in average rating? | advanced | [`OVERLAY_PAIRWISE_WELCH_T`](#op-overlay_pairwise_welch_t) when any cell is small; the t-based version is more honest there.<br>[`OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z`](#op-overlay_pairwise_weighted_two_means_z) when the cells are weighted averages.<br>[`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) when the cells are shares rather than averages. |
@@ -938,6 +939,42 @@ Markov chain of a from-state by to-state crosstab: transition probabilities, n-s
 **Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`margin`](../glossary.md#term-margin), [`stochastic-matrix`](../glossary.md#term-stochastic-matrix), [`steady-state`](../glossary.md#term-steady-state)
 
 **Skill:** [`op-overlay-markov`](../skills/op-overlay-markov.md)
+
+<a id="op-overlay_matrix_group_summary"></a>
+
+### `OVERLAY_MATRIX_GROUP_SUMMARY`
+
+Summarize a grouped matrix across its groups: each cell's mean, minimum, maximum and range, and how many groups fed it.
+
+**Level:** intermediate
+
+**Also known as:** `pooled correlation matrix`, `matrix across groups`
+
+**Questions it answers:**
+
+- How stable is each correlation across regions: what is its average, and how far apart are the extremes?
+- Which pairs of measures relate strongly in some segments but weakly in others?
+
+**Use cases by domain:**
+
+- *survey:* Check whether item correlations hold across waves or regions before pooling the scale.
+- *ops:* See which metric pairs move together in every site and which only in a few.
+- *science:* Compare a covariance structure across cohorts: the mean matrix beside its per-cell range.
+
+**Assumptions:**
+
+- Every group counts once: the mean is unweighted across groups, so a small group weighs as much as a large one.
+- A cell missing from a group, or undefined there, is skipped for that group; n_groups says how many groups fed each cell.
+- It is descriptive: the range says how far the groups spread, not whether the difference is significant.
+
+**Use something else:**
+
+- [`MAT_CORRELATION`](matrix.md#op-mat_correlation) when you want one matrix over every row, ignoring the groups.
+- [`TEST_T`](test.md#op-test_t) when you want to test whether two groups' means differ.
+
+**Glossary:** [`mean`](../glossary.md#term-mean), [`correlation`](../glossary.md#term-correlation), [`covariance`](../glossary.md#term-covariance)
+
+**Skill:** [`op-overlay-matrix-group-summary`](../skills/op-overlay-matrix-group-summary.md)
 
 <a id="op-overlay_pairwise_probit_t"></a>
 

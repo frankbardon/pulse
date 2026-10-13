@@ -158,6 +158,13 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		result.Valid = false
 		return env
 	}
+	// A MATRIX_RESULT overlay on a stage's own Request.Overlays — the
+	// runtime's ChainStageOverlayRefusal, at the same point.
+	if cerr := ChainStageOverlayRefusal(req.Stages, opts.instance()); cerr != nil {
+		addCodedError(env, cerr)
+		result.Valid = false
+		return env
+	}
 	// Multiplicity per stage — each stage is a standalone Request with
 	// its own `request` family (ResolveMultiplicity), located by stage.
 	for i, st := range req.Stages {

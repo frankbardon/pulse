@@ -179,6 +179,7 @@
     - [op-overlay-index-vs-total](guide/skills/op-overlay-index-vs-total.md)
     - [op-overlay-ks-vs-pop](guide/skills/op-overlay-ks-vs-pop.md)
     - [op-overlay-markov](guide/skills/op-overlay-markov.md)
+    - [op-overlay-matrix-group-summary](guide/skills/op-overlay-matrix-group-summary.md)
     - [op-overlay-pairwise-probit-t](guide/skills/op-overlay-pairwise-probit-t.md)
     - [op-overlay-pairwise-prop-z](guide/skills/op-overlay-pairwise-prop-z.md)
     - [op-overlay-pairwise-two-means-z](guide/skills/op-overlay-pairwise-two-means-z.md)

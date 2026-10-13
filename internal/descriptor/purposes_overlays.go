@@ -39,6 +39,7 @@ var overlayPurposes = map[string]descriptor.Purpose{
 	"OVERLAY_INDEX_VS_STAGE":                purposeOverlayIndexVsStage,
 	"OVERLAY_INDEX_VS_TOTAL":                purposeOverlayIndexVsTotal,
 	"OVERLAY_KS_VS_POP":                     purposeOverlayKSVsPop,
+	"OVERLAY_MATRIX_GROUP_SUMMARY":          purposeOverlayMatrixGroupSummary,
 	"OVERLAY_MARKOV":                        purposeOverlayMarkov,
 	"OVERLAY_PAIRWISE_PROBIT_T":             purposeOverlayPairwiseProbitT,
 	"OVERLAY_PAIRWISE_PROP_Z":               purposeOverlayPairwisePropZ,
@@ -342,6 +343,34 @@ var (
 		KnownAs: []string{"markov chain", "transition matrix"},
 		Glossary: []string{
 			"cross-tabulation", "margin", "stochastic-matrix", "steady-state",
+		},
+	}
+
+	purposeOverlayMatrixGroupSummary = descriptor.Purpose{
+		Plain:   "Summarize a grouped matrix across its groups: each cell's mean, minimum, maximum and range, and how many groups fed it.",
+		Intents: []string{IntentCompareGroups, IntentRelationship},
+		Questions: []string{
+			"How stable is each correlation across regions: what is its average, and how far apart are the extremes?",
+			"Which pairs of measures relate strongly in some segments but weakly in others?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Check whether item correlations hold across waves or regions before pooling the scale.",
+			descriptor.DomainOps:     "See which metric pairs move together in every site and which only in a few.",
+			descriptor.DomainScience: "Compare a covariance structure across cohorts: the mean matrix beside its per-cell range.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want one matrix over every row, ignoring the groups", Use: "MAT_CORRELATION"},
+			{When: "you want to test whether two groups' means differ", Use: "TEST_T"},
+		},
+		Assumptions: []string{
+			"Every group counts once: the mean is unweighted across groups, so a small group weighs as much as a large one.",
+			"A cell missing from a group, or undefined there, is skipped for that group; n_groups says how many groups fed each cell.",
+			"It is descriptive: the range says how far the groups spread, not whether the difference is significant.",
+		},
+		Level:   descriptor.LevelIntermediate,
+		KnownAs: []string{"pooled correlation matrix", "matrix across groups"},
+		Glossary: []string{
+			"mean", "correlation", "covariance",
 		},
 	}
 

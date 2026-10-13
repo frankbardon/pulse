@@ -398,6 +398,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("OVERLAY_INDEX_VS_TOTAL"),
 	op("OVERLAY_KS_VS_POP"),
 	op("OVERLAY_MARKOV"),
+	op("OVERLAY_MATRIX_GROUP_SUMMARY"),
 	op("OVERLAY_PAIRWISE_PROBIT_T"),
 	op("OVERLAY_PAIRWISE_PROP_Z"),
 	op("OVERLAY_PAIRWISE_TWO_MEANS_Z"),
@@ -564,6 +565,8 @@ func SlotTokensOf(capability string) ([]string, bool) {
 //     compose capability gates)
 //   - capability:process_chain ← chainOverlayHandlers
 //   - capability:facet         ← facetOverlayHandlers
+//   - capability:matrices      ← matrixResultOverlayHandlers (the
+//     MATRIX_RESULT host a Request.Matrices request produces)
 //
 // An overlay kind depends on the any-of set of every host listing it.
 var overlayHostKinds = map[string][]string{
@@ -617,6 +620,11 @@ var overlayHostKinds = map[string][]string{
 		"OVERLAY_YOY",
 		"OVERLAY_ZSCORE_VS_ROLLING",
 		"OVERLAY_ZSCORE_VS_TOTAL",
+	},
+	featMatrices: {
+		// matrixResultOverlayHandlers: the MATRIX_RESULT host reads
+		// Response.Matrices, which capability:matrices gates.
+		"OVERLAY_MATRIX_GROUP_SUMMARY",
 	},
 	featProcessChain: {
 		"OVERLAY_DELTA_VS_STAGE",

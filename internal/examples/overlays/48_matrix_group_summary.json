@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Per-arm Pearson correlation matrices on experiment.pulse (GROUP_CATEGORY on treatment, one MAT_CORRELATION result per arm) decorated with an OVERLAY_MATRIX_GROUP_SUMMARY overlay on the MATRIX_RESULT host: ref.matrix names the spec, and the primary matrix is each cell's unweighted mean across the arms, with parts min, max, range and n_groups. Keys are the union of the arms' keys; a null cell is skipped. The matrix results are not changed.",
+    "intents": [
+      "relationship",
+      "compare_groups"
+    ],
+    "name": "matrix-group-summary",
+    "operators": [
+      "MAT_CORRELATION",
+      "GROUP_CATEGORY",
+      "AGG_COUNT"
+    ],
+    "tags": [
+      "matrix",
+      "correlation-analysis",
+      "overlay"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "treatment"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    }
+  ],
+  "vectors": [
+    {
+      "name": "spend",
+      "fields": ["revenue_before", "revenue", "session_minutes"]
+    }
+  ],
+  "matrices": [
+    {
+      "type": "MAT_CORRELATION",
+      "name": "spend_corr",
+      "vector": "spend"
+    }
+  ],
+  "overlays": [
+    {
+      "name": "across_arms",
+      "kind": "OVERLAY_MATRIX_GROUP_SUMMARY",
+      "scope": "matrix",
+      "ref": {"matrix": {"name": "spend_corr"}}
+    }
+  ]
+}

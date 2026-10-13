@@ -43,6 +43,7 @@ var overlayInterpretations = map[string][]descriptor.Interpretation{
 	"OVERLAY_PAIRWISE_WELCH_T":              interpOverlayPairwiseWelchT,
 	"OVERLAY_PROP_Z_CELL":                   interpOverlayPropZCell,
 	"OVERLAY_PROP_Z_PANEL":                  interpOverlayPropZPanel,
+	"OVERLAY_MATRIX_GROUP_SUMMARY":          interpOverlayMatrixGroupSummary,
 	"OVERLAY_RAKE":                          interpOverlayRake,
 	"OVERLAY_STD_RESIDUAL":                  interpOverlayStdResidual,
 	"OVERLAY_T_CELL":                        interpOverlayTCell,
@@ -326,6 +327,24 @@ var (
 		{
 			Field: "summary.parameters.classes",
 			Means: "The number of communicating classes: groups of states that can all reach one another. 1 means every state can reach every other; more (an absorbing churned state is its own class) means there is no single long-run mix, so steady_state is absent.",
+		},
+	}
+
+	interpOverlayMatrixGroupSummary = []descriptor.Interpretation{
+		{
+			Field: "cells.value",
+			Means: "The cell's average across the groups: each group's matrix value for the pair, averaged with every group counting once.",
+			Caveats: []string{
+				"Read it beside parts.range: a mean over groups that disagree hides that disagreement.",
+			},
+		},
+		{
+			Field: "parts.range.cells.value",
+			Means: "How far apart the groups sit on the cell: the largest group value minus the smallest (0 when one group fed it).",
+		},
+		{
+			Field: "parts.n_groups.cells.value",
+			Means: "How many groups had a defined value for the cell; null cells elsewhere in the layer have 0 here.",
 		},
 	}
 

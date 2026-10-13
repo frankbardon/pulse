@@ -260,6 +260,11 @@ func (s *Service) resolveComputePlan(ctx context.Context, req *types.Request, re
 			plan.MatricesSlot, plan.MatrixAuxiliary = true, true
 		}
 	}
+	if !plan.MatricesSlot && processing.AppliesMatrixResultOverlays(req, s.extensions, plan) {
+		// A computed MATRIX_RESULT overlay reads every result's Primary:
+		// a selection that drops the matrices still computes them.
+		plan.MatricesSlot = true
+	}
 	if !plan.Regressions && savesModel(req) {
 		// A regression that saves a model file is fitted whatever the
 		// `return` keeps: the save reads its result.

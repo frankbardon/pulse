@@ -103,7 +103,9 @@ drift from the engine:
    registries the engine executes against, so registering a new operator
    changes the schema.
 3. **Hand-tuned strict unions** for the two shapes reflection cannot
-   express: `OverlayRef` (at most one arm populated) and `OverlayPayload`
+   express: `OverlayRef` (at most one arm populated — ten arms, the
+   newest `matrix {name}` naming a `Request.Matrices` spec for the
+   matrix-result overlay host) and `OverlayPayload`
    (shape-discriminated `scalar` / `series` / `matrix`, plus named
    `parts` that never nest).
 

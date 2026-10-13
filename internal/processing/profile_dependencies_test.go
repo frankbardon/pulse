@@ -49,6 +49,8 @@ var (
 		"capability:compose":       true,
 		"capability:process_chain": true,
 		"capability:facet":         true,
+		// The MATRIX_RESULT host (matrixResultOverlayHandlers).
+		"capability:matrices": true,
 	}
 )
 
@@ -94,7 +96,7 @@ func testDependencyHostGroups(t *testing.T) {
 				}
 			}
 			if !ok {
-				t.Errorf("%s: no overlay-host dependency group (want any-of a subset of crosstab/compose/process_chain/facet); got %v", f.Name, f.DependsOn)
+				t.Errorf("%s: no overlay-host dependency group (want any-of a subset of crosstab/compose/process_chain/facet/matrices); got %v", f.Name, f.DependsOn)
 			}
 		case f.Kind == descx.FeatureKindOperator, requestSlots[f.Name]:
 			if !hasGroupEqual(f.DependsOn, depRequestHosts) {
@@ -139,6 +141,9 @@ func actualOverlayHosts() map[types.OverlayKind][]string {
 	}
 	for k := range facetOverlayHandlers {
 		add(k, "capability:facet")
+	}
+	for k := range matrixResultOverlayHandlers {
+		add(k, "capability:matrices")
 	}
 	for k := range out {
 		sort.Strings(out[k])

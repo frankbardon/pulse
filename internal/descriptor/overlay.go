@@ -782,11 +782,14 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		// overlayhost shape refusal, judged on the authored shape
 		// (inferComposeSlotShape, the runtime's AuthoredHostShape rule)
 		// before any per-kind validator.
-		if cerr := overlayhost.ShapeRefusal(inferComposeSlotShape(req), spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
+		// A request carrying matrices offers the MATRIX_RESULT host too
+		// (overlayhost.JudgedShape — the runtime hooks' rule).
+		if cerr := overlayhost.ShapeRefusal(overlayhost.JudgedShape(inferComposeSlotShape(req), len(req.Matrices) > 0, opts.overlayRoute(spec.Kind)), spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
 			addCodedError(env, cerr)
 			continue
 		}
 		validateOverlaySpec(env, req, spec, opts, i)
+		validateOverlayMatrixResult(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		validateOverlayCorrespondence(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
 		validateOverlayMarkov(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		validateOverlayRake(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)

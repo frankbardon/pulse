@@ -798,7 +798,7 @@
       },
       {
         "name": "overlay-system",
-        "description": "Overlay framework — OverlaySpec composition, six reference families, three payload shapes, host-arm wiring (SERIES / FACET / CHAIN / FORMULA), named payload parts of multi-output kinds. Per-kind detail lives in op-overlay-* atomics."
+        "description": "Overlay framework — OverlaySpec composition, reference families, three payload shapes, host-arm wiring (SERIES / MATRIX_RESULT / FACET / CHAIN / FORMULA), named payload parts of multi-output kinds. Per-kind detail lives in op-overlay-* atomics."
       },
       {
         "name": "predict-advisories",
@@ -1289,4 +1289,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b3634bae3e5c0cf67d2af2d73f8c45bedd3dc6afa64ca79c67c63c43ab22e9ea
+// golden-hash: 8f70224023616320de1c855d534b9ab0e8f6125f3a8486dd2a0624a396c58f83

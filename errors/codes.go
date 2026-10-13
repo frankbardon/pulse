@@ -1740,7 +1740,10 @@ const (
 	// PULSE_OVERLAY_REFERENCE_UNKNOWN indicates a whole-chain
 	// ChainOverlaySpec named a Ref StageRef that does not resolve to a
 	// known stage on the chain (Index out of range OR Name unmatched),
-	// or the spec did not populate Ref at all. Sibling of
+	// or the spec did not populate Ref at all — or a MATRIX_RESULT
+	// overlay's Ref.Matrix.Name names no Request.Matrices spec
+	// (`which: "matrix"`, Details {index, kind, which, name, matrices};
+	// predict and runtime alike via overlayhost.MatrixResultRefusal). Sibling of
 	// PULSE_OVERLAY_TARGET_UNKNOWN distinguished by `which: "ref"`. The
 	// code also covers the missing-reference-cell / missing-reference-
 	// row surface on the CHAIN-host DELTA family
@@ -2089,6 +2092,15 @@ const (
 	// table and factors still emit, summary.parameters.converged is 0.
 	// Details {kind, iterations, residual, tolerance}.
 	PULSE_OVERLAY_RAKE_NOT_CONVERGED Code = "PULSE_OVERLAY_RAKE_NOT_CONVERGED"
+
+	// PULSE_OVERLAY_GROUPS_REQUIRED indicates an overlay that summarizes
+	// a result across its group buckets (OVERLAY_MATRIX_GROUP_SUMMARY on
+	// the MATRIX_RESULT host) authored on a request with no
+	// Request.Groups: an ungrouped matrix spec has one result, so there
+	// is nothing to summarize across. Details {index, kind, name}.
+	// Raised by predict and runtime alike through the shared
+	// overlayhost.MatrixResultRefusal, with its own code.
+	PULSE_OVERLAY_GROUPS_REQUIRED Code = "PULSE_OVERLAY_GROUPS_REQUIRED"
 
 	// PULSE_TEMPLATE_NOT_FOUND indicates a render was asked for a
 	// template name that is not registered — neither declared
@@ -3801,6 +3813,7 @@ var allCodes = []Code{
 	PULSE_OVERLAY_MARKOV_NOT_ERGODIC,
 	PULSE_OVERLAY_RAKE_TARGET_MISMATCH,
 	PULSE_OVERLAY_RAKE_NOT_CONVERGED,
+	PULSE_OVERLAY_GROUPS_REQUIRED,
 	PULSE_INDEX_MISSING,
 	PULSE_LOOKUP_NOT_FOUND,
 	PULSE_LOOKUP_AMBIGUOUS,

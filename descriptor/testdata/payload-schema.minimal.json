@@ -1034,6 +1034,18 @@
       ],
       "type": "object"
     },
+    "OverlayMatrixRef": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
     "OverlayPayload": {
       "additionalProperties": false,
       "allOf": [
@@ -1214,6 +1226,9 @@
         },
         "margin": {
           "$ref": "#/$defs/OverlayMarginRef"
+        },
+        "matrix": {
+          "$ref": "#/$defs/OverlayMatrixRef"
         },
         "population": {
           "$ref": "#/$defs/OverlayPopulationRef"
@@ -2311,4 +2326,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: d51881df666c0c84ad51220ab8b6cd130d932aec5e24a795387885b1ee10c2e5
+// golden-hash: 4c0285990b1be0a9cba3d73877d54d34c0fcea6467a2ff65aa323a38125a2284

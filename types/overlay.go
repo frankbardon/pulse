@@ -1468,6 +1468,20 @@ const (
 	// PULSE_OVERLAY_NONNEGATIVE_REQUIRED). Inherently buffered.
 	OverlayKindRake OverlayKind = "OVERLAY_RAKE"
 
+	// OverlayKindMatrixGroupSummary summarizes a GROUPED matrix result
+	// across its group buckets. It is the first kind on the MATRIX_RESULT
+	// host: Ref.Matrix names a Request.Matrices spec by its effective
+	// name, and the overlay reads every bucket's Primary
+	// (types.MatrixValues; an "upper" encoding is expanded first).
+	// MATRIX-scoped, descriptive (no p-value); it never mutates the
+	// results. Primary payload: the MATRIX of the per-cell unweighted
+	// mean across buckets. OverlayPayload.Parts: min, max, range and
+	// n_groups (MATRIX each). The key sets are the union of every
+	// bucket's row / column keys; a NaN / null cell contributes nothing,
+	// and a cell no bucket contributes to is null. An ungrouped request
+	// is PULSE_OVERLAY_GROUPS_REQUIRED. No params. Inherently buffered.
+	OverlayKindMatrixGroupSummary OverlayKind = "OVERLAY_MATRIX_GROUP_SUMMARY"
+
 	// OverlayKindStdResidual emits the Haberman adjusted standardized
 	// residual of every host crosstab cell,
 	// (O − E) / sqrt(E · (1 − r/N) · (1 − c/N)) with E = r·c/N, so a
@@ -2517,6 +2531,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindIndexVsTotal,
 		OverlayKindKSVsPop,
 		OverlayKindMarkov,
+		OverlayKindMatrixGroupSummary,
 		OverlayKindPairwiseProbitT,
 		OverlayKindPairwisePropZ,
 		OverlayKindPairwiseTwoMeansZ,
@@ -2850,6 +2865,16 @@ type OverlaySlotRef struct {
 	Name string `json:"name,omitempty"`
 }
 
+// OverlayMatrixRef selects a Request.Matrices spec by its effective
+// name (MatrixSpec.EffectiveName) — every group bucket of its result
+// (the MATRIX_RESULT overlay host). OVERLAY_MATRIX_GROUP_SUMMARY is the
+// first consumer.
+type OverlayMatrixRef struct {
+	// Name is the matrix spec's effective name: MatrixSpec.Name, else
+	// "<TYPE>_<vector>" / "<TYPE>".
+	Name string `json:"name"`
+}
+
 // OverlayRef is the discriminated union identifying what an overlay
 // compares against. Each pointer field corresponds to one comparison
 // family; exactly one is meaningfully populated per OverlaySpec. The
@@ -2905,6 +2930,11 @@ type OverlayRef struct {
 
 	// Slot selects a named slot on the base result. Reserved.
 	Slot *OverlaySlotRef `json:"slot,omitempty"`
+
+	// Matrix selects a Request.Matrices spec by effective name — every
+	// group bucket of its result — for a kind on the MATRIX_RESULT host
+	// (OVERLAY_MATRIX_GROUP_SUMMARY).
+	Matrix *OverlayMatrixRef `json:"matrix,omitempty"`
 }
 
 // OverlaySpec is the request-side definition of one overlay layer.

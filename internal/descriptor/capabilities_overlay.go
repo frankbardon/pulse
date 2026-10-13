@@ -1396,6 +1396,25 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"PULSE_OVERLAY_NONNEGATIVE_REQUIRED. A weighted host's sum-of-weights table is raked as is under either " +
 				"weight kind. Writing raked weights back to a cohort is out of scope. Descriptive (no p-value).",
 		}
+	case types.OverlayKindMatrixGroupSummary:
+		return descriptor.OverlayCapability{
+			Kind: types.OverlayKindMatrixGroupSummary,
+			// Descriptive: no p-value, so no multiplicity site.
+			Inferential: false,
+			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
+			Scopes:      []types.OverlayScope{types.OverlayScopeMatrix},
+			RefKinds:    []string{"Matrix"},
+			Description: "Summary of a GROUPED matrix result across its group buckets — the MATRIX_RESULT host: " +
+				"Request.Overlays on a request carrying Request.Matrices and Request.Groups (no crosstab), on a process " +
+				"request or a Compose slot. Ref.Matrix.name names the Request.Matrices spec by its effective name " +
+				"(name, else <TYPE>_<vector> / <TYPE>; unknown is PULSE_OVERLAY_REFERENCE_UNKNOWN), and every bucket's " +
+				"primary matrix is read (an upper encoding expanded first) after the multiplicity fold. The primary " +
+				"MATRIX is the per-cell unweighted mean across buckets; payload.parts: min, max, range and n_groups " +
+				"(MATRIX each). Keys are the union of the buckets' row / column keys; a null cell or a key a bucket lacks " +
+				"contributes nothing, and a cell no bucket contributes to is null (n_groups 0). An ungrouped request is " +
+				"PULSE_OVERLAY_GROUPS_REQUIRED. No params; scope matrix; Level / Within 0. Refused on the Compose, chain " +
+				"and facet overlay slots and on a ProcessChain stage. Descriptive (no p-value).",
+		}
 	case types.OverlayKindStdResidual:
 		return descriptor.OverlayCapability{
 			Kind:        types.OverlayKindStdResidual,

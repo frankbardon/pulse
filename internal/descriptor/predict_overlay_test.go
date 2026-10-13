@@ -146,7 +146,9 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			types.OverlayKindZCell,
 			types.OverlayKindZVsRef,
 			types.OverlayKindChiSqVsRef,
-			types.OverlayKindRank:
+			types.OverlayKindRank,
+			// MATRIX_RESULT host (Request.Matrices), not a crosstab.
+			types.OverlayKindMatrixGroupSummary:
 			continue
 		}
 		matrixHostKinds[k] = true
@@ -659,6 +661,8 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		types.OverlayKindZVsRef:             true,
 		types.OverlayKindChiSqVsRef:         true,
 		types.OverlayKindRank:               true,
+		// MATRIX_RESULT host (Request.Matrices), not a crosstab.
+		types.OverlayKindMatrixGroupSummary: true,
 	}
 
 	for _, kind := range types.AllOverlayKinds() {
@@ -1042,6 +1046,12 @@ func TestPredict_OverlaysApplied_AllKinds_DescriptorCoverage(t *testing.T) {
 				RollingMean: &types.OverlayRollingMeanRef{},
 			},
 			Params: json.RawMessage(`{"window": 2}`),
+		},
+		types.OverlayKindMatrixGroupSummary: {
+			Name:  "group_summary",
+			Kind:  types.OverlayKindMatrixGroupSummary,
+			Scope: types.OverlayScopeMatrix,
+			Ref:   types.OverlayRef{Matrix: &types.OverlayMatrixRef{Name: "MAT_CORRELATION"}},
 		},
 		// SERIES implicit-grand-total, no Ref.
 		types.OverlayKindZScoreVsTotal: {
@@ -1500,6 +1510,12 @@ func TestPredict_OverlayCost_AllKindsHaveMultiplier(t *testing.T) {
 				RollingMean: &types.OverlayRollingMeanRef{},
 			},
 			Params: json.RawMessage(`{"window": 2}`),
+		},
+		types.OverlayKindMatrixGroupSummary: {
+			Name:  "group_summary",
+			Kind:  types.OverlayKindMatrixGroupSummary,
+			Scope: types.OverlayScopeMatrix,
+			Ref:   types.OverlayRef{Matrix: &types.OverlayMatrixRef{Name: "MAT_CORRELATION"}},
 		},
 		types.OverlayKindZScoreVsTotal: {
 			Name:  "zscore_vs_total",

@@ -33,8 +33,9 @@ import (
 // post-tests and overlay layers), so a pooled `request` family lists
 // its members in that order. The fold reads Response.Matrices as the
 // dispatch arm finished it — before any overlay that reads matrix
-// results is applied; a later MATRIX_RESULT overlay pass must run after
-// foldRequestMultiplicity if it is to read p_adjusted.
+// results is applied: the MATRIX_RESULT overlay pass runs after
+// foldRequestMultiplicity (matrix_result_overlay.go), so it reads
+// p_adjusted.
 
 // Auxiliary keys the matrix fold writes beside auxiliary.p.
 const (

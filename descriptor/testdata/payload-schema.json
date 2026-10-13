@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:45178cb8b0c8eb6d4ad35f37ee448bb85fbc665c29509a588bda8ca8357c73a4",
+  "$comment": "feature_set_digest: fs1:3aa32c5284bdcf6923a2d6d667e1503c4564aee3f8351ad5b4fd066e351c8d8e",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -2478,6 +2478,7 @@
         "OVERLAY_INDEX_VS_TOTAL",
         "OVERLAY_KS_VS_POP",
         "OVERLAY_MARKOV",
+        "OVERLAY_MATRIX_GROUP_SUMMARY",
         "OVERLAY_PAIRWISE_PROBIT_T",
         "OVERLAY_PAIRWISE_PROP_Z",
         "OVERLAY_PAIRWISE_TWO_MEANS_Z",
@@ -2556,6 +2557,18 @@
       },
       "required": [
         "axis"
+      ],
+      "type": "object"
+    },
+    "OverlayMatrixRef": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
       ],
       "type": "object"
     },
@@ -2763,6 +2776,9 @@
         },
         "margin": {
           "$ref": "#/$defs/OverlayMarginRef"
+        },
+        "matrix": {
+          "$ref": "#/$defs/OverlayMatrixRef"
         },
         "population": {
           "$ref": "#/$defs/OverlayPopulationRef"
@@ -4556,4 +4572,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 2d8edd22fc4fb3f624b11fa5c684732e04d5a0358bee2c74b65731eec0b09282
+// golden-hash: 1c3a3cb271e4ade3dd352a9aa8ad20e5e3b7926f527934bf1868038891353188

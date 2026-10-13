@@ -2915,6 +2915,12 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// RAKE is implicit-margin (the whole table); lower-case
 		// bare-kind default like the CHISQ_* family.
 		return "rake"
+	case types.OverlayKindMatrixGroupSummary:
+		// The MATRIX_RESULT summary is named after the matrix it reads.
+		if spec.Ref.Matrix != nil && spec.Ref.Matrix.Name != "" {
+			return "group_summary_" + spec.Ref.Matrix.Name
+		}
+		return "group_summary"
 	case types.OverlayKindStdResidual:
 		// STD_RESIDUAL is implicit-margin (no axis dispatch);
 		// lower-case bare-kind default like the CHISQ_* family.

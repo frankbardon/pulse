@@ -324,6 +324,28 @@ In each series entry: the expected number of periods a member starting in the st
 
 The number of communicating classes: groups of states that can all reach one another. 1 means every state can reach every other; more (an absorbing churned state is its own class) means there is no single long-run mix, so steady_state is absent.
 
+<a id="op-overlay_matrix_group_summary"></a>
+
+### `OVERLAY_MATRIX_GROUP_SUMMARY`
+
+Summarize a grouped matrix across its groups: each cell's mean, minimum, maximum and range, and how many groups fed it. See its [catalog entry](../catalog/overlay.md#op-overlay_matrix_group_summary).
+
+#### `cells.value`
+
+The cell's average across the groups: each group's matrix value for the pair, averaged with every group counting once.
+
+**Caveats:**
+
+- Read it beside parts.range: a mean over groups that disagree hides that disagreement.
+
+#### `parts.range.cells.value`
+
+How far apart the groups sit on the cell: the largest group value minus the smallest (0 when one group fed it).
+
+#### `parts.n_groups.cells.value`
+
+How many groups had a defined value for the cell; null cells elsewhere in the layer have 0 here.
+
 <a id="op-overlay_pairwise_probit_t"></a>
 
 ### `OVERLAY_PAIRWISE_PROBIT_T`

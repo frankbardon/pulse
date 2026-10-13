@@ -149,6 +149,9 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// OVERLAY_RAKE is inherently buffered — each IPF sweep rescales
 	// whole rows and columns against the finished table's margins.
 	OverlayKindRake: false,
+	// OVERLAY_MATRIX_GROUP_SUMMARY is inherently buffered — it reads
+	// every group bucket's finished matrix result.
+	OverlayKindMatrixGroupSummary: false,
 	// OVERLAY_STD_RESIDUAL is inherently buffered — each cell's
 	// adjusted residual reads the whole table's row, column and grand
 	// totals, which only the buffered / fused crosstab host has

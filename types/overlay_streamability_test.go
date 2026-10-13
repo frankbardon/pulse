@@ -112,6 +112,8 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		OverlayKindMarkov: false,
 		// RAKE rescales whole rows and columns of the finished table.
 		OverlayKindRake: false,
+		// MATRIX_GROUP_SUMMARY reads every bucket's finished matrix.
+		OverlayKindMatrixGroupSummary: false,
 		// STD_RESIDUAL reads the whole table's totals (CHISQ_MATRIX).
 		OverlayKindStdResidual: false,
 		OverlayKindTCell:       false,

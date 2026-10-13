@@ -147,6 +147,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-overlay-index-vs-total`](skills/op-overlay-index-vs-total.md): Per-group streamable ratio index against the SERIES host's grand total (×100).
 - [`op-overlay-ks-vs-pop`](skills/op-overlay-ks-vs-pop.md): Kolmogorov-Smirnov distance + p-value comparing host Facet NUMERIC distribution against the resolved population.
 - [`op-overlay-markov`](skills/op-overlay-markov.md): Markov chain of a from × to transition crosstab — transition matrix, n-step powers, projections, steady state and time to absorption.
+- [`op-overlay-matrix-group-summary`](skills/op-overlay-matrix-group-summary.md): Summarize a grouped matrix result across its group buckets — per-cell mean, min, max, range and contributing-group count; the results are never changed.
 - [`op-overlay-pairwise-probit-t`](skills/op-overlay-pairwise-probit-t.md): Intra-matrix axis-pairwise probit t-test (Φ⁻¹ transform of each leg's proportion, Student-t tail).
 - [`op-overlay-pairwise-prop-z`](skills/op-overlay-pairwise-prop-z.md): Intra-matrix axis-pairwise pooled-SE two-proportion z-test (row-vs-row or col-vs-col within one crosstab).
 - [`op-overlay-pairwise-two-means-z`](skills/op-overlay-pairwise-two-means-z.md): Intra-matrix axis-pairwise two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df).
@@ -227,7 +228,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-win-row-number`](skills/op-win-row-number.md): 1-based row index within the ordered partition; never ties.
 - [`op-win-running-avg`](skills/op-win-running-avg.md): Running average of Field over the configured Frame within the ordered partition.
 - [`op-win-running-sum`](skills/op-win-running-sum.md): Running total of Field over the configured Frame within the ordered partition.
-- [`overlay-system`](skills/overlay-system.md): Overlay framework — OverlaySpec composition, six reference families, three payload shapes, host-arm wiring (SERIES / FACET / CHAIN / FORMULA), named payload parts of multi-output kinds. Per-kind detail lives in op-overlay-* atomics.
+- [`overlay-system`](skills/overlay-system.md): Overlay framework — OverlaySpec composition, reference families, three payload shapes, host-arm wiring (SERIES / MATRIX_RESULT / FACET / CHAIN / FORMULA), named payload parts of multi-output kinds. Per-kind detail lives in op-overlay-* atomics.
 - [`pairwise-n-sources`](skills/pairwise-n-sources.md): The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source.
 - [`predict-advisories`](skills/predict-advisories.md): Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one.
 - [`process-chain`](skills/process-chain.md): ChainRequest source-rooted linear pipeline — mergeable-only v1 gate, per-stage Response.Components, dual-slot overlays (per-stage + whole-chain), StageRef resolution, shape-divergence warning.

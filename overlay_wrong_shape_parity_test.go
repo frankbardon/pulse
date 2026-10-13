@@ -62,6 +62,17 @@ func TestOverlayWrongShape_ProcessParity(t *testing.T) {
 					{Kind: kind, Scope: types.OverlayScopeGroup},
 				}}
 		}},
+		// A grouped matrices-only request (no aggregations, no crosstab)
+		// is a MATRIX_RESULT host: every crosstab and series kind is
+		// refused after the valid group summary at index 0.
+		{"matrix_result", overlayhost.ShapeMatrixResult, 1, func(kind types.OverlayKind) *pulse.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: "ns.pulse"}, Groups: nsGroups(),
+				Matrices: []types.MatrixSpec{{Name: "m", Type: types.MAT_CORRELATION, Fields: []string{"score", "y"}}},
+				Overlays: []types.OverlaySpec{
+					{Kind: types.OverlayKindMatrixGroupSummary, Scope: types.OverlayScopeMatrix, Ref: types.OverlayRef{Matrix: &types.OverlayMatrixRef{Name: "m"}}},
+					{Kind: kind, Scope: types.OverlayScopeGroup},
+				}}
+		}},
 		// A long-shape crosstab has no MATRIX payload to dispatch over:
 		// the Process hook refuses from the request alone.
 		{"long", types.OverlayShapeMatrix, 0, func(kind types.OverlayKind) *pulse.Request {

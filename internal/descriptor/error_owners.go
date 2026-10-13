@@ -399,7 +399,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY:    own("OVERLAY_YOY"),
 	errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT:   own(featProcessChain),
 	errors.PULSE_OVERLAY_TARGET_UNKNOWN:                own(featCompose, featProcessChain),
-	errors.PULSE_OVERLAY_REFERENCE_UNKNOWN:             own(featCompose, featProcessChain),
+	errors.PULSE_OVERLAY_REFERENCE_UNKNOWN:             own(featCompose, featProcessChain, "OVERLAY_MATRIX_GROUP_SUMMARY"),
 	errors.PULSE_OVERLAY_KEY_SET_DIVERGENT:             own(featCompose),
 	errors.PULSE_OVERLAY_SCHEMA_DIVERGENT:              own(featCompose),
 	errors.PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT:          own(featCompose, featCrosstab),
@@ -414,6 +414,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_OVERLAY_MARKOV_NOT_ERGODIC:            own("OVERLAY_MARKOV"),
 	errors.PULSE_OVERLAY_RAKE_TARGET_MISMATCH:          own("OVERLAY_RAKE"),
 	errors.PULSE_OVERLAY_RAKE_NOT_CONVERGED:            own("OVERLAY_RAKE"),
+	errors.PULSE_OVERLAY_GROUPS_REQUIRED:               own("OVERLAY_MATRIX_GROUP_SUMMARY"),
 
 	// Point lookup and its sidecar index.
 	errors.PULSE_INDEX_MISSING:             own(featIndex, featLookup),
