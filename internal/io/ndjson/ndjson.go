@@ -66,13 +66,14 @@ type Reader struct {
 // RowList implements iocore.ListAwareReader: the current object's value
 // under header column col read as a typed numeric list
 // (jsonshared.ListCellOf).
-func (r *Reader) RowList(col int, dst *iocore.ListCell) {
+func (r *Reader) RowList(col int, dst *iocore.ListCell) error {
 	if col < 0 || col >= len(r.header) {
 		dst.Reset(iocore.ListNull)
-		return
+		return nil
 	}
 	v, ok := r.curObj[r.header[col]]
 	jsonshared.ListCellOf(v, ok, dst)
+	return nil
 }
 
 var _ iocore.ListAwareReader = (*Reader)(nil)

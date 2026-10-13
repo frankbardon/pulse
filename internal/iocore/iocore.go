@@ -797,11 +797,24 @@ func (c *ListCell) Append(v float64, null bool) {
 //
 // # Refusals
 //
-// RowList returns no error: a cell the vector cannot hold is reported
-// through ListCell.State (ListNotList, ListNonNumeric) and the import
-// turns it into PULSE_IMPORT_VECTOR_INVALID with the row and column,
-// refusing the whole import. A failure to read the source belongs to
-// ReadRows, which RowList runs inside.
+// Two different things can go wrong with a cell, and they travel on two
+// different channels:
+//
+//   - A cell the source READ but the vector cannot hold (a scalar where
+//     a list belongs, a non-numeric element) is reported through
+//     ListCell.State (ListNotList, ListNonNumeric) with a nil error.
+//     The import turns it into PULSE_IMPORT_VECTOR_INVALID with the row
+//     and column, refusing the whole import.
+//   - A cell the source FAILED TO READ (an I/O error, a decode failure,
+//     a corrupt batch) is RowList's non-nil error. The import aborts —
+//     in the dim probe and in the row pass alike — and no cohort is
+//     written. The error is handled exactly as a ReadRows failure is:
+//     it is never restamped, so a *errors.CodedError keeps its own code
+//     (found with errors.As, its details gaining the vector, column and
+//     row where it set none of them) and an uncoded error stays
+//     uncoded, wrapped with the vector, column and row in its message.
+//
+// dst's content is ignored when RowList returns an error.
 type ListAwareReader interface {
 	Reader
 	// RowList fills dst with the current row's column col (an index into
@@ -810,8 +823,10 @@ type ListAwareReader interface {
 	// was handed, and only for a column a column-less vector
 	// declaration names. It is not called for a cell the source declares
 	// null through NullAwareReader.RowNulls; the import treats that cell
-	// as ListNull itself.
-	RowList(col int, dst *ListCell)
+	// as ListNull itself. A non-nil error means the source could not
+	// read the cell and aborts the import (see Refusals); a readable
+	// cell the vector cannot hold returns nil and says so in dst.State.
+	RowList(col int, dst *ListCell) error
 }
 
 // ListColumn describes one header column of an export that carries a

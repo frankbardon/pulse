@@ -2,7 +2,9 @@ package io
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
+	"maps"
 	"math"
 	"regexp"
 	"sort"
@@ -506,7 +508,9 @@ func (f *vectorFold) probeListDims(ctx context.Context, src iocore.ListAwareRead
 				continue
 			}
 			cell := &f.lists[k]
-			src.RowList(col, cell)
+			if err := src.RowList(col, cell); err != nil {
+				return listReadFailure(v, row, err)
+			}
 			if err := checkListCell(v, cell, row, false); err != nil {
 				return err
 			}
@@ -543,6 +547,34 @@ func (f *vectorFold) probeListDims(ctx context.Context, src iocore.ListAwareRead
 	}
 	_, err = src.ReadHeader()
 	return err
+}
+
+// listReadFailure carries a ListAwareReader.RowList error — the source
+// failed to READ the cell — out of the import exactly as a ReadRows
+// failure travels: never restamped. A *errors.CodedError anywhere in the
+// chain keeps its code (and its own details, gaining the vector, column
+// and row keys it did not set) and stays reachable through errors.As /
+// errors.Is; an uncoded error stays uncoded, wrapped with the vector,
+// column and row in its message. row is the 1-based source row.
+func listReadFailure(v *resolvedVector, row int, err error) error {
+	where := fmt.Sprintf("vector %q: reading list column %q at row %d", v.name, v.cols[0], row)
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) {
+		return fmt.Errorf("%s: %w", where, err)
+	}
+	details := make(map[string]any, len(ce.Details)+3)
+	maps.Copy(details, ce.Details)
+	for key, val := range map[string]any{"vector": v.name, "column": v.cols[0], "row": row} {
+		if _, set := details[key]; !set {
+			details[key] = val
+		}
+	}
+	return &errors.CodedError{
+		Code:    ce.Code,
+		Message: where + ": " + ce.Message,
+		Details: details,
+		Cause:   err,
+	}
 }
 
 // checkListCell refuses a list cell a vector cannot hold: a non-list
@@ -633,8 +665,8 @@ func (f *vectorFold) foldRow(src []string, srcNulls []bool, lists iocore.ListAwa
 			cell := &f.lists[k]
 			if (srcNulls != nil && col < len(srcNulls) && srcNulls[col]) || lists == nil {
 				cell.Reset(iocore.ListNull)
-			} else {
-				lists.RowList(col, cell)
+			} else if err := lists.RowList(col, cell); err != nil {
+				return nil, nil, listReadFailure(v, f.rowNum, err)
 			}
 			if err := checkListCell(v, cell, f.rowNum, true); err != nil {
 				return nil, nil, err

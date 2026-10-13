@@ -348,11 +348,24 @@ type LabelWarning = iio.LabelWarning
 //
 // # Refusals
 //
-// RowList returns no error: a cell the vector cannot hold is reported
-// through ListCell.State (ListNotList, ListNonNumeric) and the import
-// turns it into PULSE_IMPORT_VECTOR_INVALID with the row and column,
-// refusing the whole import. A failure to read the source belongs to
-// ReadRows, which RowList runs inside.
+// Two different things can go wrong with a cell, and they travel on two
+// different channels:
+//
+//   - A cell the source READ but the vector cannot hold (a scalar where
+//     a list belongs, a non-numeric element) is reported through
+//     ListCell.State (ListNotList, ListNonNumeric) with a nil error.
+//     The import turns it into PULSE_IMPORT_VECTOR_INVALID with the row
+//     and column, refusing the whole import.
+//   - A cell the source FAILED TO READ (an I/O error, a decode failure,
+//     a corrupt batch) is RowList's non-nil error. The import aborts —
+//     in the dim probe and in the row pass alike — and no cohort is
+//     written. The error is handled exactly as a ReadRows failure is:
+//     it is never restamped, so a *errors.CodedError keeps its own code
+//     (found with errors.As, its details gaining the vector, column and
+//     row where it set none of them) and an uncoded error stays
+//     uncoded, wrapped with the vector, column and row in its message.
+//
+// dst's content is ignored when RowList returns an error.
 type ListAwareReader = iocore.ListAwareReader
 
 // ListCell is one row's cell read as a typed numeric list, straight off

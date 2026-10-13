@@ -2897,7 +2897,7 @@ pulse/io: type ListAwareReader underlying interface
 pulse/io: type ListAwareReader imethod Close() error
 pulse/io: type ListAwareReader imethod ReadHeader() ([]string, error)
 pulse/io: type ListAwareReader imethod ReadRows(ctx context.Context, fn func(row []string) error) error
-pulse/io: type ListAwareReader imethod RowList(col int, dst *pulse/internal/iocore.ListCell)
+pulse/io: type ListAwareReader imethod RowList(col int, dst *pulse/internal/iocore.ListCell) error
 pulse/io: type ListAwareWriter = pulse/internal/iocore.ListAwareWriter
 pulse/io: type ListAwareWriter underlying interface
 pulse/io: type ListAwareWriter imethod Close() error
@@ -5077,4 +5077,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: f4936ba1c4859aa95d17f4b578b0abd22b43486179d6878fc3a4ad5f88382fb7
+// golden-hash: de1a56416cde67c9480e54cbd6ce2dca7359cbd0703b147b52e21eeeb2ec5ffd

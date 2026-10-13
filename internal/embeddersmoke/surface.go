@@ -180,6 +180,8 @@ var (
 	}
 	_ = pio.WriterOptions{SPSS: pio.SPSSWriterOptions{SanitizeNames: true}}
 	_ pio.RowError
+	// RowList's error return: a source's failure to READ a list cell.
+	_ func(pio.ListAwareReader, int, *pio.ListCell) error = pio.ListAwareReader.RowList
 )
 
 // encoding: schema nouns, the raw ungrouped write primitives and the

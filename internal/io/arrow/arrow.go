@@ -56,12 +56,13 @@ type Reader struct {
 
 // RowList implements iocore.ListAwareReader: the current row's column
 // col read off the typed Arrow list array (ListCellAt).
-func (r *Reader) RowList(col int, dst *iocore.ListCell) {
+func (r *Reader) RowList(col int, dst *iocore.ListCell) error {
 	if col < 0 || col >= len(r.curCols) {
 		dst.Reset(iocore.ListNull)
-		return
+		return nil
 	}
 	ListCellAt(r.curCols[col], r.curRow, dst)
+	return nil
 }
 
 var _ iocore.ListAwareReader = (*Reader)(nil)

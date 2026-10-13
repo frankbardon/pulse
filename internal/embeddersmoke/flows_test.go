@@ -795,6 +795,10 @@ func TestTemplateConstants(t *testing.T) {
 type listSource struct {
 	lists [][]float64
 	cur   int
+	// failAt, when non-zero, is the 1-based row whose cell the source
+	// fails to READ, with fail as RowList's error.
+	failAt int
+	fail   error
 }
 
 func (s *listSource) ReadHeader() ([]string, error) { return []string{"id", "emb"}, nil }
@@ -809,11 +813,15 @@ func (s *listSource) ReadRows(ctx context.Context, fn func([]string) error) erro
 	}
 	return nil
 }
-func (s *listSource) RowList(col int, dst *pio.ListCell) {
+func (s *listSource) RowList(col int, dst *pio.ListCell) error {
+	if s.failAt == s.cur+1 {
+		return s.fail
+	}
 	dst.Reset(pio.ListValues)
 	for _, v := range s.lists[s.cur] {
 		dst.Append(v, false)
 	}
+	return nil
 }
 
 var _ pio.ListAwareReader = (*listSource)(nil)
@@ -843,6 +851,42 @@ func TestCustomListReaderImportsVector(t *testing.T) {
 	}
 	if v, ok := got[1].([]float64); !ok || len(v) != 3 || v[0] != 4 || v[2] != 6 {
 		t.Fatalf("RecordAt(1)[emb] = %#v, want [4 5 6]", got[1])
+	}
+}
+
+// A RowList error is the source failing to READ a cell: the import
+// aborts with no cohort written, and a coded error keeps its own code.
+func TestCustomListReaderReadFailureAbortsImport(t *testing.T) {
+	ctx := context.Background()
+	plain := stderrors.New("decode failed")
+	coded := perrors.NewCodedError(perrors.DATA_FILE, "decode failed")
+	for _, c := range []struct {
+		name   string
+		failAt int
+		fail   error
+	}{
+		{"plain in row pass", 2, plain},
+		{"coded in row pass", 2, coded},
+		{"plain in dim probe", 1, plain},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			p, fs := newEngine(t, pulse.Options{})
+			src := &listSource{lists: [][]float64{{1, 2, 3}, {4, 5, 6}}, failAt: c.failAt, fail: c.fail}
+			job := pio.NewImportJob(src, "emb.pulse")
+			job.FS = fs
+			job.Vectors = []pio.VectorDecl{{Name: "emb"}}
+			_, err := p.Import(ctx, job)
+			if !stderrors.Is(err, c.fail) {
+				t.Fatalf("Import error = %v, want one wrapping %v", err, c.fail)
+			}
+			var ce *perrors.CodedError
+			if gotCoded := stderrors.As(err, &ce); gotCoded != (c.fail == coded) || (gotCoded && ce.Code != perrors.DATA_FILE) {
+				t.Fatalf("Import error %v: coded=%v, want the source's own coding", err, gotCoded)
+			}
+			if ok, _ := afero.Exists(fs, "emb.pulse"); ok {
+				t.Fatal("a refused import wrote emb.pulse")
+			}
+		})
 	}
 }
 

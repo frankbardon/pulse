@@ -87,20 +87,21 @@ type Reader struct {
 // RowList implements iocore.ListAwareReader: the current row's column
 // col read off the typed Arrow list array pqarrow decoded the Parquet
 // LIST into (parrow.ListCellAt).
-func (r *Reader) RowList(col int, dst *iocore.ListCell) {
+func (r *Reader) RowList(col int, dst *iocore.ListCell) error {
 	if col < 0 || col >= len(r.curChunks) {
 		dst.Reset(iocore.ListNull)
-		return
+		return nil
 	}
 	offset := r.curRow
 	for _, chunk := range r.curChunks[col] {
 		if offset < chunk.Len() {
 			parrow.ListCellAt(chunk, offset, dst)
-			return
+			return nil
 		}
 		offset -= chunk.Len()
 	}
 	dst.Reset(iocore.ListNull)
+	return nil
 }
 
 var _ iocore.ListAwareReader = (*Reader)(nil)

@@ -175,8 +175,9 @@ first record carrying a key the header lacks, instead of dropping it.
 
 A format whose cells can hold NATIVE lists (Arrow, Parquet, JSON) should
 implement the optional `iocore.ListAwareReader`
-(`RowList(col int, dst *iocore.ListCell)`, valid inside the `ReadRows`
-callback): it hands a column-less vector declaration (`--vector NAME`)
+(`RowList(col int, dst *iocore.ListCell) error`, valid inside the
+`ReadRows` callback; return nil unless the source failed to READ the
+cell): it hands a column-less vector declaration (`--vector NAME`)
 the cell's elements typed — `ListNull`, `ListValues` (NaN at a null
 element), `ListNotList` or `ListNonNumeric` — so they never round-trip
 through the pipe-joined text the set ladder reads. Reuse
@@ -375,7 +376,7 @@ elements ever round-tripping through the `[]string` row:
 ```go
 type ListAwareReader interface {
     Reader
-    RowList(col int, dst *ListCell)
+    RowList(col int, dst *ListCell) error
 }
 ```
 
@@ -402,18 +403,27 @@ terms as the built-ins:
   whatever `Values` holds there, and a list whose elements are all null
   is a null vector. Every list must have the first non-null list's
   length.
-- **Refusals.** `RowList` returns no error. A cell the vector cannot
-  hold is reported through `State` — `io.ListNotList` (with `BadValue`)
-  or `io.ListNonNumeric` (with the 0-based `BadIndex` and `BadValue`)
-  — and the import refuses with `PULSE_IMPORT_VECTOR_INVALID`
-  (`not_a_list`, `element_not_numeric`); a cell outside the contract
-  (an undeclared `State`, a `Nulls` of the wrong length) is
-  `malformed_list_cell`. A read failure belongs to `ReadRows`. A
-  source WITHOUT the interface refuses the declaration with
-  `no_columns`.
+- **Refusals.** Two channels, never mixed. A cell the source READ but
+  the vector cannot hold is reported through `State` with a nil error
+  — `io.ListNotList` (with `BadValue`) or `io.ListNonNumeric` (with the
+  0-based `BadIndex` and `BadValue`) — and the import refuses with
+  `PULSE_IMPORT_VECTOR_INVALID` (`not_a_list`, `element_not_numeric`);
+  a cell outside the contract (an undeclared `State`, a `Nulls` of the
+  wrong length) is `malformed_list_cell`. A cell the source FAILED to
+  read (I/O, decode, a corrupt batch) is `RowList`'s non-nil error: the
+  import aborts — in the dim probe as in the row pass — with no cohort
+  written, and the error travels exactly as a `ReadRows` failure does,
+  never restamped. A `*errors.CodedError` keeps its code (`errors.As`),
+  its details gaining `vector` / `column` / `row` where it set none; an
+  uncoded error stays uncoded, wrapped with the vector, column and row
+  in its message. `dst` is ignored when an error is returned. The
+  built-in list readers return nil (their read failures surface from
+  `ReadRows`). A source WITHOUT the interface refuses the declaration
+  with `no_columns`.
 
 `io/list_reader_test.go` pins a custom reader against the NDJSON list
-import of the same data, byte for byte, and
+import of the same data, byte for byte, and its `RowList` read failures
+(plain, coded, and during the dim probe), and
 `internal/embeddersmoke` proves the interface is reachable from an
 external module.
 
