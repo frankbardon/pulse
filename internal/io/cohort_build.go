@@ -522,7 +522,10 @@ func (b *CohortBuild) convert(row []any) error {
 // integers uint64, f32/f64 float32/float64, date int32 epoch days,
 // datetime int64 epoch seconds, decimal128 encoding.Decimal128 (the
 // mantissa at the field's scale), categorical string, set_* []string,
-// packed_bool bool. No coercion: any other Go type is a type error.
+// packed_bool bool, vec_f32 []float32 and vec_f64 []float64 of exactly
+// the field's dim (NaN / ±Inf elements stored verbatim; a nil slice is
+// a type error — a null vector is a nil cell). No coercion: any other
+// Go type is a type error.
 func (b *CohortBuild) convertCell(i int, f *encoding.Field, v any) error {
 	typeErr := func(want string) error {
 		return b.rowError(f, "type", fmt.Sprintf("want %s for %s, got %T", want, f.Type, v),
@@ -617,6 +620,36 @@ func (b *CohortBuild) convertCell(i int, f *encoding.Field, v any) error {
 			return overflow(err)
 		}
 		b.cells.vals[i] = w
+	case f.Type.IsVector():
+		var vec []float64
+		switch x := v.(type) {
+		case []float64:
+			if f.Type != encoding.FieldTypeVecF64 {
+				return typeErr("[]float32")
+			}
+			vec = x
+		case []float32:
+			if f.Type != encoding.FieldTypeVecF32 {
+				return typeErr("[]float64")
+			}
+			vec = make([]float64, len(x))
+			for k, e := range x {
+				vec[k] = float64(e)
+			}
+		default:
+			if f.Type == encoding.FieldTypeVecF32 {
+				return typeErr("[]float32")
+			}
+			return typeErr("[]float64")
+		}
+		dim := b.schema.VectorDim(i)
+		if vec == nil || len(vec) != dim {
+			return b.rowError(f, "type", fmt.Sprintf("vector has %d elements, %s field dim is %d", len(vec), f.Type, dim),
+				map[string]any{"dim": dim, "elements": len(vec)})
+		}
+		if err := b.cells.setVector(i, f.Type, dim, vec); err != nil {
+			return overflow(err)
+		}
 	default:
 		return b.rowError(f, "type", fmt.Sprintf("unsupported field type %s", f.Type), nil)
 	}

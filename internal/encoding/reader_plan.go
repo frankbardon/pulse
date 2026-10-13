@@ -97,7 +97,11 @@ func (rr *RecordReader) ReadRecordWithWidePlan(
 				}
 				continue
 			}
-			if err := rr.decodeFieldGroup(values, nulls, wide, keep, seg.Fields); err != nil {
+			indices, err := rr.segmentIndices(seg)
+			if err != nil {
+				return err
+			}
+			if err := rr.decodeFieldGroup(values, nulls, wide, keep, seg.Fields, indices); err != nil {
 				if isEOF(err) {
 					return io.EOF
 				}
@@ -130,7 +134,8 @@ func advanceReader(r io.Reader, n int) error {
 // decodeFieldGroup runs the existing per-field decoder for each field
 // in the group, writing only to maps for fields keep accepts. The
 // caller has already verified plan != nil; the group is a non-bitmap
-// DecodeFields segment.
+// DecodeFields segment. indices[k] is fields[k]'s schema position
+// (segmentIndices), which sizes a vector field.
 //
 // Mirrors the readRecord per-field switch exactly so byte-equivalence
 // holds.
@@ -139,9 +144,10 @@ func (rr *RecordReader) decodeFieldGroup(
 	nulls map[string]bool,
 	wide map[string]any,
 	keep FieldFilter,
-	fields []*encoding.Field) error {
-	for fi := 0; fi < len(fields); fi++ {
-		field := fields[fi]
+	fields []*encoding.Field,
+	indices []int) error {
+	for gi := 0; gi < len(fields); gi++ {
+		field := fields[gi]
 		keepField := keep == nil || keep(field.Name)
 		switch field.Type {
 		case encoding.FieldTypePackedBool:
@@ -195,6 +201,17 @@ func (rr *RecordReader) decodeFieldGroup(
 			values[field.Name] = setMaskFloatEcho(m)
 			if wide != nil {
 				wide[field.Name] = m
+			}
+
+		case encoding.FieldTypeVecF32, encoding.FieldTypeVecF64:
+			// Mirrors readRecord's vector arm: indices[gi] is the field's
+			// schema position, whose VectorDim sizes the payload.
+			v, err := readVectorField(rr.r, rr.schema, indices[gi], keepField && wide != nil)
+			if err != nil {
+				return err
+			}
+			if v != nil {
+				wide[field.Name] = v
 			}
 
 		default:

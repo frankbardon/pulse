@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -18,8 +19,9 @@ import (
 // type once, nullable, named after the type ("t_<type>"), each on its
 // own byte(s). Row 0 holds a value in every column — date and datetime
 // pre-1970 (signed); row 1 is null in every column but t_u8 (the row
-// key, 1 and 2).
-func everyTypeCohort(t *testing.T, fs afero.Fs, path string) *encoding.Schema {
+// key, 1 and 2). withVectors=false leaves the two vector types out (the
+// export oracle cannot write them yet).
+func everyTypeCohort(t *testing.T, fs afero.Fs, path string, withVectors bool) *encoding.Schema {
 	t.Helper()
 	dict := func(prefix string, n int) *encoding.Dictionary {
 		d := encoding.NewDictionary()
@@ -31,13 +33,14 @@ func everyTypeCohort(t *testing.T, fs afero.Fs, path string) *encoding.Schema {
 		return d
 	}
 	var fields []encoding.Field
+	var vectors []encoding.VectorField
 	off := 0
 	for ft := encoding.FieldType(0); ft.IsKnown(); ft++ {
 		if ft.IsVector() {
-			// Stub (vector-field-types E1-S2): no decode path returns a
-			// vector cell yet; E1-S3 adds the record-layer vector kind
-			// and this table's vec columns.
-			continue
+			if !withVectors {
+				continue
+			}
+			vectors = append(vectors, encoding.VectorField{FieldIndex: len(fields), Dim: 2})
 		}
 		f := encoding.Field{Name: "t_" + ft.String(), Type: ft, Nullable: ft != encoding.FieldTypeU8, ByteOffset: off}
 		switch {
@@ -55,10 +58,10 @@ func everyTypeCohort(t *testing.T, fs afero.Fs, path string) *encoding.Schema {
 		}
 		fields = append(fields, f)
 	}
-	if len(fields) != 20 {
-		t.Fatalf("walked %d non-vector field types, want 20", len(fields))
+	if want := map[bool]int{false: 20, true: 22}[withVectors]; len(fields) != want {
+		t.Fatalf("walked %d field types, want %d", len(fields), want)
 	}
-	sch := &encoding.Schema{Fields: fields}
+	sch := &encoding.Schema{Fields: fields, Vectors: vectors}
 	var buf bytes.Buffer
 	must := func(err error) {
 		t.Helper()
@@ -66,8 +69,7 @@ func everyTypeCohort(t *testing.T, fs afero.Fs, path string) *encoding.Schema {
 			t.Fatal(err)
 		}
 	}
-	must(encoding.WriteHeader(&buf))
-	must(encoding.WriteSchema(&buf, sch))
+	must(encx.WritePreamble(&buf, sch))
 	for row := 0; row < 2; row++ {
 		bm := make([]byte, sch.BitmapByteSize())
 		for i := range sch.Fields {
@@ -119,6 +121,12 @@ func everyTypeCohort(t *testing.T, fs afero.Fs, path string) *encoding.Schema {
 					m = encoding.SetMaskFromUint64(0)
 				}
 				must(encoding.WriteSetMask(&buf, f.Type, m))
+			case f.Type.IsVector():
+				v := []float64{-2.5, 0.125}
+				if null {
+					v = nil // the zeroed placeholder
+				}
+				must(encoding.WriteVector(&buf, f.Type, 2, v))
 			default:
 				must(encoding.WriteFieldValue(&buf, f.Type, raw))
 			}
@@ -154,10 +162,12 @@ func (w *captureWriter) Close() error { return nil }
 // already JSON-native and are pinned unchanged: numbers (date /
 // datetime as signed epoch days / seconds — pre-1970 negative, never
 // the unsigned on-wire word; packed_bool 0/1), categorical as the
-// export label, sets as the export's label list. A null cell is absent.
+// export label, sets as the export's label list, vectors as the
+// element array. A null cell is absent.
 func TestRecordRowCells_EveryFieldTypeIsJSONNative(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	sch := everyTypeCohort(t, fs, "all.pulse")
+	sch := everyTypeCohort(t, fs, "all.pulse", true)
+	everyTypeCohort(t, fs, "noVec.pulse", false)
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {
 		t.Fatal(err)
@@ -167,7 +177,7 @@ func TestRecordRowCells_EveryFieldTypeIsJSONNative(t *testing.T) {
 	// Export's text per column, row 0 — the oracle for the non-numeric
 	// families.
 	cw := &captureWriter{}
-	if _, err := p.Export(ctx, &pio.ExportJob{Source: "all.pulse", Target: cw}); err != nil {
+	if _, err := p.Export(ctx, &pio.ExportJob{Source: "noVec.pulse", Target: cw}); err != nil {
 		t.Fatal(err)
 	}
 	export := map[string]any{}
@@ -183,6 +193,7 @@ func TestRecordRowCells_EveryFieldTypeIsJSONNative(t *testing.T) {
 		"t_decimal128": `"-123.4567"`,
 		"t_set_u8":     `["m0","m2"]`, "t_set_u16": `["m0","m2"]`, "t_set_u32": `["m0","m2"]`, "t_set_u64": `["m0","m2"]`,
 		"t_set_u128": `["m0","m2","m100"]`, "t_set_u256": `["m0","m2","m100"]`,
+		"t_vec_f32": `[-2.5,0.125]`, "t_vec_f64": `[-2.5,0.125]`,
 	}
 	if len(want) != len(sch.Fields) {
 		t.Fatalf("want covers %d types, schema has %d", len(want), len(sch.Fields))

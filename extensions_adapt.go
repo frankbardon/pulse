@@ -1147,6 +1147,8 @@ func (v featureRecordView) DecimalValue(string) (encoding.Decimal128, bool) {
 	return encoding.Decimal128{}, false
 }
 
+func (v featureRecordView) VectorValue(string) ([]float64, bool) { return nil, false }
+
 // Weight: features are never weighted.
 func (v featureRecordView) Weight() (float64, bool) { return 0, false }
 

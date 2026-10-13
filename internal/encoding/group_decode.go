@@ -342,8 +342,14 @@ func (d *groupedDecoder) buildSel(plan *DecodePlan, skipAll bool, val, null []bo
 		count := int(d.groups[sg.g].count)
 		if whole := 4 + 8*len(sg.vals) + decimalCacheBytes*c.nd; count <= share/whole {
 			c.all, c.slots, c.nv = true, count, len(sg.vals)
-			for j := range c.numOf {
+			for j, k := range sg.vals {
 				c.numOf[j] = j
+				if d.groups[sg.g].members[k].field.Type.IsVector() {
+					// A vector has no numeric echo to cache: it is
+					// written from the entry bytes every time
+					// (writeFieldBytes), like an uncached member.
+					c.numOf[j] = -1
+				}
 			}
 			continue
 		}

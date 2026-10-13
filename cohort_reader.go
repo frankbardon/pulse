@@ -21,6 +21,8 @@ import (
 //	set_* (every rung)           []string labels in dictionary order;
 //	                             an empty non-nil slice is "no selection"
 //	packed_bool                  bool
+//	vec_f32 / vec_f64            []float32 / []float64, dim elements;
+//	                             a NaN element is a stored value
 //	null (any type)              nil
 type CohortRow []any
 

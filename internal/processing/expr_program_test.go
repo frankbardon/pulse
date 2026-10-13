@@ -54,17 +54,16 @@ func exprTestDict(prefix string, n int) *encoding.Dictionary {
 func exprAllTypesSchema(t testing.TB) *encoding.Schema {
 	t.Helper()
 	var fields []encoding.Field
+	var vectors []encoding.VectorField
 	for i := 0; ; i++ {
 		ft := encoding.FieldType(i)
 		if !ft.IsKnown() {
 			break
 		}
-		if ft.IsVector() {
-			// Stub (vector-field-types E1-S2): the record layer has no
-			// vector kind yet; E1-S3 adds it and the vec rows here.
-			continue
-		}
 		f := encoding.Field{Name: "f_" + ft.String(), Type: ft, Nullable: true}
+		if ft.IsVector() {
+			vectors = append(vectors, encoding.VectorField{FieldIndex: len(fields), Dim: 3})
+		}
 		switch {
 		case ft.IsCategorical():
 			f.Dictionary = exprTestDict("c", 3)
@@ -75,7 +74,7 @@ func exprAllTypesSchema(t testing.TB) *encoding.Schema {
 		}
 		fields = append(fields, f)
 	}
-	return &encoding.Schema{Fields: fields}
+	return &encoding.Schema{Fields: fields, Vectors: vectors}
 }
 
 // encodeExprRows writes n rows of s; row r nulls every field when
@@ -98,6 +97,8 @@ func encodeExprRows(t testing.TB, s *encoding.Schema, n int) []byte {
 				must(encoding.WriteDecimal128(&buf, encoding.NewDecimal128FromInt(int64(r*125))))
 			case f.Type.IsWideSet():
 				must(encoding.WriteSetMask(&buf, f.Type, encoding.SetMaskFromUint64(v).WithBit(100)))
+			case f.Type.IsVector():
+				must(encoding.WriteVector(&buf, f.Type, 3, []float64{float64(r), -0.5, float64(v)}))
 			case f.Type == encoding.FieldTypeF64:
 				must(encoding.WriteFieldValue(&buf, f.Type, math.Float64bits(float64(r)+0.5)))
 			case f.Type == encoding.FieldTypeF32:

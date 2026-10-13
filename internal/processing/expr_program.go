@@ -476,12 +476,14 @@ var (
 	exprUint64Type     = reflect.TypeOf(uint64(0))
 	exprSetMaskType    = reflect.TypeOf(encoding.SetMask{})
 	exprDecimal128Type = reflect.TypeOf(encoding.Decimal128{})
+	exprFloat64sType   = reflect.TypeOf([]float64(nil))
 )
 
 // exprValueType is the Go type Record.AllValues gives field f's value:
 // a dictionary-bearing categorical resolves to its label, a
 // dictionary-bearing set to its label slice, a decimal / dictionary-less
-// set rides its wide value, everything else is the float64 slot. Pinned
+// set rides its wide value, a vector its []float64 elements, everything
+// else is the float64 slot. Pinned
 // against every decode path by TestExprValueType_MatchesAllValues.
 func exprValueType(f *encoding.Field) reflect.Type {
 	switch {
@@ -499,6 +501,8 @@ func exprValueType(f *encoding.Field) reflect.Type {
 		return exprUint64Type
 	case f.Type == encoding.FieldTypeDecimal128:
 		return exprDecimal128Type
+	case f.Type.IsVector():
+		return exprFloat64sType
 	}
 	return exprFloat64Type
 }

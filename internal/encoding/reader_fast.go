@@ -106,6 +106,56 @@ type GroupIndexRecord interface {
 	SetGroupIndices(schema *encoding.Schema, idx []uint32)
 }
 
+// VectorRecord is an optional extension of IndexedReusableRecord that
+// takes a vector field's (vec_f32 / vec_f64) on-wire payload directly:
+// the record decodes the dim elements into storage it owns, so a reuse
+// decode of a vector allocates nothing. payload is exactly the field's
+// FieldWidth bytes (VectorElemSize × dim) and is the reader's buffer —
+// an implementation decodes it before returning and never retains it.
+//
+// A sink that does not implement it receives the vector boxed through
+// SetWideFieldAt as a freshly allocated []float64 (the map decoders'
+// wide value). Either way a vector field gets NO SetNumericAt echo: a
+// vector has no scalar value, so its presence rides the wide value
+// alone. A null vector surfaces exactly like any other null
+// (SetNullFieldAt + SetNumericAt(0)).
+type VectorRecord interface {
+	SetVectorAt(idx int, ft encoding.FieldType, payload []byte) error
+}
+
+// putVectorField writes a vector field's value from its on-wire bytes
+// sub (the whole field width): typed into the record's own storage when
+// the sink is a VectorRecord, boxed as a []float64 otherwise. The dim is
+// the span's element count — every caller hands the field's exact
+// Schema.FieldWidth span — and a span that is not a whole, in-range
+// element count is ENCODING_INVALID, never a short or zero vector.
+func putVectorField(sink IndexedReusableRecord, ft encoding.FieldType, fi int, sub []byte) error {
+	if vr, ok := sink.(VectorRecord); ok {
+		return vr.SetVectorAt(fi, ft, sub)
+	}
+	v, err := VectorFromSpan(ft, sub, nil)
+	if err != nil {
+		return err
+	}
+	sink.SetWideFieldAt(fi, v)
+	return nil
+}
+
+// VectorFromSpan decodes a vector field's whole on-wire span — exactly
+// its Schema.FieldWidth bytes — appending the elements to dst[:0]. The
+// dim is the span's element count; a span that is not a whole multiple
+// of the element size, or whose count is outside MinVectorDim ..
+// MaxVectorDim, is ENCODING_INVALID (encoding.VectorFromBytes).
+func VectorFromSpan(ft encoding.FieldType, sub []byte, dst []float64) ([]float64, error) {
+	es := ft.VectorElemSize()
+	if es == 0 || len(sub)%es != 0 {
+		return nil, errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
+			fmt.Sprintf("vector span of %d bytes is not a whole %s element count", len(sub), ft),
+			map[string]any{"type": ft.String(), "bytes": len(sub)})
+	}
+	return encoding.VectorFromBytes(sub, ft, len(sub)/es, dst)
+}
+
 // putSetField writes a set field's wide value: typed when the sink
 // supports it, boxed through SetWideFieldAt otherwise.
 func putSetField(sink IndexedReusableRecord, typed TypedSetRecord, ft encoding.FieldType, fi int, sub []byte) error {
@@ -256,6 +306,17 @@ func (rr *RecordReader) decodeStrideIndexed(sink IndexedReusableRecord, buf []by
 			d := encoding.DecodeDecimal128(raw)
 			sink.SetNumericAt(fi, d.Float64(field.Scale))
 			sink.SetWideFieldAt(fi, d)
+
+		case encoding.FieldTypeVecF32, encoding.FieldTypeVecF64:
+			// A vector's width is element × dim, a property of the field
+			// within its schema — never fixedWidthBytes, which knows only
+			// the type and answers 0 here.
+			n := rr.schema.FieldWidth(fi)
+			sub := buf[cursor : cursor+n]
+			cursor += n
+			if err := putVectorField(sink, field.Type, fi, sub); err != nil {
+				return err
+			}
 
 		default:
 			n := fixedWidthBytes(field.Type)
@@ -422,13 +483,15 @@ func (rr *RecordReader) decodeFieldGroupReused(sink IndexedReusableRecord, keep 
 	if _, err := io.ReadFull(rr.r, buf); err != nil {
 		return err
 	}
-	return decodeGroupBytes(sink, keep, fields, indices, buf)
+	return decodeGroupBytes(rr.schema, sink, keep, fields, indices, buf)
 }
 
 // decodeGroupBytes decodes one DecodeFields group whose on-wire bytes
 // are already resident in buf: the write loop of decodeFieldGroupReused,
-// shared with the run-skip plan path's write-everything arm.
-func decodeGroupBytes(sink IndexedReusableRecord, keep FieldFilter, fields []*encoding.Field, indices []int, buf []byte) error {
+// shared with the run-skip plan path's write-everything arm. s is the
+// reader's schema: indices are positions in it, and a vector member's
+// width (element × dim) is s.FieldWidth of its position.
+func decodeGroupBytes(s *encoding.Schema, sink IndexedReusableRecord, keep FieldFilter, fields []*encoding.Field, indices []int, buf []byte) error {
 	typed, _ := sink.(TypedSetRecord)
 	cursor := 0
 	for gi, field := range fields {
@@ -471,6 +534,17 @@ func decodeGroupBytes(sink IndexedReusableRecord, keep FieldFilter, fields []*en
 			d := encoding.DecodeDecimal128(raw)
 			sink.SetNumericAt(fi, d.Float64(field.Scale))
 			sink.SetWideFieldAt(fi, d)
+
+		case encoding.FieldTypeVecF32, encoding.FieldTypeVecF64:
+			n := s.FieldWidth(fi)
+			sub := buf[cursor : cursor+n]
+			cursor += n
+			if !keepField {
+				continue
+			}
+			if err := putVectorField(sink, field.Type, fi, sub); err != nil {
+				return err
+			}
 
 		default:
 			n := fixedWidthBytes(field.Type)
@@ -584,9 +658,10 @@ func resolveSegmentIndices(schema *encoding.Schema, fields []*encoding.Field) ([
 
 // fixedWidthBytes returns the on-wire width of a field type the
 // buffer-once decoder can consume as one contiguous run of bytes.
-// Returns 0 for bit-packed, decimal128 and unknown types so callers
-// fall through to their own explicit case (decimal128) or raise
-// ENCODING_INVALID (unknown).
+// Returns 0 for bit-packed, decimal128, the vector types and unknown
+// types so callers fall through to their own explicit case (decimal128,
+// vec_f32 / vec_f64 — whose width is element × dim, Schema.FieldWidth)
+// or raise ENCODING_INVALID (unknown).
 //
 // The wide set rungs DO answer here (16 and 32 bytes): unlike
 // decimal128 they have no dedicated case in the caller's switch, and a

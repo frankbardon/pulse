@@ -43,11 +43,14 @@ overlay the engine consults).
 ## The `extend` contract: `Record`, `Rows` and reuse
 
 `extend.Record` exposes `Schema`, `IsNull`, `NumericValue`,
-`StringValue`, `SetMaskValue`, `DecimalValue` and `Weight`; `extend.Rows` exposes
-`Len` and `At(i)`. Accessors never return an error — every "no value"
-answer is a false second return. The silent cases: `NumericValue` is
-false for a null, projected-out or missing field AND for every
-`set_*` field (read those with `SetMaskValue`); a categorical field's
+`StringValue`, `SetMaskValue`, `DecimalValue`, `VectorValue` and
+`Weight`; `extend.Rows` exposes `Len` and `At(i)`. Accessors never
+return an error — every "no value" answer is a false second return. The
+silent cases: `NumericValue` is false for a null, projected-out or
+missing field AND for every `set_*` field (read those with
+`SetMaskValue`) and every `vec_f32` / `vec_f64` field (read those with
+`VectorValue`: the elements as `float64`, a fresh copy safe to keep,
+NaN elements verbatim); a categorical field's
 `NumericValue` is its dictionary INDEX; `date` is epoch days and
 `datetime` epoch seconds; `u64` above 2^53 loses precision through the
 float echo; `decimal128` needs `DecimalValue` for exactness.

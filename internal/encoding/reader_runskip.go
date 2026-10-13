@@ -322,7 +322,8 @@ func (rr *RecordReader) settleNulls(rs RunSkipRecord, typed TypedSetRecord, keep
 
 // writeFieldBytes writes one non-null field's value (and typed wide
 // value) from its on-wire bytes: the per-field body of
-// decodeStrideIndexed, byte for byte.
+// decodeStrideIndexed, byte for byte. sub is exactly the field's
+// Schema.FieldWidth span — a vector's dim is its element count.
 func writeFieldBytes(sink IndexedReusableRecord, typed TypedSetRecord, field *encoding.Field, fi int, sub []byte) error {
 	switch field.Type {
 	case encoding.FieldTypePackedBool:
@@ -345,6 +346,10 @@ func writeFieldBytes(sink IndexedReusableRecord, typed TypedSetRecord, field *en
 		d := encoding.DecodeDecimal128(raw)
 		sink.SetNumericAt(fi, d.Float64(field.Scale))
 		sink.SetWideFieldAt(fi, d)
+	case encoding.FieldTypeVecF32, encoding.FieldTypeVecF64:
+		// sub is the field's whole Schema.FieldWidth span (element ×
+		// dim); fixedWidthBytes knows only the type and answers 0.
+		return putVectorField(sink, field.Type, fi, sub)
 	default:
 		if fixedWidthBytes(field.Type) == 0 {
 			return errors.NewCodedError(errors.ENCODING_INVALID,

@@ -56,9 +56,10 @@ type recordLayout struct {
 	slotOf  []int32
 	fieldOf []int32
 	// wideKind is the typed wide storage a slot owns (wideNone for a
-	// type that never carries a wide value — only decimal128 and set_*
-	// do), and wideOff its offset into that storage: an index into
-	// recordAux.decs for wideDecimal, a word offset into the set-word
+	// type that never carries a wide value — only decimal128, set_* and
+	// the vector types do), and wideOff its offset into that storage: an
+	// index into recordAux.decs for wideDecimal, an element offset into
+	// recordAux.vecs for wideVector, a word offset into the set-word
 	// tail of Record.vals for the set kinds (1 word for a narrow rung, 2 for set_u128, 4 for
 	// set_u256). Sparse, so a schema with a handful of wide columns does
 	// not pay for them per field.
@@ -66,6 +67,12 @@ type recordLayout struct {
 	wideOff  []int32
 	nDecs    int
 	nWords   int
+	// vecDim is each slot's vector dim (0 for a non-vector slot), nil
+	// when the layout holds no vector field. A wideVector slot's
+	// elements live at recordAux.vecs[wideOff : wideOff+vecDim]; nVecs
+	// is the total element count every vector slot needs.
+	vecDim []int32
+	nVecs  int
 	// nGroups is len(schema.Groups): the words past the set-mask words
 	// in the tail of Record.vals that hold the row's parent-group entry
 	// indices (see Record.SetGroupIndices). Zero for an ungrouped schema,
@@ -171,6 +178,22 @@ func buildLayout(s *encoding.Schema, keep encx.FieldFilter) *recordLayout {
 		case wideNarrowSet, wideWideSet:
 			l.wideOff[slot] = int32(l.nWords)
 			l.nWords += words
+		case wideVector:
+			// The dim is schema metadata (the VECTORS section), not the
+			// type: a vec field the schema does not describe has dim 0
+			// and keeps no typed storage — its value, if one is ever
+			// written, rides the overflow side.
+			dim := s.VectorDim(l.field(slot))
+			if dim <= 0 {
+				l.wideKind[slot] = wideNone
+				continue
+			}
+			if l.vecDim == nil {
+				l.vecDim = make([]int32, l.n)
+			}
+			l.vecDim[slot] = int32(dim)
+			l.wideOff[slot] = int32(l.nVecs)
+			l.nVecs += dim
 		}
 	}
 	return l
@@ -182,6 +205,7 @@ const (
 	wideDecimal         // encoding.Decimal128 in recordAux.decs
 	wideNarrowSet       // set_u8..set_u64: one uint64 word
 	wideWideSet         // set_u128 / set_u256: 2 or 4 words, an encoding.SetMask
+	wideVector          // vec_f32 / vec_f64: dim float64 elements in recordAux.vecs
 )
 
 // wideKindOf returns the typed wide storage kind for ft and, for a set
@@ -194,6 +218,8 @@ func wideKindOf(ft encoding.FieldType) (kind uint8, words int) {
 		return wideWideSet, ft.ByteSize() / 8
 	case ft.IsSet():
 		return wideNarrowSet, 1
+	case ft.IsVector():
+		return wideVector, 0
 	}
 	return wideNone, 0
 }

@@ -8,7 +8,7 @@ applies_to: inspect, predict
 
 ## Bytes
 
-Type byte 21. Fixed-width: 8 × dim bytes per record — dim little-endian IEEE-754 binary64 elements, packed contiguously, element 0 first. Not bit-packed. The dim is NOT in the type byte: it rides the schema's VECTORS section (format `0x02` extension block, tag 2, REQUIRED), so any cohort with a vector is written `0x02` and a binary predating vector fields refuses it loudly. `Schema.FieldWidth` is the one width; `FieldType.ByteSize()` is 0. The uint64 value API refuses it with `ENCODING_TYPE_MISMATCH` — use `encoding.ReadVector` / `WriteVector` (dim explicit).
+Type byte 21. Fixed-width: 8 × dim bytes per record — dim little-endian IEEE-754 binary64 elements, packed contiguously, element 0 first. Not bit-packed. The dim is NOT in the type byte: it rides the schema's VECTORS section (format `0x02` extension block, tag 2, REQUIRED), so any cohort with a vector is written `0x02` and a binary predating vector fields refuses it loudly. `Schema.FieldWidth` is the one width; `FieldType.ByteSize()` is 0. The uint64 value API refuses it with `ENCODING_TYPE_MISMATCH` — use `encoding.ReadVector` / `WriteVector` (dim explicit). Every decode path returns it: `Cohort.Reader` cell `[]float64` (nil when null), the cohort builder takes the same slice of exactly dim elements, and an extension reads `extend.Record.VectorValue` (`float64` elements; `NumericValue` is always false). Sample / lookup rows carry the `float64` element array.
 
 ## Range
 

@@ -121,6 +121,12 @@ type recordAux struct {
 	// indistinguishable from a null field.
 	decs []encoding.Decimal128
 
+	// vecs is the typed vector storage: every vec_f32 / vec_f64 slot's
+	// dim elements at recordLayout.wideOff, presence in planeWide.
+	// Allocated on the first vector write. A vec_f32 element is held
+	// widened to float64 (exact).
+	vecs []float64
+
 	// Overflow for names with no slot. ovWide additionally holds a wide
 	// value written to a slot that cannot store it typed and exactly — a
 	// field type with no wide storage, a value of another dynamic type
@@ -276,9 +282,46 @@ func (r *Record) boxWideAt(i int) any {
 		return r.aux.decs[off]
 	case wideNarrowSet:
 		return r.wordAt(int(off))
+	case wideVector:
+		// A copy: the boxed value outlives the row (the AllValues
+		// cache, a retained WideValue) while the storage is rewritten
+		// by the next decode into a reused record.
+		return append([]float64(nil), r.vecAt(i)...)
 	default:
 		return r.maskWordsAt(i)
 	}
+}
+
+// vecAt is slot i's vector storage (kind wideVector), a view into
+// aux.vecs. Callers copy before handing it out.
+func (r *Record) vecAt(i int) []float64 {
+	off := int(r.layout.wideOff[i])
+	return r.aux.vecs[off : off+int(r.layout.vecDim[i])]
+}
+
+func (r *Record) vecsOrNew() []float64 {
+	a := r.auxOrNew()
+	if a.vecs == nil {
+		a.vecs = make([]float64, r.layout.nVecs)
+	}
+	return a.vecs
+}
+
+// putVectorAt stores v in slot i (kind wideVector) and reports true, or
+// stores nothing and reports false when len(v) is not the slot's dim
+// (the caller then keeps the value boxed). A vector has no scalar
+// value, so the slot's value presence is cleared: whatever a null row
+// left there (the decoder's SetNumericAt(0) null signal) must not read
+// back as a number.
+func (r *Record) putVectorAt(i int, v []float64) bool {
+	if len(v) != int(r.layout.vecDim[i]) {
+		return false
+	}
+	off := int(r.layout.wideOff[i])
+	copy(r.vecsOrNew()[off:], v)
+	r.clearBit(planeHas, i)
+	r.typedWideStored(i)
+	return true
 }
 
 // maskWordsAt reads a wide-rung slot's words back into a SetMask.
@@ -391,6 +434,10 @@ func (r *Record) putWideAt(i int, v any) {
 		}
 	case wideWideSet:
 		if m, ok := v.(encoding.SetMask); ok && r.putMaskAt(i, m) {
+			return
+		}
+	case wideVector:
+		if vec, ok := v.([]float64); ok && r.putVectorAt(i, vec) {
 			return
 		}
 	}
@@ -568,6 +615,33 @@ func (r *Record) DecimalValue(name string) (encoding.Decimal128, bool) {
 	return d, ok
 }
 
+// VectorValue returns the elements of a vector field (vec_f32 /
+// vec_f64) as float64 — a vec_f32 element widens exactly — and true. It
+// is (nil, false) when the field is null, missing, projected out or not
+// a vector. The slice is a fresh copy, the caller's to keep and modify:
+// a reused record's storage is rewritten by the next decode. A NaN or
+// ±Inf element is a stored value, returned verbatim.
+func (r *Record) VectorValue(name string) ([]float64, bool) {
+	if r.nullMarked(name) {
+		return nil, false
+	}
+	if i := r.pos(name); i >= 0 && r.test(planeWide, i) {
+		if r.layout.wideKind[i] != wideVector {
+			return nil, false
+		}
+		return append([]float64(nil), r.vecAt(i)...), true
+	}
+	v, ok := r.getWide(name)
+	if !ok {
+		return nil, false
+	}
+	vec, ok := v.([]float64)
+	if !ok {
+		return nil, false
+	}
+	return append([]float64(nil), vec...), true
+}
+
 // SetWide assigns a typed wide value to a field. Used by readers and
 // feature operators that produce non-float values (decimal128, set
 // bitmasks).
@@ -596,9 +670,16 @@ func (r *Record) SetWide(name string, v any) {
 // decimal128 wide value still returns its float echo because
 // setMaskFromWideValue rejects it. The guard costs one bit test on the
 // common path.
+//
+// A VECTOR FIELD (vec_f32 / vec_f64) is never numeric either — it has
+// no scalar value at all, and the decoder writes none. Read it through
+// VectorValue.
 func (r *Record) NumericValue(name string) (float64, bool) {
 	if i := r.pos(name); i >= 0 {
 		if r.test(planeNull, i) {
+			return 0, false
+		}
+		if r.fieldAt(i).Type.IsVector() {
 			return 0, false
 		}
 		if _, isSet, _ := r.setMaskAt(i); isSet {
@@ -619,6 +700,12 @@ func (r *Record) NumericValue(name string) (float64, bool) {
 		if _, isSet := setMaskFromWideValue(wv); isSet {
 			return 0, false
 		}
+		if _, isVec := wv.([]float64); isVec {
+			return 0, false
+		}
+	}
+	if f := r.fieldNamed(name); f != nil && f.Type.IsVector() {
+		return 0, false
 	}
 	v, ok := r.aux.ovVals[name]
 	return v, ok
@@ -1007,6 +1094,7 @@ var (
 	_ encx.ReusableRecord        = (*Record)(nil)
 	_ encx.IndexedReusableRecord = (*Record)(nil)
 	_ encx.TypedSetRecord        = (*Record)(nil)
+	_ encx.VectorRecord          = (*Record)(nil)
 	_ encx.RunSkipRecord         = (*Record)(nil)
 	_ encx.GroupIndexRecord      = (*Record)(nil)
 )
@@ -1077,6 +1165,34 @@ func (r *Record) SetWideSetAt(idx int, m encoding.SetMask) {
 		return
 	}
 	r.SetWideFieldAt(idx, m)
+}
+
+// SetVectorAt implements internal/encoding.VectorRecord: the vector
+// field at schema position idx decodes from its on-wire payload straight
+// into the record's own storage, allocating nothing per row. A position
+// outside the projection, or a payload whose element count is not the
+// slot's dim, takes the boxed path (SetWideFieldAt with a fresh slice),
+// so the stored value is identical either way.
+func (r *Record) SetVectorAt(idx int, ft encoding.FieldType, payload []byte) error {
+	if s := r.layout.slot(idx); s >= 0 && r.layout.wideKind[s] == wideVector {
+		dim := int(r.layout.vecDim[s])
+		if es := ft.VectorElemSize(); es > 0 && len(payload) == es*dim {
+			off := int(r.layout.wideOff[s])
+			vecs := r.vecsOrNew()
+			if _, err := encx.VectorFromSpan(ft, payload, vecs[off:off:off+dim]); err != nil {
+				return err
+			}
+			r.clearBit(planeHas, s)
+			r.typedWideStored(s)
+			return nil
+		}
+	}
+	v, err := encx.VectorFromSpan(ft, payload, nil)
+	if err != nil {
+		return err
+	}
+	r.SetWideFieldAt(idx, v)
+	return nil
 }
 
 // ClearForRow implements internal/encoding.ReusableRecord. Resets per-row state
@@ -1296,6 +1412,12 @@ func (r *Record) copyTypedWide(dst *Record, j, i int) bool {
 		for k := range n {
 			dst.setWordAt(off+k, r.wordAt(src+k))
 		}
+	case wideVector:
+		if dst.layout.vecDim[j] != r.layout.vecDim[i] {
+			return false
+		}
+		off := int(dst.layout.wideOff[j])
+		copy(dst.vecsOrNew()[off:], r.vecAt(i))
 	default:
 		return false
 	}
