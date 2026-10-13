@@ -2357,6 +2357,7 @@ pulse/errors: const PULSE_OVERLAY_FORMULA_TYPE_MISMATCH pulse/errors.Code = "PUL
 pulse/errors: const PULSE_OVERLAY_KEY_SET_DIVERGENT pulse/errors.Code = "PULSE_OVERLAY_KEY_SET_DIVERGENT"
 pulse/errors: const PULSE_OVERLAY_KIND_UNKNOWN pulse/errors.Code = "PULSE_OVERLAY_KIND_UNKNOWN"
 pulse/errors: const PULSE_OVERLAY_LEVEL_OUT_OF_RANGE pulse/errors.Code = "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE"
+pulse/errors: const PULSE_OVERLAY_NONNEGATIVE_REQUIRED pulse/errors.Code = "PULSE_OVERLAY_NONNEGATIVE_REQUIRED"
 pulse/errors: const PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP pulse/errors.Code = "PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP"
 pulse/errors: const PULSE_OVERLAY_PARAM_MISSING pulse/errors.Code = "PULSE_OVERLAY_PARAM_MISSING"
 pulse/errors: const PULSE_OVERLAY_PARTITION_INVALID pulse/errors.Code = "PULSE_OVERLAY_PARTITION_INVALID"
@@ -4444,6 +4445,7 @@ pulse/types: const OverlayKindChiSqMatrix pulse/types.OverlayKind = "OVERLAY_CHI
 pulse/types: const OverlayKindChiSqRow pulse/types.OverlayKind = "OVERLAY_CHISQ_ROW"
 pulse/types: const OverlayKindChiSqVsPop pulse/types.OverlayKind = "OVERLAY_CHISQ_VS_POP"
 pulse/types: const OverlayKindChiSqVsRef pulse/types.OverlayKind = "OVERLAY_CHISQ_VS_REF"
+pulse/types: const OverlayKindCorrespondence pulse/types.OverlayKind = "OVERLAY_CORRESPONDENCE"
 pulse/types: const OverlayKindDeltaVsBaseline pulse/types.OverlayKind = "OVERLAY_DELTA_VS_BASELINE"
 pulse/types: const OverlayKindDeltaVsMargin pulse/types.OverlayKind = "OVERLAY_DELTA_VS_MARGIN"
 pulse/types: const OverlayKindDeltaVsPrior pulse/types.OverlayKind = "OVERLAY_DELTA_VS_PRIOR"
@@ -4949,4 +4951,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 602961d58f0cfa0f408f8486eaa3b6d203c809d9f4858bcf7c9db196a0fdef45
+// golden-hash: e6c554e7725c7ef545b5ec3fe350e73a45739e14584e0a04f0026840cc4720e2

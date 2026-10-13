@@ -22,10 +22,12 @@ var stdResidualParts = map[string]types.OverlayShape{
 
 // overlayPartShapes is the per-kind table of declared payload parts:
 // the Interpretation resolver admits `parts.<name>.cells.value` (MATRIX
-// part) or `parts.<name>.scalar` (SCALAR part) only for a part listed
-// here. A kind without parts is absent.
+// part), `parts.<name>.scalar` (SCALAR part) or
+// `parts.<name>.summary.<key>` (SERIES part: each entry's summary key)
+// only for a part listed here. A kind without parts is absent.
 var overlayPartShapes = map[types.OverlayKind]map[string]types.OverlayShape{
-	types.OverlayKindStdResidual: stdResidualParts,
+	types.OverlayKindStdResidual:    stdResidualParts,
+	types.OverlayKindCorrespondence: correspondenceParts,
 }
 
 // validateOverlayStdResidual enforces the per-kind contract for

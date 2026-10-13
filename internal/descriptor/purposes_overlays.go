@@ -20,6 +20,7 @@ var overlayPurposes = map[string]descriptor.Purpose{
 	"OVERLAY_CHISQ_ROW":                     purposeOverlayChiSqRow,
 	"OVERLAY_CHISQ_VS_POP":                  purposeOverlayChiSqVsPop,
 	"OVERLAY_CHISQ_VS_REF":                  purposeOverlayChiSqVsRef,
+	"OVERLAY_CORRESPONDENCE":                purposeOverlayCorrespondence,
 	"OVERLAY_DELTA_VS_BASELINE":             purposeOverlayDeltaVsBaseline,
 	"OVERLAY_DELTA_VS_MARGIN":               purposeOverlayDeltaVsMargin,
 	"OVERLAY_DELTA_VS_PRIOR":                purposeOverlayDeltaVsPrior,
@@ -280,6 +281,39 @@ var (
 		},
 	}
 
+	purposeOverlayCorrespondence = descriptor.Purpose{
+		Plain:   "Correspondence analysis of a crosstab: a perceptual map placing rows and columns in a few dimensions so similar profiles sit close together.",
+		Intents: []string{IntentComposition, IntentRelationship},
+		Questions: []string{
+			"Which brands sit closest to which attributes on a perceptual map?",
+			"Which segments share a similar mix of answers, and which answers set each apart?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Draw the brand-by-attribute perceptual map of a banner table and see which attributes each brand owns.",
+			descriptor.DomainOps:     "Map sites and fault types together to see which sites share a fault profile.",
+			descriptor.DomainScience: "Summarise a large species-by-site count table in two dimensions to spot gradients.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want one test of whether rows and columns are associated", Use: "OVERLAY_CHISQ_MATRIX"},
+			{When: "you want which individual cells are over- or under-represented", Use: "OVERLAY_STD_RESIDUAL"},
+			{When: "the fields are numeric measures, not a table of counts", Use: "MAT_PCA"},
+		},
+		FollowUps: []descriptor.Alternative{
+			{When: "a point sits apart on the map and you want the cells behind it", Use: "OVERLAY_STD_RESIDUAL"},
+		},
+		Assumptions: []string{
+			"Cells must be non-negative counts or sums (AGG_COUNT or AGG_SUM); any other cell, or a negative cell, is refused. Rows or columns with a zero total are dropped with a warning.",
+			"It is descriptive: the map shows how row and column profiles differ from the average profile, not whether the differences are significant.",
+			"Two points of the SAME kind (two rows) sit close when their profiles are similar; how close a row sits to a column is only directly meaningful in a row_principal or column_principal map.",
+			"Read a dimension's share of the total inertia before trusting the map: a two-dimensional map that keeps little of the inertia hides most of the table, and points with low quality are poorly shown.",
+		},
+		Level:   descriptor.LevelAdvanced,
+		KnownAs: []string{"correspondence analysis", "perceptual map"},
+		Glossary: []string{
+			"centroid", "chi-square", "cross-tabulation", "distance", "independence", "margin", "residual",
+		},
+	}
+
 	purposeOverlayStdResidual = descriptor.Purpose{
 		Plain:   "Adjusted residual for every crosstab cell: how far its count sits above or below what its row and column totals predict.",
 		Intents: []string{IntentRelationship},
@@ -303,6 +337,9 @@ var (
 			"The normal approximation needs expected counts of about 5 or more; a warning flags tables where some are lower, and a cell with an expected count of 0 gets no residual.",
 			"Every cell is a separate test, so with many cells some small p-values turn up by luck; " +
 				"to adjust for multiple comparisons, " + overlayCorrectWith,
+		},
+		FollowUps: []descriptor.Alternative{
+			{When: "the table is large and you want the overall pattern of rows and columns on one map", Use: "OVERLAY_CORRESPONDENCE"},
 		},
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{

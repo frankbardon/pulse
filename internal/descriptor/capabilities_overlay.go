@@ -1313,6 +1313,32 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"Summary leaves Statistic unset. Streamable via the SERIES dispatch (the MATRIX route is forced " +
 				"buffered through canFuseCrosstab's overlays-force-buffered arm).",
 		}
+	case types.OverlayKindCorrespondence:
+		return descriptor.OverlayCapability{
+			Kind: types.OverlayKindCorrespondence,
+			// Descriptive: no p-value, so no multiplicity site.
+			Inferential: false,
+			Shapes:      []types.OverlayShape{types.OverlayShapeSeries},
+			Scopes:      []types.OverlayScope{types.OverlayScopeMatrix},
+			// No Ref family — implicit-margin like the CHISQ_* kinds.
+			RefKinds: []string{},
+			Description: "Simple correspondence analysis (R's ca::ca) of the host crosstab — a perceptual map placing rows and " +
+				"columns in a few shared dimensions — from the SVD (linalg.SVD) of the standardized residual matrix " +
+				"S = D_r^-1/2 (P - r c^T) D_c^-1/2. MATRIX scope over a MATRIX (crosstab) host. The primary SERIES holds the " +
+				"principal inertia of each of the min(r, c) - 1 dimensions (keys dim_1, dim_2, ...; entry parameters share, " +
+				"cumulative_share, singular_value); Summary.Statistic is the total inertia (chi-square / n) and its parameters " +
+				"carry dimensions, retained_share and share_dim_<k>. payload.parts: row_coordinates / column_coordinates " +
+				"(MATRIX points x retained dimensions, columns keyed dim_1 ...), row_quality / column_quality (SERIES, cos^2 " +
+				"summed over the retained dimensions; parameters mass, inertia) and row_contribution / column_contribution " +
+				"(MATRIX, each point's share of a dimension's inertia). params: dimensions (integer, default 2 capped at " +
+				"min(r, c) - 1; an explicit value above it is PULSE_OVERLAY_PARAM_MISSING) and normalization (symmetric " +
+				"[default: both principal] | row_principal | column_principal). Signs follow linalg.SVD: per dimension the " +
+				"dominant component of the column singular vector is positive. Cells must be non-negative masses: a cell " +
+				"aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED. " +
+				"Zero-total rows / columns are dropped with one PULSE_OVERLAY_REF_ZERO per axis; fewer than 2 x 2 kept points " +
+				"is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Scale-invariant: a weighted host's sum-of-weights table is " +
+				"read as is under either weight kind. Descriptive (no p-value).",
+		}
 	case types.OverlayKindStdResidual:
 		return descriptor.OverlayCapability{
 			Kind:        types.OverlayKindStdResidual,

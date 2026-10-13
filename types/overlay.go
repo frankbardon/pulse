@@ -1398,6 +1398,31 @@ const (
 	// confuse `share` with `index / 100` at the spec authoring surface.
 	OverlayKindShareOfTotal OverlayKind = "OVERLAY_SHARE_OF_TOTAL"
 
+	// OverlayKindCorrespondence runs a simple correspondence analysis
+	// (CA) of the host crosstab — a perceptual map of its rows and
+	// columns. It takes the SVD (linalg.SVD) of the standardized
+	// residual matrix S = D_r^-1/2 (P − r cᵀ) D_c^-1/2 (P the cell
+	// shares, r / c the row / column masses). MATRIX-scoped over a
+	// MATRIX (crosstab) host, implicit-margin (Ref empty), descriptive
+	// (no p-value). Primary payload: a SERIES of principal inertia per
+	// dimension (keys dim_1, dim_2, …; share and cumulative share in
+	// each entry's Parameters); Summary.Statistic is the total inertia.
+	// OverlayPayload.Parts: row_coordinates / column_coordinates (MATRIX
+	// points × retained dimensions, synthetic dim_k column keys),
+	// row_quality / column_quality (SERIES, cos² summed over the
+	// retained dimensions), row_contribution / column_contribution
+	// (MATRIX points × dimensions, share of each dimension's inertia).
+	// Params: dimensions (default 2, at most min(r, c) − 1) and
+	// normalization (symmetric | row_principal | column_principal).
+	// Cells must be non-negative counts or sums (AGG_COUNT / AGG_SUM,
+	// else PULSE_OVERLAY_NONNEGATIVE_REQUIRED); zero-margin rows and
+	// columns are dropped with PULSE_OVERLAY_REF_ZERO. Coordinates are
+	// scale-invariant, so a weighted host's Σw table needs no Kish
+	// scaling. Signs follow linalg.SVD: per dimension, the dominant
+	// component of the column singular vector is positive. Inherently
+	// buffered.
+	OverlayKindCorrespondence OverlayKind = "OVERLAY_CORRESPONDENCE"
+
 	// OverlayKindStdResidual emits the Haberman adjusted standardized
 	// residual of every host crosstab cell,
 	// (O − E) / sqrt(E · (1 − r/N) · (1 − c/N)) with E = r·c/N, so a
@@ -2427,6 +2452,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindChiSqRow,
 		OverlayKindChiSqVsPop,
 		OverlayKindChiSqVsRef,
+		OverlayKindCorrespondence,
 		OverlayKindDeltaVsBaseline,
 		OverlayKindDeltaVsMargin,
 		OverlayKindDeltaVsPrior,

@@ -2036,6 +2036,17 @@ const (
 	// PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED instead.
 	PULSE_OVERLAY_EXPORT_PARTS_DROPPED Code = "PULSE_OVERLAY_EXPORT_PARTS_DROPPED"
 
+	// PULSE_OVERLAY_NONNEGATIVE_REQUIRED indicates an overlay that reads
+	// its crosstab host as a table of non-negative masses (counts or
+	// sums — OVERLAY_CORRESPONDENCE, later the Markov and raking kinds)
+	// met a host that is not one: a cell aggregation other than
+	// AGG_COUNT / AGG_SUM (predict and runtime twins, details
+	// {kind, aggregation, slot: "crosstab.cell"}, plus index on
+	// predict), or a cell value that is negative or not finite (runtime
+	// only — predict reads no record; details {kind, row, column,
+	// value}). Raised with its own code, never PROCESSING_INTERNAL.
+	PULSE_OVERLAY_NONNEGATIVE_REQUIRED Code = "PULSE_OVERLAY_NONNEGATIVE_REQUIRED"
+
 	// PULSE_TEMPLATE_NOT_FOUND indicates a render was asked for a
 	// template name that is not registered — neither declared
 	// programmatically nor loaded from a template directory. Details
@@ -3742,6 +3753,7 @@ var allCodes = []Code{
 	PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED,
 	PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED,
 	PULSE_OVERLAY_EXPORT_PARTS_DROPPED,
+	PULSE_OVERLAY_NONNEGATIVE_REQUIRED,
 	PULSE_INDEX_MISSING,
 	PULSE_LOOKUP_NOT_FOUND,
 	PULSE_LOOKUP_AMBIGUOUS,

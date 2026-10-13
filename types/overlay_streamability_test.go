@@ -106,6 +106,8 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// orchestrator before ApplyOverlays runs.
 		OverlayKindShareOfRow:   false,
 		OverlayKindShareOfTotal: true,
+		// CORRESPONDENCE takes the SVD of the whole table.
+		OverlayKindCorrespondence: false,
 		// STD_RESIDUAL reads the whole table's totals (CHISQ_MATRIX).
 		OverlayKindStdResidual: false,
 		OverlayKindTCell:       false,

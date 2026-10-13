@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:44e68b56c4910e2fc2f26ff1d37fa53c96b47ed29a6279472fb74724508277b0",
+  "$comment": "feature_set_digest: fs1:9e3eebb95a580cf85fabab47203a3417a5859613485951fe7d0210ef5c9d6fc8",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -2451,6 +2451,7 @@
         "OVERLAY_CHISQ_ROW",
         "OVERLAY_CHISQ_VS_POP",
         "OVERLAY_CHISQ_VS_REF",
+        "OVERLAY_CORRESPONDENCE",
         "OVERLAY_DELTA_VS_BASELINE",
         "OVERLAY_DELTA_VS_MARGIN",
         "OVERLAY_DELTA_VS_PRIOR",
@@ -4546,4 +4547,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 53fe4200e8a710726fcdb0869f0b146c4c0dedc2c9b67b1439dd4d2c79d39419
+// golden-hash: 3f67e5f46ddb04883e95d61f9ecd2c235f5b419f2bb8d9e21c54182ca8276f16

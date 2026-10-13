@@ -52,6 +52,10 @@ var overlayInterpretationProbes = map[string]overlayInterpretationProbe{
 	"OVERLAY_CHISQ_COL": {fields: []string{"summary.parameters.df"}, run: func(t *testing.T) types.OverlayLayer {
 		return crosstabOverlayLayer(t, types.OverlayKindChiSqCol, types.OverlayScopeColumn)
 	}},
+	// The per-dimension share rides each inertia series entry.
+	"OVERLAY_CORRESPONDENCE": {fields: []string{"summary.parameters.share"}, run: func(t *testing.T) types.OverlayLayer {
+		return crosstabOverlayLayer(t, types.OverlayKindCorrespondence, types.OverlayScopeMatrix)
+	}},
 	"OVERLAY_CHISQ_VS_POP": {fields: []string{"summary.parameters.df"}, run: chiSqVsPopFacetLayer},
 	"OVERLAY_CHISQ_VS_REF": {fields: []string{"summary.parameters.df"}, run: chiSqVsRefComposeLayer},
 	"OVERLAY_KS_VS_POP":    {fields: []string{"summary.parameters.n_pop", "summary.parameters.n_subset"}, run: ksVsPopFacetLayer},

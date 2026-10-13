@@ -365,3 +365,8 @@ source(file.path(script_dir, "gen_multivariate.R"), local = FALSE)
 # adjusted residuals, expected counts, two-sided normal p and per-row
 # p.adjust); base stats only, reuses out_dir and write_golden().
 source(file.path(script_dir, "gen_std_residual.R"), local = FALSE)
+
+# The OVERLAY_CORRESPONDENCE golden (correspondence.json: ca::ca
+# inertias, masses, standard / map coordinates under the three
+# normalizations, quality and contribution); needs the ca package.
+source(file.path(script_dir, "gen_correspondence.R"), local = FALSE)

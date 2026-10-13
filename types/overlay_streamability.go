@@ -139,6 +139,9 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// is plumbed (PRD § 4.C FR-C2 — the canonical low-count contingency
 	// overlay closing the inferential family).
 	OverlayKindFisherExactCell: false,
+	// OVERLAY_CORRESPONDENCE is inherently buffered — the SVD reads
+	// the whole table (every cell and both margins) at once.
+	OverlayKindCorrespondence: false,
 	// OVERLAY_STD_RESIDUAL is inherently buffered — each cell's
 	// adjusted residual reads the whole table's row, column and grand
 	// totals, which only the buffered / fused crosstab host has

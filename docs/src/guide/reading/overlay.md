@@ -174,6 +174,65 @@ Degrees of freedom: the number of cells present in both requests with a positive
 
 - Because the reference shares are taken as fixed, df is cells - 1, not the (rows - 1) x (columns - 1) of a test that treats both tables as samples (TEST_CHISQ on stacked rows).
 
+<a id="op-overlay_correspondence"></a>
+
+### `OVERLAY_CORRESPONDENCE`
+
+Correspondence analysis of a crosstab: a perceptual map placing rows and columns in a few dimensions so similar profiles sit close together. See its [catalog entry](../catalog/overlay.md#op-overlay_correspondence).
+
+#### `summary.statistic`
+
+In each series entry (one per dimension, dim_1 first): the dimension's principal inertia, the part of the table's association it accounts for. On the layer summary: the total inertia, the chi-square statistic divided by the grand total; 0 means rows and columns are independent.
+
+**Caveats:**
+
+- Inertia is scale-free: it does not grow with the sample size, so compare it across tables of different sizes, not the chi-square.
+
+#### `summary.parameters.share`
+
+In each series entry: the dimension's share of the total inertia (0 to 1); cumulative_share adds the dimensions before it.
+
+**Caveats:**
+
+- A map of the first two dimensions shows only their cumulative share of the table; a low share means much of the association is not on the map.
+
+#### `parts.row_coordinates.cells.value`
+
+Each row's position on a dimension (columns dim_1, dim_2, ...). Rows with similar profiles across the columns sit close together; a row far from the origin departs most from the average profile.
+
+**Caveats:**
+
+- The sign of a dimension is arbitrary: Pulse orients it so the column point that weighs most on it is positive; read which points share a side, not left or right.
+- In the symmetric map (the default) rows and columns are both scaled by the dimension's singular value; the distance between a row and a column point is not directly interpretable there.
+
+#### `parts.column_coordinates.cells.value`
+
+Each column's position on a dimension, read like the row coordinates: columns with similar profiles across the rows sit close together.
+
+**Caveats:**
+
+- In a row_principal map the columns are standard coordinates (vertices the rows are pulled toward); in a column_principal map the rows are.
+
+#### `parts.row_quality.summary.statistic`
+
+In each series entry: how well the retained dimensions show the row (0 to 1) — the share of the row's distance from the average profile they capture. Near 1 the map shows the row faithfully.
+
+**Caveats:**
+
+- A row whose profile equals the average profile has no distance to show and gets no value (null).
+
+#### `parts.column_quality.summary.statistic`
+
+In each series entry: how well the retained dimensions show the column (0 to 1), read like the row quality.
+
+#### `parts.row_contribution.cells.value`
+
+The row's share (0 to 1) of a dimension's inertia; each dimension's row contributions sum to 1. The rows with the largest contributions are the ones that define the dimension.
+
+#### `parts.column_contribution.cells.value`
+
+The column's share (0 to 1) of a dimension's inertia; each dimension's column contributions sum to 1.
+
 <a id="op-overlay_fisher_exact_cell"></a>
 
 ### `OVERLAY_FISHER_EXACT_CELL`

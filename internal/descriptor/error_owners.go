@@ -409,6 +409,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED: own(featCrosstab, featCompose),
 	errors.PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED:        own(featExport),
 	errors.PULSE_OVERLAY_EXPORT_PARTS_DROPPED:          own(featExport),
+	errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED:          own("OVERLAY_CORRESPONDENCE"),
 
 	// Point lookup and its sidecar index.
 	errors.PULSE_INDEX_MISSING:             own(featIndex, featLookup),

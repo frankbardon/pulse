@@ -47,6 +47,11 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			Scope: types.OverlayScopeCell,
 		},
 		{
+			Name:  "correspondence",
+			Kind:  types.OverlayKindCorrespondence,
+			Scope: types.OverlayScopeMatrix,
+		},
+		{
 			Name:   "formula",
 			Kind:   types.OverlayKindFormula,
 			Scope:  types.OverlayScopeCell,
@@ -527,6 +532,11 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 			Kind:  types.OverlayKindStdResidual,
 			Scope: types.OverlayScopeCell,
 		},
+		types.OverlayKindCorrespondence: {
+			Name:  "correspondence",
+			Kind:  types.OverlayKindCorrespondence,
+			Scope: types.OverlayScopeMatrix,
+		},
 		types.OverlayKindPairwiseProbitT: {
 			Name:  "pairwise_probit_t",
 			Kind:  types.OverlayKindPairwiseProbitT,
@@ -753,6 +763,11 @@ func TestPredict_OverlaysApplied_AllKinds_DescriptorCoverage(t *testing.T) {
 			Name:  "std_residual",
 			Kind:  types.OverlayKindStdResidual,
 			Scope: types.OverlayScopeCell,
+		},
+		types.OverlayKindCorrespondence: {
+			Name:  "correspondence",
+			Kind:  types.OverlayKindCorrespondence,
+			Scope: types.OverlayScopeMatrix,
 		},
 		types.OverlayKindPairwiseProbitT: {
 			Name:  "pairwise_probit_t",
@@ -1222,6 +1237,11 @@ func TestPredict_OverlayCost_AllKindsHaveMultiplier(t *testing.T) {
 			Name:  "std_residual",
 			Kind:  types.OverlayKindStdResidual,
 			Scope: types.OverlayScopeCell,
+		},
+		types.OverlayKindCorrespondence: {
+			Name:  "correspondence",
+			Kind:  types.OverlayKindCorrespondence,
+			Scope: types.OverlayScopeMatrix,
 		},
 		types.OverlayKindPairwiseProbitT: {
 			Name:  "pairwise_probit_t",

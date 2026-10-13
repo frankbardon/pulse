@@ -402,10 +402,20 @@ func overlayOutputResolver(kind types.OverlayKind) OutputResolver {
 		}
 		if rest, ok := strings.CutPrefix(field, "parts."); ok {
 			// A declared payload part (overlayPartShapes): its own
-			// cells.value (MATRIX part) or scalar (SCALAR part).
+			// cells.value (MATRIX part), scalar (SCALAR part) or an
+			// entry's scalar summary.<key> (SERIES part).
 			name, sub, _ := strings.Cut(rest, ".")
-			if sh, ok := overlayPartShapes[kind][name]; ok &&
-				((sh == types.OverlayShapeMatrix && sub == "cells.value") || (sh == types.OverlayShapeScalar && sub == "scalar")) {
+			sh, ok := overlayPartShapes[kind][name]
+			key, seriesKey := strings.CutPrefix(sub, "summary.")
+			if t, known := summary[key]; ok && seriesKey && sh == types.OverlayShapeSeries {
+				if known && isScalarOutput(t) {
+					return FieldStatic, ""
+				}
+				if strings.HasPrefix(key, "parameters.") && key != "parameters." {
+					return FieldDeferred, ""
+				}
+			}
+			if ok && ((sh == types.OverlayShapeMatrix && sub == "cells.value") || (sh == types.OverlayShapeScalar && sub == "scalar")) {
 				return FieldStatic, ""
 			}
 			return FieldUnknown, fmt.Sprintf("%s declares no part path %q", kind, field)

@@ -9,6 +9,7 @@ The overlays this instance offers: what each is for, the questions it answers an
 | [`OVERLAY_CHISQ_ROW`](#op-overlay_chisq_row) | Chi-square test per crosstab row: checks whether each row's spread across the columns departs from the table's overall column mix. | Which regions have an answer mix unlike the overall mix? | intermediate | [`OVERLAY_CHISQ_COL`](#op-overlay_chisq_col) when the groups are the columns rather than the rows.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test for the whole table.<br>[`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when you want to know which single cells stand out. |
 | [`OVERLAY_CHISQ_VS_POP`](#op-overlay_chisq_vs_pop) | Chi-square goodness-of-fit test on a facet: checks whether a subset's category mix departs from a comparison population's mix. | Does this segment's brand mix differ from the whole customer base's? | intermediate | [`OVERLAY_KS_VS_POP`](#op-overlay_ks_vs_pop) when the field is numeric.<br>[`OVERLAY_INDEX_VS_POP`](#op-overlay_index_vs_pop) when you want to see which categories are over- or under-represented rather than one test.<br>[`TEST_CHISQ`](test.md#op-test_chisq) when you compare two separate groups from raw rows rather than a subset with a population. |
 | [`OVERLAY_CHISQ_VS_REF`](#op-overlay_chisq_vs_ref) | Chi-square test in a Compose request: checks whether a target request's crosstab mix departs from the reference request's mix. | Has the mix of answers in this wave shifted from last wave? | advanced | [`TEST_CHISQ`](test.md#op-test_chisq) when both results are samples of similar size and you want a test that allows for uncertainty in both: stack the rows, label each source and cross them.<br>[`OVERLAY_PROP_Z_CELL`](#op-overlay_prop_z_cell) when you want to see which cells moved rather than one overall test.<br>[`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the size of each cell's change. |
+| [`OVERLAY_CORRESPONDENCE`](#op-overlay_correspondence) | Correspondence analysis of a crosstab: a perceptual map placing rows and columns in a few dimensions so similar profiles sit close together. | Which brands sit closest to which attributes on a perceptual map? | advanced | [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test of whether rows and columns are associated.<br>[`OVERLAY_STD_RESIDUAL`](#op-overlay_std_residual) when you want which individual cells are over- or under-represented.<br>[`MAT_PCA`](matrix.md#op-mat_pca) when the fields are numeric measures, not a table of counts. |
 | [`OVERLAY_DELTA_VS_BASELINE`](#op-overlay_delta_vs_baseline) | Each point of an ordered series minus a chosen baseline point, in the value's own units: how much it has moved since then. | How many more orders a week do we get than in the launch week? | basic | [`OVERLAY_INDEX_VS_BASELINE`](#op-overlay_index_vs_baseline) when you want a ratio rather than a gap.<br>[`OVERLAY_DELTA_VS_PRIOR`](#op-overlay_delta_vs_prior) when you want each point against the one before it.<br>[`TEST_TREND`](test.md#op-test_trend) when you want to test for a steady rise or fall across the series. |
 | [`OVERLAY_DELTA_VS_MARGIN`](#op-overlay_delta_vs_margin) | Each crosstab cell minus its row, column or grand margin, in the cell's own units: how far a cell sits above or below its margin. | How many points above or below the overall average rating is each segment, per question? | basic | [`OVERLAY_INDEX_VS_MARGIN`](#op-overlay_index_vs_margin) when you want a ratio rather than a gap.<br>[`OVERLAY_ZSCORE_VS_MARGIN`](#op-overlay_zscore_vs_margin) when you want the gaps in standard deviations.<br>[`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when you want a test of whether a cell's count departs from what the margins predict. |
 | [`OVERLAY_DELTA_VS_PRIOR`](#op-overlay_delta_vs_prior) | Each point of an ordered series minus the point before it, in the value's own units: how much it changed from the previous period. | How many more or fewer orders did we get than the month before? | basic | [`OVERLAY_INDEX_VS_PRIOR`](#op-overlay_index_vs_prior) when you want the change as a ratio.<br>[`WIN_DELTA`](window.md#op-win_delta) when you want the change as a window column on the result rather than an overlay.<br>[`OVERLAY_DELTA_VS_BASELINE`](#op-overlay_delta_vs_baseline) when you want each point against a fixed starting point. |
@@ -241,6 +242,48 @@ Chi-square test in a Compose request: checks whether a target request's crosstab
 **Glossary:** [`baseline`](../glossary.md#term-baseline), [`chi-square`](../glossary.md#term-chi-square), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`goodness-of-fit`](../glossary.md#term-goodness-of-fit), [`independence`](../glossary.md#term-independence), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value)
 
 **Skill:** [`op-overlay-chisq-vs-ref`](../skills/op-overlay-chisq-vs-ref.md)
+
+<a id="op-overlay_correspondence"></a>
+
+### `OVERLAY_CORRESPONDENCE`
+
+Correspondence analysis of a crosstab: a perceptual map placing rows and columns in a few dimensions so similar profiles sit close together.
+
+**Level:** advanced
+
+**Also known as:** `correspondence analysis`, `perceptual map`
+
+**Questions it answers:**
+
+- Which brands sit closest to which attributes on a perceptual map?
+- Which segments share a similar mix of answers, and which answers set each apart?
+
+**Use cases by domain:**
+
+- *survey:* Draw the brand-by-attribute perceptual map of a banner table and see which attributes each brand owns.
+- *ops:* Map sites and fault types together to see which sites share a fault profile.
+- *science:* Summarise a large species-by-site count table in two dimensions to spot gradients.
+
+**Assumptions:**
+
+- Cells must be non-negative counts or sums (AGG_COUNT or AGG_SUM); any other cell, or a negative cell, is refused. Rows or columns with a zero total are dropped with a warning.
+- It is descriptive: the map shows how row and column profiles differ from the average profile, not whether the differences are significant.
+- Two points of the SAME kind (two rows) sit close when their profiles are similar; how close a row sits to a column is only directly meaningful in a row_principal or column_principal map.
+- Read a dimension's share of the total inertia before trusting the map: a two-dimensional map that keeps little of the inertia hides most of the table, and points with low quality are poorly shown.
+
+**Use something else:**
+
+- [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test of whether rows and columns are associated.
+- [`OVERLAY_STD_RESIDUAL`](#op-overlay_std_residual) when you want which individual cells are over- or under-represented.
+- [`MAT_PCA`](matrix.md#op-mat_pca) when the fields are numeric measures, not a table of counts.
+
+**Follow up with:**
+
+- [`OVERLAY_STD_RESIDUAL`](#op-overlay_std_residual) when a point sits apart on the map and you want the cells behind it.
+
+**Glossary:** [`centroid`](../glossary.md#term-centroid), [`chi-square`](../glossary.md#term-chi-square), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`distance`](../glossary.md#term-distance), [`independence`](../glossary.md#term-independence), [`margin`](../glossary.md#term-margin), [`residual`](../glossary.md#term-residual)
+
+**Skill:** [`op-overlay-correspondence`](../skills/op-overlay-correspondence.md)
 
 <a id="op-overlay_delta_vs_baseline"></a>
 
@@ -1309,6 +1352,10 @@ Adjusted residual for every crosstab cell: how far its count sits above or below
 - [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test for the whole table.
 - [`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when counts are small and you want an exact per-cell test.
 - [`OVERLAY_ZSCORE_VS_MARGIN`](#op-overlay_zscore_vs_margin) when you want each cell's distance from its margin without a test.
+
+**Follow up with:**
+
+- [`OVERLAY_CORRESPONDENCE`](#op-overlay_correspondence) when the table is large and you want the overall pattern of rows and columns on one map.
 
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`independence`](../glossary.md#term-independence), [`margin`](../glossary.md#term-margin), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`normal-distribution`](../glossary.md#term-normal-distribution), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`residual`](../glossary.md#term-residual), [`two-tailed`](../glossary.md#term-two-tailed)
 

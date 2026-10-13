@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:44e68b56c4910e2fc2f26ff1d37fa53c96b47ed29a6279472fb74724508277b0",
+    "feature_set_digest": "fs1:9e3eebb95a580cf85fabab47203a3417a5859613485951fe7d0210ef5c9d6fc8",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -8952,7 +8952,7 @@
         ]
       }
     ],
-    "error_codes_count": 351,
+    "error_codes_count": 352,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9164,6 +9164,7 @@
       "PULSE_OVERLAY_KEY_SET_DIVERGENT",
       "PULSE_OVERLAY_KIND_UNKNOWN",
       "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE",
+      "PULSE_OVERLAY_NONNEGATIVE_REQUIRED",
       "PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP",
       "PULSE_OVERLAY_PARAM_MISSING",
       "PULSE_OVERLAY_PARTITION_INVALID",
@@ -11170,6 +11171,10 @@
         "description": "Compose-host whole-matrix χ² comparing target slot's matrix against the reference slot's matrix (rescaled to target N)."
       },
       {
+        "name": "op-overlay-correspondence",
+        "description": "Correspondence analysis of the host crosstab — inertia per dimension, row and column map coordinates, quality and contribution as parts."
+      },
+      {
         "name": "op-overlay-delta-vs-baseline",
         "description": "Per-point additive delta against a fixed positional baseline of an ordered SERIES host."
       },
@@ -11938,7 +11943,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 211,
+    "examples_count": 212,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -12819,6 +12824,22 @@
         "weight_kinds": [
           "frequency",
           "probability"
+        ]
+      },
+      {
+        "kind": "OVERLAY_CORRESPONDENCE",
+        "shapes": [
+          "series"
+        ],
+        "scopes": [
+          "matrix"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Simple correspondence analysis (R's ca::ca) of the host crosstab — a perceptual map placing rows and columns in a few shared dimensions — from the SVD (linalg.SVD) of the standardized residual matrix S = D_r^-1/2 (P - r c^T) D_c^-1/2. MATRIX scope over a MATRIX (crosstab) host. The primary SERIES holds the principal inertia of each of the min(r, c) - 1 dimensions (keys dim_1, dim_2, ...; entry parameters share, cumulative_share, singular_value); Summary.Statistic is the total inertia (chi-square / n) and its parameters carry dimensions, retained_share and share_dim_\u003ck\u003e. payload.parts: row_coordinates / column_coordinates (MATRIX points x retained dimensions, columns keyed dim_1 ...), row_quality / column_quality (SERIES, cos^2 summed over the retained dimensions; parameters mass, inertia) and row_contribution / column_contribution (MATRIX, each point's share of a dimension's inertia). params: dimensions (integer, default 2 capped at min(r, c) - 1; an explicit value above it is PULSE_OVERLAY_PARAM_MISSING) and normalization (symmetric [default: both principal] | row_principal | column_principal). Signs follow linalg.SVD: per dimension the dominant component of the column singular vector is positive. Cells must be non-negative masses: a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED. Zero-total rows / columns are dropped with one PULSE_OVERLAY_REF_ZERO per axis; fewer than 2 x 2 kept points is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Scale-invariant: a weighted host's sum-of-weights table is read as is under either weight kind. Descriptive (no p-value).",
+        "intents": [
+          "composition",
+          "relationship"
         ]
       },
       {
@@ -16452,4 +16473,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 10a28f5993ca150f00f70dd37e7a93cec0fafbc4e5bef2c68e1802f74c442963
+// golden-hash: 9e0f4613f423d664dcee4e5696e07d9dbfa36203026bf5d5670770dbc20b2372

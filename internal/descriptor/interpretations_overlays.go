@@ -32,6 +32,7 @@ var overlayInterpretations = map[string][]descriptor.Interpretation{
 	"OVERLAY_CHISQ_ROW":                     interpOverlayChiSqRow,
 	"OVERLAY_CHISQ_VS_POP":                  interpOverlayChiSqVsPop,
 	"OVERLAY_CHISQ_VS_REF":                  interpOverlayChiSqVsRef,
+	"OVERLAY_CORRESPONDENCE":                interpOverlayCorrespondence,
 	"OVERLAY_FISHER_EXACT_CELL":             interpOverlayFisherExactCell,
 	"OVERLAY_KS_VS_POP":                     interpOverlayKSVsPop,
 	"OVERLAY_PAIRWISE_PROBIT_T":             interpOverlayPairwiseProbitT,
@@ -242,6 +243,59 @@ var (
 				"It does not say which way or how far the cell departs: compare the cell's count with what its row and column totals predict (or an OVERLAY_INDEX_VS_MARGIN layer) for direction and size.",
 				overlayCellMultiComp,
 			},
+		},
+	}
+
+	interpOverlayCorrespondence = []descriptor.Interpretation{
+		{
+			Field: "summary.statistic",
+			Means: "In each series entry (one per dimension, dim_1 first): the dimension's principal inertia, the part of the table's association it accounts for. " +
+				"On the layer summary: the total inertia, the chi-square statistic divided by the grand total; 0 means rows and columns are independent.",
+			Caveats: []string{
+				"Inertia is scale-free: it does not grow with the sample size, so compare it across tables of different sizes, not the chi-square.",
+			},
+		},
+		{
+			Field: "summary.parameters.share",
+			Means: "In each series entry: the dimension's share of the total inertia (0 to 1); cumulative_share adds the dimensions before it.",
+			Caveats: []string{
+				"A map of the first two dimensions shows only their cumulative share of the table; a low share means much of the association is not on the map.",
+			},
+		},
+		{
+			Field: "parts.row_coordinates.cells.value",
+			Means: "Each row's position on a dimension (columns dim_1, dim_2, ...). Rows with similar profiles across the columns sit close together; " +
+				"a row far from the origin departs most from the average profile.",
+			Caveats: []string{
+				"The sign of a dimension is arbitrary: Pulse orients it so the column point that weighs most on it is positive; read which points share a side, not left or right.",
+				"In the symmetric map (the default) rows and columns are both scaled by the dimension's singular value; the distance between a row and a column point is not directly interpretable there.",
+			},
+		},
+		{
+			Field: "parts.column_coordinates.cells.value",
+			Means: "Each column's position on a dimension, read like the row coordinates: columns with similar profiles across the rows sit close together.",
+			Caveats: []string{
+				"In a row_principal map the columns are standard coordinates (vertices the rows are pulled toward); in a column_principal map the rows are.",
+			},
+		},
+		{
+			Field: "parts.row_quality.summary.statistic",
+			Means: "In each series entry: how well the retained dimensions show the row (0 to 1) — the share of the row's distance from the average profile they capture. Near 1 the map shows the row faithfully.",
+			Caveats: []string{
+				"A row whose profile equals the average profile has no distance to show and gets no value (null).",
+			},
+		},
+		{
+			Field: "parts.column_quality.summary.statistic",
+			Means: "In each series entry: how well the retained dimensions show the column (0 to 1), read like the row quality.",
+		},
+		{
+			Field: "parts.row_contribution.cells.value",
+			Means: "The row's share (0 to 1) of a dimension's inertia; each dimension's row contributions sum to 1. The rows with the largest contributions are the ones that define the dimension.",
+		},
+		{
+			Field: "parts.column_contribution.cells.value",
+			Means: "The column's share (0 to 1) of a dimension's inertia; each dimension's column contributions sum to 1.",
 		},
 	}
 

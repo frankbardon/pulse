@@ -147,6 +147,7 @@
     - [op-overlay-chisq-row](skills/op-overlay-chisq-row.md)
     - [op-overlay-chisq-vs-pop](skills/op-overlay-chisq-vs-pop.md)
     - [op-overlay-chisq-vs-ref](skills/op-overlay-chisq-vs-ref.md)
+    - [op-overlay-correspondence](skills/op-overlay-correspondence.md)
     - [op-overlay-delta-vs-baseline](skills/op-overlay-delta-vs-baseline.md)
     - [op-overlay-delta-vs-margin](skills/op-overlay-delta-vs-margin.md)
     - [op-overlay-delta-vs-prior](skills/op-overlay-delta-vs-prior.md)

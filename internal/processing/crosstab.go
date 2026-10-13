@@ -1220,6 +1220,9 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 	// AGG_WEIGHTED_MEAN cell emits n_eff under either kind).
 	if req.Crosstab != nil {
 		host.withCellWeight(req.Crosstab.Cell)
+		if req.Crosstab.Cell != nil {
+			host.cellType = req.Crosstab.Cell.Type
+		}
 	}
 	// When the Processor carries a live ExtensionRegistry the
 	// FORMULA dispatch arm of ApplyOverlaysWithExtensions threads the

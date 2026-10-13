@@ -2759,6 +2759,22 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_OVERLAY_NONNEGATIVE_REQUIRED: {
+		Message: "The overlay reads its crosstab host as a table of non-negative masses (counts or sums), and the host is not one: either the cell aggregation is not a count or a sum (an average, a rate or a code is not a mass a row or column profile can be built from), or a cell holds a negative or non-finite value. Correspondence analysis — and the Markov and raking kinds — divide each cell by its row and column totals, which only means something when every cell is a non-negative amount. Details carry `kind` plus `aggregation` and `slot` (the cell aggregation) or `row`, `column` and `value` (the first offending cell).",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"Crosstab", "Cell", "Type"},
+				Hint:     "Score the crosstab cell with a count (AGG_COUNT, weighted or not) or a sum of a non-negative field (AGG_SUM), so every cell is a mass the overlay can turn into row and column profiles.",
+				Examples: []any{"AGG_COUNT", "AGG_SUM"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Crosstab", "Cell", "Field"},
+				Hint:   "An AGG_SUM cell went negative: sum a field that cannot be negative (a quantity, an amount spent), or filter out the negative records with a FILTER_EXPRESSION before the crosstab runs.",
+			},
+		},
+	},
 	PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY: {
 		Message: "An OVERLAY_YOY spec named a `frequency` Param outside the supported set (`annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`). The supported set is the minimum frequency catalog needed to cover the GROUP_DATE component family — finer-than-hourly or coarser-than-annual frequencies are explicit non-goals in v1. Calendar-week / day-of-week realignment is also an explicit non-goal: weekly frequency uses calendar-week-aligned `i - 52` arithmetic and daily frequency uses exact-key lookup against the host key index (Feb 29 in a non-leap prior year emits NaN). Surfaced at both predict (descriptor.validateOverlayYoY) and runtime (processing.applyYoY) with Details carrying the offending `frequency` value plus the supported list.",
 		Fixups: []Fixup{

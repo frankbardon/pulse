@@ -77,6 +77,13 @@ type CrosstabHostView struct {
 	// (share, index, χ², Fisher) ignore this field. Read-only.
 	components *types.CrosstabComponents
 
+	// cellType is the host crosstab cell's aggregation type when the
+	// caller knows it from the request (applyOverlaysToResponse); empty
+	// otherwise. The non-negative-mass kinds (OVERLAY_CORRESPONDENCE)
+	// refuse a cell other than AGG_COUNT / AGG_SUM through it — the
+	// runtime twin of the predict refusal.
+	cellType types.AggregationType
+
 	// basis / basisKnown carry the weight basis of the host's crosstab
 	// cell when the caller knows it from the STAMPED request
 	// (applyOverlaysToResponse): the cell's resolved weight. Unset, the
@@ -287,6 +294,7 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 	types.OverlayKindChiSqCol:                  applyChiSqCol,
 	types.OverlayKindChiSqMatrix:               applyChiSqMatrix,
 	types.OverlayKindChiSqRow:                  applyChiSqRow,
+	types.OverlayKindCorrespondence:            applyCorrespondence,
 	types.OverlayKindDeltaVsMargin:             applyDeltaVsMargin,
 	types.OverlayKindFisherExactCell:           applyFisherExactCell,
 	types.OverlayKindFormula:                   applyFormula,
@@ -442,7 +450,18 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 					"kind":  string(spec.Kind),
 				})
 		}
-		layer, ws, err := handler(spec, host)
+		var (
+			layer types.OverlayLayer
+			ws    []types.OverlayWarning
+			err   error
+		)
+		if route == types.OverlayKindCorrespondence {
+			// Index-aware: its param / cell / dimensions refusals carry
+			// the spec index exactly as predict's do.
+			layer, ws, err = applyCorrespondenceAt(spec, host, i)
+		} else {
+			layer, ws, err = handler(spec, host)
+		}
 		if err != nil {
 			return nil, nil, err
 		}
@@ -497,7 +516,8 @@ func validateOverlayLevelWithinRuntime(spec *types.OverlaySpec, route types.Over
 		types.OverlayKindChiSqMatrix,
 		types.OverlayKindChiSqRow,
 		types.OverlayKindFisherExactCell,
-		types.OverlayKindStdResidual:
+		types.OverlayKindStdResidual,
+		types.OverlayKindCorrespondence:
 		// Inferential family — Level / Within must both be zero. Non-
 		// zero values alter the implicit-margin contract those kinds
 		// rely on (they compute contingency from the host's row + col
@@ -2874,6 +2894,10 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// bare-kind shape so renderers can use it directly as a tab /
 		// legend label without uppercasing.
 		return "fisher_exact_cell"
+	case types.OverlayKindCorrespondence:
+		// CORRESPONDENCE is implicit-margin (the whole table);
+		// lower-case bare-kind default like the CHISQ_* family.
+		return "correspondence"
 	case types.OverlayKindStdResidual:
 		// STD_RESIDUAL is implicit-margin (no axis dispatch);
 		// lower-case bare-kind default like the CHISQ_* family.
