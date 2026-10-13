@@ -546,3 +546,73 @@ func TestExplainResponse_PartPValues(t *testing.T) {
 		t.Errorf("corrected residual layer = %+v", f)
 	}
 }
+
+// TestExplainResponse_CellSignificanceByCoordinate: a corrected
+// per-cell overlay reads each cell's adjusted significance at that
+// cell's own coordinate. A null p (no adjusted cell) leads the table, so
+// pairing flags by position among the present adjusted cells would hand
+// its neighbour's flag to the wrong cell and drop the last one.
+func TestExplainResponse_CellSignificanceByCoordinate(t *testing.T) {
+	m := &types.AppliedMultiplicity{Method: types.MultiplicityMethodHolm, Family: types.MultiplicityFamilyLayer, Alpha: 0.05, M: 3}
+	cases := []struct {
+		name         string
+		kind         types.OverlayKind
+		cells        [][]types.MatrixCell
+		adjusted     [][]types.MatrixCell
+		tests        float64
+		below        float64
+		wantEvidence bool
+	}{
+		{
+			name: "null p first, scalar cells",
+			kind: types.OverlayKind("OVERLAY_T_CELL"),
+			cells: [][]types.MatrixCell{
+				{{Value: nil, Present: true}, {Value: 0.001, Present: true}},
+				{{Value: 0.2, Present: true}, {Value: 0.4, Present: true}},
+			},
+			adjusted: [][]types.MatrixCell{
+				{{}, {Value: true, Present: true}},
+				{{Value: false, Present: true}, {Value: false, Present: true}},
+			},
+			tests: 3, below: 1, wantEvidence: true,
+		},
+		{
+			name: "null p mid-row, flag only on the null cell's right",
+			kind: types.OverlayKindFisherExactCell,
+			cells: [][]types.MatrixCell{
+				{{Value: 0.5, Present: true}, {Value: math.NaN(), Present: true}, {Value: 0.002, Present: true}},
+			},
+			adjusted: [][]types.MatrixCell{
+				{{Value: false, Present: true}, {}, {Value: true, Present: true}},
+			},
+			tests: 2, below: 1, wantEvidence: true,
+		},
+		{
+			name: "vector cells align element-wise",
+			kind: types.OverlayKind("OVERLAY_PAIRWISE_WELCH_T"),
+			cells: [][]types.MatrixCell{
+				{{Value: []any{nil, 0.003}, Present: true}},
+			},
+			adjusted: [][]types.MatrixCell{
+				{{Value: []any{nil, true}, Present: true}},
+			},
+			tests: 1, below: 1, wantEvidence: true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			l := types.OverlayLayer{Name: "cells", Kind: c.kind, Multiplicity: m, Payload: types.OverlayPayload{
+				Shape:               types.OverlayShapeMatrix,
+				Matrix:              &types.MatrixPayload{Cells: c.cells},
+				SignificantAdjusted: &types.MatrixPayload{Cells: c.adjusted},
+			}}
+			f := readResponse(t, nil, &types.Response{Overlays: []types.OverlayLayer{l}}, nil, descriptor.ExplainTerse).Findings[0]
+			if f.Numbers["tests"] == nil || *f.Numbers["tests"] != c.tests || f.Numbers["below_alpha_adjusted"] == nil || *f.Numbers["below_alpha_adjusted"] != c.below {
+				t.Fatalf("finding = %+v, want tests %v below_alpha_adjusted %v", f, c.tests, c.below)
+			}
+			if got := isEvidence(f.Verdict); got != c.wantEvidence {
+				t.Errorf("verdict %s, want evidence %v", f.Verdict, c.wantEvidence)
+			}
+		})
+	}
+}

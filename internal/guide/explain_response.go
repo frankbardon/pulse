@@ -578,48 +578,18 @@ func overlayPValues(l *types.OverlayLayer, pField string) (ps []float64, sig []b
 	}
 	if name, ok := strings.CutSuffix(strings.TrimPrefix(pField, "parts."), ".cells.value"); ok && strings.HasPrefix(pField, "parts.") {
 		// A p-value matrix carried as a named part: the adjusted twins
-		// ride the payload on the part's coordinates, so each cell's
-		// significance is read at the same coordinate (absent when its
-		// adjusted p is undefined).
+		// ride the payload on the part's coordinates.
 		part := l.Payload.Parts[name]
 		if part == nil || part.Matrix == nil {
 			return nil, nil
 		}
-		adj := l.Payload.SignificantAdjusted
-		for r, row := range part.Matrix.Cells {
-			for c, cell := range row {
-				if !cell.Present {
-					continue
-				}
-				ps = append(ps, floatsOf(cell.Value)...)
-				s := false
-				if adj != nil && r < len(adj.Cells) && c < len(adj.Cells[r]) && adj.Cells[r][c].Present {
-					s, _ = adj.Cells[r][c].Value.(bool)
-				}
-				sig = append(sig, s)
-			}
-		}
+		ps, sig = cellPValues(part.Matrix, l.Payload.SignificantAdjusted)
 		return ps, sig
 	}
 	switch pField {
 	case "cells.value":
 		if m := l.Payload.Matrix; m != nil {
-			for _, row := range m.Cells {
-				for _, c := range row {
-					if c.Present {
-						ps = append(ps, floatsOf(c.Value)...)
-					}
-				}
-			}
-		}
-		if m := l.Payload.SignificantAdjusted; m != nil {
-			for _, row := range m.Cells {
-				for _, c := range row {
-					if c.Present {
-						sig = append(sig, boolsOf(c.Value)...)
-					}
-				}
-			}
+			ps, sig = cellPValues(m, l.Payload.SignificantAdjusted)
 		}
 		return ps, sig
 	case "scalar":
@@ -632,6 +602,32 @@ func overlayPValues(l *types.OverlayLayer, pField string) (ps []float64, sig []b
 		return []float64{math.NaN()}, nil
 	}
 	return []float64{summaryValue(l.Summary, pField)}, nil
+}
+
+// cellPValues flattens a p-value matrix with each value's adjusted
+// significance read at its OWN coordinate (cell [r][c], element k of a
+// vector cell) of adj — never by position in a list of the present
+// adjusted cells, so an undefined p (whose adjusted cell is absent)
+// never borrows a neighbour's flag. A missing adjusted cell or element
+// reads as not significant.
+func cellPValues(p, adj *types.MatrixPayload) (ps []float64, sig []bool) {
+	for r, row := range p.Cells {
+		for c, cell := range row {
+			if !cell.Present {
+				continue
+			}
+			vals := floatsOf(cell.Value)
+			var flags []bool
+			if adj != nil && r < len(adj.Cells) && c < len(adj.Cells[r]) && adj.Cells[r][c].Present {
+				flags = boolsOf(adj.Cells[r][c].Value)
+			}
+			for k := range vals {
+				sig = append(sig, k < len(flags) && flags[k])
+			}
+			ps = append(ps, vals...)
+		}
+	}
+	return ps, sig
 }
 
 // ofThemBelow says how many of a layer's tests fall below alpha:
