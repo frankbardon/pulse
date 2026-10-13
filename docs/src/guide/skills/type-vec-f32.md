@@ -8,7 +8,7 @@ applies_to: inspect, predict
 
 ## Bytes
 
-Type byte 20. Fixed-width: 4 × dim bytes per record — dim little-endian IEEE-754 binary32 elements, contiguous, element 0 first. Not bit-packed. The dim is NOT in the type byte: it rides the schema's VECTORS section (format `0x02`, tag 2, REQUIRED), so a binary predating vectors refuses the cohort loudly. `Schema.FieldWidth` is the one width; `ByteSize()` is 0. The uint64 value API refuses it (`ENCODING_TYPE_MISMATCH`); use `encoding.ReadVector` / `WriteVector`. Decoders return it as `[]float32` (`Cohort.Reader`, nil when null) or `[]float64` (`extend.Record.VectorValue`, sample / lookup rows). Import, naming, export and refusals: [`vector-fields`](vector-fields.md).
+Type byte 20. Fixed-width: 4 × dim bytes per record — dim little-endian IEEE-754 binary32 elements, contiguous, element 0 first. Not bit-packed. The dim is NOT in the type byte: it rides the schema's VECTORS section (format `0x02`, tag 2, REQUIRED), so a pre-vector binary refuses the cohort loudly. `Schema.FieldWidth` is the one width; `ByteSize()` is 0. The uint64 value API refuses it (`ENCODING_TYPE_MISMATCH`); use `encoding.ReadVector` / `WriteVector`. Decoders return it as `[]float32` (`Cohort.Reader`, nil when null) or `[]float64` (`extend.Record.VectorValue`, sample / lookup rows). Import, naming, export and refusals: [`vector-fields`](vector-fields.md).
 
 ## Range
 

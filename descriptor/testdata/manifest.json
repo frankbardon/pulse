@@ -10777,7 +10777,7 @@
       },
       {
         "name": "cohort-schema-design",
-        "description": "Entry point for .pulse cohort schemas — the 20-type field matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
+        "description": "Entry point for .pulse cohort schemas — the 22-type field matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
       },
       {
         "name": "cohort-sharding",
@@ -12038,6 +12038,10 @@
       {
         "name": "type-vec-f64",
         "description": "Fixed-dim vector of float64 elements (dim 2..1024) stored as one field, with its kind, scale range and labels in the schema."
+      },
+      {
+        "name": "vector-fields",
+        "description": "Native vector fields (vec_f32 / vec_f64) end to end — importing a battery or a list column into one field, naming it directly in vector slots, f[k] element references, how its member identity differs from a scalar twin, null vs NaN, export shapes, and what refuses it. Use when a cohort stores embeddings or a rating battery as one field."
       },
       {
         "name": "vector-metrics",
@@ -16723,4 +16727,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 54314e4593fb676f2dcd8c684f90e2b816bf8edfcaff37171cdf1acd5db5091a
+// golden-hash: de47518f854f2357a24f4ed0b0babad787178384b0bf3eadebe137d3f355d8cc

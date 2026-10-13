@@ -18,7 +18,7 @@ A `vec_f32` / `vec_f64` field stores a fixed-length numeric vector (dim 2..1024)
 - **Schema file:** type `vec_f64` / `vec_f32` with a required `dim`, optional `labels`, `kind`, `scale_min` / `scale_max`.
 - **Go:** `Pulse.NewCohortBuilder` takes a slice of exactly dim elements per cell.
 
-Vector import is never feature-gated; only the matrix operators that consume vectors are.
+Vector import is never feature-gated; only the matrix operators that consume vector fields are.
 
 ## Naming it in a request
 
