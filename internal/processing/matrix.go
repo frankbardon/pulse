@@ -157,7 +157,7 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 			state:   st,
 			cols:    cols,
 			x:       make([]float64, len(cols)),
-			compute: s.compute,
+			compute: s.compute.ForMatrix(plan),
 		}
 		switch {
 		case plan.Type == types.MAT_DISTANCE:

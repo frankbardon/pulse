@@ -802,14 +802,19 @@ library walkthrough: `library/response-shaping.md`.
 
 The presets are defined once (`internal/descriptor/return_resolve.go`,
 `returnPresetPaths`) and listed in the manifest as `return_presets`
-(`[{name, paths}]`, in `full` / `standard` / `minimal` order) with each
+(`[{name, paths, companions?}]`, in `full` / `standard` / `minimal` order) with each
 preset's paths **expanded against the instance**: a path a hidden
 feature owns (e.g. `matrices[*]` without `capability:matrices`,
 `tests[*].p_adjusted` without `capability:multiplicity`) is absent from
 the listing and from the selection, never an error. A preset is an
 include allowlist, so a caller's `include` can always add a part back.
 Nested `*.warnings` are not listed: each is kept wherever its parent is
-emitted. Every listed path must resolve against this schema
+emitted. `companions` lists a preset's CONDITIONAL selections, each
+`<path> (with <key>)`: the map key at `path` is kept wherever its parent
+map also holds a kept `<key>` (`returnPresetCompanions`). `standard` has
+one, `matrices[*].auxiliary.n (with p)`; predict's `return` plan echoes
+it as `companions` and its digest covers it. An include or exclude
+covering the path removes it; excluding `<key>` drops it too. Every listed path must resolve against this schema
 (`TestReturnPathsMatchSchema`).
 
 | Slot | `minimal` (primary result) | `standard` |
@@ -817,7 +822,7 @@ emitted. Every listed path must resolve against this schema
 | `data`, `warnings` | yes | yes |
 | `metadata` | no | yes |
 | `crosstab` | `shape`, `matrix` | whole |
-| `matrices[*]` | `name`, `type`, `group_key`, `primary` | all but `auxiliary` |
+| `matrices[*]` | `name`, `type`, `group_key`, `primary` | all but `auxiliary`, except the inference figures a spec asked for: `auxiliary.p` / `ci_lower` / `ci_upper` (`params.inference`), `p_adjusted` / `significant_adjusted` (a multiplicity family), and the pairwise `auxiliary.n` beside a kept `p` (a companion). They exist only on that spec's result, so a spec without inference keeps no auxiliary |
 | `tests[*]` / `post_tests[*]` | `label`, `type`, `group_key`, `statistic`, `p_value`, `reject_null`, `p_adjusted`, `significant_adjusted` | minimal's keys + `variant`, `df`, `alpha`, `multiplicity`, `details.effect_size` (no other `details` key) |
 | `regressions[*]` | `name`, `type`, `coefficients`, `p_values` | all but `credible_intervals` and `selection` (so `ci_lower` / `ci_upper` / `df` / `conf_level`, and `vcov` / `correlation` / `covariance` when asked for) |
 | `overlays[*]` | `name`, `kind`, `ref`, `summary` (no `payload`) | whole |

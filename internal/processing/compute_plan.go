@@ -1,6 +1,9 @@
 package processing
 
-import "github.com/frankbardon/pulse/internal/returnplan"
+import (
+	"github.com/frankbardon/pulse/internal/returnplan"
+	"github.com/frankbardon/pulse/internal/vectors"
+)
 
 // ComputePlan says which excludable response parts a run COMPUTES. It
 // supersedes the single Components opt-out bool: the service resolves
@@ -55,6 +58,12 @@ type ComputePlan struct {
 	MatrixAuxiliary bool
 	MatrixScalars   bool
 	MatrixVectors   bool
+	// auxiliaryKeys, when non-nil, narrows MatrixAuxiliary per spec: the
+	// selection keeps matrices[*].auxiliary only PARTIALLY (some keys —
+	// `standard` keeps the inference ones), so a spec builds its
+	// auxiliaries only when the plan keeps a key that spec can emit
+	// (ForMatrix). Held by pointer so the plan stays comparable.
+	auxiliaryKeys *returnplan.Plan
 
 	// Overlays is the Response.Overlays slot: whether the run folds ANY
 	// request overlay layer. overlayLayers, when non-nil, narrows it to
@@ -125,6 +134,48 @@ func narrowSlot(keep []bool) (bool, *layerMask) {
 	default:
 		return true, &layerMask{keep: append([]bool(nil), keep...)}
 	}
+}
+
+// WithMatrixAuxiliary computes the matrices slot and EVERY spec's
+// auxiliaries, whatever the selection keeps of them — the multiplicity
+// veto: a claimed spec's p must exist for the family's m.
+func (c ComputePlan) WithMatrixAuxiliary() ComputePlan {
+	c.MatricesSlot, c.MatrixAuxiliary, c.auxiliaryKeys = true, true, nil
+	return c
+}
+
+// ComputesAllMatrixAuxiliary reports whether every spec builds its
+// auxiliaries (no per-spec narrowing).
+func (c ComputePlan) ComputesAllMatrixAuxiliary() bool {
+	return c.MatrixAuxiliary && c.auxiliaryKeys == nil
+}
+
+// ForMatrix is the plan one matrix spec's slot runs under: under a
+// partially kept matrices[*].auxiliary, the spec builds its auxiliaries
+// iff the selection keeps a key it can emit (vectors.Matrix.AuxiliaryKeys,
+// plus the multiplicity twins on an inference spec) — so `standard`
+// builds a spec's auxiliaries exactly when it asked for inference, and
+// a spec without it does no auxiliary work, as before the preset kept
+// any. An operator the key list does not model builds them. A
+// companion-only key (`auxiliary.n` beside `p`) never decides alone:
+// its anchor is an inference key of the same spec.
+func (c ComputePlan) ForMatrix(m vectors.Matrix) ComputePlan {
+	if !c.MatrixAuxiliary || c.auxiliaryKeys == nil {
+		return c
+	}
+	keys, known := m.AuxiliaryKeys()
+	if m.Inference {
+		keys = append(keys, "p_adjusted", "significant_adjusted")
+	}
+	want := !known
+	for _, key := range keys {
+		if visitChain(c.auxiliaryKeys, "matrices", "[*]", "auxiliary", key).Keep {
+			want = true
+			break
+		}
+	}
+	c.MatrixAuxiliary, c.auxiliaryKeys = want, nil
+	return c
 }
 
 // computesEntry is the per-entry verdict of a narrowed slot.
@@ -232,7 +283,11 @@ func ComputePlanFor(ret *returnplan.Plan) ComputePlan {
 		Regressions:  k("regressions").Keep,
 	}
 	c.Groups = c.Aggs && k("components", "aggregations", "[*]", "groups").Keep
-	c.MatrixAuxiliary = c.MatricesSlot && k("matrices", "[*]", "auxiliary").Keep
+	aux := k("matrices", "[*]", "auxiliary")
+	c.MatrixAuxiliary = c.MatricesSlot && aux.Keep
+	if c.MatrixAuxiliary && !aux.Whole {
+		c.auxiliaryKeys = ret
+	}
 	c.MatrixScalars = c.MatricesSlot && k("matrices", "[*]", "scalars").Keep
 	c.MatrixVectors = c.MatricesSlot && k("matrices", "[*]", "vectors").Keep
 	c.AuxMargins = c.Crosstab && (k("components", "crosstab", "row_margin_aggregations").Keep ||

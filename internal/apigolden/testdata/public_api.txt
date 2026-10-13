@@ -1794,6 +1794,7 @@ pulse/descriptor: type ResponseSectionSize field FullBytes int64 "json:\"full_by
 pulse/descriptor: type ResponseSectionSize field Section string "json:\"section\""
 pulse/descriptor: type ResponseSectionSize field ShapedBytes int64 "json:\"shaped_bytes\""
 pulse/descriptor: type ReturnPlan struct
+pulse/descriptor: type ReturnPlan field Companions []string "json:\"companions,omitempty\""
 pulse/descriptor: type ReturnPlan field Digest string "json:\"digest\""
 pulse/descriptor: type ReturnPlan field Exclude []string "json:\"exclude\""
 pulse/descriptor: type ReturnPlan field Identity bool "json:\"identity\""
@@ -1803,6 +1804,7 @@ pulse/descriptor: type ReturnPlan field Precision int "json:\"precision,omitempt
 pulse/descriptor: type ReturnPlan field Preset string "json:\"preset\""
 pulse/descriptor: type ReturnPlan field UnresolvedIncludes []string "json:\"unresolved_includes,omitempty\""
 pulse/descriptor: type ReturnPresetMeta struct
+pulse/descriptor: type ReturnPresetMeta field Companions []string "json:\"companions,omitempty\""
 pulse/descriptor: type ReturnPresetMeta field Name string "json:\"name\""
 pulse/descriptor: type ReturnPresetMeta field Paths []string "json:\"paths\""
 pulse/descriptor: type Role struct
@@ -4976,4 +4978,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e24e7ce1753318b9e636cf021c263392bf50610acf380bce24ccfb4cfd765480
+// golden-hash: 03b6dc6f5ec3859e355d4b81be4f8a7aeec309b2f7306274204ddb345f10a5f8

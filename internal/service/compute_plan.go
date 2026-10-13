@@ -251,13 +251,13 @@ func (s *Service) resolveComputePlan(ctx context.Context, req *types.Request, re
 		if !plan.PostTests && len(req.PostTests) > 0 {
 			plan = plan.WithPostTestEntries(multiplicityVetoes(claimed.PostTests, len(req.PostTests)))
 		}
-		if !plan.MatrixAuxiliary && anyMember(claimed.Matrices) {
+		if !plan.ComputesAllMatrixAuxiliary() && anyMember(claimed.Matrices) {
 			// A member matrix spec's p-values sit in auxiliary.p: a
 			// selection that drops the matrices or their auxiliaries
 			// still computes them, so the family's m and every kept
 			// p_adjusted (a pooled `request` family's tests included)
 			// match the full run.
-			plan.MatricesSlot, plan.MatrixAuxiliary = true, true
+			plan = plan.WithMatrixAuxiliary()
 		}
 	}
 	if !plan.MatricesSlot && processing.AppliesMatrixResultOverlays(req, s.extensions, plan) {

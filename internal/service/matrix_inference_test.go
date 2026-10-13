@@ -400,7 +400,9 @@ func TestMatrixInference_SizeNulls(t *testing.T) {
 
 // TestMatrixInference_ReturnGate: a `return` that drops
 // matrices[*].auxiliary skips the inference computation (no work, no
-// warning), the rest of the result unchanged; kept, it runs.
+// warning), the rest of the result unchanged; kept, it runs. `standard`
+// keeps the inference keys a spec asked for (E4-G1), so it runs; a
+// partial selection naming none of this spec's keys skips it.
 func TestMatrixInference_ReturnGate(t *testing.T) {
 	cfg := writeMatrixCohort(t, "m.pulse", matrixRows(200))
 	spec := missingSpec(types.MAT_CORRELATION, []string{"x1", "x2", "x3"}, "", `{"inference": true}`)
@@ -411,7 +413,12 @@ func TestMatrixInference_ReturnGate(t *testing.T) {
 	}{
 		{"absent", nil, true},
 		{"full", &types.Return{Preset: types.ReturnPresetFull}, true},
-		{"standard", &types.Return{Preset: types.ReturnPresetStandard}, false},
+		{"standard", &types.Return{Preset: types.ReturnPresetStandard}, true},
+		{"minimal", &types.Return{Preset: types.ReturnPresetMinimal}, false},
+		{"standard_exclude_inference", &types.Return{Preset: types.ReturnPresetStandard, Exclude: []string{
+			"matrices[*].auxiliary.p", "matrices[*].auxiliary.ci_lower", "matrices[*].auxiliary.ci_upper",
+			"matrices[*].auxiliary.p_adjusted", "matrices[*].auxiliary.significant_adjusted"}}, false},
+		{"include_other_key", &types.Return{Include: []string{"matrices[*].auxiliary.eigenvectors"}}, false},
 		{"exclude_auxiliary", &types.Return{Exclude: []string{"matrices[*].auxiliary"}}, false},
 	} {
 		t.Run(c.name, func(t *testing.T) {

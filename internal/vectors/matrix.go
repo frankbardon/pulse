@@ -153,6 +153,63 @@ type Matrix struct {
 	Alpha float64
 }
 
+// AuxiliaryKeys lists the matrices[*].auxiliary keys m's finalizer
+// emits under its params, in a fixed order — the ONE list the predict
+// size model (matrixAuxiliaryNodes) and the runtime's per-spec
+// auxiliary compute gate (processing.ComputePlan) read, so predict
+// sizes and the computed auxiliaries cannot drift. The multiplicity
+// twins (p_adjusted, significant_adjusted) are written later by the
+// service fold and are not listed. known is false for an operator this
+// list does not model (every built-in is modelled): a caller then
+// assumes it may emit any key.
+//
+//   - n: params.missing pairwise, every operator but MAT_DISTANCE.
+//   - p, ci_lower, ci_upper: params.inference (MAT_CORRELATION /
+//     MAT_PARTIAL_CORRELATION).
+//   - MAT_PCA: eigenvectors; unrotated under a rotation.
+//   - MAT_FACTOR: unrotated under a rotation; factor_correlation under
+//     an oblique one.
+//   - MAT_COLLINEARITY: variance_decomposition.
+//   - MAT_DISTANCE: centroids; centroids_standardized under
+//     standardize; pooled_covariance under a fitted inverse-covariance
+//     metric.
+func (m Matrix) AuxiliaryKeys() (keys []string, known bool) {
+	if !slices.Contains(types.AllMatrixTypes(), m.Type) {
+		return nil, false
+	}
+	if m.Pairwise && m.Type != types.MAT_DISTANCE {
+		keys = append(keys, "n")
+	}
+	if m.Inference {
+		keys = append(keys, "p", "ci_lower", "ci_upper")
+	}
+	switch m.Type {
+	case types.MAT_PCA:
+		keys = append(keys, "eigenvectors")
+		if m.Rotation != "" {
+			keys = append(keys, "unrotated")
+		}
+	case types.MAT_FACTOR:
+		if m.Rotation != "" {
+			keys = append(keys, "unrotated")
+			if m.Rotation != RotationVarimax {
+				keys = append(keys, "factor_correlation")
+			}
+		}
+	case types.MAT_COLLINEARITY:
+		keys = append(keys, "variance_decomposition")
+	case types.MAT_DISTANCE:
+		keys = append(keys, "centroids")
+		if m.Standardize {
+			keys = append(keys, "centroids_standardized")
+		}
+		if met, err := metric.ResolveFor(metric.ConsumerMatDistance, m.Metric, metric.Distance); err == nil && met.Fit() == metric.FitInverseCovariance {
+			keys = append(keys, "pooled_covariance")
+		}
+	}
+	return keys, true
+}
+
 // InferenceDefaultAlpha is params.alpha's default: 95% intervals.
 const InferenceDefaultAlpha = 0.05
 

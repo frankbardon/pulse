@@ -16415,6 +16415,12 @@
           "matrices[*].primary",
           "matrices[*].vectors",
           "matrices[*].scalars",
+          "matrices[*].multiplicity",
+          "matrices[*].auxiliary.p",
+          "matrices[*].auxiliary.ci_lower",
+          "matrices[*].auxiliary.ci_upper",
+          "matrices[*].auxiliary.p_adjusted",
+          "matrices[*].auxiliary.significant_adjusted",
           "tests[*].label",
           "tests[*].type",
           "tests[*].group_key",
@@ -16473,6 +16479,9 @@
           "regressions[*].correlation",
           "regressions[*].covariance",
           "overlays"
+        ],
+        "companions": [
+          "matrices[*].auxiliary.n (with p)"
         ]
       },
       {
@@ -16573,4 +16582,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5810fe2288aa4304126e5cf9615cb3aad1c5e89c86d38a4aea434b01a2144dce
+// golden-hash: f968c4e393cbe932b315782d42b6c6343cae35c1e9ce2fec95b957b9f0658093

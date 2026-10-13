@@ -155,14 +155,43 @@ func TestPredict_ReturnSizes_MatrixAuxiliary(t *testing.T) {
 	if excl.ShapedBytes != off.FullBytes || excl.FullBytes != on.FullBytes {
 		t.Errorf("exclude auxiliary: %+v, want shaped %d full %d", excl, off.FullBytes, on.FullBytes)
 	}
+	// standard (E4-G1) keeps the inference auxiliaries a spec asked
+	// for, and only those: an inference spec keeps its three squares, a
+	// spec without inference loses its auxiliary entirely.
 	std := run(`{"inference": true}`, &types.Return{Preset: types.ReturnPresetStandard})
 	stdOff := run("", &types.Return{Preset: types.ReturnPresetStandard})
-	if std.ShapedBytes != stdOff.ShapedBytes {
-		t.Errorf("standard drops auxiliary: shaped %d, want %d", std.ShapedBytes, stdOff.ShapedBytes)
+	inferenceAux := auxKey + 3*square + len64("ci_lower") - len64("p") + len64("ci_upper") - len64("p")
+	if want := stdOff.ShapedBytes + inferenceAux; std.ShapedBytes != want {
+		t.Errorf("standard keeps inference auxiliaries: shaped %d, want %d", std.ShapedBytes, want)
 	}
-	inc := run(`{"inference": true}`, &types.Return{Preset: types.ReturnPresetStandard, Include: []string{"matrices[*].auxiliary.p"}})
-	if want := stdOff.ShapedBytes + auxKey + square; inc.ShapedBytes != want {
-		t.Errorf("include auxiliary.p: shaped %d, want %d", inc.ShapedBytes, want)
+	// The pairwise n rides beside p (a companion) under standard; a
+	// pairwise spec without inference still drops it.
+	pwOff := run(`{"missing": "pairwise"}`, &types.Return{Preset: types.ReturnPresetStandard})
+	if pwOff.ShapedBytes != stdOff.ShapedBytes {
+		t.Errorf("standard pairwise without inference: shaped %d, want %d (no auxiliary)", pwOff.ShapedBytes, stdOff.ShapedBytes)
+	}
+	pwStd := run(`{"inference": true, "missing": "pairwise"}`, &types.Return{Preset: types.ReturnPresetStandard})
+	if want := std.ShapedBytes + matrixValuesNode("n", 3, 3).full(); pwStd.ShapedBytes != want {
+		t.Errorf("standard pairwise inference: shaped %d, want %d (n beside p)", pwStd.ShapedBytes, want)
+	}
+	// Exclude wins over the preset: p gone takes its companion n too.
+	pwNoP := run(`{"inference": true, "missing": "pairwise"}`, &types.Return{Preset: types.ReturnPresetStandard, Exclude: []string{"matrices[*].auxiliary.p"}})
+	if want := std.ShapedBytes - square; pwNoP.ShapedBytes != want {
+		t.Errorf("standard pairwise inference minus p: shaped %d, want %d", pwNoP.ShapedBytes, want)
+	}
+	pwNoN := run(`{"inference": true, "missing": "pairwise"}`, &types.Return{Preset: types.ReturnPresetStandard, Exclude: []string{"matrices[*].auxiliary.n"}})
+	if pwNoN.ShapedBytes != std.ShapedBytes {
+		t.Errorf("standard pairwise inference minus n: shaped %d, want %d", pwNoN.ShapedBytes, std.ShapedBytes)
+	}
+	// minimal is unchanged: no auxiliary at all.
+	minOn := run(`{"inference": true}`, &types.Return{Preset: types.ReturnPresetMinimal})
+	minOff := run("", &types.Return{Preset: types.ReturnPresetMinimal})
+	if minOn.ShapedBytes != minOff.ShapedBytes {
+		t.Errorf("minimal drops auxiliary: shaped %d, want %d", minOn.ShapedBytes, minOff.ShapedBytes)
+	}
+	inc := run(`{"inference": true}`, &types.Return{Include: []string{"matrices[*].auxiliary.p"}})
+	if want := auxKey + square; inc.ShapedBytes != want+sizeObject+len64("matrices")+sizeKeyOverhead+sizeObject {
+		t.Errorf("include auxiliary.p alone: shaped %d, want the auxiliary.p square", inc.ShapedBytes)
 	}
 }
 

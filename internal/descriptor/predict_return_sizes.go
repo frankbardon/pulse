@@ -9,7 +9,6 @@ import (
 	"github.com/frankbardon/pulse/internal/groupedtests"
 	"github.com/frankbardon/pulse/internal/returnplan"
 	"github.com/frankbardon/pulse/internal/vectors"
-	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -52,6 +51,10 @@ type sizeNode struct {
 	count int64
 	own   int64
 	kids  []*sizeNode
+	// omitEmpty marks an `omitempty` map (matrices[*].auxiliary): kept
+	// only as the ancestor of selected keys, none of which it holds, it
+	// is absent on the wire, so it sizes 0.
+	omitEmpty bool
 }
 
 // leaf is a scalar key: the key text plus its value bytes.
@@ -85,9 +88,20 @@ func (n *sizeNode) full() int64 {
 // shaped is the node's size under plan, its parent at path. A node the
 // plan drops is 0; a whole-kept node is its full size; a partially kept
 // node keeps its own bytes and asks for each child.
-func (n *sizeNode) shaped(plan *returnplan.Plan, path []returnplan.Segment) int64 {
+//
+// siblings are the node's siblings (its parent's kids): a map key the
+// plan keeps only as a companion (returnplan.Companion) is kept iff its
+// sibling is — the runtime walkers' VisitIn rule.
+func (n *sizeNode) shaped(plan *returnplan.Plan, path []returnplan.Segment, siblings []*sizeNode) int64 {
 	c := append(append(make([]returnplan.Segment, 0, len(path)+1), path...), n.seg)
-	v := plan.Visit(c)
+	v := plan.VisitIn(c, func(name string) bool {
+		for _, s := range siblings {
+			if !s.seg.Index && s.seg.Name == name {
+				return true
+			}
+		}
+		return false
+	})
 	if !v.Keep {
 		return 0
 	}
@@ -95,8 +109,14 @@ func (n *sizeNode) shaped(plan *returnplan.Plan, path []returnplan.Segment) int6
 		return n.full()
 	}
 	sum := n.own
+	kept := false
 	for _, k := range n.kids {
-		sum += k.shaped(plan, c)
+		ks := k.shaped(plan, c, n.kids)
+		kept = kept || ks > 0
+		sum += ks
+	}
+	if n.omitEmpty && !kept {
+		return 0
 	}
 	return n.count * sum
 }
@@ -274,7 +294,9 @@ func returnSections(in returnSizeInputs) []returnSection {
 			if i < len(in.matrixPlans) {
 				member := i < len(in.matrixMembers) && in.matrixMembers[i]
 				if aux := matrixAuxiliaryNodes(in.matrixPlans[i], m, member); len(aux) > 0 {
-					result = append(result, key("auxiliary", aux...))
+					auxNode := key("auxiliary", aux...)
+					auxNode.omitEmpty = true
+					result = append(result, auxNode)
 				}
 				if member {
 					result = append(result, leaf("multiplicity", sizeHeader))
@@ -370,7 +392,7 @@ func responseSizes(plan *returnplan.Plan, in returnSizeInputs) []descriptor.Resp
 		full := s.node.full()
 		shaped := full
 		if plan != nil {
-			shaped = s.node.shaped(plan, nil)
+			shaped = s.node.shaped(plan, nil, nil)
 		}
 		out = append(out, descriptor.ResponseSectionSize{
 			Section:     s.node.seg.Name,
@@ -484,47 +506,30 @@ func matrixValuesNode(name string, rows, cols int64) *sizeNode {
 //     covariance metric (mahalanobis).
 func matrixAuxiliaryNodes(m vectors.Matrix, mp descriptor.MatrixPredict, member bool) []*sizeNode {
 	p, k := int64(mp.Shape[0]), int64(mp.Shape[1])
-	var out []*sizeNode
-	if m.Pairwise && m.Type != types.MAT_DISTANCE {
-		out = append(out, matrixValuesNode("n", p, p))
+	keys, _ := m.AuxiliaryKeys()
+	if m.Inference && member {
+		keys = append(keys, "p_adjusted", "significant_adjusted")
 	}
-	if m.Inference {
-		names := []string{"p", "ci_lower", "ci_upper"}
-		if member {
-			names = append(names, "p_adjusted", "significant_adjusted")
-		}
-		for _, name := range names {
-			out = append(out, matrixValuesNode(name, p, p))
-		}
-	}
-	switch m.Type {
-	case types.MAT_PCA:
-		out = append(out, matrixValuesNode("eigenvectors", p, k))
-		if m.Rotation != "" {
-			out = append(out, matrixValuesNode("unrotated", p, k))
-		}
-	case types.MAT_FACTOR:
-		if m.Rotation != "" {
-			out = append(out, matrixValuesNode("unrotated", p, k))
-			if m.Rotation != vectors.RotationVarimax {
-				out = append(out, matrixValuesNode("factor_correlation", k, k))
+	out := make([]*sizeNode, 0, len(keys))
+	for _, name := range keys {
+		switch name {
+		case "eigenvectors", "unrotated":
+			out = append(out, matrixValuesNode(name, p, k))
+		case "factor_correlation":
+			out = append(out, matrixValuesNode(name, k, k))
+		case "variance_decomposition":
+			q := p
+			if !m.Center {
+				q++
 			}
-		}
-	case types.MAT_COLLINEARITY:
-		q := p
-		if !m.Center {
-			q++
-		}
-		out = append(out, matrixValuesNode("variance_decomposition", q, q))
-	case types.MAT_DISTANCE:
-		b := p
-		members := int64(len(m.Members.Members))
-		out = append(out, matrixValuesNode("centroids", b, members))
-		if m.Standardize {
-			out = append(out, matrixValuesNode("centroids_standardized", b, members))
-		}
-		if met, err := metric.ResolveFor(metric.ConsumerMatDistance, m.Metric, metric.Distance); err == nil && met.Fit() == metric.FitInverseCovariance {
-			out = append(out, matrixValuesNode("pooled_covariance", members, members))
+			out = append(out, matrixValuesNode(name, q, q))
+		case "centroids", "centroids_standardized":
+			out = append(out, matrixValuesNode(name, p, int64(len(m.Members.Members))))
+		case "pooled_covariance":
+			members := int64(len(m.Members.Members))
+			out = append(out, matrixValuesNode(name, members, members))
+		default: // n and the inference squares: p x p over the output axis
+			out = append(out, matrixValuesNode(name, p, p))
 		}
 	}
 	return out

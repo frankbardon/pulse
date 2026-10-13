@@ -375,4 +375,8 @@ type ReturnPresetMeta struct {
 	// parent is emitted and are not listed; full lists every visible
 	// top-level key.
 	Paths []string `json:"paths"`
+	// Companions is the preset's conditional selections on this
+	// instance, each `<path> (with <key>)`: kept only beside a kept
+	// <key> in the same map (ReturnPlan.Companions). Omitted when none.
+	Companions []string `json:"companions,omitempty"`
 }

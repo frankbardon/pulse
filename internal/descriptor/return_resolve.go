@@ -53,9 +53,15 @@ var returnPresetPaths = map[types.ReturnPreset][]string{
 	// callers read beside it; never components.
 	types.ReturnPresetStandard: {
 		"data", "warnings", "metadata", "crosstab",
-		// matrices[*] minus auxiliary
+		// matrices[*] minus auxiliary — except the inference figures a
+		// spec asked for (params.inference / a multiplicity block): they
+		// exist on that spec's result only, so listing them keeps them
+		// exactly where they were requested. The pairwise auxiliary.n
+		// rides beside them as a companion (returnPresetCompanions).
 		"matrices[*].name", "matrices[*].type", "matrices[*].group_key", "matrices[*].group_header",
-		"matrices[*].primary", "matrices[*].vectors", "matrices[*].scalars",
+		"matrices[*].primary", "matrices[*].vectors", "matrices[*].scalars", "matrices[*].multiplicity",
+		"matrices[*].auxiliary.p", "matrices[*].auxiliary.ci_lower", "matrices[*].auxiliary.ci_upper",
+		"matrices[*].auxiliary.p_adjusted", "matrices[*].auxiliary.significant_adjusted",
 		// tests headline + df / alpha / variant / multiplicity + effect sizes
 		"tests[*].label", "tests[*].type", "tests[*].group_key", "tests[*].variant", "tests[*].statistic", "tests[*].df",
 		"tests[*].p_value", "tests[*].alpha", "tests[*].reject_null", "tests[*].p_adjusted",
@@ -90,6 +96,17 @@ var returnPresetPaths = map[types.ReturnPreset][]string{
 	},
 }
 
+// returnPresetCompanions are a preset's CONDITIONAL selections
+// (returnplan.Companion): the map key at path is kept wherever its
+// parent also holds the `with` key the preset keeps. `standard` keeps a
+// matrix's pairwise auxiliary.n only beside an inference auxiliary.p —
+// the per-pair N behind that spec's p and intervals — so a pairwise
+// spec without inference still loses its n, as before. Expanded
+// against the instance like the paths (a hidden feature's are dropped).
+var returnPresetCompanions = map[types.ReturnPreset][]struct{ path, with string }{
+	types.ReturnPresetStandard: {{"matrices[*].auxiliary.n", "p"}},
+}
+
 // ReturnPresetsFor lists every preset expanded against inst — the
 // manifest's return_presets block — in types.AllReturnPresets order.
 // Paths are the canonical spellings of the preset's selection on this
@@ -104,7 +121,11 @@ func ReturnPresetsFor(inst *InstanceSnapshot) []descriptor.ReturnPresetMeta {
 		for i, path := range paths {
 			strs[i] = path.String()
 		}
-		out = append(out, descriptor.ReturnPresetMeta{Name: string(p), Paths: strs})
+		meta := descriptor.ReturnPresetMeta{Name: string(p), Paths: strs}
+		if cs := expandReturnCompanions(p, returnRoot, inst); len(cs) > 0 {
+			meta.Companions = returnplan.CompanionStrings(cs)
+		}
+		out = append(out, meta)
 	}
 	return out
 }
@@ -312,10 +333,12 @@ func resolveReturnBlock(ret *types.Return, root reflect.Type, inst *InstanceSnap
 
 	rootKeys := returnVisibleKeys(root, inst)
 	var base []returnplan.Path
+	var companions []returnplan.Companion
 	preset := string(ret.Preset)
 	switch {
 	case ret.Preset != "":
 		base = expandReturnPreset(ret.Preset, root, inst, rootKeys)
+		companions = expandReturnCompanions(ret.Preset, root, inst)
 	case len(ret.Include) > 0:
 		// Include-only is an allowlist: empty base.
 		preset = returnplan.PresetCustom
@@ -345,7 +368,23 @@ func resolveReturnBlock(ret *types.Return, root reflect.Type, inst *InstanceSnap
 	// two equal spellings, so a caller's Open include survives a
 	// preset's identical (never-warning) path.
 	all := append(include, base...)
-	return returnplan.New(preset, all, exclude, nested, ret.Precision, rootKeys), nil
+	return returnplan.NewWithCompanions(preset, all, exclude, nested, companions, ret.Precision, rootKeys), nil
+}
+
+// expandReturnCompanions expands a preset's companions against the
+// instance: one whose path does not resolve (a hidden feature owns it)
+// is dropped silently, like a preset path.
+func expandReturnCompanions(preset types.ReturnPreset, root reflect.Type, inst *InstanceSnapshot) []returnplan.Companion {
+	var out []returnplan.Companion
+	for _, c := range returnPresetCompanions[preset] {
+		p, err := returnplan.Parse(c.path)
+		if err != nil || resolveReturnPath(root, &p, inst, "preset", 0, c.path) != nil {
+			continue
+		}
+		p.Open = false
+		out = append(out, returnplan.Companion{Path: p, With: c.with})
+	}
+	return out
 }
 
 // parseReturnPaths parses one path list, refusing the first malformed
@@ -719,7 +758,7 @@ func returnPlanDescriptor(p *returnplan.Plan) *descriptor.ReturnPlan {
 	if p == nil {
 		return nil
 	}
-	return &descriptor.ReturnPlan{
+	out := &descriptor.ReturnPlan{
 		Preset:    p.Preset,
 		Include:   returnplan.Strings(p.Include),
 		Exclude:   returnplan.Strings(p.Exclude),
@@ -728,4 +767,8 @@ func returnPlanDescriptor(p *returnplan.Plan) *descriptor.ReturnPlan {
 		Identity:  p.Identity(),
 		Digest:    p.Digest,
 	}
+	if len(p.Companions) > 0 {
+		out.Companions = returnplan.CompanionStrings(p.Companions)
+	}
+	return out
 }

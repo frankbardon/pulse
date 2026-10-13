@@ -47,7 +47,7 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 ## Gotchas
 
 - Each cell is the matching two-field test (Pearson, Spearman, Kendall) over its pair's rows. Weight-0 rows count in `n`, add no mass.
-- `inference` rides `auxiliary`: `return` preset `standard` (the MCP default) drops it; use `full` or include `matrices[*].auxiliary`. Thin cells: `PULSE_MATRIX_INSUFFICIENT_N` scope `inference`, null p left out of any correction family.
+- `inference` rides `auxiliary`: `return` preset `standard` (the MCP default) keeps `p` / `ci_lower` / `ci_upper` (and the pairwise `n`) on the specs that asked; `minimal` drops them. Thin cells: `PULSE_MATRIX_INSUFFICIENT_N` scope `inference`, null p left out of any correction family.
 - Rank methods: predict `streamable` / `mergeable` false; a probability weight is `PULSE_WEIGHT_UNSUPPORTED`. Kendall τ-b runs smaller than ρ.
 - Pairwise r at p ≥ 3 can be non-PSD (predict `pairwise_psd_risk`) → `PULSE_MATRIX_NOT_PSD`; also `_INSUFFICIENT_N`, `_ZERO_VARIANCE`, `_LISTWISE_HEAVY_DROP`.
 - Refusals and grouping: `matrix-results`.

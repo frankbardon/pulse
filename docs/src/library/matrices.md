@@ -119,9 +119,13 @@ standard error — √((1 + ρ²/2)/(n − 3)) for Spearman (Bonett & Wright,
 2000), √(0.437/(n − 4)) for Kendall (Fieller, Hartley & Pearson, 1957;
 5 rows) — and [r, r] at |r| = 1.
 
-The figures ride `matrices[*].auxiliary`, so a `return` that drops it
-(the `standard` preset, the MCP default) skips the computation. Nothing
-corrects for the many pairs. Off (the default) the response is
+The figures ride `matrices[*].auxiliary`. The `standard` preset (the MCP
+default) keeps them on every spec that set `inference` — with the
+pairwise `auxiliary.n` beside `p` and, under a multiplicity block, the
+adjusted twins — and drops the auxiliary of a spec that did not; a
+`return` that drops them (`minimal`, or an exclude) skips the
+computation. Without a multiplicity block nothing corrects for the many
+pairs. Off (the default) the response is
 byte-identical to a request without the key.
 
 ## Partial correlation
