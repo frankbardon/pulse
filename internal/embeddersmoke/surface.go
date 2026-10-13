@@ -276,6 +276,13 @@ var (
 	_ func() linalg.RidgeSchedule                                              = linalg.DefaultRidgeSchedule
 	_ func(*linalg.Sym, *linalg.Vec) (*linalg.Vec, error)                      = linalg.SolveSPD
 	_ func(*linalg.Sym) (*linalg.Sym, error)                                   = linalg.InverseSPD
+	_ func(*linalg.Matrix, *linalg.Vec) (*linalg.Vec, error)                   = linalg.Solve
+	_ func(*linalg.Matrix) (*linalg.LUFactor, error)                           = linalg.FactorLU
+	_ func(*linalg.LUFactor) int                                               = (*linalg.LUFactor).N
+	_ func(*linalg.LUFactor) float64                                           = (*linalg.LUFactor).ConditionNumber
+	_ func(*linalg.LUFactor, *linalg.Vec) (*linalg.Vec, error)                 = (*linalg.LUFactor).Solve
+	_ func(*linalg.LUFactor, *linalg.Matrix) (*linalg.Matrix, error)           = (*linalg.LUFactor).SolveMatrix
+	_ func(*linalg.LUFactor) (*linalg.Matrix, error)                           = (*linalg.LUFactor).Inverse
 	_ func(int, int, float64) float64                                          = linalg.RankTolerance
 	_ float64                                                                  = linalg.Epsilon
 	_ float64                                                                  = linalg.DominanceTolerance

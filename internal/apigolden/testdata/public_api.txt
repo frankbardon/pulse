@@ -2994,8 +2994,15 @@ pulse/linalg: const ConditionTolerance untyped float = 10000000000000000
 pulse/linalg: func DefaultRidgeSchedule() pulse/linalg.RidgeSchedule
 pulse/linalg: const DominanceTolerance untyped float = 1/67108864
 pulse/linalg: const Epsilon untyped float = 1/4503599627370496
+pulse/linalg: func FactorLU(a *pulse/linalg.Matrix) (*pulse/linalg.LUFactor, error)
 pulse/linalg: func FactorSPD(s *pulse/linalg.Sym) (*pulse/linalg.SPDFactor, error)
 pulse/linalg: func InverseSPD(s *pulse/linalg.Sym) (*pulse/linalg.Sym, error)
+pulse/linalg: type LUFactor struct
+pulse/linalg: type LUFactor method (*LUFactor) ConditionNumber() float64
+pulse/linalg: type LUFactor method (*LUFactor) Inverse() (*pulse/linalg.Matrix, error)
+pulse/linalg: type LUFactor method (*LUFactor) N() int
+pulse/linalg: type LUFactor method (*LUFactor) Solve(b *pulse/linalg.Vec) (*pulse/linalg.Vec, error)
+pulse/linalg: type LUFactor method (*LUFactor) SolveMatrix(b *pulse/linalg.Matrix) (*pulse/linalg.Matrix, error)
 pulse/linalg: const Listwise pulse/linalg.CoMomentMode = 0
 pulse/linalg: type Matrix struct
 pulse/linalg: type Matrix method (*Matrix) At(i int, j int) float64
@@ -3031,6 +3038,7 @@ pulse/linalg: type SVDResult struct
 pulse/linalg: type SVDResult field U *pulse/linalg.Matrix
 pulse/linalg: type SVDResult field V *pulse/linalg.Matrix
 pulse/linalg: type SVDResult field Values *pulse/linalg.Vec
+pulse/linalg: func Solve(a *pulse/linalg.Matrix, b *pulse/linalg.Vec) (*pulse/linalg.Vec, error)
 pulse/linalg: func SolveSPD(s *pulse/linalg.Sym, b *pulse/linalg.Vec) (*pulse/linalg.Vec, error)
 pulse/linalg: type Sym struct
 pulse/linalg: type Sym method (*Sym) At(i int, j int) float64
@@ -4951,4 +4959,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e6c554e7725c7ef545b5ec3fe350e73a45739e14584e0a04f0026840cc4720e2
+// golden-hash: 73bf9b12742d8dd95f004da1c807d7c5c71ab375cc70527e1bb7b147ff1c264d

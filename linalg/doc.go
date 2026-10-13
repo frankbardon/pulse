@@ -5,7 +5,8 @@
 // # Two backends
 //
 // The REFERENCE kernels — Cholesky, CholeskyRidge, SolveSPD,
-// InverseSPD and the CoMoment accumulator's Add and Merge — are pure Go
+// InverseSPD, the general LU solve (FactorLU, LUFactor, Solve) and the
+// CoMoment accumulator's Add and Merge — are pure Go
 // and FMA-free: every product that feeds an addition or subtraction is
 // written as an explicit float64(a*b) conversion, which the Go
 // specification forbids the compiler from fusing into a fused
@@ -56,6 +57,17 @@
 // ridge (DefaultRidgeSchedule: eight tries, increments 1e-6 … 1e1) and
 // returns the ACCUMULATED ridge, so the figure reads as "how far from
 // positive definite was this", not as an iteration count.
+//
+// # General solve
+//
+// FactorLU factors a general square matrix as P·A = L·U by Doolittle
+// elimination with partial pivoting (largest pivot per column, ties to
+// the lowest row); Solve, LUFactor.Solve, SolveMatrix and Inverse solve
+// against it. They are reference kernels — pure Go, FMA-free — so the
+// factor and every solution are bit-identical on every architecture. A
+// matrix that is rank-deficient under RankTolerance (ConditionNumber
+// +Inf) is refused with PULSE_MATRIX_SINGULAR, never solved to NaN; the
+// refusal is the one decision that rides the gonum singular values.
 //
 // # Co-moments
 //
