@@ -94,6 +94,10 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	// A vector aggregator's factory reads its resolved members (the
 	// rewrite Processor.prepare applies on every other arm).
 	req = processing.ResolveAggregationInputs(req, schema, s.extensions)
+	// So does a vector-input attribute (a fitted attribute bound to a
+	// prebuilt fit is row-local, so it reaches this arm): its literal
+	// members, default label and written-out labels.
+	req = processing.ResolveAttributeInputs(req, schema, s.extensions)
 
 	// Read the archive once. Each worker re-wraps the byte buffer in a
 	// bytes.Reader (which is an io.ReaderAt under the hood) so worker
@@ -114,6 +118,14 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	}
 	// Reading the archive into memory is its open.
 	ei.Lap(observe.PhaseOpen)
+
+	// A fitted attribute bound to a prebuilt fit closes at bind: build
+	// the row-local attributes once here for their fit warnings and
+	// capture offer, so N shard builds never repeat them.
+	attrWarns, err := boundAttributeWarnings(req, schema, s.extensions, model.SetFrom(ctx))
+	if err != nil {
+		return nil, err
+	}
 
 	partials := make([]*shardPartial, len(shards))
 	starts := shardStarts(shards)
@@ -166,6 +178,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	if err != nil {
 		return nil, err
 	}
+	resp.Warnings = prependWarnings(resp.Warnings, attrWarns)
 	if err := merged.weights.Apply(resp, s.strict); err != nil {
 		return nil, err
 	}
@@ -334,7 +347,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 	if err != nil {
 		return nil, err
 	}
-	rowLocalAttrs, err := buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, model.SetFrom(ctx), vecs)
+	rowLocalAttrs, err := buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, partitionModels(ctx), vecs)
 	if err != nil {
 		return nil, err
 	}
@@ -746,6 +759,52 @@ func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, e
 		out = append(out, rowLocalAttrSpec{attr: attr, computer: rl, label: label, nullable: processing.EmitsNull(computer)})
 	}
 	return out, nil
+}
+
+// boundAttributeWarnings is a reducer's ONE orchestrator-level build of
+// req's row-local attributes against the run's bound models: a fitted
+// attribute bound to a prebuilt fit (vectors.FitBound — admitted by
+// mergegate) closes at bind, raising its fit warnings and, on a
+// Compose vector-fit request, its capture offer. The serial arms raise
+// both once; the reducers build per partition, so the partitions bind
+// with the capture stripped (partitionModels) and the run's warnings
+// come from this build, prepended in declared order exactly where the
+// serial arms put them (prependRowLocalWarnings). Nil without
+// attributes.
+func boundAttributeWarnings(req *types.Request, schema *encoding.Schema, exts *processing.ExtensionRegistry, models *model.Set) ([]*types.ResponseWarning, error) {
+	if len(req.Attributes) == 0 {
+		return nil, nil
+	}
+	specs, err := buildRowLocalAttrSpecs(req.Attributes, schema, exts, models, processing.ExprVectors(req, schema))
+	if err != nil {
+		return nil, err
+	}
+	var out []*types.ResponseWarning
+	for _, sp := range specs {
+		out = append(out, processing.AttributeWarnings(sp.computer)...)
+	}
+	return out, nil
+}
+
+// partitionModels is the run's bound models for one reducer partition's
+// attribute build: the capture stripped, since boundAttributeWarnings'
+// single build already offered (matrix slots keep the run's set — they
+// offer once, from the merged state).
+func partitionModels(ctx context.Context) *model.Set {
+	set := model.SetFrom(ctx)
+	if set.Capture() == nil {
+		return set
+	}
+	return set.WithCapture(nil)
+}
+
+// prependWarnings returns warns with first in front (warns itself when
+// first is empty).
+func prependWarnings(warns, first []*types.ResponseWarning) []*types.ResponseWarning {
+	if len(first) == 0 {
+		return warns
+	}
+	return append(append([]*types.ResponseWarning(nil), first...), warns...)
 }
 
 // mergeShardPartials folds the per-shard partial states into a single

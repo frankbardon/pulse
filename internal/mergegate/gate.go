@@ -65,7 +65,9 @@ func (None) Matrix(string) (bool, bool)     { return false, false }
 // tree, bit-identical to serial; a grouped request's per-bucket
 // matrices merge bucket by bucket the same way); only row-local
 // attributes (ATTR_FORMULA without a total(expr) call,
-// ATTR_DATE_PART, ATTR_REG_PREDICT, row_local extensions); only mergeable groupers
+// ATTR_DATE_PART, ATTR_REG_PREDICT, an ATTR_MAHALANOBIS /
+// ATTR_PC_SCORE / ATTR_FACTOR_SCORE bound to a prebuilt fit by
+// params.fit — vectors.FitBound —, row_local extensions); only mergeable groupers
 // (built-in Mergeable() or a declared extension); only streamable
 // filterers; and only mergeable aggregators, none of them a built-in
 // one over a decimal128 field (the built-in decimal fold is
@@ -118,6 +120,13 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 				// Bound before the row pass: a pure per-row score.
 				types.ATTR_REG_PREDICT:
 				rowLocal = true
+			case types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE, types.ATTR_FACTOR_SCORE:
+				// Row-local only when bound to a prebuilt vector fit
+				// (params.fit): a fit_on fold over one partition's
+				// rows would be partition-local. ATTR_VEC_DISTANCE stays
+				// off the list either way, like its row-local metrics
+				// (its per-row tallies would need a merge).
+				rowLocal = vectors.FitBound(attr.Type, attr)
 			}
 		}
 		if rowLocal {

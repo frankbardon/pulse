@@ -65,6 +65,12 @@ func (f snapshotFuseFacts) AttributeSlotTwoPass(a *types.Attribute, specs []type
 	return a != nil && !f.inst.Hidden(string(a.Type)) && vectors.ComparisonFitted(a.Type, a, specs, schema)
 }
 
+// AttributeSlotBound mirrors the runtime: a fitted slot the instance
+// offers, bound to a prebuilt fit (vectors.FitBound), is row-local.
+func (f snapshotFuseFacts) AttributeSlotBound(a *types.Attribute) bool {
+	return a != nil && !f.inst.Hidden(string(a.Type)) && vectors.FitBound(a.Type, a)
+}
+
 // GrouperKeyable answers a built-in from the static table and an
 // extension from its probe-validated declarations: Streamable=true
 // guarantees a per-row keying sibling (PULSE_EXTENSION_STREAMABLE_MISMATCH)

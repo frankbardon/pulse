@@ -187,6 +187,12 @@ func (f registryFuseFacts) AttributeSlotTwoPass(a *types.Attribute, specs []type
 	return a != nil && !f.r.isHidden(string(a.Type)) && vectors.ComparisonFitted(a.Type, a, specs, schema)
 }
 
+// AttributeSlotBound is the per-slot exemption: a fitted slot bound to
+// a prebuilt fit (vectors.FitBound) is row-local (attrRequiresTwoPassIn).
+func (f registryFuseFacts) AttributeSlotBound(a *types.Attribute) bool {
+	return a != nil && !f.r.isHidden(string(a.Type)) && vectors.FitBound(a.Type, a)
+}
+
 // GrouperKeyable answers from the static table (built-in) or the
 // declaration (extension), then — runtime only — confirms the factory
 // constructs against schema. A construction failure declines fusion so

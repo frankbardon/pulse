@@ -527,3 +527,66 @@ func fixtureSchema(t *testing.T, fixture string) *encoding.Schema {
 	schema, _ := hotellingFixture(t, fixture, "")
 	return schema
 }
+
+// TestFittedState_BoundIsRowLocal: a fitted slot bound to a prebuilt
+// fit takes no pre-pass. Beside a two-pass ATTR_ZSCORE that reads its
+// label, the streaming two-pass drive plans ONE prepass layer (the
+// bound slot is a row-local input, available on scan 0) by both the
+// routing predicate and the built computers, where the same slot with
+// fit_on plans two; the z-scores equal the buffered arm's bit for bit.
+func TestFittedState_BoundIsRowLocal(t *testing.T) {
+	c := fittedGoldenCases()[0] // maha_d2_attitude
+	set := modelSetOf(t, captureFittedState(t, c, "none", "pop"))
+	build := func(bound bool) *types.Request {
+		req := fittedGoldenRequest(c, "none", !bound, nil)
+		if bound {
+			req = fittedGoldenRequest(c, "none", false, map[string]any{"fit": "pop"})
+		}
+		req.Attributes = append(req.Attributes, &types.Attribute{Type: types.ATTR_ZSCORE, Field: "s", Label: "z"})
+		req.Aggregations = []*types.Aggregation{{Type: types.AGG_SUM, Field: "z", Label: "sum_z"}}
+		return req
+	}
+	schema, _ := hotellingFixture(t, c.fixture, c.split)
+	for _, bound := range []bool{true, false} {
+		want := map[bool]int{true: 1, false: 2}[bound]
+		p := NewProcessor(schema)
+		p.SetModels(set)
+		req := p.prepare(build(bound))
+		if got := planTwoPassLayers(req.Attributes, p.exts).layerCount(); got != want {
+			t.Fatalf("bound=%v: routing plan has %d prepass layers, want %d", bound, got, want)
+		}
+		_, plan, err := p.buildTwoPassStages(req.Attributes)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := plan.layerCount(); got != want {
+			t.Fatalf("bound=%v: built plan has %d prepass layers, want %d", bound, got, want)
+		}
+	}
+	var runs [2][]float64
+	for i, forceBuffered := range []bool{false, true} {
+		_, recs := hotellingFixture(t, c.fixture, c.split)
+		req := build(true)
+		if forceBuffered {
+			req.Aggregations = append(req.Aggregations, &types.Aggregation{Type: types.AGG_MEDIAN, Field: "z", Label: "med_z"})
+		}
+		p := NewProcessor(schema)
+		p.SetModels(set)
+		if _, err := p.Process(context.Background(), req, NewSliceIterator(recs)); err != nil {
+			t.Fatal(err)
+		}
+		if want := map[bool]ProcessPath{false: PathStreaming, true: PathBuffered}[forceBuffered]; p.LastPath() != want {
+			t.Fatalf("ran %v, want %v", p.LastPath(), want)
+		}
+		for _, r := range recs {
+			v, ok := r.NumericValue("z")
+			if !ok {
+				v = math.NaN()
+			}
+			runs[i] = append(runs[i], v)
+		}
+	}
+	if !sameBits(runs[0], runs[1]) {
+		t.Fatalf("streaming two-pass z over a bound slot differs from buffered:\n%v\n%v", runs[0], runs[1])
+	}
+}

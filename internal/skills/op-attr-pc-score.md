@@ -35,9 +35,9 @@ One `f64` per record: mean 0, variance 1 over the fit rows<!-- feature: MAT_PCA 
 
 ## Gotchas
 
-- Fit is cohort-wide, never per group; groupers or features force buffered.
+- Fit is cohort-wide, never per group; with `fit_on`, groupers or features force buffered — two-pass, never merged.
+- With `fit` it is row-local: one pass, streams beside groupers and features, merges (shards, chain stages); same scores.
 - Singular fit or N* ≤ p: all null (`PULSE_MATRIX_SINGULAR` / `_INSUFFICIENT_N`).
-- Two-pass, never merged.
 
 ## See
 

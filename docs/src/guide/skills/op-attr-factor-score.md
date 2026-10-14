@@ -46,7 +46,8 @@ One `f64` per record: zᵀw on fit-standardized members (psych `factor.scores`);
 
 ## Gotchas
 
-- Fit is cohort-wide, never per group; groupers or features force buffered. Two-pass, never merged.
+- Fit is cohort-wide, never per group; with `fit_on`, groupers or features force buffered — two-pass, never merged.
+- With `fit` it is row-local: one pass, streams beside groupers and features, merges (shards, chain stages); same scores.
 - All null + warning: `PULSE_MATRIX_SINGULAR`, `_INSUFFICIENT_N`, `_NOT_IDENTIFIED`, `_HEYWOOD` (Bartlett). Scored + warning: a regression Heywood case, `PULSE_MATRIX_NOT_CONVERGED`.
 
 ## See

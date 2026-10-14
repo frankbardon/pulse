@@ -257,10 +257,16 @@ func ValidateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions) (
 	// slot's Process — against the slot's cohort (or joined) schema
 	// read through opts.SchemaLoader. A refusal carries the slot index
 	// under details.request, as the runtime's does.
-	validateComposeSlots(env, req, opts, loaded)
 	// Each fit request, recursively: the slot checks plus the regression
-	// rules, located under details.fit (the runtime's fit pre-pass).
-	result.Fits = validateComposeFits(env, req.Fits, opts, loaded)
+	// rules, located under details.fit (the runtime's fit pre-pass). It
+	// runs FIRST — a vector fit's resolved labels feed the slots' catalog
+	// (step 12 aligns a slot's params.fit by them, as the runtime's bind
+	// does) — but its refusals are reported after the slots', as before.
+	fitEnv := descriptor.NewEnvelope(nil)
+	result.Fits = validateComposeFits(fitEnv, req.Fits, opts, loaded)
+	validateComposeSlots(env, req, opts, loaded, result.Fits)
+	env.Errors = append(env.Errors, fitEnv.Errors...)
+	env.Warnings = append(env.Warnings, fitEnv.Warnings...)
 
 	// Fit-for-purpose advisories, per slot then over the Compose-host
 	// overlays — computed whether or not the batch is valid, never a
@@ -1155,17 +1161,38 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 // cannot read) the slot resolves schema-less: the field-independent
 // refusals still apply, the field-dependent ones are left to the
 // runtime.
-func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded) {
+func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded, summaries []descriptor.FitSummary) {
 	// The names every slot's ATTR_REG_PREDICT resolves: the runtime's
 	// fit pre-pass binds each `fits` entry before any slot runs, over
 	// the registered populations, beside the slot's own loaded entries.
-	fits := model.WithinCatalog(opts.populations(), model.CatalogFromFits(req.Fits))
+	fits := model.WithinCatalog(opts.populations(), composeFitCatalog(req.Fits, summaries))
 	for i, slot := range req.Requests {
 		if slot == nil {
 			continue
 		}
 		validateComposeRequest(env, slot, opts, "request", i, loadedCatalog(fits, model.RequestRefs(slot), loaded.slot(i)))
 	}
+}
+
+// composeFitCatalog is model.CatalogFromFits with each vector fit's
+// member labels filled in from its resolved battery (summaries, the
+// validateComposeFits result, index-aligned with fits): the labels the
+// runtime's fit captures, so field-reference step 12 aligns a slot's
+// params.fit to them (vectors.AlignFit) exactly as the bind does. A
+// battery that did not resolve keeps no labels (its fit's own refusal
+// is reported, and the slot's alignment is not judged).
+func composeFitCatalog(fits []types.FitSpec, summaries []descriptor.FitSummary) model.FitCatalog {
+	cat := model.CatalogFromFits(fits)
+	for i, f := range fits {
+		if i >= len(summaries) || summaries[i].Vector == nil || summaries[i].Vector.Labels == nil {
+			continue
+		}
+		if sig, ok := cat[f.Name]; ok && sig.Kind == types.FitKindVector {
+			sig.Members = append([]string(nil), summaries[i].Vector.Labels...)
+			cat[f.Name] = sig
+		}
+	}
+	return cat
 }
 
 // composeLoaded is predict's Compose pre-pass result: each fit

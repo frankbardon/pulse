@@ -855,6 +855,22 @@ func AttributeFit(typ types.AttributeType, a *types.Attribute) string {
 	return *c.Fit
 }
 
+// FitBound reports whether attribute a (route typ) is a fitted slot
+// bound to a prebuilt vector fit: a FittedAttributeTypes type or an
+// ATTR_VEC_DISTANCE whose params.fit names a fit (AttributeFit). Such a
+// slot holds its whole fit before the scan, so it is ROW-LOCAL — no
+// pre-pass, streamable beside groupers / features / matrices, and (for
+// the FittedAttributeTypes) mergeable — where the same slot with
+// fit_on takes the two-pass drive. The one per-slot predicate every
+// routing site reads (processing attrRequiresTwoPassIn, predict's
+// attrTwoPass, the fused-crosstab facts, mergegate).
+func FitBound(typ types.AttributeType, a *types.Attribute) bool {
+	if !IsFittedAttribute(typ) && typ != types.ATTR_VEC_DISTANCE {
+		return false
+	}
+	return AttributeFit(typ, a) != ""
+}
+
 // AttributeInputMembers returns the union of every field req's
 // attributes read through inline fields (a named vector's members ride
 // Members(req)) plus every comparison slot's params.reference key_field

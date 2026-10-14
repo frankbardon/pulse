@@ -32,7 +32,7 @@ Floor `{n, n_null}` + `n_reference_missing`, `n_domain_invalid`. `Mergeable`.
 
 ## Gotchas
 
-- `std_euclidean` / `mahalanobis`: two-pass fit (listwise, weighted under a weight); N* ≤ p or singular → all null + warning.
+- `std_euclidean` / `mahalanobis`: two-pass fit (listwise, weighted under a weight); N* ≤ p or singular → all null + warning. With `fit`: row-local, one pass, streams beside groupers; never merged, like its row-local metrics (shards run serially; a chain stage refuses it).
 - Matched BY LABEL: `PULSE_VECTOR_REFERENCE_MISMATCH` at predict.
 - A null / profile-less key or a domain violation (`hellinger`, `aitchison`) nulls the row and warns once per slot: `PULSE_VECTOR_REFERENCE_MISSING`, `PULSE_VECTOR_METRIC_DOMAIN`; strict does not escalate.
 

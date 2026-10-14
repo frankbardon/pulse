@@ -68,7 +68,8 @@ func attributeTwoPass(opts *PredictOptions, t types.AttributeType) bool {
 }
 
 // attrTwoPass is the per-attribute twin of attributeTwoPass: the
-// type-keyed answer, an ATTR_VEC_DISTANCE over a fitted metric, or an
+// type-keyed answer (never for a fitted slot bound to a prebuilt fit —
+// vectors.FitBound), an ATTR_VEC_DISTANCE over a fitted metric, or an
 // ATTR_FORMULA the instance offers whose expression calls total(expr) —
 // the cohort-total term's pre-pass
 // (mirrors processing.ExtensionRegistry.attrRequiresTwoPass through the
@@ -77,10 +78,15 @@ func attrTwoPass(opts *PredictOptions, attr *types.Attribute, specs []types.Vect
 	if attr == nil {
 		return false
 	}
+	route := opRoute(opts.instance(), attr.Type)
+	// A fitted slot bound to a prebuilt fit (params.fit) is row-local —
+	// the runtime's attrRequiresTwoPassIn through the shared predicate.
+	if vectors.FitBound(route, attr) {
+		return false
+	}
 	if attributeTwoPass(opts, attr.Type) {
 		return true
 	}
-	route := opRoute(opts.instance(), attr.Type)
 	if route == types.ATTR_FORMULA && totalcall.Contains(attr.Expression) {
 		return true
 	}

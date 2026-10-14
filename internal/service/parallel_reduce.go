@@ -95,6 +95,10 @@ func (s *Service) reduceParallelBuffered(
 	// A vector aggregator's factory reads its resolved members (the
 	// rewrite Processor.prepare applies on every other arm).
 	req = processing.ResolveAggregationInputs(req, schema, s.extensions)
+	// So does a vector-input attribute (a fitted attribute bound to a
+	// prebuilt fit is row-local, so it reaches this arm): its literal
+	// members, default label and written-out labels.
+	req = processing.ResolveAttributeInputs(req, schema, s.extensions)
 
 	// Pre-resolve aggregator factories once; the per-worker factory
 	// closure re-uses these so we do not pay an extensions.LookupAggregator
@@ -107,6 +111,14 @@ func (s *Service) reduceParallelBuffered(
 				fmt.Sprintf("unknown aggregation type: %s", agg.Type))
 		}
 		specs[i] = aggSpec{agg: agg, factory: factory}
+	}
+
+	// A fitted attribute bound to a prebuilt fit closes at bind: its
+	// fit warnings and capture offer come from one build here, never
+	// from the per-worker builds (boundAttributeWarnings).
+	attrWarns, err := boundAttributeWarnings(req, schema, s.extensions, model.SetFrom(ctx))
+	if err != nil {
+		return nil, err
 	}
 
 	// One factory per grouper slot — every slot, not Groups[0] only.
@@ -152,7 +164,7 @@ func (s *Service) reduceParallelBuffered(
 		vecs := processing.ExprVectors(req, schema)
 		filterFns, buildErr = processing.BuildFiltersWithVectors(req.Filterers, schema, s.extensions, model.SetFrom(ctx), vecs)
 		if buildErr == nil {
-			rowLocalAttrs, buildErr = buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, model.SetFrom(ctx), vecs)
+			rowLocalAttrs, buildErr = buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, partitionModels(ctx), vecs)
 		}
 		if buildErr == nil && grouped {
 			groupers, buildErr = newPartitionGroupers(req.Groups, grouperFactories, schema, s.extensions)
@@ -283,6 +295,7 @@ func (s *Service) reduceParallelBuffered(
 		if err != nil {
 			return nil, err
 		}
+		resp.Warnings = prependWarnings(resp.Warnings, attrWarns)
 		if err := partials[0].weights.Apply(resp, s.strict); err != nil {
 			return nil, err
 		}
@@ -303,6 +316,7 @@ func (s *Service) reduceParallelBuffered(
 	if err != nil {
 		return nil, err
 	}
+	resp.Warnings = prependWarnings(resp.Warnings, attrWarns)
 	if err := merged.weights.Apply(resp, s.strict); err != nil {
 		return nil, err
 	}

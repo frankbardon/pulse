@@ -677,7 +677,9 @@ func (r *ExtensionRegistry) attributeRequiresTwoPass(t types.AttributeType) bool
 // expression calls total(expr) (formula_total.go), which is row-local
 // by type but needs a pre-pass over the post-filter rows, or an
 // ATTR_VEC_DISTANCE over a fitted metric (vectors.ComparisonFitted:
-// std_euclidean / mahalanobis read ATTR_MAHALANOBIS's fit pass). Every
+// std_euclidean / mahalanobis read ATTR_MAHALANOBIS's fit pass) — but
+// never a fitted slot bound to a prebuilt fit (vectors.FitBound: its
+// params.fit state exists before the scan, so it is row-local). Every
 // routing decision that schedules attributes asks this, never the type
 // alone. It reads the slot's params.metric — written out by
 // Processor.prepare's rewrite; attrRequiresTwoPassIn also reads a kind
@@ -693,11 +695,16 @@ func (r *ExtensionRegistry) attrRequiresTwoPassIn(attr *types.Attribute, specs [
 	if attr == nil {
 		return false
 	}
-	if r.attributeRequiresTwoPass(attr.Type) {
-		return true
-	}
 	if r.isHidden(string(attr.Type)) {
 		return false
+	}
+	// A fitted slot bound to a prebuilt fit (params.fit) holds its fit
+	// before the scan: row-local, whatever its type's rule says.
+	if vectors.FitBound(attr.Type, attr) {
+		return false
+	}
+	if r.attributeRequiresTwoPass(attr.Type) {
+		return true
 	}
 	return formulaCallsTotal(attr) || vectors.ComparisonFitted(attr.Type, attr, specs, schema)
 }

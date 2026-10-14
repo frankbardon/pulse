@@ -47,6 +47,12 @@ type Facts interface {
 	// kind's default, a native vector field's kind read from schema).
 	// Hidden: false.
 	AttributeSlotTwoPass(a *types.Attribute, specs []types.VectorSpec, schema *encoding.Schema) bool
+	// AttributeSlotBound reports whether one attribute slot is a fitted
+	// slot bound to a prebuilt vector fit (params.fit): its type is
+	// two-pass (or its metric fitted) but the bound slot holds its fit
+	// before the scan and runs row-local, so neither two-pass fact
+	// applies to it. Hidden: false.
+	AttributeSlotBound(a *types.Attribute) bool
 	// GrouperKeyable reports whether grouper g derives its bucket key(s)
 	// per record (StreamableGrouper or MultiKeyStreamingGrouper on the
 	// engine side). A built-in answers from BuiltinGrouperKeyable; an
@@ -179,7 +185,7 @@ func Decide(req *types.Request, schema *encoding.Schema, facts Facts) (bool, []s
 	}
 
 	for _, a := range req.Attributes {
-		if a != nil && (facts.AttributeTwoPass(a.Type) || facts.AttributeSlotTwoPass(a, req.Vectors, schema)) {
+		if a != nil && !facts.AttributeSlotBound(a) && (facts.AttributeTwoPass(a.Type) || facts.AttributeSlotTwoPass(a, req.Vectors, schema)) {
 			decline(fmt.Sprintf("two-pass attribute (%s)", a.Type))
 		}
 	}

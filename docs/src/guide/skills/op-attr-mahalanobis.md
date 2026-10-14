@@ -47,9 +47,9 @@ One `f64` per record: D² = (x − μ)ᵀS⁻¹(x − μ) ≥ 0, or its p. A nul
 
 ## Gotchas
 
-- Fit is cohort-wide, never per group; groupers or features force buffered.
+- Fit is cohort-wide, never per group; with `fit_on`, groupers or features force buffered — two-pass, never merged.
+- With `fit` it is row-local: one pass, streams beside groupers and features, merges (shards, chain stages); same scores.
 - Singular fit or N* ≤ p: all scores null + `PULSE_MATRIX_SINGULAR` / `PULSE_MATRIX_INSUFFICIENT_N` warning.
-- Two-pass, never merged.
 
 ## See
 

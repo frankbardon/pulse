@@ -44,3 +44,42 @@ func TestAttributeFitLabels(t *testing.T) {
 		t.Fatal("a non-fit attribute resolved fit labels")
 	}
 }
+
+// TestFitBound: a fitted slot is bound (row-local) exactly when its
+// params.fit names a fit — on the three fitted types and on
+// ATTR_VEC_DISTANCE; fit_on, an absent / empty fit, undecodable params
+// and every other type are not.
+func TestFitBound(t *testing.T) {
+	cases := []struct {
+		name   string
+		typ    types.AttributeType
+		params string
+		want   bool
+	}{
+		{"mahalanobis fit", types.ATTR_MAHALANOBIS, `{"fit":"pop"}`, true},
+		{"pc score fit", types.ATTR_PC_SCORE, `{"fit":"pop","component":1}`, true},
+		{"factor score fit", types.ATTR_FACTOR_SCORE, `{"fit":"pop","factor":1}`, true},
+		{"vec distance fit", types.ATTR_VEC_DISTANCE, `{"fit":"pop","metric":"mahalanobis","reference":[0,0]}`, true},
+		{"fit_on", types.ATTR_MAHALANOBIS, `{"fit_on":"filtered"}`, false},
+		{"no params", types.ATTR_MAHALANOBIS, ``, false},
+		{"empty fit", types.ATTR_MAHALANOBIS, `{"fit":""}`, false},
+		{"undecodable", types.ATTR_MAHALANOBIS, `{"fit":1}`, false},
+		{"scale score", types.ATTR_SCALE_SCORE, `{"fit":"pop"}`, false},
+		{"similarity", types.ATTR_PROFILE_SIMILARITY, `{"fit":"pop"}`, false},
+		{"zscore", types.ATTR_ZSCORE, `{"fit":"pop"}`, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := &types.Attribute{Type: tc.typ}
+			if tc.params != "" {
+				a.Params = json.RawMessage(tc.params)
+			}
+			if got := FitBound(tc.typ, a); got != tc.want {
+				t.Fatalf("FitBound = %v, want %v", got, tc.want)
+			}
+		})
+	}
+	if FitBound(types.ATTR_MAHALANOBIS, nil) {
+		t.Fatal("a nil slot is not bound")
+	}
+}

@@ -61,6 +61,28 @@ import (
 // covariance, and the slot's weight never refits it. A state captured
 // from a fold (AttributeVectorFit) and bound back scores every row to
 // the bit of the fold that produced it.
+//
+// Row-local when bound (U30 E2-S5). bindFitOn CLOSES a bound fit at
+// once (close: decompose, warnings, the capture offer), so the slot
+// needs no pass over the rows: every routing site reads
+// vectors.FitBound — attrRequiresTwoPassIn, predict's attrTwoPass, the
+// fused-crosstab facts, mergegate (the three FittedAttributeTypes; a
+// bound ATTR_VEC_DISTANCE stays off it like its row-local metrics) —
+// and the two-pass planner treats it as row-local (prebuiltAttribute).
+// It therefore streams one pass, beside groupers, features, matrices
+// and tier-1 tests, fuses into a crosstab and merges across shards /
+// decode workers / chain stages; the scores are the bits of the
+// two-pass drive (same state, same per-row kernel). PrePass and
+// Finalize stay no-ops, so the buffered arm's Compute is unchanged.
+
+// prebuiltAttribute is implemented by a fitted attribute that may be
+// bound to a prebuilt fit: prebuiltFit is true once bindFitOn bound
+// and closed one, and the two-pass drive then schedules the slot as
+// row-local (its PrePass / Finalize are no-ops) — the computer-side
+// twin of the routing predicate vectors.FitBound.
+type prebuiltAttribute interface {
+	prebuiltFit() bool
+}
 
 // fitOnBinder is implemented by an attribute whose params.fit_on
 // filterers compile against the request's registry and bound models
@@ -381,7 +403,11 @@ func (a *fittedVectorAttribute) bindFitOn(exts *ExtensionRegistry, models *model
 			return err
 		}
 		a.prebuilt = &st
-		return nil
+		// The bound state is the whole fit: close it now, before any
+		// row, so the slot is ROW-LOCAL (vectors.FitBound) — Row works
+		// on every arm without a PrePass, and the fit's warnings are
+		// raised whether or not a row is scored.
+		return a.close()
 	}
 	fns, err := buildFilterFuncsWith(a.fitOnSpec, a.schema, exts, models, vecs)
 	if err != nil {
@@ -409,6 +435,15 @@ func (a *fittedVectorAttribute) readMembers(rec *Record, x []float64) bool {
 // present, every fit_on filterer admits it and its weight is valid and
 // positive.
 func (a *fittedVectorAttribute) PrePass(rec *Record, _ string) error {
+	if a.fitName != "" {
+		// A bound fit is already fitted (and closed at bind): nothing
+		// to fold.
+		if a.prebuilt == nil {
+			return errors.NewCodedError(errors.PROCESSING_INTERNAL,
+				string(a.typ)+" params.fit was not bound before PrePass")
+		}
+		return nil
+	}
 	if a.finalized {
 		return errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			string(a.typ)+" PrePass after Finalize")
@@ -416,14 +451,6 @@ func (a *fittedVectorAttribute) PrePass(rec *Record, _ string) error {
 	if len(a.fitOnSpec) > 0 && !a.fitOnBound {
 		return errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			string(a.typ)+" params.fit_on was not bound before PrePass")
-	}
-	if a.fitName != "" {
-		// A bound fit is already fitted: nothing to fold.
-		if a.prebuilt == nil {
-			return errors.NewCodedError(errors.PROCESSING_INTERNAL,
-				string(a.typ)+" params.fit was not bound before PrePass")
-		}
-		return nil
 	}
 	if !a.readMembers(rec, a.x) {
 		return nil
@@ -449,12 +476,26 @@ func (a *fittedVectorAttribute) PrePass(rec *Record, _ string) error {
 }
 
 // Finalize closes the fit: N* ≤ p nulls every score with
-// PULSE_MATRIX_INSUFFICIENT_N; otherwise the model fits.
+// PULSE_MATRIX_INSUFFICIENT_N; otherwise the model fits. A bound fit
+// (params.fit) closed at bind, so Finalize is then a no-op.
 func (a *fittedVectorAttribute) Finalize() error {
+	if a.prebuilt != nil && a.finalized {
+		return nil
+	}
 	if a.finalized {
 		return errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			string(a.typ)+" Finalize called twice")
 	}
+	return a.close()
+}
+
+// prebuiltFit reports whether the slot is bound to a prebuilt fit
+// (params.fit) — closed at bind, so row-local (prebuiltAttribute).
+func (a *fittedVectorAttribute) prebuiltFit() bool { return a.prebuilt != nil }
+
+// close is Finalize's body: decompose the fit (folded, or the bound
+// prebuilt state) and decide usability, once.
+func (a *fittedVectorAttribute) close() error {
 	a.finalized = true
 	p := len(a.members)
 	var st fittedState
@@ -635,6 +676,16 @@ func attributeSlotLabel(attr *types.Attribute) string {
 // field-reference pass has refused that request; the factory refuses an
 // unresolved Vector). The caller's request is never mutated.
 func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
+	return ResolveAttributeInputs(req, p.schema, p.exts)
+}
+
+// ResolveAttributeInputs is resolveAttributeInputs without a Processor:
+// Processor.prepare applies it, and so must every arm that builds
+// attributes off a request without one (the parallel decode and shard
+// reducers, whose row-local attributes include a fitted vector
+// attribute bound to a prebuilt fit). The caller's request is never
+// mutated.
+func ResolveAttributeInputs(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) *types.Request {
 	if req == nil {
 		return req
 	}
@@ -648,13 +699,13 @@ func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
 	if !has {
 		return req
 	}
-	inputs, err := vectors.ResolveAttributes(req, p.schema, func(t types.AttributeType) types.AttributeType {
-		if p.exts.isHidden(string(t)) {
+	inputs, err := vectors.ResolveAttributes(req, schema, func(t types.AttributeType) types.AttributeType {
+		if exts.isHidden(string(t)) {
 			return ""
 		}
 		return t
 	}, func(name string) bool {
-		_, ok := p.exts.LookupAttribute(types.AttributeType(name))
+		_, ok := exts.LookupAttribute(types.AttributeType(name))
 		return ok
 	})
 	if err != nil {
@@ -671,7 +722,7 @@ func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
 		if cp.Label == "" {
 			cp.Label = defaultAttributeLabel(a)
 		}
-		if cp.Type == types.ATTR_SCALE_SCORE && !p.exts.isHidden(string(cp.Type)) {
+		if cp.Type == types.ATTR_SCALE_SCORE && !exts.isHidden(string(cp.Type)) {
 			// The literal members lose the vector's labels and kind
 			// bounds: hand the factory canonical params (reverse by
 			// member name, the declared range explicit).
@@ -679,18 +730,18 @@ func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
 				cp.Params = params
 			}
 		}
-		if vectors.IsFittedAttribute(cp.Type) && !p.exts.isHidden(string(cp.Type)) {
+		if vectors.IsFittedAttribute(cp.Type) && !exts.isHidden(string(cp.Type)) {
 			// A bound fit aligns to the named vector's labels, which the
 			// literal-member rewrite would lose: write them out.
 			if params, ok := vectors.FittedSlotParams(a, inputs[i].Members); ok {
 				cp.Params = params
 			}
 		}
-		if vectors.IsComparisonAttribute(cp.Type) && !p.exts.isHidden(string(cp.Type)) {
+		if vectors.IsComparisonAttribute(cp.Type) && !exts.isHidden(string(cp.Type)) {
 			// The literal members lose the vector's labels and kind:
 			// hand the factory canonical params (the metric written out,
 			// the reference in member order, the labels it aligns to).
-			if params, ok := vectors.ComparisonSlotParams(a, inputs[i].Members, p.schema); ok {
+			if params, ok := vectors.ComparisonSlotParams(a, inputs[i].Members, schema); ok {
 				cp.Params = params
 			}
 		}

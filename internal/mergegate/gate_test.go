@@ -63,6 +63,15 @@ func TestMergeRefusal(t *testing.T) {
 		{"row-local built-in attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA}}}, nil, ""},
 		// Bound before the row pass: a per-row score merges like a formula.
 		{"bound-model score attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_REG_PREDICT}}}, nil, ""},
+		// A fitted vector attribute merges only bound to a prebuilt
+		// fit (params.fit); its fit_on fold, and ATTR_VEC_DISTANCE bound
+		// or not, never do.
+		{"fit-bound mahalanobis", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_MAHALANOBIS, Params: []byte(`{"fit":"pop"}`)}}}, nil, ""},
+		{"fit-bound pc score", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PC_SCORE, Params: []byte(`{"fit":"pop","component":1}`)}}}, nil, ""},
+		{"fit-bound factor score", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_FACTOR_SCORE, Params: []byte(`{"fit":"pop","factor":1}`)}}}, nil, ""},
+		{"fit_on mahalanobis", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_MAHALANOBIS, Params: []byte(`{"fit_on":"filtered"}`)}}}, nil, "attribute ATTR_MAHALANOBIS is not row-local"},
+		{"unbound pc score", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PC_SCORE}}}, nil, "attribute ATTR_PC_SCORE is not row-local"},
+		{"fit-bound vec distance", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Params: []byte(`{"fit":"pop","metric":"mahalanobis"}`)}}}, nil, "attribute ATTR_VEC_DISTANCE is not row-local"},
 		{"refit attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_REG_FITTED}}}, nil, "attribute ATTR_REG_FITTED is not row-local"},
 		{"row-local extension attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: "ATTR_X_ROW"}}}, fakeExt{}, ""},
 		{"two-pass extension attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: "ATTR_X_TWO"}}}, fakeExt{}, "attribute ATTR_X_TWO is not row-local"},
@@ -308,5 +317,22 @@ func TestChainRefusal_AdmitsBoundModelScore(t *testing.T) {
 	}
 	if err := ChainRefusal(req, decSchema(), nil, 0, "s0"); err != nil {
 		t.Fatalf("refused a chain stage scoring a bound model: %v", err)
+	}
+}
+
+// TestChainRefusal_AdmitsFitBoundAttribute: a fitted vector attribute
+// bound to a prebuilt fit is row-local, so a chain stage carrying it is
+// admitted; the same slot folding its own fit (fit_on) is refused.
+func TestChainRefusal_AdmitsFitBoundAttribute(t *testing.T) {
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "d"}},
+		Attributes:   []*types.Attribute{{Type: types.ATTR_MAHALANOBIS, Label: "d", Fields: []string{"n", "m"}, Params: []byte(`{"fit":"pop"}`)}},
+	}
+	if err := ChainRefusal(req, decSchema(), nil, 0, "s0"); err != nil {
+		t.Fatalf("refused a chain stage scoring a bound vector fit: %v", err)
+	}
+	req.Attributes[0].Params = []byte(`{"fit_on":"filtered"}`)
+	if err := ChainRefusal(req, decSchema(), nil, 0, "s0"); err == nil {
+		t.Fatal("admitted a chain stage folding its own vector fit")
 	}
 }

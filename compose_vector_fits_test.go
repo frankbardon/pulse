@@ -77,6 +77,17 @@ func TestComposeVectorFits_PredictRuntimeParity(t *testing.T) {
 	mahal := vecFacadeRequest("s")
 	mahal.Attributes = []*types.Attribute{{Type: types.ATTR_MAHALANOBIS, Label: "d", Fields: []string{"a", "b", "c"}, Params: json.RawMessage(`{"fit":"reg"}`)}}
 	mahal.Aggregations = []*types.Aggregation{{Type: types.AGG_SUM, Field: "d", Label: "s"}}
+	// A slot whose members are not the in-batch fit's labels: predict
+	// knows the fit's labels from its resolved battery (U30 E2-S5) and
+	// refuses as the runtime's bind does.
+	twoMember := vecFacadeRequest("s")
+	twoMember.Attributes = []*types.Attribute{{Type: types.ATTR_MAHALANOBIS, Label: "d", Fields: []string{"a", "b"}, Params: json.RawMessage(`{"fit":"pop"}`)}}
+	twoMember.Aggregations = []*types.Aggregation{{Type: types.AGG_SUM, Field: "d", Label: "s"}}
+	twoMemberMatrix := vecFacadeMatrix(types.MAT_CORRELATION, `{"fit":"pop"}`)
+	twoMemberMatrix.Matrices[0].Fields = []string{"a", "c"}
+	attrBattery := vecFacadeRequest("f")
+	attrBattery.Attributes = []*types.Attribute{{Type: types.ATTR_PC_SCORE, Label: "pc", Fields: []string{"a", "b"}, Params: json.RawMessage(`{"component":1}`)}}
+	attrBattery.Aggregations = []*types.Aggregation{{Type: types.AGG_SUM, Field: "pc", Label: "s"}}
 	pop := types.FitSpec{Name: "pop", Request: vecFacadeMatrix(types.MAT_COVARIANCE, "")}
 	reg := types.FitSpec{Name: "reg", Request: vecFacadeRegression()}
 	cases := []struct {
@@ -97,6 +108,9 @@ func TestComposeVectorFits_PredictRuntimeParity(t *testing.T) {
 		{"fit_and_missing", []types.FitSpec{pop}, vecFacadeMatrix(types.MAT_COVARIANCE, `{"fit":"pop","missing":"pairwise"}`), perr.SERVICE_VALIDATION, "fit_and_missing"},
 		{"fit_unsupported rank", []types.FitSpec{pop}, vecFacadeMatrix(types.MAT_CORRELATION, `{"fit":"pop","method":"spearman"}`), perr.SERVICE_VALIDATION, "fit_unsupported"},
 		{"fit_grouped", []types.FitSpec{pop}, groupedSlot, perr.SERVICE_VALIDATION, "fit_grouped"},
+		{"attribute labels differ", []types.FitSpec{pop}, twoMember, perr.PULSE_VECTOR_REFERENCE_MISMATCH, "labels_differ"},
+		{"matrix labels differ", []types.FitSpec{pop}, twoMemberMatrix, perr.PULSE_VECTOR_REFERENCE_MISMATCH, "labels_differ"},
+		{"attribute battery labels differ", []types.FitSpec{{Name: "pop", Request: attrBattery}}, vecFacadeMatrix(types.MAT_COVARIANCE, `{"fit":"pop"}`), perr.PULSE_VECTOR_REFERENCE_MISMATCH, "labels_differ"},
 	}
 	ctx := context.Background()
 	for _, tc := range cases {

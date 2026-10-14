@@ -19,6 +19,7 @@ type fakeFacts struct {
 	fieldInputs map[string]bool
 	hidden      map[string]bool
 	slotTwoPass func(*types.Attribute) bool
+	slotBound   func(*types.Attribute) bool
 }
 
 func (f fakeFacts) Hidden(name string) bool { return f.hidden[name] }
@@ -40,6 +41,9 @@ func (f fakeFacts) AttributeTwoPass(t types.AttributeType) bool {
 }
 func (f fakeFacts) AttributeSlotTwoPass(a *types.Attribute, _ []types.VectorSpec, _ *encoding.Schema) bool {
 	return f.slotTwoPass != nil && f.slotTwoPass(a)
+}
+func (f fakeFacts) AttributeSlotBound(a *types.Attribute) bool {
+	return f.slotBound != nil && f.slotBound(a)
 }
 func (f fakeFacts) GrouperKeyable(g *types.Group, _ *encoding.Schema) bool {
 	if k, ok := f.extGroupers[g.Type]; ok {
@@ -198,5 +202,24 @@ func TestDecide_HiddenNameKeyedBails(t *testing.T) {
 	}
 	if ok, _ := crosstabfuse.Decide(req, gateSchema(), fakeFacts{}); ok {
 		t.Fatal("visible formula / expression fused")
+	}
+}
+
+// TestDecide_BoundSlotIsRowLocal: a slot the facts report bound to a
+// prebuilt fit (AttributeSlotBound) never declines as two-pass, whatever
+// its type's or its metric's two-pass fact says; the same slot unbound
+// declines.
+func TestDecide_BoundSlotIsRowLocal(t *testing.T) {
+	req := happy()
+	req.Attributes = []*types.Attribute{{Type: types.ATTR_ZSCORE, Label: "bound"}, {Type: types.ATTR_VEC_DISTANCE, Label: "bound"}}
+	slot := func(a *types.Attribute) bool { return a.Type == types.ATTR_VEC_DISTANCE }
+	bound := fakeFacts{slotTwoPass: slot, slotBound: func(a *types.Attribute) bool { return a.Label == "bound" }}
+	if ok, why := crosstabfuse.Decide(req, gateSchema(), bound); !ok {
+		t.Fatalf("bound slots declined: %q", why)
+	}
+	ok, why := crosstabfuse.Decide(req, gateSchema(), fakeFacts{slotTwoPass: slot})
+	want := []string{"two-pass attribute (ATTR_ZSCORE)", "two-pass attribute (ATTR_VEC_DISTANCE)"}
+	if ok || !reflect.DeepEqual(why, want) {
+		t.Fatalf("unbound: Decide = (%v, %q), want %q", ok, why, want)
 	}
 }
