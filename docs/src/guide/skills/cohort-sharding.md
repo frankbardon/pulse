@@ -36,7 +36,7 @@ Anchor against single-file → `PULSE_ARCHIVE_MAGIC_INVALID`. Missing anchor →
 
 ## Memory shape
 
-Materializing ops (percentile / median aggs, the percentile attribute, quantile and date groupers, windows, decimal paths, tier-1 tests + groupers/features/two-pass attrs, tier-2 post tests) materialize across the **union** of shards. Median-of-medians is not the median. Memory scales with shard count. An archive run also reads the whole archive onto the heap and decodes every shard's schema twice: big per-shard dictionaries cost far more than their records (`max_estimated_memory` counts it).
+Materializing ops (percentile / median aggs, the percentile attribute, quantile and date groupers, windows, decimal paths, tier-1 tests + groupers/features/two-pass attrs, tier-2 post tests) materialize across the **union** of shards. Median-of-medians is not the median. Memory scales with shard count. An archive run also reads the whole archive onto the heap and decodes every shard's schema: big per-shard dictionaries cost far more than their records (`max_estimated_memory` counts it). An anchor run reads its whole archive too.
 
 ## Concurrency
 

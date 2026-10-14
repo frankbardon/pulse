@@ -33,7 +33,10 @@ type LimitInputs struct {
 	ShardRecords []int64
 	// ArchiveBytes is a shard archive's byte length (predict: the bytes
 	// it was handed; the runtime: what Open read), 0 for a single file.
-	// Open and the scan read every byte onto the heap.
+	// Open and the scan read every byte onto the heap. An anchor-opened
+	// shard (`archive.pulse#shard.pulse`) carries its archive's length
+	// too, with no ShardRecords: Open reads the whole archive to extract
+	// the one shard (predict: PredictOptions.AnchorArchiveBytes).
 	ArchiveBytes int64
 	// ShardWorkers is the instance's per-shard worker cap
 	// (Options.ShardWorkers: 0 = runtime.NumCPU, 1 = serial) — with the
@@ -189,8 +192,8 @@ func ShardFanOut(req *types.Request, schema *encoding.Schema, inst *InstanceSnap
 //     materialises are bounded by the left count, which assumes at most
 //     one right match per left row.
 //   - a shard archive charges its byte length in place of records x
-//     stride when larger, and 2 x shards + 1 schema decodes
-//     (archiveTerms); on the per-shard parallel arm (ShardFanOut)
+//     stride when larger, and shards + 1 schema decodes (archiveTerms;
+//     an anchor-opened shard its archive's byte length alone); on the per-shard parallel arm (ShardFanOut)
 //     every shard's partial holds its own buckets — EstimateGroups
 //     clamped by that shard's records, or its records for an unknown
 //     grouper, 1 ungrouped — and per-value state over its records.
@@ -335,18 +338,24 @@ func EstimateFacetMemory(req *types.FacetRequest, schema *encoding.Schema, in Li
 
 // archiveTerms sets the shard-archive inputs of the memory model: the
 // archive's byte length (Open and the scan read it whole) and the
-// schema blocks the run decodes beyond the canonical one — every
-// shard's twice (Open's record-count peek, the scan) plus the
-// canonical entry — each bounded by the canonical schema's decode
-// (a shard's dictionaries are prefixes of the canonical ones). A single
-// file (ArchiveBytes 0) sets nothing.
+// schema blocks the run decodes with their dictionaries — every
+// shard's once (the scan) plus the canonical entry — each bounded by
+// the canonical schema's decode (a shard's dictionaries are prefixes of
+// the canonical ones). Open's record-count peek reads each shard's
+// schema layout-only (Archive.PeekShardRecordCount) and allocates no
+// dictionary, so it is not charged. An anchor-opened shard (ArchiveBytes
+// set, no ShardRecords) decodes only its own schema, as a single file
+// does: its archive's bytes alone are charged. A single file
+// (ArchiveBytes 0) sets nothing.
 func archiveTerms(mi *limits.MemoryInputs, schema *encoding.Schema, in LimitInputs) {
 	if in.ArchiveBytes <= 0 {
 		return
 	}
 	mi.ArchiveBytes = in.ArchiveBytes
-	mi.SchemaDecodes = 2*int64(len(in.ShardRecords)) + 1
-	mi.SchemaBytes = limits.SchemaDecodeBytes(schema)
+	if n := int64(len(in.ShardRecords)); n > 0 {
+		mi.SchemaDecodes = n + 1
+		mi.SchemaBytes = limits.SchemaDecodeBytes(schema)
+	}
 }
 
 // valueStateAggregation lists the built-in aggregators whose state

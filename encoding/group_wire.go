@@ -206,6 +206,25 @@ func (x *extReader) bytesN(n uint64, what string) ([]byte, error) {
 	return bytes.Clone(b.Bytes()), nil
 }
 
+// skipN reads past n bytes without keeping them (a layout-only read's
+// group entries), chunked through a discard buffer of at most
+// skipBufferBytes.
+func (x *extReader) skipN(n uint64, what string) error {
+	if n > uint64(x.r.N) {
+		return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
+			"reading schema extension: "+what+" runs past its section",
+			map[string]any{"bytes": n, "remaining": x.r.N})
+	}
+	if n == 0 {
+		return nil
+	}
+	buf := make([]byte, min(n, skipBufferBytes))
+	if err := discard(x.r, int(n), buf); err != nil {
+		return errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading schema extension: "+what)
+	}
+	return nil
+}
+
 // exactAllocLimit is the largest extension read allocated up front at
 // its declared size. Anything larger grows as bytes actually arrive, so
 // a corrupt length cannot force a huge allocation before the read fails.
@@ -219,7 +238,12 @@ const exactAllocLimit = 64 << 20
 // dim from VECTORS. So GROUPS records each group's declared entry width
 // as it is read, and that width is checked only after every section has
 // been read and the vectors validated — whichever section came first.
-func readSchemaExtension(r io.Reader, s *Schema) error {
+//
+// With layoutOnly (readSchemaLayout) every group's entry table is read
+// past, never allocated: Group.Entries stays nil, so the dictionary
+// checks run on the DECLARED entry counts instead (checkGroupEntryCounts)
+// and the shape checks are ValidateGroups' own.
+func readSchemaExtension(r io.Reader, s *Schema, layoutOnly bool) error {
 	var lenBuf [8]byte
 	if _, err := io.ReadFull(r, lenBuf[:]); err != nil {
 		return errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading schema extension length")
@@ -237,7 +261,7 @@ func readSchemaExtension(r io.Reader, s *Schema) error {
 		return err
 	}
 	seen := map[uint16]bool{}
-	var declaredWidths []uint32
+	var declaredWidths, declaredCounts []uint32
 	for i := 0; i < int(sections); i++ {
 		tag, err := x.u16("section tag")
 		if err != nil {
@@ -270,7 +294,7 @@ func readSchemaExtension(r io.Reader, s *Schema) error {
 		sec := &extReader{r: &io.LimitedReader{R: lr, N: int64(secLen)}}
 		switch tag {
 		case sectionTagGroups:
-			if declaredWidths, err = readGroupsSection(sec, s); err != nil {
+			if declaredWidths, declaredCounts, err = readGroupsSection(sec, s, layoutOnly); err != nil {
 				return err
 			}
 		case sectionTagVectors:
@@ -306,34 +330,64 @@ func readSchemaExtension(r io.Reader, s *Schema) error {
 			return groupErr("entry width disagrees with the members' widths", map[string]any{"group": g, "entry_width": ew, "want": want})
 		}
 	}
+	if layoutOnly {
+		if err := s.validateGroupShape(); err != nil {
+			return err
+		}
+		return checkGroupEntryCounts(s, declaredCounts)
+	}
 	return s.ValidateGroups()
+}
+
+// checkGroupEntryCounts is ValidateGroups' dictionary check over the
+// entry counts a GROUPS section declared, for a layout-only read whose
+// Group.Entries were skipped: a constant group holds exactly one entry,
+// an indexed one at most MaxGroupEntries. (A declared count times the
+// declared width is a whole number of entries by construction.)
+func checkGroupEntryCounts(s *Schema, counts []uint32) error {
+	for g, n := range counts {
+		switch s.Groups[g].Kind {
+		case GroupKindIndexed:
+			if uint64(n) > MaxGroupEntries {
+				return groupErr("group dictionary exceeds the u32 index space", map[string]any{"group": g, "entry_count": n, "max_entries": MaxGroupEntries})
+			}
+		case GroupKindConstant:
+			if n != 1 {
+				return groupErr("a constant group holds exactly one entry", map[string]any{"group": g, "entry_count": n})
+			}
+		}
+	}
+	return nil
 }
 
 // readGroupsSection parses the GROUPS section into s.Groups and returns
 // each group's DECLARED entry width, which the caller checks against the
-// members' widths once vector dims are known (see readSchemaExtension).
-func readGroupsSection(x *extReader, s *Schema) ([]uint32, error) {
+// members' widths once vector dims are known (see readSchemaExtension),
+// and its declared entry count. With layoutOnly the entry tables are
+// skipped and Group.Entries stays nil.
+func readGroupsSection(x *extReader, s *Schema, layoutOnly bool) ([]uint32, []uint32, error) {
 	n, err := x.u16("group count")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if n == 0 {
-		return nil, groupErr("groups section declares no group", nil)
+		return nil, nil, groupErr("groups section declares no group", nil)
 	}
 	widths := make([]uint32, n)
+	counts := make([]uint32, n)
 	groups := make([]Group, n)
 	for g := range groups {
 		kind, err := x.u8("group kind")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		idxW, err := x.u8("group index width")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		flags, err := x.u8("group flags")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		grp := &groups[g]
 		grp.Kind = GroupKind(kind)
@@ -341,51 +395,55 @@ func readGroupsSection(x *extReader, s *Schema) ([]uint32, error) {
 		case grp.Kind == GroupKindIndexed && idxW == GroupIndexWidth:
 		case grp.Kind == GroupKindConstant && idxW == 0:
 		default:
-			return nil, groupErr("unsupported group kind / index width", map[string]any{"group": g, "kind": kind, "index_width": idxW})
+			return nil, nil, groupErr("unsupported group kind / index width", map[string]any{"group": g, "kind": kind, "index_width": idxW})
 		}
 		if flags != 0 {
-			return nil, groupErr("group sets reserved flag bits", map[string]any{"group": g, "flags": flags})
+			return nil, nil, groupErr("group sets reserved flag bits", map[string]any{"group": g, "flags": flags})
 		}
 		mc, err := x.u16("member count")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		grp.Members = make([]GroupMember, mc)
 		for k := range grp.Members {
 			fi, err := x.u16("member field index")
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			mf, err := x.u8("member flags")
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if mf&^memberFlagKey != 0 {
-				return nil, groupErr("group member sets reserved flag bits", map[string]any{"group": g, "field_index": fi, "flags": mf})
+				return nil, nil, groupErr("group member sets reserved flag bits", map[string]any{"group": g, "field_index": fi, "flags": mf})
 			}
 			grp.Members[k] = GroupMember{Field: int(fi), Key: mf&memberFlagKey != 0}
 		}
 		ew, err := x.u32("entry width")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		ec, err := x.u32("entry count")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, m := range grp.Members {
 			if m.Field >= len(s.Fields) {
-				return nil, groupErr("group member names no field", map[string]any{"group": g, "field_index": m.Field, "field_count": len(s.Fields)})
+				return nil, nil, groupErr("group member names no field", map[string]any{"group": g, "field_index": m.Field, "field_count": len(s.Fields)})
 			}
 		}
 		// The declared width sizes the read; it is checked against the
 		// members' widths after VECTORS is applied (readSchemaExtension).
-		widths[g] = ew
-		grp.Entries, err = x.bytesN(uint64(ec)*uint64(ew), "group entries")
+		widths[g], counts[g] = ew, ec
+		if layoutOnly {
+			err = x.skipN(uint64(ec)*uint64(ew), "group entries")
+		} else {
+			grp.Entries, err = x.bytesN(uint64(ec)*uint64(ew), "group entries")
+		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	s.Groups = groups
-	return widths, nil
+	return widths, counts, nil
 }

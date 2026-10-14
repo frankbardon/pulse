@@ -544,6 +544,10 @@ func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Coh
 		fs:            overlay,
 		anchorArchive: archivePath,
 		anchorEntry:   entry,
+		// The whole archive was read to reach the shard: the memory
+		// estimate charges its bytes (limitInputs), as predict does
+		// through PredictOptions.AnchorArchiveBytes.
+		archiveBytes: int64(len(data)),
 	}, nil
 }
 

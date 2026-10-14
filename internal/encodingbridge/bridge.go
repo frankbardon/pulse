@@ -36,4 +36,10 @@ var (
 	// GroupDescriptorBytes is the on-wire size of one group's descriptor
 	// in the 0x02 groups section, for a group of the given member count.
 	GroupDescriptorBytes func(members int) int
+
+	// ReadSchemaLayout is ReadSchema without the dictionaries: every
+	// categorical / set dictionary and group entry table is read past,
+	// never allocated, leaving r at the first record byte. Returns a
+	// *encoding.Schema with nil Dictionary / Entries.
+	ReadSchemaLayout func(r io.Reader, v byte) (any, error)
 )

@@ -241,13 +241,17 @@ func TestArchiveMemory_EstimatedBytesRatio(t *testing.T) {
 	}
 }
 
-// The archive ratio band. Measured on darwin/arm64 (go1.26): 0.31-0.44
-// on the dictionary archive, 0.67-0.74 on the matrix scale archive. The
-// estimate bounds the peak; the ceiling's 20% over 1 absorbs a sampled
-// overshoot under another runner's GC timing. Without the archive terms
-// (descx archiveTerms) the dictionary archive measures 3.1-5.4, without
-// only the schema decodes up to 1.27; the floor fails a term that
-// over-counts by a whole factor.
+// The archive ratio band. Measured on darwin/arm64 (go1.26), with the
+// schema-decode term at shards + 1 (E8-S4: Open's record-count peek
+// reads each shard's schema layout-only): 0.35-0.49 on the dictionary
+// archive, 0.66-0.74 on the matrix scale archive; linux/amd64 under
+// docker 0.34-0.49 and 0.64-0.74 (E8-S3, at 2 x shards + 1: 0.31-0.44
+// and 0.67-0.74). The estimate bounds the peak; the
+// ceiling's 20% over 1 absorbs a sampled overshoot under another
+// runner's GC timing. Without the archive terms (descx archiveTerms) the
+// dictionary archive measures 3.1-5.4, without only the schema decodes
+// 0.81-1.23 (the leaf and descriptor pins catch that drop exactly); the
+// floor fails a term that over-counts by a whole factor.
 const (
 	archiveRatioMin = 0.15
 	archiveRatioMax = 1.2

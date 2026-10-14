@@ -223,6 +223,15 @@ type PredictOptions struct {
 	// estimate counts the per-shard parallel arm's partials
 	// (ShardFanOut), as the engine's dispatch decides the arm.
 	ShardWorkers int
+
+	// AnchorArchiveBytes is, when the predicted bytes are ONE shard the
+	// caller extracted from an `archive.pulse#shard.pulse` anchor, that
+	// archive's byte length (0 otherwise). The runtime's OpenAnchor reads
+	// the whole archive to reach the shard, so the memory estimate
+	// charges the archive's bytes in place of the shard's payload when
+	// larger (LimitInputs.ArchiveBytes), exactly as the run's pre-flight
+	// does. Ignored when the bytes are themselves an archive.
+	AnchorArchiveBytes int64
 }
 
 // CrosstabFusionDisabledReason is the PredictResult.CrosstabFusionReasons
@@ -319,7 +328,11 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	if data, ok := sniffArchive(fileData); ok {
 		env = predictArchive(data, expanded, opts)
 	} else {
-		env = predictSingle(fileData, expanded, opts, nil, nil, 0)
+		var anchorBytes int64
+		if opts != nil {
+			anchorBytes = opts.AnchorArchiveBytes
+		}
+		env = predictSingle(fileData, expanded, opts, nil, nil, anchorBytes)
 	}
 	if len(fan) > 0 {
 		if result, ok := env.Data.(*descriptor.PredictResult); ok {
@@ -337,7 +350,8 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 // and the matrix state estimate — RecordCount stays the archive-only
 // figure it documents. shardRecords are an archive's per-shard counts
 // (merge blocks restart per shard) and archiveBytes its byte length
-// (the memory estimate's archive term); nil and 0 for a single file.
+// (the memory estimate's archive term); nil and 0 for a single file —
+// an anchor-extracted shard passes nil and its archive's length.
 func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions, records *int64, shardRecords []int64, archiveBytes int64) *descriptor.Envelope {
 	if opts == nil {
 		opts = &PredictOptions{}

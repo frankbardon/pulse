@@ -151,9 +151,13 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 			payload + 12345 + bucket(1)},
 		{"no records", MemoryInputs{Arm: ArmBuffered, Buckets: 1}, runBaseBytes + bucket(0)},
 		// An archive: its byte length replaces records x stride in the
-		// payload term, plus every schema block decoded.
-		{"archive", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, ArchiveBytes: 90_000, SchemaDecodes: 5, SchemaBytes: 7000},
-			runBaseBytes + fileCopyFactor*90_000 + 5*7000 + bucket(1)},
+		// payload term, plus every schema block decoded with its
+		// dictionaries (2 shards + the canonical entry).
+		{"archive", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, ArchiveBytes: 90_000, SchemaDecodes: 3, SchemaBytes: 7000},
+			runBaseBytes + fileCopyFactor*90_000 + 3*7000 + bucket(1)},
+		// An anchor-opened shard: the archive's bytes, no extra decode.
+		{"anchor", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, ArchiveBytes: 90_000},
+			runBaseBytes + fileCopyFactor*90_000 + bucket(1)},
 		{"archive under the payload", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, ArchiveBytes: 10},
 			payload + bucket(1)},
 		// The per-shard parallel arm: every partial's buckets and

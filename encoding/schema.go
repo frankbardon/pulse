@@ -314,15 +314,36 @@ func writeFieldDescriptors(w io.Writer, s *Schema) error {
 // ENCODING_INVALID; unknown field-type bytes fail loud here, at parse
 // time, for every version.
 func ReadSchema(r io.Reader, v byte) (*Schema, error) {
+	return readSchema(r, v, false)
+}
+
+// readSchemaLayout is ReadSchema without the dictionaries: every
+// categorical / set dictionary and every parent-group entry table is
+// read past and discarded, never allocated, so the returned schema
+// carries a nil Field.Dictionary and nil Group.Entries. Everything the
+// record stride derives from — field types, nullability, vector dims,
+// the group layout — is read and validated exactly as ReadSchema does
+// (a constant group must still declare one entry), and r is left at the
+// first record byte. internal/encoding reaches it through
+// encodingbridge.ReadSchemaLayout to count a shard's records
+// (Archive.PeekShardRecordCount) without the garbage a full decode of a
+// dictionary-heavy shard costs.
+func readSchemaLayout(r io.Reader, v byte) (*Schema, error) {
+	return readSchema(r, v, true)
+}
+
+// readSchema is the one schema-block reader; layoutOnly skips the
+// dictionaries and group entries (readSchemaLayout).
+func readSchema(r io.Reader, v byte, layoutOnly bool) (*Schema, error) {
 	if !IsSupportedFormatVersion(v) {
 		return nil, unsupportedVersionError(v)
 	}
-	s, err := readFieldDescriptors(r)
+	s, err := readFieldDescriptors(r, layoutOnly)
 	if err != nil {
 		return nil, err
 	}
 	if v >= FormatVersionV2 {
-		if err := readSchemaExtension(r, s); err != nil {
+		if err := readSchemaExtension(r, s, layoutOnly); err != nil {
 			return nil, err
 		}
 		return s, nil
@@ -335,8 +356,10 @@ func ReadSchema(r io.Reader, v byte) (*Schema, error) {
 }
 
 // readFieldDescriptors reads field_count and every field descriptor —
-// the part of the schema block shared by every format version.
-func readFieldDescriptors(r io.Reader) (*Schema, error) {
+// the part of the schema block shared by every format version. With
+// layoutOnly each inline dictionary is skipped (skipDictionary) and
+// Field.Dictionary stays nil.
+func readFieldDescriptors(r io.Reader, layoutOnly bool) (*Schema, error) {
 	var fieldCount uint16
 	if err := binary.Read(r, binary.LittleEndian, &fieldCount); err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading field count")
@@ -345,6 +368,9 @@ func readFieldDescriptors(r io.Reader) (*Schema, error) {
 	s := &Schema{
 		Fields: make([]Field, 0, fieldCount),
 	}
+	// skip is layoutOnly's one discard buffer, shared by every
+	// dictionary the block carries.
+	var skip []byte
 
 	for i := 0; i < int(fieldCount); i++ {
 		var f Field
@@ -420,7 +446,14 @@ func readFieldDescriptors(r io.Reader) (*Schema, error) {
 		}
 
 		// Dictionary for types that carry one (categorical_* and set_*).
-		if f.Type.HasDictionary() {
+		if f.Type.HasDictionary() && layoutOnly {
+			if skip == nil {
+				skip = make([]byte, skipBufferBytes)
+			}
+			if err := skipDictionary(r, skip); err != nil {
+				return nil, err
+			}
+		} else if f.Type.HasDictionary() {
 			dict := NewDictionary()
 			if _, err := dict.ReadFrom(r); err != nil {
 				return nil, err
@@ -432,6 +465,43 @@ func readFieldDescriptors(r io.Reader) (*Schema, error) {
 	}
 
 	return s, nil
+}
+
+// skipBufferBytes sizes readSchemaLayout's discard buffer: one
+// allocation per schema block, whatever its dictionaries hold.
+const skipBufferBytes = 4096
+
+// skipDictionary reads past one inline dictionary block (u32 count, then
+// per entry a u16 length and that many label bytes — the layout
+// Dictionary.ReadFrom decodes) without allocating, through buf. A short
+// read is ENCODING_INVALID with Dictionary.ReadFrom's messages.
+func skipDictionary(r io.Reader, buf []byte) error {
+	if _, err := io.ReadFull(r, buf[:4]); err != nil {
+		return errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary count")
+	}
+	count := binary.LittleEndian.Uint32(buf[:4])
+	for range count {
+		if _, err := io.ReadFull(r, buf[:2]); err != nil {
+			return errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary string length")
+		}
+		if err := discard(r, int(binary.LittleEndian.Uint16(buf[:2])), buf); err != nil {
+			return errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary string")
+		}
+	}
+	return nil
+}
+
+// discard reads exactly n bytes from r into buf, a chunk at a time, and
+// drops them; a short read returns io.ReadFull's error.
+func discard(r io.Reader, n int, buf []byte) error {
+	for n > 0 {
+		c := min(n, len(buf))
+		if _, err := io.ReadFull(r, buf[:c]); err != nil {
+			return err
+		}
+		n -= c
+	}
+	return nil
 }
 
 // RecordCountForPayload derives how many whole records occupy a payload

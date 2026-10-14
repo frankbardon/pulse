@@ -39,7 +39,8 @@ type Cohort struct {
 	shards []ShardEntry
 	// archiveBytes is a shard archive's byte length — what Open read
 	// onto the heap; the memory estimate's archive term
-	// (limitInputs). 0 for a single file.
+	// (limitInputs). An anchor-opened shard carries its archive's
+	// length (OpenAnchor reads the whole archive). 0 for a single file.
 	archiveBytes int64
 
 	// anchorArchive / anchorEntry are set when the cohort was opened

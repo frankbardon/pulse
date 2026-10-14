@@ -17,4 +17,11 @@ func init() {
 	encodingbridge.MemberSets = func(s any) ([]int, []int) { return s.(*Schema).memberSets() }
 	encodingbridge.GroupEntryGeometry = func(s any, g int) (int, int) { return s.(*Schema).groupEntryGeometry(g) }
 	encodingbridge.GroupDescriptorBytes = groupDescriptorBytes
+	encodingbridge.ReadSchemaLayout = func(r io.Reader, v byte) (any, error) {
+		s, err := readSchemaLayout(r, v)
+		if err != nil {
+			return nil, err
+		}
+		return s, nil
+	}
 }

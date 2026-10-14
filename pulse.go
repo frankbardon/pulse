@@ -1520,15 +1520,20 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		return nil, fmt.Errorf("pulse: reading file for predict: %w", err)
 	}
 
+	var anchorArchiveBytes int64
 	if anchorEntry != "" {
 		shardBytes, aerr := extractShardBytes(data, anchorEntry)
 		if aerr != nil {
 			return nil, fmt.Errorf("pulse: predict anchor: %w", aerr)
 		}
+		// The runtime's OpenAnchor reads the whole archive to reach the
+		// shard; the memory estimate charges it the same.
+		anchorArchiveBytes = int64(len(data))
 		data = shardBytes
 	}
 
 	opts := p.predictOptions(ctx, p.sidecarFacts(path))
+	opts.AnchorArchiveBytes = anchorArchiveBytes
 	env := descx.Predict(bytes.NewReader(data), req, &opts)
 	if len(env.Errors) > 0 {
 		// Return the result (which has Valid=false) rather than erroring.
