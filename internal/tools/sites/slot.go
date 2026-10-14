@@ -362,6 +362,9 @@ func slotReport(r *repo, which, name string, opts options) (*Report, error) {
 		}
 		base := tt.fset.File(f.Pos()).Base()
 		ast.Inspect(f, func(n ast.Node) bool {
+			if _, ok := n.(*ast.ImportSpec); ok {
+				return false // `import "sort"` is a package path, never the slot
+			}
 			bl, ok := n.(*ast.BasicLit)
 			if !ok || bl.Kind != token.STRING {
 				return true
@@ -488,6 +491,9 @@ func slotReport(r *repo, which, name string, opts options) (*Report, error) {
 				symLines := map[string][]int{}
 				var order []string
 				ast.Inspect(f, func(n ast.Node) bool {
+					if _, ok := n.(*ast.ImportSpec); ok {
+						return false // a stdlib / module path equal to the json name (`sort`)
+					}
 					bl, ok := n.(*ast.BasicLit)
 					if !ok || bl.Kind != token.STRING || bl.Value != lit {
 						return true

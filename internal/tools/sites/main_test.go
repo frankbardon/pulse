@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -33,8 +35,9 @@ func sharedRepo(t *testing.T) *repo {
 func reportFiles(rep *Report) map[string]bool {
 	out := map[string]bool{}
 	for _, s := range rep.Sections {
-		if s.Class == "enumerators" {
-			continue
+		switch s.Class {
+		case "enumerators", "derived", "param-enums", "oracle":
+			continue // derived from the named sites; they need not name the operator
 		}
 		for _, site := range s.Sites {
 			out[site.Path] = true
@@ -140,6 +143,12 @@ func TestOpReport_KnownSites(t *testing.T) {
 			}
 			if len(rep.Manual) == 0 {
 				t.Error("no manual reading list")
+			}
+			if !contains(rep.Manual, extensionRecipe) {
+				t.Errorf("reading list lacks %s", extensionRecipe)
+			}
+			if tc.op == "AGG_SUM" && !contains(rep.Manual, "docs/src/internals/adding-aggregator.md") {
+				t.Error("AGG_SUM reading list lacks its category recipe adding-aggregator.md")
 			}
 		})
 	}
@@ -438,7 +447,7 @@ func TestManualPathsExist(t *testing.T) {
 	r := sharedRepo(t)
 	var all []string
 	for _, c := range categoryTable {
-		all = append(all, c.Manual...)
+		all = append(all, manualFor(c)...)
 	}
 	all = append(all, slotManual...)
 	all = append(all, slotManualResponse...)
@@ -488,5 +497,229 @@ func TestRun_CLI(t *testing.T) {
 	}
 	if code := run([]string{"op", "NOT_AN_OP"}, &out, &errb); code != 1 {
 		t.Errorf("unknown op exit %d, want 1", code)
+	}
+}
+
+// siteIn finds a site by path inside one section class.
+func siteIn(rep *Report, class, p string) *Site {
+	for i := range rep.Sections {
+		if rep.Sections[i].Class != class {
+			continue
+		}
+		for j := range rep.Sections[i].Sites {
+			if rep.Sections[i].Sites[j].Path == p {
+				return &rep.Sections[i].Sites[j]
+			}
+		}
+	}
+	return nil
+}
+
+func symbolNote(s *Site, name string) (string, bool) {
+	if s == nil {
+		return "", false
+	}
+	for _, sym := range s.Symbols {
+		if sym.Name == name {
+			return sym.Note, true
+		}
+	}
+	return "", false
+}
+
+// TestOpReport_DerivedSites pins the sites that never spell the operator:
+// callers of a selective predicate (followed through further predicates)
+// and the size estimates in its files plus their callers.
+func TestOpReport_DerivedSites(t *testing.T) {
+	r := sharedRepo(t)
+	cases := []struct {
+		op     string
+		sites  map[string]string // path -> symbol
+		absent map[string]string
+	}{
+		// array-valued consumers: ArrayValued (names it) <- IsArrayValued <- AggregationExpands
+		{"AGG_VEC_MEAN", map[string]string{
+			"internal/vectors/aggregations.go":            "func AggregationOutputColumns",
+			"internal/descriptor/field_refs.go":           "func fieldRefRefusalsCoded",
+			"internal/descriptor/overlay_array_valued.go": "func scoredValueReason",
+			"internal/descriptor/return_resolve.go":       "func returnOutputColumns",
+		}, nil},
+		// the two-pass predicate chain
+		{"ATTR_VEC_DISTANCE", map[string]string{
+			"internal/processing/processor.go":           "func hasTwoPassAttribute",
+			"internal/processing/crosstab_fused_gate.go": "func (registryFuseFacts) AttributeSlotBound",
+		}, nil},
+		// memory estimates that never name an operator
+		{"MAT_PCA", map[string]string{
+			"internal/vectors/matrix_rules.go": "const pairMomentBytes",
+			"internal/descriptor/limits.go":    "func matrixMemory",
+		}, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.op, func(t *testing.T) {
+			rep, err := opReport(r, tc.op, options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for p, sym := range tc.sites {
+				found := false
+				for i := range rep.Sections {
+					if rep.Sections[i].Class != "derived" {
+						continue
+					}
+					for j := range rep.Sections[i].Sites {
+						if rep.Sections[i].Sites[j].Path == p && hasSymbol(&rep.Sections[i].Sites[j], sym) {
+							found = true
+						}
+					}
+				}
+				if !found {
+					t.Errorf("derived section lacks %s · %s", p, sym)
+				}
+			}
+		})
+	}
+}
+
+// TestOpReport_ParamEnums pins the enum params read from the capability
+// declaration (helper-local params included) and the sites using the
+// constants that spell their values.
+func TestOpReport_ParamEnums(t *testing.T) {
+	r := sharedRepo(t)
+	rep, err := opReport(r, "MAT_FACTOR", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	decl := siteIn(rep, "param-enums", "internal/descriptor/capabilities_matrix.go")
+	for param, want := range map[string]string{
+		"params.rotation":   "none, varimax, promax, oblimin",
+		"params.missing":    "listwise, pairwise", // a function-local shared param slice
+		"params.extraction": "minres",
+	} {
+		note, ok := symbolNote(decl, param)
+		if !ok || !strings.Contains(note, want) {
+			t.Errorf("param-enums: %s note %q, want it to list %q", param, note, want)
+		}
+	}
+	if !hasSymbol(siteIn(rep, "param-enums", "internal/processing/matrix_rotate.go"), "func rotateLoadings") {
+		t.Error("param-enums: the rotation dispatch (matrix_rotate.go rotateLoadings) is missing")
+	}
+	// an operator with no enum params has no section
+	rep, err = opReport(r, "AGG_SUM", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range rep.Sections {
+		if s.Class == "param-enums" {
+			t.Errorf("AGG_SUM: unexpected param-enums section %+v", s.Sites)
+		}
+	}
+}
+
+// TestOpReport_OracleTablesBenches pins the R oracle fixtures (read by the
+// operator's tests, written by scripts/reference), the test tables naming
+// it, and the benchmarks / Makefile targets of its packages.
+func TestOpReport_OracleTablesBenches(t *testing.T) {
+	r := sharedRepo(t)
+	rep, err := opReport(r, "MAT_PCA", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := siteIn(rep, "oracle", "internal/processing/testdata/reference/mv_pca.json"); s == nil || !strings.Contains(s.Note, "internal/service/matrix_pca_test.go") {
+		t.Errorf("oracle: mv_pca.json read by matrix_pca_test.go missing (%+v)", s)
+	}
+	if s := siteIn(rep, "oracle", "scripts/reference/gen_multivariate.R"); s == nil || !strings.Contains(s.Note, "mv_pca") {
+		t.Errorf("oracle: generator gen_multivariate.R missing (%+v)", s)
+	}
+	regen := false
+	for _, rg := range rep.Regenerate {
+		regen = regen || rg.Command == "make reference" && contains(rg.Paths, "internal/processing/testdata/reference/mv_pca.json")
+	}
+	if !regen {
+		t.Error("make reference does not list mv_pca.json")
+	}
+	if !hasSymbol(siteIn(rep, "test-tables", "internal/service/matrix_missing_test.go"), "var operatorAuxiliary") {
+		t.Error("test-tables: var operatorAuxiliary missing")
+	}
+	var bench, mk bool
+	for _, g := range rep.Gates {
+		bench = bench || g.Package == "internal/processing" && strings.Contains(g.Command, "-bench . ")
+		mk = mk || strings.HasPrefix(g.Command, "make bench ")
+	}
+	if !bench || !mk {
+		t.Errorf("bench gates: package bench %v, make bench %v", bench, mk)
+	}
+}
+
+func TestMakeTargetCovers(t *testing.T) {
+	bench := makeTarget{name: "bench", patterns: []string{".", "./internal/service/...", "./encoding/..."}}
+	for dir, want := range map[string]bool{
+		".": true, "internal/service": true, "internal/service/sub": true, "encoding": true,
+		"internal/processing": false, "internal/servicex": false, "types": false,
+	} {
+		if got := bench.covers(dir); got != want {
+			t.Errorf("bench.covers(%s) = %v, want %v", dir, got, want)
+		}
+	}
+	var names []string
+	for _, mt := range sharedRepo(t).makeTargets() {
+		names = append(names, mt.name)
+		if mt.name == "test" && !mt.all {
+			t.Error("make test runs ./... but is not marked all")
+		}
+	}
+	if !contains(names, "bench") {
+		t.Errorf("Makefile targets %v lack bench", names)
+	}
+}
+
+// TestNewOpReport_NextExampleNumber pins the NN_ hint to the directory's
+// highest numeric prefix + 1.
+func TestNewOpReport_NextExampleNumber(t *testing.T) {
+	r := sharedRepo(t)
+	rep, err := newOpReport(r, "overlay", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(path.Join(r.root, "internal/examples/overlays"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxN := 0
+	for _, e := range entries {
+		if m := exampleNumRe.FindStringSubmatch(e.Name()); m != nil {
+			n, _ := strconv.Atoi(m[1])
+			maxN = max(maxN, n)
+		}
+	}
+	want := fmt.Sprintf("next free NN_ = %02d", maxN+1)
+	s := findSite(rep, "internal/examples/overlays/NN_crosstab_<op>.json")
+	if s == nil || !strings.Contains(s.Note, want) {
+		t.Errorf("NN_ hint: site %+v, want note containing %q", s, want)
+	}
+}
+
+// TestSlotReport_ImportPathIsNotASlot pins the stdlib-collision fix: a
+// slot whose json name is also a package path (`sort`) must not match
+// `import "sort"` as a string literal or count an import block as a walker.
+func TestSlotReport_ImportPathIsNotASlot(t *testing.T) {
+	if testing.Short() {
+		t.Skip("type-checks the module")
+	}
+	rep, err := slotReport(sharedRepo(t), "request", "sort", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, sec := range rep.Sections {
+		for _, s := range sec.Sites {
+			if hasSymbol(&s, "import") {
+				t.Errorf("%s: an import block listed as a slot site", s.Path)
+			}
+		}
+	}
+	for _, w := range rep.Warnings {
+		if strings.Contains(w, " · import ") {
+			t.Errorf("import block reported as a per-slot walker: %s", w)
+		}
 	}
 }

@@ -38,13 +38,12 @@ Each rule below has a one-line reason. The reasons come from failures this repo 
 
 ## Local gate set
 
-This set covers everything CI runs, plus formatting:
+This set covers everything CI runs:
 
-1. `gofmt -l .` must print nothing. Neither lint nor CI checks formatting, so nobody else will catch it.
-2. `GOTOOLCHAIN=go1.26.1 make lint` (vet + staticcheck). *Why: with a newer local toolchain, staticcheck breaks on export data.*
-3. `go test -count=1 ./...`
-4. `make smoke`. The embedder module is nested, so `./...` never reaches it.
-5. `GOTOOLCHAIN=go1.26.1 make contrib` (the nested contrib modules; tidy, vet, staticcheck, test).
+1. `GOTOOLCHAIN=go1.26.1 make lint` (`fmt-check` + vet + staticcheck). `fmt-check` fails on any file `gofmt -l .` lists, and the CI `lint` job runs the same target, so an unformatted file fails CI; `make fmt` fixes it. *Why: with a newer local toolchain, staticcheck breaks on export data.*
+2. `go test -count=1 ./...`
+3. `make smoke`. The embedder module is nested, so `./...` never reaches it.
+4. `GOTOOLCHAIN=go1.26.1 make contrib` (the nested contrib modules; tidy, vet, staticcheck, test).
 
 A story or companion agent runs only the tests for the packages it touched, plus any whole-repo gate it added or changed, plus lint, unless it is told otherwise. The checkpoint or the PR owner runs the full set. After a push, check CI itself (`gh pr checks`). *Why: local arm64 misses amd64 divergence.*
 
@@ -71,5 +70,5 @@ Other agents may be working in the same checkout and git index.
 ## CLAUDE.md budget
 
 - `CLAUDE.md` must stay at or under 40,000 bytes (`TestClaudeMdSizeBudget`). To fit new content, move long-form prose into the per-area reference slice and leave a one-line pointer. Never raise the ceiling. *Why: CLAUDE.md is loaded on every turn of every session.*
-- Reference indexes and slices have their own ceilings (`reference_docs_test.go`). A slice that grows past its ceiling is split again, and the new slice is named in its index.
+- Reference indexes and slices have their own ceilings (`reference_docs_test.go`), and an unsplit reference file carries the slice ceiling. A file or slice that grows past it is split (again), and the new slice is named in its index.
 - Every `.claude/reference/...` path or section pointer you write must resolve (`TestReferenceDocPointersResolve`, `TestSkillsCoverAllCrossReferences`).

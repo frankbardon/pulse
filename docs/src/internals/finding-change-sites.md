@@ -46,6 +46,27 @@ skills, examples, docs, contract prose — then:
   `.claude/reference/update-demand/` slices for the category. This list is
   the one hand-kept part; everything else is derived.
 
+`op` also prints the sites that never spell the operator, derived
+from the ones that do:
+
+- **Param enums** — the enum params its capability declaration
+  (`internal/descriptor/capabilities_*.go`) lists, with their values,
+  and every declaration using a constant that spells a value (the
+  rotation dispatch, a validator, a refusal).
+- **Reached without the name** — callers of a bool predicate that names
+  the operator but few of its category (`ArrayValued`,
+  `ComparisonFitted`), followed through further predicates
+  (`IsArrayValued` → `AggregationExpands` → …), and the size estimates
+  (`*Bytes`, `estimate*`, `*memory*`) declared in its files with their
+  callers (`AccumulatorBytes` → `matrixMemory`).
+- **R oracle fixtures** — the `internal/processing/testdata/reference/`
+  JSON its tests read by name, and the `scripts/reference/` scripts
+  that write them (`make reference`).
+- **Test tables** — test-file `var` tables naming it (a probe table, a
+  parity case list) that need a row for a sibling or a new value.
+- Under **Gates to rerun**, the benchmarks of its packages and the
+  Makefile targets (other than whole-module ones) that run them.
+
 `op` also warns about **category-norm sites missing**: files at least
 75% of the category's operators appear in but this one does not.
 `slot` warns about **per-slot walkers** (functions that reference many
@@ -54,7 +75,8 @@ of the struct's fields) that skip this slot.
 In `new-op` output `<op>` stands for the operator name minus its
 prefix, lower-case, joined with `_` or `-` like its neighbours
 (`internal/skills/op-mat-<op>.md`, `internal/processing/matrix_<op>.go`),
-`NN_` for the next free example number, and `[k/n ops]` for how many
+`NN_` for an example number (the site note prints the directory's next
+free one), and `[k/n ops]` for how many
 existing operators land at a site. Every-op sites (≥ 75%) are
 mandatory; the rest are conditional on what the operator does (the
 `only:` list shows which operators use them — a p-value emitter lands
@@ -99,10 +121,18 @@ reference doc or gate fails `go test ./internal/tools/sites/`.
 
 ## Limits
 
-- A site that never spells the identifier — a `switch` default, a
-  family-wide branch keyed on a parameter — shows up only through the
-  **Enumerators** section (callers of the registry function) or the
-  category gates. Read the update-demand slice for the contract.
+- A site that never spells the identifier and is not reached through a
+  predicate, an estimate or an enum constant — a `switch` default, a
+  family-wide branch keyed on a semantic property with no predicate
+  function — shows up only through the **Enumerators** section (callers
+  of the registry function) or the category gates. Read the
+  update-demand slice for the contract.
+- Predicate callers are matched by function name; a name with more than
+  80 call sites is reported in the footer instead of expanded.
+- Contributor recipes describe a category in general and rarely name
+  one operator, so the category's `adding-*.md` recipe and
+  `extension-points.md` are appended to **Read before editing** rather
+  than found by name.
 - Synth distribution names are ordinary words, so they are matched only
   as `"quoted"` strings; a quoted `"normal"` in an unrelated parameter
   table is reported too.

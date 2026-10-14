@@ -500,9 +500,9 @@ All `--json` output is wrapped in a `descriptor.Envelope`:
 ```bash
 make build    # Binary at ./bin/pulse
 make test     # go test ./...
-make fmt      # gofmt
+make fmt      # gofmt -w .
 make vet      # go vet
-make lint     # staticcheck (auto-installed via go run)
+make lint     # gofmt check (fmt-check) + go vet + staticcheck (auto-installed via go run); CI runs it
 make cover    # Coverage report
 make docs     # Regenerate the Analysis Guide (docs/src/guide) and build mdBook
 make dist     # 6-platform release archives + checksums.txt in ./dist (VERSION=v1.2.3)

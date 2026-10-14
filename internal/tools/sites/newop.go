@@ -96,6 +96,9 @@ func newOpReport(r *repo, catName string, opts options) (*Report, error) {
 		detailed := pattern || share >= mostThreshold || opts.All
 		if pattern {
 			site.Note = "e.g. " + a.actual[n][exOp]
+			if strings.Contains(path.Base(n), "NN_") {
+				site.Note = "next free NN_ = " + r.nextExampleNumber(path.Dir(n)) + "; " + site.Note
+			}
 		} else if !a.isEvery(len(ops)) {
 			site.Note = "conditional — only: " + opList(c, ops, 5)
 		}
@@ -160,7 +163,7 @@ func newOpReport(r *repo, catName string, opts options) (*Report, error) {
 	rep.Gates = append(rep.Gates, a.categoryGates(r)...)
 	rep.Gates = append(rep.Gates, r.staticGates(classes)...)
 	rep.Regenerate = r.regens(regenPaths)
-	rep.Manual = c.Manual
+	rep.Manual = manualFor(c.categoryDef)
 	if !opts.All {
 		rep.Omitted = append(rep.Omitted, fmt.Sprintf("not listed (--all lists them): %d single-operator sites, %d cross-references inside other operators' own files, %d tests naming < %d%% of the category, history files",
 			single, crossRefs, quietTests, int(mostThreshold*100)))

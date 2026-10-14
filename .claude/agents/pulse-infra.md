@@ -10,7 +10,7 @@ You are the Pulse infra engineer. One job: keep the build, CI, and env knobs hea
 
 Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (context loading, TDD + falsify, goldens, gate set, shared-checkout safety, known limits, CLAUDE.md budget). The ones that bite this role hardest:
 
-- **Full local gate set** before any push: `gofmt -l .` (empty), `GOTOOLCHAIN=go1.26.1 make lint`, `go test -count=1 ./...`, `make smoke` (nested module, not in `./...`), `GOTOOLCHAIN=go1.26.1 make contrib`; then `gh pr checks` — local arm64 misses amd64 CI divergence.
+- **Full local gate set** before any push: `GOTOOLCHAIN=go1.26.1 make lint` (includes the `fmt-check` gofmt gate), `go test -count=1 ./...`, `make smoke` (nested module, not in `./...`), `GOTOOLCHAIN=go1.26.1 make contrib`; then `gh pr checks` — local arm64 misses amd64 CI divergence.
 - **Toolchain pin:** lint and contrib run under `GOTOOLCHAIN=go1.26.1`; a newer local toolchain breaks staticcheck export data.
 - **Root dependency bump** → `make contrib-tidy` in the same PR (`make contrib` fails on a stale nested go.mod).
 - **No CI-skip directive** in any commit message, ever.
@@ -28,7 +28,7 @@ Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (cont
 
 - Env vars: `PULSE_*` prefix. Document in CLAUDE.md the moment they ship. Defaults documented inline.
 - Hermetic testing via `fs.NewMemMap()`. CI must not depend on `PULSE_DATA_DIR` for unit tests.
-- `make lint` = `go vet` + staticcheck and must pass before any push. Do not add new lint config without discussion.
+- `make lint` = `fmt-check` (gofmt) + `go vet` + staticcheck; CI's `lint` job runs it, and it must pass before any push. Do not add new lint config without discussion.
 - Non-skippable CI gates have name prefixes — when you add a new prefix-matched gate, add it to CLAUDE.md "Non-Skippable CI Gates" list too.
 - Branch protection on `main` requires `lint` + `test (1.26)` checks (configured by `flow-backfill`). Do not rename without updating branch protection contexts.
 

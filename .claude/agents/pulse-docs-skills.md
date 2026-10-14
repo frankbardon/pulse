@@ -20,16 +20,7 @@ Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (cont
 
 1. `CLAUDE.md` "The Update Demand" table — every code change has a corresponding skill row; its exhaustive form is the `.claude/reference/update-demand.md` index + the slice it routes you to.
 2. There is NO `skills/index.json`: `skills.List()` walks the embedded FS and parses frontmatter, so a new file with valid frontmatter is picked up automatically. Load `.claude/reference/skill-pack.md` for the frontmatter blocks, required sections and budgets.
-3. The target skill file's frontmatter:
-
-   ```yaml
-   ---
-   name: skill-name
-   description: <what it teaches>
-   type: guide | reference
-   applies_to: <valid CLI leaves — process, compose, sample, facet, inspect, predict, manifest>
-   ---
-   ```
+3. The target skill file's frontmatter — copy the atomic or topical block from `.claude/reference/skill-pack.md` (Frontmatter), never from memory. Atomic: `name` (= stem), `description`, `kind: operator | tool | type`, `category`, `operator`, `type: reference`, `applies_to`, `examples_tags`. Topical: `name`, `description`, `kind: design`, `type: guide`, `applies_to`, `covers`, optional `requires`. `applies_to` entries are CLI leaves (`process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`), or `mcp` on `tool-*` skills.
 
 4. `internal/examples/` `_meta` block requirements: kebab name, category = dir, canonical tags from `internal/examples/library.go` `CanonicalTags`, alphabetized operators matching body. `TestExamples_*` enforces.
 5. `docs/` is mdBook; `make docs` builds; `docs/book/` is gitignored.

@@ -1,4 +1,4 @@
-.PHONY: build clean dist test smoke contrib contrib-tidy cover fmt vet lint bench sites tzdata reference docs docs-generate docs-serve docs-clean
+.PHONY: build clean dist test smoke contrib contrib-tidy cover fmt fmt-check vet lint bench sites tzdata reference docs docs-generate docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -74,12 +74,18 @@ cover:
 	$(GO) tool cover -func=coverage.out
 
 fmt:
-	$(GO) fmt ./...
+	gofmt -w .
+
+# fmt-check fails on any Go file gofmt would rewrite (the nested smoke and
+# contrib modules included). It is part of `make lint`, which is what the CI
+# `lint` job runs, so local lint == CI lint; `make fmt` fixes what it lists.
+fmt-check:
+	@out=$$(gofmt -l .); if [ -n "$$out" ]; then echo "gofmt needed (run make fmt):"; echo "$$out"; exit 1; fi
 
 vet:
 	$(GO) vet ./...
 
-lint: vet
+lint: fmt-check vet
 	$(GO) run honnef.co/go/tools/cmd/staticcheck@latest ./...
 
 # bench runs the in-tree benchmark suite. Manual target — not wired into

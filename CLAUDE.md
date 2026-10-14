@@ -174,7 +174,7 @@ Other load-bearing gates (`TestManifest*Complete`, `TestStreamability_*`, `TestE
 
 ## Build / Env
 
-`make contrib` / `make contrib-tidy` (nested adapter modules; a root dependency bump needs `contrib-tidy` in its PR). `make build` (default; injects `VERSION` from `git describe` via ldflags into `internal/buildinfo`, read by `pulse.Version()`), `test`, `fmt`, `vet`, `lint`, `cover`, `clean`, `dist` (6-platform archives + `checksums.txt` into `dist/`), `docs` (runs `docs-generate` first, which regenerates the committed `docs/src/guide`), `docs-serve`, `docs-clean`. A `v*.*.*` tag push runs `release.yml` (`ci.yml`, then `make dist` assets onto the GitHub Release; `-` tags pre-release). A `.env` at repo root is auto-loaded. `make lint` = `go vet` + `staticcheck`, and must pass before any push.
+`make contrib` / `make contrib-tidy` (nested adapter modules; a root dependency bump needs `contrib-tidy` in its PR). `make build` (default; injects `VERSION` from `git describe` via ldflags into `internal/buildinfo`, read by `pulse.Version()`), `test`, `fmt`, `vet`, `lint`, `cover`, `clean`, `dist` (6-platform archives + `checksums.txt` into `dist/`), `docs` (runs `docs-generate` first, which regenerates the committed `docs/src/guide`), `docs-serve`, `docs-clean`. A `v*.*.*` tag push runs `release.yml` (`ci.yml`, then `make dist` assets onto the GitHub Release; `-` tags pre-release). A `.env` at repo root is auto-loaded. `make lint` = gofmt check + `go vet` + `staticcheck` (CI's `lint` job), and must pass before any push.
 
 **Environment variables** — one line each; `pulse.Options` always overrides:
 

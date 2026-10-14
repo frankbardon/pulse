@@ -32,7 +32,9 @@ type repo struct {
 	parsed  map[string]*goFile
 	fset    *token.FileSet
 
-	testFuncs map[string][]string // test func name -> package dirs declaring it
+	testFuncs map[string][]string          // test func name -> package dirs declaring it
+	calls     map[string][]callSite        // callee name -> non-test calls (callIndex)
+	consts    map[string]map[string]string // dir -> const name -> string value
 }
 
 func openRepo(root string) (*repo, error) {

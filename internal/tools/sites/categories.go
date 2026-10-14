@@ -24,6 +24,22 @@ type categoryDef struct {
 	// Manual is the reading list for this category — inherently manual,
 	// the one hand-kept part (paths pinned by TestManualPathsExist).
 	Manual []string
+	// Recipe is the category's contributor recipe under
+	// docs/src/internals/ ("" when it has none); manualFor appends it and
+	// the extension-points recipe, which describe the category in general
+	// and so rarely name one operator.
+	Recipe string
+}
+
+const extensionRecipe = "docs/src/internals/extension-points.md"
+
+// manualFor is a category's reading list plus its contributor recipes.
+func manualFor(c categoryDef) []string {
+	out := append([]string{}, c.Manual...)
+	if c.Recipe != "" {
+		out = append(out, c.Recipe)
+	}
+	return append(out, extensionRecipe)
 }
 
 const (
@@ -41,19 +57,19 @@ const (
 var opManual = []string{udIndex, udOperators, refGuided, refFeatures, refSkills}
 
 var categoryTable = []categoryDef{
-	{Name: "aggregator", Aliases: []string{"agg", "aggregation", "aggregators"}, Prefix: "AGG_", Dir: "types", AllFunc: "AllAggregationTypes", Skill: "op-agg-",
+	{Name: "aggregator", Recipe: "docs/src/internals/adding-aggregator.md", Aliases: []string{"agg", "aggregation", "aggregators"}, Prefix: "AGG_", Dir: "types", AllFunc: "AllAggregationTypes", Skill: "op-agg-",
 		Manual: append(append([]string{}, opManual...), udWeighting, refWeight, udComps, refComps)},
-	{Name: "attribute", Aliases: []string{"attr", "attributes"}, Prefix: "ATTR_", Dir: "types", AllFunc: "AllAttributeTypes", Skill: "op-attr-",
+	{Name: "attribute", Recipe: "docs/src/internals/adding-attribute.md", Aliases: []string{"attr", "attributes"}, Prefix: "ATTR_", Dir: "types", AllFunc: "AllAttributeTypes", Skill: "op-attr-",
 		Manual: append(append([]string{}, opManual...), udWeighting, refWeight, udComps, refComps, ".claude/reference/update-demand/vectors-and-matrices.md")},
-	{Name: "filterer", Aliases: []string{"filter", "filterers"}, Prefix: "FILTER_", Dir: "types", AllFunc: "AllFiltererTypes", Skill: "op-filter-",
+	{Name: "filterer", Recipe: "docs/src/internals/adding-filterer.md", Aliases: []string{"filter", "filterers"}, Prefix: "FILTER_", Dir: "types", AllFunc: "AllFiltererTypes", Skill: "op-filter-",
 		Manual: append(append([]string{}, opManual...), udComps, refComps)},
-	{Name: "grouper", Aliases: []string{"group", "groupers"}, Prefix: "GROUP_", Dir: "types", AllFunc: "AllGroupTypes", Skill: "op-group-",
+	{Name: "grouper", Recipe: "docs/src/internals/adding-grouper.md", Aliases: []string{"group", "groupers"}, Prefix: "GROUP_", Dir: "types", AllFunc: "AllGroupTypes", Skill: "op-group-",
 		Manual: append(append([]string{}, opManual...), udComps, refComps, ".claude/reference/execution-modes/time-and-defaults.md")},
-	{Name: "window", Aliases: []string{"win", "windows"}, Prefix: "WIN_", Dir: "types", AllFunc: "AllWindowTypes", Skill: "op-win-",
+	{Name: "window", Recipe: "docs/src/internals/adding-window.md", Aliases: []string{"win", "windows"}, Prefix: "WIN_", Dir: "types", AllFunc: "AllWindowTypes", Skill: "op-win-",
 		Manual: append(append([]string{}, opManual...), udWeighting, refWeight)},
-	{Name: "feature", Aliases: []string{"feat", "features"}, Prefix: "FEAT_", Dir: "types", AllFunc: "AllFeatureTypes", Skill: "op-feat-",
+	{Name: "feature", Recipe: "docs/src/internals/adding-feature.md", Aliases: []string{"feat", "features"}, Prefix: "FEAT_", Dir: "types", AllFunc: "AllFeatureTypes", Skill: "op-feat-",
 		Manual: append(append([]string{}, opManual...), udWeighting, refWeight)},
-	{Name: "test", Aliases: []string{"tests", "stattest"}, Prefix: "TEST_", Dir: "types", AllFunc: "AllTestTypes", Skill: "op-test-",
+	{Name: "test", Recipe: "docs/src/internals/adding-test.md", Aliases: []string{"tests", "stattest"}, Prefix: "TEST_", Dir: "types", AllFunc: "AllTestTypes", Skill: "op-test-",
 		Manual: append(append([]string{}, opManual...), udWeighting, refWeight, ".claude/reference/execution-modes/inference.md")},
 	{Name: "regression", Aliases: []string{"reg", "regressions"}, Prefix: "REG_", Dir: "types", AllFunc: "AllRegressionTypes", Skill: "op-reg-",
 		Manual: append(append([]string{}, opManual...), udWeighting, refWeight, ".claude/reference/matrix-and-vectors/regression-vcov.md")},
@@ -63,7 +79,7 @@ var categoryTable = []categoryDef{
 	{Name: "overlay", Aliases: []string{"overlays"}, Prefix: "OVERLAY_", Dir: "types", AllFunc: "AllOverlayKinds", Skill: "op-overlay-",
 		Manual: append(append([]string{}, opManual...), ".claude/reference/update-demand/overlays.md",
 			".claude/reference/execution-modes/overlays.md", ".claude/reference/execution-modes/overlays-matrix-kinds.md", udWeighting, refWeight, udComps, refComps)},
-	{Name: "synth", Aliases: []string{"distribution", "synth-distribution", "dist"}, Dir: "internal/synth", AllFunc: "AllDistributions", Skill: "op-synth-", Quoted: true,
+	{Name: "synth", Recipe: "docs/src/internals/adding-synth-distribution.md", Aliases: []string{"distribution", "synth-distribution", "dist"}, Dir: "internal/synth", AllFunc: "AllDistributions", Skill: "op-synth-", Quoted: true,
 		Manual: []string{udIndex, ".claude/reference/update-demand/synth-model.md", ".claude/reference/synthetic-data.md", refFeatures, refSkills}},
 }
 
