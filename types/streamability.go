@@ -282,12 +282,14 @@ func (t GroupType) Mergeable() bool {
 // streaming path. Three tiers exist at runtime:
 //
 //   - Row-local: FORMULA, DATE_PART, SCALE_SCORE, PROFILE_SIMILARITY
-//     and VEC_DISTANCE over a row-local metric (and REG_PREDICT,
+//     and VEC_DISTANCE over a row-local metric and a non-centroid
+//     reference (and REG_PREDICT,
 //     whose model is bound before the row pass) implement processing.RowLocalAttribute
 //     and execute inline with no PrePass.
 //   - Two-pass: ZSCORE, TSCORE, NORMALIZED (and the fitted vector
-//     attributes, MAHALANOBIS, PC_SCORE, FACTOR_SCORE, and VEC_DISTANCE
-//     over a fitted metric) implement
+//     attributes, MAHALANOBIS, PC_SCORE, FACTOR_SCORE, VEC_DISTANCE
+//     over a fitted metric, and either comparison type over a centroid
+//     reference) implement
 //     processing.TwoPassAttribute and need a PrePass over filter-passing
 //     records, Finalize, then per-row Row() in pass 2 (iter.Reset()).
 //   - Buffered-only: PERCENTILE needs a sorted view of every value;
@@ -295,8 +297,9 @@ func (t GroupType) Mergeable() bool {
 //
 // Streamable() returns true for the first two tiers since both routes
 // avoid materializing the full record set in memory. The tier is per
-// TYPE here; an ATTR_FORMULA calling total(expr) and an ATTR_VEC_DISTANCE
-// over std_euclidean / mahalanobis are two-pass per attribute (still
+// TYPE here; an ATTR_FORMULA calling total(expr), an ATTR_VEC_DISTANCE
+// over std_euclidean / mahalanobis and a comparison slot over a
+// {centroid} reference are two-pass per attribute (still
 // streamable, via the two-pass drive) — routing asks
 // the engine's per-attribute predicate, never this method alone.
 func (t AttributeType) Streamable() bool {

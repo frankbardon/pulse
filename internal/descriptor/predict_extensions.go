@@ -91,9 +91,10 @@ func attrTwoPass(opts *PredictOptions, attr *types.Attribute, specs []types.Vect
 		return true
 	}
 	// An ATTR_VEC_DISTANCE over std_euclidean / mahalanobis (explicit,
-	// or the named vector kind's default) fits first — the runtime's
+	// or the named vector kind's default) fits first, and a comparison
+	// slot over a centroid reference folds it first — the runtime's
 	// attrRequiresTwoPassIn through the shared vectors predicate.
-	return vectors.ComparisonFitted(route, attr, specs, schema)
+	return vectors.ComparisonTwoPass(route, attr, specs, schema)
 }
 
 // firstTwoPassAttribute returns the first attribute on req that takes

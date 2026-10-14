@@ -326,8 +326,10 @@ func CanMergeRequestWithExtensions(req *types.Request, schema *encoding.Schema, 
 // attribute_fitted.go: ZSCORE/TSCORE/NORMALIZED need population stats;
 // ATTR_REG_FITTED/RESIDUAL/LEVERAGE need a finalize-time regression fit;
 // the fitted vector attributes (MAHALANOBIS, PC_SCORE, FACTOR_SCORE) a finalize-time co-moment
-// fit; FORMULA/DATE_PART are pure row-local. ATTR_VEC_DISTANCE is
-// two-pass per slot (attrRequiresTwoPass), never by type, and a fitted
+// fit; FORMULA/DATE_PART are pure row-local. ATTR_VEC_DISTANCE and
+// ATTR_PROFILE_SIMILARITY are two-pass per slot (a fitted metric or a
+// centroid reference: vectors.ComparisonTwoPass, read by
+// attrRequiresTwoPass), never by type, and a fitted
 // slot bound to a prebuilt fit (vectors.FitBound) is row-local whatever
 // its type — the per-slot rule overrides this type-keyed one.
 func requiresTwoPass(t types.AttributeType) bool {

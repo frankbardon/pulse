@@ -67,6 +67,8 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	}
 	// U27 E3-S2: the fitted metrics read ATTR_MAHALANOBIS's weighted fit.
 	want[string(types.ATTR_VEC_DISTANCE)] = ClassAware
+	// U30 E3-S1: a centroid reference is the weighted per-element mean.
+	want[string(types.ATTR_PROFILE_SIMILARITY)] = ClassAware
 	for _, gt := range types.AllGroupTypes() {
 		want[string(gt)] = ClassNone
 	}

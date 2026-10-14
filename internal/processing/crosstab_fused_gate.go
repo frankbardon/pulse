@@ -181,10 +181,11 @@ func (f registryFuseFacts) AttributeTwoPass(t types.AttributeType) bool {
 }
 
 // AttributeSlotTwoPass is the per-slot two-pass case the type cannot
-// tell: an ATTR_VEC_DISTANCE over a fitted metric
-// (attrRequiresTwoPassIn's vectors.ComparisonFitted).
+// tell: an ATTR_VEC_DISTANCE over a fitted metric, or either comparison
+// operator over a centroid reference (attrRequiresTwoPassIn's
+// vectors.ComparisonTwoPass).
 func (f registryFuseFacts) AttributeSlotTwoPass(a *types.Attribute, specs []types.VectorSpec, schema *encoding.Schema) bool {
-	return a != nil && !f.r.isHidden(string(a.Type)) && vectors.ComparisonFitted(a.Type, a, specs, schema)
+	return a != nil && !f.r.isHidden(string(a.Type)) && vectors.ComparisonTwoPass(a.Type, a, specs, schema)
 }
 
 // AttributeSlotBound is the per-slot exemption: a fitted slot bound to

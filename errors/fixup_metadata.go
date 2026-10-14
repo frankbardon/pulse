@@ -4029,17 +4029,22 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_VECTOR_REFERENCE_UNKNOWN: {
-		Message: "A reference vector could not be resolved: ref(\"table\", key) names a table not registered in Options.Extensions.ReferenceVectors, its table argument is not a string literal (the table's labels must be known before any row), or the key names no profile of the table. The cause is under `reason`, the table under `table`, the key under `key` and the registered names (or the table's keys) under `valid`.",
+		Message: "A reference vector could not be resolved: ref(\"table\", key) or a {table, key} reference names a table not registered in Options.Extensions.ReferenceVectors, its table argument is not a string literal (the table's labels must be known before any row), the key names no profile of the table, or a comparison slot's {population: name} reference names no bound vector fit (reason `population_unknown`, the name under `population`). The cause is under `reason`, the table under `table`, the key under `key` and the registered names (the table's keys, or the bound vector fits) under `valid`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"expression"},
 				Hint:   "Name a table and key listed under `valid` (the manifest's extensions.reference_vectors lists every table with its labels and keys), and spell the table as a string literal.",
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "reference", "population"},
+				Hint:   "For reason population_unknown, name a fit listed under `valid`, or bind it: a request `populations` entry, a registered population, or a `fits` entry of the enclosing compose request.",
+			},
 		},
 	},
 	PULSE_VECTOR_REFERENCE_MISMATCH: {
-		Message: "A reference vector's labels do not match the vector it is compared with. A reference is matched by label, never by position: the two label sets must be equal (reason `labels_differ`; `missing` lists the vector's labels the reference lacks, `extra` the reference's labels the vector lacks), and a reference cannot be compared with a vector that carries no labels, such as a literal array (reason `unlabeled_partner`). A fitted vector attribute's bound fit (`params.fit`, named under `fit`) aligns to the slot's member labels by the same rule.",
+		Message: "A reference vector's labels do not match the vector it is compared with. A reference is matched by label, never by position: the two label sets must be equal (reason `labels_differ`; `missing` lists the vector's labels the reference lacks, `extra` the reference's labels the vector lacks), and a reference cannot be compared with a vector that carries no labels, such as a literal array (reason `unlabeled_partner`). A fitted vector attribute's bound fit (`params.fit`, named under `fit`) and a comparison slot's {population} reference (named under `population`) align to the slot's member labels by the same rule.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -4129,12 +4134,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_VECTOR_REFERENCE_MISSING: {
-		Message: "A reference-comparison attribute slot's {table, key_field} reference found no profile for some rows: the key was null (`n_key_null`) or its value is not a key of the table (`n_key_unmatched`; `keys` lists up to 10 of them). Those rows score null; `n_reference_missing` counts them. A runtime warning, raised with or without components.",
+		Message: "A reference-comparison attribute slot's per-row reference found nothing for some rows. A {table, key_field} reference: the key was null (`n_key_null`) or its value is not a key of the table (`n_key_unmatched`; `keys` lists up to 10 of them). A {centroid: {by}} reference (`reference` \"centroid\", the column under `by`): the by value was null or no row the centroid filter admits carries it; a by-less centroid that no row reached misses every row. Those rows score null; `n_reference_missing` counts them. A runtime warning, raised with or without components.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Attributes", "*", "Params", "reference"},
 				Hint:   "Register a profile for each value in details.keys in the Extensions.ReferenceVectors table (an unsigned-integer key_field matches by its base-10 form, e.g. \"7\", never \"07\"), filter the rows out first, or compare against one profile with {table, key}.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "reference", "centroid", "filter"},
+				Hint:   "For a centroid reference, widen centroid.filter so it admits rows of every by value in details.keys (or drop by for one cohort centroid), or filter the unmatched rows out of the request.",
 			},
 		},
 	},

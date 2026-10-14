@@ -3496,7 +3496,7 @@
         {
           "name": "ATTR_PROFILE_SIMILARITY",
           "category": "attribute",
-          "description": "Per-row similarity to a reference across the p members of vector / fields (exactly one): correlation, cosine or a set similarity, pairwise-complete (a null member drops its pair). Row-local and single-pass; the weight is irrelevant.",
+          "description": "Per-row similarity to a reference across the p members of vector / fields (exactly one): correlation, cosine or a set similarity, pairwise-complete (a null member drops its pair). Row-local and single-pass, the weight irrelevant — except over a centroid reference, folded (weighted) in a pre-pass first.",
           "params": [
             {
               "name": "metric",
@@ -3515,7 +3515,7 @@
               "name": "reference",
               "type": "any",
               "required": true,
-              "description": "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label or an unsigned-integer field's (u4, u8, u16, u32, u64) canonical base-10 value; any other field type is refused, SERVICE_VALIDATION reason key_field_type). A table or map is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field is null or has no profile is null, counted in n_reference_missing and warned once per slot (PULSE_VECTOR_REFERENCE_MISSING, components on or off; strict does not escalate it)."
+              "description": "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile), {\"centroid\": {\"filter\", \"by\"}} (the weighted per-element mean — AGG_VEC_MEAN's — of the filtered rows the optional filter admits; with by, a categorical or unsigned-integer field, one centroid per value and each row compared with its own: a pre-pass, so two-pass for any metric), {\"population\": name} (a bound vector fit's stored mean: a request / registered population or a Compose vector fit; unbound is PULSE_VECTOR_REFERENCE_UNKNOWN) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label or an unsigned-integer field's (u4, u8, u16, u32, u64) canonical base-10 value; any other field type is refused, SERVICE_VALIDATION reason key_field_type). A table, map or population is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field / by is null or has no profile / centroid is null, counted in n_reference_missing and warned once per slot (PULSE_VECTOR_REFERENCE_MISSING, components on or off; strict does not escalate it)."
             },
             {
               "name": "min_valid",
@@ -3559,7 +3559,7 @@
               {
                 "name": "n_reference_missing",
                 "type": "int",
-                "description": "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
+                "description": "Rows whose params.reference key_field / centroid by value has no profile / centroid (or is null), or every row of a centroid no row reached, scored null; 0 for a literal, table key or population reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
               },
               {
                 "name": "n_domain_invalid",
@@ -3569,6 +3569,11 @@
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "benchmark",
             "prepare"
@@ -3904,7 +3909,7 @@
         {
           "name": "ATTR_VEC_DISTANCE",
           "category": "attribute",
-          "description": "Per-row distance to a reference across the p members of vector / fields (exactly one), pairwise-complete with the p / p_observed rescaling. Row-local metrics are single-pass; std_euclidean (per-member SDs) and mahalanobis (inverse covariance, every member needed) fit first on the filtered rows params.fit_on admits — ATTR_MAHALANOBIS's fit pass, two-pass, weighted when a weight is in force; N* ≤ p or a singular fit nulls every value with a warning.",
+          "description": "Per-row distance to a reference across the p members of vector / fields (exactly one), pairwise-complete with the p / p_observed rescaling. Row-local metrics are single-pass; std_euclidean (per-member SDs) and mahalanobis (inverse covariance, every member needed) fit first on the filtered rows params.fit_on admits — ATTR_MAHALANOBIS's fit pass, two-pass, weighted when a weight is in force; N* ≤ p or a singular fit nulls every value with a warning. A centroid reference is folded (weighted) in the same pre-pass, for any metric.",
           "params": [
             {
               "name": "metric",
@@ -3928,7 +3933,7 @@
               "name": "reference",
               "type": "any",
               "required": true,
-              "description": "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label or an unsigned-integer field's (u4, u8, u16, u32, u64) canonical base-10 value; any other field type is refused, SERVICE_VALIDATION reason key_field_type). A table or map is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field is null or has no profile is null, counted in n_reference_missing and warned once per slot (PULSE_VECTOR_REFERENCE_MISSING, components on or off; strict does not escalate it)."
+              "description": "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile), {\"centroid\": {\"filter\", \"by\"}} (the weighted per-element mean — AGG_VEC_MEAN's — of the filtered rows the optional filter admits; with by, a categorical or unsigned-integer field, one centroid per value and each row compared with its own: a pre-pass, so two-pass for any metric), {\"population\": name} (a bound vector fit's stored mean: a request / registered population or a Compose vector fit; unbound is PULSE_VECTOR_REFERENCE_UNKNOWN) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label or an unsigned-integer field's (u4, u8, u16, u32, u64) canonical base-10 value; any other field type is refused, SERVICE_VALIDATION reason key_field_type). A table, map or population is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field / by is null or has no profile / centroid is null, counted in n_reference_missing and warned once per slot (PULSE_VECTOR_REFERENCE_MISSING, components on or off; strict does not escalate it)."
             },
             {
               "name": "min_valid",
@@ -3980,7 +3985,7 @@
           "emits_type": "f64",
           "emits_type_note": "one distance (≥ 0) per record; null below min_valid, when the row's reference is missing or the fit cannot score",
           "streamable": true,
-          "streamable_hint": "Row-local metrics stream in one pass; std_euclidean / mahalanobis take the two-pass drive (with groupers or features the request runs buffered). The fit is cohort-wide, never per group.",
+          "streamable_hint": "Row-local metrics stream in one pass; std_euclidean / mahalanobis and any centroid reference take the two-pass drive (with groupers or features the request runs buffered). The fit and centroids are cohort-wide, never per group.",
           "component_schema": {
             "keys": [
               {
@@ -3996,7 +4001,7 @@
               {
                 "name": "n_reference_missing",
                 "type": "int",
-                "description": "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
+                "description": "Rows whose params.reference key_field / centroid by value has no profile / centroid (or is null), or every row of a centroid no row reached, scored null; 0 for a literal, table key or population reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
               },
               {
                 "name": "n_domain_invalid",
@@ -11130,7 +11135,7 @@
       },
       {
         "name": "op-attr-profile-similarity",
-        "description": "Per-row similarity to a target profile — correlation, cosine or a set similarity across a vector's members, against a literal, label-map or registered reference."
+        "description": "Per-row similarity to a target profile — correlation, cosine or a set similarity across a vector's members, against a literal, label-map, registered, centroid or saved-population reference."
       },
       {
         "name": "op-attr-reg-fitted",
@@ -11166,7 +11171,7 @@
       },
       {
         "name": "op-attr-vec-distance",
-        "description": "Per-row distance to a target profile — plain, set or fitted (std_euclidean, mahalanobis) metrics across a vector's members, against a literal, label-map or registered reference."
+        "description": "Per-row distance to a target profile — plain, set or fitted (std_euclidean, mahalanobis) metrics across a vector's members, against a literal, label-map, registered, centroid or saved-population reference."
       },
       {
         "name": "op-attr-zscore",
@@ -12141,7 +12146,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 216,
+    "examples_count": 217,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -16536,7 +16541,7 @@
             {
               "name": "n_reference_missing",
               "type": "int",
-              "description": "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
+              "description": "Rows whose params.reference key_field / centroid by value has no profile / centroid (or is null), or every row of a centroid no row reached, scored null; 0 for a literal, table key or population reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
             },
             {
               "name": "n_domain_invalid",
@@ -16588,7 +16593,7 @@
             {
               "name": "n_reference_missing",
               "type": "int",
-              "description": "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
+              "description": "Rows whose params.reference key_field / centroid by value has no profile / centroid (or is null), or every row of a centroid no row reached, scored null; 0 for a literal, table key or population reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
             },
             {
               "name": "n_domain_invalid",
@@ -16814,4 +16819,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 190d53733aaaca179bf6bf3937818e462f665ee9e0cd1f6b216562765714c436
+// golden-hash: 4cc27885302f1decab73a8ca564e83c589426269c843ebde5874d501fe6b1502

@@ -1,0 +1,61 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Compare each row with a centroid computed from the data on experiment.pulse. gap_own_arm is ATTR_VEC_DISTANCE (euclidean) to the centroid of the row's own treatment arm — reference {centroid: {by: treatment}}, one weighted per-member mean per arm, each row read against its own; a row whose arm no centroid row reached would be null and counted in n_reference_missing (PULSE_VECTOR_REFERENCE_MISSING), never refused. like_control is ATTR_PROFILE_SIMILARITY (cosine) to the control arm's centroid — reference {centroid: {filter: [...]}} — scoring every row. A centroid is the per-member mean AGG_VEC_MEAN would report over the same rows (weighted when a weight is set), folded in a pre-pass: the slot is two-pass for any metric and cohort-wide (a grouped request runs buffered, never per group). A saved population's mean is the other computed form, {population: name}, matched by label.",
+    "intents": [
+      "benchmark",
+      "prepare"
+    ],
+    "name": "attr_centroid_reference",
+    "operators": [
+      "AGG_AVERAGE",
+      "ATTR_PROFILE_SIMILARITY",
+      "ATTR_VEC_DISTANCE",
+      "FILTER_INCLUDE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "feature-engineering",
+      "multivariate"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "attributes": [
+    {
+      "type": "ATTR_VEC_DISTANCE",
+      "label": "gap_own_arm",
+      "fields": ["revenue_before", "revenue"],
+      "params": {"metric": "euclidean", "reference": {"centroid": {"by": "treatment"}}}
+    },
+    {
+      "type": "ATTR_PROFILE_SIMILARITY",
+      "label": "like_control",
+      "fields": ["revenue_before", "revenue"],
+      "params": {
+        "metric": "cosine",
+        "reference": {"centroid": {"filter": [{"type": "FILTER_INCLUDE", "field": "treatment", "values": ["control"]}]}}
+      }
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "treatment"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "gap_own_arm",
+      "label": "avg_gap_own_arm"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "like_control",
+      "label": "avg_like_control"
+    }
+  ]
+}

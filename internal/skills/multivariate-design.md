@@ -55,6 +55,9 @@ Every operator here reads one vector (`vectors`, see `matrix-results`) and answe
 <!-- feature: ATTR_VEC_DISTANCE -->
 | How far is each row from a target profile? | `ATTR_VEC_DISTANCE` (a row score) |
 <!-- /feature -->
+<!-- feature: ATTR_PROFILE_SIMILARITY -->
+| How close is each row to its segment's centroid, or a saved population's? | `ATTR_PROFILE_SIMILARITY` with `reference: {centroid: {by}}` / `{population}` |
+<!-- /feature -->
 <!-- feature: AGG_VEC_MEAN -->
 | Each group's average profile across the items, as one list? | `AGG_VEC_MEAN` |
 <!-- /feature -->

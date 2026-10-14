@@ -718,8 +718,9 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	return w.out
 }
 
-// vectorFitRefusals is step 12: each fitted attribute's params.fit (in
-// slot order), then each matrix's, judged by model.CheckVectorFit
+// vectorFitRefusals is step 12: each fitted attribute's params.fit and
+// each comparison slot's {population} reference (in slot order), then
+// each matrix's params.fit, judged by model.CheckVectorFit
 // against models and located the way the runtime's bind locates it
 // (details.attribute = the slot's label / details.matrix = the result
 // name, the message prefixed with the slot). A bound fit whose member
@@ -736,25 +737,45 @@ func vectorFitRefusals(req *types.Request, schema *encoding.Schema, mats []vecto
 		}
 		typ := opRoute(inst, attr.Type)
 		name := vectors.AttributeFit(typ, attr)
-		if name == "" {
+		pop := vectors.ComparisonPopulation(typ, attr)
+		if name == "" && pop == "" {
 			continue
 		}
 		label := attr.Label
 		if label == "" {
 			label = attributeDefaultLabel(attr, inst)
 		}
-		if cerr := model.CheckVectorFit(models, name); cerr != nil {
-			cerr.Details["attribute"] = label
-			cerr.Message = label + ": " + cerr.Message
-			out = append(out, cerr)
+		var labels []string
+		labelsOK := false
+		if i < len(ains) {
+			labels, labelsOK = vectors.AttributeFitLabels(typ, attr, ains[i].Members, schema)
+		}
+		if name != "" {
+			if cerr := model.CheckVectorFit(models, name); cerr != nil {
+				cerr.Details["attribute"] = label
+				cerr.Message = label + ": " + cerr.Message
+				out = append(out, cerr)
+				continue
+			}
+			if sig, _ := models.Signature(name); sig.Members != nil && labelsOK {
+				if _, cerr := vectors.AlignFit("attribute", label, name, sig.Members, labels); cerr != nil {
+					out = append(out, cerr)
+					continue
+				}
+			}
+		}
+		// A {population} reference (after the slot's own fit, as the
+		// runtime binds them): unbound is PULSE_VECTOR_REFERENCE_UNKNOWN,
+		// a population whose labels the catalog knows aligns by label.
+		if pop == "" {
 			continue
 		}
-		sig, _ := models.Signature(name)
-		if sig.Members == nil || i >= len(ains) {
+		if cerr := model.CheckVectorFit(models, pop); cerr != nil {
+			out = append(out, vectors.PopulationRefusal(label, pop, cerr))
 			continue
 		}
-		if labels, ok := vectors.AttributeFitLabels(typ, attr, ains[i].Members, schema); ok {
-			if _, cerr := vectors.AlignFit("attribute", label, name, sig.Members, labels); cerr != nil {
+		if sig, _ := models.Signature(pop); sig.Members != nil && labelsOK {
+			if _, cerr := vectors.PopulationAlign(label, pop, sig.Members, labels); cerr != nil {
 				out = append(out, cerr)
 			}
 		}

@@ -134,10 +134,12 @@ var attributeClasses = map[types.AttributeType]Class{
 	types.ATTR_PC_SCORE:     ClassAware,
 	types.ATTR_FACTOR_SCORE: ClassAware,
 	// ATTR_VEC_DISTANCE's fitted metrics (std_euclidean, mahalanobis)
-	// read that same weighted fit; its row-local metrics read no weight
-	// (a weight in force changes no value). ATTR_PROFILE_SIMILARITY is
-	// row-local (ClassNone).
-	types.ATTR_VEC_DISTANCE: ClassAware,
+	// read that same weighted fit; a centroid reference (either
+	// comparison type, U30 E3-S1) is the per-element weighted mean
+	// Σw·x / Σw (AGG_VEC_MEAN's). A row-local metric over any other
+	// reference reads no weight (a weight in force changes no value).
+	types.ATTR_VEC_DISTANCE:       ClassAware,
+	types.ATTR_PROFILE_SIMILARITY: ClassAware,
 }
 
 // testClasses are the built-in tests whose weighted computation exists

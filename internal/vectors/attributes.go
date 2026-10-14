@@ -821,15 +821,19 @@ func positiveInt(n json.Number) (int, bool) {
 
 // AttributeFitOn returns a's decoded params.fit_on filterers when a's
 // route typ is a vector-input attribute (nil for "filtered", a non-vector
-// type, or params that do not decode — those are refused elsewhere).
-// Projection, the field-reference walk and the two-pass planner read
-// it to learn which columns the fit predicate reads.
+// type, or params that do not decode — those are refused elsewhere),
+// and — a comparison slot — its centroid reference's filter after them
+// (ComparisonCentroidFilter). Projection, the field-reference walk and
+// the two-pass planner read it to learn which columns the pre-pass
+// predicates read.
 func AttributeFitOn(typ types.AttributeType, a *types.Attribute) []*types.Filterer {
 	if a == nil || !IsVectorAttribute(typ) {
 		return nil
 	}
 	if IsComparisonAttribute(typ) {
-		return comparisonFitOn(typ, a.Params)
+		// fit_on, then a centroid reference's filter: both pre-pass
+		// predicates over the attribute-step record.
+		return append(comparisonFitOn(typ, a.Params), ComparisonCentroidFilter(typ, a)...)
 	}
 	fitOn, err := fittedParams(attributePath(0), typ, a.Params)
 	if err != nil {
@@ -863,9 +867,15 @@ func AttributeFit(typ types.AttributeType, a *types.Attribute) string {
 // the FittedAttributeTypes) mergeable — where the same slot with
 // fit_on takes the two-pass drive. The one per-slot predicate every
 // routing site reads (processing attrRequiresTwoPassIn, predict's
-// attrTwoPass, the fused-crosstab facts, mergegate).
+// attrTwoPass, the fused-crosstab facts, mergegate). A comparison slot
+// whose reference is a centroid is never bound: its pre-pass remains.
 func FitBound(typ types.AttributeType, a *types.Attribute) bool {
 	if !IsFittedAttribute(typ) && typ != types.ATTR_VEC_DISTANCE {
+		return false
+	}
+	// A centroid reference still folds in a pre-pass, whatever fit the
+	// metric reads (ComparisonTwoPass).
+	if ComparisonCentroid(typ, a) {
 		return false
 	}
 	return AttributeFit(typ, a) != ""

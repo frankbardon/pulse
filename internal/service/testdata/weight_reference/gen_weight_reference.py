@@ -144,6 +144,12 @@ colMeans / cov of the expanded rows (reg_reference.R), probability =
 the w* closed form (mean, covariance M2·(n_eff/Σw)/(n_eff − 1))
 cross-checked with statsmodels DescrStatsW(w*, ddof=1).
 
+ATTR_PROFILE_SIMILARITY (U30 E3-S1) — the same fixture and members,
+cosine against the centroid reference: per member the weighted mean
+Σw·x / Σw of the rows whose member is present (AGG_VEC_MEAN's rule,
+scale-free under both kinds), cross-checked with statsmodels
+DescrStatsW(w).mean; the cosine is pairwise-complete.
+
 ATTR_VEC_DISTANCE (U27 E3-S2) — the same fixture, members and fit as
 ATTR_MAHALANOBIS, against a literal reference: std_euclidean (each
 difference over the fitted sd, pairwise-complete with p/p_observed, so a
@@ -2088,6 +2094,34 @@ def vec_distance_closed_form(ws, kind, metric):
     return out
 
 
+def profile_similarity_centroid_closed_form(ws, kind):
+    """ATTR_PROFILE_SIMILARITY (U30 E3-S1) per row id: cosine, pairwise-
+    complete, against the centroid reference {centroid: {}} over
+    MAHA_FIELDS — per member the weighted mean Σw·x / Σw over every row
+    whose member is present and whose weight is valid and positive
+    (AGG_VEC_MEAN's per-element rule; scale-free, so the same formula
+    under both kinds), each element cross-checked with statsmodels
+    DescrStatsW(w).mean."""
+    cent = []
+    for c in MAHA_FIELDS:
+        idx = [i for i, r in enumerate(REG_ROWS)
+               if r[REG_COL[c]] is not NULL and valid(ws[i], kind) and ws[i] > 0]
+        x = np.array([REG_ROWS[i][REG_COL[c]] for i in idx], dtype=float)
+        w = np.array([ws[i] for i in idx], dtype=float)
+        m = float((w * x).sum() / w.sum())
+        assert np.isclose(DescrStatsW(x, weights=w).mean, m, rtol=1e-13), (kind, c)
+        cent.append(m)
+    out = {}
+    for r in REG_ROWS:
+        pairs = [(r[REG_COL[c]], cent[j]) for j, c in enumerate(MAHA_FIELDS) if r[REG_COL[c]] is not NULL]
+        if not pairs:
+            continue
+        a = np.array([p[0] for p in pairs])
+        b = np.array([p[1] for p in pairs])
+        out[r[0]] = float(a @ b / np.sqrt((a @ a) * (b @ b)))
+    return out
+
+
 FACTOR_FIELDS = ["x1", "y", "yb"]
 
 
@@ -2365,6 +2399,15 @@ def regression_cases():
                    "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
             out.append(dict(weight=wname, kind=kind, name="attr_vec_distance_" + metric, request=req,
                             figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
+        figs = profile_similarity_centroid_closed_form(ws, kind)
+        req = {"attributes": [{"type": "ATTR_PROFILE_SIMILARITY", "fields": MAHA_FIELDS, "label": "attr",
+                               "params": {"metric": "cosine", "reference": {"centroid": {}}}}],
+               "groups": [{"type": "GROUP_CATEGORY", "field": "id"}],
+               "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
+        out.append(dict(weight=wname, kind=kind, name="attr_profile_similarity_centroid", request=req,
+                        figs={f"data[{rid}].v": v for rid, v in figs.items()},
+                        src=("closed form: per-member weighted centroid Σw·x/Σw (AGG_VEC_MEAN's per-element rule) cross-checked with "
+                             "statsmodels " + statsmodels.__version__ + " DescrStatsW(w).mean; pairwise-complete cosine with numpy")))
         if not prob:
             out.append(kmeans_case(wname, kind, ws, rfigs["group_kmeans_k2"]))
         for k in QUANTILE_KS:

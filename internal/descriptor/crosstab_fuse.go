@@ -60,9 +60,10 @@ func (f snapshotFuseFacts) AttributeTwoPass(t types.AttributeType) bool {
 }
 
 // AttributeSlotTwoPass mirrors the runtime: an ATTR_VEC_DISTANCE the
-// instance offers over a fitted metric (vectors.ComparisonFitted).
+// instance offers over a fitted metric, or a comparison slot over a
+// centroid reference (vectors.ComparisonTwoPass).
 func (f snapshotFuseFacts) AttributeSlotTwoPass(a *types.Attribute, specs []types.VectorSpec, schema *encoding.Schema) bool {
-	return a != nil && !f.inst.Hidden(string(a.Type)) && vectors.ComparisonFitted(a.Type, a, specs, schema)
+	return a != nil && !f.inst.Hidden(string(a.Type)) && vectors.ComparisonTwoPass(a.Type, a, specs, schema)
 }
 
 // AttributeSlotBound mirrors the runtime: a fitted slot the instance

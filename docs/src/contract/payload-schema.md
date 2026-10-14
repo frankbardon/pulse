@@ -449,7 +449,11 @@ direction respectively; default from the vector's `kind`), `min_valid`
 (complete pairs, default 1), `labels` (inline fields only) and
 `reference` — a literal array (member order), a label map
 `{label: value}`, `{table, key}` or `{table, key_field}` over
-`Extensions.ReferenceVectors`, matched by label; `ATTR_VEC_DISTANCE`
+`Extensions.ReferenceVectors`, matched by label, a centroid
+`{centroid: {filter, by}}` (the weighted per-member mean of the filtered
+rows `filter` admits, one per `by` value with each row compared with its
+own — a pre-pass, so the slot is two-pass) or `{population: name}` (a
+bound vector fit's stored mean, matched by label); `ATTR_VEC_DISTANCE`
 adds `fit_on` / `missing` beside its fitted metrics. A fitted attribute's `params` share `fit_on` —
 `"filtered"` (the default) or an inline array of `Filterer` objects
 choosing the fit rows among the filtered ones (every filtered row is

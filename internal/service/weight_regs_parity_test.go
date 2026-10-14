@@ -106,6 +106,12 @@ var regParityOps = []regParityOp{
 	// fitted per-member sds of ATTR_MAHALANOBIS's fit, grouped and flat.
 	{name: "attr_vec_distance", attr: types.ATTR_VEC_DISTANCE, tol: 1e-10},
 	{name: "attr_vec_distance_flat", attr: types.ATTR_VEC_DISTANCE, flat: true, tol: 1e-10},
+	// ATTR_PROFILE_SIMILARITY (U30 E3-S1) over a centroid reference on
+	// (x, y): the per-element weighted mean Σw·x / Σw is the expanded
+	// rows' mean, so a row's similarity is its copies'; grouped
+	// (buffered) and flat (the streaming two-pass arm).
+	{name: "attr_profile_similarity", attr: types.ATTR_PROFILE_SIMILARITY, tol: 1e-10},
+	{name: "attr_profile_similarity_flat", attr: types.ATTR_PROFILE_SIMILARITY, flat: true, tol: 1e-10},
 }
 
 func (o regParityOp) surface() (weightSurface, string) {
@@ -144,6 +150,9 @@ func (o regParityOp) build(path string) func() *types.Request {
 		}
 		if o.attr == types.ATTR_VEC_DISTANCE {
 			attr = &types.Attribute{Type: o.attr, Label: "attr", Fields: []string{"x", "y"}, Params: json.RawMessage(`{"metric":"std_euclidean","reference":[1,2]}`)}
+		}
+		if o.attr == types.ATTR_PROFILE_SIMILARITY {
+			attr = &types.Attribute{Type: o.attr, Label: "attr", Fields: []string{"x", "y"}, Params: json.RawMessage(`{"metric":"cosine","reference":{"centroid":{}}}`)}
 		}
 		if o.attr == types.ATTR_FACTOR_SCORE {
 			attr = &types.Attribute{Type: o.attr, Label: "attr", Fields: []string{"x", "y", "g"}, Params: json.RawMessage(`{"factor":1,"factors":1}`)}

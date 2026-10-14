@@ -676,8 +676,10 @@ func (r *ExtensionRegistry) attributeRequiresTwoPass(t types.AttributeType) bool
 // type rule (attributeRequiresTwoPass), an ATTR_FORMULA whose
 // expression calls total(expr) (formula_total.go), which is row-local
 // by type but needs a pre-pass over the post-filter rows, or an
-// ATTR_VEC_DISTANCE over a fitted metric (vectors.ComparisonFitted:
-// std_euclidean / mahalanobis read ATTR_MAHALANOBIS's fit pass) — but
+// ATTR_VEC_DISTANCE over a fitted metric (vectors.ComparisonTwoPass:
+// std_euclidean / mahalanobis read ATTR_MAHALANOBIS's fit pass) or
+// either comparison operator over a centroid reference (its pre-pass
+// folds the centroid) — but
 // never a fitted slot bound to a prebuilt fit (vectors.FitBound: its
 // params.fit state exists before the scan, so it is row-local). Every
 // routing decision that schedules attributes asks this, never the type
@@ -706,7 +708,7 @@ func (r *ExtensionRegistry) attrRequiresTwoPassIn(attr *types.Attribute, specs [
 	if r.attributeRequiresTwoPass(attr.Type) {
 		return true
 	}
-	return formulaCallsTotal(attr) || vectors.ComparisonFitted(attr.Type, attr, specs, schema)
+	return formulaCallsTotal(attr) || vectors.ComparisonTwoPass(attr.Type, attr, specs, schema)
 }
 
 // isExtensionAggregator reports whether t is an embedder-registered

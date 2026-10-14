@@ -788,7 +788,9 @@ not features: no feature profile gates them.
 `PULSE_EXTENSION_NAME_RESERVED`). The built-in reference-comparison
 attributes `ATTR_PROFILE_SIMILARITY` / `ATTR_VEC_DISTANCE` read the same
 tables through their `reference` param (`{table, key}` or
-`{table, key_field}`, matched by label); as built-ins their names are
+`{table, key_field}`, matched by label; they also take a computed
+`{centroid: {filter, by}}` and a `{population: name}` naming a registered
+population); as built-ins their names are
 refused to an extension (`PULSE_EXTENSION_NAME_COLLISION`).
 
 ### Registered populations

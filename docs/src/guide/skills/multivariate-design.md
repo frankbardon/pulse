@@ -29,6 +29,7 @@ Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-r
 | Each row's score on a rating battery (mean or prorated sum, reverse-keyed items)? | `ATTR_SCALE_SCORE` (a row score) |
 | How closely does each row match a target profile? | `ATTR_PROFILE_SIMILARITY` (a row score) |
 | How far is each row from a target profile? | `ATTR_VEC_DISTANCE` (a row score) |
+| How close is each row to its segment's centroid, or a saved population's? | `ATTR_PROFILE_SIMILARITY` with `reference: {centroid: {by}}` / `{population}` |
 | Each group's average profile across the items, as one list? | `AGG_VEC_MEAN` |
 | Each group's total per item, as one list? | `AGG_VEC_SUM` |
 | Which segments do the rows fall into across the fields? | `GROUP_KMEANS` (a grouper) |
