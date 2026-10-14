@@ -197,7 +197,20 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 // rows to hand on, and is refused. Stage 0 runs as
 // a plain Process over the cohort and computes it; a later stage's is
 // refused first by StageMatrixRefusal.
+//
+// A stage carrying Request.Crosstab is refused first, whatever else it
+// carries (CrosstabStageReason): a crosstab answers a MatrixPayload, never
+// the rows the next stage reads, and beside aggregations it used to be
+// dropped silently on a later stage (stage 0 hit Process's
+// PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS, which predict-chain never
+// raised). The chain runtime and the chain validator both call this
+// rule, so both refuse it.
 func ChainRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, stageIndex int, stageName string) error {
+	if req != nil && req.Crosstab != nil {
+		return errors.NewCodedErrorWithDetails(errors.PULSE_CHAIN_NOT_MERGEABLE,
+			"chain stage is not mergeable: "+CrosstabStageReason,
+			map[string]any{"stage_index": stageIndex, "stage_name": stageName})
+	}
 	if req != nil && len(req.Matrices) > 0 {
 		stripped := *req
 		stripped.Matrices = nil
@@ -211,6 +224,10 @@ func ChainRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, s
 		"chain stage is not mergeable: "+reason,
 		map[string]any{"stage_index": stageIndex, "stage_name": stageName})
 }
+
+// CrosstabStageReason is ChainRefusal's reason for a stage carrying
+// Request.Crosstab.
+const CrosstabStageReason = "a crosstab stage is excluded (a crosstab answers a matrix, not the rows the next stage reads)"
 
 // StageJoinRefusal is the ProcessChain rule that only stage 0 may
 // join: nil for stage 0 or a stage without Joins, else a

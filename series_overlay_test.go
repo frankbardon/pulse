@@ -136,9 +136,10 @@ func TestApplySeriesOverlays_NoOverlaysIsNotAnError(t *testing.T) {
 	}
 }
 
-// TestApplySeriesOverlays_NonGroupScopeRefused pins the one predict-time rule
-// that survives onto this path: an ordered series has exactly one meaningful
-// overlay footprint.
+// TestApplySeriesOverlays_NonGroupScopeRefused pins the scope half of the
+// shared SERIES Ref / Scope rule on this path: an ordered series has exactly
+// one meaningful overlay footprint (the full rule, every kind and fault, is
+// TestSeriesOverlay_SpecRefusalsMatchPredict's ApplySeriesOverlays arm).
 func TestApplySeriesOverlays_NonGroupScopeRefused(t *testing.T) {
 	p := newSeriesOverlayTestPulse(t)
 

@@ -321,10 +321,15 @@ func TestHiddenRequestSlot_RefusedBeforeJoinCount(t *testing.T) {
 	for name, run := range requestSlotEntryPoints {
 		t.Run(name, func(t *testing.T) {
 			// A later chain stage may not join at all; that refusal
-			// stands in for the join-count rule there.
+			// stands in for the join-count rule there. A chain stage 0
+			// carrying a crosstab is refused by the chain gate, which
+			// runs before Process's join-count rule (U30 E7-S4).
 			want := perr.PULSE_JOIN_TOO_MANY
-			if name == "ProcessChain/stage1" {
+			switch name {
+			case "ProcessChain/stage1":
 				want = perr.PULSE_CHAIN_STAGE_JOIN
+			case "ProcessChain/stage0":
+				want = perr.PULSE_CHAIN_NOT_MERGEABLE
 			}
 			open := run(control, build())
 			// ComposeParallel reports a failed slot under

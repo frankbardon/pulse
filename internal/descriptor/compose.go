@@ -476,46 +476,38 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 		return
 	}
 
-	// Gate 1: reference label resolution.
-	refReq, ok := byLabel[spec.Reference]
-	if !ok {
-		env.AddError(string(errors.PULSE_OVERLAY_REFERENCE_UNKNOWN),
-			"compose overlay reference label does not resolve to a slot: "+spec.Reference,
-			map[string]any{
-				"index":     specIdx,
-				"kind":      string(spec.Kind),
-				"reference": spec.Reference,
-			})
+	// Gates 1 + 2: reference, then target, label resolution — the
+	// shared rule (overlayhost.ComposeSlotRefusals) the runtime
+	// dispatcher raises the first refusal of, same code, message and
+	// details. A spec with no Targets is refused too (the runtime always
+	// refused it; predict used to accept it). Every unknown target is
+	// reported in one envelope.
+	known := func(label string) bool { _, ok := byLabel[label]; return ok }
+	labelRefusals := overlayhost.ComposeSlotRefusals(spec, specIdx, known)
+	if len(labelRefusals) > 0 && labelRefusals[0].Code == errors.PULSE_OVERLAY_REFERENCE_UNKNOWN {
+		addCodedError(env, labelRefusals[0])
 		appendComposeSlotPair(result, spec.Reference, "", "reference-unknown")
 		return
 	}
+	refReq := byLabel[spec.Reference]
+	for _, cerr := range labelRefusals {
+		addCodedError(env, cerr)
+		if j, ok := cerr.Details["target_index"].(int); ok {
+			appendComposeSlotPair(result, spec.Reference, spec.Targets[j], "target-unknown")
+		}
+	}
 
-	// Gate 2: per-target label resolution. We collect resolved
-	// requests so we can fan the per-target shape / schema checks
-	// out without re-walking the map.
+	// We collect resolved requests so we can fan the per-target shape /
+	// schema checks out without re-walking the map.
 	type resolvedTarget struct {
 		label string
 		req   *types.Request
 	}
 	resolved := make([]resolvedTarget, 0, len(spec.Targets))
-	for j, label := range spec.Targets {
-		tReq, ok := byLabel[label]
-		if !ok {
-			env.AddError(string(errors.PULSE_OVERLAY_TARGET_UNKNOWN),
-				"compose overlay target label does not resolve to a slot: "+label,
-				map[string]any{
-					"index":        specIdx,
-					"kind":         string(spec.Kind),
-					"target_index": j,
-					"target_label": label,
-				})
-			appendComposeSlotPair(result, spec.Reference, label, "target-unknown")
-			// Continue scanning so the caller sees every unknown
-			// target in one envelope — mirrors how the runtime
-			// orchestrator surfaces every per-target failure.
-			continue
+	for _, label := range spec.Targets {
+		if tReq, ok := byLabel[label]; ok {
+			resolved = append(resolved, resolvedTarget{label: label, req: tReq})
 		}
-		resolved = append(resolved, resolvedTarget{label: label, req: tReq})
 	}
 
 	// Gate 2b: an Inferential kind reading a slot weighted by a

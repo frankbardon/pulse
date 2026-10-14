@@ -290,25 +290,19 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 				return nil, nil, cerr
 			}
 		}
-		// Reference must resolve to a known label AND a non-nil slot.
-		// LookupReference owns the canonical-code dispatch for the
-		// reference arm — empty label, unknown label, or nil slot all
-		// surface PULSE_OVERLAY_REFERENCE_UNKNOWN.
+		// Reference, then targets, must name a slot — the shared label
+		// rule predict-compose raises (overlayhost.ComposeSlotRefusals),
+		// same code, message and details; a spec with no Targets is
+		// refused there. LookupReference / LookupTarget then own only
+		// the failed-slot (nil response) hole.
+		if rs := overlayhost.ComposeSlotRefusals(spec, i, func(label string) bool { _, ok := byLabel[label]; return ok }); len(rs) > 0 {
+			return nil, nil, rs[0]
+		}
 		refResp, err := LookupReference(byLabel, spec.Reference, i)
 		if err != nil {
 			return nil, nil, err
 		}
 		refIdx := byIndex[spec.Reference]
-		if len(spec.Targets) == 0 {
-			return nil, nil, errors.NewCodedErrorWithDetails(
-				errors.PULSE_OVERLAY_TARGET_UNKNOWN,
-				"compose overlay spec must declare at least one target slot label",
-				map[string]any{
-					"index": i,
-					"kind":  string(spec.Kind),
-					"which": "targets",
-				})
-		}
 		targetIdxs := make([]int, 0, len(spec.Targets))
 		targetResps := make([]*types.Response, 0, len(spec.Targets))
 		for tIdx, label := range spec.Targets {

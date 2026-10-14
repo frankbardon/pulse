@@ -252,88 +252,19 @@ func validateChainOverlaySeriesField(env *descriptor.Envelope, spec *types.Chain
 }
 
 // resolveChainOverlayStageRef resolves a StageRef into a stages-slice
-// index. Mirrors the runtime resolveChainStageRef contract
-// (internal/processing/overlay_chain_dispatch.go) at predict time:
-//
-//   - Index non-nil takes precedence; out-of-range fires the unknown-
-//     stage coded error for the matching arm.
-//   - Name non-empty resolves against namedIndex; absent name fires the
-//     unknown-stage coded error.
-//   - Both slots empty + targetDefault=true defaults to the latest
-//     stage (len(stages) - 1). Both slots empty + targetDefault=false
-//     (Ref arm) fires PULSE_OVERLAY_REFERENCE_UNKNOWN immediately.
-//   - XOR enforcement: both Index AND Name populated is rejected with
-//     the matching arm's unknown-stage code so the predict failure
-//     mirrors what the runtime would have surfaced after a bad
-//     round-trip.
+// index through overlayhost.ResolveStageRef — the rule the runtime
+// resolveChainStageRef (internal/processing/overlay_chain_dispatch.go)
+// calls, so both refuse with one code, message and details (Index and
+// Name both set, neither set on a Ref, an out-of-range Index, an
+// unknown Name; an unset Target defaults to the last stage).
 //
 // The returned bool is true iff resolution succeeded; the int is the
 // resolved stage index when ok, undefined otherwise.
 func resolveChainOverlayStageRef(env *descriptor.Envelope, ref types.StageRef, namedIndex map[string]int, stagesCount int, specIdx int, targetDefault bool) (int, bool) {
-	whichArm := "ref"
-	armCode := errors.PULSE_OVERLAY_REFERENCE_UNKNOWN
-	if targetDefault {
-		whichArm = "target"
-		armCode = errors.PULSE_OVERLAY_TARGET_UNKNOWN
-	}
-	// XOR check: both populated is malformed.
-	if ref.Index != nil && ref.Name != "" {
-		env.AddError(string(armCode),
-			"chain overlay StageRef must populate exactly one of Index / Name",
-			map[string]any{
-				"index": specIdx,
-				"which": whichArm,
-			})
-		return 0, false
-	}
-	// Both unset: Target defaults to latest stage; Ref is malformed.
-	if ref.Index == nil && ref.Name == "" {
-		if targetDefault {
-			if stagesCount == 0 {
-				env.AddError(string(armCode),
-					"chain overlay has no stages to resolve default Target against",
-					map[string]any{
-						"index": specIdx,
-						"which": whichArm,
-					})
-				return 0, false
-			}
-			return stagesCount - 1, true
-		}
-		env.AddError(string(armCode),
-			"chain overlay Ref must populate exactly one of Index / Name",
-			map[string]any{
-				"index": specIdx,
-				"which": whichArm,
-			})
-		return 0, false
-	}
-	// Index takes precedence when populated.
-	if ref.Index != nil {
-		idx := *ref.Index
-		if idx < 0 || idx >= stagesCount {
-			env.AddError(string(armCode),
-				"chain overlay stage Index out of range",
-				map[string]any{
-					"index":        specIdx,
-					"which":        whichArm,
-					"stage_index":  idx,
-					"stages_count": stagesCount,
-				})
-			return 0, false
-		}
-		return idx, true
-	}
-	// Name resolves against namedIndex.
-	idx, ok := namedIndex[ref.Name]
-	if !ok {
-		env.AddError(string(armCode),
-			"chain overlay stage Name not found",
-			map[string]any{
-				"index":      specIdx,
-				"which":      whichArm,
-				"stage_name": ref.Name,
-			})
+	// The shared rule the runtime chain dispatcher resolves with.
+	idx, cerr := overlayhost.ResolveStageRef(ref, stagesCount, namedIndex, targetDefault, specIdx)
+	if cerr != nil {
+		addCodedError(env, cerr)
 		return 0, false
 	}
 	return idx, true

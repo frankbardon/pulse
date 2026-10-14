@@ -141,7 +141,7 @@ func TestApplyOverlays_WrongHostRefusedInDispatch(t *testing.T) {
 func TestRefuseWrongHostOverlays_Shape(t *testing.T) {
 	series := &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v"}},
-		Overlays:     []types.OverlaySpec{{Kind: types.OverlayKindShareOfTotal}, {Kind: types.OverlayKindShareOfCol}}}
+		Overlays:     []types.OverlaySpec{{Kind: types.OverlayKindShareOfTotal, Scope: types.OverlayScopeGroup}, {Kind: types.OverlayKindShareOfCol}}}
 	matrix := &types.Request{Crosstab: &types.CrosstabSpec{},
 		Overlays: []types.OverlaySpec{{Kind: types.OverlayKindShareOfTotal}, {Kind: types.OverlayKindIndexVsPrior}}}
 	for name, c := range map[string]struct {
@@ -172,5 +172,43 @@ func TestRefuseWrongHostOverlays_Shape(t *testing.T) {
 	}
 	if canStreamOverlays(&types.Request{Crosstab: &types.CrosstabSpec{}, Overlays: []types.OverlaySpec{{Kind: types.OverlayKindIndexVsTotal}}}, nil) {
 		t.Error("a SERIES-only kind over a MATRIX host streams")
+	}
+}
+
+// TestRefuseWrongHostOverlays_SeriesSpec: on a SERIES (grouped) host the
+// hook raises the shared SERIES Ref / Scope rule
+// (overlayhost.SeriesSpecRefusal) with the spec's own index, before any
+// payload guard — the processor's grouped tails all reach it — and does
+// not judge it on a crosstab or an ungrouped request.
+func TestRefuseWrongHostOverlays_SeriesSpec(t *testing.T) {
+	grouped := func(ov ...types.OverlaySpec) *types.Request {
+		return &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v"}}, Overlays: ov}
+	}
+	good := types.OverlaySpec{Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeGroup}
+	bad := types.OverlaySpec{Kind: types.OverlayKindDeltaVsPrior, Scope: types.OverlayScopeCell}
+	want := overlayhost.SeriesSpecRefusal(&bad, bad.Kind, 1)
+	if want == nil {
+		t.Fatal("vacuous: the rule admits the bad spec")
+	}
+	err := refuseWrongHostOverlays(grouped(good, bad), nil, nil)
+	var ce *errors.CodedError
+	if !asCoded(err, &ce) || ce.Code != want.Code || ce.Message != want.Message || ce.Details["index"] != 1 {
+		t.Fatalf("err = %v, want %v", err, want)
+	}
+	// A skipped spec (the compute plan's mask) raises nothing.
+	if err := refuseWrongHostOverlays(grouped(good, bad), nil, func(i int) bool { return i == 0 }); err != nil {
+		t.Fatalf("skipped spec refused: %v", err)
+	}
+	// An ungrouped request is not judged here.
+	scalar := grouped(good, bad)
+	scalar.Groups = nil
+	if err := refuseWrongHostOverlays(scalar, nil, nil); err != nil {
+		t.Fatalf("scalar host judged: %v", err)
+	}
+	// The grouped Process hook refuses it on an empty result too.
+	resp := &types.Response{}
+	if err := applyOverlaysSeriesToResponse(grouped(good, bad), resp, nil, ComputePlan{Overlays: true}); !asCoded(err, &ce) || ce.Code != want.Code {
+		t.Fatalf("empty-result hook: %v, want %v", err, want)
 	}
 }

@@ -13,7 +13,9 @@ import (
 // (AuthoredHostShape: a SERIES kind over a crosstab, a MATRIX kind over
 // a grouped request) with the shared shape refusal — both
 // PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, Details
-// {index, kind, host, hosts} and {index, kind, host, shape, shapes}.
+// {index, kind, host, hosts} and {index, kind, host, shape, shapes} —
+// and, on a SERIES host, the first whose Ref or Scope breaks the shared
+// SERIES rule (overlayhost.SeriesSpecRefusal).
 // Both Process hooks (the crosstab applyOverlaysToResponse and the
 // grouped applyOverlaysSeriesToResponse) call it before any payload
 // guard, so the refusal is a property of the request: an empty result,
@@ -36,8 +38,19 @@ func refuseWrongHostOverlays(req *types.Request, exts *ExtensionRegistry, keep f
 		}
 		// A request carrying matrices offers the MATRIX_RESULT host too
 		// (overlayhost.JudgedShape).
-		if cerr := overlayhost.ShapeRefusal(overlayhost.JudgedShape(shape, matrices, route), req.Overlays[i].Kind, route, i); cerr != nil {
+		judged := overlayhost.JudgedShape(shape, matrices, route)
+		if cerr := overlayhost.ShapeRefusal(judged, req.Overlays[i].Kind, route, i); cerr != nil {
 			return cerr
+		}
+		// On a SERIES host, the shared SERIES Ref / Scope rule predict's
+		// per-kind validators raise first. Here, before every payload
+		// guard, it holds on the buffered, streaming and parallel tails
+		// alike and on an empty result. (The crosstab rule runs in the
+		// MATRIX dispatcher, applyOverlaysPlanned.)
+		if judged == types.OverlayShapeSeries {
+			if cerr := overlayhost.SeriesSpecRefusal(&req.Overlays[i], route, i); cerr != nil {
+				return cerr
+			}
 		}
 	}
 	return nil
@@ -52,6 +65,22 @@ func refuseWrongHostOverlays(req *types.Request, exts *ExtensionRegistry, keep f
 // spec's own index before its per-spec work.
 func WrongHostRefusal(host overlayhost.Host, kind types.OverlayKind, exts *ExtensionRegistry, index int) error {
 	if cerr := overlayhost.Refusal(host, kind, exts.overlayRoute(kind), index); cerr != nil {
+		return cerr
+	}
+	return nil
+}
+
+// FacetSpecRefusal is the shared FACET-host Ref / Scope / Level refusal
+// (overlayhost.FacetSpecRefusal) for the FacetRequest.Overlays spec at
+// index, judged on the route exts gives its kind, for the runtime FACET
+// loop in internal/service, which raises it right after
+// WrongHostRefusal — the point predict (validateFacetOverlaySpec)
+// raises it. nil when the spec passes.
+func FacetSpecRefusal(spec *types.OverlaySpec, exts *ExtensionRegistry, index int) error {
+	if spec == nil {
+		return nil
+	}
+	if cerr := overlayhost.FacetSpecRefusal(spec, exts.overlayRoute(spec.Kind), index); cerr != nil {
 		return cerr
 	}
 	return nil

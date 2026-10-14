@@ -108,6 +108,12 @@ func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetReques
 		if err := processing.WrongHostRefusal(overlayhost.Facet, spec.Kind, s.extensions, i); err != nil {
 			return err
 		}
+		// Then the shared Ref / Scope / Level contract predict raises at
+		// the same point (overlayhost.FacetSpecRefusal): Ref.Population
+		// alone and set, group scope, Level / Within 0.
+		if err := processing.FacetSpecRefusal(spec, s.extensions, i); err != nil {
+			return err
+		}
 		hostFieldName, err := resolveFacetOverlayHostFieldRuntime(req, spec, i)
 		if err != nil {
 			return err
@@ -120,14 +126,6 @@ func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetReques
 					"index": i,
 					"kind":  string(spec.Kind),
 					"field": hostFieldName,
-				})
-		}
-		if spec.Ref.Population == nil || spec.Ref.Population.Cohort == "" {
-			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-				"facet overlay "+string(spec.Kind)+" requires Ref.Population.Cohort",
-				map[string]any{
-					"index": i,
-					"kind":  string(spec.Kind),
 				})
 		}
 		popResult, err := cache.populationResult(ctx, s, spec.Ref.Population.Cohort, hostFieldName, req)

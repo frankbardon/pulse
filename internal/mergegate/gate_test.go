@@ -379,3 +379,27 @@ func TestStageArrayValuedRefusal(t *testing.T) {
 		})
 	}
 }
+
+// TestChainRefusal_Crosstab: a stage carrying Request.Crosstab is refused
+// first, whatever else it carries (aggregations, matrices, nothing),
+// under PULSE_CHAIN_NOT_MERGEABLE with CrosstabStageReason — while the
+// merge rule itself still admits a mergeable crosstab-free twin.
+func TestChainRefusal_Crosstab(t *testing.T) {
+	aggs := []*types.Aggregation{{Type: types.AGG_SUM, Field: "n"}}
+	for name, req := range map[string]*types.Request{
+		"crosstab only":            {Crosstab: &types.CrosstabSpec{}},
+		"beside aggregations":      {Crosstab: &types.CrosstabSpec{}, Aggregations: aggs},
+		"beside non-mergeable agg": {Crosstab: &types.CrosstabSpec{}, Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "n"}}},
+	} {
+		err := ChainRefusal(req, nil, nil, 2, "x")
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_CHAIN_NOT_MERGEABLE ||
+			ce.Message != "chain stage is not mergeable: "+CrosstabStageReason ||
+			ce.Details["stage_index"] != 2 || ce.Details["stage_name"] != "x" {
+			t.Fatalf("%s: %v", name, err)
+		}
+	}
+	if err := ChainRefusal(&types.Request{Aggregations: aggs}, nil, nil, 0, "s0"); err != nil {
+		t.Fatalf("crosstab-free twin refused: %v", err)
+	}
+}

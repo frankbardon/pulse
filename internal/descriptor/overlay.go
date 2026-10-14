@@ -474,79 +474,6 @@ func validateOverlayPanel(env *descriptor.Envelope, kind types.OverlayKind, para
 	// checks the range against the live host).
 }
 
-// deltaVsBaselineSupportedScopes is the supported scope set for
-// OVERLAY_DELTA_VS_BASELINE. The kind emits one entry per host group key
-// (the ordered windowed series) — Scope=GROUP is the only sensible
-// footprint and any other scope (CELL / ROW / COLUMN / MATRIX / TOTAL)
-// fires PULSE_OVERLAY_SCOPE_UNSUPPORTED. Absolute-difference twin of
-// `indexVsBaselineSupportedScopes` — both kinds share the GROUP-only
-// scope contract and the BaselineIndex ref family.
-var deltaVsBaselineSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// deltaVsSiblingSupportedScopes is the supported scope set for
-// OVERLAY_DELTA_VS_SIBLING. The kind emits one entry per host group
-// key — Scope=GROUP is the only sensible footprint and any other
-// scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
-// `indexVsSiblingSupportedScopes` — both sibling-reference kinds
-// share the GROUP-only scope contract.
-var deltaVsSiblingSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// indexVsBaselineSupportedScopes is the supported scope set for
-// OVERLAY_INDEX_VS_BASELINE. The kind emits one entry per host group key
-// (the ordered windowed series) — Scope=GROUP is the only sensible
-// footprint and any other scope (CELL / ROW / COLUMN / MATRIX / TOTAL)
-// fires PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
-// `indexVsPriorSupportedScopes` / `indexVsTotalSupportedScopes`.
-var indexVsBaselineSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// indexVsPriorSupportedScopes is the supported scope set for
-// OVERLAY_INDEX_VS_PRIOR. The kind emits one entry per host group key
-// (the ordered windowed series) — Scope=GROUP is the only sensible
-// footprint and any other scope (CELL / ROW / COLUMN / MATRIX / TOTAL)
-// fires PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
-// `indexVsTotalSupportedScopes`.
-var indexVsPriorSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// deltaVsPriorSupportedScopes is the supported scope set for
-// OVERLAY_DELTA_VS_PRIOR — the additive twin of the kind above, with
-// the identical GROUP-only footprint for the identical reason. Kept as
-// its own map rather than aliasing `indexVsPriorSupportedScopes` so the
-// two kinds' contracts can diverge without one silently dragging the
-// other, exactly as `deltaVsBaselineSupportedScopes` sits beside
-// `indexVsBaselineSupportedScopes`.
-var deltaVsPriorSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// indexVsRollingMeanSupportedScopes is the supported scope set for
-// OVERLAY_INDEX_VS_ROLLING_MEAN. The kind emits one entry per host
-// group key (the ordered windowed series) — Scope=GROUP is the only
-// sensible footprint and any other scope (CELL / ROW / COLUMN / MATRIX /
-// TOTAL) fires PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
-// `indexVsPriorSupportedScopes` — same SERIES-host windowed predicate.
-var indexVsRollingMeanSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// yoySupportedScopes is the supported scope set for OVERLAY_YOY.
-// The kind emits one entry per host group key (the ordered windowed
-// series) — Scope=GROUP is the only sensible footprint and any other
-// scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
-// `indexVsRollingMeanSupportedScopes` / `zscoreVsRollingSupportedScopes`.
-var yoySupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
 // yoySupportedFrequencies enumerates the supported `frequency` Param
 // values for OVERLAY_YOY at predict time. Mirrors
 // processing.yoySupportedFrequencies (the runtime helper) so the gate
@@ -558,57 +485,6 @@ var yoySupportedFrequencies = []string{
 	"weekly",
 	"daily",
 	"hourly",
-}
-
-// zscoreVsRollingSupportedScopes is the supported scope set for
-// OVERLAY_ZSCORE_VS_ROLLING. The kind emits one entry per host group
-// key (the ordered windowed series) — Scope=GROUP is the only sensible
-// footprint and any other scope (CELL / ROW / COLUMN / MATRIX / TOTAL)
-// fires PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
-// `indexVsRollingMeanSupportedScopes` — sibling windowed-rolling kind.
-var zscoreVsRollingSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// indexVsSiblingSupportedScopes is the supported scope set for
-// OVERLAY_INDEX_VS_SIBLING. The kind emits one entry per host group
-// key — Scope=GROUP is the only sensible footprint and any other
-// scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
-// `deltaVsSiblingSupportedScopes`.
-var indexVsSiblingSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// indexVsTotalSupportedScopes is the supported scope set for
-// OVERLAY_INDEX_VS_TOTAL. INDEX_VS_TOTAL emits one per-group index
-// score against the host series' grand total — Scope=GROUP is the
-// only sensible footprint and any other scope (CELL / ROW / COLUMN /
-// MATRIX / TOTAL) fires PULSE_OVERLAY_SCOPE_UNSUPPORTED.
-var indexVsTotalSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// zscoreVsTotalSupportedScopes is the supported scope set for
-// OVERLAY_ZSCORE_VS_TOTAL. ZSCORE_VS_TOTAL emits one per-group
-// standardized z-score against the host series' grand-total
-// distribution — Scope=GROUP is the only sensible footprint and any
-// other scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors `indexVsTotalSupportedScopes`
-// — the streamable SERIES-host grouped-Process subset shares the
-// implicit-grand-total scope contract verbatim.
-var zscoreVsTotalSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// shareOfTotalSeriesSupportedScopes is the supported scope set for the
-// SERIES-host dispatch of OVERLAY_SHARE_OF_TOTAL. The SERIES
-// dispatch emits one per-group share against the host series' grand
-// total — Scope=GROUP is the only sensible footprint and any other
-// scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors `indexVsTotalSupportedScopes`.
-var shareOfTotalSeriesSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
 }
 
 // ValidateOverlays walks every spec in req.Overlays and appends
@@ -1405,23 +1281,16 @@ func validateOverlayIndexVsMargin(env *descriptor.Envelope, req *types.Request, 
 //     when Request.Groups is empty (no host series to compute against).
 //   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
 //     than GROUP.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayIndexVsTotal(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref must be empty — INDEX_VS_TOTAL is implicit-grand-total. A
-	// caller supplying any family pointer (Margin / Sibling /
-	// BaselineIndex / Population / Stage / Slot) is using the wrong
-	// overlay shape.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-grand-total: the host series' own grand total is the denominator)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -1435,20 +1304,6 @@ func validateOverlayIndexVsTotal(env *descriptor.Envelope, req *types.Request, s
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be GROUP. INDEX_VS_TOTAL emits one entry per host
-	// group key — CELL / ROW / COLUMN / MATRIX / TOTAL scopes are not
-	// meaningful for the per-group statistic the kind emits.
-	if !indexVsTotalSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
 			})
 		return
 	}
@@ -1480,37 +1335,16 @@ func validateOverlayIndexVsTotal(env *descriptor.Envelope, req *types.Request, s
 // PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. The runtime mirror
 // (processing.validateOverlayLevelWithinRuntime) enforces the same
 // rule.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayIndexVsPrior(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family: Prior populated OR entire Ref empty. Any other family
-	// pointer is a shape mismatch (mirrors the INDEX_VS_TOTAL /
-	// SHARE_OF_TOTAL SERIES implicit-default rejection set).
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Prior or an empty Ref (windowed lag-1 prior; no Margin / Sibling / BaselineIndex / Population / Stage / Slot)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Ref.Prior populated: Lag MUST be zero for v1. The slot is reserved
-	// for future window-N priors; non-zero values land in a later story
-	// and the carrier widens from a single f64 to a small ring buffer
-	// then.
-	if spec.Ref.Prior != nil && spec.Ref.Prior.Lag != 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Prior.Lag must be zero (v1 ships lag-1 only; the slot is reserved for future window-N priors)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"lag":   spec.Ref.Prior.Lag,
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -1523,21 +1357,6 @@ func validateOverlayIndexVsPrior(env *descriptor.Envelope, req *types.Request, s
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be GROUP. INDEX_VS_PRIOR emits one entry per host group
-	// key (the ordered windowed series) — CELL / ROW / COLUMN / MATRIX /
-	// TOTAL scopes are not meaningful for the per-group statistic the
-	// kind emits.
-	if !indexVsPriorSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
 			})
 		return
 	}
@@ -1573,36 +1392,16 @@ func validateOverlayIndexVsPrior(env *descriptor.Envelope, req *types.Request, s
 // PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. The runtime mirror
 // (processing.validateOverlayLevelWithinRuntime) enforces the same
 // rule.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayDeltaVsPrior(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family: Prior populated OR entire Ref empty. Any other family
-	// pointer is a shape mismatch.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Prior or an empty Ref (windowed lag-1 prior; no Margin / Sibling / BaselineIndex / Population / Stage / Slot)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Ref.Prior populated: Lag MUST be zero for v1. The slot is reserved
-	// for future window-N priors; non-zero values land in a later story
-	// and the carrier widens from a single f64 to a small ring buffer
-	// then.
-	if spec.Ref.Prior != nil && spec.Ref.Prior.Lag != 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Prior.Lag must be zero (v1 ships lag-1 only; the slot is reserved for future window-N priors)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"lag":   spec.Ref.Prior.Lag,
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -1615,21 +1414,6 @@ func validateOverlayDeltaVsPrior(env *descriptor.Envelope, req *types.Request, s
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be GROUP. DELTA_VS_PRIOR emits one entry per host group
-	// key (the ordered windowed series) — CELL / ROW / COLUMN / MATRIX /
-	// TOTAL scopes are not meaningful for the per-group statistic the
-	// kind emits.
-	if !deltaVsPriorSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
 			})
 		return
 	}
@@ -1663,36 +1447,16 @@ func validateOverlayDeltaVsPrior(env *descriptor.Envelope, req *types.Request, s
 // denominator, so non-zero Level / Within values fire
 // PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. The runtime mirror
 // (processing.validateOverlayLevelWithinRuntime) enforces the same rule.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayIndexVsRollingMean(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family: RollingMean must be populated; reject any other family
-	// pointer (mirrors the windowed-family rejection set used by
-	// INDEX_VS_PRIOR for Prior, INDEX_VS_BASELINE for BaselineIndex).
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Prior != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.RollingMean only (no Margin / Sibling / BaselineIndex / Prior / Population / Stage / Slot)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Ref.RollingMean is required — the empty marker tags the ref family.
-	// The actual window width lives on Params["window"] per the WIN_*
-	// operator convention.
-	if spec.Ref.RollingMean == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.RollingMean (windowed rolling-mean reference; window width lives on Params[\"window\"])",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -1705,21 +1469,6 @@ func validateOverlayIndexVsRollingMean(env *descriptor.Envelope, req *types.Requ
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be GROUP. INDEX_VS_ROLLING_MEAN emits one entry per host
-	// group key (the ordered windowed series) — CELL / ROW / COLUMN /
-	// MATRIX / TOTAL scopes are not meaningful for the per-group statistic
-	// the kind emits.
-	if !indexVsRollingMeanSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
 			})
 		return
 	}
@@ -1764,37 +1513,16 @@ func validateOverlayIndexVsRollingMean(env *descriptor.Envelope, req *types.Requ
 // non-zero Level / Within values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE.
 // The runtime mirror (processing.validateOverlayLevelWithinRuntime)
 // enforces the same rule.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayZScoreVsRolling(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family: RollingMean must be populated; reject any other family
-	// pointer (mirrors the windowed-family rejection set used by
-	// INDEX_VS_ROLLING_MEAN — identical contract because the two kinds
-	// share the same ref-arm).
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Prior != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.RollingMean only (no Margin / Sibling / BaselineIndex / Prior / Population / Stage / Slot)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Ref.RollingMean is required — the empty marker tags the ref family.
-	// The actual window width lives on Params["window"] per the WIN_*
-	// operator convention.
-	if spec.Ref.RollingMean == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.RollingMean (windowed rolling-window reference; window width lives on Params[\"window\"])",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -1807,21 +1535,6 @@ func validateOverlayZScoreVsRolling(env *descriptor.Envelope, req *types.Request
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be GROUP. ZSCORE_VS_ROLLING emits one entry per host
-	// group key (the ordered windowed series) — CELL / ROW / COLUMN /
-	// MATRIX / TOTAL scopes are not meaningful for the per-group statistic
-	// the kind emits.
-	if !zscoreVsRollingSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
 			})
 		return
 	}
@@ -1871,38 +1584,16 @@ func validateOverlayZScoreVsRolling(env *descriptor.Envelope, req *types.Request
 // PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. The runtime mirror
 // (processing.validateOverlayLevelWithinRuntime) enforces the same
 // rule.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayYoY(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, inst *InstanceSnapshot, index int) {
-	// Ref family: YoY must be populated; reject any other family pointer
-	// (mirrors the windowed-family rejection set used by INDEX_VS_PRIOR /
-	// INDEX_VS_ROLLING_MEAN / ZSCORE_VS_ROLLING).
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Prior != nil ||
-		spec.Ref.RollingMean != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.YoY only (no Margin / Sibling / BaselineIndex / Prior / RollingMean / Population / Stage / Slot)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Ref.YoY is required — the empty marker tags the ref family. The
-	// actual frequency value lives on Params["frequency"] per the WIN_*
-	// operator convention OR on the GROUP_DATE grouper's Params["frequency"] per the
-	// canonical GROUP_DATE authoring slot.
-	if spec.Ref.YoY == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.YoY (windowed year-over-year reference; frequency lives on Params[\"frequency\"] or the GROUP_DATE grouper's Params[\"frequency\"])",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -1929,21 +1620,6 @@ func validateOverlayYoY(env *descriptor.Envelope, req *types.Request, spec *type
 	isDate := func(g *types.Group) bool { return opRoute(inst, g.Type) == types.GROUP_DATE }
 	if _, _, err := seriespartition.YoY(req.Groups, isDate, spec, index); err != nil {
 		addCodedError(env, err)
-		return
-	}
-
-	// Scope must be GROUP. OVERLAY_YOY emits one entry per host group
-	// key (the ordered windowed series) — CELL / ROW / COLUMN / MATRIX /
-	// TOTAL scopes are not meaningful for the per-group statistic the
-	// kind emits.
-	if !yoySupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
 		return
 	}
 
@@ -2179,35 +1855,16 @@ func coerceIntegralOverlayParam(v any) (int, bool) {
 // Level / Within values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. The
 // runtime mirror (processing.validateOverlayLevelWithinRuntime) enforces
 // the same rule.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayIndexVsBaseline(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family must be BaselineIndex only. Any other family pointer
-	// (Margin / Sibling / Prior / Population / Stage / Slot) is a shape
-	// mismatch (mirrors the INDEX_VS_PRIOR Prior-only / INDEX_VS_TOTAL
-	// implicit-default rejection set).
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.Prior != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.BaselineIndex only (no Margin / Sibling / Prior / Population / Stage / Slot)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Ref.BaselineIndex is required — the windowed positional anchor lives
-	// on this slot.
-	if spec.Ref.BaselineIndex == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.BaselineIndex (windowed positional baseline reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -2220,21 +1877,6 @@ func validateOverlayIndexVsBaseline(env *descriptor.Envelope, req *types.Request
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be GROUP. INDEX_VS_BASELINE emits one entry per host
-	// group key (the ordered windowed series) — CELL / ROW / COLUMN /
-	// MATRIX / TOTAL scopes are not meaningful for the per-group statistic
-	// the kind emits.
-	if !indexVsBaselineSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
 			})
 		return
 	}
@@ -2275,35 +1917,16 @@ func validateOverlayIndexVsBaseline(env *descriptor.Envelope, req *types.Request
 // Mirrors validateOverlayIndexVsBaseline shape verbatim — the two kinds
 // share the same Ref-family / host-shape / scope contract; only the
 // runtime per-point math differs (subtraction vs. ratio).
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayDeltaVsBaseline(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family must be BaselineIndex only. Any other family pointer
-	// (Margin / Sibling / Prior / Population / Stage / Slot) is a shape
-	// mismatch (mirrors the INDEX_VS_BASELINE BaselineIndex-only rejection
-	// set).
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.Prior != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.BaselineIndex only (no Margin / Sibling / Prior / Population / Stage / Slot)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Ref.BaselineIndex is required — the windowed positional anchor lives
-	// on this slot.
-	if spec.Ref.BaselineIndex == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.BaselineIndex (windowed positional baseline reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -2316,21 +1939,6 @@ func validateOverlayDeltaVsBaseline(env *descriptor.Envelope, req *types.Request
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be GROUP. DELTA_VS_BASELINE emits one entry per host
-	// group key (the ordered windowed series) — CELL / ROW / COLUMN /
-	// MATRIX / TOTAL scopes are not meaningful for the per-group statistic
-	// the kind emits.
-	if !deltaVsBaselineSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
 			})
 		return
 	}
@@ -2651,24 +2259,16 @@ func validateOverlayShareOfTotalMatrix(env *descriptor.Envelope, req *types.Requ
 //
 // Sibling rule to validateOverlayIndexVsTotal — the two SERIES SHARE /
 // INDEX kinds share the implicit-grand-total contract verbatim.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayShareOfTotalSeries(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref must be empty — SERIES SHARE_OF_TOTAL is implicit-grand-total
-	// (mirrors INDEX_VS_TOTAL). A caller supplying any family pointer
-	// (Margin / Sibling / BaselineIndex / Population / Stage / Slot) is
-	// using the MATRIX dispatch's spec shape against a SERIES host.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" against a SERIES host must leave Ref empty (implicit-grand-total: the host series' own grand total is the denominator)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"host":  "series",
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -2681,22 +2281,6 @@ func validateOverlayShareOfTotalSeries(env *descriptor.Envelope, req *types.Requ
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),
-				"host":  "series",
-			})
-		return
-	}
-
-	// Scope must be GROUP. SERIES SHARE_OF_TOTAL emits one entry per
-	// host group key — CELL / ROW / COLUMN / MATRIX / TOTAL scopes are
-	// not meaningful for the per-group statistic the SERIES dispatch
-	// emits.
-	if !shareOfTotalSeriesSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" SERIES dispatch does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
 				"host":  "series",
 			})
 		return
@@ -2751,23 +2335,16 @@ func validateOverlayZScoreVsMargin(env *descriptor.Envelope, req *types.Request,
 //     against).
 //   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
 //     than GROUP.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayZScoreVsTotal(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref must be empty — ZSCORE_VS_TOTAL is implicit-grand-total
-	// (mirrors INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES). A caller
-	// supplying any family pointer (Margin / Sibling / BaselineIndex /
-	// Population / Stage / Slot) is using the wrong overlay shape.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-grand-total: the host series' own grand-total mean + SD are the centerpoint)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -2781,20 +2358,6 @@ func validateOverlayZScoreVsTotal(env *descriptor.Envelope, req *types.Request, 
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be GROUP. ZSCORE_VS_TOTAL emits one entry per host
-	// group key — CELL / ROW / COLUMN / MATRIX / TOTAL scopes are not
-	// meaningful for the per-group statistic the kind emits.
-	if !zscoreVsTotalSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
 			})
 		return
 	}
@@ -2820,7 +2383,7 @@ func validateOverlayZScoreVsTotal(env *descriptor.Envelope, req *types.Request, 
 //   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
 //     than GROUP.
 func validateOverlayDeltaVsSibling(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	validateOverlaySiblingKind(env, req, spec, index, deltaVsSiblingSupportedScopes, "group")
+	validateOverlaySiblingKind(env, req, spec, index)
 }
 
 // validateOverlayIndexVsSibling enforces the per-kind contract for
@@ -2831,15 +2394,14 @@ func validateOverlayDeltaVsSibling(env *descriptor.Envelope, req *types.Request,
 // `validateOverlaySiblingKind` helper so a future schema/runtime
 // rule that fires on one kind automatically extends to the other.
 func validateOverlayIndexVsSibling(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	validateOverlaySiblingKind(env, req, spec, index, indexVsSiblingSupportedScopes, "group")
+	validateOverlaySiblingKind(env, req, spec, index)
 }
 
 // validateOverlaySiblingKind is the shared predict-time validator for
 // the sibling-reference SERIES-host family (DELTA_VS_SIBLING +
 // INDEX_VS_SIBLING). The two kinds carry identical structural
 // contracts — only the runtime math differs (subtraction vs ratio
-// scaling) — so the validator collapses both into a single helper
-// keyed by the kind's supported-scope set.
+// scaling) — so the validator collapses both into a single helper.
 //
 // Contract enforced (in order, first hit short-circuits):
 //
@@ -2855,52 +2417,16 @@ func validateOverlayIndexVsSibling(env *descriptor.Envelope, req *types.Request,
 //     MATRIX-host path which the sibling family does not target in
 //     v1.
 //   - Scope MUST be in the supported set (GROUP today).
-func validateOverlaySiblingKind(
-	env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int,
-	supportedScopes map[types.OverlayScope]bool, supportedScopeLabel string,
-) {
-	// Ref family must be Sibling — reject any other family pointer.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Sibling only (no Margin / BaselineIndex / Population / Stage / Slot)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Ref.Sibling is required — both Field and Value must be populated.
-	if spec.Ref.Sibling == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Sibling (sibling-group reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-	if spec.Ref.Sibling.Field == "" {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Sibling.Field is empty (sibling reference requires a grouper Field name)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-	if spec.Ref.Sibling.Value == "" {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Sibling.Value is empty (sibling reference requires a specific axis-key value)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"field": spec.Ref.Sibling.Field,
-			})
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
+func validateOverlaySiblingKind(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -2911,18 +2437,6 @@ func validateOverlaySiblingKind(
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be in the supported set.
-	if !supportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: "+supportedScopeLabel+")",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
 			})
 		return
 	}
