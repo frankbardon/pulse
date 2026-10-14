@@ -285,10 +285,9 @@ func scalarFromCell(cell types.MatrixCell) (float64, bool) {
 // shaped OverlayLayer (Name + Kind + Scope + Ref + Payload + optional
 // Summary) plus a slice of warnings for cells the handler could not
 // resolve (zero denominator, missing margin slot). A handler error
-// short-circuits applyOverlays — used today for unknown-kind dispatch;
-// per-kind contracts (axis mismatch, scope unsupported) are caught at
-// predict time and should not reach here, but applyOverlays still runs
-// defensive guards.
+// short-circuits applyOverlays. The Ref / Scope contract never reaches a
+// handler: applyOverlaysPlanned raises overlayhost.CrosstabSpecRefusal
+// (predict's twin) before dispatch.
 type overlayHandler func(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error)
 
 // overlayHandlers is the per-kind dispatch table. The
@@ -412,6 +411,15 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 		// A SERIES-only kind handed to this MATRIX loop: the shared
 		// wrong-shape refusal, not PULSE_OVERLAY_KIND_UNKNOWN.
 		if cerr := overlayhost.ShapeRefusal(types.OverlayShapeMatrix, spec.Kind, route, i); cerr != nil {
+			return nil, nil, cerr
+		}
+		// A crosstab kind's Ref / Scope rule (a set Ref on an
+		// implicit-margin kind, a missing or unknown Ref.Margin, an
+		// unsupported scope) — the shared overlayhost refusal predict
+		// raises first in its per-kind validator, same code, message and
+		// details. Every MATRIX arm folds through here: the fused and
+		// buffered crosstab exits and a Compose slot's own overlays.
+		if cerr := overlayhost.CrosstabSpecRefusal(spec, route, i); cerr != nil {
 			return nil, nil, cerr
 		}
 		if err := validateOverlayLevelWithinRuntime(spec, route, host, i); err != nil {

@@ -51,14 +51,3 @@ func ParseSymmetryParams(spec *types.OverlaySpec, index int) (SymmetryParams, *e
 	}
 	return out, nil
 }
-
-// SymmetrySpecRefusal refuses an OVERLAY_SYMMETRY spec whose Ref is set
-// (PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, details {kind}: the test is
-// implicit-margin and reads the whole table) or whose Scope is not
-// matrix (PULSE_OVERLAY_SCOPE_UNSUPPORTED, details {kind, scope}), each
-// plus index when >= 0. Predict and the runtime handler both call it, so
-// the two raise the same code, message and details. nil when the spec
-// passes.
-func SymmetrySpecRefusal(spec *types.OverlaySpec, index int) *errors.CodedError {
-	return implicitSpecRefusal(spec, index, types.OverlayScopeMatrix, "the test reads the whole table")
-}

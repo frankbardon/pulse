@@ -34,32 +34,6 @@ import (
 //     built with string concatenation so descriptor envelope output
 //     stays grep-clean against the structural defense ban.
 
-// chiSqMatrixSupportedScopes is the supported scope set for
-// OVERLAY_CHISQ_MATRIX. The χ² independence test is a whole-matrix
-// inferential overlay — Scope=MATRIX is the only sensible footprint
-// and any other scope (CELL / ROW / COLUMN / TOTAL / GROUP) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED.
-var chiSqMatrixSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeMatrix: true,
-}
-
-// chiSqRowSupportedScopes is the supported scope set for
-// OVERLAY_CHISQ_ROW. The per-row χ² goodness-of-fit test is a ROW-
-// scoped inferential overlay — Scope=ROW is the only sensible footprint
-// and any other scope (CELL / COLUMN / MATRIX / TOTAL / GROUP) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED.
-var chiSqRowSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeRow: true,
-}
-
-// pairwiseSupportedScopes are the axis-pairing scopes the OVERLAY_PAIRWISE_*
-// family accepts: ROW pairs row indices for each column, COLUMN pairs
-// column indices for each row.
-var pairwiseSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeRow:    true,
-	types.OverlayScopeColumn: true,
-}
-
 // pairwiseNBasisAdvice completes the n_basis refusal on a kind that
 // does not read it. The weighted kind (and the AGG_WEIGHTED_MEAN cell it
 // requires) is named only when the instance offers it: a refusal never
@@ -138,17 +112,10 @@ func pairwiseProportionAdvice(opts *PredictOptions, what string) string {
 // on the materialised host, not the request shape, so the handler raises
 // them, not predict.
 func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
-	// Ref must be empty — the pairwise test compares two slots of the
-	// host matrix inline; no external reference family applies.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (intra-matrix pairwise: the test compares two slots of the host matrix along the scope axis)",
-			map[string]any{"index": index, "kind": string(spec.Kind)})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -157,14 +124,6 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
 			map[string]any{"index": index, "kind": string(spec.Kind)})
-		return
-	}
-
-	// Scope must be ROW or COLUMN — it names the pair axis.
-	if !pairwiseSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: row, column)",
-			map[string]any{"index": index, "kind": string(spec.Kind), "scope": string(spec.Scope)})
 		return
 	}
 
@@ -515,16 +474,6 @@ func validateOverlayPanel(env *descriptor.Envelope, kind types.OverlayKind, para
 	// checks the range against the live host).
 }
 
-// chiSqColSupportedScopes is the supported scope set for
-// OVERLAY_CHISQ_COL. The per-column χ² goodness-of-fit test is a COLUMN-
-// scoped inferential overlay (mechanical column-axis twin of
-// CHISQ_ROW) — Scope=COLUMN is the only sensible footprint and any other
-// scope (CELL / ROW / MATRIX / TOTAL / GROUP) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED.
-var chiSqColSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeColumn: true,
-}
-
 // deltaVsBaselineSupportedScopes is the supported scope set for
 // OVERLAY_DELTA_VS_BASELINE. The kind emits one entry per host group key
 // (the ordered windowed series) — Scope=GROUP is the only sensible
@@ -536,17 +485,6 @@ var deltaVsBaselineSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeGroup: true,
 }
 
-// deltaVsMarginSupportedScopes is the supported scope set for
-// OVERLAY_DELTA_VS_MARGIN. DELTA_VS_MARGIN is a CELL-scoped overlay by
-// construction — every cell receives an additive deviation against
-// the matching margin slot. Like ZSCORE_VS_MARGIN the axis is not
-// structurally locked: the validator accepts every known MarginAxis
-// (row / column / grand) and the runtime handler dispatches the
-// matching margin.
-var deltaVsMarginSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeCell: true,
-}
-
 // deltaVsSiblingSupportedScopes is the supported scope set for
 // OVERLAY_DELTA_VS_SIBLING. The kind emits one entry per host group
 // key — Scope=GROUP is the only sensible footprint and any other
@@ -556,26 +494,6 @@ var deltaVsMarginSupportedScopes = map[types.OverlayScope]bool{
 // share the GROUP-only scope contract.
 var deltaVsSiblingSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeGroup: true,
-}
-
-// fisherExactCellSupportedScopes is the supported scope set for
-// OVERLAY_FISHER_EXACT_CELL. The per-cell Fisher's exact 2×2 test is
-// a CELL-scoped inferential overlay (canonical low-count χ² backstop;
-// PRD § 4.C FR-C2) — every cell receives an exact two-sided p-value
-// computed against a 2×2 contingency built from the cell + its row and
-// column margins. Scope=CELL is the only sensible footprint and any
-// other scope (ROW / COLUMN / MATRIX / TOTAL / GROUP) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED.
-var fisherExactCellSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeCell: true,
-}
-
-// indexVsMarginSupportedScopes is the supported scope set for
-// OVERLAY_INDEX_VS_MARGIN. Today only CELL ships; the gate widens
-// to ROW / COLUMN / TOTAL once the matching payload shapes are wired
-// through processing.
-var indexVsMarginSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeCell: true,
 }
 
 // indexVsBaselineSupportedScopes is the supported scope set for
@@ -683,36 +601,6 @@ var zscoreVsTotalSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeGroup: true,
 }
 
-// shareOfRowSupportedScopes is the supported scope set for
-// OVERLAY_SHARE_OF_ROW. SHARE_OF_ROW is a CELL-scoped layer by
-// construction — every cell divides by its row margin. ROW / COLUMN /
-// TOTAL projections are not meaningful for this kind.
-var shareOfRowSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeCell: true,
-}
-
-// shareOfColSupportedScopes is the supported scope set for
-// OVERLAY_SHARE_OF_COL. SHARE_OF_COL is a CELL-scoped layer by
-// construction — every cell divides by its column margin. ROW /
-// COLUMN / TOTAL projections are not meaningful for this kind.
-var shareOfColSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeCell: true,
-}
-
-// shareOfTotalSupportedScopes is the supported scope set for the
-// MATRIX-host dispatch of OVERLAY_SHARE_OF_TOTAL. The MATRIX
-// dispatch is a CELL-scoped layer by construction — every cell divides
-// by the grand total. ROW / COLUMN / TOTAL projections are not
-// meaningful for the MATRIX dispatch.
-//
-// The SERIES-host dispatch accepts GROUP scope and routes through
-// `shareOfTotalSeriesSupportedScopes`. The host-shape pre-check in
-// `validateOverlayShareOfTotal` selects between the two scope sets so
-// each dispatch's rejection set is exhaustive for its own host.
-var shareOfTotalSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeCell: true,
-}
-
 // shareOfTotalSeriesSupportedScopes is the supported scope set for the
 // SERIES-host dispatch of OVERLAY_SHARE_OF_TOTAL. The SERIES
 // dispatch emits one per-group share against the host series' grand
@@ -721,27 +609,6 @@ var shareOfTotalSupportedScopes = map[types.OverlayScope]bool{
 // PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors `indexVsTotalSupportedScopes`.
 var shareOfTotalSeriesSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeGroup: true,
-}
-
-// zscoreVsMarginSupportedScopes is the supported scope set for
-// OVERLAY_ZSCORE_VS_MARGIN. ZSCORE_VS_MARGIN is a CELL-scoped overlay
-// by construction — every cell receives a deviation score against the
-// matching margin slice's standard deviation. Unlike the SHARE_OF_*
-// triad the axis is not structurally locked: the validator accepts
-// every known MarginAxis (row / column / grand) and dispatches the
-// matching slice at runtime.
-var zscoreVsMarginSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeCell: true,
-}
-
-// validMarginAxes enumerates the on-wire MarginAxis values that an
-// OverlayMarginRef may carry. Mirrors the constant block in
-// types/overlay.go so the predict gate stays parity-true with the
-// type-system source of truth.
-var validMarginAxes = map[types.MarginAxis]bool{
-	types.MarginAxisRow:    true,
-	types.MarginAxisColumn: true,
-	types.MarginAxisGrand:  true,
 }
 
 // ValidateOverlays walks every spec in req.Overlays and appends
@@ -1500,33 +1367,10 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 // set. Every condition emits a distinct error so a caller surfacing
 // multiple structural problems sees them all in one pass.
 func validateOverlayIndexVsMargin(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family must be Margin. The OverlayRef union allows multiple
-	// reserved pointers; only Margin is meaningful for INDEX_VS_MARGIN
-	// today. A missing Margin pointer is a shape mismatch — the
-	// caller asked for "compare against the row margin" without
-	// telling us which margin to compare against, OR without a
-	// crosstab host to host the margin.
-	if spec.Ref.Margin == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Margin (axis-margin reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Margin.Axis must be a known MarginAxis. Unknown values are a
-	// shape mismatch in the same family — the validator cannot resolve
-	// the margin slot if it does not know which one is targeted.
-	if !validMarginAxes[spec.Ref.Margin.Axis] {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Margin.Axis is not a known MarginAxis: "+string(spec.Ref.Margin.Axis),
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -1542,20 +1386,6 @@ func validateOverlayIndexVsMargin(env *descriptor.Envelope, req *types.Request, 
 				"index": index,
 				"kind":  string(spec.Kind),
 				"axis":  string(spec.Ref.Margin.Axis),
-			})
-		return
-	}
-
-	// Scope must be in the supported set for INDEX_VS_MARGIN. Today only
-	// CELL ships; ROW / COLUMN / TOTAL widen the gate as the matching
-	// payload shapes land.
-	if !indexVsMarginSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
 			})
 		return
 	}
@@ -2520,28 +2350,17 @@ func validateOverlayDeltaVsBaseline(env *descriptor.Envelope, req *types.Request
 // other ref-family pointer) is a shape mismatch.
 //
 // Errors emitted (in order, first hit short-circuits the spec):
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref family
-//     pointer is populated.
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
-//     nil (no MATRIX host to test against).
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref arm is set
+//     (overlayhost.CrosstabSpecRefusal, judged first).
 //   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
 //     than MATRIX.
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
+//     nil (no MATRIX host to test against).
 func validateOverlayChiSqMatrix(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref must be empty — CHISQ_MATRIX is implicit-margin. A caller
-	// supplying any family pointer (Margin / Sibling / BaselineIndex /
-	// Population / Stage / Slot) is using the wrong overlay shape.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-margin: the χ² test uses the host's row / column / grand margins inline)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -2556,20 +2375,6 @@ func validateOverlayChiSqMatrix(env *descriptor.Envelope, req *types.Request, sp
 			})
 		return
 	}
-
-	// Scope must be MATRIX. CHISQ_MATRIX is a whole-table test —
-	// CELL / ROW / COLUMN / TOTAL / GROUP are not meaningful for the
-	// statistic the kind emits.
-	if !chiSqMatrixSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: matrix)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
-		return
-	}
 }
 
 // validateOverlayChiSqRow enforces the per-kind contract for
@@ -2581,29 +2386,17 @@ func validateOverlayChiSqMatrix(env *descriptor.Envelope, req *types.Request, sp
 // (or any other ref-family pointer) is a shape mismatch.
 //
 // Errors emitted (in order, first hit short-circuits the spec):
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref family
-//     pointer is populated.
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
-//     nil (no MATRIX host to test against).
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref arm is set
+//     (overlayhost.CrosstabSpecRefusal, judged first).
 //   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
 //     than ROW.
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
+//     nil (no MATRIX host to test against).
 func validateOverlayChiSqRow(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref must be empty — CHISQ_ROW is implicit-margin (same contract
-	// as CHISQ_MATRIX). A caller supplying any family pointer (Margin /
-	// Sibling / BaselineIndex / Population / Stage / Slot) is using the
-	// wrong overlay shape.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-margin: the per-row χ² test uses the host's row / column / grand margins inline)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -2618,20 +2411,6 @@ func validateOverlayChiSqRow(env *descriptor.Envelope, req *types.Request, spec 
 			})
 		return
 	}
-
-	// Scope must be ROW. CHISQ_ROW emits one statistic per row tuple —
-	// CELL / COLUMN / MATRIX / TOTAL / GROUP are not meaningful for the
-	// per-row statistic the kind emits.
-	if !chiSqRowSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: row)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
-		return
-	}
 }
 
 // validateOverlayChiSqCol enforces the per-kind contract for
@@ -2643,30 +2422,17 @@ func validateOverlayChiSqRow(env *descriptor.Envelope, req *types.Request, spec 
 // Ref.Margin (or any other ref-family pointer) is a shape mismatch.
 //
 // Errors emitted (in order, first hit short-circuits the spec):
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref family
-//     pointer is populated.
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
-//     nil (no MATRIX host to test against).
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref arm is set
+//     (overlayhost.CrosstabSpecRefusal, judged first).
 //   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
 //     than COLUMN.
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
+//     nil (no MATRIX host to test against).
 func validateOverlayChiSqCol(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref must be empty — CHISQ_COL is implicit-margin (mechanical
-	// column-axis twin of CHISQ_ROW; same contract as CHISQ_MATRIX).
-	// A caller supplying any family pointer (Margin / Sibling /
-	// BaselineIndex / Population / Stage / Slot) is using the wrong
-	// overlay shape.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-margin: the per-column χ² test uses the host's row / column / grand margins inline)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -2682,20 +2448,6 @@ func validateOverlayChiSqCol(env *descriptor.Envelope, req *types.Request, spec 
 			})
 		return
 	}
-
-	// Scope must be COLUMN. CHISQ_COL emits one statistic per column
-	// tuple — CELL / ROW / MATRIX / TOTAL / GROUP are not meaningful
-	// for the per-column statistic the kind emits.
-	if !chiSqColSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: column)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
-		return
-	}
 }
 
 // validateOverlayDeltaVsMargin enforces the per-kind contract for
@@ -2706,31 +2458,10 @@ func validateOverlayChiSqCol(env *descriptor.Envelope, req *types.Request, spec 
 // ZSCORE_VS_MARGIN), the host result must be MATRIX-shaped (i.e.
 // Request.Crosstab is non-nil), and Scope must be CELL.
 func validateOverlayDeltaVsMargin(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family must be Margin. DELTA_VS_MARGIN shares the same ref
-	// shape contract as INDEX_VS_MARGIN / SHARE_OF_* / ZSCORE_VS_MARGIN
-	// — the centerpoint is an axis-margin slot.
-	if spec.Ref.Margin == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Margin (axis-margin reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Margin.Axis must be a known MarginAxis. DELTA_VS_MARGIN accepts
-	// every known axis at predict time AND at runtime (the runtime
-	// handler dispatches the matching margin); unknown values are a
-	// shape mismatch.
-	if !validMarginAxes[spec.Ref.Margin.Axis] {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Margin.Axis is not a known MarginAxis: "+string(spec.Ref.Margin.Axis),
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -2746,19 +2477,6 @@ func validateOverlayDeltaVsMargin(env *descriptor.Envelope, req *types.Request, 
 			})
 		return
 	}
-
-	// Scope must be CELL. DELTA_VS_MARGIN is a cell-decoration overlay
-	// by construction.
-	if !deltaVsMarginSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
-		return
-	}
 }
 
 // validateOverlayFisherExactCell enforces the per-kind contract for
@@ -2770,29 +2488,17 @@ func validateOverlayDeltaVsMargin(env *descriptor.Envelope, req *types.Request, 
 // Ref.Margin (or any other ref-family pointer) is a shape mismatch.
 //
 // Errors emitted (in order, first hit short-circuits the spec):
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref family
-//     pointer is populated.
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
-//     nil (no MATRIX host to test against).
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref arm is set
+//     (overlayhost.CrosstabSpecRefusal, judged first).
 //   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
 //     than CELL.
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
+//     nil (no MATRIX host to test against).
 func validateOverlayFisherExactCell(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref must be empty — FISHER_EXACT_CELL is implicit-margin (mirrors
-	// the CHISQ_* family). A caller supplying any family pointer
-	// (Margin / Sibling / BaselineIndex / Population / Stage / Slot)
-	// is using the wrong overlay shape.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-margin: the per-cell 2×2 Fisher's exact test reads the host's row + column margins inline)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -2807,20 +2513,6 @@ func validateOverlayFisherExactCell(env *descriptor.Envelope, req *types.Request
 			})
 		return
 	}
-
-	// Scope must be CELL. FISHER_EXACT_CELL emits one p-value per cell
-	// — ROW / COLUMN / MATRIX / TOTAL / GROUP scopes are not meaningful
-	// for the per-cell statistic the kind emits.
-	if !fisherExactCellSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
-		return
-	}
 }
 
 // validateOverlayShareOfRow enforces the per-kind contract for
@@ -2832,31 +2524,10 @@ func validateOverlayFisherExactCell(env *descriptor.Envelope, req *types.Request
 // row" code), the host result must be MATRIX-shaped (i.e.
 // Request.Crosstab is non-nil), and Scope must be CELL.
 func validateOverlayShareOfRow(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family must be Margin. SHARE_OF_ROW shares the same ref
-	// shape contract as INDEX_VS_MARGIN — the denominator is an axis-
-	// margin slot.
-	if spec.Ref.Margin == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Margin (axis-margin reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Margin.Axis must be a known MarginAxis. SHARE_OF_ROW is row-
-	// axis-locked at runtime, but the predict gate accepts any known
-	// axis to keep the failure modes orthogonal — an unknown axis is
-	// "shape mismatch", not "kind mismatch".
-	if !validMarginAxes[spec.Ref.Margin.Axis] {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Margin.Axis is not a known MarginAxis: "+string(spec.Ref.Margin.Axis),
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -2872,19 +2543,6 @@ func validateOverlayShareOfRow(env *descriptor.Envelope, req *types.Request, spe
 			})
 		return
 	}
-
-	// Scope must be CELL. SHARE_OF_ROW is a cell-decoration overlay
-	// by construction.
-	if !shareOfRowSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
-		return
-	}
 }
 
 // validateOverlayShareOfCol enforces the per-kind contract for
@@ -2897,31 +2555,10 @@ func validateOverlayShareOfRow(env *descriptor.Envelope, req *types.Request, spe
 // the host result must be MATRIX-shaped (i.e. Request.Crosstab is
 // non-nil), and Scope must be CELL.
 func validateOverlayShareOfCol(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family must be Margin. SHARE_OF_COL shares the same ref
-	// shape contract as INDEX_VS_MARGIN / SHARE_OF_ROW — the
-	// denominator is an axis-margin slot.
-	if spec.Ref.Margin == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Margin (axis-margin reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Margin.Axis must be a known MarginAxis. SHARE_OF_COL is column-
-	// axis-locked at runtime, but the predict gate accepts any known
-	// axis to keep the failure modes orthogonal — an unknown axis is
-	// "shape mismatch", not "kind mismatch".
-	if !validMarginAxes[spec.Ref.Margin.Axis] {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Margin.Axis is not a known MarginAxis: "+string(spec.Ref.Margin.Axis),
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -2934,19 +2571,6 @@ func validateOverlayShareOfCol(env *descriptor.Envelope, req *types.Request, spe
 				"index": index,
 				"kind":  string(spec.Kind),
 				"axis":  string(spec.Ref.Margin.Axis),
-			})
-		return
-	}
-
-	// Scope must be CELL. SHARE_OF_COL is a cell-decoration overlay
-	// by construction.
-	if !shareOfColSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
 			})
 		return
 	}
@@ -2996,31 +2620,10 @@ func validateOverlayShareOfTotal(env *descriptor.Envelope, req *types.Request, s
 // MATRIX-shaped (i.e. Request.Crosstab is non-nil), and Scope must be
 // CELL.
 func validateOverlayShareOfTotalMatrix(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family must be Margin. SHARE_OF_TOTAL shares the same ref
-	// shape contract as INDEX_VS_MARGIN / SHARE_OF_ROW / SHARE_OF_COL
-	// — the denominator is an axis-margin slot (the grand axis).
-	if spec.Ref.Margin == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Margin (axis-margin reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Margin.Axis must be a known MarginAxis. SHARE_OF_TOTAL is grand-
-	// axis-locked at runtime, but the predict gate accepts any known
-	// axis to keep the failure modes orthogonal — an unknown axis is
-	// "shape mismatch", not "kind mismatch".
-	if !validMarginAxes[spec.Ref.Margin.Axis] {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Margin.Axis is not a known MarginAxis: "+string(spec.Ref.Margin.Axis),
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -3033,19 +2636,6 @@ func validateOverlayShareOfTotalMatrix(env *descriptor.Envelope, req *types.Requ
 				"index": index,
 				"kind":  string(spec.Kind),
 				"axis":  string(spec.Ref.Margin.Axis),
-			})
-		return
-	}
-
-	// Scope must be CELL. SHARE_OF_TOTAL is a cell-decoration overlay
-	// by construction.
-	if !shareOfTotalSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
 			})
 		return
 	}
@@ -3120,31 +2710,10 @@ func validateOverlayShareOfTotalSeries(env *descriptor.Envelope, req *types.Requ
 // handler dispatches all three axes), the host result must be MATRIX-
 // shaped (i.e. Request.Crosstab is non-nil), and Scope must be CELL.
 func validateOverlayZScoreVsMargin(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family must be Margin. ZSCORE_VS_MARGIN shares the same ref
-	// shape contract as INDEX_VS_MARGIN / SHARE_OF_* — the centerpoint
-	// is an axis-margin slot.
-	if spec.Ref.Margin == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Margin (axis-margin reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Margin.Axis must be a known MarginAxis. ZSCORE_VS_MARGIN
-	// accepts every known axis at predict time AND at runtime (the
-	// runtime handler dispatches the matching slice); unknown values
-	// are a shape mismatch.
-	if !validMarginAxes[spec.Ref.Margin.Axis] {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Margin.Axis is not a known MarginAxis: "+string(spec.Ref.Margin.Axis),
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -3158,19 +2727,6 @@ func validateOverlayZScoreVsMargin(env *descriptor.Envelope, req *types.Request,
 				"index": index,
 				"kind":  string(spec.Kind),
 				"axis":  string(spec.Ref.Margin.Axis),
-			})
-		return
-	}
-
-	// Scope must be CELL. ZSCORE_VS_MARGIN is a cell-decoration overlay
-	// by construction.
-	if !zscoreVsMarginSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
 			})
 		return
 	}

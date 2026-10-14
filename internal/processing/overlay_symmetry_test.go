@@ -246,9 +246,6 @@ func TestSymmetry_Refusals(t *testing.T) {
 		want   errors.Code
 		indexd bool
 	}{
-		{"cell scope", &types.OverlaySpec{Kind: types.OverlayKindSymmetry, Scope: types.OverlayScopeCell}, square(), errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED, true},
-		{"ref set", &types.OverlaySpec{Kind: types.OverlayKindSymmetry, Scope: types.OverlayScopeMatrix,
-			Ref: types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}}}, square(), errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, true},
 		{"unknown param", symmetrySpec(`{"exact":true}`), square(), errors.PULSE_OVERLAY_PARAM_MISSING, true},
 		{"non-boolean correct", symmetrySpec(`{"correct":"yes"}`), square(), errors.PULSE_OVERLAY_PARAM_MISSING, true},
 		{"average cell", symmetrySpec(""), avg, errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED, true},

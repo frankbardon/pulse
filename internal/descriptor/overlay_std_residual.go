@@ -6,14 +6,9 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
-
-// stdResidualSupportedScopes is the supported scope set for
-// OVERLAY_STD_RESIDUAL: one adjusted residual per cell, so CELL only.
-var stdResidualSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeCell: true,
-}
 
 // stdResidualParts declares the named parts OVERLAY_STD_RESIDUAL writes
 // beside its primary residual matrix (types.OverlayPayload.Parts).
@@ -85,20 +80,18 @@ func overlayPartsFor(kind types.OverlayKind) []descriptor.OverlayPart {
 // (Request.Crosstab) and Scope must be CELL.
 //
 // Errors emitted (in order, first hit short-circuits the spec):
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref family
-//     pointer is populated.
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is nil.
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref arm is set
+//     (overlayhost.CrosstabSpecRefusal, judged first).
 //   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything but CELL.
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is nil.
 func validateOverlayStdResidual(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	if spec.Ref != (types.OverlayRef{}) {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-margin: the adjusted residuals read the table's own row / column / grand totals)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
+
 	if req.Crosstab == nil {
 		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
@@ -107,14 +100,5 @@ func validateOverlayStdResidual(env *descriptor.Envelope, req *types.Request, sp
 				"kind":  string(spec.Kind),
 			})
 		return
-	}
-	if !stdResidualSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
 	}
 }

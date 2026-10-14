@@ -41,7 +41,8 @@ const (
 //
 // The spec: a set Ref is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE and a
 // scope other than row PULSE_OVERLAY_SCOPE_UNSUPPORTED
-// (overlayhost.RetentionSpecRefusal, predict's twin). Params:
+// (overlayhost.CrosstabSpecRefusal, raised by the MATRIX dispatcher
+// before this handler and by predict alike). Params:
 // overlayhost.ParseRetentionParams; an absorbing name that is neither a
 // row nor a column key is PULSE_OVERLAY_PARAM_MISSING
 // (overlayhost.MarkovStateRefusal, runtime only — predict reads no
@@ -71,9 +72,6 @@ func applyRetention(spec *types.OverlaySpec, host *CrosstabHostView) (types.Over
 // spec, params, cell, arity and state refusals carry the same details —
 // index included — as predict's.
 func applyRetentionAt(spec *types.OverlaySpec, host *CrosstabHostView, index int) (types.OverlayLayer, []types.OverlayWarning, error) {
-	if cerr := overlayhost.RetentionSpecRefusal(spec, index); cerr != nil {
-		return types.OverlayLayer{}, nil, cerr
-	}
 	params, cerr := overlayhost.ParseRetentionParams(spec, index)
 	if cerr != nil {
 		return types.OverlayLayer{}, nil, cerr

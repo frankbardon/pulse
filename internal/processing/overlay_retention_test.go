@@ -268,9 +268,6 @@ func TestRetention_Refusals(t *testing.T) {
 		want   errors.Code
 		indexd bool
 	}{
-		{"matrix scope", &types.OverlaySpec{Kind: types.OverlayKindRetention, Scope: types.OverlayScopeMatrix}, square(), errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED, true},
-		{"ref set", &types.OverlaySpec{Kind: types.OverlayKindRetention, Scope: types.OverlayScopeRow,
-			Ref: types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}}}, square(), errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, true},
 		{"unknown param", retentionSpec(`{"steps":[1]}`), square(), errors.PULSE_OVERLAY_PARAM_MISSING, true},
 		{"empty absorbing", retentionSpec(`{"absorbing":[]}`), square(), errors.PULSE_OVERLAY_PARAM_MISSING, true},
 		{"unknown absorbing state", retentionSpec(`{"absorbing":["lapsed"]}`), square(), errors.PULSE_OVERLAY_PARAM_MISSING, true},

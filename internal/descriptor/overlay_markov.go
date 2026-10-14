@@ -45,22 +45,17 @@ func validateOverlayMarkov(env *descriptor.Envelope, req *types.Request, spec *t
 	if route != types.OverlayKindMarkov || req == nil || spec == nil {
 		return
 	}
-	if spec.Ref != (types.OverlayRef{}) {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-margin: the chain reads the whole table)",
-			map[string]any{"index": index, "kind": string(spec.Kind)})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, route, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
+
 	if req.Crosstab == nil {
 		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
 			map[string]any{"index": index, "kind": string(spec.Kind)})
-		return
-	}
-	if spec.Scope != types.OverlayScopeMatrix {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: matrix)",
-			map[string]any{"index": index, "kind": string(spec.Kind), "scope": string(spec.Scope)})
 		return
 	}
 	if _, cerr := overlayhost.ParseMarkovParams(spec, index); cerr != nil {

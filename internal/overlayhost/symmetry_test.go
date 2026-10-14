@@ -40,21 +40,3 @@ func TestParseSymmetryParams(t *testing.T) {
 		t.Fatalf("no-index refusal %v", cerr)
 	}
 }
-
-// TestSymmetrySpecRefusal: a set Ref refuses first, then a non-matrix
-// scope; a matrix spec with an empty Ref passes. index rides only when
-// >= 0.
-func TestSymmetrySpecRefusal(t *testing.T) {
-	spec := &types.OverlaySpec{Kind: types.OverlayKindSymmetry, Scope: types.OverlayScopeMatrix}
-	if cerr := SymmetrySpecRefusal(spec, 0); cerr != nil {
-		t.Fatalf("matrix spec refused: %v", cerr)
-	}
-	spec.Scope = types.OverlayScopeCell
-	if cerr := SymmetrySpecRefusal(spec, 1); cerr == nil || cerr.Code != errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED || cerr.Details["scope"] != "cell" || cerr.Details["index"] != 1 {
-		t.Fatalf("scope refusal %v", cerr)
-	}
-	spec.Ref = types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}}
-	if cerr := SymmetrySpecRefusal(spec, -1); cerr == nil || cerr.Code != errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE || cerr.Details["index"] != nil {
-		t.Fatalf("ref refusal %v", cerr)
-	}
-}

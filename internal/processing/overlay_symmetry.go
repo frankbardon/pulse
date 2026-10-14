@@ -43,7 +43,8 @@ const symmetryLowExpected = 5
 //
 // The spec: a set Ref is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE and a
 // scope other than matrix PULSE_OVERLAY_SCOPE_UNSUPPORTED
-// (overlayhost.SymmetrySpecRefusal, predict's twin). The table: absent
+// (overlayhost.CrosstabSpecRefusal, raised by the MATRIX dispatcher
+// before this handler and by predict alike). The table: absent
 // cells are 0 (an undefined NaN cell is absent too — CellAt); a cell
 // aggregation other than AGG_COUNT / AGG_SUM or a
 // negative / non-finite cell is PULSE_OVERLAY_NONNEGATIVE_REQUIRED; a
@@ -75,9 +76,6 @@ func applySymmetry(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 // params, cell and arity refusals carry the same details — index
 // included — as predict's.
 func applySymmetryAt(spec *types.OverlaySpec, host *CrosstabHostView, index int) (types.OverlayLayer, []types.OverlayWarning, error) {
-	if cerr := overlayhost.SymmetrySpecRefusal(spec, index); cerr != nil {
-		return types.OverlayLayer{}, nil, cerr
-	}
 	params, cerr := overlayhost.ParseSymmetryParams(spec, index)
 	if cerr != nil {
 		return types.OverlayLayer{}, nil, cerr

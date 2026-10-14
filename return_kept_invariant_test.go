@@ -104,7 +104,7 @@ func TestReturnKeptNumberInvariant(t *testing.T) {
 		build := func(ret *types.Return) *types.Request {
 			r := floorCrosstab(cohort, nil, types.SlotWeight{}, nil,
 				types.OverlaySpec{Name: "m", Kind: types.OverlayKindChiSqMatrix, Scope: types.OverlayScopeMatrix},
-				types.OverlaySpec{Name: "d", Kind: types.OverlayKindShareOfRow, Scope: types.OverlayScopeRow,
+				types.OverlaySpec{Name: "d", Kind: types.OverlayKindShareOfRow, Scope: types.OverlayScopeCell,
 					Ref: types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}}})
 			r.Tests = []*types.Test{{Type: types.TEST_T, Field: "x", Params: json.RawMessage(`{"mu":10}`), Label: "t"}}
 			r.Multiplicity = &types.Multiplicity{Method: types.MultiplicityMethodHolm, Family: types.MultiplicityFamilyRequest}

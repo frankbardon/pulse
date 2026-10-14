@@ -390,7 +390,7 @@ func overlayCrosstabRequest(tests bool) *types.Request {
 			{Name: "m", Kind: types.OverlayKindChiSqMatrix, Scope: types.OverlayScopeMatrix},
 			{Name: "r", Kind: types.OverlayKindChiSqRow, Scope: types.OverlayScopeRow},
 			{Name: "f", Kind: types.OverlayKindFisherExactCell, Scope: types.OverlayScopeCell},
-			{Name: "d", Kind: types.OverlayKindShareOfRow, Scope: types.OverlayScopeRow, Ref: types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}}},
+			{Name: "d", Kind: types.OverlayKindShareOfRow, Scope: types.OverlayScopeCell, Ref: types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}}},
 		},
 	}
 	if tests {

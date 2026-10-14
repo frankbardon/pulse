@@ -10,7 +10,7 @@ import (
 // validateOverlayRetention enforces the predict contract of
 // OVERLAY_RETENTION (route = the instance's routing of the kind; any
 // other route returns): Ref must be EMPTY and Scope ROW
-// (overlayhost.RetentionSpecRefusal), the host must be MATRIX-shaped
+// (overlayhost.CrosstabSpecRefusal, the runtime dispatcher's twin), the host must be MATRIX-shaped
 // (Request.Crosstab), params must parse (overlayhost.ParseRetentionParams),
 // the cell aggregation must be AGG_COUNT or AGG_SUM
 // (overlayhost.NonnegativeCellRefusal) and the row and column axes must
@@ -34,7 +34,7 @@ func validateOverlayRetention(env *descriptor.Envelope, req *types.Request, spec
 	if route != types.OverlayKindRetention || req == nil || spec == nil {
 		return
 	}
-	if cerr := overlayhost.RetentionSpecRefusal(spec, index); cerr != nil {
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, route, index); cerr != nil {
 		addCodedError(env, cerr)
 		return
 	}
