@@ -43,6 +43,9 @@ type rotationCase struct {
 	Varimax   rotationOut   `json:"varimax"`
 	Promax    []rotationOut `json:"promax"`
 	Oblimin   []rotationOut `json:"oblimin"`
+	// GPForthVarimax is GPArotation::GPForth(A, method = "varimax",
+	// normalize = TRUE): the orthogonal GPA driver's oracle.
+	GPForthVarimax rotationOut `json:"gpforth_varimax"`
 }
 
 func rotNear(t *testing.T, where string, got, want float64) {

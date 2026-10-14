@@ -28,10 +28,22 @@ import (
 //     Q = L∘|L|^(κ−1), the least-squares fit U = (LᵀL)⁻¹LᵀQ with its
 //     columns rescaled so Φ = (UᵀU)⁻¹ has a unit diagonal; T = T_v·U.
 //   - oblimin (GPArotation::oblimin, gam = gamma, normalize = FALSE):
-//     the oblique gradient-projection algorithm with the package's
-//     default Barzilai–Borwein step and 10-iterate non-monotone line
-//     search, stopping when the projected gradient's norm drops below
-//     1e-5 (2000 iterations at most). L = A·(T_g⁻¹)ᵀ, Φ = T_gᵀT_g.
+//     vgQ.oblimin on the oblique gradient-projection driver gpfoblq.
+//     L = A·(T_g⁻¹)ᵀ, Φ = T_gᵀT_g.
+//
+// The gradient-projection (GPA) criteria share ONE driver, gpaRotate,
+// GPArotation's GPForth / GPFoblq loop with the package's defaults:
+// Barzilai–Borwein step clamped to [1e-10, 20], non-monotone Armijo
+// test against the last 10 criterion values, ≤ 11 trial steps per
+// iteration, stop when the projected gradient's Frobenius norm drops
+// below 1e-5 (2000 iterations at most). A criterion is a gpaCriterion
+// callback — GPArotation's vgQ.* returning the gradient ∂Q/∂L and the
+// value Q the driver minimises — and the geometry is the only switch:
+// gpforth (orthogonal: L = A·T, Gp = G − T·sym(TᵀG), polar retraction
+// by SVD, Φ = I) or gpfoblq (oblique: unit-length columns, L =
+// A·(T⁻¹)ᵀ, Φ = TᵀT). A new GPA criterion is a callback, never a new
+// loop. varimax and promax are NOT GPA: they stay stats::varimax's SVD
+// fixed point.
 //
 // The sign-and-order rule (psych::fa's): columns ordered by descending
 // variance accounted, diag(Φ·LᵀL) — the column's sum of squared
@@ -45,10 +57,12 @@ import (
 // it as is — with Rotation = Φ = I and no reordering or flip.
 //
 // Numerics: products feeding a sum are written float64(a*b) (FMA-free,
-// the reference-kernel style), but the varimax SVD is gonum-backed, so
-// a result is same-machine bitwise and agrees across architectures
-// within the oracle tolerance (rotationOracleTol in the tests, 1e-9
-// absolute + relative; matrix-and-vectors/matrix-decomposition.md, Rotation engine).
+// the reference-kernel style), but the varimax SVD and gpforth's polar
+// retraction are gonum-backed, so such a result is same-machine bitwise
+// and agrees across architectures within the oracle tolerance
+// (rotationOracleTol in the tests, 1e-9 absolute + relative;
+// matrix-and-vectors/matrix-decomposition.md, Rotation engine); gpfoblq
+// is Gauss–Jordan only and arch-independent.
 
 // Rotation engine constants: R's defaults.
 const (
@@ -262,36 +276,63 @@ func promaxRotate(a [][]float64, kappa float64) (rotationResult, error) {
 	}, nil
 }
 
-// obliminRotate is GPArotation::oblimin(a, gam = gamma) — GPFoblq with
-// the default algorithm "bb" (Barzilai–Borwein step, clamped to
-// [1e-10, 20]; the first step doubles α from 1), the non-monotone
-// Armijo test against the largest criterion value of the last 10
-// iterates, at most 11 halvings per iteration, eps 1e-5, maxit 2000.
+// obliminRotate is GPArotation::oblimin(a, gam = gamma): the oblique
+// gradient-projection driver (gpfoblq) on vgQ.oblimin.
 func obliminRotate(a [][]float64, gamma float64) (rotationResult, error) {
+	crit := func(l [][]float64) ([][]float64, float64) { return obliminCriterion(l, gamma) }
+	return gpfoblq(a, crit, "gpa_oblimin"), nil
+}
+
+// gpaCriterion is a GPArotation vgQ.* criterion: at the p × k loadings
+// L it returns the gradient ∂Q/∂L (p × k) and the value Q the driver
+// MINIMISES (a criterion R maximises, varimax or quartimax, returns −Q).
+// It must not retain or mutate l.
+type gpaCriterion func(l [][]float64) (gq [][]float64, f float64)
+
+// gpforth is GPArotation::GPForth(a, method = crit, normalize = FALSE)
+// — the orthogonal gradient-projection driver with the default
+// algorithm "bb". T stays orthogonal: L = A·T, G = Aᵀ·Gq, the
+// projected gradient Gp = G − T·sym(TᵀG), and each trial step is
+// retracted by the polar factor U·Vᵀ of T − α·Gp (svdRows, gonum —
+// same-machine bitwise, cross-arch within ulps). Rotation = T, Φ = I.
+// solver names the criterion for a NOT_CONVERGED warning.
+func gpforth(a [][]float64, crit gpaCriterion, solver string) rotationResult {
+	return gpaRotate(a, crit, solver, false)
+}
+
+// gpfoblq is GPArotation::GPFoblq(a, method = crit, normalize = FALSE)
+// — the oblique driver with the default algorithm "bb". T's columns
+// stay unit length: L = A·(T⁻¹)ᵀ, G = −(LᵀGq·T⁻¹)ᵀ, Gp = G −
+// T·diag(colSums(T∘G)), and each trial step's columns are rescaled to
+// unit length (safeInverse is Gauss–Jordan, so an oblique run is
+// arch-independent). Rotation = (T⁻¹)ᵀ, Φ = TᵀT.
+func gpfoblq(a [][]float64, crit gpaCriterion, solver string) rotationResult {
+	return gpaRotate(a, crit, solver, true)
+}
+
+// gpaRotate is the loop GPForth and GPFoblq share in GPArotation: the
+// Barzilai–Borwein step (clamped to [1e-10, 20]; the first step doubles
+// α from 1), the non-monotone Armijo test against the largest criterion
+// value of the last gpaWindow iterates, at most gpaLineSteps + 1 trial
+// steps per iteration, stopping when the projected gradient's
+// Frobenius norm drops below gpaEps (gpaMaxIter iterations at most).
+// oblique picks the geometry (gpaLoadings, gpaProject, gpaRetract,
+// gpaGradient); everything else is common, so every criterion runs the
+// same arithmetic in the same order.
+func gpaRotate(a [][]float64, crit gpaCriterion, solver string, oblique bool) rotationResult {
 	k := len(a[0])
 	tm := identityRows(k)
 	alpha := 1.0
 	var tPrev, gpPrev [][]float64
-	tInv := safeInverse(tm)
-	l := mulRowsNT(a, tInv) // A·(T⁻¹)ᵀ
-	gq, f := obliminCriterion(l, gamma)
-	g := negTranspose(mulRows(mulRowsTN(l, gq), tInv))
+	l, tInv := gpaLoadings(a, tm, oblique)
+	gq, f := crit(l)
+	g := gpaGradient(a, l, gq, tInv, oblique)
 	fs := make([]float64, 0, 64)
-	res := rotationResult{Solver: "gpa_oblimin", MaxIterations: gpaMaxIter, Tolerance: gpaEps, Oblique: true}
+	res := rotationResult{Solver: solver, MaxIterations: gpaMaxIter, Tolerance: gpaEps, Oblique: oblique}
 	var s float64
 	for iter := 0; iter <= gpaMaxIter; iter++ {
 		res.Iterations = iter
-		// Gp = G − T·diag(colSums(T∘G))
-		gp := cloneRows(g)
-		for c := 0; c < k; c++ {
-			cs := 0.0
-			for r := 0; r < k; r++ {
-				cs += float64(tm[r][c] * g[r][c])
-			}
-			for r := 0; r < k; r++ {
-				gp[r][c] -= float64(tm[r][c] * cs)
-			}
-		}
+		gp := gpaProject(tm, g, oblique)
 		ss := 0.0
 		for r := range gp {
 			for _, v := range gp[r] {
@@ -335,20 +376,9 @@ func obliminRotate(a [][]float64, gamma float64) (rotationResult, error) {
 					x[r][c] = tm[r][c] - float64(alpha*gp[r][c])
 				}
 			}
-			for c := 0; c < k; c++ {
-				cs := 0.0
-				for r := 0; r < k; r++ {
-					cs += float64(x[r][c] * x[r][c])
-				}
-				v := 1 / math.Sqrt(cs)
-				for r := 0; r < k; r++ {
-					x[r][c] = float64(x[r][c] * v)
-				}
-			}
-			tNext = x
-			tNextInv = safeInverse(tNext)
-			l = mulRowsNT(a, tNextInv)
-			gqt, ft = obliminCriterion(l, gamma)
+			tNext = gpaRetract(x, oblique)
+			l, tNextInv = gpaLoadings(a, tNext, oblique)
+			gqt, ft = crit(l)
 			if target-ft > float64(float64(0.5*float64(s*s))*alpha) {
 				break
 			}
@@ -357,13 +387,94 @@ func obliminRotate(a [][]float64, gamma float64) (rotationResult, error) {
 		tPrev, gpPrev = tm, gp
 		tm = tNext
 		f = ft
-		g = negTranspose(mulRows(mulRowsTN(l, gqt), tNextInv))
+		g = gpaGradient(a, l, gqt, tNextInv, oblique)
 	}
 	res.Converged = s < gpaEps
 	res.Loadings = l
-	res.Rotation = transposeRows(safeInverse(tm))
-	res.Phi = mulRowsTN(tm, tm)
-	return res, nil
+	if oblique {
+		res.Rotation = transposeRows(safeInverse(tm))
+		res.Phi = mulRowsTN(tm, tm)
+	} else {
+		res.Rotation = tm
+		res.Phi = identityRows(k)
+	}
+	return res
+}
+
+// gpaLoadings is L at T: A·(T⁻¹)ᵀ with T⁻¹ oblique, A·T orthogonal
+// (T⁻¹ nil).
+func gpaLoadings(a, tm [][]float64, oblique bool) (l, tInv [][]float64) {
+	if !oblique {
+		return mulRows(a, tm), nil
+	}
+	tInv = safeInverse(tm)
+	return mulRowsNT(a, tInv), tInv
+}
+
+// gpaGradient is the criterion's gradient with respect to T:
+// −(LᵀGq·T⁻¹)ᵀ oblique, AᵀGq orthogonal.
+func gpaGradient(a, l, gq, tInv [][]float64, oblique bool) [][]float64 {
+	if !oblique {
+		return mulRowsTN(a, gq)
+	}
+	return negTranspose(mulRows(mulRowsTN(l, gq), tInv))
+}
+
+// gpaProject projects G onto the tangent space at T: G −
+// T·diag(colSums(T∘G)) oblique, G − T·(M + Mᵀ)/2 with M = TᵀG
+// orthogonal.
+func gpaProject(tm, g [][]float64, oblique bool) [][]float64 {
+	k := len(tm)
+	gp := cloneRows(g)
+	if !oblique {
+		m := mulRowsTN(tm, g)
+		sym := make([][]float64, k)
+		for r := range sym {
+			sym[r] = make([]float64, k)
+			for c := range sym[r] {
+				sym[r][c] = (m[r][c] + m[c][r]) / 2
+			}
+		}
+		ts := mulRows(tm, sym)
+		for r := range gp {
+			for c := range gp[r] {
+				gp[r][c] -= ts[r][c]
+			}
+		}
+		return gp
+	}
+	for c := 0; c < k; c++ {
+		cs := 0.0
+		for r := 0; r < k; r++ {
+			cs += float64(tm[r][c] * g[r][c])
+		}
+		for r := 0; r < k; r++ {
+			gp[r][c] -= float64(tm[r][c] * cs)
+		}
+	}
+	return gp
+}
+
+// gpaRetract maps the trial step X = T − α·Gp back onto the
+// constraint set: its columns rescaled to unit length (in place)
+// oblique, its polar factor U·Vᵀ orthogonal.
+func gpaRetract(x [][]float64, oblique bool) [][]float64 {
+	k := len(x)
+	if !oblique {
+		u, _, v := svdRows(x)
+		return mulRowsNT(u, v)
+	}
+	for c := 0; c < k; c++ {
+		cs := 0.0
+		for r := 0; r < k; r++ {
+			cs += float64(x[r][c] * x[r][c])
+		}
+		v := 1 / math.Sqrt(cs)
+		for r := 0; r < k; r++ {
+			x[r][c] = float64(x[r][c] * v)
+		}
+	}
+	return x
 }
 
 // obliminCriterion is GPArotation's vgQ.oblimin: X = rowSums(L²) − L²
