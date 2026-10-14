@@ -21,7 +21,7 @@ func chainCodeSchema() *encoding.Schema {
 
 // chainCodeNext is a synthesised-schema builder: group keys
 // categorical_u32, aggregation outputs f64.
-func chainCodeNext(r *types.Request) *encoding.Schema {
+func chainCodeNext(r *types.Request, _ *encoding.Schema) *encoding.Schema {
 	s := &encoding.Schema{}
 	for _, g := range r.Groups {
 		s.Fields = append(s.Fields, encoding.Field{Name: g.Field, Type: encoding.FieldTypeCategoricalU32})
@@ -74,7 +74,7 @@ func TestChainCodeColumns(t *testing.T) {
 
 	// CodeFieldTypes: a code column answers its origin type, every other
 	// field its own, an unknown field nothing.
-	look := CodeFieldTypes(chainCodeNext(stages[0]), map[string]encoding.FieldType{"mc": encoding.FieldTypeCategoricalU8})
+	look := CodeFieldTypes(chainCodeNext(stages[0], nil), map[string]encoding.FieldType{"mc": encoding.FieldTypeCategoricalU8})
 	if ft, ok := look("mc"); !ok || ft != encoding.FieldTypeCategoricalU8 {
 		t.Errorf("mc = %v %v", ft, ok)
 	}

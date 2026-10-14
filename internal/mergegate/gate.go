@@ -281,7 +281,12 @@ func StageMatrixRefusal(req *types.Request, stageIndex int, stageName string) er
 // would be silently wrong. nil for the last stage (its rows are the
 // chain's output) or a stage with no such slot, else PROCESSING_CONFIG
 // {stage_index, stage_name, aggregation, label, reason:
-// "array_valued"}. The runtime and the chain validator both check it
+// "array_valued"}. An EXPANDING one (params.expand,
+// vectors.AggregationExpands) writes no array — one f64 column per
+// member, "<label>[<element label>]" — so it feeds the next stage, which
+// reads each element column as an ordinary nullable f64 (the
+// synthesised schema, vectors.ChainStageSchema, lists them); its bare
+// label is no column there. The runtime and the chain validator both check it
 // right after ChainRefusal. kinds is the instance's view (a declared
 // ArrayValued extension aggregator is array-valued too); the zero value
 // is the built-in view.
@@ -296,7 +301,7 @@ func StageArrayValuedRefusal(req *types.Request, stageIndex, stageCount int, sta
 		return nil
 	}
 	for _, agg := range req.Aggregations {
-		if agg == nil || !kinds.IsNonScalar(agg.Type) {
+		if agg == nil || !kinds.IsNonScalar(agg.Type) || vectors.AggregationExpands(agg, kinds) {
 			continue
 		}
 		label := types.AggregationLabelOf(agg)

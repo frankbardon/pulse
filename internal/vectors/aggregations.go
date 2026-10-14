@@ -52,7 +52,8 @@ import (
 // IsArrayValued — types.AggregationType.ArrayValued or a declared
 // ArrayValued extension): ArrayValuedCrosstabRefusal here, Sort and
 // request overlays in the field-reference walk, a feeding chain stage
-// in internal/mergegate.
+// in internal/mergegate (unless the slot expands: ChainStageSchema
+// types its element columns for the next stage).
 
 // ExtensionAggregation is what an instance declares about one
 // aggregation type its extensions register: Registered (the name is an
@@ -293,8 +294,9 @@ type VecAggParams struct {
 	Labels []string `json:"labels,omitempty"`
 	// Expand replaces the array value with one scalar column per member,
 	// named ExpandedColumn(label, element label). Each is an ordinary
-	// nullable f64 output column (Sort, a window and a post-test read
-	// it); an overlay host and a feeding chain stage still refuse it.
+	// nullable f64 output column (Sort, a window, a post-test, a series
+	// overlay's params.field and a later chain stage read it); the bare
+	// label stays refused.
 	Expand bool `json:"expand,omitempty"`
 }
 

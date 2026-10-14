@@ -2624,7 +2624,7 @@
         {
           "name": "AGG_VEC_MEAN",
           "category": "aggregator",
-          "description": "Per-member mean of a vector (vector or fields, exactly one; never field): one figure per member, in member order — the group's average profile. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) / sum(w) per element. An element no row answered is NaN (null in JSON). Array-valued: refused as a crosstab cell, a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: params.field where the kind honours it, else aggregations[0] — an unscored one beside it runs) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"\u003clabel\u003e[\u003celement label\u003e]\" — an ordinary nullable f64 column a Sort key, a window, a post-test or a series overlay's params.field reads (an unanswered element is NaN, a null there and a missing host value to an overlay); a feeding chain stage still refuses it.",
+          "description": "Per-member mean of a vector (vector or fields, exactly one; never field): one figure per member, in member order — the group's average profile. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) / sum(w) per element. An element no row answered is NaN (null in JSON). Array-valued: refused as a crosstab cell, a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: params.field where the kind honours it, else aggregations[0] — an unscored one beside it runs) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"\u003clabel\u003e[\u003celement label\u003e]\" — an ordinary nullable f64 column a Sort key, a window, a post-test, a series overlay's params.field or a later chain stage (an f64 input field) reads (an unanswered element is NaN, a null there and a missing host value to an overlay).",
           "params": [
             {
               "name": "labels",
@@ -2636,7 +2636,7 @@
               "name": "expand",
               "type": "bool",
               "required": false,
-              "description": "true: replace the array with one scalar column per member, \"\u003clabel\u003e[\u003celement label\u003e]\" in member order (grouped: per row); the label itself is absent. Predict lists the columns (aggregations[i].columns). Each is an ordinary nullable f64 column: a Sort key, a window's field / order_by / partition_by, a post-test field and a series overlay's params.field (request, Compose or whole-chain host) read it (NaN, an element no row answered, is a null there and a missing host value to an overlay), while the bare label stays refused (PROCESSING_CONFIG, reason array_valued); a feeding chain stage still refuses them; element labels must be distinct (expand_duplicate_labels). Return paths cannot name a bracketed column — select them with a prefix glob, data[*].\u003clabel\u003e*. Default false."
+              "description": "true: replace the array with one scalar column per member, \"\u003clabel\u003e[\u003celement label\u003e]\" in member order (grouped: per row); the label itself is absent. Predict lists the columns (aggregations[i].columns). Each is an ordinary nullable f64 column: a Sort key, a window's field / order_by / partition_by, a post-test field and a series overlay's params.field (request, Compose or whole-chain host) read it, and so does a later chain stage, as an f64 input field (NaN, an element no row answered, is a null there and a missing host value to an overlay), while the bare label stays refused (PROCESSING_CONFIG, reason array_valued); element labels must be distinct (expand_duplicate_labels). Return paths cannot name a bracketed column — select them with a prefix glob, data[*].\u003clabel\u003e*. Default false."
             }
           ],
           "accepts_types": [
@@ -2718,7 +2718,7 @@
         {
           "name": "AGG_VEC_SUM",
           "category": "aggregator",
-          "description": "Per-member total of a vector (vector or fields, exactly one; never field): one figure per member, in member order. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) per element. An element no row answered is 0. Array-valued: refused as a crosstab cell, a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: params.field where the kind honours it, else aggregations[0] — an unscored one beside it runs) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"\u003clabel\u003e[\u003celement label\u003e]\" — an ordinary f64 column a Sort key, a window, a post-test or a series overlay's params.field reads; a feeding chain stage still refuses it.",
+          "description": "Per-member total of a vector (vector or fields, exactly one; never field): one figure per member, in member order. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) per element. An element no row answered is 0. Array-valued: refused as a crosstab cell, a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: params.field where the kind honours it, else aggregations[0] — an unscored one beside it runs) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"\u003clabel\u003e[\u003celement label\u003e]\" — an ordinary f64 column a Sort key, a window, a post-test, a series overlay's params.field or a later chain stage (an f64 input field) reads.",
           "params": [
             {
               "name": "labels",
@@ -2730,7 +2730,7 @@
               "name": "expand",
               "type": "bool",
               "required": false,
-              "description": "true: replace the array with one scalar column per member, \"\u003clabel\u003e[\u003celement label\u003e]\" in member order (grouped: per row); the label itself is absent. Predict lists the columns (aggregations[i].columns). Each is an ordinary nullable f64 column: a Sort key, a window's field / order_by / partition_by, a post-test field and a series overlay's params.field (request, Compose or whole-chain host) read it (NaN, an element no row answered, is a null there and a missing host value to an overlay), while the bare label stays refused (PROCESSING_CONFIG, reason array_valued); a feeding chain stage still refuses them; element labels must be distinct (expand_duplicate_labels). Return paths cannot name a bracketed column — select them with a prefix glob, data[*].\u003clabel\u003e*. Default false."
+              "description": "true: replace the array with one scalar column per member, \"\u003clabel\u003e[\u003celement label\u003e]\" in member order (grouped: per row); the label itself is absent. Predict lists the columns (aggregations[i].columns). Each is an ordinary nullable f64 column: a Sort key, a window's field / order_by / partition_by, a post-test field and a series overlay's params.field (request, Compose or whole-chain host) read it, and so does a later chain stage, as an f64 input field (NaN, an element no row answered, is a null there and a missing host value to an overlay), while the bare label stays refused (PROCESSING_CONFIG, reason array_valued); element labels must be distinct (expand_duplicate_labels). Return paths cannot name a bracketed column — select them with a prefix glob, data[*].\u003clabel\u003e*. Default false."
             }
           ],
           "accepts_types": [
@@ -16819,4 +16819,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9582c92f50e79bc300527a8668147cec8efa9b004974dbb40d7665c15e7e4c88
+// golden-hash: c517028811c694cda5e68d219f29474ff41473f634132d4284edcf12833f6738

@@ -587,9 +587,9 @@ func TestVecAggExpand_ComposeAndChain(t *testing.T) {
 	// ProcessChain: the final stage writes the expanded keys and
 	// predict names them as the stage's columns.
 	chain := func(expand bool, overlay bool) *pulse.ChainRequest {
-		// The vector stage is the last (it may not feed another), so a
-		// one-stage chain: its stage is both the result and the
-		// overlay's target and reference.
+		// A one-stage chain: its vector stage is both the result and the
+		// overlay's target and reference. (An expanding stage feeding
+		// another: TestChain_ElementColumnsFeedNextStage.)
 		final := slot("", expand)
 		final.Cohort = nil
 		req := &pulse.ChainRequest{Cohort: &types.Cohort{Filename: "v.pulse"}, Stages: []*types.ChainStage{

@@ -30,7 +30,7 @@ func TestChainPredict_KeyColumnFollowsGroupKeyField(t *testing.T) {
 	if got := chainPredictedOutputFields(req, nil, vectors.AggregationKinds{}); !slices.Equal(got, want) {
 		t.Fatalf("chainPredictedOutputFields = %v, want %v", got, want)
 	}
-	schema := synthChainSchema(req)
+	schema := synthChainSchema(req, nil, vectors.AggregationKinds{})
 	got := make([]string, 0, len(schema.Fields))
 	for _, f := range schema.Fields {
 		got = append(got, f.Name)

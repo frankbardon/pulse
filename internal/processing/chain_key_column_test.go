@@ -3,6 +3,7 @@ package processing
 import (
 	"testing"
 
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -14,7 +15,7 @@ import (
 // so predict and runtime chain typing agree.
 func TestChainOutputSchema_KeyColumnFollowsGroupKeyField(t *testing.T) {
 	req := chainKeyColumnRequest()
-	schema, err := ChainOutputSchema(req)
+	schema, err := ChainOutputSchema(req, nil, vectors.AggregationKinds{})
 	if err != nil {
 		t.Fatalf("ChainOutputSchema: %v", err)
 	}

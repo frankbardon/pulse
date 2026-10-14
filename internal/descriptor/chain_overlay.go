@@ -183,10 +183,10 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 		// members over its input schema (chainStageInputSchema).
 		kinds := aggregationKinds(opts.instance(), nil)
 		validateChainOverlaySeriesField(env, spec, opts.overlayRoute(spec.Kind), i, "target", targetIdx, stagedAt(staged, targetIdx, targetReq),
-			chainStageSchemaFunc(staged, targetIdx, stage0), kinds)
+			chainStageSchemaFunc(staged, targetIdx, stage0, kinds), kinds)
 		if refIdx != targetIdx {
 			validateChainOverlaySeriesField(env, spec, opts.overlayRoute(spec.Kind), i, "ref", refIdx, stagedAt(staged, refIdx, refReq),
-				chainStageSchemaFunc(staged, refIdx, stage0), kinds)
+				chainStageSchemaFunc(staged, refIdx, stage0, kinds), kinds)
 		}
 		refShape := inferChainStageShape(refReq)
 		targetShape := inferChainStageShape(targetReq)

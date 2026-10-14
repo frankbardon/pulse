@@ -187,18 +187,23 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	// SliceIterators. Each loop iteration: build the prior stage's
 	// output schema, materialise records, apply defaults, validate
 	// the gate, run processor.
+	// priorIn is the schema the prior stage executed over: its expanding
+	// vector aggregations' members resolve there, naming the element
+	// columns the next stage reads.
 	priorReq := stage0
 	priorResp := firstResp
+	priorIn := gateSchema
 	for i := 1; i < len(req.Stages); i++ {
 		stage := req.Stages[i].Request
 		stage.Cohort = nil // chain stages >= 1 do not name a cohort
-		resp, err := s.runChainStageChild(withModelsBound(ctx, stageSets[i]), req, i, stage, priorReq, priorResp, gateSchema, plans[i], rets[i], &normStages)
+		resp, in, err := s.runChainStageChild(withModelsBound(ctx, stageSets[i]), req, i, stage, priorReq, priorIn, priorResp, gateSchema, plans[i], rets[i], &normStages)
 		if err != nil {
 			return nil, err
 		}
 		out.Stages = append(out.Stages, resp)
 		priorReq = stage
 		priorResp = resp
+		priorIn = in
 	}
 	ei.Mark()
 
@@ -282,48 +287,50 @@ func (s *Service) requestInputSchema(ctx context.Context, r *types.Request) *enc
 // observability carrier, which it stamps with the serial arm the stage
 // ran and the stage's row counters (no-ops off).
 // stage0Schema is the schema stage 0 executed over (its gate schema):
-// the root the stage's inherited code columns are judged from.
-func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainRequest, i int, stage, priorReq *types.Request, priorResp *types.Response, stage0Schema *encoding.Schema, plan *descx.MultiplicityPlan, ret *returnplan.Plan, normStages *[]*types.ChainStage) (resp *types.Response, err error) {
+// the root the stage's inherited code columns are judged from. priorIn
+// is the schema priorReq executed over; the stage's own input schema
+// (synthesised from priorReq's rows) is returned beside its response.
+func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainRequest, i int, stage, priorReq *types.Request, priorIn *encoding.Schema, priorResp *types.Response, stage0Schema *encoding.Schema, plan *descx.MultiplicityPlan, ret *returnplan.Plan, normStages *[]*types.ChainStage) (resp *types.Response, synthSchema *encoding.Schema, err error) {
 	ctx, end := startChild(ctx, i, stage)
 	defer func() { end(err) }()
 	// Only stage 0 may join: a later stage reads the previous
 	// stage's rows, so its Joins are refused, not dropped.
 	if err := mergegate.StageJoinRefusal(stage, i, req.Stages[i].Name); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Likewise only stage 0 may carry matrices: a later stage's rows
 	// are the previous stage's output, not the cohort.
 	if err := mergegate.StageMatrixRefusal(stage, i, req.Stages[i].Name); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	synthSchema, err := processing.ChainOutputSchema(priorReq)
+	synthSchema, err = processing.ChainOutputSchema(priorReq, priorIn, s.extensions.AggregationKinds())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	records, err := processing.RecordsFromChainRows(priorResp.Data, synthSchema)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	s.applyDefaults(stage, synthSchema)
 	zones, err := s.resolveZones(stage, synthSchema)
 	if err != nil {
-		return nil, locate(err, "stage", i)
+		return nil, nil, locate(err, "stage", i)
 	}
 	if err := processing.ChainRefusal(stage, synthSchema, s.extensions, i, req.Stages[i].Name); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := mergegate.StageArrayValuedRefusal(stage, i, len(req.Stages), req.Stages[i].Name, s.extensions.AggregationKinds()); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// The stage's overlays judge a forwarded code column (an upstream
 	// code-emitting aggregation's output, f64 in synthSchema) as the
 	// code it is — the code columns ValidateChain threads, from the one
 	// shared rule over this side's ChainOutputSchema.
-	codes := s.extensions.AggregationKinds().ChainCodeColumns(chainStageRequests(req), i, stage0Schema, chainOutputSchemaOrNil)
+	codes := s.extensions.AggregationKinds().ChainCodeColumns(chainStageRequests(req), i, stage0Schema, s.chainOutputSchemaOrNil)
 	if err := s.checkChainStageFieldRefs(ctx, stage, synthSchema, codes); err != nil {
-		return nil, locate(err, "stage", i)
+		return nil, nil, locate(err, "stage", i)
 	}
 	if err := s.limitsPreflight(stage, synthSchema, descx.LimitInputs{
 		Records:        int64(len(records)),
@@ -331,7 +338,7 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 		Extensions:     s.ExtensionsSnapshot(),
 		FusionDisabled: s.disableCrosstabFusion,
 	}); err != nil {
-		return nil, locate(err, "stage", i)
+		return nil, nil, locate(err, "stage", i)
 	}
 
 	if s.echoRequest {
@@ -348,10 +355,10 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 	stageCtx := withComputePlan(ctx, s.resolveComputePlan(ctx, stage, ret, plan))
 	resp, err = s.runChainStage(stageCtx, s.zoned(stage, zones), plan, synthSchema, records)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ei.addRows(resp)
-	return resp, nil
+	return resp, synthSchema, nil
 }
 
 // applyChainOverlays is the post-stage-loop barrier hook. Invokes
@@ -400,7 +407,7 @@ func (s *Service) applyChainOverlays(req *types.ChainRequest, out *types.ChainRe
 		stageReqs[i] = st.Request
 	}
 	layers, warnings, err := processing.ApplyChainOverlaysWithSchemas(req.Overlays, out.Stages, stageNames, stageReqs, func(i int) *encoding.Schema {
-		return descx.ChainStageInputSchema(stageReqs, i, stage0)
+		return descx.ChainStageInputSchema(stageReqs, i, stage0, s.extensions.AggregationKinds())
 	}, s.extensions)
 	if err != nil {
 		return err
@@ -516,8 +523,8 @@ func chainStageRequests(req *types.ChainRequest) []*types.Request {
 // chainOutputSchemaOrNil is processing.ChainOutputSchema with a refusal
 // as nil (no code judgement past it; the stage loop raises the refusal
 // itself).
-func chainOutputSchemaOrNil(r *types.Request) *encoding.Schema {
-	out, err := processing.ChainOutputSchema(r)
+func (s *Service) chainOutputSchemaOrNil(r *types.Request, in *encoding.Schema) *encoding.Schema {
+	out, err := processing.ChainOutputSchema(r, in, s.extensions.AggregationKinds())
 	if err != nil {
 		return nil
 	}

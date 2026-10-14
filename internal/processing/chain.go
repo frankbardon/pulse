@@ -2,6 +2,7 @@ package processing
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -137,66 +138,45 @@ func AggregationLabel(agg *types.Aggregation) string {
 }
 
 // ChainOutputSchema synthesises the schema produced by a mergeable
-// chain stage. The returned schema is purely in-memory — no byte
-// layout — and is intended for downstream stages constructed via
-// SliceIterator over RecordsFromChainRows.
+// chain stage req executing over its input schema in, under the
+// instance's aggregation kinds. The returned schema is purely
+// in-memory — no byte layout — and is intended for downstream stages
+// constructed via SliceIterator over RecordsFromChainRows.
 //
-// Layout:
+// Layout (vectors.ChainStageSchema — the builder predict's
+// synthChainSchema shares, so both sides type the next stage alike):
 //   - One categorical_u32 field per Group entry (named by its key
 //     column, vectors.GroupKeyField — the Data row key the stage writes),
 //     with an empty Dictionary that the caller populates as rows are
 //     materialized.
-//   - One f64 field per Aggregation entry (named via
-//     AggregationLabel).
+//   - One f64 field per aggregation output column: its label
+//     (AggregationLabel), or one "<label>[<element label>]" column per
+//     member of an expanding vector aggregation (params.expand), whose
+//     members resolve against in.
 //
 // Row-local attributes (FORMULA, DATE_PART) feed aggregators but do
 // not surface in the streaming/grouped output today, so they do not
 // appear in the chain schema. ByteOffset / BitPosition are zero
-// across the board because the schema is never serialised.
-func ChainOutputSchema(req *types.Request) (*encoding.Schema, error) {
+// across the board because the schema is never serialised. An
+// aggregation column colliding with an earlier column is
+// PROCESSING_CONFIG.
+func ChainOutputSchema(req *types.Request, in *encoding.Schema, kinds vectors.AggregationKinds) (*encoding.Schema, error) {
 	if req == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "chain output schema requires non-nil request")
 	}
-	fields := make([]encoding.Field, 0, len(req.Groups)+len(req.Aggregations))
-	seen := make(map[string]struct{}, len(req.Groups)+len(req.Aggregations))
-
-	for _, g := range req.Groups {
-		if g == nil {
-			continue
-		}
-		key := vectors.GroupKeyField(g.Type, g)
-		if _, dup := seen[key]; dup {
-			continue
-		}
-		seen[key] = struct{}{}
-		fields = append(fields, encoding.Field{
-			Name:       key,
-			Type:       encoding.FieldTypeCategoricalU32,
-			Dictionary: encoding.NewDictionary(),
-		})
+	schema, cerr := vectors.ChainStageSchema(req, in, kinds)
+	if cerr != nil {
+		return nil, cerr
 	}
-	for _, agg := range req.Aggregations {
-		if agg == nil {
-			continue
-		}
-		label := AggregationLabel(agg)
-		if _, dup := seen[label]; dup {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("chain output label %q collides with another column", label))
-		}
-		seen[label] = struct{}{}
-		fields = append(fields, encoding.Field{
-			Name: label,
-			Type: encoding.FieldTypeF64,
-		})
-	}
-	return &encoding.Schema{Fields: fields}, nil
+	return schema, nil
 }
 
 // RecordsFromChainRows materializes records for the next chain stage
 // from a Response.Data slice + the synthesised schema. Categorical
 // fields land in the dictionary lazily as new keys arrive. Numeric
-// cells are converted to float64; missing / nil cells become nulls.
+// cells are converted to float64; missing / nil cells — and a NaN, the
+// undefined figure the wire writes as null (an expanded vector element
+// no row answered, a ratio over a zero denominator) — become nulls.
 //
 // The returned records share the schema reference; the schema's
 // dictionaries are mutated as new keys are observed.
@@ -230,7 +210,7 @@ func RecordsFromChainRows(rows []map[string]any, schema *encoding.Schema) ([]*Re
 				values[f.Name] = float64(id)
 			case encoding.FieldTypeF64:
 				v, ok := coerceFloat(raw)
-				if !ok {
+				if !ok || math.IsNaN(v) {
 					nulls[f.Name] = true
 					continue
 				}

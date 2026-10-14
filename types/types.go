@@ -160,8 +160,9 @@ const (
 	// bit-identical for every worker count. Refused by crosstab, Sort,
 	// windows, post-tests, overlays and a chain stage that feeds another
 	// stage. params.expand writes one scalar column per member,
-	// "<label>[<element label>]", instead of the array — presentation
-	// only, refused in the same places.
+	// "<label>[<element label>]", instead of the array — ordinary f64
+	// columns Sort, windows, post-tests, series overlays and a later
+	// chain stage read; the bare label stays refused.
 	AGG_VEC_MEAN AggregationType = "AGG_VEC_MEAN"
 	AGG_VEC_SUM  AggregationType = "AGG_VEC_SUM"
 )

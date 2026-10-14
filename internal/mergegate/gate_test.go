@@ -1,12 +1,14 @@
 package mergegate
 
 import (
+	stderrors "errors"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -334,5 +336,46 @@ func TestChainRefusal_AdmitsFitBoundAttribute(t *testing.T) {
 	req.Attributes[0].Params = []byte(`{"fit_on":"filtered"}`)
 	if err := ChainRefusal(req, decSchema(), nil, 0, "s0"); err == nil {
 		t.Fatal("admitted a chain stage folding its own vector fit")
+	}
+}
+
+// TestStageArrayValuedRefusal: a non-final stage carrying an
+// array-valued aggregation is refused array_valued, a non-scalar set
+// fold non_scalar — but an EXPANDING vector aggregation (params.expand)
+// writes one f64 column per member and feeds the next stage (U30
+// E4-S3). The last stage is never judged.
+func TestStageArrayValuedRefusal(t *testing.T) {
+	expand := []byte(`{"expand": true}`)
+	vec := func(params []byte) *types.Aggregation {
+		return &types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"a", "b"}, Label: "m", Params: params}
+	}
+	cases := []struct {
+		name   string
+		aggs   []*types.Aggregation
+		idx    int
+		reason string // "" = admitted
+	}{
+		{"plain vector feeds", []*types.Aggregation{vec(nil)}, 0, "array_valued"},
+		{"expand false feeds", []*types.Aggregation{vec([]byte(`{"expand": false}`))}, 0, "array_valued"},
+		{"expanding vector feeds", []*types.Aggregation{vec(expand)}, 0, ""},
+		{"expanding beside plain", []*types.Aggregation{vec(expand), {Type: types.AGG_VEC_SUM, Fields: []string{"a", "b"}, Label: "s"}}, 0, "array_valued"},
+		{"vec sum expanding", []*types.Aggregation{{Type: types.AGG_VEC_SUM, Fields: []string{"a", "b"}, Label: "s", Params: expand}}, 0, ""},
+		{"set fold non_scalar", []*types.Aggregation{{Type: types.AGG_SET_UNION, Field: "tags"}}, 0, "non_scalar"},
+		{"last stage plain vector", []*types.Aggregation{vec(nil)}, 1, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := StageArrayValuedRefusal(&types.Request{Aggregations: c.aggs}, c.idx, 2, "s", vectors.AggregationKinds{})
+			if c.reason == "" {
+				if err != nil {
+					t.Fatalf("refused: %v", err)
+				}
+				return
+			}
+			var ce *errors.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_CONFIG || ce.Details["reason"] != c.reason {
+				t.Fatalf("err = %v, want PROCESSING_CONFIG reason %s", err, c.reason)
+			}
+		})
 	}
 }

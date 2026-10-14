@@ -538,7 +538,11 @@ func expandFields(at string, spec types.VectorSpec, schema *encoding.Schema) (ex
 			}
 			continue
 		}
-		if !isGlob(entry) {
+		// An entry naming a schema field exactly is that field, glob
+		// metacharacters and all: a later chain stage's input carries
+		// expanded element columns ("m[b1]"), and the runtime's slot
+		// rewrite hands the resolved member names back as entries.
+		if !isGlob(entry) || (schema != nil && schema.Field(entry) != nil) {
 			if schema == nil || schema.Field(entry) == nil {
 				return expansion{}, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 					"vector references unknown field: "+entry,

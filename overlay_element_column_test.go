@@ -360,7 +360,7 @@ func elemChain(vector, expand bool, kind types.OverlayKind, field string) *pulse
 }
 
 // TestChainOverlay_ScoresElementColumn: the whole-chain host (one
-// stage — a vector stage may not feed another — compared with itself).
+// stage compared with itself).
 func TestChainOverlay_ScoresElementColumn(t *testing.T) {
 	ctx := context.Background()
 	p := elemComposeFixture(t)

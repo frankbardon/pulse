@@ -509,7 +509,7 @@ array-valued aggregator is refused `PROCESSING_CONFIG`
 aggregation (the manifest lists them in
 `crosstab.array_valued_aggregators`), as a `sort` key, as
 `aggregations[0]` under `overlays` and in a chain stage that feeds
-another. `format_version` stays `"1.1"`; an aggregation without them is
+another (unless it expands, below). `format_version` stays `"1.1"`; an aggregation without them is
 byte-identical.
 
 `params.expand: true` on a vector aggregator replaces the array with one
@@ -522,9 +522,11 @@ duplicate element labels are refused (`SERVICE_VALIDATION`, reason
 `expand_duplicate_labels`). Each column is an ordinary nullable f64
 column: a `sort` key, a window's `field` / `order_by` / `partition_by`,
 a post-test field and a series overlay's `params.field` (request,
-Compose or whole-chain host) read it (an element no row answered is
-NaN — null on the wire — and orders last / is skipped like a null; an
-overlay reads it as a missing host value), while the bare array label
+Compose or whole-chain host) read it, and so does a later chain stage —
+the synthesised schema carries each as an f64 field (an element no row
+answered is NaN — null on the wire — and orders last / is skipped like a
+null, and a later chain stage reads it as a null; an overlay reads it as
+a missing host value), while the bare array label
 stays refused there `PROCESSING_CONFIG` (`array_valued`) — so is an
 overlay scoring it by default as `aggregations[0]`. A `return` path cannot name a
 bracketed column; a prefix glob (`data[*].<label>*`) keeps them.

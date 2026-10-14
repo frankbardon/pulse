@@ -56,8 +56,9 @@ func (k AggregationKinds) StageCodeColumns(req *types.Request, inputType func(fi
 // stage. stages are the chain's requests as executed (smart defaults
 // resolved), index-aligned; stage0 the schema stage 0 executes over
 // (nil: no judgement); next the side's synthesised-schema builder for
-// a stage's output (nil result: no judgement past it).
-func (k AggregationKinds) ChainCodeColumns(stages []*types.Request, idx int, stage0 *encoding.Schema, next func(*types.Request) *encoding.Schema) map[string]encoding.FieldType {
+// a stage's output over that stage's input schema (nil result: no
+// judgement past it).
+func (k AggregationKinds) ChainCodeColumns(stages []*types.Request, idx int, stage0 *encoding.Schema, next func(req *types.Request, in *encoding.Schema) *encoding.Schema) map[string]encoding.FieldType {
 	if stage0 == nil || idx <= 0 || idx > len(stages) {
 		return nil
 	}
@@ -68,7 +69,7 @@ func (k AggregationKinds) ChainCodeColumns(stages []*types.Request, idx int, sta
 			return nil
 		}
 		codes = k.StageCodeColumns(stages[s], CodeFieldTypes(schema, codes))
-		schema = next(stages[s])
+		schema = next(stages[s], schema)
 	}
 	return codes
 }

@@ -348,19 +348,22 @@ func ChainOverlayArrayValuedRefusal(req *types.ChainRequest, inst *InstanceSnaps
 
 // chainStageInputSchema is the schema chain stage idx executes over:
 // stage0 for stage 0, else the one synthesised from staged[idx-1] (the
-// stage as executed — smart defaults resolved); nil when stage0 is nil
-// or the previous stage is missing.
-func chainStageInputSchema(staged []*types.Request, idx int, stage0 *encoding.Schema) *encoding.Schema {
-	if stage0 == nil {
+// stage as executed — smart defaults resolved) over ITS input schema,
+// so an expanding vector aggregation's element columns are typed (its
+// members resolve there); nil when stage0 is nil or an earlier stage is
+// missing.
+func chainStageInputSchema(staged []*types.Request, idx int, stage0 *encoding.Schema, kinds vectors.AggregationKinds) *encoding.Schema {
+	if stage0 == nil || idx < 0 {
 		return nil
 	}
-	if idx == 0 {
-		return stage0
+	schema := stage0
+	for s := 0; s < idx; s++ {
+		if s >= len(staged) || staged[s] == nil {
+			return nil
+		}
+		schema = synthChainSchema(staged[s], schema, kinds)
 	}
-	if idx-1 >= len(staged) || staged[idx-1] == nil {
-		return nil
-	}
-	return synthChainSchema(staged[idx-1])
+	return schema
 }
 
 // lazyChainStageFieldTypes is the code judgement's lookup over chain
@@ -376,8 +379,8 @@ func lazyChainStageFieldTypes(staged []*types.Request, idx int, stage0 *encoding
 	return func(field string) (encoding.FieldType, bool) {
 		if !done {
 			done = true
-			lookup = vectors.CodeFieldTypes(chainStageInputSchema(staged, idx, stage0),
-				kinds.ChainCodeColumns(staged, idx, stage0, synthChainSchema))
+			lookup = vectors.CodeFieldTypes(chainStageInputSchema(staged, idx, stage0, kinds),
+				kinds.ChainCodeColumns(staged, idx, stage0, chainSynth(kinds)))
 		}
 		if lookup == nil {
 			return 0, false
@@ -417,7 +420,7 @@ func chainOverlayArrayValuedRefusal(req *types.ChainRequest, i int, spec *types.
 			idx := idx
 			inputType = lazyChainStageFieldTypes(staged, idx, stage0, kinds)
 		}
-		cols := vectors.AggregationColumns(req.Stages[idx].Request, chainStageSchemaFunc(staged, idx, stage0), kinds)
+		cols := vectors.AggregationColumns(req.Stages[idx].Request, chainStageSchemaFunc(staged, idx, stage0, kinds), kinds)
 		ai, agg, reason := scoredNonScalarAggregation(req.Stages[idx].Request, spec.Kind, kinds, chainGateOwns(inst), inputType, func(aggs []*types.Aggregation) (seriesfield.Scored, error) {
 			if !seriesfield.AppliesChain(spec.Kind) {
 				return seriesfield.Scored{}, nil
@@ -451,21 +454,22 @@ func composeSlotSchemaFunc(slotSchema func(j int) *encoding.Schema, j int) func(
 // vectors.AggregationColumns: chainStageInputSchema, nil when stage0 is
 // nil (no schema — an element column then resolves syntactically and
 // the schema-holding call judges it).
-func chainStageSchemaFunc(staged []*types.Request, idx int, stage0 *encoding.Schema) func() *encoding.Schema {
+func chainStageSchemaFunc(staged []*types.Request, idx int, stage0 *encoding.Schema, kinds vectors.AggregationKinds) func() *encoding.Schema {
 	if stage0 == nil {
 		return nil
 	}
-	return func() *encoding.Schema { return chainStageInputSchema(staged, idx, stage0) }
+	return func() *encoding.Schema { return chainStageInputSchema(staged, idx, stage0, kinds) }
 }
 
 // ChainStageInputSchema is the exported chainStageInputSchema: the
 // schema chain stage idx of stages (as executed) runs over — stage0
 // for stage 0, else the one synthesised from the stage before it; nil
-// when stage0 is nil. The runtime's whole-chain overlay barrier hands
-// it to the series value narrowing so an expanded element column
-// resolves against the same members predict-chain reads.
-func ChainStageInputSchema(stages []*types.Request, idx int, stage0 *encoding.Schema) *encoding.Schema {
-	return chainStageInputSchema(stages, idx, stage0)
+// when stage0 is nil. kinds is the instance's aggregation view. The
+// runtime's whole-chain overlay barrier hands it to the series value
+// narrowing so an expanded element column resolves against the same
+// members predict-chain reads.
+func ChainStageInputSchema(stages []*types.Request, idx int, stage0 *encoding.Schema, kinds vectors.AggregationKinds) *encoding.Schema {
+	return chainStageInputSchema(stages, idx, stage0, kinds)
 }
 
 // chainGateOwns names the non-scalar aggregators the ProcessChain stage
