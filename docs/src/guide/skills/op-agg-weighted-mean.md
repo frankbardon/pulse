@@ -46,11 +46,11 @@ Scalar `float64` — exact `Σ field·w / Σw` (a few ULP from releases that use
 
 - `value`: The average of the field with each row counted in proportion to its weight: sum(value * weight) / sum(weight), in the field's own units. With equal weights it equals AGG_AVERAGE.
   - Caveat: Rows missing the value or the weight, or with weight 0, are left out of the average yet still count in components n; read sum_weights for the base.
-  - Caveat: It reads 0 when no row has a usable weight; check components sum_weights before trusting a 0.
+  - Caveat: It reads null when no row has a usable weight (the weights sum to 0), never 0.
 
 ## Components
 
-Floor `{n, n_null}` plus `n_weight_invalid` (rows excluded for an invalid weight); operator keys (all float64; empty cell all 0):
+Floor `{n, n_null}` plus `n_weight_invalid` (rows excluded for an invalid weight); operator keys (all float64; Σw = 0: `weighted_mean` and the scalar `null`, the rest 0):
 
 | Key | Notes |
 |---|---|

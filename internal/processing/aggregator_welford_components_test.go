@@ -160,9 +160,13 @@ func TestWelfordFamilyComponents_VarianceEmits(t *testing.T) {
 			got, scalar := runAggregateForComponents(t, types.AGG_VARIANCE, "score", schema, records)
 			requireKeySet(t, got, []string{"mean", "m2", "variance"})
 			n, wantMean, wantM2, _, _ := controlMoments(tc.vals)
-			var wantVar float64
+			// No value: the mean and variance are undefined (NaN,
+			// JSON null); m2 is the empty sum, 0 (E4-S5).
+			wantVar := math.NaN()
 			if n > 0 {
 				wantVar = wantM2 / float64(n)
+			} else {
+				wantMean = math.NaN()
 			}
 			requireFloat(t, got, "mean", wantMean)
 			requireFloat(t, got, "m2", wantM2)
@@ -194,10 +198,12 @@ func TestWelfordFamilyComponents_StdDevEmits(t *testing.T) {
 			got, scalar := runAggregateForComponents(t, types.AGG_STDDEV, "score", schema, records)
 			requireKeySet(t, got, []string{"mean", "m2", "variance", "stddev"})
 			n, wantMean, wantM2, _, _ := controlMoments(tc.vals)
-			var wantVar, wantSD float64
+			wantVar, wantSD := math.NaN(), math.NaN()
 			if n > 0 {
 				wantVar = wantM2 / float64(n)
 				wantSD = math.Sqrt(wantVar)
+			} else {
+				wantMean = math.NaN()
 			}
 			requireFloat(t, got, "mean", wantMean)
 			requireFloat(t, got, "m2", wantM2)
@@ -213,7 +219,8 @@ func TestWelfordFamilyComponents_StdDevEmits(t *testing.T) {
 // TestWelfordFamilyComponents_SkewnessEmits asserts the skewness
 // aggregator surfaces {mean, m2, m3, skewness}. The scalar (and the
 // emitted skewness key) match m3 / (n * sd^3) when the input is non-
-// degenerate; both fall back to zero otherwise.
+// degenerate; both fall back to zero for one row or no spread, and are
+// undefined (NaN) with the mean over no row.
 func TestWelfordFamilyComponents_SkewnessEmits(t *testing.T) {
 	schema := numericSchema()
 	cases := []struct {
@@ -232,6 +239,9 @@ func TestWelfordFamilyComponents_SkewnessEmits(t *testing.T) {
 			requireKeySet(t, got, []string{"mean", "m2", "m3", "skewness"})
 			n, wantMean, wantM2, wantM3, _ := controlMoments(tc.vals)
 			var wantSkew float64
+			if n == 0 {
+				wantMean, wantSkew = math.NaN(), math.NaN()
+			}
 			if n > 1 && wantM2 > 0 {
 				variance := wantM2 / float64(n)
 				sd := math.Sqrt(variance)
@@ -249,7 +259,7 @@ func TestWelfordFamilyComponents_SkewnessEmits(t *testing.T) {
 			// 1e-12 absolute tolerance — the components map is the
 			// canonical numerically-stable answer for downstream
 			// consumers.
-			if !floatClose(scalar, wantSkew, 1e-12) {
+			if !floatClose(scalar, wantSkew, 1e-12) && !(math.IsNaN(scalar) && math.IsNaN(wantSkew)) {
 				t.Errorf("scalar = %v, want %v (population skewness, tol 1e-12)", scalar, wantSkew)
 			}
 		})
@@ -277,6 +287,9 @@ func TestWelfordFamilyComponents_KurtosisEmits(t *testing.T) {
 			requireKeySet(t, got, []string{"mean", "m2", "m3", "m4", "kurtosis"})
 			n, wantMean, wantM2, wantM3, wantM4 := controlMoments(tc.vals)
 			var wantKurt float64
+			if n == 0 {
+				wantMean, wantKurt = math.NaN(), math.NaN()
+			}
 			if n > 1 && wantM2 > 0 {
 				variance := wantM2 / float64(n)
 				if variance > 0 {
@@ -292,7 +305,7 @@ func TestWelfordFamilyComponents_KurtosisEmits(t *testing.T) {
 			// mean internally; float-op ordering differs by O(ULP) from
 			// the Components-path. 1e-12 absolute tolerance — the
 			// components map is the canonical answer.
-			if !floatClose(scalar, wantKurt, 1e-12) {
+			if !floatClose(scalar, wantKurt, 1e-12) && !(math.IsNaN(scalar) && math.IsNaN(wantKurt)) {
 				t.Errorf("scalar = %v, want %v (excess kurtosis, tol 1e-12)", scalar, wantKurt)
 			}
 		})
@@ -321,6 +334,10 @@ func TestWelfordFamilyComponents_ZScoreEmits(t *testing.T) {
 			requireKeySet(t, got, []string{"pop_mean", "pop_stddev", "target_value", "zscore"})
 			n, wantMean, wantM2, _, _ := controlMoments(tc.vals)
 			var wantSD, wantTarget, wantZ float64
+			if n == 0 {
+				nan := math.NaN()
+				wantMean, wantSD, wantTarget, wantZ = nan, nan, nan, nan
+			}
 			if n > 0 {
 				wantSD = math.Sqrt(wantM2 / float64(n))
 				wantTarget = tc.vals[len(tc.vals)-1]

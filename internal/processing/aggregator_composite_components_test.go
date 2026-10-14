@@ -61,8 +61,8 @@ func TestMetaAggregator_CompositeOps_Components(t *testing.T) {
 			}},
 		},
 		// Zero-weight rows: every contributing row has weight==0.
-		// Scalar return falls back to 0; components reflect raw state
-		// — every accumulator is 0. Universal floor n records the
+		// Σw = 0: the scalar and weighted_mean are undefined (NaN,
+		// JSON null); every other accumulator is 0. Universal floor n records the
 		// per-record bookkeeping (the orchestrator still saw three
 		// non-null `value` rows; weight==0 is an aggregator-internal
 		// skip), so n=3, n_null=0.
@@ -78,7 +78,7 @@ func TestMetaAggregator_CompositeOps_Components(t *testing.T) {
 			want: expectation{n: 3, nNull: 0, operator: map[string]any{
 				"sum_weighted":      0.0,
 				"sum_weights":       0.0,
-				"weighted_mean":     0.0,
+				"weighted_mean":     math.NaN(),
 				"m2_weighted":       0.0,
 				"sum_weights_sq":    0.0,
 				"weighted_variance": 0.0,
@@ -86,7 +86,8 @@ func TestMetaAggregator_CompositeOps_Components(t *testing.T) {
 			}},
 		},
 		// Empty input: no records contributed. Frozen-mirror stamps
-		// via the empty-fold path; components surface zeros.
+		// via the empty-fold path; components surface zeros, the
+		// undefined weighted_mean NaN.
 		{
 			name:    "WEIGHTED_MEAN_empty",
 			aggType: types.AGG_WEIGHTED_MEAN,
@@ -95,7 +96,7 @@ func TestMetaAggregator_CompositeOps_Components(t *testing.T) {
 			want: expectation{n: 0, nNull: 0, operator: map[string]any{
 				"sum_weighted":      0.0,
 				"sum_weights":       0.0,
-				"weighted_mean":     0.0,
+				"weighted_mean":     math.NaN(),
 				"m2_weighted":       0.0,
 				"sum_weights_sq":    0.0,
 				"weighted_variance": 0.0,

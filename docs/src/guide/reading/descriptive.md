@@ -61,7 +61,7 @@ How heavy the tails are next to a normal distribution. Pulse computes the popula
 
 - There are no sourced bands for kurtosis: the cut-offs quoted for it (such as 2 or 7) are pass/fail normality screens from particular fields, disagree on whether 3 has been subtracted, and are not graded readings.
 - Small-n bias: g2 differs from the adjusted G2 that Excel KURT and SPSS print, and on small groups the gap is large; neither is stable on a handful of rows.
-- It is 0 when n is 0 or 1 or the variance is zero (every value the same), so a 0 from a tiny or constant group says nothing about shape: check components n.
+- It reads null when no row has a value, and 0 when n is 1 or the variance is zero (every value the same), so a 0 from a tiny or constant group says nothing about shape: check components n.
 - It measures the tails, not how pointed the peak looks, and a single extreme value can dominate it.
 
 <a id="op-agg_mae"></a>
@@ -112,7 +112,7 @@ The value below which the requested share of the group's values fall, in the fie
 
 - Tools use different interpolation rules, so on small groups another tool can return a somewhat different value for the same percentile.
 - A percentile near 0 or 100 on a small group rests on one or two rows and moves a lot when they change.
-- An empty group reads 0, not empty: check components n.
+- A group with no value reads null, never 0.
 
 <a id="op-agg_ratio"></a>
 
@@ -168,7 +168,7 @@ How lopsided the values are around their mean. Pulse computes the population mom
 - The sign does not fix whether the mean sits above or below the median: the two often disagree on whole-number or many-peaked fields, so read AGG_MEDIAN beside AGG_AVERAGE for that.
 - There are no sourced bands for skewness: the 0.5 / 1 rules of thumb in circulation trace to secondary quotations that could not be checked against their source, so compare values with each other rather than with a fixed cut-off.
 - Small-n bias: g1 runs smaller in size than the adjusted G1 that Excel SKEW, SPSS and SAS print (G1 = g1 * sqrt(n(n-1)) / (n-2)), so the two disagree on small groups and converge as n grows; on a handful of rows neither is stable.
-- It is 0 when n is 0 or 1 or the variance is zero (every value the same), so a 0 from a tiny or constant group says nothing about shape: check components n.
+- It reads null when no row has a value, and 0 when n is 1 or the variance is zero (every value the same), so a 0 from a tiny or constant group says nothing about shape: check components n.
 - Deviations are cubed, so one extreme value can set the sign and size on its own.
 
 <a id="op-agg_stddev"></a>
@@ -219,7 +219,7 @@ The average of the field with each row counted in proportion to its weight: sum(
 
 - Rows missing the value or the weight, or with weight 0, are left out of the average yet still count in components n; read sum_weights for the base.
 - With survey or other sampling weights, uneven weights cost precision: components n_eff (Kish's effective sample size) is the row count the estimate is roughly worth, never more than the rows that count. It does not apply to frequency weights (a weight counting repeated units, such as a quantity, where the base is sum_weights) or to inverse-variance weights.
-- It reads 0 when no row has a usable weight; check components sum_weights before trusting a 0.
+- It reads null when no row has a usable weight (the weights sum to 0), never 0.
 - Negative, NaN and infinite weights are excluded and counted in components n_weight_invalid, with a warning, so the result stays within the range of the values.
 
 <a id="op-agg_welford"></a>
@@ -254,7 +254,7 @@ The average of every row's z-score within the group, which is 0 by construction 
 - There are no sourced bands for reading a z-score of this kind: the familiar 1.96 / 2.58 cut-offs are critical values of a test statistic built from a standard error, and this one is built from a spread of values instead, so it has no p-value behind it.
 - Which row is last depends on row order (not on date), so the components zscore is reproducible only on a fixed order.
 - The last row is part of the mean and spread it is scored against, which damps its zscore (never beyond sqrt(n - 1) in size), so it understates how unusual that row is; for a reading against its own past use OVERLAY_ZSCORE_VS_ROLLING.
-- The value and the components zscore read 0 when every value is the same (no spread); every component reads 0 when the group is empty.
+- The value and the components zscore read 0 when every value is the same (no spread); the value and every component read null when the group is empty.
 
 ## Attributes
 

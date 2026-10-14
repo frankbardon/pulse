@@ -59,7 +59,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 ## Gotchas
 
-- `n <= 1` or zero variance → `0` (not NaN): check `n` before reading a 0.
+- `n = 0` (or Σw = 0) → `null` (NaN); `n = 1` or zero variance → `0` (not NaN): check `n` before reading a 0.
 - Small-n bias: G1 = g1·√(n(n−1))/(n−2), so |g1| < |G1| on small groups.
 - `decimal128` rejected — cast via `ATTR_FORMULA`.
 - Sensitive to outliers; pre-filter or use rank-based alternatives.

@@ -85,7 +85,7 @@ func TestFitBound_ParallelDecodeMatchesSerial(t *testing.T) {
 		return r
 	}
 	wire := func(resp *types.Response) string {
-		b, err := json.Marshal(map[string]any{"data": resp.Data, "warnings": resp.Warnings})
+		b, err := types.MarshalFinite(map[string]any{"data": resp.Data, "warnings": resp.Warnings})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -60,7 +60,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 ## Gotchas
 
-- `n <= 1` or zero variance → `0` (not NaN): check `n` before reading a 0.
+- `n = 0` (or Σw = 0) → `null` (NaN); `n = 1` or zero variance → `0` (not NaN): check `n` before reading a 0.
 - Small-n bias vs adjusted G2 is large on small groups; g2 ≥ −2 always.
 - Excess kurtosis (normal = 0), NOT raw kurtosis (normal = 3).
 - `decimal128` rejected.

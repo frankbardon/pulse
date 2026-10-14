@@ -1,6 +1,8 @@
 package processing
 
 import (
+	"math"
+
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -242,4 +244,17 @@ func projectChainSeriesStage(spec *types.ChainOverlaySpec, route types.OverlayKi
 		scored = sc
 	}
 	return narrowSeriesHost(req, scored, resp), nil
+}
+
+// undefinedSeriesPair reports whether a Compose / chain SERIES pair has
+// an undefined host value on either side — NaN: an expanded element no
+// row answered, or any aggregate's undefined figure (AGG_AVERAGE over a
+// group with no value, …). Such a value is MISSING, the rule the
+// request host applies (buildSeriesHostFromGroupedResponse): the
+// pair's entry keeps its key but carries no statistic (absent on the
+// wire, never null), raises no warning and stays out of the layer
+// summary. A null statistic stays reserved for a figure the kind
+// computed and found undefined (a zero reference, a degenerate test).
+func undefinedSeriesPair(target, ref float64) bool {
+	return math.IsNaN(target) || math.IsNaN(ref)
 }

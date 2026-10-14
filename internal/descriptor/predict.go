@@ -1033,6 +1033,10 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 	// the schema, and the absent-categorical-code warning.
 	validateCodeIn(env, req, schema, projected, opts)
 
+	// ATTR_FORMULA: the runtime constructor's empty-expression refusal
+	// (an expression in params.expression is not read).
+	validateFormulaExpressions(env, req, opts)
+
 	// Check attribute fields.
 	for _, attr := range req.Attributes {
 		// Removed-type sentinel: ATTR_RANK was retired in favor of WIN_RANK.

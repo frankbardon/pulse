@@ -38,6 +38,7 @@ MATRIX (cell host) or SERIES (group host) — per-coordinate `(target / ref) × 
 
 ## Gotchas
 
+- Series host: an undefined value (NaN — a mean over a group with no value, an unanswered element) on either side is a MISSING point, as on the request host — the entry keeps its key with NO `statistic` (absent, not `null`), no warning, out of `summary.count`.
 - Zero reference → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per coord.
 - Missing reference coordinate → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`.
 - SERIES dispatch is fold-only (streamable per `OverlayStreamability`); MATRIX is forced buffered by the slot barrier.

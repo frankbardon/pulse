@@ -58,9 +58,10 @@ func (a *averageAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *averageAggregator) Finalize() (float64, error) {
 	if a.n == 0 {
+		// The mean of no value is undefined: NaN (JSON null), never 0.
 		a.frozenSum = 0
 		a.sum = 0
-		return 0, nil
+		return math.NaN(), nil
 	}
 	a.frozenSum = a.sum
 	out := a.sum / float64(a.n)
@@ -82,8 +83,8 @@ func (a *minAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *minAggregator) Finalize() (float64, error) {
 	if !a.seen {
-		a.frozenMin = 0
-		return 0, nil
+		a.frozenMin = math.NaN()
+		return math.NaN(), nil
 	}
 	out := a.min
 	a.frozenMin = out
@@ -105,8 +106,8 @@ func (a *maxAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *maxAggregator) Finalize() (float64, error) {
 	if !a.seen {
-		a.frozenMax = 0
-		return 0, nil
+		a.frozenMax = math.NaN()
+		return math.NaN(), nil
 	}
 	out := a.max
 	a.frozenMax = out
@@ -135,8 +136,8 @@ func (a *rangeAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *rangeAggregator) Finalize() (float64, error) {
 	if !a.seen {
-		a.frozenMin, a.frozenMax = 0, 0
-		return 0, nil
+		a.frozenMin, a.frozenMax = math.NaN(), math.NaN()
+		return math.NaN(), nil
 	}
 	a.frozenMin, a.frozenMax = a.min, a.max
 	out := a.max - a.min
@@ -168,7 +169,7 @@ func (a *varianceAggregator) UpdateRow(r *Record, field string) error {
 func (a *varianceAggregator) Finalize() (float64, error) {
 	if a.n == 0 {
 		a.frozenN, a.frozenMean, a.frozenM2 = 0, 0, 0
-		return 0, nil
+		return math.NaN(), nil
 	}
 	a.frozenN, a.frozenMean, a.frozenM2 = a.n, a.mean, a.m2
 	out := a.m2 / float64(a.n)
@@ -192,7 +193,7 @@ func (a *stdDevAggregator) UpdateRow(r *Record, field string) error {
 func (a *stdDevAggregator) Finalize() (float64, error) {
 	if a.n == 0 {
 		a.frozenN, a.frozenMean, a.frozenM2 = 0, 0, 0
-		return 0, nil
+		return math.NaN(), nil
 	}
 	a.frozenN, a.frozenMean, a.frozenM2 = a.n, a.mean, a.m2
 	out := math.Sqrt(a.m2 / float64(a.n))
@@ -230,6 +231,9 @@ func (a *skewnessAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *skewnessAggregator) Finalize() (float64, error) {
 	a.frozenN, a.frozenMean, a.frozenM2, a.frozenM3 = a.n, a.mean, a.m2, a.m3
+	if a.n == 0 {
+		return math.NaN(), nil
+	}
 	if a.n <= 1 || a.m2 == 0 {
 		a.n, a.mean, a.m2, a.m3 = 0, 0, 0, 0
 		return 0, nil
@@ -282,6 +286,9 @@ func (a *kurtosisAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *kurtosisAggregator) Finalize() (float64, error) {
 	a.frozenN, a.frozenMean, a.frozenM2, a.frozenM3, a.frozenM4 = a.n, a.mean, a.m2, a.m3, a.m4
+	if a.n == 0 {
+		return math.NaN(), nil
+	}
 	if a.n <= 1 || a.m2 == 0 {
 		a.n, a.mean, a.m2, a.m3, a.m4 = 0, 0, 0, 0, 0
 		return 0, nil
@@ -382,12 +389,12 @@ func (a *modeAggregator) UpdateRow(r *Record, field string) error {
 func (a *modeAggregator) Finalize() (float64, error) {
 	a.frozenFinalized = true
 	if len(a.counts) == 0 {
-		a.frozenValue = 0
+		a.frozenValue = math.NaN()
 		a.frozenCount = 0
 		a.frozenDistinct = 0
 		a.frozenTieCount = 0
 		a.counts = nil
-		return 0, nil
+		return math.NaN(), nil
 	}
 	maxCount := 0
 	for _, c := range a.counts {

@@ -49,6 +49,7 @@ One `float64` per record (bools → `1.0` / `0.0`); a `nil` result → null (`n_
 - A `total` formula is **two-pass** (like the z-score attribute): streams alone, buffers beside groups / features; shard archive, parallel decode and `ShardWorkers` run sequentially (whole-cohort total); `ProcessChain` refuses it (`PULSE_CHAIN_NOT_MERGEABLE`). Predict adds `PULSE_ADVISORY_EXTRA_PASS` per formula (`added_scans`).
 - Misuse: `total()` in an expression filter or overlay formula (Compose host too) → `PULSE_FORMULA_TOTAL_SITE`; nested → `_TOTAL_NESTED`; arity ≠ 1 → `_TOTAL_ARITY`. An embedder `ExprFunction` named `total` → `PULSE_EXTENSION_NAME_RESERVED`.
 - Compiled once; bad syntax / types → `PROCESSING_RUNTIME` at build.
+- The text goes in the `expression` slot; `params.expression` is not read — an empty slot is `PROCESSING_CONFIG` on predict and runtime alike.
 - Categorical → STRING (`==` / `in`); `set_*` → `[]string` (`"a" in tags`, `has_any(tags, "a", "b")`).
 - `%` on a field: float `math.Mod` (`score % 1`, dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.
 

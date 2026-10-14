@@ -27,6 +27,7 @@ MATRIX (cell host) or SERIES (group host) — per-coordinate `delta = target - r
 
 ## Gotchas
 
+- Series host: an undefined value (NaN — a mean over a group with no value, an unanswered element) on either side is a MISSING point, as on the request host — the entry keeps its key with NO `statistic` (absent, not `null`), no warning, out of `summary.count`.
 - No division — zero reference never raises `PULSE_OVERLAY_REF_ZERO` (mirrors per-Request DELTA family).
 - Target key absent from the reference → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`, entry NaN.
 - SERIES dispatch is fold-only (one accumulator per group), streamable per `OverlayStreamability`; MATRIX is forced buffered by the slot barrier.

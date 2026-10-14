@@ -1320,6 +1320,12 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 		addCodedError(env, RefusalAt(werr, key, idx))
 		return schema, false
 	}
+	// The attribute constructors run next: ATTR_FORMULA's empty
+	// expression (params.expression is not read).
+	if ce := formulaExpressionRefusal(slot, opts); ce != nil {
+		addCodedError(env, RefusalAt(ce, key, idx))
+		return schema, false
+	}
 	return schema, true
 }
 

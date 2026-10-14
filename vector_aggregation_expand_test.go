@@ -468,6 +468,37 @@ func TestVecAggExpand_ElementColumnsDownstream(t *testing.T) {
 		if len(nan.PostTests) != 1 || !math.IsNaN(nan.PostTests[0].Statistic) {
 			t.Errorf("post-test over a NaN element = %+v, want one result with an undefined statistic", nan.PostTests)
 		}
+		// So does a scalar aggregate's undefined figure (E4-S5, owner
+		// decision: keep undefined): AGG_AVERAGE of b1 over the qty 5
+		// bucket no row answered is NaN, the bucket's row is NOT
+		// dropped, and the post-test's statistic and p-value are
+		// undefined exactly as the element twin's — null on the wire.
+		nanScalar := vaggElementRun(t, p, data, post("e.pulse", "a1", "a2", []*types.Aggregation{
+			{Type: types.AGG_AVERAGE, Field: "b1", Label: "a1"},
+			{Type: types.AGG_AVERAGE, Field: "b2", Label: "a2"}}))
+		if len(nanScalar.PostTests) != 1 {
+			t.Fatalf("post-tests over an undefined scalar column: %d results, want 1", len(nanScalar.PostTests))
+		}
+		ns := nanScalar.PostTests[0]
+		if !math.IsNaN(ns.Statistic) || !math.IsNaN(ns.PValue) {
+			t.Errorf("post-test over an undefined AGG_AVERAGE cell = (%v, %v), want undefined", ns.Statistic, ns.PValue)
+		}
+		if !sameFloat(ns.Statistic, nan.PostTests[0].Statistic) || !sameFloat(ns.PValue, nan.PostTests[0].PValue) {
+			t.Errorf("scalar post-test = (%v, %v), element twin = (%v, %v)", ns.Statistic, ns.PValue, nan.PostTests[0].Statistic, nan.PostTests[0].PValue)
+		}
+		b, err := types.MarshalFinite(ns)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wire map[string]any
+		if err := json.Unmarshal(b, &wire); err != nil {
+			t.Fatal(err)
+		}
+		for _, k := range []string{"statistic", "p_value"} {
+			if v, ok := wire[k]; !ok || v != nil {
+				t.Errorf("post-test %s on the wire = %v (present %v), want null", k, v, ok)
+			}
+		}
 	})
 }
 

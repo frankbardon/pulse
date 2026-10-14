@@ -58,7 +58,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 ## Gotchas
 
 - Buffered path only.
-- Zero stddev or empty group → `0` (not NaN).
+- Empty group → `null` (NaN), scalar and components; zero stddev → `0`.
 - `decimal128` rejected.
 
 ## See

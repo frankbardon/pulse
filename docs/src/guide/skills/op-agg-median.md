@@ -56,6 +56,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - Buffered-only path: full input materialised before sort.
 - Outlier-robust, unlike the mean.
+- No non-null value → `null` (NaN), never 0.
 
 ## See
 

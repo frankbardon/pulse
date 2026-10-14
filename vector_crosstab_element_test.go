@@ -232,14 +232,13 @@ func TestVecAggCrosstab_ElementCell(t *testing.T) {
 				nanCells := 0
 				for i := range got {
 					if wantFloors[i][0] == 0 {
-						// No row answered the member: the element mean is
-						// undefined (null), never 0. (The twin's
-						// AGG_AVERAGE still reads 0 there — E4-S5.)
-						if !math.IsNaN(got[i]) {
-							t.Errorf("%s: figure %d over no answered row = %v, want NaN", name, i, got[i])
+						// No row answered the member: the element mean and
+						// the twin's AGG_AVERAGE are both undefined (NaN,
+						// null on the wire), never 0 (E4-S5).
+						if !math.IsNaN(got[i]) || !math.IsNaN(want[i]) {
+							t.Errorf("%s: figure %d over no answered row = %v (twin %v), want NaN", name, i, got[i], want[i])
 						}
 						nanCells++
-						continue
 					}
 					if !sameFloat(got[i], want[i]) && !vexprClose(got[i], want[i]) {
 						t.Fatalf("%s: figure %d = %v, scalar twin %v", name, i, got[i], want[i])

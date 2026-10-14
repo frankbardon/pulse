@@ -99,8 +99,9 @@ func TestAggregator_Average_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result != 0 {
-		t.Errorf("average of empty = %f, want 0", result)
+	// Undefined over no value: NaN (JSON null), never 0 (E4-S5).
+	if !math.IsNaN(result) {
+		t.Errorf("average of empty = %f, want NaN", result)
 	}
 }
 
@@ -242,8 +243,9 @@ func TestAggregator_StdDev_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result != 0 {
-		t.Errorf("stddev of empty = %f, want 0", result)
+	// Undefined over no value: NaN (JSON null), never 0 (E4-S5).
+	if !math.IsNaN(result) {
+		t.Errorf("stddev of empty = %f, want NaN", result)
 	}
 }
 
@@ -284,8 +286,9 @@ func TestAggregator_Min_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result != 0 {
-		t.Errorf("min of empty = %f, want 0", result)
+	// Undefined over no value: NaN (JSON null), never 0 (E4-S5).
+	if !math.IsNaN(result) {
+		t.Errorf("min of empty = %f, want NaN", result)
 	}
 }
 
@@ -326,8 +329,9 @@ func TestAggregator_Max_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result != 0 {
-		t.Errorf("max of empty = %f, want 0", result)
+	// Undefined over no value: NaN (JSON null), never 0 (E4-S5).
+	if !math.IsNaN(result) {
+		t.Errorf("max of empty = %f, want NaN", result)
 	}
 }
 
@@ -368,8 +372,9 @@ func TestAggregator_Range_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result != 0 {
-		t.Errorf("range of empty = %f, want 0", result)
+	// Undefined over no value: NaN (JSON null), never 0 (E4-S5).
+	if !math.IsNaN(result) {
+		t.Errorf("range of empty = %f, want NaN", result)
 	}
 }
 
@@ -398,8 +403,9 @@ func TestAggregator_ZScore_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result != 0 {
-		t.Errorf("zscore of empty = %f, want 0", result)
+	// Undefined over no value: NaN (JSON null), never 0 (E4-S5).
+	if !math.IsNaN(result) {
+		t.Errorf("zscore of empty = %f, want NaN", result)
 	}
 }
 
@@ -483,8 +489,9 @@ func TestAggregator_Median_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result != 0 {
-		t.Errorf("median of empty = %f, want 0", result)
+	// Undefined over no value: NaN (JSON null), never 0 (E4-S5).
+	if !math.IsNaN(result) {
+		t.Errorf("median of empty = %f, want NaN", result)
 	}
 }
 
@@ -541,8 +548,9 @@ func TestAggregator_Variance_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result != 0 {
-		t.Errorf("variance of empty = %f, want 0", result)
+	// Undefined over no value: NaN (JSON null), never 0 (E4-S5).
+	if !math.IsNaN(result) {
+		t.Errorf("variance of empty = %f, want NaN", result)
 	}
 }
 
@@ -647,8 +655,9 @@ func TestAggregator_Mode_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result != 0 {
-		t.Errorf("mode of empty = %f, want 0", result)
+	// Undefined over no value: NaN (JSON null), never 0 (E4-S5).
+	if !math.IsNaN(result) {
+		t.Errorf("mode of empty = %f, want NaN", result)
 	}
 }
 
@@ -735,8 +744,9 @@ func TestAggregator_Skewness_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result != 0 {
-		t.Errorf("skewness of empty = %f, want 0", result)
+	// Undefined over no value: NaN (JSON null), never 0 (E4-S5).
+	if !math.IsNaN(result) {
+		t.Errorf("skewness of empty = %f, want NaN", result)
 	}
 }
 
@@ -829,8 +839,9 @@ func TestAggregator_Kurtosis_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result != 0 {
-		t.Errorf("kurtosis of empty = %f, want 0", result)
+	// Undefined over no value: NaN (JSON null), never 0 (E4-S5).
+	if !math.IsNaN(result) {
+		t.Errorf("kurtosis of empty = %f, want NaN", result)
 	}
 }
 
@@ -1031,8 +1042,9 @@ func TestAggregator_Percentile_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result != 0 {
-		t.Errorf("percentile of empty = %f, want 0", result)
+	// Undefined over no value: NaN (JSON null), never 0 (E4-S5).
+	if !math.IsNaN(result) {
+		t.Errorf("percentile of empty = %f, want NaN", result)
 	}
 }
 

@@ -2331,7 +2331,7 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 				if err != nil {
 					return nil, nil, err
 				}
-				row[label] = out
+				row[label] = out.cellValue()
 				if collectComponents {
 					workAggComponentBuilds.Add(1)
 					fl := floorFor(agg)

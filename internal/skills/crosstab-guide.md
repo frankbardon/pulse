@@ -37,7 +37,7 @@ Result `Response.Crosstab.Matrix` — `RowKeys`, `ColumnKeys`, `Cells`, margins,
 
 **Fit.** A <!-- feature: GROUP_QUANTILE -->`GROUP_QUANTILE`<!-- /feature --> / <!-- feature: GROUP_KMEANS -->`GROUP_KMEANS`<!-- /feature --> axis fits once over the filtered set (`params.fit` `global`, as in `groups`); `within` refits per outer bucket (rows, then columns).
 
-`cell` is one aggregation. Most cells are scalars (`MatrixCell.Value: float64`). Map- or list-valued cells (manifest `crosstab.map_valued_cell_aggregators` and the set unions / intersections) refuse a non-`none` normalize with `PULSE_CROSSTAB_NORMALIZE_MAP_VALUED` — normalize a scalar aggregator instead. An array-valued cell or margin aggregation needs `params.element` (one member, a scalar; `op-agg-vec-mean`), else `array_valued`.
+`cell` is one aggregation. Most cells are scalars (`MatrixCell.Value: float64`). Map- or list-valued cells (manifest `crosstab.map_valued_cell_aggregators` and the set unions / intersections) refuse a non-`none` normalize with `PULSE_CROSSTAB_NORMALIZE_MAP_VALUED` — normalize a scalar aggregator instead. An array-valued cell or margin aggregation needs `params.element` (one member, a scalar<!-- feature: AGG_VEC_MEAN -->; `op-agg-vec-mean`<!-- /feature -->), else `array_valued`.
 
 ## Margins recompute from raw rows
 

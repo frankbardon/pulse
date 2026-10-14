@@ -3,6 +3,7 @@ package processing
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"reflect"
 	"sort"
 	"testing"
@@ -107,13 +108,13 @@ func TestMetaAggregator_ScalarOps_Components(t *testing.T) {
 			name:    "MIN_empty",
 			aggType: types.AGG_MIN,
 			records: makeRecs(empty, nil),
-			want:    expectation{n: 0, nNull: 0, operator: map[string]any{"min": 0.0}},
+			want:    expectation{n: 0, nNull: 0, operator: map[string]any{"min": math.NaN()}},
 		},
 		{
 			name:    "MIN_nullHeavy",
 			aggType: types.AGG_MIN,
 			records: makeRecs(nullHeavy, nullHeavyIdx),
-			want:    expectation{n: 0, nNull: 3, operator: map[string]any{"min": 0.0}},
+			want:    expectation{n: 0, nNull: 3, operator: map[string]any{"min": math.NaN()}},
 		},
 
 		// AGG_MAX — {max}.
@@ -127,13 +128,13 @@ func TestMetaAggregator_ScalarOps_Components(t *testing.T) {
 			name:    "MAX_empty",
 			aggType: types.AGG_MAX,
 			records: makeRecs(empty, nil),
-			want:    expectation{n: 0, nNull: 0, operator: map[string]any{"max": 0.0}},
+			want:    expectation{n: 0, nNull: 0, operator: map[string]any{"max": math.NaN()}},
 		},
 		{
 			name:    "MAX_nullHeavy",
 			aggType: types.AGG_MAX,
 			records: makeRecs(nullHeavy, nullHeavyIdx),
-			want:    expectation{n: 0, nNull: 3, operator: map[string]any{"max": 0.0}},
+			want:    expectation{n: 0, nNull: 3, operator: map[string]any{"max": math.NaN()}},
 		},
 
 		// AGG_RANGE — {min, max}.
@@ -147,13 +148,13 @@ func TestMetaAggregator_ScalarOps_Components(t *testing.T) {
 			name:    "RANGE_empty",
 			aggType: types.AGG_RANGE,
 			records: makeRecs(empty, nil),
-			want:    expectation{n: 0, nNull: 0, operator: map[string]any{"min": 0.0, "max": 0.0}},
+			want:    expectation{n: 0, nNull: 0, operator: map[string]any{"min": math.NaN(), "max": math.NaN()}},
 		},
 		{
 			name:    "RANGE_nullHeavy",
 			aggType: types.AGG_RANGE,
 			records: makeRecs(nullHeavy, nullHeavyIdx),
-			want:    expectation{n: 0, nNull: 3, operator: map[string]any{"min": 0.0, "max": 0.0}},
+			want:    expectation{n: 0, nNull: 3, operator: map[string]any{"min": math.NaN(), "max": math.NaN()}},
 		},
 
 		// AGG_NULL_COUNT — floor only.
@@ -210,7 +211,7 @@ func TestMetaAggregator_ScalarOps_Components(t *testing.T) {
 			if entry.NNull != c.want.nNull {
 				t.Errorf("NNull = %d, want %d", entry.NNull, c.want.nNull)
 			}
-			if !reflect.DeepEqual(entry.Operator, c.want.operator) {
+			if !componentsEqual(entry.Operator, c.want.operator) {
 				t.Errorf("Operator = %#v, want %#v", entry.Operator, c.want.operator)
 			}
 		})

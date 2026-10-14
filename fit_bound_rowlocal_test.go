@@ -157,7 +157,7 @@ func fbWire(t *testing.T, resp *Response) string {
 		}
 		warns[i] = map[string]any{"code": w.Code, "message": w.Message, "details": d}
 	}
-	b, err := json.Marshal(map[string]any{"data": resp.Data, "warnings": warns})
+	b, err := types.MarshalFinite(map[string]any{"data": resp.Data, "warnings": warns})
 	if err != nil {
 		t.Fatal(err)
 	}

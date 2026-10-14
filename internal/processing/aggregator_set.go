@@ -1,6 +1,8 @@
 package processing
 
 import (
+	"math"
+
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
@@ -563,7 +565,8 @@ func (a *setCardinalitySumAggregator) MergeOnline(other OnlineAggregator) error 
 }
 
 // Average popcount per contributing row. Merge via summed totals and
-// counts (mean-reducible margin). Empty input returns 0.
+// counts (mean-reducible margin). Empty input returns NaN (JSON null):
+// the average over no contributing row is undefined.
 
 type setCardinalityAvgAggregator struct {
 	total uint64
@@ -597,10 +600,7 @@ func (a *setCardinalityAvgAggregator) Aggregate(records []*Record, field string)
 		a.n++
 	}
 	a.freeze()
-	if a.n == 0 {
-		return 0, nil
-	}
-	return float64(a.total) / float64(a.n), nil
+	return a.frozenAvg, nil
 }
 
 func (a *setCardinalityAvgAggregator) UpdateRow(r *Record, field string) error {
@@ -615,10 +615,7 @@ func (a *setCardinalityAvgAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *setCardinalityAvgAggregator) Finalize() (float64, error) {
 	a.freeze()
-	if a.n == 0 {
-		return 0, nil
-	}
-	return float64(a.total) / float64(a.n), nil
+	return a.frozenAvg, nil
 }
 
 // freeze stamps the running totals + avg into the frozen mirror so
@@ -630,7 +627,7 @@ func (a *setCardinalityAvgAggregator) freeze() {
 	a.frozenTotal = a.total
 	a.frozenN = a.n
 	if a.n == 0 {
-		a.frozenAvg = 0
+		a.frozenAvg = math.NaN()
 		return
 	}
 	a.frozenAvg = float64(a.total) / float64(a.n)

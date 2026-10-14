@@ -343,6 +343,10 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			if len(refs) == 0 && colsOK {
 				if _, werr := ResolveWeights(fieldReq, fieldSchema, opts.DefaultWeight, opts.instance()); werr != nil {
 					addCodedError(env, RefusalAt(werr, "stage", i))
+				} else if ce := formulaExpressionRefusal(fieldReq, opts); ce != nil {
+					// The attribute constructors run next: ATTR_FORMULA's
+					// empty expression (params.expression is not read).
+					addCodedError(env, RefusalAt(ce, "stage", i))
 				}
 			}
 		}

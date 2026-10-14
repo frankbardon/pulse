@@ -16,7 +16,8 @@ import (
 // request (grouped Process), Compose and whole-chain. The element is an
 // ordinary f64 column, so the layer equals the one scoring a scalar
 // aggregation with the same per-group values (AGG_AVERAGE of the member
-// — the oracle), an unanswered element (NaN) included. The bare label
+// — the oracle), an unanswered element (NaN) included: on every host a
+// NaN host value is MISSING (entry kept, statistic absent). The bare label
 // stays refused array_valued (TestProcessOverlay_ /
 // TestComposeOverlay_ / TestChainOverlay_ArrayValuedOnlyWhenScored); an
 // element the slot does not write is PULSE_OVERLAY_FIELD_UNKNOWN with
@@ -47,7 +48,7 @@ func elemGroups() []*types.Group {
 
 func elemJSON(t *testing.T, v any) string {
 	t.Helper()
-	b, err := json.Marshal(v)
+	b, err := types.MarshalFinite(v)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,46 +110,63 @@ func elemEntries(t *testing.T, p types.OverlayPayload) ([]string, []*float64) {
 }
 
 // elemCompare asserts the element layer got equals the scalar oracle's
-// want (AGG_AVERAGE of the member — which answers 0 where every member
-// value is null) everywhere but the missing bucket: there the element
-// is NaN, a MISSING host value, so its entry carries no statistic; and
-// with bridge (an ordered _PRIOR kind) the next entry compares across
-// the gap — the oracle's two deltas summed.
+// want (AGG_AVERAGE of the member) byte for byte on every host: the
+// oracle's mean over a bucket with no value is undefined (NaN) exactly
+// as the unanswered element is (E4-S5), so both read it as a MISSING
+// host value. On the missing bucket the entry is present but its
+// statistic key is ABSENT on the wire — never null — and with bridge
+// (an ordered _PRIOR kind) the next entry compares across the gap.
 func elemCompare(t *testing.T, got, want types.OverlayPayload, missing string, bridge bool) {
 	t.Helper()
+	if g, w := elemJSON(t, got), elemJSON(t, want); g != w {
+		t.Errorf("element layer =\n%s\nwant (scalar oracle)\n%s", g, w)
+	}
 	if missing == "" {
-		if g, w := elemJSON(t, got), elemJSON(t, want); g != w {
-			t.Errorf("element layer =\n%s\nwant (scalar oracle)\n%s", g, w)
-		}
 		return
 	}
 	gk, gs := elemEntries(t, got)
-	wk, ws := elemEntries(t, want)
-	if len(gk) != len(wk) || len(gk) == 0 {
-		t.Fatalf("entries %v, want %v", gk, wk)
+	if len(gk) == 0 {
+		t.Fatal("no entries")
 	}
+	raw := elemRawEntries(t, got)
 	seen := false
 	for i := range gk {
-		if gk[i] != wk[i] {
-			t.Fatalf("entry %d key %s, want %s", i, gk[i], wk[i])
-		}
 		switch {
 		case gk[i] == missing:
 			seen = true
-			if gs[i] != nil {
-				t.Errorf("bucket %s (element unanswered) statistic = %v, want none", gk[i], *gs[i])
+			if _, ok := raw[i]["statistic"]; ok {
+				t.Errorf("bucket %s (value undefined) carries a statistic key %s, want it absent (missing host value)", gk[i], raw[i]["statistic"])
 			}
 		case bridge && i > 0 && gk[i-1] == missing:
-			if gs[i] == nil || ws[i] == nil || ws[i-1] == nil || *gs[i] != *ws[i-1]+*ws[i] {
-				t.Errorf("bucket %s bridges the gap: %v, want oracle %v + %v", gk[i], gs[i], ws[i-1], ws[i])
+			if gs[i] == nil {
+				t.Errorf("bucket %s does not bridge the gap: no statistic", gk[i])
 			}
-		case (gs[i] == nil) != (ws[i] == nil) || gs[i] != nil && *gs[i] != *ws[i]:
-			t.Errorf("bucket %s statistic %v, want %v", gk[i], gs[i], ws[i])
 		}
 	}
 	if !seen {
 		t.Errorf("no entry for the missing bucket %s", missing)
 	}
+}
+
+// elemRawEntries is each SERIES entry's summary as raw JSON members, so
+// an absent statistic key is told apart from a null one.
+func elemRawEntries(t *testing.T, p types.OverlayPayload) []map[string]json.RawMessage {
+	t.Helper()
+	var wire struct {
+		Series struct {
+			Entries []struct {
+				Summary map[string]json.RawMessage `json:"summary"`
+			} `json:"entries"`
+		} `json:"series"`
+	}
+	if err := json.Unmarshal([]byte(elemJSON(t, p)), &wire); err != nil {
+		t.Fatal(err)
+	}
+	out := make([]map[string]json.RawMessage, len(wire.Series.Entries))
+	for i, e := range wire.Series.Entries {
+		out[i] = e.Summary
+	}
+	return out
 }
 
 func elemProcess(cohort string, vector, expand bool, kind types.OverlayKind, field string) *types.Request {

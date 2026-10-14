@@ -27,6 +27,7 @@ Shape inherited from target stage. Per-coordinate `index = target / ref × 100`.
 
 ## Gotchas
 
+- Series host: an undefined value (NaN — a mean over a group with no value, an unanswered element) on either side is a MISSING point, as on the request host — the entry keeps its key with NO `statistic` (absent, not `null`), no warning, out of `summary.count`.
 - Zero `ref_val_k` → NaN at that coordinate + ONE `PULSE_OVERLAY_REF_ZERO` per layer.
 - `Target` defaults to the latest stage when `Index` is nil and `Name` empty; `Ref` has no default.
 - Stage shape divergence → `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` WARNING on predict-chain and at runtime (chain stays valid and runs; empty layer).

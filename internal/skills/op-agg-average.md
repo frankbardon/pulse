@@ -42,6 +42,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 ## Gotchas
 
 - Null inputs skipped — mean is over `n` non-null, not the cohort.
+- No non-null value in the bucket (or Σw = 0) → `null` (NaN), never 0.
 - `decimal128` under any weight in force (default included) → `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` opts out.
 
 ## See

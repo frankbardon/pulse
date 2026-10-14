@@ -2,6 +2,7 @@ package processing
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -22,11 +23,33 @@ type decimalAggResult struct {
 	// when FellBack is true; otherwise it is unset.
 	FellBack bool
 	Float    float64
+	// Undefined marks a figure with no defined value — the mean,
+	// min / max or (co)variance of no contributing row. It never reaches
+	// a row: cellValue turns it into NaN, the engine-wide undefined
+	// figure (JSON null via types.MarshalFinite), never a "0" string.
+	Undefined bool
+}
+
+// undefinedDecimal is the result of a decimal aggregation over no
+// contributing row whose figure is undefined (not a count or a sum).
+func undefinedDecimal() decimalAggResult { return decimalAggResult{Undefined: true} }
+
+// cellValue is the value a row / crosstab cell carries: the result
+// itself, or NaN for an undefined figure, so a decimal column's empty
+// bucket reads exactly as a float column's (null on the wire).
+func (r decimalAggResult) cellValue() any {
+	if r.Undefined {
+		return math.NaN()
+	}
+	return r
 }
 
 // MarshalJSON renders the result as a decimal string at the carried
 // scale, or as a number when the aggregator fell back to f64.
 func (r decimalAggResult) MarshalJSON() ([]byte, error) {
+	if r.Undefined {
+		return []byte("null"), nil
+	}
 	if r.FellBack {
 		return []byte(fmt.Sprintf("%v", r.Float)), nil
 	}
@@ -35,6 +58,9 @@ func (r decimalAggResult) MarshalJSON() ([]byte, error) {
 
 // String renders the decimal at its scale.
 func (r decimalAggResult) String() string {
+	if r.Undefined {
+		return ""
+	}
 	if r.FellBack {
 		return fmt.Sprintf("%g", r.Float)
 	}
@@ -118,7 +144,7 @@ func AggregateDecimalField(agg types.AggregationType, records []*Record, field s
 		return decimalAggResult{Value: acc, Scale: scale}, nil
 	case types.AGG_MIN, types.AGG_MAX:
 		if len(values) == 0 {
-			return decimalAggResult{Value: encoding.ZeroDecimal128(), Scale: scale}, nil
+			return undefinedDecimal(), nil
 		}
 		best := values[0]
 		for _, v := range values[1:] {
@@ -130,7 +156,7 @@ func AggregateDecimalField(agg types.AggregationType, records []*Record, field s
 		return decimalAggResult{Value: best, Scale: scale}, nil
 	case types.AGG_AVERAGE:
 		if len(values) == 0 {
-			return decimalAggResult{Value: encoding.ZeroDecimal128(), Scale: scale}, nil
+			return undefinedDecimal(), nil
 		}
 		acc := encoding.ZeroDecimal128()
 		fellBack := false
@@ -178,7 +204,7 @@ func AggregateDecimalField(agg types.AggregationType, records []*Record, field s
 		return decimalAggResult{Value: out, Scale: resScale}, nil
 	case types.AGG_VARIANCE, types.AGG_STDDEV:
 		if len(values) == 0 {
-			return decimalAggResult{Value: encoding.ZeroDecimal128(), Scale: scale}, nil
+			return undefinedDecimal(), nil
 		}
 		// Two-pass population variance in decimal:
 		//   μ = (1/N) Σ x_i  at meanScale = max(scale, MIN_SCALE)
@@ -305,6 +331,9 @@ func decimalVarianceFloat64(values []encoding.Decimal128, scale uint8, agg types
 // comparator saw an opaque struct and every row compared equal, so a
 // sort by a decimal aggregate label was a silent no-op.
 func (r decimalAggResult) SortValue() any {
+	if r.Undefined {
+		return math.NaN()
+	}
 	if r.FellBack {
 		return r.Float
 	}

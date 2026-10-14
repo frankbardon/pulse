@@ -69,6 +69,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - Buffered full-input path; cohort-sized memory peak.
 - Out-of-range `percentile` rejected.
+- No non-null value → `null` (NaN), never 0.
 
 ## See
 

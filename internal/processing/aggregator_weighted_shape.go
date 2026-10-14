@@ -126,7 +126,8 @@ func (a *weightedQuantileAggregator) Aggregate(records []*Record, field string) 
 	a.frozenLow, a.frozenHigh = 0, 0
 	a.frozenLower, a.frozenUpper, a.frozenValue = 0, 0, 0
 	if len(pairs) == 0 {
-		return 0, nil
+		a.frozenValue = math.NaN()
+		return math.NaN(), nil
 	}
 	sort.SliceStable(pairs, func(i, j int) bool {
 		x, y := pairs[i].x, pairs[j].x
@@ -333,6 +334,10 @@ func (a *weightedModeAggregator) Finalize() (float64, error) {
 	if a.op == types.AGG_MODE_COUNT {
 		return a.frozenCount, nil
 	}
+	if a.frozenDistinct == 0 {
+		// The mode of no value is undefined: NaN (JSON null), never 0.
+		return math.NaN(), nil
+	}
 	return a.frozenValue, nil
 }
 
@@ -445,8 +450,12 @@ func (a *weightedMomentAggregator) Finalize() (float64, error) {
 	return a.frozen.shape(a.kurtosis()), nil
 }
 
-// shape is the streaming figure over st (0 for ≤ 1 row or no spread).
+// shape is the streaming figure over st (NaN for no row, 0 for one row
+// or no spread).
 func (st *momentState) shape(kurtosis bool) float64 {
+	if st.rows == 0 {
+		return math.NaN()
+	}
 	if st.rows <= 1 || st.m2 == 0 {
 		return 0
 	}
@@ -494,6 +503,9 @@ func (a *weightedMomentAggregator) Aggregate(records []*Record, field string) (f
 	}
 	a.frozen = st
 	a.momentState = momentState{}
+	if st.rows == 0 {
+		return math.NaN(), nil
+	}
 	if st.rows <= 1 {
 		return 0, nil
 	}
@@ -544,8 +556,15 @@ func (a *weightedMomentAggregator) Components() (map[string]any, error) {
 		out["skewness"] = figure
 	}
 	if st.rows == 0 {
+		// The empty sums stay 0; the mean and the figure are undefined.
 		for k := range out {
 			out[k] = 0.0
+		}
+		out["mean"] = math.NaN()
+		if a.kurtosis() {
+			out["kurtosis"] = math.NaN()
+		} else {
+			out["skewness"] = math.NaN()
 		}
 	}
 	return out, nil

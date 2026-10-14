@@ -1061,6 +1061,15 @@ kept** (`types.MarshalFinite`), and the rest of the response serialises
 normally. `null` means "reported, undefined here"; an absent optional
 key keeps meaning "not reported for this kind".
 
+A figure over **no value** is undefined the same way: the mean, the
+minimum / maximum / range, the variance / standard deviation, a
+quantile, the mode, a shape moment or the average set cardinality of a
+group, cell, margin or cohort with no non-null value (or, weighted,
+whose weights sum to 0) is `null` on every execution arm — never `0`.
+A count or a sum of nothing stays `0`. A series overlay reads such a
+host value as a missing point: its entry keeps its key with no
+`statistic` key at all, on the request, Compose and chain hosts alike.
+
 The schema says so: every float slot on a result-only def —
 `TestResult`, `RegressionResult`, `OverlaySummary`, the
 `OverlayPayload.scalar` arm, `FacetNumeric`, `FacetHistogram` and the

@@ -38,6 +38,7 @@ ONE layer per target, `layers[i].Name = "<spec.Name>__<spec.Targets[i]>"`. Paylo
 
 ## Gotchas
 
+- Series host: an undefined value (NaN — a mean over a group with no value, an unanswered element) on either side is a MISSING point, as on the request host — the entry keeps its key with NO `statistic` (absent, not `null`), no warning, out of `summary.count`.
 - `len(Targets) > MaxPanelTargets` → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
 - Empty `spec.Name` → label becomes `OVERLAY_PANEL_INDEX_VS_REF__<target_label>`.
 - Streamable: SERIES fold-only; MATRIX forced buffered by the slot barrier.

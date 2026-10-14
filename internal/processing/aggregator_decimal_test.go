@@ -2,6 +2,8 @@ package processing
 
 import (
 	"context"
+	"encoding/json"
+	"math"
 	"math/big"
 	"testing"
 
@@ -226,5 +228,80 @@ func TestProcessor_DecimalSumDispatch(t *testing.T) {
 	}
 	if got := res.Value.String(res.Scale); got != "60.00" {
 		t.Errorf("total = %s, want 60.00", got)
+	}
+}
+
+// TestDecimalAggregation_NoValueIsNull (E4-S5): over a decimal128 column
+// with no contributing value, AGG_AVERAGE / MIN / MAX / VARIANCE /
+// STDDEV are undefined — NaN in the row (null on the wire), exactly as
+// over a float column, never a "0" decimal string — while AGG_SUM,
+// AGG_COUNT and AGG_DISTINCT_COUNT stay the defined empty figure. Both
+// the row path and the crosstab cell path.
+func TestDecimalAggregation_NoValueIsNull(t *testing.T) {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "cat", Type: encoding.FieldTypeU8},
+		{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 2, Nullable: true},
+	}}
+	undefined := []types.AggregationType{types.AGG_AVERAGE, types.AGG_MIN, types.AGG_MAX, types.AGG_VARIANCE, types.AGG_STDDEV}
+	defined := map[types.AggregationType]string{types.AGG_SUM: `"0.00"`, types.AGG_COUNT: `"0"`, types.AGG_DISTINCT_COUNT: `"0"`}
+
+	var aggs []*types.Aggregation
+	for _, op := range undefined {
+		aggs = append(aggs, &types.Aggregation{Type: op, Field: "amount", Label: string(op)})
+	}
+	for op := range defined {
+		aggs = append(aggs, &types.Aggregation{Type: op, Field: "amount", Label: string(op)})
+	}
+	resp, err := NewProcessor(schema).Process(context.Background(), &types.Request{Aggregations: aggs}, NewSliceIterator(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := resp.Data[0]
+	wire := map[string]json.RawMessage{}
+	b, err := types.MarshalFinite(row)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(b, &wire); err != nil {
+		t.Fatal(err)
+	}
+	for _, op := range undefined {
+		if v, ok := row[string(op)].(float64); !ok || !math.IsNaN(v) {
+			t.Errorf("%s over no value = %v (%T), want NaN", op, row[string(op)], row[string(op)])
+		}
+		if string(wire[string(op)]) != "null" {
+			t.Errorf("%s on the wire = %s, want null", op, wire[string(op)])
+		}
+	}
+	for op, want := range defined {
+		if string(wire[string(op)]) != want {
+			t.Errorf("%s on the wire = %s, want %s", op, wire[string(op)], want)
+		}
+	}
+
+	// Crosstab: cat 1's rows all carry a null amount.
+	d, _, err := encoding.ParseDecimal128("4.50")
+	if err != nil {
+		t.Fatal(err)
+	}
+	full := NewRecord(schema, map[string]float64{"cat": 0, "amount": 4.5})
+	full.SetWide("amount", d)
+	empty := NewRecord(schema, map[string]float64{"cat": 1})
+	for _, op := range undefined {
+		ct, err := NewProcessor(schema).RunCrosstab(context.Background(), &types.Request{Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+			Cell:    &types.Aggregation{Type: op, Field: "amount", Label: "c"},
+		}}, []*Record{full, empty})
+		if err != nil {
+			t.Fatalf("%s crosstab: %v", op, err)
+		}
+		cell := ct.Crosstab.Matrix.Cells[1][1]
+		if v, ok := cell.Value.(float64); !cell.Present || !ok || !math.IsNaN(v) {
+			t.Errorf("%s cell over no value = %+v, want present NaN", op, cell)
+		}
+		if _, ok := ct.Crosstab.Matrix.Cells[0][0].Value.(decimalAggResult); !ok {
+			t.Errorf("%s cell over a value = %T, want a decimal result", op, ct.Crosstab.Matrix.Cells[0][0].Value)
+		}
 	}
 }

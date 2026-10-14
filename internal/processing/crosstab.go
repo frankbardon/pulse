@@ -1816,7 +1816,7 @@ func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record
 			// Decimal aggregators do not implement MetaAggregator — the
 			// orchestrator's floor-only entry is the full components
 			// payload (mirrors the ungrouped buffered path).
-			return cellAggregationResult{value: out, present: true, weight: wf}, nil, n, nNull, nil
+			return cellAggregationResult{value: out.cellValue(), present: true, weight: wf}, nil, n, nNull, nil
 		}
 	}
 
