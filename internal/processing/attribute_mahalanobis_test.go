@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -50,6 +51,13 @@ func mahaClose(got, want float64) bool {
 // The records are rebuilt per arm (mk), so the arms never share state.
 func runMahalanobisArms(t *testing.T, schema *encoding.Schema, mk func() []*Record, label string, build func() *types.Request) (streamed, buffered []float64, resp *types.Response) {
 	t.Helper()
+	return runFittedArms(t, schema, mk, label, nil, build)
+}
+
+// runFittedArms is runMahalanobisArms with models bound on every arm's
+// processor (nil: none).
+func runFittedArms(t *testing.T, schema *encoding.Schema, mk func() []*Record, label string, models *model.Set, build func() *types.Request) (streamed, buffered []float64, resp *types.Response) {
+	t.Helper()
 	var out [2][]float64
 	for i, grouped := range []bool{false, true} {
 		recs := mk()
@@ -60,6 +68,7 @@ func runMahalanobisArms(t *testing.T, schema *encoding.Schema, mk func() []*Reco
 			req.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: gf}}
 		}
 		p := NewProcessor(schema)
+		p.SetModels(models)
 		r, err := p.Process(context.Background(), req, NewSliceIterator(recs))
 		if err != nil {
 			t.Fatalf("grouped=%v: %v", grouped, err)

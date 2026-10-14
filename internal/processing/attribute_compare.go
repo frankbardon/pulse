@@ -352,7 +352,7 @@ func newComparisonAttribute(attr *types.Attribute, schema *encoding.Schema) (Att
 		return &comparisonAttribute{comparisonCore: core}, nil
 	}
 	f := &fittedComparisonAttribute{core: core}
-	base, ferr := newFittedVectorAttribute(attr, schema, core.cfg.FitOn, &comparisonFit{owner: f})
+	base, ferr := newFittedVectorAttribute(attr, schema, fittedSource{fitOn: core.cfg.FitOn, fit: core.cfg.Fit, labels: core.cfg.Labels}, &comparisonFit{owner: f})
 	if ferr != nil {
 		return nil, ferr
 	}

@@ -170,6 +170,12 @@ func (s *Set) WithModels(refs []types.ModelRef, files []*File) (*Set, error) {
 		for k, b := range s.byName {
 			out.byName[k] = b
 		}
+		for k, v := range s.vectors {
+			if out.vectors == nil {
+				out.vectors = make(map[string]*VectorFit, len(s.vectors))
+			}
+			out.vectors[k] = v
+		}
 	}
 	for j, r := range refs {
 		b, err := files[j].Bind(r.Name)

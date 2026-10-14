@@ -99,6 +99,7 @@ mean := acc.Mean()
   - every correlation touching a constant variable;
   - the mean of a variable with no mass.
 - **Concurrency.** A `CoMoment` is not safe for concurrent use. Give each goroutine its own accumulator and `Merge` them.
+- **Capture and restore.** `acc.ListwiseState()` returns a `Listwise` accumulator's complete stored state (`ListwiseState`: the counts, `W`, `W2`, the raw mean and the raw co-moment `M2` as a `*Sym`), and `linalg.NewCoMomentFromListwise(state)` rebuilds it. Every output, and every later `Add` or `Merge`, is bit-identical to the original's, so a fit can be captured once and scored elsewhere without storing its derived blocks. A `Pairwise` accumulator has no single state; a malformed state is `PULSE_MATRIX_SHAPE_MISMATCH`.
 
 ### Merging with identical bits regardless of worker count
 

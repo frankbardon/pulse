@@ -253,6 +253,16 @@ func attributeCapabilities() []descriptor.Operator {
 					Description: "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored.",
 				},
 				{
+					Name:        "fit",
+					Type:        "string",
+					Description: "Name of a bound vector fit to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs.",
+				},
+				{
+					Name:        "labels",
+					Type:        "list",
+					Description: "Inline fields only: one unique label per member, the names a bound fit aligns to (default: the field names). A named vector carries its own labels.",
+				},
+				{
 					Name:        "missing",
 					Type:        "enum",
 					Default:     "listwise",
@@ -303,6 +313,16 @@ func attributeCapabilities() []descriptor.Operator {
 					Description: "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored.",
 				},
 				{
+					Name:        "fit",
+					Type:        "string",
+					Description: "Name of a bound vector fit to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs.",
+				},
+				{
+					Name:        "labels",
+					Type:        "list",
+					Description: "Inline fields only: one unique label per member, the names a bound fit aligns to (default: the field names). A named vector carries its own labels.",
+				},
+				{
 					Name:        "missing",
 					Type:        "enum",
 					Default:     "listwise",
@@ -344,6 +364,16 @@ func attributeCapabilities() []descriptor.Operator {
 					Type:        "any",
 					Default:     "filtered",
 					Description: "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored.",
+				},
+				{
+					Name:        "fit",
+					Type:        "string",
+					Description: "Name of a bound vector fit to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs.",
+				},
+				{
+					Name:        "labels",
+					Type:        "list",
+					Description: "Inline fields only: one unique label per member, the names a bound fit aligns to (default: the field names). A named vector carries its own labels.",
 				},
 				{
 					Name:        "missing",
@@ -458,6 +488,11 @@ func comparisonCapability(t types.AttributeType) descriptor.Operator {
 				Type:        "any",
 				Default:     "filtered",
 				Description: "Fitted metrics only (refused beside a row-local one): the fit population, \"filtered\" (every filtered row) or an inline array of filterer objects; every filtered row is still scored.",
+			},
+			descriptor.Param{
+				Name:        "fit",
+				Type:        "string",
+				Description: "Fitted metrics only: name of a bound vector fit to read instead of fitting (mutually exclusive with fit_on); aligned by label.",
 			},
 			descriptor.Param{
 				Name:        "missing",

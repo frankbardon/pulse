@@ -1759,7 +1759,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_UNKNOWN: {
-		Message: "A reference names a model nothing binds in this request. Names resolve against the ComposedRequest `fits` entries and the request's `models` entries (one namespace). The unknown name is under `name`, the bound names under `available`.",
+		Message: "A reference names a model nothing binds in this request. Names resolve against the ComposedRequest `fits` entries and the request's `models` entries (one namespace). The unknown name is under `name`, the bound names under `available`. A fitted vector attribute's `params.fit` resolves only a bound VECTOR fit: `available` then lists the vector fits, and a name bound as a regression carries `kind` `regression`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -4001,12 +4001,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_VECTOR_REFERENCE_MISMATCH: {
-		Message: "A reference vector's labels do not match the vector it is compared with. A reference is matched by label, never by position: the two label sets must be equal (reason `labels_differ`; `missing` lists the vector's labels the reference lacks, `extra` the reference's labels the vector lacks), and a reference cannot be compared with a vector that carries no labels, such as a literal array (reason `unlabeled_partner`).",
+		Message: "A reference vector's labels do not match the vector it is compared with. A reference is matched by label, never by position: the two label sets must be equal (reason `labels_differ`; `missing` lists the vector's labels the reference lacks, `extra` the reference's labels the vector lacks), and a reference cannot be compared with a vector that carries no labels, such as a literal array (reason `unlabeled_partner`). A fitted vector attribute's bound fit (`params.fit`, named under `fit`) aligns to the slot's member labels by the same rule.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"vectors", "labels"},
 				Hint:   "Give the compared vector labels equal to the reference's `reference_labels` (any order), or compare with a reference table whose labels are the vector's.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "labels"},
+				Hint:   "For a bound fit (`fit` in details), label the slot's inline fields with params.labels equal to the fit's `reference_labels`, or score a vector whose labels are the fit's.",
 			},
 			{
 				Action: FixupReplaceField,

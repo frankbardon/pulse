@@ -220,6 +220,11 @@ func resolveAttribute(at string, a *types.Attribute, typ types.AttributeType, sp
 	if err := fittedMemberBounds(at, typ, a.Params, len(members.Members)); err != nil {
 		return AttributeInput{}, err
 	}
+	if IsFittedAttribute(typ) {
+		if _, err := FittedLabels(at, typ, a.Params, members); err != nil {
+			return AttributeInput{}, err
+		}
+	}
 	if typ == types.ATTR_SCALE_SCORE {
 		if _, err := ScaleScoreParams(at, a.Params, members); err != nil {
 			return AttributeInput{}, err
@@ -333,8 +338,128 @@ const FitOnFiltered = "filtered"
 type FittedCommon struct {
 	// FitOn is "filtered" (default) or an inline Filterer array.
 	FitOn json.RawMessage `json:"fit_on"`
+	// Fit names a bound vector fit to score against instead of fitting
+	// (mutually exclusive with FitOn).
+	Fit *string `json:"fit"`
 	// Missing is "listwise" (the only mode).
 	Missing *string `json:"missing"`
+}
+
+// fitOnWritten reports whether params.fit_on is present (any value but
+// JSON null).
+func (c FittedCommon) fitOnWritten() bool {
+	raw := bytes.TrimSpace(c.FitOn)
+	return len(raw) > 0 && !bytes.Equal(raw, []byte("null"))
+}
+
+// resolveFit judges params.fit: "" when absent; a non-empty bound name
+// otherwise. fit and fit_on are mutually exclusive — a bound fit is
+// already fitted, so a fit population has nothing to select
+// (reason fit_and_fit_on).
+func (c FittedCommon) resolveFit(at string) (string, *errors.CodedError) {
+	if c.Fit == nil {
+		return "", nil
+	}
+	if *c.Fit == "" {
+		return "", attributeInvalid(at, "bad_fit",
+			at+" params.fit must name a bound vector fit",
+			map[string]any{"param": "fit"})
+	}
+	if c.fitOnWritten() {
+		return "", attributeInvalid(at, "fit_and_fit_on",
+			at+" sets both params.fit and params.fit_on; set exactly one: fit scores against the bound vector fit "+strconv.Quote(*c.Fit)+", fit_on fits on this request's rows",
+			map[string]any{"param": "fit", "fit": *c.Fit})
+	}
+	return *c.Fit, nil
+}
+
+// fittedLabels is the params.labels key the non-comparison fitted
+// attributes take (a comparison slot's own params carry it): the labels
+// a bound vector fit (params.fit) aligns to.
+type fittedLabels struct {
+	Labels []string `json:"labels"`
+}
+
+// FittedLabels judges a fitted attribute slot's params.labels against
+// its resolved members (vector the named vector, "" for inline fields)
+// and returns the labels a bound vector fit aligns to: params.labels
+// (inline fields only, one unique non-empty label per member), else the
+// members' labels (a named vector's own, the member names for inline
+// fields). Comparison slots judge theirs in ComparisonParams.
+func FittedLabels(at string, typ types.AttributeType, raw json.RawMessage, members Resolved) ([]string, *errors.CodedError) {
+	var params fittedLabels
+	if raw = bytes.TrimSpace(raw); len(raw) > 0 && !bytes.Equal(raw, []byte("null")) {
+		_ = json.Unmarshal(raw, &params) // strictness is the operator decode's
+	}
+	return slotLabels(at, params.Labels, members)
+}
+
+// slotLabels is the one labels rule a comparison or fitted slot shares:
+// explicit labels over inline fields (one unique non-empty label per
+// member; refused beside a named vector), else the members' own labels
+// (the member names when the members carry none).
+func slotLabels(at string, explicit []string, members Resolved) ([]string, *errors.CodedError) {
+	p := len(members.Members)
+	labels := members.Labels
+	if len(labels) != p {
+		labels = members.Members
+	}
+	if explicit == nil {
+		return labels, nil
+	}
+	if members.Name != "" {
+		return nil, attributeInvalid(at, "labels_on_vector",
+			at+" params.labels names inline fields' elements; vector "+strconv.Quote(members.Name)+" carries its own labels",
+			map[string]any{"param": "labels", "vector": members.Name})
+	}
+	if len(explicit) != p {
+		return nil, attributeInvalid(at, "bad_params",
+			at+" params.labels must name each of the "+strconv.Itoa(p)+" members once",
+			map[string]any{"param": "labels", "labels": len(explicit), "members": p})
+	}
+	seen := make(map[string]bool, p)
+	for _, l := range explicit {
+		if l == "" || seen[l] {
+			return nil, attributeInvalid(at, "bad_params",
+				at+" params.labels must be non-empty and unique",
+				map[string]any{"param": "labels", "value": l})
+		}
+		seen[l] = true
+	}
+	return slices.Clone(explicit), nil
+}
+
+// FittedSlotParams returns a fitted (non-comparison) attribute slot's
+// params with params.labels written out as members' labels, for the
+// literal-member rewrite (Processor.prepare): the rewrite clears the
+// named vector, and a bound vector fit (params.fit) aligns to its
+// labels. ok is false — keep the params as written — when the slot
+// names no vector, binds no fit, or its params do not decode.
+func FittedSlotParams(a *types.Attribute, members Resolved) (json.RawMessage, bool) {
+	if a == nil || a.Vector == "" || !IsFittedAttribute(a.Type) {
+		return nil, false
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(a.Params, &obj); err != nil || obj == nil {
+		return nil, false
+	}
+	if fit, ok := obj["fit"]; !ok || bytes.Equal(bytes.TrimSpace(fit), []byte("null")) {
+		return nil, false
+	}
+	labels := members.Labels
+	if len(labels) != len(members.Members) {
+		labels = members.Members
+	}
+	enc, err := json.Marshal(labels)
+	if err != nil {
+		return nil, false
+	}
+	obj["labels"] = enc
+	out, err := json.Marshal(obj)
+	if err != nil {
+		return nil, false
+	}
+	return out, true
 }
 
 // resolve judges missing and decodes fit_on: nil for "filtered" or
@@ -397,6 +522,11 @@ type MahalanobisConfig struct {
 	Output string
 	// FitOn is the fit_on filterer list; nil fits on every filtered row.
 	FitOn []*types.Filterer
+	// Fit names the bound vector fit scored against ("" folds this
+	// request's own fit); Labels are the labels it aligns to
+	// (params.labels as written; nil: the members').
+	Fit    string
+	Labels []string
 }
 
 // MahalanobisParams decodes ATTR_MAHALANOBIS's params: output ("d2"
@@ -411,17 +541,22 @@ func MahalanobisParams(at string, raw json.RawMessage) (MahalanobisConfig, *erro
 	}
 	var params struct {
 		FittedCommon
+		fittedLabels
 		Output *string `json:"output"`
 	}
 	if err := decodeStrict(raw, &params); err != nil {
 		return MahalanobisConfig{}, attributeInvalid(at, "bad_params",
-			at+" ATTR_MAHALANOBIS params: "+err.Error()+" (keys: output, fit_on, missing)", nil)
+			at+" ATTR_MAHALANOBIS params: "+err.Error()+" (keys: output, fit_on, fit, labels, missing)", nil)
 	}
 	fitOn, err := params.resolve(at)
 	if err != nil {
 		return MahalanobisConfig{}, err
 	}
-	cfg.FitOn = fitOn
+	fit, err := params.resolveFit(at)
+	if err != nil {
+		return MahalanobisConfig{}, err
+	}
+	cfg.FitOn, cfg.Fit, cfg.Labels = fitOn, fit, params.Labels
 	if params.Output != nil {
 		switch v := *params.Output; v {
 		case MahalanobisD2, MahalanobisP:
@@ -451,6 +586,9 @@ type PCScoreConfig struct {
 	Components int
 	// FitOn is the fit_on filterer list; nil fits on every filtered row.
 	FitOn []*types.Filterer
+	// Fit / Labels: as MahalanobisConfig's.
+	Fit    string
+	Labels []string
 }
 
 // PCScoreParams decodes ATTR_PC_SCORE's params: component (an integer
@@ -469,6 +607,7 @@ func PCScoreParams(at string, raw json.RawMessage) (PCScoreConfig, *errors.Coded
 	}
 	var params struct {
 		FittedCommon
+		fittedLabels
 		Component  *json.Number `json:"component"`
 		On         *string      `json:"on"`
 		Rotation   *string      `json:"rotation"`
@@ -476,13 +615,17 @@ func PCScoreParams(at string, raw json.RawMessage) (PCScoreConfig, *errors.Coded
 	}
 	if err := decodeStrict(raw, &params); err != nil {
 		return PCScoreConfig{}, attributeInvalid(at, "bad_params",
-			at+" ATTR_PC_SCORE params: "+err.Error()+" (keys: component, on, rotation, components, fit_on, missing)", nil)
+			at+" ATTR_PC_SCORE params: "+err.Error()+" (keys: component, on, rotation, components, fit_on, fit, labels, missing)", nil)
 	}
 	fitOn, err := params.resolve(at)
 	if err != nil {
 		return PCScoreConfig{}, err
 	}
-	cfg.FitOn = fitOn
+	fit, err := params.resolveFit(at)
+	if err != nil {
+		return PCScoreConfig{}, err
+	}
+	cfg.FitOn, cfg.Fit, cfg.Labels = fitOn, fit, params.Labels
 	if params.Component == nil {
 		return PCScoreConfig{}, attributeInvalid(at, "bad_params", at+" ATTR_PC_SCORE params.component is required (the 1-based component to score)",
 			map[string]any{"param": "component"})
@@ -574,6 +717,9 @@ type FactorScoreConfig struct {
 	Gamma      float64
 	// FitOn is the fit_on filterer list; nil fits on every filtered row.
 	FitOn []*types.Filterer
+	// Fit / Labels: as MahalanobisConfig's.
+	Fit    string
+	Labels []string
 }
 
 // FactorScoreParams decodes ATTR_FACTOR_SCORE's params: factor (an
@@ -595,6 +741,7 @@ func FactorScoreParams(at string, raw json.RawMessage) (FactorScoreConfig, *erro
 	}
 	var params struct {
 		FittedCommon
+		fittedLabels
 		Factor     *json.Number    `json:"factor"`
 		Method     *string         `json:"method"`
 		Factors    json.RawMessage `json:"factors"`
@@ -605,9 +752,13 @@ func FactorScoreParams(at string, raw json.RawMessage) (FactorScoreConfig, *erro
 	}
 	if err := decodeStrict(raw, &params); err != nil {
 		return FactorScoreConfig{}, attributeInvalid(at, "bad_params",
-			at+" ATTR_FACTOR_SCORE params: "+err.Error()+" (keys: factor, method, factors, extraction, rotation, kappa, gamma, fit_on, missing)", nil)
+			at+" ATTR_FACTOR_SCORE params: "+err.Error()+" (keys: factor, method, factors, extraction, rotation, kappa, gamma, fit_on, fit, labels, missing)", nil)
 	}
 	fitOn, err := params.resolve(at)
+	if err != nil {
+		return FactorScoreConfig{}, err
+	}
+	fit, err := params.resolveFit(at)
 	if err != nil {
 		return FactorScoreConfig{}, err
 	}
@@ -619,7 +770,7 @@ func FactorScoreParams(at string, raw json.RawMessage) (FactorScoreConfig, *erro
 		return FactorScoreConfig{}, attributeInvalid(at, "bad_params", at+" params.factor must be an integer ≥ 1",
 			map[string]any{"param": "factor", "value": params.Factor.String()})
 	}
-	cfg := FactorScoreConfig{Factor: f, Method: FactorScoreRegression, FitOn: fitOn}
+	cfg := FactorScoreConfig{Factor: f, Method: FactorScoreRegression, FitOn: fitOn, Fit: fit, Labels: params.Labels}
 	if params.Method != nil {
 		switch v := *params.Method; v {
 		case FactorScoreRegression, FactorScoreBartlett:

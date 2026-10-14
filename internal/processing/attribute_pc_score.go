@@ -75,7 +75,7 @@ func newPCScoreAttribute(attr *types.Attribute, schema *encoding.Schema) (Attrib
 			return nil, cerr
 		}
 	}
-	return newFittedVectorAttribute(attr, schema, cfg.FitOn, &pcScoreModel{cfg: cfg})
+	return newFittedVectorAttribute(attr, schema, fittedSource{fitOn: cfg.FitOn, fit: cfg.Fit, labels: cfg.Labels}, &pcScoreModel{cfg: cfg})
 }
 
 // fit decomposes the fit's correlation (or covariance) and fixes the

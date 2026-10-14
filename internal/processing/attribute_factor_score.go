@@ -78,7 +78,7 @@ func newFactorScoreAttribute(attr *types.Attribute, schema *encoding.Schema) (At
 			return nil, cerr
 		}
 	}
-	return newFittedVectorAttribute(attr, schema, cfg.FitOn, &factorScoreModel{cfg: cfg, members: append([]string(nil), attr.Fields...)})
+	return newFittedVectorAttribute(attr, schema, fittedSource{fitOn: cfg.FitOn, fit: cfg.Fit, labels: cfg.Labels}, &factorScoreModel{cfg: cfg, members: append([]string(nil), attr.Fields...)})
 }
 
 // fit runs MAT_FACTOR's extraction and rotation on the fit's

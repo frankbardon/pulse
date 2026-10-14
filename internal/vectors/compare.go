@@ -126,6 +126,9 @@ type ComparisonConfig struct {
 	// fits on every filtered row. FitOnRaw is it as written.
 	FitOn    []*types.Filterer
 	FitOnRaw json.RawMessage
+	// Fit names the bound vector fit a fitted metric reads instead of
+	// fitting ("" folds this request's own fit); it aligns to Labels.
+	Fit string
 }
 
 // Fitted reports whether the metric reads a fit pass (std_euclidean,
@@ -169,39 +172,18 @@ func ComparisonParams(at string, typ types.AttributeType, raw json.RawMessage, m
 		if err != nil {
 			keys := "metric, min_valid, reference, labels"
 			if typ == types.ATTR_VEC_DISTANCE {
-				keys += ", fit_on, missing"
+				keys += ", fit_on, fit, missing"
 			}
 			return ComparisonConfig{}, attributeInvalid(at, "bad_params",
 				at+" "+string(typ)+" params: "+err.Error()+" (keys: "+keys+")", nil)
 		}
 	}
 	// Labels: a named vector's own, or params.labels over inline fields.
-	cfg.Labels = members.Labels
-	if len(cfg.Labels) != p {
-		cfg.Labels = members.Members
+	labels, lerr := slotLabels(at, params.Labels, members)
+	if lerr != nil {
+		return ComparisonConfig{}, lerr
 	}
-	if params.Labels != nil {
-		if members.Name != "" {
-			return ComparisonConfig{}, attributeInvalid(at, "labels_on_vector",
-				at+" params.labels names inline fields' elements; vector "+strconv.Quote(members.Name)+" carries its own labels",
-				map[string]any{"param": "labels", "vector": members.Name})
-		}
-		if len(params.Labels) != p {
-			return ComparisonConfig{}, attributeInvalid(at, "bad_params",
-				at+" params.labels must name each of the "+strconv.Itoa(p)+" members once",
-				map[string]any{"param": "labels", "labels": len(params.Labels), "members": p})
-		}
-		seen := make(map[string]bool, p)
-		for _, l := range params.Labels {
-			if l == "" || seen[l] {
-				return ComparisonConfig{}, attributeInvalid(at, "bad_params",
-					at+" params.labels must be non-empty and unique",
-					map[string]any{"param": "labels", "value": l})
-			}
-			seen[l] = true
-		}
-		cfg.Labels = slices.Clone(params.Labels)
-	}
+	cfg.Labels = labels
 
 	// The reference first (a draft without one is refused naming it),
 	// then the metric.
@@ -232,13 +214,17 @@ func ComparisonParams(at string, typ types.AttributeType, raw json.RawMessage, m
 		if err != nil {
 			return ComparisonConfig{}, err
 		}
-		set := len(bytes.TrimSpace(params.FitOn)) > 0 || params.Missing != nil
+		fit, err := params.resolveFit(at)
+		if err != nil {
+			return ComparisonConfig{}, err
+		}
+		set := len(bytes.TrimSpace(params.FitOn)) > 0 || params.Missing != nil || params.Fit != nil
 		if set && !m.Fitted() {
 			return ComparisonConfig{}, attributeInvalid(at, "fit_on_row_local",
-				at+" params.fit_on / missing apply only to a fitted metric (std_euclidean, mahalanobis); metric "+strconv.Quote(m.Name())+" reads no fit",
+				at+" params.fit_on / fit / missing apply only to a fitted metric (std_euclidean, mahalanobis); metric "+strconv.Quote(m.Name())+" reads no fit",
 				map[string]any{"param": "fit_on", "metric": m.Name()})
 		}
-		cfg.FitOn = fitOn
+		cfg.FitOn, cfg.Fit = fitOn, fit
 		if fr := bytes.TrimSpace(params.FitOn); len(fr) > 0 && !bytes.Equal(fr, []byte("null")) {
 			cfg.FitOnRaw = slices.Clone(json.RawMessage(fr))
 		}
@@ -510,7 +496,7 @@ func ComparisonTableIssue(at string, cfg ComparisonConfig, tables ReferenceTable
 // members: the metric written out (a kind default survives the rewrite
 // to literal fields), min_valid, the labels the reference aligns to,
 // the reference (a literal or label map in member order; a table form
-// as written) and fit_on as written. Processor.prepare hands it to the
+// as written), fit_on as written and the bound fit's name. Processor.prepare hands it to the
 // factory beside the literal member list; ComparisonParams over those
 // members decodes it back to cfg.
 func (cfg ComparisonConfig) CanonicalParams() json.RawMessage {
@@ -525,7 +511,8 @@ func (cfg ComparisonConfig) CanonicalParams() json.RawMessage {
 		Labels    []string        `json:"labels"`
 		Reference any             `json:"reference"`
 		FitOn     json.RawMessage `json:"fit_on,omitempty"`
-	}{Metric: cfg.Metric.Name(), MinValid: cfg.MinValid, Labels: cfg.Labels, FitOn: cfg.FitOnRaw}
+		Fit       string          `json:"fit,omitempty"`
+	}{Metric: cfg.Metric.Name(), MinValid: cfg.MinValid, Labels: cfg.Labels, FitOn: cfg.FitOnRaw, Fit: cfg.Fit}
 	switch cfg.Reference.Form {
 	case ReferenceValues, ReferenceLabelMap:
 		out.Reference = cfg.Reference.Values

@@ -173,15 +173,16 @@ func missingCoefficient(name, term string) error {
 // readers.
 type Set struct {
 	byName map[string]*Bound
+	// vectors are the bound vector fits (vector.go), in the same
+	// namespace: a name is bound as one kind or the other.
+	vectors map[string]*VectorFit
 }
 
 // Add binds b under b.Name; a name already bound is
 // PULSE_MODEL_NAME_COLLISION.
 func (s *Set) Add(b *Bound) error {
-	if _, dup := s.byName[b.Name]; dup {
-		return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_NAME_COLLISION,
-			fmt.Sprintf("model name %q is bound twice", b.Name),
-			map[string]any{"name": b.Name})
+	if s.bound(b.Name) {
+		return nameCollision(b.Name)
 	}
 	if s.byName == nil {
 		s.byName = map[string]*Bound{}
@@ -213,7 +214,8 @@ func UnknownModel(name string, available []string) *errors.CodedError {
 		map[string]any{"name": name, "available": available})
 }
 
-// Names returns the bound names, sorted. Nil-receiver-safe.
+// Names returns the bound regression names, sorted (VectorNames lists
+// the vector fits). Nil-receiver-safe.
 func (s *Set) Names() []string {
 	if s == nil {
 		return nil
@@ -226,7 +228,7 @@ func (s *Set) Names() []string {
 	return out
 }
 
-// Len is the number of bound models. Nil-receiver-safe.
+// Len is the number of bound regressions. Nil-receiver-safe.
 func (s *Set) Len() int {
 	if s == nil {
 		return 0

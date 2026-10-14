@@ -379,7 +379,7 @@ func (stubRefusingNoteModel) fitNotes() []*fitRefusal {
 // of the refusal's — while every score is null.
 func TestFittedAttribute_RefusalKeepsFitNotes(t *testing.T) {
 	schema := mahaSchema()
-	a, err := newFittedVectorAttribute(&types.Attribute{Type: types.ATTR_FACTOR_SCORE, Label: "fs", Fields: []string{"x", "y"}}, schema, nil, stubRefusingNoteModel{})
+	a, err := newFittedVectorAttribute(&types.Attribute{Type: types.ATTR_FACTOR_SCORE, Label: "fs", Fields: []string{"x", "y"}}, schema, fittedSource{}, stubRefusingNoteModel{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -411,7 +411,7 @@ func TestFittedAttribute_RefusalKeepsFitNotes(t *testing.T) {
 // while every row is still scored.
 func TestFittedAttribute_FitNotesBecomeWarnings(t *testing.T) {
 	schema := mahaSchema()
-	a, err := newFittedVectorAttribute(&types.Attribute{Type: types.ATTR_PC_SCORE, Label: "pc", Fields: []string{"x", "y"}}, schema, nil, stubNoteModel{})
+	a, err := newFittedVectorAttribute(&types.Attribute{Type: types.ATTR_PC_SCORE, Label: "pc", Fields: []string{"x", "y"}}, schema, fittedSource{}, stubNoteModel{})
 	if err != nil {
 		t.Fatal(err)
 	}

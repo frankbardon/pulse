@@ -27,7 +27,7 @@ Use something else:
 - `metric` — distance only: `euclidean`, `sq_euclidean`, `manhattan`, `chebyshev`, `cosine` (1 − cos), `hellinger`, `aitchison`, `hamming`, `std_euclidean`, `mahalanobis`. Default from `kind` (measure → `std_euclidean`); none → `PULSE_VECTOR_METRIC_REQUIRED`. A similarity → `PULSE_VECTOR_METRIC_UNKNOWN`, `details.use` = `ATTR_PROFILE_SIMILARITY`.
 - `reference` (required) — `[…]`, `{label: value}`, `{table, key}` or `{table, key_field}` (categorical or `u4`…`u64`, by base-10 form).
 - `min_valid` — fewest complete pairs, default 1. `labels` — inline `fields` only.
-- `fit_on`, `missing` — fitted metrics only.
+- `fit_on`, `missing`, `fit` — fitted metrics only; `fit` reads a bound vector fit by label instead of fitting (XOR `fit_on`).
 
 ## Inputs
 

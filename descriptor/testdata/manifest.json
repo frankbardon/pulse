@@ -3184,6 +3184,18 @@
               "description": "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored."
             },
             {
+              "name": "fit",
+              "type": "string",
+              "required": false,
+              "description": "Name of a bound vector fit to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs."
+            },
+            {
+              "name": "labels",
+              "type": "list",
+              "required": false,
+              "description": "Inline fields only: one unique label per member, the names a bound fit aligns to (default: the field names). A named vector carries its own labels."
+            },
+            {
               "name": "missing",
               "type": "enum",
               "required": false,
@@ -3283,6 +3295,18 @@
               "required": false,
               "default": "filtered",
               "description": "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored."
+            },
+            {
+              "name": "fit",
+              "type": "string",
+              "required": false,
+              "description": "Name of a bound vector fit to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs."
+            },
+            {
+              "name": "labels",
+              "type": "list",
+              "required": false,
+              "description": "Inline fields only: one unique label per member, the names a bound fit aligns to (default: the field names). A named vector carries its own labels."
             },
             {
               "name": "missing",
@@ -3391,6 +3415,18 @@
               "required": false,
               "default": "filtered",
               "description": "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored."
+            },
+            {
+              "name": "fit",
+              "type": "string",
+              "required": false,
+              "description": "Name of a bound vector fit to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs."
+            },
+            {
+              "name": "labels",
+              "type": "list",
+              "required": false,
+              "description": "Inline fields only: one unique label per member, the names a bound fit aligns to (default: the field names). A named vector carries its own labels."
             },
             {
               "name": "missing",
@@ -3913,6 +3949,12 @@
               "required": false,
               "default": "filtered",
               "description": "Fitted metrics only (refused beside a row-local one): the fit population, \"filtered\" (every filtered row) or an inline array of filterer objects; every filtered row is still scored."
+            },
+            {
+              "name": "fit",
+              "type": "string",
+              "required": false,
+              "description": "Fitted metrics only: name of a bound vector fit to read instead of fitting (mutually exclusive with fit_on); aligned by label."
             },
             {
               "name": "missing",
@@ -16728,4 +16770,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2031498ba09a4e93ddc23a6767c76a047e5508778cee86d504a731a6af2fbf86
+// golden-hash: 569e7e0b46bf4eb276cda951651b383d05212663566a9231e15e864600c71793

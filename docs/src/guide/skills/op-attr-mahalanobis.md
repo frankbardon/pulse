@@ -28,6 +28,7 @@ Use something else:
 
 - `output` — `d2` (default) or `p` (χ² upper tail on p df). `missing` — `listwise` only.
 - `fit_on` — `"filtered"` (default) or an inline filterer array picking the FIT rows; every filtered row is scored.
+- `fit` — a bound vector fit's name, scored against instead of fitting (XOR `fit_on`: `fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members (`labels` — inline `fields` only); mismatch `PULSE_VECTOR_REFERENCE_MISMATCH`, unbound `PULSE_MODEL_UNKNOWN`.
 - `weight` — both kinds; fit only (N* = Σw or n_eff, cov M2*/(N* − 1)); a zero-weight row is scored, not fitted.
 
 Slot: exactly one of `vector` (a `vectors` entry) / `fields` (inline, globs ok); no `field`. Default label `ATTR_MAHALANOBIS_<vector>` or `_<first fields entry>`.

@@ -3147,6 +3147,7 @@ pulse/linalg: type CoMoment method (*CoMoment) Add(x []float64, w float64)
 pulse/linalg: type CoMoment method (*CoMoment) Clone() *pulse/linalg.CoMoment
 pulse/linalg: type CoMoment method (*CoMoment) Corr() *pulse/linalg.Sym
 pulse/linalg: type CoMoment method (*CoMoment) Cov(ddof int) *pulse/linalg.Sym
+pulse/linalg: type CoMoment method (*CoMoment) ListwiseState() (pulse/linalg.ListwiseState, error)
 pulse/linalg: type CoMoment method (*CoMoment) Mean() *pulse/linalg.Vec
 pulse/linalg: type CoMoment method (*CoMoment) Merge(other *pulse/linalg.CoMoment) error
 pulse/linalg: type CoMoment method (*CoMoment) Mode() pulse/linalg.CoMomentMode
@@ -3178,6 +3179,14 @@ pulse/linalg: type LUFactor method (*LUFactor) N() int
 pulse/linalg: type LUFactor method (*LUFactor) Solve(b *pulse/linalg.Vec) (*pulse/linalg.Vec, error)
 pulse/linalg: type LUFactor method (*LUFactor) SolveMatrix(b *pulse/linalg.Matrix) (*pulse/linalg.Matrix, error)
 pulse/linalg: const Listwise pulse/linalg.CoMomentMode = 0
+pulse/linalg: type ListwiseState struct
+pulse/linalg: type ListwiseState field M2 *pulse/linalg.Sym
+pulse/linalg: type ListwiseState field Mean []float64
+pulse/linalg: type ListwiseState field N int64
+pulse/linalg: type ListwiseState field NMass int64
+pulse/linalg: type ListwiseState field NWeightInvalid int64
+pulse/linalg: type ListwiseState field W float64
+pulse/linalg: type ListwiseState field W2 float64
 pulse/linalg: type Matrix struct
 pulse/linalg: type Matrix method (*Matrix) At(i int, j int) float64
 pulse/linalg: type Matrix method (*Matrix) Cols() int
@@ -3189,6 +3198,7 @@ pulse/linalg: const MergeBlockSize untyped int = 4096
 pulse/linalg: func MergeTree(blocks []*pulse/linalg.CoMoment) (*pulse/linalg.CoMoment, error)
 pulse/linalg: func Mul(a *pulse/linalg.Matrix, b *pulse/linalg.Matrix) (*pulse/linalg.Matrix, error)
 pulse/linalg: func NewCoMoment(p int, mode pulse/linalg.CoMomentMode) (*pulse/linalg.CoMoment, error)
+pulse/linalg: func NewCoMomentFromListwise(s pulse/linalg.ListwiseState) (*pulse/linalg.CoMoment, error)
 pulse/linalg: func NewMatrix(rows int, cols int, data []float64) (*pulse/linalg.Matrix, error)
 pulse/linalg: func NewMatrixFromRows(rows [][]float64) (*pulse/linalg.Matrix, error)
 pulse/linalg: func NewSym(n int, packed []float64) (*pulse/linalg.Sym, error)
@@ -5210,4 +5220,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e7c732b45a8ac45a4106fb6e9ff131bd09ff6a3367877df2dc7f393c11c55c1b
+// golden-hash: 40427039927224a0969b6b9bf230c94f31e5a586977e187ccf4f69e4d3ec223b

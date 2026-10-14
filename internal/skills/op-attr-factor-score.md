@@ -18,6 +18,7 @@ Row-level scalars; no `Response.Components`.
 - `factor` — required, 1-based. `method` — `regression` (default) or `bartlett`. `missing` — `listwise` only.
 - `factors`, `extraction`, `rotation`, `kappa`, `gamma` — the factor fit's knobs<!-- feature: MAT_FACTOR --> (`MAT_FACTOR`'s)<!-- /feature -->; no `repair`.
 - `fit_on` — `"filtered"` (default) or a filterer array picking the FIT rows; every filtered row is scored.
+- `fit` — a bound vector fit's name, scored against instead of fitting (XOR `fit_on`: `fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members (`labels` — inline `fields` only); mismatch `PULSE_VECTOR_REFERENCE_MISMATCH`, unbound `PULSE_MODEL_UNKNOWN`.
 - `weight` — fit only; weight-0 rows are scored, not fitted.
 
 Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields`; no `field`.
