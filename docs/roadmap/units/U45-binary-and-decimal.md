@@ -31,14 +31,14 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 ## References
 
 **Read before starting:**
-- `.claude/reference/predict-inspect.md` and the field-type acceptance ledger (`field_type_acceptance_test.go`)
+- `.claude/reference/predict-inspect.md` and the field-type acceptance gate (`field_type_acceptance_test.go`; the ledger was deleted by U35 E2-S3)
 - `skills/financial-cohorts.md`, `skills/expression-language.md`, `skills/op-attr-formula.md`, `skills/op-test-prop-z.md`, `skills/op-test-chisq.md`, `skills/op-feat-train-test-split.md`
 - CLAUDE.md "Undefined figures are `null`"
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
 - [ ] **#312** (Binary flags and decimals) `packed_bool` is accepted as a two-level category wherever one is: `TEST_PROP_Z`, `TEST_CHISQ` (rows or cols), `FEAT_TRAIN_TEST_SPLIT` `stratify`, and every `split_by`; skills and manifest `accepts_types` match the runtime
-- [ ] **#313** (Binary flags and decimals) Type-refusal codes say what they mean (a "must be categorical" refusal is not `PULSE_TEST_FIELD_NOT_NUMERIC`), messages do not repeat words ("field field"), and predict and runtime raise the same code for each refusal (feeds [U35](U35-predict-runtime-parity.md) #198)
+- [x] **#313** (Binary flags and decimals) Type-refusal codes say what they mean (a "must be categorical" refusal is not `PULSE_TEST_FIELD_NOT_NUMERIC`), messages do not repeat words ("field field"), and predict and runtime raise the same code for each refusal (feeds [U35](U35-predict-runtime-parity.md) #198) — **delivered by [U35](U35-predict-runtime-parity.md) (E2-S3)**: every "does not accept this type" refusal is `PULSE_FIELD_TYPE_UNSUPPORTED` on both sides, messages come from the one table (`internal/fieldaccept`), and the acceptance gate enumerates the refusal codes it sees
 - [ ] **#314** (Binary flags and decimals) `decimal128` coverage: `AGG_NULL_COUNT` reads the bitmap and needs no decimal math; `AGG_COUNT` returns an integer; a sum over an all-null group is `null`; `ATTR_FORMULA` can divide and compare decimals (decimal-aware operators or a working `float()`), and predict refuses what process would
 - [ ] **#315** (Binary flags and decimals) Formula diagnostics: a compile failure carries expr-lang's reason in the message, and predict compiles every formula so the failure surfaces before the run
 - [ ] **#316** (Binary flags and decimals) `ATTR_FORMULA` may return null, and the formula environment gains `exp`, `log`, `log1p`, `sqrt` and calendar helpers (`weekday`, `month_index`, `date_trunc`) evaluated through `internal/temporal`
@@ -72,7 +72,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(binary-and-decima
 
 - [ ] One `packed_bool` outcome column serves a proportion test, a chi-square, a stratified split and a logistic fit
 - [ ] A formula dividing two `decimal128` fields runs, and a formula returning `nil` yields a null
-- [ ] The field-type acceptance ledger shows no new predict/runtime divergence
+- [ ] The field-type acceptance gate (`TestFieldTypeAcceptance_PredictMatchesRuntime`, no ledger since U35 E2-S3) passes: no predict/runtime divergence
 - [ ] Showcase examples simplified where this unit allows (credit risk (no twin outcome column, idiomatic logistic score); A/B (binary metrics stored as flags); privacy-safe sharing (direct chi-square); retail (retention flags)): requests converted, README and REPRODUCE.md expected numbers refreshed, every step still pure Pulse
 - [ ] `format_version` stays `"1.1"`; every change is additive (or the unit's decision records the one deliberate bump)
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
