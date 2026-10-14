@@ -1204,13 +1204,14 @@ func columnInputAnyOf() []any {
 
 // crosstabArrayValuedVectorSchema / crosstabArrayValuedFieldsSchema
 // declare a crosstab aggregation slot's vector input: accepted on the
-// wire like every aggregation slot's, refused by the crosstab rule.
+// wire like every aggregation slot's, refused by the crosstab rule
+// unless params.element selects one element.
 func crosstabArrayValuedVectorSchema() map[string]any {
-	return map[string]any{"type": "string", "description": "Vector aggregators only (AGG_VEC_*, or an extension declaring vector_input), which a crosstab refuses when array-valued (Manifest.Crosstab.ArrayValuedAggregators, an extension's array_valued)."}
+	return map[string]any{"type": "string", "description": "Vector aggregators only (AGG_VEC_*, or an extension declaring vector_input), which a crosstab refuses when array-valued (Manifest.Crosstab.ArrayValuedAggregators, an extension's array_valued) unless a built-in AGG_VEC_* sets params.element to one member label (a scalar cell)."}
 }
 
 func crosstabArrayValuedFieldsSchema() map[string]any {
-	return map[string]any{"type": "array", "description": "Vector aggregators only (AGG_VEC_*), which a crosstab refuses (array-valued).", "items": map[string]any{"type": "string"}}
+	return map[string]any{"type": "array", "description": "Vector aggregators only (AGG_VEC_*), which a crosstab refuses (array-valued) unless params.element selects one member label (a scalar cell).", "items": map[string]any{"type": "string"}}
 }
 
 // crosstabSchema returns the JSON Schema for the Crosstab section.

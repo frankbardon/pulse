@@ -198,7 +198,9 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 		// from raw rows.
 		AGG_SET_INTERSECTION,
 		// Array-valued: never a crosstab cell or margin (ArrayValued —
-		// refused unconditionally); classed with the honest default.
+		// refused) unless params.element selects one element, a slot
+		// classed as its scalar twin (vectors.ElementMarginClass); the
+		// type itself keeps the honest default.
 		AGG_VEC_MEAN, AGG_VEC_SUM:
 		return MarginRecompute
 	}
@@ -228,7 +230,9 @@ func (t AggregationType) MapValued() bool {
 // no single number to place in a crosstab cell, order a Sort by, host
 // an overlay on or hand a later chain stage's f64 column, so each of
 // those is refused with PROCESSING_CONFIG whatever else the request
-// says — unlike MapValued, which only gates crosstab normalize.
+// says — unlike MapValued, which only gates crosstab normalize. (A
+// crosstab slot whose params.element selects one element, and an
+// expanded element column, are scalars and run.)
 func (t AggregationType) ArrayValued() bool {
 	switch t {
 	case AGG_VEC_MEAN, AGG_VEC_SUM:

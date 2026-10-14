@@ -55,6 +55,16 @@ func (f snapshotFuseFacts) AggregatorMarginClass(t types.AggregationType) types.
 	return f.s.AggregatorMarginReducibility(t)
 }
 
+// AggregatorSlotMarginClass mirrors the runtime: a vector element slot
+// the instance offers margins like its scalar twin
+// (vectors.ElementMarginClass).
+func (f snapshotFuseFacts) AggregatorSlotMarginClass(a *types.Aggregation) (types.MarginReducibility, bool) {
+	if a == nil || f.inst.Hidden(string(a.Type)) {
+		return "", false
+	}
+	return vectors.ElementMarginClass(a, aggregationKinds(f.inst, f.s))
+}
+
 func (f snapshotFuseFacts) AttributeTwoPass(t types.AttributeType) bool {
 	return attributeTwoPass(&PredictOptions{Extensions: f.s, Instance: f.inst}, t)
 }

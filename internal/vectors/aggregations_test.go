@@ -46,7 +46,14 @@ func TestResolveAggregations_Rules(t *testing.T) {
 		{"sum with fields", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "q_1", Fields: []string{"q_2"}}}}, errors.SERVICE_VALIDATION, "vector_not_accepted"},
 		{"count with vector", &types.Request{Vectors: vecs, Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "q_1", Vector: "v"}}}, errors.SERVICE_VALIDATION, "vector_not_accepted"},
 		{"crosstab cell", &types.Request{Crosstab: &types.CrosstabSpec{Cell: vm(func(a *types.Aggregation) { a.Fields = nil })}}, errors.SERVICE_VALIDATION, "no_vector_or_fields"},
-		{"margin aggregation", &types.Request{Crosstab: &types.CrosstabSpec{MarginAggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "q_1", Fields: []string{"q_2"}}}}}, errors.SERVICE_VALIDATION, "vector_not_accepted"},
+		{"margin aggregation", &types.Request{Crosstab: &types.CrosstabSpec{MarginAggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "q_1", Fields: []string{"q_2"}}}}}, errors.SERVICE_VALIDATION, "vector_not_accepted"}, {"element cell", &types.Request{Crosstab: &types.CrosstabSpec{Cell: vm(func(a *types.Aggregation) { a.Params = json.RawMessage(`{"element":"q_2"}`) })}}, "", ""},
+		{"element margin", &types.Request{Crosstab: &types.CrosstabSpec{MarginAggregations: []*types.Aggregation{vm(func(a *types.Aggregation) { a.Params = json.RawMessage(`{"element":"q_1"}`) })}}}, "", ""},
+		{"element by label", &types.Request{Crosstab: &types.CrosstabSpec{Cell: vm(func(a *types.Aggregation) { a.Params = json.RawMessage(`{"labels":["a","b"],"element":"b"}`) })}}, "", ""},
+		{"element unknown", &types.Request{Crosstab: &types.CrosstabSpec{Cell: vm(func(a *types.Aggregation) { a.Params = json.RawMessage(`{"element":"q_9"}`) })}}, errors.SERVICE_VALIDATION, "element_unknown"},
+		{"element ambiguous", &types.Request{Crosstab: &types.CrosstabSpec{Cell: vm(func(a *types.Aggregation) { a.Params = json.RawMessage(`{"labels":["a","a"],"element":"a"}`) })}}, errors.SERVICE_VALIDATION, "element_ambiguous"},
+		{"element with expand", &types.Request{Crosstab: &types.CrosstabSpec{Cell: vm(func(a *types.Aggregation) { a.Params = json.RawMessage(`{"element":"q_1","expand":true}`) })}}, errors.SERVICE_VALIDATION, "element_with_expand"},
+		{"element outside crosstab", &types.Request{Aggregations: []*types.Aggregation{vm(func(a *types.Aggregation) { a.Params = json.RawMessage(`{"element":"q_1"}`) })}}, errors.SERVICE_VALIDATION, "element_outside_crosstab"},
+		{"element not a string", &types.Request{Crosstab: &types.CrosstabSpec{Cell: vm(func(a *types.Aggregation) { a.Params = json.RawMessage(`{"element":1}`) })}}, errors.SERVICE_VALIDATION, "bad_params"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -344,6 +351,15 @@ func TestArrayValuedCrosstabRefusal(t *testing.T) {
 			}
 		})
 	}
+	elem := &types.Aggregation{Type: types.AGG_VEC_SUM, Fields: []string{"q_*"}, Params: json.RawMessage(`{"element":"q_1"}`)}
+	if err := ArrayValuedCrosstabRefusal(&types.CrosstabSpec{Cell: elem, MarginAggregations: []*types.Aggregation{elem}}, AggregationKinds{}); err != nil {
+		t.Errorf("an element slot is a scalar: %v", err)
+	}
+	// An extension's params.element is its own key: still refused.
+	extElem := &types.Aggregation{Type: "AGG_ACME_A", Fields: []string{"q_*"}, Params: json.RawMessage(`{"element":"q_1"}`)}
+	if err := ArrayValuedCrosstabRefusal(&types.CrosstabSpec{Cell: extElem}, extKinds()); err == nil || err.Details["reason"] != "array_valued" {
+		t.Errorf("an extension element slot = %v, want array_valued", err)
+	}
 	hidden := ArrayValuedCrosstabRefusal(&types.CrosstabSpec{Cell: vec}, AggregationKinds{Route: func(types.AggregationType) types.AggregationType { return "" }})
 	if hidden != nil {
 		t.Errorf("a hidden type is refused as unknown elsewhere, not here: %v", hidden)
@@ -466,5 +482,56 @@ func TestAggregationColumns(t *testing.T) {
 	got, known := AggregationColumns(&types.Request{Aggregations: []*types.Aggregation{prepared}}, nil, AggregationKinds{})(0)
 	if !known || !reflect.DeepEqual(got, []string{"m[first]", "m[second]"}) {
 		t.Errorf("prepared slot = %v, %v; want the schema's columns", got, known)
+	}
+}
+
+// TestElementSelection: SelectsElement / ElementMarginClass classify a
+// built-in element slot as its scalar twin's margin class, and the slot
+// rewrite narrows it to the one selected member (labels too).
+func TestElementSelection(t *testing.T) {
+	mk := func(typ types.AggregationType, params string) *types.Aggregation {
+		return &types.Aggregation{Type: typ, Fields: []string{"q_*"}, Label: "x", Params: json.RawMessage(params)}
+	}
+	for _, c := range []struct {
+		a     *types.Aggregation
+		kinds AggregationKinds
+		class types.MarginReducibility
+		ok    bool
+	}{
+		{mk(types.AGG_VEC_MEAN, `{"element":"q_2"}`), AggregationKinds{}, types.MarginMeanReducible, true},
+		{mk(types.AGG_VEC_SUM, `{"element":"q_2"}`), AggregationKinds{}, types.MarginSummable, true},
+		{mk(types.AGG_VEC_MEAN, `{}`), AggregationKinds{}, "", false},
+		{mk(types.AGG_VEC_MEAN, `{"element":3}`), AggregationKinds{}, "", false},
+		{mk("AGG_ACME_A", `{"element":"q_2"}`), extKinds(), "", false},
+		{mk(types.AGG_VEC_MEAN, `{"element":"q_2"}`), AggregationKinds{Route: func(types.AggregationType) types.AggregationType { return "" }}, "", false},
+	} {
+		class, ok := ElementMarginClass(c.a, c.kinds)
+		if class != c.class || ok != c.ok || SelectsElement(c.a, c.kinds) != c.ok {
+			t.Errorf("%s %s: class (%q, %v), want (%q, %v)", c.a.Type, c.a.Params, class, ok, c.class, c.ok)
+		}
+	}
+
+	a := mk(types.AGG_VEC_MEAN, `{"labels":["first","second"],"element":"second"}`)
+	req := &types.Request{Crosstab: &types.CrosstabSpec{Cell: a}}
+	in, err := ResolveAggregations(req, groupSchema(), AggregationKinds{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !in[a].HasElement || in[a].Element != 1 {
+		t.Fatalf("input = %+v, want element 1", in[a])
+	}
+	rw := AggregationSlotRewrite(a, in[a])
+	if !reflect.DeepEqual(rw.Fields, []string{in[a].Members.Members[1]}) {
+		t.Errorf("rewritten fields = %v, want the second member alone", rw.Fields)
+	}
+	p, perr := DecodeVecAggParams("x", rw.Type, rw.Params)
+	if perr != nil || !reflect.DeepEqual(p.Labels, []string{"second"}) || p.Element == nil || *p.Element != "second" {
+		t.Errorf("rewritten params = %s (%v)", rw.Params, perr)
+	}
+	// A slot without element keeps every member.
+	b := mk(types.AGG_VEC_MEAN, `{}`)
+	in, _ = ResolveAggregations(&types.Request{Crosstab: &types.CrosstabSpec{Cell: b}}, groupSchema(), AggregationKinds{})
+	if in[b].HasElement || len(AggregationSlotRewrite(b, in[b]).Fields) != len(in[b].Members.Members) {
+		t.Errorf("a slot without element was narrowed: %+v", in[b])
 	}
 }

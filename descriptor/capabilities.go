@@ -160,9 +160,10 @@ type CrosstabCapability struct {
 	// names whose value is one figure per vector member
 	// (types.AggregationType.ArrayValued — AGG_VEC_MEAN, AGG_VEC_SUM).
 	// They are refused as the crosstab cell or a margin aggregation
-	// UNCONDITIONALLY (PROCESSING_CONFIG, details.reason
-	// "array_valued"), whatever normalize says. Additive; omitted when
-	// the instance offers none.
+	// (PROCESSING_CONFIG, details.reason "array_valued"), whatever
+	// normalize says, unless the slot's params.element selects one
+	// element (a scalar slot). Additive; omitted when the instance
+	// offers none.
 	ArrayValuedAggregators []string `json:"array_valued_aggregators,omitempty"`
 }
 

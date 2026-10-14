@@ -20,6 +20,7 @@ type fakeFacts struct {
 	hidden      map[string]bool
 	slotTwoPass func(*types.Attribute) bool
 	slotBound   func(*types.Attribute) bool
+	slotClass   func(*types.Aggregation) (types.MarginReducibility, bool)
 }
 
 func (f fakeFacts) Hidden(name string) bool { return f.hidden[name] }
@@ -35,6 +36,12 @@ func (f fakeFacts) AggregatorMarginClass(t types.AggregationType) types.MarginRe
 		return types.MarginSummable
 	}
 	return t.MarginReducibility()
+}
+func (f fakeFacts) AggregatorSlotMarginClass(a *types.Aggregation) (types.MarginReducibility, bool) {
+	if f.slotClass != nil {
+		return f.slotClass(a)
+	}
+	return "", false
 }
 func (f fakeFacts) AttributeTwoPass(t types.AttributeType) bool {
 	return t == types.ATTR_ZSCORE || f.extAttrs[t]
@@ -221,5 +228,24 @@ func TestDecide_BoundSlotIsRowLocal(t *testing.T) {
 	want := []string{"two-pass attribute (ATTR_ZSCORE)", "two-pass attribute (ATTR_VEC_DISTANCE)"}
 	if ok || !reflect.DeepEqual(why, want) {
 		t.Fatalf("unbound: Decide = (%v, %q), want %q", ok, why, want)
+	}
+}
+
+// TestDecide_SlotMarginClass: a cell whose SLOT class the facts report
+// (a vector element slot, AggregatorSlotMarginClass) fuses on that
+// class; the same type without the slot class declines on its own.
+func TestDecide_SlotMarginClass(t *testing.T) {
+	req := happy()
+	req.Crosstab.Cell = &types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"score"}, Label: "elem"}
+	slot := fakeFacts{slotClass: func(a *types.Aggregation) (types.MarginReducibility, bool) {
+		return types.MarginMeanReducible, a.Label == "elem"
+	}}
+	if ok, why := crosstabfuse.Decide(req, gateSchema(), slot); !ok {
+		t.Fatalf("element slot declined: %q", why)
+	}
+	ok, why := crosstabfuse.Decide(req, gateSchema(), fakeFacts{})
+	want := []string{"recompute-margin cell aggregator (AGG_VEC_MEAN)"}
+	if ok || !reflect.DeepEqual(why, want) {
+		t.Fatalf("no slot class: Decide = (%v, %q), want %q", ok, why, want)
 	}
 }

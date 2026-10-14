@@ -37,7 +37,7 @@ Result `Response.Crosstab.Matrix` — `RowKeys`, `ColumnKeys`, `Cells`, margins,
 
 **Fit.** A <!-- feature: GROUP_QUANTILE -->`GROUP_QUANTILE`<!-- /feature --> / <!-- feature: GROUP_KMEANS -->`GROUP_KMEANS`<!-- /feature --> axis fits once over the filtered set (`params.fit` `global`, as in `groups`); `within` refits per outer bucket (rows, then columns).
 
-`cell` is one aggregation. Most cells are scalars (`MatrixCell.Value: float64`). Map- or list-valued cells (manifest `crosstab.map_valued_cell_aggregators` and the set unions / intersections) refuse a non-`none` normalize with `PULSE_CROSSTAB_NORMALIZE_MAP_VALUED` — normalize a scalar aggregator instead.
+`cell` is one aggregation. Most cells are scalars (`MatrixCell.Value: float64`). Map- or list-valued cells (manifest `crosstab.map_valued_cell_aggregators` and the set unions / intersections) refuse a non-`none` normalize with `PULSE_CROSSTAB_NORMALIZE_MAP_VALUED` — normalize a scalar aggregator instead. An array-valued cell or margin aggregation needs `params.element` (one member, a scalar; `op-agg-vec-mean`), else `array_valued`.
 
 ## Margins recompute from raw rows
 
@@ -76,11 +76,11 @@ Overlays never prevent fusing. A fan-out axis makes margins non-additive on both
 
 ## Components — `Response.Components.Crosstab`
 
-Mirrors the matrix coordinate-for-coordinate: `CellComponents[r][c]` ↔ `Cells[r][c]` (cell aggregator keys + floor `{n, n_null}`; `nil` for an empty cell), `RowKeyComponents` / `ColumnKeyComponents` ↔ the key tuples (a nested axis carries `{axes: [{field, bucket}]}`), `RowMarginCounts` / `RowMarginComponents` ↔ `RowMargins` (column symmetric), `GrandTotalCount` / `GrandTotalComponents` ↔ `GrandTotal` — populated iff the matching matrix slot is. `CellCounts[r][c]` is a RECORD count (`n + n_null`, raw under a weight), not the sample size.
+Mirrors the matrix coordinate-for-coordinate: `CellComponents[r][c]` ↔ `Cells[r][c]` (cell keys + floor `{n, n_null}`; `nil` when empty), `RowKeyComponents` / `ColumnKeyComponents` ↔ key tuples (nested: `{axes: [{field, bucket}]}`), `RowMarginCounts` / `RowMarginComponents` ↔ `RowMargins` (columns symmetric), `GrandTotalCount` / `GrandTotalComponents` ↔ `GrandTotal`, each populated iff its matrix slot is. `CellCounts` is a RECORD count (`n + n_null`, raw), not the sample size.
 
 ## Tests + overlays compose
 
-Row-level `tests` / `post_tests` run on raw rows beside a crosstab. Crosstab is the MATRIX overlay host (share, margin compare, inferential, pairwise): specs ride `Request.Overlays`, layers `Response.Overlays[i]`; shares / indices of a weighted host are weighted; the cell t / z overlays read `{n, mean, variance}` from `CellComponents` (`overlay-system`).
+Row-level `tests` / `post_tests` run on raw rows beside a crosstab. Crosstab is the MATRIX overlay host (share, margin compare, inferential, pairwise); shares / indices of a weighted host are weighted; the cell t / z overlays read `{n, mean, variance}` from `CellComponents` (`overlay-system`).
 
 ## See
 

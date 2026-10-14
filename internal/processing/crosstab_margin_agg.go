@@ -190,10 +190,7 @@ func (p *Processor) computeAuxMargins(spec *types.CrosstabSpec, filtered []*Reco
 		colMember = axisMembership(colPart)
 	}
 
-	cellField := ""
-	if spec.Cell != nil {
-		cellField = spec.Cell.Field
-	}
+	cellAgg := spec.Cell
 
 	if needRow {
 		out.Rows = make(map[string][]auxMarginFigure, len(rowPart.Keys))
@@ -202,7 +199,7 @@ func (p *Processor) computeAuxMargins(spec *types.CrosstabSpec, filtered []*Reco
 			if len(bucket) == 0 {
 				continue
 			}
-			figures, err := p.auxFiguresFor(spec, admitRecords(bucket, colMember, nil, cellField))
+			figures, err := p.auxFiguresFor(spec, admitRecords(bucket, colMember, nil, cellAgg))
 			if err != nil {
 				return nil, err
 			}
@@ -217,7 +214,7 @@ func (p *Processor) computeAuxMargins(spec *types.CrosstabSpec, filtered []*Reco
 			if len(bucket) == 0 {
 				continue
 			}
-			figures, err := p.auxFiguresFor(spec, admitRecords(bucket, rowMember, nil, cellField))
+			figures, err := p.auxFiguresFor(spec, admitRecords(bucket, rowMember, nil, cellAgg))
 			if err != nil {
 				return nil, err
 			}
@@ -226,7 +223,7 @@ func (p *Processor) computeAuxMargins(spec *types.CrosstabSpec, filtered []*Reco
 	}
 
 	if needGrand {
-		figures, err := p.auxFiguresFor(spec, admitRecords(filtered, rowMember, colMember, cellField))
+		figures, err := p.auxFiguresFor(spec, admitRecords(filtered, rowMember, colMember, cellAgg))
 		if err != nil {
 			return nil, err
 		}
@@ -265,20 +262,23 @@ func axisMembership(part *CrosstabAxisPartition) map[*Record]struct{} {
 // admitRecords narrows a margin slot's routed bucket to the records that
 // reached a CELL: present in each supplied membership set (a nil set is
 // "this axis is not cross-checked here", which is how a row slot skips
-// re-testing the row axis it is already walking) and carrying a non-null
-// cell field.
+// re-testing the row axis it is already walking) and carrying a value
+// for the cell aggregation.
 //
-// The null probe is Record.NumericValue against the cell field, which is
+// The null probe is AggregationPresent against the cell slot, which is
 // the SAME EXPRESSION FusedCrosstabState.Update reads cellValuePresent
-// from. That is deliberate rather than incidental: writing an equivalent
-// probe here — Record.IsNull, say — would be a second definition of
-// "the cell had a value", and the two would diverge the day one field
-// type stops agreeing with the other.
+// from (and runCellAggregation's floor counts). That is deliberate
+// rather than incidental: writing an equivalent probe here —
+// Record.IsNull, say — would be a second definition of "the cell had a
+// value", and the two would diverge the day one field type stops
+// agreeing with the other. For a scalar slot it is the cell field's
+// presence; for a vector element slot (params.element) the selected
+// member's.
 //
 // Returns the bucket ITSELF when every record is admitted, which is the
 // common case on a crosstab with no Include and no nullable cell field,
 // so the usual request pays no copy at all.
-func admitRecords(bucket []*Record, memberA, memberB map[*Record]struct{}, cellField string) []*Record {
+func admitRecords(bucket []*Record, memberA, memberB map[*Record]struct{}, cellAgg *types.Aggregation) []*Record {
 	admitted := func(r *Record) bool {
 		if memberA != nil {
 			if _, ok := memberA[r]; !ok {
@@ -290,7 +290,7 @@ func admitRecords(bucket []*Record, memberA, memberB map[*Record]struct{}, cellF
 				return false
 			}
 		}
-		ok := FieldPresent(r, cellField)
+		ok := AggregationPresent(r, cellAgg)
 		return ok
 	}
 

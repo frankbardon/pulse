@@ -32,7 +32,7 @@ Manifest: `crosstab.supports_margin_aggregations` + `crosstab.margin_aggregation
 
 **A record contributes to an auxiliary ONLY IF IT CONTRIBUTED TO A CELL.** This is the least guessable property of the surface. Two exclusions follow, and they are the entire difference from the cell's own margins beside it:
 
-- a record whose CELL FIELD IS NULL;
+- a record whose CELL FIELD IS NULL (for a vector `element` cell: whose SELECTED MEMBER is null — the other members do not count);
 - a record whose axis key a grouper `include` list EXCLUDED.
 
 The cell's own margins count both. Deliberate, no knob: an auxiliary is a base the cells beside it are read against, so it must see the records they saw; a cohort-wide base answers a different question while looking identical. **Reading an auxiliary's `n` as a cohort count is wrong SILENTLY** — every figure still renders, only the base is off.

@@ -139,7 +139,7 @@ var parityOps = []parityOp{
 	{op: types.AGG_MAE, fields: []string{"x", "y"}, params: json.RawMessage(`{"prediction_field":"g"}`), expandExact: []string{"x"}},
 	// vector-metrics-aggregates E2-S2: ONE vector slot over x and y
 	// (array-valued: per element Σw·x, Σw·x / Σw). y is fractional, so
-	// no element is exact on expansion. Never a crosstab cell (refused).
+	// no element is exact on expansion. A crosstab cell only through params.element (one element as a scalar).
 	{op: types.AGG_VEC_MEAN, fields: []string{"x", "y"}, vector: true},
 	{op: types.AGG_VEC_SUM, fields: []string{"x", "y"}, vector: true},
 }

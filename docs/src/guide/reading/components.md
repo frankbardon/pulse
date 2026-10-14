@@ -448,7 +448,7 @@ Only the floor keys.
 
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
-| `labels` | []string | always | Display label per member, in member order: the vector's labels, else params.labels, else the member names. |
+| `labels` | []string | always | Display label per member, in member order: the vector's labels, else params.labels, else the member names. An element slot (params.element) reports its one member, here and in every per-member key. |
 | `element_n` | []int | always | Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered). |
 | `element_sum` | []float64 | always | Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count. |
 | `element_sum_weights` | []float64 | when its condition holds | Weighted slot only: per member, the sum of contributing rows' weights (valid and > 0) — AGG_VEC_MEAN's denominator. |
@@ -461,7 +461,7 @@ Only the floor keys.
 
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
-| `labels` | []string | always | Display label per member, in member order: the vector's labels, else params.labels, else the member names. |
+| `labels` | []string | always | Display label per member, in member order: the vector's labels, else params.labels, else the member names. An element slot (params.element) reports its one member, here and in every per-member key. |
 | `element_n` | []int | always | Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered). |
 | `element_sum` | []float64 | always | Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count. |
 | `element_sum_weights` | []float64 | when its condition holds | Weighted slot only: per member, the sum of contributing rows' weights (valid and > 0) — AGG_VEC_MEAN's denominator. |

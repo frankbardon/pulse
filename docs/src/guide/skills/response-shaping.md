@@ -29,6 +29,8 @@ Presets (closed enum; the manifest `return_presets` lists each one's paths, alre
 
 Paths use the Response JSON names at any depth: `.` between keys, `[*]` into every array element, a trailing `*` on a map-key segment as a prefix glob (`tests[*].details.effect_*`). `data[*].<column>` selects output columns; a column the request cannot produce is refused.
 
+A key holding `.` `[` `]` `*` (an element column) is a QUOTED segment: `data[*]."m[q3]"` (JSON: `"data[*].\"m[q3]\""`); inside, `\"` and `\\` escape. Unquoted paths and digests never change.
+
 ## Errors
 
 - `PULSE_RETURN_INVALID` — unknown preset, precision outside 1–17, malformed path, naming `returned`, or a non-overlay path in a Compose-level block.
@@ -37,11 +39,11 @@ Paths use the Response JSON names at any depth: `.` between keys, `[*]` into eve
 
 ## Precision
 
-`precision` is significant digits, wire-only: Go values stay full float64, JSON floats are written at N digits (Go `g` format, so tiny or huge values use exponent form). Untouched: integers, `decimal128` decimal strings, NaN (still `null`), and exact counts — count-aggregation columns, count crosstab cells and margins, `matrices[*].auxiliary.n`. Extension aggregators are never count-exempt.
+`precision` is significant digits, wire-only: JSON floats are written at N digits (Go `g` format); Go values stay full float64. Untouched: integers, `decimal128` decimal strings, NaN (still `null`), and exact counts — count-aggregation columns, count crosstab cells and margins, `matrices[*].auxiliary.n`. Extension aggregators are never count-exempt.
 
 ## Absent, not null
 
-An excluded part is ABSENT on the wire — never `null`, even a required key such as `metadata.total_rows` — and zero / nil on the Go value. A shaped response is a PROJECTION: it is not schema-valid against the full payload schema, so do not validate it against `pulse://schema` or re-decode it as a full Response. A response whose plan changes something carries `returned {preset, digest, precision?}` (`preset` is `custom` for include / exclude alone); the marker is unexcludable and its `digest` equals predict's.
+An excluded part is ABSENT on the wire — never `null`, even a required key such as `metadata.total_rows` — and zero / nil on the Go value. A shaped response is a PROJECTION: never validate it against `pulse://schema` or re-decode it as a full Response. A response whose plan changes something carries `returned {preset, digest, precision?}` (`preset` is `custom` for include / exclude alone); the marker is unexcludable and its `digest` equals predict's.
 
 ## Defaults and precedence
 

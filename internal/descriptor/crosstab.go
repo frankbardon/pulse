@@ -143,7 +143,12 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 		if opts != nil {
 			snap = opts.Extensions
 		}
-		if mode != types.CrosstabNormalizeNone && snap.AggregatorMarginReducibility(cellRoute) == types.MarginRecompute {
+		cellClass := snap.AggregatorMarginReducibility(cellRoute)
+		if c, ok := vectors.ElementMarginClass(spec.Cell, aggregationKinds(opts.instance(), snap)); ok {
+			// A vector element slot margins like its scalar twin.
+			cellClass = c
+		}
+		if mode != types.CrosstabNormalizeNone && cellClass == types.MarginRecompute {
 			env.AddWarning(string(errors.PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE),
 				"normalize="+string(mode)+" on a recompute-margin aggregator ("+string(spec.Cell.Type)+") requires recomputing the margin over raw rows; v1 does this automatically but cost is non-trivial",
 				map[string]any{"aggregation": string(spec.Cell.Type), "normalize": string(mode)})
@@ -160,8 +165,8 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 	}
 
 	// An array-valued cell or margin aggregation (AGG_VEC_*): refused
-	// unconditionally — the runtime twin is processing's
-	// validateCrosstabSpec, one helper for both.
+	// unless the slot selects one element (params.element) — the runtime
+	// twin is processing's validateCrosstabSpec, one helper for both.
 	if cerr := vectors.ArrayValuedCrosstabRefusal(spec, aggregationKinds(opts.instance(), extensionsFromOpts(opts))); cerr != nil {
 		addCodedError(env, cerr)
 	}

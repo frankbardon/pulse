@@ -48,7 +48,11 @@ import (
 //
 // The scalar Aggregate / Finalize fallback is NaN: an array value has
 // no single number, and every consumer that needs one refuses the slot
-// (types.AggregationType.ArrayValued). The value rides Rich.
+// (types.AggregationType.ArrayValued). The value rides Rich. The one
+// scalar form is a crosstab slot's params.element: the prepared slot
+// reads that member alone, Aggregate / Finalize return its figure and
+// Rich returns none, so the cell is that element's mean / sum and its
+// components the selected element's (one-entry arrays).
 
 // vecBlock is one merge block's partial: per element Σw·x, Σw over
 // contributing rows and the raw present count.
@@ -159,6 +163,10 @@ type vecAggregator struct {
 	// expand is params.expand: the row carries one scalar column per
 	// member (vectors.ExpandedColumn) instead of the array.
 	expand bool
+	// element is params.element: a crosstab slot reading one member
+	// (members holds it alone). Aggregate / Finalize return that
+	// element's figure and Rich defers to it, so the cell is a scalar.
+	element bool
 
 	blocks map[BlockKey]*vecFrag
 	loose  *vecBlock // rows with no merge position, in arrival order
@@ -205,7 +213,17 @@ func newVecAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregat
 	if len(labels) != len(members) {
 		labels = members
 	}
-	a := &vecAggregator{typ: agg.Type, members: members, labels: append([]string(nil), labels...), expand: p.Expand,
+	if p.Element != nil && (len(members) != 1 || labels[0] != *p.Element) {
+		// An element slot reads its one member only after the
+		// request-level narrowing (vectors.AggregationSlotRewrite), which
+		// the universal floor (AggregationPresent) reads too. A wider
+		// slot here would fold one member while the floor counted any —
+		// an engine fault, refused loudly.
+		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			name+": params.element "+*p.Element+" was not narrowed to its member before the factory",
+			map[string]any{"aggregation": name, "element": *p.Element, "members": append([]string(nil), members...)})
+	}
+	a := &vecAggregator{typ: agg.Type, members: members, labels: append([]string(nil), labels...), expand: p.Expand, element: p.Element != nil,
 		fill: newMemberFill(resolved), xs: make([]float64, len(members)), pres: make([]bool, len(members))}
 	if w := slotWeight(agg); w != nil {
 		ew := effectiveWeight(w)
@@ -360,7 +378,16 @@ func (a *vecAggregator) Aggregate(records []*Record, _ string) (float64, error) 
 	}
 	a.finish()
 	a.reset()
-	return math.NaN(), a.err
+	return a.scalar(), a.err
+}
+
+// scalar is the frozen value's one number: the selected element on an
+// element slot, else NaN (an array has none).
+func (a *vecAggregator) scalar() float64 {
+	if a.element && a.err == nil && len(a.value) == 1 {
+		return a.value[0]
+	}
+	return math.NaN()
 }
 
 func (a *vecAggregator) UpdateRow(r *Record, _ string) error {
@@ -371,7 +398,7 @@ func (a *vecAggregator) UpdateRow(r *Record, _ string) error {
 func (a *vecAggregator) Finalize() (float64, error) {
 	a.finish()
 	a.reset()
-	return math.NaN(), a.err
+	return a.scalar(), a.err
 }
 
 // Rich returns the per-member figures in member order ([]float64; a
@@ -383,6 +410,10 @@ func (a *vecAggregator) Rich() (any, error) {
 	}
 	if a.err != nil {
 		return nil, a.err
+	}
+	if a.element {
+		// No rich payload: the cell takes the scalar.
+		return nil, nil
 	}
 	return append([]float64(nil), a.value...), nil
 }

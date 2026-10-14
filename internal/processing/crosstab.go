@@ -1789,12 +1789,14 @@ func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record
 	var n, nNull int
 	wf := NewWeightFloor(slot)
 	for _, r := range bucket {
-		if FieldPresent(r, slot.Field) {
+		// The slot's presence rule (a vector element slot: its one
+		// member answered) — the fused arm and admission ask the same.
+		if AggregationPresent(r, slot) {
 			n++
 		} else {
 			nNull++
 		}
-		wf.Observe(r, slot.Field)
+		wf.ObserveSlot(r, slot)
 	}
 
 	// Decimal128 dispatch — same gate as aggregateWithComponents: a

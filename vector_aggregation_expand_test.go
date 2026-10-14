@@ -523,6 +523,44 @@ func TestVecAggExpand_ReturnPlanning(t *testing.T) {
 	if got := vaggKeys(resp.Data[0]); !reflect.DeepEqual(got, []string{"m[b1]", "m[b2]"}) {
 		t.Errorf("glob-kept keys = %v", got)
 	}
+
+	// A quoted segment names one element column: include keeps it
+	// alone, exclude drops it alone, and an unknown element is refused
+	// by predict and the runtime alike.
+	resp, err = p.Process(ctx, mk(`data[*]."m[b1]"`))
+	if err != nil {
+		t.Fatalf("quoted include: %v", err)
+	}
+	if got := vaggKeys(resp.Data[0]); !reflect.DeepEqual(got, []string{"m[b1]"}) {
+		t.Errorf("quoted-include keys = %v", got)
+	}
+	ex := mk("data")
+	ex.Return.Exclude = []string{`data[*]."m[b2]"`}
+	resp, err = p.Process(ctx, ex)
+	if err != nil {
+		t.Fatalf("quoted exclude: %v", err)
+	}
+	if got := vaggKeys(resp.Data[0]); !reflect.DeepEqual(got, []string{"m[b1]", "q"}) {
+		t.Errorf("quoted-exclude keys = %v", got)
+	}
+	_, err = p.Process(ctx, mk(`data[*]."m[zz]"`))
+	if ce := codeOf(t, err); ce.Code != perr.PULSE_RETURN_PATH_UNKNOWN || ce.Details["at"] != "m[zz]" {
+		t.Fatalf("Process = %s %v, want PULSE_RETURN_PATH_UNKNOWN at m[zz]", ce.Code, ce.Details)
+	}
+	env, err = p.PredictBytes(ctx, data, mk(`data[*]."m[zz]"`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PULSE_RETURN_PATH_UNKNOWN) {
+		t.Fatalf("predict = %+v, want PULSE_RETURN_PATH_UNKNOWN", env.Errors)
+	}
+	env, err = p.PredictBytes(ctx, data, mk(`data[*]."m[b1]"`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(env.Errors) != 0 {
+		t.Fatalf("predict of a quoted element include = %+v, want no error", env.Errors)
+	}
 }
 
 // TestVecAggExpand_ComposeAndChain: Compose slots keep their expanded

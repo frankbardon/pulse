@@ -509,7 +509,15 @@ array-valued aggregator is refused `PROCESSING_CONFIG`
 aggregation (the manifest lists them in
 `crosstab.array_valued_aggregators`), as a `sort` key, as
 `aggregations[0]` under `overlays` and in a chain stage that feeds
-another (unless it expands, below). `format_version` stays `"1.1"`; an aggregation without them is
+another (unless it expands, below). A crosstab cell or margin
+aggregation runs when its `params.element` names ONE member label
+(built-in `AGG_VEC_*` only): the slot is a scalar over that member —
+the cell (or auxiliary) is that element's figure, its floor counts the
+rows that answered the member (so a record reaches an auxiliary margin
+only if its selected member reached a cell), its components are
+one-entry arrays, and it margins and fuses like its scalar twin;
+`element` outside a crosstab, beside `expand`, unknown or shared is
+`SERVICE_VALIDATION` (`element_*`). `format_version` stays `"1.1"`; an aggregation without them is
 byte-identical.
 
 `params.expand: true` on a vector aggregator replaces the array with one
@@ -528,8 +536,9 @@ answered is NaN — null on the wire — and orders last / is skipped like a
 null, and a later chain stage reads it as a null; an overlay reads it as
 a missing host value), while the bare array label
 stays refused there `PROCESSING_CONFIG` (`array_valued`) — so is an
-overlay scoring it by default as `aggregations[0]`. A `return` path cannot name a
-bracketed column; a prefix glob (`data[*].<label>*`) keeps them.
+overlay scoring it by default as `aggregations[0]`. A `return` path
+names one with a quoted segment (`data[*]."<label>[<element label>]"`)
+and all of them with a prefix glob (`data[*].<label>*`).
 
 `field` is optional on `Aggregation`, `Group` and `Attribute` (a vector
 aggregator or grouper reads `vector` / `fields`, `ATTR_FORMULA` an
@@ -761,7 +770,11 @@ identically). `preset` is the closed `ReturnPreset` enum (`full`,
 absent: unlimited). `include` / `exclude` are paths over this schema's
 `Response` JSON names at any depth — `.` between keys, `[*]` into every
 array element, a trailing `*` on a map-key segment as a prefix glob
-(`tests[*].details.effect_*`). What the schema cannot say, predict and
+(`tests[*].details.effect_*`). A key holding `.`, `[`, `]` or `*` (an
+expanded vector element column) is a quoted segment,
+`data[*]."emb_mean[q3]"`: inside the quotes every byte is literal except
+`\"` and `\\`, and only a segment that starts with `"` is quoted, so
+every unquoted path and its plan digest are unchanged. What the schema cannot say, predict and
 the runtime enforce identically before any record is read: resolution
 runs preset, then include adds, then exclude removes (exclude wins);
 include without a preset starts from an empty base; top-level

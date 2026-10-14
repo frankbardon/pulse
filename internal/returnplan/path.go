@@ -33,16 +33,47 @@ func Key(name string) Segment { return Segment{Name: name} }
 // Elem is the concrete array-element segment.
 func Elem() Segment { return Segment{Index: true} }
 
-// String renders the segment in path syntax.
+// String renders the segment in path syntax. A name the bare form
+// cannot spell — one holding `.`, `[`, `]` or `*`, or starting with `"`
+// — renders quoted (Quote); every other name renders bare, exactly as
+// before quoting existed, so the canonical form (and the plan digest)
+// of a bare-spellable path never moves.
 func (s Segment) String() string {
 	switch {
 	case s.Index:
 		return "[*]"
 	case s.Glob:
-		return s.Name + "*"
+		return spellName(s.Name) + "*"
 	default:
-		return s.Name
+		return spellName(s.Name)
 	}
+}
+
+// spellName is a name's canonical spelling: bare when the bare grammar
+// reads it back unchanged, else Quote.
+func spellName(name string) string {
+	if name == "" || (!strings.ContainsAny(name, ".[]*") && name[0] != '"') {
+		return name
+	}
+	return Quote(name)
+}
+
+// Quote renders name as a quoted path segment: wrapped in `"`, with `"`
+// and `\` inside escaped by a backslash (`\"`, `\\`). Any name — an
+// expanded vector element column such as `emb_mean[q3]` included —
+// round-trips through Parse.
+func Quote(name string) string {
+	var b strings.Builder
+	b.Grow(len(name) + 2)
+	b.WriteByte('"')
+	for i := 0; i < len(name); i++ {
+		if c := name[i]; c == '"' || c == '\\' {
+			b.WriteByte('\\')
+		}
+		b.WriteByte(name[i])
+	}
+	b.WriteByte('"')
+	return b.String()
 }
 
 // Path is a parsed Return path.
@@ -82,12 +113,25 @@ func (e *SyntaxError) Error() string {
 // Parse reads one path. The grammar:
 //
 //	path    = name *( "." name / "[*]" )
-//	name    = 1*char [ "*" ] / "*"        ; char: anything but . [ ] *
+//	name    = bare / quoted
+//	bare    = 1*char [ "*" ] / "*"        ; char: anything but . [ ] *,
+//	                                      ; and the first is not "
+//	quoted  = DQUOTE 1*qchar DQUOTE [ "*" ]
+//	qchar   = any byte but " and \ / "\" DQUOTE / "\\"
 //
 // A path starts with a name (the Response root is an object). `[*]` is
 // the only array step — no numeric index. `*` may appear only as the
 // last character of a name, where it makes that segment a prefix glob.
 // Whitespace is part of a name; nothing is trimmed.
+//
+// A quoted name spells a key the bare form cannot — one holding `.`,
+// `[`, `]` or `*`, such as an expanded vector element column:
+// `data[*]."emb_mean[q3]"`. Inside the quotes every byte is literal
+// except `\"` (a quote) and `\\` (a backslash); any other escape, an
+// empty `""` and an unterminated quote are refused. Only a name that
+// STARTS with `"` is quoted — a `"` later in a bare name stays literal,
+// so every path whose names do not open with `"` (every real response
+// key) parses, and canonicalizes, exactly as before.
 func Parse(s string) (Path, error) {
 	bad := func(reason string) (Path, error) { return Path{}, &SyntaxError{Path: s, Reason: reason} }
 	if s == "" {
@@ -97,6 +141,21 @@ func Parse(s string) (Path, error) {
 	i := 0
 	expectName := true
 	for i < len(s) {
+		if expectName && s[i] == '"' {
+			name, j, reason := parseQuoted(s, i)
+			if reason != "" {
+				return bad(reason)
+			}
+			seg := Segment{Name: name}
+			if j < len(s) && s[j] == '*' {
+				seg.Glob = true
+				j++
+			}
+			segs = append(segs, seg)
+			i = j
+			expectName = false
+			continue
+		}
 		if expectName {
 			j := i
 			for j < len(s) && s[j] != '.' && s[j] != '[' && s[j] != ']' && s[j] != '*' {
@@ -134,6 +193,31 @@ func Parse(s string) (Path, error) {
 		}
 	}
 	return Path{Segments: segs}, nil
+}
+
+// parseQuoted reads the quoted name opening at s[i] (a `"`): the
+// unescaped name, the index just past the closing quote, and a refusal
+// reason ("" when well-formed).
+func parseQuoted(s string, i int) (string, int, string) {
+	var b strings.Builder
+	for j := i + 1; j < len(s); j++ {
+		switch c := s[j]; c {
+		case '"':
+			if b.Len() == 0 {
+				return "", 0, "empty quoted name"
+			}
+			return b.String(), j + 1, ""
+		case '\\':
+			if j+1 >= len(s) || (s[j+1] != '"' && s[j+1] != '\\') {
+				return "", 0, "only `\\\"` and `\\\\` may escape inside a quoted name"
+			}
+			j++
+			b.WriteByte(s[j])
+		default:
+			b.WriteByte(c)
+		}
+	}
+	return "", 0, "unterminated quoted name"
 }
 
 // segCovers reports whether pattern segment p matches every concrete
