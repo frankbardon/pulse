@@ -206,17 +206,35 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	for t, vals := range m {
 		m[t] = filterNames(vals, inst.Enabled)
 	}
-	// An instance's extension MAT_* operators are matrix types it
-	// accepts: the snapshot (already profile-filtered) adds them to the
-	// MatrixType enum, so a request naming one validates against the
-	// instance's schema like a built-in.
-	if snap := inst.Extensions(); snap != nil && len(snap.MatrixOps) > 0 {
-		vals := m[reflect.TypeFor[types.MatrixType]()]
-		for _, op := range snap.MatrixOps {
-			vals = append(vals, op.Name)
+	// An instance's extension operators are operator types it accepts:
+	// the snapshot (already profile-filtered) adds each category's
+	// registered names to that category's enum, so a request naming one
+	// validates against the instance's schema like a built-in.
+	// Extension synth distributions are not payload-reachable.
+	if snap := inst.Extensions(); snap != nil {
+		for _, c := range []struct {
+			t   reflect.Type
+			ops []descriptor.OperatorMeta
+		}{
+			{reflect.TypeFor[types.AggregationType](), snap.Aggregators},
+			{reflect.TypeFor[types.AttributeType](), snap.Attributes},
+			{reflect.TypeFor[types.FiltererType](), snap.Filterers},
+			{reflect.TypeFor[types.GroupType](), snap.Groupers},
+			{reflect.TypeFor[types.WindowType](), snap.Windows},
+			{reflect.TypeFor[types.FeatureType](), snap.Features},
+			{reflect.TypeFor[types.TestType](), snap.Tests},
+			{reflect.TypeFor[types.MatrixType](), snap.MatrixOps},
+		} {
+			if len(c.ops) == 0 {
+				continue
+			}
+			vals := m[c.t]
+			for _, op := range c.ops {
+				vals = append(vals, op.Name)
+			}
+			sort.Strings(vals)
+			m[c.t] = vals
 		}
-		sort.Strings(vals)
-		m[reflect.TypeFor[types.MatrixType]()] = vals
 	}
 	// The multiplicity method / family sets are closed vocabularies, not
 	// features: never filtered by the instance (a hidden

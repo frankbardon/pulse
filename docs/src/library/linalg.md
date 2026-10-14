@@ -107,7 +107,7 @@ mean := acc.Mean()
 1. Fold the row at absolute index `r` into a per-block accumulator for block `r / linalg.MergeBlockSize` (4096 rows). Each block's rows must be added in order.
 2. Combine the blocks, ordered by block index, with `linalg.MergeTree(blocks)`. It uses a fixed binary tree, so the result depends only on the block sequence.
 
-Pulse's engine uses exactly this scheme internally, so its parallel and serial runs agree bit for bit.
+Pulse's engine uses exactly this scheme internally, so its parallel and serial runs agree bit for bit. An extension matrix operator (`extend.MatrixOperator`, see [Vectors and Matrices](matrices.md#your-own-matrix-operator)) never merges anything itself: its `Finalize` receives the co-moment this tree produced, so a pure `Finalize` returns the same bits under every `DecodeWorkers` / `ShardWorkers` count and shard split (gate `TestExtensionMatrix_WorkerInvariant`).
 
 ## Distance and similarity metrics (`linalg/metric`)
 

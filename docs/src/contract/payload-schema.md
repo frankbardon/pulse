@@ -27,8 +27,13 @@ The root `$comment` carries the describing instance's feature-set digest,
 can be cached under one key. `$id` never changes.
 
 `p.PayloadSchema()` describes only what instance `p` offers. Without a
-feature profile it is the published file byte for byte. An instance built
-with a feature profile gets a narrower document:
+feature profile or extensions it is the published file byte for byte.
+Every extension operator the instance registers (and its profile keeps)
+joins its category's operator-type enum beside the built-ins —
+`AggregationType`, `AttributeType`, `FiltererType`, `GroupType`,
+`WindowType`, `FeatureType`, `TestType` and `MatrixType` — so a request
+naming one validates against the instance's own schema. An instance
+built with a feature profile gets a narrower document:
 
 - the operator, overlay-kind and regression enums list only the enabled
   names;

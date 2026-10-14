@@ -644,6 +644,17 @@ finalizer:
   `p_adjusted`), the `multiplicity` echo, and predict's `p_values`. An
   operator without `PValues` refuses a spec-level block
   (`PULSE_MULTIPLICITY_INVALID`).
+- **Bits.** The bit contract holds through public registration alone:
+  `TestExtensionMatrix_WorkerInvariant` registers an operator rendering
+  every raw co-moment figure and requires the same bits serially, under
+  `DecodeWorkers` 2/3/7/8 over a file above the parallel-decode
+  threshold, and under `ShardWorkers` 1/2/3/8 over an uneven shard
+  archive against its single-file twin — listwise and pairwise,
+  weighted and unweighted, grouped and ungrouped — each parallel run on
+  its parallel arm; the `Streamable: false` tier runs serially under
+  every knob and lands on the same bits. Keep `Finalize` pure (no
+  clocks, no randomness, no state carried between calls) and the
+  guarantee is yours.
 - **Hosts.** The matrix host refusals hold unchanged: a join, a
   crosstab and a chain stage after 0 refuse it as they refuse a built-in.
 - **Self-description.** The manifest lists it under
@@ -651,7 +662,8 @@ finalizer:
   engine-owned params first, the matrix floor plus the weighted floor
   when `WeightAware`, then its own component keys) and under
   `components_schemas.matrices`; the instance payload schema's
-  `MatrixType` enum, the MCP `type` enum, the ontology (a node requiring
+  `MatrixType` enum (as every category's extensions join theirs), the
+  MCP `type` enum, the ontology (a node requiring
   `capability:matrices`) and the recommend binder carry it. A feature
   profile that omits it hides it everywhere; listing it needs
   `capability:matrices`.
@@ -963,7 +975,9 @@ Fetch the Message + Fixup template via `pulse errors lookup <CODE>`
 The probe (`extensions_probe.go`) runs after schema + name validation
 and before `pulse.New` returns. For every aggregator, attribute,
 grouper, and filterer registration it constructs the factory once
-against a minimal synthetic schema and asserts:
+against a minimal synthetic schema and asserts the chart's left branch;
+a matrix operator takes the right branch (`extensions_probe_matrix.go`),
+the one probe that runs the operator over data:
 
 ```mermaid
 flowchart TD
@@ -978,11 +992,30 @@ flowchart TD
     E -->|emitter, no schema| F3[PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA]
     E -->|emitter, key divergence| F4[PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH]
     E -->|all clear| G[snapshot + runtime overlay]
+    C -->|MatrixOps| M[build factory on 3 f64 members + weight column]
+    M -->|panic / error / nil| F1
+    M --> M1[Finalize over a six-row listwise CoMoment, every part wanted]
+    M1 -->|panic / error| F1
+    M1 -->|Streamable true, fails without Rows, passes with them| F2
+    M1 --> M2{output inside OutputKeys / ComponentSchema?}
+    M2 -->|no Primary, undeclared key| F6[PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH]
+    M2 -->|undeclared components key| F4
+    M2 -->|all clear, WeightAware probed again weighted| G
 ```
 
 Factory contract for the probe (documented in `extensions_probe.go`):
 embedder factories MUST tolerate a nil/empty `Schema` and a spec
-carrying only the operator `Name`. The probe never feeds real records.
+carrying only the operator `Name`. The probe never feeds real records;
+the matrix probe alone feeds SYNTHETIC ones — a six-row, well-conditioned
+listwise co-moment over three `f64` members (rows attached only on the
+`Streamable: false` tier), run once unweighted and, for a `WeightAware`
+registration, once weighted — and holds the output to `OutputKeys` /
+`ComponentSchema` ("Matrix operator (`MatrixOps`)" above). At run time a
+matrix operator's params never carry the engine-owned `missing` /
+`max_drop_share` (a `ParamMeta` naming one is refused,
+`reserved_matrix_param`), each `Finalize` gets its own clone of the
+merged co-moment, and multiplicity correction reaches it only through
+`PValues`.
 A `WeightAware` aggregator, attribute or test factory is constructed a
 second time with a row weight on its spec (a field the empty schema
 does not carry) and must pass the same checks; a failure of that
@@ -1043,7 +1076,12 @@ treat custom operators identically to built-ins.
 LLM agents that call `pulse_manifest` see both the built-in set and
 the embedder additions in one fetch. The schema-bound MCP tools (after
 `pulse_inspect`) also include custom operator names in their enum
-lists.
+lists, and so does the instance payload schema (`p.PayloadSchema()`,
+`pulse schema`): every registered aggregator, attribute, filterer,
+grouper, window, feature, test and matrix operator joins its category's
+operator-type enum beside the built-ins, so a request naming one
+validates against the instance's own schema. A feature profile that
+omits an extension drops it from the enum as from the manifest.
 
 ### The snapshot carries `fans_out` and `mergeable`
 

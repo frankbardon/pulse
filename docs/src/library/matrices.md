@@ -397,12 +397,61 @@ Refused identically by predict and the run: matrices with `joins` or on a
 chain stage after the first (`PULSE_MATRIX_UNSUPPORTED_SOURCE`), and with
 `crosstab` (`PULSE_MATRIX_HOST_CONFLICT`).
 
+## Your own matrix operator
+
+An embedder adds a `MAT_<NAMESPACE>_<NAME>` operator through
+`Options.Extensions.MatrixOps`. The operator only finalizes: the engine
+folds the members, merges the 4096-row blocks, cuts the group buckets
+and applies weights and `params.missing`, then hands `Finalize` the
+merged, read-only `*linalg.CoMoment`.
+
+```go
+// MAT_ACME_SCATTER: each pair's raw weighted co-moment.
+type scatter struct{}
+
+func (scatter) Finalize(in *extend.MatrixInput) (extend.MatrixOutput, error) {
+    return extend.MatrixOutput{Primary: in.Square(in.CoMoment.PairM2)}, nil
+}
+
+p, err := pulse.New(pulse.Options{Extensions: pulse.Extensions{
+    MatrixOps: []pulse.MatrixOpRegistration{{
+        Name:        "MAT_ACME_SCATTER",
+        Description: "Scatter matrix: each pair's raw weighted co-moment.",
+        Factory: func(*types.MatrixSpec, *encoding.Schema) (extend.MatrixOperator, error) {
+            return scatter{}, nil
+        },
+        Streamable:  true, // finalize from the co-moment; mergeable across workers
+        WeightAware: true,
+        OutputKeys:  descriptor.MatrixOutputKeys{Primary: "scatter"},
+    }},
+}})
+```
+
+A request names it like a built-in, and the engine-owned params work
+unchanged:
+
+```json
+{
+  "cohort": {"filename": "training_data.pulse"},
+  "matrices": [
+    {"type": "MAT_ACME_SCATTER", "fields": ["price", "income", "label"],
+     "params": {"missing": "pairwise"}}
+  ]
+}
+```
+
+Because `Finalize` reads only the merged state, the result has the same
+bits under every worker setting (next section) as long as `Finalize` is
+pure. Registration rules, the `pulse.New` probe, the buffered tier
+(`Streamable: false`, which also receives the rows), weights and
+multiplicity: [Extension Points](../internals/extension-points.md).
+
 ## Determinism
 
 Serial, parallel-decode and sharded runs return bit-identical matrices,
 and a multi-shard archive matches its single-file twin bit for bit
 (merge blocks key by the global record ordinal, whatever the shard
-split). A correlation cell agrees with the corresponding
+split). An extension operator's results carry the same guarantee. A correlation cell agrees with the corresponding
 `TEST_PEARSON_R` within `1e-12 + 1e-12 * |r|`.
 
 Contract: `.claude/reference/matrix-and-vectors.md`; payload shapes:
