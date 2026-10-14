@@ -8,7 +8,15 @@
 // (internal/descriptor) reports the very same *errors.CodedError at the
 // same slot, so the two agree on code, message, details and count by
 // construction. The manifest's accepts_types for a tabled slot is
-// TypeNames, so the declaration cannot drift from the rule either.
+// TypeNames (or, where noted, a subset of it), so the declaration
+// cannot drift from the rule either.
+//
+// The PROCESSING_CONFIG rows are different in one way: they table the
+// type checks the aggregator / attribute / grouper / filterer
+// constructors already make, which keep their own message (a remedy
+// naming only the operators the instance offers). Predict reports the
+// same code once per slot from here; the root acceptance gate holds each
+// row equal to its constructor over every field type.
 //
 // It is a leaf: it imports only the public errors / encoding packages,
 // never internal/processing or internal/service, so internal/descriptor
@@ -27,6 +35,7 @@
 package fieldaccept
 
 import (
+	"slices"
 	"sort"
 	"strings"
 
@@ -93,6 +102,40 @@ func testValue(ft encoding.FieldType) bool {
 	return ft.IsKnown() && !ft.IsCategorical() && !ft.IsSet() && !ft.IsVector()
 }
 
+// nonSetValue is the value-reading set of the operators that read a
+// field's NUMBER or dictionary value (distinct counts, the standardising
+// attributes, the value groupers, FILTER_INCLUDE / EXCLUDE): every
+// scalar type but a set_* (a membership bitmask, whose numeric echo is
+// its low 64 bits).
+func nonSetValue(ft encoding.FieldType) bool {
+	return ft.IsKnown() && !ft.IsSet() && !ft.IsVector()
+}
+
+// nonSetNonDecimal is nonSetValue without decimal128: the value-matching
+// aggregators with no decimal implementation (AGG_FREQUENCY, AGG_MODE,
+// AGG_MODE_COUNT).
+func nonSetNonDecimal(ft encoding.FieldType) bool {
+	return nonSetValue(ft) && !ft.IsDecimal()
+}
+
+// rangeBound is FILTER_RANGE's set: nonSetValue without a categorical,
+// whose dictionary label cannot be parsed as a range bound.
+func rangeBound(ft encoding.FieldType) bool {
+	return nonSetValue(ft) && !ft.IsCategorical()
+}
+
+// strictScalar is AGG_WELFORD's set: the six plain integer and float
+// types its single float64 hot path reads (no u4 / packed_bool bit
+// packing, no temporal ordinal, no decimal128, categorical or set).
+func strictScalar(ft encoding.FieldType) bool {
+	switch ft {
+	case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
+		encoding.FieldTypeF32, encoding.FieldTypeF64:
+		return true
+	}
+	return false
+}
+
 // table is keyed by operator name, then slot.
 var table = map[string]map[Slot]Rule{}
 
@@ -122,6 +165,23 @@ func init() {
 		"TEST_PAIRED_T", "TEST_PEARSON_R", "TEST_SPEARMAN_R", "TEST_KENDALL_TAU", "TEST_WILCOXON_SR")
 	add(testValue, errors.PULSE_TEST_FIELD2_NOT_NUMERIC, []Slot{SlotField2},
 		"TEST_PAIRED_T", "TEST_PEARSON_R", "TEST_SPEARMAN_R", "TEST_KENDALL_TAU", "TEST_WILCOXON_SR")
+
+	// The rows below are the runtime constructors' own type refusals,
+	// which keep their PROCESSING_CONFIG code and their message (a remedy
+	// naming the operators the instance offers); predict reports the
+	// same code from here. TestFieldTypeAcceptance_PredictMatchesRuntime
+	// holds every row equal to its constructor over every field type.
+	cfg := errors.PROCESSING_CONFIG
+	add(nonSetValue, cfg, field,
+		"AGG_DISTINCT_COUNT", "ATTR_NORMALIZED", "ATTR_PERCENTILE", "ATTR_TSCORE", "ATTR_ZSCORE",
+		"GROUP_CATEGORY", "GROUP_QUANTILE", "GROUP_RANGE", "GROUP_ROUNDED", "FILTER_INCLUDE", "FILTER_EXCLUDE")
+	add(nonSetNonDecimal, cfg, field, "AGG_FREQUENCY", "AGG_MODE", "AGG_MODE_COUNT")
+	add(strictScalar, cfg, field, "AGG_WELFORD")
+	add(rangeBound, cfg, field, "FILTER_RANGE")
+	add(analyticsValue, cfg, []Slot{SlotTarget, SlotPredictor},
+		"ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE")
+
+	memoTypeNames()
 }
 
 // Lookup returns the rule for op's slot; false when the slot is not
@@ -177,14 +237,31 @@ func Check(op string, slot Slot, field string, schema *encoding.Schema) *errors.
 	return Refusal(op, slot, field, f.Type)
 }
 
+// typeNames memoises typeNamesOf per tabled slot, filled once the table
+// is built: the manifest's capability rows (rebuilt per predict call)
+// read it on every call, and must not allocate for it.
+var typeNames = map[string]map[Slot][]string{}
+
+// memoTypeNames fills typeNames; the table's init calls it last.
+func memoTypeNames() {
+	for op, slots := range table {
+		typeNames[op] = map[Slot][]string{}
+		for slot, r := range slots {
+			typeNames[op][slot] = typeNamesOf(r)
+		}
+	}
+}
+
 // TypeNames returns the names of every registered field type op's slot
 // accepts, sorted byte-wise (the manifest's accepts_types order); nil
-// for an untabled slot. Vector types are never listed.
+// for an untabled slot. Vector types are never listed. The slice is
+// shared (capacity clipped, so an append copies): callers must not
+// modify it in place.
 func TypeNames(op string, slot Slot) []string {
-	r, ok := Lookup(op, slot)
-	if !ok {
-		return nil
-	}
+	return typeNames[op][slot]
+}
+
+func typeNamesOf(r Rule) []string {
 	var out []string
 	for b := 0; b < 256; b++ {
 		ft := encoding.FieldType(b)
@@ -193,7 +270,7 @@ func TypeNames(op string, slot Slot) []string {
 		}
 	}
 	sort.Strings(out)
-	return out
+	return slices.Clip(out)
 }
 
 // Operators returns every tabled operator name, sorted.

@@ -40,7 +40,7 @@ Use something else:
 
 | Param | Accepted field types |
 |---|---|
-| `Target` / `Predictors` | numeric (no `decimal128`) |
+| `Target` / `Predictors` | numeric (no `decimal128`); a categorical or `set_*` field is refused `PROCESSING_CONFIG` by predict and the runtime |
 | `Label` | required — new column name |
 
 ## Output

@@ -1405,7 +1405,6 @@
             "categorical_u8",
             "date",
             "datetime",
-            "decimal128",
             "f32",
             "f64",
             "packed_bool",
@@ -1490,7 +1489,6 @@
             "categorical_u8",
             "date",
             "datetime",
-            "decimal128",
             "f32",
             "f64",
             "packed_bool",
@@ -10647,8 +10645,6 @@
           "AGG_DISTINCT_COUNT",
           "AGG_MAX",
           "AGG_MIN",
-          "AGG_MODE",
-          "AGG_MODE_COUNT",
           "AGG_NULL_COUNT",
           "AGG_RATIO",
           "AGG_STDDEV",
@@ -17130,4 +17126,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ff595b03c355d04273c004be504d85555763d6d178ef151906c513990a68a352
+// golden-hash: 0feb55c73ca6bea004756911706f4907573ac4ec081832bc163e2d872da42ce4

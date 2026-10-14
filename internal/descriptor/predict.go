@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
@@ -586,6 +587,10 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// Validate request fields exist in schema (or in feature outputs).
 	validateRequestFields(env, req, schema, projected, opts)
 
+	// The accepted-types table's per-slot type refusals, the runtime
+	// constructors' codes (internal/fieldaccept).
+	validateFieldAcceptance(env, req, schema, opts.instance())
+
 	// Validate window operations (structural checks; no execution).
 	validateWindows(env, req, schema, opts)
 
@@ -1024,6 +1029,11 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 	for _, agg := range req.Aggregations {
 		f := schema.Field(agg.Field)
 		if f == nil {
+			continue
+		}
+		// A slot the accepted-types table refuses is reported once, with
+		// the runtime's code, by validateFieldAcceptance.
+		if !fieldaccept.Accepts(string(opRoute(opts.Instance, agg.Type)), fieldaccept.SlotField, f.Type) {
 			continue
 		}
 		if f.Type.IsDecimal() && decimalAggregationRefused(opRoute(opts.Instance, agg.Type), opts.Extensions) {

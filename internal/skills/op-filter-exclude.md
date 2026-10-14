@@ -21,7 +21,7 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | any cohort field type EXCEPT `set_*` (categorical_*, numeric, date, datetime, packed_bool, decimal128) |
+| `Field` | any cohort field type EXCEPT `set_*` (categorical_*, numeric, date, datetime, packed_bool, decimal128); any other type is refused `PROCESSING_CONFIG` by predict and the runtime |
 
 ## Output
 

@@ -31,7 +31,7 @@ Weight-aware (`"weight": null` opts out): the largest per-value Σw (a float), i
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | any type EXCEPT `set_*` |
+| `Field` | any type EXCEPT `set_*` and `decimal128`; any other type is refused `PROCESSING_CONFIG` by predict and the runtime |
 
 ## Output
 

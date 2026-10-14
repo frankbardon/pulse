@@ -420,7 +420,7 @@ func knownTypeDivergence(op string, ft encoding.FieldType) string {
 	if ft.IsVector() {
 		return ""
 	}
-	set, cat := ft.IsSet(), ft.IsCategorical()
+	set := ft.IsSet()
 	temporal := ft == encoding.FieldTypeDate || ft == encoding.FieldTypeDateTime
 	in := func(names ...string) bool {
 		for _, n := range names {
@@ -434,27 +434,17 @@ func knownTypeDivergence(op string, ft encoding.FieldType) string {
 	// Predict looser. (AGG_WEIGHTED_MEAN is not here: it always carries
 	// a weight, and a weight on a decimal128 value field is refused
 	// PULSE_WEIGHT_UNSUPPORTED by the shared resolver on both sides.)
-	case ft.IsDecimal() && in("AGG_CI_LOWER", "AGG_CI_UPPER", "AGG_DISTINCT_SUM", "AGG_FREQUENCY", "AGG_MODE_COUNT", "AGG_KURTOSIS",
-		"AGG_MEDIAN", "AGG_MODE", "AGG_NULL_COUNT", "AGG_PERCENTILE", "AGG_RANGE", "AGG_RATIO", "AGG_SKEWNESS",
-		"AGG_WELFORD", "AGG_ZSCORE", "AGG_SET_UNION", "AGG_SET_INTERSECTION",
+	case ft.IsDecimal() && in("AGG_CI_LOWER", "AGG_CI_UPPER", "AGG_DISTINCT_SUM", "AGG_KURTOSIS",
+		"AGG_MEDIAN", "AGG_NULL_COUNT", "AGG_PERCENTILE", "AGG_RANGE", "AGG_RATIO", "AGG_SKEWNESS",
+		"AGG_ZSCORE", "AGG_SET_UNION", "AGG_SET_INTERSECTION",
 		"AGG_SET_FREQUENCY", "AGG_SET_CARDINALITY_SUM", "AGG_SET_CARDINALITY_AVG", "AGG_SET_DISTINCT_VALUES"):
 		return "predict only WARNS PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL (an error under Strict); the runtime refuses decimal128 regardless"
-	case set && in("AGG_DISTINCT_COUNT", "AGG_FREQUENCY", "AGG_MODE_COUNT", "AGG_MODE", "AGG_WELFORD", "ATTR_NORMALIZED", "ATTR_PERCENTILE",
-		"ATTR_TSCORE", "ATTR_ZSCORE", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE", "GROUP_CATEGORY",
-		"GROUP_QUANTILE", "GROUP_RANGE", "GROUP_ROUNDED", "FILTER_INCLUDE", "FILTER_EXCLUDE", "FILTER_RANGE"):
-		return "the runtime constructor refuses a set_* column (no numeric value); predict has no set check"
 	case !set && strings.Contains(op, "_SET_"):
 		return "the runtime constructor refuses a non-set column on a set operator; predict has no type check"
-	case op == "AGG_WELFORD" && (ft == encoding.FieldTypeU4 || temporal || ft == encoding.FieldTypePackedBool || cat):
-		return "AGG_WELFORD's runtime numeric check is narrower than the analytics set predict assumes"
 	case in("GROUP_DATE_RANGES", "FILTER_DATE_RANGES") && !temporal:
 		return "the runtime refuses a non-temporal field; predict has no type check"
 	case in("FILTER_TRUE", "FILTER_FALSE") && ft != encoding.FieldTypePackedBool:
 		return "the runtime's strict mode refuses a non-packed_bool field; predict has no type check"
-	case op == "FILTER_RANGE" && cat:
-		return "the runtime cannot parse a dictionary label as a range bound; predict accepts it"
-	case cat && in("ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE"):
-		return "the runtime refuses a categorical predictor; predict has no type check"
 	}
 	return ""
 }
@@ -506,7 +496,7 @@ func TestFieldTypeAcceptance_PredictMatchesRuntime(t *testing.T) {
 			// refuses is refused by BOTH sides with its code (once at
 			// predict), and a type it accepts is never refused with it.
 			slot := fieldaccept.SlotField
-			if strings.HasPrefix(op, "REG_") {
+			if strings.HasPrefix(op, "REG_") || strings.HasPrefix(op, "ATTR_REG_") {
 				slot = fieldaccept.SlotPredictor
 			}
 			if rule, tabled := fieldaccept.Lookup(op, slot); tabled {

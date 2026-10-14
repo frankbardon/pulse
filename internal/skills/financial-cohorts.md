@@ -59,7 +59,7 @@ Decimal divide-by-zero raises `PULSE_DECIMAL_DIVIDE_BY_ZERO`. No NaN, no infinit
 
 ## Aggregations on decimal fields
 
-An aggregator takes a decimal field iff its manifest `accepts_types` lists `decimal128`; predict refuses the rest with `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`. Registered extension aggregators are exempt (exact values via `DecimalValue`). What a supported one returns follows from the math it needs:
+An aggregator takes a decimal field iff its manifest `accepts_types` lists `decimal128`; predict refuses the rest with `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`, or with the runtime's `PROCESSING_CONFIG` where the operator's own type check refuses `decimal128` (the value matchers). Registered extension aggregators are exempt (exact values via `DecimalValue`). What a supported one returns follows from the math it needs:
 
 | Kind | Result |
 |---|---|

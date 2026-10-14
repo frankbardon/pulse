@@ -121,21 +121,6 @@ var numericFieldTypesAnalyticsNoDecimal = []string{
 	"u8",
 }
 
-// numericFieldTypesStrictScalar is the strict scalar numeric family —
-// u8/u16/u32/u64/f32/f64 only. Excludes decimal128, date, and every
-// bit-packed encoding (u4, packed_bool). Used by aggregators that drive
-// a single float64 hot path with no per-type branch (AGG_WELFORD — see
-// internal/processing/aggregator_welford.go's factory gate, which admits exactly
-// these six and mirrors the TEST_WELCH field-type policy).
-var numericFieldTypesStrictScalar = []string{
-	"f32",
-	"f64",
-	"u16",
-	"u32",
-	"u64",
-	"u8",
-}
-
 // allCohortFieldTypes lists every field type without restriction (used
 // by AGG_COUNT / AGG_NULL_COUNT / FILTER_NULL and the other operators
 // that ask only whether a field ANSWERED, which every type can do).
@@ -222,19 +207,6 @@ var nonVectorFieldTypes = func() []string {
 	out := make([]string, 0, len(allCohortFieldTypes))
 	for _, n := range allCohortFieldTypes {
 		if !strings.HasPrefix(n, "vec_") {
-			out = append(out, n)
-		}
-	}
-	return out
-}()
-
-// nonSetNonDecimalFieldTypes is nonSetFieldTypes without decimal128,
-// for a value-matching aggregator with no decimal implementation
-// (AGG_FREQUENCY).
-var nonSetNonDecimalFieldTypes = func() []string {
-	out := make([]string, 0, len(nonSetFieldTypes))
-	for _, n := range nonSetFieldTypes {
-		if n != "decimal128" {
 			out = append(out, n)
 		}
 	}
@@ -391,7 +363,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_MODE_COUNT),
 			Category:      "aggregator",
 			Description:   "Modal count: how many rows hold the field's most common value. Under GROUP_CATEGORY on the same field it is each group's row count.",
-			AcceptsTypes:  nonSetFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_MODE_COUNT),
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Partial,
@@ -412,10 +384,10 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 					Description: "Value to count, matched as FILTER_INCLUDE matches one: a category label, otherwise a number (date in epoch days, datetime in epoch seconds, packed_bool 1 or 0). A JSON number is accepted.",
 				},
 			},
-			// No set_* (a mask is not a value) and no decimal128: the
-			// runtime has no decimal implementation and predict warns
-			// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL on the pairing.
-			AcceptsTypes:  nonSetNonDecimalFieldTypes,
+			// No set_* (a mask is not a value) and no decimal128 (no
+			// decimal implementation): the accepted-types table's rule,
+			// refused PROCESSING_CONFIG by predict and the runtime.
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_FREQUENCY),
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -471,7 +443,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_MODE),
 			Category:      "aggregator",
 			Description:   "Most-frequent value of the field (ties broken by the smallest value).",
-			AcceptsTypes:  nonSetFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_MODE),
 			EmitsTypeNote: "scalar float64 (the modal value; for a categorical field, its dictionary index, for a packed_bool field its 0/1 truth value — a code, not a magnitude, so an overlay scoring it over such a field (params.field, else aggregations[0]; as a crosstab cell, any MATRIX kind reading cell values; on a later chain stage, over a column a code-emitting aggregation wrote) is refused PROCESSING_CONFIG reason categorical_code)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Partial,
@@ -514,7 +486,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_DISTINCT_COUNT),
 			Category:      "aggregator",
 			Description:   "Count of distinct non-null values across the input set.",
-			AcceptsTypes:  nonSetFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_DISTINCT_COUNT),
 			EmitsTypeNote: "scalar int64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Partial,
@@ -715,7 +687,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_WELFORD),
 			Category:      "aggregator",
 			Description:   "Streaming Welford-Pébaÿ moment triple — running mean, unbiased sample variance (n-1), and observed count — over a numeric field. Returns the running mean as the scalar fallback; rich payload is a typed WelfordTriple for overlay handlers (OVERLAY_T_CELL / OVERLAY_Z_CELL) to consume without re-deriving variance from raw rows. Margin recompute (variance does not pool by addition).",
-			AcceptsTypes:  numericFieldTypesStrictScalar,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_WELFORD),
 			EmitsTypeNote: "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar — except the two-sample t / z vs-ref overlays, which read the triple from the slot's per-group components (components disabled on that slot: PULSE_OVERLAY_COMPONENTS_REQUIRED reason components_disabled)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,

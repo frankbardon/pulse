@@ -29,7 +29,7 @@ None. `Group.Label` overrides the output column name; `Group.Include []string` a
 
 ## Inputs
 
-`Field` — any cohort field type EXCEPT `set_*`.
+`Field` — any cohort field type EXCEPT `set_*` (refused `PROCESSING_CONFIG` by predict and the runtime).
 
 ## Output
 

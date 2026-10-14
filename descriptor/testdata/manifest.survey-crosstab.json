@@ -272,7 +272,6 @@
             "categorical_u8",
             "date",
             "datetime",
-            "decimal128",
             "f32",
             "f64",
             "packed_bool",
@@ -1201,7 +1200,6 @@
         "compatible_aggregators": [
           "AGG_AVERAGE",
           "AGG_COUNT",
-          "AGG_MODE_COUNT",
           "AGG_SUM"
         ],
         "compatible_filterers": [
@@ -2276,4 +2274,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7099fe06f6869eba6f9ab5384bf428149a56d7fc1ab49755825e4910af2d41e1
+// golden-hash: 59d6f7c92442a7c84d6e30de4ba18c636c1dc9422fb9d23bb4792531b51b2059

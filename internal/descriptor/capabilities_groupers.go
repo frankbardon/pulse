@@ -59,7 +59,7 @@ func grouperCapabilities() []descriptor.Operator {
 			Name:          string(types.GROUP_CATEGORY),
 			Category:      "grouper",
 			Description:   "Partition records by exact field value; ideal for categorical fields. Set columns are not partitionable by value here — use GROUP_SET_VALUE or GROUP_SET_PER_ELEMENT.",
-			AcceptsTypes:  nonSetFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.GROUP_CATEGORY),
 			EmitsTypeNote: "string group key per row",
 			Streamable:    true,
 			ComponentSchema: groupSchema(descriptor.Mergeable,

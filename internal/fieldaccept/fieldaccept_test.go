@@ -27,10 +27,52 @@ func TestTypeNames_NeverListsVectorOrRefused(t *testing.T) {
 		for _, slot := range []Slot{SlotField, SlotField2, SlotTarget, SlotPredictor} {
 			for _, n := range TypeNames(op, slot) {
 				ft, ok := encoding.ParseFieldType(n)
-				if !ok || ft.IsVector() || ft.IsSet() || ft.IsCategorical() {
+				if !ok || ft.IsVector() || !Accepts(op, slot, ft) {
 					t.Errorf("%s %s lists %s", op, slot, n)
 				}
 			}
+		}
+	}
+}
+
+// TestTypeNames_ValueReaders pins the classes of the runtime
+// constructors' own refusals: no set rung on a value reader, no decimal
+// on the value matchers, no categorical range bound, the Welford six.
+func TestTypeNames_ValueReaders(t *testing.T) {
+	for _, op := range []string{"AGG_DISTINCT_COUNT", "AGG_FREQUENCY", "AGG_MODE", "AGG_MODE_COUNT", "AGG_WELFORD",
+		"ATTR_NORMALIZED", "ATTR_PERCENTILE", "ATTR_TSCORE", "ATTR_ZSCORE", "GROUP_CATEGORY", "GROUP_QUANTILE",
+		"GROUP_RANGE", "GROUP_ROUNDED", "FILTER_INCLUDE", "FILTER_EXCLUDE", "FILTER_RANGE"} {
+		r, ok := Lookup(op, SlotField)
+		if !ok || r.Code != errors.PROCESSING_CONFIG {
+			t.Fatalf("%s: tabled=%v code=%v", op, ok, r.Code)
+		}
+		for _, n := range TypeNames(op, SlotField) {
+			if strings.HasPrefix(n, "set_") {
+				t.Errorf("%s lists %s", op, n)
+			}
+		}
+		if !Accepts(op, SlotField, encoding.FieldTypeU8) {
+			t.Errorf("%s refuses u8", op)
+		}
+	}
+	for _, op := range []string{"AGG_FREQUENCY", "AGG_MODE", "AGG_MODE_COUNT", "AGG_WELFORD"} {
+		if Accepts(op, SlotField, encoding.FieldTypeDecimal128) {
+			t.Errorf("%s accepts decimal128", op)
+		}
+	}
+	if !Accepts("AGG_DISTINCT_COUNT", SlotField, encoding.FieldTypeDecimal128) || !Accepts("GROUP_CATEGORY", SlotField, encoding.FieldTypeCategoricalU8) {
+		t.Error("nonSetValue narrowed")
+	}
+	if Accepts("FILTER_RANGE", SlotField, encoding.FieldTypeCategoricalU16) {
+		t.Error("FILTER_RANGE accepts a categorical")
+	}
+	if got, want := TypeNames("AGG_WELFORD", SlotField), []string{"f32", "f64", "u16", "u32", "u64", "u8"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("AGG_WELFORD: %v, want %v", got, want)
+	}
+	for _, slot := range []Slot{SlotTarget, SlotPredictor} {
+		if Accepts("ATTR_REG_FITTED", slot, encoding.FieldTypeCategoricalU8) || Accepts("ATTR_REG_FITTED", slot, encoding.FieldTypeSetU8) ||
+			!Accepts("ATTR_REG_FITTED", slot, encoding.FieldTypePackedBool) {
+			t.Errorf("ATTR_REG_FITTED %s: not the analytics set", slot)
 		}
 	}
 }
@@ -101,7 +143,9 @@ func TestOperatorsRaising(t *testing.T) {
 			t.Errorf("%s raises the test codes, not PULSE_FIELD_TYPE_UNSUPPORTED", g)
 		}
 	}
-	if got := OperatorsRaising(errors.PROCESSING_CONFIG); got != nil {
-		t.Errorf("PROCESSING_CONFIG owners: %v", got)
+	for _, g := range OperatorsRaising(errors.PROCESSING_CONFIG) {
+		if strings.HasPrefix(g, "WIN_") || strings.HasPrefix(g, "TEST_") || strings.HasPrefix(g, "REG_") || g == "FEAT_POLY" {
+			t.Errorf("%s raises PROCESSING_CONFIG", g)
+		}
 	}
 }

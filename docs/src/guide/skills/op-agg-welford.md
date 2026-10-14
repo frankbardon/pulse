@@ -33,7 +33,7 @@ Weight: honours a resolved row weight (`weight` on the request or slot, or `Opti
 |---|---|
 | `Field` | strict scalar numeric: `u8`/`u16`/`u32`/`u64`, `f32`/`f64` |
 
-`decimal128`, `date`, and bit-packed types rejected.
+Any other type (`decimal128`, `date`, `datetime`, bit-packed, categorical, `set_*`) is refused `PROCESSING_CONFIG` by predict and the runtime.
 
 ## Output
 

@@ -7,11 +7,11 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 )
 
-// tableAcceptsTypes is a value window's accepts_types: the
+// tableAcceptsTypes is a tabled operator's accepts_types: the
 // accepted-types table's (internal/fieldaccept) field slot, which
 // predict and the runtime both enforce, so the declaration cannot drift
 // from the rule.
-func tableAcceptsTypes(t types.WindowType) []string {
+func tableAcceptsTypes[T ~string](t T) []string {
 	return fieldaccept.TypeNames(string(t), fieldaccept.SlotField)
 }
 

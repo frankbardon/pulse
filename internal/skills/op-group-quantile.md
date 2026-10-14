@@ -24,7 +24,7 @@ Weight (both kinds; `"weight": null` opts out): buckets cut at the weighted orde
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64` (no `decimal128`) |
+| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64` (no `decimal128`); a `set_*` field is refused `PROCESSING_CONFIG` by predict and the runtime |
 
 ## Output
 

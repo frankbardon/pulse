@@ -23,7 +23,7 @@ Weight-aware (`"weight": null` opts out): Σw of matches (a float); `share` = Σ
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | any type EXCEPT `set_*` |
+| `Field` | any type EXCEPT `set_*` and `decimal128`; any other type is refused `PROCESSING_CONFIG` by predict and the runtime |
 
 ## Output
 

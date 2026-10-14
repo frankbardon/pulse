@@ -19,7 +19,7 @@ Weight-aware (`"weight": null` opts out): the value with the largest Σw; `count
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | any field type EXCEPT `set_*` |
+| `Field` | any field type EXCEPT `set_*` and `decimal128`; any other type is refused `PROCESSING_CONFIG` by predict and the runtime |
 
 ## Output
 

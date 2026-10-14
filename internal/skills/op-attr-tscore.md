@@ -21,7 +21,7 @@ None. Weight (both kinds, same scores; `"weight": null` opts out): weighted mean
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `packed_bool`, `u4` |
+| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `packed_bool`, `u4`; a `set_*` field is refused `PROCESSING_CONFIG` by predict and the runtime |
 | `Label` | required — new column name |
 
 ## Output
