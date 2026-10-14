@@ -365,8 +365,8 @@ type MatrixPredict struct {
 	// Encoding is the effective Values layout.
 	Encoding types.MatrixEncoding `json:"encoding"`
 	// AccumulatorBytes estimates the payload bytes of one co-moment
-	// state over the members (32 + 8·(p + p(p+1)/2) listwise,
-	// 32 + 56·p(p+1)/2 pairwise). The run holds one per populated merge
+	// state over the members (40 + 8·(p + p(p+1)/2) listwise,
+	// 40 + 72·p(p+1)/2 pairwise). The run holds one per populated merge
 	// block (Manifest.Matrix.merge_block_size rows) until finalize, so
 	// its matrix state is this times its block count (grouped: times
 	// its buckets too — EstimatedBytes).

@@ -1,0 +1,93 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/frankbardon/pulse/internal/service
+cpu: Apple M1 Max
+BenchmarkMatrixScale/rows=1M/p=50/listwise-10         	       2	 587818271 ns/op	        38.14 peak-heap-MB	         2.486 pred-state-MB	951278408 B/op	 3991782 allocs/op
+BenchmarkMatrixScale/rows=1M/p=50/pairwise-10         	       1	1077557125 ns/op	        60.48 peak-heap-MB	        21.46 pred-state-MB	573688552 B/op	 3004001 allocs/op
+BenchmarkMatrixScale/rows=1M/p=50/AGG_VEC_MEAN-10     	       3	 361692986 ns/op	        33.00 peak-heap-MB	536918824 B/op	 3005100 allocs/op
+BenchmarkMatrixScale/rows=1M/p=50/AGG_VEC_SD-10       	       3	 342233681 ns/op	        19.65 peak-heap-MB	537376194 B/op	 3006176 allocs/op
+BenchmarkMatrixScaleGrouped/rows=1M/p=50/pairwise_by_seg-10         	       1	1063280708 ns/op	       152.1 peak-heap-MB	        85.83 pred-state-MB	686089576 B/op	 3008222 allocs/op
+BenchmarkMatrixScaleWorkers/rows=1M/p=50/decode=1-10                	       1	6000372667 ns/op	        34.72 peak-heap-MB	        21.46 pred-state-MB	36589888 B/op	    2475 allocs/op
+BenchmarkMatrixScaleWorkers/rows=1M/p=50/shards=1-10                	       1	6155604459 ns/op	       463.0 peak-heap-MB	893760664 B/op	   10073 allocs/op
+BenchmarkMatrixScaleWorkers/rows=1M/p=50/decode=2-10                	       1	3194250417 ns/op	        43.70 peak-heap-MB	        21.46 pred-state-MB	572734816 B/op	 3003081 allocs/op
+BenchmarkMatrixScaleWorkers/rows=1M/p=50/shards=2-10                	       1	4862791542 ns/op	       811.4 peak-heap-MB	3670607696 B/op	58010829 allocs/op
+BenchmarkMatrixScaleWorkers/rows=1M/p=50/decode=4-10                	       1	2627929000 ns/op	        48.99 peak-heap-MB	        21.46 pred-state-MB	572982352 B/op	 3003317 allocs/op
+BenchmarkMatrixScaleWorkers/rows=1M/p=50/shards=4-10                	       1	2817188917 ns/op	       816.2 peak-heap-MB	3670617728 B/op	58010841 allocs/op
+BenchmarkMatrixScaleWorkers/rows=1M/p=50/decode=8-10                	       2	 961613354 ns/op	        45.06 peak-heap-MB	        21.46 pred-state-MB	573462492 B/op	 3003787 allocs/op
+BenchmarkMatrixScaleWorkers/rows=1M/p=50/shards=8-10                	       1	1925632458 ns/op	       819.6 peak-heap-MB	3670617448 B/op	58010844 allocs/op
+goos: darwin
+goarch: arm64
+pkg: github.com/frankbardon/pulse/linalg
+cpu: Apple M1 Max
+BenchmarkCoMomentAdd/p=8/listwise-10         	    5198	    230194 ns/op	  203362 B/op	    3173 allocs/op
+BenchmarkCoMomentAdd/p=8/listwise-10         	    5282	    230392 ns/op	  203360 B/op	    3173 allocs/op
+BenchmarkCoMomentAdd/p=8/listwise-10         	    5407	    227455 ns/op	  203360 B/op	    3173 allocs/op
+BenchmarkCoMomentAdd/p=8/listwise-10         	    5276	    226562 ns/op	  203360 B/op	    3173 allocs/op
+BenchmarkCoMomentAdd/p=8/listwise-10         	    5154	    226935 ns/op	  203360 B/op	    3173 allocs/op
+BenchmarkCoMomentAdd/p=8/listwise-10         	    5106	    228709 ns/op	  203360 B/op	    3173 allocs/op
+BenchmarkCoMomentAdd/p=8/pairwise-10         	    2302	    519945 ns/op	    2816 B/op	       2 allocs/op
+BenchmarkCoMomentAdd/p=8/pairwise-10         	    2289	    517026 ns/op	    2816 B/op	       2 allocs/op
+BenchmarkCoMomentAdd/p=8/pairwise-10         	    2326	    518193 ns/op	    2816 B/op	       2 allocs/op
+BenchmarkCoMomentAdd/p=8/pairwise-10         	    2222	    533469 ns/op	    2816 B/op	       2 allocs/op
+BenchmarkCoMomentAdd/p=8/pairwise-10         	    2281	    528917 ns/op	    2816 B/op	       2 allocs/op
+BenchmarkCoMomentAdd/p=8/pairwise-10         	    1954	    526187 ns/op	    2816 B/op	       2 allocs/op
+BenchmarkCoMomentAdd/p=50/listwise-10        	     254	   4705593 ns/op	 1337411 B/op	    3192 allocs/op
+BenchmarkCoMomentAdd/p=50/listwise-10        	     254	   4978082 ns/op	 1337416 B/op	    3192 allocs/op
+BenchmarkCoMomentAdd/p=50/listwise-10        	     255	   4691449 ns/op	 1337411 B/op	    3192 allocs/op
+BenchmarkCoMomentAdd/p=50/listwise-10        	     254	   4703649 ns/op	 1337411 B/op	    3192 allocs/op
+BenchmarkCoMomentAdd/p=50/listwise-10        	     252	   4752266 ns/op	 1337410 B/op	    3192 allocs/op
+BenchmarkCoMomentAdd/p=50/listwise-10        	     255	   4707190 ns/op	 1337411 B/op	    3192 allocs/op
+BenchmarkCoMomentAdd/p=50/pairwise-10        	      63	  19043561 ns/op	   98432 B/op	       2 allocs/op
+BenchmarkCoMomentAdd/p=50/pairwise-10        	      63	  18966668 ns/op	   98432 B/op	       2 allocs/op
+BenchmarkCoMomentAdd/p=50/pairwise-10        	      63	  18949376 ns/op	   98432 B/op	       2 allocs/op
+BenchmarkCoMomentAdd/p=50/pairwise-10        	      63	  18919698 ns/op	   98432 B/op	       2 allocs/op
+BenchmarkCoMomentAdd/p=50/pairwise-10        	      61	  18972302 ns/op	   98432 B/op	       2 allocs/op
+BenchmarkCoMomentAdd/p=50/pairwise-10        	      63	  18923037 ns/op	   98432 B/op	       2 allocs/op
+BenchmarkCoMomentAdd/p=256/listwise-10       	      84	  14373617 ns/op	 1077376 B/op	     396 allocs/op
+BenchmarkCoMomentAdd/p=256/listwise-10       	      82	  14372772 ns/op	 1077380 B/op	     396 allocs/op
+BenchmarkCoMomentAdd/p=256/listwise-10       	      86	  14343909 ns/op	 1077379 B/op	     396 allocs/op
+BenchmarkCoMomentAdd/p=256/listwise-10       	      81	  14358454 ns/op	 1077377 B/op	     396 allocs/op
+BenchmarkCoMomentAdd/p=256/listwise-10       	      84	  14547959 ns/op	 1077377 B/op	     396 allocs/op
+BenchmarkCoMomentAdd/p=256/listwise-10       	      84	  14404024 ns/op	 1077378 B/op	     396 allocs/op
+BenchmarkCoMomentAdd/p=256/pairwise-10       	      18	  66640204 ns/op	 2375808 B/op	       2 allocs/op
+BenchmarkCoMomentAdd/p=256/pairwise-10       	      18	  66810190 ns/op	 2375808 B/op	       2 allocs/op
+BenchmarkCoMomentAdd/p=256/pairwise-10       	      18	  67441222 ns/op	 2375814 B/op	       2 allocs/op
+BenchmarkCoMomentAdd/p=256/pairwise-10       	      16	  66822333 ns/op	 2375808 B/op	       2 allocs/op
+BenchmarkCoMomentAdd/p=256/pairwise-10       	      18	  66629289 ns/op	 2375808 B/op	       2 allocs/op
+BenchmarkCoMomentAdd/p=256/pairwise-10       	      18	  66515924 ns/op	 2375808 B/op	       2 allocs/op
+BenchmarkCoMomentMerge/p=8/listwise-10       	  146198	      8048 ns/op	   19896 B/op	     165 allocs/op
+BenchmarkCoMomentMerge/p=8/listwise-10       	  146539	      8224 ns/op	   19896 B/op	     165 allocs/op
+BenchmarkCoMomentMerge/p=8/listwise-10       	  149079	      8104 ns/op	   19896 B/op	     165 allocs/op
+BenchmarkCoMomentMerge/p=8/listwise-10       	  149125	      8333 ns/op	   19896 B/op	     165 allocs/op
+BenchmarkCoMomentMerge/p=8/listwise-10       	  148855	      8133 ns/op	   19896 B/op	     165 allocs/op
+BenchmarkCoMomentMerge/p=8/listwise-10       	  149212	      8101 ns/op	   19896 B/op	     165 allocs/op
+BenchmarkCoMomentMerge/p=8/pairwise-10       	   43755	     27412 ns/op	   90616 B/op	      70 allocs/op
+BenchmarkCoMomentMerge/p=8/pairwise-10       	   41510	     27630 ns/op	   90616 B/op	      70 allocs/op
+BenchmarkCoMomentMerge/p=8/pairwise-10       	   44350	     27449 ns/op	   90616 B/op	      70 allocs/op
+BenchmarkCoMomentMerge/p=8/pairwise-10       	   43292	     27595 ns/op	   90616 B/op	      70 allocs/op
+BenchmarkCoMomentMerge/p=8/pairwise-10       	   44812	     27296 ns/op	   90616 B/op	      70 allocs/op
+BenchmarkCoMomentMerge/p=8/pairwise-10       	   43617	     27531 ns/op	   90616 B/op	      70 allocs/op
+BenchmarkCoMomentMerge/p=50/listwise-10      	    7598	    154601 ns/op	  371801 B/op	     165 allocs/op
+BenchmarkCoMomentMerge/p=50/listwise-10      	    7916	    153879 ns/op	  371801 B/op	     165 allocs/op
+BenchmarkCoMomentMerge/p=50/listwise-10      	    7928	    153657 ns/op	  371801 B/op	     165 allocs/op
+BenchmarkCoMomentMerge/p=50/listwise-10      	    7881	    153768 ns/op	  371800 B/op	     165 allocs/op
+BenchmarkCoMomentMerge/p=50/listwise-10      	    7698	    151915 ns/op	  371800 B/op	     165 allocs/op
+BenchmarkCoMomentMerge/p=50/listwise-10      	    7784	    154854 ns/op	  371801 B/op	     165 allocs/op
+BenchmarkCoMomentMerge/p=50/pairwise-10      	    1738	    670877 ns/op	 3150329 B/op	      70 allocs/op
+BenchmarkCoMomentMerge/p=50/pairwise-10      	    1705	    680195 ns/op	 3150329 B/op	      70 allocs/op
+BenchmarkCoMomentMerge/p=50/pairwise-10      	    1712	    686241 ns/op	 3150329 B/op	      70 allocs/op
+BenchmarkCoMomentMerge/p=50/pairwise-10      	    1735	    681309 ns/op	 3150330 B/op	      70 allocs/op
+BenchmarkCoMomentMerge/p=50/pairwise-10      	    1790	    682246 ns/op	 3150330 B/op	      70 allocs/op
+BenchmarkCoMomentMerge/p=50/pairwise-10      	    1795	    685684 ns/op	 3150329 B/op	      70 allocs/op
+BenchmarkCoMomentMerge/p=256/listwise-10     	    1600	    744878 ns/op	 2210937 B/op	      43 allocs/op
+BenchmarkCoMomentMerge/p=256/listwise-10     	    1612	    760653 ns/op	 2210938 B/op	      43 allocs/op
+BenchmarkCoMomentMerge/p=256/listwise-10     	    1582	    745807 ns/op	 2210937 B/op	      43 allocs/op
+BenchmarkCoMomentMerge/p=256/listwise-10     	    1573	    741851 ns/op	 2210937 B/op	      43 allocs/op
+BenchmarkCoMomentMerge/p=256/listwise-10     	    1618	    743864 ns/op	 2210937 B/op	      43 allocs/op
+BenchmarkCoMomentMerge/p=256/listwise-10     	    1614	    735877 ns/op	 2210937 B/op	      43 allocs/op
+BenchmarkCoMomentMerge/p=256/pairwise-10     	     314	   3736309 ns/op	19006584 B/op	      20 allocs/op
+BenchmarkCoMomentMerge/p=256/pairwise-10     	     322	   3767657 ns/op	19006585 B/op	      20 allocs/op
+BenchmarkCoMomentMerge/p=256/pairwise-10     	     322	   3693578 ns/op	19006584 B/op	      20 allocs/op
+BenchmarkCoMomentMerge/p=256/pairwise-10     	     320	   3708257 ns/op	19006584 B/op	      20 allocs/op
+BenchmarkCoMomentMerge/p=256/pairwise-10     	     322	   3694344 ns/op	19006586 B/op	      20 allocs/op
+BenchmarkCoMomentMerge/p=256/pairwise-10     	     326	   3674527 ns/op	19006585 B/op	      20 allocs/op

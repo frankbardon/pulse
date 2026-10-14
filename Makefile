@@ -1,4 +1,4 @@
-.PHONY: build clean dist test smoke contrib contrib-tidy cover fmt fmt-check vet lint bench sites tzdata reference docs docs-generate docs-serve docs-clean
+.PHONY: build clean dist test smoke contrib contrib-tidy cover fmt fmt-check vet lint bench bench-scale sites tzdata reference docs docs-generate docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -93,7 +93,11 @@ lint: fmt-check vet
 
 # bench runs the in-tree benchmark suite. Manual target — not wired into
 # `make test`. Covers the service-layer crosstab + scan benches, the
-# encoding-layer codec benches, and the root-package point-lookup
+# matrix scale benches at their default tier (1M rows x p50 —
+# matrix_scale_bench_test.go; the cohort is generated once into
+# $PULSE_BENCH_DIR, default <tmp>/pulse-bench), the linalg CoMoment
+# benches (p 8 / 50 / 256), the encoding-layer codec benches, and the
+# root-package point-lookup
 # sidecar-presence benchmark (BenchmarkProcess_SidecarIndexPresence —
 # compares Process with/without a sidecar index present; see
 # no_sidecar_touch_bench_test.go); new bench packages should be added
@@ -104,7 +108,16 @@ lint: fmt-check vet
 # no_sidecar_touch_perf_test.go's `-tags=perf` opt-in gate for the one
 # in-repo wall-clock assertion, kept out of CI on purpose).
 bench:
-	$(GO) test -bench=. -benchmem -run='^$$' -count=1 . ./internal/service/... ./encoding/... ./internal/processing/...
+	$(GO) test -bench=. -benchmem -run='^$$' -count=1 . ./internal/service/... ./encoding/... ./internal/processing/... ./linalg/...
+
+# bench-scale adds the opt-in matrix scale tiers — 1M x p256, 10M x p50
+# and 10M x p256 — to the default 1M x p50 one (-matrix-scale). Manual
+# and never in CI: the cohorts are stream-generated once into
+# $PULSE_BENCH_DIR (default <tmp>/pulse-bench) and need ~55 GB there with
+# their 8-shard archives; the pairwise 10M x p256 cases run for tens of
+# minutes. Baseline: docs/internals/BENCHMARKS_BASELINE.md.
+bench-scale:
+	$(GO) test -bench=MatrixScale -benchmem -benchtime=1x -run='^$$' -count=1 -timeout=0 ./internal/service/ -args -matrix-scale
 
 # sites prints the change-site checklist for an operator or a
 # Request/Response slot: every file + declaration to edit, the gate

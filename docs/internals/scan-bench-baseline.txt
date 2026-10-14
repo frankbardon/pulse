@@ -1,0 +1,40 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/frankbardon/pulse/internal/service
+cpu: Apple M1 Max
+BenchmarkScan_Iterator/shape=1num/rows=10000-10         	    1279	    930221 ns/op	 1362780 B/op	   30024 allocs/op
+BenchmarkScan_Iterator/shape=1num/rows=100000-10        	     138	   8652449 ns/op	13603736 B/op	  300024 allocs/op
+BenchmarkScan_Iterator/shape=1num/rows=1000000-10       	      14	  76896577 ns/op	136004662 B/op	 3000025 allocs/op
+BenchmarkScan_Iterator/shape=5num_2cat/rows=10000-10    	     802	   1513966 ns/op	 2133320 B/op	   30126 allocs/op
+BenchmarkScan_Iterator/shape=5num_2cat/rows=100000-10   	      87	  13236054 ns/op	21208291 B/op	  300126 allocs/op
+BenchmarkScan_Iterator/shape=5num_2cat/rows=1000000-10  	       8	 126091818 ns/op	212015113 B/op	 3000127 allocs/op
+BenchmarkScan_IteratorReuse/shape=1num/rows=10000-10    	    3986	    302333 ns/op	   82752 B/op	      23 allocs/op
+BenchmarkScan_IteratorReuse/shape=1num/rows=100000-10   	     402	   3038321 ns/op	  803652 B/op	      23 allocs/op
+BenchmarkScan_IteratorReuse/shape=1num/rows=1000000-10  	      39	  30328801 ns/op	 8004435 B/op	      23 allocs/op
+BenchmarkScan_IteratorReuse/shape=5num_2cat/rows=10000-10         	    1472	    846924 ns/op	  293297 B/op	     125 allocs/op
+BenchmarkScan_IteratorReuse/shape=5num_2cat/rows=100000-10        	     157	   7634057 ns/op	 2808244 B/op	     125 allocs/op
+BenchmarkScan_IteratorReuse/shape=5num_2cat/rows=1000000-10       	      14	  75336521 ns/op	28015064 B/op	     125 allocs/op
+BenchmarkProcess_StreamingSum/shape=1num/rows=10000-10            	    1879	    643099 ns/op	   88005 B/op	      96 allocs/op
+BenchmarkProcess_StreamingSum/shape=1num/rows=100000-10           	     189	   6335095 ns/op	  809226 B/op	      97 allocs/op
+BenchmarkProcess_StreamingSum/shape=1num/rows=1000000-10          	      19	  63686726 ns/op	 8010190 B/op	      97 allocs/op
+BenchmarkProcess_StreamingSum/shape=5num_2cat/rows=10000-10       	    1075	   1111933 ns/op	  304297 B/op	     300 allocs/op
+BenchmarkProcess_StreamingSum/shape=5num_2cat/rows=100000-10      	     100	  11256182 ns/op	 2819580 B/op	     301 allocs/op
+BenchmarkProcess_StreamingSum/shape=5num_2cat/rows=1000000-10     	      10	 107257104 ns/op	28026726 B/op	     302 allocs/op
+BenchmarkProcess_GroupedByCategorical/rows=100000-10              	      63	  19376765 ns/op	 2853280 B/op	     649 allocs/op
+BenchmarkProcess_GroupedByCategorical/rows=1000000-10             	       6	 197796021 ns/op	28060506 B/op	     649 allocs/op
+BenchmarkScan_OsFsReuse/shape=1num/rows=10000-10                  	    3717	    327509 ns/op	    1280 B/op	      25 allocs/op
+BenchmarkScan_OsFsReuse/shape=1num/rows=100000-10                 	     404	   2983027 ns/op	    1281 B/op	      25 allocs/op
+BenchmarkScan_OsFsReuse/shape=1num/rows=1000000-10                	      40	  29282080 ns/op	    1293 B/op	      25 allocs/op
+BenchmarkScan_OsFsReuse/shape=5num_2cat/rows=10000-10             	    1492	    835385 ns/op	    7024 B/op	     127 allocs/op
+BenchmarkScan_OsFsReuse/shape=5num_2cat/rows=100000-10            	     158	   7565661 ns/op	    7027 B/op	     127 allocs/op
+BenchmarkScan_OsFsReuse/shape=5num_2cat/rows=1000000-10           	      15	  75476142 ns/op	    7062 B/op	     127 allocs/op
+BenchmarkProcess_StreamingSum_OsFs/shape=1num/rows=10000-10       	    1585	    760527 ns/op	    7448 B/op	     120 allocs/op
+BenchmarkProcess_StreamingSum_OsFs/shape=1num/rows=100000-10      	     181	   6803769 ns/op	12823446 B/op	  300272 allocs/op
+BenchmarkProcess_StreamingSum_OsFs/shape=1num/rows=1000000-10     	      19	  61765318 ns/op	128024552 B/op	 3000278 allocs/op
+BenchmarkProcess_StreamingSum_OsFs/shape=5num_2cat/rows=10000-10  	     897	   1341892 ns/op	   24359 B/op	     426 allocs/op
+BenchmarkProcess_StreamingSum_OsFs/shape=5num_2cat/rows=100000-10 	     134	   8952982 ns/op	18440624 B/op	  300577 allocs/op
+BenchmarkProcess_StreamingSum_OsFs/shape=5num_2cat/rows=1000000-10         	      16	  79223424 ns/op	184042350 B/op	 3000589 allocs/op
+BenchmarkProcess_StreamingMulti/shape=1num/rows=100000-10                  	      68	  17241152 ns/op	  819609 B/op	     164 allocs/op
+BenchmarkProcess_StreamingMulti/shape=1num/rows=1000000-10                 	       6	 168953229 ns/op	 8020806 B/op	     165 allocs/op
+BenchmarkProcess_StreamingMulti/shape=5num_2cat/rows=100000-10             	      56	  21560287 ns/op	 2829935 B/op	     368 allocs/op
+BenchmarkProcess_StreamingMulti/shape=5num_2cat/rows=1000000-10            	       5	 213814992 ns/op	28037120 B/op	     369 allocs/op

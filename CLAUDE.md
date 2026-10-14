@@ -174,7 +174,7 @@ Other load-bearing gates (`TestManifest*Complete`, `TestStreamability_*`, `TestE
 
 ## Build / Env
 
-`make contrib` / `make contrib-tidy` (nested adapter modules; a root dependency bump needs `contrib-tidy` in its PR). `make build` (default; injects `VERSION` from `git describe` via ldflags into `internal/buildinfo`, read by `pulse.Version()`), `test`, `fmt`, `vet`, `lint`, `cover`, `clean`, `dist` (6-platform archives + `checksums.txt` into `dist/`), `docs` (runs `docs-generate` first, which regenerates the committed `docs/src/guide`), `docs-serve`, `docs-clean`. A `v*.*.*` tag push runs `release.yml` (`ci.yml`, then `make dist` assets onto the GitHub Release; `-` tags pre-release). A `.env` at repo root is auto-loaded. `make lint` = gofmt check + `go vet` + `staticcheck` (CI's `lint` job), and must pass before any push.
+`make contrib` / `make contrib-tidy` (nested adapter modules; a root dependency bump needs `contrib-tidy` in its PR). `make build` (default; ldflags `VERSION` from `git describe` → `internal/buildinfo` → `pulse.Version()`), `test`, `fmt`, `vet`, `lint`, `cover`, `clean`, `dist` (6-platform archives + `checksums.txt` into `dist/`), `docs` (runs `docs-generate` first, which regenerates the committed `docs/src/guide`), `docs-serve`, `docs-clean`. A `v*.*.*` tag push runs `release.yml` (`ci.yml`, then `make dist` assets onto the GitHub Release; `-` tags pre-release). A `.env` at repo root is auto-loaded. `make lint` = gofmt check + `go vet` + `staticcheck` (CI's `lint` job), and must pass before any push.
 
 **Environment variables** — one line each; `pulse.Options` always overrides:
 
@@ -187,6 +187,7 @@ Other load-bearing gates (`TestManifest*Complete`, `TestStreamability_*`, `TestE
 - `PULSE_MCP_NO_COHORT_SCAN` — `pulse mcp` only (flag `--no-cohort-scan`): skip enumerating `.pulse` files as `pulse://` resources; the template stays, so cohorts stay readable. Library: `gosdk.Config.DisableCohortScan` / `mcpserve.Options.DisableCohortScan`.
 - `PULSE_FEATURE_PROFILE` — `pulse mcp` / `mcpserve.NewPulse` only (flag `--feature-profile` wins): OS path to a feature profile.
 - `PULSE_TEMPLATES_DIR` — request-template roots, `os.PathListSeparator`-separated, PATH-style precedence (first root wins). **Precedence and the hot-reload phase table: `.claude/reference/request-templating.md` (Directory precedence, Hot-reload lifecycle).**
+- `PULSE_BENCH_DIR` — bench-only cohort cache (`make bench` / `bench-scale`; default `<tmp>/pulse-bench`).
 
 The table directories skip Pulse's own sidecars yet hard-fail any other unparseable `*.json`: `.claude/reference/byte-layout.md` (Table-directory sidecar exclusion).
 
@@ -224,7 +225,6 @@ The pack under `internal/skills/` (addressed `skills/<stem>.md`, embedded via `/
 - **Do not hand-edit golden files.** Regenerate: `go test ./descriptor/ -run 'Test.*Golden' -update`.
 - **Do not defer a skill or CLAUDE.md update** to a follow-up PR; it will not happen.
 - **Do not add implementation without tests in the same PR.** TDD is a hard rule here.
-- **Do not use `fmt.Sprintf` for JSON/XML.** Use `encoding/json` + `descriptor.NewEnvelope(data)`.
 - **Do not raise `claudeMdSizeCeiling` to make CLAUDE.md fit.** Move the long form into `.claude/reference/` and leave the always-load half plus a pointer — that is the whole point of the gate.
 - **Do not add a component without updating the registry** (`internal/processing/registry.go`) + `types.All*Types()`.
 - **Do not bypass `afero.Fs`** — it defeats `fs.NewMemMap()` and the custom-storage extension hook.

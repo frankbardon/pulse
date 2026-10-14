@@ -65,19 +65,22 @@ func (m Matrix) PSDRisk() bool {
 	return false
 }
 
-// Accumulator byte layout (linalg.CoMoment): the shared header — n and
-// nInvalid (int64), w and w2 (float64) — then listwise p means plus the
-// packed upper-triangle co-moments, or pairwise one per-pair state
-// (n int64; w, mi, mj, mii, mjj, cij float64) per packed cell.
+// Accumulator byte layout (linalg.CoMoment): the shared header — n,
+// nMass and nInvalid (int64), w and w2 (float64) — then listwise p means
+// plus the packed upper-triangle co-moments, or pairwise one per-pair
+// state (n and nMass int64; w, w2, mi, mj, mii, mjj, cij float64) per
+// packed cell. TestAccumulatorBytesMatchesCoMomentLayout (linalg) derives
+// both word counts from the struct by reflection, so a field added to
+// either fails there instead of drifting the estimate silently.
 const (
-	coMomentHeaderBytes = 4 * 8
-	pairMomentBytes     = 7 * 8
+	coMomentHeaderBytes = 5 * 8
+	pairMomentBytes     = 9 * 8
 )
 
 // AccumulatorBytes estimates the payload bytes of one co-moment state
 // over the matrix's folded columns (Columns: the members plus any
-// outside control): 32 + 8·(p + p(p+1)/2) listwise,
-// 32 + 56·p(p+1)/2 pairwise. The engine holds one such state per
+// outside control): 40 + 8·(p + p(p+1)/2) listwise,
+// 40 + 72·p(p+1)/2 pairwise. The engine holds one such state per
 // populated merge block (linalg.MergeBlockSize rows) until finalize, so
 // a run's matrix state is this times its block count. Go headers and
 // map overhead are not counted.

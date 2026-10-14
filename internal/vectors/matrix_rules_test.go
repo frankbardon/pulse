@@ -149,3 +149,31 @@ func TestResolveMatrices_CopiesSpecStreamability(t *testing.T) {
 		}
 	}
 }
+
+// TestAccumulatorBytes pins the per-state estimate by hand at the scale
+// tiers the matrix benchmarks run (internal/service
+// matrix_scale_bench_test.go): a 5-word header (n, nMass, nInvalid, w,
+// w2), then listwise p means + p(p+1)/2 packed co-moments, or pairwise
+// one 9-word pair state (n, nMass, w, w2, mi, mj, mii, mjj, cij) per
+// packed cell. The pairwise figure undercounted by 2 words a cell
+// (~22%) while the constant still said 7 (TODO #157).
+func TestAccumulatorBytes(t *testing.T) {
+	cases := []struct {
+		p        int
+		pairwise bool
+		want     int64
+	}{
+		{3, false, 40 + 8*(3+6)},
+		{3, true, 40 + 72*6},
+		{50, false, 40 + 8*(50+1275)},
+		{50, true, 40 + 72*1275}, // 91,840 B
+		{256, false, 40 + 8*(256+32896)},
+		{256, true, 40 + 72*32896}, // 2,368,552 B
+	}
+	for _, c := range cases {
+		m := Matrix{Pairwise: c.pairwise, Members: Resolved{Members: make([]string, c.p)}}
+		if got := m.AccumulatorBytes(); got != c.want {
+			t.Errorf("p=%d pairwise=%v: AccumulatorBytes %d, want %d", c.p, c.pairwise, got, c.want)
+		}
+	}
+}
