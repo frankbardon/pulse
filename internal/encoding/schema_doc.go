@@ -125,7 +125,7 @@ func ReadSchemaDoc(r io.Reader) (*SchemaDoc, error) {
 // per-shard headers (the source of truth — `_schema.pulse`'s
 // AggregateRecordCount is only a sanity check).
 //
-// The schema block is read LAYOUT-ONLY (readSchemaLayout): every
+// The schema block is read LAYOUT-ONLY (ReadSchemaLayout): every
 // categorical / set dictionary and parent-group entry table is read
 // past and discarded, never allocated — the stride needs only the field
 // types, nullability, vector dims and group layout, all still read and
@@ -150,7 +150,7 @@ func (a *Archive) PeekShardRecordCount(name string) (int64, error) {
 			fmt.Sprintf("shard %q has an invalid header", name),
 			map[string]any{"entry": name, "cause": err.Error()})
 	}
-	schema, err := readSchemaLayout(rc, pulseVersion)
+	schema, err := ReadSchemaLayout(rc, pulseVersion)
 	if err != nil {
 		return 0, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_HEADER_INVALID,
 			fmt.Sprintf("shard %q has an invalid schema block", name),

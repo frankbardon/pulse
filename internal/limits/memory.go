@@ -148,12 +148,10 @@ type MemoryInputs struct {
 	// and the zip directory ride with the payload.
 	ArchiveBytes int64
 	// SchemaDecodes is how many schema blocks the run decodes, with
-	// their dictionaries, beyond the cohort's own (an archive: the scan
-	// reads every shard's — shards + 1 with the canonical entry; Open's
-	// record-count peek reads each layout-only and allocates no
-	// dictionary); 0 for a single file or an anchor-opened shard. Each costs
-	// SchemaBytes: a shard's dictionaries are prefixes of the canonical
-	// ones, so the canonical schema bounds every shard's.
+	// their dictionaries, beyond the cohort's own (an archive: 1, the
+	// canonical entry — Open's record-count peek and the scan read
+	// every shard's layout-only and allocate no dictionary); 0 for a
+	// single file or an anchor-opened shard. Each costs SchemaBytes.
 	SchemaDecodes int64
 	// SchemaBytes is what one decode of the cohort's schema allocates
 	// (SchemaDecodeBytes).

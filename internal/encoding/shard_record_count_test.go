@@ -222,9 +222,9 @@ func TestPeekShardRecordCount_LayoutMatchesFullDecode(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		layout, err := readSchemaLayout(r, v)
+		layout, err := ReadSchemaLayout(r, v)
 		if err != nil {
-			t.Fatalf("%s: readSchemaLayout: %v", s.name, err)
+			t.Fatalf("%s: ReadSchemaLayout: %v", s.name, err)
 		}
 		if at := len(s.payload) - r.Len(); at != consumed {
 			t.Errorf("%s: layout read stops at byte %d, ReadSchema at %d", s.name, at, consumed)
@@ -292,8 +292,8 @@ func TestPeekShardRecordCount_LayoutRefusesWhatReadSchemaRefuses(t *testing.T) {
 		if _, err := encoding.ReadSchema(bytes.NewReader(payload[encoding.HeaderSize:]), v); err == nil {
 			t.Fatalf("%s: ReadSchema accepts the fixture; the case is vacuous", name)
 		}
-		if _, err := readSchemaLayout(r, v); err == nil {
-			t.Errorf("%s: readSchemaLayout accepts what ReadSchema refuses", name)
+		if _, err := ReadSchemaLayout(r, v); err == nil {
+			t.Errorf("%s: ReadSchemaLayout accepts what ReadSchema refuses", name)
 		}
 		arch := storeArchive(t, [][]byte{payload})
 		if _, err := arch.PeekShardRecordCount("s00.pulse"); err == nil {

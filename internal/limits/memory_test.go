@@ -152,9 +152,10 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 		{"no records", MemoryInputs{Arm: ArmBuffered, Buckets: 1}, runBaseBytes + bucket(0)},
 		// An archive: its byte length replaces records x stride in the
 		// payload term, plus every schema block decoded with its
-		// dictionaries (2 shards + the canonical entry).
-		{"archive", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, ArchiveBytes: 90_000, SchemaDecodes: 3, SchemaBytes: 7000},
-			runBaseBytes + fileCopyFactor*90_000 + 3*7000 + bucket(1)},
+		// dictionaries (the canonical entry; the shards' are read
+		// layout-only).
+		{"archive", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, ArchiveBytes: 90_000, SchemaDecodes: 1, SchemaBytes: 7000},
+			runBaseBytes + fileCopyFactor*90_000 + 7000 + bucket(1)},
 		// An anchor-opened shard: the archive's bytes, no extra decode.
 		{"anchor", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, ArchiveBytes: 90_000},
 			runBaseBytes + fileCopyFactor*90_000 + bucket(1)},
@@ -180,8 +181,8 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 // ReadSchema), within a factor of two — on dictionaries of short,
 // 40-byte and 1000-byte labels (per-entry overhead, then the label
 // copies and the shared buffer's growth, dominate in turn).
-// The schema decodes are the archive term the memory estimate charges
-// per shard (E8-S3).
+// The schema decode is the archive term the memory estimate charges
+// for the canonical entry (E8-S3; shards read layout-only since E8-S5).
 func TestSchemaDecodeBytes_BoundsDecode(t *testing.T) {
 	for _, c := range []struct {
 		name   string

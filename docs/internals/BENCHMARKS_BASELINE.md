@@ -19,7 +19,7 @@ commands, same host) in the PR that moves a number on purpose.
 |---|---|
 | Host | Apple M1 Max, 10 cores, darwin/arm64 |
 | Go | go1.27.2 |
-| Commit | `2554d810` + the matrix-extensions-hardening E8-S1 change |
+| Commit | `2554d810` + the matrix-extensions-hardening E8-S1 change; the `linalg` section re-taken at `aa2a1146` + E8-S5 |
 | Date | 2026-10-14 |
 
 The FMA-free kernels (`linalg.CoMoment`, the SPD reference kernels) give
@@ -69,6 +69,30 @@ What the default-tier numbers show:
   Predict's `estimated_bytes` and `MaxEstimatedMemory` count neither.
   This is a known gap that has been handed back to the owner. The ratio
   test's band does not cover it, because that test reads a single file.
+
+## CoMoment benchmarks
+
+`BenchmarkCoMomentAdd` folds a fixed weighted sample (about a fifth of
+rows incomplete) into a fresh accumulator; `BenchmarkCoMomentMerge` runs
+the fixed merge tree over 64 (16 at p = 256) block partials.
+
+**Listwise `Add` allocates nothing per row (matrix-extensions-hardening
+E8-S5).** The fold used to allocate a p-word slice per massed row. It now
+walks the variables from last to first so each weighted deviation lives in
+a register, and every stored figure stays bit-identical
+(`TestCoMomentAddListwise_MatchesPreScratchReference`, a live comparison
+against the retained pre-change fold). Re-taken baseline against the
+E8-S1 one (`benchstat`, n = 6, same host):
+
+| Listwise `Add` | sec/op | B/op | allocs/op |
+|---|---|---|---|
+| p = 8 | 228.1 µs → 162.4 µs (−29%) | 203,360 → 480 | 3,173 → 3 |
+| p = 50 | 4.71 ms → 3.84 ms (−18%) | 1,337,411 → 10,784 | 3,192 → 3 |
+| p = 256 | 14.37 ms → 12.35 ms (−14%) | 1,077,378 → 272,513 | 396 → 3 |
+
+The 3 remaining allocations are the accumulator itself. Pairwise `Add`
+and both `Merge` modes are unchanged code; their 2–8% drift between the
+two takes is host noise.
 
 ## Scan benchmarks
 

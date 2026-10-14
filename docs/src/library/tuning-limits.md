@@ -141,21 +141,22 @@ extension aggregators. There is no `GOMEMLIMIT` coupling: the limit is
 opt-in and independent of the Go runtime's own limit. Set it
 a little under the memory you can spare.
 
-**Shard archives.** Opening an archive reads it whole onto the heap, the
-run reads it again, and the scan decodes every shard's schema block (the
-open only counts each shard's records, reading the schema without its
-dictionaries). The estimate therefore charges the archive's byte length
-where a single file charges records x stride, plus one decode of the
-canonical schema per shard schema decoded (shards + 1, the canonical
-entry included): an archive whose shards each carry a large dictionary
-estimates far above its records. A shard opened through the anchor form
+**Shard archives.** Opening an archive reads it whole onto the heap and
+the run reads it again. Neither decodes a shard's dictionaries: the open
+counts each shard's records and the scan skips each shard's schema block,
+both reading the schema without its dictionaries, because the canonical
+schema decodes every row. The estimate therefore charges the archive's
+byte length where a single file charges records x stride, plus one
+decode of the canonical schema (whatever the shard count): an archive
+whose shards each carry a large dictionary still estimates far above its
+records, because those dictionaries are archive bytes. A shard opened through the anchor form
 (`archive.pulse#shard.pulse`) is charged its whole archive's byte length
 too, because opening it reads the archive; predict charges the same. On the per-shard
 parallel arm (`ShardWorkers` other than 1, two or more shards, a
 mergeable request) every shard's partial keeps its own group buckets
 until the merge, and the estimate counts them too. Predict reads the
 instance's `ShardWorkers` to pick the arm, as the run does. Measured on
-archives, the estimate lands at roughly 1.3x to 3x the peak heap.
+archives, the estimate lands at roughly 1.3x to 1.9x the peak heap.
 
 An unknown record count produces no estimate and no finding. With the
 default (`Unlimited`) no count is read at all.

@@ -192,8 +192,9 @@ func ShardFanOut(req *types.Request, schema *encoding.Schema, inst *InstanceSnap
 //     materialises are bounded by the left count, which assumes at most
 //     one right match per left row.
 //   - a shard archive charges its byte length in place of records x
-//     stride when larger, and shards + 1 schema decodes (archiveTerms;
-//     an anchor-opened shard its archive's byte length alone); on the per-shard parallel arm (ShardFanOut)
+//     stride when larger, and one schema decode, the canonical entry's
+//     (archiveTerms; an anchor-opened shard its archive's byte length
+//     alone); on the per-shard parallel arm (ShardFanOut)
 //     every shard's partial holds its own buckets — EstimateGroups
 //     clamped by that shard's records, or its records for an unknown
 //     grouper, 1 ungrouped — and per-value state over its records.
@@ -337,13 +338,12 @@ func EstimateFacetMemory(req *types.FacetRequest, schema *encoding.Schema, in Li
 }
 
 // archiveTerms sets the shard-archive inputs of the memory model: the
-// archive's byte length (Open and the scan read it whole) and the
-// schema blocks the run decodes with their dictionaries — every
-// shard's once (the scan) plus the canonical entry — each bounded by
-// the canonical schema's decode (a shard's dictionaries are prefixes of
-// the canonical ones). Open's record-count peek reads each shard's
-// schema layout-only (Archive.PeekShardRecordCount) and allocates no
-// dictionary, so it is not charged. An anchor-opened shard (ArchiveBytes
+// archive's byte length (Open and the scan read it whole) and the one
+// schema block the run decodes with its dictionaries — the canonical
+// entry, whatever the shard count. Open's record-count peek
+// (Archive.PeekShardRecordCount, E8-S4) and the scan (shardIter /
+// processOneShard, E8-S5) read every shard's schema layout-only and
+// allocate no dictionary, so neither is charged. An anchor-opened shard (ArchiveBytes
 // set, no ShardRecords) decodes only its own schema, as a single file
 // does: its archive's bytes alone are charged. A single file
 // (ArchiveBytes 0) sets nothing.
@@ -352,8 +352,8 @@ func archiveTerms(mi *limits.MemoryInputs, schema *encoding.Schema, in LimitInpu
 		return
 	}
 	mi.ArchiveBytes = in.ArchiveBytes
-	if n := int64(len(in.ShardRecords)); n > 0 {
-		mi.SchemaDecodes = n + 1
+	if len(in.ShardRecords) > 0 {
+		mi.SchemaDecodes = 1
 		mi.SchemaBytes = limits.SchemaDecodeBytes(schema)
 	}
 }

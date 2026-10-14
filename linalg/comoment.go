@@ -180,19 +180,21 @@ func (c *CoMoment) Add(x []float64, w float64) {
 		copy(c.mean, x)
 		return
 	}
-	// wd[i] = w·(x_i − mean_i) against the OLD mean; then the means move
-	// and the co-moments take wd[i]·(x_j − mean_j) against the NEW mean.
-	wd := make([]float64, c.p)
-	for i, v := range x {
-		wd[i] = float64(w * (v - c.mean[i]))
-	}
-	for i := range c.mean {
-		c.mean[i] += wd[i] / c.w
-	}
-	k := 0
-	for i := 0; i < c.p; i++ {
+	// wd_i = w·(x_i − mean_i) against the OLD mean; then mean_i moves
+	// and the co-moments (i, j ≥ i) take wd_i·(x_j − mean_j) against the
+	// NEW mean. Walking i from the last variable down, every mean_j with
+	// j > i has already moved and mean_i has not, so each wd_i is read
+	// once, in a register — no per-row slice (E8-S5) — and every stored
+	// figure is the bits the two-pass form (old means, then new) gave:
+	// the same operations on the same operands, only the visiting order
+	// of the packed rows differs
+	// (TestCoMomentAddListwise_MatchesPreScratchReference).
+	for i := c.p - 1; i >= 0; i-- {
+		wd := float64(w * (x[i] - c.mean[i]))
+		c.mean[i] += wd / c.w
+		k := c.index(i, i)
 		for j := i; j < c.p; j++ {
-			c.m2[k] += float64(wd[i] * (x[j] - c.mean[j]))
+			c.m2[k] += float64(wd * (x[j] - c.mean[j]))
 			k++
 		}
 	}

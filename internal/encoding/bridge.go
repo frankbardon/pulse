@@ -31,11 +31,15 @@ func groupEntryGeometry(s *encoding.Schema, g int) (width, bmOff int) {
 
 func groupDescriptorBytes(members int) int { return encodingbridge.GroupDescriptorBytes(members) }
 
-// readSchemaLayout reads a schema block at version v without its
+// ReadSchemaLayout reads a schema block at version v without its
 // dictionaries or group entry tables (nil Field.Dictionary and
 // Group.Entries) — enough for the record stride, at a fraction of a
-// full decode's allocation. r is left at the first record byte.
-func readSchemaLayout(r io.Reader, v byte) (*encoding.Schema, error) {
+// full decode's allocation. r is left at the first record byte. Used
+// wherever a shard's own schema block is only read past: the
+// record-count peek (Archive.PeekShardRecordCount) and the archive scan
+// (internal/service shardIter.openShard / processOneShard), which
+// decodes every row through the canonical schema.
+func ReadSchemaLayout(r io.Reader, v byte) (*encoding.Schema, error) {
 	s, err := encodingbridge.ReadSchemaLayout(r, v)
 	if err != nil {
 		return nil, err

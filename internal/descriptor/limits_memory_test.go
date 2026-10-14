@@ -123,10 +123,10 @@ func TestEstimateMemory_Terms(t *testing.T) {
 // TestEstimateMemory_ArchiveTerms (E8-S3): over a shard archive the
 // estimate charges what the runtime reads beyond a single file — the
 // archive's byte length in place of records x stride in the payload
-// term (Open and the scan read it whole), every schema block decoded
-// (shards + 1 — the scan per shard and the canonical entry; Open's
-// record-count peek reads layout-only — each bounded by the canonical
-// schema) — and, on the
+// term (Open and the scan read it whole), the one schema block decoded
+// with its dictionaries (the canonical entry, bounded by the canonical
+// schema's decode; Open's record-count peek and the scan read every
+// shard's layout-only, E8-S4 / E8-S5) — and, on the
 // per-shard parallel arm only, each shard's partial buckets and
 // per-value state. ShardWorkers decides that arm as the runtime does.
 func TestEstimateMemory_ArchiveTerms(t *testing.T) {
@@ -148,15 +148,22 @@ func TestEstimateMemory_ArchiveTerms(t *testing.T) {
 	plain := &types.Request{Aggregations: sumOf("num")}
 	single := est(plain, memIn(1000))
 
-	// Serial: the archive's bytes replace the payload, plus 3 decodes
-	// (2 shards + the canonical entry).
+	// Serial: the archive's bytes replace the payload, plus 1 decode
+	// (the canonical entry; whatever the shard count).
 	const archiveBytes = 1 << 20
-	if d, want := est(plain, arch(archiveBytes, 1))-single, 3*(archiveBytes-1000*stride)+3*decode; d != want {
-		t.Errorf("serial archive adds %d bytes, want 3 x (archive - payload) + 3 schema decodes = %d", d, want)
+	if d, want := est(plain, arch(archiveBytes, 1))-single, 3*(archiveBytes-1000*stride)+decode; d != want {
+		t.Errorf("serial archive adds %d bytes, want 3 x (archive - payload) + 1 schema decode = %d", d, want)
 	}
 	// An archive byte length below the payload never lowers it.
-	if d, want := est(plain, arch(10, 1))-single, 3*decode; d != want {
-		t.Errorf("a short archive length adds %d bytes, want the 3 schema decodes %d", d, want)
+	if d, want := est(plain, arch(10, 1))-single, decode; d != want {
+		t.Errorf("a short archive length adds %d bytes, want the 1 schema decode %d", d, want)
+	}
+	// The shard count does not move the decode term: no shard schema
+	// is decoded with its dictionaries.
+	many := arch(archiveBytes, 1)
+	many.ShardRecords = []int64{100, 100, 100, 100, 100, 100, 100, 100, 100, 100}
+	if a, b := est(plain, many), est(plain, arch(archiveBytes, 1)); a != b {
+		t.Errorf("10 shards estimate %d, 2 shards %d: the shard count moved the decode term", a, b)
 	}
 	// An anchor-opened shard (archive bytes, no shard counts): the
 	// archive's bytes replace its payload, and no schema decode is
@@ -202,7 +209,7 @@ func TestEstimateMemory_ArchiveTerms(t *testing.T) {
 	facet := &types.FacetRequest{Fields: []string{"cat"}}
 	fs, _ := EstimateFacetMemory(facet, schema, memIn(1000))
 	fa, _ := EstimateFacetMemory(facet, schema, arch(archiveBytes, 1))
-	if d, want := fa-fs, 3*(archiveBytes-1000*stride)+3*decode; d != want {
+	if d, want := fa-fs, 3*(archiveBytes-1000*stride)+decode; d != want {
 		t.Errorf("facet over an archive adds %d bytes, want %d", d, want)
 	}
 }

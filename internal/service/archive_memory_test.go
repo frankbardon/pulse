@@ -242,16 +242,19 @@ func TestArchiveMemory_EstimatedBytesRatio(t *testing.T) {
 }
 
 // The archive ratio band. Measured on darwin/arm64 (go1.26), with the
-// schema-decode term at shards + 1 (E8-S4: Open's record-count peek
-// reads each shard's schema layout-only): 0.35-0.49 on the dictionary
-// archive, 0.66-0.74 on the matrix scale archive; linux/amd64 under
-// docker 0.34-0.49 and 0.64-0.74 (E8-S3, at 2 x shards + 1: 0.31-0.44
-// and 0.67-0.74). The estimate bounds the peak; the
-// ceiling's 20% over 1 absorbs a sampled overshoot under another
-// runner's GC timing. Without the archive terms (descx archiveTerms) the
-// dictionary archive measures 3.1-5.4, without only the schema decodes
-// 0.81-1.23 (the leaf and descriptor pins catch that drop exactly); the
-// floor fails a term that over-counts by a whole factor.
+// schema-decode term at 1 (E8-S5: the scan, like Open's record-count
+// peek since E8-S4, reads each shard's schema layout-only, so only the
+// canonical entry is decoded with its dictionaries): 0.53-0.57 on the
+// dictionary archive, 0.68-0.74 on the matrix scale archive;
+// linux/amd64 under docker 0.53-0.59 and 0.65-0.74 (min of 3 each).
+// Earlier calibrations: E8-S4 at shards + 1, 0.35-0.49 / 0.66-0.74;
+// E8-S3 at 2 x shards + 1, 0.31-0.44 / 0.67-0.74. The estimate bounds
+// the peak; the ceiling's 20% over 1 absorbs a sampled overshoot under
+// another runner's GC timing. Without the archive terms (descx
+// archiveTerms) the dictionary archive measured 3.1-5.4; without the one
+// remaining schema decode it measures 0.69-0.76 (the leaf and descriptor
+// pins catch that drop exactly); the floor fails a term that
+// over-counts by a whole factor.
 const (
 	archiveRatioMin = 0.15
 	archiveRatioMax = 1.2
@@ -334,4 +337,64 @@ func mustOpen(t *testing.T, svc *Service, path string) *Cohort {
 		t.Fatal(err)
 	}
 	return c
+}
+
+// TestShardScan_SkipsShardDictionaries (E8-S5): the scan reads each
+// shard's schema block only to reach its first record — the canonical
+// schema decodes every row — so it reads that block LAYOUT-ONLY
+// (encx.ReadSchemaLayout), never allocating the shard's dictionaries,
+// on the serial archive iterator (shardIter.openShard) and the
+// per-shard parallel reducer (processOneShard) alike. Over an archive
+// whose four shards each carry a 100,000-entry dictionary a run then
+// allocates about one dictionary decode (Open's canonical entry) plus
+// the archive bytes Open and the scan read, where a full decode per
+// shard added four more.
+func TestShardScan_SkipsShardDictionaries(t *testing.T) {
+	const shards, entries = 4, 100_000
+	mem := afero.NewMemMapFs()
+	size := writeDictArchive(t, mem, "dict.pulse", shards, 256, entries)
+	cfg, err := fs.New(fs.WithFs(mem))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var block bytes.Buffer
+	if err := encoding.WriteSchema(&block, dictArchiveSchema(entries)); err != nil {
+		t.Fatal(err)
+	}
+	decode := totalAlloc(t, func() error {
+		_, err := encoding.ReadSchema(bytes.NewReader(block.Bytes()), encoding.FormatVersion)
+		return err
+	})
+	for _, workers := range []int{1, 4} {
+		t.Run(fmt.Sprintf("shards=%d", workers), func(t *testing.T) {
+			svc := New(cfg)
+			svc.SetShardWorkers(workers)
+			req := dictArchiveRequest("dict.pulse", false)
+			if _, fan := svc.shouldFanOut(req, mustOpen(t, svc, "dict.pulse")); fan != (workers > 1) {
+				t.Fatalf("ShardWorkers %d: per-shard parallel arm = %v", workers, fan)
+			}
+			got := totalAlloc(t, func() error {
+				_, err := svc.Process(context.Background(), req)
+				return err
+			})
+			bound := 2*decode + 3*uint64(size)
+			t.Logf("run allocates %.1f MB; one dictionary decode %.1f MB, archive %.1f MB", float64(got)/(1<<20), float64(decode)/(1<<20), float64(size)/(1<<20))
+			if got > bound {
+				t.Fatalf("run allocates %d bytes, want <= 2 dictionary decodes + 3 x archive = %d (a shard schema decoded with its dictionary)", got, bound)
+			}
+		})
+	}
+}
+
+// totalAlloc is the bytes fn allocates (TotalAlloc delta), failing t
+// on fn's error.
+func totalAlloc(t *testing.T, fn func() error) uint64 {
+	t.Helper()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	if err := fn(); err != nil {
+		t.Fatal(err)
+	}
+	runtime.ReadMemStats(&after)
+	return after.TotalAlloc - before.TotalAlloc
 }
