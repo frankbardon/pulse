@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U19]
 blocks: [U32]
-todo_items: [354, 355, 356, 357, 358, 359, 360, 361, 373, 390, 399]
+todo_items: [354, 355, 356, 357, 358, 359, 360, 361, 373, 390, 399, 455]
 branch: archive-scale
 ---
 
@@ -93,6 +93,13 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(archive-scale/E<n
 - `byte-layout.md` and `execution-modes.md` (load first); `skills/cohort-sharding.md`, `skills/cohort-sidecar-index.md`, `skills/streaming-and-watching.md`
 - `docs/src/cli/flags.md`, `commandBindings` and `skills/session-bootstrap.md` for the new flags; `docs/src/library/tuning-limits.md`
 - CLAUDE.md only where a contract it states moves (keep it ≤ 40,000 bytes)
+
+
+## Handed on from U30
+
+| Item | Source |
+|---|---|
+| Process runs open a shard archive by section (`io.ReaderAt`), not `afero.ReadFile` of the whole archive; then drop predict's archive byte-length term (`archiveTerms`, since U30 E8-S3 / E8-S4) and re-take the `ShardWorkers` sweep | [U30](U30-matrix-extensions-hardening.md) #455 (owner decision 2026-10-14) |
 
 ## Human inputs & decisions
 

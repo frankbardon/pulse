@@ -56,7 +56,10 @@ func main() {
 	must(writeTrainingData(r, 300))
 	must(writeExperiment(r, 400))
 	must(writeRepeatedMeasures(r, 40))
-	fmt.Println("wrote 6 CSVs to", outputDir)
+	// The survey battery draws from its own source so adding it left
+	// every CSV above byte-identical.
+	must(writeSurvey(rand.New(rand.NewSource(seed+1)), 300))
+	fmt.Println("wrote 7 CSVs to", outputDir)
 }
 
 // writeExperiment produces an A/B testing cohort designed so every
@@ -336,6 +339,55 @@ func writeRepeatedMeasures(r *rand.Rand, nSubjects int) error {
 			}); err != nil {
 				return err
 			}
+		}
+	}
+	w.Flush()
+	return w.Error()
+}
+
+// writeSurvey produces a six-item rating battery with a planted
+// two-factor structure, for factor-analysis and rotation examples
+// (MAT_FACTOR / MAT_PCA rotations, vector fits): q1-q3 load on a
+// "service" factor, q4-q6 on a "value" factor, the factors correlate
+// 0.35, and q3 / q6 cross-load modestly so orthogonal and oblique
+// rotations visibly differ. panel splits respondents into two waves
+// (a / b) for fit-on-one, score-the-other examples.
+//
+// Fields:
+//
+//	id      — u32, 1..n
+//	panel   — categorical, {a, b}
+//	q1..q6  — f64 ratings centred on 4 (two decimals)
+func writeSurvey(r *rand.Rand, n int) error {
+	w, close := openCSV("survey.csv")
+	defer close()
+	if err := w.Write([]string{"id", "panel", "q1", "q2", "q3", "q4", "q5", "q6"}); err != nil {
+		return err
+	}
+	// Loadings on (service, value); unique variance tops each item up
+	// to unit variance before scaling.
+	loadings := [6][2]float64{
+		{0.80, 0.00}, {0.75, 0.00}, {0.60, 0.30},
+		{0.00, 0.80}, {0.00, 0.70}, {0.25, 0.55},
+	}
+	const phi = 0.35
+	for i := range n {
+		z1, z2 := r.NormFloat64(), r.NormFloat64()
+		service := z1
+		value := phi*z1 + math.Sqrt(1-phi*phi)*z2
+		panel := "a"
+		if i%2 == 1 {
+			panel = "b"
+		}
+		row := []string{itoa(i + 1), panel}
+		for _, l := range loadings {
+			common := float64(l[0]*service) + float64(l[1]*value)
+			communality := float64(l[0]*l[0]) + float64(l[1]*l[1]) + float64(2*l[0]*l[1]*phi)
+			item := common + float64(math.Sqrt(1-communality)*r.NormFloat64())
+			row = append(row, fmt.Sprintf("%.2f", 4+float64(1.2*item)))
+		}
+		if err := w.Write(row); err != nil {
+			return err
 		}
 	}
 	w.Flush()

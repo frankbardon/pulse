@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "category": "compose",
+    "description": "Load a saved population and score a cohort against it. Each slot's `populations` entry reads populations/panel_a.pulse-population.json (written by 05_vector_fit_save.json's `save`; the path is relative to the data root and must end .pulse-population.json) under the name panel_a, before any record is read; the name joins the slot's bound-model namespace, so every params.fit and every {population: name} reference resolves it exactly like a Compose vector fit (a name bound twice is PULSE_MODEL_NAME_COLLISION). scored_by_panel: ATTR_MAHALANOBIS `fit: panel_a` gives each respondent's D² from panel a's distribution, and ATTR_PROFILE_SIMILARITY with reference {population: panel_a} the cosine similarity to panel a's mean profile; averaged per panel, panel a's own mean D² is 5.96 (exactly 6 x 149/150, the in-sample identity) and panel b's about 6.59. panel_a_matrix: MAT_CORRELATION `fit: panel_a` emits panel a's correlation matrix from the stored covariance, reading no row; a fit-bound matrix refuses a grouped request (reason fit_grouped), so it sits in its own ungrouped slot. A population fitted on one cohort scores any cohort whose columns its member labels align to (by label, never position); its provenance is reported, never enforced.",
+    "capabilities": [
+      "capability:models"
+    ],
+    "intents": [
+      "benchmark"
+    ],
+    "name": "compose-population-score",
+    "operators": [
+      "AGG_AVERAGE",
+      "ATTR_MAHALANOBIS",
+      "ATTR_PROFILE_SIMILARITY",
+      "GROUP_CATEGORY",
+      "MAT_CORRELATION"
+    ],
+    "tags": [
+      "compose",
+      "multivariate",
+      "feature-engineering"
+    ]
+  },
+  "requests": [
+    {
+      "label": "scored_by_panel",
+      "cohort": {"filename": "survey.pulse", "data_dir": ".data"},
+      "populations": [{"name": "panel_a", "path": "populations/panel_a.pulse-population.json"}],
+      "attributes": [
+        {"type": "ATTR_MAHALANOBIS", "label": "d2_from_a", "fields": ["q1", "q2", "q3", "q4", "q5", "q6"], "params": {"fit": "panel_a"}},
+        {"type": "ATTR_PROFILE_SIMILARITY", "label": "like_a", "fields": ["q1", "q2", "q3", "q4", "q5", "q6"], "params": {"metric": "cosine", "reference": {"population": "panel_a"}}}
+      ],
+      "groups": [{"type": "GROUP_CATEGORY", "field": "panel"}],
+      "aggregations": [
+        {"type": "AGG_AVERAGE", "field": "d2_from_a", "label": "mean_d2"},
+        {"type": "AGG_AVERAGE", "field": "like_a", "label": "mean_like_a"}
+      ]
+    },
+    {
+      "label": "panel_a_matrix",
+      "cohort": {"filename": "survey.pulse", "data_dir": ".data"},
+      "populations": [{"name": "panel_a", "path": "populations/panel_a.pulse-population.json"}],
+      "matrices": [
+        {"type": "MAT_CORRELATION", "name": "a_correlation", "fields": ["q1", "q2", "q3", "q4", "q5", "q6"], "params": {"fit": "panel_a"}}
+      ]
+    }
+  ]
+}

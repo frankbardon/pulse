@@ -19,7 +19,7 @@ commands, same host) in the PR that moves a number on purpose.
 |---|---|
 | Host | Apple M1 Max, 10 cores, darwin/arm64 |
 | Go | go1.27.2 |
-| Commit | `2554d810` + the matrix-extensions-hardening E8-S1 change; the `linalg` section re-taken at `aa2a1146` + E8-S5 |
+| Commit | `2554d810` + the matrix-extensions-hardening E8-S1 change; the `linalg` section re-taken at `aa2a1146` + E8-S5; `BenchmarkMatrixScaleWorkers` re-taken at `9fad347b` + E8-S2 |
 | Date | 2026-10-14 |
 
 The FMA-free kernels (`linalg.CoMoment`, the SPD reference kernels) give
@@ -58,17 +58,23 @@ What the default-tier numbers show:
   ~152 MB peak. The rest of the peak is decode buffers and transient
   garbage the estimate does not model. `TestMatrixScale_EstimatedBytesRatio`
   pins the ratio in a loose band on a ~100K-row cohort.
-- **`DecodeWorkers` sweep** (single file): 6.0 s at 1 worker, 0.96 s at
-  8, with the peak heap flat at 35–49 MB.
-- **`ShardWorkers` sweep** (8-shard archive of the same rows): 6.2 s at 1
-  worker, 1.9 s at 8, but the peak heap is 463 MB at 1 worker and
-  811–820 MB at 2 or more, against the single file's 35–49 MB (about 58M
-  allocations at 2+ shard workers, against 3M for parallel decode). A
-  shard archive is read into memory whole (`Service.Open`, by design
-  today), and the parallel shard arm allocates per row on top of that.
-  Predict's `estimated_bytes` and `MaxEstimatedMemory` count neither.
-  This is a known gap that has been handed back to the owner. The ratio
-  test's band does not cover it, because that test reads a single file.
+- **`DecodeWorkers` sweep** (single file): 6.0 s at 1 worker, 1.1 s at
+  8, with the peak heap 35–61 MB.
+- **`ShardWorkers` sweep** (8-shard archive of the same rows; re-taken
+  after matrix-extensions-hardening E8-S3..E8-S5): 6.5 s at 1 worker,
+  1.2 s at 8. The peak heap is 463 MB at 1 worker and 778 MB at 2 or
+  more, against the single file's 35–61 MB. A shard archive is read into
+  memory whole (`Service.Open`, by design today), and the per-shard
+  parallel arm holds a partial bucket set per worker on top of that. The
+  per-shard reducer now decodes into a fresh positional record, about
+  3M allocations a run like parallel decode (58M before E8-S3), and the
+  scan reads each shard's schema layout-only (E8-S5). Predict's
+  `estimated_bytes` and `MaxEstimatedMemory` charge the archive: its
+  byte length, one schema decode (the canonical entry) and, when
+  `ShardWorkers` fans out, the per-shard partial buckets
+  (`TestArchiveMemory_EstimatedBytesRatio` pins peak / estimate in
+  `[0.15, 1.2]` on an archive). Streaming the archive open instead of
+  reading it whole is a roadmap item (TODO #455, U51).
 
 ## CoMoment benchmarks
 

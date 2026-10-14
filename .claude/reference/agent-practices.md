@@ -34,7 +34,9 @@ Each rule below has a one-line reason. The reasons come from failures this repo 
 - Never store the exact bits of such a value in a golden or an oracle fixture. Compare stored fixtures within the documented tolerance. *Why: a fixture that matched bit for bit on arm64 failed in amd64 CI.*
 - Keep bit-exact checks only in two cases: (a) both sides are computed live in the same process, for example across `DecodeWorkers` or `ShardWorkers` counts; (b) the path is declared FMA-free (`CoMoment`, the SPD reference kernels, the metric registry).
 - In an FMA-free kernel, write the barrier as an explicit `float64(x*y)`.
-- To reproduce on amd64: `GOOS=linux GOARCH=amd64 go test -c -o t.amd64 ./<pkg>`, then `docker run --rm --platform linux/amd64 -v "$PWD":/w -w /w/<pkg> golang ./t.amd64` (adjust paths).
+- Test-input generators follow the same rule. arm64 fuses `a*b + c` into one FMA instruction, and amd64 does not, so a generator expression such as `rng.NormFloat64()*k + c` produces different inputs on the two architectures. Wrap the product as `float64(rng.NormFloat64()*k) + c` in any generator whose output feeds frozen words or a bit-exact fixture. *Why: a frozen-word test generated its inputs this way, passed on arm64 and failed in amd64 CI.*
+- Never call `math.Signbit`, or compare raw bits, on a value that can be NaN. Guard NaN explicitly first. A runtime 0/0 is `0x7ff8…` (sign clear) on arm64 and `0xfff8…` (sign set) on x86 SSE. *Why: a sign check on a possibly-NaN statistic passed locally and failed in amd64 CI.*
+- To reproduce on amd64: `GOOS=linux GOARCH=amd64 go test -c -o t.amd64 ./<pkg>`, then `docker run --rm --platform linux/amd64 -v "$PWD":/w -w /w/<pkg> golang ./t.amd64` (adjust paths). On an Apple-silicon Mac this container runs under Rosetta, which reproduces the FMA class but emits the arm64-style NaN. A NaN sign-bit failure therefore does NOT reproduce there; only amd64 CI shows it.
 
 ## Local gate set
 

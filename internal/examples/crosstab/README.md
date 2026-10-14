@@ -49,6 +49,10 @@ bin/pulse api predict --request internal/examples/crosstab/05_median_revenue_rec
 | 11 | `date_grouper_axis` | GROUP_DATE month bucket on row axis |
 | 12 | `means_with_anova_inference` | means + TEST_ANOVA_F |
 | 13 | `means_with_mann_whitney_robust` | means + TEST_MANN_WHITNEY_U (nonparametric) |
+| 14 | `partial_column_normalize_level` | partial-depth column normalization on a nested column axis (`normalize_level`) |
+| 15 | `set_frequency_map_cells` | map-valued cells via AGG_SET_FREQUENCY (`{label: count}` per cell) |
+| 16 | `welford_components_revenue_by_region_treatment` | AGG_WELFORD cells carrying the streaming (n, mean, variance) triple, with margins |
+| 17 | `vector_element_cells` | one vector member as a scalar cell (`params.element` on AGG_VEC_MEAN) + an element margin aggregation (AGG_VEC_SD) on `survey.pulse` |
 
 For a deeper walkthrough — recipes, the margins-are-reaggregations
 contract, and the cell-aggregator → statistical-test cheat sheet — see

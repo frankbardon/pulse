@@ -16,9 +16,10 @@ Whole-set matrix operators (`MAT_*`) over virtual vectors
 | `08_reliability.json` | `MAT_RELIABILITY` | Scale reliability of a battery: alpha, standardized alpha, omega, the mean inter-item r and per-item diagnostics (`reverse` + `scale_min` / `scale_max` key reverse-worded items). |
 | `09_pca.json` | `MAT_PCA` | Principal components of a battery: rectangular loadings and eigenvectors, eigenvalues with explained / cumulative shares, communalities, KMO and Bartlett's test (`components`: Kaiser default, integer k or a variance share). |
 | `10_collinearity.json` | `MAT_COLLINEARITY` | Collinearity diagnostics on candidate predictors (no response): VIF and tolerance, Belsley's condition indices and variance-decomposition proportions, uncentered with the intercept (default) and centered (`center: true`). |
-| `11_factor.json` | `MAT_FACTOR` | Exploratory factor analysis: minres (default), principal-axis or maximum-likelihood extraction (with its fit indices), varimax / promax / oblimin rotation, loadings, communalities, uniquenesses, rmsr and the empirical chi-square, KMO and Bartlett (`factors`: integer k or Kaiser default). |
+| `11_factor.json` | `MAT_FACTOR` | Exploratory factor analysis: minres (default), principal-axis or maximum-likelihood extraction (with its fit indices), varimax / promax / oblimin rotation (more criteria in `14_rotations.json`), loadings, communalities, uniquenesses, rmsr and the empirical chi-square, KMO and Bartlett (`factors`: integer k or Kaiser default). |
 | `12_distance.json` | `MAT_DISTANCE` | Distances between bucket centroids (`between`: any non-date grouper, `GROUP_KMEANS` included): euclidean / sq_euclidean / manhattan / chebyshev / cosine / hellinger / aitchison / mahalanobis (the `linalg/metric` registry), `standardize`, centroids and bucket sizes. |
 | `13_correlation_inference.json` | `MAT_CORRELATION` + `MAT_PARTIAL_CORRELATION` | `params.inference`: per-pair `auxiliary.p` and Fisher-z intervals (`ci_lower` / `ci_upper`) on a pairwise Pearson matrix and on a partial correlation with `alpha` 0.1. |
+| `14_rotations.json` | `MAT_FACTOR` + `MAT_PCA` | Rotation criteria on a two-factor rating battery (`survey.pulse`): `geomin` (oblique, `epsilon`, `factor_correlation`), `quartimax`, `entropy`, and `geomin_orthogonal` on MAT_PCA (orthogonal criteria only). |
 
 Run every example:
 

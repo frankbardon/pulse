@@ -128,7 +128,7 @@ Embedder-facing changes: [03-embedder-migration.md](../v1.0.0-api-and-release/03
 | #439 SCALAR Process host overlays: predict accepts, runtime returns no layer (closed U30 E7-S5: both sides refuse) | [U35](U35-predict-runtime-parity.md) | parity |
 | #440 Request-host MATRIX FORMULA unknown identifier: INVALID_IDENT vs PARSE_ERROR | [U35](U35-predict-runtime-parity.md) | parity |
 | #441 Compose FORMULA on SERIES slots has no `params.field` | unowned | needs an owner decision; no story requested |
-| #442 Compose overlay with no targets: predict passes, runtime refuses | [U35](U35-predict-runtime-parity.md) | parity |
+| #442 Compose overlay with no targets: predict passes, runtime refuses (closed U30 E7-S4: both sides refuse) | [U35](U35-predict-runtime-parity.md) | parity |
 | #443 Compose T/Z handlers silently ignore extra targets | unowned | needs an owner decision; no story requested |
 | #444 Compose T/Z series arm accepts a variance / stddev as the mean | unowned | needs an owner decision; no story requested |
 | #445 Compose and chain crosstab cells that are codes still score codes | unowned | needs an owner decision; no story requested |

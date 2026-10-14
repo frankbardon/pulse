@@ -1,0 +1,10 @@
+[
+  {"name": "id", "type": "u32", "description": "Respondent identifier (1..N), one row per completed questionnaire"},
+  {"name": "panel", "type": "categorical_u8", "description": "Fieldwork wave the respondent answered in: a or b, alternating, so either wave can fit a model the other is scored against"},
+  {"name": "q1", "type": "f64", "description": "Rating: staff were helpful. Loads on the service factor; scale centred on 4"},
+  {"name": "q2", "type": "f64", "description": "Rating: problems were resolved quickly. Loads on the service factor; scale centred on 4"},
+  {"name": "q3", "type": "f64", "description": "Rating: support was worth contacting. Mostly service, with a modest value cross-loading"},
+  {"name": "q4", "type": "f64", "description": "Rating: the plan is fairly priced. Loads on the value factor; scale centred on 4"},
+  {"name": "q5", "type": "f64", "description": "Rating: I get my money's worth. Loads on the value factor; scale centred on 4"},
+  {"name": "q6", "type": "f64", "description": "Rating: I would renew at this price. Mostly value, with a modest service cross-loading"}
+]

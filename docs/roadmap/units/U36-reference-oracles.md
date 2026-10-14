@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U08]
 soft_depends_on: []
 blocks: []
-todo_items: [202, 203, 204, 205, 266, 271, 293, 294, 401, 405, 410, 414]
+todo_items: [202, 203, 204, 205, 266, 271, 293, 294, 401, 405, 410, 414, 454]
 branch: reference-oracles
 ---
 
@@ -105,6 +105,14 @@ Each epic is a vertical slice. Commit with `feat|fix|test(reference-oracles/E<n>
 | ~~RMSEA confidence interval~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #405 |
 | ~~Weighted Bartlett factor-score oracle~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #410 |
 | ~~Oracle regeneration~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #414 |
+
+
+## Handed on from U30
+
+| Item | Source |
+|---|---|
+| `OVERLAY_SYMMETRY` exact binomial McNemar (`params.exact`, 2 × 2) and the discordant odds ratio as an effect size, both pinned to R | [U30](U30-matrix-extensions-hardening.md) #454 (owner decision 2026-10-14; [U30 flows review](../reviews/U30-flows-review.md) open item 2) |
+| Weighted pairwise oracle cases: PCA and reliability landed in U30 E5-S2; the collinearity case remains | [U30](U30-matrix-extensions-hardening.md) note on #266 |
 
 ## Human inputs & decisions
 

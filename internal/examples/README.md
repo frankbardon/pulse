@@ -14,14 +14,20 @@ internal/examples/
 │   ├── build.sh               # CSV -> .pulse importer (writes ./.data)
 │   ├── *.csv                  # checked-in source data
 │   └── schemas/*.json         # hand-tuned schemas with descriptions
-├── attributes/                # ATTR_* per-record derivations (6)
-├── features/                  # FEAT_* feature engineering (10)
-├── filterers/                 # FILTER_* row-level predicates (6)
-├── groupers/                  # GROUP_* partitioning (7)
-├── windows/                   # WIN_* per-row analytics (10)
-├── aggregations/              # AGG_* requests over the all_types cohort (5)
-├── tests/                     # TEST_* tier-1 and tier-2 statistical tests (10)
-├── matrices/                  # MAT_* matrix operators over virtual vectors (1)
+├── aggregations/              # AGG_* aggregations, incl. vector aggregators (21)
+├── attributes/                # ATTR_* per-record derivations (21)
+├── compose/                   # Compose batches: sweeps, fits, populations (6)
+├── crosstab/                  # Crosstab tables, margins and inference (17)
+├── facet/                     # Facet requests (3)
+├── features/                  # FEAT_* feature engineering (12)
+├── filterers/                 # FILTER_* row-level predicates (9)
+├── groupers/                  # GROUP_* partitioning (11)
+├── matrices/                  # MAT_* matrix operators over virtual vectors (14)
+├── overlays/                  # OVERLAY_* layers on Request / Compose / Facet hosts (48)
+├── regression/                # REG_* regressions (17)
+├── synth/                     # synth specs (6)
+├── tests/                     # TEST_* tier-1 and tier-2 statistical tests (34)
+├── windows/                   # WIN_* per-row analytics (12)
 └── <new-category>/            # each: README.md + run-all.sh + *.json
 ```
 
@@ -35,8 +41,10 @@ make build
 ```
 
 That writes `transactions.pulse`, `customers.pulse`, `orders.pulse`,
-`training_data.pulse`, `all_types.pulse`, and `experiment.pulse` into
-`.data/` at the repo root. Every example request has
+`training_data.pulse`, `all_types.pulse`, `experiment.pulse`,
+`repeated_measures.pulse`, `card_issuers.pulse`, `tier_migrations.pulse`
+and `survey.pulse` into `.data/` at the repo root, plus the point-lookup
+index on `experiment.pulse` (`id`). Every example request has
 `cohort.data_dir = ".data"` so the requests run unmodified.
 
 ## Available cohorts
@@ -49,6 +57,7 @@ That writes `transactions.pulse`, `customers.pulse`, `orders.pulse`,
 | `training_data.pulse` | `id` (u32), `region`/`occupation`/`category` (categorical), `label` (u8 binary), `price`/`income` (f64), `signup_date` (date) |
 | `all_types.pulse` | One column for every one of the 17 supported types (u8/u16/u32/u64, f32/f64, nullable_bool/u4/u8/u16, date, packed_bool, categorical_u8/u16/u32, decimal128, nullable_decimal128). Hand-curated 5-row CSV — exists so a single fixture exercises every type-aware code path. |
 | `experiment.pulse` | A/B test cohort: `id` (u32), `treatment`/`region`/`segment`/`converted` (categorical), `revenue`/`session_minutes` (f64), `period` (date). Planted effects across treatment, region, segment, and time so every `TEST_*` example produces a meaningful, non-trivial result. |
+| `survey.pulse` | A six-item rating battery: `id` (u32), `panel` (categorical, `a` / `b`), `q1`-`q6` (f64). Two correlated factors (q1-q3 service, q4-q6 value; q3 / q6 cross-load) for factor-analysis, rotation, vector-fit and population examples. |
 
 The generator (`fixtures/gen.go`) is deterministic — re-running with the
 same seed produces byte-identical CSVs. Re-generate from scratch:

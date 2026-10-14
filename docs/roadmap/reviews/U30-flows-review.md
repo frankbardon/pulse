@@ -25,7 +25,7 @@ The committed record of the statistical review of the flow overlays roadmap [U30
 
 ## Advisory review: formula choices
 
-- **Continuity correction.** Default on, as R's `mcnemar.test(correct = TRUE)`: Edwards' `(|n_12 − n_21| − 1)²` on a 2 × 2 when the two counts differ, never on k × k. `params.correct: false` gives the uncorrected McNemar (Agresti's z²). The corrected gap is clamped at 0. R does not clamp, and that differs only on a non-integer table (a Kish-scaled or `AGG_SUM` host), where R's square would exceed the uncorrected statistic. **Acceptable.** The exact binomial McNemar test, which many texts prefer when `n_12 + n_21 < 25`, is not offered. The expected-count warning flags those tables instead.
+- **Continuity correction.** Default on, as R's `mcnemar.test(correct = TRUE)`: Edwards' `(|n_12 − n_21| − 1)²` on a 2 × 2 when the two counts differ, never on k × k. `params.correct: false` gives the uncorrected McNemar (Agresti's z²). The corrected gap is clamped at 0. R does not clamp, and that differs only on a non-integer table (a Kish-scaled or `AGG_SUM` host), where R's square would exceed the uncorrected statistic. **Acceptable.** The exact binomial McNemar test, which many texts prefer when `n_12 + n_21 < 25`, is not offered yet (#454, U36). The expected-count warning flags those tables instead.
 - **Empty pairs.** A pair of states with no move either way is dropped and df counts the pairs kept. R keeps it, and its statistic becomes NaN. An empty pair carries no information about symmetry. **Decision recorded; the reviewer should confirm.** With no pair kept, the statistic and p are null (nobody changed state).
 - **One-axis states.** A state seen on one axis only (nobody started, or nobody ended, in it) is a row or column of zeros, not a refusal. This is the table R would be given after padding. **Acceptable.**
 - **Weights.** The test reads Σw counts. Under `probability` the first-order Kish scaling is not a design-based (Rao-Scott style) correction for paired survey data. **Same framing as the U12 record; sign off with it.**
@@ -33,7 +33,7 @@ The committed record of the statistical review of the flow overlays roadmap [U30
 ## Advisory review: Purpose and Interpretation
 
 - The Purpose states the paired-data assumption, the null (moves one way as common as moves back, the diagonal not entering), and the rule of thumb of about 10 moves per pair. It sends independent samples to `OVERLAY_CHISQ_MATRIX` and numeric before / after measures to `TEST_PAIRED_T`. **Acceptable.**
-- The Interpretation reads the statistic, p, df and the four summary parameters. It says the statistic does not name the lopsided pair or its direction, so readers compare each cell with its mirror. An effect size (for example the McNemar odds ratio `n_12 / n_21` on a 2 × 2) is not reported. **Open item for the reviewer:** whether an effect size is wanted before v1.
+- The Interpretation reads the statistic, p, df and the four summary parameters. It says the statistic does not name the lopsided pair or its direction, so readers compare each cell with its mirror. An effect size (for example the McNemar odds ratio `n_12 / n_21` on a 2 × 2) is not reported yet. The owner filed it with the exact test as #454 (U36); see open item 2.
 
 ## Advisory review: `OVERLAY_RETENTION`
 
@@ -46,5 +46,5 @@ The committed record of the statistical review of the flow overlays roadmap [U30
 ## Open items for the U33 human reviewer (U30 flows)
 
 1. Confirm dropping empty pairs (and the df it implies) over R's NaN.
-2. Decide whether an exact binomial McNemar test or an effect size (odds ratio of the discordant counts) should ship before the freeze.
+2. ~~Decide whether an exact binomial McNemar test or an effect size (odds ratio of the discordant counts) should ship before the freeze.~~ Owner decision 2026-10-14: both are wanted but not in U30. They are filed as #454 under [U36](../units/U36-reference-oracles.md): `params.exact` on a 2 × 2 and the discordant odds ratio with its interval, each pinned to R. The reviewer may still mark either one release-blocking.
 3. Confirm that `OVERLAY_RETENTION` leaves the from-states named in `absorbing` out of its report.

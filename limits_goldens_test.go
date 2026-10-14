@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -59,6 +60,37 @@ func rebaseDataDirs(v any, dir string) {
 	case []any:
 		for _, c := range x {
 			rebaseDataDirs(c, dir)
+		}
+	}
+}
+
+// rebaseModelFiles rewrites every model / population file path in v —
+// a fit's or regression's `save`, and each `models[].path` /
+// `populations[].path` — to its path under dir. The test instance's
+// filesystem root is the OS root, so a relative path would read from
+// (or, for a save, write into) the working directory.
+func rebaseModelFiles(v any, dir string) {
+	switch x := v.(type) {
+	case map[string]any:
+		for k, c := range x {
+			if p, ok := c.(string); ok && k == "save" && p != "" && !filepath.IsAbs(p) {
+				x[k] = filepath.Join(dir, p)
+				continue
+			}
+			if refs, ok := c.([]any); ok && (k == "populations" || k == "models") {
+				for _, r := range refs {
+					if m, ok := r.(map[string]any); ok {
+						if p, ok := m["path"].(string); ok && p != "" && !filepath.IsAbs(p) {
+							m["path"] = filepath.Join(dir, p)
+						}
+					}
+				}
+			}
+			rebaseModelFiles(c, dir)
+		}
+	case []any:
+		for _, c := range x {
+			rebaseModelFiles(c, dir)
 		}
 	}
 }
@@ -184,6 +216,7 @@ func TestLimitsDefaultsNeverTripGoldens(t *testing.T) {
 				t.Fatalf("parse body: %v", err)
 			}
 			rebaseDataDirs(tree, tmp)
+			rebaseModelFiles(tree, tmp)
 			pops := map[string]bool{}
 			rebasePopulationCohorts(tree, tmp, pops)
 			for name := range pops {
@@ -241,6 +274,11 @@ func TestLimitsDefaultsNeverTripGoldens(t *testing.T) {
 				t.Fatalf("%s host: %v", host, err)
 			}
 		})
+	}
+	// No example's file write escaped tmp: a relative `save` the rebase
+	// missed would have landed in the working directory (the repo).
+	if _, err := os.Stat(examplePopulationSave); err == nil {
+		t.Errorf("an example wrote %s into the working directory; rebaseModelFiles missed a save path", examplePopulationSave)
 	}
 	// Every host the catalog carries must have been driven — a host
 	// that silently stopped matching would otherwise drop out.
