@@ -33,7 +33,7 @@ Use something else:
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | strict mode: `packed_bool` only. Truthy mode: any cohort field type. |
+| `Field` | strict mode: `packed_bool` only (any other type is refused `PROCESSING_CONFIG` by predict and the runtime). Truthy mode: any scalar field type. |
 
 ## Output
 

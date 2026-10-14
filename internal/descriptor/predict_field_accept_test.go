@@ -55,3 +55,25 @@ func TestPredict_FieldAcceptance_HiddenOperatorIsNeverRegistered(t *testing.T) {
 		}, opts)
 	})
 }
+
+// TestPredict_FieldAcceptance_FilterTruthyMode: FILTER_TRUE / FILTER_FALSE
+// read only a packed_bool in strict mode; values ["truthy"] coerces any
+// scalar and is never refused on type.
+func TestPredict_FieldAcceptance_FilterTruthyMode(t *testing.T) {
+	data := buildTestPulseFile(t, hiddenPredictSchema(t))
+	for _, c := range []struct {
+		values []string
+		errs   int
+	}{{nil, 1}, {[]string{"strict"}, 1}, {[]string{"truthy"}, 0}} {
+		for _, op := range []types.FiltererType{types.FILTER_TRUE, types.FILTER_FALSE} {
+			req := &types.Request{
+				Filterers:    []*types.Filterer{{Type: op, Field: "score", Values: c.values}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "score", Label: "n"}},
+			}
+			env := predictFromBytes(data, req, nil)
+			if len(env.Errors) != c.errs {
+				t.Errorf("%s values=%v: errors %+v, want %d", op, c.values, env.Errors, c.errs)
+			}
+		}
+	}
+}

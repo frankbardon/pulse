@@ -48,7 +48,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#212** Per-shell install docs, `flags.md` row, and generated scripts shipped in the `make dist` archives · [U37](units/U37-shell-completion.md)
 
 #### Predict / runtime parity (pre-existing gaps found in U03 / U05)
-- [ ] **#198** Predict refuses every operator × field type the runtime refuses: the "predict looser" half of the `knownTypeDivergence` ledger (`field_type_acceptance_test.go`) is emptied · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#198** Predict refuses every operator × field type the runtime refuses: the "predict looser" half of the `knownTypeDivergence` ledger (`field_type_acceptance_test.go`) is emptied. Part 1 done (E2-S2): set-operator, set-on-value-reader, date-range and FILTER_TRUE/FALSE pairs, plus AGG_WELFORD, the categorical FILTER_RANGE / ATTR_REG_* pairs and decimal on the value matchers / AGG_SET_*; the decimal-on-aggregator ledger case remains (E2-S3) · [U35](units/U35-predict-runtime-parity.md)
 - [x] **#199** The runtime refuses, rather than silently computes on, a field it cannot read: the ledger's "predict stricter, runtime wrong" half (`FEAT_POLY`, `REG_*` and `WIN_*` value windows on categorical / set / decimal / `packed_bool` / `datetime`), plus tier-1 tests on `set_*` · [U35](units/U35-predict-runtime-parity.md)
 - [x] **#200** A request with more than one `Groups` entry executes every group or is refused (today only `Groups[0]` runs) · [U54](units/U54-multi-grouper.md)
 - [ ] **#201** Remaining silent predict / runtime gaps: crosstab cell-aggregator validity in predict, one label set for the label-collision check, label bindings on ProcessChain stages ≥ 1, windowed record rows under projection · [U35](units/U35-predict-runtime-parity.md)

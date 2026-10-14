@@ -159,6 +159,12 @@ func valueReaderRefusalCases() []fieldTypeRefusalCase {
 			fill("GROUP_DATE_RANGES", acceptanceTemplates["GROUP_DATE_RANGES"], ft)
 			fill("FILTER_DATE_RANGES", acceptanceTemplates["FILTER_DATE_RANGES"], ft)
 		}
+		// FILTER_TRUE / FILTER_FALSE in strict mode read only a
+		// packed_bool.
+		if ft != encoding.FieldTypePackedBool {
+			fill("FILTER_TRUE", acceptanceTemplates["FILTER_TRUE"], ft)
+			fill("FILTER_FALSE", acceptanceTemplates["FILTER_FALSE"], ft)
+		}
 		// AGG_WELFORD reads only the six plain integer / float types.
 		switch ft {
 		case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
@@ -291,6 +297,12 @@ func TestFieldTypeRefusal_EverySlotPredicts(t *testing.T) {
 		if env, rerr := run(good); rerr != nil || len(env.Errors) != 0 {
 			t.Errorf("%s on u8: runtime %v, predict %+v", c.name, rerr, env.Errors)
 		}
+	}
+
+	// FILTER_TRUE in truthy mode coerces any scalar: neither side
+	// judges the type.
+	if env, rerr := run(`{"filterers":[{"type":"FILTER_TRUE","field":"t_u8","values":["truthy"]}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`); rerr != nil || len(env.Errors) != 0 {
+		t.Errorf("FILTER_TRUE truthy on u8: runtime %v, predict %+v", rerr, env.Errors)
 	}
 
 	// A facet filterer goes through FacetSchema's filterer construction.

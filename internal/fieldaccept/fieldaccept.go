@@ -151,6 +151,15 @@ func temporalValue(ft encoding.FieldType) bool {
 	return ft == encoding.FieldTypeDate || ft == encoding.FieldTypeDateTime
 }
 
+// packedBool is FILTER_TRUE / FILTER_FALSE's STRICT-mode set (no
+// values, or ["strict"]): a packed_bool alone. Values ["truthy"] opts
+// into coercing any scalar, and the type is then not judged — the
+// caller (predict, like the runtime constructor) consults this row only
+// in strict mode.
+func packedBool(ft encoding.FieldType) bool {
+	return ft == encoding.FieldTypePackedBool
+}
+
 // table is keyed by operator name, then slot.
 var table = map[string]map[Slot]Rule{}
 
@@ -201,6 +210,7 @@ func init() {
 		"FILTER_SET_CONTAINS_ALL", "FILTER_SET_CONTAINS_ANY", "FILTER_SET_CONTAINS_NONE", "FILTER_SET_EQUALS",
 		"GROUP_SET_PER_ELEMENT", "GROUP_SET_VALUE")
 	add(temporalValue, cfg, field, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES")
+	add(packedBool, cfg, field, "FILTER_TRUE", "FILTER_FALSE")
 
 	memoTypeNames()
 }

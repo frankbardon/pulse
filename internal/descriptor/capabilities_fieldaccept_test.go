@@ -20,6 +20,12 @@ var narrowerDeclarations = map[string]bool{
 	"FILTER_RANGE": true,
 }
 
+// modeWiderDeclarations are the tabled operators whose declaration is a
+// strict SUPERSET of the table because the row judges one mode only:
+// FILTER_TRUE / FILTER_FALSE read a packed_bool in strict mode, and any
+// scalar under values ["truthy"].
+var modeWiderDeclarations = map[string]bool{"FILTER_TRUE": true, "FILTER_FALSE": true}
+
 // TestCapabilities_AcceptsTypesMatchFieldAcceptTable pins the manifest's
 // accepts_types to the accepted-types table (internal/fieldaccept) for
 // every tabled operator that declares them: the declaration is the rule
@@ -60,6 +66,18 @@ func TestCapabilities_AcceptsTypesMatchFieldAcceptTable(t *testing.T) {
 		}
 		want := fieldaccept.TypeNames(op, slot)
 		checked++
+		if modeWiderDeclarations[op] {
+			declaredSet := map[string]bool{}
+			for _, n := range got {
+				declaredSet[n] = true
+			}
+			for _, n := range want {
+				if !declaredSet[n] {
+					t.Errorf("%s does not declare %s, which the table accepts", op, n)
+				}
+			}
+			continue
+		}
 		if !narrowerDeclarations[op] {
 			if !reflect.DeepEqual(got, want) {
 				t.Errorf("%s accepts_types %v, table %v", op, got, want)
@@ -79,7 +97,7 @@ func TestCapabilities_AcceptsTypesMatchFieldAcceptTable(t *testing.T) {
 			t.Errorf("%s declares the whole table; drop it from narrowerDeclarations", op)
 		}
 	}
-	if want := 12 + 19 + 14 + 2; checked != want {
-		t.Errorf("checked %d tabled operators with a declaration, want %d (8 windows, FEAT_POLY, 3 regressions, 19 value readers, 14 set operators, 2 date-range operators)", checked, want)
+	if want := 12 + 19 + 14 + 2 + 2; checked != want {
+		t.Errorf("checked %d tabled operators with a declaration, want %d (8 windows, FEAT_POLY, 3 regressions, 19 value readers, 14 set operators, 2 date-range operators, FILTER_TRUE / FILTER_FALSE)", checked, want)
 	}
 }

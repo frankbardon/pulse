@@ -400,9 +400,10 @@ var acceptanceDataOutcomes = map[errors.Code]bool{
 // predict and the runtime are KNOWN to disagree, each with its reason;
 // "" means they must agree. It is exact: an entry that no longer
 // diverges fails the gate too, so a fix removes its entry in the same
-// change. Every remaining entry is one direction, predict looser: the
-// runtime's operator constructor refuses a type predict has no check
-// for, so predict promises a request the engine then turns away.
+// change. Every remaining entry is one direction, predict looser:
+// decimal128 on an aggregator with no decimal arm, which the runtime
+// refuses and predict only warns about. The constructors' other type
+// refusals are rows of the accepted-types table, which predict reads.
 //
 // The other direction — predict stricter where the RUNTIME was wrong,
 // windowing / expanding / regressing a categorical's dictionary index
@@ -436,8 +437,6 @@ func knownTypeDivergence(op string, ft encoding.FieldType) string {
 		"AGG_MEDIAN", "AGG_NULL_COUNT", "AGG_PERCENTILE", "AGG_RANGE", "AGG_RATIO", "AGG_SKEWNESS",
 		"AGG_ZSCORE"):
 		return "predict only WARNS PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL (an error under Strict); the runtime refuses decimal128 regardless"
-	case in("FILTER_TRUE", "FILTER_FALSE") && ft != encoding.FieldTypePackedBool:
-		return "the runtime's strict mode refuses a non-packed_bool field; predict has no type check"
 	}
 	return ""
 }
