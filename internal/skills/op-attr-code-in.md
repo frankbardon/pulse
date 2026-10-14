@@ -21,7 +21,7 @@ examples_tags: [feature-engineering, proportion-analysis, streaming-friendly]
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | `categorical_u8/u16/u32` (by LABEL, not id); `u4`/`u8`/`u16`/`u32`/`u64` (by value) |
+| `Field` | `categorical_u8/u16/u32` (by LABEL, not id); `u4`/`u8`/`u16`/`u32`/`u64` (by exact value; `u64` above 2^53 too) |
 | `Label` (output name) | required; `target` → `PROCESSING_CONFIG` |
 
 ## Output

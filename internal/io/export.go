@@ -223,12 +223,12 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		hitEOF := false
 		for i, f := range schema.Fields {
 			if f.Type.IsBitPacked() {
-				b, err := r.ReadByte()
+				v, err := readPackedValue(r, &f)
 				if err != nil {
 					hitEOF = true
 					break
 				}
-				values[i] = formatPackedValue(f.Type, b)
+				values[i] = formatPackedValue(f.Type, v)
 				continue
 			}
 
@@ -762,19 +762,32 @@ func formatSetMask(m encoding.SetMask, dict *encoding.Dictionary) string {
 	return strings.Join(labels, DefaultSetDelimiter)
 }
 
-// formatPackedValue formats bit-packed types.
-func formatPackedValue(ft encoding.FieldType, b byte) string {
-	switch ft {
-	case encoding.FieldTypePackedBool:
-		if b != 0 {
+// readPackedValue decodes one bit-packed field from its own on-wire
+// byte through the engine's helpers (encoding.ReadBit / ReadNibble),
+// honouring the field's stored BitPosition: packed_bool is bit
+// BitPosition, u4 is the high nibble when BitPosition > 0. Every
+// current writer lays out BitPosition 0, but a legacy cohort may carry
+// a nonzero one, and export must read it exactly as Process, SPSS
+// export and Lookup do (#372).
+func readPackedValue(r *bufio.Reader, f *encoding.Field) (uint8, error) {
+	if f.Type == encoding.FieldTypePackedBool {
+		b, err := encoding.ReadBit(r, uint(f.BitPosition))
+		if b {
+			return 1, err
+		}
+		return 0, err
+	}
+	return encoding.ReadNibble(r, f.BitPosition > 0)
+}
+
+// formatPackedValue formats a decoded bit-packed value (see
+// readPackedValue): packed_bool as true/false, u4 as its 0..15 value.
+func formatPackedValue(ft encoding.FieldType, v uint8) string {
+	if ft == encoding.FieldTypePackedBool {
+		if v != 0 {
 			return "true"
 		}
 		return "false"
-
-	case encoding.FieldTypeU4:
-		return strconv.Itoa(int(b & 0x0F))
-
-	default:
-		return strconv.Itoa(int(b))
 	}
+	return strconv.Itoa(int(v))
 }

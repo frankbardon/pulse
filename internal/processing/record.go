@@ -142,6 +142,12 @@ const (
 	planeHas = iota
 	planeNull
 	planeWide
+	// planeExact marks a u64 slot whose exact word (kind wideExactU64)
+	// was written by the decoder for the value the slot holds now. It
+	// sits past planeNull, so ClearForRow clears it with the others;
+	// every non-decode value write (putValue, dropValue) and a decoded
+	// null clear it, so a set bit never outlives its value.
+	planeExact
 	planeCount
 )
 
@@ -488,6 +494,7 @@ func (r *Record) putValue(name string, v float64) {
 		r.resetRun()
 		r.vals[i] = v
 		r.setBit(planeHas, i)
+		r.clearBit(planeExact, i)
 		return
 	}
 	a := r.auxOrNew()
@@ -503,6 +510,7 @@ func (r *Record) dropValue(name string) {
 		r.resetRun()
 		r.vals[i] = 0
 		r.clearBit(planeHas, i)
+		r.clearBit(planeExact, i)
 		return
 	}
 	if r.aux != nil {
@@ -728,6 +736,44 @@ func (r *Record) NumericValue(name string) (float64, bool) {
 	}
 	v, ok := r.aux.ovVals[name]
 	return v, ok
+}
+
+// Uint64Value returns the named field's value as an exact uint64 — the
+// accessor for KEYING or MATCHING on an unsigned-integer field, where
+// NumericValue's float64 echo is not enough: from 2^53 upward distinct
+// u64 values share one echo (2^53 and 2^53+1 both read 9007199254740992),
+// and an echo at or above 2^64 has no in-range uint64 conversion at all.
+//
+// A u64 field the reuse decoders wrote carries its exact on-wire word
+// (internal/encoding.ExactU64Record), and that word is returned. Any
+// other present, non-null numeric value — a narrower unsigned field
+// (exact in float64 already), a record built from a value map, a value
+// a feature wrote — falls back to the float64 echo converted to uint64,
+// with an echo at or above 2^64 saturating to math.MaxUint64 rather than
+// taking an out-of-range conversion. (0, false) exactly when
+// NumericValue reports false.
+//
+// Internal only: the public extend.Record contract stays float64.
+func (r *Record) Uint64Value(name string) (uint64, bool) {
+	if i := r.pos(name); i >= 0 && r.test(planeExact, i) && r.test(planeHas, i) && !r.test(planeNull, i) {
+		return r.wordAt(int(r.layout.wideOff[i])), true
+	}
+	v, ok := r.NumericValue(name)
+	if !ok {
+		return 0, false
+	}
+	return floatToUint64Key(v), true
+}
+
+// floatToUint64Key converts a float64 echo to uint64 the way the key
+// paths always did (uint64(v)), except that an echo at or above 2^64 —
+// which no uint64 holds — saturates to math.MaxUint64 instead of
+// taking Go's implementation-defined out-of-range conversion.
+func floatToUint64Key(v float64) uint64 {
+	if v >= 1<<64 {
+		return math.MaxUint64
+	}
+	return uint64(v)
 }
 
 // IsNull reports whether the named field is null on this record. A field
@@ -1116,6 +1162,7 @@ var (
 	_ encx.VectorRecord          = (*Record)(nil)
 	_ encx.RunSkipRecord         = (*Record)(nil)
 	_ encx.GroupIndexRecord      = (*Record)(nil)
+	_ encx.ExactU64Record        = (*Record)(nil)
 )
 
 // SetNumericAt implements internal/encoding.IndexedReusableRecord: a slice store
@@ -1146,12 +1193,37 @@ func (r *Record) SetNullFieldAt(idx int) {
 	if s := r.layout.slot(idx); s >= 0 {
 		r.setBit(planeNull, s)
 		r.clearBit(planeWide, s)
+		r.clearBit(planeExact, s)
 		if r.aux != nil && len(r.aux.ovWide) > 0 {
 			delete(r.aux.ovWide, r.fieldAt(s).Name)
 		}
 		return
 	}
 	r.SetNullField(r.schema.Fields[idx].Name)
+}
+
+// SetExactU64At implements internal/encoding.ExactU64Record: the
+// decoder hands over a u64 field's exact on-wire word right after its
+// SetNumericAt echo. A position outside the projection (or a slot of
+// another kind) keeps no word; Uint64Value then falls back to the echo.
+func (r *Record) SetExactU64At(idx int, v uint64) {
+	if s := r.layout.slot(idx); s >= 0 && r.layout.wideKind[s] == wideExactU64 {
+		r.setWordAt(int(r.layout.wideOff[s]), v)
+		r.setBit(planeExact, s)
+	}
+}
+
+// SetExactU64 is SetExactU64At by name, for a caller that copies a
+// record outside the decoders (the join build side): it keeps v as the
+// exact word of a u64 field that already holds its value. A name with no
+// u64 slot, or no value, keeps nothing. A schema-field mutation outside
+// the decoders, so it withdraws the record from run-skip (resetRun).
+func (r *Record) SetExactU64(name string, v uint64) {
+	if i := r.pos(name); i >= 0 && r.layout.wideKind[i] == wideExactU64 && r.test(planeHas, i) {
+		r.resetRun()
+		r.setWordAt(int(r.layout.wideOff[i]), v)
+		r.setBit(planeExact, i)
+	}
 }
 
 // SetWideFieldAt implements internal/encoding.IndexedReusableRecord; the
@@ -1371,6 +1443,14 @@ func (r *Record) copyStateInto(dst *Record, rename func(string) string, offset i
 			if hasV {
 				dst.vals[j] = r.vals[i]
 				dst.setBit(planeHas, j)
+				// The exact u64 word travels with its echo, or the
+				// destination must not keep a word for an older value.
+				if r.test(planeExact, i) && dst.layout.wideKind[j] == wideExactU64 {
+					dst.setWordAt(int(dst.layout.wideOff[j]), r.wordAt(int(r.layout.wideOff[i])))
+					dst.setBit(planeExact, j)
+				} else {
+					dst.clearBit(planeExact, j)
+				}
 			}
 			if isNull {
 				dst.setBit(planeNull, j)

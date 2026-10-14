@@ -188,7 +188,18 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request, prefli
 				wide[f.Name] = w
 			}
 		}
-		rightRecords = append(rightRecords, processing.NewRecordWithWide(src.Schema(), values, nulls, wide))
+		rec := processing.NewRecordWithWide(src.Schema(), values, nulls, wide)
+		// A u64 value's exact word survives the copy: the float64 echo
+		// above loses every bit past 2^53 (#427).
+		for _, f := range src.Schema().Fields {
+			if f.Type != encoding.FieldTypeU64 {
+				continue
+			}
+			if u, ok := src.Uint64Value(f.Name); ok {
+				rec.SetExactU64(f.Name, u)
+			}
+		}
+		rightRecords = append(rightRecords, rec)
 	}
 	if rightIter.Err() != nil {
 		return nil, nil, "", nil, rightIter.Err()

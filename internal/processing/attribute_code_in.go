@@ -21,8 +21,10 @@ import (
 // Codes are resolved ONCE at construction through the matchValueKey
 // rule shared with FILTER_INCLUDE / FILTER_EXCLUDE / AGG_FREQUENCY, so
 // the per-row work is one NumericValue read plus one map lookup — no
-// per-row string resolution. A categorical field resolves each code as
-// a dictionary LABEL; a code absent from the dictionary is dropped
+// per-row string resolution (a u64 field reads the exact word through
+// Uint64Value instead, keyed by uint64). A categorical field resolves
+// each code as a dictionary LABEL; a code absent from the dictionary is
+// dropped
 // silently and matches nothing (AGG_FREQUENCY's precedent — the predict
 // side flags it). An unsigned-integer field resolves each code as a
 // number and refuses one that no row could ever hold (not an integer,
@@ -42,8 +44,14 @@ type codeInParams struct {
 // Record.NumericValue yields for a row holding one of the codes. An
 // empty set (registry probe, or every categorical code absent) matches
 // nothing.
+//
+// A u64 field keys EXACTLY instead (exact non-nil, keys unused): codes
+// are the parsed uint64 values and a row reads Record.Uint64Value, so
+// two distinct values above 2^53 that share a float64 echo never match
+// each other's code (#427).
 type codeInAttribute struct {
-	keys map[float64]struct{}
+	keys  map[float64]struct{}
+	exact map[uint64]struct{}
 }
 
 // codeInIntegerMax is the largest value each accepted unsigned-integer
@@ -130,6 +138,10 @@ func newCodeInAttribute(attr *types.Attribute, schema *encoding.Schema) (Attribu
 		return &codeInAttribute{keys: keys}, nil
 	}
 	maxV := codeInIntegerMax[f.Type]
+	var exact map[uint64]struct{}
+	if f.Type == encoding.FieldTypeU64 {
+		exact = make(map[uint64]struct{}, len(codes))
+	}
 	for _, c := range codes {
 		n, perr := strconv.ParseUint(c, 10, 64)
 		if perr != nil || n > maxV {
@@ -144,6 +156,10 @@ func newCodeInAttribute(attr *types.Attribute, schema *encoding.Schema) (Attribu
 					"max":       maxV,
 				})
 		}
+		if exact != nil {
+			exact[n] = struct{}{}
+			continue
+		}
 		// The validated integer resolves through the shared rule, so the
 		// key is exactly the float64 NumericValue yields for that value.
 		key, _, err := matchValueKey(f, c)
@@ -153,7 +169,7 @@ func newCodeInAttribute(attr *types.Attribute, schema *encoding.Schema) (Attribu
 		}
 		keys[key] = struct{}{}
 	}
-	return &codeInAttribute{keys: keys}, nil
+	return &codeInAttribute{keys: keys, exact: exact}, nil
 }
 
 // parseCodeInCodes decodes params.codes into the code strings, deduped
@@ -235,6 +251,16 @@ func (a *codeInAttribute) Compute(records []*Record, field string) ([]float64, e
 }
 
 func (a *codeInAttribute) Row(r *Record, field string) (float64, error) {
+	if a.exact != nil {
+		u, ok := r.Uint64Value(field)
+		if !ok {
+			return 0, nil
+		}
+		if _, hit := a.exact[u]; hit {
+			return 1, nil
+		}
+		return 0, nil
+	}
 	v, ok := r.NumericValue(field)
 	if !ok {
 		return 0, nil

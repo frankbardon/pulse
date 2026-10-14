@@ -162,7 +162,7 @@ Pre-existing gaps, none caused by those units and none fixed there. Each makes p
 
 Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#372** — Bit-packed reads agree on legacy cohorts: export (`internal/io/export.go`) reads the whole byte of a `u4` / `packed_bool` field while the engine `RecordReader` family and the SPSS writer read the stored `BitPosition`, so a legacy cohort with a nonzero stored `BitPosition` exports different values than it processes. **Required resolution: proper reads — every reader (engine, export, SPSS, lookup) decodes legacy cohorts correctly and identically; no re-import.** Found in U41 (E1-S5).
+- [x] **#372** — Bit-packed reads agree on legacy cohorts: export (`internal/io/export.go`) reads the whole byte of a `u4` / `packed_bool` field while the engine `RecordReader` family and the SPSS writer read the stored `BitPosition`, so a legacy cohort with a nonzero stored `BitPosition` exports different values than it processes. **Required resolution: proper reads — every reader (engine, export, SPSS, lookup) decodes legacy cohorts correctly and identically; no re-import.** Found in U41 (E1-S5).
 - [ ] **#378** — A compose `sweep` body inside a stored request template: the renderer consumes the sweep's `{{axis}}` placeholders; extend the `for_each` scope rule in `internal/template/for_each.go` to `sweep.axes`. Found in U41 (E3-S4).
 - [ ] **#379** — Cohort-bound MCP schemas refuse a cohort field whose name contains a `{{ident}}` token on an item without `for_each` (the placeholder `else` branch); admit literal field names that match the pattern. Found in U41 (E3-S4).
 
@@ -192,7 +192,7 @@ Filed from [U26 handed on](U26-vector-expr-functions.md#handed-on); tick in [`TO
 
 Filed from [U27 handed on](U27-vector-metrics-aggregates.md#handed-on-from-u27); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#427** (10. Vector & matrix — operators › Follow-ups from U27) A `u64` `key_field` value above 2^53 is matched via its float64 value (records carry numbers as float64; the same limit as `ATTR_CODE_IN`), so two distinct large keys can collide. No unit owns exact `u64` record access, so it is filed here: give record access an exact `u64` path, or refuse such a key. Found in U27 (E3-S4).
+- [x] **#427** (10. Vector & matrix — operators › Follow-ups from U27) A `u64` `key_field` value above 2^53 is matched via its float64 value (records carry numbers as float64; the same limit as `ATTR_CODE_IN`), so two distinct large keys can collide. No unit owns exact `u64` record access, so it is filed here: give record access an exact `u64` path, or refuse such a key. Found in U27 (E3-S4).
 
 ## Inherited from U54
 

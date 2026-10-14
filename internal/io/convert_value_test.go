@@ -1,6 +1,8 @@
 package io
 
 import (
+	"bufio"
+	"bytes"
 	"math"
 	"testing"
 
@@ -220,21 +222,30 @@ func TestFormatFieldValue_Date(t *testing.T) {
 
 func TestFormatPackedValue_AllTypes(t *testing.T) {
 	tests := []struct {
-		name string
-		ft   encoding.FieldType
-		b    byte
-		want string
+		name   string
+		ft     encoding.FieldType
+		bitPos int
+		b      byte
+		want   string
 	}{
-		{"bool_true", encoding.FieldTypePackedBool, 1, "true"},
-		{"bool_false", encoding.FieldTypePackedBool, 0, "false"},
-		{"u4_low", encoding.FieldTypeU4, 5, "5"},
-		{"u4_high_masked", encoding.FieldTypeU4, 0xF5, "5"}, // upper nibble masked off
+		{"bool_true", encoding.FieldTypePackedBool, 0, 1, "true"},
+		{"bool_false", encoding.FieldTypePackedBool, 0, 0, "false"},
+		{"u4_low", encoding.FieldTypeU4, 0, 5, "5"},
+		{"u4_high_masked", encoding.FieldTypeU4, 0, 0xF5, "5"}, // upper nibble masked off
+		// Legacy nonzero BitPosition (#372): read like the engine.
+		{"bool_bit1_set", encoding.FieldTypePackedBool, 1, 0x02, "true"},
+		{"bool_bit1_stray_bit0", encoding.FieldTypePackedBool, 1, 0x01, "false"},
+		{"u4_high_nibble", encoding.FieldTypeU4, 4, 0xB5, "11"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := formatPackedValue(tc.ft, tc.b)
-			if got != tc.want {
+			f := encoding.Field{Type: tc.ft, BitPosition: tc.bitPos}
+			v, err := readPackedValue(bufio.NewReader(bytes.NewReader([]byte{tc.b})), &f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := formatPackedValue(tc.ft, v); got != tc.want {
 				t.Errorf("got %q, want %q", got, tc.want)
 			}
 		})

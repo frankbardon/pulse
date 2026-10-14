@@ -25,7 +25,7 @@ Use something else:
 ## Params
 
 - `metric` — similarity only: `correlation`, `cosine`, `jaccard`, `dice`, `overlap`. Default from the vector's `kind` (scale → `correlation`); none → `PULSE_VECTOR_METRIC_REQUIRED`. A distance → `PULSE_VECTOR_METRIC_UNKNOWN`, `details.use` = `ATTR_VEC_DISTANCE`.
-- `reference` (required) — `[…]` (member order), `{label: value}`, `{table, key}`, `{table, key_field}` (categorical or `u4`…`u64`, by base-10 form), `{centroid: {filter?, by?}}` (weighted per-member mean of the rows `filter` admits, = `AGG_VEC_MEAN`; `by` = per-key, each row vs its own) `{population: name}` (a bound vector fit's mean: [`compose-fits`](compose-fits.md)) or `{record: {cohort?, keys}}` (one row point-looked-up via its cohort's index, the request's own if omitted: [`cohort-sidecar-index`](cohort-sidecar-index.md)).
+- `reference` (required) — `[…]` (member order), `{label: value}`, `{table, key}`, `{table, key_field}` (categorical or `u4`…`u64`, by exact base-10 form; `u64` above 2^53 too), `{centroid: {filter?, by?}}` (weighted per-member mean of the rows `filter` admits, = `AGG_VEC_MEAN`; `by` = per exact key, each row vs its own) `{population: name}` (a bound vector fit's mean: [`compose-fits`](compose-fits.md)) or `{record: {cohort?, keys}}` (one row point-looked-up via its cohort's index, the request's own if omitted: [`cohort-sidecar-index`](cohort-sidecar-index.md)).
 - `min_valid` — fewest complete pairs, default 1; below → null.
 - `labels` — inline `fields` only.
 
