@@ -688,9 +688,10 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	// fitted params (fit_on, missing, the operator's own keys) resolved
 	// by the same leaf (vectors.ResolveAttributes). Steps 6-9 contribute
 	// one refusal at most between them.
-	if _, aerr := vectors.ResolveAttributes(req, schema, func(t types.AttributeType) types.AttributeType {
+	ains, aerr := vectors.ResolveAttributes(req, schema, func(t types.AttributeType) types.AttributeType {
 		return opRoute(inst, t)
-	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Attributes })); aerr != nil {
+	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Attributes }))
+	if aerr != nil {
 		w.out = append(w.out, aerr)
 		return w.out
 	}
@@ -713,7 +714,7 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 		return w.out
 	}
 	// 12. Bound vector fits (params.fit), once every input resolved.
-	w.out = append(w.out, vectorFitRefusals(req, mats, inst, models)...)
+	w.out = append(w.out, vectorFitRefusals(req, schema, mats, ains, inst, models)...)
 	return w.out
 }
 
@@ -721,25 +722,41 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 // slot order), then each matrix's, judged by model.CheckVectorFit
 // against models and located the way the runtime's bind locates it
 // (details.attribute = the slot's label / details.matrix = the result
-// name, the message prefixed with the slot).
-func vectorFitRefusals(req *types.Request, mats []vectors.Matrix, inst *InstanceSnapshot, models model.Catalog) []*errors.CodedError {
+// name, the message prefixed with the slot). A bound fit whose member
+// labels the catalog knows (a loaded population; every runtime fit) is
+// then aligned to the slot's labels by the bind's own rule
+// (vectors.AlignFit — PULSE_VECTOR_REFERENCE_MISMATCH labels_differ);
+// predict's static Compose-fit signatures carry no labels and skip it.
+// ains is step 9's index-aligned attribute resolution.
+func vectorFitRefusals(req *types.Request, schema *encoding.Schema, mats []vectors.Matrix, ains []vectors.AttributeInput, inst *InstanceSnapshot, models model.Catalog) []*errors.CodedError {
 	var out []*errors.CodedError
-	for _, attr := range req.Attributes {
+	for i, attr := range req.Attributes {
 		if attr == nil {
 			continue
 		}
-		name := vectors.AttributeFit(opRoute(inst, attr.Type), attr)
+		typ := opRoute(inst, attr.Type)
+		name := vectors.AttributeFit(typ, attr)
 		if name == "" {
 			continue
 		}
+		label := attr.Label
+		if label == "" {
+			label = attributeDefaultLabel(attr, inst)
+		}
 		if cerr := model.CheckVectorFit(models, name); cerr != nil {
-			label := attr.Label
-			if label == "" {
-				label = attributeDefaultLabel(attr, inst)
-			}
 			cerr.Details["attribute"] = label
 			cerr.Message = label + ": " + cerr.Message
 			out = append(out, cerr)
+			continue
+		}
+		sig, _ := models.Signature(name)
+		if sig.Members == nil || i >= len(ains) {
+			continue
+		}
+		if labels, ok := vectors.AttributeFitLabels(typ, attr, ains[i].Members, schema); ok {
+			if _, cerr := vectors.AlignFit("attribute", label, name, sig.Members, labels); cerr != nil {
+				out = append(out, cerr)
+			}
 		}
 	}
 	for _, m := range mats {
@@ -750,6 +767,12 @@ func vectorFitRefusals(req *types.Request, mats []vectors.Matrix, inst *Instance
 			cerr.Details["matrix"] = m.Name
 			cerr.Message = "matrix " + m.Name + ": " + cerr.Message
 			out = append(out, cerr)
+			continue
+		}
+		if sig, _ := models.Signature(m.Fit); sig.Members != nil {
+			if _, cerr := vectors.AlignFit("matrix", m.Name, m.Fit, sig.Members, m.FitLabels()); cerr != nil {
+				out = append(out, cerr)
+			}
 		}
 	}
 	return out

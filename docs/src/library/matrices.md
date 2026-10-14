@@ -65,8 +65,9 @@ from the diagonal). Undefined cells are `null`, keys kept.
   operator — see Partial correlation).
 - `max_drop_share` (listwise) warns `PULSE_MATRIX_LISTWISE_HEAVY_DROP`.
 - `fit: "<name>"` emits the matrix from a bound vector fit — a Compose
-  `fits` entry over one matrix or fitted-attribute battery — instead of
-  this request's rows: no row is read, members align to the fit BY LABEL
+  `fits` entry over one matrix or fitted-attribute battery, or a saved
+  population file loaded with `populations: [{name, path}]` (a vector
+  fit's `save` writes one) — instead of this request's rows: no row is read, members align to the fit BY LABEL
   and the fit's weight basis governs. Every co-moment operator takes it;
   `MAT_DISTANCE`, rank correlation methods and a declared reliability
   scale range refuse it, as do `missing` / `max_drop_share` beside it

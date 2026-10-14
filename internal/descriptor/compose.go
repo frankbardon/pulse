@@ -1164,25 +1164,26 @@ func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, 
 		if slot == nil {
 			continue
 		}
-		validateComposeRequest(env, slot, opts, "request", i, loadedCatalog(fits, slot.Models, loaded.slot(i)))
+		validateComposeRequest(env, slot, opts, "request", i, loadedCatalog(fits, model.RequestRefs(slot), loaded.slot(i)))
 	}
 }
 
 // composeLoaded is predict's Compose pre-pass result: each fit
-// request's and each slot's loaded model files, index-aligned.
+// request's and each slot's loaded model and population files,
+// index-aligned.
 type composeLoaded struct {
-	fits  [][]*model.File
-	slots [][]*model.File
+	fits  []*model.Loaded
+	slots []*model.Loaded
 }
 
-func (l *composeLoaded) fit(i int) []*model.File {
+func (l *composeLoaded) fit(i int) *model.Loaded {
 	if l == nil || i >= len(l.fits) {
 		return nil
 	}
 	return l.fits[i]
 }
 
-func (l *composeLoaded) slot(i int) []*model.File {
+func (l *composeLoaded) slot(i int) *model.Loaded {
 	if l == nil || i >= len(l.slots) {
 		return nil
 	}
@@ -1191,18 +1192,19 @@ func (l *composeLoaded) slot(i int) []*model.File {
 
 // loadComposeModels is the runtime's Compose pre-pass
 // (Service.composeModelsPrepass): model.CheckComposeBatch, then every
-// fit request's `models` files read, then every slot's, each refusal
+// fit request's `models` and `populations` files read, then every
+// slot's, each refusal
 // located by details.fit / details.request.
 func loadComposeModels(req *types.ComposedRequest, opts *PredictOptions) (*composeLoaded, error) {
 	if cerr := model.CheckComposeBatch(req.Fits, req.Requests); cerr != nil {
 		return nil, cerr
 	}
-	out := &composeLoaded{fits: make([][]*model.File, len(req.Fits)), slots: make([][]*model.File, len(req.Requests))}
+	out := &composeLoaded{fits: make([]*model.Loaded, len(req.Fits)), slots: make([]*model.Loaded, len(req.Requests))}
 	for i, f := range req.Fits {
 		if f.Request == nil {
 			continue
 		}
-		files, cerr := opts.loadModelFiles(f.Request.Models)
+		files, cerr := opts.loadModelFiles(model.RequestRefs(f.Request))
 		if cerr != nil {
 			return nil, RefusalAt(cerr, "fit", i)
 		}
@@ -1212,7 +1214,7 @@ func loadComposeModels(req *types.ComposedRequest, opts *PredictOptions) (*compo
 		if slot == nil {
 			continue
 		}
-		files, cerr := opts.loadModelFiles(slot.Models)
+		files, cerr := opts.loadModelFiles(model.RequestRefs(slot))
 		if cerr != nil {
 			return nil, RefusalAt(cerr, "request", k)
 		}
@@ -1317,7 +1319,7 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 		}
 		// A fit request runs before the batch binds anything: it sees
 		// only its own loaded `models`.
-		schema, ok := validateComposeRequest(env, req, opts, "fit", i, loadedCatalog(nil, req.Models, loaded.fit(i)))
+		schema, ok := validateComposeRequest(env, req, opts, "fit", i, loadedCatalog(nil, model.RequestRefs(req), loaded.fit(i)))
 		if !ok || schema == nil {
 			continue
 		}

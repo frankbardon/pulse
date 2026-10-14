@@ -121,6 +121,11 @@ func TestLoadRangeTables_SkipsPulseSidecars(t *testing.T) {
 			filename: "mmm" + model.FileSuffix,
 			body:     modelFileFixture,
 		},
+		{
+			name:     "saved population file",
+			filename: "brand" + model.PopulationSuffix,
+			body:     populationFileFixture,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

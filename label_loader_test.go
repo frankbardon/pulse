@@ -124,6 +124,33 @@ const modelFileFixture = `{
   "provenance": {"cohort": "c.pulse"}
 }`
 
+// populationFileFixture is a saved population file (a Compose vector
+// fit's save). Neither a label table nor a range table in any shape —
+// both table-directory loaders must skip it by suffix.
+const populationFileFixture = `{
+  "population_format_version": 1,
+  "name": "brand",
+  "operator": "MAT_COVARIANCE",
+  "labels": ["q1", "q2"],
+  "members": ["q1", "q2"],
+  "basis": "unweighted",
+  "n": 3,
+  "n_mass": 3,
+  "n_weight_invalid": 0,
+  "sum_weights": 3,
+  "sum_weights_sq": 3,
+  "mean": [1, 2],
+  "m2": [[2, 1], [1, 2]],
+  "provenance": {"cohort": "c.pulse"}
+}`
+
+// The fixture is a real population file, not a stand-in.
+func TestPopulationFileFixture_Decodes(t *testing.T) {
+	if _, err := model.DecodePopulationFile("fixture", []byte(populationFileFixture)); err != nil {
+		t.Fatalf("fixture is not a valid population file: %v", err)
+	}
+}
+
 // The fixture is a real model file, not a stand-in.
 func TestModelFileFixture_Decodes(t *testing.T) {
 	if _, err := model.DecodeFile("fixture", []byte(modelFileFixture)); err != nil {
@@ -151,6 +178,11 @@ func TestLoadLabelTables_SkipsPulseSidecars(t *testing.T) {
 			name:     "saved model file",
 			filename: "mmm" + model.FileSuffix,
 			body:     modelFileFixture,
+		},
+		{
+			name:     "saved population file",
+			filename: "brand" + model.PopulationSuffix,
+			body:     populationFileFixture,
 		},
 	}
 	for _, tc := range cases {
@@ -230,6 +262,10 @@ func TestIsPulseSidecarName(t *testing.T) {
 		{name: "models/a.b.pulse-model.json", want: true},
 		{name: "pulse-model.json", want: false},
 		{name: "mmm.pulse-model.json.123.tmp", want: false},
+		{name: "brand.pulse-population.json", want: true},
+		{name: "pops/a.b.pulse-population.json", want: true},
+		{name: "pulse-population.json", want: false},
+		{name: "brand.pulse-population.json.42.tmp", want: false},
 		{name: "a.b.c.pulse.spss.json", want: true},
 		{name: "regions.json", want: false},
 		{name: "spss.json", want: false},

@@ -902,7 +902,7 @@ namespace holds both kinds: `PULSE_MODEL_NAME_COLLISION` on a duplicate,
 malformed entry is `PULSE_FIT_INVALID` with `details.fit` (the entry
 index) and `details.reason` (`name_missing`, `request_missing`,
 `regression_count`, `kind_ambiguous`, `vector_count`, `grouped`,
-`vector_source`, `vector_save`); a fit request's own refusal keeps its
+`vector_source`); a fit request's own refusal keeps its
 code and gains `details.fit`. A fit request's `return` is ignored. The
 fits surface as `ComposedResponse.fits`, an `omitempty` object of
 `FitResult` keyed by fit name: a regression fit's `RegressionResult`
@@ -942,7 +942,13 @@ or a Compose batch are refused (`reason: duplicate`, `details.sites`
 naming both writers), and a batch judges every save path — fits and
 slots — before any fit or slot runs (a slot's fault gains
 `details.request`). Materialize and ProcessChain admit no regression, so
-neither ever writes a model file.
+neither ever writes a model file. A VECTOR fit's `save` writes a
+population file instead (`population_format_version` 1; the path must end
+`.pulse-population.json`, else `PULSE_MODEL_SAVE_INVALID` reason
+`suffix`): the battery's stored listwise state — labels, members, weight
+basis, counts, Σw / Σw², raw mean and raw co-moment — with nothing
+derived, written atomically under the fit's name with the same overwrite
+warning (format: `.claude/reference/byte-layout.md`, "Population file").
 
 ### Loading models (`models`)
 
@@ -965,6 +971,23 @@ frame). Provenance is informational: a model fit on one cohort scores any
 cohort holding its predictor columns. A fit request's own `models` are
 all it sees (fits run before the batch binds); each chain stage loads its
 own. Gated by `capability:models`; `format_version` stays `"1.1"`.
+
+### Loading populations (`populations`)
+
+`Request.populations` is an `omitempty` array of `PopulationRef {name,
+path}`: each loads a population file a vector fit's `save` wrote, under
+`name`, as a vector fit in the same namespace, so a fitted vector
+attribute's or co-moment `MAT_*` slot's `params.fit` resolves a loaded
+name exactly like a Compose vector fit — bit-for-bit the same figures on
+one architecture (a decomposition recomputed on another is
+tolerance-equal), aligned to the slot's members by label. It loads at the
+same point as `models` and is refused with the same codes, located by
+`details.population`: `PULSE_MODEL_REF_INVALID` (no name, or a path not
+ending `.pulse-population.json`), `PULSE_MODEL_FILE_UNREADABLE`,
+`PULSE_MODEL_FILE_INVALID` / `PULSE_MODEL_VERSION_UNSUPPORTED`,
+`PULSE_MODEL_NAME_COLLISION` (a name a `models` entry, an earlier entry
+or a fit binds). Provenance is informational, never compared. Gated by
+`capability:models`; `format_version` stays `"1.1"`.
 
 ### Item fan-out (`for_each`)
 

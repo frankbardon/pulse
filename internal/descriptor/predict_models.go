@@ -3,10 +3,10 @@ package descriptor
 import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
-	"github.com/frankbardon/pulse/types"
 )
 
-// predict_models.go is predict's half of a `models` load: the runtime's
+// predict_models.go is predict's half of a `models` / `populations`
+// load: the runtime's
 // rule (model.CheckModelRefs, then model.LoadModelFiles) over the model
 // files read through PredictOptions.ModelLoader — the model file and
 // the cohort header + schema are all predict reads — so a bad entry is
@@ -21,49 +21,53 @@ type ModelFileReader interface {
 	ReadModelFile(path string) ([]byte, error)
 }
 
-// loadModelFiles is model.LoadModelFiles through opts' ModelLoader (nil:
-// every entry is PULSE_MODEL_FILE_UNREADABLE). No refs reads nothing.
-func (o *PredictOptions) loadModelFiles(refs []types.ModelRef) ([]*model.File, *errors.CodedError) {
-	if len(refs) == 0 {
+// loadModelFiles is model.LoadFiles (the request's `models` and
+// `populations`) through opts' ModelLoader (nil: every entry is
+// PULSE_MODEL_FILE_UNREADABLE). No refs reads nothing.
+func (o *PredictOptions) loadModelFiles(refs model.Refs) (*model.Loaded, *errors.CodedError) {
+	if refs.Empty() {
 		return nil, nil
 	}
 	var read model.ReadFunc
 	if o != nil && o.ModelLoader != nil {
 		read = o.ModelLoader.ReadModelFile
 	}
-	return model.LoadModelFiles(refs, read)
+	return model.LoadFiles(refs, read)
 }
 
 // predictModels loads refs against outer (the names already bound — a
 // Compose slot's fits; nil for none) and returns the catalog the
-// request's references resolve against: outer plus every loaded model.
-// On a refusal the catalog is outer alone and unloaded names every
-// entry, so a reference to one is not also reported unknown
-// (dropUnloadedUnknowns).
-func predictModels(refs []types.ModelRef, outer model.Catalog, opts *PredictOptions) (cat model.Catalog, unloaded map[string]bool, cerr *errors.CodedError) {
-	if len(refs) == 0 {
+// request's references resolve against: outer plus every loaded model
+// and population. On a refusal the catalog is outer alone and unloaded
+// names every entry, so a reference to one is not also reported
+// unknown (dropUnloadedUnknowns).
+func predictModels(refs model.Refs, outer model.Catalog, opts *PredictOptions) (cat model.Catalog, unloaded map[string]bool, cerr *errors.CodedError) {
+	if refs.Empty() {
 		return outer, nil, nil
 	}
-	if cerr = model.CheckModelRefs(refs, outer); cerr == nil {
-		var files []*model.File
-		if files, cerr = opts.loadModelFiles(refs); cerr == nil {
-			return model.CatalogWithModels(outer, refs, files), nil, nil
+	if cerr = model.CheckRefs(refs, outer); cerr == nil {
+		var loaded *model.Loaded
+		if loaded, cerr = opts.loadModelFiles(refs); cerr == nil {
+			return model.CatalogWithLoaded(outer, refs, loaded), nil, nil
 		}
 	}
-	unloaded = make(map[string]bool, len(refs))
-	for _, r := range refs {
+	unloaded = make(map[string]bool, len(refs.Models)+len(refs.Populations))
+	for _, r := range refs.Models {
+		unloaded[r.Name] = true
+	}
+	for _, r := range refs.Populations {
 		unloaded[r.Name] = true
 	}
 	return outer, unloaded, cerr
 }
 
 // loadedCatalog is predict's catalog for refs whose static rule already
-// passed (a Compose or chain pre-pass): outer plus the files.
-func loadedCatalog(outer model.Catalog, refs []types.ModelRef, files []*model.File) model.Catalog {
-	if len(refs) == 0 {
+// passed (a Compose or chain pre-pass): outer plus the loaded files.
+func loadedCatalog(outer model.Catalog, refs model.Refs, loaded *model.Loaded) model.Catalog {
+	if refs.Empty() {
 		return outer
 	}
-	return model.CatalogWithModels(outer, refs, files)
+	return model.CatalogWithLoaded(outer, refs, loaded)
 }
 
 // dropUnloadedUnknowns drops every PULSE_MODEL_UNKNOWN refusal naming a

@@ -89,7 +89,12 @@ func TestCheckFits(t *testing.T) {
 		{"vector distance", []types.FitSpec{{Name: "v", Request: vec(mat(types.MAT_DISTANCE, `{"between":{"type":"GROUP_CATEGORY","field":"g"}}`))}}, errors.PULSE_FIT_INVALID, ReasonVectorSource, 0, map[string]any{"type": "MAT_DISTANCE"}},
 		{"vector reversed", []types.FitSpec{{Name: "v", Request: vec(mat(types.MAT_RELIABILITY, `{"reverse":["b"],"scale_min":1,"scale_max":5}`))}}, errors.PULSE_FIT_INVALID, ReasonVectorSource, 0, map[string]any{"param": "reverse"}},
 		{"vector scale only", []types.FitSpec{{Name: "v", Request: vec(mat(types.MAT_RELIABILITY, `{"scale_min":1,"scale_max":5}`))}}, "", "", 0, nil},
-		{"vector save", []types.FitSpec{{Name: "v", Request: attrFit, Save: "v.pulse-model.json"}}, errors.PULSE_FIT_INVALID, ReasonVectorSave, 0, nil},
+		// A vector fit saves a population file; a model-file path (or a
+		// regression fit's population path) is the wrong suffix.
+		{"vector save", []types.FitSpec{{Name: "v", Request: attrFit, Save: "pops/v.pulse-population.json"}}, "", "", 0, nil},
+		{"vector save model suffix", []types.FitSpec{{Name: "v", Request: attrFit, Save: "v.pulse-model.json"}}, errors.PULSE_MODEL_SAVE_INVALID, ReasonSaveSuffix, 0, map[string]any{"name": "v", "path": "v.pulse-model.json"}},
+		{"vector save escapes", []types.FitSpec{{Name: "v", Request: attrFit, Save: "../v.pulse-population.json"}}, errors.PULSE_MODEL_SAVE_INVALID, ReasonSaveEscapesRoot, 0, nil},
+		{"regression save population suffix", []types.FitSpec{{Name: "r", Request: olsReq(ols()), Save: "r.pulse-population.json"}}, errors.PULSE_MODEL_SAVE_INVALID, ReasonSaveSuffix, 0, nil},
 		{"vector name collides with a regression", []types.FitSpec{{Name: "a", Request: olsReq(ols())}, {Name: "a", Request: attrFit}}, errors.PULSE_MODEL_NAME_COLLISION, "", 1, map[string]any{"name": "a"}},
 		// The first fault in entry order wins.
 		{"first fault wins", []types.FitSpec{{Name: "a", Request: olsReq()}, {Name: ""}}, errors.PULSE_FIT_INVALID, ReasonRegressionCount, 0, nil},

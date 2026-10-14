@@ -81,10 +81,11 @@ func CheckRequestSaves(req *types.Request) *errors.CodedError {
 //  2. the uniqueness of every save in the batch — fits[i],
 //     fits[i].request.regressions[j], requests[k].regressions[j]
 //     (CheckSaveDuplicates);
-//  3. every fit request's `models` (CheckModelRefs, nothing bound
-//     outside it — a fit runs before the batch binds; details.fit);
-//  4. every slot's `models` against the fits' names (CheckModelRefs,
-//     details.request).
+//  3. every fit request's `models` and `populations` (CheckRefs,
+//     nothing bound outside it — a fit runs before the batch binds;
+//     details.fit);
+//  4. every slot's `models` and `populations` against the fits' names
+//     (CheckRefs, details.request).
 //
 // requests are the effective slots (sweep slots included).
 func CheckComposeBatch(fits []types.FitSpec, requests []*types.Request) *errors.CodedError {
@@ -114,7 +115,7 @@ func CheckComposeBatch(fits []types.FitSpec, requests []*types.Request) *errors.
 		if f.Request == nil {
 			continue
 		}
-		if cerr := CheckModelRefs(f.Request.Models, nil); cerr != nil {
+		if cerr := CheckRefs(RequestRefs(f.Request), nil); cerr != nil {
 			cerr.Details["fit"] = i
 			return cerr
 		}
@@ -124,7 +125,7 @@ func CheckComposeBatch(fits []types.FitSpec, requests []*types.Request) *errors.
 		if req == nil {
 			continue
 		}
-		if cerr := CheckModelRefs(req.Models, cat); cerr != nil {
+		if cerr := CheckRefs(RequestRefs(req), cat); cerr != nil {
 			cerr.Details["request"] = k
 			return cerr
 		}
@@ -134,7 +135,8 @@ func CheckComposeBatch(fits []types.FitSpec, requests []*types.Request) *errors.
 
 // CheckChainModels is the chain pre-pass rule, run by the runtime
 // before the cohort opens and by PredictChain: every stage's `models`
-// (each stage its own namespace; details.stage). A chain writes no
+// and `populations` (CheckRefs; each stage its own namespace;
+// details.stage). A chain writes no
 // model file — the chain gate refuses a regression on every stage
 // (PULSE_CHAIN_NOT_MERGEABLE), stage 0 before it runs — so its saves
 // need no rule here.
@@ -143,7 +145,7 @@ func CheckChainModels(stages []*types.ChainStage) *errors.CodedError {
 		if st == nil || st.Request == nil {
 			continue
 		}
-		if cerr := CheckModelRefs(st.Request.Models, nil); cerr != nil {
+		if cerr := CheckRefs(RequestRefs(st.Request), nil); cerr != nil {
 			cerr.Details["stage"] = i
 			return cerr
 		}

@@ -381,11 +381,11 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	if merr := mergegate.MatrixRefusal(req); merr != nil {
 		addCodedError(env, merr)
 	}
-	// The request's `models` — the runtime loads them right after its
+	// The request's `models` and `populations` — the runtime loads them right after its
 	// save-path rule (validateRegressions reports that one), before any
 	// record is read: read and decoded through opts.ModelLoader, the
 	// loaded terms then judged by the field-reference pass below.
-	models, unloadedModels, lerr := predictModels(req.Models, nil, opts)
+	models, unloadedModels, lerr := predictModels(model.RequestRefs(req), nil, opts)
 	if lerr != nil {
 		addCodedError(env, lerr)
 	}

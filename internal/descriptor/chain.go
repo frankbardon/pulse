@@ -364,11 +364,12 @@ func loadChainModels(stages []*types.ChainStage, opts *PredictOptions) ([]model.
 		if st == nil || st.Request == nil {
 			continue
 		}
-		files, cerr := opts.loadModelFiles(st.Request.Models)
+		refs := model.RequestRefs(st.Request)
+		files, cerr := opts.loadModelFiles(refs)
 		if cerr != nil {
 			return nil, RefusalAt(cerr, "stage", i)
 		}
-		out[i] = loadedCatalog(nil, st.Request.Models, files)
+		out[i] = loadedCatalog(nil, refs, files)
 	}
 	return out, nil
 }

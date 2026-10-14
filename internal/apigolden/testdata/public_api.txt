@@ -852,6 +852,7 @@ pulse: type Request field Models []pulse/types.ModelRef "json:\"models,omitempty
 pulse: type Request field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse: type Request field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
 pulse: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
+pulse: type Request field Populations []pulse/types.PopulationRef "json:\"populations,omitempty\""
 pulse: type Request field PostTests []*pulse/types.Test "json:\"post_tests,omitempty\""
 pulse: type Request field Regressions []*pulse/types.RegressionSpec "json:\"regressions,omitempty\""
 pulse: type Request field Return *pulse/types.Return "json:\"return,omitempty\""
@@ -4942,6 +4943,9 @@ pulse/types: type PanelSlabPartitionViolation field SlotIndex int
 pulse/types: type PanelSlabPartitionViolation field SlotLabel string
 pulse/types: type PanelSlabPartitionViolation method (PanelSlabPartitionViolation) Details(kind pulse/types.OverlayKind, params pulse/types.PanelOverlayParams, index int) map[string]any
 pulse/types: type PanelSlabPartitionViolation method (PanelSlabPartitionViolation) Message(kind pulse/types.OverlayKind, params pulse/types.PanelOverlayParams) string
+pulse/types: type PopulationRef struct
+pulse/types: type PopulationRef field Name string "json:\"name\""
+pulse/types: type PopulationRef field Path string "json:\"path\""
 pulse/types: const REG_BAYES_LINEAR pulse/types.RegressionType = "REG_BAYES_LINEAR"
 pulse/types: const REG_GLM pulse/types.RegressionType = "REG_GLM"
 pulse/types: const REG_OLS pulse/types.RegressionType = "REG_OLS"
@@ -5049,6 +5053,7 @@ pulse/types: type Request field Models []pulse/types.ModelRef "json:\"models,omi
 pulse/types: type Request field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type Request field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
 pulse/types: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
+pulse/types: type Request field Populations []pulse/types.PopulationRef "json:\"populations,omitempty\""
 pulse/types: type Request field PostTests []*pulse/types.Test "json:\"post_tests,omitempty\""
 pulse/types: type Request field Regressions []*pulse/types.RegressionSpec "json:\"regressions,omitempty\""
 pulse/types: type Request field Return *pulse/types.Return "json:\"return,omitempty\""
@@ -5278,4 +5283,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 750d86b25f6afad10309e7b976d8335f4c3251f724354fe8898f9eeaf9964d9c
+// golden-hash: 3f76a1731c4cede117950cfdd26e6fc3512b2dcdd6266e3de4ab043e9b99a132

@@ -21,7 +21,7 @@ Slot: `matrices[i]` `{type, vector | fields, params, weight, encoding}`; members
 | `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise: per-pair rows (rank methods re-rank per pair). |
 | `max_drop_share` | 0–1 | none | Listwise drop-share warning. |
 | `summary.top_pairs` | int ≥ 1 | none | k strongest pairs. |
-| `fit` | vector fit name | none | Emit from a bound vector fit (`compose-fits`), reading no row; by label; its basis governs. Not with `missing` / `max_drop_share` (`fit_and_missing`), groups (`fit_grouped`), a rank method (`fit_unsupported`); a regression's name `PULSE_MODEL_KIND_MISMATCH`. |
+| `fit` | vector fit name | none | Emit from a bound vector fit (a `fits` or `populations` entry: `compose-fits`), reading no row; by label; its basis governs. Not with `missing` / `max_drop_share` (`fit_and_missing`), groups (`fit_grouped`), a rank method (`fit_unsupported`); a regression's name `PULSE_MODEL_KIND_MISMATCH`. |
 | `inference` | bool | `false` | `auxiliary.p` / `ci_lower` / `ci_upper`, every method. |
 | `alpha` | (0, 1) | `0.05` | Interval level; needs `inference`. |
 | `weight` | slot weight | inherited | Pearson: both kinds; rank: frequency only. `null` opts out. |

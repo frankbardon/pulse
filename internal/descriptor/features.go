@@ -174,8 +174,8 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("compose"),        // Compose, ComposeParallel, ApplySeriesOverlays
 	capability("compose_sweep"),  // ComposedRequest.Sweep + ComposedResponse.Ranking
 	capability("compose_fits"),   // ComposedRequest.Fits + ComposedResponse.Fits
-	capability("model_save"),     // RegressionSpec.Save + FitSpec.Save (model files)
-	capability("models"),         // Request.Models + FacetRequest.Models (load model files)
+	capability("model_save"),     // RegressionSpec.Save + FitSpec.Save (model + population files)
+	capability("models"),         // Request.Models + FacetRequest.Models + Request.Populations (load saved files)
 	capability("for_each"),       // the `for_each` item fan-out on Window / Feature / Attribute
 	capability("process_chain"),  // ProcessChain
 	capability("facet"),          // Facet, FacetSchema
@@ -669,10 +669,13 @@ var overlayHostKinds = map[string][]string{
 //     FILTER_EXPRESSION would break FilterToFile for any request.
 //   - every MAT_* operator rides the Request.Matrices slot, which
 //     capability:matrices gates.
-//   - capability:model_save writes a fitted regression, so it needs
-//     any-of the REG_* operators.
-//   - capability:models loads a model only a scoring reference reads:
-//     ATTR_REG_PREDICT, or coef() in ATTR_FORMULA / FILTER_EXPRESSION.
+//   - capability:model_save writes a fitted regression or a vector
+//     fit, so it needs any-of the REG_* operators, the fitted vector
+//     attributes and capability:matrices.
+//   - capability:models loads a model only a scoring reference reads
+//     (ATTR_REG_PREDICT, or coef() in ATTR_FORMULA / FILTER_EXPRESSION)
+//     and a population only a params.fit reads (the fitted vector
+//     attributes, ATTR_VEC_DISTANCE, capability:matrices).
 //
 // TEST_TUKEY_HSD after TEST_ANOVA_F is deliberately absent: its inputs
 // are plain numeric params, so the pairing is advice, not a dependency.
@@ -703,11 +706,16 @@ var hardEdges = map[string][]string{
 	// A sweep expands into Compose slots: without Compose there is
 	// nothing to expand into.
 	featComposeSweep: {featCompose},
-	// A save writes a fitted regression: without a regression there is
-	// nothing to save.
-	featModelSave: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS)},
-	// A loaded model is read only by a scoring reference.
-	featModels: {"ATTR_FORMULA", "ATTR_REG_PREDICT", "FILTER_EXPRESSION"},
+	// A save writes a fitted regression (a model file) or a vector fit
+	// (a population file): without a regression or a vector battery
+	// there is nothing to save.
+	featModelSave: {string(types.ATTR_FACTOR_SCORE), string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
+		string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS), featMatrices},
+	// A loaded model or population is read only by a reference: a
+	// scoring reference (ATTR_REG_PREDICT, coef()) or a params.fit (a
+	// fitted vector attribute, a MAT_* slot).
+	featModels: {string(types.ATTR_FACTOR_SCORE), "ATTR_FORMULA", string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
+		"ATTR_REG_PREDICT", string(types.ATTR_VEC_DISTANCE), "FILTER_EXPRESSION", featMatrices},
 }
 
 // groupEdges are the dependencies needing MORE than one any-of group

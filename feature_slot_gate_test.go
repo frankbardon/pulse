@@ -72,6 +72,9 @@ var requestSlotAppliers = map[string]func(r *types.Request){
 	"models": func(r *types.Request) {
 		r.Models = []types.ModelRef{{Name: "m", Path: "m.pulse-model.json"}}
 	},
+	"populations": func(r *types.Request) {
+		r.Populations = []types.PopulationRef{{Name: "p", Path: "p.pulse-population.json"}}
+	},
 }
 
 // requestSlotEntryPoints run one Request through every entry point
@@ -104,6 +107,7 @@ var requestSlotEntryPoints = map[string]func(h *parityHost, req *types.Request) 
 		stage1 := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n", Label: "total"}}}
 		stage1.Crosstab, stage1.Joins, stage1.Overlays, stage1.Weight = req.Crosstab, req.Joins, req.Overlays, req.Weight
 		stage1.Multiplicity, stage1.Vectors, stage1.Matrices, stage1.Models = req.Multiplicity, req.Vectors, req.Matrices, req.Models
+		stage1.Populations = req.Populations
 		_, err := h.p.ProcessChain(context.Background(), &ChainRequest{
 			Cohort: &types.Cohort{Filename: h.cohort},
 			Stages: []*types.ChainStage{{Name: "base", Request: h.base()}, {Name: "probe", Request: stage1}},

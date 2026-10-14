@@ -25,9 +25,6 @@ const (
 	// centroids) or folds transformed values (MAT_RELIABILITY
 	// params.reverse).
 	ReasonVectorSource = "vector_source"
-	// ReasonVectorSave: a `save` on a vector fit (a model file holds a
-	// regression).
-	ReasonVectorSave = "vector_save"
 )
 
 // VectorFitAttributeTypes are the fitted vector attributes a vector fit
@@ -95,16 +92,17 @@ func FitKindOf(req *types.Request) types.FitKind {
 //   - groups or a crosstab                     — PULSE_FIT_INVALID grouped
 //   - a vector battery with no single listwise
 //     state (VectorSourceRefusal)              — PULSE_FIT_INVALID vector_source
-//   - a `save` on a vector fit                 — PULSE_FIT_INVALID vector_save
-//   - an invalid `save` path, the entry's own or its regression's
-//     (CheckSavePath)                          — PULSE_MODEL_SAVE_INVALID
+//   - an invalid `save` path (CheckSavePath on a regression fit's own
+//     and its regression's, CheckPopulationSavePath on a vector
+//     fit's)                                   — PULSE_MODEL_SAVE_INVALID
 //   - a name an earlier entry already binds    — PULSE_MODEL_NAME_COLLISION
 //
 // A vector battery is a Matrices spec or a VectorFitAttributeTypes
 // attribute (VectorBatteries). Every refusal carries details.fit (the
 // 0-based entry index) and details.name. Nil for an empty list. Every
 // save path is judged here, before any fit runs, so no fit writes a
-// model file in a batch a later entry's path would refuse.
+// model or population file in a batch a later entry's path would
+// refuse.
 func CheckFits(fits []types.FitSpec) error {
 	seen := make(map[string]bool, len(fits))
 	for i, f := range fits {
@@ -143,9 +141,7 @@ func CheckFits(fits []types.FitSpec) error {
 				return fitInvalid(i, f.Name, ReasonVectorSource, what, extra)
 			}
 			if f.Save != "" {
-				return fitInvalid(i, f.Name, ReasonVectorSave,
-					"saves a vector fit; a model file holds a regression fit (drop save)",
-					map[string]any{"path": f.Save})
+				cerr = CheckPopulationSavePath(f.Save)
 			}
 		} else {
 			if f.Save != "" {

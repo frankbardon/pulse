@@ -43,6 +43,7 @@ import (
 //     capability:for_each
 //   - every `save` (RegressionSpec, FitSpec) — capability:model_save
 //   - Request.Models and FacetRequest.Models — capability:models
+//   - Request.Populations — capability:models
 //
 // An overlay slot is visible iff at least one of its hosts is enabled
 // AND that host lists at least one enabled overlay kind
@@ -111,6 +112,11 @@ var modelSaveSlotGate = gatedSlot{key: saveKey, visible: capabilityGate(featMode
 // FacetRequest; both ride capability:models.
 var modelsSlotGate = gatedSlot{key: "models", visible: capabilityGate(featModels)}
 
+// populationsSlotGate gates the `populations` key on a Request: a
+// population file loads into the same bound-model namespace, so it
+// rides capability:models too.
+var populationsSlotGate = gatedSlot{key: "populations", visible: capabilityGate(featModels)}
+
 // gatedSlots maps each request root (by its Go type) to its gated
 // slots, plus the nested slot objects that carry a gated key of their
 // own (the per-slot `weight`). The nested entries are what the payload
@@ -126,6 +132,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		weightSlotGate,
 		multiplicitySlotGate,
 		modelsSlotGate,
+		populationsSlotGate,
 	},
 	reflect.TypeOf(types.Aggregation{}):        {weightSlotGate},
 	reflect.TypeOf(types.Test{}):               {weightSlotGate, multiplicitySlotGate},
@@ -381,6 +388,9 @@ func setSlots(v any) []string {
 		}
 		if len(r.Models) > 0 {
 			out = append(out, "models")
+		}
+		if len(r.Populations) > 0 {
+			out = append(out, "populations")
 		}
 	case *types.ComposedRequest:
 		if r != nil && len(r.Overlays) > 0 {

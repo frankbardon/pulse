@@ -92,6 +92,8 @@ A `vec_f32` / `vec_f64` field adds `InspectField.Vector` (`descriptor.InspectVec
 
 Debugging procedure: `docs/src/internals/debugging-predict.md`.
 
+**Saved files are the one non-cohort read predict makes (`models`, `populations`).** A request's `models` and `populations` entries are read and decoded by predict through `PredictOptions.ModelLoader` (the runtime's own `Service.ReadModelFile`) at the point the runtime loads them, by the SAME leaf rules (`model.CheckRefs`, then `model.LoadFiles` — `internal/descriptor/predict_models.go` `predictModels`, Compose `loadComposeModels`, chain `loadChainModels`), so a bad entry is refused with the runtime's code, message and details (`TestModelLoad_PredictRuntimeParity_*`, `TestPopulationLoad_PredictRuntimeParity_*`). A loaded population enters predict's `FitCatalog` as a vector fit WITH its member labels (`model.CatalogWithLoaded`), so field-reference step 12 judges every `params.fit` name and kind against it; a name whose file failed to load is not ALSO reported `PULSE_MODEL_UNKNOWN` (`dropUnloadedUnknowns`). Still no record is read, and no decomposition is recomputed: label alignment against the slot (`PULSE_VECTOR_REFERENCE_MISMATCH labels_differ`) stays a bind-time runtime refusal, exactly as for an in-batch Compose vector fit.
+
 ## Advisories
 
 **`PredictResult.Advisories`** (`advisories`, additive `omitempty`, `[]descriptor.Advisory {code, message, details}`) carries coded, non-blocking notes that the chosen analysis may not fit the data — a separate slot from the envelope's warnings, because an analysis choice is not a data or engine problem and agents filter them independently. Rules (U22 E1):

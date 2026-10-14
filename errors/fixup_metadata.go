@@ -1744,7 +1744,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_NAME_COLLISION: {
-		Message: "Two bound models share a name: `fits` entries and `models` entries bind ONE namespace, and every name must be unique in it, because a reference names a model by that name alone. The name is under `name`; two fits name the second entry's index under `fit`, any collision with a `models` entry names both bindings under `sources` (each {slot, index} plus a model's path).",
+		Message: "Two bound models share a name: `fits` entries, `models` entries and `populations` entries bind ONE namespace, and every name must be unique in it, because a reference names a model by that name alone. The name is under `name`; two fits name the second entry's index under `fit`, any collision with a `models` or `populations` entry names both bindings under `sources` (each {slot, index} plus a loaded file's path).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1756,20 +1756,30 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"models", "*", "name"},
 				Hint:   "Load the model under a name no fit or other entry uses, and update the references to it.",
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"populations", "*", "name"},
+				Hint:   "Load the population under a name no fit, model or other entry uses, and update the params.fit references to it.",
+			},
 		},
 	},
 	PULSE_MODEL_UNKNOWN: {
-		Message: "A reference names a model nothing binds in this request. Names resolve against the ComposedRequest `fits` entries and the request's `models` entries (one namespace). The unknown name is under `name`, the bound names of the kind the reference reads under `available`: a vector-fit reference (a fitted vector attribute's or a matrix slot's `params.fit`) lists the bound vector fits, a regression reference (a regression score or coef()) the bound regressions.",
+		Message: "A reference names a model nothing binds in this request. Names resolve against the ComposedRequest `fits` entries and the request's `models` and `populations` entries (one namespace). The unknown name is under `name`, the bound names of the kind the reference reads under `available`: a vector-fit reference (a fitted vector attribute's or a matrix slot's `params.fit`) lists the bound vector fits, a regression reference (a regression score or coef()) the bound regressions.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"fits", "*", "name"},
 				Hint:   "Reference one of the names under `available`, or add a `fits` entry with that name.",
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"populations"},
+				Hint:   "To score against a saved vector fit, load its population file under that name: `populations: [{name, path}]`.",
+			},
 		},
 	},
 	PULSE_MODEL_KIND_MISMATCH: {
-		Message: "A reference names a bound fit of the other kind. One namespace holds regression fits (and loaded model files) and vector fits: a regression score and coef() read a regression; a fitted vector attribute's or a matrix slot's `params.fit` reads a vector fit (a `fits` entry over one matrix or fitted-attribute battery). The name is under `name` / `fit`, its kind under `kind`, the kind the reference reads under `expected`.",
+		Message: "A reference names a bound fit of the other kind. One namespace holds regression fits (and loaded model files) and vector fits: a regression score and coef() read a regression; a fitted vector attribute's or a matrix slot's `params.fit` reads a vector fit (a `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry). The name is under `name` / `fit`, its kind under `kind`, the kind the reference reads under `expected`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1884,7 +1894,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_SAVE_INVALID: {
-		Message: "A `save` path (on a regression or a `fits` entry) cannot name a model file, so nothing runs — predict refuses it identically. A save path is relative to the instance filesystem root, names a file ending in `.pulse-model.json` with a name before the suffix, and never climbs above the root with `..`; one request or Compose batch never saves two models to the same file (reason `duplicate`, the two writers under `sites`). Every path in a batch is judged before any fit or slot runs. The path is under `path`, the rule under `reason` (`path_empty`, `suffix`, `name_missing`, `escapes_root`, `duplicate`), the offending regression's index under `regression`, the fit's under `fit` and a batch slot's under `request`.",
+		Message: "A `save` path (on a regression or a `fits` entry) cannot name its file, so nothing runs — predict refuses it identically. A save path is relative to the instance filesystem root, names a file ending in `.pulse-model.json` (a regression or regression fit: a model file) or `.pulse-population.json` (a vector fit: a population file) with a name before the suffix, and never climbs above the root with `..`; one request or Compose batch never saves two fits to the same file (reason `duplicate`, the two writers under `sites`). Every path in a batch is judged before any fit or slot runs. The path is under `path`, the rule under `reason` (`path_empty`, `suffix`, `name_missing`, `escapes_root`, `duplicate`), the offending regression's index under `regression`, the fit's under `fit` and a batch slot's under `request`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1894,7 +1904,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"fits", "*", "save"},
-				Hint:   "Give the fit's `save` a `.pulse-model.json` path under the data root.",
+				Hint:   "Give the fit's `save` a path under the data root: `.pulse-model.json` for a regression fit, `.pulse-population.json` for a vector fit (e.g. `pops/brand.pulse-population.json`).",
 			},
 			{
 				Action: FixupReplaceField,
@@ -1904,7 +1914,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_WRITE_FAILED: {
-		Message: "Writing a model file failed on the filesystem: creating its directory, the temp file, writing, syncing or renaming it over the target (the stage is under `stage`, the file under `path`, the model under `name`). The write is atomic, so the target keeps its previous content or stays absent; the fit itself succeeded.",
+		Message: "Writing a model or population file failed on the filesystem: creating its directory, the temp file, writing, syncing or renaming it over the target (the stage is under `stage`, the file under `path`, the model or population under `name`). The write is atomic, so the target keeps its previous content or stays absent; the fit itself succeeded.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1914,7 +1924,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_OVERWRITTEN: {
-		Message: "A model file save replaced an existing file at its path (under `path`; the model under `name`, a fit's index under `fit`). The save succeeded and the new file is complete; the warning exists so a replaced model is never silent.",
+		Message: "A model or population file save replaced an existing file at its path (under `path`; the model or population under `name`, a fit's index under `fit`). The save succeeded and the new file is complete; the warning exists so a replaced model or population is never silent.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1924,25 +1934,25 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_FILE_INVALID: {
-		Message: "A model file cannot be parsed: it is not JSON (reason `json`), has no `model_format_version` (`version_missing`), or its version-1 document has an unknown key, a mistyped value or a structural fault such as a predictor without a coefficient (`schema`). The file is under `path`; a `models` entry loading it adds its index under `model` and its name under `name`.",
+		Message: "A model or population file cannot be parsed: it is not JSON (reason `json`), has no `model_format_version` / `population_format_version` (`version_missing`), or its document has an unknown key, a mistyped value or a structural fault — a predictor without a coefficient; a population whose labels, means or co-moment do not match in shape, whose co-moment is not symmetric, or whose counts or weight sums are impossible (`schema`). The file is under `path`; a `models` entry loading it adds its index under `model`, a `populations` entry under `population`, and either its name under `name`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Re-save the model from its fit with `save`; a model file is written by Pulse and should not be hand-edited.",
+				Hint:   "Re-save the model or population from its fit with `save`; these files are written by Pulse and should not be hand-edited.",
 			},
 		},
 	},
 	PULSE_MODEL_VERSION_UNSUPPORTED: {
-		Message: "A model file's `model_format_version` is not one this build reads (the file under `path`, its version under `version`, the readable ones under `supported`).",
+		Message: "A model file's `model_format_version` (or a population file's `population_format_version`) is not one this build reads (the file under `path`, its version under `version`, the readable ones under `supported`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Re-save the model with this build (rerun the fit with `save`), or load it with the Pulse version that wrote it.",
+				Hint:   "Re-save the model or population with this build (rerun the fit with `save`), or load it with the Pulse version that wrote it.",
 			},
 		},
 	},
 	PULSE_MODEL_REF_INVALID: {
-		Message: "A `models` entry cannot name a model file, so nothing runs — predict refuses it identically. An entry needs a `name` (the name its references use) and a `path` under the instance filesystem root ending in `.pulse-model.json`, with a file name before the suffix and no `..` above the root. The entry's index is under `model`, the rule under `reason` (`name_empty`, `path_empty`, `suffix`, `name_missing`, `escapes_root`).",
+		Message: "A `models` or `populations` entry cannot name its file, so nothing runs — predict refuses it identically. An entry needs a `name` (the name its references use) and a `path` under the instance filesystem root ending in `.pulse-model.json` (a `models` entry) or `.pulse-population.json` (a `populations` entry), with a file name before the suffix and no `..` above the root. The entry's index is under `model` or `population`, the rule under `reason` (`name_empty`, `path_empty`, `suffix`, `name_missing`, `escapes_root`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1954,15 +1964,25 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"models", "*", "name"},
 				Hint:   "Give the entry the name its scoring references use.",
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"populations", "*", "path"},
+				Hint:   "Point `path` at the population file a vector fit's `save` wrote, e.g. `pops/brand.pulse-population.json`.",
+			},
 		},
 	},
 	PULSE_MODEL_FILE_UNREADABLE: {
-		Message: "A `models` entry's file cannot be read: it does not exist (reason `missing`) or reading it failed — a directory, permissions or an I/O fault (`unreadable`). Every model file is read before any record is read (in a batch or chain, before anything runs), so nothing ran. The file is under `path`, the entry's index under `model` and its name under `name`.",
+		Message: "A `models` or `populations` entry's file cannot be read: it does not exist (reason `missing`) or reading it failed — a directory, permissions or an I/O fault (`unreadable`). Every model and population file is read before any record is read (in a batch or chain, before anything runs), so nothing ran. The file is under `path`, the entry's index under `model` or `population` and its name under `name`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"models", "*", "path"},
 				Hint:   "Point `path` at an existing model file under the data root (a regression or fit `save` writes one).",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"populations", "*", "path"},
+				Hint:   "Point `path` at an existing population file under the data root (a vector fit's `save` writes one).",
 			},
 		},
 	},

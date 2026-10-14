@@ -79,7 +79,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	}
 	stageSets := make([]*model.Set, len(req.Stages))
 	for i, st := range req.Stages {
-		set, err := s.loadModels(nil, st.Request.Models)
+		set, err := s.loadModels(nil, model.RequestRefs(st.Request))
 		if err != nil {
 			return nil, descx.RefusalAt(err, "stage", i)
 		}

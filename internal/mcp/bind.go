@@ -754,6 +754,7 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	props["vectors"] = vectorsSchema()
 	props["matrices"] = matricesSchema(c, inst)
 	props["models"] = modelsSchema("Saved model files loaded by name, before any record is read, into the namespace Compose `fits` bind: ATTR_REG_PREDICT `fit` and coef() resolve a loaded name like a fit. A name bound twice is PULSE_MODEL_NAME_COLLISION.")
+	props["populations"] = populationsSchema()
 
 	itemProps := func(slot string) map[string]any {
 		arr, _ := props[slot].(map[string]any)
@@ -970,6 +971,26 @@ func modelsSchema(desc string) map[string]any {
 			"properties": map[string]any{
 				"name": map[string]any{"type": "string", "description": "The name references use; unique across the request's models and any fit."},
 				"path": map[string]any{"type": "string", "description": "The model file, relative to the data root, ending .pulse-model.json."},
+			},
+			"required":             []string{"name", "path"},
+			"additionalProperties": false,
+		},
+	}
+}
+
+// populationsSchema is Request.populations (types.PopulationRef):
+// population files a vector fit's `save` wrote, loaded by name as
+// vector fits. Dropped with the slot when capability:models is hidden
+// (dropHiddenSlots).
+func populationsSchema() map[string]any {
+	return map[string]any{
+		"type":        "array",
+		"description": "Saved population files (a Compose vector fit's save) loaded by name, before any record is read, as vector fits: a fitted attribute's or MAT_* slot's params.fit resolves a loaded name like a Compose vector fit, aligned by member label. A name bound twice is PULSE_MODEL_NAME_COLLISION.",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string", "description": "The name params.fit uses; unique across the request's models, populations and any fit."},
+				"path": map[string]any{"type": "string", "description": "The population file, relative to the data root, ending .pulse-population.json."},
 			},
 			"required":             []string{"name", "path"},
 			"additionalProperties": false,
@@ -1588,7 +1609,7 @@ func fitsSchema(reqSchema map[string]any, inst *descx.InstanceSnapshot) map[stri
 			"required": []string{"name", "request"},
 		},
 	}
-	addModelSave(out, inst, "Write the bound model as a model file at this path (relative to the data root, ending .pulse-model.json) once the fit has run; overwriting warns PULSE_MODEL_OVERWRITTEN.")
+	addModelSave(out, inst, "Write the bound fit once it has run, at this path relative to the data root: a regression fit as a model file (ending .pulse-model.json), a vector fit as a population file (ending .pulse-population.json, loaded later with `populations`); overwriting warns PULSE_MODEL_OVERWRITTEN.")
 	return out
 }
 

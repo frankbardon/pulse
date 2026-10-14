@@ -3,8 +3,6 @@ package processing
 import (
 	"fmt"
 	"math"
-	"strconv"
-	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -200,17 +198,14 @@ func labelPermutation(slot string, vf *model.VectorFit, labels []string) ([]int,
 
 // labelPermutationAt is labelPermutation for a slot of kind key
 // ("attribute", "matrix"), named under details[key].
+// The rule is vectors.AlignFit, shared with the field-reference walk
+// (predict judges a loaded population's labels the same way).
 func labelPermutationAt(key, slot string, vf *model.VectorFit, labels []string) ([]int, error) {
-	t := vectors.ReferenceTable{Labels: vf.Labels}
-	perm, ce := t.Match("", "", labels)
-	if ce == nil {
-		return perm, nil
+	perm, ce := vectors.AlignFit(key, slot, vf.Name, vf.Labels, labels)
+	if ce != nil {
+		return nil, ce
 	}
-	ce.Details["fit"] = vf.Name
-	ce.Details[key] = slot
-	ce.Message = slot + ": bound vector fit " + strconv.Quote(vf.Name) + " labels [" + strings.Join(vf.Labels, ", ") +
-		"] are not the slot's member labels [" + strings.Join(labels, ", ") + "]; a fit is matched by label, never by position"
-	return nil, ce
+	return perm, nil
 }
 
 // mean is the (weighted) fit mean, axis order.

@@ -29,13 +29,39 @@ type FitSpec struct {
 	// groups, no crosstab.
 	Request *Request `json:"request"`
 
-	// Save writes the bound model as a model file at this path once the
-	// fit has run, under the fit's Name — the RegressionSpec.Save
-	// contract (suffix, root, atomic write, overwrite warning). Gated by
-	// capability:model_save. Empty writes nothing. A regression fit
-	// only: a vector fit with a save is refused (PULSE_FIT_INVALID
-	// reason vector_save).
+	// Save writes the bound fit to a file at this path once the fit has
+	// run, under the fit's Name — the RegressionSpec.Save contract
+	// (root, atomic write, PULSE_MODEL_OVERWRITTEN warning). A
+	// regression fit writes a model file (the path ends
+	// .pulse-model.json); a vector fit writes a population file (the
+	// path ends .pulse-population.json) that a later request loads with
+	// `populations`. Gated by capability:model_save. Empty writes
+	// nothing.
 	Save string `json:"save,omitempty"`
+}
+
+// PopulationRef is one entry of Request.Populations: a population file
+// a vector fit's `save` wrote, loaded under Name for this request. The
+// name joins the request's bound-model namespace — the one a Compose
+// `fits` list and the `models` entries bind — as a vector fit, so a
+// fitted attribute's or MAT_* slot's params.fit resolves it exactly
+// like a Compose vector fit of the same name; a name bound twice (by a
+// `models` entry, another population or a fit) is
+// PULSE_MODEL_NAME_COLLISION.
+//
+// The file is read (through the instance filesystem) and decoded
+// before any record is read — in a Compose batch or a chain, before any
+// fit or slot runs. Its provenance is informational: a population
+// fitted on one cohort scores any cohort holding columns its member
+// labels align to (by label, never by position).
+type PopulationRef struct {
+	// Name binds the population for the request. Required; unique
+	// across the request's models, populations and any Compose fit.
+	Name string `json:"name"`
+
+	// Path is the population file, relative to the data root, ending
+	// .pulse-population.json — the save-path rule.
+	Path string `json:"path"`
 }
 
 // ModelRef is one entry of Request.Models (and FacetRequest.Models): a

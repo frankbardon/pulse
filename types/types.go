@@ -1405,6 +1405,16 @@ type Request struct {
 	// capability:models. See ModelRef.
 	Models []ModelRef `json:"models,omitempty"`
 
+	// Populations loads saved population files (a Compose vector fit's
+	// `save`) by name, into the same bound-model namespace as vector
+	// fits: a fitted attribute's or MAT_* slot's params.fit resolves a
+	// loaded name exactly like a Compose vector fit of the same name.
+	// Every file is read, version-checked and decoded before any record
+	// is read; a name already bound (a `models` entry, another entry, or
+	// a Compose fit) is PULSE_MODEL_NAME_COLLISION. Gated by
+	// capability:models. See PopulationRef.
+	Populations []PopulationRef `json:"populations,omitempty"`
+
 	// Joins describes pushdown hash-join legs attached to the primary
 	// cohort. v1 supports exactly one inner join per Request; multi-
 	// join chains and the left/outer/anti kinds land in a follow-up.

@@ -2971,6 +2971,22 @@
       "properties": {},
       "type": "object"
     },
+    "PopulationRef": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "path"
+      ],
+      "type": "object"
+    },
     "RankEntry": {
       "additionalProperties": false,
       "properties": {
@@ -3628,6 +3644,15 @@
         "overlays": {
           "items": {
             "$ref": "#/$defs/OverlaySpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "populations": {
+          "items": {
+            "$ref": "#/$defs/PopulationRef"
           },
           "type": [
             "array",
@@ -4667,4 +4692,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 2116dffe3a84ccf53ee414666374f3490a8da5518ed4bc3370235545f0a055d8
+// golden-hash: 6ea47a8acb175bc9a00dcf49ed1435525668c09c076368511d1d833a6eae8087

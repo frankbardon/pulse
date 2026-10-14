@@ -89,7 +89,7 @@ func TestComposeVectorFits_PredictRuntimeParity(t *testing.T) {
 		{"kind_ambiguous", []types.FitSpec{{Name: "v", Request: mixed}}, nil, perr.PULSE_FIT_INVALID, "kind_ambiguous"},
 		{"vector grouped", []types.FitSpec{{Name: "v", Request: grouped}}, nil, perr.PULSE_FIT_INVALID, "grouped"},
 		{"vector_source", []types.FitSpec{{Name: "v", Request: vecFacadeMatrix(types.MAT_CORRELATION, `{"missing":"pairwise"}`)}}, nil, perr.PULSE_FIT_INVALID, "vector_source"},
-		{"vector_save", []types.FitSpec{{Name: "v", Request: vecFacadeMatrix(types.MAT_COVARIANCE, ""), Save: "v.pulse-model.json"}}, nil, perr.PULSE_FIT_INVALID, "vector_save"},
+		{"vector save model suffix", []types.FitSpec{{Name: "v", Request: vecFacadeMatrix(types.MAT_COVARIANCE, ""), Save: "v.pulse-model.json"}}, nil, perr.PULSE_MODEL_SAVE_INVALID, "suffix"},
 		{"matrix fit unknown", []types.FitSpec{pop}, vecFacadeMatrix(types.MAT_CORRELATION, `{"fit":"nope"}`), perr.PULSE_MODEL_UNKNOWN, ""},
 		{"matrix fit names a regression", []types.FitSpec{pop, reg}, vecFacadeMatrix(types.MAT_PCA, `{"fit":"reg"}`), perr.PULSE_MODEL_KIND_MISMATCH, ""},
 		{"attribute fit names a regression", []types.FitSpec{pop, reg}, mahal, perr.PULSE_MODEL_KIND_MISMATCH, ""},

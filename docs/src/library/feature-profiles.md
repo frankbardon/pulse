@@ -172,8 +172,8 @@ one name in every group must be enabled:
 | `ATTR_REG_PREDICT` | `REG_BAYES_LINEAR`, `REG_GLM` or `REG_OLS` (any one) |
 | `OVERLAY_YOY` | `GROUP_DATE` |
 | `capability:filter_to_file` | `FILTER_EXPRESSION` (filter-to-file compiles every filterer into one filter expression) |
-| `capability:model_save` | `REG_BAYES_LINEAR`, `REG_GLM` or `REG_OLS` (any one; a `save` writes a fitted regression as a model file) |
-| `capability:models` | `ATTR_REG_PREDICT`, `ATTR_FORMULA` or `FILTER_EXPRESSION` (any one; a loaded model is read only by a scoring reference) |
+| `capability:model_save` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_OLS`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE` or `capability:matrices` (any one; a `save` writes a fitted regression as a model file or a vector fit as a population file) |
+| `capability:models` | `ATTR_REG_PREDICT`, `ATTR_FORMULA`, `FILTER_EXPRESSION`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`, `ATTR_VEC_DISTANCE` or `capability:matrices` (any one; a loaded model is read only by a scoring reference, a loaded population — the `populations` key, which this capability also gates — only by a `params.fit`) |
 
 `TEST_TUKEY_HSD` does not require `TEST_ANOVA_F`.
 

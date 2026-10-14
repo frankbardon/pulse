@@ -85,9 +85,9 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		// fits run before Compose slots, and a fit is one regression
 		"capability:compose_fits": {{"capability:compose"}, {"ATTR_FACTOR_SCORE", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "REG_BAYES_LINEAR", "REG_GLM", "REG_OLS", "capability:matrices"}},
 		// a save writes a fitted regression, from any request host
-		"capability:model_save": {requestHosts, {"REG_BAYES_LINEAR", "REG_GLM", "REG_OLS"}},
+		"capability:model_save": {requestHosts, {"ATTR_FACTOR_SCORE", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "REG_BAYES_LINEAR", "REG_GLM", "REG_OLS", "capability:matrices"}},
 		// a load feeds a scoring reference, from any request host or a facet
-		"capability:models":            {{"capability:process", "capability:compose", "capability:process_chain", "capability:facet"}, {"ATTR_FORMULA", "ATTR_REG_PREDICT", "FILTER_EXPRESSION"}},
+		"capability:models":            {{"capability:process", "capability:compose", "capability:process_chain", "capability:facet"}, {"ATTR_FACTOR_SCORE", "ATTR_FORMULA", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "ATTR_REG_PREDICT", "ATTR_VEC_DISTANCE", "FILTER_EXPRESSION", "capability:matrices"}},
 		"ATTR_REG_FITTED":              {requestHosts, {"REG_OLS"}},
 		"ATTR_REG_LEVERAGE":            {requestHosts, {"REG_OLS"}},
 		"ATTR_REG_RESIDUAL":            {requestHosts, {"REG_OLS"}},

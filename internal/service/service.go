@@ -657,7 +657,7 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	// The request's `models`: every file read and decoded, bound beside
 	// what ctx already binds (a Compose pre-pass binds a slot's ahead),
 	// before any record is read — predict loads them at the same point.
-	ctx, err := s.bindRequestModels(ctx, req.Models)
+	ctx, err := s.bindRequestModels(ctx, model.RequestRefs(req))
 	if err != nil {
 		return nil, markLocated(err)
 	}

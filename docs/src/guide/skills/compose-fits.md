@@ -51,15 +51,15 @@ A **fit** is a named model a Compose batch runs ONCE, before any slot, so every 
 
 ## Saving
 
-`save: "models/mmm.pulse-model.json"` on an entry (or on any regression spec) writes the fitted model as a versioned model file under the data root once it has run: atomic, full precision, named after the fit. The path must end `.pulse-model.json` and stay under the root (`PULSE_MODEL_SAVE_INVALID`, checked before any fit runs); a failed write is `PULSE_MODEL_WRITE_FAILED`; replacing a file succeeds with `PULSE_MODEL_OVERWRITTEN` in the compose response's `warnings` (`details.fit`). Two saves naming one file anywhere in the batch are refused (`reason: duplicate`, `details.sites`); every save path — fits and slots — is checked before any fit or slot runs.
+`save` on an entry (or any regression spec) writes the fit under the data root once it has run, atomic and full precision, named after the fit: a regression as a model file (`models/mmm.pulse-model.json`), a vector fit as a population file (`pops/brand.pulse-population.json` — its stored state, nothing derived). A wrong suffix or a path above the root is `PULSE_MODEL_SAVE_INVALID`, checked before any fit runs; a failed write `PULSE_MODEL_WRITE_FAILED`; replacing a file succeeds with `PULSE_MODEL_OVERWRITTEN` in the compose `warnings` (`details.fit`). Two saves naming one file in a batch are refused (`reason: duplicate`).
 
 ## Loading
 
-`models: [{name: "mmm", path: "models/mmm.pulse-model.json"}]` on any request (slot, fit request, process, chain stage, facet) loads a saved model under `name` into the same namespace: references resolve it exactly like a fit (bit for bit), on any cohort holding its predictor columns (provenance is informational). Every file is read before anything runs — in a batch, before any fit — so a load sees the file as it was before the batch. Refusals: `PULSE_MODEL_REF_INVALID` (no name, bad path), `PULSE_MODEL_FILE_UNREADABLE`, `PULSE_MODEL_FILE_INVALID`, `PULSE_MODEL_VERSION_UNSUPPORTED`, and `PULSE_MODEL_NAME_COLLISION` for a name a fit or another entry binds (`details.sources` names both).
+`models: [{name, path}]` on any request (slot, fit request, process, chain stage, facet) loads a saved model under `name` into the same namespace; `populations: [{name, path}]` (not on facet) loads a population file as a vector fit, read by `params.fit` and matched by label. References resolve either exactly like the fit that saved it, on any cohort holding the columns (provenance is informational). Every file is read before anything runs, so a load sees it as it was before the batch. Refusals (`details.model` / `details.population`): `PULSE_MODEL_REF_INVALID`, `PULSE_MODEL_FILE_UNREADABLE`, `PULSE_MODEL_FILE_INVALID`, `PULSE_MODEL_VERSION_UNSUPPORTED`, `PULSE_MODEL_NAME_COLLISION` (`details.sources` names both).
 
 ## Refusals
 
-- `PULSE_FIT_INVALID` with `details.reason`: `name_missing`, `request_missing`, `regression_count` (`count`), `kind_ambiguous` (regression AND battery), `vector_count`, `grouped`, `vector_source` (pairwise, a between-group distance, reverse-keyed reliability), `vector_save`. Checked before any fit or slot runs.
+- `PULSE_FIT_INVALID` with `details.reason`: `name_missing`, `request_missing`, `regression_count` (`count`), `kind_ambiguous` (regression AND battery), `vector_count`, `grouped`, `vector_source` (pairwise, a between-group distance, reverse-keyed reliability). Checked before any fit or slot runs.
 - A fit request's own refusal (an unknown field, a bad regression spec) keeps its code and gains `details.fit`, the 0-based entry index — as a slot's gains `details.request`. With several failing fits the lowest index is reported.
 
 ## Validate before executing
