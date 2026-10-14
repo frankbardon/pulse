@@ -238,12 +238,15 @@ var matrixClasses = map[types.MatrixType]Class{
 	// MAT_RELIABILITY reads the weighted co-moments: alpha is a ratio
 	// of the weighted covariance (scale-free), omega fits the weighted
 	// correlation; item_sd takes the kind's denominator (frequency
-	// Σw − 1, probability Σw − Σw²/Σw).
+	// Σw − 1, probability Σw − Σw²/Σw — per pair under pairwise
+	// deletion, each entry over its own rows, where the probability
+	// factor is no longer uniform and alpha reads it too).
 	types.MAT_RELIABILITY: ClassAware,
 	// MAT_PCA decomposes the weighted correlation (scale-free, kind
 	// free) or the weighted covariance (the kind's denominator, as
 	// MAT_RELIABILITY's item_sd); Bartlett's test reads N* = Σw
-	// (frequency) or Kish n_eff (probability).
+	// (frequency) or Kish n_eff (probability) — under pairwise deletion
+	// the smallest pair's own Σw / Kish n_eff.
 	types.MAT_PCA: ClassAware,
 	// MAT_COLLINEARITY reads the weighted correlation (VIF, centered
 	// Belsley) and the weighted uncentered moments W(Σ + μμᵀ) scaled

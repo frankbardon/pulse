@@ -313,6 +313,39 @@ pair_n <- function(X) {
   ok <- !is.na(as.matrix(X))
   crossprod(ok * 1)
 }
+# Weighted pairwise deletion (TODO #270): cov.wt has no pairwise mode,
+# so every entry is the one-rule wcov over THAT entry's complete rows —
+# the diagonal over the rows where the item is present, an off-diagonal
+# over the rows where both are. Under probability weights each entry
+# therefore carries its own Kish factor n_eff/(n_eff - 1) (cov.wt
+# "unbiased" per pair), never one slot-wide n_eff. The correlation is
+# the same per-pair fit's cov2cor (each pair over its own rows), and the
+# per-pair N* is sum(w) (frequency) or the pair's Kish n_eff.
+pw_rows <- function(X, i, j) !is.na(X[, i]) & !is.na(X[, j])
+pw_cov <- function(X, w, kind) {
+  X <- as.matrix(X); p <- ncol(X)
+  C <- matrix(NA_real_, p, p, dimnames = list(colnames(X), colnames(X)))
+  for (i in seq_len(p)) for (j in i:p) {
+    ok <- pw_rows(X, i, j)
+    v <- if (i == j) wcov(X[ok, i, drop = FALSE], w[ok], kind)[1, 1] else wcov(X[ok, c(i, j)], w[ok], kind)[1, 2]
+    C[i, j] <- C[j, i] <- v
+  }
+  C
+}
+pw_cor <- function(X, w, kind) {
+  X <- as.matrix(X); p <- ncol(X)
+  R <- diag(1, p); dimnames(R) <- list(colnames(X), colnames(X))
+  for (i in seq_len(p)) for (j in seq_len(p)) if (i < j) {
+    ok <- pw_rows(X, i, j)
+    R[i, j] <- R[j, i] <- cov2cor(wcov(X[ok, c(i, j)], w[ok], kind))[1, 2]
+  }
+  R
+}
+pw_mean <- function(X, w) sapply(seq_len(ncol(X)), function(i) { ok <- !is.na(X[, i]); sum(X[ok, i] * w[ok]) / sum(w[ok]) })
+pw_n_star <- function(X, w, kind) {
+  X <- as.matrix(X); p <- ncol(X)
+  min(sapply(seq_len(p), function(i) sapply(seq_len(p), function(j) n_star(w[pw_rows(X, i, j)], kind))))
+}
 
 # -------------------------------------------------------- rank correlation
 rank_cases <- list()
@@ -448,16 +481,17 @@ fa1 <- function(R, n) {
 
 rel_cases <- list()
 fa_cases <- list()
-add_rel <- function(fx, df, items, kind, missing = "listwise", reverse = character(0), smin = NA_real_, smax = NA_real_) {
+add_rel <- function(fx, df, items, kind, missing = "listwise", reverse = character(0), smin = NA_real_, smax = NA_real_, fa_case = TRUE) {
   d <- if (missing == "listwise") listwise(df, items) else df
   X <- as.matrix(d[, items])
   for (r in reverse) X[, r] <- smin + smax - X[, r]
   w <- wvec(d, kind)
   ns <- n_star(w, kind)
-  C <- if (missing == "pairwise") cov(X, use = "pairwise.complete.obs") else wcov(X, w, kind)
+  pww <- missing == "pairwise" && kind != "none"
+  C <- if (pww) pw_cov(X, w, kind) else if (missing == "pairwise") cov(X, use = "pairwise.complete.obs") else wcov(X, w, kind)
   # Pairwise: psych takes R from cor(use = "pairwise"), which is NOT
   # cov2cor of the pairwise covariance (each pair has its own rows).
-  m <- if (missing == "pairwise") alpha_manual(C, cor(X, use = "pairwise.complete.obs")) else alpha_manual(C)
+  m <- if (pww) alpha_manual(C, pw_cor(X, w, kind)) else if (missing == "pairwise") alpha_manual(C, cor(X, use = "pairwise.complete.obs")) else alpha_manual(C)
   if (kind == "none") {
     a <- suppressWarnings(suppressMessages(psych::alpha(as.data.frame(X), check.keys = FALSE, warnings = FALSE)))
     near(a$total$raw_alpha, m$alpha, 1e-10, paste("psych alpha", fx))
@@ -470,10 +504,10 @@ add_rel <- function(fx, df, items, kind, missing = "listwise", reverse = charact
       near(ak$total$raw_alpha, m$alpha, 1e-10, paste("psych keyed alpha", fx))
     }
   }
-  mu <- if (missing == "pairwise") colMeans(X, na.rm = TRUE) else wmean(X, w)
+  mu <- if (pww) pw_mean(X, w) else if (missing == "pairwise") colMeans(X, na.rm = TRUE) else wmean(X, w)
   sdv <- sqrt(diag(C))
-  if (missing == "pairwise") sdv <- apply(X, 2, sd, na.rm = TRUE)
-  nn <- if (missing == "pairwise") min(pair_n(X)) else ns
+  if (missing == "pairwise" && !pww) sdv <- apply(X, 2, sd, na.rm = TRUE)
+  nn <- if (pww) pw_n_star(X, w, kind) else if (missing == "pairwise") min(pair_n(X)) else ns
   f <- if (length(items) >= 3) fa1(m$R, nn) else NULL
   rel_cases[[length(rel_cases) + 1]] <<- list(
     fixture = fx, items = strs(items), reverse = strs(reverse),
@@ -488,7 +522,7 @@ add_rel <- function(fx, df, items, kind, missing = "listwise", reverse = charact
     omega_total_observed = if (is.null(f)) jnull else num(f$omega_total_observed),
     heywood = if (is.null(f)) FALSE else f$heywood
   )
-  if (!is.null(f)) {
+  if (!is.null(f) && fa_case) {
     fa_cases[[length(fa_cases) + 1]] <<- list(
       fixture = fx, fields = strs(items), reverse = strs(reverse),
       missing = missing, weight = kind, n_obs = num(nn),
@@ -512,12 +546,19 @@ for (kind in w_kinds) {
   add_rel("likert_ties", lk, c("q1", "q2"), kind)
 }
 add_rel("nulls", nl, paste0("x", 1:4), "none", "pairwise")
+# Weighted pairwise (TODO #270): per-entry n_eff under probability.
+# They pin the covariance figures (alpha, item_sd, ...); they add no
+# mv_fa_minres case — the minres solver is pinned on the cases above,
+# and on the probability R psych's L-BFGS-B stops ~1.6e-5 short of the
+# minimum Pulse reaches (beyond that golden's 1e-5 loading bound).
+add_rel("nulls", nl, paste0("x", 1:4), "frequency", "pairwise", fa_case = FALSE)
+add_rel("nulls", nl, paste0("x", 1:4), "probability", "pairwise", fa_case = FALSE)
 add_rel("heywood", hw, c("h1", "h2", "h3"), "none")
 if (!fa_cases[[length(fa_cases)]]$heywood) stop("heywood fixture did not produce a Heywood case")
 
 rel_doc <- c(mv_meta("reliability (alpha) and omega",
   "psych::alpha(check.keys = FALSE) (unweighted, asserted against the manual formulas); manual alpha on the weighted covariance; omega from psych::fa(nfactors = 1, fm = 'minres')",
-  "Reversed items are x' = scale_min + scale_max - x BEFORE the fold (psych::alpha(keys=) asserted equal). item_total_r is the corrected item-total r (psych r.drop). item_sd is sqrt(diag(cov)) under the one rule (pairwise: per-item sd). omega_total_model = (sum lambda)^2 / ((sum lambda)^2 + sum psi); omega_total_observed = 1 - sum psi / sum(R) (psych::omega's omega.tot). Both are null for p = 2 (no one-factor fit). heywood flags any psi <= 0.005 or |lambda| >= 1 (see mv_fa_minres)."),
+  "Reversed items are x' = scale_min + scale_max - x BEFORE the fold (psych::alpha(keys=) asserted equal). item_total_r is the corrected item-total r (psych r.drop). item_sd is sqrt(diag(cov)) under the one rule (pairwise: per-item sd). Weighted pairwise: every covariance / correlation entry is the one-rule cov.wt over that entry's own complete rows, so under probability weights each entry carries its own Kish factor n_eff/(n_eff - 1) (never one slot-wide n_eff); item_mean is the weighted mean over the rows where the item is present. omega_total_model = (sum lambda)^2 / ((sum lambda)^2 + sum psi); omega_total_observed = 1 - sum psi / sum(R) (psych::omega's omega.tot). Both are null for p = 2 (no one-factor fit). heywood flags any psi <= 0.005 or |lambda| >= 1 (see mv_fa_minres)."),
   list(cases = rel_cases))
 fa_doc <- c(mv_meta("one-factor minres",
   "psych::fa(r = R, nfactors = 1, fm = 'minres', n.obs = n, rotate = 'none')",
@@ -531,7 +572,12 @@ add_pca <- function(fx, df, cols, kind, on = "correlation", missing = "listwise"
   X <- as.matrix(d[, cols])
   w <- wvec(d, kind)
   ns <- n_star(w, kind)
-  if (missing == "pairwise") {
+  if (missing == "pairwise" && kind != "none") {
+    # Weighted pairwise: every entry over its own rows (pw_cov / pw_cor),
+    # N* the smallest pair's own sum(w) / Kish n_eff.
+    S <- pw_cov(X, w, kind); ns <- pw_n_star(X, w, kind)
+    R <- pw_cor(X, w, kind)
+  } else if (missing == "pairwise") {
     # Pairwise: R is cor(use = "pairwise") — each pair over its own rows,
     # the MAT_CORRELATION matrix Pulse analyses — NOT cov2cor of the
     # pairwise covariance (whose variances rest on other rows).
@@ -575,9 +621,15 @@ for (kind in w_kinds) {
   add_pca("nulls", nl, paste0("x", 1:4), kind)
 }
 add_pca("nulls", nl, paste0("x", 1:4), "none", missing = "pairwise")
+# Weighted pairwise (TODO #270): per-entry n_eff in the covariance, the
+# smallest pair's own N* in Bartlett.
+for (kind in c("frequency", "probability")) {
+  add_pca("nulls", nl, paste0("x", 1:4), kind, missing = "pairwise")
+  add_pca("nulls", nl, paste0("x", 1:4), kind, on = "covariance", missing = "pairwise")
+}
 pca_doc <- c(mv_meta("principal components, KMO and Bartlett",
   "eigen(M, symmetric = TRUE) (prcomp asserted on unweighted listwise); psych::KMO(R); psych::cortest.bartlett(R, n = n_star)",
-  "Eigenvectors carry Pulse's sign convention (largest-magnitude component positive, tie within 2^-26 -> lowest index); loadings = eigenvector * sqrt(lambda). Eigenvalues descending. kaiser_components / communalities_kaiser are for correlation input only (lambda > 1). KMO and Bartlett always run on the correlation; n_star = N listwise, min pair n pairwise, sum(w) frequency, Kish n_eff probability. The pairwise correlation is cor(use = 'pairwise.complete.obs') (each pair over its own rows), not cov2cor of the pairwise covariance."),
+  "Eigenvectors carry Pulse's sign convention (largest-magnitude component positive, tie within 2^-26 -> lowest index); loadings = eigenvector * sqrt(lambda). Eigenvalues descending. kaiser_components / communalities_kaiser are for correlation input only (lambda > 1). KMO and Bartlett always run on the correlation; n_star = N listwise, min pair n pairwise, sum(w) frequency, Kish n_eff probability (weighted pairwise: the smallest pair's own sum(w) / Kish n_eff, every covariance entry cov.wt over its own rows). The pairwise correlation is cor(use = 'pairwise.complete.obs') (each pair over its own rows), not cov2cor of the pairwise covariance."),
   list(cases = pca_cases))
 
 # ------------------------------------------------------------ collinearity

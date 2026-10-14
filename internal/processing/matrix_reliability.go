@@ -38,9 +38,13 @@ import (
 // C is the kind's sample covariance: M2/(Σw − 1) unweighted and under
 // frequency weights (the rep() expansion), M2/(Σw − Σw²/Σw) under
 // probability weights (cov.wt "unbiased" on normalised weights — the
-// slot-wide Kish factor n_eff/(n_eff − 1) on the population form, also
-// on a pairwise slot). Alpha, its item forms and r̄ are scale-free, so
-// only item_sd reads the denominator.
+// Kish factor n_eff/(n_eff − 1) on the population form, n_eff per entry:
+// on a pairwise slot each pair's own rows, cov.wt per pair). On a
+// listwise slot the factor is uniform, so alpha, its item forms and r̄
+// are scale-free and only item_sd reads it; on a pairwise probability
+// slot the factor differs per entry, so alpha, alpha_if_deleted and
+// item_total_r read it too. An entry whose n_eff ≤ 1 is NaN and nulls
+// every figure it reaches.
 //
 // omega is null with a warning (never a quiet number):
 //   - p = 2: one factor is not identified (PULSE_MATRIX_NOT_IDENTIFIED);
@@ -185,18 +189,24 @@ const minresMinMembers = 3
 // reliabilityCov is the items' sample covariance under the slot's
 // weight kind: M2/(Σw − 1) unweighted or frequency-weighted; under
 // probability weights M2/Σw times n_eff/(n_eff − 1) (= M2/(Σw −
-// Σw²/Σw), cov.wt "unbiased"), NaN when n_eff ≤ 1.
+// Σw²/Σw), cov.wt "unbiased"), NaN when n_eff ≤ 1. n_eff is PER ENTRY:
+// CoMoment.PairNEff(i, j), the Kish size of the rows that entry rests
+// on — on a pairwise slot each pair's own rows (the diagonal: the rows
+// where the item is present), on a listwise slot the global NEff for
+// every entry (PairNEff ≡ NEff there, so listwise bits are those of the
+// slot-wide factor). The pairwise frequency/unweighted denominators are
+// already per pair (Cov's PairW − 1).
 func reliabilityCov(cm *linalg.CoMoment, w *types.WeightSpec) *linalg.Sym {
 	if w == nil || w.EffectiveKind() != types.WeightKindProbability {
 		return cm.Cov(1)
 	}
 	c := cm.Cov(0)
-	f := math.NaN()
-	if neff := cm.NEff(); neff > 1 {
-		f = neff / (neff - 1)
-	}
 	for i := 0; i < c.N(); i++ {
 		for j := i; j < c.N(); j++ {
+			f := math.NaN()
+			if neff := cm.PairNEff(i, j); neff > 1 {
+				f = neff / (neff - 1)
+			}
 			c.Set(i, j, float64(c.At(i, j)*f))
 		}
 	}

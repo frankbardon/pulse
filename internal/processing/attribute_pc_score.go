@@ -18,7 +18,8 @@ import (
 // The fit is MAT_PCA's decomposition on the fit rows: the analysed
 // matrix M is the members' correlation (params.on "correlation", the
 // default; CoMoment.Corr) or their ddof = 1 covariance on w*
-// (fittedState.cov — MAT_PCA's reliabilityCov, the kind's denominator),
+// (fittedState.cov — MAT_PCA's listwise reliabilityCov, the kind's
+// denominator; a fit is listwise, so its one n_eff is every entry's),
 // decomposed by linalg.SymEigen, so the order (eigenvalues descending)
 // and the sign (each eigenvector's largest-magnitude component
 // positive) are MAT_PCA's and a score correlates with each member with

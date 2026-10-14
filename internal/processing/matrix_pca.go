@@ -373,14 +373,16 @@ func sphericityStats(in *matrixFinalizeInput, r *linalg.Sym, nStar float64, outp
 // pcaNStar is the inference size of a matrix's inferential figures
 // (weighting.md "Weighted inference"): listwise N (unweighted), Σw
 // (frequency) or Kish n_eff (probability); pairwise the smallest
-// pair's — min over i ≤ j of the pair's Σw scaled by N*/Σw (so PairN
-// unweighted, pair Σw under frequency, pair Σw·n_eff/Σw under
-// probability) — with the PULSE_MATRIX_PAIRWISE_N_STAR warning naming
+// pair's — min over i ≤ j of the pair's own N* (PairN unweighted, the
+// pair's Σw under frequency, the pair's Kish n_eff PairNEff = PairW²/
+// PairW2 under probability, matrix_inference.go's pairSize rule) —
+// with the PULSE_MATRIX_PAIRWISE_N_STAR warning naming
 // it, its outputs and what uses it (uses: "Bartlett's test uses").
 func pcaNStar(in *matrixFinalizeInput, outputs []string, uses string) (float64, *types.ResponseWarning) {
 	cm := in.CM
 	w := in.slot.weight
-	full, scale := sphericityNStar(cm, weighting.BasisOf(w))
+	basis := weighting.BasisOf(w)
+	full, _ := sphericityNStar(cm, basis)
 	plan := in.Plan()
 	if !plan.Pairwise {
 		return full, nil
@@ -392,7 +394,7 @@ func pcaNStar(in *matrixFinalizeInput, outputs []string, uses string) (float64, 
 		for j := i; j < len(members); j++ {
 			v := float64(cm.PairN(i, j))
 			if w != nil {
-				v = float64(cm.PairW(i, j) * scale)
+				v = basis.NStar(cm.PairW(i, j), cm.PairW2(i, j))
 			}
 			if v < best {
 				best, bi, bj = v, i, j

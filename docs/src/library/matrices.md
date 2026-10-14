@@ -174,6 +174,13 @@ and McDonald's `omega`; `vectors` carry, per item in axis order, the
 corrected `item_total_r` (the item against the sum of the others),
 `alpha_if_deleted`, `item_mean` and `item_sd`.
 
+Under a probability weight the covariance is `cov.wt`'s "unbiased"
+form, scaled by n_eff/(n_eff − 1). With `missing: "pairwise"` every
+entry rests on its own rows, so each takes its own pair's Kish n_eff
+(an item's variance takes the rows where that item is present). An
+entry whose n_eff is at most 1 is `null`, and so is every figure it
+reaches: `alpha`, `alpha_if_deleted` and `item_total_r`.
+
 Reverse-worded items are named in `params.reverse` together with the
 battery's `scale_min` / `scale_max`: each value becomes
 `scale_min + scale_max − x` before the fold, so the operator streams and

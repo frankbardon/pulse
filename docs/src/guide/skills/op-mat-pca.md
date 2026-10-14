@@ -50,7 +50,7 @@ Integer / float members.
 ## Gotchas
 
 - Signs are free. Rotated: read `rotated_variance`.
-- Bartlett's n: rows, Σw or n_eff, pairwise the smallest pair.
+- Bartlett's n: rows, Σw or n_eff, pairwise the smallest pair's own. A pairwise weighted covariance scales each entry by its own pair.
 - Singular: KMO, Bartlett null (`PULSE_MATRIX_SINGULAR`). Non-PSD pairwise: `PULSE_MATRIX_NOT_PSD` unless `repair`.
 
 ## See
