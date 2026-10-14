@@ -31,7 +31,7 @@ None. Weight-aware (`"weight": null` opts out): Σw·popcount (a float).
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | any set rung — `set_u8`, `set_u16`, `set_u32`, `set_u64`, `set_u128`, `set_u256` |
+| `Field` | any set rung — `set_u8`, `set_u16`, `set_u32`, `set_u64`, `set_u128`, `set_u256`; any other type is refused `PROCESSING_CONFIG` by predict and the runtime |
 
 ## Output
 

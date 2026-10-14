@@ -144,6 +144,16 @@ func valueReaderRefusalCases() []fieldTypeRefusalCase {
 				fill(op, acceptanceTemplates[op], ft)
 			}
 		}
+		// A non-set column on a set operator: 14 ops x 14 scalar types
+		// (decimal128 included).
+		if !ft.IsSet() {
+			for _, op := range []string{"AGG_SET_CARDINALITY_AVG", "AGG_SET_CARDINALITY_SUM", "AGG_SET_DISTINCT_VALUES",
+				"AGG_SET_FREQUENCY", "AGG_SET_INTERSECTION", "AGG_SET_UNION", "ATTR_SET_HAS", "ATTR_SET_POPCOUNT",
+				"FILTER_SET_CONTAINS_ALL", "FILTER_SET_CONTAINS_ANY", "FILTER_SET_CONTAINS_NONE", "FILTER_SET_EQUALS",
+				"GROUP_SET_PER_ELEMENT", "GROUP_SET_VALUE"} {
+				fill(op, acceptanceTemplates[op], ft)
+			}
+		}
 		// AGG_WELFORD reads only the six plain integer / float types.
 		switch ft {
 		case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,

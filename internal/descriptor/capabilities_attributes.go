@@ -183,7 +183,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Name:         string(types.ATTR_SET_POPCOUNT),
 			Category:     "attribute",
 			Description:  "Per-row popcount of a set field — the number of selected labels.",
-			AcceptsTypes: setFieldTypes,
+			AcceptsTypes: tableAcceptsTypes(types.ATTR_SET_POPCOUNT),
 			// u16, not u8. The popcount of a fully-selected column is the
 			// rung's width, and the widest rung is set_u256 — 256, which
 			// is one past u8's 255 ceiling. u8 was right while set_u64
@@ -212,7 +212,7 @@ func attributeCapabilities() []descriptor.Operator {
 					Description: "Dictionary label whose bit position is checked per row.",
 				},
 			},
-			AcceptsTypes:  setFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.ATTR_SET_HAS),
 			EmitsType:     "packed_bool",
 			EmitsTypeNote: "one 0/1 per record",
 			Streamable:    true,

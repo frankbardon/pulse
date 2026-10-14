@@ -420,7 +420,6 @@ func knownTypeDivergence(op string, ft encoding.FieldType) string {
 	if ft.IsVector() {
 		return ""
 	}
-	set := ft.IsSet()
 	temporal := ft == encoding.FieldTypeDate || ft == encoding.FieldTypeDateTime
 	in := func(names ...string) bool {
 		for _, n := range names {
@@ -436,11 +435,8 @@ func knownTypeDivergence(op string, ft encoding.FieldType) string {
 	// PULSE_WEIGHT_UNSUPPORTED by the shared resolver on both sides.)
 	case ft.IsDecimal() && in("AGG_CI_LOWER", "AGG_CI_UPPER", "AGG_DISTINCT_SUM", "AGG_KURTOSIS",
 		"AGG_MEDIAN", "AGG_NULL_COUNT", "AGG_PERCENTILE", "AGG_RANGE", "AGG_RATIO", "AGG_SKEWNESS",
-		"AGG_ZSCORE", "AGG_SET_UNION", "AGG_SET_INTERSECTION",
-		"AGG_SET_FREQUENCY", "AGG_SET_CARDINALITY_SUM", "AGG_SET_CARDINALITY_AVG", "AGG_SET_DISTINCT_VALUES"):
+		"AGG_ZSCORE"):
 		return "predict only WARNS PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL (an error under Strict); the runtime refuses decimal128 regardless"
-	case !set && strings.Contains(op, "_SET_"):
-		return "the runtime constructor refuses a non-set column on a set operator; predict has no type check"
 	case in("GROUP_DATE_RANGES", "FILTER_DATE_RANGES") && !temporal:
 		return "the runtime refuses a non-temporal field; predict has no type check"
 	case in("FILTER_TRUE", "FILTER_FALSE") && ft != encoding.FieldTypePackedBool:

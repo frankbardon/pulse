@@ -17,7 +17,7 @@ func TestPredict_FieldAcceptance_DecimalReportedOnce(t *testing.T) {
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 6,
 			Description: "Amount in USD with 6 decimal places of precision."},
 	}})
-	for _, op := range []types.AggregationType{types.AGG_MODE, types.AGG_FREQUENCY} {
+	for _, op := range []types.AggregationType{types.AGG_MODE, types.AGG_FREQUENCY, types.AGG_SET_UNION} {
 		for _, strict := range []bool{false, true} {
 			req := &types.Request{Aggregations: []*types.Aggregation{{Type: op, Field: "amount", Params: []byte(`{"value":"1"}`)}}}
 			env := predictFromBytes(data, req, &PredictOptions{Strict: strict})
@@ -42,6 +42,12 @@ func TestPredict_FieldAcceptance_HiddenOperatorIsNeverRegistered(t *testing.T) {
 	schema.Fields = append(schema.Fields, encoding.Field{Name: "tags", Type: encoding.FieldTypeSetU8,
 		Dictionary: makeDictionary(t, "a", "b"), Description: "Multi-select tags for the exam sitting"})
 	data := buildTestPulseFile(t, schema)
+	hiddenNameParity(t, "FILTER_SET_CONTAINS_ANY", "FILTER_NEVER_REGISTERED", func(name string, opts *PredictOptions) string {
+		return predictOutcome(t, data, &types.Request{
+			Filterers:    []*types.Filterer{{Type: types.FiltererType(name), Field: "score", Values: []string{"a"}}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "score", Label: "n"}},
+		}, opts)
+	})
 	hiddenNameParity(t, "GROUP_RANGE", "GROUP_NEVER_REGISTERED", func(name string, opts *PredictOptions) string {
 		return predictOutcome(t, data, &types.Request{
 			Groups:       []*types.Group{{Type: types.GroupType(name), Field: "tags"}},

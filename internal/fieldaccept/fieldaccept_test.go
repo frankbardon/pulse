@@ -149,3 +149,15 @@ func TestOperatorsRaising(t *testing.T) {
 		}
 	}
 }
+
+func TestTypeNames_SetOperators(t *testing.T) {
+	want := []string{"set_u128", "set_u16", "set_u256", "set_u32", "set_u64", "set_u8"}
+	for _, op := range []string{"AGG_SET_UNION", "ATTR_SET_HAS", "FILTER_SET_EQUALS", "GROUP_SET_VALUE"} {
+		if got := TypeNames(op, SlotField); !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: %v, want %v", op, got, want)
+		}
+		if r := Refusal(op, SlotField, "d", encoding.FieldTypeDecimal128); r == nil || r.Code != errors.PROCESSING_CONFIG {
+			t.Errorf("%s on decimal128: %v", op, r)
+		}
+	}
+}

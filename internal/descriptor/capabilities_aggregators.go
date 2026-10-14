@@ -158,23 +158,6 @@ var allCohortFieldTypes = []string{
 	"vec_f64",
 }
 
-// setFieldTypes lists the bitmask multi-select field types. Used by every
-// AGG_SET_* / FILTER_SET_* / GROUP_SET_* / ATTR_SET_* operator — they
-// reject non-set fields at construction time.
-//
-// Every registered rung belongs here, narrow and wide alike: the set
-// operators read encoding.SetMask, which is width-agnostic, so a list
-// that stopped at set_u64 would tell a caller AGG_SET_UNION cannot fold
-// a column it folds fine.
-var setFieldTypes = []string{
-	"set_u128",
-	"set_u16",
-	"set_u256",
-	"set_u32",
-	"set_u64",
-	"set_u8",
-}
-
 // nonSetFieldTypes is allCohortFieldTypes minus every set rung (and
 // minus the vector types, which have no scalar value either). It
 // belongs to the operators that accept "any field" in the sense of "any
@@ -701,7 +684,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_SET_UNION),
 			Category:      "aggregator",
 			Description:   "Bitwise-OR a set field across rows; returns the resolved labels for every bit set in any contributing row.",
-			AcceptsTypes:  setFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_SET_UNION),
 			EmitsTypeNote: "rich []string (resolved labels); scalar fallback = popcount of the union mask; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar (so is a chain stage carrying it that feeds another)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -714,7 +697,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_SET_INTERSECTION),
 			Category:      "aggregator",
 			Description:   "Bitwise-AND a set field across rows; returns the resolved labels for every bit set in every contributing row.",
-			AcceptsTypes:  setFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_SET_INTERSECTION),
 			EmitsTypeNote: "rich []string (resolved labels); scalar fallback = popcount of the intersection mask; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar (so is a chain stage carrying it that feeds another)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -727,7 +710,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_SET_FREQUENCY),
 			Category:      "aggregator",
 			Description:   "Per-bit row count: how many rows had each set label selected; on a weighted slot the sum of their weights.",
-			AcceptsTypes:  setFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_SET_FREQUENCY),
 			EmitsTypeNote: "rich map[string]int (label→row count; map[string]float64 of weight sums when weighted); scalar fallback = max single-label frequency; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar (so is a chain stage carrying it that feeds another)",
 			Streamable:    true,
 			// Partial: per_label_count merges across chunks but the
@@ -743,7 +726,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_SET_CARDINALITY_SUM),
 			Category:      "aggregator",
 			Description:   "Sum of popcounts across contributing rows — total selections seen; on a weighted slot sum(w * popcount).",
-			AcceptsTypes:  setFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_SET_CARDINALITY_SUM),
 			EmitsTypeNote: "scalar int64 (float64 when weighted)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -754,7 +737,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_SET_CARDINALITY_AVG),
 			Category:      "aggregator",
 			Description:   "Average popcount per contributing row — typical number of selections; on a weighted slot sum(w * popcount) / sum(w).",
-			AcceptsTypes:  setFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_SET_CARDINALITY_AVG),
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -766,7 +749,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_SET_DISTINCT_VALUES),
 			Category:      "aggregator",
 			Description:   "Count of distinct exact mask values seen; each combination is atomic.",
-			AcceptsTypes:  setFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_SET_DISTINCT_VALUES),
 			EmitsTypeNote: "scalar int64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,

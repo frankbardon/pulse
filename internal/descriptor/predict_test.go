@@ -3,6 +3,7 @@ package descriptor
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -309,12 +310,17 @@ func TestPredictKeyComposerMatchesAggregatorKey(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "val", Type: encoding.FieldTypeF64, Description: "Test value for all aggregation types"},
+			{Name: "tags", Type: encoding.FieldTypeSetU8, Dictionary: makeDictionary(t, "a", "b"), Description: "Multi-select tags for the set aggregations"},
 		},
 	}
 	data := buildTestPulseFile(t, schema)
 
 	for _, aggType := range types.AllAggregationTypes() {
 		agg := &types.Aggregation{Type: aggType, Field: "val", Label: "result"}
+		if strings.HasPrefix(string(aggType), "AGG_SET_") {
+			// A set aggregator reads a set column (an f64 is refused).
+			agg.Field = "tags"
+		}
 		if aggType == types.AGG_FREQUENCY {
 			// Its required params.value is refused when absent
 			// (TestPredict_AggFrequencyMissingValue).

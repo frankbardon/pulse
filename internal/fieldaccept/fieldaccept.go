@@ -136,6 +136,14 @@ func strictScalar(ft encoding.FieldType) bool {
 	return false
 }
 
+// setValue is the set-operator set: a set_* column's membership
+// bitmask, which every AGG_SET_* / ATTR_SET_* / FILTER_SET_* /
+// GROUP_SET_* operator reads. Every rung, narrow and wide alike:
+// encoding.SetMask is width-agnostic.
+func setValue(ft encoding.FieldType) bool {
+	return ft.IsSet()
+}
+
 // table is keyed by operator name, then slot.
 var table = map[string]map[Slot]Rule{}
 
@@ -180,6 +188,11 @@ func init() {
 	add(rangeBound, cfg, field, "FILTER_RANGE")
 	add(analyticsValue, cfg, []Slot{SlotTarget, SlotPredictor},
 		"ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE")
+	add(setValue, cfg, field,
+		"AGG_SET_CARDINALITY_AVG", "AGG_SET_CARDINALITY_SUM", "AGG_SET_DISTINCT_VALUES", "AGG_SET_FREQUENCY",
+		"AGG_SET_INTERSECTION", "AGG_SET_UNION", "ATTR_SET_HAS", "ATTR_SET_POPCOUNT",
+		"FILTER_SET_CONTAINS_ALL", "FILTER_SET_CONTAINS_ANY", "FILTER_SET_CONTAINS_NONE", "FILTER_SET_EQUALS",
+		"GROUP_SET_PER_ELEMENT", "GROUP_SET_VALUE")
 
 	memoTypeNames()
 }
