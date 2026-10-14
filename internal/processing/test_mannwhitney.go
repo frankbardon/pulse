@@ -65,10 +65,8 @@ func newMannWhitneyRow(spec *types.Test, schema *encoding.Schema) (RowTest, erro
 			map[string]any{"alpha": spec.Alpha})
 	}
 	if schema != nil {
-		if f := schema.Field(spec.Field); f != nil && (f.Type.IsCategorical()) {
-			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_FIELD_NOT_NUMERIC,
-				fmt.Sprintf("TEST_MANN_WHITNEY_U field %q has non-numeric type %s", spec.Field, f.Type.String()),
-				map[string]any{"field": spec.Field, "field_type": f.Type.String()})
+		if cerr := testFieldTypeRefusal(spec, schema); cerr != nil {
+			return nil, cerr
 		}
 		if f := schema.Field(spec.SplitBy); f != nil && !f.Type.IsCategorical() {
 			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,

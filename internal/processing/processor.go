@@ -1740,7 +1740,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	}
 
 	if len(req.Windows) > 0 {
-		if err := window.ApplyWithExt(ctx, data, req.Windows, p.exts.LookupWindow); err != nil {
+		if err := p.applyWindows(ctx, data, req.Windows); err != nil {
 			return nil, err
 		}
 	}

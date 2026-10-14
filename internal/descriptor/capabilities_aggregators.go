@@ -44,8 +44,9 @@ var numericFieldTypes = []string{
 // numericFieldTypesNoDecimal lists numeric types excluding the
 // fixed-point decimal types. Used by aggregators that operate in float64
 // space (variance, stddev, skewness, kurtosis) and by the window /
-// attribute / feature families. Mirrors predict_window.isNumericType,
-// which gates the same set at predict time and has always admitted u4.
+// attribute families. The value windows declare the same set through
+// the accepted-types table (internal/fieldaccept), which gates it on
+// both sides.
 var numericFieldTypesNoDecimal = []string{
 	"date",
 	"f32",

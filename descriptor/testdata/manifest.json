@@ -7229,6 +7229,7 @@
         "description": "Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior; reports posterior means, std errors, and credible intervals.",
         "accepts_types": [
           "date",
+          "datetime",
           "decimal128",
           "f32",
           "f64",
@@ -7331,6 +7332,7 @@
         "description": "Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-appropriate links.",
         "accepts_types": [
           "date",
+          "datetime",
           "decimal128",
           "f32",
           "f64",
@@ -7495,6 +7497,7 @@
         "description": "Ordinary least squares with optional l1/l2/elasticnet regularization; covers simple, multiple, ridge, lasso, and elastic-net regression.",
         "accepts_types": [
           "date",
+          "datetime",
           "decimal128",
           "f32",
           "f64",
@@ -9257,7 +9260,7 @@
         ]
       }
     ],
-    "error_codes_count": 362,
+    "error_codes_count": 363,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9361,6 +9364,7 @@
       "PULSE_FEATURE_PROFILE_UNKNOWN",
       "PULSE_FEAT_TARGET_LEAKAGE_RISK",
       "PULSE_FIELD_DESCRIPTION_LOW_QUALITY",
+      "PULSE_FIELD_TYPE_UNSUPPORTED",
       "PULSE_FIT_INVALID",
       "PULSE_FORMULA_TOTAL_ARITY",
       "PULSE_FORMULA_TOTAL_NESTED",
@@ -17126,4 +17130,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ddddcc08a15d08a90532bd78029db676565b29ccb8a7a3c9c567bfa2217924a7
+// golden-hash: ff595b03c355d04273c004be504d85555763d6d178ef151906c513990a68a352

@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/ewmaparams"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -34,19 +35,6 @@ var windowFrameRejected = map[types.WindowType]bool{
 	types.WIN_DENSE_RANK: true,
 	types.WIN_PCT_CHANGE: true,
 	types.WIN_DELTA:      true,
-}
-
-// windowNumericFieldRequired lists window types whose source field MUST be numeric.
-// ROW_NUMBER, RANK, DENSE_RANK do not read a value field, so they are not in this map.
-var windowNumericFieldRequired = map[types.WindowType]bool{
-	types.WIN_LAG:         true,
-	types.WIN_LEAD:        true,
-	types.WIN_RUNNING_SUM: true,
-	types.WIN_RUNNING_AVG: true,
-	types.WIN_MOVING_AVG:  true,
-	types.WIN_EWMA:        true,
-	types.WIN_PCT_CHANGE:  true,
-	types.WIN_DELTA:       true,
 }
 
 // windowFieldRequired reports whether the operator requires a Field at all.
@@ -86,23 +74,12 @@ func IsOrderableType(ft encoding.FieldType) bool {
 	return !ft.IsSet() && !ft.IsVector()
 }
 
-// isNumericType reports whether the field type carries a meaningful scalar
-// value for window arithmetic (sum, avg, lag, ewma, etc.). Intentionally
-// narrower than the canonical encoding.FieldType.IsNumericForAnalytics:
-// decimal128 is excluded because the buffered decimal path is unimplemented
-// for window operators, and the bit-packed bool encoding is excluded
-// because windowing a 0/1 series rarely matches caller intent. Keep this
-// helper local; widen it only after the corresponding window engines
-// support the broader set.
+// isNumericType reports whether the field type is a value-window
+// input — the accepted-types table's (internal/fieldaccept) value-window
+// set, which validateWindows enforces. Kept for the missing-field
+// suggestions (numericFallbackFields).
 func isNumericType(ft encoding.FieldType) bool {
-	switch ft {
-	case encoding.FieldTypeU4,
-		encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
-		encoding.FieldTypeF32, encoding.FieldTypeF64,
-		encoding.FieldTypeDate:
-		return true
-	}
-	return false
+	return !ft.IsVector() && fieldaccept.Accepts(string(types.WIN_LAG), fieldaccept.SlotField, ft)
 }
 
 // validateSort checks that every Request.Sort key names a field.
@@ -183,12 +160,10 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 					"window["+idx+"] ("+string(w.Type)+"): field is required",
 					map[string]any{"window_index": i, "type": string(w.Type)},
 				)
-			} else if f := schema.Field(w.Field); f != nil && !f.Type.IsVector() && windowNumericFieldRequired[w.Type] && !isNumericType(f.Type) {
-				env.AddError(
-					string(errors.PULSE_WINDOW_INVALID),
-					"window["+idx+"] ("+string(w.Type)+"): field "+w.Field+" must be numeric (got "+f.Type.String()+")",
-					map[string]any{"window_index": i, "field": w.Field, "field_type": f.Type.String()},
-				)
+			} else if cerr := fieldaccept.Check(string(w.Type), fieldaccept.SlotField, w.Field, schema); cerr != nil {
+				// The accepted-types table's refusal, the runtime's
+				// (processing applyWindows) word for word.
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
 		}
 

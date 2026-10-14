@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -70,7 +71,7 @@ func featureCapabilities() []descriptor.Operator {
 			Params: []descriptor.Param{
 				{Name: "degree", Type: "int", Required: true, Description: "Polynomial degree; must be >= 2 and <= 10. Degree 1 (linear) is the original column."},
 			},
-			AcceptsTypes:  numericFieldTypes,
+			AcceptsTypes:  fieldaccept.TypeNames(string(types.FEAT_POLY), fieldaccept.SlotField),
 			EmitsType:     "f64",
 			EmitsTypeNote: "columns \"<label>_2\" .. \"<label>_<Degree>\" (default prefix <field>_poly)",
 			Streamable:    true,

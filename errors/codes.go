@@ -432,6 +432,15 @@ const (
 	// non-orderable order key, label collision, or unsupported window type.
 	PULSE_WINDOW_INVALID Code = "PULSE_WINDOW_INVALID"
 
+	// PULSE_FIELD_TYPE_UNSUPPORTED indicates an operator slot names a
+	// field whose type the slot does not accept — a value window, FEAT_POLY
+	// or a regression over a categorical's dictionary index, a set's
+	// bitmask, or another type the operator cannot read as a value. The
+	// accepted types are the one table internal/fieldaccept; predict and
+	// the runtime raise the same refusal, Details {type, slot, field,
+	// field_type, accepts_types}.
+	PULSE_FIELD_TYPE_UNSUPPORTED Code = "PULSE_FIELD_TYPE_UNSUPPORTED"
+
 	// PULSE_FEAT_TARGET_LEAKAGE_RISK flags every FEAT_TARGET_ENCODE. The
 	// encoder reads no split column and features run before filters, so
 	// each encoded value averages every record's outcome — the record's
@@ -3703,6 +3712,7 @@ var allCodes = []Code{
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
 	PULSE_WINDOW_INVALID,
+	PULSE_FIELD_TYPE_UNSUPPORTED,
 	PULSE_FEAT_TARGET_LEAKAGE_RISK,
 	PULSE_DECIMAL_OVERFLOW,
 	PULSE_DECIMAL_PRECISION_LOSS,

@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"testing"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
@@ -280,10 +282,12 @@ func TestRecordRowCells_EveryFieldTypeIsJSONNative(t *testing.T) {
 	}
 }
 
-// TestRecordRowCells_DecimalWindowCopyRendersAndOrders: a window that
-// copies a decimal cell (WIN_LAG) emits the same decimal string, and a
-// window order_by / Request.Sort over the decimal column still orders by
-// value — the cell keeps its value and scale until the row is final.
+// TestRecordRowCells_DecimalWindowCopyRendersAndOrders: a window
+// order_by and a Request.Sort over a decimal column order by value, and
+// the record row still renders the decimal string — the cell keeps its
+// value and scale until the row is final. A value window over the
+// decimal itself (WIN_LAG) is refused by the accepted-types table
+// (internal/fieldaccept, TODO #199), so it cannot copy the cell.
 func TestRecordRowCells_DecimalWindowCopyRendersAndOrders(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	orderabilityCohort(t, fs, "dec.pulse") // id 1..5, amt 10.50 -3.25 2.50 100.00 null
@@ -291,8 +295,14 @@ func TestRecordRowCells_DecimalWindowCopyRendersAndOrders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	_, err = p.Process(context.Background(), &types.Request{Cohort: &types.Cohort{Filename: "dec.pulse"},
+		Windows: []*types.Window{{Type: types.WIN_LAG, Field: "amt", Label: "prev", OrderBy: []types.OrderKey{{Field: "amt"}}}}})
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_FIELD_TYPE_UNSUPPORTED {
+		t.Fatalf("WIN_LAG over decimal128: %v, want PULSE_FIELD_TYPE_UNSUPPORTED", err)
+	}
 	resp, err := p.Process(context.Background(), &types.Request{Cohort: &types.Cohort{Filename: "dec.pulse"},
-		Windows: []*types.Window{{Type: types.WIN_LAG, Field: "amt", Label: "prev", OrderBy: []types.OrderKey{{Field: "amt"}}}},
+		Windows: []*types.Window{{Type: types.WIN_ROW_NUMBER, Label: "prev", OrderBy: []types.OrderKey{{Field: "amt"}}}},
 		Sort:    []types.OrderKey{{Field: "amt", Desc: true}}})
 	if err != nil {
 		t.Fatal(err)
@@ -306,7 +316,7 @@ func TestRecordRowCells_DecimalWindowCopyRendersAndOrders(t *testing.T) {
 	for _, r := range rows {
 		got = append(got, fmt.Sprintf("%v/%v", r["amt"], r["prev"]))
 	}
-	want := "[100.00/10.50 10.50/2.50 2.50/-3.25 -3.25/<nil> <nil>/100.00]"
+	want := "[100.00/4 10.50/3 2.50/2 -3.25/1 <nil>/5]"
 	if fmt.Sprint(got) != want {
 		t.Errorf("amt/prev = %v, want %s", got, want)
 	}

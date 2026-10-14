@@ -311,7 +311,7 @@ func TestPredict_RegressionValidation(t *testing.T) {
 		{
 			name:        "categorical predictor",
 			regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"region"}}},
-			wantCode:    "SERVICE_VALIDATION",
+			wantCode:    "PULSE_FIELD_TYPE_UNSUPPORTED",
 		},
 		{
 			name:        "glm missing family",

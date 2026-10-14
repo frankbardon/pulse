@@ -797,6 +797,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_FIELD_TYPE_UNSUPPORTED: {
+		Message: "An operator slot names a field whose type the operator does not accept (details.accepts_types lists the types it does).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Name a field of one of details.accepts_types, or derive one first (ATTR_FORMULA, FEAT_ONE_HOT for a categorical, ATTR_SET_HAS / ATTR_SET_POPCOUNT for a set).",
+			},
+		},
+	},
 	PULSE_FEAT_TARGET_LEAKAGE_RISK: {
 		Message: "FEAT_TARGET_ENCODE averages every record's outcome, the record's own and validation/test records' included, because it reads no split column; a preceding train/test split does not change a single value.",
 		Fixups: []Fixup{

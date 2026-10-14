@@ -3,6 +3,7 @@ package regression
 import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -102,6 +103,9 @@ func BuildWith(specs []*types.RegressionSpec, schema *encoding.Schema, resolve R
 				"unknown regression type: "+string(s.Type),
 			)
 		}
+		if cerr := regressionFieldTypeRefusal(s, schema); cerr != nil {
+			return nil, cerr
+		}
 		eng, err := factory(s, schema)
 		if err != nil {
 			return nil, err
@@ -109,6 +113,24 @@ func BuildWith(specs []*types.RegressionSpec, schema *encoding.Schema, resolve R
 		out = append(out, eng)
 	}
 	return out, nil
+}
+
+// regressionFieldTypeRefusal is the accepted-types table's refusal
+// (internal/fieldaccept) for s's target and predictors — a categorical's
+// dictionary index or a set's bitmask is not a regressor — nil when
+// every schema field is accepted. A name the schema lacks (a derived
+// column) is not judged here. Predict reports the same refusal.
+func regressionFieldTypeRefusal(s *types.RegressionSpec, schema *encoding.Schema) *errors.CodedError {
+	op := string(s.Type)
+	if cerr := fieldaccept.Check(op, fieldaccept.SlotTarget, s.Target, schema); cerr != nil {
+		return cerr
+	}
+	for _, name := range s.Predictors {
+		if cerr := fieldaccept.Check(op, fieldaccept.SlotPredictor, name, schema); cerr != nil {
+			return cerr
+		}
+	}
+	return nil
 }
 
 // Fit drives Build then invokes Fit on every engine in order. Returns

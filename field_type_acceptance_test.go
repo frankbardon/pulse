@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/io/csv"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
@@ -399,17 +400,17 @@ var acceptanceDataOutcomes = map[errors.Code]bool{
 // predict and the runtime are KNOWN to disagree, each with its reason;
 // "" means they must agree. It is exact: an entry that no longer
 // diverges fails the gate too, so a fix removes its entry in the same
-// change. Two directions:
+// change. Every remaining entry is one direction, predict looser: the
+// runtime's operator constructor refuses a type predict has no check
+// for, so predict promises a request the engine then turns away.
 //
-//   - predict looser: the runtime's operator constructor refuses a type
-//     predict has no check for, so predict promises a request the engine
-//     then turns away;
-//   - predict stricter where the RUNTIME is wrong: the engine runs a
-//     type it cannot meaningfully read (a categorical's dictionary
-//     index, a set's bitmask), so predict is not widened to match.
-//
-// Predict stricter than a CORRECT runtime is never listed: that is a
-// predict bug and is fixed (FEAT_POLY on u4 / date was one).
+// The other direction — predict stricter where the RUNTIME was wrong,
+// windowing / expanding / regressing a categorical's dictionary index
+// or a set's bitmask — is closed: those slots live in the
+// accepted-types table (internal/fieldaccept), which both sides read
+// and the gate checks as the third party. Predict stricter than a
+// CORRECT runtime is never listed: that is a predict bug and is fixed
+// (FEAT_POLY on u4 / date was one).
 //
 // A vector type is never listed: every slot that reads one value
 // refuses a vec field on both sides with PULSE_VECTOR_FIELD_NOT_SCALAR
@@ -454,17 +455,6 @@ func knownTypeDivergence(op string, ft encoding.FieldType) string {
 		return "the runtime cannot parse a dictionary label as a range bound; predict accepts it"
 	case cat && in("ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE"):
 		return "the runtime refuses a categorical predictor; predict has no type check"
-	case cat && op == "TEST_Z_TWO_SAMPLE":
-		return "the runtime refuses a categorical field (PULSE_TEST_FIELD_NOT_NUMERIC); predict has no check"
-
-	// Predict stricter, runtime wrong.
-	case op == "FEAT_POLY" && (cat || set || ft == encoding.FieldTypePackedBool || ft == encoding.FieldTypeDateTime):
-		return "the runtime expands any column (a categorical's index, a set's bitmask); the skill and manifest exclude these"
-	case cat && in("REG_OLS", "REG_GLM", "REG_BAYES_LINEAR"):
-		return "the runtime regresses on a categorical's dictionary index; predict refuses it as non-numeric"
-	case in("WIN_LAG", "WIN_LEAD", "WIN_RUNNING_SUM", "WIN_RUNNING_AVG", "WIN_MOVING_AVG", "WIN_EWMA", "WIN_PCT_CHANGE", "WIN_DELTA") &&
-		(cat || set || ft.IsDecimal() || ft == encoding.FieldTypePackedBool || ft == encoding.FieldTypeDateTime):
-		return "the runtime windows whatever the record row carries for the column; predict admits only u4..u64, f32/f64, date"
 	}
 	return ""
 }
@@ -511,6 +501,29 @@ func TestFieldTypeAcceptance_PredictMatchesRuntime(t *testing.T) {
 			predictOK := len(env.Errors) == 0
 			if runtimeOK && predictOK {
 				anyAccepted = true
+			}
+			// The accepted-types table is the third party: a slot it
+			// refuses is refused by BOTH sides with its code (once at
+			// predict), and a type it accepts is never refused with it.
+			slot := fieldaccept.SlotField
+			if strings.HasPrefix(op, "REG_") {
+				slot = fieldaccept.SlotPredictor
+			}
+			if rule, tabled := fieldaccept.Lookup(op, slot); tabled {
+				var predictCodes []string
+				for _, e := range env.Errors {
+					predictCodes = append(predictCodes, e.Code)
+				}
+				if !fieldaccept.Accepts(op, slot, ft) {
+					if runtimeOK || ce == nil || ce.Code != rule.Code {
+						t.Errorf("%s × %s: the table refuses it (%s); runtime returned %v", op, ft, rule.Code, rerr)
+					}
+					if len(predictCodes) != 1 || predictCodes[0] != string(rule.Code) {
+						t.Errorf("%s × %s: the table refuses it (%s); predict reported %v", op, ft, rule.Code, predictCodes)
+					}
+				} else if ce != nil && ce.Code == rule.Code && !ft.IsVector() {
+					t.Errorf("%s × %s: the table accepts it, yet the runtime refused %v", op, ft, rerr)
+				}
 			}
 			known := knownTypeDivergence(op, ft)
 			switch {

@@ -357,7 +357,7 @@ func TestPredictWindow_NonNumericField(t *testing.T) {
 		},
 	}
 	env := predictFromBytes(data, req, nil)
-	if !envHasErrorContaining(env, "must be numeric") {
+	if !envHasErrorCode(env, errors.PULSE_FIELD_TYPE_UNSUPPORTED) {
 		t.Fatalf("expected non-numeric field error, got %+v", env.Errors)
 	}
 }
@@ -642,7 +642,7 @@ func TestPredictWindow_DeltaNumericFieldRequired(t *testing.T) {
 		},
 	}
 	env := predictFromBytes(data, req, nil)
-	if !envHasErrorContaining(env, "must be numeric") {
+	if !envHasErrorCode(env, errors.PULSE_FIELD_TYPE_UNSUPPORTED) {
 		t.Fatalf("expected non-numeric field error for WIN_DELTA, got %+v", env.Errors)
 	}
 }

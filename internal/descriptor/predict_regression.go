@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/types"
@@ -62,12 +63,10 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		} else {
 			// An unknown name is the field-reference rule's refusal
 			// (FieldRefRefusals); only a schema field is type-checked.
-			if f := schema.Field(reg.Target); f != nil && !f.Type.IsVector() && !regressionAcceptsType(reg.Type, f.Type) {
-				env.AddError(
-					string(errors.SERVICE_VALIDATION),
-					"regression target field "+reg.Target+" is not numeric (got "+f.Type.String()+")",
-					map[string]any{"field": reg.Target, "type": f.Type.String()},
-				)
+			// The accepted-types table's refusal, the runtime's
+			// (regression.BuildWith) word for word.
+			if cerr := fieldaccept.Check(string(reg.Type), fieldaccept.SlotTarget, reg.Target, schema); cerr != nil {
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
 		}
 
@@ -78,17 +77,11 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 				map[string]any{"type": string(reg.Type)},
 			)
 		}
+		// Unknown: FieldRefRefusals; derived: untyped; vector:
+		// vectorScalarRefusals — fieldaccept.Check judges none of them.
 		for _, p := range reg.Predictors {
-			f := schema.Field(p)
-			if f == nil || f.Type.IsVector() {
-				continue // unknown: FieldRefRefusals; derived: untyped; vector: vectorScalarRefusals
-			}
-			if !regressionAcceptsType(reg.Type, f.Type) {
-				env.AddError(
-					string(errors.SERVICE_VALIDATION),
-					"regression predictor field "+p+" is not numeric (got "+f.Type.String()+")",
-					map[string]any{"field": p, "type": f.Type.String()},
-				)
+			if cerr := fieldaccept.Check(string(reg.Type), fieldaccept.SlotPredictor, p, schema); cerr != nil {
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
 		}
 

@@ -19,7 +19,7 @@ Feature operators emit derived columns; no `Response.Components`.
 
 ## Inputs
 
-`Field` — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`; `decimal128` via f64. No categorical, `packed_bool`, `datetime` or `set_*` (predict refuses them; the runtime does not yet).
+`Field` — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`; `decimal128` via f64. A categorical, `set_*`, `packed_bool` or `datetime` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime alike).
 
 ## Output
 

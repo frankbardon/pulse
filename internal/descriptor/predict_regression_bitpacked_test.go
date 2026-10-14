@@ -31,7 +31,7 @@ func TestPredict_REG_OLS_AcceptsBitPackedTargets(t *testing.T) {
 			}
 			env := predictFromBytes(data, req, nil)
 			for _, e := range env.Errors {
-				if e.Code == "SERVICE_VALIDATION" {
+				if e.Code == "SERVICE_VALIDATION" || e.Code == "PULSE_FIELD_TYPE_UNSUPPORTED" {
 					t.Fatalf("unexpected SERVICE_VALIDATION error on bit-packed target %q: %s", target, e.Message)
 				}
 			}
@@ -61,7 +61,7 @@ func TestPredict_REG_OLS_AcceptsBitPackedPredictors(t *testing.T) {
 	}
 	env := predictFromBytes(data, req, nil)
 	for _, e := range env.Errors {
-		if e.Code == "SERVICE_VALIDATION" {
+		if e.Code == "SERVICE_VALIDATION" || e.Code == "PULSE_FIELD_TYPE_UNSUPPORTED" {
 			t.Fatalf("unexpected SERVICE_VALIDATION error on bit-packed predictors: %s", e.Message)
 		}
 	}
@@ -90,7 +90,7 @@ func TestPredict_REG_GLM_AcceptsBitPackedTarget(t *testing.T) {
 	}
 	env := predictFromBytes(data, req, nil)
 	for _, e := range env.Errors {
-		if e.Code == "SERVICE_VALIDATION" {
+		if e.Code == "SERVICE_VALIDATION" || e.Code == "PULSE_FIELD_TYPE_UNSUPPORTED" {
 			t.Fatalf("unexpected SERVICE_VALIDATION on REG_GLM binomial + packed_bool target: %s", e.Message)
 		}
 	}
@@ -117,7 +117,7 @@ func TestPredict_REG_BAYES_LINEAR_AcceptsBitPackedTarget(t *testing.T) {
 	}
 	env := predictFromBytes(data, req, nil)
 	for _, e := range env.Errors {
-		if e.Code == "SERVICE_VALIDATION" {
+		if e.Code == "SERVICE_VALIDATION" || e.Code == "PULSE_FIELD_TYPE_UNSUPPORTED" {
 			t.Fatalf("unexpected SERVICE_VALIDATION on REG_BAYES_LINEAR + u4 target: %s", e.Message)
 		}
 	}
