@@ -61,7 +61,7 @@ How heavy the tails are next to a normal distribution. Pulse computes the popula
 
 - There are no sourced bands for kurtosis: the cut-offs quoted for it (such as 2 or 7) are pass/fail normality screens from particular fields, disagree on whether 3 has been subtracted, and are not graded readings.
 - Small-n bias: g2 differs from the adjusted G2 that Excel KURT and SPSS print, and on small groups the gap is large; neither is stable on a handful of rows.
-- It reads null when no row has a value, and 0 when n is 1 or the variance is zero (every value the same), so a 0 from a tiny or constant group says nothing about shape: check components n.
+- It reads null when no row has a value, when n is 1 or when the variance is zero (every value the same): no shape can be seen there. A 0 is a real, balanced reading; on a tiny group check components n before trusting it.
 - It measures the tails, not how pointed the peak looks, and a single extreme value can dominate it.
 
 <a id="op-agg_mae"></a>
@@ -168,7 +168,7 @@ How lopsided the values are around their mean. Pulse computes the population mom
 - The sign does not fix whether the mean sits above or below the median: the two often disagree on whole-number or many-peaked fields, so read AGG_MEDIAN beside AGG_AVERAGE for that.
 - There are no sourced bands for skewness: the 0.5 / 1 rules of thumb in circulation trace to secondary quotations that could not be checked against their source, so compare values with each other rather than with a fixed cut-off.
 - Small-n bias: g1 runs smaller in size than the adjusted G1 that Excel SKEW, SPSS and SAS print (G1 = g1 * sqrt(n(n-1)) / (n-2)), so the two disagree on small groups and converge as n grows; on a handful of rows neither is stable.
-- It reads null when no row has a value, and 0 when n is 1 or the variance is zero (every value the same), so a 0 from a tiny or constant group says nothing about shape: check components n.
+- It reads null when no row has a value, when n is 1 or when the variance is zero (every value the same): no shape can be seen there. A 0 is a real, balanced reading; on a tiny group check components n before trusting it.
 - Deviations are cubed, so one extreme value can set the sign and size on its own.
 
 <a id="op-agg_stddev"></a>
@@ -234,7 +234,7 @@ Three columns per group: mean (the average), variance (the SAMPLE variance, divi
 
 **Caveats:**
 
-- variance is 0 when n is below 2: no spread could be estimated, which is not the same as values that agree.
+- variance reads null when n is below 2 (weighted: when the weights sum to 1 or less): no spread could be estimated. A 0 means values that agree.
 - variance here divides by n - 1, so on the same rows it is larger than AGG_VARIANCE (which divides by n).
 - With no rows the result is empty, not zeros.
 
@@ -254,7 +254,7 @@ The average of every row's z-score within the group, which is 0 by construction 
 - There are no sourced bands for reading a z-score of this kind: the familiar 1.96 / 2.58 cut-offs are critical values of a test statistic built from a standard error, and this one is built from a spread of values instead, so it has no p-value behind it.
 - Which row is last depends on row order (not on date), so the components zscore is reproducible only on a fixed order.
 - The last row is part of the mean and spread it is scored against, which damps its zscore (never beyond sqrt(n - 1) in size), so it understates how unusual that row is; for a reading against its own past use OVERLAY_ZSCORE_VS_ROLLING.
-- The value and the components zscore read 0 when every value is the same (no spread); the value and every component read null when the group is empty.
+- The value and the components zscore read null when every value is the same (no spread: pop_stddev is 0 and the score is 0/0); the value and every component read null when the group is empty.
 
 ## Attributes
 

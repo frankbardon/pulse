@@ -48,7 +48,7 @@ Primary MATRIX: transition P (rows sum to 1). Parts: `step_<n>` (MATRIX Pⁿ), `
 - Reducible / periodic ⇒ `PULSE_OVERLAY_MARKOV_NOT_ERGODIC`, no `steady_state`.
 - Zero row ⇒ absorbing + `PULSE_OVERLAY_REF_ZERO`.
 - Never-absorbed state ⇒ `null` time.
-- Bad cell ⇒ `PULSE_OVERLAY_NONNEGATIVE_REQUIRED`.
+- Bad (negative / undefined NaN) cell ⇒ `PULSE_OVERLAY_NONNEGATIVE_REQUIRED`.
 
 ## See
 

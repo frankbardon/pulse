@@ -28,7 +28,7 @@ Scalar `float64`. Per-group when wired under a grouper.
 ## Components
 
 <!-- feature: capability:weighting -->Weighted slots add floor keys `sum_weights` (Σw), `n_eff` (Kish; `probability` only) and `n_weight_invalid`; absent ⇒ unweighted. <!-- /feature -->`n`/`n_null` stay raw counts.
-Weighted adds `sum_weighted`, `weighted_mean`, `m2_weighted`, `sum_weights_sq`, `weighted_variance` (m2/(Σw−1)).
+Weighted adds `sum_weighted`, `weighted_mean`, `m2_weighted`, `sum_weights_sq`, `weighted_variance` (m2/(Σw−1); `null` if Σw ≤ 1).
 
 Universal floor `{n, n_null}` plus operator-specific:
 

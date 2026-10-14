@@ -65,7 +65,7 @@ Average of a numeric field, over all rows or per group.
 
 **Assumptions:**
 
-- Missing values are skipped: the average is over rows that have a value. A group where no row has a value reads 0, not empty, so check n in the components before reporting it.
+- Missing values are skipped: the average is over rows that have a value. A group where no row has a value reads empty (null), never 0.
 
 **Use something else:**
 
@@ -406,7 +406,7 @@ Largest value of a numeric or date field, over all rows or per group.
 
 **Assumptions:**
 
-- Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.
+- Missing values are skipped; a group where no row has a value reads empty (null), never 0.
 - It rests on one row, so a single bad record sets it.
 
 **Use something else:**
@@ -440,7 +440,7 @@ Middle value of a numeric field once sorted: the typical row, not pulled by a fe
 
 **Assumptions:**
 
-- Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.
+- Missing values are skipped; a group where no row has a value reads empty (null), never 0.
 - With an even number of values it is the halfway point between the two middle values.
 
 **Use something else:**
@@ -474,7 +474,7 @@ Smallest value of a numeric or date field, over all rows or per group.
 
 **Assumptions:**
 
-- Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.
+- Missing values are skipped; a group where no row has a value reads empty (null), never 0.
 - It rests on one row, so a single bad record sets it.
 
 **Use something else:**
@@ -508,7 +508,7 @@ Most common value of a field, over all rows or per group.
 
 **Assumptions:**
 
-- Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.
+- Missing values are skipped; a group where no row has a value reads empty (null), never 0.
 - When several values share the top count, the smallest wins (for categories, the first in the dictionary); tie_count in the components shows it happened.
 
 **Use something else:**
@@ -648,7 +648,7 @@ Distance between the smallest and largest value of a numeric field, over all row
 
 **Assumptions:**
 
-- Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.
+- Missing values are skipped; a group where no row has a value reads empty (null), never 0.
 - It rests on the two most extreme rows, so one outlier can stretch it a lot.
 
 **Use something else:**
@@ -1136,7 +1136,7 @@ Average of a numeric field where each row counts in proportion to a weight field
 
 **Assumptions:**
 
-- Rows missing the value or the weight, or with weight 0, are left out of the average; when no row is left (or the weights add up to 0) it reads 0, not empty, so check sum_weights in the components.
+- Rows missing the value or the weight, or with weight 0, are left out of the average; when no row is left (or the weights add up to 0) it reads empty (null), never 0.
 - Negative weights are not refused and can make the result unstable.
 
 **Use something else:**

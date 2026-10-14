@@ -81,7 +81,7 @@ func TestMetaAggregator_CompositeOps_Components(t *testing.T) {
 				"weighted_mean":     math.NaN(),
 				"m2_weighted":       0.0,
 				"sum_weights_sq":    0.0,
-				"weighted_variance": 0.0,
+				"weighted_variance": math.NaN(), // Σw = 0 ≤ 1: undefined (E4-S6)
 				"n_eff":             0.0,
 			}},
 		},
@@ -99,7 +99,7 @@ func TestMetaAggregator_CompositeOps_Components(t *testing.T) {
 				"weighted_mean":     math.NaN(),
 				"m2_weighted":       0.0,
 				"sum_weights_sq":    0.0,
-				"weighted_variance": 0.0,
+				"weighted_variance": math.NaN(), // Σw = 0 ≤ 1: undefined (E4-S6)
 				"n_eff":             0.0,
 			}},
 		},

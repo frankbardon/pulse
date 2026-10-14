@@ -117,7 +117,7 @@
             {
               "name": "weighted_variance",
               "type": "float64",
-              "description": "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; 0 when Σw ≤ 1.",
+              "description": "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; null (NaN) when Σw ≤ 1.",
               "optional": true
             }
           ],
@@ -237,4 +237,4 @@
     }
   ]
 }
-// golden-hash: 90ca79e00c1f1c45624529de4f9b4e2c298d45fb74a69f320c90dd978b401dd6
+// golden-hash: 93caca6d22e4a31bacce7759e967e7910c178d3337fe571766f67536c8484f05

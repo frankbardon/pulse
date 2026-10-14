@@ -214,7 +214,8 @@ func (st *weightedState) scalar(op types.AggregationType) float64 {
 }
 
 // sampleVariance is the frequency-weights sample variance
-// m2 / (Σw − 1) — the unweighted n−1 form at w = 1; 0 when Σw ≤ 1.
+// m2 / (Σw − 1) — the unweighted n−1 form at w = 1; undefined (NaN,
+// JSON null) when Σw ≤ 1.
 func (st *weightedState) sampleVariance() float64 {
 	return weightedVariance(st.m2, st.sumW)
 }

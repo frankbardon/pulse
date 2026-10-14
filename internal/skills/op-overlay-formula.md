@@ -27,6 +27,7 @@ Shape matches host; one `float64` per evaluation. No `Baseline`.
 
 ## Gotchas
 
+- MATRIX: An undefined (NaN) host cell — a mean over no value, an unanswered element — is MISSING, as an absent one: the overlay cell stays absent, no warning, out of `summary.count`; never evaluated, out of the `sd_*` slices.
 - Predict refuses an identifier, function or slot path outside the namespace — `PULSE_OVERLAY_FORMULA_INVALID_IDENT` + allowed set; a Compose host refuses it identically at runtime.
 - Parse error → `PULSE_OVERLAY_FORMULA_PARSE_ERROR`; non-coercible result → `PULSE_OVERLAY_FORMULA_TYPE_MISMATCH`.
 - Embedder `ExprFunctions` widen functions, never variables. `lookup(...)` needs a LookupTable.

@@ -36,7 +36,7 @@ MATRIX — pair × opposite-axis grid of two-sided p-values <!-- feature: OVERLA
 ## Gotchas
 
 - Never weighted: a row weight reaching the overlay slot (request, its own `weight`, or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`<!-- feature: OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z --> and `details.alternative`: use `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` for weighted means<!-- /feature -->; set `"weight": null` on the overlay to run it unweighted.
-- Either leg with `n <= 1` skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`).
+- Either leg with `n <= 1`, or an undefined (`null`) Welford variance (n < 2 / Σw ≤ 1), skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`) — never scored off a 0 variance.
 - Assumes the normal approximation: no small-sample df correction.
 - `n_basis` here is inert; predict refuses it.
 - RAW p-values only — direction / thresholds are the embedder's job.

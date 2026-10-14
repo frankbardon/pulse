@@ -231,12 +231,11 @@ func (a *skewnessAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *skewnessAggregator) Finalize() (float64, error) {
 	a.frozenN, a.frozenMean, a.frozenM2, a.frozenM3 = a.n, a.mean, a.m2, a.m3
-	if a.n == 0 {
-		return math.NaN(), nil
-	}
 	if a.n <= 1 || a.m2 == 0 {
+		// No value, one value or zero spread: undefined, NaN (JSON
+		// null), never 0 (E4-S6).
 		a.n, a.mean, a.m2, a.m3 = 0, 0, 0, 0
-		return 0, nil
+		return math.NaN(), nil
 	}
 	n := float64(a.n)
 	// Population variance and stddev.
@@ -244,7 +243,7 @@ func (a *skewnessAggregator) Finalize() (float64, error) {
 	sd := math.Sqrt(variance)
 	if sd == 0 {
 		a.n, a.mean, a.m2, a.m3 = 0, 0, 0, 0
-		return 0, nil
+		return math.NaN(), nil
 	}
 	// Match buffered: mean of ((x-m)/sd)^3 = M3 / (n * sd^3)
 	out := a.m3 / (n * sd * sd * sd)
@@ -286,18 +285,17 @@ func (a *kurtosisAggregator) UpdateRow(r *Record, field string) error {
 
 func (a *kurtosisAggregator) Finalize() (float64, error) {
 	a.frozenN, a.frozenMean, a.frozenM2, a.frozenM3, a.frozenM4 = a.n, a.mean, a.m2, a.m3, a.m4
-	if a.n == 0 {
-		return math.NaN(), nil
-	}
 	if a.n <= 1 || a.m2 == 0 {
+		// No value, one value or zero spread: undefined, NaN (JSON
+		// null), never 0 (E4-S6).
 		a.n, a.mean, a.m2, a.m3, a.m4 = 0, 0, 0, 0, 0
-		return 0, nil
+		return math.NaN(), nil
 	}
 	n := float64(a.n)
 	variance := a.m2 / n
 	if variance == 0 {
 		a.n, a.mean, a.m2, a.m3, a.m4 = 0, 0, 0, 0, 0
-		return 0, nil
+		return math.NaN(), nil
 	}
 	out := a.m4/(n*variance*variance) - 3
 	a.n, a.mean, a.m2, a.m3, a.m4 = 0, 0, 0, 0, 0

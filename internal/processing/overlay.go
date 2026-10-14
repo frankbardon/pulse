@@ -168,7 +168,7 @@ func (h *CrosstabHostView) ColumnAxisDepth() int {
 // CellAt returns the scalar form of the host cell at (rowIdx,
 // colIdx) plus a present flag mirroring MatrixCell.Present. Returns
 // (0, false) when the indices are out of range or the cell is
-// structurally missing. Map-valued cells (RichAggregator outputs)
+// structurally missing or undefined (NaN). Map-valued cells (RichAggregator outputs)
 // fall through as (0, false) because the index-vs-margin handler is
 // scalar-only — the validator already rejects map-valued cell
 // aggregators paired with overlays that need division (the
@@ -190,6 +190,16 @@ func (h *CrosstabHostView) CellAt(rowIdx, colIdx int) (float64, bool) {
 		return 0, false
 	}
 	v, ok := scalarFromCell(cell)
+	if ok && math.IsNaN(v) {
+		// An undefined cell (an all-null AGG_AVERAGE bucket, a vector
+		// element cell nobody answered, a degenerate shape moment) is a
+		// MISSING cell to every crosstab-host overlay, exactly as an
+		// absent one: it scores no statistic, raises no warning, and
+		// never reaches a bucket sum, a slice SD or a test table — the
+		// series-host rule, on the matrix (matrix-extensions-hardening
+		// E4-S6; .claude/reference/execution-modes/overlays.md).
+		return 0, false
+	}
 	return v, ok
 }
 

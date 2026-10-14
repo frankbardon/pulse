@@ -27,6 +27,7 @@ MATRIX — `OverlayLayer.Payload.Matrix.Cells[r][c].Value` = `cell - margin`. Mi
 
 ## Gotchas
 
+- An undefined (NaN) host cell — a mean over no value, an unanswered element — is MISSING, as an absent one: the overlay cell stays absent, no warning, out of `summary.count`.
 - Preserves host cell's units — a $-valued summed cell minus a $-valued row margin yields a $-valued deviation in the same currency.
 - No division — never raises `PULSE_OVERLAY_REF_ZERO`. Unlike the margin index and the share overlays.
 - `Axis = grand` is supported (all three axes).

@@ -46,6 +46,7 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value. One layer per target; `Basel
 
 ## Gotchas
 
+- An undefined (NaN) target or reference cell is a MISSING pair: the cell stays absent, no warning, out of `summary.count`.
 - Weighted (both kinds, any weight source): a cell carrying `sum_weights` reads N* = `sum_weights` (frequency) or `n_eff` (probability) — never the raw `n` — and its variance from `m2` on w*. `Summary.Parameters` adds `sum_weights` (+ `n_eff`) over the legs read.
 - **Byte-equal** to Welch's t-test on the same inputs — both read `{n, mean, variance}` via Welford and share `studentTTwoSidedP` and the df recurrence.
 - Legacy `processing.WelfordTriple` smuggle REMOVED v0.20.0 — `MatrixCell.Value` carries the scalar mean.

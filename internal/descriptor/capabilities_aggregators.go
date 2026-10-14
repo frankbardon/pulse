@@ -326,7 +326,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "weighted_mean", Type: "float64", Optional: true, Description: "Weighted slots only: Σw·x / Σw (the scalar)."},
 				descriptor.ComponentKey{Name: "m2_weighted", Type: "float64", Optional: true, Description: "Weighted slots only: Σw(x − mean)², the weighted second central moment."},
 				descriptor.ComponentKey{Name: "sum_weights_sq", Type: "float64", Optional: true, Description: "Weighted slots only: Σw², the Kish n_eff denominator."},
-				descriptor.ComponentKey{Name: "weighted_variance", Type: "float64", Optional: true, Description: "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; 0 when Σw ≤ 1."},
+				descriptor.ComponentKey{Name: "weighted_variance", Type: "float64", Optional: true, Description: "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; null (NaN) when Σw ≤ 1."},
 			),
 		},
 		{
@@ -434,7 +434,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "pop_mean", Type: "float64", Description: "Population mean used as the z-score center."},
 				descriptor.ComponentKey{Name: "pop_stddev", Type: "float64", Description: "Population standard deviation used as the z-score scale."},
 				descriptor.ComponentKey{Name: "target_value", Type: "float64", Description: "Value being standardized against the population summary."},
-				descriptor.ComponentKey{Name: "zscore", Type: "float64", Description: "Standardized score: (target_value - pop_mean) / pop_stddev."},
+				descriptor.ComponentKey{Name: "zscore", Type: "float64", Description: "Standardized score: (target_value - pop_mean) / pop_stddev; null (NaN) when pop_stddev is 0."},
 			),
 		},
 		{
@@ -491,7 +491,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Running mean of non-null field values."},
 				descriptor.ComponentKey{Name: "m2", Type: "float64", Description: "Second-moment accumulator (sum of squared deviations from the running mean)."},
 				descriptor.ComponentKey{Name: "m3", Type: "float64", Description: "Third-moment accumulator (sum of cubed deviations from the running mean)."},
-				descriptor.ComponentKey{Name: "skewness", Type: "float64", Description: "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); 0 when n <= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."},
+				descriptor.ComponentKey{Name: "skewness", Type: "float64", Description: "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); null (NaN) when n <= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."},
 			),
 		},
 		{
@@ -506,7 +506,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "m2", Type: "float64", Description: "Second-moment accumulator (sum of squared deviations from the running mean)."},
 				descriptor.ComponentKey{Name: "m3", Type: "float64", Description: "Third-moment accumulator (sum of cubed deviations from the running mean)."},
 				descriptor.ComponentKey{Name: "m4", Type: "float64", Description: "Fourth-moment accumulator (sum of fourth-power deviations from the running mean)."},
-				descriptor.ComponentKey{Name: "kurtosis", Type: "float64", Description: "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); 0 when n <= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."},
+				descriptor.ComponentKey{Name: "kurtosis", Type: "float64", Description: "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); null (NaN) when n <= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."},
 			),
 		},
 		{
@@ -596,7 +596,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "weighted_mean", Type: "float64", Description: "Resolved weighted mean: sum_weighted / sum_weights."},
 				descriptor.ComponentKey{Name: "m2_weighted", Type: "float64", Description: "Weighted second central moment: sum(weight * (field - weighted_mean)^2)."},
 				descriptor.ComponentKey{Name: "sum_weights_sq", Type: "float64", Description: "Running sum of squared weights; feeds the Kish effective sample size."},
-				descriptor.ComponentKey{Name: "weighted_variance", Type: "float64", Description: "Frequency-weights variance m2_weighted / (sum_weights - 1); 0 when sum_weights <= 1."},
+				descriptor.ComponentKey{Name: "weighted_variance", Type: "float64", Description: "Frequency-weights variance m2_weighted / (sum_weights - 1); null (NaN) when sum_weights <= 1."},
 				descriptor.ComponentKey{Name: "n_eff", Type: "float64", Description: "Kish effective sample size sum_weights^2 / sum_weights_sq; 0 for an empty cell."},
 			),
 		},
@@ -720,7 +720,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			ComponentSchema: aggSchema(descriptor.Mergeable,
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Running Welford mean of non-null field values."},
 				descriptor.ComponentKey{Name: "m2", Type: "float64", Description: "Welford second-moment accumulator (sum of squared deviations from the running mean)."},
-				descriptor.ComponentKey{Name: "variance", Type: "float64", Description: "Unbiased sample variance derived from m2 / (n-1)."},
+				descriptor.ComponentKey{Name: "variance", Type: "float64", Description: "Unbiased sample variance derived from m2 / (n-1); null (NaN) when n < 2 (weighted: sum_weights <= 1)."},
 				descriptor.ComponentKey{Name: "stddev", Type: "float64", Description: "Sample standard deviation (square root of variance)."},
 			),
 		},

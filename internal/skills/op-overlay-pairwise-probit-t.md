@@ -33,6 +33,7 @@ MATRIX — pair × opposite-axis grid of two-sided p-values, layout identical to
 
 ## Gotchas
 
+- An undefined (NaN) host cell is MISSING: its pairs skip as an absent cell's do (`ORBIT_STATS_SKIP_EXTRACT_FAILED`).
 - Never weighted (no reference weighted form): a row weight reaching the overlay slot (request, its own `weight`, or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; set `"weight": null` on the overlay to run it unweighted.
 - `df <= 0` (n_i + n_j <= 2) or a non-finite t skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`).
 - RAW p-values only — direction / thresholds / min-n are the embedder's job.

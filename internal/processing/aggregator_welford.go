@@ -24,16 +24,16 @@ import (
 //
 // Variance denominator is the sample form M2 / (n - 1) — the same
 // denominator TEST_WELCH consumes — so AGG_WELFORD output is byte-equal
-// to a TEST_WELCH per-group variance for the same input stream. Empty
-// or single-row inputs yield variance = 0 (mirrors welfordBucket's
-// zero-on-N<2 behaviour); the legacy scalar path returns NaN when no
+// to a TEST_WELCH per-group variance for the same input stream. A
+// single-row input yields an undefined variance — NaN, JSON null
+// (welfordBucket.sampleVariance, E4-S6); the legacy scalar path returns NaN when no
 // rows arrived (no defensible mean exists) and Rich() returns
 // (nil, nil) under the same "no rows" condition, matching the set-
 // aggregator precedent.
 
 // WelfordTriple is the Rich payload returned by AGG_WELFORD. Mean is
 // the running mean, Variance is the unbiased sample variance
-// (M2 / (n - 1); zero when N < 2), and N is the number of non-null
+// (M2 / (n - 1); NaN — JSON null — when N < 2), and N is the number of non-null
 // rows that contributed.
 //
 // Returned by value (not via a pointer) so downstream consumers — the
@@ -156,8 +156,8 @@ func (a *welfordAggregator) Rich() (any, error) {
 // before Components is called (Finalize is documented to leave the
 // bucket intact so Rich() reads the frozen triple). Numerically
 // identical to the WelfordTriple emitted via Rich(): {mean, m2,
-// variance, stddev} where variance = m2/(n-1) for n>=2 and 0 for n<2,
-// stddev = sqrt(variance). Empty-input case returns (nil, nil) so the
+// variance, stddev} where variance = m2/(n-1) for n>=2 and undefined
+// (NaN, JSON null) for n<2, stddev = sqrt(variance). Empty-input case returns (nil, nil) so the
 // orchestrator's universal floor (n=0, n_null=...) is the entire
 // payload, matching the Rich() contract.
 //

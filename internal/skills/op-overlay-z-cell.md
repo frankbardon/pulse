@@ -33,6 +33,7 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value via standard normal survival.
 
 ## Gotchas
 
+- An undefined (NaN) target or reference cell is a MISSING pair: the cell stays absent, no warning, out of `summary.count`.
 - Weighted (both kinds, any weight source): a cell carrying `sum_weights` reads N* = `sum_weights` (frequency) or `n_eff` (probability) — never the raw `n` — and its variance from `m2` on w*. `Summary.Parameters` adds `sum_weights` (+ `n_eff`) over the legs read.
 - **Byte-equal** to the two-sample z-test on the same inputs (shared `normalTwoSidedP`).
 - Differs from the cell t overlay only by distribution (normal vs Student t); same SE `sqrt(var_t/n_t + var_r/n_r)`.

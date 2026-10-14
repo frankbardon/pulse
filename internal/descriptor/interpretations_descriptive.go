@@ -39,7 +39,7 @@ const (
 	descPopulationSpread = "Pulse divides by n (the population form); most tools report the sample form, dividing by n - 1, which is slightly larger. " +
 		"The gap matters only on small groups; AGG_WELFORD gives the sample form."
 	descSingleRowZero = "A group with a single value reads 0: no spread can be seen in one value, which is not the same as a group whose values agree."
-	descShapeZero     = "It reads null when no row has a value, and 0 when n is 1 or the variance is zero (every value the same), so a 0 from a tiny or constant group says nothing about shape: check components n."
+	descShapeZero     = "It reads null when no row has a value, when n is 1 or when the variance is zero (every value the same): no shape can be seen there. A 0 is a real, balanced reading; on a tiny group check components n before trusting it."
 	descCIAboutMean   = "The interval is about the MEAN, not about individual rows: most rows can, and usually do, fall outside it."
 	descCIMethod      = "The confidence level describes the method: over repeated samples, intervals built this way capture the true mean that share of the time. " +
 		"Any one interval either contains it or not."
@@ -90,7 +90,7 @@ var (
 				"and n (the rows with a value). Together they are what a t or z comparison of group means needs; " +
 				"the components add stddev, the square root of variance.",
 			Caveats: []string{
-				"variance is 0 when n is below 2: no spread could be estimated, which is not the same as values that agree.",
+				"variance reads null when n is below 2 (weighted: when the weights sum to 1 or less): no spread could be estimated. A 0 means values that agree.",
 				"variance here divides by n - 1, so on the same rows it is larger than AGG_VARIANCE (which divides by n).",
 				"With no rows the result is empty, not zeros.",
 			},
@@ -158,7 +158,7 @@ var (
 				"Which row is last depends on row order (not on date), so the components zscore is reproducible only on a fixed order.",
 				"The last row is part of the mean and spread it is scored against, which damps its zscore (never beyond sqrt(n - 1) in size), " +
 					"so it understates how unusual that row is; for a reading against its own past use OVERLAY_ZSCORE_VS_ROLLING.",
-				"The value and the components zscore read 0 when every value is the same (no spread); the value and every component read null when the group is empty.",
+				"The value and the components zscore read null when every value is the same (no spread: pop_stddev is 0 and the score is 0/0); the value and every component read null when the group is empty.",
 			},
 		},
 	}

@@ -730,8 +730,9 @@ func TestAggregator_Skewness_SingleValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result != 0 {
-		t.Errorf("skewness of single value = %f, want 0", result)
+	// One value: no shape can be seen — NaN (JSON null), never 0 (E4-S6).
+	if !math.IsNaN(result) {
+		t.Errorf("skewness of single value = %f, want NaN", result)
 	}
 }
 
@@ -759,9 +760,10 @@ func TestAggregator_Skewness_AllSame(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// All same values: stddev=0, skewness=0
-	if result != 0 {
-		t.Errorf("skewness of all same = %f, want 0", result)
+	// All same values: stddev=0, the standardized moment is 0/0 —
+	// NaN (JSON null), never 0 (E4-S6).
+	if !math.IsNaN(result) {
+		t.Errorf("skewness of all same = %f, want NaN", result)
 	}
 }
 
@@ -825,8 +827,9 @@ func TestAggregator_Kurtosis_SingleValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result != 0 {
-		t.Errorf("kurtosis of single value = %f, want 0", result)
+	// One value: no shape can be seen — NaN (JSON null), never 0 (E4-S6).
+	if !math.IsNaN(result) {
+		t.Errorf("kurtosis of single value = %f, want NaN", result)
 	}
 }
 
@@ -854,9 +857,10 @@ func TestAggregator_Kurtosis_AllSame(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// All same values: stddev=0, kurtosis=0
-	if result != 0 {
-		t.Errorf("kurtosis of all same = %f, want 0", result)
+	// All same values: stddev=0, the standardized moment is 0/0 —
+	// NaN (JSON null), never 0 (E4-S6).
+	if !math.IsNaN(result) {
+		t.Errorf("kurtosis of all same = %f, want NaN", result)
 	}
 }
 

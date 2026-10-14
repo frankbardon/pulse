@@ -1066,9 +1066,16 @@ minimum / maximum / range, the variance / standard deviation, a
 quantile, the mode, a shape moment or the average set cardinality of a
 group, cell, margin or cohort with no non-null value (or, weighted,
 whose weights sum to 0) is `null` on every execution arm — never `0`.
-A count or a sum of nothing stays `0`. A series overlay reads such a
-host value as a missing point: its entry keeps its key with no
-`statistic` key at all, on the request, Compose and chain hosts alike.
+A count or a sum of nothing stays `0`. So is a figure whose formula is
+0/0 on the data it has: the skewness or kurtosis of one value or of
+values that never vary, the z-score where the spread is zero, and a
+sample variance (`AGG_WELFORD`'s, a weighted `weighted_variance`)
+below two values or a weight total of 1 — `null`, never `0`; a
+population spread of one value stays a defined `0`. A series overlay
+reads such a host value as a missing point: its entry keeps its key with
+no `statistic` key at all, on the request, Compose and chain hosts
+alike; a crosstab overlay reads such a cell as an absent cell — no
+overlay cell, no warning, never in a denominator or a spread.
 
 The schema says so: every float slot on a result-only def —
 `TestResult`, `RegressionResult`, `OverlaySummary`, the

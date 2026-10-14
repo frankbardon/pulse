@@ -450,26 +450,23 @@ func (a *weightedMomentAggregator) Finalize() (float64, error) {
 	return a.frozen.shape(a.kurtosis()), nil
 }
 
-// shape is the streaming figure over st (NaN for no row, 0 for one row
-// or no spread).
+// shape is the streaming figure over st — NaN (JSON null) for no row,
+// one row or no spread (E4-S6): no shape can be seen there.
 func (st *momentState) shape(kurtosis bool) float64 {
-	if st.rows == 0 {
-		return math.NaN()
-	}
 	if st.rows <= 1 || st.m2 == 0 {
-		return 0
+		return math.NaN()
 	}
 	W := st.sumW
 	variance := st.m2 / W
 	if kurtosis {
 		if variance == 0 {
-			return 0
+			return math.NaN()
 		}
 		return st.m4/(W*variance*variance) - 3
 	}
 	sd := math.Sqrt(variance)
 	if sd == 0 {
-		return 0
+		return math.NaN()
 	}
 	return st.m3 / (W * sd * sd * sd)
 }
@@ -503,11 +500,8 @@ func (a *weightedMomentAggregator) Aggregate(records []*Record, field string) (f
 	}
 	a.frozen = st
 	a.momentState = momentState{}
-	if st.rows == 0 {
-		return math.NaN(), nil
-	}
 	if st.rows <= 1 {
-		return 0, nil
+		return math.NaN(), nil
 	}
 	sumSq := 0.0
 	for _, p := range pairs {
@@ -516,7 +510,7 @@ func (a *weightedMomentAggregator) Aggregate(records []*Record, field string) (f
 	}
 	sd := math.Sqrt(sumSq / st.sumW)
 	if sd == 0 {
-		return 0, nil
+		return math.NaN(), nil
 	}
 	power := 3.0
 	if a.kurtosis() {
@@ -537,7 +531,7 @@ func (a *weightedMomentAggregator) Aggregate(records []*Record, field string) (f
 func (a *weightedMomentAggregator) Components() (map[string]any, error) {
 	st := &a.frozen
 	out := map[string]any{"mean": st.mean, "m2": st.m2, "m3": st.m3}
-	var figure float64
+	figure := math.NaN()
 	if st.rows > 1 && st.m2 > 0 {
 		W := st.sumW
 		variance := st.m2 / W

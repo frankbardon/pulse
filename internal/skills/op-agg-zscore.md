@@ -44,7 +44,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 ## Gotchas
 
 - Buffered path only.
-- Empty group → `null` (NaN), scalar and components; zero stddev → `0`.
+- Empty group → `null` (NaN), scalar and components; zero stddev → scalar and `zscore` `null` (0/0), `pop_mean` / `pop_stddev` (0) / `target_value` defined.
 - `decimal128` rejected.
 
 ## See

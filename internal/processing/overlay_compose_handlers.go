@@ -372,6 +372,13 @@ func applyIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 				})
 				continue
 			}
+			if undefinedSeriesPair(targetVal, refVal) {
+				// An undefined (NaN) target or reference cell is a
+				// MISSING cell: no statistic (the overlay cell stays
+				// absent), no warning, no place in the summary — the
+				// series-host rule on the matrix arm (E4-S6).
+				continue
+			}
 			if refVal == 0 {
 				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
@@ -480,6 +487,9 @@ func applyDeltaVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 					},
 				})
 				continue
+			}
+			if undefinedSeriesPair(targetVal, refVal) {
+				continue // a missing cell: absent, no warning (E4-S6)
 			}
 			diff := targetVal - refVal
 			cells[i][j] = types.MatrixCell{Value: diff, Present: true}
@@ -622,6 +632,9 @@ func applyPropZCell(spec *types.ComposeOverlaySpec, reference *types.Response, t
 					},
 				})
 				continue
+			}
+			if undefinedSeriesPair(targetVal, refVal) {
+				continue // a missing cell: absent, no warning (E4-S6)
 			}
 			nTarget := targetRowMargins[rowKeyStr]
 			nRef := refRowMargins[rowKeyStr]
@@ -932,6 +945,9 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 				continue
 			}
 
+			if undefinedSeriesPair(meanT, meanR) {
+				continue // a missing cell: absent, no warning (E4-S6)
+			}
 			p, ok := welchTTest(meanT, vT, nT, meanR, vR, nR)
 			if !ok {
 				warnings = append(warnings, types.OverlayWarning{

@@ -27,6 +27,7 @@ MATRIX (cell scope) or SERIES (row/column scope). `Cells[r][c].Value = 100 × ce
 
 ## Gotchas
 
+- MATRIX: An undefined (NaN) host cell — a mean over no value, an unanswered element — is MISSING, as an absent one: the overlay cell stays absent, no warning, out of `summary.count` and of any Level / Within bucket sum.
 - `margin == 0` → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` per affected slice (not per cell).
 - All three axes supported. `Axis = grand` is the grand-total share × 100.
 - Empty `Ref.Margin` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.

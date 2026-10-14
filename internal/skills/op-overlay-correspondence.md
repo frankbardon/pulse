@@ -36,7 +36,7 @@ Plot dim_1 × dim_2: close same-kind points ⇒ similar profiles. Row-to-column 
 
 ## Gotchas
 
-- Other cell or negative cell ⇒ `PULSE_OVERLAY_NONNEGATIVE_REQUIRED`.
+- Other cell, or a negative / undefined (NaN) cell ⇒ `PULSE_OVERLAY_NONNEGATIVE_REQUIRED`.
 - Zero-total rows/columns dropped (`PULSE_OVERLAY_REF_ZERO`); < 2×2 left ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Scale-invariant: a weighted host needs no Kish scaling.
 

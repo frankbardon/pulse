@@ -92,7 +92,7 @@ Each operator's own keys, beyond the floor and the weighted floor keys.
 | `weighted_mean` | float64 | when its condition holds | Weighted slots only: Σw·x / Σw (the scalar). |
 | `m2_weighted` | float64 | when its condition holds | Weighted slots only: Σw(x − mean)², the weighted second central moment. |
 | `sum_weights_sq` | float64 | when its condition holds | Weighted slots only: Σw², the Kish n_eff denominator. |
-| `weighted_variance` | float64 | when its condition holds | Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; 0 when Σw ≤ 1. |
+| `weighted_variance` | float64 | when its condition holds | Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; null (NaN) when Σw ≤ 1. |
 
 <a id="op-agg_ci_lower"></a>
 
@@ -174,7 +174,7 @@ Only the floor keys.
 | `m2` | float64 | always | Second-moment accumulator (sum of squared deviations from the running mean). |
 | `m3` | float64 | always | Third-moment accumulator (sum of cubed deviations from the running mean). |
 | `m4` | float64 | always | Fourth-moment accumulator (sum of fourth-power deviations from the running mean). |
-| `kurtosis` | float64 | always | Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); 0 when n <= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n. |
+| `kurtosis` | float64 | always | Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); null (NaN) when n <= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n. |
 
 <a id="op-agg_mae"></a>
 
@@ -403,7 +403,7 @@ Only the floor keys.
 | `mean` | float64 | always | Running mean of non-null field values. |
 | `m2` | float64 | always | Second-moment accumulator (sum of squared deviations from the running mean). |
 | `m3` | float64 | always | Third-moment accumulator (sum of cubed deviations from the running mean). |
-| `skewness` | float64 | always | Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); 0 when n <= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n. |
+| `skewness` | float64 | always | Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); null (NaN) when n <= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n. |
 
 <a id="op-agg_stddev"></a>
 
@@ -478,7 +478,7 @@ Only the floor keys.
 | `weighted_mean` | float64 | always | Resolved weighted mean: sum_weighted / sum_weights. |
 | `m2_weighted` | float64 | always | Weighted second central moment: sum(weight * (field - weighted_mean)^2). |
 | `sum_weights_sq` | float64 | always | Running sum of squared weights; feeds the Kish effective sample size. |
-| `weighted_variance` | float64 | always | Frequency-weights variance m2_weighted / (sum_weights - 1); 0 when sum_weights <= 1. |
+| `weighted_variance` | float64 | always | Frequency-weights variance m2_weighted / (sum_weights - 1); null (NaN) when sum_weights <= 1. |
 
 <a id="op-agg_welford"></a>
 
@@ -490,7 +490,7 @@ Only the floor keys.
 |---|---|---|---|
 | `mean` | float64 | always | Running Welford mean of non-null field values. |
 | `m2` | float64 | always | Welford second-moment accumulator (sum of squared deviations from the running mean). |
-| `variance` | float64 | always | Unbiased sample variance derived from m2 / (n-1). |
+| `variance` | float64 | always | Unbiased sample variance derived from m2 / (n-1); null (NaN) when n < 2 (weighted: sum_weights <= 1). |
 | `stddev` | float64 | always | Sample standard deviation (square root of variance). |
 
 <a id="op-agg_zscore"></a>
@@ -504,7 +504,7 @@ Only the floor keys.
 | `pop_mean` | float64 | always | Population mean used as the z-score center. |
 | `pop_stddev` | float64 | always | Population standard deviation used as the z-score scale. |
 | `target_value` | float64 | always | Value being standardized against the population summary. |
-| `zscore` | float64 | always | Standardized score: (target_value - pop_mean) / pop_stddev. |
+| `zscore` | float64 | always | Standardized score: (target_value - pop_mean) / pop_stddev; null (NaN) when pop_stddev is 0. |
 
 ### Groupers
 

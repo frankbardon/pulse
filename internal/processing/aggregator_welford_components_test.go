@@ -238,9 +238,10 @@ func TestWelfordFamilyComponents_SkewnessEmits(t *testing.T) {
 			got, scalar := runAggregateForComponents(t, types.AGG_SKEWNESS, "score", schema, records)
 			requireKeySet(t, got, []string{"mean", "m2", "m3", "skewness"})
 			n, wantMean, wantM2, wantM3, _ := controlMoments(tc.vals)
-			var wantSkew float64
+			// One row or zero spread: undefined, NaN (E4-S6).
+			wantSkew := math.NaN()
 			if n == 0 {
-				wantMean, wantSkew = math.NaN(), math.NaN()
+				wantMean = math.NaN()
 			}
 			if n > 1 && wantM2 > 0 {
 				variance := wantM2 / float64(n)
@@ -286,9 +287,10 @@ func TestWelfordFamilyComponents_KurtosisEmits(t *testing.T) {
 			got, scalar := runAggregateForComponents(t, types.AGG_KURTOSIS, "score", schema, records)
 			requireKeySet(t, got, []string{"mean", "m2", "m3", "m4", "kurtosis"})
 			n, wantMean, wantM2, wantM3, wantM4 := controlMoments(tc.vals)
-			var wantKurt float64
+			// One row or zero spread: undefined, NaN (E4-S6).
+			wantKurt := math.NaN()
 			if n == 0 {
-				wantMean, wantKurt = math.NaN(), math.NaN()
+				wantMean = math.NaN()
 			}
 			if n > 1 && wantM2 > 0 {
 				variance := wantM2 / float64(n)
@@ -333,7 +335,8 @@ func TestWelfordFamilyComponents_ZScoreEmits(t *testing.T) {
 			got, _ := runAggregateForComponents(t, types.AGG_ZSCORE, "score", schema, records)
 			requireKeySet(t, got, []string{"pop_mean", "pop_stddev", "target_value", "zscore"})
 			n, wantMean, wantM2, _, _ := controlMoments(tc.vals)
-			var wantSD, wantTarget, wantZ float64
+			var wantSD, wantTarget float64
+			wantZ := math.NaN() // zero spread: undefined (E4-S6)
 			if n == 0 {
 				nan := math.NaN()
 				wantMean, wantSD, wantTarget, wantZ = nan, nan, nan, nan
@@ -410,7 +413,8 @@ func TestWelfordFamilyComponents_WelfordEmits(t *testing.T) {
 			// directly on the bucket; re-derive the control via the
 			// same welfordBucket recurrence the aggregator uses.
 			controlMean, controlVar, controlN := controlWelford(tc.vals)
-			if triple.Mean != controlMean || triple.Variance != controlVar || triple.N != controlN {
+			sameVar := triple.Variance == controlVar || math.IsNaN(triple.Variance) && math.IsNaN(controlVar)
+			if triple.Mean != controlMean || !sameVar || triple.N != controlN {
 				t.Errorf("Rich triple = %+v, want mean=%v variance=%v N=%d",
 					triple, controlMean, controlVar, controlN)
 			}
