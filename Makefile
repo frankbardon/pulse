@@ -73,14 +73,17 @@ cover:
 	$(GO) test -coverprofile=coverage.out ./...
 	$(GO) tool cover -func=coverage.out
 
+# gofmt from the selected toolchain (GOTOOLCHAIN), so local `GOTOOLCHAIN=go1.26.1 make lint` matches CI.
+GOFMT := $(shell go env GOROOT)/bin/gofmt
+
 fmt:
-	gofmt -w .
+	$(GOFMT) -w .
 
 # fmt-check fails on any Go file gofmt would rewrite (the nested smoke and
 # contrib modules included). It is part of `make lint`, which is what the CI
 # `lint` job runs, so local lint == CI lint; `make fmt` fixes what it lists.
 fmt-check:
-	@out=$$(gofmt -l .); if [ -n "$$out" ]; then echo "gofmt needed (run make fmt):"; echo "$$out"; exit 1; fi
+	@out=$$($(GOFMT) -l .); if [ -n "$$out" ]; then echo "gofmt needed (run make fmt):"; echo "$$out"; exit 1; fi
 
 vet:
 	$(GO) vet ./...

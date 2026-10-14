@@ -84,11 +84,13 @@ func TestShapeRefusal_MatrixResult(t *testing.T) {
 
 func TestMatrixResultRefusal(t *testing.T) {
 	ok := func() (*types.Request, *types.OverlaySpec) {
-		return &types.Request{
+		req := &types.Request{
 			Groups:   []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
 			Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"a", "b"}}, {Name: "r", Type: types.MAT_CORRELATION, Vector: "v"}},
-		}, &types.OverlaySpec{Kind: mgs, Scope: types.OverlayScopeMatrix,
+		}
+		spec := &types.OverlaySpec{Kind: mgs, Scope: types.OverlayScopeMatrix,
 			Ref: types.OverlayRef{Matrix: &types.OverlayMatrixRef{Name: "r"}}}
+		return req, spec
 	}
 	for _, c := range []struct {
 		name   string
