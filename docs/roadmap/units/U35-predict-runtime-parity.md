@@ -36,6 +36,7 @@ Numbering note: appended as U35 after U34 rather than renumbered.
 
 - [x] **#198** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) Predict refuses every operator × field type the runtime refuses: the "predict looser" half of the `knownTypeDivergence` ledger (`field_type_acceptance_test.go`) is emptied. Done (E2-S2 + E2-S3): every pair predict let through and the runtime refused now refuses on both sides with one code, the decimal-on-aggregator case included (`PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`, an error on both sides); the ledger is deleted
 - [x] **#199** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) The runtime refuses, rather than silently computes on, a field it cannot read: the "predict stricter, runtime wrong" half of the ledger (`FEAT_POLY`, `REG_OLS` / `REG_GLM` / `REG_BAYES_LINEAR` and the `WIN_*` value windows on categorical, set, decimal, `packed_bool` or `datetime` columns), plus tier-1 tests on `set_*` fields
+- [x] **E2-S4 (owner-added, 2026-10-14)** Numeric readers refuse a categorical: the 16 arithmetic aggregators (`AGG_SUM` … `AGG_CI_UPPER`), `AGG_RATIO`'s numerator / denominator and `FEAT_LOG` / `SQRT` / `BUCKETIZE` refuse a categorical (its dictionary index) or `set_*` field `PULSE_FIELD_TYPE_UNSUPPORTED` on both sides; `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` narrowed to the facet's numeric-statistic warning (owner `capability:facet`); feature param refusals are `PROCESSING_CONFIG` on both sides; tier-1 `TEST_*` skill Field lists match the table (`TestAtomicSkillFieldTypesMatchFieldAcceptTable`)
 - [ ] **#201** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) Remaining silent predict / runtime gaps: crosstab cell-aggregator validity in predict, one label set for the label-collision check, label bindings on ProcessChain stages ≥ 1, windowed record rows under projection
 - [ ] **#213** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) `Response.overlays` joins the feature gate (`gatedSlots`)
 - [ ] **#214** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) A joined slot or stage derives its `return` precision-exact set from the defaults-resolved request
@@ -76,6 +77,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test(predict-runtime-parity
 ### E2 — Predict refuses what the runtime refuses
 - S1: predict gains the runtime's operator × field-type checks (#198); the ledger's "predict looser" entries are deleted as each is fixed
 - S2: crosstab cell-aggregator validity, one label set for the collision check, ProcessChain stage ≥ 1 label bindings, windowed record rows under projection (#201)
+- S4 (owner-added): numeric readers refuse a categorical; the categorical-aggregation warning retired to the facet; feature param codes agree; `TEST_*` skill Field lists held to the table
 
 ## Acceptance criteria
 
