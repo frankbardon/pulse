@@ -452,8 +452,12 @@ direction respectively; default from the vector's `kind`), `min_valid`
 `Extensions.ReferenceVectors`, matched by label, a centroid
 `{centroid: {filter, by}}` (the weighted per-member mean of the filtered
 rows `filter` admits, one per `by` value with each row compared with its
-own — a pre-pass, so the slot is two-pass) or `{population: name}` (a
-bound vector fit's stored mean, matched by label); `ATTR_VEC_DISTANCE`
+own — a pre-pass, so the slot is two-pass), `{population: name}` (a
+bound vector fit's stored mean, matched by label) or
+`{record: {cohort?, keys: [{field, value}]}}` (one stored record,
+point-looked-up through its cohort's sidecar index before the run — the
+request's own cohort when `cohort` is omitted — read by member column
+name); `ATTR_VEC_DISTANCE`
 adds `fit_on` / `missing` beside its fitted metrics. A fitted attribute's `params` share `fit_on` —
 `"filtered"` (the default) or an inline array of `Filterer` objects
 choosing the fit rows among the filtered ones (every filtered row is

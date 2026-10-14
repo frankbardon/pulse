@@ -1,0 +1,45 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Compare each row with one stored record on experiment.pulse. gap_to_unit_1 is ATTR_VEC_DISTANCE (euclidean) from each unit's (revenue_before, revenue) to experiment unit id 1's — reference {record: {keys: [{field: id, value: \"1\"}]}}, looked up once before the run through the cohort's sidecar index on id (build it first: pulse index build experiment.pulse --key id), the request's own cohort because cohort is omitted (name {filename, data_dir} to read a record of another cohort). The record is read by member column name; a null member is a missing element. No index, a stale one, no match, more than one match or a shard archive refuses the run with its PULSE_INDEX_* / PULSE_LOOKUP_* code, never a fallback; predict checks only the shape.",
+    "intents": [
+      "benchmark",
+      "prepare"
+    ],
+    "name": "attr_record_reference",
+    "operators": [
+      "AGG_AVERAGE",
+      "ATTR_VEC_DISTANCE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "feature-engineering",
+      "multivariate"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "attributes": [
+    {
+      "type": "ATTR_VEC_DISTANCE",
+      "label": "gap_to_unit_1",
+      "fields": ["revenue_before", "revenue"],
+      "params": {"metric": "euclidean", "reference": {"record": {"keys": [{"field": "id", "value": "1"}]}}}
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "treatment"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "gap_to_unit_1",
+      "label": "avg_gap_to_unit_1"
+    }
+  ]
+}

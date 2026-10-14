@@ -2963,7 +2963,7 @@ var codeMetadata = map[Code]Metadata{
 
 	// ---------- PULSE: point-lookup index (E1) ----------
 	PULSE_INDEX_MISSING: {
-		Message: "No sidecar point-lookup index was found on disk for the requested LookupRequest.Field. Point lookups probe a prebuilt sidecar index (encoding.SidecarIndexPath derives its path from the cohort file and key field) rather than scanning the cohort — the index must be built once before any Lookup call against that field can succeed.",
+		Message: "No sidecar point-lookup index was found on disk for the requested LookupRequest.Field. Point lookups probe a prebuilt sidecar index (encoding.SidecarIndexPath derives its path from the cohort file and key field) rather than scanning the cohort — the index must be built once before any Lookup call against that field can succeed. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -2977,8 +2977,13 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LOOKUP_NOT_FOUND: {
-		Message: "The sidecar point-lookup index was found and read successfully, but LookupRequest.Value has no matching entry in the resolved hash bucket — no record in the cohort carries that key value for LookupRequest.Field.",
+		Message: "The sidecar point-lookup index was found and read successfully, but LookupRequest.Value has no matching entry in the resolved hash bucket — no record in the cohort carries that key value for LookupRequest.Field. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
 		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "reference", "record", "keys"},
+				Hint:   "For a comparison {record} reference, name a key tuple the record's cohort (record.cohort, else the request's own) holds — each value as text, spelled as in the data.",
+			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Value"},
@@ -2987,8 +2992,13 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LOOKUP_AMBIGUOUS: {
-		Message: "The requested key matched more than one row in the cohort, but LookupRequest.Multiplicity is (or defaults to) \"assert_unique\", which fails rather than silently picking one match. This is the default mode precisely so a duplicate-key surprise never returns a single, arbitrary row without the caller knowing more than one candidate exists.",
+		Message: "The requested key matched more than one row in the cohort, but LookupRequest.Multiplicity is (or defaults to) \"assert_unique\", which fails rather than silently picking one match. This is the default mode precisely so a duplicate-key surprise never returns a single, arbitrary row without the caller knowing more than one candidate exists. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`). A {record} reference is always assert-unique.",
 		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "reference", "record", "keys"},
+				Hint:   "For a comparison {record} reference, add key columns until the tuple names one record (and build the sidecar index over that composite key) — a stored reference must be exactly one row.",
+			},
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Keys"},
@@ -3004,7 +3014,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_INDEX_STALE: {
-		Message: "The sidecar point-lookup index's embedded content-hash fingerprint does not match the current .pulse cohort file — the cohort was mutated (re-imported, re-exported, or otherwise rewritten) after the sidecar was last built. Lookup refuses to serve rows against a stale index rather than risk returning silently wrong results; there is no automatic scan-fallback or auto-rebuild.",
+		Message: "The sidecar point-lookup index's embedded content-hash fingerprint does not match the current .pulse cohort file — the cohort was mutated (re-imported, re-exported, or otherwise rewritten) after the sidecar was last built. Lookup refuses to serve rows against a stale index rather than risk returning silently wrong results; there is no automatic scan-fallback or auto-rebuild. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -3013,7 +3023,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_INDEX_UNSUPPORTED_SHARDED: {
-		Message: "Point-lookup index build, lookup, and verify only support single-file .pulse cohorts in v1 — the target resolved to a shard archive (leading bytes matched the zip magic \"PK\\x03\\x04\" rather than the single-file \"PULSE\" magic). Row-id addressing (the sidecar's bucket entries point directly at a record's byte offset within one contiguous file) only has meaning for a single contiguous record region, which a multi-shard archive does not present. Sharded point-lookup support is a future/follow-up, not planned for this v1.",
+		Message: "Point-lookup index build, lookup, and verify only support single-file .pulse cohorts in v1 — the target resolved to a shard archive (leading bytes matched the zip magic \"PK\\x03\\x04\" rather than the single-file \"PULSE\" magic). Row-id addressing (the sidecar's bucket entries point directly at a record's byte offset within one contiguous file) only has meaning for a single contiguous record region, which a multi-shard archive does not present. Sharded point-lookup support is a future/follow-up, not planned for this v1. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -4044,7 +4054,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_VECTOR_REFERENCE_MISMATCH: {
-		Message: "A reference vector's labels do not match the vector it is compared with. A reference is matched by label, never by position: the two label sets must be equal (reason `labels_differ`; `missing` lists the vector's labels the reference lacks, `extra` the reference's labels the vector lacks), and a reference cannot be compared with a vector that carries no labels, such as a literal array (reason `unlabeled_partner`). A fitted vector attribute's bound fit (`params.fit`, named under `fit`) and a comparison slot's {population} reference (named under `population`) align to the slot's member labels by the same rule.",
+		Message: "A reference vector's labels do not match the vector it is compared with. A reference is matched by label, never by position: the two label sets must be equal (reason `labels_differ`; `missing` lists the vector's labels the reference lacks, `extra` the reference's labels the vector lacks), and a reference cannot be compared with a vector that carries no labels, such as a literal array (reason `unlabeled_partner`). A fitted vector attribute's bound fit (`params.fit`, named under `fit`) and a comparison slot's {population} reference (named under `population`) align to the slot's member labels by the same rule. A comparison slot's {record} reference is read by member COLUMN name instead: its cohort (under `cohort`) must hold every member as an integer, float, packed_bool or vector-element column (reason `record_members_absent`; the members it lacks under `missing`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -4060,6 +4070,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"expression"},
 				Hint:   "For `unlabeled_partner`, compare ref() with a named vector (Request `vectors`), another ref(), or vcenter / vzscore / vnormalize of one, not a literal array.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "reference", "record", "cohort"},
+				Hint:   "For `record_members_absent`, look the record up in a cohort that carries the slot's member columns (`missing`) as numeric columns, or compare only members it holds.",
 			},
 		},
 	},

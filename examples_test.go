@@ -116,6 +116,13 @@ func buildExampleFixtures(t *testing.T, p *pulse.Pulse, fs afero.Fs, tmp string)
 	if err := buildShardedTransactionsFixture(p, fs, tmp); err != nil {
 		t.Fatalf("build sharded transactions fixture: %v", err)
 	}
+
+	// The point-lookup index a {record} comparison reference reads
+	// (attributes/20_record_reference.json) — fixtures/build.sh builds
+	// the same one.
+	if _, err := p.BuildIndex(context.Background(), filepath.Join(tmp, "experiment.pulse"), []string{"id"}); err != nil {
+		t.Fatalf("index experiment.pulse on id: %v", err)
+	}
 }
 
 // runExample loads an example, rewrites its cohort.data_dir to the

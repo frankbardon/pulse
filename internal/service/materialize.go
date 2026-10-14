@@ -78,6 +78,12 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 	if err != nil {
 		return err
 	}
+	// Every comparison slot's {record} reference, resolved before any
+	// processor builds (reference_records.go).
+	ctx, err = s.bindReferenceRecords(ctx, req, req.Cohort)
+	if err != nil {
+		return err
+	}
 	if len(req.Features) == 0 && len(req.Attributes) == 0 && len(req.Windows) == 0 {
 		_, err := descx.MaterializeColumns(req, nil, s.instance, "")
 		return err

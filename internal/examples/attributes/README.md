@@ -30,6 +30,7 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `17_profile_similarity.json` | `ATTR_PROFILE_SIMILARITY` | Each row's similarity to a target profile: the kind `scale` default (correlation) against a literal, and an explicit cosine against a label map matched by label (warned as a poor fit) |
 | `18_vec_distance.json` | `ATTR_VEC_DISTANCE` | Each row's distance to a benchmark: the kind `measure` default (std_euclidean, a two-pass fit), mahalanobis fitted on the control arm, and a row-local manhattan over inline fields |
 | `19_centroid_reference.json` | `ATTR_VEC_DISTANCE`, `ATTR_PROFILE_SIMILARITY` | References computed from the data: each row's distance to its own arm's centroid (`{centroid: {by}}`) and its similarity to the control arm's centroid (`{centroid: {filter}}`) — a two-pass weighted per-member mean |
+| `20_record_reference.json` | `ATTR_VEC_DISTANCE` | Each row's distance to one stored record (`{record: {keys}}`), point-looked-up before the run through the cohort's sidecar index on `id` (built by `fixtures/build.sh`) |
 
 See `pulse skills show attribute-composition` for the full operator
 contract, the `ATTR_FORMULA` allowlist, and composition rules.

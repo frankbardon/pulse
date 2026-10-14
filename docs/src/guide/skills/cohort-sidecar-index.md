@@ -25,4 +25,6 @@ A lookup hashes the key, seeks its offset entry, seeks that bucket's data, then 
 
 **Keyable types** (`processing.IsIndexKeyableFieldType`): every type in the field-type matrix EXCEPT `set_*` — a multi-select mask has no single unambiguous equality value, so filter on it with the set filter instead. Per-type equality caveats are in that matrix's Notes column.
 
+**Stored-record references.** A comparison attribute's `reference: {record: {cohort?, keys}}` ([`op-attr-vec-distance`](op-attr-vec-distance.md)) runs this same lookup, assert-unique, once before the run (the request's own cohort when `cohort` is omitted), so the index must exist on exactly those key columns in that order; every refusal below refuses the run — never a scan fallback — and predict, which reads no index, checks only the shape.
+
 **Constraints:** single-file cohorts only (the `archive.pulse#shard.pulse` anchor is a tested single-shard workaround); equality-only, full-key required, composite-key order significant end to end. The `PULSE_INDEX_*` / `PULSE_LOOKUP_*` codes carry their fixups in `pulse errors lookup CODE`; the point-lookup MCP surface is [`tool-lookup`](tool-lookup.md).

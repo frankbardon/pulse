@@ -77,6 +77,8 @@ func (s *Set) Clone() *Set {
 			out.vectors[k] = v
 		}
 	}
+	// Resolved records are read-only too: shared.
+	out.records = s.records
 	return out
 }
 

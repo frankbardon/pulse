@@ -237,7 +237,7 @@ func (c *VectorCapture) Fits() []*VectorFit {
 func (s *Set) WithCapture(c *VectorCapture) *Set {
 	out := &Set{capture: c}
 	if s != nil {
-		out.byName, out.vectors = s.byName, s.vectors
+		out.byName, out.vectors, out.records = s.byName, s.vectors, s.records
 	}
 	return out
 }

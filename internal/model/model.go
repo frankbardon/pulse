@@ -179,6 +179,10 @@ type Set struct {
 	// capture receives the vector fit a fit request's battery closes
 	// (WithCapture); nil on every other set.
 	capture *VectorCapture
+	// records are the resolved {record} comparison references
+	// (record.go), keyed by vectors.ComparisonReference.RecordKey —
+	// not names: they share no namespace with the fits.
+	records map[string]RecordBinding
 }
 
 // Add binds b under b.Name; a name already bound is

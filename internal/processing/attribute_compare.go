@@ -70,7 +70,14 @@ import (
 // request / registered populations and in-batch Compose vector fits):
 // the fit's stored mean aligned by label (vectors.PopulationAlign), an
 // unbound name PULSE_VECTOR_REFERENCE_UNKNOWN (vectors.PopulationRefusal)
-// — static thereafter, so row-local.
+// — static thereafter, so row-local. {record: {cohort?, keys}} (U30
+// E3-S2) binds at build from the stored record the Service resolved
+// before the processor built (a point lookup over the cohort's sidecar
+// index — the request's own cohort when cohort is omitted — carried on
+// the request's model.Set): read by member column name (bindRecord), a
+// null member a missing element; the lookup's own refusal (no index,
+// stale, not found, ambiguous, a shard archive) refuses the run, never a
+// fallback. Static, so row-local.
 //
 // Row-local metrics: single pass, streamable, fusable; the weight is
 // irrelevant (unless a centroid reads it). ATTR_VEC_DISTANCE's fitted metrics (std_euclidean: the
@@ -211,8 +218,52 @@ func (c *comparisonCore) bindPopulation() error {
 	return nil
 }
 
-// bind resolves the reference against the instance's tables, or the
-// request's bound fits (population). A centroid binds at Finalize.
+// bindRecord binds a {record} reference: the stored record the Service
+// resolved before the build (model.Set.LookupRecord), read member by
+// member column name. Its lookup's refusal (PULSE_INDEX_* /
+// PULSE_LOOKUP_*) is returned located on the slot; a member the
+// record's cohort holds no numeric column for is
+// PULSE_VECTOR_REFERENCE_MISMATCH record_members_absent; a null member
+// is a missing element (NaN: its pair drops, min_valid applies).
+func (c *comparisonCore) bindRecord() error {
+	ref := c.cfg.Reference
+	rec, err := c.models.LookupRecord(ref.RecordKey())
+	if err != nil {
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) {
+			return err
+		}
+		// The binding is shared by every processor of the run: locate a
+		// copy, never the stored error.
+		details := make(map[string]any, len(ce.Details)+2)
+		for k, v := range ce.Details {
+			details[k] = v
+		}
+		details["attribute"] = c.label
+		details["slot"] = c.label + ".params.reference"
+		return &errors.CodedError{Code: ce.Code, Message: c.label + " params.reference.record: " + ce.Message, Details: details, Cause: ce.Cause}
+	}
+	static := make([]float64, len(c.members))
+	var missing []string
+	for i, m := range c.members {
+		v, _, known := rec.Member(m)
+		if !known {
+			missing = append(missing, m)
+			continue
+		}
+		static[i] = v
+	}
+	if len(missing) > 0 {
+		return vectors.RecordMembersAbsent(c.label, rec.Cohort(), missing)
+	}
+	c.static = static
+	c.bound = true
+	return nil
+}
+
+// bind resolves the reference against the instance's tables, the
+// request's bound fits (population) or its resolved stored records
+// (record). A centroid binds at Finalize.
 func (c *comparisonCore) bind() error {
 	if len(c.members) == 0 {
 		return nil
@@ -223,6 +274,8 @@ func (c *comparisonCore) bind() error {
 		return nil
 	case vectors.ReferencePopulation:
 		return c.bindPopulation()
+	case vectors.ReferenceRecord:
+		return c.bindRecord()
 	}
 	b, err := vectors.ComparisonTableIssue(c.label, c.cfg, c.exts.referenceTables())
 	if err != nil {

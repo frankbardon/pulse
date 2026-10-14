@@ -58,21 +58,53 @@ import (
 // PULSE_INDEX_UNSUPPORTED_SHARDED — sharded point-lookup is out of
 // scope for v1. See Service.BuildIndex's doc comment for why.
 func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.LookupResult, error) {
+	recs, returnCols, err := s.lookupRecords(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]map[string]any, 0, len(recs))
+	for _, m := range recs {
+		all := processing.RenderRecordCells(m.rec)
+		row := make(map[string]any, len(returnCols))
+		for _, name := range returnCols {
+			if v, present := all[name]; present {
+				row[name] = v
+			}
+		}
+		rows = append(rows, row)
+	}
+	return &types.LookupResult{Rows: rows}, nil
+}
+
+// lookupMatch is one record a point lookup matched, decoded over its
+// cohort's schema (projected to the return columns).
+type lookupMatch struct {
+	rec    *processing.Record
+	schema *encoding.Schema
+	path   string
+}
+
+// lookupRecords is Lookup's resolution — every refusal, the index read,
+// the multiplicity rule and the record reads — returning the matched
+// records decoded (ascending row-id) and the resolved return columns.
+// Lookup renders them; a comparison slot's {record} reference
+// (reference_records.go) reads one directly.
+func (s *Service) lookupRecords(ctx context.Context, req *types.LookupRequest) ([]lookupMatch, []string, error) {
 	if req == nil {
-		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "lookup requires a request")
+		return nil, nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "lookup requires a request")
 	}
 	if req.Cohort == nil {
-		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "lookup requires a cohort")
+		return nil, nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "lookup requires a cohort")
 	}
 	components := req.KeyComponents()
 	if len(components) == 0 {
-		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
+		return nil, nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"lookup requires at least one key field (Field or Keys)")
 	}
 	keyFieldNames := make([]string, len(components))
 	for i, c := range components {
 		if c.Field == "" {
-			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "lookup requires a non-empty field")
+			return nil, nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "lookup requires a non-empty field")
 		}
 		keyFieldNames[i] = c.Field
 	}
@@ -80,10 +112,10 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	path := resolveCohortPath(req.Cohort)
 	cohort, err := s.Open(ctx, path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(cohort.Shards()) > 0 {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_UNSUPPORTED_SHARDED,
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_UNSUPPORTED_SHARDED,
 			"point-lookup does not support shard archive cohorts",
 			map[string]any{"cohort": path})
 	}
@@ -93,7 +125,7 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	for i, name := range keyFieldNames {
 		f := schema.Field(name)
 		if f == nil {
-			return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			return nil, nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				"lookup key field not found in schema",
 				map[string]any{"field": name})
 		}
@@ -102,7 +134,7 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 
 	returnCols, err := resolveLookupReturnColumns(schema, req.ReturnColumns)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	fsys := cohort.fs
@@ -113,11 +145,11 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	indexPath := encx.SidecarIndexPath(path, keyFieldNames)
 	exists, err := afero.Exists(fsys, indexPath)
 	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+		return nil, nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("checking sidecar index existence: %s", indexPath))
 	}
 	if !exists {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_MISSING,
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_MISSING,
 			"no sidecar point-lookup index found for these key fields",
 			map[string]any{"cohort": path, "fields": keyFieldNames, "index_path": indexPath})
 	}
@@ -128,14 +160,14 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	// never any bucket's data. See encoding.ReadIndexMeta's doc comment.
 	sidecarFile, err := fsys.Open(indexPath)
 	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+		return nil, nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("opening sidecar index file: %s", indexPath))
 	}
 	defer sidecarFile.Close()
 
 	meta, err := encx.ReadIndexMeta(sidecarFile)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Read-path staleness check. A matching size+mtime pair is served
@@ -158,7 +190,7 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	// content check and always recomputes the fingerprint.
 	freshness, err := s.classifyIndexFreshness(fsys, path, meta, false)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if !freshness.Fresh {
 		detail := map[string]any{"cohort": path, "fields": keyFieldNames, "index_path": indexPath}
@@ -168,11 +200,11 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 			detail["fingerprint_checked"] = true
 			message = "sidecar point-lookup index is stale: the cohort file's content hash no longer matches the fingerprint recorded at index build"
 		}
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_STALE, message, detail)
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_STALE, message, detail)
 	}
 
 	if len(meta.Keys) != len(components) {
-		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			"lookup key component count does not match the sidecar index's key-spec",
 			map[string]any{"cohort": path, "requested": len(components), "index_key_count": len(meta.Keys)})
 	}
@@ -183,7 +215,7 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	}
 	keyBytes, err := processing.ResolveCompositeLookupKeyBytes(keyFields, literals)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Single-bucket seek read: resolves keyBytes to its hash bucket and
@@ -191,12 +223,12 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	// bucket-offset table, never any other bucket.
 	bucket, err := encx.ReadBucketByKey(sidecarFile, meta, keyBytes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	entry, ok := findBucketEntry(bucket, keyBytes)
 	if !ok || len(entry.RowIDs) == 0 {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_LOOKUP_NOT_FOUND,
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_LOOKUP_NOT_FOUND,
 			"no record matches the requested key",
 			map[string]any{"cohort": path, "fields": keyFieldNames, "values": literals})
 	}
@@ -214,7 +246,7 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	switch mode {
 	case types.LookupMultiplicityAssertUnique:
 		if len(rowIDs) > 1 {
-			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_LOOKUP_AMBIGUOUS,
+			return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_LOOKUP_AMBIGUOUS,
 				"key matched more than one row under assert-unique multiplicity",
 				map[string]any{"cohort": path, "fields": keyFieldNames, "values": literals, "match_count": len(rowIDs)})
 		}
@@ -224,7 +256,7 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	case types.LookupMultiplicityAll:
 		// keep every matching row-id, ascending order already applied.
 	default:
-		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			"unknown lookup multiplicity mode",
 			map[string]any{"multiplicity": string(mode)})
 	}
@@ -237,13 +269,13 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	// open handle and a single reused DecodePlan.
 	cohortFile, loc, err := openRecordLocator(fsys, path, schema, freshness.Size)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer cohortFile.Close()
 
 	plan, err := encx.BuildDecodePlan(schema, returnCols)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	wantCols := make(map[string]bool, len(returnCols))
@@ -252,27 +284,18 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	}
 	keep := encx.FieldFilter(func(name string) bool { return wantCols[name] })
 
-	rows := make([]map[string]any, 0, len(rowIDs))
+	out := make([]lookupMatch, 0, len(rowIDs))
 	for _, rowID := range rowIDs {
 		values := make(map[string]float64)
 		nulls := make(map[string]bool)
 		wide := make(map[string]any)
 		if err := encx.ReadRecordAt(loc, cohortFile, rowID, values, nulls, wide, keep, plan); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-
-		rec := processing.NewRecordWithWide(schema, values, nulls, wide)
-		all := processing.RenderRecordCells(rec)
-		row := make(map[string]any, len(returnCols))
-		for _, name := range returnCols {
-			if v, present := all[name]; present {
-				row[name] = v
-			}
-		}
-		rows = append(rows, row)
+		out = append(out, lookupMatch{rec: processing.NewRecordWithWide(schema, values, nulls, wide), schema: schema, path: path})
 	}
 
-	return &types.LookupResult{Rows: rows}, nil
+	return out, returnCols, nil
 }
 
 // resolveLookupReturnColumns validates req.ReturnColumns against schema

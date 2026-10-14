@@ -667,6 +667,13 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if err != nil {
 		return nil, markLocated(err)
 	}
+	// Every comparison slot's {record} reference: looked up once, here,
+	// before any processor builds, and bound beside the models (a
+	// Compose slot's or chain stage 0's pre-bound set included).
+	ctx, err = s.bindReferenceRecords(ctx, req, req.Cohort)
+	if err != nil {
+		return nil, err
+	}
 
 	// The multiplicity blocks resolve before any dispatch (every arm —
 	// crosstab, join, shard, parallel decode, serial — shares it); a

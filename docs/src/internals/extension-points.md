@@ -789,8 +789,9 @@ not features: no feature profile gates them.
 attributes `ATTR_PROFILE_SIMILARITY` / `ATTR_VEC_DISTANCE` read the same
 tables through their `reference` param (`{table, key}` or
 `{table, key_field}`, matched by label; they also take a computed
-`{centroid: {filter, by}}` and a `{population: name}` naming a registered
-population); as built-ins their names are
+`{centroid: {filter, by}}`, a `{population: name}` naming a registered
+population and a `{record: {cohort?, keys}}` read through a point lookup);
+as built-ins their names are
 refused to an extension (`PULSE_EXTENSION_NAME_COLLISION`).
 
 ### Registered populations

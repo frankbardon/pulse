@@ -33,6 +33,11 @@ for cohort in transactions customers orders training_data all_types experiment r
     --json > /dev/null
 done
 
+# The point-lookup index a {record} comparison reference reads
+# (attributes/20_record_reference.json).
+echo "==> indexing experiment.pulse on id"
+"$PULSE_BIN" index build "$DATA_DIR/experiment.pulse" --key id --json > /dev/null
+
 echo
 echo "Cohorts written to: $DATA_DIR"
 echo "Examples reference cohort.data_dir = \"$DATA_DIR\" so requests run unmodified."

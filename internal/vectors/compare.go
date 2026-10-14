@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -33,8 +34,12 @@ import (
 //     mean of the filtered rows params.reference.centroid.filter admits —
 //     AGG_VEC_MEAN's figure — one per by value when by names a
 //     categorical / unsigned-integer column, each row compared with its
-//     own key's), or {population: name} (a bound vector fit's stored
-//     mean, aligned by label: AlignFit). A literal of the wrong length
+//     own key's), {population: name} (a bound vector fit's stored
+//     mean, aligned by label: AlignFit), or {record: {cohort?, keys}}
+//     (one stored record, point-looked-up through the cohort's sidecar
+//     index by the Service before the processor builds and bound from
+//     the request's model.Set — matched by member column name, a null
+//     member a missing element). A literal of the wrong length
 //     or a label map / table / population whose labels are not the
 //     vector's is PULSE_VECTOR_REFERENCE_MISMATCH; an unregistered table
 //     or key, or an unbound population, PULSE_VECTOR_REFERENCE_UNKNOWN.
@@ -98,7 +103,18 @@ const (
 	// stored mean (a request / registered population or an in-batch
 	// Compose vector fit), aligned by label.
 	ReferencePopulation = "population"
+	// ReferenceRecord: {record: {cohort?, keys}} — one stored record of
+	// a cohort (the request's own when cohort is omitted), resolved by
+	// a point lookup over the cohort's sidecar index before the
+	// processor builds; its member columns are the reference.
+	ReferenceRecord = "record"
 )
+
+// ReferenceReasonRecordMembersAbsent is the
+// PULSE_VECTOR_REFERENCE_MISMATCH reason of a {record} reference whose
+// cohort lacks a member column (or holds it as a type no vector member
+// may be).
+const ReferenceReasonRecordMembersAbsent = "record_members_absent"
 
 // ReferenceReasonPopulationUnknown is the PULSE_VECTOR_REFERENCE_UNKNOWN
 // reason of a {population} reference naming no bound vector fit.
@@ -125,6 +141,32 @@ type ComparisonReference struct {
 	By        string
 	// Population names the bound vector fit a {population} form reads.
 	Population string
+	// Cohort and Keys are a {record} form's operands: the cohort the
+	// record is looked up in (nil: the request's own) and the ordered
+	// key tuple of its sidecar index.
+	Cohort *types.Cohort
+	Keys   []types.LookupKey
+}
+
+// RecordKey is the key a {record} reference's resolved record binds
+// under on the request's model.Set (model.Set.LookupRecord): the cohort
+// as written (absent when omitted) and the keys in order, canonical
+// JSON. The Service (which resolves) and the engine (which binds) both
+// derive it from the decoded reference.
+func (r ComparisonReference) RecordKey() string {
+	b, err := json.Marshal(recordWire{Cohort: r.Cohort, Keys: r.Keys})
+	if err != nil {
+		// Unreachable: strings only.
+		return ""
+	}
+	return string(b)
+}
+
+// recordWire is the {record} operand (strict decode; CanonicalParams
+// writes it back).
+type recordWire struct {
+	Cohort *types.Cohort     `json:"cohort,omitempty"`
+	Keys   []types.LookupKey `json:"keys"`
 }
 
 // Static reports whether the reference is the same for every row (every
@@ -319,7 +361,7 @@ func comparisonMetric(at string, typ types.AttributeType, explicit *string, kind
 // compared vector's labels (vector its name, "" for inline fields).
 func decodeComparisonReference(at string, raw json.RawMessage, labels []string, vector string, schema *encoding.Schema) (ComparisonReference, *errors.CodedError) {
 	raw = bytes.TrimSpace(raw)
-	shapes := "a literal array (member order), a label map {label: value}, {table, key}, {table, key_field}, {centroid: {filter, by}} or {population: name}"
+	shapes := "a literal array (member order), a label map {label: value}, {table, key}, {table, key_field}, {centroid: {filter, by}}, {population: name} or {record: {cohort, keys}}"
 	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
 		return ComparisonReference{}, attributeInvalid(at, "reference_required",
 			at+" params.reference is required: "+shapes, map[string]any{"param": "reference"})
@@ -365,7 +407,7 @@ func decodeComparisonReference(at string, raw json.RawMessage, labels []string, 
 	}
 	// The reserved forms are told from a label map by their operand's
 	// shape (a label map's values are numbers): table / population a
-	// string, centroid an object.
+	// string, centroid / record an object.
 	if t, ok := obj["table"]; ok && len(bytes.TrimSpace(t)) > 0 && bytes.TrimSpace(t)[0] == '"' {
 		return decodeTableReference(at, obj, schema)
 	}
@@ -374,6 +416,9 @@ func decodeComparisonReference(at string, raw json.RawMessage, labels []string, 
 	}
 	if v, ok := obj[ReferencePopulation]; ok && len(bytes.TrimSpace(v)) > 0 && bytes.TrimSpace(v)[0] == '"' {
 		return decodePopulationReference(at, obj)
+	}
+	if v, ok := obj[ReferenceRecord]; ok && len(bytes.TrimSpace(v)) > 0 && bytes.TrimSpace(v)[0] == '{' {
+		return decodeRecordReference(at, obj)
 	}
 	// A label map: every value a finite number, the label set the
 	// vector's.
@@ -548,6 +593,60 @@ func decodePopulationReference(at string, obj map[string]json.RawMessage) (Compa
 	return ComparisonReference{Form: ReferencePopulation, Population: name}, nil
 }
 
+// decodeRecordReference decodes {record: {cohort?, keys}} (strict keys
+// at every level): keys a non-empty ordered list of {field, value}
+// (value text, the point-lookup convention), field names non-empty and
+// distinct; cohort, when present, a {filename, data_dir} with a
+// filename. Only the shape is judged here — the lookup itself (the
+// index, the match, its uniqueness) is the Service's, at run time.
+func decodeRecordReference(at string, obj map[string]json.RawMessage) (ComparisonReference, *errors.CodedError) {
+	bad := func(msg string, extra map[string]any) (ComparisonReference, *errors.CodedError) {
+		details := map[string]any{"param": "reference"}
+		for k, v := range extra {
+			details[k] = v
+		}
+		return ComparisonReference{}, attributeInvalid(at, "bad_reference", at+" params.reference "+msg, details)
+	}
+	for k := range obj {
+		if k != ReferenceRecord {
+			return bad("names unknown key "+strconv.Quote(k)+" beside record (a record reference is {record: {cohort, keys}} alone)", map[string]any{"key": k})
+		}
+	}
+	var inner recordWire
+	if err := decodeStrict(obj[ReferenceRecord], &inner); err != nil {
+		return bad("record does not decode: "+err.Error()+" (keys: cohort {filename, data_dir}, keys [{field, value}] — each value text)", nil)
+	}
+	if len(inner.Keys) == 0 {
+		return bad("record.keys is empty; list the key columns of the cohort's sidecar index, in index order, each {field, value}", nil)
+	}
+	seen := make(map[string]bool, len(inner.Keys))
+	for j, k := range inner.Keys {
+		if k.Field == "" {
+			return bad("record.keys["+strconv.Itoa(j)+"] names an empty field", map[string]any{"index": j})
+		}
+		if seen[k.Field] {
+			return bad("record.keys["+strconv.Itoa(j)+"] repeats field "+strconv.Quote(k.Field), map[string]any{"index": j, "field": k.Field})
+		}
+		seen[k.Field] = true
+	}
+	if inner.Cohort != nil && inner.Cohort.Filename == "" {
+		return bad("record.cohort names no filename; omit cohort to look the record up in the request's own cohort", nil)
+	}
+	return ComparisonReference{Form: ReferenceRecord, Cohort: inner.Cohort, Keys: slices.Clone(inner.Keys)}, nil
+}
+
+// RecordMembersAbsent is the PULSE_VECTOR_REFERENCE_MISMATCH refusal of
+// a {record} reference on slot at whose cohort holds no usable column
+// for the members listed in missing (absent, or a type no vector member
+// may be: categorical, date, set, …).
+func RecordMembersAbsent(at, cohort string, missing []string) *errors.CodedError {
+	return errors.NewCodedErrorWithDetails(errors.PULSE_VECTOR_REFERENCE_MISMATCH,
+		at+" params.reference: the stored record's cohort "+strconv.Quote(cohort)+" holds no numeric column for member(s) "+strconv.Quote(strings.Join(missing, ", "))+
+			"; a record reference is read by member column name, so its cohort must carry every member as an integer, float, packed_bool or vector-element column",
+		map[string]any{"reason": ReferenceReasonRecordMembersAbsent, "attribute": at, "slot": at + ".params.reference",
+			"cohort": cohort, "missing": slices.Clone(missing)})
+}
+
 // PopulationRefusal locates a {population} reference's lookup refusal
 // (the runtime's model.Set.LookupVector or predict's
 // model.CheckVectorFit) on slot at: an unbound name is
@@ -642,10 +741,10 @@ func ComparisonTableIssue(at string, cfg ComparisonConfig, tables ReferenceTable
 	switch ref.Form {
 	case ReferenceValues, ReferenceLabelMap:
 		return ComparisonBinding{Static: slices.Clone(ref.Values)}, nil
-	case ReferenceCentroid, ReferencePopulation:
+	case ReferenceCentroid, ReferencePopulation, ReferenceRecord:
 		// A centroid is folded by the pre-pass, a population bound from
-		// the request's fits (PopulationRefusal / PopulationAlign): no
-		// table to judge.
+		// the request's fits (PopulationRefusal / PopulationAlign), a
+		// record looked up by the Service: no table to judge.
 		return ComparisonBinding{}, nil
 	}
 	t, ce := tables.Table(ref.Table)
@@ -670,7 +769,8 @@ func ComparisonTableIssue(at string, cfg ComparisonConfig, tables ReferenceTable
 // members: the metric written out (a kind default survives the rewrite
 // to literal fields), min_valid, the labels the reference aligns to,
 // the reference (a literal or label map in member order; a table,
-// centroid or population form as written), fit_on as written and the bound fit's name. Processor.prepare hands it to the
+// centroid, population or record form as written), fit_on as written
+// and the bound fit's name. Processor.prepare hands it to the
 // factory beside the literal member list; ComparisonParams over those
 // members decodes it back to cfg.
 func (cfg ComparisonConfig) CanonicalParams() json.RawMessage {
@@ -698,6 +798,8 @@ func (cfg ComparisonConfig) CanonicalParams() json.RawMessage {
 		out.Reference = map[string]centroid{ReferenceCentroid: {Filter: cfg.Reference.FilterRaw, By: cfg.Reference.By}}
 	case ReferencePopulation:
 		out.Reference = map[string]string{ReferencePopulation: cfg.Reference.Population}
+	case ReferenceRecord:
+		out.Reference = map[string]recordWire{ReferenceRecord: {Cohort: cfg.Reference.Cohort, Keys: cfg.Reference.Keys}}
 	default:
 		out.Reference = tableRef{Table: cfg.Reference.Table, Key: cfg.Reference.Key, KeyField: cfg.Reference.KeyField}
 	}
@@ -820,6 +922,39 @@ func ComparisonPopulation(typ types.AttributeType, a *types.Attribute) string {
 	}
 	name, _ := ref.Population.(string)
 	return name
+}
+
+// ComparisonRecord returns comparison slot a's (route typ) decoded
+// {record} reference; ok is false for any other slot or form, or a
+// record operand that does not decode (refused elsewhere). The Service
+// reads it to resolve every slot's stored record before the processor
+// builds.
+func ComparisonRecord(typ types.AttributeType, a *types.Attribute) (ComparisonReference, bool) {
+	if a == nil || !IsComparisonAttribute(typ) {
+		return ComparisonReference{}, false
+	}
+	var p struct {
+		Reference json.RawMessage `json:"reference"`
+	}
+	if json.Unmarshal(a.Params, &p) != nil {
+		return ComparisonReference{}, false
+	}
+	raw := bytes.TrimSpace(p.Reference)
+	if len(raw) == 0 || raw[0] != '{' {
+		return ComparisonReference{}, false
+	}
+	var obj map[string]json.RawMessage
+	if json.Unmarshal(raw, &obj) != nil {
+		return ComparisonReference{}, false
+	}
+	if v, ok := obj[ReferenceRecord]; !ok || len(bytes.TrimSpace(v)) == 0 || bytes.TrimSpace(v)[0] != '{' {
+		return ComparisonReference{}, false
+	}
+	ref, err := decodeRecordReference(attributePath(0), obj)
+	if err != nil {
+		return ComparisonReference{}, false
+	}
+	return ref, true
 }
 
 // ComparisonTwoPass is the per-slot two-pass predicate of the

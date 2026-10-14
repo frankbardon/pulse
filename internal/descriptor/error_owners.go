@@ -42,6 +42,9 @@ func plus(lists ...[]string) []string {
 }
 
 var (
+	// ownRecordRef: the comparison attributes, whose {record} reference
+	// is a point lookup over the cohort's sidecar index.
+	ownRecordRef   = own("ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE")
 	ownAllTests    = opsWithPrefix("TEST_")
 	ownAllOverlays = opsWithPrefix("OVERLAY_")
 	ownAllWindows  = opsWithPrefix("WIN_")
@@ -420,12 +423,14 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_OVERLAY_RAKE_NOT_CONVERGED:            own("OVERLAY_RAKE"),
 	errors.PULSE_OVERLAY_GROUPS_REQUIRED:               own("OVERLAY_MATRIX_GROUP_SUMMARY"),
 
-	// Point lookup and its sidecar index.
-	errors.PULSE_INDEX_MISSING:             own(featIndex, featLookup),
-	errors.PULSE_LOOKUP_NOT_FOUND:          own(featLookup),
-	errors.PULSE_LOOKUP_AMBIGUOUS:          own(featLookup),
-	errors.PULSE_INDEX_STALE:               own(featIndex, featLookup),
-	errors.PULSE_INDEX_UNSUPPORTED_SHARDED: own(featIndex, featLookup),
+	// Point lookup and its sidecar index. A comparison slot's {record}
+	// reference runs the same lookup (ownRecordRef), so it raises them
+	// too.
+	errors.PULSE_INDEX_MISSING:             plus(own(featIndex, featLookup), ownRecordRef),
+	errors.PULSE_LOOKUP_NOT_FOUND:          plus(own(featLookup), ownRecordRef),
+	errors.PULSE_LOOKUP_AMBIGUOUS:          plus(own(featLookup), ownRecordRef),
+	errors.PULSE_INDEX_STALE:               plus(own(featIndex, featLookup), ownRecordRef),
+	errors.PULSE_INDEX_UNSUPPORTED_SHARDED: plus(own(featIndex, featLookup), ownRecordRef),
 	errors.PULSE_INDEX_MANIFEST_INVALID:    own(featIndex, featLookup),
 	errors.PULSE_INDEX_MANIFEST_STALE:      own(featIndex, featLookup),
 
