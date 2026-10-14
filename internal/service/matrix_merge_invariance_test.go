@@ -484,7 +484,7 @@ func assertMatrixCloseToReference(t *testing.T, got matrixRun, ref []uint64) {
 // unweighted, matrix-only and beside an aggregation; a one-shard
 // archive and a multi-shard one (shard edges inside merge blocks) equal
 // their single-file twin bitwise (blocks key by the global record
-// ordinal — .claude/reference/matrix-and-vectors.md, Blocked
+// ordinal — .claude/reference/matrix-and-vectors/linalg.md, Blocked
 // merge-tree contract). Listwise and pairwise (params.missing),
 // the pairwise N (auxiliary.n) and the matrix warnings included.
 func TestMatrixCovariance_WorkerInvariant(t *testing.T) {

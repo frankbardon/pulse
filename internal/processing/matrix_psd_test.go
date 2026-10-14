@@ -37,7 +37,7 @@ type nearPDCase struct {
 // LAPACK dsyevr; the two agree to a few ulps per projection, and 15
 // projections keep the iterates within ~1e-12 of R's — 1e-9 leaves
 // three orders of headroom for the cross-architecture eigen drift
-// (.claude/reference/matrix-and-vectors.md, PSD guard and repair).
+// (.claude/reference/matrix-and-vectors/matrix-decomposition.md, PSD guard and repair).
 const nearestOracleTol = 1e-9
 
 func symFrom(t *testing.T, rows [][]float64) *linalg.Sym {

@@ -233,14 +233,14 @@ The pack under `internal/skills/` (addressed `skills/<stem>.md`, embedded via `/
 
 ## Reference Docs
 
-`.claude/reference/*.md` is where CLAUDE.md's long form lives. **This is the complete index.** CLAUDE.md carries only the always-load half of each contract — load the named file BEFORE the work, not after. Most are also required companions in the Update Demand table, which makes loading them binding.
+`.claude/reference/*.md` is where CLAUDE.md's long form lives. **This is the complete index.** CLAUDE.md carries only the always-load half of each contract — load the named file BEFORE the work, not after. A file with a same-named subdirectory is an INDEX: load it, then only the slice(s) your change triggers (never `history.md`). Most are also required companions in the Update Demand table, which makes loading them binding.
 
 | File | Holds | Load before... |
 |---|---|---|
 | `architecture.md` | package tree, facade narrowing, `io` boundary, surface guards, MCP layer split, extension surface | moving a package, adding a public package or exported symbol, or touching an import-boundary gate |
-| `update-demand.md` | the per-slot trigger table, per-gate prose, the non-prefix-matched gates | touching ANY contract; add a row for a new Request slot, Response slot, capability block or execution-mode wiring |
+| `update-demand.md` | index → per-area trigger-table slices (`update-demand/`), gate prose | touching ANY contract; add a row for a new Request slot, Response slot, capability block or execution-mode wiring |
 | `byte-layout.md` | format version, parent groups, wide sets, shard archives, sidecars, SPSS, projected decode | changing the `.pulse` format, a field type, shard-archive layout, any sidecar file, an SPSS surface, or the projection contract |
-| `execution-modes.md` | wiring prose per mode, every overlay host, multiplicity, time zones | engine work (`internal/service/`, `internal/processing/`) or adding an execution mode |
+| `execution-modes.md` | mode index → per-mode wiring slices (`execution-modes/`) | engine work (`internal/service/`, `internal/processing/`) or adding an execution mode |
 | `response-components.md` | auxiliary crosstab margins (ADMISSION rule), opt-out, Compose surface + envelope, undefined figures | changing `Response.Components`, a per-operator `ComponentSchema`, or `CrosstabSpec.MarginAggregations` on either arm |
 | `predict-inspect.md` | inspect's envelope split, truncated-tail warning, `CountRecords`' silence, the predict import ban | changing `predict.go` / `inspect.go`, `Pulse.Inspect` / `InspectEnvelope`, `pulse_inspect`, or `CountRecords` |
 | `request-templating.md` | file wrapper, substitution forms, variable types, precedence, hot-reload phases, `PULSE_TEMPLATE_*` codes | changing the request-template document model, the variable or target sets, or the substitution syntax |
@@ -249,7 +249,7 @@ The pack under `internal/skills/` (addressed `skills/<stem>.md`, embedded via `/
 | `skill-pack.md` | frontmatter, required sections, budgets, stems, add-a-skill | adding or restructuring a skill file, frontmatter keys, a family's required sections, or a budget |
 | `weighting.md` | the weight surface (null ≠ absent), resolution, weight classes, refusals, floor keys, op-order exactness | touching ANY weight surface |
 | `guided-analysis.md` | intents, `Purpose`, `Interpretation`, glossary, virtual skills, effect-size keys, budget gates | touching any guidance registry, an effect-size key, an overlay `Inferential` flag or the extension `Purpose` hook |
-| `matrix-and-vectors.md` | `linalg` backend policy, tolerance rules, `CoMoment`, the blocked merge, the matrix slot | touching `linalg/`, its callers or the blocked merge |
+| `matrix-and-vectors.md` | index → slices (`matrix-and-vectors/`): `linalg` policy, `CoMoment`, vectors, matrix slot | touching `linalg/`, its callers or the blocked merge |
 | `observability.md` | levels, log attributes + privacy rule, enums, hook contract, metric table, streaming end, contrib versioning, the four gates | changing an `observe` enum, metric, log attribute, hook field, `Options.Logger`/`Hooks`/`Metrics`, or a `contrib/` module |
 
-`TestClaudeMdSizeBudget` caps CLAUDE.md at 40,000 bytes so a new contract DISPLACES long form into that directory; never raise the ceiling. `.claude/reference/*.md` is inside `TestSkillsCoverAllCrossReferences`' corpus — a heading renamed in moved text still breaks the pointer that names it.
+`.claude/reference/**` is inside `TestSkillsCoverAllCrossReferences`' and `TestReferenceDocPointersResolve`' corpus — a heading renamed in moved text still breaks the pointer that names it.

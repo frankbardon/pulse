@@ -108,7 +108,7 @@ pattern at the aggregator layer.
 
 There is **no registered-test count or list in CLAUDE.md to update** —
 CLAUDE.md never hardcodes registered counts; the manifest is the source of
-truth. The Update Demand operator row (`.claude/reference/update-demand.md`)
+truth. The Update Demand operator row (`.claude/reference/update-demand/operators-and-guidance.md`)
 requires instead the atomic skill `skills/op-test-<kebab>.md`, the `types/streamability.go` case (§4), the capability declaration in
 `internal/descriptor/capabilities_tests.go` — and an `internal/examples/<dir>/*.json` example whose `_meta.operators`
 names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if the

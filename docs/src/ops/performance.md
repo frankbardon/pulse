@@ -17,7 +17,7 @@ buffers, and how to read predict's diagnostics.
 ## Streaming path: what stays out of memory
 
 The streaming `Process` path covers four orchestrator modes (from
-[`.claude/reference/execution-modes.md` → Streaming Process](https://github.com/frankbardon/pulse/blob/main/.claude/reference/execution-modes.md#streaming-process)):
+[`.claude/reference/execution-modes/streaming-and-decode.md` → Streaming Process](https://github.com/frankbardon/pulse/blob/main/.claude/reference/execution-modes/streaming-and-decode.md#streaming-process)):
 
 - **Single-pass streaming.** No-group requests with online aggregators
   (`COUNT`, `SUM`, `AVG`, `STDDEV`, `VARIANCE`, `RANGE`, `FREQUENCY`,
@@ -105,7 +105,7 @@ to end. Results are identical. Bench: `BenchmarkExprCompileOnce`.
 ## Buffered path: when Pulse has to materialise
 
 `pulse api predict` reports `Streamable=false` and lists every
-buffering reason. The current set, from `.claude/reference/execution-modes.md`
+buffering reason. The current set, from `.claude/reference/execution-modes/streaming-and-decode.md`
 (Streaming Process):
 
 - `AGG_MEDIAN`, `AGG_PERCENTILE`, and `AGG_ZSCORE` — require sorts or

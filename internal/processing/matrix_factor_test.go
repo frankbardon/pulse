@@ -13,7 +13,7 @@ import (
 // (mv_factor.json: psych::fa minres and principal axis on the reference
 // fixtures' correlations, then the rotation engine's R definitions).
 
-// Factor oracle tolerances (matrix-and-vectors.md, MAT_FACTOR), absolute
+// Factor oracle tolerances (matrix-and-vectors/matrix-factor-distance.md, MAT_FACTOR), absolute
 // + relative per cell:
 //
 //   - faPAOracleTol: principal axis replays psych's iteration step for

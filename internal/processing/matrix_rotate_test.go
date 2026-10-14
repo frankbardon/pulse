@@ -14,7 +14,7 @@ import (
 // sign-and-order rule) and its algebraic invariants.
 
 // rotationOracleTol is the engine's documented agreement with R,
-// absolute + relative per cell (matrix-and-vectors.md, Rotation engine).
+// absolute + relative per cell (matrix-and-vectors/matrix-decomposition.md, Rotation engine).
 // Every criterion replays its R algorithm with R's constants, so it
 // stops on the same iterate; what is left is rounding — the gonum SVD
 // against LAPACK's in varimax, Gauss–Jordan against dgesv in oblimin,

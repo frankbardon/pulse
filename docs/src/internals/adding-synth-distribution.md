@@ -39,7 +39,7 @@ topic (`synth-marginals`, `synth-correlations`, `synth-models`).
 
 There is **no registered-synth-distribution count or list in CLAUDE.md to update** —
 CLAUDE.md never hardcodes registered counts; the manifest is the source of
-truth. The Update Demand operator row (`.claude/reference/update-demand.md`)
+truth. The Update Demand operator row (`.claude/reference/update-demand/operators-and-guidance.md`)
 requires instead the atomic skill `skills/op-synth-<kebab>.md`, the capability declaration in
 `internal/descriptor/capabilities_distributions.go`. Edit CLAUDE.md only if the
 operator introduces a contract it states directly, and mind

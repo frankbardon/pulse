@@ -48,7 +48,7 @@ import (
 // the reference-kernel style), but the varimax SVD is gonum-backed, so
 // a result is same-machine bitwise and agrees across architectures
 // within the oracle tolerance (rotationOracleTol in the tests, 1e-9
-// absolute + relative; matrix-and-vectors.md, Rotation engine).
+// absolute + relative; matrix-and-vectors/matrix-decomposition.md, Rotation engine).
 
 // Rotation engine constants: R's defaults.
 const (

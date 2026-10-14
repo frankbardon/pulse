@@ -49,7 +49,7 @@ const reliabilityOracleTol = 1e-10
 
 // reliabilityOmegaTol pins omega: its loadings come from the minres
 // fit, which matches psych within 1e-5 on a proper fit (psych's L-BFGS-B
-// stops early; .claude/reference/matrix-and-vectors.md, One-factor
+// stops early; .claude/reference/matrix-and-vectors/matrix-decomposition.md, One-factor
 // minres). omega is smoother than any one loading; 1e-5 holds with room.
 const reliabilityOmegaTol = 1e-5
 
