@@ -601,6 +601,14 @@ Complete for U30. No release tag was cut by the unit; it ships in the next alpha
 | predict's matrix memory estimate under-counted (pairwise 7 words a pair, a 4-word header); `MaxEstimatedMemory` ignored shard-archive memory and charged an anchor-opened shard only its own records | pairwise `40 + 72·p(p+1)/2`, listwise `40 + 8·(p + p(p+1)/2)` bytes; an archive is charged its byte length, one schema decode and, when `ShardWorkers` fans out, the per-shard partial buckets; an anchor-opened shard is charged the whole archive (predict reads `Options.ShardWorkers`; `PredictBytes` unchanged). Archive open and scan no longer decode shard dictionaries, so real peak heap drops | behaviour change (estimates) | a run near the cap may now refuse (`PULSE_LIMIT_EXCEEDED`) or pass where it did not; re-check `Limits.MaxEstimatedMemory` | U30 (E8-S1, S3–S5) |
 | `PULSE_VECTOR_FIELD_NOT_SCALAR`'s message and aggregation fixup named only `AGG_VEC_MEAN` / `AGG_VEC_SUM` | they name the whole vector-aggregator set (`AGG_VEC_MEAN`, `AGG_VEC_SUM`, `AGG_VEC_SD`) | behaviour change (message) | none | U30 (E8-S2) |
 
+## Changes from U35 (predict / runtime parity)
+
+In progress; ships in the next alpha. `format_version` stays `"1.1"`.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| shard cohesion ignored per-field `Nullable`: a shard declaring nullable a field the archive does not was admitted whenever the null-bitmap width matched, and its nulls decoded as values under the canonical schema; a shard dropping a nullable field's flag could be added even when its bitmap (and so its stride) differed | `PULSE_SHARD_SCHEMA_MISMATCH` with `details.dimension: "nullable"` (`field`, `canonical_nullable`, `incoming_nullable`; `canonical_bitmap_bytes` / `incoming_bitmap_bytes` on a width refusal) from `AddShard`, `CreateShardArchive`, `shard verify`, the anchored `NewCohortBuilder` pre-check and the archive record reader. A non-nullable shard field under a nullable archive field is still admitted when both bitmaps have the same width and the field is no parent-group member. Nullability is never widened | behaviour change (refusal) | import every shard with the archive's nullability, or seed the archive with a shard that declares the field nullable | U35 (E1-S1) |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

@@ -1597,11 +1597,15 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SHARD_SCHEMA_MISMATCH: {
-		Message: "The incoming shard's structural schema (field count, per-field name/type/byte_offset/bit_position, categorical width) is not byte-equal to the archive's canonical schema.",
+		Message: "The incoming shard's structural schema (field count, per-field name/type/byte_offset/bit_position, categorical width, nullability, group layout) does not match the archive's canonical schema; details.dimension names the dimension when set (e.g. \"nullable\": a shard field is nullable where the archive's is not, or non-nullable with a different null-bitmap width or on a group member).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
 				Hint:   "Re-import the source data using the same schema as the canonical archive (run `pulse inspect <archive>` to view the canonical fields), or rebuild the archive against the new schema via `pulse shard create`.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "For details.dimension \"nullable\": nullability never widens across shards. Re-import the shard with the archive's nullability for that field, or rebuild the archive seeding with a shard that declares the field nullable (`pulse shard create` takes the first shard's schema as canonical).",
 			},
 		},
 	},

@@ -37,6 +37,11 @@ type CohesionWarning struct {
 //   - Vector dim, for a vec_f32 / vec_f64 field (the element type is
 //     the type byte). The dim decides the stride but is not in the type
 //     byte, so a trailing vector's dim mismatch is caught nowhere else.
+//   - Nullable, one-directionally (details.dimension "nullable"; see
+//     nullabilityCohesion): a non-nullable canonical field refuses a
+//     nullable incoming one, and a nullable canonical field admits a
+//     non-nullable incoming one only when the null bitmaps are the same
+//     width and the field is no parent-group member.
 //
 // Descriptions are advisory and may diverge across shards; per-field
 // divergence emits a PULSE_SHARD_DESCRIPTION_DIVERGENCE warning but
@@ -134,6 +139,11 @@ func ValidateStructuralCohesion(canonical, incoming *encoding.Schema) ([]Cohesio
 					"incoming_bit_pos":  nf.BitPosition,
 				})
 		}
+		if cf.Nullable != nf.Nullable {
+			if err := nullabilityCohesion(canonical, incoming, i); err != nil {
+				return warnings, err
+			}
+		}
 		// Dictionary-bearing width identity is already enforced by the
 		// Type-byte check (FieldTypeCategoricalU8/U16/U32 and
 		// FieldTypeSetU8/U16/U32/U64/U128/U256 are distinct bytes). The explicit
@@ -172,6 +182,56 @@ func ValidateStructuralCohesion(canonical, incoming *encoding.Schema) ([]Cohesio
 		return warnings, err
 	}
 	return warnings, nil
+}
+
+// nullabilityCohesion decides a per-field nullability difference at
+// field i. Every shard of an archive is decoded under the CANONICAL
+// schema's flags, so nothing is ever widened or rewritten here — the
+// verdict is admit-as-is or refuse:
+//
+//   - canonical NOT nullable, incoming nullable: always refused. The
+//     canonical decode ignores the field's null bit, so a null the shard
+//     stores reads back as its placeholder value — silently.
+//   - canonical nullable, incoming NOT nullable: admitted only when the
+//     two null bitmaps are the same width (so the record strides agree)
+//     and the field is no parent-group member (a member's null bits ride
+//     its group entry, whose geometry the member nullability decides).
+//     Every Pulse writer leaves a non-nullable field's bitmap bit 0, so
+//     each row then reads as non-null under the canonical flags.
+//
+// Both refusals are PULSE_SHARD_SCHEMA_MISMATCH with
+// details.dimension "nullable".
+func nullabilityCohesion(canonical, incoming *encoding.Schema, i int) error {
+	cf, nf := &canonical.Fields[i], &incoming.Fields[i]
+	details := map[string]any{
+		"field":              cf.Name,
+		"dimension":          "nullable",
+		"canonical_nullable": cf.Nullable,
+		"incoming_nullable":  nf.Nullable,
+	}
+	if !cf.Nullable {
+		return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
+			fmt.Sprintf("field %q nullability differs: the archive declares it non-nullable but the shard declares it nullable, so a stored null would decode as a value",
+				cf.Name),
+			details)
+	}
+	_, _, cMember := canonical.FieldGroup(i)
+	_, _, nMember := incoming.FieldGroup(i)
+	if cMember || nMember {
+		return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
+			fmt.Sprintf("field %q nullability differs on a parent-group member: the archive declares it nullable, the shard non-nullable",
+				cf.Name),
+			details)
+	}
+	if cb, nb := canonical.BitmapByteSize(), incoming.BitmapByteSize(); cb != nb {
+		details["canonical_bitmap_bytes"] = cb
+		details["incoming_bitmap_bytes"] = nb
+		return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
+			fmt.Sprintf("field %q nullability differs and the null bitmaps differ in width (archive %d bytes, shard %d): the record strides disagree",
+				cf.Name, cb, nb),
+			details)
+	}
+	return nil
 }
 
 // vectorMetadataWarnings reports the descriptive vector metadata — the

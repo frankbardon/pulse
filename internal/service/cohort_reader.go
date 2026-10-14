@@ -201,11 +201,17 @@ func openArchiveRecordReader(fsys afero.Fs, path string, canonical *encoding.Sch
 }
 
 // shardDecodeCompatible reports whether a shard written with header
-// schema own decodes to its own values under canonical: same fields,
-// types (set rungs included), offsets, nullability and group layout,
-// with every dictionary (categorical, set, group entries) a PREFIX of
-// canonical's. A dictionary LONGER than canonical's could hold IDs the
-// canonical dictionary cannot resolve and is PULSE_SHARD_DICT_DIVERGENCE.
+// schema own decodes to its own values under canonical. It checks, via
+// encx.ValidateStructuralCohesion, the same field names, types (set
+// rungs included), vector dims, byte offsets, bit positions, group
+// layout and per-field nullability under its one-directional rule (a
+// field canonical declares non-nullable may not be nullable in own; a
+// nullable canonical field admits a non-nullable one only with an
+// equal-width bitmap and outside any group — details.dimension
+// "nullable"); then the record stride; then that every dictionary
+// (categorical, set, group entries) is a PREFIX of canonical's. A
+// dictionary LONGER than canonical's could hold IDs the canonical
+// dictionary cannot resolve and is PULSE_SHARD_DICT_DIVERGENCE.
 func shardDecodeCompatible(canonical, own *encoding.Schema) error {
 	if _, err := encx.ValidateStructuralCohesion(canonical, own); err != nil {
 		return err

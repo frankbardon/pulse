@@ -40,7 +40,7 @@ Numbering note: appended as U35 after U34 rather than renumbered.
 - [ ] **#213** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) `Response.overlays` joins the feature gate (`gatedSlots`)
 - [ ] **#214** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) A joined slot or stage derives its `return` precision-exact set from the defaults-resolved request
 - [ ] **#215** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) `finalizeMergedPartial`'s empty-partial path emits the zero-n aggregation entries the serial path emits
-- [ ] **#207** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) Shard-archive cohesion compares `Nullable`: `AddShard`, `shard verify`, the `NewCohortBuilder` anchored-append pre-check and the archive reader refuse a shard whose per-field nullability differs from the canonical schema, instead of decoding it under the canonical flags
+- [x] **#207** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) Shard-archive cohesion compares `Nullable`: `AddShard`, `shard verify`, the `NewCohortBuilder` anchored-append pre-check and the archive reader refuse a shard whose per-field nullability differs from the canonical schema, instead of decoding it under the canonical flags
 - [ ] **#248** (7. Guided analysis › Follow-ups from U22) Bound Recommend reads a shard archive header-only: the archive path of `descx.Predict` does `io.ReadAll`, so a bound Recommend on an archive reads every shard
 - [ ] **#249** (7. Guided analysis › Follow-ups from U22) Recommend drafts every serving operator: `AGG_RATIO` (predict refuses a missing `field` the runtime ignores), `AGG_WEIGHTED_MEAN` (no weight binding), `ATTR_REG_*` and `FEAT_BUCKETIZE` (required params the manifest does not declare); see `unmappedOnFixture` in `internal/guide/bind_test.go`
 - [ ] **#253** (7. Guided analysis › Follow-ups from U23) Compose predict does not judge slot operators by name: an unknown or hidden operator in a Compose slot predicts valid, so the Explain doc's "predicts each slot" claim is inaccurate until per-slot predict runs
@@ -82,7 +82,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test(predict-runtime-parity
 - [ ] `knownTypeDivergence` returns `""` for every operator × field type pair, and the ledger is deleted
 - [x] No request with more than one `Groups` entry silently drops a group (delivered by [U54](U54-multi-grouper.md): every grouper executes, composite rows)
 - [ ] Every #201 gap has a predict-vs-runtime test
-- [ ] A shard whose field nullability differs from the canonical schema is refused with a coded error (`PULSE_SHARD_SCHEMA_MISMATCH` or a sibling) at every entry point, never decoded (#207)
+- [x] A shard whose field nullability differs from the canonical schema is refused with a coded error (`PULSE_SHARD_SCHEMA_MISMATCH` or a sibling) at every entry point, never decoded (#207)
 - [ ] `format_version` stays `"1.1"`
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
