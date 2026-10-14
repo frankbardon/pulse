@@ -248,6 +248,8 @@ type MatrixSpec struct {
 	// Params carries the operator's parameters (MAT_COVARIANCE:
 	// "ddof": 0 | 1; both: "missing": "listwise" | "pairwise",
 	// "max_drop_share": a share in [0, 1], listwise only, no default;
+	// every operator but MAT_DISTANCE: "fit": a bound vector fit's name
+	// (a Compose fits entry) the result is emitted from, folding no row;
 	// MAT_CORRELATION only: "summary": {"top_pairs": k}, k a positive
 	// integer, and "method"; MAT_PARTIAL_CORRELATION: "control": "all" |
 	// [fields], "repair": "nearest"; MAT_RELIABILITY: "reverse":

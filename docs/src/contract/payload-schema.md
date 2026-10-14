@@ -887,21 +887,36 @@ always emitted, never rounded by `precision`.
 ### Compose fits
 
 `ComposedRequest.fits` is an `omitempty` array of `FitSpec {name,
-request}`: `request` is an ordinary `Request` holding exactly one
-regression and no `groups` / `crosstab`. Every fit runs once, before any
-slot (sweep slots included), over its own cohort, filters, features and
-weight; slots read the fitted model by `name` (one namespace,
-`PULSE_MODEL_NAME_COLLISION` on a duplicate, `PULSE_MODEL_UNKNOWN` for an
-unbound reference). A malformed entry is `PULSE_FIT_INVALID` with
-`details.fit` (the entry index) and `details.reason` (`name_missing`,
-`request_missing`, `regression_count`, `grouped`); a fit request's own
-refusal keeps its code and gains `details.fit`. A fit request's `return`
-is ignored. The fits surface as `ComposedResponse.fits`, an `omitempty`
-object of `RegressionResult` keyed by fit name, pinned outside the
-Compose-level `return` like `ranking` (always emitted, never rounded).
-Both slots are gated by `capability:compose_fits`. `pulse_predict` with
-`composed` lists them as `fits [{name, type, target, predictors,
-cohort}]` on the predict result (not payload-reachable).
+request}`: `request` is an ordinary `Request` with no `groups` /
+`crosstab` holding exactly one regression (a regression fit) or, with no
+regression, exactly one vector battery — one `matrices` entry or one
+`ATTR_MAHALANOBIS` / `ATTR_PC_SCORE` / `ATTR_FACTOR_SCORE` attribute (a
+vector fit: the battery's listwise mean and co-moment). Every fit runs
+once, before any slot (sweep slots included), over its own cohort,
+filters, features and weight; slots read it by `name` — a regression fit
+through `ATTR_REG_PREDICT` / `coef()`, a vector fit through `params.fit`
+on a fitted vector attribute or any co-moment `MAT_*` slot. One
+namespace holds both kinds: `PULSE_MODEL_NAME_COLLISION` on a duplicate,
+`PULSE_MODEL_UNKNOWN` for an unbound reference, `PULSE_MODEL_KIND_MISMATCH`
+(`details.fit`, `kind`, `expected`) for a name of the other kind. A
+malformed entry is `PULSE_FIT_INVALID` with `details.fit` (the entry
+index) and `details.reason` (`name_missing`, `request_missing`,
+`regression_count`, `kind_ambiguous`, `vector_count`, `grouped`,
+`vector_source`, `vector_save`); a fit request's own refusal keeps its
+code and gains `details.fit`. A fit request's `return` is ignored. The
+fits surface as `ComposedResponse.fits`, an `omitempty` object of
+`FitResult` keyed by fit name: a regression fit's `RegressionResult`
+object as is (byte-identical to the regression-only shape), or a vector
+fit's `{"vector": VectorFitResult}` — `operator`, `labels`, `members`,
+`basis`, `n`, `n_weight_invalid`, `sum_weights`, `n_star`, `mean` and
+`covariance` (a full square-symmetric `MatrixValues`, M2*/(N* − 1) on the
+fit's weight basis; undefined cells `null`). The `vector` key
+discriminates. The object is pinned outside the Compose-level `return`
+like `ranking` (always emitted, never rounded). Both slots are gated by
+`capability:compose_fits`. `pulse_predict` with `composed` lists them as
+`fits [{name, type, target, predictors, cohort}]` — a vector fit as
+`{name, cohort, vector: {operator, labels, members}}` — on the predict
+result (not payload-reachable).
 
 ### Model files (`save`)
 

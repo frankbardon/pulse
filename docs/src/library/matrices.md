@@ -64,6 +64,13 @@ from the diagonal). Undefined cells are `null`, keys kept.
   covariance and correlation operators, fatal on a decomposition
   operator — see Partial correlation).
 - `max_drop_share` (listwise) warns `PULSE_MATRIX_LISTWISE_HEAVY_DROP`.
+- `fit: "<name>"` emits the matrix from a bound vector fit — a Compose
+  `fits` entry over one matrix or fitted-attribute battery — instead of
+  this request's rows: no row is read, members align to the fit BY LABEL
+  and the fit's weight basis governs. Every co-moment operator takes it;
+  `MAT_DISTANCE`, rank correlation methods and a declared reliability
+  scale range refuse it, as do `missing` / `max_drop_share` beside it
+  and a grouped request.
 - `PULSE_MATRIX_INSUFFICIENT_N` and `PULSE_MATRIX_ZERO_VARIANCE` flag thin
   or constant members. A constant member nulls its correlation row and
   column; the covariance keeps an exact 0.

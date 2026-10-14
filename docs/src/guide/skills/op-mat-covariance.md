@@ -31,6 +31,7 @@ Use something else:
 | `ddof` | 0 \| 1 | `1` | Denominator Σw − ddof. |
 | `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise: per-pair rows. |
 | `max_drop_share` | 0–1 | none | Listwise drop-share warning. |
+| `fit` | vector fit name | none | Emit from a bound vector fit ([`compose-fits`](compose-fits.md)), reading no row; by label; its basis governs. Not with `missing` / `max_drop_share` (`fit_and_missing`), groups (`fit_grouped`); a regression's name `PULSE_MODEL_KIND_MISMATCH`. |
 | `weight` | slot weight | inherited | Both kinds; `null` opts out. |
 | `encoding` | `full` \| `upper` | `full` | `upper`: row r holds p − r cells. |
 

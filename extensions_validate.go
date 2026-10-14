@@ -370,7 +370,7 @@ func validateAggregatorVectorInputs(regs []AggregatorRegistration) error {
 //     empty or listed twice within its part (details.part, .key).
 //   - reserved_matrix_param — a Params entry named after an
 //     engine-owned param (vectors.EngineMatrixParams: missing,
-//     max_drop_share), which the engine decodes and strips before the
+//     max_drop_share, fit), which the engine decodes and strips before the
 //     operator sees its params (details.param).
 //   - invalid_pvalues — PValues names no OutputKeys.Auxiliary key
 //     (details.pvalues).
@@ -417,7 +417,7 @@ func validateMatrixOps(regs []MatrixOpRegistration) error {
 		for _, p := range r.Params {
 			if slices.Contains(vectors.EngineMatrixParams(), p.Name) {
 				return invalid("reserved_matrix_param",
-					fmt.Sprintf("declares a param %q, which the engine owns on every matrix operator (it decodes and strips missing / max_drop_share before Finalize); rename the param", p.Name),
+					fmt.Sprintf("declares a param %q, which the engine owns on every matrix operator (it decodes and strips missing / max_drop_share / fit before Finalize); rename the param", p.Name),
 					map[string]any{"param": p.Name})
 			}
 		}

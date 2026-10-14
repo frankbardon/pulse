@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/types"
 )
 
 // CoefFunc is the expression function that reads a bound model's
@@ -43,7 +44,10 @@ func CheckCoef(cat Catalog, fit, term, stat string) *errors.CodedError {
 		sig, ok = cat.Signature(fit)
 	}
 	if !ok {
-		return UnknownModel(fit, catalogNames(cat))
+		return UnknownModel(fit, NamesOfKind(cat, types.FitKindRegression))
+	}
+	if sig.EffectiveKind() != types.FitKindRegression {
+		return KindMismatch(fit, types.FitKindRegression, sig.EffectiveKind())
 	}
 	if term != InterceptKey && !slices.Contains(sig.Terms, term) {
 		return TermUnknown(fit, term, sig.Terms)

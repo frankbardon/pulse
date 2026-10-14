@@ -297,7 +297,7 @@ func TestMaxGroups_PartitionMatricesCarryLimits(t *testing.T) {
 		Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "cov", Fields: []string{"x"}}},
 	}
 	sp := newShardPartial(req, nil, withMaxGroups(1))
-	if err := sp.buildMatrices(req, schema, nil, true, processing.FullComputePlan()); err != nil || sp.groupedMats == nil {
+	if err := sp.buildMatrices(req, schema, nil, true, processing.FullComputePlan(), nil); err != nil || sp.groupedMats == nil {
 		t.Fatalf("buildMatrices: %v (mats %v)", err, sp.groupedMats)
 	}
 	rec := func(pos int) *processing.Record {

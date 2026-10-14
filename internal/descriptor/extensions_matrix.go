@@ -40,12 +40,32 @@ func MatrixMemberTypes() []string {
 
 // MatrixMemberParams are the engine-owned params every matrix
 // operator takes (internal/vectors.EngineMatrixParams): the
-// missing-data mode and the listwise heavy-drop threshold.
+// missing-data mode and the listwise heavy-drop threshold. A co-moment
+// (streamable) operator also takes the bound vector fit
+// (MatrixFitParam); a buffered one refuses it, so its manifest entry
+// does not list it.
 func MatrixMemberParams() []descriptor.Param {
 	return []descriptor.Param{
 		{Name: "missing", Type: "enum", Required: false, Default: vectors.MissingListwise, EnumValues: vectors.MissingModes(), Description: "listwise drops a row with any member null; pairwise computes each pair over the rows where both are present and adds auxiliary.n (pairwise N)."},
 		{Name: "max_drop_share", Type: "float", Required: false, Description: "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."},
 	}
+}
+
+// MatrixFitParam is the engine-owned params.fit every co-moment matrix
+// operator takes (internal/vectors resolveFit).
+func MatrixFitParam() descriptor.Param {
+	return descriptor.Param{Name: "fit", Type: "string", Required: false, Description: "A bound vector fit's name (a Compose fits entry over one MAT_* or fitted-attribute battery): the matrix is emitted from that fit's listwise state, folding no row; matched to the members BY LABEL; its own weight basis governs. Not with missing / max_drop_share, a grouped request, a buffered tier (rank methods) or a declared scale range (PULSE_MODEL_UNKNOWN / PULSE_MODEL_KIND_MISMATCH / PULSE_VECTOR_REFERENCE_MISMATCH)."}
+}
+
+// extensionMatrixParams is an extension MAT_* operator's manifest params:
+// the engine-owned ones (params.fit on the co-moment tier only), then
+// its own.
+func extensionMatrixParams(streamable bool, own []descriptor.Param) []descriptor.Param {
+	out := MatrixMemberParams()
+	if streamable {
+		out = append(out, MatrixFitParam())
+	}
+	return append(out, own...)
 }
 
 // matrixOp returns the extension MAT_* operator name's projection and
@@ -181,7 +201,7 @@ func extensionMatrixMetas(s *ExtensionsSnapshot, weighting bool) []descriptor.Ma
 			Name:            m.Name,
 			Description:     m.Description,
 			AcceptsTypes:    append([]string(nil), accepts...),
-			Params:          append(MatrixMemberParams(), d.Params...),
+			Params:          extensionMatrixParams(m.Streamable, d.Params),
 			OutputKeys:      d.OutputKeys,
 			Streamable:      m.Streamable,
 			Mergeable:       m.Streamable,

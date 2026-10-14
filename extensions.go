@@ -755,9 +755,10 @@ type MatrixOpRegistration struct {
 	Accepts []encoding.FieldType
 	// Params describes the operator's own params keys for the
 	// manifest. The factory still decodes and validates them. The
-	// engine owns missing and max_drop_share on every matrix operator:
-	// it decodes them as for a built-in and strips them from the params
-	// the factory and Finalize see, so a ParamMeta naming either is
+	// engine owns missing, max_drop_share and fit on every matrix
+	// operator: it decodes them as for a built-in and strips them from
+	// the params the factory and Finalize see (under fit, Finalize gets
+	// the bound vector fit's co-moment), so a ParamMeta naming one is
 	// refused (PULSE_EXTENSION_PARAM_INVALID, reserved_matrix_param).
 	Params []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection

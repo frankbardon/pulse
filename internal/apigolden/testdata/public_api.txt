@@ -166,7 +166,7 @@ pulse: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omi
 pulse: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse: type ComposedResponse = pulse/types.ComposedResponse
 pulse: type ComposedResponse underlying struct
-pulse: type ComposedResponse field Fits map[string]*pulse/types.RegressionResult "json:\"fits,omitempty\""
+pulse: type ComposedResponse field Fits map[string]*pulse/types.FitResult "json:\"fits,omitempty\""
 pulse: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
 pulse: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse: type ComposedResponse field Ranking []pulse/types.RankEntry "json:\"ranking,omitempty\""
@@ -1355,9 +1355,10 @@ pulse/descriptor: type FiltererPredict field Type pulse/types.FiltererType "json
 pulse/descriptor: type FitSummary struct
 pulse/descriptor: type FitSummary field Cohort string "json:\"cohort,omitempty\""
 pulse/descriptor: type FitSummary field Name string "json:\"name\""
-pulse/descriptor: type FitSummary field Predictors []string "json:\"predictors\""
-pulse/descriptor: type FitSummary field Target string "json:\"target\""
-pulse/descriptor: type FitSummary field Type pulse/types.RegressionType "json:\"type\""
+pulse/descriptor: type FitSummary field Predictors []string "json:\"predictors,omitempty\""
+pulse/descriptor: type FitSummary field Target string "json:\"target,omitempty\""
+pulse/descriptor: type FitSummary field Type pulse/types.RegressionType "json:\"type,omitempty\""
+pulse/descriptor: type FitSummary field Vector *pulse/descriptor.VectorFitSummary "json:\"vector,omitempty\""
 pulse/descriptor: type ForEachSummary struct
 pulse/descriptor: type ForEachSummary field Axes []pulse/descriptor.SweepAxisSummary "json:\"axes\""
 pulse/descriptor: type ForEachSummary field ExpandedCount int "json:\"expanded_count\""
@@ -1893,6 +1894,10 @@ pulse/descriptor: type TestMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type TestMeta field Tier int "json:\"tier\""
 pulse/descriptor: type TestMeta field Variant string "json:\"variant,omitempty\""
 pulse/descriptor: type TestMeta field WeightKinds []pulse/types.WeightKind "json:\"weight_kinds,omitempty\""
+pulse/descriptor: type VectorFitSummary struct
+pulse/descriptor: type VectorFitSummary field Labels []string "json:\"labels,omitempty\""
+pulse/descriptor: type VectorFitSummary field Members []string "json:\"members,omitempty\""
+pulse/descriptor: type VectorFitSummary field Operator string "json:\"operator\""
 pulse/descriptor: type VectorKindMeta struct
 pulse/descriptor: type VectorKindMeta field DistanceDefault string "json:\"distance_default\""
 pulse/descriptor: type VectorKindMeta field Name string "json:\"name\""
@@ -2398,6 +2403,7 @@ pulse/errors: const PULSE_MATRIX_ZERO_VARIANCE pulse/errors.Code = "PULSE_MATRIX
 pulse/errors: const PULSE_MODEL_FILE_INVALID pulse/errors.Code = "PULSE_MODEL_FILE_INVALID"
 pulse/errors: const PULSE_MODEL_FILE_UNREADABLE pulse/errors.Code = "PULSE_MODEL_FILE_UNREADABLE"
 pulse/errors: const PULSE_MODEL_INTERVALS_UNAVAILABLE pulse/errors.Code = "PULSE_MODEL_INTERVALS_UNAVAILABLE"
+pulse/errors: const PULSE_MODEL_KIND_MISMATCH pulse/errors.Code = "PULSE_MODEL_KIND_MISMATCH"
 pulse/errors: const PULSE_MODEL_NAME_COLLISION pulse/errors.Code = "PULSE_MODEL_NAME_COLLISION"
 pulse/errors: const PULSE_MODEL_OVERWRITTEN pulse/errors.Code = "PULSE_MODEL_OVERWRITTEN"
 pulse/errors: const PULSE_MODEL_PREDICTOR_MISSING pulse/errors.Code = "PULSE_MODEL_PREDICTOR_MISSING"
@@ -4289,7 +4295,7 @@ pulse/types: type ComposedRequest field Return *pulse/types.Return "json:\"retur
 pulse/types: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omitempty\""
 pulse/types: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse/types: type ComposedResponse struct
-pulse/types: type ComposedResponse field Fits map[string]*pulse/types.RegressionResult "json:\"fits,omitempty\""
+pulse/types: type ComposedResponse field Fits map[string]*pulse/types.FitResult "json:\"fits,omitempty\""
 pulse/types: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
 pulse/types: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse/types: type ComposedResponse field Ranking []pulse/types.RankEntry "json:\"ranking,omitempty\""
@@ -4477,6 +4483,46 @@ pulse/types: type FiltererComponents field NNullInput int "json:\"n_null_input\"
 pulse/types: type FiltererComponents field NOut int "json:\"n_out\""
 pulse/types: type FiltererType string
 pulse/types: type FiltererType method (FiltererType) Streamable() bool
+pulse/types: type FitKind string
+pulse/types: const FitKindRegression pulse/types.FitKind = "regression"
+pulse/types: const FitKindVector pulse/types.FitKind = "vector"
+pulse/types: type FitResult struct
+pulse/types: type FitResult embed *pulse/types.RegressionResult
+pulse/types: type FitResult field RegressionResult.AdjR2 float64 "json:\"adj_r2,omitempty\""
+pulse/types: type FitResult field RegressionResult.Alpha float64 "json:\"alpha,omitempty\""
+pulse/types: type FitResult field RegressionResult.CILower map[string]float64 "json:\"ci_lower,omitempty\""
+pulse/types: type FitResult field RegressionResult.CIUpper map[string]float64 "json:\"ci_upper,omitempty\""
+pulse/types: type FitResult field RegressionResult.Coefficients map[string]float64 "json:\"coefficients,omitempty\""
+pulse/types: type FitResult field RegressionResult.ConfLevel float64 "json:\"conf_level,omitempty\""
+pulse/types: type FitResult field RegressionResult.ConvergedIters int "json:\"converged_iters,omitempty\""
+pulse/types: type FitResult field RegressionResult.Correlation *pulse/types.MatrixValues "json:\"correlation,omitempty\""
+pulse/types: type FitResult field RegressionResult.Covariance *pulse/types.RegressionCovarianceResult "json:\"covariance,omitempty\""
+pulse/types: type FitResult field RegressionResult.CredibleIntervals map[string][2]float64 "json:\"credible_intervals,omitempty\""
+pulse/types: type FitResult field RegressionResult.Criterion string "json:\"criterion,omitempty\""
+pulse/types: type FitResult field RegressionResult.DF float64 "json:\"df,omitempty\""
+pulse/types: type FitResult field RegressionResult.Deviance float64 "json:\"deviance,omitempty\""
+pulse/types: type FitResult field RegressionResult.Family string "json:\"family,omitempty\""
+pulse/types: type FitResult field RegressionResult.L1Ratio float64 "json:\"l1_ratio,omitempty\""
+pulse/types: type FitResult field RegressionResult.Link string "json:\"link,omitempty\""
+pulse/types: type FitResult field RegressionResult.NEff float64 "json:\"n_eff,omitempty\""
+pulse/types: type FitResult field RegressionResult.NObs int "json:\"n_obs,omitempty\""
+pulse/types: type FitResult field RegressionResult.Name string "json:\"name,omitempty\""
+pulse/types: type FitResult field RegressionResult.NullDeviance float64 "json:\"null_deviance,omitempty\""
+pulse/types: type FitResult field RegressionResult.PValues map[string]float64 "json:\"p_values,omitempty\""
+pulse/types: type FitResult field RegressionResult.Penalty string "json:\"penalty,omitempty\""
+pulse/types: type FitResult field RegressionResult.Prior string "json:\"prior,omitempty\""
+pulse/types: type FitResult field RegressionResult.PseudoR2 float64 "json:\"pseudo_r2,omitempty\""
+pulse/types: type FitResult field RegressionResult.R2 float64 "json:\"r2,omitempty\""
+pulse/types: type FitResult field RegressionResult.Resample string "json:\"resample,omitempty\""
+pulse/types: type FitResult field RegressionResult.ResidualStdErr float64 "json:\"residual_std_err,omitempty\""
+pulse/types: type FitResult field RegressionResult.SelectedFeatures []string "json:\"selected_features,omitempty\""
+pulse/types: type FitResult field RegressionResult.Selection string "json:\"selection,omitempty\""
+pulse/types: type FitResult field RegressionResult.StdErrors map[string]float64 "json:\"std_errors,omitempty\""
+pulse/types: type FitResult field RegressionResult.SumWeights float64 "json:\"sum_weights,omitempty\""
+pulse/types: type FitResult field RegressionResult.Type pulse/types.RegressionType "json:\"type\""
+pulse/types: type FitResult field RegressionResult.Vcov *pulse/types.MatrixValues "json:\"vcov,omitempty\""
+pulse/types: type FitResult field Vector *pulse/types.VectorFitResult "json:\"vector,omitempty\""
+pulse/types: type FitResult method (FitResult) MarshalJSON() ([]byte, error)
 pulse/types: type FitSpec struct
 pulse/types: type FitSpec field Name string "json:\"name\""
 pulse/types: type FitSpec field Request *pulse/types.Request "json:\"request\""
@@ -5172,6 +5218,18 @@ pulse/types: func ValidPairwisePSource(s string) bool
 pulse/types: func ValidPanelNSource(s string) bool
 pulse/types: type VectorCoerce string
 pulse/types: const VectorCoerceBinary pulse/types.VectorCoerce = "binary"
+pulse/types: type VectorFitResult struct
+pulse/types: type VectorFitResult field Basis string "json:\"basis\""
+pulse/types: type VectorFitResult field Covariance *pulse/types.MatrixValues "json:\"covariance\""
+pulse/types: type VectorFitResult field Labels []string "json:\"labels\""
+pulse/types: type VectorFitResult field Mean []float64 "json:\"mean\""
+pulse/types: type VectorFitResult field Members []string "json:\"members\""
+pulse/types: type VectorFitResult field N int64 "json:\"n\""
+pulse/types: type VectorFitResult field NStar float64 "json:\"n_star\""
+pulse/types: type VectorFitResult field NWeightInvalid int64 "json:\"n_weight_invalid\""
+pulse/types: type VectorFitResult field Operator string "json:\"operator\""
+pulse/types: type VectorFitResult field SumWeights float64 "json:\"sum_weights\""
+pulse/types: type VectorFitResult method (VectorFitResult) MarshalJSON() ([]byte, error)
 pulse/types: type VectorKind string
 pulse/types: const VectorKindBinary pulse/types.VectorKind = "binary"
 pulse/types: const VectorKindComposition pulse/types.VectorKind = "composition"
@@ -5220,4 +5278,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 40427039927224a0969b6b9bf230c94f31e5a586977e187ccf4f69e4d3ec223b
+// golden-hash: 750d86b25f6afad10309e7b976d8335f4c3251f724354fe8898f9eeaf9964d9c

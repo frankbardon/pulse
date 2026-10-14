@@ -24,7 +24,7 @@ Questions it answers:
 
 - `factors` — int k ≤ p or `kaiser` (default). `extraction` — `minres` (default), `principal_axis`, `ml`.
 - `rotation` — `none` (default), `varimax`, `promax`, `oblimin`; `kappa` (4) / `gamma` (0) for promax / oblimin. `repair` — `nearest`.
-- `conf_level` — `ml`, default 0.9: RMSEA interval coverage. `missing`, `max_drop_share`, `weight`, `encoding`: [`op-mat-correlation`](op-mat-correlation.md).
+- `conf_level` — `ml`, default 0.9: RMSEA interval coverage. `missing`, `max_drop_share`, `fit`, `weight`, `encoding`: [`op-mat-correlation`](op-mat-correlation.md).
 
 ## Inputs
 

@@ -432,19 +432,19 @@ func slotLabels(at string, explicit []string, members Resolved) ([]string, *erro
 // FittedSlotParams returns a fitted (non-comparison) attribute slot's
 // params with params.labels written out as members' labels, for the
 // literal-member rewrite (Processor.prepare): the rewrite clears the
-// named vector, and a bound vector fit (params.fit) aligns to its
-// labels. ok is false — keep the params as written — when the slot
-// names no vector, binds no fit, or its params do not decode.
+// named vector, and the slot's labels are what a bound vector fit
+// (params.fit) aligns to and what a captured one (a Compose vector fit
+// over this slot) is stored under. ok is false — keep the params as
+// written — when the slot names no vector or its params do not decode.
 func FittedSlotParams(a *types.Attribute, members Resolved) (json.RawMessage, bool) {
 	if a == nil || a.Vector == "" || !IsFittedAttribute(a.Type) {
 		return nil, false
 	}
-	var obj map[string]json.RawMessage
-	if err := json.Unmarshal(a.Params, &obj); err != nil || obj == nil {
-		return nil, false
-	}
-	if fit, ok := obj["fit"]; !ok || bytes.Equal(bytes.TrimSpace(fit), []byte("null")) {
-		return nil, false
+	obj := map[string]json.RawMessage{}
+	if raw := bytes.TrimSpace(a.Params); len(raw) > 0 && !bytes.Equal(raw, []byte("null")) {
+		if err := json.Unmarshal(raw, &obj); err != nil || obj == nil {
+			return nil, false
+		}
 	}
 	labels := members.Labels
 	if len(labels) != len(members.Members) {
@@ -836,6 +836,23 @@ func AttributeFitOn(typ types.AttributeType, a *types.Attribute) []*types.Filter
 		return nil
 	}
 	return fitOn
+}
+
+// AttributeFit returns a's params.fit — the bound vector fit a fitted
+// attribute (or a fitted-metric comparison) scores against — when a's
+// route typ is a vector-input attribute; "" when absent, empty, for any
+// other type, or when the params do not decode (those are refused
+// elsewhere). The field-reference walk judges the name against the
+// bound fits (internal/model.CheckVectorFit).
+func AttributeFit(typ types.AttributeType, a *types.Attribute) string {
+	if a == nil || !IsVectorAttribute(typ) {
+		return ""
+	}
+	var c FittedCommon
+	if json.Unmarshal(a.Params, &c) != nil || c.Fit == nil {
+		return ""
+	}
+	return *c.Fit
 }
 
 // AttributeInputMembers returns the union of every field req's

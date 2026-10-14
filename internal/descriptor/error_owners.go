@@ -301,6 +301,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_FIT_INVALID:          own(featComposeFits),
 	errors.PULSE_MODEL_NAME_COLLISION: own(featComposeFits, featModels),
 	errors.PULSE_MODEL_UNKNOWN:        own(featComposeFits, featModels, "ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
+	errors.PULSE_MODEL_KIND_MISMATCH:  own(featComposeFits, featModels),
 	// ATTR_REG_PREDICT's scoring rule (internal/model.CheckScore) and
 	// the coef() expression function (internal/model.CheckCoef), which
 	// ATTR_FORMULA and FILTER_EXPRESSION evaluate.

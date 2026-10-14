@@ -211,6 +211,7 @@ func CatalogWithModels(outer Catalog, refs []types.ModelRef, files []*File) FitC
 			Type:   files[j].Type,
 			Terms:  append([]string(nil), files[j].Terms...),
 			Source: ModelSource(j, r.Path),
+			Kind:   types.FitKindRegression,
 		}
 	}
 	return out

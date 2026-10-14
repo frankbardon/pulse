@@ -166,6 +166,28 @@ type Matrix struct {
 	// ExtAuxiliary is an extension operator's declared auxiliary keys
 	// (its registration's OutputKeys.Auxiliary), AuxiliaryKeys' answer.
 	ExtAuxiliary []string
+	// Fit is params.fit: the bound vector fit (a Compose `fits` entry of
+	// kind vector) the slot emits from instead of folding its rows —
+	// aligned to Columns' labels (FitLabels) by label, its own weight
+	// basis governing. "" folds the filtered rows (the default).
+	Fit string
+}
+
+// FitLabels are the labels a bound vector fit aligns to, in Columns
+// order: each member's display label (its name when it carries none),
+// then each control outside the members (MAT_PARTIAL_CORRELATION) by
+// name. A vector fit captured from a matrix battery is stored under the
+// same labels.
+func (m Matrix) FitLabels() []string {
+	cols := m.Columns()
+	out := make([]string, len(cols))
+	for i, c := range cols {
+		out[i] = c
+		if i < len(m.Members.Members) && i < len(m.Members.Labels) && m.Members.Labels[i] != "" {
+			out[i] = m.Members.Labels[i]
+		}
+	}
+	return out
 }
 
 // MatrixExtension is what resolution needs to know about an
@@ -512,10 +534,13 @@ func SpecMethod(spec types.MatrixSpec) string {
 	return *p.Method
 }
 
-// missingParams are the missing-data knobs every matrix operator takes.
+// missingParams are the engine-owned knobs every matrix operator takes
+// (EngineMatrixParams): the missing-data mode, the listwise heavy-drop
+// threshold and the bound vector fit the slot emits from.
 type missingParams struct {
 	Missing      *string  `json:"missing"`
 	MaxDropShare *float64 `json:"max_drop_share"`
+	Fit          *string  `json:"fit"`
 }
 
 // covarianceParams is MAT_COVARIANCE's params object. Summary is
@@ -784,6 +809,9 @@ func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, o MatrixRe
 		if err := resolveDistance(at, req.Vectors, resolved, schema, route, ext, &m); err != nil {
 			return nil, err
 		}
+		if err := resolveFit(at, req, &m); err != nil {
+			return nil, err
+		}
 		out = append(out, m)
 	}
 	return out, nil
@@ -945,10 +973,11 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 }
 
 // EngineMatrixParams are the params keys the engine owns on every
-// matrix operator, extension ones included: the missing-data mode and
-// the listwise heavy-drop threshold. An extension operator never sees
+// matrix operator, extension ones included: the missing-data mode, the
+// listwise heavy-drop threshold and params.fit (the bound vector fit the
+// slot emits from — resolveFit). An extension operator never sees
 // them (decodeExtensionParams strips them) and may not declare them.
-func EngineMatrixParams() []string { return []string{"missing", "max_drop_share"} }
+func EngineMatrixParams() []string { return []string{"missing", "max_drop_share", "fit"} }
 
 // decodeExtensionParams decodes an extension operator's params: a JSON
 // object (or absent / null) whose engine-owned keys (EngineMatrixParams)
@@ -1624,6 +1653,54 @@ func decodeMissing(at string, p missingParams, m *Matrix) *errors.CodedError {
 		}
 		v := s
 		m.MaxDropShare = &v
+	}
+	if p.Fit != nil {
+		if *p.Fit == "" {
+			return matrixInvalid(at, "bad_fit", at+" params.fit must name a bound vector fit",
+				map[string]any{"param": "fit"})
+		}
+		// A bound fit is one listwise state: no row is read, so the
+		// missing-data knobs have nothing to act on.
+		if p.Missing != nil || p.MaxDropShare != nil {
+			param := "missing"
+			if p.Missing == nil {
+				param = "max_drop_share"
+			}
+			return matrixInvalid(at, "fit_and_missing", at+" sets params.fit and params."+param+"; a bound vector fit is one listwise state and reads no row — drop "+param,
+				map[string]any{"param": param, "fit": *p.Fit})
+		}
+		m.Fit = *p.Fit
+	}
+	return nil
+}
+
+// resolveFit judges a params.fit slot once its members and the operator
+// params resolved: the slot emits its result from the bound state, so
+// an operator whose result is not a function of one listwise co-moment
+// is refused (fit_unsupported — MAT_DISTANCE's per-group centroids, a
+// buffered tier that reads rows: a rank method, a buffered extension;
+// MAT_RELIABILITY's declared scale range, which checks and reverse-keys
+// every row), and so is a grouped request (fit_grouped: every bucket
+// would emit the one bound state).
+func resolveFit(at string, req *types.Request, m *Matrix) *errors.CodedError {
+	if m.Fit == "" {
+		return nil
+	}
+	unsupported := func(why string) *errors.CodedError {
+		return matrixInvalid(at, "fit_unsupported", at+" params.fit cannot bind "+string(m.Type)+": "+why,
+			map[string]any{"param": "fit", "fit": m.Fit, "type": string(m.Type)})
+	}
+	switch {
+	case m.Type == types.MAT_DISTANCE:
+		return unsupported("its result compares per-group centroids, not one listwise state")
+	case !m.Streamable:
+		return unsupported("its operator reads the rows themselves (a rank method or a buffered operator), not the co-moment state")
+	case m.HasScale:
+		return unsupported("its declared scale range checks and reverse-keys every row; a bound state carries no rows")
+	}
+	if req != nil && (len(req.Groups) > 0 || req.Crosstab != nil) {
+		return matrixInvalid(at, "fit_grouped", at+" params.fit on a grouped request would emit the one bound state in every bucket; drop groups or fit",
+			map[string]any{"param": "fit", "fit": m.Fit})
 	}
 	return nil
 }

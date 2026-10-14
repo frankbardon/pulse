@@ -1290,11 +1290,12 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 
 // validateComposeFits is the fit half of PredictCompose, run once the
 // structural rules (model.CheckFits) passed: each fit request gets the
-// slot checks (validateComposeRequest, details.fit) and then predict's
-// regression rules over the schema it executes over, located the same
-// way. It returns the static per-fit summary — name, regression type,
-// target, the predictors as written and the cohort — in declaration
-// order (nil without fits).
+// slot checks (validateComposeRequest, details.fit) and then, for a
+// regression fit, predict's regression rules over the schema it executes
+// over, located the same way. It returns the static per-fit summary in
+// declaration order (nil without fits): a regression fit's name,
+// regression type, target, the predictors as written and the cohort; a
+// vector fit's name, cohort and battery (vectorFitSummary).
 func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *PredictOptions, loaded *composeLoaded) []descriptor.FitSummary {
 	if len(fits) == 0 {
 		return nil
@@ -1302,12 +1303,14 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 	out := make([]descriptor.FitSummary, len(fits))
 	for i, f := range fits {
 		req := model.FitRequest(f)
-		reg := req.Regressions[0]
-		out[i] = descriptor.FitSummary{
-			Name:       f.Name,
-			Type:       reg.Type,
-			Target:     reg.Target,
-			Predictors: append([]string{}, reg.Predictors...),
+		vector := model.FitKindOf(req) == types.FitKindVector
+		out[i] = descriptor.FitSummary{Name: f.Name}
+		if vector {
+			out[i].Vector = &descriptor.VectorFitSummary{Operator: vectorFitOperator(req)}
+		} else {
+			reg := req.Regressions[0]
+			out[i].Type, out[i].Target = reg.Type, reg.Target
+			out[i].Predictors = append([]string{}, reg.Predictors...)
 		}
 		if req.Cohort != nil {
 			out[i].Cohort = cohortPathFor(req.Cohort)
@@ -1316,6 +1319,10 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 		// only its own loaded `models`.
 		schema, ok := validateComposeRequest(env, req, opts, "fit", i, loadedCatalog(nil, req.Models, loaded.fit(i)))
 		if !ok || schema == nil {
+			continue
+		}
+		if vector {
+			out[i].Vector.Labels, out[i].Vector.Members = vectorFitAxis(req, schema, opts)
 			continue
 		}
 		scratch := descriptor.NewEnvelope(nil)
@@ -1330,6 +1337,53 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 		}
 	}
 	return out
+}
+
+// vectorFitOperator is a vector fit request's battery type: its one
+// matrix's, else its one fitted attribute's (model.VectorBatteries).
+func vectorFitOperator(req *types.Request) string {
+	if len(req.Matrices) == 1 {
+		return string(req.Matrices[0].Type)
+	}
+	for _, a := range req.Attributes {
+		if a != nil && model.IsVectorFitAttribute(a.Type) {
+			return string(a.Type)
+		}
+	}
+	return ""
+}
+
+// vectorFitAxis resolves a vector fit request's battery against schema
+// and returns the labels a consuming slot aligns to and the member
+// columns, in axis order — what the runtime captures (a matrix's
+// FitLabels / Columns; a fitted attribute's FittedLabels / members). Nil
+// when the battery does not resolve (the walk already refused it).
+func vectorFitAxis(req *types.Request, schema *encoding.Schema, opts *PredictOptions) (labels, members []string) {
+	if len(req.Matrices) == 1 {
+		mats, err := resolveMatricesFor(req, schema, nil, opts.instance())
+		if err != nil || len(mats) != 1 {
+			return nil, nil
+		}
+		return mats[0].FitLabels(), append([]string(nil), mats[0].Columns()...)
+	}
+	inputs, err := vectors.ResolveAttributes(req, schema, func(t types.AttributeType) types.AttributeType {
+		return opRoute(opts.instance(), t)
+	}, nil)
+	if err != nil {
+		return nil, nil
+	}
+	for i, a := range req.Attributes {
+		if a == nil || !model.IsVectorFitAttribute(a.Type) || i >= len(inputs) || !inputs[i].Has() {
+			continue
+		}
+		m := inputs[i].Members
+		l, lerr := vectors.FittedLabels("", a.Type, a.Params, m)
+		if lerr != nil {
+			return nil, nil
+		}
+		return l, append([]string(nil), m.Members...)
+	}
+	return nil, nil
 }
 
 // composeFormulaBuiltinRefusal is PULSE_OVERLAY_FORMULA_INVALID_IDENT

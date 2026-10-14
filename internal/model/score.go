@@ -81,6 +81,26 @@ type Signature struct {
 
 	// Source is where the name is bound (a `fits` or `models` entry).
 	Source Source
+
+	// Kind is the bound fit's kind: types.FitKindRegression (the zero
+	// value reads as it — EffectiveKind) or types.FitKindVector. One
+	// namespace holds both; a reference of the other kind is
+	// PULSE_MODEL_KIND_MISMATCH.
+	Kind types.FitKind
+
+	// Members are a vector fit's member labels in axis order — the
+	// names a consuming slot aligns to — when known: the runtime's Set
+	// always knows them; predict's static FitCatalog never resolves a
+	// battery, so it leaves them nil. Nil on a regression.
+	Members []string
+}
+
+// EffectiveKind is Kind, types.FitKindRegression when unset.
+func (s Signature) EffectiveKind() types.FitKind {
+	if s.Kind == "" {
+		return types.FitKindRegression
+	}
+	return s.Kind
 }
 
 // Catalog resolves bound names to their Signatures: the runtime's Set,
@@ -97,16 +117,23 @@ func (s *Set) Signature(name string) (Signature, bool) {
 	if s == nil {
 		return Signature{}, false
 	}
-	b, ok := s.byName[name]
-	if !ok {
-		return Signature{}, false
+	if b, ok := s.byName[name]; ok {
+		return b.Signature(), true
 	}
-	return b.Signature(), true
+	if v, ok := s.vectors[name]; ok {
+		return v.Signature(), true
+	}
+	return Signature{}, false
+}
+
+// Signature is v's static face: kind vector, its member labels.
+func (v *VectorFit) Signature() Signature {
+	return Signature{Name: v.Name, Kind: types.FitKindVector, Members: append([]string(nil), v.Labels...), Source: v.Source}
 }
 
 // Signature is b's static face.
 func (b *Bound) Signature() Signature {
-	return Signature{Name: b.Name, Type: b.Type, Terms: append([]string(nil), b.Terms...), Source: b.Source}
+	return Signature{Name: b.Name, Type: b.Type, Terms: append([]string(nil), b.Terms...), Source: b.Source, Kind: types.FitKindRegression}
 }
 
 // FitCatalog is the static Catalog of a ComposedRequest `fits` list —
@@ -114,15 +141,22 @@ func (b *Bound) Signature() Signature {
 // CheckFits would refuse are skipped (that refusal comes first).
 type FitCatalog map[string]Signature
 
-// CatalogFromFits builds the FitCatalog of fits.
+// CatalogFromFits builds the FitCatalog of fits: a regression fit's
+// signature (type, terms), or a vector fit's (kind vector; members
+// unknown statically — FitKindOf).
 func CatalogFromFits(fits []types.FitSpec) FitCatalog {
 	out := make(FitCatalog, len(fits))
 	for i, f := range fits {
-		if f.Name == "" || f.Request == nil || len(f.Request.Regressions) != 1 || f.Request.Regressions[0] == nil {
+		if f.Name == "" || f.Request == nil {
 			continue
 		}
-		reg := f.Request.Regressions[0]
-		out[f.Name] = Signature{Name: f.Name, Type: reg.Type, Terms: append([]string(nil), reg.Predictors...), Source: FitSource(i)}
+		switch FitKindOf(f.Request) {
+		case types.FitKindRegression:
+			reg := f.Request.Regressions[0]
+			out[f.Name] = Signature{Name: f.Name, Type: reg.Type, Terms: append([]string(nil), reg.Predictors...), Source: FitSource(i), Kind: types.FitKindRegression}
+		case types.FitKindVector:
+			out[f.Name] = Signature{Name: f.Name, Source: FitSource(i), Kind: types.FitKindVector}
+		}
 	}
 	return out
 }
@@ -141,14 +175,6 @@ func (c FitCatalog) Names() []string {
 	}
 	slices.Sort(out)
 	return out
-}
-
-// catalogNames is cat's names, nil-safe for a nil interface.
-func catalogNames(cat Catalog) []string {
-	if cat == nil {
-		return nil
-	}
-	return cat.Names()
 }
 
 // ScorableType reports whether a fit of type t can be scored: the
@@ -190,7 +216,10 @@ func CheckScore(attr *types.Attribute, cat Catalog) (ScoreParams, Signature, *er
 		sig, ok = cat.Signature(p.Fit)
 	}
 	if !ok {
-		return p, Signature{}, UnknownModel(p.Fit, catalogNames(cat))
+		return p, Signature{}, UnknownModel(p.Fit, NamesOfKind(cat, types.FitKindRegression))
+	}
+	if sig.EffectiveKind() != types.FitKindRegression {
+		return p, sig, KindMismatch(p.Fit, types.FitKindRegression, sig.EffectiveKind())
 	}
 	if !ScorableType(sig.Type) {
 		return p, sig, scoreInvalid(p.Fit, ReasonTypeUnsupported,

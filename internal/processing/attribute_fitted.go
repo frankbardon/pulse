@@ -195,13 +195,19 @@ func fittedStateFromVector(vf *model.VectorFit, perm []int) (fittedState, error)
 // must be equal — the reference Match rule — else
 // PULSE_VECTOR_REFERENCE_MISMATCH reason labels_differ naming the fit.
 func labelPermutation(slot string, vf *model.VectorFit, labels []string) ([]int, error) {
+	return labelPermutationAt("attribute", slot, vf, labels)
+}
+
+// labelPermutationAt is labelPermutation for a slot of kind key
+// ("attribute", "matrix"), named under details[key].
+func labelPermutationAt(key, slot string, vf *model.VectorFit, labels []string) ([]int, error) {
 	t := vectors.ReferenceTable{Labels: vf.Labels}
 	perm, ce := t.Match("", "", labels)
 	if ce == nil {
 		return perm, nil
 	}
 	ce.Details["fit"] = vf.Name
-	ce.Details["attribute"] = slot
+	ce.Details[key] = slot
 	ce.Message = slot + ": bound vector fit " + strconv.Quote(vf.Name) + " labels [" + strings.Join(vf.Labels, ", ") +
 		"] are not the slot's member labels [" + strings.Join(labels, ", ") + "]; a fit is matched by label, never by position"
 	return nil, ce
@@ -284,6 +290,11 @@ type fittedVectorAttribute struct {
 	// final is the closed fit (Finalize), captured by
 	// AttributeVectorFit.
 	final *fittedState
+
+	// capture receives the closed fit when this attribute is a Compose
+	// vector fit request's battery (the bound set's model.VectorCapture,
+	// set by bindFitOn; nil otherwise).
+	capture *model.VectorCapture
 }
 
 // fittedSource is a fitted attribute's fit source: the decoded
@@ -354,6 +365,9 @@ func newFittedVectorAttribute(attr *types.Attribute, schema *encoding.Schema, sr
 // bindFitOn compiles params.fit_on, or resolves and aligns params.fit
 // against the request's bound models (fitOnBinder).
 func (a *fittedVectorAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) error {
+	if model.IsVectorFitAttribute(a.typ) {
+		a.capture = models.Capture()
+	}
 	if a.fitName != "" {
 		vf, err := models.LookupVector(a.fitName)
 		if err != nil {
@@ -459,6 +473,16 @@ func (a *fittedVectorAttribute) Finalize() error {
 		st = newFittedState(a.co, a.basis)
 	}
 	a.final = &st
+	if a.capture != nil {
+		// A Compose vector fit request's battery: hand the closed state
+		// to the fit pre-pass (bound under the fit's name there).
+		vf, err := st.vectorFit("", a.labels, a.members)
+		if err != nil {
+			return err
+		}
+		vf.Operator = string(a.typ)
+		a.capture.Offer(vf)
+	}
 	if !(st.nStar > float64(p)) {
 		a.warnings = append(a.warnings, a.fitWarning(errors.PULSE_MATRIX_INSUFFICIENT_N, st,
 			fmt.Sprintf("%s: the fit has N* = %.4g complete rows for %d members (needs N* > p); every score is null", a.label, st.nStar, p)))
@@ -540,6 +564,40 @@ func (a *fittedVectorAttribute) Compute(records []*Record, field string) ([]floa
 		return []float64{}, nil
 	}
 	return computeTwoPass(a, records, field)
+}
+
+// VectorFitResult is vf's ComposedResponse.Fits summary: its stored
+// counts, the mean and the fit's own covariance M2*/(N* − 1) on its
+// basis — the figures fittedState derives for every consumer, by the
+// same arithmetic (no figure is computed a second way).
+func VectorFitResult(vf *model.VectorFit) (*types.VectorFitResult, error) {
+	perm := make([]int, vf.P())
+	for i := range perm {
+		perm[i] = i
+	}
+	st, err := fittedStateFromVector(vf, perm)
+	if err != nil {
+		return nil, err
+	}
+	labels := append([]string(nil), vf.Labels...)
+	return &types.VectorFitResult{
+		Operator:       vf.Operator,
+		Labels:         labels,
+		Members:        append([]string(nil), vf.Members...),
+		Basis:          string(vf.Basis),
+		N:              vf.N,
+		NWeightInvalid: vf.NWeightInvalid,
+		SumWeights:     vf.SumWeights,
+		NStar:          st.nStar,
+		Mean:           st.mean(),
+		Covariance: &types.MatrixValues{
+			Kind:       types.MatrixKindSquareSymmetric,
+			Encoding:   types.MatrixEncodingFull,
+			RowKeys:    labels,
+			ColumnKeys: append([]string(nil), labels...),
+			Values:     st.cov(),
+		},
+	}, nil
 }
 
 // AttributeVectorFit returns computer's closed fit as a model.VectorFit

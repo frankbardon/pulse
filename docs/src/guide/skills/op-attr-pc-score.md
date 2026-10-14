@@ -29,7 +29,7 @@ Use something else:
 - `component` — required, 1-based. `on` — `correlation` (default) or `covariance`. `missing` — `listwise` only.
 - `rotation` — `none` (default) or `varimax` with `components` = k rotated within (component ≤ k ≤ p).
 - `fit_on` — `"filtered"` (default) or a filterer array picking the FIT rows; every filtered row is scored.
-- `fit` — a bound vector fit's name, scored against instead of fitting (XOR `fit_on`: `fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members (`labels` — inline `fields` only); mismatch `PULSE_VECTOR_REFERENCE_MISMATCH`, unbound `PULSE_MODEL_UNKNOWN`.
+- `fit` — a bound vector fit's name (a compose `fits` entry over one matrix or fitted-attribute battery: [`compose-fits`](compose-fits.md)), scored against instead of fitting (XOR `fit_on`: `fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members (`labels` — inline `fields` only); mismatch `PULSE_VECTOR_REFERENCE_MISMATCH`, unbound `PULSE_MODEL_UNKNOWN`, a regression's name `PULSE_MODEL_KIND_MISMATCH`.
 - `weight` — both kinds; fit only. A zero-weight row is scored, not fitted.
 
 Slot: exactly one of `vector` (a `vectors` entry) / `fields`; no `field`. Default label `ATTR_PC_SCORE_<vector or first field>_PC<component>`.

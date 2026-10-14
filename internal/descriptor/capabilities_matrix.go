@@ -20,6 +20,10 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 	missing := []descriptor.Param{
 		{Name: "missing", Type: "enum", Required: false, Default: vectors.MissingListwise, EnumValues: vectors.MissingModes(), Description: "listwise drops a row with any member null; pairwise computes each pair over the rows where both are present and adds auxiliary.n (pairwise N)."},
 		{Name: "max_drop_share", Type: "float", Required: false, Description: "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."},
+		// fit: the bound vector fit the slot emits from
+		// (internal/vectors resolveFit) — every operator but
+		// MAT_DISTANCE, which declares its own list.
+		MatrixFitParam(),
 	}
 	return []descriptor.MatrixMeta{
 		{

@@ -1573,12 +1573,12 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 }
 
 // fitsSchema describes the ComposedRequest `fits` list (types.FitSpec):
-// named regression fits run once before any slot. Dropped with the slot
+// named regression or vector fits run once before any slot. Dropped with the slot
 // when capability:compose_fits is hidden (dropHiddenSlots).
 func fitsSchema(reqSchema map[string]any, inst *descx.InstanceSnapshot) map[string]any {
 	out := map[string]any{
 		"type":        "array",
-		"description": "Named regression fits, each run ONCE before any slot (sweep slots included); slots read the fitted model by name. Each fit's result is returned under the response `fits`, keyed by name.",
+		"description": "Named fits, each run ONCE before any slot (sweep slots included): a request with one regression (a regression fit), or with no regression and one matrix or fitted vector attribute (a vector fit, read by params.fit). Slots read the fit by name. Each fit's result is returned under the response `fits`, keyed by name (a vector fit as {vector: …}).",
 		"items": map[string]any{
 			"type": "object",
 			"properties": map[string]any{

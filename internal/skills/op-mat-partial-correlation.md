@@ -21,7 +21,7 @@ Slot and members as for `op-mat-covariance`.
 | `repair` | `nearest` | none | Repair non-PSD input. |
 | `inference` | bool | `false` | `auxiliary.p` / `ci_lower` / `ci_upper`, df = N* − 2 − g. |
 | `alpha` | (0, 1) | `0.05` | Interval level; needs `inference`. |
-| `missing`, `max_drop_share`, `weight`, `encoding` | | | As `op-mat-correlation`. |
+| `missing`, `max_drop_share`, `fit`, `weight`, `encoding` | | | As `op-mat-correlation`. |
 
 <!-- feature: capability:multiplicity -->
 Spec `multiplicity` implies `inference` and adds `auxiliary.p_adjusted` / `significant_adjusted` over the distinct pairs, plus a `multiplicity` echo; family `matrix` (default) or `request`. Raw `p` untouched (`multiplicity-correction`).

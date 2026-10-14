@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -34,16 +35,24 @@ var slotModelsObserver func(label string, set *model.Set)
 // parallel alike. No fits returns all nils: nothing is bound and
 // ComposedResponse.Fits stays absent.
 //
+// A vector fit's request runs with a model.VectorCapture on its bound
+// set (model.Set.WithCapture): the battery — its one MAT_* slot or
+// fitted attribute — offers its closed state there at finalize, on
+// whichever arm runs it, and exactly one offer is bound
+// (model.Set.AddVector); its ComposedResponse.Fits entry is the
+// processing.VectorFitResult summary.
+//
 // A fit's `save` (FitSpec.Save) is written once the fit has run, under
 // the fit's name; a save on the fit request's own regression is written
 // by its Process. Each overwrite comes back as a PULSE_MODEL_OVERWRITTEN
 // warning with details.fit, in entry order — ComposedResponse.Warnings.
-func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre *composeModels, workers int) (*model.Set, map[string]*types.RegressionResult, []*types.ResponseWarning, error) {
+func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre *composeModels, workers int) (*model.Set, map[string]*types.FitResult, []*types.ResponseWarning, error) {
 	n := len(fits)
 	if n == 0 {
 		return nil, nil, nil, nil
 	}
 	results := make([]*types.RegressionResult, n)
+	vectorFits := make([]*model.VectorFit, n)
 	saveWarnings := make([][]*types.ResponseWarning, n)
 	errs := make([]error, n)
 	run := func(ctx context.Context, i int) {
@@ -55,6 +64,10 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 		fitSet, err := pre.fitSet(i)
 		if err != nil {
 			errs[i] = err
+			return
+		}
+		if model.FitKindOf(fits[i].Request) == types.FitKindVector {
+			vectorFits[i], errs[i] = s.runVectorFit(ctx, fits[i], fitSet)
 			return
 		}
 		resp, err := s.Process(withModelsBound(ctx, fitSet), model.FitRequest(fits[i]))
@@ -132,9 +145,21 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 	}
 
 	set := &model.Set{}
-	out := make(map[string]*types.RegressionResult, n)
+	out := make(map[string]*types.FitResult, n)
 	var warnings []*types.ResponseWarning
 	for i, f := range fits {
+		if vf := vectorFits[i]; vf != nil {
+			vf.Name, vf.Source = f.Name, model.FitSource(i)
+			summary, err := processing.VectorFitResult(vf)
+			if err != nil {
+				return nil, nil, nil, fitFailure(fits, i, err)
+			}
+			if err := set.AddVector(vf); err != nil {
+				return nil, nil, nil, fitFailure(fits, i, err)
+			}
+			out[f.Name] = &types.FitResult{Vector: summary}
+			continue
+		}
 		b, err := model.Bind(f.Name, f.Request.Regressions[0], results[i])
 		if err != nil {
 			return nil, nil, nil, fitFailure(fits, i, err)
@@ -145,11 +170,30 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 			// here is an invariant violation, still reported coded.
 			return nil, nil, nil, fitFailure(fits, i, err)
 		}
-		out[f.Name] = results[i]
+		out[f.Name] = &types.FitResult{RegressionResult: results[i]}
 		// Entry order, serial and parallel alike.
 		warnings = append(warnings, saveWarnings[i]...)
 	}
 	return set, out, warnings, nil
+}
+
+// runVectorFit runs a vector fit request with a capture on its bound
+// set and returns the one closed state its battery offered (unnamed:
+// the caller binds it). No offer, or more than one, is an engine
+// invariant violation (PROCESSING_INTERNAL) — CheckFits admitted one
+// battery.
+func (s *Service) runVectorFit(ctx context.Context, f types.FitSpec, fitSet *model.Set) (*model.VectorFit, error) {
+	capture := &model.VectorCapture{}
+	if _, err := s.Process(withModelsBound(ctx, fitSet.WithCapture(capture)), model.FitRequest(f)); err != nil {
+		return nil, err
+	}
+	got := capture.Fits()
+	if len(got) != 1 {
+		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			fmt.Sprintf("vector fit %q closed %d battery states; a vector fit closes exactly one", f.Name, len(got)),
+			map[string]any{"name": f.Name, "states": len(got)})
+	}
+	return got[0], nil
 }
 
 // fitWarning copies w with details.fit = i.

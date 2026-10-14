@@ -1149,6 +1149,14 @@ const (
 	// "name" and "available" (the bound names, sorted).
 	PULSE_MODEL_UNKNOWN Code = "PULSE_MODEL_UNKNOWN"
 
+	// PULSE_MODEL_KIND_MISMATCH indicates a reference to a bound name of
+	// the other fit kind: ATTR_REG_PREDICT or coef() naming a vector
+	// fit, or a fitted vector attribute's or MAT_* slot's params.fit
+	// naming a regression (one namespace, two kinds). Details carry
+	// "name", "fit" (the same name), "kind" (the name's kind) and
+	// "expected" (the kind the reference reads).
+	PULSE_MODEL_KIND_MISMATCH Code = "PULSE_MODEL_KIND_MISMATCH"
+
 	// PULSE_MODEL_SCORE_INVALID indicates an ATTR_REG_PREDICT slot whose
 	// scoring parameters do not fit: params that are not an object of
 	// {fit, terms, scale, bound} (reason "params_invalid"), no params.fit
@@ -3781,6 +3789,7 @@ var allCodes = []Code{
 	PULSE_FIT_INVALID,
 	PULSE_MODEL_NAME_COLLISION,
 	PULSE_MODEL_UNKNOWN,
+	PULSE_MODEL_KIND_MISMATCH,
 	PULSE_MODEL_SCORE_INVALID,
 	PULSE_MODEL_TERM_UNKNOWN,
 	PULSE_MODEL_STAT_UNKNOWN,

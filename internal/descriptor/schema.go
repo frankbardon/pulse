@@ -386,6 +386,8 @@ func (b *schemaBuilder) defFor(t reflect.Type) any {
 		return b.slotWeightDef()
 	case reflect.TypeFor[types.CovarianceLags]():
 		return covarianceLagsDef()
+	case reflect.TypeFor[types.FitResult]():
+		return b.fitResultDef()
 	}
 	// Registry-backed enum.
 	if vals, ok := b.enums[t]; ok {
@@ -683,6 +685,25 @@ func (b *schemaBuilder) slotWeightDef() any {
 			map[string]any{"type": "string"},
 			map[string]any{"$ref": "#/$defs/" + b.register(reflect.TypeFor[types.WeightSpec]())},
 			map[string]any{"type": "null"},
+		},
+	}
+}
+
+// fitResultDef builds the ComposedResponse.fits entry union
+// (types.FitResult, which writes its own wire form): a regression fit's
+// RegressionResult object as is, or a vector fit's {"vector":
+// VectorFitResult} — the `vector` key discriminates.
+func (b *schemaBuilder) fitResultDef() any {
+	return map[string]any{
+		"description": "One fit's result: a regression fit's RegressionResult, or a vector fit's {vector: VectorFitResult}. The vector key discriminates; a regression entry never carries it.",
+		"oneOf": []any{
+			map[string]any{"$ref": "#/$defs/" + b.register(reflect.TypeFor[types.RegressionResult]())},
+			map[string]any{
+				"type":                 "object",
+				"properties":           map[string]any{"vector": map[string]any{"$ref": "#/$defs/" + b.register(reflect.TypeFor[types.VectorFitResult]())}},
+				"required":             []string{"vector"},
+				"additionalProperties": false,
+			},
 		},
 	}
 }

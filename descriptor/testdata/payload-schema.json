@@ -611,7 +611,7 @@
       "properties": {
         "fits": {
           "additionalProperties": {
-            "$ref": "#/$defs/RegressionResult"
+            "$ref": "#/$defs/FitResult"
           },
           "type": "object"
         },
@@ -1679,6 +1679,26 @@
         "FILTER_TRUE"
       ],
       "type": "string"
+    },
+    "FitResult": {
+      "description": "One fit's result: a regression fit's RegressionResult, or a vector fit's {vector: VectorFitResult}. The vector key discriminates; a regression entry never carries it.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/RegressionResult"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "vector": {
+              "$ref": "#/$defs/VectorFitResult"
+            }
+          },
+          "required": [
+            "vector"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "FitSpec": {
       "additionalProperties": false,
@@ -4369,6 +4389,81 @@
       ],
       "type": "string"
     },
+    "VectorFitResult": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "type": "string"
+        },
+        "covariance": {
+          "$ref": "#/$defs/MatrixValues"
+        },
+        "labels": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "mean": {
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "members": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "n": {
+          "type": "integer"
+        },
+        "n_star": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "n_weight_invalid": {
+          "type": "integer"
+        },
+        "operator": {
+          "type": "string"
+        },
+        "sum_weights": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "basis",
+        "covariance",
+        "labels",
+        "mean",
+        "members",
+        "n",
+        "n_star",
+        "n_weight_invalid",
+        "operator",
+        "sum_weights"
+      ],
+      "type": "object"
+    },
     "VectorKind": {
       "enum": [
         "binary",
@@ -4572,4 +4667,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 1c3a3cb271e4ade3dd352a9aa8ad20e5e3b7926f527934bf1868038891353188
+// golden-hash: 2116dffe3a84ccf53ee414666374f3490a8da5518ed4bc3370235545f0a055d8

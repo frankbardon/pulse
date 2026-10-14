@@ -17,7 +17,7 @@ As `op-mat-covariance`.
 
 - `on` — `correlation` (default) or `covariance`. `rotation` — `none`, `varimax` (k ≥ 2). `repair` — `nearest`.
 - `components` — int k (≤ p), `kaiser` (λ > 1, default) or `{variance: s}`; required on `covariance`.
-- `missing`, `max_drop_share`, `weight`, `encoding`: `op-mat-correlation`.
+- `missing`, `max_drop_share`, `fit`, `weight`, `encoding`: `op-mat-correlation`.
 
 ## Inputs
 

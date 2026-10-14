@@ -499,7 +499,7 @@ func TestExtensionMatrix_SelfDescription(t *testing.T) {
 		keys = append(keys, k.Name)
 	}
 	if meta.Name != "MAT_ACME_COV" || meta.OutputKeys.Primary != "covariance" || !meta.Streamable || !meta.Mergeable ||
-		!slices.Equal(params, []string{"missing", "max_drop_share", "scale"}) ||
+		!slices.Equal(params, []string{"missing", "max_drop_share", "fit", "scale"}) ||
 		!slices.Contains(keys, "n") || !slices.Contains(keys, "sum_weights") || !slices.Contains(keys, "trace") ||
 		len(meta.WeightKinds) != 2 || len(meta.Intents) == 0 || !slices.Contains(meta.AcceptsTypes, "f64") {
 		t.Fatalf("matrix meta = %+v (params %v, keys %v)", meta, params, keys)
@@ -706,6 +706,9 @@ func TestExtensionMatrix_RegistrationRefusals(t *testing.T) {
 		}, "reserved_matrix_param", ""},
 		{"reserved param max_drop_share", func(r *MatrixOpRegistration) {
 			r.Params = append(r.Params, ParamMeta{Name: "max_drop_share", JSONType: "number"})
+		}, "reserved_matrix_param", ""},
+		{"reserved param fit", func(r *MatrixOpRegistration) {
+			r.Params = append(r.Params, ParamMeta{Name: "fit", JSONType: "string"})
 		}, "reserved_matrix_param", ""},
 		{"pvalues undeclared", func(r *MatrixOpRegistration) { r.PValues = "q" }, "invalid_pvalues", ""},
 		{"adjusted twin declared", func(r *MatrixOpRegistration) {

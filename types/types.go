@@ -1974,7 +1974,8 @@ type ComposedRequest struct {
 	// on the wire and under Hash. See SweepSpec.
 	Sweep *SweepSpec `json:"sweep,omitempty"`
 
-	// Fits are the batch's named regression fits: each runs once,
+	// Fits are the batch's named fits (regressions or vector
+	// batteries — FitSpec): each runs once,
 	// before any slot (in parallel among themselves under
 	// ComposeParallel), and every slot — sweep-expanded ones included —
 	// receives the bound models by name. Gated by capability:compose_fits.
@@ -2024,12 +2025,14 @@ type ComposedResponse struct {
 	// rank. Gated by capability:compose_sweep with the `sweep` slot.
 	Ranking []RankEntry `json:"ranking,omitempty"`
 
-	// Fits carries each ComposedRequest.Fits entry's regression result,
-	// keyed by the fit's name (JSON object keys sort by name). Omitted
+	// Fits carries each ComposedRequest.Fits entry's result, keyed by
+	// the fit's name (JSON keys sort by name): a regression fit's
+	// RegressionResult or a vector fit's VectorFitResult (FitResult — a
+	// regression entry's wire form is the regression-only one). Omitted
 	// when the request declared no fits. Like `ranking` it sits outside
 	// the Compose-level `return`: always emitted, never rounded. Gated
 	// by capability:compose_fits with the `fits` request slot.
-	Fits map[string]*RegressionResult `json:"fits,omitempty"`
+	Fits map[string]*FitResult `json:"fits,omitempty"`
 
 	// Warnings carries the batch-level diagnostics no slot owns: today
 	// a fit's PULSE_MODEL_OVERWRITTEN (a `fits` save — or a save on the

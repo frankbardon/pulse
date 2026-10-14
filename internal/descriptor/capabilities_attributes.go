@@ -255,7 +255,7 @@ func attributeCapabilities() []descriptor.Operator {
 				{
 					Name:        "fit",
 					Type:        "string",
-					Description: "Name of a bound vector fit to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs.",
+					Description: "Name of a bound vector fit — a `fits` entry of the enclosing compose request over one MAT_* or fitted-attribute battery — to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs; a regression fit's name is PULSE_MODEL_KIND_MISMATCH.",
 				},
 				{
 					Name:        "labels",
@@ -315,7 +315,7 @@ func attributeCapabilities() []descriptor.Operator {
 				{
 					Name:        "fit",
 					Type:        "string",
-					Description: "Name of a bound vector fit to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs.",
+					Description: "Name of a bound vector fit — a `fits` entry of the enclosing compose request over one MAT_* or fitted-attribute battery — to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs; a regression fit's name is PULSE_MODEL_KIND_MISMATCH.",
 				},
 				{
 					Name:        "labels",
@@ -368,7 +368,7 @@ func attributeCapabilities() []descriptor.Operator {
 				{
 					Name:        "fit",
 					Type:        "string",
-					Description: "Name of a bound vector fit to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs.",
+					Description: "Name of a bound vector fit — a `fits` entry of the enclosing compose request over one MAT_* or fitted-attribute battery — to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs; a regression fit's name is PULSE_MODEL_KIND_MISMATCH.",
 				},
 				{
 					Name:        "labels",
@@ -492,7 +492,7 @@ func comparisonCapability(t types.AttributeType) descriptor.Operator {
 			descriptor.Param{
 				Name:        "fit",
 				Type:        "string",
-				Description: "Fitted metrics only: name of a bound vector fit to read instead of fitting (mutually exclusive with fit_on); aligned by label.",
+				Description: "Fitted metrics only: name of a bound vector fit (a `fits` entry of the enclosing compose request) to read instead of fitting (mutually exclusive with fit_on); aligned by label.",
 			},
 			descriptor.Param{
 				Name:        "missing",

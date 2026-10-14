@@ -83,7 +83,7 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		"capability:materialize":    {{"capability:process"}}, // runs Process's pre-flight and record pipeline
 		"capability:compose_sweep":  {{"capability:compose"}}, // a sweep expands into Compose slots
 		// fits run before Compose slots, and a fit is one regression
-		"capability:compose_fits": {{"capability:compose"}, {"REG_BAYES_LINEAR", "REG_GLM", "REG_OLS"}},
+		"capability:compose_fits": {{"capability:compose"}, {"ATTR_FACTOR_SCORE", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "REG_BAYES_LINEAR", "REG_GLM", "REG_OLS", "capability:matrices"}},
 		// a save writes a fitted regression, from any request host
 		"capability:model_save": {requestHosts, {"REG_BAYES_LINEAR", "REG_GLM", "REG_OLS"}},
 		// a load feeds a scoring reference, from any request host or a facet

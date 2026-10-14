@@ -345,7 +345,8 @@ func TestFittedState_SwappedStateMoves(t *testing.T) {
 // TestFittedState_FitRefusals: params.fit is judged before any record —
 // fit beside fit_on and an empty name are SERVICE_VALIDATION param
 // refusals (reasons fit_and_fit_on / bad_fit), on every fitted type; an
-// unbound name (or a regression's) is PULSE_MODEL_UNKNOWN; a fit whose
+// unbound name is PULSE_MODEL_UNKNOWN, a regression's
+// PULSE_MODEL_KIND_MISMATCH; a fit whose
 // labels are not the slot's is PULSE_VECTOR_REFERENCE_MISMATCH naming
 // the fit; fit on a row-local comparison metric is refused.
 func TestFittedState_FitRefusals(t *testing.T) {
@@ -403,7 +404,7 @@ func TestFittedState_FitRefusals(t *testing.T) {
 			if code, d := codeOf(run(typ, map[string]any{"fit": "nope"})); code != errors.PULSE_MODEL_UNKNOWN || d["attribute"] != "s" {
 				t.Fatalf("unknown fit: %v %v", code, d)
 			}
-			if code, d := codeOf(run(typ, map[string]any{"fit": "reg"})); code != errors.PULSE_MODEL_UNKNOWN || d["kind"] != "regression" {
+			if code, d := codeOf(run(typ, map[string]any{"fit": "reg"})); code != errors.PULSE_MODEL_KIND_MISMATCH || d["fit"] != "reg" || d["kind"] != "regression" || d["attribute"] != "s" {
 				t.Fatalf("regression fit: %v %v", code, d)
 			}
 			code, d := codeOf(run(typ, map[string]any{"fit": "pop"}))

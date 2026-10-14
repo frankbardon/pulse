@@ -41,6 +41,24 @@ func TestCheckFits(t *testing.T) {
 	grouped.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}}
 	crosstab := olsReq(ols())
 	crosstab.Crosstab = &types.CrosstabSpec{}
+	mat := func(typ types.MatrixType, params string) types.MatrixSpec {
+		m := types.MatrixSpec{Type: typ, Fields: []string{"a", "b"}}
+		if params != "" {
+			m.Params = []byte(params)
+		}
+		return m
+	}
+	vec := func(ms ...types.MatrixSpec) *types.Request {
+		return &types.Request{Cohort: &types.Cohort{Filename: "c.pulse"}, Matrices: ms}
+	}
+	mahal := &types.Attribute{Type: types.ATTR_MAHALANOBIS, Fields: []string{"a", "b"}}
+	attrFit := &types.Request{Cohort: &types.Cohort{Filename: "c.pulse"}, Attributes: []*types.Attribute{mahal}}
+	mixed := olsReq(ols())
+	mixed.Matrices = []types.MatrixSpec{mat(types.MAT_COVARIANCE, "")}
+	twoVec := vec(mat(types.MAT_COVARIANCE, ""))
+	twoVec.Attributes = []*types.Attribute{mahal}
+	groupedVec := vec(mat(types.MAT_COVARIANCE, ""))
+	groupedVec.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}}
 	cases := []struct {
 		name    string
 		fits    []types.FitSpec
@@ -59,6 +77,20 @@ func TestCheckFits(t *testing.T) {
 		{"grouped", []types.FitSpec{{Name: "a", Request: grouped}}, errors.PULSE_FIT_INVALID, ReasonGrouped, 0, nil},
 		{"crosstab", []types.FitSpec{{Name: "a", Request: crosstab}}, errors.PULSE_FIT_INVALID, ReasonGrouped, 0, nil},
 		{"duplicate", []types.FitSpec{{Name: "a", Request: olsReq(ols())}, {Name: "b", Request: olsReq(ols())}, {Name: "a", Request: olsReq(ols())}}, errors.PULSE_MODEL_NAME_COLLISION, "", 2, map[string]any{"name": "a"}},
+		// Vector fits: one MAT_* or fitted attribute battery, no
+		// regression.
+		{"vector matrix", []types.FitSpec{{Name: "v", Request: vec(mat(types.MAT_COVARIANCE, `{"ddof":0}`))}}, "", "", 0, nil},
+		{"vector attribute", []types.FitSpec{{Name: "v", Request: attrFit}, {Name: "r", Request: olsReq(ols())}}, "", "", 0, nil},
+		{"kind ambiguous", []types.FitSpec{{Name: "v", Request: mixed}}, errors.PULSE_FIT_INVALID, ReasonKindAmbiguous, 0, map[string]any{"regressions": 1, "vectors": 1}},
+		{"two batteries", []types.FitSpec{{Name: "v", Request: twoVec}}, errors.PULSE_FIT_INVALID, ReasonVectorCount, 0, map[string]any{"count": 2}},
+		{"two matrices", []types.FitSpec{{Name: "v", Request: vec(mat(types.MAT_COVARIANCE, ""), mat(types.MAT_CORRELATION, ""))}}, errors.PULSE_FIT_INVALID, ReasonVectorCount, 0, nil},
+		{"vector grouped", []types.FitSpec{{Name: "v", Request: groupedVec}}, errors.PULSE_FIT_INVALID, ReasonGrouped, 0, nil},
+		{"vector pairwise", []types.FitSpec{{Name: "v", Request: vec(mat(types.MAT_CORRELATION, `{"missing":"pairwise"}`))}}, errors.PULSE_FIT_INVALID, ReasonVectorSource, 0, map[string]any{"param": "missing"}},
+		{"vector distance", []types.FitSpec{{Name: "v", Request: vec(mat(types.MAT_DISTANCE, `{"between":{"type":"GROUP_CATEGORY","field":"g"}}`))}}, errors.PULSE_FIT_INVALID, ReasonVectorSource, 0, map[string]any{"type": "MAT_DISTANCE"}},
+		{"vector reversed", []types.FitSpec{{Name: "v", Request: vec(mat(types.MAT_RELIABILITY, `{"reverse":["b"],"scale_min":1,"scale_max":5}`))}}, errors.PULSE_FIT_INVALID, ReasonVectorSource, 0, map[string]any{"param": "reverse"}},
+		{"vector scale only", []types.FitSpec{{Name: "v", Request: vec(mat(types.MAT_RELIABILITY, `{"scale_min":1,"scale_max":5}`))}}, "", "", 0, nil},
+		{"vector save", []types.FitSpec{{Name: "v", Request: attrFit, Save: "v.pulse-model.json"}}, errors.PULSE_FIT_INVALID, ReasonVectorSave, 0, nil},
+		{"vector name collides with a regression", []types.FitSpec{{Name: "a", Request: olsReq(ols())}, {Name: "a", Request: attrFit}}, errors.PULSE_MODEL_NAME_COLLISION, "", 1, map[string]any{"name": "a"}},
 		// The first fault in entry order wins.
 		{"first fault wins", []types.FitSpec{{Name: "a", Request: olsReq()}, {Name: ""}}, errors.PULSE_FIT_INVALID, ReasonRegressionCount, 0, nil},
 	}

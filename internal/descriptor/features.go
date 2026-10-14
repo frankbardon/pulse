@@ -714,12 +714,14 @@ var hardEdges = map[string][]string{
 // (hardEdges holds one): each group is ANDed after the host group.
 //
 //   - capability:compose_fits runs its fits before Compose slots and a
-//     fit is one regression: it needs Compose AND any-of the REG_*
-//     operators.
+//     fit is one regression or one vector battery (a matrix or a fitted
+//     vector attribute): it needs Compose AND any-of the REG_*
+//     operators, capability:matrices and the fitted attributes.
 var groupEdges = map[string][][]string{
 	featComposeFits: {
 		{featCompose},
-		{string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS)},
+		{string(types.ATTR_FACTOR_SCORE), string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
+			string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS), featMatrices},
 	},
 }
 

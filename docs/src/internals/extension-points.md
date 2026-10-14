@@ -598,7 +598,7 @@ Two more registration rules bind the engine-owned surface:
 
 | Rule | Code | `details.reason` |
 |---|---|---|
-| a `Params` entry named `missing` or `max_drop_share` (the engine owns them) | `PULSE_EXTENSION_PARAM_INVALID` | `reserved_matrix_param` |
+| a `Params` entry named `missing`, `max_drop_share` or `fit` (the engine owns them) | `PULSE_EXTENSION_PARAM_INVALID` | `reserved_matrix_param` |
 | `PValues` names no `OutputKeys.Auxiliary` key | `PULSE_EXTENSION_PARAM_INVALID` | `invalid_pvalues` |
 | `OutputKeys.Auxiliary` declares `<PValues>_adjusted` or `significant_adjusted` | `PULSE_EXTENSION_PARAM_INVALID` | `reserved_output_key` |
 
@@ -610,8 +610,10 @@ finalizer:
   registration's `Accepts` narrowing the member column types
   (`PULSE_VECTOR_MEMBER_TYPE`; empty = the built-in member types, an
   element of a native vector reading as `f32` / `f64`). The engine
-  decodes `params.missing` and `params.max_drop_share` exactly as for a
-  built-in (listwise / pairwise, the heavy-drop warning) and STRIPS them:
+  decodes `params.missing`, `params.max_drop_share` and `params.fit`
+  exactly as for a built-in (listwise / pairwise, the heavy-drop warning;
+  under `fit` the slot folds no row and `Finalize` gets the bound vector
+  fit's co-moment, its weight basis as `WeightKind`) and STRIPS them:
   the factory's spec and `MatrixInput.Params` carry only the operator's
   own keys. A params value that is not a JSON object is
   `SERVICE_VALIDATION` `bad_params`; a factory error that is not a
@@ -1012,7 +1014,7 @@ listwise co-moment over three `f64` members (rows attached only on the
 registration, once weighted — and holds the output to `OutputKeys` /
 `ComponentSchema` ("Matrix operator (`MatrixOps`)" above). At run time a
 matrix operator's params never carry the engine-owned `missing` /
-`max_drop_share` (a `ParamMeta` naming one is refused,
+`max_drop_share` / `fit` (a `ParamMeta` naming one is refused,
 `reserved_matrix_param`), each `Finalize` gets its own clone of the
 merged co-moment, and multiplicity correction reaches it only through
 `PValues`.

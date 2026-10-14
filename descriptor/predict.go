@@ -921,19 +921,40 @@ type SweepSummary struct {
 }
 
 // FitSummary is one ComposeValidationResult.Fits entry: a ComposedRequest
-// `fits` entry as predict reads it, statically — never fitted.
+// `fits` entry as predict reads it, statically — never fitted. A
+// regression fit sets Type, Target and Predictors; a vector fit sets
+// Vector instead (the regression keys are then absent).
 type FitSummary struct {
 	// Name is the fit's bound name.
 	Name string `json:"name"`
-	// Type is the fit's regression operator.
-	Type types.RegressionType `json:"type"`
-	// Target is the fit's response field.
-	Target string `json:"target"`
+	// Type is the fit's regression operator (regression fits).
+	Type types.RegressionType `json:"type,omitempty"`
+	// Target is the fit's response field (regression fits).
+	Target string `json:"target,omitempty"`
 	// Predictors are the predictor columns as written. Under a selection
-	// modifier the fit binds only the predictors the selection keeps.
-	Predictors []string `json:"predictors"`
+	// modifier the fit binds only the predictors the selection keeps
+	// (regression fits).
+	Predictors []string `json:"predictors,omitempty"`
 	// Cohort is the path of the cohort the fit runs over.
 	Cohort string `json:"cohort,omitempty"`
+	// Vector is a vector fit's static summary (nil on a regression
+	// fit).
+	Vector *VectorFitSummary `json:"vector,omitempty"`
+}
+
+// VectorFitSummary is a vector fit's FitSummary: its battery and, when
+// the fit request's schema resolves, the labels a consuming slot aligns
+// to — what the runtime binds, without its figures.
+type VectorFitSummary struct {
+	// Operator is the battery: the fit request's MAT_* type or fitted
+	// attribute type.
+	Operator string `json:"operator"`
+	// Labels are the member labels in axis order (absent when the
+	// schema did not resolve).
+	Labels []string `json:"labels,omitempty"`
+	// Members are the member columns in axis order (absent when the
+	// schema did not resolve).
+	Members []string `json:"members,omitempty"`
 }
 
 // ForEachSummary describes one window, feature or attribute item's

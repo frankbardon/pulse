@@ -43,15 +43,29 @@ func TestSet_VectorFits(t *testing.T) {
 	if ce.Code != errors.PULSE_MODEL_UNKNOWN || !reflect.DeepEqual(ce.Details["available"], []string{"pop"}) {
 		t.Fatalf("unknown: %v %v", ce, ce.Details)
 	}
+	// One namespace, two kinds: a name bound as the other kind is
+	// PULSE_MODEL_KIND_MISMATCH carrying both kinds, either way round.
 	ce = coded(t, func() error { _, err := s.LookupVector("reg"); return err }())
-	if ce.Code != errors.PULSE_MODEL_UNKNOWN || ce.Details["kind"] != "regression" {
+	if ce.Code != errors.PULSE_MODEL_KIND_MISMATCH || ce.Details["fit"] != "reg" || ce.Details["kind"] != "regression" || ce.Details["expected"] != "vector" {
 		t.Fatalf("regression name: %v %v", ce, ce.Details)
 	}
-	if _, err := s.Lookup("pop"); coded(t, err).Code != errors.PULSE_MODEL_UNKNOWN {
-		t.Fatalf("regression Lookup of a vector fit: %v", err)
+	ce = coded(t, func() error { _, err := s.Lookup("pop"); return err }())
+	if ce.Code != errors.PULSE_MODEL_KIND_MISMATCH || ce.Details["fit"] != "pop" || ce.Details["kind"] != "vector" || ce.Details["expected"] != "regression" {
+		t.Fatalf("regression Lookup of a vector fit: %v %v", ce, ce.Details)
 	}
-	if !reflect.DeepEqual(s.Names(), []string{"reg"}) || !reflect.DeepEqual(s.VectorNames(), []string{"pop"}) || s.Len() != 1 {
-		t.Fatalf("names %v / %v len %d", s.Names(), s.VectorNames(), s.Len())
+	ce = coded(t, func() error { _, err := s.Lookup("nope"); return err }())
+	if ce.Code != errors.PULSE_MODEL_UNKNOWN || !reflect.DeepEqual(ce.Details["available"], []string{"reg"}) {
+		t.Fatalf("regression unknown lists the regressions: %v %v", ce, ce.Details)
+	}
+	if !reflect.DeepEqual(s.Names(), []string{"pop", "reg"}) || !reflect.DeepEqual(s.RegressionNames(), []string{"reg"}) ||
+		!reflect.DeepEqual(s.VectorNames(), []string{"pop"}) || s.Len() != 2 {
+		t.Fatalf("names %v / %v / %v len %d", s.Names(), s.RegressionNames(), s.VectorNames(), s.Len())
+	}
+	if sig, ok := s.Signature("pop"); !ok || sig.Kind != types.FitKindVector || !reflect.DeepEqual(sig.Members, []string{"a", "b"}) {
+		t.Fatalf("vector signature %+v %v", sig, ok)
+	}
+	if sig, ok := s.Signature("reg"); !ok || sig.EffectiveKind() != types.FitKindRegression {
+		t.Fatalf("regression signature %+v %v", sig, ok)
 	}
 	var nilSet *Set
 	if _, err := nilSet.LookupVector("x"); coded(t, err).Code != errors.PULSE_MODEL_UNKNOWN {
@@ -88,5 +102,103 @@ func TestVectorFit_NStar(t *testing.T) {
 	}
 	if v.P() != 2 {
 		t.Fatal("P")
+	}
+}
+
+// TestCheckVectorFit is the static vector-fit reference rule over the
+// runtime Set and predict's FitCatalog alike: a vector name passes, an
+// unbound one is PULSE_MODEL_UNKNOWN listing the vector fits only, a
+// regression name PULSE_MODEL_KIND_MISMATCH; the regression consumers
+// (CheckCoef, CheckScore) refuse a vector name the same way.
+func TestCheckVectorFit(t *testing.T) {
+	set := &Set{}
+	if err := set.AddVector(vectorFit("pop")); err != nil {
+		t.Fatal(err)
+	}
+	if err := set.Add(&Bound{Name: "reg", Type: types.REG_OLS, Terms: []string{"x"}}); err != nil {
+		t.Fatal(err)
+	}
+	vecReq := &types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"a", "b"}}}}
+	cat := CatalogFromFits([]types.FitSpec{{Name: "pop", Request: vecReq}, {Name: "reg", Request: olsReq(ols())}})
+	for name, c := range map[string]Catalog{"runtime": set, "predict": cat} {
+		t.Run(name, func(t *testing.T) {
+			if cerr := CheckVectorFit(c, "pop"); cerr != nil {
+				t.Fatalf("vector name: %v", cerr)
+			}
+			cerr := CheckVectorFit(c, "nope")
+			if cerr == nil || cerr.Code != errors.PULSE_MODEL_UNKNOWN || !reflect.DeepEqual(cerr.Details["available"], []string{"pop"}) {
+				t.Fatalf("unknown: %v", cerr)
+			}
+			cerr = CheckVectorFit(c, "reg")
+			if cerr == nil || cerr.Code != errors.PULSE_MODEL_KIND_MISMATCH || cerr.Details["fit"] != "reg" || cerr.Details["expected"] != "vector" {
+				t.Fatalf("regression: %v", cerr)
+			}
+			cerr = CheckCoef(c, "pop", "a", StatPoint)
+			if cerr == nil || cerr.Code != errors.PULSE_MODEL_KIND_MISMATCH || cerr.Details["kind"] != "vector" {
+				t.Fatalf("coef of a vector fit: %v", cerr)
+			}
+			cerr = CheckCoef(c, "nope", "a", StatPoint)
+			if cerr == nil || cerr.Code != errors.PULSE_MODEL_UNKNOWN || !reflect.DeepEqual(cerr.Details["available"], []string{"reg"}) {
+				t.Fatalf("coef unknown: %v", cerr)
+			}
+			_, _, cerr = CheckScore(&types.Attribute{Type: types.ATTR_REG_PREDICT, Params: []byte(`{"fit":"pop"}`)}, c)
+			if cerr == nil || cerr.Code != errors.PULSE_MODEL_KIND_MISMATCH {
+				t.Fatalf("score a vector fit: %v", cerr)
+			}
+		})
+	}
+	if cerr := CheckVectorFit(nil, "pop"); cerr == nil || cerr.Code != errors.PULSE_MODEL_UNKNOWN {
+		t.Fatalf("nil catalog: %v", cerr)
+	}
+}
+
+// TestVectorCapture: offers are kept in order, a nil capture ignores
+// them, and WithCapture copies the namespace without mutating it.
+func TestVectorCapture(t *testing.T) {
+	base := &Set{}
+	if err := base.AddVector(vectorFit("pop")); err != nil {
+		t.Fatal(err)
+	}
+	c := &VectorCapture{}
+	s := base.WithCapture(c)
+	if s.Capture() != c || base.Capture() != nil || (*Set)(nil).Capture() != nil {
+		t.Fatal("capture not carried by the copy only")
+	}
+	if _, err := s.LookupVector("pop"); err != nil {
+		t.Fatalf("copy lost the namespace: %v", err)
+	}
+	s.Capture().Offer(vectorFit("a"))
+	s.Capture().Offer(vectorFit("b"))
+	(*VectorCapture)(nil).Offer(vectorFit("c"))
+	if got := c.Fits(); len(got) != 2 || got[0].Name != "a" || got[1].Name != "b" {
+		t.Fatalf("offers %v", got)
+	}
+	if (*Set)(nil).WithCapture(c).Len() != 0 {
+		t.Fatal("nil set copy not empty")
+	}
+}
+
+// TestFitKindOf: a regression fit, a matrix or fitted-attribute vector
+// fit, or "" for anything CheckFits refuses.
+func TestFitKindOf(t *testing.T) {
+	mat := types.MatrixSpec{Type: types.MAT_COVARIANCE, Fields: []string{"a", "b"}}
+	attr := &types.Attribute{Type: types.ATTR_MAHALANOBIS, Fields: []string{"a", "b"}}
+	other := &types.Attribute{Type: types.ATTR_FORMULA, Expression: "a"}
+	for name, c := range map[string]struct {
+		req  *types.Request
+		want types.FitKind
+	}{
+		"regression":      {olsReq(ols()), types.FitKindRegression},
+		"matrix":          {&types.Request{Matrices: []types.MatrixSpec{mat}}, types.FitKindVector},
+		"attribute":       {&types.Request{Attributes: []*types.Attribute{other, attr}}, types.FitKindVector},
+		"both":            {&types.Request{Regressions: []*types.RegressionSpec{ols()}, Matrices: []types.MatrixSpec{mat}}, ""},
+		"two batteries":   {&types.Request{Matrices: []types.MatrixSpec{mat}, Attributes: []*types.Attribute{attr}}, ""},
+		"nothing":         {&types.Request{Attributes: []*types.Attribute{other}}, ""},
+		"null regression": {olsReq(nil), ""},
+		"nil":             {nil, ""},
+	} {
+		if got := FitKindOf(c.req); got != c.want {
+			t.Errorf("%s: kind %q, want %q", name, got, c.want)
+		}
 	}
 }

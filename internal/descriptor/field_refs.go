@@ -173,6 +173,16 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     kind's params.field, else the first) —
 //     PROCESSING_CONFIG, details.reason "array_valued".
 //     Steps 6 to 11 contribute one refusal at most between them.
+//  12. bound vector fits — every fitted attribute's and every matrix's
+//     params.fit judged against the bound names (models: the runtime's
+//     Set, predict's FitCatalog) by internal/model.CheckVectorFit, once
+//     steps 6-11 passed: an unbound name is PULSE_MODEL_UNKNOWN (the
+//     vector fits under details.available), a regression name
+//     PULSE_MODEL_KIND_MISMATCH — located by details.attribute (the
+//     slot's label) or details.matrix (the result name), the message
+//     prefixed with the slot, exactly as the bind re-raises it. The
+//     label alignment is the bind's alone (a static catalog never
+//     resolves a battery).
 //
 // Derived names follow the runtime's own naming (featureOutputLabels,
 // attributeDefaultLabel, "<TYPE>_<field>" for an aggregation,
@@ -650,7 +660,8 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	// vector-XOR-fields shape, encoding, result-name uniqueness, params,
 	// the named vector (PULSE_VECTOR_UNKNOWN) or the inline fields (the
 	// vector rules). A type the instance hides is an unknown type.
-	if _, verr := resolveMatricesFor(req, schema, w.snap, inst); verr != nil {
+	mats, verr := resolveMatricesFor(req, schema, w.snap, inst)
+	if verr != nil {
 		w.out = append(w.out, verr)
 		return w.out
 	}
@@ -699,8 +710,49 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	// at most between them.
 	if _, aerr := vectors.ResolveAggregations(req, schema, aggregationKinds(inst, w.snap)); aerr != nil {
 		w.out = append(w.out, aerr)
+		return w.out
 	}
+	// 12. Bound vector fits (params.fit), once every input resolved.
+	w.out = append(w.out, vectorFitRefusals(req, mats, inst, models)...)
 	return w.out
+}
+
+// vectorFitRefusals is step 12: each fitted attribute's params.fit (in
+// slot order), then each matrix's, judged by model.CheckVectorFit
+// against models and located the way the runtime's bind locates it
+// (details.attribute = the slot's label / details.matrix = the result
+// name, the message prefixed with the slot).
+func vectorFitRefusals(req *types.Request, mats []vectors.Matrix, inst *InstanceSnapshot, models model.Catalog) []*errors.CodedError {
+	var out []*errors.CodedError
+	for _, attr := range req.Attributes {
+		if attr == nil {
+			continue
+		}
+		name := vectors.AttributeFit(opRoute(inst, attr.Type), attr)
+		if name == "" {
+			continue
+		}
+		if cerr := model.CheckVectorFit(models, name); cerr != nil {
+			label := attr.Label
+			if label == "" {
+				label = attributeDefaultLabel(attr, inst)
+			}
+			cerr.Details["attribute"] = label
+			cerr.Message = label + ": " + cerr.Message
+			out = append(out, cerr)
+		}
+	}
+	for _, m := range mats {
+		if m.Fit == "" {
+			continue
+		}
+		if cerr := model.CheckVectorFit(models, m.Fit); cerr != nil {
+			cerr.Details["matrix"] = m.Name
+			cerr.Message = "matrix " + m.Name + ": " + cerr.Message
+			out = append(out, cerr)
+		}
+	}
+	return out
 }
 
 // resolveMatricesFor is the one instance-scoped Request.Matrices

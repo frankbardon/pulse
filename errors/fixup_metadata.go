@@ -1759,12 +1759,22 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_UNKNOWN: {
-		Message: "A reference names a model nothing binds in this request. Names resolve against the ComposedRequest `fits` entries and the request's `models` entries (one namespace). The unknown name is under `name`, the bound names under `available`. A fitted vector attribute's `params.fit` resolves only a bound VECTOR fit: `available` then lists the vector fits, and a name bound as a regression carries `kind` `regression`.",
+		Message: "A reference names a model nothing binds in this request. Names resolve against the ComposedRequest `fits` entries and the request's `models` entries (one namespace). The unknown name is under `name`, the bound names of the kind the reference reads under `available`: a vector-fit reference (a fitted vector attribute's or a matrix slot's `params.fit`) lists the bound vector fits, a regression reference (a regression score or coef()) the bound regressions.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"fits", "*", "name"},
 				Hint:   "Reference one of the names under `available`, or add a `fits` entry with that name.",
+			},
+		},
+	},
+	PULSE_MODEL_KIND_MISMATCH: {
+		Message: "A reference names a bound fit of the other kind. One namespace holds regression fits (and loaded model files) and vector fits: a regression score and coef() read a regression; a fitted vector attribute's or a matrix slot's `params.fit` reads a vector fit (a `fits` entry over one matrix or fitted-attribute battery). The name is under `name` / `fit`, its kind under `kind`, the kind the reference reads under `expected`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "name"},
+				Hint:   "Reference a fit of the expected kind, or add a `fits` entry of that kind under a new name.",
 			},
 		},
 	},

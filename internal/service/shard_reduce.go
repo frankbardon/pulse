@@ -364,7 +364,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 	primaryNullField := primaryNullFieldFor(req)
 
 	out := newShardPartial(req, specs, s.Limits())
-	if err := out.buildMatrices(req, schema, s.extensions, grouped, s.computePlanFor(ctx, req)); err != nil {
+	if err := out.buildMatrices(req, schema, s.extensions, grouped, s.computePlanFor(ctx, req), model.SetFrom(ctx)); err != nil {
 		return nil, err
 	}
 	var aggsUngrouped []processing.OnlineAggregator
@@ -490,14 +490,15 @@ func newShardPartial(req *types.Request, specs []aggSpec, l limits.Limits) *shar
 // one (groupedMats). Shared by both parallel reducers. compute is the
 // run's plan: a plan that accumulates no matrix (the `matrices` slot
 // and components.matrices both excluded) builds none, so no partition
-// folds a record into one.
-func (sp *shardPartial) buildMatrices(req *types.Request, schema *encoding.Schema, exts *processing.ExtensionRegistry, grouped bool, compute processing.ComputePlan) error {
+// folds a record into one. models are the run's bound models (a
+// params.fit slot binds its vector fit there).
+func (sp *shardPartial) buildMatrices(req *types.Request, schema *encoding.Schema, exts *processing.ExtensionRegistry, grouped bool, compute processing.ComputePlan, models *model.Set) error {
 	var err error
 	if grouped {
 		sp.groupedMats, err = processing.BuildGroupedMatrices(req, schema, exts, compute, sp.limits)
 		return err
 	}
-	sp.mats, err = processing.BuildMatrixSlots(req, schema, exts, compute)
+	sp.mats, err = processing.BuildMatrixSlots(req, schema, exts, compute, models)
 	return err
 }
 
