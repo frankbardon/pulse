@@ -233,10 +233,11 @@ The pack under `internal/skills/` (addressed `skills/<stem>.md`, embedded via `/
 
 ## Reference Docs
 
-`.claude/reference/*.md` is where CLAUDE.md's long form lives. **This is the complete index.** CLAUDE.md carries only the always-load half of each contract — load the named file BEFORE the work, not after. A file with a same-named subdirectory is an INDEX: load it, then only the slice(s) your change triggers (never `history.md`). Most are also required companions in the Update Demand table, which makes loading them binding.
+`.claude/reference/*.md` holds CLAUDE.md's long form; **this is the complete index.** Load the named file BEFORE the work, not after. A file with a same-named subdirectory is an INDEX: load it, then only the slice(s) your change triggers (never `history.md`). Update Demand companions make loading binding.
 
 | File | Holds | Load before... |
 |---|---|---|
+| `agent-practices.md` | cross-role rules: loading, sites first, falsify, goldens, cross-arch, gates, git | any delegated or agent work |
 | `architecture.md` | package tree, facade narrowing, `io` boundary, surface guards, MCP layer split, extension surface | moving a package, adding a public package or exported symbol, or touching an import-boundary gate |
 | `update-demand.md` | index → per-area trigger-table slices (`update-demand/`), gate prose | touching ANY contract; add a row for a new Request slot, Response slot, capability block or execution-mode wiring |
 | `byte-layout.md` | format version, parent groups, wide sets, shard archives, sidecars, SPSS, projected decode | changing the `.pulse` format, a field type, shard-archive layout, any sidecar file, an SPSS surface, or the projection contract |
@@ -252,4 +253,4 @@ The pack under `internal/skills/` (addressed `skills/<stem>.md`, embedded via `/
 | `matrix-and-vectors.md` | index → slices (`matrix-and-vectors/`): `linalg` policy, `CoMoment`, vectors, matrix slot | touching `linalg/`, its callers or the blocked merge |
 | `observability.md` | levels, log attributes + privacy rule, enums, hook contract, metric table, streaming end, contrib versioning, the four gates | changing an `observe` enum, metric, log attribute, hook field, `Options.Logger`/`Hooks`/`Metrics`, or a `contrib/` module |
 
-`.claude/reference/**` is inside `TestSkillsCoverAllCrossReferences`' and `TestReferenceDocPointersResolve`' corpus — a heading renamed in moved text still breaks the pointer that names it.
+`.claude/reference/**` is inside `TestSkillsCoverAllCrossReferences`' and `TestReferenceDocPointersResolve`' corpus — renaming a moved heading breaks every pointer to it.

@@ -6,6 +6,16 @@ tools: Read, Write, Edit, Bash, Grep, Glob
 
 You are the Pulse test engineer. One job: keep the gate net intact and tighten coverage where the Update Demand table requires it.
 
+## Working practices (mandatory)
+
+Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (context loading, sites first, TDD + falsify, goldens, cross-arch numerics, gate set, shared-checkout safety, known limits). The ones that bite this role hardest:
+
+- **Falsify, don't read:** for each key new test, revert one production line, confirm the test FAILS, restore.
+- **Goldens:** never hand-edit; regenerate with `-update`, re-run without it; always `go test -count=1` (a cached pass hid a stale golden).
+- **Cross-arch numerics:** never store exact bits of gonum-decomposition / rotation / math-library-tail values in a fixture — compare within the documented tolerance; bit-exact only for same-process live comparisons and declared FMA-free paths (`CoMoment`, SPD kernels, metric registry). amd64 repro: `GOOS=linux GOARCH=amd64 go test -c` + `docker run --platform linux/amd64`.
+- **Predict/runtime parity:** every new refusal or execution arm gets a predict ≡ runtime test.
+- **Gates to rerun:** take them from `make sites ARGS="op <TYPE>"` / `"slot …"` output rather than guessing.
+
 ## Context discovery
 
 1. `CLAUDE.md` "Non-Skippable CI Gates" — the canonical list.
@@ -17,7 +27,7 @@ You are the Pulse test engineer. One job: keep the gate net intact and tighten c
 
 - Table-driven tests by default. Subtest name in the table row.
 - Golden files end with `// golden-hash: <sha256>` line. Never hand-edit. Regenerate with `go test ./descriptor/ -run 'Test.*Golden' -update`. `TestGoldensNotHandEdited` verifies hashes.
-- Gate naming prefixes carry meaning: `TestSkillsCover*`, `TestClaudeMd*`, `TestUpdateDemand*`, `TestManifest*`, `TestPredictNo*`, `TestDescriptorNo*`. New gates with these prefixes auto-land in CLAUDE.md "Non-Skippable CI Gates" list (and `TestClaudeMdMentionsAllNonSkippableGates` will demand you list them).
+- `TestClaudeMdMentionsAllNonSkippableGates` scans for the eight prefixes CLAUDE.md "Non-Skippable CI Gates" names (`TestSkillsCover`, `TestClaudeMd`, `TestUpdateDemand`, `TestNoOrbit`, `TestGoldensNot`, `TestPredictNo`, `TestDescriptorNo`, `TestPerPackageCoverage`); a new gate with one of them must be listed there by name in the same commit.
 - Hermetic tests use `fs.NewMemMap()`. No disk I/O.
 - Per-package coverage floors documented in `TestPerPackageCoverageFloors`.
 
@@ -30,13 +40,7 @@ You are the Pulse test engineer. One job: keep the gate net intact and tighten c
 
 ## Verify
 
-```
-make lint
-make test
-make cover
-```
-
-Confirm new tests fail without the production change (TDD discipline) and pass with it.
+`go test -count=1` on every package you touched + any whole-repo gate you added, `GOTOOLCHAIN=go1.26.1 make lint`, and `make cover` when a coverage floor moves. Confirm each new test fails without the production change and passes with it.
 
 ## Return format
 

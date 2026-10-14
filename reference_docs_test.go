@@ -293,3 +293,62 @@ func TestReferenceDocPointersResolve(t *testing.T) {
 		t.Fatal("found no section-qualified reference pointers — the scan is broken")
 	}
 }
+
+// agentPracticesPath is the cross-role working-practices file every repo agent
+// persona loads first. It lives under .claude/reference/, NOT .claude/agents/,
+// because every .md under .claude/agents/ is treated as an agent definition.
+const agentPracticesPath = ".claude/reference/agent-practices.md"
+
+const (
+	// The shared file is loaded by every delegated agent before its work.
+	agentPracticesCeiling = 8 * 1024
+	// A persona is loaded on every subagent spawn of its type; it keeps only
+	// role-specific rules and defers the rest to agentPracticesPath.
+	agentPersonaCeiling = 6 * 1024
+)
+
+// TestAgentPersonasReferencePractices pins the durable home of the agent
+// working practices: every .claude/agents/pulse-*.md persona points at the
+// shared practices file and carries a "Working practices (mandatory)" section,
+// the shared file is indexed in CLAUDE.md's Reference Docs table, and both stay
+// inside their size ceilings (split or trim, never raise).
+func TestAgentPersonasReferencePractices(t *testing.T) {
+	info, err := os.Stat(agentPracticesPath)
+	if err != nil {
+		t.Fatalf("%s is missing: %v", agentPracticesPath, err)
+	}
+	if info.Size() > agentPracticesCeiling {
+		t.Errorf("%s is %d bytes, over the %d-byte ceiling — move detail into the per-area reference slice it concerns", agentPracticesPath, info.Size(), agentPracticesCeiling)
+	}
+	claude, err := os.ReadFile("CLAUDE.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(claude), "| `agent-practices.md` |") {
+		t.Errorf("CLAUDE.md \"Reference Docs\" table has no `agent-practices.md` row")
+	}
+
+	personas, err := filepath.Glob(filepath.Join(".claude", "agents", "pulse-*.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(personas) == 0 {
+		t.Fatal("found no .claude/agents/pulse-*.md personas — the scan is broken")
+	}
+	for _, p := range personas {
+		raw, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := string(raw)
+		if !strings.Contains(body, agentPracticesPath) {
+			t.Errorf("%s does not point at %s", p, agentPracticesPath)
+		}
+		if !strings.Contains(body, "\n## Working practices (mandatory)\n") {
+			t.Errorf("%s has no \"## Working practices (mandatory)\" section", p)
+		}
+		if len(raw) > agentPersonaCeiling {
+			t.Errorf("%s is %d bytes, over the %d-byte persona ceiling — keep only role-specific rules; shared ones live in %s", p, len(raw), agentPersonaCeiling, agentPracticesPath)
+		}
+	}
+}
