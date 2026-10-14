@@ -64,7 +64,9 @@ const (
 	// required on a covariance. A decomposition operator (the shared
 	// PSD guard, params.repair "nearest"). Sign and order follow
 	// linalg.SymEigen. Weighted under frequency and probability
-	// weights. No rotation.
+	// weights. params.rotation: an orthogonal criterion ("varimax",
+	// "quartimax", "geomin_orthogonal" with params.epsilon, "entropy");
+	// an oblique one is refused.
 	MAT_PCA MatrixType = "MAT_PCA"
 	// MAT_COLLINEARITY is a collinearity check of the members as
 	// regression predictors (no response): the primary is their
@@ -93,8 +95,10 @@ const (
 	// RMSEA with its interval at params.conf_level and BIC scalars),
 	// each from the squared multiple
 	// correlations, then rotated by params.rotation "none"
-	// (the default), "varimax", "promax" (params.kappa, default 4) or
-	// "oblimin" (params.gamma, default 0). The primary is the p × k
+	// (the default), orthogonal "varimax", "quartimax", "entropy",
+	// "geomin_orthogonal" (params.epsilon, default 0.01) or oblique
+	// "promax" (params.kappa, default 4), "oblimin" (params.gamma,
+	// default 0), "geomin" (params.epsilon). The primary is the p × k
 	// rotated loadings (MatrixKindRectangular, columns "F1" … "Fk");
 	// auxiliary.unrotated the unrotated loadings (rotated runs) and
 	// auxiliary.factor_correlation the k × k factor correlation
@@ -255,12 +259,14 @@ type MatrixSpec struct {
 	// [fields], "repair": "nearest"; MAT_RELIABILITY: "reverse":
 	// [fields], "scale_min" / "scale_max": numbers, "repair":
 	// "nearest"; MAT_PCA: "on": "correlation" | "covariance",
-	// "components": k | "kaiser" | {"variance": share}, "repair":
-	// "nearest"; MAT_COLLINEARITY: "center": bool, "repair": "nearest";
-	// MAT_FACTOR: "factors": k | "kaiser", "extraction": "minres" |
+	// "components": k | "kaiser" | {"variance": share}, "rotation"
+	// (orthogonal), "epsilon", "repair": "nearest"; MAT_COLLINEARITY:
+	// "center": bool, "repair": "nearest"; MAT_FACTOR: "factors": k | "kaiser", "extraction": "minres" |
 	// "principal_axis" | "ml", "rotation": "none" | "varimax" | "promax" |
-	// "oblimin", "kappa" (promax), "gamma" (oblimin), "conf_level" (ml:
-	// the RMSEA interval's coverage, default 0.9), "repair": "nearest";
+	// "oblimin" | "quartimax" | "geomin" | "geomin_orthogonal" |
+	// "entropy", "kappa" (promax), "gamma" (oblimin), "epsilon" (the
+	// geomin pair), "conf_level" (ml: the RMSEA interval's coverage,
+	// default 0.9), "repair": "nearest";
 	// MAT_DISTANCE: "between": a grouper spec, "metric":
 	// "euclidean" | "sq_euclidean" | "manhattan" | "chebyshev" | "cosine" |
 	// "hellinger" | "aitchison" | "mahalanobis", "standardize": bool,

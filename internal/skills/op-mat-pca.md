@@ -15,7 +15,8 @@ As `op-mat-covariance`.
 
 ## Params
 
-- `on` — `correlation` (default) or `covariance`. `rotation` — `none`, `varimax` (k ≥ 2). `repair` — `nearest`.
+- `on` — `correlation` (default) or `covariance`. `repair` — `nearest`.
+- `rotation` (k ≥ 2) — `none`, `varimax`, `quartimax`, `geomin_orthogonal` (`epsilon`, 0.01), `entropy`. Oblique names refused: `rotation_oblique_unsupported`.
 - `components` — int k (≤ p), `kaiser` (λ > 1, default) or `{variance: s}`; required on `covariance`.
 - `missing`, `max_drop_share`, `fit`, `weight`, `encoding`: `op-mat-correlation`.
 

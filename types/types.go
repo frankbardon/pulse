@@ -408,8 +408,9 @@ const (
 	// standardized to unit variance on the fit population: the
 	// eigen-decomposition of the fit's correlation (params.on, the
 	// default) or covariance, with MAT_PCA's order and sign convention.
-	// params.rotation "varimax" scores the component after rotating the
-	// params.components leading ones (MAT_PCA's rotation). Two-pass with
+	// params.rotation (an orthogonal criterion: "varimax", "quartimax",
+	// "geomin_orthogonal", "entropy") scores the component after rotating
+	// the params.components leading ones (MAT_PCA's rotation). Two-pass with
 	// the fitted-attribute rules of ATTR_MAHALANOBIS (fit_on, listwise,
 	// null member → null, singular or N* ≤ p → every score null).
 	ATTR_PC_SCORE AttributeType = "ATTR_PC_SCORE"
@@ -1228,11 +1229,12 @@ type Attribute struct {
 	//   missing: "listwise" (the only mode).
 	// ATTR_MAHALANOBIS adds output: "d2" (default) or "p". ATTR_PC_SCORE
 	// adds component (1-based, required), on ("correlation" default or
-	// "covariance"), rotation ("none" default or "varimax") and
-	// components (the k rotated within; required with varimax).
-	// ATTR_FACTOR_SCORE adds factor (1-based, required), method
-	// ("regression" default or "bartlett") and MAT_FACTOR's factors,
-	// extraction, rotation, kappa and gamma.
+	// "covariance"), rotation ("none" default or MAT_PCA's orthogonal
+	// criteria), epsilon (geomin_orthogonal) and components (the k
+	// rotated within; required with a rotation). ATTR_FACTOR_SCORE adds
+	// factor (1-based, required), method ("regression" default or
+	// "bartlett") and MAT_FACTOR's factors, extraction, rotation, kappa,
+	// gamma and epsilon.
 	Params json.RawMessage `json:"params,omitempty"`
 
 	// --- Regression-attribute fields (Option A: each ATTR_REG_* carries

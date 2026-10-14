@@ -2,7 +2,6 @@ package processing
 
 import (
 	"math"
-	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -33,7 +32,8 @@ import (
 // the scores have mean 0 and variance 1 under the fit's own (weighted,
 // ddof = 1) moments.
 //
-// params.rotation "varimax" rotates the unrotated loadings of the
+// params.rotation (an orthogonal criterion, vectors.PCARotations)
+// rotates the unrotated loadings of the
 // params.components = k leading components with the shared rotation
 // engine (rotateLoadings, the call MAT_PCA's pcaRotate makes — same
 // order and sign rule), giving L = A·T, and scores
@@ -41,8 +41,10 @@ import (
 //	score_c = Σ_j s_j T_jc     (s the k unrotated standardized scores)
 //
 // — psych::principal(rotate = "varimax")'s scores R⁻¹L, unit variance
-// because T is orthogonal. A rotation stopped at its sweep cap keeps the
-// last iterate with a PULSE_MATRIX_NOT_CONVERGED warning (fit scope).
+// because T is orthogonal (why an oblique criterion is refused). A
+// rotation stopped at its iteration cap keeps the last iterate with a
+// PULSE_MATRIX_NOT_CONVERGED warning (fit scope; details carry the
+// solver).
 //
 // The singular DECISION is the fitted-attribute rule (rankDeficient,
 // shared with ATTR_MAHALANOBIS): a constant member or a member that is a
@@ -130,15 +132,13 @@ func (m *pcScoreModel) fit(st fittedState) *fitRefusal {
 				a[i][j] = float64(eig.Vectors.At(i, j) * math.Sqrt(math.Max(lam[j], 0)))
 			}
 		}
-		rot, err := rotateLoadings(a, rotationSpec{Method: m.cfg.Rotation})
+		rot, err := rotateLoadings(a, rotationSpec{Method: m.cfg.Rotation, Epsilon: m.cfg.Epsilon})
 		if err != nil {
 			return &fitRefusal{code: errors.PULSE_MATRIX_SINGULAR,
 				msg: "the " + m.cfg.Rotation + " rotation failed (" + err.Error() + "); every score is null"}
 		}
-		if !rot.Converged {
-			m.notes = append(m.notes, &fitRefusal{code: errors.PULSE_MATRIX_NOT_CONVERGED,
-				msg: "the " + m.cfg.Rotation + " rotation stopped at its " + strconv.Itoa(rot.MaxIterations) +
-					"-sweep cap before its criterion settled; the scores use the last iterate"})
+		if note := rotationCapNote(m.cfg.Rotation, rot); note != nil {
+			m.notes = append(m.notes, note)
 		}
 		for i := range m.w {
 			sum := 0.0

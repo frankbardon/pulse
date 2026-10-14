@@ -2,6 +2,7 @@ package processing
 
 import (
 	"math"
+	"slices"
 	"sort"
 
 	"github.com/frankbardon/pulse/errors"
@@ -10,11 +11,12 @@ import (
 )
 
 // matrix_rotate.go is the shared rotation engine: it turns a p × k
-// loading matrix A into rotated loadings L = A·T with one of three
-// criteria, and puts every result through ONE sign-and-order rule.
-// It knows nothing about the operator that calls it — MAT_PCA's
-// params.rotation today, MAT_FACTOR and ATTR_PC_SCORE next — and takes
-// and returns plain row-major slices.
+// loading matrix A into rotated loadings L = A·T with one of the
+// vectors.FactorRotations criteria, and puts every result through ONE
+// sign-and-order rule. It knows nothing about the operator that calls
+// it — MAT_PCA, MAT_FACTOR, ATTR_PC_SCORE and ATTR_FACTOR_SCORE — and
+// takes and returns plain row-major slices. Whether a criterion is
+// oblique is vectors.RotationOblique's call, never a local list.
 //
 // Each criterion reproduces its R reference algorithm step for step,
 // with R's default constants, so a fit stops on the same iterate R
@@ -30,6 +32,11 @@ import (
 //   - oblimin (GPArotation::oblimin, gam = gamma, normalize = FALSE):
 //     vgQ.oblimin on the oblique gradient-projection driver gpfoblq.
 //     L = A·(T_g⁻¹)ᵀ, Φ = T_gᵀT_g.
+//   - quartimax, entropy, geomin_orthogonal (GPArotation::quartimax,
+//     entropy, geominT(delta = epsilon); normalize = FALSE): vgQ.quartimax
+//     / vgQ.entropy / vgQ.geomin on the orthogonal driver gpforth.
+//   - geomin (GPArotation::geominQ(delta = epsilon), normalize =
+//     FALSE): vgQ.geomin on gpfoblq.
 //
 // The gradient-projection (GPA) criteria share ONE driver, gpaRotate,
 // GPArotation's GPForth / GPFoblq loop with the package's defaults:
@@ -78,13 +85,16 @@ const (
 
 // rotationSpec selects a criterion and its parameter.
 type rotationSpec struct {
-	// Method is vectors.RotationVarimax, RotationPromax or
-	// RotationOblimin.
+	// Method is a vectors.FactorRotations criterion other than
+	// RotationNone.
 	Method string
 	// Kappa is promax's power (> 1); 0 means promaxDefaultKappa.
 	Kappa float64
 	// Gamma is oblimin's γ (0 quartimin, 0.5 biquartimin).
 	Gamma float64
+	// Epsilon is the geomin pair's ε (> 0); 0 means
+	// vectors.GeominDefaultEpsilon.
+	Epsilon float64
 }
 
 // rotationResult is a rotated loading matrix after the sign-and-order
@@ -121,9 +131,7 @@ type rotationResult struct {
 // inversion step fails returns the error (a coded linalg error, or
 // PROCESSING_INTERNAL for an unknown method).
 func rotateLoadings(a [][]float64, spec rotationSpec) (rotationResult, error) {
-	switch spec.Method {
-	case vectors.RotationVarimax, vectors.RotationPromax, vectors.RotationOblimin:
-	default:
+	if spec.Method == vectors.RotationNone || !slices.Contains(vectors.FactorRotations(), spec.Method) {
 		return rotationResult{}, errors.NewCodedError(errors.PROCESSING_INTERNAL, "rotation method "+spec.Method+" is not known")
 	}
 	p := len(a)
@@ -135,7 +143,7 @@ func rotateLoadings(a [][]float64, spec rotationSpec) (rotationResult, error) {
 		res := rotationResult{
 			Loadings: cloneRows(a), Rotation: identityRows(k), Phi: identityRows(k),
 			Order: make([]int, k), Signs: make([]float64, k), Converged: true,
-			Solver: spec.Method, Oblique: spec.Method != vectors.RotationVarimax,
+			Solver: spec.Method, Oblique: vectors.RotationOblique(spec.Method),
 		}
 		for c := 0; c < k; c++ {
 			res.Order[c], res.Signs[c] = c, 1
@@ -152,8 +160,16 @@ func rotateLoadings(a [][]float64, spec rotationSpec) (rotationResult, error) {
 		res = varimaxRotate(a)
 	case vectors.RotationPromax:
 		res, err = promaxRotate(a, spec.Kappa)
-	default: // vectors.RotationOblimin
+	case vectors.RotationOblimin:
 		res, err = obliminRotate(a, spec.Gamma)
+	case vectors.RotationQuartimax:
+		res = gpforth(a, quartimaxCriterion, "gpa_quartimax")
+	case vectors.RotationEntropy:
+		res = gpforth(a, entropyCriterion, "gpa_entropy")
+	case vectors.RotationGeominOrthogonal:
+		res = gpforth(a, geominCriterion(spec.Epsilon), "gpa_geomin_orthogonal")
+	default: // vectors.RotationGeomin
+		res = gpfoblq(a, geominCriterion(spec.Epsilon), "gpa_geomin")
 	}
 	if err != nil {
 		return rotationResult{}, err
@@ -516,6 +532,74 @@ func obliminCriterion(l [][]float64, gamma float64) ([][]float64, float64) {
 		}
 	}
 	return gq, f / 4
+}
+
+// quartimaxCriterion is GPArotation's vgQ.quartimax: gradient −L³,
+// value −ΣL⁴/4 (quartimax is maximised).
+func quartimaxCriterion(l [][]float64) ([][]float64, float64) {
+	gq := make([][]float64, len(l))
+	f := 0.0
+	for i := range l {
+		gq[i] = make([]float64, len(l[i]))
+		for c, v := range l[i] {
+			v2 := float64(v * v)
+			gq[i][c] = -float64(v2 * v)
+			f += float64(v2 * v2)
+		}
+	}
+	return gq, -f / 4
+}
+
+// entropyEps is R's .Machine$double.eps, vgQ.entropy's guard inside
+// the log.
+const entropyEps = 0x1p-52
+
+// entropyCriterion is GPArotation's vgQ.entropy (minimum entropy):
+// with L2 = L² and λ = log(L2 + ε), gradient −(L∘λ + L), value
+// −Σ(L2∘λ)/2.
+func entropyCriterion(l [][]float64) ([][]float64, float64) {
+	gq := make([][]float64, len(l))
+	f := 0.0
+	for i := range l {
+		gq[i] = make([]float64, len(l[i]))
+		for c, v := range l[i] {
+			v2 := float64(v * v)
+			lg := math.Log(v2 + entropyEps)
+			gq[i][c] = -(float64(v*lg) + v)
+			f += float64(v2 * lg)
+		}
+	}
+	return gq, -f / 2
+}
+
+// geominCriterion is GPArotation's vgQ.geomin at delta = eps (0 means
+// vectors.GeominDefaultEpsilon): with L2 = L² + ε and each row's
+// geometric mean g_i = exp(mean_c log L2_ic), gradient
+// (2/k)·(L / L2)·g_i, value Σg_i.
+func geominCriterion(eps float64) gpaCriterion {
+	if eps == 0 {
+		eps = vectors.GeominDefaultEpsilon
+	}
+	return func(l [][]float64) ([][]float64, float64) {
+		gq := make([][]float64, len(l))
+		f := 0.0
+		for i := range l {
+			k := len(l[i])
+			l2 := make([]float64, k)
+			sl := 0.0
+			for c, v := range l[i] {
+				l2[c] = float64(v*v) + eps
+				sl += math.Log(l2[c])
+			}
+			g := math.Exp(sl / float64(k))
+			gq[i] = make([]float64, k)
+			for c, v := range l[i] {
+				gq[i][c] = float64(float64(2/float64(k)*(v/l2[c])) * g)
+			}
+			f += g
+		}
+		return gq, f
+	}
 }
 
 // canonicalizeRotation applies the sign-and-order rule in place.

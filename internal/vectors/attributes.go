@@ -44,9 +44,9 @@ import (
 //     mode; "pairwise" refused). An operator adds its own keys
 //     (ATTR_MAHALANOBIS: MahalanobisParams — output "d2" | "p";
 //     ATTR_PC_SCORE: PCScoreParams — component, on, rotation,
-//     components; ATTR_FACTOR_SCORE: FactorScoreParams — factor,
-//     method and MAT_FACTOR's factors, extraction, rotation, kappa,
-//     gamma; the member-count bounds judged once the members resolve).
+//     epsilon, components; ATTR_FACTOR_SCORE: FactorScoreParams —
+//     factor, method and MAT_FACTOR's factors, extraction, rotation,
+//     kappa, gamma, epsilon; the member-count bounds judged once the members resolve).
 //   - Any OTHER built-in attribute refuses a vector input.
 //   - A registered extension attribute (ext) that sets a vector input
 //     has its member set judged by the same member rules: vector XOR
@@ -571,7 +571,8 @@ func MahalanobisParams(at string, raw json.RawMessage) (MahalanobisConfig, *erro
 
 // ATTR_PC_SCORE params.on values (MAT_PCA's): PCAOnCorrelation (the
 // default) and PCAOnCovariance. params.rotation: RotationNone (the
-// default) or RotationVarimax — PCARotations.
+// default) or an orthogonal criterion — PCARotations (an oblique one is
+// rotation_oblique_unsupported, as on MAT_PCA).
 
 // PCScoreConfig is ATTR_PC_SCORE's decoded params.
 type PCScoreConfig struct {
@@ -579,8 +580,10 @@ type PCScoreConfig struct {
 	Component int
 	// On is PCAOnCorrelation (default) or PCAOnCovariance.
 	On string
-	// Rotation is "" (none) or RotationVarimax.
+	// Rotation is "" (none) or a PCARotations criterion; Epsilon its
+	// geomin ε (0 unless RotationGeominOrthogonal).
 	Rotation string
+	Epsilon  float64
 	// Components is the k leading components rotated within (required
 	// with a rotation, refused without one); 0 when unrotated.
 	Components int
@@ -593,8 +596,10 @@ type PCScoreConfig struct {
 
 // PCScoreParams decodes ATTR_PC_SCORE's params: component (an integer
 // ≥ 1, required), on ("correlation" default, or "covariance"),
-// rotation ("none" default, or "varimax"), components (an integer ≥
-// component, required with varimax and refused without it), fit_on
+// rotation ("none" default, or an orthogonal criterion — MAT_PCA's
+// rule, decodeRotation), epsilon (geomin_orthogonal only), components
+// (an integer ≥ component, required with a rotation and refused
+// without one), fit_on
 // and missing (FittedCommon). Unknown keys are refused; the bounds
 // against the member count are CheckMembers. at is the slot path.
 // Predict and the runtime factory both call it.
@@ -611,11 +616,12 @@ func PCScoreParams(at string, raw json.RawMessage) (PCScoreConfig, *errors.Coded
 		Component  *json.Number `json:"component"`
 		On         *string      `json:"on"`
 		Rotation   *string      `json:"rotation"`
+		Epsilon    *float64     `json:"epsilon"`
 		Components *json.Number `json:"components"`
 	}
 	if err := decodeStrict(raw, &params); err != nil {
 		return PCScoreConfig{}, attributeInvalid(at, "bad_params",
-			at+" ATTR_PC_SCORE params: "+err.Error()+" (keys: component, on, rotation, components, fit_on, fit, labels, missing)", nil)
+			at+" ATTR_PC_SCORE params: "+err.Error()+" (keys: component, on, rotation, epsilon, components, fit_on, fit, labels, missing)", nil)
 	}
 	fitOn, err := params.resolve(at)
 	if err != nil {
@@ -645,22 +651,17 @@ func PCScoreParams(at string, raw json.RawMessage) (PCScoreConfig, *errors.Coded
 				map[string]any{"param": "on", "value": v, "valid": PCAOnValues()})
 		}
 	}
-	if params.Rotation != nil {
-		switch v := *params.Rotation; v {
-		case RotationNone:
-		case RotationVarimax:
-			cfg.Rotation = v
-		default:
-			return PCScoreConfig{}, attributeInvalid(at, "bad_params", at+" params.rotation must be \"none\" or \"varimax\"",
-				map[string]any{"param": "rotation", "value": v, "valid": PCARotations()})
-		}
+	rot, eps, rerr := decodeRotation(at, params.Rotation, params.Epsilon, true, attributeInvalid)
+	if rerr != nil {
+		return PCScoreConfig{}, rerr
 	}
+	cfg.Rotation, cfg.Epsilon = rot, eps
 	switch {
 	case cfg.Rotation == "" && params.Components != nil:
-		return PCScoreConfig{}, attributeInvalid(at, "bad_params", at+" params.components is the k to rotate within; it needs rotation \"varimax\"",
+		return PCScoreConfig{}, attributeInvalid(at, "bad_params", at+" params.components is the k to rotate within; it needs a rotation",
 			map[string]any{"param": "components"})
 	case cfg.Rotation != "" && params.Components == nil:
-		return PCScoreConfig{}, attributeInvalid(at, "bad_params", at+" params.components (the k leading components to rotate within) is required with rotation \"varimax\"",
+		return PCScoreConfig{}, attributeInvalid(at, "bad_params", at+" params.components (the k leading components to rotate within) is required with rotation "+strconv.Quote(cfg.Rotation),
 			map[string]any{"param": "components"})
 	case cfg.Rotation != "":
 		k, ok := positiveInt(*params.Components)
@@ -707,14 +708,16 @@ type FactorScoreConfig struct {
 	Factor int
 	// Method is FactorScoreRegression (default) or FactorScoreBartlett.
 	Method string
-	// Factors, Extraction, Rotation ("" for none), Kappa and Gamma are
-	// the inline fit's MAT_FACTOR knobs, decoded by MAT_FACTOR's rule
-	// (factors "kaiser" by default, extraction "minres").
+	// Factors, Extraction, Rotation ("" for none), Kappa, Gamma and
+	// Epsilon are the inline fit's MAT_FACTOR knobs, decoded by
+	// MAT_FACTOR's rule (factors "kaiser" by default, extraction
+	// "minres"; every rotation, oblique ones included).
 	Factors    FactorCount
 	Extraction string
 	Rotation   string
 	Kappa      float64
 	Gamma      float64
+	Epsilon    float64
 	// FitOn is the fit_on filterer list; nil fits on every filtered row.
 	FitOn []*types.Filterer
 	// Fit / Labels: as MahalanobisConfig's.
@@ -725,7 +728,7 @@ type FactorScoreConfig struct {
 // FactorScoreParams decodes ATTR_FACTOR_SCORE's params: factor (an
 // integer ≥ 1, required), method ("regression" default, or
 // "bartlett"), MAT_FACTOR's factors / extraction / rotation / kappa /
-// gamma (the same rule and defaults; no repair — the fit is listwise),
+// gamma / epsilon (the same rule and defaults; no repair — the fit is listwise),
 // fit_on and missing (FittedCommon). A fixed factors below factor is
 // refused; the bounds against the member count are CheckMembers.
 // Unknown keys are refused. at is the slot path. Predict and the
@@ -749,10 +752,11 @@ func FactorScoreParams(at string, raw json.RawMessage) (FactorScoreConfig, *erro
 		Rotation   *string         `json:"rotation"`
 		Kappa      *float64        `json:"kappa"`
 		Gamma      *float64        `json:"gamma"`
+		Epsilon    *float64        `json:"epsilon"`
 	}
 	if err := decodeStrict(raw, &params); err != nil {
 		return FactorScoreConfig{}, attributeInvalid(at, "bad_params",
-			at+" ATTR_FACTOR_SCORE params: "+err.Error()+" (keys: factor, method, factors, extraction, rotation, kappa, gamma, fit_on, fit, labels, missing)", nil)
+			at+" ATTR_FACTOR_SCORE params: "+err.Error()+" (keys: factor, method, factors, extraction, rotation, kappa, gamma, epsilon, fit_on, fit, labels, missing)", nil)
 	}
 	fitOn, err := params.resolve(at)
 	if err != nil {
@@ -781,11 +785,11 @@ func FactorScoreParams(at string, raw json.RawMessage) (FactorScoreConfig, *erro
 		}
 	}
 	m := Matrix{Type: types.MAT_FACTOR, Extraction: FactorExtractionMinres}
-	fp := factorParams{Factors: params.Factors, Extraction: params.Extraction, Rotation: params.Rotation, Kappa: params.Kappa, Gamma: params.Gamma}
+	fp := factorParams{Factors: params.Factors, Extraction: params.Extraction, Rotation: params.Rotation, Kappa: params.Kappa, Gamma: params.Gamma, Epsilon: params.Epsilon}
 	if err := decodeFactorWith(at, fp, &m, attributeInvalid); err != nil {
 		return FactorScoreConfig{}, err
 	}
-	cfg.Factors, cfg.Extraction, cfg.Rotation, cfg.Kappa, cfg.Gamma = m.Factors, m.Extraction, m.Rotation, m.Kappa, m.Gamma
+	cfg.Factors, cfg.Extraction, cfg.Rotation, cfg.Kappa, cfg.Gamma, cfg.Epsilon = m.Factors, m.Extraction, m.Rotation, m.Kappa, m.Gamma, m.Epsilon
 	if !cfg.Factors.Kaiser() && cfg.Factors.K < cfg.Factor {
 		return FactorScoreConfig{}, attributeInvalid(at, "bad_params", at+" params.factors must be at least params.factor ("+strconv.Itoa(cfg.Factor)+"): the scored factor is one of the k fitted",
 			map[string]any{"param": "factors", "value": cfg.Factors.K})

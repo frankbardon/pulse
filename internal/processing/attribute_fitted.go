@@ -3,6 +3,7 @@ package processing
 import (
 	"fmt"
 	"math"
+	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -253,6 +254,21 @@ type fitRefusal struct {
 	code    errors.Code
 	msg     string
 	details map[string]any
+}
+
+// rotationCapNote is a fitted score attribute's caveat for a rotation
+// (method) stopped at its iteration cap — nil when it converged. The
+// details name the solver (rotationResult.Solver: varimax /
+// gpa_<criterion>) with its run and caps, as MAT_PCA's and MAT_FACTOR's
+// PULSE_MATRIX_NOT_CONVERGED do.
+func rotationCapNote(method string, rot rotationResult) *fitRefusal {
+	if rot.Converged {
+		return nil
+	}
+	return &fitRefusal{code: errors.PULSE_MATRIX_NOT_CONVERGED,
+		msg: "the " + method + " rotation (" + rot.Solver + ") stopped at its " + strconv.Itoa(rot.MaxIterations) +
+			"-iteration cap before its criterion settled; the scores use the last iterate",
+		details: map[string]any{"solver": rot.Solver, "iterations": rot.Iterations, "max_iterations": rot.MaxIterations, "tolerance": rot.Tolerance}}
 }
 
 // fittedModel is the operator half of a fitted vector attribute.

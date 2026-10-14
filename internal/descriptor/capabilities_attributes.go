@@ -299,12 +299,18 @@ func attributeCapabilities() []descriptor.Operator {
 					Type:        "enum",
 					Default:     vectors.RotationNone,
 					EnumValues:  vectors.PCARotations(),
-					Description: "none: the unrotated component. varimax: rotate the params.components leading components orthogonally (stats::varimax, Kaiser normalization; MAT_PCA's rotated order and sign) and score rotated component params.component.",
+					Description: "none: the unrotated component. Otherwise MAT_PCA's orthogonal rotation of the params.components leading components (varimax, quartimax, geomin_orthogonal or entropy; MAT_PCA's rotated order and sign), scoring rotated component params.component. An oblique criterion is refused (rotation_oblique_unsupported).",
+				},
+				{
+					Name:        "epsilon",
+					Type:        "float",
+					Default:     vectors.GeominDefaultEpsilon,
+					Description: "Geomin epsilon, above 0 (default 0.01); rotation geomin_orthogonal only.",
 				},
 				{
 					Name:        "components",
 					Type:        "int",
-					Description: "With rotation varimax (required there, refused otherwise): how many leading components to rotate within, at least params.component and at most the member count.",
+					Description: "With a rotation (required there, refused otherwise): how many leading components to rotate within, at least params.component and at most the member count.",
 				},
 				{
 					Name:        "fit_on",
@@ -356,9 +362,10 @@ func attributeCapabilities() []descriptor.Operator {
 				},
 				{Name: "factors", Type: "any", Default: vectors.FactorsKaiser, Description: "MAT_FACTOR's factors: a positive integer k (at least params.factor, at most the member count) or \"kaiser\" (the fit correlation's eigenvalues above 1)."},
 				{Name: "extraction", Type: "enum", Default: vectors.FactorExtractionMinres, EnumValues: vectors.FactorExtractions(), Description: "MAT_FACTOR's extraction: minres, principal_axis or ml."},
-				{Name: "rotation", Type: "enum", Default: vectors.RotationNone, EnumValues: vectors.FactorRotations(), Description: "MAT_FACTOR's rotation: none, varimax, promax or oblimin; an oblique rotation's factor correlation enters the regression weights."},
+				{Name: "rotation", Type: "enum", Default: vectors.RotationNone, EnumValues: vectors.FactorRotations(), Description: "MAT_FACTOR's rotation: none, orthogonal (varimax, quartimax, geomin_orthogonal, entropy) or oblique (promax, oblimin, geomin); an oblique rotation's factor correlation enters the regression weights."},
 				{Name: "kappa", Type: "float", Default: vectors.FactorDefaultKappa, Description: "Promax power, above 1; rotation promax only."},
 				{Name: "gamma", Type: "float", Default: 0, Description: "Oblimin gamma, finite; rotation oblimin only."},
+				{Name: "epsilon", Type: "float", Default: vectors.GeominDefaultEpsilon, Description: "Geomin epsilon, above 0 (default 0.01); rotation geomin or geomin_orthogonal only."},
 				{
 					Name:        "fit_on",
 					Type:        "any",

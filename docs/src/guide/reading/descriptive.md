@@ -288,7 +288,7 @@ The row's estimated score on the chosen factor, on the scale of the fields stand
 
 - The direction is MAT_FACTOR's convention (each factor's loadings sum positive), not a meaning: check its loadings on the same fields before calling a high score good or bad.
 - A factor score is an estimate, not the factor itself: regression scores are shrunk toward 0 (their spread is below 1), Bartlett scores are unbiased but noisier.
-- After an oblique rotation (promax, oblimin) the factors correlate, so scores on two factors move together.
+- After an oblique rotation (promax, oblimin, geomin) the factors correlate, so scores on two factors move together.
 - The fit is over every filtered row (or the fit_on subset), not the row's group, so scores are comparable across groups. Under a row weight the fit is weighted; a row with no usable weight is left out of the fit but still scored.
 - A row missing any field reads null, and every row reads null, with a warning, when the fit cannot score (too few rows, a constant or redundant field, a factor count the fields cannot identify).
 

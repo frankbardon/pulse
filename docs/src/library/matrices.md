@@ -233,9 +233,15 @@ still reported. Like the partial correlation, a non-PSD pairwise input
 is refused unless `params.repair` is `"nearest"`. KMO is read against
 Kaiser's (1974) bands.
 
-`params.rotation: "varimax"` (default `"none"`) rotates the kept
-components orthogonally toward simple structure, exactly as R's
-`stats::varimax` with Kaiser normalization does. The rotated loadings
+`params.rotation` (default `"none"`) rotates the kept components
+orthogonally toward simple structure: `"varimax"` exactly as R's
+`stats::varimax` with Kaiser normalization does, `"quartimax"`,
+`"geomin_orthogonal"` (`params.epsilon`, default 0.01) and `"entropy"`
+(minimum entropy) as GPArotation's `quartimax`, `geominT` and `entropy`
+do (gradient projection, no normalization, one start). An oblique
+criterion is refused (`SERVICE_VALIDATION`, reason
+`rotation_oblique_unsupported`): components are uncorrelated by
+construction — use `MAT_FACTOR` for correlated factors. The rotated loadings
 become the `primary` — columns ordered by the variance each accounts
 for, each signed so its loadings sum positive, keys still `PC1` …
 `PCk` — the unrotated loadings move to `auxiliary.unrotated`, and
@@ -318,10 +324,14 @@ again solved to the exact optimum where their optimiser stops short.
 The `primary` is the p × k loadings, a **rectangular** matrix with
 `column_keys` `F1` … `Fk`, each column signed so its loadings sum
 positive. `params.rotation` rotates them with the same engine as
-`MAT_PCA`: `"varimax"` (orthogonal, `stats::varimax`), `"promax"`
-(oblique, `stats::promax` with power `params.kappa`, default 4) or
-`"oblimin"` (oblique, `GPArotation::oblimin` with `params.gamma`,
-default 0). Rotated, the columns are ordered by the variance each
+`MAT_PCA`: orthogonal `"varimax"` (`stats::varimax`), `"quartimax"`,
+`"geomin_orthogonal"` or `"entropy"`, or oblique `"promax"`
+(`stats::promax` with power `params.kappa`, default 4), `"oblimin"`
+(`GPArotation::oblimin` with `params.gamma`, default 0) or `"geomin"`
+(`GPArotation::geominQ`); the geomin pair takes `params.epsilon`
+(GPArotation's `delta`, default 0.01). Every criterion but varimax and
+promax is gradient projection from a single start, as GPArotation's
+default, so geomin in particular may settle in a local optimum. Rotated, the columns are ordered by the variance each
 accounts for, the unrotated loadings move to `auxiliary.unrotated`, and
 an oblique rotation adds `auxiliary.factor_correlation` — the k × k
 correlation of the factors, a square matrix keyed `F1` … `Fk`.

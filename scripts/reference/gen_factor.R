@@ -74,10 +74,20 @@ fa_rotations <- function(A, k) {
   ob <- GPArotation::oblimin(A, gam = 0)
   if (!ob$convergence) stop("oblimin did not converge")
   orot <- t(solve(ob$Th))
+  # E6-S2: the further GPA criteria, GPArotation's wrappers at their
+  # defaults (geomin delta = 0.01, Pulse's params.epsilon default).
+  gpa <- function(r, label) {
+    if (!r$convergence) stop(label, " did not converge")
+    if (r$orthogonal) rot_canon(r$loadings, r$Th, diag(k)) else rot_canon(r$loadings, t(solve(r$Th)), r$Phi)
+  }
   list(
     varimax = rot_canon(vm$loadings, vm$rotmat, diag(k)),
     promax = rot_canon(pm$loadings, pm$rotmat, ui %*% t(ui)),
-    oblimin = rot_canon(ob$loadings, orot, ob$Phi)
+    oblimin = rot_canon(ob$loadings, orot, ob$Phi),
+    quartimax = gpa(GPArotation::quartimax(A), "quartimax"),
+    entropy = gpa(GPArotation::entropy(A), "entropy"),
+    geomin = gpa(GPArotation::geominQ(A, delta = 0.01), "geominQ"),
+    geomin_orthogonal = gpa(GPArotation::geominT(A, delta = 0.01), "geominT")
   )
 }
 fa_enc_rot <- function(rot) {
@@ -293,7 +303,7 @@ add_factor("weighted", wd, paste0("x", 1:4), "frequency", 1)
 add_factor("heywood", hw, c("h1", "h2", "h3"), "none", 1, exact = FALSE)
 
 factor_meta <- mv_meta("exploratory factor analysis (minres, principal axis, maximum likelihood) with rotation",
-  "psych::fa(r = R, nfactors = k, fm = 'minres' | 'pa' | 'ml', rotate = 'none', n.obs = n_star); psych::fa.stats(r = R, f = L, n.obs = n_star); stats::varimax, stats::promax(m = 4), GPArotation::oblimin(gam = 0) on the unrotated loadings",
+  "psych::fa(r = R, nfactors = k, fm = 'minres' | 'pa' | 'ml', rotate = 'none', n.obs = n_star); psych::fa.stats(r = R, f = L, n.obs = n_star); stats::varimax, stats::promax(m = 4), GPArotation::oblimin(gam = 0), quartimax, entropy, geominQ / geominT(delta = 0.01) (normalize = FALSE) on the unrotated loadings",
   "R = the fixture's listwise (weighted) correlation; n_star = N / sum(w) / Kish n_eff. minres = psych's L-BFGS-B fit (stops early); minres_exact = its exact optimum, the principal-axis fixed point (fm = 'pa', min.err = 1e-14). principal_axis = psych's default iteration (SMC start, min.err 0.001, max.iter 50; converged = fewer than 50 iterations). unrotated = psych's loadings, columns flipped to sum positive; communalities = rowSums(L^2), uniquenesses = 1 - communalities, variance = colSums(L^2). rotations = Pulse's engine definitions put through rot_canon (descending variance diag(Phi L'L), then each column summing positive); psych::fa's own varimax / oblimin asserted equal; psych's 'promax' (kaiser + GPArotation::Varimax) is not stats::promax and is not used. rmsr / empirical_chisq / df / empirical_p = psych fa.stats rms / chi / dof / EPVAL (asserted); objective = sum_{i != j} res^2. kmo = psych::KMO; bartlett = psych::cortest.bartlett(R, n = n_star). The heywood case has no exact optimum (its minres optimum is improper) and is compared on detection only. ml = psych::fa(fm = 'ml') (L-BFGS-B over psi in [0.005, 1] from 1 - SMC, default factr: stops early); psi = 1 - its communalities (psych's optimiser output); its loadings asserted equal to psych's FAout + sign + descending-variance order rule. ml_exact = the optimum itself: L-BFGS-B at factr = pgtol = 0, then Newton on the free psi with optimHess until the free gradient is below 1e-13; stats::factanal at factr 1e-3 asserted within 1e-6 where it starts. Each ML entry's likelihood figures are psych::fa.stats on its loadings: objective = tr(M^-1 R) - log det(M^-1 R) - p (M = LL' with unit diagonal), likelihood_chisq = STATISTIC (objective * ((N - 1) - (2p + 5)/6 - 2k/3), 0 when negative), likelihood_p = PVAL, tli = TLI, rmsea = RMSEA[1] (point estimate), bic = BIC; the last four null at df <= 0. rmsea_lower / rmsea_upper = the 90% RMSEA interval (fa.stats alpha = 0.1, psych::fa's default): psych's rule (tail 0.05; upper solves pchisq(chi, df, ncp) = 0.05 when pchisq(chi, df) > 0.05, else 0; lower = 0.95 likewise; root on [0, max(N, chi) + 2N], sqrt(ncp / (N - 1) / df); out of bracket or on the wrong side of the point estimate = null) solved by uniroot at tol 1e-300 (psych's default tol leaves its own bounds ~1e-7 away; asserted within 1e-5); null at df <= 0.")
 factor_meta$packages <- c(factor_meta$packages, lapply(as.list(pinned_rot), function(v) v))
 write_golden("mv_factor", c(factor_meta, list(cases = factor_cases)))

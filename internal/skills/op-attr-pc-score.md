@@ -1,6 +1,6 @@
 ---
 name: op-attr-pc-score
-description: Per-row standardized score on one principal component of a vector of numeric members, with the PCA matrix operator's sign and order and optional varimax; fit_on fits on a subset and still scores every row.
+description: Per-row standardized score on one principal component of a vector of numeric members, with the PCA matrix operator's sign and order and optional orthogonal rotation; fit_on fits on a subset and still scores every row.
 kind: operator
 category: ATTR
 operator: ATTR_PC_SCORE
@@ -16,7 +16,7 @@ Row-level scalars; no `Response.Components`.
 ## Params
 
 - `component` — required, 1-based. `on` — `correlation` (default) or `covariance`. `missing` — `listwise` only.
-- `rotation` — `none` (default) or `varimax` with `components` = k rotated within (component ≤ k ≤ p).
+- `rotation` — `none` (default) or orthogonal (`varimax`, `quartimax`, `geomin_orthogonal` + `epsilon`, `entropy`) with `components` = k rotated within (component ≤ k ≤ p); oblique refused (`rotation_oblique_unsupported`).
 - `fit_on` — `"filtered"` (default) or a filterer array picking the FIT rows; every filtered row is scored.
 - `fit` — a bound vector fit's name (a compose `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry: `compose-fits`), scored against instead of fitting (XOR `fit_on`: `fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members (`labels` — inline `fields` only); mismatch `PULSE_VECTOR_REFERENCE_MISMATCH`, unbound `PULSE_MODEL_UNKNOWN`, a regression's name `PULSE_MODEL_KIND_MISMATCH`.
 - `weight` — both kinds; fit only. A zero-weight row is scored, not fitted.

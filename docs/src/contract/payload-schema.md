@@ -596,12 +596,18 @@ value is `PROCESSING_CONFIG`) and `repair` `"nearest"`; at least 2
 items; `MAT_PCA` only: `on` `correlation` (default) or `covariance`,
 `components` an integer k ≤ p, `"kaiser"` (default on a correlation,
 refused on a covariance) or `{"variance": share}` — required on a
-covariance — and `repair` `"nearest"`; `MAT_COLLINEARITY` only:
+covariance — `rotation` `none` (default) or an orthogonal criterion
+(`varimax`, `quartimax`, `geomin_orthogonal`, `entropy`; an oblique one
+is refused, reason `rotation_oblique_unsupported`), `epsilon`
+(`geomin_orthogonal` only, default 0.01) and `repair` `"nearest"`;
+`MAT_COLLINEARITY` only:
 `center` (boolean, default `false`: Belsley uncentered with the
 intercept) and `repair` `"nearest"`; `MAT_FACTOR` only: `factors` an
 integer k ≤ p or `"kaiser"` (default), `extraction` `minres` (default),
-`principal_axis` or `ml`, `rotation` `none` (default), `varimax`, `promax`
-or `oblimin`, `kappa` (promax only) and `gamma` (oblimin only), and
+`principal_axis` or `ml`, `rotation` `none` (default), orthogonal
+`varimax`, `quartimax`, `geomin_orthogonal`, `entropy` or oblique
+`promax`, `oblimin`, `geomin`, `kappa` (promax only), `gamma` (oblimin
+only) and `epsilon` (the geomin pair only, default 0.01), and
 `repair` `"nearest"`; `MAT_DISTANCE` only: `between` (required) a grouper
 spec as in `groups` — any built-in but `GROUP_DATE` / `GROUP_DATE_RANGES`,
 no own `weight` or `tz` — `metric` a `linalg/metric` registry name
@@ -625,7 +631,7 @@ adds `auxiliary.variance_decomposition` (rows sum to 1),
 `vectors.vif` / `tolerance` (one per member) and `condition_indices`
 (one per dimension, ascending) and `scalars` `condition_number`,
 `max_vif`; `MAT_FACTOR` adds `auxiliary.unrotated` (rotated runs) and
-`auxiliary.factor_correlation` (promax / oblimin: `square_symmetric`
+`auxiliary.factor_correlation` (an oblique rotation: `square_symmetric`
 keyed `F1` … `Fk`, always `full`), `vectors.communalities` /
 `uniquenesses` (one per member) and `variance_accounted` (one per
 factor) and `scalars` `rmsr`, `empirical_chisq`, `df`, `empirical_p`,

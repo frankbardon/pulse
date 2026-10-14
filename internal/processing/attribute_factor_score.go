@@ -128,16 +128,13 @@ func (m *factorScoreModel) fit(st fittedState) *fitRefusal {
 	}
 	l, phi := fit.Loadings, identityRows(k)
 	if m.cfg.Rotation != "" {
-		rot, err := rotateLoadings(fit.Loadings, rotationSpec{Method: m.cfg.Rotation, Kappa: m.cfg.Kappa, Gamma: m.cfg.Gamma})
+		rot, err := rotateLoadings(fit.Loadings, rotationSpec{Method: m.cfg.Rotation, Kappa: m.cfg.Kappa, Gamma: m.cfg.Gamma, Epsilon: m.cfg.Epsilon})
 		if err != nil {
 			return &fitRefusal{code: errors.PULSE_MATRIX_SINGULAR,
 				msg: "the " + m.cfg.Rotation + " rotation failed (" + err.Error() + "); every score is null"}
 		}
-		if !rot.Converged {
-			m.notes = append(m.notes, &fitRefusal{code: errors.PULSE_MATRIX_NOT_CONVERGED,
-				msg: "the " + m.cfg.Rotation + " rotation stopped at its " + strconv.Itoa(rot.MaxIterations) +
-					"-iteration cap before its criterion settled; the scores use the last iterate",
-				details: map[string]any{"solver": rot.Solver, "iterations": rot.Iterations, "max_iterations": rot.MaxIterations, "tolerance": rot.Tolerance}})
+		if note := rotationCapNote(m.cfg.Rotation, rot); note != nil {
+			m.notes = append(m.notes, note)
 		}
 		l, phi = rot.Loadings, rot.Phi
 	}

@@ -128,6 +128,17 @@ var faRotations = map[string]rotationSpec{
 	"varimax": {Method: vectors.RotationVarimax},
 	"promax":  {Method: vectors.RotationPromax, Kappa: 4},
 	"oblimin": {Method: vectors.RotationOblimin, Gamma: 0},
+	// E6-S2: GPArotation's wrappers at their defaults.
+	"quartimax":         {Method: vectors.RotationQuartimax},
+	"entropy":           {Method: vectors.RotationEntropy},
+	"geomin":            {Method: vectors.RotationGeomin},
+	"geomin_orthogonal": {Method: vectors.RotationGeominOrthogonal},
+}
+
+// faGPARotation reports a gradient-projection criterion: every rotation
+// but the SVD varimax and promax, which stop on a different rule.
+func faGPARotation(name string) bool {
+	return name != vectors.RotationVarimax && name != vectors.RotationPromax
 }
 
 // faCheck compares a fit (and its rotations) with one oracle extraction.
@@ -152,13 +163,24 @@ func faCheck(t *testing.T, c factorCase, fit faFit, want faOut, tol, gpaTol floa
 		faNear(t, tol, "empirical_p", p, *want.EmpiricalP)
 	}
 	for name, w := range want.Rotations {
-		got, err := rotateLoadings(fit.Loadings, faRotations[name])
+		spec, ok := faRotations[name]
+		if !ok {
+			t.Fatalf("oracle rotation %q has no spec", name)
+		}
+		got, err := rotateLoadings(fit.Loadings, spec)
 		if err != nil {
 			t.Fatal(err)
 		}
 		rt := tol
-		if name == "oblimin" {
+		switch {
+		case name == vectors.RotationOblimin:
 			rt = gpaTol
+		case faGPARotation(name):
+			// The further GPA criteria always get the stopping band:
+			// geomin's trajectory amplifies a 1e-11 input difference
+			// into another stopping iterate (mv_rotation.json's
+			// sensitivity; step for step they are pinned there).
+			rt = math.Max(gpaTol, faGPAStopTol)
 		}
 		faNearRows(t, rt, name+".loadings", got.Loadings, w.Loadings)
 		faNearRows(t, rt, name+".phi", got.Phi, w.Phi)

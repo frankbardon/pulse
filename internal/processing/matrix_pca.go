@@ -64,8 +64,11 @@ import (
 // every figure — the co-moment warnings say why — with k columns of
 // nulls for an integer k and none otherwise.
 //
-// params.rotation "varimax" rotates the k kept loadings with the shared
-// rotation engine (matrix_rotate.go, pcaRotate): the rotated loadings
+// params.rotation (an orthogonal criterion: varimax, quartimax, entropy
+// or geomin_orthogonal with params.epsilon — vectors.PCARotations; an
+// oblique one is refused at decode) rotates the k kept loadings with
+// the shared rotation engine (matrix_rotate.go, pcaRotate): the rotated
+// loadings
 // are the primary, the unrotated ones auxiliary.unrotated, and
 // vectors.rotated_variance the variance each rotated component
 // accounts for. Nothing else moves; absent (or "none") the output is
@@ -220,7 +223,7 @@ func finalizePCA(in *matrixFinalizeInput) (matrixOutput, error) {
 }
 
 // pcaRotate rotates the p × k unrotated loadings with the shared
-// rotation engine (params.rotation; varimax today). The rotated
+// rotation engine (params.rotation, an orthogonal criterion). The rotated
 // loadings replace the primary, the unrotated ones move to
 // auxiliary.unrotated, and the variance each rotated component accounts
 // for is vectors.rotated_variance; eigenvalues, the explained and
@@ -235,7 +238,7 @@ func pcaRotate(in *matrixFinalizeInput, method string, p, k int, loading func(i,
 			a[i][c] = loading(i, c)
 		}
 	}
-	rot, err := rotateLoadings(a, rotationSpec{Method: method})
+	rot, err := rotateLoadings(a, rotationSpec{Method: method, Epsilon: in.Plan().Epsilon})
 	if err != nil {
 		return rotationResult{}, nil, err
 	}
@@ -244,7 +247,7 @@ func pcaRotate(in *matrixFinalizeInput, method string, p, k int, loading func(i,
 	}
 	name := in.Plan().Name
 	return rot, notConvergedWarning(name, rot.Solver, rot.Iterations, rot.MaxIterations, rot.Tolerance,
-		"matrix "+name+": the "+method+" rotation stopped at its "+strconv.Itoa(rot.MaxIterations)+"-sweep cap before its criterion settled; the rotated loadings are the last iterate"), nil
+		"matrix "+name+": the "+method+" rotation stopped at its "+strconv.Itoa(rot.MaxIterations)+"-iteration cap before its criterion settled; the rotated loadings are the last iterate"), nil
 }
 
 // pcaRetained is the number of leading components rule keeps over the

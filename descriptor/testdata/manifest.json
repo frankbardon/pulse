@@ -3282,12 +3282,16 @@
               "type": "enum",
               "required": false,
               "default": "none",
-              "description": "MAT_FACTOR's rotation: none, varimax, promax or oblimin; an oblique rotation's factor correlation enters the regression weights.",
+              "description": "MAT_FACTOR's rotation: none, orthogonal (varimax, quartimax, geomin_orthogonal, entropy) or oblique (promax, oblimin, geomin); an oblique rotation's factor correlation enters the regression weights.",
               "enum_values": [
                 "none",
                 "varimax",
                 "promax",
-                "oblimin"
+                "oblimin",
+                "quartimax",
+                "geomin",
+                "geomin_orthogonal",
+                "entropy"
               ]
             },
             {
@@ -3303,6 +3307,13 @@
               "required": false,
               "default": 0,
               "description": "Oblimin gamma, finite; rotation oblimin only."
+            },
+            {
+              "name": "epsilon",
+              "type": "float",
+              "required": false,
+              "default": 0.01,
+              "description": "Geomin epsilon, above 0 (default 0.01); rotation geomin or geomin_orthogonal only."
             },
             {
               "name": "fit_on",
@@ -3525,17 +3536,27 @@
               "type": "enum",
               "required": false,
               "default": "none",
-              "description": "none: the unrotated component. varimax: rotate the params.components leading components orthogonally (stats::varimax, Kaiser normalization; MAT_PCA's rotated order and sign) and score rotated component params.component.",
+              "description": "none: the unrotated component. Otherwise MAT_PCA's orthogonal rotation of the params.components leading components (varimax, quartimax, geomin_orthogonal or entropy; MAT_PCA's rotated order and sign), scoring rotated component params.component. An oblique criterion is refused (rotation_oblique_unsupported).",
               "enum_values": [
                 "none",
-                "varimax"
+                "varimax",
+                "quartimax",
+                "geomin_orthogonal",
+                "entropy"
               ]
+            },
+            {
+              "name": "epsilon",
+              "type": "float",
+              "required": false,
+              "default": 0.01,
+              "description": "Geomin epsilon, above 0 (default 0.01); rotation geomin_orthogonal only."
             },
             {
               "name": "components",
               "type": "int",
               "required": false,
-              "description": "With rotation varimax (required there, refused otherwise): how many leading components to rotate within, at least params.component and at most the member count."
+              "description": "With a rotation (required there, refused otherwise): how many leading components to rotate within, at least params.component and at most the member count."
             },
             {
               "name": "fit_on",
@@ -8198,7 +8219,7 @@
       },
       {
         "name": "MAT_FACTOR",
-        "description": "Exploratory factor analysis of a vector's members (listwise or pairwise) on their correlation matrix: k common factors (params.factors, an integer or the Kaiser rule) extracted by minimum residual (minres, the default; psych fa fm = \"minres\"), iterated principal axes (principal_axis; fm = \"pa\") or maximum likelihood (ml; stats::factanal, fm = \"ml\"), each from the squared multiple correlations, then rotated (params.rotation none, varimax, promax or oblimin). The primary is the p x k loadings (a rectangular matrix with columns F1..Fk; rotated when a rotation is set, each column ordered by the variance it accounts for and signed to sum positive); auxiliary.unrotated the unrotated loadings (rotated runs) and auxiliary.factor_correlation the k x k factor correlation (promax and oblimin only; square, keyed F1..Fk); vectors carry each member's communality and uniqueness and each factor's variance accounted; scalars the root-mean-square residual (rmsr), the empirical residual chi-square with its df and p (a residual size, not a likelihood test), KMO, Bartlett's sphericity test, the fit's iterations and convergence, and the number of factors; ml adds the Bartlett-corrected likelihood chi-square (likelihood_chisq, on df) and its p (likelihood_p), the Tucker-Lewis index (tli), the RMSEA point estimate (rmsea) with its interval (rmsea_lower / rmsea_upper at params.conf_level, default 90%, psych::fa's RMSEA lower / upper) and BIC. A count the members cannot identify ((p - k)^2 \u003c p + k) nulls the fit with PULSE_MATRIX_NOT_IDENTIFIED; a uniqueness at or below 0 (ml: held at its 0.005 floor) is reported as fitted with PULSE_MATRIX_HEYWOOD; an extraction or rotation at its iteration cap warns PULSE_MATRIX_NOT_CONVERGED. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". Weighted under frequency and probability weights.",
+        "description": "Exploratory factor analysis of a vector's members (listwise or pairwise) on their correlation matrix: k common factors (params.factors, an integer or the Kaiser rule) extracted by minimum residual (minres, the default; psych fa fm = \"minres\"), iterated principal axes (principal_axis; fm = \"pa\") or maximum likelihood (ml; stats::factanal, fm = \"ml\"), each from the squared multiple correlations, then rotated (params.rotation: none, or an orthogonal — varimax, quartimax, geomin_orthogonal, entropy — or oblique — promax, oblimin, geomin — criterion). The primary is the p x k loadings (a rectangular matrix with columns F1..Fk; rotated when a rotation is set, each column ordered by the variance it accounts for and signed to sum positive); auxiliary.unrotated the unrotated loadings (rotated runs) and auxiliary.factor_correlation the k x k factor correlation (oblique rotations only; square, keyed F1..Fk); vectors carry each member's communality and uniqueness and each factor's variance accounted; scalars the root-mean-square residual (rmsr), the empirical residual chi-square with its df and p (a residual size, not a likelihood test), KMO, Bartlett's sphericity test, the fit's iterations and convergence, and the number of factors; ml adds the Bartlett-corrected likelihood chi-square (likelihood_chisq, on df) and its p (likelihood_p), the Tucker-Lewis index (tli), the RMSEA point estimate (rmsea) with its interval (rmsea_lower / rmsea_upper at params.conf_level, default 90%, psych::fa's RMSEA lower / upper) and BIC. A count the members cannot identify ((p - k)^2 \u003c p + k) nulls the fit with PULSE_MATRIX_NOT_IDENTIFIED; a uniqueness at or below 0 (ml: held at its 0.005 floor) is reported as fitted with PULSE_MATRIX_HEYWOOD; an extraction or rotation at its iteration cap warns PULSE_MATRIX_NOT_CONVERGED. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". Weighted under frequency and probability weights.",
         "accepts_types": [
           "f32",
           "f64",
@@ -8234,12 +8255,16 @@
             "type": "enum",
             "required": false,
             "default": "none",
-            "description": "none: the unrotated loadings. varimax: orthogonal, Kaiser-normalized (stats::varimax). promax: oblique, varimax then a power target (stats::promax, params.kappa). oblimin: oblique, gradient projection (GPArotation::oblimin, params.gamma). Rotated loadings become the primary; the unrotated move to auxiliary.unrotated; an oblique rotation adds auxiliary.factor_correlation. Communalities do not change.",
+            "description": "none: the unrotated loadings. Orthogonal: varimax (Kaiser-normalized, stats::varimax), quartimax, geomin_orthogonal (params.epsilon), entropy (minimum entropy). Oblique: promax (varimax then a power target, stats::promax, params.kappa), oblimin (params.gamma), geomin (params.epsilon). Every criterion but varimax / promax is gradient projection with GPArotation's wrapper of that name (geominT / geominQ for the geomin pair), normalize = FALSE. Rotated loadings become the primary; the unrotated move to auxiliary.unrotated; an oblique rotation adds auxiliary.factor_correlation. Communalities do not change.",
             "enum_values": [
               "none",
               "varimax",
               "promax",
-              "oblimin"
+              "oblimin",
+              "quartimax",
+              "geomin",
+              "geomin_orthogonal",
+              "entropy"
             ]
           },
           {
@@ -8255,6 +8280,13 @@
             "required": false,
             "default": 0,
             "description": "Oblimin gamma, finite: 0 quartimin (the default), 0.5 biquartimin, 1 covarimin. Accepted with rotation oblimin only."
+          },
+          {
+            "name": "epsilon",
+            "type": "float",
+            "required": false,
+            "default": 0.01,
+            "description": "Geomin epsilon, a finite number above 0 (GPArotation delta; default 0.01): larger smooths the criterion. Accepted with rotation geomin or geomin_orthogonal only."
           },
           {
             "name": "conf_level",
@@ -8529,7 +8561,7 @@
       },
       {
         "name": "MAT_PCA",
-        "description": "Principal component analysis of a vector's members (listwise or pairwise): the eigen-decomposition of their correlation (params.on \"correlation\", the default) or covariance matrix. The primary is the p x k loadings (eigenvector x sqrt(eigenvalue), a rectangular matrix with columns PC1..PCk), auxiliary.eigenvectors the p x k unit eigenvectors; vectors carry every eigenvalue, the explained and cumulative variance shares, the communalities over the kept components and each member's KMO measure of sampling adequacy; scalars the overall KMO, Bartlett's sphericity test (chi-square, df, p) and the number of components kept. Eigenvalues descending, each eigenvector's largest-magnitude entry positive. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". params.rotation \"varimax\" replaces the primary with the varimax-rotated loadings (Kaiser-normalized, stats::varimax), moves the unrotated loadings to auxiliary.unrotated and adds vectors.rotated_variance; eigenvalues, shares, communalities and eigenvectors stay unrotated. Weighted under frequency and probability weights.",
+        "description": "Principal component analysis of a vector's members (listwise or pairwise): the eigen-decomposition of their correlation (params.on \"correlation\", the default) or covariance matrix. The primary is the p x k loadings (eigenvector x sqrt(eigenvalue), a rectangular matrix with columns PC1..PCk), auxiliary.eigenvectors the p x k unit eigenvectors; vectors carry every eigenvalue, the explained and cumulative variance shares, the communalities over the kept components and each member's KMO measure of sampling adequacy; scalars the overall KMO, Bartlett's sphericity test (chi-square, df, p) and the number of components kept. Eigenvalues descending, each eigenvector's largest-magnitude entry positive. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". params.rotation (an orthogonal criterion: varimax, quartimax, geomin_orthogonal or entropy; an oblique one is refused) replaces the primary with the rotated loadings, moves the unrotated loadings to auxiliary.unrotated and adds vectors.rotated_variance; eigenvalues, shares, communalities and eigenvectors stay unrotated. Weighted under frequency and probability weights.",
         "accepts_types": [
           "f32",
           "f64",
@@ -8564,11 +8596,21 @@
             "type": "enum",
             "required": false,
             "default": "none",
-            "description": "none: the unrotated loadings. varimax: rotate the kept components (k \u003e= 2) orthogonally to simple structure (stats::varimax with Kaiser normalization); the rotated loadings become the primary, ordered by the variance each accounts for (vectors.rotated_variance), each column signed to sum positive, and the unrotated loadings move to auxiliary.unrotated.",
+            "description": "none: the unrotated loadings. Otherwise rotate the kept components (k \u003e= 2) orthogonally: varimax (stats::varimax, Kaiser-normalized), quartimax, geomin_orthogonal (params.epsilon) or entropy (minimum entropy) — GPArotation's quartimax / geominT / entropy, normalize = FALSE. The rotated loadings become the primary, ordered by the variance each accounts for (vectors.rotated_variance), each column signed to sum positive; the unrotated move to auxiliary.unrotated. An oblique criterion (promax, oblimin, geomin) is refused (SERVICE_VALIDATION reason rotation_oblique_unsupported): components are uncorrelated; use MAT_FACTOR.",
             "enum_values": [
               "none",
-              "varimax"
+              "varimax",
+              "quartimax",
+              "geomin_orthogonal",
+              "entropy"
             ]
+          },
+          {
+            "name": "epsilon",
+            "type": "float",
+            "required": false,
+            "default": 0.01,
+            "description": "Geomin epsilon, a finite number above 0 (GPArotation delta; default 0.01): larger smooths the criterion. Accepted with rotation geomin_orthogonal only."
           },
           {
             "name": "repair",
@@ -11267,7 +11309,7 @@
       },
       {
         "name": "op-attr-pc-score",
-        "description": "Per-row standardized score on one principal component of a vector of numeric members, with the PCA matrix operator's sign and order and optional varimax; fit_on fits on a subset and still scores every row."
+        "description": "Per-row standardized score on one principal component of a vector of numeric members, with the PCA matrix operator's sign and order and optional orthogonal rotation; fit_on fits on a subset and still scores every row."
       },
       {
         "name": "op-attr-percentile",
@@ -11455,7 +11497,7 @@
       },
       {
         "name": "op-mat-factor",
-        "description": "Exploratory factor analysis of a battery — minres, principal-axis or maximum-likelihood extraction from the SMC, varimax / promax / oblimin rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett, ML's likelihood chi-square, TLI, RMSEA with its interval and BIC; listwise or pairwise, weighted."
+        "description": "Exploratory factor analysis of a battery — minres, principal-axis or maximum-likelihood extraction from the SMC, orthogonal or oblique rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett, ML's likelihood chi-square, TLI, RMSEA with its interval and BIC; listwise or pairwise, weighted."
       },
       {
         "name": "op-mat-partial-correlation",
@@ -17041,4 +17083,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9a1768b9f34386fed31b98c0fb230fce58749fe1ddd8255a365fefa04d909dac
+// golden-hash: 9cff728c99fb7a57e5ea3bfaa6a8e107f514c054345f99dc2ca9ac35a3861fbf

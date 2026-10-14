@@ -220,7 +220,9 @@ fs_case <- function(fx, df, cols, kind, k, extraction, rotation = "none", fit_co
       ps <- psych::factor.scores(Xf, f = L, Phi = Phi, method = method)$scores
       near(unname(ps), sc[fit, , drop = FALSE], 1e-10, paste("factor.scores on x", method, label))
       if (extraction != "ml") {
-        fa_args <- list(r = Xf, nfactors = k, fm = "pa", rotate = rotation, scores = method, n.rotations = 1)
+        # psych spells GPArotation's geominQ by its own name.
+        psych_rot <- if (rotation == "geomin") "geominQ" else rotation
+        fa_args <- list(r = Xf, nfactors = k, fm = "pa", rotate = psych_rot, scores = method, n.rotations = 1)
         if (extraction == "minres") fa_args <- c(fa_args, list(min.err = 1e-14, max.iter = 1e6))
         if (rotation != "promax") {
           g <- do.call(fa_quiet, fa_args)
@@ -261,6 +263,12 @@ for (kind in w_kinds) {
   fs_case("two_factor", tf, tfn, kind, 2, "minres", "varimax", min_u2 = 0.2)
   fs_case("two_factor", tf, tfn, kind, 2, "principal_axis", "oblimin", min_u2 = 0.2)
   fs_case("two_factor", tf, tfn, kind, 2, "ml", min_u2 = 0.2)
+}
+# matrix-extensions-hardening E6-S2: an oblique GPA criterion beyond
+# oblimin (geomin, GPArotation::geominQ at delta 0.01) through the
+# scores, on the proper two_factor fit. Appended so the order holds.
+for (kind in w_kinds) {
+  fs_case("two_factor", tf, paste0("v", 1:6), kind, 2, "principal_axis", "geomin", min_u2 = 0.2)
 }
 fs_doc <- c(mv_meta("factor scores (fitted row score)",
   "psych::factor.scores(R, f = L, Phi = Phi, method = 'Thurstone' | 'Bartlett')$weights on the fit rows' (weighted) correlation R, L / Phi MAT_FACTOR's oracle loadings (gen_factor.R: exact minres, psych principal axis, exact ML; stats::varimax / stats::promax(m = 4) / GPArotation::oblimin through rot_canon); scores = scale-by-the-fit(x) %*% weights. Asserted against solve(R, L Phi) and U^-2 L (L' U^-2 L)^-1, psych::factor.scores on the fit rows, and psych::fa(scores = ...)$scores (unweighted, principal-axis fits, sign-aligned).",

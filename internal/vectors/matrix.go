@@ -97,8 +97,9 @@ type Matrix struct {
 	On string
 	// Components is MAT_PCA's retention rule (params.components).
 	Components PCAComponents
-	// Rotation is MAT_PCA's params.rotation: "" (none, the default) or
-	// RotationVarimax.
+	// Rotation is MAT_PCA's / MAT_FACTOR's params.rotation: "" (none,
+	// the default) or a criterion — PCARotations on MAT_PCA (orthogonal
+	// only), FactorRotations on MAT_FACTOR.
 	Rotation string
 	// Factors is MAT_FACTOR's params.factors: a fixed K or the Kaiser
 	// rule (the default).
@@ -111,6 +112,10 @@ type Matrix struct {
 	// FactorDefaultKappa; promax only) and Gamma its oblimin γ
 	// (params.gamma, default 0; oblimin only).
 	Kappa, Gamma float64
+	// Epsilon is the geomin criteria's ε (params.epsilon, default
+	// GeominDefaultEpsilon; RotationGeomin / RotationGeominOrthogonal
+	// only, on MAT_PCA and MAT_FACTOR), 0 otherwise.
+	Epsilon float64
 	// ConfLevel is MAT_FACTOR's params.conf_level: the coverage of the
 	// ml RMSEA interval (rmsea_lower / rmsea_upper), FactorDefaultConfLevel
 	// unless set; extraction ml only, 0 on every other type.
@@ -255,7 +260,7 @@ func (m Matrix) AuxiliaryKeys() (keys []string, known bool) {
 	case types.MAT_FACTOR:
 		if m.Rotation != "" {
 			keys = append(keys, "unrotated")
-			if m.Rotation != RotationVarimax {
+			if RotationOblique(m.Rotation) {
 				keys = append(keys, "factor_correlation")
 			}
 		}
@@ -315,21 +320,140 @@ func PCAOnValues() []string { return []string{PCAOnCorrelation, PCAOnCovariance}
 
 // Rotation criteria of the shared rotation engine
 // (internal/processing/matrix_rotate.go). RotationNone is the explicit
-// "no rotation" spelling of a params.rotation knob.
+// "no rotation" spelling of a params.rotation knob. Each criterion is
+// orthogonal or oblique exactly as its R reference (stats::varimax /
+// promax, GPArotation's wrapper of the same name); RotationOblique is
+// the one classifier.
 const (
 	RotationNone    = "none"
 	RotationVarimax = "varimax"
 	RotationPromax  = "promax"
 	RotationOblimin = "oblimin"
+	// RotationQuartimax is GPArotation::quartimax (orthogonal).
+	RotationQuartimax = "quartimax"
+	// RotationGeomin is GPArotation::geominQ (oblique, params.epsilon).
+	RotationGeomin = "geomin"
+	// RotationGeominOrthogonal is GPArotation::geominT (orthogonal,
+	// params.epsilon).
+	RotationGeominOrthogonal = "geomin_orthogonal"
+	// RotationEntropy is GPArotation::entropy, minimum entropy
+	// (orthogonal).
+	RotationEntropy = "entropy"
 )
 
-// PCARotations returns MAT_PCA's params.rotation values, default first.
-func PCARotations() []string { return []string{RotationNone, RotationVarimax} }
+// GeominDefaultEpsilon is params.epsilon's default: GPArotation's
+// geominQ / geominT delta = 0.01.
+const GeominDefaultEpsilon = 0.01
 
-// FactorRotations returns MAT_FACTOR's params.rotation values, default
-// first.
+// RotationOblique reports whether the named criterion is oblique (its
+// factors may correlate: Φ ≠ I, auxiliary.factor_correlation). The one
+// classifier: the accepted lists, MAT_PCA's refusal, the auxiliary keys
+// and the engine all read it.
+func RotationOblique(name string) bool {
+	switch name {
+	case RotationPromax, RotationOblimin, RotationGeomin:
+		return true
+	}
+	return false
+}
+
+// RotationTakesEpsilon reports whether the named criterion reads
+// params.epsilon (the geomin pair).
+func RotationTakesEpsilon(name string) bool {
+	return name == RotationGeomin || name == RotationGeominOrthogonal
+}
+
+// FactorRotations returns MAT_FACTOR's (and ATTR_FACTOR_SCORE's)
+// params.rotation values, default first: every criterion.
 func FactorRotations() []string {
-	return []string{RotationNone, RotationVarimax, RotationPromax, RotationOblimin}
+	return []string{RotationNone, RotationVarimax, RotationPromax, RotationOblimin,
+		RotationQuartimax, RotationGeomin, RotationGeominOrthogonal, RotationEntropy}
+}
+
+// PCARotations returns MAT_PCA's (and ATTR_PC_SCORE's) params.rotation
+// values, default first: the orthogonal criteria of FactorRotations —
+// a component is uncorrelated by construction, so an oblique criterion
+// is refused (rotation_oblique_unsupported).
+func PCARotations() []string {
+	var out []string
+	for _, r := range FactorRotations() {
+		if !RotationOblique(r) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// ObliqueRotations returns the oblique criteria, in FactorRotations
+// order: what MAT_PCA's refusal names.
+func ObliqueRotations() []string {
+	var out []string
+	for _, r := range FactorRotations() {
+		if RotationOblique(r) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// decodeRotation applies a params.rotation (and the geomin
+// params.epsilon) by the shared rule: absent or "none" is no rotation
+// (""), a name outside FactorRotations is bad_params, an oblique name
+// where orthogonalOnly (MAT_PCA, ATTR_PC_SCORE) is
+// rotation_oblique_unsupported, and an epsilon is accepted only beside
+// a geomin criterion (finite, > 0; default GeominDefaultEpsilon).
+// invalid builds the slot's refusal.
+func decodeRotation(at string, rotation *string, epsilon *float64, orthogonalOnly bool, invalid invalidFunc) (string, float64, *errors.CodedError) {
+	rot := ""
+	valid := FactorRotations()
+	if orthogonalOnly {
+		valid = PCARotations()
+	}
+	if rotation != nil && *rotation != RotationNone {
+		v := *rotation
+		switch {
+		case orthogonalOnly && RotationOblique(v):
+			return "", 0, invalid(at, "rotation_oblique_unsupported",
+				at+" params.rotation "+strconv.Quote(v)+" is oblique (its factors may correlate), but components are uncorrelated by construction: use an orthogonal rotation ("+quoteJoin(valid[1:])+"), or MAT_FACTOR / ATTR_FACTOR_SCORE for an oblique one",
+				map[string]any{"param": "rotation", "value": v, "valid": valid, "oblique": true})
+		case slices.Contains(FactorRotations(), v):
+			rot = v
+		default:
+			return "", 0, invalid(at, "bad_params", at+" params.rotation must be one of "+quoteJoin(valid),
+				map[string]any{"param": "rotation", "value": v, "valid": valid})
+		}
+	}
+	eps := 0.0
+	if RotationTakesEpsilon(rot) {
+		eps = GeominDefaultEpsilon
+	}
+	if epsilon != nil {
+		if !RotationTakesEpsilon(rot) {
+			return "", 0, invalid(at, "bad_params", at+" params.epsilon applies to rotation \""+RotationGeomin+"\" or \""+RotationGeominOrthogonal+"\" only",
+				map[string]any{"param": "epsilon", "rotation": rot})
+		}
+		if e := *epsilon; !(e > 0) || math.IsInf(e, 0) {
+			return "", 0, invalid(at, "bad_params", at+" params.epsilon must be a finite number above 0",
+				map[string]any{"param": "epsilon", "value": e})
+		}
+		eps = *epsilon
+	}
+	return rot, eps, nil
+}
+
+// quoteJoin renders names as "a", "b" or "c".
+func quoteJoin(names []string) string {
+	q := make([]string, len(names))
+	for i, n := range names {
+		q[i] = strconv.Quote(n)
+	}
+	switch len(q) {
+	case 0:
+		return ""
+	case 1:
+		return q[0]
+	}
+	return strings.Join(q[:len(q)-1], ", ") + " or " + q[len(q)-1]
 }
 
 // MAT_FACTOR extraction methods (params.extraction). Each starts from
@@ -599,13 +723,14 @@ type pcaParams struct {
 	On         *string         `json:"on"`
 	Components json.RawMessage `json:"components"`
 	Rotation   *string         `json:"rotation"`
+	Epsilon    *float64        `json:"epsilon"`
 	Repair     *string         `json:"repair"`
 	missingParams
 }
 
 // factorParams is MAT_FACTOR's params object: the factor count (an
 // integer or "kaiser"), the extraction, the rotation with its kappa /
-// gamma, the repair choice and the missing-data knobs; any other key is
+// gamma / epsilon, the repair choice and the missing-data knobs; any other key is
 // refused.
 type factorParams struct {
 	Factors    json.RawMessage `json:"factors"`
@@ -613,6 +738,7 @@ type factorParams struct {
 	Rotation   *string         `json:"rotation"`
 	Kappa      *float64        `json:"kappa"`
 	Gamma      *float64        `json:"gamma"`
+	Epsilon    *float64        `json:"epsilon"`
 	ConfLevel  *float64        `json:"conf_level"`
 	Repair     *string         `json:"repair"`
 	missingParams
@@ -1049,7 +1175,9 @@ func acceptsMembers(at string, op types.MatrixType, accepts []encoding.FieldType
 }
 
 // decodePCA applies MAT_PCA's params.rotation ("none", the default, or
-// "varimax"), params.on and params.components: on
+// an orthogonal criterion — PCARotations; an oblique one is
+// rotation_oblique_unsupported) with its epsilon (decodeRotation),
+// params.on and params.components: on
 // "correlation" (default) or "covariance"; components an integer k ≥ 1
 // (checked against p in resolvePCA), "kaiser" (the correlation
 // default) or {"variance": share} with 0 < share ≤ 1. On a covariance
@@ -1057,16 +1185,11 @@ func acceptsMembers(at string, op types.MatrixType, accepts []encoding.FieldType
 // meaning in the members' units. Every refusal is bad_params.
 func decodePCA(at string, p pcaParams, m *Matrix) *errors.CodedError {
 	m.On = PCAOnCorrelation
-	if p.Rotation != nil {
-		switch *p.Rotation {
-		case RotationNone:
-		case RotationVarimax:
-			m.Rotation = RotationVarimax
-		default:
-			return matrixInvalid(at, "bad_params", at+" params.rotation must be \"none\" or \"varimax\"",
-				map[string]any{"param": "rotation", "value": *p.Rotation, "valid": PCARotations()})
-		}
+	rot, eps, err := decodeRotation(at, p.Rotation, p.Epsilon, true, matrixInvalid)
+	if err != nil {
+		return err
 	}
+	m.Rotation, m.Epsilon = rot, eps
 	if p.On != nil {
 		switch *p.On {
 		case PCAOnCorrelation, PCAOnCovariance:
@@ -1137,9 +1260,10 @@ func resolvePCA(at string, m *Matrix) *errors.CodedError {
 // decodeFactor applies MAT_FACTOR's params: factors (a positive integer,
 // checked against p in resolveFactor, or "kaiser", the default),
 // extraction ("minres", the default, or "principal_axis"), rotation
-// ("none", the default, "varimax", "promax" or "oblimin"), kappa (promax
-// only, finite and > 1, default 4) and gamma (oblimin only, finite,
-// default 0) and conf_level (extraction ml only, 0 < c < 1, default
+// ("none", the default, or any FactorRotations criterion), kappa (promax
+// only, finite and > 1, default 4), gamma (oblimin only, finite,
+// default 0), epsilon (geomin / geomin_orthogonal only, finite > 0,
+// default 0.01) and conf_level (extraction ml only, 0 < c < 1, default
 // 0.9). A kappa without promax, a gamma without oblimin or a conf_level
 // without ml is refused rather than ignored. Every refusal is
 // bad_params.
@@ -1164,16 +1288,11 @@ func decodeFactorWith(at string, p factorParams, m *Matrix, matrixInvalid invali
 				map[string]any{"param": "extraction", "value": *p.Extraction, "valid": FactorExtractions()})
 		}
 	}
-	if p.Rotation != nil {
-		switch *p.Rotation {
-		case RotationNone:
-		case RotationVarimax, RotationPromax, RotationOblimin:
-			m.Rotation = *p.Rotation
-		default:
-			return matrixInvalid(at, "bad_params", at+" params.rotation must be \"none\", \"varimax\", \"promax\" or \"oblimin\"",
-				map[string]any{"param": "rotation", "value": *p.Rotation, "valid": FactorRotations()})
-		}
+	rot, eps, err := decodeRotation(at, p.Rotation, p.Epsilon, false, matrixInvalid)
+	if err != nil {
+		return err
 	}
+	m.Rotation, m.Epsilon = rot, eps
 	if m.Rotation == RotationPromax {
 		m.Kappa = FactorDefaultKappa
 	}
