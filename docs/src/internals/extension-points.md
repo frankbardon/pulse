@@ -1456,7 +1456,7 @@ chain: `params.field` where the kind honours it, else
 feeding another (`PROCESSING_CONFIG`, reason `array_valued`), and `params.expand: true` writes one column per member,
 `<label>[<element label>]`, which predict lists in
 `aggregations[i].columns` — an ordinary nullable f64 column that a sort
-key, a window and a post-test read (the bare label stays refused there). `expand` on a slot whose aggregator is not
+key, a window, a post-test and a series overlay's `params.field` read (the bare label stays refused there). `expand` on a slot whose aggregator is not
 `ArrayValued` is refused (`expand_not_array_valued`). The manifest's
 extension entry carries `vector_input` / `array_valued`, which the
 recommend planner reads to draft a `fields` list.

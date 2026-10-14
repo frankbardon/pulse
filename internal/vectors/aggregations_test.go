@@ -411,3 +411,60 @@ func TestAggregationOutputColumns(t *testing.T) {
 		t.Errorf("duplicate labels on an array slot refused: %v", err)
 	}
 }
+
+// TestAggregationColumns: the series-overlay column lister. A scalar
+// slot writes its label; an expanding slot its element columns over
+// the schema (read once, only for an expanding slot), or — no schema —
+// from its inline element labels (the prepared slot the runtime
+// holds), else unknown. The prepared slot lists exactly the columns
+// predict reads over the schema.
+func TestAggregationColumns(t *testing.T) {
+	vecs := []types.VectorSpec{{Name: "v", Fields: []string{"q_*"}, Labels: []string{"first", "second"}}}
+	exp := json.RawMessage(`{"expand":true}`)
+	aggs := []*types.Aggregation{
+		{Type: types.AGG_SUM, Field: "q_1", Label: "n"},
+		{Type: types.AGG_VEC_MEAN, Vector: "v", Label: "m", Params: exp},
+		{Type: types.AGG_VEC_SUM, Fields: []string{"q_*"}, Label: "s", Params: json.RawMessage(`{"expand":true,"labels":["a","b"]}`)},
+		{Type: types.AGG_VEC_SUM, Fields: []string{"q_*"}, Label: "u"},
+		nil,
+	}
+	req := &types.Request{Vectors: vecs, Aggregations: aggs}
+	loads := 0
+	withSchema := AggregationColumns(req, func() *encoding.Schema { loads++; return groupSchema() }, AggregationKinds{})
+	noSchema := AggregationColumns(req, nil, AggregationKinds{})
+	for i, c := range []struct {
+		with, without []string
+		knownWithout  bool
+	}{
+		{[]string{"n"}, []string{"n"}, true},
+		{[]string{"m[first]", "m[second]"}, nil, false},
+		{[]string{"s[a]", "s[b]"}, []string{"s[a]", "s[b]"}, true},
+		{[]string{"u"}, []string{"u"}, true},
+		{nil, nil, true},
+	} {
+		if got, known := withSchema(i); !reflect.DeepEqual(got, c.with) || !known {
+			t.Errorf("schema: aggregation %d = %v, %v; want %v", i, got, known, c.with)
+		}
+		if got, known := noSchema(i); !reflect.DeepEqual(got, c.without) || known != c.knownWithout {
+			t.Errorf("no schema: aggregation %d = %v, %v; want %v, %v", i, got, known, c.without, c.knownWithout)
+		}
+	}
+	if loads != 1 {
+		t.Errorf("schema loaded %d times, want once", loads)
+	}
+	if got, known := withSchema(9); got != nil || !known {
+		t.Errorf("out of range = %v, %v", got, known)
+	}
+
+	// The prepared slot (the factory rewrite the runtime holds) lists,
+	// with no schema, the columns the authored one does over it.
+	in, err := ResolveAggregations(req, groupSchema(), AggregationKinds{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared := AggregationSlotRewrite(aggs[1], in[aggs[1]])
+	got, known := AggregationColumns(&types.Request{Aggregations: []*types.Aggregation{prepared}}, nil, AggregationKinds{})(0)
+	if !known || !reflect.DeepEqual(got, []string{"m[first]", "m[second]"}) {
+		t.Errorf("prepared slot = %v, %v; want the schema's columns", got, known)
+	}
+}

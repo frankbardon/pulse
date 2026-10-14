@@ -229,7 +229,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	if err := descx.ChainOverlayArrayValuedRefusal(req, s.instance, gateSchema); err != nil {
 		return nil, err
 	}
-	if err := s.applyChainOverlays(req, out); err != nil {
+	if err := s.applyChainOverlays(req, out, gateSchema); err != nil {
 		return nil, err
 	}
 	if len(req.Overlays) > 0 {
@@ -375,7 +375,12 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 // inherits the target stage's shape plus ONE warning whose Details
 // carry predict's keys (index, kind, target/ref index + shape,
 // stage_index, stage_name) and overlay_index.
-func (s *Service) applyChainOverlays(req *types.ChainRequest, out *types.ChainResponse) error {
+//
+// stage0 is the schema stage 0 ran over (the gate schema): with it each
+// stage's input schema (descx.ChainStageInputSchema) resolves a series
+// kind's params.field naming an expanded element column against the
+// stage's members, as predict-chain does.
+func (s *Service) applyChainOverlays(req *types.ChainRequest, out *types.ChainResponse, stage0 *encoding.Schema) error {
 	if len(req.Overlays) == 0 {
 		// Byte-identity guarantee for overlay-free chains: the slot
 		// stays nil (no make-with-zero-len allocation, no `Overlays:
@@ -394,7 +399,9 @@ func (s *Service) applyChainOverlays(req *types.ChainRequest, out *types.ChainRe
 		stageNames[i] = st.Name
 		stageReqs[i] = st.Request
 	}
-	layers, warnings, err := processing.ApplyChainOverlaysWithRequests(req.Overlays, out.Stages, stageNames, stageReqs, s.extensions)
+	layers, warnings, err := processing.ApplyChainOverlaysWithSchemas(req.Overlays, out.Stages, stageNames, stageReqs, func(i int) *encoding.Schema {
+		return descx.ChainStageInputSchema(stageReqs, i, stage0)
+	}, s.extensions)
 	if err != nil {
 		return err
 	}

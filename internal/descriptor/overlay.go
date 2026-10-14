@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/seriespartition"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -795,7 +796,8 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		validateOverlayRake(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
 		validateOverlayLevelWithinPredict(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		validateOverlayBaselineIndexPredict(env, req, spec, schema, opts.instance(), i)
-		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i)
+		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i,
+			vectors.AggregationColumns(req, func() *encoding.Schema { return schema }, aggregationKinds(opts.instance(), nil)))
 		validateOverlaySeriesPartition(env, req, spec, opts.overlayRoute(spec.Kind), i)
 	}
 }
@@ -828,12 +830,16 @@ func validateOverlaySeriesPartition(env *descriptor.Envelope, req *types.Request
 // refusal is identical on both sides. Runs on the defaults-resolved
 // request, so a defaulted aggregation's TYPE_field label resolves. Only
 // a SERIES host (Groups set, Crosstab nil) reads the param; a MATRIX
-// host of SHARE_OF_TOTAL / ZSCORE_VS_TOTAL ignores it.
-func validateOverlaySeriesField(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int) {
+// host of SHARE_OF_TOTAL / ZSCORE_VS_TOTAL ignores it. cols lists the
+// columns each aggregation writes over the request's schema
+// (vectors.AggregationColumns), so an expanded element column
+// "<label>[<element label>]" resolves; one the slot does not write is
+// refused here, its element columns listed in Details.available.
+func validateOverlaySeriesField(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int, cols seriesfield.Columns) {
 	if req == nil || spec == nil || req.Crosstab != nil || len(req.Groups) == 0 || !seriesfield.Applies(route) {
 		return
 	}
-	if _, err := seriesfield.Resolve(req.Aggregations, spec, index); err != nil {
+	if _, err := seriesfield.Resolve(req.Aggregations, spec, index, cols); err != nil {
 		addCodedError(env, err)
 	}
 }

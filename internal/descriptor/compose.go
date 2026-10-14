@@ -690,7 +690,13 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 			if requestLabelsDeferred(sreq) {
 				continue
 			}
-			if _, ferr := seriesfield.ResolveComposeSlot(sreq.Aggregations, spec, specIdx, s.label); ferr != nil {
+			// An expanded element column "<label>[<element label>]"
+			// resolves against the slot's members over its schema (the
+			// runtime's slot schema, read header only and only for a
+			// bracketed name).
+			cols := vectors.AggregationColumns(sreq, composeSlotSchemaFunc(composeSlotInputSchema([]*types.Request{s.req}, opts), 0),
+				aggregationKinds(opts.instance(), nil))
+			if _, ferr := seriesfield.ResolveComposeSlot(sreq.Aggregations, spec, specIdx, s.label, cols); ferr != nil {
 				addCodedError(env, ferr)
 				appendComposeSlotPair(result, spec.Reference, s.label, "field-unknown")
 			}

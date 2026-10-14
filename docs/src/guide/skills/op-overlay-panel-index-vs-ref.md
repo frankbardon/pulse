@@ -26,7 +26,7 @@ Use something else:
 
 ## Params
 
-`Scope` required — `cell` (matrix host) or `group` (series host). `Reference` = shared reference slot. `Targets` — one layer per target. `OverlayOptions.MaxPanelTargets` int, default `16`, caps `len(Targets)`. `params.field` (string, optional, series slots) — OUTPUT LABEL of the aggregation to score on every slot (`label`, else `TYPE_field`); absent = each slot's `aggregations[0]`; rows key on group columns only; a slot lacking it → `PULSE_OVERLAY_FIELD_UNKNOWN`.
+`Scope` required — `cell` (matrix host) or `group` (series host). `Reference` = shared reference slot. `Targets` — one layer per target. `OverlayOptions.MaxPanelTargets` int, default `16`, caps `len(Targets)`. `params.field` (string, optional, series slots) — OUTPUT LABEL of the aggregation to score on every slot (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = each slot's `aggregations[0]`; rows key on group columns only; a slot lacking it → `PULSE_OVERLAY_FIELD_UNKNOWN`.
 
 ## Host shape
 

@@ -508,6 +508,56 @@ func AggregationOutputColumns(req *types.Request, a *types.Aggregation, schema *
 	return out, true
 }
 
+// AggregationColumns is the column lister a series overlay host hands
+// seriesfield (seriesfield.Columns): for aggregation i of
+// req.Aggregations, the Response.Data columns it writes —
+// AggregationOutputColumns over the schema schema returns (called at
+// most once, and only for an expanding slot; nil: none). With no
+// schema an expanding slot's columns are still known when it carries
+// its element labels inline (fields + params.labels — the prepared
+// slot AggregationSlotRewrite hands the runtime, whose labels are the
+// columns' element labels); otherwise known is false. A slot that does
+// not expand writes its label (known). Predict and the runtime build
+// it the same way, so an element column resolves identically.
+func AggregationColumns(req *types.Request, schema func() *encoding.Schema, kinds AggregationKinds) func(i int) ([]string, bool) {
+	var (
+		loaded bool
+		sch    *encoding.Schema
+	)
+	return func(i int) ([]string, bool) {
+		if req == nil || i < 0 || i >= len(req.Aggregations) || req.Aggregations[i] == nil {
+			return nil, true
+		}
+		a := req.Aggregations[i]
+		if !AggregationExpands(a, kinds) {
+			return []string{types.AggregationLabelOf(a)}, true
+		}
+		if !loaded && schema != nil {
+			loaded, sch = true, schema()
+		}
+		if sch != nil {
+			cols, ok := AggregationOutputColumns(req, a, sch, kinds)
+			if !ok {
+				return nil, false
+			}
+			return cols, true
+		}
+		if a.Vector != "" || len(a.Fields) == 0 {
+			return nil, false
+		}
+		p, err := decodeVecAggParams("aggregation", a.Type, a.Params, kinds.extension(kinds.Routed(a.Type)).Registered)
+		if err != nil || len(p.Labels) == 0 {
+			return nil, false
+		}
+		label := types.AggregationLabelOf(a)
+		out := make([]string, len(p.Labels))
+		for k, l := range p.Labels {
+			out[k] = ExpandedColumn(label, l)
+		}
+		return out, true
+	}
+}
+
 // AggregationSlotRewrite is the slot a vector aggregator's factory
 // receives: a copy with Label the default label when empty (computed
 // from the slot as written), Vector cleared, Fields = the resolved

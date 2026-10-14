@@ -527,9 +527,11 @@ func TestVecAggExpand_ReturnPlanning(t *testing.T) {
 
 // TestVecAggExpand_ComposeAndChain: Compose slots keep their expanded
 // keys; a ProcessChain's final stage writes them and PredictChain's
-// stage columns name them; Compose and whole-chain overlays reading a
-// slot / stage with a vector aggregation — expanded or not — are
-// refused by the runtime and predict alike.
+// stage columns name them; Compose and whole-chain overlays scoring a
+// vector aggregation by its bare label (here by default, as
+// aggregations[0]) — expanded or not — are refused by the runtime and
+// predict alike. Scoring an element column runs
+// (TestComposeOverlay_ScoresElementColumn).
 func TestVecAggExpand_ComposeAndChain(t *testing.T) {
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()

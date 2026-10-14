@@ -115,8 +115,13 @@ func seriesFieldNoteFor(k types.OverlayKind) string {
 // scores one host aggregation (internal/seriesfield): the params.field
 // rule, stated once so the twelve rows cannot drift.
 const seriesFieldNote = " Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL " +
-	"Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. " +
+	"Params[\"field\"] names (explicit Label, else TYPE_field)" + elementFieldNote + "; absent, it scores Request.Aggregations[0]. " +
 	"A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime."
+
+// elementFieldNote is the expanded-element clause every params.field
+// note carries (seriesfield.Resolve's element-column arm).
+const elementFieldNote = ", or one expanded element column \"<label>[<element label>]\" of a params.expand vector aggregation " +
+	"(an element no row answered is a missing value)"
 
 // seriesPartitionNote follows seriesFieldNote on every kind that runs
 // once per partition of a composite-row host
@@ -144,14 +149,14 @@ const seriesTotalNote = " Each row is scored against its partition's total (and,
 // whose SERIES arm scores one slot aggregation
 // (seriesfield.AppliesCompose).
 const composeSeriesFieldNote = " Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores " +
-	"the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on every slot it reads; " +
+	"the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field)" + elementFieldNote + " on every slot it reads; " +
 	"absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime."
 
 // chainSeriesFieldNote closes the Description of every whole-chain
 // kind whose SERIES arm scores one stage aggregation
 // (seriesfield.AppliesChain).
 const chainSeriesFieldNote = " Measure: on SERIES stages the overlay keys each row on the stage's group columns alone and scores " +
-	"the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on the target and the reference stage; " +
+	"the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field)" + elementFieldNote + " on the target and the reference stage; " +
 	"absent, each stage's Aggregations[0]. A label a stage lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.which, stage_index) at predict and at runtime."
 
 // overlayCapabilityFor returns the static per-kind capability shape

@@ -1724,7 +1724,10 @@ const (
 	// string. Absent field scores Request.Aggregations[0]. Raised at
 	// predict and at runtime by the one shared reading
 	// (internal/seriesfield.Resolve), Details {index, kind, field,
-	// available} — available lists the request's aggregation labels.
+	// available} — available lists the request's aggregation labels,
+	// each params.expand vector aggregation's element columns
+	// "<label>[<element label>]" (which the field may also name) after
+	// its label.
 	// A Compose overlay's SERIES arm resolves it per slot
 	// (seriesfield.ResolveComposeSlot) and adds Details.slot.
 	// A whole-chain overlay (INDEX_VS_STAGE, DELTA_VS_STAGE) resolves

@@ -15,7 +15,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` required — `cell` (MATRIX) or `group` (SERIES). `Ref.Margin.Axis` required on MATRIX dispatch (grand-axis-locked, value ignored), empty on SERIES. `Level` / `Within` must be `0`. `params.field` (string, optional on SERIES) — OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`. `params.partition_by` (string list, optional) — a leading prefix of the group key columns (Host shape); anything else → `PULSE_OVERLAY_PARTITION_INVALID`.
+`Scope` required — `cell` (MATRIX) or `group` (SERIES). `Ref.Margin.Axis` required on MATRIX dispatch (grand-axis-locked, value ignored), empty on SERIES. `Level` / `Within` must be `0`. `params.field` (string, optional on SERIES) — OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`. `params.partition_by` (string list, optional) — a leading prefix of the group key columns (Host shape); anything else → `PULSE_OVERLAY_PARTITION_INVALID`.
 
 ## Host shape
 

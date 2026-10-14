@@ -639,8 +639,11 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 		})
 	}
 	// A request overlay reads ONE aggregation as its host value: the one
-	// a series kind's params.field names, else the first.
-	w.out = append(w.out, processOverlayArrayValuedRefusals(req, aggregationKinds(inst, w.snap), vectors.CodeFieldTypes(schema, codes),
+	// a series kind's params.field names (an output label, or an
+	// expanded element column of an array-valued one), else the first.
+	ovKinds := aggregationKinds(inst, w.snap)
+	w.out = append(w.out, processOverlayArrayValuedRefusals(req, ovKinds, vectors.CodeFieldTypes(schema, codes),
+		vectors.AggregationColumns(req, func() *encoding.Schema { return schema }, ovKinds),
 		func(k types.OverlayKind) bool { return !inst.Hidden(string(k)) && overlayhost.ReadsCellValue(k) })...)
 	if req.Crosstab == nil {
 		for i, t := range req.PostTests {

@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
@@ -187,6 +188,18 @@ func ApplyChainOverlaysWithExtensions(specs []*types.ChainOverlaySpec, stages []
 // (projectChainSeriesStages). A nil stageReqs keeps the legacy
 // whole-row reading of encodeSeriesRow.
 func ApplyChainOverlaysWithRequests(specs []*types.ChainOverlaySpec, stages []*types.Response, stageNames []string, stageReqs []*types.Request, exts *ExtensionRegistry) ([]*types.OverlayLayer, []types.OverlayWarning, error) {
+	return ApplyChainOverlaysWithSchemas(specs, stages, stageNames, stageReqs, nil, exts)
+}
+
+// ApplyChainOverlaysWithSchemas is ApplyChainOverlaysWithRequests with
+// each stage's input schema in reach: stageSchema(i) (nil: none) is
+// the schema stage i ran over (stage 0's gate schema, a later stage's
+// synthesised one — descriptor.ChainStageInputSchema), called only
+// when a series kind's params.field names an expanded element column
+// "<label>[<element label>]", so it resolves against the stage's
+// members exactly as predict-chain does. service.applyChainOverlays
+// calls it.
+func ApplyChainOverlaysWithSchemas(specs []*types.ChainOverlaySpec, stages []*types.Response, stageNames []string, stageReqs []*types.Request, stageSchema func(i int) *encoding.Schema, exts *ExtensionRegistry) ([]*types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
@@ -245,7 +258,7 @@ func ApplyChainOverlaysWithRequests(specs []*types.ChainOverlaySpec, stages []*t
 		// aggregation BEFORE the handler reads a Data row; the field
 		// refusal sits where predict-chain raises it, after stage
 		// resolution.
-		target, ref, err := projectChainSeriesStages(spec, exts.overlayRoute(spec.Kind), i, stages[targetIdx], stages[refIdx], targetIdx, refIdx, stageReqs)
+		target, ref, err := projectChainSeriesStages(spec, exts.overlayRoute(spec.Kind), i, stages[targetIdx], stages[refIdx], targetIdx, refIdx, stageReqs, stageSchema, exts.AggregationKinds())
 		if err != nil {
 			return nil, nil, err
 		}

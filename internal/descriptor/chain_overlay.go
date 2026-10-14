@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/seriesfield"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -178,9 +179,14 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 		// Labels resolve on the stage as executed (stagedAt: smart
 		// defaults applied against the stage's input schema, the joined
 		// one for a joined stage 0).
-		validateChainOverlaySeriesField(env, spec, opts.overlayRoute(spec.Kind), i, "target", targetIdx, stagedAt(staged, targetIdx, targetReq))
+		// An expanded element column resolves against the stage's
+		// members over its input schema (chainStageInputSchema).
+		kinds := aggregationKinds(opts.instance(), nil)
+		validateChainOverlaySeriesField(env, spec, opts.overlayRoute(spec.Kind), i, "target", targetIdx, stagedAt(staged, targetIdx, targetReq),
+			chainStageSchemaFunc(staged, targetIdx, stage0), kinds)
 		if refIdx != targetIdx {
-			validateChainOverlaySeriesField(env, spec, opts.overlayRoute(spec.Kind), i, "ref", refIdx, stagedAt(staged, refIdx, refReq))
+			validateChainOverlaySeriesField(env, spec, opts.overlayRoute(spec.Kind), i, "ref", refIdx, stagedAt(staged, refIdx, refReq),
+				chainStageSchemaFunc(staged, refIdx, stage0), kinds)
 		}
 		refShape := inferChainStageShape(refReq)
 		targetShape := inferChainStageShape(targetReq)
@@ -234,12 +240,13 @@ func stagedAt(staged []*types.Request, idx int, written *types.Request) *types.R
 // validateChainOverlaySeriesField refuses a params.field that names no
 // aggregation of one stage, PULSE_OVERLAY_FIELD_UNKNOWN via the
 // seriesfield.ResolveChainStage call the runtime makes on the same
-// stage Request.
-func validateChainOverlaySeriesField(env *descriptor.Envelope, spec *types.ChainOverlaySpec, route types.OverlayKind, specIdx int, which string, stageIdx int, req *types.Request) {
+// stage Request, its columns read over schema (the stage's input
+// schema; nil: an element column resolves syntactically).
+func validateChainOverlaySeriesField(env *descriptor.Envelope, spec *types.ChainOverlaySpec, route types.OverlayKind, specIdx int, which string, stageIdx int, req *types.Request, schema func() *encoding.Schema, kinds vectors.AggregationKinds) {
 	if !seriesfield.AppliesChain(route) || req == nil || req.Crosstab != nil || requestLabelsDeferred(req) {
 		return
 	}
-	if _, err := seriesfield.ResolveChainStage(req.Aggregations, spec, specIdx, which, stageIdx); err != nil {
+	if _, err := seriesfield.ResolveChainStage(req.Aggregations, spec, specIdx, which, stageIdx, vectors.AggregationColumns(req, schema, kinds)); err != nil {
 		addCodedError(env, err)
 	}
 }
