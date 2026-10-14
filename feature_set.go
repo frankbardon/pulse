@@ -77,6 +77,7 @@ func withoutHiddenExtensions(ext Extensions, set descx.FeatureSet) Extensions {
 	out.Windows = keepVisible(ext.Windows, hidden, func(r WindowRegistration) string { return string(r.Name) })
 	out.Features = keepVisible(ext.Features, hidden, func(r FeatureRegistration) string { return string(r.Name) })
 	out.Tests = keepVisible(ext.Tests, hidden, func(r TestRegistration) string { return string(r.Name) })
+	out.MatrixOps = keepVisible(ext.MatrixOps, hidden, func(r MatrixOpRegistration) string { return string(r.Name) })
 	return out
 }
 

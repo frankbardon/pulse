@@ -94,6 +94,20 @@ func (f registryMergeFacts) Filterer(name string) (bool, bool) {
 	return f.r.IsStreamable("filterer", name), true
 }
 
+// Matrix answers for EXTENSION matrix operators (and hidden names): a
+// co-moment-tier operator merges through the engine's blocked merge
+// like a built-in, a buffered one keeps rows and does not.
+func (f registryMergeFacts) Matrix(name string) (bool, bool) {
+	if f.r.isHidden(name) {
+		return false, true
+	}
+	op, ok := f.r.LookupMatrixOp(types.MatrixType(name))
+	if !ok {
+		return false, false
+	}
+	return op.Streamable, true
+}
+
 // Attribute answers only for EXTENSION attributes (and hidden names);
 // a built-in answers (false, false) so mergegate.MergeRefusal decides
 // it per attribute — ATTR_FORMULA is row-local only without a

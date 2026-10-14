@@ -37,12 +37,12 @@ import (
 // foldRequestMultiplicity (matrix_result_overlay.go), so it reads
 // p_adjusted.
 
-// Auxiliary keys the matrix fold writes beside auxiliary.p.
-const (
-	matrixAuxP                   = "p"
-	matrixAuxPAdjusted           = "p_adjusted"
-	matrixAuxSignificantAdjusted = "significant_adjusted"
-)
+// matrixAuxP is the built-in inferential operators' p-value key; the
+// fold writes the twins descx.MatrixAdjustedKeys names beside it
+// (p_adjusted, significant_adjusted). An extension MAT_* operator's
+// p-values ride the auxiliary key its registration declares
+// (ResolvedMultiplicity.PValueKey), the twins named the same way.
+const matrixAuxP = descx.MatrixAuxP
 
 // collectMatrixResultSites files every member matrix spec's p-values under
 // its family. A result pairs with its slot by name (one result per
@@ -69,7 +69,12 @@ func collectMatrixResultSites(fams *multFamilies, scope string, slots []descx.Re
 			continue
 		}
 		rm := slots[i]
-		raw := res.Auxiliary[matrixAuxP]
+		pkey := rm.PValueKey
+		if pkey == "" {
+			pkey = matrixAuxP
+		}
+		adjKey, sigKey := descx.MatrixAdjustedKeys(pkey)
+		raw := res.Auxiliary[pkey]
 		cells := matrixPCells(raw)
 		if len(cells) == 0 {
 			continue
@@ -82,8 +87,8 @@ func collectMatrixResultSites(fams *multFamilies, scope string, slots []descx.Re
 			key = multFamilyKey(scope, rm.Family)
 		}
 		adj, sig := nanTwin(raw), nanTwin(raw)
-		res.Auxiliary[matrixAuxPAdjusted] = adj
-		res.Auxiliary[matrixAuxSignificantAdjusted] = sig
+		res.Auxiliary[adjKey] = adj
+		res.Auxiliary[sigKey] = sig
 		method, family, alpha := rm.Method, rm.Family, rm.Alpha
 		for _, c := range cells {
 			fams.add(key, family, method, multSite{

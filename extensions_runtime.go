@@ -201,6 +201,8 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		}
 	}
 
+	addRuntimeMatrixOps(r, ext.MatrixOps)
+
 	// Synth distributions are wired into the runtime in a later phase
 	// alongside the synth-overlay work. The registry surface stays
 	// stable so embedders can declare them today.

@@ -594,6 +594,68 @@ unweighted only. `Finalize` must be pure and succeed on that input.
 | an `Auxiliary` / `Vectors` / `Scalars` key `OutputKeys` does not declare (a declared key left unfilled is fine) | `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | `reason: undeclared_output_key`, `part`, `undeclared`, `declared_keys` |
 | a `Components` key `ComponentSchema` does not declare (a floor key included) | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` | `reason: components_schema_mismatch` |
 
+Two more registration rules bind the engine-owned surface:
+
+| Rule | Code | `details.reason` |
+|---|---|---|
+| a `Params` entry named `missing` or `max_drop_share` (the engine owns them) | `PULSE_EXTENSION_PARAM_INVALID` | `reserved_matrix_param` |
+| `PValues` names no `OutputKeys.Auxiliary` key | `PULSE_EXTENSION_PARAM_INVALID` | `invalid_pvalues` |
+| `OutputKeys.Auxiliary` declares `<PValues>_adjusted` or `significant_adjusted` | `PULSE_EXTENSION_PARAM_INVALID` | `reserved_output_key` |
+
+**At run time** the operator is a built-in in every respect but its
+finalizer:
+
+- **Resolution.** A spec naming it resolves like a built-in one (shape,
+  encoding, result name, members by the vector rules) with the
+  registration's `Accepts` narrowing the member column types
+  (`PULSE_VECTOR_MEMBER_TYPE`; empty = the built-in member types, an
+  element of a native vector reading as `f32` / `f64`). The engine
+  decodes `params.missing` and `params.max_drop_share` exactly as for a
+  built-in (listwise / pairwise, the heavy-drop warning) and STRIPS them:
+  the factory's spec and `MatrixInput.Params` carry only the operator's
+  own keys. A params value that is not a JSON object is
+  `SERVICE_VALIDATION` `bad_params`; a factory error that is not a
+  `*errors.CodedError` becomes `SERVICE_VALIDATION` `bad_params`.
+- **Tier.** `Streamable: true` streams and merges across
+  `DecodeWorkers` / `ShardWorkers` through the blocked merge;
+  `Streamable: false` keeps the admitted rows, so the request runs
+  buffered and serially. Predict reports the same `streamable` /
+  `mergeable` and sizes the row buffer.
+- **Finalize.** Built once per request (every group bucket shares the
+  instance), called once per result with a per-call CLONE of the merged
+  co-moment, so even an operator that mutates it reaches neither the
+  components floor nor another bucket. The engine's data-quality
+  warnings (thin rows, zero spread, listwise heavy drop) lead the
+  operator's own. The output is held to `OutputKeys` / `ComponentSchema`
+  on every run, not only at the probe (same codes as the probe table).
+  On a run that keeps `components.matrices` but excludes the `matrices`
+  slot, an operator declaring component keys is still finalized, every
+  `Want*` false.
+- **Weights.** A `WeightAware` operator's slot is stamped with the
+  resolved weight (`MatrixInput.WeightKind`); one that is not is refused
+  under ANY weight in force — slot, request or instance default — with
+  `PULSE_EXTENSION_NOT_WEIGHT_AWARE` (`weight: null` opts out).
+- **Multiplicity.** Opt-in: `PValues` names the auxiliary key of the
+  per-cell p-value matrix (off-diagonal upper triangle of a square one).
+  A `multiplicity` block — the spec's, the request's or
+  `Options.DefaultMultiplicity` — adjusts them like a built-in
+  inferential matrix: `<PValues>_adjusted` and `significant_adjusted`
+  beside the raw matrix (with `PValues: "p"` exactly the built-ins'
+  `p_adjusted`), the `multiplicity` echo, and predict's `p_values`. An
+  operator without `PValues` refuses a spec-level block
+  (`PULSE_MULTIPLICITY_INVALID`).
+- **Hosts.** The matrix host refusals hold unchanged: a join, a
+  crosstab and a chain stage after 0 refuse it as they refuse a built-in.
+- **Self-description.** The manifest lists it under
+  `extensions.matrix_ops` in the built-in `matrices` shape (the
+  engine-owned params first, the matrix floor plus the weighted floor
+  when `WeightAware`, then its own component keys) and under
+  `components_schemas.matrices`; the instance payload schema's
+  `MatrixType` enum, the MCP `type` enum, the ontology (a node requiring
+  `capability:matrices`) and the recommend binder carry it. A feature
+  profile that omits it hides it everywhere; listing it needs
+  `capability:matrices`.
+
 ### Synth distribution
 
 Reserved for embedders shipping bespoke samplers. There is no `extend`

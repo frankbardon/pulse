@@ -1465,7 +1465,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH: {
-		Message: "A matrix registration's operator, finalized at pulse.New over a synthetic three-member co-moment, returned no Primary matrix or filled an Auxiliary, Vectors or Scalars key its OutputKeys do not declare.",
+		Message: "A matrix registration's operator — finalized at pulse.New over a synthetic three-member co-moment, or on any run — returned no Primary matrix or filled an Auxiliary, Vectors or Scalars key its OutputKeys do not declare.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -3736,7 +3736,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_NOT_WEIGHT_AWARE: {
-		Message: "A row weight reached an embedder-registered operator whose registration does not declare that it consumes weights, so it would have silently run unweighted: an explicit slot or request `weight` on an aggregator (an inherited instance default is skipped on an aggregator instead), or any weight in force — the instance default included — on an attribute or test. The slot is under `slot`, the operator under `operator` and the weight column under `field`.",
+		Message: "A row weight reached an embedder-registered operator whose registration does not declare that it consumes weights, so it would have silently run unweighted: an explicit slot or request `weight` on an aggregator (an inherited instance default is skipped on an aggregator instead), or any weight in force — the instance default included — on an attribute, test or matrix operator. The slot is under `slot`, the operator under `operator` and the weight column under `field`.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,

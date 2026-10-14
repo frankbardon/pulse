@@ -1697,6 +1697,7 @@
       "features": [],
       "tests": [],
       "synth_distributions": [],
+      "matrix_ops": [],
       "expr_functions": [],
       "lookup_tables": [],
       "reference_vectors": [],
@@ -2274,4 +2275,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ebf4e38cddbb96763f2438cb9cfee8c86e4fa0fd590f315df44e1ff576152b07
+// golden-hash: 074a6de4857b76270f510825c036be935ffe21427d88d9cba90922c4fbdddd25

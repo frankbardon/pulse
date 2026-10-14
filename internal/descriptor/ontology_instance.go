@@ -85,7 +85,7 @@ func instanceOntology(ext *ExtensionsSnapshot, inst *InstanceSnapshot) *Ontology
 func extensionOperatorLists(ext *ExtensionsSnapshot) [][]descriptor.OperatorMeta {
 	return [][]descriptor.OperatorMeta{
 		ext.Aggregators, ext.Attributes, ext.Filterers, ext.Groupers, ext.Windows,
-		ext.Features, ext.Tests, ext.SynthDistributions, ext.OverlayKinds,
+		ext.Features, ext.Tests, ext.SynthDistributions, ext.OverlayKinds, ext.MatrixOps,
 	}
 }
 
@@ -125,6 +125,13 @@ func extendOntology(base *OntologyGraph, ext *ExtensionsSnapshot) *OntologyGraph
 			b.node(descriptor.OntologyNodeOperator, op.Name)
 			b.extOperators[op.Name] = true
 		}
+	}
+	// An extension MAT_* operator rides the Request.Matrices slot like
+	// a built-in one: it requires capability:matrices (the hardEdges
+	// row every built-in MAT_* carries), so pruning drops it with the
+	// capability.
+	for _, op := range ext.MatrixOps {
+		b.edge(OntologyID(descriptor.OntologyNodeOperator, op.Name), b.featureNode(featMatrices, "extension matrix operator "+op.Name), descriptor.OntologyEdgeRequiresCapability, "extension matrix operator")
 	}
 	for _, d := range ext.SynthDistributions {
 		b.edge(OntologyID(descriptor.OntologyNodeOperator, d.Name), b.featureNode(featSynth, "extension synth distribution "+d.Name), descriptor.OntologyEdgeRequiresCapability, "extension synth distribution")

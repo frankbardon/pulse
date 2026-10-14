@@ -705,7 +705,8 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 
 // resolveMatricesFor is the one instance-scoped Request.Matrices
 // resolution every descriptor site reads (the field-reference walk,
-// predict, the limits): a hidden matrix type is unknown, and a
+// predict, the limits): a hidden matrix type is unknown, an offered
+// extension MAT_* operator resolves through its registration, and a
 // MAT_DISTANCE params.between grouper type routes through the instance
 // (a hidden grouper is unknown); a registered extension grouper (snap,
 // else the instance's own projection) is accepted as a between, as the
@@ -718,11 +719,19 @@ func resolveMatricesFor(req *types.Request, schema *encoding.Schema, snap *Exten
 	if snap != nil {
 		ext = func(name string) bool { return snapshotHasName(snap.Groupers, name) }
 	}
-	return vectors.ResolveMatricesRouted(req, schema, func(t types.MatrixType) bool {
-		return isBuiltinMatrixType(opRoute(inst, t))
-	}, func(t types.GroupType) types.GroupType {
-		return opRoute(inst, t)
-	}, ext)
+	return vectors.ResolveMatricesWith(req, schema, vectors.MatrixResolve{
+		Known: func(t types.MatrixType) bool {
+			return isBuiltinMatrixType(opRoute(inst, t))
+		},
+		Route: func(t types.GroupType) types.GroupType {
+			return opRoute(inst, t)
+		},
+		BetweenExt: ext,
+		// An offered extension MAT_* operator resolves through its
+		// registration, as the runtime resolves it
+		// (processing.resolveMatrixPlans).
+		Extension: matrixExtensionFor(inst, snap),
+	})
 }
 
 // checkFitOn judges one params.fit_on filterer of a fitted vector

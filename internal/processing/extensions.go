@@ -38,6 +38,11 @@ type ExtensionRegistry struct {
 	Features    map[types.FeatureType]feature.Factory
 	RowTests    map[types.TestType]RowTestFactory
 	PostTests   map[types.TestType]PostTestFactory
+	// MatrixOps are the extension MAT_* operators
+	// (pulse.MatrixOpRegistration, matrix_extension.go), read through
+	// LookupMatrixOp: a finalizer the built-in matrix slot runs in
+	// place of a matrixFinalizers entry.
+	MatrixOps map[types.MatrixType]MatrixOp
 
 	// Streamable is the per-(category, name) override consulted by
 	// IsStreamable. Built-in entries are not stored here; the

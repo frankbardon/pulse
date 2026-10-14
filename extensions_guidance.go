@@ -153,13 +153,6 @@ func extensionGuidance(ext Extensions) (map[string]descriptor.Purpose, map[strin
 	var purposes map[string]descriptor.Purpose
 	var interps map[string][]descriptor.Interpretation
 	for _, e := range guidanceEntries(ext) {
-		if e.category == categoryMatrix {
-			// Validated at pulse.New, but matrix operators do not reach
-			// the snapshot's operator lists yet: a Purpose here would
-			// give the instance ontology an edge from an unknown node.
-			// The skip goes when the snapshot carries MatrixOps.
-			continue
-		}
 		if e.purpose != nil {
 			if purposes == nil {
 				purposes = map[string]descriptor.Purpose{}

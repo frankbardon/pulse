@@ -206,6 +206,18 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	for t, vals := range m {
 		m[t] = filterNames(vals, inst.Enabled)
 	}
+	// An instance's extension MAT_* operators are matrix types it
+	// accepts: the snapshot (already profile-filtered) adds them to the
+	// MatrixType enum, so a request naming one validates against the
+	// instance's schema like a built-in.
+	if snap := inst.Extensions(); snap != nil && len(snap.MatrixOps) > 0 {
+		vals := m[reflect.TypeFor[types.MatrixType]()]
+		for _, op := range snap.MatrixOps {
+			vals = append(vals, op.Name)
+		}
+		sort.Strings(vals)
+		m[reflect.TypeFor[types.MatrixType]()] = vals
+	}
 	// The multiplicity method / family sets are closed vocabularies, not
 	// features: never filtered by the instance (a hidden
 	// capability:multiplicity drops the slots that reach them, and the

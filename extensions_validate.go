@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/frankbardon/pulse/internal/exprbuiltins"
 	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/frankbardon/pulse/internal/totalcall"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -366,6 +368,15 @@ func validateAggregatorVectorInputs(regs []AggregatorRegistration) error {
 //     result carries a primary matrix, and the manifest names it).
 //   - invalid_output_key — an Auxiliary / Vectors / Scalars key is
 //     empty or listed twice within its part (details.part, .key).
+//   - reserved_matrix_param — a Params entry named after an
+//     engine-owned param (vectors.EngineMatrixParams: missing,
+//     max_drop_share), which the engine decodes and strips before the
+//     operator sees its params (details.param).
+//   - invalid_pvalues — PValues names no OutputKeys.Auxiliary key
+//     (details.pvalues).
+//   - reserved_output_key — an auxiliary key the multiplicity fold
+//     writes beside PValues (<PValues>_adjusted, significant_adjusted)
+//     is declared as an output (details.key).
 //
 // ComponentSchema follows validateMatrixComponentSchema.
 func validateMatrixOps(regs []MatrixOpRegistration) error {
@@ -401,6 +412,28 @@ func validateMatrixOps(regs []MatrixOpRegistration) error {
 						map[string]any{"part": part.name, "key": k})
 				}
 				seen[k] = true
+			}
+		}
+		for _, p := range r.Params {
+			if slices.Contains(vectors.EngineMatrixParams(), p.Name) {
+				return invalid("reserved_matrix_param",
+					fmt.Sprintf("declares a param %q, which the engine owns on every matrix operator (it decodes and strips missing / max_drop_share before Finalize); rename the param", p.Name),
+					map[string]any{"param": p.Name})
+			}
+		}
+		if r.PValues != "" {
+			if !slices.Contains(r.OutputKeys.Auxiliary, r.PValues) {
+				return invalid("invalid_pvalues",
+					fmt.Sprintf("declares PValues %q, which OutputKeys.Auxiliary does not list", r.PValues),
+					map[string]any{"pvalues": r.PValues, "auxiliary": append([]string{}, r.OutputKeys.Auxiliary...)})
+			}
+			adj, sig := descx.MatrixAdjustedKeys(r.PValues)
+			for _, k := range []string{adj, sig} {
+				if slices.Contains(r.OutputKeys.Auxiliary, k) {
+					return invalid("reserved_output_key",
+						fmt.Sprintf("declares OutputKeys.Auxiliary key %q, which the multiplicity fold writes beside PValues %q; rename it", k, r.PValues),
+						map[string]any{"key": k, "pvalues": r.PValues})
+				}
 			}
 		}
 		if err := validateMatrixComponentSchema(r, i); err != nil {

@@ -24,11 +24,18 @@ type ExtensionsSnapshot struct {
 	Features           []descriptor.OperatorMeta
 	Tests              []descriptor.OperatorMeta
 	SynthDistributions []descriptor.OperatorMeta
-	ExprFunctions      []descriptor.ExprFunctionMeta
-	LookupTables       []descriptor.LookupTableMeta
-	ReferenceVectors   []descriptor.ReferenceVectorMeta
-	LabelTables        []descriptor.LabelTableMeta
-	RangeTables        []descriptor.RangeTableMeta
+	// MatrixOps are the extension MAT_* operators
+	// (pulse.MatrixOpRegistration): Name, Namespace, Description,
+	// Streamable (the declared tier; Mergeable follows it), WeightAware,
+	// Accepts and Params, so every per-category walk (MCP enums, the
+	// ontology, the merge gate, the weight resolver) reads them like any
+	// other category. MatrixDetails carries the matrix-only facts.
+	MatrixOps        []descriptor.OperatorMeta
+	ExprFunctions    []descriptor.ExprFunctionMeta
+	LookupTables     []descriptor.LookupTableMeta
+	ReferenceVectors []descriptor.ReferenceVectorMeta
+	LabelTables      []descriptor.LabelTableMeta
+	RangeTables      []descriptor.RangeTableMeta
 
 	// ComponentSchemas projects per-extension ComponentSchema
 	// declarations keyed by registered operator name. The map carries
@@ -46,6 +53,12 @@ type ExtensionsSnapshot struct {
 	// lookups fall through to this map when the built-in capability
 	// table does not carry an entry for the slot's operator name.
 	ComponentSchemas map[string]descriptor.ComponentSchema
+
+	// MatrixDetails carries each extension MAT_* operator's matrix-only
+	// facts (typed Accepts, OutputKeys, the p-value key, manifest
+	// params), keyed by name; its own ComponentSchema keys ride
+	// ComponentSchemas. Never serialised.
+	MatrixDetails map[string]ExtensionMatrixOp `json:"-"`
 
 	// OverlayKinds is the forward-compat reservation slot for
 	// embedder-registered overlay catalog entries. The runtime
@@ -152,6 +165,7 @@ func emptyExtensionsManifest() descriptor.ExtensionsManifest {
 		Features:           []descriptor.OperatorMeta{},
 		Tests:              []descriptor.OperatorMeta{},
 		SynthDistributions: []descriptor.OperatorMeta{},
+		MatrixOps:          []descriptor.MatrixMeta{},
 		ExprFunctions:      []descriptor.ExprFunctionMeta{},
 		LookupTables:       []descriptor.LookupTableMeta{},
 		ReferenceVectors:   []descriptor.ReferenceVectorMeta{},
@@ -206,6 +220,9 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 	if out.SynthDistributions == nil {
 		out.SynthDistributions = []descriptor.OperatorMeta{}
 	}
+	// The weighting-aware projection is stamped by assembleManifest,
+	// which knows whether the instance offers capability:weighting.
+	out.MatrixOps = extensionMatrixMetas(snap, true)
 	if out.ExprFunctions == nil {
 		out.ExprFunctions = []descriptor.ExprFunctionMeta{}
 	}
@@ -365,11 +382,12 @@ const (
 	extCategoryAggregator = "aggregator"
 	extCategoryAttribute  = "attribute"
 	extCategoryTest       = "test"
+	extCategoryMatrix     = "matrix"
 )
 
 // WeightAwareness reports whether name is an embedder-registered
-// operator of category ("aggregator", "attribute" or "test" — tier-1
-// and tier-2 tests alike) and, if so, whether its registration declared
+// operator of category ("aggregator", "attribute", "test" — tier-1
+// and tier-2 tests alike — or "matrix") and, if so, whether its registration declared
 // WeightAware. Nil-safe: a nil snapshot registers nothing.
 func (s *ExtensionsSnapshot) WeightAwareness(category, name string) (registered, aware bool) {
 	if s == nil {
@@ -383,6 +401,8 @@ func (s *ExtensionsSnapshot) WeightAwareness(category, name string) (registered,
 		metas = s.Attributes
 	case extCategoryTest:
 		metas = s.Tests
+	case extCategoryMatrix:
+		metas = s.MatrixOps
 	}
 	for _, m := range metas {
 		if m.Name == name {

@@ -428,7 +428,9 @@ func (p *Processor) canStream(req *types.Request) bool {
 	// field-reference pass has refused it.
 	if len(req.Matrices) > 0 {
 		for _, m := range req.Matrices {
-			if !m.Streamable() || p.exts.isHidden(string(m.Type)) {
+			// The instance's answer: an extension operator's declared
+			// tier, else the built-in spec-level rule; hidden is false.
+			if !p.exts.MatrixSpecStreamable(m) {
 				return false
 			}
 		}

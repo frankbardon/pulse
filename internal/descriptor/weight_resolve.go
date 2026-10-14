@@ -80,7 +80,7 @@ type weightSlot struct {
 	// refusal prose says so.
 	noSlotWeight bool
 	// extCategory is the weight-bearing extension category
-	// ("aggregator", "attribute", "test") when operator is an
+	// ("aggregator", "attribute", "test", "matrix") when operator is an
 	// embedder-registered operator of the slot's family, "" otherwise;
 	// extAware is its registration's WeightAware declaration.
 	extCategory string
@@ -462,6 +462,7 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 	}
 	for i, m := range req.Matrices {
 		add(fmt.Sprintf("matrices[%d]", i), string(m.Type), m.Weight)
+		ext(extCategoryMatrix)
 		// A rank method is frequency-only (weighting.MatrixClassOf).
 		if c := weighting.MatrixClassOf(m.Type, vectors.IsRankMethod(vectors.SpecMethod(m))); c != weighting.ClassOf(string(m.Type)) {
 			s := &slots[len(slots)-1]

@@ -55,6 +55,7 @@ Refused `PULSE_MULTIPLICITY_INVALID`: `row` / `column` on a non-matrix kind, `co
 - ProcessChain: each stage folds its own request, never across stages; the whole-chain overlays take no block.
 - Facet: each overlay layer on its own.
 - Tests from extensions join families like built-ins.
+<!-- feature: capability:matrices -->- An extension matrix operator joins only if it declares the auxiliary key of its p-values; it then joins under any block (no `params.inference`), and its twins are `<key>_adjusted` / `significant_adjusted`.<!-- /feature -->
 
 ## Never corrected
 

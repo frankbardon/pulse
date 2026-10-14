@@ -41,6 +41,10 @@ type Extensions interface {
 	// Attribute reports whether an extension attribute is row-local
 	// (streamable and not two-pass).
 	Attribute(name string) (rowLocal, ok bool)
+	// Matrix reports whether an extension MAT_* operator merges: its
+	// declared co-moment tier (Streamable) merges through the blocked
+	// merge; the buffered tier does not.
+	Matrix(name string) (mergeable, ok bool)
 }
 
 // None is the Extensions value for a built-in-only gate.
@@ -50,12 +54,14 @@ func (None) Aggregator(string) (bool, bool) { return false, false }
 func (None) Grouper(string) (bool, bool)    { return false, false }
 func (None) Filterer(string) (bool, bool)   { return false, false }
 func (None) Attribute(string) (bool, bool)  { return false, false }
+func (None) Matrix(string) (bool, bool)     { return false, false }
 
 // MergeRefusal returns "" when req's online state is mergeable across
 // input partitions, else the reason it is not. A request merges iff it
 // has at least one aggregator or matrix; no windows, features,
 // regressions, tests or post-tests; matrices only of a mergeable type
-// (types.MatrixType.Mergeable — they merge through the blocked merge
+// (an extension MAT_* operator's declared co-moment tier, else
+// types.MatrixSpec.Mergeable — they merge through the blocked merge
 // tree, bit-identical to serial; a grouped request's per-bucket
 // matrices merge bucket by bucket the same way); only row-local
 // attributes (ATTR_FORMULA without a total(expr) call,
@@ -83,7 +89,11 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 	}
 	if len(req.Matrices) > 0 {
 		for _, m := range req.Matrices {
-			if !m.Mergeable() { // spec-level: the type folded with its params
+			mergeable, ok := ext.Matrix(string(m.Type))
+			if !ok {
+				mergeable = m.Mergeable() // spec-level: the type folded with its params
+			}
+			if !mergeable {
 				return fmt.Sprintf("matrix operator %s is not mergeable", m.Type)
 			}
 		}

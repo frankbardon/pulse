@@ -31,6 +31,9 @@ func (fakeExt) Filterer(n string) (bool, bool) {
 func (fakeExt) Attribute(n string) (bool, bool) {
 	return n == "ATTR_X_ROW", strings.HasPrefix(n, "ATTR_X_")
 }
+func (fakeExt) Matrix(n string) (bool, bool) {
+	return n == "MAT_X_COMOMENT", strings.HasPrefix(n, "MAT_X_")
+}
 
 func decSchema() *encoding.Schema {
 	return &encoding.Schema{Fields: []encoding.Field{
@@ -64,6 +67,11 @@ func TestMergeRefusal(t *testing.T) {
 		{"row-local extension attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: "ATTR_X_ROW"}}}, fakeExt{}, ""},
 		{"two-pass extension attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: "ATTR_X_TWO"}}}, fakeExt{}, "attribute ATTR_X_TWO is not row-local"},
 		{"extension attribute without registry", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: "ATTR_X_ROW"}}}, nil, "not row-local"},
+		// An extension MAT_* operator merges iff it declared the
+		// co-moment tier; without the registry the name is unknown.
+		{"co-moment extension matrix", &types.Request{Matrices: []types.MatrixSpec{{Type: "MAT_X_COMOMENT"}}}, fakeExt{}, ""},
+		{"buffered extension matrix", &types.Request{Matrices: []types.MatrixSpec{{Type: "MAT_X_ROWS"}}}, fakeExt{}, "matrix operator MAT_X_ROWS is not mergeable"},
+		{"extension matrix without registry", &types.Request{Matrices: []types.MatrixSpec{{Type: "MAT_X_COMOMENT"}}}, nil, "matrix operator MAT_X_COMOMENT is not mergeable"},
 		{"nil group", &types.Request{Aggregations: sum("n"), Groups: []*types.Group{nil}}, nil, "group slot is nil"},
 		{"mergeable extension grouper", &types.Request{Aggregations: sum("n"), Groups: []*types.Group{{Type: "GROUP_X_MERGE"}}}, fakeExt{}, ""},
 		{"non-mergeable extension grouper", &types.Request{Aggregations: sum("n"), Groups: []*types.Group{{Type: "GROUP_X_SOLO"}}}, fakeExt{}, "grouper GROUP_X_SOLO is not mergeable"},

@@ -105,7 +105,9 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 		}
 		if plans, err := resolveMatricesFor(req, schema, nil, inst); err == nil {
 			for _, m := range plans {
-				if !m.Inference {
+				// An extension operator declaring a p-value key emits
+				// one per output pair, like a built-in under inference.
+				if !m.Inference && !(m.Extension && matrixPValueKey(inst, m.Type) != "") {
 					continue
 				}
 				k := len(m.OutputIndices())

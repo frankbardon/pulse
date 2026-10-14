@@ -367,6 +367,8 @@ func extensionNames(snap *descx.ExtensionsSnapshot, category string) []string {
 		metas = snap.Features
 	case "test":
 		metas = snap.Tests
+	case "matrix":
+		metas = snap.MatrixOps
 	case "overlay":
 		metas = snap.OverlayKinds
 	default:

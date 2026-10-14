@@ -151,6 +151,42 @@ type Matrix struct {
 	// confidence intervals (coverage 1 − Alpha): InferenceDefaultAlpha
 	// under Inference, 0 otherwise.
 	Alpha float64
+	// Extension reports an embedder-registered MAT_* operator
+	// (MatrixResolve.Extension). Its params are opaque to Pulse: the
+	// engine-owned missing / max_drop_share are decoded onto Pairwise /
+	// MaxDropShare exactly as for a built-in and stripped, and the
+	// remaining keys ride ExtParams (nil when none is left) to the
+	// operator's factory and Finalize. Streamable / Mergeable are its
+	// DECLARED tier (a co-moment operator merges through the blocked
+	// merge; a buffered one keeps rows and runs serially).
+	Extension bool
+	// ExtParams is an extension operator's params object without the
+	// engine-owned keys; nil on a built-in.
+	ExtParams json.RawMessage
+	// ExtAuxiliary is an extension operator's declared auxiliary keys
+	// (its registration's OutputKeys.Auxiliary), AuxiliaryKeys' answer.
+	ExtAuxiliary []string
+}
+
+// MatrixExtension is what resolution needs to know about an
+// embedder-registered MAT_* operator: its declared tier, the member
+// column types it reads (empty: the built-in member types the vector
+// rules admit) and its declared auxiliary keys.
+type MatrixExtension struct {
+	Streamable bool
+	Accepts    []encoding.FieldType
+	Auxiliary  []string
+}
+
+// MatrixResolve parameterises ResolveMatricesWith: Known, Route and
+// BetweenExt are ResolveMatricesRouted's known / route / ext; Extension
+// reports a registered (and offered) extension MAT_* operator, which
+// resolves even when Known refuses it. Nil Extension registers none.
+type MatrixResolve struct {
+	Known      func(types.MatrixType) bool
+	Route      func(types.GroupType) types.GroupType
+	BetweenExt func(string) bool
+	Extension  func(types.MatrixType) (MatrixExtension, bool)
 }
 
 // AuxiliaryKeys lists the matrices[*].auxiliary keys m's finalizer
@@ -174,6 +210,11 @@ type Matrix struct {
 //     standardize; pooled_covariance under a fitted inverse-covariance
 //     metric.
 func (m Matrix) AuxiliaryKeys() (keys []string, known bool) {
+	if m.Extension {
+		// An extension operator's declared auxiliary keys: the probe
+		// and the run-time output check hold Finalize to them.
+		return append([]string(nil), m.ExtAuxiliary...), true
+	}
 	if !slices.Contains(types.AllMatrixTypes(), m.Type) {
 		return nil, false
 	}
@@ -609,6 +650,18 @@ func ResolveMatrices(req *types.Request, schema *encoding.Schema, known func(typ
 // extension grouper (ResolveGroups' ext: it is then accepted, its
 // member set judged); nil means none is.
 func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known func(types.MatrixType) bool, route func(types.GroupType) types.GroupType, ext func(string) bool) ([]Matrix, *errors.CodedError) {
+	return ResolveMatricesWith(req, schema, MatrixResolve{Known: known, Route: route, BetweenExt: ext})
+}
+
+// ResolveMatricesWith is ResolveMatricesRouted plus the extension MAT_*
+// operators o.Extension reports: such a type resolves like a built-in —
+// shape, encoding, name, members by the vector rules, the engine-owned
+// missing / max_drop_share — with its other params kept opaque
+// (Matrix.ExtParams), its declared tier as Streamable / Mergeable, and
+// a member whose column type its non-empty Accepts does not list
+// refused with PULSE_VECTOR_MEMBER_TYPE.
+func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, o MatrixResolve) ([]Matrix, *errors.CodedError) {
+	known, route, ext := o.Known, o.Route, o.BetweenExt
 	if route == nil {
 		route = func(t types.GroupType) types.GroupType { return t }
 	}
@@ -630,7 +683,12 @@ func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known fu
 	for i := range req.Matrices {
 		spec := req.Matrices[i]
 		at := matrixPath(i)
-		if !known(spec.Type) {
+		var extOp MatrixExtension
+		isExt := false
+		if o.Extension != nil {
+			extOp, isExt = o.Extension(spec.Type)
+		}
+		if !isExt && !known(spec.Type) {
 			return nil, matrixInvalid(at, "unknown_type",
 				at+" references unknown matrix type: "+strconv.Quote(string(spec.Type)),
 				map[string]any{"type": string(spec.Type)})
@@ -659,7 +717,16 @@ func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known fu
 
 		m := Matrix{Index: i, Name: name, Type: spec.Type, Encoding: enc,
 			Streamable: spec.Streamable(), Mergeable: spec.Mergeable()}
-		if err := decodeMatrixParams(at, spec, &m); err != nil {
+		if isExt {
+			// The declared tier: the engine's blocked merge carries a
+			// co-moment operator across partitions; a buffered one keeps
+			// rows, which do not merge.
+			m.Extension, m.Streamable, m.Mergeable = true, extOp.Streamable, extOp.Streamable
+			m.ExtAuxiliary = append([]string(nil), extOp.Auxiliary...)
+			if err := decodeExtensionParams(at, spec, &m); err != nil {
+				return nil, err
+			}
+		} else if err := decodeMatrixParams(at, spec, &m); err != nil {
 			return nil, err
 		}
 		// Controls resolve after the members (below): a control is a
@@ -696,6 +763,11 @@ func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known fu
 			// their labels (schema labels, else "f_<k>"), never the
 			// "f[k]" member names; scalar members keep their names.
 			m.ExplicitLabels = r.Refs != nil
+		}
+		if isExt {
+			if err := acceptsMembers(at, spec.Type, extOp.Accepts, m.Members, schema); err != nil {
+				return nil, err
+			}
 		}
 		if err := resolveControls(at, schema, &m); err != nil {
 			return nil, err
@@ -870,6 +942,81 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 		miss = p.missingParams
 	}
 	return decodeMissing(at, miss, m)
+}
+
+// EngineMatrixParams are the params keys the engine owns on every
+// matrix operator, extension ones included: the missing-data mode and
+// the listwise heavy-drop threshold. An extension operator never sees
+// them (decodeExtensionParams strips them) and may not declare them.
+func EngineMatrixParams() []string { return []string{"missing", "max_drop_share"} }
+
+// decodeExtensionParams decodes an extension operator's params: a JSON
+// object (or absent / null) whose engine-owned keys (EngineMatrixParams)
+// are judged by the built-in rule (decodeMissing) and removed; the
+// remaining keys are kept, unjudged, as m.ExtParams — the operator's
+// factory decodes and validates them. A non-object is bad_params.
+func decodeExtensionParams(at string, spec types.MatrixSpec, m *Matrix) *errors.CodedError {
+	raw := bytes.TrimSpace(spec.Params)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return nil
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &obj); err != nil || obj == nil {
+		return matrixInvalid(at, "bad_params", at+" params must be a JSON object", nil)
+	}
+	var miss missingParams
+	if err := json.Unmarshal(raw, &miss); err != nil {
+		return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
+	}
+	for _, k := range EngineMatrixParams() {
+		delete(obj, k)
+	}
+	if len(obj) > 0 {
+		rest, err := json.Marshal(obj)
+		if err != nil {
+			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
+		}
+		m.ExtParams = rest
+	}
+	return decodeMissing(at, miss, m)
+}
+
+// acceptsMembers refuses a member whose column type accepts does not
+// list (an element of a native vector reads as its element type, f32
+// or f64); an empty accepts admits every member the vector rules did.
+func acceptsMembers(at string, op types.MatrixType, accepts []encoding.FieldType, r Resolved, schema *encoding.Schema) *errors.CodedError {
+	if len(accepts) == 0 || schema == nil {
+		return nil
+	}
+	for i, name := range r.Members {
+		field := name
+		if r.Refs != nil {
+			field = r.Refs[i].Field
+		}
+		f := schema.Field(field)
+		if f == nil {
+			continue // unreachable: members come from the schema
+		}
+		ft := f.Type
+		if ft.IsVector() {
+			ft = encoding.FieldTypeF64
+			if f.Type.VectorElemSize() == 4 {
+				ft = encoding.FieldTypeF32
+			}
+		}
+		if slices.Contains(accepts, ft) {
+			continue
+		}
+		valid := make([]string, len(accepts))
+		for k, a := range accepts {
+			valid[k] = a.String()
+		}
+		return errors.NewCodedErrorWithDetails(errors.PULSE_VECTOR_MEMBER_TYPE,
+			at+" member "+strconv.Quote(name)+" has type "+ft.String()+", which "+string(op)+
+				" does not accept (accepts: "+strings.Join(valid, ", ")+")",
+			map[string]any{"matrix": at, "type": string(op), "field": name, "field_type": ft.String(), "accepts": valid})
+	}
+	return nil
 }
 
 // decodePCA applies MAT_PCA's params.rotation ("none", the default, or

@@ -130,3 +130,17 @@ func TestCatalog_VectorAggregatorDraftsFields(t *testing.T) {
 		}
 	}
 }
+
+// TestCatalog_ExtensionMatrixOp: an extension MAT_* operator the
+// manifest lists under extensions.matrix_ops drafts like a built-in
+// matrix operator — category matrix, required params from its Params.
+func TestCatalog_ExtensionMatrixOp(t *testing.T) {
+	m := &descriptor.Manifest{Extensions: descriptor.ExtensionsManifest{MatrixOps: []descriptor.MatrixMeta{{
+		Name:   "MAT_ACME_COV",
+		Params: []descriptor.Param{{Name: "missing", Type: "enum"}, {Name: "scale", Type: "float", Required: true}},
+	}}}}
+	op, ok := catalog(m)["MAT_ACME_COV"]
+	if !ok || op.category != catMatrix || !slices.Equal(paramNames(op), []string{"scale"}) {
+		t.Fatalf("catalog entry = %+v (ok %v)", op, ok)
+	}
+}

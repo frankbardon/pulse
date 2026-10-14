@@ -172,6 +172,7 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Params:      paramMetaSnapshot(r.Params),
 		})
 	}
+	addSnapshotMatrixOps(snap, ext.MatrixOps)
 	snap.Purposes, snap.Interpretations = extensionGuidance(ext)
 	for _, fn := range ext.ExprFunctions {
 		snap.ExprFunctions = append(snap.ExprFunctions, descriptor.ExprFunctionMeta{

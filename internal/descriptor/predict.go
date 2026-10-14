@@ -772,9 +772,9 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	// buffered.
 	if len(req.Matrices) > 0 {
 		for _, m := range req.Matrices {
-			routed := m
-			routed.Type = opRoute(opts.instance(), m.Type)
-			if !routed.Streamable() {
+			// An extension operator's declared tier, else the routed
+			// built-in spec-level rule (processing.canStream's twin).
+			if !matrixSpecStreamable(opts.instance(), extensionsFromOpts(opts), m) {
 				reasons = append(reasons, "matrix "+string(m.Type)+" requires the buffered path")
 			}
 		}

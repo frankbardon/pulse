@@ -754,11 +754,26 @@ type MatrixOpRegistration struct {
 	// means the built-in matrix member types.
 	Accepts []encoding.FieldType
 	// Params describes the operator's own params keys for the
-	// manifest. The factory still decodes and validates them.
+	// manifest. The factory still decodes and validates them. The
+	// engine owns missing and max_drop_share on every matrix operator:
+	// it decodes them as for a built-in and strips them from the params
+	// the factory and Finalize see, so a ParamMeta naming either is
+	// refused (PULSE_EXTENSION_PARAM_INVALID, reserved_matrix_param).
 	Params []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook (extra fields read beyond the members). See FieldInputsFunc.
 	FieldInputs FieldInputsFunc
+	// PValues opts the operator into multiple-comparison correction:
+	// it names the OutputKeys.Auxiliary key whose matrix holds per-cell
+	// p-values (off-diagonal upper triangle of a square_symmetric one,
+	// every cell of a rectangular one). A `multiplicity` block (the
+	// spec's, the request's or Options.DefaultMultiplicity) then adjusts
+	// them like a built-in inferential operator's auxiliary.p: the fold
+	// writes <PValues>_adjusted and significant_adjusted beside it (with
+	// PValues "p" exactly the built-ins' p_adjusted), predict counts them
+	// in p_values, and the raw matrix never moves. Empty opts out: a
+	// spec-level multiplicity block on the operator is refused.
+	PValues string
 	// OutputKeys names the MatrixResult parts the operator fills —
 	// Primary's meaning (required) and the Auxiliary, Vectors and
 	// Scalars keys, each a non-empty name listed once. Finalize may

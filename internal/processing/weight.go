@@ -195,12 +195,14 @@ func StampWeightsWith(req *types.Request, def *types.WeightSpec, exts *Extension
 		}
 	}
 	// A built-in matrix operator reads the weight when its class has a
-	// kind (there is no extension MAT_* category).
+	// kind; an extension MAT_* operator when it declared WeightAware
+	// (the resolver refuses a weight in force on one that did not).
 	if len(req.Matrices) > 0 {
 		c.Matrices = make([]types.MatrixSpec, len(req.Matrices))
 		for i, m := range req.Matrices {
 			c.Matrices[i] = m
-			if w, ok := stampSlotWeight(m.Weight, weighting.IsAware(string(m.Type)), req.Weight, def); ok {
+			aware := weighting.IsAware(string(m.Type)) || exts.IsExtensionWeightAware("matrix", string(m.Type))
+			if w, ok := stampSlotWeight(m.Weight, aware, req.Weight, def); ok {
 				c.Matrices[i].Weight = w
 			}
 		}

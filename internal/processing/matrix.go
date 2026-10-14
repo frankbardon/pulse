@@ -66,6 +66,11 @@ type matrixSlot struct {
 	// co-moment set per bucket); nil on every other type. Its base
 	// state (state) then folds every BUCKETED row once.
 	dist *distanceState
+	// extOp is an extension MAT_* slot's finalizer (shared by every
+	// bucket of a grouped run; matrix_extension.go); nil on a built-in.
+	// extComponents reports a declared ComponentSchema with keys.
+	extOp         MatrixOpFinalizer
+	extComponents bool
 }
 
 var _ BlockMerger = (*matrixSlot)(nil)
@@ -101,6 +106,11 @@ type matrixPlanSet struct {
 	// schema and exts build a MAT_DISTANCE slot's between grouper.
 	schema *encoding.Schema
 	exts   *ExtensionRegistry
+	// extOps / extComponents are the extension plans' finalizers and
+	// component declarations, index-aligned with plans (nil when the
+	// request names no extension operator; buildMatrixOps).
+	extOps        []MatrixOpFinalizer
+	extComponents []bool
 }
 
 // resolveMatrixPlans resolves req.Matrices against schema (nil when
@@ -116,19 +126,26 @@ func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *Exten
 	}
 	// Every built-in type the instance offers resolves, streamable or
 	// not: a buffered spec (vectors.Matrix.Streamable false) gets a row
-	// buffer, never an unknown_type refusal.
-	plans, verr := vectors.ResolveMatricesRouted(req, schema, func(t types.MatrixType) bool {
-		return slices.Contains(types.AllMatrixTypes(), t) && !exts.isHidden(string(t))
-	}, func(t types.GroupType) types.GroupType {
-		if exts.isHidden(string(t)) {
-			return ""
-		}
-		return t
-	}, func(name string) bool {
-		// A registered extension grouper is a MAT_DISTANCE between like
-		// a built-in (ResolveGroups' ext).
-		_, ok := exts.LookupGrouper(types.GroupType(name))
-		return ok
+	// buffer, never an unknown_type refusal. An offered extension
+	// operator resolves through its registration (declared tier,
+	// opaque params, Accepts).
+	plans, verr := vectors.ResolveMatricesWith(req, schema, vectors.MatrixResolve{
+		Known: func(t types.MatrixType) bool {
+			return slices.Contains(types.AllMatrixTypes(), t) && !exts.isHidden(string(t))
+		},
+		Route: func(t types.GroupType) types.GroupType {
+			if exts.isHidden(string(t)) {
+				return ""
+			}
+			return t
+		},
+		BetweenExt: func(name string) bool {
+			// A registered extension grouper is a MAT_DISTANCE between
+			// like a built-in (ResolveGroups' ext).
+			_, ok := exts.LookupGrouper(types.GroupType(name))
+			return ok
+		},
+		Extension: exts.matrixExtension,
 	})
 	if verr != nil {
 		return nil, verr
@@ -136,6 +153,9 @@ func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *Exten
 	set := &matrixPlanSet{plans: plans, weights: make([]*types.WeightSpec, len(plans)), compute: compute, schema: schema, exts: exts}
 	for i := range plans {
 		set.weights[i] = req.Matrices[i].Weight.Spec()
+	}
+	if err := set.buildMatrixOps(req); err != nil {
+		return nil, err
 	}
 	return set, nil
 }
@@ -162,6 +182,9 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 			x:       make([]float64, len(cols)),
 			fill:    memberFillOf(cols, s.schema),
 			compute: s.compute.ForMatrix(plan),
+		}
+		if s.extOps != nil {
+			slots[i].extOp, slots[i].extComponents = s.extOps[i], s.extComponents[i]
 		}
 		switch {
 		case plan.Type == types.MAT_DISTANCE:
@@ -287,11 +310,11 @@ func (m *matrixSlot) result() (types.MatrixResult, *types.MatrixComponents, erro
 	if !m.compute.Matrices {
 		return res, nil, nil
 	}
-	if !m.compute.MatricesSlot && finalizerComponents[m.plan.Type] {
+	if !m.compute.MatricesSlot && (finalizerComponents[m.plan.Type] || m.extComponents) {
 		// Components kept, the slot skipped: the operator keys still
 		// need the finalizer (its result parts are all off in the
 		// plan, so none is built).
-		out, ferr := matrixFinalizers[m.plan.Type](&matrixFinalizeInput{CM: cm, Rows: m.rows, slot: m})
+		out, ferr := m.finalize(cm, false)
 		if ferr != nil {
 			return types.MatrixResult{}, nil, ferr
 		}
@@ -317,12 +340,7 @@ func (m *matrixSlot) result() (types.MatrixResult, *types.MatrixComponents, erro
 // operator, decides what is on the wire.
 func (m *matrixSlot) render(cm *linalg.CoMoment) (types.MatrixResult, map[string]any, error) {
 	workMatrixResultBuilds.Add(1)
-	fin, ok := matrixFinalizers[m.plan.Type]
-	if !ok {
-		return types.MatrixResult{}, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
-			"matrix operator has no finalizer", map[string]any{"type": string(m.plan.Type)})
-	}
-	out, err := fin(&matrixFinalizeInput{CM: cm, Rows: m.rows, slot: m})
+	out, err := m.finalize(cm, true)
 	if err != nil {
 		return types.MatrixResult{}, nil, err
 	}
@@ -349,6 +367,22 @@ func (m *matrixSlot) render(cm *linalg.CoMoment) (types.MatrixResult, map[string
 		res.Vectors = out.Vectors
 	}
 	return res, out.Operator, nil
+}
+
+// finalize runs the slot's operator over the merged state cm: the
+// built-in finalizer (matrixFinalizers), else the extension operator's
+// (finalizeExtension) — built-in first, so an extension never shadows
+// one (names cannot collide: pulse.New refuses it). want is false on a
+// components-only run (every result part off).
+func (m *matrixSlot) finalize(cm *linalg.CoMoment, want bool) (matrixOutput, error) {
+	if fin, ok := matrixFinalizers[m.plan.Type]; ok {
+		return fin(&matrixFinalizeInput{CM: cm, Rows: m.rows, slot: m})
+	}
+	if m.extOp != nil {
+		return m.finalizeExtension(cm, want)
+	}
+	return matrixOutput{}, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+		"matrix operator has no finalizer", map[string]any{"type": string(m.plan.Type)})
 }
 
 // components renders the slot's Response.Components.Matrices entry off
@@ -397,7 +431,8 @@ func (m *matrixSlot) components(cm *linalg.CoMoment) *types.MatrixComponents {
 }
 
 // matrixFinalizers is the built-in MAT_* registry: one finalizer per
-// types.AllMatrixTypes() entry (there is no extension MAT_* category).
+// types.AllMatrixTypes() entry. An extension MAT_* operator's finalizer
+// rides its slot instead (matrixSlot.extOp, matrix_extension.go).
 // The contract is matrixFinalizer (matrix_finalize.go).
 var matrixFinalizers = map[types.MatrixType]matrixFinalizer{
 	types.MAT_COVARIANCE:          finalizeCovariance,

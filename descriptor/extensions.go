@@ -10,16 +10,22 @@ package descriptor
 // Extensions block emits as nested empty slices (not null) for
 // JSON-stability across releases.
 type ExtensionsManifest struct {
-	Aggregators        []OperatorMeta     `json:"aggregators"`
-	Attributes         []OperatorMeta     `json:"attributes"`
-	Filterers          []OperatorMeta     `json:"filterers"`
-	Groupers           []OperatorMeta     `json:"groupers"`
-	Windows            []OperatorMeta     `json:"windows"`
-	Features           []OperatorMeta     `json:"features"`
-	Tests              []OperatorMeta     `json:"tests"`
-	SynthDistributions []OperatorMeta     `json:"synth_distributions"`
-	ExprFunctions      []ExprFunctionMeta `json:"expr_functions"`
-	LookupTables       []LookupTableMeta  `json:"lookup_tables"`
+	Aggregators        []OperatorMeta `json:"aggregators"`
+	Attributes         []OperatorMeta `json:"attributes"`
+	Filterers          []OperatorMeta `json:"filterers"`
+	Groupers           []OperatorMeta `json:"groupers"`
+	Windows            []OperatorMeta `json:"windows"`
+	Features           []OperatorMeta `json:"features"`
+	Tests              []OperatorMeta `json:"tests"`
+	SynthDistributions []OperatorMeta `json:"synth_distributions"`
+	// MatrixOps lists the embedder-registered MAT_* matrix operators
+	// in the built-in Matrices shape (MatrixMeta): member types, the
+	// engine-owned params then the operator's own, OutputKeys, the
+	// declared tier and the matrix floor plus the operator's component
+	// keys. A request names one in Request.Matrices like a built-in.
+	MatrixOps     []MatrixMeta       `json:"matrix_ops"`
+	ExprFunctions []ExprFunctionMeta `json:"expr_functions"`
+	LookupTables  []LookupTableMeta  `json:"lookup_tables"`
 	// ReferenceVectors lists the registered reference-vector tables
 	// (Options.Extensions.ReferenceVectors) an expression reads with
 	// ref("table", key).

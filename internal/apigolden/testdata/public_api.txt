@@ -649,6 +649,7 @@ pulse: type MatrixOpRegistration field Factory pulse/extend.MatrixFactory
 pulse: type MatrixOpRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type MatrixOpRegistration field Name pulse/types.MatrixType
 pulse: type MatrixOpRegistration field OutputKeys pulse/descriptor.MatrixOutputKeys
+pulse: type MatrixOpRegistration field PValues string
 pulse: type MatrixOpRegistration field Params []pulse.ParamMeta
 pulse: type MatrixOpRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type MatrixOpRegistration field Streamable bool
@@ -1323,6 +1324,7 @@ pulse/descriptor: type ExtensionsManifest field Filterers []pulse/descriptor.Ope
 pulse/descriptor: type ExtensionsManifest field Groupers []pulse/descriptor.OperatorMeta "json:\"groupers\""
 pulse/descriptor: type ExtensionsManifest field LabelTables []pulse/descriptor.LabelTableMeta "json:\"label_tables\""
 pulse/descriptor: type ExtensionsManifest field LookupTables []pulse/descriptor.LookupTableMeta "json:\"lookup_tables\""
+pulse/descriptor: type ExtensionsManifest field MatrixOps []pulse/descriptor.MatrixMeta "json:\"matrix_ops\""
 pulse/descriptor: type ExtensionsManifest field RangeTables []pulse/descriptor.RangeTableMeta "json:\"range_tables\""
 pulse/descriptor: type ExtensionsManifest field ReferenceVectors []pulse/descriptor.ReferenceVectorMeta "json:\"reference_vectors\""
 pulse/descriptor: type ExtensionsManifest field SynthDistributions []pulse/descriptor.OperatorMeta "json:\"synth_distributions\""
@@ -5208,4 +5210,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 3b09e6b751e82945254f7579cf9ba1ab2444d173a65e4e1f246b55cd39f208d2
+// golden-hash: e7c732b45a8ac45a4106fb6e9ff131bd09ff6a3367877df2dc7f393c11c55c1b
