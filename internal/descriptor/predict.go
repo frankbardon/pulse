@@ -17,69 +17,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// numericAggregations are aggregation types that only make sense on numeric fields.
-var numericAggregations = map[types.AggregationType]bool{
-	types.AGG_SUM: true,
-	// AGG_DISTINCT_SUM sums its own Field once per distinct key; the
-	// summed value is numeric even though the key named by
-	// params.distinct_by is frequently categorical. Only Field is
-	// checked here, so a categorical VALUE column is the meaningless
-	// case this flags — the same reason AGG_SUM is listed.
-	types.AGG_DISTINCT_SUM: true,
-	types.AGG_AVERAGE:      true,
-	types.AGG_MIN:          true,
-	types.AGG_MAX:          true,
-	types.AGG_STDDEV:       true,
-	types.AGG_RANGE:        true,
-	types.AGG_ZSCORE:       true,
-	types.AGG_MEDIAN:       true,
-	types.AGG_VARIANCE:     true,
-	types.AGG_SKEWNESS:     true,
-	types.AGG_KURTOSIS:     true,
-	types.AGG_PERCENTILE:   true,
-}
-
-// CategoricalAggregationIssues returns one EnvelopeEntry per
-// (Aggregation slot referencing a categorical field, aggregator from
-// numericAggregations) pair found in req. Each entry carries the
-// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL code, a human-readable
-// message, and the {field, aggregation} details map. Strict-mode
-// promotion is the caller's responsibility — the helper itself is
-// non-judgmental and returns nil when the request, schema, or
-// Aggregations slice is empty / nil.
-//
-// Used by:
-//   - validateRequestFields (predict path) — emits to env.Warnings /
-//     env.Errors based on PredictOptions.Strict.
-//   - service.Process — wraps the first entry as a coded error when
-//     Service is configured strict; non-strict emission flows through
-//     the envelope at the CLI boundary.
-//
-// inst is the instance feature set: an aggregator it hides is judged
-// as a never-registered name (not in numericAggregations). Nil hides
-// nothing.
-func CategoricalAggregationIssues(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) []*descriptor.EnvelopeEntry {
-	if req == nil || schema == nil || len(req.Aggregations) == 0 {
-		return nil
-	}
-	var out []*descriptor.EnvelopeEntry
-	for _, agg := range req.Aggregations {
-		f := schema.Field(agg.Field)
-		if f == nil {
-			continue
-		}
-		if !f.Type.IsCategorical() || !numericAggregations[opRoute(inst, agg.Type)] {
-			continue
-		}
-		out = append(out, &descriptor.EnvelopeEntry{
-			Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),
-			Message: "numeric aggregation " + string(agg.Type) + " is not meaningful for categorical field " + agg.Field,
-			Details: map[string]any{"field": agg.Field, "aggregation": string(agg.Type)},
-		})
-	}
-	return out
-}
-
 // decimalAggregationRefused reports whether agg on a decimal128 field
 // draws PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL: a built-in with no decimal
 // arm in the accepted-types table (fieldaccept.HasDecimalArm). A
@@ -993,20 +930,13 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *desc
 }
 
 // validateRequestFields reports the schema-typed checks on the request's
-// slots (numeric aggregations on categorical fields, decimal
-// aggregations, regression and attribute shape). Whether a referenced
-// name exists at all is FieldRefRefusals' judgement, not this one's.
+// slots (model-error aggregators, regression and attribute shape).
+// Whether a referenced name exists at all is FieldRefRefusals'
+// judgement, not this one's.
 func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool, opts *PredictOptions) {
-	// Numeric aggregation on categorical field — single helper, strict
-	// promotion happens here so service.Process can share the helper
-	// without owning predict's strict semantics.
-	for _, entry := range CategoricalAggregationIssues(req, schema, opts.Instance) {
-		if opts.Strict {
-			env.Errors = append(env.Errors, entry)
-		} else {
-			env.Warnings = append(env.Warnings, entry)
-		}
-	}
+	// A numeric aggregation on a categorical field (its dictionary
+	// index) is the accepted-types table's PULSE_FIELD_TYPE_UNSUPPORTED,
+	// reported by validateFieldAcceptance at every aggregation slot.
 
 	// Unknown names are the field-reference rule's refusals
 	// (FieldRefRefusals, reported right after zone resolution); the

@@ -398,9 +398,10 @@ type Options struct {
 	DefaultReturn *types.Return
 
 	// Strict promotes request-validation warnings into hard errors at
-	// runtime. Today this covers the numeric-aggregation-on-categorical
-	// check (PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL); future runtime
-	// validations follow the same flag. Defaults to false — Process
+	// runtime (the weighting and vector advisories); future runtime
+	// validations follow the same flag. (A numeric aggregation over a
+	// categorical is refused PULSE_FIELD_TYPE_UNSUPPORTED whatever the
+	// flag.) Defaults to false — Process
 	// runs the request and emits warnings through the descriptor
 	// Envelope (visible via --json at the CLI boundary). Predict's
 	// PredictOptions.Strict remains independently controllable.

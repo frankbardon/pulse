@@ -262,3 +262,35 @@ func TestTableCodes(t *testing.T) {
 		}
 	}
 }
+
+// TestTypeNames_NumericReaders pins E2-S4's rows: the arithmetic
+// aggregators, AGG_RATIO's two params columns and FEAT_LOG / SQRT /
+// BUCKETIZE read the analytics-numeric types (the decimal rule still
+// trims decimal128 from an aggregator with no decimal arm) and refuse
+// a categorical or a set; the counting aggregators are not tabled for
+// a categorical refusal.
+func TestTypeNames_NumericReaders(t *testing.T) {
+	all := []string{"date", "datetime", "decimal128", "f32", "f64", "packed_bool", "u16", "u32", "u4", "u64", "u8"}
+	noDecimal := []string{"date", "datetime", "f32", "f64", "packed_bool", "u16", "u32", "u4", "u64", "u8"}
+	for op, want := range map[string][]string{
+		"AGG_SUM": all, "AGG_VARIANCE": all, "AGG_MEDIAN": noDecimal, "AGG_CI_UPPER": noDecimal,
+		"FEAT_LOG": all, "FEAT_SQRT": all, "FEAT_BUCKETIZE": all,
+	} {
+		if got := TypeNames(op, SlotField); !reflect.DeepEqual(got, want) {
+			t.Errorf("%s field: %v, want %v", op, got, want)
+		}
+	}
+	for _, slot := range []Slot{SlotNumerator, SlotDenominator} {
+		if got := TypeNames("AGG_RATIO", slot); !reflect.DeepEqual(got, all) {
+			t.Errorf("AGG_RATIO %s: %v, want %v", slot, got, all)
+		}
+	}
+	if _, tabled := Lookup("AGG_RATIO", SlotField); tabled {
+		t.Error("AGG_RATIO's ignored field is tabled")
+	}
+	for _, op := range []string{"AGG_COUNT", "AGG_MODE", "AGG_MODE_COUNT", "AGG_FREQUENCY", "AGG_DISTINCT_COUNT", "AGG_NULL_COUNT"} {
+		if !Accepts(op, SlotField, encoding.FieldTypeCategoricalU16) {
+			t.Errorf("%s refuses a categorical", op)
+		}
+	}
+}

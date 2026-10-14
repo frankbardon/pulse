@@ -54,8 +54,8 @@ new type to each operator individually.
 
 If the new type changes how an operator behaves (categorical-vs-numeric
 routing, nullable-vs-non-nullable handling), update
-`internal/descriptor/predict.go`'s routing tables (`numericAggregations`,
-`categoricalAggregations`, …).
+the accepted-types table (`internal/fieldaccept`) classes that judge it —
+predict and the runtime both read that table.
 
 ## 5. Update the cohort-schema-design skill
 

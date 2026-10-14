@@ -37,7 +37,7 @@ guaranteed to never touch the executor.
 ```
 Valid: true
 Schema: 7 fields
-Warning [PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL]: AGG_AVG on field region (categorical_u8)
+Warning [PULSE_FIELD_DESCRIPTION_LOW_QUALITY]: field region has an empty description
 ```
 
 Without `--strict`, that warning would still let the command exit 0.
@@ -60,7 +60,7 @@ non-zero.
   },
   "errors":  [],
   "warnings": [
-    {"code": "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL", "message": "..."}
+    {"code": "PULSE_FIELD_DESCRIPTION_LOW_QUALITY", "message": "..."}
   ]
 }
 ```
@@ -203,7 +203,7 @@ pulse api predict-compose --request batch.json --json | jq '.data.valid'
 
 | Code | What to do |
 |---|---|
-| `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` | Use `AGG_COUNT` / `AGG_MODE_COUNT` instead of `AGG_SUM` / `AGG_AVG` on categoricals |
+| `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` | A facet's `numeric_percentiles` / `include_histogram` names a non-numeric field, which gets no numeric statistic; facet a numeric field (a numeric aggregation over a categorical is the error `PULSE_FIELD_TYPE_UNSUPPORTED`: use `AGG_COUNT` / `AGG_MODE_COUNT`) |
 | `PULSE_ATTR_CODE_NOT_IN_DICTIONARY`        | An `ATTR_CODE_IN` code is not a label of the categorical field's dictionary (it matches no row); fix or drop each entry in `details.missing_codes` |
 | `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`      | Edit the schema description; re-import |
 | `PULSE_FEAT_TARGET_LEAKAGE_RISK`           | Every `FEAT_TARGET_ENCODE` averages all rows' targets (a prior split does not help); compute train-only means in a separate request |

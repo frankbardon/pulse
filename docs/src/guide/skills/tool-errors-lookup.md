@@ -13,7 +13,7 @@ Also to triage a known code or enumerate every code in one domain. The manifest 
 
 ## Input
 
-- `code` (string, optional): exact code identifier (e.g. `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`). Returns 1-element array on hit, empty on miss.
+- `code` (string, optional): exact code identifier (e.g. `PULSE_FIELD_TYPE_UNSUPPORTED`). Returns 1-element array on hit, empty on miss.
 - `domain` (string, optional): domain prefix (`PULSE`, `ENCODING`, `PROCESSING`, `SERVICE`, `DATA`, `CLI`). Case-insensitive; enumerates every code in that domain.
 - `query` (string, optional): case-insensitive substring across descriptions and fixup hints; ranks message hits above fixup hits.
 

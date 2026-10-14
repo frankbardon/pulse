@@ -5895,8 +5895,11 @@
           ],
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -5962,8 +5965,11 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -6041,8 +6047,11 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -9735,7 +9744,7 @@
       },
       {
         "name": "pulse_predict",
-        "description": "CALL BEFORE STORING OR EXECUTING A HAND-AUTHORED OR GENERATED REQUEST. Validate a processing request against a cohort schema without executing. Returns the same diagnostics execution would emit on shape error (PULSE_REQUEST_UNKNOWN_FIELD, PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, etc.) plus the normalized request, streamability flag, and the defaults the engine applied. Cheap: it reads only the cohort header + schema. To predict another request shape, send exactly one alternative root alone; its verdict comes back under the same key beside `errors` / `warnings`, and a root beside any other key is SERVICE_VALIDATION. `composed` takes a pulse_compose body. `facet` takes a pulse_facet_schema body. `chain` takes a pulse_process_chain body."
+        "description": "CALL BEFORE STORING OR EXECUTING A HAND-AUTHORED OR GENERATED REQUEST. Validate a processing request against a cohort schema without executing. Returns the same diagnostics execution would emit on shape error (PULSE_REQUEST_UNKNOWN_FIELD, PULSE_FIELD_TYPE_UNSUPPORTED, etc.) plus the normalized request, streamability flag, and the defaults the engine applied. Cheap: it reads only the cohort header + schema. To predict another request shape, send exactly one alternative root alone; its verdict comes back under the same key beside `errors` / `warnings`, and a root beside any other key is SERVICE_VALIDATION. `composed` takes a pulse_compose body. `facet` takes a pulse_facet_schema body. `chain` takes a pulse_process_chain body."
       },
       {
         "name": "pulse_process",
@@ -10555,6 +10564,9 @@
           "WIN_ROW_NUMBER"
         ],
         "compatible_features": [
+          "FEAT_BUCKETIZE",
+          "FEAT_LOG",
+          "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
       },
@@ -10725,7 +10737,10 @@
           "WIN_ROW_NUMBER"
         ],
         "compatible_features": [
+          "FEAT_BUCKETIZE",
+          "FEAT_LOG",
           "FEAT_POLY",
+          "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
       },
@@ -10965,7 +10980,10 @@
           "WIN_ROW_NUMBER"
         ],
         "compatible_features": [
+          "FEAT_BUCKETIZE",
           "FEAT_DATE_FEATURES",
+          "FEAT_LOG",
+          "FEAT_SQRT",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
       },
@@ -17190,4 +17208,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9def41b0d1181a0b7c53e7022123e3838460a37ec9b608b292c135847c7ada23
+// golden-hash: 84a499b94b95add64ebc235694fd0d5cf7688a0c7166725b04a3ede86a0c7f71

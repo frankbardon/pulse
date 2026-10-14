@@ -19,7 +19,7 @@ examples_tags: [cardinality-analysis, streaming-friendly]
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | numeric, no `decimal128` (incl. `u4`, `date`, `datetime`, `packed_bool`) |
+| `Field` | numeric (no `decimal128`): `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `packed_bool`; a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
 | `distinct_by` | any numeric-coded field, `categorical_*` included |
 
 ## Output

@@ -35,7 +35,7 @@ The weighted mean of the core family: same figure and engine, own type name and 
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | numeric except `decimal128` (incl. `date`, `datetime`, `packed_bool`, `u4`) |
+| `Field` | numeric (no `decimal128`): `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `packed_bool`; a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
 | `weight_field` | numeric, same family |
 
 ## Output

@@ -32,7 +32,7 @@ Use something else:
 
 ## Inputs
 
-`Field` (required) — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `SplitBy` (optional — when set, runs per-group) — categorical: `categorical_u8`/`u16`/`u32`; else `PULSE_FIELD_TYPE_UNSUPPORTED`.
+`Field` (required) — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1). `SplitBy` (optional — when set, runs per-group) — categorical: `categorical_u8`/`u16`/`u32`; else `PULSE_FIELD_TYPE_UNSUPPORTED`.
 
 ## Output
 

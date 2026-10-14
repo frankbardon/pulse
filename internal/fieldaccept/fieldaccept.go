@@ -3,8 +3,9 @@
 // accepts and the coded refusal it raises for any other type.
 //
 // Both sides read it. The runtime constructors in internal/processing
-// (window application, FEAT_POLY, the regression build, the tier-1 test
-// constructors) refuse with Refusal / Check, and predict
+// (window application, the features, the regression build, the tier-1
+// test constructors, the numeric aggregators' registry wrapper) refuse
+// with Refusal / Check, and predict
 // (internal/descriptor) reports the very same *errors.CodedError at the
 // same slot, so the two agree on code, message, details and count by
 // construction. The manifest's accepts_types for a tabled slot is
@@ -75,6 +76,10 @@ const (
 	// SlotPrediction is a model-error aggregator's
 	// `params.prediction_field`.
 	SlotPrediction Slot = "prediction_field"
+	// SlotNumerator / SlotDenominator are AGG_RATIO's
+	// `params.numerator_field` / `params.denominator_field`.
+	SlotNumerator   Slot = "numerator_field"
+	SlotDenominator Slot = "denominator_field"
 )
 
 // Rule is one tabled slot: the accepted types and the refusal code.
@@ -253,6 +258,18 @@ func init() {
 		"ATTR_NORMALIZED", "ATTR_PERCENTILE", "ATTR_TSCORE", "ATTR_ZSCORE",
 		"GROUP_QUANTILE", "GROUP_RANGE", "GROUP_ROUNDED", "FILTER_RANGE")
 	add(strictScalar, unsupported, field, "AGG_WELFORD")
+	// The numeric readers: aggregators and features whose figure is
+	// arithmetic on the field's stored number. A categorical's number is
+	// its dictionary index and a set's is no number at all (Record.
+	// NumericValue refuses it, so every row would drop silently): both
+	// refused. The decimal rule still judges a decimal128 field first.
+	add(analyticsValue, unsupported, field,
+		"AGG_SUM", "AGG_AVERAGE", "AGG_MIN", "AGG_MAX", "AGG_STDDEV", "AGG_VARIANCE", "AGG_RANGE",
+		"AGG_ZSCORE", "AGG_MEDIAN", "AGG_PERCENTILE", "AGG_SKEWNESS", "AGG_KURTOSIS",
+		"AGG_WEIGHTED_MEAN", "AGG_DISTINCT_SUM", "AGG_CI_LOWER", "AGG_CI_UPPER",
+		"FEAT_LOG", "FEAT_SQRT", "FEAT_BUCKETIZE")
+	// AGG_RATIO ignores its own field and sums its two params columns.
+	add(analyticsValue, unsupported, []Slot{SlotNumerator, SlotDenominator}, "AGG_RATIO")
 	add(analyticsValue, unsupported, []Slot{SlotTarget, SlotPredictor},
 		"ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE")
 	add(setValue, unsupported, field,

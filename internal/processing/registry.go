@@ -1,34 +1,36 @@
 package processing
 
 import (
+	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
 // aggregatorRegistry maps aggregation types to their factory functions.
 var aggregatorRegistry = map[types.AggregationType]AggregatorFactory{
 	types.AGG_COUNT:          newCountAggregator,
-	types.AGG_SUM:            newSumAggregator,
-	types.AGG_AVERAGE:        newAverageAggregator,
-	types.AGG_MIN:            newMinAggregator,
-	types.AGG_MAX:            newMaxAggregator,
-	types.AGG_STDDEV:         newStdDevAggregator,
-	types.AGG_RANGE:          newRangeAggregator,
+	types.AGG_SUM:            numericReader(newSumAggregator),
+	types.AGG_AVERAGE:        numericReader(newAverageAggregator),
+	types.AGG_MIN:            numericReader(newMinAggregator),
+	types.AGG_MAX:            numericReader(newMaxAggregator),
+	types.AGG_STDDEV:         numericReader(newStdDevAggregator),
+	types.AGG_RANGE:          numericReader(newRangeAggregator),
 	types.AGG_MODE_COUNT:     newModeCountAggregator,
 	types.AGG_FREQUENCY:      newFrequencyAggregator,
-	types.AGG_ZSCORE:         newZScoreAggregator,
-	types.AGG_MEDIAN:         newMedianAggregator,
-	types.AGG_VARIANCE:       newVarianceAggregator,
+	types.AGG_ZSCORE:         numericReader(newZScoreAggregator),
+	types.AGG_MEDIAN:         numericReader(newMedianAggregator),
+	types.AGG_VARIANCE:       numericReader(newVarianceAggregator),
 	types.AGG_MODE:           newModeAggregator,
-	types.AGG_SKEWNESS:       newSkewnessAggregator,
-	types.AGG_KURTOSIS:       newKurtosisAggregator,
+	types.AGG_SKEWNESS:       numericReader(newSkewnessAggregator),
+	types.AGG_KURTOSIS:       numericReader(newKurtosisAggregator),
 	types.AGG_DISTINCT_COUNT: newDistinctCountAggregator,
-	types.AGG_PERCENTILE:     newPercentileAggregator,
+	types.AGG_PERCENTILE:     numericReader(newPercentileAggregator),
 	types.AGG_NULL_COUNT:     newNullCountAggregator,
-	types.AGG_WEIGHTED_MEAN:  newWeightedMeanAggregator,
+	types.AGG_WEIGHTED_MEAN:  numericReader(newWeightedMeanAggregator),
 	types.AGG_RATIO:          newRatioAggregator,
-	types.AGG_DISTINCT_SUM:   newDistinctSumAggregator,
-	types.AGG_CI_LOWER:       newCIAggregator(ciLower),
-	types.AGG_CI_UPPER:       newCIAggregator(ciUpper),
+	types.AGG_DISTINCT_SUM:   numericReader(newDistinctSumAggregator),
+	types.AGG_CI_LOWER:       numericReader(newCIAggregator(ciLower)),
+	types.AGG_CI_UPPER:       numericReader(newCIAggregator(ciUpper)),
 	types.AGG_WELFORD:        newWelfordAggregator,
 	types.AGG_MAPE:           newModelErrorAggregator(modelErrorMAPE),
 	types.AGG_RMSE:           newModelErrorAggregator(modelErrorRMSE),
@@ -44,6 +46,26 @@ var aggregatorRegistry = map[types.AggregationType]AggregatorFactory{
 	types.AGG_VEC_MEAN: newVecAggregator,
 	types.AGG_VEC_SUM:  newVecAggregator,
 	types.AGG_VEC_SD:   newVecAggregator,
+}
+
+// numericReader wraps the factory of an aggregator whose figure is
+// arithmetic on its field's stored number with the accepted-types
+// table's refusal (internal/fieldaccept): a categorical field (its
+// dictionary index) or a set_* field (no number) is refused
+// PULSE_FIELD_TYPE_UNSUPPORTED before the aggregator is built, on every
+// path that builds one — buffered, streaming, grouped, crosstab cell and
+// margins, shard partials — and predict reports the same refusal from
+// the table. A field the schema does not carry (a derived column) and a
+// nil schema (a registry probe) are not judged.
+func numericReader(f AggregatorFactory) AggregatorFactory {
+	return func(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
+		if agg != nil {
+			if cerr := fieldaccept.Check(string(agg.Type), fieldaccept.SlotField, agg.Field, schema); cerr != nil {
+				return nil, cerr
+			}
+		}
+		return f(agg, schema)
+	}
 }
 
 // attributeRegistry maps attribute types to their factory functions.

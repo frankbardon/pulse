@@ -1,7 +1,7 @@
 {
   "format_version": "1.1",
   "data": {
-    "valid": true,
+    "valid": false,
     "request": {
       "aggregations": [
         {
@@ -39,7 +39,7 @@
           "1",
           "Type"
         ],
-        "reason": "Use AGG_MODE, AGG_MODE_COUNT, AGG_DISTINCT_COUNT, or AGG_COUNT for categorical fields.",
+        "reason": "numeric aggregation does not apply to a categorical field (its dictionary index); use a categorical-friendly aggregator",
         "current": "AGG_SUM",
         "proposed": [
           "AGG_DISTINCT_COUNT",
@@ -225,16 +225,31 @@
       }
     ]
   },
-  "errors": [],
-  "warnings": [
+  "errors": [
     {
-      "code": "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL",
-      "message": "numeric aggregation AGG_SUM is not meaningful for categorical field grade",
+      "code": "PULSE_FIELD_TYPE_UNSUPPORTED",
+      "message": "AGG_SUM field grade has type categorical_u8; accepted: date, datetime, decimal128, f32, f64, packed_bool, u16, u32, u4, u64, u8",
       "details": {
-        "aggregation": "AGG_SUM",
-        "field": "grade"
+        "accepts_types": [
+          "date",
+          "datetime",
+          "decimal128",
+          "f32",
+          "f64",
+          "packed_bool",
+          "u16",
+          "u32",
+          "u4",
+          "u64",
+          "u8"
+        ],
+        "field": "grade",
+        "field_type": "categorical_u8",
+        "slot": "field",
+        "type": "AGG_SUM"
       }
     }
-  ]
+  ],
+  "warnings": []
 }
-// golden-hash: 93caca6d22e4a31bacce7759e967e7910c178d3337fe571766f67536c8484f05
+// golden-hash: 1dfd1d4d7c5b1c5905f168b7b1a6ad9edd79201ceff9b9c291891189e748593d

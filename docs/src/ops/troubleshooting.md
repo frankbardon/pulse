@@ -77,8 +77,8 @@ operator targets a field of the wrong type.
 **Fix:** run [`pulse api predict`](../cli/api-predict.md) on the same
 request — predict diagnoses validation failures without executing.
 Common cases: typo in field name; numeric aggregation on a
-categorical field (warning code
-`PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`); two-pass attribute
+categorical field (error code `PULSE_FIELD_TYPE_UNSUPPORTED`, which
+`Process` raises too); two-pass attribute
 combined with a feature (currently buffered, not invalid — predict
 will flag this in `streamable_reasons`).
 

@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -191,7 +192,7 @@ func appendOperatorTypeSuggestions(out []descriptor.Suggestion, req *types.Reque
 		route := opRoute(inst, agg.Type)
 
 		switch {
-		case f.Type.IsCategorical() && numericAggregations[route]:
+		case f.Type.IsCategorical() && !fieldaccept.Accepts(string(route), fieldaccept.SlotField, f.Type):
 			proposed := visibleOperators(inst,
 				types.AGG_DISTINCT_COUNT,
 				types.AGG_MODE_COUNT,
@@ -199,7 +200,7 @@ func appendOperatorTypeSuggestions(out []descriptor.Suggestion, req *types.Reque
 			)
 			out = append(out, descriptor.Suggestion{
 				Path:       path,
-				Reason:     reasonFromCode(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, "numeric aggregation does not apply to a categorical field; use a categorical-friendly aggregator", inst),
+				Reason:     "numeric aggregation does not apply to a categorical field (its dictionary index); use a categorical-friendly aggregator",
 				Current:    string(agg.Type),
 				Proposed:   proposed,
 				Confidence: 0.6,

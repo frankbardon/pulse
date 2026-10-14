@@ -29,10 +29,11 @@ The most common issues:
 | Symptom | Likely code |
 |---|---|
 | Field-name typo | `SERVICE_VALIDATION` |
-| Numeric aggregation on a categorical field | `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` |
+| Numeric aggregation or feature on a categorical field | `PULSE_FIELD_TYPE_UNSUPPORTED` (error, both sides) |
+| Facet numeric statistic on a non-numeric field | `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` (warning) |
 | Description below the quality threshold | `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` |
 | `ATTR_CODE_IN` code absent from a categorical dictionary | `PULSE_ATTR_CODE_NOT_IN_DICTIONARY` |
-| Operator's `AcceptsTypes` excludes the field | `SERVICE_VALIDATION` |
+| Operator's `AcceptsTypes` excludes the field | `PULSE_FIELD_TYPE_UNSUPPORTED` |
 | `Filterer` referenced from `Aggregation` not declared | `SERVICE_VALIDATION` |
 
 Resolve the typo / mismatch and re-run predict.

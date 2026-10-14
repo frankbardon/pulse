@@ -108,9 +108,10 @@ func TestPredictBytes_ExtensionOperatorIsKnown(t *testing.T) {
 func TestPredictBytes_HonoursStrict(t *testing.T) {
 	data := bytesFacadeCohort(t, 2, 0)
 	req := &types.Request{
-		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "seg", Label: "s"}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score", Label: "s"}},
 	}
-	const code = "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL"
+	// The cohort's fields carry no description.
+	const code = "PULSE_FIELD_DESCRIPTION_LOW_QUALITY"
 
 	lax, err := newBytesFacadePulse(t, pulse.Options{}).PredictBytes(context.Background(), data, req)
 	if err != nil {

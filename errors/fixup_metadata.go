@@ -758,18 +758,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: {
-		Message: "A numeric aggregation (SUM, AVERAGE, etc.) was requested on a categorical field.",
+		Message: "A facet asks a numeric statistic (numeric_percentiles, include_histogram) of a non-numeric field; predict warns, and the facet omits that statistic for the field. (A numeric aggregation over a categorical is refused PULSE_FIELD_TYPE_UNSUPPORTED.)",
 		Fixups: []Fixup{
 			{
-				Action:   FixupReplaceOperator,
-				Path:     []string{"Aggregations", "*", "Type"},
-				Hint:     "Use AGG_MODE, AGG_MODE_COUNT, AGG_DISTINCT_COUNT, or AGG_COUNT for categorical fields.",
-				Examples: []any{"AGG_MODE", "AGG_MODE_COUNT", "AGG_DISTINCT_COUNT", "AGG_COUNT"},
-			},
-			{
 				Action: FixupReplaceField,
-				Path:   []string{"Aggregations", "*", "Field"},
-				Hint:   "If the numeric semantics matter, pick a non-categorical numeric field on the same cohort.",
+				Path:   []string{"Fields"},
+				Hint:   "Ask numeric_percentiles / include_histogram of a numeric field; a categorical facet field's value_counts already carry its distribution.",
 			},
 		},
 	},
@@ -803,6 +797,12 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Name a field of one of details.accepts_types (a categorical for split_by, a contingency axis or stratify), or derive one first (ATTR_FORMULA, FEAT_ONE_HOT for a categorical, ATTR_SET_HAS / ATTR_SET_POPCOUNT for a set).",
+			},
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"Aggregations", "*", "Type"},
+				Hint:     "A numeric aggregation over a categorical field would read its dictionary index: count its values instead.",
+				Examples: []any{"AGG_MODE", "AGG_MODE_COUNT", "AGG_DISTINCT_COUNT", "AGG_COUNT"},
 			},
 		},
 	},

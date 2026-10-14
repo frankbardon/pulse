@@ -71,13 +71,16 @@ func TestTrainTestSplitName_NamesOnlyOffered(t *testing.T) {
 }
 
 func TestReasonFromCode_HintNamingHiddenFallsBack(t *testing.T) {
-	c := errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL
+	c := errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL
 	meta, _ := errors.MetadataFor(c)
 	hint := meta.Fixups[0].Hint
 	if got := reasonFromCode(c, "fallback", nil); got != hint {
 		t.Errorf("unscoped = %q, want the fixup hint %q", got, hint)
 	}
-	if got := reasonFromCode(c, "fallback", scopedExcept("AGG_MODE")); got != "fallback" {
-		t.Errorf("hint naming hidden AGG_MODE = %q, want the fallback", got)
+	if got := reasonFromCode(c, "fallback", scopedExcept("AGG_MEDIAN")); got != hint {
+		t.Errorf("hint naming no hidden operator = %q, want the fixup hint", got)
+	}
+	if got := reasonFromCode(c, "fallback", scopedExcept("AGG_STDDEV")); got != "fallback" {
+		t.Errorf("hint naming hidden AGG_STDDEV = %q, want the fallback", got)
 	}
 }

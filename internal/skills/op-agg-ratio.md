@@ -13,7 +13,7 @@ examples_tags: [proportion-analysis, streaming-friendly]
 
 ## Params
 
-`numerator_field`, `denominator_field` — required; a schema field OR a derived label (attribute<!-- feature: ATTR_REG_PREDICT --> incl. `ATTR_REG_PREDICT`<!-- /feature -->, feature output), read numerically (categorical → its code). Unknown → `SERVICE_VALIDATION`, predict and runtime alike.
+`numerator_field`, `denominator_field` — required; a schema field OR a derived label (attribute<!-- feature: ATTR_REG_PREDICT --> incl. `ATTR_REG_PREDICT`<!-- /feature -->, feature output), read numerically; a categorical (its dictionary index) or `set_*` column is refused `PULSE_FIELD_TYPE_UNSUPPORTED`, numerator first. Unknown → `SERVICE_VALIDATION`, predict and runtime alike.
 
 Weight-aware (`"weight": null` opts out): Σw·num / Σw·den. Weighted `decimal128` num/den → `PULSE_WEIGHT_UNSUPPORTED`.
 

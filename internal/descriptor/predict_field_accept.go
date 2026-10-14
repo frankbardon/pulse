@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"encoding/json"
 	stderrors "errors"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -53,8 +54,27 @@ func validateFieldAcceptance(env *descriptor.Envelope, req *types.Request, schem
 		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
 	agg := func(a *types.Aggregation) {
-		if a != nil {
-			check(string(opRoute(inst, a.Type)), fieldaccept.SlotField, a.Field)
+		if a == nil {
+			return
+		}
+		op := string(opRoute(inst, a.Type))
+		check(op, fieldaccept.SlotField, a.Field)
+		if op == string(types.AGG_RATIO) {
+			// AGG_RATIO sums its two params columns, numerator first —
+			// the constructor's order, after its params parse (a
+			// malformed or incomplete params block is its refusal).
+			var p struct {
+				Num string `json:"numerator_field"`
+				Den string `json:"denominator_field"`
+			}
+			if json.Unmarshal(a.Params, &p) != nil || p.Num == "" || p.Den == "" {
+				return
+			}
+			if cerr := fieldaccept.Check(op, fieldaccept.SlotNumerator, p.Num, schema); cerr != nil {
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+				return
+			}
+			check(op, fieldaccept.SlotDenominator, p.Den)
 		}
 	}
 	group := func(g *types.Group) {

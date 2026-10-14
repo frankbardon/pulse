@@ -420,8 +420,11 @@ const (
 	// invalidated_sidecars names each with its rebuild command.
 	PULSE_MATERIALIZE_SIDECARS_INVALIDATED Code = "PULSE_MATERIALIZE_SIDECARS_INVALIDATED"
 
-	// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL indicates a numeric aggregation
-	// was requested on a categorical field.
+	// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL is a predict warning: a
+	// facet asks numeric_percentiles / include_histogram of a non-numeric
+	// field, which the facet omits for it. A numeric aggregation or
+	// feature over a categorical is refused PULSE_FIELD_TYPE_UNSUPPORTED
+	// (the accepted-types table), on both sides.
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL"
 
 	// PULSE_FIELD_DESCRIPTION_LOW_QUALITY indicates a field description quality warning.
