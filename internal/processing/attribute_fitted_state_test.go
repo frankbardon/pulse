@@ -42,7 +42,21 @@ type fittedGoldenCase struct {
 	split, level string
 	params       map[string]any
 	weights      []string
+	// archExact marks a configuration whose whole scoring path is
+	// FMA-free reference arithmetic (linalg InverseSPD, the metric
+	// registry): its stored bits hold on every architecture. Every
+	// other configuration reads a gonum decomposition (SymEigen / SVD)
+	// or a libm-backed CDF, whose values may differ in the last ulps
+	// across architectures (matrix-and-vectors.md, Package surface), so
+	// the stored golden pins it within fittedCrossArchTol instead.
+	archExact bool
 }
+
+// fittedCrossArchTol bounds a non-archExact score's distance from its
+// stored bits, relative to 1 + the entry's largest |score|. The worst
+// amd64-vs-arm64 drift measured on these fixtures is ~1e-14 of scale;
+// any real model change moves scores by orders of magnitude more.
+const fittedCrossArchTol = 1e-12
 
 var allWeights = []string{"none", "frequency", "probability"}
 
@@ -58,10 +72,10 @@ func fittedGoldenCases() []fittedGoldenCase {
 	tf := []string{"v1", "v2", "v3", "v4", "v5", "v6"}
 	nl := []string{"x1", "x2", "x3", "x4"}
 	return []fittedGoldenCase{
-		{name: "maha_d2_attitude", typ: types.ATTR_MAHALANOBIS, fixture: "attitude", fields: att, weights: allWeights},
+		{name: "maha_d2_attitude", typ: types.ATTR_MAHALANOBIS, fixture: "attitude", fields: att, weights: allWeights, archExact: true},
 		{name: "maha_p_mtcars_fit_on", typ: types.ATTR_MAHALANOBIS, fixture: "mtcars", fields: mt, split: "am", level: "0",
 			params: map[string]any{"output": "p"}, weights: allWeights},
-		{name: "maha_d2_nulls", typ: types.ATTR_MAHALANOBIS, fixture: "nulls", fields: nl, weights: allWeights},
+		{name: "maha_d2_nulls", typ: types.ATTR_MAHALANOBIS, fixture: "nulls", fields: nl, weights: allWeights, archExact: true},
 		{name: "pc1_corr_attitude", typ: types.ATTR_PC_SCORE, fixture: "attitude", fields: att7,
 			params: map[string]any{"component": 1}, weights: allWeights},
 		{name: "pc2_cov_mtcars_fit_on", typ: types.ATTR_PC_SCORE, fixture: "mtcars", fields: mt, split: "am", level: "1",
@@ -77,11 +91,11 @@ func fittedGoldenCases() []fittedGoldenCase {
 		{name: "fa_heywood", typ: types.ATTR_FACTOR_SCORE, fixture: "heywood", fields: []string{"h1", "h2", "h3"},
 			params: map[string]any{"factor": 1, "factors": 1}, weights: []string{"none"}},
 		{name: "dist_std_euclidean_attitude", typ: types.ATTR_VEC_DISTANCE, fixture: "attitude", fields: att,
-			params: map[string]any{"metric": "std_euclidean", "reference": []float64{60, 65, 50, 55}}, weights: allWeights},
+			params: map[string]any{"metric": "std_euclidean", "reference": []float64{60, 65, 50, 55}}, weights: allWeights, archExact: true},
 		{name: "dist_mahalanobis_mtcars_fit_on", typ: types.ATTR_VEC_DISTANCE, fixture: "mtcars", fields: mt, split: "am", level: "0",
-			params: map[string]any{"metric": "mahalanobis", "reference": []float64{20, 200, 140, 3}}, weights: allWeights},
+			params: map[string]any{"metric": "mahalanobis", "reference": []float64{20, 200, 140, 3}}, weights: allWeights, archExact: true},
 		{name: "dist_mahalanobis_nulls", typ: types.ATTR_VEC_DISTANCE, fixture: "nulls", fields: nl,
-			params: map[string]any{"metric": "mahalanobis", "reference": []float64{0, 0, 0, 0}}, weights: allWeights},
+			params: map[string]any{"metric": "mahalanobis", "reference": []float64{0, 0, 0, 0}}, weights: allWeights, archExact: true},
 	}
 }
 
@@ -157,12 +171,65 @@ func readFittedGolden(t *testing.T) map[string]fittedGoldenEntry {
 	return out
 }
 
+// fittedGoldenDiff compares a run against its STORED golden entry: the
+// warnings, the row count and every null position exactly; the score
+// bits exactly when exact (c.archExact), else within fittedCrossArchTol
+// of 1 + the entry's largest |score|. "" means they agree.
+func fittedGoldenDiff(exact bool, got, want fittedGoldenEntry) string {
+	if fmt.Sprint(got.Warnings) != fmt.Sprint(want.Warnings) {
+		return fmt.Sprintf("warnings %v, want %v", got.Warnings, want.Warnings)
+	}
+	if len(got.Bits) != len(want.Bits) {
+		return fmt.Sprintf("%d rows, want %d", len(got.Bits), len(want.Bits))
+	}
+	decode := func(h string) float64 {
+		u, err := strconv.ParseUint(h, 16, 64)
+		if err != nil {
+			return math.NaN()
+		}
+		return math.Float64frombits(u)
+	}
+	scale := 0.0
+	for _, h := range want.Bits {
+		if h != "NaN" {
+			scale = math.Max(scale, math.Abs(decode(h)))
+		}
+	}
+	for i := range want.Bits {
+		g, w := got.Bits[i], want.Bits[i]
+		if g == w {
+			continue
+		}
+		if exact || g == "NaN" || w == "NaN" {
+			return fmt.Sprintf("row %d: bits %s, want %s", i, g, w)
+		}
+		gv, wv := decode(g), decode(w)
+		if !(math.Abs(gv-wv) <= fittedCrossArchTol*(1+scale)) {
+			return fmt.Sprintf("row %d: %.17g, want %.17g (beyond %g of scale %g)", i, gv, wv, fittedCrossArchTol, scale)
+		}
+	}
+	return ""
+}
+
+// liveFitOn runs c's fit_on request under weight in THIS process: the
+// bitwise reference every same-process equality compares against (the
+// stored golden is cross-architecture and pinned by FitOnGolden).
+func liveFitOn(t *testing.T, c fittedGoldenCase, weight string) fittedGoldenEntry {
+	t.Helper()
+	return runFittedGolden(t, c, func() *types.Request { return fittedGoldenRequest(c, weight, true, nil) })
+}
+
 // TestFittedState_FitOnGolden pins every fitted attribute's per-row
 // score bits on the fit_on path (written before the fitted-state
 // refactor): the refactor moved the models onto a prebuilt state and
-// every existing result kept its bits.
+// every existing result kept its bits. An archExact configuration is
+// pinned to the bit on every architecture; the rest to the bit on the
+// capturing architecture and within fittedCrossArchTol elsewhere (see
+// fittedGoldenDiff) — the bitwise refactor proof for those is
+// TestFittedState_PrebuiltMatchesFitOn's same-process equality.
 func TestFittedState_FitOnGolden(t *testing.T) {
 	got := map[string]fittedGoldenEntry{}
+	exact := map[string]bool{}
 	scored := 0
 	for _, c := range fittedGoldenCases() {
 		for _, w := range c.weights {
@@ -175,6 +242,7 @@ func TestFittedState_FitOnGolden(t *testing.T) {
 					}
 				}
 				got[fittedGoldenKey(c, w)] = e
+				exact[fittedGoldenKey(c, w)] = c.archExact
 			})
 		}
 	}
@@ -210,8 +278,8 @@ func TestFittedState_FitOnGolden(t *testing.T) {
 			t.Errorf("%s: not in the golden", k)
 			continue
 		}
-		if fmt.Sprint(g) != fmt.Sprint(w) {
-			t.Errorf("%s: score bits moved from the golden\n got %v\nwant %v", k, g, w)
+		if d := fittedGoldenDiff(exact[k], g, w); d != "" {
+			t.Errorf("%s: score bits moved from the golden: %s\n got %v\nwant %v", k, d, g, w)
 		}
 	}
 }
@@ -283,13 +351,15 @@ func modelSetOf(t *testing.T, fits ...*model.VectorFit) *model.Set {
 // every fitted attribute configuration's fit, captured from its fit_on
 // fold and bound back through params.fit — on a request with NO weight
 // (the fit's own basis governs) and NO fit_on — scores every row to the
-// bit of the fit_on golden, on both arms, with the same warnings; a fit
-// stored in a different axis order aligns by label to the same bits.
+// bit of the live fit_on run in the same process, on both arms, with
+// the same warnings; a fit stored in a different axis order aligns by
+// label to the same bits. Same-process, so bitwise on every
+// architecture (the stored golden is FitOnGolden's business).
 func TestFittedState_PrebuiltMatchesFitOn(t *testing.T) {
-	want := readFittedGolden(t)
 	for _, c := range fittedGoldenCases() {
 		for _, w := range c.weights {
 			t.Run(fittedGoldenKey(c, w), func(t *testing.T) {
+				want := liveFitOn(t, c, w)
 				vf := captureFittedState(t, c, w, "pop")
 				fitParams := map[string]any{"fit": "pop"}
 				for name, bound := range map[string]*model.VectorFit{"as captured": vf, "reversed": reversedFit(vf)} {
@@ -298,8 +368,8 @@ func TestFittedState_PrebuiltMatchesFitOn(t *testing.T) {
 						req := fittedGoldenRequest(c, "none", false, fitParams)
 						return req
 					})
-					if fmt.Sprint(got) != fmt.Sprint(want[fittedGoldenKey(c, w)]) {
-						t.Fatalf("%s: params.fit scores differ from the fit_on golden\n got %v\nwant %v", name, got, want[fittedGoldenKey(c, w)])
+					if fmt.Sprint(got) != fmt.Sprint(want) {
+						t.Fatalf("%s: params.fit scores differ from the live fit_on run\n got %v\nwant %v", name, got, want)
 					}
 				}
 			})
@@ -312,9 +382,8 @@ func TestFittedState_PrebuiltMatchesFitOn(t *testing.T) {
 // (swapped between members, labels kept) no longer reproduces the
 // fit_on scores — the equality reads the state, not the rows.
 func TestFittedState_SwappedStateMoves(t *testing.T) {
-	want := readFittedGolden(t)
 	for _, c := range fittedGoldenCases()[:4] {
-		key := fittedGoldenKey(c, "frequency")
+		want := liveFitOn(t, c, "frequency")
 		for name, mut := range map[string]func(*model.VectorFit){
 			"mean": func(v *model.VectorFit) { v.Mean[0], v.Mean[1] = v.Mean[1], v.Mean[0] },
 			"m2": func(v *model.VectorFit) {
@@ -334,7 +403,7 @@ func TestFittedState_SwappedStateMoves(t *testing.T) {
 				got := runFittedGoldenWith(t, c, modelSetOf(t, vf), func() *types.Request {
 					return fittedGoldenRequest(c, "none", false, map[string]any{"fit": "pop"})
 				})
-				if fmt.Sprint(got) == fmt.Sprint(want[key]) {
+				if fmt.Sprint(got) == fmt.Sprint(want) {
 					t.Fatalf("a %s-perturbed state still reproduces the fit_on scores: the equality test cannot bite", name)
 				}
 			})
@@ -431,7 +500,7 @@ func TestFittedState_FitRefusals(t *testing.T) {
 // its fit_on fold, and params.labels beside a named vector is refused.
 func TestFittedState_NamedVectorLabels(t *testing.T) {
 	c := fittedGoldenCases()[0] // maha_d2_attitude
-	want := readFittedGolden(t)[fittedGoldenKey(c, "none")]
+	want := liveFitOn(t, c, "none")
 	vf := captureFittedState(t, c, "none", "pop")
 	labels := []string{"Rating", "Complaints", "Privileges", "Learning"}
 	vf.Labels = append([]string(nil), labels...)
@@ -443,7 +512,7 @@ func TestFittedState_NamedVectorLabels(t *testing.T) {
 		}
 	})
 	if fmt.Sprint(got) != fmt.Sprint(want) {
-		t.Fatalf("named-vector fit scores differ from the fit_on golden\n got %v\nwant %v", got, want)
+		t.Fatalf("named-vector fit scores differ from the live fit_on run\n got %v\nwant %v", got, want)
 	}
 	if _, ce := vectors.ResolveAttributes(&types.Request{
 		Vectors:    []types.VectorSpec{{Name: "battery", Fields: c.fields, Labels: labels}},
