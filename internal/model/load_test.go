@@ -228,12 +228,12 @@ func TestCheckChainModels(t *testing.T) {
 	ok.Models = refs("m", "m"+FileSuffix)
 	again := saveReq()
 	again.Models = refs("m", "m"+FileSuffix) // each stage its own namespace
-	if cerr := CheckChainModels([]*types.ChainStage{stage(ok), nil, stage(again)}); cerr != nil {
+	if cerr := CheckChainModels([]*types.ChainStage{stage(ok), nil, stage(again)}, nil); cerr != nil {
 		t.Fatalf("refused: %v", cerr)
 	}
 	r := saveReq()
 	r.Models = refs("m", "nope.json")
-	cerr := CheckChainModels([]*types.ChainStage{stage(ok), stage(r)})
+	cerr := CheckChainModels([]*types.ChainStage{stage(ok), stage(r)}, nil)
 	if cerr == nil || cerr.Code != errors.PULSE_MODEL_REF_INVALID || cerr.Details["stage"] != 1 || cerr.Details["reason"] != ReasonSaveSuffix {
 		t.Fatalf("stage model ref: %v %+v", cerr, cerr)
 	}

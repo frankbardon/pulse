@@ -1157,9 +1157,9 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 // runtime.
 func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded) {
 	// The names every slot's ATTR_REG_PREDICT resolves: the runtime's
-	// fit pre-pass binds each `fits` entry before any slot runs, beside
-	// the slot's own loaded `models`.
-	fits := model.CatalogFromFits(req.Fits)
+	// fit pre-pass binds each `fits` entry before any slot runs, over
+	// the registered populations, beside the slot's own loaded entries.
+	fits := model.WithinCatalog(opts.populations(), model.CatalogFromFits(req.Fits))
 	for i, slot := range req.Requests {
 		if slot == nil {
 			continue
@@ -1196,7 +1196,7 @@ func (l *composeLoaded) slot(i int) *model.Loaded {
 // slot's, each refusal
 // located by details.fit / details.request.
 func loadComposeModels(req *types.ComposedRequest, opts *PredictOptions) (*composeLoaded, error) {
-	if cerr := model.CheckComposeBatch(req.Fits, req.Requests); cerr != nil {
+	if cerr := model.CheckComposeBatch(req.Fits, req.Requests, opts.populations()); cerr != nil {
 		return nil, cerr
 	}
 	out := &composeLoaded{fits: make([]*model.Loaded, len(req.Fits)), slots: make([]*model.Loaded, len(req.Requests))}
@@ -1318,8 +1318,8 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 			out[i].Cohort = cohortPathFor(req.Cohort)
 		}
 		// A fit request runs before the batch binds anything: it sees
-		// only its own loaded `models`.
-		schema, ok := validateComposeRequest(env, req, opts, "fit", i, loadedCatalog(nil, model.RequestRefs(req), loaded.fit(i)))
+		// only the registered populations and its own loaded entries.
+		schema, ok := validateComposeRequest(env, req, opts, "fit", i, loadedCatalog(opts.populations(), model.RequestRefs(req), loaded.fit(i)))
 		if !ok || schema == nil {
 			continue
 		}

@@ -418,7 +418,7 @@ func TestCheckChainModels_Populations(t *testing.T) {
 	stage := func(r *types.Request) *types.ChainStage { return &types.ChainStage{Request: r} }
 	r := saveReq()
 	r.Populations = pops("p", "p"+FileSuffix)
-	cerr := CheckChainModels([]*types.ChainStage{stage(saveReq()), stage(r)})
+	cerr := CheckChainModels([]*types.ChainStage{stage(saveReq()), stage(r)}, nil)
 	if cerr == nil || cerr.Code != errors.PULSE_MODEL_REF_INVALID || cerr.Details["stage"] != 1 || cerr.Details["population"] != 0 || cerr.Details["reason"] != ReasonSaveSuffix {
 		t.Fatalf("stage population ref: %v %+v", cerr, cerr)
 	}

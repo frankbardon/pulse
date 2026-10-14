@@ -21,6 +21,15 @@ type ModelFileReader interface {
 	ReadModelFile(path string) ([]byte, error)
 }
 
+// populations is the instance's registered populations as the outer
+// catalog every request's own entries layer over (nil for none).
+func (o *PredictOptions) populations() model.Catalog {
+	if o == nil {
+		return nil
+	}
+	return o.Extensions.PopulationCatalog()
+}
+
 // loadModelFiles is model.LoadFiles (the request's `models` and
 // `populations`) through opts' ModelLoader (nil: every entry is
 // PULSE_MODEL_FILE_UNREADABLE). No refs reads nothing.
@@ -35,8 +44,8 @@ func (o *PredictOptions) loadModelFiles(refs model.Refs) (*model.Loaded, *errors
 	return model.LoadFiles(refs, read)
 }
 
-// predictModels loads refs against outer (the names already bound — a
-// Compose slot's fits; nil for none) and returns the catalog the
+// predictModels loads refs against outer (the names already bound — the
+// registered populations, a Compose slot's fits over them; nil for none) and returns the catalog the
 // request's references resolve against: outer plus every loaded model
 // and population. On a refusal the catalog is outer alone and unloaded
 // names every entry, so a reference to one is not also reported

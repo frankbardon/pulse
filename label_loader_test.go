@@ -1,11 +1,16 @@
 package pulse
 
 import (
+	stderrors "errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/spf13/afero"
+
+	perrors "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/imports"
 	"github.com/frankbardon/pulse/internal/io/spss"
 	"github.com/frankbardon/pulse/internal/model"
@@ -74,9 +79,23 @@ func TestLoadLabelTables_CollisionWithProgrammatic(t *testing.T) {
 			LabelTables: map[string]LabelTable{"country": {Rows: map[string]string{"US": "US"}}},
 		},
 	}
-	err := loadLabelTablesFromDir(&opts)
-	if err == nil {
-		t.Fatal("expected collision error")
+	assertDirCollision(t, loadLabelTablesFromDir(&opts), "label_table", "country", filepath.Join(dir, "country.json"))
+	// pulse.New raises the same coded refusal.
+	_, err := New(Options{FS: afero.NewMemMapFs(), LabelTablesDir: dir, Extensions: opts.Extensions})
+	assertDirCollision(t, err, "label_table", "country", filepath.Join(dir, "country.json"))
+}
+
+// assertDirCollision: err is the documented directory-loader collision
+// — PULSE_EXTENSION_DUPLICATE naming the category, name and file.
+func assertDirCollision(t *testing.T, err error, category, name, path string) {
+	t.Helper()
+	var ce *perrors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != perrors.PULSE_EXTENSION_DUPLICATE {
+		t.Fatalf("collision: got %v, want PULSE_EXTENSION_DUPLICATE", err)
+	}
+	want := map[string]any{"category": category, "name": name, "path": path}
+	if !reflect.DeepEqual(ce.Details, want) {
+		t.Fatalf("collision details %+v, want %+v", ce.Details, want)
 	}
 }
 

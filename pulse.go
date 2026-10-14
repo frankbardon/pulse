@@ -441,10 +441,25 @@ type Options struct {
 	//
 	// Honoured after PULSE_RANGE_TABLES_DIR — the programmatic value
 	// wins. A table name declared both programmatically and on disk is
-	// a hard error at pulse.New; the registered ranges are then
-	// validated via the shared range-compilation pass, surfacing the
-	// matching PULSE_RANGE_* code on any structural failure.
+	// PULSE_EXTENSION_DUPLICATE at pulse.New; the registered ranges
+	// are then validated via the shared range-compilation pass,
+	// surfacing the matching PULSE_RANGE_* code on any structural
+	// failure.
 	RangeTablesDir string
+
+	// PopulationsDir points at a directory of saved population files
+	// (*.pulse-population.json, a Compose vector fit's `save`) that the
+	// engine auto-registers as Extensions.Populations at pulse.New
+	// time, each under its file stem (brand.pulse-population.json →
+	// "brand"). Non-recursive; only files carrying the population
+	// suffix are read, and one that does not decode fails New with its
+	// path named. Empty disables the loader.
+	//
+	// Honoured after PULSE_POPULATIONS_DIR — the programmatic value
+	// wins. A missing directory is a no-op; a path that is not a
+	// directory is an error. A name declared both programmatically and
+	// on disk is PULSE_EXTENSION_DUPLICATE.
+	PopulationsDir string
 
 	// TemplateDirs is the ordered list of directory roots the engine
 	// scans for request templates at pulse.New time. Empty disables the
@@ -616,6 +631,9 @@ func New(opts Options) (*Pulse, error) {
 	if err := loadRangeTablesFromDir(&opts); err != nil {
 		return nil, err
 	}
+	if err := loadPopulationsFromDir(&opts); err != nil {
+		return nil, err
+	}
 	// Built eagerly: a malformed template must fail startup with its path
 	// named, not the first render that reaches it.
 	templates, err := loadTemplateStore(&opts)
@@ -623,6 +641,10 @@ func New(opts Options) (*Pulse, error) {
 		return nil, err
 	}
 	universe, err := validateExtensionUniverse(opts.Extensions)
+	if err != nil {
+		return nil, err
+	}
+	decodedPopulations, err := decodeRegisteredPopulations(opts.Extensions.Populations)
 	if err != nil {
 		return nil, err
 	}
@@ -702,6 +724,17 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetProjectBufferedFields(opts.ProjectBufferedFields || !opts.DisableProjection)
 	svc.SetExtensions(buildRuntimeExtensions(visibleExt))
 	extSnap := buildExtensionsSnapshot(visibleExt)
+	popSet, popMetas, err := registeredPopulations(visibleExt.Populations, decodedPopulations)
+	if err != nil {
+		return nil, err
+	}
+	svc.SetPopulations(popSet)
+	if len(popMetas) > 0 {
+		if extSnap == nil {
+			extSnap = &descx.ExtensionsSnapshot{}
+		}
+		extSnap.Populations = popMetas
+	}
 	if len(universe.skills)+len(universe.examples) > 0 {
 		if extSnap == nil {
 			extSnap = &descx.ExtensionsSnapshot{}

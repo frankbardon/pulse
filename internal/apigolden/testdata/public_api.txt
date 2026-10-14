@@ -286,6 +286,7 @@ pulse: type Extensions field Groupers []pulse.GrouperRegistration
 pulse: type Extensions field LabelTables map[string]pulse.LabelTable
 pulse: type Extensions field LookupTables map[string]pulse.LookupTable
 pulse: type Extensions field MatrixOps []pulse.MatrixOpRegistration
+pulse: type Extensions field Populations map[string]pulse.Population
 pulse: type Extensions field RangeTables map[string]pulse.RangeTable
 pulse: type Extensions field ReferenceVectors map[string]pulse/types.ReferenceVectorTable
 pulse: type Extensions field Skills io/fs.FS
@@ -684,6 +685,7 @@ pulse: type Options field LabelTablesDir string
 pulse: type Options field Limits pulse.Limits
 pulse: type Options field Logger *log/slog.Logger
 pulse: type Options field Metrics pulse/observe.Metrics
+pulse: type Options field PopulationsDir string
 pulse: type Options field ProjectBufferedFields bool
 pulse: type Options field RangeTablesDir string
 pulse: type Options field SetInferenceMinPct int
@@ -699,6 +701,8 @@ pulse: type ParamMeta field JSONType string "json:\"json_type\""
 pulse: type ParamMeta field Name string "json:\"name\""
 pulse: type ParamMeta field Required bool "json:\"required,omitempty\""
 pulse: func ParseFeatureProfile(data []byte) (*pulse.FeatureProfile, error)
+pulse: type Population struct
+pulse: type Population field File []byte
 pulse: type Profile = pulse/synth.Profile
 pulse: type Profile underlying struct
 pulse: type Profile field Conditional *pulse/internal/synth.ConditionalProfile "json:\"conditional,omitempty\""
@@ -1326,6 +1330,7 @@ pulse/descriptor: type ExtensionsManifest field Groupers []pulse/descriptor.Oper
 pulse/descriptor: type ExtensionsManifest field LabelTables []pulse/descriptor.LabelTableMeta "json:\"label_tables\""
 pulse/descriptor: type ExtensionsManifest field LookupTables []pulse/descriptor.LookupTableMeta "json:\"lookup_tables\""
 pulse/descriptor: type ExtensionsManifest field MatrixOps []pulse/descriptor.MatrixMeta "json:\"matrix_ops\""
+pulse/descriptor: type ExtensionsManifest field Populations []pulse/descriptor.PopulationMeta "json:\"populations\""
 pulse/descriptor: type ExtensionsManifest field RangeTables []pulse/descriptor.RangeTableMeta "json:\"range_tables\""
 pulse/descriptor: type ExtensionsManifest field ReferenceVectors []pulse/descriptor.ReferenceVectorMeta "json:\"reference_vectors\""
 pulse/descriptor: type ExtensionsManifest field SynthDistributions []pulse/descriptor.OperatorMeta "json:\"synth_distributions\""
@@ -1703,6 +1708,12 @@ pulse/descriptor: type Param field Name string "json:\"name\""
 pulse/descriptor: type Param field Required bool "json:\"required\""
 pulse/descriptor: type Param field Type string "json:\"type\""
 pulse/descriptor: const Partial pulse/types.ComponentsMergeability = "partial"
+pulse/descriptor: type PopulationMeta struct
+pulse/descriptor: type PopulationMeta field Basis string "json:\"basis\""
+pulse/descriptor: type PopulationMeta field Labels []string "json:\"labels\""
+pulse/descriptor: type PopulationMeta field N int64 "json:\"n\""
+pulse/descriptor: type PopulationMeta field Name string "json:\"name\""
+pulse/descriptor: type PopulationMeta field Operator string "json:\"operator,omitempty\""
 pulse/descriptor: type PredictResult struct
 pulse/descriptor: type PredictResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
 pulse/descriptor: type PredictResult field Aggregations []pulse/descriptor.AggregationPredict "json:\"aggregations\""
@@ -5283,4 +5294,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 3f76a1731c4cede117950cfdd26e6fc3512b2dcdd6266e3de4ab043e9b99a132
+// golden-hash: aaaf4b12ac856298f309daf88469af307a2709d8abfe961497a0735b3c18dff4

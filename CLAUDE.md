@@ -181,13 +181,14 @@ Other load-bearing gates (`TestManifest*Complete`, `TestStreamability_*`, `TestE
 - `PULSE_DATA_DIR` — base directory for `.pulse` cohorts, used by `fs.Default()`. The only required env var; bypass with `Options{DataDir}` or `Options{FS}`.
 - `PULSE_IMPORTS_DIR` — managed-imports subdir under the fs root (default `imports`), honoured by `imports.Manager`; sidecar read settings (`source_tz`, `dst_policy`, …): `skills/session-bootstrap.md`.
 - `PULSE_IMPORT_TTL` — default TTL for managed imports: Go duration (`24h`), day form (`7d`), or `pin`. Default `7d`.
-- `PULSE_LABEL_TABLES_DIR` — directory whose `*.json` files auto-load as `LabelTables` at `pulse.New` time, keyed by filename. Detail: `skills/label-display.md`.
-- `PULSE_RANGE_TABLES_DIR` — same shape for `RangeTables` (bare `{label,start,end}` array or a `{"description","ranges"}` wrapper; filename minus `.json` is the table name), validated through the shared range-compilation pass. A name declared both programmatically and on disk is a hard error.
+- `PULSE_LABEL_TABLES_DIR` — `*.json` files auto-load as `LabelTables` at `pulse.New`, keyed by filename (`skills/label-display.md`).
+- `PULSE_RANGE_TABLES_DIR` — same shape for `RangeTables` (bare `{label,start,end}` array or a `{"description","ranges"}` wrapper), validated through the shared range-compilation pass.
+- `PULSE_POPULATIONS_DIR` — `*.pulse-population.json` files register as `Extensions.Populations` (name = stem).
 - `PULSE_MCP_NO_COHORT_SCAN` — `pulse mcp` only (flag `--no-cohort-scan`): skip enumerating `.pulse` files as `pulse://` resources; the template stays, so cohorts stay readable. Library: `gosdk.Config.DisableCohortScan` / `mcpserve.Options.DisableCohortScan`.
 - `PULSE_FEATURE_PROFILE` — `pulse mcp` / `mcpserve.NewPulse` only (flag `--feature-profile` wins): OS path to a feature profile.
 - `PULSE_TEMPLATES_DIR` — request-template roots, `os.PathListSeparator`-separated, PATH-style precedence (first root wins). **Precedence and the hot-reload phase table: `.claude/reference/request-templating.md` (Directory precedence, Hot-reload lifecycle).**
 
-Both table directories skip Pulse's own sidecars yet hard-fail any other unparseable `*.json`: `.claude/reference/byte-layout.md` (Table-directory sidecar exclusion).
+The table directories skip Pulse's own sidecars yet hard-fail any other unparseable `*.json`: `.claude/reference/byte-layout.md` (Table-directory sidecar exclusion).
 
 **Knobs.** Concurrency `ShardWorkers` / `DecodeWorkers` (`0` => `NumCPU`, negatives rejected at `pulse.New()`) and overlay knobs: `.claude/reference/execution-modes.md`. Limits: `Options.Limits` (`0` default, `-1` `pulse.Unlimited`), `docs/src/library/tuning-limits.md`. Observability: `Options.Logger` / `Hooks` / `Metrics` (nil = zero cost; OTel/Prometheus only in nested `contrib/` modules; no `PULSE_*` var): `.claude/reference/observability.md`.
 

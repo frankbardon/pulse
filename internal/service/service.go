@@ -110,6 +110,12 @@ type Service struct {
 	// defaultMultiplicity is pulse.Options.DefaultMultiplicity (nil =
 	// none); it feeds resolveMultiplicity.
 	defaultMultiplicity *types.Multiplicity
+
+	// populations are the instance's registered populations
+	// (pulse.Options.Extensions.Populations + the populations
+	// directory), bound as vector fits beneath every request's own
+	// bindings; nil binds nothing. Frozen at pulse.New.
+	populations *model.Set
 }
 
 // SetDisableCrosstabFusion toggles the fused-crosstab dispatch in

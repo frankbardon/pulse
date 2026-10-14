@@ -157,6 +157,7 @@ ext := pulse.Extensions{
     ExprFunctions:    []pulse.ExprFunction{...},
     LookupTables:     map[string]pulse.LookupTable{...},
     ReferenceVectors: map[string]types.ReferenceVectorTable{...},
+    Populations:      map[string]pulse.Population{...},
 
     Skills:   skillsFS,   // fs.FS of embedder skill files — see "Embedder skills"
     Examples: examplesFS, // fs.FS of embedder request examples — see "Embedder examples"
@@ -789,6 +790,35 @@ attributes `ATTR_PROFILE_SIMILARITY` / `ATTR_VEC_DISTANCE` read the same
 tables through their `reference` param (`{table, key}` or
 `{table, key_field}`, matched by label); as built-ins their names are
 refused to an extension (`PULSE_EXTENSION_NAME_COLLISION`).
+
+### Registered populations
+
+A population is a saved vector fit — the `*.pulse-population.json`
+document a Compose vector fit's `save` writes. Register one by name and
+every request sees it bound, so a fitted vector attribute or a
+co-moment `MAT_*` slot scores against it with `params.fit` and no
+`populations` entry:
+
+```go
+raw, _ := os.ReadFile("pops/brand.pulse-population.json")
+ext := pulse.Extensions{
+    Populations: map[string]pulse.Population{"brand": {File: raw}},
+}
+```
+
+`Options.PopulationsDir` (or `PULSE_POPULATIONS_DIR`; the option wins)
+does the same for every `*.pulse-population.json` directly in a
+directory, each under its file stem; other files are skipped unread. A
+missing directory is a no-op, a path that is not a directory an error.
+Every document is decoded at `pulse.New` (`PULSE_MODEL_FILE_INVALID` /
+`_VERSION_UNSUPPORTED`, `details.registered` naming it) and frozen;
+nothing registers after `New`. A name declared both here and in the
+directory is `PULSE_EXTENSION_DUPLICATE` — the label- and range-table
+directories follow the same rule. A request entry or Compose fit
+reusing a registered name is `PULSE_MODEL_NAME_COLLISION`, never a
+shadow. The manifest lists each under `extensions.populations` (name,
+operator, basis, labels, n), predict binds the same names and labels,
+and a feature profile hiding `capability:models` registers none.
 
 ## Component schemas (v0.20.0)
 
@@ -1773,7 +1803,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_NAME_INVALID` | name fails the registration regex |
 | `PULSE_EXTENSION_NAME_RESERVED` | namespace is BUILTIN/STANDARD/CORE/PULSE, or an `ExprFunction` is named `total` (engine-owned) or a reserved built-in (`vsum` … `overlap`, `ref`) |
 | `PULSE_EXTENSION_NAME_COLLISION` | name matches a built-in |
-| `PULSE_EXTENSION_DUPLICATE` | same name registered twice |
+| `PULSE_EXTENSION_DUPLICATE` | same name registered twice, or a label table / range table / population declared both programmatically and in its directory |
 | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | declared streaming tier does not match factory interface |
 | `PULSE_EXTENSION_FANOUT_MISMATCH` | grouper `FansOut` disagrees with `extend.MultiKeyStreamingGrouper`, either direction |
 | `PULSE_EXTENSION_PURPOSE_INVALID` | a `Purpose` breaks a guidance validity rule, or a test `Interpretation` is structurally invalid |

@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/mergegate"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -36,6 +37,10 @@ type ExtensionsSnapshot struct {
 	ReferenceVectors []descriptor.ReferenceVectorMeta
 	LabelTables      []descriptor.LabelTableMeta
 	RangeTables      []descriptor.RangeTableMeta
+	// Populations are the instance's registered populations: the names
+	// and member labels predict binds beneath every request (the
+	// runtime's registered set, statically — PopulationCatalog).
+	Populations []descriptor.PopulationMeta
 
 	// ComponentSchemas projects per-extension ComponentSchema
 	// declarations keyed by registered operator name. The map carries
@@ -171,6 +176,7 @@ func emptyExtensionsManifest() descriptor.ExtensionsManifest {
 		ReferenceVectors:   []descriptor.ReferenceVectorMeta{},
 		LabelTables:        []descriptor.LabelTableMeta{},
 		RangeTables:        []descriptor.RangeTableMeta{},
+		Populations:        []descriptor.PopulationMeta{},
 	}
 }
 
@@ -195,6 +201,7 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 		ReferenceVectors:   sortReferenceVectorMeta(snap.ReferenceVectors),
 		LabelTables:        sortLabelTableMeta(snap.LabelTables),
 		RangeTables:        sortRangeTableMeta(snap.RangeTables),
+		Populations:        sortPopulationMeta(snap.Populations),
 	}
 	if out.Aggregators == nil {
 		out.Aggregators = []descriptor.OperatorMeta{}
@@ -237,6 +244,35 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 	}
 	if out.RangeTables == nil {
 		out.RangeTables = []descriptor.RangeTableMeta{}
+	}
+	if out.Populations == nil {
+		out.Populations = []descriptor.PopulationMeta{}
+	}
+	return out
+}
+
+func sortPopulationMeta(in []descriptor.PopulationMeta) []descriptor.PopulationMeta {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]descriptor.PopulationMeta, len(in))
+	copy(out, in)
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+// PopulationCatalog is predict's view of the registered populations:
+// each a vector fit bound under its name with its member labels
+// (model.RegisteredSignature — the runtime's registered set,
+// statically). Nil (not a typed nil) when none are registered, so a
+// rule judging against it is exactly the one judging against nothing.
+func (s *ExtensionsSnapshot) PopulationCatalog() model.Catalog {
+	if s == nil || len(s.Populations) == 0 {
+		return nil
+	}
+	out := make(model.FitCatalog, len(s.Populations))
+	for _, m := range s.Populations {
+		out[m.Name] = model.RegisteredSignature(m.Name, m.Labels)
 	}
 	return out
 }

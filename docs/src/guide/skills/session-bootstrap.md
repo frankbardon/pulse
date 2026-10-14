@@ -48,9 +48,12 @@ Read every `errors[]` / `warnings[]` entry (`{code, message, details}`) → `pul
 
 Roots auto-loaded at `pulse.New`:
 
-- `PULSE_LABEL_TABLES_DIR` — output-time label tables. **Use its own dir.** Every `*.json` in it is parsed as a label table; an unparseable one hard-fails `pulse.New`; Pulse's own `.spss.json` / `.meta.json` sidecars are excluded by suffix, nothing else is.
-- `PULSE_RANGE_TABLES_DIR` — named labeled-date-range tables (`{label,start,end}` sets referenced by the date-range grouper and filter). Same sidecar exclusion.
+- `PULSE_LABEL_TABLES_DIR` — output-time label tables. **Use its own dir:** every `*.json` must parse as one (else `pulse.New` fails); only Pulse's sidecars are skipped.
+- `PULSE_RANGE_TABLES_DIR` — named `{label,start,end}` sets for date-range operators. Same rule.
+- `PULSE_POPULATIONS_DIR` — `*.pulse-population.json` files, bound in every request by stem.
 - `PULSE_TEMPLATES_DIR` — parameterised request templates; `os.PathListSeparator`-separated roots in precedence order, first root wins. Render via `RenderTemplate` / `RenderTemplateRequest`, then predict the rendered request. See [`request-templating`](request-templating.md).
+
+A name on disk and in code: `PULSE_EXTENSION_DUPLICATE`.
 
 Managed imports (`PULSE_IMPORTS_DIR`) persist each handle's read settings in a sidecar (`format`, `source_path`, `ttl_seconds`, `column_type_overrides`, `source_tz`, `column_source_tz`, `dst_policy`, `--vector` folds); a handle read in one zone is never reused for another — re-import with `overwrite: true`. See [`time-zones`](time-zones.md).
 

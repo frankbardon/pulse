@@ -1366,11 +1366,15 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_DUPLICATE: {
-		Message: "The same operator name was registered more than once in a single pulse.New call.",
+		Message: "A name was registered more than once in a single pulse.New call: an operator (or expr function) registered twice in its category, or a label table, range table or population declared both programmatically on Options.Extensions and by a file in its directory (LabelTablesDir / RangeTablesDir / PopulationsDir or their PULSE_*_DIR variables). The kind is under `category`, the name under `name` and, for a directory collision, the file under `path`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Drop the redundant registration; only one Factory may bind a given name per Service.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "For a directory collision, remove or rename the file under `path`, or drop the programmatic entry — each table or population has exactly one source.",
 			},
 		},
 	},
@@ -1744,7 +1748,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_NAME_COLLISION: {
-		Message: "Two bound models share a name: `fits` entries, `models` entries and `populations` entries bind ONE namespace, and every name must be unique in it, because a reference names a model by that name alone. The name is under `name`; two fits name the second entry's index under `fit`, any collision with a `models` or `populations` entry names both bindings under `sources` (each {slot, index} plus a loaded file's path).",
+		Message: "Two bound models share a name: `fits` entries, `models` entries and `populations` entries bind ONE namespace, and every name must be unique in it, because a reference names a model by that name alone. The instance's registered populations (Options.Extensions.Populations, the populations directory) are bound beneath every request in the same namespace, so an entry may not reuse one of their names either. The name is under `name`; two fits name the second entry's index under `fit`, any collision with a `models` or `populations` entry or a registered population names both bindings under `sources` (each {slot, index} plus a loaded file's path; a registered population is {slot: \"registered\"}).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1761,10 +1765,14 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"populations", "*", "name"},
 				Hint:   "Load the population under a name no fit, model or other entry uses, and update the params.fit references to it.",
 			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "When `sources` names a registered population, reference it with params.fit directly — it is already bound — instead of loading or fitting the name again.",
+			},
 		},
 	},
 	PULSE_MODEL_UNKNOWN: {
-		Message: "A reference names a model nothing binds in this request. Names resolve against the ComposedRequest `fits` entries and the request's `models` and `populations` entries (one namespace). The unknown name is under `name`, the bound names of the kind the reference reads under `available`: a vector-fit reference (a fitted vector attribute's or a matrix slot's `params.fit`) lists the bound vector fits, a regression reference (a regression score or coef()) the bound regressions.",
+		Message: "A reference names a model nothing binds in this request. Names resolve against the ComposedRequest `fits` entries, the request's `models` and `populations` entries and the instance's registered populations (one namespace). The unknown name is under `name`, the bound names of the kind the reference reads under `available`: a vector-fit reference (a fitted vector attribute's or a matrix slot's `params.fit`) lists the bound vector fits, a regression reference (a regression score or coef()) the bound regressions.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1934,7 +1942,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_FILE_INVALID: {
-		Message: "A model or population file cannot be parsed: it is not JSON (reason `json`), has no `model_format_version` / `population_format_version` (`version_missing`), or its document has an unknown key, a mistyped value or a structural fault — a predictor without a coefficient; a population whose labels, means or co-moment do not match in shape, whose co-moment is not symmetric, or whose counts or weight sums are impossible (`schema`). The file is under `path`; a `models` entry loading it adds its index under `model`, a `populations` entry under `population`, and either its name under `name`.",
+		Message: "A model or population file cannot be parsed: it is not JSON (reason `json`), has no `model_format_version` / `population_format_version` (`version_missing`), or its document has an unknown key, a mistyped value or a structural fault — a predictor without a coefficient; a population whose labels, means or co-moment do not match in shape, whose co-moment is not symmetric, or whose counts or weight sums are impossible (`schema`). The file is under `path`; a `models` entry loading it adds its index under `model`, a `populations` entry under `population`, and either its name under `name`; a registered population (Options.Extensions.Populations or the populations directory, refused at pulse.New) carries its registered name under `registered`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -1943,7 +1951,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_VERSION_UNSUPPORTED: {
-		Message: "A model file's `model_format_version` (or a population file's `population_format_version`) is not one this build reads (the file under `path`, its version under `version`, the readable ones under `supported`).",
+		Message: "A model file's `model_format_version` (or a population file's `population_format_version`) is not one this build reads (the file under `path`, its version under `version`, the readable ones under `supported`; a registered population's name under `registered`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -1952,7 +1960,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_REF_INVALID: {
-		Message: "A `models` or `populations` entry cannot name its file, so nothing runs — predict refuses it identically. An entry needs a `name` (the name its references use) and a `path` under the instance filesystem root ending in `.pulse-model.json` (a `models` entry) or `.pulse-population.json` (a `populations` entry), with a file name before the suffix and no `..` above the root. The entry's index is under `model` or `population`, the rule under `reason` (`name_empty`, `path_empty`, `suffix`, `name_missing`, `escapes_root`).",
+		Message: "A `models` or `populations` entry cannot name its file, so nothing runs — predict refuses it identically. An entry needs a `name` (the name its references use) and a `path` under the instance filesystem root ending in `.pulse-model.json` (a `models` entry) or `.pulse-population.json` (a `populations` entry), with a file name before the suffix and no `..` above the root. The entry's index is under `model` or `population`, the rule under `reason` (`name_empty`, `path_empty`, `suffix`, `name_missing`, `escapes_root`). A blank Options.Extensions.Populations key is refused at pulse.New the same way (reason `name_empty`, under `registered`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1972,7 +1980,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_FILE_UNREADABLE: {
-		Message: "A `models` or `populations` entry's file cannot be read: it does not exist (reason `missing`) or reading it failed — a directory, permissions or an I/O fault (`unreadable`). Every model and population file is read before any record is read (in a batch or chain, before anything runs), so nothing ran. The file is under `path`, the entry's index under `model` or `population` and its name under `name`.",
+		Message: "A `models` or `populations` entry's file cannot be read: it does not exist (reason `missing`) or reading it failed — a directory, permissions or an I/O fault (`unreadable`). Every model and population file is read before any record is read (in a batch or chain, before anything runs), so nothing ran. The file is under `path`, the entry's index under `model` or `population` and its name under `name`; a populations-directory file that cannot be read fails pulse.New, its registered name under `registered`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

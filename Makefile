@@ -140,7 +140,7 @@ reference:
 # table/template directory env vars cleared so a developer's .env cannot
 # perturb the committed tree; TestDocsGeneratedCurrent fails CI when the
 # tree is stale. Recipe: docs/src/internals/regenerating-goldens.md.
-DOCS_GUIDE_ENV=env -u PULSE_LABEL_TABLES_DIR -u PULSE_RANGE_TABLES_DIR -u PULSE_TEMPLATES_DIR -u PULSE_FEATURE_PROFILE
+DOCS_GUIDE_ENV=env -u PULSE_LABEL_TABLES_DIR -u PULSE_RANGE_TABLES_DIR -u PULSE_POPULATIONS_DIR -u PULSE_TEMPLATES_DIR -u PULSE_FEATURE_PROFILE
 
 docs: docs-generate
 	mdbook build docs

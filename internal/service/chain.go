@@ -74,12 +74,12 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	// Then every stage's `models` (model.CheckChainModels — the rule
 	// PredictChain runs) and every model file read, before the cohort
 	// opens and any stage runs; each stage gets its own bound set.
-	if cerr := model.CheckChainModels(req.Stages); cerr != nil {
+	if cerr := model.CheckChainModels(req.Stages, s.populationCatalog()); cerr != nil {
 		return nil, cerr
 	}
 	stageSets := make([]*model.Set, len(req.Stages))
 	for i, st := range req.Stages {
-		set, err := s.loadModels(nil, model.RequestRefs(st.Request))
+		set, err := s.loadModels(s.populations, model.RequestRefs(st.Request))
 		if err != nil {
 			return nil, descx.RefusalAt(err, "stage", i)
 		}

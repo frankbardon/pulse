@@ -356,7 +356,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 // model.CheckChainModels, then every stage's model files read (located
 // details.stage). It returns each stage's catalog, index-aligned.
 func loadChainModels(stages []*types.ChainStage, opts *PredictOptions) ([]model.Catalog, error) {
-	if cerr := model.CheckChainModels(stages); cerr != nil {
+	if cerr := model.CheckChainModels(stages, opts.populations()); cerr != nil {
 		return nil, cerr
 	}
 	out := make([]model.Catalog, len(stages))
@@ -369,7 +369,7 @@ func loadChainModels(stages []*types.ChainStage, opts *PredictOptions) ([]model.
 		if cerr != nil {
 			return nil, RefusalAt(cerr, "stage", i)
 		}
-		out[i] = loadedCatalog(nil, refs, files)
+		out[i] = loadedCatalog(opts.populations(), refs, files)
 	}
 	return out, nil
 }

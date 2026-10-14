@@ -145,6 +145,19 @@ type Extensions struct {
 	// wired separately; this slot only registers the tables.
 	RangeTables map[string]RangeTable
 
+	// Populations registers saved vector-fit populations by name: each
+	// a population file document (the bytes a Compose vector fit's
+	// `save` writes, *.pulse-population.json). Every request sees them
+	// bound as vector fits, so a fitted attribute or MAT_* slot binds
+	// one with params.fit and no `populations` entry; a request entry
+	// rebinding a registered name is PULSE_MODEL_NAME_COLLISION. Each is
+	// decoded at pulse.New (PULSE_MODEL_FILE_INVALID /
+	// _VERSION_UNSUPPORTED, details.registered = the name) and frozen.
+	// Merged with Options.PopulationsDir: a name declared both here and
+	// on disk is PULSE_EXTENSION_DUPLICATE. Gated by capability:models —
+	// a feature profile hiding it registers none.
+	Populations map[string]Population
+
 	// Skills is an optional fs.FS of embedder skill files, served to
 	// agents exactly like the built-in pack (p.Skills / p.Skill,
 	// pulse_skills_list / pulse_skills_get, pulse-skill:// resources, the
@@ -903,6 +916,18 @@ type RangeTable struct {
 	// Ranges is the ordered list of labeled date ranges. Must be
 	// non-empty and pass the shared validation pass.
 	Ranges []DateRangeSpec
+}
+
+// Population is one registered population: a saved vector fit's
+// population file document, registered under its
+// Extensions.Populations key (Options.PopulationsDir names it by file
+// stem). The stored state is bound exactly as a `populations` entry
+// loading the same file binds it.
+type Population struct {
+	// File is the encoded population file document
+	// (population_format_version, labels, members, basis, counts, mean,
+	// m2, provenance) — the bytes a vector fit's `save` writes.
+	File []byte
 }
 
 // reservedExtensionNamespaces is the set of namespace segments

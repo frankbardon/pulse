@@ -989,6 +989,17 @@ ending `.pulse-population.json`), `PULSE_MODEL_FILE_UNREADABLE`,
 or a fit binds). Provenance is informational, never compared. Gated by
 `capability:models`; `format_version` stays `"1.1"`.
 
+**Registered populations.** An instance may also register populations
+at `pulse.New` — `Options.Extensions.Populations` (the encoded file
+bytes) and `Options.PopulationsDir` / `PULSE_POPULATIONS_DIR` (each
+`*.pulse-population.json` under its file stem). They are bound beneath
+EVERY request, so `params.fit` names one with no `populations` entry,
+and the manifest lists them under `extensions.populations`
+(`PopulationMeta {name, operator, basis, labels, n}`). An entry or a
+Compose fit reusing a registered name is `PULSE_MODEL_NAME_COLLISION`,
+its first source `{slot: "registered"}`; predict judges the same names
+and labels.
+
 ### Item fan-out (`for_each`)
 
 `Window`, `Feature` and `Attribute` each carry an optional `for_each`

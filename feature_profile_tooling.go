@@ -446,6 +446,7 @@ func mergeExtensions(ext []Extensions) Extensions {
 		out.ReferenceVectors = mergeTables(out.ReferenceVectors, e.ReferenceVectors)
 		out.LabelTables = mergeTables(out.LabelTables, e.LabelTables)
 		out.RangeTables = mergeTables(out.RangeTables, e.RangeTables)
+		out.Populations = mergeTables(out.Populations, e.Populations)
 		if e.Skills != nil {
 			skillFS = append(skillFS, e.Skills)
 		}

@@ -29,7 +29,8 @@ const (
 // Source names where a bound name came from: the `fits` entry or the
 // `models` entry (with its file path) that bound it.
 type Source struct {
-	// Slot is SlotFits or SlotModels ("" when unknown).
+	// Slot is SlotFits, SlotModels, SlotPopulations or SlotRegistered
+	// ("" when unknown).
 	Slot string
 	// Index is the 0-based entry index in that slot.
 	Index int
@@ -45,11 +46,22 @@ func ModelSource(j int, path string) Source {
 	return Source{Slot: SlotModels, Index: j, Path: path}
 }
 
-// String is "fits[i]" or "models[j]".
-func (s Source) String() string { return fmt.Sprintf("%s[%d]", s.Slot, s.Index) }
+// String is "fits[i]", "models[j]" or "populations[k]" — or, for a
+// population the instance registered (SlotRegistered), "the
+// instance's registered populations".
+func (s Source) String() string {
+	if s.Slot == SlotRegistered {
+		return "the instance's registered populations"
+	}
+	return fmt.Sprintf("%s[%d]", s.Slot, s.Index)
+}
 
-// detail is s as an error-details value: {slot, index[, path]}.
+// detail is s as an error-details value: {slot, index[, path]} — a
+// registered population {slot: "registered"}, with no index.
 func (s Source) detail() map[string]any {
+	if s.Slot == SlotRegistered {
+		return map[string]any{"slot": s.Slot}
+	}
 	d := map[string]any{"slot": s.Slot, "index": s.Index}
 	if s.Path != "" {
 		d["path"] = s.Path

@@ -624,7 +624,8 @@
       "lookup_tables": [],
       "reference_vectors": [],
       "label_tables": [],
-      "range_tables": []
+      "range_tables": [],
+      "populations": []
     },
     "overlays": [],
     "components_schemas": {},
@@ -797,4 +798,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b9f2ea49c048cc4fdaf1e2877916b1a1ad477c20b1760a1946a5e5cb93594cdc
+// golden-hash: 032910b1d5f2ec84bd6bc92bf94323f261bf13e59deb8a4283626075476fd2bd

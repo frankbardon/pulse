@@ -32,6 +32,12 @@ type ExtensionsManifest struct {
 	ReferenceVectors []ReferenceVectorMeta `json:"reference_vectors"`
 	LabelTables      []LabelTableMeta      `json:"label_tables"`
 	RangeTables      []RangeTableMeta      `json:"range_tables"`
+	// Populations lists the instance's registered populations
+	// (Options.Extensions.Populations + Options.PopulationsDir /
+	// PULSE_POPULATIONS_DIR): saved vector fits every request sees
+	// bound by name, so a fitted attribute or MAT_* slot binds one with
+	// params.fit without a `populations` entry.
+	Populations []PopulationMeta `json:"populations"`
 }
 
 // OperatorMeta is the manifest projection for an embedder-registered
@@ -171,4 +177,16 @@ type RangeTableMeta struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	RangeCount  int    `json:"range_count"`
+}
+
+// PopulationMeta is the manifest projection of a registered population:
+// its bound name, the battery it was fitted by, its weight basis, its
+// member labels in axis order (what a consuming slot's vector aligns
+// to, by label) and its fit row count — never the stored moments.
+type PopulationMeta struct {
+	Name     string   `json:"name"`
+	Operator string   `json:"operator,omitempty"`
+	Basis    string   `json:"basis"`
+	Labels   []string `json:"labels"`
+	N        int64    `json:"n"`
 }

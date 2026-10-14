@@ -787,7 +787,8 @@ const (
 
 	// PULSE_EXTENSION_DUPLICATE indicates the same operator name was
 	// registered more than once within a single pulse.New call (same
-	// category).
+	// category), or a label table, range table or population declared
+	// both programmatically and by a file in its directory.
 	PULSE_EXTENSION_DUPLICATE Code = "PULSE_EXTENSION_DUPLICATE"
 
 	// PULSE_EXTENSION_STREAMABLE_MISMATCH indicates a registration

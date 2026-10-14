@@ -50,7 +50,9 @@ var slotModelsObserver func(label string, set *model.Set)
 func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre *composeModels, workers int) (*model.Set, map[string]*types.FitResult, []*types.ResponseWarning, error) {
 	n := len(fits)
 	if n == 0 {
-		return nil, nil, nil, nil
+		// Nothing fitted: every slot layers over the registered
+		// populations alone.
+		return s.populations, nil, nil, nil
 	}
 	results := make([]*types.RegressionResult, n)
 	vectorFits := make([]*model.VectorFit, n)
@@ -160,7 +162,9 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 		}
 	}
 
-	set := &model.Set{}
+	// The fits bind over the instance's registered populations
+	// (CheckComposeBatch refused a fit name one already binds).
+	set := s.populations.Clone()
 	out := make(map[string]*types.FitResult, n)
 	var warnings []*types.ResponseWarning
 	for i, f := range fits {
@@ -246,6 +250,9 @@ func bindSlotModels(ctx context.Context, set *model.Set, req *types.Request) con
 // decoded before any fit or slot runs, index-aligned with the batch's
 // fits and slots.
 type composeModels struct {
+	// base is the instance's registered populations: what a fit
+	// request sees bound beneath its own entries (nil for none).
+	base     *model.Set
 	fits     []types.FitSpec
 	requests []*types.Request
 	fitFiles []*model.Loaded
@@ -257,10 +264,11 @@ type composeModels struct {
 // `populations` file, fit requests first, then slots, each refusal
 // located by details.fit / details.request.
 func (s *Service) composeModelsPrepass(composed *types.ComposedRequest) (*composeModels, error) {
-	if cerr := model.CheckComposeBatch(composed.Fits, composed.Requests); cerr != nil {
+	if cerr := model.CheckComposeBatch(composed.Fits, composed.Requests, s.populationCatalog()); cerr != nil {
 		return nil, cerr
 	}
 	pre := &composeModels{
+		base:     s.populations,
 		fits:     composed.Fits,
 		requests: composed.Requests,
 		fitFiles: make([]*model.Loaded, len(composed.Fits)),
@@ -289,17 +297,21 @@ func (s *Service) composeModelsPrepass(composed *types.ComposedRequest) (*compos
 	return pre, nil
 }
 
-// fitSet is fit i's bound-model set: its request's own loaded models
-// and populations (nil when it loads none).
+// fitSet is fit i's bound-model set: the registered populations plus
+// its request's own loaded models and populations (nil when neither
+// binds anything).
 func (p *composeModels) fitSet(i int) (*model.Set, error) {
-	if p == nil || p.fits[i].Request == nil {
+	if p == nil {
 		return nil, nil
+	}
+	if p.fits[i].Request == nil {
+		return p.base, nil
 	}
 	refs := model.RequestRefs(p.fits[i].Request)
 	if refs.Empty() {
-		return nil, nil
+		return p.base, nil
 	}
-	return (*model.Set)(nil).WithLoaded(refs, p.fitFiles[i])
+	return p.base.WithLoaded(refs, p.fitFiles[i])
 }
 
 // slotSet is slot k's bound-model set: the batch's fits plus the slot's

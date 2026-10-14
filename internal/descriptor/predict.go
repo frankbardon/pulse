@@ -385,7 +385,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// save-path rule (validateRegressions reports that one), before any
 	// record is read: read and decoded through opts.ModelLoader, the
 	// loaded terms then judged by the field-reference pass below.
-	models, unloadedModels, lerr := predictModels(model.RequestRefs(req), nil, opts)
+	models, unloadedModels, lerr := predictModels(model.RequestRefs(req), opts.populations(), opts)
 	if lerr != nil {
 		addCodedError(env, lerr)
 	}

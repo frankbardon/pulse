@@ -12240,7 +12240,8 @@
       "lookup_tables": [],
       "reference_vectors": [],
       "label_tables": [],
-      "range_tables": []
+      "range_tables": [],
+      "populations": []
     },
     "facet": {
       "name": "facet_schema",
@@ -16813,4 +16814,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 11e6cbff5139811812dda6bdf2d127f43d832ba668ee8e1bfd6df33e1dacdcf9
+// golden-hash: 190d53733aaaca179bf6bf3937818e462f665ee9e0cd1f6b216562765714c436

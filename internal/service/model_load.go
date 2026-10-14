@@ -32,6 +32,21 @@ func withModelsBound(ctx context.Context, set *model.Set) context.Context {
 	return context.WithValue(model.WithSet(ctx, set), modelsBoundKey{}, true)
 }
 
+// SetPopulations installs the instance's registered populations
+// (model.RegisteredSet; nil for none): the outermost layer of every
+// request's bound-model set. Called once, by pulse.New.
+func (s *Service) SetPopulations(set *model.Set) { s.populations = set }
+
+// populationCatalog is the registered populations as the static rule's
+// outer Catalog — nil (not a typed nil) when none are registered, so a
+// rule judging against it is exactly the one judging against nothing.
+func (s *Service) populationCatalog() model.Catalog {
+	if s.populations == nil {
+		return nil
+	}
+	return s.populations
+}
+
 // ReadModelFile reads a model file's bytes at path (relative to the
 // instance filesystem root) — the read every `models` load uses, and
 // the facade's predict loader (PredictOptions.ModelLoader).
@@ -76,14 +91,21 @@ func (s *Service) loadModelFiles(refs model.Refs) (*model.Loaded, error) {
 }
 
 // bindRequestModels returns ctx carrying the request's bound-model set:
-// the set ctx already carries plus refs' loaded models and populations.
-// A context a pre-pass already bound (withModelsBound) is returned
-// unchanged.
+// the set ctx already carries — else the instance's registered
+// populations — plus refs' loaded models and populations. A context a
+// pre-pass already bound (withModelsBound) is returned unchanged.
 func (s *Service) bindRequestModels(ctx context.Context, refs model.Refs) (context.Context, error) {
-	if refs.Empty() || ctx.Value(modelsBoundKey{}) != nil {
+	if ctx.Value(modelsBoundKey{}) != nil {
 		return ctx, nil
 	}
-	set, err := s.loadModels(model.SetFrom(ctx), refs)
+	outer := model.SetFrom(ctx)
+	if outer == nil {
+		outer = s.populations
+	}
+	if refs.Empty() {
+		return model.WithSet(ctx, outer), nil
+	}
+	set, err := s.loadModels(outer, refs)
 	if err != nil {
 		return ctx, err
 	}
