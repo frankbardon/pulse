@@ -1335,8 +1335,10 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"cumulative_share, singular_value); Summary.Statistic is the total inertia (chi-square / n) and its parameters " +
 				"carry dimensions, retained_share and share_dim_<k>. payload.parts: row_coordinates / column_coordinates " +
 				"(MATRIX points x retained dimensions, columns keyed dim_1 ...), row_quality / column_quality (SERIES, cos^2 " +
-				"summed over the retained dimensions; parameters mass, inertia) and row_contribution / column_contribution " +
-				"(MATRIX, each point's share of a dimension's inertia). params: dimensions (integer, default 2 capped at " +
+				"summed over the retained dimensions; parameters mass, inertia), row_contribution / column_contribution " +
+				"(MATRIX, each point's share of a dimension's inertia) and row_distance / column_distance (MATRIX points x " +
+				"points: the pairwise chi-square distances between profiles — the chi_square metric over the other axis's " +
+				"masses, symmetric, 0 diagonal, independent of dimensions and normalization). params: dimensions (integer, default 2 capped at " +
 				"min(r, c) - 1; an explicit value above it is PULSE_OVERLAY_PARAM_MISSING) and normalization (symmetric " +
 				"[default: both principal] | row_principal | column_principal). Signs follow linalg.SVD: per dimension the " +
 				"dominant component of the column singular vector is positive. Cells must be non-negative masses: a cell " +

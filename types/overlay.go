@@ -1411,7 +1411,10 @@ const (
 	// points × retained dimensions, synthetic dim_k column keys),
 	// row_quality / column_quality (SERIES, cos² summed over the
 	// retained dimensions), row_contribution / column_contribution
-	// (MATRIX points × dimensions, share of each dimension's inertia).
+	// (MATRIX points × dimensions, share of each dimension's inertia),
+	// row_distance / column_distance (MATRIX points × points, the
+	// pairwise chi-square profile distances — the linalg/metric
+	// chi_square metric over the other axis's masses).
 	// Params: dimensions (default 2, at most min(r, c) − 1) and
 	// normalization (symmetric | row_principal | column_principal).
 	// Cells must be non-negative counts or sums (AGG_COUNT / AGG_SUM,

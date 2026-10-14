@@ -52,6 +52,9 @@ func TestManifestMetricsComplete(t *testing.T) {
 	for _, mm := range m.Matrices {
 		registered[mm.Name] = true
 	}
+	for _, o := range m.Overlays {
+		registered[string(o.Kind)] = true
+	}
 	offered := func(c metric.Consumer) bool {
 		if c == metric.ConsumerExpr {
 			return registered["ATTR_FORMULA"] || registered["FILTER_EXPRESSION"]
@@ -90,8 +93,13 @@ func TestManifestMetricsComplete(t *testing.T) {
 	if c := set["euclidean"].Consumers; !slices.Contains(c, "expr") || !slices.Contains(c, "MAT_DISTANCE") || !slices.Contains(c, "GROUP_KMEANS") {
 		t.Errorf("euclidean consumers %v miss a registered consumer", c)
 	}
-	if c := set["chi_square"].Consumers; len(c) != 0 {
-		t.Errorf("chi_square is registered but unexposed, consumers %v", c)
+	if c := set["chi_square"].Consumers; !slices.Equal(c, []string{"OVERLAY_CORRESPONDENCE"}) {
+		t.Errorf("chi_square consumers %v, want [OVERLAY_CORRESPONDENCE]", c)
+	}
+	for name, e := range set {
+		if len(e.Consumers) == 0 {
+			t.Errorf("%s lists no consumer; every metric is exposed in a full build", name)
+		}
 	}
 }
 
@@ -108,6 +116,11 @@ func TestManifestMetrics_InstanceHidesConsumers(t *testing.T) {
 	}
 	if !slices.Contains(set["euclidean"].Consumers, "GROUP_KMEANS") {
 		t.Error("hiding MAT_DISTANCE dropped GROUP_KMEANS")
+	}
+	m = BuildManifestForInstance(scopedExcept("OVERLAY_CORRESPONDENCE"))
+	_, set = manifestMetrics(t, m)
+	if c := set["chi_square"].Consumers; len(c) != 0 {
+		t.Errorf("chi_square lists %v with OVERLAY_CORRESPONDENCE hidden", c)
 	}
 	m = BuildManifestForInstance(scopedExcept("ATTR_FORMULA", "FILTER_EXPRESSION"))
 	_, set = manifestMetrics(t, m)

@@ -18,6 +18,8 @@ var correspondenceParts = map[string]overlayPart{
 	"column_quality":      {Shape: types.OverlayShapeSeries},
 	"row_contribution":    {Shape: types.OverlayShapeMatrix},
 	"column_contribution": {Shape: types.OverlayShapeMatrix},
+	"row_distance":        {Shape: types.OverlayShapeMatrix},
+	"column_distance":     {Shape: types.OverlayShapeMatrix},
 }
 
 // validateOverlayCorrespondence enforces the predict contract of

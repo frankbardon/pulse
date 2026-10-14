@@ -65,6 +65,19 @@ func TestCorrespondence_RefusalsMatchPredict(t *testing.T) {
 func TestCorrespondence_EndToEnd(t *testing.T) {
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
+	// The parts the manifest declares are exactly the parts a run emits
+	// (the row_distance / column_distance pair included).
+	declared := map[string]bool{}
+	for _, o := range p.Manifest(ctx).Overlays {
+		if o.Kind == types.OverlayKindCorrespondence {
+			for _, part := range o.Parts {
+				declared[part.Name] = true
+			}
+		}
+	}
+	if len(declared) != 8 || !declared["row_distance"] || !declared["column_distance"] {
+		t.Fatalf("manifest declares parts %v", declared)
+	}
 	bySubject := &types.Group{Type: types.GROUP_CATEGORY, Field: "subj"}
 	spec := types.OverlaySpec{Name: "map", Kind: types.OverlayKindCorrespondence, Scope: types.OverlayScopeMatrix}
 	for name, w := range map[string]*types.WeightSpec{
@@ -81,8 +94,13 @@ func TestCorrespondence_EndToEnd(t *testing.T) {
 				if err != nil {
 					t.Fatalf("%s: %v", cell, err)
 				}
-				if len(resp.Overlays) != 1 || len(resp.Overlays[0].Payload.Parts) != 6 || len(resp.Overlays[0].Payload.Series.Entries) != 1 {
+				if len(resp.Overlays) != 1 || len(resp.Overlays[0].Payload.Parts) != len(declared) || len(resp.Overlays[0].Payload.Series.Entries) != 1 {
 					t.Fatalf("%s: overlays %+v", cell, resp.Overlays)
+				}
+				for name := range resp.Overlays[0].Payload.Parts {
+					if !declared[name] {
+						t.Errorf("%s: runtime part %q is not declared in the manifest", cell, name)
+					}
 				}
 				if _, err := json.Marshal(resp); err != nil {
 					t.Fatalf("%s: marshal: %v", cell, err)

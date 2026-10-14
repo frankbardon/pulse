@@ -11491,7 +11491,7 @@
       },
       {
         "name": "op-overlay-correspondence",
-        "description": "Correspondence analysis of the host crosstab — inertia per dimension, row and column map coordinates, quality and contribution as parts."
+        "description": "Correspondence analysis of the host crosstab — inertia per dimension, row and column map coordinates, quality, contribution and chi-square profile distances as parts."
       },
       {
         "name": "op-overlay-delta-vs-baseline",
@@ -13040,7 +13040,9 @@
           "fitted": true,
           "fit_stat": "column_masses",
           "domain": "non_negative",
-          "consumers": []
+          "consumers": [
+            "OVERLAY_CORRESPONDENCE"
+          ]
         }
       ],
       "vector_kinds": [
@@ -13184,7 +13186,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Simple correspondence analysis (R's ca::ca) of the host crosstab — a perceptual map placing rows and columns in a few shared dimensions — from the SVD (linalg.SVD) of the standardized residual matrix S = D_r^-1/2 (P - r c^T) D_c^-1/2. MATRIX scope over a MATRIX (crosstab) host. The primary SERIES holds the principal inertia of each of the min(r, c) - 1 dimensions (keys dim_1, dim_2, ...; entry parameters share, cumulative_share, singular_value); Summary.Statistic is the total inertia (chi-square / n) and its parameters carry dimensions, retained_share and share_dim_\u003ck\u003e. payload.parts: row_coordinates / column_coordinates (MATRIX points x retained dimensions, columns keyed dim_1 ...), row_quality / column_quality (SERIES, cos^2 summed over the retained dimensions; parameters mass, inertia) and row_contribution / column_contribution (MATRIX, each point's share of a dimension's inertia). params: dimensions (integer, default 2 capped at min(r, c) - 1; an explicit value above it is PULSE_OVERLAY_PARAM_MISSING) and normalization (symmetric [default: both principal] | row_principal | column_principal). Signs follow linalg.SVD: per dimension the dominant component of the column singular vector is positive. Cells must be non-negative masses: a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED. Zero-total rows / columns are dropped with one PULSE_OVERLAY_REF_ZERO per axis; fewer than 2 x 2 kept points is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Scale-invariant: a weighted host's sum-of-weights table is read as is under either weight kind. Descriptive (no p-value).",
+        "description": "Simple correspondence analysis (R's ca::ca) of the host crosstab — a perceptual map placing rows and columns in a few shared dimensions — from the SVD (linalg.SVD) of the standardized residual matrix S = D_r^-1/2 (P - r c^T) D_c^-1/2. MATRIX scope over a MATRIX (crosstab) host. The primary SERIES holds the principal inertia of each of the min(r, c) - 1 dimensions (keys dim_1, dim_2, ...; entry parameters share, cumulative_share, singular_value); Summary.Statistic is the total inertia (chi-square / n) and its parameters carry dimensions, retained_share and share_dim_\u003ck\u003e. payload.parts: row_coordinates / column_coordinates (MATRIX points x retained dimensions, columns keyed dim_1 ...), row_quality / column_quality (SERIES, cos^2 summed over the retained dimensions; parameters mass, inertia), row_contribution / column_contribution (MATRIX, each point's share of a dimension's inertia) and row_distance / column_distance (MATRIX points x points: the pairwise chi-square distances between profiles — the chi_square metric over the other axis's masses, symmetric, 0 diagonal, independent of dimensions and normalization). params: dimensions (integer, default 2 capped at min(r, c) - 1; an explicit value above it is PULSE_OVERLAY_PARAM_MISSING) and normalization (symmetric [default: both principal] | row_principal | column_principal). Signs follow linalg.SVD: per dimension the dominant component of the column singular vector is positive. Cells must be non-negative masses: a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED. Zero-total rows / columns are dropped with one PULSE_OVERLAY_REF_ZERO per axis; fewer than 2 x 2 kept points is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Scale-invariant: a weighted host's sum-of-weights table is read as is under either weight kind. Descriptive (no p-value).",
         "intents": [
           "composition",
           "relationship"
@@ -13199,6 +13201,10 @@
             "shape": "matrix"
           },
           {
+            "name": "column_distance",
+            "shape": "matrix"
+          },
+          {
             "name": "column_quality",
             "shape": "series"
           },
@@ -13208,6 +13214,10 @@
           },
           {
             "name": "row_coordinates",
+            "shape": "matrix"
+          },
+          {
+            "name": "row_distance",
             "shape": "matrix"
           },
           {
@@ -17031,4 +17041,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f99d47226cb5b5de9af41017f0a3c072505088ff8c96c888e0ed1d1bd53f1f93
+// golden-hash: 9a1768b9f34386fed31b98c0fb230fce58749fe1ddd8255a365fefa04d909dac

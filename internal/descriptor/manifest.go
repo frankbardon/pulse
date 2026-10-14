@@ -402,6 +402,11 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		for _, mm := range mats {
 			names[mm.Name] = true
 		}
+		// An overlay kind consumes a metric too (OVERLAY_CORRESPONDENCE's
+		// chi_square profile distances): offered iff the instance lists it.
+		for _, o := range m.Overlays {
+			names[string(o.Kind)] = true
+		}
 		c := matrixCapability(metricConsumerOffered(names))
 		m.Matrix = &c
 	}

@@ -65,8 +65,10 @@ var (
 	// compiles to FILTER_EXPRESSION, which it hard-depends on.
 	ownExpr = own("ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA")
 	// ownMetricConsumers: every consumer of the shared metric
-	// registry (linalg/metric) — the expression operators, MAT_DISTANCE
-	// and GROUP_KMEANS.
+	// registry (linalg/metric) that resolves a caller-named metric — the
+	// expression operators, MAT_DISTANCE, GROUP_KMEANS and the reference
+	// comparison attributes. OVERLAY_CORRESPONDENCE consumes chi_square
+	// too but names it itself, so it never raises the metric codes.
 	ownMetricConsumers = plus(ownExpr, own("MAT_DISTANCE", "GROUP_KMEANS", "ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE"))
 	// ownChiSq: the contingency-table checks run in the chi-square /
 	// Fisher row tests and in the crosstab chi-square overlays.

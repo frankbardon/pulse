@@ -300,6 +300,19 @@ var (
 			Field: "parts.column_contribution.cells.value",
 			Means: "The column's share (0 to 1) of a dimension's inertia; each dimension's column contributions sum to 1.",
 		},
+		{
+			Field: "parts.row_distance.cells.value",
+			Means: "How different two rows' profiles across the columns are (0 = identical mixes), each squared gap divided by the column's mass so rare columns count more. " +
+				"It is the full-table distance the map approximates; 0 on the diagonal.",
+			Caveats: []string{
+				"It ignores the row totals: two rows with the same mix are 0 apart however different their sizes.",
+				"The map shows these distances only as well as the rows' quality allows; read this part, not the map, when the retained share is low.",
+			},
+		},
+		{
+			Field: "parts.column_distance.cells.value",
+			Means: "How different two columns' profiles across the rows are, read like the row distance, each squared gap divided by the row's mass.",
+		},
 	}
 
 	interpOverlayMarkov = []descriptor.Interpretation{

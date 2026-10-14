@@ -3264,6 +3264,7 @@ pulse/linalg/metric: const Binary pulse/linalg/metric.Kind = "binary"
 pulse/linalg/metric: const Composition pulse/linalg/metric.Kind = "composition"
 pulse/linalg/metric: type Consumer string
 pulse/linalg/metric: type Consumer method (Consumer) Forms() []pulse/linalg/metric.Form
+pulse/linalg/metric: const ConsumerCorrespondence pulse/linalg/metric.Consumer = "OVERLAY_CORRESPONDENCE"
 pulse/linalg/metric: const ConsumerExpr pulse/linalg/metric.Consumer = "expr"
 pulse/linalg/metric: const ConsumerKMeans pulse/linalg/metric.Consumer = "GROUP_KMEANS"
 pulse/linalg/metric: const ConsumerMatDistance pulse/linalg/metric.Consumer = "MAT_DISTANCE"
@@ -5295,4 +5296,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 54a1e6e12b5c26afbf1d3a3de041370344a38a27791696dbef7747c0728296d2
+// golden-hash: ddc32bd033b2256bf18a1a1c8fee82d02e5114ca10d90a1cabea48e0ad482e87

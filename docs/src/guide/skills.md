@@ -128,7 +128,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-overlay-chisq-row`](skills/op-overlay-chisq-row.md): Per-row χ² goodness-of-fit test across the host crosstab's contingency table.
 - [`op-overlay-chisq-vs-pop`](skills/op-overlay-chisq-vs-pop.md): χ² goodness-of-fit comparing host Facet subset distribution against the resolved population distribution.
 - [`op-overlay-chisq-vs-ref`](skills/op-overlay-chisq-vs-ref.md): Compose-host whole-matrix χ² comparing target slot's matrix against the reference slot's matrix (rescaled to target N).
-- [`op-overlay-correspondence`](skills/op-overlay-correspondence.md): Correspondence analysis of the host crosstab — inertia per dimension, row and column map coordinates, quality and contribution as parts.
+- [`op-overlay-correspondence`](skills/op-overlay-correspondence.md): Correspondence analysis of the host crosstab — inertia per dimension, row and column map coordinates, quality, contribution and chi-square profile distances as parts.
 - [`op-overlay-delta-vs-baseline`](skills/op-overlay-delta-vs-baseline.md): Per-point additive delta against a fixed positional baseline of an ordered SERIES host.
 - [`op-overlay-delta-vs-margin`](skills/op-overlay-delta-vs-margin.md): Per-cell additive delta against the matching axis margin (cell − margin).
 - [`op-overlay-delta-vs-prior`](skills/op-overlay-delta-vs-prior.md): Per-point streamable windowed additive delta against the immediately preceding point of an ordered SERIES host.

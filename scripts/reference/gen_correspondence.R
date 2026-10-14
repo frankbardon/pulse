@@ -25,6 +25,11 @@
 #     (principal coordinate^2 / rowdist^2), contribution = mass *
 #     principal coordinate^2 / inertia (fractions, not per mil) —
 #     checked against summary.ca's per-mil qlt / ctr
+#   * row_distance / col_distance (U30 E5-S3): the pairwise chi-square
+#     distances between profiles, the Euclidean distance (stats::dist)
+#     between the profiles each divided by sqrt(mass) of the other
+#     axis — sqrt(sum_j (p_ij/r_i - p_kj/r_k)^2 / c_j) — checked against
+#     ca's rowdist / coldist (each profile's distance to the centroid)
 # ca's own sign is left as is: the Go test normalizes each dimension
 # to the linalg.SVD convention (the dominant component of
 # V = sqrt(colmass) * standard column coordinate positive) before
@@ -91,6 +96,20 @@ ca_case <- function(name, x, note, dimensions = 2) {
     }
     grDevices::dev.off()
   }
+  # Pairwise chi-square profile distances: Euclidean between the
+  # profiles scaled by 1 / sqrt(the other axis's masses).
+  rprof <- sweep(xr, 1, rowSums(xr), "/")
+  cprof <- sweep(t(xr), 1, colSums(xr), "/")
+  rscaled <- sweep(rprof, 2, sqrt(fit$colmass), "/")
+  cscaled <- sweep(cprof, 2, sqrt(fit$rowmass), "/")
+  rdist <- as.matrix(stats::dist(rscaled))
+  cdist <- as.matrix(stats::dist(cscaled))
+  # The same scaling against the centroid profile (the other axis's
+  # masses) reproduces ca's rowdist / coldist.
+  rcent <- sqrt(rowSums(sweep(rscaled, 2, fit$colmass / sqrt(fit$colmass))^2))
+  ccent <- sqrt(rowSums(sweep(cscaled, 2, fit$rowmass / sqrt(fit$rowmass))^2))
+  stopifnot(isTRUE(all.equal(unname(rcent), unname(fit$rowdist), tolerance = 1e-12)))
+  stopifnot(isTRUE(all.equal(unname(ccent), unname(fit$coldist), tolerance = 1e-12)))
   rquality <- rowSums(rp^2) / fit$rowdist^2
   cquality <- rowSums(cp^2) / fit$coldist^2
   rctr <- sweep(fit$rowmass * rp^2, 2, sv[seq_len(d)]^2, "/")
@@ -123,7 +142,9 @@ ca_case <- function(name, x, note, dimensions = 2) {
     row_quality = ca_vec(rquality),
     col_quality = ca_vec(cquality),
     row_contribution = ca_mat(rctr),
-    col_contribution = ca_mat(cctr)
+    col_contribution = ca_mat(cctr),
+    row_distance = ca_mat(rdist),
+    col_distance = ca_mat(cdist)
   )
 }
 
@@ -165,7 +186,7 @@ write_golden("correspondence", list(
     jsonlite = as.character(packageVersion("jsonlite"))
   ),
   primitive = "OVERLAY_CORRESPONDENCE",
-  r_function = "ca::ca(x): sv, rowmass / colmass, rowcoord / colcoord (standard); principal = standard * sv; quality / contribution from rowdist / mass",
+  r_function = "ca::ca(x): sv, rowmass / colmass, rowcoord / colcoord (standard); principal = standard * sv; quality / contribution from rowdist / mass; row / col distance = stats::dist over profiles / sqrt(mass)",
   note = "Signs are ca's own; normalize per dimension to the linalg.SVD convention (dominant component of sqrt(colmass) * standard column coordinate positive) before comparing.",
   cases = ca_cases
 ))
