@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U46]
 blocks: [U32]
-todo_items: [348, 349, 350, 351, 352, 353]
+todo_items: [348, 349, 350, 351, 352, 353, 452]
 branch: local-time
 ---
 
@@ -86,6 +86,12 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(local-time/E<n>-S
 
 - `execution-modes.md` (Time zones) and `skills/time-zones.md`; the touched atomic skills; payload-schema golden; `make docs`
 - CLAUDE.md only where a contract it states moves (keep it ≤ 40,000 bytes)
+
+## Handed on from U30
+
+| Item | Source |
+|---|---|
+| `ATTR_PREVIOUS_STATE` — per-subject previous-state attribute (the subject's state at its previous time point, ordered in local time), so a long panel feeds the `flows` overlays without pre-pivoting | [U30](U30-matrix-extensions-hardening.md) #452 (from #449, E7-S2) |
 
 ## Human inputs & decisions
 

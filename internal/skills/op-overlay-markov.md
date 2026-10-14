@@ -41,4 +41,4 @@ Primary MATRIX: transition P (rows sum to 1). Parts: `step_<n>` (MATRIX Pⁿ), `
 
 ## See
 
-- Skills: `overlay-system`, `op-overlay-share-of-row`, `op-overlay-chisq-matrix`, `op-overlay-symmetry`.
+- Skills: `overlay-system`, `op-overlay-share-of-row`, `op-overlay-chisq-matrix`, `op-overlay-symmetry`, `op-overlay-retention`.

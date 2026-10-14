@@ -40,6 +40,7 @@ The overlays this instance offers: what each is for, the questions it answers an
 | [`OVERLAY_PROP_Z_PANEL`](#op-overlay_prop_z_panel) | Two-proportion z-tests between every pair of requests in a Compose panel, for each crosstab cell: which waves or markets differ in share? | Across four waves, which pairs of waves differ in this answer's share? | advanced | [`OVERLAY_PROP_Z_CELL`](#op-overlay_prop_z_cell) when there is only one target.<br>[`OVERLAY_PANEL_INDEX_VS_REF`](#op-overlay_panel_index_vs_ref) when you want index values against one reference rather than tests.<br>[`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) when the groups are rows or columns of one crosstab. |
 | [`OVERLAY_RAKE`](#op-overlay_rake) | Rake a crosstab to known row and column totals: the fitted table, per-cell adjustment factors and whether the fit converged. | What would this age by region table look like if its margins matched the census shares? | advanced | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want each cell's share of its row, with no target margins.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether rows and columns are associated. |
 | [`OVERLAY_RANK`](#op-overlay_rank) | Ranks each cell of a target Compose request's crosstab (1 = largest) within its row, its column or the whole table. | Which product is the top seller in each region? | basic | [`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) when you want each cell's share of the whole.<br>[`OVERLAY_ZSCORE_VS_MARGIN`](#op-overlay_zscore_vs_margin) when you want how far each cell sits from its row or column.<br>[`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the change from the reference request. |
+| [`OVERLAY_RETENTION`](#op-overlay_retention) | Retention rates of a from-state by to-state crosstab: for each starting state, the share that stayed, switched or churned. | What share of each tier's customers kept their tier, moved to another tier or churned between the two snapshots? | basic | [`OVERLAY_MARKOV`](#op-overlay_markov) when you want where the flow leads over several periods, or the expected time until churn.<br>[`OVERLAY_SYMMETRY`](#op-overlay_symmetry) when you want to test whether moves one way outnumber moves back.<br>[`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want every destination's share of each row, not one stay / switch / churn split. |
 | [`OVERLAY_SHARE_OF_COL`](#op-overlay_share_of_col) | Each crosstab cell as a share of its column margin (0 to 1): the mix of rows within each column, as a 100% stacked column shows it. | Within each channel, what share of orders comes from each region? | basic | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want the mix within each row.<br>[`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) when you want each cell's share of the whole table.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether the column mixes differ. |
 | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) | Each crosstab cell as a share of its row margin (0 to 1): the mix of columns within each row, as a 100% stacked bar shows it. | Within each region, what share of orders goes to each channel? | basic | [`OVERLAY_SHARE_OF_COL`](#op-overlay_share_of_col) when you want the mix within each column.<br>[`OVERLAY_INDEX_VS_MARGIN`](#op-overlay_index_vs_margin) when you want the same figure on a 0 to 100 index scale.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether the row mixes differ. |
 | [`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) | Each crosstab cell or group of a grouped result as a share of the grand total (0 to 1): what part of the whole each piece makes up. | What share of all revenue does each region bring in? | basic | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want the share within each row of a crosstab.<br>[`OVERLAY_INDEX_VS_TOTAL`](#op-overlay_index_vs_total) when you want the same figure x 100 on a grouped result.<br>[`OVERLAY_ZSCORE_VS_TOTAL`](#op-overlay_zscore_vs_total) when you want each group's position against the average group. |
@@ -1332,6 +1333,49 @@ Ranks each cell of a target Compose request's crosstab (1 = largest) within its 
 **Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`rank`](../glossary.md#term-rank), [`ties`](../glossary.md#term-ties)
 
 **Skill:** [`op-overlay-rank`](../skills/op-overlay-rank.md)
+
+<a id="op-overlay_retention"></a>
+
+### `OVERLAY_RETENTION`
+
+Retention rates of a from-state by to-state crosstab: for each starting state, the share that stayed, switched or churned.
+
+**Level:** basic
+
+**Also known as:** `retention rate`, `churn rate`, `stay rate`, `switching rate`
+
+**Questions it answers:**
+
+- What share of each tier's customers kept their tier, moved to another tier or churned between the two snapshots?
+- Which starting plan holds on to its accounts best?
+
+**Use cases by domain:**
+
+- *survey:* Read a last-brand by current-brand table as each brand's loyalty rate and its loss to other brands or to no purchase.
+- *ops:* Report how many accounts in each plan tier stayed, changed tier or cancelled over the quarter.
+- *science:* Report, for each starting stage, the share of patients still in it at follow-up, the share that moved and the share that left the study.
+
+**Assumptions:**
+
+- Rows are the earlier state and columns the later one, and a state keeps the same name on both axes; staying is the cell where the two names match.
+- Cells count units (AGG_COUNT) or sum an amount (AGG_SUM); any other cell aggregation is refused.
+- Churn needs the absorbing states named in params.absorbing; without them every move out counts as a switch, and a named absorbing state is not reported as a starting state.
+- It is descriptive: the rates carry no confidence intervals, and a starting state with few units gives noisy rates.
+
+**Use something else:**
+
+- [`OVERLAY_MARKOV`](#op-overlay_markov) when you want where the flow leads over several periods, or the expected time until churn.
+- [`OVERLAY_SYMMETRY`](#op-overlay_symmetry) when you want to test whether moves one way outnumber moves back.
+- [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want every destination's share of each row, not one stay / switch / churn split.
+
+**Follow up with:**
+
+- [`OVERLAY_MARKOV`](#op-overlay_markov) when the stay rates differ and you want to project the tier mix forward.
+- [`OVERLAY_SYMMETRY`](#op-overlay_symmetry) when you want to know whether the switching is lopsided between two states.
+
+**Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`margin`](../glossary.md#term-margin)
+
+**Skill:** [`op-overlay-retention`](../skills/op-overlay-retention.md)
 
 <a id="op-overlay_share_of_col"></a>
 

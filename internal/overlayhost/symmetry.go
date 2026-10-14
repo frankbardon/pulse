@@ -60,18 +60,5 @@ func ParseSymmetryParams(spec *types.OverlaySpec, index int) (SymmetryParams, *e
 // the two raise the same code, message and details. nil when the spec
 // passes.
 func SymmetrySpecRefusal(spec *types.OverlaySpec, index int) *errors.CodedError {
-	details := map[string]any{"kind": string(spec.Kind)}
-	if index >= 0 {
-		details["index"] = index
-	}
-	if spec.Ref != (types.OverlayRef{}) {
-		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-margin: the test reads the whole table)", details)
-	}
-	if spec.Scope != types.OverlayScopeMatrix {
-		details["scope"] = string(spec.Scope)
-		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED,
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: matrix)", details)
-	}
-	return nil
+	return implicitSpecRefusal(spec, index, types.OverlayScopeMatrix, "the test reads the whole table")
 }

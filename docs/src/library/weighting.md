@@ -329,7 +329,8 @@ counted.
 ## Overlays
 
 Share and index overlays (share of row / column / total, index vs
-margin, total, prior, baseline, rolling mean, sibling, reference) read
+margin, total, prior, baseline, rolling mean, sibling, reference) and
+the retention rates (`OVERLAY_RETENTION`, a ratio of host cells) read
 the host's figures. On a weighted host they are therefore weighted,
 with no setting needed. The pairwise two-means z and probit t
 overlays refuse when a weight reaches the overlay itself: its own

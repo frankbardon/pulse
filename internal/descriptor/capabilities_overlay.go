@@ -1443,6 +1443,30 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"emits one PULSE_OVERLAY_EXPECTED_LOW. A host smaller than 2 x 2 or with a zero grand total is " +
 				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.",
 		}
+	case types.OverlayKindRetention:
+		return descriptor.OverlayCapability{
+			Kind: types.OverlayKindRetention,
+			// Descriptive: no p-value, so no multiplicity site.
+			Inferential: false,
+			Shapes:      []types.OverlayShape{types.OverlayShapeSeries},
+			Scopes:      []types.OverlayScope{types.OverlayScopeRow},
+			// No Ref family — implicit-margin like the CHISQ_* kinds.
+			RefKinds: []string{},
+			Description: "Retention rates of a from-state (rows) x to-state (columns) crosstab. ROW scope over a MATRIX " +
+				"(crosstab) host with SERIES payload: one entry per from-state, in row order, with Summary.Statistic = stay " +
+				"(the share of the row's total in the column naming the same state — aligned by key, never by position; no " +
+				"such column = 0) and Summary.Parameters switch (the share that moved to any other state), from_total (the " +
+				"row's total) and, with params.absorbing, churn (the share that moved into a named absorbing state, so stay " +
+				"+ switch + churn = 1). A from-state named in params.absorbing is not reported. The layer's " +
+				"Summary.Parameters pool the same rates over the reported rows (stay, switch, churn with absorbing, states, " +
+				"total). A row with a zero total has null rates and raises one PULSE_OVERLAY_REF_ZERO warning (reason " +
+				"zero_row). params: absorbing (a non-empty array of distinct state keys present in the host, row or " +
+				"column); a bad or unknown param, or a key the host lacks, is PULSE_OVERLAY_PARAM_MISSING. A different " +
+				"grouper count per axis is PULSE_OVERLAY_MATRIX_NOT_SQUARE; a cell aggregation other than AGG_COUNT / " +
+				"AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED; an undefined cell is absent (0). " +
+				"Scale-invariant: a weighted host's sum-of-weights table is read as is under either weight kind. " +
+				"Descriptive (no p-value).",
+		}
 	case types.OverlayKindSymmetry:
 		return descriptor.OverlayCapability{
 			Kind:        types.OverlayKindSymmetry,

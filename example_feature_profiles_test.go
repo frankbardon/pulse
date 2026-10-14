@@ -149,7 +149,7 @@ func TestExampleFeatureProfiles_Content(t *testing.T) {
 	}
 	// Transition chains are not survey crosstab work: the flows intent
 	// stays absent from this profile.
-	for _, f := range []string{"OVERLAY_MARKOV", "OVERLAY_SYMMETRY"} {
+	for _, f := range []string{"OVERLAY_MARKOV", "OVERLAY_SYMMETRY", "OVERLAY_RETENTION"} {
 		if survey[f] {
 			t.Errorf("survey-crosstab enables %s", f)
 		}

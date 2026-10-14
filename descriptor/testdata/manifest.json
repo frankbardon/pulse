@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:452183ddba50be69bf7bd19123930d59d61c6f02eecd9962e3d9f9968f4bcb5f",
+    "feature_set_digest": "fs1:aea443a0e031845dccf27a2f77f93a871643f0d1df4d435756ca0046164e4aa1",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -11656,6 +11656,10 @@
         "description": "Compose-host per-cell rank of each target cell within a configurable population (row / column / matrix)."
       },
       {
+        "name": "op-overlay-retention",
+        "description": "Retention rates of a from × to crosstab — per starting state, the share that stayed, switched or churned into a named absorbing state."
+      },
+      {
         "name": "op-overlay-share-of-col",
         "description": "Per-cell share-of-column ratio (cell / col_margin) — raw share, sums to 1.0 per column."
       },
@@ -12332,7 +12336,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 220,
+    "examples_count": 221,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -13856,6 +13860,21 @@
         "description": "COMPOSE-host per-cell rank of each target cell within a configurable population per Params[\"population\"] (\"row\" | \"column\" | \"matrix\"; defaults to \"matrix\"). CELL scope over a MATRIX (crosstab) host with MATRIX payload — each cell's value is the 1-based average-tie rank (1 = largest) computed against the population the spec selected. Population modes: \"row\" ranks within the cell's own row across all columns; \"column\" ranks within the cell's own column across all rows; \"matrix\" ranks across every present cell of the target matrix. Ties take the average of their would-be ranks (canonical \"average\" tie-breaking; matches scipy.stats.rankdata default convention). Absent cells stay absent on the overlay; they do NOT participate in the population's denominator. The reference slot is required to anchor the resolution + key-set gates but the rank computation reads only the target cells — RANK is orthogonal to the ref-vs-target comparison family while still reusing the same resolution + alignment pipeline. Inherently buffered — the COMPOSE host is buffered by the slot barrier; ranking within the target matrix requires the full materialised matrix anyway.",
         "intents": [
           "describe"
+        ]
+      },
+      {
+        "kind": "OVERLAY_RETENTION",
+        "shapes": [
+          "series"
+        ],
+        "scopes": [
+          "row"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Retention rates of a from-state (rows) x to-state (columns) crosstab. ROW scope over a MATRIX (crosstab) host with SERIES payload: one entry per from-state, in row order, with Summary.Statistic = stay (the share of the row's total in the column naming the same state — aligned by key, never by position; no such column = 0) and Summary.Parameters switch (the share that moved to any other state), from_total (the row's total) and, with params.absorbing, churn (the share that moved into a named absorbing state, so stay + switch + churn = 1). A from-state named in params.absorbing is not reported. The layer's Summary.Parameters pool the same rates over the reported rows (stay, switch, churn with absorbing, states, total). A row with a zero total has null rates and raises one PULSE_OVERLAY_REF_ZERO warning (reason zero_row). params: absorbing (a non-empty array of distinct state keys present in the host, row or column); a bad or unknown param, or a key the host lacks, is PULSE_OVERLAY_PARAM_MISSING. A different grouper count per axis is PULSE_OVERLAY_MATRIX_NOT_SQUARE; a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED; an undefined cell is absent (0). Scale-invariant: a weighted host's sum-of-weights table is read as is under either weight kind. Descriptive (no p-value).",
+        "intents": [
+          "flows"
         ]
       },
       {
@@ -17107,4 +17126,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 172b5076ff2653440030217e964dc565ff58c76cf804154d3d3dfb787684843e
+// golden-hash: 38f1d19a993fd34abcabf8c7031cc629abe171a7af842875fd32032642f0aa5e

@@ -4799,6 +4799,7 @@ pulse/types: const OverlayKindPropZCell pulse/types.OverlayKind = "OVERLAY_PROP_
 pulse/types: const OverlayKindPropZPanel pulse/types.OverlayKind = "OVERLAY_PROP_Z_PANEL"
 pulse/types: const OverlayKindRake pulse/types.OverlayKind = "OVERLAY_RAKE"
 pulse/types: const OverlayKindRank pulse/types.OverlayKind = "OVERLAY_RANK"
+pulse/types: const OverlayKindRetention pulse/types.OverlayKind = "OVERLAY_RETENTION"
 pulse/types: const OverlayKindShareOfCol pulse/types.OverlayKind = "OVERLAY_SHARE_OF_COL"
 pulse/types: const OverlayKindShareOfRow pulse/types.OverlayKind = "OVERLAY_SHARE_OF_ROW"
 pulse/types: const OverlayKindShareOfTotal pulse/types.OverlayKind = "OVERLAY_SHARE_OF_TOTAL"
@@ -5297,4 +5298,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0bc43120f64605f93283666da6243d98537dbf8e5f50be00af10281e78995d9e
+// golden-hash: e0e12b2575c8c727ca2e87853b31e6ad6088c940378586d40e5ae30d67eb9534

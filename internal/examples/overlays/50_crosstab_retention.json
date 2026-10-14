@@ -1,0 +1,57 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Crosstab count of from_tier x to_tier (one row per member-month move: each member's tier before and after) decorated with an OVERLAY_RETENTION row-scope overlay: one series entry per starting tier carrying its stay rate (the share still in the same tier), its switch rate (the share that moved to another tier), its churn rate (the share that moved into churned, named absorbing) and the tier's member count. churned itself is not reported as a starting tier. The layer summary pools the three rates over every reported tier. Rows and columns align by tier name (implicit-margin contract; no ref pointer).",
+    "intents": [
+      "flows"
+    ],
+    "name": "crosstab-retention",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "cohort-analysis",
+      "overlay"
+    ]
+  },
+  "cohort": {
+    "filename": "tier_migrations.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "from_tier"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "to_tier"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  },
+  "overlays": [
+    {
+      "name": "retention",
+      "kind": "OVERLAY_RETENTION",
+      "scope": "row",
+      "params": {
+        "absorbing": ["churned"]
+      }
+    }
+  ]
+}

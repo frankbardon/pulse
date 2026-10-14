@@ -422,6 +422,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#351** Rolling overlays take `min_periods` (default: the window), so the z-score and index siblings warm up alike · [U50](units/U50-local-time.md)
 - [ ] **#352** Docs: what `--dst-policy earlier` / `later` do to a nonexistent local time (earlier lands on the later wall clock), and that `TEST_TREND` orders string keys lexicographically · [U50](units/U50-local-time.md)
 - [ ] **#353** Acceptance: the multi-time-zone example's six-slot Compose views become single requests, including one warehouse × local-hour matrix, and the anomaly screen excludes local Saturdays in Pulse · [U50](units/U50-local-time.md)
+- [ ] **#452** `ATTR_PREVIOUS_STATE`: a per-subject previous-state attribute. For each record it gives the state the same subject (a key field) held at its previous time point (ordered by a date / datetime field, read in the row's local time), or null for the subject's first record. A long panel then feeds a from-state × to-state crosstab (and `OVERLAY_MARKOV` / `OVERLAY_SYMMETRY` / `OVERLAY_RETENTION`) without pre-pivoting to wide `state_t1` / `state_t2` columns. It would be the fourth `flows` declarer. Handed on from U30 (E7-S2, #449) · [U50](units/U50-local-time.md)
 
 #### Archive scale ([U51](units/U51-archive-scale.md))
 - [ ] **#354** Archives open through `io.ReaderAt` and the zip central directory: `inspect`, `predict`, `CountRecords`, `shard list` and anchor reads touch only headers and the central directory (O(shards)), as CLAUDE.md promises · [U51](units/U51-archive-scale.md)

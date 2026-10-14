@@ -1500,6 +1500,31 @@ const (
 	// has an undefined (null) residual and p. Inherently buffered.
 	OverlayKindStdResidual OverlayKind = "OVERLAY_STD_RESIDUAL"
 
+	// OverlayKindRetention reads the host crosstab as a from-state (row)
+	// × to-state (column) table and reports, per from-state, how its
+	// units split between staying, switching and churning:
+	// stay = n_ii / R_i (the diagonal share: the column whose key names
+	// the row's state, aligned BY KEY like OVERLAY_MARKOV, an absent one
+	// 0), churn = Σ_{a ∈ absorbing, a ≠ i} n_ia / R_i (only with
+	// params.absorbing, the named absorbing states) and switch = the
+	// rest of the row over R_i (moves to any other state), so the three
+	// sum to 1. R_i is the row's total over every column. A from-state
+	// named in params.absorbing is not reported (churn is the way into
+	// it). ROW-scoped over a MATRIX (crosstab) host, implicit-margin
+	// (Ref empty), descriptive: SERIES payload, one entry per reported
+	// from-state in row order — Statistic = stay, Parameters switch,
+	// from_total and (with absorbing) churn; the layer Summary.Parameters
+	// pool the same rates over the reported rows (stay, switch, churn,
+	// states, total). A from-state with a zero total has null rates and
+	// one PULSE_OVERLAY_REF_ZERO warning; an absorbing name that is no
+	// host state is PULSE_OVERLAY_PARAM_MISSING. Every rate is a ratio of
+	// host cells, so a weighted host's Σw table is read as is (no weight
+	// class). Cells must be non-negative counts or sums (AGG_COUNT /
+	// AGG_SUM, else PULSE_OVERLAY_NONNEGATIVE_REQUIRED); a different
+	// grouper count per axis is PULSE_OVERLAY_MATRIX_NOT_SQUARE.
+	// Inherently buffered.
+	OverlayKindRetention OverlayKind = "OVERLAY_RETENTION"
+
 	// OverlayKindSymmetry tests a square from-state (row) × to-state
 	// (column) crosstab of PAIRED observations — the same unit measured
 	// twice — for symmetry: H0 n_ij and n_ji share one expected count
@@ -2569,6 +2594,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindPropZPanel,
 		OverlayKindRake,
 		OverlayKindRank,
+		OverlayKindRetention,
 		OverlayKindShareOfCol,
 		OverlayKindShareOfRow,
 		OverlayKindShareOfTotal,

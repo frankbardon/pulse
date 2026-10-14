@@ -191,6 +191,7 @@
     - [op-overlay-prop-z-panel](guide/skills/op-overlay-prop-z-panel.md)
     - [op-overlay-rake](guide/skills/op-overlay-rake.md)
     - [op-overlay-rank](guide/skills/op-overlay-rank.md)
+    - [op-overlay-retention](guide/skills/op-overlay-retention.md)
     - [op-overlay-share-of-col](guide/skills/op-overlay-share-of-col.md)
     - [op-overlay-share-of-row](guide/skills/op-overlay-share-of-row.md)
     - [op-overlay-share-of-total](guide/skills/op-overlay-share-of-total.md)

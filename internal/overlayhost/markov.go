@@ -79,20 +79,9 @@ func ParseMarkovParams(spec *types.OverlaySpec, index int) (MarkovParams, *error
 		out.Steps = steps
 	}
 	if len(in.Absorbing) > 0 {
-		var names []string
-		if err := json.Unmarshal(in.Absorbing, &names); err != nil || len(names) == 0 {
-			return out, markovParamRefusal(spec.Kind, index, "absorbing",
-				"absorbing must be a non-empty array of state keys, got "+string(in.Absorbing),
-				map[string]any{"absorbing": string(in.Absorbing)})
-		}
-		seen := map[string]bool{}
-		for _, n := range names {
-			if n == "" || seen[n] {
-				return out, markovParamRefusal(spec.Kind, index, "absorbing",
-					"absorbing lists an empty or repeated state key "+strconv.Quote(n),
-					map[string]any{"state": n})
-			}
-			seen[n] = true
+		names, cerr := parseAbsorbing(spec.Kind, in.Absorbing, index)
+		if cerr != nil {
+			return out, cerr
 		}
 		out.Absorbing = names
 	}
@@ -103,6 +92,29 @@ func ParseMarkovParams(spec *types.OverlaySpec, index int) (MarkovParams, *error
 		}
 	}
 	return out, nil
+}
+
+// parseAbsorbing decodes a params.absorbing value — a non-empty array
+// of distinct non-empty state names — shared by OVERLAY_MARKOV and
+// OVERLAY_RETENTION; anything else is PULSE_OVERLAY_PARAM_MISSING
+// (param absorbing).
+func parseAbsorbing(kind types.OverlayKind, raw json.RawMessage, index int) ([]string, *errors.CodedError) {
+	var names []string
+	if err := json.Unmarshal(raw, &names); err != nil || len(names) == 0 {
+		return nil, markovParamRefusal(kind, index, "absorbing",
+			"absorbing must be a non-empty array of state keys, got "+string(raw),
+			map[string]any{"absorbing": string(raw)})
+	}
+	seen := map[string]bool{}
+	for _, n := range names {
+		if n == "" || seen[n] {
+			return nil, markovParamRefusal(kind, index, "absorbing",
+				"absorbing lists an empty or repeated state key "+strconv.Quote(n),
+				map[string]any{"state": n})
+		}
+		seen[n] = true
+	}
+	return names, nil
 }
 
 func parseMarkovSteps(kind types.OverlayKind, raw json.RawMessage, index int) ([]int, *errors.CodedError) {

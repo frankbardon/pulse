@@ -45,6 +45,7 @@ var overlayInterpretations = map[string][]descriptor.Interpretation{
 	"OVERLAY_PROP_Z_PANEL":                  interpOverlayPropZPanel,
 	"OVERLAY_MATRIX_GROUP_SUMMARY":          interpOverlayMatrixGroupSummary,
 	"OVERLAY_RAKE":                          interpOverlayRake,
+	"OVERLAY_RETENTION":                     interpOverlayRetention,
 	"OVERLAY_STD_RESIDUAL":                  interpOverlayStdResidual,
 	"OVERLAY_SYMMETRY":                      interpOverlaySymmetry,
 	"OVERLAY_T_CELL":                        interpOverlayTCell,
@@ -386,6 +387,29 @@ var (
 		{
 			Field: "summary.parameters.classes",
 			Means: "The number of communicating classes: groups of states that can all reach one another. 1 means every state can reach every other; more (an absorbing churned state is its own class) means there is no single long-run mix, so steady_state is absent.",
+		},
+	}
+
+	interpOverlayRetention = []descriptor.Interpretation{
+		{
+			Field: "summary.statistic",
+			Means: "In each series entry: the stay rate, the share (0 to 1) of the starting state's units that were still in the same state at the end.",
+			Caveats: []string{
+				"null when the starting state's row total is 0: there is no one to retain, so the rate is undefined, not 0.",
+				"A starting state with few units gives a noisy rate; read it beside summary.parameters.from_total.",
+			},
+		},
+		{
+			Field: "summary.parameters.switch",
+			Means: "The switch rate: the share (0 to 1) of the starting state's units that ended in another state other than a named absorbing one. In each entry it is that state's rate; on the layer it pools every reported state.",
+		},
+		{
+			Field: "summary.parameters.churn",
+			Means: "The churn rate, present only with params.absorbing: the share (0 to 1) of the starting state's units that ended in a named absorbing state; stay, switch and churn add up to 1.",
+		},
+		{
+			Field: "summary.parameters.from_total",
+			Means: "In each series entry: the starting state's row total, the number of units (or, on a weighted host, the sum of weights) the rates divide by.",
 		},
 	}
 

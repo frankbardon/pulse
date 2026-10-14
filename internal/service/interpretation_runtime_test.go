@@ -61,6 +61,10 @@ var overlayInterpretationProbes = map[string]overlayInterpretationProbe{
 	"OVERLAY_MARKOV": {fields: []string{"summary.parameters.classes"}, run: markovOverlayLayer},
 	// Every symmetry parameter rides the layer's summary, even when no
 	// pair is kept (the region x region host is diagonal).
+	// Switch and churn ride the layer and every entry; from_total rides
+	// the entries only (region x region with east named absorbing).
+	"OVERLAY_RETENTION": {fields: []string{"summary.parameters.churn", "summary.parameters.from_total", "summary.parameters.switch"},
+		run: retentionOverlayLayer},
 	"OVERLAY_SYMMETRY": {fields: []string{"summary.parameters.continuity_corrected", "summary.parameters.df",
 		"summary.parameters.discordant", "summary.parameters.pairs_dropped", "summary.parameters.states"},
 		run: func(t *testing.T) types.OverlayLayer { return squareOverlayLayer(t, types.OverlayKindSymmetry) }},
@@ -147,6 +151,31 @@ func squareOverlayLayer(t *testing.T, kind types.OverlayKind) types.OverlayLayer
 	})
 	if err != nil {
 		t.Fatalf("Process(%s): %v", kind, err)
+	}
+	if len(resp.Overlays) != 1 {
+		t.Fatalf("Response.Overlays = %d layers, want 1", len(resp.Overlays))
+	}
+	return resp.Overlays[0]
+}
+
+// retentionOverlayLayer runs OVERLAY_RETENTION (row scope, east named
+// absorbing) over the region x region count crosstab.
+func retentionOverlayLayer(t *testing.T) types.OverlayLayer {
+	t.Helper()
+	cfg := setupTestFS(t, "ct.pulse", crosstabSchema(), crosstabRecords())
+	resp, err := New(cfg).Process(context.Background(), &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Shape:   types.CrosstabShapeMatrix,
+		},
+		Overlays: []types.OverlaySpec{{Name: "probe", Kind: types.OverlayKindRetention, Scope: types.OverlayScopeRow,
+			Params: json.RawMessage(`{"absorbing":["east"]}`)}},
+	})
+	if err != nil {
+		t.Fatalf("Process(OVERLAY_RETENTION): %v", err)
 	}
 	if len(resp.Overlays) != 1 {
 		t.Fatalf("Response.Overlays = %d layers, want 1", len(resp.Overlays))

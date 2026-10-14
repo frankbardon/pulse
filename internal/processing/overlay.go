@@ -321,6 +321,7 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 	types.OverlayKindShareOfTotal:              applyShareOfTotal,
 	types.OverlayKindStdResidual:               applyStdResidual,
 	types.OverlayKindSymmetry:                  applySymmetry,
+	types.OverlayKindRetention:                 applyRetention,
 	types.OverlayKindZScoreVsMargin:            applyZScoreVsMargin,
 }
 
@@ -479,6 +480,8 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 			layer, ws, err = applyRakeAt(spec, host, i)
 		case types.OverlayKindSymmetry:
 			layer, ws, err = applySymmetryAt(spec, host, i)
+		case types.OverlayKindRetention:
+			layer, ws, err = applyRetentionAt(spec, host, i)
 		default:
 			layer, ws, err = handler(spec, host)
 		}
@@ -540,7 +543,8 @@ func validateOverlayLevelWithinRuntime(spec *types.OverlaySpec, route types.Over
 		types.OverlayKindCorrespondence,
 		types.OverlayKindMarkov,
 		types.OverlayKindRake,
-		types.OverlayKindSymmetry:
+		types.OverlayKindSymmetry,
+		types.OverlayKindRetention:
 		// Inferential family — Level / Within must both be zero. Non-
 		// zero values alter the implicit-margin contract those kinds
 		// rely on (they compute contingency from the host's row + col
@@ -2943,6 +2947,10 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// SYMMETRY is implicit-margin (the whole table); lower-case
 		// bare-kind default like the CHISQ_* family.
 		return "symmetry"
+	case types.OverlayKindRetention:
+		// RETENTION is implicit-margin (each row over its total);
+		// lower-case bare-kind default like the CHISQ_* family.
+		return "retention"
 	case types.OverlayKindIndexVsBaseline:
 		// INDEX_VS_BASELINE is the windowed positional-baseline kind; the
 		// synthesised default surfaces the lower-case bare-kind string

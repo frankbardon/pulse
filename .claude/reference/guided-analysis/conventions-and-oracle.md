@@ -43,7 +43,7 @@ Delivered: `internal/docgen` and the committed book tree `docs/src/guide` (`make
 
 ## Out of scope (owned later)
 
-- U24 / U25 / U27 / U30 — the ledger's remaining owners: the `measure_construct` and `flows` intents plus the glossary terms their operators will link (Gates, exemption ledger). Each closes its own entries; a covered gap or an owner marked `status: done` makes the entry fail as stale.
+- U24 / U25 / U27 / U30 — the ledger's former owners, all closed: the `measure_construct` intent (U25 E1-S4), the `flows` intent (U30 E7-S2, `OVERLAY_RETENTION` the third declarer) and the glossary terms their operators link (Gates, exemption ledger). Only `ownerPermanent` entries remain; a new entry is owned by a unit and goes stale once its gap is covered or the owner is marked `status: done`.
 - U36 also owns the runtime defects U09 documented rather than fixed (split-aware `FEAT_TARGET_ENCODE`, `AGG_ZSCORE`'s always-zero value, normal-z `AGG_CI_*`, tied `ATTR_PERCENTILE`, attributes writing 0 for missing inputs) — the Interpretations and skills describe today's behaviour.
 - U10 — profile-aware skill rendering.
 - U38 — syncing the hand-written atomic skills that drifted from the registries (U21 delivered the rendering; see Generated reference above and `skill-pack.md` Generated sections).

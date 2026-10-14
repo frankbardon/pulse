@@ -82,7 +82,7 @@ func TestOverlayReadsCellValue_MatchesHandlers(t *testing.T) {
 			switch kind {
 			case types.OverlayKindChiSqMatrix, types.OverlayKindMarkov, types.OverlayKindSymmetry:
 				spec.Scope = types.OverlayScopeMatrix
-			case types.OverlayKindChiSqRow, types.OverlayKindPairwisePropZ, types.OverlayKindPairwiseProbitT:
+			case types.OverlayKindChiSqRow, types.OverlayKindPairwisePropZ, types.OverlayKindPairwiseProbitT, types.OverlayKindRetention:
 				spec.Scope = types.OverlayScopeRow
 			case types.OverlayKindPairwiseWelchT, types.OverlayKindPairwiseTwoMeansZ:
 				spec.Scope, comps = types.OverlayScopeRow, welford
@@ -105,7 +105,7 @@ func TestOverlayReadsCellValue_MatchesHandlers(t *testing.T) {
 			}
 			run := func(cells [3][3]float64) string {
 				host := readsCellHost(cells, comps)
-				if kind == types.OverlayKindMarkov || kind == types.OverlayKindSymmetry {
+				if kind == types.OverlayKindMarkov || kind == types.OverlayKindSymmetry || kind == types.OverlayKindRetention {
 					// A transition table: the columns name the row states.
 					host.payload.ColumnKeys = host.payload.RowKeys
 				}
@@ -129,7 +129,7 @@ func TestOverlayReadsCellValue_MatchesHandlers(t *testing.T) {
 			judged++
 		})
 	}
-	if judged < 17 {
+	if judged < 18 {
 		t.Fatalf("judged %d MATRIX kinds, want every MATRIX handler", judged)
 	}
 }

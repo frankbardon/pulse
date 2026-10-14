@@ -51,6 +51,7 @@ var overlayPurposes = map[string]descriptor.Purpose{
 	"OVERLAY_PROP_Z_PANEL":                  purposeOverlayPropZPanel,
 	"OVERLAY_RAKE":                          purposeOverlayRake,
 	"OVERLAY_RANK":                          purposeOverlayRank,
+	"OVERLAY_RETENTION":                     purposeOverlayRetention,
 	"OVERLAY_SHARE_OF_COL":                  purposeOverlayShareOfCol,
 	"OVERLAY_SHARE_OF_ROW":                  purposeOverlayShareOfRow,
 	"OVERLAY_SHARE_OF_TOTAL":                purposeOverlayShareOfTotal,
@@ -471,6 +472,40 @@ var (
 		Glossary: []string{
 			"chi-square", "continuity-correction", "cross-tabulation", "degrees-of-freedom",
 			"null-hypothesis", "p-value", "paired-data",
+		},
+	}
+
+	purposeOverlayRetention = descriptor.Purpose{
+		Plain:   "Retention rates of a from-state by to-state crosstab: for each starting state, the share that stayed, switched or churned.",
+		Intents: []string{IntentFlows},
+		Questions: []string{
+			"What share of each tier's customers kept their tier, moved to another tier or churned between the two snapshots?",
+			"Which starting plan holds on to its accounts best?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainOps:     "Report how many accounts in each plan tier stayed, changed tier or cancelled over the quarter.",
+			descriptor.DomainSurvey:  "Read a last-brand by current-brand table as each brand's loyalty rate and its loss to other brands or to no purchase.",
+			descriptor.DomainScience: "Report, for each starting stage, the share of patients still in it at follow-up, the share that moved and the share that left the study.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want where the flow leads over several periods, or the expected time until churn", Use: "OVERLAY_MARKOV"},
+			{When: "you want to test whether moves one way outnumber moves back", Use: "OVERLAY_SYMMETRY"},
+			{When: "you want every destination's share of each row, not one stay / switch / churn split", Use: "OVERLAY_SHARE_OF_ROW"},
+		},
+		FollowUps: []descriptor.Alternative{
+			{When: "the stay rates differ and you want to project the tier mix forward", Use: "OVERLAY_MARKOV"},
+			{When: "you want to know whether the switching is lopsided between two states", Use: "OVERLAY_SYMMETRY"},
+		},
+		Assumptions: []string{
+			"Rows are the earlier state and columns the later one, and a state keeps the same name on both axes; staying is the cell where the two names match.",
+			"Cells count units (AGG_COUNT) or sum an amount (AGG_SUM); any other cell aggregation is refused.",
+			"Churn needs the absorbing states named in params.absorbing; without them every move out counts as a switch, and a named absorbing state is not reported as a starting state.",
+			"It is descriptive: the rates carry no confidence intervals, and a starting state with few units gives noisy rates.",
+		},
+		Level:   descriptor.LevelBasic,
+		KnownAs: []string{"retention rate", "churn rate", "stay rate", "switching rate"},
+		Glossary: []string{
+			"cross-tabulation", "margin",
 		},
 	}
 

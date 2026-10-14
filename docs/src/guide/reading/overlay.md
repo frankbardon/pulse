@@ -510,6 +510,33 @@ How much the cell was scaled: the raked count over the observed one (above 1 = s
 
 The largest relative gap left between a fitted margin and its target (0.01 = 1%).
 
+<a id="op-overlay_retention"></a>
+
+### `OVERLAY_RETENTION`
+
+Retention rates of a from-state by to-state crosstab: for each starting state, the share that stayed, switched or churned. See its [catalog entry](../catalog/overlay.md#op-overlay_retention).
+
+#### `summary.statistic`
+
+In each series entry: the stay rate, the share (0 to 1) of the starting state's units that were still in the same state at the end.
+
+**Caveats:**
+
+- null when the starting state's row total is 0: there is no one to retain, so the rate is undefined, not 0.
+- A starting state with few units gives a noisy rate; read it beside summary.parameters.from_total.
+
+#### `summary.parameters.switch`
+
+The switch rate: the share (0 to 1) of the starting state's units that ended in another state other than a named absorbing one. In each entry it is that state's rate; on the layer it pools every reported state.
+
+#### `summary.parameters.churn`
+
+The churn rate, present only with params.absorbing: the share (0 to 1) of the starting state's units that ended in a named absorbing state; stay, switch and churn add up to 1.
+
+#### `summary.parameters.from_total`
+
+In each series entry: the starting state's row total, the number of units (or, on a weighted host, the sum of weights) the rates divide by.
+
 <a id="op-overlay_std_residual"></a>
 
 ### `OVERLAY_STD_RESIDUAL`

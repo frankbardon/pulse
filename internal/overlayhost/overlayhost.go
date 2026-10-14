@@ -91,6 +91,7 @@ var hosts = map[types.OverlayKind][]Host{
 	types.OverlayKindShareOfRow:                requestOnly,
 	types.OverlayKindStdResidual:               requestOnly,
 	types.OverlayKindSymmetry:                  requestOnly,
+	types.OverlayKindRetention:                 requestOnly,
 	types.OverlayKindZScoreVsMargin:            requestOnly,
 	// Process MATRIX_RESULT (Request.Matrices) kinds; a Compose slot's
 	// own Request.Overlays runs them too.
@@ -226,6 +227,7 @@ var processShapes = map[types.OverlayKind][]types.OverlayShape{
 	types.OverlayKindShareOfRow:                matrixOnly,
 	types.OverlayKindStdResidual:               matrixOnly,
 	types.OverlayKindSymmetry:                  matrixOnly,
+	types.OverlayKindRetention:                 matrixOnly,
 	types.OverlayKindZScoreVsMargin:            matrixOnly,
 	types.OverlayKindDeltaVsBaseline:           seriesOnly,
 	types.OverlayKindDeltaVsPrior:              seriesOnly,
@@ -352,7 +354,7 @@ func ShapeRefusal(shape types.OverlayShape, kind, route types.OverlayKind, index
 // the crosstab cell aggregation's VALUE — the one number per cell and
 // per margin (CellAt / MarginFor): the share / index / delta / z-score
 // vs-margin kinds, the χ², Fisher, STD_RESIDUAL, CORRESPONDENCE,
-// MARKOV, RAKE and SYMMETRY kinds (cell values as observed counts), the proportion pairwise kinds (OVERLAY_PAIRWISE_PROP_Z /
+// MARKOV, RAKE, SYMMETRY and RETENTION kinds (cell values as observed counts), the proportion pairwise kinds (OVERLAY_PAIRWISE_PROP_Z /
 // _PROBIT_T: the cell value as a proportion) and OVERLAY_FORMULA
 // (`cell`, the margins and their SDs). The moment pairwise kinds
 // (types.PairwiseKindUsesWelford, PairwiseKindUsesWeightedMoments)

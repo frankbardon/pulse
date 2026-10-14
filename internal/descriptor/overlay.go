@@ -1255,9 +1255,11 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 		types.OverlayKindCorrespondence,
 		types.OverlayKindMarkov,
 		types.OverlayKindRake,
-		types.OverlayKindSymmetry:
+		types.OverlayKindSymmetry,
+		types.OverlayKindRetention:
 		// Inferential family (and the implicit-margin whole-table
-		// CORRESPONDENCE / MARKOV / RAKE) — Level / Within must both be zero.
+		// CORRESPONDENCE / MARKOV / RAKE / RETENTION) — Level / Within
+		// must both be zero.
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (implicit-margin inferential kind)",
@@ -1431,6 +1433,8 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 	case types.OverlayKindSymmetry:
 		validateOverlaySymmetry(env, req, spec, opts.overlayRoute(spec.Kind), index)
 		validateOverlayHiddenFloor(env, req, spec, opts, index)
+	case types.OverlayKindRetention:
+		validateOverlayRetention(env, req, spec, opts.overlayRoute(spec.Kind), index)
 	case types.OverlayKindChiSqRow:
 		validateOverlayChiSqRow(env, req, spec, index)
 		validateOverlayHiddenFloor(env, req, spec, opts, index)

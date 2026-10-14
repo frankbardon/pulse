@@ -54,4 +54,4 @@ SCALAR χ² = Σ_{i<j} `(n_ij − n_ji)² / (n_ij + n_ji)`. `Summary.Parameters`
 
 ## See
 
-- Skills: [`overlay-system`](overlay-system.md), [`op-overlay-chisq-matrix`](op-overlay-chisq-matrix.md), [`op-overlay-markov`](op-overlay-markov.md).
+- Skills: [`overlay-system`](overlay-system.md), [`op-overlay-chisq-matrix`](op-overlay-chisq-matrix.md), [`op-overlay-markov`](op-overlay-markov.md), [`op-overlay-retention`](op-overlay-retention.md).
