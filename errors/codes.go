@@ -2091,7 +2091,8 @@ const (
 
 	// PULSE_OVERLAY_NONNEGATIVE_REQUIRED indicates an overlay that reads
 	// its crosstab host as a table of non-negative masses (counts or
-	// sums — OVERLAY_CORRESPONDENCE, later the Markov and raking kinds)
+	// sums — OVERLAY_CORRESPONDENCE, OVERLAY_MARKOV, OVERLAY_RAKE and
+	// OVERLAY_SYMMETRY)
 	// met a host that is not one: a cell aggregation other than
 	// AGG_COUNT / AGG_SUM (predict and runtime twins, details
 	// {kind, aggregation, slot: "crosstab.cell"}, plus index on
@@ -2102,14 +2103,16 @@ const (
 
 	// PULSE_OVERLAY_MATRIX_NOT_SQUARE indicates an overlay that reads its
 	// crosstab host as a square from-state × to-state table
-	// (OVERLAY_MARKOV) met a host whose row and column key sets differ.
-	// States align by key, never by position, so the two axes must name
-	// the same states. Predict raises it when the shape alone decides it
-	// (row and column axes with different grouper counts — their keys
-	// can never match; details {kind, index, row_fields, column_fields});
-	// runtime raises the same arity refusal plus the key-set one (details
-	// {kind, index, row_only, column_only}: the state names found on one
-	// axis only). Raised with its own code, never PROCESSING_INTERNAL.
+	// (OVERLAY_MARKOV, OVERLAY_SYMMETRY) met a host whose row and column
+	// key sets differ. States align by key, never by position, so the
+	// two axes must name the same states. Predict raises it when the
+	// shape alone decides it (row and column axes with different grouper
+	// counts — their keys can never match; details {kind, index,
+	// row_groupers, column_groupers}); OVERLAY_MARKOV's runtime raises the
+	// same arity refusal plus the key-set one (details {kind, index,
+	// row_only, column_only}: the state names found on one axis only),
+	// while OVERLAY_SYMMETRY reads a one-axis state as a zero row /
+	// column. Raised with its own code, never PROCESSING_INTERNAL.
 	PULSE_OVERLAY_MATRIX_NOT_SQUARE Code = "PULSE_OVERLAY_MATRIX_NOT_SQUARE"
 
 	// PULSE_OVERLAY_MARKOV_NOT_ERGODIC is a WARNING (never an error) an

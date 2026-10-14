@@ -163,6 +163,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-overlay-share-of-row`](skills/op-overlay-share-of-row.md): Per-cell share-of-row ratio (cell / row_margin) — raw share, sums to 1.0 per row.
 - [`op-overlay-share-of-total`](skills/op-overlay-share-of-total.md): Share-of-grand-total ratio — dual-shape (matrix per-cell or series per-group); raw share sums to 1.0.
 - [`op-overlay-std-residual`](skills/op-overlay-std-residual.md): Per-cell Haberman adjusted standardized residual of the host crosstab, with expected counts and two-sided p-values as parts.
+- [`op-overlay-symmetry`](skills/op-overlay-symmetry.md): Paired-change test on a before × after crosstab — McNemar (2 × 2) or Bowker (k × k): are moves one way as common as moves back?
 - [`op-overlay-t-cell`](skills/op-overlay-t-cell.md): Compose-host per-cell Welch t-test against the reference slot's matching cell; parity overlay reading from CellComponents.
 - [`op-overlay-t-vs-ref`](skills/op-overlay-t-vs-ref.md): Compose-host per-group Welch t-test against the reference slot's matching group (SERIES); parity overlay reading from CellComponents.
 - [`op-overlay-yoy`](skills/op-overlay-yoy.md): Per-point year-over-year ratio against the same period one year prior; requires one GROUP_DATE grouper, partitions by the other keys.

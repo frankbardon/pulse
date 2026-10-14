@@ -201,8 +201,8 @@ func TestReadsCellValue(t *testing.T) {
 			values++
 		}
 	}
-	if values != 17 {
-		t.Errorf("%d value-reading kinds, want 17", values)
+	if values != 18 {
+		t.Errorf("%d value-reading kinds, want 18", values)
 	}
 	for _, k := range []types.OverlayKind{types.OverlayKindTCell, types.OverlayKindDeltaVsStage, types.OverlayKindYoY, "OVERLAY_NOT_IN_CATALOG", ""} {
 		if ReadsCellValue(k) {

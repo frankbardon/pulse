@@ -364,8 +364,11 @@ Welch t refuses an `n_source` that reads raw row counts
 The χ² and proportion overlays also run weighted under both kinds. A
 weighted host's cells and margins are weight sums (Σw). Under
 `frequency` the χ² overlays run Pearson's test on the Σw table, which
-equals the test on the expanded rows. Under `probability` the table
-(for `OVERLAY_CHISQ_MATRIX` and `OVERLAY_STD_RESIDUAL`), each row
+equals the test on the expanded rows. The symmetry test
+(`OVERLAY_SYMMETRY`, McNemar / Bowker on a paired before-by-after
+table) follows the same rule. Under `probability` the table (for
+`OVERLAY_CHISQ_MATRIX`, `OVERLAY_STD_RESIDUAL` and `OVERLAY_SYMMETRY`),
+each row
 (`_ROW`), each column (`_COL`) or the target table (`_VS_REF`) is
 first scaled to its Kish n_eff.
 This is a first-order Kish approximation, not the Rao-Scott correction

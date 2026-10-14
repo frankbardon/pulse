@@ -67,7 +67,7 @@ The carrying request decides the host; the host decides the legal kinds:
 
 ## Per-layer warnings (`OverlayLayer.Warnings`)
 
-Additive `warnings: [{code, message, details}]` on each layer, `omitempty` — overlay-free responses stay byte-identical. Canonical: `PULSE_OVERLAY_REF_ZERO` (zero reference, undefined ratio), `PULSE_OVERLAY_EXPECTED_LOW` (χ² expected count below 5). On Compose and chain hosts it rides the matching layer's `Overlays[i].Warnings`; a partitioned SERIES layer raises each code once (`details.partitions`). Warnings never fail the request — read them before reporting a figure.
+Additive `warnings: [{code, message, details}]` on each layer, `omitempty` — overlay-free responses stay byte-identical. Canonical: `PULSE_OVERLAY_REF_ZERO` (zero reference, undefined ratio), `PULSE_OVERLAY_EXPECTED_LOW` (expected count below 5: χ² cells, symmetry pairs). On Compose and chain hosts it rides the matching layer's `Overlays[i].Warnings`; a partitioned SERIES layer raises each code once (`details.partitions`). Warnings never fail the request — read them before reporting a figure.
 
 <!-- feature: capability:multiplicity -->
 ## Multiplicity

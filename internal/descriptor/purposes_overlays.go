@@ -55,6 +55,7 @@ var overlayPurposes = map[string]descriptor.Purpose{
 	"OVERLAY_SHARE_OF_ROW":                  purposeOverlayShareOfRow,
 	"OVERLAY_SHARE_OF_TOTAL":                purposeOverlayShareOfTotal,
 	"OVERLAY_STD_RESIDUAL":                  purposeOverlayStdResidual,
+	"OVERLAY_SYMMETRY":                      purposeOverlaySymmetry,
 	"OVERLAY_T_CELL":                        purposeOverlayTCell,
 	"OVERLAY_T_VS_REF":                      purposeOverlayTVsRef,
 	"OVERLAY_YOY":                           purposeOverlayYoY,
@@ -435,6 +436,41 @@ var (
 			"chi-square", "cross-tabulation", "false-discovery-rate", "family-wise-error",
 			"independence", "margin", "multiple-comparisons", "normal-distribution", "null-hypothesis",
 			"p-value", "residual", "two-tailed",
+		},
+	}
+
+	purposeOverlaySymmetry = descriptor.Purpose{
+		Plain:   "Test of symmetry on a before-by-after crosstab of the same units: are moves between two states as common one way as back?",
+		Intents: []string{IntentFlows},
+		Questions: []string{
+			"Did more customers move up a tier than down between the two snapshots?",
+			"Did the same respondents switch toward the brand more often than away from it between waves?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Test whether a panel's answers shifted between two waves, beyond respondents switching both ways equally.",
+			descriptor.DomainOps:     "Test whether accounts moved between plan tiers in one direction more than the other between two snapshots.",
+			descriptor.DomainScience: "Test whether patients' status changed in one direction more than the other between baseline and follow-up.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "the rows and columns come from different units, or you want to know whether two fields are associated", Use: "OVERLAY_CHISQ_MATRIX"},
+			{When: "you want where the flow leads over several periods, not a test", Use: "OVERLAY_MARKOV"},
+			{When: "you compare a numeric measure before and after on the same units", Use: "TEST_PAIRED_T"},
+		},
+		FollowUps: []descriptor.Alternative{
+			{When: "the moves are lopsided and you want the switching probabilities and where they lead", Use: "OVERLAY_MARKOV"},
+			{When: "you want each state's share of its row to see which way people moved", Use: "OVERLAY_SHARE_OF_ROW"},
+		},
+		Assumptions: []string{
+			"Cells must count units (AGG_COUNT); an AGG_SUM cell runs but does not count units, and any other cell aggregation is refused.",
+			"Rows are the earlier state and columns the later one, over the same set of states, and every unit is counted once: the two answers are paired.",
+			"The null hypothesis is that for every pair of states, moves one way are as common as moves back; staying put (the diagonal) does not enter the test.",
+			"The p-value comes from the chi-square approximation, which needs about 10 or more moves in each pair of states; a warning flags pairs with fewer, and a 2x2 table applies a continuity correction unless params.correct is false.",
+		},
+		Level:   descriptor.LevelIntermediate,
+		KnownAs: []string{"mcnemar test", "bowker test", "test of symmetry"},
+		Glossary: []string{
+			"chi-square", "continuity-correction", "cross-tabulation", "degrees-of-freedom",
+			"null-hypothesis", "p-value", "paired-data",
 		},
 	}
 

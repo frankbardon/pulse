@@ -51,7 +51,7 @@ var interpretationExemptions = []guidanceExemption{}
 // declare (TestPurposeQuestionsResolve). Key: the intent ID.
 var intentDeclarerExemptions = []guidanceExemption{
 	{Key: IntentLookup, Owner: ownerPermanent, Why: "Non-analytic intent that routes to the point-lookup tooling (pulse_lookup), never to an operator."},
-	{Key: IntentFlows, Owner: "U30", Why: "OVERLAY_MARKOV (U28) is the only operator whose Purpose answers a from-state to to-state question; no other built-in genuinely does, so the third declarer needs a new flows operator (TODO #449)."},
+	{Key: IntentFlows, Owner: "U30", Why: "OVERLAY_MARKOV (U28) and OVERLAY_SYMMETRY (U30 E7-S1) are the only operators whose Purpose answers a from-state to to-state question; no other built-in genuinely does, so the third declarer needs another flows operator (TODO #449)."},
 }
 
 // intentExampleExemptions — intents no example's _meta.intents tags

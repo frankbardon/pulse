@@ -23,7 +23,7 @@ var inferentialOverlayKinds = []types.OverlayKind{
 	types.OverlayKindPairwiseProbitT, types.OverlayKindPairwisePropZ,
 	types.OverlayKindPairwiseTwoMeansZ, types.OverlayKindPairwiseWeightedTwoMeansZ,
 	types.OverlayKindPairwiseWelchT,
-	types.OverlayKindPropZCell, types.OverlayKindPropZPanel, types.OverlayKindStdResidual,
+	types.OverlayKindPropZCell, types.OverlayKindPropZPanel, types.OverlayKindStdResidual, types.OverlayKindSymmetry,
 	types.OverlayKindTCell, types.OverlayKindTVsRef,
 	types.OverlayKindZCell, types.OverlayKindZVsRef,
 }

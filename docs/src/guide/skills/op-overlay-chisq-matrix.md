@@ -57,4 +57,4 @@ SCALAR — `OverlayLayer.Payload.Shape = "scalar"`. `Payload.Scalar` carries χ�
 
 ## See
 
-- Skills: [`overlay-system`](overlay-system.md), [`crosstab-guide`](crosstab-guide.md), [`op-overlay-chisq-row`](op-overlay-chisq-row.md), [`op-overlay-chisq-col`](op-overlay-chisq-col.md), [`op-test-chisq`](op-test-chisq.md).
+- Skills: [`overlay-system`](overlay-system.md), [`crosstab-guide`](crosstab-guide.md), [`op-overlay-chisq-row`](op-overlay-chisq-row.md), [`op-overlay-chisq-col`](op-overlay-chisq-col.md), [`op-test-chisq`](op-test-chisq.md), [`op-overlay-symmetry`](op-overlay-symmetry.md).

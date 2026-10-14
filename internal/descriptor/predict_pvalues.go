@@ -176,7 +176,8 @@ func overlayPValueCount(kind types.OverlayKind, scope types.OverlayScope, rows, 
 	}
 	switch {
 	case kind == types.OverlayKindChiSqMatrix, kind == types.OverlayKindChiSqVsRef,
-		kind == types.OverlayKindChiSqVsPop, kind == types.OverlayKindKSVsPop:
+		kind == types.OverlayKindChiSqVsPop, kind == types.OverlayKindKSVsPop,
+		kind == types.OverlayKindSymmetry:
 		return 1, descriptor.PValueBasisExact
 	case kind == types.OverlayKindChiSqRow:
 		return derived(rows, rows > 0)

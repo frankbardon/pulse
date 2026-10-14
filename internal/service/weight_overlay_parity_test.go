@@ -116,6 +116,15 @@ func overlayParityCases() []overlayParityCase {
 			req:   process(xt("g", "o", count, ""), `{"name":"sr","kind":"OVERLAY_STD_RESIDUAL","scope":"cell"}`),
 		},
 		{
+			// McNemar / Bowker on the Σw x-bucket × y-bucket table
+			// (Kish-scaled under probability) — the chisq table rule.
+			name:  "symmetry",
+			kinds: []types.OverlayKind{types.OverlayKindSymmetry},
+			req: process(`"crosstab":{"rows":[{"type":"GROUP_RANGE","field":"x","interval":10}],`+
+				`"columns":[{"type":"GROUP_RANGE","field":"y","interval":10}],"cell":`+count+`}`,
+				`{"name":"sym","kind":"OVERLAY_SYMMETRY","scope":"matrix"}`),
+		},
+		{
 			name:  "fisher",
 			kinds: []types.OverlayKind{types.OverlayKindFisherExactCell},
 			req:   process(xt("h", "o", count, ""), `{"name":"f","kind":"OVERLAY_FISHER_EXACT_CELL","scope":"cell"}`),

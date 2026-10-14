@@ -1,0 +1,55 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Crosstab count of from_tier x to_tier (one row per member-month move: each member's tier before and after) decorated with an OVERLAY_SYMMETRY matrix-scope overlay: Bowker's test of symmetry (McNemar's on a 2 x 2, where params.correct toggles the continuity correction) asks whether members moved between each pair of tiers as often one way as back. The scalar payload is the chi-square; the summary carries the p-value, df (the tier pairs with at least one move), the number of members who changed tier and the dropped empty pairs. A pair with fewer than 10 moves raises one PULSE_OVERLAY_EXPECTED_LOW warning. Rows and columns align by tier name (implicit-margin contract; no ref pointer).",
+    "intents": [
+      "flows"
+    ],
+    "name": "crosstab-symmetry",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "cohort-analysis",
+      "overlay",
+      "hypothesis-test"
+    ]
+  },
+  "cohort": {
+    "filename": "tier_migrations.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "from_tier"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "to_tier"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  },
+  "overlays": [
+    {
+      "name": "shift",
+      "kind": "OVERLAY_SYMMETRY",
+      "scope": "matrix"
+    }
+  ]
+}

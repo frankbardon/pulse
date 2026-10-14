@@ -381,6 +381,11 @@ source(file.path(script_dir, "gen_markov.R"), local = FALSE)
 # adjustment factors); base stats loglin, cross-checked by survey::rake.
 source(file.path(script_dir, "gen_rake.R"), local = FALSE)
 
+# The OVERLAY_SYMMETRY golden (symmetry.json: mcnemar.test McNemar /
+# Bowker statistics, df and p, with and without the 2 x 2 continuity
+# correction, plus the empty-pair drop Pulse applies); base stats only.
+source(file.path(script_dir, "gen_symmetry.R"), local = FALSE)
+
 # The matrix params.inference golden (matrix_inference.json: per-pair
 # cor.test p-values and Fisher-z intervals on MAT_CORRELATION, ppcor
 # partial-correlation p and intervals on df = N* - 2 - g); reads the

@@ -1443,6 +1443,31 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"emits one PULSE_OVERLAY_EXPECTED_LOW. A host smaller than 2 x 2 or with a zero grand total is " +
 				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.",
 		}
+	case types.OverlayKindSymmetry:
+		return descriptor.OverlayCapability{
+			Kind:        types.OverlayKindSymmetry,
+			Inferential: true,
+			Shapes:      []types.OverlayShape{types.OverlayShapeScalar},
+			Scopes:      []types.OverlayScope{types.OverlayScopeMatrix},
+			// No Ref family — implicit-margin like the CHISQ_* kinds.
+			RefKinds: []string{},
+			Description: "Test of symmetry for a from-state (rows) x to-state (columns) crosstab of PAIRED observations (the " +
+				"same units measured twice): McNemar's test on a 2 x 2 table, Bowker's on k x k — R's mcnemar.test. H0: for " +
+				"every pair of states, moves i -> j are as frequent as moves j -> i. chi-square = sum over pairs i < j of " +
+				"(n_ij - n_ji)^2 / (n_ij + n_ji); a pair with n_ij + n_ji = 0 is dropped and df = the number of pairs kept " +
+				"(k(k - 1)/2 when none is); a 2 x 2 table takes Edwards' continuity correction (|n_12 - n_21| - 1)^2 unless " +
+				"params.correct is false (R's default correct = TRUE; inert on k x k). With no pair kept, the statistic and " +
+				"p-value are null and df is 0. MATRIX scope over a MATRIX (crosstab) host with SCALAR payload = the " +
+				"chi-square, plus OverlaySummary{Statistic, PValue, Parameters{df, states, discordant, pairs_dropped, " +
+				"continuity_corrected}}; a multiplicity block adjusts the one p-value. States align by key, never by " +
+				"position (rows first, then column-only keys); a state on one axis only is a row / column of zeros. A " +
+				"different grouper count per axis is PULSE_OVERLAY_MATRIX_NOT_SQUARE; a cell aggregation other than " +
+				"AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED; fewer than 2 states or a " +
+				"zero total is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE; a bad or unknown param is " +
+				"PULSE_OVERLAY_PARAM_MISSING. Any pair whose expected count under symmetry ((n_ij + n_ji) / 2) is below 5 " +
+				"emits one PULSE_OVERLAY_EXPECTED_LOW. Weighted hosts follow OVERLAY_CHISQ_MATRIX (the sum-of-weights " +
+				"table; under kind probability scaled to its Kish n_eff first).",
+		}
 	case types.OverlayKindTCell:
 		return descriptor.OverlayCapability{
 			Kind:        types.OverlayKindTCell,

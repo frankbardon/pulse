@@ -1254,7 +1254,8 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 		types.OverlayKindStdResidual,
 		types.OverlayKindCorrespondence,
 		types.OverlayKindMarkov,
-		types.OverlayKindRake:
+		types.OverlayKindRake,
+		types.OverlayKindSymmetry:
 		// Inferential family (and the implicit-margin whole-table
 		// CORRESPONDENCE / MARKOV / RAKE) — Level / Within must both be zero.
 		if spec.Level != 0 || spec.Within != 0 {
@@ -1426,6 +1427,9 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 		validateOverlayHiddenFloor(env, req, spec, opts, index)
 	case types.OverlayKindStdResidual:
 		validateOverlayStdResidual(env, req, spec, index)
+		validateOverlayHiddenFloor(env, req, spec, opts, index)
+	case types.OverlayKindSymmetry:
+		validateOverlaySymmetry(env, req, spec, opts.overlayRoute(spec.Kind), index)
 		validateOverlayHiddenFloor(env, req, spec, opts, index)
 	case types.OverlayKindChiSqRow:
 		validateOverlayChiSqRow(env, req, spec, index)

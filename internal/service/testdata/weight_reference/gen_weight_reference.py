@@ -1365,6 +1365,7 @@ def test_cases():
 # keys ("#i" an element of a vector cell), "entry[<key>]" a series entry.
 
 OV_SUB = "y > 4"
+OV_SYM_INTERVAL = 4  # OVERLAY_SYMMETRY's GROUP_RANGE width: states 0-4, 4-8, 8-12
 OV_SUB2 = "y < 6"
 OV_SERIES_PARAMS = {"variance_target": 2.5, "variance_ref": 1.75,
                     "sample_size_target": 40, "sample_size_ref": 55}
@@ -1404,6 +1405,14 @@ def ov_request(case, kind):
     if case == "ov_std_residual":
         return {"crosstab": ov_xt("h", "o", OV_COUNT), "overlays": [
             {"name": "sr", "kind": "OVERLAY_STD_RESIDUAL", "scope": "cell"}]}
+    if case == "ov_symmetry":
+        # x-bucket (rows) by y-bucket (columns): the same GROUP_RANGE
+        # interval, so both axes name the same states (paired readings).
+        x = ov_xt("x", "y", OV_COUNT)
+        x["rows"] = [{"type": "GROUP_RANGE", "field": "x", "interval": OV_SYM_INTERVAL}]
+        x["columns"] = [{"type": "GROUP_RANGE", "field": "y", "interval": OV_SYM_INTERVAL}]
+        return {"crosstab": x, "overlays": [
+            {"name": "sym", "kind": "OVERLAY_SYMMETRY", "scope": "matrix"}]}
     if case == "ov_pairwise_welch":
         return {"crosstab": ov_xt("k", "h", OV_WELFORD), "overlays": [
             {"name": "pw", "kind": "OVERLAY_PAIRWISE_WELCH_T", "scope": "column"}]}
@@ -1441,7 +1450,7 @@ def ov_request(case, kind):
     raise ValueError(case)
 
 
-OV_CASES = ["ov_chisq", "ov_std_residual", "ov_fisher", "ov_pairwise_welch", "ov_pairwise_prop",
+OV_CASES = ["ov_chisq", "ov_std_residual", "ov_symmetry", "ov_fisher", "ov_pairwise_welch", "ov_pairwise_prop",
             "ov_pairwise_weighted_z", "ov_compose_means", "ov_compose_series", "ov_compose_props"]
 OV_FREQUENCY_ONLY = {"ov_fisher"}
 
@@ -1517,6 +1526,35 @@ def ov_closed_form(case, rows, prob):
         out["0/summary.parameters.sum_weights"] = float(N)
         if prob:
             out["0/summary.parameters.n_eff"] = float(N * N / W2.sum())
+        return out, warn
+    if case == "ov_symmetry":
+        # Bowker on the x-bucket × y-bucket Σw table (scaled to its Kish
+        # n_eff under probability): a pair with no move either way is
+        # dropped and df counts the pairs kept; k = 3, so no continuity
+        # correction. A null x has no bucket, so its row is not read.
+        sel = [r for r in rows if r[0] is not NULL]
+        bucket = lambda v: math.floor(v / OV_SYM_INTERVAL)
+        states = sorted({bucket(r[0]) for r in sel} | {bucket(r[1]) for r in sel})
+        T = np.zeros((len(states), len(states)))
+        sw, sww = 0.0, 0.0
+        for r in sel:
+            T[states.index(bucket(r[0])), states.index(bucket(r[1]))] += r[5]
+            sw += r[5]
+            sww += r[5] * r[5]
+        Ts = ov_scale(sw, sww, prob) * T
+        stat, kept = 0.0, 0
+        for i in range(len(states)):
+            for j in range(i + 1, len(states)):
+                a, b = Ts[i, j], Ts[j, i]
+                if (a + b) / 2 < 5:
+                    warn.add("PULSE_OVERLAY_EXPECTED_LOW")
+                if a + b > 0:
+                    stat += (a - b) ** 2 / (a + b)
+                    kept += 1
+        out.update({"0/summary.statistic": float(stat), "0/summary.p_value": float(scipy.stats.chi2.sf(stat, kept)),
+                    "0/summary.parameters.df": float(kept), "0/summary.parameters.sum_weights": float(sw)})
+        if prob:
+            out["0/summary.parameters.n_eff"] = float(sw * sw / sww)
         return out, warn
     if case in ("ov_chisq", "ov_fisher"):
         T, W2 = ov_table(rows)

@@ -1500,6 +1500,30 @@ const (
 	// has an undefined (null) residual and p. Inherently buffered.
 	OverlayKindStdResidual OverlayKind = "OVERLAY_STD_RESIDUAL"
 
+	// OverlayKindSymmetry tests a square from-state (row) × to-state
+	// (column) crosstab of PAIRED observations — the same unit measured
+	// twice — for symmetry: H0 n_ij and n_ji share one expected count
+	// for every off-diagonal pair, i.e. moves i → j are as frequent as
+	// moves j → i. A 2 × 2 table is McNemar's test, a k × k table
+	// Bowker's (R mcnemar.test, which is Bowker for k > 2):
+	// χ² = Σ_{i<j} (n_ij − n_ji)² / (n_ij + n_ji) on df = the number of
+	// pairs with n_ij + n_ji > 0 (a pair nobody moved across carries no
+	// information and is dropped; R would return NaN). A 2 × 2 table
+	// takes Edwards' continuity correction (|n_12 − n_21| − 1)² by
+	// default, params.correct false switches it off (R's correct).
+	// MATRIX-scoped over a MATRIX (crosstab) host, implicit-margin (Ref
+	// empty); rows and columns align BY KEY (the OVERLAY_MARKOV rule),
+	// a state on one axis only is a row / column of zeros. Inferential:
+	// SCALAR payload = χ², Summary.Statistic / PValue / Parameters (df,
+	// states, discordant, pairs_dropped, continuity_corrected); a
+	// multiplicity block adjusts the one p. Weighted hosts follow
+	// OVERLAY_CHISQ_MATRIX (the Σw table; under kind probability scaled
+	// to its Kish n_eff first). Cells must be non-negative counts or
+	// sums (AGG_COUNT / AGG_SUM, else PULSE_OVERLAY_NONNEGATIVE_REQUIRED);
+	// a different grouper count per axis is
+	// PULSE_OVERLAY_MATRIX_NOT_SQUARE. Inherently buffered.
+	OverlayKindSymmetry OverlayKind = "OVERLAY_SYMMETRY"
+
 	// OverlayKindZScoreVsRolling emits a per-point windowed z-score against
 	// the rolling-window mean + sample SD of the W immediately preceding
 	// points of an ordered SERIES (grouped Process) host:
@@ -2549,6 +2573,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindShareOfRow,
 		OverlayKindShareOfTotal,
 		OverlayKindStdResidual,
+		OverlayKindSymmetry,
 		OverlayKindTCell,
 		OverlayKindTVsRef,
 		OverlayKindYoY,

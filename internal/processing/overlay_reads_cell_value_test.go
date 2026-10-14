@@ -80,7 +80,7 @@ func TestOverlayReadsCellValue_MatchesHandlers(t *testing.T) {
 			spec := &types.OverlaySpec{Name: "o", Kind: kind, Scope: types.OverlayScopeCell}
 			comps := plain
 			switch kind {
-			case types.OverlayKindChiSqMatrix, types.OverlayKindMarkov:
+			case types.OverlayKindChiSqMatrix, types.OverlayKindMarkov, types.OverlayKindSymmetry:
 				spec.Scope = types.OverlayScopeMatrix
 			case types.OverlayKindChiSqRow, types.OverlayKindPairwisePropZ, types.OverlayKindPairwiseProbitT:
 				spec.Scope = types.OverlayScopeRow
@@ -105,7 +105,7 @@ func TestOverlayReadsCellValue_MatchesHandlers(t *testing.T) {
 			}
 			run := func(cells [3][3]float64) string {
 				host := readsCellHost(cells, comps)
-				if kind == types.OverlayKindMarkov {
+				if kind == types.OverlayKindMarkov || kind == types.OverlayKindSymmetry {
 					// A transition table: the columns name the row states.
 					host.payload.ColumnKeys = host.payload.RowKeys
 				}
