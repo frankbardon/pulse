@@ -148,3 +148,34 @@ func TestRank_NullKeysShareTheLastRank(t *testing.T) {
 		}
 	}
 }
+
+// A NaN cell — an undefined figure (an aggregate or expanded vector
+// element no row answered), null on the wire — is a null to every
+// window: it orders last in both directions, forms its own partition
+// rather than tying with every key, and a value-bearing window skips
+// it.
+func TestWindow_NaNCellIsNull(t *testing.T) {
+	nan := math.NaN()
+	for _, desc := range []bool{false, true} {
+		if CompareKey(nan, 1.0, desc) <= 0 || CompareKey(1.0, nan, desc) >= 0 || CompareKey(nan, nil, desc) != 0 {
+			t.Errorf("desc=%v: NaN does not order as a null", desc)
+		}
+	}
+	if compareCell(nan, 1.0) == 0 || compareCell(float32(nan), 1.0) == 0 {
+		t.Error("NaN ties with a number")
+	}
+	rows := []map[string]any{
+		{"ts": 1.0, "x": 2.0},
+		{"ts": 2.0, "x": nan},
+		{"ts": 3.0, "x": 5.0},
+	}
+	applyOne(t, rows, &types.Window{
+		Type: types.WIN_RUNNING_SUM, Field: "x", Label: "s",
+		OrderBy: []types.OrderKey{{Field: "ts"}}, Frame: &types.FrameSpec{Mode: "rows", Following: new(int)},
+	})
+	for i, want := range []float64{2, 2, 7} {
+		if got, _ := rows[i]["s"].(float64); got != want {
+			t.Errorf("row %d: running sum = %v, want %v (the NaN skipped)", i, rows[i]["s"], want)
+		}
+	}
+}

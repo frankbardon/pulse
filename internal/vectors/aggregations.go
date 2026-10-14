@@ -292,9 +292,9 @@ type VecAggParams struct {
 	// fields only).
 	Labels []string `json:"labels,omitempty"`
 	// Expand replaces the array value with one scalar column per member,
-	// named ExpandedColumn(label, element label). Presentation only: the
-	// columns are refused wherever the array is (Sort, overlays, a
-	// window, a feeding chain stage).
+	// named ExpandedColumn(label, element label). Each is an ordinary
+	// nullable f64 output column (Sort, a window and a post-test read
+	// it); an overlay host and a feeding chain stage still refuse it.
 	Expand bool `json:"expand,omitempty"`
 }
 

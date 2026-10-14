@@ -519,10 +519,12 @@ writes the same keys. `PredictResult.aggregations[i].columns` lists them
 (omitted on every other slot, whose one column is its label), the
 `return` column check and `PredictChain`'s `stage_schemas` use them, and
 duplicate element labels are refused (`SERVICE_VALIDATION`, reason
-`expand_duplicate_labels`). The columns are presentation only: like the
-array they are refused `PROCESSING_CONFIG` (`array_valued`) as a `sort`
-key, a window's `field` / `order_by` / `partition_by`, a post-test
-field and an overlay host. A Compose overlay reading a slot, or a
+`expand_duplicate_labels`). Each column is an ordinary nullable f64
+column: a `sort` key, a window's `field` / `order_by` / `partition_by`
+and a post-test field read it (an element no row answered is NaN — null
+on the wire — and orders last / is skipped like a null), while the bare
+array label stays refused there `PROCESSING_CONFIG` (`array_valued`).
+An overlay host still refuses the columns. A Compose overlay reading a slot, or a
 whole-chain overlay reading a stage, that carries a vector aggregation
 (expanded or not) is refused the same way. A `return` path cannot name a
 bracketed column; a prefix glob (`data[*].<label>*`) keeps them.

@@ -259,3 +259,75 @@ func TestFieldRefRefusals_ParamsAndFieldInputs(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "anything"}}}
 	sameNames(t, names(FieldRefRefusals(feat, fieldRefSchema(), snap)), "fe_unknown")
 }
+
+// TestFieldRefRefusals_ExpandedElementColumns (U30 E4-S1): under
+// params.expand a vector aggregation's per-element column
+// <label>[<elem>] is an ordinary output column — a Sort key, a
+// window's field / order_by / partition_by and a post-test's field read
+// it unrefused — while the bare array label stays refused
+// (PROCESSING_CONFIG array_valued) and an element the slot does not
+// write is an unknown column (the slot's generic unknown-field refusal).
+func TestFieldRefRefusals_ExpandedElementColumns(t *testing.T) {
+	mk := func(expand bool, mut func(r *types.Request)) *types.Request {
+		agg := &types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"n", "m"}, Label: "v"}
+		if expand {
+			agg.Params = json.RawMessage(`{"expand": true}`)
+		}
+		r := &types.Request{
+			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+			Aggregations: []*types.Aggregation{agg, {Type: types.AGG_COUNT, Field: "n", Label: "k"}},
+		}
+		mut(r)
+		return r
+	}
+	frame := &types.FrameSpec{Mode: "rows", Following: new(int)}
+	reads := map[string]func(col string) func(r *types.Request){
+		"sort": func(col string) func(r *types.Request) {
+			return func(r *types.Request) { r.Sort = []types.OrderKey{{Field: col}} }
+		},
+		"window field": func(col string) func(r *types.Request) {
+			return func(r *types.Request) {
+				r.Windows = []*types.Window{{Type: types.WIN_RUNNING_SUM, Field: col, Frame: frame, OrderBy: []types.OrderKey{{Field: "cat"}}}}
+			}
+		},
+		"window order_by": func(col string) func(r *types.Request) {
+			return func(r *types.Request) {
+				r.Windows = []*types.Window{{Type: types.WIN_ROW_NUMBER, Label: "rn", OrderBy: []types.OrderKey{{Field: col}}}}
+			}
+		},
+		"window partition_by": func(col string) func(r *types.Request) {
+			return func(r *types.Request) {
+				r.Windows = []*types.Window{{Type: types.WIN_ROW_NUMBER, Label: "rn", PartitionBy: []string{col}, OrderBy: []types.OrderKey{{Field: "cat"}}}}
+			}
+		},
+		"post-test field": func(col string) func(r *types.Request) {
+			return func(r *types.Request) {
+				r.PostTests = []*types.Test{{Type: types.TEST_PAIRED_T, Field: col, Field2: "k"}}
+			}
+		},
+	}
+	for name, read := range reads {
+		t.Run(name, func(t *testing.T) {
+			if got := FieldRefRefusals(mk(true, read("v[m]")), fieldRefSchema(), nil); len(got) != 0 {
+				t.Errorf("element column v[m] refused: %v", got)
+			}
+			for _, expand := range []bool{false, true} {
+				got := FieldRefRefusals(mk(expand, read("v")), fieldRefSchema(), nil)
+				if len(got) != 1 || got[0].Code != errors.PROCESSING_CONFIG || got[0].Details["reason"] != "array_valued" {
+					t.Errorf("bare label v (expand=%v) = %v, want one PROCESSING_CONFIG array_valued", expand, got)
+				}
+			}
+			for _, c := range []struct {
+				expand bool
+				col    string
+			}{{true, "v[nope]"}, {false, "v[m]"}} {
+				got := FieldRefRefusals(mk(c.expand, read(c.col)), fieldRefSchema(), nil)
+				// The slot's own unknown-column code: SERVICE_VALIDATION,
+				// PULSE_WINDOW_INVALID for a window's order_by / partition_by.
+				if len(got) != 1 || (got[0].Code != errors.SERVICE_VALIDATION && got[0].Code != errors.PULSE_WINDOW_INVALID) || got[0].Details["reason"] != nil {
+					t.Errorf("%s (expand=%v) = %v, want one generic unknown-column refusal", c.col, c.expand, got)
+				}
+			}
+		})
+	}
+}
