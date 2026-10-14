@@ -38,7 +38,9 @@ func groupDescriptorBytes(members int) int { return encodingbridge.GroupDescript
 // wherever a shard's own schema block is only read past: the
 // record-count peek (Archive.PeekShardRecordCount) and the archive scan
 // (internal/service shardIter.openShard / processOneShard), which
-// decodes every row through the canonical schema.
+// decodes every row through the canonical schema, the lookup locator
+// (openRecordLocator), the shard-admin count (recordCountFromBytes) and
+// the shard-archive filter (skipShardPreamble).
 func ReadSchemaLayout(r io.Reader, v byte) (*encoding.Schema, error) {
 	s, err := encodingbridge.ReadSchemaLayout(r, v)
 	if err != nil {

@@ -55,7 +55,7 @@ func FieldNotScalar(f *encoding.Field, dim int, slot, suggest string, extra map[
 		") and has no single value to read"
 	switch suggest {
 	case SuggestAggregation:
-		msg += "; aggregate the whole vector with AGG_VEC_MEAN or AGG_VEC_SUM naming it under `vector`"
+		msg += "; aggregate the whole vector with " + vectorAggregationList(", ", " or ") + " naming it under `vector`"
 	case SuggestGrouper:
 		msg += "; group by the vector with GROUP_KMEANS naming it under `vector`"
 	default:

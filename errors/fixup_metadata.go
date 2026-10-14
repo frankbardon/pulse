@@ -3942,8 +3942,8 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceOperator,
 				Path:     []string{"aggregations", "*", "type"},
-				Hint:     "Aggregate the whole vector with a vector aggregator naming it under `vector` (drop `field`): AGG_VEC_MEAN for the element-wise mean, AGG_VEC_SUM for the element-wise sum.",
-				Examples: []any{"AGG_VEC_MEAN", "AGG_VEC_SUM"},
+				Hint:     "Aggregate the whole vector with a vector aggregator naming it under `vector` (drop `field`): AGG_VEC_MEAN for the element-wise mean, AGG_VEC_SUM for the element-wise sum, AGG_VEC_SD for the element-wise sample standard deviation.",
+				Examples: []any{"AGG_VEC_MEAN", "AGG_VEC_SUM", "AGG_VEC_SD"},
 			},
 			{
 				Action:   FixupReplaceOperator,

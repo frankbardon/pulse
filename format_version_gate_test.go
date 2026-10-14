@@ -21,7 +21,14 @@ import (
 // they drive; this gate covers every call site, including the ones no
 // facade test reaches (joins, chains, parallel decode, widen, SPSS
 // export, shard rewrite).
+//
+// The layout-only reader (internal/encoding.ReadSchemaLayout, the
+// read-past twin every shard scan, record count, lookup locator and
+// archive filter uses since matrix-extensions-hardening E8-S2..S5)
+// parses the same versioned block, so it carries the same obligation
+// and is walked alike.
 func TestReadSchemaCallersThreadHeaderVersion(t *testing.T) {
+	schemaReaders := map[string]bool{"ReadSchema": true, "ReadSchemaLayout": true}
 	fset := token.NewFileSet()
 	var offenders []string
 	sites := 0
@@ -62,13 +69,13 @@ func TestReadSchemaCallersThreadHeaderVersion(t *testing.T) {
 					return false // closures are checked as their own body
 				}
 				call, ok := n.(*ast.CallExpr)
-				if !ok || calleeName(call) != "ReadSchema" || len(call.Args) != 2 {
+				if !ok || !schemaReaders[calleeName(call)] || len(call.Args) != 2 {
 					return true
 				}
 				sites++
 				id, ok := call.Args[1].(*ast.Ident)
 				if !ok || !versionVars[id.Name] {
-					offenders = append(offenders, fset.Position(call.Pos()).String())
+					offenders = append(offenders, fset.Position(call.Pos()).String()+": "+calleeName(call))
 				}
 				return true
 			})
@@ -79,10 +86,10 @@ func TestReadSchemaCallersThreadHeaderVersion(t *testing.T) {
 		t.Fatalf("walking source: %v", err)
 	}
 	if sites < 30 {
-		t.Fatalf("found only %d ReadSchema call sites; the walk is not seeing the tree", sites)
+		t.Fatalf("found only %d ReadSchema / ReadSchemaLayout call sites; the walk is not seeing the tree", sites)
 	}
 	for _, o := range offenders {
-		t.Errorf("%s: ReadSchema's version argument is not the value ReadHeader returned in this function", o)
+		t.Errorf("%s's version argument is not the value ReadHeader returned in this function", o)
 	}
 }
 
@@ -103,7 +110,8 @@ func inspectFuncs(f *ast.File, fn func(*ast.BlockStmt)) {
 }
 
 // calleeName returns the bare function name of a call: ReadSchema for
-// both ReadSchema(...) and encoding.ReadSchema(...). Method calls on
+// both ReadSchema(...) and encoding.ReadSchema(...), ReadSchemaLayout
+// for encx.ReadSchemaLayout(...). Method calls on
 // other receivers (r.ReadHeader() on a tabular io.Reader) have no
 // argument match and are filtered by the callers' arity checks.
 func calleeName(call *ast.CallExpr) string {
@@ -111,7 +119,9 @@ func calleeName(call *ast.CallExpr) string {
 	case *ast.Ident:
 		return fn.Name
 	case *ast.SelectorExpr:
-		if pkg, ok := fn.X.(*ast.Ident); ok && pkg.Name == "encoding" {
+		// encx is the conventional import name of internal/encoding,
+		// whose ReadSchemaLayout is the layout-only twin.
+		if pkg, ok := fn.X.(*ast.Ident); ok && (pkg.Name == "encoding" || pkg.Name == "encx") {
 			return fn.Sel.Name
 		}
 	}

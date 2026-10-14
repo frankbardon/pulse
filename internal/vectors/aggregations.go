@@ -193,6 +193,25 @@ func VectorAggregationTypes() []types.AggregationType {
 	return []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM, types.AGG_VEC_SD}
 }
 
+// vectorAggregationList joins VectorAggregationTypes with sep, last
+// for the final pair ("A, B or C" / "A / B / C") — refusal prose names
+// the whole set, never a hand-kept subset.
+func vectorAggregationList(sep, last string) string {
+	ts := VectorAggregationTypes()
+	out := ""
+	for i, t := range ts {
+		switch {
+		case i == 0:
+		case i == len(ts)-1:
+			out += last
+		default:
+			out += sep
+		}
+		out += string(t)
+	}
+	return out
+}
+
 // IsVectorAggregation reports whether t is a built-in vector
 // aggregation type.
 func IsVectorAggregation(t types.AggregationType) bool {
@@ -399,7 +418,7 @@ func ResolveAggregations(req *types.Request, schema *encoding.Schema, kinds Aggr
 		ext := kinds.extension(typ)
 		if !IsVectorAggregation(typ) && !ext.VectorInput {
 			if HasAggregationVectorInput(s.Agg) && (builtin || ext.Registered) {
-				msg := s.Path + " (" + string(s.Agg.Type) + ") reads field, not a vector; drop vector / fields (AGG_VEC_MEAN / AGG_VEC_SUM / AGG_VEC_SD aggregate a vector)"
+				msg := s.Path + " (" + string(s.Agg.Type) + ") reads field, not a vector; drop vector / fields (" + vectorAggregationList(" / ", " / ") + " aggregate a vector)"
 				if ext.Registered {
 					msg = s.Path + " (" + string(s.Agg.Type) + ") reads field, not a vector: the extension is not registered with VectorInput; drop vector / fields"
 				}

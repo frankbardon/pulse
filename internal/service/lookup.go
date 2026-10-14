@@ -370,7 +370,11 @@ func openRecordLocator(fsys afero.Fs, path string, schema *encoding.Schema, tota
 		return nil, nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("invalid pulse file: %s", path))
 	}
-	if _, err := encoding.ReadSchema(f, pulseVersion); err != nil {
+	// Layout-only: the caller already holds the decoded schema, so this
+	// read only measures where the record region starts. Dictionaries
+	// and group entry tables are read past, never allocated
+	// (TestOpenRecordLocator_SkipsDictionaries).
+	if _, err := encx.ReadSchemaLayout(f, pulseVersion); err != nil {
 		f.Close()
 		return nil, nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading schema from: %s", path))
