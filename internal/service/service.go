@@ -599,10 +599,11 @@ func (s *Service) openArchive(path string, data []byte) (*Cohort, error) {
 	}
 
 	return &Cohort{
-		path:   path,
-		schema: doc.Schema,
-		fs:     s.fs.Fs(),
-		shards: shards,
+		path:         path,
+		schema:       doc.Schema,
+		fs:           s.fs.Fs(),
+		shards:       shards,
+		archiveBytes: int64(len(data)),
 	}, nil
 }
 

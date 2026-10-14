@@ -217,6 +217,12 @@ type PredictOptions struct {
 	// CrosstabFusionDisabledReason for every crosstab request, as the
 	// engine then never dispatches the fused arm.
 	DisableCrosstabFusion bool
+
+	// ShardWorkers is pulse.Options.ShardWorkers (0 = runtime.NumCPU,
+	// 1 = serial). Over a shard archive it decides whether the memory
+	// estimate counts the per-shard parallel arm's partials
+	// (ShardFanOut), as the engine's dispatch decides the arm.
+	ShardWorkers int
 }
 
 // CrosstabFusionDisabledReason is the PredictResult.CrosstabFusionReasons
@@ -313,7 +319,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	if data, ok := sniffArchive(fileData); ok {
 		env = predictArchive(data, expanded, opts)
 	} else {
-		env = predictSingle(fileData, expanded, opts, nil, nil)
+		env = predictSingle(fileData, expanded, opts, nil, nil, 0)
 	}
 	if len(fan) > 0 {
 		if result, ok := env.Data.(*descriptor.PredictResult); ok {
@@ -330,8 +336,9 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 // the response size estimates (PredictResult.Sizes), the limit findings
 // and the matrix state estimate — RecordCount stays the archive-only
 // figure it documents. shardRecords are an archive's per-shard counts
-// (merge blocks restart per shard); nil for a single file.
-func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions, records *int64, shardRecords []int64) *descriptor.Envelope {
+// (merge blocks restart per shard) and archiveBytes its byte length
+// (the memory estimate's archive term); nil and 0 for a single file.
+func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions, records *int64, shardRecords []int64, archiveBytes int64) *descriptor.Envelope {
 	if opts == nil {
 		opts = &PredictOptions{}
 	}
@@ -509,7 +516,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	if sizeIn.recordsKnown {
 		limitRecords = sizeIn.records
 	}
-	predictLimits(env, result, req, schema, opts, limitRecords, shardRecords)
+	predictLimits(env, result, req, schema, opts, limitRecords, shardRecords, archiveBytes)
 
 	// Response size estimates — on every request, on the
 	// defaults-resolved request over the schema it executes over. With
@@ -946,7 +953,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *desc
 		shardRecords = nil
 	}
 
-	env := predictSingle(bytes.NewReader(canonical), req, opts, records, shardRecords)
+	env := predictSingle(bytes.NewReader(canonical), req, opts, records, shardRecords, int64(len(data)))
 	result, _ := env.Data.(*descriptor.PredictResult)
 	if result == nil {
 		return env

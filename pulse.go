@@ -1615,6 +1615,7 @@ func (p *Pulse) predictBytes(ctx context.Context, data []byte, req *Request) (*d
 		RecordCounter:         p.predictRecordCounter(ctx),
 		ModelLoader:           p.svc,
 		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
+		ShardWorkers:          p.svc.ShardWorkers(),
 	}), nil
 }
 
@@ -1651,6 +1652,7 @@ func (p *Pulse) predictOptions(ctx context.Context, sidecar sidecarFacts) descx.
 		RecordCounter:         p.predictRecordCounter(ctx),
 		ModelLoader:           p.svc,
 		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
+		ShardWorkers:          p.svc.ShardWorkers(),
 		// Echoed (never applied) when no weight resolves; measure levels
 		// feed the measure-level advisories only.
 		SuggestedWeightVariable: sidecar.weightVariable,

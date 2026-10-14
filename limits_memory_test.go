@@ -79,6 +79,10 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 		path     string
 		req      func() *types.Request
 		noFusion bool
+		// shardWorkers is Options.ShardWorkers: over an archive it picks
+		// the serial iterator (1) or the per-shard reducer (2), whose
+		// partials the estimate charges.
+		shardWorkers int
 	}{
 		{name: "streaming", fs: fs, path: cohort, req: func() *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "a", Label: "s"}}}
@@ -94,13 +98,15 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 			return &types.Request{Cohort: &types.Cohort{Filename: arch}, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "a", Label: "s"}},
 				Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "cov", Fields: []string{"a", "b"}}}}
 		}},
+		{name: "archive serial", fs: afs, path: arch, shardWorkers: 1, req: func() *types.Request { return archiveRanged(arch) }},
+		{name: "archive per-shard", fs: afs, path: arch, shardWorkers: 2, req: func() *types.Request { return archiveRanged(arch) }},
 		{name: "join process", fs: jfs, path: left, req: func() *types.Request { return joinedSum(left, right) }},
 		{name: "join crosstab", fs: jfs, path: left, req: func() *types.Request { return joinedCrosstab(left, right) }},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			open := func(max int64) *pulse.Pulse {
-				p, err := pulse.New(pulse.Options{FS: c.fs, DisableCrosstabFusion: c.noFusion, Limits: pulse.Limits{MaxEstimatedMemory: max}})
+				p, err := pulse.New(pulse.Options{FS: c.fs, DisableCrosstabFusion: c.noFusion, ShardWorkers: c.shardWorkers, Limits: pulse.Limits{MaxEstimatedMemory: max}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -172,6 +178,52 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 				t.Fatalf("at the estimate: %v", err)
 			}
 		})
+	}
+}
+
+// archiveRanged groups the archive's records by a ranges of 10 — a
+// grouper of unknown cardinality, so every shard partial on the
+// per-shard arm is bounded by its own records.
+func archiveRanged(arch string) *types.Request {
+	return &types.Request{Cohort: &types.Cohort{Filename: arch},
+		Groups:       []*types.Group{{Type: types.GROUP_RANGE, Field: "a", Interval: 10}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "b", Label: "s"}}}
+}
+
+// TestLimits_MaxEstimatedMemory_ArchiveShardWorkers (E8-S3): over a
+// shard archive the estimate follows Options.ShardWorkers as the
+// dispatch does — the per-shard reducer's partials (4,097 + 5 records,
+// one bucket bound each under an unknown grouper) are charged only when
+// the run fans out — and predict and the run report the same figure
+// under either cap.
+func TestLimits_MaxEstimatedMemory_ArchiveShardWorkers(t *testing.T) {
+	ctx := context.Background()
+	fs := afero.NewMemMapFs()
+	arch := memoryArchive(t, fs)
+	estimate := func(workers int) int64 {
+		t.Helper()
+		p, err := pulse.New(pulse.Options{FS: fs, ShardWorkers: workers, Limits: pulse.Limits{MaxEstimatedMemory: 1}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, err := p.Predict(ctx, archiveRanged(arch))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(res.LimitFindings) != 1 {
+			t.Fatalf("findings = %+v", res.LimitFindings)
+		}
+		_, perr := p.Process(ctx, archiveRanged(arch))
+		d := requireLimitExceeded(t, perr, "max_estimated_memory", 1, "Options.Limits.MaxEstimatedMemory")
+		if d["observed"] != res.LimitFindings[0].Estimated {
+			t.Fatalf("ShardWorkers %d: runtime observed %v, predict estimated %d", workers, d["observed"], res.LimitFindings[0].Estimated)
+		}
+		return res.LimitFindings[0].Estimated
+	}
+	serial, fanned := estimate(1), estimate(2)
+	// 4,097 + 5 partial buckets of one aggregation (512 + 256 each).
+	if d, want := fanned-serial, int64((linalg.MergeBlockSize+1+5)*(512+256)); d != want {
+		t.Fatalf("the per-shard arm adds %d bytes, want %d (one bucket per shard record)", d, want)
 	}
 }
 

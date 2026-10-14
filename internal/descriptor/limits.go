@@ -3,12 +3,14 @@ package descriptor
 import (
 	"encoding/json"
 	"math"
+	"runtime"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/limits"
+	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -29,6 +31,15 @@ type LimitInputs struct {
 	// restart per shard); nil for a single file, whose blocks derive
 	// from Records.
 	ShardRecords []int64
+	// ArchiveBytes is a shard archive's byte length (predict: the bytes
+	// it was handed; the runtime: what Open read), 0 for a single file.
+	// Open and the scan read every byte onto the heap.
+	ArchiveBytes int64
+	// ShardWorkers is the instance's per-shard worker cap
+	// (Options.ShardWorkers: 0 = runtime.NumCPU, 1 = serial) — with the
+	// shard count and the merge gate it decides whether an archive run
+	// takes the per-shard parallel arm (ShardFanOut).
+	ShardWorkers int
 	// Join reports a request carrying its one JoinSpec; JoinRightRows
 	// is that build side's header count (-1 unknown: no memory
 	// finding). A join never runs the fused crosstab.
@@ -139,6 +150,28 @@ func MemoryArm(req *types.Request, schema *encoding.Schema, inst *InstanceSnapsh
 	return limits.ArmBuffered
 }
 
+// ShardFanOut reports whether req runs on the per-shard parallel
+// reducer over the archive `in` describes — the predict twin of the
+// runtime's Service.shouldFanOut (parity: internal/service
+// TestShardFanOut_PredictMatchesRuntime): two or more shards, a worker
+// cap that resolves to two or more (0 = runtime.NumCPU, clamped by the
+// shard count), and a request the shared merge gate
+// (mergegate.MergeRefusal over the declared extension facts) admits. A
+// crosstab or a join never reaches that dispatch.
+func ShardFanOut(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs) bool {
+	if req == nil || req.Crosstab != nil || in.Join || in.ShardWorkers == 1 || len(in.ShardRecords) < 2 {
+		return false
+	}
+	workers := in.ShardWorkers
+	if workers <= 0 {
+		workers = runtime.NumCPU()
+	}
+	if min(workers, len(in.ShardRecords)) < 2 {
+		return false
+	}
+	return mergegate.MergeRefusal(req, schema, in.Extensions.mergeFacts(inst)) == ""
+}
+
 // EstimateMemory is the upper bound, in bytes, of the resident state
 // req builds over schema — limits.EstimateMemory on the arm MemoryArm
 // picks, with the record counts from in and the request-shaped figures
@@ -155,6 +188,12 @@ func MemoryArm(req *types.Request, schema *encoding.Schema, inst *InstanceSnapsh
 //   - a join adds its build side; the joined rows a buffered arm
 //     materialises are bounded by the left count, which assumes at most
 //     one right match per left row.
+//   - a shard archive charges its byte length in place of records x
+//     stride when larger, and 2 x shards + 1 schema decodes
+//     (archiveTerms); on the per-shard parallel arm (ShardFanOut)
+//     every shard's partial holds its own buckets — EstimateGroups
+//     clamped by that shard's records, or its records for an unknown
+//     grouper, 1 ungrouped — and per-value state over its records.
 //
 // False when the record count (or a join's right count) is unknown.
 // The model never sees filter selectivity or field projection, so the
@@ -171,6 +210,21 @@ func EstimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceS
 		Stride:      int64(schema.RecordByteSize()),
 		RecordBytes: limits.RecordBytes(schema),
 		Buckets:     1,
+	}
+	archiveTerms(&mi, schema, in)
+	if ShardFanOut(req, schema, inst, in) {
+		mi.PartitionRecords = records
+		for _, n := range in.ShardRecords {
+			b := int64(1)
+			if len(req.Groups) > 0 {
+				if g, ok := EstimateGroups(req.Groups, schema, inst, n); ok {
+					b = g
+				} else {
+					b = n
+				}
+			}
+			mi.PartitionBuckets = addSaturating(mi.PartitionBuckets, b)
+		}
 	}
 	if in.Join {
 		mi.JoinRightRows = in.JoinRightRows
@@ -264,6 +318,7 @@ func EstimateFacetMemory(req *types.FacetRequest, schema *encoding.Schema, in Li
 		Records: in.Records,
 		Stride:  int64(schema.RecordByteSize()),
 	}
+	archiveTerms(&mi, schema, in)
 	for _, name := range append(append([]string(nil), req.Fields...), req.AdditiveFields...) {
 		mi.Buckets++
 		f := schema.Field(name)
@@ -276,6 +331,22 @@ func EstimateFacetMemory(req *types.FacetRequest, schema *encoding.Schema, in Li
 		}
 	}
 	return limits.EstimateMemory(mi), true
+}
+
+// archiveTerms sets the shard-archive inputs of the memory model: the
+// archive's byte length (Open and the scan read it whole) and the
+// schema blocks the run decodes beyond the canonical one — every
+// shard's twice (Open's record-count peek, the scan) plus the
+// canonical entry — each bounded by the canonical schema's decode
+// (a shard's dictionaries are prefixes of the canonical ones). A single
+// file (ArchiveBytes 0) sets nothing.
+func archiveTerms(mi *limits.MemoryInputs, schema *encoding.Schema, in LimitInputs) {
+	if in.ArchiveBytes <= 0 {
+		return
+	}
+	mi.ArchiveBytes = in.ArchiveBytes
+	mi.SchemaDecodes = 2*int64(len(in.ShardRecords)) + 1
+	mi.SchemaBytes = limits.SchemaDecodeBytes(schema)
 }
 
 // valueStateAggregation lists the built-in aggregators whose state
@@ -521,17 +592,20 @@ func joinBuildLimitFinding(req *types.Request, l limits.Limits, rightRows func(p
 // A Possible finding is reported only. Findings follow limit
 // declaration order: the request-level rules, then MaxJoinBuildRows.
 //
-// records is the cohort's header record count (-1 when unknown) and
-// shardRecords an archive's per-shard counts (nil for a single file);
-// they clamp the group-bucket estimate and drive the memory estimate.
+// records is the cohort's header record count (-1 when unknown),
+// shardRecords an archive's per-shard counts (nil for a single file)
+// and archiveBytes its byte length (0 for a single file); they clamp
+// the group-bucket estimate and drive the memory estimate.
 // A join's right-side count is read through opts.RecordCounter only
 // when MaxEstimatedMemory is set.
-func predictLimits(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, opts *PredictOptions, records int64, shardRecords []int64) {
+func predictLimits(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, opts *PredictOptions, records int64, shardRecords []int64, archiveBytes int64) {
 	inst := opts.instance()
 	l := inst.Limits()
 	in := LimitInputs{
 		Records:        records,
 		ShardRecords:   shardRecords,
+		ArchiveBytes:   archiveBytes,
+		ShardWorkers:   opts.ShardWorkers,
 		JoinRightRows:  -1,
 		Extensions:     opts.Extensions,
 		FusionDisabled: opts.DisableCrosstabFusion,

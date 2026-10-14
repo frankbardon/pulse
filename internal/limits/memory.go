@@ -88,6 +88,18 @@ const (
 	// cellBytes per crosstab cell: the cell accumulator, both axis-key
 	// interner entries and the margin share.
 	cellBytes = 512
+	// dictEntryDecodeBytes per dictionary entry a schema decode
+	// allocates beyond its label: the []string slot and the presized
+	// lookup-map entry with its slack (measured ~100 a entry).
+	dictEntryDecodeBytes = 128
+	// dictBufferBytesPerEntry: encoding.Dictionary.ReadFrom's shared
+	// label buffer starts at this many bytes a entry (min 256) and
+	// doubles until the labels fit — DictionaryDecodeBytes replays that
+	// growth.
+	dictBufferBytesPerEntry = 64
+	// fieldDecodeBytes per field descriptor a schema decode allocates:
+	// the Field, its name and description.
+	fieldDecodeBytes = 256
 )
 
 // MemoryInputs are the figures EstimateMemory reads. Counts are
@@ -128,30 +140,63 @@ type MemoryInputs struct {
 	// GrouperBytes is a buffered vector grouper's point store
 	// (KMeansBufferBytes, GROUP_KMEANS) — 0 without one.
 	GrouperBytes int64
+	// ArchiveBytes is a shard archive's byte length — every byte Open
+	// and the scan read onto the heap (afero.ReadFile, once each),
+	// whatever the filesystem; 0 for a single file. It replaces records
+	// x stride in the payload term when larger: every shard's header,
+	// schema block and dictionaries, the canonical _schema.pulse entry
+	// and the zip directory ride with the payload.
+	ArchiveBytes int64
+	// SchemaDecodes is how many schema blocks the run decodes beyond the
+	// cohort's own (an archive: Open peeks every shard's to count its
+	// records, the scan reads every shard's again — 2 x shards + 1 with
+	// the canonical entry); 0 for a single file. Each costs
+	// SchemaBytes: a shard's dictionaries are prefixes of the canonical
+	// ones, so the canonical schema bounds every shard's.
+	SchemaDecodes int64
+	// SchemaBytes is what one decode of the cohort's schema allocates
+	// (SchemaDecodeBytes).
+	SchemaBytes int64
+	// PartitionBuckets is the bucket states the per-shard parallel
+	// reducer's partials hold until the merge — the sum over shards of
+	// each shard's bucket bound (1 per shard ungrouped); 0 off that arm.
+	// Each costs what a merged bucket costs; the merge folds into one
+	// partial while the others are still live.
+	PartitionBuckets int64
+	// PartitionRecords is the records whose per-value state the
+	// per-shard partials hold beside the merged state (the run's record
+	// count on the per-shard parallel arm, else 0): charged per
+	// value-state aggregation like Records.
+	PartitionRecords int64
 }
 
 // EstimateMemory is the upper-bound resident footprint of one run, in
 // bytes, per arm:
 //
-//	every arm  base + 3 x records x stride (the payload + GC headroom)
+//	every arm  base + 3 x max(records x stride, archive bytes)
+//	             (the payload + GC headroom; an archive's every byte)
+//	           + schema decodes x schema bytes, on an archive
 //	           + join right rows x (3 x stride + 2 x record bytes)
 //	           + matrix merge-block state + vector-grouper point store
+//	           + partition buckets x (512 + 256 x aggs), per-shard arm
 //	buffered   + records x (record bytes + 16 x aggs + 128 x derived)
 //	           + buckets x (512 + 256 x aggs) + cells x 512
 //	streaming  + buckets x (512 + 256 x aggs)
 //	fused      + cells x 512
 //
-// plus records x 96 per value-state aggregation on every arm. Saturates
-// at math.MaxInt64 rather than wrapping.
+// plus (records + partition records) x 96 per value-state aggregation
+// on every arm. Saturates at math.MaxInt64 rather than wrapping.
 func EstimateMemory(in MemoryInputs) int64 {
 	total := int64(runBaseBytes)
 	add := func(a, b int64) { total = addSat(total, mulSat(a, b)) }
-	add(in.Records, fileCopyFactor*in.Stride)
+	add(max(mulSat(in.Records, in.Stride), in.ArchiveBytes), fileCopyFactor)
+	add(in.SchemaDecodes, in.SchemaBytes)
 	add(in.JoinRightRows, addSat(fileCopyFactor*in.Stride, buildCopyFactor*in.RecordBytes))
 	total = addSat(total, in.MatrixBytes)
 	total = addSat(total, in.GrouperBytes)
-	add(in.Records, mulSat(in.ValueStateAggregations, valueEntryBytes))
+	add(addSat(in.Records, in.PartitionRecords), mulSat(in.ValueStateAggregations, valueEntryBytes))
 	bucketState := addSat(bucketBaseBytes, mulSat(in.Aggregations, aggStateBytes))
+	add(in.PartitionBuckets, bucketState)
 	switch in.Arm {
 	case ArmBuffered:
 		per := addSat(in.RecordBytes, addSat(mulSat(in.Aggregations, bufferedValueBytes), mulSat(in.DerivedColumns, derivedColumnBytes)))
@@ -189,6 +234,52 @@ func RecordBytes(schema *encoding.Schema) int64 {
 	b := recordHeaderBytes + slotBytes*(n+words) + planeBytes*((n+63)/64)
 	if decimals > 0 {
 		b += auxBytes + decimalBytes*decimals
+	}
+	return b
+}
+
+// SchemaDecodeBytes is what decoding schema's block allocates, in
+// bytes: per field descriptor fieldDecodeBytes, per dictionary
+// DictionaryDecodeBytes, per parent group its entry table. An upper
+// bound calibrated on measured decodes
+// (TestSchemaDecodeBytes_BoundsDecode).
+func SchemaDecodeBytes(schema *encoding.Schema) int64 {
+	if schema == nil {
+		return 0
+	}
+	b := fieldDecodeBytes * int64(len(schema.Fields))
+	for i := range schema.Fields {
+		b = addSat(b, DictionaryDecodeBytes(schema.Fields[i].Dictionary))
+	}
+	for _, g := range schema.Groups {
+		b = addSat(b, int64(len(g.Entries)))
+	}
+	return b
+}
+
+// DictionaryDecodeBytes is what encoding.Dictionary.ReadFrom allocates
+// decoding d: per entry dictEntryDecodeBytes plus its label's string
+// copy (rounded up a size class: +1/8 + 8), and the shared label
+// buffer — dictBufferBytesPerEntry a entry (min 256), doubled until
+// every label fits, each generation allocated. 0 for nil.
+func DictionaryDecodeBytes(d *encoding.Dictionary) int64 {
+	if d == nil || d.Count() == 0 {
+		return 0
+	}
+	n := int64(d.Count())
+	var labels, strings int64
+	for id := range d.Count() {
+		l := int64(len(d.Resolve(uint32(id))))
+		labels += l
+		strings += l + l/8 + 8
+	}
+	buf := max(n*dictBufferBytesPerEntry, 256)
+	b := addSat(mulSat(n, dictEntryDecodeBytes), strings)
+	for c := buf; ; c = mulSat(c, 2) {
+		b = addSat(b, c)
+		if c >= labels || c == maxInt64 {
+			break
+		}
 	}
 	return b
 }

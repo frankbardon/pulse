@@ -1,7 +1,11 @@
 package limits
 
 import (
+	"bytes"
+	"fmt"
 	"math"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -146,6 +150,16 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 		{"matrix state", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, MatrixBytes: 12345},
 			payload + 12345 + bucket(1)},
 		{"no records", MemoryInputs{Arm: ArmBuffered, Buckets: 1}, runBaseBytes + bucket(0)},
+		// An archive: its byte length replaces records x stride in the
+		// payload term, plus every schema block decoded.
+		{"archive", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, ArchiveBytes: 90_000, SchemaDecodes: 5, SchemaBytes: 7000},
+			runBaseBytes + fileCopyFactor*90_000 + 5*7000 + bucket(1)},
+		{"archive under the payload", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, ArchiveBytes: 10},
+			payload + bucket(1)},
+		// The per-shard parallel arm: every partial's buckets and
+		// per-value state beside the merged ones.
+		{"shard partitions", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 4, Aggregations: 1, ValueStateAggregations: 1, PartitionBuckets: 9, PartitionRecords: records},
+			payload + 2*records*valueEntryBytes + 13*bucket(1)},
 	}
 	for _, c := range cases {
 		if got := EstimateMemory(c.in); got != c.want {
@@ -154,6 +168,53 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 	}
 	if got := EstimateMemory(MemoryInputs{Arm: ArmBuffered, Records: math.MaxInt64 / 2, Stride: 100, RecordBytes: 100}); got != math.MaxInt64 {
 		t.Errorf("saturation: %d", got)
+	}
+}
+
+// TestSchemaDecodeBytes_BoundsDecode: SchemaDecodeBytes bounds what
+// decoding a schema block really allocates (TotalAlloc over one
+// ReadSchema), within a factor of two — on dictionaries of short,
+// 40-byte and 1000-byte labels (per-entry overhead, then the label
+// copies and the shared buffer's growth, dominate in turn).
+// The schema decodes are the archive term the memory estimate charges
+// per shard (E8-S3).
+func TestSchemaDecodeBytes_BoundsDecode(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		format string
+	}{{"short labels", "%d"}, {"40-byte labels", "tag-%07d-abcdefghijklmnopqrstuvwxyz"}, {"1000-byte labels", "%07d" + strings.Repeat("x", 993)}} {
+		t.Run(c.name, func(t *testing.T) {
+			s := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF64}}}
+			d := encoding.NewDictionary()
+			for i := range 20_000 {
+				if _, err := d.Add(fmt.Sprintf(c.format, i)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			s.Fields = append(s.Fields, encoding.Field{Name: "tag", Type: encoding.FieldTypeCategoricalU32, ByteOffset: 8, Dictionary: d})
+			var buf bytes.Buffer
+			if err := encoding.WriteSchema(&buf, s); err != nil {
+				t.Fatal(err)
+			}
+			raw := buf.Bytes()
+			var before, after runtime.MemStats
+			runtime.ReadMemStats(&before)
+			got, err := encoding.ReadSchema(bytes.NewReader(raw), encoding.FormatVersion)
+			runtime.ReadMemStats(&after)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime.KeepAlive(got)
+			alloc := float64(after.TotalAlloc - before.TotalAlloc)
+			bound := float64(SchemaDecodeBytes(s))
+			t.Logf("allocated %.0f, bound %.0f (%.2f)", alloc, bound, alloc/bound)
+			if alloc > bound || alloc < bound/2 {
+				t.Errorf("decode allocated %.0f bytes, SchemaDecodeBytes %.0f: want alloc within [bound/2, bound]", alloc, bound)
+			}
+		})
+	}
+	if SchemaDecodeBytes(nil) != 0 {
+		t.Error("nil schema")
 	}
 }
 

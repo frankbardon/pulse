@@ -410,21 +410,25 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		groupIdx = make([]uint32, len(schema.Groups))
 	}
 
+	// A FRESH positional Record per row, decoded by schema position —
+	// the parallel-decode reducer's decode (parallel_decode.go). The
+	// old map decode built three maps and a converted Record per row
+	// (~58 allocations a row at p = 50, E8-S1); the values a consumer
+	// reads are the same, so the partial's bits are too
+	// (TestShardWorkers_* / TestMatrixCovariance_WorkerInvariant).
+	binding := recordBindingFor(schema, nil, nil)
 	for {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		values := make(map[string]float64, len(schema.Fields))
-		nulls := make(map[string]bool)
-		wide := make(map[string]any)
-		err := rr.ReadRecordWithWide(values, nulls, wide)
+		rec := binding.NewRecord()
+		err := rr.ReadRecordReused(rec)
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
 			return nil, err
 		}
-		rec := processing.NewRecordWithWide(schema, values, nulls, wide)
 		if groupIdx != nil && readGroupIndices(rr, groupIdx) {
 			rec.SetGroupIndices(schema, groupIdx)
 		}
