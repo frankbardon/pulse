@@ -1,5 +1,7 @@
 # Adding a Synth Distribution
 
+> **Run the site checklist first.** `make sites ARGS="new-op synth"` prints every file and declaration a new synth distribution lands in — derived from where the existing ones appear — with the tests to rerun and the goldens to regenerate; `make sites ARGS="op <NAME>"` does the same for an existing one. See [Finding Change Sites](finding-change-sites.md). This recipe explains each step.
+
 **Audience:** Pulse internals contributors adding a new synthetic-data
 distribution kind to the `internal/synth/` package — Normal, Uniform,
 Categorical, ZipfMandelbrot, etc.

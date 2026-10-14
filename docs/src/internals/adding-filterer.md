@@ -1,5 +1,7 @@
 # Adding a Filterer
 
+> **Run the site checklist first.** `make sites ARGS="new-op filterer"` prints every file and declaration a new `FILTER_*` lands in — derived from where the existing ones appear — with the tests to rerun and the goldens to regenerate; `make sites ARGS="op <NAME>"` does the same for an existing one. See [Finding Change Sites](finding-change-sites.md). This recipe explains each step.
+
 > **Embedding Pulse, not contributing to it?** This recipe adds a *built-in* in `internal/processing/`, which embedders cannot import. To add your own operator, implement the matching contract in the public `extend` package instead — see [Extension Points](extension-points.md).
 
 **Audience:** Pulse internals contributors adding a new `FILTER_*`

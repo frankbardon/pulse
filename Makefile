@@ -1,4 +1,4 @@
-.PHONY: build clean dist test smoke contrib contrib-tidy cover fmt vet lint bench tzdata reference docs docs-generate docs-serve docs-clean
+.PHONY: build clean dist test smoke contrib contrib-tidy cover fmt vet lint bench sites tzdata reference docs docs-generate docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -96,6 +96,19 @@ lint: vet
 # in-repo wall-clock assertion, kept out of CI on purpose).
 bench:
 	$(GO) test -bench=. -benchmem -run='^$$' -count=1 . ./internal/service/... ./encoding/... ./internal/processing/...
+
+# sites prints the change-site checklist for an operator or a
+# Request/Response slot: every file + declaration to edit, the gate
+# tests to rerun and the goldens to regenerate, derived from code
+# (registries, AST, classified identifier occurrences, go/types for
+# slots). Development tool only (internal/tools/sites). Examples:
+#   make sites ARGS="op MAT_PCA"
+#   make sites ARGS="new-op overlay"
+#   make sites ARGS="slot request matrices"
+#   make sites ARGS="--json categories"
+# Recipe: docs/src/internals/finding-change-sites.md.
+sites:
+	$(GO) run ./internal/tools/sites $(ARGS)
 
 # tzdata refreshes Pulse's embedded tz database from the active Go
 # toolchain's $GOROOT/lib/time/zoneinfo.zip and prints the IANA release

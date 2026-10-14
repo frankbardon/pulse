@@ -2,6 +2,8 @@
 
 **How to load.** This file is an INDEX. Load it, find the area(s) your change triggers in the table below, then load ONLY those per-area slices under `.claude/reference/update-demand/`. Each slice is self-contained for its triggers (same three columns, same rule). `.claude/reference/update-demand/history.md` is decision history — do NOT load it by default. Unsure which slice holds a row? `grep -l '<identifier>' .claude/reference/update-demand/*.md`.
 
+**Run `sites` first.** Before loading a slice for an operator or slot change, run `make sites ARGS="op <TYPE>"` (existing operator), `make sites ARGS="new-op <category>"` (new operator) or `make sites ARGS="slot <request|response> <name>"` (`go run ./internal/tools/sites …`). It prints the file + declaration checklist derived from code (registries, AST, classified identifier occurrences), the gate tests to rerun, the goldens to regenerate and the slices below to read for that category — `docs/src/internals/finding-change-sites.md`. The slices remain the contract: the tool finds the sites, the slices say what each must contain.
+
 CLAUDE.md carries the compressed one-row-per-category version of this table — enough for the non-skippable gates and skim reading. This index plus its per-area slices under `.claude/reference/update-demand/` is the exhaustive list: every Pulse-internal contract that has its own trigger row.
 
 Rule unchanged: any change in column 1 MUST also update everything in column 2, in the SAME PR. CI fails otherwise.

@@ -439,6 +439,7 @@
 - [Architecture Overview](internals/architecture.md)
 - [Package Layout](internals/packages.md)
 - [Extension Points](internals/extension-points.md)
+- [Finding Change Sites](internals/finding-change-sites.md)
 - [Adding an Aggregator](internals/adding-aggregator.md)
 - [Adding an Attribute](internals/adding-attribute.md)
 - [Adding a Filterer](internals/adding-filterer.md)
