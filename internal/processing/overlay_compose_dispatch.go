@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/totalcall"
@@ -225,6 +226,20 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 // THIS entry point, so every request that reaches Pulse through
 // pulse.Compose / pulse.ComposeParallel is gated.
 func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, responses []*types.Response, labels []string, requests []*types.Request, exts *ExtensionRegistry) ([]types.OverlayLayer, []types.OverlayWarning, error) {
+	return ApplyComposeOverlaysWithSchemas(specs, responses, labels, requests, nil, exts)
+}
+
+// ApplyComposeOverlaysWithSchemas is ApplyComposeOverlaysWithRequests
+// with each slot's input schema in reach: slotSchema(j) (nil: none) is
+// the schema requests[j] executes over (its cohort's, or the joined
+// one), called only when a series kind's params.field names an
+// expanded element column "<label>[<element label>]" of an expanding
+// array-valued aggregation, so that column resolves against the slot's
+// members — the reading predict-compose makes over the same schema
+// (vectors.AggregationColumns). Without it such a name resolves when
+// the slot carries its element labels inline, else syntactically.
+// service.(*Service).applyComposeOverlays calls it.
+func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses []*types.Response, labels []string, requests []*types.Request, slotSchema func(j int) *encoding.Schema, exts *ExtensionRegistry) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
@@ -275,25 +290,19 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 				return nil, nil, cerr
 			}
 		}
-		// Reference must resolve to a known label AND a non-nil slot.
-		// LookupReference owns the canonical-code dispatch for the
-		// reference arm — empty label, unknown label, or nil slot all
-		// surface PULSE_OVERLAY_REFERENCE_UNKNOWN.
+		// Reference, then targets, must name a slot — the shared label
+		// rule predict-compose raises (overlayhost.ComposeSlotRefusals),
+		// same code, message and details; a spec with no Targets is
+		// refused there. LookupReference / LookupTarget then own only
+		// the failed-slot (nil response) hole.
+		if rs := overlayhost.ComposeSlotRefusals(spec, i, func(label string) bool { _, ok := byLabel[label]; return ok }); len(rs) > 0 {
+			return nil, nil, rs[0]
+		}
 		refResp, err := LookupReference(byLabel, spec.Reference, i)
 		if err != nil {
 			return nil, nil, err
 		}
 		refIdx := byIndex[spec.Reference]
-		if len(spec.Targets) == 0 {
-			return nil, nil, errors.NewCodedErrorWithDetails(
-				errors.PULSE_OVERLAY_TARGET_UNKNOWN,
-				"compose overlay spec must declare at least one target slot label",
-				map[string]any{
-					"index": i,
-					"kind":  string(spec.Kind),
-					"which": "targets",
-				})
-		}
 		targetIdxs := make([]int, 0, len(spec.Targets))
 		targetResps := make([]*types.Response, 0, len(spec.Targets))
 		for tIdx, label := range spec.Targets {
@@ -326,7 +335,7 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 		// gate reads a Data row, so a multi-aggregation slot keys on its
 		// groups alone. The field refusal sits where predict-compose
 		// raises it: after label resolution, before the key-set gate.
-		refResp, targetResps, err = projectComposeSeriesSlots(spec, route, i, refResp, refIdx, targetResps, targetIdxs, requests)
+		refResp, targetResps, err = projectComposeSeriesSlots(spec, route, i, refResp, refIdx, targetResps, targetIdxs, requests, slotSchema, exts.AggregationKinds())
 		if err != nil {
 			return nil, nil, err
 		}

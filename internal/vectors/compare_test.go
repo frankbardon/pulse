@@ -65,7 +65,7 @@ func TestComparisonParams_Rules(t *testing.T) {
 		{name: "fitted on similarity op", attr: cmpAttr(sim, `{"metric":"std_euclidean","reference":[1,2]}`, inline), code: errors.PULSE_VECTOR_METRIC_UNKNOWN, use: string(dist)},
 		{name: "correlation on distance op", attr: cmpAttr(dist, `{"metric":"correlation","reference":[1,2]}`, inline), code: errors.PULSE_VECTOR_METRIC_UNKNOWN, use: string(sim)},
 		{name: "jaccard on distance op", attr: cmpAttr(dist, `{"metric":"jaccard","reference":[1,0]}`, inline), code: errors.PULSE_VECTOR_METRIC_UNKNOWN, use: string(sim)},
-		{name: "chi_square unexposed", attr: cmpAttr(dist, `{"metric":"chi_square","reference":[1,2]}`, inline), code: errors.PULSE_VECTOR_METRIC_UNKNOWN},
+		{name: "chi_square not accepted", attr: cmpAttr(dist, `{"metric":"chi_square","reference":[1,2]}`, inline), code: errors.PULSE_VECTOR_METRIC_UNKNOWN},
 		{name: "unregistered", attr: cmpAttr(sim, `{"metric":"bogus","reference":[1,2]}`, inline), code: errors.PULSE_VECTOR_METRIC_UNKNOWN},
 		{name: "cosine distance form", attr: cmpAttr(dist, `{"metric":"cosine","reference":[1,2]}`, inline), metric: "cosine", values: []float64{1, 2}, form: ReferenceValues, minValid: 1},
 		// min_valid.

@@ -108,7 +108,7 @@ func TestMCPToolMentionsAreRegistered(t *testing.T) {
 	notTools := map[string]bool{"pulse_format_version": true, "pulse_type": true}
 
 	var files []string
-	for _, pattern := range []string{"*.md", "../../.claude/reference/*.md", "../../README.md"} {
+	for _, pattern := range []string{"*.md", "../../.claude/reference/*.md", "../../.claude/reference/*/*.md", "../../README.md"} {
 		m, err := filepath.Glob(pattern)
 		if err != nil {
 			t.Fatal(err)

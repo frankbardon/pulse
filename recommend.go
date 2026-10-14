@@ -68,6 +68,7 @@ func (p *Pulse) Recommend(ctx context.Context, req descriptor.RecommendRequest) 
 	}
 	defer src.close()
 	opts := p.predictOptions(ctx, p.sidecarFacts(path))
+	opts.AnchorArchiveBytes = src.anchorArchiveBytes
 	return guide.RecommendBound(inst, req, guide.Bound{
 		Cohort: req.Cohort,
 		Schema: src.schema,
@@ -87,6 +88,9 @@ type guideCohort struct {
 	rs     io.ReadSeeker
 	schema *encoding.Schema
 	close  func()
+	// anchorArchiveBytes is the archive's byte length when rs is one
+	// anchor-extracted shard (PredictOptions.AnchorArchiveBytes), else 0.
+	anchorArchiveBytes int64
 }
 
 // openGuideCohort opens the cohort at path for a guidance surface; op
@@ -130,7 +134,9 @@ func (p *Pulse) openGuideCohort(path, op string) (*guideCohort, error) {
 			op+": reading cohort: "+err.Error(), map[string]any{"path": path})
 	}
 	schemaBytes := data
+	var anchorArchiveBytes int64
 	if entry != "" {
+		anchorArchiveBytes = int64(len(data))
 		if data, err = extractShardBytes(data, entry); err != nil {
 			return nil, guideSchemaError(op, path, err)
 		}
@@ -142,7 +148,7 @@ func (p *Pulse) openGuideCohort(path, op string) (*guideCohort, error) {
 	if err != nil {
 		return nil, guideSchemaError(op, path, err)
 	}
-	return &guideCohort{rs: bytes.NewReader(data), schema: schema, close: func() {}}, nil
+	return &guideCohort{rs: bytes.NewReader(data), schema: schema, close: func() {}, anchorArchiveBytes: anchorArchiveBytes}, nil
 }
 
 // readGuideSchema reads a header and the schema block after it.

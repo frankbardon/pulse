@@ -45,6 +45,7 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 
 		AGG_VEC_MEAN: true,
 		AGG_VEC_SUM:  true,
+		AGG_VEC_SD:   true,
 	}
 	for _, agg := range AllAggregationTypes() {
 		want, ok := expected[agg]
@@ -117,6 +118,7 @@ func TestStreamability_MarginReducibilityKnown(t *testing.T) {
 
 		AGG_VEC_MEAN: MarginRecompute,
 		AGG_VEC_SUM:  MarginRecompute,
+		AGG_VEC_SD:   MarginRecompute,
 	}
 	for _, agg := range AllAggregationTypes() {
 		want, ok := expected[agg]
@@ -511,9 +513,10 @@ func TestMarginReducibility_ModeCountIndependentFrequencySums(t *testing.T) {
 // TestAggregationClassification_ArrayValued pins the vector aggregators
 // (U27 E2-S2): array-valued, streamable and mergeable, never map-valued
 // — and no other aggregator is array-valued, so the unconditional
-// crosstab / Sort / overlay / chain refusals reach exactly these two.
+// crosstab / Sort / overlay / chain refusals reach exactly these three
+// (AGG_VEC_SD since U30 E5-S1).
 func TestAggregationClassification_ArrayValued(t *testing.T) {
-	want := map[AggregationType]bool{AGG_VEC_MEAN: true, AGG_VEC_SUM: true}
+	want := map[AggregationType]bool{AGG_VEC_MEAN: true, AGG_VEC_SUM: true, AGG_VEC_SD: true}
 	for _, agg := range AllAggregationTypes() {
 		if got := agg.ArrayValued(); got != want[agg] {
 			t.Errorf("%s.ArrayValued() = %v, want %v", agg, got, want[agg])

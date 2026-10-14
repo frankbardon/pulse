@@ -5,10 +5,11 @@ import (
 )
 
 // cellFloat reads a numeric cell as (value, ok). Null/missing/non-numeric
-// values return (0, false).
+// values — and a NaN, an undefined figure that is null on the wire —
+// return (0, false), so every value-bearing window skips it like a null.
 func cellFloat(row map[string]any, field string) (float64, bool) {
 	v, present := row[field]
-	if !present || v == nil {
+	if !present || isNullCell(v) {
 		return 0, false
 	}
 	return toFloat(v)

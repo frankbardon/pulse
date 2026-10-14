@@ -531,7 +531,10 @@ func recordCountFromBytes(payload []byte, schema *encoding.Schema) (int64, error
 		return 0, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 			"recordCountFromBytes: reading shard header")
 	}
-	if _, err := encoding.ReadSchema(r, pulseVersion); err != nil {
+	// Layout-only: the stride comes from the canonical schema, so the
+	// shard's dictionaries and group entry tables are read past, never
+	// allocated (TestRecordCountFromBytes_SkipsDictionaries).
+	if _, err := encx.ReadSchemaLayout(r, pulseVersion); err != nil {
 		return 0, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 			"recordCountFromBytes: reading shard schema")
 	}

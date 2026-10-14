@@ -498,7 +498,8 @@ func matrixValuesNode(name string, rows, cols int64) *sizeNode {
 //     claims the spec).
 //   - MAT_PCA: eigenvectors p x k; unrotated p x k under a rotation.
 //   - MAT_FACTOR: unrotated p x k under a rotation; factor_correlation
-//     k x k under an oblique one (promax, oblimin).
+//     k x k under an oblique one (vectors.RotationOblique: promax,
+//     oblimin, geomin).
 //   - MAT_COLLINEARITY: variance_decomposition q x q, q = p (+ 1 for
 //     the intercept unless params.center).
 //   - MAT_DISTANCE: centroids b x p; centroids_standardized b x p under

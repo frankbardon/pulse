@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -55,6 +56,34 @@ func factorScoreOracleTol(extraction string) float64 {
 }
 
 // factorScoreParams builds an ATTR_FACTOR_SCORE params blob.
+// splitRotationEpsilon splits a test case's "criterion@epsilon"
+// rotation spelling (e.g. "geomin@0.1"); a bare name has epsilon 0.
+func splitRotationEpsilon(s string) (string, float64) {
+	name, e, ok := strings.Cut(s, "@")
+	if !ok {
+		return s, 0
+	}
+	eps, err := strconv.ParseFloat(e, 64)
+	if err != nil {
+		panic(err)
+	}
+	return name, eps
+}
+
+// withEpsilon adds params.epsilon to raw when eps is non-zero.
+func withEpsilon(raw json.RawMessage, eps float64) json.RawMessage {
+	if eps == 0 {
+		return raw
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		panic(err)
+	}
+	m["epsilon"] = eps
+	out, _ := json.Marshal(m)
+	return out
+}
+
 func factorScoreParams(factor int, method string, factors any, extraction, rotation string, fitOn []map[string]any) json.RawMessage {
 	params := map[string]any{"factor": factor}
 	if method != "" {
@@ -212,9 +241,16 @@ func TestFactorScore_MatchesROracle(t *testing.T) {
 // attribute's loadings, column order and sign are MAT_FACTOR's — for
 // the default (Kaiser, minres) fit and rotated ones, unweighted and
 // weighted. A Bartlett score correlates with every member with the
-// structure coefficient's sign wherever it is clearly non-zero.
+// structure coefficient's sign wherever it is clearly non-zero — unless
+// MAT_FACTOR's fit is a Heywood case with a uniqueness ≤ 0, where the
+// contract nulls every Bartlett score (its weights divide by ψ). That
+// case is decided from MAT_FACTOR's own uniquenesses and asserted as
+// all-null: a NaN correlation never reaches the sign check, whose
+// math.Signbit would read an arch-dependent NaN sign bit (clear on
+// arm64, set on amd64) and pass or fail by architecture.
 func TestFactorScore_SignAgreesWithMATFactor(t *testing.T) {
 	fields := []string{"rating", "complaints", "privileges", "learning", "raises", "critical", "advance"}
+	seen := map[string]bool{}
 	for _, c := range []struct {
 		name       string
 		factors    any
@@ -227,6 +263,12 @@ func TestFactorScore_SignAgreesWithMATFactor(t *testing.T) {
 		{"varimax", 2, 2, "", "varimax", "none"},
 		{"oblimin principal axis frequency", 3, 3, "principal_axis", "oblimin", "frequency"},
 		{"promax ml probability", 2, 2, "ml", "promax", "probability"},
+		{"geomin principal axis", 3, 3, "principal_axis", "geomin", "none"},
+		{"geomin epsilon 0.1", 3, 3, "principal_axis", "geomin@0.1", "none"},
+		{"geomin minres frequency", 2, 2, "", "geomin", "frequency"},
+		{"quartimax principal axis probability", 2, 2, "principal_axis", "quartimax", "probability"},
+		{"geomin_orthogonal ml", 2, 2, "ml", "geomin_orthogonal", "none"},
+		{"entropy", 2, 2, "", "entropy", "none"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			schema, _ := hotellingFixture(t, "attitude", "")
@@ -241,8 +283,12 @@ func TestFactorScore_SignAgreesWithMATFactor(t *testing.T) {
 			if c.extraction != "" {
 				matParams["extraction"] = c.extraction
 			}
-			if c.rotation != "" {
-				matParams["rotation"] = c.rotation
+			rotation, eps := splitRotationEpsilon(c.rotation)
+			if rotation != "" {
+				matParams["rotation"] = rotation
+			}
+			if eps != 0 {
+				matParams["epsilon"] = eps
 			}
 			mp, _ := json.Marshal(matParams)
 			req := &types.Request{
@@ -253,7 +299,7 @@ func TestFactorScore_SignAgreesWithMATFactor(t *testing.T) {
 				for _, method := range vectors.FactorScoreMethods() {
 					req.Attributes = append(req.Attributes, &types.Attribute{
 						Type: types.ATTR_FACTOR_SCORE, Label: fmt.Sprintf("%s%d", method, f), Fields: fields,
-						Params: factorScoreParams(f, method, c.factors, c.extraction, c.rotation, nil),
+						Params: withEpsilon(factorScoreParams(f, method, c.factors, c.extraction, rotation, nil), eps),
 					})
 				}
 			}
@@ -282,8 +328,21 @@ func TestFactorScore_SignAgreesWithMATFactor(t *testing.T) {
 			if fc := resp.Matrices[0].Auxiliary["factor_correlation"]; fc != nil {
 				phi = fc.Values
 			}
+			uniq, _ := resp.Matrices[0].Vectors["uniquenesses"].([]float64)
+			if len(uniq) != len(fields) {
+				t.Fatalf("MAT_FACTOR uniquenesses %v, want %d", resp.Matrices[0].Vectors["uniquenesses"], len(fields))
+			}
+			bartlettNulled := slices.Min(uniq) <= 0
+			seen[fmt.Sprint("bartlett nulled ", bartlettNulled)] = true
 			wspec := oracleWeight(c.weight)
 			for f := 1; f <= c.k; f++ {
+				if bartlettNulled {
+					for i, r := range recs {
+						if v, ok := r.NumericValue(fmt.Sprintf("bartlett%d", f)); ok && !math.IsNaN(v) {
+							t.Fatalf("row %d: Bartlett F%d = %v over a uniqueness ≤ 0 (%v), want null", i, f, v, uniq)
+						}
+					}
+				}
 				ratio := math.NaN()
 				for i, field := range fields {
 					s := 0.0
@@ -299,13 +358,24 @@ func TestFactorScore_SignAgreesWithMATFactor(t *testing.T) {
 					} else if math.Abs(reg/s-ratio) > 1e-8*ratio {
 						t.Errorf("F%d × %s: corr / structure = %.12f, the first member's %.12f", f, field, reg/s, ratio)
 					}
+					if bartlettNulled {
+						continue
+					}
 					bart := weightedCorr(recs, fmt.Sprintf("bartlett%d", f), field, wspec)
+					if math.IsNaN(bart) {
+						t.Fatalf("F%d × %s: Bartlett corr undefined over a fit with every uniqueness > 0 (%v)", f, field, uniq)
+					}
 					if math.Abs(s) > 0.2 && math.Signbit(bart) != math.Signbit(s) {
 						t.Errorf("F%d × %s: Bartlett corr %.6f against structure %.6f", f, field, bart, s)
 					}
 				}
 			}
 		})
+	}
+	for _, want := range []string{"bartlett nulled true", "bartlett nulled false"} {
+		if !seen[want] {
+			t.Fatalf("vacuous sign check: no %q case (seen %v)", want, seen)
+		}
 	}
 }
 
@@ -452,7 +522,8 @@ func TestFactorScore_FactoryRefusals(t *testing.T) {
 		{`{"factor": 2, "factors": 1}`, "at least params.factor"},
 		{`{"factor": 1, "method": "anderson"}`, "method must be"},
 		{`{"factor": 1, "extraction": "pca"}`, "extraction must be"},
-		{`{"factor": 1, "rotation": "quartimax"}`, "rotation must be"},
+		{`{"factor": 1, "rotation": "bentler"}`, "rotation must be"},
+		{`{"factor": 1, "rotation": "oblimin", "epsilon": 0.01}`, "epsilon applies to rotation"},
 		{`{"factor": 1, "kappa": 3}`, "kappa applies to rotation \"promax\" only"},
 		{`{"factor": 1, "rotation": "oblimin", "gamma": "x"}`, "ATTR_FACTOR_SCORE params"},
 		{`{"factor": 1, "repair": "nearest"}`, "unknown field"},

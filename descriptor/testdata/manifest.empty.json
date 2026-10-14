@@ -121,7 +121,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 90,
+    "error_codes_count": 91,
     "error_domains": [
       "CLI",
       "DATA",
@@ -167,6 +167,7 @@
       "PULSE_EXTENSION_FACTORY_PANIC",
       "PULSE_EXTENSION_FANOUT_MISMATCH",
       "PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH",
+      "PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_MERGEABLE_MISMATCH",
       "PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA",
       "PULSE_EXTENSION_NAME_COLLISION",
@@ -618,11 +619,13 @@
       "features": [],
       "tests": [],
       "synth_distributions": [],
+      "matrix_ops": [],
       "expr_functions": [],
       "lookup_tables": [],
       "reference_vectors": [],
       "label_tables": [],
-      "range_tables": []
+      "range_tables": [],
+      "populations": []
     },
     "overlays": [],
     "components_schemas": {},
@@ -795,4 +798,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f1a71ce6e52f50bc73bf6388141f881add73c93b6b686c585d4c0304eb57a9d3
+// golden-hash: 032910b1d5f2ec84bd6bc92bf94323f261bf13e59deb8a4283626075476fd2bd

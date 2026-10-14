@@ -82,6 +82,11 @@ type parityOp struct {
 	// invariance (weights × testScaleC answer the same figure, within
 	// tolerance) instead.
 	kishScaled bool
+	// kishTotals / kishSquares are the operator-map keys of a kishScaled
+	// row that scale with the weights (× c: weighted sums, M2) or with
+	// their square (× c²: Σw²) under that scale-invariance check; every
+	// other key is scale-free.
+	kishTotals, kishSquares []string
 	// vector marks an array-valued vector aggregator: ONE slot reads
 	// every entry of fields as its members (label op_<fields[0]>), and
 	// the crosstab arms do not apply (refused unconditionally).
@@ -139,9 +144,14 @@ var parityOps = []parityOp{
 	{op: types.AGG_MAE, fields: []string{"x", "y"}, params: json.RawMessage(`{"prediction_field":"g"}`), expandExact: []string{"x"}},
 	// vector-metrics-aggregates E2-S2: ONE vector slot over x and y
 	// (array-valued: per element Σw·x, Σw·x / Σw). y is fractional, so
-	// no element is exact on expansion. Never a crosstab cell (refused).
+	// no element is exact on expansion. A crosstab cell only through params.element (one element as a scalar).
 	{op: types.AGG_VEC_MEAN, fields: []string{"x", "y"}, vector: true},
 	{op: types.AGG_VEC_SUM, fields: []string{"x", "y"}, vector: true},
+	// matrix-extensions-hardening E5-S1: the per-element sample sd on
+	// N* — Σw − 1 under frequency (the expansion), Kish n_eff − 1 under
+	// probability (scale invariance instead).
+	{op: types.AGG_VEC_SD, fields: []string{"x", "y"}, vector: true, kishScaled: true,
+		kishTotals: []string{"element_sum", "element_sum_weights", "element_m2"}, kishSquares: []string{"element_sum_weights_sq"}},
 }
 
 // --- fixture ------------------------------------------------------------
@@ -765,7 +775,7 @@ func TestWeightFrequencyExpansionParity(t *testing.T) {
 							stripSteer(want)
 							got := runArm(t, scaled, mode, scaled.paths[mode.cohort], row, row.op, &src)
 							stripSteer(got)
-							assertKishScaled(t, got, want)
+							assertKishScaled(t, got, want, row)
 							return
 						}
 						got := runArm(t, weighted, mode, weighted.paths[mode.cohort], row, row.op, &src)
@@ -838,8 +848,15 @@ func TestWeightProbabilityQuantileScaleInvariance(t *testing.T) {
 // the same Data and operator components (n_eff, hence every Kish-read
 // figure, is scale-free) within testExpandTol; the floor's n_eff is
 // unchanged and its sum_weights × testScaleC.
-func assertKishScaled(t *testing.T, got, want *types.Response) {
+func assertKishScaled(t *testing.T, got, want *types.Response, row parityOp) {
 	t.Helper()
+	totals, squares := map[string]bool{}, map[string]bool{}
+	for _, k := range row.kishTotals {
+		totals[k] = true
+	}
+	for _, k := range row.kishSquares {
+		squares[k] = true
+	}
 	compareTestWire(t, "data", toJSONValue(t, got.Data), toJSONValue(t, want.Data), 1, testScaleC, nil, nil)
 	ga, wa := got.Components.Aggregations, want.Components.Aggregations
 	if len(ga) != len(wa) {
@@ -852,7 +869,10 @@ func assertKishScaled(t *testing.T, got, want *types.Response) {
 		if !relClose(*ga[i].NEff, *wa[i].NEff, testExpandTol) || !relClose(*ga[i].SumWeights, *wa[i].SumWeights*testScaleC, testExpandTol) {
 			t.Errorf("slot %s: floor n_eff %v / sum_weights %v, unscaled %v / %v", ga[i].Label, *ga[i].NEff, *ga[i].SumWeights, *wa[i].NEff, *wa[i].SumWeights)
 		}
-		compareTestWire(t, "components."+ga[i].Label, toJSONValue(t, ga[i].Operator), toJSONValue(t, wa[i].Operator), 1, testScaleC, nil, nil)
+		compareTestWire(t, "components."+ga[i].Label, toJSONValue(t, ga[i].Operator), toJSONValue(t, wa[i].Operator), 1, testScaleC, totals, squares)
+		for k := range squares {
+			compareTestWire(t, "components."+ga[i].Label+"."+k, toJSONValue(t, ga[i].Operator[k]), toJSONValue(t, wa[i].Operator[k]), testScaleC*testScaleC, testScaleC, nil, nil)
+		}
 	}
 }
 

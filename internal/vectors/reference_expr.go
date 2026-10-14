@@ -324,7 +324,8 @@ type ExprSlot struct {
 // ExprSlots returns every request expression an expression-bound vector
 // or reference can appear in, in request order: each FILTER_EXPRESSION
 // filterer, then per attribute its ATTR_FORMULA expression and its
-// params.fit_on FILTER_EXPRESSION filterers.
+// params.fit_on (and centroid reference filter) FILTER_EXPRESSION
+// filterers.
 func ExprSlots(req *types.Request) []ExprSlot {
 	if req == nil {
 		return nil
@@ -346,7 +347,10 @@ func ExprSlots(req *types.Request) []ExprSlot {
 		if a.Type == types.ATTR_FORMULA && a.Expression != "" {
 			out = append(out, ExprSlot{Path: at + ".expression", Src: a.Expression})
 		}
-		filters(at+".params.fit_on", AttributeFitOn(a.Type, a))
+		// AttributeFitOn lists fit_on, then a centroid's filter.
+		fs, cf := AttributeFitOn(a.Type, a), ComparisonCentroidFilter(a.Type, a)
+		filters(at+".params.fit_on", fs[:len(fs)-len(cf)])
+		filters(at+".params.reference.centroid.filter", cf)
 	}
 	return out
 }

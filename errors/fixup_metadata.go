@@ -1342,8 +1342,8 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Hint:     "Rename the registration so it matches ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_[A-Z][A-Z0-9]+_[A-Z][A-Z0-9_]+$, e.g. AGG_ACME_BRAND_SCORE.",
-				Examples: []any{"AGG_ACME_BRAND_SCORE", "ATTR_ACME_ADJUSTMENT"},
+				Hint:     "Rename the registration so it matches ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH|MAT)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$ with the prefix of its registration slot (MatrixOps: MAT_), e.g. AGG_ACME_BRAND_SCORE.",
+				Examples: []any{"AGG_ACME_BRAND_SCORE", "ATTR_ACME_ADJUSTMENT", "MAT_ACME_SCATTER"},
 			},
 		},
 	},
@@ -1366,11 +1366,15 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_DUPLICATE: {
-		Message: "The same operator name was registered more than once in a single pulse.New call.",
+		Message: "A name was registered more than once in a single pulse.New call: an operator (or expr function) registered twice in its category, or a label table, range table or population declared both programmatically on Options.Extensions and by a file in its directory (LabelTablesDir / RangeTablesDir / PopulationsDir or their PULSE_*_DIR variables). The kind is under `category`, the name under `name` and, for a directory collision, the file under `path`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Drop the redundant registration; only one Factory may bind a given name per Service.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "For a directory collision, remove or rename the file under `path`, or drop the programmatic entry — each table or population has exactly one source.",
 			},
 		},
 	},
@@ -1461,6 +1465,15 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Hint:   "An array value is one figure per vector member: declare VectorInput=true beside ArrayValued, leave MarginReducibility empty (a crosstab refuses an array-valued cell), and return a value implementing extend.RichAggregator whose Rich gives a []float64 of the member count — or drop ArrayValued and return one figure.",
+			},
+		},
+	},
+	PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH: {
+		Message: "A matrix registration's operator — finalized at pulse.New over a synthetic three-member co-moment, or on any run — returned no Primary matrix or filled an Auxiliary, Vectors or Scalars key its OutputKeys do not declare.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Always return MatrixOutput.Primary, and list every Auxiliary, Vectors and Scalars key Finalize can fill in the registration's OutputKeys (a declared key the operator leaves unfilled on some input is fine) — or stop filling the undeclared key named in details.undeclared.",
 			},
 		},
 	},
@@ -1659,12 +1672,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_CHAIN_NOT_MERGEABLE: {
-		Message: "A ProcessChain stage uses an operator that the v1 chain gate does not yet support (windows, features, tests, regressions, two-pass attributes, or a non-mergeable grouper/aggregator).",
+		Message: "A ProcessChain stage uses an operator that the v1 chain gate does not yet support (windows, features, tests, regressions, two-pass attributes, or a non-mergeable grouper/aggregator), or carries a crosstab (a crosstab answers a matrix, not the rows the next stage reads).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Stages", "*", "Request"},
 				Hint:   "Run the offending stage as a standalone Process call (the details payload names the rejecting stage index) or restructure the stage to use mergeable aggregators (COUNT, SUM, AVERAGE, MIN, MAX, RANGE, VARIANCE, STDDEV, DISTINCT_COUNT, NULL_COUNT, FREQUENCY, MODE, MODE_COUNT) with row-local attributes (FORMULA, DATE_PART) and mergeable groupers (GROUP_CATEGORY, GROUP_RANGE).",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Stages", "*", "Request", "Crosstab"},
+				Hint:   "A crosstab cannot run as a chain stage (the message reason names it): run it as its own Process request, over the cohort or over a cohort materialised from the chain's rows.",
 			},
 		},
 	},
@@ -1735,7 +1753,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_NAME_COLLISION: {
-		Message: "Two bound models share a name: `fits` entries and `models` entries bind ONE namespace, and every name must be unique in it, because a reference names a model by that name alone. The name is under `name`; two fits name the second entry's index under `fit`, any collision with a `models` entry names both bindings under `sources` (each {slot, index} plus a model's path).",
+		Message: "Two bound models share a name: `fits` entries, `models` entries and `populations` entries bind ONE namespace, and every name must be unique in it, because a reference names a model by that name alone. The instance's registered populations (Options.Extensions.Populations, the populations directory) are bound beneath every request in the same namespace, so an entry may not reuse one of their names either. The name is under `name`; two fits name the second entry's index under `fit`, any collision with a `models` or `populations` entry or a registered population names both bindings under `sources` (each {slot, index} plus a loaded file's path; a registered population is {slot: \"registered\"}).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1747,15 +1765,39 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"models", "*", "name"},
 				Hint:   "Load the model under a name no fit or other entry uses, and update the references to it.",
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"populations", "*", "name"},
+				Hint:   "Load the population under a name no fit, model or other entry uses, and update the params.fit references to it.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "When `sources` names a registered population, reference it with params.fit directly — it is already bound — instead of loading or fitting the name again.",
+			},
 		},
 	},
 	PULSE_MODEL_UNKNOWN: {
-		Message: "A reference names a model nothing binds in this request. Names resolve against the ComposedRequest `fits` entries and the request's `models` entries (one namespace). The unknown name is under `name`, the bound names under `available`.",
+		Message: "A reference names a model nothing binds in this request. Names resolve against the ComposedRequest `fits` entries, the request's `models` and `populations` entries and the instance's registered populations (one namespace). The unknown name is under `name`, the bound names of the kind the reference reads under `available`: a vector-fit reference (a fitted vector attribute's or a matrix slot's `params.fit`) lists the bound vector fits, a regression reference (a regression score or coef()) the bound regressions.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"fits", "*", "name"},
 				Hint:   "Reference one of the names under `available`, or add a `fits` entry with that name.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"populations"},
+				Hint:   "To score against a saved vector fit, load its population file under that name: `populations: [{name, path}]`.",
+			},
+		},
+	},
+	PULSE_MODEL_KIND_MISMATCH: {
+		Message: "A reference names a bound fit of the other kind. One namespace holds regression fits (and loaded model files) and vector fits: a regression score and coef() read a regression; a fitted vector attribute's or a matrix slot's `params.fit` reads a vector fit (a `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry). The name is under `name` / `fit`, its kind under `kind`, the kind the reference reads under `expected`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "name"},
+				Hint:   "Reference a fit of the expected kind, or add a `fits` entry of that kind under a new name.",
 			},
 		},
 	},
@@ -1865,7 +1907,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_SAVE_INVALID: {
-		Message: "A `save` path (on a regression or a `fits` entry) cannot name a model file, so nothing runs — predict refuses it identically. A save path is relative to the instance filesystem root, names a file ending in `.pulse-model.json` with a name before the suffix, and never climbs above the root with `..`; one request or Compose batch never saves two models to the same file (reason `duplicate`, the two writers under `sites`). Every path in a batch is judged before any fit or slot runs. The path is under `path`, the rule under `reason` (`path_empty`, `suffix`, `name_missing`, `escapes_root`, `duplicate`), the offending regression's index under `regression`, the fit's under `fit` and a batch slot's under `request`.",
+		Message: "A `save` path (on a regression or a `fits` entry) cannot name its file, so nothing runs — predict refuses it identically. A save path is relative to the instance filesystem root, names a file ending in `.pulse-model.json` (a regression or regression fit: a model file) or `.pulse-population.json` (a vector fit: a population file) with a name before the suffix, and never climbs above the root with `..`; one request or Compose batch never saves two fits to the same file (reason `duplicate`, the two writers under `sites`). Every path in a batch is judged before any fit or slot runs. The path is under `path`, the rule under `reason` (`path_empty`, `suffix`, `name_missing`, `escapes_root`, `duplicate`), the offending regression's index under `regression`, the fit's under `fit` and a batch slot's under `request`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1875,7 +1917,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"fits", "*", "save"},
-				Hint:   "Give the fit's `save` a `.pulse-model.json` path under the data root.",
+				Hint:   "Give the fit's `save` a path under the data root: `.pulse-model.json` for a regression fit, `.pulse-population.json` for a vector fit (e.g. `pops/brand.pulse-population.json`).",
 			},
 			{
 				Action: FixupReplaceField,
@@ -1885,7 +1927,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_WRITE_FAILED: {
-		Message: "Writing a model file failed on the filesystem: creating its directory, the temp file, writing, syncing or renaming it over the target (the stage is under `stage`, the file under `path`, the model under `name`). The write is atomic, so the target keeps its previous content or stays absent; the fit itself succeeded.",
+		Message: "Writing a model or population file failed on the filesystem: creating its directory, the temp file, writing, syncing or renaming it over the target (the stage is under `stage`, the file under `path`, the model or population under `name`). The write is atomic, so the target keeps its previous content or stays absent; the fit itself succeeded.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1895,7 +1937,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_OVERWRITTEN: {
-		Message: "A model file save replaced an existing file at its path (under `path`; the model under `name`, a fit's index under `fit`). The save succeeded and the new file is complete; the warning exists so a replaced model is never silent.",
+		Message: "A model or population file save replaced an existing file at its path (under `path`; the model or population under `name`, a fit's index under `fit`). The save succeeded and the new file is complete; the warning exists so a replaced model or population is never silent.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1905,25 +1947,25 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_FILE_INVALID: {
-		Message: "A model file cannot be parsed: it is not JSON (reason `json`), has no `model_format_version` (`version_missing`), or its version-1 document has an unknown key, a mistyped value or a structural fault such as a predictor without a coefficient (`schema`). The file is under `path`; a `models` entry loading it adds its index under `model` and its name under `name`.",
+		Message: "A model or population file cannot be parsed: it is not JSON (reason `json`), has no `model_format_version` / `population_format_version` (`version_missing`), or its document has an unknown key, a mistyped value or a structural fault — a predictor without a coefficient; a population whose labels, means or co-moment do not match in shape, whose co-moment is not symmetric, or whose counts or weight sums are impossible (`schema`). The file is under `path`; a `models` entry loading it adds its index under `model`, a `populations` entry under `population`, and either its name under `name`; a registered population (Options.Extensions.Populations or the populations directory, refused at pulse.New) carries its registered name under `registered`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Re-save the model from its fit with `save`; a model file is written by Pulse and should not be hand-edited.",
+				Hint:   "Re-save the model or population from its fit with `save`; these files are written by Pulse and should not be hand-edited.",
 			},
 		},
 	},
 	PULSE_MODEL_VERSION_UNSUPPORTED: {
-		Message: "A model file's `model_format_version` is not one this build reads (the file under `path`, its version under `version`, the readable ones under `supported`).",
+		Message: "A model file's `model_format_version` (or a population file's `population_format_version`) is not one this build reads (the file under `path`, its version under `version`, the readable ones under `supported`; a registered population's name under `registered`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Re-save the model with this build (rerun the fit with `save`), or load it with the Pulse version that wrote it.",
+				Hint:   "Re-save the model or population with this build (rerun the fit with `save`), or load it with the Pulse version that wrote it.",
 			},
 		},
 	},
 	PULSE_MODEL_REF_INVALID: {
-		Message: "A `models` entry cannot name a model file, so nothing runs — predict refuses it identically. An entry needs a `name` (the name its references use) and a `path` under the instance filesystem root ending in `.pulse-model.json`, with a file name before the suffix and no `..` above the root. The entry's index is under `model`, the rule under `reason` (`name_empty`, `path_empty`, `suffix`, `name_missing`, `escapes_root`).",
+		Message: "A `models` or `populations` entry cannot name its file, so nothing runs — predict refuses it identically. An entry needs a `name` (the name its references use) and a `path` under the instance filesystem root ending in `.pulse-model.json` (a `models` entry) or `.pulse-population.json` (a `populations` entry), with a file name before the suffix and no `..` above the root. The entry's index is under `model` or `population`, the rule under `reason` (`name_empty`, `path_empty`, `suffix`, `name_missing`, `escapes_root`). A blank Options.Extensions.Populations key is refused at pulse.New the same way (reason `name_empty`, under `registered`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1935,15 +1977,25 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"models", "*", "name"},
 				Hint:   "Give the entry the name its scoring references use.",
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"populations", "*", "path"},
+				Hint:   "Point `path` at the population file a vector fit's `save` wrote, e.g. `pops/brand.pulse-population.json`.",
+			},
 		},
 	},
 	PULSE_MODEL_FILE_UNREADABLE: {
-		Message: "A `models` entry's file cannot be read: it does not exist (reason `missing`) or reading it failed — a directory, permissions or an I/O fault (`unreadable`). Every model file is read before any record is read (in a batch or chain, before anything runs), so nothing ran. The file is under `path`, the entry's index under `model` and its name under `name`.",
+		Message: "A `models` or `populations` entry's file cannot be read: it does not exist (reason `missing`) or reading it failed — a directory, permissions or an I/O fault (`unreadable`). Every model and population file is read before any record is read (in a batch or chain, before anything runs), so nothing ran. The file is under `path`, the entry's index under `model` or `population` and its name under `name`; a populations-directory file that cannot be read fails pulse.New, its registered name under `registered`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"models", "*", "path"},
 				Hint:   "Point `path` at an existing model file under the data root (a regression or fit `save` writes one).",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"populations", "*", "path"},
+				Hint:   "Point `path` at an existing population file under the data root (a vector fit's `save` writes one).",
 			},
 		},
 	},
@@ -2431,7 +2483,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_EXPECTED_LOW: {
-		Message: "An inferential overlay (the chi-square matrix / row / column, Fisher exact cell or chi-square-vs-population overlay) observed an expected count below the χ² approximation's reliability threshold (canonical rule: any expected cell below 5; Fisher's 2×2 rule: any cell < 1 OR ≥ 20% cells < 5). The statistic is still emitted alongside; the warning flags rows / columns / cells / categories where the approximation may be unreliable. Warning-class — surfaced as a Response.Warning, never as an envelope error. PRD FR-J1 shares the code across the χ² / Fisher overlay surfaces — Crosstab MATRIX-host kinds and Facet GROUP-host CHISQ_VS_POP emit the same warning shape so renderers can lift it into a single \"approximation may be unreliable\" surface regardless of host shape.",
+		Message: "An inferential overlay (the chi-square matrix / row / column, standardized residual, symmetry, Fisher exact cell or chi-square-vs-population overlay) observed an expected count below the χ² approximation's reliability threshold (canonical rule: any expected cell below 5; the symmetry test: any state pair whose expected count under symmetry, (n_ij + n_ji) / 2, is below 5, details low_expected_pairs / zero_pairs; Fisher's 2×2 rule: any cell < 1 OR ≥ 20% cells < 5). The statistic is still emitted alongside; the warning flags rows / columns / cells / categories where the approximation may be unreliable. Warning-class — surfaced as a Response.Warning, never as an envelope error. PRD FR-J1 shares the code across the χ² / Fisher overlay surfaces — Crosstab MATRIX-host kinds and Facet GROUP-host CHISQ_VS_POP emit the same warning shape so renderers can lift it into a single \"approximation may be unreliable\" surface regardless of host shape.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
@@ -2506,13 +2558,13 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params", "formula"},
-				Hint:     "Check the allowed identifier set for shape Details.host_shape against Details.allowed (variables) or Details.allowed_funcs (functions) — the per-shape namespace table lives in the FORMULA section of skills/overlay-system.md. If the identifier was meant to be a custom function, register it via pulse.Options.Extensions.ExprFunctions before calling pulse.New (see docs/src/internals/extension-points.md for the registration recipe — naming policy ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_*$ applies to operators, not to expr functions; expr function names are free-form). If the identifier was meant to be a variable not in the per-shape table, register a custom kind via pulse.Options.Extensions.OverlayKinds — FORMULA cannot widen its variable namespace from outside. Compose `slot.<label>.<field>` identifiers only resolve on Compose-host overlays (FacetRequest.Overlays / ComposedRequest.Overlays), not on Request.Overlays.",
+				Hint:     "Check the allowed identifier set for shape Details.host_shape against Details.allowed (variables) or Details.allowed_funcs (functions) — the per-shape namespace table lives in the FORMULA section of skills/overlay-system.md. If the identifier was meant to be a custom function, register it via pulse.Options.Extensions.ExprFunctions before calling pulse.New (see docs/src/internals/extension-points.md for the registration recipe — naming policy ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH|MAT)_*$ applies to operators, not to expr functions; expr function names are free-form). If the identifier was meant to be a variable not in the per-shape table, register a custom kind via pulse.Options.Extensions.OverlayKinds — FORMULA cannot widen its variable namespace from outside. Compose `slot.<label>.<field>` identifiers only resolve on Compose-host overlays (FacetRequest.Overlays / ComposedRequest.Overlays), not on Request.Overlays.",
 				Examples: []any{map[string]any{"formula": "(cell - margin_grand) / sd_grand"}, map[string]any{"formula": "value / total"}, map[string]any{"formula": "(slot.us.cell - slot.uk.cell) / slot.world.cell"}},
 			},
 		},
 	},
 	PULSE_OVERLAY_FIELD_UNKNOWN: {
-		Message: "A series overlay's params.field does not name a request aggregation. The param takes the OUTPUT LABEL of one Request.Aggregations entry — its explicit Label, else its TYPE_field default — and the overlay scores that aggregation; absent, it scores the first aggregation. Raised at predict and at runtime with the same Details {index, kind, field, available}, where available lists the request's aggregation labels in order. A Compose overlay (INDEX_VS_REF, DELTA_VS_REF, T_VS_REF, Z_VS_REF, PANEL_INDEX_VS_REF) resolves the label on every non-crosstab slot it reads, reference first, and adds Details.slot naming the slot that lacks it. A whole-chain overlay (INDEX_VS_STAGE, DELTA_VS_STAGE) resolves it on the target, then the reference non-crosstab stage, and adds Details.which (target | ref) and Details.stage_index.",
+		Message: "A series overlay's params.field does not name a request aggregation. The param takes the OUTPUT LABEL of one Request.Aggregations entry — its explicit Label, else its TYPE_field default — and the overlay scores that aggregation; absent, it scores the first aggregation. It may instead name one expanded element column \"<label>[<element label>]\" of a params.expand vector aggregation; an element that aggregation does not write is refused too. Raised at predict and at runtime with the same Details {index, kind, field, available}, where available lists the request's aggregation labels in order, each expanded aggregation's element columns after its label. A Compose overlay (INDEX_VS_REF, DELTA_VS_REF, T_VS_REF, Z_VS_REF, PANEL_INDEX_VS_REF) resolves the label on every non-crosstab slot it reads, reference first, and adds Details.slot naming the slot that lacks it. A whole-chain overlay (INDEX_VS_STAGE, DELTA_VS_STAGE) resolves it on the target, then the reference non-crosstab stage, and adds Details.which (target | ref) and Details.stage_index.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -2801,7 +2853,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_NONNEGATIVE_REQUIRED: {
-		Message: "The overlay reads its crosstab host as a table of non-negative masses (counts or sums), and the host is not one: either the cell aggregation is not a count or a sum (an average, a rate or a code is not a mass a row or column profile can be built from), or a cell holds a negative or non-finite value. Correspondence analysis — and the Markov and raking kinds — divide each cell by its row and column totals, which only means something when every cell is a non-negative amount. Details carry `kind` plus `aggregation` and `slot` (the cell aggregation) or `row`, `column` and `value` (the first offending cell).",
+		Message: "The overlay reads its crosstab host as a table of non-negative masses (counts or sums), and the host is not one: either the cell aggregation is not a count or a sum (an average, a rate or a code is not a mass a row or column profile can be built from), or a cell holds a negative or non-finite value. Correspondence analysis — and the Markov and raking kinds — divide each cell by its row and column totals, the symmetry test counts each cell as moves between two states, and the retention rates divide each cell by its row total, which only means something when every cell is a non-negative amount. Details carry `kind` plus `aggregation` and `slot` (the cell aggregation) or `row`, `column` and `value` (the first offending cell).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceOperator,
@@ -2817,7 +2869,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_MATRIX_NOT_SQUARE: {
-		Message: "The overlay reads its crosstab host as a square table of transitions — rows are the from-state, columns the to-state (OVERLAY_MARKOV) — and the two axes do not name the same states. States are matched by key, never by position, so the row and column key sets must be equal as sets: the same number of groupers on both axes, and every state that appears as a row must appear as a column and the reverse. A crosstab only emits keys it observed, so a state nobody leaves (or nobody enters) during the window is missing from one axis; a column-only state named in params.absorbing is the one exception — its row is known by definition (the unit row), so the overlay synthesizes it instead of refusing. Details carry `kind` plus either `row_fields` / `column_fields` (the axes have different grouper counts) or `row_only` / `column_only` (the state names found on one axis only).",
+		Message: "The overlay reads its crosstab host as a square table of transitions — rows are the from-state, columns the to-state (the Markov, symmetry and retention overlays) — and the two axes do not name the same states. States are matched by key, never by position, so the row and column key sets must be equal as sets: the same number of groupers on both axes, and every state that appears as a row must appear as a column and the reverse. A crosstab only emits keys it observed, so a state nobody leaves (or nobody enters) during the window is missing from one axis; a column-only state named in params.absorbing is the one exception — its row is known by definition (the unit row), so the overlay synthesizes it instead of refusing. The symmetry test and the retention rates refuse only the grouper-count mismatch: a state on one axis only is a row or column of zeros there (nobody started or ended in it). Details carry `kind` plus either `row_groupers` / `column_groupers` (the axes have different grouper counts) or `row_only` / `column_only` (the state names found on one axis only, the Markov overlay).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
@@ -2916,7 +2968,7 @@ var codeMetadata = map[Code]Metadata{
 
 	// ---------- PULSE: point-lookup index (E1) ----------
 	PULSE_INDEX_MISSING: {
-		Message: "No sidecar point-lookup index was found on disk for the requested LookupRequest.Field. Point lookups probe a prebuilt sidecar index (encoding.SidecarIndexPath derives its path from the cohort file and key field) rather than scanning the cohort — the index must be built once before any Lookup call against that field can succeed.",
+		Message: "No sidecar point-lookup index was found on disk for the requested LookupRequest.Field. Point lookups probe a prebuilt sidecar index (encoding.SidecarIndexPath derives its path from the cohort file and key field) rather than scanning the cohort — the index must be built once before any Lookup call against that field can succeed. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -2930,8 +2982,13 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LOOKUP_NOT_FOUND: {
-		Message: "The sidecar point-lookup index was found and read successfully, but LookupRequest.Value has no matching entry in the resolved hash bucket — no record in the cohort carries that key value for LookupRequest.Field.",
+		Message: "The sidecar point-lookup index was found and read successfully, but LookupRequest.Value has no matching entry in the resolved hash bucket — no record in the cohort carries that key value for LookupRequest.Field. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
 		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "reference", "record", "keys"},
+				Hint:   "For a comparison {record} reference, name a key tuple the record's cohort (record.cohort, else the request's own) holds — each value as text, spelled as in the data.",
+			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Value"},
@@ -2940,8 +2997,13 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LOOKUP_AMBIGUOUS: {
-		Message: "The requested key matched more than one row in the cohort, but LookupRequest.Multiplicity is (or defaults to) \"assert_unique\", which fails rather than silently picking one match. This is the default mode precisely so a duplicate-key surprise never returns a single, arbitrary row without the caller knowing more than one candidate exists.",
+		Message: "The requested key matched more than one row in the cohort, but LookupRequest.Multiplicity is (or defaults to) \"assert_unique\", which fails rather than silently picking one match. This is the default mode precisely so a duplicate-key surprise never returns a single, arbitrary row without the caller knowing more than one candidate exists. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`). A {record} reference is always assert-unique.",
 		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "reference", "record", "keys"},
+				Hint:   "For a comparison {record} reference, add key columns until the tuple names one record (and build the sidecar index over that composite key) — a stored reference must be exactly one row.",
+			},
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Keys"},
@@ -2957,7 +3019,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_INDEX_STALE: {
-		Message: "The sidecar point-lookup index's embedded content-hash fingerprint does not match the current .pulse cohort file — the cohort was mutated (re-imported, re-exported, or otherwise rewritten) after the sidecar was last built. Lookup refuses to serve rows against a stale index rather than risk returning silently wrong results; there is no automatic scan-fallback or auto-rebuild.",
+		Message: "The sidecar point-lookup index's embedded content-hash fingerprint does not match the current .pulse cohort file — the cohort was mutated (re-imported, re-exported, or otherwise rewritten) after the sidecar was last built. Lookup refuses to serve rows against a stale index rather than risk returning silently wrong results; there is no automatic scan-fallback or auto-rebuild. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -2966,7 +3028,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_INDEX_UNSUPPORTED_SHARDED: {
-		Message: "Point-lookup index build, lookup, and verify only support single-file .pulse cohorts in v1 — the target resolved to a shard archive (leading bytes matched the zip magic \"PK\\x03\\x04\" rather than the single-file \"PULSE\" magic). Row-id addressing (the sidecar's bucket entries point directly at a record's byte offset within one contiguous file) only has meaning for a single contiguous record region, which a multi-shard archive does not present. Sharded point-lookup support is a future/follow-up, not planned for this v1.",
+		Message: "Point-lookup index build, lookup, and verify only support single-file .pulse cohorts in v1 — the target resolved to a shard archive (leading bytes matched the zip magic \"PK\\x03\\x04\" rather than the single-file \"PULSE\" magic). Row-id addressing (the sidecar's bucket entries point directly at a record's byte offset within one contiguous file) only has meaning for a single contiguous record region, which a multi-shard archive does not present. Sharded point-lookup support is a future/follow-up, not planned for this v1. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -3727,7 +3789,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_NOT_WEIGHT_AWARE: {
-		Message: "A row weight reached an embedder-registered operator whose registration does not declare that it consumes weights, so it would have silently run unweighted: an explicit slot or request `weight` on an aggregator (an inherited instance default is skipped on an aggregator instead), or any weight in force — the instance default included — on an attribute or test. The slot is under `slot`, the operator under `operator` and the weight column under `field`.",
+		Message: "A row weight reached an embedder-registered operator whose registration does not declare that it consumes weights, so it would have silently run unweighted: an explicit slot or request `weight` on an aggregator (an inherited instance default is skipped on an aggregator instead), or any weight in force — the instance default included — on an attribute, test or matrix operator. The slot is under `slot`, the operator under `operator` and the weight column under `field`.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
@@ -3880,8 +3942,8 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceOperator,
 				Path:     []string{"aggregations", "*", "type"},
-				Hint:     "Aggregate the whole vector with a vector aggregator naming it under `vector` (drop `field`): AGG_VEC_MEAN for the element-wise mean, AGG_VEC_SUM for the element-wise sum.",
-				Examples: []any{"AGG_VEC_MEAN", "AGG_VEC_SUM"},
+				Hint:     "Aggregate the whole vector with a vector aggregator naming it under `vector` (drop `field`): AGG_VEC_MEAN for the element-wise mean, AGG_VEC_SUM for the element-wise sum, AGG_VEC_SD for the element-wise sample standard deviation.",
+				Examples: []any{"AGG_VEC_MEAN", "AGG_VEC_SUM", "AGG_VEC_SD"},
 			},
 			{
 				Action:   FixupReplaceOperator,
@@ -3982,17 +4044,22 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_VECTOR_REFERENCE_UNKNOWN: {
-		Message: "A reference vector could not be resolved: ref(\"table\", key) names a table not registered in Options.Extensions.ReferenceVectors, its table argument is not a string literal (the table's labels must be known before any row), or the key names no profile of the table. The cause is under `reason`, the table under `table`, the key under `key` and the registered names (or the table's keys) under `valid`.",
+		Message: "A reference vector could not be resolved: ref(\"table\", key) or a {table, key} reference names a table not registered in Options.Extensions.ReferenceVectors, its table argument is not a string literal (the table's labels must be known before any row), the key names no profile of the table, or a comparison slot's {population: name} reference names no bound vector fit (reason `population_unknown`, the name under `population`). The cause is under `reason`, the table under `table`, the key under `key` and the registered names (the table's keys, or the bound vector fits) under `valid`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"expression"},
 				Hint:   "Name a table and key listed under `valid` (the manifest's extensions.reference_vectors lists every table with its labels and keys), and spell the table as a string literal.",
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "reference", "population"},
+				Hint:   "For reason population_unknown, name a fit listed under `valid`, or bind it: a request `populations` entry, a registered population, or a `fits` entry of the enclosing compose request.",
+			},
 		},
 	},
 	PULSE_VECTOR_REFERENCE_MISMATCH: {
-		Message: "A reference vector's labels do not match the vector it is compared with. A reference is matched by label, never by position: the two label sets must be equal (reason `labels_differ`; `missing` lists the vector's labels the reference lacks, `extra` the reference's labels the vector lacks), and a reference cannot be compared with a vector that carries no labels, such as a literal array (reason `unlabeled_partner`).",
+		Message: "A reference vector's labels do not match the vector it is compared with. A reference is matched by label, never by position: the two label sets must be equal (reason `labels_differ`; `missing` lists the vector's labels the reference lacks, `extra` the reference's labels the vector lacks), and a reference cannot be compared with a vector that carries no labels, such as a literal array (reason `unlabeled_partner`). A fitted vector attribute's bound fit (`params.fit`, named under `fit`) and a comparison slot's {population} reference (named under `population`) align to the slot's member labels by the same rule. A comparison slot's {record} reference is read by member COLUMN name instead: its cohort (under `cohort`) must hold every member as an integer, float, packed_bool or vector-element column (reason `record_members_absent`; the members it lacks under `missing`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -4001,8 +4068,18 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "labels"},
+				Hint:   "For a bound fit (`fit` in details), label the slot's inline fields with params.labels equal to the fit's `reference_labels`, or score a vector whose labels are the fit's.",
+			},
+			{
+				Action: FixupReplaceField,
 				Path:   []string{"expression"},
 				Hint:   "For `unlabeled_partner`, compare ref() with a named vector (Request `vectors`), another ref(), or vcenter / vzscore / vnormalize of one, not a literal array.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "reference", "record", "cohort"},
+				Hint:   "For `record_members_absent`, look the record up in a cohort that carries the slot's member columns (`missing`) as numeric columns, or compare only members it holds.",
 			},
 		},
 	},
@@ -4077,12 +4154,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_VECTOR_REFERENCE_MISSING: {
-		Message: "A reference-comparison attribute slot's {table, key_field} reference found no profile for some rows: the key was null (`n_key_null`) or its value is not a key of the table (`n_key_unmatched`; `keys` lists up to 10 of them). Those rows score null; `n_reference_missing` counts them. A runtime warning, raised with or without components.",
+		Message: "A reference-comparison attribute slot's per-row reference found nothing for some rows. A {table, key_field} reference: the key was null (`n_key_null`) or its value is not a key of the table (`n_key_unmatched`; `keys` lists up to 10 of them). A {centroid: {by}} reference (`reference` \"centroid\", the column under `by`): the by value was null or no row the centroid filter admits carries it; a by-less centroid that no row reached misses every row. Those rows score null; `n_reference_missing` counts them. A runtime warning, raised with or without components.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Attributes", "*", "Params", "reference"},
 				Hint:   "Register a profile for each value in details.keys in the Extensions.ReferenceVectors table (an unsigned-integer key_field matches by its base-10 form, e.g. \"7\", never \"07\"), filter the rows out first, or compare against one profile with {table, key}.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "reference", "centroid", "filter"},
+				Hint:   "For a centroid reference, widen centroid.filter so it admits rows of every by value in details.keys (or drop by for one cohort centroid), or filter the unmatched rows out of the request.",
 			},
 		},
 	},

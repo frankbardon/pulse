@@ -70,6 +70,12 @@ definition:
     statsmodels DescrStatsW .sum / .mean per member over that member's
     own contributing rows (one slot over x and y; figures keyed by
     element position "0", "1").
+  * AGG_VEC_SD (matrix-extensions-hardening E5-S1) — the per-member
+    SAMPLE sd on w* (the one inference rule): statsmodels
+    DescrStatsW(x, weights=w*, ddof=1).std with w* = w under kind
+    frequency (sqrt(M2/(Σw − 1)), the rep() expansion) and
+    w* = w·n_eff/Σw under kind probability (sqrt(M2/(Σw − Σw²/Σw))),
+    cross-checked against that closed form; NaN when N* ≤ 1.
   * AGG_MAE / AGG_RMSE / AGG_MAPE (fit-scoring E2-S1) — scikit-learn
     metrics mean_absolute_error / mean_squared_error (RMSE = its root) /
     mean_absolute_percentage_error with sample_weight, actual x against
@@ -143,6 +149,12 @@ with a valid, positive weight; frequency = R stats::mahalanobis against
 colMeans / cov of the expanded rows (reg_reference.R), probability =
 the w* closed form (mean, covariance M2·(n_eff/Σw)/(n_eff − 1))
 cross-checked with statsmodels DescrStatsW(w*, ddof=1).
+
+ATTR_PROFILE_SIMILARITY (U30 E3-S1) — the same fixture and members,
+cosine against the centroid reference: per member the weighted mean
+Σw·x / Σw of the rows whose member is present (AGG_VEC_MEAN's rule,
+scale-free under both kinds), cross-checked with statsmodels
+DescrStatsW(w).mean; the cosine is pairwise-complete.
 
 ATTR_VEC_DISTANCE (U27 E3-S2) — the same fixture, members and fit as
 ATTR_MAHALANOBIS, against a literal reference: std_euclidean (each
@@ -518,6 +530,9 @@ def cases():
         vfl = floor("y", wname, kind)
         add("AGG_VEC_SUM", {"0": d0.sum, "1": dy.sum}, col="x,y", floor_=vfl, src=sm + ".sum per member")
         add("AGG_VEC_MEAN", {"0": d0.mean, "1": dy.mean}, col="x,y", floor_=vfl, src=sm + ".mean per member")
+        ys, yw = [ROWS[i][1] for i in yidx], [ws[i] for i in yidx]
+        add("AGG_VEC_SD", {"0": vec_sd_reference(x, w, kind), "1": vec_sd_reference(ys, yw, kind)},
+            col="x,y", floor_=vfl, src=sm + "(w*, ddof=1).std per member, w* = w·N*/Σw")
 
     # Cross-check: where the normalized probability weights are
     # integers the transcription must equal numpy type 7 on the
@@ -633,6 +648,29 @@ FREQUENCY_ONLY = {"mann_whitney", "wilcoxon_sr", "kruskal", "spearman", "kendall
 def kish(w):
     w = np.asarray(w, dtype=float)
     return float(w.sum() ** 2 / np.square(w).sum())
+
+
+def vec_sd_reference(x, w, kind):
+    """One AGG_VEC_SD element: the frequency sample sd on w* = w·N*/Σw
+    (N* = Σw under frequency, Kish n_eff under probability) —
+    DescrStatsW(w*, ddof=1).std, asserted equal (1e-12) to the closed
+    form sqrt(M2 / (Σw − 1)) / sqrt(M2 / (Σw − Σw²/Σw)). NaN when
+    N* ≤ 1 (no positive denominator)."""
+    x, w = np.asarray(x, dtype=float), np.asarray(w, dtype=float)
+    keep = w > 0
+    x, w = x[keep], w[keep]
+    sw = float(w.sum())
+    prob = kind == "probability"
+    nstar = kish(w) if prob else sw
+    if not nstar > 1:
+        return float("nan")
+    ws = w * (nstar / sw) if prob else w
+    sd = float(DescrStatsW(x, weights=ws, ddof=1).std)
+    mean = float(np.sum(w * x) / sw)
+    m2 = float(np.sum(w * (x - mean) ** 2))
+    den = sw - float(np.square(w).sum()) / sw if prob else sw - 1
+    assert close(sd, math.sqrt(m2 / den), 1e-12), (sd, m2, den)
+    return sd
 
 
 class Sample:
@@ -1327,6 +1365,7 @@ def test_cases():
 # keys ("#i" an element of a vector cell), "entry[<key>]" a series entry.
 
 OV_SUB = "y > 4"
+OV_SYM_INTERVAL = 4  # OVERLAY_SYMMETRY's GROUP_RANGE width: states 0-4, 4-8, 8-12
 OV_SUB2 = "y < 6"
 OV_SERIES_PARAMS = {"variance_target": 2.5, "variance_ref": 1.75,
                     "sample_size_target": 40, "sample_size_ref": 55}
@@ -1366,6 +1405,14 @@ def ov_request(case, kind):
     if case == "ov_std_residual":
         return {"crosstab": ov_xt("h", "o", OV_COUNT), "overlays": [
             {"name": "sr", "kind": "OVERLAY_STD_RESIDUAL", "scope": "cell"}]}
+    if case == "ov_symmetry":
+        # x-bucket (rows) by y-bucket (columns): the same GROUP_RANGE
+        # interval, so both axes name the same states (paired readings).
+        x = ov_xt("x", "y", OV_COUNT)
+        x["rows"] = [{"type": "GROUP_RANGE", "field": "x", "interval": OV_SYM_INTERVAL}]
+        x["columns"] = [{"type": "GROUP_RANGE", "field": "y", "interval": OV_SYM_INTERVAL}]
+        return {"crosstab": x, "overlays": [
+            {"name": "sym", "kind": "OVERLAY_SYMMETRY", "scope": "matrix"}]}
     if case == "ov_pairwise_welch":
         return {"crosstab": ov_xt("k", "h", OV_WELFORD), "overlays": [
             {"name": "pw", "kind": "OVERLAY_PAIRWISE_WELCH_T", "scope": "column"}]}
@@ -1403,7 +1450,7 @@ def ov_request(case, kind):
     raise ValueError(case)
 
 
-OV_CASES = ["ov_chisq", "ov_std_residual", "ov_fisher", "ov_pairwise_welch", "ov_pairwise_prop",
+OV_CASES = ["ov_chisq", "ov_std_residual", "ov_symmetry", "ov_fisher", "ov_pairwise_welch", "ov_pairwise_prop",
             "ov_pairwise_weighted_z", "ov_compose_means", "ov_compose_series", "ov_compose_props"]
 OV_FREQUENCY_ONLY = {"ov_fisher"}
 
@@ -1479,6 +1526,35 @@ def ov_closed_form(case, rows, prob):
         out["0/summary.parameters.sum_weights"] = float(N)
         if prob:
             out["0/summary.parameters.n_eff"] = float(N * N / W2.sum())
+        return out, warn
+    if case == "ov_symmetry":
+        # Bowker on the x-bucket × y-bucket Σw table (scaled to its Kish
+        # n_eff under probability): a pair with no move either way is
+        # dropped and df counts the pairs kept; k = 3, so no continuity
+        # correction. A null x has no bucket, so its row is not read.
+        sel = [r for r in rows if r[0] is not NULL]
+        bucket = lambda v: math.floor(v / OV_SYM_INTERVAL)
+        states = sorted({bucket(r[0]) for r in sel} | {bucket(r[1]) for r in sel})
+        T = np.zeros((len(states), len(states)))
+        sw, sww = 0.0, 0.0
+        for r in sel:
+            T[states.index(bucket(r[0])), states.index(bucket(r[1]))] += r[5]
+            sw += r[5]
+            sww += r[5] * r[5]
+        Ts = ov_scale(sw, sww, prob) * T
+        stat, kept = 0.0, 0
+        for i in range(len(states)):
+            for j in range(i + 1, len(states)):
+                a, b = Ts[i, j], Ts[j, i]
+                if (a + b) / 2 < 5:
+                    warn.add("PULSE_OVERLAY_EXPECTED_LOW")
+                if a + b > 0:
+                    stat += (a - b) ** 2 / (a + b)
+                    kept += 1
+        out.update({"0/summary.statistic": float(stat), "0/summary.p_value": float(scipy.stats.chi2.sf(stat, kept)),
+                    "0/summary.parameters.df": float(kept), "0/summary.parameters.sum_weights": float(sw)})
+        if prob:
+            out["0/summary.parameters.n_eff"] = float(sw * sw / sww)
         return out, warn
     if case in ("ov_chisq", "ov_fisher"):
         T, W2 = ov_table(rows)
@@ -2088,6 +2164,34 @@ def vec_distance_closed_form(ws, kind, metric):
     return out
 
 
+def profile_similarity_centroid_closed_form(ws, kind):
+    """ATTR_PROFILE_SIMILARITY (U30 E3-S1) per row id: cosine, pairwise-
+    complete, against the centroid reference {centroid: {}} over
+    MAHA_FIELDS — per member the weighted mean Σw·x / Σw over every row
+    whose member is present and whose weight is valid and positive
+    (AGG_VEC_MEAN's per-element rule; scale-free, so the same formula
+    under both kinds), each element cross-checked with statsmodels
+    DescrStatsW(w).mean."""
+    cent = []
+    for c in MAHA_FIELDS:
+        idx = [i for i, r in enumerate(REG_ROWS)
+               if r[REG_COL[c]] is not NULL and valid(ws[i], kind) and ws[i] > 0]
+        x = np.array([REG_ROWS[i][REG_COL[c]] for i in idx], dtype=float)
+        w = np.array([ws[i] for i in idx], dtype=float)
+        m = float((w * x).sum() / w.sum())
+        assert np.isclose(DescrStatsW(x, weights=w).mean, m, rtol=1e-13), (kind, c)
+        cent.append(m)
+    out = {}
+    for r in REG_ROWS:
+        pairs = [(r[REG_COL[c]], cent[j]) for j, c in enumerate(MAHA_FIELDS) if r[REG_COL[c]] is not NULL]
+        if not pairs:
+            continue
+        a = np.array([p[0] for p in pairs])
+        b = np.array([p[1] for p in pairs])
+        out[r[0]] = float(a @ b / np.sqrt((a @ a) * (b @ b)))
+    return out
+
+
 FACTOR_FIELDS = ["x1", "y", "yb"]
 
 
@@ -2365,6 +2469,15 @@ def regression_cases():
                    "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
             out.append(dict(weight=wname, kind=kind, name="attr_vec_distance_" + metric, request=req,
                             figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
+        figs = profile_similarity_centroid_closed_form(ws, kind)
+        req = {"attributes": [{"type": "ATTR_PROFILE_SIMILARITY", "fields": MAHA_FIELDS, "label": "attr",
+                               "params": {"metric": "cosine", "reference": {"centroid": {}}}}],
+               "groups": [{"type": "GROUP_CATEGORY", "field": "id"}],
+               "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
+        out.append(dict(weight=wname, kind=kind, name="attr_profile_similarity_centroid", request=req,
+                        figs={f"data[{rid}].v": v for rid, v in figs.items()},
+                        src=("closed form: per-member weighted centroid Σw·x/Σw (AGG_VEC_MEAN's per-element rule) cross-checked with "
+                             "statsmodels " + statsmodels.__version__ + " DescrStatsW(w).mean; pairwise-complete cosine with numpy")))
         if not prob:
             out.append(kmeans_case(wname, kind, ws, rfigs["group_kmeans_k2"]))
         for k in QUANTILE_KS:

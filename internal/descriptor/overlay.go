@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/seriespartition"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -32,32 +33,6 @@ import (
 //   - No fmt.Sprintf in any JSON-bearing path. Error messages are
 //     built with string concatenation so descriptor envelope output
 //     stays grep-clean against the structural defense ban.
-
-// chiSqMatrixSupportedScopes is the supported scope set for
-// OVERLAY_CHISQ_MATRIX. The χ² independence test is a whole-matrix
-// inferential overlay — Scope=MATRIX is the only sensible footprint
-// and any other scope (CELL / ROW / COLUMN / TOTAL / GROUP) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED.
-var chiSqMatrixSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeMatrix: true,
-}
-
-// chiSqRowSupportedScopes is the supported scope set for
-// OVERLAY_CHISQ_ROW. The per-row χ² goodness-of-fit test is a ROW-
-// scoped inferential overlay — Scope=ROW is the only sensible footprint
-// and any other scope (CELL / COLUMN / MATRIX / TOTAL / GROUP) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED.
-var chiSqRowSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeRow: true,
-}
-
-// pairwiseSupportedScopes are the axis-pairing scopes the OVERLAY_PAIRWISE_*
-// family accepts: ROW pairs row indices for each column, COLUMN pairs
-// column indices for each row.
-var pairwiseSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeRow:    true,
-	types.OverlayScopeColumn: true,
-}
 
 // pairwiseNBasisAdvice completes the n_basis refusal on a kind that
 // does not read it. The weighted kind (and the AGG_WEIGHTED_MEAN cell it
@@ -137,33 +112,16 @@ func pairwiseProportionAdvice(opts *PredictOptions, what string) string {
 // on the materialised host, not the request shape, so the handler raises
 // them, not predict.
 func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
-	// Ref must be empty — the pairwise test compares two slots of the
-	// host matrix inline; no external reference family applies.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (intra-matrix pairwise: the test compares two slots of the host matrix along the scope axis)",
-			map[string]any{"index": index, "kind": string(spec.Kind)})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
 	// Host must be MATRIX-shaped — the pair axis is a host crosstab axis.
 	if req == nil || req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{"index": index, "kind": string(spec.Kind)})
-		return
-	}
-
-	// Scope must be ROW or COLUMN — it names the pair axis.
-	if !pairwiseSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: row, column)",
-			map[string]any{"index": index, "kind": string(spec.Kind), "scope": string(spec.Scope)})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 
@@ -514,120 +472,6 @@ func validateOverlayPanel(env *descriptor.Envelope, kind types.OverlayKind, para
 	// checks the range against the live host).
 }
 
-// chiSqColSupportedScopes is the supported scope set for
-// OVERLAY_CHISQ_COL. The per-column χ² goodness-of-fit test is a COLUMN-
-// scoped inferential overlay (mechanical column-axis twin of
-// CHISQ_ROW) — Scope=COLUMN is the only sensible footprint and any other
-// scope (CELL / ROW / MATRIX / TOTAL / GROUP) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED.
-var chiSqColSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeColumn: true,
-}
-
-// deltaVsBaselineSupportedScopes is the supported scope set for
-// OVERLAY_DELTA_VS_BASELINE. The kind emits one entry per host group key
-// (the ordered windowed series) — Scope=GROUP is the only sensible
-// footprint and any other scope (CELL / ROW / COLUMN / MATRIX / TOTAL)
-// fires PULSE_OVERLAY_SCOPE_UNSUPPORTED. Absolute-difference twin of
-// `indexVsBaselineSupportedScopes` — both kinds share the GROUP-only
-// scope contract and the BaselineIndex ref family.
-var deltaVsBaselineSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// deltaVsMarginSupportedScopes is the supported scope set for
-// OVERLAY_DELTA_VS_MARGIN. DELTA_VS_MARGIN is a CELL-scoped overlay by
-// construction — every cell receives an additive deviation against
-// the matching margin slot. Like ZSCORE_VS_MARGIN the axis is not
-// structurally locked: the validator accepts every known MarginAxis
-// (row / column / grand) and the runtime handler dispatches the
-// matching margin.
-var deltaVsMarginSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeCell: true,
-}
-
-// deltaVsSiblingSupportedScopes is the supported scope set for
-// OVERLAY_DELTA_VS_SIBLING. The kind emits one entry per host group
-// key — Scope=GROUP is the only sensible footprint and any other
-// scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
-// `indexVsSiblingSupportedScopes` — both sibling-reference kinds
-// share the GROUP-only scope contract.
-var deltaVsSiblingSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// fisherExactCellSupportedScopes is the supported scope set for
-// OVERLAY_FISHER_EXACT_CELL. The per-cell Fisher's exact 2×2 test is
-// a CELL-scoped inferential overlay (canonical low-count χ² backstop;
-// PRD § 4.C FR-C2) — every cell receives an exact two-sided p-value
-// computed against a 2×2 contingency built from the cell + its row and
-// column margins. Scope=CELL is the only sensible footprint and any
-// other scope (ROW / COLUMN / MATRIX / TOTAL / GROUP) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED.
-var fisherExactCellSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeCell: true,
-}
-
-// indexVsMarginSupportedScopes is the supported scope set for
-// OVERLAY_INDEX_VS_MARGIN. Today only CELL ships; the gate widens
-// to ROW / COLUMN / TOTAL once the matching payload shapes are wired
-// through processing.
-var indexVsMarginSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeCell: true,
-}
-
-// indexVsBaselineSupportedScopes is the supported scope set for
-// OVERLAY_INDEX_VS_BASELINE. The kind emits one entry per host group key
-// (the ordered windowed series) — Scope=GROUP is the only sensible
-// footprint and any other scope (CELL / ROW / COLUMN / MATRIX / TOTAL)
-// fires PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
-// `indexVsPriorSupportedScopes` / `indexVsTotalSupportedScopes`.
-var indexVsBaselineSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// indexVsPriorSupportedScopes is the supported scope set for
-// OVERLAY_INDEX_VS_PRIOR. The kind emits one entry per host group key
-// (the ordered windowed series) — Scope=GROUP is the only sensible
-// footprint and any other scope (CELL / ROW / COLUMN / MATRIX / TOTAL)
-// fires PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
-// `indexVsTotalSupportedScopes`.
-var indexVsPriorSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// deltaVsPriorSupportedScopes is the supported scope set for
-// OVERLAY_DELTA_VS_PRIOR — the additive twin of the kind above, with
-// the identical GROUP-only footprint for the identical reason. Kept as
-// its own map rather than aliasing `indexVsPriorSupportedScopes` so the
-// two kinds' contracts can diverge without one silently dragging the
-// other, exactly as `deltaVsBaselineSupportedScopes` sits beside
-// `indexVsBaselineSupportedScopes`.
-var deltaVsPriorSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// indexVsRollingMeanSupportedScopes is the supported scope set for
-// OVERLAY_INDEX_VS_ROLLING_MEAN. The kind emits one entry per host
-// group key (the ordered windowed series) — Scope=GROUP is the only
-// sensible footprint and any other scope (CELL / ROW / COLUMN / MATRIX /
-// TOTAL) fires PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
-// `indexVsPriorSupportedScopes` — same SERIES-host windowed predicate.
-var indexVsRollingMeanSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// yoySupportedScopes is the supported scope set for OVERLAY_YOY.
-// The kind emits one entry per host group key (the ordered windowed
-// series) — Scope=GROUP is the only sensible footprint and any other
-// scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
-// `indexVsRollingMeanSupportedScopes` / `zscoreVsRollingSupportedScopes`.
-var yoySupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
 // yoySupportedFrequencies enumerates the supported `frequency` Param
 // values for OVERLAY_YOY at predict time. Mirrors
 // processing.yoySupportedFrequencies (the runtime helper) so the gate
@@ -639,108 +483,6 @@ var yoySupportedFrequencies = []string{
 	"weekly",
 	"daily",
 	"hourly",
-}
-
-// zscoreVsRollingSupportedScopes is the supported scope set for
-// OVERLAY_ZSCORE_VS_ROLLING. The kind emits one entry per host group
-// key (the ordered windowed series) — Scope=GROUP is the only sensible
-// footprint and any other scope (CELL / ROW / COLUMN / MATRIX / TOTAL)
-// fires PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
-// `indexVsRollingMeanSupportedScopes` — sibling windowed-rolling kind.
-var zscoreVsRollingSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// indexVsSiblingSupportedScopes is the supported scope set for
-// OVERLAY_INDEX_VS_SIBLING. The kind emits one entry per host group
-// key — Scope=GROUP is the only sensible footprint and any other
-// scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
-// `deltaVsSiblingSupportedScopes`.
-var indexVsSiblingSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// indexVsTotalSupportedScopes is the supported scope set for
-// OVERLAY_INDEX_VS_TOTAL. INDEX_VS_TOTAL emits one per-group index
-// score against the host series' grand total — Scope=GROUP is the
-// only sensible footprint and any other scope (CELL / ROW / COLUMN /
-// MATRIX / TOTAL) fires PULSE_OVERLAY_SCOPE_UNSUPPORTED.
-var indexVsTotalSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// zscoreVsTotalSupportedScopes is the supported scope set for
-// OVERLAY_ZSCORE_VS_TOTAL. ZSCORE_VS_TOTAL emits one per-group
-// standardized z-score against the host series' grand-total
-// distribution — Scope=GROUP is the only sensible footprint and any
-// other scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors `indexVsTotalSupportedScopes`
-// — the streamable SERIES-host grouped-Process subset shares the
-// implicit-grand-total scope contract verbatim.
-var zscoreVsTotalSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// shareOfRowSupportedScopes is the supported scope set for
-// OVERLAY_SHARE_OF_ROW. SHARE_OF_ROW is a CELL-scoped layer by
-// construction — every cell divides by its row margin. ROW / COLUMN /
-// TOTAL projections are not meaningful for this kind.
-var shareOfRowSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeCell: true,
-}
-
-// shareOfColSupportedScopes is the supported scope set for
-// OVERLAY_SHARE_OF_COL. SHARE_OF_COL is a CELL-scoped layer by
-// construction — every cell divides by its column margin. ROW /
-// COLUMN / TOTAL projections are not meaningful for this kind.
-var shareOfColSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeCell: true,
-}
-
-// shareOfTotalSupportedScopes is the supported scope set for the
-// MATRIX-host dispatch of OVERLAY_SHARE_OF_TOTAL. The MATRIX
-// dispatch is a CELL-scoped layer by construction — every cell divides
-// by the grand total. ROW / COLUMN / TOTAL projections are not
-// meaningful for the MATRIX dispatch.
-//
-// The SERIES-host dispatch accepts GROUP scope and routes through
-// `shareOfTotalSeriesSupportedScopes`. The host-shape pre-check in
-// `validateOverlayShareOfTotal` selects between the two scope sets so
-// each dispatch's rejection set is exhaustive for its own host.
-var shareOfTotalSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeCell: true,
-}
-
-// shareOfTotalSeriesSupportedScopes is the supported scope set for the
-// SERIES-host dispatch of OVERLAY_SHARE_OF_TOTAL. The SERIES
-// dispatch emits one per-group share against the host series' grand
-// total — Scope=GROUP is the only sensible footprint and any other
-// scope (CELL / ROW / COLUMN / MATRIX / TOTAL) fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors `indexVsTotalSupportedScopes`.
-var shareOfTotalSeriesSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
-// zscoreVsMarginSupportedScopes is the supported scope set for
-// OVERLAY_ZSCORE_VS_MARGIN. ZSCORE_VS_MARGIN is a CELL-scoped overlay
-// by construction — every cell receives a deviation score against the
-// matching margin slice's standard deviation. Unlike the SHARE_OF_*
-// triad the axis is not structurally locked: the validator accepts
-// every known MarginAxis (row / column / grand) and dispatches the
-// matching slice at runtime.
-var zscoreVsMarginSupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeCell: true,
-}
-
-// validMarginAxes enumerates the on-wire MarginAxis values that an
-// OverlayMarginRef may carry. Mirrors the constant block in
-// types/overlay.go so the predict gate stays parity-true with the
-// type-system source of truth.
-var validMarginAxes = map[types.MarginAxis]bool{
-	types.MarginAxisRow:    true,
-	types.MarginAxisColumn: true,
-	types.MarginAxisGrand:  true,
 }
 
 // ValidateOverlays walks every spec in req.Overlays and appends
@@ -784,9 +526,21 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		// before any per-kind validator.
 		// A request carrying matrices offers the MATRIX_RESULT host too
 		// (overlayhost.JudgedShape — the runtime hooks' rule).
-		if cerr := overlayhost.ShapeRefusal(overlayhost.JudgedShape(inferComposeSlotShape(req), len(req.Matrices) > 0, opts.overlayRoute(spec.Kind)), spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
+		judged := overlayhost.JudgedShape(inferComposeSlotShape(req), len(req.Matrices) > 0, opts.overlayRoute(spec.Kind))
+		if cerr := overlayhost.ShapeRefusal(judged, spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
 			addCodedError(env, cerr)
 			continue
+		}
+		// A SCALAR host (no crosstab, no matrices, no grouped
+		// aggregations) runs no kind: the shared SCALAR host rule — the
+		// kind's Ref / Scope table, then the host it needs — which the
+		// runtime Process hooks (refuseWrongHostOverlays) and the chain
+		// pre-pass raise too, same code, message and Details.
+		if judged == types.OverlayShapeScalar {
+			if cerr := overlayhost.ScalarSpecRefusal(spec, opts.overlayRoute(spec.Kind), len(req.Groups) > 0, i); cerr != nil {
+				addCodedError(env, cerr)
+				continue
+			}
 		}
 		validateOverlaySpec(env, req, spec, opts, i)
 		validateOverlayMatrixResult(env, req, spec, opts.overlayRoute(spec.Kind), i)
@@ -795,7 +549,8 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		validateOverlayRake(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
 		validateOverlayLevelWithinPredict(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		validateOverlayBaselineIndexPredict(env, req, spec, schema, opts.instance(), i)
-		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i)
+		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i,
+			vectors.AggregationColumns(req, func() *encoding.Schema { return schema }, aggregationKinds(opts.instance(), nil)))
 		validateOverlaySeriesPartition(env, req, spec, opts.overlayRoute(spec.Kind), i)
 	}
 }
@@ -828,12 +583,16 @@ func validateOverlaySeriesPartition(env *descriptor.Envelope, req *types.Request
 // refusal is identical on both sides. Runs on the defaults-resolved
 // request, so a defaulted aggregation's TYPE_field label resolves. Only
 // a SERIES host (Groups set, Crosstab nil) reads the param; a MATRIX
-// host of SHARE_OF_TOTAL / ZSCORE_VS_TOTAL ignores it.
-func validateOverlaySeriesField(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int) {
+// host of SHARE_OF_TOTAL / ZSCORE_VS_TOTAL ignores it. cols lists the
+// columns each aggregation writes over the request's schema
+// (vectors.AggregationColumns), so an expanded element column
+// "<label>[<element label>]" resolves; one the slot does not write is
+// refused here, its element columns listed in Details.available.
+func validateOverlaySeriesField(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int, cols seriesfield.Columns) {
 	if req == nil || spec == nil || req.Crosstab != nil || len(req.Groups) == 0 || !seriesfield.Applies(route) {
 		return
 	}
-	if _, err := seriesfield.Resolve(req.Aggregations, spec, index); err != nil {
+	if _, err := seriesfield.Resolve(req.Aggregations, spec, index, cols); err != nil {
 		addCodedError(env, err)
 	}
 }
@@ -1248,9 +1007,12 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 		types.OverlayKindStdResidual,
 		types.OverlayKindCorrespondence,
 		types.OverlayKindMarkov,
-		types.OverlayKindRake:
+		types.OverlayKindRake,
+		types.OverlayKindSymmetry,
+		types.OverlayKindRetention:
 		// Inferential family (and the implicit-margin whole-table
-		// CORRESPONDENCE / MARKOV / RAKE) — Level / Within must both be zero.
+		// CORRESPONDENCE / MARKOV / RAKE / RETENTION) — Level / Within
+		// must both be zero.
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (implicit-margin inferential kind)",
@@ -1421,6 +1183,11 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 	case types.OverlayKindStdResidual:
 		validateOverlayStdResidual(env, req, spec, index)
 		validateOverlayHiddenFloor(env, req, spec, opts, index)
+	case types.OverlayKindSymmetry:
+		validateOverlaySymmetry(env, req, spec, opts.overlayRoute(spec.Kind), index)
+		validateOverlayHiddenFloor(env, req, spec, opts, index)
+	case types.OverlayKindRetention:
+		validateOverlayRetention(env, req, spec, opts.overlayRoute(spec.Kind), index)
 	case types.OverlayKindChiSqRow:
 		validateOverlayChiSqRow(env, req, spec, index)
 		validateOverlayHiddenFloor(env, req, spec, opts, index)
@@ -1486,33 +1253,10 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 // set. Every condition emits a distinct error so a caller surfacing
 // multiple structural problems sees them all in one pass.
 func validateOverlayIndexVsMargin(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family must be Margin. The OverlayRef union allows multiple
-	// reserved pointers; only Margin is meaningful for INDEX_VS_MARGIN
-	// today. A missing Margin pointer is a shape mismatch — the
-	// caller asked for "compare against the row margin" without
-	// telling us which margin to compare against, OR without a
-	// crosstab host to host the margin.
-	if spec.Ref.Margin == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Margin (axis-margin reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Margin.Axis must be a known MarginAxis. Unknown values are a
-	// shape mismatch in the same family — the validator cannot resolve
-	// the margin slot if it does not know which one is targeted.
-	if !validMarginAxes[spec.Ref.Margin.Axis] {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Margin.Axis is not a known MarginAxis: "+string(spec.Ref.Margin.Axis),
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -1522,27 +1266,7 @@ func validateOverlayIndexVsMargin(env *descriptor.Envelope, req *types.Request, 
 	// (e.g. when group-result overlays land), but INDEX_VS_MARGIN
 	// specifically derives its denominator from a crosstab margin.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
-		return
-	}
-
-	// Scope must be in the supported set for INDEX_VS_MARGIN. Today only
-	// CELL ships; ROW / COLUMN / TOTAL widen the gate as the matching
-	// payload shapes land.
-	if !indexVsMarginSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -1561,23 +1285,16 @@ func validateOverlayIndexVsMargin(env *descriptor.Envelope, req *types.Request, 
 //     when Request.Groups is empty (no host series to compute against).
 //   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
 //     than GROUP.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayIndexVsTotal(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref must be empty — INDEX_VS_TOTAL is implicit-grand-total. A
-	// caller supplying any family pointer (Margin / Sibling /
-	// BaselineIndex / Population / Stage / Slot) is using the wrong
-	// overlay shape.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-grand-total: the host series' own grand total is the denominator)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -1586,26 +1303,7 @@ func validateOverlayIndexVsTotal(env *descriptor.Envelope, req *types.Request, s
 	// (an active crosstab routes the request down the MATRIX-host path).
 	// A request with no groupers has no series to compute against.
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be GROUP. INDEX_VS_TOTAL emits one entry per host
-	// group key — CELL / ROW / COLUMN / MATRIX / TOTAL scopes are not
-	// meaningful for the per-group statistic the kind emits.
-	if !indexVsTotalSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -1636,37 +1334,16 @@ func validateOverlayIndexVsTotal(env *descriptor.Envelope, req *types.Request, s
 // PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. The runtime mirror
 // (processing.validateOverlayLevelWithinRuntime) enforces the same
 // rule.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayIndexVsPrior(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family: Prior populated OR entire Ref empty. Any other family
-	// pointer is a shape mismatch (mirrors the INDEX_VS_TOTAL /
-	// SHARE_OF_TOTAL SERIES implicit-default rejection set).
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Prior or an empty Ref (windowed lag-1 prior; no Margin / Sibling / BaselineIndex / Population / Stage / Slot)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Ref.Prior populated: Lag MUST be zero for v1. The slot is reserved
-	// for future window-N priors; non-zero values land in a later story
-	// and the carrier widens from a single f64 to a small ring buffer
-	// then.
-	if spec.Ref.Prior != nil && spec.Ref.Prior.Lag != 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Prior.Lag must be zero (v1 ships lag-1 only; the slot is reserved for future window-N priors)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"lag":   spec.Ref.Prior.Lag,
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -1674,27 +1351,7 @@ func validateOverlayIndexVsPrior(env *descriptor.Envelope, req *types.Request, s
 	// result — Request.Groups is non-empty AND Request.Crosstab is nil
 	// (an active crosstab routes the request down the MATRIX-host path).
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be GROUP. INDEX_VS_PRIOR emits one entry per host group
-	// key (the ordered windowed series) — CELL / ROW / COLUMN / MATRIX /
-	// TOTAL scopes are not meaningful for the per-group statistic the
-	// kind emits.
-	if !indexVsPriorSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -1729,36 +1386,16 @@ func validateOverlayIndexVsPrior(env *descriptor.Envelope, req *types.Request, s
 // PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. The runtime mirror
 // (processing.validateOverlayLevelWithinRuntime) enforces the same
 // rule.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayDeltaVsPrior(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family: Prior populated OR entire Ref empty. Any other family
-	// pointer is a shape mismatch.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Prior or an empty Ref (windowed lag-1 prior; no Margin / Sibling / BaselineIndex / Population / Stage / Slot)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Ref.Prior populated: Lag MUST be zero for v1. The slot is reserved
-	// for future window-N priors; non-zero values land in a later story
-	// and the carrier widens from a single f64 to a small ring buffer
-	// then.
-	if spec.Ref.Prior != nil && spec.Ref.Prior.Lag != 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Prior.Lag must be zero (v1 ships lag-1 only; the slot is reserved for future window-N priors)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"lag":   spec.Ref.Prior.Lag,
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -1766,27 +1403,7 @@ func validateOverlayDeltaVsPrior(env *descriptor.Envelope, req *types.Request, s
 	// result — Request.Groups is non-empty AND Request.Crosstab is nil
 	// (an active crosstab routes the request down the MATRIX-host path).
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be GROUP. DELTA_VS_PRIOR emits one entry per host group
-	// key (the ordered windowed series) — CELL / ROW / COLUMN / MATRIX /
-	// TOTAL scopes are not meaningful for the per-group statistic the
-	// kind emits.
-	if !deltaVsPriorSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -1819,36 +1436,16 @@ func validateOverlayDeltaVsPrior(env *descriptor.Envelope, req *types.Request, s
 // denominator, so non-zero Level / Within values fire
 // PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. The runtime mirror
 // (processing.validateOverlayLevelWithinRuntime) enforces the same rule.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayIndexVsRollingMean(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family: RollingMean must be populated; reject any other family
-	// pointer (mirrors the windowed-family rejection set used by
-	// INDEX_VS_PRIOR for Prior, INDEX_VS_BASELINE for BaselineIndex).
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Prior != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.RollingMean only (no Margin / Sibling / BaselineIndex / Prior / Population / Stage / Slot)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Ref.RollingMean is required — the empty marker tags the ref family.
-	// The actual window width lives on Params["window"] per the WIN_*
-	// operator convention.
-	if spec.Ref.RollingMean == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.RollingMean (windowed rolling-mean reference; window width lives on Params[\"window\"])",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -1856,27 +1453,7 @@ func validateOverlayIndexVsRollingMean(env *descriptor.Envelope, req *types.Requ
 	// result — Request.Groups is non-empty AND Request.Crosstab is nil
 	// (an active crosstab routes the request down the MATRIX-host path).
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be GROUP. INDEX_VS_ROLLING_MEAN emits one entry per host
-	// group key (the ordered windowed series) — CELL / ROW / COLUMN /
-	// MATRIX / TOTAL scopes are not meaningful for the per-group statistic
-	// the kind emits.
-	if !indexVsRollingMeanSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 
@@ -1920,37 +1497,16 @@ func validateOverlayIndexVsRollingMean(env *descriptor.Envelope, req *types.Requ
 // non-zero Level / Within values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE.
 // The runtime mirror (processing.validateOverlayLevelWithinRuntime)
 // enforces the same rule.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayZScoreVsRolling(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family: RollingMean must be populated; reject any other family
-	// pointer (mirrors the windowed-family rejection set used by
-	// INDEX_VS_ROLLING_MEAN — identical contract because the two kinds
-	// share the same ref-arm).
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Prior != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.RollingMean only (no Margin / Sibling / BaselineIndex / Prior / Population / Stage / Slot)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Ref.RollingMean is required — the empty marker tags the ref family.
-	// The actual window width lives on Params["window"] per the WIN_*
-	// operator convention.
-	if spec.Ref.RollingMean == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.RollingMean (windowed rolling-window reference; window width lives on Params[\"window\"])",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -1958,27 +1514,7 @@ func validateOverlayZScoreVsRolling(env *descriptor.Envelope, req *types.Request
 	// result — Request.Groups is non-empty AND Request.Crosstab is nil
 	// (an active crosstab routes the request down the MATRIX-host path).
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be GROUP. ZSCORE_VS_ROLLING emits one entry per host
-	// group key (the ordered windowed series) — CELL / ROW / COLUMN /
-	// MATRIX / TOTAL scopes are not meaningful for the per-group statistic
-	// the kind emits.
-	if !zscoreVsRollingSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 
@@ -2027,38 +1563,16 @@ func validateOverlayZScoreVsRolling(env *descriptor.Envelope, req *types.Request
 // PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. The runtime mirror
 // (processing.validateOverlayLevelWithinRuntime) enforces the same
 // rule.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayYoY(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, inst *InstanceSnapshot, index int) {
-	// Ref family: YoY must be populated; reject any other family pointer
-	// (mirrors the windowed-family rejection set used by INDEX_VS_PRIOR /
-	// INDEX_VS_ROLLING_MEAN / ZSCORE_VS_ROLLING).
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Prior != nil ||
-		spec.Ref.RollingMean != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.YoY only (no Margin / Sibling / BaselineIndex / Prior / RollingMean / Population / Stage / Slot)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Ref.YoY is required — the empty marker tags the ref family. The
-	// actual frequency value lives on Params["frequency"] per the WIN_*
-	// operator convention OR on the GROUP_DATE grouper's Params["frequency"] per the
-	// canonical GROUP_DATE authoring slot.
-	if spec.Ref.YoY == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.YoY (windowed year-over-year reference; frequency lives on Params[\"frequency\"] or the GROUP_DATE grouper's Params[\"frequency\"])",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -2066,12 +1580,7 @@ func validateOverlayYoY(env *descriptor.Envelope, req *types.Request, spec *type
 	// result — Request.Groups is non-empty AND Request.Crosstab is nil
 	// (an active crosstab routes the request down the MATRIX-host path).
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 
@@ -2085,21 +1594,6 @@ func validateOverlayYoY(env *descriptor.Envelope, req *types.Request, spec *type
 	isDate := func(g *types.Group) bool { return opRoute(inst, g.Type) == types.GROUP_DATE }
 	if _, _, err := seriespartition.YoY(req.Groups, isDate, spec, index); err != nil {
 		addCodedError(env, err)
-		return
-	}
-
-	// Scope must be GROUP. OVERLAY_YOY emits one entry per host group
-	// key (the ordered windowed series) — CELL / ROW / COLUMN / MATRIX /
-	// TOTAL scopes are not meaningful for the per-group statistic the
-	// kind emits.
-	if !yoySupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
 		return
 	}
 
@@ -2335,35 +1829,16 @@ func coerceIntegralOverlayParam(v any) (int, bool) {
 // Level / Within values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. The
 // runtime mirror (processing.validateOverlayLevelWithinRuntime) enforces
 // the same rule.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayIndexVsBaseline(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family must be BaselineIndex only. Any other family pointer
-	// (Margin / Sibling / Prior / Population / Stage / Slot) is a shape
-	// mismatch (mirrors the INDEX_VS_PRIOR Prior-only / INDEX_VS_TOTAL
-	// implicit-default rejection set).
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.Prior != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.BaselineIndex only (no Margin / Sibling / Prior / Population / Stage / Slot)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Ref.BaselineIndex is required — the windowed positional anchor lives
-	// on this slot.
-	if spec.Ref.BaselineIndex == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.BaselineIndex (windowed positional baseline reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -2371,27 +1846,7 @@ func validateOverlayIndexVsBaseline(env *descriptor.Envelope, req *types.Request
 	// result — Request.Groups is non-empty AND Request.Crosstab is nil (an
 	// active crosstab routes the request down the MATRIX-host path).
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be GROUP. INDEX_VS_BASELINE emits one entry per host
-	// group key (the ordered windowed series) — CELL / ROW / COLUMN /
-	// MATRIX / TOTAL scopes are not meaningful for the per-group statistic
-	// the kind emits.
-	if !indexVsBaselineSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 
@@ -2431,35 +1886,16 @@ func validateOverlayIndexVsBaseline(env *descriptor.Envelope, req *types.Request
 // Mirrors validateOverlayIndexVsBaseline shape verbatim — the two kinds
 // share the same Ref-family / host-shape / scope contract; only the
 // runtime per-point math differs (subtraction vs. ratio).
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayDeltaVsBaseline(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family must be BaselineIndex only. Any other family pointer
-	// (Margin / Sibling / Prior / Population / Stage / Slot) is a shape
-	// mismatch (mirrors the INDEX_VS_BASELINE BaselineIndex-only rejection
-	// set).
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.Prior != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.BaselineIndex only (no Margin / Sibling / Prior / Population / Stage / Slot)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Ref.BaselineIndex is required — the windowed positional anchor lives
-	// on this slot.
-	if spec.Ref.BaselineIndex == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.BaselineIndex (windowed positional baseline reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -2467,27 +1903,7 @@ func validateOverlayDeltaVsBaseline(env *descriptor.Envelope, req *types.Request
 	// result — Request.Groups is non-empty AND Request.Crosstab is nil (an
 	// active crosstab routes the request down the MATRIX-host path).
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be GROUP. DELTA_VS_BASELINE emits one entry per host
-	// group key (the ordered windowed series) — CELL / ROW / COLUMN /
-	// MATRIX / TOTAL scopes are not meaningful for the per-group statistic
-	// the kind emits.
-	if !deltaVsBaselineSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 
@@ -2506,54 +1922,24 @@ func validateOverlayDeltaVsBaseline(env *descriptor.Envelope, req *types.Request
 // other ref-family pointer) is a shape mismatch.
 //
 // Errors emitted (in order, first hit short-circuits the spec):
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref family
-//     pointer is populated.
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
-//     nil (no MATRIX host to test against).
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref arm is set
+//     (overlayhost.CrosstabSpecRefusal, judged first).
 //   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
 //     than MATRIX.
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
+//     nil (no MATRIX host to test against).
 func validateOverlayChiSqMatrix(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref must be empty — CHISQ_MATRIX is implicit-margin. A caller
-	// supplying any family pointer (Margin / Sibling / BaselineIndex /
-	// Population / Stage / Slot) is using the wrong overlay shape.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-margin: the χ² test uses the host's row / column / grand margins inline)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
 	// Host must be MATRIX-shaped — χ² independence consumes a row ×
 	// column contingency table sourced from the host crosstab.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be MATRIX. CHISQ_MATRIX is a whole-table test —
-	// CELL / ROW / COLUMN / TOTAL / GROUP are not meaningful for the
-	// statistic the kind emits.
-	if !chiSqMatrixSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: matrix)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -2567,55 +1953,24 @@ func validateOverlayChiSqMatrix(env *descriptor.Envelope, req *types.Request, sp
 // (or any other ref-family pointer) is a shape mismatch.
 //
 // Errors emitted (in order, first hit short-circuits the spec):
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref family
-//     pointer is populated.
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
-//     nil (no MATRIX host to test against).
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref arm is set
+//     (overlayhost.CrosstabSpecRefusal, judged first).
 //   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
 //     than ROW.
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
+//     nil (no MATRIX host to test against).
 func validateOverlayChiSqRow(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref must be empty — CHISQ_ROW is implicit-margin (same contract
-	// as CHISQ_MATRIX). A caller supplying any family pointer (Margin /
-	// Sibling / BaselineIndex / Population / Stage / Slot) is using the
-	// wrong overlay shape.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-margin: the per-row χ² test uses the host's row / column / grand margins inline)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
 	// Host must be MATRIX-shaped — per-row χ² goodness-of-fit consumes
 	// a row × column contingency table sourced from the host crosstab.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be ROW. CHISQ_ROW emits one statistic per row tuple —
-	// CELL / COLUMN / MATRIX / TOTAL / GROUP are not meaningful for the
-	// per-row statistic the kind emits.
-	if !chiSqRowSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: row)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -2629,30 +1984,17 @@ func validateOverlayChiSqRow(env *descriptor.Envelope, req *types.Request, spec 
 // Ref.Margin (or any other ref-family pointer) is a shape mismatch.
 //
 // Errors emitted (in order, first hit short-circuits the spec):
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref family
-//     pointer is populated.
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
-//     nil (no MATRIX host to test against).
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref arm is set
+//     (overlayhost.CrosstabSpecRefusal, judged first).
 //   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
 //     than COLUMN.
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
+//     nil (no MATRIX host to test against).
 func validateOverlayChiSqCol(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref must be empty — CHISQ_COL is implicit-margin (mechanical
-	// column-axis twin of CHISQ_ROW; same contract as CHISQ_MATRIX).
-	// A caller supplying any family pointer (Margin / Sibling /
-	// BaselineIndex / Population / Stage / Slot) is using the wrong
-	// overlay shape.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-margin: the per-column χ² test uses the host's row / column / grand margins inline)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -2660,26 +2002,7 @@ func validateOverlayChiSqCol(env *descriptor.Envelope, req *types.Request, spec 
 	// consumes a row × column contingency table sourced from the host
 	// crosstab.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be COLUMN. CHISQ_COL emits one statistic per column
-	// tuple — CELL / ROW / MATRIX / TOTAL / GROUP are not meaningful
-	// for the per-column statistic the kind emits.
-	if !chiSqColSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: column)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -2692,57 +2015,17 @@ func validateOverlayChiSqCol(env *descriptor.Envelope, req *types.Request, spec 
 // ZSCORE_VS_MARGIN), the host result must be MATRIX-shaped (i.e.
 // Request.Crosstab is non-nil), and Scope must be CELL.
 func validateOverlayDeltaVsMargin(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family must be Margin. DELTA_VS_MARGIN shares the same ref
-	// shape contract as INDEX_VS_MARGIN / SHARE_OF_* / ZSCORE_VS_MARGIN
-	// — the centerpoint is an axis-margin slot.
-	if spec.Ref.Margin == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Margin (axis-margin reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Margin.Axis must be a known MarginAxis. DELTA_VS_MARGIN accepts
-	// every known axis at predict time AND at runtime (the runtime
-	// handler dispatches the matching margin); unknown values are a
-	// shape mismatch.
-	if !validMarginAxes[spec.Ref.Margin.Axis] {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Margin.Axis is not a known MarginAxis: "+string(spec.Ref.Margin.Axis),
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
 	// Host must be MATRIX-shaped — delta-vs-margin needs a crosstab
 	// margin slot to subtract from each cell.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
-		return
-	}
-
-	// Scope must be CELL. DELTA_VS_MARGIN is a cell-decoration overlay
-	// by construction.
-	if !deltaVsMarginSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -2756,55 +2039,24 @@ func validateOverlayDeltaVsMargin(env *descriptor.Envelope, req *types.Request, 
 // Ref.Margin (or any other ref-family pointer) is a shape mismatch.
 //
 // Errors emitted (in order, first hit short-circuits the spec):
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref family
-//     pointer is populated.
-//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
-//     nil (no MATRIX host to test against).
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when any Ref arm is set
+//     (overlayhost.CrosstabSpecRefusal, judged first).
 //   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
 //     than CELL.
+//   - PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when req.Crosstab is
+//     nil (no MATRIX host to test against).
 func validateOverlayFisherExactCell(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref must be empty — FISHER_EXACT_CELL is implicit-margin (mirrors
-	// the CHISQ_* family). A caller supplying any family pointer
-	// (Margin / Sibling / BaselineIndex / Population / Stage / Slot)
-	// is using the wrong overlay shape.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-margin: the per-cell 2×2 Fisher's exact test reads the host's row + column margins inline)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
 	// Host must be MATRIX-shaped — per-cell Fisher's exact consumes a
 	// row × column contingency table sourced from the host crosstab.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be CELL. FISHER_EXACT_CELL emits one p-value per cell
-	// — ROW / COLUMN / MATRIX / TOTAL / GROUP scopes are not meaningful
-	// for the per-cell statistic the kind emits.
-	if !fisherExactCellSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -2818,57 +2070,17 @@ func validateOverlayFisherExactCell(env *descriptor.Envelope, req *types.Request
 // row" code), the host result must be MATRIX-shaped (i.e.
 // Request.Crosstab is non-nil), and Scope must be CELL.
 func validateOverlayShareOfRow(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family must be Margin. SHARE_OF_ROW shares the same ref
-	// shape contract as INDEX_VS_MARGIN — the denominator is an axis-
-	// margin slot.
-	if spec.Ref.Margin == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Margin (axis-margin reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Margin.Axis must be a known MarginAxis. SHARE_OF_ROW is row-
-	// axis-locked at runtime, but the predict gate accepts any known
-	// axis to keep the failure modes orthogonal — an unknown axis is
-	// "shape mismatch", not "kind mismatch".
-	if !validMarginAxes[spec.Ref.Margin.Axis] {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Margin.Axis is not a known MarginAxis: "+string(spec.Ref.Margin.Axis),
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
 	// Host must be MATRIX-shaped — share-of-row needs a crosstab row
 	// margin to divide by.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
-		return
-	}
-
-	// Scope must be CELL. SHARE_OF_ROW is a cell-decoration overlay
-	// by construction.
-	if !shareOfRowSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -2883,57 +2095,17 @@ func validateOverlayShareOfRow(env *descriptor.Envelope, req *types.Request, spe
 // the host result must be MATRIX-shaped (i.e. Request.Crosstab is
 // non-nil), and Scope must be CELL.
 func validateOverlayShareOfCol(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family must be Margin. SHARE_OF_COL shares the same ref
-	// shape contract as INDEX_VS_MARGIN / SHARE_OF_ROW — the
-	// denominator is an axis-margin slot.
-	if spec.Ref.Margin == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Margin (axis-margin reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Margin.Axis must be a known MarginAxis. SHARE_OF_COL is column-
-	// axis-locked at runtime, but the predict gate accepts any known
-	// axis to keep the failure modes orthogonal — an unknown axis is
-	// "shape mismatch", not "kind mismatch".
-	if !validMarginAxes[spec.Ref.Margin.Axis] {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Margin.Axis is not a known MarginAxis: "+string(spec.Ref.Margin.Axis),
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
 	// Host must be MATRIX-shaped — share-of-column needs a crosstab
 	// column margin to divide by.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
-		return
-	}
-
-	// Scope must be CELL. SHARE_OF_COL is a cell-decoration overlay
-	// by construction.
-	if !shareOfColSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -2982,57 +2154,17 @@ func validateOverlayShareOfTotal(env *descriptor.Envelope, req *types.Request, s
 // MATRIX-shaped (i.e. Request.Crosstab is non-nil), and Scope must be
 // CELL.
 func validateOverlayShareOfTotalMatrix(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family must be Margin. SHARE_OF_TOTAL shares the same ref
-	// shape contract as INDEX_VS_MARGIN / SHARE_OF_ROW / SHARE_OF_COL
-	// — the denominator is an axis-margin slot (the grand axis).
-	if spec.Ref.Margin == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Margin (axis-margin reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Margin.Axis must be a known MarginAxis. SHARE_OF_TOTAL is grand-
-	// axis-locked at runtime, but the predict gate accepts any known
-	// axis to keep the failure modes orthogonal — an unknown axis is
-	// "shape mismatch", not "kind mismatch".
-	if !validMarginAxes[spec.Ref.Margin.Axis] {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Margin.Axis is not a known MarginAxis: "+string(spec.Ref.Margin.Axis),
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
 	// Host must be MATRIX-shaped — share-of-total needs a crosstab
 	// grand-total slot to divide by.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
-		return
-	}
-
-	// Scope must be CELL. SHARE_OF_TOTAL is a cell-decoration overlay
-	// by construction.
-	if !shareOfTotalSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -3047,24 +2179,16 @@ func validateOverlayShareOfTotalMatrix(env *descriptor.Envelope, req *types.Requ
 //
 // Sibling rule to validateOverlayIndexVsTotal — the two SERIES SHARE /
 // INDEX kinds share the implicit-grand-total contract verbatim.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayShareOfTotalSeries(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref must be empty — SERIES SHARE_OF_TOTAL is implicit-grand-total
-	// (mirrors INDEX_VS_TOTAL). A caller supplying any family pointer
-	// (Margin / Sibling / BaselineIndex / Population / Stage / Slot) is
-	// using the MATRIX dispatch's spec shape against a SERIES host.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" against a SERIES host must leave Ref empty (implicit-grand-total: the host series' own grand total is the denominator)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"host":  "series",
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -3072,29 +2196,7 @@ func validateOverlayShareOfTotalSeries(env *descriptor.Envelope, req *types.Requ
 	// but re-check so a direct call into this branch from a future
 	// validator-aware caller still gets the right rejection shape.
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" SERIES dispatch requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"host":  "series",
-			})
-		return
-	}
-
-	// Scope must be GROUP. SERIES SHARE_OF_TOTAL emits one entry per
-	// host group key — CELL / ROW / COLUMN / MATRIX / TOTAL scopes are
-	// not meaningful for the per-group statistic the SERIES dispatch
-	// emits.
-	if !shareOfTotalSeriesSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" SERIES dispatch does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-				"host":  "series",
-			})
+		addHostRequired(env, spec, spec.Kind, true, index)
 		return
 	}
 }
@@ -3106,31 +2208,10 @@ func validateOverlayShareOfTotalSeries(env *descriptor.Envelope, req *types.Requ
 // handler dispatches all three axes), the host result must be MATRIX-
 // shaped (i.e. Request.Crosstab is non-nil), and Scope must be CELL.
 func validateOverlayZScoreVsMargin(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref family must be Margin. ZSCORE_VS_MARGIN shares the same ref
-	// shape contract as INDEX_VS_MARGIN / SHARE_OF_* — the centerpoint
-	// is an axis-margin slot.
-	if spec.Ref.Margin == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Margin (axis-margin reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Margin.Axis must be a known MarginAxis. ZSCORE_VS_MARGIN
-	// accepts every known axis at predict time AND at runtime (the
-	// runtime handler dispatches the matching slice); unknown values
-	// are a shape mismatch.
-	if !validMarginAxes[spec.Ref.Margin.Axis] {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Margin.Axis is not a known MarginAxis: "+string(spec.Ref.Margin.Axis),
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -3138,26 +2219,7 @@ func validateOverlayZScoreVsMargin(env *descriptor.Envelope, req *types.Request,
 	// margin slot to subtract from each cell AND a crosstab cell grid
 	// to drive the per-slice Welford recurrence.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
-		return
-	}
-
-	// Scope must be CELL. ZSCORE_VS_MARGIN is a cell-decoration overlay
-	// by construction.
-	if !zscoreVsMarginSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: cell)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -3181,23 +2243,16 @@ func validateOverlayZScoreVsMargin(env *descriptor.Envelope, req *types.Request,
 //     against).
 //   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
 //     than GROUP.
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
 func validateOverlayZScoreVsTotal(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	// Ref must be empty — ZSCORE_VS_TOTAL is implicit-grand-total
-	// (mirrors INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES). A caller
-	// supplying any family pointer (Margin / Sibling / BaselineIndex /
-	// Population / Stage / Slot) is using the wrong overlay shape.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-grand-total: the host series' own grand-total mean + SD are the centerpoint)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
@@ -3206,26 +2261,7 @@ func validateOverlayZScoreVsTotal(env *descriptor.Envelope, req *types.Request, 
 	// (an active crosstab routes the request down the MATRIX-host path).
 	// A request with no groupers has no series to standardise against.
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be GROUP. ZSCORE_VS_TOTAL emits one entry per host
-	// group key — CELL / ROW / COLUMN / MATRIX / TOTAL scopes are not
-	// meaningful for the per-group statistic the kind emits.
-	if !zscoreVsTotalSupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -3250,7 +2286,7 @@ func validateOverlayZScoreVsTotal(env *descriptor.Envelope, req *types.Request, 
 //   - PULSE_OVERLAY_SCOPE_UNSUPPORTED when Scope is anything other
 //     than GROUP.
 func validateOverlayDeltaVsSibling(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	validateOverlaySiblingKind(env, req, spec, index, deltaVsSiblingSupportedScopes, "group")
+	validateOverlaySiblingKind(env, req, spec, index)
 }
 
 // validateOverlayIndexVsSibling enforces the per-kind contract for
@@ -3261,15 +2297,14 @@ func validateOverlayDeltaVsSibling(env *descriptor.Envelope, req *types.Request,
 // `validateOverlaySiblingKind` helper so a future schema/runtime
 // rule that fires on one kind automatically extends to the other.
 func validateOverlayIndexVsSibling(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	validateOverlaySiblingKind(env, req, spec, index, indexVsSiblingSupportedScopes, "group")
+	validateOverlaySiblingKind(env, req, spec, index)
 }
 
 // validateOverlaySiblingKind is the shared predict-time validator for
 // the sibling-reference SERIES-host family (DELTA_VS_SIBLING +
 // INDEX_VS_SIBLING). The two kinds carry identical structural
 // contracts — only the runtime math differs (subtraction vs ratio
-// scaling) — so the validator collapses both into a single helper
-// keyed by the kind's supported-scope set.
+// scaling) — so the validator collapses both into a single helper.
 //
 // Contract enforced (in order, first hit short-circuits):
 //
@@ -3285,75 +2320,22 @@ func validateOverlayIndexVsSibling(env *descriptor.Envelope, req *types.Request,
 //     MATRIX-host path which the sibling family does not target in
 //     v1.
 //   - Scope MUST be in the supported set (GROUP today).
-func validateOverlaySiblingKind(
-	env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int,
-	supportedScopes map[types.OverlayScope]bool, supportedScopeLabel string,
-) {
-	// Ref family must be Sibling — reject any other family pointer.
-	if spec.Ref.Margin != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Population != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Sibling only (no Margin / BaselineIndex / Population / Stage / Slot)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Ref.Sibling is required — both Field and Value must be populated.
-	if spec.Ref.Sibling == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Sibling (sibling-group reference)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-	if spec.Ref.Sibling.Field == "" {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Sibling.Field is empty (sibling reference requires a grouper Field name)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-	if spec.Ref.Sibling.Value == "" {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Sibling.Value is empty (sibling reference requires a specific axis-key value)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"field": spec.Ref.Sibling.Field,
-			})
+//
+// The Ref and Scope rules are overlayhost.SeriesSpecRefusal's, judged
+// first (every Ref arm, not only the ones listed above; then the scope)
+// and raised identically by every runtime SERIES arm; the SERIES-host
+// check follows them.
+func validateOverlaySiblingKind(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	// Ref / Scope: the shared SERIES rule every runtime arm raises too
+	// (overlayhost.SeriesSpecRefusal).
+	if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 
 	// Host must be SERIES-shaped — grouped Process result.
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return
-	}
-
-	// Scope must be in the supported set.
-	if !supportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: "+supportedScopeLabel+")",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }

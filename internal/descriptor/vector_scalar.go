@@ -111,10 +111,15 @@ func vectorScalarRefusals(req *types.Request, schema *encoding.Schema, snap *Ext
 		slot := at("attributes", i, string(attr.Type))
 		switch {
 		case vectors.IsVectorAttribute(route):
-			for j, fil := range vectors.AttributeFitOn(route, attr) {
+			// AttributeFitOn lists fit_on, then a centroid's filter.
+			fs, cf := vectors.AttributeFitOn(route, attr), vectors.ComparisonCentroidFilter(route, attr)
+			for j, fil := range fs[:len(fs)-len(cf)] {
 				if fil != nil {
 					filter(fil, slot+" params.fit_on["+strconv.Itoa(j)+"]")
 				}
+			}
+			for j, fil := range cf {
+				filter(fil, slot+" params.reference.centroid.filter["+strconv.Itoa(j)+"]")
 			}
 		case route == types.ATTR_REG_FITTED || route == types.ATTR_REG_RESIDUAL || route == types.ATTR_REG_LEVERAGE:
 			judge(attr.Target, slot+" target", "")

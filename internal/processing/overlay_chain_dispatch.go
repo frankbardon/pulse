@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
@@ -187,6 +188,18 @@ func ApplyChainOverlaysWithExtensions(specs []*types.ChainOverlaySpec, stages []
 // (projectChainSeriesStages). A nil stageReqs keeps the legacy
 // whole-row reading of encodeSeriesRow.
 func ApplyChainOverlaysWithRequests(specs []*types.ChainOverlaySpec, stages []*types.Response, stageNames []string, stageReqs []*types.Request, exts *ExtensionRegistry) ([]*types.OverlayLayer, []types.OverlayWarning, error) {
+	return ApplyChainOverlaysWithSchemas(specs, stages, stageNames, stageReqs, nil, exts)
+}
+
+// ApplyChainOverlaysWithSchemas is ApplyChainOverlaysWithRequests with
+// each stage's input schema in reach: stageSchema(i) (nil: none) is
+// the schema stage i ran over (stage 0's gate schema, a later stage's
+// synthesised one — descriptor.ChainStageInputSchema), called only
+// when a series kind's params.field names an expanded element column
+// "<label>[<element label>]", so it resolves against the stage's
+// members exactly as predict-chain does. service.applyChainOverlays
+// calls it.
+func ApplyChainOverlaysWithSchemas(specs []*types.ChainOverlaySpec, stages []*types.Response, stageNames []string, stageReqs []*types.Request, stageSchema func(i int) *encoding.Schema, exts *ExtensionRegistry) ([]*types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
@@ -245,7 +258,7 @@ func ApplyChainOverlaysWithRequests(specs []*types.ChainOverlaySpec, stages []*t
 		// aggregation BEFORE the handler reads a Data row; the field
 		// refusal sits where predict-chain raises it, after stage
 		// resolution.
-		target, ref, err := projectChainSeriesStages(spec, exts.overlayRoute(spec.Kind), i, stages[targetIdx], stages[refIdx], targetIdx, refIdx, stageReqs)
+		target, ref, err := projectChainSeriesStages(spec, exts.overlayRoute(spec.Kind), i, stages[targetIdx], stages[refIdx], targetIdx, refIdx, stageReqs, stageSchema, exts.AggregationKinds())
 		if err != nil {
 			return nil, nil, err
 		}
@@ -309,7 +322,9 @@ func ApplyChainOverlaysWithRequests(specs []*types.ChainOverlaySpec, stages []*t
 }
 
 // resolveChainStageRef resolves a StageRef into a `stages` slice
-// index. Returns a coded error on out-of-range Index or unknown Name.
+// index through overlayhost.ResolveStageRef (the rule predict-chain
+// resolves with). Returns a coded error on Index and Name both set, an
+// out-of-range Index or an unknown Name.
 // `targetDefault` controls the "both slots empty" semantics: a Target
 // reference defaults to the latest stage (`len(stages) - 1`), a Ref
 // reference is rejected.
@@ -320,64 +335,12 @@ func ApplyChainOverlaysWithRequests(specs []*types.ChainOverlaySpec, stages []*t
 // `targetDefault` AND echoed in the `which` Detail so the MCP fix-up
 // surface can branch on either signal.
 func resolveChainStageRef(ref types.StageRef, stages []*types.Response, namedIndex map[string]int, targetDefault bool, specIdx int) (int, error) {
-	whichArm := "ref"
-	armCode := errors.PULSE_OVERLAY_REFERENCE_UNKNOWN
-	if targetDefault {
-		whichArm = "target"
-		armCode = errors.PULSE_OVERLAY_TARGET_UNKNOWN
-	}
-	// Empty Target defaults to the latest stage; empty Ref is an error.
-	if ref.Index == nil && ref.Name == "" {
-		if targetDefault {
-			if len(stages) == 0 {
-				return 0, errors.NewCodedErrorWithDetails(
-					armCode,
-					"chain overlay has no stages to resolve default Target against",
-					map[string]any{
-						"index": specIdx,
-						"which": whichArm,
-					})
-			}
-			return len(stages) - 1, nil
-		}
-		return 0, errors.NewCodedErrorWithDetails(
-			armCode,
-			"chain overlay Ref must populate exactly one of Index / Name",
-			map[string]any{
-				"index": specIdx,
-				"which": whichArm,
-			})
-	}
-	// Index takes precedence when populated. Out-of-range Index fires
-	// the unknown-stage coded error. Negative Index is rejected the
-	// same way (the StageRef contract documents `Index = &zero` as the
-	// canonical "stage 0" call site).
-	if ref.Index != nil {
-		idx := *ref.Index
-		if idx < 0 || idx >= len(stages) {
-			return 0, errors.NewCodedErrorWithDetails(
-				armCode,
-				"chain overlay stage Index out of range",
-				map[string]any{
-					"index":        specIdx,
-					"which":        whichArm,
-					"stage_index":  idx,
-					"stages_count": len(stages),
-				})
-		}
-		return idx, nil
-	}
-	// Name resolves against the precomputed namedIndex lookup.
-	idx, ok := namedIndex[ref.Name]
-	if !ok {
-		return 0, errors.NewCodedErrorWithDetails(
-			armCode,
-			"chain overlay stage Name not found",
-			map[string]any{
-				"index":      specIdx,
-				"which":      whichArm,
-				"stage_name": ref.Name,
-			})
+	// The shared rule predict-chain resolves with
+	// (overlayhost.ResolveStageRef): both Index and Name set is refused
+	// here too — it used to run on Index.
+	idx, cerr := overlayhost.ResolveStageRef(ref, len(stages), namedIndex, targetDefault, specIdx)
+	if cerr != nil {
+		return 0, cerr
 	}
 	return idx, nil
 }

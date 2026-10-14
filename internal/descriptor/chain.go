@@ -213,6 +213,10 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 	// for a joined stage 0) — the whole-chain categorical-code rule's
 	// stage-0 input types.
 	var stage0Schema *encoding.Schema
+	// pendingColumnErr: the column collision in the previous stage's
+	// synthesised output (chainStageColumnRefusal), raised at the stage
+	// that reads it.
+	var pendingColumnErr *errors.CodedError
 	for i, stage := range req.Stages {
 		if stage == nil || stage.Request == nil {
 			env.AddError(string(errors.PULSE_CHAIN_EMPTY),
@@ -238,6 +242,12 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		stageMatErr := mergegate.StageMatrixRefusal(stage.Request, i, stage.Name)
 		if stageMatErr != nil {
 			addCodedError(env, stageMatErr)
+		}
+		// The previous stage's output columns collide: the runtime
+		// refuses building this stage's input schema.
+		if pendingColumnErr != nil {
+			addCodedError(env, pendingColumnErr)
+			pendingColumnErr = nil
 		}
 		// A joined stage 0 resolves zones inside Process — after the
 		// gate and the join-count rule; every other stage resolves
@@ -314,7 +324,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			// A later stage's overlays judge a forwarded code column (an
 			// upstream code-emitting aggregation's output, f64 here) as
 			// the code it is — the runtime's ScopedChainStageFieldRefRefusal.
-			codes := aggregationKinds(opts.instance(), snap).ChainCodeColumns(stagedReqs, i, stage0Schema, synthChainSchema)
+			codes := aggregationKinds(opts.instance(), snap).ChainCodeColumns(stagedReqs, i, stage0Schema, chainSynth(aggregationKinds(opts.instance(), snap)))
 			refs := fieldRefRefusalsCoded(fieldReq, fieldSchema, codes, extensionsFromOpts(opts), opts.instance(), stageModels[i])
 			for _, ce := range refs {
 				addCodedError(env, RefusalAt(ce, "stage", i))
@@ -333,12 +343,20 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			if len(refs) == 0 && colsOK {
 				if _, werr := ResolveWeights(fieldReq, fieldSchema, opts.DefaultWeight, opts.instance()); werr != nil {
 					addCodedError(env, RefusalAt(werr, "stage", i))
+				} else if ce := formulaExpressionRefusal(fieldReq, opts); ce != nil {
+					// The attribute constructors run next: ATTR_FORMULA's
+					// empty expression (params.expression is not read).
+					addCodedError(env, RefusalAt(ce, "stage", i))
 				}
 			}
 		}
 		next := chainPredictedOutputFields(staged, gateSchema, aggregationKinds(opts.instance(), snap))
 		result.StageSchemas = append(result.StageSchemas, next)
-		current = synthChainSchema(staged)
+		// The runtime synthesises this stage's output schema only when a
+		// later stage reads it, raising a column collision there (after
+		// that stage's join and matrix rules).
+		pendingColumnErr = chainStageColumnRefusal(staged, gateSchema, aggregationKinds(opts.instance(), snap))
+		current = synthChainSchema(staged, gateSchema, aggregationKinds(opts.instance(), snap))
 	}
 
 	// Whole-chain overlay walk. Runs after the per-stage gate so
@@ -356,7 +374,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 // model.CheckChainModels, then every stage's model files read (located
 // details.stage). It returns each stage's catalog, index-aligned.
 func loadChainModels(stages []*types.ChainStage, opts *PredictOptions) ([]model.Catalog, error) {
-	if cerr := model.CheckChainModels(stages); cerr != nil {
+	if cerr := model.CheckChainModels(stages, opts.populations()); cerr != nil {
 		return nil, cerr
 	}
 	out := make([]model.Catalog, len(stages))
@@ -364,11 +382,12 @@ func loadChainModels(stages []*types.ChainStage, opts *PredictOptions) ([]model.
 		if st == nil || st.Request == nil {
 			continue
 		}
-		files, cerr := opts.loadModelFiles(st.Request.Models)
+		refs := model.RequestRefs(st.Request)
+		files, cerr := opts.loadModelFiles(refs)
 		if cerr != nil {
 			return nil, RefusalAt(cerr, "stage", i)
 		}
-		out[i] = loadedCatalog(nil, st.Request.Models, files)
+		out[i] = loadedCatalog(opts.populations(), refs, files)
 	}
 	return out, nil
 }
@@ -416,79 +435,43 @@ func joinedDefaultsSchema(req *types.Request, base *encoding.Schema, opts *Predi
 }
 
 // chainPredictedOutputFields names the output columns a chain stage
-// produces over its input schema in. Mirrors processing.ChainOutputSchema's
-// layout without importing processing; an expanding vector aggregation
-// names its per-element columns (vectors.AggregationOutputColumns — the
-// runtime row writer's names). Such a stage is always the last (an
-// array-valued stage may not feed another: mergegate.
-// StageArrayValuedRefusal), so its columns are never typed as a next
-// stage's input.
+// produces over its input schema in: the fields of synthChainSchema, in
+// order — processing.ChainOutputSchema's layout without importing
+// processing; an expanding vector aggregation names its per-element
+// columns (vectors.AggregationOutputColumns — the runtime row writer's
+// names), which a later stage reads as f64 columns.
 func chainPredictedOutputFields(req *types.Request, in *encoding.Schema, kinds vectors.AggregationKinds) []string {
-	out := make([]string, 0, len(req.Groups)+len(req.Aggregations))
-	seen := make(map[string]struct{})
-	for _, g := range req.Groups {
-		if g == nil {
-			continue
-		}
-		key := vectors.GroupKeyField(g.Type, g)
-		if _, dup := seen[key]; dup {
-			continue
-		}
-		seen[key] = struct{}{}
-		out = append(out, key)
-	}
-	for _, agg := range req.Aggregations {
-		if agg == nil {
-			continue
-		}
-		cols, _ := vectors.AggregationOutputColumns(req, agg, in, kinds)
-		for _, label := range cols {
-			if _, dup := seen[label]; dup {
-				continue
-			}
-			seen[label] = struct{}{}
-			out = append(out, label)
-		}
+	schema := synthChainSchema(req, in, kinds)
+	out := make([]string, len(schema.Fields))
+	for i := range schema.Fields {
+		out[i] = schema.Fields[i].Name
 	}
 	return out
 }
 
-// synthChainSchema produces the inferred input schema for the next
-// stage. Categorical_u32 for grouper keys (named as the runtime writes
-// them, vectors.GroupKeyField — processing.ChainOutputSchema's rule),
-// f64 for aggregator outputs.
-// Empty dictionaries — ValidateChain never reads records.
-func synthChainSchema(req *types.Request) *encoding.Schema {
-	fields := make([]encoding.Field, 0, len(req.Groups)+len(req.Aggregations))
-	seen := make(map[string]struct{})
-	for _, g := range req.Groups {
-		if g == nil {
-			continue
-		}
-		key := vectors.GroupKeyField(g.Type, g)
-		if _, dup := seen[key]; dup {
-			continue
-		}
-		seen[key] = struct{}{}
-		fields = append(fields, encoding.Field{
-			Name:       key,
-			Type:       encoding.FieldTypeCategoricalU32,
-			Dictionary: encoding.NewDictionary(),
-		})
-	}
-	for _, agg := range req.Aggregations {
-		if agg == nil {
-			continue
-		}
-		label := agg.Label
-		if label == "" {
-			label = types.AggregationLabelOf(agg)
-		}
-		if _, dup := seen[label]; dup {
-			continue
-		}
-		seen[label] = struct{}{}
-		fields = append(fields, encoding.Field{Name: label, Type: encoding.FieldTypeF64})
-	}
-	return &encoding.Schema{Fields: fields}
+// synthChainSchema produces the inferred input schema for the stage
+// after req, which executes over in: vectors.ChainStageSchema — the
+// builder processing.ChainOutputSchema shares (categorical_u32 group
+// key columns, one f64 per aggregation output column, an expanding
+// vector aggregation's element columns included). A column collision
+// is reported by chainStageColumnRefusal; here the column is listed
+// once. Empty dictionaries — ValidateChain never reads records.
+func synthChainSchema(req *types.Request, in *encoding.Schema, kinds vectors.AggregationKinds) *encoding.Schema {
+	schema, _ := vectors.ChainStageSchema(req, in, kinds)
+	return schema
+}
+
+// chainStageColumnRefusal is the runtime's processing.ChainOutputSchema
+// refusal: an aggregation column of req (executing over in) colliding
+// with an earlier column of its synthesised output. The runtime raises
+// it only when a later stage reads that output.
+func chainStageColumnRefusal(req *types.Request, in *encoding.Schema, kinds vectors.AggregationKinds) *errors.CodedError {
+	_, cerr := vectors.ChainStageSchema(req, in, kinds)
+	return cerr
+}
+
+// chainSynth is synthChainSchema under kinds, as the next-schema
+// builder vectors.AggregationKinds.ChainCodeColumns threads.
+func chainSynth(kinds vectors.AggregationKinds) func(*types.Request, *encoding.Schema) *encoding.Schema {
+	return func(r *types.Request, in *encoding.Schema) *encoding.Schema { return synthChainSchema(r, in, kinds) }
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/linalg"
+	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -31,6 +32,8 @@ type correspondenceCase struct {
 	ColQuality   []float64                                   `json:"col_quality"`
 	RowContrib   [][]float64                                 `json:"row_contribution"`
 	ColContrib   [][]float64                                 `json:"col_contribution"`
+	RowDistance  [][]float64                                 `json:"row_distance"`
+	ColDistance  [][]float64                                 `json:"col_distance"`
 }
 
 // linalgSigns returns, per dimension, the factor (±1) that maps ca's
@@ -102,6 +105,23 @@ func assertSignedMatrix(t *testing.T, where string, got *types.OverlayPayload, w
 	}
 }
 
+// assertSquareMatrix compares a points × points distance part to R's
+// (no sign normalization: a distance has none).
+func assertSquareMatrix(t *testing.T, where string, got *types.OverlayPayload, want [][]float64, tol float64) {
+	t.Helper()
+	if got == nil || got.Shape != types.OverlayShapeMatrix || got.Matrix == nil || len(got.Matrix.Cells) != len(want) || len(got.Matrix.ColumnKeys) != len(want) {
+		t.Fatalf("%s: part %+v, want a %d × %d MATRIX", where, got, len(want), len(want))
+	}
+	for i := range want {
+		if len(got.Matrix.Cells[i]) != len(want[i]) {
+			t.Fatalf("%s: row %d has %d cells, want %d", where, i, len(got.Matrix.Cells[i]), len(want[i]))
+		}
+		for k, w := range want[i] {
+			caClose(t, where+"["+strconv.Itoa(i)+"]["+strconv.Itoa(k)+"]", cellFloat(t, where, got.Matrix.Cells[i][k]), w, tol)
+		}
+	}
+}
+
 func assertQualitySeries(t *testing.T, where string, got *types.OverlayPayload, want, mass []float64) {
 	t.Helper()
 	if got == nil || got.Shape != types.OverlayShapeSeries || got.Series == nil || len(got.Series.Entries) != len(want) {
@@ -159,6 +179,11 @@ func TestCorrespondence_MatchesR(t *testing.T) {
 				assertSignedMatrix(t, "column_contribution", p[CorrespondencePartColumnContribution], c.ColContrib, ones, 1e-10)
 				assertQualitySeries(t, "row_quality", p[CorrespondencePartRowQuality], c.RowQuality, c.RowMass)
 				assertQualitySeries(t, "column_quality", p[CorrespondencePartColumnQuality], c.ColQuality, c.ColMass)
+				if len(c.RowDistance) != len(c.KeptRows) || len(c.ColDistance) != len(c.KeptCols) {
+					t.Fatalf("fixture distances %d / %d, want %d / %d", len(c.RowDistance), len(c.ColDistance), len(c.KeptRows), len(c.KeptCols))
+				}
+				assertSquareMatrix(t, "row_distance", p[CorrespondencePartRowDistance], c.RowDistance, 1e-12)
+				assertSquareMatrix(t, "column_distance", p[CorrespondencePartColumnDistance], c.ColDistance, 1e-12)
 			})
 			seen++
 		}
@@ -190,6 +215,102 @@ func TestCorrespondence_GreenacreWorkedExample(t *testing.T) {
 	for k, want := range []float64{0.878, 0.118} {
 		if got := layer.Payload.Series.Entries[k].Summary.Parameters["share"]; math.Abs(got-want) > 0.0005 {
 			t.Errorf("share dim %d = %.4f, published %.3f", k+1, got, want)
+		}
+	}
+}
+
+// TestCorrespondence_ChiSquareDistances: the row_distance /
+// column_distance parts are the pairwise chi-square profile distances
+// (linalg/metric chi_square resolved for ConsumerCorrespondence): on
+// Greenacre's smoking data they equal the exact rational hand
+// computation; each part is symmetric bit for bit with a 0 diagonal,
+// keyed by the host axis on both sides; they satisfy the CA identity
+// Σ_i Σ_k m_i m_k d²(i, k) = 2 × total inertia (an independent path:
+// the SVD side's Σ S²); they equal the registry kernel bit for bit; and
+// neither dimensions nor normalization moves a bit.
+func TestCorrespondence_ChiSquareDistances(t *testing.T) {
+	smoke := [][]float64{{4, 2, 3, 2}, {4, 3, 7, 4}, {25, 10, 12, 4}, {18, 24, 33, 13}, {10, 6, 7, 2}}
+	host := countHost(smoke)
+	layer, _, err := applyCorrespondence(correspondenceSpec(""), host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := layer.Payload.Parts
+	rowD, colD := p[CorrespondencePartRowDistance], p[CorrespondencePartColumnDistance]
+	// sqrt(Σ_j (O_1j/11 − O_2j/18)² / (c_j / 193)), exact in rationals
+	// before the root: senior managers vs junior managers; none vs heavy.
+	caClose(t, "row_distance[SM][JM]", cellFloat(t, "row", rowD.Matrix.Cells[0][1]), 0.34476607501369333, 1e-14)
+	caClose(t, "column_distance[none][heavy]", cellFloat(t, "col", colD.Matrix.Cells[0][3]), 0.7076722078385754, 1e-14)
+
+	hostMx := host.Payload()
+	for _, c := range []struct {
+		name   string
+		part   *types.OverlayPayload
+		header types.AxisHeader
+		keys   []types.AxisKey
+		mass   string
+	}{
+		{"row_distance", rowD, hostMx.RowHeader, hostMx.RowKeys, CorrespondencePartRowQuality},
+		{"column_distance", colD, hostMx.ColumnHeader, hostMx.ColumnKeys, CorrespondencePartColumnQuality},
+	} {
+		m := c.part.Matrix
+		if c.part.Shape != types.OverlayShapeMatrix || m.CellLabel != c.name ||
+			m.RowHeader.Fields[0] != c.header.Fields[0] || m.ColumnHeader.Fields[0] != c.header.Fields[0] ||
+			len(m.RowKeys) != len(c.keys) || len(m.ColumnKeys) != len(c.keys) {
+			t.Fatalf("%s: shape %s label %q headers %v × %v keys %d × %d", c.name, c.part.Shape, m.CellLabel, m.RowHeader, m.ColumnHeader, len(m.RowKeys), len(m.ColumnKeys))
+		}
+		masses := p[c.mass].Series.Entries
+		var sum float64
+		for i := range m.Cells {
+			if m.RowKeys[i][0] != c.keys[i][0] || m.ColumnKeys[i][0] != c.keys[i][0] {
+				t.Errorf("%s key %d = %v / %v, want %v", c.name, i, m.RowKeys[i], m.ColumnKeys[i], c.keys[i])
+			}
+			if d := cellFloat(t, c.name, m.Cells[i][i]); d != 0 {
+				t.Errorf("%s[%d][%d] = %v, want 0", c.name, i, i, d)
+			}
+			for k := range m.Cells[i] {
+				d := cellFloat(t, c.name, m.Cells[i][k])
+				if back := cellFloat(t, c.name, m.Cells[k][i]); math.Float64bits(d) != math.Float64bits(back) {
+					t.Errorf("%s[%d][%d] = %v, mirror %v", c.name, i, k, d, back)
+				}
+				sum += masses[i].Summary.Parameters["mass"] * masses[k].Summary.Parameters["mass"] * d * d
+			}
+		}
+		caClose(t, c.name+" Σ m_i m_k d² / 2", sum/2, *layer.Summary.Statistic, 1e-12)
+	}
+
+	// The registry kernel, bit for bit (same process).
+	m, err := metric.ResolveFor(metric.ConsumerCorrespondence, "chi_square", metric.Distance)
+	if err != nil {
+		t.Fatal(err)
+	}
+	colMass := make([]float64, 4)
+	for j, e := range p[CorrespondencePartColumnQuality].Series.Entries {
+		colMass[j] = e.Summary.Parameters["mass"]
+	}
+	want, err := m.Eval(metric.Distance, smoke[2], smoke[4], &metric.Stats{ColumnMasses: colMass})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cellFloat(t, "row", rowD.Matrix.Cells[2][4]); math.Float64bits(got) != math.Float64bits(want) {
+		t.Errorf("row_distance[2][4] = %.17g, registry %.17g", got, want)
+	}
+
+	// Full-space distances: dimensions and normalization never move them.
+	for _, params := range []string{`{"dimensions":1}`, `{"dimensions":3,"normalization":"row_principal"}`, `{"normalization":"column_principal"}`} {
+		other, _, err := applyCorrespondence(correspondenceSpec(params), countHost(smoke))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range []string{CorrespondencePartRowDistance, CorrespondencePartColumnDistance} {
+			a, b := p[name].Matrix.Cells, other.Payload.Parts[name].Matrix.Cells
+			for i := range a {
+				for k := range a[i] {
+					if math.Float64bits(a[i][k].Value.(float64)) != math.Float64bits(b[i][k].Value.(float64)) {
+						t.Errorf("%s %s[%d][%d] moved: %v vs %v", params, name, i, k, b[i][k].Value, a[i][k].Value)
+					}
+				}
+			}
 		}
 	}
 }
@@ -226,8 +347,8 @@ func TestCorrespondence_Layer(t *testing.T) {
 		t.Fatalf("summary parameters %v", s.Parameters)
 	}
 	caClose(t, "retained_share", s.Parameters["retained_share"], s.Parameters["share_dim_1"]+s.Parameters["share_dim_2"], 1e-12)
-	if len(layer.Payload.Parts) != 6 {
-		t.Fatalf("%d parts, want 6", len(layer.Payload.Parts))
+	if len(layer.Payload.Parts) != 8 {
+		t.Fatalf("%d parts, want 8", len(layer.Payload.Parts))
 	}
 	hostMx := host.Payload()
 	for _, name := range []string{CorrespondencePartRowCoordinates, CorrespondencePartRowContribution, CorrespondencePartColumnCoordinates, CorrespondencePartColumnContribution} {
@@ -457,6 +578,17 @@ func TestCorrespondence_ZeroMargins(t *testing.T) {
 	if len(rows) != 3 || rows[1][0] != "C" || len(cols) != 3 || cols[1].Key[0] != "z" {
 		t.Fatalf("kept rows %v / columns %v", rows, cols)
 	}
+	// The distance parts read the kept table only: a dropped point is on
+	// neither axis.
+	for _, name := range []string{CorrespondencePartRowDistance, CorrespondencePartColumnDistance} {
+		m := layer.Payload.Parts[name].Matrix
+		if len(m.RowKeys) != 3 || len(m.ColumnKeys) != 3 || len(m.Cells) != 3 || m.RowKeys[1][0] != m.ColumnKeys[1][0] {
+			t.Errorf("%s keys %v × %v (%d rows)", name, m.RowKeys, m.ColumnKeys, len(m.Cells))
+		}
+	}
+	if k := layer.Payload.Parts[CorrespondencePartRowDistance].Matrix.RowKeys[1][0]; k != "C" {
+		t.Errorf("row_distance kept keys skip the zero row: got %v", k)
+	}
 
 	for name, table := range map[string][][]float64{
 		"one row left":    {{1, 2, 3}, {0, 0, 0}},
@@ -498,6 +630,16 @@ func TestCorrespondence_DegenerateDimensions(t *testing.T) {
 	if q := *layer.Payload.Parts[CorrespondencePartRowQuality].Series.Entries[0].Summary.Statistic; !math.IsNaN(q) {
 		t.Errorf("row quality %v, want NaN (profile on the centroid)", q)
 	}
+	// Identical profiles are a defined distance of 0, never undefined.
+	for _, part := range []string{CorrespondencePartRowDistance, CorrespondencePartColumnDistance} {
+		for _, row := range layer.Payload.Parts[part].Matrix.Cells {
+			for _, c := range row {
+				if v := c.Value.(float64); !c.Present || math.Abs(v) > 1e-12 {
+					t.Errorf("%s cell %+v, want a present ~0 (identical profiles)", part, c)
+				}
+			}
+		}
+	}
 }
 
 // TestCorrespondence_DispatchGates: through the MATRIX dispatcher the
@@ -507,7 +649,7 @@ func TestCorrespondence_DegenerateDimensions(t *testing.T) {
 func TestCorrespondence_DispatchGates(t *testing.T) {
 	host := countHost([][]float64{{10, 20, 5}, {20, 10, 8}, {3, 9, 14}})
 	layers, _, err := applyOverlays([]types.OverlaySpec{*correspondenceSpec("")}, host)
-	if err != nil || len(layers) != 1 || len(layers[0].Payload.Parts) != 6 {
+	if err != nil || len(layers) != 1 || len(layers[0].Payload.Parts) != 8 {
 		t.Fatalf("dispatch: layers %+v err %v", layers, err)
 	}
 	for _, edit := range []func(*types.OverlaySpec){

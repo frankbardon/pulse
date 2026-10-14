@@ -43,7 +43,7 @@ func newMahalanobisAttribute(attr *types.Attribute, schema *encoding.Schema) (At
 	if cerr != nil {
 		return nil, cerr
 	}
-	return newFittedVectorAttribute(attr, schema, cfg.FitOn, &mahalanobisModel{output: cfg.Output})
+	return newFittedVectorAttribute(attr, schema, fittedSource{fitOn: cfg.FitOn, fit: cfg.Fit, labels: cfg.Labels}, &mahalanobisModel{output: cfg.Output})
 }
 
 // fit centres on the fit mean and factors the covariance.

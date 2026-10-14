@@ -101,6 +101,9 @@ func wvBuffered(t *testing.T, records []*Record) map[string]any {
 }
 
 func wvClose(got, want float64) bool {
+	if math.IsNaN(want) {
+		return math.IsNaN(got)
+	}
 	if want == 0 {
 		return math.Abs(got) <= wvTol
 	}
@@ -213,9 +216,10 @@ func TestWeightedMean_VarianceComponents_EdgeCells(t *testing.T) {
 		want map[string]float64
 	}{
 		{
+			// Σw = 0 ≤ 1: the sample variance is undefined (E4-S6).
 			name: "empty",
 			want: map[string]float64{
-				"m2_weighted": 0, "sum_weights_sq": 0, "weighted_variance": 0, "n_eff": 0,
+				"m2_weighted": 0, "sum_weights_sq": 0, "weighted_variance": math.NaN(), "n_eff": 0,
 			},
 		},
 		{
@@ -229,24 +233,25 @@ func TestWeightedMean_VarianceComponents_EdgeCells(t *testing.T) {
 		},
 		{
 			// Σw = 0.9 ≤ 1: no positive (Σw − 1) denominator, so
-			// weighted_variance reports 0 even though m2 > 0.
+			// weighted_variance is undefined — NaN (JSON null), never 0
+			// (E4-S6) — even though m2 > 0.
 			// mean = (0.4·1 + 0.5·3)/0.9 = 19/9; m2 = 0.4·(10/9)² + 0.5·(8/9)²
 			// = 0.8/0.9 = 8/9; Σw² = 0.41; n_eff = 0.81/0.41 = 81/41.
 			name: "sumWeightsBelowOne",
 			xs:   []float64{1, 3}, ws: []float64{0.4, 0.5},
 			want: map[string]float64{
 				"sum_weights": 0.9, "m2_weighted": 8.0 / 9.0, "sum_weights_sq": 0.41,
-				"weighted_variance": 0, "n_eff": 81.0 / 41.0,
+				"weighted_variance": math.NaN(), "n_eff": 81.0 / 41.0,
 			},
 		},
 		{
-			// Σw exactly 1 is still ≤ 1 → weighted_variance 0.
+			// Σw exactly 1 is still ≤ 1 → weighted_variance undefined.
 			// mean = 2; m2 = 0.5·1 + 0.5·1 = 1; Σw² = 0.5; n_eff = 2.
 			name: "sumWeightsExactlyOne",
 			xs:   []float64{1, 3}, ws: []float64{0.5, 0.5},
 			want: map[string]float64{
 				"sum_weights": 1, "m2_weighted": 1, "sum_weights_sq": 0.5,
-				"weighted_variance": 0, "n_eff": 2,
+				"weighted_variance": math.NaN(), "n_eff": 2,
 			},
 		},
 	}
@@ -258,10 +263,10 @@ func TestWeightedMean_VarianceComponents_EdgeCells(t *testing.T) {
 		})
 	}
 
-	// A never-finalized aggregator emits the explicit zero map too.
+	// A never-finalized aggregator emits the empty map too.
 	got := wvComponents(t, wvNew(t))
 	wvAssert(t, "unfrozen", got, map[string]float64{
-		"m2_weighted": 0, "sum_weights_sq": 0, "weighted_variance": 0, "n_eff": 0,
+		"m2_weighted": 0, "sum_weights_sq": 0, "weighted_variance": math.NaN(), "n_eff": 0,
 	})
 }
 

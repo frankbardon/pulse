@@ -279,6 +279,16 @@ record count — the gap widens, not narrows, as a cohort grows. Build
 the index once with `BuildIndex`; every subsequent `Lookup` against
 that key combination pays only the flat O(1) cost.
 
+## Comparing rows with a stored record
+
+`ATTR_PROFILE_SIMILARITY` and `ATTR_VEC_DISTANCE` accept
+`reference: {record: {cohort?, keys: [{field, value}]}}` — one record
+looked up through this same index (the request's own cohort when
+`cohort` is omitted) before the run, assert-unique, and read by member
+column name. Every refusal above refuses that `Process` with the same
+code; there is no scan fallback, and `Predict` (which reads no index)
+checks only the reference's shape.
+
 ## See also
 
 - [`pulse api lookup`](../cli/api-lookup.md) — the CLI leaf for

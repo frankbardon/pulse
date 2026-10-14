@@ -74,7 +74,7 @@ func TestProcess_OverlaysSeriesPopulatesResponse(t *testing.T) {
 	req.Overlays = []types.OverlaySpec{
 		{
 			Kind:  types.OverlayKindIndexVsTotal,
-			Scope: types.OverlayScopeRow,
+			Scope: types.OverlayScopeGroup,
 		},
 	}
 	proc := NewProcessor(schema)
@@ -190,7 +190,7 @@ func TestProcess_OverlayMixedModeDowngrades(t *testing.T) {
 	// admit (this is the baseline so we know the path-agnostic assertion
 	// below is exercising the downgrade rather than another gate).
 	req.Overlays = []types.OverlaySpec{
-		{Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeRow},
+		{Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeGroup},
 	}
 	if !CanStreamRequest(req, schema) {
 		t.Fatalf("CanStreamRequest=false for pure-streamable overlay slate; expected true so the downgrade rule is the only knob this test moves")
@@ -199,10 +199,10 @@ func TestProcess_OverlayMixedModeDowngrades(t *testing.T) {
 	// CanStreamRequest MUST return false (mixed-mode downgrade rule
 	// per PRD §6).
 	req.Overlays = []types.OverlaySpec{
-		{Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeRow},
+		{Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeGroup},
 		{
 			Kind:  types.OverlayKindIndexVsSibling,
-			Scope: types.OverlayScopeRow,
+			Scope: types.OverlayScopeGroup,
 			Ref: types.OverlayRef{
 				Sibling: &types.OverlaySiblingRef{Field: "region", Value: "east"},
 			},
@@ -215,7 +215,7 @@ func TestProcess_OverlayMixedModeDowngrades(t *testing.T) {
 	req.Overlays = []types.OverlaySpec{
 		{
 			Kind:  types.OverlayKindIndexVsSibling,
-			Scope: types.OverlayScopeRow,
+			Scope: types.OverlayScopeGroup,
 			Ref: types.OverlayRef{
 				Sibling: &types.OverlaySiblingRef{Field: "region", Value: "east"},
 			},

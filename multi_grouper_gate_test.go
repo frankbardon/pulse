@@ -1304,7 +1304,7 @@ func mgWriteBitsCohort(t *testing.T, p *pulse.Pulse, path string, from, to int) 
 // tree, so their bits cannot depend on the partition; a scalar
 // AGG_SUM / AGG_AVERAGE / AGG_STDDEV merges through MergeOnline and is
 // ULP-bounded across worker counts by design, with one grouper as with
-// several (.claude/reference/execution-modes.md, Blocked merge).
+// several (.claude/reference/execution-modes/shards-and-merge.md, Blocked merge).
 func mgBitsRequest(cohort string, groups []*types.Group, weighted bool) *types.Request {
 	var w types.SlotWeight
 	if weighted {

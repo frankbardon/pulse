@@ -367,6 +367,8 @@ func extensionNames(snap *descx.ExtensionsSnapshot, category string) []string {
 		metas = snap.Features
 	case "test":
 		metas = snap.Tests
+	case "matrix":
+		metas = snap.MatrixOps
 	case "overlay":
 		metas = snap.OverlayKinds
 	default:
@@ -752,6 +754,7 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	props["vectors"] = vectorsSchema()
 	props["matrices"] = matricesSchema(c, inst)
 	props["models"] = modelsSchema("Saved model files loaded by name, before any record is read, into the namespace Compose `fits` bind: ATTR_REG_PREDICT `fit` and coef() resolve a loaded name like a fit. A name bound twice is PULSE_MODEL_NAME_COLLISION.")
+	props["populations"] = populationsSchema()
 
 	itemProps := func(slot string) map[string]any {
 		arr, _ := props[slot].(map[string]any)
@@ -768,7 +771,7 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	itemProps("groups")["vector"] = groupVectorSchema()
 	itemProps("groups")["fields"] = groupFieldsSchema()
 	aggs := itemProps("aggregations")
-	aggs["vector"] = map[string]any{"type": "string", "description": "Vector aggregators (AGG_VEC_MEAN, AGG_VEC_SUM, and any extension aggregator whose manifest entry declares vector_input): the Request.Vectors entry whose members are aggregated; exactly one of vector / fields, and no field."}
+	aggs["vector"] = map[string]any{"type": "string", "description": "Vector aggregators (AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD, and any extension aggregator whose manifest entry declares vector_input): the Request.Vectors entry whose members are aggregated; exactly one of vector / fields, and no field."}
 	aggs["fields"] = map[string]any{"type": "array", "description": "Vector aggregators (built-in, or an extension declaring vector_input): inline members (names and / or globs); exactly one of vector / fields.", "items": map[string]any{"type": "string"}}
 	attr := itemProps("attributes")
 	attr["target"] = enumStringField(c.Numeric, "Dependent variable for the regression attributes (ATTR_REG_FITTED / RESIDUAL / LEVERAGE).")
@@ -968,6 +971,26 @@ func modelsSchema(desc string) map[string]any {
 			"properties": map[string]any{
 				"name": map[string]any{"type": "string", "description": "The name references use; unique across the request's models and any fit."},
 				"path": map[string]any{"type": "string", "description": "The model file, relative to the data root, ending .pulse-model.json."},
+			},
+			"required":             []string{"name", "path"},
+			"additionalProperties": false,
+		},
+	}
+}
+
+// populationsSchema is Request.populations (types.PopulationRef):
+// population files a vector fit's `save` wrote, loaded by name as
+// vector fits. Dropped with the slot when capability:models is hidden
+// (dropHiddenSlots).
+func populationsSchema() map[string]any {
+	return map[string]any{
+		"type":        "array",
+		"description": "Saved population files (a Compose vector fit's save) loaded by name, before any record is read, as vector fits: a fitted attribute's or MAT_* slot's params.fit resolves a loaded name like a Compose vector fit, aligned by member label. A name bound twice is PULSE_MODEL_NAME_COLLISION.",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string", "description": "The name params.fit uses; unique across the request's models, populations and any fit."},
+				"path": map[string]any{"type": "string", "description": "The population file, relative to the data root, ending .pulse-population.json."},
 			},
 			"required":             []string{"name", "path"},
 			"additionalProperties": false,
@@ -1181,13 +1204,14 @@ func columnInputAnyOf() []any {
 
 // crosstabArrayValuedVectorSchema / crosstabArrayValuedFieldsSchema
 // declare a crosstab aggregation slot's vector input: accepted on the
-// wire like every aggregation slot's, refused by the crosstab rule.
+// wire like every aggregation slot's, refused by the crosstab rule
+// unless params.element selects one element.
 func crosstabArrayValuedVectorSchema() map[string]any {
-	return map[string]any{"type": "string", "description": "Vector aggregators only (AGG_VEC_*, or an extension declaring vector_input), which a crosstab refuses when array-valued (Manifest.Crosstab.ArrayValuedAggregators, an extension's array_valued)."}
+	return map[string]any{"type": "string", "description": "Vector aggregators only (AGG_VEC_*, or an extension declaring vector_input), which a crosstab refuses when array-valued (Manifest.Crosstab.ArrayValuedAggregators, an extension's array_valued) unless a built-in AGG_VEC_* sets params.element to one member label (a scalar cell)."}
 }
 
 func crosstabArrayValuedFieldsSchema() map[string]any {
-	return map[string]any{"type": "array", "description": "Vector aggregators only (AGG_VEC_*), which a crosstab refuses (array-valued).", "items": map[string]any{"type": "string"}}
+	return map[string]any{"type": "array", "description": "Vector aggregators only (AGG_VEC_*), which a crosstab refuses (array-valued) unless params.element selects one member label (a scalar cell).", "items": map[string]any{"type": "string"}}
 }
 
 // crosstabSchema returns the JSON Schema for the Crosstab section.
@@ -1571,12 +1595,12 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 }
 
 // fitsSchema describes the ComposedRequest `fits` list (types.FitSpec):
-// named regression fits run once before any slot. Dropped with the slot
+// named regression or vector fits run once before any slot. Dropped with the slot
 // when capability:compose_fits is hidden (dropHiddenSlots).
 func fitsSchema(reqSchema map[string]any, inst *descx.InstanceSnapshot) map[string]any {
 	out := map[string]any{
 		"type":        "array",
-		"description": "Named regression fits, each run ONCE before any slot (sweep slots included); slots read the fitted model by name. Each fit's result is returned under the response `fits`, keyed by name.",
+		"description": "Named fits, each run ONCE before any slot (sweep slots included): a request with one regression (a regression fit), or with no regression and one matrix or fitted vector attribute (a vector fit, read by params.fit). Slots read the fit by name. Each fit's result is returned under the response `fits`, keyed by name (a vector fit as {vector: …}).",
 		"items": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -1586,7 +1610,7 @@ func fitsSchema(reqSchema map[string]any, inst *descx.InstanceSnapshot) map[stri
 			"required": []string{"name", "request"},
 		},
 	}
-	addModelSave(out, inst, "Write the bound model as a model file at this path (relative to the data root, ending .pulse-model.json) once the fit has run; overwriting warns PULSE_MODEL_OVERWRITTEN.")
+	addModelSave(out, inst, "Write the bound fit once it has run, at this path relative to the data root: a regression fit as a model file (ending .pulse-model.json), a vector fit as a population file (ending .pulse-population.json, loaded later with `populations`); overwriting warns PULSE_MODEL_OVERWRITTEN.")
 	return out
 }
 

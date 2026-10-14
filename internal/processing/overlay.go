@@ -168,7 +168,7 @@ func (h *CrosstabHostView) ColumnAxisDepth() int {
 // CellAt returns the scalar form of the host cell at (rowIdx,
 // colIdx) plus a present flag mirroring MatrixCell.Present. Returns
 // (0, false) when the indices are out of range or the cell is
-// structurally missing. Map-valued cells (RichAggregator outputs)
+// structurally missing or undefined (NaN). Map-valued cells (RichAggregator outputs)
 // fall through as (0, false) because the index-vs-margin handler is
 // scalar-only — the validator already rejects map-valued cell
 // aggregators paired with overlays that need division (the
@@ -190,6 +190,16 @@ func (h *CrosstabHostView) CellAt(rowIdx, colIdx int) (float64, bool) {
 		return 0, false
 	}
 	v, ok := scalarFromCell(cell)
+	if ok && math.IsNaN(v) {
+		// An undefined cell (an all-null AGG_AVERAGE bucket, a vector
+		// element cell nobody answered, a degenerate shape moment) is a
+		// MISSING cell to every crosstab-host overlay, exactly as an
+		// absent one: it scores no statistic, raises no warning, and
+		// never reaches a bucket sum, a slice SD or a test table — the
+		// series-host rule, on the matrix (matrix-extensions-hardening
+		// E4-S6; .claude/reference/execution-modes/overlays.md).
+		return 0, false
+	}
 	return v, ok
 }
 
@@ -275,10 +285,9 @@ func scalarFromCell(cell types.MatrixCell) (float64, bool) {
 // shaped OverlayLayer (Name + Kind + Scope + Ref + Payload + optional
 // Summary) plus a slice of warnings for cells the handler could not
 // resolve (zero denominator, missing margin slot). A handler error
-// short-circuits applyOverlays — used today for unknown-kind dispatch;
-// per-kind contracts (axis mismatch, scope unsupported) are caught at
-// predict time and should not reach here, but applyOverlays still runs
-// defensive guards.
+// short-circuits applyOverlays. The Ref / Scope contract never reaches a
+// handler: applyOverlaysPlanned raises overlayhost.CrosstabSpecRefusal
+// (predict's twin) before dispatch.
 type overlayHandler func(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error)
 
 // overlayHandlers is the per-kind dispatch table. The
@@ -310,6 +319,8 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 	types.OverlayKindShareOfRow:                applyShareOfRow,
 	types.OverlayKindShareOfTotal:              applyShareOfTotal,
 	types.OverlayKindStdResidual:               applyStdResidual,
+	types.OverlayKindSymmetry:                  applySymmetry,
+	types.OverlayKindRetention:                 applyRetention,
 	types.OverlayKindZScoreVsMargin:            applyZScoreVsMargin,
 }
 
@@ -402,6 +413,15 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 		if cerr := overlayhost.ShapeRefusal(types.OverlayShapeMatrix, spec.Kind, route, i); cerr != nil {
 			return nil, nil, cerr
 		}
+		// A crosstab kind's Ref / Scope rule (a set Ref on an
+		// implicit-margin kind, a missing or unknown Ref.Margin, an
+		// unsupported scope) — the shared overlayhost refusal predict
+		// raises first in its per-kind validator, same code, message and
+		// details. Every MATRIX arm folds through here: the fused and
+		// buffered crosstab exits and a Compose slot's own overlays.
+		if cerr := overlayhost.CrosstabSpecRefusal(spec, route, i); cerr != nil {
+			return nil, nil, cerr
+		}
 		if err := validateOverlayLevelWithinRuntime(spec, route, host, i); err != nil {
 			return nil, nil, err
 		}
@@ -466,6 +486,10 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 			layer, ws, err = applyMarkovAt(spec, host, i)
 		case types.OverlayKindRake:
 			layer, ws, err = applyRakeAt(spec, host, i)
+		case types.OverlayKindSymmetry:
+			layer, ws, err = applySymmetryAt(spec, host, i)
+		case types.OverlayKindRetention:
+			layer, ws, err = applyRetentionAt(spec, host, i)
 		default:
 			layer, ws, err = handler(spec, host)
 		}
@@ -526,7 +550,9 @@ func validateOverlayLevelWithinRuntime(spec *types.OverlaySpec, route types.Over
 		types.OverlayKindStdResidual,
 		types.OverlayKindCorrespondence,
 		types.OverlayKindMarkov,
-		types.OverlayKindRake:
+		types.OverlayKindRake,
+		types.OverlayKindSymmetry,
+		types.OverlayKindRetention:
 		// Inferential family — Level / Within must both be zero. Non-
 		// zero values alter the implicit-margin contract those kinds
 		// rely on (they compute contingency from the host's row + col
@@ -2925,6 +2951,14 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// STD_RESIDUAL is implicit-margin (no axis dispatch);
 		// lower-case bare-kind default like the CHISQ_* family.
 		return "std_residual"
+	case types.OverlayKindSymmetry:
+		// SYMMETRY is implicit-margin (the whole table); lower-case
+		// bare-kind default like the CHISQ_* family.
+		return "symmetry"
+	case types.OverlayKindRetention:
+		// RETENTION is implicit-margin (each row over its total);
+		// lower-case bare-kind default like the CHISQ_* family.
+		return "retention"
 	case types.OverlayKindIndexVsBaseline:
 		// INDEX_VS_BASELINE is the windowed positional-baseline kind; the
 		// synthesised default surfaces the lower-case bare-kind string

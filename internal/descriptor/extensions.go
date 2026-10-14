@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/mergegate"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -24,11 +25,22 @@ type ExtensionsSnapshot struct {
 	Features           []descriptor.OperatorMeta
 	Tests              []descriptor.OperatorMeta
 	SynthDistributions []descriptor.OperatorMeta
-	ExprFunctions      []descriptor.ExprFunctionMeta
-	LookupTables       []descriptor.LookupTableMeta
-	ReferenceVectors   []descriptor.ReferenceVectorMeta
-	LabelTables        []descriptor.LabelTableMeta
-	RangeTables        []descriptor.RangeTableMeta
+	// MatrixOps are the extension MAT_* operators
+	// (pulse.MatrixOpRegistration): Name, Namespace, Description,
+	// Streamable (the declared tier; Mergeable follows it), WeightAware,
+	// Accepts and Params, so every per-category walk (MCP enums, the
+	// ontology, the merge gate, the weight resolver) reads them like any
+	// other category. MatrixDetails carries the matrix-only facts.
+	MatrixOps        []descriptor.OperatorMeta
+	ExprFunctions    []descriptor.ExprFunctionMeta
+	LookupTables     []descriptor.LookupTableMeta
+	ReferenceVectors []descriptor.ReferenceVectorMeta
+	LabelTables      []descriptor.LabelTableMeta
+	RangeTables      []descriptor.RangeTableMeta
+	// Populations are the instance's registered populations: the names
+	// and member labels predict binds beneath every request (the
+	// runtime's registered set, statically — PopulationCatalog).
+	Populations []descriptor.PopulationMeta
 
 	// ComponentSchemas projects per-extension ComponentSchema
 	// declarations keyed by registered operator name. The map carries
@@ -46,6 +58,12 @@ type ExtensionsSnapshot struct {
 	// lookups fall through to this map when the built-in capability
 	// table does not carry an entry for the slot's operator name.
 	ComponentSchemas map[string]descriptor.ComponentSchema
+
+	// MatrixDetails carries each extension MAT_* operator's matrix-only
+	// facts (typed Accepts, OutputKeys, the p-value key, manifest
+	// params), keyed by name; its own ComponentSchema keys ride
+	// ComponentSchemas. Never serialised.
+	MatrixDetails map[string]ExtensionMatrixOp `json:"-"`
 
 	// OverlayKinds is the forward-compat reservation slot for
 	// embedder-registered overlay catalog entries. The runtime
@@ -152,11 +170,13 @@ func emptyExtensionsManifest() descriptor.ExtensionsManifest {
 		Features:           []descriptor.OperatorMeta{},
 		Tests:              []descriptor.OperatorMeta{},
 		SynthDistributions: []descriptor.OperatorMeta{},
+		MatrixOps:          []descriptor.MatrixMeta{},
 		ExprFunctions:      []descriptor.ExprFunctionMeta{},
 		LookupTables:       []descriptor.LookupTableMeta{},
 		ReferenceVectors:   []descriptor.ReferenceVectorMeta{},
 		LabelTables:        []descriptor.LabelTableMeta{},
 		RangeTables:        []descriptor.RangeTableMeta{},
+		Populations:        []descriptor.PopulationMeta{},
 	}
 }
 
@@ -181,6 +201,7 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 		ReferenceVectors:   sortReferenceVectorMeta(snap.ReferenceVectors),
 		LabelTables:        sortLabelTableMeta(snap.LabelTables),
 		RangeTables:        sortRangeTableMeta(snap.RangeTables),
+		Populations:        sortPopulationMeta(snap.Populations),
 	}
 	if out.Aggregators == nil {
 		out.Aggregators = []descriptor.OperatorMeta{}
@@ -206,6 +227,9 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 	if out.SynthDistributions == nil {
 		out.SynthDistributions = []descriptor.OperatorMeta{}
 	}
+	// The weighting-aware projection is stamped by assembleManifest,
+	// which knows whether the instance offers capability:weighting.
+	out.MatrixOps = extensionMatrixMetas(snap, true)
 	if out.ExprFunctions == nil {
 		out.ExprFunctions = []descriptor.ExprFunctionMeta{}
 	}
@@ -220,6 +244,35 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 	}
 	if out.RangeTables == nil {
 		out.RangeTables = []descriptor.RangeTableMeta{}
+	}
+	if out.Populations == nil {
+		out.Populations = []descriptor.PopulationMeta{}
+	}
+	return out
+}
+
+func sortPopulationMeta(in []descriptor.PopulationMeta) []descriptor.PopulationMeta {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]descriptor.PopulationMeta, len(in))
+	copy(out, in)
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+// PopulationCatalog is predict's view of the registered populations:
+// each a vector fit bound under its name with its member labels
+// (model.RegisteredSignature — the runtime's registered set,
+// statically). Nil (not a typed nil) when none are registered, so a
+// rule judging against it is exactly the one judging against nothing.
+func (s *ExtensionsSnapshot) PopulationCatalog() model.Catalog {
+	if s == nil || len(s.Populations) == 0 {
+		return nil
+	}
+	out := make(model.FitCatalog, len(s.Populations))
+	for _, m := range s.Populations {
+		out[m.Name] = model.RegisteredSignature(m.Name, m.Labels)
 	}
 	return out
 }
@@ -365,11 +418,12 @@ const (
 	extCategoryAggregator = "aggregator"
 	extCategoryAttribute  = "attribute"
 	extCategoryTest       = "test"
+	extCategoryMatrix     = "matrix"
 )
 
 // WeightAwareness reports whether name is an embedder-registered
-// operator of category ("aggregator", "attribute" or "test" — tier-1
-// and tier-2 tests alike) and, if so, whether its registration declared
+// operator of category ("aggregator", "attribute", "test" — tier-1
+// and tier-2 tests alike — or "matrix") and, if so, whether its registration declared
 // WeightAware. Nil-safe: a nil snapshot registers nothing.
 func (s *ExtensionsSnapshot) WeightAwareness(category, name string) (registered, aware bool) {
 	if s == nil {
@@ -383,6 +437,8 @@ func (s *ExtensionsSnapshot) WeightAwareness(category, name string) (registered,
 		metas = s.Attributes
 	case extCategoryTest:
 		metas = s.Tests
+	case extCategoryMatrix:
+		metas = s.MatrixOps
 	}
 	for _, m := range metas {
 		if m.Name == name {

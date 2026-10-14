@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -194,6 +195,10 @@ func TestCrosstab_BufferedAuxMarginMatchesFused(t *testing.T) {
 			s.Rows = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "brand", Include: []string{"beta"}}}
 			return s
 		},
+		// A vector element cell and auxiliary (params.element, the
+		// prepared one-member slot): admission reads the selected
+		// member's presence on both arms.
+		"vector element cell and auxiliary": vecElementAuxSpec,
 	}
 	for name, mk := range specs {
 		t.Run(name, func(t *testing.T) {
@@ -512,5 +517,38 @@ func TestCrosstab_BufferedAuxMarginLabelsTrackDeclarationOrder(t *testing.T) {
 	}
 	if len(aux.Grand) != len(want) {
 		t.Errorf("grand slot holds %d figures for %d labels", len(aux.Grand), len(want))
+	}
+}
+
+// vecElementAuxSpec is auxMarginSpec with an AGG_VEC_MEAN element cell
+// over `metric` and an AGG_VEC_SUM element auxiliary over `weight`, in
+// the prepared form the engine hands the arms
+// (vectors.AggregationSlotRewrite: the one selected member).
+func vecElementAuxSpec() *types.CrosstabSpec {
+	s := auxMarginSpec()
+	s.Cell = &types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"metric"}, Label: "m",
+		Params: json.RawMessage(`{"labels":["metric"],"element":"metric"}`)}
+	s.MarginAggregations = []*types.Aggregation{
+		{Type: types.AGG_VEC_SUM, Fields: []string{"weight"}, Label: "w",
+			Params: json.RawMessage(`{"labels":["weight"],"element":"weight"}`)},
+	}
+	return s
+}
+
+// TestCrosstab_VecElementAuxObservesCellAdmission: the element cell's
+// presence is its selected member's, so the auxiliary sees exactly the
+// two admitted respondents on both arms (weights 1 + 16) — never the
+// null-metric row, the Include-excluded row or the null column key.
+func TestCrosstab_VecElementAuxObservesCellAdmission(t *testing.T) {
+	buffered := driveBufferedAuxMargin(t, vecElementAuxSpec())
+	v, n, nNull := bufferedAuxFinal(t, buffered.Grand, 0)
+	if v != 17 || n != 2 || nNull != 0 {
+		t.Errorf("buffered grand element auxiliary = {value:%v n:%d n_null:%d}, want {17, 2, 0}; "+
+			"21 admits the null-metric row, 19 the Include-excluded row, 25 the null column key", v, n, nNull)
+	}
+	fused := driveAuxMargin(t, vecElementAuxSpec())
+	v, n, nNull = auxFinal(t, fused.grandMarginAux, 0)
+	if v != 17 || n != 2 || nNull != 0 {
+		t.Errorf("fused grand element auxiliary = {value:%v n:%d n_null:%d}, want {17, 2, 0}", v, n, nNull)
 	}
 }

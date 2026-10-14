@@ -24,7 +24,7 @@ mkdir -p "$DATA_DIR"
 
 FIXTURES=internal/examples/fixtures
 
-for cohort in transactions customers orders training_data all_types experiment repeated_measures card_issuers; do
+for cohort in transactions customers orders training_data all_types experiment repeated_measures card_issuers tier_migrations survey; do
   echo "==> building $cohort.pulse"
   "$PULSE_BIN" import csv \
     --input  "$FIXTURES/$cohort.csv" \
@@ -32,6 +32,11 @@ for cohort in transactions customers orders training_data all_types experiment r
     --schema "$FIXTURES/schemas/$cohort.json" \
     --json > /dev/null
 done
+
+# The point-lookup index a {record} comparison reference reads
+# (attributes/20_record_reference.json).
+echo "==> indexing experiment.pulse on id"
+"$PULSE_BIN" index build "$DATA_DIR/experiment.pulse" --key id --json > /dev/null
 
 echo
 echo "Cohorts written to: $DATA_DIR"

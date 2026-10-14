@@ -29,14 +29,16 @@ Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-r
 | Each row's score on a rating battery (mean or prorated sum, reverse-keyed items)? | `ATTR_SCALE_SCORE` (a row score) |
 | How closely does each row match a target profile? | `ATTR_PROFILE_SIMILARITY` (a row score) |
 | How far is each row from a target profile? | `ATTR_VEC_DISTANCE` (a row score) |
+| How close is each row to its segment's centroid, or a saved population's? | `ATTR_PROFILE_SIMILARITY` with `reference: {centroid: {by}}` / `{population}` |
 | Each group's average profile across the items, as one list? | `AGG_VEC_MEAN` |
 | Each group's total per item, as one list? | `AGG_VEC_SUM` |
+| How much each group disagrees on each item, as one list? | `AGG_VEC_SD` (sample sd per item) |
 | Which segments do the rows fall into across the fields? | `GROUP_KMEANS` (a grouper) |
 | How far apart are the segments' centres across the fields? | `MAT_DISTANCE` (`params.between` a grouper) |
 
 How uncertain are the coefficients of a fitted model, and how do they co-move? That is not a matrix slot: set `"vcov": true` on the regression ([`regression-inference`](regression-inference.md)).
 
-Rank correlation (`spearman`, `kendall`) suits ordinal data, outliers and monotone curves. It is buffered and serial, takes frequency weights only, and stays off the streaming path. PCA is a variance summary, not a factor model; `MAT_FACTOR` fits one (minres, principal axis or maximum likelihood with fit indices; varimax, promax or oblimin); `MAT_PCA` `rotation: varimax` gives a simpler loading pattern.
+Rank correlation (`spearman`, `kendall`) suits ordinal data, outliers and monotone curves. It is buffered and serial, takes frequency weights only, and stays off the streaming path. PCA is a variance summary, not a factor model; `MAT_FACTOR` fits one (minres, principal axis or maximum likelihood with fit indices; orthogonal or oblique rotation); `MAT_PCA` takes an orthogonal `rotation` (varimax, …) for a simpler loading pattern.
 
 ## Missing data
 
@@ -72,5 +74,6 @@ Per-test correction on other operators: [`multiplicity-correction`](multiplicity
 - [`op-mat-reliability`](op-mat-reliability.md)
 - [`op-attr-scale-score`](op-attr-scale-score.md)
 - [`op-agg-vec-mean`](op-agg-vec-mean.md)
+- [`op-agg-vec-sd`](op-agg-vec-sd.md)
 - [`op-mat-collinearity`](op-mat-collinearity.md)
 - [`regression-inference`](regression-inference.md) — coefficient covariance.

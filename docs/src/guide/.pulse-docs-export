@@ -82,6 +82,7 @@ skills/op-agg-stddev.md
 skills/op-agg-sum.md
 skills/op-agg-variance.md
 skills/op-agg-vec-mean.md
+skills/op-agg-vec-sd.md
 skills/op-agg-vec-sum.md
 skills/op-agg-weighted-mean.md
 skills/op-agg-welford.md
@@ -179,10 +180,12 @@ skills/op-overlay-prop-z-cell.md
 skills/op-overlay-prop-z-panel.md
 skills/op-overlay-rake.md
 skills/op-overlay-rank.md
+skills/op-overlay-retention.md
 skills/op-overlay-share-of-col.md
 skills/op-overlay-share-of-row.md
 skills/op-overlay-share-of-total.md
 skills/op-overlay-std-residual.md
+skills/op-overlay-symmetry.md
 skills/op-overlay-t-cell.md
 skills/op-overlay-t-vs-ref.md
 skills/op-overlay-yoy.md

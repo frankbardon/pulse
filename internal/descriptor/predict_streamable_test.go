@@ -387,11 +387,51 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 			{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 10, Scale: 2, Description: "Transaction amount in USD cents"},
 		},
 	}
+	vecSchema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "a", Type: encoding.FieldTypeF64, Description: "First battery item score"},
+			{Name: "b", Type: encoding.FieldTypeF64, Description: "Second battery item score"},
+		},
+	}
+	// fitted builds a request scoring attr type typ over a / b with
+	// params, an AGG_SUM over its label, and mutate applied.
+	fitted := func(typ types.AttributeType, params string, mutate func(*types.Request)) *types.Request {
+		r := &types.Request{
+			Attributes:   []*types.Attribute{{Type: typ, Label: "d", Fields: []string{"a", "b"}, Params: json.RawMessage(params)}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "d", Label: "s"}},
+		}
+		if mutate != nil {
+			mutate(r)
+		}
+		return r
+	}
+	grouped := func(r *types.Request) {
+		r.Groups = []*types.Group{{Type: types.GROUP_RANGE, Field: "a", Interval: 10}}
+	}
 	cases := []struct {
 		name   string
 		req    *types.Request
 		schema *encoding.Schema
 	}{
+		// U30 E2-S5: a fitted slot bound to a prebuilt fit (params.fit)
+		// is row-local — it streams beside a grouper, a matrix, a
+		// feature and a tier-1 test; the same slot folding its fit
+		// (fit_on) takes the two-pass drive and buffers there.
+		{"fit-bound mahalanobis with a grouper streams", fitted(types.ATTR_MAHALANOBIS, `{"fit":"pop"}`, grouped), vecSchema},
+		{"fit_on mahalanobis with a grouper buffers", fitted(types.ATTR_MAHALANOBIS, `{"fit_on":"filtered"}`, grouped), vecSchema},
+		{"fit-bound pc score with a grouper streams", fitted(types.ATTR_PC_SCORE, `{"fit":"pop","component":1}`, grouped), vecSchema},
+		{"fit-bound factor score with a grouper streams", fitted(types.ATTR_FACTOR_SCORE, `{"fit":"pop","factor":1,"factors":1}`, grouped), vecSchema},
+		{"fit-bound vec distance with a grouper streams", fitted(types.ATTR_VEC_DISTANCE, `{"fit":"pop","metric":"mahalanobis","reference":[0,0]}`, grouped), vecSchema},
+		{"fitted vec distance with a grouper buffers", fitted(types.ATTR_VEC_DISTANCE, `{"metric":"mahalanobis","reference":[0,0]}`, grouped), vecSchema},
+		{"fit-bound mahalanobis beside a matrix streams", fitted(types.ATTR_MAHALANOBIS, `{"fit":"pop"}`, func(r *types.Request) {
+			r.Matrices = []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"a", "b"}}}
+		}), vecSchema},
+		{"fit_on mahalanobis beside a matrix buffers", fitted(types.ATTR_MAHALANOBIS, ``, func(r *types.Request) {
+			r.Matrices = []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"a", "b"}}}
+		}), vecSchema},
+		{"fit-bound mahalanobis beside a tier-1 test streams", fitted(types.ATTR_MAHALANOBIS, `{"fit":"pop"}`, func(r *types.Request) {
+			r.Tests = []*types.Test{{Type: types.TEST_T, Field: "a"}}
+		}), vecSchema},
 		{"online aggregations on numeric", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}}}, numericSchema},
 		{"median on numeric", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "score"}}}, numericSchema},
 		{"sum on decimal", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "amount"}}}, decimalSchema},

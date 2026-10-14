@@ -1,5 +1,7 @@
 # Adding a Statistical Test
 
+> **Run the site checklist first.** `make sites ARGS="new-op test"` prints every file and declaration a new `TEST_*` lands in — derived from where the existing ones appear — with the tests to rerun and the goldens to regenerate; `make sites ARGS="op <NAME>"` does the same for an existing one. See [Finding Change Sites](finding-change-sites.md). This recipe explains each step.
+
 > **Embedding Pulse, not contributing to it?** This recipe adds a *built-in* in `internal/processing/`, which embedders cannot import. To add your own operator, implement the matching contract in the public `extend` package instead — see [Extension Points](extension-points.md).
 
 **Audience:** internals contributors adding a new `TEST_*` operator —
@@ -108,7 +110,7 @@ pattern at the aggregator layer.
 
 There is **no registered-test count or list in CLAUDE.md to update** —
 CLAUDE.md never hardcodes registered counts; the manifest is the source of
-truth. The Update Demand operator row (`.claude/reference/update-demand.md`)
+truth. The Update Demand operator row (`.claude/reference/update-demand/operators-and-guidance.md`)
 requires instead the atomic skill `skills/op-test-<kebab>.md`, the `types/streamability.go` case (§4), the capability declaration in
 `internal/descriptor/capabilities_tests.go` — and an `internal/examples/<dir>/*.json` example whose `_meta.operators`
 names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if the

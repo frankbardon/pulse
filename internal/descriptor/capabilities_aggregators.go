@@ -326,7 +326,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "weighted_mean", Type: "float64", Optional: true, Description: "Weighted slots only: Σw·x / Σw (the scalar)."},
 				descriptor.ComponentKey{Name: "m2_weighted", Type: "float64", Optional: true, Description: "Weighted slots only: Σw(x − mean)², the weighted second central moment."},
 				descriptor.ComponentKey{Name: "sum_weights_sq", Type: "float64", Optional: true, Description: "Weighted slots only: Σw², the Kish n_eff denominator."},
-				descriptor.ComponentKey{Name: "weighted_variance", Type: "float64", Optional: true, Description: "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; 0 when Σw ≤ 1."},
+				descriptor.ComponentKey{Name: "weighted_variance", Type: "float64", Optional: true, Description: "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; null (NaN) when Σw ≤ 1."},
 			),
 		},
 		{
@@ -434,7 +434,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "pop_mean", Type: "float64", Description: "Population mean used as the z-score center."},
 				descriptor.ComponentKey{Name: "pop_stddev", Type: "float64", Description: "Population standard deviation used as the z-score scale."},
 				descriptor.ComponentKey{Name: "target_value", Type: "float64", Description: "Value being standardized against the population summary."},
-				descriptor.ComponentKey{Name: "zscore", Type: "float64", Description: "Standardized score: (target_value - pop_mean) / pop_stddev."},
+				descriptor.ComponentKey{Name: "zscore", Type: "float64", Description: "Standardized score: (target_value - pop_mean) / pop_stddev; null (NaN) when pop_stddev is 0."},
 			),
 		},
 		{
@@ -491,7 +491,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Running mean of non-null field values."},
 				descriptor.ComponentKey{Name: "m2", Type: "float64", Description: "Second-moment accumulator (sum of squared deviations from the running mean)."},
 				descriptor.ComponentKey{Name: "m3", Type: "float64", Description: "Third-moment accumulator (sum of cubed deviations from the running mean)."},
-				descriptor.ComponentKey{Name: "skewness", Type: "float64", Description: "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); 0 when n <= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."},
+				descriptor.ComponentKey{Name: "skewness", Type: "float64", Description: "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); null (NaN) when n <= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."},
 			),
 		},
 		{
@@ -506,7 +506,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "m2", Type: "float64", Description: "Second-moment accumulator (sum of squared deviations from the running mean)."},
 				descriptor.ComponentKey{Name: "m3", Type: "float64", Description: "Third-moment accumulator (sum of cubed deviations from the running mean)."},
 				descriptor.ComponentKey{Name: "m4", Type: "float64", Description: "Fourth-moment accumulator (sum of fourth-power deviations from the running mean)."},
-				descriptor.ComponentKey{Name: "kurtosis", Type: "float64", Description: "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); 0 when n <= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."},
+				descriptor.ComponentKey{Name: "kurtosis", Type: "float64", Description: "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); null (NaN) when n <= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."},
 			),
 		},
 		{
@@ -596,7 +596,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "weighted_mean", Type: "float64", Description: "Resolved weighted mean: sum_weighted / sum_weights."},
 				descriptor.ComponentKey{Name: "m2_weighted", Type: "float64", Description: "Weighted second central moment: sum(weight * (field - weighted_mean)^2)."},
 				descriptor.ComponentKey{Name: "sum_weights_sq", Type: "float64", Description: "Running sum of squared weights; feeds the Kish effective sample size."},
-				descriptor.ComponentKey{Name: "weighted_variance", Type: "float64", Description: "Frequency-weights variance m2_weighted / (sum_weights - 1); 0 when sum_weights <= 1."},
+				descriptor.ComponentKey{Name: "weighted_variance", Type: "float64", Description: "Frequency-weights variance m2_weighted / (sum_weights - 1); null (NaN) when sum_weights <= 1."},
 				descriptor.ComponentKey{Name: "n_eff", Type: "float64", Description: "Kish effective sample size sum_weights^2 / sum_weights_sq; 0 for an empty cell."},
 			),
 		},
@@ -720,7 +720,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			ComponentSchema: aggSchema(descriptor.Mergeable,
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Running Welford mean of non-null field values."},
 				descriptor.ComponentKey{Name: "m2", Type: "float64", Description: "Welford second-moment accumulator (sum of squared deviations from the running mean)."},
-				descriptor.ComponentKey{Name: "variance", Type: "float64", Description: "Unbiased sample variance derived from m2 / (n-1)."},
+				descriptor.ComponentKey{Name: "variance", Type: "float64", Description: "Unbiased sample variance derived from m2 / (n-1); null (NaN) when n < 2 (weighted: sum_weights <= 1)."},
 				descriptor.ComponentKey{Name: "stddev", Type: "float64", Description: "Sample standard deviation (square root of variance)."},
 			),
 		},
@@ -803,19 +803,34 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			),
 		},
 		vecAggCapability(types.AGG_VEC_MEAN,
-			"Per-member mean of a vector (vector or fields, exactly one; never field): one figure per member, in member order — the group's average profile. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) / sum(w) per element. An element no row answered is NaN (null in JSON). Array-valued: refused as a crosstab cell, a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: params.field where the kind honours it, else aggregations[0] — an unscored one beside it runs) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"<label>[<element label>]\" — presentation only, refused wherever the array is.",
+			"Per-member mean of a vector (vector or fields, exactly one; never field): one figure per member, in member order — the group's average profile. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) / sum(w) per element. An element no row answered is NaN (null in JSON). Array-valued: refused as a crosstab cell or margin aggregation (unless params.element selects one element), a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: params.field where the kind honours it, else aggregations[0] — an unscored one beside it runs) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"<label>[<element label>]\" — an ordinary nullable f64 column a Sort key, a window, a post-test, a series overlay's params.field or a later chain stage (an f64 input field) reads (an unanswered element is NaN, a null there and a missing host value to an overlay).",
 			"rich []float64, one mean per member in member order (an element no row answered is NaN, null in JSON); no scalar figure"),
 		vecAggCapability(types.AGG_VEC_SUM,
-			"Per-member total of a vector (vector or fields, exactly one; never field): one figure per member, in member order. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) per element. An element no row answered is 0. Array-valued: refused as a crosstab cell, a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: params.field where the kind honours it, else aggregations[0] — an unscored one beside it runs) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"<label>[<element label>]\" — presentation only, refused wherever the array is.",
+			"Per-member total of a vector (vector or fields, exactly one; never field): one figure per member, in member order. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) per element. An element no row answered is 0. Array-valued: refused as a crosstab cell or margin aggregation (unless params.element selects one element), a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: params.field where the kind honours it, else aggregations[0] — an unscored one beside it runs) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"<label>[<element label>]\" — an ordinary f64 column a Sort key, a window, a post-test, a series overlay's params.field or a later chain stage (an f64 input field) reads.",
 			"rich []float64, one total per member in member order (0 where no row answered); no scalar figure"),
+		vecAggCapability(types.AGG_VEC_SD,
+			"Per-member sample standard deviation of a vector (vector or fields, exactly one; never field): one figure per member, in member order — how widely the group's rows spread on each item. Missing data is per element: a null member skips that element only. Sample form: sqrt(M2 / (n - 1)) unweighted; weighted, sqrt(M2 / (sum(w) - 1)) under kind frequency (the expanded rows) and sqrt(M2 / (sum(w) - sum(w^2)/sum(w))) under kind probability (Kish n_eff), M2 = sum(w*(x - mean)^2). An element whose sample size (n, sum(w) or n_eff) is 1 or less is NaN (null in JSON), never 0. Array-valued: refused as a crosstab cell or margin aggregation (unless params.element selects one element), a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: params.field where the kind honours it, else aggregations[0] — an unscored one beside it runs) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"<label>[<element label>]\" — an ordinary nullable f64 column a Sort key, a window, a post-test, a series overlay's params.field or a later chain stage (an f64 input field) reads (an undefined element is NaN, a null there and a missing host value to an overlay).",
+			"rich []float64, one sample standard deviation per member in member order (NaN, null in JSON, where the element's sample size is 1 or less); no scalar figure",
+			descriptor.ComponentKey{Name: "element_mean", Type: "[]float64", Description: "AGG_VEC_SD: per member, the running weighted mean the moments are centred on (Welford-West; may differ from AGG_VEC_MEAN's sum(w*x)/sum(w) in the last bits). 0 where no row contributed."},
+			descriptor.ComponentKey{Name: "element_m2", Type: "[]float64", Description: "AGG_VEC_SD: per member, M2 = sum(w*(x - mean)^2) over contributing rows. Partials combine by Chan's rule per merge block in a fixed tree, bit-identical for any worker count."},
+			descriptor.ComponentKey{Name: "element_sum_weights_sq", Type: "[]float64", Description: "AGG_VEC_SD, weighted slot only: per member, sum(w^2) over contributing rows — Kish n_eff = sum(w)^2 / sum(w^2), the sample size under kind probability.", Optional: true},
+		),
 	}
 }
 
 // vecAggCapability declares a vector aggregator (AGG_VEC_MEAN /
-// AGG_VEC_SUM). Its columns are the slot's vector / fields members;
-// AcceptsTypes is the member types a vector carries without coerce
-// (packed_bool members need the vector's coerce "binary").
-func vecAggCapability(op types.AggregationType, desc, emits string) descriptor.Operator {
+// AGG_VEC_SUM / AGG_VEC_SD). Its columns are the slot's vector / fields
+// members; AcceptsTypes is the member types a vector carries without
+// coerce (packed_bool members need the vector's coerce "binary"). own
+// are the operator's component keys beyond the shared four.
+func vecAggCapability(op types.AggregationType, desc, emits string, own ...descriptor.ComponentKey) descriptor.Operator {
+	keys := []descriptor.ComponentKey{
+		{Name: "labels", Type: "[]string", Description: "Display label per member, in member order: the vector's labels, else params.labels, else the member names. An element slot (params.element) reports its one member, here and in every per-member key."},
+		{Name: "element_n", Type: "[]int", Description: "Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered)."},
+		{Name: "element_sum", Type: "[]float64", Description: "Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count."},
+		{Name: "element_sum_weights", Type: "[]float64", Description: "Weighted slot only: per member, the sum of contributing rows' weights (valid and > 0) — AGG_VEC_MEAN's denominator and AGG_VEC_SD's sample size under kind frequency.", Optional: true},
+	}
+	keys = append(keys, own...)
 	return descriptor.Operator{
 		Name:        string(op),
 		Category:    "aggregator",
@@ -829,18 +844,18 @@ func vecAggCapability(op types.AggregationType, desc, emits string) descriptor.O
 			{
 				Name:        "expand",
 				Type:        "bool",
-				Description: "true: replace the array with one scalar column per member, \"<label>[<element label>]\" in member order (grouped: per row); the label itself is absent. Predict lists the columns (aggregations[i].columns). Presentation only: Sort, windows, post-tests, overlays and a feeding chain stage refuse them (PROCESSING_CONFIG, reason array_valued); element labels must be distinct (expand_duplicate_labels). Return paths cannot name a bracketed column — select them with a prefix glob, data[*].<label>*. Default false.",
+				Description: "true: replace the array with one scalar column per member, \"<label>[<element label>]\" in member order (grouped: per row); the label itself is absent. Predict lists the columns (aggregations[i].columns). Each is an ordinary nullable f64 column: a Sort key, a window's field / order_by / partition_by, a post-test field and a series overlay's params.field (request, Compose or whole-chain host) read it, and so does a later chain stage, as an f64 input field (NaN, an element no row answered, is a null there and a missing host value to an overlay), while the bare label stays refused (PROCESSING_CONFIG, reason array_valued); element labels must be distinct (expand_duplicate_labels). A return path names one with a quoted segment, data[*].\"<label>[<element label>]\", or all with a prefix glob, data[*].<label>*. Default false.",
+			},
+			{
+				Name:        "element",
+				Type:        "string",
+				Description: "Crosstab cell or margin_aggregations only: the display label of the ONE member the slot reads, making it a scalar — that element's figure (the scalar twin's: AGG_AVERAGE / AGG_SUM of the member, except an unanswered element stays this operator's NaN / 0), its floor {n, n_null} over the member's presence (so a record reaches an auxiliary margin only if its selected member reached a cell) and one-entry components. Fuses and margins like the scalar twin. Refused beside expand (element_with_expand), outside a crosstab (element_outside_crosstab), naming no member label (element_unknown) or a shared one (element_ambiguous).",
 			},
 		},
-		AcceptsTypes:  numericFieldTypesNoDecimal,
-		EmitsTypeNote: emits,
-		Streamable:    true,
-		ComponentSchema: aggSchema(descriptor.Mergeable,
-			descriptor.ComponentKey{Name: "labels", Type: "[]string", Description: "Display label per member, in member order: the vector's labels, else params.labels, else the member names."},
-			descriptor.ComponentKey{Name: "element_n", Type: "[]int", Description: "Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered)."},
-			descriptor.ComponentKey{Name: "element_sum", Type: "[]float64", Description: "Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count."},
-			descriptor.ComponentKey{Name: "element_sum_weights", Type: "[]float64", Description: "Weighted slot only: per member, the sum of contributing rows' weights (valid and > 0) — AGG_VEC_MEAN's denominator.", Optional: true},
-		),
+		AcceptsTypes:    numericFieldTypesNoDecimal,
+		EmitsTypeNote:   emits,
+		Streamable:      true,
+		ComponentSchema: aggSchema(descriptor.Mergeable, keys...),
 	}
 }
 

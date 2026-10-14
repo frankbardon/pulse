@@ -150,6 +150,8 @@ func TestVecAgg_FactoryRefusals(t *testing.T) {
 		{"field", &types.Aggregation{Type: types.AGG_VEC_MEAN, Field: "a"}, errors.PROCESSING_CONFIG},
 		{"no fields", &types.Aggregation{Type: types.AGG_VEC_SUM}, errors.PROCESSING_CONFIG},
 		{"bad params", &types.Aggregation{Type: types.AGG_VEC_SUM, Fields: []string{"a"}, Params: json.RawMessage(`{"nope":1}`)}, errors.SERVICE_VALIDATION},
+		{"unnarrowed element", &types.Aggregation{Type: types.AGG_VEC_SUM, Fields: []string{"a", "b"}, Params: json.RawMessage(`{"element":"b"}`)}, errors.PROCESSING_INTERNAL},
+		{"element not its member", &types.Aggregation{Type: types.AGG_VEC_SUM, Fields: []string{"a"}, Params: json.RawMessage(`{"element":"b"}`)}, errors.PROCESSING_INTERNAL},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			_, err := newVecAggregator(c.agg, vecAggSchema())
@@ -163,7 +165,10 @@ func TestVecAgg_FactoryRefusals(t *testing.T) {
 
 // vecRandomRows: n rows of non-dyadic floats (so summation order
 // reaches the bits), ~10% nulls per member, stamped on shard (whose
-// first global ordinal is start).
+// first global ordinal is start). The float64(...) barrier keeps the
+// scale-and-shift two rounded operations: arm64 would otherwise fuse it
+// into one FMA and amd64 would not, so the inputs (and any word pinned
+// from them) would differ by architecture.
 func vecRandomRows(s *encoding.Schema, n, shard, start int, seed int64) []*Record {
 	rng := rand.New(rand.NewSource(seed))
 	out := make([]*Record, n)
@@ -171,7 +176,7 @@ func vecRandomRows(s *encoding.Schema, n, shard, start int, seed int64) []*Recor
 		if rng.Intn(10) == 0 {
 			return nan
 		}
-		return rng.NormFloat64()*1e3 + 1/3.0
+		return float64(rng.NormFloat64()*1e3) + 1/3.0
 	}
 	for i := range out {
 		out[i] = vecRec(s, val(), val(), val(), 0.1+rng.Float64())
@@ -203,7 +208,7 @@ func TestVecAgg_MergeBitExact(t *testing.T) {
 	var rows []*Record
 	rows = append(rows, vecRandomRows(s, n, 0, 0, 1)...)
 	rows = append(rows, vecRandomRows(s, n/2, 1, n, 2)...)
-	for _, typ := range []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM} {
+	for _, typ := range []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM, types.AGG_VEC_SD} {
 		for _, weighted := range []bool{false, true} {
 			serial := newVecAggForTest(t, typ, weighted, "")
 			for _, r := range rows {
@@ -256,7 +261,7 @@ func TestVecAgg_ShardSplitBitExact(t *testing.T) {
 		"one shard":           {n},
 		"leading empty shard": {0, 2, n - 2},
 	}
-	for _, typ := range []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM} {
+	for _, typ := range []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM, types.AGG_VEC_SD} {
 		for _, weighted := range []bool{false, true} {
 			ref := newVecAggForTest(t, typ, weighted, "")
 			for _, r := range single {
@@ -412,4 +417,54 @@ func TestVecAgg_WriteAggregationResult(t *testing.T) {
 	if err := WriteAggregationResult(row, "n", &countAggregator{}, 7); err != nil || row["n"] != 7.0 {
 		t.Errorf("scalar write = %v, %v", row, err)
 	}
+}
+
+// TestVecAgg_ElementScalar: an element slot (the prepared one-member
+// form) returns its element's figure from Aggregate and Finalize, no
+// Rich payload (the crosstab cell takes the scalar), and one-entry
+// components — equal to the same element of the full array slot.
+func TestVecAgg_ElementScalar(t *testing.T) {
+	s := vecAggSchema()
+	nan := math.NaN()
+	rows := []*Record{vecRec(s, 1, 2, nan, 1), vecRec(s, 3, nan, nan, 2), vecRec(s, 5, 7, nan, 1)}
+	for _, typ := range []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM, types.AGG_VEC_SD} {
+		full := newVecAggForTest(t, typ, true, "")
+		if _, err := full.Aggregate(rows, ""); err != nil {
+			t.Fatal(err)
+		}
+		arr, _ := full.Rich()
+		comp, _ := full.Components()
+		for k, m := range []string{"a", "b", "c"} {
+			agg := &types.Aggregation{Type: typ, Fields: []string{m}, Weight: types.SlotWeightField("w"),
+				Params: json.RawMessage(`{"labels":["` + m + `"],"element":"` + m + `"}`)}
+			inst, err := newVecAggregator(agg, s)
+			if err != nil {
+				t.Fatal(err)
+			}
+			a := inst.(*vecAggregator)
+			want := arr.([]float64)[k]
+			got, err := a.Aggregate(rows, "")
+			if err != nil || !sameFloatBits(got, want) {
+				t.Errorf("%s element %s: Aggregate = %v (%v), want %v", typ, m, got, err, want)
+			}
+			for _, r := range rows {
+				_ = a.UpdateRow(r, "")
+			}
+			if f, _ := a.Finalize(); !sameFloatBits(f, want) {
+				t.Errorf("%s element %s: Finalize = %v, want %v", typ, m, f, want)
+			}
+			if v, err := a.Rich(); v != nil || err != nil {
+				t.Errorf("%s element %s: Rich = %v %v, want none", typ, m, v, err)
+			}
+			c, _ := a.Components()
+			if !reflect.DeepEqual(c["element_n"], []int{comp["element_n"].([]int)[k]}) ||
+				!reflect.DeepEqual(c["labels"], []string{m}) {
+				t.Errorf("%s element %s: components %v", typ, m, c)
+			}
+		}
+	}
+}
+
+func sameFloatBits(a, b float64) bool {
+	return math.Float64bits(a) == math.Float64bits(b) || (math.IsNaN(a) && math.IsNaN(b))
 }

@@ -17,13 +17,13 @@ requires: [capability:matrices]
 
 `primary` holds the loadings (eigenvector · √λ), `rectangular`, columns `PC1`…`PCk`, always the full p rows. `auxiliary.eigenvectors` has the same shape.
 
-With `rotation: varimax` (`stats::varimax`, Kaiser-normalized, k ≥ 2) `primary` holds the rotated loadings: columns ordered by descending variance accounted, each summing positive. `auxiliary.unrotated` keeps the originals and `vectors.rotated_variance` gives each rotated column's Σ loading². Eigenvalues, shares, communalities and eigenvectors stay unrotated, so `explained_variance` is still per eigenvalue: read `rotated_variance` for the rotated split, and expect `PC1` to be the column with the most variance, not the first eigenvector.
+With an orthogonal `rotation` (k ≥ 2: `varimax`, `stats::varimax` Kaiser-normalized; `quartimax`, `geomin_orthogonal`, `entropy`, GPArotation's; an oblique name is refused) `primary` holds the rotated loadings: columns ordered by descending variance accounted, each summing positive. `auxiliary.unrotated` keeps the originals and `vectors.rotated_variance` gives each rotated column's Σ loading². Eigenvalues, shares, communalities and eigenvectors stay unrotated, so `explained_variance` is still per eigenvalue: read `rotated_variance` for the rotated split, and expect `PC1` to be the column with the most variance, not the first eigenvector.
 <!-- /feature -->
 
 <!-- feature: MAT_FACTOR -->
 ## Factor analysis
 
-`primary` holds the loadings (`F1`…`Fk`, rotated when set); `auxiliary.unrotated` appears on rotated runs and `factor_correlation` (k × k) on promax / oblimin. `kappa` is the promax power (default 4), `gamma` the oblimin γ (default 0); any other rotation refuses them. `extraction` follows psych `fm`: `minres`, `principal_axis` (`pa`) or `ml` (`factanal`, ψ held in [0.005, 1]).
+`primary` holds the loadings (`F1`…`Fk`, rotated when set); `auxiliary.unrotated` appears on rotated runs and `factor_correlation` (k × k) on an oblique rotation (promax, oblimin, geomin). `kappa` is the promax power (default 4), `gamma` the oblimin γ (default 0), `epsilon` the geomin pair's ε (default 0.01); any other rotation refuses them. Geomin may stop in a local optimum (one start, at the unrotated loadings, as GPArotation). `extraction` follows psych `fm`: `minres`, `principal_axis` (`pa`) or `ml` (`factanal`, ψ held in [0.005, 1]).
 
 `vectors` carry `communalities`, `uniquenesses`, `variance_accounted`; pairwise runs add `auxiliary.n`. `scalars` always carry `rmsr`, `empirical_chisq`, `df`, `empirical_p`, `kmo`, `bartlett_*`, `iterations`, `converged` (1/0) and `factors_retained`. `empirical_chisq` measures the residual size; it is not a likelihood test.
 
@@ -41,7 +41,7 @@ Components add `metric`, `standardize`, `buckets` and `n_null_key` (rows in no b
 <!-- feature: ATTR_FACTOR_SCORE -->
 ## Factor scores
 
-One `f64` per record: zᵀw on members standardized by the fit. Regression weights are w = R⁻¹LΦ, Bartlett weights w = U⁻²L(LᵀU⁻²L)⁻¹ (psych `factor.scores`). Default label `ATTR_FACTOR_SCORE_<vector or first field>_F<factor>`. The score has mean 0 over the fit rows; a null member gives a null score. The fit takes the factor knobs (`factors`, `extraction`, `rotation`, `kappa`, `gamma`; no `repair`).
+One `f64` per record: zᵀw on members standardized by the fit. Regression weights are w = R⁻¹LΦ, Bartlett weights w = U⁻²L(LᵀU⁻²L)⁻¹ (psych `factor.scores`). Default label `ATTR_FACTOR_SCORE_<vector or first field>_F<factor>`. The score has mean 0 over the fit rows; a null member gives a null score. The fit takes the factor knobs (`factors`, `extraction`, `rotation`, `kappa`, `gamma`, `epsilon`; no `repair`).
 
 All scores null with a warning: a singular fit (`PULSE_MATRIX_SINGULAR`), N* ≤ p (`PULSE_MATRIX_INSUFFICIENT_N`), k not identified or `"kaiser"` keeping fewer than `factor` (`PULSE_MATRIX_NOT_IDENTIFIED`), Bartlett over a uniqueness ≤ 0 (`PULSE_MATRIX_HEYWOOD`). Scored with a warning: a Heywood case under regression, or an iteration cap (`PULSE_MATRIX_NOT_CONVERGED`, kept beside a refusal too).
 <!-- /feature -->

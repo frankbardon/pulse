@@ -13,7 +13,7 @@ import (
 // L-BFGS-B at factr 0 then Newton with stats::optimHess; factanal
 // asserted equal in the generator).
 //
-// Tolerances (matrix-and-vectors.md, MAT_FACTOR), absolute + relative:
+// Tolerances (matrix-and-vectors/matrix-factor-distance.md, MAT_FACTOR), absolute + relative:
 //
 //   - faMLExactTol: the solver against the exact optimum — loadings,
 //     communalities, the residual and likelihood figures and every

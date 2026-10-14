@@ -140,6 +140,10 @@ func applyZVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			}
 			refMean = refEntry.Scalar
 		}
+		if undefinedSeriesPair(targetMean, refMean) {
+			entries = append(entries, entry)
+			continue
+		}
 
 		p, ok := welchZTest(targetMean, targetVar, targetN, refMean, refVar, refN)
 		if !ok {

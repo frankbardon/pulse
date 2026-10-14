@@ -40,10 +40,12 @@ The overlays this instance offers: what each is for, the questions it answers an
 | [`OVERLAY_PROP_Z_PANEL`](#op-overlay_prop_z_panel) | Two-proportion z-tests between every pair of requests in a Compose panel, for each crosstab cell: which waves or markets differ in share? | Across four waves, which pairs of waves differ in this answer's share? | advanced | [`OVERLAY_PROP_Z_CELL`](#op-overlay_prop_z_cell) when there is only one target.<br>[`OVERLAY_PANEL_INDEX_VS_REF`](#op-overlay_panel_index_vs_ref) when you want index values against one reference rather than tests.<br>[`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) when the groups are rows or columns of one crosstab. |
 | [`OVERLAY_RAKE`](#op-overlay_rake) | Rake a crosstab to known row and column totals: the fitted table, per-cell adjustment factors and whether the fit converged. | What would this age by region table look like if its margins matched the census shares? | advanced | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want each cell's share of its row, with no target margins.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether rows and columns are associated. |
 | [`OVERLAY_RANK`](#op-overlay_rank) | Ranks each cell of a target Compose request's crosstab (1 = largest) within its row, its column or the whole table. | Which product is the top seller in each region? | basic | [`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) when you want each cell's share of the whole.<br>[`OVERLAY_ZSCORE_VS_MARGIN`](#op-overlay_zscore_vs_margin) when you want how far each cell sits from its row or column.<br>[`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the change from the reference request. |
+| [`OVERLAY_RETENTION`](#op-overlay_retention) | Retention rates of a from-state by to-state crosstab: for each starting state, the share that stayed, switched or churned. | What share of each tier's customers kept their tier, moved to another tier or churned between the two snapshots? | basic | [`OVERLAY_MARKOV`](#op-overlay_markov) when you want where the flow leads over several periods, or the expected time until churn.<br>[`OVERLAY_SYMMETRY`](#op-overlay_symmetry) when you want to test whether moves one way outnumber moves back.<br>[`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want every destination's share of each row, not one stay / switch / churn split. |
 | [`OVERLAY_SHARE_OF_COL`](#op-overlay_share_of_col) | Each crosstab cell as a share of its column margin (0 to 1): the mix of rows within each column, as a 100% stacked column shows it. | Within each channel, what share of orders comes from each region? | basic | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want the mix within each row.<br>[`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) when you want each cell's share of the whole table.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether the column mixes differ. |
 | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) | Each crosstab cell as a share of its row margin (0 to 1): the mix of columns within each row, as a 100% stacked bar shows it. | Within each region, what share of orders goes to each channel? | basic | [`OVERLAY_SHARE_OF_COL`](#op-overlay_share_of_col) when you want the mix within each column.<br>[`OVERLAY_INDEX_VS_MARGIN`](#op-overlay_index_vs_margin) when you want the same figure on a 0 to 100 index scale.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether the row mixes differ. |
 | [`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) | Each crosstab cell or group of a grouped result as a share of the grand total (0 to 1): what part of the whole each piece makes up. | What share of all revenue does each region bring in? | basic | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want the share within each row of a crosstab.<br>[`OVERLAY_INDEX_VS_TOTAL`](#op-overlay_index_vs_total) when you want the same figure x 100 on a grouped result.<br>[`OVERLAY_ZSCORE_VS_TOTAL`](#op-overlay_zscore_vs_total) when you want each group's position against the average group. |
 | [`OVERLAY_STD_RESIDUAL`](#op-overlay_std_residual) | Adjusted residual for every crosstab cell: how far its count sits above or below what its row and column totals predict. | Which cells drive the association in this crosstab? | advanced | [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test for the whole table.<br>[`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when counts are small and you want an exact per-cell test.<br>[`OVERLAY_ZSCORE_VS_MARGIN`](#op-overlay_zscore_vs_margin) when you want each cell's distance from its margin without a test. |
+| [`OVERLAY_SYMMETRY`](#op-overlay_symmetry) | Test of symmetry on a before-by-after crosstab of the same units: are moves between two states as common one way as back? | Did more customers move up a tier than down between the two snapshots? | intermediate | [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when the rows and columns come from different units, or you want to know whether two fields are associated.<br>[`OVERLAY_MARKOV`](#op-overlay_markov) when you want where the flow leads over several periods, not a test.<br>[`TEST_PAIRED_T`](test.md#op-test_paired_t) when you compare a numeric measure before and after on the same units. |
 | [`OVERLAY_T_CELL`](#op-overlay_t_cell) | Welch t-test for every crosstab cell in a Compose request: does the target's mean in that cell differ from the reference's? | Which segment-by-product cells changed in average rating since last wave? | advanced | [`OVERLAY_Z_CELL`](#op-overlay_z_cell) when every cell is large and you want the normal-curve version.<br>[`OVERLAY_T_VS_REF`](#op-overlay_t_vs_ref) when the results are grouped series rather than crosstabs.<br>[`OVERLAY_PROP_Z_CELL`](#op-overlay_prop_z_cell) when the cells hold shares rather than averages.<br>[`OVERLAY_PAIRWISE_WELCH_T`](#op-overlay_pairwise_welch_t) when the groups are rows or columns of one crosstab. |
 | [`OVERLAY_T_VS_REF`](#op-overlay_t_vs_ref) | Welch t-test for every group of a grouped result in a Compose request: does the target's mean differ from the reference's? | Which regions' average spend changed between this quarter and last? | advanced | [`OVERLAY_Z_VS_REF`](#op-overlay_z_vs_ref) when every group is large and you want the normal-curve version.<br>[`OVERLAY_T_CELL`](#op-overlay_t_cell) when the results are crosstabs rather than grouped series.<br>[`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the size of the change rather than a p-value. |
 | [`OVERLAY_YOY`](#op-overlay_yoy) | Each period of a date-grouped series as an index value against the same period one year earlier (x 100): year-over-year change. | How do this year's monthly sales compare with the same months last year? | basic | [`OVERLAY_INDEX_VS_PRIOR`](#op-overlay_index_vs_prior) when you want each period against the one before.<br>[`OVERLAY_INDEX_VS_BASELINE`](#op-overlay_index_vs_baseline) when you want each period against one fixed starting period.<br>[`TEST_TREND`](test.md#op-test_trend) when you want to test for a steady rise or fall across the series. |
@@ -1332,6 +1334,49 @@ Ranks each cell of a target Compose request's crosstab (1 = largest) within its 
 
 **Skill:** [`op-overlay-rank`](../skills/op-overlay-rank.md)
 
+<a id="op-overlay_retention"></a>
+
+### `OVERLAY_RETENTION`
+
+Retention rates of a from-state by to-state crosstab: for each starting state, the share that stayed, switched or churned.
+
+**Level:** basic
+
+**Also known as:** `retention rate`, `churn rate`, `stay rate`, `switching rate`
+
+**Questions it answers:**
+
+- What share of each tier's customers kept their tier, moved to another tier or churned between the two snapshots?
+- Which starting plan holds on to its accounts best?
+
+**Use cases by domain:**
+
+- *survey:* Read a last-brand by current-brand table as each brand's loyalty rate and its loss to other brands or to no purchase.
+- *ops:* Report how many accounts in each plan tier stayed, changed tier or cancelled over the quarter.
+- *science:* Report, for each starting stage, the share of patients still in it at follow-up, the share that moved and the share that left the study.
+
+**Assumptions:**
+
+- Rows are the earlier state and columns the later one, and a state keeps the same name on both axes; staying is the cell where the two names match.
+- Cells count units (AGG_COUNT) or sum an amount (AGG_SUM); any other cell aggregation is refused.
+- Churn needs the absorbing states named in params.absorbing; without them every move out counts as a switch, and a named absorbing state is not reported as a starting state.
+- It is descriptive: the rates carry no confidence intervals, and a starting state with few units gives noisy rates.
+
+**Use something else:**
+
+- [`OVERLAY_MARKOV`](#op-overlay_markov) when you want where the flow leads over several periods, or the expected time until churn.
+- [`OVERLAY_SYMMETRY`](#op-overlay_symmetry) when you want to test whether moves one way outnumber moves back.
+- [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want every destination's share of each row, not one stay / switch / churn split.
+
+**Follow up with:**
+
+- [`OVERLAY_MARKOV`](#op-overlay_markov) when the stay rates differ and you want to project the tier mix forward.
+- [`OVERLAY_SYMMETRY`](#op-overlay_symmetry) when you want to know whether the switching is lopsided between two states.
+
+**Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`margin`](../glossary.md#term-margin)
+
+**Skill:** [`op-overlay-retention`](../skills/op-overlay-retention.md)
+
 <a id="op-overlay_share_of_col"></a>
 
 ### `OVERLAY_SHARE_OF_COL`
@@ -1473,6 +1518,49 @@ Adjusted residual for every crosstab cell: how far its count sits above or below
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`independence`](../glossary.md#term-independence), [`margin`](../glossary.md#term-margin), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`normal-distribution`](../glossary.md#term-normal-distribution), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`residual`](../glossary.md#term-residual), [`two-tailed`](../glossary.md#term-two-tailed)
 
 **Skill:** [`op-overlay-std-residual`](../skills/op-overlay-std-residual.md)
+
+<a id="op-overlay_symmetry"></a>
+
+### `OVERLAY_SYMMETRY`
+
+Test of symmetry on a before-by-after crosstab of the same units: are moves between two states as common one way as back?
+
+**Level:** intermediate
+
+**Also known as:** `mcnemar test`, `bowker test`, `test of symmetry`
+
+**Questions it answers:**
+
+- Did more customers move up a tier than down between the two snapshots?
+- Did the same respondents switch toward the brand more often than away from it between waves?
+
+**Use cases by domain:**
+
+- *survey:* Test whether a panel's answers shifted between two waves, beyond respondents switching both ways equally.
+- *ops:* Test whether accounts moved between plan tiers in one direction more than the other between two snapshots.
+- *science:* Test whether patients' status changed in one direction more than the other between baseline and follow-up.
+
+**Assumptions:**
+
+- Cells must count units (AGG_COUNT); an AGG_SUM cell runs but does not count units, and any other cell aggregation is refused.
+- Rows are the earlier state and columns the later one, over the same set of states, and every unit is counted once: the two answers are paired.
+- The null hypothesis is that for every pair of states, moves one way are as common as moves back; staying put (the diagonal) does not enter the test.
+- The p-value comes from the chi-square approximation, which needs about 10 or more moves in each pair of states; a warning flags pairs with fewer, and a 2x2 table applies a continuity correction unless params.correct is false.
+
+**Use something else:**
+
+- [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when the rows and columns come from different units, or you want to know whether two fields are associated.
+- [`OVERLAY_MARKOV`](#op-overlay_markov) when you want where the flow leads over several periods, not a test.
+- [`TEST_PAIRED_T`](test.md#op-test_paired_t) when you compare a numeric measure before and after on the same units.
+
+**Follow up with:**
+
+- [`OVERLAY_MARKOV`](#op-overlay_markov) when the moves are lopsided and you want the switching probabilities and where they lead.
+- [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want each state's share of its row to see which way people moved.
+
+**Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`continuity-correction`](../glossary.md#term-continuity-correction), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`paired-data`](../glossary.md#term-paired-data)
+
+**Skill:** [`op-overlay-symmetry`](../skills/op-overlay-symmetry.md)
 
 <a id="op-overlay_t_cell"></a>
 

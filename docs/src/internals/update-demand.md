@@ -8,6 +8,8 @@
 
 Any change to Pulse code, configuration, file format, or public surface MUST update the corresponding skill file(s) and `CLAUDE.md` in the same PR. This is not a courtesy. It is a non-skippable CI failure if any of the trigger conditions below is met without the corresponding doc update.
 
+To find every concrete file and declaration a change lands in — with the gates to rerun and the goldens to regenerate — run `make sites ARGS="op <TYPE>"`, `make sites ARGS="new-op <category>"` or `make sites ARGS="slot request <name>"` first; see [Finding Change Sites](finding-change-sites.md).
+
 ## Trigger → required update
 
 | If you change... | You MUST also update... | Enforced by |

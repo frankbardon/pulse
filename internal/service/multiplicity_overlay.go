@@ -71,6 +71,7 @@ var overlayPSites = map[types.OverlayKind]overlayPSite{
 	types.OverlayKindPairwiseTwoMeansZ:         pSiteMatrixCell,
 	types.OverlayKindPairwiseWeightedTwoMeansZ: pSiteMatrixCell,
 	types.OverlayKindStdResidual:               pSiteMatrixPart,
+	types.OverlayKindSymmetry:                  pSiteSummaryPValue,
 	// Compose host.
 	types.OverlayKindPropZCell:  pSiteMatrixCell,
 	types.OverlayKindTCell:      pSiteMatrixCell,

@@ -532,3 +532,15 @@ func TestMCPSchemaBinding_WeightSlots(t *testing.T) {
 		}
 	}
 }
+
+// TestMergeEnumNames_ExtensionMatrixOps: the matrices[*].type enum reads
+// the snapshot's MatrixOps beside the built-ins.
+func TestMergeEnumNames_ExtensionMatrixOps(t *testing.T) {
+	inst := descx.UnscopedInstanceSnapshot(&descx.ExtensionsSnapshot{
+		MatrixOps: []descriptor.OperatorMeta{{Name: "MAT_ACME_COV"}},
+	})
+	got := mergeEnumNames([]string{"MAT_COVARIANCE"}, inst, "matrix")
+	if !slices.Equal(got, []string{"MAT_ACME_COV", "MAT_COVARIANCE"}) {
+		t.Fatalf("enum = %v", got)
+	}
+}

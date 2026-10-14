@@ -93,6 +93,9 @@ type Extensions struct {
 	Features           []FeatureRegistration
 	Tests              []TestRegistration
 	SynthDistributions []DistributionRegistration
+	// MatrixOps installs embedder MAT_* matrix operators for
+	// Request.Matrices (see MatrixOpRegistration).
+	MatrixOps []MatrixOpRegistration
 
 	// ExprFunctions are merged into the runtime expression environment
 	// used by ATTR_FORMULA and FILTER_EXPRESSION (plus any future
@@ -141,6 +144,19 @@ type Extensions struct {
 	// are read-only after pulse.New. Operator→table resolution is
 	// wired separately; this slot only registers the tables.
 	RangeTables map[string]RangeTable
+
+	// Populations registers saved vector-fit populations by name: each
+	// a population file document (the bytes a Compose vector fit's
+	// `save` writes, *.pulse-population.json). Every request sees them
+	// bound as vector fits, so a fitted attribute or MAT_* slot binds
+	// one with params.fit and no `populations` entry; a request entry
+	// rebinding a registered name is PULSE_MODEL_NAME_COLLISION. Each is
+	// decoded at pulse.New (PULSE_MODEL_FILE_INVALID /
+	// _VERSION_UNSUPPORTED, details.registered = the name) and frozen.
+	// Merged with Options.PopulationsDir: a name declared both here and
+	// on disk is PULSE_EXTENSION_DUPLICATE. Gated by capability:models —
+	// a feature profile hiding it registers none.
+	Populations map[string]Population
 
 	// Skills is an optional fs.FS of embedder skill files, served to
 	// agents exactly like the built-in pack (p.Skills / p.Skill,
@@ -710,6 +726,86 @@ type TestRegistration struct {
 	FieldInputs FieldInputsFunc
 }
 
+// MatrixOpRegistration installs a custom MAT_* matrix operator: a
+// finalize-only extend.MatrixOperator the engine hands the merged,
+// read-only co-moment of the slot's members (extend.MatrixInput), so
+// accumulation, the 4096-row block merge tree, grouped buckets,
+// missing-value modes and row weights stay the engine's and the result
+// is bit-identical across every worker count and shard split. The name
+// follows the extension policy (MAT_<NAMESPACE>_<NAME>).
+type MatrixOpRegistration struct {
+	Name        types.MatrixType
+	Description string
+	// Purpose is the optional plain-language guidance for the
+	// operator — what it is for, the intents it answers, when to use
+	// something else. It is validated at pulse.New with the same rules
+	// as the built-in tier; a broken rule fails with
+	// PULSE_EXTENSION_PURPOSE_INVALID. Only its intent IDs reach the
+	// manifest entry's intents list; nil declares no intents.
+	Purpose *descriptor.Purpose
+	// DependsOn names the features this operator needs, each an AND
+	// edge; see AggregatorRegistration.DependsOn. Optional; extensions
+	// carry no Since.
+	DependsOn []string
+	// Factory builds the operator per matrix slot. Required
+	// (PULSE_EXTENSION_PARAM_INVALID, reason missing_factory).
+	Factory extend.MatrixFactory
+	// Streamable declares the co-moment tier: the operator needs only
+	// extend.MatrixInput.CoMoment, so the request streams and merges
+	// across DecodeWorkers / ShardWorkers through the engine's blocked
+	// merge. False selects the buffered tier: the engine also keeps the
+	// admitted rows (extend.MatrixInput.Rows) and runs the request
+	// buffered and serially.
+	Streamable bool
+	// WeightAware declares that Finalize computes a weighted matrix:
+	// on a slot where a row weight is in force the engine folds it into
+	// the co-moment (and Rows) and reports its kind on
+	// extend.MatrixInput.WeightKind. Undeclared, a weight in force on
+	// the slot is refused with PULSE_EXTENSION_NOT_WEIGHT_AWARE.
+	WeightAware bool
+	// Accepts lists the member column types the operator reads; empty
+	// means the built-in matrix member types.
+	Accepts []encoding.FieldType
+	// Params describes the operator's own params keys for the
+	// manifest. The factory still decodes and validates them. The
+	// engine owns missing, max_drop_share and fit on every matrix
+	// operator: it decodes them as for a built-in and strips them from
+	// the params the factory and Finalize see (under fit, Finalize gets
+	// the bound vector fit's co-moment), so a ParamMeta naming one is
+	// refused (PULSE_EXTENSION_PARAM_INVALID, reserved_matrix_param).
+	Params []ParamMeta
+	// FieldInputs is the optional buffered-projection introspection
+	// hook (extra fields read beyond the members). See FieldInputsFunc.
+	FieldInputs FieldInputsFunc
+	// PValues opts the operator into multiple-comparison correction:
+	// it names the OutputKeys.Auxiliary key whose matrix holds per-cell
+	// p-values (off-diagonal upper triangle of a square_symmetric one,
+	// every cell of a rectangular one). A `multiplicity` block (the
+	// spec's, the request's or Options.DefaultMultiplicity) then adjusts
+	// them like a built-in inferential operator's auxiliary.p: the fold
+	// writes <PValues>_adjusted and significant_adjusted beside it (with
+	// PValues "p" exactly the built-ins' p_adjusted), predict counts them
+	// in p_values, and the raw matrix never moves. Empty opts out: a
+	// spec-level multiplicity block on the operator is refused.
+	PValues string
+	// OutputKeys names the MatrixResult parts the operator fills —
+	// Primary's meaning (required) and the Auxiliary, Vectors and
+	// Scalars keys, each a non-empty name listed once. Finalize may
+	// fill only declared keys (a declared key it leaves unfilled is
+	// fine); probe-validation at pulse.New finalizes the operator over
+	// a synthetic co-moment and refuses an undeclared key or a missing
+	// Primary with PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH.
+	OutputKeys descriptor.MatrixOutputKeys
+	// ComponentSchema declares the operator's own keys of its
+	// Response.Components.Matrices entry (extend.MatrixOutput.Components),
+	// emitted after the engine's matrix floor. Empty (zero Keys and
+	// Mergeability) declares none; non-empty Keys need a Mergeability,
+	// a non-empty Name each, listed once, and may not restate a floor key
+	// (n, n_null, n_listwise_dropped, min_pair_n, max_pair_n,
+	// sum_weights, n_eff, n_weight_invalid).
+	ComponentSchema descriptor.ComponentSchema
+}
+
 // DistributionRegistration installs a custom synthetic-data
 // distribution kind. The factory shape is finalised alongside the
 // synth wiring in a later phase; for now this registration is
@@ -820,6 +916,18 @@ type RangeTable struct {
 	// Ranges is the ordered list of labeled date ranges. Must be
 	// non-empty and pass the shared validation pass.
 	Ranges []DateRangeSpec
+}
+
+// Population is one registered population: a saved vector fit's
+// population file document, registered under its
+// Extensions.Populations key (Options.PopulationsDir names it by file
+// stem). The stored state is bound exactly as a `populations` entry
+// loading the same file binds it.
+type Population struct {
+	// File is the encoded population file document
+	// (population_format_version, labels, members, basis, counts, mean,
+	// m2, provenance) — the bytes a vector fit's `save` writes.
+	File []byte
 }
 
 // reservedExtensionNamespaces is the set of namespace segments

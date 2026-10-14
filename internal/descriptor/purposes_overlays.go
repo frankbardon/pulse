@@ -51,10 +51,12 @@ var overlayPurposes = map[string]descriptor.Purpose{
 	"OVERLAY_PROP_Z_PANEL":                  purposeOverlayPropZPanel,
 	"OVERLAY_RAKE":                          purposeOverlayRake,
 	"OVERLAY_RANK":                          purposeOverlayRank,
+	"OVERLAY_RETENTION":                     purposeOverlayRetention,
 	"OVERLAY_SHARE_OF_COL":                  purposeOverlayShareOfCol,
 	"OVERLAY_SHARE_OF_ROW":                  purposeOverlayShareOfRow,
 	"OVERLAY_SHARE_OF_TOTAL":                purposeOverlayShareOfTotal,
 	"OVERLAY_STD_RESIDUAL":                  purposeOverlayStdResidual,
+	"OVERLAY_SYMMETRY":                      purposeOverlaySymmetry,
 	"OVERLAY_T_CELL":                        purposeOverlayTCell,
 	"OVERLAY_T_VS_REF":                      purposeOverlayTVsRef,
 	"OVERLAY_YOY":                           purposeOverlayYoY,
@@ -435,6 +437,75 @@ var (
 			"chi-square", "cross-tabulation", "false-discovery-rate", "family-wise-error",
 			"independence", "margin", "multiple-comparisons", "normal-distribution", "null-hypothesis",
 			"p-value", "residual", "two-tailed",
+		},
+	}
+
+	purposeOverlaySymmetry = descriptor.Purpose{
+		Plain:   "Test of symmetry on a before-by-after crosstab of the same units: are moves between two states as common one way as back?",
+		Intents: []string{IntentFlows},
+		Questions: []string{
+			"Did more customers move up a tier than down between the two snapshots?",
+			"Did the same respondents switch toward the brand more often than away from it between waves?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Test whether a panel's answers shifted between two waves, beyond respondents switching both ways equally.",
+			descriptor.DomainOps:     "Test whether accounts moved between plan tiers in one direction more than the other between two snapshots.",
+			descriptor.DomainScience: "Test whether patients' status changed in one direction more than the other between baseline and follow-up.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "the rows and columns come from different units, or you want to know whether two fields are associated", Use: "OVERLAY_CHISQ_MATRIX"},
+			{When: "you want where the flow leads over several periods, not a test", Use: "OVERLAY_MARKOV"},
+			{When: "you compare a numeric measure before and after on the same units", Use: "TEST_PAIRED_T"},
+		},
+		FollowUps: []descriptor.Alternative{
+			{When: "the moves are lopsided and you want the switching probabilities and where they lead", Use: "OVERLAY_MARKOV"},
+			{When: "you want each state's share of its row to see which way people moved", Use: "OVERLAY_SHARE_OF_ROW"},
+		},
+		Assumptions: []string{
+			"Cells must count units (AGG_COUNT); an AGG_SUM cell runs but does not count units, and any other cell aggregation is refused.",
+			"Rows are the earlier state and columns the later one, over the same set of states, and every unit is counted once: the two answers are paired.",
+			"The null hypothesis is that for every pair of states, moves one way are as common as moves back; staying put (the diagonal) does not enter the test.",
+			"The p-value comes from the chi-square approximation, which needs about 10 or more moves in each pair of states; a warning flags pairs with fewer, and a 2x2 table applies a continuity correction unless params.correct is false.",
+		},
+		Level:   descriptor.LevelIntermediate,
+		KnownAs: []string{"mcnemar test", "bowker test", "test of symmetry"},
+		Glossary: []string{
+			"chi-square", "continuity-correction", "cross-tabulation", "degrees-of-freedom",
+			"null-hypothesis", "p-value", "paired-data",
+		},
+	}
+
+	purposeOverlayRetention = descriptor.Purpose{
+		Plain:   "Retention rates of a from-state by to-state crosstab: for each starting state, the share that stayed, switched or churned.",
+		Intents: []string{IntentFlows},
+		Questions: []string{
+			"What share of each tier's customers kept their tier, moved to another tier or churned between the two snapshots?",
+			"Which starting plan holds on to its accounts best?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainOps:     "Report how many accounts in each plan tier stayed, changed tier or cancelled over the quarter.",
+			descriptor.DomainSurvey:  "Read a last-brand by current-brand table as each brand's loyalty rate and its loss to other brands or to no purchase.",
+			descriptor.DomainScience: "Report, for each starting stage, the share of patients still in it at follow-up, the share that moved and the share that left the study.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want where the flow leads over several periods, or the expected time until churn", Use: "OVERLAY_MARKOV"},
+			{When: "you want to test whether moves one way outnumber moves back", Use: "OVERLAY_SYMMETRY"},
+			{When: "you want every destination's share of each row, not one stay / switch / churn split", Use: "OVERLAY_SHARE_OF_ROW"},
+		},
+		FollowUps: []descriptor.Alternative{
+			{When: "the stay rates differ and you want to project the tier mix forward", Use: "OVERLAY_MARKOV"},
+			{When: "you want to know whether the switching is lopsided between two states", Use: "OVERLAY_SYMMETRY"},
+		},
+		Assumptions: []string{
+			"Rows are the earlier state and columns the later one, and a state keeps the same name on both axes; staying is the cell where the two names match.",
+			"Cells count units (AGG_COUNT) or sum an amount (AGG_SUM); any other cell aggregation is refused.",
+			"Churn needs the absorbing states named in params.absorbing; without them every move out counts as a switch, and a named absorbing state is not reported as a starting state.",
+			"It is descriptive: the rates carry no confidence intervals, and a starting state with few units gives noisy rates.",
+		},
+		Level:   descriptor.LevelBasic,
+		KnownAs: []string{"retention rate", "churn rate", "stay rate", "switching rate"},
+		Glossary: []string{
+			"cross-tabulation", "margin",
 		},
 	}
 

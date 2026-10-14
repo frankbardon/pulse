@@ -174,8 +174,8 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("compose"),        // Compose, ComposeParallel, ApplySeriesOverlays
 	capability("compose_sweep"),  // ComposedRequest.Sweep + ComposedResponse.Ranking
 	capability("compose_fits"),   // ComposedRequest.Fits + ComposedResponse.Fits
-	capability("model_save"),     // RegressionSpec.Save + FitSpec.Save (model files)
-	capability("models"),         // Request.Models + FacetRequest.Models (load model files)
+	capability("model_save"),     // RegressionSpec.Save + FitSpec.Save (model + population files)
+	capability("models"),         // Request.Models + FacetRequest.Models + Request.Populations (load saved files)
 	capability("for_each"),       // the `for_each` item fan-out on Window / Feature / Attribute
 	capability("process_chain"),  // ProcessChain
 	capability("facet"),          // Facet, FacetSchema
@@ -267,6 +267,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("AGG_SET_DISTINCT_VALUES"),
 	op("AGG_VEC_MEAN"),
 	op("AGG_VEC_SUM"),
+	op("AGG_VEC_SD"),
 	// Attributes — types.AllAttributeTypes().
 	op("ATTR_CODE_IN"),
 	op("ATTR_DATE_PART"),
@@ -409,10 +410,12 @@ var builtinFeatures = withDependencies([]Feature{
 	op("OVERLAY_PROP_Z_PANEL"),
 	op("OVERLAY_RAKE"),
 	op("OVERLAY_RANK"),
+	op("OVERLAY_RETENTION"),
 	op("OVERLAY_SHARE_OF_COL"),
 	op("OVERLAY_SHARE_OF_ROW"),
 	op("OVERLAY_SHARE_OF_TOTAL"),
 	op("OVERLAY_STD_RESIDUAL"),
+	op("OVERLAY_SYMMETRY"),
 	op("OVERLAY_T_CELL"),
 	op("OVERLAY_T_VS_REF"),
 	op("OVERLAY_YOY"),
@@ -599,10 +602,12 @@ var overlayHostKinds = map[string][]string{
 		"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z",
 		"OVERLAY_PAIRWISE_WELCH_T",
 		"OVERLAY_RAKE",
+		"OVERLAY_RETENTION",
 		"OVERLAY_SHARE_OF_COL",
 		"OVERLAY_SHARE_OF_ROW",
 		"OVERLAY_SHARE_OF_TOTAL",
 		"OVERLAY_STD_RESIDUAL",
+		"OVERLAY_SYMMETRY",
 		"OVERLAY_ZSCORE_VS_MARGIN",
 	},
 	featCompose: {
@@ -669,10 +674,13 @@ var overlayHostKinds = map[string][]string{
 //     FILTER_EXPRESSION would break FilterToFile for any request.
 //   - every MAT_* operator rides the Request.Matrices slot, which
 //     capability:matrices gates.
-//   - capability:model_save writes a fitted regression, so it needs
-//     any-of the REG_* operators.
-//   - capability:models loads a model only a scoring reference reads:
-//     ATTR_REG_PREDICT, or coef() in ATTR_FORMULA / FILTER_EXPRESSION.
+//   - capability:model_save writes a fitted regression or a vector
+//     fit, so it needs any-of the REG_* operators, the fitted vector
+//     attributes and capability:matrices.
+//   - capability:models loads a model only a scoring reference reads
+//     (ATTR_REG_PREDICT, or coef() in ATTR_FORMULA / FILTER_EXPRESSION)
+//     and a population only a params.fit reads (the fitted vector
+//     attributes, ATTR_VEC_DISTANCE, capability:matrices).
 //
 // TEST_TUKEY_HSD after TEST_ANOVA_F is deliberately absent: its inputs
 // are plain numeric params, so the pairing is advice, not a dependency.
@@ -703,23 +711,30 @@ var hardEdges = map[string][]string{
 	// A sweep expands into Compose slots: without Compose there is
 	// nothing to expand into.
 	featComposeSweep: {featCompose},
-	// A save writes a fitted regression: without a regression there is
-	// nothing to save.
-	featModelSave: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS)},
-	// A loaded model is read only by a scoring reference.
-	featModels: {"ATTR_FORMULA", "ATTR_REG_PREDICT", "FILTER_EXPRESSION"},
+	// A save writes a fitted regression (a model file) or a vector fit
+	// (a population file): without a regression or a vector battery
+	// there is nothing to save.
+	featModelSave: {string(types.ATTR_FACTOR_SCORE), string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
+		string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS), featMatrices},
+	// A loaded model or population is read only by a reference: a
+	// scoring reference (ATTR_REG_PREDICT, coef()) or a params.fit (a
+	// fitted vector attribute, a MAT_* slot).
+	featModels: {string(types.ATTR_FACTOR_SCORE), "ATTR_FORMULA", string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
+		"ATTR_REG_PREDICT", string(types.ATTR_VEC_DISTANCE), "FILTER_EXPRESSION", featMatrices},
 }
 
 // groupEdges are the dependencies needing MORE than one any-of group
 // (hardEdges holds one): each group is ANDed after the host group.
 //
 //   - capability:compose_fits runs its fits before Compose slots and a
-//     fit is one regression: it needs Compose AND any-of the REG_*
-//     operators.
+//     fit is one regression or one vector battery (a matrix or a fitted
+//     vector attribute): it needs Compose AND any-of the REG_*
+//     operators, capability:matrices and the fitted attributes.
 var groupEdges = map[string][][]string{
 	featComposeFits: {
 		{featCompose},
-		{string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS)},
+		{string(types.ATTR_FACTOR_SCORE), string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
+			string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS), featMatrices},
 	},
 }
 

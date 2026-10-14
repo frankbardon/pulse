@@ -326,8 +326,12 @@ func CanMergeRequestWithExtensions(req *types.Request, schema *encoding.Schema, 
 // attribute_fitted.go: ZSCORE/TSCORE/NORMALIZED need population stats;
 // ATTR_REG_FITTED/RESIDUAL/LEVERAGE need a finalize-time regression fit;
 // the fitted vector attributes (MAHALANOBIS, PC_SCORE, FACTOR_SCORE) a finalize-time co-moment
-// fit; FORMULA/DATE_PART are pure row-local. ATTR_VEC_DISTANCE is
-// two-pass per slot (attrRequiresTwoPass), never by type.
+// fit; FORMULA/DATE_PART are pure row-local. ATTR_VEC_DISTANCE and
+// ATTR_PROFILE_SIMILARITY are two-pass per slot (a fitted metric or a
+// centroid reference: vectors.ComparisonTwoPass, read by
+// attrRequiresTwoPass), never by type, and a fitted
+// slot bound to a prebuilt fit (vectors.FitBound) is row-local whatever
+// its type — the per-slot rule overrides this type-keyed one.
 func requiresTwoPass(t types.AttributeType) bool {
 	switch t {
 	case types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED,
@@ -428,7 +432,9 @@ func (p *Processor) canStream(req *types.Request) bool {
 	// field-reference pass has refused it.
 	if len(req.Matrices) > 0 {
 		for _, m := range req.Matrices {
-			if !m.Streamable() || p.exts.isHidden(string(m.Type)) {
+			// The instance's answer: an extension operator's declared
+			// tier, else the built-in spec-level rule; hidden is false.
+			if !p.exts.MatrixSpecStreamable(m) {
 				return false
 			}
 		}
@@ -1212,7 +1218,11 @@ func (p *Processor) buildTwoPassStages(attrs []*types.Attribute) ([]twoPassStage
 			label = defaultAttributeLabel(attr)
 		}
 		st := twoPassStage{attr: attr, label: label, nullable: EmitsNull(computer), floor: attributeFloorFor(computer, p.compute)}
-		if tp, ok := computer.(TwoPassAttribute); ok {
+		if pb, ok := computer.(prebuiltAttribute); ok && pb.prebuiltFit() {
+			// Bound to a prebuilt fit and closed at bind: row-local
+			// (vectors.FitBound, the planner's attrRequiresTwoPassIn).
+			st.row = computer.(RowLocalAttribute)
+		} else if tp, ok := computer.(TwoPassAttribute); ok {
 			st.tp, st.row = tp, tp
 		} else if rl, ok := computer.(RowLocalAttribute); ok {
 			st.row = rl
@@ -2321,7 +2331,7 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 				if err != nil {
 					return nil, nil, err
 				}
-				row[label] = out
+				row[label] = out.cellValue()
 				if collectComponents {
 					workAggComponentBuilds.Add(1)
 					fl := floorFor(agg)

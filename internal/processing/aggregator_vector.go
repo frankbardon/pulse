@@ -7,10 +7,12 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
-// Vector aggregators — AGG_VEC_MEAN and AGG_VEC_SUM (U27 E2-S2). Each
+// Vector aggregators — AGG_VEC_MEAN, AGG_VEC_SUM (U27 E2-S2) and
+// AGG_VEC_SD (U30 matrix-extensions-hardening E5-S1). Each
 // reads a vector input (the slot's Fields after Processor.prepare's
 // rewrite, vectors.AggregationSlotRewrite: the literal members, with
 // the display labels in params.labels) and folds one figure PER
@@ -19,6 +21,16 @@ import (
 //	AGG_VEC_MEAN  element i = Σw·x_i / Σw over the rows whose member i
 //	              answered (NaN — null on the wire — when none did)
 //	AGG_VEC_SUM   element i = Σw·x_i over the same rows (0 when none did)
+//	AGG_VEC_SD    element i = √(c·M2_i / (N*_i − 1)) over the same rows:
+//	              M2_i = Σw·(x_i − mean_i)², N* = Σw (unweighted: n;
+//	              frequency: Σw) or Kish n_eff = (Σw)²/Σw² (probability),
+//	              c = N*/Σw — weighting.ScaledVariance, the one inference
+//	              rule. NaN (null on the wire) when N* ≤ 1, never 0
+//
+// AGG_VEC_SD folds each row by the weighted Welford–West recurrence
+// and combines two partials by Chan's rule (vecBlock.mergeMoments);
+// the moment slices exist only on its blocks, so AGG_VEC_MEAN /
+// AGG_VEC_SUM run the exact operation sequence they always have.
 //
 // Missing data is per ELEMENT: a null member skips that element of
 // that row only; the other elements still count the row. A stored NaN
@@ -48,30 +60,58 @@ import (
 //
 // The scalar Aggregate / Finalize fallback is NaN: an array value has
 // no single number, and every consumer that needs one refuses the slot
-// (types.AggregationType.ArrayValued). The value rides Rich.
+// (types.AggregationType.ArrayValued). The value rides Rich. The one
+// scalar form is a crosstab slot's params.element: the prepared slot
+// reads that member alone, Aggregate / Finalize return its figure and
+// Rich returns none, so the cell is that element's mean / sum and its
+// components the selected element's (one-entry arrays).
 
 // vecBlock is one merge block's partial: per element Σw·x, Σw over
-// contributing rows and the raw present count.
+// contributing rows and the raw present count. A moment block
+// (AGG_VEC_SD, newVecMomentBlock) also carries per element the running
+// weighted mean, M2 = Σw·(x − mean)² and Σw²; on any other block the
+// three are nil and never touched.
 type vecBlock struct {
 	sum []float64
 	w   []float64
 	n   []int
+
+	mean []float64
+	m2   []float64
+	w2   []float64
 }
 
 func newVecBlock(p int) *vecBlock {
 	return &vecBlock{sum: make([]float64, p), w: make([]float64, p), n: make([]int, p)}
 }
 
+// newVecMomentBlock is newVecBlock plus the per-element moments.
+func newVecMomentBlock(p int) *vecBlock {
+	b := newVecBlock(p)
+	b.mean, b.m2, b.w2 = make([]float64, p), make([]float64, p), make([]float64, p)
+	return b
+}
+
 func (b *vecBlock) clone() *vecBlock {
-	return &vecBlock{
+	c := &vecBlock{
 		sum: append([]float64(nil), b.sum...),
 		w:   append([]float64(nil), b.w...),
 		n:   append([]int(nil), b.n...),
 	}
+	if b.m2 != nil {
+		c.mean = append([]float64(nil), b.mean...)
+		c.m2 = append([]float64(nil), b.m2...)
+		c.w2 = append([]float64(nil), b.w2...)
+	}
+	return c
 }
 
 // add folds member i of one row: x answered, w the row weight,
-// contrib whether the row carries weight (valid and > 0).
+// contrib whether the row carries weight (valid and > 0). A moment
+// block then folds the weighted Welford–West step in the operation-
+// order form (weighting.Welford.Add's: (w·δ)/Σw, (w·δ)·(x − mean')),
+// every product written float64(a*b) so no FMA contraction differs by
+// architecture.
 func (b *vecBlock) add(i int, x, w float64, contrib bool) {
 	b.n[i]++
 	if !contrib {
@@ -79,6 +119,12 @@ func (b *vecBlock) add(i int, x, w float64, contrib bool) {
 	}
 	b.sum[i] += float64(w * x)
 	b.w[i] += w
+	if b.m2 != nil {
+		b.w2[i] += float64(w * w)
+		wd := float64(w * (x - b.mean[i]))
+		b.mean[i] += wd / b.w[i]
+		b.m2[i] += float64(wd * (x - b.mean[i]))
+	}
 }
 
 // vecFrag is one merge fragment: blk on a head fragment (rows folded as
@@ -106,12 +152,37 @@ func (f *vecFrag) replay(b *vecBlock) {
 }
 
 // merge adds o into b element by element (plain adds: no product, no
-// contraction).
+// contraction); a moment block first combines the moments
+// (mergeMoments), which reads b's Σw before the add.
 func (b *vecBlock) merge(o *vecBlock) {
 	for i := range b.sum {
+		if b.m2 != nil {
+			b.mergeMoments(o, i)
+		}
 		b.sum[i] += o.sum[i]
 		b.w[i] += o.w[i]
 		b.n[i] += o.n[i]
+	}
+}
+
+// mergeMoments folds element i of o's moments into b's by the
+// Chan–Golub–LeVeque combine over weight totals (mergeWelfordWeighted's
+// rule): mean' = mean_A + δ·w_B/W, M2' = M2_A + M2_B + δ²·w_A·w_B/W,
+// δ = mean_B − mean_A, W = w_A + w_B; Σw² adds. Every product is written
+// float64(a*b) (FMA-free, linalg's blocked-merge contract). b.w[i] is
+// still w_A here: merge adds the weight totals after.
+func (b *vecBlock) mergeMoments(o *vecBlock, i int) {
+	b.w2[i] += o.w2[i]
+	wA, wB := b.w[i], o.w[i]
+	switch {
+	case wB == 0:
+	case wA == 0:
+		b.mean[i], b.m2[i] = o.mean[i], o.m2[i]
+	default:
+		total := wA + wB
+		delta := o.mean[i] - b.mean[i]
+		b.mean[i] += float64(delta*wB) / total
+		b.m2[i] += o.m2[i] + float64(float64(delta*delta)*float64(wA*wB))/total
 	}
 }
 
@@ -143,9 +214,12 @@ func vecMergeTree(blocks []*vecBlock) *vecBlock {
 	return level[0]
 }
 
-// vecAggregator backs AGG_VEC_MEAN and AGG_VEC_SUM.
+// vecAggregator backs AGG_VEC_MEAN, AGG_VEC_SUM and AGG_VEC_SD.
 type vecAggregator struct {
-	typ     types.AggregationType
+	typ types.AggregationType
+	// moments: the slot folds the per-element Welford moments
+	// (AGG_VEC_SD), so every block it opens is a moment block.
+	moments bool
 	members []string
 	labels  []string
 	// fill reads the members off a row (the shared fill: a native
@@ -159,6 +233,10 @@ type vecAggregator struct {
 	// expand is params.expand: the row carries one scalar column per
 	// member (vectors.ExpandedColumn) instead of the array.
 	expand bool
+	// element is params.element: a crosstab slot reading one member
+	// (members holds it alone). Aggregate / Finalize return that
+	// element's figure and Rich defers to it, so the cell is a scalar.
+	element bool
 
 	blocks map[BlockKey]*vecFrag
 	loose  *vecBlock // rows with no merge position, in arrival order
@@ -205,7 +283,17 @@ func newVecAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregat
 	if len(labels) != len(members) {
 		labels = members
 	}
-	a := &vecAggregator{typ: agg.Type, members: members, labels: append([]string(nil), labels...), expand: p.Expand,
+	if p.Element != nil && (len(members) != 1 || labels[0] != *p.Element) {
+		// An element slot reads its one member only after the
+		// request-level narrowing (vectors.AggregationSlotRewrite), which
+		// the universal floor (AggregationPresent) reads too. A wider
+		// slot here would fold one member while the floor counted any —
+		// an engine fault, refused loudly.
+		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			name+": params.element "+*p.Element+" was not narrowed to its member before the factory",
+			map[string]any{"aggregation": name, "element": *p.Element, "members": append([]string(nil), members...)})
+	}
+	a := &vecAggregator{typ: agg.Type, moments: agg.Type == types.AGG_VEC_SD, members: members, labels: append([]string(nil), labels...), expand: p.Expand, element: p.Element != nil,
 		fill: newMemberFill(resolved), xs: make([]float64, len(members)), pres: make([]bool, len(members))}
 	if w := slotWeight(agg); w != nil {
 		ew := effectiveWeight(w)
@@ -213,6 +301,14 @@ func newVecAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregat
 	}
 	a.reset()
 	return a, nil
+}
+
+// newBlock is an empty partial of this slot's shape.
+func (a *vecAggregator) newBlock() *vecBlock {
+	if a.moments {
+		return newVecMomentBlock(len(a.members))
+	}
+	return newVecBlock(len(a.members))
 }
 
 func (a *vecAggregator) reset() {
@@ -234,7 +330,7 @@ func (a *vecAggregator) fragFor(r *Record) *vecFrag {
 	if !exists {
 		f = &vecFrag{}
 		if key.Head {
-			f.blk = newVecBlock(len(a.members))
+			f.blk = a.newBlock()
 		}
 		a.blocks[key] = f
 	}
@@ -254,7 +350,7 @@ func (a *vecAggregator) fold(r *Record) {
 	switch {
 	case f == nil:
 		if a.loose == nil {
-			a.loose = newVecBlock(len(a.members))
+			a.loose = a.newBlock()
 		}
 		b = a.loose
 	case f.blk != nil:
@@ -280,7 +376,6 @@ func (a *vecAggregator) fold(r *Record) {
 // other fragments replayed in shard order; vecMergeTree runs over the
 // block partials in block order, then the loose partial merges last.
 func (a *vecAggregator) root() (*vecBlock, error) {
-	p := len(a.members)
 	keys := make([]BlockKey, 0, len(a.blocks))
 	for k := range a.blocks {
 		keys = append(keys, k)
@@ -297,7 +392,7 @@ func (a *vecAggregator) root() (*vecBlock, error) {
 			seq = append(seq, head.blk)
 			continue
 		}
-		b := newVecBlock(p)
+		b := a.newBlock()
 		if head.blk != nil {
 			b = head.blk.clone()
 		}
@@ -314,7 +409,7 @@ func (a *vecAggregator) root() (*vecBlock, error) {
 		roots = append(roots, a.loose)
 	}
 	if len(roots) == 0 {
-		return newVecBlock(p), nil
+		return a.newBlock(), nil
 	}
 	return vecMergeTree(roots), nil
 }
@@ -329,6 +424,7 @@ func (a *vecAggregator) finish() {
 	}
 	a.err = nil
 	val := make([]float64, len(a.members))
+	basis := weighting.BasisOf(a.weight)
 	for i := range val {
 		switch a.typ {
 		case types.AGG_VEC_MEAN:
@@ -337,6 +433,8 @@ func (a *vecAggregator) finish() {
 			} else {
 				val[i] = r.sum[i] / r.w[i]
 			}
+		case types.AGG_VEC_SD:
+			val[i] = vecSD(basis, r.m2[i], r.w[i], r.w2[i])
 		default:
 			val[i] = r.sum[i]
 		}
@@ -350,7 +448,27 @@ func (a *vecAggregator) finish() {
 	if a.weight != nil {
 		comp["element_sum_weights"] = append([]float64(nil), r.w...)
 	}
+	if a.moments {
+		comp["element_mean"] = append([]float64(nil), r.mean...)
+		comp["element_m2"] = append([]float64(nil), r.m2...)
+		if a.weight != nil {
+			comp["element_sum_weights_sq"] = append([]float64(nil), r.w2...)
+		}
+	}
 	a.frozenComp = comp
+}
+
+// vecSD is one element's sample standard deviation under basis:
+// √(c·M2 / (N* − 1)) — weighting.ScaledVariance, the one inference
+// rule (M2/(Σw − 1) unweighted / frequency, M2/(Σw − Σw²/Σw) under
+// probability). N* ≤ 1 leaves no positive denominator: undefined, NaN
+// (JSON null), never 0 — so is an element no row answered.
+func vecSD(basis weighting.Basis, m2, sumW, sumWSq float64) float64 {
+	nStar := basis.NStar(sumW, sumWSq)
+	if !(nStar > 1) {
+		return math.NaN()
+	}
+	return math.Sqrt(weighting.ScaledVariance(basis, m2, sumW, nStar))
 }
 
 func (a *vecAggregator) Aggregate(records []*Record, _ string) (float64, error) {
@@ -360,7 +478,16 @@ func (a *vecAggregator) Aggregate(records []*Record, _ string) (float64, error) 
 	}
 	a.finish()
 	a.reset()
-	return math.NaN(), a.err
+	return a.scalar(), a.err
+}
+
+// scalar is the frozen value's one number: the selected element on an
+// element slot, else NaN (an array has none).
+func (a *vecAggregator) scalar() float64 {
+	if a.element && a.err == nil && len(a.value) == 1 {
+		return a.value[0]
+	}
+	return math.NaN()
 }
 
 func (a *vecAggregator) UpdateRow(r *Record, _ string) error {
@@ -371,7 +498,7 @@ func (a *vecAggregator) UpdateRow(r *Record, _ string) error {
 func (a *vecAggregator) Finalize() (float64, error) {
 	a.finish()
 	a.reset()
-	return math.NaN(), a.err
+	return a.scalar(), a.err
 }
 
 // Rich returns the per-member figures in member order ([]float64; a
@@ -384,6 +511,10 @@ func (a *vecAggregator) Rich() (any, error) {
 	if a.err != nil {
 		return nil, a.err
 	}
+	if a.element {
+		// No rich payload: the cell takes the scalar.
+		return nil, nil
+	}
 	return append([]float64(nil), a.value...), nil
 }
 
@@ -391,7 +522,9 @@ func (a *vecAggregator) Rich() (any, error) {
 // label per member), element_n (rows whose member answered — raw, like
 // the floor's n), element_sum (Σw·x) and, on a weighted slot,
 // element_sum_weights (Σw over contributing rows; the mean's
-// denominator).
+// denominator). AGG_VEC_SD adds element_mean (the running weighted
+// Welford mean), element_m2 (Σw·(x − mean)²) and, weighted,
+// element_sum_weights_sq (Σw², Kish n_eff's denominator).
 func (a *vecAggregator) Components() (map[string]any, error) {
 	if !a.frozen {
 		a.finish()

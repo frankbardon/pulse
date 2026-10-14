@@ -173,6 +173,21 @@ func fusionParityCorpus() []fusionCase {
 		r.Vectors = []types.VectorSpec{{Name: "m", Fields: []string{"score", "qty"}, Kind: types.VectorKindMeasure}}
 		r.Attributes = []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Vector: "m", Label: "a", Params: json.RawMessage(`{"reference":[1,2]}`)}}
 	}))
+	// A fitted slot bound to a prebuilt fit (params.fit) is row-local:
+	// both arms fuse it, whatever its type's or metric's two-pass fact
+	// (U30 E2-S5); the same slot folding its fit declines.
+	add("attr/ATTR_MAHALANOBIS_fit_bound", with(func(r *types.Request) {
+		r.Attributes = []*types.Attribute{{Type: types.ATTR_MAHALANOBIS, Fields: []string{"score", "qty"}, Label: "a", Params: json.RawMessage(`{"fit":"pop"}`)}}
+	}))
+	add("attr/ATTR_MAHALANOBIS_fit_on", with(func(r *types.Request) {
+		r.Attributes = []*types.Attribute{{Type: types.ATTR_MAHALANOBIS, Fields: []string{"score", "qty"}, Label: "a"}}
+	}))
+	add("attr/ATTR_PC_SCORE_fit_bound", with(func(r *types.Request) {
+		r.Attributes = []*types.Attribute{{Type: types.ATTR_PC_SCORE, Fields: []string{"score", "qty"}, Label: "a", Params: json.RawMessage(`{"fit":"pop","component":1}`)}}
+	}))
+	add("attr/ATTR_VEC_DISTANCE_fit_bound", with(func(r *types.Request) {
+		r.Attributes = []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Fields: []string{"score", "qty"}, Label: "a", Params: json.RawMessage(`{"fit":"pop","metric":"mahalanobis","reference":[1,2]}`)}}
+	}))
 	add("formula_expression", with(func(r *types.Request) {
 		r.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "score * 2", Label: "f"}}
 	}))

@@ -1,6 +1,8 @@
 // welfordBucket carries the streaming Welford-Pébaÿ recurrence (mean + M2 + count) reused across statistical aggregators and tests.
 package processing
 
+import "math"
+
 // welfordBucket maintains the running (n, mean, M2) state needed for an
 // online single-pass computation of mean and sample variance via the
 // Welford-Pébaÿ recurrence. Consumers include TEST_T / TEST_WELCH (in
@@ -23,10 +25,11 @@ func (b *welfordBucket) add(v float64) {
 }
 
 // sampleVariance returns the unbiased sample variance s² = M2 / (n - 1).
-// Returns zero for n < 2 so callers can detect degeneracy themselves.
+// Undefined for n < 2 — NaN (JSON null), never 0 (E4-S6); a caller that
+// needs a sample variance checks n first.
 func (b *welfordBucket) sampleVariance() float64 {
 	if b.n < 2 {
-		return 0
+		return math.NaN()
 	}
 	return b.m2 / float64(b.n-1)
 }

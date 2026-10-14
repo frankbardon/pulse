@@ -48,8 +48,8 @@ Primary MATRIX: transition P (rows sum to 1). Parts: `step_<n>` (MATRIX Pⁿ), `
 - Reducible / periodic ⇒ `PULSE_OVERLAY_MARKOV_NOT_ERGODIC`, no `steady_state`.
 - Zero row ⇒ absorbing + `PULSE_OVERLAY_REF_ZERO`.
 - Never-absorbed state ⇒ `null` time.
-- Bad cell ⇒ `PULSE_OVERLAY_NONNEGATIVE_REQUIRED`.
+- Bad (negative / undefined NaN) cell ⇒ `PULSE_OVERLAY_NONNEGATIVE_REQUIRED`.
 
 ## See
 
-- Skills: [`overlay-system`](overlay-system.md), [`op-overlay-share-of-row`](op-overlay-share-of-row.md), [`op-overlay-chisq-matrix`](op-overlay-chisq-matrix.md).
+- Skills: [`overlay-system`](overlay-system.md), [`op-overlay-share-of-row`](op-overlay-share-of-row.md), [`op-overlay-chisq-matrix`](op-overlay-chisq-matrix.md), [`op-overlay-symmetry`](op-overlay-symmetry.md), [`op-overlay-retention`](op-overlay-retention.md).

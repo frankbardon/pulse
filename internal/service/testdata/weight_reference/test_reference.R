@@ -313,6 +313,25 @@ for (j in lo) {
 sr <- cm$stdres
 for (i in lh) for (j in lo) out("ov_std_residual", sprintf("0/cell[%s|%s]", i, j), sr[i, j])
 
+# OVERLAY_SYMMETRY: Bowker on x-bucket × y-bucket counts (GROUP_RANGE
+# interval 4 on both axes; a null x has no bucket). mcnemar.test keeps a
+# pair nobody moved across (0/0 = NaN), so the kept pairs are summed by
+# hand on the same table and cross-checked against mcnemar.test on the
+# table those pairs alone span when none is empty.
+sx <- e[!is.na(e$x), ]
+sb <- function(v) floor(v / 4)
+ls <- sort(unique(c(sb(sx$x), sb(sx$y))))
+st <- table(factor(sb(sx$x), levels = ls), factor(sb(sx$y), levels = ls))
+up <- upper.tri(st)
+ss <- (st + t(st))[up]
+sd <- (st - t(st))[up]
+keep <- ss > 0
+sstat <- sum(sd[keep]^2 / ss[keep])
+if (all(keep)) stopifnot(isTRUE(all.equal(unname(mcnemar.test(st)$statistic), sstat)))
+out("ov_symmetry", "0/summary.statistic", sstat)
+out("ov_symmetry", "0/summary.p_value", pchisq(sstat, sum(keep), lower.tail = FALSE))
+out("ov_symmetry", "0/summary.parameters.df", sum(keep))
+
 # OVERLAY_FISHER_EXACT_CELL: cell vs the rest of its row / column.
 for (i in lh) for (j in lo) {
   a <- tb[i, j]

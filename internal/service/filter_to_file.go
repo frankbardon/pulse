@@ -262,6 +262,24 @@ func (s *Service) filterSingleFileBytesToFile(ctx context.Context, fsys afero.Fs
 	return written, nil
 }
 
+// skipShardPreamble advances br past a shard's header and schema block.
+// The block is read LAYOUT-ONLY: the caller needs only its end offset
+// (the bytes are copied verbatim, and rows decode through the canonical
+// schema), so the shard's dictionaries and group entry tables are read
+// past, never allocated (TestSkipShardPreamble_SkipsDictionaries).
+func skipShardPreamble(br *bytes.Reader, name string) error {
+	pulseVersion, err := encoding.ReadHeader(br)
+	if err != nil {
+		return errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
+			fmt.Sprintf("reading shard %q header", name))
+	}
+	if _, err := encx.ReadSchemaLayout(br, pulseVersion); err != nil {
+		return errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
+			fmt.Sprintf("reading shard %q schema", name))
+	}
+	return nil
+}
+
 // filterShardArchiveToFile applies the filter to every shard in the
 // source archive and writes a new shard archive to dst. One input shard
 // → one output shard, basename preserved, central-directory order
@@ -310,14 +328,8 @@ func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, d
 		// (with the local dictionary subset) stay on the output shard.
 		// The cohesion invariant guarantees record layout matches.
 		br := bytes.NewReader(shardBytes)
-		pulseVersion, err := encoding.ReadHeader(br)
-		if err != nil {
-			return 0, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
-				fmt.Sprintf("reading shard %q header", e.Name))
-		}
-		if _, err := encoding.ReadSchema(br, pulseVersion); err != nil {
-			return 0, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
-				fmt.Sprintf("reading shard %q schema", e.Name))
+		if err := skipShardPreamble(br, e.Name); err != nil {
+			return 0, err
 		}
 		localHeaderSchemaEnd := int64(len(shardBytes)) - int64(br.Len())
 

@@ -168,6 +168,15 @@ func (f registryFuseFacts) AggregatorMarginClass(t types.AggregationType) types.
 	return f.r.AggregatorMarginReducibility(t)
 }
 
+// AggregatorSlotMarginClass: a vector element slot margins like its
+// scalar twin (vectors.ElementMarginClass, shared with predict).
+func (f registryFuseFacts) AggregatorSlotMarginClass(a *types.Aggregation) (types.MarginReducibility, bool) {
+	if a == nil || f.r.isHidden(string(a.Type)) {
+		return "", false
+	}
+	return vectors.ElementMarginClass(a, f.r.AggregationKinds())
+}
+
 // AttributeTwoPass stays TYPE-keyed on purpose (crosstabfuse.Facts is
 // shared with predict and takes a type). The one per-attribute two-pass
 // case — an ATTR_FORMULA calling total(expr) (attrRequiresTwoPass) —
@@ -181,10 +190,17 @@ func (f registryFuseFacts) AttributeTwoPass(t types.AttributeType) bool {
 }
 
 // AttributeSlotTwoPass is the per-slot two-pass case the type cannot
-// tell: an ATTR_VEC_DISTANCE over a fitted metric
-// (attrRequiresTwoPassIn's vectors.ComparisonFitted).
+// tell: an ATTR_VEC_DISTANCE over a fitted metric, or either comparison
+// operator over a centroid reference (attrRequiresTwoPassIn's
+// vectors.ComparisonTwoPass).
 func (f registryFuseFacts) AttributeSlotTwoPass(a *types.Attribute, specs []types.VectorSpec, schema *encoding.Schema) bool {
-	return a != nil && !f.r.isHidden(string(a.Type)) && vectors.ComparisonFitted(a.Type, a, specs, schema)
+	return a != nil && !f.r.isHidden(string(a.Type)) && vectors.ComparisonTwoPass(a.Type, a, specs, schema)
+}
+
+// AttributeSlotBound is the per-slot exemption: a fitted slot bound to
+// a prebuilt fit (vectors.FitBound) is row-local (attrRequiresTwoPassIn).
+func (f registryFuseFacts) AttributeSlotBound(a *types.Attribute) bool {
+	return a != nil && !f.r.isHidden(string(a.Type)) && vectors.FitBound(a.Type, a)
 }
 
 // GrouperKeyable answers from the static table (built-in) or the

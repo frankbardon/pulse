@@ -50,69 +50,69 @@ func TestPredict_Matrices(t *testing.T) {
 	want := []descriptor.MatrixPredict{
 		{Name: "MAT_COVARIANCE_v", Type: types.MAT_COVARIANCE, Shape: [2]int{3, 3}, AxisKeys: []string{"q_2", "q_1", "q_3"},
 			Labels: []string{"Two", "One", "Three"}, Missing: "listwise", Encoding: types.MatrixEncodingFull,
-			AccumulatorBytes: 32 + 8*(3+6), Streamable: true},
+			AccumulatorBytes: 40 + 8*(3+6), Streamable: true},
 		{Name: "rp", Type: types.MAT_CORRELATION, Shape: [2]int{3, 3}, AxisKeys: []string{"q_2", "q_1", "q_3"},
 			Labels: []string{"Two", "One", "Three"}, Missing: "pairwise", Encoding: types.MatrixEncodingUpper,
-			AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
+			AccumulatorBytes: 40 + 72*6, Streamable: true, PairwisePSDRisk: true},
 		// A 2 × 2 pairwise correlation is always PSD; a 2 × 2 pairwise
 		// covariance need not be.
 		{Name: "r2", Type: types.MAT_CORRELATION, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
-			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 40 + 72*3, Streamable: true},
 		{Name: "c2", Type: types.MAT_COVARIANCE, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
-			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true, PairwisePSDRisk: true},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 40 + 72*3, Streamable: true, PairwisePSDRisk: true},
 		// A rank method is buffered and not mergeable, and keeps its
 		// admitted rows: 8·(p + 1) bytes per record.
 		{Name: "rho", Type: types.MAT_CORRELATION, Shape: [2]int{3, 3}, AxisKeys: []string{"q_2", "q_1", "q_3"},
 			Labels: []string{"Two", "One", "Three"}, Missing: "listwise", Encoding: types.MatrixEncodingFull,
-			AccumulatorBytes: 32 + 8*(3+6), RowBufferBytes: i64(matrixFixtureRecords * 8 * 4)},
+			AccumulatorBytes: 40 + 8*(3+6), RowBufferBytes: i64(matrixFixtureRecords * 8 * 4)},
 		{Name: "tau", Type: types.MAT_CORRELATION, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
-			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, RowBufferBytes: i64(matrixFixtureRecords * 8 * 3)},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 40 + 72*3, RowBufferBytes: i64(matrixFixtureRecords * 8 * 3)},
 		// An explicit "pearson" is the default: streamable, mergeable.
 		{Name: "pear", Type: types.MAT_CORRELATION, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
-			Missing: "listwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 8*(2+3), Streamable: true},
+			Missing: "listwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 40 + 8*(2+3), Streamable: true},
 		// A partial correlation's axis drops a member control (q_1) and
 		// its label; an outside control (q_1 beside inline q_2, q_3)
 		// joins the fold, so the state and the PSD risk count three
 		// columns on a 2 × 2 result.
 		{Name: "pv", Type: types.MAT_PARTIAL_CORRELATION, Shape: [2]int{2, 2}, AxisKeys: []string{"q_2", "q_3"},
 			Labels: []string{"Two", "Three"}, Missing: "listwise", Encoding: types.MatrixEncodingFull,
-			AccumulatorBytes: 32 + 8*(3+6), Streamable: true},
+			AccumulatorBytes: 40 + 8*(3+6), Streamable: true},
 		{Name: "pc", Type: types.MAT_PARTIAL_CORRELATION, Shape: [2]int{2, 2}, AxisKeys: []string{"q_2", "q_3"},
-			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 40 + 72*6, Streamable: true, PairwisePSDRisk: true},
 		// Reliability reverses in the fold, so it stays streamable and
 		// mergeable; omega's decomposition carries the PSD risk at p ≥ 3
 		// only (a 2-item battery has no omega and an always-PSD r).
 		{Name: "rel", Type: types.MAT_RELIABILITY, Shape: [2]int{3, 3}, AxisKeys: []string{"q_2", "q_1", "q_3"},
 			Labels: []string{"Two", "One", "Three"}, Missing: "pairwise", Encoding: types.MatrixEncodingFull,
-			AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
+			AccumulatorBytes: 40 + 72*6, Streamable: true, PairwisePSDRisk: true},
 		{Name: "rel2", Type: types.MAT_RELIABILITY, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
-			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 40 + 72*3, Streamable: true},
 		// PCA's primary is the p × k loadings: [p, k] for an integer k,
 		// the [p, p] bound when kaiser or a share picks k from the data.
 		// Its PSD risk follows the analysed matrix: a 2 × 2 pairwise
 		// correlation is always PSD, a 2 × 2 pairwise covariance need not be.
 		{Name: "pca", Type: types.MAT_PCA, Shape: [2]int{3, 2}, AxisKeys: []string{"q_2", "q_1", "q_3"},
 			Labels: []string{"Two", "One", "Three"}, Missing: "pairwise", Encoding: types.MatrixEncodingFull,
-			AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
+			AccumulatorBytes: 40 + 72*6, Streamable: true, PairwisePSDRisk: true},
 		{Name: "pcak", Type: types.MAT_PCA, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
-			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 40 + 72*3, Streamable: true},
 		{Name: "pcac", Type: types.MAT_PCA, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
-			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true, PairwisePSDRisk: true},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 40 + 72*3, Streamable: true, PairwisePSDRisk: true},
 		// Collinearity's primary is the predictors' correlation [p, p];
 		// its PSD risk is the correlation rule (p >= 3).
 		{Name: "coll", Type: types.MAT_COLLINEARITY, Shape: [2]int{3, 3}, AxisKeys: []string{"q_2", "q_1", "q_3"},
 			Labels: []string{"Two", "One", "Three"}, Missing: "pairwise", Encoding: types.MatrixEncodingFull,
-			AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
+			AccumulatorBytes: 40 + 72*6, Streamable: true, PairwisePSDRisk: true},
 		{Name: "coll2", Type: types.MAT_COLLINEARITY, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
-			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 40 + 72*3, Streamable: true},
 		// A factor analysis's primary is the p × k loadings: [p, k] for
 		// an integer params.factors, the [p, p] bound under the Kaiser
 		// rule; its PSD risk is the correlation rule (p >= 3).
 		{Name: "fa", Type: types.MAT_FACTOR, Shape: [2]int{3, 1}, AxisKeys: []string{"q_2", "q_1", "q_3"},
 			Labels: []string{"Two", "One", "Three"}, Missing: "pairwise", Encoding: types.MatrixEncodingFull,
-			AccumulatorBytes: 32 + 56*6, Streamable: true, PairwisePSDRisk: true},
+			AccumulatorBytes: 40 + 72*6, Streamable: true, PairwisePSDRisk: true},
 		{Name: "fak", Type: types.MAT_FACTOR, Shape: [2]int{2, 2}, AxisKeys: []string{"q_1", "q_3"},
-			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 32 + 56*3, Streamable: true},
+			Missing: "pairwise", Encoding: types.MatrixEncodingFull, AccumulatorBytes: 40 + 72*3, Streamable: true},
 	}
 	// Ungrouped: one bucket, p² cells, one accumulator per merge block.
 	for i := range want {
@@ -182,7 +182,7 @@ func TestPredict_MatrixEstimatedBytesCountsBlocks(t *testing.T) {
 		}
 		return ms[0].EstimatedBytes
 	}
-	acc := int64(32 + 8*(2+3))
+	acc := int64(40 + 8*(2+3))
 	shards := func(counts ...int) []byte {
 		specs := make([]struct {
 			Name    string

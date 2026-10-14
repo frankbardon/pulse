@@ -1,6 +1,9 @@
 package processing
 
 import (
+	"math"
+
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -9,10 +12,12 @@ import (
 // projectComposeSeriesSlots narrows each SERIES slot a Compose overlay
 // spec reads to the columns the series arm keys and scores: the slot's
 // GROUP columns (vectors.GroupKeyField of every Request.Groups entry)
-// and ONE value column, the output label of the aggregation the spec
-// scores on that slot. That aggregation is the one params.field names
+// and ONE value column, the column the spec scores on that slot: the
+// output label of the aggregation params.field names
 // (seriesfield.ResolveComposeSlot) on a kind seriesfield.AppliesCompose
-// accepts, else the slot's Aggregations[0].
+// accepts, or the expanded element column "<label>[<element label>]"
+// it names (resolved against the slot's members over slotSchema(j) —
+// vectors.AggregationColumns), else the slot's Aggregations[0].
 //
 // Without it, encodeSeriesRow keyed a row on every column but the
 // alphabetically first numeric one: a slot with two or more
@@ -32,11 +37,11 @@ import (
 // returned in the order given; a field refusal (reference first, then
 // targets in order) is returned as is, the same refusal predict-compose
 // raises from the same Requests.
-func projectComposeSeriesSlots(spec *types.ComposeOverlaySpec, route types.OverlayKind, specIdx int, ref *types.Response, refIdx int, targets []*types.Response, targetIdxs []int, requests []*types.Request) (*types.Response, []*types.Response, error) {
+func projectComposeSeriesSlots(spec *types.ComposeOverlaySpec, route types.OverlayKind, specIdx int, ref *types.Response, refIdx int, targets []*types.Response, targetIdxs []int, requests []*types.Request, slotSchema func(j int) *encoding.Schema, kinds vectors.AggregationKinds) (*types.Response, []*types.Response, error) {
 	if len(requests) == 0 {
 		return ref, targets, nil
 	}
-	narrowedRef, err := projectComposeSeriesSlot(spec, route, specIdx, spec.Reference, ref, refIdx, requests)
+	narrowedRef, err := projectComposeSeriesSlot(spec, route, specIdx, spec.Reference, ref, refIdx, requests, slotSchema, kinds)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -50,7 +55,7 @@ func projectComposeSeriesSlots(spec *types.ComposeOverlaySpec, route types.Overl
 		if i < len(targetIdxs) {
 			idx = targetIdxs[i]
 		}
-		if out[i], err = projectComposeSeriesSlot(spec, route, specIdx, label, t, idx, requests); err != nil {
+		if out[i], err = projectComposeSeriesSlot(spec, route, specIdx, label, t, idx, requests, slotSchema, kinds); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -58,7 +63,7 @@ func projectComposeSeriesSlots(spec *types.ComposeOverlaySpec, route types.Overl
 }
 
 // projectComposeSeriesSlot is projectComposeSeriesSlots for one slot.
-func projectComposeSeriesSlot(spec *types.ComposeOverlaySpec, route types.OverlayKind, specIdx int, label string, resp *types.Response, idx int, requests []*types.Request) (*types.Response, error) {
+func projectComposeSeriesSlot(spec *types.ComposeOverlaySpec, route types.OverlayKind, specIdx int, label string, resp *types.Response, idx int, requests []*types.Request, slotSchema func(j int) *encoding.Schema, kinds vectors.AggregationKinds) (*types.Response, error) {
 	if idx < 0 || idx >= len(requests) {
 		return resp, nil
 	}
@@ -66,30 +71,44 @@ func projectComposeSeriesSlot(spec *types.ComposeOverlaySpec, route types.Overla
 	if req == nil || req.Crosstab != nil {
 		return resp, nil
 	}
-	aggIdx := 0
+	scored := seriesfield.Scored{}
+	if len(req.Aggregations) > 0 && req.Aggregations[0] != nil {
+		scored.Column = types.AggregationLabelOf(req.Aggregations[0])
+	}
 	if seriesfield.AppliesCompose(route) {
-		i, err := seriesfield.ResolveComposeSlot(req.Aggregations, spec, specIdx, label)
+		var schema func() *encoding.Schema
+		if slotSchema != nil {
+			schema = func() *encoding.Schema { return slotSchema(idx) }
+		}
+		sc, err := seriesfield.ResolveComposeSlot(req.Aggregations, spec, specIdx, label, vectors.AggregationColumns(req, schema, kinds))
 		if err != nil {
 			return nil, err
 		}
-		aggIdx = i
+		scored = sc
 	}
-	return narrowSeriesHost(req, aggIdx, resp), nil
+	return narrowSeriesHost(req, scored, resp), nil
 }
 
 // narrowSeriesHost is the narrowing both the Compose and the chain
 // (projectChainSeriesStages) series arms share: resp's Data rows cut
 // to req's GROUP columns (vectors.GroupKeyField of every Groups entry)
-// plus the output label of req.Aggregations[aggIdx], in a shallow copy
-// with fresh rows — resp itself is never touched. resp comes back as
-// it is when aggIdx is out of range, it carries a matrix, or it has no
-// Data.
-func narrowSeriesHost(req *types.Request, aggIdx int, resp *types.Response) *types.Response {
-	if aggIdx >= len(req.Aggregations) || resp == nil || len(resp.Data) == 0 ||
+// plus the scored column — the output label of
+// req.Aggregations[scored.Index], or the expanded element column
+// scored.Column names (an ordinary f64 column; an element no row
+// answered is NaN, read like any scalar aggregate's undefined figure)
+// — in a shallow copy with fresh rows; resp itself is never touched.
+// resp comes back as it is when the index is out of range, it carries
+// a matrix, or it has no Data.
+func narrowSeriesHost(req *types.Request, scored seriesfield.Scored, resp *types.Response) *types.Response {
+	aggIdx := scored.Index
+	if aggIdx < 0 || aggIdx >= len(req.Aggregations) || resp == nil || len(resp.Data) == 0 ||
 		(resp.Crosstab != nil && resp.Crosstab.Matrix != nil) {
 		return resp
 	}
-	valueCol := types.AggregationLabelOf(req.Aggregations[aggIdx])
+	valueCol := scored.Column
+	if valueCol == "" {
+		valueCol = types.AggregationLabelOf(req.Aggregations[aggIdx])
+	}
 	keep := make([]string, 0, len(req.Groups)+1)
 	for _, g := range req.Groups {
 		if g != nil {
@@ -97,7 +116,9 @@ func narrowSeriesHost(req *types.Request, aggIdx int, resp *types.Response) *typ
 		}
 	}
 	keep = append(keep, valueCol)
-	groups := scoredGroupComponents(resp, valueCol, aggIdx)
+	// The components belong to the scored AGGREGATION (its label),
+	// whichever of its columns is scored.
+	groups := scoredGroupComponents(resp, types.AggregationLabelOf(req.Aggregations[aggIdx]), aggIdx)
 	narrowed := *resp
 	narrowed.Data = make([]map[string]any, len(resp.Data))
 	for r, row := range resp.Data {
@@ -183,15 +204,15 @@ func welfordComponentsLeg(v any, groups []types.AggregationGroupComponents, r in
 // field refusal is the target's, then the reference's — the order
 // predict-chain checks them in. ChainResponse.Stages is never touched:
 // a narrowed stage is a shallow copy.
-func projectChainSeriesStages(spec *types.ChainOverlaySpec, route types.OverlayKind, specIdx int, target, ref *types.Response, targetIdx, refIdx int, stageReqs []*types.Request) (*types.Response, *types.Response, error) {
+func projectChainSeriesStages(spec *types.ChainOverlaySpec, route types.OverlayKind, specIdx int, target, ref *types.Response, targetIdx, refIdx int, stageReqs []*types.Request, stageSchema func(i int) *encoding.Schema, kinds vectors.AggregationKinds) (*types.Response, *types.Response, error) {
 	if len(stageReqs) == 0 {
 		return target, ref, nil
 	}
-	narrowedTarget, err := projectChainSeriesStage(spec, route, specIdx, "target", target, targetIdx, stageReqs)
+	narrowedTarget, err := projectChainSeriesStage(spec, route, specIdx, "target", target, targetIdx, stageReqs, stageSchema, kinds)
 	if err != nil {
 		return nil, nil, err
 	}
-	narrowedRef, err := projectChainSeriesStage(spec, route, specIdx, "ref", ref, refIdx, stageReqs)
+	narrowedRef, err := projectChainSeriesStage(spec, route, specIdx, "ref", ref, refIdx, stageReqs, stageSchema, kinds)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -199,7 +220,7 @@ func projectChainSeriesStages(spec *types.ChainOverlaySpec, route types.OverlayK
 }
 
 // projectChainSeriesStage is projectChainSeriesStages for one stage.
-func projectChainSeriesStage(spec *types.ChainOverlaySpec, route types.OverlayKind, specIdx int, which string, resp *types.Response, idx int, stageReqs []*types.Request) (*types.Response, error) {
+func projectChainSeriesStage(spec *types.ChainOverlaySpec, route types.OverlayKind, specIdx int, which string, resp *types.Response, idx int, stageReqs []*types.Request, stageSchema func(i int) *encoding.Schema, kinds vectors.AggregationKinds) (*types.Response, error) {
 	if idx < 0 || idx >= len(stageReqs) {
 		return resp, nil
 	}
@@ -207,13 +228,33 @@ func projectChainSeriesStage(spec *types.ChainOverlaySpec, route types.OverlayKi
 	if req == nil || req.Crosstab != nil {
 		return resp, nil
 	}
-	aggIdx := 0
+	scored := seriesfield.Scored{}
+	if len(req.Aggregations) > 0 && req.Aggregations[0] != nil {
+		scored.Column = types.AggregationLabelOf(req.Aggregations[0])
+	}
 	if seriesfield.AppliesChain(route) {
-		i, err := seriesfield.ResolveChainStage(req.Aggregations, spec, specIdx, which, idx)
+		var schema func() *encoding.Schema
+		if stageSchema != nil {
+			schema = func() *encoding.Schema { return stageSchema(idx) }
+		}
+		sc, err := seriesfield.ResolveChainStage(req.Aggregations, spec, specIdx, which, idx, vectors.AggregationColumns(req, schema, kinds))
 		if err != nil {
 			return nil, err
 		}
-		aggIdx = i
+		scored = sc
 	}
-	return narrowSeriesHost(req, aggIdx, resp), nil
+	return narrowSeriesHost(req, scored, resp), nil
+}
+
+// undefinedSeriesPair reports whether a Compose / chain SERIES pair has
+// an undefined host value on either side — NaN: an expanded element no
+// row answered, or any aggregate's undefined figure (AGG_AVERAGE over a
+// group with no value, …). Such a value is MISSING, the rule the
+// request host applies (buildSeriesHostFromGroupedResponse): the
+// pair's entry keeps its key but carries no statistic (absent on the
+// wire, never null), raises no warning and stays out of the layer
+// summary. A null statistic stays reserved for a figure the kind
+// computed and found undefined (a zero reference, a degenerate test).
+func undefinedSeriesPair(target, ref float64) bool {
+	return math.IsNaN(target) || math.IsNaN(ref)
 }

@@ -1,12 +1,14 @@
 package mergegate
 
 import (
+	stderrors "errors"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -30,6 +32,9 @@ func (fakeExt) Filterer(n string) (bool, bool) {
 }
 func (fakeExt) Attribute(n string) (bool, bool) {
 	return n == "ATTR_X_ROW", strings.HasPrefix(n, "ATTR_X_")
+}
+func (fakeExt) Matrix(n string) (bool, bool) {
+	return n == "MAT_X_COMOMENT", strings.HasPrefix(n, "MAT_X_")
 }
 
 func decSchema() *encoding.Schema {
@@ -60,10 +65,24 @@ func TestMergeRefusal(t *testing.T) {
 		{"row-local built-in attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA}}}, nil, ""},
 		// Bound before the row pass: a per-row score merges like a formula.
 		{"bound-model score attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_REG_PREDICT}}}, nil, ""},
+		// A fitted vector attribute merges only bound to a prebuilt
+		// fit (params.fit); its fit_on fold, and ATTR_VEC_DISTANCE bound
+		// or not, never do.
+		{"fit-bound mahalanobis", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_MAHALANOBIS, Params: []byte(`{"fit":"pop"}`)}}}, nil, ""},
+		{"fit-bound pc score", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PC_SCORE, Params: []byte(`{"fit":"pop","component":1}`)}}}, nil, ""},
+		{"fit-bound factor score", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_FACTOR_SCORE, Params: []byte(`{"fit":"pop","factor":1}`)}}}, nil, ""},
+		{"fit_on mahalanobis", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_MAHALANOBIS, Params: []byte(`{"fit_on":"filtered"}`)}}}, nil, "attribute ATTR_MAHALANOBIS is not row-local"},
+		{"unbound pc score", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PC_SCORE}}}, nil, "attribute ATTR_PC_SCORE is not row-local"},
+		{"fit-bound vec distance", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Params: []byte(`{"fit":"pop","metric":"mahalanobis"}`)}}}, nil, "attribute ATTR_VEC_DISTANCE is not row-local"},
 		{"refit attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_REG_FITTED}}}, nil, "attribute ATTR_REG_FITTED is not row-local"},
 		{"row-local extension attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: "ATTR_X_ROW"}}}, fakeExt{}, ""},
 		{"two-pass extension attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: "ATTR_X_TWO"}}}, fakeExt{}, "attribute ATTR_X_TWO is not row-local"},
 		{"extension attribute without registry", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: "ATTR_X_ROW"}}}, nil, "not row-local"},
+		// An extension MAT_* operator merges iff it declared the
+		// co-moment tier; without the registry the name is unknown.
+		{"co-moment extension matrix", &types.Request{Matrices: []types.MatrixSpec{{Type: "MAT_X_COMOMENT"}}}, fakeExt{}, ""},
+		{"buffered extension matrix", &types.Request{Matrices: []types.MatrixSpec{{Type: "MAT_X_ROWS"}}}, fakeExt{}, "matrix operator MAT_X_ROWS is not mergeable"},
+		{"extension matrix without registry", &types.Request{Matrices: []types.MatrixSpec{{Type: "MAT_X_COMOMENT"}}}, nil, "matrix operator MAT_X_COMOMENT is not mergeable"},
 		{"nil group", &types.Request{Aggregations: sum("n"), Groups: []*types.Group{nil}}, nil, "group slot is nil"},
 		{"mergeable extension grouper", &types.Request{Aggregations: sum("n"), Groups: []*types.Group{{Type: "GROUP_X_MERGE"}}}, fakeExt{}, ""},
 		{"non-mergeable extension grouper", &types.Request{Aggregations: sum("n"), Groups: []*types.Group{{Type: "GROUP_X_SOLO"}}}, fakeExt{}, "grouper GROUP_X_SOLO is not mergeable"},
@@ -300,5 +319,87 @@ func TestChainRefusal_AdmitsBoundModelScore(t *testing.T) {
 	}
 	if err := ChainRefusal(req, decSchema(), nil, 0, "s0"); err != nil {
 		t.Fatalf("refused a chain stage scoring a bound model: %v", err)
+	}
+}
+
+// TestChainRefusal_AdmitsFitBoundAttribute: a fitted vector attribute
+// bound to a prebuilt fit is row-local, so a chain stage carrying it is
+// admitted; the same slot folding its own fit (fit_on) is refused.
+func TestChainRefusal_AdmitsFitBoundAttribute(t *testing.T) {
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "d"}},
+		Attributes:   []*types.Attribute{{Type: types.ATTR_MAHALANOBIS, Label: "d", Fields: []string{"n", "m"}, Params: []byte(`{"fit":"pop"}`)}},
+	}
+	if err := ChainRefusal(req, decSchema(), nil, 0, "s0"); err != nil {
+		t.Fatalf("refused a chain stage scoring a bound vector fit: %v", err)
+	}
+	req.Attributes[0].Params = []byte(`{"fit_on":"filtered"}`)
+	if err := ChainRefusal(req, decSchema(), nil, 0, "s0"); err == nil {
+		t.Fatal("admitted a chain stage folding its own vector fit")
+	}
+}
+
+// TestStageArrayValuedRefusal: a non-final stage carrying an
+// array-valued aggregation is refused array_valued, a non-scalar set
+// fold non_scalar — but an EXPANDING vector aggregation (params.expand)
+// writes one f64 column per member and feeds the next stage (U30
+// E4-S3). The last stage is never judged.
+func TestStageArrayValuedRefusal(t *testing.T) {
+	expand := []byte(`{"expand": true}`)
+	vec := func(params []byte) *types.Aggregation {
+		return &types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"a", "b"}, Label: "m", Params: params}
+	}
+	cases := []struct {
+		name   string
+		aggs   []*types.Aggregation
+		idx    int
+		reason string // "" = admitted
+	}{
+		{"plain vector feeds", []*types.Aggregation{vec(nil)}, 0, "array_valued"},
+		{"expand false feeds", []*types.Aggregation{vec([]byte(`{"expand": false}`))}, 0, "array_valued"},
+		{"expanding vector feeds", []*types.Aggregation{vec(expand)}, 0, ""},
+		{"expanding beside plain", []*types.Aggregation{vec(expand), {Type: types.AGG_VEC_SUM, Fields: []string{"a", "b"}, Label: "s"}}, 0, "array_valued"},
+		{"vec sum expanding", []*types.Aggregation{{Type: types.AGG_VEC_SUM, Fields: []string{"a", "b"}, Label: "s", Params: expand}}, 0, ""},
+		{"set fold non_scalar", []*types.Aggregation{{Type: types.AGG_SET_UNION, Field: "tags"}}, 0, "non_scalar"},
+		{"last stage plain vector", []*types.Aggregation{vec(nil)}, 1, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := StageArrayValuedRefusal(&types.Request{Aggregations: c.aggs}, c.idx, 2, "s", vectors.AggregationKinds{})
+			if c.reason == "" {
+				if err != nil {
+					t.Fatalf("refused: %v", err)
+				}
+				return
+			}
+			var ce *errors.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_CONFIG || ce.Details["reason"] != c.reason {
+				t.Fatalf("err = %v, want PROCESSING_CONFIG reason %s", err, c.reason)
+			}
+		})
+	}
+}
+
+// TestChainRefusal_Crosstab: a stage carrying Request.Crosstab is refused
+// first, whatever else it carries (aggregations, matrices, nothing),
+// under PULSE_CHAIN_NOT_MERGEABLE with CrosstabStageReason — while the
+// merge rule itself still admits a mergeable crosstab-free twin.
+func TestChainRefusal_Crosstab(t *testing.T) {
+	aggs := []*types.Aggregation{{Type: types.AGG_SUM, Field: "n"}}
+	for name, req := range map[string]*types.Request{
+		"crosstab only":            {Crosstab: &types.CrosstabSpec{}},
+		"beside aggregations":      {Crosstab: &types.CrosstabSpec{}, Aggregations: aggs},
+		"beside non-mergeable agg": {Crosstab: &types.CrosstabSpec{}, Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "n"}}},
+	} {
+		err := ChainRefusal(req, nil, nil, 2, "x")
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_CHAIN_NOT_MERGEABLE ||
+			ce.Message != "chain stage is not mergeable: "+CrosstabStageReason ||
+			ce.Details["stage_index"] != 2 || ce.Details["stage_name"] != "x" {
+			t.Fatalf("%s: %v", name, err)
+		}
+	}
+	if err := ChainRefusal(&types.Request{Aggregations: aggs}, nil, nil, 0, "s0"); err != nil {
+		t.Fatalf("crosstab-free twin refused: %v", err)
 	}
 }

@@ -54,7 +54,8 @@ func TestParse_Grammar(t *testing.T) {
 			t.Errorf("Parse(%q).String() = %q", c.in, p.String())
 		}
 	}
-	for _, in := range []string{"", ".data", "data.", "data..x", "[*]", "data[0]", "data[*", "da*ta", "data]x", "data[*]x", "a.*b"} {
+	for _, in := range []string{"", ".data", "data.", "data..x", "[*]", "data[0]", "data[*", "da*ta", "data]x", "data[*]x", "a.*b",
+		`data[*]."m[a]`, `data[*].""`, `data[*]."m"x`, `data[*]."m\x"`, `data[*]."m\"`, `data[*]."m"]`, `"a"*b`} {
 		_, err := Parse(in)
 		var se *SyntaxError
 		if err == nil {
@@ -64,6 +65,74 @@ func TestParse_Grammar(t *testing.T) {
 		if se, _ = err.(*SyntaxError); se == nil || se.Reason == "" {
 			t.Errorf("Parse(%q) error %v is not a SyntaxError with a reason", in, err)
 		}
+	}
+}
+
+// TestParse_QuotedSegment: a quoted name spells any key — an expanded
+// vector element column's brackets, a dot, a star, a quote — and the
+// canonical form quotes exactly the names the bare form cannot spell,
+// so every bare-spellable path keeps its spelling.
+func TestParse_QuotedSegment(t *testing.T) {
+	for _, c := range []struct {
+		in, canon string
+		segs      []Segment
+	}{
+		{`data[*]."emb_mean[q3]"`, `data[*]."emb_mean[q3]"`, []Segment{Key("data"), Elem(), Key("emb_mean[q3]")}},
+		{`data[*]."emb_mean["*`, `data[*]."emb_mean["*`, []Segment{Key("data"), Elem(), {Name: "emb_mean[", Glob: true}}},
+		{`data[*]."a.b*c"`, `data[*]."a.b*c"`, []Segment{Key("data"), Elem(), Key("a.b*c")}},
+		{`data[*]."say \"hi\" \\ [x]"`, `data[*]."say \"hi\" \\ [x]"`, []Segment{Key("data"), Elem(), Key(`say "hi" \ [x]`)}},
+		{`data[*]."\"lead"`, `data[*]."\"lead"`, []Segment{Key("data"), Elem(), Key(`"lead`)}},
+		// Quoting a name the bare form can spell is accepted and
+		// canonicalizes bare.
+		{`"data"[*]."region"`, `data[*].region`, []Segment{Key("data"), Elem(), Key("region")}},
+		{`"tests"[*]."effect_"*`, `tests[*].effect_*`, []Segment{Key("tests"), Elem(), {Name: "effect_", Glob: true}}},
+		// A quote inside a bare name stays literal.
+		{`data[*].a"b\c`, `data[*].a"b\c`, []Segment{Key("data"), Elem(), Key(`a"b\c`)}},
+	} {
+		p, err := Parse(c.in)
+		if err != nil {
+			t.Errorf("Parse(%q): %v", c.in, err)
+			continue
+		}
+		if !slices.Equal(p.Segments, c.segs) {
+			t.Errorf("Parse(%q) = %+v, want %+v", c.in, p.Segments, c.segs)
+		}
+		if got := p.String(); got != c.canon {
+			t.Errorf("Parse(%q).String() = %q, want %q", c.in, got, c.canon)
+		}
+		if back, err := Parse(p.String()); err != nil || !slices.Equal(back.Segments, p.Segments) {
+			t.Errorf("canonical %q does not round-trip: %+v, %v", p.String(), back.Segments, err)
+		}
+	}
+	// A quoted element path matches the concrete key the walker visits.
+	p := mustParse(t, `data[*]."emb_mean[q3]"`)[0]
+	if !p.Matches([]Segment{Key("data"), Elem(), Key("emb_mean[q3]")}) || p.Matches([]Segment{Key("data"), Elem(), Key("emb_mean")}) {
+		t.Error("a quoted segment must match exactly its unescaped key")
+	}
+	if q := Quote(`a"b\c`); q != `"a\"b\\c"` {
+		t.Errorf("Quote = %s", q)
+	}
+}
+
+// TestNew_DigestStableAcrossQuoting pins the digest of a plan spelled
+// in the bare grammar: adding quoted segments moved no existing
+// spelling, so no existing plan's rp1 digest moved either.
+func TestNew_DigestStableAcrossQuoting(t *testing.T) {
+	p := New(PresetCustom,
+		mustParse(t, "data[*].region", "tests[*].details.effect_*", "data[*].first name", "matrices[*].primary.values[*][*]", `data[*].a"b\c`),
+		mustParse(t, "metadata.x*", "components.aggregations[*].groups[*].operator.mean"),
+		mustParse(t, "tests[*].warnings"), 3, rootKeys)
+	const want = "rp1:2b71f5b7ddb0fc2a59e7c54a9dd3cd595a39fdb130ab75d21472d81b2650c306"
+	if p.Digest != want {
+		t.Errorf("digest = %s, want the pre-quoting %s", p.Digest, want)
+	}
+	// The same selection spelled with redundant quotes digests the same.
+	q := New(PresetCustom,
+		mustParse(t, `"data"[*]."region"`, "tests[*].details.effect_*", `data[*]."first name"`, "matrices[*].primary.values[*][*]", `data[*].a"b\c`),
+		mustParse(t, `metadata."x"*`, "components.aggregations[*].groups[*].operator.mean"),
+		mustParse(t, "tests[*].warnings"), 3, rootKeys)
+	if q.Digest != want {
+		t.Errorf("redundantly quoted digest = %s, want %s", q.Digest, want)
 	}
 }
 

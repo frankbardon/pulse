@@ -274,11 +274,15 @@ func applyDeltaVsStageSeries(spec *types.ChainOverlaySpec, target, ref *types.Re
 			})
 			refVal = 0
 		}
-		score := deltaKernel(value, refVal)
 		entryKey := types.AxisKey{keyStr}
 		entry := types.SeriesEntry{
 			Key: entryKey,
 		}
+		if undefinedSeriesPair(value, refVal) {
+			entries = append(entries, entry)
+			continue
+		}
+		score := deltaKernel(value, refVal)
 		scoreCopy := score
 		entry.Summary.Statistic = &scoreCopy
 		entries = append(entries, entry)

@@ -1,4 +1,4 @@
-.PHONY: build clean dist test smoke contrib contrib-tidy cover fmt vet lint bench tzdata reference docs docs-generate docs-serve docs-clean
+.PHONY: build clean dist test smoke contrib contrib-tidy cover fmt fmt-check vet lint bench bench-scale sites tzdata reference docs docs-generate docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -73,18 +73,31 @@ cover:
 	$(GO) test -coverprofile=coverage.out ./...
 	$(GO) tool cover -func=coverage.out
 
+# gofmt from the selected toolchain (GOTOOLCHAIN), so local `GOTOOLCHAIN=go1.26.1 make lint` matches CI.
+GOFMT := $(shell go env GOROOT)/bin/gofmt
+
 fmt:
-	$(GO) fmt ./...
+	$(GOFMT) -w .
+
+# fmt-check fails on any Go file gofmt would rewrite (the nested smoke and
+# contrib modules included). It is part of `make lint`, which is what the CI
+# `lint` job runs, so local lint == CI lint; `make fmt` fixes what it lists.
+fmt-check:
+	@out=$$($(GOFMT) -l .); if [ -n "$$out" ]; then echo "gofmt needed (run make fmt):"; echo "$$out"; exit 1; fi
 
 vet:
 	$(GO) vet ./...
 
-lint: vet
+lint: fmt-check vet
 	$(GO) run honnef.co/go/tools/cmd/staticcheck@latest ./...
 
 # bench runs the in-tree benchmark suite. Manual target — not wired into
 # `make test`. Covers the service-layer crosstab + scan benches, the
-# encoding-layer codec benches, and the root-package point-lookup
+# matrix scale benches at their default tier (1M rows x p50 —
+# matrix_scale_bench_test.go; the cohort is generated once into
+# $PULSE_BENCH_DIR, default <tmp>/pulse-bench), the linalg CoMoment
+# benches (p 8 / 50 / 256), the encoding-layer codec benches, and the
+# root-package point-lookup
 # sidecar-presence benchmark (BenchmarkProcess_SidecarIndexPresence —
 # compares Process with/without a sidecar index present; see
 # no_sidecar_touch_bench_test.go); new bench packages should be added
@@ -95,7 +108,29 @@ lint: vet
 # no_sidecar_touch_perf_test.go's `-tags=perf` opt-in gate for the one
 # in-repo wall-clock assertion, kept out of CI on purpose).
 bench:
-	$(GO) test -bench=. -benchmem -run='^$$' -count=1 . ./internal/service/... ./encoding/... ./internal/processing/...
+	$(GO) test -bench=. -benchmem -run='^$$' -count=1 . ./internal/service/... ./encoding/... ./internal/processing/... ./linalg/...
+
+# bench-scale adds the opt-in matrix scale tiers — 1M x p256, 10M x p50
+# and 10M x p256 — to the default 1M x p50 one (-matrix-scale). Manual
+# and never in CI: the cohorts are stream-generated once into
+# $PULSE_BENCH_DIR (default <tmp>/pulse-bench) and need ~55 GB there with
+# their 8-shard archives; the pairwise 10M x p256 cases run for tens of
+# minutes. Baseline: docs/internals/BENCHMARKS_BASELINE.md.
+bench-scale:
+	$(GO) test -bench=MatrixScale -benchmem -benchtime=1x -run='^$$' -count=1 -timeout=0 ./internal/service/ -args -matrix-scale
+
+# sites prints the change-site checklist for an operator or a
+# Request/Response slot: every file + declaration to edit, the gate
+# tests to rerun and the goldens to regenerate, derived from code
+# (registries, AST, classified identifier occurrences, go/types for
+# slots). Development tool only (internal/tools/sites). Examples:
+#   make sites ARGS="op MAT_PCA"
+#   make sites ARGS="new-op overlay"
+#   make sites ARGS="slot request matrices"
+#   make sites ARGS="--json categories"
+# Recipe: docs/src/internals/finding-change-sites.md.
+sites:
+	$(GO) run ./internal/tools/sites $(ARGS)
 
 # tzdata refreshes Pulse's embedded tz database from the active Go
 # toolchain's $GOROOT/lib/time/zoneinfo.zip and prints the IANA release
@@ -140,7 +175,7 @@ reference:
 # table/template directory env vars cleared so a developer's .env cannot
 # perturb the committed tree; TestDocsGeneratedCurrent fails CI when the
 # tree is stale. Recipe: docs/src/internals/regenerating-goldens.md.
-DOCS_GUIDE_ENV=env -u PULSE_LABEL_TABLES_DIR -u PULSE_RANGE_TABLES_DIR -u PULSE_TEMPLATES_DIR -u PULSE_FEATURE_PROFILE
+DOCS_GUIDE_ENV=env -u PULSE_LABEL_TABLES_DIR -u PULSE_RANGE_TABLES_DIR -u PULSE_POPULATIONS_DIR -u PULSE_TEMPLATES_DIR -u PULSE_FEATURE_PROFILE
 
 docs: docs-generate
 	mdbook build docs

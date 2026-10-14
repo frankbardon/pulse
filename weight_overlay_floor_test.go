@@ -48,6 +48,9 @@ func TestWeight_ComponentsDisabledFloorRefusalMatchesPredict(t *testing.T) {
 		{Name: "c", Kind: types.OverlayKindChiSqCol, Scope: types.OverlayScopeColumn},
 		// The adjusted residuals read the same Kish-scaled table.
 		{Name: "sr", Kind: types.OverlayKindStdResidual, Scope: types.OverlayScopeCell},
+		// The symmetry test reads the same Kish-scaled table (g x an x
+		// range: one grouper per axis; the states are their union).
+		{Name: "sym", Kind: types.OverlayKindSymmetry, Scope: types.OverlayScopeMatrix},
 	}
 
 	// instance builds a Pulse with or without the engine-level opt-out.

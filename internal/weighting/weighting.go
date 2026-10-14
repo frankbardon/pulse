@@ -99,9 +99,12 @@ var aggregatorClasses = map[types.AggregationType]Class{
 	types.AGG_MAE:  ClassAware,
 
 	// vector-metrics-aggregates E2-S2: per element Σw·x (AGG_VEC_SUM)
-	// and Σw·x / Σw (AGG_VEC_MEAN).
+	// and Σw·x / Σw (AGG_VEC_MEAN); matrix-extensions-hardening E5-S1:
+	// the per-element sample sd on N* (Σw under frequency, Kish n_eff
+	// under probability — the one inference rule) (AGG_VEC_SD).
 	types.AGG_VEC_MEAN: ClassAware,
 	types.AGG_VEC_SUM:  ClassAware,
+	types.AGG_VEC_SD:   ClassAware,
 }
 
 // attributeClasses classes the attributes the table governs: the
@@ -134,10 +137,12 @@ var attributeClasses = map[types.AttributeType]Class{
 	types.ATTR_PC_SCORE:     ClassAware,
 	types.ATTR_FACTOR_SCORE: ClassAware,
 	// ATTR_VEC_DISTANCE's fitted metrics (std_euclidean, mahalanobis)
-	// read that same weighted fit; its row-local metrics read no weight
-	// (a weight in force changes no value). ATTR_PROFILE_SIMILARITY is
-	// row-local (ClassNone).
-	types.ATTR_VEC_DISTANCE: ClassAware,
+	// read that same weighted fit; a centroid reference (either
+	// comparison type, U30 E3-S1) is the per-element weighted mean
+	// Σw·x / Σw (AGG_VEC_MEAN's). A row-local metric over any other
+	// reference reads no weight (a weight in force changes no value).
+	types.ATTR_VEC_DISTANCE:       ClassAware,
+	types.ATTR_PROFILE_SIMILARITY: ClassAware,
 }
 
 // testClasses are the built-in tests whose weighted computation exists
@@ -233,12 +238,15 @@ var matrixClasses = map[types.MatrixType]Class{
 	// MAT_RELIABILITY reads the weighted co-moments: alpha is a ratio
 	// of the weighted covariance (scale-free), omega fits the weighted
 	// correlation; item_sd takes the kind's denominator (frequency
-	// Σw − 1, probability Σw − Σw²/Σw).
+	// Σw − 1, probability Σw − Σw²/Σw — per pair under pairwise
+	// deletion, each entry over its own rows, where the probability
+	// factor is no longer uniform and alpha reads it too).
 	types.MAT_RELIABILITY: ClassAware,
 	// MAT_PCA decomposes the weighted correlation (scale-free, kind
 	// free) or the weighted covariance (the kind's denominator, as
 	// MAT_RELIABILITY's item_sd); Bartlett's test reads N* = Σw
-	// (frequency) or Kish n_eff (probability).
+	// (frequency) or Kish n_eff (probability) — under pairwise deletion
+	// the smallest pair's own Σw / Kish n_eff.
 	types.MAT_PCA: ClassAware,
 	// MAT_COLLINEARITY reads the weighted correlation (VIF, centered
 	// Belsley) and the weighted uncentered moments W(Σ + μμᵀ) scaled

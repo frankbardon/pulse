@@ -80,7 +80,7 @@ type weightSlot struct {
 	// refusal prose says so.
 	noSlotWeight bool
 	// extCategory is the weight-bearing extension category
-	// ("aggregator", "attribute", "test") when operator is an
+	// ("aggregator", "attribute", "test", "matrix") when operator is an
 	// embedder-registered operator of the slot's family, "" otherwise;
 	// extAware is its registration's WeightAware declaration.
 	extCategory string
@@ -141,13 +141,15 @@ var overlayWeightClasses = map[types.OverlayKind]overlayWeighting{
 	// Contingency and proportion overlays read the host's Σw cells and
 	// bases (weighting-inferential E3-S2): Pearson on the Σw table
 	// (frequency) or on the table / margin scaled to its Kish n_eff
-	// (probability; not Rao-Scott); p̂ = Σw_success/Σw_base with n =
+	// (probability; not Rao-Scott; OVERLAY_SYMMETRY's McNemar / Bowker
+	// table likewise); p̂ = Σw_success/Σw_base with n =
 	// N*_base. Fisher runs the exact test on the integer Σw table, so it
 	// has no probability form.
 	types.OverlayKindChiSqRow:        {class: weighting.ClassAware},
 	types.OverlayKindChiSqCol:        {class: weighting.ClassAware},
 	types.OverlayKindChiSqMatrix:     {class: weighting.ClassAware},
 	types.OverlayKindStdResidual:     {class: weighting.ClassAware},
+	types.OverlayKindSymmetry:        {class: weighting.ClassAware},
 	types.OverlayKindChiSqVsRef:      {class: weighting.ClassAware},
 	types.OverlayKindPropZCell:       {class: weighting.ClassAware},
 	types.OverlayKindPropZPanel:      {class: weighting.ClassAware},
@@ -462,6 +464,7 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 	}
 	for i, m := range req.Matrices {
 		add(fmt.Sprintf("matrices[%d]", i), string(m.Type), m.Weight)
+		ext(extCategoryMatrix)
 		// A rank method is frequency-only (weighting.MatrixClassOf).
 		if c := weighting.MatrixClassOf(m.Type, vectors.IsRankMethod(vectors.SpecMethod(m))); c != weighting.ClassOf(string(m.Type)) {
 			s := &slots[len(slots)-1]

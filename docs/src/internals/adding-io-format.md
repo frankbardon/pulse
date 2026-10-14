@@ -5,7 +5,7 @@ tabular format (a peer to the existing `csv/`, `tsv/`, `ndjson/`,
 `jsonarray/`, `arrow/`, `parquet/`, `excel/`, `spss/` sub-packages under
 `internal/io/`).
 
-> **From CLAUDE.md, The Update Demand (registered I/O format row) and `.claude/reference/update-demand.md`.**
+> **From CLAUDE.md, The Update Demand (registered I/O format row) and `.claude/reference/update-demand/io-export.md`.**
 
 ## 1. Create the sub-package
 

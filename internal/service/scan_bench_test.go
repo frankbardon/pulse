@@ -21,7 +21,8 @@ import (
 //   - File shape: {1 numeric field} vs {5 numeric + 2 categorical}
 //   - Row count: 10K / 100K / 1M
 //
-// All metrics: ns/op, B/op, allocs/op. Compare deltas vs BENCHMARKS_BASELINE.md
+// All metrics: ns/op, B/op, allocs/op. Compare deltas vs the baseline indexed in
+// docs/internals/BENCHMARKS_BASELINE.md (docs/internals/scan-bench-baseline.txt)
 // after each layer (arena, mmap, zero-copy cat) lands.
 
 // scanShape selects which schema/data layout the benchmark uses.

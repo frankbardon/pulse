@@ -157,6 +157,14 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// totals, which only the buffered / fused crosstab host has
 	// materialised (the CHISQ_MATRIX recurrence).
 	OverlayKindStdResidual: false,
+	// OVERLAY_SYMMETRY is inherently buffered — the McNemar / Bowker
+	// statistic pairs every cell with its transpose, aligned by key, so
+	// it needs the finished square table.
+	OverlayKindSymmetry: false,
+	// OVERLAY_RETENTION is inherently buffered — each from-state's
+	// rates divide by its finished row total and read the diagonal
+	// aligned by key, so it needs the finished table.
+	OverlayKindRetention: false,
 	// OVERLAY_FORMULA is buffered-only at v1 for every host shape.
 	// The per-host-shape variable namespace (research note
 	// `.planning/result-overlay-system/research/formula-namespace.md` § 2)

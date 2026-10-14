@@ -120,6 +120,10 @@ func applyIndexVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Resp
 			continue
 		}
 		entry := types.SeriesEntry{Key: types.AxisKey{keyStr}}
+		if undefinedSeriesPair(value, refVal) {
+			entries = append(entries, entry)
+			continue
+		}
 		if refVal == 0 {
 			warnings = append(warnings, types.OverlayWarning{
 				Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
@@ -218,8 +222,12 @@ func applyDeltaVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Resp
 			})
 			continue
 		}
-		diff := value - refVal
 		entry := types.SeriesEntry{Key: types.AxisKey{keyStr}}
+		if undefinedSeriesPair(value, refVal) {
+			entries = append(entries, entry)
+			continue
+		}
+		diff := value - refVal
 		diffCopy := diff
 		entry.Summary.Statistic = &diffCopy
 		entries = append(entries, entry)
@@ -395,6 +403,10 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 				return types.OverlayLayer{}, nil, err
 			}
 			refMean = refEntry.Scalar
+		}
+		if undefinedSeriesPair(targetMean, refMean) {
+			entries = append(entries, entry)
+			continue
 		}
 
 		p, ok := welchTTest(targetMean, targetVar, targetN, refMean, refVar, refN)

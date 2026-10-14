@@ -173,15 +173,23 @@ func missingCoefficient(name, term string) error {
 // readers.
 type Set struct {
 	byName map[string]*Bound
+	// vectors are the bound vector fits (vector.go), in the same
+	// namespace: a name is bound as one kind or the other.
+	vectors map[string]*VectorFit
+	// capture receives the vector fit a fit request's battery closes
+	// (WithCapture); nil on every other set.
+	capture *VectorCapture
+	// records are the resolved {record} comparison references
+	// (record.go), keyed by vectors.ComparisonReference.RecordKey —
+	// not names: they share no namespace with the fits.
+	records map[string]RecordBinding
 }
 
 // Add binds b under b.Name; a name already bound is
 // PULSE_MODEL_NAME_COLLISION.
 func (s *Set) Add(b *Bound) error {
-	if _, dup := s.byName[b.Name]; dup {
-		return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_NAME_COLLISION,
-			fmt.Sprintf("model name %q is bound twice", b.Name),
-			map[string]any{"name": b.Name})
+	if s.bound(b.Name) {
+		return nameCollision(b.Name)
 	}
 	if s.byName == nil {
 		s.byName = map[string]*Bound{}
@@ -190,15 +198,20 @@ func (s *Set) Add(b *Bound) error {
 	return nil
 }
 
-// Lookup resolves name; an unbound name is PULSE_MODEL_UNKNOWN with the
-// bound names under details.available. Nil-receiver-safe.
+// Lookup resolves name to a bound regression; an unbound name is
+// PULSE_MODEL_UNKNOWN with the bound regressions under
+// details.available, a vector fit's name PULSE_MODEL_KIND_MISMATCH.
+// Nil-receiver-safe.
 func (s *Set) Lookup(name string) (*Bound, error) {
 	if s != nil {
 		if b, ok := s.byName[name]; ok {
 			return b, nil
 		}
+		if _, ok := s.vectors[name]; ok {
+			return nil, KindMismatch(name, types.FitKindRegression, types.FitKindVector)
+		}
 	}
-	return nil, UnknownModel(name, s.Names())
+	return nil, UnknownModel(name, s.RegressionNames())
 }
 
 // UnknownModel is the PULSE_MODEL_UNKNOWN refusal for name against the
@@ -213,8 +226,27 @@ func UnknownModel(name string, available []string) *errors.CodedError {
 		map[string]any{"name": name, "available": available})
 }
 
-// Names returns the bound names, sorted. Nil-receiver-safe.
+// Names returns every bound name, both kinds, sorted — the one
+// namespace (RegressionNames / VectorNames list one kind each).
+// Nil-receiver-safe.
 func (s *Set) Names() []string {
+	if s == nil {
+		return nil
+	}
+	out := make([]string, 0, s.Len())
+	for n := range s.byName {
+		out = append(out, n)
+	}
+	for n := range s.vectors {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// RegressionNames returns the bound regression names, sorted.
+// Nil-receiver-safe.
+func (s *Set) RegressionNames() []string {
 	if s == nil {
 		return nil
 	}
@@ -226,12 +258,12 @@ func (s *Set) Names() []string {
 	return out
 }
 
-// Len is the number of bound models. Nil-receiver-safe.
+// Len is the number of bound names, both kinds. Nil-receiver-safe.
 func (s *Set) Len() int {
 	if s == nil {
 		return 0
 	}
-	return len(s.byName)
+	return len(s.byName) + len(s.vectors)
 }
 
 // setKey carries a request's bound-model Set on a context.

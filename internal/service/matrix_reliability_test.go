@@ -49,7 +49,7 @@ const reliabilityOracleTol = 1e-10
 
 // reliabilityOmegaTol pins omega: its loadings come from the minres
 // fit, which matches psych within 1e-5 on a proper fit (psych's L-BFGS-B
-// stops early; .claude/reference/matrix-and-vectors.md, One-factor
+// stops early; .claude/reference/matrix-and-vectors/matrix-decomposition.md, One-factor
 // minres). omega is smoother than any one loading; 1e-5 holds with room.
 const reliabilityOmegaTol = 1e-5
 
@@ -76,9 +76,11 @@ func relFloats(t *testing.T, v any) []float64 {
 
 // TestMatrixReliability_MatchesROracle pins every mv_reliability.json
 // case: likert_ties, reversed_items (keyed with the declared 1..5 range,
-// and raw), attitude, nulls (listwise and pairwise), 2-item batteries,
-// the Heywood fixture; unweighted, frequency (the rep() expansion) and
-// probability weights. omega is the model form (Σλ)²/((Σλ)²+Σψ) —
+// and raw), attitude, nulls (listwise and pairwise — pairwise also
+// under both weight kinds, where every covariance entry is cov.wt over
+// its own rows, so probability weights apply a per-entry n_eff, TODO
+// #270), 2-item batteries, the Heywood fixture; unweighted, frequency
+// (the rep() expansion) and probability weights. omega is the model form (Σλ)²/((Σλ)²+Σψ) —
 // omega_total_model — null at p = 2 and on a Heywood fit.
 func TestMatrixReliability_MatchesROracle(t *testing.T) {
 	var golden struct {

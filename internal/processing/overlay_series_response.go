@@ -2,11 +2,13 @@ package processing
 
 import (
 	"encoding/json"
+	"math"
 	"slices"
 
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/seriespartition"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -111,10 +113,10 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 		return nil
 	}
 	if len(req.Groups) == 0 {
-		// SERIES overlays attach only to GROUPED Process today.
-		// Overlays on a single-row (no-Groups) host are deferred;
-		// predict already rejects this combination, so the runtime
-		// hook short-circuits without touching resp.Overlays.
+		// SERIES overlays attach only to GROUPED Process today. Every
+		// Process kind on a single-row (no-Groups) host was refused by
+		// refuseWrongHostOverlays above (the SCALAR host rule), so only
+		// a kind outside the Process table reaches here.
 		return nil
 	}
 	if resp == nil || len(req.Aggregations) == 0 {
@@ -128,29 +130,37 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 		// No host groups, no entries to fold over.
 		return nil
 	}
-	hosts := map[int]*SeriesHostView{}
+	// One host per scored COLUMN: an aggregation's label, or one
+	// expanded element column of an array-valued one. The request is
+	// the prepared one (Processor.prepare: an expanding vector slot
+	// carries its literal members and element labels inline), so its
+	// element columns are known without a schema
+	// (vectors.AggregationColumns) — the columns predict resolves over
+	// the cohort schema.
+	hosts := map[string]*SeriesHostView{}
+	cols := vectors.AggregationColumns(req, nil, exts.AggregationKinds())
 	// hostFor hands each spec the host scoring its params.field and the
 	// plan it partitions by (params.partition_by, or OVERLAY_YOY's
 	// non-date keys; runSeriesHandlerPartitioned runs the handler once
 	// per partition).
 	hostFor := func(i int, spec *types.OverlaySpec, kind types.OverlayKind) (*SeriesHostView, seriesPartitionPlan, error) {
-		aggIndex := 0
+		scored := seriesfield.Scored{Column: AggregationLabel(req.Aggregations[0])}
 		if seriesfield.Applies(kind) {
-			idx, err := seriesfield.Resolve(req.Aggregations, spec, i)
+			sc, err := seriesfield.Resolve(req.Aggregations, spec, i, cols)
 			if err != nil {
 				return nil, seriesPartitionPlan{}, err
 			}
-			aggIndex = idx
+			scored = sc
 		}
 		plan, err := seriesPartitionFor(req, spec, kind, i)
 		if err != nil {
 			return nil, seriesPartitionPlan{}, err
 		}
-		if h, ok := hosts[aggIndex]; ok {
+		if h, ok := hosts[scored.Column]; ok {
 			return h, plan, nil
 		}
-		h := buildSeriesHostFromGroupedResponse(req, resp, aggIndex)
-		hosts[aggIndex] = h
+		h := buildSeriesHostFromGroupedResponse(req, resp, scored.Index, scored.Column)
+		hosts[scored.Column] = h
 		return h, plan, nil
 	}
 	// OVERLAY_YOY frequency promotion. The YoY handler reads
@@ -191,12 +201,15 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 // buildSeriesHostFromGroupedResponse builds a SeriesHostView wrapping
 // the per-group rows on resp.Data. Each row's group-key entry (under
 // req.Groups[i].Field) becomes one element of the AxisKey tuple at the
-// row's ordinal; the scored aggregation's value (under
-// AggregationLabel(req.Aggregations[aggIndex])) becomes the host's
-// resolver output for that ordinal. aggIndex is the spec's resolved
-// params.field (internal/seriesfield.Resolve; 0 when absent) — resolved
-// once per spec by applyOverlaysSeriesToResponse, which every tail
-// (buffered, streaming, parallel) calls.
+// row's ordinal; the scored value (under column — the label
+// AggregationLabel(req.Aggregations[aggIndex]) when "", or an expanded
+// element column "<label>[<element label>]" of that aggregation, an
+// ordinary f64 column whose unanswered element is NaN like any
+// undefined scalar figure) becomes the host's resolver output for that
+// ordinal. aggIndex / column are the spec's resolved params.field
+// (internal/seriesfield.Resolve; aggregations[0] when absent) —
+// resolved once per spec by applyOverlaysSeriesToResponse, which every
+// tail (buffered, streaming, parallel) calls.
 //
 // Group-key extraction: the row map carries the canonical group-key
 // representation the grouped path emits (string-typed for category /
@@ -223,7 +236,7 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 // OVERLAY_INDEX_VS_SIBLING / OVERLAY_DELTA_VS_SIBLING spec can resolve
 // `Ref.Sibling.Field` to the matching axis-key element index without
 // scanning every element.
-func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response, aggIndex int) *SeriesHostView {
+func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response, aggIndex int, column string) *SeriesHostView {
 	if resp == nil || len(resp.Data) == 0 {
 		return nil
 	}
@@ -241,7 +254,10 @@ func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response
 		groupFields = append(groupFields, seriespartition.KeyColumns([]*types.Group{g})[0])
 		grouperKinds = append(grouperKinds, g.Type)
 	}
-	primaryLabel := AggregationLabel(req.Aggregations[aggIndex])
+	primaryLabel := column
+	if primaryLabel == "" {
+		primaryLabel = AggregationLabel(req.Aggregations[aggIndex])
+	}
 	data := resp.Data
 	keys := seriespartition.RowKeys(data, groupFields)
 	resolver := func(i int) (float64, bool) {
@@ -252,7 +268,15 @@ func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response
 		if !ok {
 			return 0, false
 		}
-		return toFloat64(raw), true
+		// An undefined figure (NaN: an element no row answered, or
+		// any scalar aggregate's undefined value) is a MISSING host
+		// value, like an absent one — it scores nothing and never
+		// poisons a running total (the window reading, E4-S1).
+		v := toFloat64(raw)
+		if math.IsNaN(v) {
+			return 0, false
+		}
+		return v, true
 	}
 	// OVERLAY_YOY consumes the grouper-kind list via
 	// SeriesHostView.GrouperKinds to enforce its "host grouper must be
@@ -399,7 +423,13 @@ func canStreamOverlays(req *types.Request, exts *ExtensionRegistry) bool {
 		// A kind that does not run on a Process host, or not on this
 		// request's Process shape, routes buffered, whose hook raises
 		// the wrong-slot / wrong-shape refusal.
-		if !overlayhost.Accepts(overlayhost.Request, route) || !overlayhost.AcceptsShape(overlayhost.JudgedShape(AuthoredHostShape(req), len(req.Matrices) > 0, route), route) {
+		judged := overlayhost.JudgedShape(AuthoredHostShape(req), len(req.Matrices) > 0, route)
+		if !overlayhost.Accepts(overlayhost.Request, route) || !overlayhost.AcceptsShape(judged, route) {
+			return false
+		}
+		// A SCALAR host runs no kind: route buffered, whose hook raises
+		// the shared SCALAR host refusal (overlayhost.ScalarSpecRefusal).
+		if judged == types.OverlayShapeScalar && overlayhost.ScalarSpecRefusal(&req.Overlays[i], route, len(req.Groups) > 0, i) != nil {
 			return false
 		}
 		if !streamable {

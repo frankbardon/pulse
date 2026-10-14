@@ -55,11 +55,17 @@ Every operator here reads one vector (`vectors`, see `matrix-results`) and answe
 <!-- feature: ATTR_VEC_DISTANCE -->
 | How far is each row from a target profile? | `ATTR_VEC_DISTANCE` (a row score) |
 <!-- /feature -->
+<!-- feature: ATTR_PROFILE_SIMILARITY -->
+| How close is each row to its segment's centroid, or a saved population's? | `ATTR_PROFILE_SIMILARITY` with `reference: {centroid: {by}}` / `{population}` |
+<!-- /feature -->
 <!-- feature: AGG_VEC_MEAN -->
 | Each group's average profile across the items, as one list? | `AGG_VEC_MEAN` |
 <!-- /feature -->
 <!-- feature: AGG_VEC_SUM -->
 | Each group's total per item, as one list? | `AGG_VEC_SUM` |
+<!-- /feature -->
+<!-- feature: AGG_VEC_SD -->
+| How much each group disagrees on each item, as one list? | `AGG_VEC_SD` (sample sd per item) |
 <!-- /feature -->
 <!-- feature: GROUP_KMEANS -->
 | Which segments do the rows fall into across the fields? | `GROUP_KMEANS` (a grouper) |
@@ -72,7 +78,7 @@ Every operator here reads one vector (`vectors`, see `matrix-results`) and answe
 How uncertain are the coefficients of a fitted model, and how do they co-move? That is not a matrix slot: set `"vcov": true` on the regression (`regression-inference`).
 <!-- /feature -->
 
-Rank correlation (`spearman`, `kendall`) suits ordinal data, outliers and monotone curves. It is buffered and serial, takes frequency weights only, and stays off the streaming path. PCA is a variance summary, not a factor model<!-- feature: MAT_FACTOR -->; `MAT_FACTOR` fits one (minres, principal axis or maximum likelihood with fit indices; varimax, promax or oblimin)<!-- /feature --><!-- feature: MAT_PCA -->; `MAT_PCA` `rotation: varimax` gives a simpler loading pattern<!-- /feature -->.
+Rank correlation (`spearman`, `kendall`) suits ordinal data, outliers and monotone curves. It is buffered and serial, takes frequency weights only, and stays off the streaming path. PCA is a variance summary, not a factor model<!-- feature: MAT_FACTOR -->; `MAT_FACTOR` fits one (minres, principal axis or maximum likelihood with fit indices; orthogonal or oblique rotation)<!-- /feature --><!-- feature: MAT_PCA -->; `MAT_PCA` takes an orthogonal `rotation` (varimax, …) for a simpler loading pattern<!-- /feature -->.
 
 ## Missing data
 
@@ -123,6 +129,9 @@ Per-test correction on other operators: `multiplicity-correction`.
 <!-- /feature -->
 <!-- feature: AGG_VEC_MEAN -->
 - `op-agg-vec-mean`
+<!-- /feature -->
+<!-- feature: AGG_VEC_SD -->
+- `op-agg-vec-sd`
 <!-- /feature -->
 <!-- feature: MAT_COLLINEARITY -->
 - `op-mat-collinearity`

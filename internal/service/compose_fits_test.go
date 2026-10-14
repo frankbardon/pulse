@@ -225,7 +225,7 @@ func TestComposeFits_FitIndependentOfSlot(t *testing.T) {
 	}
 	for mode, resp := range composeBoth(t, svc, c) {
 		got := resp.Fits["train"]
-		if !reflect.DeepEqual(got, alone.Regressions[0]) {
+		if got.Vector != nil || !reflect.DeepEqual(got.RegressionResult, alone.Regressions[0]) {
 			t.Errorf("%s: fit = %+v, want the standalone fit %+v", mode, got, alone.Regressions[0])
 		}
 		if reflect.DeepEqual(got.Coefficients, everyWeek.Regressions[0].Coefficients) {

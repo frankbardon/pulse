@@ -454,7 +454,7 @@ func TestSeriesHost_VectorGrouperKeysOnItsColumn(t *testing.T) {
 		{"GROUP_KMEANS_y": "c0", "step": "s1", "v": 1.0},
 		{"GROUP_KMEANS_y": "c1", "step": "s1", "v": 2.0},
 	}}
-	host := buildSeriesHostFromGroupedResponse(req, resp, 0)
+	host := buildSeriesHostFromGroupedResponse(req, resp, 0, "")
 	if got := host.GroupFields(); got[0] != "GROUP_KMEANS_y" {
 		t.Fatalf("group fields %v", got)
 	}

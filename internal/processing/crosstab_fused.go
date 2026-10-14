@@ -958,7 +958,7 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 	// into, so hoisting it out keeps the fan-out from re-probing the same
 	// field N*M times. Identical to the per-update probe the single-key
 	// predecessor performed at each call site.
-	cellValuePresent := FieldPresent(rec, s.cellField)
+	cellValuePresent := AggregationPresent(rec, s.cellAgg)
 	cellValueNull := !cellValuePresent
 
 	// Grand margin counts every filter-passing record ONCE, regardless of
@@ -977,7 +977,7 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		if cellValueNull {
 			s.grandMarginNNull++
 		}
-		s.grandMarginWeight.Observe(rec, s.cellField)
+		s.grandMarginWeight.ObserveSlot(rec, s.cellAgg)
 	}
 
 	// Row-axis updates (independent of column-axis nullity). Every
@@ -1031,7 +1031,7 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 				s.rowMarginNNull[rowIdx]++
 			}
 			if s.cellWeighted {
-				s.rowMarginWeight[rowIdx].Observe(rec, s.cellField)
+				s.rowMarginWeight[rowIdx].ObserveSlot(rec, s.cellAgg)
 			}
 		}
 	}
@@ -1095,7 +1095,7 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 				s.colMarginNNull[colIdx]++
 			}
 			if s.cellWeighted {
-				s.colMarginWeight[colIdx].Observe(rec, s.cellField)
+				s.colMarginWeight[colIdx].ObserveSlot(rec, s.cellAgg)
 			}
 		}
 	}
@@ -1167,7 +1167,7 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 					s.cellNNull[rowIdx][colIdx]++
 				}
 				if s.cellWeighted {
-					s.cellWeight[rowIdx][colIdx].Observe(rec, s.cellField)
+					s.cellWeight[rowIdx][colIdx].ObserveSlot(rec, s.cellAgg)
 				}
 			}
 		}
@@ -1289,7 +1289,7 @@ func (s *FusedCrosstabState) updateAuxMargins(rec *Record, cellValuePresent bool
 	// hoisted out of the fan-out: the value is a property of the record,
 	// not of the slot it routes into.
 	for i, aux := range s.auxAggs {
-		ok := FieldPresent(rec, aux.Field)
+		ok := AggregationPresent(rec, aux)
 		s.auxPresent[i] = ok
 	}
 
@@ -1333,7 +1333,7 @@ func (s *FusedCrosstabState) foldAuxSlot(slot []auxMarginAccumulator, rec *Recor
 		if err := acc.agg.UpdateRow(rec, s.auxAggs[i].Field); err != nil {
 			return err
 		}
-		acc.weight.Observe(rec, s.auxAggs[i].Field)
+		acc.weight.ObserveSlot(rec, s.auxAggs[i])
 		// Universal floor over the ADMITTED records only, which is what
 		// makes n + n_null the admitted count rather than the routed one.
 		if s.auxPresent[i] {

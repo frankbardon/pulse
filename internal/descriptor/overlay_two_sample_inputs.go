@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/twosample"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -101,10 +102,10 @@ func composeOverlayTwoSampleInputsRefusal(i int, spec *types.ComposeOverlaySpec,
 		}
 		return out
 	}
-	if composeTwoSampleSpecMalformed(i, spec, requests, labels) {
+	kinds := aggregationKinds(inst, nil)
+	if composeTwoSampleSpecMalformed(i, spec, requests, labels, kinds) {
 		return nil
 	}
-	kinds := aggregationKinds(inst, nil)
 	for j, r := range requests {
 		if r == nil || j >= len(labels) {
 			continue
@@ -139,17 +140,33 @@ func composeOverlayTwoSampleInputsRefusal(i int, spec *types.ComposeOverlaySpec,
 			continue // PULSE_OVERLAY_SLOT_NOT_CROSSTAB owns it
 		}
 		ai := 0
+		element := false
+		var sc seriesfield.Scored
 		if seriesfield.AppliesCompose(spec.Kind) {
-			idx, err := seriesfield.ResolveComposeSlot(r.Aggregations, spec, i, labels[j])
+			var err error
+			// No schema here: an element column whose members the slot
+			// does not carry inline resolves syntactically; the field
+			// rule, which reads the slot's schema, judges it.
+			sc, err = seriesfield.ResolveComposeSlot(r.Aggregations, spec, i, labels[j], vectors.AggregationColumns(r, nil, kinds))
 			if err != nil {
 				continue // PULSE_OVERLAY_FIELD_UNKNOWN owns it
 			}
-			ai = idx
+			ai, element = sc.Index, sc.Element(r.Aggregations)
 		}
 		if ai < 0 || ai >= len(r.Aggregations) || r.Aggregations[ai] == nil {
 			continue
 		}
 		agg := r.Aggregations[ai]
+		if element {
+			// An expanded element column is one bare mean per row,
+			// named by its column.
+			scored := *agg
+			scored.Label = sc.Column
+			if ce := twoSampleParamsRefusal(i, spec, labels[j], at(ai), &scored, side, false); ce != nil {
+				return ce
+			}
+			continue
+		}
 		if kinds.IsArrayValued(agg.Type) {
 			continue // the array-valued rule owns it
 		}
@@ -180,7 +197,7 @@ func composeOverlayTwoSampleInputsRefusal(i int, spec *types.ComposeOverlaySpec,
 // _SLOT_NOT_CROSSTAB), or a params.field a read grouped slot does not
 // carry (PULSE_OVERLAY_FIELD_UNKNOWN). Both sides raise those after
 // this rule, so it stands aside rather than pre-empt them.
-func composeTwoSampleSpecMalformed(i int, spec *types.ComposeOverlaySpec, requests []*types.Request, labels []string) bool {
+func composeTwoSampleSpecMalformed(i int, spec *types.ComposeOverlaySpec, requests []*types.Request, labels []string, kinds vectors.AggregationKinds) bool {
 	slot := map[string]*types.Request{}
 	for j, r := range requests {
 		if r != nil && j < len(labels) {
@@ -209,7 +226,7 @@ func composeTwoSampleSpecMalformed(i int, spec *types.ComposeOverlaySpec, reques
 		}
 		shape, seen = s, true
 		if r.Crosstab == nil && seriesfield.AppliesCompose(spec.Kind) {
-			if _, err := seriesfield.ResolveComposeSlot(r.Aggregations, spec, i, label); err != nil {
+			if _, err := seriesfield.ResolveComposeSlot(r.Aggregations, spec, i, label, vectors.AggregationColumns(r, nil, kinds)); err != nil {
 				return true
 			}
 		}

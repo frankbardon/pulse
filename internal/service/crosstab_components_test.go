@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"math"
 	"reflect"
 	"sort"
@@ -764,7 +765,12 @@ func TestCrosstabComponents_CellComponents_BufferedVsFused_ParityByteEqual(t *te
 			}
 			bufCT := crosstabCTOrFail(t, bufResp)
 			fusedCT := crosstabCTOrFail(t, fusedResp)
-			if !reflect.DeepEqual(bufCT.CellComponents, fusedCT.CellComponents) {
+			// %#v, not reflect.DeepEqual: an undefined figure (an
+			// AGG_WELFORD cell's variance at n = 1, E4-S6) is NaN on both
+			// arms, and NaN != NaN. %#v keeps the dynamic types and the
+			// shortest round-trip form of every float, so it is still a
+			// bit-for-bit comparison; maps print in sorted key order.
+			if b, f := fmt.Sprintf("%#v", bufCT.CellComponents), fmt.Sprintf("%#v", fusedCT.CellComponents); b != f {
 				t.Errorf("CellComponents differ for %s:\n buffered=%v\n fused   =%v",
 					cellAgg, bufCT.CellComponents, fusedCT.CellComponents)
 			}

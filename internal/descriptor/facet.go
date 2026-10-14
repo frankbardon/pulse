@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -120,7 +121,7 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	}
 	// The request's `models` — the runtime loads them right after the
 	// slot gate; a refusal stops it there.
-	models, _, lerr := predictModels(req.Models, nil, opts)
+	models, _, lerr := predictModels(model.Refs{Models: req.Models}, opts.populations(), opts)
 	if lerr != nil {
 		addCodedError(env, lerr)
 		result.Valid = false

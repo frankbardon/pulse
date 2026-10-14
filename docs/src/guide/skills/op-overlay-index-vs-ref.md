@@ -26,7 +26,7 @@ Use something else:
 
 ## Params
 
-`Scope` required — `cell` (matrix host) or `group` (series host). `Reference` / `Targets` required slot labels (one or more targets). `params.scale` (float, default `100`) — set `1` for a raw ratio. `params.field` (string, optional, series slots) — OUTPUT LABEL of the aggregation to score on every slot (`label`, else `TYPE_field`); absent = each slot's `aggregations[0]`; rows key on group columns only; a slot lacking it → `PULSE_OVERLAY_FIELD_UNKNOWN`.
+`Scope` required — `cell` (matrix host) or `group` (series host). `Reference` / `Targets` required slot labels (one or more targets). `params.scale` (float, default `100`) — set `1` for a raw ratio. `params.field` (string, optional, series slots) — OUTPUT LABEL of the aggregation to score on every slot (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = each slot's `aggregations[0]`; rows key on group columns only; a slot lacking it → `PULSE_OVERLAY_FIELD_UNKNOWN`.
 
 ## Host shape
 
@@ -38,6 +38,7 @@ MATRIX (cell host) or SERIES (group host) — per-coordinate `(target / ref) × 
 
 ## Gotchas
 
+- An undefined value (NaN — a mean over a group with no value, an unanswered element) on either side is MISSING, as on the request host: series — the entry keeps its key with NO `statistic` (absent, not `null`); matrix — the cell stays absent; no warning, out of `summary.count`.
 - Zero reference → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per coord.
 - Missing reference coordinate → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`.
 - SERIES dispatch is fold-only (streamable per `OverlayStreamability`); MATRIX is forced buffered by the slot barrier.

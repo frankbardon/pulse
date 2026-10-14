@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"math"
 	"reflect"
 	"testing"
 
@@ -299,7 +300,7 @@ func TestMetaAggregator_SetCardinalityAvg_Components(t *testing.T) {
 			recs: nil,
 			want: map[string]any{
 				"sum_cardinality": 0,
-				"avg_cardinality": 0.0,
+				"avg_cardinality": math.NaN(),
 			},
 		},
 	}
@@ -307,7 +308,7 @@ func TestMetaAggregator_SetCardinalityAvg_Components(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got, _ := runSetAggregateForComponents(t, types.AGG_SET_CARDINALITY_AVG, schema, tc.recs)
-			if !reflect.DeepEqual(got, tc.want) {
+			if !componentsEqual(got, tc.want) {
 				t.Errorf("components = %#v, want %#v", got, tc.want)
 			}
 		})

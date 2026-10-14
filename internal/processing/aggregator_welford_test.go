@@ -150,10 +150,11 @@ func TestAggregatorWelford_EmptyInputReturnsNaNAndNil(t *testing.T) {
 	}
 }
 
-// TestAggregatorWelford_SingleRowVarianceIsZero asserts the N<2 edge:
-// mean equals the lone observation, variance is zero (mirrors
-// welfordBucket.sampleVariance behaviour), N = 1.
-func TestAggregatorWelford_SingleRowVarianceIsZero(t *testing.T) {
+// TestAggregatorWelford_SingleRowVarianceIsUndefined asserts the N<2
+// edge: mean equals the lone observation, the sample variance is
+// undefined — NaN, JSON null, never 0 (E4-S6; welfordBucket.sampleVariance)
+// — and N = 1.
+func TestAggregatorWelford_SingleRowVarianceIsUndefined(t *testing.T) {
 	spec := &types.Aggregation{Type: types.AGG_WELFORD, Field: "value"}
 	agg, _ := newWelfordAggregator(spec, welfordSchema())
 	_, err := agg.Aggregate([]*Record{welfordRecord(17.0)}, "value")
@@ -165,8 +166,8 @@ func TestAggregatorWelford_SingleRowVarianceIsZero(t *testing.T) {
 	if triple.Mean != 17.0 {
 		t.Errorf("Rich.Mean = %v, want 17.0", triple.Mean)
 	}
-	if triple.Variance != 0 {
-		t.Errorf("Rich.Variance = %v, want 0 (welfordBucket zero-on-N<2 contract)", triple.Variance)
+	if !math.IsNaN(triple.Variance) {
+		t.Errorf("Rich.Variance = %v, want NaN (undefined sample variance at N<2)", triple.Variance)
 	}
 	if triple.N != 1 {
 		t.Errorf("Rich.N = %d, want 1", triple.N)

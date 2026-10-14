@@ -201,7 +201,7 @@
               {
                 "name": "weighted_variance",
                 "type": "float64",
-                "description": "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; 0 when Σw ≤ 1.",
+                "description": "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; null (NaN) when Σw ≤ 1.",
                 "optional": true
               }
             ],
@@ -404,7 +404,7 @@
               {
                 "name": "variance",
                 "type": "float64",
-                "description": "Unbiased sample variance derived from m2 / (n-1)."
+                "description": "Unbiased sample variance derived from m2 / (n-1); null (NaN) when n \u003c 2 (weighted: sum_weights \u003c= 1)."
               },
               {
                 "name": "stddev",
@@ -750,7 +750,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 172,
+    "error_codes_count": 173,
     "error_domains": [
       "CLI",
       "DATA",
@@ -815,6 +815,7 @@
       "PULSE_EXTENSION_FACTORY_PANIC",
       "PULSE_EXTENSION_FANOUT_MISMATCH",
       "PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH",
+      "PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_MERGEABLE_MISMATCH",
       "PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA",
       "PULSE_EXTENSION_NAME_COLLISION",
@@ -1696,11 +1697,13 @@
       "features": [],
       "tests": [],
       "synth_distributions": [],
+      "matrix_ops": [],
       "expr_functions": [],
       "lookup_tables": [],
       "reference_vectors": [],
       "label_tables": [],
-      "range_tables": []
+      "range_tables": [],
+      "populations": []
     },
     "facet": {
       "name": "facet_schema",
@@ -1879,7 +1882,7 @@
             {
               "name": "weighted_variance",
               "type": "float64",
-              "description": "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; 0 when Σw ≤ 1.",
+              "description": "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; null (NaN) when Σw ≤ 1.",
               "optional": true
             }
           ],
@@ -1975,7 +1978,7 @@
             {
               "name": "variance",
               "type": "float64",
-              "description": "Unbiased sample variance derived from m2 / (n-1)."
+              "description": "Unbiased sample variance derived from m2 / (n-1); null (NaN) when n \u003c 2 (weighted: sum_weights \u003c= 1)."
             },
             {
               "name": "stddev",
@@ -2273,4 +2276,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c9f79dbc38986556274e7c399d8a4124bed7936516636cd96929a110bc11c3fb
+// golden-hash: 7099fe06f6869eba6f9ab5384bf428149a56d7fc1ab49755825e4910af2d41e1

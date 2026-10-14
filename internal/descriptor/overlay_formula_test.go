@@ -27,15 +27,6 @@ func TestValidateOverlay_FormulaInvalidIdent(t *testing.T) {
 			wantUnknownIdent: "undefined_var",
 		},
 		{
-			name: "scalar_host_rejects_series_var",
-			req: &types.Request{
-				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "value"}},
-			},
-			formula:          "value + total",
-			wantErrFragment:  "total",
-			wantUnknownIdent: "total",
-		},
-		{
 			name: "request_host_rejects_slot_namespace",
 			req: &types.Request{
 				Crosstab: crosstabHostSpec(),

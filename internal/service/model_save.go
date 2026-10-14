@@ -10,13 +10,15 @@ import (
 
 	"github.com/spf13/afero"
 
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
-// model_save.go writes model files: a RegressionSpec.Save after the
-// request's run (saveRegressionModels) and a FitSpec.Save after the
-// Compose fit pre-pass (saveFitModel). The format and the path rule are
+// model_save.go writes model files — a RegressionSpec.Save after the
+// request's run (saveRegressionModels) and a regression FitSpec.Save
+// after the Compose fit pre-pass (saveFitModel) — and population files
+// (a vector FitSpec.Save, saveFitPopulation). The format and the path rule are
 // internal/model's (shared with predict); the write is here, through the
 // instance afero.Fs, atomically.
 
@@ -98,16 +100,46 @@ func (s *Service) writeModel(ctx context.Context, path, name string, spec *types
 	if err != nil {
 		return false, err
 	}
-	return writeModelFile(s.fs.Fs(), path, name, data)
+	return writeModelFile(s.fs.Fs(), path, name, data, model.WriteFailed)
 }
 
-// writeModelFile writes data to path via temp + fsync + rename (the
-// shard-admin atomicWrite pattern), creating the parent directory. A
-// failure at any stage is PULSE_MODEL_WRITE_FAILED and leaves path as it
-// was — absent, or its previous content — with the temp file removed.
-func writeModelFile(fsys afero.Fs, path, name string, data []byte) (overwrote bool, err error) {
+// saveFitPopulation writes vector fit i's population file
+// (FitSpec.Save) under the fit's name from its closed state. It returns
+// the PULSE_MODEL_OVERWRITTEN warning (details.fit = i) when it
+// replaced a file, nil otherwise.
+func (s *Service) saveFitPopulation(ctx context.Context, i int, fit types.FitSpec, vf *model.VectorFit) (*types.ResponseWarning, error) {
+	if fit.Save == "" {
+		return nil, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	f, err := model.NewPopulationFile(fit.Name, vf, s.modelProvenance(fit.Request))
+	if err != nil {
+		return nil, err
+	}
+	data, err := f.Encode()
+	if err != nil {
+		return nil, err
+	}
+	overwrote, err := writeModelFile(s.fs.Fs(), fit.Save, fit.Name, data, model.PopulationWriteFailed)
+	if err != nil || !overwrote {
+		return nil, err
+	}
+	w := model.PopulationOverwritten(fit.Save, fit.Name)
+	w.Details["fit"] = i
+	return &types.ResponseWarning{Code: string(w.Code), Message: w.Message, Details: w.Details}, nil
+}
+
+// writeModelFile writes data — a model or population file — to path
+// via temp + fsync + rename (the shard-admin atomicWrite pattern),
+// creating the parent directory. A failure at any stage is
+// PULSE_MODEL_WRITE_FAILED (built by failed: model.WriteFailed or
+// model.PopulationWriteFailed) and leaves path as it was — absent, or
+// its previous content — with the temp file removed.
+func writeModelFile(fsys afero.Fs, path, name string, data []byte, failed func(path, name, stage string, cause error) *errors.CodedError) (overwrote bool, err error) {
 	fail := func(stage string, cause error) (bool, error) {
-		return false, model.WriteFailed(path, name, stage, cause)
+		return false, failed(path, name, stage, cause)
 	}
 	info, statErr := fsys.Stat(path)
 	switch {

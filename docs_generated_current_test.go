@@ -37,7 +37,7 @@ const (
 // export's SUMMARY fragment spliced in. A Purpose, Interpretation,
 // glossary or skill edit without `make docs` fails here.
 func TestDocsGeneratedCurrent(t *testing.T) {
-	for _, k := range []string{"PULSE_LABEL_TABLES_DIR", "PULSE_RANGE_TABLES_DIR", "PULSE_TEMPLATES_DIR", "PULSE_FEATURE_PROFILE"} {
+	for _, k := range []string{"PULSE_LABEL_TABLES_DIR", "PULSE_RANGE_TABLES_DIR", "PULSE_POPULATIONS_DIR", "PULSE_TEMPLATES_DIR", "PULSE_FEATURE_PROFILE"} {
 		t.Setenv(k, "")
 	}
 	p, err := New(Options{FS: afero.NewMemMapFs()})

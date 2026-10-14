@@ -108,8 +108,14 @@ func TestMatrixRefusal_PredictAndValidatorsMatchRuntime(t *testing.T) {
 				stage.Cohort = nil
 				return &types.ChainRequest{Cohort: &types.Cohort{Filename: cohort}, Stages: []*types.ChainStage{{Name: "s0", Request: stage}}}
 			}
+			// A crosstab stage is refused by the chain gate first
+			// (U30 E7-S4), on both sides.
+			code := c.code
+			if c.name == "crosstab" {
+				code = errors.PULSE_CHAIN_NOT_MERGEABLE
+			}
 			_, rerr := p.ProcessChain(ctx, mk())
-			requireCode(t, rerr, c.code)
+			requireCode(t, rerr, code)
 			sameEntry(t, descx.ValidateChainWithOptions(bytes.NewReader(data), mk(), opts), rerr)
 		})
 	}

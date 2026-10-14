@@ -60,16 +60,6 @@ import (
 //     with string concatenation so descriptor envelope output stays
 //     grep-clean against the structural defense ban.
 
-// facetOverlaySupportedScopes is the supported scope set for the FACET-
-// host overlay kinds (OVERLAY_INDEX_VS_POP / OVERLAY_ZSCORE_VS_POP /
-// OVERLAY_CHISQ_VS_POP / OVERLAY_KS_VS_POP). GROUP is the only sensible
-// footprint for the per-value population-comparison statistic these
-// kinds emit; CELL / ROW / COLUMN / MATRIX / TOTAL fires
-// PULSE_OVERLAY_SCOPE_UNSUPPORTED.
-var facetOverlaySupportedScopes = map[types.OverlayScope]bool{
-	types.OverlayScopeGroup: true,
-}
-
 // ValidateFacetOverlays walks every spec in req.Overlays and appends
 // structural errors to the envelope. Sibling to ValidateOverlays — the
 // Request-host validator — but enforces the FACET-host contract: the
@@ -125,15 +115,12 @@ func validateFacetOverlaySpec(env *descriptor.Envelope, req *types.FacetRequest,
 		return
 	}
 	// Shared shape contract — Ref.Population only, GROUP scope,
-	// Level / Within == 0. Apply before the per-kind host-arm gate so
-	// callers see the structural failure first.
-	if !validateFacetOverlayRef(env, spec, index) {
-		return
-	}
-	if !validateFacetOverlayScope(env, spec, index) {
-		return
-	}
-	if !validateFacetOverlayLevelWithin(env, spec, index) {
+	// Level / Within == 0 — the rule the runtime FACET loop raises at the
+	// same point (overlayhost.FacetSpecRefusal), same code, message and
+	// details. Apply before the per-kind host-arm gate so callers see
+	// the structural failure first.
+	if cerr := overlayhost.FacetSpecRefusal(spec, opts.overlayRoute(spec.Kind), index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
 	// Host-field selection — read Params["field"], fall back to the
@@ -146,86 +133,6 @@ func validateFacetOverlaySpec(env *descriptor.Envelope, req *types.FacetRequest,
 	// KS_VS_POP rejects categorical). INDEX_VS_POP / ZSCORE_VS_POP
 	// accept both arms (the runtime handler dispatches internally).
 	validateFacetOverlayHostArm(env, schema, spec, hostField, index)
-}
-
-// validateFacetOverlayRef enforces the Ref.Population-only contract for
-// FACET-host overlay kinds. Ref.Population MUST be populated; every
-// other ref-family pointer is a shape mismatch
-// (PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE). Returns true when the Ref
-// passes; false when an error was emitted.
-func validateFacetOverlayRef(env *descriptor.Envelope, spec *types.OverlaySpec, index int) bool {
-	if spec.Ref.Margin != nil ||
-		spec.Ref.Sibling != nil ||
-		spec.Ref.BaselineIndex != nil ||
-		spec.Ref.Prior != nil ||
-		spec.Ref.RollingMean != nil ||
-		spec.Ref.YoY != nil ||
-		spec.Ref.Stage != nil ||
-		spec.Ref.Slot != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Population only (no Margin / Sibling / BaselineIndex / Prior / RollingMean / YoY / Stage / Slot)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return false
-	}
-	if spec.Ref.Population == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires Ref.Population (population-comparison reference; the comparison cohort lives on Ref.Population.Cohort)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return false
-	}
-	if spec.Ref.Population.Cohort == "" {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" Ref.Population.Cohort is empty (population reference requires a comparison-cohort name)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
-		return false
-	}
-	return true
-}
-
-// validateFacetOverlayScope enforces the GROUP-scope contract for
-// FACET-host overlay kinds. Returns true when the scope passes; false
-// when an error was emitted.
-func validateFacetOverlayScope(env *descriptor.Envelope, spec *types.OverlaySpec, index int) bool {
-	if !facetOverlaySupportedScopes[spec.Scope] {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"scope": string(spec.Scope),
-			})
-		return false
-	}
-	return true
-}
-
-// validateFacetOverlayLevelWithin enforces the Level / Within == 0
-// contract for FACET-host overlay kinds. Population comparison is a
-// single-value lookup, not an axis prefix; non-zero values fire
-// PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the Request-host implicit-
-// ref family.
-func validateFacetOverlayLevelWithin(env *descriptor.Envelope, spec *types.OverlaySpec, index int) bool {
-	if spec.Level != 0 || spec.Within != 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
-			"overlay "+string(spec.Kind)+" does not support Level / Within (population-comparison kind: the reference is a single-value lookup, not an axis prefix)",
-			map[string]any{
-				"index":  index,
-				"kind":   string(spec.Kind),
-				"level":  spec.Level,
-				"within": spec.Within,
-			})
-		return false
-	}
-	return true
 }
 
 // resolveFacetOverlayHostField returns the FacetRequest.Fields entry

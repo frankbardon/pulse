@@ -3,7 +3,6 @@ package descriptor
 import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
@@ -41,22 +40,15 @@ func validateOverlayRake(env *descriptor.Envelope, req *types.Request, spec *typ
 	if route != types.OverlayKindRake || req == nil || spec == nil {
 		return
 	}
-	if spec.Ref != (types.OverlayRef{}) {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-margin: the fit reads the whole table)",
-			map[string]any{"index": index, "kind": string(spec.Kind)})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, route, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
+
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{"index": index, "kind": string(spec.Kind)})
-		return
-	}
-	if spec.Scope != types.OverlayScopeMatrix {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: matrix)",
-			map[string]any{"index": index, "kind": string(spec.Kind), "scope": string(spec.Scope)})
+		addHostRequired(env, spec, route, len(req.Groups) > 0, index)
 		return
 	}
 	params, cerr := overlayhost.ParseRakeParams(spec, index)

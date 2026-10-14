@@ -1,0 +1,66 @@
+{
+  "_meta": {
+    "category": "crosstab",
+    "description": "One member of a rating battery as a crosstab cell: AGG_VEC_MEAN over the survey's six ratings (survey.pulse, a named vector with display labels) with params.element \"value_fair\" reads that member alone, so each (panel, q3 band of width 2) cell is the mean q4 rating, a scalar like AGG_AVERAGE's on the same column; it rises from about 3.0 in the lowest q3 band to about 5.2 in the highest, the correlation between the survey's two factors. Without element an array-valued aggregator is refused as a cell (PROCESSING_CONFIG reason array_valued). The cell floor counts the rows where that member answered; margins are recomputed from those rows, and a margin_aggregations entry may name its own element: here the margins also carry the SD of the same member (AGG_VEC_SD, element \"value_fair\"), under Components.crosstab row_margin_aggregations / column_margin_aggregations / grand_total_aggregations. A record reaches an auxiliary margin only if it reached a CELL. element is a member's display label (the vector's labels, else the member name), is refused outside a crosstab and beside expand, and fuses like the scalar twin.",
+    "intents": [
+      "describe",
+      "compare_groups"
+    ],
+    "name": "crosstab_vector_element_cells",
+    "operators": [
+      "AGG_VEC_MEAN",
+      "AGG_VEC_SD",
+      "GROUP_CATEGORY",
+      "GROUP_RANGE"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "multivariate"
+    ]
+  },
+  "cohort": {
+    "filename": "survey.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {
+      "name": "ratings",
+      "fields": ["q1", "q2", "q3", "q4", "q5", "q6"],
+      "labels": ["helpful", "quick", "worth_contact", "value_fair", "money_worth", "renew"]
+    }
+  ],
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "panel"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_RANGE",
+        "field": "q3",
+        "interval": 2
+      }
+    ],
+    "cell": {
+      "type": "AGG_VEC_MEAN",
+      "vector": "ratings",
+      "label": "value_fair_mean",
+      "params": {"element": "value_fair"}
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    },
+    "margin_aggregations": [
+      {
+        "type": "AGG_VEC_SD",
+        "vector": "ratings",
+        "label": "value_fair_sd",
+        "params": {"element": "value_fair"}
+      }
+    ]
+  }
+}

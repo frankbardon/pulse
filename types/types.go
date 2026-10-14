@@ -155,15 +155,21 @@ const (
 	// through the RichAggregator lift (ArrayValued). Missing data is per
 	// element: a null member skips that element only. AGG_VEC_MEAN is
 	// Σw·x / Σw per element (null when no row answered it), AGG_VEC_SUM
-	// Σw·x per element (0 when none did). Streamable and mergeable:
-	// per-merge-block sums combined in a fixed tree, so the figure is
+	// Σw·x per element (0 when none did), AGG_VEC_SD the per-element
+	// sample standard deviation — √(M2 / (N* − 1)) with N* = Σw
+	// (unweighted: n; frequency: Σw) or Kish n_eff (probability), null
+	// when N* ≤ 1. Streamable and mergeable: per-merge-block partials
+	// (sums; for AGG_VEC_SD also the weighted Welford moments, combined
+	// by Chan's rule) folded in a fixed tree, so the figure is
 	// bit-identical for every worker count. Refused by crosstab, Sort,
 	// windows, post-tests, overlays and a chain stage that feeds another
 	// stage. params.expand writes one scalar column per member,
-	// "<label>[<element label>]", instead of the array — presentation
-	// only, refused in the same places.
+	// "<label>[<element label>]", instead of the array — ordinary f64
+	// columns Sort, windows, post-tests, series overlays and a later
+	// chain stage read; the bare label stays refused.
 	AGG_VEC_MEAN AggregationType = "AGG_VEC_MEAN"
 	AGG_VEC_SUM  AggregationType = "AGG_VEC_SUM"
+	AGG_VEC_SD   AggregationType = "AGG_VEC_SD"
 )
 
 // AllAggregationTypes returns all defined aggregation types.
@@ -183,7 +189,7 @@ func AllAggregationTypes() []AggregationType {
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES,
-		AGG_VEC_MEAN, AGG_VEC_SUM,
+		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD,
 	}
 }
 
@@ -402,8 +408,9 @@ const (
 	// standardized to unit variance on the fit population: the
 	// eigen-decomposition of the fit's correlation (params.on, the
 	// default) or covariance, with MAT_PCA's order and sign convention.
-	// params.rotation "varimax" scores the component after rotating the
-	// params.components leading ones (MAT_PCA's rotation). Two-pass with
+	// params.rotation (an orthogonal criterion: "varimax", "quartimax",
+	// "geomin_orthogonal", "entropy") scores the component after rotating
+	// the params.components leading ones (MAT_PCA's rotation). Two-pass with
 	// the fitted-attribute rules of ATTR_MAHALANOBIS (fit_on, listwise,
 	// null member → null, singular or N* ≤ p → every score null).
 	ATTR_PC_SCORE AttributeType = "ATTR_PC_SCORE"
@@ -1045,7 +1052,7 @@ type Aggregation struct {
 	Field string `json:"field"`
 
 	// Vector names the Request.Vectors entry whose members a vector
-	// aggregator (AGG_VEC_MEAN / AGG_VEC_SUM) aggregates element by
+	// aggregator (AGG_VEC_MEAN / AGG_VEC_SUM / AGG_VEC_SD) aggregates element by
 	// element; exactly one of Vector and Fields. Any other aggregator
 	// refuses it.
 	Vector string `json:"vector,omitempty"`
@@ -1222,11 +1229,12 @@ type Attribute struct {
 	//   missing: "listwise" (the only mode).
 	// ATTR_MAHALANOBIS adds output: "d2" (default) or "p". ATTR_PC_SCORE
 	// adds component (1-based, required), on ("correlation" default or
-	// "covariance"), rotation ("none" default or "varimax") and
-	// components (the k rotated within; required with varimax).
-	// ATTR_FACTOR_SCORE adds factor (1-based, required), method
-	// ("regression" default or "bartlett") and MAT_FACTOR's factors,
-	// extraction, rotation, kappa and gamma.
+	// "covariance"), rotation ("none" default or MAT_PCA's orthogonal
+	// criteria), epsilon (geomin_orthogonal) and components (the k
+	// rotated within; required with a rotation). ATTR_FACTOR_SCORE adds
+	// factor (1-based, required), method ("regression" default or
+	// "bartlett") and MAT_FACTOR's factors, extraction, rotation, kappa,
+	// gamma and epsilon.
 	Params json.RawMessage `json:"params,omitempty"`
 
 	// --- Regression-attribute fields (Option A: each ATTR_REG_* carries
@@ -1404,6 +1412,16 @@ type Request struct {
 	// entry, or a Compose fit) is PULSE_MODEL_NAME_COLLISION. Gated by
 	// capability:models. See ModelRef.
 	Models []ModelRef `json:"models,omitempty"`
+
+	// Populations loads saved population files (a Compose vector fit's
+	// `save`) by name, into the same bound-model namespace as vector
+	// fits: a fitted attribute's or MAT_* slot's params.fit resolves a
+	// loaded name exactly like a Compose vector fit of the same name.
+	// Every file is read, version-checked and decoded before any record
+	// is read; a name already bound (a `models` entry, another entry, or
+	// a Compose fit) is PULSE_MODEL_NAME_COLLISION. Gated by
+	// capability:models. See PopulationRef.
+	Populations []PopulationRef `json:"populations,omitempty"`
 
 	// Joins describes pushdown hash-join legs attached to the primary
 	// cohort. v1 supports exactly one inner join per Request; multi-
@@ -1974,7 +1992,8 @@ type ComposedRequest struct {
 	// on the wire and under Hash. See SweepSpec.
 	Sweep *SweepSpec `json:"sweep,omitempty"`
 
-	// Fits are the batch's named regression fits: each runs once,
+	// Fits are the batch's named fits (regressions or vector
+	// batteries — FitSpec): each runs once,
 	// before any slot (in parallel among themselves under
 	// ComposeParallel), and every slot — sweep-expanded ones included —
 	// receives the bound models by name. Gated by capability:compose_fits.
@@ -2024,12 +2043,14 @@ type ComposedResponse struct {
 	// rank. Gated by capability:compose_sweep with the `sweep` slot.
 	Ranking []RankEntry `json:"ranking,omitempty"`
 
-	// Fits carries each ComposedRequest.Fits entry's regression result,
-	// keyed by the fit's name (JSON object keys sort by name). Omitted
+	// Fits carries each ComposedRequest.Fits entry's result, keyed by
+	// the fit's name (JSON keys sort by name): a regression fit's
+	// RegressionResult or a vector fit's VectorFitResult (FitResult — a
+	// regression entry's wire form is the regression-only one). Omitted
 	// when the request declared no fits. Like `ranking` it sits outside
 	// the Compose-level `return`: always emitted, never rounded. Gated
 	// by capability:compose_fits with the `fits` request slot.
-	Fits map[string]*RegressionResult `json:"fits,omitempty"`
+	Fits map[string]*FitResult `json:"fits,omitempty"`
 
 	// Warnings carries the batch-level diagnostics no slot owns: today
 	// a fit's PULSE_MODEL_OVERWRITTEN (a `fits` save — or a save on the

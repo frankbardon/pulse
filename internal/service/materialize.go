@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
@@ -73,7 +74,13 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 	// The request's `models`, loaded before any record is read (a
 	// regression `save` never reaches here: regressions are refused
 	// above, so a materialize run writes no model file).
-	ctx, err := s.bindRequestModels(ctx, req.Models)
+	ctx, err := s.bindRequestModels(ctx, model.RequestRefs(req))
+	if err != nil {
+		return err
+	}
+	// Every comparison slot's {record} reference, resolved before any
+	// processor builds (reference_records.go).
+	ctx, err = s.bindReferenceRecords(ctx, req, req.Cohort)
 	if err != nil {
 		return err
 	}

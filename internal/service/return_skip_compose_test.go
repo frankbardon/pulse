@@ -237,7 +237,7 @@ func TestReturnSkipsComputation_CrosstabOverlayVeto(t *testing.T) {
 				zero  map[string]bool
 			}{
 				{types.OverlayKindPairwisePropZ, types.OverlayScopeRow, map[string]bool{"aux": true}},
-				{types.OverlayKindShareOfRow, types.OverlayScopeRow, map[string]bool{"maps": true, "aux": true}},
+				{types.OverlayKindShareOfRow, types.OverlayScopeCell, map[string]bool{"maps": true, "aux": true}},
 			} {
 				t.Run(string(tc.kind), func(t *testing.T) {
 					cohort, err := svc.Open(context.Background(), "left.pulse")

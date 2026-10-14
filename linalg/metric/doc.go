@@ -3,8 +3,9 @@
 // kinds it suits and fits poorly, the direction(s) it can answer in,
 // whether it needs fitted statistics, and its domain rules — and every
 // consumer (the expression metric functions, MAT_DISTANCE,
-// GROUP_KMEANS, the reference-comparison attributes) resolves a metric
-// name through it. The manifest lists the registry under
+// GROUP_KMEANS, the reference-comparison attributes and
+// OVERLAY_CORRESPONDENCE's chi_square profile distances) resolves a
+// metric name through it. The manifest lists the registry under
 // capabilities.matrix.metrics.
 //
 // It is a leaf over the standard library, Pulse's coded-error package

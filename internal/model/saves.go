@@ -81,13 +81,17 @@ func CheckRequestSaves(req *types.Request) *errors.CodedError {
 //  2. the uniqueness of every save in the batch — fits[i],
 //     fits[i].request.regressions[j], requests[k].regressions[j]
 //     (CheckSaveDuplicates);
-//  3. every fit request's `models` (CheckModelRefs, nothing bound
-//     outside it — a fit runs before the batch binds; details.fit);
-//  4. every slot's `models` against the fits' names (CheckModelRefs,
-//     details.request).
+//  3. every fit's name against outer — the instance's registered
+//     populations (PULSE_MODEL_NAME_COLLISION, details.fit);
+//  4. every fit request's `models` and `populations` (CheckRefs against
+//     outer alone — a fit runs before the batch binds; details.fit);
+//  5. every slot's `models` and `populations` against the fits' names
+//     layered over outer (CheckRefs, details.request).
 //
-// requests are the effective slots (sweep slots included).
-func CheckComposeBatch(fits []types.FitSpec, requests []*types.Request) *errors.CodedError {
+// requests are the effective slots (sweep slots included). outer is
+// what every request sees bound before its own entries — the
+// instance's registered populations; nil for none.
+func CheckComposeBatch(fits []types.FitSpec, requests []*types.Request, outer Catalog) *errors.CodedError {
 	for k, req := range requests {
 		if req == nil {
 			continue
@@ -110,21 +114,30 @@ func CheckComposeBatch(fits []types.FitSpec, requests []*types.Request) *errors.
 	if cerr := CheckSaveDuplicates(sites); cerr != nil {
 		return cerr
 	}
+	if outer != nil {
+		for i, f := range fits {
+			if sig, bound := outer.Signature(f.Name); bound {
+				cerr := NameCollision(f.Name, sig.Source, FitSource(i))
+				cerr.Details["fit"] = i
+				return cerr
+			}
+		}
+	}
 	for i, f := range fits {
 		if f.Request == nil {
 			continue
 		}
-		if cerr := CheckModelRefs(f.Request.Models, nil); cerr != nil {
+		if cerr := CheckRefs(RequestRefs(f.Request), outer); cerr != nil {
 			cerr.Details["fit"] = i
 			return cerr
 		}
 	}
-	cat := CatalogFromFits(fits)
+	cat := WithinCatalog(outer, CatalogFromFits(fits))
 	for k, req := range requests {
 		if req == nil {
 			continue
 		}
-		if cerr := CheckModelRefs(req.Models, cat); cerr != nil {
+		if cerr := CheckRefs(RequestRefs(req), cat); cerr != nil {
 			cerr.Details["request"] = k
 			return cerr
 		}
@@ -134,16 +147,18 @@ func CheckComposeBatch(fits []types.FitSpec, requests []*types.Request) *errors.
 
 // CheckChainModels is the chain pre-pass rule, run by the runtime
 // before the cohort opens and by PredictChain: every stage's `models`
-// (each stage its own namespace; details.stage). A chain writes no
+// and `populations` (CheckRefs against outer — the instance's
+// registered populations, nil for none; each stage its own namespace
+// above it; details.stage). A chain writes no
 // model file — the chain gate refuses a regression on every stage
 // (PULSE_CHAIN_NOT_MERGEABLE), stage 0 before it runs — so its saves
 // need no rule here.
-func CheckChainModels(stages []*types.ChainStage) *errors.CodedError {
+func CheckChainModels(stages []*types.ChainStage, outer Catalog) *errors.CodedError {
 	for i, st := range stages {
 		if st == nil || st.Request == nil {
 			continue
 		}
-		if cerr := CheckModelRefs(st.Request.Models, nil); cerr != nil {
+		if cerr := CheckRefs(RequestRefs(st.Request), outer); cerr != nil {
 			cerr.Details["stage"] = i
 			return cerr
 		}

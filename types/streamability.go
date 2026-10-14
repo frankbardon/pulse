@@ -67,7 +67,7 @@ func (t AggregationType) Streamable() bool {
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES,
-		AGG_VEC_MEAN, AGG_VEC_SUM:
+		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD:
 		return true
 	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE:
 		return false
@@ -105,9 +105,10 @@ func (t AggregationType) Mergeable() bool {
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES,
-		// Per-merge-block element sums combined in a fixed tree: the
-		// merged figure is bit-identical to the serial one.
-		AGG_VEC_MEAN, AGG_VEC_SUM:
+		// Per-merge-block element sums (and, for AGG_VEC_SD, Chan-
+		// combined Welford moments) folded in a fixed tree: the merged
+		// figure is bit-identical to the serial one.
+		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD:
 		return true
 	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE,
 		AGG_SKEWNESS, AGG_KURTOSIS:
@@ -198,8 +199,11 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 		// from raw rows.
 		AGG_SET_INTERSECTION,
 		// Array-valued: never a crosstab cell or margin (ArrayValued —
-		// refused unconditionally); classed with the honest default.
-		AGG_VEC_MEAN, AGG_VEC_SUM:
+		// refused) unless params.element selects one element, a slot
+		// classed as its scalar twin (vectors.ElementMarginClass; an
+		// AGG_VEC_SD element is a standard deviation, which recomputes
+		// like AGG_STDDEV); the type itself keeps the honest default.
+		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD:
 		return MarginRecompute
 	}
 	return MarginRecompute
@@ -224,14 +228,16 @@ func (t AggregationType) MapValued() bool {
 
 // ArrayValued reports whether the aggregator emits one figure per
 // vector member — a JSON array through the RichAggregator lift, with
-// no meaningful scalar (AGG_VEC_MEAN, AGG_VEC_SUM). An array value has
-// no single number to place in a crosstab cell, order a Sort by, host
-// an overlay on or hand a later chain stage's f64 column, so each of
+// no meaningful scalar (AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD). An
+// array value has no single number to place in a crosstab cell, order
+// a Sort by, host an overlay on or hand a later chain stage's f64 column, so each of
 // those is refused with PROCESSING_CONFIG whatever else the request
-// says — unlike MapValued, which only gates crosstab normalize.
+// says — unlike MapValued, which only gates crosstab normalize. (A
+// crosstab slot whose params.element selects one element, and an
+// expanded element column, are scalars and run.)
 func (t AggregationType) ArrayValued() bool {
 	switch t {
-	case AGG_VEC_MEAN, AGG_VEC_SUM:
+	case AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD:
 		return true
 	}
 	return false
@@ -282,12 +288,14 @@ func (t GroupType) Mergeable() bool {
 // streaming path. Three tiers exist at runtime:
 //
 //   - Row-local: FORMULA, DATE_PART, SCALE_SCORE, PROFILE_SIMILARITY
-//     and VEC_DISTANCE over a row-local metric (and REG_PREDICT,
+//     and VEC_DISTANCE over a row-local metric and a non-centroid
+//     reference (and REG_PREDICT,
 //     whose model is bound before the row pass) implement processing.RowLocalAttribute
 //     and execute inline with no PrePass.
 //   - Two-pass: ZSCORE, TSCORE, NORMALIZED (and the fitted vector
-//     attributes, MAHALANOBIS, PC_SCORE, FACTOR_SCORE, and VEC_DISTANCE
-//     over a fitted metric) implement
+//     attributes, MAHALANOBIS, PC_SCORE, FACTOR_SCORE, VEC_DISTANCE
+//     over a fitted metric, and either comparison type over a centroid
+//     reference) implement
 //     processing.TwoPassAttribute and need a PrePass over filter-passing
 //     records, Finalize, then per-row Row() in pass 2 (iter.Reset()).
 //   - Buffered-only: PERCENTILE needs a sorted view of every value;
@@ -295,8 +303,9 @@ func (t GroupType) Mergeable() bool {
 //
 // Streamable() returns true for the first two tiers since both routes
 // avoid materializing the full record set in memory. The tier is per
-// TYPE here; an ATTR_FORMULA calling total(expr) and an ATTR_VEC_DISTANCE
-// over std_euclidean / mahalanobis are two-pass per attribute (still
+// TYPE here; an ATTR_FORMULA calling total(expr), an ATTR_VEC_DISTANCE
+// over std_euclidean / mahalanobis and a comparison slot over a
+// {centroid} reference are two-pass per attribute (still
 // streamable, via the two-pass drive) — routing asks
 // the engine's per-attribute predicate, never this method alone.
 func (t AttributeType) Streamable() bool {

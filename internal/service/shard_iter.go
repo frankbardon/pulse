@@ -155,13 +155,16 @@ func (it *shardIter) openShard(idx int) error {
 	}
 	// Each shard is a complete single-file Pulse cohort. Skip its
 	// header + schema so the RecordReader lands on the first record.
+	// The schema is read layout-only: the canonical schema decodes the
+	// rows, so the shard's own dictionaries and group entry tables are
+	// read past, never allocated (TestShardScan_SkipsShardDictionaries).
 	r := &sect
 	pulseVersion, err := encoding.ReadHeader(r)
 	if err != nil {
 		return errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading shard %q header", name))
 	}
-	if _, err := encoding.ReadSchema(r, pulseVersion); err != nil {
+	if _, err := encx.ReadSchemaLayout(r, pulseVersion); err != nil {
 		return errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading shard %q schema", name))
 	}

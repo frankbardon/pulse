@@ -94,7 +94,7 @@ make docs
 
 `make docs` runs `make docs-generate` — `go run ./cmd/pulse docs export
 --out docs/src/guide` with `PULSE_LABEL_TABLES_DIR`,
-`PULSE_RANGE_TABLES_DIR`, `PULSE_TEMPLATES_DIR` and
+`PULSE_RANGE_TABLES_DIR`, `PULSE_POPULATIONS_DIR`, `PULSE_TEMPLATES_DIR` and
 `PULSE_FEATURE_PROFILE` cleared (so a local `.env` cannot change the
 output), then `go run ./internal/tools/docsummary`, which splices the
 export's `SUMMARY.md` into the book's (title line dropped, paths

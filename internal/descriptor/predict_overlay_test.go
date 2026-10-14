@@ -57,6 +57,16 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			Scope: types.OverlayScopeMatrix,
 		},
 		{
+			Name:  "symmetry",
+			Kind:  types.OverlayKindSymmetry,
+			Scope: types.OverlayScopeMatrix,
+		},
+		{
+			Name:  "retention",
+			Kind:  types.OverlayKindRetention,
+			Scope: types.OverlayScopeRow,
+		},
+		{
 			Name:   "rake",
 			Kind:   types.OverlayKindRake,
 			Scope:  types.OverlayScopeMatrix,
@@ -555,6 +565,16 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 			Kind:  types.OverlayKindMarkov,
 			Scope: types.OverlayScopeMatrix,
 		},
+		types.OverlayKindSymmetry: {
+			Name:  "symmetry",
+			Kind:  types.OverlayKindSymmetry,
+			Scope: types.OverlayScopeMatrix,
+		},
+		types.OverlayKindRetention: {
+			Name:  "retention",
+			Kind:  types.OverlayKindRetention,
+			Scope: types.OverlayScopeRow,
+		},
 		types.OverlayKindRake: {
 			Name:   "rake",
 			Kind:   types.OverlayKindRake,
@@ -799,6 +819,16 @@ func TestPredict_OverlaysApplied_AllKinds_DescriptorCoverage(t *testing.T) {
 			Name:  "markov",
 			Kind:  types.OverlayKindMarkov,
 			Scope: types.OverlayScopeMatrix,
+		},
+		types.OverlayKindSymmetry: {
+			Name:  "symmetry",
+			Kind:  types.OverlayKindSymmetry,
+			Scope: types.OverlayScopeMatrix,
+		},
+		types.OverlayKindRetention: {
+			Name:  "retention",
+			Kind:  types.OverlayKindRetention,
+			Scope: types.OverlayScopeRow,
 		},
 		types.OverlayKindRake: {
 			Name:   "rake",
@@ -1290,6 +1320,16 @@ func TestPredict_OverlayCost_AllKindsHaveMultiplier(t *testing.T) {
 			Name:  "markov",
 			Kind:  types.OverlayKindMarkov,
 			Scope: types.OverlayScopeMatrix,
+		},
+		types.OverlayKindSymmetry: {
+			Name:  "symmetry",
+			Kind:  types.OverlayKindSymmetry,
+			Scope: types.OverlayScopeMatrix,
+		},
+		types.OverlayKindRetention: {
+			Name:  "retention",
+			Kind:  types.OverlayKindRetention,
+			Scope: types.OverlayScopeRow,
 		},
 		types.OverlayKindRake: {
 			Name:   "rake",

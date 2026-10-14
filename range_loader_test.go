@@ -74,9 +74,7 @@ func TestLoadRangeTables_CollisionWithProgrammatic(t *testing.T) {
 			RangeTables: map[string]RangeTable{"quarters": {Ranges: []DateRangeSpec{{Label: "Q1"}}}},
 		},
 	}
-	if err := loadRangeTablesFromDir(&opts); err == nil {
-		t.Fatal("expected collision error")
-	}
+	assertDirCollision(t, loadRangeTablesFromDir(&opts), "range_table", "quarters", filepath.Join(dir, "quarters.json"))
 }
 
 func TestLoadRangeTables_NoDirNoOp(t *testing.T) {
@@ -120,6 +118,11 @@ func TestLoadRangeTables_SkipsPulseSidecars(t *testing.T) {
 			name:     "saved model file",
 			filename: "mmm" + model.FileSuffix,
 			body:     modelFileFixture,
+		},
+		{
+			name:     "saved population file",
+			filename: "brand" + model.PopulationSuffix,
+			body:     populationFileFixture,
 		},
 	}
 	for _, tc := range cases {

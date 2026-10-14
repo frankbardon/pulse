@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -43,8 +44,9 @@ import (
 // Request's Groups / Crosstab shape — do not and cannot run. The SERIES host
 // shape they exist to enforce is instead guaranteed by construction here: the
 // caller hands over an ordered series, which is what a SERIES host IS. What
-// remains checkable is checked below (kind is SERIES-registered, scope is
-// GROUP); what is not checkable is not pretended.
+// remains checkable is checked below (kind is SERIES-registered; the spec's
+// Ref and scope, by the shared SERIES rule); what is not checkable is not
+// pretended.
 
 // SeriesPoint is one ordered point of a caller-materialised series.
 //
@@ -114,21 +116,16 @@ func (p *Pulse) ApplySeriesOverlays(ctx context.Context, req *SeriesOverlayReque
 		return &SeriesOverlayResult{}, nil
 	}
 
-	// Scope check. The Request-shaped predict-time validators cannot run
-	// here (see this file's header), but scope is a property of the spec
-	// alone and every SERIES kind in the catalog is GROUP-scoped — one entry
-	// per host group key is the only footprint an ordered series has. A CELL
-	// or MATRIX scope on this path names a host that does not exist.
+	// Ref / Scope check. The Request-shaped predict-time validators cannot
+	// run here (see this file's header), but a spec's Ref and scope are
+	// properties of the spec alone: the shared SERIES rule
+	// (overlayhost.SeriesSpecRefusal) every grouped-Process arm raises
+	// refuses them here too — the scope group, the kind's own Ref arm and
+	// no other. A kind with no SERIES rule is left to the dispatch's
+	// wrong-shape refusal.
 	for i := range req.Overlays {
-		if req.Overlays[i].Scope != types.OverlayScopeGroup {
-			return nil, errors.NewCodedErrorWithDetails(
-				errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED,
-				"overlay "+string(req.Overlays[i].Kind)+" on a caller-materialised series requires scope group",
-				map[string]any{
-					"index": i,
-					"kind":  string(req.Overlays[i].Kind),
-					"scope": string(req.Overlays[i].Scope),
-				})
+		if cerr := overlayhost.SeriesSpecRefusal(&req.Overlays[i], req.Overlays[i].Kind, i); cerr != nil {
+			return nil, cerr
 		}
 	}
 

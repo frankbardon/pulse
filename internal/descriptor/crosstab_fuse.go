@@ -55,14 +55,31 @@ func (f snapshotFuseFacts) AggregatorMarginClass(t types.AggregationType) types.
 	return f.s.AggregatorMarginReducibility(t)
 }
 
+// AggregatorSlotMarginClass mirrors the runtime: a vector element slot
+// the instance offers margins like its scalar twin
+// (vectors.ElementMarginClass).
+func (f snapshotFuseFacts) AggregatorSlotMarginClass(a *types.Aggregation) (types.MarginReducibility, bool) {
+	if a == nil || f.inst.Hidden(string(a.Type)) {
+		return "", false
+	}
+	return vectors.ElementMarginClass(a, aggregationKinds(f.inst, f.s))
+}
+
 func (f snapshotFuseFacts) AttributeTwoPass(t types.AttributeType) bool {
 	return attributeTwoPass(&PredictOptions{Extensions: f.s, Instance: f.inst}, t)
 }
 
 // AttributeSlotTwoPass mirrors the runtime: an ATTR_VEC_DISTANCE the
-// instance offers over a fitted metric (vectors.ComparisonFitted).
+// instance offers over a fitted metric, or a comparison slot over a
+// centroid reference (vectors.ComparisonTwoPass).
 func (f snapshotFuseFacts) AttributeSlotTwoPass(a *types.Attribute, specs []types.VectorSpec, schema *encoding.Schema) bool {
-	return a != nil && !f.inst.Hidden(string(a.Type)) && vectors.ComparisonFitted(a.Type, a, specs, schema)
+	return a != nil && !f.inst.Hidden(string(a.Type)) && vectors.ComparisonTwoPass(a.Type, a, specs, schema)
+}
+
+// AttributeSlotBound mirrors the runtime: a fitted slot the instance
+// offers, bound to a prebuilt fit (vectors.FitBound), is row-local.
+func (f snapshotFuseFacts) AttributeSlotBound(a *types.Attribute) bool {
+	return a != nil && !f.inst.Hidden(string(a.Type)) && vectors.FitBound(a.Type, a)
 }
 
 // GrouperKeyable answers a built-in from the static table and an

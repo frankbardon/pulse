@@ -1,0 +1,52 @@
+{
+  "_meta": {
+    "name": "factor_rotations",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "correlation-analysis",
+      "streaming-friendly"
+    ],
+    "operators": [
+      "MAT_FACTOR",
+      "MAT_PCA"
+    ],
+    "description": "Rotation criteria on a six-item rating battery (survey.pulse, q1-q6: q1-q3 a service factor, q4-q6 a value factor, q3 and q6 cross-loading). Every slot fits two factors (or components) and differs only in params.rotation. geomin (oblique, GPArotation geominQ; params.epsilon, default 0.01, keeps the criterion smooth) gives the cleanest simple structure (the four pure items q1 / q2 / q4 / q5 load about 0.88 / 0.73 / 0.84 / 0.74 on their own factor and within 0.04 of 0 on the other) and returns the factor correlation (about 0.42) as auxiliary factor_correlation. The orthogonal criteria keep the factors uncorrelated, so the factors' shared variance shows up as secondary loadings on those pure items: 0.14-0.18 under quartimax (simplify each item's row), 0.07-0.26 under entropy (minimum entropy). MAT_PCA takes the orthogonal criteria only (varimax, quartimax, entropy, geomin_orthogonal with epsilon); an oblique one there is SERVICE_VALIDATION rotation_oblique_unsupported. The unrotated solution is always under auxiliary unrotated, and every rotation leaves communalities, rmsr, KMO and Bartlett unchanged. Every criterion orders the columns by variance accounted (descending) and flips each to a positive sum, so the service factor reads F2 here. Two factors need at least five members. Streamable and mergeable.",
+    "intents": [
+      "measure_construct"
+    ]
+  },
+  "cohort": {
+    "filename": "survey.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {"name": "battery", "fields": ["q1", "q2", "q3", "q4", "q5", "q6"]}
+  ],
+  "matrices": [
+    {
+      "type": "MAT_FACTOR",
+      "name": "geomin_oblique",
+      "vector": "battery",
+      "params": {"factors": 2, "rotation": "geomin", "epsilon": 0.01}
+    },
+    {
+      "type": "MAT_FACTOR",
+      "name": "quartimax",
+      "vector": "battery",
+      "params": {"factors": 2, "rotation": "quartimax"}
+    },
+    {
+      "type": "MAT_FACTOR",
+      "name": "minimum_entropy",
+      "vector": "battery",
+      "params": {"factors": 2, "rotation": "entropy"}
+    },
+    {
+      "type": "MAT_PCA",
+      "name": "components_geomin_orthogonal",
+      "vector": "battery",
+      "params": {"components": 2, "rotation": "geomin_orthogonal", "epsilon": 0.01}
+    }
+  ]
+}

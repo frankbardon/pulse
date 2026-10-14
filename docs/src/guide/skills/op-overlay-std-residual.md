@@ -46,7 +46,7 @@ MATRIX residual `(O − E) / sqrt(E (1 − r/N) (1 − c/N))`, `E = r c / N` (R 
 ## Gotchas
 
 - Weights as [`op-overlay-chisq-matrix`](op-overlay-chisq-matrix.md) (Kish-scaled under probability).
-- Absent cell = 0. `E = 0` ⇒ residual, p `null`. Any `E < 5` ⇒ one `PULSE_OVERLAY_EXPECTED_LOW`.
+- Absent or undefined (NaN) cell = 0 (missing). `E = 0` ⇒ residual, p `null`. Any `E < 5` ⇒ one `PULSE_OVERLAY_EXPECTED_LOW`.
 - Host < 2×2, zero total or a `Ref` ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Code cell (`AGG_MODE`) ⇒ `PROCESSING_CONFIG` `categorical_code`.
 

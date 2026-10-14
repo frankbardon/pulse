@@ -62,6 +62,7 @@ var (
 	cP   = metric.ConsumerProfileSimilarity
 	cM   = metric.ConsumerMatDistance
 	cK   = metric.ConsumerKMeans
+	cC   = metric.ConsumerCorrespondence
 	kM   = metric.Measure
 	kS   = metric.Scale
 	kC   = metric.Composition
@@ -84,7 +85,7 @@ var declarations = map[string]decl{
 	"overlap":       {metric.FamilySet, sim, []metric.Form{sim}, []metric.Kind{kB}, []metric.Kind{}, metric.FitNone, metric.DomainBinary, false, false, false, []metric.Consumer{cE, cP}},
 	"std_euclidean": {metric.FamilyFitted, dist, []metric.Form{dist}, []metric.Kind{kM}, []metric.Kind{kC}, metric.FitSD, metric.DomainReal, true, false, false, []metric.Consumer{cV}},
 	"mahalanobis":   {metric.FamilyFitted, dist, []metric.Form{dist}, []metric.Kind{kM}, []metric.Kind{}, metric.FitInverseCovariance, metric.DomainReal, false, true, false, []metric.Consumer{cV, cM}},
-	"chi_square":    {metric.FamilyFitted, dist, []metric.Form{dist}, []metric.Kind{kC}, []metric.Kind{}, metric.FitColumnMasses, metric.DomainNonNegative, false, false, false, []metric.Consumer{}},
+	"chi_square":    {metric.FamilyFitted, dist, []metric.Form{dist}, []metric.Kind{kC}, []metric.Kind{}, metric.FitColumnMasses, metric.DomainNonNegative, false, false, false, []metric.Consumer{cC}},
 }
 
 // TestEveryMetricDeclaresItsContract checks each metric's kinds, poor
@@ -209,10 +210,22 @@ func TestConsumerAcceptanceRules(t *testing.T) {
 	if got, want := metric.Accepted(metric.ConsumerVecDistance), []string{"euclidean", "sq_euclidean", "manhattan", "chebyshev", "cosine", "hellinger", "aitchison", "hamming", "std_euclidean", "mahalanobis"}; !slices.Equal(got, want) {
 		t.Errorf("Accepted(ATTR_VEC_DISTANCE) = %v, want %v", got, want)
 	}
-	// chi_square is registered but unexposed.
+	// chi_square has exactly one consumer: OVERLAY_CORRESPONDENCE's
+	// profile distances, which accept nothing else.
 	for _, c := range metric.Consumers() {
-		if metric.Accepts(c, "chi_square") {
-			t.Errorf("%s accepts chi_square; it is registered but unexposed", c)
+		if metric.Accepts(c, "chi_square") != (c == cC) {
+			t.Errorf("Accepts(%s, chi_square) = %v", c, metric.Accepts(c, "chi_square"))
+		}
+	}
+	if got, want := metric.Accepted(cC), []string{"chi_square"}; !slices.Equal(got, want) {
+		t.Errorf("Accepted(OVERLAY_CORRESPONDENCE) = %v, want %v", got, want)
+	}
+	if got, want := cC.Forms(), []metric.Form{dist}; !slices.Equal(got, want) {
+		t.Errorf("OVERLAY_CORRESPONDENCE Forms() = %v, want %v", got, want)
+	}
+	for _, m := range metric.All() {
+		if len(m.Consumers()) == 0 {
+			t.Errorf("%s has no consumer; every registered metric is exposed", m.Name())
 		}
 	}
 	if metric.Accepts(metric.ConsumerExpr, "nope") {
@@ -224,7 +237,7 @@ func TestConsumerAcceptanceRules(t *testing.T) {
 	if got := metric.Consumer("NOT_A_CONSUMER").Forms(); got != nil {
 		t.Errorf("unknown consumer Forms() = %v", got)
 	}
-	if got, want := metric.Consumers(), []metric.Consumer{cE, cV, cP, cM, cK}; !slices.Equal(got, want) {
+	if got, want := metric.Consumers(), []metric.Consumer{cE, cV, cP, cM, cK, cC}; !slices.Equal(got, want) {
 		t.Errorf("Consumers() = %v", got)
 	}
 	if got, want := metric.Kinds(), []metric.Kind{kM, kS, kC, kB}; !slices.Equal(got, want) {
@@ -317,6 +330,10 @@ func TestResolveFor_PerConsumer(t *testing.T) {
 		{cV, "mahalanobis", dist, "", ""},
 		{cV, "jaccard", dist, perr.PULSE_VECTOR_METRIC_UNKNOWN, "no_form"},
 		{cV, "chi_square", dist, perr.PULSE_VECTOR_METRIC_UNKNOWN, "not_accepted"},
+		{cC, "chi_square", dist, "", ""},
+		{cC, "chi_square", sim, perr.PULSE_VECTOR_METRIC_UNKNOWN, "no_form"},
+		{cC, "hellinger", dist, perr.PULSE_VECTOR_METRIC_UNKNOWN, "not_accepted"},
+		{cC, "", dist, perr.PULSE_VECTOR_METRIC_REQUIRED, ""},
 		{cE, "std_euclidean", dist, perr.PULSE_VECTOR_METRIC_UNKNOWN, "not_accepted"},
 		{cE, "cosine", sim, "", ""},
 		{cE, "cosine", dist, perr.PULSE_VECTOR_METRIC_UNKNOWN, "not_accepted"},

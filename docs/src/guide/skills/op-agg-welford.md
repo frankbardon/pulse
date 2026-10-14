@@ -42,7 +42,7 @@ Scalar `float64` — running mean (NaN no rows; `null` in JSON). Rich: `WelfordT
 ## Reading the output
 
 - `value.*`: Three columns per group: mean (the average), variance (the SAMPLE variance, dividing by n - 1, in the field's units squared) and n (the rows with a value). Together they are what a t or z comparison of group means needs; the components add stddev, the square root of variance.
-  - Caveat: variance is 0 when n is below 2: no spread could be estimated, which is not the same as values that agree.
+  - Caveat: variance reads null when n is below 2 (weighted: when the weights sum to 1 or less): no spread could be estimated. A 0 means values that agree.
   - Caveat: variance here divides by n - 1, so on the same rows it is larger than AGG_VARIANCE (which divides by n).
 
 ## Components
@@ -55,7 +55,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 |---|---|---|
 | `mean` | float64 | Welford running mean |
 | `m2` | float64 | Sum of squared deviations |
-| `variance` | float64 | Unbiased sample variance (`m2/(n-1)`) |
+| `variance` | float64 | Unbiased sample variance (`m2/(n-1)`); `null` when `n < 2` (weighted Σw ≤ 1) |
 | `stddev` | float64 | Sample standard deviation |
 
 - Mergeability: `Mergeable` (Chan-Welford combine); margin recompute
@@ -63,7 +63,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 ## Gotchas
 
-- Sample variance (`n-1`), not population (`n`).
+- Sample variance (`n-1`), not population (`n`); undefined (`null`, triple and components) below 2 values (Σw ≤ 1), never 0 — a pairwise / t / z overlay skips that leg.
 - The rich triple is what cell-level t / z overlays read, via `Components.Crosstab.CellComponents`.
 - Margin reducibility = recompute, not pool by addition.
 - Non-scalar row value: an overlay scoring it (request, Compose or whole-chain: `params.field` where the kind honours it, else `aggregations[0]`) is refused (`PROCESSING_CONFIG`, reason `non_scalar`) — except the two-sample t / z vs-ref overlays, which read the triple from the slot's per-group components (disabled → `PULSE_OVERLAY_COMPONENTS_REQUIRED`); an unscored one beside a scalar runs.

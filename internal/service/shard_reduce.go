@@ -94,6 +94,10 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	// A vector aggregator's factory reads its resolved members (the
 	// rewrite Processor.prepare applies on every other arm).
 	req = processing.ResolveAggregationInputs(req, schema, s.extensions)
+	// So does a vector-input attribute (a fitted attribute bound to a
+	// prebuilt fit is row-local, so it reaches this arm): its literal
+	// members, default label and written-out labels.
+	req = processing.ResolveAttributeInputs(req, schema, s.extensions)
 
 	// Read the archive once. Each worker re-wraps the byte buffer in a
 	// bytes.Reader (which is an io.ReaderAt under the hood) so worker
@@ -114,6 +118,14 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	}
 	// Reading the archive into memory is its open.
 	ei.Lap(observe.PhaseOpen)
+
+	// A fitted attribute bound to a prebuilt fit closes at bind: build
+	// the row-local attributes once here for their fit warnings and
+	// capture offer, so N shard builds never repeat them.
+	attrWarns, err := boundAttributeWarnings(req, schema, s.extensions, model.SetFrom(ctx))
+	if err != nil {
+		return nil, err
+	}
 
 	partials := make([]*shardPartial, len(shards))
 	starts := shardStarts(shards)
@@ -166,6 +178,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	if err != nil {
 		return nil, err
 	}
+	resp.Warnings = prependWarnings(resp.Warnings, attrWarns)
 	if err := merged.weights.Apply(resp, s.strict); err != nil {
 		return nil, err
 	}
@@ -321,7 +334,10 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading shard %q header", shardName))
 	}
-	if _, err := encoding.ReadSchema(r, pulseVersion); err != nil {
+	// Layout-only, as shardIter.openShard: the canonical schema decodes
+	// the rows, so the shard's dictionaries are read past, never
+	// allocated.
+	if _, err := encx.ReadSchemaLayout(r, pulseVersion); err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading shard %q schema", shardName))
 	}
@@ -334,7 +350,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 	if err != nil {
 		return nil, err
 	}
-	rowLocalAttrs, err := buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, model.SetFrom(ctx), vecs)
+	rowLocalAttrs, err := buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, partitionModels(ctx), vecs)
 	if err != nil {
 		return nil, err
 	}
@@ -364,7 +380,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 	primaryNullField := primaryNullFieldFor(req)
 
 	out := newShardPartial(req, specs, s.Limits())
-	if err := out.buildMatrices(req, schema, s.extensions, grouped, s.computePlanFor(ctx, req)); err != nil {
+	if err := out.buildMatrices(req, schema, s.extensions, grouped, s.computePlanFor(ctx, req), model.SetFrom(ctx)); err != nil {
 		return nil, err
 	}
 	var aggsUngrouped []processing.OnlineAggregator
@@ -397,21 +413,25 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		groupIdx = make([]uint32, len(schema.Groups))
 	}
 
+	// A FRESH positional Record per row, decoded by schema position —
+	// the parallel-decode reducer's decode (parallel_decode.go). The
+	// old map decode built three maps and a converted Record per row
+	// (~58 allocations a row at p = 50, E8-S1); the values a consumer
+	// reads are the same, so the partial's bits are too
+	// (TestShardWorkers_* / TestMatrixCovariance_WorkerInvariant).
+	binding := recordBindingFor(schema, nil, nil)
 	for {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		values := make(map[string]float64, len(schema.Fields))
-		nulls := make(map[string]bool)
-		wide := make(map[string]any)
-		err := rr.ReadRecordWithWide(values, nulls, wide)
+		rec := binding.NewRecord()
+		err := rr.ReadRecordReused(rec)
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
 			return nil, err
 		}
-		rec := processing.NewRecordWithWide(schema, values, nulls, wide)
 		if groupIdx != nil && readGroupIndices(rr, groupIdx) {
 			rec.SetGroupIndices(schema, groupIdx)
 		}
@@ -490,14 +510,15 @@ func newShardPartial(req *types.Request, specs []aggSpec, l limits.Limits) *shar
 // one (groupedMats). Shared by both parallel reducers. compute is the
 // run's plan: a plan that accumulates no matrix (the `matrices` slot
 // and components.matrices both excluded) builds none, so no partition
-// folds a record into one.
-func (sp *shardPartial) buildMatrices(req *types.Request, schema *encoding.Schema, exts *processing.ExtensionRegistry, grouped bool, compute processing.ComputePlan) error {
+// folds a record into one. models are the run's bound models (a
+// params.fit slot binds its vector fit there).
+func (sp *shardPartial) buildMatrices(req *types.Request, schema *encoding.Schema, exts *processing.ExtensionRegistry, grouped bool, compute processing.ComputePlan, models *model.Set) error {
 	var err error
 	if grouped {
 		sp.groupedMats, err = processing.BuildGroupedMatrices(req, schema, exts, compute, sp.limits)
 		return err
 	}
-	sp.mats, err = processing.BuildMatrixSlots(req, schema, exts, compute)
+	sp.mats, err = processing.BuildMatrixSlots(req, schema, exts, compute, models)
 	return err
 }
 
@@ -747,6 +768,52 @@ func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, e
 	return out, nil
 }
 
+// boundAttributeWarnings is a reducer's ONE orchestrator-level build of
+// req's row-local attributes against the run's bound models: a fitted
+// attribute bound to a prebuilt fit (vectors.FitBound — admitted by
+// mergegate) closes at bind, raising its fit warnings and, on a
+// Compose vector-fit request, its capture offer. The serial arms raise
+// both once; the reducers build per partition, so the partitions bind
+// with the capture stripped (partitionModels) and the run's warnings
+// come from this build, prepended in declared order exactly where the
+// serial arms put them (prependRowLocalWarnings). Nil without
+// attributes.
+func boundAttributeWarnings(req *types.Request, schema *encoding.Schema, exts *processing.ExtensionRegistry, models *model.Set) ([]*types.ResponseWarning, error) {
+	if len(req.Attributes) == 0 {
+		return nil, nil
+	}
+	specs, err := buildRowLocalAttrSpecs(req.Attributes, schema, exts, models, processing.ExprVectors(req, schema))
+	if err != nil {
+		return nil, err
+	}
+	var out []*types.ResponseWarning
+	for _, sp := range specs {
+		out = append(out, processing.AttributeWarnings(sp.computer)...)
+	}
+	return out, nil
+}
+
+// partitionModels is the run's bound models for one reducer partition's
+// attribute build: the capture stripped, since boundAttributeWarnings'
+// single build already offered (matrix slots keep the run's set — they
+// offer once, from the merged state).
+func partitionModels(ctx context.Context) *model.Set {
+	set := model.SetFrom(ctx)
+	if set.Capture() == nil {
+		return set
+	}
+	return set.WithCapture(nil)
+}
+
+// prependWarnings returns warns with first in front (warns itself when
+// first is empty).
+func prependWarnings(warns, first []*types.ResponseWarning) []*types.ResponseWarning {
+	if len(first) == 0 {
+		return warns
+	}
+	return append(append([]*types.ResponseWarning(nil), first...), warns...)
+}
+
 // mergeShardPartials folds the per-shard partial states into a single
 // aggregated state. Walks partials in shard insertion order — the
 // caller (processShardArchiveParallel) pre-sorts the slice so order is
@@ -910,6 +977,14 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 // pre-Components baseline.
 func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *shardPartial, shardCount int, compute processing.ComputePlan, exts *processing.ExtensionRegistry) (*types.Response, error) {
 	_ = schema
+	// The ungrouped and empty arms run neither Process overlay hook: the
+	// shared wrong-slot / wrong-shape / SCALAR host refusal the serial
+	// hook raises (the grouped arm's tail raises it itself).
+	if merged.groups == nil {
+		if err := processing.RefuseWrongHostOverlays(req, exts, compute); err != nil {
+			return nil, err
+		}
+	}
 	// The ungrouped arms' matrices (nil on a grouped partial, whose
 	// per-bucket matrices render in the grouped tail).
 	matrices, matrixComps, err := merged.mats.Finalize()

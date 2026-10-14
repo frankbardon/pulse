@@ -41,6 +41,10 @@ type Extensions interface {
 	// Attribute reports whether an extension attribute is row-local
 	// (streamable and not two-pass).
 	Attribute(name string) (rowLocal, ok bool)
+	// Matrix reports whether an extension MAT_* operator merges: its
+	// declared co-moment tier (Streamable) merges through the blocked
+	// merge; the buffered tier does not.
+	Matrix(name string) (mergeable, ok bool)
 }
 
 // None is the Extensions value for a built-in-only gate.
@@ -50,16 +54,20 @@ func (None) Aggregator(string) (bool, bool) { return false, false }
 func (None) Grouper(string) (bool, bool)    { return false, false }
 func (None) Filterer(string) (bool, bool)   { return false, false }
 func (None) Attribute(string) (bool, bool)  { return false, false }
+func (None) Matrix(string) (bool, bool)     { return false, false }
 
 // MergeRefusal returns "" when req's online state is mergeable across
 // input partitions, else the reason it is not. A request merges iff it
 // has at least one aggregator or matrix; no windows, features,
 // regressions, tests or post-tests; matrices only of a mergeable type
-// (types.MatrixType.Mergeable — they merge through the blocked merge
+// (an extension MAT_* operator's declared co-moment tier, else
+// types.MatrixSpec.Mergeable — they merge through the blocked merge
 // tree, bit-identical to serial; a grouped request's per-bucket
 // matrices merge bucket by bucket the same way); only row-local
 // attributes (ATTR_FORMULA without a total(expr) call,
-// ATTR_DATE_PART, ATTR_REG_PREDICT, row_local extensions); only mergeable groupers
+// ATTR_DATE_PART, ATTR_REG_PREDICT, an ATTR_MAHALANOBIS /
+// ATTR_PC_SCORE / ATTR_FACTOR_SCORE bound to a prebuilt fit by
+// params.fit — vectors.FitBound —, row_local extensions); only mergeable groupers
 // (built-in Mergeable() or a declared extension); only streamable
 // filterers; and only mergeable aggregators, none of them a built-in
 // one over a decimal128 field (the built-in decimal fold is
@@ -83,7 +91,11 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 	}
 	if len(req.Matrices) > 0 {
 		for _, m := range req.Matrices {
-			if !m.Mergeable() { // spec-level: the type folded with its params
+			mergeable, ok := ext.Matrix(string(m.Type))
+			if !ok {
+				mergeable = m.Mergeable() // spec-level: the type folded with its params
+			}
+			if !mergeable {
 				return fmt.Sprintf("matrix operator %s is not mergeable", m.Type)
 			}
 		}
@@ -108,6 +120,13 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 				// Bound before the row pass: a pure per-row score.
 				types.ATTR_REG_PREDICT:
 				rowLocal = true
+			case types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE, types.ATTR_FACTOR_SCORE:
+				// Row-local only when bound to a prebuilt vector fit
+				// (params.fit): a fit_on fold over one partition's
+				// rows would be partition-local. ATTR_VEC_DISTANCE stays
+				// off the list either way, like its row-local metrics
+				// (its per-row tallies would need a merge).
+				rowLocal = vectors.FitBound(attr.Type, attr)
 			}
 		}
 		if rowLocal {
@@ -178,7 +197,20 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 // rows to hand on, and is refused. Stage 0 runs as
 // a plain Process over the cohort and computes it; a later stage's is
 // refused first by StageMatrixRefusal.
+//
+// A stage carrying Request.Crosstab is refused first, whatever else it
+// carries (CrosstabStageReason): a crosstab answers a MatrixPayload, never
+// the rows the next stage reads, and beside aggregations it used to be
+// dropped silently on a later stage (stage 0 hit Process's
+// PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS, which predict-chain never
+// raised). The chain runtime and the chain validator both call this
+// rule, so both refuse it.
 func ChainRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, stageIndex int, stageName string) error {
+	if req != nil && req.Crosstab != nil {
+		return errors.NewCodedErrorWithDetails(errors.PULSE_CHAIN_NOT_MERGEABLE,
+			"chain stage is not mergeable: "+CrosstabStageReason,
+			map[string]any{"stage_index": stageIndex, "stage_name": stageName})
+	}
 	if req != nil && len(req.Matrices) > 0 {
 		stripped := *req
 		stripped.Matrices = nil
@@ -192,6 +224,10 @@ func ChainRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, s
 		"chain stage is not mergeable: "+reason,
 		map[string]any{"stage_index": stageIndex, "stage_name": stageName})
 }
+
+// CrosstabStageReason is ChainRefusal's reason for a stage carrying
+// Request.Crosstab.
+const CrosstabStageReason = "a crosstab stage is excluded (a crosstab answers a matrix, not the rows the next stage reads)"
 
 // StageJoinRefusal is the ProcessChain rule that only stage 0 may
 // join: nil for stage 0 or a stage without Joins, else a
@@ -255,14 +291,19 @@ func StageMatrixRefusal(req *types.Request, stageIndex int, stageName string) er
 }
 
 // StageArrayValuedRefusal is the ProcessChain rule that an
-// array-valued aggregation (AGG_VEC_MEAN / AGG_VEC_SUM, or an extension
+// array-valued aggregation (AGG_VEC_MEAN / AGG_VEC_SUM / AGG_VEC_SD, or an extension
 // declared ArrayValued) may not feed a later stage: the next
 // stage reads each output column as one f64, so the array would read
 // as null and every figure over it — a total(), a ratio, a plain sum —
 // would be silently wrong. nil for the last stage (its rows are the
 // chain's output) or a stage with no such slot, else PROCESSING_CONFIG
 // {stage_index, stage_name, aggregation, label, reason:
-// "array_valued"}. The runtime and the chain validator both check it
+// "array_valued"}. An EXPANDING one (params.expand,
+// vectors.AggregationExpands) writes no array — one f64 column per
+// member, "<label>[<element label>]" — so it feeds the next stage, which
+// reads each element column as an ordinary nullable f64 (the
+// synthesised schema, vectors.ChainStageSchema, lists them); its bare
+// label is no column there. The runtime and the chain validator both check it
 // right after ChainRefusal. kinds is the instance's view (a declared
 // ArrayValued extension aggregator is array-valued too); the zero value
 // is the built-in view.
@@ -277,7 +318,7 @@ func StageArrayValuedRefusal(req *types.Request, stageIndex, stageCount int, sta
 		return nil
 	}
 	for _, agg := range req.Aggregations {
-		if agg == nil || !kinds.IsNonScalar(agg.Type) {
+		if agg == nil || !kinds.IsNonScalar(agg.Type) || vectors.AggregationExpands(agg, kinds) {
 			continue
 		}
 		label := types.AggregationLabelOf(agg)

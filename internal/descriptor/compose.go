@@ -257,10 +257,16 @@ func ValidateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions) (
 	// slot's Process — against the slot's cohort (or joined) schema
 	// read through opts.SchemaLoader. A refusal carries the slot index
 	// under details.request, as the runtime's does.
-	validateComposeSlots(env, req, opts, loaded)
 	// Each fit request, recursively: the slot checks plus the regression
-	// rules, located under details.fit (the runtime's fit pre-pass).
-	result.Fits = validateComposeFits(env, req.Fits, opts, loaded)
+	// rules, located under details.fit (the runtime's fit pre-pass). It
+	// runs FIRST — a vector fit's resolved labels feed the slots' catalog
+	// (step 12 aligns a slot's params.fit by them, as the runtime's bind
+	// does) — but its refusals are reported after the slots', as before.
+	fitEnv := descriptor.NewEnvelope(nil)
+	result.Fits = validateComposeFits(fitEnv, req.Fits, opts, loaded)
+	validateComposeSlots(env, req, opts, loaded, result.Fits)
+	env.Errors = append(env.Errors, fitEnv.Errors...)
+	env.Warnings = append(env.Warnings, fitEnv.Warnings...)
 
 	// Fit-for-purpose advisories, per slot then over the Compose-host
 	// overlays — computed whether or not the batch is valid, never a
@@ -470,46 +476,38 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 		return
 	}
 
-	// Gate 1: reference label resolution.
-	refReq, ok := byLabel[spec.Reference]
-	if !ok {
-		env.AddError(string(errors.PULSE_OVERLAY_REFERENCE_UNKNOWN),
-			"compose overlay reference label does not resolve to a slot: "+spec.Reference,
-			map[string]any{
-				"index":     specIdx,
-				"kind":      string(spec.Kind),
-				"reference": spec.Reference,
-			})
+	// Gates 1 + 2: reference, then target, label resolution — the
+	// shared rule (overlayhost.ComposeSlotRefusals) the runtime
+	// dispatcher raises the first refusal of, same code, message and
+	// details. A spec with no Targets is refused too (the runtime always
+	// refused it; predict used to accept it). Every unknown target is
+	// reported in one envelope.
+	known := func(label string) bool { _, ok := byLabel[label]; return ok }
+	labelRefusals := overlayhost.ComposeSlotRefusals(spec, specIdx, known)
+	if len(labelRefusals) > 0 && labelRefusals[0].Code == errors.PULSE_OVERLAY_REFERENCE_UNKNOWN {
+		addCodedError(env, labelRefusals[0])
 		appendComposeSlotPair(result, spec.Reference, "", "reference-unknown")
 		return
 	}
+	refReq := byLabel[spec.Reference]
+	for _, cerr := range labelRefusals {
+		addCodedError(env, cerr)
+		if j, ok := cerr.Details["target_index"].(int); ok {
+			appendComposeSlotPair(result, spec.Reference, spec.Targets[j], "target-unknown")
+		}
+	}
 
-	// Gate 2: per-target label resolution. We collect resolved
-	// requests so we can fan the per-target shape / schema checks
-	// out without re-walking the map.
+	// We collect resolved requests so we can fan the per-target shape /
+	// schema checks out without re-walking the map.
 	type resolvedTarget struct {
 		label string
 		req   *types.Request
 	}
 	resolved := make([]resolvedTarget, 0, len(spec.Targets))
-	for j, label := range spec.Targets {
-		tReq, ok := byLabel[label]
-		if !ok {
-			env.AddError(string(errors.PULSE_OVERLAY_TARGET_UNKNOWN),
-				"compose overlay target label does not resolve to a slot: "+label,
-				map[string]any{
-					"index":        specIdx,
-					"kind":         string(spec.Kind),
-					"target_index": j,
-					"target_label": label,
-				})
-			appendComposeSlotPair(result, spec.Reference, label, "target-unknown")
-			// Continue scanning so the caller sees every unknown
-			// target in one envelope — mirrors how the runtime
-			// orchestrator surfaces every per-target failure.
-			continue
+	for _, label := range spec.Targets {
+		if tReq, ok := byLabel[label]; ok {
+			resolved = append(resolved, resolvedTarget{label: label, req: tReq})
 		}
-		resolved = append(resolved, resolvedTarget{label: label, req: tReq})
 	}
 
 	// Gate 2b: an Inferential kind reading a slot weighted by a
@@ -684,7 +682,13 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 			if requestLabelsDeferred(sreq) {
 				continue
 			}
-			if _, ferr := seriesfield.ResolveComposeSlot(sreq.Aggregations, spec, specIdx, s.label); ferr != nil {
+			// An expanded element column "<label>[<element label>]"
+			// resolves against the slot's members over its schema (the
+			// runtime's slot schema, read header only and only for a
+			// bracketed name).
+			cols := vectors.AggregationColumns(sreq, composeSlotSchemaFunc(composeSlotInputSchema([]*types.Request{s.req}, opts), 0),
+				aggregationKinds(opts.instance(), nil))
+			if _, ferr := seriesfield.ResolveComposeSlot(sreq.Aggregations, spec, specIdx, s.label, cols); ferr != nil {
 				addCodedError(env, ferr)
 				appendComposeSlotPair(result, spec.Reference, s.label, "field-unknown")
 			}
@@ -1155,34 +1159,56 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 // cannot read) the slot resolves schema-less: the field-independent
 // refusals still apply, the field-dependent ones are left to the
 // runtime.
-func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded) {
+func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded, summaries []descriptor.FitSummary) {
 	// The names every slot's ATTR_REG_PREDICT resolves: the runtime's
-	// fit pre-pass binds each `fits` entry before any slot runs, beside
-	// the slot's own loaded `models`.
-	fits := model.CatalogFromFits(req.Fits)
+	// fit pre-pass binds each `fits` entry before any slot runs, over
+	// the registered populations, beside the slot's own loaded entries.
+	fits := model.WithinCatalog(opts.populations(), composeFitCatalog(req.Fits, summaries))
 	for i, slot := range req.Requests {
 		if slot == nil {
 			continue
 		}
-		validateComposeRequest(env, slot, opts, "request", i, loadedCatalog(fits, slot.Models, loaded.slot(i)))
+		validateComposeRequest(env, slot, opts, "request", i, loadedCatalog(fits, model.RequestRefs(slot), loaded.slot(i)))
 	}
 }
 
-// composeLoaded is predict's Compose pre-pass result: each fit
-// request's and each slot's loaded model files, index-aligned.
-type composeLoaded struct {
-	fits  [][]*model.File
-	slots [][]*model.File
+// composeFitCatalog is model.CatalogFromFits with each vector fit's
+// member labels filled in from its resolved battery (summaries, the
+// validateComposeFits result, index-aligned with fits): the labels the
+// runtime's fit captures, so field-reference step 12 aligns a slot's
+// params.fit to them (vectors.AlignFit) exactly as the bind does. A
+// battery that did not resolve keeps no labels (its fit's own refusal
+// is reported, and the slot's alignment is not judged).
+func composeFitCatalog(fits []types.FitSpec, summaries []descriptor.FitSummary) model.FitCatalog {
+	cat := model.CatalogFromFits(fits)
+	for i, f := range fits {
+		if i >= len(summaries) || summaries[i].Vector == nil || summaries[i].Vector.Labels == nil {
+			continue
+		}
+		if sig, ok := cat[f.Name]; ok && sig.Kind == types.FitKindVector {
+			sig.Members = append([]string(nil), summaries[i].Vector.Labels...)
+			cat[f.Name] = sig
+		}
+	}
+	return cat
 }
 
-func (l *composeLoaded) fit(i int) []*model.File {
+// composeLoaded is predict's Compose pre-pass result: each fit
+// request's and each slot's loaded model and population files,
+// index-aligned.
+type composeLoaded struct {
+	fits  []*model.Loaded
+	slots []*model.Loaded
+}
+
+func (l *composeLoaded) fit(i int) *model.Loaded {
 	if l == nil || i >= len(l.fits) {
 		return nil
 	}
 	return l.fits[i]
 }
 
-func (l *composeLoaded) slot(i int) []*model.File {
+func (l *composeLoaded) slot(i int) *model.Loaded {
 	if l == nil || i >= len(l.slots) {
 		return nil
 	}
@@ -1191,18 +1217,19 @@ func (l *composeLoaded) slot(i int) []*model.File {
 
 // loadComposeModels is the runtime's Compose pre-pass
 // (Service.composeModelsPrepass): model.CheckComposeBatch, then every
-// fit request's `models` files read, then every slot's, each refusal
+// fit request's `models` and `populations` files read, then every
+// slot's, each refusal
 // located by details.fit / details.request.
 func loadComposeModels(req *types.ComposedRequest, opts *PredictOptions) (*composeLoaded, error) {
-	if cerr := model.CheckComposeBatch(req.Fits, req.Requests); cerr != nil {
+	if cerr := model.CheckComposeBatch(req.Fits, req.Requests, opts.populations()); cerr != nil {
 		return nil, cerr
 	}
-	out := &composeLoaded{fits: make([][]*model.File, len(req.Fits)), slots: make([][]*model.File, len(req.Requests))}
+	out := &composeLoaded{fits: make([]*model.Loaded, len(req.Fits)), slots: make([]*model.Loaded, len(req.Requests))}
 	for i, f := range req.Fits {
 		if f.Request == nil {
 			continue
 		}
-		files, cerr := opts.loadModelFiles(f.Request.Models)
+		files, cerr := opts.loadModelFiles(model.RequestRefs(f.Request))
 		if cerr != nil {
 			return nil, RefusalAt(cerr, "fit", i)
 		}
@@ -1212,7 +1239,7 @@ func loadComposeModels(req *types.ComposedRequest, opts *PredictOptions) (*compo
 		if slot == nil {
 			continue
 		}
-		files, cerr := opts.loadModelFiles(slot.Models)
+		files, cerr := opts.loadModelFiles(model.RequestRefs(slot))
 		if cerr != nil {
 			return nil, RefusalAt(cerr, "request", k)
 		}
@@ -1285,16 +1312,23 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 		addCodedError(env, RefusalAt(werr, key, idx))
 		return schema, false
 	}
+	// The attribute constructors run next: ATTR_FORMULA's empty
+	// expression (params.expression is not read).
+	if ce := formulaExpressionRefusal(slot, opts); ce != nil {
+		addCodedError(env, RefusalAt(ce, key, idx))
+		return schema, false
+	}
 	return schema, true
 }
 
 // validateComposeFits is the fit half of PredictCompose, run once the
 // structural rules (model.CheckFits) passed: each fit request gets the
-// slot checks (validateComposeRequest, details.fit) and then predict's
-// regression rules over the schema it executes over, located the same
-// way. It returns the static per-fit summary — name, regression type,
-// target, the predictors as written and the cohort — in declaration
-// order (nil without fits).
+// slot checks (validateComposeRequest, details.fit) and then, for a
+// regression fit, predict's regression rules over the schema it executes
+// over, located the same way. It returns the static per-fit summary in
+// declaration order (nil without fits): a regression fit's name,
+// regression type, target, the predictors as written and the cohort; a
+// vector fit's name, cohort and battery (vectorFitSummary).
 func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *PredictOptions, loaded *composeLoaded) []descriptor.FitSummary {
 	if len(fits) == 0 {
 		return nil
@@ -1302,20 +1336,26 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 	out := make([]descriptor.FitSummary, len(fits))
 	for i, f := range fits {
 		req := model.FitRequest(f)
-		reg := req.Regressions[0]
-		out[i] = descriptor.FitSummary{
-			Name:       f.Name,
-			Type:       reg.Type,
-			Target:     reg.Target,
-			Predictors: append([]string{}, reg.Predictors...),
+		vector := model.FitKindOf(req) == types.FitKindVector
+		out[i] = descriptor.FitSummary{Name: f.Name}
+		if vector {
+			out[i].Vector = &descriptor.VectorFitSummary{Operator: vectorFitOperator(req)}
+		} else {
+			reg := req.Regressions[0]
+			out[i].Type, out[i].Target = reg.Type, reg.Target
+			out[i].Predictors = append([]string{}, reg.Predictors...)
 		}
 		if req.Cohort != nil {
 			out[i].Cohort = cohortPathFor(req.Cohort)
 		}
 		// A fit request runs before the batch binds anything: it sees
-		// only its own loaded `models`.
-		schema, ok := validateComposeRequest(env, req, opts, "fit", i, loadedCatalog(nil, req.Models, loaded.fit(i)))
+		// only the registered populations and its own loaded entries.
+		schema, ok := validateComposeRequest(env, req, opts, "fit", i, loadedCatalog(opts.populations(), model.RequestRefs(req), loaded.fit(i)))
 		if !ok || schema == nil {
+			continue
+		}
+		if vector {
+			out[i].Vector.Labels, out[i].Vector.Members = vectorFitAxis(req, schema, opts)
 			continue
 		}
 		scratch := descriptor.NewEnvelope(nil)
@@ -1330,6 +1370,53 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 		}
 	}
 	return out
+}
+
+// vectorFitOperator is a vector fit request's battery type: its one
+// matrix's, else its one fitted attribute's (model.VectorBatteries).
+func vectorFitOperator(req *types.Request) string {
+	if len(req.Matrices) == 1 {
+		return string(req.Matrices[0].Type)
+	}
+	for _, a := range req.Attributes {
+		if a != nil && model.IsVectorFitAttribute(a.Type) {
+			return string(a.Type)
+		}
+	}
+	return ""
+}
+
+// vectorFitAxis resolves a vector fit request's battery against schema
+// and returns the labels a consuming slot aligns to and the member
+// columns, in axis order — what the runtime captures (a matrix's
+// FitLabels / Columns; a fitted attribute's FittedLabels / members). Nil
+// when the battery does not resolve (the walk already refused it).
+func vectorFitAxis(req *types.Request, schema *encoding.Schema, opts *PredictOptions) (labels, members []string) {
+	if len(req.Matrices) == 1 {
+		mats, err := resolveMatricesFor(req, schema, nil, opts.instance())
+		if err != nil || len(mats) != 1 {
+			return nil, nil
+		}
+		return mats[0].FitLabels(), append([]string(nil), mats[0].Columns()...)
+	}
+	inputs, err := vectors.ResolveAttributes(req, schema, func(t types.AttributeType) types.AttributeType {
+		return opRoute(opts.instance(), t)
+	}, nil)
+	if err != nil {
+		return nil, nil
+	}
+	for i, a := range req.Attributes {
+		if a == nil || !model.IsVectorFitAttribute(a.Type) || i >= len(inputs) || !inputs[i].Has() {
+			continue
+		}
+		m := inputs[i].Members
+		l, lerr := vectors.FittedLabels("", a.Type, a.Params, m)
+		if lerr != nil {
+			return nil, nil
+		}
+		return l, append([]string(nil), m.Members...)
+	}
+	return nil, nil
 }
 
 // composeFormulaBuiltinRefusal is PULSE_OVERLAY_FORMULA_INVALID_IDENT

@@ -132,6 +132,11 @@ func catalog(m *descriptor.Manifest) map[string]opInfo {
 	for _, x := range m.Matrices {
 		out[x.Name] = opInfo{name: x.Name, category: catMatrix, params: requiredParams(x.Params)}
 	}
+	// An extension MAT_* operator drafts exactly like a built-in: the
+	// manifest projects it in the same MatrixMeta shape.
+	for _, x := range m.Extensions.MatrixOps {
+		out[x.Name] = opInfo{name: x.Name, category: catMatrix, params: requiredParams(x.Params)}
+	}
 	e := m.Extensions
 	for cat, metas := range map[string][]descriptor.OperatorMeta{
 		catAggregator: e.Aggregators, catAttribute: e.Attributes, catFilterer: e.Filterers,

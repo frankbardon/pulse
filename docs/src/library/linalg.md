@@ -89,6 +89,7 @@ mean := acc.Mean()
 ```
 
 - **Missing values.** A `NaN` in `x` is missing. `Listwise` drops the row. `Pairwise` drops it only for the pairs it touches; `PairN(i, j)` / `PairW(i, j)` / `PairW2(i, j)` report each pair's count, weight sum and squared-weight sum, `PairNMass(i, j)` the pair's rows with a positive weight (`PairN` less its weight-0 rows), and `PairNEff(i, j)` its Kish effective sample size `PairW²/PairW2`. Under `Listwise` they equal `N()`, `W()`, the global positive-weight count, the global Σw² and `NEff()` for every pair.
+- **Raw co-moment.** `PairM2(i, j)` returns the pair's weighted co-moment Σw(xi−mi)(xj−mj) over the rows the pair admits — the numerator `Cov` divides, so `Cov(ddof)` at `(i, j)` equals `PairM2(i, j) / (PairW(i, j) − ddof)` exactly wherever that denominator is positive. `PairM2(i, i)` is variable `i`'s own Σw(xi−mi)². It is symmetric, 0 for a pair with no mass, and an extension matrix operator (`extend.MatrixOperator`) reads it to build a statistic `Cov` / `Corr` do not cover.
 - **Weights.**
   - A `NaN`, `±Inf` or negative weight skips the row and is counted in `NWeightInvalid()`.
   - A weight of `0` is valid: the row counts in `N()` but carries no mass.
@@ -98,6 +99,7 @@ mean := acc.Mean()
   - every correlation touching a constant variable;
   - the mean of a variable with no mass.
 - **Concurrency.** A `CoMoment` is not safe for concurrent use. Give each goroutine its own accumulator and `Merge` them.
+- **Capture and restore.** `acc.ListwiseState()` returns a `Listwise` accumulator's complete stored state (`ListwiseState`: the counts, `W`, `W2`, the raw mean and the raw co-moment `M2` as a `*Sym`), and `linalg.NewCoMomentFromListwise(state)` rebuilds it. Every output, and every later `Add` or `Merge`, is bit-identical to the original's, so a fit can be captured once and scored elsewhere without storing its derived blocks. A `Pairwise` accumulator has no single state; a malformed state is `PULSE_MATRIX_SHAPE_MISMATCH`.
 
 ### Merging with identical bits regardless of worker count
 
@@ -106,7 +108,7 @@ mean := acc.Mean()
 1. Fold the row at absolute index `r` into a per-block accumulator for block `r / linalg.MergeBlockSize` (4096 rows). Each block's rows must be added in order.
 2. Combine the blocks, ordered by block index, with `linalg.MergeTree(blocks)`. It uses a fixed binary tree, so the result depends only on the block sequence.
 
-Pulse's engine uses exactly this scheme internally, so its parallel and serial runs agree bit for bit.
+Pulse's engine uses exactly this scheme internally, so its parallel and serial runs agree bit for bit. An extension matrix operator (`extend.MatrixOperator`, see [Vectors and Matrices](matrices.md#your-own-matrix-operator)) never merges anything itself: its `Finalize` receives the co-moment this tree produced, so a pure `Finalize` returns the same bits under every `DecodeWorkers` / `ShardWorkers` count and shard split (gate `TestExtensionMatrix_WorkerInvariant`).
 
 ## Distance and similarity metrics (`linalg/metric`)
 
@@ -123,7 +125,7 @@ s, err := m.Eval(metric.Similarity, a, b, nil)
 - **Direction.** Each metric declares its native direction and the forms it can answer in. Asking for a form it lacks (for example `euclidean` as a similarity) is refused with `PULSE_VECTOR_METRIC_UNKNOWN`; nothing is converted silently. `cosine` is the one metric with both forms. An empty name is `PULSE_VECTOR_METRIC_REQUIRED`.
 - **Missing values.** `NaN` marks a missing element and is dropped pairwise. The element-sum distances (`euclidean`, `sq_euclidean`, `manhattan`, `std_euclidean`, `hamming`) are rescaled by `p / p_observed`, as R's `stats::dist()` does. No complete pair gives `NaN`. `mahalanobis` needs every element. Vectors of unequal length are a `*metric.LengthMismatchError`.
 - **Domains.** `hellinger`, `aitchison` and `chi_square` read non-negative values; an `aitchison` zero part is undefined. A violation returns `NaN` with a `*metric.DomainError`, so you can null the row and count it.
-- **Kinds and consumers.** `KindsSuited`, `PoorFit` and `Consumers` (`metric.Accepted`, `metric.ResolveFor`) say which vector kinds a metric suits and which surfaces accept it.
+- **Kinds and consumers.** `KindsSuited`, `PoorFit` and `Consumers` (`metric.Accepted`, `metric.ResolveFor`) say which vector kinds a metric suits and which surfaces accept it. `chi_square`'s one consumer is `OVERLAY_CORRESPONDENCE` (`metric.ConsumerCorrespondence`): its `row_distance` / `column_distance` parts are the pairwise chi-square profile distances over the analysis's own masses.
 - **Kind defaults.** `metric.Default(kind, form)` is the metric a vector of that kind defaults to (distance: measure `std_euclidean`, scale `euclidean`, composition `aitchison`, binary `hamming`; similarity: scale `correlation`, composition `cosine`, binary `jaccard`, none for measure). `metric.DefaultFor(consumer, kind, form, admit)` is that default when the consumer accepts it, else the first metric the consumer accepts that suits the kind and is no poor fit. A request's `vectors[i].kind` (`types.VectorKind`) drives the same table: it fills an operator's missing `metric` (smart defaults) and flags an explicit poor fit with `PULSE_VECTOR_METRIC_UNSUITED`. The manifest lists the table under `matrix.vector_kinds`.
 
 Arithmetic is FMA-free and left to right, so results are identical on every architecture; the one exception is `aitchison`, whose logarithm comes from the standard library and may differ in the last bits on amd64.

@@ -2,7 +2,7 @@
 
 The operators this instance offers, one page per category. Each page opens with a summary table and then a detail block per operator.
 
-- [Aggregators](catalog/aggregator.md) (35)
+- [Aggregators](catalog/aggregator.md) (36)
 - [Attributes](catalog/attribute.md) (19)
 - [Filterers](catalog/filterer.md) (12)
 - [Groupers](catalog/grouper.md) (9)
@@ -11,5 +11,5 @@ The operators this instance offers, one page per category. Each page opens with 
 - [Statistical tests](catalog/test.md) (26)
 - [Regressions](catalog/regression.md) (3)
 - [Matrix operators](catalog/matrix.md) (8)
-- [Overlays](catalog/overlay.md) (49)
+- [Overlays](catalog/overlay.md) (51)
 - [Synth distributions](catalog/synth_distribution.md) (15)

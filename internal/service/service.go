@@ -110,6 +110,12 @@ type Service struct {
 	// defaultMultiplicity is pulse.Options.DefaultMultiplicity (nil =
 	// none); it feeds resolveMultiplicity.
 	defaultMultiplicity *types.Multiplicity
+
+	// populations are the instance's registered populations
+	// (pulse.Options.Extensions.Populations + the populations
+	// directory), bound as vector fits beneath every request's own
+	// bindings; nil binds nothing. Frozen at pulse.New.
+	populations *model.Set
 }
 
 // SetDisableCrosstabFusion toggles the fused-crosstab dispatch in
@@ -538,6 +544,10 @@ func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Coh
 		fs:            overlay,
 		anchorArchive: archivePath,
 		anchorEntry:   entry,
+		// The whole archive was read to reach the shard: the memory
+		// estimate charges its bytes (limitInputs), as predict does
+		// through PredictOptions.AnchorArchiveBytes.
+		archiveBytes: int64(len(data)),
 	}, nil
 }
 
@@ -593,10 +603,11 @@ func (s *Service) openArchive(path string, data []byte) (*Cohort, error) {
 	}
 
 	return &Cohort{
-		path:   path,
-		schema: doc.Schema,
-		fs:     s.fs.Fs(),
-		shards: shards,
+		path:         path,
+		schema:       doc.Schema,
+		fs:           s.fs.Fs(),
+		shards:       shards,
+		archiveBytes: int64(len(data)),
 	}, nil
 }
 
@@ -657,9 +668,16 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	// The request's `models`: every file read and decoded, bound beside
 	// what ctx already binds (a Compose pre-pass binds a slot's ahead),
 	// before any record is read — predict loads them at the same point.
-	ctx, err := s.bindRequestModels(ctx, req.Models)
+	ctx, err := s.bindRequestModels(ctx, model.RequestRefs(req))
 	if err != nil {
 		return nil, markLocated(err)
+	}
+	// Every comparison slot's {record} reference: looked up once, here,
+	// before any processor builds, and bound beside the models (a
+	// Compose slot's or chain stage 0's pre-bound set included).
+	ctx, err = s.bindReferenceRecords(ctx, req, req.Cohort)
+	if err != nil {
+		return nil, err
 	}
 
 	// The multiplicity blocks resolve before any dispatch (every arm —

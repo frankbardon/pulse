@@ -20,7 +20,7 @@ Slot and members as for `op-mat-covariance`; at least 2 items.
 | `reverse` | [fields] | none | Reverse-keyed items: x' = min + max − x before the fold. |
 | `scale_min`, `scale_max` | number | the vector's | Battery range; both or neither, required with `reverse`. Absent: a `kind: "scale"` vector's bounds (`vector-metrics`). |
 | `repair` | `nearest` | none | Fit omega on the nearest correlation matrix. |
-| `missing`, `max_drop_share`, `weight`, `encoding` | | | As `op-mat-correlation`. |
+| `missing`, `max_drop_share`, `fit`, `weight`, `encoding` | | | As `op-mat-correlation`; `fit` refused with a scale range (`fit_unsupported`). |
 
 ## Inputs
 
@@ -43,6 +43,7 @@ omega = (Σλ)² / ((Σλ)² + Σψ) from the minres fit (the model form, not ps
 - `reverse` without the range, or an item value outside it: `PROCESSING_CONFIG` (never clamped or inferred).
 - omega null + warning: 2 items (`PULSE_MATRIX_NOT_IDENTIFIED`), a Heywood fit (`PULSE_MATRIX_HEYWOOD`), non-PSD pairwise input without `repair` (`PULSE_MATRIX_NOT_PSD`). Alpha always computes.
 - Negative alpha usually means an unreversed item.
+- Pairwise + probability weight: each covariance entry takes its own pair's n_eff; a pair with n_eff ≤ 1 is null, and so is every figure it reaches.
 
 ## See
 

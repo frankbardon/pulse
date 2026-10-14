@@ -416,17 +416,21 @@ func CheckSavePath(p string) *errors.CodedError {
 // checkModelPath is the one model-file path rule, shared by a `save`
 // (CheckSavePath) and a `models` entry (CheckModelRefs): the violated
 // reason and its phrase, or "" for a valid path.
-func checkModelPath(p string) (reason, what string) {
+func checkModelPath(p string) (reason, what string) { return checkFilePath(p, FileSuffix) }
+
+// checkFilePath is the saved-file path rule over suffix — the model
+// file's (FileSuffix) and the population file's (PopulationSuffix).
+func checkFilePath(p, suffix string) (reason, what string) {
 	if strings.TrimSpace(p) == "" {
 		return ReasonSavePathEmpty, "is blank"
 	}
 	slashed := filepath.ToSlash(p)
 	base := path.Base(slashed)
-	if !strings.HasSuffix(base, FileSuffix) || strings.HasSuffix(slashed, "/") {
-		return ReasonSaveSuffix, fmt.Sprintf("does not name a %s file", FileSuffix)
+	if !strings.HasSuffix(base, suffix) || strings.HasSuffix(slashed, "/") {
+		return ReasonSaveSuffix, fmt.Sprintf("does not name a %s file", suffix)
 	}
-	if base == FileSuffix {
-		return ReasonSaveNameMissing, fmt.Sprintf("has no file name before %s", FileSuffix)
+	if base == suffix {
+		return ReasonSaveNameMissing, fmt.Sprintf("has no file name before %s", suffix)
 	}
 	if c := path.Clean(slashed); c == ".." || strings.HasPrefix(c, "../") {
 		return ReasonSaveEscapesRoot, "climbs above the filesystem root"

@@ -36,7 +36,7 @@ Primary MATRIX: fitted table. Part `factors` (MATRIX fitted / observed; `null` w
 - Key mismatch, or `counts` totals differ ⇒ `PULSE_OVERLAY_RAKE_TARGET_MISMATCH` (never dropped).
 - Structural zeros stay zero; an empty row cannot reach a positive target.
 - Not converged ⇒ `PULSE_OVERLAY_RAKE_NOT_CONVERGED`, payload still emitted, `converged` 0.
-- Bad cell ⇒ `PULSE_OVERLAY_NONNEGATIVE_REQUIRED`.
+- Bad (negative / undefined NaN) cell ⇒ `PULSE_OVERLAY_NONNEGATIVE_REQUIRED`.
 - Rakes the table only: writing raked weights to a cohort is out of scope.
 
 ## See

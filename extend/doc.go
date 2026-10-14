@@ -7,8 +7,8 @@
 // runtime then treat it exactly like a built-in.
 //
 // The package is a leaf contract: it imports only the public encoding,
-// types and errors packages plus the standard library, never the
-// engine. Nothing here executes a request.
+// types, errors and linalg packages plus the standard library, never
+// the engine. Nothing here executes a request.
 //
 // # Reuse contract
 //
@@ -64,6 +64,21 @@
 // MUST return a value implementing the streaming sibling; pulse.New
 // probes aggregator, grouper and attribute factories and rejects a
 // mismatch with PULSE_EXTENSION_STREAMABLE_MISMATCH.
+//
+// # Matrix operators
+//
+// A MAT_* extension (MatrixOperator, built by a MatrixFactory) is
+// finalize-only: the engine folds the member columns into per-block
+// linalg.CoMoment state, merges the blocks through its fixed merge tree
+// and calls Finalize once per result (once per group bucket) with the
+// merged, READ-ONLY co-moment in MatrixInput — plus the admitted rows
+// (MatrixRows) when the registration declares Streamable: false. The
+// operator returns the result's parts in MatrixOutput (primary,
+// auxiliary, vectors, scalars, warnings, components) and builds its
+// matrices with MatrixInput.Square / Rect. Accumulation never leaves
+// the engine, so a pure Finalize is bit-identical across every worker
+// count and shard split; the engine's block merge itself is not part
+// of the contract.
 //
 // Engine-only capabilities are deliberately absent: component emission
 // rides a registration's ComponentsFunc (or the operator's own

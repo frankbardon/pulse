@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/linalg"
+	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -29,6 +30,15 @@ const (
 	// CorrespondencePartColumnContribution is the columns × dimensions
 	// contribution matrix.
 	CorrespondencePartColumnContribution = "column_contribution"
+	// CorrespondencePartRowDistance is the rows × rows matrix of
+	// pairwise chi-square distances between the row profiles, each
+	// squared profile difference weighted by 1 / its column mass
+	// (linalg/metric chi_square).
+	CorrespondencePartRowDistance = "row_distance"
+	// CorrespondencePartColumnDistance is the columns × columns matrix
+	// of pairwise chi-square distances between the column profiles,
+	// weighted by 1 / the row masses.
+	CorrespondencePartColumnDistance = "column_distance"
 )
 
 // correspondenceDimHeader labels the synthetic dim_k column axis of
@@ -53,6 +63,17 @@ var correspondenceDimHeader = types.AxisHeader{Fields: []string{"dimension"}, Ty
 // Columns mirror rows. Signs are linalg.SVD's: each dimension's
 // (U, V) pair is flipped so the dominant component of V is positive.
 //
+// The distance parts are the full-space chi-square distances between
+// two profiles — the registry's chi_square metric (linalg/metric,
+// resolved for metric.ConsumerCorrespondence) over the analysis's own
+// masses: row_distance_ik = sqrt(Σ_j (O_ij/O_i· − O_kj/O_k·)² / c_j),
+// column_distance mirrors it over the row masses r_i. They read the
+// kept table only, are symmetric with a 0 diagonal, never depend on
+// dimensions or normalization, and are always defined (every kept point
+// has a positive total and every kept mass is > 0). A point's distance
+// to the centroid is the familiar d_i (d_i² = inertia / mass on the
+// quality series).
+//
 // The table: absent cells are 0; a cell aggregation other than
 // AGG_COUNT / AGG_SUM (when the host knows it) or a negative /
 // non-finite cell is PULSE_OVERLAY_NONNEGATIVE_REQUIRED. Rows and
@@ -73,8 +94,8 @@ var correspondenceDimHeader = types.AxisHeader{Fields: []string{"dimension"}, Ty
 //
 // Output: a SERIES primary of the K principal inertias (keys dim_1 …
 // dim_K; Statistic = λ_k, Parameters {share, cumulative_share,
-// singular_value}) and six parts on the KEPT host keys × dim_1 …
-// dim_d. Summary: Statistic = total inertia Σ S_ij² (χ²/n), Parameters
+// singular_value}), six parts on the KEPT host keys × dim_1 … dim_d
+// and the two distance parts on the kept keys × the same keys. Summary: Statistic = total inertia Σ S_ij² (χ²/n), Parameters
 // {dimensions, retained_share, share_dim_<k> for every k}.
 func applyCorrespondence(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	return applyCorrespondenceAt(spec, host, -1)
@@ -296,6 +317,26 @@ func applyCorrespondenceAt(spec *types.OverlaySpec, host *CrosstabHostView, inde
 		return &types.OverlayPayload{Shape: types.OverlayShapeSeries, Series: &types.SeriesPayload{Entries: es}}
 	}
 
+	rowDist, err := chiSquareDistances(observed, keptRows, keptCols, colMass)
+	if err != nil {
+		return types.OverlayLayer{}, warnings, err
+	}
+	colDist, err := chiSquareDistances(transposeRows(observed), keptCols, keptRows, rowMass)
+	if err != nil {
+		return types.OverlayLayer{}, warnings, err
+	}
+	distanceMatrix := func(header types.AxisHeader, keys []types.AxisKey, cells [][]types.MatrixCell, label string) *types.OverlayPayload {
+		return &types.OverlayPayload{Shape: types.OverlayShapeMatrix, Matrix: &types.MatrixPayload{
+			RowHeader:        header,
+			ColumnHeader:     header,
+			RowKeys:          keys,
+			ColumnKeys:       append([]types.AxisKey(nil), keys...),
+			Cells:            cells,
+			CellLabel:        label,
+			NormalizeApplied: types.CrosstabNormalizeNone,
+		}}
+	}
+
 	totalInertia := total
 	var retained float64
 	for k := 0; k < d; k++ {
@@ -318,11 +359,51 @@ func applyCorrespondenceAt(spec *types.OverlaySpec, host *CrosstabHostView, inde
 				CorrespondencePartColumnContribution: pointMatrix(payload.ColumnHeader, colKeys, colContrib, CorrespondencePartColumnContribution),
 				CorrespondencePartRowQuality:         pointSeries(rowKeys, rowQuality, rowMass, rowSS),
 				CorrespondencePartColumnQuality:      pointSeries(colKeys, colQuality, colMass, colSS),
+				CorrespondencePartRowDistance:        distanceMatrix(payload.RowHeader, rowKeys, rowDist, CorrespondencePartRowDistance),
+				CorrespondencePartColumnDistance:     distanceMatrix(payload.ColumnHeader, colKeys, colDist, CorrespondencePartColumnDistance),
 			},
 		},
 		Summary: &types.OverlaySummary{Statistic: &totalInertia, Parameters: shares},
 	}
 	return layer, warnings, nil
+}
+
+// chiSquareDistances is the matrix of pairwise chi-square distances
+// between the profiles of table's rows `points` over its columns
+// `over`, weighted by masses (one per `over` entry, all > 0): the
+// registry's chi_square metric, resolved for its correspondence
+// consumer, so the kernel (closure, 1 / mass weighting, FMA-free
+// order) is the one every chi_square reader shares. The diagonal is 0
+// and the lower triangle mirrors the upper bit for bit.
+func chiSquareDistances(table [][]float64, points, over []int, masses []float64) ([][]types.MatrixCell, error) {
+	m, err := metric.ResolveFor(metric.ConsumerCorrespondence, "chi_square", metric.Distance)
+	if err != nil {
+		return nil, err
+	}
+	stats := &metric.Stats{ColumnMasses: masses}
+	profiles := make([][]float64, len(points))
+	for a, i := range points {
+		profiles[a] = make([]float64, len(over))
+		for b, j := range over {
+			profiles[a][b] = table[i][j]
+		}
+	}
+	out := make([][]types.MatrixCell, len(points))
+	for a := range out {
+		out[a] = make([]types.MatrixCell, len(points))
+		out[a][a] = types.MatrixCell{Value: 0.0, Present: true}
+	}
+	for a := range profiles {
+		for b := a + 1; b < len(profiles); b++ {
+			d, err := m.Eval(metric.Distance, profiles[a], profiles[b], stats)
+			if err != nil {
+				return nil, err
+			}
+			out[a][b] = types.MatrixCell{Value: d, Present: true}
+			out[b][a] = types.MatrixCell{Value: d, Present: true}
+		}
+	}
+	return out, nil
 }
 
 // splitPositive partitions indices by whether totals[i] > 0.

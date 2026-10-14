@@ -266,7 +266,8 @@ func (a *averageAggregator) aggregateValues(vals []float64) (float64, error) {
 	}
 	a.frozenSum = sum
 	if len(vals) == 0 {
-		return 0, nil
+		// The mean of no value is undefined: NaN (JSON null), never 0.
+		return math.NaN(), nil
 	}
 	return sum / float64(len(vals)), nil
 }
@@ -291,8 +292,8 @@ func (a *minAggregator) Aggregate(records []*Record, field string) (float64, err
 
 func (a *minAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) == 0 {
-		a.frozenMin = 0
-		return 0, nil
+		a.frozenMin = math.NaN()
+		return math.NaN(), nil
 	}
 	m := vals[0]
 	for _, v := range vals[1:] {
@@ -322,8 +323,8 @@ func (a *maxAggregator) Aggregate(records []*Record, field string) (float64, err
 
 func (a *maxAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) == 0 {
-		a.frozenMax = 0
-		return 0, nil
+		a.frozenMax = math.NaN()
+		return math.NaN(), nil
 	}
 	m := vals[0]
 	for _, v := range vals[1:] {
@@ -368,6 +369,9 @@ func (a *stdDevAggregator) aggregateValues(vals []float64) (float64, error) {
 	a.frozenN = int64(len(vals))
 	a.frozenMean = mean(vals)
 	a.frozenM2 = sumSquaredDeviations(vals, a.frozenMean)
+	if len(vals) == 0 {
+		return math.NaN(), nil
+	}
 	return populationStdDev(vals), nil
 }
 
@@ -391,8 +395,8 @@ func (a *rangeAggregator) Aggregate(records []*Record, field string) (float64, e
 
 func (a *rangeAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) == 0 {
-		a.frozenMin, a.frozenMax = 0, 0
-		return 0, nil
+		a.frozenMin, a.frozenMax = math.NaN(), math.NaN()
+		return math.NaN(), nil
 	}
 	minV, maxV := vals[0], vals[0]
 	for _, v := range vals[1:] {
@@ -507,8 +511,9 @@ func (a *zscoreAggregator) Aggregate(records []*Record, field string) (float64, 
 func (a *zscoreAggregator) aggregateValues(vals []float64) (float64, error) {
 	a.frozenHasFinalized = true
 	if len(vals) == 0 {
-		a.frozenPopMean, a.frozenPopStdDev, a.frozenTargetValue, a.frozenZScore = 0, 0, 0, 0
-		return 0, nil
+		nan := math.NaN()
+		a.frozenPopMean, a.frozenPopStdDev, a.frozenTargetValue, a.frozenZScore = nan, nan, nan, nan
+		return nan, nil
 	}
 	m := mean(vals)
 	sd := populationStdDev(vals)
@@ -516,8 +521,11 @@ func (a *zscoreAggregator) aggregateValues(vals []float64) (float64, error) {
 	a.frozenPopStdDev = sd
 	a.frozenTargetValue = vals[len(vals)-1]
 	if sd == 0 {
-		a.frozenZScore = 0
-		return 0, nil
+		// Zero spread: every standardized score is 0/0 — undefined,
+		// NaN (JSON null), never 0 (E4-S6). pop_mean / pop_stddev /
+		// target_value stay defined.
+		a.frozenZScore = math.NaN()
+		return math.NaN(), nil
 	}
 	// Final row's z-score — the story-documented "last value seen"
 	// component for the aggregator whose scalar payload is the mean
@@ -573,10 +581,10 @@ func (a *medianAggregator) aggregateValues(vals []float64) (float64, error) {
 	a.frozenFinalized = true
 	a.frozenN = len(vals)
 	if len(vals) == 0 {
-		a.frozenMedian = 0
+		a.frozenMedian = math.NaN()
 		a.frozenPositionLow = 0
 		a.frozenPositionHigh = 0
-		return 0, nil
+		return math.NaN(), nil
 	}
 	// median sorts in place — copy first to avoid mutating a shared cached slice.
 	work := make([]float64, len(vals))
@@ -631,6 +639,9 @@ func (a *varianceAggregator) aggregateValues(vals []float64) (float64, error) {
 	a.frozenN = int64(len(vals))
 	a.frozenMean = mean(vals)
 	a.frozenM2 = sumSquaredDeviations(vals, a.frozenMean)
+	if len(vals) == 0 {
+		return math.NaN(), nil
+	}
 	return populationVariance(vals), nil
 }
 
@@ -670,11 +681,11 @@ func (a *modeAggregator) Aggregate(records []*Record, field string) (float64, er
 func (a *modeAggregator) aggregateValues(vals []float64) (float64, error) {
 	a.frozenFinalized = true
 	if len(vals) == 0 {
-		a.frozenValue = 0
+		a.frozenValue = math.NaN()
 		a.frozenCount = 0
 		a.frozenDistinct = 0
 		a.frozenTieCount = 0
-		return 0, nil
+		return math.NaN(), nil
 	}
 	counts := make(map[float64]int)
 	for _, v := range vals {
@@ -743,11 +754,14 @@ func (a *skewnessAggregator) aggregateValues(vals []float64) (float64, error) {
 	a.frozenMean = mean(vals)
 	a.frozenM2, a.frozenM3, _ = sumDeviationPowers(vals, a.frozenMean, false)
 	if len(vals) <= 1 {
-		return 0, nil
+		// No value, one value: no shape can be seen — undefined, NaN
+		// (JSON null), never 0 (E4-S6).
+		return math.NaN(), nil
 	}
 	sd := populationStdDev(vals)
 	if sd == 0 {
-		return 0, nil
+		// Zero spread: the standardized moment is 0/0 — undefined.
+		return math.NaN(), nil
 	}
 	n := float64(len(vals))
 	sum := 0.0
@@ -795,11 +809,14 @@ func (a *kurtosisAggregator) aggregateValues(vals []float64) (float64, error) {
 	a.frozenMean = mean(vals)
 	a.frozenM2, a.frozenM3, a.frozenM4 = sumDeviationPowers(vals, a.frozenMean, true)
 	if len(vals) <= 1 {
-		return 0, nil
+		// No value, one value: no shape can be seen — undefined, NaN
+		// (JSON null), never 0 (E4-S6).
+		return math.NaN(), nil
 	}
 	sd := populationStdDev(vals)
 	if sd == 0 {
-		return 0, nil
+		// Zero spread: the standardized moment is 0/0 — undefined.
+		return math.NaN(), nil
 	}
 	n := float64(len(vals))
 	sum := 0.0
@@ -913,8 +930,8 @@ func (a *percentileAggregator) aggregateValues(vals []float64) (float64, error) 
 		a.frozenPosition = 0
 		a.frozenLower = 0
 		a.frozenUpper = 0
-		a.frozenValue = 0
-		return 0, nil
+		a.frozenValue = math.NaN()
+		return math.NaN(), nil
 	}
 	// percentile sorts in place — copy first to avoid mutating a shared cached slice.
 	work := make([]float64, len(vals))
@@ -1007,7 +1024,7 @@ func (a *averageAggregator) Components() (map[string]any, error) {
 }
 
 // Components returns {min} — the smallest contributing value. Empty
-// input yields a zero-valued min; callers gate on floor n > 0. Reads
+// input yields NaN (JSON null), mirroring the undefined scalar. Reads
 // frozenMin so streaming Finalize-reset does not erase the value.
 func (a *minAggregator) Components() (map[string]any, error) {
 	return map[string]any{
@@ -1016,7 +1033,7 @@ func (a *minAggregator) Components() (map[string]any, error) {
 }
 
 // Components returns {max} — the largest contributing value. Empty
-// input yields a zero-valued max; callers gate on floor n > 0. Reads
+// input yields NaN (JSON null), mirroring the undefined scalar. Reads
 // frozenMax so streaming Finalize-reset does not erase the value.
 func (a *maxAggregator) Components() (map[string]any, error) {
 	return map[string]any{
@@ -1025,8 +1042,8 @@ func (a *maxAggregator) Components() (map[string]any, error) {
 }
 
 // Components returns {min, max} — the inputs to the scalar range
-// (max - min). Empty input yields zero for both; callers gate on
-// floor n > 0. Reads frozenMin/frozenMax so streaming Finalize-reset
+// (max - min). Empty input yields NaN (JSON null) for both, mirroring
+// the undefined scalar. Reads frozenMin/frozenMax so streaming Finalize-reset
 // does not erase the values.
 func (a *rangeAggregator) Components() (map[string]any, error) {
 	return map[string]any{
@@ -1056,15 +1073,15 @@ func (a *nullCountAggregator) Components() (map[string]any, error) {
 
 // Components returns {mean, m2, variance} — the population Welford
 // moments. variance = m2 / n; matches the scalar return of the
-// AGG_VARIANCE aggregator (populationVariance). Empty input emits all
-// zeros so the orchestrator's universal floor (n=0) is the source of
-// truth for "no rows seen".
+// AGG_VARIANCE aggregator (populationVariance). Empty input emits m2
+// 0 (the empty sum) and an undefined (NaN, JSON null) mean and
+// variance, mirroring the undefined scalar.
 func (a *varianceAggregator) Components() (map[string]any, error) {
 	if a.frozenN == 0 {
 		return map[string]any{
-			"mean":     0.0,
+			"mean":     math.NaN(),
 			"m2":       0.0,
-			"variance": 0.0,
+			"variance": math.NaN(),
 		}, nil
 	}
 	variance := a.frozenM2 / float64(a.frozenN)
@@ -1081,10 +1098,10 @@ func (a *varianceAggregator) Components() (map[string]any, error) {
 func (a *stdDevAggregator) Components() (map[string]any, error) {
 	if a.frozenN == 0 {
 		return map[string]any{
-			"mean":     0.0,
+			"mean":     math.NaN(),
 			"m2":       0.0,
-			"variance": 0.0,
-			"stddev":   0.0,
+			"variance": math.NaN(),
+			"stddev":   math.NaN(),
 		}, nil
 	}
 	variance := a.frozenM2 / float64(a.frozenN)
@@ -1099,18 +1116,18 @@ func (a *stdDevAggregator) Components() (map[string]any, error) {
 // Components returns {mean, m2, m3, skewness} — the population Welford
 // moments through M3 plus the bias-uncorrected skewness estimator
 // m3 / (n * sd^3). Matches the scalar return of AGG_SKEWNESS.
-// Single-row / zero-variance inputs emit skewness=0 to match the
-// scalar fallback.
+// Single-row / zero-variance inputs emit an undefined (NaN, JSON null)
+// skewness, as the scalar does (E4-S6).
 func (a *skewnessAggregator) Components() (map[string]any, error) {
 	if a.frozenN == 0 {
 		return map[string]any{
-			"mean":     0.0,
+			"mean":     math.NaN(),
 			"m2":       0.0,
 			"m3":       0.0,
-			"skewness": 0.0,
+			"skewness": math.NaN(),
 		}, nil
 	}
-	var skewness float64
+	skewness := math.NaN()
 	if a.frozenN > 1 && a.frozenM2 > 0 {
 		n := float64(a.frozenN)
 		variance := a.frozenM2 / n
@@ -1130,19 +1147,19 @@ func (a *skewnessAggregator) Components() (map[string]any, error) {
 // Components returns {mean, m2, m3, m4, kurtosis} — the population
 // Welford moments through M4 plus the excess kurtosis estimator
 // m4 / (n * variance^2) - 3. Matches the scalar return of
-// AGG_KURTOSIS. Single-row / zero-variance inputs emit kurtosis=0 to
-// match the scalar fallback.
+// AGG_KURTOSIS. Single-row / zero-variance inputs emit an undefined
+// (NaN, JSON null) kurtosis, as the scalar does (E4-S6).
 func (a *kurtosisAggregator) Components() (map[string]any, error) {
 	if a.frozenN == 0 {
 		return map[string]any{
-			"mean":     0.0,
+			"mean":     math.NaN(),
 			"m2":       0.0,
 			"m3":       0.0,
 			"m4":       0.0,
-			"kurtosis": 0.0,
+			"kurtosis": math.NaN(),
 		}, nil
 	}
-	var kurtosis float64
+	kurtosis := math.NaN()
 	if a.frozenN > 1 && a.frozenM2 > 0 {
 		n := float64(a.frozenN)
 		variance := a.frozenM2 / n
@@ -1164,8 +1181,11 @@ func (a *kurtosisAggregator) Components() (map[string]any, error) {
 // processed and its standardized score under those population params.
 // The scalar return of AGG_ZSCORE is the mean standardized score
 // (always 0 by definition); Components surfaces the params that ARE
-// final + last-value semantics documented on the type. Empty input
-// emits zeros so the universal floor's n drives the gate.
+// final + last-value semantics documented on the type. Before any run
+// it emits zeros; a run over no value emits NaN (JSON null) for all
+// four — the population of nothing has no mean, spread or last row —
+// and a run with zero spread emits NaN for zscore (and the scalar)
+// while pop_mean, pop_stddev (0) and target_value stay defined.
 func (a *zscoreAggregator) Components() (map[string]any, error) {
 	if !a.frozenHasFinalized {
 		return map[string]any{

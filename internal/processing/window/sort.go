@@ -1,6 +1,7 @@
 package window
 
 import (
+	"math"
 	"sort"
 	"strings"
 
@@ -249,9 +250,22 @@ func asDecimal(v any) (encoding.Decimal128, bool) {
 	return encoding.Decimal128{}, false
 }
 
-// isNullCell reports whether a cell value is null/missing for sort purposes.
+// isNullCell reports whether a cell value is null/missing for sort
+// purposes. A NaN float is an undefined figure — null on the wire
+// (types.MarshalFinite) — so it orders as a null: last in both
+// directions. Compared as a number it tied with every value, which
+// breaks the comparator's strict weak order (an aggregate no row
+// answered, an expanded vector element no row answered).
 func isNullCell(v any) bool {
-	return v == nil
+	switch x := v.(type) {
+	case nil:
+		return true
+	case float64:
+		return math.IsNaN(x)
+	case float32:
+		return math.IsNaN(float64(x))
+	}
+	return false
 }
 
 // toFloat coerces a cell value into float64 if numerically convertible.

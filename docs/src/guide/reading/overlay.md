@@ -233,6 +233,19 @@ The row's share (0 to 1) of a dimension's inertia; each dimension's row contribu
 
 The column's share (0 to 1) of a dimension's inertia; each dimension's column contributions sum to 1.
 
+#### `parts.row_distance.cells.value`
+
+How different two rows' profiles across the columns are (0 = identical mixes), each squared gap divided by the column's mass so rare columns count more. It is the full-table distance the map approximates; 0 on the diagonal.
+
+**Caveats:**
+
+- It ignores the row totals: two rows with the same mix are 0 apart however different their sizes.
+- The map shows these distances only as well as the rows' quality allows; read this part, not the map, when the retained share is low.
+
+#### `parts.column_distance.cells.value`
+
+How different two columns' profiles across the rows are, read like the row distance, each squared gap divided by the row's mass.
+
 <a id="op-overlay_fisher_exact_cell"></a>
 
 ### `OVERLAY_FISHER_EXACT_CELL`
@@ -497,6 +510,33 @@ How much the cell was scaled: the raked count over the observed one (above 1 = s
 
 The largest relative gap left between a fitted margin and its target (0.01 = 1%).
 
+<a id="op-overlay_retention"></a>
+
+### `OVERLAY_RETENTION`
+
+Retention rates of a from-state by to-state crosstab: for each starting state, the share that stayed, switched or churned. See its [catalog entry](../catalog/overlay.md#op-overlay_retention).
+
+#### `summary.statistic`
+
+In each series entry: the stay rate, the share (0 to 1) of the starting state's units that were still in the same state at the end.
+
+**Caveats:**
+
+- null when the starting state's row total is 0: there is no one to retain, so the rate is undefined, not 0.
+- A starting state with few units gives a noisy rate; read it beside summary.parameters.from_total.
+
+#### `summary.parameters.switch`
+
+The switch rate: the share (0 to 1) of the starting state's units that ended in another state other than a named absorbing one. In each entry it is that state's rate; on the layer it pools every reported state.
+
+#### `summary.parameters.churn`
+
+The churn rate, present only with params.absorbing: the share (0 to 1) of the starting state's units that ended in a named absorbing state; stay, switch and churn add up to 1.
+
+#### `summary.parameters.from_total`
+
+In each series entry: the starting state's row total, the number of units (or, on a weighted host, the sum of weights) the rates divide by.
+
 <a id="op-overlay_std_residual"></a>
 
 ### `OVERLAY_STD_RESIDUAL`
@@ -535,6 +575,55 @@ The count the cell would hold if the row and column fields were independent: its
 - Every cell is a separate test and Pulse reports the p-values raw: with many cells some small ones turn up by luck, so before flagging cells adjust for multiple comparisons: set multiplicity on the overlay and read payload.p_adjusted.
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+<a id="op-overlay_symmetry"></a>
+
+### `OVERLAY_SYMMETRY`
+
+Test of symmetry on a before-by-after crosstab of the same units: are moves between two states as common one way as back? See its [catalog entry](../catalog/overlay.md#op-overlay_symmetry).
+
+#### `scalar`
+
+The symmetry chi-square, also in summary.statistic: over every pair of states, the squared gap between moves one way and moves back, divided by all moves between the two. 0 means every pair moved both ways equally; read summary.p_value rather than the raw value.
+
+**Caveats:**
+
+- null means nobody changed state (every pair is empty), so there is nothing to test.
+- It does not say which pair is lopsided or in which direction: compare each cell with its mirror cell across the diagonal.
+
+#### `summary.statistic`
+
+The same symmetry chi-square as scalar.
+
+#### `summary.p_value`
+
+**Caveats:**
+
+- It comes from the chi-square approximation, which is unreliable when a pair of states has fewer than about 10 moves; Pulse warns (PULSE_OVERLAY_EXPECTED_LOW) when one does.
+- It is meaningful only when each cell counts units seen twice (AGG_COUNT of paired before and after answers); on independent samples use OVERLAY_CHISQ_MATRIX.
+- On a probability-weighted host the table is first scaled to its effective sample size (summary.parameters.n_eff): a first-order Kish approximation, not a design-based correction.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `summary.parameters.df`
+
+Degrees of freedom: the number of pairs of states with at least one move between them (k(k - 1) / 2 for k states when none is empty).
+
+#### `summary.parameters.states`
+
+How many states the test compared: the row and column keys together, matched by key.
+
+#### `summary.parameters.discordant`
+
+How many units changed state: every count off the diagonal. The test reads only these; units that stayed put do not count.
+
+#### `summary.parameters.pairs_dropped`
+
+How many pairs of states had no move either way: they carry no information and leave the test, lowering df.
+
+#### `summary.parameters.continuity_corrected`
+
+1 when the 2x2 continuity correction was applied (it shrinks the gap between the two off-diagonal counts by 1, making the test more cautious), 0 otherwise.
 
 <a id="op-overlay_t_cell"></a>
 

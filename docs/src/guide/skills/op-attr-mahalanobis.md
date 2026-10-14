@@ -28,6 +28,7 @@ Use something else:
 
 - `output` — `d2` (default) or `p` (χ² upper tail on p df). `missing` — `listwise` only.
 - `fit_on` — `"filtered"` (default) or an inline filterer array picking the FIT rows; every filtered row is scored.
+- `fit` — a bound vector fit's name (a compose `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry: [`compose-fits`](compose-fits.md)), scored against instead of fitting (XOR `fit_on`: `fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members (`labels` — inline `fields` only); mismatch `PULSE_VECTOR_REFERENCE_MISMATCH`, unbound `PULSE_MODEL_UNKNOWN`, a regression's name `PULSE_MODEL_KIND_MISMATCH`.
 - `weight` — both kinds; fit only (N* = Σw or n_eff, cov M2*/(N* − 1)); a zero-weight row is scored, not fitted.
 
 Slot: exactly one of `vector` (a `vectors` entry) / `fields` (inline, globs ok); no `field`. Default label `ATTR_MAHALANOBIS_<vector>` or `_<first fields entry>`.
@@ -46,9 +47,9 @@ One `f64` per record: D² = (x − μ)ᵀS⁻¹(x − μ) ≥ 0, or its p. A nul
 
 ## Gotchas
 
-- Fit is cohort-wide, never per group; groupers or features force buffered.
+- Fit is cohort-wide, never per group; with `fit_on`, groupers or features force buffered — two-pass, never merged.
+- With `fit` it is row-local: one pass, streams beside groupers and features, merges (shards, chain stages); same scores.
 - Singular fit or N* ≤ p: all scores null + `PULSE_MATRIX_SINGULAR` / `PULSE_MATRIX_INSUFFICIENT_N` warning.
-- Two-pass, never merged.
 
 ## See
 

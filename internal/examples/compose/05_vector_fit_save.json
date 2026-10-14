@@ -1,0 +1,56 @@
+{
+  "_meta": {
+    "category": "compose",
+    "description": "Fit a vector battery once, score another panel against it, and save it as a population. A compose `fits` entry runs MAT_COVARIANCE over the six survey ratings (survey.pulse, q1-q6) on panel a only, once, before any slot: the bound vector fit carries panel a's per-member means and covariance at full precision (`fits.panel_a.vector`: operator, labels, basis, n, mean, covariance). The panel_b slot then reads that state instead of its own rows: ATTR_MAHALANOBIS `fit: panel_a` scores each panel b respondent's squared distance D² from panel a's distribution (mean about 6.6 against the 6 a same-population draw would average; p95 about 14.7), and MAT_FACTOR `fit: panel_a` emits panel a's two-factor geomin solution without folding a row (members align to the fit BY LABEL; a fit-bound matrix refuses groups, missing and max_drop_share). `save` writes the bound fit as populations/panel_a.pulse-population.json under the data root (PULSE_MODEL_OVERWRITTEN warns when it replaces a file); 06_population_score.json loads it in a later request. An embedder can also register population files at pulse.New (Options.Extensions.Populations, keyed by name, or PULSE_POPULATIONS_DIR, named by file stem); a registered population is bound in every request without a `populations` entry.",
+    "capabilities": [
+      "capability:compose_fits",
+      "capability:model_save"
+    ],
+    "intents": [
+      "benchmark",
+      "measure_construct"
+    ],
+    "name": "compose-vector-fit-save",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_PERCENTILE",
+      "ATTR_MAHALANOBIS",
+      "FILTER_INCLUDE",
+      "MAT_COVARIANCE",
+      "MAT_FACTOR"
+    ],
+    "tags": [
+      "compose",
+      "multivariate",
+      "matrix"
+    ]
+  },
+  "fits": [
+    {
+      "name": "panel_a",
+      "save": "populations/panel_a.pulse-population.json",
+      "request": {
+        "cohort": {"filename": "survey.pulse", "data_dir": ".data"},
+        "filterers": [{"type": "FILTER_INCLUDE", "field": "panel", "values": ["a"]}],
+        "matrices": [{"type": "MAT_COVARIANCE", "name": "panel_a", "fields": ["q1", "q2", "q3", "q4", "q5", "q6"]}]
+      }
+    }
+  ],
+  "requests": [
+    {
+      "label": "panel_b",
+      "cohort": {"filename": "survey.pulse", "data_dir": ".data"},
+      "filterers": [{"type": "FILTER_INCLUDE", "field": "panel", "values": ["b"]}],
+      "attributes": [
+        {"type": "ATTR_MAHALANOBIS", "label": "d2_from_a", "fields": ["q1", "q2", "q3", "q4", "q5", "q6"], "params": {"fit": "panel_a"}}
+      ],
+      "aggregations": [
+        {"type": "AGG_AVERAGE", "field": "d2_from_a", "label": "mean_d2"},
+        {"type": "AGG_PERCENTILE", "field": "d2_from_a", "label": "p95_d2", "params": {"percentile": 95}}
+      ],
+      "matrices": [
+        {"type": "MAT_FACTOR", "name": "panel_a_factors", "fields": ["q1", "q2", "q3", "q4", "q5", "q6"], "params": {"fit": "panel_a", "factors": 2, "rotation": "geomin"}}
+      ]
+    }
+  ]
+}

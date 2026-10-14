@@ -42,6 +42,9 @@ func plus(lists ...[]string) []string {
 }
 
 var (
+	// ownRecordRef: the comparison attributes, whose {record} reference
+	// is a point lookup over the cohort's sidecar index.
+	ownRecordRef   = own("ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE")
 	ownAllTests    = opsWithPrefix("TEST_")
 	ownAllOverlays = opsWithPrefix("OVERLAY_")
 	ownAllWindows  = opsWithPrefix("WIN_")
@@ -62,8 +65,10 @@ var (
 	// compiles to FILTER_EXPRESSION, which it hard-depends on.
 	ownExpr = own("ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA")
 	// ownMetricConsumers: every consumer of the shared metric
-	// registry (linalg/metric) — the expression operators, MAT_DISTANCE
-	// and GROUP_KMEANS.
+	// registry (linalg/metric) that resolves a caller-named metric — the
+	// expression operators, MAT_DISTANCE, GROUP_KMEANS and the reference
+	// comparison attributes. OVERLAY_CORRESPONDENCE consumes chi_square
+	// too but names it itself, so it never raises the metric codes.
 	ownMetricConsumers = plus(ownExpr, own("MAT_DISTANCE", "GROUP_KMEANS", "ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE"))
 	// ownChiSq: the contingency-table checks run in the chi-square /
 	// Fisher row tests and in the crosstab chi-square overlays.
@@ -264,6 +269,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_EXTENSION_MERGEABLE_MISMATCH:           shared,
 	errors.PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH: shared,
 	errors.PULSE_EXTENSION_ARRAY_VALUED_MISMATCH:        shared,
+	errors.PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH:       shared,
 	errors.PULSE_EXTENSION_FACTORY_PANIC:                shared,
 	errors.PULSE_EXTENSION_PARAM_INVALID:                shared,
 	errors.PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH:    shared,
@@ -300,6 +306,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_FIT_INVALID:          own(featComposeFits),
 	errors.PULSE_MODEL_NAME_COLLISION: own(featComposeFits, featModels),
 	errors.PULSE_MODEL_UNKNOWN:        own(featComposeFits, featModels, "ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
+	errors.PULSE_MODEL_KIND_MISMATCH:  own(featComposeFits, featModels),
 	// ATTR_REG_PREDICT's scoring rule (internal/model.CheckScore) and
 	// the coef() expression function (internal/model.CheckCoef), which
 	// ATTR_FORMULA and FILTER_EXPRESSION evaluate.
@@ -411,19 +418,21 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED: own(featCrosstab, featCompose),
 	errors.PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED:        own(featExport),
 	errors.PULSE_OVERLAY_EXPORT_PARTS_DROPPED:          own(featExport),
-	errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED:          own("OVERLAY_CORRESPONDENCE", "OVERLAY_MARKOV", "OVERLAY_RAKE"),
-	errors.PULSE_OVERLAY_MATRIX_NOT_SQUARE:             own("OVERLAY_MARKOV"),
+	errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED:          own("OVERLAY_CORRESPONDENCE", "OVERLAY_MARKOV", "OVERLAY_RAKE", "OVERLAY_SYMMETRY", "OVERLAY_RETENTION"),
+	errors.PULSE_OVERLAY_MATRIX_NOT_SQUARE:             own("OVERLAY_MARKOV", "OVERLAY_SYMMETRY", "OVERLAY_RETENTION"),
 	errors.PULSE_OVERLAY_MARKOV_NOT_ERGODIC:            own("OVERLAY_MARKOV"),
 	errors.PULSE_OVERLAY_RAKE_TARGET_MISMATCH:          own("OVERLAY_RAKE"),
 	errors.PULSE_OVERLAY_RAKE_NOT_CONVERGED:            own("OVERLAY_RAKE"),
 	errors.PULSE_OVERLAY_GROUPS_REQUIRED:               own("OVERLAY_MATRIX_GROUP_SUMMARY"),
 
-	// Point lookup and its sidecar index.
-	errors.PULSE_INDEX_MISSING:             own(featIndex, featLookup),
-	errors.PULSE_LOOKUP_NOT_FOUND:          own(featLookup),
-	errors.PULSE_LOOKUP_AMBIGUOUS:          own(featLookup),
-	errors.PULSE_INDEX_STALE:               own(featIndex, featLookup),
-	errors.PULSE_INDEX_UNSUPPORTED_SHARDED: own(featIndex, featLookup),
+	// Point lookup and its sidecar index. A comparison slot's {record}
+	// reference runs the same lookup (ownRecordRef), so it raises them
+	// too.
+	errors.PULSE_INDEX_MISSING:             plus(own(featIndex, featLookup), ownRecordRef),
+	errors.PULSE_LOOKUP_NOT_FOUND:          plus(own(featLookup), ownRecordRef),
+	errors.PULSE_LOOKUP_AMBIGUOUS:          plus(own(featLookup), ownRecordRef),
+	errors.PULSE_INDEX_STALE:               plus(own(featIndex, featLookup), ownRecordRef),
+	errors.PULSE_INDEX_UNSUPPORTED_SHARDED: plus(own(featIndex, featLookup), ownRecordRef),
 	errors.PULSE_INDEX_MANIFEST_INVALID:    own(featIndex, featLookup),
 	errors.PULSE_INDEX_MANIFEST_STALE:      own(featIndex, featLookup),
 

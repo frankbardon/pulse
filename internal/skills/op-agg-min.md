@@ -39,7 +39,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 ## Gotchas
 
 - Null rows skipped; `n_null` counts them.
-- All-null cohort → emits NaN (sentinel for "no data").
+- No non-null value in the bucket (group / cell / cohort) → `null` (NaN), components too.
 - Decimal128 preserved on input; float64 output coerces the comparison space.
 
 ## See

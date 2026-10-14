@@ -3,7 +3,6 @@ package descriptor
 import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
@@ -18,6 +17,8 @@ var correspondenceParts = map[string]overlayPart{
 	"column_quality":      {Shape: types.OverlayShapeSeries},
 	"row_contribution":    {Shape: types.OverlayShapeMatrix},
 	"column_contribution": {Shape: types.OverlayShapeMatrix},
+	"row_distance":        {Shape: types.OverlayShapeMatrix},
+	"column_distance":     {Shape: types.OverlayShapeMatrix},
 }
 
 // validateOverlayCorrespondence enforces the predict contract of
@@ -44,22 +45,15 @@ func validateOverlayCorrespondence(env *descriptor.Envelope, req *types.Request,
 	if route != types.OverlayKindCorrespondence || req == nil || spec == nil {
 		return
 	}
-	if spec.Ref != (types.OverlayRef{}) {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" must leave Ref empty (implicit-margin: the analysis reads the whole table)",
-			map[string]any{"index": index, "kind": string(spec.Kind)})
+	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
+	// raises too (overlayhost.CrosstabSpecRefusal).
+	if cerr := overlayhost.CrosstabSpecRefusal(spec, route, index); cerr != nil {
+		addCodedError(env, cerr)
 		return
 	}
+
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{"index": index, "kind": string(spec.Kind)})
-		return
-	}
-	if spec.Scope != types.OverlayScopeMatrix {
-		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
-			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: matrix)",
-			map[string]any{"index": index, "kind": string(spec.Kind), "scope": string(spec.Scope)})
+		addHostRequired(env, spec, route, len(req.Groups) > 0, index)
 		return
 	}
 	params, cerr := overlayhost.ParseCorrespondenceParams(spec, index)

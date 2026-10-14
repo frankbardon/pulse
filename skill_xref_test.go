@@ -1,6 +1,7 @@
 package pulse_test
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -188,13 +189,26 @@ func checkSkillMarkdownPathRefs(t *testing.T) {
 }
 
 // sectionRefSources returns the files scanned for shape (b): CLAUDE.md, every
-// long-form reference doc, and the skill pack itself.
+// long-form reference doc (indexes and their per-area slices), and the skill
+// pack itself.
 func sectionRefSources(t *testing.T) []string {
 	t.Helper()
 	out := []string{"CLAUDE.md"}
-	refs, err := filepath.Glob(filepath.Join(".claude", "reference", "*.md"))
+	// Recursive: a split reference keeps its index at the top level and its
+	// per-area slices in a same-named subdirectory (reference_docs_test.go);
+	// the slices carry the same pointers the single file did.
+	var refs []string
+	err := filepath.WalkDir(filepath.Join(".claude", "reference"), func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && strings.HasSuffix(p, ".md") {
+			refs = append(refs, p)
+		}
+		return nil
+	})
 	if err != nil {
-		t.Fatalf("globbing .claude/reference: %v", err)
+		t.Fatalf("walking .claude/reference: %v", err)
 	}
 	if len(refs) == 0 {
 		t.Fatal("found no .claude/reference/*.md files")

@@ -1,0 +1,147 @@
+{
+ "12_mahalanobis.json": {
+  "attributes": null,
+  "data": [
+   {
+    "max_d2": 30.337187997599898,
+    "mean_d2": 1.9900000000000009,
+    "min_p": 1.8685510399476112e-8
+   }
+  ],
+  "warnings": null
+ },
+ "13_pc_score.json": {
+  "attributes": null,
+  "data": [
+   {
+    "mean_pc1": -0.04074365477612891,
+    "mean_pc2_varimax": -2.47827035354715e-16,
+    "sd_pc1": 0.928597011124142,
+    "treatment": "control"
+   },
+   {
+    "mean_pc1": 0.04548630242202656,
+    "mean_pc2_varimax": 0.46644273494835653,
+    "sd_pc1": 1.06982417188919,
+    "treatment": "variant"
+   }
+  ],
+  "warnings": null
+ },
+ "14_factor_score.json": {
+  "attributes": null,
+  "data": [
+   {
+    "mean_f1_bartlett": 0.0007594285668856862,
+    "mean_f1_regression": 1.0587886896961864,
+    "sd_f1_bartlett": 0.9580418790805575,
+    "sd_f1_regression": 1.8505139837157192,
+    "treatment": "control"
+   },
+   {
+    "mean_f1_bartlett": -0.0008478276593275746,
+    "mean_f1_regression": -1.1820339339994301,
+    "sd_f1_bartlett": 1.0468401552155588,
+    "sd_f1_regression": 1.2193559646024346,
+    "treatment": "variant"
+   }
+  ],
+  "warnings": [
+   {
+    "code": "PULSE_MATRIX_HEYWOOD",
+    "message": "f1_regression: a Heywood case — the fit gives 1 member(s) a uniqueness at or below 0 (or at the maximum-likelihood floor); the scores use the loadings as fitted, not repaired",
+    "details": {
+     "attribute": "f1_regression",
+     "heywood_members": [
+      "revenue_before"
+     ],
+     "members": [
+      "revenue_before",
+      "revenue",
+      "session_minutes"
+     ],
+     "n": 400,
+     "n_star": 400,
+     "p": 3,
+     "scope": "fit",
+     "type": "ATTR_FACTOR_SCORE",
+     "uniquenesses": [
+      -0.3859399162343251
+     ]
+    }
+   },
+   {
+    "code": "PULSE_MATRIX_HEYWOOD",
+    "message": "f1_bartlett: a Heywood case — the fit gives 1 member(s) a uniqueness at or below 0 (or at the maximum-likelihood floor); the scores use the loadings as fitted, not repaired",
+    "details": {
+     "attribute": "f1_bartlett",
+     "heywood_members": [
+      "revenue_before"
+     ],
+     "members": [
+      "revenue_before",
+      "revenue",
+      "session_minutes"
+     ],
+     "n": 400,
+     "n_star": 400,
+     "p": 3,
+     "scope": "fit",
+     "type": "ATTR_FACTOR_SCORE",
+     "uniquenesses": [
+      0.004997026402758786
+     ]
+    }
+   }
+  ]
+ },
+ "18_vec_distance.json": {
+  "attributes": [
+   {
+    "label": "gap_std",
+    "type": "ATTR_VEC_DISTANCE",
+    "n": 400,
+    "n_null": 0,
+    "operator": {
+     "n_domain_invalid": 0,
+     "n_reference_missing": 0
+    }
+   },
+   {
+    "label": "gap_mahal",
+    "type": "ATTR_VEC_DISTANCE",
+    "n": 400,
+    "n_null": 0,
+    "operator": {
+     "n_domain_invalid": 0,
+     "n_reference_missing": 0
+    }
+   },
+   {
+    "label": "gap_abs",
+    "type": "ATTR_VEC_DISTANCE",
+    "n": 400,
+    "n_null": 0,
+    "operator": {
+     "n_domain_invalid": 0,
+     "n_reference_missing": 0
+    }
+   }
+  ],
+  "data": [
+   {
+    "avg_gap_abs": 117.86516587677731,
+    "avg_gap_mahal": 3.4046733322010994,
+    "avg_gap_std": 1.0347792586229623,
+    "treatment": "control"
+   },
+   {
+    "avg_gap_abs": 121.4916402116401,
+    "avg_gap_mahal": 1.7583432791145586,
+    "avg_gap_std": 1.021437132392956,
+    "treatment": "variant"
+   }
+  ],
+  "warnings": null
+ }
+}

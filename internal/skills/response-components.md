@@ -48,11 +48,11 @@ Filled by the ENGINE, not the operator — every slot carries it, even a floor-o
 
 ## Crosstab block
 
-Mirrors the matrix coordinate-for-coordinate (cells, row / column margins, grand total, axis keys); `CellComponents[r][c]` is `nil` for an empty cell.<!-- feature: capability:crosstab --> Indexing: `crosstab-guide`.<!-- /feature -->
+Mirrors the matrix coordinate-for-coordinate (cells, margins, grand total, axis keys); an empty cell's `CellComponents[r][c]` is `nil`.<!-- feature: capability:crosstab --> Indexing: `crosstab-guide`.<!-- /feature -->
 
-**`CellCounts[r][c]` is a RECORD count; the floor's `n` counts NON-NULL observations — `CellCounts[r][c] == n + n_null`.** Never read `CellCounts` as the aggregator's sample size (it stays raw under a weight; Σw is `sum_weights`). Same split on every margin counterpart.
+**`CellCounts[r][c]` is a RECORD count; the floor's `n` counts NON-NULL observations — `CellCounts[r][c] == n + n_null`.** Never read it as the sample size (raw under a weight; Σw is `sum_weights`); same on every margin.
 
-Auxiliary margin-only figures land BESIDE the margin components, and a record reaches an auxiliary margin only if it reached a CELL<!-- feature: capability:crosstab -->: `crosstab-margin-aggregations`<!-- /feature -->.
+A vector `element` cell: its member's floor and `element_*`. Auxiliary margin-only figures land BESIDE the margin components, and a record reaches an auxiliary margin only if it reached a CELL<!-- feature: capability:crosstab -->: `crosstab-margin-aggregations`<!-- /feature -->.
 
 ## Opting out
 

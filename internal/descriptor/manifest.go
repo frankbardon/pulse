@@ -358,7 +358,7 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		ExampleTags:        exTags,
 		Extensions:         extensionsManifestFromSnapshot(snap),
 		Overlays:           withOverlayIntents(filterOverlays(OverlayCapabilities(), on)),
-		ComponentsSchemas:  componentsSchemasBlock(aggs, grps, filts, attrs, snap, mats),
+		ComponentsSchemas:  componentsSchemasBlock(aggs, grps, filts, attrs, snap, append(append([]descriptor.MatrixMeta(nil), mats...), extensionMatrixMetas(snap, on(featWeighting))...)),
 		Intents:            instanceIntentIDs(inst),
 		ReturnPresets:      ReturnPresetsFor(inst),
 		Limits:             LimitsFor(inst),
@@ -375,6 +375,10 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 			}
 		}
 	}
+	// An extension MAT_* operator carries the weighted floor keys and
+	// weight kinds only where capability:weighting is offered, as the
+	// built-ins do (withMatrixWeightKeys / stampWeightKinds).
+	m.Extensions.MatrixOps = extensionMatrixMetas(snap, on(featWeighting))
 	if !on(featSynth) {
 		m.SynthDistributions = []descriptor.DistributionMeta{}
 		m.Extensions.SynthDistributions = []descriptor.OperatorMeta{}
@@ -397,6 +401,11 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		}
 		for _, mm := range mats {
 			names[mm.Name] = true
+		}
+		// An overlay kind consumes a metric too (OVERLAY_CORRESPONDENCE's
+		// chi_square profile distances): offered iff the instance lists it.
+		for _, o := range m.Overlays {
+			names[string(o.Kind)] = true
 		}
 		c := matrixCapability(metricConsumerOffered(names))
 		m.Matrix = &c

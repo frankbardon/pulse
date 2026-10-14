@@ -49,9 +49,16 @@ type batchCase struct {
 
 func runBatchCases(t *testing.T, cases []batchCase) {
 	t.Helper()
+	runBatchCasesWithin(t, nil, cases)
+}
+
+// runBatchCasesWithin runs cases against outer, the registered
+// populations (nil: none).
+func runBatchCasesWithin(t *testing.T, outer Catalog, cases []batchCase) {
+	t.Helper()
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			cerr := CheckComposeBatch(tc.fits, tc.requests)
+			cerr := CheckComposeBatch(tc.fits, tc.requests, outer)
 			if tc.code == "" {
 				if cerr != nil {
 					t.Fatalf("refused: %v", cerr)

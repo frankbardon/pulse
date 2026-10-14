@@ -43,6 +43,7 @@ var aggregatorRegistry = map[types.AggregationType]AggregatorFactory{
 
 	types.AGG_VEC_MEAN: newVecAggregator,
 	types.AGG_VEC_SUM:  newVecAggregator,
+	types.AGG_VEC_SD:   newVecAggregator,
 }
 
 // attributeRegistry maps attribute types to their factory functions.

@@ -55,19 +55,26 @@ func TestOverlayHostTable_MatchesRuntimeHandlers(t *testing.T) {
 }
 
 // TestCanStreamOverlays_WrongHostRoutesBuffered: a streamable kind that
-// does not run on a Process host (OVERLAY_INDEX_VS_POP) routes the run
-// buffered, whose hook raises the wrong-slot refusal.
+// does not run on a Process host (OVERLAY_INDEX_VS_POP), or any kind on
+// a SCALAR host (nothing runs there), routes the run buffered, whose
+// hook raises the wrong-slot / SCALAR host refusal.
 func TestCanStreamOverlays_WrongHostRoutesBuffered(t *testing.T) {
 	if s, _ := types.OverlayStreamable(types.OverlayKindIndexVsPop); !s {
 		t.Fatal("vacuous: OVERLAY_INDEX_VS_POP is not streamable")
 	}
-	req := &types.Request{Overlays: []types.OverlaySpec{{Kind: types.OverlayKindIndexVsPop}}}
+	req := &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v"}},
+		Overlays:     []types.OverlaySpec{{Kind: types.OverlayKindIndexVsPop}}}
 	if canStreamOverlays(req, nil) {
 		t.Error("a FACET kind on Request.Overlays streams")
 	}
-	req.Overlays[0].Kind = types.OverlayKindIndexVsTotal
+	req.Overlays[0] = types.OverlaySpec{Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeGroup}
 	if !canStreamOverlays(req, nil) {
 		t.Error("vacuous: OVERLAY_INDEX_VS_TOTAL does not stream")
+	}
+	req.Groups = nil
+	if canStreamOverlays(req, nil) {
+		t.Error("a SERIES kind on a SCALAR host streams")
 	}
 }
 
@@ -80,7 +87,9 @@ func TestRefuseWrongHostOverlays_KeepMask(t *testing.T) {
 		{Kind: types.OverlayKindShareOfTotal},
 		{Kind: types.OverlayKindRank},
 	}
-	req := &types.Request{Overlays: specs}
+	req := &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v"}}, Overlays: specs}
+	specs[1].Scope = types.OverlayScopeGroup
 	if err := refuseWrongHostOverlays(req, nil, func(i int) bool { return i == 1 }); err != nil {
 		t.Fatalf("skipped specs refused: %v", err)
 	}
@@ -136,12 +145,13 @@ func TestApplyOverlays_WrongHostRefusedInDispatch(t *testing.T) {
 
 // TestRefuseWrongHostOverlays_Shape: over the authored Process shape, a
 // kind that does not run on it is refused with the shared shape refusal
-// (the slot refusal still wins for a non-Process kind); an ungrouped
-// SCALAR host is not judged.
+// (the slot refusal still wins for a non-Process kind); on an ungrouped
+// SCALAR host every Process kind is refused by the shared SCALAR host
+// rule (overlayhost.ScalarSpecRefusal).
 func TestRefuseWrongHostOverlays_Shape(t *testing.T) {
 	series := &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v"}},
-		Overlays:     []types.OverlaySpec{{Kind: types.OverlayKindShareOfTotal}, {Kind: types.OverlayKindShareOfCol}}}
+		Overlays:     []types.OverlaySpec{{Kind: types.OverlayKindShareOfTotal, Scope: types.OverlayScopeGroup}, {Kind: types.OverlayKindShareOfCol}}}
 	matrix := &types.Request{Crosstab: &types.CrosstabSpec{},
 		Overlays: []types.OverlaySpec{{Kind: types.OverlayKindShareOfTotal}, {Kind: types.OverlayKindIndexVsPrior}}}
 	for name, c := range map[string]struct {
@@ -162,8 +172,10 @@ func TestRefuseWrongHostOverlays_Shape(t *testing.T) {
 		}
 	}
 	scalar := &types.Request{Aggregations: series.Aggregations, Overlays: []types.OverlaySpec{{Kind: types.OverlayKindShareOfCol}, {Kind: types.OverlayKindYoY}}}
-	if err := refuseWrongHostOverlays(scalar, nil, nil); err != nil {
-		t.Errorf("scalar host judged: %v", err)
+	want := overlayhost.ScalarSpecRefusal(&scalar.Overlays[0], types.OverlayKindShareOfCol, false, 0)
+	var sce *errors.CodedError
+	if err := refuseWrongHostOverlays(scalar, nil, nil); want == nil || !asCoded(err, &sce) || sce.Message != want.Message || sce.Details["index"] != 0 {
+		t.Errorf("scalar host: err = %v, want %v", err, want)
 	}
 	// A streamable SERIES-only kind over a crosstab routes buffered,
 	// whose hook raises the shape refusal.
@@ -172,5 +184,45 @@ func TestRefuseWrongHostOverlays_Shape(t *testing.T) {
 	}
 	if canStreamOverlays(&types.Request{Crosstab: &types.CrosstabSpec{}, Overlays: []types.OverlaySpec{{Kind: types.OverlayKindIndexVsTotal}}}, nil) {
 		t.Error("a SERIES-only kind over a MATRIX host streams")
+	}
+}
+
+// TestRefuseWrongHostOverlays_SeriesSpec: on a SERIES (grouped) host the
+// hook raises the shared SERIES Ref / Scope rule
+// (overlayhost.SeriesSpecRefusal) with the spec's own index, before any
+// payload guard — the processor's grouped tails all reach it — and does
+// not judge it on a crosstab or an ungrouped request.
+func TestRefuseWrongHostOverlays_SeriesSpec(t *testing.T) {
+	grouped := func(ov ...types.OverlaySpec) *types.Request {
+		return &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v"}}, Overlays: ov}
+	}
+	good := types.OverlaySpec{Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeGroup}
+	bad := types.OverlaySpec{Kind: types.OverlayKindDeltaVsPrior, Scope: types.OverlayScopeCell}
+	want := overlayhost.SeriesSpecRefusal(&bad, bad.Kind, 1)
+	if want == nil {
+		t.Fatal("vacuous: the rule admits the bad spec")
+	}
+	err := refuseWrongHostOverlays(grouped(good, bad), nil, nil)
+	var ce *errors.CodedError
+	if !asCoded(err, &ce) || ce.Code != want.Code || ce.Message != want.Message || ce.Details["index"] != 1 {
+		t.Fatalf("err = %v, want %v", err, want)
+	}
+	// A skipped spec (the compute plan's mask) raises nothing.
+	if err := refuseWrongHostOverlays(grouped(good, bad), nil, func(i int) bool { return i == 0 }); err != nil {
+		t.Fatalf("skipped spec refused: %v", err)
+	}
+	// An ungrouped request is judged by the SCALAR host rule instead:
+	// its first spec is refused for want of a SERIES host.
+	scalar := grouped(good, bad)
+	scalar.Groups = nil
+	wantScalar := overlayhost.ScalarSpecRefusal(&scalar.Overlays[0], good.Kind, false, 0)
+	if err := refuseWrongHostOverlays(scalar, nil, nil); wantScalar == nil || !asCoded(err, &ce) || ce.Message != wantScalar.Message || ce.Details["index"] != 0 {
+		t.Fatalf("scalar host: err = %v, want %v", err, wantScalar)
+	}
+	// The grouped Process hook refuses it on an empty result too.
+	resp := &types.Response{}
+	if err := applyOverlaysSeriesToResponse(grouped(good, bad), resp, nil, ComputePlan{Overlays: true}); !asCoded(err, &ce) || ce.Code != want.Code {
+		t.Fatalf("empty-result hook: %v, want %v", err, want)
 	}
 }

@@ -177,7 +177,12 @@ func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedR
 	// carries, and the extension registry is how an embedder's
 	// fan-out grouper reaches that gate. Both are already in hand
 	// here; the dispatcher cannot obtain either on its own.
-	return processing.ApplyComposeOverlaysWithRequests(req.Overlays, responses, labels, requests, s.extensions)
+	// Each slot's input schema (header only, opened only for a
+	// params.field naming an expanded element column) resolves that
+	// column against the slot's members — predict-compose's reading.
+	return processing.ApplyComposeOverlaysWithSchemas(req.Overlays, responses, labels, requests, func(j int) *encoding.Schema {
+		return s.requestInputSchema(ctx, requests[j])
+	}, s.extensions)
 }
 
 // composeOverlayFloorsPresent re-runs descx.ComposeOverlayHiddenFloorRefusal

@@ -10,7 +10,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`cohort-sharding`](skills/cohort-sharding.md): Shard archives in depth — strict structural cohesion, dictionary union-merge, set-rung auto-widen on create and add, grouped shards, the anchor syntax, union-wide memory for materializing operations, single-writer concurrency, and transport-only compression for moving a cohort.
 - [`cohort-sidecar-index`](skills/cohort-sidecar-index.md): The sidecar point-lookup index beside a cohort — the v3 file format, the O(1) seek path, three-outcome staleness, discovery through the indexes.json manifest, invalidation by a cohort rewrite, keyable types and constraints.
 - [`cohort-width-overflow`](skills/cohort-width-overflow.md): What happens when a value outgrows its field width — inferred categorical and numeric rungs promote on the full row pass, declared widths refuse row by row, set cardinality and shard dictionary overflow, and how convert reports it.
-- [`compose-fits`](skills/compose-fits.md): ComposedRequest.fits — named regression fits that run once before any Compose slot (sweep slots included) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity.
+- [`compose-fits`](skills/compose-fits.md): ComposedRequest.fits — named regression or vector fits that run once before any Compose slot (sweep slots included) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity.
 - [`compose-requests`](skills/compose-requests.md): ComposedRequest batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components.
 - [`compose-sweeps`](skills/compose-sweeps.md): ComposedRequest.sweep — one request body with axis placeholders expands into many ordinary Compose slots (grid or zip), with a label pattern, per-slot overlays, limit counting and predict parity.
 - [`crosstab-guide`](skills/crosstab-guide.md): Crosstab slot — rows × columns groupers, margins-from-raw-rows, normalize / normalize_level / normalize_within, matrix vs long, fused vs buffered, CrosstabComponents indexing. Topical; per-aggregator/grouper math lives in op-* atomics.
@@ -61,6 +61,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-agg-sum`](skills/op-agg-sum.md): Sum the numeric values of a field across the input set.
 - [`op-agg-variance`](skills/op-agg-variance.md): Population variance via Welford's online algorithm.
 - [`op-agg-vec-mean`](skills/op-agg-vec-mean.md): Per-member mean of a vector — one average per member, in member order (a group's average profile).
+- [`op-agg-vec-sd`](skills/op-agg-vec-sd.md): Per-member sample standard deviation of a vector — one spread per member, in member order (how much a group disagrees on each item).
 - [`op-agg-vec-sum`](skills/op-agg-vec-sum.md): Per-member total of a vector — one sum per member, in member order.
 - [`op-agg-weighted-mean`](skills/op-agg-weighted-mean.md): Weighted arithmetic mean — sum(field * weight) / sum(weight).
 - [`op-agg-welford`](skills/op-agg-welford.md): Streaming Welford-Pébaÿ moment triple — running mean, sample variance (n-1), and observed count.
@@ -71,9 +72,9 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-attr-formula`](skills/op-attr-formula.md): Per-row expression evaluation against the record's fields via expr-lang.
 - [`op-attr-mahalanobis`](skills/op-attr-mahalanobis.md): Per-row Mahalanobis distance D² (or its chi-square p) across a vector of numeric members, from a cohort-wide fit; fit_on fits on a subset and still scores every row.
 - [`op-attr-normalized`](skills/op-attr-normalized.md): Per-row min-max normalized column — (value − min) / (max − min) ∈ [0, 1].
-- [`op-attr-pc-score`](skills/op-attr-pc-score.md): Per-row standardized score on one principal component of a vector of numeric members, with the PCA matrix operator's sign and order and optional varimax; fit_on fits on a subset and still scores every row.
+- [`op-attr-pc-score`](skills/op-attr-pc-score.md): Per-row standardized score on one principal component of a vector of numeric members, with the PCA matrix operator's sign and order and optional orthogonal rotation; fit_on fits on a subset and still scores every row.
 - [`op-attr-percentile`](skills/op-attr-percentile.md): Per-row percentile rank column against the post-filter value set; requires sorting.
-- [`op-attr-profile-similarity`](skills/op-attr-profile-similarity.md): Per-row similarity to a target profile — correlation, cosine or a set similarity across a vector's members, against a literal, label-map or registered reference.
+- [`op-attr-profile-similarity`](skills/op-attr-profile-similarity.md): Per-row similarity to a target profile — correlation, cosine or a set similarity across a vector's members, against a literal, label-map, registered, centroid, saved-population or stored-record reference.
 - [`op-attr-reg-fitted`](skills/op-attr-reg-fitted.md): Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from an OLS refit during the attribute prepass.
 - [`op-attr-reg-leverage`](skills/op-attr-reg-leverage.md): Per-row hat-matrix diagonal hᵢᵢ from an unpenalized OLS refit — leverage diagnostic.
 - [`op-attr-reg-predict`](skills/op-attr-reg-predict.md): Per-row score from a bound model (a compose `fits` entry or a loaded `models` file) — no refit; whole model or a terms subset.
@@ -82,7 +83,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-attr-set-has`](skills/op-attr-set-has.md): Per-row 0/1 — whether the configured label's bit is set on a set field.
 - [`op-attr-set-popcount`](skills/op-attr-set-popcount.md): Per-row popcount of a set field — number of selected labels.
 - [`op-attr-tscore`](skills/op-attr-tscore.md): Per-row T-score column — z-score rescaled to mean 50, stddev 10.
-- [`op-attr-vec-distance`](skills/op-attr-vec-distance.md): Per-row distance to a target profile — plain, set or fitted (std_euclidean, mahalanobis) metrics across a vector's members, against a literal, label-map or registered reference.
+- [`op-attr-vec-distance`](skills/op-attr-vec-distance.md): Per-row distance to a target profile — plain, set or fitted (std_euclidean, mahalanobis) metrics across a vector's members, against a literal, label-map, registered, centroid, saved-population or stored-record reference.
 - [`op-attr-zscore`](skills/op-attr-zscore.md): Per-row standardized z-score column — (value − mean) / stddev via two-pass Welford.
 - [`op-feat-bucketize`](skills/op-feat-bucketize.md): Bin a numeric column into ordered buckets — explicit boundaries or N equal-population quantiles.
 - [`op-feat-date-features`](skills/op-feat-date-features.md): Expand a date or datetime field into year / month / day / day-of-week / quarter (+ hour) columns.
@@ -118,7 +119,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-mat-correlation`](skills/op-mat-correlation.md): Correlation matrix of a vector's numeric members — Pearson (default), Spearman or Kendall tau-b via params.method — listwise or pairwise, weighted; one MatrixResult per spec (per group bucket when grouped); per-pair p-values and confidence intervals on request (params.inference, every method).
 - [`op-mat-covariance`](skills/op-mat-covariance.md): Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped).
 - [`op-mat-distance`](skills/op-mat-distance.md): Distances between segment centroids — a k × k matrix over the buckets a grouper (params.between: any built-in, date family included, or a registered extension grouper) cuts the rows into; any registry metric MAT_DISTANCE accepts (euclidean, sq_euclidean, manhattan, chebyshev, cosine, hellinger, aitchison, mahalanobis); optional standardize; weighted centroids.
-- [`op-mat-factor`](skills/op-mat-factor.md): Exploratory factor analysis of a battery — minres, principal-axis or maximum-likelihood extraction from the SMC, varimax / promax / oblimin rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett, ML's likelihood chi-square, TLI, RMSEA with its interval and BIC; listwise or pairwise, weighted.
+- [`op-mat-factor`](skills/op-mat-factor.md): Exploratory factor analysis of a battery — minres, principal-axis or maximum-likelihood extraction from the SMC, orthogonal or oblique rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett, ML's likelihood chi-square, TLI, RMSEA with its interval and BIC; listwise or pairwise, weighted.
 - [`op-mat-partial-correlation`](skills/op-mat-partial-correlation.md): Partial correlation matrix of a vector's numeric members — each pair with every other member, or the params.control fields, held fixed — listwise or pairwise, weighted; non-PSD input refused unless repair "nearest", singular input refused; p-values and confidence intervals on request (params.inference).
 - [`op-mat-pca`](skills/op-mat-pca.md): Principal component analysis of a battery — loadings and eigenvectors (p × k, rectangular), every eigenvalue with explained / cumulative shares, communalities, KMO (overall and per member) and Bartlett's sphericity test; correlation or covariance input, listwise or pairwise, weighted.
 - [`op-mat-reliability`](skills/op-mat-reliability.md): Scale reliability of a battery — Cronbach's alpha, standardized alpha, McDonald's omega (one-factor minres), mean inter-item r, per-item item-total r / alpha if deleted / mean / sd — with reverse-keyed items flipped before the fold; listwise or pairwise, weighted.
@@ -127,7 +128,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-overlay-chisq-row`](skills/op-overlay-chisq-row.md): Per-row χ² goodness-of-fit test across the host crosstab's contingency table.
 - [`op-overlay-chisq-vs-pop`](skills/op-overlay-chisq-vs-pop.md): χ² goodness-of-fit comparing host Facet subset distribution against the resolved population distribution.
 - [`op-overlay-chisq-vs-ref`](skills/op-overlay-chisq-vs-ref.md): Compose-host whole-matrix χ² comparing target slot's matrix against the reference slot's matrix (rescaled to target N).
-- [`op-overlay-correspondence`](skills/op-overlay-correspondence.md): Correspondence analysis of the host crosstab — inertia per dimension, row and column map coordinates, quality and contribution as parts.
+- [`op-overlay-correspondence`](skills/op-overlay-correspondence.md): Correspondence analysis of the host crosstab — inertia per dimension, row and column map coordinates, quality, contribution and chi-square profile distances as parts.
 - [`op-overlay-delta-vs-baseline`](skills/op-overlay-delta-vs-baseline.md): Per-point additive delta against a fixed positional baseline of an ordered SERIES host.
 - [`op-overlay-delta-vs-margin`](skills/op-overlay-delta-vs-margin.md): Per-cell additive delta against the matching axis margin (cell − margin).
 - [`op-overlay-delta-vs-prior`](skills/op-overlay-delta-vs-prior.md): Per-point streamable windowed additive delta against the immediately preceding point of an ordered SERIES host.
@@ -158,10 +159,12 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-overlay-prop-z-panel`](skills/op-overlay-prop-z-panel.md): Compose-host multi-reference per-cell pairwise two-proportion z-test across N+1 slots.
 - [`op-overlay-rake`](skills/op-overlay-rake.md): Rake a crosstab to target row and column margins (IPF) — fitted table, adjustment factors and a convergence report; the host is never changed.
 - [`op-overlay-rank`](skills/op-overlay-rank.md): Compose-host per-cell rank of each target cell within a configurable population (row / column / matrix).
+- [`op-overlay-retention`](skills/op-overlay-retention.md): Retention rates of a from × to crosstab — per starting state, the share that stayed, switched or churned into a named absorbing state.
 - [`op-overlay-share-of-col`](skills/op-overlay-share-of-col.md): Per-cell share-of-column ratio (cell / col_margin) — raw share, sums to 1.0 per column.
 - [`op-overlay-share-of-row`](skills/op-overlay-share-of-row.md): Per-cell share-of-row ratio (cell / row_margin) — raw share, sums to 1.0 per row.
 - [`op-overlay-share-of-total`](skills/op-overlay-share-of-total.md): Share-of-grand-total ratio — dual-shape (matrix per-cell or series per-group); raw share sums to 1.0.
 - [`op-overlay-std-residual`](skills/op-overlay-std-residual.md): Per-cell Haberman adjusted standardized residual of the host crosstab, with expected counts and two-sided p-values as parts.
+- [`op-overlay-symmetry`](skills/op-overlay-symmetry.md): Paired-change test on a before × after crosstab — McNemar (2 × 2) or Bowker (k × k): are moves one way as common as moves back?
 - [`op-overlay-t-cell`](skills/op-overlay-t-cell.md): Compose-host per-cell Welch t-test against the reference slot's matching cell; parity overlay reading from CellComponents.
 - [`op-overlay-t-vs-ref`](skills/op-overlay-t-vs-ref.md): Compose-host per-group Welch t-test against the reference slot's matching group (SERIES); parity overlay reading from CellComponents.
 - [`op-overlay-yoy`](skills/op-overlay-yoy.md): Per-point year-over-year ratio against the same period one year prior; requires one GROUP_DATE grouper, partitions by the other keys.

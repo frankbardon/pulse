@@ -253,6 +253,16 @@ func attributeCapabilities() []descriptor.Operator {
 					Description: "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored.",
 				},
 				{
+					Name:        "fit",
+					Type:        "string",
+					Description: "Name of a bound vector fit — a `fits` entry of the enclosing compose request over one MAT_* or fitted-attribute battery — to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs; a regression fit's name is PULSE_MODEL_KIND_MISMATCH.",
+				},
+				{
+					Name:        "labels",
+					Type:        "list",
+					Description: "Inline fields only: one unique label per member, the names a bound fit aligns to (default: the field names). A named vector carries its own labels.",
+				},
+				{
 					Name:        "missing",
 					Type:        "enum",
 					Default:     "listwise",
@@ -289,18 +299,34 @@ func attributeCapabilities() []descriptor.Operator {
 					Type:        "enum",
 					Default:     vectors.RotationNone,
 					EnumValues:  vectors.PCARotations(),
-					Description: "none: the unrotated component. varimax: rotate the params.components leading components orthogonally (stats::varimax, Kaiser normalization; MAT_PCA's rotated order and sign) and score rotated component params.component.",
+					Description: "none: the unrotated component. Otherwise MAT_PCA's orthogonal rotation of the params.components leading components (varimax, quartimax, geomin_orthogonal or entropy; MAT_PCA's rotated order and sign), scoring rotated component params.component. An oblique criterion is refused (rotation_oblique_unsupported).",
+				},
+				{
+					Name:        "epsilon",
+					Type:        "float",
+					Default:     vectors.GeominDefaultEpsilon,
+					Description: "Geomin epsilon, above 0 (default 0.01); rotation geomin_orthogonal only.",
 				},
 				{
 					Name:        "components",
 					Type:        "int",
-					Description: "With rotation varimax (required there, refused otherwise): how many leading components to rotate within, at least params.component and at most the member count.",
+					Description: "With a rotation (required there, refused otherwise): how many leading components to rotate within, at least params.component and at most the member count.",
 				},
 				{
 					Name:        "fit_on",
 					Type:        "any",
 					Default:     "filtered",
 					Description: "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored.",
+				},
+				{
+					Name:        "fit",
+					Type:        "string",
+					Description: "Name of a bound vector fit — a `fits` entry of the enclosing compose request over one MAT_* or fitted-attribute battery — to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs; a regression fit's name is PULSE_MODEL_KIND_MISMATCH.",
+				},
+				{
+					Name:        "labels",
+					Type:        "list",
+					Description: "Inline fields only: one unique label per member, the names a bound fit aligns to (default: the field names). A named vector carries its own labels.",
 				},
 				{
 					Name:        "missing",
@@ -336,14 +362,25 @@ func attributeCapabilities() []descriptor.Operator {
 				},
 				{Name: "factors", Type: "any", Default: vectors.FactorsKaiser, Description: "MAT_FACTOR's factors: a positive integer k (at least params.factor, at most the member count) or \"kaiser\" (the fit correlation's eigenvalues above 1)."},
 				{Name: "extraction", Type: "enum", Default: vectors.FactorExtractionMinres, EnumValues: vectors.FactorExtractions(), Description: "MAT_FACTOR's extraction: minres, principal_axis or ml."},
-				{Name: "rotation", Type: "enum", Default: vectors.RotationNone, EnumValues: vectors.FactorRotations(), Description: "MAT_FACTOR's rotation: none, varimax, promax or oblimin; an oblique rotation's factor correlation enters the regression weights."},
+				{Name: "rotation", Type: "enum", Default: vectors.RotationNone, EnumValues: vectors.FactorRotations(), Description: "MAT_FACTOR's rotation: none, orthogonal (varimax, quartimax, geomin_orthogonal, entropy) or oblique (promax, oblimin, geomin); an oblique rotation's factor correlation enters the regression weights."},
 				{Name: "kappa", Type: "float", Default: vectors.FactorDefaultKappa, Description: "Promax power, above 1; rotation promax only."},
 				{Name: "gamma", Type: "float", Default: 0, Description: "Oblimin gamma, finite; rotation oblimin only."},
+				{Name: "epsilon", Type: "float", Default: vectors.GeominDefaultEpsilon, Description: "Geomin epsilon, above 0 (default 0.01); rotation geomin or geomin_orthogonal only."},
 				{
 					Name:        "fit_on",
 					Type:        "any",
 					Default:     "filtered",
 					Description: "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored.",
+				},
+				{
+					Name:        "fit",
+					Type:        "string",
+					Description: "Name of a bound vector fit — a `fits` entry of the enclosing compose request over one MAT_* or fitted-attribute battery — to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs; a regression fit's name is PULSE_MODEL_KIND_MISMATCH.",
+				},
+				{
+					Name:        "labels",
+					Type:        "list",
+					Description: "Inline fields only: one unique label per member, the names a bound fit aligns to (default: the field names). A named vector carries its own labels.",
 				},
 				{
 					Name:        "missing",
@@ -431,7 +468,7 @@ func comparisonCapability(t types.AttributeType) descriptor.Operator {
 			Name:        "reference",
 			Type:        "any",
 			Required:    true,
-			Description: "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label or an unsigned-integer field's (u4, u8, u16, u32, u64) canonical base-10 value; any other field type is refused, SERVICE_VALIDATION reason key_field_type). A table or map is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field is null or has no profile is null, counted in n_reference_missing and warned once per slot (PULSE_VECTOR_REFERENCE_MISSING, components on or off; strict does not escalate it).",
+			Description: "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile), {\"centroid\": {\"filter\", \"by\"}} (the weighted per-element mean — AGG_VEC_MEAN's — of the filtered rows the optional filter admits; with by, a categorical or unsigned-integer field, one centroid per value and each row compared with its own: a pre-pass, so two-pass for any metric), {\"population\": name} (a bound vector fit's stored mean: a request / registered population or a Compose vector fit; unbound is PULSE_VECTOR_REFERENCE_UNKNOWN), {\"record\": {\"cohort\", \"keys\"}} (one stored record point-looked-up through its cohort's sidecar index — cohort a {filename, data_dir} or omitted for the request's own, keys [{field, value}] in index order, values as text — before the run, read by member COLUMN name, a null member a missing element; predict checks the shape only, the run refuses with the lookup's own PULSE_INDEX_* / PULSE_LOOKUP_* code, never a fallback) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label or an unsigned-integer field's (u4, u8, u16, u32, u64) canonical base-10 value; any other field type is refused, SERVICE_VALIDATION reason key_field_type). A table, map or population is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field / by is null or has no profile / centroid is null, counted in n_reference_missing and warned once per slot (PULSE_VECTOR_REFERENCE_MISSING, components on or off; strict does not escalate it).",
 		},
 		{
 			Name:        "min_valid",
@@ -445,19 +482,24 @@ func comparisonCapability(t types.AttributeType) descriptor.Operator {
 			Description: "Inline fields only: one unique label per member, the names a label map or table aligns to (default: the field names). A named vector carries its own labels.",
 		},
 	}
-	desc := "Per-row similarity to a reference across the p members of vector / fields (exactly one): correlation, cosine or a set similarity, pairwise-complete (a null member drops its pair). Row-local and single-pass; the weight is irrelevant."
+	desc := "Per-row similarity to a reference across the p members of vector / fields (exactly one): correlation, cosine or a set similarity, pairwise-complete (a null member drops its pair). Row-local and single-pass, the weight irrelevant — except over a centroid reference, folded (weighted) in a pre-pass first."
 	note := "one similarity per record (correlation / cosine in [-1, 1], set similarities in [0, 1]); null below min_valid or when the row's reference is missing"
 	hint := ""
 	if t == types.ATTR_VEC_DISTANCE {
-		desc = "Per-row distance to a reference across the p members of vector / fields (exactly one), pairwise-complete with the p / p_observed rescaling. Row-local metrics are single-pass; std_euclidean (per-member SDs) and mahalanobis (inverse covariance, every member needed) fit first on the filtered rows params.fit_on admits — ATTR_MAHALANOBIS's fit pass, two-pass, weighted when a weight is in force; N* ≤ p or a singular fit nulls every value with a warning."
+		desc = "Per-row distance to a reference across the p members of vector / fields (exactly one), pairwise-complete with the p / p_observed rescaling. Row-local metrics are single-pass; std_euclidean (per-member SDs) and mahalanobis (inverse covariance, every member needed) fit first on the filtered rows params.fit_on admits — ATTR_MAHALANOBIS's fit pass, two-pass, weighted when a weight is in force; N* ≤ p or a singular fit nulls every value with a warning. A centroid reference is folded (weighted) in the same pre-pass, for any metric."
 		note = "one distance (≥ 0) per record; null below min_valid, when the row's reference is missing or the fit cannot score"
-		hint = "Row-local metrics stream in one pass; std_euclidean / mahalanobis take the two-pass drive (with groupers or features the request runs buffered). The fit is cohort-wide, never per group."
+		hint = "Row-local metrics stream in one pass; std_euclidean / mahalanobis and any centroid reference take the two-pass drive (with groupers or features the request runs buffered). The fit and centroids are cohort-wide, never per group."
 		params = append(params,
 			descriptor.Param{
 				Name:        "fit_on",
 				Type:        "any",
 				Default:     "filtered",
 				Description: "Fitted metrics only (refused beside a row-local one): the fit population, \"filtered\" (every filtered row) or an inline array of filterer objects; every filtered row is still scored.",
+			},
+			descriptor.Param{
+				Name:        "fit",
+				Type:        "string",
+				Description: "Fitted metrics only: name of a bound vector fit (a `fits` entry of the enclosing compose request) to read instead of fitting (mutually exclusive with fit_on); aligned by label.",
 			},
 			descriptor.Param{
 				Name:        "missing",
@@ -480,7 +522,7 @@ func comparisonCapability(t types.AttributeType) descriptor.Operator {
 		StreamableHint: hint,
 		ComponentSchema: attrSchema(descriptor.Mergeable,
 			descriptor.ComponentKey{Name: "n_reference_missing", Type: "int",
-				Description: "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."},
+				Description: "Rows whose params.reference key_field / centroid by value has no profile / centroid (or is null), or every row of a centroid no row reached, scored null; 0 for a literal, table key or population reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."},
 			descriptor.ComponentKey{Name: "n_domain_invalid", Type: "int",
 				Description: "Rows scored null because a value lay outside the metric's domain (a negative part under hellinger / aitchison, an aitchison zero, a non-0/1 value under a set metric). Non-zero also raises PULSE_VECTOR_METRIC_DOMAIN."},
 		),

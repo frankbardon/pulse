@@ -1,6 +1,6 @@
 ```yaml
 name: op-mat-factor
-description: Exploratory factor analysis of a battery — minres, principal-axis or maximum-likelihood extraction from the SMC, varimax / promax / oblimin rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett, ML's likelihood chi-square, TLI, RMSEA with its interval and BIC; listwise or pairwise, weighted.
+description: Exploratory factor analysis of a battery — minres, principal-axis or maximum-likelihood extraction from the SMC, orthogonal or oblique rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett, ML's likelihood chi-square, TLI, RMSEA with its interval and BIC; listwise or pairwise, weighted.
 kind: operator
 category: MAT
 operator: MAT_FACTOR
@@ -23,8 +23,8 @@ Questions it answers:
 ## Params
 
 - `factors` — int k ≤ p or `kaiser` (default). `extraction` — `minres` (default), `principal_axis`, `ml`.
-- `rotation` — `none` (default), `varimax`, `promax`, `oblimin`; `kappa` (4) / `gamma` (0) for promax / oblimin. `repair` — `nearest`.
-- `conf_level` — `ml`, default 0.9: RMSEA interval coverage. `missing`, `max_drop_share`, `weight`, `encoding`: [`op-mat-correlation`](op-mat-correlation.md).
+- `rotation` — `none` (default); orthogonal `varimax`, `quartimax`, `geomin_orthogonal`, `entropy`; oblique `promax`, `oblimin`, `geomin`. `kappa` (4) promax, `gamma` (0) oblimin, `epsilon` (0.01) geomin pair. `repair` — `nearest`.
+- `conf_level` — `ml`, default 0.9: RMSEA interval coverage. `missing`, `max_drop_share`, `fit`, `weight`, `encoding`: [`op-mat-correlation`](op-mat-correlation.md).
 
 ## Inputs
 
@@ -32,12 +32,12 @@ Integer / float members.
 
 ## Output
 
-`primary`: loadings `F1`…`Fk`. `auxiliary`: `unrotated`, `factor_correlation`; `vectors`: `communalities`, `uniquenesses`. `scalars`: fit figures (`rmsr`, `kmo`, …); `ml` adds `likelihood_chisq`, `tli`, `rmsea`, `bic`.
+`primary`: loadings `F1`…`Fk`. `auxiliary`: `unrotated`, `factor_correlation` (oblique); `vectors`: `communalities`, `uniquenesses`. `scalars`: fit figures (`rmsr`, `kmo`, …); `ml` adds `likelihood_chisq`, `tli`, `rmsea`, `bic`.
 
 ## Reading the output
 
-- `primary.values`: Each cell is a loading: how strongly the row's measure is tied to the column's factor. Without a rotation, or with varimax, it is the correlation between the two; under promax or oblimin it is the measure's own tie to that factor with the other factors held fixed. A factor is named by the measures with the largest loadings.
-- `scalars.bartlett_p`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
+- `primary.values`: Each cell is a loading: how strongly the row's measure is tied to the column's factor. Without a rotation, or with an orthogonal one (varimax, quartimax, geomin_orthogonal, entropy), it is the correlation between the two; under an oblique one (promax, oblimin, geomin) it is the measure's own tie to that factor with the other factors held fixed. A factor is named by the measures with the largest loadings.
+  - Caveat: Under an oblique rotation the factors correlate (auxiliary.factor_correlation), so loadings on correlated factors overlap.
 
 ## Components
 
@@ -46,7 +46,7 @@ Integer / float members.
 ## Gotchas
 
 - (p − k)² < p + k: null fit, `PULSE_MATRIX_NOT_IDENTIFIED`.
-- Uniqueness ≤ 0: `PULSE_MATRIX_HEYWOOD`; cap hit: `PULSE_MATRIX_NOT_CONVERGED`.
+- Uniqueness ≤ 0: `PULSE_MATRIX_HEYWOOD`; cap hit: `PULSE_MATRIX_NOT_CONVERGED` (`details.solver`, e.g. `gpa_geomin`).
 - `ml` needs positive-definite R and enough rows.
 
 ## See

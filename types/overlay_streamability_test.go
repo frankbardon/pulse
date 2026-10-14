@@ -116,6 +116,8 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		OverlayKindMatrixGroupSummary: false,
 		// STD_RESIDUAL reads the whole table's totals (CHISQ_MATRIX).
 		OverlayKindStdResidual: false,
+		OverlayKindSymmetry:    false,
+		OverlayKindRetention:   false,
 		OverlayKindTCell:       false,
 		OverlayKindTVsRef:      false,
 		OverlayKindYoY:         false,

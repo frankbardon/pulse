@@ -60,7 +60,8 @@ func effectiveFeatureBehaviour(opts Options, fp *FeatureProfile) descx.FeatureBe
 // runtime nor projected into the snapshot. It runs AFTER
 // validateExtensionDependsOn, which checks DependsOn against ALL
 // registrations. Non-operator registrations (synth distributions, expr
-// functions, named tables) are not features and pass through.
+// functions, named tables) are not features and pass through — save
+// the registered populations, which follow capability:models.
 func withoutHiddenExtensions(ext Extensions, set descx.FeatureSet) Extensions {
 	if len(set.Hidden) == 0 {
 		return ext
@@ -77,6 +78,12 @@ func withoutHiddenExtensions(ext Extensions, set descx.FeatureSet) Extensions {
 	out.Windows = keepVisible(ext.Windows, hidden, func(r WindowRegistration) string { return string(r.Name) })
 	out.Features = keepVisible(ext.Features, hidden, func(r FeatureRegistration) string { return string(r.Name) })
 	out.Tests = keepVisible(ext.Tests, hidden, func(r TestRegistration) string { return string(r.Name) })
+	out.MatrixOps = keepVisible(ext.MatrixOps, hidden, func(r MatrixOpRegistration) string { return string(r.Name) })
+	// Registered populations are bound fits: a profile hiding
+	// capability:models (the `populations` slot's gate) registers none.
+	if _, h := hidden[descx.FeatureModels]; h {
+		out.Populations = nil
+	}
 	return out
 }
 

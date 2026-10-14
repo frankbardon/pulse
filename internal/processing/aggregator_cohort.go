@@ -55,11 +55,11 @@ func newWeightedMeanAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggr
 
 // weightedVariance is the frequency-weights variance m2 / (Σw − 1)
 // (statsmodels DescrStatsW.var with ddof=1). Σw ≤ 1 has no positive
-// denominator, so it reports 0 — the same zero floor the empty cell
-// uses; callers detect it from sum_weights.
+// denominator: the sample variance is undefined, NaN (JSON null),
+// never 0 (E4-S6).
 func weightedVariance(m2, wSum float64) float64 {
-	if wSum <= 1 {
-		return 0
+	if !(wSum > 1) {
+		return math.NaN()
 	}
 	return m2 / (wSum - 1)
 }

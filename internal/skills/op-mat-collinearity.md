@@ -19,7 +19,7 @@ Slot and members as for `op-mat-covariance`. Members are the predictors only.
 |---|---|---|---|
 | `center` | bool | `false` | Belsley on centered predictors (no intercept). |
 | `repair` | `nearest` | none | Read the nearest correlation matrix. |
-| `missing`, `max_drop_share`, `weight`, `encoding` | | | As `op-mat-correlation`. |
+| `missing`, `max_drop_share`, `fit`, `weight`, `encoding` | | | As `op-mat-correlation`. |
 
 ## Inputs
 

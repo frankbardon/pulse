@@ -54,6 +54,11 @@ type ResolvedMultiplicity struct {
 	// it is not skipped (an inherited correction never reaches the
 	// Tukey HSD post-test, which is already corrected).
 	Member bool
+	// PValueKey is a matrix spec's auxiliary key holding its p-values:
+	// "p" on a built-in inferential operator, an extension operator's
+	// declared MatrixOpRegistration.PValues; "" on every other slot.
+	// The fold writes the adjusted twins beside it (MatrixAdjustedKeys).
+	PValueKey string
 }
 
 // MultiplicityPlan is the resolved correction of one Request, each
@@ -368,7 +373,8 @@ func (r multResolver) overlay(slot string, s multSurface, kind types.OverlayKind
 
 // matrix resolves one matrix spec at slot. Its own block is checked
 // like any other, then refused on a known matrix operator that emits no
-// p-values (any type outside vectors.InferenceTypes); an unknown or
+// p-values (any type outside vectors.InferenceTypes, an extension
+// operator declaring no PValues key); an unknown or
 // hidden type is the matrix validators' refusal, so it joins no family
 // here. The spec is under inference when its own params set
 // `inference: true` or when it carries its own block (a block implies
@@ -385,9 +391,14 @@ func (r multResolver) matrix(slot string, spec *types.MatrixSpec, chain multChai
 		return rm, err
 	}
 	routed := opRoute(r.inst, spec.Type)
-	inferential := slices.Contains(vectors.InferenceTypes(), routed)
-	if own != nil && isBuiltinMatrixType(routed) && !inferential {
-		valid := stringsOf(vectors.InferenceTypes())
+	// An extension MAT_* operator opts into correction by declaring the
+	// auxiliary key of its p-values (MatrixOpRegistration.PValues); it
+	// then always emits them, so it needs no params.inference.
+	ext := isExtensionMatrixType(r.inst, nil, spec.Type)
+	pkey := matrixPValueKey(r.inst, spec.Type)
+	inferential := pkey != ""
+	if own != nil && (isBuiltinMatrixType(routed) || ext) && !inferential {
+		valid := append(stringsOf(vectors.InferenceTypes()), extensionPValueMatrixNames(r.inst)...)
 		return rm, errors.NewCodedErrorWithDetails(errors.PULSE_MULTIPLICITY_INVALID,
 			fmt.Sprintf("%s: %s %s (valid: %v)", where, spec.Type, multReasonMatrixType, valid),
 			map[string]any{"slot": where, "key": "type", "value": string(spec.Type), "reason": multReasonMatrixType, "valid": valid})
@@ -399,7 +410,8 @@ func (r multResolver) matrix(slot string, spec *types.MatrixSpec, chain multChai
 	rm.Family = family
 	rm.Method = chain.method(own)
 	rm.Alpha = chain.alpha(own)
-	rm.Member = inferential && (own != nil || paramsInference(spec.Params)) && rm.Method != types.MultiplicityMethodNone
+	rm.Member = inferential && (ext || own != nil || paramsInference(spec.Params)) && rm.Method != types.MultiplicityMethodNone
+	rm.PValueKey = pkey
 	return rm, nil
 }
 

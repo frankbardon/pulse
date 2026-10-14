@@ -365,8 +365,8 @@ type MatrixPredict struct {
 	// Encoding is the effective Values layout.
 	Encoding types.MatrixEncoding `json:"encoding"`
 	// AccumulatorBytes estimates the payload bytes of one co-moment
-	// state over the members (32 + 8·(p + p(p+1)/2) listwise,
-	// 32 + 56·p(p+1)/2 pairwise). The run holds one per populated merge
+	// state over the members (40 + 8·(p + p(p+1)/2) listwise,
+	// 40 + 72·p(p+1)/2 pairwise). The run holds one per populated merge
 	// block (Manifest.Matrix.merge_block_size rows) until finalize, so
 	// its matrix state is this times its block count (grouped: times
 	// its buckets too — EstimatedBytes).
@@ -614,7 +614,7 @@ type AggregationPredict struct {
 
 	// Columns names the Response.Data columns the slot writes when they
 	// are not its label: an expanding vector aggregation (AGG_VEC_MEAN /
-	// AGG_VEC_SUM with params.expand) writes one scalar column per
+	// AGG_VEC_SUM / AGG_VEC_SD with params.expand) writes one scalar column per
 	// member, "<label>[<element label>]" in member order, and no column
 	// under the label itself. Omitted on every other slot (its one
 	// column is the label).
@@ -921,19 +921,40 @@ type SweepSummary struct {
 }
 
 // FitSummary is one ComposeValidationResult.Fits entry: a ComposedRequest
-// `fits` entry as predict reads it, statically — never fitted.
+// `fits` entry as predict reads it, statically — never fitted. A
+// regression fit sets Type, Target and Predictors; a vector fit sets
+// Vector instead (the regression keys are then absent).
 type FitSummary struct {
 	// Name is the fit's bound name.
 	Name string `json:"name"`
-	// Type is the fit's regression operator.
-	Type types.RegressionType `json:"type"`
-	// Target is the fit's response field.
-	Target string `json:"target"`
+	// Type is the fit's regression operator (regression fits).
+	Type types.RegressionType `json:"type,omitempty"`
+	// Target is the fit's response field (regression fits).
+	Target string `json:"target,omitempty"`
 	// Predictors are the predictor columns as written. Under a selection
-	// modifier the fit binds only the predictors the selection keeps.
-	Predictors []string `json:"predictors"`
+	// modifier the fit binds only the predictors the selection keeps
+	// (regression fits).
+	Predictors []string `json:"predictors,omitempty"`
 	// Cohort is the path of the cohort the fit runs over.
 	Cohort string `json:"cohort,omitempty"`
+	// Vector is a vector fit's static summary (nil on a regression
+	// fit).
+	Vector *VectorFitSummary `json:"vector,omitempty"`
+}
+
+// VectorFitSummary is a vector fit's FitSummary: its battery and, when
+// the fit request's schema resolves, the labels a consuming slot aligns
+// to — what the runtime binds, without its figures.
+type VectorFitSummary struct {
+	// Operator is the battery: the fit request's MAT_* type or fitted
+	// attribute type.
+	Operator string `json:"operator"`
+	// Labels are the member labels in axis order (absent when the
+	// schema did not resolve).
+	Labels []string `json:"labels,omitempty"`
+	// Members are the member columns in axis order (absent when the
+	// schema did not resolve).
+	Members []string `json:"members,omitempty"`
 }
 
 // ForEachSummary describes one window, feature or attribute item's

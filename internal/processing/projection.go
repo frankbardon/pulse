@@ -445,6 +445,16 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 				addAllKnown(inputs)
 			}
 		}
+		// An extension MAT_* operator reads only its members (it
+		// finalizes over the engine's co-moment); a FieldInputs hook
+		// adds what it declares beyond them.
+		for _, m := range req.Matrices {
+			if _, custom := ext.MatrixOps[m.Type]; custom {
+				if inputs, ok := ext.FieldInputsFor("matrix", string(m.Type), m.Params); ok {
+					addAllKnown(inputs)
+				}
+			}
+		}
 		// A MAT_DISTANCE params.between extension grouper reads what
 		// its FieldInputs hook declares, exactly as in Request.Groups.
 		for _, m := range req.Matrices {

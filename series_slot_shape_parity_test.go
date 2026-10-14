@@ -130,12 +130,14 @@ func TestComposeSeriesOverlay_UngroupedPairStillRuns(t *testing.T) {
 // both sides (U46 E4-S9): predict-chain warns and stays valid, the
 // runtime runs the chain and answers an empty layer plus one warning.
 // Same code, same class, deep-equal Details (overlay_index included),
-// for grouped-vs-ungrouped in either direction and crosstab-vs-grouped
-// in either direction, on a default and a Strict engine — the runtime
+// for grouped-vs-ungrouped in either direction, on a default and a
+// Strict engine — the runtime
 // never promotes an overlay layer warning under Strict, and predict-chain
 // mirrors that. Before E4-S7 the runtime folded a grouped-vs-ungrouped
 // pair as SERIES (PULSE_OVERLAY_REF_ZERO); before E4-S9 predict-chain
-// refused every mismatch as an envelope error.
+// refused every mismatch as an envelope error. A crosstab stage (the
+// MATRIX shape) is refused outright since U30 E7-S4
+// (TestChainStage_CrosstabRefusedBothSides), so no chain pairs it.
 func TestChainSeriesOverlay_GroupedVsUngroupedShapeParity(t *testing.T) {
 	for _, strict := range []bool{false, true} {
 		f := newMGFixture(t, pulse.Options{Strict: strict})
@@ -152,9 +154,6 @@ func TestChainSeriesOverlay_GroupedVsUngroupedShapeParity(t *testing.T) {
 				{"ungrouped target", 0, 1, "series", "scalar", chUngroupStage1},
 				// The same stages with the roles swapped.
 				{"ungrouped ref", 1, 0, "scalar", "series", chUngroupStage1},
-				// Stage 1 a crosstab (MATRIX) over stage 0's grouped rows.
-				{"crosstab target", 0, 1, "series", "matrix", chCrosstabStage1},
-				{"crosstab ref", 1, 0, "matrix", "series", chCrosstabStage1},
 			} {
 				t.Run(fmt.Sprintf("strict=%v/%s/%s", strict, kind, c.name), func(t *testing.T) {
 					build := func() *types.ChainRequest {
@@ -222,7 +221,8 @@ func chUngroupStage1(req *types.ChainRequest) {
 }
 
 // chCrosstabStage1 groups stage 0 by region and sex and makes stage 1 a
-// region x sex crosstab over its rows: a MATRIX stage.
+// region x sex crosstab over its rows: a MATRIX stage, which the chain
+// gate refuses (TestChainStage_CrosstabRefusedBothSides).
 func chCrosstabStage1(req *types.ChainRequest) {
 	req.Stages[0].Request.Groups = []*types.Group{mgRegion(), mgSex()}
 	req.Stages[1].Request = &types.Request{

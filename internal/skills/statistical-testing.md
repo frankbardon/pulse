@@ -24,13 +24,15 @@ Two test slots; this file teaches choosing and chaining, per-test detail is in a
 | `tests` (tier 1) | during row scan | raw records | near-zero when reusing aggregator Welford state |
 | `post_tests` (tier 2) | after `windows` | materialized result rows | one pass over `Response.Data` |
 
-Both share the `Test` shape (`{type, field, field2?, split_by?, params?}`) and `TestResult` output; the split is *what they read*.
+Both share the `Test` shape and `TestResult` output; the split is *what they read*.
+
+A `null` post-test cell (an undefined figure: a mean over a group with no value) is never dropped: `statistic` / `p_value` are `null`. Filter the group out first.
 
 ## Picking the tier
 
 Tier 1 — raw distribution questions (A/B revenue, churn × region independence, normality). Tier 2 — per-group summaries / windowed columns (do per-region averages differ, trend on `moving_avg`).
 
-Raw-row and per-group correlations can disagree (Simpson's paradox); the `Variant` (`pearson` vs `pearson_post`) says which you got.
+Raw-row and per-group correlations can disagree (Simpson's paradox); `Variant` (`pearson` / `pearson_post`) says which you got.
 
 ## Decision criteria
 
@@ -56,7 +58,7 @@ Before a one-way ANOVA:
 1. Per-group normality — the Shapiro-Wilk test with `split_by` (n ≤ 5000 per group; larger → `PULSE_TEST_SHAPIRO_N_BOUND`).
 2. Equal spread — the Brown-Forsythe test (median-based, robust under non-normality).
 
-A failed spread gate → Welch's ANOVA (same Welford state); badly failed normality → rank-based Kruskal-Wallis. Gates are evidence, not proof: small n misses departures, huge n flags trivial ones.
+A failed spread gate → Welch's ANOVA (same Welford state); badly failed normality → rank-based Kruskal-Wallis.
 
 ## ANOVA alone vs ANOVA + post-hoc
 
@@ -70,7 +72,7 @@ After Welch's ANOVA, Tukey's pooled `ms_within` is wrong: run pairwise Welch tes
 ## P-value conventions
 
 - `alpha` defaults to 0.05, range `(0, 1)` (else `PULSE_TEST_INVALID_ALPHA`).
-- Two-sided by default; one-sided needs caller-side post-processing.
+- Two-sided by default; one-sided is caller-side.
 - Regression inference uses Wald-z, not Student-t; `TEST_*` never mix the two.
 - Multi-group headline tracks the worst group; detail in `Details.per_group`.
 <!-- feature: capability:multiplicity -->
@@ -87,7 +89,7 @@ With `groups` set, every `tests[]` entry runs once per group (composite key): `R
 
 ## Streamability
 
-A tier-1 test streams when it can run on online state (mean / variance / n, or contingency counts); rank-, sort- and permutation-based tests are forced buffered<!-- feature: TEST_MARDIA -->, as is `TEST_MARDIA` (needs the fitted covariance first)<!-- /feature -->. Read it from the manifest `tests[].streamable` or `pulse_predict`, never memory. Tier 2 is always buffered; some families exist on tier 2 only (one manifest entry per tier).
+A tier-1 test streams when it can run on online state (mean / variance / n, or contingency counts); rank-, sort- and permutation-based tests are forced buffered<!-- feature: TEST_MARDIA -->, as is `TEST_MARDIA` (needs the fitted covariance first)<!-- /feature -->. Read manifest `tests[].streamable` or `pulse_predict`, never memory. Tier 2 is always buffered; some families exist on tier 2 only (one manifest entry per tier).
 
 ## Gotchas
 

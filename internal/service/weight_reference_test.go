@@ -341,6 +341,8 @@ var weightRefScale = map[types.AggregationType]string{
 	// scales.
 	types.AGG_VEC_MEAN: "free",
 	types.AGG_VEC_SUM:  "total",
+	// The sample sd reads N* (Σw − 1 vs n_eff − 1), like the CI bounds.
+	types.AGG_VEC_SD: "none",
 }
 
 // TestWeightReferenceKindsAgree: the same replication pattern given as

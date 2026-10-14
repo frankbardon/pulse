@@ -544,11 +544,15 @@ func applyIndexVsStageSeries(spec *types.ChainOverlaySpec, target, ref *types.Re
 			})
 			continue
 		}
-		score, ok := indexKernel(value, refVal)
 		entryKey := types.AxisKey{keyStr}
 		entry := types.SeriesEntry{
 			Key: entryKey,
 		}
+		if undefinedSeriesPair(value, refVal) {
+			entries = append(entries, entry)
+			continue
+		}
+		score, ok := indexKernel(value, refVal)
 		if !ok {
 			warnings = append(warnings, types.OverlayWarning{
 				Code:    string(errors.PULSE_OVERLAY_REF_ZERO),

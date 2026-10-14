@@ -22,7 +22,7 @@ Collapses N round-trips into one open + N stage validations. Common: "group-then
 ## Gotchas
 
 - MERGEABLE-ONLY at v1. Permitted: exactly the manifest `process_chain` block's `mergeable_aggregators`, `mergeable_groupers` and `row_local_attributes`. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers → `PULSE_CHAIN_NOT_MERGEABLE`. Fall back to per-stage requests<!-- feature: capability:compose --> (batched by `pulse_compose`)<!-- /feature -->.
-- Synthesized schema between stages: grouper keys → `categorical_u32` columns; aggregator outputs → `f64`.
+- Synthesized schema between stages: grouper keys → `categorical_u32` columns; aggregator outputs → `f64` (an expanded `AGG_VEC_*`: one per element column `<label>[<elem>]`); a NaN cell → null.
 
 ## See
 

@@ -28,6 +28,7 @@ var descriptiveInterpretations = map[string][]descriptor.Interpretation{
 	"AGG_SKEWNESS":      interpAggSkewness,
 	"AGG_STDDEV":        interpAggStdDev,
 	"AGG_VARIANCE":      interpAggVariance,
+	"AGG_VEC_SD":        interpAggVecSd,
 	"AGG_WEIGHTED_MEAN": interpAggWeightedMean,
 	"AGG_WELFORD":       interpAggWelford,
 	"AGG_ZSCORE":        interpAggZScore,
@@ -39,7 +40,7 @@ const (
 	descPopulationSpread = "Pulse divides by n (the population form); most tools report the sample form, dividing by n - 1, which is slightly larger. " +
 		"The gap matters only on small groups; AGG_WELFORD gives the sample form."
 	descSingleRowZero = "A group with a single value reads 0: no spread can be seen in one value, which is not the same as a group whose values agree."
-	descShapeZero     = "It is 0 when n is 0 or 1 or the variance is zero (every value the same), so a 0 from a tiny or constant group says nothing about shape: check components n."
+	descShapeZero     = "It reads null when no row has a value, when n is 1 or when the variance is zero (every value the same): no shape can be seen there. A 0 is a real, balanced reading; on a tiny group check components n before trusting it."
 	descCIAboutMean   = "The interval is about the MEAN, not about individual rows: most rows can, and usually do, fall outside it."
 	descCIMethod      = "The confidence level describes the method: over repeated samples, intervals built this way capture the true mean that share of the time. " +
 		"Any one interval either contains it or not."
@@ -69,6 +70,19 @@ var (
 		},
 	}
 
+	interpAggVecSd = []descriptor.Interpretation{
+		{
+			Field: "value",
+			Means: "One standard deviation per item, in member order, each in that item's own units: how far a typical row sits from the group's mean on that item. " +
+				"0 means every row gave the item the same value.",
+			Caveats: []string{
+				"It is the sample form, dividing by n - 1 (AGG_STDDEV divides by n), so on a small group it reads larger than AGG_STDDEV of the same item.",
+				"Each item counts only the rows that answered it; compare components element_n before comparing items.",
+				"An item answered by one row or none reads null (weighted: when the sum of weights, or Kish's n_eff under kind probability, is 1 or less), never 0.",
+			},
+		},
+	}
+
 	interpAggVariance = []descriptor.Interpretation{
 		{
 			Field: "value",
@@ -90,7 +104,7 @@ var (
 				"and n (the rows with a value). Together they are what a t or z comparison of group means needs; " +
 				"the components add stddev, the square root of variance.",
 			Caveats: []string{
-				"variance is 0 when n is below 2: no spread could be estimated, which is not the same as values that agree.",
+				"variance reads null when n is below 2 (weighted: when the weights sum to 1 or less): no spread could be estimated. A 0 means values that agree.",
 				"variance here divides by n - 1, so on the same rows it is larger than AGG_VARIANCE (which divides by n).",
 				"With no rows the result is empty, not zeros.",
 			},
@@ -158,7 +172,7 @@ var (
 				"Which row is last depends on row order (not on date), so the components zscore is reproducible only on a fixed order.",
 				"The last row is part of the mean and spread it is scored against, which damps its zscore (never beyond sqrt(n - 1) in size), " +
 					"so it understates how unusual that row is; for a reading against its own past use OVERLAY_ZSCORE_VS_ROLLING.",
-				"The value and the components zscore read 0 when every value is the same (no spread); every component reads 0 when the group is empty.",
+				"The value and the components zscore read null when every value is the same (no spread: pop_stddev is 0 and the score is 0/0); the value and every component read null when the group is empty.",
 			},
 		},
 	}
@@ -193,7 +207,7 @@ var (
 			Caveats: []string{
 				"Tools use different interpolation rules, so on small groups another tool can return a somewhat different value for the same percentile.",
 				"A percentile near 0 or 100 on a small group rests on one or two rows and moves a lot when they change.",
-				"An empty group reads 0, not empty: check components n.",
+				"A group with no value reads null, never 0.",
 			},
 		},
 	}
@@ -222,7 +236,7 @@ var (
 				"With survey or other sampling weights, uneven weights cost precision: components n_eff (Kish's effective sample size) is the row count " +
 					"the estimate is roughly worth, never more than the rows that count. It does not apply to frequency weights (a weight counting repeated units, " +
 					"such as a quantity, where the base is sum_weights) or to inverse-variance weights.",
-				"It reads 0 when no row has a usable weight; check components sum_weights before trusting a 0.",
+				"It reads null when no row has a usable weight (the weights sum to 0), never 0.",
 				"Negative, NaN and infinite weights are excluded and counted in components n_weight_invalid, with a warning, so the result stays within the range of the values.",
 			},
 		},

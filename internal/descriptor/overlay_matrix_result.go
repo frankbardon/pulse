@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
@@ -30,18 +31,33 @@ func validateOverlayMatrixResult(env *descriptor.Envelope, req *types.Request, s
 }
 
 // ChainStageOverlayRefusal refuses the first ProcessChain stage whose
-// own Request.Overlays carries a MATRIX_RESULT kind (as the instance
-// routes it): that host reaches a process request and a Compose slot
-// only (overlayhost.StageRefusal), located by details.stage. Predict
-// (ValidateChain) and the chain runtime (service.processChain) both run
-// it after the stages' models, before the cohort opens.
+// own Request.Overlays carries a spec its stage cannot run, located by
+// details.stage. Predict (ValidateChain) and the chain runtime
+// (service.processChain) both run it after the stages' models, before
+// the cohort opens, so both refuse with one code, message and details
+// (predict-chain used to judge none of a stage's own overlays). Per
+// spec, in order, keyed on the kind as the instance routes it:
+//
+//   - a MATRIX_RESULT kind: that host reaches a process request and a
+//     Compose slot only (overlayhost.StageRefusal);
+//   - a kind that does not run on Request.Overlays (overlayhost.Refusal);
+//   - a kind over the wrong Process shape of the stage's authored
+//     request (overlayhost.ShapeRefusal);
+//   - a Ref or Scope its host's shared rule refuses
+//     (overlayhost.ProcessSpecRefusal: the SERIES table on a grouped
+//     stage; on a SCALAR stage every Process kind, by
+//     overlayhost.ScalarSpecRefusal). The runtime stage hooks raise the
+//     same three, unlocated.
 func ChainStageOverlayRefusal(stages []*types.ChainStage, inst *InstanceSnapshot) error {
 	for s, st := range stages {
 		if st == nil || st.Request == nil {
 			continue
 		}
+		shape := inferComposeSlotShape(st.Request)
+		matrices := len(st.Request.Matrices) > 0
 		for i := range st.Request.Overlays {
-			kind := st.Request.Overlays[i].Kind
+			spec := &st.Request.Overlays[i]
+			kind := spec.Kind
 			route := kind
 			if inst.Hidden(string(kind)) {
 				route = ""
@@ -49,7 +65,27 @@ func ChainStageOverlayRefusal(stages []*types.ChainStage, inst *InstanceSnapshot
 			if cerr := overlayhost.StageRefusal(kind, route, s, i); cerr != nil {
 				return cerr
 			}
+			judged := overlayhost.JudgedShape(shape, matrices, route)
+			for _, cerr := range []*errors.CodedError{
+				overlayhost.Refusal(overlayhost.Request, kind, route, i),
+				overlayhost.ShapeRefusal(judged, kind, route, i),
+				overlayhost.ProcessSpecRefusal(judged, spec, route, len(st.Request.Groups) > 0, i),
+			} {
+				if cerr != nil {
+					return RefusalAt(cerr, "stage", s)
+				}
+			}
 		}
 	}
 	return nil
+}
+
+// addHostRequired records the shared host-absent refusal
+// (overlayhost.HostRequiredRefusal) of the spec at index — the host
+// guard of every per-kind Process validator, worded once beside the
+// SCALAR host rule ValidateOverlays and the runtime raise first.
+func addHostRequired(env *descriptor.Envelope, spec *types.OverlaySpec, route types.OverlayKind, grouped bool, index int) {
+	if cerr := overlayhost.HostRequiredRefusal(spec, route, grouped, index); cerr != nil {
+		addCodedError(env, cerr)
+	}
 }

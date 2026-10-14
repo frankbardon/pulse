@@ -1,5 +1,7 @@
 # Adding a Filterer
 
+> **Run the site checklist first.** `make sites ARGS="new-op filterer"` prints every file and declaration a new `FILTER_*` lands in — derived from where the existing ones appear — with the tests to rerun and the goldens to regenerate; `make sites ARGS="op <NAME>"` does the same for an existing one. See [Finding Change Sites](finding-change-sites.md). This recipe explains each step.
+
 > **Embedding Pulse, not contributing to it?** This recipe adds a *built-in* in `internal/processing/`, which embedders cannot import. To add your own operator, implement the matching contract in the public `extend` package instead — see [Extension Points](extension-points.md).
 
 **Audience:** Pulse internals contributors adding a new `FILTER_*`
@@ -107,7 +109,7 @@ input contract.
 
 There is **no registered-filterer count or list in CLAUDE.md to update** —
 CLAUDE.md never hardcodes registered counts; the manifest is the source of
-truth. The Update Demand operator row (`.claude/reference/update-demand.md`)
+truth. The Update Demand operator row (`.claude/reference/update-demand/operators-and-guidance.md`)
 requires instead the atomic skill `skills/op-filter-<kebab>.md`, the capability declaration in
 `internal/descriptor/capabilities_filterers.go` — and an `internal/examples/<dir>/*.json` example whose `_meta.operators`
 names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if the

@@ -217,6 +217,21 @@ type PredictOptions struct {
 	// CrosstabFusionDisabledReason for every crosstab request, as the
 	// engine then never dispatches the fused arm.
 	DisableCrosstabFusion bool
+
+	// ShardWorkers is pulse.Options.ShardWorkers (0 = runtime.NumCPU,
+	// 1 = serial). Over a shard archive it decides whether the memory
+	// estimate counts the per-shard parallel arm's partials
+	// (ShardFanOut), as the engine's dispatch decides the arm.
+	ShardWorkers int
+
+	// AnchorArchiveBytes is, when the predicted bytes are ONE shard the
+	// caller extracted from an `archive.pulse#shard.pulse` anchor, that
+	// archive's byte length (0 otherwise). The runtime's OpenAnchor reads
+	// the whole archive to reach the shard, so the memory estimate
+	// charges the archive's bytes in place of the shard's payload when
+	// larger (LimitInputs.ArchiveBytes), exactly as the run's pre-flight
+	// does. Ignored when the bytes are themselves an archive.
+	AnchorArchiveBytes int64
 }
 
 // CrosstabFusionDisabledReason is the PredictResult.CrosstabFusionReasons
@@ -313,7 +328,11 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	if data, ok := sniffArchive(fileData); ok {
 		env = predictArchive(data, expanded, opts)
 	} else {
-		env = predictSingle(fileData, expanded, opts, nil, nil)
+		var anchorBytes int64
+		if opts != nil {
+			anchorBytes = opts.AnchorArchiveBytes
+		}
+		env = predictSingle(fileData, expanded, opts, nil, nil, anchorBytes)
 	}
 	if len(fan) > 0 {
 		if result, ok := env.Data.(*descriptor.PredictResult); ok {
@@ -330,8 +349,10 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 // the response size estimates (PredictResult.Sizes), the limit findings
 // and the matrix state estimate — RecordCount stays the archive-only
 // figure it documents. shardRecords are an archive's per-shard counts
-// (merge blocks restart per shard); nil for a single file.
-func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions, records *int64, shardRecords []int64) *descriptor.Envelope {
+// (merge blocks restart per shard) and archiveBytes its byte length
+// (the memory estimate's archive term); nil and 0 for a single file —
+// an anchor-extracted shard passes nil and its archive's length.
+func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions, records *int64, shardRecords []int64, archiveBytes int64) *descriptor.Envelope {
 	if opts == nil {
 		opts = &PredictOptions{}
 	}
@@ -381,11 +402,11 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	if merr := mergegate.MatrixRefusal(req); merr != nil {
 		addCodedError(env, merr)
 	}
-	// The request's `models` — the runtime loads them right after its
+	// The request's `models` and `populations` — the runtime loads them right after its
 	// save-path rule (validateRegressions reports that one), before any
 	// record is read: read and decoded through opts.ModelLoader, the
 	// loaded terms then judged by the field-reference pass below.
-	models, unloadedModels, lerr := predictModels(req.Models, nil, opts)
+	models, unloadedModels, lerr := predictModels(model.RequestRefs(req), opts.populations(), opts)
 	if lerr != nil {
 		addCodedError(env, lerr)
 	}
@@ -509,7 +530,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	if sizeIn.recordsKnown {
 		limitRecords = sizeIn.records
 	}
-	predictLimits(env, result, req, schema, opts, limitRecords, shardRecords)
+	predictLimits(env, result, req, schema, opts, limitRecords, shardRecords, archiveBytes)
 
 	// Response size estimates — on every request, on the
 	// defaults-resolved request over the schema it executes over. With
@@ -772,9 +793,9 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	// buffered.
 	if len(req.Matrices) > 0 {
 		for _, m := range req.Matrices {
-			routed := m
-			routed.Type = opRoute(opts.instance(), m.Type)
-			if !routed.Streamable() {
+			// An extension operator's declared tier, else the routed
+			// built-in spec-level rule (processing.canStream's twin).
+			if !matrixSpecStreamable(opts.instance(), extensionsFromOpts(opts), m) {
 				reasons = append(reasons, "matrix "+string(m.Type)+" requires the buffered path")
 			}
 		}
@@ -946,7 +967,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *desc
 		shardRecords = nil
 	}
 
-	env := predictSingle(bytes.NewReader(canonical), req, opts, records, shardRecords)
+	env := predictSingle(bytes.NewReader(canonical), req, opts, records, shardRecords, int64(len(data)))
 	result, _ := env.Data.(*descriptor.PredictResult)
 	if result == nil {
 		return env
@@ -1032,6 +1053,10 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 	// ATTR_CODE_IN: the runtime constructor's refusals, re-derived from
 	// the schema, and the absent-categorical-code warning.
 	validateCodeIn(env, req, schema, projected, opts)
+
+	// ATTR_FORMULA: the runtime constructor's empty-expression refusal
+	// (an expression in params.expression is not read).
+	validateFormulaExpressions(env, req, opts)
 
 	// Check attribute fields.
 	for _, attr := range req.Attributes {

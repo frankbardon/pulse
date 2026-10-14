@@ -73,6 +73,9 @@ func newFeatureUniverse(ext Extensions, version string) featureUniverse {
 	for _, r := range ext.Tests {
 		add(categoryTest, string(r.Name), r.DependsOn)
 	}
+	for _, r := range ext.MatrixOps {
+		add(categoryMatrix, string(r.Name), r.DependsOn)
+	}
 	// Synth distributions are not features (capability:synth gates
 	// them), so an extension SYNTH_* name never resolves.
 	return u
@@ -101,6 +104,12 @@ func (u featureUniverse) dependencies(name string) ([][]string, bool) {
 	// built-in non-overlay operator (extensions cannot register
 	// overlays); its DependsOn entries add single-name AND groups.
 	groups := [][]string{descx.RequestHostCapabilities()}
+	// A MAT_* operator rides the Request.Matrices slot, which
+	// capability:matrices gates — the edge every built-in MAT_* row
+	// carries (internal/descriptor hardEdges).
+	if u.extOrigin[name] == string(categoryMatrix) {
+		groups = append(groups, []string{descx.FeatureName(descx.FeatureKindCapability, "matrices")})
+	}
 	for _, d := range deps {
 		groups = append(groups, []string{d})
 	}

@@ -106,6 +106,10 @@ const (
 	// ConsumerKMeans: GROUP_KMEANS. The Euclidean family only: k-means
 	// minimises squared Euclidean error.
 	ConsumerKMeans Consumer = "GROUP_KMEANS"
+	// ConsumerCorrespondence: OVERLAY_CORRESPONDENCE. Distance form;
+	// chi_square only — the pairwise profile distances over the
+	// analysis's own masses.
+	ConsumerCorrespondence Consumer = "OVERLAY_CORRESPONDENCE"
 )
 
 // consumerForms is the form(s) each consumer asks for.
@@ -115,11 +119,12 @@ var consumerForms = map[Consumer][]Form{
 	ConsumerProfileSimilarity: {Similarity},
 	ConsumerMatDistance:       {Distance},
 	ConsumerKMeans:            {Distance},
+	ConsumerCorrespondence:    {Distance},
 }
 
 // Consumers returns every registry consumer in canonical order.
 func Consumers() []Consumer {
-	return []Consumer{ConsumerExpr, ConsumerVecDistance, ConsumerProfileSimilarity, ConsumerMatDistance, ConsumerKMeans}
+	return []Consumer{ConsumerExpr, ConsumerVecDistance, ConsumerProfileSimilarity, ConsumerMatDistance, ConsumerKMeans, ConsumerCorrespondence}
 }
 
 // Forms returns the form(s) the consumer asks for; nil for an unknown
@@ -160,6 +165,7 @@ var (
 	cP = ConsumerProfileSimilarity
 	cM = ConsumerMatDistance
 	cK = ConsumerKMeans
+	cC = ConsumerCorrespondence
 )
 
 // registry is the v1 metric set, in canonical order.
@@ -267,7 +273,7 @@ var registry = []*definition{
 		description: "sqrt(sum((a/sum a - b/sum b)^2 / mass)) over fitted column masses (correspondence-analysis profile distance)",
 		suited:      []Kind{Composition}, poor: []Kind{},
 		fit: FitColumnMasses, domain: DomainNonNegative,
-		consumers: []Consumer{}, eval: evalChiSquare,
+		consumers: []Consumer{cC}, eval: evalChiSquare,
 	},
 }
 
@@ -439,7 +445,7 @@ func (m Metric) Scaled() bool { return m.get().scaled }
 func (m Metric) Complete() bool { return m.get().complete }
 
 // Consumers lists, in canonical order, every consumer that accepts the
-// metric. Empty for a registered-but-unexposed metric (chi_square).
+// metric. Every registered metric has at least one.
 func (m Metric) Consumers() []Consumer { return slices.Clone(m.get().consumers) }
 
 // zero is the definition the zero Metric answers its accessors from.

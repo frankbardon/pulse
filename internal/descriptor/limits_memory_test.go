@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -90,7 +91,7 @@ func TestEstimateMemory_Terms(t *testing.T) {
 		t.Errorf("the buffered arm adds %d bytes, want %d", d, 1000*(rec+16))
 	}
 	// Matrix: merge fragments x buckets x accumulator bytes (2 numeric
-	// members, listwise: 32 + 8·(2+3) = 72).
+	// members, listwise: 40 + 8·(2+3) = 80).
 	numeric := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF64}, {Name: "y", Type: encoding.FieldTypeF64}}}
 	mat := &types.Request{Aggregations: sumOf("x"), Matrices: []types.MatrixSpec{{Name: "c", Type: types.MAT_COVARIANCE, Fields: []string{"x", "y"}}}}
 	matEst := func(in LimitInputs) int64 {
@@ -102,11 +103,13 @@ func TestEstimateMemory_Terms(t *testing.T) {
 		return n
 	}
 	single := matEst(memIn(limits.MergeBlockSize + 6))
-	sharded := matEst(LimitInputs{Records: limits.MergeBlockSize + 6, ShardRecords: []int64{limits.MergeBlockSize + 1, 5}, JoinRightRows: -1})
-	// One more fragment (72) plus the 5 rows shard 1 buffers because it
+	// ShardWorkers 1: the serial archive arm, so no per-shard partials
+	// (TestEstimateMemory_ArchiveTerms covers those).
+	sharded := matEst(LimitInputs{Records: limits.MergeBlockSize + 6, ShardRecords: []int64{limits.MergeBlockSize + 1, 5}, JoinRightRows: -1, ShardWorkers: 1})
+	// One more fragment (80) plus the 5 rows shard 1 buffers because it
 	// starts inside block 1 (x, y and the weight: 24 bytes each).
-	if d := sharded - single; d != 72+5*24 {
-		t.Errorf("4,097 + 5 sharded rows hold one more fragment and 5 buffered rows than 4,102 in one file: +%d bytes, want %d", d, 72+5*24)
+	if d := sharded - single; d != 80+5*24 {
+		t.Errorf("4,097 + 5 sharded rows hold one more fragment and 5 buffered rows than 4,102 in one file: +%d bytes, want %d", d, 80+5*24)
 	}
 
 	if _, ok := EstimateMemory(plain, schema, nil, memIn(-1)); ok {
@@ -114,6 +117,132 @@ func TestEstimateMemory_Terms(t *testing.T) {
 	}
 	if _, ok := EstimateMemory(plain, schema, nil, LimitInputs{Records: 10, Join: true, JoinRightRows: -1}); ok {
 		t.Error("a join with an unknown build side has an estimate")
+	}
+}
+
+// TestEstimateMemory_ArchiveTerms (E8-S3): over a shard archive the
+// estimate charges what the runtime reads beyond a single file — the
+// archive's byte length in place of records x stride in the payload
+// term (Open and the scan read it whole), the one schema block decoded
+// with its dictionaries (the canonical entry, bounded by the canonical
+// schema's decode; Open's record-count peek and the scan read every
+// shard's layout-only, E8-S4 / E8-S5) — and, on the
+// per-shard parallel arm only, each shard's partial buckets and
+// per-value state. ShardWorkers decides that arm as the runtime does.
+func TestEstimateMemory_ArchiveTerms(t *testing.T) {
+	schema := groupsSchema(t)
+	stride := int64(schema.RecordByteSize())
+	decode := limits.SchemaDecodeBytes(schema)
+	shards := []int64{600, 400}
+	est := func(req *types.Request, in LimitInputs) int64 {
+		t.Helper()
+		n, ok := EstimateMemory(req, schema, nil, in)
+		if !ok {
+			t.Fatalf("no estimate for %+v", in)
+		}
+		return n
+	}
+	arch := func(bytes int64, workers int) LimitInputs {
+		return LimitInputs{Records: 1000, ShardRecords: shards, ArchiveBytes: bytes, ShardWorkers: workers, JoinRightRows: -1}
+	}
+	plain := &types.Request{Aggregations: sumOf("num")}
+	single := est(plain, memIn(1000))
+
+	// Serial: the archive's bytes replace the payload, plus 1 decode
+	// (the canonical entry; whatever the shard count).
+	const archiveBytes = 1 << 20
+	if d, want := est(plain, arch(archiveBytes, 1))-single, 3*(archiveBytes-1000*stride)+decode; d != want {
+		t.Errorf("serial archive adds %d bytes, want 3 x (archive - payload) + 1 schema decode = %d", d, want)
+	}
+	// An archive byte length below the payload never lowers it.
+	if d, want := est(plain, arch(10, 1))-single, decode; d != want {
+		t.Errorf("a short archive length adds %d bytes, want the 1 schema decode %d", d, want)
+	}
+	// The shard count does not move the decode term: no shard schema
+	// is decoded with its dictionaries.
+	many := arch(archiveBytes, 1)
+	many.ShardRecords = []int64{100, 100, 100, 100, 100, 100, 100, 100, 100, 100}
+	if a, b := est(plain, many), est(plain, arch(archiveBytes, 1)); a != b {
+		t.Errorf("10 shards estimate %d, 2 shards %d: the shard count moved the decode term", a, b)
+	}
+	// An anchor-opened shard (archive bytes, no shard counts): the
+	// archive's bytes replace its payload, and no schema decode is
+	// charged — it decodes only its own, as a single file does.
+	anchor := LimitInputs{Records: 1000, ArchiveBytes: archiveBytes, ShardWorkers: 1, JoinRightRows: -1}
+	if d, want := est(plain, anchor)-single, 3*(archiveBytes-1000*stride); d != want {
+		t.Errorf("an anchor-opened shard adds %d bytes, want 3 x (archive - payload) = %d", d, want)
+	}
+	// No archive bytes: a single file whatever ShardRecords says.
+	if d := est(plain, LimitInputs{Records: 1000, ShardRecords: shards, ShardWorkers: 1, JoinRightRows: -1}) - single; d != 0 {
+		t.Errorf("no archive bytes adds %d, want 0", d)
+	}
+
+	// Fan-out (2 workers over 2 shards, a mergeable request): one
+	// bucket per shard partial ungrouped ...
+	serial := est(plain, arch(archiveBytes, 1))
+	if d := est(plain, arch(archiveBytes, 2)) - serial; d != 2*(512+256) {
+		t.Errorf("fan-out adds %d bytes, want 2 partial buckets (%d)", d, 2*(512+256))
+	}
+	// ... each shard's own bound grouped (a 5-entry dictionary: 5 each)
+	// ...
+	grouped := &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}}, Aggregations: sumOf("num")}
+	if d := est(grouped, arch(archiveBytes, 0)) - est(grouped, arch(archiveBytes, 1)); runtime.NumCPU() >= 2 && d != 10*(512+256) {
+		t.Errorf("grouped fan-out adds %d bytes, want 10 partial buckets (%d)", d, 10*(512+256))
+	}
+	// ... clamped by the shard's records for an unknown grouper ...
+	ranged := &types.Request{Groups: []*types.Group{{Type: types.GROUP_RANGE, Field: "num", Interval: 10}}, Aggregations: sumOf("num")}
+	if d := est(ranged, arch(archiveBytes, 2)) - est(ranged, arch(archiveBytes, 1)); d != 1000*(512+256) {
+		t.Errorf("unknown-grouper fan-out adds %d bytes, want 600 + 400 partial buckets", d)
+	}
+	// ... and per-value state over every record once more.
+	distinct := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_DISTINCT_COUNT, Field: "num", Label: "d"}}}
+	if d := est(distinct, arch(archiveBytes, 2)) - est(distinct, arch(archiveBytes, 1)); d != 2*(512+256)+1000*96 {
+		t.Errorf("value-state fan-out adds %d bytes, want 2 buckets + 1,000 x 96", d)
+	}
+	// A request the merge gate refuses stays serial at any cap.
+	median := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "num", Label: "m"}}}
+	if a, b := est(median, arch(archiveBytes, 2)), est(median, arch(archiveBytes, 1)); a != b {
+		t.Errorf("a non-mergeable request moved with ShardWorkers: %d vs %d", a, b)
+	}
+
+	// The rich facet charges the same archive terms.
+	facet := &types.FacetRequest{Fields: []string{"cat"}}
+	fs, _ := EstimateFacetMemory(facet, schema, memIn(1000))
+	fa, _ := EstimateFacetMemory(facet, schema, arch(archiveBytes, 1))
+	if d, want := fa-fs, 3*(archiveBytes-1000*stride)+decode; d != want {
+		t.Errorf("facet over an archive adds %d bytes, want %d", d, want)
+	}
+}
+
+// TestShardFanOut: the per-shard parallel arm needs two or more shards,
+// a worker cap resolving to two or more (0 = NumCPU, clamped by the
+// shard count) and a request the merge gate admits; a crosstab or a
+// join never reaches that dispatch.
+func TestShardFanOut(t *testing.T) {
+	schema := groupsSchema(t)
+	plain := &types.Request{Aggregations: sumOf("num")}
+	in := func(workers int, shards ...int64) LimitInputs {
+		return LimitInputs{Records: 10, ShardRecords: shards, ShardWorkers: workers, JoinRightRows: -1}
+	}
+	cases := []struct {
+		name string
+		req  *types.Request
+		in   LimitInputs
+		want bool
+	}{
+		{"two workers, two shards", plain, in(2, 5, 5), true},
+		{"serial cap", plain, in(1, 5, 5), false},
+		{"one shard", plain, in(4, 10), false},
+		{"single file", plain, in(4), false},
+		{"default cap", plain, in(0, 5, 5), runtime.NumCPU() >= 2},
+		{"non-mergeable", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "num", Label: "m"}}}, in(2, 5, 5), false},
+		{"crosstab", &types.Request{Crosstab: &types.CrosstabSpec{Rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}}, Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "flag"}}}}, in(2, 5, 5), false},
+		{"join", plain, LimitInputs{Records: 10, ShardRecords: []int64{5, 5}, ShardWorkers: 2, Join: true, JoinRightRows: 3}, false},
+	}
+	for _, c := range cases {
+		if got := ShardFanOut(c.req, schema, nil, c.in); got != c.want {
+			t.Errorf("%s: fan-out %v, want %v", c.name, got, c.want)
+		}
 	}
 }
 

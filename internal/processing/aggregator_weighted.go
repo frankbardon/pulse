@@ -190,12 +190,12 @@ func (st *weightedState) scalar(op types.AggregationType) float64 {
 		return st.sumWX
 	case types.AGG_VARIANCE:
 		if st.sumW == 0 {
-			return 0
+			return math.NaN()
 		}
 		return st.m2 / st.sumW
 	case types.AGG_STDDEV:
 		if st.sumW == 0 {
-			return 0
+			return math.NaN()
 		}
 		return math.Sqrt(st.m2 / st.sumW)
 	case types.AGG_WELFORD:
@@ -205,15 +205,17 @@ func (st *weightedState) scalar(op types.AggregationType) float64 {
 		return st.mean
 	}
 	// AGG_AVERAGE, AGG_WEIGHTED_MEAN: Σwx/Σw, the exact weighted mean
-	// (not the recurrence's running mean).
+	// (not the recurrence's running mean). Σw = 0 is 0/0: undefined,
+	// NaN (JSON null), never 0.
 	if st.sumW == 0 {
-		return 0
+		return math.NaN()
 	}
 	return st.sumWX / st.sumW
 }
 
 // sampleVariance is the frequency-weights sample variance
-// m2 / (Σw − 1) — the unweighted n−1 form at w = 1; 0 when Σw ≤ 1.
+// m2 / (Σw − 1) — the unweighted n−1 form at w = 1; undefined (NaN,
+// JSON null) when Σw ≤ 1.
 func (st *weightedState) sampleVariance() float64 {
 	return weightedVariance(st.m2, st.sumW)
 }
@@ -275,9 +277,9 @@ func (a *weightedAggregator) Components() (map[string]any, error) {
 		return map[string]any{"sum": st.sumWX}, nil
 	case types.AGG_VARIANCE, types.AGG_STDDEV:
 		if st.sumW == 0 {
-			out := map[string]any{"mean": 0.0, "m2": 0.0, "variance": 0.0}
+			out := map[string]any{"mean": math.NaN(), "m2": 0.0, "variance": math.NaN()}
 			if a.op == types.AGG_STDDEV {
-				out["stddev"] = 0.0
+				out["stddev"] = math.NaN()
 			}
 			return out, nil
 		}
@@ -294,7 +296,7 @@ func (a *weightedAggregator) Components() (map[string]any, error) {
 		variance := st.sampleVariance()
 		return map[string]any{"mean": st.mean, "m2": st.m2, "variance": variance, "stddev": math.Sqrt(variance)}, nil
 	}
-	weightedMean := 0.0
+	weightedMean := math.NaN()
 	if st.sumW != 0 {
 		weightedMean = st.sumWX / st.sumW
 	}

@@ -787,7 +787,8 @@ const (
 
 	// PULSE_EXTENSION_DUPLICATE indicates the same operator name was
 	// registered more than once within a single pulse.New call (same
-	// category).
+	// category), or a label table, range table or population declared
+	// both programmatically and by a file in its directory.
 	PULSE_EXTENSION_DUPLICATE Code = "PULSE_EXTENSION_DUPLICATE"
 
 	// PULSE_EXTENSION_STREAMABLE_MISMATCH indicates a registration
@@ -905,6 +906,16 @@ const (
 	// category, name and a reason discriminator. Wired into
 	// extensions_validate and extensions_probe.probeAggregators.
 	PULSE_EXTENSION_ARRAY_VALUED_MISMATCH Code = "PULSE_EXTENSION_ARRAY_VALUED_MISMATCH"
+
+	// PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH indicates a matrix
+	// registration's operator, finalized at pulse.New over a synthetic
+	// three-member co-moment, returned a MatrixOutput its OutputKeys do
+	// not declare: no Primary matrix, or an Auxiliary / Vectors /
+	// Scalars key the registration does not list. Details carry the
+	// category, name, a reason discriminator (missing_primary,
+	// undeclared_output_key), the part, the undeclared keys and the
+	// declared ones. Wired into extensions_probe.probeMatrixOps.
+	PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH Code = "PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH"
 
 	// PULSE_EXTENSION_FACTORY_PANIC indicates an embedder factory
 	// panicked during probe-validation at registration time.
@@ -1138,6 +1149,14 @@ const (
 	// (or loaded model) binds in the request's scope. Details carry
 	// "name" and "available" (the bound names, sorted).
 	PULSE_MODEL_UNKNOWN Code = "PULSE_MODEL_UNKNOWN"
+
+	// PULSE_MODEL_KIND_MISMATCH indicates a reference to a bound name of
+	// the other fit kind: ATTR_REG_PREDICT or coef() naming a vector
+	// fit, or a fitted vector attribute's or MAT_* slot's params.fit
+	// naming a regression (one namespace, two kinds). Details carry
+	// "name", "fit" (the same name), "kind" (the name's kind) and
+	// "expected" (the kind the reference reads).
+	PULSE_MODEL_KIND_MISMATCH Code = "PULSE_MODEL_KIND_MISMATCH"
 
 	// PULSE_MODEL_SCORE_INVALID indicates an ATTR_REG_PREDICT slot whose
 	// scoring parameters do not fit: params that are not an object of
@@ -1705,7 +1724,10 @@ const (
 	// string. Absent field scores Request.Aggregations[0]. Raised at
 	// predict and at runtime by the one shared reading
 	// (internal/seriesfield.Resolve), Details {index, kind, field,
-	// available} — available lists the request's aggregation labels.
+	// available} — available lists the request's aggregation labels,
+	// each params.expand vector aggregation's element columns
+	// "<label>[<element label>]" (which the field may also name) after
+	// its label.
 	// A Compose overlay's SERIES arm resolves it per slot
 	// (seriesfield.ResolveComposeSlot) and adds Details.slot.
 	// A whole-chain overlay (INDEX_VS_STAGE, DELTA_VS_STAGE) resolves
@@ -2069,7 +2091,8 @@ const (
 
 	// PULSE_OVERLAY_NONNEGATIVE_REQUIRED indicates an overlay that reads
 	// its crosstab host as a table of non-negative masses (counts or
-	// sums — OVERLAY_CORRESPONDENCE, later the Markov and raking kinds)
+	// sums — OVERLAY_CORRESPONDENCE, OVERLAY_MARKOV, OVERLAY_RAKE,
+	// OVERLAY_SYMMETRY and OVERLAY_RETENTION)
 	// met a host that is not one: a cell aggregation other than
 	// AGG_COUNT / AGG_SUM (predict and runtime twins, details
 	// {kind, aggregation, slot: "crosstab.cell"}, plus index on
@@ -2080,14 +2103,18 @@ const (
 
 	// PULSE_OVERLAY_MATRIX_NOT_SQUARE indicates an overlay that reads its
 	// crosstab host as a square from-state × to-state table
-	// (OVERLAY_MARKOV) met a host whose row and column key sets differ.
-	// States align by key, never by position, so the two axes must name
-	// the same states. Predict raises it when the shape alone decides it
-	// (row and column axes with different grouper counts — their keys
-	// can never match; details {kind, index, row_fields, column_fields});
-	// runtime raises the same arity refusal plus the key-set one (details
-	// {kind, index, row_only, column_only}: the state names found on one
-	// axis only). Raised with its own code, never PROCESSING_INTERNAL.
+	// (OVERLAY_MARKOV, OVERLAY_SYMMETRY, OVERLAY_RETENTION) met a host
+	// whose row and column key sets differ. States align by key, never
+	// by position, so the two axes must name the same states. Predict
+	// raises it when the shape alone decides it (row and column axes
+	// with different grouper counts — their keys can never match;
+	// details {kind, index, row_groupers, column_groupers});
+	// OVERLAY_MARKOV's runtime raises the same arity refusal plus the
+	// key-set one (details {kind, index, row_only, column_only}: the
+	// state names found on one axis only), while OVERLAY_SYMMETRY reads a
+	// one-axis state as a zero row / column and OVERLAY_RETENTION a
+	// row-only state as staying 0. Raised with its own code, never
+	// PROCESSING_INTERNAL.
 	PULSE_OVERLAY_MATRIX_NOT_SQUARE Code = "PULSE_OVERLAY_MATRIX_NOT_SQUARE"
 
 	// PULSE_OVERLAY_MARKOV_NOT_ERGODIC is a WARNING (never an error) an
@@ -3741,6 +3768,7 @@ var allCodes = []Code{
 	PULSE_EXTENSION_MERGEABLE_MISMATCH,
 	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH,
 	PULSE_EXTENSION_ARRAY_VALUED_MISMATCH,
+	PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH,
 	PULSE_EXTENSION_FACTORY_PANIC,
 	PULSE_EXTENSION_PARAM_INVALID,
 	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH,
@@ -3770,6 +3798,7 @@ var allCodes = []Code{
 	PULSE_FIT_INVALID,
 	PULSE_MODEL_NAME_COLLISION,
 	PULSE_MODEL_UNKNOWN,
+	PULSE_MODEL_KIND_MISMATCH,
 	PULSE_MODEL_SCORE_INVALID,
 	PULSE_MODEL_TERM_UNKNOWN,
 	PULSE_MODEL_STAT_UNKNOWN,

@@ -52,7 +52,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 ## Gotchas
 
 - Outlier-sensitive — one extreme blows the spread.
-- All-null cohort → NaN.
+- No non-null value in the bucket (group / cell / cohort) → `null` (NaN), components too.
 
 ## See
 

@@ -272,6 +272,8 @@ func vaggBits(t *testing.T, p *pulse.Pulse, cohort string, grouped bool) []uint6
 			{Type: types.AGG_VEC_MEAN, Fields: []string{"b*"}, Label: "m"},
 			{Type: types.AGG_VEC_SUM, Fields: []string{"b*"}, Label: "s"},
 			{Type: types.AGG_VEC_MEAN, Fields: []string{"b*"}, Label: "wm", Weight: types.SlotWeightField("score")},
+			{Type: types.AGG_VEC_SD, Fields: []string{"b*"}, Label: "sd"},
+			{Type: types.AGG_VEC_SD, Fields: []string{"b*"}, Label: "wsd", Weight: types.SlotWeightField("score")},
 		},
 		Matrices: []types.MatrixSpec{
 			{Type: types.MAT_COVARIANCE, Fields: []string{"b*"}, Name: "cov"},
@@ -288,7 +290,7 @@ func vaggBits(t *testing.T, p *pulse.Pulse, cohort string, grouped bool) []uint6
 	}
 	var out []uint64
 	for _, row := range resp.Data {
-		for _, label := range []string{"m", "s", "wm"} {
+		for _, label := range []string{"m", "s", "wm", "sd", "wsd"} {
 			v, ok := vaggArray(row[label])
 			if !ok {
 				t.Fatalf("%s = %T", label, row[label])
@@ -318,7 +320,8 @@ func vaggBits(t *testing.T, p *pulse.Pulse, cohort string, grouped bool) []uint6
 // every ShardWorkers × DecodeWorkers count: blocks key by the global
 // record ordinal, so the twin and the archive fold the same blocks in
 // the same tree. Grouped and ungrouped; weighted and unweighted vector
-// aggregates and covariance matrices.
+// aggregates (AGG_VEC_SD's Chan-combined moments included) and
+// covariance matrices.
 func TestVecAgg_BitExactAcrossWorkers(t *testing.T) {
 	const rows = 5*4096 + 1234
 	fsys := afero.NewMemMapFs()

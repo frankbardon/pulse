@@ -24,7 +24,7 @@ var matrixInterpretations = map[string][]descriptor.Interpretation{
 var interpMatFactor = []descriptor.Interpretation{
 	{
 		Field: "primary.values",
-		Means: "Each cell is a loading: how strongly the row's measure is tied to the column's factor. Without a rotation, or with varimax, it is the correlation between the two; under promax or oblimin it is the measure's own tie to that factor with the other factors held fixed. A factor is named by the measures with the largest loadings.",
+		Means: "Each cell is a loading: how strongly the row's measure is tied to the column's factor. Without a rotation, or with an orthogonal one (varimax, quartimax, geomin_orthogonal, entropy), it is the correlation between the two; under an oblique one (promax, oblimin, geomin) it is the measure's own tie to that factor with the other factors held fixed. A factor is named by the measures with the largest loadings.",
 		Sign: map[string]string{
 			"+": "the measure rises with the factor",
 			"-": "the measure falls as the factor rises; a factor's overall sign is a convention (each column is made to sum positive)",

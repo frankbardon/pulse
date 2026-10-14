@@ -10,22 +10,34 @@ package descriptor
 // Extensions block emits as nested empty slices (not null) for
 // JSON-stability across releases.
 type ExtensionsManifest struct {
-	Aggregators        []OperatorMeta     `json:"aggregators"`
-	Attributes         []OperatorMeta     `json:"attributes"`
-	Filterers          []OperatorMeta     `json:"filterers"`
-	Groupers           []OperatorMeta     `json:"groupers"`
-	Windows            []OperatorMeta     `json:"windows"`
-	Features           []OperatorMeta     `json:"features"`
-	Tests              []OperatorMeta     `json:"tests"`
-	SynthDistributions []OperatorMeta     `json:"synth_distributions"`
-	ExprFunctions      []ExprFunctionMeta `json:"expr_functions"`
-	LookupTables       []LookupTableMeta  `json:"lookup_tables"`
+	Aggregators        []OperatorMeta `json:"aggregators"`
+	Attributes         []OperatorMeta `json:"attributes"`
+	Filterers          []OperatorMeta `json:"filterers"`
+	Groupers           []OperatorMeta `json:"groupers"`
+	Windows            []OperatorMeta `json:"windows"`
+	Features           []OperatorMeta `json:"features"`
+	Tests              []OperatorMeta `json:"tests"`
+	SynthDistributions []OperatorMeta `json:"synth_distributions"`
+	// MatrixOps lists the embedder-registered MAT_* matrix operators
+	// in the built-in Matrices shape (MatrixMeta): member types, the
+	// engine-owned params then the operator's own, OutputKeys, the
+	// declared tier and the matrix floor plus the operator's component
+	// keys. A request names one in Request.Matrices like a built-in.
+	MatrixOps     []MatrixMeta       `json:"matrix_ops"`
+	ExprFunctions []ExprFunctionMeta `json:"expr_functions"`
+	LookupTables  []LookupTableMeta  `json:"lookup_tables"`
 	// ReferenceVectors lists the registered reference-vector tables
 	// (Options.Extensions.ReferenceVectors) an expression reads with
 	// ref("table", key).
 	ReferenceVectors []ReferenceVectorMeta `json:"reference_vectors"`
 	LabelTables      []LabelTableMeta      `json:"label_tables"`
 	RangeTables      []RangeTableMeta      `json:"range_tables"`
+	// Populations lists the instance's registered populations
+	// (Options.Extensions.Populations + Options.PopulationsDir /
+	// PULSE_POPULATIONS_DIR): saved vector fits every request sees
+	// bound by name, so a fitted attribute or MAT_* slot binds one with
+	// params.fit without a `populations` entry.
+	Populations []PopulationMeta `json:"populations"`
 }
 
 // OperatorMeta is the manifest projection for an embedder-registered
@@ -165,4 +177,16 @@ type RangeTableMeta struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	RangeCount  int    `json:"range_count"`
+}
+
+// PopulationMeta is the manifest projection of a registered population:
+// its bound name, the battery it was fitted by, its weight basis, its
+// member labels in axis order (what a consuming slot's vector aligns
+// to, by label) and its fit row count — never the stored moments.
+type PopulationMeta struct {
+	Name     string   `json:"name"`
+	Operator string   `json:"operator,omitempty"`
+	Basis    string   `json:"basis"`
+	Labels   []string `json:"labels"`
+	N        int64    `json:"n"`
 }

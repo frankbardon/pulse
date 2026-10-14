@@ -1,0 +1,204 @@
+{
+  "generator": "scripts/reference/gen_symmetry.R",
+  "r_version": "R version 4.6.1 (2026-06-24)",
+  "packages": {
+    "stats": "4.6.1",
+    "jsonlite": "2.0.0"
+  },
+  "primitive": "OVERLAY_SYMMETRY",
+  "r_function": "stats::mcnemar.test (McNemar 2 x 2, Bowker k x k); empty pairs dropped by hand",
+  "cases": [
+    {
+      "name": "agresti_approval_corrected",
+      "note": "Agresti (2007) Table 8.1, first by second survey; correct = TRUE (R's default): (|150 - 86| - 1)^2 / 236.",
+      "states": ["approve", "disapprove"],
+      "counts": [
+        [
+          794,
+          150
+        ],
+        [
+          86,
+          570
+        ]
+      ],
+      "correct": true,
+      "statistic": 16.817796610169491,
+      "df": 1,
+      "p_value": 4.1145622813459449e-05,
+      "r_statistic": 16.817796610169491,
+      "discordant": 236,
+      "pairs_dropped": 0,
+      "continuity_corrected": 1
+    },
+    {
+      "name": "agresti_approval_uncorrected",
+      "note": "Agresti (2007) Table 8.1 with correct = FALSE: the published McNemar z^2 = 64^2 / 236 = 17.36.",
+      "states": ["approve", "disapprove"],
+      "counts": [
+        [
+          794,
+          150
+        ],
+        [
+          86,
+          570
+        ]
+      ],
+      "correct": false,
+      "statistic": 17.35593220338983,
+      "df": 1,
+      "p_value": 3.0992934410452189e-05,
+      "r_statistic": 17.35593220338983,
+      "discordant": 236,
+      "pairs_dropped": 0,
+      "continuity_corrected": 0
+    },
+    {
+      "name": "bowker_3x3",
+      "note": "3 x 3 Bowker table, every pair non-empty; correct is inert for k > 2.",
+      "states": ["low", "mid", "high"],
+      "counts": [
+        [
+          40,
+          12,
+          4
+        ],
+        [
+          6,
+          55,
+          18
+        ],
+        [
+          2,
+          9,
+          30
+        ]
+      ],
+      "correct": true,
+      "statistic": 5.6666666666666661,
+      "df": 3,
+      "p_value": 0.12900306143743637,
+      "r_statistic": 5.6666666666666661,
+      "discordant": 51,
+      "pairs_dropped": 0,
+      "continuity_corrected": 0
+    },
+    {
+      "name": "seeded_4x4",
+      "note": "Seeded 4 x 4 table, set.seed(3071): Poisson(6) + 1 off the diagonal, + 25 on it.",
+      "states": ["s1", "s2", "s3", "s4"],
+      "counts": [
+        [
+          32,
+          7,
+          8,
+          8
+        ],
+        [
+          4,
+          33,
+          6,
+          13
+        ],
+        [
+          8,
+          4,
+          31,
+          7
+        ],
+        [
+          8,
+          3,
+          7,
+          32
+        ]
+      ],
+      "correct": true,
+      "statistic": 7.4681818181818187,
+      "df": 6,
+      "p_value": 0.27970893096085225,
+      "r_statistic": 7.4681818181818187,
+      "discordant": 83,
+      "pairs_dropped": 0,
+      "continuity_corrected": 0
+    },
+    {
+      "name": "empty_pair_3x3",
+      "note": "The (a, c) pair has no move either way: mcnemar.test's statistic is NaN; Pulse drops the pair, df 2.",
+      "states": ["a", "b", "c"],
+      "counts": [
+        [
+          20,
+          8,
+          0
+        ],
+        [
+          3,
+          25,
+          7
+        ],
+        [
+          0,
+          11,
+          15
+        ]
+      ],
+      "correct": true,
+      "statistic": 3.1616161616161618,
+      "df": 2,
+      "p_value": 0.20580872091328326,
+      "r_statistic": null,
+      "discordant": 29,
+      "pairs_dropped": 1,
+      "continuity_corrected": 0
+    },
+    {
+      "name": "balanced_2x2",
+      "note": "n_12 = n_21: no correction applies (R's any(x - t(x) != 0) rule), statistic 0, p 1.",
+      "states": ["yes", "no"],
+      "counts": [
+        [
+          30,
+          9
+        ],
+        [
+          9,
+          40
+        ]
+      ],
+      "correct": true,
+      "statistic": 0,
+      "df": 1,
+      "p_value": 1,
+      "r_statistic": 0,
+      "discordant": 18,
+      "pairs_dropped": 0,
+      "continuity_corrected": 0
+    },
+    {
+      "name": "diagonal_2x2",
+      "note": "Nobody changed state: no pair is kept, so the statistic and p are null and df is 0.",
+      "states": ["yes", "no"],
+      "counts": [
+        [
+          30,
+          0
+        ],
+        [
+          0,
+          40
+        ]
+      ],
+      "correct": true,
+      "statistic": null,
+      "df": 0,
+      "p_value": null,
+      "r_statistic": null,
+      "discordant": 0,
+      "pairs_dropped": 1,
+      "continuity_corrected": 0
+    }
+  ]
+}
+// golden-hash: ffad48a9095de63a10c7ef73d699e965a58f8a185f61d160494b2609a88cd419

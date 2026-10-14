@@ -15,8 +15,8 @@ const envLabelTablesDir = "PULSE_LABEL_TABLES_DIR"
 // loadLabelTablesFromDir walks Options.LabelTablesDir (or, when
 // empty, the PULSE_LABEL_TABLES_DIR env var) and loads every
 // *.json file as a LabelTable. Tables loaded from disk merge into
-// opts.Extensions.LabelTables; collisions surface at extension
-// validation time as PULSE_EXTENSION_DUPLICATE.
+// opts.Extensions.LabelTables; a name already declared
+// programmatically is PULSE_EXTENSION_DUPLICATE (dirCollision).
 //
 // File format: either a flat map {"k": "v"} or a wrapped object
 // {"description": "...", "rows": {"k": "v"}}. The filename without
@@ -85,7 +85,7 @@ func loadLabelTablesFromDir(opts *Options) error {
 			opts.Extensions.LabelTables = map[string]LabelTable{}
 		}
 		if _, exists := opts.Extensions.LabelTables[tableName]; exists {
-			return fmt.Errorf("pulse: label table %q declared both programmatically and on disk", tableName)
+			return dirCollision("label_table", tableName, path)
 		}
 		opts.Extensions.LabelTables[tableName] = tbl
 	}

@@ -43,10 +43,11 @@ func runBufferedCrosstabWithComponents(t *testing.T, schema *encoding.Schema,
 // jsonOf marshals a value to its wire form so the parity assertions
 // compare exactly what an envelope consumer would see — including the
 // omitempty-driven nil/empty distinctions reflect.DeepEqual is too
-// strict about.
+// strict about. types.MarshalFinite is the wire rule: an undefined
+// (NaN) figure is null, as every envelope writes it.
 func jsonOf(t *testing.T, v any) string {
 	t.Helper()
-	b, err := json.Marshal(v)
+	b, err := types.MarshalFinite(v)
 	if err != nil {
 		t.Fatalf("json.Marshal: %v", err)
 	}

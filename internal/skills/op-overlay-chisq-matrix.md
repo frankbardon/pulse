@@ -33,6 +33,7 @@ SCALAR — `OverlayLayer.Payload.Shape = "scalar"`. `Payload.Scalar` carries χ�
 
 ## Gotchas
 
+- An undefined (NaN) host cell is MISSING: read as an absent cell (an observation of 0), never into a total.
 - Weighted host (both kinds, any source): cells are Σw. Frequency: Pearson on the Σw table. Probability: the table scaled to its Kish `n_eff` first (`PULSE_OVERLAY_EXPECTED_LOW` on the scaled expected) — a first-order Kish approximation, not Rao-Scott. `Summary.Parameters` adds `sum_weights` (+ `n_eff`). Probability host with components disabled ⇒ `PROCESSING_CONFIG` (no `n_eff` to scale by; predict AND runtime).
 - Expected cell formula: `row_margin × col_margin / grand_total`. p-value via `chiSquareSurvival` — byte-equal to the χ² test on the same contingency.
 - Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per layer.
@@ -45,4 +46,4 @@ SCALAR — `OverlayLayer.Payload.Shape = "scalar"`. `Payload.Scalar` carries χ�
 
 ## See
 
-- Skills: `overlay-system`, `crosstab-guide`, `op-overlay-chisq-row`, `op-overlay-chisq-col`, `op-test-chisq`.
+- Skills: `overlay-system`, `crosstab-guide`, `op-overlay-chisq-row`, `op-overlay-chisq-col`, `op-test-chisq`, `op-overlay-symmetry`.

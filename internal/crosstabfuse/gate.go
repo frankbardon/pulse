@@ -36,6 +36,12 @@ type Facts interface {
 	// undeclared class reads as types.MarginRecompute. Hidden:
 	// types.MarginRecompute.
 	AggregatorMarginClass(t types.AggregationType) types.MarginReducibility
+	// AggregatorSlotMarginClass reports one aggregation SLOT's margin
+	// class where its params change what the type says — a built-in
+	// vector aggregation selecting one element (params.element) margins
+	// like its scalar twin (vectors.ElementMarginClass). ok false: the
+	// type's class (AggregatorMarginClass) stands. Hidden: false.
+	AggregatorSlotMarginClass(a *types.Aggregation) (types.MarginReducibility, bool)
 	// AttributeTwoPass reports whether attribute t takes the two-pass
 	// drive — the built-in two-pass set or an extension registered with
 	// the two_pass mode. Hidden: false.
@@ -47,6 +53,12 @@ type Facts interface {
 	// kind's default, a native vector field's kind read from schema).
 	// Hidden: false.
 	AttributeSlotTwoPass(a *types.Attribute, specs []types.VectorSpec, schema *encoding.Schema) bool
+	// AttributeSlotBound reports whether one attribute slot is a fitted
+	// slot bound to a prebuilt vector fit (params.fit): its type is
+	// two-pass (or its metric fitted) but the bound slot holds its fit
+	// before the scan and runs row-local, so neither two-pass fact
+	// applies to it. Hidden: false.
+	AttributeSlotBound(a *types.Attribute) bool
 	// GrouperKeyable reports whether grouper g derives its bucket key(s)
 	// per record (StreamableGrouper or MultiKeyStreamingGrouper on the
 	// engine side). A built-in answers from BuiltinGrouperKeyable; an
@@ -141,7 +153,11 @@ func Decide(req *types.Request, schema *encoding.Schema, facts Facts) (bool, []s
 			decline(fmt.Sprintf("non-mergeable cell aggregator (%s)", cell.Type))
 			cellOK = false
 		} else {
-			switch facts.AggregatorMarginClass(cell.Type) {
+			class := facts.AggregatorMarginClass(cell.Type)
+			if c, ok := facts.AggregatorSlotMarginClass(cell); ok {
+				class = c
+			}
+			switch class {
 			case types.MarginSummable, types.MarginMeanReducible, types.MarginIndependent:
 			default:
 				decline(fmt.Sprintf("recompute-margin cell aggregator (%s)", cell.Type))
@@ -179,7 +195,7 @@ func Decide(req *types.Request, schema *encoding.Schema, facts Facts) (bool, []s
 	}
 
 	for _, a := range req.Attributes {
-		if a != nil && (facts.AttributeTwoPass(a.Type) || facts.AttributeSlotTwoPass(a, req.Vectors, schema)) {
+		if a != nil && !facts.AttributeSlotBound(a) && (facts.AttributeTwoPass(a.Type) || facts.AttributeSlotTwoPass(a, req.Vectors, schema)) {
 			decline(fmt.Sprintf("two-pass attribute (%s)", a.Type))
 		}
 	}

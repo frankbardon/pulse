@@ -206,6 +206,36 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	for t, vals := range m {
 		m[t] = filterNames(vals, inst.Enabled)
 	}
+	// An instance's extension operators are operator types it accepts:
+	// the snapshot (already profile-filtered) adds each category's
+	// registered names to that category's enum, so a request naming one
+	// validates against the instance's schema like a built-in.
+	// Extension synth distributions are not payload-reachable.
+	if snap := inst.Extensions(); snap != nil {
+		for _, c := range []struct {
+			t   reflect.Type
+			ops []descriptor.OperatorMeta
+		}{
+			{reflect.TypeFor[types.AggregationType](), snap.Aggregators},
+			{reflect.TypeFor[types.AttributeType](), snap.Attributes},
+			{reflect.TypeFor[types.FiltererType](), snap.Filterers},
+			{reflect.TypeFor[types.GroupType](), snap.Groupers},
+			{reflect.TypeFor[types.WindowType](), snap.Windows},
+			{reflect.TypeFor[types.FeatureType](), snap.Features},
+			{reflect.TypeFor[types.TestType](), snap.Tests},
+			{reflect.TypeFor[types.MatrixType](), snap.MatrixOps},
+		} {
+			if len(c.ops) == 0 {
+				continue
+			}
+			vals := m[c.t]
+			for _, op := range c.ops {
+				vals = append(vals, op.Name)
+			}
+			sort.Strings(vals)
+			m[c.t] = vals
+		}
+	}
 	// The multiplicity method / family sets are closed vocabularies, not
 	// features: never filtered by the instance (a hidden
 	// capability:multiplicity drops the slots that reach them, and the
@@ -356,6 +386,8 @@ func (b *schemaBuilder) defFor(t reflect.Type) any {
 		return b.slotWeightDef()
 	case reflect.TypeFor[types.CovarianceLags]():
 		return covarianceLagsDef()
+	case reflect.TypeFor[types.FitResult]():
+		return b.fitResultDef()
 	}
 	// Registry-backed enum.
 	if vals, ok := b.enums[t]; ok {
@@ -653,6 +685,25 @@ func (b *schemaBuilder) slotWeightDef() any {
 			map[string]any{"type": "string"},
 			map[string]any{"$ref": "#/$defs/" + b.register(reflect.TypeFor[types.WeightSpec]())},
 			map[string]any{"type": "null"},
+		},
+	}
+}
+
+// fitResultDef builds the ComposedResponse.fits entry union
+// (types.FitResult, which writes its own wire form): a regression fit's
+// RegressionResult object as is, or a vector fit's {"vector":
+// VectorFitResult} — the `vector` key discriminates.
+func (b *schemaBuilder) fitResultDef() any {
+	return map[string]any{
+		"description": "One fit's result: a regression fit's RegressionResult, or a vector fit's {vector: VectorFitResult}. The vector key discriminates; a regression entry never carries it.",
+		"oneOf": []any{
+			map[string]any{"$ref": "#/$defs/" + b.register(reflect.TypeFor[types.RegressionResult]())},
+			map[string]any{
+				"type":                 "object",
+				"properties":           map[string]any{"vector": map[string]any{"$ref": "#/$defs/" + b.register(reflect.TypeFor[types.VectorFitResult]())}},
+				"required":             []string{"vector"},
+				"additionalProperties": false,
+			},
 		},
 	}
 }

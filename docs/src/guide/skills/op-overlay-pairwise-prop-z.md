@@ -46,6 +46,7 @@ MATRIX (`Payload.Shape = "matrix"`). PAIR axis = one entry per evaluated `(i, j)
 
 ## Gotchas
 
+- An undefined (NaN) host cell is MISSING: its pairs skip as an absent cell's do (`ORBIT_STATS_SKIP_EXTRACT_FAILED`).
 - Weighted host (both kinds, any source): p̂ = the weighted cell share (Σw_success/Σw_base); with `n_source` omitted n = the cell's N* (`sum_weights` frequency, `n_eff` probability). Unweighted-count modes (and `cell_weight_sum` / `cell_value_weighted` under probability) are `PROCESSING_CONFIG` in predict AND runtime ([`pairwise-n-sources`](pairwise-n-sources.md)). `Summary.Parameters` adds `sum_weights` (+ `n_eff`).
 - Reuses `twoProportionZ` — byte-for-byte equal to every two-proportion z test and overlay on the same (success, n).
 - RAW p-values only — direction, thresholds and min-n flags are the embedder's job.

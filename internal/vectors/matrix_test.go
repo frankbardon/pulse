@@ -559,10 +559,12 @@ func TestResolveMatrices_Collinearity(t *testing.T) {
 	}
 }
 
-// TestResolveMatrices_PCARotation: params.rotation decodes "varimax" to
-// Matrix.Rotation, "none" (and absent) to "" — the unrotated operator —
-// and refuses every other value bad_params, the oblique criteria
-// included (the engine has them; MAT_PCA offers varimax only).
+// TestResolveMatrices_PCARotation: params.rotation decodes an
+// orthogonal criterion to Matrix.Rotation (with the geomin_orthogonal
+// epsilon, default 0.01), "none" (and absent) to "" — the unrotated
+// operator — refuses every OBLIQUE criterion with the distinct
+// rotation_oblique_unsupported reason (components are uncorrelated by
+// construction) and anything else bad_params.
 func TestResolveMatrices_PCARotation(t *testing.T) {
 	items := []string{"q_1", "q_2", "q_3"}
 	resolve := func(params string) (Matrix, *errors.CodedError) {
@@ -573,28 +575,83 @@ func TestResolveMatrices_PCARotation(t *testing.T) {
 		}
 		return got[0], nil
 	}
-	for params, want := range map[string]string{
-		`{}`:                      "",
-		`{"rotation": "none"}`:    "",
-		`{"rotation": "varimax"}`: RotationVarimax,
-		`{"rotation": "varimax", "components": 2}`: RotationVarimax,
+	for _, c := range []struct {
+		params string
+		want   string
+		eps    float64
+	}{
+		{`{}`, "", 0},
+		{`{"rotation": "none"}`, "", 0},
+		{`{"rotation": "varimax"}`, RotationVarimax, 0},
+		{`{"rotation": "varimax", "components": 2}`, RotationVarimax, 0},
+		{`{"rotation": "quartimax"}`, RotationQuartimax, 0},
+		{`{"rotation": "entropy"}`, RotationEntropy, 0},
+		{`{"rotation": "geomin_orthogonal"}`, RotationGeominOrthogonal, GeominDefaultEpsilon},
+		{`{"rotation": "geomin_orthogonal", "epsilon": 0.05}`, RotationGeominOrthogonal, 0.05},
 	} {
-		m, err := resolve(params)
+		m, err := resolve(c.params)
 		if err != nil {
-			t.Fatalf("%s: %v", params, err)
+			t.Fatalf("%s: %v", c.params, err)
 		}
-		if m.Rotation != want {
-			t.Errorf("%s: rotation %q, want %q", params, m.Rotation, want)
+		if m.Rotation != c.want || m.Epsilon != c.eps {
+			t.Errorf("%s: rotation %q epsilon %v, want %q %v", c.params, m.Rotation, m.Epsilon, c.want, c.eps)
 		}
 	}
-	for _, params := range []string{`{"rotation": "promax"}`, `{"rotation": "oblimin"}`, `{"rotation": "Varimax"}`, `{"rotation": 1}`} {
+	for _, rot := range ObliqueRotations() {
+		params := `{"rotation": "` + rot + `"}`
+		_, err := resolve(params)
+		if err == nil || err.Code != errors.SERVICE_VALIDATION || err.Details["reason"] != "rotation_oblique_unsupported" ||
+			err.Details["oblique"] != true || err.Details["value"] != rot {
+			t.Errorf("%s: error %v, want rotation_oblique_unsupported", params, err)
+		}
+	}
+	for _, params := range []string{`{"rotation": "Varimax"}`, `{"rotation": "bentler"}`, `{"rotation": 1}`,
+		`{"epsilon": 0.01}`, `{"rotation": "varimax", "epsilon": 0.01}`, `{"rotation": "geomin_orthogonal", "epsilon": 0}`,
+		`{"rotation": "geomin_orthogonal", "epsilon": -0.1}`} {
 		_, err := resolve(params)
 		if err == nil || err.Code != errors.SERVICE_VALIDATION || err.Details["reason"] != "bad_params" {
 			t.Errorf("%s: error %v, want bad_params", params, err)
 		}
 	}
-	if got := PCARotations(); len(got) != 2 || got[0] != RotationNone || got[1] != RotationVarimax {
-		t.Errorf("PCARotations() = %v", got)
+	want := []string{RotationNone, RotationVarimax, RotationQuartimax, RotationGeominOrthogonal, RotationEntropy}
+	if got := PCARotations(); !slices.Equal(got, want) {
+		t.Errorf("PCARotations() = %v, want %v", got, want)
+	}
+}
+
+// TestRotationOblique_FollowsGPArotation pins the one classifier
+// against each criterion's R reference: stats::varimax and
+// GPArotation's quartimax / entropy / geominT are orthogonal;
+// stats::promax and GPArotation's oblimin / geominQ oblique.
+// Every FactorRotations value is classified, and PCARotations ∪
+// ObliqueRotations is FactorRotations.
+func TestRotationOblique_FollowsGPArotation(t *testing.T) {
+	want := map[string]bool{
+		RotationNone: false, RotationVarimax: false, RotationQuartimax: false, RotationEntropy: false, RotationGeominOrthogonal: false,
+		RotationPromax: true, RotationOblimin: true, RotationGeomin: true,
+	}
+	if len(want) != len(FactorRotations()) {
+		t.Fatalf("FactorRotations() = %v; classify every value here", FactorRotations())
+	}
+	for _, r := range FactorRotations() {
+		w, ok := want[r]
+		if !ok {
+			t.Errorf("%q is not classified by this test", r)
+		}
+		if RotationOblique(r) != w {
+			t.Errorf("RotationOblique(%q) = %v, want %v", r, !w, w)
+		}
+	}
+	if n := len(PCARotations()) + len(ObliqueRotations()); n != len(FactorRotations()) {
+		t.Errorf("PCARotations %v + ObliqueRotations %v != FactorRotations %v", PCARotations(), ObliqueRotations(), FactorRotations())
+	}
+	for _, r := range []string{RotationGeomin, RotationGeominOrthogonal} {
+		if !RotationTakesEpsilon(r) {
+			t.Errorf("%s takes no epsilon", r)
+		}
+	}
+	if RotationTakesEpsilon(RotationOblimin) {
+		t.Error("oblimin takes epsilon")
 	}
 }
 
@@ -633,6 +690,10 @@ func TestResolveMatrices_Factor(t *testing.T) {
 		{`{"factors": 2, "rotation": "promax"}`, 2, FactorExtractionMinres, RotationPromax, 4, 0},
 		{`{"factors": 2, "rotation": "promax", "kappa": 2.5}`, 2, FactorExtractionMinres, RotationPromax, 2.5, 0},
 		{`{"factors": 2, "rotation": "oblimin", "gamma": 0.5}`, 2, FactorExtractionMinres, RotationOblimin, 0, 0.5},
+		{`{"factors": 2, "rotation": "quartimax"}`, 2, FactorExtractionMinres, RotationQuartimax, 0, 0},
+		{`{"factors": 2, "rotation": "entropy"}`, 2, FactorExtractionMinres, RotationEntropy, 0, 0},
+		{`{"factors": 2, "rotation": "geomin"}`, 2, FactorExtractionMinres, RotationGeomin, 0, 0},
+		{`{"factors": 2, "rotation": "geomin_orthogonal"}`, 2, FactorExtractionMinres, RotationGeominOrthogonal, 0, 0},
 		{`{"factors": 5, "repair": "nearest", "missing": "pairwise"}`, 5, FactorExtractionMinres, "", 0, 0},
 	} {
 		m, err := resolve(items, c.params)
@@ -672,8 +733,14 @@ func TestResolveMatrices_Factor(t *testing.T) {
 		`{"extraction": "ML"}`,
 		`{"extraction": "mle"}`,
 		`{"extraction": "pa"}`,
-		`{"rotation": "quartimax"}`,
+		`{"rotation": "bentler"}`,
+		`{"rotation": "geominQ"}`,
 		`{"rotation": "Varimax"}`,
+		`{"epsilon": 0.01}`,
+		`{"rotation": "oblimin", "epsilon": 0.01}`,
+		`{"rotation": "geomin", "epsilon": 0}`,
+		`{"rotation": "geomin", "epsilon": -1}`,
+		`{"rotation": "geomin", "gamma": 0}`,
 		`{"kappa": 4}`,
 		`{"rotation": "varimax", "kappa": 4}`,
 		`{"rotation": "promax", "kappa": 1}`,
@@ -694,7 +761,17 @@ func TestResolveMatrices_Factor(t *testing.T) {
 			t.Errorf("%s: error %v, want bad_params", params, err)
 		}
 	}
-	if got := FactorRotations(); len(got) != 4 || got[0] != RotationNone {
+	for params, eps := range map[string]float64{
+		`{"rotation": "geomin"}`:                          GeominDefaultEpsilon,
+		`{"rotation": "geomin", "epsilon": 0.1}`:          0.1,
+		`{"rotation": "geomin_orthogonal", "epsilon": 1}`: 1,
+		`{"rotation": "oblimin"}`:                         0,
+	} {
+		if m, err := resolve(items, params); err != nil || m.Epsilon != eps {
+			t.Errorf("%s: epsilon %v (%v), want %v", params, m.Epsilon, err, eps)
+		}
+	}
+	if got := FactorRotations(); len(got) != 8 || got[0] != RotationNone {
 		t.Errorf("FactorRotations() = %v", got)
 	}
 	if got := FactorExtractions(); len(got) != 3 || got[0] != FactorExtractionMinres || got[2] != FactorExtractionML {

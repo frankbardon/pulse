@@ -64,6 +64,14 @@ from the diagonal). Undefined cells are `null`, keys kept.
   covariance and correlation operators, fatal on a decomposition
   operator — see Partial correlation).
 - `max_drop_share` (listwise) warns `PULSE_MATRIX_LISTWISE_HEAVY_DROP`.
+- `fit: "<name>"` emits the matrix from a bound vector fit — a Compose
+  `fits` entry over one matrix or fitted-attribute battery, or a saved
+  population file loaded with `populations: [{name, path}]` (a vector
+  fit's `save` writes one) — instead of this request's rows: no row is read, members align to the fit BY LABEL
+  and the fit's weight basis governs. Every co-moment operator takes it;
+  `MAT_DISTANCE`, rank correlation methods and a declared reliability
+  scale range refuse it, as do `missing` / `max_drop_share` beside it
+  and a grouped request.
 - `PULSE_MATRIX_INSUFFICIENT_N` and `PULSE_MATRIX_ZERO_VARIANCE` flag thin
   or constant members. A constant member nulls its correlation row and
   column; the covariance keeps an exact 0.
@@ -166,6 +174,13 @@ and McDonald's `omega`; `vectors` carry, per item in axis order, the
 corrected `item_total_r` (the item against the sum of the others),
 `alpha_if_deleted`, `item_mean` and `item_sd`.
 
+Under a probability weight the covariance is `cov.wt`'s "unbiased"
+form, scaled by n_eff/(n_eff − 1). With `missing: "pairwise"` every
+entry rests on its own rows, so each takes its own pair's Kish n_eff
+(an item's variance takes the rows where that item is present). An
+entry whose n_eff is at most 1 is `null`, and so is every figure it
+reaches: `alpha`, `alpha_if_deleted` and `item_total_r`.
+
 Reverse-worded items are named in `params.reverse` together with the
 battery's `scale_min` / `scale_max`: each value becomes
 `scale_min + scale_max − x` before the fold, so the operator streams and
@@ -218,9 +233,15 @@ still reported. Like the partial correlation, a non-PSD pairwise input
 is refused unless `params.repair` is `"nearest"`. KMO is read against
 Kaiser's (1974) bands.
 
-`params.rotation: "varimax"` (default `"none"`) rotates the kept
-components orthogonally toward simple structure, exactly as R's
-`stats::varimax` with Kaiser normalization does. The rotated loadings
+`params.rotation` (default `"none"`) rotates the kept components
+orthogonally toward simple structure: `"varimax"` exactly as R's
+`stats::varimax` with Kaiser normalization does, `"quartimax"`,
+`"geomin_orthogonal"` (`params.epsilon`, default 0.01) and `"entropy"`
+(minimum entropy) as GPArotation's `quartimax`, `geominT` and `entropy`
+do (gradient projection, no normalization, one start). An oblique
+criterion is refused (`SERVICE_VALIDATION`, reason
+`rotation_oblique_unsupported`): components are uncorrelated by
+construction — use `MAT_FACTOR` for correlated factors. The rotated loadings
 become the `primary` — columns ordered by the variance each accounts
 for, each signed so its loadings sum positive, keys still `PC1` …
 `PCk` — the unrotated loadings move to `auxiliary.unrotated`, and
@@ -303,10 +324,14 @@ again solved to the exact optimum where their optimiser stops short.
 The `primary` is the p × k loadings, a **rectangular** matrix with
 `column_keys` `F1` … `Fk`, each column signed so its loadings sum
 positive. `params.rotation` rotates them with the same engine as
-`MAT_PCA`: `"varimax"` (orthogonal, `stats::varimax`), `"promax"`
-(oblique, `stats::promax` with power `params.kappa`, default 4) or
-`"oblimin"` (oblique, `GPArotation::oblimin` with `params.gamma`,
-default 0). Rotated, the columns are ordered by the variance each
+`MAT_PCA`: orthogonal `"varimax"` (`stats::varimax`), `"quartimax"`,
+`"geomin_orthogonal"` or `"entropy"`, or oblique `"promax"`
+(`stats::promax` with power `params.kappa`, default 4), `"oblimin"`
+(`GPArotation::oblimin` with `params.gamma`, default 0) or `"geomin"`
+(`GPArotation::geominQ`); the geomin pair takes `params.epsilon`
+(GPArotation's `delta`, default 0.01). Every criterion but varimax and
+promax is gradient projection from a single start, as GPArotation's
+default, so geomin in particular may settle in a local optimum. Rotated, the columns are ordered by the variance each
 accounts for, the unrotated loadings move to `auxiliary.unrotated`, and
 an oblique rotation adds `auxiliary.factor_correlation` — the k × k
 correlation of the factors, a square matrix keyed `F1` … `Fk`.
@@ -397,12 +422,61 @@ Refused identically by predict and the run: matrices with `joins` or on a
 chain stage after the first (`PULSE_MATRIX_UNSUPPORTED_SOURCE`), and with
 `crosstab` (`PULSE_MATRIX_HOST_CONFLICT`).
 
+## Your own matrix operator
+
+An embedder adds a `MAT_<NAMESPACE>_<NAME>` operator through
+`Options.Extensions.MatrixOps`. The operator only finalizes: the engine
+folds the members, merges the 4096-row blocks, cuts the group buckets
+and applies weights and `params.missing`, then hands `Finalize` the
+merged, read-only `*linalg.CoMoment`.
+
+```go
+// MAT_ACME_SCATTER: each pair's raw weighted co-moment.
+type scatter struct{}
+
+func (scatter) Finalize(in *extend.MatrixInput) (extend.MatrixOutput, error) {
+    return extend.MatrixOutput{Primary: in.Square(in.CoMoment.PairM2)}, nil
+}
+
+p, err := pulse.New(pulse.Options{Extensions: pulse.Extensions{
+    MatrixOps: []pulse.MatrixOpRegistration{{
+        Name:        "MAT_ACME_SCATTER",
+        Description: "Scatter matrix: each pair's raw weighted co-moment.",
+        Factory: func(*types.MatrixSpec, *encoding.Schema) (extend.MatrixOperator, error) {
+            return scatter{}, nil
+        },
+        Streamable:  true, // finalize from the co-moment; mergeable across workers
+        WeightAware: true,
+        OutputKeys:  descriptor.MatrixOutputKeys{Primary: "scatter"},
+    }},
+}})
+```
+
+A request names it like a built-in, and the engine-owned params work
+unchanged:
+
+```json
+{
+  "cohort": {"filename": "training_data.pulse"},
+  "matrices": [
+    {"type": "MAT_ACME_SCATTER", "fields": ["price", "income", "label"],
+     "params": {"missing": "pairwise"}}
+  ]
+}
+```
+
+Because `Finalize` reads only the merged state, the result has the same
+bits under every worker setting (next section) as long as `Finalize` is
+pure. Registration rules, the `pulse.New` probe, the buffered tier
+(`Streamable: false`, which also receives the rows), weights and
+multiplicity: [Extension Points](../internals/extension-points.md).
+
 ## Determinism
 
 Serial, parallel-decode and sharded runs return bit-identical matrices,
 and a multi-shard archive matches its single-file twin bit for bit
 (merge blocks key by the global record ordinal, whatever the shard
-split). A correlation cell agrees with the corresponding
+split). An extension operator's results carry the same guarantee. A correlation cell agrees with the corresponding
 `TEST_PEARSON_R` within `1e-12 + 1e-12 * |r|`.
 
 Contract: `.claude/reference/matrix-and-vectors.md`; payload shapes:

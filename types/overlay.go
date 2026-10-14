@@ -1411,7 +1411,10 @@ const (
 	// points × retained dimensions, synthetic dim_k column keys),
 	// row_quality / column_quality (SERIES, cos² summed over the
 	// retained dimensions), row_contribution / column_contribution
-	// (MATRIX points × dimensions, share of each dimension's inertia).
+	// (MATRIX points × dimensions, share of each dimension's inertia),
+	// row_distance / column_distance (MATRIX points × points, the
+	// pairwise chi-square profile distances — the linalg/metric
+	// chi_square metric over the other axis's masses).
 	// Params: dimensions (default 2, at most min(r, c) − 1) and
 	// normalization (symmetric | row_principal | column_principal).
 	// Cells must be non-negative counts or sums (AGG_COUNT / AGG_SUM,
@@ -1496,6 +1499,55 @@ const (
 	// probability scaled to its Kish n_eff first). A zero-expected cell
 	// has an undefined (null) residual and p. Inherently buffered.
 	OverlayKindStdResidual OverlayKind = "OVERLAY_STD_RESIDUAL"
+
+	// OverlayKindRetention reads the host crosstab as a from-state (row)
+	// × to-state (column) table and reports, per from-state, how its
+	// units split between staying, switching and churning:
+	// stay = n_ii / R_i (the diagonal share: the column whose key names
+	// the row's state, aligned BY KEY like OVERLAY_MARKOV, an absent one
+	// 0), churn = Σ_{a ∈ absorbing, a ≠ i} n_ia / R_i (only with
+	// params.absorbing, the named absorbing states) and switch = the
+	// rest of the row over R_i (moves to any other state), so the three
+	// sum to 1. R_i is the row's total over every column. A from-state
+	// named in params.absorbing is not reported (churn is the way into
+	// it). ROW-scoped over a MATRIX (crosstab) host, implicit-margin
+	// (Ref empty), descriptive: SERIES payload, one entry per reported
+	// from-state in row order — Statistic = stay, Parameters switch,
+	// from_total and (with absorbing) churn; the layer Summary.Parameters
+	// pool the same rates over the reported rows (stay, switch, churn,
+	// states, total). A from-state with a zero total has null rates and
+	// one PULSE_OVERLAY_REF_ZERO warning; an absorbing name that is no
+	// host state is PULSE_OVERLAY_PARAM_MISSING. Every rate is a ratio of
+	// host cells, so a weighted host's Σw table is read as is (no weight
+	// class). Cells must be non-negative counts or sums (AGG_COUNT /
+	// AGG_SUM, else PULSE_OVERLAY_NONNEGATIVE_REQUIRED); a different
+	// grouper count per axis is PULSE_OVERLAY_MATRIX_NOT_SQUARE.
+	// Inherently buffered.
+	OverlayKindRetention OverlayKind = "OVERLAY_RETENTION"
+
+	// OverlayKindSymmetry tests a square from-state (row) × to-state
+	// (column) crosstab of PAIRED observations — the same unit measured
+	// twice — for symmetry: H0 n_ij and n_ji share one expected count
+	// for every off-diagonal pair, i.e. moves i → j are as frequent as
+	// moves j → i. A 2 × 2 table is McNemar's test, a k × k table
+	// Bowker's (R mcnemar.test, which is Bowker for k > 2):
+	// χ² = Σ_{i<j} (n_ij − n_ji)² / (n_ij + n_ji) on df = the number of
+	// pairs with n_ij + n_ji > 0 (a pair nobody moved across carries no
+	// information and is dropped; R would return NaN). A 2 × 2 table
+	// takes Edwards' continuity correction (|n_12 − n_21| − 1)² by
+	// default, params.correct false switches it off (R's correct).
+	// MATRIX-scoped over a MATRIX (crosstab) host, implicit-margin (Ref
+	// empty); rows and columns align BY KEY (the OVERLAY_MARKOV rule),
+	// a state on one axis only is a row / column of zeros. Inferential:
+	// SCALAR payload = χ², Summary.Statistic / PValue / Parameters (df,
+	// states, discordant, pairs_dropped, continuity_corrected); a
+	// multiplicity block adjusts the one p. Weighted hosts follow
+	// OVERLAY_CHISQ_MATRIX (the Σw table; under kind probability scaled
+	// to its Kish n_eff first). Cells must be non-negative counts or
+	// sums (AGG_COUNT / AGG_SUM, else PULSE_OVERLAY_NONNEGATIVE_REQUIRED);
+	// a different grouper count per axis is
+	// PULSE_OVERLAY_MATRIX_NOT_SQUARE. Inherently buffered.
+	OverlayKindSymmetry OverlayKind = "OVERLAY_SYMMETRY"
 
 	// OverlayKindZScoreVsRolling emits a per-point windowed z-score against
 	// the rolling-window mean + sample SD of the W immediately preceding
@@ -2542,10 +2594,12 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindPropZPanel,
 		OverlayKindRake,
 		OverlayKindRank,
+		OverlayKindRetention,
 		OverlayKindShareOfCol,
 		OverlayKindShareOfRow,
 		OverlayKindShareOfTotal,
 		OverlayKindStdResidual,
+		OverlayKindSymmetry,
 		OverlayKindTCell,
 		OverlayKindTVsRef,
 		OverlayKindYoY,

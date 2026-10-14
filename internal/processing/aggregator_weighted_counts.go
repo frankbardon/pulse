@@ -1,6 +1,8 @@
 package processing
 
 import (
+	"math"
+
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/types"
 )
@@ -256,7 +258,7 @@ func (a *weightedSetFrequencyAggregator) Components() (map[string]any, error) {
 // --- AGG_SET_CARDINALITY_SUM / AGG_SET_CARDINALITY_AVG -----------------
 
 // weightedSetCardinalityAggregator is Σw·card (SUM) and Σw·card / Σw
-// (AVG; 0 when Σw is 0). Like the unweighted twins, Finalize freezes
+// (AVG; NaN — JSON null — when Σw is 0). Like the unweighted twins, Finalize freezes
 // without resetting and Aggregate starts clean.
 type weightedSetCardinalityAggregator struct {
 	op     types.AggregationType
@@ -308,7 +310,7 @@ func (a *weightedSetCardinalityAggregator) scalar() float64 {
 		return a.frozenTotal
 	}
 	if a.frozenSumW == 0 {
-		return 0
+		return math.NaN()
 	}
 	return a.frozenTotal / a.frozenSumW
 }

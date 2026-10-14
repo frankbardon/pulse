@@ -143,6 +143,7 @@ func (p *Pulse) predictCohortRoot(ctx context.Context, cohort *types.Cohort, op 
 	}
 	defer src.close()
 	opts := p.predictOptions(ctx, p.sidecarFacts(path))
+	opts.AnchorArchiveBytes = src.anchorArchiveBytes
 	env := check(src, &opts)
 	if touch {
 		p.touchManaged(ctx, path)

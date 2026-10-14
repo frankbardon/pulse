@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:3aa32c5284bdcf6923a2d6d667e1503c4564aee3f8351ad5b4fd066e351c8d8e",
+    "feature_set_digest": "fs1:aea443a0e031845dccf27a2f77f93a871643f0d1df4d435756ca0046164e4aa1",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -472,7 +472,7 @@
               {
                 "name": "weighted_variance",
                 "type": "float64",
-                "description": "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; 0 when Σw ≤ 1.",
+                "description": "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; null (NaN) when Σw ≤ 1.",
                 "optional": true
               }
             ],
@@ -1021,7 +1021,7 @@
               {
                 "name": "kurtosis",
                 "type": "float64",
-                "description": "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); 0 when n \u003c= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."
+                "description": "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); null (NaN) when n \u003c= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."
               }
             ],
             "mergeability": "mergeable"
@@ -2378,7 +2378,7 @@
               {
                 "name": "skewness",
                 "type": "float64",
-                "description": "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); 0 when n \u003c= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."
+                "description": "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); null (NaN) when n \u003c= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."
               }
             ],
             "mergeability": "mergeable"
@@ -2624,7 +2624,7 @@
         {
           "name": "AGG_VEC_MEAN",
           "category": "aggregator",
-          "description": "Per-member mean of a vector (vector or fields, exactly one; never field): one figure per member, in member order — the group's average profile. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) / sum(w) per element. An element no row answered is NaN (null in JSON). Array-valued: refused as a crosstab cell, a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: params.field where the kind honours it, else aggregations[0] — an unscored one beside it runs) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"\u003clabel\u003e[\u003celement label\u003e]\" — presentation only, refused wherever the array is.",
+          "description": "Per-member mean of a vector (vector or fields, exactly one; never field): one figure per member, in member order — the group's average profile. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) / sum(w) per element. An element no row answered is NaN (null in JSON). Array-valued: refused as a crosstab cell or margin aggregation (unless params.element selects one element), a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: params.field where the kind honours it, else aggregations[0] — an unscored one beside it runs) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"\u003clabel\u003e[\u003celement label\u003e]\" — an ordinary nullable f64 column a Sort key, a window, a post-test, a series overlay's params.field or a later chain stage (an f64 input field) reads (an unanswered element is NaN, a null there and a missing host value to an overlay).",
           "params": [
             {
               "name": "labels",
@@ -2636,7 +2636,13 @@
               "name": "expand",
               "type": "bool",
               "required": false,
-              "description": "true: replace the array with one scalar column per member, \"\u003clabel\u003e[\u003celement label\u003e]\" in member order (grouped: per row); the label itself is absent. Predict lists the columns (aggregations[i].columns). Presentation only: Sort, windows, post-tests, overlays and a feeding chain stage refuse them (PROCESSING_CONFIG, reason array_valued); element labels must be distinct (expand_duplicate_labels). Return paths cannot name a bracketed column — select them with a prefix glob, data[*].\u003clabel\u003e*. Default false."
+              "description": "true: replace the array with one scalar column per member, \"\u003clabel\u003e[\u003celement label\u003e]\" in member order (grouped: per row); the label itself is absent. Predict lists the columns (aggregations[i].columns). Each is an ordinary nullable f64 column: a Sort key, a window's field / order_by / partition_by, a post-test field and a series overlay's params.field (request, Compose or whole-chain host) read it, and so does a later chain stage, as an f64 input field (NaN, an element no row answered, is a null there and a missing host value to an overlay), while the bare label stays refused (PROCESSING_CONFIG, reason array_valued); element labels must be distinct (expand_duplicate_labels). A return path names one with a quoted segment, data[*].\"\u003clabel\u003e[\u003celement label\u003e]\", or all with a prefix glob, data[*].\u003clabel\u003e*. Default false."
+            },
+            {
+              "name": "element",
+              "type": "string",
+              "required": false,
+              "description": "Crosstab cell or margin_aggregations only: the display label of the ONE member the slot reads, making it a scalar — that element's figure (the scalar twin's: AGG_AVERAGE / AGG_SUM of the member, except an unanswered element stays this operator's NaN / 0), its floor {n, n_null} over the member's presence (so a record reaches an auxiliary margin only if its selected member reached a cell) and one-entry components. Fuses and margins like the scalar twin. Refused beside expand (element_with_expand), outside a crosstab (element_outside_crosstab), naming no member label (element_unknown) or a shared one (element_ambiguous)."
             }
           ],
           "accepts_types": [
@@ -2684,7 +2690,7 @@
               {
                 "name": "labels",
                 "type": "[]string",
-                "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names."
+                "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names. An element slot (params.element) reports its one member, here and in every per-member key."
               },
               {
                 "name": "element_n",
@@ -2699,7 +2705,7 @@
               {
                 "name": "element_sum_weights",
                 "type": "[]float64",
-                "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator.",
+                "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator and AGG_VEC_SD's sample size under kind frequency.",
                 "optional": true
               }
             ],
@@ -2716,9 +2722,9 @@
           ]
         },
         {
-          "name": "AGG_VEC_SUM",
+          "name": "AGG_VEC_SD",
           "category": "aggregator",
-          "description": "Per-member total of a vector (vector or fields, exactly one; never field): one figure per member, in member order. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) per element. An element no row answered is 0. Array-valued: refused as a crosstab cell, a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: params.field where the kind honours it, else aggregations[0] — an unscored one beside it runs) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"\u003clabel\u003e[\u003celement label\u003e]\" — presentation only, refused wherever the array is.",
+          "description": "Per-member sample standard deviation of a vector (vector or fields, exactly one; never field): one figure per member, in member order — how widely the group's rows spread on each item. Missing data is per element: a null member skips that element only. Sample form: sqrt(M2 / (n - 1)) unweighted; weighted, sqrt(M2 / (sum(w) - 1)) under kind frequency (the expanded rows) and sqrt(M2 / (sum(w) - sum(w^2)/sum(w))) under kind probability (Kish n_eff), M2 = sum(w*(x - mean)^2). An element whose sample size (n, sum(w) or n_eff) is 1 or less is NaN (null in JSON), never 0. Array-valued: refused as a crosstab cell or margin aggregation (unless params.element selects one element), a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: params.field where the kind honours it, else aggregations[0] — an unscored one beside it runs) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"\u003clabel\u003e[\u003celement label\u003e]\" — an ordinary nullable f64 column a Sort key, a window, a post-test, a series overlay's params.field or a later chain stage (an f64 input field) reads (an undefined element is NaN, a null there and a missing host value to an overlay).",
           "params": [
             {
               "name": "labels",
@@ -2730,7 +2736,129 @@
               "name": "expand",
               "type": "bool",
               "required": false,
-              "description": "true: replace the array with one scalar column per member, \"\u003clabel\u003e[\u003celement label\u003e]\" in member order (grouped: per row); the label itself is absent. Predict lists the columns (aggregations[i].columns). Presentation only: Sort, windows, post-tests, overlays and a feeding chain stage refuse them (PROCESSING_CONFIG, reason array_valued); element labels must be distinct (expand_duplicate_labels). Return paths cannot name a bracketed column — select them with a prefix glob, data[*].\u003clabel\u003e*. Default false."
+              "description": "true: replace the array with one scalar column per member, \"\u003clabel\u003e[\u003celement label\u003e]\" in member order (grouped: per row); the label itself is absent. Predict lists the columns (aggregations[i].columns). Each is an ordinary nullable f64 column: a Sort key, a window's field / order_by / partition_by, a post-test field and a series overlay's params.field (request, Compose or whole-chain host) read it, and so does a later chain stage, as an f64 input field (NaN, an element no row answered, is a null there and a missing host value to an overlay), while the bare label stays refused (PROCESSING_CONFIG, reason array_valued); element labels must be distinct (expand_duplicate_labels). A return path names one with a quoted segment, data[*].\"\u003clabel\u003e[\u003celement label\u003e]\", or all with a prefix glob, data[*].\u003clabel\u003e*. Default false."
+            },
+            {
+              "name": "element",
+              "type": "string",
+              "required": false,
+              "description": "Crosstab cell or margin_aggregations only: the display label of the ONE member the slot reads, making it a scalar — that element's figure (the scalar twin's: AGG_AVERAGE / AGG_SUM of the member, except an unanswered element stays this operator's NaN / 0), its floor {n, n_null} over the member's presence (so a record reaches an auxiliary margin only if its selected member reached a cell) and one-entry components. Fuses and margins like the scalar twin. Refused beside expand (element_with_expand), outside a crosstab (element_outside_crosstab), naming no member label (element_unknown) or a shared one (element_ambiguous)."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "rich []float64, one sample standard deviation per member in member order (NaN, null in JSON, where the element's sample size is 1 or less); no scalar figure",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
+                "name": "labels",
+                "type": "[]string",
+                "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names. An element slot (params.element) reports its one member, here and in every per-member key."
+              },
+              {
+                "name": "element_n",
+                "type": "[]int",
+                "description": "Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered)."
+              },
+              {
+                "name": "element_sum",
+                "type": "[]float64",
+                "description": "Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count."
+              },
+              {
+                "name": "element_sum_weights",
+                "type": "[]float64",
+                "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator and AGG_VEC_SD's sample size under kind frequency.",
+                "optional": true
+              },
+              {
+                "name": "element_mean",
+                "type": "[]float64",
+                "description": "AGG_VEC_SD: per member, the running weighted mean the moments are centred on (Welford-West; may differ from AGG_VEC_MEAN's sum(w*x)/sum(w) in the last bits). 0 where no row contributed."
+              },
+              {
+                "name": "element_m2",
+                "type": "[]float64",
+                "description": "AGG_VEC_SD: per member, M2 = sum(w*(x - mean)^2) over contributing rows. Partials combine by Chan's rule per merge block in a fixed tree, bit-identical for any worker count."
+              },
+              {
+                "name": "element_sum_weights_sq",
+                "type": "[]float64",
+                "description": "AGG_VEC_SD, weighted slot only: per member, sum(w^2) over contributing rows — Kish n_eff = sum(w)^2 / sum(w^2), the sample size under kind probability.",
+                "optional": true
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "describe",
+            "distribution_shape"
+          ]
+        },
+        {
+          "name": "AGG_VEC_SUM",
+          "category": "aggregator",
+          "description": "Per-member total of a vector (vector or fields, exactly one; never field): one figure per member, in member order. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) per element. An element no row answered is 0. Array-valued: refused as a crosstab cell or margin aggregation (unless params.element selects one element), a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: params.field where the kind honours it, else aggregations[0] — an unscored one beside it runs) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"\u003clabel\u003e[\u003celement label\u003e]\" — an ordinary f64 column a Sort key, a window, a post-test, a series overlay's params.field or a later chain stage (an f64 input field) reads.",
+          "params": [
+            {
+              "name": "labels",
+              "type": "list",
+              "required": false,
+              "description": "Display label per member, inline fields only (a named vector carries its own Request.Vectors labels); one per resolved member. Names the elements in labels (components). Default: the member names."
+            },
+            {
+              "name": "expand",
+              "type": "bool",
+              "required": false,
+              "description": "true: replace the array with one scalar column per member, \"\u003clabel\u003e[\u003celement label\u003e]\" in member order (grouped: per row); the label itself is absent. Predict lists the columns (aggregations[i].columns). Each is an ordinary nullable f64 column: a Sort key, a window's field / order_by / partition_by, a post-test field and a series overlay's params.field (request, Compose or whole-chain host) read it, and so does a later chain stage, as an f64 input field (NaN, an element no row answered, is a null there and a missing host value to an overlay), while the bare label stays refused (PROCESSING_CONFIG, reason array_valued); element labels must be distinct (expand_duplicate_labels). A return path names one with a quoted segment, data[*].\"\u003clabel\u003e[\u003celement label\u003e]\", or all with a prefix glob, data[*].\u003clabel\u003e*. Default false."
+            },
+            {
+              "name": "element",
+              "type": "string",
+              "required": false,
+              "description": "Crosstab cell or margin_aggregations only: the display label of the ONE member the slot reads, making it a scalar — that element's figure (the scalar twin's: AGG_AVERAGE / AGG_SUM of the member, except an unanswered element stays this operator's NaN / 0), its floor {n, n_null} over the member's presence (so a record reaches an auxiliary margin only if its selected member reached a cell) and one-entry components. Fuses and margins like the scalar twin. Refused beside expand (element_with_expand), outside a crosstab (element_outside_crosstab), naming no member label (element_unknown) or a shared one (element_ambiguous)."
             }
           ],
           "accepts_types": [
@@ -2778,7 +2906,7 @@
               {
                 "name": "labels",
                 "type": "[]string",
-                "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names."
+                "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names. An element slot (params.element) reports its one member, here and in every per-member key."
               },
               {
                 "name": "element_n",
@@ -2793,7 +2921,7 @@
               {
                 "name": "element_sum_weights",
                 "type": "[]float64",
-                "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator.",
+                "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator and AGG_VEC_SD's sample size under kind frequency.",
                 "optional": true
               }
             ],
@@ -2880,7 +3008,7 @@
               {
                 "name": "weighted_variance",
                 "type": "float64",
-                "description": "Frequency-weights variance m2_weighted / (sum_weights - 1); 0 when sum_weights \u003c= 1."
+                "description": "Frequency-weights variance m2_weighted / (sum_weights - 1); null (NaN) when sum_weights \u003c= 1."
               },
               {
                 "name": "n_eff",
@@ -2957,7 +3085,7 @@
               {
                 "name": "variance",
                 "type": "float64",
-                "description": "Unbiased sample variance derived from m2 / (n-1)."
+                "description": "Unbiased sample variance derived from m2 / (n-1); null (NaN) when n \u003c 2 (weighted: sum_weights \u003c= 1)."
               },
               {
                 "name": "stddev",
@@ -3027,7 +3155,7 @@
               {
                 "name": "zscore",
                 "type": "float64",
-                "description": "Standardized score: (target_value - pop_mean) / pop_stddev."
+                "description": "Standardized score: (target_value - pop_mean) / pop_stddev; null (NaN) when pop_stddev is 0."
               }
             ],
             "mergeability": "mergeable"
@@ -3154,12 +3282,16 @@
               "type": "enum",
               "required": false,
               "default": "none",
-              "description": "MAT_FACTOR's rotation: none, varimax, promax or oblimin; an oblique rotation's factor correlation enters the regression weights.",
+              "description": "MAT_FACTOR's rotation: none, orthogonal (varimax, quartimax, geomin_orthogonal, entropy) or oblique (promax, oblimin, geomin); an oblique rotation's factor correlation enters the regression weights.",
               "enum_values": [
                 "none",
                 "varimax",
                 "promax",
-                "oblimin"
+                "oblimin",
+                "quartimax",
+                "geomin",
+                "geomin_orthogonal",
+                "entropy"
               ]
             },
             {
@@ -3177,11 +3309,30 @@
               "description": "Oblimin gamma, finite; rotation oblimin only."
             },
             {
+              "name": "epsilon",
+              "type": "float",
+              "required": false,
+              "default": 0.01,
+              "description": "Geomin epsilon, above 0 (default 0.01); rotation geomin or geomin_orthogonal only."
+            },
+            {
               "name": "fit_on",
               "type": "any",
               "required": false,
               "default": "filtered",
               "description": "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored."
+            },
+            {
+              "name": "fit",
+              "type": "string",
+              "required": false,
+              "description": "Name of a bound vector fit — a `fits` entry of the enclosing compose request over one MAT_* or fitted-attribute battery — to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs; a regression fit's name is PULSE_MODEL_KIND_MISMATCH."
+            },
+            {
+              "name": "labels",
+              "type": "list",
+              "required": false,
+              "description": "Inline fields only: one unique label per member, the names a bound fit aligns to (default: the field names). A named vector carries its own labels."
             },
             {
               "name": "missing",
@@ -3285,6 +3436,18 @@
               "description": "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored."
             },
             {
+              "name": "fit",
+              "type": "string",
+              "required": false,
+              "description": "Name of a bound vector fit — a `fits` entry of the enclosing compose request over one MAT_* or fitted-attribute battery — to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs; a regression fit's name is PULSE_MODEL_KIND_MISMATCH."
+            },
+            {
+              "name": "labels",
+              "type": "list",
+              "required": false,
+              "description": "Inline fields only: one unique label per member, the names a bound fit aligns to (default: the field names). A named vector carries its own labels."
+            },
+            {
               "name": "missing",
               "type": "enum",
               "required": false,
@@ -3373,17 +3536,27 @@
               "type": "enum",
               "required": false,
               "default": "none",
-              "description": "none: the unrotated component. varimax: rotate the params.components leading components orthogonally (stats::varimax, Kaiser normalization; MAT_PCA's rotated order and sign) and score rotated component params.component.",
+              "description": "none: the unrotated component. Otherwise MAT_PCA's orthogonal rotation of the params.components leading components (varimax, quartimax, geomin_orthogonal or entropy; MAT_PCA's rotated order and sign), scoring rotated component params.component. An oblique criterion is refused (rotation_oblique_unsupported).",
               "enum_values": [
                 "none",
-                "varimax"
+                "varimax",
+                "quartimax",
+                "geomin_orthogonal",
+                "entropy"
               ]
+            },
+            {
+              "name": "epsilon",
+              "type": "float",
+              "required": false,
+              "default": 0.01,
+              "description": "Geomin epsilon, above 0 (default 0.01); rotation geomin_orthogonal only."
             },
             {
               "name": "components",
               "type": "int",
               "required": false,
-              "description": "With rotation varimax (required there, refused otherwise): how many leading components to rotate within, at least params.component and at most the member count."
+              "description": "With a rotation (required there, refused otherwise): how many leading components to rotate within, at least params.component and at most the member count."
             },
             {
               "name": "fit_on",
@@ -3391,6 +3564,18 @@
               "required": false,
               "default": "filtered",
               "description": "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored."
+            },
+            {
+              "name": "fit",
+              "type": "string",
+              "required": false,
+              "description": "Name of a bound vector fit — a `fits` entry of the enclosing compose request over one MAT_* or fitted-attribute battery — to score against instead of fitting (mutually exclusive with fit_on); aligned to the members by label, never by position. The fit's own weight basis governs; a regression fit's name is PULSE_MODEL_KIND_MISMATCH."
+            },
+            {
+              "name": "labels",
+              "type": "list",
+              "required": false,
+              "description": "Inline fields only: one unique label per member, the names a bound fit aligns to (default: the field names). A named vector carries its own labels."
             },
             {
               "name": "missing",
@@ -3460,7 +3645,7 @@
         {
           "name": "ATTR_PROFILE_SIMILARITY",
           "category": "attribute",
-          "description": "Per-row similarity to a reference across the p members of vector / fields (exactly one): correlation, cosine or a set similarity, pairwise-complete (a null member drops its pair). Row-local and single-pass; the weight is irrelevant.",
+          "description": "Per-row similarity to a reference across the p members of vector / fields (exactly one): correlation, cosine or a set similarity, pairwise-complete (a null member drops its pair). Row-local and single-pass, the weight irrelevant — except over a centroid reference, folded (weighted) in a pre-pass first.",
           "params": [
             {
               "name": "metric",
@@ -3479,7 +3664,7 @@
               "name": "reference",
               "type": "any",
               "required": true,
-              "description": "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label or an unsigned-integer field's (u4, u8, u16, u32, u64) canonical base-10 value; any other field type is refused, SERVICE_VALIDATION reason key_field_type). A table or map is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field is null or has no profile is null, counted in n_reference_missing and warned once per slot (PULSE_VECTOR_REFERENCE_MISSING, components on or off; strict does not escalate it)."
+              "description": "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile), {\"centroid\": {\"filter\", \"by\"}} (the weighted per-element mean — AGG_VEC_MEAN's — of the filtered rows the optional filter admits; with by, a categorical or unsigned-integer field, one centroid per value and each row compared with its own: a pre-pass, so two-pass for any metric), {\"population\": name} (a bound vector fit's stored mean: a request / registered population or a Compose vector fit; unbound is PULSE_VECTOR_REFERENCE_UNKNOWN), {\"record\": {\"cohort\", \"keys\"}} (one stored record point-looked-up through its cohort's sidecar index — cohort a {filename, data_dir} or omitted for the request's own, keys [{field, value}] in index order, values as text — before the run, read by member COLUMN name, a null member a missing element; predict checks the shape only, the run refuses with the lookup's own PULSE_INDEX_* / PULSE_LOOKUP_* code, never a fallback) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label or an unsigned-integer field's (u4, u8, u16, u32, u64) canonical base-10 value; any other field type is refused, SERVICE_VALIDATION reason key_field_type). A table, map or population is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field / by is null or has no profile / centroid is null, counted in n_reference_missing and warned once per slot (PULSE_VECTOR_REFERENCE_MISSING, components on or off; strict does not escalate it)."
             },
             {
               "name": "min_valid",
@@ -3523,7 +3708,7 @@
               {
                 "name": "n_reference_missing",
                 "type": "int",
-                "description": "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
+                "description": "Rows whose params.reference key_field / centroid by value has no profile / centroid (or is null), or every row of a centroid no row reached, scored null; 0 for a literal, table key or population reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
               },
               {
                 "name": "n_domain_invalid",
@@ -3533,6 +3718,11 @@
             ],
             "mergeability": "mergeable"
           },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
           "intents": [
             "benchmark",
             "prepare"
@@ -3868,7 +4058,7 @@
         {
           "name": "ATTR_VEC_DISTANCE",
           "category": "attribute",
-          "description": "Per-row distance to a reference across the p members of vector / fields (exactly one), pairwise-complete with the p / p_observed rescaling. Row-local metrics are single-pass; std_euclidean (per-member SDs) and mahalanobis (inverse covariance, every member needed) fit first on the filtered rows params.fit_on admits — ATTR_MAHALANOBIS's fit pass, two-pass, weighted when a weight is in force; N* ≤ p or a singular fit nulls every value with a warning.",
+          "description": "Per-row distance to a reference across the p members of vector / fields (exactly one), pairwise-complete with the p / p_observed rescaling. Row-local metrics are single-pass; std_euclidean (per-member SDs) and mahalanobis (inverse covariance, every member needed) fit first on the filtered rows params.fit_on admits — ATTR_MAHALANOBIS's fit pass, two-pass, weighted when a weight is in force; N* ≤ p or a singular fit nulls every value with a warning. A centroid reference is folded (weighted) in the same pre-pass, for any metric.",
           "params": [
             {
               "name": "metric",
@@ -3892,7 +4082,7 @@
               "name": "reference",
               "type": "any",
               "required": true,
-              "description": "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label or an unsigned-integer field's (u4, u8, u16, u32, u64) canonical base-10 value; any other field type is refused, SERVICE_VALIDATION reason key_field_type). A table or map is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field is null or has no profile is null, counted in n_reference_missing and warned once per slot (PULSE_VECTOR_REFERENCE_MISSING, components on or off; strict does not escalate it)."
+              "description": "The target compared with each row: a literal array (one value per member, member order), a label map {label: value} (matched by label), {\"table\", \"key\"} (one Extensions.ReferenceVectors profile), {\"centroid\": {\"filter\", \"by\"}} (the weighted per-element mean — AGG_VEC_MEAN's — of the filtered rows the optional filter admits; with by, a categorical or unsigned-integer field, one centroid per value and each row compared with its own: a pre-pass, so two-pass for any metric), {\"population\": name} (a bound vector fit's stored mean: a request / registered population or a Compose vector fit; unbound is PULSE_VECTOR_REFERENCE_UNKNOWN), {\"record\": {\"cohort\", \"keys\"}} (one stored record point-looked-up through its cohort's sidecar index — cohort a {filename, data_dir} or omitted for the request's own, keys [{field, value}] in index order, values as text — before the run, read by member COLUMN name, a null member a missing element; predict checks the shape only, the run refuses with the lookup's own PULSE_INDEX_* / PULSE_LOOKUP_* code, never a fallback) or {\"table\", \"key_field\"} (each row's own profile, keyed by a categorical field's label or an unsigned-integer field's (u4, u8, u16, u32, u64) canonical base-10 value; any other field type is refused, SERVICE_VALIDATION reason key_field_type). A table, map or population is matched to the vector BY LABEL (PULSE_VECTOR_REFERENCE_MISMATCH otherwise, checked at predict); a row whose key_field / by is null or has no profile / centroid is null, counted in n_reference_missing and warned once per slot (PULSE_VECTOR_REFERENCE_MISSING, components on or off; strict does not escalate it)."
             },
             {
               "name": "min_valid",
@@ -3913,6 +4103,12 @@
               "required": false,
               "default": "filtered",
               "description": "Fitted metrics only (refused beside a row-local one): the fit population, \"filtered\" (every filtered row) or an inline array of filterer objects; every filtered row is still scored."
+            },
+            {
+              "name": "fit",
+              "type": "string",
+              "required": false,
+              "description": "Fitted metrics only: name of a bound vector fit (a `fits` entry of the enclosing compose request) to read instead of fitting (mutually exclusive with fit_on); aligned by label."
             },
             {
               "name": "missing",
@@ -3938,7 +4134,7 @@
           "emits_type": "f64",
           "emits_type_note": "one distance (≥ 0) per record; null below min_valid, when the row's reference is missing or the fit cannot score",
           "streamable": true,
-          "streamable_hint": "Row-local metrics stream in one pass; std_euclidean / mahalanobis take the two-pass drive (with groupers or features the request runs buffered). The fit is cohort-wide, never per group.",
+          "streamable_hint": "Row-local metrics stream in one pass; std_euclidean / mahalanobis and any centroid reference take the two-pass drive (with groupers or features the request runs buffered). The fit and centroids are cohort-wide, never per group.",
           "component_schema": {
             "keys": [
               {
@@ -3954,7 +4150,7 @@
               {
                 "name": "n_reference_missing",
                 "type": "int",
-                "description": "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
+                "description": "Rows whose params.reference key_field / centroid by value has no profile / centroid (or is null), or every row of a centroid no row reached, scored null; 0 for a literal, table key or population reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
               },
               {
                 "name": "n_domain_invalid",
@@ -7505,6 +7701,12 @@
             "type": "float",
             "required": false,
             "description": "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."
+          },
+          {
+            "name": "fit",
+            "type": "string",
+            "required": false,
+            "description": "A bound vector fit's name (a Compose fits entry over one MAT_* or fitted-attribute battery): the matrix is emitted from that fit's listwise state, folding no row; matched to the members BY LABEL; its own weight basis governs. Not with missing / max_drop_share, a grouped request, a buffered tier (rank methods) or a declared scale range (PULSE_MODEL_UNKNOWN / PULSE_MODEL_KIND_MISMATCH / PULSE_VECTOR_REFERENCE_MISMATCH)."
           }
         ],
         "output_keys": {
@@ -7626,6 +7828,12 @@
             "type": "float",
             "required": false,
             "description": "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."
+          },
+          {
+            "name": "fit",
+            "type": "string",
+            "required": false,
+            "description": "A bound vector fit's name (a Compose fits entry over one MAT_* or fitted-attribute battery): the matrix is emitted from that fit's listwise state, folding no row; matched to the members BY LABEL; its own weight basis governs. Not with missing / max_drop_share, a grouped request, a buffered tier (rank methods) or a declared scale range (PULSE_MODEL_UNKNOWN / PULSE_MODEL_KIND_MISMATCH / PULSE_VECTOR_REFERENCE_MISMATCH)."
           },
           {
             "name": "summary",
@@ -7765,6 +7973,12 @@
             "type": "float",
             "required": false,
             "description": "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."
+          },
+          {
+            "name": "fit",
+            "type": "string",
+            "required": false,
+            "description": "A bound vector fit's name (a Compose fits entry over one MAT_* or fitted-attribute battery): the matrix is emitted from that fit's listwise state, folding no row; matched to the members BY LABEL; its own weight basis governs. Not with missing / max_drop_share, a grouped request, a buffered tier (rank methods) or a declared scale range (PULSE_MODEL_UNKNOWN / PULSE_MODEL_KIND_MISMATCH / PULSE_VECTOR_REFERENCE_MISMATCH)."
           }
         ],
         "output_keys": {
@@ -8005,7 +8219,7 @@
       },
       {
         "name": "MAT_FACTOR",
-        "description": "Exploratory factor analysis of a vector's members (listwise or pairwise) on their correlation matrix: k common factors (params.factors, an integer or the Kaiser rule) extracted by minimum residual (minres, the default; psych fa fm = \"minres\"), iterated principal axes (principal_axis; fm = \"pa\") or maximum likelihood (ml; stats::factanal, fm = \"ml\"), each from the squared multiple correlations, then rotated (params.rotation none, varimax, promax or oblimin). The primary is the p x k loadings (a rectangular matrix with columns F1..Fk; rotated when a rotation is set, each column ordered by the variance it accounts for and signed to sum positive); auxiliary.unrotated the unrotated loadings (rotated runs) and auxiliary.factor_correlation the k x k factor correlation (promax and oblimin only; square, keyed F1..Fk); vectors carry each member's communality and uniqueness and each factor's variance accounted; scalars the root-mean-square residual (rmsr), the empirical residual chi-square with its df and p (a residual size, not a likelihood test), KMO, Bartlett's sphericity test, the fit's iterations and convergence, and the number of factors; ml adds the Bartlett-corrected likelihood chi-square (likelihood_chisq, on df) and its p (likelihood_p), the Tucker-Lewis index (tli), the RMSEA point estimate (rmsea) with its interval (rmsea_lower / rmsea_upper at params.conf_level, default 90%, psych::fa's RMSEA lower / upper) and BIC. A count the members cannot identify ((p - k)^2 \u003c p + k) nulls the fit with PULSE_MATRIX_NOT_IDENTIFIED; a uniqueness at or below 0 (ml: held at its 0.005 floor) is reported as fitted with PULSE_MATRIX_HEYWOOD; an extraction or rotation at its iteration cap warns PULSE_MATRIX_NOT_CONVERGED. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". Weighted under frequency and probability weights.",
+        "description": "Exploratory factor analysis of a vector's members (listwise or pairwise) on their correlation matrix: k common factors (params.factors, an integer or the Kaiser rule) extracted by minimum residual (minres, the default; psych fa fm = \"minres\"), iterated principal axes (principal_axis; fm = \"pa\") or maximum likelihood (ml; stats::factanal, fm = \"ml\"), each from the squared multiple correlations, then rotated (params.rotation: none, or an orthogonal — varimax, quartimax, geomin_orthogonal, entropy — or oblique — promax, oblimin, geomin — criterion). The primary is the p x k loadings (a rectangular matrix with columns F1..Fk; rotated when a rotation is set, each column ordered by the variance it accounts for and signed to sum positive); auxiliary.unrotated the unrotated loadings (rotated runs) and auxiliary.factor_correlation the k x k factor correlation (oblique rotations only; square, keyed F1..Fk); vectors carry each member's communality and uniqueness and each factor's variance accounted; scalars the root-mean-square residual (rmsr), the empirical residual chi-square with its df and p (a residual size, not a likelihood test), KMO, Bartlett's sphericity test, the fit's iterations and convergence, and the number of factors; ml adds the Bartlett-corrected likelihood chi-square (likelihood_chisq, on df) and its p (likelihood_p), the Tucker-Lewis index (tli), the RMSEA point estimate (rmsea) with its interval (rmsea_lower / rmsea_upper at params.conf_level, default 90%, psych::fa's RMSEA lower / upper) and BIC. A count the members cannot identify ((p - k)^2 \u003c p + k) nulls the fit with PULSE_MATRIX_NOT_IDENTIFIED; a uniqueness at or below 0 (ml: held at its 0.005 floor) is reported as fitted with PULSE_MATRIX_HEYWOOD; an extraction or rotation at its iteration cap warns PULSE_MATRIX_NOT_CONVERGED. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". Weighted under frequency and probability weights.",
         "accepts_types": [
           "f32",
           "f64",
@@ -8041,12 +8255,16 @@
             "type": "enum",
             "required": false,
             "default": "none",
-            "description": "none: the unrotated loadings. varimax: orthogonal, Kaiser-normalized (stats::varimax). promax: oblique, varimax then a power target (stats::promax, params.kappa). oblimin: oblique, gradient projection (GPArotation::oblimin, params.gamma). Rotated loadings become the primary; the unrotated move to auxiliary.unrotated; an oblique rotation adds auxiliary.factor_correlation. Communalities do not change.",
+            "description": "none: the unrotated loadings. Orthogonal: varimax (Kaiser-normalized, stats::varimax), quartimax, geomin_orthogonal (params.epsilon), entropy (minimum entropy). Oblique: promax (varimax then a power target, stats::promax, params.kappa), oblimin (params.gamma), geomin (params.epsilon). Every criterion but varimax / promax is gradient projection with GPArotation's wrapper of that name (geominT / geominQ for the geomin pair), normalize = FALSE. Rotated loadings become the primary; the unrotated move to auxiliary.unrotated; an oblique rotation adds auxiliary.factor_correlation. Communalities do not change.",
             "enum_values": [
               "none",
               "varimax",
               "promax",
-              "oblimin"
+              "oblimin",
+              "quartimax",
+              "geomin",
+              "geomin_orthogonal",
+              "entropy"
             ]
           },
           {
@@ -8062,6 +8280,13 @@
             "required": false,
             "default": 0,
             "description": "Oblimin gamma, finite: 0 quartimin (the default), 0.5 biquartimin, 1 covarimin. Accepted with rotation oblimin only."
+          },
+          {
+            "name": "epsilon",
+            "type": "float",
+            "required": false,
+            "default": 0.01,
+            "description": "Geomin epsilon, a finite number above 0 (GPArotation delta; default 0.01): larger smooths the criterion. Accepted with rotation geomin or geomin_orthogonal only."
           },
           {
             "name": "conf_level",
@@ -8095,6 +8320,12 @@
             "type": "float",
             "required": false,
             "description": "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."
+          },
+          {
+            "name": "fit",
+            "type": "string",
+            "required": false,
+            "description": "A bound vector fit's name (a Compose fits entry over one MAT_* or fitted-attribute battery): the matrix is emitted from that fit's listwise state, folding no row; matched to the members BY LABEL; its own weight basis governs. Not with missing / max_drop_share, a grouped request, a buffered tier (rank methods) or a declared scale range (PULSE_MODEL_UNKNOWN / PULSE_MODEL_KIND_MISMATCH / PULSE_VECTOR_REFERENCE_MISMATCH)."
           }
         ],
         "output_keys": {
@@ -8250,6 +8481,12 @@
             "type": "float",
             "required": false,
             "description": "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."
+          },
+          {
+            "name": "fit",
+            "type": "string",
+            "required": false,
+            "description": "A bound vector fit's name (a Compose fits entry over one MAT_* or fitted-attribute battery): the matrix is emitted from that fit's listwise state, folding no row; matched to the members BY LABEL; its own weight basis governs. Not with missing / max_drop_share, a grouped request, a buffered tier (rank methods) or a declared scale range (PULSE_MODEL_UNKNOWN / PULSE_MODEL_KIND_MISMATCH / PULSE_VECTOR_REFERENCE_MISMATCH)."
           }
         ],
         "output_keys": {
@@ -8324,7 +8561,7 @@
       },
       {
         "name": "MAT_PCA",
-        "description": "Principal component analysis of a vector's members (listwise or pairwise): the eigen-decomposition of their correlation (params.on \"correlation\", the default) or covariance matrix. The primary is the p x k loadings (eigenvector x sqrt(eigenvalue), a rectangular matrix with columns PC1..PCk), auxiliary.eigenvectors the p x k unit eigenvectors; vectors carry every eigenvalue, the explained and cumulative variance shares, the communalities over the kept components and each member's KMO measure of sampling adequacy; scalars the overall KMO, Bartlett's sphericity test (chi-square, df, p) and the number of components kept. Eigenvalues descending, each eigenvector's largest-magnitude entry positive. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". params.rotation \"varimax\" replaces the primary with the varimax-rotated loadings (Kaiser-normalized, stats::varimax), moves the unrotated loadings to auxiliary.unrotated and adds vectors.rotated_variance; eigenvalues, shares, communalities and eigenvectors stay unrotated. Weighted under frequency and probability weights.",
+        "description": "Principal component analysis of a vector's members (listwise or pairwise): the eigen-decomposition of their correlation (params.on \"correlation\", the default) or covariance matrix. The primary is the p x k loadings (eigenvector x sqrt(eigenvalue), a rectangular matrix with columns PC1..PCk), auxiliary.eigenvectors the p x k unit eigenvectors; vectors carry every eigenvalue, the explained and cumulative variance shares, the communalities over the kept components and each member's KMO measure of sampling adequacy; scalars the overall KMO, Bartlett's sphericity test (chi-square, df, p) and the number of components kept. Eigenvalues descending, each eigenvector's largest-magnitude entry positive. A decomposition operator: a non-PSD (pairwise) input is refused with PULSE_MATRIX_NOT_PSD unless params.repair is \"nearest\". params.rotation (an orthogonal criterion: varimax, quartimax, geomin_orthogonal or entropy; an oblique one is refused) replaces the primary with the rotated loadings, moves the unrotated loadings to auxiliary.unrotated and adds vectors.rotated_variance; eigenvalues, shares, communalities and eigenvectors stay unrotated. Weighted under frequency and probability weights.",
         "accepts_types": [
           "f32",
           "f64",
@@ -8359,11 +8596,21 @@
             "type": "enum",
             "required": false,
             "default": "none",
-            "description": "none: the unrotated loadings. varimax: rotate the kept components (k \u003e= 2) orthogonally to simple structure (stats::varimax with Kaiser normalization); the rotated loadings become the primary, ordered by the variance each accounts for (vectors.rotated_variance), each column signed to sum positive, and the unrotated loadings move to auxiliary.unrotated.",
+            "description": "none: the unrotated loadings. Otherwise rotate the kept components (k \u003e= 2) orthogonally: varimax (stats::varimax, Kaiser-normalized), quartimax, geomin_orthogonal (params.epsilon) or entropy (minimum entropy) — GPArotation's quartimax / geominT / entropy, normalize = FALSE. The rotated loadings become the primary, ordered by the variance each accounts for (vectors.rotated_variance), each column signed to sum positive; the unrotated move to auxiliary.unrotated. An oblique criterion (promax, oblimin, geomin) is refused (SERVICE_VALIDATION reason rotation_oblique_unsupported): components are uncorrelated; use MAT_FACTOR.",
             "enum_values": [
               "none",
-              "varimax"
+              "varimax",
+              "quartimax",
+              "geomin_orthogonal",
+              "entropy"
             ]
+          },
+          {
+            "name": "epsilon",
+            "type": "float",
+            "required": false,
+            "default": 0.01,
+            "description": "Geomin epsilon, a finite number above 0 (GPArotation delta; default 0.01): larger smooths the criterion. Accepted with rotation geomin_orthogonal only."
           },
           {
             "name": "repair",
@@ -8390,6 +8637,12 @@
             "type": "float",
             "required": false,
             "description": "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."
+          },
+          {
+            "name": "fit",
+            "type": "string",
+            "required": false,
+            "description": "A bound vector fit's name (a Compose fits entry over one MAT_* or fitted-attribute battery): the matrix is emitted from that fit's listwise state, folding no row; matched to the members BY LABEL; its own weight basis governs. Not with missing / max_drop_share, a grouped request, a buffered tier (rank methods) or a declared scale range (PULSE_MODEL_UNKNOWN / PULSE_MODEL_KIND_MISMATCH / PULSE_VECTOR_REFERENCE_MISMATCH)."
           }
         ],
         "output_keys": {
@@ -8533,6 +8786,12 @@
             "type": "float",
             "required": false,
             "description": "Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1)."
+          },
+          {
+            "name": "fit",
+            "type": "string",
+            "required": false,
+            "description": "A bound vector fit's name (a Compose fits entry over one MAT_* or fitted-attribute battery): the matrix is emitted from that fit's listwise state, folding no row; matched to the members BY LABEL; its own weight basis governs. Not with missing / max_drop_share, a grouped request, a buffered tier (rank methods) or a declared scale range (PULSE_MODEL_UNKNOWN / PULSE_MODEL_KIND_MISMATCH / PULSE_VECTOR_REFERENCE_MISMATCH)."
           }
         ],
         "output_keys": {
@@ -8998,7 +9257,7 @@
         ]
       }
     ],
-    "error_codes_count": 360,
+    "error_codes_count": 362,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9085,6 +9344,7 @@
       "PULSE_EXTENSION_FACTORY_PANIC",
       "PULSE_EXTENSION_FANOUT_MISMATCH",
       "PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH",
+      "PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_MERGEABLE_MISMATCH",
       "PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA",
       "PULSE_EXTENSION_NAME_COLLISION",
@@ -9184,6 +9444,7 @@
       "PULSE_MODEL_FILE_INVALID",
       "PULSE_MODEL_FILE_UNREADABLE",
       "PULSE_MODEL_INTERVALS_UNAVAILABLE",
+      "PULSE_MODEL_KIND_MISMATCH",
       "PULSE_MODEL_NAME_COLLISION",
       "PULSE_MODEL_OVERWRITTEN",
       "PULSE_MODEL_PREDICTOR_MISSING",
@@ -9502,6 +9763,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_VEC_MEAN",
+          "AGG_VEC_SD",
           "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
@@ -9592,6 +9854,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_VEC_MEAN",
+          "AGG_VEC_SD",
           "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
@@ -9682,6 +9945,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_VEC_MEAN",
+          "AGG_VEC_SD",
           "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
@@ -9772,6 +10036,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_VEC_MEAN",
+          "AGG_VEC_SD",
           "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
@@ -9862,6 +10127,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_VEC_MEAN",
+          "AGG_VEC_SD",
           "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
@@ -9951,6 +10217,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_VEC_MEAN",
+          "AGG_VEC_SD",
           "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
@@ -10040,6 +10307,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_VEC_MEAN",
+          "AGG_VEC_SD",
           "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
@@ -10126,6 +10394,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_VEC_MEAN",
+          "AGG_VEC_SD",
           "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
@@ -10792,7 +11061,7 @@
       },
       {
         "name": "compose-fits",
-        "description": "ComposedRequest.fits — named regression fits that run once before any Compose slot (sweep slots included) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity."
+        "description": "ComposedRequest.fits — named regression or vector fits that run once before any Compose slot (sweep slots included) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity."
       },
       {
         "name": "compose-requests",
@@ -10995,6 +11264,10 @@
         "description": "Per-member mean of a vector — one average per member, in member order (a group's average profile)."
       },
       {
+        "name": "op-agg-vec-sd",
+        "description": "Per-member sample standard deviation of a vector — one spread per member, in member order (how much a group disagrees on each item)."
+      },
+      {
         "name": "op-agg-vec-sum",
         "description": "Per-member total of a vector — one sum per member, in member order."
       },
@@ -11036,7 +11309,7 @@
       },
       {
         "name": "op-attr-pc-score",
-        "description": "Per-row standardized score on one principal component of a vector of numeric members, with the PCA matrix operator's sign and order and optional varimax; fit_on fits on a subset and still scores every row."
+        "description": "Per-row standardized score on one principal component of a vector of numeric members, with the PCA matrix operator's sign and order and optional orthogonal rotation; fit_on fits on a subset and still scores every row."
       },
       {
         "name": "op-attr-percentile",
@@ -11044,7 +11317,7 @@
       },
       {
         "name": "op-attr-profile-similarity",
-        "description": "Per-row similarity to a target profile — correlation, cosine or a set similarity across a vector's members, against a literal, label-map or registered reference."
+        "description": "Per-row similarity to a target profile — correlation, cosine or a set similarity across a vector's members, against a literal, label-map, registered, centroid, saved-population or stored-record reference."
       },
       {
         "name": "op-attr-reg-fitted",
@@ -11080,7 +11353,7 @@
       },
       {
         "name": "op-attr-vec-distance",
-        "description": "Per-row distance to a target profile — plain, set or fitted (std_euclidean, mahalanobis) metrics across a vector's members, against a literal, label-map or registered reference."
+        "description": "Per-row distance to a target profile — plain, set or fitted (std_euclidean, mahalanobis) metrics across a vector's members, against a literal, label-map, registered, centroid, saved-population or stored-record reference."
       },
       {
         "name": "op-attr-zscore",
@@ -11224,7 +11497,7 @@
       },
       {
         "name": "op-mat-factor",
-        "description": "Exploratory factor analysis of a battery — minres, principal-axis or maximum-likelihood extraction from the SMC, varimax / promax / oblimin rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett, ML's likelihood chi-square, TLI, RMSEA with its interval and BIC; listwise or pairwise, weighted."
+        "description": "Exploratory factor analysis of a battery — minres, principal-axis or maximum-likelihood extraction from the SMC, orthogonal or oblique rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett, ML's likelihood chi-square, TLI, RMSEA with its interval and BIC; listwise or pairwise, weighted."
       },
       {
         "name": "op-mat-partial-correlation",
@@ -11260,7 +11533,7 @@
       },
       {
         "name": "op-overlay-correspondence",
-        "description": "Correspondence analysis of the host crosstab — inertia per dimension, row and column map coordinates, quality and contribution as parts."
+        "description": "Correspondence analysis of the host crosstab — inertia per dimension, row and column map coordinates, quality, contribution and chi-square profile distances as parts."
       },
       {
         "name": "op-overlay-delta-vs-baseline",
@@ -11383,6 +11656,10 @@
         "description": "Compose-host per-cell rank of each target cell within a configurable population (row / column / matrix)."
       },
       {
+        "name": "op-overlay-retention",
+        "description": "Retention rates of a from × to crosstab — per starting state, the share that stayed, switched or churned into a named absorbing state."
+      },
+      {
         "name": "op-overlay-share-of-col",
         "description": "Per-cell share-of-column ratio (cell / col_margin) — raw share, sums to 1.0 per column."
       },
@@ -11397,6 +11674,10 @@
       {
         "name": "op-overlay-std-residual",
         "description": "Per-cell Haberman adjusted standardized residual of the host crosstab, with expected counts and two-sided p-values as parts."
+      },
+      {
+        "name": "op-overlay-symmetry",
+        "description": "Paired-change test on a before × after crosstab — McNemar (2 × 2) or Bowker (k × k): are moves one way as common as moves back?"
       },
       {
         "name": "op-overlay-t-cell",
@@ -12055,7 +12336,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 216,
+    "examples_count": 225,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -12149,11 +12430,13 @@
       "features": [],
       "tests": [],
       "synth_distributions": [],
+      "matrix_ops": [],
       "expr_functions": [],
       "lookup_tables": [],
       "reference_vectors": [],
       "label_tables": [],
-      "range_tables": []
+      "range_tables": [],
+      "populations": []
     },
     "facet": {
       "name": "facet_schema",
@@ -12231,7 +12514,7 @@
             "Stage"
           ],
           "buffered": true,
-          "description": "Whole-chain additive-delta overlay against another ProcessChain stage's result: target_val - ref_val per host coordinate. Second whole-chain overlay in the catalog. CHAIN scope over a CHAIN (ProcessChain) host with a shape inherited from the target stage (scalar / series / matrix). Sibling subtractive twin of OVERLAY_INDEX_VS_STAGE — the runtime handler runs at the post-stage-loop barrier inside service.ProcessChain (applyChainOverlays hook on service/chain.go) against already-materialised *Response objects for each Stages[i]. No record re-traversal. Default Target = latest stage (Target.Index nil AND Target.Name empty); Ref has no default — every spec MUST name a baseline stage explicitly. Unknown stage path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN (Target arm) or PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref arm) — both canonical chain-overlay missing-stage codes. Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from the reference stage's host shape the divergence is a PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT WARNING on predict-chain and at runtime (the chain runs; the layer is an empty payload in the target stage's shape). Unlike OVERLAY_INDEX_VS_STAGE (divides by the reference value), DELTA_VS_STAGE performs subtraction and is mathematically defined for every finite reference value including zero — the handler does NOT emit PULSE_OVERLAY_REF_ZERO. Mirrors the OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_SIBLING family rule. Ref MUST populate Ref.Stage (StageRef); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. Scope must be `total`. Level / Within MUST be zero. Buffered — whole-chain kinds always run after every stage has finalised. Renderers centre diverging colour ramps on baseline=0 (mirrors the rest of the DELTA family on other host shapes). Measure: on SERIES stages the overlay keys each row on the stage's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on the target and the reference stage; absent, each stage's Aggregations[0]. A label a stage lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.which, stage_index) at predict and at runtime."
+          "description": "Whole-chain additive-delta overlay against another ProcessChain stage's result: target_val - ref_val per host coordinate. Second whole-chain overlay in the catalog. CHAIN scope over a CHAIN (ProcessChain) host with a shape inherited from the target stage (scalar / series / matrix). Sibling subtractive twin of OVERLAY_INDEX_VS_STAGE — the runtime handler runs at the post-stage-loop barrier inside service.ProcessChain (applyChainOverlays hook on service/chain.go) against already-materialised *Response objects for each Stages[i]. No record re-traversal. Default Target = latest stage (Target.Index nil AND Target.Name empty); Ref has no default — every spec MUST name a baseline stage explicitly. Unknown stage path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN (Target arm) or PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref arm) — both canonical chain-overlay missing-stage codes. Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from the reference stage's host shape the divergence is a PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT WARNING on predict-chain and at runtime (the chain runs; the layer is an empty payload in the target stage's shape). Unlike OVERLAY_INDEX_VS_STAGE (divides by the reference value), DELTA_VS_STAGE performs subtraction and is mathematically defined for every finite reference value including zero — the handler does NOT emit PULSE_OVERLAY_REF_ZERO. Mirrors the OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_SIBLING family rule. Ref MUST populate Ref.Stage (StageRef); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. Scope must be `total`. Level / Within MUST be zero. Buffered — whole-chain kinds always run after every stage has finalised. Renderers centre diverging colour ramps on baseline=0 (mirrors the rest of the DELTA family on other host shapes). Measure: on SERIES stages the overlay keys each row on the stage's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value) on the target and the reference stage; absent, each stage's Aggregations[0]. A label a stage lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.which, stage_index) at predict and at runtime."
         },
         {
           "kind": "OVERLAY_INDEX_VS_STAGE",
@@ -12247,7 +12530,7 @@
             "Stage"
           ],
           "buffered": true,
-          "description": "Whole-chain ratio overlay against another ProcessChain stage's result: (target_val / ref_val) * 100 per host coordinate. First whole-chain overlay in the catalog and the first consumer of the StageRef discriminated reference family (Ref + Target on ChainOverlaySpec — each populates exactly one of Index / Name per StageRef value). CHAIN scope over a CHAIN (ProcessChain) host with a shape inherited from the target stage (scalar / series / matrix). The runtime handler runs at the post-stage-loop barrier inside service.ProcessChain (applyChainOverlays hook on service/chain.go) against already-materialised *Response objects for each Stages[i]. No record re-traversal. Default Target = latest stage (Target.Index nil AND Target.Name empty); Ref has no default — every spec MUST name a baseline stage explicitly. Unknown stage path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN (Target arm) or PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref arm) — both canonical chain-overlay missing-stage codes. Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from the reference stage's host shape the divergence is a PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT WARNING on predict-chain and at runtime (the chain runs; the layer is an empty payload in the target stage's shape). Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN on the affected coordinates (mirrors the rest of the INDEX_VS_* family). Ref MUST populate Ref.Stage (StageRef); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. Scope must be `total`. Level / Within MUST be zero. Buffered — whole-chain kinds always run after every stage has finalised. Renderers centre diverging colour ramps on baseline=100 (mirrors the rest of the INDEX_VS_* family on other host shapes). Measure: on SERIES stages the overlay keys each row on the stage's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on the target and the reference stage; absent, each stage's Aggregations[0]. A label a stage lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.which, stage_index) at predict and at runtime."
+          "description": "Whole-chain ratio overlay against another ProcessChain stage's result: (target_val / ref_val) * 100 per host coordinate. First whole-chain overlay in the catalog and the first consumer of the StageRef discriminated reference family (Ref + Target on ChainOverlaySpec — each populates exactly one of Index / Name per StageRef value). CHAIN scope over a CHAIN (ProcessChain) host with a shape inherited from the target stage (scalar / series / matrix). The runtime handler runs at the post-stage-loop barrier inside service.ProcessChain (applyChainOverlays hook on service/chain.go) against already-materialised *Response objects for each Stages[i]. No record re-traversal. Default Target = latest stage (Target.Index nil AND Target.Name empty); Ref has no default — every spec MUST name a baseline stage explicitly. Unknown stage path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN (Target arm) or PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref arm) — both canonical chain-overlay missing-stage codes. Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from the reference stage's host shape the divergence is a PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT WARNING on predict-chain and at runtime (the chain runs; the layer is an empty payload in the target stage's shape). Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN on the affected coordinates (mirrors the rest of the INDEX_VS_* family). Ref MUST populate Ref.Stage (StageRef); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. Scope must be `total`. Level / Within MUST be zero. Buffered — whole-chain kinds always run after every stage has finalised. Renderers centre diverging colour ramps on baseline=100 (mirrors the rest of the INDEX_VS_* family on other host shapes). Measure: on SERIES stages the overlay keys each row on the stage's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value) on the target and the reference stage; absent, each stage's Aggregations[0]. A label a stage lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.which, stage_index) at predict and at runtime."
         }
       ]
     },
@@ -12321,6 +12604,7 @@
         "AGG_STDDEV",
         "AGG_VARIANCE",
         "AGG_VEC_MEAN",
+        "AGG_VEC_SD",
         "AGG_VEC_SUM",
         "AGG_WELFORD",
         "AGG_ZSCORE"
@@ -12335,7 +12619,7 @@
         "crosstab cannot coexist with top-level groups or aggregations (PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS)",
         "matrix shape, any margin, or any normalization forces the buffered path",
         "map-valued cell aggregators (AGG_SET_FREQUENCY) cannot pair with normalize=row/column/total (PULSE_CROSSTAB_NORMALIZE_MAP_VALUED)",
-        "array-valued aggregators (array_valued_aggregators: AGG_VEC_MEAN, AGG_VEC_SUM) are refused as the cell or a margin aggregation, whatever normalize says (PROCESSING_CONFIG, reason array_valued)"
+        "array-valued aggregators (array_valued_aggregators: AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD) are refused as the cell or a margin aggregation, whatever normalize says (PROCESSING_CONFIG, reason array_valued) — unless params.element selects one element (built-in AGG_VEC_* only), which makes the slot a scalar that margins and fuses like its scalar twin (mean_reducible / summable; an AGG_VEC_SD element is recompute, like AGG_STDDEV)"
       ],
       "supports_normalize_level": true,
       "normalize_level_rules": [
@@ -12361,6 +12645,7 @@
       ],
       "array_valued_aggregators": [
         "AGG_VEC_MEAN",
+        "AGG_VEC_SD",
         "AGG_VEC_SUM"
       ]
     },
@@ -12805,7 +13090,9 @@
           "fitted": true,
           "fit_stat": "column_masses",
           "domain": "non_negative",
-          "consumers": []
+          "consumers": [
+            "OVERLAY_CORRESPONDENCE"
+          ]
         }
       ],
       "vector_kinds": [
@@ -12949,7 +13236,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Simple correspondence analysis (R's ca::ca) of the host crosstab — a perceptual map placing rows and columns in a few shared dimensions — from the SVD (linalg.SVD) of the standardized residual matrix S = D_r^-1/2 (P - r c^T) D_c^-1/2. MATRIX scope over a MATRIX (crosstab) host. The primary SERIES holds the principal inertia of each of the min(r, c) - 1 dimensions (keys dim_1, dim_2, ...; entry parameters share, cumulative_share, singular_value); Summary.Statistic is the total inertia (chi-square / n) and its parameters carry dimensions, retained_share and share_dim_\u003ck\u003e. payload.parts: row_coordinates / column_coordinates (MATRIX points x retained dimensions, columns keyed dim_1 ...), row_quality / column_quality (SERIES, cos^2 summed over the retained dimensions; parameters mass, inertia) and row_contribution / column_contribution (MATRIX, each point's share of a dimension's inertia). params: dimensions (integer, default 2 capped at min(r, c) - 1; an explicit value above it is PULSE_OVERLAY_PARAM_MISSING) and normalization (symmetric [default: both principal] | row_principal | column_principal). Signs follow linalg.SVD: per dimension the dominant component of the column singular vector is positive. Cells must be non-negative masses: a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED. Zero-total rows / columns are dropped with one PULSE_OVERLAY_REF_ZERO per axis; fewer than 2 x 2 kept points is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Scale-invariant: a weighted host's sum-of-weights table is read as is under either weight kind. Descriptive (no p-value).",
+        "description": "Simple correspondence analysis (R's ca::ca) of the host crosstab — a perceptual map placing rows and columns in a few shared dimensions — from the SVD (linalg.SVD) of the standardized residual matrix S = D_r^-1/2 (P - r c^T) D_c^-1/2. MATRIX scope over a MATRIX (crosstab) host. The primary SERIES holds the principal inertia of each of the min(r, c) - 1 dimensions (keys dim_1, dim_2, ...; entry parameters share, cumulative_share, singular_value); Summary.Statistic is the total inertia (chi-square / n) and its parameters carry dimensions, retained_share and share_dim_\u003ck\u003e. payload.parts: row_coordinates / column_coordinates (MATRIX points x retained dimensions, columns keyed dim_1 ...), row_quality / column_quality (SERIES, cos^2 summed over the retained dimensions; parameters mass, inertia), row_contribution / column_contribution (MATRIX, each point's share of a dimension's inertia) and row_distance / column_distance (MATRIX points x points: the pairwise chi-square distances between profiles — the chi_square metric over the other axis's masses, symmetric, 0 diagonal, independent of dimensions and normalization). params: dimensions (integer, default 2 capped at min(r, c) - 1; an explicit value above it is PULSE_OVERLAY_PARAM_MISSING) and normalization (symmetric [default: both principal] | row_principal | column_principal). Signs follow linalg.SVD: per dimension the dominant component of the column singular vector is positive. Cells must be non-negative masses: a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED. Zero-total rows / columns are dropped with one PULSE_OVERLAY_REF_ZERO per axis; fewer than 2 x 2 kept points is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Scale-invariant: a weighted host's sum-of-weights table is read as is under either weight kind. Descriptive (no p-value).",
         "intents": [
           "composition",
           "relationship"
@@ -12964,6 +13251,10 @@
             "shape": "matrix"
           },
           {
+            "name": "column_distance",
+            "shape": "matrix"
+          },
+          {
             "name": "column_quality",
             "shape": "series"
           },
@@ -12973,6 +13264,10 @@
           },
           {
             "name": "row_coordinates",
+            "shape": "matrix"
+          },
+          {
+            "name": "row_distance",
             "shape": "matrix"
           },
           {
@@ -12993,7 +13288,7 @@
           "BaselineIndex"
         ],
         "buffered": true,
-        "description": "Per-point additive delta against a single fixed positional baseline of an ordered SERIES (grouped Process) host: point_value - baseline_value. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the delta on Summary.Statistic. Absolute-difference sibling of OVERLAY_INDEX_VS_BASELINE. Consumes the Ref.BaselineIndex.Position arm of the OverlayBaselineIndexRef union. The baseline is resolved ONCE up front via processing.ResolveBaselineIndex and every present point subtracts it. The first present point at the baseline ordinal yields 0.0 (self-vs-self). Output preserves the host cell's units — a $-valued AGG_SUM point minus a $-valued baseline yields a $-valued deviation in the same currency (mirrors OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_SIBLING). Unlike the OVERLAY_INDEX_VS_BASELINE twin (which divides by the baseline and rejects zero with PULSE_OVERLAY_REF_ZERO), DELTA_VS_BASELINE performs subtraction and is mathematically defined for every finite baseline value including zero — the handler does NOT emit PULSE_OVERLAY_REF_ZERO; a zero baseline simply yields delta = point - 0 = point (the raw host value passes through). Negative or out-of-range Position values fire PULSE_OVERLAY_REF_UNKNOWN at both predict and runtime with {baseline_index, series_length} Details. Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset. Ref.BaselineIndex MUST be populated; any other ref-family pointer (Margin / Sibling / Prior / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (the baseline is a single fixed positional anchor, not an axis prefix); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_BASELINE / INDEX_VS_PRIOR / INDEX_VS_TOTAL family. Buffered — resolving a single positional baseline requires the materialised host series. Renderers centre diverging colour ramps on baseline=0 (mirrors OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_SIBLING / OVERLAY_ZSCORE_VS_*). Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
+        "description": "Per-point additive delta against a single fixed positional baseline of an ordered SERIES (grouped Process) host: point_value - baseline_value. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the delta on Summary.Statistic. Absolute-difference sibling of OVERLAY_INDEX_VS_BASELINE. Consumes the Ref.BaselineIndex.Position arm of the OverlayBaselineIndexRef union. The baseline is resolved ONCE up front via processing.ResolveBaselineIndex and every present point subtracts it. The first present point at the baseline ordinal yields 0.0 (self-vs-self). Output preserves the host cell's units — a $-valued AGG_SUM point minus a $-valued baseline yields a $-valued deviation in the same currency (mirrors OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_SIBLING). Unlike the OVERLAY_INDEX_VS_BASELINE twin (which divides by the baseline and rejects zero with PULSE_OVERLAY_REF_ZERO), DELTA_VS_BASELINE performs subtraction and is mathematically defined for every finite baseline value including zero — the handler does NOT emit PULSE_OVERLAY_REF_ZERO; a zero baseline simply yields delta = point - 0 = point (the raw host value passes through). Negative or out-of-range Position values fire PULSE_OVERLAY_REF_UNKNOWN at both predict and runtime with {baseline_index, series_length} Details. Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset. Ref.BaselineIndex MUST be populated; any other ref-family pointer (Margin / Sibling / Prior / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (the baseline is a single fixed positional anchor, not an axis prefix); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_BASELINE / INDEX_VS_PRIOR / INDEX_VS_TOTAL family. Buffered — resolving a single positional baseline requires the materialised host series. Renderers centre diverging colour ramps on baseline=0 (mirrors OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_SIBLING / OVERLAY_ZSCORE_VS_*). Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
         "intents": [
           "change_over_time"
         ]
@@ -13031,7 +13326,7 @@
           "Prior"
         ],
         "buffered": false,
-        "description": "Per-point windowed ADDITIVE DELTA against the immediately preceding point of an ordered SERIES (grouped Process) host: point_value - prior_value. The absolute-difference twin of OVERLAY_INDEX_VS_PRIOR, standing to it as OVERLAY_DELTA_VS_BASELINE stands to OVERLAY_INDEX_VS_BASELINE: same host shape, same Ref.Prior arm, same single-state lag carrier, subtraction where the index divides. Answers \"how much did this change\" where the index answers \"what proportion of the prior is this\"; the two are not interchangeable in a report. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the delta on Summary.Statistic. The single-state lag carrier is one f64 carried alongside the per-group accumulators inside the streaming Process fold; the post-host finalize is the subtract step. First present point emits NaN (no prior available — a delta of zero would claim nothing changed about a comparison never made). NEVER emits PULSE_OVERLAY_REF_ZERO: a prior of exactly zero is a valid subtrahend, so the degenerate-denominator branch the index twin needs has no counterpart here. Absent host points emit a present SeriesEntry whose Summary leaves Statistic unset and do NOT advance the lag carrier — the next present point compares against the most recent PRESENT value. Ref accepts either Ref.Prior (with Lag zero or unset for v1) or an entirely empty Ref; any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. Level / Within MUST be zero; non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Scope must be GROUP. Streamable. Renderers centre diverging colour ramps on baseline=0 (mirrors OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_MARGIN), NOT on the index family's 100. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
+        "description": "Per-point windowed ADDITIVE DELTA against the immediately preceding point of an ordered SERIES (grouped Process) host: point_value - prior_value. The absolute-difference twin of OVERLAY_INDEX_VS_PRIOR, standing to it as OVERLAY_DELTA_VS_BASELINE stands to OVERLAY_INDEX_VS_BASELINE: same host shape, same Ref.Prior arm, same single-state lag carrier, subtraction where the index divides. Answers \"how much did this change\" where the index answers \"what proportion of the prior is this\"; the two are not interchangeable in a report. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the delta on Summary.Statistic. The single-state lag carrier is one f64 carried alongside the per-group accumulators inside the streaming Process fold; the post-host finalize is the subtract step. First present point emits NaN (no prior available — a delta of zero would claim nothing changed about a comparison never made). NEVER emits PULSE_OVERLAY_REF_ZERO: a prior of exactly zero is a valid subtrahend, so the degenerate-denominator branch the index twin needs has no counterpart here. Absent host points emit a present SeriesEntry whose Summary leaves Statistic unset and do NOT advance the lag carrier — the next present point compares against the most recent PRESENT value. Ref accepts either Ref.Prior (with Lag zero or unset for v1) or an entirely empty Ref; any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. Level / Within MUST be zero; non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Scope must be GROUP. Streamable. Renderers centre diverging colour ramps on baseline=0 (mirrors OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_MARGIN), NOT on the index family's 100. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
         "intents": [
           "change_over_time"
         ]
@@ -13048,7 +13343,7 @@
         ],
         "ref_kinds": [],
         "buffered": false,
-        "description": "COMPOSE-host dual-shape additive delta of each target slot's value against the matching reference slot value: target - ref. Dual-shape overload — the host-shape disambiguator (matrix vs series) routes the per-coordinate / per-group dispatch: MATRIX host emits per-cell deltas at (rowKey, colKey) with CELL scope; SERIES host emits per-group deltas at the host's group key with GROUP scope. Subtractive sibling of OVERLAY_INDEX_VS_REF. Output preserves the target slot's units — a $-valued AGG_SUM target value minus a $-valued reference value yields a $-valued deviation in the same currency (mirrors OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_SIBLING). Unlike the OVERLAY_INDEX_VS_REF sibling (which divides by the reference value and emits PULSE_OVERLAY_REF_ZERO against a zero denominator), DELTA_VS_REF performs subtraction and is mathematically defined for every finite reference value including zero — the handler does NOT emit PULSE_OVERLAY_REF_ZERO on a zero reference. Missing reference rows / cells (target carries a key the reference did not surface) still emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag. Renderers centre diverging colour ramps on baseline=0. Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches. Streamable via the SERIES dispatch (the MATRIX route is forced buffered through the slot barrier in service.Compose / service.ComposeParallel; the flag describes the kind's INTRINSIC streaming capability via its SERIES handler, mirroring OVERLAY_INDEX_VS_REF's dual-shape convention). Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on every slot it reads; absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime.",
+        "description": "COMPOSE-host dual-shape additive delta of each target slot's value against the matching reference slot value: target - ref. Dual-shape overload — the host-shape disambiguator (matrix vs series) routes the per-coordinate / per-group dispatch: MATRIX host emits per-cell deltas at (rowKey, colKey) with CELL scope; SERIES host emits per-group deltas at the host's group key with GROUP scope. Subtractive sibling of OVERLAY_INDEX_VS_REF. Output preserves the target slot's units — a $-valued AGG_SUM target value minus a $-valued reference value yields a $-valued deviation in the same currency (mirrors OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_SIBLING). Unlike the OVERLAY_INDEX_VS_REF sibling (which divides by the reference value and emits PULSE_OVERLAY_REF_ZERO against a zero denominator), DELTA_VS_REF performs subtraction and is mathematically defined for every finite reference value including zero — the handler does NOT emit PULSE_OVERLAY_REF_ZERO on a zero reference. Missing reference rows / cells (target carries a key the reference did not surface) still emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag. Renderers centre diverging colour ramps on baseline=0. Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches. Streamable via the SERIES dispatch (the MATRIX route is forced buffered through the slot barrier in service.Compose / service.ComposeParallel; the flag describes the kind's INTRINSIC streaming capability via its SERIES handler, mirroring OVERLAY_INDEX_VS_REF's dual-shape convention). Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value) on every slot it reads; absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime.",
         "intents": [
           "benchmark"
         ]
@@ -13065,7 +13360,7 @@
           "Sibling"
         ],
         "buffered": true,
-        "description": "Per-group additive delta against a sibling group named in Ref.Sibling: group_val - sibling_val per host group key. GROUP scope over a SERIES (grouped Process) host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the delta on Summary.Statistic. The sibling is identified by (Field, Value): Field names a grouper Field on the host, Value names the specific axis-key value to compare against. The sibling group itself emits 0 (self-vs-self under additive subtraction). Buffered (sibling resolution requires the full materialised SeriesPayload — the streaming Process pass cannot resolve a (Field, Value) lookup against the per-group accumulators until they are finalised). Output preserves the host cell's units — a $-valued AGG_SUM group minus a $-valued sibling AGG_SUM group yields a $-valued deviation in the same currency. Unknown sibling (Field not on host OR Value not observed) emits PULSE_OVERLAY_REF_UNKNOWN with NaN statistics across every present entry. DELTA does NOT emit PULSE_OVERLAY_REF_ZERO when sibling resolves to a zero value — subtraction by zero is well-defined and just recovers the host's raw value. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset and do NOT participate in the delta computation. Renderers centre diverging colour ramps on baseline=0. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
+        "description": "Per-group additive delta against a sibling group named in Ref.Sibling: group_val - sibling_val per host group key. GROUP scope over a SERIES (grouped Process) host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the delta on Summary.Statistic. The sibling is identified by (Field, Value): Field names a grouper Field on the host, Value names the specific axis-key value to compare against. The sibling group itself emits 0 (self-vs-self under additive subtraction). Buffered (sibling resolution requires the full materialised SeriesPayload — the streaming Process pass cannot resolve a (Field, Value) lookup against the per-group accumulators until they are finalised). Output preserves the host cell's units — a $-valued AGG_SUM group minus a $-valued sibling AGG_SUM group yields a $-valued deviation in the same currency. Unknown sibling (Field not on host OR Value not observed) emits PULSE_OVERLAY_REF_UNKNOWN with NaN statistics across every present entry. DELTA does NOT emit PULSE_OVERLAY_REF_ZERO when sibling resolves to a zero value — subtraction by zero is well-defined and just recovers the host's raw value. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset and do NOT participate in the delta computation. Renderers centre diverging colour ramps on baseline=0. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
         "intents": [
           "benchmark"
         ]
@@ -13084,7 +13379,7 @@
           "Stage"
         ],
         "buffered": true,
-        "description": "Whole-chain additive-delta overlay against another ProcessChain stage's result: target_val - ref_val per host coordinate. Second whole-chain overlay in the catalog. CHAIN scope over a CHAIN (ProcessChain) host with a shape inherited from the target stage (scalar / series / matrix). Sibling subtractive twin of OVERLAY_INDEX_VS_STAGE — the runtime handler runs at the post-stage-loop barrier inside service.ProcessChain (applyChainOverlays hook on service/chain.go) against already-materialised *Response objects for each Stages[i]. No record re-traversal. Default Target = latest stage (Target.Index nil AND Target.Name empty); Ref has no default — every spec MUST name a baseline stage explicitly. Unknown stage path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN (Target arm) or PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref arm) — both canonical chain-overlay missing-stage codes. Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from the reference stage's host shape the divergence is a PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT WARNING on predict-chain and at runtime (the chain runs; the layer is an empty payload in the target stage's shape). Unlike OVERLAY_INDEX_VS_STAGE (divides by the reference value), DELTA_VS_STAGE performs subtraction and is mathematically defined for every finite reference value including zero — the handler does NOT emit PULSE_OVERLAY_REF_ZERO. Mirrors the OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_SIBLING family rule. Ref MUST populate Ref.Stage (StageRef); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. Scope must be `total`. Level / Within MUST be zero. Buffered — whole-chain kinds always run after every stage has finalised. Renderers centre diverging colour ramps on baseline=0 (mirrors the rest of the DELTA family on other host shapes). Measure: on SERIES stages the overlay keys each row on the stage's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on the target and the reference stage; absent, each stage's Aggregations[0]. A label a stage lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.which, stage_index) at predict and at runtime.",
+        "description": "Whole-chain additive-delta overlay against another ProcessChain stage's result: target_val - ref_val per host coordinate. Second whole-chain overlay in the catalog. CHAIN scope over a CHAIN (ProcessChain) host with a shape inherited from the target stage (scalar / series / matrix). Sibling subtractive twin of OVERLAY_INDEX_VS_STAGE — the runtime handler runs at the post-stage-loop barrier inside service.ProcessChain (applyChainOverlays hook on service/chain.go) against already-materialised *Response objects for each Stages[i]. No record re-traversal. Default Target = latest stage (Target.Index nil AND Target.Name empty); Ref has no default — every spec MUST name a baseline stage explicitly. Unknown stage path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN (Target arm) or PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref arm) — both canonical chain-overlay missing-stage codes. Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from the reference stage's host shape the divergence is a PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT WARNING on predict-chain and at runtime (the chain runs; the layer is an empty payload in the target stage's shape). Unlike OVERLAY_INDEX_VS_STAGE (divides by the reference value), DELTA_VS_STAGE performs subtraction and is mathematically defined for every finite reference value including zero — the handler does NOT emit PULSE_OVERLAY_REF_ZERO. Mirrors the OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_MARGIN / OVERLAY_DELTA_VS_SIBLING family rule. Ref MUST populate Ref.Stage (StageRef); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. Scope must be `total`. Level / Within MUST be zero. Buffered — whole-chain kinds always run after every stage has finalised. Renderers centre diverging colour ramps on baseline=0 (mirrors the rest of the DELTA family on other host shapes). Measure: on SERIES stages the overlay keys each row on the stage's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value) on the target and the reference stage; absent, each stage's Aggregations[0]. A label a stage lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.which, stage_index) at predict and at runtime.",
         "intents": [
           "benchmark"
         ]
@@ -13139,7 +13434,7 @@
           "BaselineIndex"
         ],
         "buffered": true,
-        "description": "Per-point ratio index against a single fixed positional baseline of an ordered SERIES (grouped Process) host: (point_value / baseline_value) * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. Sibling ratio twin of OVERLAY_DELTA_VS_BASELINE and a member of the windowed-Process family alongside OVERLAY_INDEX_VS_PRIOR. Consumes the Ref.BaselineIndex.Position arm of the OverlayBaselineIndexRef union. The baseline is resolved ONCE up front via processing.ResolveBaselineIndex and every present point divides by it. The first present point at the baseline ordinal yields 100.0 (self-vs-self). Zero baseline (resolved baseline_value is 0 — includes the absent-baseline case where host.ValueAt returns (0, false) at the baseline ordinal) emits ONE PULSE_OVERLAY_REF_ZERO warning carrying the baseline ordinal and the host group count; every entry's Statistic is NaN. Negative or out-of-range Position values fire PULSE_OVERLAY_REF_UNKNOWN at both predict and runtime with {baseline_index, series_length} Details. Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset. Ref.BaselineIndex MUST be populated; any other ref-family pointer (Margin / Sibling / Prior / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (the baseline is a single fixed positional anchor, not an axis prefix); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_TOTAL family. Buffered — resolving a single positional baseline requires the materialised host series. Renderers centre diverging colour ramps on baseline=100. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
+        "description": "Per-point ratio index against a single fixed positional baseline of an ordered SERIES (grouped Process) host: (point_value / baseline_value) * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. Sibling ratio twin of OVERLAY_DELTA_VS_BASELINE and a member of the windowed-Process family alongside OVERLAY_INDEX_VS_PRIOR. Consumes the Ref.BaselineIndex.Position arm of the OverlayBaselineIndexRef union. The baseline is resolved ONCE up front via processing.ResolveBaselineIndex and every present point divides by it. The first present point at the baseline ordinal yields 100.0 (self-vs-self). Zero baseline (resolved baseline_value is 0 — includes the absent-baseline case where host.ValueAt returns (0, false) at the baseline ordinal) emits ONE PULSE_OVERLAY_REF_ZERO warning carrying the baseline ordinal and the host group count; every entry's Statistic is NaN. Negative or out-of-range Position values fire PULSE_OVERLAY_REF_UNKNOWN at both predict and runtime with {baseline_index, series_length} Details. Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset. Ref.BaselineIndex MUST be populated; any other ref-family pointer (Margin / Sibling / Prior / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (the baseline is a single fixed positional anchor, not an axis prefix); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_TOTAL family. Buffered — resolving a single positional baseline requires the materialised host series. Renderers centre diverging colour ramps on baseline=100. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
         "intents": [
           "change_over_time"
         ]
@@ -13194,7 +13489,7 @@
           "Prior"
         ],
         "buffered": false,
-        "description": "Per-point windowed index against the immediately preceding point of an ordered SERIES (grouped Process) host: (point_value / prior_value) * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. First streamable windowed-Process overlay in the catalog and the first kind to consume the Ref.Prior arm of the OverlayRef discriminated union. The single-state lag carrier is one f64 carried alongside the per-group accumulators inside the streaming Process fold (no second pass over records); the post-host finalize is the divide step. First present point emits NaN, null in JSON (no prior available — not a zero-denominator path, so no warning). Zero prior value emits PULSE_OVERLAY_REF_ZERO with NaN on the affected entry. Absent host points emit a present SeriesEntry whose Summary leaves Statistic unset and do NOT advance the lag carrier — the next present point compares against the most recent PRESENT value. Ref accepts either Ref.Prior (with Lag zero or unset for v1; non-zero Lag is reserved for future window-N priors) or an entirely empty Ref (the implicit-default authoring shape); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the lag carrier folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Renderers centre diverging colour ramps on baseline=100. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
+        "description": "Per-point windowed index against the immediately preceding point of an ordered SERIES (grouped Process) host: (point_value / prior_value) * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. First streamable windowed-Process overlay in the catalog and the first kind to consume the Ref.Prior arm of the OverlayRef discriminated union. The single-state lag carrier is one f64 carried alongside the per-group accumulators inside the streaming Process fold (no second pass over records); the post-host finalize is the divide step. First present point emits NaN, null in JSON (no prior available — not a zero-denominator path, so no warning). Zero prior value emits PULSE_OVERLAY_REF_ZERO with NaN on the affected entry. Absent host points emit a present SeriesEntry whose Summary leaves Statistic unset and do NOT advance the lag carrier — the next present point compares against the most recent PRESENT value. Ref accepts either Ref.Prior (with Lag zero or unset for v1; non-zero Lag is reserved for future window-N priors) or an entirely empty Ref (the implicit-default authoring shape); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the lag carrier folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Renderers centre diverging colour ramps on baseline=100. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
         "intents": [
           "change_over_time"
         ]
@@ -13211,7 +13506,7 @@
         ],
         "ref_kinds": [],
         "buffered": false,
-        "description": "COMPOSE-host dual-shape ratio index of each target slot's value against the matching reference slot value: (target / ref) * scale where scale defaults to 100 (set Params[\"scale\"] = 1 for a raw ratio). Dual-shape overload — the host-shape disambiguator (matrix vs series) routes the per-coordinate / per-group dispatch: MATRIX host emits per-cell ratios at (rowKey, colKey) with CELL scope; SERIES host emits per-group ratios at the host's group key with GROUP scope. First COMPOSE-only crosstab-shape overlay kind in the catalog and the first kind to consume the ComposeOverlaySpec.Reference / Targets slot-label pair across both MATRIX and SERIES slots. Ratio sibling of OVERLAY_DELTA_VS_REF (subtractive twin). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches — the handler receives finalised *Response objects for both slots with byte-aligned key sets and identical structural schemas. Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN substitution; missing reference rows / cells (target carries a key the reference did not surface) emit the same code with a ref_missing=true Detail flag. Streamable via the SERIES dispatch (the MATRIX route is forced buffered through the slot barrier in service.Compose / service.ComposeParallel; the flag describes the kind's INTRINSIC streaming capability via its SERIES handler, mirroring OVERLAY_SHARE_OF_TOTAL's dual-shape convention). Renderers centre diverging colour ramps on baseline=scale (default 100 mirrors the per-Request INDEX_VS_* family). Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on every slot it reads; absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime.",
+        "description": "COMPOSE-host dual-shape ratio index of each target slot's value against the matching reference slot value: (target / ref) * scale where scale defaults to 100 (set Params[\"scale\"] = 1 for a raw ratio). Dual-shape overload — the host-shape disambiguator (matrix vs series) routes the per-coordinate / per-group dispatch: MATRIX host emits per-cell ratios at (rowKey, colKey) with CELL scope; SERIES host emits per-group ratios at the host's group key with GROUP scope. First COMPOSE-only crosstab-shape overlay kind in the catalog and the first kind to consume the ComposeOverlaySpec.Reference / Targets slot-label pair across both MATRIX and SERIES slots. Ratio sibling of OVERLAY_DELTA_VS_REF (subtractive twin). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches — the handler receives finalised *Response objects for both slots with byte-aligned key sets and identical structural schemas. Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN substitution; missing reference rows / cells (target carries a key the reference did not surface) emit the same code with a ref_missing=true Detail flag. Streamable via the SERIES dispatch (the MATRIX route is forced buffered through the slot barrier in service.Compose / service.ComposeParallel; the flag describes the kind's INTRINSIC streaming capability via its SERIES handler, mirroring OVERLAY_SHARE_OF_TOTAL's dual-shape convention). Renderers centre diverging colour ramps on baseline=scale (default 100 mirrors the per-Request INDEX_VS_* family). Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value) on every slot it reads; absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime.",
         "intents": [
           "benchmark"
         ]
@@ -13228,7 +13523,7 @@
           "RollingMean"
         ],
         "buffered": true,
-        "description": "Per-point windowed index against the arithmetic mean of the W immediately preceding points of an ordered SERIES (grouped Process) host: point_value / mean(point[i-W] .. point[i-1]) * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. Member of the windowed-Process overlay family alongside OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE, and the first kind to consume the Ref.RollingMean arm of the OverlayRef discriminated union. Window-via-Params convention: the rolling window width is supplied via OverlaySpec.Params[\"window\"] as a positive integer (mirrors the WIN_* operator convention; see skills/window-design.md). The Ref.RollingMean arm is an empty marker struct tagging the ref family — the v1 window value lives entirely on Params. The handler maintains a per-group ring buffer of the W most recently observed PRESENT values plus a Welford (count, mean, M2) trio shared with the OVERLAY_ZSCORE_VS_ROLLING handler (sibling windowed-rolling kind reuses the same ref-arm). Window-fill semantics: the first W present ordinals all emit NaN (null in JSON) without warning — \"window not yet filled\" is structurally distinct from \"denominator was zero\". Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset and DO NOT advance the ring buffer — the next present ordinal compares against the most recent W PRESENT values, not absent slots. Zero rolling-mean value (every prior point in the window was zero) emits ONE PULSE_OVERLAY_REF_ZERO warning per layer and surfaces NaN on the affected entries. Missing Params[\"window\"] fires PULSE_OVERLAY_PARAM_MISSING; non-positive or non-integer window fires PULSE_OVERLAY_LEVEL_OUT_OF_RANGE (the LEVEL_OUT_OF_RANGE code is reused for \"value out of valid range\" semantics so the new code surface stays narrow). Ref.RollingMean MUST be populated (empty marker is fine); any other ref-family pointer (Margin / Sibling / Prior / BaselineIndex / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the rolling-mean carrier folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_TOTAL family. Buffered — the ring buffer carries the full window of present values, larger than the single-state lag accumulator INDEX_VS_PRIOR uses, so the streaming Process pass cannot maintain it inline with the per-record fold today. Renderers centre diverging colour ramps on baseline=100 (mirrors OVERLAY_INDEX_VS_MARGIN / OVERLAY_INDEX_VS_TOTAL / OVERLAY_INDEX_VS_SIBLING / OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE). Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
+        "description": "Per-point windowed index against the arithmetic mean of the W immediately preceding points of an ordered SERIES (grouped Process) host: point_value / mean(point[i-W] .. point[i-1]) * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. Member of the windowed-Process overlay family alongside OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE, and the first kind to consume the Ref.RollingMean arm of the OverlayRef discriminated union. Window-via-Params convention: the rolling window width is supplied via OverlaySpec.Params[\"window\"] as a positive integer (mirrors the WIN_* operator convention; see skills/window-design.md). The Ref.RollingMean arm is an empty marker struct tagging the ref family — the v1 window value lives entirely on Params. The handler maintains a per-group ring buffer of the W most recently observed PRESENT values plus a Welford (count, mean, M2) trio shared with the OVERLAY_ZSCORE_VS_ROLLING handler (sibling windowed-rolling kind reuses the same ref-arm). Window-fill semantics: the first W present ordinals all emit NaN (null in JSON) without warning — \"window not yet filled\" is structurally distinct from \"denominator was zero\". Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset and DO NOT advance the ring buffer — the next present ordinal compares against the most recent W PRESENT values, not absent slots. Zero rolling-mean value (every prior point in the window was zero) emits ONE PULSE_OVERLAY_REF_ZERO warning per layer and surfaces NaN on the affected entries. Missing Params[\"window\"] fires PULSE_OVERLAY_PARAM_MISSING; non-positive or non-integer window fires PULSE_OVERLAY_LEVEL_OUT_OF_RANGE (the LEVEL_OUT_OF_RANGE code is reused for \"value out of valid range\" semantics so the new code surface stays narrow). Ref.RollingMean MUST be populated (empty marker is fine); any other ref-family pointer (Margin / Sibling / Prior / BaselineIndex / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the rolling-mean carrier folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_TOTAL family. Buffered — the ring buffer carries the full window of present values, larger than the single-state lag accumulator INDEX_VS_PRIOR uses, so the streaming Process pass cannot maintain it inline with the per-record fold today. Renderers centre diverging colour ramps on baseline=100 (mirrors OVERLAY_INDEX_VS_MARGIN / OVERLAY_INDEX_VS_TOTAL / OVERLAY_INDEX_VS_SIBLING / OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE). Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
         "intents": [
           "change_over_time"
         ]
@@ -13245,7 +13540,7 @@
           "Sibling"
         ],
         "buffered": true,
-        "description": "Per-group ratio index against a sibling group named in Ref.Sibling: (group_val / sibling_val) * 100.0 per host group key. GROUP scope over a SERIES (grouped Process) host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. The sibling is identified by (Field, Value): Field names a grouper Field on the host, Value names the specific axis-key value to compare against. The sibling group itself emits 100.0 (self-vs-self under the ratio scaling). Buffered (sibling resolution requires the full materialised SeriesPayload — the streaming Process pass cannot resolve a (Field, Value) lookup against the per-group accumulators until they are finalised). Unknown sibling (Field not on host OR Value not observed) emits PULSE_OVERLAY_REF_UNKNOWN with NaN statistics across every present entry. Zero sibling value (legitimate group with a zero post-filter sum) emits PULSE_OVERLAY_REF_ZERO with NaN statistics — division by zero is undefined and the same PULSE_OVERLAY_REF_ZERO contract used by the SERIES INDEX_VS_TOTAL / SHARE_OF_TOTAL kinds applies. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset and do NOT participate in the index computation. Renderers centre diverging colour ramps on baseline=100. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
+        "description": "Per-group ratio index against a sibling group named in Ref.Sibling: (group_val / sibling_val) * 100.0 per host group key. GROUP scope over a SERIES (grouped Process) host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. The sibling is identified by (Field, Value): Field names a grouper Field on the host, Value names the specific axis-key value to compare against. The sibling group itself emits 100.0 (self-vs-self under the ratio scaling). Buffered (sibling resolution requires the full materialised SeriesPayload — the streaming Process pass cannot resolve a (Field, Value) lookup against the per-group accumulators until they are finalised). Unknown sibling (Field not on host OR Value not observed) emits PULSE_OVERLAY_REF_UNKNOWN with NaN statistics across every present entry. Zero sibling value (legitimate group with a zero post-filter sum) emits PULSE_OVERLAY_REF_ZERO with NaN statistics — division by zero is undefined and the same PULSE_OVERLAY_REF_ZERO contract used by the SERIES INDEX_VS_TOTAL / SHARE_OF_TOTAL kinds applies. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset and do NOT participate in the index computation. Renderers centre diverging colour ramps on baseline=100. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
         "intents": [
           "benchmark"
         ]
@@ -13264,7 +13559,7 @@
           "Stage"
         ],
         "buffered": true,
-        "description": "Whole-chain ratio overlay against another ProcessChain stage's result: (target_val / ref_val) * 100 per host coordinate. First whole-chain overlay in the catalog and the first consumer of the StageRef discriminated reference family (Ref + Target on ChainOverlaySpec — each populates exactly one of Index / Name per StageRef value). CHAIN scope over a CHAIN (ProcessChain) host with a shape inherited from the target stage (scalar / series / matrix). The runtime handler runs at the post-stage-loop barrier inside service.ProcessChain (applyChainOverlays hook on service/chain.go) against already-materialised *Response objects for each Stages[i]. No record re-traversal. Default Target = latest stage (Target.Index nil AND Target.Name empty); Ref has no default — every spec MUST name a baseline stage explicitly. Unknown stage path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN (Target arm) or PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref arm) — both canonical chain-overlay missing-stage codes. Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from the reference stage's host shape the divergence is a PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT WARNING on predict-chain and at runtime (the chain runs; the layer is an empty payload in the target stage's shape). Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN on the affected coordinates (mirrors the rest of the INDEX_VS_* family). Ref MUST populate Ref.Stage (StageRef); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. Scope must be `total`. Level / Within MUST be zero. Buffered — whole-chain kinds always run after every stage has finalised. Renderers centre diverging colour ramps on baseline=100 (mirrors the rest of the INDEX_VS_* family on other host shapes). Measure: on SERIES stages the overlay keys each row on the stage's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on the target and the reference stage; absent, each stage's Aggregations[0]. A label a stage lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.which, stage_index) at predict and at runtime.",
+        "description": "Whole-chain ratio overlay against another ProcessChain stage's result: (target_val / ref_val) * 100 per host coordinate. First whole-chain overlay in the catalog and the first consumer of the StageRef discriminated reference family (Ref + Target on ChainOverlaySpec — each populates exactly one of Index / Name per StageRef value). CHAIN scope over a CHAIN (ProcessChain) host with a shape inherited from the target stage (scalar / series / matrix). The runtime handler runs at the post-stage-loop barrier inside service.ProcessChain (applyChainOverlays hook on service/chain.go) against already-materialised *Response objects for each Stages[i]. No record re-traversal. Default Target = latest stage (Target.Index nil AND Target.Name empty); Ref has no default — every spec MUST name a baseline stage explicitly. Unknown stage path: Index out of range OR Name unmatched fires PULSE_OVERLAY_TARGET_UNKNOWN (Target arm) or PULSE_OVERLAY_REFERENCE_UNKNOWN (Ref arm) — both canonical chain-overlay missing-stage codes. Shape-divergence rule (PRD §6 FR-F2): when the target stage's host shape differs from the reference stage's host shape the divergence is a PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT WARNING on predict-chain and at runtime (the chain runs; the layer is an empty payload in the target stage's shape). Zero reference value emits PULSE_OVERLAY_REF_ZERO with NaN on the affected coordinates (mirrors the rest of the INDEX_VS_* family). Ref MUST populate Ref.Stage (StageRef); any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. Scope must be `total`. Level / Within MUST be zero. Buffered — whole-chain kinds always run after every stage has finalised. Renderers centre diverging colour ramps on baseline=100 (mirrors the rest of the INDEX_VS_* family on other host shapes). Measure: on SERIES stages the overlay keys each row on the stage's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value) on the target and the reference stage; absent, each stage's Aggregations[0]. A label a stage lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.which, stage_index) at predict and at runtime.",
         "intents": [
           "benchmark"
         ]
@@ -13279,7 +13574,7 @@
         ],
         "ref_kinds": [],
         "buffered": false,
-        "description": "Per-group index score against the grand total of a SERIES (grouped Process) host: (group_val / grand_total) * 100.0 per host group key. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. First streamable overlay in the catalog — the grand-total accumulator is one f64 carried alongside the per-group accumulators inside the streaming Process fold (no second pass over records); the post-host finalize divides each group value by the running grand total. The Ref union is left empty (implicit-grand-total); zero grand_total emits PULSE_OVERLAY_REF_ZERO with NaN statistics. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. Each row is scored against its partition's total (and, for the z-score, its partition's mean and SD); partition_by [] restores the grand total over every row.",
+        "description": "Per-group index score against the grand total of a SERIES (grouped Process) host: (group_val / grand_total) * 100.0 per host group key. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the index on Summary.Statistic. First streamable overlay in the catalog — the grand-total accumulator is one f64 carried alongside the per-group accumulators inside the streaming Process fold (no second pass over records); the post-host finalize divides each group value by the running grand total. The Ref union is left empty (implicit-grand-total); zero grand_total emits PULSE_OVERLAY_REF_ZERO with NaN statistics. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. Each row is scored against its partition's total (and, for the z-score, its partition's mean and SD); partition_by [] restores the grand total over every row.",
         "intents": [
           "composition"
         ]
@@ -13485,7 +13780,7 @@
         ],
         "ref_kinds": [],
         "buffered": false,
-        "description": "COMPOSE-host MULTI-REFERENCE dual-shape ratio index of each target slot against the SHARED reference slot. Emits ONE OverlayLayer per target — the chassis dispatches a multi-layer return surface so a single ComposeOverlaySpec produces len(spec.Targets) entries in the parent ComposedResponse.Overlays slice. Layer naming convention: \"\u003cspec.Name\u003e__\u003ctarget_label\u003e\" so renderers can address every panel target by a stable handle (spec.Name empty falls back to the kind string per the chassis composeOverlayLayerName precedent — degenerate naming becomes \"OVERLAY_PANEL_INDEX_VS_REF__\u003ctarget_label\u003e\"). Shared coord space guarantee: the schema-match and key-alignment gates enforce coord-space identity across every (reference, target) pair BEFORE the handler dispatches, so every emitted layer's row/col axis descriptors are byte-identical (matrix host) or share the same group key set (series host). Each emitted layer is mathematically equivalent to OVERLAY_INDEX_VS_REF for that single (reference, target[i]) pair — the handler reuses applyIndexVsRef verbatim per target, then renames the resulting layer per the template above. Per-target byte-identity with the single-pair OVERLAY_INDEX_VS_REF output for the same slots holds. Cap enforcement — OverlayOptions.MaxPanelTargets: default 16 when Options is nil OR Options.MaxPanelTargets == 0 (mirrors OVERLAY_PROP_Z_PANEL — the catalog standardises on one cap surface so renderers can budget panel-layout state against a single knob). len(spec.Targets) \u003e MaxPanelTargets fires PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP at handler entry with {kind, observed, cap} Details. Layer slice order: spec order then target order — layers[i] corresponds to spec.Targets[i] so renderers can address the emitted panel by target offset. Streamable via per-target SERIES emission (the MATRIX route is forced buffered through the slot barrier in service.Compose / service.ComposeParallel — the same dual-shape convention OVERLAY_INDEX_VS_REF / OVERLAY_DELTA_VS_REF use). Renderers centre diverging colour ramps on baseline=scale (default 100 mirrors the per-Request INDEX_VS_* family). Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on every slot it reads; absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime.",
+        "description": "COMPOSE-host MULTI-REFERENCE dual-shape ratio index of each target slot against the SHARED reference slot. Emits ONE OverlayLayer per target — the chassis dispatches a multi-layer return surface so a single ComposeOverlaySpec produces len(spec.Targets) entries in the parent ComposedResponse.Overlays slice. Layer naming convention: \"\u003cspec.Name\u003e__\u003ctarget_label\u003e\" so renderers can address every panel target by a stable handle (spec.Name empty falls back to the kind string per the chassis composeOverlayLayerName precedent — degenerate naming becomes \"OVERLAY_PANEL_INDEX_VS_REF__\u003ctarget_label\u003e\"). Shared coord space guarantee: the schema-match and key-alignment gates enforce coord-space identity across every (reference, target) pair BEFORE the handler dispatches, so every emitted layer's row/col axis descriptors are byte-identical (matrix host) or share the same group key set (series host). Each emitted layer is mathematically equivalent to OVERLAY_INDEX_VS_REF for that single (reference, target[i]) pair — the handler reuses applyIndexVsRef verbatim per target, then renames the resulting layer per the template above. Per-target byte-identity with the single-pair OVERLAY_INDEX_VS_REF output for the same slots holds. Cap enforcement — OverlayOptions.MaxPanelTargets: default 16 when Options is nil OR Options.MaxPanelTargets == 0 (mirrors OVERLAY_PROP_Z_PANEL — the catalog standardises on one cap surface so renderers can budget panel-layout state against a single knob). len(spec.Targets) \u003e MaxPanelTargets fires PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP at handler entry with {kind, observed, cap} Details. Layer slice order: spec order then target order — layers[i] corresponds to spec.Targets[i] so renderers can address the emitted panel by target offset. Streamable via per-target SERIES emission (the MATRIX route is forced buffered through the slot barrier in service.Compose / service.ComposeParallel — the same dual-shape convention OVERLAY_INDEX_VS_REF / OVERLAY_DELTA_VS_REF use). Renderers centre diverging colour ramps on baseline=scale (default 100 mirrors the per-Request INDEX_VS_* family). Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value) on every slot it reads; absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime.",
         "intents": [
           "benchmark"
         ]
@@ -13568,6 +13863,21 @@
         ]
       },
       {
+        "kind": "OVERLAY_RETENTION",
+        "shapes": [
+          "series"
+        ],
+        "scopes": [
+          "row"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Retention rates of a from-state (rows) x to-state (columns) crosstab. ROW scope over a MATRIX (crosstab) host with SERIES payload: one entry per from-state, in row order, with Summary.Statistic = stay (the share of the row's total in the column naming the same state — aligned by key, never by position; no such column = 0) and Summary.Parameters switch (the share that moved to any other state), from_total (the row's total) and, with params.absorbing, churn (the share that moved into a named absorbing state, so stay + switch + churn = 1). A from-state named in params.absorbing is not reported. The layer's Summary.Parameters pool the same rates over the reported rows (stay, switch, churn with absorbing, states, total). A row with a zero total has null rates and raises one PULSE_OVERLAY_REF_ZERO warning (reason zero_row). params: absorbing (a non-empty array of distinct state keys present in the host, row or column); a bad or unknown param, or a key the host lacks, is PULSE_OVERLAY_PARAM_MISSING. A different grouper count per axis is PULSE_OVERLAY_MATRIX_NOT_SQUARE; a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED; an undefined cell is absent (0). Scale-invariant: a weighted host's sum-of-weights table is read as is under either weight kind. Descriptive (no p-value).",
+        "intents": [
+          "flows"
+        ]
+      },
+      {
         "kind": "OVERLAY_SHARE_OF_COL",
         "shapes": [
           "matrix"
@@ -13627,7 +13937,7 @@
           "level",
           "within"
         ],
-        "description": "Share-of-grand-total ratio. Dual-shape overload: MATRIX dispatch emits per-cell cell / grand_total against a CELL-scoped crosstab host, completing the matrix share triad (row / col / total) — the spec must populate Ref.Margin (grand-axis-locked even though the handler ignores the axis value) and declares the level / within fields for renderer-facing parity with the rest of the share family (the grand-axis denominator makes both slots inert at runtime). SERIES dispatch emits per-group group_val / grand_total against a GROUP-scoped grouped Process host with scale 1.0 (no ×100 — sibling to INDEX_VS_TOTAL but with the SHARE scaling so cells over a complete partition sum to 1.0 within ULP) — Ref MUST be empty (implicit-grand-total). Sibling SERIES kind to OVERLAY_INDEX_VS_TOTAL — shares the same computeSeriesGrandTotal accumulator so a request carrying both overlays folds the grand-total only once in the streaming pass. Zero grand_total emits PULSE_OVERLAY_REF_ZERO with NaN statistics on every present entry; absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset. Streamable via the SERIES dispatch (the MATRIX route is forced buffered through canFuseCrosstab's overlays-force-buffered arm). Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. Each row is scored against its partition's total (and, for the z-score, its partition's mean and SD); partition_by [] restores the grand total over every row.",
+        "description": "Share-of-grand-total ratio. Dual-shape overload: MATRIX dispatch emits per-cell cell / grand_total against a CELL-scoped crosstab host, completing the matrix share triad (row / col / total) — the spec must populate Ref.Margin (grand-axis-locked even though the handler ignores the axis value) and declares the level / within fields for renderer-facing parity with the rest of the share family (the grand-axis denominator makes both slots inert at runtime). SERIES dispatch emits per-group group_val / grand_total against a GROUP-scoped grouped Process host with scale 1.0 (no ×100 — sibling to INDEX_VS_TOTAL but with the SHARE scaling so cells over a complete partition sum to 1.0 within ULP) — Ref MUST be empty (implicit-grand-total). Sibling SERIES kind to OVERLAY_INDEX_VS_TOTAL — shares the same computeSeriesGrandTotal accumulator so a request carrying both overlays folds the grand-total only once in the streaming pass. Zero grand_total emits PULSE_OVERLAY_REF_ZERO with NaN statistics on every present entry; absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset. Streamable via the SERIES dispatch (the MATRIX route is forced buffered through canFuseCrosstab's overlays-force-buffered arm). Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. Each row is scored against its partition's total (and, for the z-score, its partition's mean and SD); partition_by [] restores the grand total over every row.",
         "intents": [
           "composition"
         ]
@@ -13663,6 +13973,26 @@
         ]
       },
       {
+        "kind": "OVERLAY_SYMMETRY",
+        "shapes": [
+          "scalar"
+        ],
+        "scopes": [
+          "matrix"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Test of symmetry for a from-state (rows) x to-state (columns) crosstab of PAIRED observations (the same units measured twice): McNemar's test on a 2 x 2 table, Bowker's on k x k — R's mcnemar.test. H0: for every pair of states, moves i -\u003e j are as frequent as moves j -\u003e i. chi-square = sum over pairs i \u003c j of (n_ij - n_ji)^2 / (n_ij + n_ji); a pair with n_ij + n_ji = 0 is dropped and df = the number of pairs kept (k(k - 1)/2 when none is); a 2 x 2 table takes Edwards' continuity correction (|n_12 - n_21| - 1)^2 unless params.correct is false (R's default correct = TRUE; inert on k x k). With no pair kept, the statistic and p-value are null and df is 0. MATRIX scope over a MATRIX (crosstab) host with SCALAR payload = the chi-square, plus OverlaySummary{Statistic, PValue, Parameters{df, states, discordant, pairs_dropped, continuity_corrected}}; a multiplicity block adjusts the one p-value. States align by key, never by position (rows first, then column-only keys); a state on one axis only is a row / column of zeros. A different grouper count per axis is PULSE_OVERLAY_MATRIX_NOT_SQUARE; a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED; fewer than 2 states or a zero total is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE; a bad or unknown param is PULSE_OVERLAY_PARAM_MISSING. Any pair whose expected count under symmetry ((n_ij + n_ji) / 2) is below 5 emits one PULSE_OVERLAY_EXPECTED_LOW. Weighted hosts follow OVERLAY_CHISQ_MATRIX (the sum-of-weights table; under kind probability scaled to its Kish n_eff first).",
+        "intents": [
+          "flows"
+        ],
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
+      },
+      {
         "kind": "OVERLAY_T_CELL",
         "shapes": [
           "matrix"
@@ -13692,7 +14022,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "COMPOSE-host per-group Welch t-test against the reference slot's matching group, against a SERIES (grouped Process) host. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the two-sided p-value on Summary.Statistic. Series-shape sibling of OVERLAY_T_CELL (the per-cell MATRIX-host Welch t-test) and twin to the SERIES arm of OVERLAY_INDEX_VS_REF / OVERLAY_DELTA_VS_REF (descriptive series-shape Compose-only kinds). Each per-group target / reference value is treated as a sample mean. A group scoring AGG_WELFORD reads its mean, variance and n from the slot's per-group components with no params (PULSE_OVERLAY_COMPONENTS_REQUIRED when that slot's components are disabled); any other scored aggregation is a scalar mean. A scalar side REQUIRES its variance and sample size in params — variance_target / variance_ref and sample_size_target / sample_size_ref, or the symmetric variance / sample_size for both sides, each a finite number \u003e 0; there is no default (PULSE_OVERLAY_PARAM_MISSING on predict and runtime, details.side and details.params naming what is missing). Over crosstab slots the kind is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE — compare cells with the _CELL twin. Math reuses the Welch-Satterthwaite recurrence backing TEST_T (and OVERLAY_T_CELL): se = sqrt(var_target/n_target + var_ref/n_ref); t = (target - ref) / se; df = (var_target/n_target + var_ref/n_ref)² / ((var_target/n_target)²/(n_target-1) + (var_ref/n_ref)²/(n_ref-1)); p_value = studentTTwoSidedP(t, df). Reuses studentTTwoSidedP so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) triple. Missing reference rows (target row key not present in the reference series) emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag; the affected entry's Statistic is NaN. Degenerate inputs (se == 0, n \u003c 2) produce NaN p-values with the same warning. Inherently buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches. Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on every slot it reads; absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime.",
+        "description": "COMPOSE-host per-group Welch t-test against the reference slot's matching group, against a SERIES (grouped Process) host. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the two-sided p-value on Summary.Statistic. Series-shape sibling of OVERLAY_T_CELL (the per-cell MATRIX-host Welch t-test) and twin to the SERIES arm of OVERLAY_INDEX_VS_REF / OVERLAY_DELTA_VS_REF (descriptive series-shape Compose-only kinds). Each per-group target / reference value is treated as a sample mean. A group scoring AGG_WELFORD reads its mean, variance and n from the slot's per-group components with no params (PULSE_OVERLAY_COMPONENTS_REQUIRED when that slot's components are disabled); any other scored aggregation is a scalar mean. A scalar side REQUIRES its variance and sample size in params — variance_target / variance_ref and sample_size_target / sample_size_ref, or the symmetric variance / sample_size for both sides, each a finite number \u003e 0; there is no default (PULSE_OVERLAY_PARAM_MISSING on predict and runtime, details.side and details.params naming what is missing). Over crosstab slots the kind is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE — compare cells with the _CELL twin. Math reuses the Welch-Satterthwaite recurrence backing TEST_T (and OVERLAY_T_CELL): se = sqrt(var_target/n_target + var_ref/n_ref); t = (target - ref) / se; df = (var_target/n_target + var_ref/n_ref)² / ((var_target/n_target)²/(n_target-1) + (var_ref/n_ref)²/(n_ref-1)); p_value = studentTTwoSidedP(t, df). Reuses studentTTwoSidedP so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) triple. Missing reference rows (target row key not present in the reference series) emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag; the affected entry's Statistic is NaN. Degenerate inputs (se == 0, n \u003c 2) produce NaN p-values with the same warning. Inherently buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches. Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value) on every slot it reads; absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime.",
         "intents": [
           "compare_groups"
         ],
@@ -13714,7 +14044,7 @@
           "YoY"
         ],
         "buffered": true,
-        "description": "Per-point year-over-year ratio against the same period one year prior in an ordered SERIES (grouped Process) host with one GROUP_DATE grouper: point_value / prior_year_value * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the YoY ratio on Summary.Statistic. Member of the windowed-Process overlay family alongside OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE / OVERLAY_INDEX_VS_ROLLING_MEAN / OVERLAY_ZSCORE_VS_ROLLING, and the first consumer of the empty Ref.YoY marker arm of the OverlayRef discriminated union. The frequency value (annual | quarterly | monthly | weekly | daily | hourly) lives on OverlaySpec.Params[\"frequency\"] (the YoY's own override) or falls back to the GROUP_DATE grouper's Params[\"frequency\"] wherever it sits in groups. Per-frequency stride: annual ⇒ i-1, quarterly ⇒ i-4, monthly ⇒ i-12, weekly ⇒ i-52 (calendar-week aligned; no day-of-week realignment in v1), daily ⇒ exact-date 365-days-prior lookup against the host key index (Feb 29 in a non-leap prior year emits NaN — no exact-key match), hourly ⇒ exact-hour 365×24-hour-prior lookup. The host MUST carry exactly one GROUP_DATE grouper, anywhere in groups; zero or two or more fire PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE ({groupers, date_groupers}) at both predict and runtime. Over two or more groupers the overlay runs once per combination of every OTHER key (the prior-year lookup never crosses a segment) and each entry keeps its full composite key; an explicit params.partition_by must name exactly the non-date key columns, else PULSE_OVERLAY_PARTITION_INVALID (reason not_non_date_keys). Missing frequency Param fires PULSE_OVERLAY_YOY_FREQUENCY_MISSING; out-of-set frequency value fires PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY with {frequency, supported} Details. First-year ordinals (coarse-frequency arms whose prior-year index lands at \u003c0; fine-frequency arms whose prior-year date does not match an exact host key) emit NaN without warning — \"no comparison available\" is structurally distinct from \"denominator was zero\". Zero prior-year value emits ONE PULSE_OVERLAY_REF_ZERO warning per layer and surfaces NaN on the affected entry. Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset. Ref.YoY MUST be populated (empty marker is fine); any other ref-family pointer (Margin / Sibling / Prior / BaselineIndex / RollingMean / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the year-over-year lookup folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_ROLLING_MEAN family. Buffered — the per-frequency prior-period lookup requires the materialised host series (coarse-frequency arms index into an arbitrary prior ordinal; fine-frequency arms walk an exact-key index built from the full host key list). Renderers centre diverging colour ramps on baseline=100. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime.",
+        "description": "Per-point year-over-year ratio against the same period one year prior in an ordered SERIES (grouped Process) host with one GROUP_DATE grouper: point_value / prior_year_value * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the YoY ratio on Summary.Statistic. Member of the windowed-Process overlay family alongside OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE / OVERLAY_INDEX_VS_ROLLING_MEAN / OVERLAY_ZSCORE_VS_ROLLING, and the first consumer of the empty Ref.YoY marker arm of the OverlayRef discriminated union. The frequency value (annual | quarterly | monthly | weekly | daily | hourly) lives on OverlaySpec.Params[\"frequency\"] (the YoY's own override) or falls back to the GROUP_DATE grouper's Params[\"frequency\"] wherever it sits in groups. Per-frequency stride: annual ⇒ i-1, quarterly ⇒ i-4, monthly ⇒ i-12, weekly ⇒ i-52 (calendar-week aligned; no day-of-week realignment in v1), daily ⇒ exact-date 365-days-prior lookup against the host key index (Feb 29 in a non-leap prior year emits NaN — no exact-key match), hourly ⇒ exact-hour 365×24-hour-prior lookup. The host MUST carry exactly one GROUP_DATE grouper, anywhere in groups; zero or two or more fire PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE ({groupers, date_groupers}) at both predict and runtime. Over two or more groupers the overlay runs once per combination of every OTHER key (the prior-year lookup never crosses a segment) and each entry keeps its full composite key; an explicit params.partition_by must name exactly the non-date key columns, else PULSE_OVERLAY_PARTITION_INVALID (reason not_non_date_keys). Missing frequency Param fires PULSE_OVERLAY_YOY_FREQUENCY_MISSING; out-of-set frequency value fires PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY with {frequency, supported} Details. First-year ordinals (coarse-frequency arms whose prior-year index lands at \u003c0; fine-frequency arms whose prior-year date does not match an exact host key) emit NaN without warning — \"no comparison available\" is structurally distinct from \"denominator was zero\". Zero prior-year value emits ONE PULSE_OVERLAY_REF_ZERO warning per layer and surfaces NaN on the affected entry. Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset. Ref.YoY MUST be populated (empty marker is fine); any other ref-family pointer (Margin / Sibling / Prior / BaselineIndex / RollingMean / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the year-over-year lookup folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_ROLLING_MEAN family. Buffered — the per-frequency prior-period lookup requires the materialised host series (coarse-frequency arms index into an arbitrary prior ordinal; fine-frequency arms walk an exact-key index built from the full host key list). Renderers centre diverging colour ramps on baseline=100. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime.",
         "zone": "following",
         "intents": [
           "change_over_time"
@@ -13770,7 +14100,7 @@
           "RollingMean"
         ],
         "buffered": true,
-        "description": "Per-point windowed standardized z-score against the rolling-window mean + SAMPLE standard deviation (sqrt(M2 / (count - 1)), n-1 denominator) of the W immediately preceding points of an ordered SERIES (grouped Process) host: zscore = (point_value - rolling_mean(W)) / rolling_sd(W). GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the z-score on Summary.Statistic. Member of the windowed-Process overlay family alongside OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE / OVERLAY_INDEX_VS_ROLLING_MEAN, and the second consumer of the Ref.RollingMean arm of the OverlayRef discriminated union (sibling windowed-rolling kind to INDEX_VS_ROLLING_MEAN — both kinds carry the window width on Params[\"window\"]). Variance choice (SAMPLE, NOT population) — KEY CONTRAST with OVERLAY_ZSCORE_VS_TOTAL: the rolling z-score uses SAMPLE SD (divide by count - 1) because a rolling window of W observations IS a sample of the wider time series; OVERLAY_ZSCORE_VS_TOTAL uses POPULATION SD (sqrt(M2 / N)) because the per-group aggregation set IS the whole population. The two surfaces are intentionally orthogonal. Window-via-Params convention: OverlaySpec.Params[\"window\"] supplies a positive integer (mirrors the WIN_* operator convention; see skills/window-design.md). Carrier shape (shared with INDEX_VS_ROLLING_MEAN): per-group ring buffer of the W most recently observed PRESENT values plus a Welford (count, mean, M2) trio. The sibling kind reads only mean; this kind reads BOTH mean and M2. Window-fill semantics: when the carrier count \u003c 2 (sample variance requires at least 2 observations) the handler emits NaN without warning — \"window not yet filled\" is structurally distinct from \"denominator was zero\". When the host series is shorter than W (no ordinal ever sees a full window) every entry's Statistic is NaN with no warning. Absent-point policy (ring does not advance): an absent host ordinal (resolver reports (0, false)) emits a present SeriesEntry whose Summary leaves Statistic unset and DOES NOT advance the ring buffer — the next present ordinal compares against the most recent W PRESENT values, not absent slots (mirrors OVERLAY_INDEX_VS_ROLLING_MEAN). Zero rolling-SD path: when the rolling SD is exactly 0 at the divide step (e.g. every prior point in the window has the same value — constant series) the handler emits ONE PULSE_OVERLAY_REF_ZERO warning per layer and surfaces NaN on the affected entries. Window param validation: missing Params[\"window\"] fires PULSE_OVERLAY_PARAM_MISSING; non-positive or non-integer window fires PULSE_OVERLAY_LEVEL_OUT_OF_RANGE (the LEVEL_OUT_OF_RANGE code is reused for \"value out of valid range\" semantics so the new code surface stays narrow). Ref.RollingMean MUST be populated (empty marker is fine); any other ref-family pointer (Margin / Sibling / Prior / BaselineIndex / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the rolling carrier folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_ROLLING_MEAN / INDEX_VS_PRIOR family. Buffered — the ring buffer carries the full window of present values (W f64s per group plus the Welford trio), larger than the streamable INDEX_VS_PRIOR single-state lag accumulator. Renderers centre diverging colour ramps on baseline=0 (mirrors OVERLAY_ZSCORE_VS_TOTAL / OVERLAY_ZSCORE_VS_MARGIN — every z-score family produces a centred distribution). Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
+        "description": "Per-point windowed standardized z-score against the rolling-window mean + SAMPLE standard deviation (sqrt(M2 / (count - 1)), n-1 denominator) of the W immediately preceding points of an ordered SERIES (grouped Process) host: zscore = (point_value - rolling_mean(W)) / rolling_sd(W). GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the z-score on Summary.Statistic. Member of the windowed-Process overlay family alongside OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE / OVERLAY_INDEX_VS_ROLLING_MEAN, and the second consumer of the Ref.RollingMean arm of the OverlayRef discriminated union (sibling windowed-rolling kind to INDEX_VS_ROLLING_MEAN — both kinds carry the window width on Params[\"window\"]). Variance choice (SAMPLE, NOT population) — KEY CONTRAST with OVERLAY_ZSCORE_VS_TOTAL: the rolling z-score uses SAMPLE SD (divide by count - 1) because a rolling window of W observations IS a sample of the wider time series; OVERLAY_ZSCORE_VS_TOTAL uses POPULATION SD (sqrt(M2 / N)) because the per-group aggregation set IS the whole population. The two surfaces are intentionally orthogonal. Window-via-Params convention: OverlaySpec.Params[\"window\"] supplies a positive integer (mirrors the WIN_* operator convention; see skills/window-design.md). Carrier shape (shared with INDEX_VS_ROLLING_MEAN): per-group ring buffer of the W most recently observed PRESENT values plus a Welford (count, mean, M2) trio. The sibling kind reads only mean; this kind reads BOTH mean and M2. Window-fill semantics: when the carrier count \u003c 2 (sample variance requires at least 2 observations) the handler emits NaN without warning — \"window not yet filled\" is structurally distinct from \"denominator was zero\". When the host series is shorter than W (no ordinal ever sees a full window) every entry's Statistic is NaN with no warning. Absent-point policy (ring does not advance): an absent host ordinal (resolver reports (0, false)) emits a present SeriesEntry whose Summary leaves Statistic unset and DOES NOT advance the ring buffer — the next present ordinal compares against the most recent W PRESENT values, not absent slots (mirrors OVERLAY_INDEX_VS_ROLLING_MEAN). Zero rolling-SD path: when the rolling SD is exactly 0 at the divide step (e.g. every prior point in the window has the same value — constant series) the handler emits ONE PULSE_OVERLAY_REF_ZERO warning per layer and surfaces NaN on the affected entries. Window param validation: missing Params[\"window\"] fires PULSE_OVERLAY_PARAM_MISSING; non-positive or non-integer window fires PULSE_OVERLAY_LEVEL_OUT_OF_RANGE (the LEVEL_OUT_OF_RANGE code is reused for \"value out of valid range\" semantics so the new code surface stays narrow). Ref.RollingMean MUST be populated (empty marker is fine); any other ref-family pointer (Margin / Sibling / Prior / BaselineIndex / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the rolling carrier folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_ROLLING_MEAN / INDEX_VS_PRIOR family. Buffered — the ring buffer carries the full window of present values (W f64s per group plus the Welford trio), larger than the streamable INDEX_VS_PRIOR single-state lag accumulator. Renderers centre diverging colour ramps on baseline=0 (mirrors OVERLAY_ZSCORE_VS_TOTAL / OVERLAY_ZSCORE_VS_MARGIN — every z-score family produces a centred distribution). Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
         "intents": [
           "change_over_time"
         ]
@@ -13785,7 +14115,7 @@
         ],
         "ref_kinds": [],
         "buffered": false,
-        "description": "Per-group standardized z-score against the host series' grand-total distribution: (group_val - mean) / sd per host group key, where mean = Σ group_val / N and sd = sqrt(M2 / N) (population variance) folded across the N present per-group aggregated values. GROUP scope over a SERIES (grouped Process) host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the z-score on Summary.Statistic. Third and final streamable overlay in the grouped-Process subset (sibling to OVERLAY_INDEX_VS_TOTAL and the SERIES dispatch of OVERLAY_SHARE_OF_TOTAL) — the Welford accumulator (count + mean + M2) is three f64s carried alongside the per-group accumulators inside the streaming Process fold (no second pass over records); the post-host finalize emits (group_val - mean) / sd per group. Population variance (not sample) because _VS_TOTAL implies the host's per-group aggregation set IS the whole population being standardised. The Ref union is left empty (implicit-grand-total); zero variance (every present group equal, or only a single present group) emits PULSE_OVERLAY_REF_ZERO with NaN statistics on every present entry. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset and do NOT contribute to the Welford accumulator. Renderers centre diverging colour ramps on baseline=0. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. Each row is scored against its partition's total (and, for the z-score, its partition's mean and SD); partition_by [] restores the grand total over every row.",
+        "description": "Per-group standardized z-score against the host series' grand-total distribution: (group_val - mean) / sd per host group key, where mean = Σ group_val / N and sd = sqrt(M2 / N) (population variance) folded across the N present per-group aggregated values. GROUP scope over a SERIES (grouped Process) host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the z-score on Summary.Statistic. Third and final streamable overlay in the grouped-Process subset (sibling to OVERLAY_INDEX_VS_TOTAL and the SERIES dispatch of OVERLAY_SHARE_OF_TOTAL) — the Welford accumulator (count + mean + M2) is three f64s carried alongside the per-group accumulators inside the streaming Process fold (no second pass over records); the post-host finalize emits (group_val - mean) / sd per group. Population variance (not sample) because _VS_TOTAL implies the host's per-group aggregation set IS the whole population being standardised. The Ref union is left empty (implicit-grand-total); zero variance (every present group equal, or only a single present group) emits PULSE_OVERLAY_REF_ZERO with NaN statistics on every present entry. Absent host groups surface a present SeriesEntry whose Summary leaves Statistic unset and do NOT contribute to the Welford accumulator. Renderers centre diverging colour ramps on baseline=0. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. Each row is scored against its partition's total (and, for the z-score, its partition's mean and SD); partition_by [] restores the grand total over every row.",
         "intents": [
           "benchmark"
         ]
@@ -13820,7 +14150,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "COMPOSE-host per-group two-sample z-test on the means against the reference slot's matching group, against a SERIES (grouped Process) host. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the two-sided p-value on Summary.Statistic. Series-shape sibling of OVERLAY_Z_CELL (the per-cell MATRIX-host z-test) and twin to the SERIES arm of OVERLAY_T_VS_REF (Welch t-test sibling on the same fold-and-finalise shape; different distribution — standard normal instead of Student's t). Each per-group target / reference value is treated as a sample mean. A group scoring AGG_WELFORD reads its mean, variance and n from the slot's per-group components with no params (PULSE_OVERLAY_COMPONENTS_REQUIRED when that slot's components are disabled); any other scored aggregation is a scalar mean. A scalar side REQUIRES its variance and sample size in params — variance_target / variance_ref and sample_size_target / sample_size_ref, or the symmetric variance / sample_size for both sides, each a finite number \u003e 0; there is no default (PULSE_OVERLAY_PARAM_MISSING on predict and runtime, details.side and details.params naming what is missing). Over crosstab slots the kind is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE — compare cells with the _CELL twin. Math reuses the Welch-style standard-error recurrence backing OVERLAY_Z_CELL and finalises against the standard normal survival helper backing TEST_Z_TWO_SAMPLE: se = sqrt(var_target/n_target + var_ref/n_ref); z = (target - ref) / se; p_value = 2 * (1 - Φ(|z|)). Reuses standardNormalCDF so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) triple. Missing reference rows (target row key not present in the reference series) emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag; the affected entry's Statistic is NaN. Degenerate inputs (se == 0, n \u003c 2) produce NaN p-values with the same warning. Inherently buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches. Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on every slot it reads; absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime.",
+        "description": "COMPOSE-host per-group two-sample z-test on the means against the reference slot's matching group, against a SERIES (grouped Process) host. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the two-sided p-value on Summary.Statistic. Series-shape sibling of OVERLAY_Z_CELL (the per-cell MATRIX-host z-test) and twin to the SERIES arm of OVERLAY_T_VS_REF (Welch t-test sibling on the same fold-and-finalise shape; different distribution — standard normal instead of Student's t). Each per-group target / reference value is treated as a sample mean. A group scoring AGG_WELFORD reads its mean, variance and n from the slot's per-group components with no params (PULSE_OVERLAY_COMPONENTS_REQUIRED when that slot's components are disabled); any other scored aggregation is a scalar mean. A scalar side REQUIRES its variance and sample size in params — variance_target / variance_ref and sample_size_target / sample_size_ref, or the symmetric variance / sample_size for both sides, each a finite number \u003e 0; there is no default (PULSE_OVERLAY_PARAM_MISSING on predict and runtime, details.side and details.params naming what is missing). Over crosstab slots the kind is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE — compare cells with the _CELL twin. Math reuses the Welch-style standard-error recurrence backing OVERLAY_Z_CELL and finalises against the standard normal survival helper backing TEST_Z_TWO_SAMPLE: se = sqrt(var_target/n_target + var_ref/n_ref); z = (target - ref) / se; p_value = 2 * (1 - Φ(|z|)). Reuses standardNormalCDF so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) triple. Missing reference rows (target row key not present in the reference series) emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag; the affected entry's Statistic is NaN. Degenerate inputs (se == 0, n \u003c 2) produce NaN p-values with the same warning. Inherently buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches. Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value) on every slot it reads; absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime.",
         "intents": [
           "compare_groups"
         ],
@@ -13895,7 +14225,7 @@
             {
               "name": "weighted_variance",
               "type": "float64",
-              "description": "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; 0 when Σw ≤ 1.",
+              "description": "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; null (NaN) when Σw ≤ 1.",
               "optional": true
             }
           ],
@@ -14191,7 +14521,7 @@
             {
               "name": "kurtosis",
               "type": "float64",
-              "description": "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); 0 when n \u003c= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."
+              "description": "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); null (NaN) when n \u003c= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."
             }
           ],
           "mergeability": "mergeable"
@@ -14987,7 +15317,7 @@
             {
               "name": "skewness",
               "type": "float64",
-              "description": "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); 0 when n \u003c= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."
+              "description": "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); null (NaN) when n \u003c= 1 or the variance is zero. Weighted: the moments are Σw-weighted and Σw replaces n."
             }
           ],
           "mergeability": "mergeable"
@@ -15164,7 +15494,7 @@
             {
               "name": "labels",
               "type": "[]string",
-              "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names."
+              "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names. An element slot (params.element) reports its one member, here and in every per-member key."
             },
             {
               "name": "element_n",
@@ -15179,7 +15509,77 @@
             {
               "name": "element_sum_weights",
               "type": "[]float64",
-              "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator.",
+              "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator and AGG_VEC_SD's sample size under kind frequency.",
+              "optional": true
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_VEC_SD": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "labels",
+              "type": "[]string",
+              "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names. An element slot (params.element) reports its one member, here and in every per-member key."
+            },
+            {
+              "name": "element_n",
+              "type": "[]int",
+              "description": "Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered)."
+            },
+            {
+              "name": "element_sum",
+              "type": "[]float64",
+              "description": "Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count."
+            },
+            {
+              "name": "element_sum_weights",
+              "type": "[]float64",
+              "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator and AGG_VEC_SD's sample size under kind frequency.",
+              "optional": true
+            },
+            {
+              "name": "element_mean",
+              "type": "[]float64",
+              "description": "AGG_VEC_SD: per member, the running weighted mean the moments are centred on (Welford-West; may differ from AGG_VEC_MEAN's sum(w*x)/sum(w) in the last bits). 0 where no row contributed."
+            },
+            {
+              "name": "element_m2",
+              "type": "[]float64",
+              "description": "AGG_VEC_SD: per member, M2 = sum(w*(x - mean)^2) over contributing rows. Partials combine by Chan's rule per merge block in a fixed tree, bit-identical for any worker count."
+            },
+            {
+              "name": "element_sum_weights_sq",
+              "type": "[]float64",
+              "description": "AGG_VEC_SD, weighted slot only: per member, sum(w^2) over contributing rows — Kish n_eff = sum(w)^2 / sum(w^2), the sample size under kind probability.",
               "optional": true
             }
           ],
@@ -15218,7 +15618,7 @@
             {
               "name": "labels",
               "type": "[]string",
-              "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names."
+              "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names. An element slot (params.element) reports its one member, here and in every per-member key."
             },
             {
               "name": "element_n",
@@ -15233,7 +15633,7 @@
             {
               "name": "element_sum_weights",
               "type": "[]float64",
-              "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator.",
+              "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator and AGG_VEC_SD's sample size under kind frequency.",
               "optional": true
             }
           ],
@@ -15285,7 +15685,7 @@
             {
               "name": "weighted_variance",
               "type": "float64",
-              "description": "Frequency-weights variance m2_weighted / (sum_weights - 1); 0 when sum_weights \u003c= 1."
+              "description": "Frequency-weights variance m2_weighted / (sum_weights - 1); null (NaN) when sum_weights \u003c= 1."
             },
             {
               "name": "n_eff",
@@ -15338,7 +15738,7 @@
             {
               "name": "variance",
               "type": "float64",
-              "description": "Unbiased sample variance derived from m2 / (n-1)."
+              "description": "Unbiased sample variance derived from m2 / (n-1); null (NaN) when n \u003c 2 (weighted: sum_weights \u003c= 1)."
             },
             {
               "name": "stddev",
@@ -15378,7 +15778,7 @@
             {
               "name": "zscore",
               "type": "float64",
-              "description": "Standardized score: (target_value - pop_mean) / pop_stddev."
+              "description": "Standardized score: (target_value - pop_mean) / pop_stddev; null (NaN) when pop_stddev is 0."
             }
           ],
           "mergeability": "mergeable"
@@ -16448,7 +16848,7 @@
             {
               "name": "n_reference_missing",
               "type": "int",
-              "description": "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
+              "description": "Rows whose params.reference key_field / centroid by value has no profile / centroid (or is null), or every row of a centroid no row reached, scored null; 0 for a literal, table key or population reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
             },
             {
               "name": "n_domain_invalid",
@@ -16500,7 +16900,7 @@
             {
               "name": "n_reference_missing",
               "type": "int",
-              "description": "Rows whose params.reference key_field value has no profile in the table (or is null), scored null; 0 for a static reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
+              "description": "Rows whose params.reference key_field / centroid by value has no profile / centroid (or is null), or every row of a centroid no row reached, scored null; 0 for a literal, table key or population reference. Non-zero also raises PULSE_VECTOR_REFERENCE_MISSING."
             },
             {
               "name": "n_domain_invalid",
@@ -16726,4 +17126,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d4499ec79b01c3de050d5d723c68446b5fe3ef6d7df8238ce6a2c8c584ad4de4
+// golden-hash: ddddcc08a15d08a90532bd78029db676565b29ccb8a7a3c9c567bfa2217924a7

@@ -97,8 +97,9 @@ type Matrix struct {
 	On string
 	// Components is MAT_PCA's retention rule (params.components).
 	Components PCAComponents
-	// Rotation is MAT_PCA's params.rotation: "" (none, the default) or
-	// RotationVarimax.
+	// Rotation is MAT_PCA's / MAT_FACTOR's params.rotation: "" (none,
+	// the default) or a criterion — PCARotations on MAT_PCA (orthogonal
+	// only), FactorRotations on MAT_FACTOR.
 	Rotation string
 	// Factors is MAT_FACTOR's params.factors: a fixed K or the Kaiser
 	// rule (the default).
@@ -111,6 +112,10 @@ type Matrix struct {
 	// FactorDefaultKappa; promax only) and Gamma its oblimin γ
 	// (params.gamma, default 0; oblimin only).
 	Kappa, Gamma float64
+	// Epsilon is the geomin criteria's ε (params.epsilon, default
+	// GeominDefaultEpsilon; RotationGeomin / RotationGeominOrthogonal
+	// only, on MAT_PCA and MAT_FACTOR), 0 otherwise.
+	Epsilon float64
 	// ConfLevel is MAT_FACTOR's params.conf_level: the coverage of the
 	// ml RMSEA interval (rmsea_lower / rmsea_upper), FactorDefaultConfLevel
 	// unless set; extraction ml only, 0 on every other type.
@@ -151,6 +156,64 @@ type Matrix struct {
 	// confidence intervals (coverage 1 − Alpha): InferenceDefaultAlpha
 	// under Inference, 0 otherwise.
 	Alpha float64
+	// Extension reports an embedder-registered MAT_* operator
+	// (MatrixResolve.Extension). Its params are opaque to Pulse: the
+	// engine-owned missing / max_drop_share are decoded onto Pairwise /
+	// MaxDropShare exactly as for a built-in and stripped, and the
+	// remaining keys ride ExtParams (nil when none is left) to the
+	// operator's factory and Finalize. Streamable / Mergeable are its
+	// DECLARED tier (a co-moment operator merges through the blocked
+	// merge; a buffered one keeps rows and runs serially).
+	Extension bool
+	// ExtParams is an extension operator's params object without the
+	// engine-owned keys; nil on a built-in.
+	ExtParams json.RawMessage
+	// ExtAuxiliary is an extension operator's declared auxiliary keys
+	// (its registration's OutputKeys.Auxiliary), AuxiliaryKeys' answer.
+	ExtAuxiliary []string
+	// Fit is params.fit: the bound vector fit (a Compose `fits` entry of
+	// kind vector) the slot emits from instead of folding its rows —
+	// aligned to Columns' labels (FitLabels) by label, its own weight
+	// basis governing. "" folds the filtered rows (the default).
+	Fit string
+}
+
+// FitLabels are the labels a bound vector fit aligns to, in Columns
+// order: each member's display label (its name when it carries none),
+// then each control outside the members (MAT_PARTIAL_CORRELATION) by
+// name. A vector fit captured from a matrix battery is stored under the
+// same labels.
+func (m Matrix) FitLabels() []string {
+	cols := m.Columns()
+	out := make([]string, len(cols))
+	for i, c := range cols {
+		out[i] = c
+		if i < len(m.Members.Members) && i < len(m.Members.Labels) && m.Members.Labels[i] != "" {
+			out[i] = m.Members.Labels[i]
+		}
+	}
+	return out
+}
+
+// MatrixExtension is what resolution needs to know about an
+// embedder-registered MAT_* operator: its declared tier, the member
+// column types it reads (empty: the built-in member types the vector
+// rules admit) and its declared auxiliary keys.
+type MatrixExtension struct {
+	Streamable bool
+	Accepts    []encoding.FieldType
+	Auxiliary  []string
+}
+
+// MatrixResolve parameterises ResolveMatricesWith: Known, Route and
+// BetweenExt are ResolveMatricesRouted's known / route / ext; Extension
+// reports a registered (and offered) extension MAT_* operator, which
+// resolves even when Known refuses it. Nil Extension registers none.
+type MatrixResolve struct {
+	Known      func(types.MatrixType) bool
+	Route      func(types.GroupType) types.GroupType
+	BetweenExt func(string) bool
+	Extension  func(types.MatrixType) (MatrixExtension, bool)
 }
 
 // AuxiliaryKeys lists the matrices[*].auxiliary keys m's finalizer
@@ -174,6 +237,11 @@ type Matrix struct {
 //     standardize; pooled_covariance under a fitted inverse-covariance
 //     metric.
 func (m Matrix) AuxiliaryKeys() (keys []string, known bool) {
+	if m.Extension {
+		// An extension operator's declared auxiliary keys: the probe
+		// and the run-time output check hold Finalize to them.
+		return append([]string(nil), m.ExtAuxiliary...), true
+	}
 	if !slices.Contains(types.AllMatrixTypes(), m.Type) {
 		return nil, false
 	}
@@ -192,7 +260,7 @@ func (m Matrix) AuxiliaryKeys() (keys []string, known bool) {
 	case types.MAT_FACTOR:
 		if m.Rotation != "" {
 			keys = append(keys, "unrotated")
-			if m.Rotation != RotationVarimax {
+			if RotationOblique(m.Rotation) {
 				keys = append(keys, "factor_correlation")
 			}
 		}
@@ -252,21 +320,140 @@ func PCAOnValues() []string { return []string{PCAOnCorrelation, PCAOnCovariance}
 
 // Rotation criteria of the shared rotation engine
 // (internal/processing/matrix_rotate.go). RotationNone is the explicit
-// "no rotation" spelling of a params.rotation knob.
+// "no rotation" spelling of a params.rotation knob. Each criterion is
+// orthogonal or oblique exactly as its R reference (stats::varimax /
+// promax, GPArotation's wrapper of the same name); RotationOblique is
+// the one classifier.
 const (
 	RotationNone    = "none"
 	RotationVarimax = "varimax"
 	RotationPromax  = "promax"
 	RotationOblimin = "oblimin"
+	// RotationQuartimax is GPArotation::quartimax (orthogonal).
+	RotationQuartimax = "quartimax"
+	// RotationGeomin is GPArotation::geominQ (oblique, params.epsilon).
+	RotationGeomin = "geomin"
+	// RotationGeominOrthogonal is GPArotation::geominT (orthogonal,
+	// params.epsilon).
+	RotationGeominOrthogonal = "geomin_orthogonal"
+	// RotationEntropy is GPArotation::entropy, minimum entropy
+	// (orthogonal).
+	RotationEntropy = "entropy"
 )
 
-// PCARotations returns MAT_PCA's params.rotation values, default first.
-func PCARotations() []string { return []string{RotationNone, RotationVarimax} }
+// GeominDefaultEpsilon is params.epsilon's default: GPArotation's
+// geominQ / geominT delta = 0.01.
+const GeominDefaultEpsilon = 0.01
 
-// FactorRotations returns MAT_FACTOR's params.rotation values, default
-// first.
+// RotationOblique reports whether the named criterion is oblique (its
+// factors may correlate: Φ ≠ I, auxiliary.factor_correlation). The one
+// classifier: the accepted lists, MAT_PCA's refusal, the auxiliary keys
+// and the engine all read it.
+func RotationOblique(name string) bool {
+	switch name {
+	case RotationPromax, RotationOblimin, RotationGeomin:
+		return true
+	}
+	return false
+}
+
+// RotationTakesEpsilon reports whether the named criterion reads
+// params.epsilon (the geomin pair).
+func RotationTakesEpsilon(name string) bool {
+	return name == RotationGeomin || name == RotationGeominOrthogonal
+}
+
+// FactorRotations returns MAT_FACTOR's (and ATTR_FACTOR_SCORE's)
+// params.rotation values, default first: every criterion.
 func FactorRotations() []string {
-	return []string{RotationNone, RotationVarimax, RotationPromax, RotationOblimin}
+	return []string{RotationNone, RotationVarimax, RotationPromax, RotationOblimin,
+		RotationQuartimax, RotationGeomin, RotationGeominOrthogonal, RotationEntropy}
+}
+
+// PCARotations returns MAT_PCA's (and ATTR_PC_SCORE's) params.rotation
+// values, default first: the orthogonal criteria of FactorRotations —
+// a component is uncorrelated by construction, so an oblique criterion
+// is refused (rotation_oblique_unsupported).
+func PCARotations() []string {
+	var out []string
+	for _, r := range FactorRotations() {
+		if !RotationOblique(r) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// ObliqueRotations returns the oblique criteria, in FactorRotations
+// order: what MAT_PCA's refusal names.
+func ObliqueRotations() []string {
+	var out []string
+	for _, r := range FactorRotations() {
+		if RotationOblique(r) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// decodeRotation applies a params.rotation (and the geomin
+// params.epsilon) by the shared rule: absent or "none" is no rotation
+// (""), a name outside FactorRotations is bad_params, an oblique name
+// where orthogonalOnly (MAT_PCA, ATTR_PC_SCORE) is
+// rotation_oblique_unsupported, and an epsilon is accepted only beside
+// a geomin criterion (finite, > 0; default GeominDefaultEpsilon).
+// invalid builds the slot's refusal.
+func decodeRotation(at string, rotation *string, epsilon *float64, orthogonalOnly bool, invalid invalidFunc) (string, float64, *errors.CodedError) {
+	rot := ""
+	valid := FactorRotations()
+	if orthogonalOnly {
+		valid = PCARotations()
+	}
+	if rotation != nil && *rotation != RotationNone {
+		v := *rotation
+		switch {
+		case orthogonalOnly && RotationOblique(v):
+			return "", 0, invalid(at, "rotation_oblique_unsupported",
+				at+" params.rotation "+strconv.Quote(v)+" is oblique (its factors may correlate), but components are uncorrelated by construction: use an orthogonal rotation ("+quoteJoin(valid[1:])+"), or MAT_FACTOR / ATTR_FACTOR_SCORE for an oblique one",
+				map[string]any{"param": "rotation", "value": v, "valid": valid, "oblique": true})
+		case slices.Contains(FactorRotations(), v):
+			rot = v
+		default:
+			return "", 0, invalid(at, "bad_params", at+" params.rotation must be one of "+quoteJoin(valid),
+				map[string]any{"param": "rotation", "value": v, "valid": valid})
+		}
+	}
+	eps := 0.0
+	if RotationTakesEpsilon(rot) {
+		eps = GeominDefaultEpsilon
+	}
+	if epsilon != nil {
+		if !RotationTakesEpsilon(rot) {
+			return "", 0, invalid(at, "bad_params", at+" params.epsilon applies to rotation \""+RotationGeomin+"\" or \""+RotationGeominOrthogonal+"\" only",
+				map[string]any{"param": "epsilon", "rotation": rot})
+		}
+		if e := *epsilon; !(e > 0) || math.IsInf(e, 0) {
+			return "", 0, invalid(at, "bad_params", at+" params.epsilon must be a finite number above 0",
+				map[string]any{"param": "epsilon", "value": e})
+		}
+		eps = *epsilon
+	}
+	return rot, eps, nil
+}
+
+// quoteJoin renders names as "a", "b" or "c".
+func quoteJoin(names []string) string {
+	q := make([]string, len(names))
+	for i, n := range names {
+		q[i] = strconv.Quote(n)
+	}
+	switch len(q) {
+	case 0:
+		return ""
+	case 1:
+		return q[0]
+	}
+	return strings.Join(q[:len(q)-1], ", ") + " or " + q[len(q)-1]
 }
 
 // MAT_FACTOR extraction methods (params.extraction). Each starts from
@@ -471,10 +658,13 @@ func SpecMethod(spec types.MatrixSpec) string {
 	return *p.Method
 }
 
-// missingParams are the missing-data knobs every matrix operator takes.
+// missingParams are the engine-owned knobs every matrix operator takes
+// (EngineMatrixParams): the missing-data mode, the listwise heavy-drop
+// threshold and the bound vector fit the slot emits from.
 type missingParams struct {
 	Missing      *string  `json:"missing"`
 	MaxDropShare *float64 `json:"max_drop_share"`
+	Fit          *string  `json:"fit"`
 }
 
 // covarianceParams is MAT_COVARIANCE's params object. Summary is
@@ -533,13 +723,14 @@ type pcaParams struct {
 	On         *string         `json:"on"`
 	Components json.RawMessage `json:"components"`
 	Rotation   *string         `json:"rotation"`
+	Epsilon    *float64        `json:"epsilon"`
 	Repair     *string         `json:"repair"`
 	missingParams
 }
 
 // factorParams is MAT_FACTOR's params object: the factor count (an
 // integer or "kaiser"), the extraction, the rotation with its kappa /
-// gamma, the repair choice and the missing-data knobs; any other key is
+// gamma / epsilon, the repair choice and the missing-data knobs; any other key is
 // refused.
 type factorParams struct {
 	Factors    json.RawMessage `json:"factors"`
@@ -547,6 +738,7 @@ type factorParams struct {
 	Rotation   *string         `json:"rotation"`
 	Kappa      *float64        `json:"kappa"`
 	Gamma      *float64        `json:"gamma"`
+	Epsilon    *float64        `json:"epsilon"`
 	ConfLevel  *float64        `json:"conf_level"`
 	Repair     *string         `json:"repair"`
 	missingParams
@@ -609,6 +801,18 @@ func ResolveMatrices(req *types.Request, schema *encoding.Schema, known func(typ
 // extension grouper (ResolveGroups' ext: it is then accepted, its
 // member set judged); nil means none is.
 func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known func(types.MatrixType) bool, route func(types.GroupType) types.GroupType, ext func(string) bool) ([]Matrix, *errors.CodedError) {
+	return ResolveMatricesWith(req, schema, MatrixResolve{Known: known, Route: route, BetweenExt: ext})
+}
+
+// ResolveMatricesWith is ResolveMatricesRouted plus the extension MAT_*
+// operators o.Extension reports: such a type resolves like a built-in —
+// shape, encoding, name, members by the vector rules, the engine-owned
+// missing / max_drop_share — with its other params kept opaque
+// (Matrix.ExtParams), its declared tier as Streamable / Mergeable, and
+// a member whose column type its non-empty Accepts does not list
+// refused with PULSE_VECTOR_MEMBER_TYPE.
+func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, o MatrixResolve) ([]Matrix, *errors.CodedError) {
+	known, route, ext := o.Known, o.Route, o.BetweenExt
 	if route == nil {
 		route = func(t types.GroupType) types.GroupType { return t }
 	}
@@ -630,7 +834,12 @@ func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known fu
 	for i := range req.Matrices {
 		spec := req.Matrices[i]
 		at := matrixPath(i)
-		if !known(spec.Type) {
+		var extOp MatrixExtension
+		isExt := false
+		if o.Extension != nil {
+			extOp, isExt = o.Extension(spec.Type)
+		}
+		if !isExt && !known(spec.Type) {
 			return nil, matrixInvalid(at, "unknown_type",
 				at+" references unknown matrix type: "+strconv.Quote(string(spec.Type)),
 				map[string]any{"type": string(spec.Type)})
@@ -659,7 +868,16 @@ func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known fu
 
 		m := Matrix{Index: i, Name: name, Type: spec.Type, Encoding: enc,
 			Streamable: spec.Streamable(), Mergeable: spec.Mergeable()}
-		if err := decodeMatrixParams(at, spec, &m); err != nil {
+		if isExt {
+			// The declared tier: the engine's blocked merge carries a
+			// co-moment operator across partitions; a buffered one keeps
+			// rows, which do not merge.
+			m.Extension, m.Streamable, m.Mergeable = true, extOp.Streamable, extOp.Streamable
+			m.ExtAuxiliary = append([]string(nil), extOp.Auxiliary...)
+			if err := decodeExtensionParams(at, spec, &m); err != nil {
+				return nil, err
+			}
+		} else if err := decodeMatrixParams(at, spec, &m); err != nil {
 			return nil, err
 		}
 		// Controls resolve after the members (below): a control is a
@@ -697,6 +915,11 @@ func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known fu
 			// "f[k]" member names; scalar members keep their names.
 			m.ExplicitLabels = r.Refs != nil
 		}
+		if isExt {
+			if err := acceptsMembers(at, spec.Type, extOp.Accepts, m.Members, schema); err != nil {
+				return nil, err
+			}
+		}
 		if err := resolveControls(at, schema, &m); err != nil {
 			return nil, err
 		}
@@ -710,6 +933,9 @@ func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known fu
 			return nil, err
 		}
 		if err := resolveDistance(at, req.Vectors, resolved, schema, route, ext, &m); err != nil {
+			return nil, err
+		}
+		if err := resolveFit(at, req, &m); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
@@ -872,8 +1098,86 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 	return decodeMissing(at, miss, m)
 }
 
+// EngineMatrixParams are the params keys the engine owns on every
+// matrix operator, extension ones included: the missing-data mode, the
+// listwise heavy-drop threshold and params.fit (the bound vector fit the
+// slot emits from — resolveFit). An extension operator never sees
+// them (decodeExtensionParams strips them) and may not declare them.
+func EngineMatrixParams() []string { return []string{"missing", "max_drop_share", "fit"} }
+
+// decodeExtensionParams decodes an extension operator's params: a JSON
+// object (or absent / null) whose engine-owned keys (EngineMatrixParams)
+// are judged by the built-in rule (decodeMissing) and removed; the
+// remaining keys are kept, unjudged, as m.ExtParams — the operator's
+// factory decodes and validates them. A non-object is bad_params.
+func decodeExtensionParams(at string, spec types.MatrixSpec, m *Matrix) *errors.CodedError {
+	raw := bytes.TrimSpace(spec.Params)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return nil
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &obj); err != nil || obj == nil {
+		return matrixInvalid(at, "bad_params", at+" params must be a JSON object", nil)
+	}
+	var miss missingParams
+	if err := json.Unmarshal(raw, &miss); err != nil {
+		return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
+	}
+	for _, k := range EngineMatrixParams() {
+		delete(obj, k)
+	}
+	if len(obj) > 0 {
+		rest, err := json.Marshal(obj)
+		if err != nil {
+			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
+		}
+		m.ExtParams = rest
+	}
+	return decodeMissing(at, miss, m)
+}
+
+// acceptsMembers refuses a member whose column type accepts does not
+// list (an element of a native vector reads as its element type, f32
+// or f64); an empty accepts admits every member the vector rules did.
+func acceptsMembers(at string, op types.MatrixType, accepts []encoding.FieldType, r Resolved, schema *encoding.Schema) *errors.CodedError {
+	if len(accepts) == 0 || schema == nil {
+		return nil
+	}
+	for i, name := range r.Members {
+		field := name
+		if r.Refs != nil {
+			field = r.Refs[i].Field
+		}
+		f := schema.Field(field)
+		if f == nil {
+			continue // unreachable: members come from the schema
+		}
+		ft := f.Type
+		if ft.IsVector() {
+			ft = encoding.FieldTypeF64
+			if f.Type.VectorElemSize() == 4 {
+				ft = encoding.FieldTypeF32
+			}
+		}
+		if slices.Contains(accepts, ft) {
+			continue
+		}
+		valid := make([]string, len(accepts))
+		for k, a := range accepts {
+			valid[k] = a.String()
+		}
+		return errors.NewCodedErrorWithDetails(errors.PULSE_VECTOR_MEMBER_TYPE,
+			at+" member "+strconv.Quote(name)+" has type "+ft.String()+", which "+string(op)+
+				" does not accept (accepts: "+strings.Join(valid, ", ")+")",
+			map[string]any{"matrix": at, "type": string(op), "field": name, "field_type": ft.String(), "accepts": valid})
+	}
+	return nil
+}
+
 // decodePCA applies MAT_PCA's params.rotation ("none", the default, or
-// "varimax"), params.on and params.components: on
+// an orthogonal criterion — PCARotations; an oblique one is
+// rotation_oblique_unsupported) with its epsilon (decodeRotation),
+// params.on and params.components: on
 // "correlation" (default) or "covariance"; components an integer k ≥ 1
 // (checked against p in resolvePCA), "kaiser" (the correlation
 // default) or {"variance": share} with 0 < share ≤ 1. On a covariance
@@ -881,16 +1185,11 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 // meaning in the members' units. Every refusal is bad_params.
 func decodePCA(at string, p pcaParams, m *Matrix) *errors.CodedError {
 	m.On = PCAOnCorrelation
-	if p.Rotation != nil {
-		switch *p.Rotation {
-		case RotationNone:
-		case RotationVarimax:
-			m.Rotation = RotationVarimax
-		default:
-			return matrixInvalid(at, "bad_params", at+" params.rotation must be \"none\" or \"varimax\"",
-				map[string]any{"param": "rotation", "value": *p.Rotation, "valid": PCARotations()})
-		}
+	rot, eps, err := decodeRotation(at, p.Rotation, p.Epsilon, true, matrixInvalid)
+	if err != nil {
+		return err
 	}
+	m.Rotation, m.Epsilon = rot, eps
 	if p.On != nil {
 		switch *p.On {
 		case PCAOnCorrelation, PCAOnCovariance:
@@ -961,9 +1260,10 @@ func resolvePCA(at string, m *Matrix) *errors.CodedError {
 // decodeFactor applies MAT_FACTOR's params: factors (a positive integer,
 // checked against p in resolveFactor, or "kaiser", the default),
 // extraction ("minres", the default, or "principal_axis"), rotation
-// ("none", the default, "varimax", "promax" or "oblimin"), kappa (promax
-// only, finite and > 1, default 4) and gamma (oblimin only, finite,
-// default 0) and conf_level (extraction ml only, 0 < c < 1, default
+// ("none", the default, or any FactorRotations criterion), kappa (promax
+// only, finite and > 1, default 4), gamma (oblimin only, finite,
+// default 0), epsilon (geomin / geomin_orthogonal only, finite > 0,
+// default 0.01) and conf_level (extraction ml only, 0 < c < 1, default
 // 0.9). A kappa without promax, a gamma without oblimin or a conf_level
 // without ml is refused rather than ignored. Every refusal is
 // bad_params.
@@ -988,16 +1288,11 @@ func decodeFactorWith(at string, p factorParams, m *Matrix, matrixInvalid invali
 				map[string]any{"param": "extraction", "value": *p.Extraction, "valid": FactorExtractions()})
 		}
 	}
-	if p.Rotation != nil {
-		switch *p.Rotation {
-		case RotationNone:
-		case RotationVarimax, RotationPromax, RotationOblimin:
-			m.Rotation = *p.Rotation
-		default:
-			return matrixInvalid(at, "bad_params", at+" params.rotation must be \"none\", \"varimax\", \"promax\" or \"oblimin\"",
-				map[string]any{"param": "rotation", "value": *p.Rotation, "valid": FactorRotations()})
-		}
+	rot, eps, err := decodeRotation(at, p.Rotation, p.Epsilon, false, matrixInvalid)
+	if err != nil {
+		return err
 	}
+	m.Rotation, m.Epsilon = rot, eps
 	if m.Rotation == RotationPromax {
 		m.Kappa = FactorDefaultKappa
 	}
@@ -1477,6 +1772,54 @@ func decodeMissing(at string, p missingParams, m *Matrix) *errors.CodedError {
 		}
 		v := s
 		m.MaxDropShare = &v
+	}
+	if p.Fit != nil {
+		if *p.Fit == "" {
+			return matrixInvalid(at, "bad_fit", at+" params.fit must name a bound vector fit",
+				map[string]any{"param": "fit"})
+		}
+		// A bound fit is one listwise state: no row is read, so the
+		// missing-data knobs have nothing to act on.
+		if p.Missing != nil || p.MaxDropShare != nil {
+			param := "missing"
+			if p.Missing == nil {
+				param = "max_drop_share"
+			}
+			return matrixInvalid(at, "fit_and_missing", at+" sets params.fit and params."+param+"; a bound vector fit is one listwise state and reads no row — drop "+param,
+				map[string]any{"param": param, "fit": *p.Fit})
+		}
+		m.Fit = *p.Fit
+	}
+	return nil
+}
+
+// resolveFit judges a params.fit slot once its members and the operator
+// params resolved: the slot emits its result from the bound state, so
+// an operator whose result is not a function of one listwise co-moment
+// is refused (fit_unsupported — MAT_DISTANCE's per-group centroids, a
+// buffered tier that reads rows: a rank method, a buffered extension;
+// MAT_RELIABILITY's declared scale range, which checks and reverse-keys
+// every row), and so is a grouped request (fit_grouped: every bucket
+// would emit the one bound state).
+func resolveFit(at string, req *types.Request, m *Matrix) *errors.CodedError {
+	if m.Fit == "" {
+		return nil
+	}
+	unsupported := func(why string) *errors.CodedError {
+		return matrixInvalid(at, "fit_unsupported", at+" params.fit cannot bind "+string(m.Type)+": "+why,
+			map[string]any{"param": "fit", "fit": m.Fit, "type": string(m.Type)})
+	}
+	switch {
+	case m.Type == types.MAT_DISTANCE:
+		return unsupported("its result compares per-group centroids, not one listwise state")
+	case !m.Streamable:
+		return unsupported("its operator reads the rows themselves (a rank method or a buffered operator), not the co-moment state")
+	case m.HasScale:
+		return unsupported("its declared scale range checks and reverse-keys every row; a bound state carries no rows")
+	}
+	if req != nil && (len(req.Groups) > 0 || req.Crosstab != nil) {
+		return matrixInvalid(at, "fit_grouped", at+" params.fit on a grouped request would emit the one bound state in every bucket; drop groups or fit",
+			map[string]any{"param": "fit", "fit": m.Fit})
 	}
 	return nil
 }

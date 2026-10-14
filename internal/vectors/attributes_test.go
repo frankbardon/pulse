@@ -96,13 +96,21 @@ func TestResolveAttributes_Rules(t *testing.T) {
 		{name: "pc score k below component", attr: pcs(`{"component": 3, "rotation": "varimax", "components": 2}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "pc score components unrotated", attr: pcs(`{"component": 1, "components": 2}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "pc score varimax without k", attr: pcs(`{"component": 1, "rotation": "varimax"}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
-		{name: "pc score promax", attr: pcs(`{"component": 1, "rotation": "promax", "components": 2}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "pc score promax", attr: pcs(`{"component": 1, "rotation": "promax", "components": 2}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "rotation_oblique_unsupported"},
+		{name: "pc score geomin oblique", attr: pcs(`{"component": 1, "rotation": "geomin", "components": 2}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "rotation_oblique_unsupported"},
+		{name: "pc score unknown rotation", attr: pcs(`{"component": 1, "rotation": "bentler", "components": 2}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "pc score geomin_orthogonal epsilon", attr: pcs(`{"component": 1, "rotation": "geomin_orthogonal", "epsilon": 0.05, "components": 2}`, func(a *types.Attribute) { a.Vector = "va" }), members: []string{"a1", "a2", "a3"}},
+		{name: "pc score quartimax", attr: pcs(`{"component": 1, "rotation": "quartimax", "components": 2}`, func(a *types.Attribute) { a.Vector = "va" }), members: []string{"a1", "a2", "a3"}},
+		{name: "pc score epsilon without geomin", attr: pcs(`{"component": 1, "rotation": "varimax", "epsilon": 0.05, "components": 2}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "pc score bad on", attr: pcs(`{"component": 1, "on": "ranks"}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "pc score output key", attr: pcs(`{"component": 1, "output": "p"}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		// ATTR_FACTOR_SCORE: factor + method, MAT_FACTOR's knobs by
 		// MAT_FACTOR's rule, then the member-count bounds (va has 3).
 		{name: "factor score", attr: fsa(`{"factor": 1, "factors": 1, "method": "bartlett", "extraction": "ml", "fit_on": [{"type": "FILTER_TRUE"}]}`, func(a *types.Attribute) { a.Vector = "va" }), members: []string{"a1", "a2", "a3"}, fitOn: 1},
 		{name: "factor score kaiser oblimin", attr: fsa(`{"factor": 2, "rotation": "oblimin", "gamma": 0.5}`, func(a *types.Attribute) { a.Vector = "va" }), members: []string{"a1", "a2", "a3"}},
+		{name: "factor score geomin epsilon", attr: fsa(`{"factor": 1, "factors": 2, "rotation": "geomin", "epsilon": 0.05}`, func(a *types.Attribute) { a.Vector = "va" }), members: []string{"a1", "a2", "a3"}},
+		{name: "factor score entropy", attr: fsa(`{"factor": 1, "factors": 2, "rotation": "entropy"}`, func(a *types.Attribute) { a.Vector = "va" }), members: []string{"a1", "a2", "a3"}},
+		{name: "factor score epsilon without geomin", attr: fsa(`{"factor": 1, "factors": 2, "rotation": "oblimin", "epsilon": 0.05}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "factor score promax kappa", attr: fsa(`{"factor": 2, "factors": 3, "rotation": "promax", "kappa": 3}`, func(a *types.Attribute) { a.Vector = "va" }), members: []string{"a1", "a2", "a3"}},
 		{name: "factor score no factor", attr: fsa(`{"factors": 2}`, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
 		{name: "factor score no params", attr: fsa(``, func(a *types.Attribute) { a.Vector = "va" }), code: errors.SERVICE_VALIDATION, reason: "bad_params"},
@@ -219,5 +227,37 @@ func TestAttributeInputMembersAndFitOn(t *testing.T) {
 	bad := maha(func(a *types.Attribute) { a.Fields = []string{"zz"} })
 	if _, ok := AttributeInputMembers(&types.Request{Attributes: []*types.Attribute{bad}}, testInputSchema()); ok {
 		t.Error("an unresolvable inline member did not widen")
+	}
+}
+
+// TestScoreParams_RotationEpsilon: ATTR_PC_SCORE and ATTR_FACTOR_SCORE
+// carry the decoded rotation and geomin epsilon (default 0.01, 0 for any
+// other criterion) into their configs — the inline fit reads them.
+func TestScoreParams_RotationEpsilon(t *testing.T) {
+	for raw, want := range map[string]PCScoreConfig{
+		`{"component": 1, "rotation": "geomin_orthogonal", "components": 2}`:                 {Rotation: RotationGeominOrthogonal, Epsilon: GeominDefaultEpsilon},
+		`{"component": 1, "rotation": "geomin_orthogonal", "epsilon": 0.2, "components": 2}`: {Rotation: RotationGeominOrthogonal, Epsilon: 0.2},
+		`{"component": 1, "rotation": "entropy", "components": 2}`:                           {Rotation: RotationEntropy},
+	} {
+		cfg, err := PCScoreParams("attributes[0]", json.RawMessage(raw))
+		if err != nil {
+			t.Fatalf("%s: %v", raw, err)
+		}
+		if cfg.Rotation != want.Rotation || cfg.Epsilon != want.Epsilon {
+			t.Errorf("%s: rotation %q epsilon %v, want %q %v", raw, cfg.Rotation, cfg.Epsilon, want.Rotation, want.Epsilon)
+		}
+	}
+	for raw, want := range map[string]FactorScoreConfig{
+		`{"factor": 1, "rotation": "geomin"}`:                 {Rotation: RotationGeomin, Epsilon: GeominDefaultEpsilon},
+		`{"factor": 1, "rotation": "geomin", "epsilon": 0.5}`: {Rotation: RotationGeomin, Epsilon: 0.5},
+		`{"factor": 1, "rotation": "quartimax"}`:              {Rotation: RotationQuartimax},
+	} {
+		cfg, err := FactorScoreParams("attributes[0]", json.RawMessage(raw))
+		if err != nil {
+			t.Fatalf("%s: %v", raw, err)
+		}
+		if cfg.Rotation != want.Rotation || cfg.Epsilon != want.Epsilon {
+			t.Errorf("%s: rotation %q epsilon %v, want %q %v", raw, cfg.Rotation, cfg.Epsilon, want.Rotation, want.Epsilon)
+		}
 	}
 }

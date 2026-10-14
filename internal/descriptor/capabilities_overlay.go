@@ -115,8 +115,13 @@ func seriesFieldNoteFor(k types.OverlayKind) string {
 // scores one host aggregation (internal/seriesfield): the params.field
 // rule, stated once so the twelve rows cannot drift.
 const seriesFieldNote = " Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL " +
-	"Params[\"field\"] names (explicit Label, else TYPE_field); absent, it scores Request.Aggregations[0]. " +
+	"Params[\"field\"] names (explicit Label, else TYPE_field)" + elementFieldNote + "; absent, it scores Request.Aggregations[0]. " +
 	"A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime."
+
+// elementFieldNote is the expanded-element clause every params.field
+// note carries (seriesfield.Resolve's element-column arm).
+const elementFieldNote = ", or one expanded element column \"<label>[<element label>]\" of a params.expand vector aggregation " +
+	"(an element no row answered is a missing value)"
 
 // seriesPartitionNote follows seriesFieldNote on every kind that runs
 // once per partition of a composite-row host
@@ -144,14 +149,14 @@ const seriesTotalNote = " Each row is scored against its partition's total (and,
 // whose SERIES arm scores one slot aggregation
 // (seriesfield.AppliesCompose).
 const composeSeriesFieldNote = " Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores " +
-	"the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on every slot it reads; " +
+	"the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field)" + elementFieldNote + " on every slot it reads; " +
 	"absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime."
 
 // chainSeriesFieldNote closes the Description of every whole-chain
 // kind whose SERIES arm scores one stage aggregation
 // (seriesfield.AppliesChain).
 const chainSeriesFieldNote = " Measure: on SERIES stages the overlay keys each row on the stage's group columns alone and scores " +
-	"the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field) on the target and the reference stage; " +
+	"the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field)" + elementFieldNote + " on the target and the reference stage; " +
 	"absent, each stage's Aggregations[0]. A label a stage lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.which, stage_index) at predict and at runtime."
 
 // overlayCapabilityFor returns the static per-kind capability shape
@@ -1330,8 +1335,10 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"cumulative_share, singular_value); Summary.Statistic is the total inertia (chi-square / n) and its parameters " +
 				"carry dimensions, retained_share and share_dim_<k>. payload.parts: row_coordinates / column_coordinates " +
 				"(MATRIX points x retained dimensions, columns keyed dim_1 ...), row_quality / column_quality (SERIES, cos^2 " +
-				"summed over the retained dimensions; parameters mass, inertia) and row_contribution / column_contribution " +
-				"(MATRIX, each point's share of a dimension's inertia). params: dimensions (integer, default 2 capped at " +
+				"summed over the retained dimensions; parameters mass, inertia), row_contribution / column_contribution " +
+				"(MATRIX, each point's share of a dimension's inertia) and row_distance / column_distance (MATRIX points x " +
+				"points: the pairwise chi-square distances between profiles — the chi_square metric over the other axis's " +
+				"masses, symmetric, 0 diagonal, independent of dimensions and normalization). params: dimensions (integer, default 2 capped at " +
 				"min(r, c) - 1; an explicit value above it is PULSE_OVERLAY_PARAM_MISSING) and normalization (symmetric " +
 				"[default: both principal] | row_principal | column_principal). Signs follow linalg.SVD: per dimension the " +
 				"dominant component of the column singular vector is positive. Cells must be non-negative masses: a cell " +
@@ -1435,6 +1442,55 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"Kish n_eff first). A zero-expected cell's residual and p are null; any expected count below 5 " +
 				"emits one PULSE_OVERLAY_EXPECTED_LOW. A host smaller than 2 x 2 or with a zero grand total is " +
 				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.",
+		}
+	case types.OverlayKindRetention:
+		return descriptor.OverlayCapability{
+			Kind: types.OverlayKindRetention,
+			// Descriptive: no p-value, so no multiplicity site.
+			Inferential: false,
+			Shapes:      []types.OverlayShape{types.OverlayShapeSeries},
+			Scopes:      []types.OverlayScope{types.OverlayScopeRow},
+			// No Ref family — implicit-margin like the CHISQ_* kinds.
+			RefKinds: []string{},
+			Description: "Retention rates of a from-state (rows) x to-state (columns) crosstab. ROW scope over a MATRIX " +
+				"(crosstab) host with SERIES payload: one entry per from-state, in row order, with Summary.Statistic = stay " +
+				"(the share of the row's total in the column naming the same state — aligned by key, never by position; no " +
+				"such column = 0) and Summary.Parameters switch (the share that moved to any other state), from_total (the " +
+				"row's total) and, with params.absorbing, churn (the share that moved into a named absorbing state, so stay " +
+				"+ switch + churn = 1). A from-state named in params.absorbing is not reported. The layer's " +
+				"Summary.Parameters pool the same rates over the reported rows (stay, switch, churn with absorbing, states, " +
+				"total). A row with a zero total has null rates and raises one PULSE_OVERLAY_REF_ZERO warning (reason " +
+				"zero_row). params: absorbing (a non-empty array of distinct state keys present in the host, row or " +
+				"column); a bad or unknown param, or a key the host lacks, is PULSE_OVERLAY_PARAM_MISSING. A different " +
+				"grouper count per axis is PULSE_OVERLAY_MATRIX_NOT_SQUARE; a cell aggregation other than AGG_COUNT / " +
+				"AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED; an undefined cell is absent (0). " +
+				"Scale-invariant: a weighted host's sum-of-weights table is read as is under either weight kind. " +
+				"Descriptive (no p-value).",
+		}
+	case types.OverlayKindSymmetry:
+		return descriptor.OverlayCapability{
+			Kind:        types.OverlayKindSymmetry,
+			Inferential: true,
+			Shapes:      []types.OverlayShape{types.OverlayShapeScalar},
+			Scopes:      []types.OverlayScope{types.OverlayScopeMatrix},
+			// No Ref family — implicit-margin like the CHISQ_* kinds.
+			RefKinds: []string{},
+			Description: "Test of symmetry for a from-state (rows) x to-state (columns) crosstab of PAIRED observations (the " +
+				"same units measured twice): McNemar's test on a 2 x 2 table, Bowker's on k x k — R's mcnemar.test. H0: for " +
+				"every pair of states, moves i -> j are as frequent as moves j -> i. chi-square = sum over pairs i < j of " +
+				"(n_ij - n_ji)^2 / (n_ij + n_ji); a pair with n_ij + n_ji = 0 is dropped and df = the number of pairs kept " +
+				"(k(k - 1)/2 when none is); a 2 x 2 table takes Edwards' continuity correction (|n_12 - n_21| - 1)^2 unless " +
+				"params.correct is false (R's default correct = TRUE; inert on k x k). With no pair kept, the statistic and " +
+				"p-value are null and df is 0. MATRIX scope over a MATRIX (crosstab) host with SCALAR payload = the " +
+				"chi-square, plus OverlaySummary{Statistic, PValue, Parameters{df, states, discordant, pairs_dropped, " +
+				"continuity_corrected}}; a multiplicity block adjusts the one p-value. States align by key, never by " +
+				"position (rows first, then column-only keys); a state on one axis only is a row / column of zeros. A " +
+				"different grouper count per axis is PULSE_OVERLAY_MATRIX_NOT_SQUARE; a cell aggregation other than " +
+				"AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED; fewer than 2 states or a " +
+				"zero total is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE; a bad or unknown param is " +
+				"PULSE_OVERLAY_PARAM_MISSING. Any pair whose expected count under symmetry ((n_ij + n_ji) / 2) is below 5 " +
+				"emits one PULSE_OVERLAY_EXPECTED_LOW. Weighted hosts follow OVERLAY_CHISQ_MATRIX (the sum-of-weights " +
+				"table; under kind probability scaled to its Kish n_eff first).",
 		}
 	case types.OverlayKindTCell:
 		return descriptor.OverlayCapability{

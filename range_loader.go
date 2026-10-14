@@ -16,8 +16,8 @@ const envRangeTablesDir = "PULSE_RANGE_TABLES_DIR"
 // the PULSE_RANGE_TABLES_DIR env var) and loads every *.json file as a
 // RangeTable. Tables loaded from disk merge into
 // opts.Extensions.RangeTables; a name that is already declared
-// programmatically is a hard error (a table must have exactly one
-// source of truth). The registered ranges are validated later, at
+// programmatically is PULSE_EXTENSION_DUPLICATE (dirCollision — a
+// table must have exactly one source of truth). The registered ranges are validated later, at
 // extension-validation time, via daterange.Compile.
 //
 // File format: either a bare array of range objects
@@ -88,7 +88,7 @@ func loadRangeTablesFromDir(opts *Options) error {
 			opts.Extensions.RangeTables = map[string]RangeTable{}
 		}
 		if _, exists := opts.Extensions.RangeTables[tableName]; exists {
-			return fmt.Errorf("pulse: range table %q declared both programmatically and on disk", tableName)
+			return dirCollision("range_table", tableName, path)
 		}
 		opts.Extensions.RangeTables[tableName] = tbl
 	}

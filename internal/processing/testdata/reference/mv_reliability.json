@@ -13,7 +13,7 @@
   },
   "primitive": "reliability (alpha) and omega",
   "r_function": "psych::alpha(check.keys = FALSE) (unweighted, asserted against the manual formulas); manual alpha on the weighted covariance; omega from psych::fa(nfactors = 1, fm = 'minres')",
-  "note": "Reversed items are x' = scale_min + scale_max - x BEFORE the fold (psych::alpha(keys=) asserted equal). item_total_r is the corrected item-total r (psych r.drop). item_sd is sqrt(diag(cov)) under the one rule (pairwise: per-item sd). omega_total_model = (sum lambda)^2 / ((sum lambda)^2 + sum psi); omega_total_observed = 1 - sum psi / sum(R) (psych::omega's omega.tot). Both are null for p = 2 (no one-factor fit). heywood flags any psi <= 0.005 or |lambda| >= 1 (see mv_fa_minres).",
+  "note": "Reversed items are x' = scale_min + scale_max - x BEFORE the fold (psych::alpha(keys=) asserted equal). item_total_r is the corrected item-total r (psych r.drop). item_sd is sqrt(diag(cov)) under the one rule (pairwise: per-item sd). Weighted pairwise: every covariance / correlation entry is the one-rule cov.wt over that entry's own complete rows, so under probability weights each entry carries its own Kish factor n_eff/(n_eff - 1) (never one slot-wide n_eff); item_mean is the weighted mean over the rows where the item is present. omega_total_model = (sum lambda)^2 / ((sum lambda)^2 + sum psi); omega_total_observed = 1 - sum psi / sum(R) (psych::omega's omega.tot). Both are null for p = 2 (no one-factor fit). heywood flags any psi <= 0.005 or |lambda| >= 1 (see mv_fa_minres).",
   "cases": [
     {
       "fixture": "likert_ties",
@@ -1556,6 +1556,140 @@
       "heywood": false
     },
     {
+      "fixture": "nulls",
+      "items": ["x1", "x2", "x3", "x4"],
+      "reverse": [],
+      "scale_min": null,
+      "scale_max": null,
+      "missing": "pairwise",
+      "weight": "frequency",
+      "n_rows": 48,
+      "n_star": 96,
+      "alpha": 0.052790969967334636,
+      "alpha_standardized": 0.6462974455472229,
+      "mean_inter_item_r": 0.31356801832183656,
+      "item_total_r": [
+        0.17721874911637883,
+        0.19160245697102982,
+        0.24178824118648459,
+        0.19390900980848097
+      ],
+      "alpha_if_deleted": [
+        0.050239872026739574,
+        0.013306856477426854,
+        0.052709285749386936,
+        0.37423089494464451
+      ],
+      "item_mean": [
+        9.9034620350877205,
+        49.16580410619467,
+        0.09944348275862068,
+        9.989304522123895
+      ],
+      "item_sd": [
+        1.7301378789086164,
+        7.9876061777301084,
+        0.92558750792062983,
+        94.378054043786165
+      ],
+      "inter_item_correlation": [
+        [
+          1,
+          0.55030922609418043,
+          0.41594956218037549,
+          0.11465373454659186
+        ],
+        [
+          0.55030922609418043,
+          1,
+          0.40572188602445625,
+          0.17391258732225279
+        ],
+        [
+          0.41594956218037549,
+          0.40572188602445625,
+          1,
+          0.220861113763163
+        ],
+        [
+          0.11465373454659186,
+          0.17391258732225279,
+          0.220861113763163,
+          1
+        ]
+      ],
+      "omega_total_model": 0.67156386510301447,
+      "omega_total_observed": 0.67241760871126255,
+      "heywood": false
+    },
+    {
+      "fixture": "nulls",
+      "items": ["x1", "x2", "x3", "x4"],
+      "reverse": [],
+      "scale_min": null,
+      "scale_max": null,
+      "missing": "pairwise",
+      "weight": "probability",
+      "n_rows": 48,
+      "n_star": 25.829803155685624,
+      "alpha": 0.080158060224604061,
+      "alpha_standardized": 0.68020520422847119,
+      "mean_inter_item_r": 0.34715250801845937,
+      "item_total_r": [
+        0.19243079031998181,
+        0.29941115387366363,
+        0.41452670719696039,
+        0.31095771150449036
+      ],
+      "alpha_if_deleted": [
+        0.080229637749085259,
+        0.021656045235374566,
+        0.077286615420310401,
+        0.39320392573581275
+      ],
+      "item_mean": [
+        9.9653099132496941,
+        49.186302510985669,
+        0.12450743507563282,
+        4.6084096696833292
+      ],
+      "item_sd": [
+        1.8535084859955024,
+        8.0611773779024265,
+        1.1114936635862573,
+        97.713142319940587
+      ],
+      "inter_item_correlation": [
+        [
+          1,
+          0.53860245449462707,
+          0.33690906761581224,
+          0.13136226549604327
+        ],
+        [
+          0.53860245449462707,
+          1,
+          0.40744117141138625,
+          0.26817503297169498
+        ],
+        [
+          0.33690906761581224,
+          0.40744117141138625,
+          1,
+          0.40042505612119317
+        ],
+        [
+          0.13136226549604327,
+          0.26817503297169498,
+          0.40042505612119317,
+          1
+        ]
+      ],
+      "omega_total_model": 0.69038707855058701,
+      "omega_total_observed": 0.6905281855746912,
+      "heywood": false
+    },
+    {
       "fixture": "heywood",
       "items": ["h1", "h2", "h3"],
       "reverse": [],
@@ -1611,4 +1745,4 @@
     }
   ]
 }
-// golden-hash: d0cfb683696be55c486a95cf1a6296fc29cffaab96b160782f3da9bfb5370c5f
+// golden-hash: f1a82dca5d60f8bf6c5e21d090f485a10ed6dd6b25b3a5c313b756b21c0534ca

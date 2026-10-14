@@ -34,7 +34,7 @@ Scalar `float64` — exact `Σ field·w / Σw` (a few ULP from releases that use
 
 ## Components
 
-Floor `{n, n_null}`<!-- feature: capability:weighting --> plus `n_weight_invalid` (rows excluded for an invalid weight)<!-- /feature -->; operator keys (all float64; empty cell all 0):
+Floor `{n, n_null}`<!-- feature: capability:weighting --> plus `n_weight_invalid` (rows excluded for an invalid weight)<!-- /feature -->; operator keys (all float64; Σw = 0: `weighted_mean` and the scalar `null`, `weighted_variance` `null` (Σw ≤ 1), the rest 0):
 
 | Key | Notes |
 |---|---|
@@ -43,7 +43,7 @@ Floor `{n, n_null}`<!-- feature: capability:weighting --> plus `n_weight_invalid
 | `weighted_mean` | Σ field·w / Σw |
 | `m2_weighted` | Σw(x − mean)² |
 | `sum_weights_sq` | Σw² |
-| `weighted_variance` | m2/(Σw−1); 0 if Σw ≤ 1 |
+| `weighted_variance` | m2/(Σw−1); `null` if Σw ≤ 1 |
 | `n_eff` | Kish (Σw)²/Σw² |
 
 - Mergeability: `Mergeable` (weighted Chan-Welford)

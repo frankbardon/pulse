@@ -84,7 +84,8 @@ import (
 // PULSE_MATRIX_NOT_IDENTIFIED; a uniqueness ≤ 0 (ml: one held at its
 // 0.005 floor) adds PULSE_MATRIX_HEYWOOD (the fit is kept); an
 // extraction or rotation at its cap adds PULSE_MATRIX_NOT_CONVERGED
-// (solver fa_minres / fa_pa / fa_ml / varimax / gpa_oblimin); ml on a
+// (solver fa_minres / fa_pa / fa_ml / varimax / gpa_<criterion>, e.g.
+// gpa_oblimin, gpa_geomin); ml on a
 // singular R (the one rule, singular_rule.go) nulls the fit
 // (sphericityStats' PULSE_MATRIX_SINGULAR names it); an undefined input
 // nulls every figure.
@@ -619,7 +620,7 @@ func finalizeFactor(in *matrixFinalizeInput) (matrixOutput, error) {
 	}
 	var rot *rotationResult
 	if plan.Rotation != "" {
-		res, err := rotateLoadings(fit.Loadings, rotationSpec{Method: plan.Rotation, Kappa: plan.Kappa, Gamma: plan.Gamma})
+		res, err := rotateLoadings(fit.Loadings, rotationSpec{Method: plan.Rotation, Kappa: plan.Kappa, Gamma: plan.Gamma, Epsilon: plan.Epsilon})
 		if err != nil {
 			return matrixOutput{}, err
 		}
@@ -660,10 +661,10 @@ func faWriteFit(in *matrixFinalizeInput, out *matrixOutput, fit faFit, rot *rota
 		if rot != nil {
 			out.Primary = in.Rect(cols, func(i, c int) float64 { return rot.Loadings[i][c] })
 			variance = rot.Variance
-			if plan.Rotation != vectors.RotationVarimax && in.WantAuxiliary() {
+			if vectors.RotationOblique(plan.Rotation) && in.WantAuxiliary() {
 				out.Auxiliary["factor_correlation"] = factorCorrelation(cols, func(a, b int) float64 { return rot.Phi[a][b] })
 			}
-		} else if plan.Rotation != vectors.RotationVarimax && in.WantAuxiliary() {
+		} else if vectors.RotationOblique(plan.Rotation) && in.WantAuxiliary() {
 			// No factor to rotate (the Kaiser rule kept none).
 			out.Auxiliary["factor_correlation"] = factorCorrelation(cols, nil)
 		}
@@ -729,7 +730,7 @@ func faNullFit(in *matrixFinalizeInput, out *matrixOutput, p, k int, stats pcaSt
 			out.Auxiliary = map[string]*types.MatrixValues{}
 		}
 		out.Auxiliary["unrotated"] = in.Rect(cols, nan)
-		if plan.Rotation != vectors.RotationVarimax {
+		if vectors.RotationOblique(plan.Rotation) {
 			out.Auxiliary["factor_correlation"] = factorCorrelation(cols, func(int, int) float64 { return math.NaN() })
 		}
 	}

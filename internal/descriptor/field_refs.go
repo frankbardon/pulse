@@ -166,13 +166,25 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     vector input on an aggregator that reads a field (an extension's
 //     included), an undefined vector, the inline-fields vector rules and
 //     params.labels / params.expand. A vector aggregator's array value
-//     — and, under params.expand, each per-element column, which is
-//     presentation only — is refused at step 5 as a Sort key, a
-//     window's field / order_by / partition_by, a post-test's field, or
-//     a request overlay's host (the aggregation it scores: a series
+//     (its bare label) is refused at step 5 as a Sort key, a window's
+//     field / order_by / partition_by or a post-test's field; it, or
+//     under params.expand any of its per-element columns, is refused
+//     as a request overlay's host (the aggregation it scores: a series
 //     kind's params.field, else the first) —
-//     PROCESSING_CONFIG, details.reason "array_valued".
+//     PROCESSING_CONFIG, details.reason "array_valued". An expanded
+//     per-element column <label>[<elem>] is otherwise an ordinary
+//     nullable f64 output column.
 //     Steps 6 to 11 contribute one refusal at most between them.
+//  12. bound vector fits — every fitted attribute's and every matrix's
+//     params.fit judged against the bound names (models: the runtime's
+//     Set, predict's FitCatalog) by internal/model.CheckVectorFit, once
+//     steps 6-11 passed: an unbound name is PULSE_MODEL_UNKNOWN (the
+//     vector fits under details.available), a regression name
+//     PULSE_MODEL_KIND_MISMATCH — located by details.attribute (the
+//     slot's label) or details.matrix (the result name), the message
+//     prefixed with the slot, exactly as the bind re-raises it. The
+//     label alignment is the bind's alone (a static catalog never
+//     resolves a battery).
 //
 // Derived names follow the runtime's own naming (featureOutputLabels,
 // attributeDefaultLabel, "<TYPE>_<field>" for an aggregation,
@@ -522,15 +534,14 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 				if vectors.AggregationExpands(agg, kinds) {
 					outCols, _ = vectors.AggregationOutputColumns(req, agg, schema, kinds)
 				}
-				// An array-valued slot's label, and every expanded
-				// column, are presentation only (judged below).
+				// An array-valued slot's bare label names no single
+				// number (judged below). Its expanded per-element
+				// columns are ordinary nullable f64 output columns:
+				// they join the output set like any scalar label.
 				if w.arrayCols == nil {
 					w.arrayCols = map[string]*types.Aggregation{}
 				}
 				w.arrayCols[label] = agg
-				for _, c := range outCols {
-					w.arrayCols[c] = agg
-				}
 			}
 			for _, label := range outCols {
 				// Output-namespace collision: the row map holds one value
@@ -611,9 +622,9 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 		w.cols[label] = true
 		w.claim(label, map[string]any{"slot": "window[" + idx + "] " + string(win.Type), "window_index": i, "window": string(win.Type)})
 	}
-	// An array-valued aggregation's output (AGG_VEC_*: its label, or
-	// with params.expand its per-element columns — w.arrayCols) is
-	// presentation only: no single number to order by.
+	// An array-valued aggregation's bare label (AGG_VEC_*: w.arrayCols)
+	// names no single number to order by; an expanded per-element
+	// column <label>[<elem>] is an ordinary output column.
 	for i, k := range req.Sort {
 		if k.Field == "" {
 			continue
@@ -628,8 +639,11 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 		})
 	}
 	// A request overlay reads ONE aggregation as its host value: the one
-	// a series kind's params.field names, else the first.
-	w.out = append(w.out, processOverlayArrayValuedRefusals(req, aggregationKinds(inst, w.snap), vectors.CodeFieldTypes(schema, codes),
+	// a series kind's params.field names (an output label, or an
+	// expanded element column of an array-valued one), else the first.
+	ovKinds := aggregationKinds(inst, w.snap)
+	w.out = append(w.out, processOverlayArrayValuedRefusals(req, ovKinds, vectors.CodeFieldTypes(schema, codes),
+		vectors.AggregationColumns(req, func() *encoding.Schema { return schema }, ovKinds),
 		func(k types.OverlayKind) bool { return !inst.Hidden(string(k)) && overlayhost.ReadsCellValue(k) })...)
 	if req.Crosstab == nil {
 		for i, t := range req.PostTests {
@@ -650,7 +664,8 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	// vector-XOR-fields shape, encoding, result-name uniqueness, params,
 	// the named vector (PULSE_VECTOR_UNKNOWN) or the inline fields (the
 	// vector rules). A type the instance hides is an unknown type.
-	if _, verr := resolveMatricesFor(req, schema, w.snap, inst); verr != nil {
+	mats, verr := resolveMatricesFor(req, schema, w.snap, inst)
+	if verr != nil {
 		w.out = append(w.out, verr)
 		return w.out
 	}
@@ -677,9 +692,10 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	// fitted params (fit_on, missing, the operator's own keys) resolved
 	// by the same leaf (vectors.ResolveAttributes). Steps 6-9 contribute
 	// one refusal at most between them.
-	if _, aerr := vectors.ResolveAttributes(req, schema, func(t types.AttributeType) types.AttributeType {
+	ains, aerr := vectors.ResolveAttributes(req, schema, func(t types.AttributeType) types.AttributeType {
 		return opRoute(inst, t)
-	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Attributes })); aerr != nil {
+	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Attributes }))
+	if aerr != nil {
 		w.out = append(w.out, aerr)
 		return w.out
 	}
@@ -699,13 +715,98 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	// at most between them.
 	if _, aerr := vectors.ResolveAggregations(req, schema, aggregationKinds(inst, w.snap)); aerr != nil {
 		w.out = append(w.out, aerr)
+		return w.out
 	}
+	// 12. Bound vector fits (params.fit), once every input resolved.
+	w.out = append(w.out, vectorFitRefusals(req, schema, mats, ains, inst, models)...)
 	return w.out
+}
+
+// vectorFitRefusals is step 12: each fitted attribute's params.fit and
+// each comparison slot's {population} reference (in slot order), then
+// each matrix's params.fit, judged by model.CheckVectorFit
+// against models and located the way the runtime's bind locates it
+// (details.attribute = the slot's label / details.matrix = the result
+// name, the message prefixed with the slot). A bound fit whose member
+// labels the catalog knows (a loaded population; every runtime fit) is
+// then aligned to the slot's labels by the bind's own rule
+// (vectors.AlignFit — PULSE_VECTOR_REFERENCE_MISMATCH labels_differ);
+// predict's static Compose-fit signatures carry no labels and skip it.
+// ains is step 9's index-aligned attribute resolution.
+func vectorFitRefusals(req *types.Request, schema *encoding.Schema, mats []vectors.Matrix, ains []vectors.AttributeInput, inst *InstanceSnapshot, models model.Catalog) []*errors.CodedError {
+	var out []*errors.CodedError
+	for i, attr := range req.Attributes {
+		if attr == nil {
+			continue
+		}
+		typ := opRoute(inst, attr.Type)
+		name := vectors.AttributeFit(typ, attr)
+		pop := vectors.ComparisonPopulation(typ, attr)
+		if name == "" && pop == "" {
+			continue
+		}
+		label := attr.Label
+		if label == "" {
+			label = attributeDefaultLabel(attr, inst)
+		}
+		var labels []string
+		labelsOK := false
+		if i < len(ains) {
+			labels, labelsOK = vectors.AttributeFitLabels(typ, attr, ains[i].Members, schema)
+		}
+		if name != "" {
+			if cerr := model.CheckVectorFit(models, name); cerr != nil {
+				cerr.Details["attribute"] = label
+				cerr.Message = label + ": " + cerr.Message
+				out = append(out, cerr)
+				continue
+			}
+			if sig, _ := models.Signature(name); sig.Members != nil && labelsOK {
+				if _, cerr := vectors.AlignFit("attribute", label, name, sig.Members, labels); cerr != nil {
+					out = append(out, cerr)
+					continue
+				}
+			}
+		}
+		// A {population} reference (after the slot's own fit, as the
+		// runtime binds them): unbound is PULSE_VECTOR_REFERENCE_UNKNOWN,
+		// a population whose labels the catalog knows aligns by label.
+		if pop == "" {
+			continue
+		}
+		if cerr := model.CheckVectorFit(models, pop); cerr != nil {
+			out = append(out, vectors.PopulationRefusal(label, pop, cerr))
+			continue
+		}
+		if sig, _ := models.Signature(pop); sig.Members != nil && labelsOK {
+			if _, cerr := vectors.PopulationAlign(label, pop, sig.Members, labels); cerr != nil {
+				out = append(out, cerr)
+			}
+		}
+	}
+	for _, m := range mats {
+		if m.Fit == "" {
+			continue
+		}
+		if cerr := model.CheckVectorFit(models, m.Fit); cerr != nil {
+			cerr.Details["matrix"] = m.Name
+			cerr.Message = "matrix " + m.Name + ": " + cerr.Message
+			out = append(out, cerr)
+			continue
+		}
+		if sig, _ := models.Signature(m.Fit); sig.Members != nil {
+			if _, cerr := vectors.AlignFit("matrix", m.Name, m.Fit, sig.Members, m.FitLabels()); cerr != nil {
+				out = append(out, cerr)
+			}
+		}
+	}
+	return out
 }
 
 // resolveMatricesFor is the one instance-scoped Request.Matrices
 // resolution every descriptor site reads (the field-reference walk,
-// predict, the limits): a hidden matrix type is unknown, and a
+// predict, the limits): a hidden matrix type is unknown, an offered
+// extension MAT_* operator resolves through its registration, and a
 // MAT_DISTANCE params.between grouper type routes through the instance
 // (a hidden grouper is unknown); a registered extension grouper (snap,
 // else the instance's own projection) is accepted as a between, as the
@@ -718,11 +819,19 @@ func resolveMatricesFor(req *types.Request, schema *encoding.Schema, snap *Exten
 	if snap != nil {
 		ext = func(name string) bool { return snapshotHasName(snap.Groupers, name) }
 	}
-	return vectors.ResolveMatricesRouted(req, schema, func(t types.MatrixType) bool {
-		return isBuiltinMatrixType(opRoute(inst, t))
-	}, func(t types.GroupType) types.GroupType {
-		return opRoute(inst, t)
-	}, ext)
+	return vectors.ResolveMatricesWith(req, schema, vectors.MatrixResolve{
+		Known: func(t types.MatrixType) bool {
+			return isBuiltinMatrixType(opRoute(inst, t))
+		},
+		Route: func(t types.GroupType) types.GroupType {
+			return opRoute(inst, t)
+		},
+		BetweenExt: ext,
+		// An offered extension MAT_* operator resolves through its
+		// registration, as the runtime resolves it
+		// (processing.resolveMatrixPlans).
+		Extension: matrixExtensionFor(inst, snap),
+	})
 }
 
 // checkFitOn judges one params.fit_on filterer of a fitted vector
@@ -757,19 +866,21 @@ type fieldRefWalk struct {
 	// names (its first claimer's slot, for the details of a vector-name
 	// collision at step 6).
 	labels map[string]map[string]any
-	// arrayCols maps every output column of an array-valued aggregation
-	// (AGG_VEC_*) — its label and, under params.expand, each
-	// per-element column — to its slot: presentation-only columns a
-	// Sort key, a window or a post-test may not read (arrayRef).
+	// arrayCols maps the bare label of every array-valued aggregation
+	// (AGG_VEC_*) to its slot: a Sort key, a window or a post-test may
+	// not read it (arrayRef). Under params.expand the per-element
+	// columns are not here — they are ordinary output columns.
 	arrayCols map[string]*types.Aggregation
 }
 
 // arrayRef refuses a downstream read (a Sort key, a window's field /
 // order_by / partition_by, a post-test's field) of an array-valued
-// aggregation's output — the array, or one of its expanded per-element
-// columns, which stay presentation only — with PROCESSING_CONFIG
-// {field, aggregation, reason: "array_valued"} plus extra. It reports
-// whether it refused, so the caller skips its own existence check.
+// aggregation's bare label — one figure per vector member, no single
+// number — with PROCESSING_CONFIG {field, aggregation, reason:
+// "array_valued"} plus extra. An expanded per-element column is never
+// here: it is an ordinary output column the existence check judges.
+// It reports whether it refused, so the caller skips its own existence
+// check.
 func (w *fieldRefWalk) arrayRef(name, at string, extra map[string]any) bool {
 	agg, ok := w.arrayCols[name]
 	if !ok {
@@ -779,12 +890,8 @@ func (w *fieldRefWalk) arrayRef(name, at string, extra map[string]any) bool {
 	for k, v := range extra {
 		details[k] = v
 	}
-	what := "is array-valued (" + string(agg.Type) + ", one figure per vector member)"
-	if name != types.AggregationLabelOf(agg) {
-		what = "is an expanded element column of " + types.AggregationLabelOf(agg) + " (" + string(agg.Type) + "), presentation only"
-	}
 	w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-		at+": "+name+" "+what+"; it cannot be ordered by, windowed or tested — read a scalar column", details))
+		at+": "+name+" is array-valued ("+string(agg.Type)+", one figure per vector member); it cannot be ordered by, windowed or tested — set params.expand and read an element column "+name+"[<element>]", details))
 	return true
 }
 

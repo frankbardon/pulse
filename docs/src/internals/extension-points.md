@@ -152,10 +152,12 @@ ext := pulse.Extensions{
     Features:           []pulse.FeatureRegistration{...},
     Tests:              []pulse.TestRegistration{...},
     SynthDistributions: []pulse.DistributionRegistration{...},
+    MatrixOps:          []pulse.MatrixOpRegistration{...},
 
     ExprFunctions:    []pulse.ExprFunction{...},
     LookupTables:     map[string]pulse.LookupTable{...},
     ReferenceVectors: map[string]types.ReferenceVectorTable{...},
+    Populations:      map[string]pulse.Population{...},
 
     Skills:   skillsFS,   // fs.FS of embedder skill files — see "Embedder skills"
     Examples: examplesFS, // fs.FS of embedder request examples — see "Embedder examples"
@@ -183,7 +185,7 @@ Embedder registrations MUST use a three-segment namespaced form:
 The regex enforced by `extensions_validate.go` is:
 
 ```
-^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$
+^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH|MAT)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$
 ```
 
 | Example | Category | Namespace | Name |
@@ -192,14 +194,18 @@ The regex enforced by `extensions_validate.go` is:
 | `ATTR_ACME_ADJUSTMENT` | attribute | ACME | ADJUSTMENT |
 | `FILTER_ACME_GEO_FENCE` | filterer | ACME | GEO_FENCE |
 | `TEST_FINANCE_VAR` | test | FINANCE | VAR |
+| `MAT_ACME_SCATTER` | matrix | ACME | SCATTER |
 
 Failure modes raised at registration time:
 
 - Name fails the regex → `PULSE_EXTENSION_NAME_INVALID`.
 - Namespace is one of the reserved values `BUILTIN`, `STANDARD`,
   `CORE`, `PULSE` → `PULSE_EXTENSION_NAME_RESERVED`.
-- Name collides with a built-in (e.g. registering `AGG_COUNT`) →
-  `PULSE_EXTENSION_NAME_COLLISION`.
+- Name collides with a built-in (e.g. registering `AGG_COUNT`, or
+  `MAT_PARTIAL_CORRELATION`, a built-in that happens to fit the
+  pattern) → `PULSE_EXTENSION_NAME_COLLISION`.
+- The category prefix does not match the registration slot (a
+  `MAT_*` name under `Aggregators`) → `PULSE_EXTENSION_NAME_INVALID`.
 - The same name appears twice in one `pulse.New` call →
   `PULSE_EXTENSION_DUPLICATE`.
 
@@ -207,7 +213,7 @@ Two embedders in the same process must use disjoint namespaces.
 
 ## Per-category registration shapes
 
-The eight operator categories plus expression functions and lookup
+The nine operator categories plus expression functions and lookup
 tables cover everything `pulse.Options.Extensions` accepts. Field-input
 introspection and component-schema emission attach to operator
 registrations as additional optional fields — see the dedicated
@@ -504,6 +510,167 @@ built-in: its headline `PValue` is one member of the `request` (or
 adds `p_adjusted`, `significant_adjusted` and `multiplicity` to its
 `TestResult`. The registration declares nothing for it.
 
+### Matrix operator (`MatrixOps`)
+
+A `MAT_<NS>_<NAME>` operator computes one matrix result from a
+`Request.Matrices` slot. It is **finalize-only**: the engine folds the
+member columns into per-block `linalg.CoMoment` state, merges the 4096-row
+blocks through its fixed merge tree, and calls `Finalize` once per
+result (once per group bucket) with the merged co-moment. The operator
+never folds rows, so a pure `Finalize` is bit-identical under every
+`DecodeWorkers` / `ShardWorkers` count and shard split. The engine's
+block merge is not part of `extend`.
+
+```go
+type scatter struct{}
+
+func (scatter) Finalize(in *extend.MatrixInput) (extend.MatrixOutput, error) {
+    cm := in.CoMoment // read-only: never Add or Merge
+    out := extend.MatrixOutput{Primary: in.Square(cm.PairM2)}
+    if in.WantScalars {
+        tr := 0.0
+        for i := 0; i < cm.P(); i++ {
+            tr += cm.PairM2(i, i)
+        }
+        out.Scalars = map[string]float64{"trace": tr}
+    }
+    return out, nil
+}
+
+reg := pulse.MatrixOpRegistration{
+    Name:        "MAT_ACME_SCATTER",
+    Description: "Scatter matrix: each pair's raw weighted co-moment.",
+    Factory: func(*types.MatrixSpec, *encoding.Schema) (extend.MatrixOperator, error) {
+        return scatter{}, nil
+    },
+    Streamable: true,
+    OutputKeys: descriptor.MatrixOutputKeys{Primary: "scatter", Scalars: []string{"trace"}},
+}
+```
+
+`extend.MatrixInput` carries the read-only `*linalg.CoMoment` (read it
+through `Cov`, `Corr`, `Mean`, the counts and weight sums, and the raw
+per-pair co-moment `PairM2`), the members in axis order, their explicit
+labels, the raw `params`, the folded weight's kind (`""` when
+unweighted), the requested encoding, and the `WantAuxiliary` /
+`WantVectors` / `WantScalars` flags a `return` exclusion clears.
+`Square` and `Rect` render a matrix in that encoding. A registration
+declaring `Streamable: false` also receives the admitted rows
+(`MatrixRows`) and runs buffered and serially. `extend.MatrixOutput`
+holds the primary (required), auxiliary matrices, vectors, scalars,
+warnings and the operator's own components keys.
+
+Validation at `pulse.New`, beyond the naming policy and the
+`ParamMeta` rules:
+
+| Rule | Code | `details.reason` |
+|---|---|---|
+| `Factory` is nil | `PULSE_EXTENSION_PARAM_INVALID` | `missing_factory` |
+| `OutputKeys.Primary` is empty | `PULSE_EXTENSION_PARAM_INVALID` | `missing_output_keys` |
+| an `Auxiliary` / `Vectors` / `Scalars` key is empty or listed twice | `PULSE_EXTENSION_PARAM_INVALID` | `invalid_output_key` |
+| `ComponentSchema.Mergeability` without `Keys` | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | `mergeability_without_keys` |
+| `ComponentSchema.Keys` without `Mergeability` | `PULSE_EXTENSION_PARAM_INVALID` | `missing_mergeability` |
+| a components key is empty or listed twice | `PULSE_EXTENSION_PARAM_INVALID` | `invalid_component_key` |
+| a components key restates the matrix floor (`n`, `n_null`, `n_listwise_dropped`, `min_pair_n`, `max_pair_n`) or the weighted floor (`sum_weights`, `n_eff`, `n_weight_invalid`) | `PULSE_EXTENSION_PARAM_INVALID` | `reserved_component_key` |
+
+A matrix registration has no `ComponentsFunc`: its components ride
+`MatrixOutput.Components`, after the engine's floor.
+
+The probe at `pulse.New` is the one that feeds data: it builds the
+factory against a synthetic schema of three `f64` members (plus a
+weight column) with a spec naming them, and runs `Finalize` over a
+small well-conditioned listwise co-moment of six rows with every part
+wanted — rows attached only on the `Streamable: false` tier. A
+`WeightAware` registration is probed a second time with a weight on the
+spec, a weighted co-moment and `WeightKind` `probability` (a failure
+there carries `details.weighted: true`); any other is probed
+unweighted only. `Finalize` must be pure and succeed on that input.
+
+| Probe failure | Code | `details` |
+|---|---|---|
+| factory panics, errors or returns nil | `PULSE_EXTENSION_FACTORY_PANIC` | `stage: factory` |
+| `Finalize` panics or errors | `PULSE_EXTENSION_FACTORY_PANIC` | `stage: finalize` |
+| `Streamable: true` but `Finalize` fails without `Rows` and succeeds with them | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | `reason: reads_rows` |
+| no `Primary` | `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | `reason: missing_primary` |
+| an `Auxiliary` / `Vectors` / `Scalars` key `OutputKeys` does not declare (a declared key left unfilled is fine) | `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | `reason: undeclared_output_key`, `part`, `undeclared`, `declared_keys` |
+| a `Components` key `ComponentSchema` does not declare (a floor key included) | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` | `reason: components_schema_mismatch` |
+
+Two more registration rules bind the engine-owned surface:
+
+| Rule | Code | `details.reason` |
+|---|---|---|
+| a `Params` entry named `missing`, `max_drop_share` or `fit` (the engine owns them) | `PULSE_EXTENSION_PARAM_INVALID` | `reserved_matrix_param` |
+| `PValues` names no `OutputKeys.Auxiliary` key | `PULSE_EXTENSION_PARAM_INVALID` | `invalid_pvalues` |
+| `OutputKeys.Auxiliary` declares `<PValues>_adjusted` or `significant_adjusted` | `PULSE_EXTENSION_PARAM_INVALID` | `reserved_output_key` |
+
+**At run time** the operator is a built-in in every respect but its
+finalizer:
+
+- **Resolution.** A spec naming it resolves like a built-in one (shape,
+  encoding, result name, members by the vector rules) with the
+  registration's `Accepts` narrowing the member column types
+  (`PULSE_VECTOR_MEMBER_TYPE`; empty = the built-in member types, an
+  element of a native vector reading as `f32` / `f64`). The engine
+  decodes `params.missing`, `params.max_drop_share` and `params.fit`
+  exactly as for a built-in (listwise / pairwise, the heavy-drop warning;
+  under `fit` the slot folds no row and `Finalize` gets the bound vector
+  fit's co-moment, its weight basis as `WeightKind`) and STRIPS them:
+  the factory's spec and `MatrixInput.Params` carry only the operator's
+  own keys. A params value that is not a JSON object is
+  `SERVICE_VALIDATION` `bad_params`; a factory error that is not a
+  `*errors.CodedError` becomes `SERVICE_VALIDATION` `bad_params`.
+- **Tier.** `Streamable: true` streams and merges across
+  `DecodeWorkers` / `ShardWorkers` through the blocked merge;
+  `Streamable: false` keeps the admitted rows, so the request runs
+  buffered and serially. Predict reports the same `streamable` /
+  `mergeable` and sizes the row buffer.
+- **Finalize.** Built once per request (every group bucket shares the
+  instance), called once per result with a per-call CLONE of the merged
+  co-moment, so even an operator that mutates it reaches neither the
+  components floor nor another bucket. The engine's data-quality
+  warnings (thin rows, zero spread, listwise heavy drop) lead the
+  operator's own. The output is held to `OutputKeys` / `ComponentSchema`
+  on every run, not only at the probe (same codes as the probe table).
+  On a run that keeps `components.matrices` but excludes the `matrices`
+  slot, an operator declaring component keys is still finalized, every
+  `Want*` false.
+- **Weights.** A `WeightAware` operator's slot is stamped with the
+  resolved weight (`MatrixInput.WeightKind`); one that is not is refused
+  under ANY weight in force — slot, request or instance default — with
+  `PULSE_EXTENSION_NOT_WEIGHT_AWARE` (`weight: null` opts out).
+- **Multiplicity.** Opt-in: `PValues` names the auxiliary key of the
+  per-cell p-value matrix (off-diagonal upper triangle of a square one).
+  A `multiplicity` block — the spec's, the request's or
+  `Options.DefaultMultiplicity` — adjusts them like a built-in
+  inferential matrix: `<PValues>_adjusted` and `significant_adjusted`
+  beside the raw matrix (with `PValues: "p"` exactly the built-ins'
+  `p_adjusted`), the `multiplicity` echo, and predict's `p_values`. An
+  operator without `PValues` refuses a spec-level block
+  (`PULSE_MULTIPLICITY_INVALID`).
+- **Bits.** The bit contract holds through public registration alone:
+  `TestExtensionMatrix_WorkerInvariant` registers an operator rendering
+  every raw co-moment figure and requires the same bits serially, under
+  `DecodeWorkers` 2/3/7/8 over a file above the parallel-decode
+  threshold, and under `ShardWorkers` 1/2/3/8 over an uneven shard
+  archive against its single-file twin — listwise and pairwise,
+  weighted and unweighted, grouped and ungrouped — each parallel run on
+  its parallel arm; the `Streamable: false` tier runs serially under
+  every knob and lands on the same bits. Keep `Finalize` pure (no
+  clocks, no randomness, no state carried between calls) and the
+  guarantee is yours.
+- **Hosts.** The matrix host refusals hold unchanged: a join, a
+  crosstab and a chain stage after 0 refuse it as they refuse a built-in.
+- **Self-description.** The manifest lists it under
+  `extensions.matrix_ops` in the built-in `matrices` shape (the
+  engine-owned params first, the matrix floor plus the weighted floor
+  when `WeightAware`, then its own component keys) and under
+  `components_schemas.matrices`; the instance payload schema's
+  `MatrixType` enum (as every category's extensions join theirs), the
+  MCP `type` enum, the ontology (a node requiring
+  `capability:matrices`) and the recommend binder carry it. A feature
+  profile that omits it hides it everywhere; listing it needs
+  `capability:matrices`.
+
 ### Synth distribution
 
 Reserved for embedders shipping bespoke samplers. There is no `extend`
@@ -621,8 +788,40 @@ not features: no feature profile gates them.
 `PULSE_EXTENSION_NAME_RESERVED`). The built-in reference-comparison
 attributes `ATTR_PROFILE_SIMILARITY` / `ATTR_VEC_DISTANCE` read the same
 tables through their `reference` param (`{table, key}` or
-`{table, key_field}`, matched by label); as built-ins their names are
+`{table, key_field}`, matched by label; they also take a computed
+`{centroid: {filter, by}}`, a `{population: name}` naming a registered
+population and a `{record: {cohort?, keys}}` read through a point lookup);
+as built-ins their names are
 refused to an extension (`PULSE_EXTENSION_NAME_COLLISION`).
+
+### Registered populations
+
+A population is a saved vector fit — the `*.pulse-population.json`
+document a Compose vector fit's `save` writes. Register one by name and
+every request sees it bound, so a fitted vector attribute or a
+co-moment `MAT_*` slot scores against it with `params.fit` and no
+`populations` entry:
+
+```go
+raw, _ := os.ReadFile("pops/brand.pulse-population.json")
+ext := pulse.Extensions{
+    Populations: map[string]pulse.Population{"brand": {File: raw}},
+}
+```
+
+`Options.PopulationsDir` (or `PULSE_POPULATIONS_DIR`; the option wins)
+does the same for every `*.pulse-population.json` directly in a
+directory, each under its file stem; other files are skipped unread. A
+missing directory is a no-op, a path that is not a directory an error.
+Every document is decoded at `pulse.New` (`PULSE_MODEL_FILE_INVALID` /
+`_VERSION_UNSUPPORTED`, `details.registered` naming it) and frozen;
+nothing registers after `New`. A name declared both here and in the
+directory is `PULSE_EXTENSION_DUPLICATE` — the label- and range-table
+directories follow the same rule. A request entry or Compose fit
+reusing a registered name is `PULSE_MODEL_NAME_COLLISION`, never a
+shadow. The manifest lists each under `extensions.populations` (name,
+operator, basis, labels, n), predict binds the same names and labels,
+and a feature profile hiding `capability:models` registers none.
 
 ## Component schemas (v0.20.0)
 
@@ -652,6 +851,7 @@ this section covers only the extension-side wiring.
 | Window | No | Window outputs land in `Response.Data` rows. |
 | Feature | No | Pre-filter; no components surface. |
 | Test | No | Test results carry their own typed shape. |
+| Matrix | Optional | Matrix floor `{n, n_null, n_listwise_dropped}` (+ pairwise and weighted floor keys) filled by the engine; the operator's own keys ride `MatrixOutput.Components` (no `ComponentsFunc`). See "Matrix operator (`MatrixOps`)". |
 | Synth | No | Generators, not aggregations. |
 
 A registration in a category that does not declare a `ComponentSchema`
@@ -810,7 +1010,9 @@ Fetch the Message + Fixup template via `pulse errors lookup <CODE>`
 The probe (`extensions_probe.go`) runs after schema + name validation
 and before `pulse.New` returns. For every aggregator, attribute,
 grouper, and filterer registration it constructs the factory once
-against a minimal synthetic schema and asserts:
+against a minimal synthetic schema and asserts the chart's left branch;
+a matrix operator takes the right branch (`extensions_probe_matrix.go`),
+the one probe that runs the operator over data:
 
 ```mermaid
 flowchart TD
@@ -825,11 +1027,30 @@ flowchart TD
     E -->|emitter, no schema| F3[PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA]
     E -->|emitter, key divergence| F4[PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH]
     E -->|all clear| G[snapshot + runtime overlay]
+    C -->|MatrixOps| M[build factory on 3 f64 members + weight column]
+    M -->|panic / error / nil| F1
+    M --> M1[Finalize over a six-row listwise CoMoment, every part wanted]
+    M1 -->|panic / error| F1
+    M1 -->|Streamable true, fails without Rows, passes with them| F2
+    M1 --> M2{output inside OutputKeys / ComponentSchema?}
+    M2 -->|no Primary, undeclared key| F6[PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH]
+    M2 -->|undeclared components key| F4
+    M2 -->|all clear, WeightAware probed again weighted| G
 ```
 
 Factory contract for the probe (documented in `extensions_probe.go`):
 embedder factories MUST tolerate a nil/empty `Schema` and a spec
-carrying only the operator `Name`. The probe never feeds real records.
+carrying only the operator `Name`. The probe never feeds real records;
+the matrix probe alone feeds SYNTHETIC ones — a six-row, well-conditioned
+listwise co-moment over three `f64` members (rows attached only on the
+`Streamable: false` tier), run once unweighted and, for a `WeightAware`
+registration, once weighted — and holds the output to `OutputKeys` /
+`ComponentSchema` ("Matrix operator (`MatrixOps`)" above). At run time a
+matrix operator's params never carry the engine-owned `missing` /
+`max_drop_share` / `fit` (a `ParamMeta` naming one is refused,
+`reserved_matrix_param`), each `Finalize` gets its own clone of the
+merged co-moment, and multiplicity correction reaches it only through
+`PValues`.
 A `WeightAware` aggregator, attribute or test factory is constructed a
 second time with a row weight on its spec (a field the empty schema
 does not carry) and must pass the same checks; a failure of that
@@ -890,7 +1111,12 @@ treat custom operators identically to built-ins.
 LLM agents that call `pulse_manifest` see both the built-in set and
 the embedder additions in one fetch. The schema-bound MCP tools (after
 `pulse_inspect`) also include custom operator names in their enum
-lists.
+lists, and so does the instance payload schema (`p.PayloadSchema()`,
+`pulse schema`): every registered aggregator, attribute, filterer,
+grouper, window, feature, test and matrix operator joins its category's
+operator-type enum beside the built-ins, so a request naming one
+validates against the instance's own schema. A feature profile that
+omits an extension drops it from the enum as from the manifest.
 
 ### The snapshot carries `fans_out` and `mergeable`
 
@@ -1229,7 +1455,8 @@ chain: `params.field` where the kind honours it, else
 `aggregations[0]` — an unscored one beside it runs) and a chain stage
 feeding another (`PROCESSING_CONFIG`, reason `array_valued`), and `params.expand: true` writes one column per member,
 `<label>[<element label>]`, which predict lists in
-`aggregations[i].columns`. `expand` on a slot whose aggregator is not
+`aggregations[i].columns` — an ordinary nullable f64 column that a sort
+key, a window, a post-test and a series overlay's `params.field` read (the bare label stays refused there). `expand` on a slot whose aggregator is not
 `ArrayValued` is refused (`expand_not_array_valued`). The manifest's
 extension entry carries `vector_input` / `array_valued`, which the
 recommend planner reads to draft a `fields` list.
@@ -1580,12 +1807,13 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_NAME_INVALID` | name fails the registration regex |
 | `PULSE_EXTENSION_NAME_RESERVED` | namespace is BUILTIN/STANDARD/CORE/PULSE, or an `ExprFunction` is named `total` (engine-owned) or a reserved built-in (`vsum` … `overlap`, `ref`) |
 | `PULSE_EXTENSION_NAME_COLLISION` | name matches a built-in |
-| `PULSE_EXTENSION_DUPLICATE` | same name registered twice |
+| `PULSE_EXTENSION_DUPLICATE` | same name registered twice, or a label table / range table / population declared both programmatically and in its directory |
 | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | declared streaming tier does not match factory interface |
 | `PULSE_EXTENSION_FANOUT_MISMATCH` | grouper `FansOut` disagrees with `extend.MultiKeyStreamingGrouper`, either direction |
 | `PULSE_EXTENSION_PURPOSE_INVALID` | a `Purpose` breaks a guidance validity rule, or a test `Interpretation` is structurally invalid |
 | `PULSE_EXTENSION_MERGEABLE_MISMATCH` | aggregator / grouper `Mergeable` without `Streamable`, value lacks `extend.MergeableAggregator` (or, for a grouper that emits components, `extend.MergeableGrouper`), or `ComponentSchema` keys classified `None` |
 | `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH` | aggregator `MarginReducibility` is not a known class, or is a fusable class (summable / mean_reducible / independent) without `Mergeable` |
+| `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | a matrix operator, finalized over the probe's synthetic co-moment, returned no `Primary` or an output key its `OutputKeys` does not declare |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe |
 | `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, lookup table with neither `Rows` nor `Lookup`, a malformed reference-vector table, etc. |
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (closure or sibling interface) but `ComponentSchema.Keys` empty |

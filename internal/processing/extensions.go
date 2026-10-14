@@ -38,6 +38,11 @@ type ExtensionRegistry struct {
 	Features    map[types.FeatureType]feature.Factory
 	RowTests    map[types.TestType]RowTestFactory
 	PostTests   map[types.TestType]PostTestFactory
+	// MatrixOps are the extension MAT_* operators
+	// (pulse.MatrixOpRegistration, matrix_extension.go), read through
+	// LookupMatrixOp: a finalizer the built-in matrix slot runs in
+	// place of a matrixFinalizers entry.
+	MatrixOps map[types.MatrixType]MatrixOp
 
 	// Streamable is the per-(category, name) override consulted by
 	// IsStreamable. Built-in entries are not stored here; the
@@ -671,8 +676,12 @@ func (r *ExtensionRegistry) attributeRequiresTwoPass(t types.AttributeType) bool
 // type rule (attributeRequiresTwoPass), an ATTR_FORMULA whose
 // expression calls total(expr) (formula_total.go), which is row-local
 // by type but needs a pre-pass over the post-filter rows, or an
-// ATTR_VEC_DISTANCE over a fitted metric (vectors.ComparisonFitted:
-// std_euclidean / mahalanobis read ATTR_MAHALANOBIS's fit pass). Every
+// ATTR_VEC_DISTANCE over a fitted metric (vectors.ComparisonTwoPass:
+// std_euclidean / mahalanobis read ATTR_MAHALANOBIS's fit pass) or
+// either comparison operator over a centroid reference (its pre-pass
+// folds the centroid) — but
+// never a fitted slot bound to a prebuilt fit (vectors.FitBound: its
+// params.fit state exists before the scan, so it is row-local). Every
 // routing decision that schedules attributes asks this, never the type
 // alone. It reads the slot's params.metric — written out by
 // Processor.prepare's rewrite; attrRequiresTwoPassIn also reads a kind
@@ -688,13 +697,18 @@ func (r *ExtensionRegistry) attrRequiresTwoPassIn(attr *types.Attribute, specs [
 	if attr == nil {
 		return false
 	}
-	if r.attributeRequiresTwoPass(attr.Type) {
-		return true
-	}
 	if r.isHidden(string(attr.Type)) {
 		return false
 	}
-	return formulaCallsTotal(attr) || vectors.ComparisonFitted(attr.Type, attr, specs, schema)
+	// A fitted slot bound to a prebuilt fit (params.fit) holds its fit
+	// before the scan: row-local, whatever its type's rule says.
+	if vectors.FitBound(attr.Type, attr) {
+		return false
+	}
+	if r.attributeRequiresTwoPass(attr.Type) {
+		return true
+	}
+	return formulaCallsTotal(attr) || vectors.ComparisonTwoPass(attr.Type, attr, specs, schema)
 }
 
 // isExtensionAggregator reports whether t is an embedder-registered

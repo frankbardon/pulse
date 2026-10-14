@@ -128,6 +128,14 @@ func TestMultiplicity_RefusalsMatchPredict(t *testing.T) {
 				t.Fatal(err)
 			}
 			opts := &descx.PredictOptions{DefaultMultiplicity: c.def}
+			// An overlay case's host is ungrouped: a SCALAR chain stage
+			// runs no overlay, so the chain pre-pass refuses its host
+			// first, before the stage's multiplicity resolves (both
+			// sides alike, U30 E7-S5).
+			wantChain, sameMsg := c.code, true
+			if len(c.mk(cohort).Overlays) > 0 {
+				wantChain, sameMsg = errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, false
+			}
 			for at := 0; at < 2; at++ {
 				chain := func() *types.ChainRequest {
 					plain := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x", Label: "s"}}, Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}}}
@@ -140,7 +148,7 @@ func TestMultiplicity_RefusalsMatchPredict(t *testing.T) {
 					return &types.ChainRequest{Cohort: &types.Cohort{Filename: cohort}, Stages: stages}
 				}
 				_, cerr := p.ProcessChain(ctx, chain())
-				if cce := requireCode(t, cerr, c.code); cce.Details["stage"] != at || cce.Message != ce.Message {
+				if cce := requireCode(t, cerr, wantChain); cce.Details["stage"] != at || (sameMsg && cce.Message != ce.Message) {
 					t.Errorf("chain stage %d refusal = %q %v", at, cce.Message, cce.Details)
 				}
 				sameEntry(t, descx.ValidateChainWithOptions(bytes.NewReader(data), chain(), opts), cerr)

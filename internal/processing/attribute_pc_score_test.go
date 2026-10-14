@@ -151,6 +151,10 @@ func TestPCScore_SignAgreesWithMATPCA(t *testing.T) {
 		{"unrotated", "", 3, "none"},
 		{"varimax", "varimax", 3, "none"},
 		{"varimax frequency", "varimax", 2, "frequency"},
+		{"quartimax", "quartimax", 3, "none"},
+		{"entropy probability", "entropy", 3, "probability"},
+		{"geomin_orthogonal", "geomin_orthogonal", 3, "none"},
+		{"geomin_orthogonal epsilon 0.2", "geomin_orthogonal@0.2", 3, "none"},
 		{"unrotated probability", "", 2, "probability"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -160,8 +164,12 @@ func TestPCScore_SignAgreesWithMATPCA(t *testing.T) {
 				r.SetMergePosition(0, 0, i) // the matrix slot's blocked merge reads it
 			}
 			matParams := map[string]any{"components": c.k}
-			if c.rotation != "" {
-				matParams["rotation"] = c.rotation
+			rotation, eps := splitRotationEpsilon(c.rotation)
+			if rotation != "" {
+				matParams["rotation"] = rotation
+			}
+			if eps != 0 {
+				matParams["epsilon"] = eps
 			}
 			mp, _ := json.Marshal(matParams)
 			req := &types.Request{
@@ -171,7 +179,7 @@ func TestPCScore_SignAgreesWithMATPCA(t *testing.T) {
 			for comp := 1; comp <= c.k; comp++ {
 				req.Attributes = append(req.Attributes, &types.Attribute{
 					Type: types.ATTR_PC_SCORE, Label: fmt.Sprintf("pc%d", comp), Fields: fields,
-					Params: pcScoreParams(comp, "", c.rotation, c.k, nil),
+					Params: withEpsilon(pcScoreParams(comp, "", rotation, c.k, nil), eps),
 				})
 			}
 			p := NewProcessor(schema)
@@ -339,10 +347,13 @@ func TestPCScore_FactoryRefusals(t *testing.T) {
 		{`{"component": 0}`, "integer ≥ 1"},
 		{`{"component": 4}`, "only 3 components"},
 		{`{"component": 1, "rotation": "varimax", "components": 4}`, "only 3 components"},
-		{`{"component": 1, "components": 2}`, "needs rotation"},
+		{`{"component": 1, "components": 2}`, "needs a rotation"},
 		{`{"component": 2, "rotation": "varimax"}`, "required with rotation"},
 		{`{"component": 3, "rotation": "varimax", "components": 2}`, "≥ params.component"},
-		{`{"component": 1, "rotation": "promax", "components": 2}`, "rotation must be"},
+		{`{"component": 1, "rotation": "promax", "components": 2}`, "is oblique"},
+		{`{"component": 1, "rotation": "geomin", "components": 2}`, "is oblique"},
+		{`{"component": 1, "rotation": "bentler", "components": 2}`, "rotation must be"},
+		{`{"component": 1, "rotation": "varimax", "epsilon": 0.1, "components": 2}`, "epsilon applies to rotation"},
 		{`{"component": 1, "on": "ranks"}`, "on must be"},
 	} {
 		_, err := newPCScoreAttribute(&types.Attribute{Type: types.ATTR_PC_SCORE, Fields: []string{"x", "y", "z"}, Params: json.RawMessage(c.params)}, schema)
@@ -379,7 +390,7 @@ func (stubRefusingNoteModel) fitNotes() []*fitRefusal {
 // of the refusal's — while every score is null.
 func TestFittedAttribute_RefusalKeepsFitNotes(t *testing.T) {
 	schema := mahaSchema()
-	a, err := newFittedVectorAttribute(&types.Attribute{Type: types.ATTR_FACTOR_SCORE, Label: "fs", Fields: []string{"x", "y"}}, schema, nil, stubRefusingNoteModel{})
+	a, err := newFittedVectorAttribute(&types.Attribute{Type: types.ATTR_FACTOR_SCORE, Label: "fs", Fields: []string{"x", "y"}}, schema, fittedSource{}, stubRefusingNoteModel{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -411,7 +422,7 @@ func TestFittedAttribute_RefusalKeepsFitNotes(t *testing.T) {
 // while every row is still scored.
 func TestFittedAttribute_FitNotesBecomeWarnings(t *testing.T) {
 	schema := mahaSchema()
-	a, err := newFittedVectorAttribute(&types.Attribute{Type: types.ATTR_PC_SCORE, Label: "pc", Fields: []string{"x", "y"}}, schema, nil, stubNoteModel{})
+	a, err := newFittedVectorAttribute(&types.Attribute{Type: types.ATTR_PC_SCORE, Label: "pc", Fields: []string{"x", "y"}}, schema, fittedSource{}, stubNoteModel{})
 	if err != nil {
 		t.Fatal(err)
 	}

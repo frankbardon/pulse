@@ -3,7 +3,7 @@
 `gen_matrix_reference.py` writes `../../matrix_reference_values_test.go`,
 the external reference values `TestMatrixCovariance_MatchesReference`,
 `TestMatrixCorrelation_MatchesReference` and
-`TestMatrixPairwise_MatchesReference` pin (contract: `.claude/reference/matrix-and-vectors.md`, Matrix slot).
+`TestMatrixPairwise_MatchesReference` pin (contract: `.claude/reference/matrix-and-vectors/matrix-correlation.md`, Matrix slot — missing modes and warnings).
 CI never runs Python; the generated Go file is the oracle. Never
 hand-edit it.
 

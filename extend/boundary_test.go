@@ -19,6 +19,10 @@ var allowedModuleImports = map[string]bool{
 	"github.com/frankbardon/pulse/encoding": true,
 	"github.com/frankbardon/pulse/types":    true,
 	"github.com/frankbardon/pulse/errors":   true,
+	// linalg carries the read-only *linalg.CoMoment a matrix operator
+	// finalizes over (MatrixInput.CoMoment); it is itself a leaf over
+	// the standard library, gonum and errors (TestLinalgImportBoundary).
+	"github.com/frankbardon/pulse/linalg": true,
 }
 
 // TestExtendImportBoundary fails when a non-test file in extend imports
@@ -74,7 +78,7 @@ var enginePackages = []string{
 
 // TestExtendImportBoundary_NoTransitiveEngine walks the full dependency
 // graph of extend (`go list -deps`) and fails if any engine package is
-// reachable, so an allowed import (encoding, types, errors) cannot
+// reachable, so an allowed import (encoding, types, errors, linalg) cannot
 // smuggle the engine in.
 func TestExtendImportBoundary_NoTransitiveEngine(t *testing.T) {
 	cmd := exec.Command("go", "list", "-deps", ".")

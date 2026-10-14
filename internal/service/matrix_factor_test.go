@@ -128,7 +128,8 @@ func factorKeys(k int) []string {
 
 // TestMatrixFactor_MatchesROracle runs MAT_FACTOR on every mv_factor.json
 // case with each extraction and each rotation — none, varimax, promax
-// (κ 4) and oblimin (γ 0) — and checks the primary (unrotated or
+// (κ 4), oblimin (γ 0) and the further GPA criteria (quartimax,
+// entropy, geomin / geomin_orthogonal at ε 0.01) — and checks the primary (unrotated or
 // rotated loadings), auxiliary.unrotated, auxiliary.factor_correlation
 // (oblique only), the communalities, uniquenesses and variance
 // accounted, rmsr / empirical chi-square / df / p, KMO and Bartlett,
@@ -137,7 +138,7 @@ func factorKeys(k int) []string {
 // minres with psych's exact optimum within factorExactTol; ml with the
 // exact ML optimum within factorMLTol, plus its likelihood chi-square,
 // p, TLI, RMSEA with its 90% interval and BIC (absent on the other
-// extractions); oblimin over
+// extractions); a GPA criterion over
 // minres or ml within GPA's stopping band, factorGPATol. The Heywood
 // fixture's minres run is the subject of TestMatrixFactor_Guards.
 func TestMatrixFactor_MatchesROracle(t *testing.T) {
@@ -172,7 +173,13 @@ func TestMatrixFactor_MatchesROracle(t *testing.T) {
 						t.Fatalf("primary shape %+v", res.Primary)
 					}
 					rt := tol
-					if rot == vectors.RotationOblimin && ext != vectors.FactorExtractionPrincipalAxis {
+					switch {
+					case rot == vectors.RotationOblimin && ext != vectors.FactorExtractionPrincipalAxis:
+						rt = factorGPATol
+					case rot != vectors.RotationVarimax && rot != vectors.RotationPromax && rot != vectors.RotationOblimin:
+						// The further GPA criteria: the stopping band on
+						// every extraction (geomin amplifies rounding;
+						// mv_rotation.json pins them step for step).
 						rt = factorGPATol
 					}
 					variance := want.Variance
@@ -186,9 +193,9 @@ func TestMatrixFactor_MatchesROracle(t *testing.T) {
 						factorNearRows(t, rt, "primary", res.Primary, w.Loadings)
 						factorNearRows(t, tol, "unrotated", res.Auxiliary["unrotated"], want.Unrotated)
 						fc := res.Auxiliary["factor_correlation"]
-						if rot == vectors.RotationVarimax {
+						if !vectors.RotationOblique(rot) {
 							if fc != nil {
-								t.Error("varimax carries factor_correlation")
+								t.Errorf("orthogonal %s carries factor_correlation", rot)
 							}
 						} else {
 							if fc == nil || fc.Kind != types.MatrixKindSquareSymmetric || !reflect.DeepEqual(fc.RowKeys, keys) || !reflect.DeepEqual(fc.ColumnKeys, keys) {
@@ -392,8 +399,10 @@ func TestMatrixFactor_Refusals(t *testing.T) {
 		`{"factors": 8}`,
 		`{"factors": "all"}`,
 		`{"extraction": "mle"}`,
-		`{"rotation": "quartimax"}`,
+		`{"rotation": "bentler"}`,
 		`{"kappa": 3}`,
+		`{"rotation": "varimax", "epsilon": 0.01}`,
+		`{"rotation": "geomin", "epsilon": 0}`,
 		`{"rotation": "oblimin", "kappa": 3}`,
 		`{"rotation": "promax", "gamma": 0.5}`,
 		`{"components": 2}`,

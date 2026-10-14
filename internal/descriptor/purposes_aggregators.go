@@ -48,6 +48,7 @@ var aggregatorPurposes = map[string]descriptor.Purpose{
 	"AGG_VARIANCE":            purposeAggVariance,
 	"AGG_VEC_MEAN":            purposeAggVecMean,
 	"AGG_VEC_SUM":             purposeAggVecSum,
+	"AGG_VEC_SD":              purposeAggVecSd,
 	"AGG_WEIGHTED_MEAN":       purposeAggWeightedMean,
 	"AGG_WELFORD":             purposeAggWelford,
 	"AGG_ZSCORE":              purposeAggZScore,
@@ -75,7 +76,7 @@ var (
 			{When: "you also need the spread around the average", Use: "AGG_WELFORD"},
 		},
 		Assumptions: []string{
-			"Missing values are skipped: the average is over rows that have a value. A group where no row has a value reads 0, not empty, so check n in the components before reporting it.",
+			"Missing values are skipped: the average is over rows that have a value. A group where no row has a value reads empty (null), never 0.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"mean", "median", "outlier", "skew"},
@@ -223,7 +224,7 @@ var (
 			{When: "you want the distance between smallest and largest", Use: "AGG_RANGE"},
 		},
 		Assumptions: []string{
-			"Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.",
+			"Missing values are skipped; a group where no row has a value reads empty (null), never 0.",
 			"It rests on one row, so a single bad record sets it.",
 		},
 		Level:    descriptor.LevelBasic,
@@ -248,7 +249,7 @@ var (
 			{When: "you want the distance between smallest and largest", Use: "AGG_RANGE"},
 		},
 		Assumptions: []string{
-			"Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.",
+			"Missing values are skipped; a group where no row has a value reads empty (null), never 0.",
 			"It rests on one row, so a single bad record sets it.",
 		},
 		Level:    descriptor.LevelBasic,
@@ -272,7 +273,7 @@ var (
 			{When: "you want the spread of the middle of the data, ignoring extremes", Use: "AGG_PERCENTILE"},
 		},
 		Assumptions: []string{
-			"Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.",
+			"Missing values are skipped; a group where no row has a value reads empty (null), never 0.",
 			"It rests on the two most extreme rows, so one outlier can stretch it a lot.",
 		},
 		Level:    descriptor.LevelBasic,
@@ -297,7 +298,7 @@ var (
 			{When: "the field holds categories rather than numbers", Use: "AGG_MODE"},
 		},
 		Assumptions: []string{
-			"Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.",
+			"Missing values are skipped; a group where no row has a value reads empty (null), never 0.",
 			"With an even number of values it is the halfway point between the two middle values.",
 		},
 		Level:    descriptor.LevelBasic,
@@ -349,7 +350,7 @@ var (
 			{When: "the field is a multi-select", Use: "AGG_SET_FREQUENCY"},
 		},
 		Assumptions: []string{
-			"Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.",
+			"Missing values are skipped; a group where no row has a value reads empty (null), never 0.",
 			"When several values share the top count, the smallest wins (for categories, the first in the dictionary); tie_count in the components shows it happened.",
 		},
 		Level:    descriptor.LevelBasic,
@@ -527,7 +528,7 @@ var (
 // aggregator_cohort.go, aggregator_welford.go): AGG_STDDEV / AGG_VARIANCE
 // divide by n, AGG_WELFORD and the CI bounds by n - 1; AGG_SKEWNESS is the
 // population moment coefficient g1 and AGG_KURTOSIS the population excess
-// kurtosis g2, both 0 for n <= 1 or zero variance; the CI bounds use the
+// kurtosis g2, both null (NaN) for n <= 1 or zero variance; the CI bounds use the
 // normal critical value, not Student's t; AGG_ZSCORE's value is the mean
 // z-score, 0 by construction.
 
@@ -799,7 +800,7 @@ var (
 		},
 		Assumptions: []string{
 			"Rows missing the value or the weight, or with weight 0, are left out of the average; when no row is left (or the weights add up to 0) " +
-				"it reads 0, not empty, so check sum_weights in the components.",
+				"it reads empty (null), never 0.",
 			"Negative weights are not refused and can make the result unstable.",
 		},
 		Level:    descriptor.LevelIntermediate,
@@ -940,5 +941,32 @@ var (
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"missing-value"},
+	}
+
+	purposeAggVecSd = descriptor.Purpose{
+		Plain:   "Standard deviation of each item of a battery or mix, as one list per group: how much the group's rows disagree on each item.",
+		KnownAs: []string{"item standard deviations", "sd vector", "profile spread"},
+		Intents: []string{IntentDescribe, IntentDistributionShape},
+		Questions: []string{
+			"On which of the eight brand attributes do each segment's ratings disagree most?",
+			"How much does each sales channel's share vary between stores in each region?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Per-segment spread of every item in a rating battery, beside the item means.",
+			descriptor.DomainOps:     "Store-to-store variability of each channel's share per region, in one list.",
+			descriptor.DomainScience: "Within-group spread of each measured variable per treatment arm.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want each item's average rather than its spread", Use: "AGG_VEC_MEAN"},
+			{When: "you want the spread of a single field", Use: "AGG_STDDEV"},
+			{When: "you want how the items vary together, not one by one", Use: "MAT_COVARIANCE"},
+		},
+		Assumptions: []string{
+			"Each item uses only the rows that answered it; a skipped item leaves only that item out of the row.",
+			"Sample form: the squared distances are divided by n - 1 (weighted: by the effective sample size minus 1).",
+			"An item answered by one row or none has no spread rather than 0.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"standard-deviation", "missing-value"},
 	}
 )

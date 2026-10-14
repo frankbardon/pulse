@@ -10,6 +10,8 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -50,23 +52,51 @@ func mahaClose(got, want float64) bool {
 // The records are rebuilt per arm (mk), so the arms never share state.
 func runMahalanobisArms(t *testing.T, schema *encoding.Schema, mk func() []*Record, label string, build func() *types.Request) (streamed, buffered []float64, resp *types.Response) {
 	t.Helper()
-	var out [2][]float64
-	for i, grouped := range []bool{false, true} {
+	return runFittedArms(t, schema, mk, label, nil, build)
+}
+
+// runFittedArms is runMahalanobisArms with models bound on every arm's
+// processor (nil: none). A request whose fitted slot is bound to a
+// prebuilt fit (vectors.FitBound) is ROW-LOCAL: its grouped arm streams
+// too (processStreamingGrouped), so a third, ungrouped arm forced
+// buffered by an AGG_MEDIAN is the buffered arm; every arm's scores and
+// warnings must agree bit for bit.
+func runFittedArms(t *testing.T, schema *encoding.Schema, mk func() []*Record, label string, models *model.Set, build func() *types.Request) (streamed, buffered []float64, resp *types.Response) {
+	t.Helper()
+	bound := false
+	for _, a := range build().Attributes {
+		if a != nil && vectors.FitBound(a.Type, a) {
+			bound = true
+		}
+	}
+	type arm struct {
+		grouped, forceBuffered bool
+		want                   ProcessPath
+	}
+	arms := []arm{{false, false, PathStreaming}, {true, false, PathBuffered}}
+	if bound {
+		arms = []arm{{false, false, PathStreaming}, {true, false, PathStreaming}, {false, true, PathBuffered}}
+	}
+	var first []float64
+	for i, a := range arms {
 		recs := mk()
 		req := build()
 		gf := groupField(schema)
 		req.Aggregations = append(req.Aggregations, &types.Aggregation{Type: types.AGG_COUNT, Field: gf, Label: "n_rows", Weight: types.NullSlotWeight()})
-		if grouped {
+		if a.grouped {
 			req.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: gf}}
 		}
+		if a.forceBuffered {
+			req.Aggregations = append(req.Aggregations, &types.Aggregation{Type: types.AGG_MEDIAN, Field: label, Label: "median_score", Weight: types.NullSlotWeight()})
+		}
 		p := NewProcessor(schema)
+		p.SetModels(models)
 		r, err := p.Process(context.Background(), req, NewSliceIterator(recs))
 		if err != nil {
-			t.Fatalf("grouped=%v: %v", grouped, err)
+			t.Fatalf("grouped=%v: %v", a.grouped, err)
 		}
-		want := map[bool]ProcessPath{false: PathStreaming, true: PathBuffered}[grouped]
-		if p.LastPath() != want {
-			t.Fatalf("grouped=%v ran %v, want %v", grouped, p.LastPath(), want)
+		if p.LastPath() != a.want {
+			t.Fatalf("grouped=%v buffered=%v ran %v, want %v", a.grouped, a.forceBuffered, p.LastPath(), a.want)
 		}
 		vals := make([]float64, len(recs))
 		for k, rec := range recs {
@@ -76,18 +106,23 @@ func runMahalanobisArms(t *testing.T, schema *encoding.Schema, mk func() []*Reco
 				vals[k] = math.NaN()
 			}
 		}
-		out[i] = vals
 		if i == 0 {
-			resp = r
+			resp, first = r, vals
 		} else {
 			wa, _ := json.Marshal(resp.Warnings)
 			wb, _ := json.Marshal(r.Warnings)
 			if string(wa) != string(wb) {
-				t.Fatalf("warnings differ: streaming %s, buffered %s", wa, wb)
+				t.Fatalf("warnings differ: streaming %s, arm %d %s", wa, i, wb)
+			}
+			if !sameBits(first, vals) {
+				t.Fatalf("arm %d scores differ from the streaming arm:\n%v\n%v", i, first, vals)
 			}
 		}
+		if a.want == PathBuffered {
+			buffered = vals
+		}
 	}
-	return out[0], out[1], resp
+	return first, buffered, resp
 }
 
 // sameBits reports whether a and b are identical, NaN matching NaN.

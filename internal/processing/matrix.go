@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/linalg"
@@ -66,6 +67,18 @@ type matrixSlot struct {
 	// co-moment set per bucket); nil on every other type. Its base
 	// state (state) then folds every BUCKETED row once.
 	dist *distanceState
+	// extOp is an extension MAT_* slot's finalizer (shared by every
+	// bucket of a grouped run; matrix_extension.go); nil on a built-in.
+	// extComponents reports a declared ComponentSchema with keys.
+	extOp         MatrixOpFinalizer
+	extComponents bool
+	// bound is a params.fit slot's prebuilt state (the bound vector
+	// fit rebuilt in cols order, bindMatrixFit): the slot folds no row
+	// and emits from it; nil folds the filtered rows.
+	bound *fittedState
+	// capture receives the slot's closed listwise state when it is a
+	// Compose vector fit request's battery (nil otherwise).
+	capture *model.VectorCapture
 }
 
 var _ BlockMerger = (*matrixSlot)(nil)
@@ -76,17 +89,25 @@ var _ BlockMerger = (*matrixSlot)(nil)
 // STAMPED request: each spec's `weight` is its resolved weight. A type
 // the instance hides is an unknown type.
 func (p *Processor) buildMatrixSlots(req *types.Request) ([]*matrixSlot, error) {
-	return buildMatrixSlotsFor(req, p.schema, p.exts, p.compute)
+	return buildMatrixSlotsWith(req, p.schema, p.exts, p.compute, p.models)
 }
 
 // buildMatrixSlotsFor is buildMatrixSlots over an explicit schema,
-// registry and plan — shared by the Processor and the parallel
-// reducers (BuildMatrixSlots).
+// registry and plan with no bound models.
 func buildMatrixSlotsFor(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, compute ComputePlan) ([]*matrixSlot, error) {
+	return buildMatrixSlotsWith(req, schema, exts, compute, nil)
+}
+
+// buildMatrixSlotsWith is buildMatrixSlots over an explicit schema,
+// registry, plan and bound models (a params.fit slot binds its vector
+// fit there; a Compose vector fit request's set carries the capture) —
+// shared by the Processor and the parallel reducers (BuildMatrixSlots).
+func buildMatrixSlotsWith(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, compute ComputePlan, models *model.Set) ([]*matrixSlot, error) {
 	set, err := resolveMatrixPlans(req, schema, exts, compute)
 	if err != nil || set == nil {
 		return nil, err
 	}
+	set.models = models
 	return set.fresh()
 }
 
@@ -101,6 +122,15 @@ type matrixPlanSet struct {
 	// schema and exts build a MAT_DISTANCE slot's between grouper.
 	schema *encoding.Schema
 	exts   *ExtensionRegistry
+	// extOps / extComponents are the extension plans' finalizers and
+	// component declarations, index-aligned with plans (nil when the
+	// request names no extension operator; buildMatrixOps).
+	extOps        []MatrixOpFinalizer
+	extComponents []bool
+	// models are the run's bound models: a params.fit plan binds its
+	// vector fit (bindMatrixFit) and a Compose vector fit request's set
+	// carries the capture. Nil binds nothing.
+	models *model.Set
 }
 
 // resolveMatrixPlans resolves req.Matrices against schema (nil when
@@ -116,19 +146,26 @@ func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *Exten
 	}
 	// Every built-in type the instance offers resolves, streamable or
 	// not: a buffered spec (vectors.Matrix.Streamable false) gets a row
-	// buffer, never an unknown_type refusal.
-	plans, verr := vectors.ResolveMatricesRouted(req, schema, func(t types.MatrixType) bool {
-		return slices.Contains(types.AllMatrixTypes(), t) && !exts.isHidden(string(t))
-	}, func(t types.GroupType) types.GroupType {
-		if exts.isHidden(string(t)) {
-			return ""
-		}
-		return t
-	}, func(name string) bool {
-		// A registered extension grouper is a MAT_DISTANCE between like
-		// a built-in (ResolveGroups' ext).
-		_, ok := exts.LookupGrouper(types.GroupType(name))
-		return ok
+	// buffer, never an unknown_type refusal. An offered extension
+	// operator resolves through its registration (declared tier,
+	// opaque params, Accepts).
+	plans, verr := vectors.ResolveMatricesWith(req, schema, vectors.MatrixResolve{
+		Known: func(t types.MatrixType) bool {
+			return slices.Contains(types.AllMatrixTypes(), t) && !exts.isHidden(string(t))
+		},
+		Route: func(t types.GroupType) types.GroupType {
+			if exts.isHidden(string(t)) {
+				return ""
+			}
+			return t
+		},
+		BetweenExt: func(name string) bool {
+			// A registered extension grouper is a MAT_DISTANCE between
+			// like a built-in (ResolveGroups' ext).
+			_, ok := exts.LookupGrouper(types.GroupType(name))
+			return ok
+		},
+		Extension: exts.matrixExtension,
 	})
 	if verr != nil {
 		return nil, verr
@@ -136,6 +173,9 @@ func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *Exten
 	set := &matrixPlanSet{plans: plans, weights: make([]*types.WeightSpec, len(plans)), compute: compute, schema: schema, exts: exts}
 	for i := range plans {
 		set.weights[i] = req.Matrices[i].Weight.Spec()
+	}
+	if err := set.buildMatrixOps(req); err != nil {
+		return nil, err
 	}
 	return set, nil
 }
@@ -163,6 +203,15 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 			fill:    memberFillOf(cols, s.schema),
 			compute: s.compute.ForMatrix(plan),
 		}
+		if s.extOps != nil {
+			slots[i].extOp, slots[i].extComponents = s.extOps[i], s.extComponents[i]
+		}
+		slots[i].capture = s.models.Capture()
+		if plan.Fit != "" {
+			if err := slots[i].bindMatrixFit(s.models); err != nil {
+				return nil, err
+			}
+		}
 		switch {
 		case plan.Type == types.MAT_DISTANCE:
 			// The between grouper keys (or keeps) the rows; the slot
@@ -186,6 +235,10 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 // and skips the row. A weight of 0 is valid: the row counts toward n
 // and adds no mass. The field argument is ignored (BlockMerger shape).
 func (m *matrixSlot) UpdateRow(r *Record, _ string) error {
+	if m.bound != nil {
+		// A bound fit is already folded: no row is read.
+		return nil
+	}
 	if m.dist != nil {
 		return m.dist.update(m, r)
 	}
@@ -273,8 +326,11 @@ func (m *matrixSlot) result() (types.MatrixResult, *types.MatrixComponents, erro
 			return types.MatrixResult{}, nil, err
 		}
 	}
-	cm, err := m.state.Tree()
+	cm, err := m.merged()
 	if err != nil {
+		return types.MatrixResult{}, nil, err
+	}
+	if err := m.offerCapture(cm); err != nil {
 		return types.MatrixResult{}, nil, err
 	}
 	var res types.MatrixResult
@@ -287,11 +343,11 @@ func (m *matrixSlot) result() (types.MatrixResult, *types.MatrixComponents, erro
 	if !m.compute.Matrices {
 		return res, nil, nil
 	}
-	if !m.compute.MatricesSlot && finalizerComponents[m.plan.Type] {
+	if !m.compute.MatricesSlot && (finalizerComponents[m.plan.Type] || m.extComponents) {
 		// Components kept, the slot skipped: the operator keys still
 		// need the finalizer (its result parts are all off in the
 		// plan, so none is built).
-		out, ferr := matrixFinalizers[m.plan.Type](&matrixFinalizeInput{CM: cm, Rows: m.rows, slot: m})
+		out, ferr := m.finalize(cm, false)
 		if ferr != nil {
 			return types.MatrixResult{}, nil, ferr
 		}
@@ -309,6 +365,72 @@ func (m *matrixSlot) result() (types.MatrixResult, *types.MatrixComponents, erro
 	return res, c, nil
 }
 
+// merged is the state the slot emits from: the bound fit's co-moment
+// (a fresh copy per call, so no finalizer can disturb the binding) or
+// the fixed merge tree over the folded blocks.
+func (m *matrixSlot) merged() (*linalg.CoMoment, error) {
+	if m.bound != nil {
+		return m.bound.co.Clone(), nil
+	}
+	return m.state.Tree()
+}
+
+// bindMatrixFit binds the slot's params.fit: the named vector fit
+// (model.Set.LookupVector — PULSE_MODEL_UNKNOWN / _KIND_MISMATCH,
+// details.matrix), aligned to the slot's column labels by label
+// (plan.FitLabels; PULSE_VECTOR_REFERENCE_MISMATCH labels_differ) and
+// rebuilt in column order — every figure copied, none recomputed. The
+// fit's own weight basis governs the result (the slot's weight is
+// replaced by the basis's kind), as for a fitted attribute.
+func (m *matrixSlot) bindMatrixFit(models *model.Set) error {
+	vf, err := models.LookupVector(m.plan.Fit)
+	if err != nil {
+		if ce, ok := err.(*errors.CodedError); ok {
+			ce.Details["matrix"] = m.plan.Name
+			ce.Message = "matrix " + m.plan.Name + ": " + ce.Message
+		}
+		return err
+	}
+	perm, err := labelPermutationAt("matrix", m.plan.Name, vf, m.plan.FitLabels())
+	if err != nil {
+		return err
+	}
+	st, err := fittedStateFromVector(vf, perm)
+	if err != nil {
+		return err
+	}
+	m.bound = &st
+	m.weight = basisWeightSpec(st.basis)
+	return nil
+}
+
+// basisWeightSpec is the weight spec whose basis is b (nil unweighted):
+// a bound slot's figures follow its fit's basis, never a row weight.
+func basisWeightSpec(b weighting.Basis) *types.WeightSpec {
+	switch b {
+	case weighting.Frequency:
+		return &types.WeightSpec{Kind: types.WeightKindFrequency}
+	case weighting.Probability:
+		return &types.WeightSpec{Kind: types.WeightKindProbability}
+	}
+	return nil
+}
+
+// offerCapture hands a Compose vector fit request's battery state (cm,
+// listwise) to the fit pre-pass, under the slot's fit labels.
+func (m *matrixSlot) offerCapture(cm *linalg.CoMoment) error {
+	if m.capture == nil {
+		return nil
+	}
+	vf, err := newFittedState(cm, weighting.BasisOf(m.weight)).vectorFit("", m.plan.FitLabels(), m.cols)
+	if err != nil {
+		return err
+	}
+	vf.Operator = string(m.plan.Type)
+	m.capture.Offer(vf)
+	return nil
+}
+
 // render is the slot's MatrixResult off the merged state cm: the
 // operator's finalizer (matrixFinalizers) builds every part, and render
 // assembles them. A finalizer's error — a coded refusal such as
@@ -317,12 +439,7 @@ func (m *matrixSlot) result() (types.MatrixResult, *types.MatrixComponents, erro
 // operator, decides what is on the wire.
 func (m *matrixSlot) render(cm *linalg.CoMoment) (types.MatrixResult, map[string]any, error) {
 	workMatrixResultBuilds.Add(1)
-	fin, ok := matrixFinalizers[m.plan.Type]
-	if !ok {
-		return types.MatrixResult{}, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
-			"matrix operator has no finalizer", map[string]any{"type": string(m.plan.Type)})
-	}
-	out, err := fin(&matrixFinalizeInput{CM: cm, Rows: m.rows, slot: m})
+	out, err := m.finalize(cm, true)
 	if err != nil {
 		return types.MatrixResult{}, nil, err
 	}
@@ -349,6 +466,22 @@ func (m *matrixSlot) render(cm *linalg.CoMoment) (types.MatrixResult, map[string
 		res.Vectors = out.Vectors
 	}
 	return res, out.Operator, nil
+}
+
+// finalize runs the slot's operator over the merged state cm: the
+// built-in finalizer (matrixFinalizers), else the extension operator's
+// (finalizeExtension) — built-in first, so an extension never shadows
+// one (names cannot collide: pulse.New refuses it). want is false on a
+// components-only run (every result part off).
+func (m *matrixSlot) finalize(cm *linalg.CoMoment, want bool) (matrixOutput, error) {
+	if fin, ok := matrixFinalizers[m.plan.Type]; ok {
+		return fin(&matrixFinalizeInput{CM: cm, Rows: m.rows, slot: m})
+	}
+	if m.extOp != nil {
+		return m.finalizeExtension(cm, want)
+	}
+	return matrixOutput{}, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+		"matrix operator has no finalizer", map[string]any{"type": string(m.plan.Type)})
 }
 
 // components renders the slot's Response.Components.Matrices entry off
@@ -397,7 +530,8 @@ func (m *matrixSlot) components(cm *linalg.CoMoment) *types.MatrixComponents {
 }
 
 // matrixFinalizers is the built-in MAT_* registry: one finalizer per
-// types.AllMatrixTypes() entry (there is no extension MAT_* category).
+// types.AllMatrixTypes() entry. An extension MAT_* operator's finalizer
+// rides its slot instead (matrixSlot.extOp, matrix_extension.go).
 // The contract is matrixFinalizer (matrix_finalize.go).
 var matrixFinalizers = map[types.MatrixType]matrixFinalizer{
 	types.MAT_COVARIANCE:          finalizeCovariance,
@@ -617,12 +751,13 @@ type MatrixSlots struct {
 }
 
 // BuildMatrixSlots returns fresh slot state for req.Matrices (nil when
-// there is none, or when compute accumulates no matrix). req must be
+// there is none, or when compute accumulates no matrix); models are the
+// run's bound models (a params.fit slot binds there). req must be
 // the STAMPED request (StampWeightsWith), so each spec's weight is
 // resolved, exactly as the Processor builds its slots; compute is the
 // run's plan (the Processor's own).
-func BuildMatrixSlots(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, compute ComputePlan) (*MatrixSlots, error) {
-	slots, err := buildMatrixSlotsFor(req, schema, exts, compute)
+func BuildMatrixSlots(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, compute ComputePlan, models *model.Set) (*MatrixSlots, error) {
+	slots, err := buildMatrixSlotsWith(req, schema, exts, compute, models)
 	if err != nil || len(slots) == 0 {
 		return nil, err
 	}

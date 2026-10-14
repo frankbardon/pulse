@@ -45,7 +45,9 @@ var overlayInterpretations = map[string][]descriptor.Interpretation{
 	"OVERLAY_PROP_Z_PANEL":                  interpOverlayPropZPanel,
 	"OVERLAY_MATRIX_GROUP_SUMMARY":          interpOverlayMatrixGroupSummary,
 	"OVERLAY_RAKE":                          interpOverlayRake,
+	"OVERLAY_RETENTION":                     interpOverlayRetention,
 	"OVERLAY_STD_RESIDUAL":                  interpOverlayStdResidual,
+	"OVERLAY_SYMMETRY":                      interpOverlaySymmetry,
 	"OVERLAY_T_CELL":                        interpOverlayTCell,
 	"OVERLAY_T_VS_REF":                      interpOverlayTVsRef,
 	"OVERLAY_Z_CELL":                        interpOverlayZCell,
@@ -115,6 +117,51 @@ var (
 				"It reflects the table's shape, not its number of rows of data.",
 				"A row or column whose total is 0 adds nothing to the statistic but still counts in df, which makes the p-value too large; drop empty rows and columns from the host first.",
 			},
+		},
+	}
+
+	interpOverlaySymmetry = []descriptor.Interpretation{
+		{
+			Field: "scalar",
+			Means: "The symmetry chi-square, also in summary.statistic: over every pair of states, the squared gap between moves one way and moves back, " +
+				"divided by all moves between the two. 0 means every pair moved both ways equally; read summary.p_value rather than the raw value.",
+			Caveats: []string{
+				"null means nobody changed state (every pair is empty), so there is nothing to test.",
+				"It does not say which pair is lopsided or in which direction: compare each cell with its mirror cell across the diagonal.",
+			},
+		},
+		{
+			Field: "summary.statistic",
+			Means: "The same symmetry chi-square as scalar.",
+		},
+		{
+			Field:  "summary.p_value",
+			Shared: SharedPValue,
+			Caveats: []string{
+				"It comes from the chi-square approximation, which is unreliable when a pair of states has fewer than about 10 moves; Pulse warns (PULSE_OVERLAY_EXPECTED_LOW) when one does.",
+				"It is meaningful only when each cell counts units seen twice (AGG_COUNT of paired before and after answers); on independent samples use OVERLAY_CHISQ_MATRIX.",
+				"On a probability-weighted host the table is first scaled to its effective sample size (summary.parameters.n_eff): a first-order Kish approximation, not a design-based correction.",
+			},
+		},
+		{
+			Field: "summary.parameters.df",
+			Means: "Degrees of freedom: the number of pairs of states with at least one move between them (k(k - 1) / 2 for k states when none is empty).",
+		},
+		{
+			Field: "summary.parameters.states",
+			Means: "How many states the test compared: the row and column keys together, matched by key.",
+		},
+		{
+			Field: "summary.parameters.discordant",
+			Means: "How many units changed state: every count off the diagonal. The test reads only these; units that stayed put do not count.",
+		},
+		{
+			Field: "summary.parameters.pairs_dropped",
+			Means: "How many pairs of states had no move either way: they carry no information and leave the test, lowering df.",
+		},
+		{
+			Field: "summary.parameters.continuity_corrected",
+			Means: "1 when the 2x2 continuity correction was applied (it shrinks the gap between the two off-diagonal counts by 1, making the test more cautious), 0 otherwise.",
 		},
 	}
 
@@ -300,6 +347,19 @@ var (
 			Field: "parts.column_contribution.cells.value",
 			Means: "The column's share (0 to 1) of a dimension's inertia; each dimension's column contributions sum to 1.",
 		},
+		{
+			Field: "parts.row_distance.cells.value",
+			Means: "How different two rows' profiles across the columns are (0 = identical mixes), each squared gap divided by the column's mass so rare columns count more. " +
+				"It is the full-table distance the map approximates; 0 on the diagonal.",
+			Caveats: []string{
+				"It ignores the row totals: two rows with the same mix are 0 apart however different their sizes.",
+				"The map shows these distances only as well as the rows' quality allows; read this part, not the map, when the retained share is low.",
+			},
+		},
+		{
+			Field: "parts.column_distance.cells.value",
+			Means: "How different two columns' profiles across the rows are, read like the row distance, each squared gap divided by the row's mass.",
+		},
 	}
 
 	interpOverlayMarkov = []descriptor.Interpretation{
@@ -327,6 +387,29 @@ var (
 		{
 			Field: "summary.parameters.classes",
 			Means: "The number of communicating classes: groups of states that can all reach one another. 1 means every state can reach every other; more (an absorbing churned state is its own class) means there is no single long-run mix, so steady_state is absent.",
+		},
+	}
+
+	interpOverlayRetention = []descriptor.Interpretation{
+		{
+			Field: "summary.statistic",
+			Means: "In each series entry: the stay rate, the share (0 to 1) of the starting state's units that were still in the same state at the end.",
+			Caveats: []string{
+				"null when the starting state's row total is 0: there is no one to retain, so the rate is undefined, not 0.",
+				"A starting state with few units gives a noisy rate; read it beside summary.parameters.from_total.",
+			},
+		},
+		{
+			Field: "summary.parameters.switch",
+			Means: "The switch rate: the share (0 to 1) of the starting state's units that ended in another state other than a named absorbing one. In each entry it is that state's rate; on the layer it pools every reported state.",
+		},
+		{
+			Field: "summary.parameters.churn",
+			Means: "The churn rate, present only with params.absorbing: the share (0 to 1) of the starting state's units that ended in a named absorbing state; stay, switch and churn add up to 1.",
+		},
+		{
+			Field: "summary.parameters.from_total",
+			Means: "In each series entry: the starting state's row total, the number of units (or, on a weighted host, the sum of weights) the rates divide by.",
 		},
 	}
 

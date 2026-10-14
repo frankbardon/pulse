@@ -115,6 +115,7 @@ func TestMultiplicityNoneIsIdentity(t *testing.T) {
 				Overlays: []types.OverlaySpec{
 					{Name: "m", Kind: types.OverlayKindChiSqMatrix, Scope: types.OverlayScopeMatrix},
 					{Name: "f", Kind: types.OverlayKindFisherExactCell, Scope: types.OverlayScopeCell},
+					{Name: "s", Kind: types.OverlayKindSymmetry, Scope: types.OverlayScopeMatrix},
 				},
 			}
 		},

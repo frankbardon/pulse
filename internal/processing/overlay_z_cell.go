@@ -129,6 +129,9 @@ func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 			tally.add(tLeg)
 			tally.add(rLeg)
 			targetMean, refMean := tLeg.mean, rLeg.mean
+			if undefinedSeriesPair(targetMean, refMean) {
+				continue // a missing cell: absent, no warning (E4-S6)
+			}
 			p, ok := welchZTest(targetMean, tLeg.variance, tLeg.nStar, refMean, rLeg.variance, rLeg.nStar)
 			if !ok {
 				warnings = append(warnings, types.OverlayWarning{

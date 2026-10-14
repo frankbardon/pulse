@@ -724,7 +724,10 @@ func pairwiseWelchTKernel(in pwInputs) (float64, string, bool) {
 	}
 	a := in.v1 / n1f
 	b := in.v2 / n2f
-	if a+b <= 0 {
+	// !(a+b > 0), not a+b <= 0: an undefined (NaN) leg variance — a
+	// Welford triple at N < 2 or Σw ≤ 1 (E4-S6) — skips the pair
+	// rather than scoring a NaN p-value.
+	if !(a+b > 0) {
 		return 0, "ORBIT_STATS_SKIP_VARIANCE_INVALID", false
 	}
 	se := math.Sqrt(a + b)
@@ -755,7 +758,10 @@ func pairwiseTwoMeansZKernel(in pwInputs) (float64, string, bool) {
 	}
 	a := in.v1 / in.nf1
 	b := in.v2 / in.nf2
-	if a+b <= 0 {
+	// !(a+b > 0), not a+b <= 0: an undefined (NaN) leg variance — a
+	// Welford triple at N < 2 or Σw ≤ 1 (E4-S6) — skips the pair
+	// rather than scoring a NaN p-value.
+	if !(a+b > 0) {
 		return 0, "ORBIT_STATS_SKIP_VARIANCE_INVALID", false
 	}
 	se := math.Sqrt(a + b)

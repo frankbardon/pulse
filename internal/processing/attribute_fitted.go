@@ -3,6 +3,7 @@ package processing
 import (
 	"fmt"
 	"math"
+	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -47,6 +48,42 @@ import (
 //
 // Warnings ride the attributeWarner hook: every orchestrator arm
 // appends them to Response.Warnings after the attribute finalizes.
+//
+// Prebuilt state (params.fit). The fit is a fittedState — the listwise
+// co-moment plus its weight basis — and every model decomposes ONLY
+// that state, never the rows. params.fit names a bound vector fit
+// (model.VectorFit in the request's model.Set) instead of folding one:
+// bindFitOn resolves it (PULSE_MODEL_UNKNOWN), aligns its labels to the
+// slot's by label, never by position (PULSE_VECTOR_REFERENCE_MISMATCH
+// reason labels_differ), and rebuilds the co-moment in the slot's member
+// order (linalg.NewCoMomentFromListwise — a permutation of stored
+// figures, no arithmetic), so PrePass folds nothing and Finalize hands
+// the models the prebuilt state; the fit's own basis governs N* and the
+// covariance, and the slot's weight never refits it. A state captured
+// from a fold (AttributeVectorFit) and bound back scores every row to
+// the bit of the fold that produced it.
+//
+// Row-local when bound (U30 E2-S5). bindFitOn CLOSES a bound fit at
+// once (close: decompose, warnings, the capture offer), so the slot
+// needs no pass over the rows: every routing site reads
+// vectors.FitBound — attrRequiresTwoPassIn, predict's attrTwoPass, the
+// fused-crosstab facts, mergegate (the three FittedAttributeTypes; a
+// bound ATTR_VEC_DISTANCE stays off it like its row-local metrics) —
+// and the two-pass planner treats it as row-local (prebuiltAttribute).
+// It therefore streams one pass, beside groupers, features, matrices
+// and tier-1 tests, fuses into a crosstab and merges across shards /
+// decode workers / chain stages; the scores are the bits of the
+// two-pass drive (same state, same per-row kernel). PrePass and
+// Finalize stay no-ops, so the buffered arm's Compute is unchanged.
+
+// prebuiltAttribute is implemented by a fitted attribute that may be
+// bound to a prebuilt fit: prebuiltFit is true once bindFitOn bound
+// and closed one, and the two-pass drive then schedules the slot as
+// row-local (its PrePass / Finalize are no-ops) — the computer-side
+// twin of the routing predicate vectors.FitBound.
+type prebuiltAttribute interface {
+	prebuiltFit() bool
+}
 
 // fitOnBinder is implemented by an attribute whose params.fit_on
 // filterers compile against the request's registry and bound models
@@ -71,13 +108,127 @@ func AttributeWarnings(computer any) []*types.ResponseWarning {
 	return nil
 }
 
-// fittedState is a finalized fit, handed to the operator's model.
+// fittedState is a finalized fit, handed to the operator's model: the
+// one boundary every fittedModel reads — a fold's co-moment or a bound
+// vector fit's rebuilt one (fittedStateFromVector), never rows.
 type fittedState struct {
 	co    *linalg.CoMoment
 	basis weighting.Basis
 	// p is the member count; nStar the fit's N*.
 	p     int
 	nStar float64
+}
+
+// newFittedState wraps a listwise co-moment under basis.
+func newFittedState(co *linalg.CoMoment, basis weighting.Basis) fittedState {
+	return fittedState{co: co, basis: basis, p: co.P(), nStar: levelNStar(basis, co)}
+}
+
+// vectorBasisOf maps a weighting basis to its model.VectorFit name.
+func vectorBasisOf(b weighting.Basis) model.VectorBasis {
+	switch b {
+	case weighting.Frequency:
+		return model.VectorBasisFrequency
+	case weighting.Probability:
+		return model.VectorBasisProbability
+	}
+	return model.VectorBasisUnweighted
+}
+
+// weightingBasisOf is vectorBasisOf's inverse; ok is false for an
+// unknown name.
+func weightingBasisOf(b model.VectorBasis) (weighting.Basis, bool) {
+	switch b {
+	case model.VectorBasisUnweighted:
+		return weighting.Unweighted, true
+	case model.VectorBasisFrequency:
+		return weighting.Frequency, true
+	case model.VectorBasisProbability:
+		return weighting.Probability, true
+	}
+	return 0, false
+}
+
+// vectorFit captures st as a model.VectorFit named name over labels /
+// members (axis order) — the stored figures exactly, so binding it back
+// (fittedStateFromVector) rebuilds st to the bit.
+func (st fittedState) vectorFit(name string, labels, members []string) (*model.VectorFit, error) {
+	ls, err := st.co.ListwiseState()
+	if err != nil {
+		return nil, err
+	}
+	return &model.VectorFit{
+		Name: name, Labels: append([]string(nil), labels...), Members: append([]string(nil), members...),
+		Basis: vectorBasisOf(st.basis),
+		N:     ls.N, NMass: ls.NMass, NWeightInvalid: ls.NWeightInvalid,
+		SumWeights: ls.W, SumWeightsSq: ls.W2,
+		Mean: ls.Mean, M2: ls.M2.ToRows(),
+	}, nil
+}
+
+// fittedStateFromVector rebuilds vf's fit in the slot's member order:
+// perm[i] is the index, in vf, of the slot's member i (a permutation —
+// labelPermutation's). Every figure is copied, none recomputed.
+func fittedStateFromVector(vf *model.VectorFit, perm []int) (fittedState, error) {
+	p := len(perm)
+	basis, ok := weightingBasisOf(vf.Basis)
+	if !ok || len(vf.Mean) != p || len(vf.M2) != p {
+		return fittedState{}, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			fmt.Sprintf("vector fit %q is malformed (basis %q, %d means and %d co-moment rows for %d members)", vf.Name, vf.Basis, len(vf.Mean), len(vf.M2), p),
+			map[string]any{"fit": vf.Name})
+	}
+	mean := make([]float64, p)
+	rows := make([][]float64, p)
+	for i, oi := range perm {
+		mean[i] = vf.Mean[oi]
+		rows[i] = make([]float64, p)
+		for j, oj := range perm {
+			if len(vf.M2[oi]) != p {
+				return fittedState{}, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+					fmt.Sprintf("vector fit %q co-moment row %d has %d entries for %d members", vf.Name, oi, len(vf.M2[oi]), p),
+					map[string]any{"fit": vf.Name})
+			}
+			// The stored matrix is symmetric; read the upper triangle so
+			// the rebuilt packed entry is the captured one.
+			a, b := oi, oj
+			if a > b {
+				a, b = b, a
+			}
+			rows[i][j] = vf.M2[a][b]
+		}
+	}
+	m2, err := linalg.NewSymFromRows(rows)
+	if err != nil {
+		return fittedState{}, err
+	}
+	co, err := linalg.NewCoMomentFromListwise(linalg.ListwiseState{
+		N: vf.N, NMass: vf.NMass, NWeightInvalid: vf.NWeightInvalid,
+		W: vf.SumWeights, W2: vf.SumWeightsSq, Mean: mean, M2: m2,
+	})
+	if err != nil {
+		return fittedState{}, err
+	}
+	return newFittedState(co, basis), nil
+}
+
+// labelPermutation aligns a bound vector fit's labels to the slot's:
+// perm[i] is the index, in vf.Labels, of labels[i]. The two label sets
+// must be equal — the reference Match rule — else
+// PULSE_VECTOR_REFERENCE_MISMATCH reason labels_differ naming the fit.
+func labelPermutation(slot string, vf *model.VectorFit, labels []string) ([]int, error) {
+	return labelPermutationAt("attribute", slot, vf, labels)
+}
+
+// labelPermutationAt is labelPermutation for a slot of kind key
+// ("attribute", "matrix"), named under details[key].
+// The rule is vectors.AlignFit, shared with the field-reference walk
+// (predict judges a loaded population's labels the same way).
+func labelPermutationAt(key, slot string, vf *model.VectorFit, labels []string) ([]int, error) {
+	perm, ce := vectors.AlignFit(key, slot, vf.Name, vf.Labels, labels)
+	if ce != nil {
+		return nil, ce
+	}
+	return perm, nil
 }
 
 // mean is the (weighted) fit mean, axis order.
@@ -103,6 +254,21 @@ type fitRefusal struct {
 	code    errors.Code
 	msg     string
 	details map[string]any
+}
+
+// rotationCapNote is a fitted score attribute's caveat for a rotation
+// (method) stopped at its iteration cap — nil when it converged. The
+// details name the solver (rotationResult.Solver: varimax /
+// gpa_<criterion>) with its run and caps, as MAT_PCA's and MAT_FACTOR's
+// PULSE_MATRIX_NOT_CONVERGED do.
+func rotationCapNote(method string, rot rotationResult) *fitRefusal {
+	if rot.Converged {
+		return nil
+	}
+	return &fitRefusal{code: errors.PULSE_MATRIX_NOT_CONVERGED,
+		msg: "the " + method + " rotation (" + rot.Solver + ") stopped at its " + strconv.Itoa(rot.MaxIterations) +
+			"-iteration cap before its criterion settled; the scores use the last iterate",
+		details: map[string]any{"solver": rot.Solver, "iterations": rot.Iterations, "max_iterations": rot.MaxIterations, "tolerance": rot.Tolerance}}
 }
 
 // fittedModel is the operator half of a fitted vector attribute.
@@ -136,6 +302,13 @@ type fittedVectorAttribute struct {
 	fitOn      []FilterFunc
 	fitOnBound bool
 
+	// fitName is params.fit ("" folds this request's fit); labels are
+	// the slot's member labels it aligns to; prebuilt is the bound
+	// fit's state, set by bindFitOn.
+	fitName  string
+	labels   []string
+	prebuilt *fittedState
+
 	weight *types.WeightSpec
 	basis  weighting.Basis
 
@@ -146,6 +319,24 @@ type fittedVectorAttribute struct {
 	finalized bool
 	usable    bool
 	warnings  []*types.ResponseWarning
+
+	// final is the closed fit (Finalize), captured by
+	// AttributeVectorFit.
+	final *fittedState
+
+	// capture receives the closed fit when this attribute is a Compose
+	// vector fit request's battery (the bound set's model.VectorCapture,
+	// set by bindFitOn; nil otherwise).
+	capture *model.VectorCapture
+}
+
+// fittedSource is a fitted attribute's fit source: the decoded
+// params.fit_on (folded over this request's rows), or params.fit (a
+// bound vector fit) aligned by labels (nil: the members).
+type fittedSource struct {
+	fitOn  []*types.Filterer
+	fit    string
+	labels []string
 }
 
 var (
@@ -156,9 +347,9 @@ var (
 )
 
 // newFittedVectorAttribute builds the shared base over attr's members
-// (the resolved literal list Processor.prepare stashed) with fitOn the
-// decoded params.fit_on and m the operator's model.
-func newFittedVectorAttribute(attr *types.Attribute, schema *encoding.Schema, fitOn []*types.Filterer, m fittedModel) (*fittedVectorAttribute, error) {
+// (the resolved literal list Processor.prepare stashed) with src the
+// decoded fit source and m the operator's model.
+func newFittedVectorAttribute(attr *types.Attribute, schema *encoding.Schema, src fittedSource, m fittedModel) (*fittedVectorAttribute, error) {
 	if attr.Vector != "" {
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			fmt.Sprintf("%s vector %q was not resolved before construction", attr.Type, attr.Vector),
@@ -178,13 +369,24 @@ func newFittedVectorAttribute(attr *types.Attribute, schema *encoding.Schema, fi
 		label = defaultAttributeLabel(attr)
 	}
 	spec := attr.Weight.Spec()
+	labels := src.labels
+	if labels == nil {
+		labels = attr.Fields
+	}
+	if len(labels) != len(attr.Fields) {
+		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("%s params.labels must name each of the %d members once", label, len(attr.Fields)),
+			map[string]any{"attribute": label, "reason": "bad_params", "param": "labels", "labels": len(labels), "members": len(attr.Fields)})
+	}
 	return &fittedVectorAttribute{
 		typ:       attr.Type,
 		label:     label,
 		members:   append([]string(nil), attr.Fields...),
 		fill:      memberFillOf(attr.Fields, schema),
 		schema:    schema,
-		fitOnSpec: fitOn,
+		fitOnSpec: src.fitOn,
+		fitName:   src.fit,
+		labels:    append([]string(nil), labels...),
 		weight:    spec,
 		basis:     weighting.BasisOf(spec),
 		co:        co,
@@ -193,8 +395,36 @@ func newFittedVectorAttribute(attr *types.Attribute, schema *encoding.Schema, fi
 	}, nil
 }
 
-// bindFitOn compiles params.fit_on (fitOnBinder).
+// bindFitOn compiles params.fit_on, or resolves and aligns params.fit
+// against the request's bound models (fitOnBinder).
 func (a *fittedVectorAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) error {
+	if model.IsVectorFitAttribute(a.typ) {
+		a.capture = models.Capture()
+	}
+	if a.fitName != "" {
+		vf, err := models.LookupVector(a.fitName)
+		if err != nil {
+			if ce, ok := err.(*errors.CodedError); ok {
+				ce.Details["attribute"] = a.label
+				ce.Message = a.label + ": " + ce.Message
+			}
+			return err
+		}
+		perm, err := labelPermutation(a.label, vf, a.labels)
+		if err != nil {
+			return err
+		}
+		st, err := fittedStateFromVector(vf, perm)
+		if err != nil {
+			return err
+		}
+		a.prebuilt = &st
+		// The bound state is the whole fit: close it now, before any
+		// row, so the slot is ROW-LOCAL (vectors.FitBound) — Row works
+		// on every arm without a PrePass, and the fit's warnings are
+		// raised whether or not a row is scored.
+		return a.close()
+	}
 	fns, err := buildFilterFuncsWith(a.fitOnSpec, a.schema, exts, models, vecs)
 	if err != nil {
 		return err
@@ -221,6 +451,15 @@ func (a *fittedVectorAttribute) readMembers(rec *Record, x []float64) bool {
 // present, every fit_on filterer admits it and its weight is valid and
 // positive.
 func (a *fittedVectorAttribute) PrePass(rec *Record, _ string) error {
+	if a.fitName != "" {
+		// A bound fit is already fitted (and closed at bind): nothing
+		// to fold.
+		if a.prebuilt == nil {
+			return errors.NewCodedError(errors.PROCESSING_INTERNAL,
+				string(a.typ)+" params.fit was not bound before PrePass")
+		}
+		return nil
+	}
 	if a.finalized {
 		return errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			string(a.typ)+" PrePass after Finalize")
@@ -253,15 +492,49 @@ func (a *fittedVectorAttribute) PrePass(rec *Record, _ string) error {
 }
 
 // Finalize closes the fit: N* ≤ p nulls every score with
-// PULSE_MATRIX_INSUFFICIENT_N; otherwise the model fits.
+// PULSE_MATRIX_INSUFFICIENT_N; otherwise the model fits. A bound fit
+// (params.fit) closed at bind, so Finalize is then a no-op.
 func (a *fittedVectorAttribute) Finalize() error {
+	if a.prebuilt != nil && a.finalized {
+		return nil
+	}
 	if a.finalized {
 		return errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			string(a.typ)+" Finalize called twice")
 	}
+	return a.close()
+}
+
+// prebuiltFit reports whether the slot is bound to a prebuilt fit
+// (params.fit) — closed at bind, so row-local (prebuiltAttribute).
+func (a *fittedVectorAttribute) prebuiltFit() bool { return a.prebuilt != nil }
+
+// close is Finalize's body: decompose the fit (folded, or the bound
+// prebuilt state) and decide usability, once.
+func (a *fittedVectorAttribute) close() error {
 	a.finalized = true
 	p := len(a.members)
-	st := fittedState{co: a.co, basis: a.basis, p: p, nStar: levelNStar(a.basis, a.co)}
+	var st fittedState
+	switch {
+	case a.prebuilt != nil:
+		st = *a.prebuilt
+	case a.fitName != "":
+		return errors.NewCodedError(errors.PROCESSING_INTERNAL,
+			string(a.typ)+" params.fit was not bound before Finalize")
+	default:
+		st = newFittedState(a.co, a.basis)
+	}
+	a.final = &st
+	if a.capture != nil {
+		// A Compose vector fit request's battery: hand the closed state
+		// to the fit pre-pass (bound under the fit's name there).
+		vf, err := st.vectorFit("", a.labels, a.members)
+		if err != nil {
+			return err
+		}
+		vf.Operator = string(a.typ)
+		a.capture.Offer(vf)
+	}
 	if !(st.nStar > float64(p)) {
 		a.warnings = append(a.warnings, a.fitWarning(errors.PULSE_MATRIX_INSUFFICIENT_N, st,
 			fmt.Sprintf("%s: the fit has N* = %.4g complete rows for %d members (needs N* > p); every score is null", a.label, st.nStar, p)))
@@ -307,8 +580,11 @@ func (a *fittedVectorAttribute) fitWarning(code errors.Code, st fittedState, msg
 		"n":         st.co.N(),
 		"n_star":    st.nStar,
 	}
-	if a.basis.Weighted() {
+	if st.basis.Weighted() {
 		details["sum_weights"] = st.co.W()
+	}
+	if a.fitName != "" {
+		details["fit"] = a.fitName
 	}
 	return &types.ResponseWarning{Code: string(code), Message: msg, Details: details}
 }
@@ -342,6 +618,63 @@ func (a *fittedVectorAttribute) Compute(records []*Record, field string) ([]floa
 	return computeTwoPass(a, records, field)
 }
 
+// VectorFitResult is vf's ComposedResponse.Fits summary: its stored
+// counts, the mean and the fit's own covariance M2*/(N* − 1) on its
+// basis — the figures fittedState derives for every consumer, by the
+// same arithmetic (no figure is computed a second way).
+func VectorFitResult(vf *model.VectorFit) (*types.VectorFitResult, error) {
+	perm := make([]int, vf.P())
+	for i := range perm {
+		perm[i] = i
+	}
+	st, err := fittedStateFromVector(vf, perm)
+	if err != nil {
+		return nil, err
+	}
+	labels := append([]string(nil), vf.Labels...)
+	return &types.VectorFitResult{
+		Operator:       vf.Operator,
+		Labels:         labels,
+		Members:        append([]string(nil), vf.Members...),
+		Basis:          string(vf.Basis),
+		N:              vf.N,
+		NWeightInvalid: vf.NWeightInvalid,
+		SumWeights:     vf.SumWeights,
+		NStar:          st.nStar,
+		Mean:           st.mean(),
+		Covariance: &types.MatrixValues{
+			Kind:       types.MatrixKindSquareSymmetric,
+			Encoding:   types.MatrixEncodingFull,
+			RowKeys:    labels,
+			ColumnKeys: append([]string(nil), labels...),
+			Values:     st.cov(),
+		},
+	}, nil
+}
+
+// AttributeVectorFit returns computer's closed fit as a model.VectorFit
+// named name — the state a fitted vector attribute folded (or bound),
+// captured after Finalize, in its member order and labels; false for
+// any other computer or before Finalize. Binding it back through
+// params.fit scores every row to the bit of the fold it came from.
+func AttributeVectorFit(computer AttributeComputer, name string) (*model.VectorFit, bool) {
+	var a *fittedVectorAttribute
+	switch c := computer.(type) {
+	case *fittedVectorAttribute:
+		a = c
+	case *fittedComparisonAttribute:
+		a = c.fittedVectorAttribute
+	}
+	if a == nil || a.final == nil {
+		return nil, false
+	}
+	vf, err := a.final.vectorFit(name, a.labels, a.members)
+	if err != nil {
+		return nil, false
+	}
+	return vf, true
+}
+
 // attributeSlotLabel is the slot name a factory's refusals carry.
 func attributeSlotLabel(attr *types.Attribute) string {
 	if attr.Label != "" {
@@ -359,6 +692,16 @@ func attributeSlotLabel(attr *types.Attribute) string {
 // field-reference pass has refused that request; the factory refuses an
 // unresolved Vector). The caller's request is never mutated.
 func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
+	return ResolveAttributeInputs(req, p.schema, p.exts)
+}
+
+// ResolveAttributeInputs is resolveAttributeInputs without a Processor:
+// Processor.prepare applies it, and so must every arm that builds
+// attributes off a request without one (the parallel decode and shard
+// reducers, whose row-local attributes include a fitted vector
+// attribute bound to a prebuilt fit). The caller's request is never
+// mutated.
+func ResolveAttributeInputs(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) *types.Request {
 	if req == nil {
 		return req
 	}
@@ -372,13 +715,13 @@ func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
 	if !has {
 		return req
 	}
-	inputs, err := vectors.ResolveAttributes(req, p.schema, func(t types.AttributeType) types.AttributeType {
-		if p.exts.isHidden(string(t)) {
+	inputs, err := vectors.ResolveAttributes(req, schema, func(t types.AttributeType) types.AttributeType {
+		if exts.isHidden(string(t)) {
 			return ""
 		}
 		return t
 	}, func(name string) bool {
-		_, ok := p.exts.LookupAttribute(types.AttributeType(name))
+		_, ok := exts.LookupAttribute(types.AttributeType(name))
 		return ok
 	})
 	if err != nil {
@@ -395,7 +738,7 @@ func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
 		if cp.Label == "" {
 			cp.Label = defaultAttributeLabel(a)
 		}
-		if cp.Type == types.ATTR_SCALE_SCORE && !p.exts.isHidden(string(cp.Type)) {
+		if cp.Type == types.ATTR_SCALE_SCORE && !exts.isHidden(string(cp.Type)) {
 			// The literal members lose the vector's labels and kind
 			// bounds: hand the factory canonical params (reverse by
 			// member name, the declared range explicit).
@@ -403,11 +746,18 @@ func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
 				cp.Params = params
 			}
 		}
-		if vectors.IsComparisonAttribute(cp.Type) && !p.exts.isHidden(string(cp.Type)) {
+		if vectors.IsFittedAttribute(cp.Type) && !exts.isHidden(string(cp.Type)) {
+			// A bound fit aligns to the named vector's labels, which the
+			// literal-member rewrite would lose: write them out.
+			if params, ok := vectors.FittedSlotParams(a, inputs[i].Members); ok {
+				cp.Params = params
+			}
+		}
+		if vectors.IsComparisonAttribute(cp.Type) && !exts.isHidden(string(cp.Type)) {
 			// The literal members lose the vector's labels and kind:
 			// hand the factory canonical params (the metric written out,
 			// the reference in member order, the labels it aligns to).
-			if params, ok := vectors.ComparisonSlotParams(a, inputs[i].Members, p.schema); ok {
+			if params, ok := vectors.ComparisonSlotParams(a, inputs[i].Members, schema); ok {
 				cp.Params = params
 			}
 		}

@@ -174,20 +174,22 @@ Other load-bearing gates (`TestManifest*Complete`, `TestStreamability_*`, `TestE
 
 ## Build / Env
 
-`make contrib` / `make contrib-tidy` (nested adapter modules; a root dependency bump needs `contrib-tidy` in its PR). `make build` (default; injects `VERSION` from `git describe` via ldflags into `internal/buildinfo`, read by `pulse.Version()`), `test`, `fmt`, `vet`, `lint`, `cover`, `clean`, `dist` (6-platform archives + `checksums.txt` into `dist/`), `docs` (runs `docs-generate` first, which regenerates the committed `docs/src/guide`), `docs-serve`, `docs-clean`. A `v*.*.*` tag push runs `release.yml` (`ci.yml`, then `make dist` assets onto the GitHub Release; `-` tags pre-release). A `.env` at repo root is auto-loaded. `make lint` = `go vet` + `staticcheck`, and must pass before any push.
+`make contrib` / `make contrib-tidy` (nested adapter modules; a root dependency bump needs `contrib-tidy` in its PR). `make build` (default; ldflags `VERSION` from `git describe` → `internal/buildinfo` → `pulse.Version()`), `test`, `fmt`, `vet`, `lint`, `cover`, `clean`, `dist` (6-platform archives + `checksums.txt` into `dist/`), `docs` (runs `docs-generate` first, which regenerates the committed `docs/src/guide`), `docs-serve`, `docs-clean`. A `v*.*.*` tag push runs `release.yml` (`ci.yml`, then `make dist` assets onto the GitHub Release; `-` tags pre-release). A `.env` at repo root is auto-loaded. `make lint` = gofmt check + `go vet` + `staticcheck` (CI's `lint` job), and must pass before any push.
 
 **Environment variables** — one line each; `pulse.Options` always overrides:
 
 - `PULSE_DATA_DIR` — base directory for `.pulse` cohorts, used by `fs.Default()`. The only required env var; bypass with `Options{DataDir}` or `Options{FS}`.
 - `PULSE_IMPORTS_DIR` — managed-imports subdir under the fs root (default `imports`), honoured by `imports.Manager`; sidecar read settings (`source_tz`, `dst_policy`, …): `skills/session-bootstrap.md`.
 - `PULSE_IMPORT_TTL` — default TTL for managed imports: Go duration (`24h`), day form (`7d`), or `pin`. Default `7d`.
-- `PULSE_LABEL_TABLES_DIR` — directory whose `*.json` files auto-load as `LabelTables` at `pulse.New` time, keyed by filename. Detail: `skills/label-display.md`.
-- `PULSE_RANGE_TABLES_DIR` — same shape for `RangeTables` (bare `{label,start,end}` array or a `{"description","ranges"}` wrapper; filename minus `.json` is the table name), validated through the shared range-compilation pass. A name declared both programmatically and on disk is a hard error.
+- `PULSE_LABEL_TABLES_DIR` — `*.json` files auto-load as `LabelTables` at `pulse.New`, keyed by filename (`skills/label-display.md`).
+- `PULSE_RANGE_TABLES_DIR` — same shape for `RangeTables` (bare `{label,start,end}` array or a `{"description","ranges"}` wrapper), validated through the shared range-compilation pass.
+- `PULSE_POPULATIONS_DIR` — `*.pulse-population.json` files register as `Extensions.Populations` (name = stem).
 - `PULSE_MCP_NO_COHORT_SCAN` — `pulse mcp` only (flag `--no-cohort-scan`): skip enumerating `.pulse` files as `pulse://` resources; the template stays, so cohorts stay readable. Library: `gosdk.Config.DisableCohortScan` / `mcpserve.Options.DisableCohortScan`.
 - `PULSE_FEATURE_PROFILE` — `pulse mcp` / `mcpserve.NewPulse` only (flag `--feature-profile` wins): OS path to a feature profile.
 - `PULSE_TEMPLATES_DIR` — request-template roots, `os.PathListSeparator`-separated, PATH-style precedence (first root wins). **Precedence and the hot-reload phase table: `.claude/reference/request-templating.md` (Directory precedence, Hot-reload lifecycle).**
+- `PULSE_BENCH_DIR` — bench-only cohort cache (`make bench` / `bench-scale`; default `<tmp>/pulse-bench`).
 
-Both table directories skip Pulse's own sidecars yet hard-fail any other unparseable `*.json`: `.claude/reference/byte-layout.md` (Table-directory sidecar exclusion).
+The table directories skip Pulse's own sidecars yet hard-fail any other unparseable `*.json`: `.claude/reference/byte-layout.md` (Table-directory sidecar exclusion).
 
 **Knobs.** Concurrency `ShardWorkers` / `DecodeWorkers` (`0` => `NumCPU`, negatives rejected at `pulse.New()`) and overlay knobs: `.claude/reference/execution-modes.md`. Limits: `Options.Limits` (`0` default, `-1` `pulse.Unlimited`), `docs/src/library/tuning-limits.md`. Observability: `Options.Logger` / `Hooks` / `Metrics` (nil = zero cost; OTel/Prometheus only in nested `contrib/` modules; no `PULSE_*` var): `.claude/reference/observability.md`.
 
@@ -195,7 +197,7 @@ Hermetic tests: `fs.NewMemMap()` (`internal/fs`).
 
 ## Extension Points
 
-`pulse.Options.Extensions` registers embedder operators (eight categories, authored against the public `extend` package), expr functions and named tables at `pulse.New()`; predict, manifest, MCP and runtime treat them as built-ins, and `internal/processing` stays unreachable (`TestExtendImportBoundary`, `TestRootSurfaceNamesNoProcessing`). Names are `<CATEGORY>_<NAMESPACE>_<NAME>`; reserved namespaces and built-in collisions are rejected. **Recipe: `docs/src/internals/extension-points.md`; contract: `.claude/reference/architecture.md` (Extension surface).**
+`pulse.Options.Extensions` registers embedder operators (nine categories, `MAT` included, authored against `extend`), expr functions and named tables at `pulse.New()`; predict, manifest, MCP and runtime treat them as built-ins, and `internal/processing` stays unreachable (`TestExtendImportBoundary`, `TestRootSurfaceNamesNoProcessing`). Names are `<CATEGORY>_<NAMESPACE>_<NAME>`; reserved namespaces and built-in collisions are rejected. **Recipe: `docs/src/internals/extension-points.md`; contract: `.claude/reference/architecture.md` (Extension surface).**
 
 ## Feature profiles
 
@@ -223,7 +225,6 @@ The pack under `internal/skills/` (addressed `skills/<stem>.md`, embedded via `/
 - **Do not hand-edit golden files.** Regenerate: `go test ./descriptor/ -run 'Test.*Golden' -update`.
 - **Do not defer a skill or CLAUDE.md update** to a follow-up PR; it will not happen.
 - **Do not add implementation without tests in the same PR.** TDD is a hard rule here.
-- **Do not use `fmt.Sprintf` for JSON/XML.** Use `encoding/json` + `descriptor.NewEnvelope(data)`.
 - **Do not raise `claudeMdSizeCeiling` to make CLAUDE.md fit.** Move the long form into `.claude/reference/` and leave the always-load half plus a pointer — that is the whole point of the gate.
 - **Do not add a component without updating the registry** (`internal/processing/registry.go`) + `types.All*Types()`.
 - **Do not bypass `afero.Fs`** — it defeats `fs.NewMemMap()` and the custom-storage extension hook.
@@ -232,14 +233,15 @@ The pack under `internal/skills/` (addressed `skills/<stem>.md`, embedded via `/
 
 ## Reference Docs
 
-`.claude/reference/*.md` is where CLAUDE.md's long form lives. **This is the complete index.** CLAUDE.md carries only the always-load half of each contract — load the named file BEFORE the work, not after. Most are also required companions in the Update Demand table, which makes loading them binding.
+`.claude/reference/*.md` holds CLAUDE.md's long form; **this is the complete index.** Load the named file BEFORE the work, not after. A file with a same-named subdirectory is an INDEX: load it, then only the slice(s) your change triggers (never `history.md`). Update Demand companions make loading binding.
 
 | File | Holds | Load before... |
 |---|---|---|
+| `agent-practices.md` | cross-role rules: loading, sites first, falsify, goldens, cross-arch, gates, git | any delegated or agent work |
 | `architecture.md` | package tree, facade narrowing, `io` boundary, surface guards, MCP layer split, extension surface | moving a package, adding a public package or exported symbol, or touching an import-boundary gate |
-| `update-demand.md` | the per-slot trigger table, per-gate prose, the non-prefix-matched gates | touching ANY contract; add a row for a new Request slot, Response slot, capability block or execution-mode wiring |
+| `update-demand.md` | index → per-area trigger-table slices (`update-demand/`), gate prose | touching ANY contract; add a row for a new Request slot, Response slot, capability block or execution-mode wiring |
 | `byte-layout.md` | format version, parent groups, wide sets, shard archives, sidecars, SPSS, projected decode | changing the `.pulse` format, a field type, shard-archive layout, any sidecar file, an SPSS surface, or the projection contract |
-| `execution-modes.md` | wiring prose per mode, every overlay host, multiplicity, time zones | engine work (`internal/service/`, `internal/processing/`) or adding an execution mode |
+| `execution-modes.md` | mode index → per-mode wiring slices (`execution-modes/`) | engine work (`internal/service/`, `internal/processing/`) or adding an execution mode |
 | `response-components.md` | auxiliary crosstab margins (ADMISSION rule), opt-out, Compose surface + envelope, undefined figures | changing `Response.Components`, a per-operator `ComponentSchema`, or `CrosstabSpec.MarginAggregations` on either arm |
 | `predict-inspect.md` | inspect's envelope split, truncated-tail warning, `CountRecords`' silence, the predict import ban | changing `predict.go` / `inspect.go`, `Pulse.Inspect` / `InspectEnvelope`, `pulse_inspect`, or `CountRecords` |
 | `request-templating.md` | file wrapper, substitution forms, variable types, precedence, hot-reload phases, `PULSE_TEMPLATE_*` codes | changing the request-template document model, the variable or target sets, or the substitution syntax |
@@ -248,7 +250,7 @@ The pack under `internal/skills/` (addressed `skills/<stem>.md`, embedded via `/
 | `skill-pack.md` | frontmatter, required sections, budgets, stems, add-a-skill | adding or restructuring a skill file, frontmatter keys, a family's required sections, or a budget |
 | `weighting.md` | the weight surface (null ≠ absent), resolution, weight classes, refusals, floor keys, op-order exactness | touching ANY weight surface |
 | `guided-analysis.md` | intents, `Purpose`, `Interpretation`, glossary, virtual skills, effect-size keys, budget gates | touching any guidance registry, an effect-size key, an overlay `Inferential` flag or the extension `Purpose` hook |
-| `matrix-and-vectors.md` | `linalg` backend policy, tolerance rules, `CoMoment`, the blocked merge, the matrix slot | touching `linalg/`, its callers or the blocked merge |
+| `matrix-and-vectors.md` | index → slices (`matrix-and-vectors/`): `linalg` policy, `CoMoment`, vectors, matrix slot | touching `linalg/`, its callers or the blocked merge |
 | `observability.md` | levels, log attributes + privacy rule, enums, hook contract, metric table, streaming end, contrib versioning, the four gates | changing an `observe` enum, metric, log attribute, hook field, `Options.Logger`/`Hooks`/`Metrics`, or a `contrib/` module |
 
-`TestClaudeMdSizeBudget` caps CLAUDE.md at 40,000 bytes so a new contract DISPLACES long form into that directory; never raise the ceiling. `.claude/reference/*.md` is inside `TestSkillsCoverAllCrossReferences`' corpus — a heading renamed in moved text still breaks the pointer that names it.
+`.claude/reference/**` is inside `TestSkillsCoverAllCrossReferences`' and `TestReferenceDocPointersResolve`' corpus — renaming a moved heading breaks every pointer to it.

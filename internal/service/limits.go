@@ -32,9 +32,11 @@ func (s *Service) memoryBounded() bool {
 
 // limitInputs are the run facts the pre-flight reads for a request
 // scanning cohort (opened from path) — the figures predict reads from
-// the same header: an archive's per-shard counts from its manifest, a
+// the same header: an archive's per-shard counts from its manifest and
+// its byte length (what Open read), a
 // single file's header-only count (CountRecords, never
-// Cohort.RecordCount). Counts are read only when MaxEstimatedMemory is
+// Cohort.RecordCount) — plus, for an anchor-opened shard, its archive's
+// byte length. Counts are read only when MaxEstimatedMemory is
 // set; otherwise Records is -1 (unknown), which no refusing rule needs.
 func (s *Service) limitInputs(ctx context.Context, cohort *Cohort, path string) (descx.LimitInputs, error) {
 	in := descx.LimitInputs{
@@ -42,6 +44,7 @@ func (s *Service) limitInputs(ctx context.Context, cohort *Cohort, path string) 
 		JoinRightRows:  -1,
 		Extensions:     s.ExtensionsSnapshot(),
 		FusionDisabled: s.disableCrosstabFusion,
+		ShardWorkers:   s.shardWorkers,
 	}
 	if !s.memoryBounded() {
 		return in, nil
@@ -53,6 +56,7 @@ func (s *Service) limitInputs(ctx context.Context, cohort *Cohort, path string) 
 			total += sh.RecordCount
 		}
 		in.Records = total
+		in.ArchiveBytes = cohort.archiveBytes
 		return in, nil
 	}
 	n, err := s.CountRecords(ctx, path)
@@ -60,6 +64,8 @@ func (s *Service) limitInputs(ctx context.Context, cohort *Cohort, path string) 
 		return in, err
 	}
 	in.Records = int64(n)
+	// An anchor-opened shard: its archive's bytes, no shard counts.
+	in.ArchiveBytes = cohort.archiveBytes
 	return in, nil
 }
 

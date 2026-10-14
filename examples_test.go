@@ -52,6 +52,9 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		// examples, and only Request-host ones run through pulse.Process,
 		// so this arm is scoped to the MATRIX-host axis-pairing family.
 		{"overlays-crosstab-pairwise", "overlays", 4, "*_crosstab_pairwise_*.json"},
+		// The flows overlays (U30 E7) on a from x to crosstab.
+		{"overlays-crosstab-symmetry", "overlays", 1, "*_crosstab_symmetry.json"},
+		{"overlays-crosstab-retention", "overlays", 1, "*_crosstab_retention.json"},
 	}
 
 	for _, cat := range categories {
@@ -81,7 +84,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 // the anchor-syntax example reads.
 func buildExampleFixtures(t *testing.T, p *pulse.Pulse, fs afero.Fs, tmp string) {
 	t.Helper()
-	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers", "tier_migrations"}
+	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers", "tier_migrations", "survey"}
 	for _, name := range cohorts {
 		csvPath := filepath.Join("internal", "examples", "fixtures", name+".csv")
 		schemaPath := filepath.Join("internal", "examples", "fixtures", "schemas", name+".json")
@@ -115,6 +118,52 @@ func buildExampleFixtures(t *testing.T, p *pulse.Pulse, fs afero.Fs, tmp string)
 	// like any other cohort.
 	if err := buildShardedTransactionsFixture(p, fs, tmp); err != nil {
 		t.Fatalf("build sharded transactions fixture: %v", err)
+	}
+
+	// The point-lookup index a {record} comparison reference reads
+	// (attributes/20_record_reference.json) — fixtures/build.sh builds
+	// the same one.
+	if _, err := p.BuildIndex(context.Background(), filepath.Join(tmp, "experiment.pulse"), []string{"id"}); err != nil {
+		t.Fatalf("index experiment.pulse on id: %v", err)
+	}
+
+	// The saved population compose/06_population_score.json loads:
+	// run compose/05_vector_fit_save.json with its cohorts and its
+	// `save` path redirected into tmp (p's filesystem root is the OS
+	// root, so a relative save would land in the working directory).
+	seedExamplePopulation(t, p, tmp)
+}
+
+// examplePopulationSave is compose/05's `save` path (relative to the
+// data root), the file compose/06 loads.
+const examplePopulationSave = "populations/panel_a.pulse-population.json"
+
+// seedExamplePopulation writes tmp/<examplePopulationSave> by running
+// compose/05_vector_fit_save.json through p with every cohort data_dir
+// and the fit's save path rebased under tmp.
+func seedExamplePopulation(t *testing.T, p *pulse.Pulse, tmp string) {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join("internal", "examples", "compose", "05_vector_fit_save.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var req pulse.ComposedRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		t.Fatalf("parse compose/05: %v", err)
+	}
+	for i := range req.Fits { // Fits holds values: write through the index
+		f := &req.Fits[i]
+		f.Request.Cohort.DataDir = tmp
+		if f.Save != examplePopulationSave {
+			t.Fatalf("compose/05 saves %q, want %q", f.Save, examplePopulationSave)
+		}
+		f.Save = filepath.Join(tmp, f.Save)
+	}
+	for _, r := range req.Requests {
+		r.Cohort.DataDir = tmp
+	}
+	if _, err := p.Compose(context.Background(), &req); err != nil {
+		t.Fatalf("seed example population (compose/05): %v", err)
 	}
 }
 
@@ -322,4 +371,99 @@ func buildShardedTransactionsFixture(p *pulse.Pulse, fs afero.Fs, dataDir string
 	_, err = p.CreateShardArchive(context.Background(), archivePath,
 		[]string{wave1Path, wave2Path})
 	return err
+}
+
+// TestExamples_VectorFitPopulationRoundTrip runs the two population
+// examples in order (compose/05 fits panel a and SAVES it as a
+// population file; compose/06 loads that file through `populations`)
+// on an instance rooted at the fixture directory, so the save path and
+// the load path resolve against the same data root. Compose examples
+// are not in TestExamples_RunEndToEnd (it runs single requests); this
+// pins the pair end to end: no errors or warnings, the fit's vector
+// summary, every slot answered, and the loaded population scoring
+// panel b exactly as the in-batch fit did.
+func TestExamples_VectorFitPopulationRoundTrip(t *testing.T) {
+	tmp := t.TempDir()
+	osfs := afero.NewOsFs()
+	builder, err := pulse.New(pulse.Options{FS: osfs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	buildExampleFixtures(t, builder, osfs, tmp)
+	p, err := pulse.New(pulse.Options{DataDir: tmp})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	run := func(name string) *pulse.ComposedResponse {
+		t.Helper()
+		body, err := os.ReadFile(filepath.Join("internal", "examples", "compose", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var req pulse.ComposedRequest
+		if err := json.Unmarshal(body, &req); err != nil {
+			t.Fatalf("parse %s: %v", name, err)
+		}
+		// The instance is rooted at tmp, so cohorts resolve from the root.
+		for _, f := range req.Fits {
+			f.Request.Cohort.DataDir = ""
+		}
+		for _, r := range req.Requests {
+			r.Cohort.DataDir = ""
+		}
+		env, err := p.PredictCompose(context.Background(), &req)
+		if err != nil {
+			t.Fatalf("PredictCompose %s: %v", name, err)
+		}
+		if len(env.Errors) != 0 || len(env.Warnings) != 0 {
+			t.Fatalf("PredictCompose %s: errors %v warnings %v", name, env.Errors, env.Warnings)
+		}
+		resp, err := p.Compose(context.Background(), &req)
+		if err != nil {
+			t.Fatalf("Compose %s: %v", name, err)
+		}
+		if len(resp.Responses) != len(req.Requests) {
+			t.Fatalf("%s: %d slots, %d responses", name, len(req.Requests), len(resp.Responses))
+		}
+		for i, r := range resp.Responses {
+			if r == nil || (r.Data == nil && len(r.Matrices) == 0) {
+				t.Fatalf("%s: slot %d answered nothing", name, i)
+			}
+			if len(r.Warnings) != 0 {
+				t.Fatalf("%s: slot %d warnings %v", name, i, r.Warnings)
+			}
+		}
+		return resp
+	}
+
+	// buildExampleFixtures seeded the file; remove it so 05 must write it.
+	if err := os.Remove(filepath.Join(tmp, examplePopulationSave)); err != nil {
+		t.Fatal(err)
+	}
+	fit := run("05_vector_fit_save.json")
+	if f := fit.Fits["panel_a"]; f == nil || f.Vector == nil || f.Vector.Operator != "MAT_COVARIANCE" {
+		t.Fatalf("05: fits.panel_a = %+v, want a MAT_COVARIANCE vector fit", fit.Fits["panel_a"])
+	}
+	if _, err := os.Stat(filepath.Join(tmp, examplePopulationSave)); err != nil {
+		t.Fatalf("05 did not save the population file: %v", err)
+	}
+	loaded := run("06_population_score.json")
+
+	// Panel b's mean D² from the in-batch fit (05) and from the loaded
+	// population (06, group b) must agree: the file round-trips the
+	// fitted state at full precision.
+	inBatch := fit.Responses[0].Data[0]["mean_d2"]
+	var fromFile any
+	for _, row := range loaded.Responses[0].Data {
+		if row["panel"] == "b" {
+			fromFile = row["mean_d2"]
+		}
+	}
+	if inBatch == nil || inBatch != fromFile {
+		t.Fatalf("panel b mean D²: in-batch fit %v, loaded population %v", inBatch, fromFile)
+	}
+	if len(loaded.Responses[1].Matrices) != 1 {
+		t.Fatalf("06: panel_a_matrix returned %d matrices, want 1", len(loaded.Responses[1].Matrices))
+	}
 }

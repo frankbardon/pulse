@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/multiplicity"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -64,7 +65,7 @@ func runStage(t *testing.T, svc *Service, req *types.Request) *types.Response {
 		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "k"}},
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v", Label: "s"}},
 	}
-	schema, err := processing.ChainOutputSchema(prior)
+	schema, err := processing.ChainOutputSchema(prior, nil, vectors.AggregationKinds{})
 	if err != nil {
 		t.Fatal(err)
 	}

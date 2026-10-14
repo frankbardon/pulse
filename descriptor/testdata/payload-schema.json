@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:3aa32c5284bdcf6923a2d6d667e1503c4564aee3f8351ad5b4fd066e351c8d8e",
+  "$comment": "feature_set_digest: fs1:aea443a0e031845dccf27a2f77f93a871643f0d1df4d435756ca0046164e4aa1",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -180,6 +180,7 @@
         "AGG_SUM",
         "AGG_VARIANCE",
         "AGG_VEC_MEAN",
+        "AGG_VEC_SD",
         "AGG_VEC_SUM",
         "AGG_WEIGHTED_MEAN",
         "AGG_WELFORD",
@@ -611,7 +612,7 @@
       "properties": {
         "fits": {
           "additionalProperties": {
-            "$ref": "#/$defs/RegressionResult"
+            "$ref": "#/$defs/FitResult"
           },
           "type": "object"
         },
@@ -1680,6 +1681,26 @@
       ],
       "type": "string"
     },
+    "FitResult": {
+      "description": "One fit's result: a regression fit's RegressionResult, or a vector fit's {vector: VectorFitResult}. The vector key discriminates; a regression entry never carries it.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/RegressionResult"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "vector": {
+              "$ref": "#/$defs/VectorFitResult"
+            }
+          },
+          "required": [
+            "vector"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "FitSpec": {
       "additionalProperties": false,
       "properties": {
@@ -2489,10 +2510,12 @@
         "OVERLAY_PROP_Z_PANEL",
         "OVERLAY_RAKE",
         "OVERLAY_RANK",
+        "OVERLAY_RETENTION",
         "OVERLAY_SHARE_OF_COL",
         "OVERLAY_SHARE_OF_ROW",
         "OVERLAY_SHARE_OF_TOTAL",
         "OVERLAY_STD_RESIDUAL",
+        "OVERLAY_SYMMETRY",
         "OVERLAY_T_CELL",
         "OVERLAY_T_VS_REF",
         "OVERLAY_YOY",
@@ -2949,6 +2972,22 @@
     "OverlayYoYRef": {
       "additionalProperties": false,
       "properties": {},
+      "type": "object"
+    },
+    "PopulationRef": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "path"
+      ],
       "type": "object"
     },
     "RankEntry": {
@@ -3608,6 +3647,15 @@
         "overlays": {
           "items": {
             "$ref": "#/$defs/OverlaySpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "populations": {
+          "items": {
+            "$ref": "#/$defs/PopulationRef"
           },
           "type": [
             "array",
@@ -4369,6 +4417,81 @@
       ],
       "type": "string"
     },
+    "VectorFitResult": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "type": "string"
+        },
+        "covariance": {
+          "$ref": "#/$defs/MatrixValues"
+        },
+        "labels": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "mean": {
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "members": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "n": {
+          "type": "integer"
+        },
+        "n_star": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "n_weight_invalid": {
+          "type": "integer"
+        },
+        "operator": {
+          "type": "string"
+        },
+        "sum_weights": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "basis",
+        "covariance",
+        "labels",
+        "mean",
+        "members",
+        "n",
+        "n_star",
+        "n_weight_invalid",
+        "operator",
+        "sum_weights"
+      ],
+      "type": "object"
+    },
     "VectorKind": {
       "enum": [
         "binary",
@@ -4572,4 +4695,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 1c3a3cb271e4ade3dd352a9aa8ad20e5e3b7926f527934bf1868038891353188
+// golden-hash: 1342ea951a4b7a9bd9dcb700dbc0c19dd7c1753f364c3ef0299ebba7ba8244a2

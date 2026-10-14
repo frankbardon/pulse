@@ -471,6 +471,7 @@ export PULSE_IMPORTS_DIR=imports           # Managed-imports subdir under the fs
 export PULSE_IMPORT_TTL=7d                 # Default TTL for managed imports: Go duration ("24h"), day form ("7d") or "pin"; default 7d
 export PULSE_LABEL_TABLES_DIR=/path/labels # Directory whose *.json files auto-load as LabelTables at pulse.New, keyed by filename
 export PULSE_RANGE_TABLES_DIR=/path/ranges # Same shape for RangeTables ({label,start,end} array or {"description","ranges"} wrapper)
+export PULSE_POPULATIONS_DIR=/path/pops     # Saved *.pulse-population.json files registered as Extensions.Populations (name = file stem)
 export PULSE_MCP_NO_COHORT_SCAN=1          # pulse mcp only: skip the startup cohort enumeration; pulse:// URIs stay readable
 export PULSE_TEMPLATES_DIR=/a:/b           # Request-template roots, PATH-style precedence (first root wins)
 ```
@@ -499,13 +500,14 @@ All `--json` output is wrapped in a `descriptor.Envelope`:
 ```bash
 make build    # Binary at ./bin/pulse
 make test     # go test ./...
-make fmt      # gofmt
+make fmt      # gofmt -w .
 make vet      # go vet
-make lint     # staticcheck (auto-installed via go run)
+make lint     # gofmt check (fmt-check) + go vet + staticcheck (auto-installed via go run); CI runs it
 make cover    # Coverage report
 make docs     # Regenerate the Analysis Guide (docs/src/guide) and build mdBook
 make dist     # 6-platform release archives + checksums.txt in ./dist (VERSION=v1.2.3)
 make contrib  # vet + staticcheck + tidy check + test the contrib/ adapter modules
+make sites ARGS="op MAT_PCA"  # change-site checklist (op / new-op / slot) for contributors
 make clean    # Remove artifacts
 ```
 

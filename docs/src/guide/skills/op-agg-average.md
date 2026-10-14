@@ -41,7 +41,7 @@ Scalar `float64`. Per-group when wired under a grouper.
 ## Components
 
 Weighted slots add floor keys `sum_weights` (Σw), `n_eff` (Kish; `probability` only) and `n_weight_invalid`; absent ⇒ unweighted. `n`/`n_null` stay raw counts.
-Weighted adds `sum_weighted`, `weighted_mean`, `m2_weighted`, `sum_weights_sq`, `weighted_variance` (m2/(Σw−1)).
+Weighted adds `sum_weighted`, `weighted_mean`, `m2_weighted`, `sum_weights_sq`, `weighted_variance` (m2/(Σw−1); `null` if Σw ≤ 1).
 
 Universal floor `{n, n_null}` plus operator-specific:
 
@@ -55,6 +55,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 ## Gotchas
 
 - Null inputs skipped — mean is over `n` non-null, not the cohort.
+- No non-null value in the bucket (or Σw = 0) → `null` (NaN), never 0.
 - `decimal128` under any weight in force (default included) → `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` opts out.
 
 ## See

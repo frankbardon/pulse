@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -52,7 +53,8 @@ import (
 // IsArrayValued — types.AggregationType.ArrayValued or a declared
 // ArrayValued extension): ArrayValuedCrosstabRefusal here, Sort and
 // request overlays in the field-reference walk, a feeding chain stage
-// in internal/mergegate.
+// in internal/mergegate (unless the slot expands: ChainStageSchema
+// types its element columns for the next stage).
 
 // ExtensionAggregation is what an instance declares about one
 // aggregation type its extensions register: Registered (the name is an
@@ -188,7 +190,26 @@ func (k AggregationKinds) IsCode(t types.AggregationType, input encoding.FieldTy
 // VectorAggregationTypes returns the built-in aggregation types that
 // read their columns from Vector / Fields, in AllAggregationTypes order.
 func VectorAggregationTypes() []types.AggregationType {
-	return []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM}
+	return []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM, types.AGG_VEC_SD}
+}
+
+// vectorAggregationList joins VectorAggregationTypes with sep, last
+// for the final pair ("A, B or C" / "A / B / C") — refusal prose names
+// the whole set, never a hand-kept subset.
+func vectorAggregationList(sep, last string) string {
+	ts := VectorAggregationTypes()
+	out := ""
+	for i, t := range ts {
+		switch {
+		case i == 0:
+		case i == len(ts)-1:
+			out += last
+		default:
+			out += sep
+		}
+		out += string(t)
+	}
+	return out
 }
 
 // IsVectorAggregation reports whether t is a built-in vector
@@ -218,6 +239,10 @@ type AggregationInput struct {
 	// are the operator's, so AggregationSlotRewrite keeps every other
 	// key.
 	Extension bool
+	// HasElement marks a slot whose params.element selects one member;
+	// Element is that member's index in Members.
+	HasElement bool
+	Element    int
 }
 
 // Has reports whether the slot resolved a vector input.
@@ -292,10 +317,21 @@ type VecAggParams struct {
 	// fields only).
 	Labels []string `json:"labels,omitempty"`
 	// Expand replaces the array value with one scalar column per member,
-	// named ExpandedColumn(label, element label). Presentation only: the
-	// columns are refused wherever the array is (Sort, overlays, a
-	// window, a feeding chain stage).
+	// named ExpandedColumn(label, element label). Each is an ordinary
+	// nullable f64 output column (Sort, a window, a post-test, a series
+	// overlay's params.field and a later chain stage read it); the bare
+	// label stays refused.
 	Expand bool `json:"expand,omitempty"`
+	// Element is params.element: the display label of the ONE member a
+	// crosstab cell or margin aggregation reads (SelectsElement). The
+	// slot is then a scalar over that member alone — its figure, floor
+	// and components are the selected element's — so the crosstab
+	// array_valued refusal does not apply. Built-in vector aggregators
+	// only (for an extension the key is the operator's own); refused
+	// outside a crosstab slot (element_outside_crosstab), beside expand
+	// (element_with_expand), naming no member label (element_unknown)
+	// or a label two members share (element_ambiguous).
+	Element *string `json:"element,omitempty"`
 }
 
 // DecodeExtensionVecAggParams decodes the engine's keys of an extension
@@ -347,7 +383,7 @@ func DecodeVecAggParams(at string, typ types.AggregationType, raw json.RawMessag
 	}
 	if err := decodeStrict(raw, &p); err != nil {
 		return VecAggParams{}, aggregationInvalid(at, "bad_params",
-			at+" "+string(typ)+" params: "+err.Error()+" (keys: labels, expand)", nil)
+			at+" "+string(typ)+" params: "+err.Error()+" (keys: labels, expand, element)", nil)
 	}
 	return p, nil
 }
@@ -382,7 +418,7 @@ func ResolveAggregations(req *types.Request, schema *encoding.Schema, kinds Aggr
 		ext := kinds.extension(typ)
 		if !IsVectorAggregation(typ) && !ext.VectorInput {
 			if HasAggregationVectorInput(s.Agg) && (builtin || ext.Registered) {
-				msg := s.Path + " (" + string(s.Agg.Type) + ") reads field, not a vector; drop vector / fields (AGG_VEC_MEAN / AGG_VEC_SUM aggregate a vector)"
+				msg := s.Path + " (" + string(s.Agg.Type) + ") reads field, not a vector; drop vector / fields (" + vectorAggregationList(" / ", " / ") + " aggregate a vector)"
 				if ext.Registered {
 					msg = s.Path + " (" + string(s.Agg.Type) + ") reads field, not a vector: the extension is not registered with VectorInput; drop vector / fields"
 				}
@@ -421,6 +457,18 @@ func resolveAggregation(at string, a *types.Aggregation, typ types.AggregationTy
 	if err != nil {
 		return AggregationInput{}, err
 	}
+	if p.Element != nil {
+		if p.Expand {
+			return AggregationInput{}, aggregationInvalid(at, "element_with_expand",
+				at+" ("+name+") sets both params.element (one element as a scalar crosstab figure) and params.expand (one column per element); set one",
+				map[string]any{"type": name, "param": "element"})
+		}
+		if !strings.HasPrefix(at, "crosstab.") {
+			return AggregationInput{}, aggregationInvalid(at, "element_outside_crosstab",
+				at+" ("+name+") params.element selects one element for a crosstab cell or margin aggregation; a grouped or ungrouped aggregation writes every element — use params.expand for one column per element",
+				map[string]any{"type": name, "param": "element"})
+		}
+	}
 	if p.Expand && ext.Registered && !ext.ArrayValued {
 		return AggregationInput{}, aggregationInvalid(at, "expand_not_array_valued",
 			at+" ("+name+") params.expand writes one column per element of an array value, and this extension aggregator returns one figure (it is not registered ArrayValued); drop expand",
@@ -440,6 +488,25 @@ func resolveAggregation(at string, a *types.Aggregation, typ types.AggregationTy
 	if err != nil {
 		return AggregationInput{}, err
 	}
+	element := -1
+	if p.Element != nil {
+		for i, l := range members.Labels {
+			if l != *p.Element {
+				continue
+			}
+			if element >= 0 {
+				return AggregationInput{}, aggregationInvalid(at, "element_ambiguous",
+					at+" ("+name+") params.element "+strconv.Quote(*p.Element)+" names members "+strconv.Itoa(element)+" and "+strconv.Itoa(i)+", which share that label; give the members distinct labels",
+					map[string]any{"type": name, "param": "element", "element": *p.Element, "members": []int{element, i}})
+			}
+			element = i
+		}
+		if element < 0 {
+			return AggregationInput{}, aggregationInvalid(at, "element_unknown",
+				at+" ("+name+") params.element "+strconv.Quote(*p.Element)+" is not a member label; valid: "+strings.Join(members.Labels, ", "),
+				map[string]any{"type": name, "param": "element", "element": *p.Element, "valid": append([]string(nil), members.Labels...)})
+		}
+	}
 	if p.Expand {
 		seen := make(map[string]int, len(members.Labels))
 		for i, l := range members.Labels {
@@ -452,7 +519,45 @@ func resolveAggregation(at string, a *types.Aggregation, typ types.AggregationTy
 			seen[l] = i
 		}
 	}
-	return AggregationInput{Slot: at, Members: members, Expand: p.Expand, Extension: ext.Registered}, nil
+	return AggregationInput{Slot: at, Members: members, Expand: p.Expand, Extension: ext.Registered, HasElement: element >= 0, Element: max(element, 0)}, nil
+}
+
+// SelectsElement reports whether a is a built-in vector aggregation
+// (routed under kinds; never an extension, whose params.element is its
+// own key) whose params decode and set element: a crosstab slot reading
+// ONE member as a scalar. Shape faults (an unknown element, element
+// outside a crosstab) are the resolver's; this reads only the params.
+func SelectsElement(a *types.Aggregation, kinds AggregationKinds) bool {
+	if a == nil {
+		return false
+	}
+	r := kinds.Routed(a.Type)
+	if !IsVectorAggregation(r) {
+		return false
+	}
+	p, err := DecodeVecAggParams("aggregation", a.Type, a.Params)
+	return err == nil && p.Element != nil
+}
+
+// ElementMarginClass is the crosstab margin class of an
+// element-selecting slot (SelectsElement): its scalar twin's — the
+// selected element of AGG_VEC_MEAN is a weighted mean of one column
+// (mean-reducible), of AGG_VEC_SUM a sum (summable). ok is false for
+// any other slot, which keeps its type's class — an AGG_VEC_SD element
+// included: a standard deviation recomputes its margin over the raw
+// rows, like AGG_STDDEV (the type's MarginRecompute). Both crosstab arms'
+// fusion facts and predict's normalize advisory read it.
+func ElementMarginClass(a *types.Aggregation, kinds AggregationKinds) (types.MarginReducibility, bool) {
+	if !SelectsElement(a, kinds) {
+		return "", false
+	}
+	switch kinds.Routed(a.Type) {
+	case types.AGG_VEC_MEAN:
+		return types.MarginMeanReducible, true
+	case types.AGG_VEC_SUM:
+		return types.MarginSummable, true
+	}
+	return "", false
 }
 
 // ExpandedColumn is the Response.Data column an expanded vector
@@ -508,6 +613,56 @@ func AggregationOutputColumns(req *types.Request, a *types.Aggregation, schema *
 	return out, true
 }
 
+// AggregationColumns is the column lister a series overlay host hands
+// seriesfield (seriesfield.Columns): for aggregation i of
+// req.Aggregations, the Response.Data columns it writes —
+// AggregationOutputColumns over the schema schema returns (called at
+// most once, and only for an expanding slot; nil: none). With no
+// schema an expanding slot's columns are still known when it carries
+// its element labels inline (fields + params.labels — the prepared
+// slot AggregationSlotRewrite hands the runtime, whose labels are the
+// columns' element labels); otherwise known is false. A slot that does
+// not expand writes its label (known). Predict and the runtime build
+// it the same way, so an element column resolves identically.
+func AggregationColumns(req *types.Request, schema func() *encoding.Schema, kinds AggregationKinds) func(i int) ([]string, bool) {
+	var (
+		loaded bool
+		sch    *encoding.Schema
+	)
+	return func(i int) ([]string, bool) {
+		if req == nil || i < 0 || i >= len(req.Aggregations) || req.Aggregations[i] == nil {
+			return nil, true
+		}
+		a := req.Aggregations[i]
+		if !AggregationExpands(a, kinds) {
+			return []string{types.AggregationLabelOf(a)}, true
+		}
+		if !loaded && schema != nil {
+			loaded, sch = true, schema()
+		}
+		if sch != nil {
+			cols, ok := AggregationOutputColumns(req, a, sch, kinds)
+			if !ok {
+				return nil, false
+			}
+			return cols, true
+		}
+		if a.Vector != "" || len(a.Fields) == 0 {
+			return nil, false
+		}
+		p, err := decodeVecAggParams("aggregation", a.Type, a.Params, kinds.extension(kinds.Routed(a.Type)).Registered)
+		if err != nil || len(p.Labels) == 0 {
+			return nil, false
+		}
+		label := types.AggregationLabelOf(a)
+		out := make([]string, len(p.Labels))
+		for k, l := range p.Labels {
+			out[k] = ExpandedColumn(label, l)
+		}
+		return out, true
+	}
+}
+
 // AggregationSlotRewrite is the slot a vector aggregator's factory
 // receives: a copy with Label the default label when empty (computed
 // from the slot as written), Vector cleared, Fields = the resolved
@@ -522,6 +677,16 @@ func AggregationSlotRewrite(a *types.Aggregation, in AggregationInput) *types.Ag
 	}
 	cp.Vector = ""
 	cp.Fields = append([]string(nil), in.Members.Members...)
+	labels := in.Members.Labels
+	if in.HasElement && in.Element < len(in.Members.Members) && !in.Extension {
+		// An element-selecting crosstab slot reads its one member only:
+		// the factory folds it alone and the floor (AggregationPresent)
+		// counts the rows that answered it.
+		cp.Fields = []string{in.Members.Members[in.Element]}
+		if in.Element < len(labels) {
+			labels = []string{labels[in.Element]}
+		}
+	}
 	if in.Extension {
 		keys := map[string]json.RawMessage{}
 		if raw := bytes.TrimSpace(a.Params); len(raw) > 0 && !bytes.Equal(raw, []byte("null")) {
@@ -529,8 +694,8 @@ func AggregationSlotRewrite(a *types.Aggregation, in AggregationInput) *types.Ag
 				return &cp
 			}
 		}
-		if labels, err := json.Marshal(in.Members.Labels); err == nil {
-			keys["labels"] = labels
+		if raw, err := json.Marshal(in.Members.Labels); err == nil {
+			keys["labels"] = raw
 		}
 		if raw, err := json.Marshal(keys); err == nil {
 			cp.Params = raw
@@ -539,7 +704,7 @@ func AggregationSlotRewrite(a *types.Aggregation, in AggregationInput) *types.Ag
 	}
 	p, err := DecodeVecAggParams(in.Slot, a.Type, a.Params)
 	if err == nil {
-		p.Labels = append([]string(nil), in.Members.Labels...)
+		p.Labels = append([]string(nil), labels...)
 		if raw, merr := json.Marshal(p); merr == nil {
 			cp.Params = raw
 		}
@@ -570,11 +735,13 @@ func AggregationInputMembers(req *types.Request, schema *encoding.Schema) (membe
 	return members, ok
 }
 
-// ArrayValuedCrosstabRefusal is the unconditional crosstab gate for an
-// array-valued aggregator (AggregationKinds.IsArrayValued — a built-in
-// or a declared ArrayValued extension) as the cell or a margin
-// aggregation: PROCESSING_CONFIG {aggregation, slot, reason:
-// "array_valued"}, whatever normalize says — a cell holds one number.
+// ArrayValuedCrosstabRefusal is the crosstab gate for an array-valued
+// aggregator (AggregationKinds.IsArrayValued — a built-in or a declared
+// ArrayValued extension) as the cell or a margin aggregation:
+// PROCESSING_CONFIG {aggregation, slot, reason: "array_valued"},
+// whatever normalize says — a cell holds one number. The one exception
+// is a slot selecting one element (SelectsElement: a built-in AGG_VEC_*
+// with params.element), which is a scalar.
 // kinds is the instance's view; nil when no slot is array-valued.
 // processing.validateCrosstabSpec (both arms) and predict call it, so
 // they refuse identically.
@@ -583,11 +750,11 @@ func ArrayValuedCrosstabRefusal(spec *types.CrosstabSpec, kinds AggregationKinds
 		return nil
 	}
 	check := func(slot string, a *types.Aggregation) *errors.CodedError {
-		if a == nil || !kinds.IsArrayValued(a.Type) {
+		if a == nil || !kinds.IsArrayValued(a.Type) || SelectsElement(a, kinds) {
 			return nil
 		}
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			"crosstab "+slot+" "+string(a.Type)+" is array-valued (one figure per vector member); a crosstab cell holds one number — run it as a grouped aggregation instead",
+			"crosstab "+slot+" "+string(a.Type)+" is array-valued (one figure per vector member); a crosstab cell holds one number — select one element with params.element (built-in AGG_VEC_*), or run it as a grouped aggregation",
 			map[string]any{"aggregation": string(a.Type), "slot": "crosstab." + slot, "reason": "array_valued"})
 	}
 	if err := check("cell", spec.Cell); err != nil {

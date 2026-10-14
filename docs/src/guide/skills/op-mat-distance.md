@@ -29,7 +29,7 @@ Use something else:
 - `between` — required grouper spec as in `groups`, extension groupers too; no own `weight`.
 - `metric` — a `matrix.metrics` name with consumer `MAT_DISTANCE`: `euclidean` (default; over a `kind` vector the kind's default, [`vector-metrics`](vector-metrics.md)), `sq_euclidean`, `manhattan`, `chebyshev`, `cosine` (1 − cos), `hellinger`, `aitchison`, `mahalanobis` (pooled covariance, raw centroids). `standardize` — z-score first; refused with `hellinger` / `aitchison`.
 - `min_valid` — fewest complete member pairs per distance (default 1); below it null.
-- `missing` (`listwise`), `max_drop_share`, `weight`, `encoding`: [`op-mat-correlation`](op-mat-correlation.md).
+- `missing` (`listwise`), `max_drop_share`, `weight`, `encoding`: [`op-mat-correlation`](op-mat-correlation.md). `fit` is refused (`fit_unsupported`: centroids are not one fitted state).
 
 ## Inputs
 

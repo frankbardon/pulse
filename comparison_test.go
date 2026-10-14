@@ -128,7 +128,8 @@ type comparisonCase struct {
 	vecs    []types.VectorSpec
 	attr    types.Attribute
 	value   func(rows int, x []float64) float64
-	metric  string // the kind default predict reports ("" = none)
+	valueAt func(rows, r int) float64 // a per-row oracle (overrides value)
+	metric  string                    // the kind default predict reports ("" = none)
 	twoPass bool
 }
 
@@ -150,7 +151,80 @@ func comparisonCases() []comparisonCase {
 			value:   func(rows int, x []float64) float64 { return cmpOracleEuclid(x, ref, cachedListwiseSD(rows)) },
 			metric:  "std_euclidean",
 			twoPass: true},
+		// U30 E3-S1: a centroid computed from the rows (a pre-pass on
+		// every mode), and one per qty value over the rows a filter
+		// admits — the by column and the filter's survive projection.
+		{name: "centroid of every row, euclidean",
+			attr: types.Attribute{Type: types.ATTR_VEC_DISTANCE, Fields: []string{"b*"},
+				Params: json.RawMessage(`{"metric":"euclidean","reference":{"centroid":{}}}`)},
+			valueAt: func(rows, r int) float64 {
+				return cmpOracleEuclid(vexprRow(r), vexprCentroid(rows, func(int) bool { return true }, -1), nil)
+			}},
+		{name: "centroid by qty over a filter, cosine",
+			attr: types.Attribute{Type: types.ATTR_PROFILE_SIMILARITY, Fields: []string{"b*"},
+				Params: json.RawMessage(`{"metric":"cosine","reference":{"centroid":{"by":"qty","filter":[{"type":"FILTER_EXPRESSION","expression":"score < 1050"}]}}}`)},
+			valueAt: func(rows, r int) float64 {
+				return cmpOracleCosine(vexprRow(r), vexprCentroid(rows, func(i int) bool { return 1000+float64(i) < 1050 }, r%7))
+			}},
 	}
+}
+
+type vexprCentroidKey struct {
+	rows, key int
+	filtered  bool
+}
+
+var vexprCentroidCache = map[vexprCentroidKey][]float64{}
+
+// vexprCentroid is the per-member mean of the rows in [0, rows) admit
+// admits (and whose qty = r%7 is key; key < 0 for every row), cached
+// per (rows, key, whether admit filters) — the cases pass a fixed admit.
+func vexprCentroid(rows int, admit func(int) bool, key int) []float64 {
+	ck := vexprCentroidKey{rows, key, !admit(rows)}
+	if c, ok := vexprCentroidCache[ck]; ok {
+		return c
+	}
+	c := vexprCentroidFold(rows, admit, key)
+	vexprCentroidCache[ck] = c
+	return c
+}
+
+func vexprCentroidFold(rows int, admit func(int) bool, key int) []float64 {
+	var sum, n [vexprMembers]float64
+	for r := 0; r < rows; r++ {
+		if !admit(r) || (key >= 0 && r%7 != key) {
+			continue
+		}
+		for j, v := range vexprRow(r) {
+			if !math.IsNaN(v) {
+				sum[j] += v
+				n[j]++
+			}
+		}
+	}
+	out := make([]float64, vexprMembers)
+	for j := range out {
+		out[j] = sum[j] / n[j]
+	}
+	return out
+}
+
+func cmpOracleCosine(x, r []float64) float64 {
+	var d, nx, nr float64
+	obs := 0
+	for i := range x {
+		if math.IsNaN(x[i]) || math.IsNaN(r[i]) {
+			continue
+		}
+		d += x[i] * r[i]
+		nx += x[i] * x[i]
+		nr += r[i] * r[i]
+		obs++
+	}
+	if obs == 0 {
+		return math.NaN()
+	}
+	return d / math.Sqrt(nx*nr)
 }
 
 func TestComparison_EveryModeUnderProjection(t *testing.T) {
@@ -199,7 +273,12 @@ func TestComparison_EveryModeUnderProjection(t *testing.T) {
 					}
 					wantSum, wantN := 0.0, 0
 					for r := 0; r < m.rows; r++ {
-						v := c.value(m.rows, vexprRow(r))
+						var v float64
+						if c.valueAt != nil {
+							v = c.valueAt(m.rows, r)
+						} else {
+							v = c.value(m.rows, vexprRow(r))
+						}
 						if !math.IsNaN(v) {
 							wantSum += v
 							wantN++

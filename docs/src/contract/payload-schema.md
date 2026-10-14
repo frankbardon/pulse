@@ -27,8 +27,13 @@ The root `$comment` carries the describing instance's feature-set digest,
 can be cached under one key. `$id` never changes.
 
 `p.PayloadSchema()` describes only what instance `p` offers. Without a
-feature profile it is the published file byte for byte. An instance built
-with a feature profile gets a narrower document:
+feature profile or extensions it is the published file byte for byte.
+Every extension operator the instance registers (and its profile keeps)
+joins its category's operator-type enum beside the built-ins —
+`AggregationType`, `AttributeType`, `FiltererType`, `GroupType`,
+`WindowType`, `FeatureType`, `TestType` and `MatrixType` — so a request
+naming one validates against the instance's own schema. An instance
+built with a feature profile gets a narrower document:
 
 - the operator, overlay-kind and regression enums list only the enabled
   names;
@@ -444,7 +449,15 @@ direction respectively; default from the vector's `kind`), `min_valid`
 (complete pairs, default 1), `labels` (inline fields only) and
 `reference` — a literal array (member order), a label map
 `{label: value}`, `{table, key}` or `{table, key_field}` over
-`Extensions.ReferenceVectors`, matched by label; `ATTR_VEC_DISTANCE`
+`Extensions.ReferenceVectors`, matched by label, a centroid
+`{centroid: {filter, by}}` (the weighted per-member mean of the filtered
+rows `filter` admits, one per `by` value with each row compared with its
+own — a pre-pass, so the slot is two-pass), `{population: name}` (a
+bound vector fit's stored mean, matched by label) or
+`{record: {cohort?, keys: [{field, value}]}}` (one stored record,
+point-looked-up through its cohort's sidecar index before the run — the
+request's own cohort when `cohort` is omitted — read by member column
+name); `ATTR_VEC_DISTANCE`
 adds `fit_on` / `missing` beside its fitted metrics. A fitted attribute's `params` share `fit_on` —
 `"filtered"` (the default) or an inline array of `Filterer` objects
 choosing the fit rows among the filtered ones (every filtered row is
@@ -481,14 +494,17 @@ byte-identical.
 
 `Aggregation` carries the same two additive slots, `vector` / `fields`,
 on `aggregations`, `crosstab.cell` and `crosstab.margin_aggregations`.
-A vector aggregator (`AGG_VEC_MEAN`, `AGG_VEC_SUM`) sets exactly one of
+A vector aggregator (`AGG_VEC_MEAN`, `AGG_VEC_SUM`, `AGG_VEC_SD`) sets exactly one of
 them and no `field`; every other aggregator (extensions included)
 refuses both. Members are source columns only; `params.labels` (one per
 member) is accepted with `fields` only. The default label is
 `<TYPE>_<vector>` or `<TYPE>_<first fields entry>`. The value in
 `data` is a JSON ARRAY, one figure per member in member order (a
 non-finite element is `null`); its components entry adds `labels`,
-`element_n`, `element_sum` and, weighted, `element_sum_weights`. Shape
+`element_n`, `element_sum` and, weighted, `element_sum_weights`
+(`AGG_VEC_SD` adds `element_mean`, `element_m2` and, weighted,
+`element_sum_weights_sq`; an element whose sample size is 1 or less is
+`null`). Shape
 refusals are `SERVICE_VALIDATION` with `details.aggregation` and
 `details.reason`; an undefined vector is `PULSE_VECTOR_UNKNOWN`. An
 array-valued aggregator is refused `PROCESSING_CONFIG`
@@ -496,7 +512,15 @@ array-valued aggregator is refused `PROCESSING_CONFIG`
 aggregation (the manifest lists them in
 `crosstab.array_valued_aggregators`), as a `sort` key, as
 `aggregations[0]` under `overlays` and in a chain stage that feeds
-another. `format_version` stays `"1.1"`; an aggregation without them is
+another (unless it expands, below). A crosstab cell or margin
+aggregation runs when its `params.element` names ONE member label
+(built-in `AGG_VEC_*` only): the slot is a scalar over that member —
+the cell (or auxiliary) is that element's figure, its floor counts the
+rows that answered the member (so a record reaches an auxiliary margin
+only if its selected member reached a cell), its components are
+one-entry arrays, and it margins and fuses like its scalar twin;
+`element` outside a crosstab, beside `expand`, unknown or shared is
+`SERVICE_VALIDATION` (`element_*`). `format_version` stays `"1.1"`; an aggregation without them is
 byte-identical.
 
 `params.expand: true` on a vector aggregator replaces the array with one
@@ -506,13 +530,18 @@ writes the same keys. `PredictResult.aggregations[i].columns` lists them
 (omitted on every other slot, whose one column is its label), the
 `return` column check and `PredictChain`'s `stage_schemas` use them, and
 duplicate element labels are refused (`SERVICE_VALIDATION`, reason
-`expand_duplicate_labels`). The columns are presentation only: like the
-array they are refused `PROCESSING_CONFIG` (`array_valued`) as a `sort`
-key, a window's `field` / `order_by` / `partition_by`, a post-test
-field and an overlay host. A Compose overlay reading a slot, or a
-whole-chain overlay reading a stage, that carries a vector aggregation
-(expanded or not) is refused the same way. A `return` path cannot name a
-bracketed column; a prefix glob (`data[*].<label>*`) keeps them.
+`expand_duplicate_labels`). Each column is an ordinary nullable f64
+column: a `sort` key, a window's `field` / `order_by` / `partition_by`,
+a post-test field and a series overlay's `params.field` (request,
+Compose or whole-chain host) read it, and so does a later chain stage —
+the synthesised schema carries each as an f64 field (an element no row
+answered is NaN — null on the wire — and orders last / is skipped like a
+null, and a later chain stage reads it as a null; an overlay reads it as
+a missing host value), while the bare array label
+stays refused there `PROCESSING_CONFIG` (`array_valued`) — so is an
+overlay scoring it by default as `aggregations[0]`. A `return` path
+names one with a quoted segment (`data[*]."<label>[<element label>]"`)
+and all of them with a prefix glob (`data[*].<label>*`).
 
 `field` is optional on `Aggregation`, `Group` and `Attribute` (a vector
 aggregator or grouper reads `vector` / `fields`, `ATTR_FORMULA` an
@@ -567,12 +596,18 @@ value is `PROCESSING_CONFIG`) and `repair` `"nearest"`; at least 2
 items; `MAT_PCA` only: `on` `correlation` (default) or `covariance`,
 `components` an integer k ≤ p, `"kaiser"` (default on a correlation,
 refused on a covariance) or `{"variance": share}` — required on a
-covariance — and `repair` `"nearest"`; `MAT_COLLINEARITY` only:
+covariance — `rotation` `none` (default) or an orthogonal criterion
+(`varimax`, `quartimax`, `geomin_orthogonal`, `entropy`; an oblique one
+is refused, reason `rotation_oblique_unsupported`), `epsilon`
+(`geomin_orthogonal` only, default 0.01) and `repair` `"nearest"`;
+`MAT_COLLINEARITY` only:
 `center` (boolean, default `false`: Belsley uncentered with the
 intercept) and `repair` `"nearest"`; `MAT_FACTOR` only: `factors` an
 integer k ≤ p or `"kaiser"` (default), `extraction` `minres` (default),
-`principal_axis` or `ml`, `rotation` `none` (default), `varimax`, `promax`
-or `oblimin`, `kappa` (promax only) and `gamma` (oblimin only), and
+`principal_axis` or `ml`, `rotation` `none` (default), orthogonal
+`varimax`, `quartimax`, `geomin_orthogonal`, `entropy` or oblique
+`promax`, `oblimin`, `geomin`, `kappa` (promax only), `gamma` (oblimin
+only) and `epsilon` (the geomin pair only, default 0.01), and
 `repair` `"nearest"`; `MAT_DISTANCE` only: `between` (required) a grouper
 spec as in `groups` — any built-in but `GROUP_DATE` / `GROUP_DATE_RANGES`,
 no own `weight` or `tz` — `metric` a `linalg/metric` registry name
@@ -596,7 +631,7 @@ adds `auxiliary.variance_decomposition` (rows sum to 1),
 `vectors.vif` / `tolerance` (one per member) and `condition_indices`
 (one per dimension, ascending) and `scalars` `condition_number`,
 `max_vif`; `MAT_FACTOR` adds `auxiliary.unrotated` (rotated runs) and
-`auxiliary.factor_correlation` (promax / oblimin: `square_symmetric`
+`auxiliary.factor_correlation` (an oblique rotation: `square_symmetric`
 keyed `F1` … `Fk`, always `full`), `vectors.communalities` /
 `uniquenesses` (one per member) and `variance_accounted` (one per
 factor) and `scalars` `rmsr`, `empirical_chisq`, `df`, `empirical_p`,
@@ -744,7 +779,11 @@ identically). `preset` is the closed `ReturnPreset` enum (`full`,
 absent: unlimited). `include` / `exclude` are paths over this schema's
 `Response` JSON names at any depth — `.` between keys, `[*]` into every
 array element, a trailing `*` on a map-key segment as a prefix glob
-(`tests[*].details.effect_*`). What the schema cannot say, predict and
+(`tests[*].details.effect_*`). A key holding `.`, `[`, `]` or `*` (an
+expanded vector element column) is a quoted segment,
+`data[*]."emb_mean[q3]"`: inside the quotes every byte is literal except
+`\"` and `\\`, and only a segment that starts with `"` is quoted, so
+every unquoted path and its plan digest are unchanged. What the schema cannot say, predict and
 the runtime enforce identically before any record is read: resolution
 runs preset, then include adds, then exclude removes (exclude wins);
 include without a preset starts from an empty base; top-level
@@ -882,21 +921,36 @@ always emitted, never rounded by `precision`.
 ### Compose fits
 
 `ComposedRequest.fits` is an `omitempty` array of `FitSpec {name,
-request}`: `request` is an ordinary `Request` holding exactly one
-regression and no `groups` / `crosstab`. Every fit runs once, before any
-slot (sweep slots included), over its own cohort, filters, features and
-weight; slots read the fitted model by `name` (one namespace,
-`PULSE_MODEL_NAME_COLLISION` on a duplicate, `PULSE_MODEL_UNKNOWN` for an
-unbound reference). A malformed entry is `PULSE_FIT_INVALID` with
-`details.fit` (the entry index) and `details.reason` (`name_missing`,
-`request_missing`, `regression_count`, `grouped`); a fit request's own
-refusal keeps its code and gains `details.fit`. A fit request's `return`
-is ignored. The fits surface as `ComposedResponse.fits`, an `omitempty`
-object of `RegressionResult` keyed by fit name, pinned outside the
-Compose-level `return` like `ranking` (always emitted, never rounded).
-Both slots are gated by `capability:compose_fits`. `pulse_predict` with
-`composed` lists them as `fits [{name, type, target, predictors,
-cohort}]` on the predict result (not payload-reachable).
+request}`: `request` is an ordinary `Request` with no `groups` /
+`crosstab` holding exactly one regression (a regression fit) or, with no
+regression, exactly one vector battery — one `matrices` entry or one
+`ATTR_MAHALANOBIS` / `ATTR_PC_SCORE` / `ATTR_FACTOR_SCORE` attribute (a
+vector fit: the battery's listwise mean and co-moment). Every fit runs
+once, before any slot (sweep slots included), over its own cohort,
+filters, features and weight; slots read it by `name` — a regression fit
+through `ATTR_REG_PREDICT` / `coef()`, a vector fit through `params.fit`
+on a fitted vector attribute or any co-moment `MAT_*` slot. One
+namespace holds both kinds: `PULSE_MODEL_NAME_COLLISION` on a duplicate,
+`PULSE_MODEL_UNKNOWN` for an unbound reference, `PULSE_MODEL_KIND_MISMATCH`
+(`details.fit`, `kind`, `expected`) for a name of the other kind. A
+malformed entry is `PULSE_FIT_INVALID` with `details.fit` (the entry
+index) and `details.reason` (`name_missing`, `request_missing`,
+`regression_count`, `kind_ambiguous`, `vector_count`, `grouped`,
+`vector_source`); a fit request's own refusal keeps its
+code and gains `details.fit`. A fit request's `return` is ignored. The
+fits surface as `ComposedResponse.fits`, an `omitempty` object of
+`FitResult` keyed by fit name: a regression fit's `RegressionResult`
+object as is (byte-identical to the regression-only shape), or a vector
+fit's `{"vector": VectorFitResult}` — `operator`, `labels`, `members`,
+`basis`, `n`, `n_weight_invalid`, `sum_weights`, `n_star`, `mean` and
+`covariance` (a full square-symmetric `MatrixValues`, M2*/(N* − 1) on the
+fit's weight basis; undefined cells `null`). The `vector` key
+discriminates. The object is pinned outside the Compose-level `return`
+like `ranking` (always emitted, never rounded). Both slots are gated by
+`capability:compose_fits`. `pulse_predict` with `composed` lists them as
+`fits [{name, type, target, predictors, cohort}]` — a vector fit as
+`{name, cohort, vector: {operator, labels, members}}` — on the predict
+result (not payload-reachable).
 
 ### Model files (`save`)
 
@@ -922,7 +976,13 @@ or a Compose batch are refused (`reason: duplicate`, `details.sites`
 naming both writers), and a batch judges every save path — fits and
 slots — before any fit or slot runs (a slot's fault gains
 `details.request`). Materialize and ProcessChain admit no regression, so
-neither ever writes a model file.
+neither ever writes a model file. A VECTOR fit's `save` writes a
+population file instead (`population_format_version` 1; the path must end
+`.pulse-population.json`, else `PULSE_MODEL_SAVE_INVALID` reason
+`suffix`): the battery's stored listwise state — labels, members, weight
+basis, counts, Σw / Σw², raw mean and raw co-moment — with nothing
+derived, written atomically under the fit's name with the same overwrite
+warning (format: `.claude/reference/byte-layout.md`, "Population file").
 
 ### Loading models (`models`)
 
@@ -945,6 +1005,34 @@ frame). Provenance is informational: a model fit on one cohort scores any
 cohort holding its predictor columns. A fit request's own `models` are
 all it sees (fits run before the batch binds); each chain stage loads its
 own. Gated by `capability:models`; `format_version` stays `"1.1"`.
+
+### Loading populations (`populations`)
+
+`Request.populations` is an `omitempty` array of `PopulationRef {name,
+path}`: each loads a population file a vector fit's `save` wrote, under
+`name`, as a vector fit in the same namespace, so a fitted vector
+attribute's or co-moment `MAT_*` slot's `params.fit` resolves a loaded
+name exactly like a Compose vector fit — bit-for-bit the same figures on
+one architecture (a decomposition recomputed on another is
+tolerance-equal), aligned to the slot's members by label. It loads at the
+same point as `models` and is refused with the same codes, located by
+`details.population`: `PULSE_MODEL_REF_INVALID` (no name, or a path not
+ending `.pulse-population.json`), `PULSE_MODEL_FILE_UNREADABLE`,
+`PULSE_MODEL_FILE_INVALID` / `PULSE_MODEL_VERSION_UNSUPPORTED`,
+`PULSE_MODEL_NAME_COLLISION` (a name a `models` entry, an earlier entry
+or a fit binds). Provenance is informational, never compared. Gated by
+`capability:models`; `format_version` stays `"1.1"`.
+
+**Registered populations.** An instance may also register populations
+at `pulse.New` — `Options.Extensions.Populations` (the encoded file
+bytes) and `Options.PopulationsDir` / `PULSE_POPULATIONS_DIR` (each
+`*.pulse-population.json` under its file stem). They are bound beneath
+EVERY request, so `params.fit` names one with no `populations` entry,
+and the manifest lists them under `extensions.populations`
+(`PopulationMeta {name, operator, basis, labels, n}`). An entry or a
+Compose fit reusing a registered name is `PULSE_MODEL_NAME_COLLISION`,
+its first source `{slot: "registered"}`; predict judges the same names
+and labels.
 
 ### Item fan-out (`for_each`)
 
@@ -981,6 +1069,22 @@ so every JSON surface writes the figure as **`null` in place, key
 kept** (`types.MarshalFinite`), and the rest of the response serialises
 normally. `null` means "reported, undefined here"; an absent optional
 key keeps meaning "not reported for this kind".
+
+A figure over **no value** is undefined the same way: the mean, the
+minimum / maximum / range, the variance / standard deviation, a
+quantile, the mode, a shape moment or the average set cardinality of a
+group, cell, margin or cohort with no non-null value (or, weighted,
+whose weights sum to 0) is `null` on every execution arm — never `0`.
+A count or a sum of nothing stays `0`. So is a figure whose formula is
+0/0 on the data it has: the skewness or kurtosis of one value or of
+values that never vary, the z-score where the spread is zero, and a
+sample variance (`AGG_WELFORD`'s, a weighted `weighted_variance`)
+below two values or a weight total of 1 — `null`, never `0`; a
+population spread of one value stays a defined `0`. A series overlay
+reads such a host value as a missing point: its entry keeps its key with
+no `statistic` key at all, on the request, Compose and chain hosts
+alike; a crosstab overlay reads such a cell as an absent cell — no
+overlay cell, no warning, never in a denominator or a spread.
 
 The schema says so: every float slot on a result-only def —
 `TestResult`, `RegressionResult`, `OverlaySummary`, the

@@ -35,6 +35,7 @@ The aggregators this instance offers: what each is for, the questions it answers
 | [`AGG_SUM`](#op-agg_sum) | Total of a numeric field, over all rows or per group. | What is total revenue by region? | basic | [`AGG_AVERAGE`](#op-agg_average) when you want the typical value per row rather than the total.<br>[`AGG_WEIGHTED_MEAN`](#op-agg_weighted_mean) when rows carry weights and you want a weighted average.<br>[`AGG_DISTINCT_SUM`](#op-agg_distinct_sum) when a value repeats on several rows of the same key and must be added once per key.<br>[`WIN_RUNNING_SUM`](window.md#op-win_running_sum) when you want the total so far, row by row. |
 | [`AGG_VARIANCE`](#op-agg_variance) | Spread of a numeric field as the average squared distance from its mean, in squared units, over all rows or per group. | How much does the order value vary within each channel, in squared units? | intermediate | [`AGG_STDDEV`](#op-agg_stddev) when you want the spread in the field's own units, which is easier to read.<br>[`AGG_WELFORD`](#op-agg_welford) when you want the sample variance (dividing by n - 1) with the mean and n, as pooling and study-size planning expect. |
 | [`AGG_VEC_MEAN`](#op-agg_vec_mean) | Average of each item of a battery or mix, as one list per group: the group's average profile across the items. | What is each segment's average rating on each of the eight brand attributes? | intermediate | [`ATTR_SCALE_SCORE`](attribute.md#op-attr_scale_score) when you want one score per row from the items.<br>[`AGG_AVERAGE`](#op-agg_average) when you want the average of a single field.<br>[`MAT_COVARIANCE`](matrix.md#op-mat_covariance) when you want how the items vary together. |
+| [`AGG_VEC_SD`](#op-agg_vec_sd) | Standard deviation of each item of a battery or mix, as one list per group: how much the group's rows disagree on each item. | On which of the eight brand attributes do each segment's ratings disagree most? | intermediate | [`AGG_VEC_MEAN`](#op-agg_vec_mean) when you want each item's average rather than its spread.<br>[`AGG_STDDEV`](#op-agg_stddev) when you want the spread of a single field.<br>[`MAT_COVARIANCE`](matrix.md#op-mat_covariance) when you want how the items vary together, not one by one. |
 | [`AGG_VEC_SUM`](#op-agg_vec_sum) | Total of each item of a set of related fields, as one list per group. | How many units of each of the six products did each store sell? | intermediate | [`AGG_VEC_MEAN`](#op-agg_vec_mean) when you want each item's average rather than its total.<br>[`AGG_SUM`](#op-agg_sum) when you want the total of a single field. |
 | [`AGG_WEIGHTED_MEAN`](#op-agg_weighted_mean) | Average of a numeric field where each row counts in proportion to a weight field, such as a survey weight. | What is the weighted average satisfaction per region? | intermediate | [`AGG_AVERAGE`](#op-agg_average) when every row should count equally.<br>[`AGG_RATIO`](#op-agg_ratio) when you want one total divided by another. |
 | [`AGG_WELFORD`](#op-agg_welford) | Mean, sample variance and row count of a numeric field in one result: what a comparison of group means needs. | What are the mean, variance and size of each cell, so cells can be tested against each other? | intermediate | [`AGG_AVERAGE`](#op-agg_average) when you want only the average.<br>[`AGG_STDDEV`](#op-agg_stddev) when you want the population spread (dividing by n) on its own.<br>[`TEST_WELCH`](test.md#op-test_welch) when you want the comparison itself on raw rows. |
@@ -65,7 +66,7 @@ Average of a numeric field, over all rows or per group.
 
 **Assumptions:**
 
-- Missing values are skipped: the average is over rows that have a value. A group where no row has a value reads 0, not empty, so check n in the components before reporting it.
+- Missing values are skipped: the average is over rows that have a value. A group where no row has a value reads empty (null), never 0.
 
 **Use something else:**
 
@@ -406,7 +407,7 @@ Largest value of a numeric or date field, over all rows or per group.
 
 **Assumptions:**
 
-- Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.
+- Missing values are skipped; a group where no row has a value reads empty (null), never 0.
 - It rests on one row, so a single bad record sets it.
 
 **Use something else:**
@@ -440,7 +441,7 @@ Middle value of a numeric field once sorted: the typical row, not pulled by a fe
 
 **Assumptions:**
 
-- Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.
+- Missing values are skipped; a group where no row has a value reads empty (null), never 0.
 - With an even number of values it is the halfway point between the two middle values.
 
 **Use something else:**
@@ -474,7 +475,7 @@ Smallest value of a numeric or date field, over all rows or per group.
 
 **Assumptions:**
 
-- Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.
+- Missing values are skipped; a group where no row has a value reads empty (null), never 0.
 - It rests on one row, so a single bad record sets it.
 
 **Use something else:**
@@ -508,7 +509,7 @@ Most common value of a field, over all rows or per group.
 
 **Assumptions:**
 
-- Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.
+- Missing values are skipped; a group where no row has a value reads empty (null), never 0.
 - When several values share the top count, the smallest wins (for categories, the first in the dictionary); tie_count in the components shows it happened.
 
 **Use something else:**
@@ -648,7 +649,7 @@ Distance between the smallest and largest value of a numeric field, over all row
 
 **Assumptions:**
 
-- Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.
+- Missing values are skipped; a group where no row has a value reads empty (null), never 0.
 - It rests on the two most extreme rows, so one outlier can stretch it a lot.
 
 **Use something else:**
@@ -1080,6 +1081,43 @@ Average of each item of a battery or mix, as one list per group: the group's ave
 
 **Skill:** [`op-agg-vec-mean`](../skills/op-agg-vec-mean.md)
 
+<a id="op-agg_vec_sd"></a>
+
+### `AGG_VEC_SD`
+
+Standard deviation of each item of a battery or mix, as one list per group: how much the group's rows disagree on each item.
+
+**Level:** intermediate
+
+**Also known as:** `item standard deviations`, `sd vector`, `profile spread`
+
+**Questions it answers:**
+
+- On which of the eight brand attributes do each segment's ratings disagree most?
+- How much does each sales channel's share vary between stores in each region?
+
+**Use cases by domain:**
+
+- *survey:* Per-segment spread of every item in a rating battery, beside the item means.
+- *ops:* Store-to-store variability of each channel's share per region, in one list.
+- *science:* Within-group spread of each measured variable per treatment arm.
+
+**Assumptions:**
+
+- Each item uses only the rows that answered it; a skipped item leaves only that item out of the row.
+- Sample form: the squared distances are divided by n - 1 (weighted: by the effective sample size minus 1).
+- An item answered by one row or none has no spread rather than 0.
+
+**Use something else:**
+
+- [`AGG_VEC_MEAN`](#op-agg_vec_mean) when you want each item's average rather than its spread.
+- [`AGG_STDDEV`](#op-agg_stddev) when you want the spread of a single field.
+- [`MAT_COVARIANCE`](matrix.md#op-mat_covariance) when you want how the items vary together, not one by one.
+
+**Glossary:** [`standard-deviation`](../glossary.md#term-standard-deviation), [`missing-value`](../glossary.md#term-missing-value)
+
+**Skill:** [`op-agg-vec-sd`](../skills/op-agg-vec-sd.md)
+
 <a id="op-agg_vec_sum"></a>
 
 ### `AGG_VEC_SUM`
@@ -1136,7 +1174,7 @@ Average of a numeric field where each row counts in proportion to a weight field
 
 **Assumptions:**
 
-- Rows missing the value or the weight, or with weight 0, are left out of the average; when no row is left (or the weights add up to 0) it reads 0, not empty, so check sum_weights in the components.
+- Rows missing the value or the weight, or with weight 0, are left out of the average; when no row is left (or the weights add up to 0) it reads empty (null), never 0.
 - Negative weights are not refused and can make the result unstable.
 
 **Use something else:**
