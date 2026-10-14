@@ -144,6 +144,13 @@ func setValue(ft encoding.FieldType) bool {
 	return ft.IsSet()
 }
 
+// temporalValue is the labeled date-range set: a date (epoch days) or
+// a datetime (epoch seconds), the two columns the range bounds resolve
+// against.
+func temporalValue(ft encoding.FieldType) bool {
+	return ft == encoding.FieldTypeDate || ft == encoding.FieldTypeDateTime
+}
+
 // table is keyed by operator name, then slot.
 var table = map[string]map[Slot]Rule{}
 
@@ -193,6 +200,7 @@ func init() {
 		"AGG_SET_INTERSECTION", "AGG_SET_UNION", "ATTR_SET_HAS", "ATTR_SET_POPCOUNT",
 		"FILTER_SET_CONTAINS_ALL", "FILTER_SET_CONTAINS_ANY", "FILTER_SET_CONTAINS_NONE", "FILTER_SET_EQUALS",
 		"GROUP_SET_PER_ELEMENT", "GROUP_SET_VALUE")
+	add(temporalValue, cfg, field, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES")
 
 	memoTypeNames()
 }

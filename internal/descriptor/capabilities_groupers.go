@@ -127,7 +127,7 @@ func grouperCapabilities() []descriptor.Operator {
 					Description: "Bucket label for rows outside every configured range. Must not collide with a range label.",
 				},
 			},
-			AcceptsTypes:  []string{"date", "datetime"},
+			AcceptsTypes:  tableAcceptsTypes(types.GROUP_DATE_RANGES),
 			EmitsTypeNote: "labeled range key per row (the matching range's label, or the unmatched label)",
 			Streamable:    true,
 			ComponentSchema: groupSchema(descriptor.Mergeable,

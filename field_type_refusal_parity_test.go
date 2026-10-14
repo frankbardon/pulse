@@ -154,6 +154,11 @@ func valueReaderRefusalCases() []fieldTypeRefusalCase {
 				fill(op, acceptanceTemplates[op], ft)
 			}
 		}
+		// The labeled date ranges read only a date or datetime.
+		if ft != encoding.FieldTypeDate && ft != encoding.FieldTypeDateTime {
+			fill("GROUP_DATE_RANGES", acceptanceTemplates["GROUP_DATE_RANGES"], ft)
+			fill("FILTER_DATE_RANGES", acceptanceTemplates["FILTER_DATE_RANGES"], ft)
+		}
 		// AGG_WELFORD reads only the six plain integer / float types.
 		switch ft {
 		case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,

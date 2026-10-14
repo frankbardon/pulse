@@ -22,7 +22,7 @@ One source — `ranges` XOR `table`:
 
 ## Inputs
 
-`Field` — `date` or `datetime` (floored to its local day in the resolved zone, UTC default). Range bounds (inline or `table`; tables carry no zone) are local days.
+`Field` — `date` or `datetime` (else `PROCESSING_CONFIG`, predict and runtime), floored to its local day in the resolved zone (UTC default). Range bounds (inline or `table`; tables carry no zone) are local days.
 
 ## Output
 

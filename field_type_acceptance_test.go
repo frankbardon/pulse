@@ -420,7 +420,6 @@ func knownTypeDivergence(op string, ft encoding.FieldType) string {
 	if ft.IsVector() {
 		return ""
 	}
-	temporal := ft == encoding.FieldTypeDate || ft == encoding.FieldTypeDateTime
 	in := func(names ...string) bool {
 		for _, n := range names {
 			if n == op {
@@ -437,8 +436,6 @@ func knownTypeDivergence(op string, ft encoding.FieldType) string {
 		"AGG_MEDIAN", "AGG_NULL_COUNT", "AGG_PERCENTILE", "AGG_RANGE", "AGG_RATIO", "AGG_SKEWNESS",
 		"AGG_ZSCORE"):
 		return "predict only WARNS PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL (an error under Strict); the runtime refuses decimal128 regardless"
-	case in("GROUP_DATE_RANGES", "FILTER_DATE_RANGES") && !temporal:
-		return "the runtime refuses a non-temporal field; predict has no type check"
 	case in("FILTER_TRUE", "FILTER_FALSE") && ft != encoding.FieldTypePackedBool:
 		return "the runtime's strict mode refuses a non-packed_bool field; predict has no type check"
 	}

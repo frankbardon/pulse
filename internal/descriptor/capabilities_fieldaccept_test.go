@@ -79,7 +79,7 @@ func TestCapabilities_AcceptsTypesMatchFieldAcceptTable(t *testing.T) {
 			t.Errorf("%s declares the whole table; drop it from narrowerDeclarations", op)
 		}
 	}
-	if want := 12 + 19 + 14; checked != want {
-		t.Errorf("checked %d tabled operators with a declaration, want %d (8 windows, FEAT_POLY, 3 regressions, 19 value readers, 14 set operators)", checked, want)
+	if want := 12 + 19 + 14 + 2; checked != want {
+		t.Errorf("checked %d tabled operators with a declaration, want %d (8 windows, FEAT_POLY, 3 regressions, 19 value readers, 14 set operators, 2 date-range operators)", checked, want)
 	}
 }
