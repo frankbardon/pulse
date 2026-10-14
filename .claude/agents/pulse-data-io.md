@@ -10,7 +10,7 @@ You are the Pulse data/IO engineer. One job: change format/codec/IO code without
 
 Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (context loading, sites first, TDD + falsify, goldens, cross-arch numerics, gate set, shared-checkout safety, known limits, CLAUDE.md budget). The ones that bite this role hardest:
 
-- **Byte layout, index-first:** CLAUDE.md "Byte-layout invariants", then `.claude/reference/byte-layout.md` via its Contents list (read only the paragraphs you touch), then only the `update-demand.md` slice you trigger (`format-and-index.md`, `io-import.md`, `io-export.md`).
+- **Byte layout, index-first:** CLAUDE.md "Byte-layout invariants", then the `.claude/reference/byte-layout.md` INDEX and only the `byte-layout/` slice(s) its section map routes your paragraphs to (`synthetic-data.md` / `weighting.md` the same way), then only the `update-demand.md` slice you trigger (`format-and-index.md`, `io-import.md`, `io-export.md`).
 - **Cross-arch numerics:** float round-trips through gonum or math-library tails differ by ulps amd64 vs arm64 — compare stored fixtures within tolerance, never by exact bits.
 - **Round-trip + falsify:** every new field type or shard semantic gets a write → read round-trip test; revert one production line per key test and see it fail.
 - **Predict/runtime parity:** a new refusal or import/export verdict is pinned predict ≡ runtime.

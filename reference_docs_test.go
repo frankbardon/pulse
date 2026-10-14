@@ -57,12 +57,39 @@ func referenceSplits(t *testing.T) map[string][]string {
 
 // TestReferenceDocSplitLayout pins the index + slices shape: every slice is
 // named by its index (an unlisted slice is one no agent will find), the
-// index stays an index, and every live slice stays loadable on its own.
+// index stays an index, every live slice stays loadable on its own, and an
+// unsplit reference stays under the slice ceiling (past it, split it).
 func TestReferenceDocSplitLayout(t *testing.T) {
 	splits := referenceSplits(t)
-	for _, name := range []string{"update-demand", "execution-modes", "matrix-and-vectors"} {
+	for _, name := range []string{
+		"update-demand", "execution-modes", "matrix-and-vectors", // E9-S1
+		"byte-layout", "weighting", "synthetic-data", "feature-profiles", "guided-analysis", // E9-S4
+		"architecture", "predict-inspect", "response-components", // E9-S4
+	} {
 		if _, ok := splits[filepath.Join(referenceDir, name+".md")]; !ok {
 			t.Errorf("%s/%s.md is no longer split into an index + %s/ slices", referenceDir, name, name)
+		}
+	}
+	// An unsplit reference is loaded whole, so it carries the slice
+	// ceiling too: one that outgrows it is split into an index + slices.
+	tops, err := filepath.Glob(filepath.Join(referenceDir, "*.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tops) == 0 {
+		t.Fatalf("found no %s/*.md files — the scan is broken", referenceDir)
+	}
+	for _, f := range tops {
+		if _, isIndex := splits[f]; isIndex {
+			continue
+		}
+		info, err := os.Stat(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Size() > referenceSliceCeiling {
+			t.Errorf("%s is %d bytes, over the %d-byte ceiling for an unsplit reference — split it into an index + %s/ slices (the E9-S1 pattern), do not raise the ceiling",
+				f, info.Size(), referenceSliceCeiling, strings.TrimSuffix(filepath.Base(f), ".md"))
 		}
 	}
 	for index, slices := range splits {
