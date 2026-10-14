@@ -433,12 +433,15 @@ const (
 	PULSE_WINDOW_INVALID Code = "PULSE_WINDOW_INVALID"
 
 	// PULSE_FIELD_TYPE_UNSUPPORTED indicates an operator slot names a
-	// field whose type the slot does not accept — a value window, FEAT_POLY
-	// or a regression over a categorical's dictionary index, a set's
-	// bitmask, or another type the operator cannot read as a value. The
-	// accepted types are the one table internal/fieldaccept; predict and
-	// the runtime raise the same refusal, Details {type, slot, field,
-	// field_type, accepts_types}.
+	// field whose type the slot does not accept — a value window,
+	// FEAT_POLY, a regression or a standardising attribute over a
+	// categorical's dictionary index, a set's bitmask, a non-set column on
+	// a set operator, a non-categorical split_by / contingency axis /
+	// stratify, a non-temporal date-range field, or another type the
+	// operator cannot read. The accepted types are the one table
+	// internal/fieldaccept; predict and the runtime raise the same code,
+	// Details {type, slot, field, field_type, accepts_types} where the
+	// table writes the refusal.
 	PULSE_FIELD_TYPE_UNSUPPORTED Code = "PULSE_FIELD_TYPE_UNSUPPORTED"
 
 	// PULSE_FEAT_TARGET_LEAKAGE_RISK flags every FEAT_TARGET_ENCODE. The
@@ -463,10 +466,11 @@ const (
 	// with a zero divisor.
 	PULSE_DECIMAL_DIVIDE_BY_ZERO Code = "PULSE_DECIMAL_DIVIDE_BY_ZERO"
 
-	// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL is a predict warning emitted
-	// when a built-in aggregation has no defined semantics on a decimal128
-	// field (e.g., AGG_MEDIAN, AGG_PERCENTILE in v1). Registered extension
-	// aggregators are exempt.
+	// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL refuses a built-in aggregation
+	// with no decimal128 implementation (e.g., AGG_MEDIAN, AGG_PERCENTILE
+	// in v1) over a decimal128 field, at any aggregation slot. Predict and
+	// the runtime raise it alike (the accepted-types table's decimal
+	// rule); registered extension aggregators are exempt.
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL"
 
 	// PULSE_ATTR_CODE_NOT_IN_DICTIONARY is a predict warning (an error
@@ -674,9 +678,10 @@ const (
 	// that is not registered in either the row-test or post-test registry.
 	PULSE_TEST_UNKNOWN_TYPE Code = "PULSE_TEST_UNKNOWN_TYPE"
 
-	// PULSE_TEST_FIELD_NOT_NUMERIC indicates a test requires a numeric
-	// field but the named field resolves to a categorical or otherwise
-	// non-numeric schema type.
+	// PULSE_TEST_FIELD_NOT_NUMERIC indicates a numeric test's `field`
+	// resolves to a categorical or set schema type (or a post-test row
+	// value is not a number). A slot that must be CATEGORICAL refuses
+	// with PULSE_FIELD_TYPE_UNSUPPORTED instead.
 	PULSE_TEST_FIELD_NOT_NUMERIC Code = "PULSE_TEST_FIELD_NOT_NUMERIC"
 
 	// PULSE_TEST_INVALID_ALPHA indicates the request's Alpha value lies

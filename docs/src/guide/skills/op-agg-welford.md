@@ -33,7 +33,7 @@ Weight: honours a resolved row weight (`weight` on the request or slot, or `Opti
 |---|---|
 | `Field` | strict scalar numeric: `u8`/`u16`/`u32`/`u64`, `f32`/`f64` |
 
-Any other type (`decimal128`, `date`, `datetime`, bit-packed, categorical, `set_*`) is refused `PROCESSING_CONFIG` by predict and the runtime.
+Any other type (`date`, `datetime`, bit-packed, categorical, `set_*`) is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`.
 
 ## Output
 

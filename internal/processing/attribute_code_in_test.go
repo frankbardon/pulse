@@ -119,7 +119,7 @@ func TestAttrCodeIn_Refusals(t *testing.T) {
 			name string
 			attr *types.Attribute
 			want string
-		}{"refused type " + f, codeIn(f, `{"codes":["1"]}`), "accepts only"})
+		}{"refused type " + f, codeIn(f, `{"codes":["1"]}`), "accepted: categorical_u16"})
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -127,9 +127,14 @@ func TestAttrCodeIn_Refusals(t *testing.T) {
 			if err == nil {
 				t.Fatalf("want PROCESSING_CONFIG, got nil")
 			}
+			want := errors.PROCESSING_CONFIG
+			if strings.HasPrefix(c.name, "refused type ") {
+				// The accepted-types table's refusal.
+				want = errors.PULSE_FIELD_TYPE_UNSUPPORTED
+			}
 			var ce *errors.CodedError
-			if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_CONFIG {
-				t.Fatalf("want PROCESSING_CONFIG, got %v", err)
+			if !stderrors.As(err, &ce) || ce.Code != want {
+				t.Fatalf("want %s, got %v", want, err)
 			}
 			if !strings.Contains(err.Error(), c.want) {
 				t.Errorf("message %q does not mention %q", err.Error(), c.want)

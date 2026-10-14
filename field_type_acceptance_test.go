@@ -396,60 +396,77 @@ var acceptanceDataOutcomes = map[errors.Code]bool{
 	errors.PROCESSING_REGRESSION_RANK_DEFICIENT: true,
 }
 
-// knownTypeDivergence is the ledger of operator × field type pairs where
-// predict and the runtime are KNOWN to disagree, each with its reason;
-// "" means they must agree. It is exact: an entry that no longer
-// diverges fails the gate too, so a fix removes its entry in the same
-// change. Every remaining entry is one direction, predict looser:
-// decimal128 on an aggregator with no decimal arm, which the runtime
-// refuses and predict only warns about. The constructors' other type
-// refusals are rows of the accepted-types table, which predict reads.
-//
-// The other direction — predict stricter where the RUNTIME was wrong,
-// windowing / expanding / regressing a categorical's dictionary index
-// or a set's bitmask — is closed: those slots live in the
-// accepted-types table (internal/fieldaccept), which both sides read
-// and the gate checks as the third party. Predict stricter than a
-// CORRECT runtime is never listed: that is a predict bug and is fixed
-// (FEAT_POLY on u4 / date was one).
-//
-// A vector type is never listed: every slot that reads one value
-// refuses a vec field on both sides with PULSE_VECTOR_FIELD_NOT_SCALAR
-// (one rule, the field-reference walk's vectorScalarRefusals), and
-// every vector slot accepts it on both sides.
-func knownTypeDivergence(op string, ft encoding.FieldType) string {
-	if ft.IsVector() {
-		return ""
-	}
-	in := func(names ...string) bool {
-		for _, n := range names {
-			if n == op {
-				return true
-			}
-		}
-		return false
-	}
+// acceptanceRefusalCodes are the codes an operator × field-type refusal
+// may carry, on both sides (U45 #313 — a code says what it means): the
+// accepted-types table's PULSE_FIELD_TYPE_UNSUPPORTED, the tier-1 numeric
+// tests' PULSE_TEST_FIELD_NOT_NUMERIC and the decimal rule's
+// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL; the vector rules'
+// PULSE_VECTOR_FIELD_NOT_SCALAR / PULSE_VECTOR_MEMBER_TYPE; a window
+// order_by that is not orderable (PULSE_WINDOW_INVALID, the field-
+// reference walk's); and the weight resolver's PULSE_WEIGHT_UNSUPPORTED
+// (acceptancePrecedingOutcomes).
+var acceptanceRefusalCodes = map[errors.Code]bool{
+	errors.PULSE_FIELD_TYPE_UNSUPPORTED:         true,
+	errors.PULSE_TEST_FIELD_NOT_NUMERIC:         true,
+	errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL: true,
+	errors.PULSE_VECTOR_FIELD_NOT_SCALAR:        true,
+	errors.PULSE_VECTOR_MEMBER_TYPE:             true,
+	errors.PULSE_WINDOW_INVALID:                 true,
+	errors.PULSE_WEIGHT_UNSUPPORTED:             true,
+}
+
+// acceptanceSlot is the accepted-types table slot an operator's
+// acceptance template puts $F in.
+func acceptanceSlot(op string) fieldaccept.Slot {
 	switch {
-	// Predict looser. (AGG_WEIGHTED_MEAN is not here: it always carries
-	// a weight, and a weight on a decimal128 value field is refused
-	// PULSE_WEIGHT_UNSUPPORTED by the shared resolver on both sides.)
-	case ft.IsDecimal() && in("AGG_CI_LOWER", "AGG_CI_UPPER", "AGG_DISTINCT_SUM", "AGG_KURTOSIS",
-		"AGG_MEDIAN", "AGG_NULL_COUNT", "AGG_PERCENTILE", "AGG_RANGE", "AGG_RATIO", "AGG_SKEWNESS",
-		"AGG_ZSCORE"):
-		return "predict only WARNS PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL (an error under Strict); the runtime refuses decimal128 regardless"
+	case strings.HasPrefix(op, "REG_"), strings.HasPrefix(op, "ATTR_REG_"):
+		return fieldaccept.SlotPredictor
+	case op == "TEST_CHISQ", op == "TEST_FISHER_EXACT":
+		return fieldaccept.SlotRows
+	case op == "FEAT_TRAIN_TEST_SPLIT":
+		return fieldaccept.SlotStratify
 	}
-	return ""
+	return fieldaccept.SlotField
+}
+
+// acceptancePrecedingOutcomes are refusals raised BEFORE the field type
+// is judged, on both sides with the same single code: the weight
+// resolver runs before any aggregator dispatch, so AGG_WEIGHTED_MEAN's
+// params.weight_field over a decimal128 value field is refused
+// PULSE_WEIGHT_UNSUPPORTED and the decimal rule is never reached
+// (TestDecimalAggregation_PredictMatchesRuntime pins that rule with the
+// weight opted out).
+var acceptancePrecedingOutcomes = map[errors.Code]bool{
+	errors.PULSE_WEIGHT_UNSUPPORTED: true,
 }
 
 // TestFieldTypeAcceptance_PredictMatchesRuntime walks every registered
 // operator × every field type and asserts predict accepts exactly what
-// the runtime accepts, apart from the knownTypeDivergence ledger. A
-// predict stricter than the runtime turns a working request away before
-// it runs; a predict looser than the runtime promises a request the
-// engine then refuses.
+// the runtime accepts — with no allowance: there is no divergence
+// ledger. A predict stricter than the runtime turns a working request
+// away before it runs; a predict looser than the runtime promises a
+// request the engine then refuses. The accepted-types table
+// (internal/fieldaccept) is the third party: every pair it refuses is
+// refused by both sides with its code (once at predict), and no pair it
+// accepts is refused with that code.
+//
+// A vector type is judged by one rule on both sides: every slot that
+// reads one value refuses a vec field with PULSE_VECTOR_FIELD_NOT_SCALAR
+// (the field-reference walk's vectorScalarRefusals), and every vector
+// slot accepts it.
 func TestFieldTypeAcceptance_PredictMatchesRuntime(t *testing.T) {
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
+	seenCodes := map[errors.Code]bool{}
+	defer func() {
+		// Every code the type refusals may carry is exercised, so the
+		// list cannot keep a code no refusal raises any more.
+		for code := range acceptanceRefusalCodes {
+			if !seenCodes[code] {
+				t.Errorf("%s: no operator × type pair refused with it; drop it from acceptanceRefusalCodes", code)
+			}
+		}
+	}()
 	for _, op := range registeredOperatorNames() {
 		tmpl, ok := acceptanceTemplates[op]
 		if !ok {
@@ -487,29 +504,34 @@ func TestFieldTypeAcceptance_PredictMatchesRuntime(t *testing.T) {
 			// The accepted-types table is the third party: a slot it
 			// refuses is refused by BOTH sides with its code (once at
 			// predict), and a type it accepts is never refused with it.
-			slot := fieldaccept.SlotField
-			if strings.HasPrefix(op, "REG_") || strings.HasPrefix(op, "ATTR_REG_") {
-				slot = fieldaccept.SlotPredictor
+			slot := acceptanceSlot(op)
+			var predictCodes []string
+			for _, e := range env.Errors {
+				predictCodes = append(predictCodes, e.Code)
 			}
-			if rule, tabled := fieldaccept.Lookup(op, slot); tabled {
-				var predictCodes []string
-				for _, e := range env.Errors {
-					predictCodes = append(predictCodes, e.Code)
+			preceded := ce != nil && acceptancePrecedingOutcomes[ce.Code] && len(predictCodes) == 1 && predictCodes[0] == string(ce.Code)
+			if want := fieldaccept.Refusal(op, slot, "f", ft); want != nil && !preceded {
+				if runtimeOK || ce == nil || ce.Code != want.Code {
+					t.Errorf("%s × %s: the table refuses it (%s); runtime returned %v", op, ft, want.Code, rerr)
 				}
-				if !fieldaccept.Accepts(op, slot, ft) {
-					if runtimeOK || ce == nil || ce.Code != rule.Code {
-						t.Errorf("%s × %s: the table refuses it (%s); runtime returned %v", op, ft, rule.Code, rerr)
-					}
-					if len(predictCodes) != 1 || predictCodes[0] != string(rule.Code) {
-						t.Errorf("%s × %s: the table refuses it (%s); predict reported %v", op, ft, rule.Code, predictCodes)
-					}
-				} else if ce != nil && ce.Code == rule.Code && !ft.IsVector() {
-					t.Errorf("%s × %s: the table accepts it, yet the runtime refused %v", op, ft, rerr)
+				if len(predictCodes) != 1 || predictCodes[0] != string(want.Code) {
+					t.Errorf("%s × %s: the table refuses it (%s); predict reported %v", op, ft, want.Code, predictCodes)
 				}
+			} else if rule, tabled := fieldaccept.Lookup(op, slot); tabled && ce != nil && ce.Code == rule.Code && !ft.IsVector() {
+				t.Errorf("%s × %s: the table accepts it, yet the runtime refused %v", op, ft, rerr)
 			}
-			known := knownTypeDivergence(op, ft)
-			switch {
-			case runtimeOK != predictOK && known == "":
+			// Both refuse: the SAME code, once at predict (rule 3 —
+			// no refusal is raised under two codes).
+			if !runtimeOK && !predictOK && ce != nil {
+				if len(predictCodes) != 1 || predictCodes[0] != string(ce.Code) {
+					t.Errorf("%s × %s: runtime refused %s, predict reported %v", op, ft, ce.Code, predictCodes)
+				}
+				if !acceptanceRefusalCodes[ce.Code] {
+					t.Errorf("%s × %s: refused with %s, which names no type refusal (%v)", op, ft, ce.Code, rerr)
+				}
+				seenCodes[ce.Code] = true
+			}
+			if runtimeOK != predictOK {
 				detail := ""
 				if rerr != nil && !runtimeOK {
 					detail = "runtime: " + rerr.Error()
@@ -517,8 +539,6 @@ func TestFieldTypeAcceptance_PredictMatchesRuntime(t *testing.T) {
 					detail = "predict: " + env.Errors[0].Code + " " + env.Errors[0].Message
 				}
 				t.Errorf("%s × %s: runtime accepts=%v, predict accepts=%v (%s)", op, ft, runtimeOK, predictOK, detail)
-			case runtimeOK == predictOK && known != "":
-				t.Errorf("%s × %s: listed as a known divergence (%s) but both sides now agree — remove the ledger entry", op, ft, known)
 			}
 			// A vector refusal is ONE rule on both sides: the runtime
 			// and every predict error carry PULSE_VECTOR_FIELD_NOT_SCALAR

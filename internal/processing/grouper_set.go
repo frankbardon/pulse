@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -35,7 +36,7 @@ func resolveSetGrouperDict(grp *types.Group, schema *encoding.Schema) (*encoding
 			string(grp.Type)+": unknown field "+grp.Field)
 	}
 	if !f.Type.IsSet() {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+		return nil, errors.NewCodedError(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
 			string(grp.Type)+": field "+grp.Field+" is not a set type")
 	}
 	return f.Dictionary, nil
@@ -65,17 +66,25 @@ func rejectSetFieldForNumericGrouper(grp *types.Group, schema *encoding.Schema) 
 		return nil
 	}
 	f := schema.Field(grp.Field)
-	if f == nil || !f.Type.IsSet() {
+	if f == nil {
 		return nil
 	}
-	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+	if !f.Type.IsSet() {
+		// The accepted-types table's other refusals: a categorical's
+		// dictionary index is no quantity to bucket by value either.
+		if cerr := fieldaccept.Refusal(string(grp.Type), fieldaccept.SlotField, grp.Field, f.Type); cerr != nil {
+			return cerr
+		}
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
 		string(grp.Type)+": field "+grp.Field+" is a set column ("+f.Type.String()+
 			")"+remedyGrouperSetField(nil),
 		map[string]any{
-			"field":    grp.Field,
-			"type":     f.Type.String(),
-			"grouper":  string(grp.Type),
-			"alternts": []string{string(types.GROUP_SET_VALUE), string(types.GROUP_SET_PER_ELEMENT)},
+			"field":      grp.Field,
+			"type":       f.Type.String(),
+			"grouper":    string(grp.Type),
+			"alternates": []string{string(types.GROUP_SET_VALUE), string(types.GROUP_SET_PER_ELEMENT)},
 		})
 }
 

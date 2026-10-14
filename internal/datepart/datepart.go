@@ -4,7 +4,8 @@
 // the same code and message. It decides what a request MEANS and never
 // extracts a value: the calendar arithmetic lives in internal/temporal.
 //
-// Leaf: stdlib + the public errors / encoding packages.
+// Leaf: stdlib, the public errors / encoding / types packages and the
+// accepted-types table (internal/fieldaccept, itself a leaf).
 package datepart
 
 import (
@@ -13,6 +14,8 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/types"
 )
 
 // PartHour is the sub-day part: the local wall-clock hour (0..23).
@@ -59,16 +62,28 @@ func Parse(raw json.RawMessage) (string, error) {
 // CheckField judges the schema field f (nil: absent from the schema)
 // that part reads from field. A `date` or `datetime` is accepted, except
 // that `hour` needs a `datetime` (a calendar date carries no time of
-// day, so every row would read hour 0). Anything else — including an
-// absent field — is PROCESSING_CONFIG.
+// day, so every row would read hour 0). Any other type is the
+// accepted-types table's PULSE_FIELD_TYPE_UNSUPPORTED (as is a date
+// under `hour`); an absent field is PROCESSING_CONFIG.
 func CheckField(part, field string, f *encoding.Field) error {
-	if f == nil || (f.Type != encoding.FieldTypeDate && f.Type != encoding.FieldTypeDateTime) {
+	if f == nil {
 		return errors.NewCodedError(errors.PROCESSING_CONFIG,
 			fmt.Sprintf("date_part attribute requires a date or datetime field, got %q", field))
 	}
+	if cerr := fieldaccept.Refusal(string(types.ATTR_DATE_PART), fieldaccept.SlotField, field, f.Type); cerr != nil {
+		return cerr
+	}
 	if part == PartHour && f.Type != encoding.FieldTypeDateTime {
-		return errors.NewCodedError(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("ATTR_DATE_PART part=hour requires a datetime field; field %q is of type %s", field, f.Type))
+		return errors.NewCodedErrorWithDetails(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
+			fmt.Sprintf("ATTR_DATE_PART part=hour reads a time of day; %s is of type %s", field, f.Type),
+			map[string]any{
+				"type":          string(types.ATTR_DATE_PART),
+				"slot":          string(fieldaccept.SlotField),
+				"field":         field,
+				"field_type":    f.Type.String(),
+				"accepts_types": []string{encoding.FieldTypeDateTime.String()},
+				"part":          part,
+			})
 	}
 	return nil
 }

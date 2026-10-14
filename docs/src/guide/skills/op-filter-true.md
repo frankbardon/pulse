@@ -33,7 +33,7 @@ Use something else:
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | strict mode: `packed_bool` only (any other type is refused `PROCESSING_CONFIG` by predict and the runtime). Truthy mode: any scalar field type. |
+| `Field` | strict mode: `packed_bool` only (any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime). Truthy mode: any scalar field type. |
 
 ## Output
 
@@ -45,7 +45,7 @@ Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}
 
 ## Gotchas
 
-- Strict mode on non-`packed_bool` → `PROCESSING_CONFIG` with the suggested `Values=["truthy"]` fix.
+- Strict mode on non-`packed_bool` → `PULSE_FIELD_TYPE_UNSUPPORTED` with the suggested `Values=["truthy"]` fix.
 - Truthy mode coerces: `0`, `NaN`, `""`, `null` → falsy; everything else → truthy. Null rows DROP in both directions.
 - `decimal128` truthiness uses `Sign() != 0`.
 

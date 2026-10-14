@@ -1803,12 +1803,11 @@ func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record
 	// registered extension aggregator bypasses the built-in decimal
 	// table and runs its own factory.
 	if p.schema != nil && !p.exts.isExtensionAggregator(slot.Type) {
-		if f := p.schema.Field(slot.Field); f != nil && f.Type.IsDecimal() {
-			if !p.exts.decimalAggregationSupported(slot.Type) {
-				return cellAggregationResult{}, nil, 0, 0, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-					"aggregation has no decimal128 implementation",
-					map[string]any{"aggregation": string(slot.Type), "field": slot.Field})
+		if f := p.schema.Field(slot.Field); f != nil && f.Type.IsDecimal() && !p.exts.decimalAggregationSupported(slot.Type) {
+			if cerr := p.exts.decimalAggregationRefusal(slot.Type, slot.Field, f.Type); cerr != nil {
+				return cellAggregationResult{}, nil, 0, 0, cerr
 			}
+		} else if f != nil && f.Type.IsDecimal() {
 			out, err := AggregateDecimalField(slot.Type, bucket, slot.Field, f.Scale)
 			if err != nil {
 				return cellAggregationResult{}, nil, 0, 0, err

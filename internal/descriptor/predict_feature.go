@@ -33,10 +33,10 @@ func validateFeatures(env *descriptor.Envelope, req *types.Request, schema *enco
 
 	for idx, feat := range req.Features {
 		// A type the instance hides is unknown here, exactly as a
-		// never-registered one.
+		// never-registered one — the runtime's PROCESSING_CONFIG refusal.
 		if !isKnownFeatureType(opRoute(opts.instance(), feat.Type)) && !isExtensionFeatureType(opts, feat.Type) {
 			env.AddError(
-				string(errors.SERVICE_VALIDATION),
+				string(errors.PROCESSING_CONFIG),
 				"unknown feature type: "+string(feat.Type),
 				map[string]any{"feature": string(feat.Type)},
 			)
@@ -137,26 +137,20 @@ func validateFeatureSpec(env *descriptor.Envelope, feat *types.Feature, schema *
 
 	// A vector field is the field-reference walk's refusal
 	// (vectorScalarRefusals); the type checks below would only repeat it.
-	vec := f.Type.IsVector()
+	// The accepted-types table's refusals are the runtime
+	// constructors' word for word (fieldaccept.Refusal never refuses a
+	// vector).
 	switch feat.Type {
 	case types.FEAT_ONE_HOT, types.FEAT_FREQUENCY_ENCODE, types.FEAT_TARGET_ENCODE:
-		if !vec && !f.Type.IsCategorical() {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"feature "+string(feat.Type)+" requires a categorical field",
-				map[string]any{"field": feat.Field, "feature": string(feat.Type)},
-			)
+		if cerr := fieldaccept.Refusal(string(feat.Type), fieldaccept.SlotField, feat.Field, f.Type); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 		if feat.Type == types.FEAT_TARGET_ENCODE {
 			validateTargetEncodeParams(env, feat, schema)
 		}
 	case types.FEAT_DATE_FEATURES:
-		if !vec && f.Type != encoding.FieldTypeDate && f.Type != encoding.FieldTypeDateTime {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"feature FEAT_DATE_FEATURES requires a date or datetime field",
-				map[string]any{"field": feat.Field, "feature": string(feat.Type)},
-			)
+		if cerr := fieldaccept.Refusal(string(feat.Type), fieldaccept.SlotField, feat.Field, f.Type); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 	case types.FEAT_BUCKETIZE:
 		validateBucketizeParams(env, feat)
@@ -218,15 +212,10 @@ func validateSplitParams(env *descriptor.Envelope, feat *types.Feature, schema *
 			map[string]any{"feature": string(feat.Type), "sum": sum},
 		)
 	}
-	if p.Stratify != "" {
-		// An unknown name is FieldRefRefusals' refusal.
-		if f := schema.Field(p.Stratify); f != nil && !f.Type.IsVector() && !f.Type.IsCategorical() {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"feature FEAT_TRAIN_TEST_SPLIT: stratify field must be categorical",
-				map[string]any{"field": p.Stratify, "feature": string(feat.Type)},
-			)
-		}
+	// An unknown name is FieldRefRefusals' refusal; a non-categorical
+	// stratify column the accepted-types table's.
+	if cerr := fieldaccept.Check(string(feat.Type), fieldaccept.SlotStratify, p.Stratify, schema); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
 }
 
@@ -342,13 +331,11 @@ func validateTargetEncodeParams(env *descriptor.Envelope, feat *types.Feature, s
 			map[string]any{"feature": string(feat.Type)},
 		)
 	}
-	// An unknown name is FieldRefRefusals' refusal.
-	if f := schema.Field(p.Target); f != nil && f.Type.IsCategorical() {
-		env.AddError(
-			string(errors.SERVICE_VALIDATION),
-			"feature FEAT_TARGET_ENCODE: target field must be numeric, got categorical",
-			map[string]any{"field": p.Target, "feature": string(feat.Type)},
-		)
+	// An unknown name is FieldRefRefusals' refusal; a target the
+	// accepted-types table refuses (a categorical's index or a set's
+	// bitmask is no numeric outcome) the runtime constructor's.
+	if cerr := fieldaccept.Check(string(feat.Type), fieldaccept.SlotTarget, p.Target, schema); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
 }
 

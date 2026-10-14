@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/types"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 )
 
 // codeInFieldTypes is what ATTR_CODE_IN accepts: the categorical
@@ -53,7 +54,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Name:          string(types.ATTR_ZSCORE),
 			Category:      "attribute",
 			Description:   "Per-row standardized z-score: (value − mean) / stddev computed via Welford two-pass streaming.",
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_ZSCORE), fieldaccept.SlotField),
 			EmitsType:     "f64",
 			EmitsTypeNote: "one float per record (0 when stddev=0 or the value is null)",
 			Streamable:    true,
@@ -62,7 +63,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Name:          string(types.ATTR_TSCORE),
 			Category:      "attribute",
 			Description:   "Per-row T-score: z-score scaled and shifted to mean 50, stddev 10.",
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_TSCORE), fieldaccept.SlotField),
 			EmitsType:     "f64",
 			EmitsTypeNote: "one float per record",
 			Streamable:    true,
@@ -71,7 +72,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Name:          string(types.ATTR_NORMALIZED),
 			Category:      "attribute",
 			Description:   "Per-row min-max normalization: (value − min) / (max − min) ∈ [0, 1].",
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_NORMALIZED), fieldaccept.SlotField),
 			EmitsType:     "f64",
 			EmitsTypeNote: "one float per record in [0, 1]",
 			Streamable:    true,
@@ -91,7 +92,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Name:           string(types.ATTR_PERCENTILE),
 			Category:       "attribute",
 			Description:    "Per-row percentile rank against the post-filter value set; requires sorting.",
-			AcceptsTypes:   numericFieldTypesNoDecimal,
+			AcceptsTypes:   fieldaccept.TypeNames(string(types.ATTR_PERCENTILE), fieldaccept.SlotField),
 			EmitsType:      "f64",
 			EmitsTypeNote:  "one float per record in (0, 100]; 0 when the value is null",
 			Streamable:     false,
@@ -119,7 +120,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Name:          string(types.ATTR_REG_FITTED),
 			Category:      "attribute",
 			Description:   "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own RegressionSpec-shaped fields (Target, Predictors, Penalty, Alpha, L1Ratio); each ATTR_REG_* attribute refits independently (Option A). Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet).",
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_REG_FITTED), fieldaccept.SlotPredictor),
 			EmitsType:     "f64",
 			EmitsTypeNote: "one fitted value per record (NaN-free)",
 			Streamable:    true,
@@ -128,7 +129,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Name:          string(types.ATTR_REG_RESIDUAL),
 			Category:      "attribute",
 			Description:   "Per-row residual yᵢ − ŷᵢ from a regression refit during the attribute prepass. Sums to ≈ 0 when the fit includes an intercept (always true for OLS). Accepts any OLS penalty; reuses the same fit machinery as ATTR_REG_FITTED.",
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_REG_RESIDUAL), fieldaccept.SlotPredictor),
 			EmitsType:     "f64",
 			EmitsTypeNote: "one residual per record",
 			Streamable:    true,
@@ -137,7 +138,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Name:           string(types.ATTR_REG_LEVERAGE),
 			Category:       "attribute",
 			Description:    "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Range ∈ [0, 1]; Σᵢ hᵢᵢ = p + 1. Restricted to unpenalized OLS — penalized leverage / GLM leverage deferred.",
-			AcceptsTypes:   numericFieldTypesNoDecimal,
+			AcceptsTypes:   fieldaccept.TypeNames(string(types.ATTR_REG_LEVERAGE), fieldaccept.SlotPredictor),
 			EmitsType:      "f64",
 			EmitsTypeNote:  "one leverage per record in [0, 1]",
 			Streamable:     true,

@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -25,22 +26,6 @@ import (
 // Sorted (byte order, so `u4` falls between `u32` and `u64`) for golden
 // stability; TestCapabilities_AllCohortFieldTypesMatchesRegistry pins it.
 
-// numericFieldTypes is the canonical list of cohort field types that
-// participate in numeric aggregations, decimal128 included. Consumers
-// read the field through Record.NumericValue, which decimal128 answers
-// via the float64 echo the decoder writes alongside the exact value.
-var numericFieldTypes = []string{
-	"date",
-	"decimal128",
-	"f32",
-	"f64",
-	"u16",
-	"u32",
-	"u4",
-	"u64",
-	"u8",
-}
-
 // numericFieldTypesNoDecimal lists numeric types excluding the
 // fixed-point decimal types. Used by aggregators that operate in float64
 // space (variance, stddev, skewness, kurtosis) and by the window /
@@ -58,9 +43,10 @@ var numericFieldTypesNoDecimal = []string{
 	"u8",
 }
 
-// numericFieldTypesAnalytics widens numericFieldTypes with the
-// bit-packed boolean encoding (packed_bool) and the second temporal
-// ordinal (datetime). The bit-packed types store small non-negative
+// numericFieldTypesAnalytics is the numeric types (the unsigned
+// integers, the floats, date and decimal128 — read through its float64
+// echo) widened with the bit-packed boolean encoding (packed_bool) and
+// the second temporal ordinal (datetime). The bit-packed types store small non-negative
 // integers (0/1 for packed_bool, 0..15 for u4) which the analytics
 // aggregators consume as proportions or ordinal means without an
 // ATTR_FORMULA cast.
@@ -103,7 +89,7 @@ var numericFieldTypesAnalytics = []string{
 // AGG_VARIANCE and AGG_STDDEV are NOT here. They read the decimal-
 // carrying list, because internal/processing/aggregator_decimal.go computes both
 // in decimal128 two-pass form and predict has always permitted the
-// pairing (decimalSupportedAggregations). Carrying them here was an
+// pairing (fieldaccept.HasDecimalArm). Carrying them here was an
 // under-declaration, not a restriction anything enforced.
 //
 // Carries datetime for the same reason the parent list does; the two
@@ -312,7 +298,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Category:    "aggregator",
 			Description: "Population standard deviation via Welford's online algorithm. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
 			// decimal128 included: predict permits the pairing
-			// (decimalSupportedAggregations) and
+			// (fieldaccept.HasDecimalArm) and
 			// internal/processing/aggregator_decimal.go implements it.
 			// Gated by TestCapabilities_DecimalDeclaredOnlyWhereSupported.
 			AcceptsTypes:  numericFieldTypesAnalytics,
@@ -331,7 +317,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Description: "Spread (max minus min) of the field across the input set.",
 			// No decimal128: predict refuses this pairing with
 			// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL
-			// (decimalSupportedAggregations), so offering it in the
+			// (fieldaccept.HasDecimalArm), so offering it in the
 			// manifest would be a promise predict itself declines.
 			// Gated by TestCapabilities_DecimalDeclaredOnlyWhereSupported.
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
@@ -818,19 +804,10 @@ func vecAggCapability(op types.AggregationType, desc, emits string, own ...descr
 // modelErrorFieldTypes are the column types a model-error aggregator
 // (AGG_MAPE / AGG_RMSE / AGG_MAE) reads on either side: the integer and
 // float scalars plus packed_bool (a 0/1 outcome scored against a
-// probability). Mirrors processing.modelErrorFieldTypeOK and the
-// predict check modelErrorTypeOK; categorical, set, date, datetime and
-// decimal128 are refused PROCESSING_CONFIG on both sides.
-var modelErrorFieldTypes = []string{
-	"f32",
-	"f64",
-	"packed_bool",
-	"u16",
-	"u32",
-	"u4",
-	"u64",
-	"u8",
-}
+// probability) — the accepted-types table's row, which both sides
+// enforce (PULSE_FIELD_TYPE_UNSUPPORTED; decimal128 is the decimal
+// rule's PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL on the actual).
+var modelErrorFieldTypes = fieldaccept.TypeNames(string(types.AGG_MAE), fieldaccept.SlotField)
 
 // modelErrorCapability declares one model-error aggregator: the shared
 // prediction_field param, the shared floor-plus-sums components and

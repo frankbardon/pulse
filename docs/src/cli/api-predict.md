@@ -204,10 +204,16 @@ pulse api predict-compose --request batch.json --json | jq '.data.valid'
 | Code | What to do |
 |---|---|
 | `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` | Use `AGG_COUNT` / `AGG_MODE_COUNT` instead of `AGG_SUM` / `AGG_AVG` on categoricals |
-| `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`     | Decimal-typed field; switch to a decimal-aware aggregator |
 | `PULSE_ATTR_CODE_NOT_IN_DICTIONARY`        | An `ATTR_CODE_IN` code is not a label of the categorical field's dictionary (it matches no row); fix or drop each entry in `details.missing_codes` |
 | `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`      | Edit the schema description; re-import |
 | `PULSE_FEAT_TARGET_LEAKAGE_RISK`           | Every `FEAT_TARGET_ENCODE` averages all rows' targets (a prior split does not help); compute train-only means in a separate request |
+
+A field the operator cannot read is an ERROR, not a warning, and it is
+the code `Process` raises: `PULSE_FIELD_TYPE_UNSUPPORTED` (pick a field of
+`details.accepts_types`), `PULSE_TEST_FIELD_NOT_NUMERIC` for a numeric
+test's field, and `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL` for a built-in
+aggregation with no decimal128 implementation over a decimal field
+(switch to a decimal-aware aggregator).
 
 The full code-by-code recovery playbook is reachable per-code via
 the MCP `pulse_errors_lookup` tool or the `pulse errors lookup CODE`

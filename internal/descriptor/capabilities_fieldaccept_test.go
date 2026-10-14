@@ -7,19 +7,6 @@ import (
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 )
 
-// narrowerDeclarations are the tabled operators whose manifest
-// accepts_types is a strict SUBSET of the table: the runtime does not
-// refuse the extra types (so the table, which mirrors the runtime's
-// refusals, accepts them), but the declaration recommends only the types
-// the operator is meant for. A narrower declaration never promises a
-// refused type; a wider one would.
-var narrowerDeclarations = map[string]bool{
-	"ATTR_NORMALIZED": true, "ATTR_PERCENTILE": true, "ATTR_TSCORE": true, "ATTR_ZSCORE": true,
-	"ATTR_REG_FITTED": true, "ATTR_REG_RESIDUAL": true, "ATTR_REG_LEVERAGE": true,
-	"GROUP_QUANTILE": true, "GROUP_RANGE": true, "GROUP_ROUNDED": true,
-	"FILTER_RANGE": true,
-}
-
 // modeWiderDeclarations are the tabled operators whose declaration is a
 // strict SUPERSET of the table because the row judges one mode only:
 // FILTER_TRUE / FILTER_FALSE read a packed_bool in strict mode, and any
@@ -29,8 +16,9 @@ var modeWiderDeclarations = map[string]bool{"FILTER_TRUE": true, "FILTER_FALSE":
 // TestCapabilities_AcceptsTypesMatchFieldAcceptTable pins the manifest's
 // accepts_types to the accepted-types table (internal/fieldaccept) for
 // every tabled operator that declares them: the declaration is the rule
-// predict and the runtime enforce, never a second list — or, for
-// narrowerDeclarations, a subset of it.
+// predict and the runtime enforce, never a second list. (There is no
+// "narrower" allowance: a type the runtime reads correctly is declared,
+// and one it would read wrongly is refused by the row.)
 func TestCapabilities_AcceptsTypesMatchFieldAcceptTable(t *testing.T) {
 	declared := map[string][]string{}
 	for _, c := range windowCapabilities() {
@@ -60,9 +48,16 @@ func TestCapabilities_AcceptsTypesMatchFieldAcceptTable(t *testing.T) {
 		if !ok {
 			continue
 		}
+		// accepts_types describes the primary field (a regression's
+		// predictors); an operator tabled only on another slot
+		// (FEAT_TRAIN_TEST_SPLIT's stratify, a contingency test's axes)
+		// declares nothing the table judges.
 		slot := fieldaccept.SlotField
 		if _, tabled := fieldaccept.Lookup(op, slot); !tabled {
 			slot = fieldaccept.SlotPredictor
+		}
+		if _, tabled := fieldaccept.Lookup(op, slot); !tabled {
+			continue
 		}
 		want := fieldaccept.TypeNames(op, slot)
 		checked++
@@ -78,26 +73,11 @@ func TestCapabilities_AcceptsTypesMatchFieldAcceptTable(t *testing.T) {
 			}
 			continue
 		}
-		if !narrowerDeclarations[op] {
-			if !reflect.DeepEqual(got, want) {
-				t.Errorf("%s accepts_types %v, table %v", op, got, want)
-			}
-			continue
-		}
-		table := map[string]bool{}
-		for _, n := range want {
-			table[n] = true
-		}
-		for _, n := range got {
-			if !table[n] {
-				t.Errorf("%s declares %s, which the table refuses", op, n)
-			}
-		}
-		if reflect.DeepEqual(got, want) {
-			t.Errorf("%s declares the whole table; drop it from narrowerDeclarations", op)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%s accepts_types %v, table %v", op, got, want)
 		}
 	}
-	if want := 12 + 19 + 14 + 2 + 2; checked != want {
-		t.Errorf("checked %d tabled operators with a declaration, want %d (8 windows, FEAT_POLY, 3 regressions, 19 value readers, 14 set operators, 2 date-range operators, FILTER_TRUE / FILTER_FALSE)", checked, want)
+	if want := 12 + 19 + 14 + 2 + 2 + 9; checked != want {
+		t.Errorf("checked %d tabled operators with a declaration, want %d (8 windows, FEAT_POLY, 3 regressions, 19 value readers, 14 set operators, 2 date-range operators, FILTER_TRUE / FILTER_FALSE, FEAT_DATE_FEATURES / ATTR_DATE_PART, ATTR_CODE_IN, 3 model-error aggregators, 3 categorical encoders)", checked, want)
 	}
 }

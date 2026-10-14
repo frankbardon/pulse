@@ -2,22 +2,23 @@ package descriptor
 
 import (
 	"encoding/json"
-	"strconv"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
 // Model-error aggregator predict checks (AGG_MAPE / AGG_RMSE / AGG_MAE,
 // fit-scoring E2-S1). The runtime rules live in
-// internal/processing/aggregator_model_error.go (modelErrorConfigError,
-// modelErrorFieldTypeOK) plus the decimal dispatch that runs before
-// any aggregator factory; predict may not import that package, so the
-// rules are re-derived here from the schema alone — same code, message
-// and details — and TestModelError_PredictMatchesRuntime (root package)
-// pins the two copies together.
+// internal/processing/aggregator_model_error.go (modelErrorConfigError)
+// plus the decimal dispatch that runs before any aggregator factory;
+// predict may not import that package, so the params rules are
+// re-derived here and the type rules read the same accepted-types table
+// (internal/fieldaccept) — same code, message and details — and
+// TestModelError_PredictMatchesRuntime (root package) pins the two
+// together.
 
 // isModelErrorAgg reports whether t is one of the three model-error
 // aggregators.
@@ -34,18 +35,6 @@ func isModelErrorAgg(t types.AggregationType) bool {
 // message must equal the runtime's.
 type modelErrorParams struct {
 	PredictionField string `json:"prediction_field"`
-}
-
-// modelErrorTypeOK mirrors processing.modelErrorFieldTypeOK.
-func modelErrorTypeOK(ft encoding.FieldType) bool {
-	switch ft {
-	case encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16,
-		encoding.FieldTypeU32, encoding.FieldTypeU64,
-		encoding.FieldTypeF32, encoding.FieldTypeF64,
-		encoding.FieldTypePackedBool:
-		return true
-	}
-	return false
 }
 
 // validateModelErrorAggs reports, per model-error slot (aggregations,
@@ -76,14 +65,13 @@ func validateModelErrorAggs(env *descriptor.Envelope, req *types.Request, schema
 }
 
 // modelErrorPredictCheck mirrors the runtime order: the decimal
-// dispatch on Field (before any factory), then the params decode,
-// then modelErrorConfigError.
+// dispatch on Field (before any factory) — the accepted-types table's
+// decimal rule, which validateFieldAcceptance reports, so nothing more
+// is judged here — then the params decode, then modelErrorConfigError.
 func modelErrorPredictCheck(agg *types.Aggregation, schema *encoding.Schema) error {
 	name := string(agg.Type)
 	if f := schema.Field(agg.Field); f != nil && f.Type.IsDecimal() {
-		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			"aggregation has no decimal128 implementation",
-			map[string]any{"aggregation": name, "field": agg.Field})
+		return nil
 	}
 	var params modelErrorParams
 	if len(agg.Params) > 0 {
@@ -98,15 +86,11 @@ func modelErrorPredictCheck(agg *types.Aggregation, schema *encoding.Schema) err
 			name+" requires params.prediction_field (the column holding the predicted value)",
 			map[string]any{"aggregation": name, "field": agg.Field})
 	}
-	for _, side := range [...]struct{ role, col string }{{"field", agg.Field}, {"prediction_field", params.PredictionField}} {
-		f := schema.Field(side.col)
-		if f == nil || f.Type.IsVector() || modelErrorTypeOK(f.Type) {
-			continue
-		}
-		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			name+": "+side.role+" "+strconv.Quote(side.col)+" is "+f.Type.String()+
-				"; it accepts only numeric columns (u4/u8/u16/u32/u64, f32/f64, packed_bool)",
-			map[string]any{"aggregation": name, "param": side.role, "field": side.col, "type": f.Type.String()})
+	if cerr := fieldaccept.Check(name, fieldaccept.SlotField, agg.Field, schema); cerr != nil {
+		return cerr
+	}
+	if cerr := fieldaccept.Check(name, fieldaccept.SlotPrediction, params.PredictionField, schema); cerr != nil {
+		return cerr
 	}
 	return nil
 }

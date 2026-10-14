@@ -211,8 +211,8 @@ func TestGrouper_DateRanges_NonDateField(t *testing.T) {
 		Field:  "score",
 		Params: phaseRangesParams(t, ""),
 	}, schema)
-	if got := codeOf(t, err); got != errors.PROCESSING_CONFIG {
-		t.Errorf("non-date field error code = %v, want PROCESSING_CONFIG", got)
+	if got := codeOf(t, err); got != errors.PULSE_FIELD_TYPE_UNSUPPORTED {
+		t.Errorf("non-date field error code = %v, want PULSE_FIELD_TYPE_UNSUPPORTED", got)
 	}
 }
 

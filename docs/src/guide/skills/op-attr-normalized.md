@@ -32,7 +32,7 @@ None.
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `packed_bool`, `u4`; a `set_*` field is refused `PROCESSING_CONFIG` by predict and the runtime |
+| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
 | `Label` | required — new column name |
 
 ## Output
@@ -51,9 +51,8 @@ One `float64` per record in `[0, 1]`. Null source → `0` (not null).
 - Two-pass: pre-pass tracks min/max across filter-passing rows; pass 2 emits per row.
 - Constant field (`max == min`) → `0` per row.
 - Outlier-sensitive — one extreme value compresses the rest of the range.
-- `decimal128` rejected.
 - Frequently used as a feature input for a downstream formula or external ML — but no in-slot chaining; stage via Compose / ProcessChain.
-- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no value to standardise.
+- `set_*` and categorical rejected at build time with `PULSE_FIELD_TYPE_UNSUPPORTED` — a bitmask or dictionary index has no value to standardise.
 
 ## See
 

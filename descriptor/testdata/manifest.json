@@ -3489,8 +3489,11 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -3620,8 +3623,11 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -3733,8 +3739,11 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -3764,8 +3773,11 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -3858,8 +3870,11 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -4029,8 +4044,11 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -4175,8 +4193,11 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -4506,9 +4527,11 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -5172,8 +5195,11 @@
           ],
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -5242,8 +5268,11 @@
           ],
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -5326,8 +5355,11 @@
           ],
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -10493,7 +10525,14 @@
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
-          "ATTR_FORMULA"
+          "ATTR_FORMULA",
+          "ATTR_NORMALIZED",
+          "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
+          "ATTR_TSCORE",
+          "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
           "FILTER_EXCLUDE",
@@ -10501,10 +10540,14 @@
           "FILTER_FALSE",
           "FILTER_INCLUDE",
           "FILTER_NULL",
+          "FILTER_RANGE",
           "FILTER_TRUE"
         ],
         "compatible_groupers": [
-          "GROUP_CATEGORY"
+          "GROUP_CATEGORY",
+          "GROUP_QUANTILE",
+          "GROUP_RANGE",
+          "GROUP_ROUNDED"
         ],
         "compatible_windows": [
           "WIN_DENSE_RANK",
@@ -10652,7 +10695,14 @@
           "AGG_VARIANCE"
         ],
         "compatible_attributes": [
-          "ATTR_FORMULA"
+          "ATTR_FORMULA",
+          "ATTR_NORMALIZED",
+          "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
+          "ATTR_TSCORE",
+          "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
           "FILTER_EXCLUDE",
@@ -10664,7 +10714,10 @@
           "FILTER_TRUE"
         ],
         "compatible_groupers": [
-          "GROUP_CATEGORY"
+          "GROUP_CATEGORY",
+          "GROUP_QUANTILE",
+          "GROUP_RANGE",
+          "GROUP_ROUNDED"
         ],
         "compatible_windows": [
           "WIN_DENSE_RANK",
@@ -10879,7 +10932,14 @@
         ],
         "compatible_attributes": [
           "ATTR_DATE_PART",
-          "ATTR_FORMULA"
+          "ATTR_FORMULA",
+          "ATTR_NORMALIZED",
+          "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
+          "ATTR_TSCORE",
+          "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
           "FILTER_DATE_RANGES",
@@ -10888,12 +10948,16 @@
           "FILTER_FALSE",
           "FILTER_INCLUDE",
           "FILTER_NULL",
+          "FILTER_RANGE",
           "FILTER_TRUE"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
           "GROUP_DATE",
-          "GROUP_DATE_RANGES"
+          "GROUP_DATE_RANGES",
+          "GROUP_QUANTILE",
+          "GROUP_RANGE",
+          "GROUP_ROUNDED"
         ],
         "compatible_windows": [
           "WIN_DENSE_RANK",
@@ -17126,4 +17190,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0feb55c73ca6bea004756911706f4907573ac4ec081832bc163e2d872da42ce4
+// golden-hash: 9def41b0d1181a0b7c53e7022123e3838460a37ec9b608b292c135847c7ada23

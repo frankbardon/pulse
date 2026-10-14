@@ -802,7 +802,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Name a field of one of details.accepts_types, or derive one first (ATTR_FORMULA, FEAT_ONE_HOT for a categorical, ATTR_SET_HAS / ATTR_SET_POPCOUNT for a set).",
+				Hint:   "Name a field of one of details.accepts_types (a categorical for split_by, a contingency axis or stratify), or derive one first (ATTR_FORMULA, FEAT_ONE_HOT for a categorical, ATTR_SET_HAS / ATTR_SET_POPCOUNT for a set).",
 			},
 		},
 	},
@@ -850,7 +850,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL: {
-		Message: "An aggregation has no defined semantics for the decimal128 field type (e.g., median or percentile in v1).",
+		Message: "A built-in aggregation with no decimal128 implementation (e.g., median or percentile in v1) names a decimal128 field; predict and the runtime refuse it.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceOperator,
@@ -1143,7 +1143,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_FIELD_NOT_NUMERIC: {
-		Message: "A test requires a numeric field but the named field resolves to a categorical or otherwise non-numeric schema type.",
+		Message: "A numeric test's field resolves to a categorical or set schema type, which carries no number to test.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

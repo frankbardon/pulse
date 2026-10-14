@@ -3,10 +3,10 @@ package processing
 import (
 	"encoding/json"
 	"math"
-	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -66,23 +66,6 @@ type modelErrorParams struct {
 	PredictionField string `json:"prediction_field"`
 }
 
-// modelErrorFieldTypeOK reports whether a schema column of type ft can
-// be an actual or a prediction: the integer and float scalars plus
-// packed_bool (a 0/1 outcome against a probability score). Categorical
-// (a dictionary code), set (a bitmask), date / datetime (an epoch
-// ordinal) and decimal128 (no decimal implementation) are refused.
-// Mirrored by internal/descriptor's modelErrorTypeOK (predict parity).
-func modelErrorFieldTypeOK(ft encoding.FieldType) bool {
-	switch ft {
-	case encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16,
-		encoding.FieldTypeU32, encoding.FieldTypeU64,
-		encoding.FieldTypeF32, encoding.FieldTypeF64,
-		encoding.FieldTypePackedBool:
-		return true
-	}
-	return false
-}
-
 // modelErrorAggregator backs all three operators.
 type modelErrorAggregator struct {
 	kind       modelErrorKind
@@ -126,12 +109,12 @@ func newModelErrorAggregator(kind modelErrorKind) AggregatorFactory {
 
 // modelErrorConfigError is the constructor's refusal for a model-error
 // slot (AGG_MAPE / AGG_RMSE / AGG_MAE): a missing prediction_field, or
-// an actual / prediction column the schema types as non-numeric. A
+// an actual / prediction column the accepted-types table refuses. A
 // name the schema does not carry is a derived column (an attribute
 // output, a float) or the field-reference rule's refusal — never this
-// one's. Predict re-derives the same checks (same code, message and
-// details) in internal/descriptor; TestModelError_PredictMatchesRuntime
-// pins the two copies together.
+// one's. Predict raises the same refusals (the prediction_field check
+// re-derived, the type checks from the same table);
+// TestModelError_PredictMatchesRuntime pins the two together.
 func modelErrorConfigError(op types.AggregationType, field, prediction string, schema *encoding.Schema) error {
 	name := string(op)
 	if prediction == "" {
@@ -142,15 +125,14 @@ func modelErrorConfigError(op types.AggregationType, field, prediction string, s
 	if schema == nil {
 		return nil
 	}
-	for _, side := range [...]struct{ role, col string }{{"field", field}, {"prediction_field", prediction}} {
-		f := schema.Field(side.col)
-		if f == nil || modelErrorFieldTypeOK(f.Type) {
-			continue
-		}
-		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			name+": "+side.role+" "+strconv.Quote(side.col)+" is "+f.Type.String()+
-				"; it accepts only numeric columns (u4/u8/u16/u32/u64, f32/f64, packed_bool)",
-			map[string]any{"aggregation": name, "param": side.role, "field": side.col, "type": f.Type.String()})
+	// The accepted-types table's refusals, actual then prediction: the
+	// integer and float scalars plus packed_bool (a 0/1 outcome against
+	// a probability score). Predict raises the same ones.
+	if cerr := fieldaccept.Check(name, fieldaccept.SlotField, field, schema); cerr != nil {
+		return cerr
+	}
+	if cerr := fieldaccept.Check(name, fieldaccept.SlotPrediction, prediction, schema); cerr != nil {
+		return cerr
 	}
 	return nil
 }

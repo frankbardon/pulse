@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -99,14 +100,27 @@ func fieldTypeRefusalCases() []fieldTypeRefusalCase {
 }
 
 // valueReaderRefusalCases are the runtime constructors' own type
-// refusals (#198, predict looser): PROCESSING_CONFIG, the message the
-// constructor writes, which predict now reports from the table.
+// refusals (#198, predict looser): the table's code (a decimal128 field
+// on a built-in aggregator with no decimal arm is its decimal rule), the
+// message the constructor writes, which predict now reports from the
+// table.
 func valueReaderRefusalCases() []fieldTypeRefusalCase {
 	var out []fieldTypeRefusalCase
 	fill := func(op, tmpl string, ft encoding.FieldType) {
 		v, w, s := acceptanceValues(ft)
 		body := strings.NewReplacer("$F", "t_"+ft.String(), "$V", v, "$W", w, "$S", s).Replace(tmpl)
-		out = append(out, fieldTypeRefusalCase{op: op, body: body, ft: ft, code: errors.PROCESSING_CONFIG, ownMessage: true})
+		slot := fieldaccept.SlotField
+		switch {
+		case strings.Contains(tmpl, `"target":"$F"`):
+			slot = fieldaccept.SlotTarget
+		case strings.Contains(tmpl, `"predictors":["$F"]`):
+			slot = fieldaccept.SlotPredictor
+		}
+		code := errors.Code("")
+		if r := fieldaccept.Refusal(op, slot, "f", ft); r != nil {
+			code = r.Code
+		}
+		out = append(out, fieldTypeRefusalCase{op: op, body: body, ft: ft, code: code, ownMessage: true})
 	}
 	scalar := func(ft encoding.FieldType) bool { return !ft.IsVector() }
 	// A set_* column on an operator that reads a value: 19 ops x 6 rungs.
@@ -283,15 +297,17 @@ func TestFieldTypeRefusal_EverySlotPredicts(t *testing.T) {
 		_, rerr := p.Process(ctx, mk())
 		return predictEnvelope(t, p, fs, cohort, mk()), rerr
 	}
+	// The table's code for a set column on a value reader.
+	want := fieldaccept.Refusal("GROUP_CATEGORY", fieldaccept.SlotField, "f", encoding.FieldTypeSetU8).Code
 	for _, c := range cases {
 		bad := strings.ReplaceAll(c.bad, "$F", "t_set_u8")
 		env, rerr := run(bad)
 		var ce *errors.CodedError
-		if !stderrors.As(rerr, &ce) || ce.Code != errors.PROCESSING_CONFIG {
-			t.Errorf("%s: runtime %v, want PROCESSING_CONFIG", c.name, rerr)
+		if !stderrors.As(rerr, &ce) || ce.Code != want {
+			t.Errorf("%s: runtime %v, want %s", c.name, rerr, want)
 		}
-		if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PROCESSING_CONFIG) {
-			t.Errorf("%s: predict %+v, want one PROCESSING_CONFIG", c.name, env.Errors)
+		if len(env.Errors) != 1 || env.Errors[0].Code != string(want) {
+			t.Errorf("%s: predict %+v, want one %s", c.name, env.Errors, want)
 		}
 		good := strings.ReplaceAll(c.bad, "$F", "t_u8")
 		if env, rerr := run(good); rerr != nil || len(env.Errors) != 0 {
@@ -312,15 +328,15 @@ func TestFieldTypeRefusal_EverySlotPredicts(t *testing.T) {
 	}
 	_, rerr := p.FacetSchema(ctx, facet("t_set_u8"))
 	var ce *errors.CodedError
-	if !stderrors.As(rerr, &ce) || ce.Code != errors.PROCESSING_CONFIG {
-		t.Errorf("facet: runtime %v, want PROCESSING_CONFIG", rerr)
+	if !stderrors.As(rerr, &ce) || ce.Code != want {
+		t.Errorf("facet: runtime %v, want %s", rerr, want)
 	}
 	env, err := p.PredictFacet(ctx, facet("t_set_u8"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PROCESSING_CONFIG) {
-		t.Errorf("facet: predict %+v, want one PROCESSING_CONFIG", env.Errors)
+	if len(env.Errors) != 1 || env.Errors[0].Code != string(want) {
+		t.Errorf("facet: predict %+v, want one %s", env.Errors, want)
 	}
 	if _, rerr := p.FacetSchema(ctx, facet("t_u8")); rerr != nil {
 		t.Errorf("facet on u8: runtime %v", rerr)

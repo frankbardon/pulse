@@ -70,7 +70,7 @@ func resolveDateFieldSeconds(operator, fieldName string, schema *encoding.Schema
 		return false, nil
 	}
 	if strict {
-		return false, errors.NewCodedError(errors.PROCESSING_CONFIG,
+		return false, errors.NewCodedError(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
 			fmt.Sprintf("%s requires a date or datetime field, got %q on field %q", operator, f.Type, fieldName))
 	}
 	return false, nil

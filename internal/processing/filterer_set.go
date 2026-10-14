@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -53,7 +54,7 @@ func buildSetQueryMask(filter *types.Filterer, schema *encoding.Schema) (encodin
 			string(filter.Type)+": unknown field "+filter.Field)
 	}
 	if !f.Type.IsSet() {
-		return zero, errors.NewCodedError(errors.PROCESSING_CONFIG,
+		return zero, errors.NewCodedError(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
 			string(filter.Type)+": field "+filter.Field+" is not a set type")
 	}
 	if f.Dictionary == nil {
@@ -98,10 +99,18 @@ func rejectSetFieldForNumericFilter(filter *types.Filterer, schema *encoding.Sch
 		return nil
 	}
 	f := schema.Field(filter.Field)
-	if f == nil || !f.Type.IsSet() {
+	if f == nil {
 		return nil
 	}
-	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+	if !f.Type.IsSet() {
+		// The accepted-types table's other refusals: FILTER_RANGE
+		// reads no range bound off a categorical's dictionary index.
+		if cerr := fieldaccept.Refusal(string(filter.Type), fieldaccept.SlotField, filter.Field, f.Type); cerr != nil {
+			return cerr
+		}
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
 		fmt.Sprintf("%s cannot read set field %q (%s): its numeric value is the low 64 bits of the membership bitmask, not a quantity.",
 			filter.Type, filter.Field, f.Type)+remedyFiltererSetField(nil),
 		map[string]any{"field": filter.Field, "type": f.Type.String()})

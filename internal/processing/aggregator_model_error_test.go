@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -269,7 +270,8 @@ func TestModelError_MergeRefusesOtherKind(t *testing.T) {
 }
 
 // TestModelError_ConfigRefusals: a missing prediction_field and a
-// non-numeric column on either side are PROCESSING_CONFIG; packed_bool
+// non-numeric column on either side (the accepted-types table's
+// PULSE_FIELD_TYPE_UNSUPPORTED) are refused; packed_bool
 // (a 0/1 outcome) is admitted.
 func TestModelError_ConfigRefusals(t *testing.T) {
 	cases := []struct {
@@ -297,9 +299,13 @@ func TestModelError_ConfigRefusals(t *testing.T) {
 				}
 				continue
 			}
+			want := errors.PROCESSING_CONFIG
+			if strings.HasPrefix(tc.name, "categorical") || strings.HasPrefix(tc.name, "date") {
+				want = errors.PULSE_FIELD_TYPE_UNSUPPORTED // the accepted-types table's
+			}
 			var ce *errors.CodedError
-			if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_CONFIG {
-				t.Errorf("%s %s: err = %v, want PROCESSING_CONFIG", op, tc.name, err)
+			if !stderrors.As(err, &ce) || ce.Code != want {
+				t.Errorf("%s %s: err = %v, want %s", op, tc.name, err, want)
 			}
 		}
 	}

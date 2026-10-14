@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/types"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 )
 
 // universalFiltererFloorKeys is the {n_in, n_out, n_null_input} triple
@@ -79,7 +80,7 @@ func filtererCapabilities() []descriptor.Operator {
 			Name:            string(types.FILTER_RANGE),
 			Category:        "filterer",
 			Description:     "Keep records whose numeric field value falls within [low, high]; Values=[low, high].",
-			AcceptsTypes:    numericFieldTypes,
+			AcceptsTypes:    fieldaccept.TypeNames(string(types.FILTER_RANGE), fieldaccept.SlotField),
 			EmitsTypeNote:   "record-level predicate",
 			Streamable:      true,
 			ComponentSchema: filterSchema(descriptor.Mergeable),

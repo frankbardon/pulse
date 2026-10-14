@@ -11,16 +11,23 @@
 // TypeNames (or, where noted, a subset of it), so the declaration
 // cannot drift from the rule either.
 //
-// The PROCESSING_CONFIG rows are different in one way: they table the
-// type checks the aggregator / attribute / grouper / filterer
-// constructors already make, which keep their own message (a remedy
-// naming only the operators the instance offers). Predict reports the
-// same code once per slot from here; the root acceptance gate holds each
-// row equal to its constructor over every field type.
+// Every row refuses with a code that says what it means:
+// PULSE_FIELD_TYPE_UNSUPPORTED for "this slot does not read that type",
+// PULSE_TEST_FIELD_NOT_NUMERIC / _FIELD2_ for a tier-1 test's field. A
+// few constructors (the set_* refusals of the aggregator / attribute /
+// grouper / filterer families) keep their own message, which names only
+// the operators the instance offers, but raise the row's code; predict
+// reports that code once per slot from here, and the root acceptance
+// gate holds each row equal to its constructor over every field type.
 //
-// It is a leaf: it imports only the public errors / encoding packages,
-// never internal/processing or internal/service, so internal/descriptor
-// may import it without breaking TestPredictNoExecutionImports.
+// The decimal rule runs before any row: a decimal128 field on a built-in
+// aggregator with no decimal arm (outside DecimalAggregators) is
+// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL.
+//
+// It is a leaf: it imports only the public errors / encoding / types
+// packages, never internal/processing or internal/service, so
+// internal/descriptor may import it without breaking
+// TestPredictNoExecutionImports.
 //
 // Only built-in operators are tabled. An extension operator declares its
 // accepted types through its registration's capability (accepts_types)
@@ -41,6 +48,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/types"
 )
 
 // Slot names the request position a field is judged in.
@@ -55,6 +63,18 @@ const (
 	SlotTarget Slot = "target"
 	// SlotPredictor is one entry of a regression's `predictors`.
 	SlotPredictor Slot = "predictor"
+	// SlotSplitBy is a test's `split_by` grouping column.
+	SlotSplitBy Slot = "split_by"
+	// SlotSubject is TEST_ANOVA_RM's `subject_field`.
+	SlotSubject Slot = "subject_field"
+	// SlotRows / SlotCols are a contingency test's `rows` / `cols`.
+	SlotRows Slot = "rows"
+	SlotCols Slot = "cols"
+	// SlotStratify is FEAT_TRAIN_TEST_SPLIT's `params.stratify`.
+	SlotStratify Slot = "stratify"
+	// SlotPrediction is a model-error aggregator's
+	// `params.prediction_field`.
+	SlotPrediction Slot = "prediction_field"
 )
 
 // Rule is one tabled slot: the accepted types and the refusal code.
@@ -102,25 +122,23 @@ func testValue(ft encoding.FieldType) bool {
 	return ft.IsKnown() && !ft.IsCategorical() && !ft.IsSet() && !ft.IsVector()
 }
 
-// nonSetValue is the value-reading set of the operators that read a
-// field's NUMBER or dictionary value (distinct counts, the standardising
-// attributes, the value groupers, FILTER_INCLUDE / EXCLUDE): every
-// scalar type but a set_* (a membership bitmask, whose numeric echo is
-// its low 64 bits).
+// nonSetValue is the value-reading set of the operators that match a
+// field's NUMBER or dictionary value (distinct counts, the value
+// matchers, GROUP_CATEGORY, FILTER_INCLUDE / EXCLUDE): every scalar
+// type but a set_* (a membership bitmask, whose numeric echo is its low
+// 64 bits).
 func nonSetValue(ft encoding.FieldType) bool {
 	return ft.IsKnown() && !ft.IsSet() && !ft.IsVector()
 }
 
-// nonSetNonDecimal is nonSetValue without decimal128: the value-matching
-// aggregators with no decimal implementation (AGG_FREQUENCY, AGG_MODE,
-// AGG_MODE_COUNT).
-func nonSetNonDecimal(ft encoding.FieldType) bool {
-	return nonSetValue(ft) && !ft.IsDecimal()
-}
-
-// rangeBound is FILTER_RANGE's set: nonSetValue without a categorical,
-// whose dictionary label cannot be parsed as a range bound.
-func rangeBound(ft encoding.FieldType) bool {
+// quantityValue is the set of the operators that read a field's value
+// as a QUANTITY — standardise it (ATTR_NORMALIZED / PERCENTILE / TSCORE
+// / ZSCORE), bucket it by value (GROUP_QUANTILE / RANGE / ROUNDED) or
+// bound it (FILTER_RANGE): nonSetValue without a categorical, whose
+// numeric echo is a dictionary index, not a quantity. decimal128 (its
+// float64 echo), datetime (epoch seconds) and packed_bool (0 / 1) read
+// as the numbers they are.
+func quantityValue(ft encoding.FieldType) bool {
 	return nonSetValue(ft) && !ft.IsCategorical()
 }
 
@@ -160,6 +178,37 @@ func packedBool(ft encoding.FieldType) bool {
 	return ft == encoding.FieldTypePackedBool
 }
 
+// categoricalValue is the grouping / encoding set: a categorical, whose
+// dictionary labels are the levels (split_by, a contingency axis, the
+// categorical encoders, TEST_PROP_Z's outcome).
+func categoricalValue(ft encoding.FieldType) bool {
+	return ft.IsCategorical()
+}
+
+// codeValue is ATTR_CODE_IN's set: a categorical (codes match its
+// labels) or an unsigned integer (codes match its value exactly). Floats
+// (equality is a trap), dates (FILTER_DATE_RANGES' job), packed_bool
+// (already 0/1), decimal128 and set_* (ATTR_SET_HAS' job) are refused.
+func codeValue(ft encoding.FieldType) bool {
+	switch ft {
+	case encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64:
+		return true
+	}
+	return ft.IsCategorical()
+}
+
+// modelErrorValue is the model-error aggregators' set (AGG_MAE /
+// AGG_MAPE / AGG_RMSE, actual and prediction): the integers, the floats
+// and packed_bool (a 0/1 outcome).
+func modelErrorValue(ft encoding.FieldType) bool {
+	switch ft {
+	case encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
+		encoding.FieldTypeF32, encoding.FieldTypeF64, encoding.FieldTypePackedBool:
+		return true
+	}
+	return false
+}
+
 // table is keyed by operator name, then slot.
 var table = map[string]map[Slot]Rule{}
 
@@ -190,29 +239,89 @@ func init() {
 	add(testValue, errors.PULSE_TEST_FIELD2_NOT_NUMERIC, []Slot{SlotField2},
 		"TEST_PAIRED_T", "TEST_PEARSON_R", "TEST_SPEARMAN_R", "TEST_KENDALL_TAU", "TEST_WILCOXON_SR")
 
-	// The rows below are the runtime constructors' own type refusals,
-	// which keep their PROCESSING_CONFIG code and their message (a remedy
-	// naming the operators the instance offers); predict reports the
-	// same code from here. TestFieldTypeAcceptance_PredictMatchesRuntime
-	// holds every row equal to its constructor over every field type.
-	cfg := errors.PROCESSING_CONFIG
-	add(nonSetValue, cfg, field,
-		"AGG_DISTINCT_COUNT", "ATTR_NORMALIZED", "ATTR_PERCENTILE", "ATTR_TSCORE", "ATTR_ZSCORE",
-		"GROUP_CATEGORY", "GROUP_QUANTILE", "GROUP_RANGE", "GROUP_ROUNDED", "FILTER_INCLUDE", "FILTER_EXCLUDE")
-	add(nonSetNonDecimal, cfg, field, "AGG_FREQUENCY", "AGG_MODE", "AGG_MODE_COUNT")
-	add(strictScalar, cfg, field, "AGG_WELFORD")
-	add(rangeBound, cfg, field, "FILTER_RANGE")
-	add(analyticsValue, cfg, []Slot{SlotTarget, SlotPredictor},
+	// The rows below table the type checks the aggregator / attribute /
+	// grouper / filterer / feature / test constructors make themselves.
+	// Some keep their own message (a remedy naming the operators the
+	// instance offers); predict reports the same code from here.
+	// TestFieldTypeAcceptance_PredictMatchesRuntime holds every row equal
+	// to its constructor over every field type.
+	unsupported := errors.PULSE_FIELD_TYPE_UNSUPPORTED
+	add(nonSetValue, unsupported, field,
+		"AGG_DISTINCT_COUNT", "AGG_FREQUENCY", "AGG_MODE", "AGG_MODE_COUNT",
+		"GROUP_CATEGORY", "FILTER_INCLUDE", "FILTER_EXCLUDE")
+	add(quantityValue, unsupported, field,
+		"ATTR_NORMALIZED", "ATTR_PERCENTILE", "ATTR_TSCORE", "ATTR_ZSCORE",
+		"GROUP_QUANTILE", "GROUP_RANGE", "GROUP_ROUNDED", "FILTER_RANGE")
+	add(strictScalar, unsupported, field, "AGG_WELFORD")
+	add(analyticsValue, unsupported, []Slot{SlotTarget, SlotPredictor},
 		"ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE")
-	add(setValue, cfg, field,
+	add(setValue, unsupported, field,
 		"AGG_SET_CARDINALITY_AVG", "AGG_SET_CARDINALITY_SUM", "AGG_SET_DISTINCT_VALUES", "AGG_SET_FREQUENCY",
 		"AGG_SET_INTERSECTION", "AGG_SET_UNION", "ATTR_SET_HAS", "ATTR_SET_POPCOUNT",
 		"FILTER_SET_CONTAINS_ALL", "FILTER_SET_CONTAINS_ANY", "FILTER_SET_CONTAINS_NONE", "FILTER_SET_EQUALS",
 		"GROUP_SET_PER_ELEMENT", "GROUP_SET_VALUE")
-	add(temporalValue, cfg, field, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES")
-	add(packedBool, cfg, field, "FILTER_TRUE", "FILTER_FALSE")
+	add(temporalValue, unsupported, field, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "FEAT_DATE_FEATURES", "ATTR_DATE_PART")
+	add(packedBool, unsupported, field, "FILTER_TRUE", "FILTER_FALSE")
+	add(codeValue, unsupported, field, "ATTR_CODE_IN")
+	add(modelErrorValue, unsupported, []Slot{SlotField, SlotPrediction}, "AGG_MAE", "AGG_MAPE", "AGG_RMSE")
+	add(categoricalValue, unsupported, field, "FEAT_ONE_HOT", "FEAT_FREQUENCY_ENCODE", "FEAT_TARGET_ENCODE", "TEST_PROP_Z")
+	add(categoricalValue, unsupported, []Slot{SlotStratify}, "FEAT_TRAIN_TEST_SPLIT")
+	add(testValue, unsupported, []Slot{SlotTarget}, "FEAT_TARGET_ENCODE")
+	add(categoricalValue, unsupported, []Slot{SlotRows, SlotCols}, "TEST_CHISQ", "TEST_FISHER_EXACT")
+	add(categoricalValue, unsupported, []Slot{SlotSplitBy},
+		"TEST_T", "TEST_WELCH", "TEST_ANOVA_F", "TEST_ANOVA_RM", "TEST_ANOVA_WELCH", "TEST_BROWN_FORSYTHE",
+		"TEST_KS", "TEST_KRUSKAL_WALLIS", "TEST_MANN_WHITNEY_U", "TEST_SHAPIRO_WILK", "TEST_Z_TWO_SAMPLE",
+		"TEST_PROP_Z", "TEST_HOTELLING_T2", "TEST_MANOVA", "TEST_BOX_M")
+	add(categoricalValue, unsupported, []Slot{SlotSubject}, "TEST_ANOVA_RM")
 
+	for _, t := range types.AllAggregationTypes() {
+		// A vector aggregator (AGG_VEC_*) reads its vector members, not
+		// a primary field: the vector rules judge it.
+		if !t.ArrayValued() {
+			builtinAggregators[string(t)] = true
+		}
+	}
 	memoTypeNames()
+}
+
+// decimalArm is the set of built-in aggregators with a decimal128
+// implementation (the runtime's AggregateDecimalField arms). Every other
+// built-in aggregator refuses a decimal128 field
+// (PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL) before its constructor runs,
+// whatever its own row says: the decimal dispatch comes first on both
+// sides.
+var decimalArm = map[string]bool{
+	"AGG_SUM": true, "AGG_AVERAGE": true, "AGG_MIN": true, "AGG_MAX": true,
+	"AGG_VARIANCE": true, "AGG_STDDEV": true, "AGG_COUNT": true, "AGG_DISTINCT_COUNT": true,
+}
+
+// builtinAggregators is every built-in aggregator name: the decimal
+// rule judges these only (an extension aggregator owns its decimal
+// semantics through extend.Record.DecimalValue).
+var builtinAggregators = map[string]bool{}
+
+// HasDecimalArm reports whether the built-in aggregator op has a
+// decimal128 implementation.
+func HasDecimalArm(op string) bool {
+	return decimalArm[op]
+}
+
+// DecimalAggregators returns the built-in aggregators with a decimal128
+// implementation, sorted.
+func DecimalAggregators() []string {
+	out := make([]string, 0, len(decimalArm))
+	for op := range decimalArm {
+		out = append(out, op)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// decimalRefused reports whether the decimal rule refuses ft in op's
+// slot: a decimal128 primary field on a built-in aggregator with no
+// decimal arm.
+func decimalRefused(op string, slot Slot, ft encoding.FieldType) bool {
+	return slot == SlotField && ft.IsDecimal() && builtinAggregators[op] && !decimalArm[op]
 }
 
 // Lookup returns the rule for op's slot; false when the slot is not
@@ -223,9 +332,14 @@ func Lookup(op string, slot Slot) (Rule, bool) {
 	return r, ok
 }
 
-// Accepts reports whether op's slot accepts ft. An untabled slot and a
-// vector type (the field-reference walk's refusal) answer true.
+// Accepts reports whether op's slot accepts ft: the decimal rule first
+// (a decimal128 field on a built-in aggregator with no decimal arm),
+// then the slot's row. An untabled slot and a vector type (the
+// field-reference walk's refusal) answer true.
 func Accepts(op string, slot Slot, ft encoding.FieldType) bool {
+	if decimalRefused(op, slot, ft) {
+		return false
+	}
 	r, ok := Lookup(op, slot)
 	if !ok || ft.IsVector() {
 		return true
@@ -239,6 +353,17 @@ func Accepts(op string, slot Slot, ft encoding.FieldType) bool {
 func Refusal(op string, slot Slot, field string, ft encoding.FieldType) *errors.CodedError {
 	if Accepts(op, slot, ft) {
 		return nil
+	}
+	if decimalRefused(op, slot, ft) {
+		return errors.NewCodedErrorWithDetails(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL,
+			op+" has no decimal128 implementation; "+field+" is decimal128 (decimal aggregators: "+strings.Join(DecimalAggregators(), ", ")+")",
+			map[string]any{
+				"type":                 op,
+				"slot":                 string(slot),
+				"field":                field,
+				"field_type":           ft.String(),
+				"decimal_aggregations": DecimalAggregators(),
+			})
 	}
 	r, _ := Lookup(op, slot)
 	accepts := TypeNames(op, slot)
@@ -277,8 +402,8 @@ var typeNames = map[string]map[Slot][]string{}
 func memoTypeNames() {
 	for op, slots := range table {
 		typeNames[op] = map[Slot][]string{}
-		for slot, r := range slots {
-			typeNames[op][slot] = typeNamesOf(r)
+		for slot := range slots {
+			typeNames[op][slot] = typeNamesOf(op, slot)
 		}
 	}
 }
@@ -292,11 +417,11 @@ func TypeNames(op string, slot Slot) []string {
 	return typeNames[op][slot]
 }
 
-func typeNamesOf(r Rule) []string {
+func typeNamesOf(op string, slot Slot) []string {
 	var out []string
 	for b := 0; b < 256; b++ {
 		ft := encoding.FieldType(b)
-		if ft.IsKnown() && !ft.IsVector() && r.Accepts(ft) {
+		if ft.IsKnown() && !ft.IsVector() && Accepts(op, slot, ft) {
 			out = append(out, ft.String())
 		}
 	}

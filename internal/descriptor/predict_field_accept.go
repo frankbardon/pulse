@@ -1,8 +1,11 @@
 package descriptor
 
 import (
+	stderrors "errors"
+
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
@@ -19,17 +22,35 @@ import (
 // A field the schema does not carry (an unknown name, a derived column)
 // is left to the field-reference walk; a vector field to its
 // PULSE_VECTOR_FIELD_NOT_SCALAR refusal.
-func validateFieldAcceptance(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) {
+//
+// weightErr is the request's weight-resolution refusal, if any. The
+// runtime resolves weights before any aggregator dispatch, so a weighted
+// slot over a decimal128 value field is refused PULSE_WEIGHT_UNSUPPORTED
+// there and never reaches the decimal rule: its decimal refusal is not
+// reported a second time.
+func validateFieldAcceptance(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, weightErr error) {
 	if req == nil || schema == nil {
 		return
+	}
+	weightRefusedField := ""
+	if weightErr != nil {
+		var werr *errors.CodedError
+		if stderrors.As(weightErr, &werr) && werr.Code == errors.PULSE_WEIGHT_UNSUPPORTED {
+			weightRefusedField, _ = werr.Details["value_field"].(string)
+		}
 	}
 	check := func(op string, slot fieldaccept.Slot, field string) {
 		if op == "" {
 			return
 		}
-		if cerr := fieldaccept.Check(op, slot, field, schema); cerr != nil {
-			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		cerr := fieldaccept.Check(op, slot, field, schema)
+		if cerr == nil || (cerr.Code == errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL && field == weightRefusedField) {
+			return
 		}
+		if ownTypeValidator[op] && cerr.Code != errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL {
+			return
+		}
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
 	agg := func(a *types.Aggregation) {
 		if a != nil {
@@ -76,6 +97,17 @@ func validateFieldAcceptance(env *descriptor.Envelope, req *types.Request, schem
 		}
 		check(string(opRoute(inst, f.Type)), fieldaccept.SlotField, f.Field)
 	}
+}
+
+// ownTypeValidator are the operators whose own predict validator reads
+// the table in the runtime constructor's order, among its other
+// refusals (validateModelErrorAggs, validateCodeIn,
+// validateDatePartParams): their row is not reported a second time here.
+// The decimal rule is still reported here — it runs before any
+// aggregator constructor.
+var ownTypeValidator = map[string]bool{
+	string(types.AGG_MAE): true, string(types.AGG_MAPE): true, string(types.AGG_RMSE): true,
+	string(types.ATTR_CODE_IN): true, string(types.ATTR_DATE_PART): true,
 }
 
 // filterTypeChecked reports whether the table judges a filterer's field

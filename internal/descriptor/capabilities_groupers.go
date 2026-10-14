@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/types"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 )
 
 // universalGrouperFloorKeys is the {total_n, n_null} pair every grouper's
@@ -187,7 +188,7 @@ func grouperCapabilities() []descriptor.Operator {
 				},
 				groupFitParam,
 			},
-			AcceptsTypes:   numericFieldTypesNoDecimal,
+			AcceptsTypes:   fieldaccept.TypeNames(string(types.GROUP_QUANTILE), fieldaccept.SlotField),
 			EmitsTypeNote:  "bucket label per row (Qk / Dk / Pk)",
 			Streamable:     false,
 			StreamableHint: "Quantile cutoffs need the sorted value set; use GROUP_RANGE or GROUP_ROUNDED with known bounds for streaming.",
@@ -210,7 +211,7 @@ func grouperCapabilities() []descriptor.Operator {
 					Description: "Bucket width on the value axis; set on the request's Group.Interval field.",
 				},
 			},
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  fieldaccept.TypeNames(string(types.GROUP_RANGE), fieldaccept.SlotField),
 			EmitsTypeNote: "string bucket label per row, \"low-high\" (e.g. \"10-20\" holds [10, 20))",
 			Streamable:    true,
 			ComponentSchema: groupSchema(descriptor.Mergeable,
@@ -236,7 +237,7 @@ func grouperCapabilities() []descriptor.Operator {
 					Description: "Rounding increment; set on the request's Group.Interval field.",
 				},
 			},
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  fieldaccept.TypeNames(string(types.GROUP_ROUNDED), fieldaccept.SlotField),
 			EmitsTypeNote: "rounded numeric key per row",
 			Streamable:    true,
 			ComponentSchema: groupSchema(descriptor.Mergeable,

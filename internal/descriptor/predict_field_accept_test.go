@@ -8,21 +8,23 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestPredict_FieldAcceptance_DecimalReportedOnce: an aggregation the
-// accepted-types table refuses on a decimal128 field is ONE error, the
-// runtime's PROCESSING_CONFIG — the decimal advisory does not repeat it,
-// and Strict does not promote a second error beside it.
+// TestPredict_FieldAcceptance_DecimalReportedOnce: a built-in
+// aggregation with no decimal arm on a decimal128 field is ONE error,
+// the runtime's PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL (the table's
+// decimal rule runs before the operator's own row, as the runtime's
+// decimal dispatch runs before its constructor) — never a warning, and
+// Strict does not promote a second error beside it.
 func TestPredict_FieldAcceptance_DecimalReportedOnce(t *testing.T) {
 	data := buildTestPulseFile(t, &encoding.Schema{Fields: []encoding.Field{
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 6,
 			Description: "Amount in USD with 6 decimal places of precision."},
 	}})
-	for _, op := range []types.AggregationType{types.AGG_MODE, types.AGG_FREQUENCY, types.AGG_SET_UNION} {
+	for _, op := range []types.AggregationType{types.AGG_MODE, types.AGG_FREQUENCY, types.AGG_SET_UNION, types.AGG_MEDIAN, types.AGG_NULL_COUNT} {
 		for _, strict := range []bool{false, true} {
 			req := &types.Request{Aggregations: []*types.Aggregation{{Type: op, Field: "amount", Params: []byte(`{"value":"1"}`)}}}
 			env := predictFromBytes(data, req, &PredictOptions{Strict: strict})
-			if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PROCESSING_CONFIG) {
-				t.Errorf("%s strict=%v: errors %+v, want one PROCESSING_CONFIG", op, strict, env.Errors)
+			if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL) {
+				t.Errorf("%s strict=%v: errors %+v, want one PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL", op, strict, env.Errors)
 			}
 			for _, w := range env.Warnings {
 				if w.Code == string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL) {

@@ -475,9 +475,11 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -749,7 +751,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 173,
+    "error_codes_count": 174,
     "error_domains": [
       "CLI",
       "DATA",
@@ -829,6 +831,7 @@
       "PULSE_FEATURE_PROFILE_INVALID",
       "PULSE_FEATURE_PROFILE_UNKNOWN",
       "PULSE_FIELD_DESCRIPTION_LOW_QUALITY",
+      "PULSE_FIELD_TYPE_UNSUPPORTED",
       "PULSE_GROUP_DECLARATION_INVALID",
       "PULSE_GROUP_ENTRIES_EXHAUSTED",
       "PULSE_GROUP_FIELD_CONFLICT",
@@ -1142,7 +1145,8 @@
           "AGG_SUM"
         ],
         "compatible_filterers": [
-          "FILTER_INCLUDE"
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY"
@@ -1253,7 +1257,8 @@
           "AGG_SUM"
         ],
         "compatible_filterers": [
-          "FILTER_INCLUDE"
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
@@ -2274,4 +2279,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 59d6f7c92442a7c84d6e30de4ba18c636c1dc9422fb9d23bb4792531b51b2059
+// golden-hash: f734d3bf47df755f6ae3dabc959b787df5ccb3bed878ca845cb4d7047ab9d859

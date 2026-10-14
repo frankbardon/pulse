@@ -148,6 +148,11 @@ func (p *Processor) computeAuxMargins(spec *types.CrosstabSpec, filtered []*Reco
 	// the requested figure missing and nothing saying so.
 	for _, aux := range spec.MarginAggregations {
 		if _, ok := p.exts.LookupAggregator(aux.Type); ok {
+			// The decimal rule, as for the cell: a decimal128 field on
+			// a built-in with no decimal arm.
+			if cerr := p.exts.decimalSlotRefusal(aux, p.schema); cerr != nil {
+				return nil, cerr
+			}
 			continue
 		}
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,

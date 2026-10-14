@@ -6,7 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/types"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 )
 
 // Field-type declaration parity.
@@ -122,7 +122,7 @@ func TestCapabilities_NoNullableTypeNames(t *testing.T) {
 // used to ride the phantom `nullable_decimal128` on the analytics
 // aggregators, so replacing it with `decimal128` hands seven operators a
 // decimal128 declaration — and three of them (AGG_RANGE, AGG_MEDIAN,
-// AGG_PERCENTILE) are outside decimalSupportedAggregations, which
+// AGG_PERCENTILE) are outside fieldaccept.HasDecimalArm, which
 // predict warns about with PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL. A
 // manifest that offers what predict refuses is worse than the drift it
 // replaced.
@@ -148,8 +148,8 @@ func TestCapabilities_DecimalDeclaredOnlyWhereSupported(t *testing.T) {
 		if universal {
 			continue
 		}
-		if !decimalSupportedAggregations[types.AggregationType(op.Name)] {
-			t.Errorf("aggregator %s declares %q but is not in decimalSupportedAggregations — predict warns PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL on exactly this pairing",
+		if !fieldaccept.HasDecimalArm(op.Name) {
+			t.Errorf("aggregator %s declares %q but is not in fieldaccept.HasDecimalArm — predict warns PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL on exactly this pairing",
 				op.Name, decimal)
 		}
 	}

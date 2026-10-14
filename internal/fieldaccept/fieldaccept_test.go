@@ -37,13 +37,14 @@ func TestTypeNames_NeverListsVectorOrRefused(t *testing.T) {
 
 // TestTypeNames_ValueReaders pins the classes of the runtime
 // constructors' own refusals: no set rung on a value reader, no decimal
-// on the value matchers, no categorical range bound, the Welford six.
+// on the value matchers (the decimal rule), no categorical on a
+// quantity reader, the Welford six.
 func TestTypeNames_ValueReaders(t *testing.T) {
 	for _, op := range []string{"AGG_DISTINCT_COUNT", "AGG_FREQUENCY", "AGG_MODE", "AGG_MODE_COUNT", "AGG_WELFORD",
 		"ATTR_NORMALIZED", "ATTR_PERCENTILE", "ATTR_TSCORE", "ATTR_ZSCORE", "GROUP_CATEGORY", "GROUP_QUANTILE",
 		"GROUP_RANGE", "GROUP_ROUNDED", "FILTER_INCLUDE", "FILTER_EXCLUDE", "FILTER_RANGE"} {
 		r, ok := Lookup(op, SlotField)
-		if !ok || r.Code != errors.PROCESSING_CONFIG {
+		if !ok || r.Code != errors.PULSE_FIELD_TYPE_UNSUPPORTED {
 			t.Fatalf("%s: tabled=%v code=%v", op, ok, r.Code)
 		}
 		for _, n := range TypeNames(op, SlotField) {
@@ -63,8 +64,16 @@ func TestTypeNames_ValueReaders(t *testing.T) {
 	if !Accepts("AGG_DISTINCT_COUNT", SlotField, encoding.FieldTypeDecimal128) || !Accepts("GROUP_CATEGORY", SlotField, encoding.FieldTypeCategoricalU8) {
 		t.Error("nonSetValue narrowed")
 	}
-	if Accepts("FILTER_RANGE", SlotField, encoding.FieldTypeCategoricalU16) {
-		t.Error("FILTER_RANGE accepts a categorical")
+	for _, op := range []string{"ATTR_NORMALIZED", "ATTR_PERCENTILE", "ATTR_TSCORE", "ATTR_ZSCORE",
+		"GROUP_QUANTILE", "GROUP_RANGE", "GROUP_ROUNDED", "FILTER_RANGE"} {
+		if Accepts(op, SlotField, encoding.FieldTypeCategoricalU16) {
+			t.Errorf("%s accepts a categorical (a dictionary index is no quantity)", op)
+		}
+		for _, ft := range []encoding.FieldType{encoding.FieldTypeDecimal128, encoding.FieldTypeDateTime, encoding.FieldTypePackedBool, encoding.FieldTypeDate, encoding.FieldTypeU4} {
+			if !Accepts(op, SlotField, ft) {
+				t.Errorf("%s refuses %s, which reads as the number it is", op, ft)
+			}
+		}
 	}
 	if got, want := TypeNames("AGG_WELFORD", SlotField), []string{"f32", "f64", "u16", "u32", "u64", "u8"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("AGG_WELFORD: %v, want %v", got, want)
@@ -138,14 +147,23 @@ func TestOperatorsRaising(t *testing.T) {
 			t.Errorf("%s missing from %v", want, got)
 		}
 	}
-	for _, g := range got {
-		if strings.HasPrefix(g, "TEST_") {
-			t.Errorf("%s raises the test codes, not PULSE_FIELD_TYPE_UNSUPPORTED", g)
+	// A tier-1 numeric test's field / field2 refusal keeps its specific
+	// code; its split_by refusal (a categorical) is the generic one.
+	for _, op := range []string{"TEST_T", "TEST_PEARSON_R"} {
+		if r, _ := Lookup(op, SlotField); r.Code != errors.PULSE_TEST_FIELD_NOT_NUMERIC {
+			t.Errorf("%s field: %s", op, r.Code)
 		}
 	}
-	for _, g := range OperatorsRaising(errors.PROCESSING_CONFIG) {
-		if strings.HasPrefix(g, "WIN_") || strings.HasPrefix(g, "TEST_") || strings.HasPrefix(g, "REG_") || g == "FEAT_POLY" {
-			t.Errorf("%s raises PROCESSING_CONFIG", g)
+	if r, _ := Lookup("TEST_T", SlotSplitBy); r.Code != errors.PULSE_FIELD_TYPE_UNSUPPORTED {
+		t.Errorf("TEST_T split_by: %s", r.Code)
+	}
+	if r, _ := Lookup("TEST_CHISQ", SlotRows); r.Code != errors.PULSE_FIELD_TYPE_UNSUPPORTED {
+		t.Errorf("TEST_CHISQ rows (must be categorical) raises %s", r.Code)
+	}
+	// No row raises a code that does not name a type refusal.
+	for _, code := range []errors.Code{errors.PROCESSING_CONFIG, errors.SERVICE_VALIDATION} {
+		if got := OperatorsRaising(code); len(got) != 0 {
+			t.Errorf("%s raised by %v", code, got)
 		}
 	}
 }
@@ -156,8 +174,12 @@ func TestTypeNames_SetOperators(t *testing.T) {
 		if got := TypeNames(op, SlotField); !reflect.DeepEqual(got, want) {
 			t.Errorf("%s: %v, want %v", op, got, want)
 		}
-		if r := Refusal(op, SlotField, "d", encoding.FieldTypeDecimal128); r == nil || r.Code != errors.PROCESSING_CONFIG {
-			t.Errorf("%s on decimal128: %v", op, r)
+		want := errors.PULSE_FIELD_TYPE_UNSUPPORTED
+		if strings.HasPrefix(op, "AGG_") {
+			want = errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL
+		}
+		if r := Refusal(op, SlotField, "d", encoding.FieldTypeDecimal128); r == nil || r.Code != want {
+			t.Errorf("%s on decimal128: %v, want %s", op, r, want)
 		}
 	}
 }
@@ -166,6 +188,77 @@ func TestTypeNames_DateRanges(t *testing.T) {
 	for _, op := range []string{"GROUP_DATE_RANGES", "FILTER_DATE_RANGES"} {
 		if got, want := TypeNames(op, SlotField), []string{"date", "datetime"}; !reflect.DeepEqual(got, want) {
 			t.Errorf("%s: %v, want %v", op, got, want)
+		}
+	}
+}
+
+// TestDecimalRule: a decimal128 primary field on a built-in aggregator
+// with no decimal arm is refused PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL,
+// tabled row or not; a decimal-arm aggregator, a non-field slot and an
+// extension (unknown) aggregator are not judged by it.
+func TestDecimalRule(t *testing.T) {
+	d := encoding.FieldTypeDecimal128
+	for _, op := range []string{"AGG_MEDIAN", "AGG_NULL_COUNT", "AGG_PERCENTILE", "AGG_MODE", "AGG_WELFORD", "AGG_SET_UNION"} {
+		r := Refusal(op, SlotField, "amt", d)
+		if r == nil || r.Code != errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL {
+			t.Errorf("%s: %v", op, r)
+			continue
+		}
+		if r.Details["field_type"] != "decimal128" || r.Details["type"] != op {
+			t.Errorf("%s details: %v", op, r.Details)
+		}
+		if Accepts(op, SlotField, d) {
+			t.Errorf("%s accepts decimal128", op)
+		}
+	}
+	for _, op := range DecimalAggregators() {
+		if r := Refusal(op, SlotField, "amt", d); r != nil {
+			t.Errorf("decimal-arm %s refused: %v", op, r)
+		}
+	}
+	if r := Refusal("AGG_EXT_NS_MEDIAN", SlotField, "amt", d); r != nil {
+		t.Errorf("extension aggregator refused: %v", r)
+	}
+	if r := Refusal("AGG_MEDIAN", SlotField, "amt", encoding.FieldTypeF64); r != nil {
+		t.Errorf("f64 refused: %v", r)
+	}
+	for _, n := range TypeNames("AGG_MODE", SlotField) {
+		if n == "decimal128" {
+			t.Error("AGG_MODE lists decimal128")
+		}
+	}
+}
+
+// TestTableCodes enumerates the codes the table raises: every one names
+// a type refusal (#313) — the generic PULSE_FIELD_TYPE_UNSUPPORTED, the
+// tier-1 numeric tests' PULSE_TEST_FIELD_NOT_NUMERIC /
+// PULSE_TEST_FIELD2_NOT_NUMERIC and the decimal rule's
+// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL.
+func TestTableCodes(t *testing.T) {
+	allowed := map[errors.Code]bool{
+		errors.PULSE_FIELD_TYPE_UNSUPPORTED:         true,
+		errors.PULSE_TEST_FIELD_NOT_NUMERIC:         true,
+		errors.PULSE_TEST_FIELD2_NOT_NUMERIC:        true,
+		errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL: true,
+	}
+	for _, op := range Operators() {
+		for _, slot := range []Slot{SlotField, SlotField2, SlotTarget, SlotPredictor, SlotSplitBy, SlotSubject, SlotRows, SlotCols, SlotStratify, SlotPrediction} {
+			for b := 0; b < 256; b++ {
+				ft := encoding.FieldType(b)
+				if !ft.IsKnown() {
+					continue
+				}
+				r := Refusal(op, slot, "f", ft)
+				if r == nil {
+					continue
+				}
+				if !allowed[r.Code] {
+					t.Errorf("%s %s %s: %s", op, slot, ft, r.Code)
+				}
+				if strings.Contains(r.Message, " field field ") || strings.Contains(r.Message, " "+string(slot)+" "+string(slot)+" ") {
+					t.Errorf("%s %s: message repeats a word: %q", op, slot, r.Message)
+				}
+			}
 		}
 	}
 }

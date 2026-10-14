@@ -135,7 +135,7 @@ func TestFilter_DateRanges_Validation(t *testing.T) {
 		{
 			name:    "non-date field",
 			filter:  &types.Filterer{Type: types.FILTER_DATE_RANGES, Field: "score", Params: dateRangesFilterParamsJSON(t, []map[string]any{{"label": "a", "start": "2024-01-01"}})},
-			wantErr: errors.PROCESSING_CONFIG,
+			wantErr: errors.PULSE_FIELD_TYPE_UNSUPPORTED,
 		},
 		{
 			name:    "no source (neither ranges nor table)",

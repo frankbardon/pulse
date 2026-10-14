@@ -109,16 +109,21 @@ func TestAttribute_DatePart_DateTimeFollowsZone(t *testing.T) {
 }
 
 // TestAttribute_DatePart_FieldRefusals: hour needs a datetime; a
-// non-temporal or absent field is refused for every part; the error is
-// PROCESSING_CONFIG and names the field.
+// non-temporal field is refused for every part with the accepted-types
+// table's PULSE_FIELD_TYPE_UNSUPPORTED (a date under hour too); an absent
+// field and a bad part are PROCESSING_CONFIG; each names the field.
 func TestAttribute_DatePart_FieldRefusals(t *testing.T) {
 	schema := dateTimeSchema()
-	for _, tc := range []struct{ part, field, want string }{
-		{"hour", "d", `ATTR_DATE_PART part=hour requires a datetime field; field "d" is of type date`},
-		{"year", "score", `requires a date or datetime field, got "score"`},
-		{"hour", "score", `requires a date or datetime field, got "score"`},
-		{"month", "derived", `requires a date or datetime field, got "derived"`},
-		{"minute", "ts", `invalid date part "minute": must be one of year, month, day, year_month, year_month_day, month_day, hour`},
+	unsupported, config := errors.PULSE_FIELD_TYPE_UNSUPPORTED, errors.PROCESSING_CONFIG
+	for _, tc := range []struct {
+		part, field, want string
+		code              errors.Code
+	}{
+		{"hour", "d", `ATTR_DATE_PART part=hour reads a time of day; d is of type date`, unsupported},
+		{"year", "score", `ATTR_DATE_PART field score has type f64; accepted: date, datetime`, unsupported},
+		{"hour", "score", `ATTR_DATE_PART field score has type f64; accepted: date, datetime`, unsupported},
+		{"month", "derived", `requires a date or datetime field, got "derived"`, config},
+		{"minute", "ts", `invalid date part "minute": must be one of year, month, day, year_month, year_month_day, month_day, hour`, config},
 	} {
 		t.Run(tc.part+"/"+tc.field, func(t *testing.T) {
 			_, err := attributeRegistry[types.ATTR_DATE_PART](&types.Attribute{
@@ -126,8 +131,8 @@ func TestAttribute_DatePart_FieldRefusals(t *testing.T) {
 				Params: json.RawMessage(`{"part":"` + tc.part + `"}`),
 			}, schema)
 			ce, ok := err.(*errors.CodedError)
-			if !ok || ce.Code != errors.PROCESSING_CONFIG || !strings.Contains(ce.Message, tc.want) {
-				t.Fatalf("err = %v, want PROCESSING_CONFIG containing %q", err, tc.want)
+			if !ok || ce.Code != tc.code || !strings.Contains(ce.Message, tc.want) {
+				t.Fatalf("err = %v, want %s containing %q", err, tc.code, tc.want)
 			}
 		})
 	}
@@ -243,7 +248,7 @@ func TestDateFeatures_FieldTypes(t *testing.T) {
 		t.Fatalf("date columns = %v, want the five without hour", out)
 	}
 	_, err = factory(&types.Feature{Type: types.FEAT_DATE_FEATURES, Field: "score"}, schema)
-	if err == nil || !strings.Contains(err.Error(), "must be of type date or datetime") {
+	if err == nil || !errors.HasCode(err, errors.PULSE_FIELD_TYPE_UNSUPPORTED) || !strings.Contains(err.Error(), "accepted: date, datetime") {
 		t.Fatalf("score: err = %v", err)
 	}
 }

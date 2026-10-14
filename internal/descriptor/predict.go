@@ -80,29 +80,14 @@ func CategoricalAggregationIssues(req *types.Request, schema *encoding.Schema, i
 	return out
 }
 
-// decimalSupportedAggregations are the v1 set of BUILT-IN aggregations
-// defined on decimal128 fields. Any other built-in on a decimal field
-// emits PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL; a registered extension
-// aggregator is exempt (see decimalAggregationRefused).
-var decimalSupportedAggregations = map[types.AggregationType]bool{
-	types.AGG_SUM:            true,
-	types.AGG_AVERAGE:        true,
-	types.AGG_MIN:            true,
-	types.AGG_MAX:            true,
-	types.AGG_VARIANCE:       true,
-	types.AGG_STDDEV:         true,
-	types.AGG_COUNT:          true,
-	types.AGG_DISTINCT_COUNT: true,
-}
-
 // decimalAggregationRefused reports whether agg on a decimal128 field
-// draws PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL. A registered extension
-// aggregator is never refused: it owns its decimal semantics
-// (extend.Record.DecimalValue) and the runtime dispatches it to its own
-// factory, mirroring the processing-side exemption without importing
-// processing.
+// draws PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL: a built-in with no decimal
+// arm in the accepted-types table (fieldaccept.HasDecimalArm). A
+// registered extension aggregator is never refused: it owns its decimal
+// semantics (extend.Record.DecimalValue) and the runtime dispatches it
+// to its own factory.
 func decimalAggregationRefused(agg types.AggregationType, snap *ExtensionsSnapshot) bool {
-	return !decimalSupportedAggregations[agg] && !snap.HasAggregator(string(agg))
+	return !fieldaccept.HasDecimalArm(string(agg)) && !snap.HasAggregator(string(agg))
 }
 
 // PredictOptions controls predict behavior.
@@ -552,7 +537,8 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// With capability:weighting hidden the refusals still run (an
 	// AGG_WEIGHTED_MEAN params.weight_field stays ungated) but the
 	// per-slot report is not offered.
-	if weights, werr := ResolveWeights(req, schema, opts.DefaultWeight, opts.Instance); werr != nil {
+	weights, werr := ResolveWeights(req, schema, opts.DefaultWeight, opts.Instance)
+	if werr != nil {
 		addCodedError(env, werr)
 	} else if opts.instance().Enabled(featWeighting) {
 		result.Weights = weights
@@ -569,6 +555,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// operator construction; report it with the runtime's code and
 	// message.
 	validateOperatorTypes(env, req, schema)
+	validateRegisteredOperators(env, req, opts)
 	validateAggregationParams(env, req, opts.instance())
 	validateGroupDateParams(env, req, schema, opts.instance())
 	validateGroupFitParams(env, req, opts.instance())
@@ -589,7 +576,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 
 	// The accepted-types table's per-slot type refusals, the runtime
 	// constructors' codes (internal/fieldaccept).
-	validateFieldAcceptance(env, req, schema, opts.instance())
+	validateFieldAcceptance(env, req, schema, opts.instance(), werr)
 
 	// Validate window operations (structural checks; no execution).
 	validateWindows(env, req, schema, opts)
@@ -1025,30 +1012,10 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 	// (FieldRefRefusals, reported right after zone resolution); the
 	// checks below judge only fields the schema carries.
 
-	// Decimal field aggregation validity matrix.
-	for _, agg := range req.Aggregations {
-		f := schema.Field(agg.Field)
-		if f == nil {
-			continue
-		}
-		// A slot the accepted-types table refuses is reported once, with
-		// the runtime's code, by validateFieldAcceptance.
-		if !fieldaccept.Accepts(string(opRoute(opts.Instance, agg.Type)), fieldaccept.SlotField, f.Type) {
-			continue
-		}
-		if f.Type.IsDecimal() && decimalAggregationRefused(opRoute(opts.Instance, agg.Type), opts.Extensions) {
-			entry := &descriptor.EnvelopeEntry{
-				Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL),
-				Message: "aggregation " + string(agg.Type) + " has no decimal128 implementation; field " + agg.Field + " is decimal128",
-				Details: map[string]any{"field": agg.Field, "aggregation": string(agg.Type)},
-			}
-			if opts.Strict {
-				env.Errors = append(env.Errors, entry)
-			} else {
-				env.Warnings = append(env.Warnings, entry)
-			}
-		}
-	}
+	// A decimal128 field on a built-in aggregator with no decimal arm is
+	// the accepted-types table's decimal rule, reported once (the
+	// runtime's PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL refusal) by
+	// validateFieldAcceptance at every aggregation slot.
 
 	// Model-error aggregators (AGG_MAPE / AGG_RMSE / AGG_MAE): the
 	// runtime constructor's refusals, re-derived from the schema.
@@ -1761,6 +1728,110 @@ func validateOperatorTypes(env *descriptor.Envelope, req *types.Request, schema 
 			report("group", "groups["+strconv.Itoa(i)+"]")
 		}
 	}
+}
+
+// validateRegisteredOperators reports every aggregation, group,
+// filterer and attribute slot (top level, crosstab axes, cell and margin
+// aggregations) whose non-empty operator Type the instance does not
+// register: neither a built-in it offers (a profile-hidden built-in is
+// never registered) nor an embedder extension of the slot's category.
+// The runtime refuses each at operator lookup with PROCESSING_CONFIG
+// "unknown <family> type: <name>" ("unknown crosstab margin aggregation
+// type: <name>" for a margin aggregation); predict mirrors code and
+// message, adding the slot path. ATTR_RANK keeps its removed-type
+// migration hint instead while WIN_RANK is offered.
+func validateRegisteredOperators(env *descriptor.Envelope, req *types.Request, opts *PredictOptions) {
+	if req == nil {
+		return
+	}
+	snap := opts.Extensions
+	registered := func(name string, builtin bool, ext []descriptor.OperatorMeta) bool {
+		if name == "" || opts.instance().Hidden(name) {
+			return name == ""
+		}
+		if builtin {
+			return true
+		}
+		if snap != nil {
+			for _, m := range ext {
+				if m.Name == name {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	var snapAggs, snapGroups, snapFilters, snapAttrs []descriptor.OperatorMeta
+	if snap != nil {
+		snapAggs, snapGroups, snapFilters, snapAttrs = snap.Aggregators, snap.Groupers, snap.Filterers, snap.Attributes
+	}
+	// The slot path is built only for a refusal: the walk allocates
+	// nothing on a valid request (TestObservabilityOffNoAllocs).
+	report := func(message, slot string, i int, name string) {
+		if i >= 0 {
+			slot += "[" + strconv.Itoa(i) + "]"
+		}
+		env.AddError(string(errors.PROCESSING_CONFIG), message+name, map[string]any{"slot": slot, "type": name})
+	}
+	agg := func(a *types.Aggregation, slot string, i int, message string) {
+		if a != nil && !registered(string(a.Type), builtinAggregations[a.Type], snapAggs) {
+			report(message, slot, i, string(a.Type))
+		}
+	}
+	group := func(g *types.Group, slot string, i int) {
+		if g != nil && !registered(string(g.Type), builtinGroups[g.Type], snapGroups) {
+			report("unknown group type: ", slot, i, string(g.Type))
+		}
+	}
+	for i, a := range req.Aggregations {
+		agg(a, "aggregations", i, "unknown aggregation type: ")
+	}
+	for i, g := range req.Groups {
+		group(g, "groups", i)
+	}
+	for i, f := range req.Filterers {
+		if f != nil && !registered(string(f.Type), builtinFilterers[f.Type], snapFilters) {
+			report("unknown filter type: ", "filterers", i, string(f.Type))
+		}
+	}
+	for i, a := range req.Attributes {
+		if a == nil || (a.Type == "ATTR_RANK" && !opts.instance().Hidden(string(types.WIN_RANK))) {
+			continue
+		}
+		if !registered(string(a.Type), builtinAttributes[a.Type], snapAttrs) {
+			report("unknown attribute type: ", "attributes", i, string(a.Type))
+		}
+	}
+	if ct := req.Crosstab; ct != nil {
+		for i, g := range ct.Rows {
+			group(g, "crosstab.rows", i)
+		}
+		for i, g := range ct.Columns {
+			group(g, "crosstab.columns", i)
+		}
+		agg(ct.Cell, "crosstab.cell", -1, "unknown aggregation type: ")
+		for i, a := range ct.MarginAggregations {
+			agg(a, "crosstab.margin_aggregations", i, "unknown crosstab margin aggregation type: ")
+		}
+	}
+}
+
+// builtinAggregations / builtinGroups / builtinFilterers /
+// builtinAttributes are the built-in operator names per category
+// (types.All*Types).
+var (
+	builtinAggregations = setOf(types.AllAggregationTypes())
+	builtinGroups       = setOf(types.AllGroupTypes())
+	builtinFilterers    = setOf(types.AllFiltererTypes())
+	builtinAttributes   = setOf(types.AllAttributeTypes())
+)
+
+func setOf[T comparable](ts []T) map[T]bool {
+	out := make(map[T]bool, len(ts))
+	for _, t := range ts {
+		out[t] = true
+	}
+	return out
 }
 
 // newPredictResult is the empty, valid PredictResult every predict run

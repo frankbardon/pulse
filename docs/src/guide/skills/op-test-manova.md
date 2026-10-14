@@ -28,7 +28,7 @@ Use something else:
 
 - `alpha` — float, default `0.05`. `missing` — `listwise` only.
 
-Slot: exactly one of `vector` (a `vectors` entry) / `fields` (inline, globs ok); no `field`, no `vector2` / `fields2`. `split_by` required, categorical, ≥ 2 levels.
+Slot: exactly one of `vector` (a `vectors` entry) / `fields` (inline, globs ok); no `field`, no `vector2` / `fields2`. `split_by` required, categorical (else `PULSE_FIELD_TYPE_UNSUPPORTED`), ≥ 2 levels.
 - `weight` — both kinds (`Details` add `sum_weights`).
 - `multiplicity` — one site, Pillai's p ([`multiplicity-correction`](multiplicity-correction.md)).
 

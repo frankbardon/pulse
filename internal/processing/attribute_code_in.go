@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -64,18 +65,6 @@ var codeInIntegerMax = map[encoding.FieldType]uint64{
 	encoding.FieldTypeU64: math.MaxUint64,
 }
 
-// codeInAccepts reports whether ATTR_CODE_IN accepts field type ft:
-// categorical_u8/u16/u32 and u4/u8/u16/u32/u64 only. Floats (equality
-// is a trap), dates (FILTER_DATE_RANGES' job), packed_bool (already
-// 0/1), decimal128 and set_* (ATTR_SET_HAS' job) are refused.
-func codeInAccepts(ft encoding.FieldType) bool {
-	if ft.IsCategorical() {
-		return true
-	}
-	_, ok := codeInIntegerMax[ft]
-	return ok
-}
-
 func newCodeInAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
 	if attr.Field == "" {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
@@ -108,15 +97,10 @@ func newCodeInAttribute(attr *types.Attribute, schema *encoding.Schema) (Attribu
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"ATTR_CODE_IN: unknown field "+attr.Field)
 	}
-	if !codeInAccepts(f.Type) {
-		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("ATTR_CODE_IN: field %q is %s; it accepts only categorical_u8/u16/u32 and u4/u8/u16/u32/u64 fields",
-				attr.Field, f.Type),
-			map[string]any{
-				"attribute": string(types.ATTR_CODE_IN),
-				"field":     attr.Field,
-				"type":      f.Type.String(),
-			})
+	// The accepted-types table's refusal (a categorical, or an unsigned
+	// integer); predict raises the same one.
+	if cerr := fieldaccept.Refusal(string(types.ATTR_CODE_IN), fieldaccept.SlotField, attr.Field, f.Type); cerr != nil {
+		return nil, cerr
 	}
 	keys := make(map[float64]struct{}, len(codes))
 	if f.Type.IsCategorical() {

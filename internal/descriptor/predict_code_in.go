@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -110,17 +111,8 @@ func codeInPredictCheck(attr *types.Attribute, schema *encoding.Schema, projecte
 	if f.Type.IsVector() {
 		return nil, nil // the field-reference walk's refusal (vectorScalarRefusals)
 	}
-	if !f.Type.IsCategorical() {
-		if _, ok := codeInPredictIntegerMax[f.Type]; !ok {
-			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-				"ATTR_CODE_IN: field "+strconv.Quote(attr.Field)+" is "+f.Type.String()+
-					"; it accepts only categorical_u8/u16/u32 and u4/u8/u16/u32/u64 fields",
-				map[string]any{
-					"attribute": string(types.ATTR_CODE_IN),
-					"field":     attr.Field,
-					"type":      f.Type.String(),
-				})
-		}
+	if cerr := fieldaccept.Refusal(string(types.ATTR_CODE_IN), fieldaccept.SlotField, attr.Field, f.Type); cerr != nil {
+		return nil, cerr
 	}
 	if f.Type.IsCategorical() {
 		var missing []string

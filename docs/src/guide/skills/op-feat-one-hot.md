@@ -38,7 +38,7 @@ ONE column per dictionary entry, named `<prefix>_<category>`, prefix = `Label` (
 
 ## Gotchas
 
-- Non-categorical or dictionary-less `Field` → `PROCESSING_CONFIG`.
+- Non-categorical `Field` → `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime); dictionary-less → `PROCESSING_CONFIG`.
 - Whitespace in labels normalises to `_` for column-name safety (`"New York"` -> `<prefix>_New_York`); other punctuation is the caller's problem.
 - Null categories emit ALL ZERO across the one-hot block (mirrors `Compute`). No implicit "unknown" column.
 - A dictionary category absent from the records still gets an all-zero column, which keeps downstream layouts stable.

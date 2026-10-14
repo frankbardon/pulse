@@ -21,3 +21,15 @@ func testFieldTypeRefusal(spec *types.Test, schema *encoding.Schema) *errors.Cod
 	}
 	return fieldaccept.Check(op, fieldaccept.SlotField2, spec.Field2, schema)
 }
+
+// contingencyAxisRefusal is the accepted-types table's refusal for a
+// contingency test's (TEST_CHISQ / TEST_FISHER_EXACT) axes, rows then
+// cols: each must be a categorical, whose dictionary labels are the
+// table's levels. Predict reports the same refusal.
+func contingencyAxisRefusal(spec *types.Test, schema *encoding.Schema) *errors.CodedError {
+	op := string(spec.Type)
+	if cerr := fieldaccept.Check(op, fieldaccept.SlotRows, spec.Rows, schema); cerr != nil {
+		return cerr
+	}
+	return fieldaccept.Check(op, fieldaccept.SlotCols, spec.Cols, schema)
+}

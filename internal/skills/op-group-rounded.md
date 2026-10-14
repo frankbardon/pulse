@@ -21,7 +21,7 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64` (no `decimal128`); a `set_*` field is refused `PROCESSING_CONFIG` by predict and the runtime |
+| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
 
 ## Output
 
@@ -45,7 +45,7 @@ Universal floor `{total_n, n_null}` plus operator-specific:
 <!-- feature: GROUP_RANGE -->
 - Same partition as `GROUP_RANGE` at equal width; only the key differs (`"10"` vs `"10-20"`).
 <!-- /feature -->
-- Rejects categorical/decimal128 at construction.
+- Rejects categorical and `set_*` at construction (`PULSE_FIELD_TYPE_UNSUPPORTED`).
 - `Group.Include` not honoured — filter source field instead.
 
 ## See

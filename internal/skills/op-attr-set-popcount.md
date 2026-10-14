@@ -21,7 +21,7 @@ None.
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | any set rung — `set_u8`, `set_u16`, `set_u32`, `set_u64`, `set_u128`, `set_u256`; any other type is refused `PROCESSING_CONFIG` by predict and the runtime |
+| `Field` | any set rung — `set_u8`, `set_u16`, `set_u32`, `set_u64`, `set_u128`, `set_u256`; any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
 | `Label` | required — new column name |
 
 ## Output

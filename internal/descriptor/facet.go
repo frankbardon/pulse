@@ -252,7 +252,7 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	}
 	// The accepted-types table's filterer type refusals, as FacetSchema's
 	// filterer construction raises them.
-	validateFieldAcceptance(env, &types.Request{Filterers: req.Filterers}, schema, opts.instance())
+	validateFieldAcceptance(env, &types.Request{Filterers: req.Filterers}, schema, opts.instance(), nil)
 
 	// Validate label bindings against the resolved schema. Facet has no
 	// projected output columns beyond the requested fields, so the extra

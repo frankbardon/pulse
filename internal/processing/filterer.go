@@ -430,7 +430,7 @@ func (f *boolFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (F
 			fmt.Sprintf("%s field %q not found in schema", tn, filter.Field))
 	}
 	if !truthyMode && field.Type != encoding.FieldTypePackedBool {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+		return nil, errors.NewCodedError(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
 			fmt.Sprintf("%s strict mode requires packed_bool field; %q is %s. Pass Values=[\"truthy\"] to opt into JavaScript-style coercion.",
 				tn, filter.Field, field.Type.String()))
 	}

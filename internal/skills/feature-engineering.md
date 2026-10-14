@@ -63,7 +63,7 @@ Downstream: keep `split == 0` with a value filter for train-only; group by `spli
 ## Gotchas
 
 - Fan-out column sets come from the SCHEMA (a one-hot column per dictionary entry, even for categories absent from the rows), so predict and the executor agree without a scan.
-- Predict refuses mutually exclusive params (bucketize: boundaries XOR quantiles) as `PROCESSING_CONFIG` and a source type outside the manifest `accepts_types` as `SERVICE_VALIDATION` — check it before using a `decimal128` or categorical source (`financial-cohorts`).
+- Predict refuses mutually exclusive params (bucketize: boundaries XOR quantiles) as `PROCESSING_CONFIG` and a source type outside `accepts_types` as `PULSE_FIELD_TYPE_UNSUPPORTED` — check it before using a `decimal128` or categorical source (`financial-cohorts`).
 - Polynomial expansion overflows unstandardised — `Degree=10` on `|x|=100` yields `1e20`. Standardise first.
 - Features can't reference attribute labels (attributes run after). Stage via Compose / ProcessChain.
 

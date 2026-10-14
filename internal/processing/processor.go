@@ -2321,12 +2321,14 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 		// registered extension aggregator owns its decimal semantics
 		// (extend.Record.DecimalValue) and falls through to its factory.
 		if p.schema != nil && !p.exts.isExtensionAggregator(agg.Type) {
-			if f := p.schema.Field(agg.Field); f != nil && f.Type.IsDecimal() {
-				if !p.exts.decimalAggregationSupported(agg.Type) {
-					return nil, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-						"aggregation has no decimal128 implementation",
-						map[string]any{"aggregation": string(agg.Type), "field": agg.Field})
+			if f := p.schema.Field(agg.Field); f != nil && f.Type.IsDecimal() && !p.exts.decimalAggregationSupported(agg.Type) {
+				// The accepted-types table's decimal rule; a hidden or
+				// never-registered name falls through to the registry
+				// miss below, as on any other field type.
+				if cerr := p.exts.decimalAggregationRefusal(agg.Type, agg.Field, f.Type); cerr != nil {
+					return nil, nil, cerr
 				}
+			} else if f != nil && f.Type.IsDecimal() {
 				out, err := AggregateDecimalField(agg.Type, records, agg.Field, f.Scale)
 				if err != nil {
 					return nil, nil, err

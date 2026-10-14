@@ -285,8 +285,11 @@
           ],
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -364,7 +367,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 91,
+    "error_codes_count": 92,
     "error_domains": [
       "CLI",
       "DATA",
@@ -425,6 +428,7 @@
       "PULSE_FEATURE_PROFILE_INVALID",
       "PULSE_FEATURE_PROFILE_UNKNOWN",
       "PULSE_FIELD_DESCRIPTION_LOW_QUALITY",
+      "PULSE_FIELD_TYPE_UNSUPPORTED",
       "PULSE_GROUP_DECLARATION_INVALID",
       "PULSE_GROUP_ENTRIES_EXHAUSTED",
       "PULSE_GROUP_FIELD_CONFLICT",
@@ -618,7 +622,8 @@
           "AGG_SUM"
         ],
         "compatible_groupers": [
-          "GROUP_CATEGORY"
+          "GROUP_CATEGORY",
+          "GROUP_RANGE"
         ]
       },
       {
@@ -663,7 +668,8 @@
           "AGG_SUM"
         ],
         "compatible_groupers": [
-          "GROUP_CATEGORY"
+          "GROUP_CATEGORY",
+          "GROUP_RANGE"
         ]
       },
       {
@@ -707,7 +713,8 @@
           "AGG_SUM"
         ],
         "compatible_groupers": [
-          "GROUP_CATEGORY"
+          "GROUP_CATEGORY",
+          "GROUP_RANGE"
         ]
       },
       {
@@ -1323,4 +1330,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 541a97d23f851d50080c6b352e6706cba729337943e4a3181228fa27084ae1f7
+// golden-hash: 39ba58b4f15a9af4a38936e0d08921d667397f74b4d43d00efd4a15eb63b6f3a

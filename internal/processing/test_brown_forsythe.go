@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -67,10 +68,8 @@ func newBrownForsytheRow(spec *types.Test, schema *encoding.Schema) (RowTest, er
 		if cerr := testFieldTypeRefusal(spec, schema); cerr != nil {
 			return nil, cerr
 		}
-		if f := schema.Field(spec.SplitBy); f != nil && !f.Type.IsCategorical() {
-			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("TEST_BROWN_FORSYTHE split_by %q must be categorical, got %s", spec.SplitBy, f.Type.String()),
-				map[string]any{"split_by": spec.SplitBy, "field_type": f.Type.String()})
+		if cerr := fieldaccept.Check(string(spec.Type), fieldaccept.SlotSplitBy, spec.SplitBy, schema); cerr != nil {
+			return nil, cerr
 		}
 	}
 	return &brownForsytheRow{

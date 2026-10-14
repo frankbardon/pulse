@@ -138,14 +138,16 @@ func TestPredict_VectorTestInputs(t *testing.T) {
 }
 
 // TestPredict_HotellingSplitByNumericRefused: split_by must name a
-// categorical field, like every split test.
+// categorical field, like every split test — the accepted-types table's
+// refusal, the runtime constructor's code.
 func TestPredict_HotellingSplitByNumericRefused(t *testing.T) {
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "q_1", Label: "s"}},
 		Tests:        []*types.Test{{Type: types.TEST_HOTELLING_T2, Fields: []string{"q_1", "q_3"}, SplitBy: "q_2"}},
 	}
 	env := predictFromBytes(vectorPredictSchema(t), req, nil)
-	if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.SERVICE_VALIDATION) || env.Errors[0].Details["split_by"] != "q_2" {
-		t.Fatalf("errors = %v, want one split_by SERVICE_VALIDATION", env.Errors)
+	if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PULSE_FIELD_TYPE_UNSUPPORTED) ||
+		env.Errors[0].Details["slot"] != "split_by" || env.Errors[0].Details["field"] != "q_2" {
+		t.Fatalf("errors = %+v, want one split_by PULSE_FIELD_TYPE_UNSUPPORTED", env.Errors)
 	}
 }

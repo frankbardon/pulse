@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -34,10 +35,8 @@ func newFrequencyEncode(feat *types.Feature, schema *encoding.Schema) (Computer,
 			"FEAT_FREQUENCY_ENCODE requires a field")
 	}
 	if schema != nil {
-		if f := schema.Field(feat.Field); f != nil && !f.Type.IsCategorical() {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("FEAT_FREQUENCY_ENCODE: field %q must be categorical, got %s",
-					feat.Field, f.Type))
+		if cerr := fieldaccept.Check(string(types.FEAT_FREQUENCY_ENCODE), fieldaccept.SlotField, feat.Field, schema); cerr != nil {
+			return nil, cerr
 		}
 	}
 	label := feat.Label

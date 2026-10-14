@@ -32,7 +32,7 @@ Use something else:
 
 ## Inputs
 
-`Rows` / `Cols` (both required, 2 levels each) — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`. `Field` ignored.
+`Rows` / `Cols` (both required, 2 levels each) — categorical: `categorical_u8`/`u16`/`u32`; any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (rows first). `Field` ignored.
 
 ## Output
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	stderrors "errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -59,7 +60,8 @@ var codeInParityCases = []struct {
 
 // TestCodeIn_PredictRefusalsMatchRuntime: every request the ATTR_CODE_IN
 // constructor refuses, Process and ProcessStream refuse with
-// PROCESSING_CONFIG, and predict reports the same code, message and
+// PROCESSING_CONFIG (a refused field type with the accepted-types
+// table's PULSE_FIELD_TYPE_UNSUPPORTED), and predict reports the same code, message and
 // details — the descriptor re-derives the rules (it may not import
 // internal/processing), and this pins the two copies together.
 func TestCodeIn_PredictRefusalsMatchRuntime(t *testing.T) {
@@ -177,8 +179,13 @@ func codeInCoded(t *testing.T, arm string, err error) *errors.CodedError {
 	if !stderrors.As(err, &ce) {
 		t.Fatalf("%s: uncoded error %v", arm, err)
 	}
-	if ce.Code != errors.PROCESSING_CONFIG {
-		t.Fatalf("%s: code %s (%v), want PROCESSING_CONFIG", arm, ce.Code, err)
+	// A refused field type is the accepted-types table's code; every
+	// other code-in refusal is the constructor's PROCESSING_CONFIG.
+	if ce.Code != errors.PROCESSING_CONFIG && ce.Code != errors.PULSE_FIELD_TYPE_UNSUPPORTED {
+		t.Fatalf("%s: code %s (%v), want PROCESSING_CONFIG or PULSE_FIELD_TYPE_UNSUPPORTED", arm, ce.Code, err)
+	}
+	if strings.HasPrefix(t.Name(), "TestCodeIn_PredictRefusalsMatchRuntime/type_") != (ce.Code == errors.PULSE_FIELD_TYPE_UNSUPPORTED) {
+		t.Fatalf("%s: code %s for %s", arm, ce.Code, t.Name())
 	}
 	return ce
 }

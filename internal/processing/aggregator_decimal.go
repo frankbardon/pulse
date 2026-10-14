@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
@@ -67,33 +68,47 @@ func (r decimalAggResult) String() string {
 	return r.Value.String(r.Scale)
 }
 
-// decimalSupportedAgg lists the aggregations that have a defined decimal
-// implementation in v1. Built-ins outside this set should be rejected
-// at predict time with PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL; a registered
-// extension aggregator is exempt and dispatches to its own factory.
-var decimalSupportedAgg = map[types.AggregationType]bool{
-	types.AGG_SUM:            true,
-	types.AGG_AVERAGE:        true,
-	types.AGG_MIN:            true,
-	types.AGG_MAX:            true,
-	types.AGG_VARIANCE:       true,
-	types.AGG_STDDEV:         true,
-	types.AGG_COUNT:          true,
-	types.AGG_DISTINCT_COUNT: true,
-}
-
 // IsDecimalAggregationSupported reports whether agg has a decimal-aware
-// implementation.
+// implementation — the accepted-types table's decimal arm set
+// (internal/fieldaccept), which predict reads too.
 func IsDecimalAggregationSupported(agg types.AggregationType) bool {
-	return decimalSupportedAgg[agg]
+	return fieldaccept.HasDecimalArm(string(agg))
 }
 
 // decimalAggregationSupported is IsDecimalAggregationSupported for the
 // instance r serves: a built-in the instance hides has no decimal
-// implementation here, so the decimal dispatch — which runs BEFORE the
-// registry lookup — refuses it exactly as a never-registered name.
+// implementation here.
 func (r *ExtensionRegistry) decimalAggregationSupported(agg types.AggregationType) bool {
 	return !r.isHidden(string(agg)) && IsDecimalAggregationSupported(agg)
+}
+
+// decimalAggregationRefusal is the accepted-types table's decimal
+// refusal (PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL) for a built-in agg
+// with no decimal arm over a decimal128 field — nil for a name the
+// instance hides or never registered, which the registry lookup then
+// refuses as unknown, exactly as on any other field type.
+func (r *ExtensionRegistry) decimalAggregationRefusal(agg types.AggregationType, field string, ft encoding.FieldType) *errors.CodedError {
+	if r.isHidden(string(agg)) {
+		return nil
+	}
+	return fieldaccept.Refusal(string(agg), fieldaccept.SlotField, field, ft)
+}
+
+// decimalSlotRefusal is decimalAggregationRefusal for one aggregation
+// slot over schema: nil when the slot's field is not a decimal128 schema
+// field, the aggregator is an extension (it owns its decimal semantics)
+// or a built-in with a decimal arm. The crosstab margin aggregations
+// consult it at resolution, so a margin figure is refused exactly where
+// the same aggregator in the cell is.
+func (r *ExtensionRegistry) decimalSlotRefusal(agg *types.Aggregation, schema *encoding.Schema) *errors.CodedError {
+	if agg == nil || schema == nil || r.isExtensionAggregator(agg.Type) {
+		return nil
+	}
+	f := schema.Field(agg.Field)
+	if f == nil || !f.Type.IsDecimal() {
+		return nil
+	}
+	return r.decimalAggregationRefusal(agg.Type, agg.Field, f.Type)
 }
 
 // AggregateDecimalField runs the decimal-aware aggregator for `agg` over

@@ -17,7 +17,7 @@ None. `Group.Label` overrides the output column name; `Group.Include []string` a
 
 ## Inputs
 
-`Field` — any cohort field type EXCEPT `set_*` (refused `PROCESSING_CONFIG` by predict and the runtime).
+`Field` — any cohort field type EXCEPT `set_*` (refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime).
 
 ## Output
 
@@ -33,7 +33,7 @@ Floor `{total_n, n_null}` + `dict_size` (int, distinct values observed) and `buc
 
 - `Include` matches the post-dictionary label; zero-record values drop, never emit empty.
 - High-cardinality fields blow memory — filter to the values you need first.
-- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no single scalar to bucket on at any rung.
+- `set_*` rejected at build time with `PULSE_FIELD_TYPE_UNSUPPORTED` — a bitmask has no single scalar to bucket on at any rung.
 
 ## See
 

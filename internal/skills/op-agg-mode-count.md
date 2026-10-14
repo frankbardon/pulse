@@ -19,7 +19,7 @@ Weight-aware (`"weight": null` opts out): the largest per-value Σw (a float), i
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | any type EXCEPT `set_*` and `decimal128`; any other type is refused `PROCESSING_CONFIG` by predict and the runtime |
+| `Field` | any type EXCEPT `set_*` and `decimal128`; any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
 
 ## Output
 
@@ -44,7 +44,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - Smart default for categorical_* and packed_bool. Memory grows with distinct values.
 - Crosstab margin = modal count of the margin's own rows, never a sum of cells (class `independent`: fuses).
-- `set_*` → `PROCESSING_CONFIG`.
+- `set_*` → `PULSE_FIELD_TYPE_UNSUPPORTED`.
 
 ## See
 
