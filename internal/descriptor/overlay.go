@@ -121,9 +121,7 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 
 	// Host must be MATRIX-shaped — the pair axis is a host crosstab axis.
 	if req == nil || req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{"index": index, "kind": string(spec.Kind)})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 
@@ -528,9 +526,21 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		// before any per-kind validator.
 		// A request carrying matrices offers the MATRIX_RESULT host too
 		// (overlayhost.JudgedShape — the runtime hooks' rule).
-		if cerr := overlayhost.ShapeRefusal(overlayhost.JudgedShape(inferComposeSlotShape(req), len(req.Matrices) > 0, opts.overlayRoute(spec.Kind)), spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
+		judged := overlayhost.JudgedShape(inferComposeSlotShape(req), len(req.Matrices) > 0, opts.overlayRoute(spec.Kind))
+		if cerr := overlayhost.ShapeRefusal(judged, spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
 			addCodedError(env, cerr)
 			continue
+		}
+		// A SCALAR host (no crosstab, no matrices, no grouped
+		// aggregations) runs no kind: the shared SCALAR host rule — the
+		// kind's Ref / Scope table, then the host it needs — which the
+		// runtime Process hooks (refuseWrongHostOverlays) and the chain
+		// pre-pass raise too, same code, message and Details.
+		if judged == types.OverlayShapeScalar {
+			if cerr := overlayhost.ScalarSpecRefusal(spec, opts.overlayRoute(spec.Kind), len(req.Groups) > 0, i); cerr != nil {
+				addCodedError(env, cerr)
+				continue
+			}
 		}
 		validateOverlaySpec(env, req, spec, opts, i)
 		validateOverlayMatrixResult(env, req, spec, opts.overlayRoute(spec.Kind), i)
@@ -1256,13 +1266,7 @@ func validateOverlayIndexVsMargin(env *descriptor.Envelope, req *types.Request, 
 	// (e.g. when group-result overlays land), but INDEX_VS_MARGIN
 	// specifically derives its denominator from a crosstab margin.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -1299,12 +1303,7 @@ func validateOverlayIndexVsTotal(env *descriptor.Envelope, req *types.Request, s
 	// (an active crosstab routes the request down the MATRIX-host path).
 	// A request with no groupers has no series to compute against.
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -1352,12 +1351,7 @@ func validateOverlayIndexVsPrior(env *descriptor.Envelope, req *types.Request, s
 	// result — Request.Groups is non-empty AND Request.Crosstab is nil
 	// (an active crosstab routes the request down the MATRIX-host path).
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -1409,12 +1403,7 @@ func validateOverlayDeltaVsPrior(env *descriptor.Envelope, req *types.Request, s
 	// result — Request.Groups is non-empty AND Request.Crosstab is nil
 	// (an active crosstab routes the request down the MATRIX-host path).
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -1464,12 +1453,7 @@ func validateOverlayIndexVsRollingMean(env *descriptor.Envelope, req *types.Requ
 	// result — Request.Groups is non-empty AND Request.Crosstab is nil
 	// (an active crosstab routes the request down the MATRIX-host path).
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 
@@ -1530,12 +1514,7 @@ func validateOverlayZScoreVsRolling(env *descriptor.Envelope, req *types.Request
 	// result — Request.Groups is non-empty AND Request.Crosstab is nil
 	// (an active crosstab routes the request down the MATRIX-host path).
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 
@@ -1601,12 +1580,7 @@ func validateOverlayYoY(env *descriptor.Envelope, req *types.Request, spec *type
 	// result — Request.Groups is non-empty AND Request.Crosstab is nil
 	// (an active crosstab routes the request down the MATRIX-host path).
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 
@@ -1872,12 +1846,7 @@ func validateOverlayIndexVsBaseline(env *descriptor.Envelope, req *types.Request
 	// result — Request.Groups is non-empty AND Request.Crosstab is nil (an
 	// active crosstab routes the request down the MATRIX-host path).
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 
@@ -1934,12 +1903,7 @@ func validateOverlayDeltaVsBaseline(env *descriptor.Envelope, req *types.Request
 	// result — Request.Groups is non-empty AND Request.Crosstab is nil (an
 	// active crosstab routes the request down the MATRIX-host path).
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 
@@ -1975,12 +1939,7 @@ func validateOverlayChiSqMatrix(env *descriptor.Envelope, req *types.Request, sp
 	// Host must be MATRIX-shaped — χ² independence consumes a row ×
 	// column contingency table sourced from the host crosstab.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -2011,12 +1970,7 @@ func validateOverlayChiSqRow(env *descriptor.Envelope, req *types.Request, spec 
 	// Host must be MATRIX-shaped — per-row χ² goodness-of-fit consumes
 	// a row × column contingency table sourced from the host crosstab.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -2048,12 +2002,7 @@ func validateOverlayChiSqCol(env *descriptor.Envelope, req *types.Request, spec 
 	// consumes a row × column contingency table sourced from the host
 	// crosstab.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -2076,13 +2025,7 @@ func validateOverlayDeltaVsMargin(env *descriptor.Envelope, req *types.Request, 
 	// Host must be MATRIX-shaped — delta-vs-margin needs a crosstab
 	// margin slot to subtract from each cell.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -2113,12 +2056,7 @@ func validateOverlayFisherExactCell(env *descriptor.Envelope, req *types.Request
 	// Host must be MATRIX-shaped — per-cell Fisher's exact consumes a
 	// row × column contingency table sourced from the host crosstab.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -2142,13 +2080,7 @@ func validateOverlayShareOfRow(env *descriptor.Envelope, req *types.Request, spe
 	// Host must be MATRIX-shaped — share-of-row needs a crosstab row
 	// margin to divide by.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -2173,13 +2105,7 @@ func validateOverlayShareOfCol(env *descriptor.Envelope, req *types.Request, spe
 	// Host must be MATRIX-shaped — share-of-column needs a crosstab
 	// column margin to divide by.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -2238,13 +2164,7 @@ func validateOverlayShareOfTotalMatrix(env *descriptor.Envelope, req *types.Requ
 	// Host must be MATRIX-shaped — share-of-total needs a crosstab
 	// grand-total slot to divide by.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -2276,13 +2196,7 @@ func validateOverlayShareOfTotalSeries(env *descriptor.Envelope, req *types.Requ
 	// but re-check so a direct call into this branch from a future
 	// validator-aware caller still gets the right rejection shape.
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" SERIES dispatch requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"host":  "series",
-			})
+		addHostRequired(env, spec, spec.Kind, true, index)
 		return
 	}
 }
@@ -2305,13 +2219,7 @@ func validateOverlayZScoreVsMargin(env *descriptor.Envelope, req *types.Request,
 	// margin slot to subtract from each cell AND a crosstab cell grid
 	// to drive the per-slice Welford recurrence.
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-				"axis":  string(spec.Ref.Margin.Axis),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -2353,12 +2261,7 @@ func validateOverlayZScoreVsTotal(env *descriptor.Envelope, req *types.Request, 
 	// (an active crosstab routes the request down the MATRIX-host path).
 	// A request with no groupers has no series to standardise against.
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }
@@ -2432,12 +2335,7 @@ func validateOverlaySiblingKind(env *descriptor.Envelope, req *types.Request, sp
 
 	// Host must be SERIES-shaped — grouped Process result.
 	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
 }

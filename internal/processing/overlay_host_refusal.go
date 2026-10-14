@@ -15,7 +15,8 @@ import (
 // PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, Details
 // {index, kind, host, hosts} and {index, kind, host, shape, shapes} —
 // and, on a SERIES host, the first whose Ref or Scope breaks the shared
-// SERIES rule (overlayhost.SeriesSpecRefusal).
+// SERIES rule (overlayhost.SeriesSpecRefusal), and on a SCALAR host the
+// first spec at all (overlayhost.ScalarSpecRefusal: nothing runs there).
 // Both Process hooks (the crosstab applyOverlaysToResponse and the
 // grouped applyOverlaysSeriesToResponse) call it before any payload
 // guard, so the refusal is a property of the request: an empty result,
@@ -52,6 +53,15 @@ func refuseWrongHostOverlays(req *types.Request, exts *ExtensionRegistry, keep f
 				return cerr
 			}
 		}
+		// On a SCALAR host (no crosstab, no matrices, no grouped
+		// aggregations) nothing runs: every Process kind is refused with
+		// predict's host refusal (overlayhost.ScalarSpecRefusal — the
+		// kind's Ref / Scope table first, then the host it needs).
+		if judged == types.OverlayShapeScalar {
+			if cerr := overlayhost.ScalarSpecRefusal(&req.Overlays[i], route, len(req.Groups) > 0, i); cerr != nil {
+				return cerr
+			}
+		}
 	}
 	return nil
 }
@@ -84,4 +94,17 @@ func FacetSpecRefusal(spec *types.OverlaySpec, exts *ExtensionRegistry, index in
 		return cerr
 	}
 	return nil
+}
+
+// RefuseWrongHostOverlays is refuseWrongHostOverlays for a runtime arm
+// outside this package that finalizes a Process result without either
+// Process hook — the shard-parallel ungrouped tail
+// (service.finalizeMergedPartial) — so an ungrouped request's overlays
+// meet the SCALAR host refusal there too. No-op when the plan computes
+// no overlay; compute's overlay mask applies.
+func RefuseWrongHostOverlays(req *types.Request, exts *ExtensionRegistry, compute ComputePlan) error {
+	if req == nil || len(req.Overlays) == 0 || !compute.Overlays {
+		return nil
+	}
+	return refuseWrongHostOverlays(req, exts, compute.overlayKeep())
 }

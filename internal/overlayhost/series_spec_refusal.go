@@ -190,15 +190,19 @@ func SeriesSpecRefusal(spec *types.OverlaySpec, route types.OverlayKind, index i
 
 // ProcessSpecRefusal is the Ref / Scope refusal of the Request.Overlays
 // spec at index judged on a Process host of shape: the crosstab table on
-// a MATRIX host, the SERIES table on a SERIES host, nil on any other
-// (the MATRIX_RESULT host owns its own rule, MatrixResultRefusal; a
-// SCALAR host is not judged). The chain pre-pass calls it per stage.
-func ProcessSpecRefusal(shape types.OverlayShape, spec *types.OverlaySpec, route types.OverlayKind, index int) *errors.CodedError {
+// a MATRIX host, the SERIES table on a SERIES host, the SCALAR host rule
+// (ScalarSpecRefusal: nothing runs there; grouped is
+// len(Request.Groups) > 0) on a SCALAR host, nil on a MATRIX_RESULT
+// host (it owns its own rule, MatrixResultRefusal). The chain pre-pass
+// calls it per stage.
+func ProcessSpecRefusal(shape types.OverlayShape, spec *types.OverlaySpec, route types.OverlayKind, grouped bool, index int) *errors.CodedError {
 	switch shape {
 	case types.OverlayShapeMatrix:
 		return CrosstabSpecRefusal(spec, route, index)
 	case types.OverlayShapeSeries:
 		return SeriesSpecRefusal(spec, route, index)
+	case types.OverlayShapeScalar:
+		return ScalarSpecRefusal(spec, route, grouped, index)
 	}
 	return nil
 }

@@ -136,19 +136,25 @@ func TestSeriesSpecRefusal_CoversSeriesKinds(t *testing.T) {
 }
 
 // TestProcessSpecRefusal_Dispatch: the crosstab table on a MATRIX host,
-// the SERIES table on a SERIES host, nothing on any other shape.
+// the SERIES table on a SERIES host, the SCALAR host rule (by the
+// request's grouping) on a SCALAR host, nothing on a MATRIX_RESULT host.
 func TestProcessSpecRefusal_Dispatch(t *testing.T) {
 	share := &types.OverlaySpec{Kind: types.OverlayKindShareOfTotal, Scope: types.OverlayScopeGroup}
-	if cerr := ProcessSpecRefusal(types.OverlayShapeSeries, share, share.Kind, 0); cerr != nil {
+	if cerr := ProcessSpecRefusal(types.OverlayShapeSeries, share, share.Kind, true, 0); cerr != nil {
 		t.Fatalf("series: %v", cerr)
 	}
-	if cerr := ProcessSpecRefusal(types.OverlayShapeMatrix, share, share.Kind, 0); cerr == nil || cerr.Code != errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE {
+	if cerr := ProcessSpecRefusal(types.OverlayShapeMatrix, share, share.Kind, false, 0); cerr == nil || cerr.Code != errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE {
 		t.Fatalf("matrix: %v, want the crosstab rule's missing Ref.Margin", cerr)
 	}
-	for _, shape := range []types.OverlayShape{types.OverlayShapeScalar, ShapeMatrixResult} {
-		if cerr := ProcessSpecRefusal(shape, share, share.Kind, 0); cerr != nil {
-			t.Fatalf("%s: %v", shape, cerr)
+	for _, grouped := range []bool{false, true} {
+		want := ScalarSpecRefusal(share, share.Kind, grouped, 0)
+		got := ProcessSpecRefusal(types.OverlayShapeScalar, share, share.Kind, grouped, 0)
+		if want == nil || got == nil || got.Message != want.Message {
+			t.Fatalf("scalar (grouped %v): %v, want %v", grouped, got, want)
 		}
+	}
+	if cerr := ProcessSpecRefusal(ShapeMatrixResult, share, share.Kind, false, 0); cerr != nil {
+		t.Fatalf("matrix_result: %v", cerr)
 	}
 }
 

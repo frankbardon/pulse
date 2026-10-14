@@ -55,11 +55,11 @@ A multi-output kind adds `payload.parts`: named secondary payloads beside the pr
 
 ## Host-arm wiring
 
-The carrying request decides the host; the host decides the legal kinds:
+The carrying request decides the host; the host decides the legal kinds (an ungrouped or aggregation-free request runs none — every spec is refused):
 
 - **MATRIX** — a crosstab (`Request.Crosstab` + `Request.Overlays`): share, margin compare, cell tests, intra-matrix pairwise. Pairwise n: [`pairwise-n-sources`](pairwise-n-sources.md).
 - **SERIES** — a grouped Process with no crosstab: per-group self-compare (sibling, baseline, prior, rolling, year-over-year). Over N ≥ 2 `groups` it runs per partition (`params.partition_by`, a leading key prefix; default all but the last). Scores `params.field`, else `aggregations[0]`.
-- **MATRIX_RESULT** — `Request.Matrices` with no crosstab, on a process request or a Compose slot (never the chain, facet or Compose-host slots): reads every group bucket of the spec `ref.matrix` names. Crosstab + `matrices` is refused, so no request mixes crosstab and matrix-result overlays.
+- **MATRIX_RESULT** — `Request.Matrices` with no crosstab, on a process request or a Compose slot (never the chain, facet or Compose-host slots): reads every group bucket of the spec `ref.matrix` names. Crosstab + `matrices` is refused.
 - **FACET** — `FacetRequest.Overlays`: population comparisons, layers on `FacetResult.Overlays` ([`facet-design`](facet-design.md)).
 - **CHAIN** — whole-chain `ChainRequest.Overlays` against an earlier stage; layers on the chain response, per-stage overlays untouched. Stages of divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` ([`process-chain`](process-chain.md)).
 - **FORMULA** — an expression over host figures: a crosstab on `Request.Overlays`, any shape on Compose.
@@ -75,7 +75,7 @@ Inferential layers take `multiplicity` (`layer` / `row` / `column` / `request` /
 
 ## Streamability
 
-Manifest `overlays[].buffered`; descriptive SERIES kinds stream. MATRIX kinds fold after the crosstab finishes, so they never decide whether it fuses ([`crosstab-guide`](crosstab-guide.md)). Mixing streamable and buffered kinds prices the request as buffered.
+Manifest `overlays[].buffered`; descriptive SERIES kinds stream. MATRIX kinds fold after the crosstab finishes, so they never decide whether it fuses ([`crosstab-guide`](crosstab-guide.md)). One buffered kind prices the request buffered.
 
 ## Weighted hosts
 

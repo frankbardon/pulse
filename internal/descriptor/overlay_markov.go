@@ -2,7 +2,6 @@ package descriptor
 
 import (
 	"github.com/frankbardon/pulse/descriptor"
-	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
@@ -53,9 +52,7 @@ func validateOverlayMarkov(env *descriptor.Envelope, req *types.Request, spec *t
 	}
 
 	if req.Crosstab == nil {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" requires a MATRIX host (Request.Crosstab); none present",
-			map[string]any{"index": index, "kind": string(spec.Kind)})
+		addHostRequired(env, spec, route, len(req.Groups) > 0, index)
 		return
 	}
 	if _, cerr := overlayhost.ParseMarkovParams(spec, index); cerr != nil {

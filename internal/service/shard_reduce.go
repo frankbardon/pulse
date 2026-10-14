@@ -970,6 +970,14 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 // pre-Components baseline.
 func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *shardPartial, shardCount int, compute processing.ComputePlan, exts *processing.ExtensionRegistry) (*types.Response, error) {
 	_ = schema
+	// The ungrouped and empty arms run neither Process overlay hook: the
+	// shared wrong-slot / wrong-shape / SCALAR host refusal the serial
+	// hook raises (the grouped arm's tail raises it itself).
+	if merged.groups == nil {
+		if err := processing.RefuseWrongHostOverlays(req, exts, compute); err != nil {
+			return nil, err
+		}
+	}
 	// The ungrouped arms' matrices (nil on a grouped partial, whose
 	// per-bucket matrices render in the grouped tail).
 	matrices, matrixComps, err := merged.mats.Finalize()

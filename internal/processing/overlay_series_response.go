@@ -113,10 +113,10 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 		return nil
 	}
 	if len(req.Groups) == 0 {
-		// SERIES overlays attach only to GROUPED Process today.
-		// Overlays on a single-row (no-Groups) host are deferred;
-		// predict already rejects this combination, so the runtime
-		// hook short-circuits without touching resp.Overlays.
+		// SERIES overlays attach only to GROUPED Process today. Every
+		// Process kind on a single-row (no-Groups) host was refused by
+		// refuseWrongHostOverlays above (the SCALAR host rule), so only
+		// a kind outside the Process table reaches here.
 		return nil
 	}
 	if resp == nil || len(req.Aggregations) == 0 {
@@ -423,7 +423,13 @@ func canStreamOverlays(req *types.Request, exts *ExtensionRegistry) bool {
 		// A kind that does not run on a Process host, or not on this
 		// request's Process shape, routes buffered, whose hook raises
 		// the wrong-slot / wrong-shape refusal.
-		if !overlayhost.Accepts(overlayhost.Request, route) || !overlayhost.AcceptsShape(overlayhost.JudgedShape(AuthoredHostShape(req), len(req.Matrices) > 0, route), route) {
+		judged := overlayhost.JudgedShape(AuthoredHostShape(req), len(req.Matrices) > 0, route)
+		if !overlayhost.Accepts(overlayhost.Request, route) || !overlayhost.AcceptsShape(judged, route) {
+			return false
+		}
+		// A SCALAR host runs no kind: route buffered, whose hook raises
+		// the shared SCALAR host refusal (overlayhost.ScalarSpecRefusal).
+		if judged == types.OverlayShapeScalar && overlayhost.ScalarSpecRefusal(&req.Overlays[i], route, len(req.Groups) > 0, i) != nil {
 			return false
 		}
 		if !streamable {

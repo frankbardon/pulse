@@ -45,7 +45,9 @@ func validateOverlayMatrixResult(env *descriptor.Envelope, req *types.Request, s
 //     request (overlayhost.ShapeRefusal);
 //   - a Ref or Scope its host's shared rule refuses
 //     (overlayhost.ProcessSpecRefusal: the SERIES table on a grouped
-//     stage). The runtime stage hooks raise the same three, unlocated.
+//     stage; on a SCALAR stage every Process kind, by
+//     overlayhost.ScalarSpecRefusal). The runtime stage hooks raise the
+//     same three, unlocated.
 func ChainStageOverlayRefusal(stages []*types.ChainStage, inst *InstanceSnapshot) error {
 	for s, st := range stages {
 		if st == nil || st.Request == nil {
@@ -67,7 +69,7 @@ func ChainStageOverlayRefusal(stages []*types.ChainStage, inst *InstanceSnapshot
 			for _, cerr := range []*errors.CodedError{
 				overlayhost.Refusal(overlayhost.Request, kind, route, i),
 				overlayhost.ShapeRefusal(judged, kind, route, i),
-				overlayhost.ProcessSpecRefusal(judged, spec, route, i),
+				overlayhost.ProcessSpecRefusal(judged, spec, route, len(st.Request.Groups) > 0, i),
 			} {
 				if cerr != nil {
 					return RefusalAt(cerr, "stage", s)
@@ -76,4 +78,14 @@ func ChainStageOverlayRefusal(stages []*types.ChainStage, inst *InstanceSnapshot
 		}
 	}
 	return nil
+}
+
+// addHostRequired records the shared host-absent refusal
+// (overlayhost.HostRequiredRefusal) of the spec at index — the host
+// guard of every per-kind Process validator, worded once beside the
+// SCALAR host rule ValidateOverlays and the runtime raise first.
+func addHostRequired(env *descriptor.Envelope, spec *types.OverlaySpec, route types.OverlayKind, grouped bool, index int) {
+	if cerr := overlayhost.HostRequiredRefusal(spec, route, grouped, index); cerr != nil {
+		addCodedError(env, cerr)
+	}
 }
