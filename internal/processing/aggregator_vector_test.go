@@ -165,7 +165,10 @@ func TestVecAgg_FactoryRefusals(t *testing.T) {
 
 // vecRandomRows: n rows of non-dyadic floats (so summation order
 // reaches the bits), ~10% nulls per member, stamped on shard (whose
-// first global ordinal is start).
+// first global ordinal is start). The float64(...) barrier keeps the
+// scale-and-shift two rounded operations: arm64 would otherwise fuse it
+// into one FMA and amd64 would not, so the inputs (and any word pinned
+// from them) would differ by architecture.
 func vecRandomRows(s *encoding.Schema, n, shard, start int, seed int64) []*Record {
 	rng := rand.New(rand.NewSource(seed))
 	out := make([]*Record, n)
@@ -173,7 +176,7 @@ func vecRandomRows(s *encoding.Schema, n, shard, start int, seed int64) []*Recor
 		if rng.Intn(10) == 0 {
 			return nan
 		}
-		return rng.NormFloat64()*1e3 + 1/3.0
+		return float64(rng.NormFloat64()*1e3) + 1/3.0
 	}
 	for i := range out {
 		out[i] = vecRec(s, val(), val(), val(), 0.1+rng.Float64())

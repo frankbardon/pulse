@@ -240,10 +240,15 @@ func TestVecAgg_SDMergeMatchesChan(t *testing.T) {
 
 // TestVecAgg_MeanSumBitsFrozen pins AGG_VEC_MEAN / AGG_VEC_SUM's
 // figures and sum components to the words they produced BEFORE
-// AGG_VEC_SD shared their fold (captured at ef294704, before E5-S1): the
-// moment slices ride only AGG_VEC_SD's blocks, so the mean and sum
-// paths run their original operation sequence. The fold is FMA-free
-// (float64(w*x), plain adds), so the words are architecture-stable.
+// AGG_VEC_SD shared their fold (captured by running ef294704's
+// aggregator, before E5-S1, on these rows): the moment slices ride only
+// AGG_VEC_SD's blocks, so the mean and sum paths run their original
+// operation sequence. The words are architecture-stable because both
+// sides are FMA-free: the fold (float64(w*x), plain adds, one divide)
+// and the input generator (vecRandomRows' float64 barrier). The capture
+// was identical on arm64 and linux/amd64; an input built with a fusible
+// a*b+c would not be, which is how an arm64-only capture once failed
+// amd64 CI.
 func TestVecAgg_MeanSumBitsFrozen(t *testing.T) {
 	s := vecAggSchema()
 	n := 2*linalg.MergeBlockSize + 333
@@ -253,12 +258,12 @@ func TestVecAgg_MeanSumBitsFrozen(t *testing.T) {
 	type frozen struct{ value, sum, sumW []uint64 }
 	wantN := []int{8149, 8178, 8113}
 	sumWWords := []uint64{0x40b326fe3f170b5e, 0x40b3363500ca8681, 0x40b30ca20b986092}
-	unSum := []uint64{0x40f27be32f8697a2, 0xc0f6e84d204c57e2, 0x40f6eb5fa7b46563}
-	wSum := []uint64{0x40dd62f0c135e7bf, 0xc0f1d74de585a031, 0x40f376cf655ed91a}
+	unSum := []uint64{0x40f27be32f8697a4, 0xc0f6e84d204c57e5, 0x40f6eb5fa7b46567}
+	wSum := []uint64{0x40dd62f0c135e7ab, 0xc0f1d74de585a032, 0x40f376cf655ed91c}
 	want := map[types.AggregationType]map[bool]frozen{
 		types.AGG_VEC_MEAN: {
-			false: {[]uint64{0x402294db361746e9, 0xc026f257266d27a3, 0x40272481c81a6690}, unSum, nil},
-			true:  {[]uint64{0x40188cb99f9d2011, 0xc02db78507524d26, 0x4030592e434283cd}, wSum, sumWWords},
+			false: {[]uint64{0x402294db361746eb, 0xc026f257266d27a6, 0x40272481c81a6694}, unSum, nil},
+			true:  {[]uint64{0x40188cb99f9d2000, 0xc02db78507524d28, 0x4030592e434283cf}, wSum, sumWWords},
 		},
 		types.AGG_VEC_SUM: {
 			false: {unSum, unSum, nil},
