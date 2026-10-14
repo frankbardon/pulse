@@ -34,8 +34,9 @@ func opReport(r *repo, name string, opts options) (*Report, error) {
 	testsByDir := map[string][]string{}
 	helpers := map[string][]string{}
 	listed := map[string]bool{} // path + symbol already a site
-	var testPaths, codeDirs []string
-	tables := map[string][]Symbol{} // test path -> table vars naming the operator
+	var codeDirs []string
+	testDecls := map[string][]string{} // test path -> declarations naming the operator
+	tables := map[string][]Symbol{}    // test path -> table vars naming the operator
 	for _, p := range paths {
 		cl := classify(p)
 		classes[cl] = true
@@ -50,7 +51,16 @@ func opReport(r *repo, name string, opts options) (*Report, error) {
 		}
 		syms := r.resolve(p, files[p])
 		if cl == "test" {
-			testPaths = append(testPaths, p)
+			// a test file named for the operator is read whole (its
+			// helpers open the fixtures); any other only where it names it
+			testDecls[p] = testDecls[p][:0:0]
+			if normPath(p, op) == p {
+				for _, sh := range syms {
+					if !sh.CommentOnly {
+						testDecls[p] = append(testDecls[p], sh.Name)
+					}
+				}
+			}
 		} else if strings.HasSuffix(p, ".go") && !contains(codeDirs, path.Dir(p)) {
 			codeDirs = append(codeDirs, path.Dir(p))
 		}
@@ -100,7 +110,7 @@ func opReport(r *repo, name string, opts options) (*Report, error) {
 		rep.Sections = append(rep.Sections, derived)
 	}
 	rep.Omitted = append(rep.Omitted, notes...)
-	if oracle, fixtures := r.oracleSection(testPaths, regenPaths); len(oracle.Sites) > 0 {
+	if oracle, fixtures := r.oracleSection(testDecls, regenPaths); len(oracle.Sites) > 0 {
 		rep.Sections = append(rep.Sections, oracle)
 		for _, f := range fixtures {
 			if !contains(regenPaths, f) {

@@ -634,7 +634,12 @@ var stringLitRe = regexp.MustCompile(`"([A-Za-z0-9_./-]+)"`)
 // oracleSection lists the R oracle fixtures the operator's tests read
 // (by string literal) or that name the operator, and the scripts under
 // scripts/reference/ that write them.
-func (r *repo) oracleSection(testPaths, namedFixtures []string) (Section, []string) {
+//
+// A test file named for the operator is read whole (testDecls maps it to
+// no symbols); any other only in the declarations naming the operator, so
+// a shared oracle test listing many fixtures contributes just the ones
+// the operator's own cases open.
+func (r *repo) oracleSection(testDecls map[string][]string, namedFixtures []string) (Section, []string) {
 	stems := map[string]string{} // fixture stem -> path
 	for _, p := range r.files {
 		if strings.HasPrefix(p, oracleRefDir) && path.Dir(p)+"/" == oracleRefDir && path.Ext(p) == ".json" {
@@ -647,8 +652,20 @@ func (r *repo) oracleSection(testPaths, namedFixtures []string) (Section, []stri
 			readers[p] = nil
 		}
 	}
+	var testPaths []string
+	for p := range testDecls {
+		testPaths = append(testPaths, p)
+	}
+	sort.Strings(testPaths)
 	for _, t := range testPaths {
-		for _, m := range stringLitRe.FindAllSubmatch(r.read(t), -1) {
+		src := r.read(t) // a file named for the operator: whole
+		if syms := testDecls[t]; len(syms) > 0 {
+			src = nil
+			for _, sym := range syms {
+				src = append(src, r.declSource(t, sym)...)
+			}
+		}
+		for _, m := range stringLitRe.FindAllSubmatch(src, -1) {
 			stem := strings.TrimSuffix(path.Base(string(m[1])), ".json")
 			if f, ok := stems[stem]; ok && !contains(readers[f], t) {
 				readers[f] = append(readers[f], t)
@@ -693,6 +710,29 @@ func (r *repo) oracleSection(testPaths, namedFixtures []string) (Section, []stri
 		sec.Sites = append(sec.Sites, Site{Path: p, Note: "writes " + strings.Join(gens[p], ", ")})
 	}
 	return sec, fixtures
+}
+
+// declSource returns the source of the top-level declaration named sym
+// (as symbolAt names it) in p, doc comment excluded.
+func (r *repo) declSource(p, sym string) []byte {
+	g := r.parse(p)
+	src := r.read(p)
+	if g == nil || src == nil {
+		return nil
+	}
+	for _, d := range g.file.Decls {
+		name := ""
+		switch d := d.(type) {
+		case *ast.FuncDecl:
+			name = funcName(d)
+		case *ast.GenDecl:
+			name = genName(d, d.Pos())
+		}
+		if name == sym {
+			return src[int(d.Pos())-g.base : int(d.End())-g.base]
+		}
+	}
+	return nil
 }
 
 // benchGates are the benchmarks of the packages the operator's non-test
