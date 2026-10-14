@@ -4138,6 +4138,7 @@ pulse/types: const AGG_STDDEV pulse/types.AggregationType = "AGG_STDDEV"
 pulse/types: const AGG_SUM pulse/types.AggregationType = "AGG_SUM"
 pulse/types: const AGG_VARIANCE pulse/types.AggregationType = "AGG_VARIANCE"
 pulse/types: const AGG_VEC_MEAN pulse/types.AggregationType = "AGG_VEC_MEAN"
+pulse/types: const AGG_VEC_SD pulse/types.AggregationType = "AGG_VEC_SD"
 pulse/types: const AGG_VEC_SUM pulse/types.AggregationType = "AGG_VEC_SUM"
 pulse/types: const AGG_WEIGHTED_MEAN pulse/types.AggregationType = "AGG_WEIGHTED_MEAN"
 pulse/types: const AGG_WELFORD pulse/types.AggregationType = "AGG_WELFORD"
@@ -5294,4 +5295,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: aaaf4b12ac856298f309daf88469af307a2709d8abfe961497a0735b3c18dff4
+// golden-hash: 54a1e6e12b5c26afbf1d3a3de041370344a38a27791696dbef7747c0728296d2

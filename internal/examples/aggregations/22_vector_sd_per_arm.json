@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "Spend profile and its spread per treatment arm on experiment.pulse: a named vector lists revenue_before, revenue and session_minutes with display labels; AGG_VEC_MEAN returns each arm's mean per member and AGG_VEC_SD the per-member SAMPLE standard deviation (n - 1; weighted: sum(w) - 1 under kind frequency, Kish n_eff - 1 under probability). params.expand writes the spread as one f64 column per member, \"spend_sd[before]\" and so on, which a Sort key or a later chain stage can read. Missing data is per element: element_n can differ by member. An element answered by one row or none is null, never 0.",
+    "intents": [
+      "describe",
+      "distribution_shape"
+    ],
+    "name": "vector_sd_per_arm",
+    "operators": [
+      "AGG_VEC_MEAN",
+      "AGG_VEC_SD",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "multivariate",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {
+      "name": "spend",
+      "fields": ["revenue_before", "revenue", "session_minutes"],
+      "labels": ["before", "after", "minutes"]
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "treatment"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_VEC_MEAN",
+      "vector": "spend",
+      "label": "spend_mean"
+    },
+    {
+      "type": "AGG_VEC_SD",
+      "vector": "spend",
+      "label": "spend_sd",
+      "params": {"expand": true}
+    }
+  ]
+}

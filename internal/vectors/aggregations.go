@@ -190,7 +190,7 @@ func (k AggregationKinds) IsCode(t types.AggregationType, input encoding.FieldTy
 // VectorAggregationTypes returns the built-in aggregation types that
 // read their columns from Vector / Fields, in AllAggregationTypes order.
 func VectorAggregationTypes() []types.AggregationType {
-	return []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM}
+	return []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM, types.AGG_VEC_SD}
 }
 
 // IsVectorAggregation reports whether t is a built-in vector
@@ -399,7 +399,7 @@ func ResolveAggregations(req *types.Request, schema *encoding.Schema, kinds Aggr
 		ext := kinds.extension(typ)
 		if !IsVectorAggregation(typ) && !ext.VectorInput {
 			if HasAggregationVectorInput(s.Agg) && (builtin || ext.Registered) {
-				msg := s.Path + " (" + string(s.Agg.Type) + ") reads field, not a vector; drop vector / fields (AGG_VEC_MEAN / AGG_VEC_SUM aggregate a vector)"
+				msg := s.Path + " (" + string(s.Agg.Type) + ") reads field, not a vector; drop vector / fields (AGG_VEC_MEAN / AGG_VEC_SUM / AGG_VEC_SD aggregate a vector)"
 				if ext.Registered {
 					msg = s.Path + " (" + string(s.Agg.Type) + ") reads field, not a vector: the extension is not registered with VectorInput; drop vector / fields"
 				}
@@ -524,7 +524,9 @@ func SelectsElement(a *types.Aggregation, kinds AggregationKinds) bool {
 // element-selecting slot (SelectsElement): its scalar twin's — the
 // selected element of AGG_VEC_MEAN is a weighted mean of one column
 // (mean-reducible), of AGG_VEC_SUM a sum (summable). ok is false for
-// any other slot, which keeps its type's class. Both crosstab arms'
+// any other slot, which keeps its type's class — an AGG_VEC_SD element
+// included: a standard deviation recomputes its margin over the raw
+// rows, like AGG_STDDEV (the type's MarginRecompute). Both crosstab arms'
 // fusion facts and predict's normalize advisory read it.
 func ElementMarginClass(a *types.Aggregation, kinds AggregationKinds) (types.MarginReducibility, bool) {
 	if !SelectsElement(a, kinds) {

@@ -52,4 +52,4 @@ Floor `{n, n_null}` — a row is present when ANY member answered (weighted adds
 ## See
 
 - `pulse_examples_search tags=[multivariate, streaming-friendly]`
-- Skills: [`op-agg-vec-sum`](op-agg-vec-sum.md), [`op-attr-scale-score`](op-attr-scale-score.md), [`multivariate-design`](multivariate-design.md)
+- Skills: [`op-agg-vec-sum`](op-agg-vec-sum.md), [`op-agg-vec-sd`](op-agg-vec-sd.md), [`op-attr-scale-score`](op-attr-scale-score.md), [`multivariate-design`](multivariate-design.md)

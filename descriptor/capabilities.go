@@ -158,7 +158,8 @@ type CrosstabCapability struct {
 
 	// ArrayValuedAggregators is the alphabetized list of aggregator
 	// names whose value is one figure per vector member
-	// (types.AggregationType.ArrayValued — AGG_VEC_MEAN, AGG_VEC_SUM).
+	// (types.AggregationType.ArrayValued — AGG_VEC_MEAN, AGG_VEC_SUM,
+	// AGG_VEC_SD).
 	// They are refused as the crosstab cell or a margin aggregation
 	// (PROCESSING_CONFIG, details.reason "array_valued"), whatever
 	// normalize says, unless the slot's params.element selects one

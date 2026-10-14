@@ -155,8 +155,12 @@ const (
 	// through the RichAggregator lift (ArrayValued). Missing data is per
 	// element: a null member skips that element only. AGG_VEC_MEAN is
 	// Σw·x / Σw per element (null when no row answered it), AGG_VEC_SUM
-	// Σw·x per element (0 when none did). Streamable and mergeable:
-	// per-merge-block sums combined in a fixed tree, so the figure is
+	// Σw·x per element (0 when none did), AGG_VEC_SD the per-element
+	// sample standard deviation — √(M2 / (N* − 1)) with N* = Σw
+	// (unweighted: n; frequency: Σw) or Kish n_eff (probability), null
+	// when N* ≤ 1. Streamable and mergeable: per-merge-block partials
+	// (sums; for AGG_VEC_SD also the weighted Welford moments, combined
+	// by Chan's rule) folded in a fixed tree, so the figure is
 	// bit-identical for every worker count. Refused by crosstab, Sort,
 	// windows, post-tests, overlays and a chain stage that feeds another
 	// stage. params.expand writes one scalar column per member,
@@ -165,6 +169,7 @@ const (
 	// chain stage read; the bare label stays refused.
 	AGG_VEC_MEAN AggregationType = "AGG_VEC_MEAN"
 	AGG_VEC_SUM  AggregationType = "AGG_VEC_SUM"
+	AGG_VEC_SD   AggregationType = "AGG_VEC_SD"
 )
 
 // AllAggregationTypes returns all defined aggregation types.
@@ -184,7 +189,7 @@ func AllAggregationTypes() []AggregationType {
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES,
-		AGG_VEC_MEAN, AGG_VEC_SUM,
+		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD,
 	}
 }
 
@@ -1046,7 +1051,7 @@ type Aggregation struct {
 	Field string `json:"field"`
 
 	// Vector names the Request.Vectors entry whose members a vector
-	// aggregator (AGG_VEC_MEAN / AGG_VEC_SUM) aggregates element by
+	// aggregator (AGG_VEC_MEAN / AGG_VEC_SUM / AGG_VEC_SD) aggregates element by
 	// element; exactly one of Vector and Fields. Any other aggregator
 	// refuses it.
 	Vector string `json:"vector,omitempty"`

@@ -67,7 +67,7 @@ func (t AggregationType) Streamable() bool {
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES,
-		AGG_VEC_MEAN, AGG_VEC_SUM:
+		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD:
 		return true
 	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE:
 		return false
@@ -105,9 +105,10 @@ func (t AggregationType) Mergeable() bool {
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES,
-		// Per-merge-block element sums combined in a fixed tree: the
-		// merged figure is bit-identical to the serial one.
-		AGG_VEC_MEAN, AGG_VEC_SUM:
+		// Per-merge-block element sums (and, for AGG_VEC_SD, Chan-
+		// combined Welford moments) folded in a fixed tree: the merged
+		// figure is bit-identical to the serial one.
+		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD:
 		return true
 	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE,
 		AGG_SKEWNESS, AGG_KURTOSIS:
@@ -199,9 +200,10 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 		AGG_SET_INTERSECTION,
 		// Array-valued: never a crosstab cell or margin (ArrayValued —
 		// refused) unless params.element selects one element, a slot
-		// classed as its scalar twin (vectors.ElementMarginClass); the
-		// type itself keeps the honest default.
-		AGG_VEC_MEAN, AGG_VEC_SUM:
+		// classed as its scalar twin (vectors.ElementMarginClass; an
+		// AGG_VEC_SD element is a standard deviation, which recomputes
+		// like AGG_STDDEV); the type itself keeps the honest default.
+		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD:
 		return MarginRecompute
 	}
 	return MarginRecompute
@@ -226,16 +228,16 @@ func (t AggregationType) MapValued() bool {
 
 // ArrayValued reports whether the aggregator emits one figure per
 // vector member — a JSON array through the RichAggregator lift, with
-// no meaningful scalar (AGG_VEC_MEAN, AGG_VEC_SUM). An array value has
-// no single number to place in a crosstab cell, order a Sort by, host
-// an overlay on or hand a later chain stage's f64 column, so each of
+// no meaningful scalar (AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD). An
+// array value has no single number to place in a crosstab cell, order
+// a Sort by, host an overlay on or hand a later chain stage's f64 column, so each of
 // those is refused with PROCESSING_CONFIG whatever else the request
 // says — unlike MapValued, which only gates crosstab normalize. (A
 // crosstab slot whose params.element selects one element, and an
 // expanded element column, are scalars and run.)
 func (t AggregationType) ArrayValued() bool {
 	switch t {
-	case AGG_VEC_MEAN, AGG_VEC_SUM:
+	case AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD:
 		return true
 	}
 	return false

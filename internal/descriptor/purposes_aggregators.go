@@ -48,6 +48,7 @@ var aggregatorPurposes = map[string]descriptor.Purpose{
 	"AGG_VARIANCE":            purposeAggVariance,
 	"AGG_VEC_MEAN":            purposeAggVecMean,
 	"AGG_VEC_SUM":             purposeAggVecSum,
+	"AGG_VEC_SD":              purposeAggVecSd,
 	"AGG_WEIGHTED_MEAN":       purposeAggWeightedMean,
 	"AGG_WELFORD":             purposeAggWelford,
 	"AGG_ZSCORE":              purposeAggZScore,
@@ -940,5 +941,32 @@ var (
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"missing-value"},
+	}
+
+	purposeAggVecSd = descriptor.Purpose{
+		Plain:   "Standard deviation of each item of a battery or mix, as one list per group: how much the group's rows disagree on each item.",
+		KnownAs: []string{"item standard deviations", "sd vector", "profile spread"},
+		Intents: []string{IntentDescribe, IntentDistributionShape},
+		Questions: []string{
+			"On which of the eight brand attributes do each segment's ratings disagree most?",
+			"How much does each sales channel's share vary between stores in each region?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Per-segment spread of every item in a rating battery, beside the item means.",
+			descriptor.DomainOps:     "Store-to-store variability of each channel's share per region, in one list.",
+			descriptor.DomainScience: "Within-group spread of each measured variable per treatment arm.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want each item's average rather than its spread", Use: "AGG_VEC_MEAN"},
+			{When: "you want the spread of a single field", Use: "AGG_STDDEV"},
+			{When: "you want how the items vary together, not one by one", Use: "MAT_COVARIANCE"},
+		},
+		Assumptions: []string{
+			"Each item uses only the rows that answered it; a skipped item leaves only that item out of the row.",
+			"Sample form: the squared distances are divided by n - 1 (weighted: by the effective sample size minus 1).",
+			"An item answered by one row or none has no spread rather than 0.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"standard-deviation", "missing-value"},
 	}
 )

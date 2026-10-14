@@ -205,6 +205,22 @@ The average squared distance of a value from the group's mean, in the field's un
 - Extreme values weigh heavily, since each distance is squared.
 - A group with a single value reads 0: no spread can be seen in one value, which is not the same as a group whose values agree.
 
+<a id="op-agg_vec_sd"></a>
+
+### `AGG_VEC_SD`
+
+Standard deviation of each item of a battery or mix, as one list per group: how much the group's rows disagree on each item. See its [catalog entry](../catalog/aggregator.md#op-agg_vec_sd).
+
+#### `value`
+
+One standard deviation per item, in member order, each in that item's own units: how far a typical row sits from the group's mean on that item. 0 means every row gave the item the same value.
+
+**Caveats:**
+
+- It is the sample form, dividing by n - 1 (AGG_STDDEV divides by n), so on a small group it reads larger than AGG_STDDEV of the same item.
+- Each item counts only the rows that answered it; compare components element_n before comparing items.
+- An item answered by one row or none reads null (weighted: when the sum of weights, or Kish's n_eff under kind probability, is 1 or less), never 0.
+
 <a id="op-agg_weighted_mean"></a>
 
 ### `AGG_WEIGHTED_MEAN`

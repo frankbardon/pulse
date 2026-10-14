@@ -559,10 +559,16 @@ func TestHookPanicRecovered(t *testing.T) {
 // slot of which reads a vector now skips the aggregation-slot walks
 // (vectors.anyAggregationSlot) the resolver, projection and
 // Referenced used to build per call.
+//
+// Re-pinned by matrix-extensions-hardening E5-S1 (branch
+// matrix-extensions-hardening, on ef294704 + the change, go1.27,
+// arm64): predict 259 → 267 is the same capability-table rebuild
+// growing by the AGG_VEC_SD row (259 exactly at ef294704, measured on a
+// clean export of that commit).
 var obsOffAllocBaseline = map[string]float64{
 	"process":       162,
 	"count_records": 45,
-	"predict":       259,
+	"predict":       267,
 	"inspect":       66,
 }
 

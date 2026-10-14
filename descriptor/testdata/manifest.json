@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:3aa32c5284bdcf6923a2d6d667e1503c4564aee3f8351ad5b4fd066e351c8d8e",
+    "feature_set_digest": "fs1:638291bdc93b02a986b545b7832db7fafd03fdd3fc9e17c0c5122665b2b87ed0",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -2705,7 +2705,7 @@
               {
                 "name": "element_sum_weights",
                 "type": "[]float64",
-                "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator.",
+                "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator and AGG_VEC_SD's sample size under kind frequency.",
                 "optional": true
               }
             ],
@@ -2719,6 +2719,122 @@
           "intents": [
             "compare_groups",
             "describe"
+          ]
+        },
+        {
+          "name": "AGG_VEC_SD",
+          "category": "aggregator",
+          "description": "Per-member sample standard deviation of a vector (vector or fields, exactly one; never field): one figure per member, in member order — how widely the group's rows spread on each item. Missing data is per element: a null member skips that element only. Sample form: sqrt(M2 / (n - 1)) unweighted; weighted, sqrt(M2 / (sum(w) - 1)) under kind frequency (the expanded rows) and sqrt(M2 / (sum(w) - sum(w^2)/sum(w))) under kind probability (Kish n_eff), M2 = sum(w*(x - mean)^2). An element whose sample size (n, sum(w) or n_eff) is 1 or less is NaN (null in JSON), never 0. Array-valued: refused as a crosstab cell or margin aggregation (unless params.element selects one element), a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: params.field where the kind honours it, else aggregations[0] — an unscored one beside it runs) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"\u003clabel\u003e[\u003celement label\u003e]\" — an ordinary nullable f64 column a Sort key, a window, a post-test, a series overlay's params.field or a later chain stage (an f64 input field) reads (an undefined element is NaN, a null there and a missing host value to an overlay).",
+          "params": [
+            {
+              "name": "labels",
+              "type": "list",
+              "required": false,
+              "description": "Display label per member, inline fields only (a named vector carries its own Request.Vectors labels); one per resolved member. Names the elements in labels (components). Default: the member names."
+            },
+            {
+              "name": "expand",
+              "type": "bool",
+              "required": false,
+              "description": "true: replace the array with one scalar column per member, \"\u003clabel\u003e[\u003celement label\u003e]\" in member order (grouped: per row); the label itself is absent. Predict lists the columns (aggregations[i].columns). Each is an ordinary nullable f64 column: a Sort key, a window's field / order_by / partition_by, a post-test field and a series overlay's params.field (request, Compose or whole-chain host) read it, and so does a later chain stage, as an f64 input field (NaN, an element no row answered, is a null there and a missing host value to an overlay), while the bare label stays refused (PROCESSING_CONFIG, reason array_valued); element labels must be distinct (expand_duplicate_labels). A return path names one with a quoted segment, data[*].\"\u003clabel\u003e[\u003celement label\u003e]\", or all with a prefix glob, data[*].\u003clabel\u003e*. Default false."
+            },
+            {
+              "name": "element",
+              "type": "string",
+              "required": false,
+              "description": "Crosstab cell or margin_aggregations only: the display label of the ONE member the slot reads, making it a scalar — that element's figure (the scalar twin's: AGG_AVERAGE / AGG_SUM of the member, except an unanswered element stays this operator's NaN / 0), its floor {n, n_null} over the member's presence (so a record reaches an auxiliary margin only if its selected member reached a cell) and one-entry components. Fuses and margins like the scalar twin. Refused beside expand (element_with_expand), outside a crosstab (element_outside_crosstab), naming no member label (element_unknown) or a shared one (element_ambiguous)."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "rich []float64, one sample standard deviation per member in member order (NaN, null in JSON, where the element's sample size is 1 or less); no scalar figure",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
+                "name": "labels",
+                "type": "[]string",
+                "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names. An element slot (params.element) reports its one member, here and in every per-member key."
+              },
+              {
+                "name": "element_n",
+                "type": "[]int",
+                "description": "Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered)."
+              },
+              {
+                "name": "element_sum",
+                "type": "[]float64",
+                "description": "Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count."
+              },
+              {
+                "name": "element_sum_weights",
+                "type": "[]float64",
+                "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator and AGG_VEC_SD's sample size under kind frequency.",
+                "optional": true
+              },
+              {
+                "name": "element_mean",
+                "type": "[]float64",
+                "description": "AGG_VEC_SD: per member, the running weighted mean the moments are centred on (Welford-West; may differ from AGG_VEC_MEAN's sum(w*x)/sum(w) in the last bits). 0 where no row contributed."
+              },
+              {
+                "name": "element_m2",
+                "type": "[]float64",
+                "description": "AGG_VEC_SD: per member, M2 = sum(w*(x - mean)^2) over contributing rows. Partials combine by Chan's rule per merge block in a fixed tree, bit-identical for any worker count."
+              },
+              {
+                "name": "element_sum_weights_sq",
+                "type": "[]float64",
+                "description": "AGG_VEC_SD, weighted slot only: per member, sum(w^2) over contributing rows — Kish n_eff = sum(w)^2 / sum(w^2), the sample size under kind probability.",
+                "optional": true
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "describe",
+            "distribution_shape"
           ]
         },
         {
@@ -2805,7 +2921,7 @@
               {
                 "name": "element_sum_weights",
                 "type": "[]float64",
-                "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator.",
+                "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator and AGG_VEC_SD's sample size under kind frequency.",
                 "optional": true
               }
             ],
@@ -9605,6 +9721,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_VEC_MEAN",
+          "AGG_VEC_SD",
           "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
@@ -9695,6 +9812,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_VEC_MEAN",
+          "AGG_VEC_SD",
           "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
@@ -9785,6 +9903,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_VEC_MEAN",
+          "AGG_VEC_SD",
           "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
@@ -9875,6 +9994,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_VEC_MEAN",
+          "AGG_VEC_SD",
           "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
@@ -9965,6 +10085,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_VEC_MEAN",
+          "AGG_VEC_SD",
           "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
@@ -10054,6 +10175,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_VEC_MEAN",
+          "AGG_VEC_SD",
           "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_WELFORD",
@@ -10143,6 +10265,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_VEC_MEAN",
+          "AGG_VEC_SD",
           "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
@@ -10229,6 +10352,7 @@
           "AGG_SUM",
           "AGG_VARIANCE",
           "AGG_VEC_MEAN",
+          "AGG_VEC_SD",
           "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
@@ -11096,6 +11220,10 @@
       {
         "name": "op-agg-vec-mean",
         "description": "Per-member mean of a vector — one average per member, in member order (a group's average profile)."
+      },
+      {
+        "name": "op-agg-vec-sd",
+        "description": "Per-member sample standard deviation of a vector — one spread per member, in member order (how much a group disagrees on each item)."
       },
       {
         "name": "op-agg-vec-sum",
@@ -12158,7 +12286,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 218,
+    "examples_count": 219,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -12426,6 +12554,7 @@
         "AGG_STDDEV",
         "AGG_VARIANCE",
         "AGG_VEC_MEAN",
+        "AGG_VEC_SD",
         "AGG_VEC_SUM",
         "AGG_WELFORD",
         "AGG_ZSCORE"
@@ -12440,7 +12569,7 @@
         "crosstab cannot coexist with top-level groups or aggregations (PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS)",
         "matrix shape, any margin, or any normalization forces the buffered path",
         "map-valued cell aggregators (AGG_SET_FREQUENCY) cannot pair with normalize=row/column/total (PULSE_CROSSTAB_NORMALIZE_MAP_VALUED)",
-        "array-valued aggregators (array_valued_aggregators: AGG_VEC_MEAN, AGG_VEC_SUM) are refused as the cell or a margin aggregation, whatever normalize says (PROCESSING_CONFIG, reason array_valued) — unless params.element selects one element (built-in AGG_VEC_* only), which makes the slot a scalar that margins and fuses like its scalar twin (mean_reducible / summable)"
+        "array-valued aggregators (array_valued_aggregators: AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD) are refused as the cell or a margin aggregation, whatever normalize says (PROCESSING_CONFIG, reason array_valued) — unless params.element selects one element (built-in AGG_VEC_* only), which makes the slot a scalar that margins and fuses like its scalar twin (mean_reducible / summable; an AGG_VEC_SD element is recompute, like AGG_STDDEV)"
       ],
       "supports_normalize_level": true,
       "normalize_level_rules": [
@@ -12466,6 +12595,7 @@
       ],
       "array_valued_aggregators": [
         "AGG_VEC_MEAN",
+        "AGG_VEC_SD",
         "AGG_VEC_SUM"
       ]
     },
@@ -15284,7 +15414,77 @@
             {
               "name": "element_sum_weights",
               "type": "[]float64",
-              "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator.",
+              "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator and AGG_VEC_SD's sample size under kind frequency.",
+              "optional": true
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_VEC_SD": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "labels",
+              "type": "[]string",
+              "description": "Display label per member, in member order: the vector's labels, else params.labels, else the member names. An element slot (params.element) reports its one member, here and in every per-member key."
+            },
+            {
+              "name": "element_n",
+              "type": "[]int",
+              "description": "Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered)."
+            },
+            {
+              "name": "element_sum",
+              "type": "[]float64",
+              "description": "Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count."
+            },
+            {
+              "name": "element_sum_weights",
+              "type": "[]float64",
+              "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator and AGG_VEC_SD's sample size under kind frequency.",
+              "optional": true
+            },
+            {
+              "name": "element_mean",
+              "type": "[]float64",
+              "description": "AGG_VEC_SD: per member, the running weighted mean the moments are centred on (Welford-West; may differ from AGG_VEC_MEAN's sum(w*x)/sum(w) in the last bits). 0 where no row contributed."
+            },
+            {
+              "name": "element_m2",
+              "type": "[]float64",
+              "description": "AGG_VEC_SD: per member, M2 = sum(w*(x - mean)^2) over contributing rows. Partials combine by Chan's rule per merge block in a fixed tree, bit-identical for any worker count."
+            },
+            {
+              "name": "element_sum_weights_sq",
+              "type": "[]float64",
+              "description": "AGG_VEC_SD, weighted slot only: per member, sum(w^2) over contributing rows — Kish n_eff = sum(w)^2 / sum(w^2), the sample size under kind probability.",
               "optional": true
             }
           ],
@@ -15338,7 +15538,7 @@
             {
               "name": "element_sum_weights",
               "type": "[]float64",
-              "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator.",
+              "description": "Weighted slot only: per member, the sum of contributing rows' weights (valid and \u003e 0) — AGG_VEC_MEAN's denominator and AGG_VEC_SD's sample size under kind frequency.",
               "optional": true
             }
           ],
@@ -16831,4 +17031,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: cd55bdfff6bd86d9aaf8303d830f514e419d3d4f8627309d17699d28e9e50e59
+// golden-hash: f99d47226cb5b5de9af41017f0a3c072505088ff8c96c888e0ed1d1bd53f1f93

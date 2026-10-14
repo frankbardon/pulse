@@ -614,7 +614,7 @@ type AggregationPredict struct {
 
 	// Columns names the Response.Data columns the slot writes when they
 	// are not its label: an expanding vector aggregation (AGG_VEC_MEAN /
-	// AGG_VEC_SUM with params.expand) writes one scalar column per
+	// AGG_VEC_SUM / AGG_VEC_SD with params.expand) writes one scalar column per
 	// member, "<label>[<element label>]" in member order, and no column
 	// under the label itself. Omitted on every other slot (its one
 	// column is the label).

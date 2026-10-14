@@ -808,14 +808,29 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 		vecAggCapability(types.AGG_VEC_SUM,
 			"Per-member total of a vector (vector or fields, exactly one; never field): one figure per member, in member order. Missing data is per element: a null member skips that element only. Weighted: sum(w*x) per element. An element no row answered is 0. Array-valued: refused as a crosstab cell or margin aggregation (unless params.element selects one element), a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: params.field where the kind honours it, else aggregations[0] — an unscored one beside it runs) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"<label>[<element label>]\" — an ordinary f64 column a Sort key, a window, a post-test, a series overlay's params.field or a later chain stage (an f64 input field) reads.",
 			"rich []float64, one total per member in member order (0 where no row answered); no scalar figure"),
+		vecAggCapability(types.AGG_VEC_SD,
+			"Per-member sample standard deviation of a vector (vector or fields, exactly one; never field): one figure per member, in member order — how widely the group's rows spread on each item. Missing data is per element: a null member skips that element only. Sample form: sqrt(M2 / (n - 1)) unweighted; weighted, sqrt(M2 / (sum(w) - 1)) under kind frequency (the expanded rows) and sqrt(M2 / (sum(w) - sum(w^2)/sum(w))) under kind probability (Kish n_eff), M2 = sum(w*(x - mean)^2). An element whose sample size (n, sum(w) or n_eff) is 1 or less is NaN (null in JSON), never 0. Array-valued: refused as a crosstab cell or margin aggregation (unless params.element selects one element), a Sort key, a window or post-test input, the value an overlay scores (request, Compose or whole-chain: params.field where the kind honours it, else aggregations[0] — an unscored one beside it runs) and a chain stage that feeds another. params.expand writes one scalar column per member instead, \"<label>[<element label>]\" — an ordinary nullable f64 column a Sort key, a window, a post-test, a series overlay's params.field or a later chain stage (an f64 input field) reads (an undefined element is NaN, a null there and a missing host value to an overlay).",
+			"rich []float64, one sample standard deviation per member in member order (NaN, null in JSON, where the element's sample size is 1 or less); no scalar figure",
+			descriptor.ComponentKey{Name: "element_mean", Type: "[]float64", Description: "AGG_VEC_SD: per member, the running weighted mean the moments are centred on (Welford-West; may differ from AGG_VEC_MEAN's sum(w*x)/sum(w) in the last bits). 0 where no row contributed."},
+			descriptor.ComponentKey{Name: "element_m2", Type: "[]float64", Description: "AGG_VEC_SD: per member, M2 = sum(w*(x - mean)^2) over contributing rows. Partials combine by Chan's rule per merge block in a fixed tree, bit-identical for any worker count."},
+			descriptor.ComponentKey{Name: "element_sum_weights_sq", Type: "[]float64", Description: "AGG_VEC_SD, weighted slot only: per member, sum(w^2) over contributing rows — Kish n_eff = sum(w)^2 / sum(w^2), the sample size under kind probability.", Optional: true},
+		),
 	}
 }
 
 // vecAggCapability declares a vector aggregator (AGG_VEC_MEAN /
-// AGG_VEC_SUM). Its columns are the slot's vector / fields members;
-// AcceptsTypes is the member types a vector carries without coerce
-// (packed_bool members need the vector's coerce "binary").
-func vecAggCapability(op types.AggregationType, desc, emits string) descriptor.Operator {
+// AGG_VEC_SUM / AGG_VEC_SD). Its columns are the slot's vector / fields
+// members; AcceptsTypes is the member types a vector carries without
+// coerce (packed_bool members need the vector's coerce "binary"). own
+// are the operator's component keys beyond the shared four.
+func vecAggCapability(op types.AggregationType, desc, emits string, own ...descriptor.ComponentKey) descriptor.Operator {
+	keys := []descriptor.ComponentKey{
+		{Name: "labels", Type: "[]string", Description: "Display label per member, in member order: the vector's labels, else params.labels, else the member names. An element slot (params.element) reports its one member, here and in every per-member key."},
+		{Name: "element_n", Type: "[]int", Description: "Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered)."},
+		{Name: "element_sum", Type: "[]float64", Description: "Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count."},
+		{Name: "element_sum_weights", Type: "[]float64", Description: "Weighted slot only: per member, the sum of contributing rows' weights (valid and > 0) — AGG_VEC_MEAN's denominator and AGG_VEC_SD's sample size under kind frequency.", Optional: true},
+	}
+	keys = append(keys, own...)
 	return descriptor.Operator{
 		Name:        string(op),
 		Category:    "aggregator",
@@ -837,15 +852,10 @@ func vecAggCapability(op types.AggregationType, desc, emits string) descriptor.O
 				Description: "Crosstab cell or margin_aggregations only: the display label of the ONE member the slot reads, making it a scalar — that element's figure (the scalar twin's: AGG_AVERAGE / AGG_SUM of the member, except an unanswered element stays this operator's NaN / 0), its floor {n, n_null} over the member's presence (so a record reaches an auxiliary margin only if its selected member reached a cell) and one-entry components. Fuses and margins like the scalar twin. Refused beside expand (element_with_expand), outside a crosstab (element_outside_crosstab), naming no member label (element_unknown) or a shared one (element_ambiguous).",
 			},
 		},
-		AcceptsTypes:  numericFieldTypesNoDecimal,
-		EmitsTypeNote: emits,
-		Streamable:    true,
-		ComponentSchema: aggSchema(descriptor.Mergeable,
-			descriptor.ComponentKey{Name: "labels", Type: "[]string", Description: "Display label per member, in member order: the vector's labels, else params.labels, else the member names. An element slot (params.element) reports its one member, here and in every per-member key."},
-			descriptor.ComponentKey{Name: "element_n", Type: "[]int", Description: "Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered)."},
-			descriptor.ComponentKey{Name: "element_sum", Type: "[]float64", Description: "Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count."},
-			descriptor.ComponentKey{Name: "element_sum_weights", Type: "[]float64", Description: "Weighted slot only: per member, the sum of contributing rows' weights (valid and > 0) — AGG_VEC_MEAN's denominator.", Optional: true},
-		),
+		AcceptsTypes:    numericFieldTypesNoDecimal,
+		EmitsTypeNote:   emits,
+		Streamable:      true,
+		ComponentSchema: aggSchema(descriptor.Mergeable, keys...),
 	}
 }
 

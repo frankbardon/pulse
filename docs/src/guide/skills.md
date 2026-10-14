@@ -61,6 +61,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-agg-sum`](skills/op-agg-sum.md): Sum the numeric values of a field across the input set.
 - [`op-agg-variance`](skills/op-agg-variance.md): Population variance via Welford's online algorithm.
 - [`op-agg-vec-mean`](skills/op-agg-vec-mean.md): Per-member mean of a vector — one average per member, in member order (a group's average profile).
+- [`op-agg-vec-sd`](skills/op-agg-vec-sd.md): Per-member sample standard deviation of a vector — one spread per member, in member order (how much a group disagrees on each item).
 - [`op-agg-vec-sum`](skills/op-agg-vec-sum.md): Per-member total of a vector — one sum per member, in member order.
 - [`op-agg-weighted-mean`](skills/op-agg-weighted-mean.md): Weighted arithmetic mean — sum(field * weight) / sum(weight).
 - [`op-agg-welford`](skills/op-agg-welford.md): Streaming Welford-Pébaÿ moment triple — running mean, sample variance (n-1), and observed count.

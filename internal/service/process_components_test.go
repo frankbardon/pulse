@@ -1052,6 +1052,7 @@ func allAggServiceFixtures(t *testing.T) map[types.AggregationType]aggServiceFix
 		// Vector aggregators read num and den of the ratio cohort.
 		types.AGG_VEC_MEAN: {svc: ratioSvc, schema: ratioSchema, cohortName: "predict_ratio.pulse", fields: []string{"num", "den"}},
 		types.AGG_VEC_SUM:  {svc: ratioSvc, schema: ratioSchema, cohortName: "predict_ratio.pulse", fields: []string{"num", "den"}},
+		types.AGG_VEC_SD:   {svc: ratioSvc, schema: ratioSchema, cohortName: "predict_ratio.pulse", fields: []string{"num", "den"}},
 	}
 
 	// Sanity: the fixture map must cover every registered aggregator.

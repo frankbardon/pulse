@@ -28,6 +28,7 @@ var descriptiveInterpretations = map[string][]descriptor.Interpretation{
 	"AGG_SKEWNESS":      interpAggSkewness,
 	"AGG_STDDEV":        interpAggStdDev,
 	"AGG_VARIANCE":      interpAggVariance,
+	"AGG_VEC_SD":        interpAggVecSd,
 	"AGG_WEIGHTED_MEAN": interpAggWeightedMean,
 	"AGG_WELFORD":       interpAggWelford,
 	"AGG_ZSCORE":        interpAggZScore,
@@ -65,6 +66,19 @@ var (
 				descPopulationSpread,
 				"Each distance is squared before averaging, so a few extreme values inflate it; for a skewed field a percentile range describes the spread better.",
 				descSingleRowZero,
+			},
+		},
+	}
+
+	interpAggVecSd = []descriptor.Interpretation{
+		{
+			Field: "value",
+			Means: "One standard deviation per item, in member order, each in that item's own units: how far a typical row sits from the group's mean on that item. " +
+				"0 means every row gave the item the same value.",
+			Caveats: []string{
+				"It is the sample form, dividing by n - 1 (AGG_STDDEV divides by n), so on a small group it reads larger than AGG_STDDEV of the same item.",
+				"Each item counts only the rows that answered it; compare components element_n before comparing items.",
+				"An item answered by one row or none reads null (weighted: when the sum of weights, or Kish's n_eff under kind probability, is 1 or less), never 0.",
 			},
 		},
 	}

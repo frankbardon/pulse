@@ -70,6 +70,12 @@ definition:
     statsmodels DescrStatsW .sum / .mean per member over that member's
     own contributing rows (one slot over x and y; figures keyed by
     element position "0", "1").
+  * AGG_VEC_SD (matrix-extensions-hardening E5-S1) — the per-member
+    SAMPLE sd on w* (the one inference rule): statsmodels
+    DescrStatsW(x, weights=w*, ddof=1).std with w* = w under kind
+    frequency (sqrt(M2/(Σw − 1)), the rep() expansion) and
+    w* = w·n_eff/Σw under kind probability (sqrt(M2/(Σw − Σw²/Σw))),
+    cross-checked against that closed form; NaN when N* ≤ 1.
   * AGG_MAE / AGG_RMSE / AGG_MAPE (fit-scoring E2-S1) — scikit-learn
     metrics mean_absolute_error / mean_squared_error (RMSE = its root) /
     mean_absolute_percentage_error with sample_weight, actual x against
@@ -524,6 +530,9 @@ def cases():
         vfl = floor("y", wname, kind)
         add("AGG_VEC_SUM", {"0": d0.sum, "1": dy.sum}, col="x,y", floor_=vfl, src=sm + ".sum per member")
         add("AGG_VEC_MEAN", {"0": d0.mean, "1": dy.mean}, col="x,y", floor_=vfl, src=sm + ".mean per member")
+        ys, yw = [ROWS[i][1] for i in yidx], [ws[i] for i in yidx]
+        add("AGG_VEC_SD", {"0": vec_sd_reference(x, w, kind), "1": vec_sd_reference(ys, yw, kind)},
+            col="x,y", floor_=vfl, src=sm + "(w*, ddof=1).std per member, w* = w·N*/Σw")
 
     # Cross-check: where the normalized probability weights are
     # integers the transcription must equal numpy type 7 on the
@@ -639,6 +648,29 @@ FREQUENCY_ONLY = {"mann_whitney", "wilcoxon_sr", "kruskal", "spearman", "kendall
 def kish(w):
     w = np.asarray(w, dtype=float)
     return float(w.sum() ** 2 / np.square(w).sum())
+
+
+def vec_sd_reference(x, w, kind):
+    """One AGG_VEC_SD element: the frequency sample sd on w* = w·N*/Σw
+    (N* = Σw under frequency, Kish n_eff under probability) —
+    DescrStatsW(w*, ddof=1).std, asserted equal (1e-12) to the closed
+    form sqrt(M2 / (Σw − 1)) / sqrt(M2 / (Σw − Σw²/Σw)). NaN when
+    N* ≤ 1 (no positive denominator)."""
+    x, w = np.asarray(x, dtype=float), np.asarray(w, dtype=float)
+    keep = w > 0
+    x, w = x[keep], w[keep]
+    sw = float(w.sum())
+    prob = kind == "probability"
+    nstar = kish(w) if prob else sw
+    if not nstar > 1:
+        return float("nan")
+    ws = w * (nstar / sw) if prob else w
+    sd = float(DescrStatsW(x, weights=ws, ddof=1).std)
+    mean = float(np.sum(w * x) / sw)
+    m2 = float(np.sum(w * (x - mean) ** 2))
+    den = sw - float(np.square(w).sum()) / sw if prob else sw - 1
+    assert close(sd, math.sqrt(m2 / den), 1e-12), (sd, m2, den)
+    return sd
 
 
 class Sample:

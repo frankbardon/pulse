@@ -274,7 +274,7 @@ func StageMatrixRefusal(req *types.Request, stageIndex int, stageName string) er
 }
 
 // StageArrayValuedRefusal is the ProcessChain rule that an
-// array-valued aggregation (AGG_VEC_MEAN / AGG_VEC_SUM, or an extension
+// array-valued aggregation (AGG_VEC_MEAN / AGG_VEC_SUM / AGG_VEC_SD, or an extension
 // declared ArrayValued) may not feed a later stage: the next
 // stage reads each output column as one f64, so the array would read
 // as null and every figure over it — a total(), a ratio, a plain sum —

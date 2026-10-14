@@ -64,6 +64,9 @@ Every operator here reads one vector (`vectors`, see `matrix-results`) and answe
 <!-- feature: AGG_VEC_SUM -->
 | Each group's total per item, as one list? | `AGG_VEC_SUM` |
 <!-- /feature -->
+<!-- feature: AGG_VEC_SD -->
+| How much each group disagrees on each item, as one list? | `AGG_VEC_SD` (sample sd per item) |
+<!-- /feature -->
 <!-- feature: GROUP_KMEANS -->
 | Which segments do the rows fall into across the fields? | `GROUP_KMEANS` (a grouper) |
 <!-- /feature -->
@@ -126,6 +129,9 @@ Per-test correction on other operators: `multiplicity-correction`.
 <!-- /feature -->
 <!-- feature: AGG_VEC_MEAN -->
 - `op-agg-vec-mean`
+<!-- /feature -->
+<!-- feature: AGG_VEC_SD -->
+- `op-agg-vec-sd`
 <!-- /feature -->
 <!-- feature: MAT_COLLINEARITY -->
 - `op-mat-collinearity`

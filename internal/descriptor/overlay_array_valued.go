@@ -18,8 +18,9 @@ import (
 // silently. Two classes are refused (vectors.AggregationKinds, so the
 // instance's routing and extension declarations apply):
 //
-//   - array-valued (IsArrayValued — AGG_VEC_MEAN / AGG_VEC_SUM, or an
-//     extension declared ArrayValued) scored by its bare label: one
+//   - array-valued (IsArrayValued — AGG_VEC_MEAN / AGG_VEC_SUM /
+//     AGG_VEC_SD, or an extension declared ArrayValued) scored by its
+//     bare label: one
 //     figure per member. details.reason "array_valued". Under
 //     params.expand a series kind's params.field may name one of its
 //     per-element columns "<label>[<element label>]" instead

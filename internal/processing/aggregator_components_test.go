@@ -468,6 +468,8 @@ func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixtu
 			expectedN: 10, expectedNull: 0, filteredRecords: 10},
 		types.AGG_VEC_SUM: {schema: cohSchema, fields: []string{"value", "num", "den"}, records: cohRecs,
 			expectedN: 10, expectedNull: 0, filteredRecords: 10},
+		types.AGG_VEC_SD: {schema: cohSchema, fields: []string{"value", "num", "den"}, records: cohRecs,
+			expectedN: 10, expectedNull: 0, filteredRecords: 10},
 
 		// Set ops use the set_u8 dictionary cohort.
 		types.AGG_SET_UNION:           set(),

@@ -347,7 +347,7 @@ func vparCases() []vparCase {
 			// A request weight: the weighted floor keys (sum_weights,
 			// n_eff, n_weight_invalid) must match too.
 			name: "weighted",
-			ops:  []string{"MAT_COVARIANCE", "TEST_HOTELLING_T2", "ATTR_MAHALANOBIS", "AGG_VEC_MEAN"},
+			ops:  []string{"MAT_COVARIANCE", "TEST_HOTELLING_T2", "ATTR_MAHALANOBIS", "AGG_VEC_MEAN", "AGG_VEC_SD"},
 			req: func(twin bool) *types.Request {
 				return vparReq(twin, &types.Request{
 					Weight:     &types.WeightSpec{Field: "s"},
@@ -355,19 +355,21 @@ func vparCases() []vparCase {
 					Tests:      []*types.Test{{Type: types.TEST_HOTELLING_T2, Vector: "emb", SplitBy: "arm", Label: "t2"}},
 					Attributes: []*types.Attribute{{Type: types.ATTR_MAHALANOBIS, Vector: "emb2", Label: "d2"}},
 					Aggregations: append(vparAvg("d2"),
-						&types.Aggregation{Type: types.AGG_VEC_MEAN, Vector: "emb", Label: "m"}),
+						&types.Aggregation{Type: types.AGG_VEC_MEAN, Vector: "emb", Label: "m"},
+						&types.Aggregation{Type: types.AGG_VEC_SD, Vector: "emb", Label: "sd"}),
 				})
 			},
 		},
 		{
 			name: "k-means grouper and vector aggregations",
-			ops:  []string{"GROUP_KMEANS", "AGG_VEC_MEAN", "AGG_VEC_SUM"},
+			ops:  []string{"GROUP_KMEANS", "AGG_VEC_MEAN", "AGG_VEC_SUM", "AGG_VEC_SD"},
 			req: func(twin bool) *types.Request {
 				return vparReq(twin, &types.Request{
 					Groups: []*types.Group{{Type: types.GROUP_KMEANS, Vector: "emb", Params: vparRaw(`{"k":3,"seed":7}`)}},
 					Aggregations: append(vparAvg("s"),
 						&types.Aggregation{Type: types.AGG_VEC_MEAN, Vector: "emb2", Label: "m2"},
-						&types.Aggregation{Type: types.AGG_VEC_SUM, Vector: "emb", Label: "t"}),
+						&types.Aggregation{Type: types.AGG_VEC_SUM, Vector: "emb", Label: "t"},
+						&types.Aggregation{Type: types.AGG_VEC_SD, Vector: "emb2", Label: "sd2"}),
 				})
 			},
 		},

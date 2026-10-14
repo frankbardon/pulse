@@ -26,7 +26,8 @@ No gonum type appears on the exported surface: gonum is pre-1.0 and the surface 
 |---|---|
 | Metric registry — `linalg/metric`; Backend policy — why two backends; Tolerances, order and sign; Errors; `CoMoment` weight and missing semantics; Blocked merge-tree contract; Parity tolerance rationale; Open edges (handed on) | `matrix-and-vectors/linalg.md` |
 | Virtual vectors — `Request.Vectors`: shape, native vector fields, vector fields in scalar slots, kind, order, member types, labels, order of checks, where it runs, expression binding, unreferenced warning, hashing, codes | `matrix-and-vectors/vectors.md` |
-| Virtual vectors (continued): vector-input tests, `ATTR_SCALE_SCORE`, reference comparison, `AGG_VEC_MEAN` / `AGG_VEC_SUM`, expand, vector-input (fitted) attributes, vector-input groupers | `matrix-and-vectors/vector-operators.md` |
+| Virtual vectors (continued): vector-input tests, `ATTR_SCALE_SCORE`, reference comparison, vector-input (fitted) attributes, vector-input groupers | `matrix-and-vectors/vector-operators.md` |
+| Virtual vectors — vector aggregators and expand: `AGG_VEC_MEAN` / `AGG_VEC_SUM` / `AGG_VEC_SD`, `params.element`, `params.expand` | `matrix-and-vectors/vector-aggregators.md` |
 | Matrix slot — `Request.Matrices` / `Response.Matrices`: wire, resolution, engine, paths, grouped, refusals, `top_pairs`, overlays on a matrix result, precision, `return` exclusion, `params.fit`, self-description, predict, choosing among the operators | `matrix-and-vectors/matrix-slot.md` |
 | Matrix slot (continued): `MAT_COVARIANCE`, `MAT_CORRELATION` (+ rank methods), `MAT_PARTIAL_CORRELATION`, inference, `PULSE_MATRIX_NOT_CONVERGED`, missing modes and warnings | `matrix-and-vectors/matrix-correlation.md` |
 | Matrix slot (continued): PSD guard and repair, one-factor minres, `MAT_RELIABILITY`, `MAT_PCA`, rotation engine, `MAT_COLLINEARITY` | `matrix-and-vectors/matrix-decomposition.md` |

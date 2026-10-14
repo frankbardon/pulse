@@ -99,9 +99,12 @@ var aggregatorClasses = map[types.AggregationType]Class{
 	types.AGG_MAE:  ClassAware,
 
 	// vector-metrics-aggregates E2-S2: per element Σw·x (AGG_VEC_SUM)
-	// and Σw·x / Σw (AGG_VEC_MEAN).
+	// and Σw·x / Σw (AGG_VEC_MEAN); matrix-extensions-hardening E5-S1:
+	// the per-element sample sd on N* (Σw under frequency, Kish n_eff
+	// under probability — the one inference rule) (AGG_VEC_SD).
 	types.AGG_VEC_MEAN: ClassAware,
 	types.AGG_VEC_SUM:  ClassAware,
+	types.AGG_VEC_SD:   ClassAware,
 }
 
 // attributeClasses classes the attributes the table governs: the

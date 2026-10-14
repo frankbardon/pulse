@@ -494,14 +494,17 @@ byte-identical.
 
 `Aggregation` carries the same two additive slots, `vector` / `fields`,
 on `aggregations`, `crosstab.cell` and `crosstab.margin_aggregations`.
-A vector aggregator (`AGG_VEC_MEAN`, `AGG_VEC_SUM`) sets exactly one of
+A vector aggregator (`AGG_VEC_MEAN`, `AGG_VEC_SUM`, `AGG_VEC_SD`) sets exactly one of
 them and no `field`; every other aggregator (extensions included)
 refuses both. Members are source columns only; `params.labels` (one per
 member) is accepted with `fields` only. The default label is
 `<TYPE>_<vector>` or `<TYPE>_<first fields entry>`. The value in
 `data` is a JSON ARRAY, one figure per member in member order (a
 non-finite element is `null`); its components entry adds `labels`,
-`element_n`, `element_sum` and, weighted, `element_sum_weights`. Shape
+`element_n`, `element_sum` and, weighted, `element_sum_weights`
+(`AGG_VEC_SD` adds `element_mean`, `element_m2` and, weighted,
+`element_sum_weights_sq`; an element whose sample size is 1 or less is
+`null`). Shape
 refusals are `SERVICE_VALIDATION` with `details.aggregation` and
 `details.reason`; an undefined vector is `PULSE_VECTOR_UNKNOWN`. An
 array-valued aggregator is refused `PROCESSING_CONFIG`

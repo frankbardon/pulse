@@ -40,4 +40,4 @@ Floor `{n, n_null}` — a row is present when ANY member answered<!-- feature: c
 ## See
 
 - `pulse_examples_search tags=[multivariate, streaming-friendly]`
-- Skills: `op-agg-vec-mean`, `multivariate-design`
+- Skills: `op-agg-vec-mean`, `op-agg-vec-sd`, `multivariate-design`

@@ -451,7 +451,23 @@ Only the floor keys.
 | `labels` | []string | always | Display label per member, in member order: the vector's labels, else params.labels, else the member names. An element slot (params.element) reports its one member, here and in every per-member key. |
 | `element_n` | []int | always | Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered). |
 | `element_sum` | []float64 | always | Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count. |
-| `element_sum_weights` | []float64 | when its condition holds | Weighted slot only: per member, the sum of contributing rows' weights (valid and > 0) — AGG_VEC_MEAN's denominator. |
+| `element_sum_weights` | []float64 | when its condition holds | Weighted slot only: per member, the sum of contributing rows' weights (valid and > 0) — AGG_VEC_MEAN's denominator and AGG_VEC_SD's sample size under kind frequency. |
+
+<a id="op-agg_vec_sd"></a>
+
+#### `AGG_VEC_SD`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/aggregator.md#op-agg_vec_sd).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `labels` | []string | always | Display label per member, in member order: the vector's labels, else params.labels, else the member names. An element slot (params.element) reports its one member, here and in every per-member key. |
+| `element_n` | []int | always | Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered). |
+| `element_sum` | []float64 | always | Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count. |
+| `element_sum_weights` | []float64 | when its condition holds | Weighted slot only: per member, the sum of contributing rows' weights (valid and > 0) — AGG_VEC_MEAN's denominator and AGG_VEC_SD's sample size under kind frequency. |
+| `element_mean` | []float64 | always | AGG_VEC_SD: per member, the running weighted mean the moments are centred on (Welford-West; may differ from AGG_VEC_MEAN's sum(w*x)/sum(w) in the last bits). 0 where no row contributed. |
+| `element_m2` | []float64 | always | AGG_VEC_SD: per member, M2 = sum(w*(x - mean)^2) over contributing rows. Partials combine by Chan's rule per merge block in a fixed tree, bit-identical for any worker count. |
+| `element_sum_weights_sq` | []float64 | when its condition holds | AGG_VEC_SD, weighted slot only: per member, sum(w^2) over contributing rows — Kish n_eff = sum(w)^2 / sum(w^2), the sample size under kind probability. |
 
 <a id="op-agg_vec_sum"></a>
 
@@ -464,7 +480,7 @@ Only the floor keys.
 | `labels` | []string | always | Display label per member, in member order: the vector's labels, else params.labels, else the member names. An element slot (params.element) reports its one member, here and in every per-member key. |
 | `element_n` | []int | always | Per member: rows whose member answered (raw, like the floor's n; the floor counts a row present when ANY member answered). |
 | `element_sum` | []float64 | always | Per member: sum(w*x) over contributing rows (unweighted: the plain sum). Merged per merge block in a fixed tree, bit-identical for any worker count. |
-| `element_sum_weights` | []float64 | when its condition holds | Weighted slot only: per member, the sum of contributing rows' weights (valid and > 0) — AGG_VEC_MEAN's denominator. |
+| `element_sum_weights` | []float64 | when its condition holds | Weighted slot only: per member, the sum of contributing rows' weights (valid and > 0) — AGG_VEC_MEAN's denominator and AGG_VEC_SD's sample size under kind frequency. |
 
 <a id="op-agg_weighted_mean"></a>
 

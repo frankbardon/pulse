@@ -205,7 +205,7 @@ func TestVecAgg_MergeBitExact(t *testing.T) {
 	var rows []*Record
 	rows = append(rows, vecRandomRows(s, n, 0, 0, 1)...)
 	rows = append(rows, vecRandomRows(s, n/2, 1, n, 2)...)
-	for _, typ := range []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM} {
+	for _, typ := range []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM, types.AGG_VEC_SD} {
 		for _, weighted := range []bool{false, true} {
 			serial := newVecAggForTest(t, typ, weighted, "")
 			for _, r := range rows {
@@ -258,7 +258,7 @@ func TestVecAgg_ShardSplitBitExact(t *testing.T) {
 		"one shard":           {n},
 		"leading empty shard": {0, 2, n - 2},
 	}
-	for _, typ := range []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM} {
+	for _, typ := range []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM, types.AGG_VEC_SD} {
 		for _, weighted := range []bool{false, true} {
 			ref := newVecAggForTest(t, typ, weighted, "")
 			for _, r := range single {
@@ -424,7 +424,7 @@ func TestVecAgg_ElementScalar(t *testing.T) {
 	s := vecAggSchema()
 	nan := math.NaN()
 	rows := []*Record{vecRec(s, 1, 2, nan, 1), vecRec(s, 3, nan, nan, 2), vecRec(s, 5, 7, nan, 1)}
-	for _, typ := range []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM} {
+	for _, typ := range []types.AggregationType{types.AGG_VEC_MEAN, types.AGG_VEC_SUM, types.AGG_VEC_SD} {
 		full := newVecAggForTest(t, typ, true, "")
 		if _, err := full.Aggregate(rows, ""); err != nil {
 			t.Fatal(err)
