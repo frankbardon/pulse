@@ -241,9 +241,16 @@ func TestFactorScore_MatchesROracle(t *testing.T) {
 // attribute's loadings, column order and sign are MAT_FACTOR's — for
 // the default (Kaiser, minres) fit and rotated ones, unweighted and
 // weighted. A Bartlett score correlates with every member with the
-// structure coefficient's sign wherever it is clearly non-zero.
+// structure coefficient's sign wherever it is clearly non-zero — unless
+// MAT_FACTOR's fit is a Heywood case with a uniqueness ≤ 0, where the
+// contract nulls every Bartlett score (its weights divide by ψ). That
+// case is decided from MAT_FACTOR's own uniquenesses and asserted as
+// all-null: a NaN correlation never reaches the sign check, whose
+// math.Signbit would read an arch-dependent NaN sign bit (clear on
+// arm64, set on amd64) and pass or fail by architecture.
 func TestFactorScore_SignAgreesWithMATFactor(t *testing.T) {
 	fields := []string{"rating", "complaints", "privileges", "learning", "raises", "critical", "advance"}
+	seen := map[string]bool{}
 	for _, c := range []struct {
 		name       string
 		factors    any
@@ -321,8 +328,21 @@ func TestFactorScore_SignAgreesWithMATFactor(t *testing.T) {
 			if fc := resp.Matrices[0].Auxiliary["factor_correlation"]; fc != nil {
 				phi = fc.Values
 			}
+			uniq, _ := resp.Matrices[0].Vectors["uniquenesses"].([]float64)
+			if len(uniq) != len(fields) {
+				t.Fatalf("MAT_FACTOR uniquenesses %v, want %d", resp.Matrices[0].Vectors["uniquenesses"], len(fields))
+			}
+			bartlettNulled := slices.Min(uniq) <= 0
+			seen[fmt.Sprint("bartlett nulled ", bartlettNulled)] = true
 			wspec := oracleWeight(c.weight)
 			for f := 1; f <= c.k; f++ {
+				if bartlettNulled {
+					for i, r := range recs {
+						if v, ok := r.NumericValue(fmt.Sprintf("bartlett%d", f)); ok && !math.IsNaN(v) {
+							t.Fatalf("row %d: Bartlett F%d = %v over a uniqueness ≤ 0 (%v), want null", i, f, v, uniq)
+						}
+					}
+				}
 				ratio := math.NaN()
 				for i, field := range fields {
 					s := 0.0
@@ -338,13 +358,24 @@ func TestFactorScore_SignAgreesWithMATFactor(t *testing.T) {
 					} else if math.Abs(reg/s-ratio) > 1e-8*ratio {
 						t.Errorf("F%d × %s: corr / structure = %.12f, the first member's %.12f", f, field, reg/s, ratio)
 					}
+					if bartlettNulled {
+						continue
+					}
 					bart := weightedCorr(recs, fmt.Sprintf("bartlett%d", f), field, wspec)
+					if math.IsNaN(bart) {
+						t.Fatalf("F%d × %s: Bartlett corr undefined over a fit with every uniqueness > 0 (%v)", f, field, uniq)
+					}
 					if math.Abs(s) > 0.2 && math.Signbit(bart) != math.Signbit(s) {
 						t.Errorf("F%d × %s: Bartlett corr %.6f against structure %.6f", f, field, bart, s)
 					}
 				}
 			}
 		})
+	}
+	for _, want := range []string{"bartlett nulled true", "bartlett nulled false"} {
+		if !seen[want] {
+			t.Fatalf("vacuous sign check: no %q case (seen %v)", want, seen)
+		}
 	}
 }
 
