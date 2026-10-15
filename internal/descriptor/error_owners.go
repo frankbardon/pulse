@@ -371,6 +371,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_LABEL_TABLE_NOT_ENUMERABLE:  own(featLabels),
 	errors.PULSE_LABEL_COLLISION:             shared,
 	errors.PULSE_LABEL_LOOKUP_MISS:           shared,
+	errors.PULSE_LABEL_NOT_APPLIED:           own(featLabels),
 
 	errors.PULSE_CROSSTAB_EMPTY_ROWS:                          own(featCrosstab),
 	errors.PULSE_CROSSTAB_EMPTY_COLUMNS:                       own(featCrosstab),

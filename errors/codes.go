@@ -1469,6 +1469,14 @@ const (
 	// unresolved values per field so callers can audit gaps.
 	PULSE_LABEL_LOOKUP_MISS Code = "PULSE_LABEL_LOOKUP_MISS"
 
+	// PULSE_LABEL_NOT_APPLIED is a warning emitted when a caller-authored
+	// label binding reached no surface of the response: its field is not
+	// an output column, a crosstab axis or a group key of the run, or it
+	// is an augment-mode binding on a crosstab matrix axis (an axis key
+	// has no sibling column). The binding is never accepted and ignored
+	// silently; details carry {index, field, table, mode, reason}.
+	PULSE_LABEL_NOT_APPLIED Code = "PULSE_LABEL_NOT_APPLIED"
+
 	// PULSE_CROSSTAB_EMPTY_ROWS indicates a Crosstab section was
 	// presented with no row-axis groupers. A crosstab requires at
 	// least one grouper on each axis; use a plain grouped Process
@@ -3891,6 +3899,7 @@ var allCodes = []Code{
 	PULSE_LABEL_TABLE_NOT_ENUMERABLE,
 	PULSE_LABEL_COLLISION,
 	PULSE_LABEL_LOOKUP_MISS,
+	PULSE_LABEL_NOT_APPLIED,
 	PULSE_CROSSTAB_EMPTY_ROWS,
 	PULSE_CROSSTAB_EMPTY_COLUMNS,
 	PULSE_CROSSTAB_MISSING_CELL,

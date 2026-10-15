@@ -37,11 +37,11 @@ Chain when a question is "aggregate, then aggregate the aggregates" — revenue 
 The bridge between stages is a synthesised cohort: grouper keys become `categorical_u32` columns, aggregator outputs become `f64`. A stage passes only if everything it runs fits that bridge — mergeable aggregators and groupers, row-local attributes, streamable filterers, no built-in aggregator over `decimal128`. **Read the admitted set off the manifest `process_chain` block** — `mergeable_aggregators`, `mergeable_groupers`, `row_local_attributes`, and `rejection_rules` for what is refused (windows, features, tests, regressions, two-pass attributes, order statistics). An extension operator passes iff declared `Mergeable`.
 
 - **Smart defaults run first.** `{"field": "n"}` on a numeric field is gated as its default aggregator, and the next stage sees that default's output name. A joined stage 0 defaults against the joined schema.
-- **A modal value on a categorical field chains its DICTIONARY INDEX** — the next stage sees a number, not the label.
+- **A modal value on a categorical field chains its DICTIONARY INDEX** — the next stage sees a number.
 - **Only stage 0 may join.** A later stage's `joins` ⇒ `PULSE_CHAIN_STAGE_JOIN {count, stage, stage_name}` ([`join-design`](join-design.md)).
 - **No stage may carry a `crosstab`** (it answers a matrix, not rows) ⇒ `PULSE_CHAIN_NOT_MERGEABLE`.
 - Failure: `PULSE_CHAIN_NOT_MERGEABLE` `"chain stage is not mergeable: <reason>"` `{stage_index, stage_name}`. Stages are gated as they run, so a refusal in stage 2 comes after stages 0–1 executed; any other stage refusal carries `details.stage`.
-- **`labels` apply on every stage**: a forwarded group key relabels; an f64 output ⇒ `PULSE_LABEL_FIELD_NOT_CATEGORICAL`.
+- **`labels` + `AutoLabels` apply on every stage**: a forwarded group key relabels; an f64 output ⇒ `PULSE_LABEL_FIELD_NOT_CATEGORICAL`.
 
 When the gate refuses, run stage 0 as an ordinary request (`pulse_process`) and finish the later steps client-side.
 

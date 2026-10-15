@@ -648,6 +648,12 @@ func copyAxisKeys(in []types.AxisKey) []types.AxisKey {
 	return out
 }
 
+// PairKeyElement is the pair-axis element a pairwise overlay writes for
+// one host axis key — stringifyOverlayAxisKey, exported so the label
+// pass (internal/service) relabels a PAIR key from the host key it was
+// built from, through the one rule.
+func PairKeyElement(k types.AxisKey) string { return stringifyOverlayAxisKey(k) }
+
 // stringifyOverlayAxisKey collapses an AxisKey into a deterministic label
 // for the pair-key 2-tuple. Single-element keys produce the bare value;
 // multi-element keys join with "|".

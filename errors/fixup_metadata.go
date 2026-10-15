@@ -2270,6 +2270,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_LABEL_NOT_APPLIED: {
+		Message: "A label binding was not applied: its field is not an output column, axis or group key of the response, or it is an augment-mode binding on a matrix axis, whose keys have no sibling column.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Labels", "*", "Field"},
+				Hint:   "Bind a field the request groups by (a grouper key, a crosstab row or column axis), or drop the binding.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Labels", "*", "Mode"},
+				Hint:   "For a crosstab matrix axis use mode \"replace\" (the axis keys become the labels), or request shape \"long\" to keep augment-mode sibling columns.",
+			},
+		},
+	},
 	PULSE_CROSSTAB_EMPTY_ROWS: {
 		Message: "The Crosstab section has no row-axis groupers. A crosstab requires at least one grouper on each axis.",
 		Fixups: []Fixup{

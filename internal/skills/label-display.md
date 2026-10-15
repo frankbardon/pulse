@@ -10,17 +10,17 @@ requires: [capability:labels]
 
 # Label display
 
-Pulse stores categorical fields as dictionary indices resolving to compact strings on read (`"US"`, `"M01.2"`, internal SKUs). When that string is itself a code rather than a display label, the **label overlay** rewrites or augments it at output time without touching the on-disk schema.
+Categorical fields resolve to compact strings on read (`"US"`, `"M01.2"`). When that string is a code, not a display label, a **label binding** rewrites or augments it at output time; the cohort is untouched.
 
 ## When to use
 
-Use a binding when the cohort stores an identifier (ISO code, SKU, ICD code, enum) and the user wants a readable name; OR the mapping is runtime-controlled (external store, evolves independently, varies per audience). Skip when the label is intrinsic and stable (import a second categorical column), the translation is computed (a formula attribute — `expression-language`), or the mapping is analytic semantics used by filters/sort (denormalise at import).
+Use a binding when the cohort stores an identifier (ISO code, SKU, ICD code) and the user wants a readable name, or the mapping is runtime-controlled. Skip when the label is intrinsic (import a second categorical column), computed (a formula attribute — `expression-language`), or semantics filters/sort need (denormalise at import).
 
 ## Two-step setup
 
 ### 1. Register a label table
 
-Tables live on `pulse.Options.Extensions.LabelTables`, or load from disk via `PULSE_LABEL_TABLES_DIR`.
+Tables live on `pulse.Options.Extensions.LabelTables`, or load via `PULSE_LABEL_TABLES_DIR`.
 
 ```go
 LabelTables: map[string]pulse.LabelTable{
@@ -33,7 +33,7 @@ LabelTables: map[string]pulse.LabelTable{
 
 `PULSE_LABEL_TABLES_DIR` auto-loads `*.json` (filename minus `.json` = table name). Flat `{"US":"United States"}` or wrapped `{"description":"...","rows":{...}}`. Programmatic + disk-loaded can't share a name (`pulse.New` rejects).
 
-**Pulse's own sidecars are skipped; anything else that fails to parse is fatal.** The loader excludes `*.spss.json` (SPSS metadata), `*.meta.json` (managed import) and `*.indexes.json` (lookup-index catalog) by suffix before reading, so pointing the variable at a directory that also holds cohorts is safe; a skipped sidecar registers no table. Every OTHER `*.json` under the root is parsed as a label table, and one that fails hard-fails `pulse.New` naming the path — a typo must not become a silently missing table. `PULSE_RANGE_TABLES_DIR` behaves identically. A dedicated directory is still cleaner.
+**Pulse's own sidecars are skipped; any other unparseable `*.json` is fatal.** `*.spss.json`, `*.meta.json` and `*.indexes.json` are excluded by suffix (a cohort directory is safe); any OTHER `*.json` that fails to parse hard-fails `pulse.New` naming the path — a typo never becomes a silently missing table. `PULSE_RANGE_TABLES_DIR` behaves identically.
 
 ### 2. Attach a binding
 
@@ -59,20 +59,28 @@ Each `LabelBinding` pairs a categorical field with a table and mode:
 <!-- feature: capability:facet -->
 | `Facet` (`FacetSchema`) | `FacetValueCount.Value` → label | sibling `FacetField` |
 <!-- /feature -->
-| `Process` group keys | group key → label | sibling column in each output row |
+| `Process` group keys | group key → label, and every `group_key` echoing it | sibling column in each output row |
+<!-- feature: capability:crosstab -->
+| Crosstab matrix axes | `row_keys` / `column_keys` → label; overlay keys follow, a pairwise PAIR key rebuilt from the labelled legs | not applied: `PULSE_LABEL_NOT_APPLIED` (no sibling on a key; use `replace` or shape `long`) |
+<!-- /feature -->
+<!-- feature: capability:process_chain -->
+| `ProcessChain` stages | every stage's `labels` + `Options.AutoLabels`, bar a `replace` default on a key an earlier stage replaced | every stage |
+<!-- /feature -->
 <!-- feature: capability:export -->
 | `Export` / `Convert` | column value → label | extra column inserted after source |
 <!-- /feature -->
+
+Only key TEXT moves: an overlay coordinate still addresses the same host cell, and no figure changes. **A binding that reaches no surface warns `PULSE_LABEL_NOT_APPLIED`** (`details.reason` `field_not_in_output`: the field is no output column, axis or group key — bind a grouped field); `AutoLabels` defaults never warn.
 
 **Display-only.** Filters, formula attributes, sort keys, and group keys still see raw values. Labels NEVER gate which records pass through the pipeline.
 
 ## Missing values
 
-When a source value isn't in the table the resolver falls back to the raw resolved categorical string and accumulates a per-field miss count. One `PULSE_LABEL_LOOKUP_MISS` warning per bound field summarises unresolved-row count and absent source values.
+A value absent from the table falls back to the raw string; one `PULSE_LABEL_LOOKUP_MISS` per bound field summarises the unresolved rows and values.
 
 ## Validation surface
 
-Every label-bound request is validated before any record bytes are read — `pulse_predict` reports the same codes:
+Validated before any record is read; `pulse_predict` reports the same codes:
 
 | Code | Meaning |
 |---|---|
@@ -83,17 +91,18 @@ Every label-bound request is validated before any record bytes are read — `pul
 | `PULSE_LABEL_DUPLICATE_BINDING` | Two bindings target the same field. |
 | `PULSE_LABEL_COLLISION` (warning) | Two source values resolve to the same label. |
 | `PULSE_LABEL_LOOKUP_MISS` (warning) | Rows have categorical values absent from the table. |
+| `PULSE_LABEL_NOT_APPLIED` (warning, run time) | A caller binding reached no output surface, or is augment on a matrix axis. |
 
 ## MCP discovery — `pulse_label_tables` + `pulse_label_resolve`
 
-Labels are output-only, so the INPUT direction needs a lookup. `pulse_label_tables` lists registered tables, row counts and whether each is enumerable (reverse-searchable). `pulse_label_resolve` turns a user's display name (typo-tolerant) into the raw key a filter or grouper needs, ranked `{key, value, score}` in `[0,1]`. Use the top hit when it scores ≥ 0.9 and is clearly ahead; otherwise show the candidates and ask.
+Labels are output-only; the INPUT direction needs a lookup. `pulse_label_tables` lists tables, row counts and enumerability. `pulse_label_resolve` turns a display name (typo-tolerant) into the raw key a filter or grouper needs, ranked `{key, value, score}`. Use the top hit when it scores ≥ 0.9 and is clearly ahead; otherwise ask.
 
 ## What labels do NOT do
 
 - They don't filter. Filter `country = "United States"` won't match; write `country = "US"`.
 - They don't sort. Sort keys see raw values.
-- They don't persist. The `.pulse` file is unchanged; reopening with a different `LabelTables` produces different output without re-encoding.
-- They don't work for non-categoricals. To label a numeric, derive a categorical column at import time.
+- They don't persist. Different `LabelTables` give different output, no re-encoding.
+- They don't work for non-categoricals (derive a categorical column at import).
 
 ## See
 
