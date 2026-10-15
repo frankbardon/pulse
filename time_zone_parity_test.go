@@ -340,18 +340,19 @@ func TestTimeZone_RefusalCarriesLocation(t *testing.T) {
 			t.Fatalf("details = %v, want stage 1", ce.Details)
 		}
 	})
-	t.Run("non-zone errors untouched", func(t *testing.T) {
+	// Every coded slot refusal is located (predict-runtime-parity
+	// E3-S2), not only the zone family: a slot whose cohort does not
+	// open names its slot too.
+	t.Run("non-zone errors located", func(t *testing.T) {
 		bad := composed()
 		bad.Requests[1] = &types.Request{Cohort: &types.Cohort{Filename: "missing.pulse"}, Aggregations: countAgg()}
 		_, err := p.Compose(ctx, bad)
-		if err == nil {
-			t.Fatal("want an error")
-		}
 		var ce *errors.CodedError
-		if stderrors.As(err, &ce) {
-			if _, ok := ce.Details["request"]; ok {
-				t.Fatalf("a non-zone error gained a request location: %v", ce.Details)
-			}
+		if !stderrors.As(err, &ce) {
+			t.Fatalf("want a coded error, got %v", err)
+		}
+		if ce.Details["request"] != 1 {
+			t.Fatalf("details = %v, want request 1", ce.Details)
 		}
 	})
 }

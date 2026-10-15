@@ -53,8 +53,8 @@ func assertSetRefusal(t *testing.T, err error, who string, ft encoding.FieldType
 	if !stderrors.As(err, &coded) {
 		t.Fatalf("%s refusal is not a *errors.CodedError: %T %v", who, err, err)
 	}
-	if coded.Code != errors.PROCESSING_CONFIG {
-		t.Errorf("%s refusal code = %s, want PROCESSING_CONFIG", who, coded.Code)
+	if coded.Code != errors.PULSE_FIELD_TYPE_UNSUPPORTED {
+		t.Errorf("%s refusal code = %s, want PULSE_FIELD_TYPE_UNSUPPORTED", who, coded.Code)
 	}
 	msg := coded.Error()
 	if !strings.Contains(msg, "tags") {

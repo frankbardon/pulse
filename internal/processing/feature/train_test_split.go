@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -81,13 +82,8 @@ func newTrainTestSplit(feat *types.Feature, schema *encoding.Schema) (Computer, 
 			fmt.Sprintf("FEAT_TRAIN_TEST_SPLIT: ratios sum %f != 1.0", sum))
 	}
 
-	if p.Stratify != "" && schema != nil {
-		f := schema.Field(p.Stratify)
-		if f != nil && !f.Type.IsCategorical() {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("FEAT_TRAIN_TEST_SPLIT: stratify field %q must be categorical, got %s",
-					p.Stratify, f.Type))
-		}
+	if cerr := fieldaccept.Check(string(types.FEAT_TRAIN_TEST_SPLIT), fieldaccept.SlotStratify, p.Stratify, schema); cerr != nil {
+		return nil, cerr
 	}
 
 	label := feat.Label

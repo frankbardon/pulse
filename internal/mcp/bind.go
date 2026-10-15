@@ -45,6 +45,14 @@ type fieldClassification struct {
 	Set           []string // set_u8/u16/u32/u64/u128/u256 multi-select bitmasks
 	NumericOrDate []string // window OrderBy targets
 	Weight        []string // weight-capable columns (descx.IsWeightFieldType): u4…u64, f32, f64
+
+	// JoinLeft / JoinRight are set only on a classification widened by
+	// join targets (withJoinTargets): JoinLeft is the bound cohort's own
+	// fields (joins[].on[].left_field), JoinRight the targets' unprefixed
+	// fields (right_field). Nil: left_field reads AllFields and
+	// right_field is unconstrained.
+	JoinLeft  []string
+	JoinRight []string
 }
 
 // classifyFields sorts schema fields into per-type-category buckets. Order
@@ -80,6 +88,53 @@ func classifyFields(schema *encoding.Schema) fieldClassification {
 		}
 	}
 	return c
+}
+
+// withJoinTargets widens c with each join target's joined field names
+// (`As` + right field) in every bucket, deduplicated, left names first,
+// and records the join-key enums (JoinLeft / JoinRight). c is never
+// mutated. No usable target, or capability:joins hidden, returns c as is.
+func withJoinTargets(c fieldClassification, joins []JoinTarget, inst *descx.InstanceSnapshot) fieldClassification {
+	if inst.Hidden(descx.FeatureName(descx.FeatureKindCapability, "joins")) {
+		return c
+	}
+	out := c
+	widened := false
+	for _, j := range joins {
+		if j.Schema == nil {
+			continue
+		}
+		if !widened {
+			widened = true
+			out.JoinLeft = slices.Clone(c.AllFields)
+			for _, b := range out.buckets() {
+				*b = slices.Clone(*b)
+			}
+		}
+		r := classifyFields(j.Schema)
+		out.JoinRight = appendUnique(out.JoinRight, r.AllFields, "")
+		rb := r.buckets()
+		for i, b := range out.buckets() {
+			*b = appendUnique(*b, *rb[i], j.As)
+		}
+	}
+	return out
+}
+
+// buckets lists the classification's per-type field slices, in one fixed
+// order, for widening.
+func (c *fieldClassification) buckets() []*[]string {
+	return []*[]string{&c.AllFields, &c.Numeric, &c.NumericNoDec, &c.Categorical, &c.Date, &c.Bool, &c.Set, &c.NumericOrDate, &c.Weight}
+}
+
+// appendUnique appends prefix+name for each name in add not already in dst.
+func appendUnique(dst, add []string, prefix string) []string {
+	for _, name := range add {
+		if n := prefix + name; !slices.Contains(dst, n) {
+			dst = append(dst, n)
+		}
+	}
+	return dst
 }
 
 // isNumericType reports whether the type participates in numeric operators
@@ -126,10 +181,33 @@ func BindWithExtensions(schema *encoding.Schema, snap *descx.ExtensionsSnapshot)
 // as a never-registered one. A nil or unscoped inst is byte-identical to
 // BindWithExtensions(schema, inst.Extensions()).
 func BindForInstance(schema *encoding.Schema, inst *descx.InstanceSnapshot) (map[string]json.RawMessage, error) {
+	return BindForInstanceWithJoins(schema, nil, inst)
+}
+
+// JoinTarget is one join target a bound schema widens its field enums
+// with: the right cohort's schema and the `as` prefix the request's
+// JoinSpec will carry ("" = none).
+type JoinTarget struct {
+	Schema *encoding.Schema
+	As     string
+}
+
+// BindForInstanceWithJoins is BindForInstance for a cohort the session
+// joins (#260). The request-carrying tools (pulse_process, pulse_predict,
+// pulse_compose, pulse_process_chain) widen every field enum with each
+// target's joined names (`as` + right field, the names predict resolves
+// against the joined schema), bind joins[].on[].right_field to the
+// targets' own fields and keep left_field left-only. pulse_sample,
+// pulse_facet and pulse_facet_schema read the bound cohort alone and stay
+// unwidened. A nil target schema is skipped; with capability:joins
+// hidden no target widens anything. No targets is byte-identical to
+// BindForInstance.
+func BindForInstanceWithJoins(schema *encoding.Schema, joins []JoinTarget, inst *descx.InstanceSnapshot) (map[string]json.RawMessage, error) {
 	if schema == nil {
 		return nil, nil
 	}
-	c := classifyFields(schema)
+	left := classifyFields(schema)
+	c := withJoinTargets(left, joins, inst)
 
 	out := make(map[string]json.RawMessage, 5)
 
@@ -147,19 +225,19 @@ func BindForInstance(schema *encoding.Schema, inst *descx.InstanceSnapshot) (map
 	}
 	out[toolmeta.ToolCompose] = composeBody
 
-	sampleBody, err := buildSampleSchema(c)
+	sampleBody, err := buildSampleSchema(left)
 	if err != nil {
 		return nil, err
 	}
 	out[toolmeta.ToolSample] = sampleBody
 
-	facetBody, err := buildFacetSchema(c)
+	facetBody, err := buildFacetSchema(left)
 	if err != nil {
 		return nil, err
 	}
 	out[toolmeta.ToolFacet] = facetBody
 
-	facetSchemaBody, err := buildFacetSchemaRequestSchema(c, inst)
+	facetSchemaBody, err := buildFacetSchemaRequestSchema(left, inst)
 	if err != nil {
 		return nil, err
 	}
@@ -629,7 +707,8 @@ const forEachPlaceholderPattern = `\{\{\s*[A-Za-z_][A-Za-z0-9_]*\s*\}\}`
 // WITHOUT for_each keeps the strict enum. Each such string becomes
 // {"type":"string","anyOf":[{"enum":[…]},{"pattern":…}]}, and the item
 // gains `"if":{"required":["for_each"]}` with an `else` that forbids the
-// placeholder form at the same sites — plain draft 2020-12 keywords every
+// placeholder form at the same sites (unless the string is itself an
+// enum member — a field literally named `{{x}}`) — plain draft 2020-12 keywords every
 // validating client implements. The `for_each` value itself is never
 // relaxed. A slot without a bound `for_each` (capability:for_each hidden:
 // the key was never added) is left untouched, so the placeholder branch
@@ -683,7 +762,10 @@ func relaxEnumStrings(node any) (any, map[string]any) {
 			map[string]any{"enum": enum},
 			map[string]any{"pattern": forEachPlaceholderPattern, "description": "A for_each axis placeholder ({{axis}}); valid only on an item carrying for_each."},
 		}
-		return out, map[string]any{"not": map[string]any{"type": "string", "pattern": forEachPlaceholderPattern}}
+		// The placeholder form is refused unless it is itself an enum
+		// member: a cohort field literally named `{{x}}` stays nameable
+		// on an item without for_each (#379).
+		return out, map[string]any{"not": map[string]any{"type": "string", "pattern": forEachPlaceholderPattern, "not": map[string]any{"enum": enum}}}
 	}
 	out := make(map[string]any, len(n))
 	for k, v := range n {
@@ -858,12 +940,21 @@ func returnSchema(description string) map[string]any {
 }
 
 // joinsSchema is Request.joins (types.JoinSpec). left_field names this
-// cohort's fields; the right cohort is not bound, so right_field (and a
-// joined field referenced elsewhere) is unconstrained here.
+// cohort's fields; right_field names the join targets' fields when the
+// schema was bound with them (BindForInstanceWithJoins), else it is a
+// free string.
 func joinsSchema(c fieldClassification) map[string]any {
+	leftFields := c.AllFields
+	if c.JoinLeft != nil {
+		leftFields = c.JoinLeft
+	}
+	rightField := map[string]any{"type": "string", "description": "Key field on the right cohort."}
+	if len(c.JoinRight) > 0 {
+		rightField = enumStringField(c.JoinRight, "Key field on the right cohort.")
+	}
 	return map[string]any{
 		"type":        "array",
-		"description": "Hash joins against another cohort (at most one in v1). Right-side fields are not in this schema's field enums; predict resolves the joined schema.",
+		"description": "Hash joins against another cohort (at most one in v1). Field enums carry the joined names only for a join target named when the schema was bound (pulse_inspect `joins`); predict resolves the joined schema.",
 		"items": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -876,8 +967,8 @@ func joinsSchema(c fieldClassification) map[string]any {
 					"items": map[string]any{
 						"type": "object",
 						"properties": map[string]any{
-							"left_field":  enumStringField(c.AllFields, "Key field on this cohort."),
-							"right_field": map[string]any{"type": "string", "description": "Key field on the right cohort."},
+							"left_field":  enumStringField(leftFields, "Key field on this cohort."),
+							"right_field": rightField,
 						},
 						"required":             []string{"left_field", "right_field"},
 						"additionalProperties": false,

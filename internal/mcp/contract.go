@@ -38,6 +38,18 @@ import (
 // InspectIn is the input contract for pulse_inspect.
 type InspectIn struct {
 	Path string `json:"path" jsonschema:"Filesystem path to the .pulse file"`
+	// Joins names the cohorts the session's requests will join. It
+	// changes no inspect output: on a server binding tools on inspect,
+	// the request-carrying tools widen their field enums with each
+	// target's joined names (mcp.BindForInstanceWithJoins).
+	Joins []InspectJoin `json:"joins,omitempty" jsonschema:"Join targets for the schema-bound tools: each {right, as} widens the bound field enums with the right cohort's joined names (as + field) and binds joins[].on[].right_field. Inspect output is unchanged; a target that does not open widens nothing."`
+}
+
+// InspectJoin is one pulse_inspect join target — the right cohort path
+// and the prefix the request's JoinSpec will carry.
+type InspectJoin struct {
+	Right string `json:"right" jsonschema:"Right-side cohort path, as in a request's joins[].right"`
+	As    string `json:"as,omitempty" jsonschema:"The as prefix the request's join will carry (empty: none)"`
 }
 
 // SampleIn is the input contract for pulse_sample.
@@ -281,16 +293,17 @@ type InspectOut struct {
 
 // PredictOut is the output contract for pulse_predict. A bare request
 // answers with the PredictResult EMBEDDED, so its keys sit at the root
-// byte-identically to the original contract. An alternative root
-// answers under the same key it was sent under, beside the coded
-// errors / warnings that explain a `valid: false` verdict.
+// byte-identically to the original contract; an alternative root
+// answers under the same key it was sent under. Either way the coded
+// errors / warnings that explain a `valid: false` verdict ride beside
+// it (additive on the bare arm, #256; each omitted when empty).
 type PredictOut struct {
 	*descriptor.PredictResult
 	Composed *pulse.ComposePredictResult `json:"composed,omitempty" jsonschema:"The verdict on a composed root: valid, the echoed request, rejected overlay pairs, overlay cost, p-value count and each slot's advisories."`
 	Facet    *pulse.FacetPredictResult   `json:"facet,omitempty" jsonschema:"The verdict on a facet root: valid, the echoed request, schema info and the accepted overlays."`
 	Chain    *pulse.ChainPredictResult   `json:"chain,omitempty" jsonschema:"The verdict on a chain root: valid, the echoed request, the source schema and each stage's inferred output columns."`
-	Errors   []*descriptor.EnvelopeEntry `json:"errors,omitempty" jsonschema:"Alternative roots only: every coded refusal behind valid false — {code, message, details}. Absent when there is none."`
-	Warnings []*descriptor.EnvelopeEntry `json:"warnings,omitempty" jsonschema:"Alternative roots only: coded warnings. Absent when there is none."`
+	Errors   []*descriptor.EnvelopeEntry `json:"errors,omitempty" jsonschema:"Every coded refusal behind valid false — {code, message, details}, for a bare request and an alternative root alike. Absent when there is none."`
+	Warnings []*descriptor.EnvelopeEntry `json:"warnings,omitempty" jsonschema:"Coded warnings, for a bare request and an alternative root alike. Absent when there is none."`
 }
 
 // ProcessOut is the output contract for pulse_process.

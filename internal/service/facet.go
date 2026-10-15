@@ -6,8 +6,10 @@ import (
 	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/types"
 )
 
 // Facet returns distinct values for the named field in the cohort.
@@ -24,9 +26,11 @@ import (
 // distinct values observed is returned in encounter order. For shard
 // archives the stream spans every shard in central-directory
 // (insertion) order — the union semantics specified in §5.4. The
-// streamed distinct-value set is bounded by MaxGroups; the categorical
-// fast path returns the schema's dictionary, which is already resident
-// and mints nothing, so it is not counted.
+// streamed distinct-value set is bounded by MaxGroups, and a set
+// MaxEstimatedMemory refuses the streamed path before any record is
+// read (FacetLimitRefusal); the categorical fast path returns the
+// schema's dictionary, which is already resident, reads no record and
+// mints nothing, so neither limit applies to it.
 func (s *Service) Facet(ctx context.Context, path string, field string) ([]string, error) {
 	ctx, release := s.BoundRequest(ctx)
 	defer release()
@@ -55,6 +59,21 @@ func (s *Service) facet(ctx context.Context, path string, field string) ([]strin
 	// way we sidestep record streaming.
 	if f.Type.IsCategorical() && f.Dictionary != nil {
 		return f.Dictionary.Values(), nil
+	}
+
+	// Instance resource limits on the streamed path: a set
+	// MaxEstimatedMemory refuses before the iterator opens — the rich
+	// facet's pre-flight (FacetLimitRefusal) over the one field. The
+	// categorical fast path above reads no record and mints nothing, so
+	// it has no pre-flight (its estimate would charge a payload read it
+	// never does).
+	lin, err := s.limitInputs(ctx, cohort, path)
+	if err != nil {
+		return nil, err
+	}
+	freq := &types.FacetRequest{Cohort: &types.Cohort{Filename: path}, Fields: []string{field}}
+	if lerr := descx.FacetLimitRefusal(freq, cohort.Schema(), s.Limits(), lin); lerr != nil {
+		return nil, lerr
 	}
 
 	// Numeric path: stream the union of records via newScanIter, which

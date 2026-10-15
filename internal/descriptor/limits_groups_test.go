@@ -148,6 +148,47 @@ func TestEstimateGroups_MultiGrouperProduct(t *testing.T) {
 	}
 }
 
+// TestFanOutMultiplicity (U35 #267): the most buckets one record can
+// land in — the product of every GROUP_SET_PER_ELEMENT position's key
+// bound (its set dictionary, or its include list), 1 when no grouper
+// fans out; a set field without a dictionary falls back to the type's
+// member ceiling.
+func TestFanOutMultiplicity(t *testing.T) {
+	schema := groupsSchema(t)
+	schema.Fields = append(schema.Fields,
+		encoding.Field{Name: "more", Type: encoding.FieldTypeSetU8, Dictionary: func() *encoding.Dictionary {
+			d := encoding.NewDictionary()
+			for _, v := range []string{"p", "q", "r", "s"} {
+				if _, err := d.Add(v); err != nil {
+					t.Fatal(err)
+				}
+			}
+			return d
+		}()},
+		encoding.Field{Name: "bare", Type: encoding.FieldTypeSetU16})
+	cat := &types.Group{Type: types.GROUP_CATEGORY, Field: "cat"}
+	tags := &types.Group{Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}
+	more := &types.Group{Type: types.GROUP_SET_PER_ELEMENT, Field: "more"}
+	for _, c := range []struct {
+		name   string
+		groups []*types.Group
+		want   int64
+	}{
+		{"ungrouped", nil, 1},
+		{"no fan-out", []*types.Group{cat}, 1},
+		{"set dictionary", []*types.Group{tags}, 3},
+		{"include narrows", []*types.Group{{Type: types.GROUP_SET_PER_ELEMENT, Field: "tags", Include: []string{"x"}}}, 1},
+		{"beside a plain grouper", []*types.Group{cat, tags}, 3},
+		{"two fan-out positions multiply", []*types.Group{tags, more}, 12},
+		{"no dictionary: the type ceiling", []*types.Group{{Type: types.GROUP_SET_PER_ELEMENT, Field: "bare"}}, 16},
+		{"nil position", []*types.Group{nil, tags}, 3},
+	} {
+		if got := FanOutMultiplicity(c.groups, schema); got != c.want {
+			t.Errorf("%s: FanOutMultiplicity = %d, want %d", c.name, got, c.want)
+		}
+	}
+}
+
 // TestRequestLimitFindings_MaxGroupsPossible: a categorical whose
 // dictionary exceeds MaxGroups is a Possible finding — never a
 // pre-flight refusal — and the record count clamps it away.

@@ -82,6 +82,10 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
 - **Advisory** — `#/$defs/Advisory`, one entry of a predict result's
   `advisories` (`{code, message, details}`): a coded, non-blocking note
   that the analysis may not fit the data. Never a warning.
+  Predict's `limit_findings` (`{limit, configured, estimated, grade,
+  details}` — on Process, Compose, chain and facet predict; `details`
+  locates a Compose slot as `request` or a chain stage as `stage`) is a
+  predict result field, not part of this schema.
 - **Envelope** — `#/$defs/Envelope`, the universal `--json` wrapper. Its
   `data` slot is intentionally open: it carries whatever the operation
   returned (a `Response`, the manifest, a predict result, an inspect

@@ -142,9 +142,9 @@ func TestShapeRefusal(t *testing.T) {
 		{"series kind on a matrix host", types.OverlayShapeMatrix, types.OverlayKindYoY, 0,
 			"overlay OVERLAY_YOY does not run on a matrix-shape Request.Overlays host; it runs on a series host (Request.Groups + Request.Aggregations, no Request.Crosstab)",
 			map[string]any{"index": 0, "kind": "OVERLAY_YOY", "host": "request", "shape": "matrix", "shapes": []string{"series"}}},
-		{"formula on a series host", types.OverlayShapeSeries, types.OverlayKindFormula, 2,
-			"overlay OVERLAY_FORMULA does not run on a series-shape Request.Overlays host; it runs on a matrix host (Request.Crosstab)",
-			map[string]any{"index": 2, "kind": "OVERLAY_FORMULA", "host": "request", "shape": "series", "shapes": []string{"matrix"}}},
+		{"formula on a matrix-result host", ShapeMatrixResult, types.OverlayKindFormula, 2,
+			"overlay OVERLAY_FORMULA does not run on a matrix_result-shape Request.Overlays host; it runs on a matrix host (Request.Crosstab) or a series host (Request.Groups + Request.Aggregations, no Request.Crosstab)",
+			map[string]any{"index": 2, "kind": "OVERLAY_FORMULA", "host": "request", "shape": "matrix_result", "shapes": []string{"matrix", "series"}}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

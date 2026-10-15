@@ -14,6 +14,7 @@ Listing fields, debugging dictionaries, checking a type. On MCP a successful ins
 ## Input
 
 - `path` (string, required): the `.pulse` file or shard archive; `archive.pulse#shard.pulse` opens one shard.
+- `joins` (MCP, optional): `[{right, as}]` join targets; the rebound tools' field enums add each target's joined names (`as` + field) and `right_field` its fields. Output unchanged.
 
 ## Output
 

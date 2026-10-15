@@ -59,7 +59,10 @@ func ParseRankPath(by string) ([]string, *errors.CodedError) {
 //
 // Each slot is read in its wire form — the response marshalled as JSON
 // (non-finite floats written as null) BEFORE any `return` shaping — so a
-// path names exactly what a reader of an unshaped response sees. Path
+// path names exactly what a reader of an unshaped response sees. One
+// exception: a final segment the wire lacks because `omitempty` dropped
+// a computed figure that is exactly 0 is read off the typed Response
+// and ranks as 0 (rank_typed.go); an uncomputed figure stays missing. Path
 // grammar: dotted segments; on an object a segment is a key, on a list
 // it selects the one element whose `name` or `label` equals it (never
 // an index); the path must end on a number.
@@ -116,6 +119,13 @@ func Rank(r *types.SweepRank, labels []string, responses []*types.Response) ([]t
 			resolved = true
 			nulls = append(nulls, i)
 		case RankReasonMissing:
+			if res.seg == len(segs)-1 && typedZero(resp, segs) {
+				// A computed figure that is exactly 0: `omitempty` hid
+				// it from the wire, the typed value still carries it.
+				resolved = true
+				entries = append(entries, types.RankEntry{Label: labels[i], Value: 0})
+				continue
+			}
 			misses = append(misses, miss{slot: i, seg: res.seg})
 		default:
 			return nil, rankRefusal(r.By, labels[i], segs, res)

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -112,5 +113,44 @@ func TestBind_ForEachHiddenDropsPlaceholderBranch(t *testing.T) {
 	if validates(t, sch, `{"cohort": {"filename": "c.pulse"}, "windows": [{"type": "WIN_EWMA", "field": "{{ch}}_score",
 		"order_by": [{"field": "observed_on"}], "for_each": {"axes": [{"name": "ch", "values": ["a"]}]}}]}`) == nil {
 		t.Fatal("a placeholder field validated on an instance that hides for_each")
+	}
+}
+
+// TestBind_LiteralPlaceholderFieldName (#379): a cohort field literally
+// named like an axis placeholder (`{{x}}`) is a real enum member, so an
+// item WITHOUT for_each naming it validates; a placeholder that is not a
+// member (`{{y}}`) is still refused there, and an item carrying for_each
+// keeps accepting any placeholder.
+func TestBind_LiteralPlaceholderFieldName(t *testing.T) {
+	schema := makeBindSchema()
+	schema.Fields = append(schema.Fields, encoding.Field{Name: "{{x}}", Type: encoding.FieldTypeF64})
+	_, inst := instanceFor(t, nil, pulse.Extensions{})
+	bound, err := BindForInstance(schema, inst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const fe = `"for_each": {"axes": [{"name": "y", "values": ["score"]}]}`
+	cases := []struct {
+		name string
+		body string
+		ok   bool
+	}{
+		{"literal member without for_each", `"windows": [{"type": "WIN_EWMA", "field": "{{x}}", "order_by": [{"field": "observed_on"}]}]`, true},
+		{"literal member partition key without for_each", `"windows": [{"type": "WIN_EWMA", "field": "score", "partition_by": ["{{x}}"], "order_by": [{"field": "observed_on"}]}]`, true},
+		{"literal member attribute without for_each", `"attributes": [{"type": "ATTR_ZSCORE", "field": "{{x}}"}]`, true},
+		{"non-member placeholder without for_each", `"windows": [{"type": "WIN_EWMA", "field": "{{y}}", "order_by": [{"field": "observed_on"}]}]`, false},
+		{"non-member placeholder attribute without for_each", `"attributes": [{"type": "ATTR_ZSCORE", "field": "{{y}}"}]`, false},
+		{"placeholder under for_each", `"windows": [{"type": "WIN_EWMA", "field": "{{y}}", "order_by": [{"field": "observed_on"}], ` + fe + `}]`, true},
+		{"literal member under for_each", `"attributes": [{"type": "ATTR_ZSCORE", "field": "{{x}}", ` + fe + `}]`, true},
+	}
+	sch := compileBound(t, bound[toolmeta.ToolProcess])
+	for _, c := range cases {
+		err := validates(t, sch, `{"cohort": {"filename": "c.pulse"}, `+c.body+`}`)
+		if c.ok && err != nil {
+			t.Errorf("%s: rejected, want accepted: %v", c.name, err)
+		}
+		if !c.ok && err == nil {
+			t.Errorf("%s: accepted, want rejected", c.name)
+		}
 	}
 }

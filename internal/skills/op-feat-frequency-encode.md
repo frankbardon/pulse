@@ -33,7 +33,7 @@ One `f64` column written to `Label` (default `FREQ_<field>`). Value per row = `c
 - Frequencies reflect the RAW cohort because FEAT runs PRE-FILTER. To encode within a filtered subset, stage via Compose / ProcessChain.
 - Cohort with zero non-null categories → every row emits `null`.
 - Null categories on individual rows emit `null`.
-- Non-categorical fields rejected at construction with `PROCESSING_CONFIG` ("must be categorical").
+- Non-categorical fields rejected with `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime).
 
 ## See
 

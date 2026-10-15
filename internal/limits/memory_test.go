@@ -165,6 +165,17 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 		// per-value state beside the merged ones.
 		{"shard partitions", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 4, Aggregations: 1, ValueStateAggregations: 1, PartitionBuckets: 9, PartitionRecords: records},
 			payload + 2*records*valueEntryBytes + 13*bucket(1)},
+		// A fan-out grouper (U35 #267): a record reaches up to FanOut
+		// buckets, so the distinct (bucket, value) pairs reach records x
+		// FanOut; the buffered arm adds a partition slot per extra bucket.
+		{"fan-out value state", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 3, Aggregations: 1, ValueStateAggregations: 1, FanOut: 3},
+			payload + 3*records*valueEntryBytes + 3*bucket(1)},
+		{"fan-out buffered slots", MemoryInputs{Arm: ArmBuffered, Records: records, Stride: stride, RecordBytes: rec, Buckets: 3, Aggregations: 1, FanOut: 3},
+			payload + records*(rec+bufferedValueBytes) + 2*records*fanOutSlotBytes + 3*bucket(1)},
+		// Tier-1 tests (U35 #437): an instance per test per bucket, its
+		// split levels, and a buffered test's kept values.
+		{"tests", MemoryInputs{Arm: ArmBuffered, Records: records, Stride: stride, RecordBytes: rec, Buckets: 4, Aggregations: 1, TestInstances: 8, TestLevels: 16, TestValues: 2 * records},
+			payload + records*(rec+bufferedValueBytes) + 4*bucket(1) + 8*testStateBytes + 16*testLevelBytes + 2*records*testValueBytes},
 	}
 	for _, c := range cases {
 		if got := EstimateMemory(c.in); got != c.want {
@@ -232,5 +243,33 @@ func TestMatrixRowBufferBytes(t *testing.T) {
 	}
 	if got := MatrixRowBufferBytes(math.MaxInt64/2, 32); got != math.MaxInt64 {
 		t.Fatalf("saturation: %d", got)
+	}
+}
+
+// TestEstimateMemory_JoinedRows: a fan-out join's JoinedRows replaces
+// Records in every per-row processing term — buffered records and
+// fan-out slots, per-value state — while the payload term stays on the
+// left scan's Records; 0 leaves the figure unchanged.
+func TestEstimateMemory_JoinedRows(t *testing.T) {
+	base := MemoryInputs{Records: 100, Stride: 40, RecordBytes: 300, Buckets: 1, Aggregations: 1, ValueStateAggregations: 1, DerivedColumns: 2, FanOut: 2}
+	for _, arm := range []MemoryArm{ArmBuffered, ArmStreaming, ArmFusedCrosstab} {
+		in := base
+		in.Arm = arm
+		plain := EstimateMemory(in)
+		in.JoinedRows = 0
+		if got := EstimateMemory(in); got != plain {
+			t.Fatalf("%s: JoinedRows 0 moved the estimate %d -> %d", arm, plain, got)
+		}
+		in.JoinedRows = 400
+		// 300 extra rows: per-value state (x fan-out 2) on every arm,
+		// the buffered record (300 + 16 + 2 x 128) and one fan-out slot
+		// on the buffered arm. Never the payload.
+		want := plain + 300*2*valueEntryBytes
+		if arm == ArmBuffered {
+			want += 300*(300+bufferedValueBytes+2*derivedColumnBytes) + 300*fanOutSlotBytes
+		}
+		if got := EstimateMemory(in); got != want {
+			t.Fatalf("%s: JoinedRows 400 = %d, want %d", arm, got, want)
+		}
 	}
 }

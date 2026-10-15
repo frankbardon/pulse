@@ -34,13 +34,22 @@ import (
 // entry is nil, or any of the `mean` / `variance` / `n` keys are
 // missing or non-numeric.
 //
+// cellType is the slot's authored crosstab cell aggregation type (zero
+// when unknown): an unweighted AGG_VARIANCE / AGG_STDDEV cell carries
+// the POPULATION variance, which MeanLeg converts to the sample
+// variance (overlayhost.SampleVariance — undefined when n < 2), so the
+// leg equals an AGG_WELFORD cell's (E4-S4, as the pairwise kinds read
+// it since E4-S3).
+//
 // Callers route an ok=false outcome through the scalar + Params
 // fallback path for the scalar-cell case.
-func extractCellComponentsTriple(resp *types.Response, r, c int) (meanLeg, bool) {
+func extractCellComponentsTriple(resp *types.Response, r, c int, cellType types.AggregationType) (meanLeg, bool) {
 	if resp == nil || resp.Components == nil || resp.Components.Crosstab == nil {
 		return meanLeg{}, false
 	}
-	return newCrosstabHostViewWithComponents(nil, resp.Components.Crosstab).MeanLeg(r, c)
+	host := newCrosstabHostViewWithComponents(nil, resp.Components.Crosstab)
+	host.cellType = cellType
+	return host.MeanLeg(r, c)
 }
 
 // componentsNumeric coerces a components-map value to float64. Accepts

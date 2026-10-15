@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
@@ -16,92 +17,14 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// numericAggregations are aggregation types that only make sense on numeric fields.
-var numericAggregations = map[types.AggregationType]bool{
-	types.AGG_SUM: true,
-	// AGG_DISTINCT_SUM sums its own Field once per distinct key; the
-	// summed value is numeric even though the key named by
-	// params.distinct_by is frequently categorical. Only Field is
-	// checked here, so a categorical VALUE column is the meaningless
-	// case this flags — the same reason AGG_SUM is listed.
-	types.AGG_DISTINCT_SUM: true,
-	types.AGG_AVERAGE:      true,
-	types.AGG_MIN:          true,
-	types.AGG_MAX:          true,
-	types.AGG_STDDEV:       true,
-	types.AGG_RANGE:        true,
-	types.AGG_ZSCORE:       true,
-	types.AGG_MEDIAN:       true,
-	types.AGG_VARIANCE:     true,
-	types.AGG_SKEWNESS:     true,
-	types.AGG_KURTOSIS:     true,
-	types.AGG_PERCENTILE:   true,
-}
-
-// CategoricalAggregationIssues returns one EnvelopeEntry per
-// (Aggregation slot referencing a categorical field, aggregator from
-// numericAggregations) pair found in req. Each entry carries the
-// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL code, a human-readable
-// message, and the {field, aggregation} details map. Strict-mode
-// promotion is the caller's responsibility — the helper itself is
-// non-judgmental and returns nil when the request, schema, or
-// Aggregations slice is empty / nil.
-//
-// Used by:
-//   - validateRequestFields (predict path) — emits to env.Warnings /
-//     env.Errors based on PredictOptions.Strict.
-//   - service.Process — wraps the first entry as a coded error when
-//     Service is configured strict; non-strict emission flows through
-//     the envelope at the CLI boundary.
-//
-// inst is the instance feature set: an aggregator it hides is judged
-// as a never-registered name (not in numericAggregations). Nil hides
-// nothing.
-func CategoricalAggregationIssues(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) []*descriptor.EnvelopeEntry {
-	if req == nil || schema == nil || len(req.Aggregations) == 0 {
-		return nil
-	}
-	var out []*descriptor.EnvelopeEntry
-	for _, agg := range req.Aggregations {
-		f := schema.Field(agg.Field)
-		if f == nil {
-			continue
-		}
-		if !f.Type.IsCategorical() || !numericAggregations[opRoute(inst, agg.Type)] {
-			continue
-		}
-		out = append(out, &descriptor.EnvelopeEntry{
-			Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),
-			Message: "numeric aggregation " + string(agg.Type) + " is not meaningful for categorical field " + agg.Field,
-			Details: map[string]any{"field": agg.Field, "aggregation": string(agg.Type)},
-		})
-	}
-	return out
-}
-
-// decimalSupportedAggregations are the v1 set of BUILT-IN aggregations
-// defined on decimal128 fields. Any other built-in on a decimal field
-// emits PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL; a registered extension
-// aggregator is exempt (see decimalAggregationRefused).
-var decimalSupportedAggregations = map[types.AggregationType]bool{
-	types.AGG_SUM:            true,
-	types.AGG_AVERAGE:        true,
-	types.AGG_MIN:            true,
-	types.AGG_MAX:            true,
-	types.AGG_VARIANCE:       true,
-	types.AGG_STDDEV:         true,
-	types.AGG_COUNT:          true,
-	types.AGG_DISTINCT_COUNT: true,
-}
-
 // decimalAggregationRefused reports whether agg on a decimal128 field
-// draws PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL. A registered extension
-// aggregator is never refused: it owns its decimal semantics
-// (extend.Record.DecimalValue) and the runtime dispatches it to its own
-// factory, mirroring the processing-side exemption without importing
-// processing.
+// draws PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL: a built-in with no decimal
+// arm in the accepted-types table (fieldaccept.HasDecimalArm). A
+// registered extension aggregator is never refused: it owns its decimal
+// semantics (extend.Record.DecimalValue) and the runtime dispatches it
+// to its own factory.
 func decimalAggregationRefused(agg types.AggregationType, snap *ExtensionsSnapshot) bool {
-	return !decimalSupportedAggregations[agg] && !snap.HasAggregator(string(agg))
+	return !fieldaccept.HasDecimalArm(string(agg)) && !snap.HasAggregator(string(agg))
 }
 
 // PredictOptions controls predict behavior.
@@ -175,6 +98,15 @@ type PredictOptions struct {
 	// a certain finding. Nil (or a count error) yields no join-build
 	// finding.
 	RecordCounter func(path string) (int64, error)
+
+	// CohortCounter returns the header facts the limit rules read for
+	// the cohort at a path (CohortCounts: the record count, an
+	// archive's per-shard counts and byte length) — the facade passes
+	// the runtime pre-flight's own reader (Service.CohortCounts). The
+	// Compose root reads it per slot and fit, so a slot's limit
+	// findings carry the figures its Process refuses with. Nil falls
+	// back to RecordCounter's count (no archive terms).
+	CohortCounter func(path string) (CohortCounts, error)
 
 	// ModelLoader reads a model file's bytes at a path relative to the
 	// instance filesystem root — the facade passes the runtime's own
@@ -325,8 +257,8 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		return predictForEachRefusal(req, xerr, finding)
 	}
 	var env *descriptor.Envelope
-	if data, ok := sniffArchive(fileData); ok {
-		env = predictArchive(data, expanded, opts)
+	if src, ok := sniffArchive(fileData); ok {
+		env = predictArchive(src, expanded, opts)
 	} else {
 		var anchorBytes int64
 		if opts != nil {
@@ -551,7 +483,8 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// With capability:weighting hidden the refusals still run (an
 	// AGG_WEIGHTED_MEAN params.weight_field stays ungated) but the
 	// per-slot report is not offered.
-	if weights, werr := ResolveWeights(req, schema, opts.DefaultWeight, opts.Instance); werr != nil {
+	weights, werr := ResolveWeights(req, schema, opts.DefaultWeight, opts.Instance)
+	if werr != nil {
 		addCodedError(env, werr)
 	} else if opts.instance().Enabled(featWeighting) {
 		result.Weights = weights
@@ -564,51 +497,11 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 		}
 	}
 
-	// A slot still without an operator Type is refused by the runtime's
-	// operator construction; report it with the runtime's code and
-	// message.
-	validateOperatorTypes(env, req, schema)
-	validateAggregationParams(env, req, opts.instance())
-	validateGroupDateParams(env, req, schema, opts.instance())
-	validateGroupFitParams(env, req, opts.instance())
-	validateDatePartParams(env, req, schema, opts.instance())
-
-	// Validate pre-filter feature operators and compute the post-feature
-	// column set so downstream stages can reference derived columns.
-	projected := validateFeatures(env, req, schema, opts)
-
-	// Project attribute output labels into the column set too. Attributes
-	// inject labels mid-pipeline (after features, before grouping); without
-	// this projection, aggregations and sort keys that reference attribute
-	// labels would falsely trip the unknown-field check.
-	projectAttributeOutputs(req, projected, opts.Instance)
-
-	// Validate request fields exist in schema (or in feature outputs).
-	validateRequestFields(env, req, schema, projected, opts)
-
-	// Validate window operations (structural checks; no execution).
-	validateWindows(env, req, schema, opts)
-
-	// Validate tier-1 and tier-2 statistical tests against the schema +
-	// projected column set. Tier-1 catches missing fields and type
-	// mismatches; tier-2 catches alpha and unknown-type errors. Field
-	// existence for tier-2 columns is deferred to runtime since the
-	// projected post-pipeline column set is not yet a settled contract.
-	validateTests(env, req, schema, projected, opts)
-
-	// Validate response-level sort keys against the projected output columns.
-	validateSort(env, req, schema)
-
-	// Validate the Crosstab section (structural + axis field references +
-	// normalization gates). Streamability reasons land via
-	// computeStreamable below.
-	validateCrosstab(env, req, schema, opts)
-
-	// Validate overlay specs (Request.Overlays). Surfaces unknown kind,
-	// ref-shape compatibility against the host, and the per-kind
-	// supported scope set. Streamability is gated on the host operator;
-	// overlay streamability surfaces via types.OverlayStreamable.
-	ValidateOverlays(env, req, schema, opts)
+	// The request body — every per-slot operator, param, field-type,
+	// window, test, sort, crosstab, overlay and label rule (the checks
+	// the runtime's operator construction makes). Shared with every
+	// Compose slot and fit request (validateComposeRequest).
+	validateRequestBody(env, req, schema, opts, werr)
 
 	// Populate the predict surface from req.Overlays. One descriptor per
 	// spec in matching order; OverlayCost is a per-kind multiplier keyed
@@ -665,12 +558,6 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// never via constructed operators.
 	populateFiltererPredicts(result, req, opts)
 
-	// Validate label bindings (display-time categorical translation). Snapshot
-	// carries the registered label tables; augment-mode collisions are
-	// checked against the projected output column set so a sibling
-	// "<field>_label" cannot shadow an aggregation/attribute label.
-	ValidateLabels(env, req.Labels, schema, extensionsFromOpts(opts), opts.instance(), projected)
-
 	// Check description quality (the cohort's own fields only).
 	validateDescriptionQuality(env, cohortSchema, opts)
 
@@ -710,6 +597,90 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	}
 
 	return env
+}
+
+// validateRequestBody is the Process-predict request body: the rules
+// the runtime's Process applies while it builds the request's operators
+// — operator Type presence and registration (a profile-hidden name
+// routes as never registered, opRoute), per-operator params, features,
+// the accepted-types table, model-error / regression / attribute
+// shapes, windows, tests, sort keys, the crosstab section (its cell and
+// margin aggregations judged like any aggregation), Request.Overlays
+// (ValidateOverlays) and label bindings. req is the defaults-resolved
+// request and schema the one it executes over (non-nil); weightErr is
+// the request's weight-resolution refusal, if any.
+//
+// It runs AFTER the entry passes (slot gate, item expansion, joins,
+// multiplicity, return, zones, field references, weights) and reports
+// every finding on env. Predict calls it on the request; Compose predict
+// on every slot and fit request (validateComposeRequest) and chain
+// predict on every stage (ValidateChainWithOptions), so a rule added
+// here reaches all three — TestComposePredict_SlotVerdictMatchesProcessPredict
+// and TestChainPredict_StageBodyMatchesRuntime pin that. It reads no record and constructs no operator.
+func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, opts *PredictOptions, weightErr error) {
+	// A slot still without an operator Type is refused by the runtime's
+	// operator construction; report it with the runtime's code and
+	// message.
+	validateOperatorTypes(env, req, schema)
+	validateRegisteredOperators(env, req, opts)
+	validateAggregationParams(env, req, opts.instance())
+	validateGroupDateParams(env, req, schema, opts.instance())
+	validateGroupFitParams(env, req, opts.instance())
+	validateDatePartParams(env, req, schema, opts.instance())
+
+	// Validate pre-filter feature operators and compute the post-feature
+	// column set so downstream stages can reference derived columns.
+	projected := validateFeatures(env, req, schema, opts)
+
+	// Project attribute output labels into the column set too. Attributes
+	// inject labels mid-pipeline (after features, before grouping); without
+	// this projection, aggregations and sort keys that reference attribute
+	// labels would falsely trip the unknown-field check.
+	projectAttributeOutputs(req, projected, opts.Instance)
+
+	// Validate request fields exist in schema (or in feature outputs).
+	validateRequestFields(env, req, schema, projected, opts)
+
+	// The accepted-types table's per-slot type refusals, the runtime
+	// constructors' codes (internal/fieldaccept).
+	validateFieldAcceptance(env, req, schema, opts.instance(), weightErr)
+
+	// Validate window operations (structural checks; no execution).
+	validateWindows(env, req, schema, opts)
+
+	// Static vector lengths of the pair built-ins (dot / dist / cosine)
+	// in the request's expressions — the runtime build's refusal.
+	predictVectorLengths(env, req, schema)
+
+	// Validate tier-1 and tier-2 statistical tests against the schema +
+	// projected column set. Tier-1 catches missing fields and type
+	// mismatches; tier-2 catches alpha and unknown-type errors. Field
+	// existence for tier-2 columns is deferred to runtime since the
+	// projected post-pipeline column set is not yet a settled contract.
+	validateTests(env, req, schema, projected, opts)
+
+	// Validate response-level sort keys against the projected output columns.
+	validateSort(env, req, schema)
+
+	// Validate the Crosstab section (structural + axis field references +
+	// normalization gates). Streamability reasons land via
+	// computeStreamable below.
+	validateCrosstab(env, req, schema, opts)
+
+	// Validate overlay specs (Request.Overlays). Surfaces unknown kind,
+	// ref-shape compatibility against the host, and the per-kind
+	// supported scope set. Streamability is gated on the host operator;
+	// overlay streamability surfaces via types.OverlayStreamable.
+	ValidateOverlays(env, req, schema, opts)
+
+	// Validate label bindings (display-time categorical translation). Snapshot
+	// carries the registered label tables; augment-mode collisions are
+	// checked against OutputLabels — the one output-column set the
+	// runtime checks too — so a sibling "<field>_label" cannot shadow an
+	// aggregation, attribute, group-key, window or feature column.
+	if len(req.Labels) > 0 {
+		ValidateLabels(env, req.Labels, schema, extensionsFromOpts(opts), opts.instance(), OutputLabels(req, schema, opts.instance()))
+	}
 }
 
 // computeCrosstabFusion answers PredictResult.CrosstabFusable /
@@ -869,9 +840,8 @@ func predictFromBytes(data []byte, req *types.Request, opts *PredictOptions) *de
 // from the same gates the single-file path uses — a shard archive
 // inherits the streamability of its request against the canonical
 // schema, not of its shape (see PredictResult.Streamable docs).
-func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *descriptor.Envelope {
-	reader := bytes.NewReader(data)
-	arch, err := encx.OpenArchive(reader, int64(len(data)))
+func predictArchive(src archiveSource, req *types.Request, opts *PredictOptions) *descriptor.Envelope {
+	arch, err := encx.OpenArchive(src.r, src.size)
 	if err != nil {
 		result := &descriptor.PredictResult{
 			Valid:                    false,
@@ -967,7 +937,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *desc
 		shardRecords = nil
 	}
 
-	env := predictSingle(bytes.NewReader(canonical), req, opts, records, shardRecords, int64(len(data)))
+	env := predictSingle(bytes.NewReader(canonical), req, opts, records, shardRecords, src.size)
 	result, _ := env.Data.(*descriptor.PredictResult)
 	if result == nil {
 		return env
@@ -1001,44 +971,22 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *desc
 }
 
 // validateRequestFields reports the schema-typed checks on the request's
-// slots (numeric aggregations on categorical fields, decimal
-// aggregations, regression and attribute shape). Whether a referenced
-// name exists at all is FieldRefRefusals' judgement, not this one's.
+// slots (model-error aggregators, regression and attribute shape).
+// Whether a referenced name exists at all is FieldRefRefusals'
+// judgement, not this one's.
 func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool, opts *PredictOptions) {
-	// Numeric aggregation on categorical field — single helper, strict
-	// promotion happens here so service.Process can share the helper
-	// without owning predict's strict semantics.
-	for _, entry := range CategoricalAggregationIssues(req, schema, opts.Instance) {
-		if opts.Strict {
-			env.Errors = append(env.Errors, entry)
-		} else {
-			env.Warnings = append(env.Warnings, entry)
-		}
-	}
+	// A numeric aggregation on a categorical field (its dictionary
+	// index) is the accepted-types table's PULSE_FIELD_TYPE_UNSUPPORTED,
+	// reported by validateFieldAcceptance at every aggregation slot.
 
 	// Unknown names are the field-reference rule's refusals
 	// (FieldRefRefusals, reported right after zone resolution); the
 	// checks below judge only fields the schema carries.
 
-	// Decimal field aggregation validity matrix.
-	for _, agg := range req.Aggregations {
-		f := schema.Field(agg.Field)
-		if f == nil {
-			continue
-		}
-		if f.Type.IsDecimal() && decimalAggregationRefused(opRoute(opts.Instance, agg.Type), opts.Extensions) {
-			entry := &descriptor.EnvelopeEntry{
-				Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL),
-				Message: "aggregation " + string(agg.Type) + " has no decimal128 implementation; field " + agg.Field + " is decimal128",
-				Details: map[string]any{"field": agg.Field, "aggregation": string(agg.Type)},
-			}
-			if opts.Strict {
-				env.Errors = append(env.Errors, entry)
-			} else {
-				env.Warnings = append(env.Warnings, entry)
-			}
-		}
-	}
+	// A decimal128 field on a built-in aggregator with no decimal arm is
+	// the accepted-types table's decimal rule, reported once (the
+	// runtime's PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL refusal) by
+	// validateFieldAcceptance at every aggregation slot.
 
 	// Model-error aggregators (AGG_MAPE / AGG_RMSE / AGG_MAE): the
 	// runtime constructor's refusals, re-derived from the schema.
@@ -1751,6 +1699,110 @@ func validateOperatorTypes(env *descriptor.Envelope, req *types.Request, schema 
 			report("group", "groups["+strconv.Itoa(i)+"]")
 		}
 	}
+}
+
+// validateRegisteredOperators reports every aggregation, group,
+// filterer and attribute slot (top level, crosstab axes, cell and margin
+// aggregations) whose non-empty operator Type the instance does not
+// register: neither a built-in it offers (a profile-hidden built-in is
+// never registered) nor an embedder extension of the slot's category.
+// The runtime refuses each at operator lookup with PROCESSING_CONFIG
+// "unknown <family> type: <name>" ("unknown crosstab margin aggregation
+// type: <name>" for a margin aggregation); predict mirrors code and
+// message, adding the slot path. ATTR_RANK keeps its removed-type
+// migration hint instead while WIN_RANK is offered.
+func validateRegisteredOperators(env *descriptor.Envelope, req *types.Request, opts *PredictOptions) {
+	if req == nil {
+		return
+	}
+	snap := opts.Extensions
+	registered := func(name string, builtin bool, ext []descriptor.OperatorMeta) bool {
+		if name == "" || opts.instance().Hidden(name) {
+			return name == ""
+		}
+		if builtin {
+			return true
+		}
+		if snap != nil {
+			for _, m := range ext {
+				if m.Name == name {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	var snapAggs, snapGroups, snapFilters, snapAttrs []descriptor.OperatorMeta
+	if snap != nil {
+		snapAggs, snapGroups, snapFilters, snapAttrs = snap.Aggregators, snap.Groupers, snap.Filterers, snap.Attributes
+	}
+	// The slot path is built only for a refusal: the walk allocates
+	// nothing on a valid request (TestObservabilityOffNoAllocs).
+	report := func(message, slot string, i int, name string) {
+		if i >= 0 {
+			slot += "[" + strconv.Itoa(i) + "]"
+		}
+		env.AddError(string(errors.PROCESSING_CONFIG), message+name, map[string]any{"slot": slot, "type": name})
+	}
+	agg := func(a *types.Aggregation, slot string, i int, message string) {
+		if a != nil && !registered(string(a.Type), builtinAggregations[a.Type], snapAggs) {
+			report(message, slot, i, string(a.Type))
+		}
+	}
+	group := func(g *types.Group, slot string, i int) {
+		if g != nil && !registered(string(g.Type), builtinGroups[g.Type], snapGroups) {
+			report("unknown group type: ", slot, i, string(g.Type))
+		}
+	}
+	for i, a := range req.Aggregations {
+		agg(a, "aggregations", i, "unknown aggregation type: ")
+	}
+	for i, g := range req.Groups {
+		group(g, "groups", i)
+	}
+	for i, f := range req.Filterers {
+		if f != nil && !registered(string(f.Type), builtinFilterers[f.Type], snapFilters) {
+			report("unknown filter type: ", "filterers", i, string(f.Type))
+		}
+	}
+	for i, a := range req.Attributes {
+		if a == nil || (a.Type == "ATTR_RANK" && !opts.instance().Hidden(string(types.WIN_RANK))) {
+			continue
+		}
+		if !registered(string(a.Type), builtinAttributes[a.Type], snapAttrs) {
+			report("unknown attribute type: ", "attributes", i, string(a.Type))
+		}
+	}
+	if ct := req.Crosstab; ct != nil {
+		for i, g := range ct.Rows {
+			group(g, "crosstab.rows", i)
+		}
+		for i, g := range ct.Columns {
+			group(g, "crosstab.columns", i)
+		}
+		agg(ct.Cell, "crosstab.cell", -1, "unknown aggregation type: ")
+		for i, a := range ct.MarginAggregations {
+			agg(a, "crosstab.margin_aggregations", i, "unknown crosstab margin aggregation type: ")
+		}
+	}
+}
+
+// builtinAggregations / builtinGroups / builtinFilterers /
+// builtinAttributes are the built-in operator names per category
+// (types.All*Types).
+var (
+	builtinAggregations = setOf(types.AllAggregationTypes())
+	builtinGroups       = setOf(types.AllGroupTypes())
+	builtinFilterers    = setOf(types.AllFiltererTypes())
+	builtinAttributes   = setOf(types.AllAttributeTypes())
+)
+
+func setOf[T comparable](ts []T) map[T]bool {
+	out := make(map[T]bool, len(ts))
+	for _, t := range ts {
+		out[t] = true
+	}
+	return out
 }
 
 // newPredictResult is the empty, valid PredictResult every predict run

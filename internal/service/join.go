@@ -30,21 +30,26 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 	// references and the limits pre-flight run on the joined schema
 	// before the build side decodes a record (openJoinStream's
 	// preflight hook).
+	//
+	// The clone deliberately SHARES req's *Aggregation pointers: the
+	// defaults resolved below reach the caller's request, whose return
+	// plan's precision-exact set the facade derives after the run
+	// (TestReturn_PrecisionJoinedDefaultCount).
 	clone := *req
 	clone.Joins = nil
 	clone.Cohort = nil
 	var zones []descriptor.ResolvedZone
-	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req, func(joined *encoding.Schema, lin descx.LimitInputs) error {
+	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req, func(joined *encoding.Schema, lin descx.LimitInputs) (*types.Request, error) {
 		s.applyDefaults(&clone, joined)
 		z, err := s.resolveZones(&clone, joined)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		zones = z
 		if err := s.checkFieldRefs(ctx, &clone, joined); err != nil {
-			return err
+			return nil, err
 		}
-		return s.limitsPreflight(&clone, joined, lin)
+		return &clone, s.limitsPreflight(&clone, joined, lin)
 	})
 	if err != nil {
 		return nil, err
@@ -67,7 +72,7 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 	// Inject configured default label bindings against the joined output
 	// schema before rendering. Defaults whose field was renamed by a
 	// JoinSpec.As prefix simply do not match and are skipped.
-	s.applyAutoLabels(&req.Labels, joinedSchema, collectOutputLabels(req), nil)
+	s.applyAutoLabels(&req.Labels, joinedSchema, s.autoLabelOccupied(req, joinedSchema), nil)
 	if err := s.buildAndApplyLabels(req, resp); err != nil {
 		return nil, err
 	}
@@ -89,10 +94,16 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 // right one MaxJoinBuildRows / MaxEstimatedMemory read). It runs after
 // the join-key rule and the MaxJoinBuildRows check and BEFORE the build
 // side decodes a record, so a refusal costs no record decode on either
-// side.
+// side. It returns the request it judged (the host's Joins-stripped,
+// defaults-resolved clone) for the build-side memory backstop: once the
+// right side is hashed, the most rows one key holds bounds the joined
+// stream at left x that multiplicity, and a set MaxEstimatedMemory that
+// estimate exceeds is refused (descx.JoinFanOutRefusal) before the
+// left side is probed — the pre-flight could only assume one match per
+// left row.
 //
 // Process applied descx.JoinCountRefusal before either caller runs.
-func (s *Service) openJoinStream(ctx context.Context, req *types.Request, preflight func(joined *encoding.Schema, lin descx.LimitInputs) error) (*processing.HashJoinIterator, *encoding.Schema, string, scanIterator, error) {
+func (s *Service) openJoinStream(ctx context.Context, req *types.Request, preflight func(joined *encoding.Schema, lin descx.LimitInputs) (*types.Request, error)) (*processing.HashJoinIterator, *encoding.Schema, string, scanIterator, error) {
 	spec := req.Joins[0]
 	if spec == nil {
 		return nil, nil, "", nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "JoinSpec is required")
@@ -150,8 +161,9 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request, prefli
 	if err != nil {
 		return nil, nil, "", nil, err
 	}
-	lin.Join, lin.JoinRightRows = true, rightRows
-	if err := preflight(joined, lin); err != nil {
+	lin.Join, lin.JoinRightRows, lin.JoinSpec = true, rightRows, spec
+	judged, err := preflight(joined, lin)
+	if err != nil {
 		return nil, nil, "", nil, err
 	}
 
@@ -188,7 +200,18 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request, prefli
 				wide[f.Name] = w
 			}
 		}
-		rightRecords = append(rightRecords, processing.NewRecordWithWide(src.Schema(), values, nulls, wide))
+		rec := processing.NewRecordWithWide(src.Schema(), values, nulls, wide)
+		// A u64 value's exact word survives the copy: the float64 echo
+		// above loses every bit past 2^53 (#427).
+		for _, f := range src.Schema().Fields {
+			if f.Type != encoding.FieldTypeU64 {
+				continue
+			}
+			if u, ok := src.Uint64Value(f.Name); ok {
+				rec.SetExactU64(f.Name, u)
+			}
+		}
+		rightRecords = append(rightRecords, rec)
 	}
 	if rightIter.Err() != nil {
 		return nil, nil, "", nil, rightIter.Err()
@@ -199,6 +222,12 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request, prefli
 	if err != nil {
 		_ = leftIter.Close()
 		return nil, nil, "", nil, err
+	}
+	// The build-side memory backstop: the hash is built, no left row is
+	// probed yet. Unlimited (the default) skips it — byte-identical.
+	if cerr := descx.JoinFanOutRefusal(judged, joined, s.instance, l, lin, int64(join.MaxMatches())); cerr != nil {
+		_ = leftIter.Close()
+		return nil, nil, "", nil, markLocated(cerr)
 	}
 	return join, joinedSchema, leftPath, leftIter, nil
 }

@@ -32,7 +32,7 @@ None. Weight (both kinds, same scores; `"weight": null` opts out): weighted mean
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `packed_bool`, `u4` |
+| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
 | `Label` | required — new column name |
 
 ## Output
@@ -49,9 +49,8 @@ One `float64` per record — `(value − pop_mean) / pop_stddev`. Null source �
 
 - Two-pass: pre-pass computes mean/stddev over filter-passing rows, then pass 2 emits per row. Orchestrator handles transparently — no full buffering unless paired with a buffered op downstream.
 - Zero stddev (constant field) → `0` per row.
-- `decimal128` rejected.
 - Two-pass attributes are not mergeable: shard archives and parallel decode take the sequential shard iterator, walking every shard for both passes — global standardization.
-- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no value to standardise.
+- `set_*` and categorical rejected at build time with `PULSE_FIELD_TYPE_UNSUPPORTED` — a bitmask or dictionary index has no value to standardise.
 
 ## See
 

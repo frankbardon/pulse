@@ -84,6 +84,45 @@ type TypedSetRecord interface {
 	SetWideSetAt(idx int, m encoding.SetMask)
 }
 
+// ExactU64Record is an optional extension of IndexedReusableRecord
+// that keeps a u64 field's EXACT on-wire word beside its float64 echo.
+// The echo (SetNumericAt) loses every bit past float64's 53-bit
+// mantissa, so two distinct u64 values above 2^53 can share one echo; a
+// consumer that keys or matches on a u64 value (a comparison key_field
+// or centroid `by`, ATTR_CODE_IN) reads the exact word instead.
+//
+// The reuse decoders call SetExactU64At right AFTER the SetNumericAt
+// echo of every retained u64 field they write, on every path (full
+// stride, plan, run-skip rewrite, grouped members). A sink that does not
+// implement it sees exactly the writes it saw before.
+type ExactU64Record interface {
+	SetExactU64At(idx int, v uint64)
+}
+
+// putFixedField writes a fixed-width scalar field (every type
+// fixedWidthBytes sizes) from its on-wire bytes sub: the float64 echo,
+// then the exact word of a u64 field (ExactU64Record) and the typed
+// mask of a set field.
+func putFixedField(sink IndexedReusableRecord, typed TypedSetRecord, ft encoding.FieldType, fi int, sub []byte) error {
+	sink.SetNumericAt(fi, decodeFixed(ft, sub))
+	if ft == encoding.FieldTypeU64 {
+		putExactU64(sink, fi, sub)
+		return nil
+	}
+	if ft.IsSet() {
+		return putSetField(sink, typed, ft, fi, sub)
+	}
+	return nil
+}
+
+// putExactU64 hands a u64 field's exact little-endian word to a sink
+// that keeps it (ExactU64Record); a no-op for any other sink.
+func putExactU64(sink IndexedReusableRecord, fi int, sub []byte) {
+	if x, ok := sink.(ExactU64Record); ok {
+		x.SetExactU64At(fi, binary.LittleEndian.Uint64(sub))
+	}
+}
+
 // GroupIndexRecord is an optional extension of IndexedReusableRecord
 // for grouped (0x02) schemas. After the reuse decoders
 // (ReadRecordReused / ReadRecordReusedWithPlan) finish a grouped row,
@@ -326,11 +365,8 @@ func (rr *RecordReader) decodeStrideIndexed(sink IndexedReusableRecord, buf []by
 			}
 			sub := buf[cursor : cursor+n]
 			cursor += n
-			sink.SetNumericAt(fi, decodeFixed(field.Type, sub))
-			if field.Type.IsSet() {
-				if err := putSetField(sink, typed, field.Type, fi, sub); err != nil {
-					return err
-				}
+			if err := putFixedField(sink, typed, field.Type, fi, sub); err != nil {
+				return err
 			}
 		}
 	}
@@ -557,11 +593,8 @@ func decodeGroupBytes(s *encoding.Schema, sink IndexedReusableRecord, keep Field
 			if !keepField {
 				continue
 			}
-			sink.SetNumericAt(fi, decodeFixed(field.Type, sub))
-			if field.Type.IsSet() {
-				if err := putSetField(sink, typed, field.Type, fi, sub); err != nil {
-					return err
-				}
+			if err := putFixedField(sink, typed, field.Type, fi, sub); err != nil {
+				return err
 			}
 		}
 	}

@@ -1126,19 +1126,19 @@ func makePercentileAggregator(t *testing.T, field string, schema *encoding.Schem
 	return agg
 }
 
+// TestAggregator_OnCategoricalField pins E2-S4: the registry's numeric
+// aggregator refuses a categorical field (its dictionary index is no
+// quantity) with the accepted-types table's code, instead of averaging
+// the indexes.
 func TestAggregator_OnCategoricalField(t *testing.T) {
 	schema := categoricalSchema()
-	agg := makeAggregator(t, types.AGG_AVERAGE, "brand", schema)
-	records := makeRecords(schema, "brand", []float64{0, 1, 2}) // Apple=0, Samsung=1, Google=2
-
-	// Runs without error; produces meaningless numbers (no rejection)
-	result, err := agg.Aggregate(records, "brand")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	_, err := aggregatorRegistry[types.AGG_AVERAGE](&types.Aggregation{Type: types.AGG_AVERAGE, Field: "brand"}, schema)
+	if !errors.HasCode(err, errors.PULSE_FIELD_TYPE_UNSUPPORTED) {
+		t.Fatalf("AGG_AVERAGE on categorical: %v, want PULSE_FIELD_TYPE_UNSUPPORTED", err)
 	}
-	// Average of 0, 1, 2 = 1.0 (meaningless but accepted)
-	if !floatClose(result, 1.0, 0.001) {
-		t.Errorf("average on categorical = %f, want 1.0", result)
+	// A counting aggregator still reads it.
+	if _, err := aggregatorRegistry[types.AGG_MODE_COUNT](&types.Aggregation{Type: types.AGG_MODE_COUNT, Field: "brand"}, schema); err != nil {
+		t.Fatalf("AGG_MODE_COUNT on categorical: %v", err)
 	}
 }
 

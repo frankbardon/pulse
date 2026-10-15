@@ -21,7 +21,7 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | strict mode: `packed_bool` only. Truthy mode: any cohort field type. |
+| `Field` | strict mode: `packed_bool` only (any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime). Truthy mode: any scalar field type. |
 
 ## Output
 
@@ -33,7 +33,7 @@ Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}
 
 ## Gotchas
 
-- Strict mode on non-`packed_bool` → `PROCESSING_CONFIG`. Fix: `Values=["truthy"]`.
+- Strict mode on non-`packed_bool` → `PULSE_FIELD_TYPE_UNSUPPORTED`. Fix: `Values=["truthy"]`.
 - Truthy kept-set: `0`, `NaN`, `""`, `null` → kept. Null rows DROP in strict but PASS in truthy — null is JS-falsy, while strict treats null as "no observation".
 
 ## See

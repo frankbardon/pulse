@@ -37,7 +37,7 @@ One `f64` column at `Label` (default `TARGET_<field>`): the (smoothed) mean of `
 ## Gotchas
 
 - **TARGET LEAKAGE — `PULSE_FEAT_TARGET_LEAKAGE_RISK`** on every use (errors under `--strict`). Means use EVERY row's target (test rows, own row): no split column is read, so a prior split or `split == 0` filter changes nothing. See `feature-engineering`.
-- Missing `target`, non-numeric `target`, or `smoothing < 0` → `PROCESSING_CONFIG`.
+- Missing `target` or `smoothing < 0` → `PROCESSING_CONFIG`; a non-categorical `Field`, or a categorical / `set_*` `target`, → `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime).
 - GLOBAL-PASS: PrePass tallies per-category + global (sum, count); Finalize freezes `globalMean`. Streamable via `iter.Reset()` (file-backed: second I/O).
 - Zero non-null targets → every row null. Category with all targets null → `globalMean`.
 

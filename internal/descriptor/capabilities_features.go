@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -20,7 +21,7 @@ func featureCapabilities() []descriptor.Operator {
 			Name:          string(types.FEAT_LOG),
 			Category:      "feature",
 			Description:   "Per-row natural log of 1 + Field (log1p); x <= -1 reads null; emits one f64 column.",
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  tableAcceptsTypes(types.FEAT_LOG),
 			EmitsType:     "f64",
 			EmitsTypeNote: "single column \"<label>\" (default LOG_<field>)",
 			Streamable:    true,
@@ -29,7 +30,7 @@ func featureCapabilities() []descriptor.Operator {
 			Name:          string(types.FEAT_SQRT),
 			Category:      "feature",
 			Description:   "Per-row square root of Field; emits one f64 column.",
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  tableAcceptsTypes(types.FEAT_SQRT),
 			EmitsType:     "f64",
 			EmitsTypeNote: "single column \"<label>\" (default SQRT_<field>)",
 			Streamable:    true,
@@ -42,7 +43,7 @@ func featureCapabilities() []descriptor.Operator {
 				{Name: "boundaries", Type: "list", Required: false, Description: "Sorted ascending list of bucket cutpoints (mutually exclusive with quantiles).", ExactlyOneOf: "cutpoints"},
 				{Name: "quantiles", Type: "int", Required: false, Description: "Number of equal-population buckets (mutually exclusive with boundaries).", ExactlyOneOf: "cutpoints"},
 			},
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  tableAcceptsTypes(types.FEAT_BUCKETIZE),
 			EmitsType:     "u32",
 			EmitsTypeNote: "single column \"<label>\" with bucket index per row",
 			Streamable:    true,
@@ -70,7 +71,7 @@ func featureCapabilities() []descriptor.Operator {
 			Params: []descriptor.Param{
 				{Name: "degree", Type: "int", Required: true, Description: "Polynomial degree; must be >= 2 and <= 10. Degree 1 (linear) is the original column."},
 			},
-			AcceptsTypes:  numericFieldTypes,
+			AcceptsTypes:  fieldaccept.TypeNames(string(types.FEAT_POLY), fieldaccept.SlotField),
 			EmitsType:     "f64",
 			EmitsTypeNote: "columns \"<label>_2\" .. \"<label>_<Degree>\" (default prefix <field>_poly)",
 			Streamable:    true,

@@ -15,9 +15,10 @@ import (
 // The three non-Request predict leaves: `pulse api predict-compose`,
 // `predict-facet` and `predict-chain`. Each reads one request file,
 // calls its facade predict method and writes the envelope it returns
-// as it is. They take only --request and --json: the facade validators
-// honour neither Strict nor EchoRequest, so the leaves offer no flag
-// that would silently do nothing.
+// as it is. --strict and --echo-request set the instance's
+// Options.Strict / EchoRequest, which the facade predict roots honour:
+// every warning promoted to an error, and the root's normalized request
+// echoed on the envelope's `request`.
 
 func apiPredictComposeCmd() *cli.Command {
 	return predictRootCmd("predict-compose",
@@ -71,6 +72,8 @@ func predictRootCmd(name, usage, requestUsage string,
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: requestUsage, Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "strict", Usage: "Treat warnings as errors"},
+			&cli.BoolFlag{Name: "echo-request", Usage: "Include the root's normalized request on the envelope under \"request\" (distinct from data.request, which echoes the input as written)."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			jsonOut := cmd.Bool("json")
@@ -85,7 +88,7 @@ func predictRootCmd(name, usage, requestUsage string,
 			if err != nil {
 				return fail("CLI_ERROR", fmt.Errorf("reading request file: %w", err))
 			}
-			p, err := newPulse(ctx)
+			p, err := newPulseOpts(ctx, pulse.Options{Strict: cmd.Bool("strict"), EchoRequest: cmd.Bool("echo-request")})
 			if err != nil {
 				return fail("PREDICT_ERROR", err)
 			}

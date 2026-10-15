@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/types"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 )
 
 // universalFiltererFloorKeys is the {n_in, n_out, n_null_input} triple
@@ -61,7 +62,7 @@ func filtererCapabilities() []descriptor.Operator {
 			Name:            string(types.FILTER_INCLUDE),
 			Category:        "filterer",
 			Description:     "Keep records whose field value appears in the supplied Values list.",
-			AcceptsTypes:    nonSetFieldTypes,
+			AcceptsTypes:    tableAcceptsTypes(types.FILTER_INCLUDE),
 			EmitsTypeNote:   "record-level predicate (no emitted column)",
 			Streamable:      true,
 			ComponentSchema: filterSchema(descriptor.Mergeable),
@@ -70,7 +71,7 @@ func filtererCapabilities() []descriptor.Operator {
 			Name:            string(types.FILTER_EXCLUDE),
 			Category:        "filterer",
 			Description:     "Drop records whose field value appears in the supplied Values list.",
-			AcceptsTypes:    nonSetFieldTypes,
+			AcceptsTypes:    tableAcceptsTypes(types.FILTER_EXCLUDE),
 			EmitsTypeNote:   "record-level predicate (no emitted column)",
 			Streamable:      true,
 			ComponentSchema: filterSchema(descriptor.Mergeable),
@@ -79,7 +80,7 @@ func filtererCapabilities() []descriptor.Operator {
 			Name:            string(types.FILTER_RANGE),
 			Category:        "filterer",
 			Description:     "Keep records whose numeric field value falls within [low, high]; Values=[low, high].",
-			AcceptsTypes:    numericFieldTypes,
+			AcceptsTypes:    fieldaccept.TypeNames(string(types.FILTER_RANGE), fieldaccept.SlotField),
 			EmitsTypeNote:   "record-level predicate",
 			Streamable:      true,
 			ComponentSchema: filterSchema(descriptor.Mergeable),
@@ -125,7 +126,7 @@ func filtererCapabilities() []descriptor.Operator {
 			Name:            string(types.FILTER_DATE_RANGES),
 			Category:        "filterer",
 			Description:     "Keep records whose date field falls inside any of a validated set of labeled date ranges; ranges ride Params ({ranges:[{label,start,end}]}). A datetime field is truncated to the UTC calendar day containing its instant before matching. Null dates and out-of-range rows are dropped.",
-			AcceptsTypes:    []string{"date", "datetime"},
+			AcceptsTypes:    tableAcceptsTypes(types.FILTER_DATE_RANGES),
 			EmitsTypeNote:   "record-level predicate (no emitted column)",
 			Streamable:      true,
 			ComponentSchema: filterSchema(descriptor.Mergeable),
@@ -134,7 +135,7 @@ func filtererCapabilities() []descriptor.Operator {
 			Name:            string(types.FILTER_SET_CONTAINS_ANY),
 			Category:        "filterer",
 			Description:     "Keep records where the set field shares at least one bit with the supplied Values labels.",
-			AcceptsTypes:    setFieldTypes,
+			AcceptsTypes:    tableAcceptsTypes(types.FILTER_SET_CONTAINS_ANY),
 			EmitsTypeNote:   "record-level predicate",
 			Streamable:      true,
 			ComponentSchema: filterSchema(descriptor.Mergeable),
@@ -143,7 +144,7 @@ func filtererCapabilities() []descriptor.Operator {
 			Name:            string(types.FILTER_SET_CONTAINS_ALL),
 			Category:        "filterer",
 			Description:     "Keep records where the set field has every bit in the supplied Values labels set.",
-			AcceptsTypes:    setFieldTypes,
+			AcceptsTypes:    tableAcceptsTypes(types.FILTER_SET_CONTAINS_ALL),
 			EmitsTypeNote:   "record-level predicate",
 			Streamable:      true,
 			ComponentSchema: filterSchema(descriptor.Mergeable),
@@ -152,7 +153,7 @@ func filtererCapabilities() []descriptor.Operator {
 			Name:            string(types.FILTER_SET_CONTAINS_NONE),
 			Category:        "filterer",
 			Description:     "Keep records where the set field shares no bits with the supplied Values labels (null rows pass).",
-			AcceptsTypes:    setFieldTypes,
+			AcceptsTypes:    tableAcceptsTypes(types.FILTER_SET_CONTAINS_NONE),
 			EmitsTypeNote:   "record-level predicate",
 			Streamable:      true,
 			ComponentSchema: filterSchema(descriptor.Mergeable),
@@ -161,7 +162,7 @@ func filtererCapabilities() []descriptor.Operator {
 			Name:            string(types.FILTER_SET_EQUALS),
 			Category:        "filterer",
 			Description:     "Keep records whose set field mask exactly matches the supplied Values labels.",
-			AcceptsTypes:    setFieldTypes,
+			AcceptsTypes:    tableAcceptsTypes(types.FILTER_SET_EQUALS),
 			EmitsTypeNote:   "record-level predicate",
 			Streamable:      true,
 			ComponentSchema: filterSchema(descriptor.Mergeable),

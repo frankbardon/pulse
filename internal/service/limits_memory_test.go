@@ -53,6 +53,13 @@ func memoryHosts() map[string]memoryHost {
 			_, err := svc.FacetSchema(ctx, &types.FacetRequest{Cohort: &types.Cohort{Filename: "bench.pulse"}, Fields: []string{"a", "cat0"}})
 			return err
 		}, []string{"bench.pulse"}},
+		// The simple Facet's streamed (numeric) path; its categorical
+		// fast path reads no record and has no pre-flight
+		// (TestFacet_DictionaryPathSkipsMemoryPreflight).
+		"simple facet": {synthetic, func(svc *Service) error {
+			_, err := svc.Facet(ctx, "bench.pulse", "a")
+			return err
+		}, []string{"bench.pulse"}},
 	}
 	for name, req := range joinLimitRequests() {
 		hosts["join "+name] = memoryHost{joinLimitFixture, process(req), []string{"left.pulse", "right.pulse"}}
@@ -62,12 +69,14 @@ func memoryHosts() map[string]memoryHost {
 
 // TestLimitsPreflight_MaxEstimatedMemoryRefusesBeforeDecode: on every
 // host — the serial dispatch (streaming and buffered), the crosstab,
-// a matrix request, the rich facet, the plain join and the joined
-// crosstab — a MaxEstimatedMemory below the estimate is refused by the
+// a matrix request, the rich facet, the simple facet's streamed path,
+// the plain join and the joined crosstab — a MaxEstimatedMemory below the estimate is refused by the
 // pre-flight with PULSE_LIMIT_EXCEEDED before any handle drains a
 // cohort (a join's build side included), and the same run AT the
 // estimate it reported drains them (the control that keeps the read
-// assertion from being vacuous, and pins the refusal to the estimate).
+// assertion from being vacuous, and pins the refusal to the estimate)
+// — for a join whose right key repeats, at the build-side backstop's
+// figure, which refuses the pre-flight's estimate after the build.
 func TestLimitsPreflight_MaxEstimatedMemoryRefusesBeforeDecode(t *testing.T) {
 	for name, h := range memoryHosts() {
 		t.Run(name, func(t *testing.T) {
@@ -117,6 +126,19 @@ func TestLimitsPreflight_MaxEstimatedMemoryRefusesBeforeDecode(t *testing.T) {
 			}
 
 			snap, _, err = run(estimate)
+			// A join whose right key repeats (the joined crosstab: each id
+			// 166-167 times, buffered) passes the pre-flight at its
+			// estimate and is refused by the build-side backstop (#229) on
+			// left x the measured multiplicity — after the build drained,
+			// before the left side is probed — so the control runs at that
+			// figure.
+			if stderrors.As(err, &ce) && ce.Details["join"] == 0 {
+				if snap.FullReads["right.pulse"] == 0 || snap.FullReads["left.pulse"] != 0 {
+					t.Fatalf("backstop: drained right %d, left %d time(s); want the build only", snap.FullReads["right.pulse"], snap.FullReads["left.pulse"])
+				}
+				estimate, _ = ce.Details["observed"].(int64)
+				snap, _, err = run(estimate)
+			}
 			if err != nil {
 				t.Fatalf("at the estimate (%d): %v", estimate, err)
 			}
@@ -129,6 +151,38 @@ func TestLimitsPreflight_MaxEstimatedMemoryRefusesBeforeDecode(t *testing.T) {
 				t.Fatalf("one byte under the estimate (%d) ran", estimate-1)
 			}
 		})
+	}
+}
+
+// TestFacet_DictionaryPathSkipsMemoryPreflight: the simple Facet's
+// categorical fast path returns the schema's dictionary — it reads no
+// record and mints nothing — so even a 1-byte MaxEstimatedMemory does
+// not refuse it, and it still drains nothing; the same limit refuses
+// the streamed (numeric) path.
+func TestFacet_DictionaryPathSkipsMemoryPreflight(t *testing.T) {
+	mem := afero.NewMemMapFs()
+	makeSyntheticCohort(t, mem, "bench.pulse")
+	wrapped := newCountingFs(mem)
+	cfg, err := fs.New(fs.WithFs(wrapped))
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := New(cfg)
+	l := limits.Defaults()
+	l.MaxEstimatedMemory = 1
+	svc.SetLimits(l)
+	values, err := svc.Facet(context.Background(), "bench.pulse", "cat0")
+	if err != nil {
+		t.Fatalf("dictionary path refused: %v", err)
+	}
+	if len(values) == 0 {
+		t.Fatal("dictionary path returned no values")
+	}
+	if fr := wrapped.snapshot().FullReads["bench.pulse"]; fr != 0 {
+		t.Fatalf("dictionary path drained the cohort %d time(s)", fr)
+	}
+	if _, err := svc.Facet(context.Background(), "bench.pulse", "a"); !errors.HasCode(err, errors.PULSE_LIMIT_EXCEEDED) {
+		t.Fatalf("streamed path: err = %v, want PULSE_LIMIT_EXCEEDED", err)
 	}
 }
 
@@ -260,8 +314,16 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 	}
 	const rows = 200_000
 	mem := afero.NewMemMapFs()
-	writeWide := func(path string, fields, n int) {
+	// writeWide writes a buildWideCohort file onto dst; allIssuers
+	// selects every issuers member on every row (the full fan-out).
+	writeWide := func(dst afero.Fs, path string, fields, n int, allIssuers bool) {
 		schema, payload := buildWideCohort(t, fields, n)
+		if allIssuers {
+			off, stride := schema.Field("issuers").ByteOffset, schema.RecordByteSize()
+			for r := 0; r < n; r++ {
+				payload[r*stride+off] = 0x3F
+			}
+		}
 		var buf bytes.Buffer
 		if err := encoding.WriteHeader(&buf); err != nil {
 			t.Fatal(err)
@@ -270,18 +332,20 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 			t.Fatal(err)
 		}
 		buf.Write(payload)
-		if err := afero.WriteFile(mem, path, buf.Bytes(), 0o644); err != nil {
+		if err := afero.WriteFile(dst, path, buf.Bytes(), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	writeWide("w.pulse", 95, rows)
-	writeWide("s.pulse", 10, 16) // a 16-row lookup keyed on brand
+	writeWide(mem, "w.pulse", 95, rows, false)
+	writeWide(mem, "s.pulse", 10, 16, false) // a 16-row lookup keyed on brand
 	cfg, err := fs.New(fs.WithFs(mem))
 	if err != nil {
 		t.Fatal(err)
 	}
 	co := &types.Cohort{Filename: "w.pulse"}
+	full := &types.Cohort{Filename: "f.pulse"}
 	brand := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "brand"}}
+	issuers := []*types.Group{{Type: types.GROUP_SET_PER_ELEMENT, Field: "issuers"}}
 	sum := []*types.Aggregation{{Type: types.AGG_SUM, Field: "weight", Label: "s"}}
 	median := []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "weight", Label: "m"}}
 	xt := &types.CrosstabSpec{Rows: brand, Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cardFeeling"}},
@@ -293,12 +357,19 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 	small := &types.Cohort{Filename: "s.pulse"}
 
 	cases := []struct {
-		name      string
-		req       func() *types.Request
-		facet     *types.FacetRequest
-		project   bool
-		fuse      bool
-		maxFactor float64
+		name    string
+		req     func() *types.Request
+		facet   *types.FacetRequest
+		project bool
+		fuse    bool
+		fanOut  bool // runs on f.pulse, written for the case alone
+		// joinFanOut runs on jl.pulse (95 fields x 50,000 records)
+		// joined to jr.pulse (64 records: every brand 4 times), written
+		// for the case alone; the estimate is the build-side backstop's
+		// (#229: left x the measured key multiplicity), read back as
+		// the observed of its refusal at the pre-flight's estimate.
+		joinFanOut bool
+		maxFactor  float64
 	}{
 		{name: "buffered full width", req: func() *types.Request { return &types.Request{Cohort: co, Aggregations: median} }, maxFactor: 2.5},
 		{name: "buffered grouped full width", req: func() *types.Request { return &types.Request{Cohort: co, Groups: brand, Aggregations: median} }, maxFactor: 2.5},
@@ -315,14 +386,79 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 			return &types.Request{Cohort: co, Groups: brand, Aggregations: sum,
 				Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "c", Fields: []string{"weight", "pad_014", "pad_015"}}}}
 		}, maxFactor: 2.5},
+		// U35 #437: grouped tier-1 tests (one instance per test per brand,
+		// buffered path) — a moments test and a rank test keeping every
+		// value.
+		{name: "grouped t-test", req: func() *types.Request {
+			return &types.Request{Cohort: co, Groups: brand, Aggregations: sum,
+				Tests: []*types.Test{{Type: types.TEST_T, Field: "weight"}}}
+		}, maxFactor: 2.5},
+		{name: "grouped rank test", req: func() *types.Request {
+			return &types.Request{Cohort: co, Groups: brand, Aggregations: sum,
+				Tests: []*types.Test{{Type: types.TEST_KRUSKAL_WALLIS, Field: "weight", SplitBy: "cardFeeling"}}}
+		}, maxFactor: 2.5},
+		// A rank-method matrix keeps every row and ranks the columns at
+		// finalize (limits.MatrixRowWorkBytes).
+		{name: "rank matrix", req: func() *types.Request {
+			return &types.Request{Cohort: co, Aggregations: sum,
+				Matrices: []types.MatrixSpec{{Type: types.MAT_CORRELATION, Name: "r", Fields: []string{"weight", "pad_014", "pad_015"}, Params: []byte(`{"method": "spearman"}`)}}}
+		}, maxFactor: 2.5},
+		// U35 #267: a GROUP_SET_PER_ELEMENT fan-out over f.pulse, whose
+		// rows select all 6 issuers (the worst case the dictionary-size
+		// multiplier bounds) — a rank matrix's row store and finalize,
+		// at p = 3 and p = 8, and a distinct count's value state, hold a
+		// copy per selected issuer.
+		{name: "fan-out rank matrix", req: func() *types.Request {
+			return &types.Request{Cohort: full, Groups: issuers, Aggregations: sum,
+				Matrices: []types.MatrixSpec{{Type: types.MAT_CORRELATION, Name: "r", Fields: []string{"weight", "pad_014", "pad_015"}, Params: []byte(`{"method": "spearman"}`)}}}
+		}, fanOut: true, maxFactor: 2.5},
+		{name: "fan-out wide rank matrix", req: func() *types.Request {
+			return &types.Request{Cohort: full, Groups: issuers, Aggregations: sum,
+				Matrices: []types.MatrixSpec{{Type: types.MAT_CORRELATION, Name: "r", Fields: []string{"weight", "pad_014", "pad_015", "pad_016", "pad_017", "pad_034", "pad_035", "pad_036"}, Params: []byte(`{"method": "spearman"}`)}}}
+		}, fanOut: true, maxFactor: 2.5},
+		// The value-state model assumes every record a distinct value per
+		// bucket; weight repeats, so the bound is loose here exactly as
+		// on "streaming value state" (2.13x), six buckets over.
+		{name: "fan-out value state", req: func() *types.Request {
+			return &types.Request{Cohort: full, Groups: issuers,
+				Aggregations: []*types.Aggregation{{Type: types.AGG_DISTINCT_COUNT, Field: "weight", Label: "d"}}}
+		}, fanOut: true, maxFactor: 3.5},
 		{name: "lookup join", req: func() *types.Request { return &types.Request{Cohort: co, Joins: lookup, Aggregations: sum} }, maxFactor: 2.5},
 		{name: "join build side", req: func() *types.Request { return &types.Request{Cohort: small, Joins: fanout, Aggregations: sum} }, maxFactor: 2.5},
 		{name: "facet", facet: &types.FacetRequest{Cohort: co, Fields: []string{"brand", "weight"}}, maxFactor: 2.5},
+		// A 1:4 join on the buffered arm: 200,000 joined records
+		// materialised from a 50,000-record left side.
+		{name: "join fan-out", req: func() *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: "jl.pulse"}, Aggregations: median,
+				Joins: []*types.JoinSpec{{Right: "jr.pulse", Kind: "inner", As: "r_", On: []types.OnPair{{LeftField: "brand", RightField: "brand"}}}}}
+		}, joinFanOut: true, maxFactor: 2.5},
 	}
 	ctx := context.Background()
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			svc := New(cfg)
+			if c.fanOut {
+				// A fs of its own, so the file is garbage outside this
+				// case (a live extra cohort raises every other case's
+				// heap goal).
+				fm := afero.NewMemMapFs()
+				writeWide(fm, "f.pulse", 95, rows, true)
+				fcfg, err := fs.New(fs.WithFs(fm))
+				if err != nil {
+					t.Fatal(err)
+				}
+				svc = New(fcfg)
+			}
+			if c.joinFanOut {
+				jm := afero.NewMemMapFs()
+				writeWide(jm, "jl.pulse", 95, rows/4, false)
+				writeWide(jm, "jr.pulse", 10, 64, false)
+				jcfg, err := fs.New(fs.WithFs(jm))
+				if err != nil {
+					t.Fatal(err)
+				}
+				svc = New(jcfg)
+			}
 			svc.SetProjectBufferedFields(c.project)
 			svc.SetDisableCrosstabFusion(!c.fuse)
 			run := func() error {
@@ -342,6 +478,14 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 				t.Fatalf("estimate probe: %v", err)
 			}
 			estimate := float64(ce.Details["observed"].(int64))
+			if c.joinFanOut {
+				l.MaxEstimatedMemory = ce.Details["observed"].(int64)
+				svc.SetLimits(l)
+				if err := run(); !stderrors.As(err, &ce) || ce.Code != errors.PULSE_LIMIT_EXCEEDED || ce.Details["right_key_multiplicity"] != int64(4) {
+					t.Fatalf("backstop probe: %v", err)
+				}
+				estimate = float64(ce.Details["observed"].(int64))
+			}
 			svc.SetLimits(limits.Defaults())
 			peak, err := measurePeakHeap(run)
 			if err != nil {

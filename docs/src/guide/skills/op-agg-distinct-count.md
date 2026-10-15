@@ -31,7 +31,7 @@ None.
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | any cohort field type EXCEPT `set_*` (categorical_*, numeric, date, datetime, packed_bool, decimal128) |
+| `Field` | any cohort field type EXCEPT `set_*` (categorical_*, numeric, date, datetime, packed_bool, decimal128); any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
 
 ## Output
 
@@ -52,7 +52,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - High-cardinality fields → memory growth proportional to distinct values.
 - Counts non-null only; nulls collapsed.
-- `set_*` rejected at build time with `PROCESSING_CONFIG`.
+- `set_*` rejected at build time with `PULSE_FIELD_TYPE_UNSUPPORTED`.
 
 ## See
 

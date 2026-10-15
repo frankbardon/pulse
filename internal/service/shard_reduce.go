@@ -174,7 +174,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	if err != nil {
 		return nil, err
 	}
-	resp, err := finalizeMergedPartial(req, schema, merged, len(shards), s.computePlanFor(ctx, req), s.extensions)
+	resp, err := finalizeMergedPartial(req, schema, merged, len(shards), s.computePlanFor(ctx, req), s.extensions, model.SetFrom(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -355,53 +355,25 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		return nil, err
 	}
 
-	specs := make([]aggSpec, len(req.Aggregations))
-	for i, agg := range req.Aggregations {
-		factory, ok := s.extensions.LookupAggregator(agg.Type)
-		if !ok {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("unknown aggregation type: %s", agg.Type))
-		}
-		specs[i] = aggSpec{agg: agg, factory: factory}
+	specs, err := lookupAggSpecs(req, s.extensions)
+	if err != nil {
+		return nil, err
 	}
-
 	grouperFactories, err := lookupGrouperFactories(req, s.extensions)
 	if err != nil {
 		return nil, err
 	}
-	groupers, err := newPartitionGroupers(req.Groups, grouperFactories, schema, s.extensions)
-	if err != nil {
-		return nil, err
-	}
-	grouped := len(groupers) > 0
+	grouped := len(grouperFactories) > 0
 
 	// Resolve the primary aggregation field for the per-shard null
 	// counter (see primaryNullFieldFor).
 	primaryNullField := primaryNullFieldFor(req)
 
-	out := newShardPartial(req, specs, s.Limits())
-	if err := out.buildMatrices(req, schema, s.extensions, grouped, s.computePlanFor(ctx, req), model.SetFrom(ctx)); err != nil {
+	out, err := newPartitionPartial(req, schema, s.extensions, specs, grouperFactories, s.computePlanFor(ctx, req), model.SetFrom(ctx), s.Limits())
+	if err != nil {
 		return nil, err
 	}
-	var aggsUngrouped []processing.OnlineAggregator
-	if !grouped {
-		aggsUngrouped = make([]processing.OnlineAggregator, len(specs))
-		for i, sp := range specs {
-			inst, err := sp.factory(sp.agg, schema)
-			if err != nil {
-				return nil, err
-			}
-			online, ok := inst.(processing.OnlineAggregator)
-			if !ok {
-				return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-					fmt.Sprintf("aggregator %s does not implement OnlineAggregator", sp.agg.Type))
-			}
-			aggsUngrouped[i] = online
-		}
-		out.aggs = aggsUngrouped
-	} else if err := out.initGrouped(req.Groups, groupers, specs, schema, s.computePlanFor(ctx, req).Groups && len(req.Aggregations) > 0); err != nil {
-		return nil, err
-	}
+	aggsUngrouped := out.aggs
 
 	// A grouped archive: the reader and the record share the CANONICAL
 	// schema, whose dictionaries every shard's indices address, so each
@@ -503,6 +475,64 @@ func newShardPartial(req *types.Request, specs []aggSpec, l limits.Limits) *shar
 		filterCounters: processing.NewFilterPassCounters(req.Filterers),
 		limits:         l,
 	}
+}
+
+// newPartitionPartial builds one partition's complete, still-empty
+// operator state: newShardPartial's tallies, the Request.Matrices state
+// and either the ungrouped aggregator instances (aggs) or the grouped
+// buckets with this partition's own grouper instances. Both parallel
+// reducers build every partition through it, and finalizeMergedPartial
+// seeds an empty merge (no partition published) through it, so a
+// zero-record run finalises exactly the state a zero-record partition
+// would have published. compute is the run's plan; models are the
+// run's bound models.
+func newPartitionPartial(req *types.Request, schema *encoding.Schema, exts *processing.ExtensionRegistry, specs []aggSpec, grouperFactories []processing.GrouperFactory, compute processing.ComputePlan, models *model.Set, l limits.Limits) (*shardPartial, error) {
+	grouped := len(grouperFactories) > 0
+	var groupers []processing.Grouper
+	if grouped {
+		var err error
+		if groupers, err = newPartitionGroupers(req.Groups, grouperFactories, schema, exts); err != nil {
+			return nil, err
+		}
+	}
+	out := newShardPartial(req, specs, l)
+	if err := out.buildMatrices(req, schema, exts, grouped, compute, models); err != nil {
+		return nil, err
+	}
+	if grouped {
+		if err := out.initGrouped(req.Groups, groupers, specs, schema, compute.Groups && len(req.Aggregations) > 0); err != nil {
+			return nil, err
+		}
+		return out, nil
+	}
+	out.aggs = make([]processing.OnlineAggregator, len(specs))
+	for i, sp := range specs {
+		inst, err := sp.factory(sp.agg, schema)
+		if err != nil {
+			return nil, err
+		}
+		online, ok := inst.(processing.OnlineAggregator)
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+				fmt.Sprintf("aggregator %s does not implement OnlineAggregator", sp.agg.Type))
+		}
+		out.aggs[i] = online
+	}
+	return out, nil
+}
+
+// lookupAggSpecs resolves one factory per Request.Aggregations slot.
+func lookupAggSpecs(req *types.Request, exts *processing.ExtensionRegistry) ([]aggSpec, error) {
+	specs := make([]aggSpec, len(req.Aggregations))
+	for i, agg := range req.Aggregations {
+		factory, ok := exts.LookupAggregator(agg.Type)
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("unknown aggregation type: %s", agg.Type))
+		}
+		specs[i] = aggSpec{agg: agg, factory: factory}
+	}
+	return specs, nil
 }
 
 // buildMatrices builds the partition's Request.Matrices state: one slot
@@ -975,11 +1005,34 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 // sub-part off (the DisableComponents opt-out) Response.Components stays
 // nil, so the merged-shard wire form is byte-identical to the
 // pre-Components baseline.
-func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *shardPartial, shardCount int, compute processing.ComputePlan, exts *processing.ExtensionRegistry) (*types.Response, error) {
-	_ = schema
-	// The ungrouped and empty arms run neither Process overlay hook: the
-	// shared wrong-slot / wrong-shape / SCALAR host refusal the serial
-	// hook raises (the grouped arm's tail raises it itself).
+func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *shardPartial, shardCount int, compute processing.ComputePlan, exts *processing.ExtensionRegistry, models *model.Set) (*types.Response, error) {
+	// An EMPTY merge — no partition published a partial (every decode
+	// segment held zero records) — carries no aggregator, grouper or
+	// matrix state. Seed it, in place so the caller's weights.Apply reads
+	// the seeded tally, with exactly the state a zero-record partition
+	// builds: the ungrouped arm then writes the zero-n row and one
+	// zero-n Components.Aggregations entry per slot, and the grouped arm
+	// runs the shared grouped tail over zero buckets (its groupers
+	// block included) — the serial path's zero-record answer. Emitting
+	// only the counters here dropped both.
+	if merged.aggs == nil && merged.groups == nil {
+		specs, err := lookupAggSpecs(req, exts)
+		if err != nil {
+			return nil, err
+		}
+		grouperFactories, err := lookupGrouperFactories(req, exts)
+		if err != nil {
+			return nil, err
+		}
+		seed, err := newPartitionPartial(req, schema, exts, specs, grouperFactories, compute, models, merged.limits)
+		if err != nil {
+			return nil, err
+		}
+		*merged = *seed
+	}
+	// The ungrouped arm runs neither Process overlay hook: the shared
+	// wrong-slot / wrong-shape / SCALAR host refusal the serial hook
+	// raises (the grouped arm's tail raises it itself).
 	if merged.groups == nil {
 		if err := processing.RefuseWrongHostOverlays(req, exts, compute); err != nil {
 			return nil, err
@@ -1075,13 +1128,8 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 		}
 		return processing.FinalizeGroupedStream(req, tail)
 	}
-	// Reached only by an EMPTY partial (no worker published one): it
-	// carries no aggregator, grouper or matrix state, so matrices is nil
-	// here and only the counters render.
-	attachMergedFiltererComponents(resp, req, merged, compute.Filterers)
-	attachMergedRunComponents(resp, merged, shardCount, compute.Run)
-	processing.AttachMatrixComponents(resp, matrixComps)
-	return resp, nil
+	return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+		"finalizeMergedPartial: merged partial carries neither aggregator nor grouped state")
 }
 
 // attachMergedAggregationComponents emits one

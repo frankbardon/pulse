@@ -17,7 +17,7 @@ No `Response.Components`.
 
 - `alpha` — float, default `0.05`. `missing` — `listwise` only.
 
-Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields` (inline, globs ok); no `field`, no `vector2` / `fields2`. `split_by` required, categorical, ≥ 2 levels.
+Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields` (inline, globs ok); no `field`, no `vector2` / `fields2`. `split_by` required, categorical (else `PULSE_FIELD_TYPE_UNSUPPORTED`), ≥ 2 levels.
 - `weight` — both kinds (`Details` add `sum_weights`).
 <!-- feature: capability:multiplicity -->
 - `multiplicity` — one site, Pillai's p (`multiplicity-correction`).

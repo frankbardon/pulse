@@ -9,9 +9,10 @@ import (
 )
 
 // TestMatrixMemory_CountsRowBuffer: the memory estimate's matrix term
-// adds a buffered spec's row store (a rank method keeps every admitted
-// row: 8·(p + 1) bytes per record) on top of its merge-block state; a
-// streamable spec adds none.
+// adds a buffered spec's row work (a rank method keeps every admitted
+// row, 8·(p + 1) bytes per record, and ranks the columns at finalize:
+// limits.MatrixRowWorkBytes, 10x the bare row — U35 E7-S2 calibration)
+// on top of its merge-block state; a streamable spec adds none.
 func TestMatrixMemory_CountsRowBuffer(t *testing.T) {
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "a", Type: encoding.FieldTypeF64, ByteOffset: 0},
@@ -29,8 +30,8 @@ func TestMatrixMemory_CountsRowBuffer(t *testing.T) {
 	}
 	for _, method := range []string{"spearman", "kendall"} {
 		got := mem(`{"method": "` + method + `"}`)
-		if want := pearson + in.Records*8*4; got != want {
-			t.Errorf("%s matrix memory = %d, want %d (block state + 10000 rows × 32 bytes)", method, got, want)
+		if want := pearson + in.Records*8*4*10; got != want {
+			t.Errorf("%s matrix memory = %d, want %d (block state + 10000 rows × 32 bytes × 10)", method, got, want)
 		}
 	}
 }

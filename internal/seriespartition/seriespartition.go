@@ -50,7 +50,8 @@ const Param = "partition_by"
 
 // ordered is the set of process-host series overlay kinds that read the
 // host as an ORDERED series (a lag, a window, a position, a sibling
-// row): within a partition the series runs down the remaining keys.
+// row; OVERLAY_FORMULA's `prior` and `baseline`): within a partition
+// the series runs down the remaining keys.
 var ordered = map[types.OverlayKind]bool{
 	types.OverlayKindDeltaVsPrior:       true,
 	types.OverlayKindIndexVsPrior:       true,
@@ -60,6 +61,7 @@ var ordered = map[types.OverlayKind]bool{
 	types.OverlayKindIndexVsBaseline:    true,
 	types.OverlayKindDeltaVsSibling:     true,
 	types.OverlayKindIndexVsSibling:     true,
+	types.OverlayKindFormula:            true,
 }
 
 // kinds is every process-host series overlay kind that runs per
@@ -77,6 +79,7 @@ var kinds = map[types.OverlayKind]bool{
 	types.OverlayKindIndexVsTotal:       true,
 	types.OverlayKindShareOfTotal:       true,
 	types.OverlayKindZScoreVsTotal:      true,
+	types.OverlayKindFormula:            true,
 }
 
 // Applies reports whether kind is a series overlay kind that runs per

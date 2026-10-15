@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -90,14 +91,14 @@ func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 			"TEST_PROP_Z requires params.success (the dictionary value treated as a success)",
 			map[string]any{"type": string(types.TEST_PROP_Z)})
 	}
-	if schema != nil {
-		for axis, name := range map[string]string{"field": spec.Field, "split_by": spec.SplitBy} {
-			if f := schema.Field(name); f != nil && !f.Type.IsCategorical() {
-				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-					fmt.Sprintf("TEST_PROP_Z %s %q must be categorical, got %s", axis, name, f.Type.String()),
-					map[string]any{"axis": axis, "field": name, "field_type": f.Type.String()})
-			}
-		}
+	// The accepted-types table's refusals, field then split_by (a
+	// categorical outcome and a categorical split); predict raises the
+	// same ones.
+	if cerr := fieldaccept.Check(string(spec.Type), fieldaccept.SlotField, spec.Field, schema); cerr != nil {
+		return nil, cerr
+	}
+	if cerr := fieldaccept.Check(string(spec.Type), fieldaccept.SlotSplitBy, spec.SplitBy, schema); cerr != nil {
+		return nil, cerr
 	}
 	return &propZRow{
 		spec:       spec,

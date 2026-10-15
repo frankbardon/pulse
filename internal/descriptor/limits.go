@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -48,6 +49,12 @@ type LimitInputs struct {
 	// finding). A join never runs the fused crosstab.
 	Join          bool
 	JoinRightRows int64
+	// JoinSpec is that join (nil without one) — its right key fields,
+	// read on the joined schema under the spec's As prefix, bound the
+	// joined rows a repeating right key fans the left side out to
+	// (JoinRowsBound). The runtime pre-flight judges a Joins-stripped
+	// clone, so the spec rides here rather than on the request.
+	JoinSpec *types.JoinSpec
 	// Extensions and FusionDisabled feed the arm decision (streamable,
 	// fused) exactly as predict's computeStreamable / CrosstabFusion
 	// and the engine's dispatch read them.
@@ -77,6 +84,11 @@ type LimitInputs struct {
 //   - MaxEstimatedMemory (Certain): EstimateMemory, the per-arm upper
 //     bound of the run's resident state. Only when the limit is set —
 //     it is Unlimited by default — and the record counts are known.
+//   - MaxEstimatedMemory (Possible), a join whose certain estimate
+//     fits: the estimate again on the joined-row bound JoinRowsBound
+//     derives when the right key may repeat (joinFanOutFinding) —
+//     never a refusal here; the runtime refuses the measured fan-out
+//     after the build (JoinFanOutRefusal).
 //   - MaxMatrixDim (Certain): each matrix's dimension p — its resolved
 //     member count, from vectors.ResolveMatrices, the resolver the
 //     runtime mints its accumulators from. A refused spec yields no
@@ -107,6 +119,8 @@ func RequestLimitFindings(req *types.Request, schema *encoding.Schema, inst *Ins
 	if !limits.IsUnlimited(limits.Value(l, limits.MaxEstimatedMemory)) {
 		if n, ok := EstimateMemory(req, schema, inst, in); ok {
 			if f, ok := limits.Evaluate(l, limits.MaxEstimatedMemory, n, limits.Certain); ok {
+				out = append(out, f)
+			} else if f, ok := joinFanOutFinding(req, schema, inst, l, in); ok {
 				out = append(out, f)
 			}
 		}
@@ -188,9 +202,17 @@ func ShardFanOut(req *types.Request, schema *encoding.Schema, inst *InstanceSnap
 //     the matrix bucket bound — EstimatedBytes in PredictResult.Matrices
 //     — or records x accumulator bytes when the buckets are unknown
 //     (each populated block-bucket pair holds at least one record).
-//   - a join adds its build side; the joined rows a buffered arm
-//     materialises are bounded by the left count, which assumes at most
-//     one right match per left row.
+//   - fan-out: FanOutMultiplicity over the groupers and both crosstab
+//     axes — a GROUP_SET_PER_ELEMENT record lands in one bucket per
+//     selected member, so per-value state, a buffered matrix's row
+//     store and a buffered test's values scale with it.
+//   - tests: testMemory — an instance per tier-1 test per bucket, the
+//     split levels / contingency cells each keys, and every value a
+//     buffered (non-streamable) test keeps.
+//   - a join adds its build side, and the processor is fed the left
+//     count — exact only while no right key repeats; a repeating key's
+//     joined rows are judged apart (joinFanOutFinding at predict,
+//     JoinFanOutRefusal after the build).
 //   - a shard archive charges its byte length in place of records x
 //     stride when larger, and one schema decode, the canonical entry's
 //     (archiveTerms; an anchor-opened shard its archive's byte length
@@ -204,6 +226,17 @@ func ShardFanOut(req *types.Request, schema *encoding.Schema, inst *InstanceSnap
 // figure is an upper bound — calibrated in internal/service
 // TestMemoryEstimate_Calibration.
 func EstimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs) (int64, bool) {
+	return estimateMemory(req, schema, inst, in, in.Records)
+}
+
+// estimateMemory is EstimateMemory with the processor fed rows records
+// — in.Records on a plain scan; a fan-out join's joined-row figure
+// (JoinRowsBound at predict, left x the measured right-key multiplicity
+// after the build). The payload term stays on in.Records (the left
+// scan); every per-row processing term — buckets and cells clamped,
+// per-value state, buffered records, tests, matrices, point stores —
+// reads rows.
+func estimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs, rows int64) (int64, bool) {
 	if req == nil || schema == nil || in.Records < 0 || (in.Join && in.JoinRightRows < 0) {
 		return 0, false
 	}
@@ -216,6 +249,12 @@ func EstimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceS
 		Buckets:     1,
 	}
 	archiveTerms(&mi, schema, in)
+	matrixIn := in
+	if rows != records {
+		mi.JoinedRows = rows
+		matrixIn.Records, matrixIn.ShardRecords = rows, nil
+		records = rows
+	}
 	if ShardFanOut(req, schema, inst, in) {
 		mi.PartitionRecords = records
 		for _, n := range in.ShardRecords {
@@ -259,11 +298,102 @@ func EstimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceS
 		}
 	}
 	mi.DerivedColumns = int64(len(req.Attributes) + len(req.Features) + len(req.Windows))
-	mi.MatrixBytes = matrixMemory(req, schema, inst, in)
+	mi.FanOut = requestFanOut(req, schema)
+	mi.TestInstances, mi.TestLevels, mi.TestValues = testMemory(req, schema, inst, records, mi.Buckets, mi.FanOut)
+	mi.MatrixBytes = matrixMemory(req, schema, inst, matrixIn)
 	for _, b := range GroupBufferBytes(req, schema, inst, records) {
 		mi.GrouperBytes = addSaturating(mi.GrouperBytes, b)
 	}
 	return limits.EstimateMemory(mi), true
+}
+
+// JoinRowsBound is the joined-row bound a join's memory estimate is
+// re-judged on when the right key may repeat (each left row then emits
+// one joined row per matching right row, so joined rows = Σ_k L_k·R_k
+// can exceed the left count the certain estimate assumes). Header +
+// schema hold no uniqueness guarantee — a sidecar index's distinct-key
+// count is not a freshness claim, Lookup's assert_unique is a per-call
+// check — so a right side of at most one row is the only provably
+// unique key: false there (and without a join or a known count). Else:
+//
+//   - a right key field (OnPairs' right side, on the joined schema
+//     under the spec's As prefix) carrying a categorical dictionary of
+//     D entries bounds one key's matches by R - D + 1 — sound only when
+//     every entry occurs in the right cohort, which a derived, filtered,
+//     synthesised or shard-removed cohort does not guarantee, so the
+//     finding it drives is Possible. A composite key takes the smallest
+//     such bound (a tuple matches no more rows than any of its columns).
+//   - no key field carries a dictionary (numeric keys): left x right,
+//     every right row matching every left row — the worst case.
+func JoinRowsBound(schema *encoding.Schema, in LimitInputs) (limits.JoinBound, bool) {
+	spec := in.JoinSpec
+	if !in.Join || spec == nil || schema == nil || in.Records < 0 || in.JoinRightRows <= 1 {
+		return limits.JoinBound{}, false
+	}
+	right := in.JoinRightRows
+	per, basis := right, limits.JoinBoundLeftXRight
+	for _, pair := range spec.On {
+		f := schema.Field(spec.As + pair.RightField)
+		if f == nil || !f.Type.IsCategorical() || f.Dictionary == nil {
+			continue
+		}
+		m := max(right-int64(f.Dictionary.Count())+1, 1)
+		if basis != limits.JoinBoundDictionary || m < per {
+			per, basis = m, limits.JoinBoundDictionary
+		}
+	}
+	return limits.JoinBound{Rows: mulSaturating(in.Records, per), Basis: basis}, true
+}
+
+// joinFanOutFinding is the Possible MaxEstimatedMemory finding of a
+// join whose certain estimate (the left count fed to the processor)
+// fits: the estimate on JoinRowsBound's joined rows, when that exceeds
+// the limit, with the bound in Details (join, join_rows_bound,
+// join_bound). Never a refusal — the bound is not sound (a dictionary
+// entry may not occur) or is the left x right worst case; the runtime
+// refuses the MEASURED fan-out after the build (JoinFanOutRefusal).
+func joinFanOutFinding(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, l limits.Limits, in LimitInputs) (limits.Finding, bool) {
+	bound, ok := JoinRowsBound(schema, in)
+	if !ok || bound.Rows <= in.Records {
+		return limits.Finding{}, false
+	}
+	n, ok := estimateMemory(req, schema, inst, in, bound.Rows)
+	if !ok {
+		return limits.Finding{}, false
+	}
+	f, ok := limits.Evaluate(l, limits.MaxEstimatedMemory, n, limits.Possible)
+	f.Join = bound
+	return f, ok
+}
+
+// JoinFanOutRefusal is the join build-side backstop (openJoinStream,
+// after the right side is hashed and before the left side is probed):
+// with maxMatches the most right rows one key holds, the joined rows
+// are at most left x maxMatches, and the PULSE_LIMIT_EXCEEDED error of
+// the memory estimate on that figure when it exceeds a set
+// MaxEstimatedMemory — the details of the pre-flight's memory refusal
+// plus the join location (join: 0) and the measured
+// right_key_multiplicity / join_rows_bound. Nil when the limit is
+// Unlimited, the count is unknown, or no key repeats (maxMatches <= 1:
+// the pre-flight's estimate already held).
+func JoinFanOutRefusal(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, l limits.Limits, in LimitInputs, maxMatches int64) *errors.CodedError {
+	if maxMatches <= 1 || limits.IsUnlimited(limits.Value(l, limits.MaxEstimatedMemory)) {
+		return nil
+	}
+	rows := mulSaturating(max(in.Records, 0), maxMatches)
+	n, ok := estimateMemory(req, schema, inst, in, rows)
+	if !ok {
+		return nil
+	}
+	f, ok := limits.Evaluate(l, limits.MaxEstimatedMemory, n, limits.Certain)
+	if !ok {
+		return nil
+	}
+	err := f.Err()
+	err.Details["join"] = 0
+	err.Details["join_rows_bound"] = rows
+	err.Details["right_key_multiplicity"] = maxMatches
+	return err
 }
 
 // GroupBufferBytes is every buffered vector grouper slot's point store
@@ -290,21 +420,77 @@ func GroupBufferBytes(req *types.Request, schema *encoding.Schema, inst *Instanc
 	return out
 }
 
-// FacetLimitRefusal is the rich-facet pre-flight (Service.FacetSchema,
-// right after the facet field-reference pass): the PULSE_LIMIT_EXCEEDED
-// error when EstimateFacetMemory exceeds a set MaxEstimatedMemory, nil
-// otherwise. MaxEstimatedMemory is the only limit a facet can breach
-// before it scans — each field's distinct values are counted against
-// MaxGroups as they mint.
+// FacetLimitRefusal is the facet pre-flight (Service.FacetSchema,
+// right after the facet field-reference pass; the simple Service.Facet
+// on its streamed path): the PULSE_LIMIT_EXCEEDED error of the first
+// certain FacetLimitFindings finding, nil when none. MaxEstimatedMemory
+// is the only limit a facet can breach before it scans — each field's
+// distinct values are counted against MaxGroups as they mint.
 func FacetLimitRefusal(req *types.FacetRequest, schema *encoding.Schema, l limits.Limits, in LimitInputs) *errors.CodedError {
-	if limits.IsUnlimited(limits.Value(l, limits.MaxEstimatedMemory)) {
-		return nil
+	return limits.FirstCertain(FacetLimitFindings(req, schema, l, in))
+}
+
+// FacetLimitFindings is the one limit rule for a rich facet, in limit
+// declaration order — PredictFacet reports it
+// (FacetValidationResult.LimitFindings), the pre-flight refuses its
+// first certain finding (FacetLimitRefusal):
+//
+//   - MaxGroups (Possible): FacetGroupBound, the largest distinct-value
+//     count a faceted field's discrete accumulator can mint.
+//   - MaxEstimatedMemory (Certain): EstimateFacetMemory, only when the
+//     limit is set and the record count is known.
+func FacetLimitFindings(req *types.FacetRequest, schema *encoding.Schema, l limits.Limits, in LimitInputs) []limits.Finding {
+	var out []limits.Finding
+	if n, ok := FacetGroupBound(req, schema, in.Records); ok {
+		if f, ok := limits.Evaluate(l, limits.MaxGroups, n, limits.Possible); ok {
+			out = append(out, f)
+		}
 	}
-	n, ok := EstimateFacetMemory(req, schema, in)
-	if !ok {
-		return nil
+	if !limits.IsUnlimited(limits.Value(l, limits.MaxEstimatedMemory)) {
+		if n, ok := EstimateFacetMemory(req, schema, in); ok {
+			if f, ok := limits.Evaluate(l, limits.MaxEstimatedMemory, n, limits.Certain); ok {
+				out = append(out, f)
+			}
+		}
 	}
-	return limits.Check(l, limits.MaxEstimatedMemory, n)
+	return out
+}
+
+// FacetGroupBound is the upper bound of the distinct values a rich
+// facet counts against MaxGroups — the runtime counts each faceted
+// field (Fields and AdditiveFields) separately, so the bound is the
+// largest per-field one: a categorical field's dictionary size, two
+// for packed_bool, clamped by records when known (>= 0). A numeric
+// field mints no group (its accumulator is a summary), and an unknown
+// field is refused elsewhere; false when no faceted field counts.
+func FacetGroupBound(req *types.FacetRequest, schema *encoding.Schema, records int64) (int64, bool) {
+	if req == nil || schema == nil {
+		return 0, false
+	}
+	var bound int64
+	found := false
+	for _, name := range append(append([]string(nil), req.Fields...), req.AdditiveFields...) {
+		f := schema.Field(name)
+		if f == nil {
+			continue
+		}
+		var n int64
+		switch {
+		case f.Type.IsCategorical() && f.Dictionary != nil:
+			n = int64(f.Dictionary.Count())
+		case f.Type == encoding.FieldTypePackedBool:
+			n = 2
+		default:
+			continue
+		}
+		if records >= 0 && n > records {
+			n = records
+		}
+		if !found || n > bound {
+			bound, found = n, true
+		}
+	}
+	return bound, found
 }
 
 // EstimateFacetMemory is the upper bound, in bytes, of a rich facet's
@@ -391,6 +577,7 @@ func matrixMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSna
 	}
 	blocks := mergeBlocks(in)
 	buckets, _, known := vectors.EstimateBuckets(req.Groups, schema)
+	fanOut := FanOutMultiplicity(req.Groups, schema)
 	var total int64
 	for _, m := range plans {
 		var b int64
@@ -403,8 +590,10 @@ func matrixMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSna
 			b = limits.MatrixStateBytes(in.Records, 1, acc)
 		}
 		total = addSaturating(total, b)
-		// A buffered spec (a rank method) also keeps its admitted rows.
-		total = addSaturating(total, limits.MatrixRowBufferBytes(in.Records, m.RowBytes()))
+		// A buffered spec (a rank method) also keeps its admitted rows —
+		// one copy per bucket a fan-out grouper routes the row to — and
+		// ranks them at finalize.
+		total = addSaturating(total, limits.MatrixRowWorkBytes(mulSaturating(in.Records, fanOut), m.RowBytes()))
 	}
 	return total
 }
@@ -445,6 +634,123 @@ func EstimateGroups(groups []*types.Group, schema *encoding.Schema, inst *Instan
 		return 0, false
 	}
 	return crosstabAxisEstimate(groups, schema, inst, records)
+}
+
+// FanOutMultiplicity is the most buckets one record can land in under
+// groups: the product, over every position that fans one record into
+// several keys (GROUP_SET_PER_ELEMENT — one bucket per selected set
+// member), of that position's key bound (the set field's dictionary
+// size, or its include list: vectors.EstimateBuckets), else the set
+// type's member ceiling; 1 when no position fans out. Popcount is
+// data, so the dictionary size is the only schema-derivable bound. An
+// extension grouper's fan-out is its own (no schema bound), like its
+// state. Saturating.
+func FanOutMultiplicity(groups []*types.Group, schema *encoding.Schema) int64 {
+	m := int64(1)
+	for _, g := range groups {
+		if g == nil || !g.Type.FansOut() {
+			continue
+		}
+		if b, _, ok := vectors.EstimateBuckets([]*types.Group{g}, schema); ok {
+			m = mulSaturating(m, max(b, 1))
+			continue
+		}
+		if f := schema.Field(g.Field); f != nil && f.Type.IsSet() {
+			m = mulSaturating(m, int64(f.Type.MaxSetEntries()))
+		}
+	}
+	return m
+}
+
+// requestFanOut is the request's fan-out multiplicity: its groupers'
+// times both crosstab axes' (a crosstab record reaches one cell per
+// row key x column key).
+func requestFanOut(req *types.Request, schema *encoding.Schema) int64 {
+	m := FanOutMultiplicity(req.Groups, schema)
+	if req.Crosstab != nil {
+		m = mulSaturating(m, FanOutMultiplicity(req.Crosstab.Rows, schema))
+		m = mulSaturating(m, FanOutMultiplicity(req.Crosstab.Columns, schema))
+	}
+	return m
+}
+
+// testMemory is the tier-1 tests' resident state for the memory
+// estimate: instances (every test runs once per bucket — buckets is
+// the estimate's group bound, 1 ungrouped), the split levels /
+// contingency cells they key (per test the smaller of instances x its
+// schema-known levels — a categorical dictionary, 2 for packed_bool —
+// and the rows it admits, records x fanOut; a level the schema cannot
+// bound is bounded by those rows), and the values a buffered test
+// keeps: records x fanOut x its value columns (field, field2, subject,
+// every vector member, the weight). A test whose type is not a
+// streamable built-in keeps its values — the predict mirror of the
+// buffered-only tier (types.TestType.Streamable); an extension test's
+// state is its own (instances only).
+func testMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, records, buckets, fanOut int64) (instances, levels, values int64) {
+	if len(req.Tests) == 0 {
+		return 0, 0, 0
+	}
+	admitted := mulSaturating(records, max(fanOut, 1))
+	inputs, _ := vectors.ResolveTests(req, schema, func(t types.TestType) types.TestType {
+		return opRoute(inst, t)
+	}, nil)
+	for i, t := range req.Tests {
+		if t == nil {
+			continue
+		}
+		instances = addSaturating(instances, buckets)
+		if n, ok := testLevelBound(t, schema); ok && n > 0 {
+			levels = addSaturating(levels, min(mulSaturating(buckets, n), admitted))
+		} else if !ok {
+			levels = addSaturating(levels, admitted)
+		}
+		typ := opRoute(inst, t.Type)
+		if !slices.Contains(types.AllTestTypes(), typ) || typ.Streamable() {
+			continue
+		}
+		cols := int64(1) // the row weight
+		for _, f := range []string{t.Field, t.Field2, t.SubjectField} {
+			if f != "" {
+				cols++
+			}
+		}
+		if i < len(inputs) && inputs[i].Has() {
+			cols += int64(inputs[i].P() + len(inputs[i].Members2.Members))
+		} else {
+			cols += int64(len(t.Fields) + len(t.Fields2))
+		}
+		values = addSaturating(values, mulSaturating(admitted, cols))
+	}
+	return instances, levels, values
+}
+
+// testLevelBound is the levels one test instance keys — the product of
+// its split_by, rows, cols and subject_field level counts — true with 0
+// when it keys none; false when a keyed field's levels are not
+// schema-known (a numeric, date or missing field).
+func testLevelBound(t *types.Test, schema *encoding.Schema) (int64, bool) {
+	n, keyed := int64(1), false
+	for _, name := range []string{t.SplitBy, t.Rows, t.Cols, t.SubjectField} {
+		if name == "" {
+			continue
+		}
+		keyed = true
+		f := schema.Field(name)
+		switch {
+		case f == nil:
+			return 0, false
+		case f.Type.IsCategorical() && f.Dictionary != nil:
+			n = mulSaturating(n, max(int64(f.Dictionary.Count()), 1))
+		case f.Type == encoding.FieldTypePackedBool:
+			n = mulSaturating(n, 2)
+		default:
+			return 0, false
+		}
+	}
+	if !keyed {
+		return 0, true
+	}
+	return n, true
 }
 
 // groupEstimate is one grouper's unclamped schema-only key-count bound;
@@ -566,6 +872,7 @@ func limitFindingsDescriptor(fs []limits.Finding) []descriptor.LimitFinding {
 			Configured: f.Configured,
 			Estimated:  f.Estimated,
 			Grade:      descriptor.LimitGrade(f.Grade),
+			Details:    f.DetailsMap(),
 		}
 	}
 	return out
@@ -595,32 +902,67 @@ func joinBuildLimitFinding(req *types.Request, l limits.Limits, rightRows func(p
 	return limits.Evaluate(l, limits.MaxJoinBuildRows, n, limits.Certain)
 }
 
-// predictLimits fills PredictResult.LimitFindings and adds the
-// PULSE_LIMIT_EXCEEDED error of every Certain finding — the error the
-// process pre-flight raises — so a certain finding leaves Valid false.
-// A Possible finding is reported only. Findings follow limit
-// declaration order: the request-level rules, then MaxJoinBuildRows.
-//
-// records is the cohort's header record count (-1 when unknown),
-// shardRecords an archive's per-shard counts (nil for a single file)
-// and archiveBytes its byte length (0 for a single file); they clamp
-// the group-bucket estimate and drive the memory estimate.
-// A join's right-side count is read through opts.RecordCounter only
-// when MaxEstimatedMemory is set.
-func predictLimits(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, opts *PredictOptions, records int64, shardRecords []int64, archiveBytes int64) {
+// CohortCounts are the header facts of one cohort the limit rules read
+// (LimitInputs.Records / ShardRecords / ArchiveBytes): the record
+// count (-1 unknown), an archive's per-shard counts and its byte
+// length, an anchor-opened shard's archive length. PredictOptions.
+// CohortCounter returns them for a Compose slot's (or fit's) cohort —
+// the facade passes the runtime pre-flight's own reader, so a slot's
+// certain finding carries the figure the slot's Process refuses with.
+type CohortCounts struct {
+	Records      int64
+	ShardRecords []int64
+	ArchiveBytes int64
+}
+
+// unknownCounts is CohortCounts with no record count — a chain stage
+// >= 1, whose input rows exist only at runtime.
+var unknownCounts = CohortCounts{Records: -1}
+
+// cohortCounts reads the counts of the cohort at path: opts.
+// CohortCounter when wired, else opts.RecordCounter's header count
+// (no archive terms), else unknown. A read error is unknown — the
+// cohort's open fault is reported by the pass that loads its schema.
+func (o *PredictOptions) cohortCounts(c *types.Cohort) CohortCounts {
+	if o == nil || c == nil {
+		return unknownCounts
+	}
+	path := cohortPathFor(c)
+	if o.CohortCounter != nil {
+		if cc, err := o.CohortCounter(path); err == nil {
+			return cc
+		}
+		return unknownCounts
+	}
+	if o.RecordCounter != nil {
+		if n, err := o.RecordCounter(path); err == nil {
+			return CohortCounts{Records: n}
+		}
+	}
+	return unknownCounts
+}
+
+// requestFindings is the one finding set predict reports for a Request
+// over the schema it executes over: RequestLimitFindings on the run
+// facts opts carries plus counts, then MaxJoinBuildRows. Process
+// predict reports it on PredictResult; a Compose slot or fit and a
+// chain stage report it located (locatedFindings). A join's right-side
+// count is read through opts.RecordCounter only when MaxEstimatedMemory
+// is set.
+func requestFindings(req *types.Request, schema *encoding.Schema, opts *PredictOptions, counts CohortCounts) []limits.Finding {
 	inst := opts.instance()
 	l := inst.Limits()
 	in := LimitInputs{
-		Records:        records,
-		ShardRecords:   shardRecords,
-		ArchiveBytes:   archiveBytes,
+		Records:        counts.Records,
+		ShardRecords:   counts.ShardRecords,
+		ArchiveBytes:   counts.ArchiveBytes,
 		ShardWorkers:   opts.ShardWorkers,
 		JoinRightRows:  -1,
 		Extensions:     opts.Extensions,
 		FusionDisabled: opts.DisableCrosstabFusion,
 	}
 	if req != nil && len(req.Joins) == 1 && req.Joins[0] != nil {
-		in.Join = true
+		in.Join, in.JoinSpec = true, req.Joins[0]
 		if opts.RecordCounter != nil && !limits.IsUnlimited(limits.Value(l, limits.MaxEstimatedMemory)) {
 			if n, err := opts.RecordCounter(req.Joins[0].Right); err == nil {
 				in.JoinRightRows = n
@@ -631,6 +973,69 @@ func predictLimits(env *descriptor.Envelope, result *descriptor.PredictResult, r
 	if f, ok := joinBuildLimitFinding(req, l, opts.RecordCounter); ok {
 		fs = append(fs, f)
 	}
+	return fs
+}
+
+// locatedFindingsAt reports fs on a multi-request root: every certain
+// finding's PULSE_LIMIT_EXCEEDED error added to env located under
+// key = idx (RefusalAt's convention, the runtime locate's), and the
+// findings returned with the same Details. ok is false when a certain
+// finding refuses the request — the runtime stops there.
+func locatedFindingsAt(env *descriptor.Envelope, fs []limits.Finding, key string, idx int) (out []descriptor.LimitFinding, ok bool) {
+	ok = true
+	for _, f := range fs {
+		if f.Grade == limits.Certain {
+			addCodedError(env, RefusalAt(f.Err(), key, idx))
+			ok = false
+		}
+	}
+	out = limitFindingsDescriptor(fs)
+	for i := range out {
+		if out[i].Details == nil {
+			out[i].Details = map[string]any{}
+		}
+		out[i].Details[key] = idx
+	}
+	return out, ok
+}
+
+// limitRefusalFinding is the certain finding a PULSE_LIMIT_EXCEEDED
+// refusal raised by an exact count (MaxComposeSlots, MaxChainStages,
+// MaxDerivedColumns) states — read off the error's own details, so the
+// finding and the error never disagree — with the error's location
+// key (request / stage) carried over. False for any other error.
+func limitRefusalFinding(err error) (descriptor.LimitFinding, bool) {
+	ce, ok := err.(*errors.CodedError)
+	if !ok || ce.Code != errors.PULSE_LIMIT_EXCEEDED {
+		return descriptor.LimitFinding{}, false
+	}
+	name, _ := ce.Details["limit"].(string)
+	configured, ok1 := ce.Details["configured"].(int64)
+	observed, ok2 := ce.Details["observed"].(int64)
+	if name == "" || !ok1 || !ok2 {
+		return descriptor.LimitFinding{}, false
+	}
+	out := descriptor.LimitFinding{Limit: name, Configured: configured, Estimated: observed, Grade: descriptor.LimitGradeCertain}
+	for _, key := range []string{"request", "stage", "fit"} {
+		if v, ok := ce.Details[key]; ok {
+			out.Details = map[string]any{key: v}
+		}
+	}
+	return out, true
+}
+
+// predictLimits fills PredictResult.LimitFindings and adds the
+// PULSE_LIMIT_EXCEEDED error of every Certain finding — the error the
+// process pre-flight raises — so a certain finding leaves Valid false.
+// A Possible finding is reported only. Findings follow limit
+// declaration order: the request-level rules, then MaxJoinBuildRows.
+//
+// records is the cohort's header record count (-1 when unknown),
+// shardRecords an archive's per-shard counts (nil for a single file)
+// and archiveBytes its byte length (0 for a single file); they clamp
+// the group-bucket estimate and drive the memory estimate.
+func predictLimits(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, opts *PredictOptions, records int64, shardRecords []int64, archiveBytes int64) {
+	fs := requestFindings(req, schema, opts, CohortCounts{Records: records, ShardRecords: shardRecords, ArchiveBytes: archiveBytes})
 	result.LimitFindings = limitFindingsDescriptor(fs)
 	for _, f := range fs {
 		if f.Grade == limits.Certain {

@@ -1,11 +1,13 @@
 package pulse_test
 
 import (
+	"context"
 	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -79,6 +81,105 @@ func TestReturn_PrecisionProcess(t *testing.T) {
 			}
 			if !wider {
 				t.Fatalf("baseline means already have <= 1 digit: the gate is vacuous")
+			}
+		})
+	}
+}
+
+// TestReturn_PrecisionJoinedDefaultCount (#214): a slot whose omitted
+// aggregation Type resolves to a count-semantic default only on the
+// JOINED schema (r_cat exists after the join alone; categorical →
+// AGG_MODE_COUNT) keeps its count column exact under return.precision,
+// on Process and on a Compose slot — and a chain stage's defaulted count
+// does too. The facade resolves the plan's exact set from the request
+// after the service ran; the join path defaults a shallow clone whose
+// *Aggregation pointers are the caller's, so the defaulted Type reaches
+// that plan. A deep copy in the join path would round the count.
+func TestReturn_PrecisionJoinedDefaultCount(t *testing.T) {
+	fs, cohort := zoneCohort(t)
+	p, err := pulse.New(pulse.Options{FS: fs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	mk := func(withCohort, join bool, prec int) *types.Request {
+		r := &types.Request{
+			Aggregations: []*types.Aggregation{{Field: "cat", Label: "mc"}, {Type: types.AGG_AVERAGE, Field: "n", Label: "m"}},
+			Return:       &types.Return{Precision: prec},
+		}
+		if prec == 0 {
+			r.Return = nil
+		}
+		if join {
+			r.Joins = []*types.JoinSpec{{Right: cohort, As: "r_", On: []types.OnPair{{LeftField: "n", RightField: "n"}}}}
+			r.Aggregations[0].Field = "r_cat"
+		}
+		if withCohort {
+			r.Cohort = &types.Cohort{Filename: cohort}
+		}
+		return r
+	}
+	// run returns the wire data[0] of one run and the request it ran.
+	type run func(prec int) (map[string]json.RawMessage, *types.Request)
+	wire := func(t *testing.T, v any) map[string]json.RawMessage {
+		t.Helper()
+		b, err := json.Marshal(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var doc struct {
+			Data []map[string]json.RawMessage `json:"data"`
+		}
+		if err := json.Unmarshal(b, &doc); err != nil {
+			t.Fatal(err)
+		}
+		if len(doc.Data) != 1 {
+			t.Fatalf("data rows = %d, want 1: %s", len(doc.Data), b)
+		}
+		return doc.Data[0]
+	}
+	runs := map[string]run{
+		"process join": func(prec int) (map[string]json.RawMessage, *types.Request) {
+			req := mk(true, true, prec)
+			resp, err := p.Process(ctx, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return wire(t, resp), req
+		},
+		"compose slot join": func(prec int) (map[string]json.RawMessage, *types.Request) {
+			req := mk(true, true, prec)
+			out, err := p.Compose(ctx, &types.ComposedRequest{Requests: []*types.Request{req}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return wire(t, out.Responses[0]), req
+		},
+		"chain stage": func(prec int) (map[string]json.RawMessage, *types.Request) {
+			req := mk(false, false, prec)
+			out, err := p.ProcessChain(ctx, &types.ChainRequest{Cohort: &types.Cohort{Filename: cohort},
+				Stages: []*types.ChainStage{{Name: "s0", Request: req}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return wire(t, out.Stages[0]), req
+		},
+	}
+	for name, r := range runs {
+		t.Run(name, func(t *testing.T) {
+			base, _ := r(0)
+			row, req := r(1)
+			if req.Aggregations[0].Type != types.AGG_MODE_COUNT {
+				t.Errorf("defaulted type = %q, want AGG_MODE_COUNT", req.Aggregations[0].Type)
+			}
+			if sigDigits(string(base["mc"])) < 2 {
+				t.Fatalf("baseline count %s has < 2 significant digits: the gate is vacuous", base["mc"])
+			}
+			if string(row["mc"]) != string(base["mc"]) {
+				t.Errorf("defaulted count mc = %s under precision 1, want exact %s", row["mc"], base["mc"])
+			}
+			if got := sigDigits(string(row["m"])); got > 1 || sigDigits(string(base["m"])) <= 1 {
+				t.Errorf("measure m = %s (baseline %s): precision did not apply", row["m"], base["m"])
 			}
 		})
 	}

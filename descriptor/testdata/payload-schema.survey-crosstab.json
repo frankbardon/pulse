@@ -833,15 +833,6 @@
         "filtered_records": {
           "type": "integer"
         },
-        "overlays": {
-          "items": {
-            "$ref": "#/$defs/OverlayLayer"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
         "total_records": {
           "type": "integer"
         },
@@ -2747,4 +2738,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 420285b278eb0e3e1d25f7ff8ab9f1d0b2541be3f42bd3751ac9396a86617a9b
+// golden-hash: ab80cd00b348438c10a0349e2f2b72c319313bc67acdf6291bb013e572f6b42f

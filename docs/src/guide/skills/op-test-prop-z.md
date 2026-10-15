@@ -34,7 +34,7 @@ Use something else:
 
 ## Inputs
 
-`Field` (required) — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`. `SplitBy` (required, exactly 2 groups) — same set.
+`Field` (required) — categorical: `categorical_u8`/`u16`/`u32`. `SplitBy` (required, exactly 2 groups) — same set. Any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (field first).
 
 ## Output
 

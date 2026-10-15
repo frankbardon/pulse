@@ -6,34 +6,11 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/groupedtests"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
-
-// numericTestFields lists the test types that require their `Field`
-// reference to point at a numeric (non-categorical) column.
-// TEST_CHISQ uses rows/cols instead and is not listed here.
-// TEST_PROP_Z's primary field is categorical (the outcome) and is
-// handled in validateProportionZ below.
-var numericTestFields = map[types.TestType]bool{
-	types.TEST_T:              true,
-	types.TEST_WELCH:          true,
-	types.TEST_ANOVA_F:        true,
-	types.TEST_KS:             true,
-	types.TEST_TREND:          true,
-	types.TEST_PAIRED_T:       true,
-	types.TEST_PEARSON_R:      true,
-	types.TEST_MANN_WHITNEY_U: true,
-	types.TEST_WILCOXON_SR:    true,
-	types.TEST_KRUSKAL_WALLIS: true,
-	types.TEST_SPEARMAN_R:     true,
-	types.TEST_KENDALL_TAU:    true,
-	types.TEST_ANOVA_WELCH:    true,
-	types.TEST_ANOVA_RM:       true,
-	types.TEST_BROWN_FORSYTHE: true,
-	types.TEST_SHAPIRO_WILK:   true,
-}
 
 // numericField2Tests lists the test types that require a numeric Field2
 // (paired or bivariate tests).
@@ -130,40 +107,33 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 		if f == nil && !projected[t.Field] {
 			return
 		}
-		if f != nil && numericTestFields[t.Type] {
-			if f.Type.IsCategorical() {
-				env.AddError(string(errors.PULSE_TEST_FIELD_NOT_NUMERIC),
-					string(t.Type)+" field "+t.Field+" has non-numeric type "+f.Type.String(),
-					map[string]any{"type": string(t.Type), "field": t.Field, "field_type": f.Type.String()})
-			}
+		// The accepted-types table's refusals (field, then field2),
+		// the runtime constructors' (testFieldTypeRefusal) word for
+		// word: a categorical's index and a set's bitmask are refused.
+		if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotField, t.Field, schema); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 		if numericField2Tests[t.Type] {
 			if t.Field2 == "" {
 				env.AddError(string(errors.SERVICE_VALIDATION),
 					string(t.Type)+" requires field2 (second numeric column)",
 					map[string]any{"type": string(t.Type)})
-			} else if f2 := schema.Field(t.Field2); f2 != nil && f2.Type.IsCategorical() {
-				env.AddError(string(errors.PULSE_TEST_FIELD2_NOT_NUMERIC),
-					string(t.Type)+" field2 "+t.Field2+" has non-numeric type "+f2.Type.String(),
-					map[string]any{"type": string(t.Type), "field2": t.Field2, "field_type": f2.Type.String()})
+			} else if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotField2, t.Field2, schema); cerr != nil {
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
 		}
-		if t.SplitBy != "" {
-			if sf := schema.Field(t.SplitBy); sf != nil && !sf.Type.IsVector() && !sf.Type.IsCategorical() {
-				env.AddError(string(errors.SERVICE_VALIDATION),
-					string(t.Type)+" split_by "+t.SplitBy+" must be categorical, got "+sf.Type.String(),
-					map[string]any{"type": string(t.Type), "split_by": t.SplitBy, "field_type": sf.Type.String()})
-			}
+		// The accepted-types table's split_by refusal (a test that
+		// reads no split_by has no row, and its split_by is not judged).
+		if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotSplitBy, t.SplitBy, schema); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 		if t.Type == types.TEST_ANOVA_RM {
 			if t.SubjectField == "" {
 				env.AddError(string(errors.SERVICE_VALIDATION),
 					"TEST_ANOVA_RM requires subject_field",
 					map[string]any{"type": string(t.Type)})
-			} else if sf := schema.Field(t.SubjectField); sf != nil && !sf.Type.IsVector() && !sf.Type.IsCategorical() {
-				env.AddError(string(errors.SERVICE_VALIDATION),
-					"TEST_ANOVA_RM subject_field "+t.SubjectField+" must be categorical, got "+sf.Type.String(),
-					map[string]any{"type": string(t.Type), "subject_field": t.SubjectField, "field_type": sf.Type.String()})
+			} else if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotSubject, t.SubjectField, schema); cerr != nil {
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
 		}
 	}
@@ -195,16 +165,15 @@ func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encodi
 	if !tier1 || schema == nil {
 		return
 	}
-	for axis, name := range map[string]string{"field": t.Field, "split_by": t.SplitBy} {
-		if name == "" {
-			continue
-		}
-		// An unknown name is FieldRefRefusals' refusal.
-		if f := schema.Field(name); f != nil && !f.Type.IsVector() && !f.Type.IsCategorical() {
-			env.AddError(string(errors.PULSE_TEST_FIELD_NOT_NUMERIC),
-				"TEST_PROP_Z "+axis+" field "+name+" must be categorical, got "+f.Type.String(),
-				map[string]any{"axis": axis, "field": name, "field_type": f.Type.String()})
-		}
+	// An unknown name is FieldRefRefusals' refusal; a non-categorical
+	// outcome or split the accepted-types table's, field then split_by
+	// (the runtime constructor's order).
+	if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotField, t.Field, schema); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		return
+	}
+	if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotSplitBy, t.SplitBy, schema); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
 }
 
@@ -236,13 +205,15 @@ func validateChiSquareFields(env *descriptor.Envelope, t *types.Test, schema *en
 	if !tier1 || schema == nil {
 		return
 	}
-	for axis, field := range map[string]string{"rows": t.Rows, "cols": t.Cols} {
-		// An unknown name is FieldRefRefusals' refusal.
-		if f := schema.Field(field); f != nil && !f.Type.IsVector() && !f.Type.IsCategorical() {
-			env.AddError(string(errors.PULSE_TEST_FIELD_NOT_NUMERIC),
-				"TEST_CHISQ "+axis+" field "+field+" must be categorical, got "+f.Type.String(),
-				map[string]any{"axis": axis, "field": field, "field_type": f.Type.String()})
-		}
+	// An unknown name is FieldRefRefusals' refusal; a non-categorical
+	// axis the accepted-types table's, rows then cols (the runtime
+	// constructor's contingencyAxisRefusal, which stops at the first).
+	if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotRows, t.Rows, schema); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		return
+	}
+	if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotCols, t.Cols, schema); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
 }
 
@@ -289,9 +260,7 @@ func validateVectorTest(env *descriptor.Envelope, t *types.Test, schema *encodin
 	if !tier1 || schema == nil || t.SplitBy == "" {
 		return
 	}
-	if sf := schema.Field(t.SplitBy); sf != nil && !sf.Type.IsVector() && !sf.Type.IsCategorical() {
-		env.AddError(string(errors.SERVICE_VALIDATION),
-			string(t.Type)+" split_by "+t.SplitBy+" must be categorical, got "+sf.Type.String(),
-			map[string]any{"type": string(t.Type), "split_by": t.SplitBy, "field_type": sf.Type.String()})
+	if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotSplitBy, t.SplitBy, schema); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
 }

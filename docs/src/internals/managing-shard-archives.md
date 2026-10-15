@@ -57,6 +57,22 @@ diverge: the shard is accepted, the canonical copy wins, and each
 divergence is a `PULSE_SHARD_DESCRIPTION_DIVERGENCE` warning naming
 `vector_labels`, `vector_kind` or `vector_scale`.
 
+### Nullability
+
+Every shard decodes under the archive's canonical null flags, so
+per-field nullability is part of cohesion and is never widened. A shard
+that declares nullable a field the archive declares non-nullable is
+refused with `PULSE_SHARD_SCHEMA_MISMATCH` (`details.dimension:
+nullable`): the canonical decode would ignore the field's null bit and a
+stored null would read back as a value. The reverse — a non-nullable
+shard field under a nullable archive field — is admitted as-is only when
+both null bitmaps have the same width (equal strides) and the field is
+not a parent-group member; every Pulse writer leaves a non-nullable
+field's null bit 0, so each row reads non-null. Otherwise it is refused
+the same way. `shard add`, `shard create`, `shard verify`, the anchored
+`NewCohortBuilder` pre-check and the archive record reader all apply the
+one rule (`ValidateStructuralCohesion`).
+
 ### Set-width auto-widen
 
 **Two** conditions trigger it, and they compose:

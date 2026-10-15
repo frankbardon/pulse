@@ -137,14 +137,6 @@ func TestRecommendBound_EveryDraftPassesPredict(t *testing.T) {
 // no draft for, and why. Exact: an operator that starts drafting (or
 // stops) fails the test until this list follows.
 var unmappedOnFixture = map[[2]string]string{
-	{"describe", "AGG_RATIO"}:                   "predict refuses an AGG_RATIO with no field",
-	{"composition", "AGG_RATIO"}:                "predict refuses an AGG_RATIO with no field",
-	{"describe", "AGG_WEIGHTED_MEAN"}:           "needs a weight the fixture does not name",
-	{"relationship", "ATTR_REG_FITTED"}:         "regression attributes take target and predictors the manifest does not declare",
-	{"benchmark", "ATTR_REG_FITTED"}:            "regression attributes take target and predictors the manifest does not declare",
-	{"benchmark", "ATTR_REG_RESIDUAL"}:          "regression attributes take target and predictors the manifest does not declare",
-	{"data_quality", "ATTR_REG_RESIDUAL"}:       "regression attributes take target and predictors the manifest does not declare",
-	{"data_quality", "ATTR_REG_LEVERAGE"}:       "regression attributes take target and predictors the manifest does not declare",
 	{"compare_groups", "GROUP_DATE_RANGES"}:     "compare_groups takes no date field",
 	{"compare_groups", "GROUP_SET_PER_ELEMENT"}: "compare_groups takes no set field",
 }
@@ -201,6 +193,8 @@ func TestRecommendBound_NeedsOperators(t *testing.T) {
 		// exactly_one_of groups: the first member is the need.
 		{descx.IntentChangeOverTime, "WIN_EWMA", []string{"frame", "alpha"}},
 		{descx.IntentSegment, "FEAT_BUCKETIZE", []string{"boundaries"}},
+		// No weight anywhere: the weighted mean asks for one.
+		{descx.IntentDescribe, "AGG_WEIGHTED_MEAN", []string{"weight_field"}},
 	}
 	for _, w := range want {
 		res := boundAll(t, nil, w.intent)
@@ -530,6 +524,98 @@ func TestRecommendBound_VectorAggregatorDraftsFields(t *testing.T) {
 		}
 		if !found {
 			t.Errorf("%s: no describe draft", op)
+		}
+	}
+}
+
+// draftsOf is every recommendation for op under intent over bound b,
+// each draft's request decoded.
+func draftsOf(t *testing.T, b Bound, intent, op string) []descriptor.Recommendation {
+	t.Helper()
+	res, err := RecommendBound(nil, descriptor.RecommendRequest{Intent: intent, Limit: 1000}, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []descriptor.Recommendation
+	for _, r := range res.Recommendations {
+		if r.Operator == op {
+			out = append(out, r)
+		}
+	}
+	if len(out) == 0 {
+		t.Fatalf("%s: %s drafts nothing", intent, op)
+	}
+	return out
+}
+
+func decodeDraft(t *testing.T, r descriptor.Recommendation) *types.Request {
+	t.Helper()
+	var req types.Request
+	if err := json.Unmarshal(r.Request, &req); err != nil {
+		t.Fatalf("%s: %v", r.Request, err)
+	}
+	return &req
+}
+
+// TestRecommendBound_RatioAndRegressionAttributes (U35 #249): AGG_RATIO
+// ignores its field but the wire requires one, so the draft names its
+// numerator there; ATTR_REG_FITTED / RESIDUAL / LEVERAGE draft their
+// declared top-level target and predictors and no field.
+func TestRecommendBound_RatioAndRegressionAttributes(t *testing.T) {
+	b := bound(t, nil, boundFixture(t), nil)
+	for _, r := range draftsOf(t, b, descx.IntentDescribe, "AGG_RATIO") {
+		a := decodeDraft(t, r).Aggregations[0]
+		var params struct {
+			Num string `json:"numerator_field"`
+			Den string `json:"denominator_field"`
+		}
+		if err := json.Unmarshal(a.Params, &params); err != nil {
+			t.Fatal(err)
+		}
+		if !r.Bound || a.Field == "" || a.Field != params.Num || params.Den == "" {
+			t.Errorf("AGG_RATIO draft %s: bound=%v, want field = numerator_field", r.Request, r.Bound)
+		}
+	}
+	for _, c := range []struct{ intent, op string }{
+		{descx.IntentRelationship, "ATTR_REG_FITTED"},
+		{"data_quality", "ATTR_REG_RESIDUAL"},
+		{"data_quality", "ATTR_REG_LEVERAGE"},
+	} {
+		for _, r := range draftsOf(t, b, c.intent, c.op) {
+			a := decodeDraft(t, r).Attributes[0]
+			if !r.Bound || a.Field != "" || a.Target == "" || len(a.Predictors) == 0 || len(a.Params) != 0 ||
+				slices.Contains(a.Predictors, a.Target) {
+				t.Errorf("%s draft %s: bound=%v, want top-level target + predictors, no field", c.op, r.Request, r.Bound)
+			}
+		}
+	}
+}
+
+// TestRecommendBound_WeightedMeanWeight (U35 #249): AGG_WEIGHTED_MEAN
+// binds params.weight_field to the cohort's suggested weight
+// (Bound.Weight) — a fully bound draft predict accepts, never weighting
+// a field by itself; with no suggestion but an instance default weight
+// the draft needs nothing; with neither it asks for weight_field
+// (TestRecommendBound_NeedsOperators).
+func TestRecommendBound_WeightedMeanWeight(t *testing.T) {
+	b := bound(t, nil, boundFixture(t), nil)
+	b.Weight = "hours"
+	for _, r := range draftsOf(t, b, descx.IntentDescribe, "AGG_WEIGHTED_MEAN") {
+		a := decodeDraft(t, r).Aggregations[0]
+		if !r.Bound || len(r.Needs) != 0 || !strings.Contains(string(a.Params), `"weight_field":"hours"`) || a.Field == "hours" {
+			t.Errorf("suggested weight: draft %s bound=%v needs=%+v, want weight_field hours on another field", r.Request, r.Bound, r.Needs)
+		}
+	}
+
+	s := boundFixture(t)
+	data := cohortBytes(t, s)
+	b = bound(t, nil, s, nil)
+	b.Predict = func(r *types.Request) *descriptor.Envelope {
+		return descx.Predict(bytes.NewReader(data), r, &descx.PredictOptions{DefaultWeight: &types.WeightSpec{Field: "hours"}})
+	}
+	for _, r := range draftsOf(t, b, descx.IntentDescribe, "AGG_WEIGHTED_MEAN") {
+		if !r.Bound || len(r.Needs) != 0 || strings.Contains(string(r.Request), "weight_field") {
+			t.Errorf("default weight: draft %s bound=%v needs=%+v, want no weight ask", r.Request, r.Bound, r.Needs)
 		}
 	}
 }

@@ -319,7 +319,7 @@ type bodyScan struct {
 func (s *bodyScan) value(v any, path string, axes axisScope) error {
 	switch node := v.(type) {
 	case map[string]any:
-		return s.object(node, path, axes)
+		return s.object(node, path, axes, nil)
 	case []any:
 		for i, e := range node {
 			if err := s.value(e, indexPath(path, i), axes); err != nil {
@@ -335,7 +335,9 @@ func (s *bodyScan) value(v any, path string, axes axisScope) error {
 }
 
 // object checks a marker, a guard, and every key, in that order.
-func (s *bodyScan) object(obj map[string]any, path string, axes axisScope) error {
+// swept mirrors the render walk: the scope a sweep object's request,
+// overlays and label walk in, nil outside a declared sweep.
+func (s *bodyScan) object(obj map[string]any, path string, axes, swept axisScope) error {
 	if isLoneMarkerKey(obj) {
 		return s.marker(obj[markerKey], path, axes)
 	}
@@ -357,7 +359,11 @@ func (s *bodyScan) object(obj map[string]any, path string, axes axisScope) error
 	if err != nil {
 		return err
 	}
-	for _, a := range itemAx {
+	sweepAx, err := sweepAxes(s.t, obj, path)
+	if err != nil {
+		return err
+	}
+	for _, a := range append(itemAx, sweepAx...) {
 		if s.isDeclared(a.name) {
 			return axisCollision(s.t, a)
 		}
@@ -375,8 +381,17 @@ func (s *bodyScan) object(obj map[string]any, path string, axes axisScope) error
 			continue
 		}
 		scope := inner
-		if key == forEachKey {
+		switch {
+		case key == forEachKey:
 			scope = axes
+		case swept != nil && sweepScoped(key):
+			scope = swept
+		}
+		if sub, ok := obj[key].(map[string]any); ok && key == sweepKey && len(sweepAx) > 0 {
+			if err := s.object(sub, childPath(path, key), scope, scope.with(sweepAx)); err != nil {
+				return err
+			}
+			continue
 		}
 		if err := s.value(obj[key], childPath(path, key), scope); err != nil {
 			return err

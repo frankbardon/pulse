@@ -6,12 +6,11 @@ import (
 	"math"
 
 	"github.com/expr-lang/expr"
-	exprast "github.com/expr-lang/expr/ast"
-	exprparser "github.com/expr-lang/expr/parser"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprbuiltins"
 	"github.com/frankbardon/pulse/internal/vecmath"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg/metric"
 )
 
@@ -102,20 +101,6 @@ type exprMetricRef struct {
 func exprMetricKernel(name string, f metric.Form) func(a, b []float64) (float64, error) {
 	r := exprMetric(name, f)
 	return func(a, b []float64) (float64, error) { return r.m.Eval(r.form, a, b, nil) }
-}
-
-// exprBuiltinArity is each reserved built-in's [min, max] argument
-// count, checked when the expression compiles (vectorStaticRefusal).
-var exprBuiltinArity = map[string][2]int{
-	"dot": {2, 2}, "dist": {2, 2}, "cosine": {2, 2},
-	"vnormalize": {2, 2}, "pow": {2, 2},
-	"jaccard": {2, 2}, "dice": {2, 2}, "hamming": {2, 2}, "overlap": {2, 2},
-	"ref": {2, 2},
-}
-
-// exprBuiltinVectorResult names the built-ins that return a vector.
-var exprBuiltinVectorResult = map[string]bool{
-	"vcenter": true, "vzscore": true, "vnormalize": true, "ref": true,
 }
 
 // vectorExprOptions registers every reserved built-in, in the
@@ -231,13 +216,10 @@ func vecCountBuiltin(args ...any) (any, error) {
 	return vecmath.Count(v), nil
 }
 
-// vectorLengthMismatch is the coded refusal of an unequal-length pair.
+// vectorLengthMismatch is the coded refusal of an unequal-length pair
+// (vectors.LengthMismatch, the message predict's static twin raises).
 func vectorLengthMismatch(fn string, left, right int, cause error) *errors.CodedError {
-	ce := errors.NewCodedErrorWithDetails(errors.PROCESSING_VECTOR_LENGTH_MISMATCH,
-		fmt.Sprintf("%s(): vector length mismatch: %d vs %d", fn, left, right),
-		map[string]any{"function": fn, "left": left, "right": right})
-	ce.Cause = cause
-	return ce
+	return vectors.LengthMismatch(fn, left, right, cause)
 }
 
 func vecPair(fn string, k func(a, b []float64) (float64, error)) exprBuiltinFunc {
@@ -302,13 +284,9 @@ func vecMap(fn string, k func([]float64) []float64) exprBuiltinFunc {
 }
 
 // invalidNormalizeMode is the coded refusal of a vnormalize mode other
-// than "l1" / "l2".
+// than "l1" / "l2" (vectors.InvalidNormalizeMode, predict's twin).
 func invalidNormalizeMode(mode string, cause error) *errors.CodedError {
-	ce := errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-		fmt.Sprintf("vnormalize(): mode %q is not %q or %q (case-sensitive)", mode, vecmath.NormL1, vecmath.NormL2),
-		map[string]any{"function": "vnormalize", "mode": mode, "valid": []string{vecmath.NormL1, vecmath.NormL2}})
-	ce.Cause = cause
-	return ce
+	return vectors.InvalidNormalizeMode(mode, cause)
 }
 
 func vecNormalizeBuiltin(args ...any) (any, error) {
@@ -361,74 +339,23 @@ func scalarPowBuiltin(args ...any) (any, error) {
 }
 
 // vectorResultError refuses a vector as an expression's top-level
-// result: the vector built-ins compose inside an expression, but an
-// attribute value, a filter verdict and a total() term are scalars.
+// result (vectors.VectorResultRefusal).
 func vectorResultError(what string) *errors.CodedError {
-	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-		fmt.Sprintf("%s expression returns a vector; reduce it to a scalar (vsum, vmean, dot, cosine, argmax, ...) — vcenter / vzscore / vnormalize are usable inside an expression only", what),
-		map[string]any{"expression_site": what})
+	return vectors.VectorResultRefusal(what)
 }
 
 // vectorStaticRefusal is the compile-time check of the reserved
-// built-ins a parse can judge without a row: argument counts, a literal
-// vnormalize mode, two literal arrays of unequal length handed to dot /
-// dist / cosine, and a vector-returning call as the whole expression.
-// A source that does not parse returns nil — its compile reports the
-// syntax error.
-func vectorStaticRefusal(src, what string) error {
-	tree, err := exprparser.Parse(src)
-	if err != nil {
-		return nil
+// built-ins a parse can judge without a row — argument counts, a literal
+// vnormalize mode, a known unequal-length dot / dist / cosine pair, a
+// vector-returning call as the whole expression: the shared leaf rule
+// vectors.ExprStaticIssue, which predict reports through
+// vectors.StaticIssues. A source that does not parse returns nil — its
+// compile reports the syntax error.
+func vectorStaticRefusal(src, what string, lenOf func(string) (int, bool)) error {
+	if ce := vectors.ExprStaticIssue(src, what, lenOf); ce != nil {
+		return ce
 	}
-	if c, ok := tree.Node.(*exprast.CallNode); ok {
-		if id, ok := c.Callee.(*exprast.IdentifierNode); ok && exprBuiltinVectorResult[id.Value] {
-			return vectorResultError(what)
-		}
-	}
-	v := &vectorStaticVisitor{}
-	exprast.Walk(&tree.Node, v)
-	return v.err
-}
-
-type vectorStaticVisitor struct{ err error }
-
-func (v *vectorStaticVisitor) Visit(node *exprast.Node) {
-	if v.err != nil {
-		return
-	}
-	c, ok := (*node).(*exprast.CallNode)
-	if !ok {
-		return
-	}
-	id, ok := c.Callee.(*exprast.IdentifierNode)
-	if !ok || !exprbuiltins.IsReserved(id.Value) {
-		return
-	}
-	fn, n := id.Value, len(c.Arguments)
-	ar, ok := exprBuiltinArity[fn]
-	if !ok {
-		ar = [2]int{1, 1}
-	}
-	if n < ar[0] || n > ar[1] {
-		v.err = errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("%s() takes %d argument(s); got %d", fn, ar[0], n),
-			map[string]any{"function": fn, "arguments": n})
-		return
-	}
-	switch fn {
-	case "dot", "dist", "cosine":
-		a, aok := c.Arguments[0].(*exprast.ArrayNode)
-		b, bok := c.Arguments[1].(*exprast.ArrayNode)
-		if aok && bok && len(a.Nodes) != len(b.Nodes) {
-			v.err = vectorLengthMismatch(fn, len(a.Nodes), len(b.Nodes), nil)
-		}
-	case "vnormalize":
-		if s, ok := c.Arguments[1].(*exprast.StringNode); ok {
-			if _, err := vecmath.Normalize(nil, s.Value); err != nil {
-				v.err = invalidNormalizeMode(s.Value, err)
-			}
-		}
-	}
+	return nil
 }
 
 // exprRefusal returns the request's own refusal inside an expression

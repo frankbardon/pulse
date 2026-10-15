@@ -17,12 +17,14 @@ package formulaident
 
 import (
 	"sort"
+	"strings"
 
 	exprast "github.com/expr-lang/expr/ast"
 	exprparser "github.com/expr-lang/expr/parser"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprbuiltins"
+	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -228,11 +230,11 @@ func ComposeSlotPaths(slots []Slot) map[string]struct{} {
 func ComposeFormula(params map[string]any) (formula, reason string) {
 	raw, present := params["formula"]
 	if !present {
-		return "", "missing formula param"
+		return "", ReasonMissingFormula
 	}
 	f, ok := raw.(string)
 	if !ok || f == "" {
-		return "", "formula param is empty or non-string"
+		return "", ReasonEmptyFormula
 	}
 	return f, ""
 }
@@ -242,8 +244,8 @@ func ComposeFormula(params map[string]any) (formula, reason string) {
 // (its reference and targets) and allowed to call funcs. nil when the
 // formula reads only its namespace; otherwise, first hit wins:
 //
-//   - no usable params.formula: PULSE_OVERLAY_FORMULA_INVALID_IDENT,
-//     Details {index, kind, reason};
+//   - no usable params.formula: MissingFormula's
+//     PULSE_OVERLAY_PARAM_MISSING, Details {index, kind, param, reason};
 //   - a parse failure: PULSE_OVERLAY_FORMULA_PARSE_ERROR, Details
 //     {index, kind, formula, parse_error};
 //   - an unknown variable, function or slot path (each in sorted
@@ -253,9 +255,7 @@ func ComposeFormula(params map[string]any) (formula, reason string) {
 func ComposeRefusal(kind types.OverlayKind, params map[string]any, index int, shape types.OverlayShape, slots []Slot, funcs map[string]struct{}) *errors.CodedError {
 	formula, reason := ComposeFormula(params)
 	if reason != "" {
-		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
-			"overlay "+string(kind)+" requires params.formula (a non-empty string)",
-			map[string]any{"index": index, "kind": string(kind), "reason": reason})
+		return MissingFormula(string(kind), "overlay "+string(kind)+" requires params.formula (a non-empty string)", index, reason)
 	}
 	tree, err := exprparser.Parse(formula)
 	if err != nil {
@@ -292,6 +292,90 @@ func ComposeRefusal(kind types.OverlayKind, params map[string]any, index int, sh
 		if _, ok := paths[p]; !ok {
 			return unknown(p, "references "+p+", not a field of a slot this spec names (reference or targets)", "allowed_slots", paths)
 		}
+	}
+	return nil
+}
+
+// BuiltinRefusal refuses a FORMULA calling a reserved built-in outside
+// the overlay scalar subset (exprbuiltins.OverlayRefused — the vector
+// families) with PULSE_OVERLAY_FORMULA_INVALID_IDENT, Details {kind,
+// unknown_identifier, allowed_builtins, formula} plus `index` when
+// index >= 0. nil when the formula calls none (or fails to parse).
+// Every host runs it before its identifier gate, predict and runtime
+// alike, so a vector built-in reads this message, not "unknown
+// function".
+func BuiltinRefusal(kind types.OverlayKind, formula string, index int) *errors.CodedError {
+	refused := exprident.FirstCallee(formula, exprbuiltins.OverlayRefused)
+	if refused == "" {
+		return nil
+	}
+	details := map[string]any{
+		"kind":               string(kind),
+		"unknown_identifier": refused,
+		"allowed_builtins":   exprbuiltins.OverlayNames(),
+		"formula":            formula,
+	}
+	if index >= 0 {
+		details["index"] = index
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
+		"overlay "+string(kind)+" formula calls "+refused+", a vector built-in OVERLAY_FORMULA does not accept (scalar maths only: "+strings.Join(exprbuiltins.OverlayNames(), ", ")+")",
+		details)
+}
+
+// RequestVars is a Request-host FORMULA's variable namespace over a
+// host of shape: types.FormulaNamespace(shape), plus `baseline` on a
+// SERIES host whose spec sets params.baseline_position (baseline).
+func RequestVars(shape types.OverlayShape, baseline bool) map[string]struct{} {
+	out := map[string]struct{}{}
+	for _, v := range types.FormulaNamespace(shape) {
+		out[v] = struct{}{}
+	}
+	if shape == types.OverlayShapeSeries && baseline {
+		out["baseline"] = struct{}{}
+	}
+	return out
+}
+
+// RequestRefusal judges the identifiers of the Request-host
+// OVERLAY_FORMULA spec at index whose parsed formula is node, over a
+// host of shape, against the variables vars (RequestVars) and the
+// callable funcs (AllowedFuncs). nil when every reference is in reach;
+// otherwise PULSE_OVERLAY_FORMULA_INVALID_IDENT for the first unknown
+// variable, then function, then `slot.<label>.<field>` path (the slot
+// namespace is Compose-only), each class in sorted order. Details
+// {index, kind, unknown_identifier, host_shape, formula} plus
+// `allowed`, `allowed_funcs` or `reason`.
+func RequestRefusal(kind types.OverlayKind, formula string, node *exprast.Node, index int, shape types.OverlayShape, vars, funcs map[string]struct{}) *errors.CodedError {
+	refs := Collect(node)
+	details := func(ident, key string, val any) map[string]any {
+		return map[string]any{
+			"index":              index,
+			"kind":               string(kind),
+			"unknown_identifier": ident,
+			"host_shape":         string(shape),
+			key:                  val,
+			"formula":            formula,
+		}
+	}
+	for _, ident := range sorted(refs.Vars) {
+		if _, ok := vars[ident]; !ok {
+			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
+				"overlay "+string(kind)+" formula references unknown identifier "+ident+" for "+string(shape)+"-shape host",
+				details(ident, "allowed", sorted(vars)))
+		}
+	}
+	for _, fn := range sorted(refs.Funcs) {
+		if _, ok := funcs[fn]; !ok {
+			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
+				"overlay "+string(kind)+" formula calls unknown function "+fn,
+				details(fn, "allowed_funcs", sorted(funcs)))
+		}
+	}
+	if paths := sorted(refs.SlotPaths); len(paths) > 0 {
+		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
+			"overlay "+string(kind)+" formula references Compose slot "+paths[0]+" on a Request host (slot namespace is Compose-only)",
+			details(paths[0], "reason", "slot namespace is Compose-only"))
 	}
 	return nil
 }

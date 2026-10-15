@@ -9,7 +9,6 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
-	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/returnshape"
 	"github.com/frankbardon/pulse/types"
 	cli "github.com/urfave/cli/v3"
@@ -116,22 +115,6 @@ func apiProcessCmd() *cli.Command {
 
 			if jsonOut {
 				env := descriptor.NewEnvelope(resp)
-				// Surface the categorical-aggregation warning on the
-				// envelope. Strict mode would have already errored in
-				// Process, so reaching this point in strict mode means
-				// no issues. In non-strict the warnings are advisory
-				// and the run continues.
-				if !strict && req != nil && req.Cohort != nil {
-					cohortPath := req.Cohort.Filename
-					if req.Cohort.DataDir != "" {
-						cohortPath = req.Cohort.DataDir + "/" + req.Cohort.Filename
-					}
-					if cohort, openErr := p.Open(ctx, cohortPath); openErr == nil {
-						for _, entry := range descx.CategoricalAggregationIssues(req, cohort.Schema(), nil) {
-							env.AddWarning(entry.Code, entry.Message, entry.Details)
-						}
-					}
-				}
 				// Process mutates req in place via service.applyDefaults,
 				// so by the time we reach here req is the normalized
 				// (post-defaults) form. Echo it verbatim — what the

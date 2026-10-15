@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -103,14 +102,9 @@ func (s *Service) reduceParallelBuffered(
 	// Pre-resolve aggregator factories once; the per-worker factory
 	// closure re-uses these so we do not pay an extensions.LookupAggregator
 	// hop per worker. Same shape as processOneShard's spec table.
-	specs := make([]aggSpec, len(req.Aggregations))
-	for i, agg := range req.Aggregations {
-		factory, ok := s.extensions.LookupAggregator(agg.Type)
-		if !ok {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("unknown aggregation type: %s", agg.Type))
-		}
-		specs[i] = aggSpec{agg: agg, factory: factory}
+	specs, err := lookupAggSpecs(req, s.extensions)
+	if err != nil {
+		return nil, err
 	}
 
 	// A fitted attribute bound to a prebuilt fit closes at bind: its
@@ -157,8 +151,7 @@ func (s *Service) reduceParallelBuffered(
 			buildErr      error
 			filterFns     []processing.FilterFunc
 			rowLocalAttrs []rowLocalAttrSpec
-			groupers      []processing.Grouper
-			ungroupedAggs []processing.OnlineAggregator
+			out           *shardPartial
 		)
 
 		vecs := processing.ExprVectors(req, schema)
@@ -166,35 +159,12 @@ func (s *Service) reduceParallelBuffered(
 		if buildErr == nil {
 			rowLocalAttrs, buildErr = buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, partitionModels(ctx), vecs)
 		}
-		if buildErr == nil && grouped {
-			groupers, buildErr = newPartitionGroupers(req.Groups, grouperFactories, schema, s.extensions)
-		}
-
-		out := newShardPartial(req, specs, s.Limits())
 		if buildErr == nil {
-			buildErr = out.buildMatrices(req, schema, s.extensions, grouped, compute, model.SetFrom(ctx))
+			out, buildErr = newPartitionPartial(req, schema, s.extensions, specs, grouperFactories, compute, model.SetFrom(ctx), s.Limits())
 		}
-		if buildErr == nil && !grouped {
-			ungroupedAggs = make([]processing.OnlineAggregator, len(specs))
-			for i, sp := range specs {
-				inst, err := sp.factory(sp.agg, schema)
-				if err != nil {
-					buildErr = err
-					break
-				}
-				online, ok := inst.(processing.OnlineAggregator)
-				if !ok {
-					buildErr = errors.NewCodedError(errors.PROCESSING_INTERNAL,
-						fmt.Sprintf("aggregator %s does not implement OnlineAggregator", sp.agg.Type))
-					break
-				}
-				ungroupedAggs[i] = online
-			}
-			if buildErr == nil {
-				out.aggs = ungroupedAggs
-			}
-		} else if buildErr == nil {
-			buildErr = out.initGrouped(req.Groups, groupers, specs, schema, compute.Groups && len(req.Aggregations) > 0)
+		var ungroupedAggs []processing.OnlineAggregator
+		if out != nil {
+			ungroupedAggs = out.aggs
 		}
 
 		// Worker progress counter so we can publish the partial on the
@@ -291,7 +261,7 @@ func (s *Service) reduceParallelBuffered(
 		if partials[0] == nil {
 			partials[0] = &shardPartial{}
 		}
-		resp, err := finalizeMergedPartial(req, schema, partials[0], 0, compute, s.extensions)
+		resp, err := finalizeMergedPartial(req, schema, partials[0], 0, compute, s.extensions, model.SetFrom(ctx))
 		if err != nil {
 			return nil, err
 		}
@@ -312,7 +282,7 @@ func (s *Service) reduceParallelBuffered(
 	if err != nil {
 		return nil, err
 	}
-	resp, err := finalizeMergedPartial(req, schema, merged, 0, compute, s.extensions)
+	resp, err := finalizeMergedPartial(req, schema, merged, 0, compute, s.extensions, model.SetFrom(ctx))
 	if err != nil {
 		return nil, err
 	}

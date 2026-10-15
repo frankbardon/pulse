@@ -29,9 +29,15 @@ import (
 func seriesGoodSpec(kind types.OverlayKind) types.OverlaySpec {
 	s := types.OverlaySpec{Name: "o", Kind: kind, Scope: types.OverlayScopeGroup}
 	switch kind {
-	case types.OverlayKindIndexVsRollingMean, types.OverlayKindZScoreVsRolling:
+	case types.OverlayKindIndexVsRollingMean:
 		s.Ref.RollingMean = &types.OverlayRollingMeanRef{}
 		s.Params = json.RawMessage(`{"window":1}`)
+	case types.OverlayKindZScoreVsRolling:
+		// Window 1 is refused: a one-point sample SD (U35 #431).
+		s.Ref.RollingMean = &types.OverlayRollingMeanRef{}
+		s.Params = json.RawMessage(`{"window":2}`)
+	case types.OverlayKindFormula:
+		s.Params = json.RawMessage(`{"formula":"value / total"}`)
 	case types.OverlayKindYoY:
 		s.Ref.YoY = &types.OverlayYoYRef{}
 	case types.OverlayKindIndexVsBaseline, types.OverlayKindDeltaVsBaseline:
@@ -51,8 +57,8 @@ func seriesSpecCases(t *testing.T) []specRefusalCase {
 	t.Helper()
 	kinds := overlayhost.SeriesSpecKinds()
 	sort.Slice(kinds, func(i, j int) bool { return kinds[i] < kinds[j] })
-	if len(kinds) != 12 {
-		t.Fatalf("SERIES rule table lists %d kinds, want the 12 SERIES-host kinds", len(kinds))
+	if len(kinds) != 13 {
+		t.Fatalf("SERIES rule table lists %d kinds, want the 13 SERIES-host kinds (OVERLAY_FORMULA included)", len(kinds))
 	}
 	ref := errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
 	var out []specRefusalCase

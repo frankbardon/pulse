@@ -75,7 +75,7 @@ func skeleton(op opInfo, intent string) (draft, bool) {
 		if p.list {
 			v = list(p.name)
 		}
-		if op.category == catRegression || topLevelParams[op.category][p.name] {
+		if topLevelParam(op, p.name) {
 			entry[p.name] = v
 			return
 		}
@@ -130,7 +130,10 @@ func skeleton(op opInfo, intent string) (draft, bool) {
 			entry["fields"] = list("fields")
 			break
 		}
-		if !op.ignoresField {
+		// A regression attribute reads target / predictors (declared
+		// params), never field. A field-ignoring aggregator (AGG_RATIO)
+		// still names one on the wire, which requires it.
+		if (!op.ignoresField || op.category == catAggregator) && !regressionShaped(op) {
 			entry["field"] = str("field")
 		}
 	}

@@ -245,3 +245,62 @@ func pairwiseErrHasCode(err error, code errors.Code) bool {
 	c := string(coded.Code)
 	return c == string(code)
 }
+
+// TestOverlayPairwise_WelchT_PopulationVarianceCell (E4-S3): an
+// AGG_VARIANCE / AGG_STDDEV cell carries the population variance
+// m2 / n; the Welch leg reads the sample variance m2 / (n - 1), so the
+// p-value equals the closed-form Welch test on the raw values. A cell
+// with n < 2 has no sample variance (undefined, never 0): its pair stays
+// absent. An AGG_WELFORD cell (already sample) and an untyped host are
+// read as is.
+func TestOverlayPairwise_WelchT_PopulationVarianceCell(t *testing.T) {
+	// A = {1, 2, 4}: mean 7/3, m2 42/9. B = {3, 5, 6, 10}: mean 6, m2 26.
+	// C = {8}: n 1.
+	mA, m2A, mB, m2B := 7.0/3, 42.0/9, 6.0, 26.0
+	mx := &types.MatrixPayload{
+		RowHeader:    types.AxisHeader{Fields: []string{"brand"}, Types: []string{"GROUP_CATEGORY"}},
+		ColumnHeader: types.AxisHeader{Fields: []string{"aud"}, Types: []string{"GROUP_CATEGORY"}},
+		RowKeys:      []types.AxisKey{{"A"}, {"B"}, {"C"}},
+		ColumnKeys:   []types.AxisKey{{"x"}},
+		Cells: [][]types.MatrixCell{
+			{{Value: m2A / 3, Present: true}},
+			{{Value: m2B / 4, Present: true}},
+			{{Value: 0.0, Present: true}},
+		},
+	}
+	comps := &types.CrosstabComponents{
+		CellComponents: [][]map[string]any{
+			{{"mean": mA, "m2": m2A, "variance": m2A / 3, "n": 3, "n_null": 0}},
+			{{"mean": mB, "m2": m2B, "variance": m2B / 4, "n": 4, "n_null": 0}},
+			{{"mean": 8.0, "m2": 0.0, "variance": 0.0, "n": 1, "n_null": 0}},
+		},
+	}
+	a, b := (m2A/2)/3, (m2B/3)/4
+	tStat := (mA - mB) / math.Sqrt(a+b)
+	df := (a + b) * (a + b) / ((a*a)/2 + (b*b)/3)
+	want := statdist.StudentTTwoSidedP(tStat, df)
+	run := func(cellType types.AggregationType) [][]types.MatrixCell {
+		host := newCrosstabHostViewWithComponents(mx, comps)
+		host.cellType = cellType
+		specs := []types.OverlaySpec{{Kind: types.OverlayKindPairwiseWelchT, Scope: types.OverlayScopeRow}}
+		layers, _, err := applyOverlays(specs, host)
+		if err != nil {
+			t.Fatalf("%s: applyOverlays: %v", cellType, err)
+		}
+		return layers[0].Payload.Matrix.Cells
+	}
+	for _, ct := range []types.AggregationType{types.AGG_VARIANCE, types.AGG_STDDEV} {
+		cells := run(ct)
+		gv, _ := cells[0][0].Value.(float64)
+		if !cells[0][0].Present || math.Abs(gv-want) > 1e-12 {
+			t.Errorf("%s: A vs B p = %v (present %v), want %v", ct, gv, cells[0][0].Present, want)
+		}
+		if cells[1][0].Present || cells[2][0].Present {
+			t.Errorf("%s: a pair with the n = 1 cell scored: %+v", ct, cells)
+		}
+	}
+	// An AGG_WELFORD host reads the variance key as the sample variance.
+	if gv, _ := run(types.AGG_WELFORD)[0][0].Value.(float64); gv == want {
+		t.Errorf("AGG_WELFORD host converted its variance")
+	}
+}

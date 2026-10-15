@@ -33,7 +33,7 @@ Use something else:
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | any cohort field type EXCEPT `set_*` (categorical_*, numeric, date, datetime, packed_bool, decimal128) |
+| `Field` | any cohort field type EXCEPT `set_*` (categorical_*, numeric, date, datetime, packed_bool, decimal128); any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
 
 ## Output
 
@@ -49,7 +49,7 @@ Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}
 - Unknown categorical label in `Values` → `PROCESSING_CONFIG` at build time, surfaced via predict.
 - Non-numeric values on a numeric field → `PROCESSING_CONFIG` (parse error).
 - Filters chain in declared order; this one sees only rows the previous kept.
-- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no comparable scalar at any rung.
+- `set_*` rejected at build time with `PULSE_FIELD_TYPE_UNSUPPORTED` — a bitmask has no comparable scalar at any rung.
 
 ## See
 

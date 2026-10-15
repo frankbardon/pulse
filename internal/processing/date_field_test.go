@@ -74,8 +74,8 @@ func TestResolveDateFieldSeconds_Classification(t *testing.T) {
 				if !asCoded(err, &ce) {
 					t.Fatalf("error is not coded: %v", err)
 				}
-				if ce.Code != errors.PROCESSING_CONFIG {
-					t.Errorf("code = %s; want PROCESSING_CONFIG", ce.Code)
+				if ce.Code != errors.PULSE_FIELD_TYPE_UNSUPPORTED {
+					t.Errorf("code = %s; want PULSE_FIELD_TYPE_UNSUPPORTED", ce.Code)
 				}
 				return
 			}
@@ -249,8 +249,8 @@ func TestGrouper_DateRanges_RejectsNonTemporal(t *testing.T) {
 	if !asCoded(err, &ce) {
 		t.Fatalf("error is not coded: %v", err)
 	}
-	if ce.Code != errors.PROCESSING_CONFIG {
-		t.Errorf("code = %s; want PROCESSING_CONFIG", ce.Code)
+	if ce.Code != errors.PULSE_FIELD_TYPE_UNSUPPORTED {
+		t.Errorf("code = %s; want PULSE_FIELD_TYPE_UNSUPPORTED", ce.Code)
 	}
 }
 
@@ -337,8 +337,8 @@ func TestFilterer_DateRanges_RejectsNonTemporal(t *testing.T) {
 	if !asCoded(err, &ce) {
 		t.Fatalf("error is not coded: %v", err)
 	}
-	if ce.Code != errors.PROCESSING_CONFIG {
-		t.Errorf("code = %s; want PROCESSING_CONFIG", ce.Code)
+	if ce.Code != errors.PULSE_FIELD_TYPE_UNSUPPORTED {
+		t.Errorf("code = %s; want PULSE_FIELD_TYPE_UNSUPPORTED", ce.Code)
 	}
 }
 

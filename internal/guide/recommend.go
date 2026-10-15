@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 )
@@ -194,6 +195,14 @@ func boundRecommendations(op opInfo, in descriptor.Intent, base descriptor.Recom
 	if !ok {
 		return nil
 	}
+	if key, ok := weightParams[op.name]; ok {
+		if b.Weight != "" {
+			w := b.Weight
+			slots = append(slots, bslot{key: key, loc: locParams, accept: func(f *encoding.Field) bool { return f.Name == w }})
+		} else {
+			needs = append(needs, bneed{key: key, loc: locParams, optional: true})
+		}
+	}
 	var out []scored
 	for _, bnd := range bind(slots, b.Schema, hints, BindingsPerOperator) {
 		needs := nativeNeeds(op, needs, bnd, b.Schema)
@@ -204,6 +213,15 @@ func boundRecommendations(op opInfo, in descriptor.Intent, base descriptor.Recom
 		env := b.Predict(probe)
 		if env == nil || !passes(env, needs) {
 			continue
+		}
+		if res, ok := env.Data.(*descriptor.PredictResult); ok && res.Valid && len(env.Errors) == 0 &&
+			slices.ContainsFunc(needs, func(n bneed) bool { return n.optional }) {
+			// The probe runs without the optional needs: an instance
+			// default supplied them, so the draft does not ask.
+			needs = slices.DeleteFunc(slices.Clone(needs), func(n bneed) bool { return n.optional })
+			if request, _, ok = boundDraft(op, b.Cohort, slots, bnd, needs); !ok {
+				continue
+			}
 		}
 		rec := base
 		rec.Request = request

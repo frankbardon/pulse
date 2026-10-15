@@ -154,6 +154,10 @@ var tableVacuous = map[string]map[string]string{
 		"range_table_grouper": "predict does not resolve a range table name",
 		"range_table_filter":  "predict does not resolve a range table name",
 	},
+	"PredictCompose": {
+		"range_table_grouper": "predict does not resolve a range table name",
+		"range_table_filter":  "predict does not resolve a range table name",
+	},
 	"PredictChain/stage0": {
 		"label_table":         "the chain validator does not validate a stage's label bindings",
 		"range_table_grouper": "predict does not resolve a range table name",

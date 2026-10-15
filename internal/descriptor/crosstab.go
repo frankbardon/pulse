@@ -116,22 +116,10 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 	// field-reference rule's (FieldRefRefusals).
 	if spec.Cell != nil {
 		// A cell type the instance hides is judged as a never-registered
-		// name; messages keep naming the authored type.
+		// name; messages keep naming the authored type. A numeric cell
+		// over a categorical is the accepted-types table's refusal
+		// (validateFieldAcceptance).
 		cellRoute := opRoute(opts.instance(), spec.Cell.Type)
-		// Numeric aggregation on categorical field — promote per
-		// strict (predict honours opts.Strict here too).
-		if f := schema.Field(spec.Cell.Field); f != nil && f.Type.IsCategorical() && numericAggregations[cellRoute] {
-			entry := &descriptor.EnvelopeEntry{
-				Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),
-				Message: "numeric aggregation " + string(spec.Cell.Type) + " is not meaningful for categorical field " + spec.Cell.Field,
-				Details: map[string]any{"field": spec.Cell.Field, "aggregation": string(spec.Cell.Type)},
-			}
-			if opts.Strict {
-				env.Errors = append(env.Errors, entry)
-			} else {
-				env.Warnings = append(env.Warnings, entry)
-			}
-		}
 		// Warn when normalization is requested on a recompute aggregator
 		// without the implied margin: harmless under v1's always-
 		// recompute path, but flag so the warning trail is informative.
@@ -193,24 +181,6 @@ func validateCrosstabMarginAggregations(
 
 	for _, fault := range spec.MarginAggregationFaults() {
 		env.AddError(string(marginAggregationFaultCode(fault.Kind)), fault.Message, fault.Details)
-	}
-
-	for _, agg := range spec.MarginAggregations {
-		if agg == nil {
-			continue
-		}
-		if f := schema.Field(agg.Field); f != nil && f.Type.IsCategorical() && numericAggregations[opRoute(opts.instance(), agg.Type)] {
-			entry := &descriptor.EnvelopeEntry{
-				Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),
-				Message: "numeric aggregation " + string(agg.Type) + " is not meaningful for categorical field " + agg.Field,
-				Details: map[string]any{"field": agg.Field, "aggregation": string(agg.Type), "slot": "margin_aggregations"},
-			}
-			if opts.Strict {
-				env.Errors = append(env.Errors, entry)
-			} else {
-				env.Warnings = append(env.Warnings, entry)
-			}
-		}
 	}
 
 	// Auxiliary aggregations land in the margin accumulators only, so a

@@ -3,6 +3,7 @@ package descriptor
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -116,7 +117,11 @@ func TestPredict_InvalidRequest(t *testing.T) {
 	}
 }
 
-func TestPredict_CategoricalWarning(t *testing.T) {
+// TestPredict_NumericAggOnCategoricalRefused pins E2-S4: a numeric
+// aggregation over a categorical (its dictionary index) is the
+// accepted-types table's one PULSE_FIELD_TYPE_UNSUPPORTED error — the
+// runtime's refusal — never the retired advisory warning.
+func TestPredict_NumericAggOnCategoricalRefused(t *testing.T) {
 	dict := makeDictionary(t, "A", "B", "C")
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -132,93 +137,14 @@ func TestPredict_CategoricalWarning(t *testing.T) {
 	}
 
 	env := predictFromBytes(data, req, nil)
-
-	if len(env.Warnings) == 0 {
-		t.Fatal("expected categorical warning")
+	if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PULSE_FIELD_TYPE_UNSUPPORTED) {
+		t.Fatalf("errors = %+v, want one PULSE_FIELD_TYPE_UNSUPPORTED", env.Errors)
 	}
-
-	found := false
 	for _, w := range env.Warnings {
 		if w.Code == string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL) {
-			found = true
+			t.Errorf("retired warning %q", w.Message)
 		}
 	}
-	if !found {
-		t.Error("expected PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL warning")
-	}
-}
-
-// TestCategoricalAggregationIssues_DirectAPI exercises the exported
-// helper that service.Process and the predict path both consume. The
-// helper is non-judgmental — caller decides whether to promote to
-// errors. Empty / nil inputs return nil.
-func TestCategoricalAggregationIssues_DirectAPI(t *testing.T) {
-	dict := makeDictionary(t, "X", "Y", "Z")
-	schema := &encoding.Schema{
-		Fields: []encoding.Field{
-			{Name: "color", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict},
-			{Name: "score", Type: encoding.FieldTypeF64},
-		},
-	}
-
-	t.Run("nil request returns nil", func(t *testing.T) {
-		if got := CategoricalAggregationIssues(nil, schema, nil); got != nil {
-			t.Errorf("nil request: got %d issues, want nil", len(got))
-		}
-	})
-
-	t.Run("nil schema returns nil", func(t *testing.T) {
-		req := &types.Request{Aggregations: []*types.Aggregation{
-			{Type: types.AGG_SUM, Field: "color"},
-		}}
-		if got := CategoricalAggregationIssues(req, nil, nil); got != nil {
-			t.Errorf("nil schema: got %d issues, want nil", len(got))
-		}
-	})
-
-	t.Run("numeric agg on categorical fires", func(t *testing.T) {
-		req := &types.Request{Aggregations: []*types.Aggregation{
-			{Type: types.AGG_AVERAGE, Field: "color"},
-		}}
-		got := CategoricalAggregationIssues(req, schema, nil)
-		if len(got) != 1 {
-			t.Fatalf("got %d issues, want 1", len(got))
-		}
-		if got[0].Code != string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL) {
-			t.Errorf("code = %q, want PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL", got[0].Code)
-		}
-	})
-
-	t.Run("numeric agg on numeric is silent", func(t *testing.T) {
-		req := &types.Request{Aggregations: []*types.Aggregation{
-			{Type: types.AGG_AVERAGE, Field: "score"},
-		}}
-		if got := CategoricalAggregationIssues(req, schema, nil); len(got) != 0 {
-			t.Errorf("numeric-on-numeric: got %d issues, want 0", len(got))
-		}
-	})
-
-	t.Run("count on categorical is silent", func(t *testing.T) {
-		req := &types.Request{Aggregations: []*types.Aggregation{
-			{Type: types.AGG_COUNT, Field: "color"},
-			{Type: types.AGG_MODE_COUNT, Field: "color"},
-			{Type: types.AGG_MODE, Field: "color"},
-			{Type: types.AGG_DISTINCT_COUNT, Field: "color"},
-			{Type: types.AGG_NULL_COUNT, Field: "color"},
-		}}
-		if got := CategoricalAggregationIssues(req, schema, nil); len(got) != 0 {
-			t.Errorf("categorical-friendly aggs: got %d issues, want 0", len(got))
-		}
-	})
-
-	t.Run("unknown field is silent", func(t *testing.T) {
-		req := &types.Request{Aggregations: []*types.Aggregation{
-			{Type: types.AGG_SUM, Field: "missing"},
-		}}
-		if got := CategoricalAggregationIssues(req, schema, nil); len(got) != 0 {
-			t.Errorf("unknown field: got %d issues, want 0 (predict path emits the unknown-field error separately)", len(got))
-		}
-	})
 }
 
 func TestPredict_DescriptionQualityWarning(t *testing.T) {
@@ -246,35 +172,34 @@ func TestPredict_DescriptionQualityWarning(t *testing.T) {
 }
 
 func TestPredict_StrictMode_WarningsAreErrors(t *testing.T) {
-	dict := makeDictionary(t, "A", "B", "C")
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
-			{Name: "grade", Type: encoding.FieldTypeCategoricalU8, Description: "Letter grade for the student", Dictionary: dict},
+			{Name: "score", Type: encoding.FieldTypeF64, Description: ""},
 		},
 	}
 	data := buildTestPulseFile(t, schema)
 
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{
-			{Type: types.AGG_SUM, Field: "grade", Label: "sum_grade"},
+			{Type: types.AGG_SUM, Field: "score", Label: "sum_score"},
 		},
 	}
 
 	env := predictFromBytes(data, req, &PredictOptions{Strict: true})
 
-	// In strict mode, the categorical warning should be an error.
+	// In strict mode, the description-quality warning is an error.
 	if len(env.Warnings) != 0 {
 		t.Errorf("expected no warnings in strict mode, got %d", len(env.Warnings))
 	}
 
-	foundCat := false
+	found := false
 	for _, e := range env.Errors {
-		if e.Code == string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL) {
-			foundCat = true
+		if e.Code == string(errors.PULSE_FIELD_DESCRIPTION_LOW_QUALITY) {
+			found = true
 		}
 	}
-	if !foundCat {
-		t.Error("expected PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL as error in strict mode")
+	if !found {
+		t.Error("expected PULSE_FIELD_DESCRIPTION_LOW_QUALITY as error in strict mode")
 	}
 }
 
@@ -309,12 +234,17 @@ func TestPredictKeyComposerMatchesAggregatorKey(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "val", Type: encoding.FieldTypeF64, Description: "Test value for all aggregation types"},
+			{Name: "tags", Type: encoding.FieldTypeSetU8, Dictionary: makeDictionary(t, "a", "b"), Description: "Multi-select tags for the set aggregations"},
 		},
 	}
 	data := buildTestPulseFile(t, schema)
 
 	for _, aggType := range types.AllAggregationTypes() {
 		agg := &types.Aggregation{Type: aggType, Field: "val", Label: "result"}
+		if strings.HasPrefix(string(aggType), "AGG_SET_") {
+			// A set aggregator reads a set column (an f64 is refused).
+			agg.Field = "tags"
+		}
 		if aggType == types.AGG_FREQUENCY {
 			// Its required params.value is refused when absent
 			// (TestPredict_AggFrequencyMissingValue).

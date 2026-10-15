@@ -59,7 +59,7 @@ Decimal divide-by-zero raises `PULSE_DECIMAL_DIVIDE_BY_ZERO`. No NaN, no infinit
 
 ## Aggregations on decimal fields
 
-An aggregator takes a decimal field iff its manifest `accepts_types` lists `decimal128`; predict refuses the rest with `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`. Registered extension aggregators are exempt (exact values via `DecimalValue`). What a supported one returns follows from the math it needs:
+An aggregator takes a decimal field iff its manifest `accepts_types` lists `decimal128`; predict and the runtime refuse every other built-in with ONE `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL` error (never a warning), at every aggregation slot — crosstab cell and margin aggregations included. Registered extension aggregators are exempt (exact values via `DecimalValue`). What a supported one returns follows from the math it needs:
 
 | Kind | Result |
 |---|---|
@@ -86,7 +86,7 @@ The standard comparison filterers — range, include / exclude, expression — w
 
 ## Feature operators
 
-Feature transforms are float math: none emits a decimal column, and categorical- or date-only transforms never take a decimal source. Which accept one is the manifest `accepts_types` of each feature (predict refuses the rest with `SERVICE_VALIDATION`). Feature outputs are NOT auditor-defensible — for decimal precision downstream, aggregate on the original column.
+Feature transforms are float math: none emits a decimal column, and categorical- or date-only transforms never take a decimal source. Which accept one is the manifest `accepts_types` of each feature (predict and the runtime refuse the rest of a categorical- or date-only transform's types with `PULSE_FIELD_TYPE_UNSUPPORTED`). Feature outputs are NOT auditor-defensible — for decimal precision downstream, aggregate on the original column.
 
 ## Importer accepts / rejects
 

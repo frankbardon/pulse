@@ -2,13 +2,10 @@ package descriptor
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/exprbuiltins"
-	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
@@ -121,6 +118,17 @@ type ComposeValidationResult struct {
 	// cohort — read statically, never fitted. Set once the fits pass
 	// their structural rules (model.CheckFits); omitted without fits.
 	Fits []descriptor.FitSummary `json:"fits,omitempty"`
+
+	// LimitFindings lists every instance resource limit the batch's
+	// predicted figures exceed, graded like PredictResult.LimitFindings:
+	// the slot count (MaxComposeSlots — explicit plus sweep-expanded —
+	// certain, unlocated), then each slot's Request findings located by
+	// details.request, then each fit request's by details.fit. A slot is
+	// judged on its cohort's header counts (PredictOptions.
+	// CohortCounter), the figures its Process pre-flight reads. A
+	// certain finding is also a PULSE_LIMIT_EXCEEDED error. Omitted when
+	// none fires.
+	LimitFindings []descriptor.LimitFinding `json:"limit_findings,omitempty"`
 }
 
 // ValidateCompose runs the no-execute COMPOSE-host overlay walk over
@@ -130,10 +138,8 @@ type ComposeValidationResult struct {
 // shape inference (MATRIX / SERIES / SCALAR) is derived from each
 // slot's *types.Request alone via inferComposeSlotShape.
 //
-// The Request slot in the envelope is left nil — Compose has no
-// single normalized form to echo back (per-slot normalisation is
-// handled by service.applyComposeLabelDefaults at execution time and
-// is not the descriptor surface's responsibility).
+// Under PredictOptions.EchoRequest the envelope's Request is the
+// batch's normalized form (composeEcho); without it, nil.
 func ValidateCompose(req *types.ComposedRequest) *descriptor.Envelope {
 	return ValidateComposeWithOptions(req, nil)
 }
@@ -161,7 +167,50 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 // cohort (the managed-import TTL) without expanding twice. The
 // effective request is the input itself when it carries no sweep, and
 // the input too when the sweep was refused before it expanded.
+//
+// Options.Strict promotes every warning the batch collected (a slot's
+// PULSE_VECTOR_METRIC_UNSUITED, located details.request) into an error
+// at the batch envelope (finishPredictRoot); Options.EchoRequest echoes
+// the normalized batch on env.Request (composeEcho).
 func ValidateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions) (*descriptor.Envelope, *types.ComposedRequest) {
+	var slots []*types.Request
+	env, effective := validateComposeExpanded(req, opts, &slots)
+	result := env.Data.(*ComposeValidationResult)
+	finishPredictRoot(env, opts, func() { result.Valid = false }, func() any {
+		if e := composeEcho(effective, slots); e != nil {
+			return e
+		}
+		return nil
+	})
+	return env, effective
+}
+
+// composeEcho is a Compose predict's normalized request — the form the
+// runtime echoes as ComposedResponse.NormalizedRequest: the EFFECTIVE
+// batch (a sweep expanded into labelled slots after the explicit ones,
+// its overlays appended, no `sweep`), each slot as its Process runs it
+// (item for_each expanded, smart defaults resolved against the schema
+// it executes over) wherever predict reached that far, else as
+// written. Nil when there is no effective request.
+func composeEcho(effective *types.ComposedRequest, slots []*types.Request) *types.ComposedRequest {
+	if effective == nil {
+		return nil
+	}
+	out := *effective
+	out.Requests = make([]*types.Request, len(effective.Requests))
+	for i, slot := range effective.Requests {
+		out.Requests[i] = slot
+		if i < len(slots) && slots[i] != nil {
+			out.Requests[i] = slots[i]
+		}
+	}
+	return &out
+}
+
+// validateComposeExpanded is ValidateComposeExpanded before the Strict
+// and echo pass; slots receives each slot's normalized form
+// (validateComposeSlots).
+func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, slots *[]*types.Request) (*descriptor.Envelope, *types.ComposedRequest) {
 	result := &ComposeValidationResult{
 		Valid:                    true,
 		Request:                  req,
@@ -174,6 +223,14 @@ func ValidateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions) (
 		env.AddError(string(errors.SERVICE_VALIDATION), "compose request is required", nil)
 		result.Valid = false
 		return env, nil
+	}
+	// An empty batch — no slot and no sweep to expand into one — is the
+	// runtime's first refusal (Service.expandCompose), before anything
+	// else is judged: same code, same message.
+	if len(req.Requests) == 0 && req.Sweep == nil {
+		env.AddError(string(errors.SERVICE_VALIDATION), "composed request must contain at least one request", nil)
+		result.Valid = false
+		return env, req
 	}
 	written := req
 	// The runtime's entry order (Service.expandCompose): a set sweep on
@@ -196,6 +253,9 @@ func ValidateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions) (
 	exp, xerr := sweep.Expand(req, composeSlotsPreflight(opts))
 	if xerr != nil {
 		addCodedError(env, xerr)
+		if f, ok := limitRefusalFinding(xerr); ok {
+			result.LimitFindings = append(result.LimitFindings, f)
+		}
 		result.Valid = false
 		return env, written
 	}
@@ -263,8 +323,10 @@ func ValidateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions) (
 	// (step 12 aligns a slot's params.fit by them, as the runtime's bind
 	// does) — but its refusals are reported after the slots', as before.
 	fitEnv := descriptor.NewEnvelope(nil)
-	result.Fits = validateComposeFits(fitEnv, req.Fits, opts, loaded)
-	validateComposeSlots(env, req, opts, loaded, result.Fits)
+	var fitFindings []descriptor.LimitFinding
+	result.Fits = validateComposeFits(fitEnv, req.Fits, opts, loaded, &fitFindings)
+	*slots = validateComposeSlots(env, req, opts, loaded, result.Fits, &result.LimitFindings)
+	result.LimitFindings = append(result.LimitFindings, fitFindings...)
 	env.Errors = append(env.Errors, fitEnv.Errors...)
 	env.Warnings = append(env.Warnings, fitEnv.Warnings...)
 
@@ -280,9 +342,8 @@ func ValidateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions) (
 		if len(env.Errors) > 0 {
 			result.Valid = false
 		}
-		// Nothing to validate at the overlay surface; downstream
-		// per-slot validation (the standard Predict on each Request)
-		// runs through a separate entry point.
+		// Nothing to validate at the overlay surface; every slot was
+		// judged above (validateComposeSlots, the request body included).
 		return env, req
 	}
 
@@ -662,7 +723,8 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	// scored on the aggregation params.field names (else
 	// Aggregations[0]) and keyed on its GROUP columns alone — the
 	// runtime's processing.projectComposeSeriesSlots. An unknown label
-	// is PULSE_OVERLAY_FIELD_UNKNOWN (reference first, then targets),
+	// is PULSE_OVERLAY_FIELD_UNKNOWN on the first slot naming none
+	// (reference first, then targets — one error, as the runtime),
 	// and two SERIES slots whose group key columns differ by name can
 	// never align: PULSE_OVERLAY_KEY_SET_DIVERGENT, the code the
 	// runtime key-set gate raises.
@@ -689,8 +751,11 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 			cols := vectors.AggregationColumns(sreq, composeSlotSchemaFunc(composeSlotInputSchema([]*types.Request{s.req}, opts), 0),
 				aggregationKinds(opts.instance(), nil))
 			if _, ferr := seriesfield.ResolveComposeSlot(sreq.Aggregations, spec, specIdx, s.label, cols); ferr != nil {
+				// One error, the first slot the runtime resolves
+				// (reference, then targets) — it stops there (#436).
 				addCodedError(env, ferr)
 				appendComposeSlotPair(result, spec.Reference, s.label, "field-unknown")
+				break
 			}
 		}
 	}
@@ -1154,22 +1219,25 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 // join-key rule for a join, zones the way the runtime resolves them
 // (defaults, then ResolveZones), then the field-reference rule
 // (FieldRefRefusals) on the defaulted slot, then weight resolution
-// (ResolveWeights) when the references pass — and records each refusal
-// tagged with its slot index. Without a SchemaLoader (or for a cohort it
+// (ResolveWeights) when the references pass, then the Process-predict
+// request body (validateRequestBody) — and records each refusal tagged
+// with its slot index. Without a SchemaLoader (or for a cohort it
 // cannot read) the slot resolves schema-less: the field-independent
 // refusals still apply, the field-dependent ones are left to the
 // runtime.
-func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded, summaries []descriptor.FitSummary) {
+func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded, summaries []descriptor.FitSummary, findings *[]descriptor.LimitFinding) []*types.Request {
 	// The names every slot's ATTR_REG_PREDICT resolves: the runtime's
 	// fit pre-pass binds each `fits` entry before any slot runs, over
 	// the registered populations, beside the slot's own loaded entries.
 	fits := model.WithinCatalog(opts.populations(), composeFitCatalog(req.Fits, summaries))
+	normalized := make([]*types.Request, len(req.Requests))
 	for i, slot := range req.Requests {
 		if slot == nil {
 			continue
 		}
-		validateComposeRequest(env, slot, opts, "request", i, loadedCatalog(fits, model.RequestRefs(slot), loaded.slot(i)))
+		validateComposeRequest(env, slot, opts, "request", i, loadedCatalog(fits, model.RequestRefs(slot), loaded.slot(i)), &normalized[i], findings)
 	}
+	return normalized
 }
 
 // composeFitCatalog is model.CatalogFromFits with each vector fit's
@@ -1254,16 +1322,23 @@ func loadComposeModels(req *types.ComposedRequest, opts *PredictOptions) (*compo
 // models are the names its ATTR_REG_PREDICT slots resolve (nil: none).
 // It returns the schema the request executes over (nil when
 // unresolvable) and whether every check passed.
-func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts *PredictOptions, key string, idx int, models model.Catalog) (*encoding.Schema, bool) {
+func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts *PredictOptions, key string, idx int, models model.Catalog, normalized **types.Request, findings *[]descriptor.LimitFinding) (*encoding.Schema, bool) {
 	l := opts.instance().Limits()
 	// The request's Process expands its item for_each first (right
 	// after the slot gate the whole batch already passed).
 	expanded, _, _, xerr := ExpandRequestItems(slot, l)
 	if xerr != nil {
-		addCodedError(env, RefusalAt(xerr, key, idx))
+		located := RefusalAt(xerr, key, idx)
+		addCodedError(env, located)
+		if f, ok := limitRefusalFinding(located); ok && findings != nil {
+			*findings = append(*findings, f)
+		}
 		return nil, false
 	}
 	slot = expanded
+	if normalized != nil {
+		*normalized = slot
+	}
 	// The request's Process refuses a second JoinSpec before it
 	// resolves a zone; Compose locates it like a zone refusal.
 	if jerr := JoinCountRefusal(slot); jerr != nil {
@@ -1282,6 +1357,11 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 		return nil, false
 	}
 	schema, keyRefusals := validatorRequestSchema(slot, cohortSchemaFor(slot.Cohort, opts), opts)
+	// An explicit metric that fits its vector's kind poorly: a warning
+	// located under key = idx (the runtime's Process warns, and under
+	// Strict refuses here — before any record is read and before its
+	// field references; the root's Strict pass promotes it).
+	addMetricUnsuitedAt(env, slot, schema, key, idx)
 	if len(keyRefusals) > 0 {
 		for _, ce := range keyRefusals {
 			addCodedError(env, RefusalAt(ce, key, idx))
@@ -1293,6 +1373,9 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 		return schema, false
 	}
 	defaulted := defaultedForValidation(slot, schema, opts)
+	if normalized != nil {
+		*normalized = defaulted
+	}
 	refs := fieldRefRefusalsWithModels(defaulted, schema, extensionsFromOpts(opts), opts.instance(), models)
 	for _, ce := range refs {
 		addCodedError(env, RefusalAt(ce, key, idx))
@@ -1312,13 +1395,62 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 		addCodedError(env, RefusalAt(werr, key, idx))
 		return schema, false
 	}
+	// Then the request's limit pre-flight (Service.limitsPreflight,
+	// right after its weights): the findings Process predict reports,
+	// on the slot cohort's header counts, located under key = idx; a
+	// certain one refuses the request there. Schema-less, nothing is
+	// judged.
+	if schema != nil {
+		located, ok := locatedFindingsAt(env, requestFindings(defaulted, schema, opts, opts.cohortCounts(slot.Cohort)), key, idx)
+		if findings != nil {
+			*findings = append(*findings, located...)
+		}
+		if !ok {
+			return schema, false
+		}
+	}
 	// The attribute constructors run next: ATTR_FORMULA's empty
 	// expression (params.expression is not read).
 	if ce := formulaExpressionRefusal(slot, opts); ce != nil {
 		addCodedError(env, RefusalAt(ce, key, idx))
 		return schema, false
 	}
-	return schema, true
+	// Then the request body — the operator construction the request's
+	// Process runs next: every rule Process predict judges past its entry
+	// passes (validateRequestBody), each refusal located under key = idx.
+	// Schema-less (no SchemaLoader, or a cohort it cannot read) the body
+	// is left to the runtime, as every field-dependent rule above is.
+	if schema == nil {
+		return schema, true
+	}
+	return schema, validateRequestBodyAt(env, defaulted, schema, opts, key, idx)
+}
+
+// validateRequestBodyAt runs validateRequestBody on one request of a
+// multi-request root — a Compose slot or fit request, a chain stage —
+// and records each of its errors on env located under key = idx
+// (details[key], RefusalAt's convention). req is the defaults-resolved
+// request (defaultedForValidation), schema the one it executes over.
+// Its warnings are not reported (Compose predict carries no per-slot
+// warning surface) and Strict is not applied: no warning becomes a
+// refusal here. It reports whether the body passed.
+func validateRequestBodyAt(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, opts *PredictOptions, key string, idx int) bool {
+	bodyOpts := PredictOptions{}
+	if opts != nil {
+		bodyOpts = *opts
+	}
+	bodyOpts.Strict = false
+	scratch := descriptor.NewEnvelope(nil)
+	validateRequestBody(scratch, req, schema, &bodyOpts, nil)
+	for _, e := range scratch.Errors {
+		details := make(map[string]any, len(e.Details)+1)
+		for k, v := range e.Details {
+			details[k] = v
+		}
+		details[key] = idx
+		env.AddError(e.Code, e.Message, details)
+	}
+	return len(scratch.Errors) == 0
 }
 
 // validateComposeFits is the fit half of PredictCompose, run once the
@@ -1329,7 +1461,7 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 // declaration order (nil without fits): a regression fit's name,
 // regression type, target, the predictors as written and the cohort; a
 // vector fit's name, cohort and battery (vectorFitSummary).
-func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *PredictOptions, loaded *composeLoaded) []descriptor.FitSummary {
+func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *PredictOptions, loaded *composeLoaded, findings *[]descriptor.LimitFinding) []descriptor.FitSummary {
 	if len(fits) == 0 {
 		return nil
 	}
@@ -1350,23 +1482,14 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 		}
 		// A fit request runs before the batch binds anything: it sees
 		// only the registered populations and its own loaded entries.
-		schema, ok := validateComposeRequest(env, req, opts, "fit", i, loadedCatalog(opts.populations(), model.RequestRefs(req), loaded.fit(i)))
+		schema, ok := validateComposeRequest(env, req, opts, "fit", i, loadedCatalog(opts.populations(), model.RequestRefs(req), loaded.fit(i)), nil, findings)
 		if !ok || schema == nil {
 			continue
 		}
+		// The request body (validateComposeRequest's last pass) judged
+		// the regression rules too.
 		if vector {
 			out[i].Vector.Labels, out[i].Vector.Members = vectorFitAxis(req, schema, opts)
-			continue
-		}
-		scratch := descriptor.NewEnvelope(nil)
-		validateRegressions(scratch, req, schema, nil, opts.instance())
-		for _, e := range scratch.Errors {
-			details := make(map[string]any, len(e.Details)+1)
-			for k, v := range e.Details {
-				details[k] = v
-			}
-			details["fit"] = i
-			env.AddError(e.Code, e.Message, details)
 		}
 	}
 	return out
@@ -1432,19 +1555,7 @@ func composeFormulaBuiltinRefusal(spec *types.ComposeOverlaySpec, specIdx int, r
 		return nil
 	}
 	formula, _ := spec.Params["formula"].(string)
-	refused := exprident.FirstCallee(formula, exprbuiltins.OverlayRefused)
-	if refused == "" {
-		return nil
-	}
-	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
-		"overlay "+string(spec.Kind)+" formula calls "+refused+", a vector built-in OVERLAY_FORMULA does not accept (scalar maths only: "+strings.Join(exprbuiltins.OverlayNames(), ", ")+")",
-		map[string]any{
-			"index":              specIdx,
-			"kind":               string(spec.Kind),
-			"unknown_identifier": refused,
-			"allowed_builtins":   exprbuiltins.OverlayNames(),
-			"formula":            formula,
-		})
+	return formulaident.BuiltinRefusal(spec.Kind, formula, specIdx)
 }
 
 // composeFormulaTotalRefusal is PULSE_FORMULA_TOTAL_SITE for a

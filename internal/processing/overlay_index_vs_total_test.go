@@ -342,7 +342,8 @@ func assertSeriesEntryStatisticWithinTol(t *testing.T, layer *types.OverlayLayer
 		t.Fatalf("assertSeriesEntryStatisticWithinTol: entry[%d].Summary.Statistic is nil; want %v ± %v",
 			axisIdx, want, tol)
 	}
-	if math.Abs(*entry.Summary.Statistic-want) > tol {
+	// Negated <= so a NaN statistic fails (NaN compares false both ways).
+	if !(math.Abs(*entry.Summary.Statistic-want) <= tol) {
 		t.Fatalf("assertSeriesEntryStatisticWithinTol: entry[%d].Summary.Statistic = %v, want %v ± %v",
 			axisIdx, *entry.Summary.Statistic, want, tol)
 	}

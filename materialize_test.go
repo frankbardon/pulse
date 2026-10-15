@@ -632,17 +632,17 @@ func TestMaterialize_TargetRules(t *testing.T) {
 }
 
 // TestMaterialize_FailureLeavesNoTarget: a run failing after the
-// builder opened (a window copying a categorical label, which an f64
-// column cannot hold) leaves nothing at the target.
+// builder opened (a window whose default is a string label, which an
+// f64 column cannot hold) leaves nothing at the target.
 func TestMaterialize_FailureLeavesNoTarget(t *testing.T) {
 	ctx := context.Background()
 	p, fsys := matPulse(t, Options{})
 	buildMatSource(t, p, "src.pulse", CohortBuilderOptions{})
 	req := &Request{Cohort: &types.Cohort{Filename: "src.pulse"}, Windows: []*types.Window{
-		{Type: types.WIN_LAG, Field: "region", OrderBy: []types.OrderKey{{Field: "id"}}}}}
+		{Type: types.WIN_LAG, Field: "id", OrderBy: []types.OrderKey{{Field: "id"}}, Params: json.RawMessage(`{"default":"none"}`)}}}
 	_, err := p.Materialize(ctx, req, "out.pulse", MaterializeOptions{})
 	ce := assertCode(t, err, errors.PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC)
-	if ce.Details["column"] != "WIN_LAG_region" || ce.Details["value_type"] != "string" {
+	if ce.Details["column"] != "WIN_LAG_id" || ce.Details["value_type"] != "string" {
 		t.Errorf("details = %v", ce.Details)
 	}
 	assertAbsent(t, fsys, "out.pulse")

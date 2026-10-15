@@ -48,7 +48,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-agg-null-count`](skills/op-agg-null-count.md): Count records where the field is null. The inverse of a non-null count.
 - [`op-agg-percentile`](skills/op-agg-percentile.md): Configurable percentile of the field; requires sorting the full value set.
 - [`op-agg-range`](skills/op-agg-range.md): Spread (max minus min) of the field across the input set.
-- [`op-agg-ratio`](skills/op-agg-ratio.md): Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored.
+- [`op-agg-ratio`](skills/op-agg-ratio.md): Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is required but never read.
 - [`op-agg-rmse`](skills/op-agg-rmse.md): Root mean squared error of a prediction against an actual — sqrt(mean((y - prediction)^2)).
 - [`op-agg-set-cardinality-avg`](skills/op-agg-set-cardinality-avg.md): Average popcount per contributing row — typical number of selections.
 - [`op-agg-set-cardinality-sum`](skills/op-agg-set-cardinality-sum.md): Sum of popcounts across contributing rows — total label selections seen.

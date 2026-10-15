@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -40,10 +41,17 @@ type poly struct {
 	degree int
 }
 
-func newPoly(feat *types.Feature, _ *encoding.Schema) (Computer, error) {
+func newPoly(feat *types.Feature, schema *encoding.Schema) (Computer, error) {
 	if feat.Field == "" {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"FEAT_POLY requires a field")
+	}
+	// A schema field of a type the expansion cannot read as a value (a
+	// categorical's index, a set's bitmask, packed_bool, datetime) is
+	// the accepted-types table's refusal, predict's too. A derived
+	// column (an earlier feature's output) has no schema type.
+	if cerr := fieldaccept.Check(string(feat.Type), fieldaccept.SlotField, feat.Field, schema); cerr != nil {
+		return nil, cerr
 	}
 	var p polyParams
 	if len(feat.Params) > 0 {

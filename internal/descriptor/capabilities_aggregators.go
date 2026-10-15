@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -25,27 +26,12 @@ import (
 // Sorted (byte order, so `u4` falls between `u32` and `u64`) for golden
 // stability; TestCapabilities_AllCohortFieldTypesMatchesRegistry pins it.
 
-// numericFieldTypes is the canonical list of cohort field types that
-// participate in numeric aggregations, decimal128 included. Consumers
-// read the field through Record.NumericValue, which decimal128 answers
-// via the float64 echo the decoder writes alongside the exact value.
-var numericFieldTypes = []string{
-	"date",
-	"decimal128",
-	"f32",
-	"f64",
-	"u16",
-	"u32",
-	"u4",
-	"u64",
-	"u8",
-}
-
 // numericFieldTypesNoDecimal lists numeric types excluding the
 // fixed-point decimal types. Used by aggregators that operate in float64
 // space (variance, stddev, skewness, kurtosis) and by the window /
-// attribute / feature families. Mirrors predict_window.isNumericType,
-// which gates the same set at predict time and has always admitted u4.
+// attribute families. The value windows declare the same set through
+// the accepted-types table (internal/fieldaccept), which gates it on
+// both sides.
 var numericFieldTypesNoDecimal = []string{
 	"date",
 	"f32",
@@ -57,9 +43,10 @@ var numericFieldTypesNoDecimal = []string{
 	"u8",
 }
 
-// numericFieldTypesAnalytics widens numericFieldTypes with the
-// bit-packed boolean encoding (packed_bool) and the second temporal
-// ordinal (datetime). The bit-packed types store small non-negative
+// numericFieldTypesAnalytics is the numeric types (the unsigned
+// integers, the floats, date and decimal128 — read through its float64
+// echo) widened with the bit-packed boolean encoding (packed_bool) and
+// the second temporal ordinal (datetime). The bit-packed types store small non-negative
 // integers (0/1 for packed_bool, 0..15 for u4) which the analytics
 // aggregators consume as proportions or ordinal means without an
 // ATTR_FORMULA cast.
@@ -102,7 +89,7 @@ var numericFieldTypesAnalytics = []string{
 // AGG_VARIANCE and AGG_STDDEV are NOT here. They read the decimal-
 // carrying list, because internal/processing/aggregator_decimal.go computes both
 // in decimal128 two-pass form and predict has always permitted the
-// pairing (decimalSupportedAggregations). Carrying them here was an
+// pairing (fieldaccept.HasDecimalArm). Carrying them here was an
 // under-declaration, not a restriction anything enforced.
 //
 // Carries datetime for the same reason the parent list does; the two
@@ -116,21 +103,6 @@ var numericFieldTypesAnalyticsNoDecimal = []string{
 	"u16",
 	"u32",
 	"u4",
-	"u64",
-	"u8",
-}
-
-// numericFieldTypesStrictScalar is the strict scalar numeric family —
-// u8/u16/u32/u64/f32/f64 only. Excludes decimal128, date, and every
-// bit-packed encoding (u4, packed_bool). Used by aggregators that drive
-// a single float64 hot path with no per-type branch (AGG_WELFORD — see
-// internal/processing/aggregator_welford.go's factory gate, which admits exactly
-// these six and mirrors the TEST_WELCH field-type policy).
-var numericFieldTypesStrictScalar = []string{
-	"f32",
-	"f64",
-	"u16",
-	"u32",
 	"u64",
 	"u8",
 }
@@ -172,23 +144,6 @@ var allCohortFieldTypes = []string{
 	"vec_f64",
 }
 
-// setFieldTypes lists the bitmask multi-select field types. Used by every
-// AGG_SET_* / FILTER_SET_* / GROUP_SET_* / ATTR_SET_* operator — they
-// reject non-set fields at construction time.
-//
-// Every registered rung belongs here, narrow and wide alike: the set
-// operators read encoding.SetMask, which is width-agnostic, so a list
-// that stopped at set_u64 would tell a caller AGG_SET_UNION cannot fold
-// a column it folds fine.
-var setFieldTypes = []string{
-	"set_u128",
-	"set_u16",
-	"set_u256",
-	"set_u32",
-	"set_u64",
-	"set_u8",
-}
-
 // nonSetFieldTypes is allCohortFieldTypes minus every set rung (and
 // minus the vector types, which have no scalar value either). It
 // belongs to the operators that accept "any field" in the sense of "any
@@ -221,19 +176,6 @@ var nonVectorFieldTypes = func() []string {
 	out := make([]string, 0, len(allCohortFieldTypes))
 	for _, n := range allCohortFieldTypes {
 		if !strings.HasPrefix(n, "vec_") {
-			out = append(out, n)
-		}
-	}
-	return out
-}()
-
-// nonSetNonDecimalFieldTypes is nonSetFieldTypes without decimal128,
-// for a value-matching aggregator with no decimal implementation
-// (AGG_FREQUENCY).
-var nonSetNonDecimalFieldTypes = func() []string {
-	out := make([]string, 0, len(nonSetFieldTypes))
-	for _, n := range nonSetFieldTypes {
-		if n != "decimal128" {
 			out = append(out, n)
 		}
 	}
@@ -306,7 +248,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_SUM),
 			Category:      "aggregator",
 			Description:   "Sum the numeric values of the field across the input set.",
-			AcceptsTypes:  numericFieldTypesAnalytics,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_SUM),
 			EmitsTypeNote: "scalar float64 (decimal128 preserved when input is decimal)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -317,7 +259,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_AVERAGE),
 			Category:      "aggregator",
 			Description:   "Arithmetic mean of the field across the input set.",
-			AcceptsTypes:  numericFieldTypesAnalytics,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_AVERAGE),
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -333,7 +275,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_MIN),
 			Category:      "aggregator",
 			Description:   "Smallest non-null value of the field.",
-			AcceptsTypes:  numericFieldTypesAnalytics,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_MIN),
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -344,7 +286,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_MAX),
 			Category:      "aggregator",
 			Description:   "Largest non-null value of the field.",
-			AcceptsTypes:  numericFieldTypesAnalytics,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_MAX),
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -356,10 +298,10 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Category:    "aggregator",
 			Description: "Population standard deviation via Welford's online algorithm. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
 			// decimal128 included: predict permits the pairing
-			// (decimalSupportedAggregations) and
+			// (fieldaccept.HasDecimalArm) and
 			// internal/processing/aggregator_decimal.go implements it.
 			// Gated by TestCapabilities_DecimalDeclaredOnlyWhereSupported.
-			AcceptsTypes:  numericFieldTypesAnalytics,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_STDDEV),
 			EmitsTypeNote: "scalar float64 (decimal128 input yields a decimal-scaled result)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -375,10 +317,10 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Description: "Spread (max minus min) of the field across the input set.",
 			// No decimal128: predict refuses this pairing with
 			// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL
-			// (decimalSupportedAggregations), so offering it in the
+			// (fieldaccept.HasDecimalArm), so offering it in the
 			// manifest would be a promise predict itself declines.
 			// Gated by TestCapabilities_DecimalDeclaredOnlyWhereSupported.
-			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_RANGE),
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -390,7 +332,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_MODE_COUNT),
 			Category:      "aggregator",
 			Description:   "Modal count: how many rows hold the field's most common value. Under GROUP_CATEGORY on the same field it is each group's row count.",
-			AcceptsTypes:  nonSetFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_MODE_COUNT),
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Partial,
@@ -411,10 +353,10 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 					Description: "Value to count, matched as FILTER_INCLUDE matches one: a category label, otherwise a number (date in epoch days, datetime in epoch seconds, packed_bool 1 or 0). A JSON number is accepted.",
 				},
 			},
-			// No set_* (a mask is not a value) and no decimal128: the
-			// runtime has no decimal implementation and predict warns
-			// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL on the pairing.
-			AcceptsTypes:  nonSetNonDecimalFieldTypes,
+			// No set_* (a mask is not a value) and no decimal128 (no
+			// decimal implementation): the accepted-types table's rule,
+			// refused PROCESSING_CONFIG by predict and the runtime.
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_FREQUENCY),
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -426,7 +368,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:           string(types.AGG_ZSCORE),
 			Category:       "aggregator",
 			Description:    "Standardized z-score aggregate (mean-centered, stddev-scaled summary).",
-			AcceptsTypes:   numericFieldTypesAnalyticsNoDecimal,
+			AcceptsTypes:   tableAcceptsTypes(types.AGG_ZSCORE),
 			EmitsTypeNote:  "scalar float64",
 			Streamable:     false,
 			StreamableHint: "Streaming uses online Welford moments; the ZSCORE aggregate finalize step needs the full deviation sum.",
@@ -442,7 +384,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Category:    "aggregator",
 			Description: "50th percentile of the field; requires sorting the full value set.",
 			// No decimal128 — see AGG_RANGE.
-			AcceptsTypes:   numericFieldTypesAnalyticsNoDecimal,
+			AcceptsTypes:   tableAcceptsTypes(types.AGG_MEDIAN),
 			EmitsTypeNote:  "scalar float64",
 			Streamable:     false,
 			StreamableHint: "Use AGG_AVERAGE for a streaming central-tendency proxy, or accept the buffered path.",
@@ -457,7 +399,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Category:    "aggregator",
 			Description: "Population variance via Welford's online algorithm. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
 			// decimal128 included — see AGG_STDDEV.
-			AcceptsTypes:  numericFieldTypesAnalytics,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_VARIANCE),
 			EmitsTypeNote: "scalar float64 (decimal128 input yields a decimal-scaled result)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -470,7 +412,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_MODE),
 			Category:      "aggregator",
 			Description:   "Most-frequent value of the field (ties broken by the smallest value).",
-			AcceptsTypes:  nonSetFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_MODE),
 			EmitsTypeNote: "scalar float64 (the modal value; for a categorical field, its dictionary index, for a packed_bool field its 0/1 truth value — a code, not a magnitude, so an overlay scoring it over such a field (params.field, else aggregations[0]; as a crosstab cell, any MATRIX kind reading cell values; on a later chain stage, over a column a code-emitting aggregation wrote) is refused PROCESSING_CONFIG reason categorical_code)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Partial,
@@ -484,7 +426,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_SKEWNESS),
 			Category:      "aggregator",
 			Description:   "Population skewness g1 (m3 / m2^1.5, dividing by n) via online moments.",
-			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_SKEWNESS),
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -498,7 +440,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_KURTOSIS),
 			Category:      "aggregator",
 			Description:   "Population excess kurtosis g2 (m4 / m2^2 - 3, dividing by n) via online moments.",
-			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_KURTOSIS),
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -513,7 +455,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_DISTINCT_COUNT),
 			Category:      "aggregator",
 			Description:   "Count of distinct non-null values across the input set.",
-			AcceptsTypes:  nonSetFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_DISTINCT_COUNT),
 			EmitsTypeNote: "scalar int64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Partial,
@@ -532,7 +474,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 					Description: "Schema field whose value is the distinct key. Required — an absent or empty distinct_by is refused, never defaulted to the aggregation's own field. Rows with a null key or a null value contribute nothing and register no key.",
 				},
 			},
-			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_DISTINCT_SUM),
 			EmitsTypeNote: "scalar float64 (sum over distinct keys)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Partial,
@@ -553,7 +495,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				},
 			},
 			// No decimal128 — see AGG_RANGE.
-			AcceptsTypes:   numericFieldTypesAnalyticsNoDecimal,
+			AcceptsTypes:   tableAcceptsTypes(types.AGG_PERCENTILE),
 			EmitsTypeNote:  "scalar float64",
 			Streamable:     false,
 			StreamableHint: "Use AGG_AVERAGE or accept the buffered path; exact percentiles need sorted input.",
@@ -587,7 +529,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 					Description: "Schema field whose value is the per-row weight (kind probability); sugar for a slot weight. Absent: the slot or request weight, else the instance default weight; none resolving is refused. Rows with an invalid (null, negative, NaN/Inf) or zero weight are excluded from the mean and every weighted moment; the universal floor n / n_null still counts them (it keys on the value field only).",
 				},
 			},
-			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_WEIGHTED_MEAN),
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -603,7 +545,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 		{
 			Name:        string(types.AGG_RATIO),
 			Category:    "aggregator",
-			Description: "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The Aggregation's own Field is ignored — the two summed fields come from Params. Denominator-zero yields NaN (null in JSON).",
+			Description: "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The Aggregation's own Field is required on the wire (any schema field; by convention the numerator) but never read — the two summed fields come from Params. Denominator-zero yields NaN (null in JSON).",
 			Params: []descriptor.Param{
 				{
 					Name:        "numerator_field",
@@ -622,8 +564,10 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			},
 			// IgnoresField, and AcceptsTypes therefore says only that no
 			// type is refused in a slot the operator discards. The wire
-			// form still requires Aggregation.Field; every type is equally
-			// fine there because none of them is read.
+			// form still requires Aggregation.Field (predict and the
+			// runtime both refuse an empty one); every type is equally
+			// fine there because none of them is read, so bound Recommend
+			// fills it with the numerator's field (U35 #249).
 			IgnoresField:  true,
 			AcceptsTypes:  allCohortFieldTypes,
 			EmitsTypeNote: "scalar float64 (NaN, null in JSON, when denominator sum == 0)",
@@ -668,7 +612,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 					Description: "\"normal\" (streamable Welford) today; \"bootstrap\" reserved for a buffered follow-up.",
 				},
 			},
-			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_CI_LOWER),
 			EmitsTypeNote: "scalar float64 (NaN, null in JSON, when n < 2)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -699,7 +643,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 					Description: "\"normal\" (streamable Welford) today; \"bootstrap\" reserved for a buffered follow-up.",
 				},
 			},
-			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_CI_UPPER),
 			EmitsTypeNote: "scalar float64 (NaN, null in JSON, when n < 2)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -714,7 +658,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_WELFORD),
 			Category:      "aggregator",
 			Description:   "Streaming Welford-Pébaÿ moment triple — running mean, unbiased sample variance (n-1), and observed count — over a numeric field. Returns the running mean as the scalar fallback; rich payload is a typed WelfordTriple for overlay handlers (OVERLAY_T_CELL / OVERLAY_Z_CELL) to consume without re-deriving variance from raw rows. Margin recompute (variance does not pool by addition).",
-			AcceptsTypes:  numericFieldTypesStrictScalar,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_WELFORD),
 			EmitsTypeNote: "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar — except the two-sample t / z vs-ref overlays, which read the triple from the slot's per-group components (components disabled on that slot: PULSE_OVERLAY_COMPONENTS_REQUIRED reason components_disabled)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -728,7 +672,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_SET_UNION),
 			Category:      "aggregator",
 			Description:   "Bitwise-OR a set field across rows; returns the resolved labels for every bit set in any contributing row.",
-			AcceptsTypes:  setFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_SET_UNION),
 			EmitsTypeNote: "rich []string (resolved labels); scalar fallback = popcount of the union mask; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar (so is a chain stage carrying it that feeds another)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -741,7 +685,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_SET_INTERSECTION),
 			Category:      "aggregator",
 			Description:   "Bitwise-AND a set field across rows; returns the resolved labels for every bit set in every contributing row.",
-			AcceptsTypes:  setFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_SET_INTERSECTION),
 			EmitsTypeNote: "rich []string (resolved labels); scalar fallback = popcount of the intersection mask; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar (so is a chain stage carrying it that feeds another)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -754,7 +698,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_SET_FREQUENCY),
 			Category:      "aggregator",
 			Description:   "Per-bit row count: how many rows had each set label selected; on a weighted slot the sum of their weights.",
-			AcceptsTypes:  setFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_SET_FREQUENCY),
 			EmitsTypeNote: "rich map[string]int (label→row count; map[string]float64 of weight sums when weighted); scalar fallback = max single-label frequency; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar (so is a chain stage carrying it that feeds another)",
 			Streamable:    true,
 			// Partial: per_label_count merges across chunks but the
@@ -770,7 +714,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_SET_CARDINALITY_SUM),
 			Category:      "aggregator",
 			Description:   "Sum of popcounts across contributing rows — total selections seen; on a weighted slot sum(w * popcount).",
-			AcceptsTypes:  setFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_SET_CARDINALITY_SUM),
 			EmitsTypeNote: "scalar int64 (float64 when weighted)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -781,7 +725,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_SET_CARDINALITY_AVG),
 			Category:      "aggregator",
 			Description:   "Average popcount per contributing row — typical number of selections; on a weighted slot sum(w * popcount) / sum(w).",
-			AcceptsTypes:  setFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_SET_CARDINALITY_AVG),
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -793,7 +737,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Name:          string(types.AGG_SET_DISTINCT_VALUES),
 			Category:      "aggregator",
 			Description:   "Count of distinct exact mask values seen; each combination is atomic.",
-			AcceptsTypes:  setFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.AGG_SET_DISTINCT_VALUES),
 			EmitsTypeNote: "scalar int64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
@@ -862,19 +806,10 @@ func vecAggCapability(op types.AggregationType, desc, emits string, own ...descr
 // modelErrorFieldTypes are the column types a model-error aggregator
 // (AGG_MAPE / AGG_RMSE / AGG_MAE) reads on either side: the integer and
 // float scalars plus packed_bool (a 0/1 outcome scored against a
-// probability). Mirrors processing.modelErrorFieldTypeOK and the
-// predict check modelErrorTypeOK; categorical, set, date, datetime and
-// decimal128 are refused PROCESSING_CONFIG on both sides.
-var modelErrorFieldTypes = []string{
-	"f32",
-	"f64",
-	"packed_bool",
-	"u16",
-	"u32",
-	"u4",
-	"u64",
-	"u8",
-}
+// probability) — the accepted-types table's row, which both sides
+// enforce (PULSE_FIELD_TYPE_UNSUPPORTED; decimal128 is the decimal
+// rule's PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL on the actual).
+var modelErrorFieldTypes = fieldaccept.TypeNames(string(types.AGG_MAE), fieldaccept.SlotField)
 
 // modelErrorCapability declares one model-error aggregator: the shared
 // prediction_field param, the shared floor-plus-sums components and

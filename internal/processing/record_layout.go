@@ -175,7 +175,7 @@ func buildLayout(s *encoding.Schema, keep encx.FieldFilter) *recordLayout {
 		case wideDecimal:
 			l.wideOff[slot] = int32(l.nDecs)
 			l.nDecs++
-		case wideNarrowSet, wideWideSet:
+		case wideNarrowSet, wideWideSet, wideExactU64:
 			l.wideOff[slot] = int32(l.nWords)
 			l.nWords += words
 		case wideVector:
@@ -206,6 +206,11 @@ const (
 	wideNarrowSet       // set_u8..set_u64: one uint64 word
 	wideWideSet         // set_u128 / set_u256: 2 or 4 words, an encoding.SetMask
 	wideVector          // vec_f32 / vec_f64: dim float64 elements in recordAux.vecs
+	// wideExactU64 is a u64 slot's exact on-wire word, one word in the
+	// set-word tail of Record.vals. It is NOT a wide value: planeWide is
+	// never set for it (WideValue, AllValues and the set accessors never
+	// see it); its presence is planeExact, read only by Uint64Value.
+	wideExactU64
 )
 
 // wideKindOf returns the typed wide storage kind for ft and, for a set
@@ -220,6 +225,8 @@ func wideKindOf(ft encoding.FieldType) (kind uint8, words int) {
 		return wideNarrowSet, 1
 	case ft.IsVector():
 		return wideVector, 0
+	case ft == encoding.FieldTypeU64:
+		return wideExactU64, 1
 	}
 	return wideNone, 0
 }

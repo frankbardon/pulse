@@ -121,7 +121,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 91,
+    "error_codes_count": 90,
     "error_domains": [
       "CLI",
       "DATA",
@@ -149,7 +149,6 @@
       "PROCESSING_INTERNAL",
       "PROCESSING_RUNTIME",
       "PROCESSING_STATE",
-      "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
       "PULSE_ARCHIVE_CORRUPT",
       "PULSE_ARCHIVE_MAGIC_INVALID",
@@ -238,7 +237,7 @@
       },
       {
         "name": "pulse_inspect",
-        "description": "CALL TO SEE A COHORT'S FIELDS AND TYPES WITHOUT RUNNING A REQUEST. Read header and schema of a .pulse file without touching record data. Returns the field list (name, type, nullable, dictionary contents for categorical fields), record count, and format metadata.\n\nrecord_count is DERIVED (payload bytes / record stride), so a cohort whose payload is not a whole multiple of the stride reports the FLOOR. That case carries a coded ENCODING_INVALID entry in the additive `warnings` array with record_stride and trailing_bytes in its details; a clean read emits no `warnings` key at all. Read it — a truncated tail is invisible in the count itself."
+        "description": "CALL TO SEE A COHORT'S FIELDS AND TYPES WITHOUT RUNNING A REQUEST. Read header and schema of a .pulse file without touching record data. Returns the field list (name, type, nullable, dictionary contents for categorical fields), record count, and format metadata.\n\nrecord_count is DERIVED (payload bytes / record stride), so a cohort whose payload is not a whole multiple of the stride reports the FLOOR. That case carries a coded ENCODING_INVALID entry in the additive `warnings` array with record_stride and trailing_bytes in its details; a clean read emits no `warnings` key at all. Read it — a truncated tail is invisible in the count itself.\n\nOptional `joins` [{right, as}] names the cohorts later requests join: on a server binding tools on inspect, the rebound request tools' field enums add each target's joined names (as + field) and joins[].on[].right_field its fields. Inspect output is unchanged."
       },
       {
         "name": "pulse_manifest",
@@ -246,7 +245,7 @@
       },
       {
         "name": "pulse_predict",
-        "description": "CALL BEFORE STORING OR EXECUTING A HAND-AUTHORED OR GENERATED REQUEST. Validate a processing request against a cohort schema without executing. Returns the same diagnostics execution would emit on shape error (PULSE_REQUEST_UNKNOWN_FIELD, PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, etc.) plus the normalized request, streamability flag, and the defaults the engine applied. Cheap: it reads only the cohort header + schema. To predict another request shape, send exactly one alternative root alone; its verdict comes back under the same key beside `errors` / `warnings`, and a root beside any other key is SERVICE_VALIDATION."
+        "description": "CALL BEFORE STORING OR EXECUTING A HAND-AUTHORED OR GENERATED REQUEST. Validate a processing request against a cohort schema without executing. Returns the same diagnostics execution would emit on shape error (PULSE_REQUEST_UNKNOWN_FIELD, PULSE_FIELD_TYPE_UNSUPPORTED, etc.) plus the normalized request, streamability flag, and the defaults the engine applied; the coded `errors` / `warnings` behind a `valid: false` ride beside the result at the root. Cheap: it reads only the cohort header + schema. To predict another request shape, send exactly one alternative root alone; its verdict comes back under the same key beside `errors` / `warnings`, and a root beside any other key is SERVICE_VALIDATION."
       },
       {
         "name": "pulse_skills_get",
@@ -643,7 +642,6 @@
           "regressions",
           "warnings",
           "crosstab",
-          "overlays",
           "components"
         ]
       },
@@ -704,8 +702,7 @@
           "regressions[*].selected_features",
           "regressions[*].vcov",
           "regressions[*].correlation",
-          "regressions[*].covariance",
-          "overlays"
+          "regressions[*].covariance"
         ]
       },
       {
@@ -730,11 +727,7 @@
           "regressions[*].name",
           "regressions[*].type",
           "regressions[*].coefficients",
-          "regressions[*].p_values",
-          "overlays[*].name",
-          "overlays[*].kind",
-          "overlays[*].ref",
-          "overlays[*].summary"
+          "regressions[*].p_values"
         ]
       }
     ],
@@ -798,4 +791,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 032910b1d5f2ec84bd6bc92bf94323f261bf13e59deb8a4283626075476fd2bd
+// golden-hash: 628d45eff868860d4329beb88ad7ae253ec05a4a96afb630668c621247bb83ee

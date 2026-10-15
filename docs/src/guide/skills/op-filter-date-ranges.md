@@ -33,7 +33,7 @@ One source in `Params` (not `Values`) — `ranges` XOR `table`:
 
 ## Inputs
 
-`Field` — `date` or `datetime`, else `PROCESSING_CONFIG`. `datetime` floors to its local day in the resolved zone (UTC default); bounds (inline or `table`; tables carry no zone) are local days.
+`Field` — `date` or `datetime`, else `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime). `datetime` floors to its local day in the resolved zone (UTC default); bounds (inline or `table`; tables carry no zone) are local days.
 
 ## Output
 

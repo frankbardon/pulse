@@ -35,6 +35,7 @@ Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md ke
 | ProcessChain; Pushdown hash join; Facet endpoints | `execution-modes/chain-join-facet.md` |
 | Crosstab; Fused crosstab | `execution-modes/crosstab.md` |
 | Overlays (hosts, Level / Within, per-host wiring, FORMULA, displaced contributor bullets through "Adding an overlay kind", Weighted hosts, Overlay knobs) | `execution-modes/overlays.md` |
+| Overlays — SERIES host: series measure (`params.field`), series partitions (`params.partition_by`), YoY partitions, SERIES FORMULA, rolling windows | `execution-modes/overlays-series.md` |
 | Overlays — payload parts, Welford migration, `OVERLAY_STD_RESIDUAL`, MATRIX_RESULT host, `OVERLAY_MATRIX_GROUP_SUMMARY`, `OVERLAY_CORRESPONDENCE`, `OVERLAY_MARKOV`, `OVERLAY_SYMMETRY`, `OVERLAY_RETENTION`, `OVERLAY_RAKE`, spec refusals (one rule per host) | `execution-modes/overlays-matrix-kinds.md` |
 | Multiplicity; Grouped tier-1 tests | `execution-modes/inference.md` |
 | Time zones; Date-family field types; Labeled date ranges; Smart defaults | `execution-modes/time-and-defaults.md` |

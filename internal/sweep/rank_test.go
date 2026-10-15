@@ -1,9 +1,11 @@
 package sweep
 
 import (
+	"encoding/json"
 	stderrors "errors"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
@@ -165,5 +167,83 @@ func TestValidate_RankPathSyntax(t *testing.T) {
 	ce := Validate(spec)
 	if ce == nil || ce.Code != perr.PULSE_SWEEP_RANK_PATH || ce.Details["reason"] != RankReasonSyntax {
 		t.Fatalf("got %v", ce)
+	}
+}
+
+// olsResp is a slot response whose REG_OLS fit "fit" carries the given
+// residual standard error.
+func olsResp(se float64) *types.Response {
+	return &types.Response{Regressions: []*types.RegressionResult{{Name: "fit", Type: types.REG_OLS, ResidualStdErr: se}}}
+}
+
+// TestRank_ExactZeroFigureRanks (#300): a computed figure that is
+// exactly 0 vanishes from the wire under `omitempty`, but rank reads the
+// typed value, so the slot is ranked (first, ascending) rather than
+// excluded as missing. The wire itself is unchanged: the key stays
+// absent from the marshalled response.
+func TestRank_ExactZeroFigureRanks(t *testing.T) {
+	resps := []*types.Response{olsResp(2), olsResp(0), olsResp(1)}
+	got, err := Rank(&types.SweepRank{By: "regressions.fit.residual_std_err"}, []string{"a", "b", "c"}, resps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []types.RankEntry{{Label: "b", Value: 0, Rank: 1}, {Label: "c", Value: 1, Rank: 2}, {Label: "a", Value: 2, Rank: 3}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %+v want %+v", got, want)
+	}
+	for i, r := range resps {
+		if len(r.Warnings) != 0 {
+			t.Fatalf("slot %d warned: %+v", i, r.Warnings)
+		}
+	}
+	raw, err := json.Marshal(olsResp(0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "residual_std_err") {
+		t.Fatalf("wire changed: %s", raw)
+	}
+
+	// Every slot exactly zero: previously a "missing in every slot"
+	// refusal, now a full ranking.
+	all, err := Rank(&types.SweepRank{By: "regressions.fit.r2"}, []string{"a", "b"}, []*types.Response{olsResp(0), olsResp(0)})
+	if err != nil || len(all) != 2 || all[0].Value != 0 {
+		t.Fatalf("all-zero rank = %+v, %v", all, err)
+	}
+}
+
+// TestRank_UncomputedZeroStaysMissing (#300): only a COMPUTED exact zero
+// is kept. A figure the operator does not compute (residual_std_err on
+// REG_GLM, an untyped result), a figure with no applicability rule (df),
+// and a nil entry all still rank as missing, with the slot's warning.
+func TestRank_UncomputedZeroStaysMissing(t *testing.T) {
+	cases := []struct {
+		name, by, segment string
+		slot              *types.Response
+	}{
+		{"figure the operator does not compute", "regressions.fit.residual_std_err", "residual_std_err",
+			&types.Response{Regressions: []*types.RegressionResult{{Name: "fit", Type: types.REG_GLM}}}},
+		{"result without a type", "regressions.fit.residual_std_err", "residual_std_err",
+			&types.Response{Regressions: []*types.RegressionResult{{Name: "fit"}}}},
+		{"figure without an applicability rule", "regressions.fit.df", "df",
+			&types.Response{Regressions: []*types.RegressionResult{{Name: "fit", Type: types.REG_OLS}}}},
+		{"nil regression entry", "regressions.fit.residual_std_err", "fit",
+			&types.Response{Regressions: []*types.RegressionResult{nil}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ranked := &types.Response{Regressions: []*types.RegressionResult{{Name: "fit", Type: types.REG_OLS, ResidualStdErr: 1, DF: 3}}}
+			got, err := Rank(&types.SweepRank{By: tc.by}, []string{"a", "b"}, []*types.Response{ranked, tc.slot})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != 1 || got[0].Label != "a" {
+				t.Fatalf("got %+v, want only slot a ranked", got)
+			}
+			if len(tc.slot.Warnings) != 1 || tc.slot.Warnings[0].Details["reason"] != RankReasonMissing ||
+				tc.slot.Warnings[0].Details["segment"] != tc.segment {
+				t.Fatalf("warnings %+v", tc.slot.Warnings)
+			}
+		})
 	}
 }

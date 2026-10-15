@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/types"
 )
@@ -53,9 +54,9 @@ func newDateFeatures(feat *types.Feature, schema *encoding.Schema) (Computer, er
 			case encoding.FieldTypeDateTime:
 				c.seconds, c.parts = true, dateTimeFeatureParts
 			default:
-				return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-					fmt.Sprintf("FEAT_DATE_FEATURES: field %q must be of type date or datetime, got %s",
-						feat.Field, f.Type))
+				// The accepted-types table's refusal; predict raises
+				// the same one.
+				return nil, fieldaccept.Refusal(string(types.FEAT_DATE_FEATURES), fieldaccept.SlotField, feat.Field, f.Type)
 			}
 		}
 	}

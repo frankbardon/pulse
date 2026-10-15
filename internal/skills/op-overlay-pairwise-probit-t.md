@@ -23,7 +23,7 @@ Intra-matrix pairwise along one axis of the SAME crosstab: `row` scope pairs row
 
 ## Host shape
 
-MATRIX crosstab + `Response.Components.Crosstab`. Components-disabled host → `PULSE_OVERLAY_COMPONENTS_REQUIRED`.
+MATRIX crosstab + `Response.Components.Crosstab`. Components-disabled host (options or request) → `PULSE_OVERLAY_COMPONENTS_REQUIRED`, predict and runtime.
 
 ## Output
 

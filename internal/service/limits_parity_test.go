@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	stderrors "errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -40,6 +43,14 @@ type limitsFixture struct {
 	// MaxGroups=12 passes every partition and only the merge can trip;
 	// lookup a 16-row cohort keyed on brand.
 	wide, arch, lookup string
+	// repeat is a 32-row cohort whose brand key repeats (every brand
+	// twice — each of the 16 dictionary entries occurs, so the
+	// dictionary bound right - D + 1 holds); single a 1-row cohort (a
+	// provably unique join key).
+	repeat, single string
+
+	joinMu        sync.Mutex
+	joinEstimates map[string]int64
 }
 
 func writeCohortFile(t testing.TB, path string, schema *encoding.Schema, payload []byte) {
@@ -70,6 +81,11 @@ func buildLimitsFixture(t testing.TB, rows, fields int) *limitsFixture {
 	writeCohortFile(t, f.wide, schema, payload)
 	ls, lp := buildWideCohort(t, 10, 16)
 	writeCohortFile(t, f.lookup, ls, lp)
+	f.repeat, f.single = filepath.Join(dir, "repeat.pulse"), filepath.Join(dir, "single.pulse")
+	rs, rp := buildWideCohort(t, 10, 32)
+	writeCohortFile(t, f.repeat, rs, rp)
+	ss, sp := buildWideCohort(t, 10, 1)
+	writeCohortFile(t, f.single, ss, sp)
 
 	// brand is field 0 (byte 0 of every row) and cycles 0..15.
 	stride := schema.RecordByteSize()
@@ -103,12 +119,12 @@ func buildLimitsFixture(t testing.TB, rows, fields int) *limitsFixture {
 	return f
 }
 
-// parityHost is the entry a case runs through. Each host has a predict
-// surface for some limits and none for the rest ("unknowable at
-// predict"): a Request has every rule but RequestTimeout; Compose and
-// ProcessChain add their own slot / stage count, which no predict
-// surface sees (each slot / stage 0 is predicted as a Request); a rich
-// facet has only the memory estimate its pre-flight checks.
+// parityHost is the entry a case runs through, each predicted by its
+// own root: a Request by Predict, a Compose by PredictCompose (the slot
+// count, then every slot's Request findings), a ProcessChain by
+// PredictChain (the stage count, then every stage's) and a rich facet
+// by PredictFacet (its group bound and memory estimate). Only
+// RequestTimeout is unknowable at predict.
 type parityHost int
 
 const (
@@ -119,15 +135,7 @@ const (
 )
 
 func (h parityHost) unknowable(n limits.Name) bool {
-	switch n {
-	case limits.RequestTimeout:
-		return true
-	case limits.MaxComposeSlots:
-		return h == hostCompose
-	case limits.MaxChainStages:
-		return h == hostChain
-	}
-	return h == hostFacet && n != limits.MaxEstimatedMemory
+	return n == limits.RequestTimeout
 }
 
 // parityCase is one limit configuration on one runtime site.
@@ -139,10 +147,12 @@ type parityCase struct {
 	// setup configures the service arm (workers, fusion, hooks) and
 	// asserts the arm is the one the site names.
 	setup func(t *testing.T, svc *Service)
-	// requests are what predict sees: the Request, each Compose slot,
-	// a chain's stage 0 (with the chain cohort). facet is the facet
-	// host's request.
+	// requests are what predict sees on the Request host. compose,
+	// chain and facet are the other hosts' root requests, judged by
+	// their own predict root.
 	requests func() []*types.Request
+	compose  func() *types.ComposedRequest
+	chain    func() *types.ChainRequest
 	facet    func() *types.FacetRequest
 	run      func(ctx context.Context, svc *Service) error
 	limits   func(l *limits.Limits)
@@ -150,11 +160,25 @@ type parityCase struct {
 	wantTrip limits.Name
 }
 
-// limitTrip is a PULSE_LIMIT_EXCEEDED raise's comparable part.
+// limitTrip is a PULSE_LIMIT_EXCEEDED raise's comparable part; at is
+// its location on a multi-request root ("request=1", "stage=0"; "" when
+// unlocated).
 type limitTrip struct {
 	limit      limits.Name
 	configured int64
 	observed   int64
+	at         string
+}
+
+// locationOf is the "key=idx" location a Compose slot's or chain
+// stage's details carry ("" when none).
+func locationOf(details map[string]any) string {
+	for _, key := range []string{"request", "stage", "fit"} {
+		if v, ok := details[key]; ok {
+			return key + "=" + strconv.Itoa(v.(int))
+		}
+	}
+	return ""
 }
 
 // tripOf finds the PULSE_LIMIT_EXCEEDED anywhere in err's chain (a
@@ -172,62 +196,60 @@ func tripOf(t *testing.T, err error) (limitTrip, bool) {
 		if name == "" || !ok1 || !ok2 {
 			t.Fatalf("malformed limit error details %v", ce.Details)
 		}
-		return limitTrip{limits.Name(name), configured, observed}, true
+		return limitTrip{limits.Name(name), configured, observed, locationOf(ce.Details)}, true
 	}
 	return limitTrip{}, false
 }
 
-// predictFindings is what predict reports for c under l: descx.Predict
-// (the facade's Pulse.Predict body) on each request with the instance
-// snapshot carrying l, the header-only record counter and the schema
-// loader the facade wires; for a facet, the memory estimate its
-// pre-flight checks.
+// predictFindings is what predict reports for c under l: the host's
+// own predict root (the facade's body — descx.Predict,
+// ValidateComposeExpanded, ValidateChainWithOptions,
+// ValidateFacetWithOptions) with the instance snapshot carrying l and
+// the loaders and counters the facade wires.
 func predictFindings(t *testing.T, svc *Service, c parityCase, l limits.Limits) []descriptor.LimitFinding {
 	t.Helper()
 	ctx := context.Background()
-	if c.host == hostFacet {
+	opts := &descx.PredictOptions{
+		Instance:   svc.InstanceSnapshot().WithLimits(l),
+		Extensions: svc.ExtensionsSnapshot(),
+		SchemaLoader: func(path string) (*encoding.Schema, error) {
+			co, err := svc.Open(ctx, path)
+			if err != nil {
+				return nil, err
+			}
+			return co.Schema(), nil
+		},
+		RecordCounter: func(path string) (int64, error) {
+			n, err := svc.CountRecords(ctx, path)
+			return int64(n), err
+		},
+		DisableCrosstabFusion: svc.CrosstabFusionDisabled(),
+		ShardWorkers:          svc.ShardWorkers(),
+	}
+	read := func(cohort *types.Cohort) *bytes.Reader {
+		data, err := os.ReadFile(resolveCohortPath(cohort))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return bytes.NewReader(data)
+	}
+	switch c.host {
+	case hostCompose:
+		opts.CohortCounter = func(path string) (descx.CohortCounts, error) { return svc.CohortCounts(ctx, path) }
+		env, _ := descx.ValidateComposeExpanded(c.compose(), opts)
+		return env.Data.(*descx.ComposeValidationResult).LimitFindings
+	case hostChain:
+		req := c.chain()
+		env := descx.ValidateChainWithOptions(read(req.Cohort), req, opts)
+		return env.Data.(*descx.ChainValidationResult).LimitFindings
+	case hostFacet:
 		req := c.facet()
-		cohort, err := svc.Open(ctx, resolveCohortPath(req.Cohort))
-		if err != nil {
-			t.Fatal(err)
-		}
-		in, err := svc.limitInputs(ctx, cohort, resolveCohortPath(req.Cohort))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if limits.IsUnlimited(l.MaxEstimatedMemory) {
-			return nil
-		}
-		n, ok := descx.EstimateFacetMemory(req, cohort.Schema(), in)
-		if !ok {
-			return nil
-		}
-		if f, ok := limits.Evaluate(l, limits.MaxEstimatedMemory, n, limits.Certain); ok {
-			return []descriptor.LimitFinding{{Limit: string(f.Limit), Configured: f.Configured, Estimated: f.Estimated, Grade: descriptor.LimitGrade(f.Grade)}}
-		}
-		return nil
+		env := descx.ValidateFacetWithOptions(read(req.Cohort), req, opts)
+		return env.Data.(*descx.FacetValidationResult).LimitFindings
 	}
 	var out []descriptor.LimitFinding
 	for _, req := range c.requests() {
-		data, err := os.ReadFile(resolveCohortPath(req.Cohort))
-		if err != nil {
-			t.Fatal(err)
-		}
-		env := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{
-			Instance: svc.InstanceSnapshot().WithLimits(l),
-			SchemaLoader: func(path string) (*encoding.Schema, error) {
-				co, err := svc.Open(ctx, path)
-				if err != nil {
-					return nil, err
-				}
-				return co.Schema(), nil
-			},
-			RecordCounter: func(path string) (int64, error) {
-				n, err := svc.CountRecords(ctx, path)
-				return int64(n), err
-			},
-			DisableCrosstabFusion: svc.CrosstabFusionDisabled(),
-		})
+		env := descx.Predict(read(req.Cohort), req, opts)
 		res, ok := env.Data.(*descriptor.PredictResult)
 		if !ok {
 			t.Fatalf("predict returned %T (errors %v)", env.Data, env.Errors)
@@ -284,6 +306,34 @@ func serialArm(t *testing.T, svc *Service) {
 	svc.SetShardWorkers(1)
 }
 
+// joinCertainEstimate is the memory pre-flight's figure for the join
+// req (the observed of its refusal at a 1-byte limit: one match per
+// left row), cached per right side and aggregation.
+func (f *limitsFixture) joinCertainEstimate(req func() *types.Request) int64 {
+	r := req()
+	f.joinMu.Lock()
+	defer f.joinMu.Unlock()
+	key := r.Joins[0].Right + "/" + r.Aggregations[0].Label
+	if n, ok := f.joinEstimates[key]; ok {
+		return n
+	}
+	svc := New(f.cfg)
+	l := limits.Defaults()
+	l.MaxEstimatedMemory = 1
+	svc.SetLimits(l)
+	_, err := svc.Process(context.Background(), r)
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_LIMIT_EXCEEDED {
+		panic(fmt.Sprintf("join estimate probe: %v", err))
+	}
+	if f.joinEstimates == nil {
+		f.joinEstimates = map[string]int64{}
+	}
+	n := ce.Details["observed"].(int64)
+	f.joinEstimates[key] = n
+	return n
+}
+
 // parityCases is the site matrix: every runtime enforcement site
 // (FR-31) with a limit tight enough to trip it, plus no-trip controls.
 func parityCases(f *limitsFixture) []parityCase {
@@ -302,6 +352,21 @@ func parityCases(f *limitsFixture) []parityCase {
 	join := func() *types.Request {
 		return &types.Request{Cohort: &types.Cohort{Filename: f.lookup}, Aggregations: paritySum,
 			Joins: []*types.JoinSpec{{Right: f.wide, Kind: "inner", As: "r_", On: []types.OnPair{{LeftField: "brand", RightField: "brand"}}}}}
+	}
+	joinOn := func(right string, aggs []*types.Aggregation) func() *types.Request {
+		return func() *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: f.lookup}, Aggregations: aggs,
+				Joins: []*types.JoinSpec{{Right: right, Kind: "inner", As: "r_", On: []types.OnPair{{LeftField: "brand", RightField: "brand"}}}}}
+		}
+	}
+	joinFanOut, joinUnique := joinOn(f.repeat, parityMedian), joinOn(f.single, parityMedian)
+	// A chain stage must be mergeable: a distinct count's per-value
+	// state scales with the joined rows instead of the buffered records.
+	joinFanOutDistinct := joinOn(f.repeat, []*types.Aggregation{{Type: types.AGG_DISTINCT_COUNT, Field: "weight", Label: "d"}})
+	// memAt sets MaxEstimatedMemory to the join req's certain estimate
+	// (the pre-flight's figure, one match per left row) plus delta.
+	memAt := func(req func() *types.Request, delta int64) func(*limits.Limits) {
+		return func(l *limits.Limits) { l.MaxEstimatedMemory = f.joinCertainEstimate(req) + delta }
 	}
 	matrix := func() *types.Request {
 		return &types.Request{Cohort: wideCohort(f), Aggregations: paritySum,
@@ -329,9 +394,6 @@ func parityCases(f *limitsFixture) []parityCase {
 	}
 	composed := func(reqs func() []*types.Request) *types.ComposedRequest {
 		return &types.ComposedRequest{Requests: reqs()}
-	}
-	chainStage0 := func(stage0 func() *types.Request) func() []*types.Request {
-		return func() []*types.Request { return []*types.Request{stage0()} }
 	}
 	chain := func(stages int, stage0 func() *types.Request) *types.ChainRequest {
 		s0 := stage0()
@@ -424,48 +486,105 @@ func parityCases(f *limitsFixture) []parityCase {
 		{name: "memory join", site: "join (memory pre-flight)", setup: serialArm,
 			requests: one(join), run: processRun(join),
 			limits: func(l *limits.Limits) { l.MaxEstimatedMemory = 1 << 20 }, wantTrip: limits.MaxEstimatedMemory},
+		// #229: the 16-row lookup joined to repeat (each brand twice).
+		// At the certain estimate (one match per left row) predict
+		// reports the POSSIBLE fan-out finding (16 x (32 - 16 + 1)
+		// joined rows on the dictionary bound) and the run is refused
+		// by the build-side backstop on 16 x 2 measured rows; at the
+		// possible estimate neither.
+		{name: "memory join fan-out", site: "join (build-side memory backstop)", setup: serialArm,
+			requests: one(joinFanOut), run: processRun(joinFanOut),
+			limits: memAt(joinFanOut, 0), wantTrip: limits.MaxEstimatedMemory},
+		{name: "memory join fan-out under the cap", site: "join (build-side memory backstop)", setup: serialArm,
+			requests: one(joinFanOut), run: processRun(joinFanOut),
+			limits: func(l *limits.Limits) { l.MaxEstimatedMemory = 1 << 40 }},
+		// A one-row right side is provably unique: the certain estimate
+		// is the whole story, predict and the pre-flight agree.
+		{name: "memory join unique", site: "join (memory pre-flight)", setup: serialArm,
+			requests: one(joinUnique), run: processRun(joinUnique),
+			limits: memAt(joinUnique, -1), wantTrip: limits.MaxEstimatedMemory},
+		{name: "compose slot join fan-out", host: hostCompose, site: "compose (slot join backstop)", setup: serialArm,
+			compose: func() *types.ComposedRequest { return composed(two(joinFanOut)) },
+			run: func(ctx context.Context, svc *Service) error {
+				_, err := svc.Compose(ctx, composed(two(joinFanOut)))
+				return err
+			},
+			limits: memAt(joinFanOut, 0), wantTrip: limits.MaxEstimatedMemory},
+		{name: "chain stage join fan-out", host: hostChain, site: "chain (stage 0 join backstop)", setup: serialArm,
+			chain: func() *types.ChainRequest { return chain(1, joinFanOutDistinct) },
+			run: func(ctx context.Context, svc *Service) error {
+				_, err := svc.ProcessChain(ctx, chain(1, joinFanOutDistinct))
+				return err
+			},
+			limits: memAt(joinFanOutDistinct, 0), wantTrip: limits.MaxEstimatedMemory},
 		{name: "compose slots", host: hostCompose, site: "compose", setup: serialArm,
-			requests: two(grouped(paritySum, f.wide)),
+			compose: func() *types.ComposedRequest { return composed(two(grouped(paritySum, f.wide))) },
 			run: func(ctx context.Context, svc *Service) error {
 				_, err := svc.Compose(ctx, composed(two(grouped(paritySum, f.wide))))
 				return err
 			},
 			limits: func(l *limits.Limits) { l.MaxComposeSlots = 1 }, wantTrip: limits.MaxComposeSlots},
 		{name: "compose slot groups", host: hostCompose, site: "compose (slot)", setup: serialArm,
-			requests: two(grouped(paritySum, f.wide)),
+			compose: func() *types.ComposedRequest { return composed(two(grouped(paritySum, f.wide))) },
 			run: func(ctx context.Context, svc *Service) error {
 				_, err := svc.Compose(ctx, composed(two(grouped(paritySum, f.wide))))
 				return err
 			},
 			limits: maxGroups(8), wantTrip: limits.MaxGroups},
 		{name: "compose parallel slots", host: hostCompose, site: "compose (parallel)", setup: serialArm,
-			requests: two(grouped(paritySum, f.wide)),
+			compose: func() *types.ComposedRequest { return composed(two(grouped(paritySum, f.wide))) },
 			run: func(ctx context.Context, svc *Service) error {
 				_, err := svc.ComposeParallel(ctx, composed(two(grouped(paritySum, f.wide))), ComposeOptions{FailFast: true})
 				return err
 			},
 			limits: func(l *limits.Limits) { l.MaxComposeSlots = 1 }, wantTrip: limits.MaxComposeSlots},
 		{name: "compose parallel slot groups", host: hostCompose, site: "compose (parallel slot)", setup: serialArm,
-			requests: two(grouped(paritySum, f.wide)),
+			compose: func() *types.ComposedRequest { return composed(two(grouped(paritySum, f.wide))) },
 			run: func(ctx context.Context, svc *Service) error {
 				_, err := svc.ComposeParallel(ctx, composed(two(grouped(paritySum, f.wide))), ComposeOptions{FailFast: true})
 				return err
 			},
 			limits: maxGroups(8), wantTrip: limits.MaxGroups},
 		{name: "chain stages", host: hostChain, site: "chain", setup: serialArm,
-			requests: chainStage0(grouped(paritySum, f.wide)),
+			chain: func() *types.ChainRequest { return chain(2, grouped(paritySum, f.wide)) },
 			run: func(ctx context.Context, svc *Service) error {
 				_, err := svc.ProcessChain(ctx, chain(2, grouped(paritySum, f.wide)))
 				return err
 			},
 			limits: func(l *limits.Limits) { l.MaxChainStages = 1 }, wantTrip: limits.MaxChainStages},
 		{name: "chain stage groups", host: hostChain, site: "chain (stage 0)", setup: serialArm,
-			requests: chainStage0(grouped(paritySum, f.wide)),
+			chain: func() *types.ChainRequest { return chain(2, grouped(paritySum, f.wide)) },
 			run: func(ctx context.Context, svc *Service) error {
 				_, err := svc.ProcessChain(ctx, chain(2, grouped(paritySum, f.wide)))
 				return err
 			},
 			limits: maxGroups(8), wantTrip: limits.MaxGroups},
+		// A slot's / stage 0's memory estimate is certain on its
+		// cohort's header count: PredictCompose / PredictChain report
+		// the exact figure the slot's (stage's) Process refuses with.
+		{name: "compose slot memory", host: hostCompose, site: "compose (slot memory pre-flight)", setup: serialArm,
+			compose: func() *types.ComposedRequest { return composed(two(grouped(parityMedian, f.wide))) },
+			run: func(ctx context.Context, svc *Service) error {
+				_, err := svc.Compose(ctx, composed(two(grouped(parityMedian, f.wide))))
+				return err
+			},
+			limits: func(l *limits.Limits) { l.MaxEstimatedMemory = 1 << 20 }, wantTrip: limits.MaxEstimatedMemory},
+		{name: "compose archive slot memory", host: hostCompose, site: "compose (archive slot memory pre-flight)", setup: serialArm,
+			compose: func() *types.ComposedRequest {
+				return composed(func() []*types.Request { return []*types.Request{grouped(parityMedian, f.arch)()} })
+			},
+			run: func(ctx context.Context, svc *Service) error {
+				_, err := svc.Compose(ctx, composed(func() []*types.Request { return []*types.Request{grouped(parityMedian, f.arch)()} }))
+				return err
+			},
+			limits: func(l *limits.Limits) { l.MaxEstimatedMemory = 1 << 20 }, wantTrip: limits.MaxEstimatedMemory},
+		{name: "chain stage memory", host: hostChain, site: "chain (stage 0 memory pre-flight)", setup: serialArm,
+			chain: func() *types.ChainRequest { return chain(2, grouped(paritySum, f.wide)) },
+			run: func(ctx context.Context, svc *Service) error {
+				_, err := svc.ProcessChain(ctx, chain(2, grouped(paritySum, f.wide)))
+				return err
+			},
+			limits: func(l *limits.Limits) { l.MaxEstimatedMemory = 1 << 20 }, wantTrip: limits.MaxEstimatedMemory},
 		{name: "derived columns", site: "derived columns", setup: serialArm,
 			requests: one(fanOut), run: processRun(fanOut),
 			limits: func(l *limits.Limits) { l.MaxDerivedColumns = 2 }, wantTrip: limits.MaxDerivedColumns},
@@ -510,14 +629,16 @@ func checkParity(t *testing.T, f *limitsFixture, c parityCase, l limits.Limits) 
 			certain = append(certain, fd)
 		}
 	}
-	// Every certain finding trips — with one of the certain figures.
+	// Every certain finding trips — with one of the certain figures, at
+	// the same location (a Compose slot's details.request, a chain
+	// stage's details.stage).
 	if len(certain) > 0 {
 		if !tripped {
 			t.Fatalf("predict reported certain %+v but the run succeeded", certain)
 		}
 		matched := false
 		for _, fd := range certain {
-			if string(trip.limit) == fd.Limit && trip.configured == fd.Configured {
+			if string(trip.limit) == fd.Limit && trip.configured == fd.Configured && trip.at == locationOf(fd.Details) {
 				matched = true
 				if trip.observed != fd.Estimated {
 					t.Fatalf("certain %s: runtime observed %d, predict estimated %d", fd.Limit, trip.observed, fd.Estimated)
@@ -558,8 +679,9 @@ func checkParity(t *testing.T, f *limitsFixture, c parityCase, l limits.Limits) 
 //     limit, configured} (and, for a certain figure, the same
 //     observed);
 //   - every runtime trip was certain, possible or unknowable at
-//     predict (RequestTimeout; the slot / stage count no predict
-//     surface sees; a facet's group count);
+//     predict (RequestTimeout only — Compose, chain and facet are each
+//     judged by their own predict root, a located finding at the
+//     location the runtime error carries);
 //   - a request predict clears never trips a predictable limit: each
 //     finding re-run with the limit raised to its estimate — the upper
 //     bound — no longer trips that limit, and every case under the
@@ -587,8 +709,15 @@ func TestLimitsPredictRuntimeParity(t *testing.T) {
 				sites[c.site] = true
 			}
 
-			// Raised to its estimate, each finding's limit clears.
+			// Raised to its estimate, each finding's limit clears — to the
+			// largest estimate of that limit (a Compose slot or chain
+			// stage each carry their own).
 			for _, fd := range findings {
+				for _, g := range findings {
+					if g.Limit == fd.Limit && g.Estimated > fd.Estimated {
+						fd = g
+					}
+				}
 				raised := l
 				limits.Set(&raised, limits.Name(fd.Limit), fd.Estimated)
 				again, trip := checkParity(t, f, c, raised)
@@ -612,7 +741,9 @@ func TestLimitsPredictRuntimeParity(t *testing.T) {
 	}
 	for _, s := range []string{"serial", "buffered", "parallel decode reducer", "parallel shard reducer", "merge",
 		"buffered crosstab", "fused crosstab", "join", "matrix", "compose", "compose (parallel)", "chain", "facet", "timeout",
-		"derived columns", "materialize (memory pre-flight)"} {
+		"derived columns", "materialize (memory pre-flight)", "compose (slot memory pre-flight)",
+		"compose (archive slot memory pre-flight)", "chain (stage 0 memory pre-flight)",
+		"join (build-side memory backstop)", "compose (slot join backstop)", "chain (stage 0 join backstop)"} {
 		if !sites[s] {
 			t.Errorf("runtime site %q never tripped", s)
 		}
@@ -679,4 +810,54 @@ func TestLimitsReleaseMemory(t *testing.T) {
 			t.Fatalf("control retained %.1f B/record, want ~%d: the measurement cannot see a leak", per, stride)
 		}
 	})
+}
+
+// TestLimits_JoinFanOut_PossibleAndBackstop pins the #229 join cases of
+// the parity matrix beyond limit + configured: at the certain estimate
+// predict's only finding is POSSIBLE with the dictionary bound
+// (16 x (32 - 16 + 1) joined rows) in its details — beside
+// details.request / details.stage on Compose and the chain — and the
+// runtime refusal carries the measured multiplicity (each brand twice)
+// at the same location.
+func TestLimits_JoinFanOut_PossibleAndBackstop(t *testing.T) {
+	f := buildLimitsFixture(t, 16, limitsFields)
+	byName := map[string]parityCase{}
+	for _, c := range parityCases(f) {
+		byName[c.name] = c
+	}
+	for name, at := range map[string]string{
+		"memory join fan-out":       "",
+		"compose slot join fan-out": "request=1",
+		"chain stage join fan-out":  "stage=0",
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := byName[name]
+			svc := New(f.cfg)
+			c.setup(t, svc)
+			l := limits.Defaults()
+			c.limits(&l)
+			svc.SetLimits(l)
+			fs := predictFindings(t, svc, c, l)
+			if len(fs) != 1 {
+				t.Fatalf("findings %+v, want one", fs)
+			}
+			fd := fs[0]
+			if fd.Grade != descriptor.LimitGradePossible || fd.Limit != string(limits.MaxEstimatedMemory) || locationOf(fd.Details) != at ||
+				fd.Details["join"] != 0 || fd.Details["join_bound"] != limits.JoinBoundDictionary || fd.Details["join_rows_bound"] != int64(16*17) {
+				t.Fatalf("finding %+v", fd)
+			}
+			err := c.run(context.Background(), svc)
+			var ce *errors.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_LIMIT_EXCEEDED {
+				t.Fatalf("run: %v", err)
+			}
+			if locationOf(ce.Details) != at || ce.Details["join"] != 0 || ce.Details["right_key_multiplicity"] != int64(2) ||
+				ce.Details["join_rows_bound"] != int64(32) || ce.Details["configured"] != fd.Configured {
+				t.Fatalf("refusal details %v", ce.Details)
+			}
+			if obs := ce.Details["observed"].(int64); obs <= fd.Configured || obs > fd.Estimated {
+				t.Fatalf("backstop observed %d outside (configured %d, possible estimate %d]", obs, fd.Configured, fd.Estimated)
+			}
+		})
+	}
 }

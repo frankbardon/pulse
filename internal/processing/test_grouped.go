@@ -29,8 +29,8 @@ import (
 // grouped request with a test ran before.
 //
 // A group whose data cannot carry the test — a single split level, too
-// few rows, zero variance, a degenerate table, an undefined correlation
-// (sparseTestCodes) — gets a result with null statistic and p_value plus
+// few rows, zero variance, a degenerate table, an undefined correlation,
+// a singular or too-small covariance matrix (sparseTestCodes) — gets a result with null statistic and p_value plus
 // one Response warning under the test's own code, Details naming the
 // group_key; the other groups proceed. An ungrouped run still refuses
 // the same data with the error.
@@ -43,6 +43,12 @@ var sparseTestCodes = map[errors.Code]bool{
 	errors.PULSE_TEST_VARIANCE_ZERO:          true,
 	errors.PULSE_TEST_CONTINGENCY_DEGENERATE: true,
 	errors.PULSE_TEST_CORRELATION_UNDEFINED:  true,
+	// A rank-deficient or too-small group's covariance (#404). The five
+	// built-in vector tests warn rather than refuse on these, so this
+	// reaches a test that refuses (an extension's) and keeps one
+	// degenerate group from aborting the whole grouped request.
+	errors.PULSE_MATRIX_SINGULAR:       true,
+	errors.PULSE_MATRIX_INSUFFICIENT_N: true,
 }
 
 // groupedRowTests is a grouped run's tier-1 test state: the mintable

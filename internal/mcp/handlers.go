@@ -64,8 +64,10 @@ func HandleInspect(ctx context.Context, p *pulse.Pulse, in InspectIn) (InspectOu
 
 // HandlePredict runs pulse_predict: no-execute validation of a bare
 // request, or of the one alternative root (composed / facet / chain)
-// the decode accepted. An alternative root's verdict rides under its
-// own key beside the envelope's coded errors and warnings; a returned
+// the decode accepted. A bare request's result keys sit at the root,
+// an alternative root's verdict under its own key, each beside the
+// coded errors and warnings behind it (a bare request's are the
+// facade result's Errors / Warnings, #256); a returned
 // error is the facade's own (a nil request or cohort, an unreadable
 // cohort), passed through verbatim so its code survives.
 func HandlePredict(ctx context.Context, p *pulse.Pulse, in PredictIn) (PredictOut, error) {
@@ -86,7 +88,7 @@ func HandlePredict(ctx context.Context, p *pulse.Pulse, in PredictIn) (PredictOu
 		if perr != nil {
 			return PredictOut{}, perr
 		}
-		return PredictOut{PredictResult: res}, nil
+		return PredictOut{PredictResult: res, Errors: res.Errors, Warnings: res.Warnings}, nil
 	}
 	if err != nil {
 		return PredictOut{}, err

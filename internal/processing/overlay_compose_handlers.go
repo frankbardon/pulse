@@ -85,6 +85,34 @@ func composeFirstTarget(targets []*types.Response, targetIdxs []int) (*types.Res
 	return targets[0], idx
 }
 
+// composeSlotCellTypes is the authored crosstab cell aggregation type
+// (Request.Crosstab.Cell.Type) of a Compose overlay's reference slot
+// and first target slot; zero when unknown. A materialised *Response
+// does not record which aggregator built its cells, yet the moment
+// cell kinds (OVERLAY_T_CELL / OVERLAY_Z_CELL) need it: AGG_VARIANCE /
+// AGG_STDDEV cells carry the POPULATION variance, converted to the
+// sample variance on read (overlayhost.PopulationVarianceCell).
+type composeSlotCellTypes struct {
+	ref    types.AggregationType
+	target types.AggregationType
+}
+
+// composeCellTypes reads composeSlotCellTypes off the authored slot
+// requests (parallel to the responses; nil and short slices tolerated).
+func composeCellTypes(requests []*types.Request, refIdx int, targetIdxs []int) composeSlotCellTypes {
+	cellType := func(i int) types.AggregationType {
+		if i < 0 || i >= len(requests) || requests[i] == nil || requests[i].Crosstab == nil || requests[i].Crosstab.Cell == nil {
+			return ""
+		}
+		return requests[i].Crosstab.Cell.Type
+	}
+	out := composeSlotCellTypes{ref: cellType(refIdx)}
+	if len(targetIdxs) > 0 {
+		out.target = cellType(targetIdxs[0])
+	}
+	return out
+}
+
 // composeFirstTargetLabel returns the first target slot's label from
 // the spec — used in warning Details so renderers can address the
 // offending slot by its caller-supplied name.
@@ -818,6 +846,14 @@ func welchTTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 //
 // The universal Components surface owns the triple payload.
 func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
+	return applyTCellWith(spec, reference, targets, refIdx, targetIdxs, composeSlotCellTypes{})
+}
+
+// applyTCellWith is applyTCell with the slots' authored crosstab cell
+// types in reach (ApplyComposeOverlaysWithSchemas reads them off the
+// slot requests): an unweighted AGG_VARIANCE / AGG_STDDEV cell's
+// population variance is read as the sample variance (E4-S4).
+func applyTCellWith(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int, cellTypes composeSlotCellTypes) (types.OverlayLayer, []types.OverlayWarning, error) {
 	refMx := readMatrix(reference)
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
 	targetMx := readMatrix(target)
@@ -879,14 +915,14 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 				continue
 			}
 
-			tLeg, tHasTriple := extractCellComponentsTriple(target, i, j)
+			tLeg, tHasTriple := extractCellComponentsTriple(target, i, j, cellTypes.target)
 			refCoord, refCoordOK := refCoordLookup[matrixCellLookupKey{row: rowKeyStr, col: colKeyStr}]
 			var (
 				rLeg       meanLeg
 				rHasTriple bool
 			)
 			if refCoordOK {
-				rLeg, rHasTriple = extractCellComponentsTriple(reference, refCoord.Row, refCoord.Col)
+				rLeg, rHasTriple = extractCellComponentsTriple(reference, refCoord.Row, refCoord.Col, cellTypes.ref)
 			}
 			tScalar, tHasScalar := scalarFromCell(cell)
 			rScalar, rHasScalar := scalarFromCell(refCell)

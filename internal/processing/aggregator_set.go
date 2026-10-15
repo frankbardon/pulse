@@ -57,7 +57,7 @@ func setAggDict(agg *types.Aggregation, schema *encoding.Schema) (*encoding.Dict
 			string(agg.Type)+": unknown field "+agg.Field)
 	}
 	if !f.Type.IsSet() {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+		return nil, errors.NewCodedError(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
 			string(agg.Type)+": field "+agg.Field+" is not a set type")
 	}
 	return f.Dictionary, nil
@@ -816,7 +816,7 @@ func rejectSetFieldForNumericAggregator(agg *types.Aggregation, schema *encoding
 	if f == nil || !f.Type.IsSet() {
 		return nil
 	}
-	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+	return errors.NewCodedErrorWithDetails(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
 		string(agg.Type)+": field "+agg.Field+" is a set column ("+f.Type.String()+
 			"); its numeric value is the low 64 bits of the membership bitmask, not a quantity."+remedyAggregatorSetField(nil),
 		map[string]any{

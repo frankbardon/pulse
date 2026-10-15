@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"strings"
 
 	"github.com/expr-lang/expr"
 	exprast "github.com/expr-lang/expr/ast"
@@ -12,8 +11,7 @@ import (
 	"github.com/expr-lang/expr/vm"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/exprbuiltins"
-	"github.com/frankbardon/pulse/internal/exprident"
+	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -483,6 +481,17 @@ func applyFormulaWithExtensions(spec *types.OverlaySpec, host *CrosstabHostView,
 	return layer, nil, nil
 }
 
+// requestFormulaIdentRefusal is the Request-host FORMULA gate at index
+// over a host of shape (MATRIX or SERIES): formulaident.RequestSpecRefusal
+// over the instance's callable functions — the rule predict's
+// validateFormulaOverlay applies — run BEFORE the compile, so a missing
+// formula, a total() call, an unknown variable or callee is refused with
+// predict's code, message and Details (spec index included), never the
+// compiler's PULSE_OVERLAY_FORMULA_PARSE_ERROR.
+func requestFormulaIdentRefusal(spec *types.OverlaySpec, exts *ExtensionRegistry, index int, shape types.OverlayShape) *errors.CodedError {
+	return formulaident.RequestSpecRefusal(spec, index, shape, exts.overlayFormulaFuncs())
+}
+
 // runFormulaMatrix compiles formula against ctx's MATRIX prototype env
 // and evaluates it once per present host cell (ctx.MatrixHost), with
 // every other namespace slot — margins, SDs, and on a Compose host
@@ -745,37 +754,17 @@ func compileFormulaProgramWithExtensions(spec *types.OverlaySpec, formula string
 }
 
 // overlayBuiltinRefusal refuses a FORMULA calling a reserved built-in
-// outside the overlay scalar subset (exprbuiltins.OverlayRefused — the
-// vector families) with PULSE_OVERLAY_FORMULA_INVALID_IDENT, the code
-// the predict gate raises for the same formula. A formula that fails
-// to parse returns nil so expr.Compile reports the parse error.
+// outside the overlay scalar subset (the shared
+// formulaident.BuiltinRefusal, no index). A formula that fails to parse
+// returns nil so expr.Compile reports the parse error.
 func overlayBuiltinRefusal(spec *types.OverlaySpec, formula string) *errors.CodedError {
-	refused := exprident.FirstCallee(formula, exprbuiltins.OverlayRefused)
-	if refused == "" {
-		return nil
-	}
-	return errors.NewCodedErrorWithDetails(
-		errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
-		"overlay "+string(spec.Kind)+" formula calls "+refused+", a vector built-in OVERLAY_FORMULA does not accept (scalar maths only: "+strings.Join(exprbuiltins.OverlayNames(), ", ")+")",
-		map[string]any{
-			"kind":               string(spec.Kind),
-			"unknown_identifier": refused,
-			"allowed_builtins":   exprbuiltins.OverlayNames(),
-			"formula":            formula,
-		})
+	return formulaident.BuiltinRefusal(spec.Kind, formula, -1)
 }
 
 // composeOverlayBuiltinRefusal is overlayBuiltinRefusal for a
-// Compose-host spec at index i: PULSE_OVERLAY_FORMULA_INVALID_IDENT for
-// the first vector built-in the formula calls (details also carry
-// "index"), nil when it calls none.
+// Compose-host spec at index i (details also carry "index").
 func composeOverlayBuiltinRefusal(spec *types.ComposeOverlaySpec, formula string, i int) *errors.CodedError {
-	cerr := overlayBuiltinRefusal(&types.OverlaySpec{Kind: spec.Kind}, formula)
-	if cerr == nil {
-		return nil
-	}
-	cerr.Details["index"] = i
-	return cerr
+	return formulaident.BuiltinRefusal(spec.Kind, formula, i)
 }
 
 // buildFormulaPrototypeEnvMatrix returns the prototype env the

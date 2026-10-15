@@ -34,15 +34,16 @@ import (
 // The result's Steps describe each slot from its structure and its
 // operator's plain purpose. When the root names a cohort Explain
 // predicts it in-process with the instance's options and the cohort's
-// sidecar facts — header, schema and sidecar only, never a record of a
-// single-file cohort (a shard archive or anchored shard is read whole,
-// as Predict reads it) — to name each operator smart defaults infer
+// sidecar facts — header, schema and sidecar only, never a record (a
+// shard archive's central directory, canonical schema entry and shard
+// headers; an anchored shard's own header, as Predict reads them) — to name each operator smart defaults infer
 // (DefaultsApplied, and the step marked Defaulted), the advisories the
 // request raises and predict's verdict (Valid, with each refusal a
 // caveat). Without a cohort nothing is checked, and a caveat says so. A
 // cohort that cannot be read is DATA_FILE (ENCODING_INVALID for a
 // malformed header or schema). A Compose root predicts each slot over
-// its own cohort and validates the batch; a chain root predicts its
+// its own cohort — every rule Predict applies to a request, each
+// refusal located by its slot — and validates the batch; a chain root predicts its
 // first stage and validates the chain; a Sample root names no operator
 // and is never predicted.
 //

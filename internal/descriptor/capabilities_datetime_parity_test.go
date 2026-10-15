@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -95,7 +96,7 @@ func TestCapabilities_DateAndDateTimeDeclaredTogether(t *testing.T) {
 // drops to decimalVarianceFloat64 only when an intermediate would
 // overflow — a fallback that reports FellBack so the orchestrator can
 // warn PULSE_DECIMAL_PRECISION_LOSS. predict has always permitted the
-// pairing (decimalSupportedAggregations). The manifest was the only
+// pairing (fieldaccept.HasDecimalArm). The manifest was the only
 // surface claiming otherwise.
 func TestCapabilities_VarianceStddevDeclareDecimal(t *testing.T) {
 	decimal := encoding.FieldTypeDecimal128.String()
@@ -110,10 +111,10 @@ func TestCapabilities_VarianceStddevDeclareDecimal(t *testing.T) {
 		}
 		seen[op.Name] = true
 		if !slices.Contains(op.AcceptsTypes, decimal) {
-			t.Errorf("aggregator %s does not declare %q, but predict permits it (decimalSupportedAggregations) and processing has a decimal implementation",
+			t.Errorf("aggregator %s does not declare %q, but predict permits it (fieldaccept.HasDecimalArm) and processing has a decimal implementation",
 				op.Name, decimal)
 		}
-		if !decimalSupportedAggregations[types.AggregationType(op.Name)] {
+		if !fieldaccept.HasDecimalArm(op.Name) {
 			t.Errorf("aggregator %s declares %q but predict would warn PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
 				op.Name, decimal)
 		}

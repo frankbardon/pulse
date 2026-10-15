@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -81,15 +82,11 @@ func newTargetEncode(feat *types.Feature, schema *encoding.Schema) (Computer, er
 			"FEAT_TARGET_ENCODE: 'smoothing' must be >= 0")
 	}
 	if schema != nil {
-		if f := schema.Field(feat.Field); f != nil && !f.Type.IsCategorical() {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("FEAT_TARGET_ENCODE: field %q must be categorical, got %s",
-					feat.Field, f.Type))
+		if cerr := fieldaccept.Check(string(types.FEAT_TARGET_ENCODE), fieldaccept.SlotField, feat.Field, schema); cerr != nil {
+			return nil, cerr
 		}
-		if f := schema.Field(p.Target); f != nil && f.Type.IsCategorical() {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("FEAT_TARGET_ENCODE: target %q must be numeric, got categorical %s",
-					p.Target, f.Type))
+		if cerr := fieldaccept.Check(string(types.FEAT_TARGET_ENCODE), fieldaccept.SlotTarget, p.Target, schema); cerr != nil {
+			return nil, cerr
 		}
 	}
 

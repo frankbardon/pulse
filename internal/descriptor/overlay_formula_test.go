@@ -427,22 +427,56 @@ func TestValidateOverlay_FormulaSetHelpersAndLookup(t *testing.T) {
 	}
 }
 
-// TestValidateOverlay_FormulaSeriesHostRefusedByShape: a Process
-// OVERLAY_FORMULA runs on a MATRIX host only (its SERIES namespace
-// executes on a Compose host), so a grouped request refuses it with the
-// shared overlayhost shape refusal before any identifier walk — the
-// refusal the runtime's Process hooks raise.
-func TestValidateOverlay_FormulaSeriesHostRefusedByShape(t *testing.T) {
-	req := &types.Request{
-		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "value"}},
-		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
-		Overlays: []types.OverlaySpec{{Kind: types.OverlayKindFormula, Scope: types.OverlayScopeGroup,
-			Params: json.RawMessage(`{"formula":"value / total"}`)}},
+// TestValidateOverlay_FormulaSeriesHost (U35 #432): a Process
+// OVERLAY_FORMULA runs on a SERIES host (groups + aggregations) against
+// the SERIES namespace — value / total / prior, plus baseline when
+// params.baseline_position is set — and refuses a MATRIX name, a
+// baseline without its param, a bad baseline_position, a Ref arm and a
+// non-group scope.
+func TestValidateOverlay_FormulaSeriesHost(t *testing.T) {
+	req := func(spec types.OverlaySpec) *types.Request {
+		return &types.Request{
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "value"}},
+			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Overlays:     []types.OverlaySpec{spec},
+		}
 	}
-	env := descriptor.NewEnvelope(nil)
-	ValidateOverlays(env, req, nil, nil)
-	if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) ||
-		env.Errors[0].Details["shape"] != "series" {
-		t.Fatalf("errors = %+v, want one shape refusal over a series host", env.Errors)
+	spec := func(params string) types.OverlaySpec {
+		return types.OverlaySpec{Kind: types.OverlayKindFormula, Scope: types.OverlayScopeGroup, Params: json.RawMessage(params)}
+	}
+	for _, params := range []string{
+		`{"formula":"value / total"}`,
+		`{"formula":"value - prior"}`,
+		`{"formula":"value / baseline * 100","baseline_position":0}`,
+	} {
+		env := descriptor.NewEnvelope(nil)
+		ValidateOverlays(env, req(spec(params)), nil, nil)
+		if len(env.Errors) != 0 {
+			t.Errorf("%s: errors %+v, want none", params, env.Errors)
+		}
+	}
+	withRef := spec(`{"formula":"value"}`)
+	withRef.Ref = types.OverlayRef{Prior: &types.OverlayPriorRef{}}
+	cellScope := spec(`{"formula":"value"}`)
+	cellScope.Scope = types.OverlayScopeCell
+	for _, c := range []struct {
+		name string
+		spec types.OverlaySpec
+		code errors.Code
+		key  string
+		val  any
+	}{
+		{"matrix name", spec(`{"formula":"cell / total"}`), errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT, "unknown_identifier", "cell"},
+		{"baseline without param", spec(`{"formula":"value / baseline"}`), errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT, "unknown_identifier", "baseline"},
+		{"negative baseline_position", spec(`{"formula":"value","baseline_position":-1}`), errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE, "param", "baseline_position"},
+		{"fractional baseline_position", spec(`{"formula":"value","baseline_position":1.5}`), errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE, "param", "baseline_position"},
+		{"ref arm", withRef, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, "host", "series"},
+		{"cell scope", cellScope, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED, "scope", "cell"},
+	} {
+		env := descriptor.NewEnvelope(nil)
+		ValidateOverlays(env, req(c.spec), nil, nil)
+		if len(env.Errors) != 1 || env.Errors[0].Code != string(c.code) || env.Errors[0].Details[c.key] != c.val {
+			t.Errorf("%s: errors %+v, want one %s with %s = %v", c.name, env.Errors, c.code, c.key, c.val)
+		}
 	}
 }

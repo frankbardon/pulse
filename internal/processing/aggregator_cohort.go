@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -106,7 +107,7 @@ type ratioAggregator struct {
 	frozenHasResult bool
 }
 
-func newRatioAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newRatioAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
 	var params ratioParams
 	if len(agg.Params) > 0 {
 		if err := json.Unmarshal(agg.Params, &params); err != nil {
@@ -116,6 +117,15 @@ func newRatioAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator,
 	if params.NumeratorField == "" || params.DenominatorField == "" {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"AGG_RATIO requires Params.numerator_field and Params.denominator_field")
+	}
+	// A categorical column's number is its dictionary index and a set
+	// column has none: the accepted-types table refuses both, numerator
+	// first, as predict does. A derived label carries no schema type.
+	if cerr := fieldaccept.Check(string(types.AGG_RATIO), fieldaccept.SlotNumerator, params.NumeratorField, schema); cerr != nil {
+		return nil, cerr
+	}
+	if cerr := fieldaccept.Check(string(types.AGG_RATIO), fieldaccept.SlotDenominator, params.DenominatorField, schema); cerr != nil {
+		return nil, cerr
 	}
 	a := &ratioAggregator{numField: params.NumeratorField, denField: params.DenominatorField}
 	if w := slotWeight(agg); w != nil {

@@ -148,15 +148,23 @@ func (c *rollingCarrier) push(v float64) {
 	// then the forward update for the new value. The intermediate
 	// (count - 1, mean', M2') describes the W-1 retained values.
 	evicted := c.buf[c.head]
-	// Welford-backwards: remove `evicted` from a sample of size count.
-	// Inverse of the forward update — see Welford-Knuth incremental
-	// variance for the sliding-window form.
-	deltaOut := evicted - c.mean
-	cMinus := float64(c.count - 1)
-	c.mean -= deltaOut / cMinus
-	deltaOut2 := evicted - c.mean
-	c.m2 -= deltaOut * deltaOut2
-	c.count--
+	if c.count == 1 {
+		// Window 1: evicting the only value leaves an empty sample.
+		// The backwards update below would divide by count-1 == 0 and
+		// poison the mean with NaN from the third point on (U35 #431);
+		// the empty sample's (mean, M2) is exactly (0, 0).
+		c.mean, c.m2, c.count = 0, 0, 0
+	} else {
+		// Welford-backwards: remove `evicted` from a sample of size
+		// count. Inverse of the forward update — see Welford-Knuth
+		// incremental variance for the sliding-window form.
+		deltaOut := evicted - c.mean
+		cMinus := float64(c.count - 1)
+		c.mean -= deltaOut / cMinus
+		deltaOut2 := evicted - c.mean
+		c.m2 -= deltaOut * deltaOut2
+		c.count--
+	}
 	// Welford-forwards: insert v into the resulting sample.
 	deltaIn := v - c.mean
 	c.count++

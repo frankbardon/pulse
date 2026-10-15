@@ -89,7 +89,7 @@ func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter 
 	var rows []map[string]any
 	if len(req.Windows) > 0 {
 		rows = recordsToRows(filtered)
-		if err := window.ApplyWithExt(ctx, rows, req.Windows, p.exts.LookupWindow); err != nil {
+		if err := p.applyWindows(ctx, rows, req.Windows); err != nil {
 			return err
 		}
 	}

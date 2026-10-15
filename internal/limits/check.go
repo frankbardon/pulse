@@ -20,12 +20,43 @@ const (
 )
 
 // Finding is one limit an estimate exceeds. Estimated is the figure
-// predict (or the pre-flight) computed, in the limit's unit.
+// predict (or the pre-flight) computed, in the limit's unit. Join is
+// the basis of a join fan-out memory finding (zero on every other
+// finding); it rides LimitFinding.Details beside a located finding's
+// location key.
 type Finding struct {
 	Limit      Name
 	Configured int64
 	Estimated  int64
 	Grade      Grade
+	Join       JoinBound
+}
+
+// JoinBound is the joined-row bound a join fan-out memory estimate
+// assumed: Rows joined rows (left x the per-key multiplicity), on Basis
+// — JoinBoundDictionary (the right key's dictionary: left x (right -
+// dictionary + 1), sound only when every dictionary entry occurs) or
+// JoinBoundLeftXRight (a key with no dictionary: every right row
+// matching every left row). The zero value means "not a join bound".
+type JoinBound struct {
+	Rows  int64
+	Basis string
+}
+
+// Join bound bases (JoinBound.Basis, LimitFinding.Details.join_bound).
+const (
+	JoinBoundDictionary = "right_key_dictionary"
+	JoinBoundLeftXRight = "left_x_right"
+)
+
+// DetailsMap is the finding's Details payload (nil when it carries
+// none): a join fan-out finding's {join: 0, join_rows_bound,
+// join_bound}.
+func (f Finding) DetailsMap() map[string]any {
+	if f.Join.Basis == "" {
+		return nil
+	}
+	return map[string]any{"join": 0, "join_rows_bound": f.Join.Rows, "join_bound": f.Join.Basis}
 }
 
 // Err is the PULSE_LIMIT_EXCEEDED error a breach of f raises, with the

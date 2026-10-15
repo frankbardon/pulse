@@ -30,7 +30,7 @@ Two entry points. `pulse.Facet(ctx, path, field)` returns distinct values. `puls
 
 ## Discrete vs numeric dispatch
 
-Field type drives dispatch: `categorical_*` + `packed_bool` ⇒ discrete (dictionary fast path; bool emits `"true"`/`"false"`). All numeric / date / decimal ⇒ numeric. `numeric_percentiles` on a non-numeric field is a no-op (predict warning). Histograms require a numeric field plus caller-supplied `histogram_range` — no two-pass auto-range. A field's distinct values past `max_groups` refuse `PULSE_LIMIT_EXCEEDED`.
+Field type drives dispatch: `categorical_*` + `packed_bool` ⇒ discrete (dictionary fast path; bool emits `"true"`/`"false"`). All numeric / date / decimal ⇒ numeric. `numeric_percentiles` / `include_histogram` on a non-numeric field compute nothing: one `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` warning each (predict and `FacetResult.Warnings`). Histograms require a numeric field plus caller-supplied `histogram_range` — no two-pass auto-range. A field's distinct values past `max_groups` refuse `PULSE_LIMIT_EXCEEDED`.
 
 ## TopK, percentiles, histograms
 
@@ -40,7 +40,7 @@ Field type drives dispatch: `categorical_*` + `packed_bool` ⇒ discrete (dictio
 
 For each `AdditiveFields` entry F, the engine builds a scope filter = base `Filterers` minus every clause targeting F, then runs a parallel discrete accumulator. Result at `FacetResult.Additive[F]`. Answers "if I added V to my filter on F, how many records survive?" per V. When no base clause names F, the scope filter equals the base filter.
 
-Expression-filter restriction: the scope-stripper cannot remove a clause hidden inside an expression body, so a request naming an additive field inside an expression filter is rejected with `SERVICE_VALIDATION`. Filter that field with a discrete include / exclude value filter instead.
+An additive field named inside an expression filter is rejected `SERVICE_VALIDATION` (the stripper cannot see into an expression body); filter it with an include / exclude value filter.
 
 ## Streamability
 
@@ -67,7 +67,7 @@ A filterer naming an unknown field — or, outside an expression filter, none �
 | `OVERLAY_KS_VS_POP` | scalar | buffered | numeric only | KS D-statistic + asymptotic p-value |
 <!-- /feature -->
 
-Common contract: `Ref.Population` REQUIRED (`Cohort` names the comparison `.pulse`); any other family ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Scope = group` only; `Level = 0`, `Within = 0` (non-zero ⇒ `_LEVEL_OUT_OF_RANGE`). Host-field via `OverlaySpec.Params["field"]`; omit only when FacetRequest has one Field. Unknown field ⇒ `_REF_INCOMPATIBLE_WITH_SHAPE` with `{field, available_fields}`. A discrete-only kind on a numeric field ⇒ `_REF_INCOMPATIBLE_WITH_SHAPE`; a numeric-only kind on a categorical field ⇒ `_SCOPE_UNSUPPORTED`. Runtime recurses `FacetSchema` against the population, forwarding `NumericPercentiles`/`IncludeHistogram`.
+Common contract: `Ref.Population` REQUIRED (`Cohort` names the comparison `.pulse`); any other family ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Scope = group` only; `Level = 0`, `Within = 0` (non-zero ⇒ `_LEVEL_OUT_OF_RANGE`). A set `weight` ⇒ `PULSE_WEIGHT_UNSUPPORTED` (facets are never weighted). Host-field via `OverlaySpec.Params["field"]`; omit only when FacetRequest has one Field. Unknown field ⇒ `_REF_INCOMPATIBLE_WITH_SHAPE` with `{field, available_fields}`. A discrete-only kind on a numeric field ⇒ `_REF_INCOMPATIBLE_WITH_SHAPE`; a numeric-only kind on a categorical field ⇒ `_SCOPE_UNSUPPORTED`. Runtime recurses `FacetSchema` against the population, forwarding `NumericPercentiles`/`IncludeHistogram`.
 
 Mixing streamable + buffered kinds forces the orchestrator buffered; descriptive math stays byte-equivalent. Same cohort may serve as host + population (recursion strips `Filterers`). Warning codes: `PULSE_OVERLAY_REF_ZERO` (per entry for the series kinds; once per layer for a degenerate population on the scalar tests), `PULSE_OVERLAY_EXPECTED_LOW` (the χ² kind when any expected cell is `< 5`).
 

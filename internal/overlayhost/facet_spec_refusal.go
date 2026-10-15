@@ -1,6 +1,8 @@
 package overlayhost
 
 import (
+	"strconv"
+
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -21,7 +23,12 @@ import (
 //   - any Ref arm but Population set → PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE {index, kind};
 //   - Ref.Population unset, then Ref.Population.Cohort empty → the same;
 //   - a scope other than group → PULSE_OVERLAY_SCOPE_UNSUPPORTED {index, kind, scope};
-//   - Level or Within non-zero → PULSE_OVERLAY_LEVEL_OUT_OF_RANGE {index, kind, level, within}.
+//   - Level or Within non-zero → PULSE_OVERLAY_LEVEL_OUT_OF_RANGE {index, kind, level, within};
+//   - a set `weight` (a field name or a {field, kind} object) →
+//     PULSE_WEIGHT_UNSUPPORTED {slot: "overlays[i]", operator, field,
+//     reason}: facets are never weighted, so the weight used to be
+//     ignored silently. An absent weight and `null` (the explicit
+//     "run unweighted" opt-out — what a facet does anyway) pass.
 func FacetSpecRefusal(spec *types.OverlaySpec, route types.OverlayKind, index int) *errors.CodedError {
 	if spec == nil || len(hosts[route]) == 0 || !Accepts(Facet, route) {
 		return nil
@@ -52,5 +59,15 @@ func FacetSpecRefusal(spec *types.OverlaySpec, route types.OverlayKind, index in
 			"overlay "+kind+" does not support Level / Within (population-comparison kind: the reference is a single-value lookup, not an axis prefix)",
 			map[string]any{"index": index, "kind": kind, "level": spec.Level, "within": spec.Within})
 	}
+	if w := spec.Weight.Spec(); w != nil {
+		slot := "overlays[" + strconv.Itoa(index) + "]"
+		return errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_UNSUPPORTED,
+			slot+": "+kind+" cannot be weighted: "+facetWeightReason,
+			map[string]any{"slot": slot, "operator": kind, "field": w.Field, "reason": facetWeightReason})
+	}
 	return nil
 }
+
+// facetWeightReason is why a FACET-host overlay refuses a set weight
+// (PULSE_WEIGHT_UNSUPPORTED details.reason).
+const facetWeightReason = "a facet is never weighted — its host distribution and the population it is compared against are unweighted counts — so set \"weight\": null or drop the key"

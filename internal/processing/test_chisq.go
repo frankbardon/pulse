@@ -62,14 +62,8 @@ func newChiSqRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 			fmt.Sprintf("alpha %g not in (0, 1)", spec.Alpha),
 			map[string]any{"alpha": spec.Alpha})
 	}
-	if schema != nil {
-		for axis, name := range map[string]string{"rows": spec.Rows, "cols": spec.Cols} {
-			if f := schema.Field(name); f != nil && !f.Type.IsCategorical() {
-				return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_FIELD_NOT_NUMERIC,
-					fmt.Sprintf("TEST_CHISQ %s field %q must be categorical, got %s", axis, name, f.Type.String()),
-					map[string]any{"axis": axis, "field": name, "field_type": f.Type.String()})
-			}
-		}
+	if cerr := contingencyAxisRefusal(spec, schema); cerr != nil {
+		return nil, cerr
 	}
 	return &chiSqRow{
 		spec:       spec,

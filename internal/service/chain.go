@@ -341,6 +341,17 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 		return nil, nil, locate(err, "stage", i)
 	}
 
+	// The stage's label bindings, judged against its input schema before
+	// it runs and applied to its rows after (#201c) — the binding path
+	// Process gives stage 0 (validateProcessLabels, buildAndApplyLabels);
+	// a later stage's labels used to be dropped silently. A key column
+	// forwarded from the stage before is categorical in synthSchema, so a
+	// binding relabels it; an aggregation output (f64) is refused
+	// PULSE_LABEL_FIELD_NOT_CATEGORICAL, as on stage 0.
+	if err := s.validateProcessLabels(stage, synthSchema); err != nil {
+		return nil, nil, locate(err, "stage", i)
+	}
+
 	if s.echoRequest {
 		*normStages = append(*normStages, &types.ChainStage{
 			Name:    req.Stages[i].Name,
@@ -355,7 +366,10 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 	stageCtx := withComputePlan(ctx, s.resolveComputePlan(ctx, stage, ret, plan))
 	resp, err = s.runChainStage(stageCtx, s.zoned(stage, zones), plan, synthSchema, records)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, locate(err, "stage", i)
+	}
+	if err := s.buildAndApplyLabels(stage, resp); err != nil {
+		return nil, nil, locate(err, "stage", i)
 	}
 	ei.addRows(resp)
 	return resp, synthSchema, nil

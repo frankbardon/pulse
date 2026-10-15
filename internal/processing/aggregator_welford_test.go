@@ -236,8 +236,8 @@ func TestAggregatorWelford_FactoryRejectsNonNumericFields(t *testing.T) {
 			if !ok {
 				t.Fatalf("error %v is %T, want *errors.CodedError", err, err)
 			}
-			if ce.Code != errors.PROCESSING_CONFIG {
-				t.Errorf("error code = %s, want PROCESSING_CONFIG", ce.Code)
+			if ce.Code != errors.PULSE_FIELD_TYPE_UNSUPPORTED {
+				t.Errorf("error code = %s, want PULSE_FIELD_TYPE_UNSUPPORTED", ce.Code)
 			}
 		})
 	}

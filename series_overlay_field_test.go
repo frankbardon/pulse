@@ -27,7 +27,7 @@ type sfSpec struct {
 func sfSpecs() []sfSpec {
 	region := func() *types.Group { return mgRegion() }
 	day := func() *types.Group { return mgDay() }
-	out := make([]sfSpec, 0, 12)
+	out := make([]sfSpec, 0, 13)
 	for _, s := range mgSeriesOverlaySpecs() {
 		out = append(out, sfSpec{spec: s, group: region})
 	}
@@ -96,14 +96,14 @@ func sfModes() []mgMode {
 
 // TestSeriesOverlayField_ScoresNamedAggregation: params.field names an
 // aggregation by OUTPUT LABEL and the overlay scores it. On every one
-// of the twelve kinds and every arm, field "orders" over [n, orders]
+// of the thirteen kinds and every arm, field "orders" over [n, orders]
 // equals the same overlay over [orders] alone, and absent field scores
 // aggregations[0] (equal to [n] alone). The named figure must differ
 // from the default on every kind (YoY runs annual, so its second point
 // has a prior), so the equality is not two copies of the default.
 func TestSeriesOverlayField_ScoresNamedAggregation(t *testing.T) {
-	if got := len(seriesfield.Kinds()); got != 12 {
-		t.Fatalf("seriesfield.Kinds() = %d kinds, want 12", got)
+	if got := len(seriesfield.Kinds()); got != 13 {
+		t.Fatalf("seriesfield.Kinds() = %d kinds, want 13", got)
 	}
 	f := newMGFixture(t, pulse.Options{})
 	n := func() *types.Aggregation { return &types.Aggregation{Type: types.AGG_COUNT, Field: "id", Label: "n"} }

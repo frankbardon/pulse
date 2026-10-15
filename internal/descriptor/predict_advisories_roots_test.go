@@ -253,15 +253,16 @@ func TestComposePredict_HostOverlayManyTests(t *testing.T) {
 }
 
 // TestChainValidationResult_CarriesNoAdvisories: Chain predict is
-// untouched by the advisory roots — its result keeps exactly its prior
-// keys and a stage that fires on Request predict raises nothing there.
+// untouched by the advisory roots — its result carries no advisory key
+// (limit_findings is U35 E7-S1's, not an advisory) and a stage that
+// fires on Request predict raises nothing there.
 func TestChainValidationResult_CarriesNoAdvisories(t *testing.T) {
 	var keys []string
 	rt := reflect.TypeFor[ChainValidationResult]()
 	for i := 0; i < rt.NumField(); i++ {
 		keys = append(keys, strings.Split(rt.Field(i).Tag.Get("json"), ",")[0])
 	}
-	if want := []string{"valid", "request", "schema_info", "stage_schemas", "overlays_schema_divergence"}; !reflect.DeepEqual(keys, want) {
+	if want := []string{"valid", "request", "schema_info", "stage_schemas", "overlays_schema_divergence", "limit_findings"}; !reflect.DeepEqual(keys, want) {
 		t.Errorf("ChainValidationResult keys = %v, want %v", keys, want)
 	}
 	env := ValidateChain(bytes.NewReader(advisoryCohort(t)), &types.ChainRequest{

@@ -31,7 +31,7 @@ One `u8`-valued `f64` column at `Label` (default `split`), from `internal/proces
 
 ## Gotchas
 
-- `ratios` length outside `[2, 3]`, any negative ratio, a sum off `1.0` by more than `1e-6`, or a non-categorical `stratify` → `PROCESSING_CONFIG`.
+- `ratios` length outside `[2, 3]`, any negative ratio, or a sum off `1.0` by more than `1e-6` → `PROCESSING_CONFIG`; a non-categorical `stratify` → `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime).
 - GLOBAL-PASS: PrePass collects row count + stratify keys, Finalize materialises the assignment table (O(rows) memory), EmitRow yields it in PrePass order. EmitRow over-call (more rows than PrePass) → `PROCESSING_INTERNAL`.
 - Streamable via `iter.Reset()`; file-backed iterators pay a second I/O.
 - Stratified mode seeds each group distinctly, so groups never share one shuffle.

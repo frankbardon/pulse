@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -10,28 +11,15 @@ import (
 // types.AllRegressionTypes(). Order is irrelevant; manifest assembly
 // sorts by Name.
 func regressionCapabilities() []descriptor.RegressionMeta {
-	// All three engines consume the analytics-numeric set: integer /
-	// float / decimal families plus the bit-packed integer encodings
-	// (u4, packed_bool) and date. Runtime collection routes every entry
-	// through Record.NumericValue, which hands the fit algorithms
-	// float64 + null status uniformly, and the predict-side gate is
-	// encoding.FieldType.IsNumericForAnalytics (predict_regression.go).
-	//
-	// Nullability is orthogonal to type — the `nullable_*` spellings
-	// this list once carried were stale aliases for `u4` / `u8` / `u16`
-	// / `packed_bool` / `decimal128`, every one of which is named here
-	// directly. See capabilities_aggregators.go's declaration policy.
-	numericTypes := []string{
-		"date",
-		"decimal128",
-		"f32",
-		"f64",
-		"packed_bool",
-		"u16",
-		"u32",
-		"u4",
-		"u64",
-		"u8",
+	// All three engines consume the analytics-numeric set (integer /
+	// float / decimal families, u4, packed_bool, date, datetime) through
+	// Record.NumericValue. The declaration IS the accepted-types table's
+	// (internal/fieldaccept) predictor slot — the rule predict and
+	// regression.BuildWith both enforce, a categorical's index and a
+	// set's bitmask refused — so it cannot drift from it. The target
+	// slot carries the same set.
+	acceptsTypes := func(t types.RegressionType) []string {
+		return fieldaccept.TypeNames(string(t), fieldaccept.SlotPredictor)
 	}
 
 	resampleModifier := descriptor.RegressionModifier{
@@ -51,7 +39,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 		{
 			Name:           string(types.REG_OLS),
 			Description:    "Ordinary least squares with optional l1/l2/elasticnet regularization; covers simple, multiple, ridge, lasso, and elastic-net regression.",
-			AcceptsTypes:   numericTypes,
+			AcceptsTypes:   acceptsTypes(types.REG_OLS),
 			EmitsTypeNote:  "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error; a robust covariance adds its covariance echo.",
 			Streamable:     types.REG_OLS.Streamable(),
 			StreamableHint: commonModifierHint + " A robust covariance (any type but classical) forces it too.",
@@ -77,7 +65,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 		{
 			Name:           string(types.REG_GLM),
 			Description:    "Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-appropriate links.",
-			AcceptsTypes:   numericTypes,
+			AcceptsTypes:   acceptsTypes(types.REG_GLM),
 			EmitsTypeNote:  "RegressionResult with coefficients, std errors, p-values, Wald ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R²; a robust covariance adds its covariance echo.",
 			Streamable:     types.REG_GLM.Streamable(),
 			StreamableHint: "Always buffered; IRLS requires multiple passes over the data.",
@@ -102,7 +90,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 		{
 			Name:           string(types.REG_BAYES_LINEAR),
 			Description:    "Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior; reports posterior means, std errors, and credible intervals.",
-			AcceptsTypes:   numericTypes,
+			AcceptsTypes:   acceptsTypes(types.REG_BAYES_LINEAR),
 			EmitsTypeNote:  "RegressionResult with coefficients (posterior means), std errors, R², adjusted R², residual std error, credible_intervals, ci_lower / ci_upper (posterior t on df), df, conf_level; a robust covariance swaps in the sandwich posterior (normal intervals, no df) and adds its covariance echo.",
 			Streamable:     types.REG_BAYES_LINEAR.Streamable(),
 			StreamableHint: "Streamable; Resample and Selection are refused (PROCESSING_CONFIG). A robust covariance (any type but classical) forces the buffered path.",

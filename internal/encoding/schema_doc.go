@@ -134,6 +134,13 @@ func ReadSchemaDoc(r io.Reader) (*SchemaDoc, error) {
 // (TestPeekShardRecordCount_SkipsDictionaries); the count is the one a
 // full decode derives (TestPeekShardRecordCount_LayoutMatchesFullDecode).
 //
+// The records themselves are never read from a stored (Method 0) entry
+// — every Pulse-written shard: the count is the central directory's
+// entry size less the header and schema bytes just consumed, over the
+// stride, so peeking every shard of an archive reads its headers, not
+// its payload (TestPeekShardRecordCount_ReadsNoRecords). A deflated
+// entry has no payload length short of inflating it, so it is drained.
+//
 // Returns PULSE_SHARD_HEADER_INVALID when the shard's bytes are not
 // a valid single-file Pulse cohort (bad magic, unsupported version,
 // truncated header or schema).
@@ -144,13 +151,14 @@ func (a *Archive) PeekShardRecordCount(name string) (int64, error) {
 	}
 	defer rc.Close()
 
-	pulseVersion, err := encoding.ReadHeader(rc)
+	cr := &byteCountingReader{r: rc}
+	pulseVersion, err := encoding.ReadHeader(cr)
 	if err != nil {
 		return 0, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_HEADER_INVALID,
 			fmt.Sprintf("shard %q has an invalid header", name),
 			map[string]any{"entry": name, "cause": err.Error()})
 	}
-	schema, err := ReadSchemaLayout(rc, pulseVersion)
+	schema, err := ReadSchemaLayout(cr, pulseVersion)
 	if err != nil {
 		return 0, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_HEADER_INVALID,
 			fmt.Sprintf("shard %q has an invalid schema block", name),
@@ -162,14 +170,28 @@ func (a *Archive) PeekShardRecordCount(name string) (int64, error) {
 		return 0, nil
 	}
 
-	// Drain the remaining bytes via io.Copy into io.Discard to count
-	// without buffering the entire payload. zip.File entries are
-	// streaming-only when accessed via Open(); SectionReader exposes
-	// a size, but Open() returns a generic ReadCloser, so we stream.
+	if a.IsStored(name) {
+		size := int64(a.byName[name].UncompressedSize64)
+		return max(size-cr.n, 0) / int64(recordSize), nil
+	}
+	// A deflated entry: drain the remaining bytes into io.Discard to
+	// count without buffering the payload.
 	remaining, err := io.Copy(io.Discard, rc)
 	if err != nil {
 		return 0, errors.WrapCodedError(err, errors.ENCODING_IO,
 			fmt.Sprintf("reading shard %q to compute record count", name))
 	}
 	return remaining / int64(recordSize), nil
+}
+
+// byteCountingReader counts the bytes read through it.
+type byteCountingReader struct {
+	r io.Reader
+	n int64
+}
+
+func (c *byteCountingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n += int64(n)
+	return n, err
 }

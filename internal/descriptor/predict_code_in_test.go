@@ -84,33 +84,39 @@ func TestPredict_CodeInMissingCodes(t *testing.T) {
 }
 
 // TestPredict_CodeInRefusals: predict raises the runtime constructor's
-// refusals (PROCESSING_CONFIG) — the root-package parity test holds the
-// messages equal to the runtime's.
+// refusals (PROCESSING_CONFIG; a refused field type the accepted-types
+// table's PULSE_FIELD_TYPE_UNSUPPORTED) — the root-package parity test
+// holds the messages equal to the runtime's.
 func TestPredict_CodeInRefusals(t *testing.T) {
 	data := buildTestPulseFile(t, codeInPredictSchema(t))
 	cases := []struct {
 		name string
 		attr *types.Attribute
 		msg  string // substring
+		code errors.Code
 	}{
-		{"no_params", codeInAttr("brand", ""), `non-empty "codes" list`},
-		{"empty_codes", codeInAttr("brand", `{"codes":[]}`), `non-empty "codes" list`},
-		{"codes_not_list", codeInAttr("brand", `{"codes":"acme"}`), "parsing ATTR_CODE_IN params"},
-		{"fraction", codeInAttr("q1", `{"codes":[4.5]}`), "JSON string or a JSON integer"},
-		{"bool", codeInAttr("brand", `{"codes":[true]}`), "JSON string or a JSON integer"},
-		{"float_field", codeInAttr("score", `{"codes":[1]}`), "accepts only categorical"},
-		{"int_over_width", codeInAttr("q1", `{"codes":[256]}`), "0..255"},
-		{"int_negative", codeInAttr("q1", `{"codes":[-1]}`), "can never match"},
-		{"int_label", codeInAttr("q1", `{"codes":["6.5"]}`), "can never match"},
-		{"target", &types.Attribute{Type: types.ATTR_CODE_IN, Field: "q1", Target: "q1", Params: json.RawMessage(`{"codes":[1]}`)}, "target or predictors"},
-		{"predictors", &types.Attribute{Type: types.ATTR_CODE_IN, Field: "q1", Predictors: []string{"score"}, Params: json.RawMessage(`{"codes":[1]}`)}, "target or predictors"},
+		{"no_params", codeInAttr("brand", ""), `non-empty "codes" list`, ""},
+		{"empty_codes", codeInAttr("brand", `{"codes":[]}`), `non-empty "codes" list`, ""},
+		{"codes_not_list", codeInAttr("brand", `{"codes":"acme"}`), "parsing ATTR_CODE_IN params", ""},
+		{"fraction", codeInAttr("q1", `{"codes":[4.5]}`), "JSON string or a JSON integer", ""},
+		{"bool", codeInAttr("brand", `{"codes":[true]}`), "JSON string or a JSON integer", ""},
+		{"float_field", codeInAttr("score", `{"codes":[1]}`), "accepted: categorical_u16", errors.PULSE_FIELD_TYPE_UNSUPPORTED},
+		{"int_over_width", codeInAttr("q1", `{"codes":[256]}`), "0..255", ""},
+		{"int_negative", codeInAttr("q1", `{"codes":[-1]}`), "can never match", ""},
+		{"int_label", codeInAttr("q1", `{"codes":["6.5"]}`), "can never match", ""},
+		{"target", &types.Attribute{Type: types.ATTR_CODE_IN, Field: "q1", Target: "q1", Params: json.RawMessage(`{"codes":[1]}`)}, "target or predictors", ""},
+		{"predictors", &types.Attribute{Type: types.ATTR_CODE_IN, Field: "q1", Predictors: []string{"score"}, Params: json.RawMessage(`{"codes":[1]}`)}, "target or predictors", ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			env := predictFromBytes(data, &types.Request{Attributes: []*types.Attribute{c.attr}}, nil)
-			got := codeInEntries(env.Errors, errors.PROCESSING_CONFIG)
-			if len(got) != 1 || !strings.Contains(got[0].Message, c.msg) {
-				t.Fatalf("errors = %+v, want one PROCESSING_CONFIG containing %q", env.Errors, c.msg)
+			want := c.code
+			if want == "" {
+				want = errors.PROCESSING_CONFIG
+			}
+			got := codeInEntries(env.Errors, want)
+			if len(got) != 1 || len(env.Errors) != 1 || !strings.Contains(got[0].Message, c.msg) {
+				t.Fatalf("errors = %+v, want one %s containing %q", env.Errors, want, c.msg)
 			}
 			if n := len(codeInEntries(env.Warnings, errors.PULSE_ATTR_CODE_NOT_IN_DICTIONARY)); n != 0 {
 				t.Errorf("a refused slot also warned (%d)", n)
@@ -139,7 +145,7 @@ func TestPredict_CodeInHidden(t *testing.T) {
 		t.Errorf("hidden ATTR_CODE_IN still warned: %+v", env.Warnings)
 	}
 	for _, e := range env.Errors {
-		if strings.Contains(e.Message, "accepts only categorical") {
+		if e.Code == string(errors.PULSE_FIELD_TYPE_UNSUPPORTED) {
 			t.Errorf("hidden ATTR_CODE_IN still refused by type: %+v", e)
 		}
 	}

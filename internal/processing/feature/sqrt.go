@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -18,10 +19,16 @@ func init() {
 // features).
 type sqrt struct{ label string }
 
-func newSqrt(feat *types.Feature, _ *encoding.Schema) (Computer, error) {
+func newSqrt(feat *types.Feature, schema *encoding.Schema) (Computer, error) {
 	if feat.Field == "" {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"FEAT_SQRT requires a field")
+	}
+	// A categorical's number is its dictionary index and a set's is no
+	// number at all: the accepted-types table's refusal, predict's too.
+	// A derived column (an earlier feature's output) has no schema type.
+	if cerr := fieldaccept.Check(string(feat.Type), fieldaccept.SlotField, feat.Field, schema); cerr != nil {
+		return nil, cerr
 	}
 	label := feat.Label
 	if label == "" {

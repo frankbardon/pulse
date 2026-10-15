@@ -275,10 +275,8 @@ func (s *Service) DecodeWorkers() int {
 	return s.decodeWorkers
 }
 
-// SetStrict toggles the strict request-validation flag. When true,
-// Process promotes the categorical-aggregation warning into a
-// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL CodedError instead of
-// running the request.
+// SetStrict toggles the strict request-validation flag: warnings the
+// runtime raises (weighting, vectors) become errors.
 func (s *Service) SetStrict(strict bool) {
 	s.strict = strict
 }
@@ -778,31 +776,12 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 	// Inject configured default label bindings (schema-filtered) before
 	// validation so registered tables render display strings without the
 	// caller specifying bindings per request.
-	s.applyAutoLabels(&req.Labels, cohort.Schema(), collectOutputLabels(req), nil)
+	s.applyAutoLabels(&req.Labels, cohort.Schema(), s.autoLabelOccupied(req, cohort.Schema()), nil)
 
 	// Label-binding validation runs before any record bytes are read so
 	// schema / table / collision failures surface as typed errors.
 	if err := s.validateProcessLabels(req, cohort.Schema()); err != nil {
 		return nil, err
-	}
-
-	// Strict-mode runtime validation: when a request asks for a numeric
-	// aggregation (SUM/AVG/MIN/MAX/STDDEV/VARIANCE/RANGE/ZSCORE/MEDIAN/
-	// PERCENTILE/SKEWNESS/KURTOSIS) against a categorical_* field, we
-	// already emit a warning via the predict envelope. In strict mode
-	// we promote that warning to a hard error here so callers fail
-	// fast instead of producing meaningless aggregates. Non-strict
-	// callers still see the warning through the predict path / the
-	// CLI envelope wiring.
-	if s.strict {
-		if issues := descx.CategoricalAggregationIssues(req, cohort.Schema(), s.instance); len(issues) > 0 {
-			first := issues[0]
-			return nil, errors.NewCodedErrorWithDetails(
-				errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
-				first.Message,
-				first.Details,
-			)
-		}
 	}
 
 	// Every arm below runs the zoned request: an inherited non-UTC zone
@@ -1223,9 +1202,9 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// named slot's `return` may not skip its Components; an unnamed
 	// slot skips what its selection excludes. A skipped Compose overlay
 	// reads nothing, so it vetoes nothing.
-	var vetoes []bool
+	var vetoes []componentsVeto
 	if foldOverlays {
-		vetoes = composeSlotVetoes(composed.Overlays, requests)
+		vetoes = s.composeSlotVetoes(composed.Overlays, requests)
 	}
 	// The fit pre-pass: every fit runs once, as a standalone request,
 	// before any slot; every slot then carries the bound models.

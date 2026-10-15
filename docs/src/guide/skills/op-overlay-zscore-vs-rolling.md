@@ -26,7 +26,7 @@ Use something else:
 
 ## Params
 
-`Scope` required, must be `group`. `Ref.RollingMean` empty marker tags the ref family. `params.window` required, positive width `W`. `Level` / `Within` must be `0`. `params.field` (string, optional) — OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`. `params.partition_by` (string list, optional) — a leading prefix of the group key columns (Host shape); anything else → `PULSE_OVERLAY_PARTITION_INVALID`.
+`Scope` required, must be `group`. `Ref.RollingMean` empty marker tags the ref family. `params.window` required, width `W` ≥ 2. `Level` / `Within` must be `0`. `params.field` (string, optional) — OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`. `params.partition_by` (string list, optional) — a leading prefix of the group key columns (Host shape); anything else → `PULSE_OVERLAY_PARTITION_INVALID`.
 
 ## Host shape
 
@@ -45,7 +45,7 @@ SERIES — one `SeriesEntry` per host group key carrying `z = (point - rolling_m
 ## Gotchas
 
 - **SAMPLE SD**: the window IS a sample of the wider series → unbiased variance. Contrast the total z-score (population SD, ÷N).
-- Missing `params.window` → `PULSE_OVERLAY_PARAM_MISSING`; `window <= 0` → `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`.
+- Missing `params.window` → `PULSE_OVERLAY_PARAM_MISSING`; `window < 2` → `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` (`details.min` 2: a one-point sample SD is undefined), predict and runtime.
 - `count < 2` → NaN, no warning (Welford needs ≥2). Zero rolling SD → NaN + ONE `PULSE_OVERLAY_REF_ZERO`.
 - Absent host point → NaN, and the ring does NOT advance.
 - Buffered.

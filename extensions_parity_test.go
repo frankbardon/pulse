@@ -823,20 +823,20 @@ func TestExtensions_DecimalTarget(t *testing.T) {
 	// A built-in with no decimal implementation is still refused.
 	_, err = p.Process(ctx, req(types.AGG_MEDIAN))
 	var ce *perr.CodedError
-	if !errors.As(err, &ce) || ce.Code != perr.PROCESSING_CONFIG {
-		t.Fatalf("built-in AGG_MEDIAN over decimal128: err = %v, want PROCESSING_CONFIG", err)
+	if !errors.As(err, &ce) || ce.Code != perr.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL {
+		t.Fatalf("built-in AGG_MEDIAN over decimal128: err = %v, want PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL", err)
 	}
 	_, err = p.Process(ctx, xt(types.AGG_MEDIAN))
-	if !errors.As(err, &ce) || ce.Code != perr.PROCESSING_CONFIG {
-		t.Fatalf("built-in AGG_MEDIAN crosstab over decimal128: err = %v, want PROCESSING_CONFIG", err)
+	if !errors.As(err, &ce) || ce.Code != perr.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL {
+		t.Fatalf("built-in AGG_MEDIAN crosstab over decimal128: err = %v, want PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL", err)
 	}
 }
 
 // TestExtensions_DecimalTargetPredict asserts predict recognises a
 // registered extension aggregator on a decimal128 field: no
-// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL warning, no strict error and no
+// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL refusal, strict or not, and no
 // replace-operator suggestion. A built-in without a decimal
-// implementation still warns (and errors under Strict).
+// implementation is refused with one error, as the runtime refuses it.
 func TestExtensions_DecimalTargetPredict(t *testing.T) {
 	var buf []byte
 	w := &byteSink{b: &buf}
@@ -899,9 +899,15 @@ func TestExtensions_DecimalTargetPredict(t *testing.T) {
 			t.Fatalf("env.Data = %T, want *descriptor.PredictResult", env.Data)
 		}
 		env = predict(types.AGG_MEDIAN)
-		if strict && !has(env.Errors) || !strict && !has(env.Warnings) {
-			t.Errorf("strict=%v: built-in AGG_MEDIAN over decimal128 not flagged: warnings=%v errors=%v",
-				strict, env.Warnings, env.Errors)
+		n := 0
+		for _, e := range env.Errors {
+			if e.Code == code {
+				n++
+			}
+		}
+		if n != 1 || has(env.Warnings) {
+			t.Errorf("strict=%v: built-in AGG_MEDIAN over decimal128: warnings=%v errors=%v, want one %s error",
+				strict, env.Warnings, env.Errors, code)
 		}
 	}
 }

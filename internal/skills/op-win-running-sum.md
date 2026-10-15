@@ -21,7 +21,7 @@ None operator-level. `partition_by` (carve), `order_by` (≥1, required, numeric
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date` (no `decimal128`, no `packed_bool`, no categorical) |
+| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`; any other type (categorical, `set_*`, `decimal128`, `packed_bool`, `datetime`) is refused `PULSE_FIELD_TYPE_UNSUPPORTED` |
 
 ## Output
 

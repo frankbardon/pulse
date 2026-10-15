@@ -92,9 +92,10 @@ func coreHandler(s *mcpsdk.Server, p *pulse.Pulse, cfg Config, d core.ToolDescri
 		// Best-effort; failures degrade to the global (unbound) tools.
 		switch d.Name {
 		case toolmeta.ToolInspect:
-			bindSessionFromPath(ctx, s, p, cfg, inspectPath(raw))
+			path, joins := inspectArgs(raw)
+			bindSessionFromPath(ctx, s, p, cfg, path, joins)
 		case toolmeta.ToolImport:
-			bindSessionFromPath(ctx, s, p, cfg, importResultPath(result))
+			bindSessionFromPath(ctx, s, p, cfg, importResultPath(result), nil)
 		}
 		return jsonResult(result)
 	}
@@ -112,14 +113,12 @@ func rawArguments(req *mcpsdk.CallToolRequest) json.RawMessage {
 	return json.RawMessage(req.Params.Arguments)
 }
 
-// inspectPath extracts the path argument from a pulse_inspect raw argument blob
-// for the bind-on-inspect hook.
-func inspectPath(raw json.RawMessage) string {
-	var in struct {
-		Path string `json:"path"`
-	}
+// inspectArgs extracts the path and join-target arguments from a
+// pulse_inspect raw argument blob for the bind-on-inspect hook.
+func inspectArgs(raw json.RawMessage) (string, []core.InspectJoin) {
+	var in core.InspectIn
 	_ = json.Unmarshal(raw, &in)
-	return in.Path
+	return in.Path, in.Joins
 }
 
 // importResultPath extracts the managed .pulse path from a pulse_import result

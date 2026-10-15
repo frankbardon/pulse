@@ -85,8 +85,9 @@ const (
 	// PROCESSING_VECTOR_LENGTH_MISMATCH indicates a pairwise vector
 	// expression function (dot, dist, cosine) was handed two vectors of
 	// unequal length. The run fails rather than reading the pair as NaN;
-	// two literal arrays of unequal length are refused when the
-	// expression compiles. details carry function, left and right.
+	// two arguments of request-fixed unequal length (literal arrays,
+	// bare named vectors) are refused when the expression compiles and
+	// by predict. details carry function, left and right.
 	PROCESSING_VECTOR_LENGTH_MISMATCH Code = "PROCESSING_VECTOR_LENGTH_MISMATCH"
 )
 
@@ -420,8 +421,11 @@ const (
 	// invalidated_sidecars names each with its rebuild command.
 	PULSE_MATERIALIZE_SIDECARS_INVALIDATED Code = "PULSE_MATERIALIZE_SIDECARS_INVALIDATED"
 
-	// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL indicates a numeric aggregation
-	// was requested on a categorical field.
+	// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL is a predict warning: a
+	// facet asks numeric_percentiles / include_histogram of a non-numeric
+	// field, which the facet omits for it. A numeric aggregation or
+	// feature over a categorical is refused PULSE_FIELD_TYPE_UNSUPPORTED
+	// (the accepted-types table), on both sides.
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL"
 
 	// PULSE_FIELD_DESCRIPTION_LOW_QUALITY indicates a field description quality warning.
@@ -431,6 +435,18 @@ const (
 	// window operation: invalid frame matrix, alpha out of bounds,
 	// non-orderable order key, label collision, or unsupported window type.
 	PULSE_WINDOW_INVALID Code = "PULSE_WINDOW_INVALID"
+
+	// PULSE_FIELD_TYPE_UNSUPPORTED indicates an operator slot names a
+	// field whose type the slot does not accept — a value window,
+	// FEAT_POLY, a regression or a standardising attribute over a
+	// categorical's dictionary index, a set's bitmask, a non-set column on
+	// a set operator, a non-categorical split_by / contingency axis /
+	// stratify, a non-temporal date-range field, or another type the
+	// operator cannot read. The accepted types are the one table
+	// internal/fieldaccept; predict and the runtime raise the same code,
+	// Details {type, slot, field, field_type, accepts_types} where the
+	// table writes the refusal.
+	PULSE_FIELD_TYPE_UNSUPPORTED Code = "PULSE_FIELD_TYPE_UNSUPPORTED"
 
 	// PULSE_FEAT_TARGET_LEAKAGE_RISK flags every FEAT_TARGET_ENCODE. The
 	// encoder reads no split column and features run before filters, so
@@ -454,10 +470,11 @@ const (
 	// with a zero divisor.
 	PULSE_DECIMAL_DIVIDE_BY_ZERO Code = "PULSE_DECIMAL_DIVIDE_BY_ZERO"
 
-	// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL is a predict warning emitted
-	// when a built-in aggregation has no defined semantics on a decimal128
-	// field (e.g., AGG_MEDIAN, AGG_PERCENTILE in v1). Registered extension
-	// aggregators are exempt.
+	// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL refuses a built-in aggregation
+	// with no decimal128 implementation (e.g., AGG_MEDIAN, AGG_PERCENTILE
+	// in v1) over a decimal128 field, at any aggregation slot. Predict and
+	// the runtime raise it alike (the accepted-types table's decimal
+	// rule); registered extension aggregators are exempt.
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL"
 
 	// PULSE_ATTR_CODE_NOT_IN_DICTIONARY is a predict warning (an error
@@ -665,9 +682,10 @@ const (
 	// that is not registered in either the row-test or post-test registry.
 	PULSE_TEST_UNKNOWN_TYPE Code = "PULSE_TEST_UNKNOWN_TYPE"
 
-	// PULSE_TEST_FIELD_NOT_NUMERIC indicates a test requires a numeric
-	// field but the named field resolves to a categorical or otherwise
-	// non-numeric schema type.
+	// PULSE_TEST_FIELD_NOT_NUMERIC indicates a numeric test's `field`
+	// resolves to a categorical or set schema type (or a post-test row
+	// value is not a number). A slot that must be CATEGORICAL refuses
+	// with PULSE_FIELD_TYPE_UNSUPPORTED instead.
 	PULSE_TEST_FIELD_NOT_NUMERIC Code = "PULSE_TEST_FIELD_NOT_NUMERIC"
 
 	// PULSE_TEST_INVALID_ALPHA indicates the request's Alpha value lies
@@ -1638,7 +1656,9 @@ const (
 	// PULSE_OVERLAY_FORMULA_PARSE_ERROR indicates an OVERLAY_FORMULA spec's
 	// `Params["formula"]` string failed to parse via `expr-lang/expr` —
 	// e.g. unbalanced parentheses, a stray operator, or a typo on a
-	// keyword. Surfaced at both predict
+	// keyword (an unknown variable or function in a formula that parses
+	// is PULSE_OVERLAY_FORMULA_INVALID_IDENT, checked before the
+	// compile). Surfaced at both predict
 	// (`descriptor.validateOverlayFormula`) and runtime
 	// (`processing.applyFormula` family) with Details carrying
 	// `{formula, parse_error}` so the renderer can surface both the
@@ -3703,6 +3723,7 @@ var allCodes = []Code{
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
 	PULSE_WINDOW_INVALID,
+	PULSE_FIELD_TYPE_UNSUPPORTED,
 	PULSE_FEAT_TARGET_LEAKAGE_RISK,
 	PULSE_DECIMAL_OVERFLOW,
 	PULSE_DECIMAL_PRECISION_LOSS,

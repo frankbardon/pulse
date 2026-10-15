@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -38,7 +39,10 @@ func newOneHot(feat *types.Feature, schema *encoding.Schema) (Computer, error) {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			fmt.Sprintf("FEAT_ONE_HOT: field %q not in schema", feat.Field))
 	}
-	if !f.Type.IsCategorical() || f.Dictionary == nil {
+	if cerr := fieldaccept.Refusal(string(types.FEAT_ONE_HOT), fieldaccept.SlotField, feat.Field, f.Type); cerr != nil {
+		return nil, cerr
+	}
+	if f.Dictionary == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			fmt.Sprintf("FEAT_ONE_HOT: field %q must be categorical with a dictionary", feat.Field))
 	}

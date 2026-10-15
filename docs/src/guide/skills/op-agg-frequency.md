@@ -35,7 +35,7 @@ Weight-aware (`"weight": null` opts out): Σw of matches (a float); `share` = Σ
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | any type EXCEPT `set_*` |
+| `Field` | any type EXCEPT `set_*` and `decimal128`; any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
 
 ## Output
 
@@ -59,7 +59,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 - Missing `value` → `PROCESSING_CONFIG` (runtime and predict).
 - A value no row holds counts 0, not an error.
 - Nulls: not counted, not in `share`'s base.
-- `set_*` rejected with `PROCESSING_CONFIG`.
+- `set_*` rejected with `PULSE_FIELD_TYPE_UNSUPPORTED`.
 
 ## See
 

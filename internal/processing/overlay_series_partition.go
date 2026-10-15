@@ -61,15 +61,34 @@ func prefixPlan(depth int) seriesPartitionPlan {
 	return plan
 }
 
+// callSeriesHandler runs handler over host; a nil handler is the
+// registry-aware SERIES OVERLAY_FORMULA (applyFormulaSeriesWith), handed
+// a COPY of exts. The formula compile captures its registry (the lookup
+// builtin is a method value), so passing exts itself leaks it, and
+// escape analysis then heap-allocates the grouped tail and the
+// streaming grouped path's per-run state on every run, overlays or not
+// (TestStreamingGrouped_SingleGrouperAllocCeiling).
+func callSeriesHandler(handler seriesOverlayHandler, exts *ExtensionRegistry, spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
+	if handler != nil {
+		return handler(spec, host)
+	}
+	var reg *ExtensionRegistry
+	if exts != nil {
+		cp := *exts
+		reg = &cp
+	}
+	return applyFormulaSeriesWith(spec, host, reg)
+}
+
 // runSeriesHandlerPartitioned runs handler over host once per partition
 // of plan.on and merges the per-partition layers. A projecting plan
 // (OVERLAY_YOY, U46 E2-S3) hands each sub-host only the date key
 // element — its key, group field and grouper kind — so the unchanged
 // single-date handler runs inside every segment; each entry then gets
 // its full composite key back.
-func runSeriesHandlerPartitioned(handler seriesOverlayHandler, spec *types.OverlaySpec, host *SeriesHostView, plan seriesPartitionPlan) (types.OverlayLayer, []types.OverlayWarning, error) {
+func runSeriesHandlerPartitioned(handler seriesOverlayHandler, exts *ExtensionRegistry, spec *types.OverlaySpec, host *SeriesHostView, plan seriesPartitionPlan) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if host == nil {
-		return handler(spec, host)
+		return callSeriesHandler(handler, exts, spec, host)
 	}
 	project := plan.project
 	if project >= 0 && len(host.grouperKinds) <= 1 {
@@ -77,7 +96,7 @@ func runSeriesHandlerPartitioned(handler seriesOverlayHandler, spec *types.Overl
 	}
 	parts := seriespartition.PartitionOn(host.groupKeys, plan.on)
 	if len(parts) <= 1 && project < 0 {
-		return handler(spec, host)
+		return callSeriesHandler(handler, exts, spec, host)
 	}
 	entries := make([]types.SeriesEntry, host.GroupCount())
 	var (
@@ -87,7 +106,7 @@ func runSeriesHandlerPartitioned(handler seriesOverlayHandler, spec *types.Overl
 		raised   = map[string]int{}
 	)
 	for p, rows := range parts {
-		layer, ws, err := handler(spec, host.subset(rows, project))
+		layer, ws, err := callSeriesHandler(handler, exts, spec, host.subset(rows, project))
 		if err != nil {
 			return types.OverlayLayer{}, nil, err
 		}

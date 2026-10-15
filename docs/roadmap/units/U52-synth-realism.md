@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U50]
 blocks: [U32]
-todo_items: [362, 363, 364, 365, 366, 367, 368, 369, 370, 450]
+todo_items: [362, 363, 364, 365, 366, 367, 368, 369, 370, 450, 457]
 branch: synth-realism
 ---
 
@@ -101,3 +101,9 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(synth-realism/E<n
 
 - **Open:** add a differential-privacy noise mechanism to profile capture for v1, or document that twins carry no formal privacy guarantee and rely on the disclosure metrics.
 - **Open:** set fields as join keys (today refused), which the disclosure check needed.
+
+## Handed on from U35
+
+Filed from [U35](U35-predict-runtime-parity.md); tick in [`TODO.md`](../TODO.md) when done.
+
+- [ ] **#457** Synth writer: add a dedicated test that a non-nullable field's null-bitmap bit stays 0 (the writer guards it in code; `TestCohortBuilder_NonNullableShardInNullableArchive` relies on it, nothing pins the synth path). Found in U35 (E1-S1, #207)

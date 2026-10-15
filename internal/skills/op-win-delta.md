@@ -19,7 +19,7 @@ Row-level output; no `Response.Components`.
 
 ## Inputs
 
-`Field`: numeric — `u4`…`u64`, `f32`/`f64`, `date`. Not `decimal128`, `packed_bool`, categorical.
+`Field`: numeric — `u4`…`u64`, `f32`/`f64`, `date`. Any other type (categorical, `set_*`, `decimal128`, `packed_bool`, `datetime`) is refused `PULSE_FIELD_TYPE_UNSUPPORTED`.
 
 ## Output
 

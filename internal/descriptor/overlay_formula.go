@@ -1,15 +1,9 @@
 package descriptor
 
 import (
-	"encoding/json"
-	"sort"
-
-	exprparser "github.com/expr-lang/expr/parser"
-
 	"github.com/frankbardon/pulse/descriptor"
-	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/formulaident"
-	"github.com/frankbardon/pulse/internal/totalcall"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -83,145 +77,24 @@ import (
 // `slot.<label>.cell` on Request.Overlays surfaces
 // `PULSE_OVERLAY_FORMULA_INVALID_IDENT`.
 func validateFormulaOverlay(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
-	formula, ok := extractFormulaParamPredict(env, spec, index)
-	if !ok {
-		return
-	}
-	tree, err := exprparser.Parse(formula)
-	if err != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_FORMULA_PARSE_ERROR),
-			"overlay "+string(spec.Kind)+" formula failed to parse: "+err.Error(),
-			map[string]any{
-				"index":       index,
-				"kind":        string(spec.Kind),
-				"formula":     formula,
-				"parse_error": err.Error(),
-			})
-		return
-	}
-
-	if cerr := totalcall.Refusal(formula, string(types.OverlayKindFormula)); cerr != nil {
-		details := map[string]any{"index": index, "kind": string(spec.Kind)}
-		for k, v := range cerr.Details {
-			details[k] = v
+	// The shared Request-host gate (internal/formulaident): the runtime
+	// MATRIX and SERIES dispatchers run it before compiling, so a
+	// missing formula, a parse failure, a total() call, a vector
+	// built-in, a bad baseline_position or an unknown variable, callee
+	// or Compose slot path refuse with one code and Details on both
+	// sides.
+	shape := inferRequestHostShape(req)
+	// On a SERIES host the Ref / Scope rule comes first — the shared
+	// SERIES table every runtime arm raises (refuseWrongHostOverlays).
+	if shape == types.OverlayShapeSeries {
+		if cerr := overlayhost.SeriesSpecRefusal(spec, spec.Kind, index); cerr != nil {
+			addCodedError(env, cerr)
+			return
 		}
-		env.AddError(string(cerr.Code), cerr.Message, details)
-		return
 	}
-
-	hostShape := inferRequestHostShape(req)
-	allowedVars := buildFormulaAllowedVarsRequest(hostShape, spec)
-	allowedFuncs := buildFormulaAllowedFuncs(opts)
-
-	// The shared walk (internal/formulaident.Collect) splits variables,
-	// called functions and `slot.<label>.<field>` paths — the one the
-	// Compose gate (formulaident.ComposeRefusal) reads on both sides.
-	refs := formulaident.Collect(&tree.Node)
-
-	for ident := range refs.Vars {
-		if _, ok := allowedVars[ident]; ok {
-			continue
-		}
-		env.AddError(string(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT),
-			"overlay "+string(spec.Kind)+" formula references unknown identifier "+ident+" for "+string(hostShape)+"-shape host",
-			map[string]any{
-				"index":              index,
-				"kind":               string(spec.Kind),
-				"unknown_identifier": ident,
-				"host_shape":         string(hostShape),
-				"allowed":            sortedStringSet(allowedVars),
-				"formula":            formula,
-			})
-		return
+	if cerr := formulaident.RequestSpecRefusal(spec, index, shape, buildFormulaAllowedFuncs(opts)); cerr != nil {
+		addCodedError(env, cerr)
 	}
-	for fn := range refs.Funcs {
-		if _, ok := allowedFuncs[fn]; ok {
-			continue
-		}
-		env.AddError(string(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT),
-			"overlay "+string(spec.Kind)+" formula calls unknown function "+fn,
-			map[string]any{
-				"index":              index,
-				"kind":               string(spec.Kind),
-				"unknown_identifier": fn,
-				"host_shape":         string(hostShape),
-				"allowed_funcs":      sortedStringSet(allowedFuncs),
-				"formula":            formula,
-			})
-		return
-	}
-	// Slot identifiers (`slot.<label>.<field>`) fire on Request-host
-	// because the Compose slot namespace is meaningless without a
-	// ComposedRequest. The Compose-side validator handles its own
-	// member-chain dispatch and never calls this Request-host helper.
-	for slotIdent := range refs.SlotPaths {
-		env.AddError(string(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT),
-			"overlay "+string(spec.Kind)+" formula references Compose slot "+slotIdent+" on a Request host (slot namespace is Compose-only)",
-			map[string]any{
-				"index":              index,
-				"kind":               string(spec.Kind),
-				"unknown_identifier": slotIdent,
-				"host_shape":         string(hostShape),
-				"reason":             "slot namespace is Compose-only",
-				"formula":            formula,
-			})
-		return
-	}
-}
-
-// extractFormulaParamPredict reads `OverlaySpec.Params["formula"]` as
-// a non-empty string. Emits an envelope error (and returns ok=false)
-// when the formula slot is missing / non-string / empty. The error
-// uses `PULSE_OVERLAY_FORMULA_INVALID_IDENT` with a `reason` Detail to
-// distinguish it from a successfully-parsed-but-bad-identifier
-// failure — keeping the error catalog tight (no separate
-// PARAM_MISSING code at predict time; PARAM_MISSING is reserved for
-// runtime PARAM-shape failures the runtime helper surfaces).
-func extractFormulaParamPredict(env *descriptor.Envelope, spec *types.OverlaySpec, index int) (string, bool) {
-	if len(spec.Params) == 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT),
-			"overlay "+string(spec.Kind)+" requires Params[\"formula\"] (non-empty string); Params is missing or empty",
-			map[string]any{
-				"index":  index,
-				"kind":   string(spec.Kind),
-				"reason": "missing formula param",
-			})
-		return "", false
-	}
-	var m map[string]any
-	if err := json.Unmarshal(spec.Params, &m); err != nil {
-		env.AddError(string(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT),
-			"overlay "+string(spec.Kind)+" Params must be a JSON object carrying \"formula\"",
-			map[string]any{
-				"index":  index,
-				"kind":   string(spec.Kind),
-				"reason": "params is not a JSON object",
-			})
-		return "", false
-	}
-	raw, present := m["formula"]
-	if !present {
-		env.AddError(string(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT),
-			"overlay "+string(spec.Kind)+" requires Params[\"formula\"] (non-empty string)",
-			map[string]any{
-				"index":  index,
-				"kind":   string(spec.Kind),
-				"reason": "missing formula param",
-			})
-		return "", false
-	}
-	formula, ok := raw.(string)
-	if !ok || formula == "" {
-		env.AddError(string(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT),
-			"overlay "+string(spec.Kind)+" Params[\"formula\"] must be a non-empty string",
-			map[string]any{
-				"index":  index,
-				"kind":   string(spec.Kind),
-				"reason": "formula param is empty or non-string",
-			})
-		return "", false
-	}
-	return formula, true
 }
 
 // inferRequestHostShape resolves the OverlayShape implied by a
@@ -246,48 +119,6 @@ func inferRequestHostShape(req *types.Request) types.OverlayShape {
 		return types.OverlayShapeSeries
 	}
 	return types.OverlayShapeScalar
-}
-
-// buildFormulaAllowedVarsRequest returns the allowed variable
-// identifier set for a Request-host FORMULA spec at the given host
-// shape. Built off `types.FormulaNamespace(shape)` plus the opt-in
-// `baseline` identifier (SERIES host with `Params["baseline_position"]`
-// set per the research note § 2.2).
-//
-// The Compose-specific identifiers (`ref_cell` / `ref_value` / `ref`)
-// are NOT added here — the Request-host path has no Compose
-// reference. The Compose-side validator builds its own set with the
-// Compose identifiers and the slot namespace.
-func buildFormulaAllowedVarsRequest(shape types.OverlayShape, spec *types.OverlaySpec) map[string]struct{} {
-	out := map[string]struct{}{}
-	for _, v := range types.FormulaNamespace(shape) {
-		out[v] = struct{}{}
-	}
-	// SERIES-host baseline opt-in: only when the per-spec
-	// `Params["baseline_position"]` is set is the `baseline` identifier
-	// reachable. Without the param the runtime never binds the slot, so
-	// the predict gate must reject `baseline` references when the param
-	// is absent (research note § 2.2 first-entry semantics).
-	if shape == types.OverlayShapeSeries && hasBaselinePosition(spec) {
-		out["baseline"] = struct{}{}
-	}
-	return out
-}
-
-// hasBaselinePosition reports whether `OverlaySpec.Params` carries a
-// non-empty `baseline_position` slot. Accepts any non-nil JSON value
-// (string / number / object — the runtime resolver coerces); the
-// presence check is the predict-time gate, not the type check.
-func hasBaselinePosition(spec *types.OverlaySpec) bool {
-	if spec == nil || len(spec.Params) == 0 {
-		return false
-	}
-	var m map[string]any
-	if err := json.Unmarshal(spec.Params, &m); err != nil {
-		return false
-	}
-	v, present := m["baseline_position"]
-	return present && v != nil
 }
 
 // buildFormulaAllowedFuncs returns the allowed function identifier set
@@ -329,20 +160,4 @@ func buildFormulaAllowedFuncs(opts *PredictOptions) map[string]struct{} {
 		names = append(names, fn.Name)
 	}
 	return formulaident.AllowedFuncs(names, len(snap.LookupTables) > 0)
-}
-
-// sortedStringSet returns the sorted keys of `set` as a freshly
-// allocated slice. Used to populate Details maps with the available-
-// identifier list so the LLM caller's error renderer can suggest the
-// closest-matching variable.
-func sortedStringSet(set map[string]struct{}) []string {
-	if len(set) == 0 {
-		return []string{}
-	}
-	out := make([]string, 0, len(set))
-	for k := range set {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }

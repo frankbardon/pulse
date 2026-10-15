@@ -33,7 +33,7 @@ EXACTLY ONE of (manifest `exactly_one_of: cutpoints`; a Recommend draft names `b
 
 ## Inputs
 
-`Field` — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. No `decimal128`, no categorical, no `packed_bool`.
+`Field` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (type judged before params).
 
 ## Output
 

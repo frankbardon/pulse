@@ -25,7 +25,7 @@ Use something else:
 ## Params
 
 - `metric` — distance only: `euclidean`, `sq_euclidean`, `manhattan`, `chebyshev`, `cosine` (1 − cos), `hellinger`, `aitchison`, `hamming`, `std_euclidean`, `mahalanobis`. Default from `kind` (measure → `std_euclidean`); none → `PULSE_VECTOR_METRIC_REQUIRED`. A similarity → `PULSE_VECTOR_METRIC_UNKNOWN`, `details.use` = `ATTR_PROFILE_SIMILARITY`.
-- `reference` (required) — `[…]`, `{label: value}`, `{table, key}`, `{table, key_field}` (categorical or `u4`…`u64`, by base-10 form), `{centroid: {filter?, by?}}` (weighted per-member mean of the rows `filter` admits, = `AGG_VEC_MEAN`; `by` = per-key) `{population: name}` (a bound fit's mean; need not be the `fit`) or `{record: {cohort?, keys}}` (one indexed row, own cohort if omitted: [`cohort-sidecar-index`](cohort-sidecar-index.md)).
+- `reference` (required) — `[…]`, `{label: value}`, `{table, key}`, `{table, key_field}` (categorical or `u4`…`u64`, by exact base-10 form; `u64` above 2^53 too), `{centroid: {filter?, by?}}` (weighted per-member mean of the rows `filter` admits, = `AGG_VEC_MEAN`; `by` = per exact key) `{population: name}` (a bound fit's mean; need not be the `fit`) or `{record: {cohort?, keys}}` (one indexed row, own cohort if omitted: [`cohort-sidecar-index`](cohort-sidecar-index.md)).
 - `min_valid` — fewest complete pairs, default 1. `labels` — inline `fields` only.
 - `fit_on`, `missing`, `fit` — fitted metrics only; `fit` reads a bound vector fit (a compose `fits` entry or loaded `populations` entry: [`compose-fits`](compose-fits.md)) by label instead of fitting (XOR `fit_on`; a regression's name `PULSE_MODEL_KIND_MISMATCH`).
 

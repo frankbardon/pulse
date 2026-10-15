@@ -464,6 +464,8 @@ func (d *groupedDecoder) writeMembers(sink IndexedReusableRecord, typed TypedSet
 		switch {
 		case c.decOf[j] >= 0:
 			sink.SetWideFieldAt(m.fi, c.decs[slot*c.nd+c.decOf[j]])
+		case m.field.Type == encoding.FieldTypeU64:
+			putExactU64(sink, m.fi, entry[m.off:m.off+m.w])
 		case m.field.Type.IsSet():
 			if err := putSetField(sink, typed, m.field.Type, m.fi, entry[m.off:m.off+m.w]); err != nil {
 				return err

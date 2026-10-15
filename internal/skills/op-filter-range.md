@@ -21,7 +21,7 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | numeric: `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `packed_bool`, `decimal128` |
+| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1) — bounds in the stored unit (epoch days / seconds, 0/1); a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
 
 ## Output
 

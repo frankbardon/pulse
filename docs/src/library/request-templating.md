@@ -243,6 +243,37 @@ without that `for_each` is an undeclared reference
 (`PULSE_TEMPLATE_INVALID`), as is an axis placeholder inside the
 `for_each` value.
 
+### Compose sweeps — `sweep`
+
+A `target: composed` body may carry a Compose `sweep`, whose `request`,
+`overlays` and `label` use the same `{{axis}}` / `{"$var": "axis"}`
+placeholders, substituted per slot when the sweep expands. The same
+structural rule applies one level down: an object whose `sweep` lists
+`axes` with literal `name`s scopes those names over the sweep's
+`request`, `overlays` and `label` — and nowhere else. The sweep's
+`axes`, `mode` and `rank` render in the enclosing scope, so a template
+variable can supply an axis's values:
+
+```jsonc
+{"target": "composed",
+ "variables": [{"name": "metric", "type": "field", "required": true},
+               {"name": "channels", "type": "list", "items": "string", "required": true}],
+ "body": {"requests": [],
+  "sweep": {"axes": [{"name": "ch", "values": {"$var": "channels"}},
+                     {"name": "width", "values": [10, 20]}],
+            "label": "{{ch}}_w{{width}}",
+            "request": {"cohort": {"filename": "sales.pulse"},
+              "aggregations": [{"type": "AGG_SUM", "field": {"$var": "metric"}}],
+              "groups": [{"type": "GROUP_RANGE", "field": "{{ch}}_spend",
+                          "interval": {"$var": "width"}}]}}}}
+```
+
+The literal-name and collision rules above hold for sweep axes too
+(`PULSE_TEMPLATE_INVALID`, `PULSE_TEMPLATE_AXIS_COLLISION`), and an
+axis placeholder outside the sweep's `request` / `overlays` / `label`
+— in an explicit `requests` slot, or in `rank` — is an undeclared
+reference.
+
 ## The nine variable types
 
 | Type | Accepts | Extra declaration slot | Notes |
@@ -464,7 +495,7 @@ render-time `PULSE_TEMPLATE_UNRESOLVED`.
 | `PULSE_TEMPLATE_VAR_ENUM` | a supplied value is not a member of an `enum`'s `values` set | Membership is exact and case-sensitive; the details carry the permitted set. |
 | `PULSE_TEMPLATE_UNRESOLVED` | an unguarded marker survived substitution — declared, but nothing resolved | Supply the variable, give it a default, or wrap the block in `$when`. Rendering hard-fails rather than emit a request carrying a literal marker string. |
 | `PULSE_TEMPLATE_RENDER_INVALID` | substitution succeeded but the rendered JSON failed **strict decode** into the target request type | Usually an unknown field, or a substituted value landing in a slot whose type it does not fit. |
-| `PULSE_TEMPLATE_AXIS_COLLISION` | a declared variable shares its name with an axis of a `for_each` item in the body | Rename the variable or the axis. An **author** fault, raised at declaration validation like `PULSE_TEMPLATE_INVALID`. |
+| `PULSE_TEMPLATE_AXIS_COLLISION` | a declared variable shares its name with an axis of a `for_each` item or a `sweep` in the body | Rename the variable or the axis. An **author** fault, raised at declaration validation like `PULSE_TEMPLATE_INVALID`. |
 
 Strict decode is harsher than the rest of Pulse, and that is worth
 knowing before it bites: a body copied out of an `internal/examples/` file

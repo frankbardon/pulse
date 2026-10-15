@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
@@ -67,6 +68,14 @@ type FacetValidationResult struct {
 	// aggregator or weight slot, so only PULSE_ADVISORY_MANY_TESTS can
 	// fire. Omitted when none does.
 	Advisories []descriptor.Advisory `json:"advisories,omitempty"`
+
+	// LimitFindings lists every instance resource limit the facet's
+	// predicted figures exceed — PredictResult.LimitFindings for the
+	// FACET host (FacetLimitFindings: a possible MaxGroups bound from the
+	// faceted fields' dictionary sizes, the certain MaxEstimatedMemory
+	// estimate the pre-flight refuses with). A certain finding is also a
+	// PULSE_LIMIT_EXCEEDED error. Omitted when none fires.
+	LimitFindings []descriptor.LimitFinding `json:"limit_findings,omitempty"`
 }
 
 // ValidateFacet validates a FacetRequest against a .pulse cohort header
@@ -94,10 +103,28 @@ func ValidateFacetWithExtensions(fileData io.ReadSeeker, req *types.FacetRequest
 // opts.DefaultTimeZone / ZoneLoader drive the filterer zone resolution
 // (ResolveFacetZones — the pass FacetSchema runs). A nil opts is
 // ValidateFacet.
+//
+// opts.Strict promotes every warning the facet collected into an error
+// (finishPredictRoot); opts.EchoRequest echoes the request on
+// env.Request as passed — the form the runtime facet echoes.
 func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, opts *PredictOptions) *descriptor.Envelope {
 	if opts == nil {
 		opts = &PredictOptions{}
 	}
+	env := validateFacetWithOptions(fileData, req, opts)
+	result := env.Data.(*FacetValidationResult)
+	finishPredictRoot(env, opts, func() { result.Valid = false }, func() any {
+		if req == nil {
+			return nil
+		}
+		return req
+	})
+	return env
+}
+
+// validateFacetWithOptions is ValidateFacetWithOptions before the
+// Strict and echo pass.
+func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, opts *PredictOptions) *descriptor.Envelope {
 	snap := opts.Extensions
 	result := &FacetValidationResult{
 		Valid:           true,
@@ -135,15 +162,13 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 		result.Valid = false
 	}
 
-	pulseVersion, err := encoding.ReadHeader(fileData)
-	if err != nil {
-		env.AddError(string(headerErrorCode(err)), "invalid pulse file header: "+err.Error(), nil)
-		result.Valid = false
-		return env
-	}
-	schema, err := encoding.ReadSchema(fileData, pulseVersion)
-	if err != nil {
-		env.AddError(string(errors.ENCODING_INVALID), "invalid pulse schema: "+err.Error(), nil)
+	// The cohort's schema and header counts — a single file's
+	// length-derived record count, or a shard archive's canonical schema
+	// and per-shard header counts: the figures the pre-flight reads off
+	// the cohort Open returns (Service.cohortCounts). Never a record.
+	schema, counts, fault := readCohortHead(fileData, opts.AnchorArchiveBytes)
+	if fault != nil {
+		env.AddError(string(fault.code), fault.message, fault.details)
 		result.Valid = false
 		return env
 	}
@@ -197,15 +222,8 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 				map[string]any{"field": name})
 			continue
 		}
-		if len(req.NumericPercentiles) > 0 && !facetIsNumeric(f.Type) {
-			env.AddWarning(string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),
-				fmt.Sprintf("numeric_percentiles ignored for non-numeric field %q (type %s)", name, f.Type.String()),
-				map[string]any{"field": name, "type": f.Type.String()})
-		}
-		if req.IncludeHistogram && !facetIsNumeric(f.Type) {
-			env.AddWarning(string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),
-				fmt.Sprintf("include_histogram ignored for non-numeric field %q (type %s)", name, f.Type.String()),
-				map[string]any{"field": name, "type": f.Type.String()})
+		for _, w := range FacetNotMeaningfulWarnings(req, f) {
+			env.AddWarning(w.Code, w.Message, w.Details)
 		}
 		// Set-typed fields: numeric stats are not meaningful on bitmasks
 		// (mean / percentile / histogram of raw mask values is gibberish).
@@ -249,6 +267,26 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	}
 	for _, ce := range fieldRefRefusalsWithModels(&types.Request{Filterers: req.Filterers}, schema, snap, opts.instance(), models) {
 		addCodedError(env, ce)
+	}
+	// The accepted-types table's filterer type refusals, as FacetSchema's
+	// filterer construction raises them.
+	validateFieldAcceptance(env, &types.Request{Filterers: req.Filterers}, schema, opts.instance(), nil)
+
+	// Instance resource limits — the rule FacetSchema's pre-flight
+	// refuses with (FacetLimitRefusal), right after its field
+	// references, on the same header count (an anchor-opened shard
+	// charges its archive's bytes, as Open reads them).
+	fs := FacetLimitFindings(req, schema, opts.instance().Limits(), LimitInputs{
+		Records:       counts.Records,
+		ShardRecords:  counts.ShardRecords,
+		ArchiveBytes:  counts.ArchiveBytes,
+		JoinRightRows: -1,
+	})
+	result.LimitFindings = limitFindingsDescriptor(fs)
+	for _, f := range fs {
+		if f.Grade == limits.Certain {
+			addCodedError(env, f.Err())
+		}
 	}
 
 	// Validate label bindings against the resolved schema. Facet has no
@@ -297,6 +335,34 @@ func ValidateFacetFromBytes(data []byte, req *types.FacetRequest) *descriptor.En
 // buckets), so refusing it is more useful than producing the trivial
 // answer. Widen only when a facet operator actually wants 0/1 numeric
 // stats. Canonical broader predicate: encoding.FieldType.IsNumericForAnalytics.
+// FacetNotMeaningfulWarnings are the PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL
+// warnings for one faceted field: numeric_percentiles and
+// include_histogram compute nothing for a non-numeric field (the
+// discrete arm has no numeric summary), so each one set says so — in
+// that order. Predict adds them to the envelope; the runtime
+// (service.facetSchema) appends them to FacetResult.Warnings as
+// "CODE: message", so the two sides carry the same count and wording.
+func FacetNotMeaningfulWarnings(req *types.FacetRequest, f *encoding.Field) []descriptor.EnvelopeEntry {
+	if req == nil || f == nil || facetIsNumeric(f.Type) {
+		return nil
+	}
+	var out []descriptor.EnvelopeEntry
+	add := func(slot string) {
+		out = append(out, descriptor.EnvelopeEntry{
+			Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),
+			Message: fmt.Sprintf("%s ignored for non-numeric field %q (type %s)", slot, f.Name, f.Type.String()),
+			Details: map[string]any{"field": f.Name, "type": f.Type.String()},
+		})
+	}
+	if len(req.NumericPercentiles) > 0 {
+		add("numeric_percentiles")
+	}
+	if req.IncludeHistogram {
+		add("include_histogram")
+	}
+	return out
+}
+
 func facetIsNumeric(t encoding.FieldType) bool {
 	switch t {
 	case encoding.FieldTypeU4,

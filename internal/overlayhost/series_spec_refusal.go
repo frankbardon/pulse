@@ -59,6 +59,7 @@ var seriesRules = map[types.OverlayKind]seriesRule{
 	types.OverlayKindIndexVsTotal:  {seriesImplicit, totalWhy, false},
 	types.OverlayKindShareOfTotal:  {seriesImplicit, totalWhy, true},
 	types.OverlayKindZScoreVsTotal: {seriesImplicit, "implicit-grand-total: the host series' own grand-total mean + SD are the centerpoint", false},
+	types.OverlayKindFormula:       {seriesImplicit, "the formula reads the host series' own value / total / prior / baseline", true},
 
 	types.OverlayKindIndexVsPrior: {seriesPrior, "", false},
 	types.OverlayKindDeltaVsPrior: {seriesPrior, "", false},

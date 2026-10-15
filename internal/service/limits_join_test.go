@@ -1,7 +1,9 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	stderrors "errors"
 	"math"
 	"testing"
@@ -188,5 +190,88 @@ func TestJoinBuildRows_UnlimitedSkipsTheCount(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("bounded run counted the right side %d time(s), want 1", calls)
+	}
+}
+
+// TestJoinFanOutBackstop_RefusesBeforeProbe (#229): on both join hosts
+// (a buffered joined Process and the joined crosstab), a
+// MaxEstimatedMemory at the pre-flight's estimate (one match per left
+// row) passes the pre-flight; once the build has hashed the right side
+// — each id 166-167 times — the backstop refuses the estimate on
+// left x 167 joined rows with the memory refusal's details plus join,
+// join_rows_bound and right_key_multiplicity, before any left row is
+// probed (the left cohort never drains). At that figure the run
+// succeeds, byte-identical to the Unlimited run.
+func TestJoinFanOutBackstop_RefusesBeforeProbe(t *testing.T) {
+	hosts := map[string]func() *types.Request{
+		"process": func() *types.Request {
+			r := joinLimitRequests()["process"]()
+			r.Aggregations = []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "v", Label: "m"}}
+			return r
+		},
+		"crosstab": joinLimitRequests()["crosstab"],
+	}
+	for name, req := range hosts {
+		t.Run(name, func(t *testing.T) {
+			run := func(max int64) (fsCounts, *types.Response, error) {
+				mem := afero.NewMemMapFs()
+				joinLimitFixture(t, mem)
+				wrapped := newCountingFs(mem)
+				cfg, err := fs.New(fs.WithFs(wrapped))
+				if err != nil {
+					t.Fatal(err)
+				}
+				svc := New(cfg)
+				l := limits.Defaults()
+				l.MaxEstimatedMemory = max
+				svc.SetLimits(l)
+				resp, perr := svc.Process(context.Background(), req())
+				return wrapped.snapshot(), resp, perr
+			}
+			exceeded := func(err error) *errors.CodedError {
+				t.Helper()
+				var ce *errors.CodedError
+				if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_LIMIT_EXCEEDED || ce.Details["limit"] != "max_estimated_memory" {
+					t.Fatalf("err = %v, want PULSE_LIMIT_EXCEEDED max_estimated_memory", err)
+				}
+				return ce
+			}
+			_, _, err := run(1)
+			certain, _ := exceeded(err).Details["observed"].(int64)
+			if _, isJoin := exceeded(err).Details["join"]; isJoin {
+				t.Fatal("the pre-flight's refusal carries the backstop's join details")
+			}
+
+			snap, _, err := run(certain)
+			ce := exceeded(err)
+			if ce.Details["configured"] != certain || ce.Details["join"] != 0 ||
+				ce.Details["right_key_multiplicity"] != int64(167) || ce.Details["join_rows_bound"] != int64(6*167) {
+				t.Fatalf("backstop details %v", ce.Details)
+			}
+			backstop, _ := ce.Details["observed"].(int64)
+			if backstop <= certain {
+				t.Fatalf("backstop observed %d <= the pre-flight estimate %d", backstop, certain)
+			}
+			if snap.FullReads["right.pulse"] == 0 {
+				t.Fatal("the backstop ran before the build drained the right side")
+			}
+			if fr := snap.FullReads["left.pulse"]; fr != 0 {
+				t.Fatalf("the backstop drained the left side %d time(s); it must refuse before the probe", fr)
+			}
+
+			_, capped, err := run(backstop)
+			if err != nil {
+				t.Fatalf("at the backstop's estimate: %v", err)
+			}
+			_, free, err := run(limits.Unlimited)
+			if err != nil {
+				t.Fatal(err)
+			}
+			a, _ := json.Marshal(capped)
+			b, _ := json.Marshal(free)
+			if !bytes.Equal(a, b) {
+				t.Fatalf("capped run differs from the Unlimited run:\n%s\n%s", a, b)
+			}
+		})
 	}
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -39,7 +40,7 @@ func newSetPopcountAttribute(attr *types.Attribute, schema *encoding.Schema) (At
 				"ATTR_SET_POPCOUNT: unknown field "+attr.Field)
 		}
 		if !f.Type.IsSet() {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			return nil, errors.NewCodedError(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
 				"ATTR_SET_POPCOUNT: field "+attr.Field+" is not a set type")
 		}
 	}
@@ -111,7 +112,7 @@ func newSetHasAttribute(attr *types.Attribute, schema *encoding.Schema) (Attribu
 			"ATTR_SET_HAS: unknown field "+attr.Field)
 	}
 	if !f.Type.IsSet() {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+		return nil, errors.NewCodedError(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
 			"ATTR_SET_HAS: field "+attr.Field+" is not a set type")
 	}
 	if f.Dictionary == nil {
@@ -186,10 +187,18 @@ func rejectSetFieldForNumericAttribute(attr *types.Attribute, schema *encoding.S
 		return nil
 	}
 	f := schema.Field(attr.Field)
-	if f == nil || !f.Type.IsSet() {
+	if f == nil {
 		return nil
 	}
-	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+	if !f.Type.IsSet() {
+		// The accepted-types table's other refusals: a categorical's
+		// dictionary index is no quantity to standardise either.
+		if cerr := fieldaccept.Refusal(string(attr.Type), fieldaccept.SlotField, attr.Field, f.Type); cerr != nil {
+			return cerr
+		}
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
 		string(attr.Type)+": field "+attr.Field+" is a set column ("+f.Type.String()+
 			"); it has no numeric value to standardise."+remedyAttributeSetField(nil),
 		map[string]any{

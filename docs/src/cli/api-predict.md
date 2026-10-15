@@ -37,7 +37,7 @@ guaranteed to never touch the executor.
 ```
 Valid: true
 Schema: 7 fields
-Warning [PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL]: AGG_AVG on field region (categorical_u8)
+Warning [PULSE_FIELD_DESCRIPTION_LOW_QUALITY]: field region has an empty description
 ```
 
 Without `--strict`, that warning would still let the command exit 0.
@@ -60,7 +60,7 @@ non-zero.
   },
   "errors":  [],
   "warnings": [
-    {"code": "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL", "message": "..."}
+    {"code": "PULSE_FIELD_DESCRIPTION_LOW_QUALITY", "message": "..."}
   ]
 }
 ```
@@ -80,7 +80,7 @@ arm. An engine built with `Options.DisableCrosstabFusion` answers
 
 `limit_findings` lists every instance resource limit
 (`Options.Limits`) a predicted figure exceeds, as
-`{limit, configured, estimated, grade}`; it is absent when nothing
+`{limit, configured, estimated, grade, details}`; it is absent when nothing
 exceeds a limit. A `certain` finding is an exact figure — the request
 is refused with `PULSE_LIMIT_EXCEEDED` (`valid: false`), exactly as
 `process` would refuse it before reading a record. A `possible` finding
@@ -98,6 +98,15 @@ count, read from the right cohort's header without reading a record).
 A run that does create more groups than `max_groups`, or a larger
 crosstab grid than `max_crosstab_cells`, is refused
 `PULSE_LIMIT_EXCEEDED` mid-scan, with no partial result.
+
+`predict-compose`, `predict-chain` and `predict-facet` carry the same
+`limit_findings`. Compose reports `max_compose_slots`, then every slot's
+findings with `details.request` naming the slot; a chain reports
+`max_chain_stages`, then every stage's findings with `details.stage`
+(stage 0 on the cohort's record count; a later stage's rows exist only
+at run time, so it never carries a `certain` memory finding); a facet
+reports a `possible` `max_groups` (the largest faceted field's
+dictionary size) and its `certain` memory estimate.
 
 When the request emits inferential p-values, `p_values` reports
 `{total, uncorrected, basis, threshold}`: how many it emits and how many
@@ -178,15 +187,32 @@ pulse api predict --request req.json --json | \
 ## Compose, facet and chain requests
 
 Three sibling leaves predict the request shapes `api predict` does not
-take. Each reads `--request FILE` (required) and takes `--json`; none
-takes `--strict` or `--echo-request`, because the validators behind them
-honour neither.
+take. Each reads `--request FILE` (required) and takes `--json`,
+`--strict` (every warning the leaf reports becomes an error, `valid:
+false`) and `--echo-request` (the envelope's `request` carries the
+normalized request — what the matching run leaf echoes: for
+`predict-compose` the effective batch, a `sweep` expanded into its slots
+and every slot defaults-resolved; for `predict-chain` every stage
+defaults-resolved; for `predict-facet` the request as passed).
 
 | Leaf | Request file | `data` on `--json` |
 |---|---|---|
 | `pulse api predict-compose` | a `ComposedRequest` | the batch verdict: `valid`, the echoed `request`, rejected overlay pairs, overlay cost, the p-value count and each slot's advisories |
 | `pulse api predict-facet` | a `FacetRequest` | `valid`, the echoed `request`, `schema_info` and the accepted overlays |
 | `pulse api predict-chain` | a `ChainRequest` | `valid`, the echoed `request`, the source schema and each stage's inferred output columns |
+
+`predict-compose` judges every slot with the rules `api predict`
+applies to a request (operator names and params, field types, windows,
+tests, crosstab, overlays, labels), each slot fault located by
+`details.request`; an empty batch (no `requests`, no `sweep`) is
+`SERVICE_VALIDATION`, as at run time.
+
+`predict-chain` judges every stage the same way over the stage's
+input schema (a later stage's: the columns the stage before it
+writes), each stage fault located by `details.stage`. A later stage's
+`labels` are applied at run time, so a binding naming an unknown table
+or field, or an aggregation output (not categorical), is refused on
+both sides.
 
 A refused request comes back as coded `errors` beside `data.valid:
 false` (exit 1 in text mode). A request with no cohort is
@@ -203,11 +229,17 @@ pulse api predict-compose --request batch.json --json | jq '.data.valid'
 
 | Code | What to do |
 |---|---|
-| `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` | Use `AGG_COUNT` / `AGG_MODE_COUNT` instead of `AGG_SUM` / `AGG_AVG` on categoricals |
-| `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`     | Decimal-typed field; switch to a decimal-aware aggregator |
+| `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` | A facet's `numeric_percentiles` / `include_histogram` names a non-numeric field, which gets no numeric statistic; facet a numeric field (a numeric aggregation over a categorical is the error `PULSE_FIELD_TYPE_UNSUPPORTED`: use `AGG_COUNT` / `AGG_MODE_COUNT`) |
 | `PULSE_ATTR_CODE_NOT_IN_DICTIONARY`        | An `ATTR_CODE_IN` code is not a label of the categorical field's dictionary (it matches no row); fix or drop each entry in `details.missing_codes` |
 | `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`      | Edit the schema description; re-import |
 | `PULSE_FEAT_TARGET_LEAKAGE_RISK`           | Every `FEAT_TARGET_ENCODE` averages all rows' targets (a prior split does not help); compute train-only means in a separate request |
+
+A field the operator cannot read is an ERROR, not a warning, and it is
+the code `Process` raises: `PULSE_FIELD_TYPE_UNSUPPORTED` (pick a field of
+`details.accepts_types`), `PULSE_TEST_FIELD_NOT_NUMERIC` for a numeric
+test's field, and `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL` for a built-in
+aggregation with no decimal128 implementation over a decimal field
+(switch to a decimal-aware aggregator).
 
 The full code-by-code recovery playbook is reachable per-code via
 the MCP `pulse_errors_lookup` tool or the `pulse errors lookup CODE`

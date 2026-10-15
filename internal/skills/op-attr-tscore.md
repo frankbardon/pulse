@@ -21,7 +21,7 @@ None. Weight (both kinds, same scores; `"weight": null` opts out): weighted mean
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `packed_bool`, `u4` |
+| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
 | `Label` | required — new column name |
 
 ## Output
@@ -34,9 +34,8 @@ One `float64` per record — `50 + 10 * zscore`. Null source → `50` (not null)
 
 - Two-pass: a Welford pre-pass computes the mean and sd. Reading-friendly scale for survey / education contexts (mean 50, sd 10, no negatives in the typical range).
 - Zero stddev → `50` per row.
-- `decimal128` rejected.
 - Not a percentile — same shape as the underlying distribution.
-- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no value to standardise.
+- `set_*` and categorical rejected at build time with `PULSE_FIELD_TYPE_UNSUPPORTED` — a bitmask or dictionary index has no value to standardise.
 
 ## See
 

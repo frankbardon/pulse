@@ -432,6 +432,11 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 		// nil registry) routes through the static dispatch table where
 		// every handler shares the (spec, host) signature.
 		if route == types.OverlayKindFormula {
+			// The shared identifier gate predict raises first, with the
+			// spec index (formulaident.RequestRefusal).
+			if cerr := requestFormulaIdentRefusal(spec, exts, i, types.OverlayShapeMatrix); cerr != nil {
+				return nil, nil, cerr
+			}
 			layer, ws, err := applyFormulaWithExtensions(spec, host, exts)
 			if err != nil {
 				return nil, nil, err
@@ -494,7 +499,7 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 			layer, ws, err = handler(spec, host)
 		}
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, pairwiseComponentsAt(route, err, i)
 		}
 		// A multi-output kind's parts are flat: a handler that nests
 		// them is refused here, never shipped (OverlayPayload.Parts).
@@ -507,6 +512,36 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 		}
 	}
 	return layers, warnings, nil
+}
+
+// pairwiseComponentsAt stamps the spec index on a pairwise kind's
+// PULSE_OVERLAY_COMPONENTS_REQUIRED refusal (runPairwiseOverlay, which
+// has no index), so it carries predict's Details {index, kind}
+// (descriptor.validateOverlayPairwise). Any other error passes through.
+func pairwiseComponentsAt(route types.OverlayKind, err error, index int) error {
+	if !types.IsPairwiseOverlayKind(route) {
+		return err
+	}
+	return codeAt(err, errors.PULSE_OVERLAY_COMPONENTS_REQUIRED, index)
+}
+
+// codeAt stamps Details.index = index on err when it is a
+// *errors.CodedError of code carrying no index — a handler refusal
+// raised without the spec index predict reports. Any other error passes
+// through unchanged.
+func codeAt(err error, code errors.Code, index int) error {
+	ce, ok := err.(*errors.CodedError)
+	if !ok || ce.Code != code {
+		return err
+	}
+	if _, has := ce.Details["index"]; has {
+		return err
+	}
+	details := map[string]any{"index": index}
+	for k, v := range ce.Details {
+		details[k] = v
+	}
+	return errors.NewCodedErrorWithDetails(ce.Code, ce.Message, details)
 }
 
 // validateOverlayLevelWithinRuntime is the runtime mirror of

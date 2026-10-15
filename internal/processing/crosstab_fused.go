@@ -415,6 +415,9 @@ func NewFusedCrosstabState(spec *types.CrosstabSpec, schema *encoding.Schema, ex
 					fmt.Sprintf("unknown crosstab margin aggregation type: %s", aux.Type),
 					map[string]any{"aggregation": string(aux.Type), "slot": "margin_aggregations"})
 			}
+			if cerr := ext.decimalSlotRefusal(aux, schema); cerr != nil {
+				return nil, cerr
+			}
 			// newOnlineCell probe-constructs and asserts the interface in
 			// one step; the instance is discarded because every slot
 			// builds its own on first admission.

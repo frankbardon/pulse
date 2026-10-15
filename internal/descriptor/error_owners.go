@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/vectors"
 )
 
@@ -181,10 +182,12 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATERIALIZE_SIDECARS_INVALIDATED: shared,
 
 	// Any numeric aggregator on a categorical field; predict raises it.
-	errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: shared,
+	errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: own(featFacet),
 	errors.PULSE_FIELD_DESCRIPTION_LOW_QUALITY:      shared,
 	errors.PULSE_WINDOW_INVALID:                     ownAllWindows,
-	errors.PULSE_FEAT_TARGET_LEAKAGE_RISK:           own("FEAT_TARGET_ENCODE"),
+	// Every operator the accepted-types table refuses a type for with it.
+	errors.PULSE_FIELD_TYPE_UNSUPPORTED:   fieldaccept.OperatorsRaising(errors.PULSE_FIELD_TYPE_UNSUPPORTED),
+	errors.PULSE_FEAT_TARGET_LEAKAGE_RISK: own("FEAT_TARGET_ENCODE"),
 	// decimal128 arithmetic: every decimal aggregation, import and synth.
 	errors.PULSE_DECIMAL_OVERFLOW:               shared,
 	errors.PULSE_DECIMAL_PRECISION_LOSS:         shared,

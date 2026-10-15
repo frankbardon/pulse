@@ -63,6 +63,28 @@ var topLevelParams = map[string]map[string]bool{
 	catGrouper: {"interval": true},
 }
 
+// regressionAttributes refit a regression per slot from TOP-LEVEL
+// target / predictors (and penalty knobs) — the RegressionSpec shape on
+// the Attribute — and read no field: every declared param of theirs is
+// a top-level key, drafted like a regression's.
+var regressionAttributes = map[string]bool{
+	string(types.ATTR_REG_FITTED):   true,
+	string(types.ATTR_REG_RESIDUAL): true,
+	string(types.ATTR_REG_LEVERAGE): true,
+}
+
+// regressionShaped reports whether op takes a regression's target /
+// predictors: a regression, or a regression attribute.
+func regressionShaped(op opInfo) bool {
+	return op.category == catRegression || (op.category == catAttribute && regressionAttributes[op.name])
+}
+
+// topLevelParam reports whether op's declared param name is a top-level
+// key of the slot entry rather than a member of its params object.
+func topLevelParam(op opInfo, name string) bool {
+	return regressionShaped(op) || topLevelParams[op.category][name]
+}
+
 // opInfo is what a draft needs to know about one operator: its
 // category and the declared slots and params it cannot run without.
 type opInfo struct {

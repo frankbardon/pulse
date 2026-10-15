@@ -134,6 +134,11 @@ func assertRecordState(t *testing.T, label string, schema *encoding.Schema, got,
 		if gm != wm || gmok != wmok {
 			t.Fatalf("%s: SetMaskValue(%s) = (%v,%v), want (%v,%v)", label, n, gm, gmok, wm, wmok)
 		}
+		gu, guok := got.Uint64Value(n)
+		wu, wuok := want.Uint64Value(n)
+		if gu != wu || guok != wuok {
+			t.Fatalf("%s: Uint64Value(%s) = (%v,%v), want (%v,%v)", label, n, gu, guok, wu, wuok)
+		}
 		gs, gsok := got.StringValue(n)
 		ws, wsok := want.StringValue(n)
 		if gs != ws || gsok != wsok {

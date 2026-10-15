@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -21,8 +22,10 @@ import (
 // Codes are resolved ONCE at construction through the matchValueKey
 // rule shared with FILTER_INCLUDE / FILTER_EXCLUDE / AGG_FREQUENCY, so
 // the per-row work is one NumericValue read plus one map lookup — no
-// per-row string resolution. A categorical field resolves each code as
-// a dictionary LABEL; a code absent from the dictionary is dropped
+// per-row string resolution (a u64 field reads the exact word through
+// Uint64Value instead, keyed by uint64). A categorical field resolves
+// each code as a dictionary LABEL; a code absent from the dictionary is
+// dropped
 // silently and matches nothing (AGG_FREQUENCY's precedent — the predict
 // side flags it). An unsigned-integer field resolves each code as a
 // number and refuses one that no row could ever hold (not an integer,
@@ -42,8 +45,14 @@ type codeInParams struct {
 // Record.NumericValue yields for a row holding one of the codes. An
 // empty set (registry probe, or every categorical code absent) matches
 // nothing.
+//
+// A u64 field keys EXACTLY instead (exact non-nil, keys unused): codes
+// are the parsed uint64 values and a row reads Record.Uint64Value, so
+// two distinct values above 2^53 that share a float64 echo never match
+// each other's code (#427).
 type codeInAttribute struct {
-	keys map[float64]struct{}
+	keys  map[float64]struct{}
+	exact map[uint64]struct{}
 }
 
 // codeInIntegerMax is the largest value each accepted unsigned-integer
@@ -54,18 +63,6 @@ var codeInIntegerMax = map[encoding.FieldType]uint64{
 	encoding.FieldTypeU16: math.MaxUint16,
 	encoding.FieldTypeU32: math.MaxUint32,
 	encoding.FieldTypeU64: math.MaxUint64,
-}
-
-// codeInAccepts reports whether ATTR_CODE_IN accepts field type ft:
-// categorical_u8/u16/u32 and u4/u8/u16/u32/u64 only. Floats (equality
-// is a trap), dates (FILTER_DATE_RANGES' job), packed_bool (already
-// 0/1), decimal128 and set_* (ATTR_SET_HAS' job) are refused.
-func codeInAccepts(ft encoding.FieldType) bool {
-	if ft.IsCategorical() {
-		return true
-	}
-	_, ok := codeInIntegerMax[ft]
-	return ok
 }
 
 func newCodeInAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
@@ -100,15 +97,10 @@ func newCodeInAttribute(attr *types.Attribute, schema *encoding.Schema) (Attribu
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"ATTR_CODE_IN: unknown field "+attr.Field)
 	}
-	if !codeInAccepts(f.Type) {
-		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("ATTR_CODE_IN: field %q is %s; it accepts only categorical_u8/u16/u32 and u4/u8/u16/u32/u64 fields",
-				attr.Field, f.Type),
-			map[string]any{
-				"attribute": string(types.ATTR_CODE_IN),
-				"field":     attr.Field,
-				"type":      f.Type.String(),
-			})
+	// The accepted-types table's refusal (a categorical, or an unsigned
+	// integer); predict raises the same one.
+	if cerr := fieldaccept.Refusal(string(types.ATTR_CODE_IN), fieldaccept.SlotField, attr.Field, f.Type); cerr != nil {
+		return nil, cerr
 	}
 	keys := make(map[float64]struct{}, len(codes))
 	if f.Type.IsCategorical() {
@@ -130,6 +122,10 @@ func newCodeInAttribute(attr *types.Attribute, schema *encoding.Schema) (Attribu
 		return &codeInAttribute{keys: keys}, nil
 	}
 	maxV := codeInIntegerMax[f.Type]
+	var exact map[uint64]struct{}
+	if f.Type == encoding.FieldTypeU64 {
+		exact = make(map[uint64]struct{}, len(codes))
+	}
 	for _, c := range codes {
 		n, perr := strconv.ParseUint(c, 10, 64)
 		if perr != nil || n > maxV {
@@ -144,6 +140,10 @@ func newCodeInAttribute(attr *types.Attribute, schema *encoding.Schema) (Attribu
 					"max":       maxV,
 				})
 		}
+		if exact != nil {
+			exact[n] = struct{}{}
+			continue
+		}
 		// The validated integer resolves through the shared rule, so the
 		// key is exactly the float64 NumericValue yields for that value.
 		key, _, err := matchValueKey(f, c)
@@ -153,7 +153,7 @@ func newCodeInAttribute(attr *types.Attribute, schema *encoding.Schema) (Attribu
 		}
 		keys[key] = struct{}{}
 	}
-	return &codeInAttribute{keys: keys}, nil
+	return &codeInAttribute{keys: keys, exact: exact}, nil
 }
 
 // parseCodeInCodes decodes params.codes into the code strings, deduped
@@ -235,6 +235,16 @@ func (a *codeInAttribute) Compute(records []*Record, field string) ([]float64, e
 }
 
 func (a *codeInAttribute) Row(r *Record, field string) (float64, error) {
+	if a.exact != nil {
+		u, ok := r.Uint64Value(field)
+		if !ok {
+			return 0, nil
+		}
+		if _, hit := a.exact[u]; hit {
+			return 1, nil
+		}
+		return 0, nil
+	}
 	v, ok := r.NumericValue(field)
 	if !ok {
 		return 0, nil

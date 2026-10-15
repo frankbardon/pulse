@@ -420,27 +420,36 @@ func TestScopedFieldRefRefusals_HiddenIsNeverRegistered(t *testing.T) {
 	}
 }
 
-// TestPredict_HiddenDecimalAggregation: the decimal aggregation matrix
-// refuses a hidden decimal-capable aggregator as a never-registered
-// one. (Its suggestion's prose lists the decimal-capable aggregators,
-// so substitution parity cannot pin it.)
+// TestPredict_HiddenDecimalAggregation: a hidden decimal-capable
+// aggregator on a decimal128 field predicts as a never-registered name —
+// the decimal rule judges only the instance's built-ins, exactly as the
+// runtime's decimal dispatch falls through to the registry miss.
 func TestPredict_HiddenDecimalAggregation(t *testing.T) {
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
-	req := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "amt", Label: "x"}}}
-	refused := func(opts *PredictOptions) bool {
-		for _, e := range predictFromBytes(data, req, opts).Warnings {
+	decimalCode := func(opts *PredictOptions, name string) bool {
+		req := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AggregationType(name), Field: "amt", Label: "x"}}}
+		env := predictFromBytes(data, req, opts)
+		for _, e := range append(env.Errors, env.Warnings...) {
 			if e.Code == "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL" {
 				return true
 			}
 		}
 		return false
 	}
-	if refused(nil) {
-		t.Fatal("vacuous: unscoped AGG_SUM on decimal128 is refused")
+	if decimalCode(nil, "AGG_SUM") {
+		t.Fatal("unscoped AGG_SUM on decimal128 is refused")
 	}
-	if !refused(hiddenPredictOpts(string(types.AGG_SUM))) {
-		t.Error("a hidden AGG_SUM keeps its decimal128 implementation")
+	if !decimalCode(nil, "AGG_MEDIAN") {
+		t.Fatal("vacuous: unscoped AGG_MEDIAN on decimal128 is not refused")
 	}
+	for _, name := range []string{"AGG_SUM", "AGG_MEDIAN"} {
+		if decimalCode(hiddenPredictOpts(name), name) {
+			t.Errorf("a hidden %s is judged by the decimal rule", name)
+		}
+	}
+	hiddenNameParity(t, "AGG_MEDIAN", "AGG_NEVER_REGISTERED", func(name string, opts *PredictOptions) string {
+		return predictOutcome(t, data, &types.Request{Aggregations: []*types.Aggregation{{Type: types.AggregationType(name), Field: "amt", Label: "x"}}}, opts)
+	})
 }
 
 // TestValidateChain_HiddenDefaultNotInferred: the chain validator's

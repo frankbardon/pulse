@@ -33,7 +33,7 @@ Use something else:
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64` (no `decimal128`) |
+| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
 
 ## Output
 
@@ -55,7 +55,7 @@ Universal floor `{total_n, n_null}` plus operator-specific:
 ## Gotchas
 
 - Same partition as `GROUP_RANGE` at equal width; only the key differs (`"10"` vs `"10-20"`).
-- Rejects categorical/decimal128 at construction.
+- Rejects categorical and `set_*` at construction (`PULSE_FIELD_TYPE_UNSUPPORTED`).
 - `Group.Include` not honoured — filter source field instead.
 
 ## See

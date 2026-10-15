@@ -46,6 +46,14 @@ type (
 // env.Errors entry. A returned error is a cancelled ctx. Under a
 // feature profile a hidden operator or slot predicts exactly as a
 // never-registered one.
+//
+// Options.Strict promotes every warning into an error (Valid false);
+// Options.EchoRequest sets env.Request to the normalized batch — the
+// effective request (sweep expanded, its overlays appended, no sweep),
+// each slot defaults-resolved: what ComposedResponse.NormalizedRequest
+// echoes at run time. The same two options apply to PredictFacet
+// (echo: the request as passed) and PredictChain (echo: every stage
+// defaults-resolved, as ChainResponse.NormalizedRequest).
 func (p *Pulse) PredictCompose(ctx context.Context, req *ComposedRequest) (*descriptor.Envelope, error) {
 	return observed(p, ctx, opSpec{kind: observe.OpPredict, req: composedHasher(req)}, func(ctx context.Context) (*descriptor.Envelope, error) {
 		return p.predictCompose(ctx, req)
@@ -57,6 +65,7 @@ func (p *Pulse) predictCompose(ctx context.Context, req *ComposedRequest) (*desc
 		return nil, err
 	}
 	opts := p.composePredictOptions(ctx)
+	p.predictRootOptions(&opts)
 	// The effective request: a sweep's expanded slots are touched like
 	// the explicit ones.
 	env, effective := descx.ValidateComposeExpanded(req, &opts)
@@ -71,9 +80,10 @@ func (p *Pulse) predictCompose(ctx context.Context, req *ComposedRequest) (*desc
 }
 
 // PredictFacet validates a facet request against its cohort without
-// executing it — the cohort's header and schema only, never a record of
-// a single-file cohort (a shard archive or anchored shard is read whole,
-// as Predict reads it). The envelope's Data is a *FacetPredictResult.
+// executing it — the cohort's header and schema only, never a record (a
+// shard archive is judged on its canonical schema and per-shard header
+// counts, read by random access; an anchored shard on its own entry,
+// as Predict reads them). The envelope's Data is a *FacetPredictResult.
 //
 // A returned error is a cancelled ctx, a nil request or cohort
 // (SERVICE_VALIDATION), or a cohort that cannot be read (DATA_FILE;
@@ -85,6 +95,7 @@ func (p *Pulse) PredictFacet(ctx context.Context, req *FacetRequest) (*descripto
 			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "predict: facet request is required")
 		}
 		return p.predictCohortRoot(ctx, req.Cohort, "predict", true, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
+			p.predictRootOptions(opts)
 			return descx.ValidateFacetWithOptions(src.rs, req, opts)
 		})
 	})
@@ -101,9 +112,21 @@ func (p *Pulse) PredictChain(ctx context.Context, req *ChainRequest) (*descripto
 			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "predict: chain request is required")
 		}
 		return p.predictCohortRoot(ctx, req.Cohort, "predict", true, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
+			p.predictRootOptions(opts)
 			return descx.ValidateChainWithOptions(src.rs, req, opts)
 		})
 	})
+}
+
+// predictRootOptions adds the instance's Options.Strict and
+// Options.EchoRequest to a non-Request predict root's options: Strict
+// promotes every warning the root collects into an error, EchoRequest
+// echoes the root's normalized request on env.Request (the validators'
+// finishPredictRoot). The predict methods alone apply them — Explain's
+// checks read the same validators without either.
+func (p *Pulse) predictRootOptions(opts *descx.PredictOptions) {
+	opts.Strict = p.svc.Strict()
+	opts.EchoRequest = p.svc.EchoRequest()
 }
 
 // composePredictOptions is the option set a Compose predict runs with:
@@ -114,6 +137,11 @@ func (p *Pulse) PredictChain(ctx context.Context, req *ChainRequest) (*descripto
 func (p *Pulse) composePredictOptions(ctx context.Context) descx.PredictOptions {
 	opts := p.predictOptions(ctx, sidecarFacts{})
 	opts.SidecarLoader = p.sidecarLoader
+	// Each slot's limit findings read its cohort's header counts through
+	// the runtime pre-flight's own reader.
+	opts.CohortCounter = func(path string) (descx.CohortCounts, error) {
+		return p.svc.CohortCounts(ctx, path)
+	}
 	return opts
 }
 

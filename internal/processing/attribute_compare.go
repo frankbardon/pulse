@@ -319,12 +319,14 @@ func (c *comparisonCore) reference(rec *Record) ([]float64, bool, error) {
 	field := c.cfg.Reference.KeyColumn()
 	c.nRefMissing++
 	if c.keyInt {
-		n, ok := rec.NumericValue(field)
+		// Exact: a u64 key above 2^53 must not share its float64 echo
+		// with a neighbour (#427).
+		n, ok := rec.Uint64Value(field)
 		if !ok {
 			c.nKeyNull++
 			return nil, false, nil
 		}
-		c.keyBuf = strconv.AppendUint(c.keyBuf[:0], uint64(n), 10)
+		c.keyBuf = strconv.AppendUint(c.keyBuf[:0], n, 10)
 		if v, has := c.profiles[string(c.keyBuf)]; has {
 			c.nRefMissing--
 			return v, true, nil
@@ -568,11 +570,11 @@ func (f *centroidFold) prePass(rec *Record, fill memberFill, typ types.Attribute
 // key reads rec's by value (false for a null).
 func (f *centroidFold) key(rec *Record) (string, bool) {
 	if f.keyInt {
-		n, ok := rec.NumericValue(f.by)
+		n, ok := rec.Uint64Value(f.by)
 		if !ok {
 			return "", false
 		}
-		f.keyBuf = strconv.AppendUint(f.keyBuf[:0], uint64(n), 10)
+		f.keyBuf = strconv.AppendUint(f.keyBuf[:0], n, 10)
 		return string(f.keyBuf), true
 	}
 	key, ok := rec.StringValue(f.by)

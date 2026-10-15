@@ -100,6 +100,24 @@ const (
 	// fieldDecodeBytes per field descriptor a schema decode allocates:
 	// the Field, its name and description.
 	fieldDecodeBytes = 256
+	// fanOutSlotBytes per record per EXTRA bucket a fan-out grouper
+	// (GROUP_SET_PER_ELEMENT) adds it to on the buffered arm: one more
+	// []*Record slot with append growth — the slot recordHeaderBytes
+	// charges for the first bucket.
+	fanOutSlotBytes = 24
+	// testStateBytes per tier-1 test instance (one per test per group
+	// bucket; one ungrouped): the instance, its moments or counters and
+	// its result.
+	testStateBytes = 1024
+	// testLevelBytes per split level / contingency cell a test instance
+	// keys (split_by, rows x cols, subject_field): a map entry and the
+	// per-level state (moments or a rank sample's header).
+	testLevelBytes = 256
+	// testValueBytes per value a buffered (rank-based / order) test
+	// keeps per admitted row and column (value, second field, weight,
+	// vector member): the 8-byte value, append growth and the copy its
+	// Finalize sorts.
+	testValueBytes = 32
 )
 
 // MemoryInputs are the figures EstimateMemory reads. Counts are
@@ -167,10 +185,37 @@ type MemoryInputs struct {
 	// count on the per-shard parallel arm, else 0): charged per
 	// value-state aggregation like Records.
 	PartitionRecords int64
+	// FanOut is the most group buckets one record lands in
+	// (FanOutMultiplicity: the product of every fan-out grouper's key
+	// bound, GROUP_SET_PER_ELEMENT's set dictionary size); 0 or 1 when
+	// no grouper fans out. It scales the per-value state (distinct
+	// (bucket, value) pairs can reach records x FanOut) and, on the
+	// buffered arm, the partition slots of the extra buckets.
+	FanOut int64
+	// TestInstances is the tier-1 test instances the run holds until
+	// finalize: tests x group buckets (every test runs once per group),
+	// tests ungrouped.
+	TestInstances int64
+	// TestLevels is the split levels / contingency cells the test
+	// instances key, summed over tests — per test the smaller of its
+	// instances x schema-known levels and the rows it admits (records x
+	// FanOut).
+	TestLevels int64
+	// TestValues is the values buffered (non-streamable) tests keep:
+	// per such test records x FanOut x its value columns.
+	TestValues int64
+	// JoinedRows is the rows a join's probe emits into the processor
+	// when they can outnumber the left side (a right key that repeats:
+	// left x the right key's multiplicity); 0 means Records. It replaces
+	// Records in every per-row processing term — per-value state, the
+	// buffered arm's materialised records and fan-out slots — while the
+	// payload term stays on Records (the left scan).
+	JoinedRows int64
 }
 
 // EstimateMemory is the upper-bound resident footprint of one run, in
-// bytes, per arm:
+// bytes, per arm, where rows is JoinedRows when set (a fan-out join),
+// else records:
 //
 //	every arm  base + 3 x max(records x stride, archive bytes)
 //	             (the payload + GC headroom; an archive's every byte)
@@ -178,13 +223,17 @@ type MemoryInputs struct {
 //	           + join right rows x (3 x stride + 2 x record bytes)
 //	           + matrix merge-block state + vector-grouper point store
 //	           + partition buckets x (512 + 256 x aggs), per-shard arm
-//	buffered   + records x (record bytes + 16 x aggs + 128 x derived)
+//	           + test instances x 1024 + test levels x 256
+//	           + buffered-test values x 32
+//	buffered   + rows x (record bytes + 16 x aggs + 128 x derived)
+//	           + rows x (fan-out - 1) x 24
 //	           + buckets x (512 + 256 x aggs) + cells x 512
 //	streaming  + buckets x (512 + 256 x aggs)
 //	fused      + cells x 512
 //
-// plus (records + partition records) x 96 per value-state aggregation
-// on every arm. Saturates at math.MaxInt64 rather than wrapping.
+// plus (rows + partition records) x fan-out x 96 per value-state
+// aggregation on every arm. Saturates at math.MaxInt64 rather than
+// wrapping.
 func EstimateMemory(in MemoryInputs) int64 {
 	total := int64(runBaseBytes)
 	add := func(a, b int64) { total = addSat(total, mulSat(a, b)) }
@@ -193,13 +242,22 @@ func EstimateMemory(in MemoryInputs) int64 {
 	add(in.JoinRightRows, addSat(fileCopyFactor*in.Stride, buildCopyFactor*in.RecordBytes))
 	total = addSat(total, in.MatrixBytes)
 	total = addSat(total, in.GrouperBytes)
-	add(addSat(in.Records, in.PartitionRecords), mulSat(in.ValueStateAggregations, valueEntryBytes))
+	rows := in.Records
+	if in.JoinedRows > 0 {
+		rows = in.JoinedRows
+	}
+	fanOut := max(in.FanOut, 1)
+	add(mulSat(addSat(rows, in.PartitionRecords), fanOut), mulSat(in.ValueStateAggregations, valueEntryBytes))
+	add(in.TestInstances, testStateBytes)
+	add(in.TestLevels, testLevelBytes)
+	add(in.TestValues, testValueBytes)
 	bucketState := addSat(bucketBaseBytes, mulSat(in.Aggregations, aggStateBytes))
 	add(in.PartitionBuckets, bucketState)
 	switch in.Arm {
 	case ArmBuffered:
 		per := addSat(in.RecordBytes, addSat(mulSat(in.Aggregations, bufferedValueBytes), mulSat(in.DerivedColumns, derivedColumnBytes)))
-		add(in.Records, per)
+		add(rows, per)
+		add(mulSat(rows, fanOut-1), fanOutSlotBytes)
 		add(in.Buckets, bucketState)
 		add(in.Cells, cellBytes)
 	case ArmStreaming:
@@ -333,6 +391,25 @@ func MatrixStateBytes(blocks, buckets, accumulatorBytes int64) int64 {
 // 0 for a streamable matrix (rowBytes 0).
 func MatrixRowBufferBytes(records, rowBytes int64) int64 {
 	return mulSat(records, rowBytes)
+}
+
+// matrixRowWorkFactor x a buffered matrix's row bytes
+// (vectors.Matrix.RowBytes, 8·(p + 1)) per kept row copy: the row
+// store with its append growth, and the rank finalize's working set —
+// the member columns copied out of the store with their growth, the
+// weights, each column's ranks, ties and sort scratch, and the garbage
+// a grouped finalize leaves between collections. Measured (estimate
+// calibration, p = 3 and p = 8, spearman): ~7.6x per row copy under a
+// six-way fan-out, ~9.2x ungrouped.
+const matrixRowWorkFactor = 10
+
+// MatrixRowWorkBytes is what a buffered matrix's kept rows cost a run
+// for the memory estimate: rows x rowBytes x the row-work factor — the
+// row store (MatrixRowBufferBytes is its bare payload) plus the rank
+// finalize's working set over it. rows is every kept row copy (records
+// x the fan-out multiplicity). Saturating; 0 for a streamable matrix.
+func MatrixRowWorkBytes(rows, rowBytes int64) int64 {
+	return mulSat(mulSat(rows, rowBytes), matrixRowWorkFactor)
 }
 
 // KMeansBufferBytes is GROUP_KMEANS's resident point store: records x

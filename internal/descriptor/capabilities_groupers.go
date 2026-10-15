@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/types"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 )
 
 // universalGrouperFloorKeys is the {total_n, n_null} pair every grouper's
@@ -59,7 +60,7 @@ func grouperCapabilities() []descriptor.Operator {
 			Name:          string(types.GROUP_CATEGORY),
 			Category:      "grouper",
 			Description:   "Partition records by exact field value; ideal for categorical fields. Set columns are not partitionable by value here — use GROUP_SET_VALUE or GROUP_SET_PER_ELEMENT.",
-			AcceptsTypes:  nonSetFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.GROUP_CATEGORY),
 			EmitsTypeNote: "string group key per row",
 			Streamable:    true,
 			ComponentSchema: groupSchema(descriptor.Mergeable,
@@ -127,7 +128,7 @@ func grouperCapabilities() []descriptor.Operator {
 					Description: "Bucket label for rows outside every configured range. Must not collide with a range label.",
 				},
 			},
-			AcceptsTypes:  []string{"date", "datetime"},
+			AcceptsTypes:  tableAcceptsTypes(types.GROUP_DATE_RANGES),
 			EmitsTypeNote: "labeled range key per row (the matching range's label, or the unmatched label)",
 			Streamable:    true,
 			ComponentSchema: groupSchema(descriptor.Mergeable,
@@ -187,7 +188,7 @@ func grouperCapabilities() []descriptor.Operator {
 				},
 				groupFitParam,
 			},
-			AcceptsTypes:   numericFieldTypesNoDecimal,
+			AcceptsTypes:   fieldaccept.TypeNames(string(types.GROUP_QUANTILE), fieldaccept.SlotField),
 			EmitsTypeNote:  "bucket label per row (Qk / Dk / Pk)",
 			Streamable:     false,
 			StreamableHint: "Quantile cutoffs need the sorted value set; use GROUP_RANGE or GROUP_ROUNDED with known bounds for streaming.",
@@ -210,7 +211,7 @@ func grouperCapabilities() []descriptor.Operator {
 					Description: "Bucket width on the value axis; set on the request's Group.Interval field.",
 				},
 			},
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  fieldaccept.TypeNames(string(types.GROUP_RANGE), fieldaccept.SlotField),
 			EmitsTypeNote: "string bucket label per row, \"low-high\" (e.g. \"10-20\" holds [10, 20))",
 			Streamable:    true,
 			ComponentSchema: groupSchema(descriptor.Mergeable,
@@ -236,7 +237,7 @@ func grouperCapabilities() []descriptor.Operator {
 					Description: "Rounding increment; set on the request's Group.Interval field.",
 				},
 			},
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  fieldaccept.TypeNames(string(types.GROUP_ROUNDED), fieldaccept.SlotField),
 			EmitsTypeNote: "rounded numeric key per row",
 			Streamable:    true,
 			ComponentSchema: groupSchema(descriptor.Mergeable,
@@ -249,7 +250,7 @@ func grouperCapabilities() []descriptor.Operator {
 			Name:          string(types.GROUP_SET_VALUE),
 			Category:      "grouper",
 			Description:   "Partition rows by the exact set mask (one bucket per unique combination). Bucket key = sorted label list joined with \"|\".",
-			AcceptsTypes:  setFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.GROUP_SET_VALUE),
 			EmitsTypeNote: "string bucket key per row (e.g. \"AMEX|VISA\")",
 			Streamable:    true,
 			ComponentSchema: groupSchema(descriptor.Mergeable,
@@ -261,7 +262,7 @@ func grouperCapabilities() []descriptor.Operator {
 			Name:          string(types.GROUP_SET_PER_ELEMENT),
 			Category:      "grouper",
 			Description:   "Fan each row into one bucket per selected label (multi-key). Cardinality multiplies with set popcount. Implements MultiKeyStreamingGrouper.",
-			AcceptsTypes:  setFieldTypes,
+			AcceptsTypes:  tableAcceptsTypes(types.GROUP_SET_PER_ELEMENT),
 			EmitsTypeNote: "string bucket key per selected label per row",
 			Streamable:    true,
 			ComponentSchema: groupSchema(descriptor.Mergeable,

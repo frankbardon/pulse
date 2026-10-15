@@ -136,8 +136,8 @@ func TestModelError_PredictMatchesRuntime(t *testing.T) {
 		{"accepted", "y", `{"prediction_field":"p"}`, ""},
 		{"missing prediction_field", "y", `{}`, perr.PROCESSING_CONFIG},
 		{"malformed params", "y", `{"prediction_field":3}`, perr.PROCESSING_CONFIG},
-		{"categorical prediction", "y", `{"prediction_field":"region"}`, perr.PROCESSING_CONFIG},
-		{"categorical actual", "region", `{"prediction_field":"p"}`, perr.PROCESSING_CONFIG},
+		{"categorical prediction", "y", `{"prediction_field":"region"}`, perr.PULSE_FIELD_TYPE_UNSUPPORTED},
+		{"categorical actual", "region", `{"prediction_field":"p"}`, perr.PULSE_FIELD_TYPE_UNSUPPORTED},
 		{"unknown prediction column", "y", `{"prediction_field":"nope"}`, perr.SERVICE_VALIDATION},
 	}
 	ctx := context.Background()

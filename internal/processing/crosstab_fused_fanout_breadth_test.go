@@ -266,19 +266,24 @@ func TestFusedCrosstab_FanOutCellAggregatorBreadth(t *testing.T) {
 		{
 			name: "AGG_WEIGHTED_MEAN",
 			cell: &types.Aggregation{
+				// The fixture's one numeric column weighs itself (a
+				// categorical value is refused: its dictionary index).
 				Type:   types.AGG_WEIGHTED_MEAN,
-				Field:  "region",
+				Field:  "value",
 				Label:  "wmean",
 				Params: json.RawMessage(`{"weight_field":"value"}`),
 			},
+			recs: nonNullValueFanoutRecords,
 		},
 		{
 			name: "AGG_RATIO",
 			cell: &types.Aggregation{
-				Type:   types.AGG_RATIO,
-				Field:  "value",
-				Label:  "ratio",
-				Params: json.RawMessage(`{"numerator_field":"region","denominator_field":"value"}`),
+				Type:  types.AGG_RATIO,
+				Field: "value",
+				Label: "ratio",
+				// A categorical numerator is refused (its dictionary
+				// index); the fixture's one numeric column serves both.
+				Params: json.RawMessage(`{"numerator_field":"value","denominator_field":"value"}`),
 			},
 			recs: nonNullValueFanoutRecords,
 		},

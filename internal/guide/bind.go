@@ -36,6 +36,12 @@ type Bound struct {
 	Cohort  *types.Cohort
 	Schema  *encoding.Schema
 	Predict func(*types.Request) *descriptor.Envelope
+	// Weight is the cohort's suggested row weight — the field Inspect
+	// reports as suggested_weight (descx.SuggestWeight over the SPSS
+	// sidecar's weight variable) — or "" when none. A weight-only
+	// operator (AGG_WEIGHTED_MEAN) binds its weight to it; without one
+	// it drafts with the weight as a need.
+	Weight string
 }
 
 // slotLoc says where a bound value sits in the slot entry.
@@ -75,6 +81,10 @@ type bneed struct {
 	// alternatives are the other members of key's exactly_one_of
 	// group: the caller may give one of them instead.
 	alternatives []string
+	// optional marks a need the request can run without when the
+	// instance supplies it (a default weight): a probe predict accepts
+	// with no error drops it.
+	optional bool
 }
 
 // itemBattery admits the native vector kinds an item-battery operator
@@ -122,6 +132,16 @@ var fieldNameParams = map[string]map[string]bool{
 	"AGG_DISTINCT_SUM": {"distinct_by": true},
 }
 
+// weightParams are the operators that compute nothing without a row
+// weight, and the param that names one: a declared-optional param (the
+// slot, request or instance weight may supply it instead), so bound
+// mode binds it to the cohort's suggested weight (Bound.Weight) or else
+// asks for it — dropping the ask when the probe shows a weight already
+// resolves (an instance default weight).
+var weightParams = map[string]string{
+	string(types.AGG_WEIGHTED_MEAN): "weight_field",
+}
+
 // oneSampleNeeds are optional params a draft must still ask for: the
 // one-sample TEST_T compares against mu, whose default of 0 is rarely
 // the reference the question means.
@@ -133,27 +153,28 @@ var oneSampleNeeds = map[[2]string][]string{
 // needWhy says what to supply for a param only the caller can choose.
 // Each sentence passes LintGuidanceText (TestRecommend_NeedsWhyLint).
 var needWhy = map[string]string{
-	"success":    "Name the outcome value that counts as a success.",
-	"mu":         "Give the reference value the mean is compared with.",
-	"family":     "Choose the model family that suits the outcome.",
-	"percentile": "Choose which percentile to report, between 0 and 100.",
-	"ms_within":  "Give the within-group mean square from an ANOVA on the same groups.",
-	"df_within":  "Give the within-group degrees of freedom from that same ANOVA.",
-	"values":     "List the values the filter keeps, drops or matches.",
-	"expression": "Write the expression that picks the rows to keep.",
-	"ranges":     "List the labelled date ranges to use.",
-	"interval":   "Choose the bucket width.",
-	"value":      "Name the value whose share to count.",
-	"part":       "Choose the date part to extract.",
-	"alpha":      "Choose the smoothing weight, between 0 and 1.",
-	"degree":     "Choose the polynomial degree.",
-	"codes":      "List the codes to look for.",
-	"component":  "Choose which component to score, counting from 1 for the largest.",
-	"factor":     "Choose which factor to score, counting from 1 for the one that accounts for the most variance.",
-	"label":      "Name the option to look for.",
-	"ratios":     "Give the split ratios.",
-	"boundaries": "List the cutpoints that split the values into buckets.",
-	"frame":      "Choose the window frame: which rows around each row it covers.",
+	"success":      "Name the outcome value that counts as a success.",
+	"mu":           "Give the reference value the mean is compared with.",
+	"family":       "Choose the model family that suits the outcome.",
+	"percentile":   "Choose which percentile to report, between 0 and 100.",
+	"ms_within":    "Give the within-group mean square from an ANOVA on the same groups.",
+	"df_within":    "Give the within-group degrees of freedom from that same ANOVA.",
+	"values":       "List the values the filter keeps, drops or matches.",
+	"expression":   "Write the expression that picks the rows to keep.",
+	"ranges":       "List the labelled date ranges to use.",
+	"interval":     "Choose the bucket width.",
+	"value":        "Name the value whose share to count.",
+	"part":         "Choose the date part to extract.",
+	"alpha":        "Choose the smoothing weight, between 0 and 1.",
+	"degree":       "Choose the polynomial degree.",
+	"codes":        "List the codes to look for.",
+	"component":    "Choose which component to score, counting from 1 for the largest.",
+	"factor":       "Choose which factor to score, counting from 1 for the one that accounts for the most variance.",
+	"label":        "Name the option to look for.",
+	"ratios":       "Give the split ratios.",
+	"boundaries":   "List the cutpoints that split the values into buckets.",
+	"frame":        "Choose the window frame: which rows around each row it covers.",
+	"weight_field": "Name the field that holds each row's weight.",
 }
 
 // needWhyDefault covers a required param with no needWhy entry, such as
@@ -332,23 +353,26 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 			slots = append(slots, bslot{key: "fields", list: true, min: 2, vector: true, accept: both(typeIn(op.accepts), kindIs(descriptor.FieldKindNumeric))})
 			break
 		}
-		if !op.ignoresField {
+		// A field-ignoring aggregator (AGG_RATIO) still names a field on
+		// the wire: boundDraft fills it with its first bound param field.
+		// A regression attribute reads target / predictors (below).
+		if !op.ignoresField && !regressionShaped(op) {
 			slots = append(slots, bslot{key: "field", accept: fieldAccept})
 		}
 	}
 	for _, p := range op.params {
 		loc := locParams
-		if op.category == catRegression || topLevelParams[op.category][p.name] {
+		if topLevelParam(op, p.name) {
 			loc = locTop
 		}
 		switch {
 		case p.typ == "field":
 			accept := fieldFilterAccept(p.fieldFilter)
-			if op.category == catRegression {
+			if regressionShaped(op) {
 				accept = both(accept, typeIn(op.accepts))
 			}
 			slots = append(slots, bslot{key: p.name, loc: loc, accept: accept})
-		case op.category == catRegression && p.name == "predictors":
+		case regressionShaped(op) && p.name == "predictors":
 			slots = append(slots, bslot{key: p.name, loc: loc, list: true, min: 1, accept: typeIn(op.accepts)})
 		case fieldNameParams[op.name][p.name]:
 			slots = append(slots, bslot{key: p.name, loc: loc, accept: func(*encoding.Field) bool { return true },
@@ -615,6 +639,12 @@ func boundDraft(op opInfo, cohort *types.Cohort, slots []bslot, b binding, needs
 				v = b.fields[i]
 			}
 			put(s.loc, s.key, v)
+		}
+		// The wire requires an aggregation's field even when the
+		// operator ignores it (AGG_RATIO, IgnoresField): name the first
+		// field it does read, so the draft is the runtime's valid form.
+		if op.category == catAggregator && op.ignoresField && len(slots) > 0 && !b.vector[0] {
+			entry["field"] = b.fields[0][0]
 		}
 		if withNeeds {
 			for _, n := range needs {

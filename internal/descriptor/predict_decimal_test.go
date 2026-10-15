@@ -23,14 +23,13 @@ func TestPredict_DecimalAggValidity(t *testing.T) {
 		},
 	}
 	env := predictFromBytes(data, req, nil)
-	hit := false
+	if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL) {
+		t.Errorf("expected one PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL error (the runtime refuses the pairing), got %+v", env.Errors)
+	}
 	for _, w := range env.Warnings {
 		if w.Code == string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL) {
-			hit = true
+			t.Errorf("decimal refusal repeated as a warning: %v", w)
 		}
-	}
-	if !hit {
-		t.Errorf("expected PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL warning, got warnings: %v", env.Warnings)
 	}
 }
 

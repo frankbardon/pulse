@@ -70,7 +70,7 @@ func newWelfordAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggr
 			encoding.FieldTypeF32, encoding.FieldTypeF64:
 			// accepted
 		default:
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			return nil, errors.NewCodedError(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
 				fmt.Sprintf("AGG_WELFORD field %q has non-numeric type %s", agg.Field, f.Type.String()))
 		}
 	}

@@ -262,12 +262,23 @@ func TestReturnSkipsOverlays_Compose(t *testing.T) {
 			if len(full.Overlays) == 0 || d.OverlayLayerRuns != 3*4+1 {
 				t.Fatalf("return absent: %d folds, %d compose layers; want 13 folds", d.OverlayLayerRuns, len(full.Overlays))
 			}
-			// Control: a kept Compose overlay vetoes its slots' components.
+			// The fixture's OVERLAY_PROP_Z_CELL reads no floor of an
+			// unweighted slot (#221): kept, it folds but vetoes nothing.
 			_, d = run(parallel, compose(stdNoOverlays, nil, nil))
-			if d.CrosstabCellComponentMaps <= 0 || d.OverlayLayerRuns != 1 {
-				t.Fatalf("kept compose overlay: maps=%d folds=%d; want maps>0, 1 fold", d.CrosstabCellComponentMaps, d.OverlayLayerRuns)
+			if d.CrosstabCellComponentMaps != 0 || d.OverlayLayerRuns != 1 {
+				t.Fatalf("kept unweighted floor overlay: maps=%d folds=%d; want maps=0, 1 fold", d.CrosstabCellComponentMaps, d.OverlayLayerRuns)
 			}
-			out, d := run(parallel, compose(stdNoOverlays, excludeOverlays, nil))
+			// Control: a kept full-veto Compose overlay vetoes its slots'
+			// components.
+			withIndex := func(c *types.ComposedRequest) *types.ComposedRequest {
+				c.Overlays = append(c.Overlays, types.ComposeOverlaySpec{Name: "idx", Kind: types.OverlayKindIndexVsRef, Scope: types.OverlayScopeCell, Reference: "s0", Targets: []string{"s1"}})
+				return c
+			}
+			_, d = run(parallel, withIndex(compose(stdNoOverlays, nil, nil)))
+			if d.CrosstabCellComponentMaps <= 0 || d.OverlayLayerRuns != 2 {
+				t.Fatalf("kept compose overlays: maps=%d folds=%d; want maps>0, 2 folds", d.CrosstabCellComponentMaps, d.OverlayLayerRuns)
+			}
+			out, d := run(parallel, withIndex(compose(stdNoOverlays, excludeOverlays, nil)))
 			if d.OverlayLayerRuns != 0 || d.CrosstabCellComponentMaps != 0 || out.Overlays != nil {
 				t.Errorf("every overlay excluded: folds=%d maps=%d layers=%v; want 0 / 0 / nil",
 					d.OverlayLayerRuns, d.CrosstabCellComponentMaps, out.Overlays)

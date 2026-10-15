@@ -186,7 +186,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PROCESSING_VECTOR_LENGTH_MISMATCH: {
-		Message: "A pairwise vector expression function (dot, dist or cosine) received two vectors of different lengths; the run fails instead of returning NaN. details.function names the call, details.left and details.right the two lengths.",
+		Message: "A pairwise vector expression function (dot, dist or cosine) received two vectors of different lengths; the run fails instead of returning NaN. When both lengths are fixed by the request — literal arrays, or bare named vectors (a Request.Vectors member count, a vec_* field's dim) — predict reports it and the run refuses it at build, before any row; a computed argument (a nested call, a slice) is checked per row. details.function names the call, details.left and details.right the two lengths.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
@@ -758,18 +758,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: {
-		Message: "A numeric aggregation (SUM, AVERAGE, etc.) was requested on a categorical field.",
+		Message: "A facet asks a numeric statistic (numeric_percentiles, include_histogram) of a non-numeric field; predict warns, and the facet omits that statistic for the field. (A numeric aggregation over a categorical is refused PULSE_FIELD_TYPE_UNSUPPORTED.)",
 		Fixups: []Fixup{
 			{
-				Action:   FixupReplaceOperator,
-				Path:     []string{"Aggregations", "*", "Type"},
-				Hint:     "Use AGG_MODE, AGG_MODE_COUNT, AGG_DISTINCT_COUNT, or AGG_COUNT for categorical fields.",
-				Examples: []any{"AGG_MODE", "AGG_MODE_COUNT", "AGG_DISTINCT_COUNT", "AGG_COUNT"},
-			},
-			{
 				Action: FixupReplaceField,
-				Path:   []string{"Aggregations", "*", "Field"},
-				Hint:   "If the numeric semantics matter, pick a non-categorical numeric field on the same cohort.",
+				Path:   []string{"Fields"},
+				Hint:   "Ask numeric_percentiles / include_histogram of a numeric field; a categorical facet field's value_counts already carry its distribution.",
 			},
 		},
 	},
@@ -794,6 +788,21 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRemoveParam,
 				Path:   []string{"Windows", "*", "Frame"},
 				Hint:   "Drop Frame for ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, PCT_CHANGE; supply Frame with bounded preceding/following for MOVING_AVG, EWMA, RUNNING_*.",
+			},
+		},
+	},
+	PULSE_FIELD_TYPE_UNSUPPORTED: {
+		Message: "An operator slot names a field whose type the operator does not accept (details.accepts_types lists the types it does).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Name a field of one of details.accepts_types (a categorical for split_by, a contingency axis or stratify), or derive one first (ATTR_FORMULA, FEAT_ONE_HOT for a categorical, ATTR_SET_HAS / ATTR_SET_POPCOUNT for a set).",
+			},
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"Aggregations", "*", "Type"},
+				Hint:     "A numeric aggregation over a categorical field would read its dictionary index: count its values instead.",
+				Examples: []any{"AGG_MODE", "AGG_MODE_COUNT", "AGG_DISTINCT_COUNT", "AGG_COUNT"},
 			},
 		},
 	},
@@ -841,7 +850,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL: {
-		Message: "An aggregation has no defined semantics for the decimal128 field type (e.g., median or percentile in v1).",
+		Message: "A built-in aggregation with no decimal128 implementation (e.g., median or percentile in v1) names a decimal128 field; predict and the runtime refuse it.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceOperator,
@@ -1134,7 +1143,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_FIELD_NOT_NUMERIC: {
-		Message: "A test requires a numeric field but the named field resolves to a categorical or otherwise non-numeric schema type.",
+		Message: "A numeric test's field resolves to a categorical or set schema type, which carries no number to test.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1597,11 +1606,15 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SHARD_SCHEMA_MISMATCH: {
-		Message: "The incoming shard's structural schema (field count, per-field name/type/byte_offset/bit_position, categorical width) is not byte-equal to the archive's canonical schema.",
+		Message: "The incoming shard's structural schema (field count, per-field name/type/byte_offset/bit_position, categorical width, nullability, group layout) does not match the archive's canonical schema; details.dimension names the dimension when set (e.g. \"nullable\": a shard field is nullable where the archive's is not, or non-nullable with a different null-bitmap width or on a group member).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
 				Hint:   "Re-import the source data using the same schema as the canonical archive (run `pulse inspect <archive>` to view the canonical fields), or rebuild the archive against the new schema via `pulse shard create`.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "For details.dimension \"nullable\": nullability never widens across shards. Re-import the shard with the archive's nullability for that field, or rebuild the archive seeding with a shard that declares the field nullable (`pulse shard create` takes the first shard's schema as canonical).",
 			},
 		},
 	},
@@ -2451,7 +2464,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_COMPONENTS_REQUIRED: {
-		Message: "An overlay kind that reads per-cell components (n / weight sums / Welford triples / margin counts) ran against a host built with components disabled. The OVERLAY_PAIRWISE_* family needs the components block to resolve each pair leg's sample size; a Compose two-sample vs-ref overlay scoring a grouped slot's moment aggregation reads each group's mean / variance / n from that slot's per-group components (details.reason components_disabled, details.slot the slot).",
+		Message: "An overlay kind that reads per-cell components (n / weight sums / Welford triples / margin counts) ran against a host built with components disabled. The OVERLAY_PAIRWISE_* family needs the components block to resolve each pair leg's sample size, so predict reports it too (Options.DisableComponents, or the request's disable_components: true; Details {index, kind}); a Compose two-sample vs-ref overlay scoring a grouped slot's moment aggregation reads each group's mean / variance / n from that slot's per-group components (details.reason components_disabled, details.slot the slot).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -2503,7 +2516,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE: {
-		Message: "An OverlaySpec's Level selector exceeds the nested-axis depth of the relevant host axis. Valid depths are zero-indexed from the top of the axis: Row axis depth = len(Crosstab.Rows), Column axis depth = len(Crosstab.Columns). Mirrors PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE on the crosstab normalize_level surface.",
+		Message: "An OverlaySpec's Level selector exceeds the nested-axis depth of the relevant host axis. Valid depths are zero-indexed from the top of the axis: Row axis depth = len(Crosstab.Rows), Column axis depth = len(Crosstab.Columns). Mirrors PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE on the crosstab normalize_level surface. The same code refuses an out-of-range overlay Params value, at predict and at runtime alike: a rolling-window Params[\"window\"] that is not a positive integer or sits below the kind's floor (details.min: 1 for the rolling-mean index, 2 for the rolling z-score, whose sample SD is undefined over one point), and a series formula overlay's Params[\"baseline_position\"] that is not a non-negative integer.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -2511,10 +2524,16 @@ var codeMetadata = map[Code]Metadata{
 				Hint:     "Pick a depth in [0, len(axis)-1] where axis = Crosstab.Rows for row-axis overlays and Crosstab.Columns for column-axis overlays. Omit the field entirely to default to the leaf (the deepest grouper on the axis).",
 				Examples: []any{0, 1, 2},
 			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "window"},
+				Hint:     "Use a whole number at or above details.min — 2 or more for the rolling z-score; window 1 of the rolling-mean index indexes each row against the one before it.",
+				Examples: []any{2, 3, 7},
+			},
 		},
 	},
 	PULSE_OVERLAY_PARAM_MISSING: {
-		Message: "An OverlaySpec did not supply a Params entry that the chosen Kind requires. The rolling-mean index overlay requires Params[\"window\"] (positive integer) per the WIN_* operator convention; the window width lives on Params, not on Ref. Surfaced at both predict (descriptor.validateOverlayIndexVsRollingMean) and runtime (processing.applyIndexVsRollingMean) with Details carrying the kind and the missing param name. A Compose two-sample t / z overlay (vs-ref or per-cell) scoring a bare scalar mean on a side needs that side's variance and sample size — there is no default (details.reason params_missing; details.side reference | target, details.params the missing keys, details.slot the slot).",
+		Message: "An OverlaySpec did not supply a Params entry that the chosen Kind requires. The rolling-mean index overlay requires Params[\"window\"] (positive integer) per the WIN_* operator convention; the window width lives on Params, not on Ref. Surfaced at both predict (descriptor.validateOverlayIndexVsRollingMean) and runtime (processing.applyIndexVsRollingMean) with Details carrying the kind and the missing param name. A Compose two-sample t / z overlay (vs-ref or per-cell) scoring a bare scalar mean on a side needs that side's variance and sample size — there is no default (details.reason params_missing; details.side reference | target, details.params the missing keys, details.slot the slot). A formula overlay with no usable params.formula — Params absent or not an object, the key absent, an empty or non-string value — is this code on every host (Request crosstab / grouped, Compose), predict and runtime alike, Details {index, kind, param: \"formula\", reason}; a formula that is present but does not parse is PULSE_OVERLAY_FORMULA_PARSE_ERROR.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -2531,7 +2550,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_FORMULA_PARSE_ERROR: {
-		Message: "An OVERLAY_FORMULA spec's Params[\"formula\"] string failed to parse as an expr-lang expression. The formula was syntactically invalid — typically unbalanced parentheses, a stray operator, an unterminated string literal, or a typo on a keyword. Surfaced at both predict (descriptor.validateFormulaOverlay) and runtime (processing.compileFormulaProgram) so authors catch the failure before evaluation begins. Details carry {formula, parse_error, kind, index} — the parser's own position-aware error string is preserved verbatim under Details.parse_error so renderers can surface the offending column / token alongside the offending input.",
+		Message: "An OVERLAY_FORMULA spec's Params[\"formula\"] string failed to parse as an expr-lang expression. The formula was syntactically invalid — typically unbalanced parentheses, a stray operator, an unterminated string literal, or a typo on a keyword. A formula that parses but names an unknown variable or function is PULSE_OVERLAY_FORMULA_INVALID_IDENT instead, on every host — the identifier gate runs before the compile. Surfaced at both predict (descriptor.validateFormulaOverlay) and runtime (processing.compileFormulaProgram) so authors catch the failure before evaluation begins. Details carry {formula, parse_error, kind, index} — the parser's own position-aware error string is preserved verbatim under Details.parse_error so renderers can surface the offending column / token alongside the offending input.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -2553,7 +2572,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_FORMULA_INVALID_IDENT: {
-		Message: "An OVERLAY_FORMULA expression references an identifier (variable or function) that is not allowed for the resolved host shape. The per-shape variable namespace is fixed: MATRIX hosts expose `cell, margin_row, margin_col, margin_grand, sd_row, sd_col, sd_grand` (plus `ref_cell` and the dotted `slot.<label>.cell` namespace on Compose hosts); SERIES hosts expose `value, total, prior` (plus opt-in `baseline` when Params[\"baseline_position\"] is set, plus `ref_value` on Compose hosts); SCALAR hosts expose `value` (plus `ref` on Compose hosts). The function namespace is the expr-lang stdlib plus every pulse.Options.Extensions.ExprFunctions registration and (when LookupTables are registered) the auto-injected lookup() builtin. Surfaced at predict (descriptor.validateFormulaOverlay) by walking the parsed AST. Details carry {unknown_identifier, host_shape, allowed | allowed_funcs, formula, kind, index}; Compose-only `slot.<label>.<field>` identifiers on a Request host additionally carry {reason: \"slot namespace is Compose-only\"}.",
+		Message: "An OVERLAY_FORMULA expression references an identifier (variable or function) that is not allowed for the resolved host shape. The per-shape variable namespace is fixed: MATRIX hosts expose `cell, margin_row, margin_col, margin_grand, sd_row, sd_col, sd_grand` (plus `ref_cell` and the dotted `slot.<label>.cell` namespace on Compose hosts); SERIES hosts expose `value, total, prior` (plus opt-in `baseline` when Params[\"baseline_position\"] is set, plus `ref_value` on Compose hosts); SCALAR hosts expose `value` (plus `ref` on Compose hosts). The function namespace is the expr-lang stdlib plus every pulse.Options.Extensions.ExprFunctions registration and (when LookupTables are registered) the auto-injected lookup() builtin. Surfaced by predict (descriptor.validateFormulaOverlay) and by the runtime BEFORE it compiles (Request host: processing.requestFormulaIdentRefusal; Compose host: the dispatcher), both through the one AST walk in internal/formulaident, so code, message and Details match. A vector built-in (vsum ... vnormalize) carries {unknown_identifier, allowed_builtins, formula, kind, index} instead. Details carry {unknown_identifier, host_shape, allowed | allowed_funcs, formula, kind, index}; Compose-only `slot.<label>.<field>` identifiers on a Request host additionally carry {reason: \"slot namespace is Compose-only\"}.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -2592,7 +2611,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_REF_UNKNOWN: {
-		Message: "An overlay handler named a reference that does not resolve to a known slot on the host. Three arms today: (1) sibling-reference overlays (delta- and index-vs-sibling) name a Sibling (Field, Value) pair that does not match any observed axis-key value on the SERIES host; (2) baseline-index overlays (index- and delta-vs-baseline, rolling-mean index, year-over-year) name a Position ordinal outside [0, host.GroupCount()) — Details carry {baseline_index, series_length}; (3) Facet-host population overlays (index, z-score, chi-square and KS vs population) name a population field absent from the host FacetResult — Details carry {field, available_fields}. The affected layer surfaces NaN statistics across every present entry (arms 1–2) or fails fast (arm 3). Warning-class for arms 1–2, runtime error for arm 3 — surfaced as a Response.Warning or envelope error depending on arm.",
+		Message: "An overlay handler named a reference that does not resolve to a known slot on the host. Three arms today: (1) sibling-reference overlays (delta- and index-vs-sibling) name a Sibling (Field, Value) pair that does not match any observed axis-key value on the SERIES host; (2) baseline-index overlays (index- and delta-vs-baseline, rolling-mean index, year-over-year) name a Position ordinal outside [0, host.GroupCount()) — Details carry {baseline_index, series_length}; a grouped formula overlay's params.baseline_position at or past its partition's length is the same arm with {index, kind, baseline_position, series_length}, which predict raises too when every in-partition grouper is a category grouper over a categorical field (series_length then the dictionary bound); (3) Facet-host population overlays (index, z-score, chi-square and KS vs population) name a population field absent from the host FacetResult — Details carry {field, available_fields}. The affected layer surfaces NaN statistics across every present entry (arms 1–2) or fails fast (arm 3). Warning-class for arms 1–2, runtime error for arm 3 — surfaced as a Response.Warning or envelope error depending on arm.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -3149,12 +3168,12 @@ var codeMetadata = map[Code]Metadata{
 	},
 
 	PULSE_TEMPLATE_AXIS_COLLISION: {
-		Message: "The template declares a variable with the same name as an axis of a for_each item in its body. Inside that item the renderer leaves the item's own axis placeholders for the for_each expansion, so a same-named template variable would make each such placeholder ambiguous.",
+		Message: "The template declares a variable with the same name as an axis of a for_each item or a Compose sweep in its body. Inside that item (or the sweep's request, overlays and label) the renderer leaves the axis placeholders for the for_each or sweep expansion, so a same-named template variable would make each such placeholder ambiguous.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Variables", "*"},
-				Hint:   "Rename either the template variable or the for_each axis named in the error details so the two no longer share a name, and update the placeholders that refer to the renamed one.",
+				Hint:   "Rename either the template variable or the for_each or sweep axis named in the error details so the two no longer share a name, and update the placeholders that refer to the renamed one.",
 			},
 		},
 	},

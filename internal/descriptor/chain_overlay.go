@@ -182,9 +182,11 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 		// An expanded element column resolves against the stage's
 		// members over its input schema (chainStageInputSchema).
 		kinds := aggregationKinds(opts.instance(), nil)
-		validateChainOverlaySeriesField(env, spec, opts.overlayRoute(spec.Kind), i, "target", targetIdx, stagedAt(staged, targetIdx, targetReq),
+		// One error: the runtime resolves the target first and stops
+		// at its refusal (#436).
+		targetOK := validateChainOverlaySeriesField(env, spec, opts.overlayRoute(spec.Kind), i, "target", targetIdx, stagedAt(staged, targetIdx, targetReq),
 			chainStageSchemaFunc(staged, targetIdx, stage0, kinds), kinds)
-		if refIdx != targetIdx {
+		if targetOK && refIdx != targetIdx {
 			validateChainOverlaySeriesField(env, spec, opts.overlayRoute(spec.Kind), i, "ref", refIdx, stagedAt(staged, refIdx, refReq),
 				chainStageSchemaFunc(staged, refIdx, stage0, kinds), kinds)
 		}
@@ -196,9 +198,9 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 		// Warning-class, as at runtime (U46 E4-S9): the runtime answers
 		// an empty layer plus one warning and the chain still runs, so
 		// predict reports the divergence as an envelope WARNING and the
-		// chain stays valid. Neither side escalates it under Strict —
-		// the runtime never promotes an overlay layer warning, and the
-		// chain validator reads no Strict flag. Details carry every key
+		// chain stays valid. Predict's Strict promotes it, as it does
+		// every predict-root warning (finishPredictRoot, U35 #255); the
+		// runtime never promotes an overlay layer warning. Details carry every key
 		// the runtime warning does (overlay_index included), so the two
 		// deep-equal.
 		env.AddWarning(string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT),
@@ -241,14 +243,17 @@ func stagedAt(staged []*types.Request, idx int, written *types.Request) *types.R
 // aggregation of one stage, PULSE_OVERLAY_FIELD_UNKNOWN via the
 // seriesfield.ResolveChainStage call the runtime makes on the same
 // stage Request, its columns read over schema (the stage's input
-// schema; nil: an element column resolves syntactically).
-func validateChainOverlaySeriesField(env *descriptor.Envelope, spec *types.ChainOverlaySpec, route types.OverlayKind, specIdx int, which string, stageIdx int, req *types.Request, schema func() *encoding.Schema, kinds vectors.AggregationKinds) {
+// schema; nil: an element column resolves syntactically). It reports
+// whether the stage passed (true when the rule does not apply).
+func validateChainOverlaySeriesField(env *descriptor.Envelope, spec *types.ChainOverlaySpec, route types.OverlayKind, specIdx int, which string, stageIdx int, req *types.Request, schema func() *encoding.Schema, kinds vectors.AggregationKinds) bool {
 	if !seriesfield.AppliesChain(route) || req == nil || req.Crosstab != nil || requestLabelsDeferred(req) {
-		return
+		return true
 	}
 	if _, err := seriesfield.ResolveChainStage(req.Aggregations, spec, specIdx, which, stageIdx, vectors.AggregationColumns(req, schema, kinds)); err != nil {
 		addCodedError(env, err)
+		return false
 	}
+	return true
 }
 
 // resolveChainOverlayStageRef resolves a StageRef into a stages-slice

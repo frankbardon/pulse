@@ -107,9 +107,9 @@ const payloadSchemaDigestPrefix = "feature_set_digest: "
 //
 //   - the registry-backed enums (operator, overlay-kind and regression
 //     families) list only enabled names;
-//   - the capability-gated request slots inst hides (HiddenSlotKeys:
-//     Request.crosstab / joins / overlays and the overlays slot of each
-//     other request root) are not properties;
+//   - the capability-gated slots inst hides (HiddenSlotKeys:
+//     Request.crosstab / joins / overlays, the overlays slot of each
+//     other request root and of each result root) are not properties;
 //   - a root whose capability is hidden (compose, process_chain, facet,
 //     sample, lookup, recommend, explain) is not an entry point;
 //

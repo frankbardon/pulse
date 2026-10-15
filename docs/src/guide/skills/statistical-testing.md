@@ -80,7 +80,7 @@ After Welch's ANOVA, Tukey's pooled `ms_within` is wrong: run pairwise Welch tes
 With `groups` set, every `tests[]` entry runs once per group (composite key): `Response.Tests` holds tests × groups results, test-major, groups in `data` row order, each with `group_key` — equal to an ungrouped run filtered to that group. Buffered. Over 2+ groupers each `post_tests[]` entry likewise runs once per partition — rows sharing every key but the last, or the leading keys `params.partition_by` names (`[]` = all rows; same on every post-test) — `group_key` the partition key.
 
 - A `split_by`, `rows` or `cols` naming a grouper (post-tests: a partition key) is refused (`PULSE_TEST_SPLIT_GROUPS_LT_2` / `PULSE_TEST_CONTINGENCY_DEGENERATE`): one level each.
-- A too-sparse group or partition gets `null` `statistic` / `p_value` plus a warning naming its `group_key`; the rest proceed.
+- A sparse or singular group / partition gets `null` `statistic` / `p_value` plus a warning naming its `group_key`; the rest proceed.
 - ACROSS groups (ANOVA by region): ungrouped, or `partition_by: []`.
 
 ## Streamability

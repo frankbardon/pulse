@@ -355,10 +355,7 @@ func writeFieldBytes(sink IndexedReusableRecord, typed TypedSetRecord, field *en
 			return errors.NewCodedError(errors.ENCODING_INVALID,
 				fmt.Sprintf("unknown field type %d", field.Type))
 		}
-		sink.SetNumericAt(fi, decodeFixed(field.Type, sub))
-		if field.Type.IsSet() {
-			return putSetField(sink, typed, field.Type, fi, sub)
-		}
+		return putFixedField(sink, typed, field.Type, fi, sub)
 	}
 	return nil
 }

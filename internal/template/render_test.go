@@ -3,10 +3,14 @@ package template_test
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/internal/template"
 )
 
@@ -723,5 +727,58 @@ func TestRenderJSON_NilTemplate(t *testing.T) {
 	got, err := template.RenderJSON(nil, nil)
 	if !perr.HasCode(err, perr.PULSE_TEMPLATE_INVALID) {
 		t.Fatalf("RenderJSON(nil) = (%s, %v), want %s", got, err, perr.PULSE_TEMPLATE_INVALID)
+	}
+}
+
+// TestRender_ComposedSweepTemplate renders the on-disk composed fixture
+// whose body is a Compose sweep: the template variables substitute
+// (including an axis's values), the sweep's `{{axis}}` placeholders
+// survive the render, and the rendered sweep then expands into one slot
+// per combination exactly like a hand-written sweep.
+func TestRender_ComposedSweepTemplate(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "channel-sweep.json"))
+	if err != nil {
+		t.Fatalf("reading fixture: %v", err)
+	}
+	tm, err := template.Parse(data)
+	if err != nil {
+		t.Fatalf("Parse = %v, want nil", err)
+	}
+	tm.Name = "channel-sweep"
+	out, err := template.Render(tm, map[string]any{"metric": "spend", "channels": []any{"tv", "web"}})
+	if err != nil {
+		t.Fatalf("Render = %v, want nil", err)
+	}
+	c := out.Composed
+	if c == nil || c.Sweep == nil {
+		t.Fatalf("rendered composed request carries no sweep: %s", out.JSON)
+	}
+	if got := c.Requests[0].Label; got != "all" {
+		t.Errorf("explicit slot label = %q, want the defaulted variable \"all\"", got)
+	}
+	if got := c.Sweep.Label; got != "{{ch}}_w{{width}}" {
+		t.Errorf("sweep label = %q, want the axis placeholders intact", got)
+	}
+
+	exp, err := sweep.Expand(c, func(int) error { return nil })
+	if err != nil {
+		t.Fatalf("sweep.Expand = %v, want nil", err)
+	}
+	wantLabels := []string{"tv_w10", "tv_w20", "web_w10", "web_w20"}
+	if !reflect.DeepEqual(exp.Labels, wantLabels) {
+		t.Fatalf("sweep labels = %v, want %v", exp.Labels, wantLabels)
+	}
+	slot := exp.Composed.Requests[exp.Explicit+3]
+	if got := slot.Aggregations[0].Field; got != "spend" {
+		t.Errorf("slot aggregation field = %q, want the template variable \"spend\"", got)
+	}
+	if got := slot.Groups[0].Field; got != "web_spend" {
+		t.Errorf("slot group field = %q, want the axis-substituted \"web_spend\"", got)
+	}
+	if n := len(exp.Composed.Overlays); n != 4 {
+		t.Fatalf("expanded overlays = %d, want 4", n)
+	}
+	if got := exp.Composed.Overlays[0].Reference; got != "all" {
+		t.Errorf("overlay reference = %q, want the template variable \"all\"", got)
 	}
 }

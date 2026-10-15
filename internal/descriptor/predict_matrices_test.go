@@ -299,3 +299,42 @@ func TestPredict_MatricesOmitted(t *testing.T) {
 		}
 	}
 }
+
+// TestPredict_MatrixRowBufferFanOut (U35 #267): a buffered (rank)
+// matrix grouped by GROUP_SET_PER_ELEMENT keeps one copy of a row per
+// selected member's bucket, so row_buffer_bytes — and estimated_bytes,
+// which carries it — scale with the set dictionary size: records x 4 x
+// 8·(p + 1) over a 4-entry set, against records x 8·(p + 1) ungrouped.
+func TestPredict_MatrixRowBufferFanOut(t *testing.T) {
+	const n = 50
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "x", Type: encoding.FieldTypeF64, Description: "First measured score of the row"},
+		{Name: "y", Type: encoding.FieldTypeF64, Description: "Second measured score of the row"},
+		{Name: "tags", Type: encoding.FieldTypeSetU8, Description: "Selected tags of the row", Dictionary: makeDictionary(t, "a", "b", "c", "d")},
+	}}
+	data := buildTestPulseFile(t, schema)
+	data = append(data, make([]byte, n*schema.RecordByteSize())...)
+	rowBuffer := func(groups []*types.Group) (int64, *int64) {
+		t.Helper()
+		req := &types.Request{Groups: groups, Matrices: []types.MatrixSpec{{Name: "r", Type: types.MAT_CORRELATION, Fields: []string{"x", "y"}, Params: json.RawMessage(`{"method": "spearman"}`)}}}
+		env := predictFromBytes(data, req, nil)
+		if len(env.Errors) != 0 {
+			t.Fatalf("unexpected errors: %+v", *env.Errors[0])
+		}
+		ms := env.Data.(*descriptor.PredictResult).Matrices
+		if len(ms) != 1 || ms[0].RowBufferBytes == nil {
+			t.Fatalf("matrices = %+v", ms)
+		}
+		return *ms[0].RowBufferBytes, ms[0].EstimatedBytes
+	}
+	if got, _ := rowBuffer(nil); got != n*24 {
+		t.Fatalf("ungrouped row_buffer_bytes = %d, want %d", got, n*24)
+	}
+	got, est := rowBuffer([]*types.Group{{Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}})
+	if got != n*4*24 {
+		t.Fatalf("set-per-element row_buffer_bytes = %d, want %d (4 copies a row)", got, n*4*24)
+	}
+	if est == nil || *est < got {
+		t.Fatalf("estimated_bytes %v does not carry the row store %d", est, got)
+	}
+}

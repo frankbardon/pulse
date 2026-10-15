@@ -9,9 +9,9 @@ covers: [expression, expr-lang, formula, set-helpers, vector-functions, lookup, 
 
 # Expression language
 
-Two operators evaluate an `expr-lang/expr` (v1.17.x) string once per row: the formula attribute (the result is a new column) and the expression filter (a truthy result keeps the row). Both compile through one environment, so everything below holds for both; only null handling differs.
+Two operators evaluate an `expr-lang/expr` string once per row: the formula attribute (the result is a new column) and the expression filter (a truthy result keeps the row). Both compile through one environment, so everything below holds for both; only null handling differs.
 
-This is NOT request templating: `$var` / `{{}}` / `$when` are substituted into the request before decode<!-- feature: capability:templates --> (`request-templating`)<!-- /feature -->; an expression runs over row fields at execution time.
+This is NOT request templating: `$var` / `{{}}` / `$when` are substituted into the request before decode<!-- feature: capability:templates --> (`request-templating`)<!-- /feature -->; an expression runs over row fields.
 
 ## Field binding
 
@@ -24,11 +24,11 @@ Fields are referenced by bare name; the value a name binds depends on the schema
 | `set_*` | sorted `[]string` of member labels | `"a" in tags`, `has_any(tags, "a", "b")` |
 | `decimal128` | `Decimal128` | — |
 
-Arithmetic on a categorical errors — branch on the label and emit a number.
+Arithmetic on a categorical errors; branch on the label.
 
 ## Operators and functions
 
-- **Operators**: arithmetic (`+ - * / % **`), comparison, logical (`and or not`), membership / pattern (`in`; string-only `contains`, `startsWith`, `endsWith`, `matches`), range (`..`), nil-coalesce (`??`), ternary.
+- **Operators**: arithmetic (`+ - * / % **`), comparison, logical, membership / pattern (`in`; string-only `contains`, `startsWith`, `endsWith`, `matches`), range (`..`), nil-coalesce (`??`), ternary.
 - **Functions**: numeric (`abs`, `ceil`, `floor`, `round`, `min`, `max`, `sum`, `mean`, `median`), cast (`int`, `float`, `string`), collection (`len`, `keys`, `values`, `concat`, `sort`, `uniq`, `filter`, `map`, `reduce`, `all`, `any`), string (`join`, `split`, `replace`, `trim`, `lower`, `upper`, `hasPrefix`, `hasSuffix`, `indexOf`), JSON / time (`toJSON`, `fromJSON`, `now`, `date`, `duration`).
 - **Set helpers**: `has_any`, `has_all`, `has_none`, `popcount`, `set_union`, `set_intersect`, `set_diff`, `set_xor`. `contains` is a string operator keyword, never a set helper — test membership with `"x" in tags`.
 - `%` on a field is float `math.Mod` (dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.
@@ -42,14 +42,14 @@ A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is
 | `vsum` `vmean` `vmin` `vmax` `norm` (L2) | float |
 | `vcount` | int count of valid elements |
 | `vsd` | sample SD (ddof 1); < 2 valid → NaN |
-| `dot` `dist` `cosine` (vector pair) | pairwise-complete; `dist` (euclidean) rescales by p/p_observed; `cosine` is the similarity, zero norm → NaN; unequal lengths → `PROCESSING_VECTOR_LENGTH_MISMATCH` |
+| `dot` `dist` `cosine` (vector pair) | pairwise-complete; `dist` (euclidean) rescales by p/p_observed; `cosine` is the similarity, zero norm → NaN; unequal lengths → `PROCESSING_VECTOR_LENGTH_MISMATCH` (lists / named: build + predict) |
 | `argmax` `argmin` | 0-based int index; none valid → NaN |
-| `vcenter` `vzscore` `vnormalize` (mode `"l1"` / `"l2"`, case-sensitive) | a vector, only inside a call: `vmax(vzscore([q1, q2, q3]))`; top-level → `PROCESSING_CONFIG` |
+| `vcenter` `vzscore` `vnormalize` (mode `"l1"` / `"l2"`, case-sensitive) | a vector, only inside a call: `vmax(vzscore([q1, q2, q3]))`; top-level, a wrong arity or a literal bad mode → `PROCESSING_CONFIG` (build + predict) |
 | `sqrt` `log` (natural) `exp` `pow(score, 2)` | IEEE scalar (`sqrt(-1)` NaN); the only built-ins an overlay formula admits |
 | `jaccard` `dice` `overlap` `hamming` (two sets: field or `["a", "b"]`, matched by label; a dictionary-less set pairs only with another) | float, `hamming` int; null set → NaN; two empty → NaN, `hamming` 0 |
 | `ref` (table, key) | a reference profile, aligned by label<!-- feature: capability:matrices --> (`vector-metrics`)<!-- /feature --> |
 
-A non-finite result is `null` on the wire. These names are reserved: an embedder `ExprFunctions` entry using one → `PULSE_EXTENSION_NAME_RESERVED`.
+A non-finite result is `null` on the wire. Reserved names: an embedder `ExprFunctions` entry using one → `PULSE_EXTENSION_NAME_RESERVED`.
 
 ## Null handling
 

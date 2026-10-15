@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -155,4 +156,67 @@ func labelTableRegistered(snap *ExtensionsSnapshot, inst *InstanceSnapshot, name
 		}
 	}
 	return false
+}
+
+// OutputLabels is the one set of output column names a request's
+// operators write beside the schema's own columns: every aggregation's
+// label (types.AggregationLabelOf — its Label, else "<TYPE>_<field>"),
+// every attribute's (attributeDefaultLabel when unlabelled), every
+// grouper's key column (vectors.GroupKeyField), every window's
+// (windowLabel) and every feature's outputs (featureOutputLabels, plus
+// an explicit Label). An augment-mode label sibling "<field>_label"
+// naming one of them is PULSE_LABEL_FIELD_COLLISION (ValidateLabels'
+// extraFields). Predict (validateRequestBody) and the runtime
+// (Service.validateProcessLabels, the auto-label pass) both read this
+// set, so the two judge the same collisions. req is the
+// defaults-resolved request, schema the one it executes over (nil: no
+// schema-derived feature outputs); inst routes a hidden type as never
+// registered.
+func OutputLabels(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) map[string]bool {
+	out := map[string]bool{}
+	if req == nil {
+		return out
+	}
+	add := func(name string) {
+		if name != "" {
+			out[name] = true
+		}
+	}
+	for _, a := range req.Aggregations {
+		if a != nil {
+			add(types.AggregationLabelOf(a))
+		}
+	}
+	for _, a := range req.Attributes {
+		if a == nil {
+			continue
+		}
+		if a.Label != "" {
+			add(a.Label)
+		} else {
+			add(attributeDefaultLabel(a, inst))
+		}
+	}
+	for _, g := range req.Groups {
+		if g != nil {
+			add(vectors.GroupKeyField(opRoute(inst, g.Type), g))
+		}
+	}
+	for _, w := range req.Windows {
+		if w != nil {
+			add(windowLabel(w))
+		}
+	}
+	for _, f := range req.Features {
+		if f == nil {
+			continue
+		}
+		add(f.Label)
+		if schema != nil {
+			for _, name := range featureOutputLabels(f, schema) {
+				add(name)
+			}
+		}
+	}
+	return out
 }

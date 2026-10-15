@@ -6,21 +6,18 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
-	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
 // validateProcessLabels runs descriptor.ValidateLabels against the
-// resolved schema and the request's projected output columns so
-// per-binding failures surface before the processor runs. The
-// extraFields set carries aggregation / attribute / group output
-// labels so an augment-mode sibling "<field>_label" cannot shadow
-// them.
+// resolved schema and the request's output columns (outputLabels) so
+// per-binding failures surface before the processor runs; an
+// augment-mode sibling "<field>_label" cannot shadow an output column.
 func (s *Service) validateProcessLabels(req *types.Request, schema *encoding.Schema) error {
 	if len(req.Labels) == 0 {
 		return nil
 	}
-	extras := collectOutputLabels(req)
+	extras := s.outputLabels(req, schema)
 	env := descriptor.NewEnvelope(nil)
 	descx.ValidateLabels(env, req.Labels, schema, s.ExtensionsSnapshot(), s.InstanceSnapshot(), extras)
 	if len(env.Errors) == 0 {
@@ -34,53 +31,22 @@ func (s *Service) validateProcessLabels(req *types.Request, schema *encoding.Sch
 	return errors.NewCodedErrorWithDetails(code, first.Message, first.Details)
 }
 
-// collectOutputLabels enumerates the output column names produced by
-// a request's aggregations, attributes, group keys, windows, and
-// features so augment-mode label siblings can be checked for
-// collisions against them.
-func collectOutputLabels(req *types.Request) map[string]bool {
-	out := map[string]bool{}
-	for _, a := range req.Aggregations {
-		if a == nil {
-			continue
-		}
-		if a.Label != "" {
-			out[a.Label] = true
-		}
+// outputLabels is the request's output column set an augment-mode
+// label sibling may not collide with — descx.OutputLabels, the one set
+// predict judges the collision against too (#201b).
+func (s *Service) outputLabels(req *types.Request, schema *encoding.Schema) map[string]bool {
+	return descx.OutputLabels(req, schema, s.InstanceSnapshot())
+}
+
+// autoLabelOccupied is outputLabels for the auto-label pass
+// (applyAutoLabels' occupied set), built only when the service has
+// default label bindings to inject — nil otherwise, so an instance
+// without them pays nothing.
+func (s *Service) autoLabelOccupied(req *types.Request, schema *encoding.Schema) map[string]bool {
+	if len(s.autoLabels) == 0 {
+		return nil
 	}
-	for _, a := range req.Attributes {
-		if a == nil {
-			continue
-		}
-		if a.Label != "" {
-			out[a.Label] = true
-		}
-	}
-	for _, g := range req.Groups {
-		if g == nil {
-			continue
-		}
-		if key := vectors.GroupKeyField(g.Type, g); key != "" {
-			out[key] = true
-		}
-	}
-	for _, w := range req.Windows {
-		if w == nil {
-			continue
-		}
-		if w.Label != "" {
-			out[w.Label] = true
-		}
-	}
-	for _, f := range req.Features {
-		if f == nil {
-			continue
-		}
-		if f.Label != "" {
-			out[f.Label] = true
-		}
-	}
-	return out
+	return s.outputLabels(req, schema)
 }
 
 // applyLabelsToResponse walks resp.Data through the LabelResolver,

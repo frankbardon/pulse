@@ -267,6 +267,16 @@ type PredictResult struct {
 	// Omitted when the request carries no `return` block or the block is
 	// refused (the refusal is the predict error).
 	Return *ReturnPlan `json:"return,omitempty"`
+
+	// Errors and Warnings are the coded {code, message, details}
+	// entries behind the verdict — the envelope's errors and warnings,
+	// so a Valid false result names its reason. Set by Pulse.Predict,
+	// whose return is the result alone; never marshalled with the
+	// result (`-`): every wire carries them at the envelope level
+	// (`pulse api predict --json`) or beside the result (MCP
+	// pulse_predict's top-level errors / warnings).
+	Errors   []*EnvelopeEntry `json:"-"`
+	Warnings []*EnvelopeEntry `json:"-"`
 }
 
 // ReturnPlan is a resolved `return` block: the canonical path sets the
@@ -396,8 +406,10 @@ type MatrixPredict struct {
 	// ordinal), plus the rows a shard starting inside a block buffers
 	// until finalize. An upper bound (a bucket holds one state per
 	// block its rows touch). Omitted with the bucket count
-	// unknown. A buffered spec adds its RowBufferBytes. It is the matrix
-	// term of the MaxEstimatedMemory estimate.
+	// unknown. A buffered spec adds its RowBufferBytes. The
+	// MaxEstimatedMemory estimate's matrix term is this state plus a
+	// buffered spec's row work (its kept rows and the rank finalize's
+	// copies of them, limits.MatrixRowWorkBytes).
 	EstimatedBytes *int64 `json:"estimated_bytes,omitempty"`
 	// Streamable reports whether this spec folds row by row (its
 	// result is emitted at finalize — terminal flush when streamed):
@@ -413,7 +425,9 @@ type MatrixPredict struct {
 	// RowBufferBytes estimates the row store a BUFFERED spec (not
 	// Streamable — a rank method) keeps until finalize: 8·(p + 1) bytes
 	// per admitted row (its member values and weight) times the
-	// cohort's record count, an upper bound. Omitted on a streamable
+	// cohort's record count times the fan-out multiplicity (a
+	// GROUP_SET_PER_ELEMENT row is kept once per selected member's
+	// bucket: the set dictionary size), an upper bound. Omitted on a streamable
 	// spec or with the record count unknown; EstimatedBytes includes it.
 	RowBufferBytes *int64 `json:"row_buffer_bytes,omitempty"`
 	// PairwisePSDRisk reports whether the result (or a decomposition
@@ -892,11 +906,21 @@ const (
 // figure exceeds. Limit is the snake_case limit name (the `limit` detail
 // of PULSE_LIMIT_EXCEEDED), Configured the instance's effective value
 // and Estimated predict's figure in the same unit.
+//
+// Details locates a finding on a multi-request predict root, with the
+// key the matching PULSE_LIMIT_EXCEEDED error carries: `request` (the
+// Compose slot index) or `stage` (the chain stage index). A join
+// fan-out memory finding (`possible`: the right key may repeat) adds
+// its joined-row bound — `join` (0), `join_rows_bound` and
+// `join_bound` (`right_key_dictionary` or `left_x_right`). It is absent
+// on any other single-request finding (Predict, PredictFacet) and on a
+// whole-call count (MaxComposeSlots, MaxChainStages).
 type LimitFinding struct {
-	Limit      string     `json:"limit"`
-	Configured int64      `json:"configured"`
-	Estimated  int64      `json:"estimated"`
-	Grade      LimitGrade `json:"grade"`
+	Limit      string         `json:"limit"`
+	Configured int64          `json:"configured"`
+	Estimated  int64          `json:"estimated"`
+	Grade      LimitGrade     `json:"grade"`
+	Details    map[string]any `json:"details,omitempty"`
 }
 
 // SweepSummary is ComposeValidationResult.Sweep: what a Compose

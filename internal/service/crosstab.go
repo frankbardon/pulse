@@ -71,7 +71,7 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 
 	// Validate / inject label bindings exactly as Process does so a
 	// labelled crosstab matches a labelled plain Process request.
-	s.applyAutoLabels(&req.Labels, cohort.Schema(), collectOutputLabels(req), nil)
+	s.applyAutoLabels(&req.Labels, cohort.Schema(), s.autoLabelOccupied(req, cohort.Schema()), nil)
 	if err := s.validateProcessLabels(req, cohort.Schema()); err != nil {
 		return nil, err
 	}
@@ -193,17 +193,17 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 	clone := *req
 	clone.Joins = nil
 	var zones []descriptor.ResolvedZone
-	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req, func(joined *encoding.Schema, lin descx.LimitInputs) error {
+	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req, func(joined *encoding.Schema, lin descx.LimitInputs) (*types.Request, error) {
 		s.applyDefaults(&clone, joined)
 		z, err := s.resolveZones(&clone, joined)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		zones = z
 		if err := s.checkFieldRefs(ctx, &clone, joined); err != nil {
-			return err
+			return nil, err
 		}
-		return s.limitsPreflight(&clone, joined, lin)
+		return &clone, s.limitsPreflight(&clone, joined, lin)
 	})
 	if err != nil {
 		return nil, err
@@ -214,7 +214,7 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 	// Opening both sides and building the right side's hash table.
 	ei.Lap(observe.PhaseOpen)
 
-	s.applyAutoLabels(&clone.Labels, joinedSchema, collectOutputLabels(&clone), nil)
+	s.applyAutoLabels(&clone.Labels, joinedSchema, s.autoLabelOccupied(&clone, joinedSchema), nil)
 	if err := s.validateProcessLabels(&clone, joinedSchema); err != nil {
 		return nil, err
 	}

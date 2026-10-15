@@ -69,7 +69,7 @@ Full Components contract: [`response-components`](response-components.md).
 
 ## Type admissibility
 
-Numeric-only ops on a categorical field surface `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL`; count / frequency / mode accept any type. Decimal inputs may fall back to `f64` with `PULSE_PRECISION_LOSS` — see [`financial-cohorts`](financial-cohorts.md).
+Numeric-only ops on a categorical field (its dictionary index) are refused `PULSE_FIELD_TYPE_UNSUPPORTED`; count / frequency / mode accept any type. Decimal inputs may fall back to `f64` with `PULSE_PRECISION_LOSS` — see [`financial-cohorts`](financial-cohorts.md).
 
 ## Gotchas
 

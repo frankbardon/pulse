@@ -1,6 +1,6 @@
 ```yaml
 name: op-agg-ratio
-description: Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored.
+description: Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is required but never read.
 kind: operator
 category: AGG
 operator: AGG_RATIO
@@ -24,13 +24,13 @@ Use something else:
 
 ## Params
 
-`numerator_field`, `denominator_field` — required; a schema field OR a derived label (attribute incl. `ATTR_REG_PREDICT`, feature output), read numerically (categorical → its code). Unknown → `SERVICE_VALIDATION`, predict and runtime alike.
+`numerator_field`, `denominator_field` — required; a schema field OR a derived label (attribute incl. `ATTR_REG_PREDICT`, feature output), read numerically; a categorical (its dictionary index) or `set_*` column is refused `PULSE_FIELD_TYPE_UNSUPPORTED`, numerator first. Unknown → `SERVICE_VALIDATION`, predict and runtime alike.
 
 Weight-aware (`"weight": null` opts out): Σw·num / Σw·den. Weighted `decimal128` num/den → `PULSE_WEIGHT_UNSUPPORTED`.
 
 ## Inputs
 
-`Field` IGNORED (`ignores_field`) but required; any type.
+`Field` IGNORED (`ignores_field`) but required on the wire; any type (Recommend names the numerator).
 
 ## Output
 

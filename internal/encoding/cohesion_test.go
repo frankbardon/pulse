@@ -316,3 +316,80 @@ func TestShardArchiveStructuralCohesion_Vectors(t *testing.T) {
 		t.Fatalf("identical vector schemas: warnings %v err %v", w, err)
 	}
 }
+
+// nullCohesionSchema is a three-field flat schema whose per-field
+// nullability the caller chooses; layout is the canonical one.
+func nullCohesionSchema(idNull, scoreNull, tagNull bool) *encoding.Schema {
+	return &encoding.Schema{Fields: []encoding.Field{
+		{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, Nullable: idNull},
+		{Name: "score", Type: encoding.FieldTypeF64, ByteOffset: 4, Nullable: scoreNull},
+		{Name: "flag", Type: encoding.FieldTypeU8, ByteOffset: 12, Nullable: tagNull},
+	}}
+}
+
+// TestShardArchiveStructuralCohesion_Nullability pins the per-field
+// nullability rule (#207). An archive field that is NOT nullable can
+// never take a shard that declares it nullable: every shard decodes
+// under the canonical flags, so the shard's null bits would be ignored
+// and a null would read back as its placeholder value. The reverse — a
+// nullable archive field, a non-nullable shard field — is admitted only
+// when the null bitmaps are the same width (so the strides agree and the
+// field's bit, which every writer leaves 0 for a non-nullable field,
+// reads as non-null), and never for a parent-group member, whose null
+// bits ride the group entry.
+func TestShardArchiveStructuralCohesion_Nullability(t *testing.T) {
+	for _, tc := range []struct {
+		name                string
+		canonical, incoming *encoding.Schema
+		wantRefused         bool
+	}{
+		{"identical nullability", nullCohesionSchema(false, true, false), nullCohesionSchema(false, true, false), false},
+		{"non-nullable archive, nullable shard, bitmap width equal",
+			nullCohesionSchema(false, true, false), nullCohesionSchema(true, true, false), true},
+		{"non-nullable archive, nullable shard, bitmap appears",
+			nullCohesionSchema(false, false, false), nullCohesionSchema(true, false, false), true},
+		{"nullable archive, non-nullable shard, bitmap kept",
+			nullCohesionSchema(true, true, false), nullCohesionSchema(false, true, false), false},
+		{"nullable archive, non-nullable shard, bitmap dropped",
+			nullCohesionSchema(true, false, false), nullCohesionSchema(false, false, false), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := encx.ValidateStructuralCohesion(tc.canonical, tc.incoming)
+			if !tc.wantRefused {
+				if err != nil {
+					t.Fatalf("want admitted, got %v", err)
+				}
+				return
+			}
+			assertCode(t, err, errors.PULSE_SHARD_SCHEMA_MISMATCH)
+			coded := err.(*errors.CodedError)
+			if coded.Details["dimension"] != "nullable" || coded.Details["field"] != "id" {
+				t.Fatalf("details = %v, want dimension nullable on field id", coded.Details)
+			}
+		})
+	}
+}
+
+// TestShardArchiveStructuralCohesion_NullabilityGroupMember: a group
+// member's null bits ride its group's dictionary entry, whose geometry
+// the member nullability decides, so neither direction is admitted for
+// a member even when the row bitmaps agree.
+func TestShardArchiveStructuralCohesion_NullabilityGroupMember(t *testing.T) {
+	grouped := func(memberNull bool) *encoding.Schema {
+		s := nullCohesionSchema(false, true, memberNull)
+		s.Groups = []encoding.Group{{Kind: encoding.GroupKindIndexed, Members: []encoding.GroupMember{{Field: 2}}}}
+		return s
+	}
+	for _, dir := range []struct {
+		name           string
+		canonNull, inc bool
+	}{{"member becomes nullable", false, true}, {"member becomes non-nullable", true, false}} {
+		t.Run(dir.name, func(t *testing.T) {
+			_, err := encx.ValidateStructuralCohesion(grouped(dir.canonNull), grouped(dir.inc))
+			assertCode(t, err, errors.PULSE_SHARD_SCHEMA_MISMATCH)
+			if d := err.(*errors.CodedError).Details["dimension"]; d != "nullable" {
+				t.Fatalf("dimension = %v, want nullable", d)
+			}
+		})
+	}
+}

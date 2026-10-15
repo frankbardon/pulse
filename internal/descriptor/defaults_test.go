@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -452,5 +453,32 @@ func TestDefaults_HiddenTargetGetsNoDefault(t *testing.T) {
 	}
 	if applied := ResolveDefaults(visible, cat, inst); len(applied) != 2 {
 		t.Errorf("visible applied = %+v, want 2 entries", applied)
+	}
+}
+
+// TestDefaults_NeverInferARefusedOperator pins E2-S4: a smart default
+// never synthesizes an operator the accepted-types table refuses for
+// the field's type — a categorical defaults to AGG_MODE_COUNT /
+// GROUP_CATEGORY, never a numeric reader of its dictionary index.
+func TestDefaults_NeverInferARefusedOperator(t *testing.T) {
+	judged := 0
+	for ft, rule := range defaultRules {
+		if rule.Agg != "" {
+			judged++
+			if !fieldaccept.Accepts(string(rule.Agg), fieldaccept.SlotField, ft) {
+				t.Errorf("%s defaults to %s, which the table refuses", ft, rule.Agg)
+			}
+		}
+		if rule.Group != "" && !fieldaccept.Accepts(string(rule.Group), fieldaccept.SlotField, ft) {
+			t.Errorf("%s defaults to %s, which the table refuses", ft, rule.Group)
+		}
+	}
+	for _, ft := range []encoding.FieldType{encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32} {
+		if got := defaultRules[ft].Agg; got != types.AGG_MODE_COUNT {
+			t.Errorf("%s aggregation default = %s, want AGG_MODE_COUNT", ft, got)
+		}
+	}
+	if judged == 0 {
+		t.Fatal("no aggregation default judged")
 	}
 }

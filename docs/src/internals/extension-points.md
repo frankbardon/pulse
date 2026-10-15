@@ -265,8 +265,9 @@ decimal128) are on each `extend.Record` method's godoc.
 **Decimal128 targets.** The built-in decimal table (exact `AGG_SUM`,
 `AGG_AVERAGE`, … — see `skills/financial-cohorts.md`) governs built-ins
 only: a built-in outside it is refused on a `decimal128` field
-(`PROCESSING_CONFIG` at run time, `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`
-from predict). A registered extension aggregator is never refused — its
+(`PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`, predict and run time alike — the
+accepted-types table's decimal rule, see below). A registered extension
+aggregator is never refused — its
 factory runs and the extension decides what a decimal field means, reading
 the exact value through `extend.Record.DecimalValue` (`NumericValue` is a
 rounded echo) and typically rendering it via `extend.RichAggregator`.
@@ -1540,6 +1541,42 @@ streamability is the exception: it is decided on the returned value.
 
 Filterers are always row-local streamable; windows always run
 buffered.
+
+## Built-in accepted types: the one table (contributor flow)
+
+Which field types a BUILT-IN operator slot reads is declared once, in the
+accepted-types table `internal/fieldaccept` — operator → slot (`field`,
+`field2`, `target`, `predictor`, `split_by`, `subject_field`, `rows`,
+`cols`, `stratify`, `prediction_field`) → an accepted-type class + the
+refusal code. It is a leaf (public `errors` / `encoding` / `types` only),
+so both sides read it: the runtime constructor refuses through
+`fieldaccept.Check` / `Refusal`, predict reports the same code at the same
+slot, and the manifest's `accepts_types` for that slot IS
+`fieldaccept.TypeNames`. A `decimal128` field on a built-in aggregator
+outside `fieldaccept.DecimalAggregators()` is the table's decimal rule
+(`PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`), judged before any row.
+
+To let a built-in read one more type (or to refuse one it reads wrongly):
+
+1. Change the row's class in `internal/fieldaccept/fieldaccept.go` — the
+   only place the rule lives. Never add a type the operator computes a
+   wrong number over (a dictionary index, a bitmask, raw bytes); refuse
+   it instead.
+2. Make the operator READ it correctly, and prove it: a test showing
+   the figure over the new type equals the figure over a column holding
+   the number it means (`TestQuantityReaders_TypeVerdicts` is the model).
+3. Update the operator's atomic skill (`skills/op-<category>-<kebab>.md`)
+   and regenerate the manifest golden; `make docs`.
+4. Run `TestFieldTypeAcceptance_PredictMatchesRuntime` (every operator ×
+   every field type: predict == runtime == table, same code, once at
+   predict — no divergence ledger) and
+   `TestCapabilities_AcceptsTypesMatchFieldAcceptTable`.
+
+Codes say what they mean: an "operator does not accept this type"
+refusal is `PULSE_FIELD_TYPE_UNSUPPORTED`; a tier-1 numeric test's field
+keeps `PULSE_TEST_FIELD_NOT_NUMERIC` / `PULSE_TEST_FIELD2_NOT_NUMERIC`. An
+EXTENSION operator is never in the table — it declares `Accepts` on its
+registration and judges its own fields.
 
 ## Limits of extension operators
 

@@ -254,8 +254,11 @@ names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if 
 operator introduces a contract it states directly, and mind
 `TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
 
-If the operator interacts with categorical fields in a special way,
-also update `internal/descriptor/predict.go`'s `numericAggregations` map.
+If the operator reads its field's value as a number, give it a row in
+the accepted-types table (`internal/fieldaccept`): predict and the
+runtime then refuse a categorical (its dictionary index) or a set
+column with `PULSE_FIELD_TYPE_UNSUPPORTED`, and its manifest
+`accepts_types` is `tableAcceptsTypes(...)`.
 
 ## 8. Run the gates
 

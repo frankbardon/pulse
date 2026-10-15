@@ -238,7 +238,7 @@ func TestAggFrequency_UnparseableNumberRefused(t *testing.T) {
 func TestAggFrequency_SetFieldRefused(t *testing.T) {
 	schema := makeSetTestSchema(t)
 	_, err := newFrequencyAggregator(frequencyAgg("tags", `{"value":"VISA"}`), schema)
-	if err == nil || !errors.HasCode(err, errors.PROCESSING_CONFIG) || !strings.Contains(err.Error(), "AGG_SET_FREQUENCY") {
-		t.Fatalf("err = %v, want PROCESSING_CONFIG naming AGG_SET_FREQUENCY", err)
+	if err == nil || !errors.HasCode(err, errors.PULSE_FIELD_TYPE_UNSUPPORTED) || !strings.Contains(err.Error(), "AGG_SET_FREQUENCY") {
+		t.Fatalf("err = %v, want PULSE_FIELD_TYPE_UNSUPPORTED naming AGG_SET_FREQUENCY", err)
 	}
 }

@@ -251,13 +251,14 @@ func TestErrorLookup_FixupStrip(t *testing.T) {
 		t.Error("Message rewritten")
 	}
 
-	// Example-only mention strips too: PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL
-	// keeps its second fixup.
-	got, _ = ErrorLookup(scopedExcept("AGG_MODE"), "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL")
+	// Example-only mention strips too: PULSE_FIELD_TYPE_UNSUPPORTED
+	// keeps its field-swap fixup and drops the count-it-instead one,
+	// whose examples name AGG_MODE.
+	got, _ = ErrorLookup(scopedExcept("AGG_MODE"), "PULSE_FIELD_TYPE_UNSUPPORTED")
 	if len(got.Fixups) != 1 || strings.Contains(lookupJSON(t, got), "AGG_MODE") {
 		t.Errorf("fixups = %+v, want only the field-swap fixup", got.Fixups)
 	}
-	if again, _ := errors.Lookup("PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL"); len(again.Fixups) != 2 {
+	if again, _ := errors.Lookup("PULSE_FIELD_TYPE_UNSUPPORTED"); len(again.Fixups) != 2 {
 		t.Error("strip wrote through to the errors package table")
 	}
 }

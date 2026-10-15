@@ -34,7 +34,7 @@ Use something else:
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | any set rung — `set_u8`, `set_u16`, `set_u32`, `set_u64`, `set_u128`, `set_u256` |
+| `Field` | any set rung — `set_u8`, `set_u16`, `set_u32`, `set_u64`, `set_u128`, `set_u256`; any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
 | `Label` (the new column name) | required |
 
 ## Output
@@ -43,7 +43,7 @@ One `packed_bool` per record — `1` if the named label's bit is set, `0` otherw
 
 ## Gotchas
 
-- Row-local one-pass — streams cleanly.
+- Row-local one-pass — streams cleanly; merges (shards, parallel decode, chain stages).
 - Unknown `label` (not in the field's dictionary) → `PROCESSING_CONFIG`.
 - Frequently fanned out — one slot per label of interest — to build per-label binary cohorts. Multi-label tests are cheaper as one set filter or one `ATTR_FORMULA` using `has_any` / `has_all`.
 - Coerces to `f64` (1.0 / 0.0) when read by downstream numeric ops.

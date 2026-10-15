@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -32,10 +33,10 @@ func validateFeatures(env *descriptor.Envelope, req *types.Request, schema *enco
 
 	for idx, feat := range req.Features {
 		// A type the instance hides is unknown here, exactly as a
-		// never-registered one.
+		// never-registered one — the runtime's PROCESSING_CONFIG refusal.
 		if !isKnownFeatureType(opRoute(opts.instance(), feat.Type)) && !isExtensionFeatureType(opts, feat.Type) {
 			env.AddError(
-				string(errors.SERVICE_VALIDATION),
+				string(errors.PROCESSING_CONFIG),
 				"unknown feature type: "+string(feat.Type),
 				map[string]any{"feature": string(feat.Type)},
 			)
@@ -106,7 +107,7 @@ func validateFeatureSpec(env *descriptor.Envelope, feat *types.Feature, schema *
 	// All other operators require a field.
 	if feat.Field == "" {
 		env.AddError(
-			string(errors.SERVICE_VALIDATION),
+			string(errors.PROCESSING_CONFIG),
 			"feature "+string(feat.Type)+" requires a field",
 			map[string]any{"feature": string(feat.Type)},
 		)
@@ -120,7 +121,7 @@ func validateFeatureSpec(env *descriptor.Envelope, feat *types.Feature, schema *
 			// don't have for derived columns; trust the producing
 			// operator to emit a compatible value.
 			if feat.Type == types.FEAT_TARGET_ENCODE {
-				validateTargetEncodeParams(env, feat, schema)
+				validateTargetEncodeParams(env, feat, schema, nil)
 			}
 			if feat.Type == types.FEAT_BUCKETIZE {
 				validateBucketizeParams(env, feat)
@@ -136,36 +137,40 @@ func validateFeatureSpec(env *descriptor.Envelope, feat *types.Feature, schema *
 
 	// A vector field is the field-reference walk's refusal
 	// (vectorScalarRefusals); the type checks below would only repeat it.
-	vec := f.Type.IsVector()
+	// The accepted-types table's refusals are the runtime
+	// constructors' word for word (fieldaccept.Refusal never refuses a
+	// vector).
 	switch feat.Type {
-	case types.FEAT_ONE_HOT, types.FEAT_FREQUENCY_ENCODE, types.FEAT_TARGET_ENCODE:
-		if !vec && !f.Type.IsCategorical() {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"feature "+string(feat.Type)+" requires a categorical field",
-				map[string]any{"field": feat.Field, "feature": string(feat.Type)},
-			)
+	case types.FEAT_ONE_HOT, types.FEAT_FREQUENCY_ENCODE:
+		if cerr := fieldaccept.Refusal(string(feat.Type), fieldaccept.SlotField, feat.Field, f.Type); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
-		if feat.Type == types.FEAT_TARGET_ENCODE {
-			validateTargetEncodeParams(env, feat, schema)
-		}
+	case types.FEAT_TARGET_ENCODE:
+		validateTargetEncodeParams(env, feat, schema, f)
 	case types.FEAT_DATE_FEATURES:
-		if !vec && f.Type != encoding.FieldTypeDate && f.Type != encoding.FieldTypeDateTime {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"feature FEAT_DATE_FEATURES requires a date or datetime field",
-				map[string]any{"field": feat.Field, "feature": string(feat.Type)},
-			)
+		if cerr := fieldaccept.Refusal(string(feat.Type), fieldaccept.SlotField, feat.Field, f.Type); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+	case types.FEAT_LOG, types.FEAT_SQRT:
+		// The accepted-types table's refusal, the runtime's (newLog /
+		// newSqrt) word for word.
+		if cerr := fieldaccept.Refusal(string(feat.Type), fieldaccept.SlotField, feat.Field, f.Type); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 	case types.FEAT_BUCKETIZE:
+		// newBucketize judges the type before its params.
+		if cerr := fieldaccept.Refusal(string(feat.Type), fieldaccept.SlotField, feat.Field, f.Type); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			return
+		}
 		validateBucketizeParams(env, feat)
 	case types.FEAT_POLY:
-		if !vec && !featureAcceptsType(feat.Type, f.Type) {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"feature FEAT_POLY requires a numeric field",
-				map[string]any{"field": feat.Field, "feature": string(feat.Type)},
-			)
+		// The accepted-types table's refusal, the runtime's (newPoly)
+		// word for word, judged before the params; a vector is
+		// vectorScalarRefusals'.
+		if cerr := fieldaccept.Refusal(string(feat.Type), fieldaccept.SlotField, feat.Field, f.Type); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			return
 		}
 		validatePolyParams(env, feat)
 	}
@@ -174,7 +179,7 @@ func validateFeatureSpec(env *descriptor.Envelope, feat *types.Feature, schema *
 func validateSplitParams(env *descriptor.Envelope, feat *types.Feature, schema *encoding.Schema) {
 	if len(feat.Params) == 0 {
 		env.AddError(
-			string(errors.SERVICE_VALIDATION),
+			string(errors.PROCESSING_CONFIG),
 			"feature FEAT_TRAIN_TEST_SPLIT requires params with 'ratios'",
 			map[string]any{"feature": string(feat.Type)},
 		)
@@ -186,7 +191,7 @@ func validateSplitParams(env *descriptor.Envelope, feat *types.Feature, schema *
 	}
 	if err := json.Unmarshal(feat.Params, &p); err != nil {
 		env.AddError(
-			string(errors.SERVICE_VALIDATION),
+			string(errors.PROCESSING_CONFIG),
 			"feature FEAT_TRAIN_TEST_SPLIT has malformed params: "+err.Error(),
 			map[string]any{"feature": string(feat.Type)},
 		)
@@ -194,7 +199,7 @@ func validateSplitParams(env *descriptor.Envelope, feat *types.Feature, schema *
 	}
 	if len(p.Ratios) < 2 || len(p.Ratios) > 3 {
 		env.AddError(
-			string(errors.SERVICE_VALIDATION),
+			string(errors.PROCESSING_CONFIG),
 			"feature FEAT_TRAIN_TEST_SPLIT: 'ratios' must have 2 or 3 elements",
 			map[string]any{"feature": string(feat.Type)},
 		)
@@ -204,7 +209,7 @@ func validateSplitParams(env *descriptor.Envelope, feat *types.Feature, schema *
 	for _, r := range p.Ratios {
 		if r < 0 {
 			env.AddError(
-				string(errors.SERVICE_VALIDATION),
+				string(errors.PROCESSING_CONFIG),
 				"feature FEAT_TRAIN_TEST_SPLIT: ratios must be non-negative",
 				map[string]any{"feature": string(feat.Type)},
 			)
@@ -214,27 +219,23 @@ func validateSplitParams(env *descriptor.Envelope, feat *types.Feature, schema *
 	}
 	if math.Abs(sum-1.0) > 1e-6 {
 		env.AddError(
-			string(errors.SERVICE_VALIDATION),
+			string(errors.PROCESSING_CONFIG),
 			"feature FEAT_TRAIN_TEST_SPLIT: ratios must sum to 1.0",
 			map[string]any{"feature": string(feat.Type), "sum": sum},
 		)
+		return
 	}
-	if p.Stratify != "" {
-		// An unknown name is FieldRefRefusals' refusal.
-		if f := schema.Field(p.Stratify); f != nil && !f.Type.IsVector() && !f.Type.IsCategorical() {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"feature FEAT_TRAIN_TEST_SPLIT: stratify field must be categorical",
-				map[string]any{"field": p.Stratify, "feature": string(feat.Type)},
-			)
-		}
+	// An unknown name is FieldRefRefusals' refusal; a non-categorical
+	// stratify column the accepted-types table's.
+	if cerr := fieldaccept.Check(string(feat.Type), fieldaccept.SlotStratify, p.Stratify, schema); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
 }
 
 func validateBucketizeParams(env *descriptor.Envelope, feat *types.Feature) {
 	if len(feat.Params) == 0 {
 		env.AddError(
-			string(errors.SERVICE_VALIDATION),
+			string(errors.PROCESSING_CONFIG),
 			"feature FEAT_BUCKETIZE requires 'boundaries' or 'quantiles' in params",
 			map[string]any{"feature": string(feat.Type)},
 		)
@@ -246,7 +247,7 @@ func validateBucketizeParams(env *descriptor.Envelope, feat *types.Feature) {
 	}
 	if err := json.Unmarshal(feat.Params, &p); err != nil {
 		env.AddError(
-			string(errors.SERVICE_VALIDATION),
+			string(errors.PROCESSING_CONFIG),
 			"feature FEAT_BUCKETIZE has malformed params: "+err.Error(),
 			map[string]any{"feature": string(feat.Type)},
 		)
@@ -254,14 +255,14 @@ func validateBucketizeParams(env *descriptor.Envelope, feat *types.Feature) {
 	}
 	if len(p.Boundaries) == 0 && p.Quantiles <= 0 {
 		env.AddError(
-			string(errors.SERVICE_VALIDATION),
+			string(errors.PROCESSING_CONFIG),
 			"feature FEAT_BUCKETIZE: provide either 'boundaries' or 'quantiles'",
 			map[string]any{"feature": string(feat.Type)},
 		)
 	}
 	if len(p.Boundaries) > 0 && p.Quantiles > 0 {
 		env.AddError(
-			string(errors.SERVICE_VALIDATION),
+			string(errors.PROCESSING_CONFIG),
 			"feature FEAT_BUCKETIZE: 'boundaries' and 'quantiles' are mutually exclusive",
 			map[string]any{"feature": string(feat.Type)},
 		)
@@ -274,7 +275,7 @@ func validateBucketizeParams(env *descriptor.Envelope, feat *types.Feature) {
 func validatePolyParams(env *descriptor.Envelope, feat *types.Feature) {
 	if len(feat.Params) == 0 {
 		env.AddError(
-			string(errors.SERVICE_VALIDATION),
+			string(errors.PROCESSING_CONFIG),
 			"feature FEAT_POLY requires 'degree' in params",
 			map[string]any{"feature": string(feat.Type)},
 		)
@@ -285,7 +286,7 @@ func validatePolyParams(env *descriptor.Envelope, feat *types.Feature) {
 	}
 	if err := json.Unmarshal(feat.Params, &p); err != nil {
 		env.AddError(
-			string(errors.SERVICE_VALIDATION),
+			string(errors.PROCESSING_CONFIG),
 			"feature FEAT_POLY has malformed params: "+err.Error(),
 			map[string]any{"feature": string(feat.Type)},
 		)
@@ -293,24 +294,28 @@ func validatePolyParams(env *descriptor.Envelope, feat *types.Feature) {
 	}
 	if p.Degree < 2 {
 		env.AddError(
-			string(errors.SERVICE_VALIDATION),
+			string(errors.PROCESSING_CONFIG),
 			"feature FEAT_POLY requires Degree >= 2; use the original column for the linear term",
 			map[string]any{"feature": string(feat.Type), "degree": p.Degree},
 		)
 	}
 	if p.Degree > 10 {
 		env.AddError(
-			string(errors.SERVICE_VALIDATION),
+			string(errors.PROCESSING_CONFIG),
 			"feature FEAT_POLY Degree capped at 10; consider standardizing inputs first or using an orthogonal basis",
 			map[string]any{"feature": string(feat.Type), "degree": p.Degree},
 		)
 	}
 }
 
-func validateTargetEncodeParams(env *descriptor.Envelope, feat *types.Feature, schema *encoding.Schema) {
+// validateTargetEncodeParams reports FEAT_TARGET_ENCODE's refusals in
+// the constructor's order, stopping at the first: its params, then the
+// encoded field's type (field is nil for a derived column, which has no
+// schema type), then the target's.
+func validateTargetEncodeParams(env *descriptor.Envelope, feat *types.Feature, schema *encoding.Schema, field *encoding.Field) {
 	if len(feat.Params) == 0 {
 		env.AddError(
-			string(errors.SERVICE_VALIDATION),
+			string(errors.PROCESSING_CONFIG),
 			"feature FEAT_TARGET_ENCODE requires params with 'target'",
 			map[string]any{"feature": string(feat.Type)},
 		)
@@ -322,7 +327,7 @@ func validateTargetEncodeParams(env *descriptor.Envelope, feat *types.Feature, s
 	}
 	if err := json.Unmarshal(feat.Params, &p); err != nil {
 		env.AddError(
-			string(errors.SERVICE_VALIDATION),
+			string(errors.PROCESSING_CONFIG),
 			"feature FEAT_TARGET_ENCODE has malformed params: "+err.Error(),
 			map[string]any{"feature": string(feat.Type)},
 		)
@@ -330,7 +335,7 @@ func validateTargetEncodeParams(env *descriptor.Envelope, feat *types.Feature, s
 	}
 	if p.Target == "" {
 		env.AddError(
-			string(errors.SERVICE_VALIDATION),
+			string(errors.PROCESSING_CONFIG),
 			"feature FEAT_TARGET_ENCODE: 'target' is required in params",
 			map[string]any{"feature": string(feat.Type)},
 		)
@@ -338,18 +343,23 @@ func validateTargetEncodeParams(env *descriptor.Envelope, feat *types.Feature, s
 	}
 	if p.Smoothing < 0 {
 		env.AddError(
-			string(errors.SERVICE_VALIDATION),
+			string(errors.PROCESSING_CONFIG),
 			"feature FEAT_TARGET_ENCODE: 'smoothing' must be non-negative",
 			map[string]any{"feature": string(feat.Type)},
 		)
+		return
 	}
-	// An unknown name is FieldRefRefusals' refusal.
-	if f := schema.Field(p.Target); f != nil && f.Type.IsCategorical() {
-		env.AddError(
-			string(errors.SERVICE_VALIDATION),
-			"feature FEAT_TARGET_ENCODE: target field must be numeric, got categorical",
-			map[string]any{"field": p.Target, "feature": string(feat.Type)},
-		)
+	if field != nil {
+		if cerr := fieldaccept.Refusal(string(feat.Type), fieldaccept.SlotField, feat.Field, field.Type); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			return
+		}
+	}
+	// An unknown name is FieldRefRefusals' refusal; a target the
+	// accepted-types table refuses (a categorical's index or a set's
+	// bitmask is no numeric outcome) the runtime constructor's.
+	if cerr := fieldaccept.Check(string(feat.Type), fieldaccept.SlotTarget, p.Target, schema); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
 }
 
@@ -442,28 +452,6 @@ func singleLabel(feat *types.Feature, prefix string) string {
 		return feat.Label
 	}
 	return prefix + feat.Field
-}
-
-// featureAcceptsType reports whether the feature's capability
-// declaration (featureCapabilities AcceptsTypes — the manifest's
-// accepts_types) lists ft, so predict refuses exactly the types the
-// manifest says the operator does not take. FEAT_POLY used the strict
-// FieldType.IsNumeric here and refused u4 and date, which the runtime
-// expands correctly and the skill documents.
-func featureAcceptsType(op types.FeatureType, ft encoding.FieldType) bool {
-	name := ft.String()
-	for _, c := range featureCapabilities() {
-		if c.Name != string(op) {
-			continue
-		}
-		for _, t := range c.AcceptsTypes {
-			if t == name {
-				return true
-			}
-		}
-		return false
-	}
-	return false
 }
 
 // trainTestSplitName names the split operator in the target-leakage
