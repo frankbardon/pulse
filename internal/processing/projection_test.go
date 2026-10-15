@@ -65,9 +65,12 @@ func TestNeededFields_GroupAndFilter(t *testing.T) {
 	}
 }
 
+// A window over grouped rows still projects: it reads its own field,
+// partition and order keys beside the grouper's field.
 func TestNeededFields_WindowReferencesPartitionAndOrder(t *testing.T) {
 	schema := mkSchema("a", "b", "ts", "cat", "v")
 	req := &types.Request{
+		Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "a"}},
 		Windows: []*types.Window{{
 			Type:        types.WIN_MOVING_AVG,
 			Field:       "v",
@@ -76,9 +79,41 @@ func TestNeededFields_WindowReferencesPartitionAndOrder(t *testing.T) {
 		}},
 	}
 	got := NeededFields(req, schema, nil)
-	want := []string{"cat", "ts", "v"}
+	want := []string{"a", "cat", "ts", "v"}
 	if g := sortedFields(got); !equalStrings(g, want) {
 		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
+// Windows-only requests emit the filtered records as rows, and a record
+// row carries every schema field, so the set widens (#201d); a window
+// beside an aggregation, a group or a crosstab rides aggregated rows
+// and keeps its narrow set.
+func TestNeededFields_WindowRecordRowsWiden(t *testing.T) {
+	schema := mkSchema("a", "b", "ts", "v")
+	win := func() []*types.Window {
+		return []*types.Window{{Type: types.WIN_LAG, Field: "v", OrderBy: []types.OrderKey{{Field: "ts"}}}}
+	}
+	for _, tc := range []struct {
+		name string
+		req  *types.Request
+		wide bool
+	}{
+		{"windows only", &types.Request{Windows: win()}, true},
+		{"windows with filter", &types.Request{Windows: win(),
+			Filterers: []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "a", Values: []string{"1"}}}}, true},
+		{"windows with aggregation", &types.Request{Windows: win(),
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "b"}}}, false},
+		{"windows with group", &types.Request{Windows: win(),
+			Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "a"}}}, false},
+		{"windows with crosstab", &types.Request{Windows: win(),
+			Crosstab: &types.CrosstabSpec{Rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "a"}}}}, false},
+		{"no windows", &types.Request{
+			Filterers: []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "a", Values: []string{"1"}}}}, false},
+	} {
+		if got := NeededFields(tc.req, schema, nil).IsWide(); got != tc.wide {
+			t.Errorf("%s: wide = %v, want %v", tc.name, got, tc.wide)
+		}
 	}
 }
 

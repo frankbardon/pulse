@@ -214,13 +214,9 @@ func TestRecordRowCells_EveryFieldTypeIsJSONNative(t *testing.T) {
 
 	paths := map[string]func() []map[string]any{
 		"process record rows": func() []map[string]any {
-			// Record rows carry only the projected fields under the
-			// default projection; read the full row unprojected.
-			np, err := pulse.New(pulse.Options{FS: fs, DisableProjection: true})
-			if err != nil {
-				t.Fatal(err)
-			}
-			resp, err := np.Process(ctx, &types.Request{Cohort: &types.Cohort{Filename: "all.pulse"},
+			// Record rows carry the full record under the default
+			// projection (#201d).
+			resp, err := p.Process(ctx, &types.Request{Cohort: &types.Cohort{Filename: "all.pulse"},
 				Windows: []*types.Window{{Type: types.WIN_ROW_NUMBER, Label: "rn", OrderBy: []types.OrderKey{{Field: "t_u8"}}}}})
 			if err != nil {
 				t.Fatal(err)

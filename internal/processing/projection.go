@@ -97,6 +97,14 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		out.Widen()
 		return out
 	}
+	// Windowed record rows carry the FULL record: a windows-only
+	// request emits one row per filtered record (recordsToRows), and
+	// projection is output-transparent, so every field decodes — the
+	// unprojected row is canonical (#201d).
+	if windowsEmitRecordRows(req) {
+		out.Widen()
+		return out
+	}
 
 	known := schemaFieldSet(schema)
 	// An expression reads a named vector as one identifier standing for
@@ -487,6 +495,16 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 	}
 
 	return out
+}
+
+// windowsEmitRecordRows reports whether req is the windows-only shape
+// whose result rows are the filtered records themselves: windows with
+// no group, no aggregation and no crosstab (Processor.Process's
+// record-row arm). Each such row carries every schema field, so the
+// projection retains the whole record for it.
+func windowsEmitRecordRows(req *types.Request) bool {
+	return req != nil && len(req.Windows) > 0 && len(req.Groups) == 0 &&
+		len(req.Aggregations) == 0 && req.Crosstab == nil
 }
 
 // requestWeightFields lists the weight fields req names explicitly:
