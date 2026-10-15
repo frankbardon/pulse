@@ -68,6 +68,13 @@ type Options struct {
 	// is refused before anything nested inside it (descx.SlotRefusal's
 	// order).
 	DocumentOrder bool
+
+	// Aliases returns known misnomers for struct type t's keys — an
+	// unknown key mapped to the valid key no edit distance would reach
+	// (a synth correlation's `correlation` is `rho`). The refusal
+	// suggests the alias ahead of the nearest-key guess
+	// (UnknownFieldErrorAliased). Nil aliases nothing.
+	Aliases func(t reflect.Type) map[string]string
 }
 
 // Unknown is the first object carrying unrecognised keys.
@@ -91,6 +98,8 @@ type Unknown struct {
 	// its index); LocationKey is "" outside a nested request.
 	LocationKey   string
 	LocationIndex int
+	// Aliases are Options.Aliases for Type, carried to the refusal.
+	Aliases map[string]string
 }
 
 // KeyPath is the path of the first offending key: Path + "." + Keys[0]
@@ -103,7 +112,7 @@ func (u *Unknown) FullKeyPath() string { return joinPath(u.FullPath, u.Keys[0]) 
 // Error converts u into the PULSE_REQUEST_UNKNOWN_FIELD refusal,
 // located by details[LocationKey] when u sits in a nested request.
 func (u *Unknown) Error() *perr.CodedError {
-	ce := UnknownFieldError(u.Path, u.Keys, u.Valid)
+	ce := UnknownFieldErrorAliased(u.Path, u.Keys, u.Valid, u.Aliases)
 	if u.LocationKey != "" {
 		ce.Details[u.LocationKey] = u.LocationIndex
 	}
@@ -470,8 +479,12 @@ func (w *walker) object(t reflect.Type, raw []byte, path, full string, root bool
 				valid = append(valid, n)
 			}
 		}
+		var aliases map[string]string
+		if w.opts.Aliases != nil {
+			aliases = w.opts.Aliases(t)
+		}
 		return &Unknown{Path: path, FullPath: full, Keys: unknown, First: first, Valid: valid, Type: t,
-			LocationKey: w.locKey, LocationIndex: w.locIndex}
+			LocationKey: w.locKey, LocationIndex: w.locIndex, Aliases: aliases}
 	}
 	if !w.opts.DocumentOrder {
 		if u := refuse(); u != nil {

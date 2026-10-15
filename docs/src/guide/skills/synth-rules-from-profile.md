@@ -19,7 +19,7 @@ requires: [capability:synth]
 
 Generation-time warnings — POST-merge arbitration, rule-compilation, never-fired reports — also land in `--fidelity-report`'s `warnings` array, deduped against the translation channel.
 
-Refusals name the FILE as well as the rule index (`details.path` on every `PULSE_SYNTH_RULE_*` raised by the load), so an analyst holding a rules file, a spec and a profile knows which document is wrong. Missing file `DATA_FILE`, malformed one `SERVICE_VALIDATION`; both name the path.
+Refusals name the FILE as well as the rule index (`details.path` on every `PULSE_SYNTH_RULE_*` raised by the load), so an analyst holding a rules file, a spec and a profile knows which document is wrong. Missing file `DATA_FILE`, malformed one `SERVICE_VALIDATION`; both name the path. The decode is strict: an unknown rule key (`set_nul`) is `PULSE_REQUEST_UNKNOWN_FIELD` with the JSON location in `details.path` (`[0].set_nul`) and the file in `details.file`.
 
 ## Detecting rules from the data (`--suggest-rules`)
 

@@ -55,7 +55,7 @@ func TestSpecFromProfile_SmallIntegerPairsReachTheCorrelationMatrix(t *testing.T
 	spec, _ := synth.SpecFromProfile(p, 1000)
 	got := map[string]float64{}
 	for _, c := range spec.Correlations {
-		got[c.A+"|"+c.B] = c.Correlation
+		got[c.A+"|"+c.B] = c.Rho
 	}
 	for _, want := range []struct {
 		key string
@@ -117,7 +117,7 @@ func TestSynthCorrelation_DiscreteMarginsHoldAndCorrelate(t *testing.T) {
 	spec := &synth.Spec{
 		RowCount:     rows,
 		Fields:       []synth.FieldSpec{field("a", weightsA), field("b", weightsB)},
-		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Correlation: rho}},
+		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Rho: rho}},
 	}
 	data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 4242})
 	if err != nil {

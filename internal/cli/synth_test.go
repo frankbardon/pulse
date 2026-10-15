@@ -897,6 +897,97 @@ func TestSynthFromProfileCLI_RulesRefusalNamesTheFile(t *testing.T) {
 	}
 }
 
+// TestSynthCLI_UnknownKeysRefusedWithTheirOwnCode: every synth input
+// document — the spec, the profile and the rules file — decodes
+// strictly, and the refusal reaches the --json envelope as
+// PULSE_REQUEST_UNKNOWN_FIELD with its JSON location, never a
+// placeholder and never a generated cohort (U44 #302).
+func TestSynthCLI_UnknownKeysRefusedWithTheirOwnCode(t *testing.T) {
+	dir := t.TempDir()
+	source, profile := richFromProfileFixture(t, dir, 40, 6)
+	profRaw, err := os.ReadFile(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var profDoc map[string]any
+	if err := json.Unmarshal(profRaw, &profDoc); err != nil {
+		t.Fatal(err)
+	}
+	profDoc["fidelity"] = true
+	badProfile, _ := json.Marshal(profDoc)
+
+	write := func(name, body string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	cases := []struct {
+		name    string
+		args    func(out string) []string
+		path    string // details.path; "" = document root
+		unknown string
+		file    string // details.file; "" = absent
+	}{
+		{name: "spec correlation key", args: func(out string) []string {
+			spec := write("spec.json", `{"row_count":5,"fields":[
+				{"name":"a","type":"f64","distribution":"normal"},
+				{"name":"b","type":"f64","distribution":"normal"}],
+				"correlations":[{"a":"a","b":"b","correlation":0.6}]}`)
+			return []string{"from-schema", "--spec", spec, "--output", out, "--json"}
+		}, path: "correlations[0].correlation", unknown: "correlation"},
+		{name: "spec params key", args: func(out string) []string {
+			spec := write("spec_params.json", `{"row_count":5,"fields":[
+				{"name":"e","type":"f64","distribution":"exponential","params":{"rate":5}}]}`)
+			return []string{"from-schema", "--spec", spec, "--output", out, "--json"}
+		}, path: "fields[0].params.rate", unknown: "rate"},
+		{name: "profile key", args: func(out string) []string {
+			p := write("bad_profile.json", string(badProfile))
+			return []string{"from-profile", "--profile", p, "--source", source, "--output", out, "--rows", "5", "--json"}
+		}, unknown: "fidelity"},
+		{name: "rules key", args: func(out string) []string {
+			r := write("bad_rules.json", `[{"set_nul":["x"]}]`)
+			return []string{"from-profile", "--profile", profile, "--source", source, "--output", out,
+				"--rows", "5", "--rules", r, "--json"}
+		}, path: "[0].set_nul", unknown: "set_nul", file: filepath.Join(dir, "bad_rules.json")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out := filepath.Join(dir, strings.ReplaceAll(tc.name, " ", "_")+".pulse")
+			var buf bytes.Buffer
+			if err := runSynthCLI(t, &buf, tc.args(out)...); err != nil {
+				t.Fatalf("--json refusals are written to the envelope, not returned: %v", err)
+			}
+			var env struct {
+				Errors []struct {
+					Code    string         `json:"code"`
+					Details map[string]any `json:"details"`
+				} `json:"errors"`
+			}
+			if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
+				t.Fatalf("json.Unmarshal: %v\nraw: %s", err, buf.String())
+			}
+			if len(env.Errors) != 1 || env.Errors[0].Code != "PULSE_REQUEST_UNKNOWN_FIELD" {
+				t.Fatalf("errors = %+v, want one PULSE_REQUEST_UNKNOWN_FIELD", env.Errors)
+			}
+			d := env.Errors[0].Details
+			if got, _ := d["path"].(string); got != tc.path {
+				t.Errorf("details.path = %q, want %q", got, tc.path)
+			}
+			if keys, _ := d["unknown_keys"].([]any); len(keys) != 1 || keys[0] != tc.unknown {
+				t.Errorf("details.unknown_keys = %v, want [%s]", d["unknown_keys"], tc.unknown)
+			}
+			if got, _ := d["file"].(string); got != tc.file {
+				t.Errorf("details.file = %q, want %q", got, tc.file)
+			}
+			if _, err := os.Stat(out); err == nil {
+				t.Error("a refused document still produced an output cohort")
+			}
+		})
+	}
+}
+
 // TestSynthFromProfileCLI_EmitSpecWithJSONKeepsTheEnvelope pins that
 // both new flags coexist with --json and move nothing in the envelope.
 func TestSynthFromProfileCLI_EmitSpecWithJSONKeepsTheEnvelope(t *testing.T) {

@@ -40,9 +40,9 @@ func drawersNamed(names ...string) []*modelDrawer {
 func TestBuildResidualCorrelator_ComponentOrderIsDrawerOrder(t *testing.T) {
 	drawers := drawersNamed("alpha", "beta", "gamma")
 	rc, warnings, err := buildResidualCorrelator([]CorrelationSpec{
-		{A: "gamma", B: "beta", Correlation: 0.2},
-		{A: "gamma", B: "alpha", Correlation: 0.3},
-		{A: "beta", B: "alpha", Correlation: 0.4},
+		{A: "gamma", B: "beta", Rho: 0.2},
+		{A: "gamma", B: "alpha", Rho: 0.3},
+		{A: "beta", B: "alpha", Rho: 0.4},
 	}, drawers)
 	if err != nil {
 		t.Fatalf("buildResidualCorrelator: %v", err)
@@ -68,8 +68,8 @@ func TestBuildResidualCorrelator_ComponentOrderIsDrawerOrder(t *testing.T) {
 func TestBuildResidualCorrelator_SkipsUnmodelledEndpoints(t *testing.T) {
 	drawers := drawersNamed("alpha", "beta", "gamma")
 	rc, warnings, err := buildResidualCorrelator([]CorrelationSpec{
-		{A: "alpha", B: "ghost", Correlation: 0.5},
-		{A: "beta", B: "gamma", Correlation: 0.5},
+		{A: "alpha", B: "ghost", Rho: 0.5},
+		{A: "beta", B: "gamma", Rho: 0.5},
 	}, drawers)
 	if err != nil {
 		t.Fatalf("buildResidualCorrelator: %v", err)
@@ -99,7 +99,7 @@ func TestBuildResidualCorrelator_SkipsUnmodelledEndpoints(t *testing.T) {
 func TestBuildResidualCorrelator_NilBelowTwoParticipants(t *testing.T) {
 	drawers := drawersNamed("alpha", "beta")
 	rc, _, err := buildResidualCorrelator([]CorrelationSpec{
-		{A: "alpha", B: "ghost", Correlation: 0.5},
+		{A: "alpha", B: "ghost", Rho: 0.5},
 	}, drawers)
 	if err != nil {
 		t.Fatalf("buildResidualCorrelator: %v", err)
@@ -127,7 +127,7 @@ func TestBuildResidualCorrelator_NilBelowTwoParticipants(t *testing.T) {
 func TestResidualCorrelator_DrawRealizesRequestedCorrelation(t *testing.T) {
 	const target = 0.7
 	rc, _, err := buildResidualCorrelator(
-		[]CorrelationSpec{{A: "alpha", B: "beta", Correlation: target}},
+		[]CorrelationSpec{{A: "alpha", B: "beta", Rho: target}},
 		drawersNamed("alpha", "beta"))
 	if err != nil {
 		t.Fatalf("buildResidualCorrelator: %v", err)
@@ -237,7 +237,7 @@ func TestSpecFromProfile_TranslatesMeasuredResidualPairsOnly(t *testing.T) {
 		for _, got := range spec.ResidualCorrelations {
 			if (got.A == gap.A && got.B == gap.B) || (got.A == gap.B && got.B == gap.A) {
 				t.Errorf("unmeasured pair (%s, %s) was translated into a measured rho of %g",
-					gap.A, gap.B, got.Correlation)
+					gap.A, gap.B, got.Rho)
 			}
 		}
 	}

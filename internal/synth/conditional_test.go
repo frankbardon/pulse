@@ -31,7 +31,7 @@ func TestSynth_CorrelationReconstructionWithinTolerance(t *testing.T) {
 			{Name: "b", Type: "f64", Distribution: synth.DistNormal,
 				Params: map[string]any{"mean": 20.0, "std": 5.0}},
 		},
-		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Correlation: targetRho}},
+		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Rho: targetRho}},
 	}
 	data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 42})
 	if err != nil {
@@ -264,7 +264,7 @@ func synthCorrelatedPair(t *testing.T, targetRho float64, rowCount int, seed int
 			{Name: "b", Type: "f64", Distribution: synth.DistNormal,
 				Params: map[string]any{"mean": 20.0, "std": 5.0}},
 		},
-		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Correlation: targetRho}},
+		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Rho: targetRho}},
 	}
 	data, _, err := synth.SynthBytes(spec, synth.Options{Seed: seed})
 	if err != nil {

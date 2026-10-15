@@ -57,7 +57,9 @@ Synth does not emit `Response.Components` — it writes a `.pulse` file.
 }
 ```
 
-Verify with `pulse_inspect`. `constraints[]` (reject-and-redraw) and `rules[]` (gate, mask, derive): [`synth-structural-rules`](synth-structural-rules.md) — read it before a spec gates, masks or derives a field rather than merely distributing one.
+**Strict:** spec, rules file and profile refuse an unknown key or a `params` key the distribution does not read (`rate` → `lambda`): `PULSE_REQUEST_UNKNOWN_FIELD`, `details.path`, a suggestion.
+
+`constraints[]` (reject-and-redraw) and `rules[]` (gate, mask, derive): read [`synth-structural-rules`](synth-structural-rules.md) before a spec gates, masks or derives a field.
 
 ### Distribution registry
 
@@ -71,7 +73,7 @@ Three carry rules you cannot guess:
 - `constant` — coerced ONCE at spec parse to the field's ROW shape: bool → 1/0 on a scalar, option-name array or object → a `set_*` mask, string REQUIRED for a categorical, verbatim exact string for `decimal128` (`ParseDecimal128`). The only sampler valued from the document, hence the only one that could put a Go `bool` where the expr environment promises `float64`; a shape the row cannot hold is refused at parse.
 - `set_bernoulli` — `options` also PRE-REGISTERS the field's dictionary at schema-build time. A determinism requirement, not an optimisation ([`synth-set-fields`](synth-set-fields.md)).
 
-21 of the 22 field types are reachable. **`datetime` is NOT** (`unknown field type`): use `date` (epoch days) or `u64` epoch seconds. A **vector** (`vec_f32` / `vec_f64`) needs a `vector` block and is ONE joint draw, never dim scalars: [`vector-fields`](vector-fields.md). `decimal128` needs `params.scale` matching the declared scale (banker's rounding). Bit-packed (`u4`, `packed_bool`) use one byte per row in the writer. `nullable: true` opts into the null bitmap; nulls NEVER ride an inline sentinel.
+21 of the 22 field types are reachable. **`datetime` is NOT** (`unknown field type`): use `date` (epoch days) or `u64` epoch seconds. A **vector** (`vec_f32` / `vec_f64`) needs a `vector` block and is ONE joint draw, never dim scalars: [`vector-fields`](vector-fields.md). `decimal128` takes field-level `precision` / `scale` (banker's rounding). Bit-packed (`u4`, `packed_bool`) use one byte per row in the writer. `nullable: true` opts into the null bitmap; nulls NEVER ride an inline sentinel.
 
 ## Determinism contract
 
@@ -86,7 +88,6 @@ Same `(spec, opts.Seed)` MUST produce a byte-identical `.pulse` file; same `(--i
 - Constraints + `monotonic_from`: monotonic ignores RNG, so a rejected row still increments the counter.
 - **A model coefficient is latent-scale** (data units only when `Q` is `normal`); a quantized modelled target attenuates at write time — [`synth-models`](synth-models.md).
 - `--fit-models` does not imply `--residual-correlations`, and neither implies `--conditional`. `--fit-shape` composes with all of them.
-- `weighted_categorical` weights normalize at sample time; absent weights default to uniform.
 
 ## See
 

@@ -189,7 +189,7 @@ func TestRuleClaim_ExcludedFieldLeavesTheResidualCorrelation(t *testing.T) {
 			},
 		},
 	)
-	spec.ResidualCorrelations = []synth.CorrelationSpec{{A: "spend", B: "tenure", Correlation: 0.6}}
+	spec.ResidualCorrelations = []synth.CorrelationSpec{{A: "spend", B: "tenure", Rho: 0.6}}
 	spec.Rules = []synth.RuleSpec{{SetExpr: map[string]string{"spend": "42"}}}
 
 	_, res, err := synth.SynthBytes(spec, synth.Options{Seed: 5})
@@ -559,9 +559,9 @@ func TestRuleClaim_ThreeParticipantMatrixKeepsTheSurvivorsCorrelated(t *testing.
 		// one pair whose two models share NO predictor field, so nothing
 		// but the correlated residual draw can produce it.
 		spec.ResidualCorrelations = []synth.CorrelationSpec{
-			{A: "spend", B: "tenure", Correlation: 0.5},
-			{A: "spend", B: "visits", Correlation: 0.5},
-			{A: "tenure", B: "visits", Correlation: wantRho},
+			{A: "spend", B: "tenure", Rho: 0.5},
+			{A: "spend", B: "visits", Rho: 0.5},
+			{A: "tenure", B: "visits", Rho: wantRho},
 		}
 		spec.Rules = rules
 		return spec

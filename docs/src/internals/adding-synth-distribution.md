@@ -26,6 +26,22 @@ exposes the new distribution to LLM clients.
 `TestManifestDistributionsComplete` enforces a capability row per
 registered distribution kind.
 
+**Params allowlist.** A spec field's `params` are checked strictly: a key the
+distribution does not read is refused `PULSE_REQUEST_UNKNOWN_FIELD`. Declare
+the exact key set three times, and the gates hold them together:
+
+- `distributionParamKeys` in `internal/synth/spec_decode.go` — the runtime
+  allowlist (`validateSpec`); add a `distributionParamAliases` entry for a
+  misnomer no edit distance reaches (`rate` → `lambda`).
+- the row's `Params` above — `TestDistributionParamsMatchManifest`
+  (`internal/descriptor`) requires the same key set.
+- a valid probe field in `paramsGateFields`
+  (`internal/synth/params_allowlist_internal_test.go`) —
+  `TestDistributionParamsDeclaredMatchRead` generates it under a recording
+  of every params read and fails on a key read but undeclared, or declared
+  but never read. Read params only through the `param*` helpers /
+  `paramLookup` (`TestDistributionParamsReadThroughLookup`).
+
 ## 3. Write the atomic skill and list it
 
 Create `skills/op-synth-<kebab>.md` covering the parameter shape, the
@@ -51,7 +67,7 @@ operator introduces a contract it states directly, and mind
 
 ```bash
 go test ./internal/skills/ -run TestSkillsCoverAllSynthDistributions
-go test ./internal/descriptor/ -run TestManifestDistributionsComplete
+go test ./internal/descriptor/ -run 'TestManifestDistributionsComplete|TestDistributionParamsMatchManifest'
 go test ./internal/synth/...
 ```
 

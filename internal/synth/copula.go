@@ -458,8 +458,8 @@ func factorCorrelations(subject, participant string, names []string, idx map[str
 	}
 	for _, c := range correlations {
 		i, j := idx[c.A], idx[c.B]
-		mat[i][j] = c.Correlation
-		mat[j][i] = c.Correlation
+		mat[i][j] = c.Rho
+		mat[j][i] = c.Rho
 		supplied[i][j] = true
 		supplied[j][i] = true
 	}

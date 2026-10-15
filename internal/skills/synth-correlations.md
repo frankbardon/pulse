@@ -14,6 +14,7 @@ requires: [capability:synth]
 
 `correlations` is a list of `{a, b, rho}` realized by a Gaussian copula (`internal/synth/copula.go`): correlated standard normals `u` via Cholesky → `p_i = Φ(u_i)` → each field's OWN quantile `Q_i(p_i)`. It runs after every pair stage. A profile supplies it from `conditional.numeric_pairs` when captured, else from the top-K `pairwise` list (`synth-profile-capture`).
 
+- **The key is `rho`** — one name across profile, spec and skill; `residual_correlations` and a vector's `correlations` use it too. The pre-rename `correlation` is refused `PULSE_REQUEST_UNKNOWN_FIELD` with "did you mean `rho`" (the spec decodes strictly — an ignored key would generate with no correlation at all).
 - **Supported marginals:** `normal` / `uniform` / `lognormal` / `exponential` / `mixture` / `bernoulli` / `discrete` (`fieldMoments` validates, `quantileFor` builds `Q_i`). Anything else in `correlations` → `SERVICE_VALIDATION`. `|rho| ≥ 1` rejected at validation.
 - **A participant must also be a SCALAR field TYPE, and that predicate is DERIVED, never transcribed.** `isNumericFieldType` reads `fieldTypeFromName`: every declarable non-`categorical_*`, non-`set_*` type qualifies (`u4`…`u64`, `f32`/`f64`, `date`, `decimal128`, `packed_bool`) and nothing else. A hand-written list silently dropped a whole type out of `Spec.Correlations` once — do not reintroduce one. The boundary is TYPE, not distribution: a `date`'s `uniform_date` is refused one call later, NAMING the distribution.
 - **`normal` reduces exactly to `mean + std*u`.** Otherwise the copula targets RANK correlation exactly and preserves each field's own marginal (mean, std AND skew); realized PEARSON attenuates for a wide-variance non-normal marginal, and `min`/`max` clamping distorts further. Keep sigma modest if Pearson must land tightly.
@@ -24,7 +25,7 @@ requires: [capability:synth]
 
 `Spec.Correlations` is ONE joint claimant across all participants (a single Cholesky draw): losing one participant to an earlier claim excludes only that field, and the correlator rebuilds from the survivors (`synth-conflicts`).
 
-Gates: `TestSynth_CorrelationReconstructionWithinTolerance`, `TestSynth_CopulaPreservesLognormalMarginal`.
+Gates: `TestSynth_CorrelationReconstructionWithinTolerance`, `TestSynth_CopulaPreservesLognormalMarginal`, `TestSynth_RhoPlantsCorrelation`.
 
 ## See
 

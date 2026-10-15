@@ -89,7 +89,7 @@ func residualCondSpec(rows int, rho float64) *synth.Spec {
 		},
 	}
 	if rho != 0 {
-		s.ResidualCorrelations = []synth.CorrelationSpec{{A: "spend", B: "visits", Correlation: rho}}
+		s.ResidualCorrelations = []synth.CorrelationSpec{{A: "spend", B: "visits", Rho: rho}}
 	}
 	return s
 }
@@ -248,7 +248,7 @@ func TestSynthResidual_PreservesLognormalMarginal(t *testing.T) {
 			{Field: "a", Intercept: 50, ResidualStd: 10},
 			{Field: "b", Intercept: lnMean, ResidualStd: lnStd},
 		},
-		ResidualCorrelations: []synth.CorrelationSpec{{A: "a", B: "b", Correlation: targetRho}},
+		ResidualCorrelations: []synth.CorrelationSpec{{A: "a", B: "b", Rho: targetRho}},
 	}
 	data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 29})
 	if err != nil {
@@ -312,7 +312,7 @@ func TestSynthResidual_PreservesMixtureMarginal(t *testing.T) {
 			{Field: "a", Intercept: mean, ResidualStd: std},
 			{Field: "b", Intercept: mean, ResidualStd: std},
 		},
-		ResidualCorrelations: []synth.CorrelationSpec{{A: "a", B: "b", Correlation: targetRho}},
+		ResidualCorrelations: []synth.CorrelationSpec{{A: "a", B: "b", Rho: targetRho}},
 	}
 	data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 31})
 	if err != nil {
@@ -385,17 +385,17 @@ func TestSynthResidual_ComponentOrderIsSchemaNotListOrder(t *testing.T) {
 	}
 
 	declared, _, err := synth.SynthBytes(build([]synth.CorrelationSpec{
-		{A: "spend", B: "visits", Correlation: 0.6},
-		{A: "spend", B: "tenure", Correlation: 0.3},
-		{A: "visits", B: "tenure", Correlation: -0.2},
+		{A: "spend", B: "visits", Rho: 0.6},
+		{A: "spend", B: "tenure", Rho: 0.3},
+		{A: "visits", B: "tenure", Rho: -0.2},
 	}), synth.Options{Seed: 43})
 	if err != nil {
 		t.Fatalf("SynthBytes: %v", err)
 	}
 	permuted, _, err := synth.SynthBytes(build([]synth.CorrelationSpec{
-		{A: "tenure", B: "visits", Correlation: -0.2},
-		{A: "visits", B: "spend", Correlation: 0.6},
-		{A: "tenure", B: "spend", Correlation: 0.3},
+		{A: "tenure", B: "visits", Rho: -0.2},
+		{A: "visits", B: "spend", Rho: 0.6},
+		{A: "tenure", B: "spend", Rho: 0.3},
 	}), synth.Options{Seed: 43})
 	if err != nil {
 		t.Fatalf("SynthBytes (permuted): %v", err)
@@ -428,7 +428,7 @@ func TestSynthResidual_InertWhenNothingParticipates(t *testing.T) {
 			}
 		}
 		if withResidual {
-			s.ResidualCorrelations = []synth.CorrelationSpec{{A: "spend", B: "visits", Correlation: 0.7}}
+			s.ResidualCorrelations = []synth.CorrelationSpec{{A: "spend", B: "visits", Rho: 0.7}}
 		}
 		return s
 	}
@@ -469,8 +469,8 @@ func TestSynthResidual_UnsuppliedPairsAreCompletedAndReported(t *testing.T) {
 		Field: "tenure", Intercept: 30, ResidualStd: 8,
 	})
 	s.ResidualCorrelations = []synth.CorrelationSpec{
-		{A: "spend", B: "visits", Correlation: 0.5},
-		{A: "spend", B: "tenure", Correlation: 0.3},
+		{A: "spend", B: "visits", Rho: 0.5},
+		{A: "spend", B: "tenure", Rho: 0.3},
 	}
 
 	_, res, err := synth.SynthBytes(s, synth.Options{Seed: 53})

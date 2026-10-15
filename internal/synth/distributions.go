@@ -402,7 +402,7 @@ type constantSampler struct{ val any }
 // refused at parse; an array on a set_* raised the same at row time and
 // now works, as the option-name list an author would write.
 func newConstantSampler(f FieldSpec) (sampler, error) {
-	v, ok := f.Params["value"]
+	v, ok := paramLookup(f.Name, f.Params, "value")
 	if !ok {
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("field %q: constant requires param value", f.Name), nil)

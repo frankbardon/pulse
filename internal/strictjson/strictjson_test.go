@@ -212,3 +212,39 @@ func TestUnknownFieldErrorAliased_SuggestsAlias(t *testing.T) {
 		t.Fatalf("valid_keys = %#v, want []", empty.Details["valid_keys"])
 	}
 }
+
+// Options.Aliases suggests a known misnomer no edit distance reaches,
+// scoped to the struct type that declares it (a synth correlation's
+// `correlation` → `rho`): the same key elsewhere gets the nearest-key
+// guess only.
+func TestDecode_AliasesSuggestPerType(t *testing.T) {
+	type pair struct {
+		A   string  `json:"a"`
+		Rho float64 `json:"rho"`
+	}
+	type doc struct {
+		Pairs []pair `json:"pairs"`
+		Note  string `json:"note"`
+	}
+	opts := Options{Aliases: func(t reflect.Type) map[string]string {
+		if t == reflect.TypeFor[pair]() {
+			return map[string]string{"correlation": "rho"}
+		}
+		return nil
+	}}
+	_, err := Decode[doc]([]byte(`{"pairs":[{"a":"x","correlation":0.6}]}`), opts)
+	ce := codedOf(t, err)
+	if ce.Code != perr.PULSE_REQUEST_UNKNOWN_FIELD {
+		t.Fatalf("code = %s", ce.Code)
+	}
+	if got := ce.Details["path"]; got != "pairs[0].correlation" {
+		t.Errorf("path = %v", got)
+	}
+	if got := ce.Details["suggestions"].(map[string]any)["correlation"]; got != "rho" {
+		t.Errorf("suggestion = %v, want rho", got)
+	}
+	_, err = Decode[doc]([]byte(`{"correlation":1}`), opts)
+	if s := codedOf(t, err).Details["suggestions"].(map[string]any); len(s) != 0 {
+		t.Errorf("alias leaked to another type: %v", s)
+	}
+}

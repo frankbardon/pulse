@@ -134,9 +134,16 @@ func ApplyRulesFile(fs afero.Fs, spec *Spec, path string) error {
 // mistake and silently reading zero rules out of it would produce a run
 // with every gate missing — the exact failure the eager-validation rule
 // exists to remove.
+//
+// The decode is strict: an unknown key in a rule object is refused
+// PULSE_REQUEST_UNKNOWN_FIELD with details.path (`[2].set_nul`) and a
+// suggestion, never dropped — a dropped `set_null` is a rule that
+// silently never gates.
 func ParseRules(raw []byte) ([]RuleSpec, error) {
 	var rules []RuleSpec
-	if err := json.Unmarshal(raw, &rules); err != nil {
+	if ce, err := decodeDocument(raw, &rules); ce != nil {
+		return nil, ce
+	} else if err != nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("parsing rules file: expected a JSON array of rule objects (the same shape as a spec's \"rules\" key): %v", err))
 	}
@@ -160,7 +167,13 @@ func withRulesFilePath(err error, path string) error {
 	for k, v := range ce.Details {
 		details[k] = v
 	}
-	details["path"] = path
+	// An unknown-key refusal's details.path is the JSON location inside
+	// the document (its code's contract), so the file rides details.file.
+	if ce.Code == errors.PULSE_REQUEST_UNKNOWN_FIELD {
+		details["file"] = path
+	} else {
+		details["path"] = path
+	}
 	return &errors.CodedError{
 		Code:    ce.Code,
 		Message: fmt.Sprintf("rules file %q: %s", path, ce.Message),

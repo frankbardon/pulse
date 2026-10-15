@@ -3601,7 +3601,7 @@ pulse/synth: type CorrelationSpec = pulse/internal/synth.CorrelationSpec
 pulse/synth: type CorrelationSpec underlying struct
 pulse/synth: type CorrelationSpec field A string "json:\"a\""
 pulse/synth: type CorrelationSpec field B string "json:\"b\""
-pulse/synth: type CorrelationSpec field Correlation float64 "json:\"correlation\""
+pulse/synth: type CorrelationSpec field Rho float64 "json:\"rho\""
 pulse/synth: type CorrelationStat = pulse/internal/synth.CorrelationStat
 pulse/synth: type CorrelationStat underlying struct
 pulse/synth: type CorrelationStat field A string "json:\"a\""
@@ -4056,7 +4056,7 @@ pulse/synth: type VectorCorrelationSpec = pulse/internal/synth.VectorCorrelation
 pulse/synth: type VectorCorrelationSpec underlying struct
 pulse/synth: type VectorCorrelationSpec field A int "json:\"a\""
 pulse/synth: type VectorCorrelationSpec field B int "json:\"b\""
-pulse/synth: type VectorCorrelationSpec field Correlation float64 "json:\"correlation\""
+pulse/synth: type VectorCorrelationSpec field Rho float64 "json:\"rho\""
 pulse/synth: type VectorCorrelationStat = pulse/internal/synth.VectorCorrelationStat
 pulse/synth: type VectorCorrelationStat underlying struct
 pulse/synth: type VectorCorrelationStat field A int "json:\"a\""
@@ -5309,4 +5309,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 6538d11e94771de9a95cdf2b939f741052d3e93bdb3f0be0b8889084330b692b
+// golden-hash: 2b33e2b02d8b38ed1229cbffd657d9f7a66e6b806c77f9ee0f055af77dcb4672

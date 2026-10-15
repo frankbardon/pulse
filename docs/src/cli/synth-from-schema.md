@@ -35,15 +35,25 @@ pulse synth from-schema --spec FILE --output FILE
 {
   "row_count": 10000,
   "fields": [
-    {"name": "id",      "type": "u64",            "distribution": "monotonic_from", "from": 1},
+    {"name": "id",      "type": "u64",            "distribution": "monotonic_from", "params": {"start": 1}},
     {"name": "region",  "type": "categorical_u8", "distribution": "weighted_categorical",
-                         "weights": {"east": 0.4, "west": 0.4, "north": 0.1, "south": 0.1}},
-    {"name": "revenue", "type": "f64",            "distribution": "lognormal", "mu": 4.0, "sigma": 0.8},
+                         "params": {"values": ["east", "west", "north", "south"], "weights": [0.4, 0.4, 0.1, 0.1]}},
+    {"name": "revenue", "type": "f64",            "distribution": "lognormal", "params": {"mu": 4.0, "sigma": 0.8}},
     {"name": "sold_on", "type": "date",           "distribution": "uniform_date",
-                         "from": "2024-01-01", "to": "2024-12-31"}
-  ]
+                         "params": {"start": "2024-01-01", "end": "2024-12-31"}},
+    {"name": "score",   "type": "f64",            "distribution": "normal", "params": {"mean": 50, "std": 10}}
+  ],
+  "correlations": [{"a": "score", "b": "revenue", "rho": 0.4}]
 }
 ```
+
+The spec decodes **strictly**: an unknown key at any depth — and a
+`params` key the distribution does not read (`exponential` takes `lambda`,
+not `rate`) — is refused `PULSE_REQUEST_UNKNOWN_FIELD` with
+`details.path` (`fields[0].params.rate`) and a suggestion, never ignored.
+Correlation entries are `{a, b, rho}`; the pre-rename `correlation` key is
+refused with "did you mean `rho`". Each distribution's accepted params are
+the manifest's `synth_distributions[].params`.
 
 Full spec grammar (correlations, regex, …) lives in
 `skills/synthetic-data.md` and the `synth` package; `constraints[]` and the
@@ -61,7 +71,7 @@ as `dim` independent scalars. It needs a `vector` block; the field's
             "labels": ["price", "service", "speed", "quality", "value"],
             "nan_rate": 0.05,
             "elements": [{}, {}, {}, {}, {"distribution": "uniform"}],
-            "correlations": [{"a": 1, "b": 2, "correlation": 0.6}]}}
+            "correlations": [{"a": 1, "b": 2, "rho": 0.6}]}}
 ```
 
 - `dim` (2..1024) is required; `kind` (`measure`, `scale`, `composition`,
@@ -117,7 +127,7 @@ additive linear predictor per numeric field — a field it names is drawn
 from that model rather than from its own marginal, and any pair or
 `correlations` entry naming the same field is dropped with a warning.
 `residual_correlations` declares correlations between two **modelled**
-fields' residuals, `{a, b, correlation}` exactly like `correlations` but
+fields' residuals, `{a, b, rho}` exactly like `correlations` but
 read on the residual scale; both endpoints must carry a `models` entry
 or the spec is refused. Omitting either key is the zero state — every
 residual is drawn independently, exactly as before they existed. The
@@ -133,10 +143,10 @@ alongside a categorical-numeric pair (`region` → `revenue`):
   "row_count": 10000,
   "fields": [
     {"name": "region",  "type": "categorical_u8", "distribution": "weighted_categorical",
-                         "weights": {"east": 0.5, "west": 0.5}},
+                         "params": {"values": ["east", "west"], "weights": [0.5, 0.5]}},
     {"name": "tier",    "type": "categorical_u8", "distribution": "weighted_categorical",
-                         "weights": {"gold": 0.5, "silver": 0.5}},
-    {"name": "revenue", "type": "f64", "distribution": "normal", "mean": 500, "std": 100}
+                         "params": {"values": ["gold", "silver"], "weights": [0.5, 0.5]}},
+    {"name": "revenue", "type": "f64", "distribution": "normal", "params": {"mean": 500, "std": 100}}
   ],
   "categorical_pairs": [
     {"a": "region", "b": "tier", "cells": [

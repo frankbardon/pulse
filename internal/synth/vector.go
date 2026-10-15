@@ -76,9 +76,9 @@ type VectorElementSpec struct {
 // B (1-based, distinct) at target Pearson correlation in [-1, 1] on the
 // latent (copula) scale.
 type VectorCorrelationSpec struct {
-	A           int     `json:"a"`
-	B           int     `json:"b"`
-	Correlation float64 `json:"correlation"`
+	A   int     `json:"a"`
+	B   int     `json:"b"`
+	Rho float64 `json:"rho"`
 }
 
 // vectorElementDistributions is the element-family allowlist: exactly
@@ -177,9 +177,9 @@ func validateVectorField(f FieldSpec) error {
 			return vectorSpecErr(f.Name, "correlation elements must be distinct 1-based indices within dim",
 				map[string]any{"a": c.A, "b": c.B, "dim": v.Dim})
 		}
-		if math.IsNaN(c.Correlation) || c.Correlation < -1 || c.Correlation > 1 {
+		if math.IsNaN(c.Rho) || c.Rho < -1 || c.Rho > 1 {
 			return vectorSpecErr(f.Name, "correlation must be in [-1, 1]",
-				map[string]any{"a": c.A, "b": c.B, "value": c.Correlation})
+				map[string]any{"a": c.A, "b": c.B, "value": c.Rho})
 		}
 		key := [2]int{min(c.A, c.B), max(c.A, c.B)}
 		if seen[key] {
@@ -452,7 +452,7 @@ func newVectorSampler(f FieldSpec) (*vectorSampler, error) {
 		}
 		pairs := make([]CorrelationSpec, len(v.Correlations))
 		for i, c := range v.Correlations {
-			pairs[i] = CorrelationSpec{A: names[c.A-1], B: names[c.B-1], Correlation: c.Correlation}
+			pairs[i] = CorrelationSpec{A: names[c.A-1], B: names[c.B-1], Rho: c.Rho}
 		}
 		chol, warnings, err := factorCorrelations(
 			fmt.Sprintf("vector %q element correlation", f.Name), "element", names, idx, pairs)

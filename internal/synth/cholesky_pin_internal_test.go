@@ -369,15 +369,15 @@ func TestCholeskyPin_CorrelatedDrawBits(t *testing.T) {
 		corrs []CorrelationSpec
 	}{
 		{"consistent", []CorrelationSpec{
-			{A: "a", B: "b", Correlation: 0.6},
-			{A: "b", B: "c", Correlation: -0.3},
-			{A: "a", B: "d", Correlation: 0.25},
+			{A: "a", B: "b", Rho: 0.6},
+			{A: "b", B: "c", Rho: -0.3},
+			{A: "a", B: "d", Rho: 0.25},
 		}},
 		{"inconsistent-ridged", []CorrelationSpec{
-			{A: "a", B: "b", Correlation: 0.9},
-			{A: "b", B: "c", Correlation: 0.9},
-			{A: "a", B: "c", Correlation: -0.9},
-			{A: "c", B: "d", Correlation: 0.5},
+			{A: "a", B: "b", Rho: 0.9},
+			{A: "b", B: "c", Rho: 0.9},
+			{A: "a", B: "c", Rho: -0.9},
+			{A: "c", B: "d", Rho: 0.5},
 		}},
 	}
 	if len(cases) != len(cholPinDrawWants) {

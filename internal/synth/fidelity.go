@@ -36,7 +36,7 @@ type FieldFidelity struct {
 // PairwiseFidelity is one row of FidelityReport.Pairwise: the delta
 // between a captured numeric-numeric pair's source correlation (the
 // same rho internal/synth/copula.go's conditional-Gaussian reconstruction was
-// asked to hit — CorrelationSpec.Correlation, itself sourced from
+// asked to hit — CorrelationSpec.Rho, itself sourced from
 // Profile.Conditional.NumericPairs when --conditional captured it, or
 // Profile.Pairwise otherwise, via SpecFromProfile) and that pair's
 // REALIZED Pearson correlation over the _synthetic=true partition of
@@ -541,7 +541,7 @@ func SyntheticAsCategoricalSchema(schema *encoding.Schema) *encoding.Schema {
 //
 // pairs is typically Spec.Correlations — the source's captured/target
 // rho each pair's copula reconstruction in internal/synth/copula.go targeted,
-// via CorrelationSpec.Correlation — not a fresh re-derivation of it.
+// via CorrelationSpec.Rho — not a fresh re-derivation of it.
 // warnings is typically Profile.Warnings (e.g. a thin-pair warning from
 // --conditional capture); this function has no Profile type of its own
 // to read it from, so the caller supplies it (see Options.
@@ -595,7 +595,7 @@ func decodeSyntheticRows(mergedSchema *encoding.Schema, records []byte) []synthe
 func BuildPairwise(report *FidelityReport, mergedSchema *encoding.Schema, records []byte, pairs []CorrelationSpec, warnings []string) {
 	rows := decodeSyntheticRows(mergedSchema, records)
 	for _, p := range pairs {
-		entry := &PairwiseFidelity{A: p.A, B: p.B, SourceRho: p.Correlation}
+		entry := &PairwiseFidelity{A: p.A, B: p.B, SourceRho: p.Rho}
 		rho, n, ok := computeSyntheticPairRho(rows, p.A, p.B)
 		entry.N = n
 		if !ok {
@@ -603,7 +603,7 @@ func BuildPairwise(report *FidelityReport, mergedSchema *encoding.Schema, record
 				"synthetic partition has fewer than two co-occurring non-null observations for %s x %s", p.A, p.B)
 		} else {
 			entry.SyntheticRho = rho
-			entry.Delta = math.Abs(rho - p.Correlation)
+			entry.Delta = math.Abs(rho - p.Rho)
 		}
 		report.Pairwise = append(report.Pairwise, entry)
 	}

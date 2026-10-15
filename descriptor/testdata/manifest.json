@@ -9177,6 +9177,12 @@
             "type": "any",
             "required": true,
             "description": "Value to emit on every row (interpreted by field type)."
+          },
+          {
+            "name": "options",
+            "type": "list",
+            "required": false,
+            "description": "set_* fields only: dictionary entries in bit order, pre-registered at schema-build time as set_bernoulli's options are; refused on any other field type."
           }
         ],
         "intents": [
@@ -18131,4 +18137,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 75bec4f889149c76c06c0ba90b2baa083a5f1d20c3669805518c4120678fad82
+// golden-hash: 3bb9dbc57e17c127fe348be3c7c934c9f7440c301778abb3895608cbaa6d7f45

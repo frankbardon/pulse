@@ -493,8 +493,8 @@ func TestBuildCorrelator_UnmeasuredPairsAssumedAndRecorded(t *testing.T) {
 			{Name: "c", Type: "f64", Distribution: DistNormal, Params: map[string]any{"mean": 0.0, "std": 1.0}},
 		},
 		Correlations: []CorrelationSpec{
-			{A: "a", B: "b", Correlation: 0.5},
-			{A: "b", B: "c", Correlation: 0.4},
+			{A: "a", B: "b", Rho: 0.5},
+			{A: "b", B: "c", Rho: 0.4},
 		},
 	}
 	_, wfs, err := buildSchema(spec)
@@ -518,7 +518,7 @@ func TestBuildCorrelator_UnmeasuredPairsAssumedAndRecorded(t *testing.T) {
 
 	// A fully supplied matrix assumes nothing and must stay silent —
 	// otherwise the warning is noise rather than a signal.
-	spec.Correlations = append(spec.Correlations, CorrelationSpec{A: "a", B: "c", Correlation: 0.2})
+	spec.Correlations = append(spec.Correlations, CorrelationSpec{A: "a", B: "c", Rho: 0.2})
 	_, warnings, err = buildCorrelator(spec.Correlations, wfs)
 	if err != nil {
 		t.Fatalf("buildCorrelator: %v", err)
@@ -542,9 +542,9 @@ func TestBuildCorrelator_RidgeActivationIsReported(t *testing.T) {
 		// Jointly impossible: a and b nearly identical, b and c nearly
 		// identical, a and c nearly opposite.
 		Correlations: []CorrelationSpec{
-			{A: "a", B: "b", Correlation: 0.99},
-			{A: "b", B: "c", Correlation: 0.99},
-			{A: "a", B: "c", Correlation: -0.99},
+			{A: "a", B: "b", Rho: 0.99},
+			{A: "b", B: "c", Rho: 0.99},
+			{A: "a", B: "c", Rho: -0.99},
 		},
 	}
 	_, wfs, err := buildSchema(spec)

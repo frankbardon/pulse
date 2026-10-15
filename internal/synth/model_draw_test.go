@@ -576,7 +576,7 @@ func TestSynthModel_ValueCorrelationNamingModelledFieldIsRefusedPermanently(t *t
 		Distribution: synth.DistNormal,
 		Params:       map[string]any{"mean": 12.0, "std": 6.0},
 	})
-	spec.Correlations = []synth.CorrelationSpec{{A: "spend", B: "visits", Correlation: 0.8}}
+	spec.Correlations = []synth.CorrelationSpec{{A: "spend", B: "visits", Rho: 0.8}}
 
 	data, res, err := synth.SynthBytes(spec, synth.Options{Seed: 37})
 	if err != nil {

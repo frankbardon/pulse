@@ -2765,7 +2765,7 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 		// correlates) is unchanged, but it now surfaces as a warning
 		// through generate()'s shared conflict-detection mechanism instead
 		// of vanishing without a trace.
-		s.Correlations = append(s.Correlations, CorrelationSpec{A: a, B: b, Correlation: rho})
+		s.Correlations = append(s.Correlations, CorrelationSpec{A: a, B: b, Rho: rho})
 	}
 	if p.Conditional != nil && len(p.Conditional.NumericPairs) > 0 {
 		for _, c := range p.Conditional.NumericPairs {
@@ -2839,7 +2839,7 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 				continue
 			}
 			s.ResidualCorrelations = append(s.ResidualCorrelations,
-				CorrelationSpec{A: rc.A, B: rc.B, Correlation: rc.Rho})
+				CorrelationSpec{A: rc.A, B: rc.B, Rho: rc.Rho})
 		}
 	}
 

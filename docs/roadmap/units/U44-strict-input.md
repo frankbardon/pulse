@@ -39,7 +39,7 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
 - [x] **#301** (Strict input) Unknown keys are refused at every request root and nested spec (sort entries, slot `params`, grouper, overlay and test params, Compose / Chain / Facet roots) in predict and process, with a did-you-mean suggestion; the CLI path matches the MCP strict decode (`PULSE_REQUEST_UNKNOWN_FIELD`). Repros: `"filters"`, `sort[].direction`, `GROUP_DATE params.unit`
-- [ ] **#302** (Strict input) Synth specs decode strictly: unknown spec keys and distribution params are refused (`exponential {rate}` today silently uses `lambda: 1`); `correlations[]` accepts `rho` as the skill documents (or the skill is corrected), never a silent zero
+- [x] **#302** (Strict input) Synth specs decode strictly: unknown spec keys and distribution params are refused (`exponential {rate}` today silently uses `lambda: 1`); `correlations[]` accepts `rho` as the skill documents (or the skill is corrected), never a silent zero
 - [ ] **#303** (Strict input) Every CLI leaf exits non-zero when the envelope carries a fatal error, under `--json` too, as `docs/src/cli` documents; the envelope itself is unchanged
 - [ ] **#304** (Strict input) Imports never drop rows silently: a partial import puts a coded warning with the dropped-row count and the first failure into `warnings` (e.g. a blank cell on a non-nullable `set_*` column), and `--strict` makes it an error
 - [ ] **#305** (Strict input) Requested knobs are honoured and echoed: `bootstrap_iters` is used as given (`<= 0` means the default 1,000, not a floor), and `RegressionResult` reports replicates requested and succeeded
