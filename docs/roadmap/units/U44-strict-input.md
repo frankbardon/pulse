@@ -4,7 +4,7 @@ slug: strict-input
 title: "Pulse never silently ignores what it is given: a misspelled key, a dropped row or a failed run is always visible"
 track: API & release
 size: M
-status: not-started
+status: done
 depends_on: []
 soft_depends_on: [U35]
 blocks: [U32]
@@ -48,7 +48,7 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 - [x] **#308** (Strict input) Path and flag hygiene: a relative `Options.DataDir` is absolutised at `New` (or refused there), `api lookup -i` overrides a request file's cohort as its help states, and `cohort inspect` accepts `-i` like every other leaf — *E3-S3: relative `DataDir` / `PULSE_DATA_DIR` made absolute at `fs.New`; `-i` replaces a request file's cohort on `api lookup` and `api facet`; `cohort inspect -i`; `PULSE_DATA_DIR` docs now say the CLI leaves outside `mcp` / `import auto/list/drop` resolve paths against the working directory*
 - [x] **#309** (Strict input) Warnings that matter at run time are not predict-only: the process envelope repeats `PULSE_FEAT_TARGET_LEAKAGE_RISK`, and `pulse explain` carries predict's warnings — *E2-S5: every run-time warning reaches the CLI envelope's top-level `warnings` and every stream; predict-facet's small `discrete_top_k` carries the runtime's code; `rng_seed: 0` is deterministic per request*
 - [x] **#310** (Strict input) Output consistency: `cohort inspect` shows nullability and `decimal128` precision/scale; `sample` / `lookup` rows print `date` / `datetime` as calendar strings; Compose responses echo each slot's `label`; import / export / shard `--json` data uses snake_case keys and type names (wire decision below) — *E3-S1: import / export / convert / shard `--json` data snake_case with type names, fixed in place (`format_version` stays "1.1"); E3-S2: inspect `nullable` (both modes) + text decimal precision/scale, `sample` / `lookup` calendar strings (`internal/temporal`), Compose `responses[i].label`; E3-S5: Process record rows calendar strings*
-- [ ] **#311** (Strict input) Acceptance: a table test misspells a key in every slot family and gets a coded refusal; all six showcase examples run under `--strict` with nothing ignored, and their scripts drop the `.errors | length` checks in favour of exit status — *partial (E1-S4): in-pulse table test `TestStrictInput_EveryFamilyAndRootRefusesAMisspelledKey` (every derived slot family × every root, CLI predict + process and MCP predict + runtime, synth spec, every template target); the showcase-example run under `--strict` and the script changes remain (casebook follow-up)*
+- [ ] **#311** (Strict input) Acceptance: a table test misspells a key in every slot family and gets a coded refusal; all six showcase examples run under `--strict` with nothing ignored, and their scripts drop the `.errors | length` checks in favour of exit status — *partial (E1-S4): in-pulse table test `TestStrictInput_EveryFamilyAndRootRefusesAMisspelledKey` (every derived slot family × every root, CLI predict + process and MCP predict + runtime, synth spec, every template target); the showcase-example run under `--strict` and the script changes remain, filed as #464 under U32 (see Handed on)*
 
 ## Scope
 
@@ -105,7 +105,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(strict-input/E<n>
 
 ## Human inputs & decisions
 
-- **Open:** strict by default, or strict only under `--strict` with a warning otherwise. A silent wrong answer argues for strict by default before v1 freezes the surface.
+- **Resolved (E1-S1):** strict by default, no opt-out; a root `_meta` example block is tolerated.
 - **Resolved (E3-S1):** the import / export / shard envelope key rename (`RowsImported` → `rows_imported`) shipped IN PLACE with no `format_version` bump — an owner exception to "renames bump", recorded in the embedder migration doc.
 
 ## Inherited from U41
@@ -126,3 +126,15 @@ Filed from [U35](U35-predict-runtime-parity.md); tick in [`TODO.md`](../TODO.md)
 
 - [x] **#460** Auto labels (`Options.AutoLabels`) are not injected on `ProcessChain` stages >= 1 (explicit label bindings are applied since U35 E3-S2); a stage's rows stay un-labelled unless bound. Documented in the chain-join-facet slice. Found in U35 (E3-S2)
 - [x] **#462** Facet runtime warnings carry no details: `FacetResult.Warnings` is `[]string`, so the runtime's `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` rides as `"CODE: message"` while predict carries `details`. Make the facet warnings coded entries (additive wire change). Found in U35 (E5-S3)
+
+## Handed on
+
+| Item | To | Why |
+|---|---|---|
+| #464 casebook scripts to exit status and `--strict`, brand-tracker label workaround removed, numbers refreshed (remainder of #311) | [U32](U32-docs-audit.md) | the showcase lives in the separate casebook repository |
+| #465 topical skills near the hard budget, `type-datetime` over the soft one | [U32](U32-docs-audit.md) | U32 owns the budget flip (#161) |
+| #466 predict `return` size estimate ignores the Compose `label` | [U35](U35-predict-runtime-parity.md) | estimate parity; negligible |
+
+## Delivered
+
+Every behaviour break, with before and after, is in [Changes from U44](../v1.0.0-api-and-release/03-embedder-migration.md#changes-from-u44-strict-input). Owner exception: wire shapes were fixed in place and `format_version` stays `"1.1"`; strict decode is the default with no opt-out.
