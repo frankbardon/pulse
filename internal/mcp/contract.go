@@ -38,6 +38,18 @@ import (
 // InspectIn is the input contract for pulse_inspect.
 type InspectIn struct {
 	Path string `json:"path" jsonschema:"Filesystem path to the .pulse file"`
+	// Joins names the cohorts the session's requests will join. It
+	// changes no inspect output: on a server binding tools on inspect,
+	// the request-carrying tools widen their field enums with each
+	// target's joined names (mcp.BindForInstanceWithJoins).
+	Joins []InspectJoin `json:"joins,omitempty" jsonschema:"Join targets for the schema-bound tools: each {right, as} widens the bound field enums with the right cohort's joined names (as + field) and binds joins[].on[].right_field. Inspect output is unchanged; a target that does not open widens nothing."`
+}
+
+// InspectJoin is one pulse_inspect join target — the right cohort path
+// and the prefix the request's JoinSpec will carry.
+type InspectJoin struct {
+	Right string `json:"right" jsonschema:"Right-side cohort path, as in a request's joins[].right"`
+	As    string `json:"as,omitempty" jsonschema:"The as prefix the request's join will carry (empty: none)"`
 }
 
 // SampleIn is the input contract for pulse_sample.

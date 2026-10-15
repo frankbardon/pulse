@@ -484,7 +484,7 @@
       },
       {
         "name": "pulse_inspect",
-        "description": "CALL TO SEE A COHORT'S FIELDS AND TYPES WITHOUT RUNNING A REQUEST. Read header and schema of a .pulse file without touching record data. Returns the field list (name, type, nullable, dictionary contents for categorical fields), record count, and format metadata.\n\nrecord_count is DERIVED (payload bytes / record stride), so a cohort whose payload is not a whole multiple of the stride reports the FLOOR. That case carries a coded ENCODING_INVALID entry in the additive `warnings` array with record_stride and trailing_bytes in its details; a clean read emits no `warnings` key at all. Read it — a truncated tail is invisible in the count itself."
+        "description": "CALL TO SEE A COHORT'S FIELDS AND TYPES WITHOUT RUNNING A REQUEST. Read header and schema of a .pulse file without touching record data. Returns the field list (name, type, nullable, dictionary contents for categorical fields), record count, and format metadata.\n\nrecord_count is DERIVED (payload bytes / record stride), so a cohort whose payload is not a whole multiple of the stride reports the FLOOR. That case carries a coded ENCODING_INVALID entry in the additive `warnings` array with record_stride and trailing_bytes in its details; a clean read emits no `warnings` key at all. Read it — a truncated tail is invisible in the count itself.\n\nOptional `joins` [{right, as}] names the cohorts later requests join: on a server binding tools on inspect, the rebound request tools' field enums add each target's joined names (as + field) and joins[].on[].right_field its fields. Inspect output is unchanged."
       },
       {
         "name": "pulse_manifest",
@@ -1323,4 +1323,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8513633d103225032c570dc60e3f327be7bb4549576dd91a15a7fde67a4e0193
+// golden-hash: b479e8bdb345fee554ed8197729b3dc9f1460578df5bee45e98dd23fc9653acd

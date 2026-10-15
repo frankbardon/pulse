@@ -40,7 +40,12 @@ import (
 // Best-effort: silently degrades to the global (unbound) tools when
 // cfg.BindOnInspect is off, the server is nil, or the cohort cannot be
 // re-opened. Multi-file is latest-inspect-wins (v1 limitation).
-func bindSessionFromPath(ctx context.Context, s *mcpsdk.Server, p *pulse.Pulse, cfg Config, path string) {
+//
+// joins (pulse_inspect `joins`) names the cohorts the session's requests
+// join: each target that opens (through the instance FS, like the bound
+// cohort) widens the request-carrying tools' field enums with its joined
+// names; one that does not open is skipped (#260).
+func bindSessionFromPath(ctx context.Context, s *mcpsdk.Server, p *pulse.Pulse, cfg Config, path string, joins []core.InspectJoin) {
 	if !cfg.BindOnInspect || s == nil || p == nil || path == "" {
 		return
 	}
@@ -48,7 +53,18 @@ func bindSessionFromPath(ctx context.Context, s *mcpsdk.Server, p *pulse.Pulse, 
 	if err != nil {
 		return
 	}
-	_ = bindSessionTools(s, p, cfg, cohort.Schema())
+	var targets []core.JoinTarget
+	for _, j := range joins {
+		if j.Right == "" {
+			continue
+		}
+		right, err := p.Open(ctx, j.Right)
+		if err != nil {
+			continue
+		}
+		targets = append(targets, core.JoinTarget{Schema: right.Schema(), As: j.As})
+	}
+	_ = bindSessionTools(s, p, cfg, cohort.Schema(), targets)
 }
 
 // bindSessionTools derives the per-tool bound schemas (via the SDK-free core)
@@ -62,14 +78,14 @@ func bindSessionFromPath(ctx context.Context, s *mcpsdk.Server, p *pulse.Pulse, 
 // notifications/tools/list_changed to the connected client. There is no
 // per-session tool map in go-sdk; that is correct for stdio, where one Server
 // serves exactly one session.
-func bindSessionTools(s *mcpsdk.Server, p *pulse.Pulse, cfg Config, schema *encoding.Schema) error {
+func bindSessionTools(s *mcpsdk.Server, p *pulse.Pulse, cfg Config, schema *encoding.Schema, joins []core.JoinTarget) error {
 	if s == nil || schema == nil {
 		return nil
 	}
 	// The bound enums, labels table enum and request slots are scoped to
 	// the instance: a hidden name is advertised as never registered.
 	inst := instanceOf(p)
-	schemas, err := core.BindForInstance(schema, inst)
+	schemas, err := core.BindForInstanceWithJoins(schema, joins, inst)
 	if err != nil {
 		return err
 	}
