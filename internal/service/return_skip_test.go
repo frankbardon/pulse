@@ -269,7 +269,7 @@ func TestReturnSkipsComputation(t *testing.T) {
 // The DisableComponents gate closes every sub-part whatever `return`
 // keeps; a request overlay that reads its host's components keeps
 // components.crosstab only (a payload-only overlay keeps nothing); a
-// Compose overlay naming the slot (componentsVetoed) keeps every
+// Compose overlay naming the slot (componentsVetoOf) keeps every
 // sub-part; the matrices slot follows the selection unvetoed (minimal
 // drops its auxiliary / scalars / vectors); tests, post-tests and
 // regressions follow the selection (minimal keeps them).
@@ -355,19 +355,108 @@ func TestResolveComputePlan_VetoAndGate(t *testing.T) {
 }
 
 // composeSlotVetoes names exactly the slots a Compose overlay reads:
-// its reference and its targets (no targets: every slot).
+// its reference and its targets (no targets: every slot). A kind that
+// is not a weight-aware floor kind keeps every sub-part.
 func TestComposeSlotVetoes(t *testing.T) {
+	svc := &Service{}
 	reqs := []*types.Request{{Label: "a"}, {Label: "b"}, {Label: "c"}, nil}
-	if got := composeSlotVetoes(nil, reqs); got != nil {
+	if got := svc.composeSlotVetoes(nil, reqs); got != nil {
 		t.Errorf("no overlays: %v; want nil", got)
 	}
-	got := composeSlotVetoes([]types.ComposeOverlaySpec{{Reference: "a", Targets: []string{"c"}}}, reqs)
-	if want := []bool{true, false, true, false}; !reflect.DeepEqual(got, want) {
+	idx := types.OverlayKindIndexVsRef
+	got := svc.composeSlotVetoes([]types.ComposeOverlaySpec{{Kind: idx, Reference: "a", Targets: []string{"c"}}}, reqs)
+	if want := []componentsVeto{vetoAll, vetoNone, vetoAll, vetoNone}; !reflect.DeepEqual(got, want) {
 		t.Errorf("ref a, target c: %v; want %v", got, want)
 	}
-	got = composeSlotVetoes([]types.ComposeOverlaySpec{{Reference: "b"}}, reqs)
-	if want := []bool{true, true, true, false}; !reflect.DeepEqual(got, want) {
+	got = svc.composeSlotVetoes([]types.ComposeOverlaySpec{{Kind: idx, Reference: "b"}}, reqs)
+	if want := []componentsVeto{vetoAll, vetoAll, vetoAll, vetoNone}; !reflect.DeepEqual(got, want) {
 		t.Errorf("no targets: %v; want %v", got, want)
+	}
+}
+
+// The Compose veto is weight-basis aware per slot (#221): a floor kind
+// (OVERLAY_CHISQ_VS_REF, OVERLAY_PROP_Z_CELL, OVERLAY_PROP_Z_PANEL)
+// reads a slot's crosstab floors only when that slot's crosstab cell is
+// weighted, so it keeps components.crosstab there and nothing on an
+// unweighted slot; χ² reads its reference as a distribution only; a
+// panel n_source that reads cell n or distinct margins keeps
+// components.crosstab whatever the weight; a kind reading Welford
+// triples (or any other kind) keeps every sub-part; the strongest veto
+// over the overlays naming a slot wins. The basis is the runtime's:
+// cell weight, request weight, or the instance default alone.
+func TestComposeSlotVetoes_WeightBasis(t *testing.T) {
+	freq := &types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency}
+	prob := &types.WeightSpec{Field: "w", Kind: types.WeightKindProbability}
+	slot := func(label string, w *types.WeightSpec) *types.Request {
+		return &types.Request{
+			Label:  label,
+			Weight: w,
+			Crosstab: &types.CrosstabSpec{
+				Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+				Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "h"}},
+				Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "x"},
+			},
+		}
+	}
+	cellWeighted := slot("b", nil)
+	cellWeighted.Crosstab.Cell.Weight = types.SlotWeightOf(*prob)
+	ov := func(kind types.OverlayKind, params map[string]any) types.ComposeOverlaySpec {
+		return types.ComposeOverlaySpec{Name: "o", Kind: kind, Scope: types.OverlayScopeCell, Reference: "a", Targets: []string{"b"}, Params: params}
+	}
+	cellN := map[string]any{"n_source": types.PanelNSourceCellNUnweighted}
+	cases := []struct {
+		name     string
+		overlays []types.ComposeOverlaySpec
+		a, b     *types.WeightSpec
+		bReq     *types.Request
+		def      *types.WeightSpec
+		want     []componentsVeto
+	}{
+		{name: "propz_cell_unweighted", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindPropZCell, nil)}, want: []componentsVeto{vetoNone, vetoNone, vetoNone}},
+		{name: "propz_cell_prob", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindPropZCell, nil)}, a: prob, want: []componentsVeto{vetoCrosstab, vetoNone, vetoNone}},
+		{name: "propz_cell_freq", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindPropZCell, nil)}, b: freq, want: []componentsVeto{vetoNone, vetoCrosstab, vetoNone}},
+		{name: "propz_cell_cell_weight", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindPropZCell, nil)}, bReq: cellWeighted, want: []componentsVeto{vetoNone, vetoCrosstab, vetoNone}},
+		{name: "propz_cell_default_weight", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindPropZCell, nil)}, def: prob, want: []componentsVeto{vetoCrosstab, vetoCrosstab, vetoNone}},
+		{name: "chisq_unweighted", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindChiSqVsRef, nil)}, want: []componentsVeto{vetoNone, vetoNone, vetoNone}},
+		{name: "chisq_reference_never_read", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindChiSqVsRef, nil)}, a: prob, b: prob, want: []componentsVeto{vetoNone, vetoCrosstab, vetoNone}},
+		{name: "panel_unweighted", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindPropZPanel, nil)}, want: []componentsVeto{vetoNone, vetoNone, vetoNone}},
+		{name: "panel_weighted", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindPropZPanel, nil)}, b: freq, want: []componentsVeto{vetoNone, vetoCrosstab, vetoNone}},
+		{name: "panel_cell_n_unweighted", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindPropZPanel, cellN)}, want: []componentsVeto{vetoCrosstab, vetoCrosstab, vetoNone}},
+		{name: "t_cell_unweighted", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindTCell, nil)}, want: []componentsVeto{vetoAll, vetoAll, vetoNone}},
+		{name: "z_cell_unweighted", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindZCell, nil)}, want: []componentsVeto{vetoAll, vetoAll, vetoNone}},
+		{name: "strongest_wins", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindPropZCell, nil), ov(types.OverlayKindTCell, nil)}, want: []componentsVeto{vetoAll, vetoAll, vetoNone}},
+		{name: "no_targets_names_every_slot", overlays: []types.ComposeOverlaySpec{{Kind: types.OverlayKindPropZCell, Reference: "a"}}, def: freq, want: []componentsVeto{vetoCrosstab, vetoCrosstab, vetoCrosstab}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &Service{}
+			svc.SetDefaultWeight(tc.def)
+			b := tc.bReq
+			if b == nil {
+				b = slot("b", tc.b)
+			}
+			reqs := []*types.Request{slot("a", tc.a), b, slot("c", nil)}
+			if got := svc.composeSlotVetoes(tc.overlays, reqs); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("vetoes %v; want %v", got, tc.want)
+			}
+		})
+	}
+
+	// The veto levels reach the plan: crosstab alone, or every sub-part.
+	ctx := context.Background()
+	ret := mustResolveReturn(t, &types.Request{Return: &types.Return{Preset: types.ReturnPresetMinimal}})
+	svc := &Service{}
+	minimal := svc.resolveComputePlan(ctx, &types.Request{}, ret, nil)
+	crosstabKept := minimal
+	crosstabKept.Crosstab = true
+	if got := svc.resolveComputePlan(withComponentsVetoLevel(ctx, vetoCrosstab), &types.Request{}, ret, nil); got != crosstabKept {
+		t.Errorf("crosstab veto: %+v; want components.crosstab alone kept", got)
+	}
+	if got := svc.resolveComputePlan(withComponentsVetoLevel(ctx, vetoNone), &types.Request{}, ret, nil); got != minimal {
+		t.Errorf("no veto: %+v; want the selection", got)
+	}
+	if got := svc.resolveComputePlan(withComponentsVetoLevel(ctx, vetoAll), &types.Request{}, ret, nil); got != minimal.WithComponentsOf(processing.FullComputePlan()) {
+		t.Errorf("full veto: %+v; want every sub-part kept", got)
 	}
 }
 

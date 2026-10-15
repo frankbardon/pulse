@@ -1202,9 +1202,9 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// named slot's `return` may not skip its Components; an unnamed
 	// slot skips what its selection excludes. A skipped Compose overlay
 	// reads nothing, so it vetoes nothing.
-	var vetoes []bool
+	var vetoes []componentsVeto
 	if foldOverlays {
-		vetoes = composeSlotVetoes(composed.Overlays, requests)
+		vetoes = s.composeSlotVetoes(composed.Overlays, requests)
 	}
 	// The fit pre-pass: every fit runs once, as a standalone request,
 	// before any slot; every slot then carries the bound models.

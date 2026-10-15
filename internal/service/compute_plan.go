@@ -30,66 +30,175 @@ func withComputePlan(ctx context.Context, plan processing.ComputePlan) context.C
 	return context.WithValue(ctx, computePlanKey{}, plan)
 }
 
-// componentsVetoKey marks a context whose request feeds a consumer
-// that reads its Components after the run — a Compose slot a Compose
-// overlay names as its reference or a target — so no `return` selection
-// may skip them. Set per slot (composeSlotVetoes), never for a whole
-// Compose.
+// componentsVetoKey carries the Components veto a Compose overlay puts
+// on a slot it reads after the run (composeSlotVetoes) — set per slot,
+// never for a whole Compose.
 type componentsVetoKey struct{}
 
+// componentsVeto is how much of a Compose slot's Components no `return`
+// selection may skip.
+type componentsVeto uint8
+
+const (
+	// vetoNone: the slot's Components follow its own selection.
+	vetoNone componentsVeto = iota
+	// vetoCrosstab keeps components.crosstab — the only sub-part the
+	// floor-reading Compose kinds read; the rest follow the selection.
+	vetoCrosstab
+	// vetoAll keeps every Components sub-part.
+	vetoAll
+)
+
 // withComponentsVeto returns ctx marked so the request run under it
-// keeps its Components whatever its `return` excludes.
+// keeps every Components sub-part whatever its `return` excludes.
 func withComponentsVeto(ctx context.Context) context.Context {
-	return context.WithValue(ctx, componentsVetoKey{}, true)
+	return withComponentsVetoLevel(ctx, vetoAll)
 }
 
-func componentsVetoed(ctx context.Context) bool {
-	v, _ := ctx.Value(componentsVetoKey{}).(bool)
+// withComponentsVetoLevel returns ctx carrying veto (ctx itself for
+// vetoNone).
+func withComponentsVetoLevel(ctx context.Context, veto componentsVeto) context.Context {
+	if veto == vetoNone {
+		return ctx
+	}
+	return context.WithValue(ctx, componentsVetoKey{}, veto)
+}
+
+func componentsVetoOf(ctx context.Context) componentsVeto {
+	v, _ := ctx.Value(componentsVetoKey{}).(componentsVeto)
 	return v
 }
 
 // composeSlotVetoes reports, per slot of requests (labels already
-// defaulted, applyComposeLabelDefaults), whether a Compose overlay
-// names it — as its reference or one of its targets (an overlay with no
-// targets names every slot, the reading the validators share). A named
-// slot keeps every Components sub-part: the Compose host classifies a
-// slot by its Components block (processing.newComposeSlotView), so even
-// a non-crosstab slot's must stay as the unshaped run builds it. Nothing
-// else a Compose overlay reads is skippable: a slot's data and crosstab
-// payload are never skipped, and the slot's tests / post-tests /
-// overlays a `compose` multiplicity family claims stay computed through
-// the multiplicity veto (composeSlotContext). nil when there are no
-// Compose overlays.
-func composeSlotVetoes(overlays []types.ComposeOverlaySpec, requests []*types.Request) []bool {
+// defaulted, applyComposeLabelDefaults), the Components veto the
+// Compose overlays that name it — as their reference or one of their
+// targets (an overlay with no targets names every slot, the reading the
+// validators share) — put on it: the strongest of composeOverlaySlotVeto
+// over those overlays. Nothing else a Compose overlay reads is
+// skippable: a slot's data and crosstab payload are never skipped, and
+// the slot's tests / post-tests / overlays a `compose` multiplicity
+// family claims stay computed through the multiplicity veto
+// (composeSlotContext). nil when there are no Compose overlays.
+//
+// A slot's crosstab cell weight basis is resolved exactly as the
+// runtime stamps it (descx.CrosstabCellWeightBasis: the cell's own
+// weight, the request's, the instance default) — the basis the
+// hidden-floor refusal and its PROCESSING_INTERNAL backstop
+// (composeOverlayFloorsPresent) read — once per slot, and only when a
+// weight-aware kind names it.
+func (s *Service) composeSlotVetoes(overlays []types.ComposeOverlaySpec, requests []*types.Request) []componentsVeto {
 	if len(overlays) == 0 {
 		return nil
 	}
-	named := map[string]bool{}
-	all := false
+	out := make([]componentsVeto, len(requests))
+	bases := make([]*weighting.Basis, len(requests))
 	for i := range overlays {
-		named[overlays[i].Reference] = true
-		if len(overlays[i].Targets) == 0 {
-			all = true
+		spec := &overlays[i]
+		for j, r := range requests {
+			if r == nil || out[j] == vetoAll || !composeOverlayNames(spec, r.Label) {
+				continue
+			}
+			basis := func() weighting.Basis {
+				if bases[j] == nil {
+					b := descx.CrosstabCellWeightBasis(r, s.defaultWeight, s.instance)
+					bases[j] = &b
+				}
+				return *bases[j]
+			}
+			if v := composeOverlaySlotVetoRule(spec, r.Label, basis); v > out[j] {
+				out[j] = v
+			}
 		}
-		for _, t := range overlays[i].Targets {
-			named[t] = true
-		}
-	}
-	out := make([]bool, len(requests))
-	for i, r := range requests {
-		out[i] = r != nil && (all || named[r.Label])
 	}
 	return out
 }
 
+// composeOverlayNames reports whether spec names the slot labelled
+// label: its reference, one of its targets, or any slot when it has no
+// targets.
+func composeOverlayNames(spec *types.ComposeOverlaySpec, label string) bool {
+	if spec.Reference == label || len(spec.Targets) == 0 {
+		return true
+	}
+	for _, t := range spec.Targets {
+		if t == label {
+			return true
+		}
+	}
+	return false
+}
+
+// composeOverlaySlotVetoRule is the rule composeSlotVetoes applies —
+// composeOverlaySlotVeto; a test swaps it for a wrong rule to prove the
+// fold-time backstop (composeOverlayFloorsPresent) catches it.
+var composeOverlaySlotVetoRule = composeOverlaySlotVeto
+
+// composeOverlaySlotVeto is the Components veto one Compose overlay
+// puts on one slot it names (label; basis resolves the slot's crosstab
+// cell weight basis on demand). The per-kind audit of the Compose
+// handlers (internal/processing/overlay_compose_*.go,
+// overlay_prop_z_panel.go, overlay_panel_index_vs_ref.go) it rests on:
+//
+//	kind                 reads host floors?            Welford triples?        rule
+//	CHISQ_VS_REF         target cells, weighted only   no                      target: crosstab iff weighted; reference: none
+//	PROP_Z_CELL          row bases, weighted only      no                      crosstab iff weighted
+//	PROP_Z_PANEL         row bases, weighted only;     no                      crosstab iff weighted, or always under
+//	                     cell n / distinct margins                             cell_n_unweighted / row_margin_distinct_within
+//	                     under two n_source modes                              (every state gate reads Components.Crosstab)
+//	T_CELL / Z_CELL      -                             yes, crosstab cells     all
+//	T_VS_REF / Z_VS_REF  -                             yes, aggregation groups all
+//	FORMULA              -                             cell/margin SDs         all
+//	INDEX_VS_REF,        no (payload only on the       series arm: an          all
+//	DELTA_VS_REF         crosstab arm)                 AGG_WELFORD row's leg
+//	                                                   (narrowSeriesHost)
+//	RANK,                no (payload only)             no                      all (unaudited for a release)
+//	PANEL_INDEX_VS_REF
+//	any other / alias    -                             -                       all
+//
+// The floor kinds read Components.Crosstab ONLY on a weighted slot
+// (floorLeg answers nothing under weighting.Unweighted, and the host
+// basis is read off the floor keys, so a skipped block reads as
+// unweighted): an unweighted slot's skip changes no number, and a
+// weighted one keeps components.crosstab — never the other sub-parts,
+// which no Compose kind reads. CHISQ_VS_REF reads its reference as a
+// distribution only (descx.ComposeOverlayHiddenFloorRefusal's reads).
+// Every other kind keeps the full veto.
+func composeOverlaySlotVeto(spec *types.ComposeOverlaySpec, label string, basis func() weighting.Basis) componentsVeto {
+	weighted := func() componentsVeto {
+		if basis().Weighted() {
+			return vetoCrosstab
+		}
+		return vetoNone
+	}
+	switch spec.Kind {
+	case types.OverlayKindChiSqVsRef:
+		if label == spec.Reference {
+			return vetoNone
+		}
+		return weighted()
+	case types.OverlayKindPropZCell:
+		return weighted()
+	case types.OverlayKindPropZPanel:
+		params, err := types.DecodePanelParamsMap(spec.Params)
+		if err != nil {
+			return vetoAll
+		}
+		if types.PanelNSourceReadsComponents(params.NSource) {
+			return vetoCrosstab
+		}
+		return weighted()
+	}
+	return vetoAll
+}
+
 // composeSlotContext is ctx for slot i: marked with the Components veto
-// when a Compose overlay names it (vetoes from composeSlotVetoes), and
+// a Compose overlay puts on it (vetoes from composeSlotVetoes), and
 // carrying the slot's share of the batch's multiplicity plan (mult;
 // the batch resolved it, so the slot's Process does not) for the
 // multiplicity veto.
-func composeSlotContext(ctx context.Context, vetoes []bool, mult *descx.ComposeMultiplicityPlan, i int) context.Context {
-	if i < len(vetoes) && vetoes[i] {
-		ctx = withComponentsVeto(ctx)
+func composeSlotContext(ctx context.Context, vetoes []componentsVeto, mult *descx.ComposeMultiplicityPlan, i int) context.Context {
+	if i < len(vetoes) {
+		ctx = withComponentsVetoLevel(ctx, vetoes[i])
 	}
 	if mult != nil && i < len(mult.Requests) && mult.Requests[i] != nil {
 		ctx = context.WithValue(ctx, slotMultiplicityKey{}, mult.Requests[i])
@@ -221,9 +330,12 @@ func (s *Service) componentsGateClosed(req *types.Request) bool {
 //     a χ² / Fisher kind over a weighted crosstab cell) keeps
 //     components.crosstab — the only sub-part an overlay reads; its
 //     *_margin_aggregations figures follow the selection — and a
-//     Compose overlay naming this slot (componentsVetoed) keeps every
-//     Components sub-part. A chain overlay reads its stages' data and
-//     crosstab payload only, so it vetoes nothing;
+//     Compose overlay naming this slot keeps what composeSlotVetoes
+//     resolved for it (componentsVetoOf): every Components sub-part, or
+//     components.crosstab alone for a floor kind over a weighted slot,
+//     or nothing for a floor kind over an unweighted one. A chain
+//     overlay reads its stages' data and crosstab payload only, so it
+//     vetoes nothing;
 //  5. veto: a sweep slot of a ranked sweep (rankVetoed) computes the
 //     full plan — the rank reads the unshaped response, so a slot
 //     `return` that excludes the ranked part never skips it;
@@ -273,8 +385,11 @@ func (s *Service) resolveComputePlan(ctx context.Context, req *types.Request, re
 	if s.requestOverlaysReadComponents(req, plan) {
 		plan.Crosstab = true
 	}
-	if componentsVetoed(ctx) {
+	switch componentsVetoOf(ctx) {
+	case vetoAll:
 		plan = plan.WithComponentsOf(full)
+	case vetoCrosstab:
+		plan.Crosstab = true
 	}
 	if rankVetoed(ctx) {
 		// A ranked sweep slot: the rank reads the unshaped response, so

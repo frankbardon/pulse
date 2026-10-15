@@ -181,3 +181,69 @@ func TestReturnComposeFamilyTestVeto(t *testing.T) {
 		})
 	}
 }
+
+// TestReturnComposeVetoWeightAware (#221): the Compose components veto
+// is weight-basis aware per slot. OVERLAY_PROP_Z_CELL reads a slot's
+// crosstab floors only when the slot's cell is weighted, so over
+// unweighted slots a `return` that drops components skips them (no cell
+// map is built) while over weighted slots components.crosstab is still
+// computed. Either way the Compose layer and every kept slot path are
+// byte-identical to the unshaped run — the skip changes no number.
+// Serial and parallel.
+func TestReturnComposeVetoWeightAware(t *testing.T) {
+	_, fs, cohort := acceptanceCohort(t)
+	prob := types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}
+	freq := types.WeightSpec{Field: "y", Kind: types.WeightKindFrequency}
+	standard := &types.Return{Preset: types.ReturnPresetStandard}
+	fixture := func(w *types.WeightSpec, ret *types.Return) *types.ComposedRequest {
+		slot := func(label, expr string) *types.Request {
+			r := floorCrosstab(cohort, w, types.SlotWeight{}, nil)
+			r.Label = label
+			r.Return = ret
+			if expr != "" {
+				r.Filterers = []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: expr}}
+			}
+			return r
+		}
+		return &types.ComposedRequest{
+			Requests: []*types.Request{slot("total", ""), slot("sub", "x >= 10")},
+			Overlays: []types.ComposeOverlaySpec{{Name: "o", Kind: types.OverlayKindPropZCell, Scope: types.OverlayScopeCell, Reference: "total", Targets: []string{"sub"}}},
+		}
+	}
+	p := newReturnInstance(t, fs, pulse.Options{})
+	for _, tc := range []struct {
+		name     string
+		w        *types.WeightSpec
+		computed bool
+	}{
+		{name: "unweighted", w: nil, computed: false},
+		{name: "frequency", w: &freq, computed: true},
+		{name: "probability", w: &prob, computed: true},
+	} {
+		for _, parallel := range []bool{false, true} {
+			t.Run(tc.name+map[bool]string{false: "/serial", true: "/parallel"}[parallel], func(t *testing.T) {
+				full, _ := composeJSON(t, p, fixture(tc.w, nil), parallel)
+				if len(full.Overlays) != 1 || full.Overlays[0].Summary == nil {
+					t.Fatalf("full overlay layer: %+v", full.Overlays)
+				}
+				before := processing.WorkStats()
+				shaped, _ := composeJSON(t, p, fixture(tc.w, standard), parallel)
+				maps := processing.WorkStats().Sub(before).CrosstabCellComponentMaps
+				if tc.computed && maps <= 0 {
+					t.Errorf("weighted slots: components.crosstab was not computed (cell maps %d)", maps)
+				}
+				if !tc.computed && maps != 0 {
+					t.Errorf("unweighted slots: the floor kind still vetoed the skip (cell maps %d)", maps)
+				}
+				for i := range full.Responses {
+					assertKeptPathsIdentical(t, full.Responses[i], shaped.Responses[i], "components")
+				}
+				want, _ := json.Marshal(full.Overlays)
+				got, _ := json.Marshal(shaped.Overlays)
+				if !bytes.Equal(got, want) {
+					t.Errorf("compose overlay layer moved\n got %s\nwant %s", got, want)
+				}
+			})
+		}
+	}
+}

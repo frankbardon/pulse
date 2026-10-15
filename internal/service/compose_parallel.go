@@ -132,9 +132,9 @@ func (s *Service) composeParallel(
 	}
 	*slots = requests
 	// Per-slot Components veto, exactly as on the serial path.
-	var vetoes []bool
+	var vetoes []componentsVeto
 	if foldOverlays {
-		vetoes = composeSlotVetoes(composed.Overlays, requests)
+		vetoes = s.composeSlotVetoes(composed.Overlays, requests)
 	}
 
 	o := opts.resolved()
