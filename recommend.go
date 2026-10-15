@@ -44,6 +44,10 @@ import (
 // standing. A hint that is not a cohort field, or whose kind no role of
 // the intent takes, is SERVICE_VALIDATION; a cohort that cannot be read
 // is DATA_FILE (ENCODING_INVALID for a malformed header or schema).
+// A weight-only operator (AGG_WEIGHTED_MEAN) binds its weight_field to
+// the cohort's suggested weight (Inspect's suggested_weight, from the
+// SPSS sidecar), else asks for it unless an instance default weight
+// already resolves.
 // Bound mode reads the header, the schema and the sidecar only — never
 // a record: a shard archive is read by random access (its central
 // directory, canonical schema entry and shard headers), an anchored
@@ -70,11 +74,20 @@ func (p *Pulse) Recommend(ctx context.Context, req descriptor.RecommendRequest) 
 		return nil, err
 	}
 	defer src.close()
-	opts := p.predictOptions(ctx, p.sidecarFacts(path))
+	facts := p.sidecarFacts(path)
+	opts := p.predictOptions(ctx, facts)
 	opts.AnchorArchiveBytes = src.anchorArchiveBytes
+	// The cohort's suggested weight — what Inspect reports as
+	// suggested_weight — is the weight a weight-only operator
+	// (AGG_WEIGHTED_MEAN) binds.
+	var weight string
+	if sw := descx.SuggestWeight(src.schema, facts.weightVariable, inst); sw != nil {
+		weight = sw.Field
+	}
 	return guide.RecommendBound(inst, req, guide.Bound{
 		Cohort: req.Cohort,
 		Schema: src.schema,
+		Weight: weight,
 		Predict: func(r *types.Request) *descriptor.Envelope {
 			if _, err := src.rs.Seek(0, io.SeekStart); err != nil {
 				return nil

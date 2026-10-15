@@ -15,20 +15,22 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 ## Params
 
+Top-level keys, not `params`; `field` unread.
+
 | Name | Type | Description |
 |---|---|---|
-| `Target` | string | Dependent field (required). |
-| `Predictors` | []string | Independent fields (required). |
-| `Penalty` | enum | `""`, `l1`, `l2`, `elasticnet`. |
-| `Alpha` | float | Regularization strength. |
-| `L1Ratio` | float | Elasticnet mix. |
+| `target` | field | Dependent field (required). |
+| `predictors` | list | Independent fields (required). |
+| `penalty` | enum | `""`, `l1`, `l2`, `elasticnet`. |
+| `alpha` | float | Regularization strength. |
+| `l1_ratio` | float | Elasticnet mix. |
 | `weight` | slot weight | `null` opts out; REG_OLS's kinds: WLS refit; residual raw y − ŷ. |
 
 ## Inputs
 
 | Param | Accepted field types |
 |---|---|
-| `Target` / `Predictors` | numeric analytics set: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+| `target` / `predictors` | numeric analytics set: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
 | `Label` | required — new column name |
 
 ## Output

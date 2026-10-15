@@ -297,3 +297,40 @@ func TestRecommend_HiddenFeatureSurfaces(t *testing.T) {
 		})
 	}
 }
+
+// TestRecommend_FacadeBindsSuggestedWeight (U35 #249): bound Recommend
+// binds AGG_WEIGHTED_MEAN's weight_field to the cohort's suggested
+// weight — Inspect's suggested_weight, from the SPSS sidecar — so the
+// draft is fully bound; without a sidecar weight it asks for one.
+func TestRecommend_FacadeBindsSuggestedWeight(t *testing.T) {
+	drafts := func(p *Pulse) []descriptor.Recommendation {
+		res, err := p.Recommend(context.Background(), descriptor.RecommendRequest{
+			Intent: "describe", Cohort: &types.Cohort{Filename: suggestCohort}, Limit: 1000,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []descriptor.Recommendation
+		for _, r := range res.Recommendations {
+			if r.Operator == "AGG_WEIGHTED_MEAN" {
+				out = append(out, r)
+			}
+		}
+		if len(out) == 0 {
+			t.Fatal("no AGG_WEIGHTED_MEAN draft")
+		}
+		return out
+	}
+	for _, r := range drafts(importSav(t, afero.NewMemMapFs(), weightedSavSpec(), Options{})) {
+		if !r.Bound || len(r.Needs) != 0 || !strings.Contains(string(r.Request), `"weight_field":"WT"`) {
+			t.Errorf("sidecar weight WT: draft %s bound=%v needs=%+v", r.Request, r.Bound, r.Needs)
+		}
+	}
+	spec := weightedSavSpec()
+	spec.WeightVar = ""
+	for _, r := range drafts(importSav(t, afero.NewMemMapFs(), spec, Options{})) {
+		if r.Bound || len(r.Needs) != 1 || r.Needs[0].Param != "weight_field" {
+			t.Errorf("no weight: draft %s bound=%v needs=%+v, want a weight_field need", r.Request, r.Bound, r.Needs)
+		}
+	}
+}

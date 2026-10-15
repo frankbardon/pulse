@@ -1,6 +1,6 @@
 ---
 name: op-agg-ratio
-description: Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored.
+description: Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is required but never read.
 kind: operator
 category: AGG
 operator: AGG_RATIO
@@ -19,7 +19,7 @@ Weight-aware (`"weight": null` opts out): Σw·num / Σw·den. Weighted `decimal
 
 ## Inputs
 
-`Field` IGNORED (`ignores_field`) but required; any type.
+`Field` IGNORED (`ignores_field`) but required on the wire; any type (Recommend names the numerator).
 
 ## Output
 

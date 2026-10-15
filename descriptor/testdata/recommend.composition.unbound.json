@@ -130,6 +130,7 @@
         "request": {
           "aggregations": [
             {
+              "field": "\u003cfield\u003e",
               "params": {
                 "denominator_field": "\u003cdenominator_field\u003e",
                 "numerator_field": "\u003cnumerator_field\u003e"
@@ -144,6 +145,7 @@
         "placeholders": [
           "cohort",
           "denominator_field",
+          "field",
           "numerator_field"
         ],
         "alternatives": [
@@ -368,4 +370,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 86260666e227a33d67158cf1f8b78fbe1583ce2601ad54c34581faefdb4d84b9
+// golden-hash: 86c19c771c51d22f99af7c219f9a55b99f2ba16be6541708e820a9232d2ba222

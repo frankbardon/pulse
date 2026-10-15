@@ -545,7 +545,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 		{
 			Name:        string(types.AGG_RATIO),
 			Category:    "aggregator",
-			Description: "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The Aggregation's own Field is ignored — the two summed fields come from Params. Denominator-zero yields NaN (null in JSON).",
+			Description: "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The Aggregation's own Field is required on the wire (any schema field; by convention the numerator) but never read — the two summed fields come from Params. Denominator-zero yields NaN (null in JSON).",
 			Params: []descriptor.Param{
 				{
 					Name:        "numerator_field",
@@ -564,8 +564,10 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			},
 			// IgnoresField, and AcceptsTypes therefore says only that no
 			// type is refused in a slot the operator discards. The wire
-			// form still requires Aggregation.Field; every type is equally
-			// fine there because none of them is read.
+			// form still requires Aggregation.Field (predict and the
+			// runtime both refuse an empty one); every type is equally
+			// fine there because none of them is read, so bound Recommend
+			// fills it with the numerator's field (U35 #249).
 			IgnoresField:  true,
 			AcceptsTypes:  allCohortFieldTypes,
 			EmitsTypeNote: "scalar float64 (NaN, null in JSON, when denominator sum == 0)",

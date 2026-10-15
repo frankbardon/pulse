@@ -1760,7 +1760,7 @@
         {
           "name": "AGG_RATIO",
           "category": "aggregator",
-          "description": "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The Aggregation's own Field is ignored — the two summed fields come from Params. Denominator-zero yields NaN (null in JSON).",
+          "description": "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The Aggregation's own Field is required on the wire (any schema field; by convention the numerator) but never read — the two summed fields come from Params. Denominator-zero yields NaN (null in JSON).",
           "params": [
             {
               "name": "numerator_field",
@@ -3736,7 +3736,46 @@
           "name": "ATTR_REG_FITTED",
           "category": "attribute",
           "description": "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own RegressionSpec-shaped fields (Target, Predictors, Penalty, Alpha, L1Ratio); each ATTR_REG_* attribute refits independently (Option A). Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet).",
-          "params": null,
+          "params": [
+            {
+              "name": "target",
+              "type": "field",
+              "required": true,
+              "description": "Response variable field name; a top-level key of the attribute entry.",
+              "field_filter": "numeric"
+            },
+            {
+              "name": "predictors",
+              "type": "list",
+              "required": true,
+              "description": "Predictor field names, at least one; a top-level key of the attribute entry."
+            },
+            {
+              "name": "penalty",
+              "type": "enum",
+              "required": false,
+              "default": "",
+              "description": "Regularization scheme; empty for OLS. Top-level.",
+              "enum_values": [
+                "",
+                "elasticnet",
+                "l1",
+                "l2"
+              ]
+            },
+            {
+              "name": "alpha",
+              "type": "float",
+              "required": false,
+              "description": "Regularization strength (\u003e0 when penalty is set). Top-level."
+            },
+            {
+              "name": "l1_ratio",
+              "type": "float",
+              "required": false,
+              "description": "Elastic-net mixing parameter in (0,1); only read when penalty == elasticnet. Top-level."
+            }
+          ],
           "accepts_types": [
             "date",
             "datetime",
@@ -3770,7 +3809,21 @@
           "name": "ATTR_REG_LEVERAGE",
           "category": "attribute",
           "description": "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Range ∈ [0, 1]; Σᵢ hᵢᵢ = p + 1. Restricted to unpenalized OLS — penalized leverage / GLM leverage deferred.",
-          "params": null,
+          "params": [
+            {
+              "name": "target",
+              "type": "field",
+              "required": true,
+              "description": "Response variable field name; a top-level key of the attribute entry.",
+              "field_filter": "numeric"
+            },
+            {
+              "name": "predictors",
+              "type": "list",
+              "required": true,
+              "description": "Predictor field names, at least one; a top-level key of the attribute entry."
+            }
+          ],
           "accepts_types": [
             "date",
             "datetime",
@@ -3867,7 +3920,46 @@
           "name": "ATTR_REG_RESIDUAL",
           "category": "attribute",
           "description": "Per-row residual yᵢ − ŷᵢ from a regression refit during the attribute prepass. Sums to ≈ 0 when the fit includes an intercept (always true for OLS). Accepts any OLS penalty; reuses the same fit machinery as ATTR_REG_FITTED.",
-          "params": null,
+          "params": [
+            {
+              "name": "target",
+              "type": "field",
+              "required": true,
+              "description": "Response variable field name; a top-level key of the attribute entry.",
+              "field_filter": "numeric"
+            },
+            {
+              "name": "predictors",
+              "type": "list",
+              "required": true,
+              "description": "Predictor field names, at least one; a top-level key of the attribute entry."
+            },
+            {
+              "name": "penalty",
+              "type": "enum",
+              "required": false,
+              "default": "",
+              "description": "Regularization scheme; empty for OLS. Top-level.",
+              "enum_values": [
+                "",
+                "elasticnet",
+                "l1",
+                "l2"
+              ]
+            },
+            {
+              "name": "alpha",
+              "type": "float",
+              "required": false,
+              "description": "Regularization strength (\u003e0 when penalty is set). Top-level."
+            },
+            {
+              "name": "l1_ratio",
+              "type": "float",
+              "required": false,
+              "description": "Elastic-net mixing parameter in (0,1); only read when penalty == elasticnet. Top-level."
+            }
+          ],
           "accepts_types": [
             "date",
             "datetime",
@@ -11295,7 +11387,7 @@
       },
       {
         "name": "op-agg-ratio",
-        "description": "Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored."
+        "description": "Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is required but never read."
       },
       {
         "name": "op-agg-rmse",
@@ -17208,4 +17300,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7af3c488745fdb74b199dbf45641be5cdf6195d10cce3292e4f81b37957700c0
+// golden-hash: 0b618bb3827d7f5f107afda61d35880b9f0e8b00f57dde729d5453f3d4601ed5
