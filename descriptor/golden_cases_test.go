@@ -94,7 +94,7 @@ func TestPredictGolden_ComposedRequest(t *testing.T) {
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{
 			{Type: types.AGG_AVERAGE, Field: "score", Label: "avg_score"},
-			{Type: types.AGG_SUM, Field: "grade", Label: "sum_grade"},
+			{Type: types.AGG_DISTINCT_COUNT, Field: "grade", Label: "distinct_grade"},
 		},
 		Groups: []*types.Group{
 			{Type: types.GROUP_CATEGORY, Field: "grade"},

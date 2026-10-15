@@ -488,56 +488,11 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 		}
 	}
 
-	// A slot still without an operator Type is refused by the runtime's
-	// operator construction; report it with the runtime's code and
-	// message.
-	validateOperatorTypes(env, req, schema)
-	validateRegisteredOperators(env, req, opts)
-	validateAggregationParams(env, req, opts.instance())
-	validateGroupDateParams(env, req, schema, opts.instance())
-	validateGroupFitParams(env, req, opts.instance())
-	validateDatePartParams(env, req, schema, opts.instance())
-
-	// Validate pre-filter feature operators and compute the post-feature
-	// column set so downstream stages can reference derived columns.
-	projected := validateFeatures(env, req, schema, opts)
-
-	// Project attribute output labels into the column set too. Attributes
-	// inject labels mid-pipeline (after features, before grouping); without
-	// this projection, aggregations and sort keys that reference attribute
-	// labels would falsely trip the unknown-field check.
-	projectAttributeOutputs(req, projected, opts.Instance)
-
-	// Validate request fields exist in schema (or in feature outputs).
-	validateRequestFields(env, req, schema, projected, opts)
-
-	// The accepted-types table's per-slot type refusals, the runtime
-	// constructors' codes (internal/fieldaccept).
-	validateFieldAcceptance(env, req, schema, opts.instance(), werr)
-
-	// Validate window operations (structural checks; no execution).
-	validateWindows(env, req, schema, opts)
-
-	// Validate tier-1 and tier-2 statistical tests against the schema +
-	// projected column set. Tier-1 catches missing fields and type
-	// mismatches; tier-2 catches alpha and unknown-type errors. Field
-	// existence for tier-2 columns is deferred to runtime since the
-	// projected post-pipeline column set is not yet a settled contract.
-	validateTests(env, req, schema, projected, opts)
-
-	// Validate response-level sort keys against the projected output columns.
-	validateSort(env, req, schema)
-
-	// Validate the Crosstab section (structural + axis field references +
-	// normalization gates). Streamability reasons land via
-	// computeStreamable below.
-	validateCrosstab(env, req, schema, opts)
-
-	// Validate overlay specs (Request.Overlays). Surfaces unknown kind,
-	// ref-shape compatibility against the host, and the per-kind
-	// supported scope set. Streamability is gated on the host operator;
-	// overlay streamability surfaces via types.OverlayStreamable.
-	ValidateOverlays(env, req, schema, opts)
+	// The request body — every per-slot operator, param, field-type,
+	// window, test, sort, crosstab, overlay and label rule (the checks
+	// the runtime's operator construction makes). Shared with every
+	// Compose slot and fit request (validateComposeRequest).
+	validateRequestBody(env, req, schema, opts, werr)
 
 	// Populate the predict surface from req.Overlays. One descriptor per
 	// spec in matching order; OverlayCost is a per-kind multiplier keyed
@@ -594,12 +549,6 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// never via constructed operators.
 	populateFiltererPredicts(result, req, opts)
 
-	// Validate label bindings (display-time categorical translation). Snapshot
-	// carries the registered label tables; augment-mode collisions are
-	// checked against the projected output column set so a sibling
-	// "<field>_label" cannot shadow an aggregation/attribute label.
-	ValidateLabels(env, req.Labels, schema, extensionsFromOpts(opts), opts.instance(), projected)
-
 	// Check description quality (the cohort's own fields only).
 	validateDescriptionQuality(env, cohortSchema, opts)
 
@@ -639,6 +588,82 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	}
 
 	return env
+}
+
+// validateRequestBody is the Process-predict request body: the rules
+// the runtime's Process applies while it builds the request's operators
+// — operator Type presence and registration (a profile-hidden name
+// routes as never registered, opRoute), per-operator params, features,
+// the accepted-types table, model-error / regression / attribute
+// shapes, windows, tests, sort keys, the crosstab section (its cell and
+// margin aggregations judged like any aggregation), Request.Overlays
+// (ValidateOverlays) and label bindings. req is the defaults-resolved
+// request and schema the one it executes over (non-nil); weightErr is
+// the request's weight-resolution refusal, if any.
+//
+// It runs AFTER the entry passes (slot gate, item expansion, joins,
+// multiplicity, return, zones, field references, weights) and reports
+// every finding on env. Predict calls it on the request; Compose predict
+// on every slot and fit request (validateComposeRequest), so a rule
+// added here reaches both — TestComposePredict_SlotVerdictMatchesProcessPredict
+// pins that. It reads no record and constructs no operator.
+func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, opts *PredictOptions, weightErr error) {
+	// A slot still without an operator Type is refused by the runtime's
+	// operator construction; report it with the runtime's code and
+	// message.
+	validateOperatorTypes(env, req, schema)
+	validateRegisteredOperators(env, req, opts)
+	validateAggregationParams(env, req, opts.instance())
+	validateGroupDateParams(env, req, schema, opts.instance())
+	validateGroupFitParams(env, req, opts.instance())
+	validateDatePartParams(env, req, schema, opts.instance())
+
+	// Validate pre-filter feature operators and compute the post-feature
+	// column set so downstream stages can reference derived columns.
+	projected := validateFeatures(env, req, schema, opts)
+
+	// Project attribute output labels into the column set too. Attributes
+	// inject labels mid-pipeline (after features, before grouping); without
+	// this projection, aggregations and sort keys that reference attribute
+	// labels would falsely trip the unknown-field check.
+	projectAttributeOutputs(req, projected, opts.Instance)
+
+	// Validate request fields exist in schema (or in feature outputs).
+	validateRequestFields(env, req, schema, projected, opts)
+
+	// The accepted-types table's per-slot type refusals, the runtime
+	// constructors' codes (internal/fieldaccept).
+	validateFieldAcceptance(env, req, schema, opts.instance(), weightErr)
+
+	// Validate window operations (structural checks; no execution).
+	validateWindows(env, req, schema, opts)
+
+	// Validate tier-1 and tier-2 statistical tests against the schema +
+	// projected column set. Tier-1 catches missing fields and type
+	// mismatches; tier-2 catches alpha and unknown-type errors. Field
+	// existence for tier-2 columns is deferred to runtime since the
+	// projected post-pipeline column set is not yet a settled contract.
+	validateTests(env, req, schema, projected, opts)
+
+	// Validate response-level sort keys against the projected output columns.
+	validateSort(env, req, schema)
+
+	// Validate the Crosstab section (structural + axis field references +
+	// normalization gates). Streamability reasons land via
+	// computeStreamable below.
+	validateCrosstab(env, req, schema, opts)
+
+	// Validate overlay specs (Request.Overlays). Surfaces unknown kind,
+	// ref-shape compatibility against the host, and the per-kind
+	// supported scope set. Streamability is gated on the host operator;
+	// overlay streamability surfaces via types.OverlayStreamable.
+	ValidateOverlays(env, req, schema, opts)
+
+	// Validate label bindings (display-time categorical translation). Snapshot
+	// carries the registered label tables; augment-mode collisions are
+	// checked against the projected output column set so a sibling
+	// "<field>_label" cannot shadow an aggregation/attribute label.
+	ValidateLabels(env, req.Labels, schema, extensionsFromOpts(opts), opts.instance(), projected)
 }
 
 // computeCrosstabFusion answers PredictResult.CrosstabFusable /

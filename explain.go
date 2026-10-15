@@ -42,7 +42,8 @@ import (
 // caveat). Without a cohort nothing is checked, and a caveat says so. A
 // cohort that cannot be read is DATA_FILE (ENCODING_INVALID for a
 // malformed header or schema). A Compose root predicts each slot over
-// its own cohort and validates the batch; a chain root predicts its
+// its own cohort — every rule Predict applies to a request, each
+// refusal located by its slot — and validates the batch; a chain root predicts its
 // first stage and validates the chain; a Sample root names no operator
 // and is never predicted.
 //

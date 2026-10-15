@@ -175,6 +175,14 @@ func ValidateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions) (
 		result.Valid = false
 		return env, nil
 	}
+	// An empty batch — no slot and no sweep to expand into one — is the
+	// runtime's first refusal (Service.expandCompose), before anything
+	// else is judged: same code, same message.
+	if len(req.Requests) == 0 && req.Sweep == nil {
+		env.AddError(string(errors.SERVICE_VALIDATION), "composed request must contain at least one request", nil)
+		result.Valid = false
+		return env, req
+	}
 	written := req
 	// The runtime's entry order (Service.expandCompose): a set sweep on
 	// an instance that hides it is an unknown field before its contents
@@ -280,9 +288,8 @@ func ValidateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions) (
 		if len(env.Errors) > 0 {
 			result.Valid = false
 		}
-		// Nothing to validate at the overlay surface; downstream
-		// per-slot validation (the standard Predict on each Request)
-		// runs through a separate entry point.
+		// Nothing to validate at the overlay surface; every slot was
+		// judged above (validateComposeSlots, the request body included).
 		return env, req
 	}
 
@@ -1154,8 +1161,9 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 // join-key rule for a join, zones the way the runtime resolves them
 // (defaults, then ResolveZones), then the field-reference rule
 // (FieldRefRefusals) on the defaulted slot, then weight resolution
-// (ResolveWeights) when the references pass — and records each refusal
-// tagged with its slot index. Without a SchemaLoader (or for a cohort it
+// (ResolveWeights) when the references pass, then the Process-predict
+// request body (validateRequestBody) — and records each refusal tagged
+// with its slot index. Without a SchemaLoader (or for a cohort it
 // cannot read) the slot resolves schema-less: the field-independent
 // refusals still apply, the field-dependent ones are left to the
 // runtime.
@@ -1318,7 +1326,42 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 		addCodedError(env, RefusalAt(ce, key, idx))
 		return schema, false
 	}
-	return schema, true
+	// Then the request body — the operator construction the request's
+	// Process runs next: every rule Process predict judges past its entry
+	// passes (validateRequestBody), each refusal located under key = idx.
+	// Schema-less (no SchemaLoader, or a cohort it cannot read) the body
+	// is left to the runtime, as every field-dependent rule above is.
+	if schema == nil {
+		return schema, true
+	}
+	return schema, validateRequestBodyAt(env, defaulted, schema, opts, key, idx)
+}
+
+// validateRequestBodyAt runs validateRequestBody on one request of a
+// multi-request root — a Compose slot or fit request, a chain stage —
+// and records each of its errors on env located under key = idx
+// (details[key], RefusalAt's convention). req is the defaults-resolved
+// request (defaultedForValidation), schema the one it executes over.
+// Its warnings are not reported (Compose predict carries no per-slot
+// warning surface) and Strict is not applied: no warning becomes a
+// refusal here. It reports whether the body passed.
+func validateRequestBodyAt(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, opts *PredictOptions, key string, idx int) bool {
+	bodyOpts := PredictOptions{}
+	if opts != nil {
+		bodyOpts = *opts
+	}
+	bodyOpts.Strict = false
+	scratch := descriptor.NewEnvelope(nil)
+	validateRequestBody(scratch, req, schema, &bodyOpts, nil)
+	for _, e := range scratch.Errors {
+		details := make(map[string]any, len(e.Details)+1)
+		for k, v := range e.Details {
+			details[k] = v
+		}
+		details[key] = idx
+		env.AddError(e.Code, e.Message, details)
+	}
+	return len(scratch.Errors) == 0
 }
 
 // validateComposeFits is the fit half of PredictCompose, run once the
@@ -1354,19 +1397,10 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 		if !ok || schema == nil {
 			continue
 		}
+		// The request body (validateComposeRequest's last pass) judged
+		// the regression rules too.
 		if vector {
 			out[i].Vector.Labels, out[i].Vector.Members = vectorFitAxis(req, schema, opts)
-			continue
-		}
-		scratch := descriptor.NewEnvelope(nil)
-		validateRegressions(scratch, req, schema, nil, opts.instance())
-		for _, e := range scratch.Errors {
-			details := make(map[string]any, len(e.Details)+1)
-			for k, v := range e.Details {
-				details[k] = v
-			}
-			details["fit"] = i
-			env.AddError(e.Code, e.Message, details)
 		}
 	}
 	return out

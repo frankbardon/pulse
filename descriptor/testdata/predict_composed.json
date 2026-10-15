@@ -1,7 +1,7 @@
 {
   "format_version": "1.1",
   "data": {
-    "valid": false,
+    "valid": true,
     "request": {
       "aggregations": [
         {
@@ -10,9 +10,9 @@
           "label": "avg_score"
         },
         {
-          "type": "AGG_SUM",
+          "type": "AGG_DISTINCT_COUNT",
           "field": "grade",
-          "label": "sum_grade"
+          "label": "distinct_grade"
         }
       ],
       "groups": [
@@ -32,23 +32,7 @@
     "record_count": 0,
     "shards": [],
     "streamable": true,
-    "suggestions": [
-      {
-        "path": [
-          "Aggregations",
-          "1",
-          "Type"
-        ],
-        "reason": "numeric aggregation does not apply to a categorical field (its dictionary index); use a categorical-friendly aggregator",
-        "current": "AGG_SUM",
-        "proposed": [
-          "AGG_DISTINCT_COUNT",
-          "AGG_MODE_COUNT",
-          "AGG_MODE"
-        ],
-        "confidence": 0.6
-      }
-    ],
+    "suggestions": [],
     "defaults_applied": [],
     "aggregations": [
       {
@@ -125,9 +109,9 @@
         }
       },
       {
-        "type": "AGG_SUM",
+        "type": "AGG_DISTINCT_COUNT",
         "field": "grade",
-        "label": "sum_grade",
+        "label": "distinct_grade",
         "component_schema": {
           "keys": [
             {
@@ -141,30 +125,12 @@
               "description": "Number of null inputs encountered."
             },
             {
-              "name": "sum_weights",
-              "type": "float64",
-              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
-              "optional": true
-            },
-            {
-              "name": "n_eff",
-              "type": "float64",
-              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
-              "optional": true
-            },
-            {
-              "name": "n_weight_invalid",
+              "name": "cardinality",
               "type": "int",
-              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
-              "optional": true
-            },
-            {
-              "name": "sum",
-              "type": "float64",
-              "description": "Running sum of non-null field values."
+              "description": "Number of distinct non-null values observed."
             }
           ],
-          "mergeability": "mergeable"
+          "mergeability": "partial"
         }
       }
     ],
@@ -225,31 +191,7 @@
       }
     ]
   },
-  "errors": [
-    {
-      "code": "PULSE_FIELD_TYPE_UNSUPPORTED",
-      "message": "AGG_SUM field grade has type categorical_u8; accepted: date, datetime, decimal128, f32, f64, packed_bool, u16, u32, u4, u64, u8",
-      "details": {
-        "accepts_types": [
-          "date",
-          "datetime",
-          "decimal128",
-          "f32",
-          "f64",
-          "packed_bool",
-          "u16",
-          "u32",
-          "u4",
-          "u64",
-          "u8"
-        ],
-        "field": "grade",
-        "field_type": "categorical_u8",
-        "slot": "field",
-        "type": "AGG_SUM"
-      }
-    }
-  ],
+  "errors": [],
   "warnings": []
 }
-// golden-hash: 1dfd1d4d7c5b1c5905f168b7b1a6ad9edd79201ceff9b9c291891189e748593d
+// golden-hash: d942aa9aad61c2445ca3aa0f9619836d44dcee3769d6f3fbaada062d21357092

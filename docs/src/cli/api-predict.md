@@ -188,6 +188,12 @@ honour neither.
 | `pulse api predict-facet` | a `FacetRequest` | `valid`, the echoed `request`, `schema_info` and the accepted overlays |
 | `pulse api predict-chain` | a `ChainRequest` | `valid`, the echoed `request`, the source schema and each stage's inferred output columns |
 
+`predict-compose` judges every slot with the rules `api predict`
+applies to a request (operator names and params, field types, windows,
+tests, crosstab, overlays, labels), each slot fault located by
+`details.request`; an empty batch (no `requests`, no `sweep`) is
+`SERVICE_VALIDATION`, as at run time.
+
 A refused request comes back as coded `errors` beside `data.valid:
 false` (exit 1 in text mode). A request with no cohort is
 `SERVICE_VALIDATION`; an unreadable cohort is `DATA_FILE`
