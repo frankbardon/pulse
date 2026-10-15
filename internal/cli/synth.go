@@ -121,12 +121,14 @@ func synthFromProfileCmd() *cli.Command {
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
-			var prof synth.Profile
-			if err := json.Unmarshal(raw, &prof); err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", fmt.Sprintf("parsing profile: %v", err))
+			// Strict: an unknown key is PULSE_REQUEST_UNKNOWN_FIELD with
+			// its path, reaching the envelope under its own code.
+			prof, err := synth.ParseProfile(raw)
+			if err != nil {
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 
-			spec, conflictWarnings := synth.SpecFromProfile(&prof, rows)
+			spec, conflictWarnings := synth.SpecFromProfile(prof, rows)
 
 			// --rules merges BEFORE --emit-spec writes and before
 			// generation runs, so the emitted document is the spec that

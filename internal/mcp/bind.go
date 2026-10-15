@@ -1010,7 +1010,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"credible_level":  num("REG_BAYES_LINEAR credible-interval mass; 0 means 0.95."),
 				"conf_level":      num("Coverage of the coefficient intervals ci_lower / ci_upper, 0 < c < 1; 0 means 0.95 (REG_BAYES_LINEAR: credible_level)."),
 				"resample":        enumStringField([]string{"jackknife", "bootstrap"}, "Resampling layer; omit for none."),
-				"bootstrap_iters": integer("Bootstrap replicates when resample is bootstrap."),
+				"bootstrap_iters": integer("Bootstrap replicates when resample is bootstrap, used as given; <= 0 means 1000. Echoed as bootstrap_requested / bootstrap_succeeded."),
 				"rng_seed":        integer("Bootstrap RNG seed."),
 				"selection":       enumStringField([]string{"forward", "backward", "stepwise"}, "Subset selection; omit for none."),
 				"criterion":       enumStringField([]string{"aic", "bic"}, "Information criterion; required with selection."),

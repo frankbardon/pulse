@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -453,6 +454,7 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 	// unknown n_source would fall through to the legacy leg and hand
 	// back the default number while the caller believed they had moved
 	// the n leg — the silent no-op this family now refuses.
+	paramread.Declare(paramread.Overlay, string(spec.Kind), (*types.PanelOverlayParams)(nil))
 	params, perr := types.DecodePanelParamsMap(spec.Params)
 	if perr != nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(

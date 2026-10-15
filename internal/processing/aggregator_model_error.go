@@ -1,12 +1,12 @@
 package processing
 
 import (
-	"encoding/json"
 	"math"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -88,8 +88,9 @@ func newModelErrorAggregator(kind modelErrorKind) AggregatorFactory {
 	return func(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
 		name := string(kind.aggType())
 		var params modelErrorParams
+		paramread.Declare(paramread.Aggregator, string(agg.Type), &params)
 		if len(agg.Params) > 0 {
-			if err := json.Unmarshal(agg.Params, &params); err != nil {
+			if err := paramread.Decode(paramread.Aggregator, string(agg.Type), agg.Params, &params); err != nil {
 				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 					name+": invalid params: "+err.Error(),
 					map[string]any{"aggregation": name})

@@ -2,46 +2,72 @@ package encoding
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"io"
 
 	"github.com/frankbardon/pulse/errors"
 )
 
 // Field describes a single column in a .pulse schema.
+//
+// The json tags are the report shape import / export / convert / shard
+// `--json` output and a library json.Marshal render: snake_case keys,
+// the type as its string name ("f64", never the type byte — see
+// FieldType.MarshalText) and, in place of the dictionary's values, its
+// entry count as dictionary_size (Field.MarshalJSON). The `.pulse`
+// schema block is binary and never passes through this shape.
 type Field struct {
-	Name         string
-	Type         FieldType
-	Nullable     bool // true ⇒ field participates in per-record null bitmap
-	ByteOffset   int
-	BitPosition  int
-	CsvColumnIdx int
-	Description  string      // empty = synthesized at inspect time
-	Dictionary   *Dictionary // non-nil only for categorical types
+	Name         string      `json:"name"`
+	Type         FieldType   `json:"type"`
+	Nullable     bool        `json:"nullable"` // true ⇒ field participates in per-record null bitmap
+	ByteOffset   int         `json:"byte_offset"`
+	BitPosition  int         `json:"bit_position"`
+	CsvColumnIdx int         `json:"csv_column_idx"`
+	Description  string      `json:"description"` // empty = synthesized at inspect time
+	Dictionary   *Dictionary `json:"-"`           // non-nil only for categorical types
 
 	// Precision is the decimal128 precision (1-38). Meaningful only when
 	// Type is FieldTypeDecimal128.
-	Precision uint8
+	Precision uint8 `json:"precision,omitempty"`
 	// Scale is the decimal128 scale (0-Precision). Meaningful only when
 	// Type is FieldTypeDecimal128.
-	Scale uint8
+	Scale uint8 `json:"scale,omitempty"`
+}
+
+// MarshalJSON renders the field's report shape: its tagged keys plus
+// dictionary_size — the entry count of a dictionary-bearing field,
+// omitted for every other field. The values themselves stay off the
+// wire (a categorical_u32 dictionary can run to millions of entries);
+// `pulse inspect` lists them, truncated by default.
+func (f Field) MarshalJSON() ([]byte, error) {
+	type plain Field
+	out := struct {
+		plain
+		DictionarySize *int `json:"dictionary_size,omitempty"`
+	}{plain: plain(f)}
+	if f.Dictionary != nil {
+		n := f.Dictionary.Count()
+		out.DictionarySize = &n
+	}
+	return json.Marshal(out)
 }
 
 // Schema holds all field descriptors for a .pulse file.
 type Schema struct {
 	// Fields is the LOGICAL schema: every field, in original order. A
 	// field index anywhere in the API is a position in this slice.
-	Fields []Field
+	Fields []Field `json:"fields"`
 	// Groups are the parent-group descriptors (format 0x02, see
 	// group.go). Empty for every 0x01 cohort. When non-empty, member
 	// fields are stored in the groups' dictionaries rather than in the
 	// row, and RecordByteSize / BitmapByteSize / HasBitmap describe the
 	// PHYSICAL (reduced) row; Logical() is the ungrouped view.
-	Groups []Group
+	Groups []Group `json:"groups,omitempty"`
 	// Vectors describes every vec_f32 / vec_f64 field — its dim and
 	// optional kind, scale range and element labels (format 0x02, the
 	// VECTORS section; see vector.go). Exactly one entry per vec field;
 	// empty for a vector-free cohort.
-	Vectors []VectorField
+	Vectors []VectorField `json:"vectors,omitempty"`
 }
 
 // HasBitmap reports whether the record carries a per-record null

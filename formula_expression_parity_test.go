@@ -33,9 +33,12 @@ func TestFormulaAttribute_ExpressionSlotPredictParity(t *testing.T) {
 	for _, c := range []struct {
 		name   string
 		params json.RawMessage
+		code   perr.Code
 	}{
-		{"params.expression", json.RawMessage(`{"expression":"qty * 2"}`)},
-		{"no expression", nil},
+		// params.expression is not an ATTR_FORMULA params key: the
+		// params allowlist refuses it on every arm (U44 #301).
+		{"params.expression", json.RawMessage(`{"expression":"qty * 2"}`), perr.PULSE_REQUEST_UNKNOWN_FIELD},
+		{"no expression", nil, perr.PROCESSING_CONFIG},
 	} {
 		attr := func() *types.Attribute {
 			return &types.Attribute{Type: types.ATTR_FORMULA, Label: "f", Params: c.params}
@@ -46,12 +49,12 @@ func TestFormulaAttribute_ExpressionSlotPredictParity(t *testing.T) {
 		}
 		t.Run(c.name+"/request", func(t *testing.T) {
 			pe := predictCodedError(t, p, data, req())
-			if pe == nil || pe.Code != string(perr.PROCESSING_CONFIG) || pe.Message != wantMsg {
-				t.Fatalf("Predict = %+v, want PROCESSING_CONFIG %q", pe, wantMsg)
+			if pe == nil || pe.Code != string(c.code) || (c.code == perr.PROCESSING_CONFIG && pe.Message != wantMsg) {
+				t.Fatalf("Predict = %+v, want %s %q", pe, c.code, wantMsg)
 			}
 			_, err := p.Process(ctx, req())
 			ce := codeOf(t, err)
-			if ce.Code != perr.PROCESSING_CONFIG || ce.Message != pe.Message {
+			if ce.Code != c.code || ce.Message != pe.Message {
 				t.Fatalf("Process = %s %q, want predict's %s %q", ce.Code, ce.Message, pe.Code, pe.Message)
 			}
 		})
@@ -63,11 +66,11 @@ func TestFormulaAttribute_ExpressionSlotPredictParity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PROCESSING_CONFIG) {
-				t.Fatalf("PredictCompose errors = %+v, want PROCESSING_CONFIG first", env.Errors)
+			if len(env.Errors) == 0 || env.Errors[0].Code != string(c.code) {
+				t.Fatalf("PredictCompose errors = %+v, want %s first", env.Errors, c.code)
 			}
-			if _, err := p.Compose(ctx, creq()); codeOf(t, err).Code != perr.PROCESSING_CONFIG {
-				t.Fatalf("Compose = %v, want PROCESSING_CONFIG", err)
+			if _, err := p.Compose(ctx, creq()); codeOf(t, err).Code != c.code {
+				t.Fatalf("Compose = %v, want %s", err, c.code)
 			}
 		})
 		t.Run(c.name+"/chain", func(t *testing.T) {
@@ -81,11 +84,11 @@ func TestFormulaAttribute_ExpressionSlotPredictParity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PROCESSING_CONFIG) {
-				t.Fatalf("PredictChain errors = %+v, want PROCESSING_CONFIG first", env.Errors)
+			if len(env.Errors) == 0 || env.Errors[0].Code != string(c.code) {
+				t.Fatalf("PredictChain errors = %+v, want %s first", env.Errors, c.code)
 			}
-			if _, err := p.ProcessChain(ctx, chain()); codeOf(t, err).Code != perr.PROCESSING_CONFIG {
-				t.Fatalf("ProcessChain = %v, want PROCESSING_CONFIG", err)
+			if _, err := p.ProcessChain(ctx, chain()); codeOf(t, err).Code != c.code {
+				t.Fatalf("ProcessChain = %v, want %s", err, c.code)
 			}
 		})
 	}

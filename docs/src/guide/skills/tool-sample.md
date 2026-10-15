@@ -18,7 +18,7 @@ After running a request, to inspect the underlying data, or before authoring a f
 
 ## Output
 
-`descriptor.Envelope` wrapping a row slice — each row is a map keyed by field name with values decoded according to the schema. Categorical fields surface display labels by default, `decimal128` a decimal string at the column scale; a null field is omitted from its row. `Response.Components.Run` reports `total_records` and `filtered_records` (always equal under sample). See [`response-components`](response-components.md).
+`descriptor.Envelope` wrapping a row slice — each row is a map keyed by field name with values decoded according to the schema. Categorical fields surface display labels by default, `decimal128` a decimal string at the column scale, `date` `YYYY-MM-DD` and `datetime` RFC 3339 UTC (`2026-01-02T03:04:05Z`) — never epoch numbers, no zone applied; a null field is omitted from its row. `Response.Components.Run` reports `total_records` and `filtered_records` (always equal under sample). See [`response-components`](response-components.md).
 
 ## Gotchas
 

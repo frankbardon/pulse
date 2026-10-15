@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -87,8 +88,9 @@ func newFrequencyAggregator(agg *types.Aggregation, schema *encoding.Schema) (Ag
 		return nil, err
 	}
 	var params frequencyParams
+	paramread.Declare(paramread.Aggregator, string(agg.Type), &params)
 	if len(agg.Params) > 0 {
-		if err := json.Unmarshal(agg.Params, &params); err != nil {
+		if err := paramread.Decode(paramread.Aggregator, string(agg.Type), agg.Params, &params); err != nil {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				"invalid AGG_FREQUENCY params: "+err.Error())
 		}

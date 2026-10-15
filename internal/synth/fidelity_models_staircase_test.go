@@ -387,7 +387,7 @@ func TestBuildModelFidelity_StaircaseTargetContributesNoResidualCorrelation(t *t
 			ResidualStd: 0.45,
 		},
 	)
-	spec.ResidualCorrelations = []synth.CorrelationSpec{{A: "score", B: "flag", Correlation: 0.5}}
+	spec.ResidualCorrelations = []synth.CorrelationSpec{{A: "score", B: "flag", Rho: 0.5}}
 	schema, records := augmentForModelFidelity(t, spec, 12000, 251)
 
 	report := &synth.FidelityReport{}

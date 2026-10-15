@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -323,6 +324,7 @@ func applyYoY(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer
 // defense-in-depth defense (predict + the orchestrator should catch it
 // first).
 func extractYoYFrequency(spec *types.OverlaySpec) (string, error) {
+	paramread.Read(paramread.Overlay, string(spec.Kind), "frequency")
 	frequency, present := readYoYFrequencyFromParams(spec.Params)
 	if !present {
 		return "", errors.NewCodedErrorWithDetails(

@@ -34,9 +34,7 @@ func TestRootManifest_Intent(t *testing.T) {
 	}
 
 	out, err = runApp(t, "--json", "--intent", "nope")
-	if err != nil {
-		t.Fatal(err)
-	}
+	wantEnvelopeExit(t, err)
 	var bad struct {
 		Errors []struct {
 			Code string `json:"code"`

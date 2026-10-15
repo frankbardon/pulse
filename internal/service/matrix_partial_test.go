@@ -222,8 +222,8 @@ func TestMatrixPartialCorrelation_NotPSDGuard(t *testing.T) {
 
 	_, err = New(cfg).Process(context.Background(), &types.Request{Cohort: cohort, Matrices: []types.MatrixSpec{
 		{Name: "r", Type: types.MAT_CORRELATION, Fields: fields, Params: json.RawMessage(`{"missing": "pairwise", "repair": "nearest"}`)}}})
-	if !stderrors.As(err, &ce) || ce.Code != errors.SERVICE_VALIDATION || ce.Details["reason"] != "bad_params" {
-		t.Errorf("MAT_CORRELATION params.repair error = %v, want bad_params", err)
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_REQUEST_UNKNOWN_FIELD || ce.Details["path"] != "matrices[0].params.repair" {
+		t.Errorf("MAT_CORRELATION params.repair error = %v, want PULSE_REQUEST_UNKNOWN_FIELD at matrices[0].params.repair", err)
 	}
 }
 
@@ -344,7 +344,7 @@ func TestMatrixPartialCorrelation_Refusals(t *testing.T) {
 		{`{"control": ["x1", "x2", "x3"]}`, errors.SERVICE_VALIDATION},
 		{`{"control": ["nope"]}`, errors.SERVICE_VALIDATION},
 		{`{"repair": "clip"}`, errors.SERVICE_VALIDATION},
-		{`{"summary": {"top_pairs": 1}}`, errors.SERVICE_VALIDATION},
+		{`{"summary": {"top_pairs": 1}}`, errors.PULSE_REQUEST_UNKNOWN_FIELD},
 	} {
 		_, err := New(cfg).Process(context.Background(), &types.Request{Cohort: &types.Cohort{Filename: "r.pulse"},
 			Matrices: []types.MatrixSpec{{Name: "m", Type: types.MAT_PARTIAL_CORRELATION, Fields: x123, Params: json.RawMessage(c.params)}}})

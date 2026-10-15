@@ -287,6 +287,7 @@ func renderInspectField(schema *encoding.Schema, i int, f encoding.Field, limit 
 	field := &descriptor.InspectField{
 		Name:              f.Name,
 		Type:              f.Type.String(),
+		Nullable:          f.Nullable,
 		ByteOffset:        f.ByteOffset,
 		BitPosition:       f.BitPosition,
 		Description:       desc,

@@ -2,10 +2,10 @@ package model
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -192,7 +192,7 @@ func VectorSourceRefusal(req *types.Request) (string, map[string]any) {
 		Missing *string  `json:"missing"`
 		Reverse []string `json:"reverse"`
 	}
-	if json.Unmarshal(raw, &p) != nil {
+	if paramread.Probe(raw, &p) != nil {
 		return "", nil
 	}
 	if p.Missing != nil && *p.Missing == "pairwise" {

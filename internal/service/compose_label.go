@@ -7,6 +7,16 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
+// echoSlotLabel stamps a finished Compose slot's response with the
+// slot's final label — the caller's, or the synthesized
+// `request_<index+1>` — so a reader of the responses array never has
+// to count positions to know which slot a response answers.
+func echoSlotLabel(resp *types.Response, req *types.Request) {
+	if resp != nil && req != nil {
+		resp.Label = req.Label
+	}
+}
+
 // applyComposeLabelDefaults walks the ComposedRequest's slots and returns a
 // new []*types.Request whose every entry carries a non-empty Label —
 // caller-supplied values pass through verbatim; empty values are filled

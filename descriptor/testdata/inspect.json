@@ -6,6 +6,7 @@
       {
         "name": "score",
         "type": "f64",
+        "nullable": false,
         "byte_offset": 0,
         "bit_position": 0,
         "description": "Student test score value",
@@ -15,6 +16,7 @@
       {
         "name": "age",
         "type": "u8",
+        "nullable": false,
         "byte_offset": 0,
         "bit_position": 0,
         "description": "Age of the participant in years",
@@ -24,6 +26,7 @@
       {
         "name": "color",
         "type": "categorical_u8",
+        "nullable": false,
         "byte_offset": 0,
         "bit_position": 0,
         "description": "Primary color category",
@@ -46,4 +49,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 86bbb33377e8d0a1b1afbd05bfda3f2500f797234492cc39ea877b50b2c369b4
+// golden-hash: 8f5abb21241fbcdb6ce83f3ba3323b0c492b14df51355cc95ad7bd58fde19ee4

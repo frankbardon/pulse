@@ -323,8 +323,8 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   `capability:matrices`.
 - **Item fan-out.** Without `capability:for_each` a `for_each` on a
   window, feature or attribute item (inside Compose requests and chain
-  stages too) fails `PULSE_REQUEST_UNKNOWN_FIELD`, naming the item under
-  `details.path` (`windows[1]`); the payload schema and the MCP tool
+  stages too) fails `PULSE_REQUEST_UNKNOWN_FIELD`, locating the key under
+  `details.path` (`windows[1].for_each`); the payload schema and the MCP tool
   input schemas drop the key and the `ForEach` definition. A
   hand-expanded request runs unchanged.
 - **Row weighting.** Without `capability:weighting` the instance has no
@@ -333,7 +333,7 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   groups, tests, post-tests, regressions, attributes, overlays — inside
   Compose requests and chain stages too, and on facet overlays) fail
   `PULSE_REQUEST_UNKNOWN_FIELD`, even when set to `null`. A nested one
-  names its object under `details.path` (`aggregations[0]`) and lists
+  is located under `details.path` (`aggregations[0].weight`) and lists
   that object's keys under `valid_keys`. The payload schema and the MCP
   tool input schemas drop every `weight` property, the manifest drops
   `weight_aware` (built-in and extension) and the weighted

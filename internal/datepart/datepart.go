@@ -15,6 +15,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -46,7 +47,7 @@ func Parse(raw json.RawMessage) (string, error) {
 		return "", errors.NewCodedError(errors.PROCESSING_CONFIG, "date_part attribute requires params with a \"part\" field")
 	}
 	var p params
-	if err := json.Unmarshal(raw, &p); err != nil {
+	if err := paramread.Decode(paramread.Attribute, string(types.ATTR_DATE_PART), raw, &p); err != nil {
 		return "", errors.WrapCodedError(err, errors.PROCESSING_CONFIG, "parsing date_part params")
 	}
 	if p.Part == "" {

@@ -457,7 +457,7 @@ func newAnovaWelchPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
 			map[string]any{"alpha": spec.Alpha})
 	}
 	var params anovaPostParams
-	if err := unmarshalTestParams(spec.Params, &params); err != nil {
+	if err := unmarshalTestParams(string(spec.Type), spec.Params, &params); err != nil {
 		return nil, err
 	}
 	if params.NCol == "" || params.VarianceCol == "" {

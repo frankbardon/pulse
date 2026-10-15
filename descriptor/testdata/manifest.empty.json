@@ -121,7 +121,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 90,
+    "error_codes_count": 91,
     "error_domains": [
       "CLI",
       "DATA",
@@ -149,6 +149,7 @@
       "PROCESSING_INTERNAL",
       "PROCESSING_RUNTIME",
       "PROCESSING_STATE",
+      "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
       "PULSE_ARCHIVE_CORRUPT",
       "PULSE_ARCHIVE_MAGIC_INVALID",
@@ -635,6 +636,7 @@
       {
         "name": "full",
         "paths": [
+          "label",
           "data",
           "metadata",
           "tests",
@@ -648,6 +650,7 @@
       {
         "name": "standard",
         "paths": [
+          "label",
           "data",
           "warnings",
           "metadata",
@@ -708,6 +711,7 @@
       {
         "name": "minimal",
         "paths": [
+          "label",
           "data",
           "warnings",
           "crosstab.shape",
@@ -791,4 +795,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 628d45eff868860d4329beb88ad7ae253ec05a4a96afb630668c621247bb83ee
+// golden-hash: 35cdbf16fe3b42edcefa3b057c52678f54a5927c9e20657833052343970d0422

@@ -1,12 +1,12 @@
 package feature
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -36,7 +36,9 @@ type targetEncodeParams struct {
 // row's own target and the validation/test rows' targets — even when
 // FEAT_TRAIN_TEST_SPLIT runs first (features run before filters). Predict
 // flags every FEAT_TARGET_ENCODE with PULSE_FEAT_TARGET_LEAKAGE_RISK
-// (internal/descriptor/predict_feature.go); a split does not silence it.
+// (internal/descriptor/predict_feature.go) and Process repeats it on
+// Response.Warnings, refusing under strict (service/feature_leakage.go,
+// the same descx.TargetLeakageWarnings rule); a split does not silence it.
 // targetStat tallies sum and count for one category during PrePass.
 // Promoted to a package-level type so per-record streaming state has a
 // stable place to live alongside Compute's local-only equivalent.
@@ -69,7 +71,7 @@ func newTargetEncode(feat *types.Feature, schema *encoding.Schema) (Computer, er
 			"FEAT_TARGET_ENCODE requires params with a 'target' field")
 	}
 	var p targetEncodeParams
-	if err := json.Unmarshal(feat.Params, &p); err != nil {
+	if err := paramread.Decode(paramread.Feature, string(feat.Type), feat.Params, &p); err != nil {
 		return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG,
 			"parsing FEAT_TARGET_ENCODE params")
 	}

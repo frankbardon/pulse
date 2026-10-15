@@ -347,7 +347,13 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 	// a later stage's labels used to be dropped silently. A key column
 	// forwarded from the stage before is categorical in synthSchema, so a
 	// binding relabels it; an aggregation output (f64) is refused
-	// PULSE_LABEL_FIELD_NOT_CATEGORICAL, as on stage 0.
+	// PULSE_LABEL_FIELD_NOT_CATEGORICAL, as on stage 0. The instance's
+	// default bindings (Options.AutoLabels) are injected here too (#460),
+	// over the synthesised schema, so a forwarded key is labelled like
+	// stage 0's — except a replace-mode default on a key an earlier stage
+	// already replaced: its values are labels by now, and a second pass
+	// would only miss on them.
+	s.applyAutoLabels(&stage.Labels, synthSchema, s.autoLabelOccupied(stage, synthSchema), chainAutoLabelFields(s.autoLabels, req.Stages[:i], synthSchema))
 	if err := s.validateProcessLabels(stage, synthSchema); err != nil {
 		return nil, nil, locate(err, "stage", i)
 	}
@@ -543,4 +549,39 @@ func (s *Service) chainOutputSchemaOrNil(r *types.Request, in *encoding.Schema) 
 		return nil
 	}
 	return out
+}
+
+// chainAutoLabelFields is the restrictTo set applyAutoLabels gets on
+// chain stage i >= 1: every schema field, minus each field a replace-mode
+// default would bind when an earlier stage (prior) already relabelled it
+// in replace mode (an explicit binding or an injected default). Those
+// forwarded values already carry labels; translating a label again
+// misses (PULSE_LABEL_LOOKUP_MISS) and changes nothing. An augment-mode
+// default always injects: the earlier stage left the raw values in
+// place.
+func chainAutoLabelFields(auto []*types.LabelBinding, prior []*types.ChainStage, schema *encoding.Schema) map[string]bool {
+	if len(auto) == 0 || schema == nil {
+		return nil
+	}
+	replaced := map[string]bool{}
+	for _, st := range prior {
+		if st == nil || st.Request == nil {
+			continue
+		}
+		for _, b := range st.Request.Labels {
+			if b != nil && b.LabelModeOrDefault() == types.LabelModeReplace {
+				replaced[b.Field] = true
+			}
+		}
+	}
+	allow := make(map[string]bool, len(schema.Fields))
+	for _, f := range schema.Fields {
+		allow[f.Name] = true
+	}
+	for _, d := range auto {
+		if d != nil && d.LabelModeOrDefault() == types.LabelModeReplace && replaced[d.Field] {
+			delete(allow, d.Field)
+		}
+	}
+	return allow
 }

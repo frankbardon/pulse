@@ -42,7 +42,7 @@ row data, filter values or error messages. An unknown value is
 
 | Variable | Used by | Required | Purpose |
 |---|---|---|---|
-| `PULSE_DATA_DIR`        | All commands when no path override is given; required by `pulse mcp` | conditionally | Base directory for cohort files. Relative cohort paths resolve against it |
+| `PULSE_DATA_DIR`        | `pulse mcp` (required unless `--data-dir`), `pulse import auto / list / drop` | conditionally | Base directory for cohort files and the managed-imports pool. A relative value is made absolute against the working directory at startup. Every other leaf resolves its `--input` / positional / `--output` paths against the working directory and ignores it |
 | `PULSE_IMPORTS_DIR`     | `pulse import auto / list / drop`                                    | no | Managed-imports subdir under the data root. Defaults to `imports` |
 | `PULSE_IMPORT_TTL`      | `pulse import auto`                                                  | no | Default TTL for managed imports. Go duration (`24h`, `30m`), day form (`7d`, `30d`), or `pin`. Defaults to `7d` |
 | `PULSE_LABEL_TABLES_DIR`| `pulse api sample --labels`, `pulse api facet --labels`              | no | Directory of JSON files auto-loaded as label tables at `pulse.New` time; each `*.json` becomes one table keyed by its filename |
@@ -81,9 +81,45 @@ nullable-check overhead. `request` is opt-in (see
 additive `Response.Components` slot documented per leaf — see
 [`api process` → `--json`](api-process.md#-json).
 
+## Exit status
+
+Scripts can trust the exit status. Every command except `pulse mcp` (a
+long-running server, see [its page](mcp.md#exit-codes)) follows the same
+three values, the bare `pulse --json` included. There are no per-domain
+codes; branch on `errors[0].code` for the reason.
+
+| Status | Meaning |
+|---|---|
+| 0 | Success. Warnings and advisories are allowed: they ride the envelope's `warnings` (stderr lines in text mode) and never move the status |
+| 1 | A fatal error. Under `--json` the envelope's `errors` carries it (a warning `--strict` escalated included) and stdout is that envelope alone, with nothing added to stderr; in text mode it is printed to stderr as `error: ...` |
+| 2 | A usage error refused before any library call: an unknown flag, a malformed flag value, a missing required flag or argument, or an unknown `--log-level` / `--log-format`. The usage text goes to the terminal; no envelope is written |
+
+The rule follows the envelope: an envelope with a non-empty `errors`
+always exits 1, one with only `warnings` exits 0. A leaf's own argument
+checks (a missing positional `COHORT`, an unknown `--root`) run inside
+the leaf, so they are a `CLI_INPUT` envelope and exit 1.
+
+```bash
+pulse api process -r req.json --json > out.json || exit $?   # 1: errors[0] in out.json
+```
+
 ## Shared per-command flags
 
 Several flags appear on multiple commands with identical semantics.
+
+### `--input` / `-i`
+
+Available on: every leaf that reads one cohort — `api sample`,
+`api facet`, `api lookup`, `cohort inspect`, `cohort filter`, `widen`,
+`dedup`, the `index` leaves, the `export` leaves, `profile create`.
+
+The cohort path, resolved against the working directory (an absolute
+path is used as-is). `cohort inspect`, `widen`, `dedup` and the `index`
+leaves also accept it as the positional argument; the flag wins when
+both are given. Paired with `--request` (`api facet`, `api lookup`), the
+flag **replaces** the request file's `cohort` outright — `filename` and
+`data_dir` — so `-i x.pulse -r req.json` reads `x.pulse` whatever
+`req.json` names.
 
 ### `--no-defaults`
 
@@ -101,7 +137,8 @@ Available on: `api process`, `api compose`.
 Stream result rows as NDJSON (one row per line) instead of buffering
 the full result. For `compose`, each line carries an `{"index": N,
 "row": {...}}` shape so consumers know which sub-request produced
-each row. See [Streaming & ProcessStream](../library/streaming.md).
+each row. A run that warned ends with one `{"warnings": [...]}` line
+(compose: after the rows, before a ranked sweep's `ranking` line). See [Streaming & ProcessStream](../library/streaming.md).
 
 ### `--strict`
 
@@ -115,9 +152,10 @@ validation (every warning the leaf reports becomes an error); on
 `api process` it refuses to execute. Useful in CI gates that want the strictest possible
 validation.
 
-`import <format>` also takes `--strict`, with a narrower meaning: it
-escalates the parent-group viability warnings only — see
-[`--strict` (import)](#--strict-import).
+`import <format>`, `import auto` and `convert` also take `--strict`,
+with an import meaning: it escalates a partial import
+(`PULSE_IMPORT_ROWS_DROPPED`) and, on `import <format>`, the parent-group
+viability warnings — see [`--strict` (import)](#--strict-import).
 
 ### `--echo-request`
 
@@ -217,7 +255,7 @@ boundary. Absent the flag the document is byte-identical. See
 
 Available on: `import csv`, `import tsv`, `import ndjson`,
 `import jsonarray`, `import parquet`, `import arrow`, `import excel`,
-`import spss`, `import predict`, `convert`.
+`import spss`, `import predict`, `import auto`, `convert`.
 
 `--schema FILE` supplies an explicit schema (a JSON array of
 `{name, type, description, nullable}`, plus `precision` / `scale` on a
@@ -258,7 +296,8 @@ unknown entry key or a schema on a `.pulse` source).
 
 Available on: `import csv`, `import tsv`, `import ndjson`,
 `import jsonarray`, `import parquet`, `import arrow`, `import excel`,
-`import spss`, `import predict`, `import schema-template`, `convert`.
+`import spss`, `import predict`, `import schema-template`, `import auto`,
+`convert`.
 
 The width schema inference gives an all-float column: `f64` (the
 default) keeps every decimal the source wrote exact, so `0.1` and
@@ -272,8 +311,8 @@ value refuses the run with `PULSE_IMPORT_FLOAT_WIDTH_INVALID` (`value`,
 that carries its own schema (Arrow, Parquet, SPSS); a managed import's
 `column_type_overrides` still forces a column's type either way.
 Library: `ImportJob.FloatWidth` / `ConvertJob.FloatWidth` (`"f64"`,
-`"f32"`; `""` is `f64`). `import auto` and `pulse_import` take no
-float knob and infer `f64`.
+`"f32"`; `""` is `f64`; `ImportSpec.FloatWidth` on the managed pool,
+`float` on `pulse_import`).
 
 ### `--elide-constants`
 
@@ -290,7 +329,7 @@ predating `0x02` cannot open, which is why it is opt-in. Nothing is
 elided (and the cohort stays byte-identical `0x01`) for fewer than two
 rows or when the saving would not repay the schema-block growth; when
 every field is constant the lowest-index field stays in the row. The
-elided fields are printed, and reported as `ElidedConstants` under
+elided fields are printed, and reported as `elided_constants` under
 `--json`. See [parent groups](../format/parent-groups.md).
 
 ### `--group`
@@ -301,8 +340,9 @@ Available on: `import csv`, `import tsv`, `import ndjson`,
 group per flag. On `import auto` the group is judged at the default
 ratio floor and its findings are always warnings (`--json` puts them in
 `warnings`, the per-group figures under `data.groups`); the floor and
-`--strict` stay on the per-format leaves, since neither changes the
-bytes written.
+the group findings' `--strict` stay on the per-format leaves, since
+neither changes the bytes written (`import auto --strict` escalates a
+partial import only).
 On `import predict` the declaration is evaluated, not applied: see
 [`--suggest-groups`](#--suggest-groups).
 
@@ -402,9 +442,10 @@ finishes the file to find every promotion, then rewinds and measures
 again at the final widths, so such a source is read twice. Only the
 measured pass sees the full-file widths: plain `import predict` reports
 the sample-inferred schema.
-`--json` adds `Projection`, `Groups`, `GroupWarnings`, `ElidedConstants`,
-`GroupCandidates` and `WidthWarnings` to `data`; `format_version` stays
-`"1.1"`.
+`--json` adds `projection`, `groups`, `group_warnings`, `elided_constants`,
+`group_candidates` and `width_warnings` to `data`; `format_version` stays
+`"1.1"`. Every import, export, convert and shard `--json` `data` is
+snake_case with field types as names (`"type": "f64"`).
 
 ### Width promotion (inferred imports and converts)
 
@@ -421,7 +462,7 @@ below), and by that same range test, so a value f32 merely rounds
 (`0.1`) never promotes. Every step is lossless
 for every value already read. Each promoted field draws one `PULSE_IMPORT_WIDTH_PROMOTED`
 warning (`field`, `from`, `to`, `source_row`) in the envelope `warnings`
-and `data.WidthWarnings` (`width_warnings` on `import auto` /
+and `data.width_warnings` (the same key on `import auto` /
 `pulse_import`). A `--schema` or an authoritative source schema (SPSS,
 Arrow, Parquet) never promotes: its overflow stays a
 `PULSE_IMPORT_ROW_ERROR`. A `column_type_overrides` column never promotes
@@ -431,8 +472,8 @@ non-integer in a `u64` column, a non-boolean in a `packed_bool` column
 (no type holds both losslessly), and a dictionary past `categorical_u32`.
 
 `pulse convert` copies cell text, so a promotion never changes what the
-target receives. It reports the promoted types in `data.Schema` and the
-warnings in `data.WidthWarnings` and the envelope `warnings`, and a
+target receives. It reports the promoted types in `data.schema` and the
+warnings in `data.width_warnings` and the envelope `warnings`, and a
 `--keep-pulse` intermediate is byte-identical to a plain `import` of the
 source. On a declared schema (`--schema`, or an SPSS / Arrow / Parquet
 source's own) a full categorical rung still stops the convert with the
@@ -450,13 +491,28 @@ written either way unless `--strict` is set.
 
 ### `--strict` (import)
 
-Available on: every `import <format>` leaf, and `import predict` (which
-then fails where the import would).
+Available on: every `import <format>` leaf, `import auto`, `convert`, and
+`import predict` (which then fails where the import would).
 
-Turns the parent-group viability warnings (`PULSE_GROUP_TOO_NARROW`,
-`PULSE_DEDUP_LOW_RATIO`) into errors: the import fails with that code
-(`errors[0].code` under `--json`) and writes nothing. Other import
-warnings are unaffected.
+A PARTIAL import — some rows imported, some skipped as
+`PULSE_IMPORT_ROW_ERROR` (a null in a non-nullable field, a value the
+type cannot hold) — is a warning by default: the good rows are written
+and the envelope `warnings` carries one `PULSE_IMPORT_ROWS_DROPPED` with
+`dropped`, `imported` and `first_failure` `{row, column, reason}` in
+`details` (`data.dropped_warnings`; plus `rows_dropped` on
+`import auto`). `convert` adds `stage`: `target` for rows the target
+writer refused, `keep_pulse` for rows the `--keep-pulse` intermediate
+skipped. `--strict` turns it into the fatal error (exit 1,
+`errors[0].code`) and nothing is written. `import predict --strict`
+fails the same way when its measured pass (`--group`,
+`--elide-constants`, `--suggest-groups`) would drop rows. Library:
+`ImportJob` / `ConvertJob` / `ImportSpec` `StrictRows`, and any instance
+built with `Options.Strict` (which `pulse_import` inherits).
+
+On `import <format>` and `import predict` it also turns the parent-group
+viability warnings (`PULSE_GROUP_TOO_NARROW`, `PULSE_DEDUP_LOW_RATIO`)
+into errors: the import fails with that code and writes nothing. Other
+import warnings are unaffected.
 Groups are named in errors and output by position and key
 (`group 1 [key: cust_id]`) — the format stores no group name. Each group
 is printed with its distinct-tuple count, and reported under `Groups`
@@ -554,7 +610,7 @@ the pre-transition offset (an overlap's first occurrence; Berlin
 `2026-03-29 02:30` → `01:30Z`), `later` the post-transition offset
 (second occurrence; → `00:30Z`). A resolved value is never silent: one
 `PULSE_IMPORT_DST_RESOLVED` warning carries `ambiguous_n` /
-`nonexistent_n` (`warnings` and `data.ZoneWarnings` under `--json`). The
+`nonexistent_n` (`warnings` and `data.zone_warnings` under `--json`). The
 policy is inert without a zone and under a fixed offset.
 
 On `import auto` the zone, per-column map and policy are persisted onto
@@ -679,7 +735,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse features init` | Print strict feature-profile JSON listing every feature this build offers, or `--from NAME` seeded from an example feature profile | [feature profiles](../library/feature-profiles.md) |
 | `pulse features show` | Describe every feature a feature profile lists: kind, category, source, since and dependencies | [feature profiles](../library/feature-profiles.md) |
 | `pulse import arrow` | Import Arrow IPC into `.pulse` | `--help` |
-| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--group` parent-group declarations, `--vector` / `--vector-kind` vector folds, `--source-tz` / `--dst-policy`, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
+| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--schema` / `--ignore-extra` / `--float` as on `import <format>`, `--strict` (a partial import is fatal), `--group` parent-group declarations, `--vector` / `--vector-kind` vector folds, `--source-tz` / `--dst-policy`, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
 | `pulse import csv` | Import CSV into `.pulse` | `--help` |
 | `pulse import drop` | Remove a managed-import handle | `--help` |
 | `pulse import excel` | Import Excel into `.pulse` | `--help` |

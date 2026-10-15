@@ -1,12 +1,12 @@
 package processing
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -93,7 +93,7 @@ func newSetHasAttribute(attr *types.Attribute, schema *encoding.Schema) (Attribu
 			"ATTR_SET_HAS requires params with a \"label\" field")
 	}
 	var params setHasParams
-	if err := json.Unmarshal(attr.Params, &params); err != nil {
+	if err := paramread.Decode(paramread.Attribute, string(attr.Type), attr.Params, &params); err != nil {
 		return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG, "parsing ATTR_SET_HAS params")
 	}
 	if params.Label == "" {

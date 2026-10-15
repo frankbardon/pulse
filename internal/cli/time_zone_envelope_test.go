@@ -72,9 +72,7 @@ func TestAPI_TimeZoneRefusalKeepsItsCode(t *testing.T) {
 			var buf bytes.Buffer
 			root := APICommand()
 			root.Writer = &buf
-			if err := root.Run(context.Background(), tc.args); err != nil {
-				t.Fatalf("hard error instead of an envelope: %v", err)
-			}
+			wantEnvelopeFatal(t, root.Run(context.Background(), tc.args))
 			var env struct {
 				Errors []struct {
 					Code    string         `json:"code"`

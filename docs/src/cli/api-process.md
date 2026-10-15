@@ -25,7 +25,7 @@ pulse api process --request FILE [--json] [--stream] [--no-defaults]
 |---|---|---|---|---|
 | `--request`       | `-r` | string | (required) | Path to the request JSON file |
 | `--json`          |      | bool   | false      | Emit the result wrapped in the JSON envelope |
-| `--stream`        |      | bool   | false      | Stream rows as NDJSON (one per line) instead of buffering |
+| `--stream`        |      | bool   | false      | Stream rows as NDJSON (one per line) instead of buffering; a run that warned ends with one `{"warnings": [...]}` line |
 | `--no-defaults`   |      | bool   | false      | Disable smart operator-type inference; require explicit `Type` on every aggregation and grouper |
 | `--no-components` |      | bool   | false      | Suppress `Response.Components` (per-aggregator / per-grouper / per-filterer / crosstab / run constituent-parts metadata). Wire form is byte-identical to the pre-Components baseline. The flag wins over a request `return` block (Components are still not computed, and the block gains `exclude: ["components"]`); only a request `"disable_components": false` re-opens them |
 | `--no-project`    |      | bool   | false      | Disable buffered-decode field projection; force full-record decode. Projection is on by default and output-transparent (same result, only faster), so this is an opt-out for debugging or full-map decode |
@@ -143,6 +143,11 @@ The standard envelope:
 }
 ```
 
+Every run-time warning the run raised (`data.warnings`: target-encode
+leakage, labels, vectors, …) is also written to the envelope's
+top-level `warnings`; `data` keeps its copy. Under `--strict` the
+warnings `Options.Strict` covers refuse the run instead (exit 1).
+
 `data.components` is the additive `Response.Components` slot
 documented in CLAUDE.md → Output Format Contract and
 `skills/response-components.md`. The slot is `omitempty`: a run that
@@ -155,6 +160,10 @@ additive.
 ### `--stream`
 
 NDJSON of result rows, one per line. No envelope, no metadata footer.
+A run that warned ends with one `{"warnings": [{code, message,
+details}, ...]}` line — the entries a buffered run puts on
+`data.warnings` (`PULSE_RETURN_PATH_UNMATCHED` excepted: buffered
+only); a warning-free run has none.
 Pair with [`pulse api predict`](api-predict.md) ahead of time to
 confirm `Streamable=true`; predict-buffered shapes still emit via
 this path, but they materialise inside the engine first.
@@ -168,8 +177,11 @@ unchanged rows.
 
 | Code | Meaning |
 |---|---|
-| 0 | Success |
-| 1 | Any error — wrapped in the envelope's `errors` array under `--json`, or printed to stderr otherwise |
+| 0 | Success (warnings allowed) |
+| 1 | Any error — wrapped in the envelope's `errors` array under `--json` (a warning `--strict` escalated included; nothing added to stderr), or printed to stderr otherwise |
+| 2 | Usage error (unknown flag, malformed value, missing required flag); no envelope |
+
+`pulse api process -r bad.json --json; echo $?` prints the envelope, then `1`. See [Exit status](flags.md#exit-status).
 
 ## Examples
 

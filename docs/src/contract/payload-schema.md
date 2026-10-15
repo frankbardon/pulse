@@ -75,10 +75,16 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   `ExplainRequest` (explain: one request root, or one result root with
   its request companion, plus `detail`).
 - **Results** — `#/$defs/Response`, `ComposedResponse`, `ChainResponse`,
-  `FacetResult`, `LookupResult`, `RecommendResult` (its draft `request`
+  `FacetResult` (its `warnings` are coded `{code, message, details}`
+  entries, the `Response.warnings` shape — `[]string` before U44),
+  `LookupResult`, `RecommendResult` (its draft `request`
   is an open object: a `"<placeholder>"` may sit where `Request` takes a
   number), `ExplainResult` (its `findings[].numbers` values are
-  `["number", "null"]`, `verdict` the closed `Verdict` enum).
+  `["number", "null"]`, `verdict` the closed `Verdict` enum; `warnings` relays predict's
+  coded warnings). A bootstrap `RegressionResult` echoes
+  `bootstrap_requested` / `bootstrap_succeeded`. Each
+  `ComposedResponse.responses[i]` echoes its slot's final `label`
+  (absent on a standalone `Response`).
 - **Advisory** — `#/$defs/Advisory`, one entry of a predict result's
   `advisories` (`{code, message, details}`): a coded, non-blocking note
   that the analysis may not fit the data. Never a warning.
@@ -862,6 +868,7 @@ covering the path removes it; excluding `<key>` drops it too. Every listed path 
 
 | Slot | `minimal` (primary result) | `standard` |
 |---|---|---|
+| `label` (the Compose slot echo) | yes | yes |
 | `data`, `warnings` | yes | yes |
 | `metadata` | no | yes |
 | `crosstab` | `shape`, `matrix` | whole |

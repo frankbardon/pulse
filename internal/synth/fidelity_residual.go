@@ -30,7 +30,7 @@ import (
 //
 // # What is compared, and on which scale
 //
-// The captured side is CorrelationSpec.Correlation — the number
+// The captured side is CorrelationSpec.Rho — the number
 // buildResidualCorrelator was asked to hit, itself the Pearson
 // correlation between the two models' fitted residuals over the source
 // rows (ResidualCorrelationProfile.Pairs). The recovered side is the
@@ -167,7 +167,7 @@ type ModelResidualCorrelationFidelity struct {
 type ModelResidualPairFidelity struct {
 	A string `json:"a"`
 	B string `json:"b"`
-	// CapturedRho is CorrelationSpec.Correlation — the figure
+	// CapturedRho is CorrelationSpec.Rho — the figure
 	// buildResidualCorrelator was asked to impose, which is the source
 	// residual correlation the profile captured. RecoveredRho is the
 	// Pearson correlation between the two models' REFIT residuals over
@@ -274,14 +274,14 @@ func buildModelResidualFidelity(spec *Spec, drawers []*modelDrawer, residualsOf 
 		a, b := residualsOf[c.A], residualsOf[c.B]
 		if a == nil || b == nil {
 			out.Unmeasured = append(out.Unmeasured, &ModelResidualUnmeasuredPair{
-				A: c.A, B: c.B, CapturedRho: c.Correlation, Reason: ResidualUnmeasuredNoModelFit,
+				A: c.A, B: c.B, CapturedRho: c.Rho, Reason: ResidualUnmeasuredNoModelFit,
 			})
 			continue
 		}
 		xs, ys := coResidualSlices(a.values, a.present, b.values, b.present)
 		if len(xs) < minResidualPairObservations {
 			out.Unmeasured = append(out.Unmeasured, &ModelResidualUnmeasuredPair{
-				A: c.A, B: c.B, CapturedRho: c.Correlation, N: len(xs),
+				A: c.A, B: c.B, CapturedRho: c.Rho, N: len(xs),
 				Reason: ResidualUnmeasuredNoOverlap,
 			})
 			continue
@@ -294,14 +294,14 @@ func buildModelResidualFidelity(spec *Spec, drawers []*modelDrawer, residualsOf 
 			// perfectly, which a discrete target with few reachable
 			// values can genuinely produce.
 			out.Unmeasured = append(out.Unmeasured, &ModelResidualUnmeasuredPair{
-				A: c.A, B: c.B, CapturedRho: c.Correlation, N: len(xs),
+				A: c.A, B: c.B, CapturedRho: c.Rho, N: len(xs),
 				Reason: ResidualUnmeasuredNoVariance,
 			})
 			continue
 		}
 		e := &ModelResidualPairFidelity{
-			A: c.A, B: c.B, CapturedRho: c.Correlation, RecoveredRho: rho,
-			Delta: math.Abs(rho - c.Correlation), N: len(xs),
+			A: c.A, B: c.B, CapturedRho: c.Rho, RecoveredRho: rho,
+			Delta: math.Abs(rho - c.Rho), N: len(xs),
 		}
 		e.Flagged = e.Delta > ResidualRecoveryTolerance
 		measured = append(measured, e)

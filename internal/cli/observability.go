@@ -56,11 +56,14 @@ type loggerKey struct{}
 // LogBefore is the root command's Before: it builds the stderr logger
 // the --log-level / --log-format flags ask for (nil for off) and hands
 // it to every leaf through ctx, where newPulse / newPulseOpts thread it
-// into pulse.Options.Logger. An unknown level or format is CLI_INPUT.
+// into pulse.Options.Logger. An unknown level or format is CLI_INPUT,
+// and exits ExitUsage.
 func LogBefore(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 	lg, err := newLogger(cmd.String(flagLogLevel), cmd.String(flagLogFormat), cmd.Root().ErrWriter)
 	if err != nil {
-		return ctx, err
+		// A bad persistent flag value, refused before any leaf runs: a
+		// usage error (exit 2), still carrying its CLI_INPUT code.
+		return ctx, usageExit(err)
 	}
 	if lg == nil {
 		return ctx, nil

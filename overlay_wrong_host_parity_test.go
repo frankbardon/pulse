@@ -233,7 +233,10 @@ func TestOverlayWrongHost_FacetParity(t *testing.T) {
 			Overlays: []types.OverlaySpec{
 				{Kind: types.OverlayKindIndexVsPop, Scope: types.OverlayScopeGroup, Params: params,
 					Ref: types.OverlayRef{Population: &types.OverlayPopulationRef{Cohort: "ns.pulse"}}},
-				{Kind: kind, Scope: types.OverlayScopeGroup, Params: params},
+				// No params on the wrong-host kind: a facet-only key
+				// (field) would be refused by the kind's params
+				// allowlist before the host gate this test pins.
+				{Kind: kind, Scope: types.OverlayScopeGroup},
 			}}
 	}
 	ctl := build("")

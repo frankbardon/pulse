@@ -595,8 +595,8 @@ func TestExtensionWeight_CrosstabCellMatchesBuiltin(t *testing.T) {
 		return &types.Request{
 			Cohort: &types.Cohort{Filename: cohort},
 			Crosstab: &types.CrosstabSpec{
-				Rows:    []*types.Group{{Type: types.GROUP_RANGE, Field: "x", Params: json.RawMessage(`{"interval":5}`)}},
-				Columns: []*types.Group{{Type: types.GROUP_RANGE, Field: "x", Params: json.RawMessage(`{"interval":100}`)}},
+				Rows:    []*types.Group{{Type: types.GROUP_RANGE, Field: "x", Interval: 5}},
+				Columns: []*types.Group{{Type: types.GROUP_RANGE, Field: "x", Interval: 100}},
 				Cell:    &types.Aggregation{Type: types.AggregationType(cell), Field: "x", Label: "s"},
 				Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
 			},

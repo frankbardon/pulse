@@ -176,9 +176,7 @@ func TestWriteCodedErrorEnvelope_PreservesTheCode(t *testing.T) {
 		err := perrors.NewCodedErrorWithDetails(perrors.PULSE_SPSS_SIDECAR_STALE,
 			"the sidecar no longer describes this cohort",
 			map[string]any{perrors.DetailSPSSCohort: "out.pulse"})
-		if werr := writeCodedErrorEnvelope(&buf, "IMPORT_ERROR", err); werr != nil {
-			t.Fatalf("writeCodedErrorEnvelope: %v", werr)
-		}
+		wantEnvelopeFatal(t, writeCodedErrorEnvelope(&buf, "IMPORT_ERROR", err))
 		env := decodeEnvelope(t, buf.Bytes())
 		if len(env.Errors) != 1 {
 			t.Fatalf("errors = %d, want 1", len(env.Errors))
@@ -195,9 +193,7 @@ func TestWriteCodedErrorEnvelope_PreservesTheCode(t *testing.T) {
 	t.Run("a wrapped coded error still surfaces", func(t *testing.T) {
 		var buf bytes.Buffer
 		inner := perrors.NewCodedError(perrors.PULSE_SPSS_NAME_INVALID, "bad name")
-		if werr := writeCodedErrorEnvelope(&buf, "CONVERT_ERROR", fmt.Errorf("converting: %w", inner)); werr != nil {
-			t.Fatalf("writeCodedErrorEnvelope: %v", werr)
-		}
+		wantEnvelopeFatal(t, writeCodedErrorEnvelope(&buf, "CONVERT_ERROR", fmt.Errorf("converting: %w", inner)))
 		env := decodeEnvelope(t, buf.Bytes())
 		if env.Errors[0].Code != string(perrors.PULSE_SPSS_NAME_INVALID) {
 			t.Errorf("errors[0].code = %q, want %s", env.Errors[0].Code, perrors.PULSE_SPSS_NAME_INVALID)
@@ -207,12 +203,8 @@ func TestWriteCodedErrorEnvelope_PreservesTheCode(t *testing.T) {
 	t.Run("an uncoded error keeps the placeholder", func(t *testing.T) {
 		var plain, coded bytes.Buffer
 		err := fmt.Errorf("reading pulse file: no such file")
-		if werr := writeErrorEnvelope(&plain, "EXPORT_ERROR", err.Error()); werr != nil {
-			t.Fatalf("writeErrorEnvelope: %v", werr)
-		}
-		if werr := writeCodedErrorEnvelope(&coded, "EXPORT_ERROR", err); werr != nil {
-			t.Fatalf("writeCodedErrorEnvelope: %v", werr)
-		}
+		wantEnvelopeFatal(t, writeErrorEnvelope(&plain, "EXPORT_ERROR", err.Error()))
+		wantEnvelopeFatal(t, writeCodedErrorEnvelope(&coded, "EXPORT_ERROR", err))
 		if plain.String() != coded.String() {
 			t.Errorf("an uncoded error changed shape:\n got %s\nwant %s", coded.String(), plain.String())
 		}

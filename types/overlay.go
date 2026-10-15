@@ -3377,12 +3377,15 @@ type OverlayLayer struct {
 // the value-only diagnostic up the dependency graph keeps the types
 // package behavioural-import-free while letting both internal/processing/ and
 // internal/service/ produce warnings against the same shape.
+//
+// On the wire each entry is {code, message, details} — the coded-entry
+// shape of every other warning list (`details` omitted when nil).
 type OverlayWarning struct {
 	// Code is the canonical overlay error code (today: errors.PULSE_OVERLAY_REF_ZERO).
-	Code string
+	Code string `json:"code"`
 	// Message is the human-readable summary.
-	Message string
+	Message string `json:"message"`
 	// Details carries structured context for the warning — overlay
 	// index, kind, axis, the offending row / column key indices, etc.
-	Details map[string]any
+	Details map[string]any `json:"details,omitempty"`
 }

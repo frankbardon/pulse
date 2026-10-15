@@ -412,9 +412,13 @@ func TestMatrixFactor_Refusals(t *testing.T) {
 			Cohort:   &types.Cohort{Filename: filepath.Join(dir, "attitude.pulse")},
 			Matrices: []types.MatrixSpec{{Name: "fa", Type: types.MAT_FACTOR, Fields: cases[0].Fields, Params: json.RawMessage(params)}},
 		})
+		want := errors.SERVICE_VALIDATION
+		if strings.HasPrefix(params, `{"components"`) { // not a key of this operator: the params allowlist
+			want = errors.PULSE_REQUEST_UNKNOWN_FIELD
+		}
 		var ce *errors.CodedError
-		if !stderrors.As(err, &ce) || ce.Code != errors.SERVICE_VALIDATION || ce.Details["reason"] != "bad_params" {
-			t.Errorf("%s: error %v, want SERVICE_VALIDATION bad_params", params, err)
+		if !stderrors.As(err, &ce) || ce.Code != want || (want == errors.SERVICE_VALIDATION && ce.Details["reason"] != "bad_params") {
+			t.Errorf("%s: error %v, want %s", params, err, want)
 		}
 	}
 }

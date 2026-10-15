@@ -128,7 +128,7 @@ func TestHiddenModelSave_RefusedAsUnknownField(t *testing.T) {
 		}
 	}
 	_, err = h.Process(ctx, req)
-	check("Process", slotGateFromErr(err), "regressions[0]", "", 0)
+	check("Process", slotGateFromErr(err), "regressions[0].save", "", 0)
 	cohort, err := afero.ReadFile(fsys, fitsFacadeCohort)
 	if err != nil {
 		t.Fatal(err)
@@ -138,14 +138,14 @@ func TestHiddenModelSave_RefusedAsUnknownField(t *testing.T) {
 	if out == nil {
 		out = slotGateFromEnv(env)
 	}
-	check("PredictBytes", out, "regressions[0]", "", 0)
+	check("PredictBytes", out, "regressions[0].save", "", 0)
 	_, err = h.Compose(ctx, c)
-	check("Compose", slotGateFromErr(err), "fits[0]", "fit", 0)
+	check("Compose", slotGateFromErr(err), "fits[0].save", "fit", 0)
 	cenv, err := h.PredictCompose(ctx, c)
 	if err != nil {
 		t.Fatal(err)
 	}
-	check("PredictCompose", slotGateFromEnv(cenv), "fits[0]", "fit", 0)
+	check("PredictCompose", slotGateFromEnv(cenv), "fits[0].save", "fit", 0)
 	for _, f := range []string{"r", "f"} {
 		if ok, _ := afero.Exists(fsys, f+model.FileSuffix); ok {
 			t.Fatalf("a refused save wrote %s", f)

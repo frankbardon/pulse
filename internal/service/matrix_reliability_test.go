@@ -273,7 +273,7 @@ func TestMatrixReliability_ReverseScoring(t *testing.T) {
 		{"reverse names a non-item", map[string]any{"reverse": []string{"r9"}, "scale_min": 1, "scale_max": 5}, items, errors.SERVICE_VALIDATION, "bad_params"},
 		{"reverse twice", map[string]any{"reverse": []string{"r2", "r2"}, "scale_min": 1, "scale_max": 5}, items, errors.SERVICE_VALIDATION, "bad_params"},
 		{"one item", nil, items[:1], errors.SERVICE_VALIDATION, "bad_params"},
-		{"unknown key", map[string]any{"summary": map[string]any{"top_pairs": 1}}, items, errors.SERVICE_VALIDATION, "bad_params"},
+		{"unknown key", map[string]any{"summary": map[string]any{"top_pairs": 1}}, items, errors.PULSE_REQUEST_UNKNOWN_FIELD, ""},
 		{"bad repair", map[string]any{"repair": "clip"}, items, errors.SERVICE_VALIDATION, "bad_params"},
 	} {
 		_, err := run(c.params, c.fields)

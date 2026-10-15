@@ -45,8 +45,12 @@ func TestAPIPredictRoots(t *testing.T) {
 			t.Fatal(err)
 		}
 		out, err := runAPI(t, tc.leaf, "-r", reqPath, "--json")
-		if err != nil {
+		// A refused request is a fatal envelope: exit 1, nothing extra.
+		if tc.valid && err != nil {
 			t.Fatalf("%s --json: %v", tc.leaf, err)
+		}
+		if !tc.valid {
+			wantEnvelopeFatal(t, err)
 		}
 		var env struct {
 			FormatVersion string `json:"format_version"`
@@ -83,11 +87,11 @@ func TestAPIPredictRoots(t *testing.T) {
 // PREDICT_ERROR placeholder.
 func TestAPIPredictRoots_CodedFacadeError(t *testing.T) {
 	dir := withTempDataDir(t)
-	reqPath := filepath.Join(dir, "nocohort.json")
-	if err := os.WriteFile(reqPath, []byte(`{"fields":["a"]}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	for _, leaf := range []string{"predict-facet", "predict-chain"} {
+	for leaf, body := range map[string]string{"predict-facet": `{"fields":["a"]}`, "predict-chain": `{}`} {
+		reqPath := filepath.Join(dir, leaf+"-nocohort.json")
+		if err := os.WriteFile(reqPath, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
 		out, _ := runAPI(t, leaf, "-r", reqPath, "--json")
 		var env struct {
 			Errors []struct {
@@ -139,9 +143,7 @@ func TestAPIPredictRoots_StrictAndEcho(t *testing.T) {
 		t.Fatalf("lax: %s", out)
 	}
 	out, err = runAPI(t, "predict-facet", "-r", warnPath, "--json", "--strict")
-	if err != nil {
-		t.Fatal(err)
-	}
+	wantEnvelopeFatal(t, err) // the warning --strict escalated is fatal: exit 1
 	if env := decode(out); env.Data.Valid || len(env.Errors) != 1 || len(env.Warnings) != 0 {
 		t.Fatalf("--strict: want the warning as the one error, got %s", out)
 	}

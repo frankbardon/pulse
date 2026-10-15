@@ -338,6 +338,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_IMPORT_ROWS_DROPPED: {
+		Message: "Warning-class — a partial import: some rows imported and some were skipped as PULSE_IMPORT_ROW_ERROR (a null in a non-nullable field, a value the field type cannot hold). Raised once per import on every entry point (import <format>, import auto, convert --keep-pulse and convert's target rows, the library Import / ImportFile / Convert, the managed-import pool over MCP too), beside the per-row RowErrors. Details carry `dropped` (rows skipped), `imported` (rows written) and `first_failure` {`row` (1-based source data row), `column` (empty when the failure names none), `reason`}; on convert also `stage` (`target` or `keep_pulse`). Under strict — CLI --strict, ImportJob / ConvertJob.StrictRows, imports.Spec.StrictRows, pulse.Options.Strict — it is the FATAL error instead and nothing is written. Total failure (no row imported) stays the fatal PULSE_IMPORT_ROW_ERROR.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Read details.first_failure: fix that column — declare it nullable in the schema, pick a type that holds the value, or clean the source — and re-import. To accept the partial import deliberately, keep the warning; to refuse it, pass --strict (or set StrictRows / Options.Strict).",
+			},
+		},
+	},
 	PULSE_IMPORT_WIDTH_PROMOTED: {
 		Message: "Warning-class — an inferred import met a value, past the bounded inference sample, that the width inferred from the sample cannot hold, so the field was promoted to the narrowest type that holds it and the row imported instead of becoming a PULSE_IMPORT_ROW_ERROR. Ladders: categorical_u8 → categorical_u16 → categorical_u32 when the dictionary outgrows its rung; u4 → u8 → u16 → u32 → u64 for a larger non-negative integer; u4..u32 → f64 for any other number; f32 → f64 for a value outside f32's range when f32 was inferred under the --float f32 opt-in (the default infers f64) (past MaxFloat32, or a non-zero magnitude f32 flushes to zero — a value f32 merely rounds never promotes). Every step is lossless — every value already imported is exact in f64. A non-boolean in a packed_bool stays a row error. ConvertJob.Run (`pulse convert`) promotes an inferred schema the same way, on ConvertReport.WidthWarnings. Details carry `field`, `from` (the inferred type), `to` (the written type) and `source_row` (the first 1-based source row that forced it). No value changes. Never fires for an explicit --schema or an authoritative source schema: their overflow stays a row error (on convert, a full categorical rung is the fatal PULSE_IMPORT_CATEGORICAL_OVERFLOW). Never fires for a column_type_overrides column either: its overflow refuses the import with PULSE_IMPORT_OVERRIDE_INVALID.",
 		Fixups: []Fixup{
@@ -767,6 +776,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_FACET_VALUES_TRUNCATED: {
+		Message: "Warning-class — a facet's discrete_top_k cut a discrete field's value list to its top-K values by count (ties by value), so the dropped values are absent from fields.<name>.discrete.values; truncated_at counts them. Details carry `field`, `discrete_top_k`, `distinct` (the field's distinct values) and `dropped`, plus `additive: true` on an additive_fields tally. The counts of the kept values are exact. Predict-facet raises the same code up front for a discrete_top_k under 5, with only `discrete_top_k` in details (it reads no record, so it cannot say which field will be cut).",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"DiscreteTopK"},
+				Hint:   "Raise discrete_top_k to at least details.distinct (or set 0 for no cap) to see every value; keep it to read only the top values.",
+			},
+		},
+	},
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY: {
 		Message: "A field description is empty, too short, or matches a generic-word denylist (\"n/a\", \"tbd\", etc.).",
 		Fixups: []Fixup{
@@ -807,7 +826,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FEAT_TARGET_LEAKAGE_RISK: {
-		Message: "FEAT_TARGET_ENCODE averages every record's outcome, the record's own and validation/test records' included, because it reads no split column; a preceding train/test split does not change a single value.",
+		Message: "FEAT_TARGET_ENCODE averages every record's outcome, the record's own and validation/test records' included, because it reads no split column; a preceding train/test split does not change a single value. Predict warns, and Process (a Compose slot too) repeats the warning on the response's warnings with predict's details {feature, feature_index}; under strict both refuse — predict as an error, Process before any record is read.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
@@ -954,6 +973,16 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"Overlays", "*", "Params", "partition_by"},
 				Hint:     "If the last grouper is the order you mean, set params.partition_by to the leading key columns to state it; an explicit partition_by silences the advisory.",
 				Examples: []any{map[string]any{"partition_by": []any{"warehouse"}}},
+			},
+		},
+	},
+	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED: {
+		Message: "A slot names an embedder extension operator whose registration declares no params, and carries a params object: its keys pass to the operator unvalidated, so a misspelled key is not refused as it is on a built-in; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Params"},
+				Hint:   "Embedder: declare the operator's params (ParamMeta) on its Extensions registration; every params key is then checked and an unknown one is refused PULSE_REQUEST_UNKNOWN_FIELD with a suggestion. Caller: check details.keys against the operator's documentation.",
 			},
 		},
 	},
@@ -2241,6 +2270,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_LABEL_NOT_APPLIED: {
+		Message: "A label binding was not applied: its field is not an output column, axis or group key of the response, or it is an augment-mode binding on a matrix axis, whose keys have no sibling column.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Labels", "*", "Field"},
+				Hint:   "Bind a field the request groups by (a grouper key, a crosstab row or column axis), or drop the binding.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Labels", "*", "Mode"},
+				Hint:   "For a crosstab matrix axis use mode \"replace\" (the axis keys become the labels), or request shape \"long\" to keep augment-mode sibling columns.",
+			},
+		},
+	},
 	PULSE_CROSSTAB_EMPTY_ROWS: {
 		Message: "The Crosstab section has no row-axis groupers. A crosstab requires at least one grouper on each axis.",
 		Fixups: []Fixup{
@@ -2414,12 +2458,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_REQUEST_UNKNOWN_FIELD: {
-		Message: "The request JSON contains a top-level key that is not a recognised Request slot. JSON decoding silently ignores unknown keys, so the intended operation is dropped and the request runs as if it were absent. A common cause is using a manifest operator-catalog field name (\"groupers\", \"aggregators\") as the request key instead of the request slot name (\"groups\", \"aggregations\"). When `details.path` is present the key sits inside that slot object (\"aggregations[0]\") rather than at the top level, and `valid_keys` lists that object's keys.",
+		Message: "The request JSON contains a key that is not a recognised slot of the object it sits in — at the request root or at any depth (a sort entry, an aggregation, a crosstab cell, a Compose slot, a chain stage, a sweep body, a for_each item). Every JSON request root (CLI request files, MCP tool arguments, Compose sweep bodies and for_each items) is decoded strictly, so the key is refused rather than ignored: an ignored key would silently drop the intended operation. A slot this instance's feature profile hides is refused the same way and is never listed as valid. A common cause is using a manifest operator-catalog field name (\"groupers\", \"aggregators\") as the request key instead of the request slot name (\"groups\", \"aggregations\"). Below the root `details.path` locates the first offending key (\"sort[0].direction\", \"aggregations[0].weight\") and `valid_keys` lists that object's keys; `details.request` / `fit` / `stage` (Compose slot, fit, chain stage) or `slot` (sweep) / `index` (for_each combination) say which nested request it is in. Synth documents decode the same way: a spec, a `--rules` file (its file in `details.file`) or a profile document refuses an unknown key, and a spec field's `params` refuses a key its distribution does not read (`fields[0].params.rate` → `lambda`); correlation entries are `{a, b, rho}`.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Hint:     "Rename the offending key to its canonical request slot: the error details carry the nearest valid key under suggestions and every slot this instance accepts under valid_keys. The manifest's \"groupers\"/\"aggregators\" name the available OPERATORS; the request slots that hold them are \"groups\"/\"aggregations\".",
-				Examples: []any{"groupers -> groups", "aggregators -> aggregations"},
+				Examples: []any{"groupers -> groups", "aggregators -> aggregations", "correlations[0].correlation -> rho (synth spec)"},
 			},
 		},
 	},

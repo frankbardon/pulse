@@ -71,6 +71,10 @@ The base directory for `.pulse` files. Relative cohort paths
 | Empty + `FS` non-nil        | `DataDir` is ignored — the FS is the trust boundary |
 | Empty + `FS` nil            | Pulse falls back to its default OS filesystem, rooted at `PULSE_DATA_DIR` |
 
+A relative directory — in `DataDir` or in `PULSE_DATA_DIR` — is made
+absolute against the working directory once, at `pulse.New`
+(`filepath.Abs`). A later `os.Chdir` does not move the instance's root.
+
 Example:
 
 ```go

@@ -667,7 +667,13 @@ every pre-existing report byte-identical.
 A per-row refusal — your reader cannot convert a cell, or your writer
 refuses a value — lands on `ImportReport.RowErrors` /
 `ExportReport.RowErrors` and the job carries on. That is the PARTIAL
-contract and it is unchanged.
+contract. The import side also raises one `PULSE_IMPORT_ROWS_DROPPED`
+warning per partial pass (`ImportReport.DroppedWarnings`,
+`ConvertReport.DroppedWarnings`; details `dropped`, `imported`,
+`first_failure {row, column, reason}`), and `StrictRows` makes it the
+job's error with nothing written. A coded row error carrying
+`details.column` / `details.reason` feeds `first_failure` directly;
+an uncoded one reports its text as the reason.
 
 What is not partial is a pass that read rows and got **none** of them
 through. `ImportJob.Run`, `ExportJob.Run` and `ConvertJob.Run` classify

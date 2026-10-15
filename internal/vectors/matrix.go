@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
 )
@@ -652,7 +653,7 @@ func SpecMethod(spec types.MatrixSpec) string {
 	var p struct {
 		Method *string `json:"method"`
 	}
-	if len(spec.Params) == 0 || json.Unmarshal(spec.Params, &p) != nil || p.Method == nil {
+	if len(spec.Params) == 0 || paramread.Probe(spec.Params, &p) != nil || p.Method == nil {
 		return CorrelationPearson
 	}
 	return *p.Method
@@ -943,9 +944,37 @@ func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, o MatrixRe
 	return out, nil
 }
 
+// matrixParamsShape is the params struct a built-in matrix type
+// decodes (decodeMatrixParams), for the declared-vs-read record of a
+// spec that carries no params; nil for an unknown type.
+func matrixParamsShape(t types.MatrixType) any {
+	switch t {
+	case types.MAT_COVARIANCE:
+		return (*covarianceParams)(nil)
+	case types.MAT_CORRELATION:
+		return (*correlationParams)(nil)
+	case types.MAT_PARTIAL_CORRELATION:
+		return (*partialParams)(nil)
+	case types.MAT_RELIABILITY:
+		return (*reliabilityParams)(nil)
+	case types.MAT_PCA:
+		return (*pcaParams)(nil)
+	case types.MAT_FACTOR:
+		return (*factorParams)(nil)
+	case types.MAT_DISTANCE:
+		return (*distanceParams)(nil)
+	case types.MAT_COLLINEARITY:
+		return (*collinearityParams)(nil)
+	}
+	return nil
+}
+
 // decodeMatrixParams decodes the operator's params onto m. Unknown keys
 // are refused, so a misspelt knob never silently takes its default.
 func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.CodedError {
+	if shape := matrixParamsShape(spec.Type); shape != nil {
+		paramread.Declare(paramread.Matrix, string(spec.Type), shape)
+	}
 	raw := bytes.TrimSpace(spec.Params)
 	empty := len(raw) == 0 || bytes.Equal(raw, []byte("null"))
 	switch spec.Type {
@@ -975,7 +1004,7 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 	switch spec.Type {
 	case types.MAT_COVARIANCE:
 		var p covarianceParams
-		if err := decodeStrict(raw, &p); err != nil {
+		if err := paramread.DecodeStrict(paramread.Matrix, string(spec.Type), raw, &p); err != nil {
 			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
 		}
 		if p.DDOF != nil {
@@ -992,7 +1021,7 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 		miss = p.missingParams
 	case types.MAT_CORRELATION:
 		var p correlationParams
-		if err := decodeStrict(raw, &p); err != nil {
+		if err := paramread.DecodeStrict(paramread.Matrix, string(spec.Type), raw, &p); err != nil {
 			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
 		}
 		if p.Method != nil {
@@ -1022,7 +1051,7 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 		miss = p.missingParams
 	case types.MAT_PARTIAL_CORRELATION:
 		var p partialParams
-		if err := decodeStrict(raw, &p); err != nil {
+		if err := paramread.DecodeStrict(paramread.Matrix, string(spec.Type), raw, &p); err != nil {
 			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
 		}
 		controls, err := decodeControl(at, p.Control)
@@ -1039,7 +1068,7 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 		miss = p.missingParams
 	case types.MAT_RELIABILITY:
 		var p reliabilityParams
-		if err := decodeStrict(raw, &p); err != nil {
+		if err := paramread.DecodeStrict(paramread.Matrix, string(spec.Type), raw, &p); err != nil {
 			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
 		}
 		if err := decodeScale(at, p, m); err != nil {
@@ -1051,7 +1080,7 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 		miss = p.missingParams
 	case types.MAT_PCA:
 		var p pcaParams
-		if err := decodeStrict(raw, &p); err != nil {
+		if err := paramread.DecodeStrict(paramread.Matrix, string(spec.Type), raw, &p); err != nil {
 			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
 		}
 		if err := decodePCA(at, p, m); err != nil {
@@ -1063,7 +1092,7 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 		miss = p.missingParams
 	case types.MAT_FACTOR:
 		var p factorParams
-		if err := decodeStrict(raw, &p); err != nil {
+		if err := paramread.DecodeStrict(paramread.Matrix, string(spec.Type), raw, &p); err != nil {
 			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
 		}
 		if err := decodeFactor(at, p, m); err != nil {
@@ -1075,7 +1104,7 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 		miss = p.missingParams
 	case types.MAT_DISTANCE:
 		var p distanceParams
-		if err := decodeStrict(raw, &p); err != nil {
+		if err := paramread.DecodeStrict(paramread.Matrix, string(spec.Type), raw, &p); err != nil {
 			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
 		}
 		if err := decodeDistance(at, p, m); err != nil {
@@ -1084,7 +1113,7 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 		miss = p.missingParams
 	case types.MAT_COLLINEARITY:
 		var p collinearityParams
-		if err := decodeStrict(raw, &p); err != nil {
+		if err := paramread.DecodeStrict(paramread.Matrix, string(spec.Type), raw, &p); err != nil {
 			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
 		}
 		if p.Center != nil {
@@ -1906,7 +1935,7 @@ func appendControlFields(members []string, ok bool, at string, spec types.Matrix
 	var p struct {
 		Control json.RawMessage `json:"control"`
 	}
-	if len(spec.Params) == 0 || json.Unmarshal(spec.Params, &p) != nil {
+	if len(spec.Params) == 0 || paramread.Probe(spec.Params, &p) != nil {
 		return members, ok
 	}
 	controls, err := decodeControl(at, p.Control)
@@ -1959,7 +1988,7 @@ func SpecBetween(spec types.MatrixSpec) (types.Group, bool) {
 	var p struct {
 		Between *types.Group `json:"between"`
 	}
-	if err := json.Unmarshal(spec.Params, &p); err != nil || p.Between == nil {
+	if err := paramread.Probe(spec.Params, &p); err != nil || p.Between == nil {
 		return types.Group{}, false
 	}
 	return *p.Between, true

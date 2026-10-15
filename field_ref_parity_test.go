@@ -277,7 +277,7 @@ func TestFieldRefs_DerivedNamesAccepted(t *testing.T) {
 		},
 		"post-test over aggregation label": func() *types.Request {
 			return &types.Request{Cohort: co(),
-				Groups:       []*types.Group{{Type: types.GROUP_RANGE, Field: "n", Params: json.RawMessage(`{"interval":5}`)}},
+				Groups:       []*types.Group{{Type: types.GROUP_RANGE, Field: "n", Interval: 5}},
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n", Label: "s"}},
 				PostTests:    []*types.Test{{Type: types.TEST_TREND, Field: "s", OrderBy: []types.OrderKey{{Field: "n"}}}}}
 		},
@@ -313,7 +313,7 @@ func TestFieldRefs_PipelineOrder(t *testing.T) {
 		"filter on attribute label": func() *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: cohort},
 				Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "x", Expression: "n * 2"}},
-				Filterers:    []*types.Filterer{{Type: types.FILTER_RANGE, Field: "x", Params: json.RawMessage(`{"min":0}`)}},
+				Filterers:    []*types.Filterer{{Type: types.FILTER_RANGE, Field: "x", Values: []string{"0", "1e300"}}},
 				Aggregations: countAgg()}
 		},
 		"attribute reading a later label": func() *types.Request {

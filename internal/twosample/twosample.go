@@ -50,6 +50,13 @@ const (
 	SymmetricSampleSizeKey = "sample_size"
 )
 
+// ParamKeys is every params key Inputs reads, both sides: the per-side
+// keys then the symmetric ones.
+func ParamKeys() []string {
+	return []string{VarianceKey(Target), SampleSizeKey(Target), VarianceKey(Reference), SampleSizeKey(Reference),
+		SymmetricVarianceKey, SymmetricSampleSizeKey}
+}
+
 // Inputs reads side's (variance, sample size) from params: the per-side
 // key when present, else the symmetric one. A value counts only when it
 // is a finite number > 0; a per-side key that is present but unusable

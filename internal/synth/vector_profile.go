@@ -297,7 +297,7 @@ func vectorFieldSpecFromProfile(fs FieldSpec, vp *VectorProfile) FieldSpec {
 		v.Elements[k] = vectorElementSpecFromProfile(e)
 	}
 	for _, c := range vp.Correlations {
-		v.Correlations = append(v.Correlations, VectorCorrelationSpec{A: c.A, B: c.B, Correlation: c.Rho})
+		v.Correlations = append(v.Correlations, VectorCorrelationSpec{A: c.A, B: c.B, Rho: c.Rho})
 	}
 	return fs
 }

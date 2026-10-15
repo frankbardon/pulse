@@ -1,12 +1,12 @@
 package feature
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -54,8 +54,9 @@ func newPoly(feat *types.Feature, schema *encoding.Schema) (Computer, error) {
 		return nil, cerr
 	}
 	var p polyParams
+	paramread.Declare(paramread.Feature, string(feat.Type), &p)
 	if len(feat.Params) > 0 {
-		if err := json.Unmarshal(feat.Params, &p); err != nil {
+		if err := paramread.Decode(paramread.Feature, string(feat.Type), feat.Params, &p); err != nil {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("FEAT_POLY params: %v", err))
 		}

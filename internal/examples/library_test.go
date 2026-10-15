@@ -8,37 +8,57 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frankbardon/pulse/internal/strictjson"
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestExamples_AllParseAsRequest verifies every embedded example
-// unmarshals into types.Request despite carrying the _meta block.
-// Pulse's JSON unmarshaler ignores unknown fields by default, so _meta
-// must be invisible at execution time.
-func TestExamples_AllParseAsRequest(t *testing.T) {
+// TestExamples_DecodeStrictly verifies every embedded example decodes
+// through the shared strict request decoder into its root type —
+// the decode every JSON entry point (CLI request files, MCP tool
+// arguments) applies — so no example relies on a key Pulse would
+// refuse. The `_meta` sidecar is tolerated at the root, as a request
+// file's is. Synth specs (`*.synth.json`) are not requests.
+func TestExamples_DecodeStrictly(t *testing.T) {
 	err := fs.WalkDir(content, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || !strings.HasSuffix(p, ".json") {
+		if d.IsDir() || !strings.HasSuffix(p, ".json") || strings.HasSuffix(p, ".synth.json") ||
+			strings.HasPrefix(p, "fixtures/") {
 			return nil
 		}
 		data, readErr := content.ReadFile(p)
 		if readErr != nil {
 			t.Fatalf("read %s: %v", p, readErr)
 		}
-		// Parse with strict-mode wouldn't be representative of runtime
-		// behavior; the runtime accepts unknown fields, which is the
-		// whole point of carrying _meta inline.
-		var req types.Request
-		if err := json.Unmarshal(data, &req); err != nil {
-			t.Errorf("%s: parse as types.Request: %v", p, err)
+		if err := strictjson.DecodeInto(data, exampleRoot(t, p, data), strictjson.Options{AllowMeta: true}); err != nil {
+			t.Errorf("%s: strict decode: %v", p, err)
 		}
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("walk: %v", err)
 	}
+}
+
+// exampleRoot returns a pointer to the request root an example body
+// decodes into, read off its root keys.
+func exampleRoot(t *testing.T, p string, data []byte) any {
+	t.Helper()
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(data, &top); err != nil {
+		t.Fatalf("%s: %v", p, err)
+	}
+	has := func(k string) bool { _, ok := top[k]; return ok }
+	switch {
+	case has("requests") || has("sweep"):
+		return new(types.ComposedRequest)
+	case has("stages"):
+		return new(types.ChainRequest)
+	case has("fields"):
+		return new(types.FacetRequest)
+	}
+	return new(types.Request)
 }
 
 // TestExamples_UniqueNames verifies every _meta.name is unique across

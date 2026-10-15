@@ -133,6 +133,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_IMPORT_SCHEMA_AMBIGUOUS:       ownImportExport,
 	errors.PULSE_IMPORT_ROW_ERROR:              ownImportExport,
 	errors.PULSE_IMPORT_NULL_PROMOTED:          ownImportExport,
+	errors.PULSE_IMPORT_ROWS_DROPPED:           ownImportExport,
 	errors.PULSE_IMPORT_WIDTH_PROMOTED:         ownImportExport,
 	errors.PULSE_IMPORT_OVERRIDE_INVALID:       ownImportExport,
 	errors.PULSE_IMPORT_VECTOR_INVALID:         ownImportExport,
@@ -183,6 +184,7 @@ var errorOwners = map[errors.Code][]string{
 
 	// Any numeric aggregator on a categorical field; predict raises it.
 	errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: own(featFacet),
+	errors.PULSE_FACET_VALUES_TRUNCATED:             own(featFacet),
 	errors.PULSE_FIELD_DESCRIPTION_LOW_QUALITY:      shared,
 	errors.PULSE_WINDOW_INVALID:                     ownAllWindows,
 	// Every operator the accepted-types table refuses a type for with it.
@@ -212,7 +214,10 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_ADVISORY_EXTRA_PASS:              own("ATTR_FORMULA"),
 	// Fires only on the ordered series overlays (seriespartition.Ordered).
 	errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE: own(advisoryOrderedOverlayNames()...),
-	errors.PULSE_SUPPRESS_ADVISORY_UNKNOWN:     shared,
+	// Fires on an embedder extension operator, which any instance may
+	// register.
+	errors.PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED: shared,
+	errors.PULSE_SUPPRESS_ADVISORY_UNKNOWN:            shared,
 	// Raised by recommend AND by the core examples search's intent
 	// filter, which every instance carries.
 	errors.PULSE_RECOMMEND_INTENT_UNKNOWN: shared,
@@ -366,6 +371,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_LABEL_TABLE_NOT_ENUMERABLE:  own(featLabels),
 	errors.PULSE_LABEL_COLLISION:             shared,
 	errors.PULSE_LABEL_LOOKUP_MISS:           shared,
+	errors.PULSE_LABEL_NOT_APPLIED:           own(featLabels),
 
 	errors.PULSE_CROSSTAB_EMPTY_ROWS:                          own(featCrosstab),
 	errors.PULSE_CROSSTAB_EMPTY_COLUMNS:                       own(featCrosstab),

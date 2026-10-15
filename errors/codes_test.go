@@ -1,6 +1,10 @@
 package errors_test
 
 import (
+	"io/fs"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -83,12 +87,61 @@ func TestNoTwirpCodes(t *testing.T) {
 	}
 }
 
-// TestNoOrbitPrefixes ensures no ORBIT_* identifiers exist.
+// TestNoOrbitPrefixes ensures no ORBIT_* identifiers exist: not as a
+// registered error code, and not as any ORBIT_-prefixed token (code,
+// reason string, constant, comment) in a non-test Go source file of the
+// repository, nested contrib modules included. Runtime reason strings
+// that are not registered codes (the pairwise overlay skip reasons once
+// shipped as ORBIT_STATS_SKIP_*) reach the wire in details.reason.
 func TestNoOrbitPrefixes(t *testing.T) {
 	for _, code := range perr.AllCodes() {
 		if strings.HasPrefix(string(code), "ORBIT_") {
 			t.Errorf("found orbit code: %s", code)
 		}
+	}
+
+	root, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatalf("repo root: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
+		t.Fatalf("repo root %s has no go.mod: %v", root, err)
+	}
+	token := regexp.MustCompile(`\bORBIT_[A-Z0-9_]*`)
+	skipDirs := map[string]bool{".git": true, ".planning": true, "node_modules": true, "book": true, "tmp": true, "bin": true, "vendor": true}
+	files := 0
+	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if path != root && skipDirs[d.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		files++
+		for i, line := range strings.Split(string(data), "\n") {
+			if m := token.FindString(line); m != "" {
+				rel, _ := filepath.Rel(root, path)
+				t.Errorf("%s:%d: found orbit-prefixed token %s", rel, i+1, m)
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk %s: %v", root, walkErr)
+	}
+	// Guard the walk itself: a wrong root would scan nothing and pass.
+	if files < 500 {
+		t.Fatalf("scanned only %d non-test Go files under %s; the walk is not reaching the repository", files, root)
 	}
 }
 

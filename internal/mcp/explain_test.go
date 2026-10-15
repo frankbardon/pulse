@@ -129,3 +129,20 @@ func TestPulseExplain_InputSchema(t *testing.T) {
 		t.Errorf("input schema properties = %v", s.Properties)
 	}
 }
+
+// TestPulseExplain_RequestSlotsDecodeStrictly: a request handed to
+// pulse_explain decodes like every request root — an unknown key at any
+// depth is PULSE_REQUEST_UNKNOWN_FIELD located by details.path, the
+// explain slot named by details.field — never silently described
+// without it.
+func TestPulseExplain_RequestSlotsDecodeStrictly(t *testing.T) {
+	p, _, path := flatManagedCohort(t)
+	_, err := invokeExplain(t, p, `{"request":{"cohort":{"filename":"`+path+`"},"sort":[{"field":"amount","direction":"desc"}]}}`)
+	ce, ok := err.(*perr.CodedError)
+	if !ok || ce.Code != perr.PULSE_REQUEST_UNKNOWN_FIELD {
+		t.Fatalf("err = %v, want PULSE_REQUEST_UNKNOWN_FIELD", err)
+	}
+	if ce.Details["path"] != "sort[0].direction" || ce.Details["field"] != "request" {
+		t.Fatalf("details = %v", ce.Details)
+	}
+}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/strictjson"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -316,62 +317,46 @@ func UnknownFieldError(unknown, valid []string) *errors.CodedError {
 // path inside the request ("aggregations[0]", "crosstab.cell"); "" is
 // the request root (UnknownFieldError's message, byte-identical). A
 // nested refusal names the object in its message and carries
-// details.path; valid_keys / suggestions range over THAT object's keys.
+// details.path — the first offending key's location
+// ("aggregations[0].weight"); valid_keys / suggestions range over THAT
+// object's keys. The shape is built by strictjson.UnknownFieldError,
+// which the strict request decoder raises too.
 func unknownFieldErrorAt(path string, unknown, valid []string) *errors.CodedError {
-	if len(unknown) == 0 {
-		return nil
-	}
-	unknown = append([]string(nil), unknown...)
-	sort.Strings(unknown)
-	validList := append([]string(nil), valid...)
-	sort.Strings(validList)
-
-	suggestions := make(map[string]any, len(unknown))
-	parts := make([]string, 0, len(unknown))
-	for _, k := range unknown {
-		if near := NearestKey(k, valid); near != "" {
-			suggestions[k] = near
-			parts = append(parts, `"`+k+`" (did you mean "`+near+`"?)`)
-		} else {
-			parts = append(parts, `"`+k+`"`)
-		}
-	}
-
-	where, validWhere := "top-level key(s): ", "Valid request keys: "
-	if path != "" {
-		where, validWhere = "key(s) in "+path+": ", "Valid keys there: "
-	}
-	msg := "request contains unrecognized " + where + strings.Join(parts, ", ") +
-		". Unknown keys are ignored during decode, so the intended operation is silently dropped. " + validWhere +
-		strings.Join(validList, ", ") + "."
-
-	details := map[string]any{
-		"unknown_keys": unknown,
-		"suggestions":  suggestions,
-		"valid_keys":   validList,
-	}
-	if path != "" {
-		details["path"] = path
-	}
-	return errors.NewCodedErrorWithDetails(errors.PULSE_REQUEST_UNKNOWN_FIELD, msg, details)
+	return strictjson.UnknownFieldError(path, unknown, valid)
 }
 
 // NearestKey returns the closest candidate to k by Levenshtein distance,
-// or "" when no candidate is close enough. The acceptance threshold is
-// edit distance < 4, further capped at the key length, so short or
-// unrelated keys do not yield a misleading suggestion. Ties keep the
-// earliest candidate.
+// or "" when no candidate is close enough (strictjson.NearestKey: edit
+// distance < 4, capped at the key length; ties keep the earliest).
 func NearestKey(k string, candidates []string) string {
-	limit := min(4, len(k))
-	best := ""
-	bestDist := limit
-	for _, c := range candidates {
-		if d := levenshtein(k, c); d < bestDist {
-			bestDist = d
-			best = c
-		}
+	return strictjson.NearestKey(k, candidates)
+}
+
+// StrictHidden adapts inst's hidden request slots (gatedSlots, keyed by
+// struct type) to strictjson.Options.Hidden, so the strict decoder
+// refuses a hidden slot at any depth exactly as SlotRefusal does — the
+// same code, keys and visible valid_keys. Nil for a nil / unscoped
+// instance (nothing hidden).
+func StrictHidden(inst *InstanceSnapshot) func(reflect.Type) []string {
+	if inst == nil {
+		return nil
 	}
-	return best
+	return func(t reflect.Type) []string {
+		var out []string
+		for _, g := range gatedSlots[t] {
+			if !g.visible(inst) {
+				out = append(out, g.key)
+			}
+		}
+		return out
+	}
+}
+
+// StrictOptions is the strict-decode option set for a JSON request
+// decoded on behalf of inst: hidden slots refused as unknown keys, a
+// root `_meta` example sidecar tolerated.
+func StrictOptions(inst *InstanceSnapshot) strictjson.Options {
+	return strictjson.Options{Hidden: StrictHidden(inst), AllowMeta: true}
 }
 
 // setSlots returns the gated keys a root actually sets (non-nil /
@@ -697,12 +682,14 @@ func requestSlotRefusal(req *types.Request, inst *InstanceSnapshot) *errors.Code
 //     use, descx.RefusalAt).
 //
 // valid_keys and suggestions range over the offending root's VISIBLE
-// keys only. Nil on a nil / unscoped instance. Every service funnel and
-// Predict run it before any other request check, so a hidden slot is
+// keys only. Then — on every instance, scoped or not — every slot's
+// params object is held to its operator's manifest allowlist
+// (ParamsRefusal). Every service funnel and Predict run it before any
+// other request check, so a hidden slot or an unknown params key is
 // refused at the point an unknown JSON key would have been.
 func SlotRefusal(v any, inst *InstanceSnapshot) error {
 	if !inst.Scoped() {
-		return nil
+		return ParamsRefusal(v, inst)
 	}
 	if ce := rootSlotRefusal(v, inst); ce != nil {
 		return ce
@@ -765,5 +752,5 @@ func SlotRefusal(v any, inst *InstanceSnapshot) error {
 			}
 		}
 	}
-	return nil
+	return ParamsRefusal(v, inst)
 }

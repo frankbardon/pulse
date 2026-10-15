@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -42,7 +41,7 @@ func TestFacetSchema_Labels_Replace(t *testing.T) {
 	}
 	sawWarn := false
 	for _, w := range got.Warnings {
-		if strings.Contains(w, string(errors.PULSE_LABEL_COLLISION)) {
+		if w.Code == string(errors.PULSE_LABEL_COLLISION) && len(w.Details) > 0 {
 			sawWarn = true
 		}
 	}

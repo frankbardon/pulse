@@ -314,6 +314,12 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	if failure := totalRowFailure("import", rowsImported, rowNum, rowErrors, errors.PULSE_IMPORT_ROW_ERROR); failure != nil {
 		return nil, failure
 	}
+	// A partial pass is a coded warning, and under StrictRows the
+	// refusal — raised here, before anything reaches the filesystem.
+	dropped := rowsDropped(rowsImported, rowErrors, "")
+	if err := strictRowsDropped(j.StrictRows, dropped); err != nil {
+		return nil, err
+	}
 
 	// A promoted width moved every later field's offset, and may have
 	// made a declared group wide enough to admit.
@@ -376,6 +382,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	}
 	report.Groups = groupReports(written, j.Groups, groupViews, ratioViews)
 	report.GroupWarnings = groupWarns
+	report.DroppedWarnings = droppedList(dropped)
 	return report, nil
 }
 

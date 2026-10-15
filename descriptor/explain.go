@@ -102,7 +102,8 @@ type ExplainRequest struct {
 // Advisories the fit-for-purpose notes predict raises. Valid is
 // predict's verdict — nil when nothing was checked (no cohort, or a
 // Sample root) — and Refusals predict's errors as it reported them
-// (details.slot names a Compose slot). Caveats say what Explain could
+// (details.slot names a Compose slot); Warnings likewise carries
+// predict's warnings (PULSE_FEAT_TARGET_LEAKAGE_RISK, …), each once. Caveats say what Explain could
 // not check, which codes predict refuses with and, in full detail, the
 // assumptions the request's tests and models make.
 //
@@ -116,7 +117,7 @@ type ExplainRequest struct {
 // overlay layers that decorate it. The many-tests caveat counts the
 // uncorrected p-values of the whole result, across slots, stages,
 // facet fields and overlays. Valid, Steps,
-// DefaultsApplied, Advisories and Refusals stay empty. Caveats carry
+// DefaultsApplied, Advisories, Refusals and Warnings stay empty. Caveats carry
 // what the reading cannot vouch for — uncorrected p-values from more
 // than one test, the alpha a regression or overlay was read at, a
 // partial reading without the request — and stay in terse output.
@@ -135,6 +136,7 @@ type ExplainResult struct {
 	DefaultsApplied []DefaultApplied `json:"defaults_applied,omitempty"`
 	Advisories      []Advisory       `json:"advisories,omitempty"`
 	Refusals        []EnvelopeEntry  `json:"refusals,omitempty"`
+	Warnings        []EnvelopeEntry  `json:"warnings,omitempty"`
 	Sentences       []string         `json:"sentences,omitempty"`
 	GlossaryRefs    []string         `json:"glossary_refs,omitempty"`
 	FollowUps       []Alternative    `json:"follow_ups,omitempty"`

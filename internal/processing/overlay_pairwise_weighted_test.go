@@ -310,7 +310,7 @@ func TestPairwiseWeightedTwoMeansZ_Skips(t *testing.T) {
 			name:       "weights_leg_sum_weights_le_1",
 			nBasis:     types.PairwiseNBasisWeights,
 			degenerate: [2]map[string]any{wtzMoments(10, 0.5, 1, 0.5), healthy2},
-			reason:     "ORBIT_STATS_SKIP_N_TOO_SMALL",
+			reason:     "PULSE_STATS_SKIP_N_TOO_SMALL",
 		},
 		{
 			// All weight on one row: Σw = 5, Σw² = 25, so Σw − Σw²/Σw = 0.
@@ -319,14 +319,14 @@ func TestPairwiseWeightedTwoMeansZ_Skips(t *testing.T) {
 			name:       "kish_leg_all_weight_on_one_row",
 			nBasis:     types.PairwiseNBasisKish,
 			degenerate: [2]map[string]any{wtzMoments(10, 0, 5, 25), healthy2},
-			reason:     "ORBIT_STATS_SKIP_N_TOO_SMALL",
+			reason:     "PULSE_STATS_SKIP_N_TOO_SMALL",
 		},
 		{
 			// Both legs have zero spread: se = 0.
 			name:       "both_zero_variance",
 			nBasis:     types.PairwiseNBasisWeights,
 			degenerate: [2]map[string]any{wtzMoments(10, 0, 5, 9), wtzMoments(12, 0, 5, 9)},
-			reason:     "ORBIT_STATS_SKIP_SE_ZERO",
+			reason:     "PULSE_STATS_SKIP_SE_ZERO",
 		},
 	}
 	for _, tc := range cases {

@@ -151,7 +151,7 @@ func paramFieldRequests(cohort string) map[string]struct {
 	xt := func(cell *types.Aggregation, margins ...*types.Aggregation) *types.CrosstabSpec {
 		return &types.CrosstabSpec{
 			Rows:               []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
-			Columns:            []*types.Group{{Type: types.GROUP_RANGE, Field: "n", Params: json.RawMessage(`{"interval":20}`)}},
+			Columns:            []*types.Group{{Type: types.GROUP_RANGE, Field: "n", Interval: 20}},
 			Cell:               cell,
 			MarginAggregations: margins,
 			Margins:            types.CrosstabMargins{Grand: true},

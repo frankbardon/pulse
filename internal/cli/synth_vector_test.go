@@ -129,7 +129,7 @@ func TestSynthCLI_VectorFieldEverySurface(t *testing.T) {
 	spec := filepath.Join(dir, "spec.json")
 	if err := os.WriteFile(spec, []byte(`{"row_count": 25, "fields": [
 		{"name": "emb", "type": "vec_f32", "distribution": "normal", "params": {"mean": 0, "std": 1},
-		 "vector": {"dim": 8, "kind": "measure", "correlations": [{"a": 1, "b": 2, "correlation": 0.5}]}}]}`), 0o644); err != nil {
+		 "vector": {"dim": 8, "kind": "measure", "correlations": [{"a": 1, "b": 2, "rho": 0.5}]}}]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	fromSchema := filepath.Join(dir, "schema.pulse")

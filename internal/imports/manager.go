@@ -430,6 +430,8 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 		GroupWarnings:   report.GroupWarnings,
 		GroupCandidates: candidates,
 		ZoneWarnings:    report.ZoneWarnings,
+		RowsDropped:     len(report.RowErrors),
+		DroppedWarnings: report.DroppedWarnings,
 	}
 	if !sidecar.ExpiresAt.IsZero() {
 		exp := sidecar.ExpiresAt
@@ -628,6 +630,7 @@ func (m *Manager) newJob(spec Spec, format, target string) (*pio.ImportJob, erro
 	job.Schema = spec.Schema
 	job.IgnoreExtra = spec.IgnoreExtra
 	job.FloatWidth = spec.FloatWidth
+	job.StrictRows = spec.StrictRows
 	return job, nil
 }
 

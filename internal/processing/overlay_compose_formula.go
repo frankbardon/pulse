@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/formulaident"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -49,6 +50,7 @@ func applyComposeFormula(spec *types.ComposeOverlaySpec, reference *types.Respon
 // with each slot judged by shapes (reference, then targets parallel to
 // targets) and exts' ExprFunctions / LookupTables in reach.
 func applyComposeFormulaWith(spec *types.ComposeOverlaySpec, index int, shapes composeSlotShapes, reference *types.Response, targets []*types.Response, exts *ExtensionRegistry) (types.OverlayLayer, []types.OverlayWarning, error) {
+	paramread.Read(paramread.Overlay, string(spec.Kind), "formula")
 	slots := composeFormulaSlots(spec, shapes)
 	if cerr := formulaident.ComposeRefusal(spec.Kind, spec.Params, index, shapes.ref, slots, exts.overlayFormulaFuncs()); cerr != nil {
 		return types.OverlayLayer{}, nil, cerr

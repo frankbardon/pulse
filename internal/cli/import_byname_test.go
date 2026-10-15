@@ -70,9 +70,7 @@ func TestImportCLI_ByNameRefusalAndIgnoreExtra(t *testing.T) {
 	for _, leaf := range leaves {
 		t.Run(leaf.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			if err := leaf.run(&buf); err != nil {
-				t.Fatalf("transport error: %v", err)
-			}
+			wantEnvelopeFatal(t, leaf.run(&buf))
 			if got := envelopeErrorCode(t, &buf); got != unmapped {
 				t.Fatalf("errors[0].code = %q, want %s\n%s", got, unmapped, buf.String())
 			}

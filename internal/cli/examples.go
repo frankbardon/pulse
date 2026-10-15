@@ -78,7 +78,9 @@ func examplesShowCmd() *cli.Command {
 			name := args.First()
 			ex, ok := examples.Get(name)
 			if !ok {
-				return fmt.Errorf("example %q not found", name)
+				// Under --json the refusal is an envelope like every
+				// other leaf's, so stdout always parses (exit 1).
+				return cliError(cmd, cmd.Bool("json"), "CLI_INPUT", fmt.Sprintf("example %q not found", name))
 			}
 			if cmd.Bool("json") {
 				return writeEnvelope(cmd.Writer, ex)

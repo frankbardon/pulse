@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -166,10 +167,12 @@ func TestFacetNotMeaningfulForCategorical_RuntimeMatchesPredict(t *testing.T) {
 			if err != nil || len(env.Errors) != 0 {
 				t.Fatalf("predict: %v %+v", err, env)
 			}
-			var predicted []string
+			// The runtime's coded entries carry predict's code, message
+			// AND details (#462), never a "CODE: message" string.
+			var predicted []types.ResponseWarning
 			for _, w := range env.Warnings {
 				if w.Code == code {
-					predicted = append(predicted, w.Code+": "+w.Message)
+					predicted = append(predicted, types.ResponseWarning{Code: w.Code, Message: w.Message, Details: w.Details})
 					if w.Details["field"] == nil || w.Details["type"] == nil {
 						t.Fatalf("predict details %v, want field and type", w.Details)
 					}
@@ -179,14 +182,14 @@ func TestFacetNotMeaningfulForCategorical_RuntimeMatchesPredict(t *testing.T) {
 			if err != nil {
 				t.Fatalf("runtime: %v", err)
 			}
-			var ran []string
+			var ran []types.ResponseWarning
 			for _, w := range res.Warnings {
-				if strings.HasPrefix(w, code+": ") {
-					ran = append(ran, w)
+				if w.Code == code {
+					ran = append(ran, *w)
 				}
 			}
-			if len(predicted) != c.want || strings.Join(predicted, "\n") != strings.Join(ran, "\n") {
-				t.Fatalf("predict %q, runtime %q, want %d each", predicted, ran, c.want)
+			if len(predicted) != c.want || !reflect.DeepEqual(predicted, ran) {
+				t.Fatalf("predict %+v, runtime %+v, want %d each", predicted, ran, c.want)
 			}
 		})
 	}

@@ -43,7 +43,7 @@ func TestValidateOverlay_Correspondence(t *testing.T) {
 		{"dimensions zero", true, "", params(`{"dimensions":0}`), errors.PULSE_OVERLAY_PARAM_MISSING},
 		{"dimensions string", true, "", params(`{"dimensions":"1"}`), errors.PULSE_OVERLAY_PARAM_MISSING},
 		{"unknown normalization", true, "", params(`{"normalization":"standard"}`), errors.PULSE_OVERLAY_PARAM_MISSING},
-		{"unknown param", true, "", params(`{"axes":2}`), errors.PULSE_OVERLAY_PARAM_MISSING},
+		{"unknown param", true, "", params(`{"axes":2}`), errors.PULSE_REQUEST_UNKNOWN_FIELD},
 		{"average cell", true, types.AGG_AVERAGE, ok, errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED},
 		{"min cell", true, types.AGG_MIN, ok, errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED},
 		{"ref margin", true, "", with(func(s *types.OverlaySpec) {
@@ -55,6 +55,7 @@ func TestValidateOverlay_Correspondence(t *testing.T) {
 		{"within", true, "", with(func(s *types.OverlaySpec) { s.Within = 1 }), errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE},
 	}
 	overlayCodes := []errors.Code{
+		errors.PULSE_REQUEST_UNKNOWN_FIELD,
 		errors.PULSE_OVERLAY_KIND_UNKNOWN, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 		errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED, errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
 		errors.PULSE_OVERLAY_PARAM_MISSING, errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED,

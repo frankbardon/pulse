@@ -53,8 +53,8 @@ func TestCliImportWidthPromotion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("import: %v\n%s", err, text)
 	}
-	if e := check(t, text); e.Data["RowsImported"] != float64(3000) {
-		t.Errorf("RowsImported = %v, want 3000", e.Data["RowsImported"])
+	if e := check(t, text); e.Data["rows_imported"] != float64(3000) {
+		t.Errorf("rows_imported = %v, want 3000", e.Data["rows_imported"])
 	}
 
 	text, err = runApp(t, "import", "predict", "--input", csvPath, "--elide-constants", "--json")
@@ -108,8 +108,8 @@ func TestCliConvertWidthPromotion(t *testing.T) {
 			if err := json.Unmarshal([]byte(text), &e); err != nil {
 				t.Fatalf("decode envelope: %v\n%s", err, text)
 			}
-			if e.Data["RowsConverted"] != float64(3000) {
-				t.Errorf("RowsConverted = %v, want 3000", e.Data["RowsConverted"])
+			if e.Data["rows_converted"] != float64(3000) {
+				t.Errorf("rows_converted = %v, want 3000", e.Data["rows_converted"])
 			}
 			found := false
 			for _, w := range e.Warnings {

@@ -270,10 +270,11 @@ const modulePrefix = "github.com/frankbardon/pulse"
 
 // TestModel_ImportBoundary: the model namespace is shared by the runtime
 // and the no-execute predict path (internal/descriptor), so it imports
-// only the standard library, types and errors — never the engine, the
-// service or the descriptor packages.
+// only the standard library, types, errors and the stdlib-only params
+// read recorder internal/paramread — never the engine, the service or
+// the descriptor packages.
 func TestModel_ImportBoundary(t *testing.T) {
-	allowed := map[string]bool{modulePrefix + "/types": true, modulePrefix + "/errors": true}
+	allowed := map[string]bool{modulePrefix + "/types": true, modulePrefix + "/errors": true, modulePrefix + "/internal/paramread": true}
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)
@@ -291,7 +292,7 @@ func TestModel_ImportBoundary(t *testing.T) {
 		for _, imp := range f.Imports {
 			path, _ := strconv.Unquote(imp.Path.Value)
 			if strings.Contains(path, ".") && !allowed[path] {
-				t.Errorf("%s imports %q; internal/model may import only the standard library, types and errors", name, path)
+				t.Errorf("%s imports %q; internal/model may import only the standard library, types, errors and internal/paramread", name, path)
 			}
 		}
 	}

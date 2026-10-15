@@ -19,11 +19,11 @@ covers: [return, presets, include, exclude, precision, returned]
 
 Order: **preset, then `include` adds, then `exclude` removes — exclude wins.** `include` with no preset starts from an EMPTY base (an allowlist). `exclude` / `precision` alone shape the full response. Top-level `warnings`, and every nested `warnings` whose parent is emitted, are kept unless excluded.
 
-Presets (closed enum; the manifest `return_presets` lists each one's paths, already narrowed to what this instance offers):
+Presets (closed enum; the manifest `return_presets` lists each one's paths, narrowed to this instance):
 
 - `full` — the identity.
-- `standard` — data, warnings, metadata, whole crosstab / overlays, trimmed tests and regressions; no `components`.<!-- feature: capability:matrices --> Matrix `auxiliary` only where a spec asked for inference (`p`, `ci_*`, adjusted twins; pairwise `n` beside `p`).<!-- /feature -->
-- `minimal` — the PRIMARY RESULT only: `data`, `warnings`, crosstab matrix, matrix primaries, test statistic and p-value, regression coefficients. No `metadata`, no `components`.
+- `standard` — label, data, warnings, metadata, whole crosstab / overlays, trimmed tests and regressions; no `components`.<!-- feature: capability:matrices --> Matrix `auxiliary` only where a spec asked for inference (`p`, `ci_*`, adjusted twins; pairwise `n` beside `p`).<!-- /feature -->
+- `minimal` — the PRIMARY RESULT only: `label`, `data`, `warnings`, crosstab matrix, matrix primaries, test statistic and p-value, regression coefficients. No `metadata`, no `components`.
 
 ## Path grammar
 

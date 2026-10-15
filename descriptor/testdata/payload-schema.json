@@ -1207,6 +1207,15 @@
         },
         "valid": {
           "type": "boolean"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/EnvelopeEntry"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         }
       },
       "required": [
@@ -1536,7 +1545,7 @@
         },
         "warnings": {
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/ResponseWarning"
           },
           "type": [
             "array",
@@ -2951,21 +2960,20 @@
     "OverlayWarning": {
       "additionalProperties": false,
       "properties": {
-        "Code": {
+        "code": {
           "type": "string"
         },
-        "Details": {
+        "details": {
           "additionalProperties": true,
           "type": "object"
         },
-        "Message": {
+        "message": {
           "type": "string"
         }
       },
       "required": [
-        "Code",
-        "Details",
-        "Message"
+        "code",
+        "message"
       ],
       "type": "object"
     },
@@ -3247,6 +3255,12 @@
             "number",
             "null"
           ]
+        },
+        "bootstrap_requested": {
+          "type": "integer"
+        },
+        "bootstrap_succeeded": {
+          "type": "integer"
         },
         "ci_lower": {
           "additionalProperties": {
@@ -3746,6 +3760,9 @@
             "array",
             "null"
           ]
+        },
+        "label": {
+          "type": "string"
         },
         "matrices": {
           "items": {
@@ -4695,4 +4712,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 1342ea951a4b7a9bd9dcb700dbc0c19dd7c1753f364c3ef0299ebba7ba8244a2
+// golden-hash: 1ed3197c8f5c3b01e0d2b9d547d2384ebe95dc95c977a1f4e72ae218387f1e10

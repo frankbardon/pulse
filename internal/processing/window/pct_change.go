@@ -1,9 +1,8 @@
 package window
 
 import (
-	"encoding/json"
-
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -19,9 +18,10 @@ type pctChangeParams struct {
 func init() {
 	register(types.WIN_PCT_CHANGE, func(w *types.Window, _ WindowOptions) (WindowComputer, error) {
 		c := &pctChangeComputer{field: w.Field, periods: 1}
+		paramread.Declare(paramread.Window, string(w.Type), (*pctChangeParams)(nil))
 		if len(w.Params) > 0 {
 			var p pctChangeParams
-			if err := json.Unmarshal(w.Params, &p); err != nil {
+			if err := paramread.Decode(paramread.Window, string(w.Type), w.Params, &p); err != nil {
 				return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG, "pct_change params")
 			}
 			if p.Periods != nil {

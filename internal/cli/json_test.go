@@ -39,9 +39,7 @@ func TestWriteEnvelope(t *testing.T) {
 
 func TestWriteErrorEnvelope(t *testing.T) {
 	var buf bytes.Buffer
-	if err := writeErrorEnvelope(&buf, "TEST_ERR", "something failed"); err != nil {
-		t.Fatalf("writeErrorEnvelope: %v", err)
-	}
+	wantEnvelopeFatal(t, writeErrorEnvelope(&buf, "TEST_ERR", "something failed"))
 	var env descriptor.Envelope
 	if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
 		t.Fatalf("invalid JSON: %v", err)

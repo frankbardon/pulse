@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -67,11 +68,6 @@ func RakeKeyName(key types.AxisKey) string { return MarkovStateName(key) }
 // exists on the host is RakeKeyRefusal's call.
 func ParseRakeParams(spec *types.OverlaySpec, index int) (RakeParams, *errors.CodedError) {
 	out := RakeParams{TargetsAs: RakeTargetsShares, MaxIter: RakeDefaultMaxIter, Tolerance: RakeDefaultTolerance}
-	raw := bytes.TrimSpace(spec.Params)
-	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
-		return out, rakeParamRefusal(spec.Kind, index, "row_targets",
-			"params row_targets and col_targets are required", nil)
-	}
 	var in struct {
 		RowTargets json.RawMessage `json:"row_targets"`
 		ColTargets json.RawMessage `json:"col_targets"`
@@ -79,9 +75,13 @@ func ParseRakeParams(spec *types.OverlaySpec, index int) (RakeParams, *errors.Co
 		MaxIter    json.RawMessage `json:"max_iter"`
 		Tolerance  json.RawMessage `json:"tolerance"`
 	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&in); err != nil {
+	paramread.Declare(paramread.Overlay, string(spec.Kind), &in)
+	raw := bytes.TrimSpace(spec.Params)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return out, rakeParamRefusal(spec.Kind, index, "row_targets",
+			"params row_targets and col_targets are required", nil)
+	}
+	if err := paramread.DecodeStrict(paramread.Overlay, string(spec.Kind), raw, &in); err != nil {
 		return out, rakeParamRefusal(spec.Kind, index, "",
 			"params must be an object with only row_targets, col_targets, targets_as, max_iter and tolerance: "+err.Error(), nil)
 	}

@@ -1789,7 +1789,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	}
 	attrWarnings = append(attrWarnings, postWarnings...)
 	if recordRows {
-		finalizeRowCells(data)
+		finalizeRowCells(data, p.schema, req.Windows)
 	}
 
 	// Regression fits run after aggregation / windows so engines can

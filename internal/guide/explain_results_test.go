@@ -262,7 +262,7 @@ func facetFixture() (*types.FacetResult, *types.FacetRequest) {
 				Min: 1, Max: 99, Mean: 50.2, StdDev: 10.1, Count: 89, Sum: 4467.8, Percentiles: map[string]float64{"p50": 51}}},
 		},
 		TotalRecords: 100, FilteredRecords: 90,
-		Warnings: []string{"region: truncated to top 2"},
+		Warnings: []*types.ResponseWarning{{Code: "PULSE_FACET_VALUES_TRUNCATED", Message: "field \"region\" truncated to top 2 of 4 distinct values"}},
 		Overlays: []types.OverlayLayer{
 			{Name: "score fit", Kind: types.OverlayKind("OVERLAY_KS_VS_POP"), Summary: &types.OverlaySummary{Statistic: fptr(0.2), PValue: fptr(0.004)}},
 			{Name: "region fit", Kind: types.OverlayKind("OVERLAY_CHISQ_VS_POP"), Summary: &types.OverlaySummary{Statistic: fptr(3.1), PValue: fptr(0.4)}},

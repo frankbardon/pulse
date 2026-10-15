@@ -11,10 +11,20 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
+// writeJSON writes data as indented JSON. When data is an envelope
+// carrying a fatal error it returns errEnvelopeFatal after the write, so
+// the process exits ExitFatal with the envelope bytes unchanged and
+// nothing added to stderr.
 func writeJSON(w io.Writer, data any) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	return encodeFinite(enc, data)
+	if err := encodeFinite(enc, data); err != nil {
+		return err
+	}
+	if envelopeIsFatal(data) {
+		return errEnvelopeFatal
+	}
+	return nil
 }
 
 // encodeFinite writes v through enc under the wire rule for undefined
@@ -99,8 +109,11 @@ func writeErrorEnvelope(w io.Writer, code, message string) error {
 // It follows E2-S7's makeImportReader precedent: pass a *CodedError
 // through verbatim rather than re-wrapping it. errors.As rather than a
 // type assertion, so a code wrapped with %w on the way up still surfaces.
+//
+// It returns the envelope-fatal exit wrapping err (see reportedFatal), so
+// the process exits ExitFatal and a caller can still errors.As the code.
 func writeCodedErrorEnvelope(w io.Writer, fallback string, err error) error {
-	return writeJSON(w, codedErrorEnvelope(nil, fallback, err))
+	return reportedFatal(writeJSON(w, codedErrorEnvelope(nil, fallback, err)), err)
 }
 
 // codedErrorEnvelope builds writeCodedErrorEnvelope's envelope around
@@ -124,4 +137,93 @@ func writeText(w io.Writer, format string, args ...any) {
 // WriteJSONPublic is the exported version of writeJSON for use from main.
 func WriteJSONPublic(w io.Writer, data any) error {
 	return writeJSON(w, data)
+}
+
+// runtimeWarnings is the CLI's single reading of every run-time warning
+// a result carries — Response.Warnings (one Response, every Compose
+// slot, every chain stage), ComposedResponse.Warnings and
+// FacetResult.Warnings — as the {code, message, details} entries the
+// --json envelope's top-level `warnings` and the --stream trailing
+// warnings record both carry. A Compose slot's entry gains
+// details.request (the slot index) and a chain stage's details.stage,
+// unless the warning already locates itself; the result's own entries
+// are never mutated (data keeps them unchanged). Overlay-layer
+// warnings stay on their layer. Nil for a warning-free result, so a
+// clean run's envelope and stream are byte-identical.
+func runtimeWarnings(result any) []*descriptor.EnvelopeEntry {
+	var out []*descriptor.EnvelopeEntry
+	add := func(ws []*types.ResponseWarning, key string, at int) {
+		for _, w := range ws {
+			if w == nil {
+				continue
+			}
+			details := w.Details
+			if key != "" {
+				if _, set := details[key]; !set {
+					details = make(map[string]any, len(w.Details)+1)
+					for k, v := range w.Details {
+						details[k] = v
+					}
+					details[key] = at
+				}
+			}
+			out = append(out, &descriptor.EnvelopeEntry{Code: w.Code, Message: w.Message, Details: details})
+		}
+	}
+	switch r := result.(type) {
+	case *types.Response:
+		if r != nil {
+			add(r.Warnings, "", 0)
+		}
+	case *types.ComposedResponse:
+		if r != nil {
+			for i, sub := range r.Responses {
+				if sub != nil {
+					add(sub.Warnings, "request", i)
+				}
+			}
+			add(r.Warnings, "", 0)
+		}
+	case *types.ChainResponse:
+		if r != nil {
+			// Final aliases the last stage: walk Stages only.
+			for i, st := range r.Stages {
+				if st != nil {
+					add(st.Warnings, "stage", i)
+				}
+			}
+		}
+	case *types.FacetResult:
+		if r != nil {
+			add(r.Warnings, "", 0)
+		}
+	}
+	return out
+}
+
+// withRuntimeWarnings promotes result's run-time warnings
+// (runtimeWarnings) onto env's top-level `warnings`, where every
+// generic envelope consumer looks; data keeps its own copy.
+func withRuntimeWarnings(env *descriptor.Envelope, result any) *descriptor.Envelope {
+	for _, w := range runtimeWarnings(result) {
+		env.AddWarning(w.Code, w.Message, w.Details)
+	}
+	return env
+}
+
+// writeResultEnvelope is writeEnvelopeWithRequest for a result that
+// carries run-time warnings: they are promoted onto the envelope's
+// top-level `warnings` (withRuntimeWarnings).
+func writeResultEnvelope(w io.Writer, result, request any) error {
+	return writeJSON(w, withRuntimeWarnings(descriptor.NewEnvelopeWithRequest(result, request), result))
+}
+
+// writeStreamWarnings ends an NDJSON stream with one
+// {"warnings":[...]} record carrying ws (runtimeWarnings' entries) when
+// the run warned; nothing for a warning-free run.
+func writeStreamWarnings(enc *json.Encoder, ws []*descriptor.EnvelopeEntry) error {
+	if len(ws) == 0 {
+		return nil
+	}
+	return encodeFinite(enc, map[string]any{"warnings": ws})
 }

@@ -236,6 +236,20 @@ sections below.
 }
 ```
 
+**Declared params are an allowlist.** A registration's `Params` list is
+checked exactly like a built-in's manifest list: a request slot whose
+`params` object carries a key the list does not name is refused
+`PULSE_REQUEST_UNKNOWN_FIELD` — `details.path`
+(`aggregations[0].params.wieghts`) and a nearest-key suggestion — by
+predict and by every runtime arm, before the factory runs. A vector-input
+aggregator also accepts the engine's `labels` / `expand`, a matrix
+operator the engine's `missing` / `max_drop_share` / `fit`. A
+registration that declares **no** params is not checked: its params
+reach the factory untouched, and predict adds the advisory
+`PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED` (`details.slot`,
+`operator`, `keys`) so the caller knows a misspelled key would pass.
+Declare every key the factory reads.
+
 **One-of-several params.** When the factory takes exactly one of
 several params (an EWMA's `span` or `halflife`), tag each with the same
 `ParamMeta.ExactlyOneOf` group name. The manifest shows it as

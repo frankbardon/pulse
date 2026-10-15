@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -54,17 +55,16 @@ type CorrespondenceParams struct {
 // index when index >= 0 (predict knows it, a runtime handler does not).
 func ParseCorrespondenceParams(spec *types.OverlaySpec, index int) (CorrespondenceParams, *errors.CodedError) {
 	out := CorrespondenceParams{Normalization: CorrespondenceSymmetric}
-	raw := bytes.TrimSpace(spec.Params)
-	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
-		return out, nil
-	}
 	var in struct {
 		Dimensions    json.RawMessage `json:"dimensions"`
 		Normalization *string         `json:"normalization"`
 	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&in); err != nil {
+	paramread.Declare(paramread.Overlay, string(spec.Kind), &in)
+	raw := bytes.TrimSpace(spec.Params)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return out, nil
+	}
+	if err := paramread.DecodeStrict(paramread.Overlay, string(spec.Kind), raw, &in); err != nil {
 		return out, correspondenceParamRefusal(spec.Kind, index, "",
 			"params must be an object with only dimensions and normalization: "+err.Error(), nil)
 	}

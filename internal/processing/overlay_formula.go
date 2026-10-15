@@ -1,7 +1,6 @@
 package processing
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 
@@ -12,6 +11,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/formulaident"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -641,7 +641,7 @@ func extractFormulaParam(spec *types.OverlaySpec) (string, error) {
 			})
 	}
 	var m map[string]any
-	if err := json.Unmarshal(spec.Params, &m); err != nil {
+	if err := paramread.Decode(paramread.Overlay, string(spec.Kind), spec.Params, &m); err != nil {
 		return "", errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" Params must be a JSON object carrying \"formula\"",
@@ -650,6 +650,7 @@ func extractFormulaParam(spec *types.OverlaySpec) (string, error) {
 				"param": formulaParamFormula,
 			})
 	}
+	paramread.Read(paramread.Overlay, string(spec.Kind), formulaParamFormula)
 	raw, present := m[formulaParamFormula]
 	if !present {
 		return "", errors.NewCodedErrorWithDetails(

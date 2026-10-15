@@ -17,11 +17,11 @@ The body comes from `pulse_examples_get` (or is hand-authored and run through `p
 
 ## Output
 
-`descriptor.Envelope` wrapping `pulse.Response`. `data` carries `Data` (rows or matrix), `Metadata` (cohort filename, partial-cohort reasons), and `Components` (universal floor + per-operator state — see `response-components`). `errors` / `warnings` use coded entries.
+`descriptor.Envelope` wrapping `pulse.Response`. `data` carries `Data` (rows or matrix), `Metadata` (cohort filename, partial-cohort reasons), and `Components` (universal floor + per-operator state — see `response-components`). `errors` / `warnings` use coded entries. Record rows (an ungrouped windowed run) carry `decimal128` as a decimal string, `date` as `YYYY-MM-DD` and `datetime` as RFC 3339 UTC (`…Z`): never epoch numbers, no zone applied.
 
 ## Gotchas
 
-- Slot keys differ from manifest catalog names: groupings go under `"groups"` (NOT `"groupers"`); aggregations under `"aggregations"` (NOT `"aggregators"`). Unknown top-level keys → `PULSE_REQUEST_UNKNOWN_FIELD` with a "did you mean" suggestion.
+- Slot keys differ from manifest catalog names: groupings go under `"groups"` (NOT `"groupers"`); aggregations under `"aggregations"` (NOT `"aggregators"`). An unknown key at any depth → `PULSE_REQUEST_UNKNOWN_FIELD` with `details.path` (`sort[0].direction`) and a "did you mean" suggestion.
 - DO NOT author bodies from external docs or source code — they may be out of date. Always seed from `pulse_examples_search` + `pulse_examples_get` or `pulse_manifest`.
 - Smart defaults: omitting `Type` on a slot that names a field auto-infers from schema type. Disable via `Options.DisableDefaults` or CLI `--no-defaults`.
 <!-- feature: capability:models -->

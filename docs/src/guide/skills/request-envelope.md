@@ -56,7 +56,7 @@ Every `type` is an operator constant from `pulse_manifest` `components.<category
 
 ## Slot-key gotchas
 
-Unknown keys drop silently on decode.
+Unknown keys (any depth) → `PULSE_REQUEST_UNKNOWN_FIELD`, `details.path`.
 
 | Wrong | Right |
 |---|---|

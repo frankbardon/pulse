@@ -54,12 +54,8 @@ func validateFeatures(env *descriptor.Envelope, req *types.Request, schema *enco
 		// test records' included. A preceding train/test split changes no
 		// value, so it does not silence this warning either.
 		if feat.Type == types.FEAT_TARGET_ENCODE {
-			entry := &descriptor.EnvelopeEntry{
-				Code: string(errors.PULSE_FEAT_TARGET_LEAKAGE_RISK),
-				Message: "FEAT_TARGET_ENCODE averages every record's outcome, the record's own and validation/test records' included, " +
-					"because it reads no split column; a preceding " + trainTestSplitName(opts) + " does not change that",
-				Details: map[string]any{"feature": string(feat.Type), "feature_index": idx},
-			}
+			w := targetLeakageWarning(idx, opts.instance())
+			entry := &descriptor.EnvelopeEntry{Code: string(w.Code), Message: w.Message, Details: w.Details}
 			if opts.Strict {
 				env.Errors = append(env.Errors, entry)
 			} else {
@@ -75,6 +71,38 @@ func validateFeatures(env *descriptor.Envelope, req *types.Request, schema *enco
 		}
 	}
 	return cols
+}
+
+// TargetLeakageWarnings is the PULSE_FEAT_TARGET_LEAKAGE_RISK rule the
+// runtime repeats (#309): one coded warning per FEAT_TARGET_ENCODE in
+// req.Features (after item expansion), in request order, each carrying
+// predict's message and details {feature, feature_index}. A type the
+// instance hides yields none — predict refuses it as unknown and skips
+// the warning, so the runtime does too. Under Options.Strict the
+// runtime refuses the first entry before any record is read (predict
+// reports every entry as an error); otherwise each rides
+// Response.Warnings.
+func TargetLeakageWarnings(req *types.Request, inst *InstanceSnapshot) []*errors.CodedError {
+	if req == nil || inst.Hidden(string(types.FEAT_TARGET_ENCODE)) {
+		return nil
+	}
+	var out []*errors.CodedError
+	for idx, feat := range req.Features {
+		if feat != nil && feat.Type == types.FEAT_TARGET_ENCODE {
+			out = append(out, targetLeakageWarning(idx, inst))
+		}
+	}
+	return out
+}
+
+// targetLeakageWarning is the one PULSE_FEAT_TARGET_LEAKAGE_RISK entry
+// predict and the runtime both raise for the FEAT_TARGET_ENCODE at
+// features[idx].
+func targetLeakageWarning(idx int, inst *InstanceSnapshot) *errors.CodedError {
+	return errors.NewCodedErrorWithDetails(errors.PULSE_FEAT_TARGET_LEAKAGE_RISK,
+		"FEAT_TARGET_ENCODE averages every record's outcome, the record's own and validation/test records' included, "+
+			"because it reads no split column; a preceding "+trainTestSplitName(inst)+" does not change that",
+		map[string]any{"feature": string(types.FEAT_TARGET_ENCODE), "feature_index": idx})
 }
 
 // isKnownFeatureType reports whether the type is in types.AllFeatureTypes().
@@ -457,8 +485,8 @@ func singleLabel(feat *types.Feature, prefix string) string {
 // trainTestSplitName names the split operator in the target-leakage
 // warning, or describes it when the instance hides FEAT_TRAIN_TEST_SPLIT
 // so the warning never advertises an operator it does not offer.
-func trainTestSplitName(opts *PredictOptions) string {
-	if opts.instance().Hidden(string(types.FEAT_TRAIN_TEST_SPLIT)) {
+func trainTestSplitName(inst *InstanceSnapshot) string {
+	if inst.Hidden(string(types.FEAT_TRAIN_TEST_SPLIT)) {
 		return "train/test split"
 	}
 	return string(types.FEAT_TRAIN_TEST_SPLIT)

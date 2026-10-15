@@ -3,6 +3,7 @@ package descriptor
 import (
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -33,6 +34,7 @@ var advisoryCodes = []errors.Code{
 	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED,
 	errors.PULSE_ADVISORY_EXTRA_PASS,
 	errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
+	errors.PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
 }
 
 // AdvisoryCodes returns every registered PULSE_ADVISORY_* code, in rule
@@ -127,6 +129,7 @@ func computeAdvisories(in advisoryInput) []descriptor.Advisory {
 	}
 	add(extraPassAdvisories(in.req, in.prefix, in.inst)...)
 	add(seriesAxisAdvisories(in.req, in.schema, in.prefix, in.inst)...)
+	add(extensionParamsAdvisories(in.req, in.prefix, in.inst)...)
 	return out
 }
 
@@ -563,5 +566,32 @@ func seriesAxisAdvisories(req *types.Request, schema *encoding.Schema, prefix st
 			Details: details,
 		})
 	}
+	return out
+}
+
+// extensionParamsAdvisories: one PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED
+// per slot naming an extension operator whose registration declares no
+// params yet carrying a non-empty params object — the keys the params
+// allowlist (ParamsRefusal) could not check. Walks the same slots, in
+// the same order, as the allowlist.
+func extensionParamsAdvisories(req *types.Request, prefix string, inst *InstanceSnapshot) []descriptor.Advisory {
+	if inst.Extensions() == nil {
+		return nil
+	}
+	var out []descriptor.Advisory
+	c := paramsChecker{inst: inst, undeclared: func(path, op string, keys []string) {
+		slot := prefix + path
+		out = append(out, descriptor.Advisory{
+			Code: string(errors.PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED),
+			Message: op + " at " + slot + " is an extension operator whose registration declares no params, so its params keys (" +
+				strings.Join(keys, ", ") + ") pass to it unchecked; a misspelled key is not refused. Check them against the operator's documentation.",
+			Details: map[string]any{
+				"slot":     slot,
+				"operator": op,
+				"keys":     append([]string(nil), keys...),
+			},
+		})
+	}}
+	c.request(req)
 	return out
 }

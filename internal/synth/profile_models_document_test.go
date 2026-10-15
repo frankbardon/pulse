@@ -812,7 +812,14 @@ func TestSpecFromProfile_ShapeFitTargetKeepsShapeAndModel(t *testing.T) {
 // needs its own justification. The previous value, for the record, was
 // 83b688a173b5609ab7b5572bf489f9f7 — the pre-fusion-fix capture as it
 // happened to round on arm64.
-const preModelsSpecHash = "e3f5d34a7a7a9c9ab7b6ee006098e87e"
+//
+// It MOVED A SECOND TIME at U44 #302, for the same kind of reason: the
+// spec's correlation key was renamed `correlation` → `rho`, and the
+// hash covers key spellings. Checked the only way it can be: the new
+// Spec re-marshalled with `rho` spelled back as `correlation` hashes to
+// the previous value e3f5d34a7a7a9c9ab7b6ee006098e87e exactly — no
+// figure and no other key moved.
+const preModelsSpecHash = "f1bc8393db6927cadfc89168901a4b76"
 
 // preModelsCaptureOptions are the exact options testdata/
 // profile_pre_models.json was captured with. They are named here rather
@@ -901,9 +908,11 @@ func TestSpecFromProfile_PreModelsDocumentUnchanged(t *testing.T) {
 		t.Fatal("fixture is not a pre-models document — it carries a models key")
 	}
 
-	var prof synth.Profile
-	if err := json.Unmarshal(raw, &prof); err != nil {
-		t.Fatalf("unmarshal fixture: %v", err)
+	// Strictly: an old document must decode under the strict profile
+	// decode, not merely under a lenient one.
+	prof, err := synth.ParseProfile(raw)
+	if err != nil {
+		t.Fatalf("parse fixture: %v", err)
 	}
 	if len(prof.Models) != 0 {
 		t.Errorf("pre-models document decoded %d models", len(prof.Models))
@@ -912,7 +921,7 @@ func TestSpecFromProfile_PreModelsDocumentUnchanged(t *testing.T) {
 		t.Error("pre-models document reports fitted models")
 	}
 
-	spec, _ := synth.SpecFromProfile(&prof, 500)
+	spec, _ := synth.SpecFromProfile(prof, 500)
 	if len(spec.Models) != 0 {
 		t.Errorf("pre-models document produced %d spec models", len(spec.Models))
 	}

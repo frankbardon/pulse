@@ -214,8 +214,8 @@ func TestSynthVector_ElementCorrelationIsInduced(t *testing.T) {
 	f := FieldSpec{Name: "v", Type: "vec_f64", Distribution: DistNormal,
 		Params: map[string]any{"mean": 0.0, "std": 1.0},
 		Vector: &VectorSpec{Dim: 3, Correlations: []VectorCorrelationSpec{
-			{A: 1, B: 2, Correlation: 0.8},
-			{A: 3, B: 2, Correlation: -0.5},
+			{A: 1, B: 2, Rho: 0.8},
+			{A: 3, B: 2, Rho: -0.5},
 		}}}
 	data, res, err := SynthBytes(vecSpec(20000, f), Options{Seed: 9})
 	if err != nil {
@@ -305,7 +305,7 @@ func TestSynthVector_F32ElementsAreStoredPrecision(t *testing.T) {
 // byte-identical; another seed is not.
 func TestSynthVector_DeterministicUnderSeed(t *testing.T) {
 	f := FieldSpec{Name: "v", Type: "vec_f64", Nullable: true, NullRate: 0.1, Distribution: DistNormal,
-		Vector: &VectorSpec{Dim: 3, NaNRate: 0.05, Correlations: []VectorCorrelationSpec{{A: 1, B: 3, Correlation: 0.4}}}}
+		Vector: &VectorSpec{Dim: 3, NaNRate: 0.05, Correlations: []VectorCorrelationSpec{{A: 1, B: 3, Rho: 0.4}}}}
 	a, _, err := SynthBytes(vecSpec(500, f), Options{Seed: 7})
 	if err != nil {
 		t.Fatal(err)
@@ -331,7 +331,7 @@ func vectorSourceCohort(t *testing.T, rows int) []byte {
 			Labels: []string{"q1", "q2", "q3", "q4"},
 			Elements: []VectorElementSpec{{}, {}, {NaNRate: fptr(0.2)},
 				{Distribution: DistDiscrete, Params: map[string]any{"values": []any{1.0, 4.0, 7.0}, "weights": []any{5.0, 1.0, 1.0}}}},
-			Correlations: []VectorCorrelationSpec{{A: 1, B: 2, Correlation: 0.7}, {A: 1, B: 3, Correlation: 0.5}, {A: 2, B: 3, Correlation: 0.4}}}}
+			Correlations: []VectorCorrelationSpec{{A: 1, B: 2, Rho: 0.7}, {A: 1, B: 3, Rho: 0.5}, {A: 2, B: 3, Rho: 0.4}}}}
 	data, _, err := SynthBytes(vecSpec(rows, f), Options{Seed: 21})
 	if err != nil {
 		t.Fatalf("source SynthBytes: %v", err)
@@ -620,14 +620,14 @@ func TestSpecVector_Refusals(t *testing.T) {
 		"no distribution":       func(s *Spec) { s.Fields[1].Distribution = "" },
 		"correlation index":     func(s *Spec) { s.Fields[1].Vector.Correlations = []VectorCorrelationSpec{{A: 0, B: 2}} },
 		"self correlation":      func(s *Spec) { s.Fields[1].Vector.Correlations = []VectorCorrelationSpec{{A: 2, B: 2}} },
-		"correlation range":     func(s *Spec) { s.Fields[1].Vector.Correlations = []VectorCorrelationSpec{{A: 1, B: 2, Correlation: 2}} },
+		"correlation range":     func(s *Spec) { s.Fields[1].Vector.Correlations = []VectorCorrelationSpec{{A: 1, B: 2, Rho: 2}} },
 		"duplicate correlation": func(s *Spec) { s.Fields[1].Vector.Correlations = []VectorCorrelationSpec{{A: 1, B: 2}, {A: 2, B: 1}} },
 		"vector block on a scalar": func(s *Spec) {
 			s.Fields[0].Vector = &VectorSpec{Dim: 2}
 		},
 		"vector in a field correlation": func(s *Spec) {
 			s.Fields = append(s.Fields, FieldSpec{Name: "x", Type: "f64", Distribution: DistNormal})
-			s.Correlations = []CorrelationSpec{{A: "v", B: "x", Correlation: 0.5}}
+			s.Correlations = []CorrelationSpec{{A: "v", B: "x", Rho: 0.5}}
 		},
 		"vector as a model target": func(s *Spec) {
 			s.Models = []FieldModelSpec{{Field: "v"}}

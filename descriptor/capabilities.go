@@ -509,6 +509,13 @@ type OverlayCapability struct {
 	// writes beside its primary (types.OverlayPayload.Parts), sorted by
 	// Name. Omitted for a kind that writes none.
 	Parts []OverlayPart `json:"parts,omitempty"`
+
+	// Params lists every key the kind reads from its spec's params
+	// object, on any host (Request, Facet, Compose, chain) — the
+	// allowlist an overlay spec's params is checked against: an unknown
+	// key is refused PULSE_REQUEST_UNKNOWN_FIELD. Omitted for a kind
+	// that takes no params.
+	Params []Param `json:"params,omitempty"`
 }
 
 // OverlayPart declares one named part of a multi-output overlay kind's

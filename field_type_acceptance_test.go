@@ -271,7 +271,7 @@ var acceptanceTemplates = map[string]string{
 	"GROUP_RANGE":           `{"groups":[{"type":"GROUP_RANGE","field":"$F","interval":10}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,
 	"GROUP_KMEANS":          `{"groups":[{"type":"GROUP_KMEANS","fields":["$F","x"],"params":{"k":2}}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,
 	"GROUP_QUANTILE":        `{"groups":[{"type":"GROUP_QUANTILE","field":"$F","interval":4}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,
-	"GROUP_DATE":            `{"groups":[{"type":"GROUP_DATE","field":"$F","params":{"unit":"month"}}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,
+	"GROUP_DATE":            `{"groups":[{"type":"GROUP_DATE","field":"$F","params":{"component":"month"}}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,
 	"GROUP_DATE_RANGES":     `{"groups":[{"type":"GROUP_DATE_RANGES","field":"$F","params":{"ranges":[{"label":"h1","start":"2024-01-01","end":"2024-06-30"}]}}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,
 	"GROUP_SET_VALUE":       `{"groups":[{"type":"GROUP_SET_VALUE","field":"$F"}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,
 	"GROUP_SET_PER_ELEMENT": `{"groups":[{"type":"GROUP_SET_PER_ELEMENT","field":"$F"}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,

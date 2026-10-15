@@ -386,11 +386,13 @@ type ConstraintSpec struct {
 }
 
 // CorrelationSpec declares a target Pearson correlation between two
-// numeric fields.
+// numeric fields. The wire key is `rho` — the profile's spelling, so
+// one name runs across profile, spec and skill; the pre-rename key
+// `correlation` is refused with "did you mean rho" (U44 #302).
 type CorrelationSpec struct {
-	A           string  `json:"a"`
-	B           string  `json:"b"`
-	Correlation float64 `json:"correlation"`
+	A   string  `json:"a"`
+	B   string  `json:"b"`
+	Rho float64 `json:"rho"`
 }
 
 // Options modulates how the spec is realized.
@@ -447,10 +449,15 @@ type Result struct {
 	FidelityReportPath string `json:"fidelity_report_path,omitempty"`
 }
 
-// ParseSpec parses Spec JSON. Returns SERVICE_VALIDATION if shape is wrong.
+// ParseSpec strictly parses Spec JSON. An unknown key at any depth —
+// including a distribution params key the distribution does not read —
+// is refused PULSE_REQUEST_UNKNOWN_FIELD with details.path and a
+// suggestion; any other malformed shape is SERVICE_VALIDATION.
 func ParseSpec(raw []byte) (*Spec, error) {
 	var s Spec
-	if err := json.Unmarshal(raw, &s); err != nil {
+	if ce, err := decodeDocument(raw, &s); ce != nil {
+		return nil, ce
+	} else if err != nil {
 		return nil, errors.WrapCodedError(err, errors.SERVICE_VALIDATION, "parsing synth spec")
 	}
 	if err := validateSpec(&s); err != nil {
@@ -496,6 +503,9 @@ func validateSpec(s *Spec) error {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				"null_rate must be in [0, 1]", map[string]any{"name": f.Name, "null_rate": f.NullRate})
 		}
+		if err := checkFieldParams(i, f); err != nil {
+			return err
+		}
 	}
 	if err := refuseVectorCrossFieldUse(s, vectorFields); err != nil {
 		return err
@@ -505,10 +515,10 @@ func validateSpec(s *Spec) error {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				"correlation a and b must differ", map[string]any{"a": c.A})
 		}
-		if c.Correlation < -1 || c.Correlation > 1 {
+		if c.Rho < -1 || c.Rho > 1 {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-				"correlation must be in [-1, 1]",
-				map[string]any{"a": c.A, "b": c.B, "value": c.Correlation})
+				"correlation rho must be in [-1, 1]",
+				map[string]any{"a": c.A, "b": c.B, "value": c.Rho})
 		}
 		if !seen[c.A] || !seen[c.B] {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
@@ -637,10 +647,10 @@ func validateSpec(s *Spec) error {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				"residual correlation a and b must differ", map[string]any{"a": rc.A})
 		}
-		if rc.Correlation < -1 || rc.Correlation > 1 {
+		if rc.Rho < -1 || rc.Rho > 1 {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				"residual correlation must be in [-1, 1]",
-				map[string]any{"a": rc.A, "b": rc.B, "value": rc.Correlation})
+				map[string]any{"a": rc.A, "b": rc.B, "value": rc.Rho})
 		}
 		if !seen[rc.A] || !seen[rc.B] {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
@@ -670,7 +680,7 @@ func validateSpec(s *Spec) error {
 
 // paramFloat extracts a float64 parameter from FieldSpec.Params.
 func paramFloat(name string, params map[string]any, key string, def float64) (float64, bool, error) {
-	v, ok := params[key]
+	v, ok := paramLookup(name, params, key)
 	if !ok {
 		return def, false, nil
 	}
@@ -707,7 +717,7 @@ func paramInt(name string, params map[string]any, key string, def int64) (int64,
 
 // paramString extracts a string parameter.
 func paramString(name string, params map[string]any, key, def string) (string, bool, error) {
-	v, ok := params[key]
+	v, ok := paramLookup(name, params, key)
 	if !ok {
 		return def, false, nil
 	}
@@ -722,7 +732,7 @@ func paramString(name string, params map[string]any, key, def string) (string, b
 
 // paramStringSlice extracts a []string from params.
 func paramStringSlice(name string, params map[string]any, key string) ([]string, bool, error) {
-	v, ok := params[key]
+	v, ok := paramLookup(name, params, key)
 	if !ok {
 		return nil, false, nil
 	}
@@ -745,7 +755,7 @@ func paramStringSlice(name string, params map[string]any, key string) ([]string,
 
 // paramFloatSlice extracts a []float64 from params.
 func paramFloatSlice(name string, params map[string]any, key string) ([]float64, bool, error) {
-	v, ok := params[key]
+	v, ok := paramLookup(name, params, key)
 	if !ok {
 		return nil, false, nil
 	}

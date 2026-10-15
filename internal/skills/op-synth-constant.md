@@ -16,6 +16,7 @@ Synth distributions emit per-row values; no `Response.Components`.
 ## Params
 
 - `value` — any, required. Per-row payload. Interpreted by the declared field type at write time.
+- `options` — list, optional, `set_*` fields only. Dictionary entries in bit order, pre-registered at schema-build time (as `set_bernoulli`'s); on any other field type it is an unknown key and refused.
 
 `value` is checked and normalised to the field's row shape once, at spec parse — never at write time.
 
@@ -30,6 +31,7 @@ Same `value` returned on every row. RNG state untouched.
 ## Gotchas
 
 - Missing `value` param → `SERVICE_VALIDATION` ("requires param value").
+- Any other params key (e.g. `frequencies` copied from a `set_bernoulli`) → `PULSE_REQUEST_UNKNOWN_FIELD` with `details.path`; it was silently ignored before.
 - A `value` the field cannot hold (text on a number field) → `SERVICE_VALIDATION` at spec parse.
 - Consumes NO RNG — like `monotonic_from`, adding / removing a constant field preserves byte-equality of every other field's stream.
 - A constant categorical still emits a one-entry dictionary block (one byte per row at `categorical_u8`); for a packed-bool equivalent use `bernoulli` with `p=0` / `p=1`.

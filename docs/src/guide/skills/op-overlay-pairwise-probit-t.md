@@ -46,11 +46,11 @@ MATRIX — pair × opposite-axis grid of two-sided p-values, layout identical to
 
 ## Gotchas
 
-- An undefined (NaN) host cell is MISSING: its pairs skip as an absent cell's do (`ORBIT_STATS_SKIP_EXTRACT_FAILED`).
+- An undefined (NaN) host cell is MISSING: its pairs skip as an absent cell's do (`PULSE_STATS_SKIP_EXTRACT_FAILED`).
 - Never weighted (no reference weighted form): a row weight reaching the overlay slot (request, its own `weight`, or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; set `"weight": null` on the overlay to run it unweighted.
 - `df <= 0` (n_i + n_j <= 2) or a non-finite t skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`).
 - RAW p-values only — direction / thresholds / min-n are the embedder's job.
-- `p_source` mismatch fails silently: `cell_value` over a 0..100 percentage pushes proportions outside `[0,1]` and every pair skips.
+- `p_source` mismatch empties the layer: a leg outside `[0,1]` (`cell_value` over a raw count or a 0..100 percentage) skips every pair (`PULSE_OVERLAY_REF_ZERO`, reason `PULSE_STATS_SKIP_PROPORTION_INVALID`) — never clipped. Normalize a count cell first.
 - **Distinct-KEY n modes carry the same admission and the same slab partition refusal as on prop-Z** — distinct-key cell aggregators only, `PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED` for a fan-out grouper at a summed-across depth, margin modes never gated. Full rules: [`pairwise-n-sources`](pairwise-n-sources.md).
 - Flagged buffered in `OverlayStreamability`; the HOST crosstab still FUSES on a mergeable cell aggregator.
 - Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.

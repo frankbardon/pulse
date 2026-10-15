@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -186,7 +187,7 @@ func resolveTest(at string, t *types.Test, typ types.TestType, specs []types.Vec
 			at+" ("+name+") sets vector2 / fields2 (the paired form, one sample of row-wise differences) and split_by; drop one",
 			map[string]any{"type": name, "split_by": t.SplitBy})
 	}
-	if err := checkTestMissing(at, t.Params); err != nil {
+	if err := checkTestMissing(at, name, t.Params); err != nil {
 		return TestInput{}, err
 	}
 	first, err := resolveTestSide(at, "vector", "fields", t.Vector, t.Fields, specs, resolved, schema)
@@ -281,7 +282,7 @@ func resolveTestSide(at, vecKey, fieldsKey, vector string, fields []string, spec
 
 // checkTestMissing applies a vector-input test's params.missing:
 // "listwise" (the only mode) or absent. Other keys are the operator's.
-func checkTestMissing(at string, raw json.RawMessage) *errors.CodedError {
+func checkTestMissing(at, op string, raw json.RawMessage) *errors.CodedError {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
 		return nil
@@ -289,7 +290,7 @@ func checkTestMissing(at string, raw json.RawMessage) *errors.CodedError {
 	var p struct {
 		Missing *string `json:"missing"`
 	}
-	if err := json.Unmarshal(raw, &p); err != nil {
+	if err := paramread.Decode(paramread.Test, op, raw, &p); err != nil {
 		return testInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
 	}
 	if p.Missing == nil || *p.Missing == MissingListwise {
@@ -359,19 +360,20 @@ func HotellingParams(at string, raw json.RawMessage, p int, form HotellingForm) 
 	if form == HotellingTwoSample {
 		cfg.Mu = nil
 	}
-	raw = bytes.TrimSpace(raw)
-	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
-		return cfg, nil
-	}
 	var params struct {
 		Mu       []float64 `json:"mu"`
 		Variance *string   `json:"variance"`
 		Missing  *string   `json:"missing"`
 	}
-	if err := decodeStrict(raw, &params); err != nil {
+	paramread.Declare(paramread.Test, string(types.TEST_HOTELLING_T2), &params)
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return cfg, nil
+	}
+	if err := paramread.DecodeStrict(paramread.Test, string(types.TEST_HOTELLING_T2), raw, &params); err != nil {
 		return HotellingConfig{}, testInvalid(at, "bad_params", at+" TEST_HOTELLING_T2 params: "+err.Error()+" (keys: mu, variance, missing)", nil)
 	}
-	if err := checkTestMissing(at, raw); err != nil {
+	if err := checkTestMissing(at, string(types.TEST_HOTELLING_T2), raw); err != nil {
 		return HotellingConfig{}, err
 	}
 	if params.Variance != nil {
@@ -449,18 +451,19 @@ func MardiaParams(at string, t *types.Test) (string, *errors.CodedError) {
 			at+" ("+string(t.Type)+") tests one sample's joint normality; drop split_by (run one test per level with a filter instead)",
 			map[string]any{"type": string(t.Type), "split_by": t.SplitBy})
 	}
-	raw := bytes.TrimSpace(t.Params)
-	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
-		return MardiaSkewness, nil
-	}
 	var params struct {
 		Statistic *string `json:"statistic"`
 		Missing   *string `json:"missing"`
 	}
-	if err := decodeStrict(raw, &params); err != nil {
+	paramread.Declare(paramread.Test, string(t.Type), &params)
+	raw := bytes.TrimSpace(t.Params)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return MardiaSkewness, nil
+	}
+	if err := paramread.DecodeStrict(paramread.Test, string(t.Type), raw, &params); err != nil {
 		return "", testInvalid(at, "bad_params", at+" "+string(t.Type)+" params: "+err.Error()+" (keys: statistic, missing)", nil)
 	}
-	if err := checkTestMissing(at, raw); err != nil {
+	if err := checkTestMissing(at, string(t.Type), raw); err != nil {
 		return "", err
 	}
 	if params.Statistic == nil {
@@ -478,17 +481,18 @@ func MardiaParams(at string, t *types.Test) (string, *errors.CodedError) {
 // missingOnlyParams refuses any params key but missing, then applies
 // checkTestMissing.
 func missingOnlyParams(at string, t *types.Test) *errors.CodedError {
+	var params struct {
+		Missing *string `json:"missing"`
+	}
+	paramread.Declare(paramread.Test, string(t.Type), &params)
 	raw := bytes.TrimSpace(t.Params)
 	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
 		return nil
 	}
-	var params struct {
-		Missing *string `json:"missing"`
-	}
-	if err := decodeStrict(raw, &params); err != nil {
+	if err := paramread.DecodeStrict(paramread.Test, string(t.Type), raw, &params); err != nil {
 		return testInvalid(at, "bad_params", at+" "+string(t.Type)+" params: "+err.Error()+" (keys: missing)", nil)
 	}
-	return checkTestMissing(at, raw)
+	return checkTestMissing(at, string(t.Type), raw)
 }
 
 // TestInputMembers returns the union of every field req's tier-1 tests read

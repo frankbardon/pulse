@@ -274,7 +274,7 @@ func TestSynth_ConflictWarns_CorrelationVsCategoricalNumeric(t *testing.T) {
 				{Category: "lo", Mean: -1000, Std: 1},
 			}},
 		},
-		Correlations: []synth.CorrelationSpec{{A: "c", B: "d", Correlation: 0.8}},
+		Correlations: []synth.CorrelationSpec{{A: "c", B: "d", Rho: 0.8}},
 	}
 	data, res, err := synth.SynthBytes(spec, synth.Options{Seed: 107})
 	if err != nil {
@@ -342,9 +342,9 @@ func TestSynth_ConflictWarns_PartialExclusionFromMultiFieldCorrelation(t *testin
 			}},
 		},
 		Correlations: []synth.CorrelationSpec{
-			{A: "a", B: "b", Correlation: 0.6},
-			{A: "a", B: "c", Correlation: 0.6},
-			{A: "b", B: "c", Correlation: rhoBC},
+			{A: "a", B: "b", Rho: 0.6},
+			{A: "a", B: "c", Rho: 0.6},
+			{A: "b", B: "c", Rho: rhoBC},
 		},
 	}
 	data, res, err := synth.SynthBytes(spec, synth.Options{Seed: 109})
@@ -420,7 +420,7 @@ func TestSynth_ConflictWarns_ShapeFitExcludedFromCorrelation(t *testing.T) {
 			{Name: "other", Type: "f64", Distribution: synth.DistNormal,
 				Params: map[string]any{"mean": 0.0, "std": 1.0}},
 		},
-		Correlations: []synth.CorrelationSpec{{A: "shaped", B: "other", Correlation: 0.8}},
+		Correlations: []synth.CorrelationSpec{{A: "shaped", B: "other", Rho: 0.8}},
 	}
 	data, res, err := synth.SynthBytes(spec, synth.Options{Seed: 113})
 	if err != nil {
@@ -448,7 +448,7 @@ func TestSynth_NoConflicts_NoWarnings(t *testing.T) {
 			{Name: "b", Type: "f64", Distribution: synth.DistNormal,
 				Params: map[string]any{"mean": 20.0, "std": 5.0}},
 		},
-		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Correlation: 0.5}},
+		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Rho: 0.5}},
 	}
 	_, res, err := synth.SynthBytes(spec, synth.Options{Seed: 1})
 	if err != nil {

@@ -41,6 +41,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -95,11 +96,15 @@ func Ordered(kind types.OverlayKind) bool { return ordered[kind] }
 // (valid or not). Absent, null or undecodable Params is the implicit
 // default.
 func Explicit(spec *types.OverlaySpec) bool {
-	if spec == nil || len(spec.Params) == 0 {
+	if spec == nil {
+		return false
+	}
+	paramread.Read(paramread.Overlay, string(spec.Kind), Param)
+	if len(spec.Params) == 0 {
 		return false
 	}
 	var m map[string]json.RawMessage
-	if err := json.Unmarshal(spec.Params, &m); err != nil {
+	if err := paramread.Decode(paramread.Overlay, string(spec.Kind), spec.Params, &m); err != nil {
 		return false
 	}
 	raw, present := m[Param]
@@ -148,6 +153,7 @@ func Depth(groups []*types.Group, spec *types.OverlaySpec, index int) (int, erro
 	var kind types.OverlayKind
 	if spec != nil {
 		params, kind = spec.Params, spec.Kind
+		paramread.Read(paramread.Overlay, string(kind), Param)
 	}
 	depth, r := PrefixDepth(groups, params)
 	if r != nil {
@@ -436,7 +442,7 @@ func YoY(groups []*types.Group, isDate func(*types.Group) bool, spec *types.Over
 		return date, on, nil
 	}
 	var m map[string]json.RawMessage
-	_ = json.Unmarshal(spec.Params, &m) // Explicit decoded it already
+	_ = paramread.Probe(spec.Params, &m) // Explicit decoded (and recorded) it already
 	raw := m[Param]
 	cols := KeyColumns(groups)
 	var names []string

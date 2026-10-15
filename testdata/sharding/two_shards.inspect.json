@@ -6,6 +6,7 @@
       {
         "name": "id",
         "type": "u32",
+        "nullable": false,
         "byte_offset": 0,
         "bit_position": 0,
         "description": "Record id",
@@ -15,6 +16,7 @@
       {
         "name": "score",
         "type": "f64",
+        "nullable": false,
         "byte_offset": 4,
         "bit_position": 0,
         "description": "Numeric score",
@@ -24,6 +26,7 @@
       {
         "name": "region",
         "type": "categorical_u8",
+        "nullable": false,
         "byte_offset": 12,
         "bit_position": 0,
         "description": "Region code",

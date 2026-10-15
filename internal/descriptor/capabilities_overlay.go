@@ -78,6 +78,7 @@ func OverlayCapabilities() []descriptor.OverlayCapability {
 		entry.Buffered = !streamable
 		entry.Zone = ZoneCapabilityOf(string(k))
 		entry.Parts = overlayPartsFor(k)
+		entry.Params = overlayParamsFor(k)
 		sort.Slice(entry.Shapes, func(i, j int) bool {
 			return string(entry.Shapes[i]) < string(entry.Shapes[j])
 		})

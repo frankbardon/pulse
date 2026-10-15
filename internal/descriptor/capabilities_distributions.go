@@ -134,6 +134,7 @@ func distributionCapabilities() []descriptor.DistributionMeta {
 			AppliesTo:   []string{"any"},
 			Params: []descriptor.Param{
 				{Name: "value", Type: "any", Required: true, Description: "Value to emit on every row (interpreted by field type)."},
+				{Name: "options", Type: "list", Required: false, Description: "set_* fields only: dictionary entries in bit order, pre-registered at schema-build time as set_bernoulli's options are; refused on any other field type."},
 			},
 		},
 		{

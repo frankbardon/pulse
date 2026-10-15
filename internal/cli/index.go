@@ -408,7 +408,7 @@ func indexCliError(cmd *cli.Command, jsonOut bool, err error) error {
 	}
 	env := descriptor.NewEnvelope(nil)
 	env.AddError(code, message, details)
-	return writeJSON(cmd.Writer, env)
+	return reportedFatal(writeJSON(cmd.Writer, env), err)
 }
 
 // indexErrorParts extracts the {code, message, details} triple from

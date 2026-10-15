@@ -66,9 +66,7 @@ func TestImportCLI_TotalFailure_EnvelopeCarriesRealCode(t *testing.T) {
 	csvPath, schemaPath, outPath := seedTotalFailureImport(t)
 
 	var buf bytes.Buffer
-	if err := runImportCSV(t, &buf, "csv", "-i", csvPath, "-o", outPath, "--schema", schemaPath, "--json"); err != nil {
-		t.Fatalf("json arm returned a transport error: %v", err)
-	}
+	wantEnvelopeFatal(t, runImportCSV(t, &buf, "csv", "-i", csvPath, "-o", outPath, "--schema", schemaPath, "--json"))
 
 	var env struct {
 		FormatVersion string `json:"format_version"`

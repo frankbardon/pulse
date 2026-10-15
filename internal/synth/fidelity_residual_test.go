@@ -106,7 +106,7 @@ func TestBuildModelResidualFidelity_RecoversRequestedCorrelation(t *testing.T) {
 			ResidualStd: 4,
 		},
 	)
-	spec.ResidualCorrelations = []synth.CorrelationSpec{{A: "spend", B: "tenure", Correlation: wantRho}}
+	spec.ResidualCorrelations = []synth.CorrelationSpec{{A: "spend", B: "tenure", Rho: wantRho}}
 
 	schema, records := augmentForModelFidelity(t, spec, 20000, 301)
 
@@ -189,7 +189,7 @@ func TestBuildModelResidualFidelity_MeasuresResidualsNotValues(t *testing.T) {
 			ResidualStd: 2,
 		},
 	)
-	spec.ResidualCorrelations = []synth.CorrelationSpec{{A: "spend", B: "tenure", Correlation: 0}}
+	spec.ResidualCorrelations = []synth.CorrelationSpec{{A: "spend", B: "tenure", Rho: 0}}
 
 	schema, records := augmentForModelFidelity(t, spec, 20000, 311)
 
@@ -284,7 +284,7 @@ func TestBuildModelResidualFidelity_UnmeasurableEndpointCarriesNoRho(t *testing.
 			ResidualStd: 4,
 		},
 	)
-	spec.ResidualCorrelations = []synth.CorrelationSpec{{A: "spend", B: "tenure", Correlation: 0.5}}
+	spec.ResidualCorrelations = []synth.CorrelationSpec{{A: "spend", B: "tenure", Rho: 0.5}}
 
 	schema, records := augmentForModelFidelity(t, spec, 6000, 331)
 
@@ -353,7 +353,7 @@ func manyModelSpec(n, rows int) *synth.Spec {
 	for i := 0; i < n; i++ {
 		for j := i + 1; j < n; j++ {
 			s.ResidualCorrelations = append(s.ResidualCorrelations, synth.CorrelationSpec{
-				A: fmt.Sprintf("m%02d", i), B: fmt.Sprintf("m%02d", j), Correlation: 0.3,
+				A: fmt.Sprintf("m%02d", i), B: fmt.Sprintf("m%02d", j), Rho: 0.3,
 			})
 		}
 	}
@@ -680,9 +680,9 @@ func TestBuildModelResidualFidelity_ClaimRemovesItsPairsFromTheAccounting(t *tes
 			Params:       map[string]any{"mean": 20.0, "std": 5.0},
 		})
 		spec.ResidualCorrelations = []synth.CorrelationSpec{
-			{A: "spend", B: "tenure", Correlation: 0.5},
-			{A: "spend", B: "visits", Correlation: 0.4},
-			{A: "tenure", B: "visits", Correlation: 0.6},
+			{A: "spend", B: "tenure", Rho: 0.5},
+			{A: "spend", B: "visits", Rho: 0.4},
+			{A: "tenure", B: "visits", Rho: 0.6},
 		}
 		spec.Rules = rules
 		return spec

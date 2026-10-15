@@ -411,7 +411,11 @@ func TestValidateOverlay_YoYMultiGrouper(t *testing.T) {
 		{"date outer", []*types.Group{date(""), region("")}, `{"frequency": "monthly"}`, "", nil},
 		{"date inner", []*types.Group{region(""), date("")}, `{"frequency": "monthly"}`, "", nil},
 		{"frequency from the inner date grouper", []*types.Group{region(""), date(`{"frequency": "monthly"}`)}, "", "", nil},
-		{"frequency on groups[0] is not the date grouper's", []*types.Group{region(`{"frequency": "monthly"}`), date("")}, "", errors.PULSE_OVERLAY_YOY_FREQUENCY_MISSING, nil},
+		// A category grouper takes no params: its frequency is refused
+		// (U44 #301), never read as the YoY fallback.
+		{"frequency on groups[0] is not the date grouper's", []*types.Group{region(`{"frequency": "monthly"}`), date("")}, "", errors.PULSE_REQUEST_UNKNOWN_FIELD,
+			map[string]any{"path": "groups[0].params.frequency", "unknown_keys": []string{"frequency"},
+				"suggestions": map[string]any{}, "valid_keys": []string{}}},
 		{"no date grouper", []*types.Group{region(""), {Type: types.GROUP_CATEGORY, Field: "segment"}}, `{"frequency": "monthly"}`, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			map[string]any{"index": 0, "kind": "OVERLAY_YOY", "groupers": 2, "date_groupers": 0, "required": "GROUP_DATE"}},
 		{"two date groupers", []*types.Group{date(""), region(""), shipped}, `{"frequency": "monthly"}`, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,

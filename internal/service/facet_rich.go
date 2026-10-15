@@ -188,7 +188,7 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	// and wording (descx.FacetNotMeaningfulWarnings).
 	for _, name := range req.Fields {
 		for _, w := range descx.FacetNotMeaningfulWarnings(req, schema.Field(name)) {
-			result.Warnings = append(result.Warnings, w.Code+": "+w.Message)
+			result.Warnings = append(result.Warnings, &types.ResponseWarning{Code: w.Code, Message: w.Message, Details: w.Details})
 		}
 	}
 
@@ -198,7 +198,7 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 			return nil, err
 		}
 		result.Fields[fa.name] = ff
-		if warning != "" {
+		if warning != nil {
 			result.Warnings = append(result.Warnings, warning)
 		}
 	}
@@ -211,7 +211,9 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 				return nil, err
 			}
 			result.Additive[ae.field] = ff
-			if warning != "" {
+			if warning != nil {
+				// The additive tally of the same field: details say so.
+				warning.Details["additive"] = true
 				result.Warnings = append(result.Warnings, warning)
 			}
 		}
@@ -319,14 +321,14 @@ func (f *fieldAcc) update(r *processing.Record) error {
 	return f.kind.update(r, f.name)
 }
 
-func (f *fieldAcc) finalize(req *types.FacetRequest) (*types.FacetField, string, error) {
+func (f *fieldAcc) finalize(req *types.FacetRequest) (*types.FacetField, *types.ResponseWarning, error) {
 	return f.kind.finalize(req)
 }
 
 // kindAccumulator dispatches discrete vs numeric per-field accumulation.
 type kindAccumulator interface {
 	update(r *processing.Record, field string) error
-	finalize(req *types.FacetRequest) (*types.FacetField, string, error)
+	finalize(req *types.FacetRequest) (*types.FacetField, *types.ResponseWarning, error)
 }
 
 type additiveEntry struct {
@@ -452,7 +454,7 @@ func (a *categoricalAccumulator) update(r *processing.Record, field string) erro
 	return nil
 }
 
-func (a *categoricalAccumulator) finalize(req *types.FacetRequest) (*types.FacetField, string, error) {
+func (a *categoricalAccumulator) finalize(req *types.FacetRequest) (*types.FacetField, *types.ResponseWarning, error) {
 	values := make([]types.FacetValueCount, 0, len(a.counts))
 	for id, c := range a.counts {
 		val := strconv.FormatUint(uint64(id), 10)
@@ -522,7 +524,7 @@ func (a *boolAccumulator) update(r *processing.Record, field string) error {
 	return nil
 }
 
-func (a *boolAccumulator) finalize(req *types.FacetRequest) (*types.FacetField, string, error) {
+func (a *boolAccumulator) finalize(req *types.FacetRequest) (*types.FacetField, *types.ResponseWarning, error) {
 	var values []types.FacetValueCount
 	if a.t > 0 {
 		values = append(values, types.FacetValueCount{Value: "true", Count: a.t})
@@ -623,7 +625,7 @@ func (a *numericAccumulator) update(r *processing.Record, field string) error {
 	return nil
 }
 
-func (a *numericAccumulator) finalize(req *types.FacetRequest) (*types.FacetField, string, error) {
+func (a *numericAccumulator) finalize(req *types.FacetRequest) (*types.FacetField, *types.ResponseWarning, error) {
 	num := &types.FacetNumeric{
 		Count: a.n,
 		Sum:   a.sum,
@@ -662,7 +664,7 @@ func (a *numericAccumulator) finalize(req *types.FacetRequest) (*types.FacetFiel
 		Description: a.field.Description,
 		NullCount:   a.nulls,
 		Numeric:     num,
-	}, "", nil
+	}, nil, nil
 }
 
 // histogramBin returns the bin index for value v over [lo, hi] with
@@ -720,8 +722,10 @@ func percentileLabel(p float64) string {
 // sortAndTruncateDiscrete sorts the value/count slice descending by
 // count (ties resolved ascending by value), then truncates to
 // DiscreteTopK when set. Returns the trimmed slice, the count of
-// values dropped, and a warning string when truncation occurred.
-func sortAndTruncateDiscrete(values []types.FacetValueCount, fieldName string, distinct int64, topK int) ([]types.FacetValueCount, int, string) {
+// values dropped, and the coded PULSE_FACET_VALUES_TRUNCATED warning
+// when truncation occurred (details {field, discrete_top_k, distinct,
+// dropped}).
+func sortAndTruncateDiscrete(values []types.FacetValueCount, fieldName string, distinct int64, topK int) ([]types.FacetValueCount, int, *types.ResponseWarning) {
 	sort.SliceStable(values, func(i, j int) bool {
 		if values[i].Count != values[j].Count {
 			return values[i].Count > values[j].Count
@@ -731,9 +735,13 @@ func sortAndTruncateDiscrete(values []types.FacetValueCount, fieldName string, d
 	if topK > 0 && len(values) > topK {
 		dropped := len(values) - topK
 		values = values[:topK]
-		return values, dropped, fmt.Sprintf("field %q truncated to top %d of %d distinct values", fieldName, topK, distinct)
+		return values, dropped, &types.ResponseWarning{
+			Code:    string(errors.PULSE_FACET_VALUES_TRUNCATED),
+			Message: fmt.Sprintf("field %q truncated to top %d of %d distinct values", fieldName, topK, distinct),
+			Details: map[string]any{"field": fieldName, "discrete_top_k": topK, "distinct": distinct, "dropped": dropped},
+		}
 	}
-	return values, 0, ""
+	return values, 0, nil
 }
 
 // filterExpressionMentions returns true when the FILTER_EXPRESSION

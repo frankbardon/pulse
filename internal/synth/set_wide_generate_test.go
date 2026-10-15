@@ -475,10 +475,8 @@ func TestSynth_SetU256_ConstantSelectionCoercesAtWideRung(t *testing.T) {
 	const options = 256
 	names := wideSetOptionNames(options)
 	optionsAny := make([]any, options)
-	freqsAny := make([]any, options)
 	for i := range names {
 		optionsAny[i] = names[i]
-		freqsAny[i] = 0.0
 	}
 	sel := map[string]bool{names[5]: true, names[64]: true, names[249]: true}
 
@@ -487,8 +485,8 @@ func TestSynth_SetU256_ConstantSelectionCoercesAtWideRung(t *testing.T) {
 		Fields: []synth.FieldSpec{
 			{Name: "features", Type: "set_u256", Distribution: synth.DistConstant,
 				Params: map[string]any{
-					"options": optionsAny, "frequencies": freqsAny,
-					"value": sel,
+					"options": optionsAny,
+					"value":   sel,
 				}},
 		},
 	}

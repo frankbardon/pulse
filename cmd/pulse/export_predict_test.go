@@ -79,9 +79,7 @@ func TestCliExportPredict_SPSSRefusesIllegalNames(t *testing.T) {
 	_, cohort := predictFixture(t, "household income,age", "10,1", "20,2")
 
 	out, err := runApp(t, "export", "predict", "--input", cohort, "--format", "spss", "--json")
-	if err != nil {
-		t.Fatalf("export predict: %v\noutput: %s", err, out)
-	}
+	wantEnvelopeExit(t, err)
 	env := parseEnvelope(t, out)
 	if len(env.Errors) == 0 {
 		t.Fatalf("predict reported no error for a cohort with an illegal SPSS variable name: %s", out)
@@ -94,9 +92,7 @@ func TestCliExportPredict_SPSSRefusesIllegalNames(t *testing.T) {
 	// prediction nobody can act on is worse than no prediction.
 	sav := filepath.Join(t.TempDir(), "out.sav")
 	exportOut, err := runApp(t, "export", "spss", "--input", cohort, "--output", sav, "--json")
-	if err != nil {
-		t.Fatalf("export spss: %v\noutput: %s", err, exportOut)
-	}
+	wantEnvelopeExit(t, err)
 	exportEnv := parseEnvelope(t, exportOut)
 	if len(exportEnv.Errors) == 0 {
 		t.Fatalf("the export succeeded where predict refused: %s", exportOut)

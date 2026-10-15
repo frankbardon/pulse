@@ -142,7 +142,7 @@ func distributionIsExactValued(f FieldSpec) bool {
 	if f.Distribution != DistConstant {
 		return false
 	}
-	raw, ok := f.Params["value"]
+	raw, ok := paramLookup(f.Name, f.Params, "value")
 	if !ok {
 		return false
 	}

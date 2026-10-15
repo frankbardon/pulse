@@ -51,20 +51,27 @@ func (s *Service) autoLabelOccupied(req *types.Request, schema *encoding.Schema)
 
 // applyLabelsToResponse walks resp.Data through the LabelResolver,
 // rewriting bound-field values (replace mode) or emitting sibling
-// columns (augment mode). Resolver warnings are appended to
-// resp.Warnings as types.ResponseWarning records.
+// columns (augment mode), then carries the same translation onto every
+// key surface derived from those values (applyLabelSurfaces: crosstab
+// axes, overlay keys incl. pairwise PAIR keys, group-key tuples).
+// Resolver warnings are appended to resp.Warnings as
+// types.ResponseWarning records, then one PULSE_LABEL_NOT_APPLIED per
+// caller-authored binding no surface carried (auto: the instance's
+// default bindings, which never warn).
 //
 // Called with a nil resolver, the function is a no-op so the caller
 // path can stay branch-free.
-func applyLabelsToResponse(resp *types.Response, r *processing.LabelResolver) {
+func applyLabelsToResponse(req *types.Request, resp *types.Response, r *processing.LabelResolver, auto []*types.LabelBinding) {
 	if resp == nil || r == nil {
 		return
 	}
+	p := newLabelPass(r)
 	for _, row := range resp.Data {
 		for field, v := range row {
 			if !r.Has(field) {
 				continue
 			}
+			p.reached[field] = true
 			raw, ok := rawAsString(v)
 			if !ok {
 				continue
@@ -80,10 +87,12 @@ func applyLabelsToResponse(resp *types.Response, r *processing.LabelResolver) {
 			case types.LabelModeReplace:
 				if hit {
 					row[field] = out
+					p.record(field, raw, out)
 				}
 			}
 		}
 	}
+	p.applyLabelSurfaces(resp, req.Groups)
 	for _, w := range r.Warnings() {
 		resp.Warnings = append(resp.Warnings, &types.ResponseWarning{
 			Code:    string(w.Code),
@@ -91,6 +100,7 @@ func applyLabelsToResponse(resp *types.Response, r *processing.LabelResolver) {
 			Details: w.Details,
 		})
 	}
+	resp.Warnings = append(resp.Warnings, p.notAppliedWarnings(req.Labels, auto, req.Groups)...)
 }
 
 // buildAndApplyLabels is the standard post-process hook: builds the
@@ -106,6 +116,6 @@ func (s *Service) buildAndApplyLabels(req *types.Request, resp *types.Response) 
 	if err != nil {
 		return err
 	}
-	applyLabelsToResponse(resp, resolver)
+	applyLabelsToResponse(req, resp, resolver, s.autoLabels)
 	return nil
 }

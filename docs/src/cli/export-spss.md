@@ -72,7 +72,7 @@ imported from CSV. It is a warning and not an error precisely because
 nothing was lost — there was never any source metadata to lose.
 
 With `--json`, the same run emits the standard envelope. Note that the
-encode-side diagnostics appear **twice**: once on `data.TargetWarnings`,
+encode-side diagnostics appear **twice**: once on `data.target_warnings`,
 which is the adapter's own report slot, and once on the envelope's
 top-level `warnings` array, which is where a generic client should read
 them:
@@ -81,11 +81,8 @@ them:
 {
   "format_version": "1.1",
   "data": {
-    "RowsExported": 2,
-    "RowErrors": null,
-    "LabelWarnings": null,
-    "OverlayWarnings": null,
-    "TargetWarnings": [
+    "rows_exported": 2,
+    "target_warnings": [
       {
         "code": "PULSE_SPSS_SIDECAR_ABSENT",
         "message": "spss: no metadata sidecar found at d.pulse.spss.json; ...",
@@ -110,9 +107,10 @@ them:
 }
 ```
 
-`ExportReport` carries no `json:` struct tags, so its `data` keys are the
-Go field names in Go casing — unlike the `errors` / `warnings` entries,
-which are the standard `{code, message, details}` shape.
+`data` speaks snake_case like every import, export, convert and shard
+report: empty warning lists are omitted, and each entry is the standard
+`{code, message, details}` shape of the envelope's `errors` /
+`warnings`.
 
 > **`pulse export predict` does not validate the `.sav` write.**
 > `ExportJob.Predict` reads only the source cohort's header and schema and
@@ -342,8 +340,8 @@ pulse export predict --input survey.pulse --format spss --json
 ```json
 {
   "format_version": "1.1",
-  "data": { "Schema": { "Fields": [ ... ] }, "EstimatedRows": 1200,
-            "TargetWarnings": [ ... ] },
+  "data": { "schema": { "fields": [ ... ] }, "estimated_rows": 1200,
+            "target_warnings": [ ... ] },
   "errors": [],
   "warnings": [
     { "code": "PULSE_SPSS_SIDECAR_ABSENT",

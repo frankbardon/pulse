@@ -549,14 +549,14 @@ func otherForm(f metric.Form) metric.Form {
 // penalty).
 func regAttributeParams(penalized bool) []descriptor.Param {
 	ps := []descriptor.Param{
-		{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Response variable field name; a top-level key of the attribute entry."},
-		{Name: "predictors", Type: "list", Required: true, Description: "Predictor field names, at least one; a top-level key of the attribute entry."},
+		{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Response variable field name; a top-level key of the attribute entry.", Slot: true},
+		{Name: "predictors", Type: "list", Required: true, Description: "Predictor field names, at least one; a top-level key of the attribute entry.", Slot: true},
 	}
 	if penalized {
 		ps = append(ps,
-			descriptor.Param{Name: "penalty", Type: "enum", Required: false, Default: "", EnumValues: []string{"", "elasticnet", "l1", "l2"}, Description: "Regularization scheme; empty for OLS. Top-level."},
-			descriptor.Param{Name: "alpha", Type: "float", Required: false, Description: "Regularization strength (>0 when penalty is set). Top-level."},
-			descriptor.Param{Name: "l1_ratio", Type: "float", Required: false, Description: "Elastic-net mixing parameter in (0,1); only read when penalty == elasticnet. Top-level."},
+			descriptor.Param{Name: "penalty", Type: "enum", Required: false, Default: "", EnumValues: []string{"", "elasticnet", "l1", "l2"}, Description: "Regularization scheme; empty for OLS. Top-level.", Slot: true},
+			descriptor.Param{Name: "alpha", Type: "float", Required: false, Description: "Regularization strength (>0 when penalty is set). Top-level.", Slot: true},
+			descriptor.Param{Name: "l1_ratio", Type: "float", Required: false, Description: "Elastic-net mixing parameter in (0,1); only read when penalty == elasticnet. Top-level.", Slot: true},
 		)
 	}
 	return ps

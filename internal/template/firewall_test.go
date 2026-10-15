@@ -32,6 +32,10 @@ var allowedIntraModuleDeps = map[string]bool{
 	// through types. It executes nothing and imports no pulse package
 	// (TestReturnPlan_ImportBoundary).
 	modulePrefix + "/internal/returnplan": true,
+	// The shared strict request decoder: the leaf that locates an
+	// unknown key and suggests the nearest valid one. It imports only
+	// stdlib, types and errors (TestStrictJSON_ImportBoundary).
+	modulePrefix + "/internal/strictjson": true,
 }
 
 // forbiddenDeps are the packages named explicitly in the import ceiling.

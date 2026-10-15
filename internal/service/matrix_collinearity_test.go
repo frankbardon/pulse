@@ -7,6 +7,7 @@ import (
 	"math"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -305,8 +306,9 @@ func TestMatrixCollinearity_NotPSDGuard(t *testing.T) {
 }
 
 // TestMatrixCollinearity_Refusals: the params rules — every refusal
-// SERVICE_VALIDATION bad_params (there is no response key: the members
-// are the predictors).
+// SERVICE_VALIDATION bad_params; a key the operator does not take
+// (there is no response key: the members are the predictors) is
+// PULSE_REQUEST_UNKNOWN_FIELD at the params allowlist.
 func TestMatrixCollinearity_Refusals(t *testing.T) {
 	cases, dir := loadCollinearityOracle(t)
 	cfg := fixtureFS(t, dir)
@@ -318,13 +320,17 @@ func TestMatrixCollinearity_Refusals(t *testing.T) {
 		`{"on": "covariance"}`,
 		`{"components": 2}`,
 	} {
+		want := errors.SERVICE_VALIDATION
+		if !strings.Contains(params, `"center"`) && !strings.Contains(params, `"repair"`) {
+			want = errors.PULSE_REQUEST_UNKNOWN_FIELD
+		}
 		_, err := New(cfg).Process(t.Context(), &types.Request{
 			Cohort:   &types.Cohort{Filename: filepath.Join(dir, "attitude.pulse")},
 			Matrices: []types.MatrixSpec{{Name: "coll", Type: types.MAT_COLLINEARITY, Fields: cases[0].Predictors, Params: json.RawMessage(params)}},
 		})
 		var ce *errors.CodedError
-		if !stderrors.As(err, &ce) || ce.Code != errors.SERVICE_VALIDATION || ce.Details["reason"] != "bad_params" {
-			t.Errorf("%s: error %v, want SERVICE_VALIDATION bad_params", params, err)
+		if !stderrors.As(err, &ce) || ce.Code != want || (want == errors.SERVICE_VALIDATION && ce.Details["reason"] != "bad_params") {
+			t.Errorf("%s: error %v, want %s", params, err, want)
 		}
 	}
 }

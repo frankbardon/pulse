@@ -60,7 +60,7 @@ func TestPredict_VectorTestInputs(t *testing.T) {
 		{name: "paired length mismatch", test: hot(func(s *types.Test) { s.Vector, s.Fields2 = "items", []string{"q_1"} }), code: errors.SERVICE_VALIDATION, reason: "vector2_length_mismatch"},
 		{name: "manova", test: &types.Test{Type: types.TEST_MANOVA, Vector: "items", SplitBy: "region"}},
 		{name: "manova without split_by", test: &types.Test{Type: types.TEST_MANOVA, Vector: "items"}, code: errors.SERVICE_VALIDATION, reason: "split_by_required"},
-		{name: "manova bad param", test: &types.Test{Type: types.TEST_MANOVA, Vector: "items", SplitBy: "region", Params: json.RawMessage(`{"variance": "unequal"}`)}, code: errors.SERVICE_VALIDATION, reason: "bad_params"},
+		{name: "manova bad param", test: &types.Test{Type: types.TEST_MANOVA, Vector: "items", SplitBy: "region", Params: json.RawMessage(`{"variance": "unequal"}`)}, code: errors.PULSE_REQUEST_UNKNOWN_FIELD},
 		{name: "box m", test: &types.Test{Type: types.TEST_BOX_M, Vector: "items", SplitBy: "region"}},
 		{name: "box m without split_by", test: &types.Test{Type: types.TEST_BOX_M, Vector: "items"}, code: errors.SERVICE_VALIDATION, reason: "split_by_required"},
 		{name: "sphericity", test: &types.Test{Type: types.TEST_BARTLETT_SPHERICITY, Vector: "items"}},
@@ -129,7 +129,11 @@ func TestPredict_VectorTestInputs(t *testing.T) {
 			if res.Valid {
 				t.Error("a refused request predicts valid")
 			}
-			rt := asCoded(t, FieldRefRefusal(req, schema, nil))
+			runtime := FieldRefRefusal(req, schema, nil)
+			if c.code == errors.PULSE_REQUEST_UNKNOWN_FIELD {
+				runtime = SlotRefusal(req, nil) // the params allowlist: the service funnel's gate
+			}
+			rt := asCoded(t, runtime)
 			if rt.Code != c.code || rt.Message != env.Errors[0].Message {
 				t.Errorf("runtime refusal %s %q, predict %s %q", rt.Code, rt.Message, env.Errors[0].Code, env.Errors[0].Message)
 			}

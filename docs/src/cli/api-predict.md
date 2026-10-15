@@ -154,7 +154,8 @@ filled in.
 | Code | Meaning |
 |---|---|
 | 0 | Valid (or valid with warnings, in non-strict mode) |
-| 1 | Invalid, or `--strict` with at least one warning |
+| 1 | Invalid, or `--strict` with at least one warning — the `errors` of the envelope under `--json`, text mode alike |
+| 2 | Usage error (unknown flag, malformed value, missing required flag); no envelope |
 
 ## Examples
 
@@ -215,7 +216,7 @@ or field, or an aggregation output (not categorical), is refused on
 both sides.
 
 A refused request comes back as coded `errors` beside `data.valid:
-false` (exit 1 in text mode). A request with no cohort is
+false` (exit 1, under `--json` and in text mode alike). A request with no cohort is
 `SERVICE_VALIDATION`; an unreadable cohort is `DATA_FILE`
 (`ENCODING_INVALID` for a malformed header). Each fault keeps its own code
 in `errors[0]`. Over MCP the same three shapes are `pulse_predict`'s
@@ -232,7 +233,7 @@ pulse api predict-compose --request batch.json --json | jq '.data.valid'
 | `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` | A facet's `numeric_percentiles` / `include_histogram` names a non-numeric field, which gets no numeric statistic; facet a numeric field (a numeric aggregation over a categorical is the error `PULSE_FIELD_TYPE_UNSUPPORTED`: use `AGG_COUNT` / `AGG_MODE_COUNT`) |
 | `PULSE_ATTR_CODE_NOT_IN_DICTIONARY`        | An `ATTR_CODE_IN` code is not a label of the categorical field's dictionary (it matches no row); fix or drop each entry in `details.missing_codes` |
 | `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`      | Edit the schema description; re-import |
-| `PULSE_FEAT_TARGET_LEAKAGE_RISK`           | Every `FEAT_TARGET_ENCODE` averages all rows' targets (a prior split does not help); compute train-only means in a separate request |
+| `PULSE_FEAT_TARGET_LEAKAGE_RISK`           | Every `FEAT_TARGET_ENCODE` averages all rows' targets (a prior split does not help); compute train-only means in a separate request. `process` repeats it on the response's `warnings` and, under `--strict`, refuses the run |
 
 A field the operator cannot read is an ERROR, not a warning, and it is
 the code `Process` raises: `PULSE_FIELD_TYPE_UNSUPPORTED` (pick a field of

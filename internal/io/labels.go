@@ -32,7 +32,7 @@ type LabelResolver interface {
 // diagnostic record. ExportReport surfaces these for the caller; the
 // CLI / MCP envelope wrapper promotes them to envelope warnings.
 type LabelWarning struct {
-	Code    string
-	Message string
-	Details map[string]any
+	Code    string         `json:"code"`
+	Message string         `json:"message"`
+	Details map[string]any `json:"details,omitempty"`
 }

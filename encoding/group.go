@@ -69,26 +69,28 @@ var MaxGroupEntries uint64 = math.MaxUint32 + 1
 // GroupMember names one member of a group by its LOGICAL field index.
 type GroupMember struct {
 	// Field is the member's position in Schema.Fields.
-	Field int
+	Field int `json:"field"`
 	// Key marks the member as part of the group's declared key: the
 	// members whose values determine the tuple. Informational for
 	// decode (every member is read from the entry either way); an
 	// encoder validates that non-key members are functionally dependent
 	// on the key, and a future precompute may rely on key members
 	// being a bijection with the entry index.
-	Key bool
+	Key bool `json:"key"`
 }
 
-// Group is one parent-group descriptor plus its dictionary.
+// Group is one parent-group descriptor plus its dictionary. Its JSON
+// report shape is {kind, members}: the raw entry bytes never ride JSON
+// (an import report's GroupReport carries the entry count and widths).
 type Group struct {
-	Kind GroupKind
+	Kind GroupKind `json:"kind"`
 	// Members are in strictly ascending Field order.
-	Members []GroupMember
+	Members []GroupMember `json:"members"`
 	// Entries is the flat dictionary: EntryCount × EntryWidth bytes.
 	// Entry e occupies Entries[e*w : (e+1)*w]. Never strings: a
 	// categorical member's bytes are its own dictionary ID, and each
 	// member field keeps its own Field.Dictionary unchanged.
-	Entries []byte
+	Entries []byte `json:"-"`
 }
 
 // HasGroups reports whether the schema declares any parent group — i.e.
@@ -354,4 +356,21 @@ func (k GroupKind) String() string {
 		return "constant"
 	}
 	return fmt.Sprintf("kind(%d)", uint8(k))
+}
+
+// MarshalText renders the kind by name ("indexed" / "constant") so a
+// schema's JSON report never shows the descriptor byte.
+func (k GroupKind) MarshalText() ([]byte, error) { return []byte(k.String()), nil }
+
+// UnmarshalText inverts MarshalText; any other name is an error.
+func (k *GroupKind) UnmarshalText(b []byte) error {
+	switch string(b) {
+	case "indexed":
+		*k = GroupKindIndexed
+	case "constant":
+		*k = GroupKindConstant
+	default:
+		return fmt.Errorf("unknown group kind %q", b)
+	}
+	return nil
 }

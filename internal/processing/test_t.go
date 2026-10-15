@@ -1,7 +1,6 @@
 package processing
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
@@ -9,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -54,11 +54,10 @@ type tTestRow struct {
 }
 
 // tTestParams is the JSON payload for TEST_T.Params. Mu is honored only
-// for the one-sample variant. Variant is reserved for future tail
-// configuration ("two-sided" / "less" / "greater") and currently ignored.
+// for the one-sample variant. TEST_WELCH (always two-sample) reads no
+// params.
 type tTestParams struct {
-	Mu      float64 `json:"mu"`
-	Variant string  `json:"variant,omitempty"`
+	Mu float64 `json:"mu"`
 }
 
 func newTTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -86,9 +85,12 @@ func newTTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		}
 	}
 	var mu float64
-	if len(spec.Params) > 0 {
+	if spec.Type == types.TEST_T {
+		paramread.Declare(paramread.Test, string(spec.Type), (*tTestParams)(nil))
+	}
+	if spec.Type == types.TEST_T && len(spec.Params) > 0 {
 		var p tTestParams
-		if err := json.Unmarshal(spec.Params, &p); err != nil {
+		if err := paramread.Decode(paramread.Test, string(spec.Type), spec.Params, &p); err != nil {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				"TEST_T params: "+err.Error())
 		}

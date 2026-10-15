@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"math"
+	"reflect"
 	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/strictjson"
 	"github.com/frankbardon/pulse/internal/template"
 	"github.com/frankbardon/pulse/types"
 )
@@ -28,8 +30,9 @@ const (
 	// guard on the request root.
 	ReasonPlaceholderInvalid = "placeholder_invalid"
 	// ReasonRequestDecode: a substituted request body does not decode
-	// strictly into a Request — an unknown key (named under
-	// `unknown_field`) or a value of the wrong JSON type.
+	// into a Request — a value of the wrong JSON type. An unknown key is
+	// not this reason: it is PULSE_REQUEST_UNKNOWN_FIELD, as on a plain
+	// compose slot.
 	ReasonRequestDecode = "request_decode"
 	// ReasonRequestLabelSet: the request body sets `label`; a sweep
 	// slot's label comes from the sweep `label` pattern.
@@ -304,20 +307,23 @@ func renderRequest(spec *types.SweepSpec, vars []*template.Variable, values map[
 	if err != nil {
 		return nil, templateFault("sweep.request", "request", err, values, slot)
 	}
+	// The shared strict decoder (internal/strictjson), so a sweep body
+	// and a plain compose slot refuse the same unknown key with the same
+	// code: PULSE_REQUEST_UNKNOWN_FIELD, located by details.path inside
+	// the body and by the sweep slot (details.slot / values).
+	if u := strictjson.Check(raw, reflect.TypeFor[types.Request](), strictjson.Options{}); u != nil {
+		ce := u.Error()
+		for k, v := range slotDetails(values, slot) {
+			ce.Details[k] = v
+		}
+		ce.Message = "sweep slot " + strconv.Itoa(slot) + " " + describeValues(spec.Axes, values) + ": " + ce.Message
+		return nil, ce
+	}
 	req := new(types.Request)
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(req); err != nil {
+	if err := strictjson.DecodeInto(raw, req, strictjson.Options{}); err != nil {
 		details := slotDetails(values, slot)
 		msg := "sweep slot " + strconv.Itoa(slot) + " " + describeValues(spec.Axes, values) +
 			": the substituted request body does not decode into a Request: " + err.Error()
-		if field, ok := unknownField(err); ok {
-			details["unknown_field"] = field
-			msg = "sweep slot " + strconv.Itoa(slot) + " " + describeValues(spec.Axes, values) +
-				": the substituted request body carries the unknown field " + strconv.Quote(field) +
-				". A sweep body is decoded strictly, so a misspelled key fails here rather than silently " +
-				"dropping a slot; correct or remove it"
-		}
 		ce := invalidWith("sweep.request", ReasonRequestDecode, msg, details)
 		ce.Cause = err
 		return nil, ce
@@ -520,19 +526,4 @@ func wrap(key string, raw json.RawMessage) json.RawMessage {
 	b.Write(raw)
 	b.WriteString("}")
 	return b.Bytes()
-}
-
-// unknownField extracts the key from encoding/json's
-// DisallowUnknownFields fault.
-func unknownField(err error) (string, bool) {
-	const prefix = "json: unknown field "
-	msg := err.Error()
-	if !strings.HasPrefix(msg, prefix) {
-		return "", false
-	}
-	quoted := strings.TrimSpace(strings.TrimPrefix(msg, prefix))
-	if name, uerr := strconv.Unquote(quoted); uerr == nil {
-		return name, true
-	}
-	return quoted, true
 }

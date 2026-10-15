@@ -98,8 +98,13 @@ type FacetResult struct {
 	// FilteredRecords is the count of records passing Filterers.
 	FilteredRecords int64 `json:"filtered_records"`
 
-	// Warnings carry per-field diagnostics (top-K truncation, etc.).
-	Warnings []string `json:"warnings,omitempty"`
+	// Warnings carry the run's coded diagnostics, {code, message,
+	// details} entries in the shape Response.Warnings uses:
+	// PULSE_FACET_VALUES_TRUNCATED (discrete_top_k cut a field's values),
+	// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL (predict's warning and
+	// details), the label resolver's PULSE_LABEL_* and every FACET-host
+	// overlay warning.
+	Warnings []*ResponseWarning `json:"warnings,omitempty"`
 
 	// Overlays carries the executed FACET-host overlay layers, one
 	// entry per FacetRequest.Overlays spec in matching order. Each

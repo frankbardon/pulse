@@ -1,13 +1,13 @@
 package processing
 
 import (
-	"encoding/json"
 	"math"
 	"sort"
 	"sync"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -900,9 +900,10 @@ type percentileAggregator struct {
 
 func newPercentileAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	p := 50.0
+	paramread.Declare(paramread.Aggregator, string(agg.Type), (*percentileParams)(nil))
 	if len(agg.Params) > 0 {
 		var params percentileParams
-		if err := json.Unmarshal(agg.Params, &params); err != nil {
+		if err := paramread.Decode(paramread.Aggregator, string(agg.Type), agg.Params, &params); err != nil {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "invalid percentile params: "+err.Error())
 		}
 		p = params.Percentile

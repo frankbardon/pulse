@@ -2,7 +2,9 @@ package fs
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/afero"
 )
@@ -53,6 +55,8 @@ func WithFs(fs afero.Fs) Option {
 // New creates a configured filesystem with the given options.
 // If no FS is injected, an OsFs rooted at the data directory is created.
 // If no DataDir is set, it is not resolved from the environment (use Default for that).
+// A relative DataDir is made absolute (filepath.Abs) against the working
+// directory at construction time; DataDir() returns the absolute path.
 func New(opts ...Option) (*Config, error) {
 	cfg := &Config{}
 
@@ -67,6 +71,15 @@ func New(opts ...Option) (*Config, error) {
 	if cfg.dataDir == "" {
 		return nil, errors.New("data directory required: set WithDataDir or use Default()")
 	}
+
+	// A relative data directory is resolved against the working
+	// directory ONCE, here. BasePathFs would otherwise re-resolve it on
+	// every call, so a later chdir would silently re-root the instance.
+	abs, err := filepath.Abs(cfg.dataDir)
+	if err != nil {
+		return nil, fmt.Errorf("resolving data directory %q: %w", cfg.dataDir, err)
+	}
+	cfg.dataDir = abs
 
 	cfg.fs = afero.NewBasePathFs(afero.NewOsFs(), cfg.dataDir)
 	return cfg, nil

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -28,16 +29,15 @@ type RetentionParams struct {
 // details {kind, param?, ...} plus index when index >= 0.
 func ParseRetentionParams(spec *types.OverlaySpec, index int) (RetentionParams, *errors.CodedError) {
 	var out RetentionParams
+	var in struct {
+		Absorbing json.RawMessage `json:"absorbing"`
+	}
+	paramread.Declare(paramread.Overlay, string(spec.Kind), &in)
 	raw := bytes.TrimSpace(spec.Params)
 	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
 		return out, nil
 	}
-	var in struct {
-		Absorbing json.RawMessage `json:"absorbing"`
-	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&in); err != nil {
+	if err := paramread.DecodeStrict(paramread.Overlay, string(spec.Kind), raw, &in); err != nil {
 		return out, markovParamRefusal(spec.Kind, index, "",
 			"params must be an object with only absorbing: "+err.Error(), nil)
 	}

@@ -159,6 +159,16 @@ const (
 	// non-nullable field remains a PULSE_IMPORT_ROW_ERROR.
 	PULSE_IMPORT_NULL_PROMOTED Code = "PULSE_IMPORT_NULL_PROMOTED"
 
+	// PULSE_IMPORT_ROWS_DROPPED is a WARNING-class code emitted once per
+	// partial import — some rows imported, some were skipped as
+	// PULSE_IMPORT_ROW_ERROR — on every import entry point (ImportJob,
+	// ConvertJob, the managed-import pool, the CLI leaves and MCP
+	// pulse_import). Details: dropped, imported and first_failure
+	// {row, column, reason}. Under strict (ImportJob.StrictRows,
+	// Options.Strict, CLI --strict) it is the FATAL return instead and
+	// nothing is written.
+	PULSE_IMPORT_ROWS_DROPPED Code = "PULSE_IMPORT_ROWS_DROPPED"
+
 	// PULSE_IMPORT_WIDTH_PROMOTED is a WARNING-class code emitted once per
 	// field when an inferred import meets a value, past the bounded
 	// inference sample, that the sample-inferred width cannot hold — a
@@ -428,6 +438,15 @@ const (
 	// (the accepted-types table), on both sides.
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL"
 
+	// PULSE_FACET_VALUES_TRUNCATED is a WARNING-class facet runtime
+	// code: discrete_top_k cut a discrete field's value list (the
+	// field's FacetDiscrete.TruncatedAt counts the dropped values).
+	// Details: field, discrete_top_k, distinct, dropped; additive true
+	// on an additive_fields tally. Predict-facet raises the same code
+	// up front for a discrete_top_k under 5 (details: discrete_top_k
+	// only — predict reads no record).
+	PULSE_FACET_VALUES_TRUNCATED Code = "PULSE_FACET_VALUES_TRUNCATED"
+
 	// PULSE_FIELD_DESCRIPTION_LOW_QUALITY indicates a field description quality warning.
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY Code = "PULSE_FIELD_DESCRIPTION_LOW_QUALITY"
 
@@ -455,6 +474,8 @@ const (
 	// FEAT_TRAIN_TEST_SPLIT precedes it. Mitigation: compute train-only
 	// category averages (AGG_AVERAGE on split 0) in a separate request and
 	// map them back, or accept the in-sample encoding for descriptive use.
+	// Predict raises it and Process repeats it on Response.Warnings;
+	// under strict both refuse (Process before any record is read).
 	PULSE_FEAT_TARGET_LEAKAGE_RISK Code = "PULSE_FEAT_TARGET_LEAKAGE_RISK"
 
 	// PULSE_DECIMAL_OVERFLOW indicates a decimal arithmetic or aggregation
@@ -543,6 +564,16 @@ const (
 	// grouper. One per such overlay; details carry the slot, the kind,
 	// the series axis, its grouper and the group key columns.
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE Code = "PULSE_ADVISORY_SERIES_AXIS_NOT_DATE"
+
+	// PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED is a predict advisory:
+	// a slot names an embedder (Options.Extensions) operator whose
+	// registration declares no params, and carries a non-empty params
+	// object. Its keys cannot be checked against an allowlist, so they
+	// pass to the operator's factory unvalidated — a misspelled key is
+	// not refused there as it is on every built-in and on an extension
+	// that declares its params. One per such slot; details carry the
+	// slot, the operator and the params keys.
+	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED Code = "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED"
 
 	// PULSE_SUPPRESS_ADVISORY_UNKNOWN is raised by pulse.New when
 	// Options.SuppressAdvisories names a code that is not a registered
@@ -1440,6 +1471,14 @@ const (
 	// unresolved values per field so callers can audit gaps.
 	PULSE_LABEL_LOOKUP_MISS Code = "PULSE_LABEL_LOOKUP_MISS"
 
+	// PULSE_LABEL_NOT_APPLIED is a warning emitted when a caller-authored
+	// label binding reached no surface of the response: its field is not
+	// an output column, a crosstab axis or a group key of the run, or it
+	// is an augment-mode binding on a crosstab matrix axis (an axis key
+	// has no sibling column). The binding is never accepted and ignored
+	// silently; details carry {index, field, table, mode, reason}.
+	PULSE_LABEL_NOT_APPLIED Code = "PULSE_LABEL_NOT_APPLIED"
+
 	// PULSE_CROSSTAB_EMPTY_ROWS indicates a Crosstab section was
 	// presented with no row-axis groupers. A crosstab requires at
 	// least one grouper on each axis; use a plain grouped Process
@@ -1560,15 +1599,17 @@ const (
 	PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED Code = "PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED"
 
 	// PULSE_REQUEST_UNKNOWN_FIELD indicates a request JSON carried a
-	// top-level key that is not a recognised Request slot. JSON
-	// decoding silently ignores unknown keys, so the offending slot
-	// is dropped and the request runs as if that operation were
-	// absent. The most common cause is reusing a manifest
+	// key that is not a recognised slot of the object it sits in, at
+	// the root or at any depth. Every JSON request root is decoded
+	// strictly (internal/strictjson), so the key is REFUSED rather than
+	// ignored — an ignored key would silently drop the intended
+	// operation. The most common cause is reusing a manifest
 	// operator-catalog field name ("groupers", "aggregators") as the
 	// request key instead of the request slot name ("groups",
-	// "aggregations"). Surfaced by the MCP action handlers before
-	// execution; details carry the offending key(s), the nearest
-	// valid slot, and the full valid-key list.
+	// "aggregations"). Also raised for a slot the instance's feature
+	// profile hides. Details carry the offending key(s), the nearest
+	// valid key, the object's valid keys and, below the root, the path
+	// of the first offending key.
 	PULSE_REQUEST_UNKNOWN_FIELD Code = "PULSE_REQUEST_UNKNOWN_FIELD"
 
 	// PULSE_OVERLAY_KIND_UNKNOWN indicates a Request.Overlays entry
@@ -3682,6 +3723,7 @@ var allCodes = []Code{
 	PULSE_IMPORT_SCHEMA_AMBIGUOUS,
 	PULSE_IMPORT_ROW_ERROR,
 	PULSE_IMPORT_NULL_PROMOTED,
+	PULSE_IMPORT_ROWS_DROPPED,
 	PULSE_IMPORT_WIDTH_PROMOTED,
 	PULSE_IMPORT_OVERRIDE_INVALID,
 	PULSE_IMPORT_SCHEMA_FIELD_MISSING,
@@ -3721,6 +3763,7 @@ var allCodes = []Code{
 	PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC,
 	PULSE_MATERIALIZE_SIDECARS_INVALIDATED,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
+	PULSE_FACET_VALUES_TRUNCATED,
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
 	PULSE_WINDOW_INVALID,
 	PULSE_FIELD_TYPE_UNSUPPORTED,
@@ -3738,6 +3781,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED,
 	PULSE_ADVISORY_EXTRA_PASS,
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
+	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN,
 	PULSE_RECOMMEND_INTENT_UNKNOWN,
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,
@@ -3857,6 +3901,7 @@ var allCodes = []Code{
 	PULSE_LABEL_TABLE_NOT_ENUMERABLE,
 	PULSE_LABEL_COLLISION,
 	PULSE_LABEL_LOOKUP_MISS,
+	PULSE_LABEL_NOT_APPLIED,
 	PULSE_CROSSTAB_EMPTY_ROWS,
 	PULSE_CROSSTAB_EMPTY_COLUMNS,
 	PULSE_CROSSTAB_MISSING_CELL,

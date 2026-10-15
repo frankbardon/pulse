@@ -12,11 +12,11 @@
 package seriesfield
 
 import (
-	"encoding/json"
 	"slices"
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -168,11 +168,14 @@ func elementOf(aggs []*types.Aggregation, name string, cols Columns) int {
 // Params that do not decode as a JSON object carry no `field`; the
 // kind's own params gate owns that refusal.
 func Resolve(aggs []*types.Aggregation, spec *types.OverlaySpec, index int, cols Columns) (Scored, error) {
+	if spec != nil {
+		paramread.Read(paramread.Overlay, string(spec.Kind), Param)
+	}
 	if spec == nil || len(spec.Params) == 0 {
 		return first(aggs), nil
 	}
 	var m map[string]any
-	if err := json.Unmarshal(spec.Params, &m); err != nil {
+	if err := paramread.Decode(paramread.Overlay, string(spec.Kind), spec.Params, &m); err != nil {
 		return first(aggs), nil
 	}
 	return resolve(aggs, spec.Kind, m, index, cols)
@@ -181,6 +184,7 @@ func Resolve(aggs []*types.Aggregation, spec *types.OverlaySpec, index int, cols
 // resolve is Resolve over decoded params, shared with the Compose and
 // chain hosts.
 func resolve(aggs []*types.Aggregation, kind types.OverlayKind, params map[string]any, index int, cols Columns) (Scored, error) {
+	paramread.Read(paramread.Overlay, string(kind), Param)
 	raw, present := params[Param]
 	if !present || raw == nil {
 		return first(aggs), nil
@@ -268,6 +272,7 @@ func ResolveComposeSlot(aggs []*types.Aggregation, spec *types.ComposeOverlaySpe
 	if spec == nil {
 		return first(aggs), nil
 	}
+	paramread.Read(paramread.Overlay, string(spec.Kind), Param)
 	return located(aggs, cols, spec.Kind, spec.Params, index,
 		map[string]any{"slot": slot}, " on slot \""+slot+"\"")
 }

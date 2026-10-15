@@ -3,7 +3,6 @@ package pulse_test
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -155,7 +154,7 @@ func TestJoinTooMany_PredictAndValidatorsMatchRuntime(t *testing.T) {
 			req.Groups, req.Aggregations = nil, nil
 			req.Crosstab = &types.CrosstabSpec{
 				Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
-				Columns: []*types.Group{{Type: types.GROUP_RANGE, Field: "n", Params: json.RawMessage(`{"interval":10}`)}},
+				Columns: []*types.Group{{Type: types.GROUP_RANGE, Field: "n", Interval: 10}},
 				Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "n"},
 			}
 			return req

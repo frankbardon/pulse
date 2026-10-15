@@ -12,7 +12,7 @@ Fixed-width: 4 bytes per record, little-endian. Not bit-packed. Stride contribut
 
 ## Range
 
-Days since the Unix epoch (1970-01-01). Negative offsets address pre-epoch dates (1969-12-31 is −1, 1900-01-01 is −25567); positive offsets address dates after. Ordering, filters, groupers, min/max, lookup keys and every export adapter honour the sign. The 32-bit width supports a range comfortably wider than any real-world need. Sub-day precision is NOT supported — store sub-day timestamps as `u64` microseconds.
+Days since the Unix epoch (1970-01-01). Negative offsets address pre-epoch dates (1969-12-31 is −1, 1900-01-01 is −25567); positive offsets address dates after. Ordering, filters, groupers, min/max, lookup keys and every export adapter honour the sign. The 32-bit width supports a range comfortably wider than any real-world need. Sub-day precision is NOT supported — store sub-day timestamps as `u64` microseconds. **Output form:** a row cell (record rows of a windowed Process, a lag / lead window copy) is `YYYY-MM-DD`, ordered by the day count; aggregates over the ordinal stay numbers.
 
 ## Null
 

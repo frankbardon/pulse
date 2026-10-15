@@ -43,7 +43,9 @@ func errorsLookupCmd() *cli.Command {
 			code := args.First()
 			r, ok := errors.Lookup(code)
 			if !ok {
-				return fmt.Errorf("error code %q not found", code)
+				// Under --json the refusal is an envelope like every
+				// other leaf's, so stdout always parses (exit 1).
+				return cliError(cmd, cmd.Bool("json"), "CLI_INPUT", fmt.Sprintf("error code %q not found", code))
 			}
 			if cmd.Bool("json") {
 				return writeEnvelope(cmd.Writer, r)

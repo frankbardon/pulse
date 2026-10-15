@@ -185,6 +185,14 @@ type Spec struct {
 	// io.ImportJob.FloatWidth; any other value is
 	// PULSE_IMPORT_FLOAT_WIDTH_INVALID. Inert on a .pulse passthrough.
 	FloatWidth string
+
+	// StrictRows makes a partial import fatal, as io.ImportJob.StrictRows:
+	// when some rows import and some are skipped, Open returns
+	// PULSE_IMPORT_ROWS_DROPPED and writes neither the cohort nor its
+	// sidecar. Off (the default) the warning rides
+	// Result.DroppedWarnings. CLI `import auto --strict`; pulse.ImportFile
+	// also sets it under Options.Strict. Not persisted on the sidecar.
+	StrictRows bool
 }
 
 // Result describes the outcome of a managed-import call. Managed=false
@@ -243,6 +251,14 @@ type Result struct {
 	// source-zone local time. Mirrors io.ImportReport.ZoneWarnings;
 	// omitted when nothing was resolved.
 	ZoneWarnings []*perr.CodedError `json:"zone_warnings,omitempty"`
+	// RowsDropped counts the source rows the import skipped as row
+	// errors (io.ImportReport.RowErrors). Omitted when zero.
+	RowsDropped int `json:"rows_dropped,omitempty"`
+	// DroppedWarnings carries the one PULSE_IMPORT_ROWS_DROPPED warning
+	// a partial import raises (dropped / imported / first_failure in
+	// details). Mirrors io.ImportReport.DroppedWarnings; omitted when no
+	// row was dropped.
+	DroppedWarnings []*perr.CodedError `json:"dropped_warnings,omitempty"`
 }
 
 // Sidecar is the JSON payload written next to a managed .pulse file.

@@ -20,7 +20,7 @@ Top-level `resample` on `RegressionSpec` plus two bootstrap knobs. A **wrapper, 
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `resample` | enum | `""` | `""`, `jackknife` (leave-one-out), `bootstrap` (non-parametric). |
-| `bootstrap_iters` | int | `1000` | Replicate count; read only when `resample == "bootstrap"`. |
+| `bootstrap_iters` | int | `1000` | Replicate count, used as given (`<= 0` → `1000`); read only when `resample == "bootstrap"`. |
 | `rng_seed` | int | `0` | `0` derives a deterministic per-request seed; non-zero is reproducible. |
 
 ## Inputs
@@ -44,6 +44,7 @@ Inherits `target` / `predictors` from the host `RegressionSpec`. No additional f
 - `StdErrors[name]` — jackknife `√((n−1)/n · Σ(β⁽⁻ⁱ⁾ − β̄)²)`; bootstrap sample std of replicates.
 - `PValues[name]` — jackknife pivotal; bootstrap percentile-method two-sided.
 - `Resample` echoes back; `Coefficients` unchanged. For `l1` / `elasticnet` OLS, bootstrap suppresses `PROCESSING_REGRESSION_APPROXIMATE_SE`.
+- Bootstrap echoes `bootstrap_requested` (replicates run) and `bootstrap_succeeded` (refits that succeeded; SE / p / vcov use only these). A failed refit is skipped, so `succeeded < requested` flags an unstable fit; under 10 successes is `PROCESSING_REGRESSION_NO_CONVERGE`.
 
 ## Gotchas
 

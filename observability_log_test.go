@@ -212,7 +212,7 @@ func TestResultWarningCodes(t *testing.T) {
 		{"envelope", &descriptor.Envelope{Warnings: []*descriptor.EnvelopeEntry{{Code: "E"}}}, []string{"E"}},
 		{"add shard", &AddShardResult{Warnings: []encx.CohesionWarning{{Code: "W"}}}, []string{"W"}},
 		{"dedup", &DedupResult{SidecarWarnings: []*errors.CodedError{coded(errors.SERVICE_RESOURCE)}}, []string{string(errors.SERVICE_RESOURCE)}},
-		{"string warnings ignored", &FacetResult{Warnings: []string{"text"}}, nil},
+		{"facet", &FacetResult{Warnings: []*types.ResponseWarning{{Code: "F"}, nil}}, []string{"F"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

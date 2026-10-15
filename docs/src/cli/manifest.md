@@ -110,7 +110,9 @@ Conventions](../contributing/testing.md). Notably:
 
 | Code | Meaning |
 |---|---|
-| 0 | Always (the manifest is in-memory, deterministic, never errors) |
+| 0 | Success (the manifest is in-memory and deterministic) |
+| 1 | `--intent` names no intent: a `PULSE_RECOMMEND_INTENT_UNKNOWN` error envelope |
+| 2 | Usage error (unknown flag, malformed value, missing required flag); no envelope |
 
 ## Examples
 

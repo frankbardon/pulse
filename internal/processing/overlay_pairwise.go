@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -61,6 +62,7 @@ func applyPairwiseTwoMeansZ(spec *types.OverlaySpec, host *CrosstabHostView) (ty
 // selector that is silently inert is the failure the refusal exists to
 // remove.
 func applyPairwiseWeightedTwoMeansZ(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
+	paramread.Declare(paramread.Overlay, string(spec.Kind), (*types.PairwiseOverlayParams)(nil))
 	params, err := types.DecodePairwiseParams(spec.Params)
 	if err != nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
@@ -161,6 +163,7 @@ type pairwisePair struct {
 }
 
 func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel pwKernel, shape pwShape) (types.OverlayLayer, []types.OverlayWarning, error) {
+	paramread.Declare(paramread.Overlay, string(spec.Kind), (*types.PairwiseOverlayParams)(nil))
 	params, err := types.DecodePairwiseParams(spec.Params)
 	if err != nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
@@ -330,7 +333,7 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 			r2, c2 := pairwiseLegCoord(rowScope, pairs[p].j, o)
 			in, ok := extractPairInputs(host, params, shape, basis, rowScope, r1, c1, r2, c2)
 			if !ok {
-				tally.add("ORBIT_STATS_SKIP_EXTRACT_FAILED", o)
+				tally.add("PULSE_STATS_SKIP_EXTRACT_FAILED", o)
 				continue
 			}
 			if weightedHost {
@@ -645,6 +648,12 @@ func copyAxisKeys(in []types.AxisKey) []types.AxisKey {
 	return out
 }
 
+// PairKeyElement is the pair-axis element a pairwise overlay writes for
+// one host axis key — stringifyOverlayAxisKey, exported so the label
+// pass (internal/service) relabels a PAIR key from the host key it was
+// built from, through the one rule.
+func PairKeyElement(k types.AxisKey) string { return stringifyOverlayAxisKey(k) }
+
 // stringifyOverlayAxisKey collapses an AxisKey into a deterministic label
 // for the pair-key 2-tuple. Single-element keys produce the bare value;
 // multi-element keys join with "|".
@@ -674,16 +683,27 @@ func joinPipe(parts []string) string {
 	return out
 }
 
+// unitProportion reports whether p is a proportion in [0, 1]. A leg
+// outside it — a p_source of cell_value over a raw count cell, or of
+// cell_value_pct over a share already in [0, 1] read as a percentage of
+// 100+ — is not a proportion at all: the pair skips as
+// PULSE_STATS_SKIP_PROPORTION_INVALID rather than scoring a p-value off
+// a clipped (probit) or accidentally in-range pooled (prop-z) figure.
+func unitProportion(p float64) bool { return p >= 0 && p <= 1 }
+
 // pairwisePropZKernel is the pooled-SE two-proportion z-test. Reuses the
 // shared twoProportionZ helper so p-values match OVERLAY_PROP_Z_CELL.
 func pairwisePropZKernel(in pwInputs) (float64, string, bool) {
 	if in.nf1 == 0 || in.nf2 == 0 {
-		return 0, "ORBIT_STATS_SKIP_N_ZERO", false
+		return 0, "PULSE_STATS_SKIP_N_ZERO", false
+	}
+	if !unitProportion(in.p1) || !unitProportion(in.p2) {
+		return 0, "PULSE_STATS_SKIP_PROPORTION_INVALID", false
 	}
 	n1f, n2f := in.nf1, in.nf2
 	p, ok := twoProportionZ(in.p1*n1f, n1f, in.p2*n2f, n2f)
 	if !ok {
-		return 0, "ORBIT_STATS_SKIP_POOLED_SE_INVALID", false
+		return 0, "PULSE_STATS_SKIP_POOLED_SE_INVALID", false
 	}
 	return p, "", true
 }
@@ -692,26 +712,29 @@ func pairwisePropZKernel(in pwInputs) (float64, string, bool) {
 // proportion, Student-t tail on df = n1 + n2 - 2.
 func pairwiseProbitTKernel(in pwInputs) (float64, string, bool) {
 	if in.nf1 == 0 || in.nf2 == 0 {
-		return 0, "ORBIT_STATS_SKIP_N_ZERO", false
+		return 0, "PULSE_STATS_SKIP_N_ZERO", false
+	}
+	if !unitProportion(in.p1) || !unitProportion(in.p2) {
+		return 0, "PULSE_STATS_SKIP_PROPORTION_INVALID", false
 	}
 	dof := in.nf1 + in.nf2 - 2
 	if dof <= 0 {
-		return 0, "ORBIT_STATS_SKIP_DOF_INVALID", false
+		return 0, "PULSE_STATS_SKIP_DOF_INVALID", false
 	}
 	const eps = 1e-10
 	p1c := clipUnit(in.p1, eps, 1-eps)
 	p2c := clipUnit(in.p2, eps, 1-eps)
 	denom := math.Sqrt(1.0/in.nf1 + 1.0/in.nf2)
 	if denom == 0 {
-		return 0, "ORBIT_STATS_SKIP_DENOM_INVALID", false
+		return 0, "PULSE_STATS_SKIP_DENOM_INVALID", false
 	}
 	t := (standardNormalPPF(p1c) - standardNormalPPF(p2c)) / denom
 	if math.IsNaN(t) || math.IsInf(t, 0) {
-		return 0, "ORBIT_STATS_SKIP_T_INVALID", false
+		return 0, "PULSE_STATS_SKIP_T_INVALID", false
 	}
 	pv := statdist.StudentTTwoSidedP(t, dof)
 	if math.IsNaN(pv) {
-		return 0, "ORBIT_STATS_SKIP_PVALUE_NAN", false
+		return 0, "PULSE_STATS_SKIP_PVALUE_NAN", false
 	}
 	return pv, "", true
 }
@@ -721,7 +744,7 @@ func pairwiseProbitTKernel(in pwInputs) (float64, string, bool) {
 func pairwiseWelchTKernel(in pwInputs) (float64, string, bool) {
 	n1f, n2f := in.nf1, in.nf2
 	if !(n1f > 1) || !(n2f > 1) {
-		return 0, "ORBIT_STATS_SKIP_N_TOO_SMALL", false
+		return 0, "PULSE_STATS_SKIP_N_TOO_SMALL", false
 	}
 	a := in.v1 / n1f
 	b := in.v2 / n2f
@@ -729,24 +752,24 @@ func pairwiseWelchTKernel(in pwInputs) (float64, string, bool) {
 	// Welford triple at N < 2 or Σw ≤ 1 (E4-S6) — skips the pair
 	// rather than scoring a NaN p-value.
 	if !(a+b > 0) {
-		return 0, "ORBIT_STATS_SKIP_VARIANCE_INVALID", false
+		return 0, "PULSE_STATS_SKIP_VARIANCE_INVALID", false
 	}
 	se := math.Sqrt(a + b)
 	if se == 0 {
-		return 0, "ORBIT_STATS_SKIP_SE_ZERO", false
+		return 0, "PULSE_STATS_SKIP_SE_ZERO", false
 	}
 	t := (in.m1 - in.m2) / se
 	dofDenom := (a*a)/(n1f-1) + (b*b)/(n2f-1)
 	if dofDenom <= 0 {
-		return 0, "ORBIT_STATS_SKIP_DOF_INVALID", false
+		return 0, "PULSE_STATS_SKIP_DOF_INVALID", false
 	}
 	dof := (a + b) * (a + b) / dofDenom
 	if dof <= 0 || math.IsNaN(dof) || math.IsInf(dof, 0) {
-		return 0, "ORBIT_STATS_SKIP_DOF_INVALID", false
+		return 0, "PULSE_STATS_SKIP_DOF_INVALID", false
 	}
 	pv := statdist.StudentTTwoSidedP(t, dof)
 	if math.IsNaN(pv) {
-		return 0, "ORBIT_STATS_SKIP_PVALUE_NAN", false
+		return 0, "PULSE_STATS_SKIP_PVALUE_NAN", false
 	}
 	return pv, "", true
 }
@@ -755,7 +778,7 @@ func pairwiseWelchTKernel(in pwInputs) (float64, string, bool) {
 // (normal CDF tail, no df adjustment).
 func pairwiseTwoMeansZKernel(in pwInputs) (float64, string, bool) {
 	if !(in.nf1 > 1) || !(in.nf2 > 1) {
-		return 0, "ORBIT_STATS_SKIP_N_TOO_SMALL", false
+		return 0, "PULSE_STATS_SKIP_N_TOO_SMALL", false
 	}
 	a := in.v1 / in.nf1
 	b := in.v2 / in.nf2
@@ -763,11 +786,11 @@ func pairwiseTwoMeansZKernel(in pwInputs) (float64, string, bool) {
 	// Welford triple at N < 2 or Σw ≤ 1 (E4-S6) — skips the pair
 	// rather than scoring a NaN p-value.
 	if !(a+b > 0) {
-		return 0, "ORBIT_STATS_SKIP_VARIANCE_INVALID", false
+		return 0, "PULSE_STATS_SKIP_VARIANCE_INVALID", false
 	}
 	se := math.Sqrt(a + b)
 	if se == 0 {
-		return 0, "ORBIT_STATS_SKIP_SE_ZERO", false
+		return 0, "PULSE_STATS_SKIP_SE_ZERO", false
 	}
 	z := (in.m1 - in.m2) / se
 	pv := normalTwoSidedP(z)
@@ -780,27 +803,27 @@ func pairwiseTwoMeansZKernel(in pwInputs) (float64, string, bool) {
 //	z = (m_i − m_j) / sqrt(var_i/n_i + var_j/n_j),  p = 2·Φ(−|z|)
 //
 // with var and n per weightedLegVarianceOverN. A leg whose convention is
-// undefined skips the pair-cell as ORBIT_STATS_SKIP_N_TOO_SMALL; a pair
-// whose legs both have zero spread skips as ORBIT_STATS_SKIP_SE_ZERO.
+// undefined skips the pair-cell as PULSE_STATS_SKIP_N_TOO_SMALL; a pair
+// whose legs both have zero spread skips as PULSE_STATS_SKIP_SE_ZERO.
 // Both fold into the shared PULSE_OVERLAY_REF_ZERO tally.
 func pairwiseWeightedTwoMeansZKernel(nBasis string) pwKernel {
 	return func(in pwInputs) (float64, string, bool) {
 		a, ok := weightedLegVarianceOverN(nBasis, in.w1)
 		if !ok {
-			return 0, "ORBIT_STATS_SKIP_N_TOO_SMALL", false
+			return 0, "PULSE_STATS_SKIP_N_TOO_SMALL", false
 		}
 		b, ok := weightedLegVarianceOverN(nBasis, in.w2)
 		if !ok {
-			return 0, "ORBIT_STATS_SKIP_N_TOO_SMALL", false
+			return 0, "PULSE_STATS_SKIP_N_TOO_SMALL", false
 		}
 		if !(a+b > 0) {
-			return 0, "ORBIT_STATS_SKIP_SE_ZERO", false
+			return 0, "PULSE_STATS_SKIP_SE_ZERO", false
 		}
 		se := math.Sqrt(a + b)
 		z := (in.w1.mean - in.w2.mean) / se
 		pv := normalTwoSidedP(z)
 		if math.IsNaN(pv) {
-			return 0, "ORBIT_STATS_SKIP_PVALUE_NAN", false
+			return 0, "PULSE_STATS_SKIP_PVALUE_NAN", false
 		}
 		return pv, "", true
 	}
@@ -872,7 +895,7 @@ func newPairwiseTally() *pairwiseTally {
 
 func (t *pairwiseTally) add(reason string, oppIdx int) {
 	if reason == "" {
-		reason = "ORBIT_STATS_SKIP_EXTRACT_FAILED"
+		reason = "PULSE_STATS_SKIP_EXTRACT_FAILED"
 	}
 	if _, seen := t.counts[reason]; !seen {
 		t.order = append(t.order, reason)

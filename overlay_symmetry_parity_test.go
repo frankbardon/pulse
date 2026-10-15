@@ -40,7 +40,7 @@ func TestSymmetry_RefusalsMatchPredict(t *testing.T) {
 		{"average cell", markovCrosstab(cohort, square, types.AGG_AVERAGE, nil, symmetryOverlay("")), errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED},
 		{"columns carry two groupers", markovCrosstab(cohort, twoCols, types.AGG_COUNT, nil, symmetryOverlay("")), errors.PULSE_OVERLAY_MATRIX_NOT_SQUARE},
 		{"non-boolean correct", markovCrosstab(cohort, square, types.AGG_COUNT, nil, symmetryOverlay(`{"correct":1}`)), errors.PULSE_OVERLAY_PARAM_MISSING},
-		{"unknown param", markovCrosstab(cohort, square, types.AGG_COUNT, nil, symmetryOverlay(`{"exact":true}`)), errors.PULSE_OVERLAY_PARAM_MISSING},
+		{"unknown param", markovCrosstab(cohort, square, types.AGG_COUNT, nil, symmetryOverlay(`{"exact":true}`)), errors.PULSE_REQUEST_UNKNOWN_FIELD},
 		{"cell scope", markovCrosstab(cohort, square, types.AGG_COUNT, nil, cellScope), errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED},
 		{"ref set", markovCrosstab(cohort, square, types.AGG_COUNT, nil, withRef), errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
 		{"level set", markovCrosstab(cohort, square, types.AGG_COUNT, nil, func() types.OverlaySpec { s := symmetryOverlay(""); s.Level = 1; return s }()), errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE},
@@ -48,7 +48,7 @@ func TestSymmetry_RefusalsMatchPredict(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			_, err := p.Process(ctx, c.req)
 			ce := requireCode(t, err, c.want)
-			if ce.Details["index"] != 0 {
+			if !overlaySpecZeroLocated(ce) {
 				t.Fatalf("runtime details %v lack the spec index", ce.Details)
 			}
 			sameEntry(t, predictEnvelope(t, p, fs, cohort, c.req), err)

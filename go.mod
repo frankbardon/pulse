@@ -6,15 +6,15 @@ require (
 	github.com/apache/arrow-go/v18 v18.8.0
 	github.com/expr-lang/expr v1.17.8
 	github.com/google/jsonschema-go v0.4.3
-	github.com/klauspost/compress v1.19.2
-	github.com/modelcontextprotocol/go-sdk v1.7.0
+	github.com/klauspost/compress v1.20.1
+	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/spf13/afero v1.15.0
 	github.com/urfave/cli/v3 v3.14.0
 	github.com/xuri/excelize/v2 v2.11.0
-	golang.org/x/sync v0.23.0
-	golang.org/x/sys v0.48.0
-	golang.org/x/text v0.42.0
+	golang.org/x/sync v0.24.0
+	golang.org/x/sys v0.49.0
+	golang.org/x/text v0.43.0
 	gonum.org/v1/gonum v0.17.0
 )
 

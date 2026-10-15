@@ -1,10 +1,9 @@
 package processing
 
 import (
-	"encoding/json"
-
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -64,8 +63,9 @@ type distinctSumAggregator struct {
 
 func newDistinctSumAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	var params distinctSumParams
+	paramread.Declare(paramread.Aggregator, string(agg.Type), &params)
 	if agg != nil && len(agg.Params) > 0 {
-		if err := json.Unmarshal(agg.Params, &params); err != nil {
+		if err := paramread.Decode(paramread.Aggregator, string(agg.Type), agg.Params, &params); err != nil {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				"invalid distinct_sum params: "+err.Error())
 		}

@@ -2,157 +2,64 @@ package mcp
 
 import (
 	"encoding/json"
+	stderrors "errors"
 
 	perr "github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/strictjson"
 	"github.com/frankbardon/pulse/types"
 )
 
-// requestSlotKeys returns the valid top-level JSON keys on a
-// types.Request for inst: every key the struct's json tags declare
-// (reflection keeps it in lockstep as slots are added) minus the
-// capability-gated slots inst hides (descx.VisibleSlotKeys — the same
-// candidate list the library's request-slot gate reports). A nil or
-// unscoped inst offers every slot.
-func requestSlotKeys(inst *descx.InstanceSnapshot) []string {
-	return descx.VisibleSlotKeys(&types.Request{}, inst)
+// strictDecode is every tool's argument decode: the shared strict
+// request decoder (internal/strictjson), so an unknown key ANYWHERE in
+// the arguments — a request root, a nested sort entry, an aggregation,
+// a Compose slot, a chain stage — is PULSE_REQUEST_UNKNOWN_FIELD
+// located by details.path (and details.request / fit / stage inside a
+// nested request), with a nearest-key suggestion. A slot the instance
+// hides is refused exactly as an unknown key (descx.StrictOptions), and
+// valid_keys / suggestions range over the visible keys only. A root
+// `_meta` example block is tolerated. Empty arguments decode to the
+// zero value.
+func strictDecode[In any](raw json.RawMessage, inst *descx.InstanceSnapshot) (In, error) {
+	var in In
+	if len(raw) == 0 {
+		return in, nil
+	}
+	err := strictjson.DecodeInto(raw, &in, descx.StrictOptions(inst))
+	return in, err
 }
 
-// checkUnknownRequestKeys decodes body as a JSON object and verifies
-// every top-level key is a recognised types.Request slot. On any
-// unknown key it returns a PULSE_REQUEST_UNKNOWN_FIELD CodedError whose
-// message and details name the offending key(s), the nearest valid slot
-// (Levenshtein), and the full valid-key list — turning the silent
-// "unknown keys are dropped" failure into an actionable, first-try
-// fixable error.
-//
-// A slot the instance hides is not a recognised key: it is refused in
-// the same shape as a misspelling, and valid_keys / suggestions range
-// over the visible slots only.
-//
-// Returns nil when body is empty, is not a JSON object (the typed
-// decoder downstream surfaces the real parse error), or all keys are
-// recognised.
-func checkUnknownRequestKeys(body []byte, inst *descx.InstanceSnapshot) *perr.CodedError {
+// checkUnknownKeys returns the strict decoder's unknown-key refusal for
+// body decoded as root (nil when every key is recognised, or the body
+// is not a JSON object — the typed decode surfaces that fault).
+func checkUnknownKeys[Root any](body []byte, inst *descx.InstanceSnapshot) *perr.CodedError {
 	if len(body) == 0 {
 		return nil
 	}
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return nil
+	var root Root
+	err := strictjson.DecodeInto(body, &root, descx.StrictOptions(inst))
+	var ce *perr.CodedError
+	if stderrors.As(err, &ce) && ce.Code == perr.PULSE_REQUEST_UNKNOWN_FIELD {
+		return ce
 	}
-	keys := requestSlotKeys(inst)
-	valid := make(map[string]struct{}, len(keys))
-	for _, k := range keys {
-		valid[k] = struct{}{}
-	}
-	var unknown []string
-	for k := range raw {
-		if _, ok := valid[k]; !ok {
-			unknown = append(unknown, k)
-		}
-	}
-	// The shape (message, unknown_keys, suggestions, valid_keys) is
-	// built in one place, shared with the instance-scoped request-slot
-	// gate (descx.SlotRefusal), so an unknown key and a hidden slot
-	// cannot drift apart.
-	return descx.UnknownFieldError(unknown, keys)
+	return nil
 }
 
-// Location detail keys for a nested unknown-key refusal. They are the
-// service's located-refusal keys (descx.RefusalAt, as descx.SlotRefusal
-// uses them), so an MCP client sees the same details a library caller
-// does for the same request.
-const (
-	locationRequest = "request"
-	locationStage   = "stage"
-	locationFit     = "fit"
-)
-
-// checkHiddenRootKeys refuses a ComposedRequest / ChainRequest root
-// (sample) whose body sets a top-level slot inst hides. The roots are
-// otherwise decoded leniently, so only HIDDEN keys are refused here —
-// as descx.SlotRefusal refuses them, root before nested, with
-// valid_keys / suggestions over the root's visible keys.
-func checkHiddenRootKeys(body []byte, sample any, inst *descx.InstanceSnapshot) *perr.CodedError {
-	hidden := descx.HiddenSlotKeys(sample, inst)
-	if len(hidden) == 0 {
-		return nil
-	}
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return nil
-	}
-	var unknown []string
-	for _, k := range hidden {
-		if _, set := raw[k]; set {
-			unknown = append(unknown, k)
-		}
-	}
-	return descx.UnknownFieldError(unknown, descx.VisibleSlotKeys(sample, inst))
+// checkUnknownRequestKeys is checkUnknownKeys over a types.Request.
+func checkUnknownRequestKeys(body []byte, inst *descx.InstanceSnapshot) *perr.CodedError {
+	return checkUnknownKeys[types.Request](body, inst)
 }
 
-// checkUnknownKeysComposed validates each request inside a
-// ComposedRequest body, tagging the offending request's index into the
-// returned error's details as details.request. A hidden root slot is
-// refused first.
+// checkUnknownKeysComposed is checkUnknownKeys over a ComposedRequest:
+// the root's own keys first (a hidden `overlays` before the nested
+// requests), then each request located by details.request and each fit
+// request by details.fit.
 func checkUnknownKeysComposed(body []byte, inst *descx.InstanceSnapshot) *perr.CodedError {
-	if ce := checkHiddenRootKeys(body, &types.ComposedRequest{}, inst); ce != nil {
-		return ce
-	}
-	var probe struct {
-		Requests []json.RawMessage `json:"requests"`
-		Fits     []struct {
-			Request json.RawMessage `json:"request"`
-		} `json:"fits"`
-	}
-	if err := json.Unmarshal(body, &probe); err != nil {
-		return nil
-	}
-	for i, r := range probe.Requests {
-		if ce := checkUnknownRequestKeys(r, inst); ce != nil {
-			ce.Details[locationRequest] = i
-			return ce
-		}
-	}
-	// A fit request is a Request too, located by details.fit.
-	for i, f := range probe.Fits {
-		if len(f.Request) == 0 {
-			continue
-		}
-		if ce := checkUnknownRequestKeys(f.Request, inst); ce != nil {
-			ce.Details[locationFit] = i
-			return ce
-		}
-	}
-	return nil
+	return checkUnknownKeys[types.ComposedRequest](body, inst)
 }
 
-// checkUnknownKeysChain validates each stage's request inside a
-// ChainRequest body, tagging the offending stage index into the
-// returned error's details as details.stage (no stage name: the
-// service's located refusal carries the index alone). A hidden root
-// slot is refused first.
+// checkUnknownKeysChain is checkUnknownKeys over a ChainRequest, each
+// stage's request located by details.stage.
 func checkUnknownKeysChain(body []byte, inst *descx.InstanceSnapshot) *perr.CodedError {
-	if ce := checkHiddenRootKeys(body, &types.ChainRequest{}, inst); ce != nil {
-		return ce
-	}
-	var probe struct {
-		Stages []struct {
-			Request json.RawMessage `json:"request"`
-		} `json:"stages"`
-	}
-	if err := json.Unmarshal(body, &probe); err != nil {
-		return nil
-	}
-	for i, st := range probe.Stages {
-		if len(st.Request) == 0 {
-			continue
-		}
-		if ce := checkUnknownRequestKeys(st.Request, inst); ce != nil {
-			ce.Details[locationStage] = i
-			return ce
-		}
-	}
-	return nil
+	return checkUnknownKeys[types.ChainRequest](body, inst)
 }

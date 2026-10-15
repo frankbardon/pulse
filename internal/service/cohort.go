@@ -16,12 +16,12 @@ import (
 type ShardEntry struct {
 	// Filename is the basename of the shard inside the archive
 	// (e.g. "20190101.pulse"). Equals the zip entry name.
-	Filename string
+	Filename string `json:"filename"`
 
 	// RecordCount is the number of records carried by the shard.
 	// Populated either from the `_schema.pulse` aggregate metadata or
 	// from a first-read peek of the shard's own header.
-	RecordCount int64
+	RecordCount int64 `json:"record_count"`
 }
 
 // Cohort represents an opened .pulse file with its parsed schema. For

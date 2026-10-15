@@ -4,6 +4,7 @@ import (
 	"context"
 
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/returnplan"
 	"github.com/frankbardon/pulse/internal/weighting"
@@ -179,6 +180,7 @@ func composeOverlaySlotVeto(spec *types.ComposeOverlaySpec, label string, basis 
 	case types.OverlayKindPropZCell:
 		return weighted()
 	case types.OverlayKindPropZPanel:
+		paramread.Declare(paramread.Overlay, string(spec.Kind), (*types.PanelOverlayParams)(nil))
 		params, err := types.DecodePanelParamsMap(spec.Params)
 		if err != nil {
 			return vetoAll

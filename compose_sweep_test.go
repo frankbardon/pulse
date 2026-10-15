@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
+	"reflect"
 	"sync/atomic"
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/strictjson"
 	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
@@ -217,7 +219,7 @@ func TestComposeSweep_InvalidRefusedEverywhere(t *testing.T) {
 	cases := map[string]string{
 		sweep.ReasonAxisUnreferenced:   `{"axes":[{"name":"op","values":["AGG_SUM"]},{"name":"x","values":[1,2]}],"request":` + sweepSlotBody + `}`,
 		sweep.ReasonPlaceholderUnknown: `{"axes":[{"name":"op","values":["AGG_SUM"]}],"label":"{{nope}}","request":` + sweepSlotBody + `}`,
-		sweep.ReasonRequestDecode:      `{"axes":[{"name":"op","values":["AGG_SUM"]}],"request":{"cohort":{"filename":"x"},"aggregatoins":[{"type":"{{op}}"}]}}`,
+		sweep.ReasonRequestDecode:      `{"axes":[{"name":"op","values":["AGG_SUM"]}],"request":{"cohort":{"filename":"x"},"aggregations":[{"type":"{{op}}"}],"return":{"precision":"{{op}}"}}}`,
 	}
 	for reason, sw := range cases {
 		t.Run(reason, func(t *testing.T) {
@@ -245,6 +247,47 @@ func TestComposeSweep_InvalidRefusedEverywhere(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestComposeSweep_UnknownKeyMatchesPlainSlot (#397): a sweep body and a
+// plain compose slot refuse the same unknown grouper key (`label` on
+// GROUP_RANGE) with the same code — PULSE_REQUEST_UNKNOWN_FIELD, the
+// same details.path — on Compose, ComposeParallel and PredictCompose;
+// the sweep fault adds its slot.
+func TestComposeSweep_UnknownKeyMatchesPlainSlot(t *testing.T) {
+	p := sweepPulse(t, Options{})
+	ctx := context.Background()
+	const grouper = `"groups":[{"type":"GROUP_RANGE","field":"x","interval":10,"label":"bands"}]`
+
+	// The plain slot: a JSON caller's compose body decodes strictly.
+	_, err := strictjson.Decode[types.ComposedRequest]([]byte(`{"requests":[{"cohort":{"filename":"x"},`+grouper+`}]}`), strictjson.Options{})
+	plain := requireCoded(t, err, perr.PULSE_REQUEST_UNKNOWN_FIELD)
+	if plain.Details["path"] != "groups[0].label" || plain.Details["request"] != 0 {
+		t.Fatalf("plain slot details %v", plain.Details)
+	}
+
+	c := decodeComposedJSON(t, `{"requests":[],"sweep":{"axes":[{"name":"op","values":["AGG_SUM"]}],"request":{"cohort":{"filename":"x"},"aggregations":[{"type":"{{op}}","field":"x"}],`+grouper+`}}}`)
+	check := func(site string, code string, details map[string]any) {
+		t.Helper()
+		if code != string(perr.PULSE_REQUEST_UNKNOWN_FIELD) || details["path"] != plain.Details["path"] ||
+			!reflect.DeepEqual(details["unknown_keys"], plain.Details["unknown_keys"]) || details["slot"] != 0 {
+			t.Fatalf("%s: %s %v, want the plain slot's refusal located by slot", site, code, details)
+		}
+	}
+	_, err = p.Compose(ctx, c)
+	ce := requireCoded(t, err, perr.PULSE_REQUEST_UNKNOWN_FIELD)
+	check("Compose", string(ce.Code), ce.Details)
+	_, err = p.ComposeParallel(ctx, c, ComposeOptions{})
+	ce = requireCoded(t, err, perr.PULSE_REQUEST_UNKNOWN_FIELD)
+	check("ComposeParallel", string(ce.Code), ce.Details)
+	env, err := p.PredictCompose(ctx, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(env.Errors) != 1 {
+		t.Fatalf("predict errors %+v", env.Errors)
+	}
+	check("PredictCompose", env.Errors[0].Code, env.Errors[0].Details)
 }
 
 // TestComposeSweep_LabelCollisionAllSites: explicit and sweep slots

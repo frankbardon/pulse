@@ -25,7 +25,7 @@ pulse api compose --request FILE [--json] [--stream]
 |---|---|---|---|---|
 | `--request`       | `-r` | string | (required) | Composed-request JSON path |
 | `--json`          |      | bool   | false      | Wrap output in the standard envelope |
-| `--stream`        |      | bool   | false      | Stream rows as NDJSON; each line is `{"index": N, "row": {...}}`; a ranked sweep ends with one `{"ranking": [...]}` line |
+| `--stream`        |      | bool   | false      | Stream rows as NDJSON; each line is `{"index": N, "row": {...}}`; a batch that warned adds one `{"warnings": [...]}` line after the rows; a ranked sweep ends with one `{"ranking": [...]}` line |
 | `--parallel`      |      | int    | 1          | Worker count; 0 = `GOMAXPROCS`, 1 = sequential |
 | `--no-fail-fast`  |      | bool   | false      | Aggregate errors across slots instead of cancelling on first failure (parallel mode only) |
 | `--no-defaults`   |      | bool   | false      | Disable smart operator-type inference |
@@ -85,7 +85,7 @@ Compose](../library/parallel-compose.md) for full mechanics.
 With `--no-fail-fast` unset (the default, fail-fast on):
 
 - The first failing request cancels in-flight siblings.
-- The command exits non-zero with the first error.
+- The command exits 1 with the first error.
 
 With `--no-fail-fast`:
 
@@ -112,7 +112,9 @@ With `--no-fail-fast`:
 ```
 
 `data` is a `ComposedResponse` object (since the v0.21.0 Compose facade
-lift). Each `data.responses[i]` is a full `Response`, so per-slot
+lift). Each `data.responses[i]` is a full `Response` carrying its
+slot's final `label` (the caller's, or the synthesized `request_<i+1>`;
+kept by every `return` preset), so per-slot
 `data.responses[i].components` follows the same additive contract as
 [`api process`](api-process.md#-json). `data.overlays[i]` carries the
 post-fold Compose-host overlay layer plus its per-layer
@@ -120,6 +122,11 @@ post-fold Compose-host overlay layer plus its per-layer
 the slot is `omitempty` so overlay-free Compose responses are
 byte-identical to the legacy `[]*Response` wire shape that shipped
 under `format_version: "1.0"`.
+
+Every slot's run-time warnings (`data.responses[i].warnings`) and the
+batch's own (`data.warnings`) are also written to the envelope's
+top-level `warnings`, a slot's entry located by `details.request`;
+overlay-layer warnings stay on their layer.
 
 Response shaping passes through: each slot's `return` shapes
 `data.responses[i]`, and a top-level `return` (`overlays…` paths only)
@@ -142,8 +149,11 @@ that slot's `precision`.
 
 | Code | Meaning |
 |---|---|
-| 0 | All requests succeeded |
-| 1 | One or more requests failed (fail-fast: first error; aggregated: any failure) |
+| 0 | All requests succeeded (warnings allowed) |
+| 1 | One or more requests failed (fail-fast: first error; aggregated: any failure) — in the envelope's `errors` under `--json` |
+| 2 | Usage error (unknown flag, malformed value, missing required flag); no envelope |
+
+See [Exit status](flags.md#exit-status): under `--json` a fatal error is the envelope's `errors` (exit 1); warnings alone exit 0.
 
 ## Examples
 

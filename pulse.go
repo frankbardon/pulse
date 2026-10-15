@@ -197,7 +197,9 @@ type Record = map[string]any
 // Options configures a Pulse instance.
 type Options struct {
 	// DataDir is the base directory for cohort files.
-	// Defaults to PULSE_DATA_DIR if empty and FS is not set.
+	// Defaults to PULSE_DATA_DIR if empty and FS is not set. A relative
+	// value (here or in PULSE_DATA_DIR) is made absolute against the
+	// working directory once, at New — a later chdir does not move it.
 	DataDir string
 
 	// FS is an optional custom filesystem.
@@ -398,13 +400,18 @@ type Options struct {
 	DefaultReturn *types.Return
 
 	// Strict promotes request-validation warnings into hard errors at
-	// runtime (the weighting and vector advisories); future runtime
+	// runtime (the weighting and vector advisories, and a
+	// FEAT_TARGET_ENCODE's PULSE_FEAT_TARGET_LEAKAGE_RISK, refused
+	// before any record is read); future runtime
 	// validations follow the same flag. (A numeric aggregation over a
 	// categorical is refused PULSE_FIELD_TYPE_UNSUPPORTED whatever the
 	// flag.) Defaults to false — Process
 	// runs the request and emits warnings through the descriptor
 	// Envelope (visible via --json at the CLI boundary). Predict's
 	// PredictOptions.Strict remains independently controllable.
+	// It also refuses a partial import: Import, Convert and ImportFile
+	// set the job's StrictRows, so PULSE_IMPORT_ROWS_DROPPED is their
+	// error and nothing is written.
 	Strict bool
 
 	// ProjectBufferedFields enables buffered-decode field projection.
@@ -961,6 +968,14 @@ type RowIter = service.RowIter
 // (the `pulse api process --stream` NDJSON writer uses it). With no
 // effective block the service iterator is returned untouched.
 //
+// Warnings: every iterator ProcessStream returns also has a
+// `Warnings() []*types.ResponseWarning` method — read it once the
+// iterator is exhausted — carrying the run-time warnings a buffered
+// Process returns on Response.Warnings (shaped by the same `return`
+// block; PULSE_RETURN_PATH_UNMATCHED excepted, which only the buffered
+// shaping pass raises). The `--stream` writer ends its NDJSON with
+// them as one {"warnings":[...]} record.
+//
 // Observability: the operation starts at the call and ends exactly once
 // — when the iterator is drained (or fails), closed, or ctx is
 // cancelled, whichever comes first. Its scan phase runs from the first
@@ -1224,6 +1239,12 @@ func (p *Pulse) importJob(ctx context.Context, job *pio.ImportJob) (*pio.ImportR
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
+	// Options.Strict promotes the partial-import warning
+	// (PULSE_IMPORT_ROWS_DROPPED) to the job's error; it never relaxes
+	// a job that already asked for it.
+	if p.svc.Strict() {
+		job.StrictRows = true
+	}
 	return job.Run(ctx)
 }
 
@@ -1308,6 +1329,9 @@ func (p *Pulse) convert(ctx context.Context, job *pio.ConvertJob) (*pio.ConvertR
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
+	if p.svc.Strict() {
+		job.StrictRows = true // as importJob: Options.Strict refuses a partial convert
+	}
 	if job.LabelResolver == nil && len(job.Labels) > 0 {
 		r, err := p.newIOLabelResolver(job.Labels)
 		if err != nil {
@@ -1342,6 +1366,9 @@ func (p *Pulse) ImportFile(ctx context.Context, spec ImportSpec) (*ImportResult,
 }
 
 func (p *Pulse) importFile(ctx context.Context, spec ImportSpec) (*ImportResult, error) {
+	if p.svc.Strict() {
+		spec.StrictRows = true // as importJob: Options.Strict refuses a partial import
+	}
 	return p.imports.Open(ctx, spec)
 }
 

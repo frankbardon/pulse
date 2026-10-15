@@ -1524,6 +1524,14 @@ type ResponseWarning struct {
 
 // Response is the processing result type.
 type Response struct {
+	// Label echoes the Compose slot this response answers: the slot's
+	// caller-supplied Request.Label, or the synthesized
+	// `request_<index+1>` default. Set by Compose / ComposeParallel
+	// only — a standalone Process leaves it empty and absent on the
+	// wire. An ordinary `return` path, kept by the standard and
+	// minimal presets.
+	Label string `json:"label,omitempty"`
+
 	// Data holds the result rows as key-value maps.
 	Data []map[string]any `json:"data,omitempty"`
 
@@ -1553,11 +1561,15 @@ type Response struct {
 	// cells and scalars are null on the wire. See MatrixResult.
 	Matrices []MatrixResult `json:"matrices,omitempty"`
 
-	// Warnings carries cross-cutting diagnostics surfaced after the
-	// processor finishes. Today this slot is populated by the label-
-	// display resolver (PULSE_LABEL_COLLISION, PULSE_LABEL_LOOKUP_MISS);
-	// future runtime overlays attach here too. CLI / MCP envelope
-	// wrappers promote each entry into the envelope's Warnings array.
+	// Warnings carries the run's coded run-time diagnostics: label
+	// display (PULSE_LABEL_COLLISION, PULSE_LABEL_LOOKUP_MISS,
+	// PULSE_LABEL_NOT_APPLIED), target-encode leakage, vectors, fitted
+	// attributes, PULSE_RETURN_PATH_UNMATCHED, …. The `pulse api` --json
+	// leaves (process, compose per slot, process-chain per stage) also
+	// write each entry to the envelope's top-level warnings, keeping
+	// this copy; ProcessStream iterators expose them through a
+	// Warnings() method and ProcessStreamResult on its terminator. An
+	// MCP result has no envelope: this slot is its warnings.
 	Warnings []*ResponseWarning `json:"warnings,omitempty"`
 
 	// Crosstab carries the structured matrix payload when the originating

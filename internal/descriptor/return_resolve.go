@@ -50,9 +50,10 @@ import (
 var returnPresetPaths = map[types.ReturnPreset][]string{
 	types.ReturnPresetFull: nil,
 	// standard: the primary result of every slot plus the figures most
-	// callers read beside it; never components.
+	// callers read beside it; never components. Every preset keeps the
+	// Compose slot `label` echo (absent outside Compose).
 	types.ReturnPresetStandard: {
-		"data", "warnings", "metadata", "crosstab",
+		"label", "data", "warnings", "metadata", "crosstab",
 		// matrices[*] minus auxiliary — except the inference figures a
 		// spec asked for (params.inference / a multiplicity block): they
 		// exist on that spec's result only, so listing them keeps them
@@ -84,7 +85,7 @@ var returnPresetPaths = map[types.ReturnPreset][]string{
 	// minimal: the primary result of every slot; no metadata, no
 	// components, no overlay payload.
 	types.ReturnPresetMinimal: {
-		"data", "warnings",
+		"label", "data", "warnings",
 		"crosstab.shape", "crosstab.matrix",
 		"matrices[*].name", "matrices[*].type", "matrices[*].group_key", "matrices[*].primary",
 		"tests[*].label", "tests[*].type", "tests[*].group_key", "tests[*].statistic", "tests[*].p_value",

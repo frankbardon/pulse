@@ -57,12 +57,12 @@ func TestMarkov_RefusalsMatchPredict(t *testing.T) {
 		{"columns carry two groupers", markovCrosstab(cohort, twoCols, types.AGG_COUNT, nil, markovOverlay("")), errors.PULSE_OVERLAY_MATRIX_NOT_SQUARE},
 		{"step out of range", markovCrosstab(cohort, square, types.AGG_COUNT, nil, markovOverlay(`{"steps":[0]}`)), errors.PULSE_OVERLAY_PARAM_MISSING},
 		{"unknown initial form", markovCrosstab(cohort, square, types.AGG_COUNT, nil, markovOverlay(`{"initial":"uniform"}`)), errors.PULSE_OVERLAY_PARAM_MISSING},
-		{"unknown param", markovCrosstab(cohort, square, types.AGG_COUNT, nil, markovOverlay(`{"horizon":12}`)), errors.PULSE_OVERLAY_PARAM_MISSING},
+		{"unknown param", markovCrosstab(cohort, square, types.AGG_COUNT, nil, markovOverlay(`{"horizon":12}`)), errors.PULSE_REQUEST_UNKNOWN_FIELD},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			_, err := p.Process(ctx, c.req)
 			ce := requireCode(t, err, c.want)
-			if ce.Details["index"] != 0 {
+			if !overlaySpecZeroLocated(ce) {
 				t.Fatalf("runtime details %v lack the spec index", ce.Details)
 			}
 			sameEntry(t, predictEnvelope(t, p, fs, cohort, c.req), err)

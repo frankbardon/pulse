@@ -97,7 +97,7 @@ func TestPredictRoots_StrictEscalatesWarnings(t *testing.T) {
 	want := map[string]string{
 		"compose": string(perr.PULSE_VECTOR_METRIC_UNSUITED),
 		"chain":   string(perr.PULSE_VECTOR_METRIC_UNSUITED),
-		"facet":   string(perr.PULSE_FIELD_DESCRIPTION_LOW_QUALITY),
+		"facet":   string(perr.PULSE_FACET_VALUES_TRUNCATED),
 	}
 	lax := rootsStrictPulse(t, pulse.Options{})
 	strict := rootsStrictPulse(t, pulse.Options{Strict: true})

@@ -24,7 +24,7 @@ func fidelityCorrelatedSpec(rows int, targetRho float64) *synth.Spec {
 			{Name: "b", Type: "f64", Distribution: synth.DistNormal,
 				Params: map[string]any{"mean": 20.0, "std": 5.0}},
 		},
-		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Correlation: targetRho}},
+		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Rho: targetRho}},
 	}
 }
 

@@ -708,7 +708,7 @@ func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, i
 			return nil
 		}
 		if re != nil {
-			rowErrs = append(rowErrs, RowError{Row: re.Row})
+			rowErrs = append(rowErrs, *re)
 			return nil
 		}
 		lrow.Reset()
@@ -744,6 +744,16 @@ func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, i
 	}
 	report.EstimatedRows = rowNum
 	report.ZoneWarnings = zones.warnings()
+	// The partial-import verdict Run reaches over the same rows: the
+	// warning, or under StrictRows the refusal. Total failure is not
+	// judged here (Predict sizes it; Run refuses it).
+	if rows > 0 {
+		dropped := rowsDropped(rows, rowErrs, "")
+		if err := strictRowsDropped(j.StrictRows, dropped); err != nil {
+			return nil, err
+		}
+		report.DroppedWarnings = droppedList(dropped)
+	}
 	if rescreen {
 		// The strict verdict deferred past the pass; no field widened,
 		// so the pre-pass verdicts stand and only strictness is added.

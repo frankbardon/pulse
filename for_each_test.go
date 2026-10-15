@@ -202,7 +202,7 @@ func TestForEach_ComposeAndChain(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = hp.Compose(ctx, &pulse.ComposedRequest{Requests: []*types.Request{handExpanded(), forEachReq(t)}})
-	if ce := codeOf(t, err); ce.Code != errors.PULSE_REQUEST_UNKNOWN_FIELD || ce.Details["request"] != 1 || ce.Details["path"] != "windows[1]" {
+	if ce := codeOf(t, err); ce.Code != errors.PULSE_REQUEST_UNKNOWN_FIELD || ce.Details["request"] != 1 || ce.Details["path"] != "windows[1].for_each" {
 		t.Fatalf("hidden compose slot = %s %v", ce.Code, ce.Details)
 	}
 
@@ -312,7 +312,7 @@ func TestForEach_HiddenCapability(t *testing.T) {
 	ctx := context.Background()
 	_, err = p.Process(ctx, forEachReq(t))
 	ce := codeOf(t, err)
-	if ce.Code != errors.PULSE_REQUEST_UNKNOWN_FIELD || ce.Details["path"] != "windows[1]" {
+	if ce.Code != errors.PULSE_REQUEST_UNKNOWN_FIELD || ce.Details["path"] != "windows[1].for_each" {
 		t.Fatalf("runtime = %s %v", ce.Code, ce.Details)
 	}
 	res, err := p.Predict(ctx, forEachReq(t))

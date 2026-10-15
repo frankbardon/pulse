@@ -611,6 +611,20 @@
               "required": false,
               "default": 0,
               "description": "Months after January when the fiscal year starts; valid only with component=year or component=quarter. Range [-11, 11]; offsets normalise mod 12 (offset=-3 == offset=9 =\u003e October start). 0 (default) = calendar year. Non-zero offsets prefix keys with FY using the end-year convention (Apr 2024-Mar 2025 with offset=3 =\u003e FY2025)."
+            },
+            {
+              "name": "frequency",
+              "type": "enum",
+              "required": false,
+              "description": "",
+              "enum_values": [
+                "annual",
+                "daily",
+                "hourly",
+                "monthly",
+                "quarterly",
+                "weekly"
+              ]
             }
           ],
           "accepts_types": [
@@ -681,7 +695,8 @@
             "type": "float",
             "required": false,
             "default": 0.05,
-            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
+            "slot": true
           }
         ],
         "requires": [
@@ -705,7 +720,8 @@
             "type": "float",
             "required": false,
             "default": 0.05,
-            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
+            "slot": true
           },
           {
             "name": "mu",
@@ -735,7 +751,8 @@
             "type": "float",
             "required": false,
             "default": 0.05,
-            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
+            "slot": true
           }
         ],
         "requires": [
@@ -751,7 +768,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 174,
+    "error_codes_count": 176,
     "error_domains": [
       "CLI",
       "DATA",
@@ -780,6 +797,7 @@
       "PROCESSING_RUNTIME",
       "PROCESSING_STATE",
       "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC",
+      "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED",
       "PULSE_ADVISORY_ORDINAL_PARAMETRIC",
       "PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL",
@@ -827,6 +845,7 @@
       "PULSE_EXTENSION_SKILL_COLLISION",
       "PULSE_EXTENSION_SKILL_INVALID",
       "PULSE_EXTENSION_STREAMABLE_MISMATCH",
+      "PULSE_FACET_VALUES_TRUNCATED",
       "PULSE_FEATURE_PROFILE_DEPENDENCY",
       "PULSE_FEATURE_PROFILE_INVALID",
       "PULSE_FEATURE_PROFILE_UNKNOWN",
@@ -971,7 +990,7 @@
       },
       {
         "name": "pulse_process",
-        "description": "CALL TO RUN ONE VALIDATED REQUEST AGAINST A COHORT. Execute a pre-built processing request against an existing cohort.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nNOTE: request slot keys differ from the manifest's operator-catalog field names. Grouping operations go under the \"groups\" key (NOT \"groupers\") and aggregations under \"aggregations\" (NOT \"aggregators\"); the catalog names \"groupers\"/\"aggregators\" only list the available GROUP_*/AGG_* operators. Unknown keys are silently dropped on decode, so a misnamed slot is treated as absent — pulse_predict and pulse_process reject unrecognized top-level keys with PULSE_REQUEST_UNKNOWN_FIELD and a 'did you mean' suggestion."
+        "description": "CALL TO RUN ONE VALIDATED REQUEST AGAINST A COHORT. Execute a pre-built processing request against an existing cohort.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nNOTE: request slot keys differ from the manifest's operator-catalog field names. Grouping operations go under the \"groups\" key (NOT \"groupers\") and aggregations under \"aggregations\" (NOT \"aggregators\"); the catalog names \"groupers\"/\"aggregators\" only list the available GROUP_*/AGG_* operators. An unknown key at any depth is refused, never dropped: PULSE_REQUEST_UNKNOWN_FIELD names it, its location (details.path, e.g. sort[0].direction) and a 'did you mean' suggestion."
       },
       {
         "name": "pulse_skills_get",
@@ -1815,7 +1834,22 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "params": [
+          {
+            "name": "pair_along_dim",
+            "type": "int",
+            "required": false,
+            "description": "Restrict pairs to pair-axis keys that agree on every dim position except this one; absent = every pair."
+          },
+          {
+            "name": "n_within_depth",
+            "type": "int",
+            "required": false,
+            "default": 0,
+            "description": "With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; inert otherwise."
+          }
+        ]
       },
       {
         "kind": "OVERLAY_SHARE_OF_ROW",
@@ -2117,6 +2151,7 @@
       {
         "name": "full",
         "paths": [
+          "label",
           "data",
           "metadata",
           "tests",
@@ -2131,6 +2166,7 @@
       {
         "name": "standard",
         "paths": [
+          "label",
           "data",
           "warnings",
           "metadata",
@@ -2192,6 +2228,7 @@
       {
         "name": "minimal",
         "paths": [
+          "label",
           "data",
           "warnings",
           "crosstab.shape",
@@ -2279,4 +2316,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 752ec8f290bc13b53a0de187d902a7eae0f05dc74db4b8b1c794610ca155a018
+// golden-hash: f58e364a591aea0bd091b210536f36f00243ed37e91ac0422e0d7461f289891f

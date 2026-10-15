@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -56,18 +57,17 @@ type MarkovParams struct {
 // (MarkovStateRefusal): predict reads no record.
 func ParseMarkovParams(spec *types.OverlaySpec, index int) (MarkovParams, *errors.CodedError) {
 	out := MarkovParams{Steps: MarkovDefaultSteps()}
-	raw := bytes.TrimSpace(spec.Params)
-	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
-		return out, nil
-	}
 	var in struct {
 		Steps     json.RawMessage `json:"steps"`
 		Absorbing json.RawMessage `json:"absorbing"`
 		Initial   json.RawMessage `json:"initial"`
 	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&in); err != nil {
+	paramread.Declare(paramread.Overlay, string(spec.Kind), &in)
+	raw := bytes.TrimSpace(spec.Params)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return out, nil
+	}
+	if err := paramread.DecodeStrict(paramread.Overlay, string(spec.Kind), raw, &in); err != nil {
 		return out, markovParamRefusal(spec.Kind, index, "",
 			"params must be an object with only steps, absorbing and initial: "+err.Error(), nil)
 	}

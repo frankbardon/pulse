@@ -16,6 +16,10 @@ examples_tags: [time-series, streaming-friendly]
 - `component`: enum, default `month`: `hour`, `day`, `day_of_week`, `week`, `month`, `quarter`, `year`.
 - `week_start`: `week` only; `monday` (default, ISO `2026-W09`) .. `sunday` (key = first day: 2026-03-01).
 - `fiscal_offset`: int -11..11; `year`/`quarter` only; keys `FY` (end-year).
+<!-- feature: OVERLAY_YOY -->
+- `frequency`: not a bucketing knob — the `OVERLAY_YOY` frequency an overlay on this grouper inherits when it sets none.
+<!-- /feature -->
+- Any other key (`unit`, …) → `PULSE_REQUEST_UNKNOWN_FIELD`; the bucket is `component`.
 - `tz`: slot key (IANA), beats `time_zone`.
 
 ## Inputs

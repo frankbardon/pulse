@@ -1,16 +1,18 @@
 package regression
 
 import (
+	"encoding/binary"
+	"hash/fnv"
 	"math"
 	"math/rand/v2"
-	"time"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
 
 // defaultBootstrapIters is the replicate count when the spec leaves
-// BootstrapIters at zero. 1000 is the standard textbook minimum for a
+// BootstrapIters at zero or negative; any positive count is used as
+// given. 1000 is the standard textbook minimum for a
 // non-parametric percentile interval; production users who care about
 // the deep tails should raise it.
 const defaultBootstrapIters = 1000
@@ -24,8 +26,8 @@ const defaultBootstrapIters = 1000
 // The driver dispatches on spec.Resample:
 //
 //   - "jackknife" : leave-one-out refit, jackknife SE formula.
-//   - "bootstrap" : B = max(BootstrapIters, defaultBootstrapIters)
-//     replicates with replacement; SE is the sample std
+//   - "bootstrap" : B = BootstrapIters (defaultBootstrapIters when
+//     <= 0) replicates with replacement; SE is the sample std
 //     of the replicate coefficient set, p-values from the
 //     fraction of replicates that cross zero (percentile-
 //     style two-sided test).
@@ -34,8 +36,10 @@ const defaultBootstrapIters = 1000
 // subset. The OLS and GLM paths supply different closures so each
 // family stays aligned with its own solver and warning surface.
 //
-// The Resample, BootstrapIters, and RNGSeed fields are echoed on the
-// returned result so consumers can identify the uncertainty source.
+// The Resample kind is echoed on the returned result so consumers can
+// identify the uncertainty source; a bootstrap also echoes the
+// replicate count it ran (BootstrapRequested) and the replicates whose
+// refit succeeded (BootstrapSucceeded).
 //
 // On any blocking refit error the driver short-circuits and returns
 // the error; partial coefficient sets are never folded back into a
@@ -147,7 +151,7 @@ func runJackknife(
 		se[j] = math.Sqrt(cov[j][j])
 	}
 
-	return packageResampleResult(spec, baseResult, predictors, se, cov, pValueFn, len(replicates), nil), nil
+	return packageResampleResult(spec, baseResult, predictors, se, cov, pValueFn, nil), nil
 }
 
 // replicateCov returns the (q×q) scaled cross-product of the centred
@@ -202,9 +206,11 @@ func replicateCov(replicates [][]float64, mean []float64, full bool, finish func
 // (equivalently, the fraction of replicates crossing zero, mirrored).
 //
 // B defaults to defaultBootstrapIters (1000) when spec.BootstrapIters
-// is zero or negative. RNG seeding: spec.RNGSeed == 0 → time-derived
-// seed; non-zero seeds produce reproducible runs (TestRegOLS_Bootstrap_
-// Reproducible exercises this).
+// is zero or negative. RNG seeding: a non-zero spec.RNGSeed is used as
+// given (TestRegOLS_Bootstrap_Reproducible); zero derives a seed from
+// the request and the data the fit sees (deriveBootstrapSeed), never
+// the clock, so the same request over the same cohort is bit-identical
+// run to run (TestRegOLS_Bootstrap_ZeroSeedDeterministic).
 //
 // We use math/rand/v2 with rand.NewPCG, available in Go 1.22+. Each
 // replicate uses n integer draws from the same generator instance.
@@ -225,12 +231,12 @@ func runBootstrap(
 		)
 	}
 	B := spec.BootstrapIters
-	if B < defaultBootstrapIters {
+	if B <= 0 {
 		B = defaultBootstrapIters
 	}
 	seed := spec.RNGSeed
 	if seed == 0 {
-		seed = time.Now().UnixNano()
+		seed = deriveBootstrapSeed(spec, records, predictors)
 	}
 	rng := rand.New(rand.NewPCG(uint64(seed), uint64(seed)^0x9E3779B97F4A7C15))
 
@@ -320,7 +326,10 @@ func runBootstrap(
 		bootP[j] = pTwoSided
 	}
 
-	return packageResampleResult(spec, baseResult, predictors, se, cov, pValueFn, len(replicates), bootP), nil
+	out := packageResampleResult(spec, baseResult, predictors, se, cov, pValueFn, bootP)
+	out.BootstrapRequested = B
+	out.BootstrapSucceeded = len(replicates)
+	return out, nil
 }
 
 // packageResampleResult writes the resample-derived SE / p-values onto
@@ -342,7 +351,6 @@ func packageResampleResult(
 	se []float64,
 	cov [][]float64,
 	pValueFn func(coef, se float64) float64,
-	replicates int,
 	bootstrapP []float64,
 ) *types.RegressionResult {
 	// Shallow copy of baseResult, then replace the uncertainty maps.
@@ -376,6 +384,39 @@ func packageResampleResult(
 	if spec.Vcov {
 		attachVcov(&out, predictors, cov)
 	}
-	_ = replicates // future: surface as RegressionResult field; not in v1
 	return &out
+}
+
+// deriveBootstrapSeed is the rng_seed 0 seed: an FNV-1a hash of the
+// spec's wire form (rng_seed excluded) and of every record's target and
+// predictor values, in record order. It is a pure function of the
+// request and the cohort rows the fit reads — the same request over the
+// same data always draws the same replicates, a different request (or
+// different data) a different seed. Pin a non-zero rng_seed for a seed
+// that does not move with the data.
+func deriveBootstrapSeed(spec *types.RegressionSpec, records []Record, predictors []string) int64 {
+	h := fnv.New64a()
+	cp := *spec
+	cp.RNGSeed = 0
+	if body, err := types.MarshalFinite(&cp); err == nil {
+		_, _ = h.Write(body)
+	}
+	var buf [8]byte
+	word := func(u uint64) {
+		binary.LittleEndian.PutUint64(buf[:], u)
+		_, _ = h.Write(buf[:])
+	}
+	word(uint64(len(records)))
+	fields := append([]string{spec.Target}, predictors...)
+	for _, r := range records {
+		for _, f := range fields {
+			v, ok := r.NumericValue(f)
+			if !ok {
+				word(0x7ff8000000000001) // a null: a NaN payload no value carries
+				continue
+			}
+			word(math.Float64bits(v))
+		}
+	}
+	return int64(h.Sum64())
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -377,11 +378,12 @@ func decodeVecAggParams(at string, typ types.AggregationType, raw json.RawMessag
 // (unknown keys refused, bad_params). at is the slot path.
 func DecodeVecAggParams(at string, typ types.AggregationType, raw json.RawMessage) (VecAggParams, *errors.CodedError) {
 	var p VecAggParams
+	paramread.Declare(paramread.Aggregator, string(typ), &p)
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
 		return p, nil
 	}
-	if err := decodeStrict(raw, &p); err != nil {
+	if err := paramread.DecodeStrict(paramread.Aggregator, string(typ), raw, &p); err != nil {
 		return VecAggParams{}, aggregationInvalid(at, "bad_params",
 			at+" "+string(typ)+" params: "+err.Error()+" (keys: labels, expand, element)", nil)
 	}

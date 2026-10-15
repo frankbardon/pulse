@@ -213,6 +213,7 @@ func (s *Service) composeParallel(
 				triggerFailFast()
 				return
 			}
+			echoSlotLabel(resp, req)
 			responses[i] = resp
 		}()
 	}

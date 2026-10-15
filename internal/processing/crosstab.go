@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/limits"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -1282,6 +1283,7 @@ func checkPairwiseSlabPartition(req *types.Request, exts *ExtensionRegistry, kee
 		if !types.IsPairwiseOverlayKind(exts.overlayRoute(spec.Kind)) {
 			continue
 		}
+		paramread.Declare(paramread.Overlay, string(spec.Kind), (*types.PairwiseOverlayParams)(nil))
 		params, err := types.DecodePairwiseParams(spec.Params)
 		if err != nil {
 			continue

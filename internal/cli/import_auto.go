@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/imports"
 	iio "github.com/frankbardon/pulse/internal/io"
+	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
 )
 
@@ -39,6 +40,10 @@ func importAutoCmd() *cli.Command {
 			&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name (ignored for non-Excel)"},
 			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage + " (ignored for non-SPSS)"},
 			&cli.BoolFlag{Name: "overwrite", Usage: "Replace an existing managed handle"},
+			&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path (as on 'import <format> --schema'; refused on a .pulse source)"},
+			&cli.BoolFlag{Name: "ignore-extra", Usage: ignoreExtraFlagUsage},
+			&cli.StringFlag{Name: "float", Value: "f64", Usage: floatFlagUsage},
+			&cli.BoolFlag{Name: "strict", Usage: "Treat a partial import (PULSE_IMPORT_ROWS_DROPPED) as an error: the import fails and writes neither the cohort nor its sidecar"},
 			&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group, as on 'import <format> --group': KEY[,KEY...]:MEMBER[,MEMBER...] or MEMBER[,MEMBER...]. Repeatable, one group per flag; judged at the default ratio floor, findings reported as warnings (writes format 0x02)"},
 			&cli.StringSliceFlag{Name: "vector", Usage: vectorFlagUsage},
 			&cli.StringSliceFlag{Name: "vector-kind", Usage: vectorKindFlagUsage},
@@ -85,7 +90,7 @@ func importAutoCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				return writeEnvelopeWithWarnings(cmd.Writer, res, append(append(append(append([]*errors.CodedError(nil), res.SourceWarnings...), res.GroupWarnings...), res.WidthWarnings...), res.ZoneWarnings...))
+				return writeEnvelopeWithWarnings(cmd.Writer, res, append(append(append(append(append([]*errors.CodedError(nil), res.SourceWarnings...), res.GroupWarnings...), res.WidthWarnings...), res.ZoneWarnings...), res.DroppedWarnings...))
 			}
 			if res.Managed {
 				writeText(cmd.Writer, "Imported %d rows into managed handle %q at %s\n", res.RowsImported, res.Handle, res.Path)
@@ -95,6 +100,7 @@ func importAutoCmd() *cli.Command {
 				}
 				writeSourceWarnings(cmd.Writer, res.WidthWarnings)
 				writeSourceWarnings(cmd.Writer, res.ZoneWarnings)
+				writeSourceWarnings(cmd.Writer, res.DroppedWarnings)
 				writeSourceWarnings(cmd.Writer, res.SourceWarnings)
 				writeGroupReports(cmd.Writer, res.Groups)
 				writeSourceWarnings(cmd.Writer, res.GroupWarnings)
@@ -129,21 +135,37 @@ func importAutoCmd() *cli.Command {
 //
 // --group parses with the per-format leaves' own io.ParseGroupDecl, so the
 // two surfaces cannot disagree on the syntax. There is no --dedup-ratio-floor
-// or --strict here: neither changes a byte the managed import writes (see
-// imports.Spec.Groups), and `import <format>` carries both.
+// here: it changes no byte the managed import writes (see
+// imports.Spec.Groups), and `import <format>` carries it. --strict refuses a
+// partial import only (imports.Spec.StrictRows); group findings stay
+// warnings on this leaf.
+//
+// --schema / --ignore-extra / --float are `import <format>`'s own flags, read
+// the same way (io.LoadSchemaFile over the OS filesystem, the source path's
+// own resolution) and handed to the spec's Schema / IgnoreExtra / FloatWidth.
 //
 // --source-tz / --dst-policy parse with the per-format leaves' own
 // parseSourceZoneFlags; the spec persists them onto the sidecar.
 // --vector / --vector-kind parse with the leaves' parseVectorFlags.
 func importAutoSpec(cmd *cli.Command, source string, ttl time.Duration) (pulse.ImportSpec, error) {
 	spec := pulse.ImportSpec{
-		SourcePath: source,
-		Format:     cmd.String("format"),
-		Handle:     cmd.String("handle"),
-		TTL:        ttl,
-		Sheet:      cmd.String("sheet"),
-		Charset:    cmd.String("charset"),
-		Overwrite:  cmd.Bool("overwrite"),
+		SourcePath:  source,
+		Format:      cmd.String("format"),
+		Handle:      cmd.String("handle"),
+		TTL:         ttl,
+		Sheet:       cmd.String("sheet"),
+		Charset:     cmd.String("charset"),
+		Overwrite:   cmd.Bool("overwrite"),
+		IgnoreExtra: cmd.Bool("ignore-extra"),
+		FloatWidth:  cmd.String("float"),
+		StrictRows:  cmd.Bool("strict"),
+	}
+	if path := cmd.String("schema"); path != "" {
+		schema, err := iio.LoadSchemaFile(afero.NewOsFs(), path)
+		if err != nil {
+			return pulse.ImportSpec{}, err
+		}
+		spec.Schema = schema
 	}
 	for _, decl := range cmd.StringSlice("group") {
 		g, err := iio.ParseGroupDecl(decl)

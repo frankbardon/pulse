@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -33,12 +34,10 @@ import (
 //     matching facetOverlayHandlers entry.
 //   - Warning promotion onto FacetResult.Warnings — the dispatch's
 //     OverlayWarning slice carries the canonical PULSE_OVERLAY_* codes
-//     the per-kind handlers emit and the FacetResult's []string warnings
-//     surface absorbs each entry as a `<code>: <message>` line (matches
-//     the existing warning shape FacetSchema produces for top-K
-//     truncation and label-collision diagnostics — the FacetResult
-//     warnings slot is structurally []string today; future work may
-//     widen it to []*ResponseWarning).
+//     the per-kind handlers emit, and each entry lands on
+//     FacetResult.Warnings as a coded {code, message, details}
+//     ResponseWarning — the shape of the top-K truncation and label
+//     diagnostics beside it.
 //
 // Streaming-vs-buffered byte-identity: the per-handler streamability flag
 // (types.OverlayStreamability) classifies INDEX_VS_POP / ZSCORE_VS_POP as
@@ -154,7 +153,7 @@ func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetReques
 		}
 		layers = append(layers, dispatched...)
 		for _, w := range warnings {
-			result.Warnings = append(result.Warnings, formatOverlayWarning(w))
+			result.Warnings = append(result.Warnings, &types.ResponseWarning{Code: w.Code, Message: w.Message, Details: w.Details})
 		}
 	}
 
@@ -177,6 +176,7 @@ func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetReques
 // mirror surfaces a coded error when a caller bypassed predict and
 // dispatched directly into FacetSchema with an unresolved spec.
 func resolveFacetOverlayHostFieldRuntime(req *types.FacetRequest, spec *types.OverlaySpec, index int) (string, error) {
+	paramread.Read(paramread.Overlay, string(spec.Kind), "field")
 	requested, hasParam := readFacetOverlayFieldParamRuntime(spec.Params)
 	if hasParam {
 		for _, name := range req.Fields {
@@ -279,22 +279,4 @@ func (c *populationCache) populationResult(ctx context.Context, s *Service, coho
 	}
 	c.byKey[key] = popResult
 	return popResult, nil
-}
-
-// formatOverlayWarning renders an OverlayWarning as a single warning
-// line for FacetResult.Warnings. The FacetResult warnings slot is
-// []string today (the per-field accumulator warnings about top-K
-// truncation use the same shape); the line carries `<code>: <message>`
-// so a caller surfacing FacetResult.Warnings into a UI sees the
-// canonical PULSE_OVERLAY_* code alongside the human-readable summary.
-// String concatenation only — no fmt.Sprintf per the descriptor /
-// processing no-fmt-Sprintf ban (mirrored here for grep parity).
-func formatOverlayWarning(w types.OverlayWarning) string {
-	if w.Code == "" {
-		return w.Message
-	}
-	if w.Message == "" {
-		return w.Code
-	}
-	return w.Code + ": " + w.Message
 }

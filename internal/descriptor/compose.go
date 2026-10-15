@@ -1362,6 +1362,9 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 	// Strict refuses here — before any record is read and before its
 	// field references; the root's Strict pass promotes it).
 	addMetricUnsuitedAt(env, slot, schema, key, idx)
+	// Every FEAT_TARGET_ENCODE: the runtime's Process repeats predict's
+	// leakage warning, and under Strict refuses with it (#309).
+	addTargetLeakageAt(env, slot, opts.instance(), key, idx)
 	if len(keyRefusals) > 0 {
 		for _, ce := range keyRefusals {
 			addCodedError(env, RefusalAt(ce, key, idx))

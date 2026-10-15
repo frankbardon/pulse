@@ -37,9 +37,9 @@ pulse api facet --input PATH --field NAME [--json]
 
 | Flag | Alias | Type | Default | Purpose |
 |---|---|---|---|---|
-| `--input`          | `-i` | string | (required for simple mode) | Cohort `.pulse` file path |
+| `--input`          | `-i` | string | (required for simple mode) | Cohort `.pulse` file path; replaces a `--request` file's `cohort` (filename and `data_dir`) |
 | `--field`          | `-f` | string | (required for simple mode) | Field name to facet on; repeat for rich mode |
-| `--request`        | `-r` | string | (none) | Full `FacetRequest` JSON file (overrides individual flags) |
+| `--request`        | `-r` | string | (none) | Full `FacetRequest` JSON file; individual flags layer on top of (override) it |
 | `--top-k`          |      | int    | 0      | Cap discrete values per field (rich mode) |
 | `--percentile`     |      | float  | (none) | Numeric percentile in `(0, 1)`; repeatable (rich mode) |
 | `--histogram`      |      | bool   | false  | Include numeric histograms (rich mode) |
@@ -91,8 +91,11 @@ expect memory proportional to distinct value count.
 
 | Code | Meaning |
 |---|---|
-| 0 | Success |
-| 1 | File not found, field name not found, or unsupported version |
+| 0 | Success (warnings allowed) |
+| 1 | File not found, field name not found, or unsupported version — in the envelope's `errors` under `--json` |
+| 2 | Usage error (unknown flag, malformed value, missing required flag); no envelope |
+
+See [Exit status](flags.md#exit-status): under `--json` a fatal error is the envelope's `errors` (exit 1); warnings alone exit 0.
 
 ## Examples
 

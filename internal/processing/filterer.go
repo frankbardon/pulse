@@ -1,7 +1,6 @@
 package processing
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -9,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -218,8 +218,9 @@ func (f *dateRangesFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 	}
 
 	var params dateRangesFilterParams
+	paramread.Declare(paramread.Filterer, string(filter.Type), &params)
 	if len(filter.Params) > 0 {
-		if err := json.Unmarshal(filter.Params, &params); err != nil {
+		if err := paramread.Decode(paramread.Filterer, string(filter.Type), filter.Params, &params); err != nil {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("invalid FILTER_DATE_RANGES params: %v", err))
 		}

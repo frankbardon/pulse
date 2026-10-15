@@ -1,8 +1,6 @@
 package service
 
 import (
-	"fmt"
-
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -44,9 +42,9 @@ func (s *Service) validateFacetLabels(req *types.FacetRequest, schema *encoding.
 //     each Value is replaced with its label (or left raw on miss).
 //
 // Resolver warnings (PULSE_LABEL_COLLISION, PULSE_LABEL_LOOKUP_MISS)
-// are appended to FacetResult.Warnings as human-readable strings —
-// the typed-warning slot lives on Response, not FacetResult, and
-// FacetResult already documents Warnings as advisory diagnostics.
+// and one PULSE_LABEL_NOT_APPLIED per caller-authored binding on a field
+// the facet did not tally as discrete values are appended to FacetResult.Warnings as coded {code, message,
+// details} entries — the shape Response.Warnings carries them in.
 func (s *Service) applyFacetLabels(req *types.FacetRequest, result *types.FacetResult) error {
 	if result == nil || len(req.Labels) == 0 {
 		return nil
@@ -59,12 +57,18 @@ func (s *Service) applyFacetLabels(req *types.FacetRequest, result *types.FacetR
 		return nil
 	}
 
-	for _, b := range req.Labels {
+	var notApplied []*types.ResponseWarning
+	for i, b := range req.Labels {
 		if b == nil {
 			continue
 		}
 		field := result.Fields[b.Field]
 		if field == nil || field.Discrete == nil {
+			// A binding on a field the facet did not tally as discrete
+			// values reaches nothing: say so, never drop it silently.
+			if !isAutoBinding(b, s.autoLabels) {
+				notApplied = append(notApplied, labelNotApplied(i, b, labelReasonNoSurface))
+			}
 			continue
 		}
 		switch resolver.Mode(b.Field) {
@@ -82,8 +86,9 @@ func (s *Service) applyFacetLabels(req *types.FacetRequest, result *types.FacetR
 	}
 
 	for _, w := range resolver.Warnings() {
-		result.Warnings = append(result.Warnings, fmt.Sprintf("[%s] %s", w.Code, w.Message))
+		result.Warnings = append(result.Warnings, &types.ResponseWarning{Code: string(w.Code), Message: w.Message, Details: w.Details})
 	}
+	result.Warnings = append(result.Warnings, notApplied...)
 	return nil
 }
 

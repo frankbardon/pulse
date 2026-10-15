@@ -22,8 +22,9 @@ import (
 // stdout, where `--json` output and the MCP JSON-RPC transport live.
 const cliHelperEnv = "GO_WANT_PULSE_CLI_HELPER"
 
-// TestCLIHelperProcess is not a test: it runs buildApp on the arguments
-// after "--" and exits, when re-executed by runCLIProcess.
+// TestCLIHelperProcess is not a test: it runs main's body (run) on the
+// arguments after "--" and exits with its status, when re-executed by
+// runCLIProcess / cliProcess.
 func TestCLIHelperProcess(t *testing.T) {
 	if os.Getenv(cliHelperEnv) != "1" {
 		return
@@ -35,11 +36,8 @@ func TestCLIHelperProcess(t *testing.T) {
 			break
 		}
 	}
-	if err := buildApp().Run(context.Background(), append([]string{"pulse"}, args...)); err != nil {
-		_, _ = os.Stderr.WriteString("error: " + err.Error() + "\n")
-		os.Exit(1)
-	}
-	os.Exit(0)
+	// main's own body, so the subprocess exit status is the binary's.
+	os.Exit(run(context.Background(), append([]string{"pulse"}, args...), os.Stdout, os.Stderr))
 }
 
 func cliProcess(t *testing.T, args ...string) *exec.Cmd {

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/internal/twosample"
 	"github.com/frankbardon/pulse/internal/weighting"
@@ -140,7 +141,8 @@ func readMatrix(resp *types.Response) *types.MatrixPayload {
 // type. JSON numbers decode as float64 so the float64 arm is the hot
 // path; the int / int32 / int64 / float32 arms handle round-trip
 // shapes from programmatic callers.
-func scaleFromParams(params map[string]any, dflt float64) float64 {
+func scaleFromParams(kind types.OverlayKind, params map[string]any, dflt float64) float64 {
+	paramread.Read(paramread.Overlay, string(kind), "scale")
 	if params == nil {
 		return dflt
 	}
@@ -168,7 +170,8 @@ func scaleFromParams(params map[string]any, dflt float64) float64 {
 // Unknown values fall back to "matrix" so a typo never produces a
 // surprise — the canonical-code dispatch surfaces unknown population
 // modes via a layer-level warning at handler entry instead.
-func populationFromParams(params map[string]any) string {
+func populationFromParams(kind types.OverlayKind, params map[string]any) string {
+	paramread.Read(paramread.Overlay, string(kind), "population")
 	if params == nil {
 		return "matrix"
 	}
@@ -198,6 +201,7 @@ type twoSampleLegs struct {
 
 func newTwoSampleLegs(spec *types.ComposeOverlaySpec, refIdx, targetIdx int) *twoSampleLegs {
 	l := &twoSampleLegs{spec: spec, refIdx: refIdx, targetIdx: targetIdx}
+	paramread.Read(paramread.Overlay, string(spec.Kind), twosample.ParamKeys()...)
 	l.varTarget, l.nTarget, l.missTarget = twosample.Inputs(spec.Params, twosample.Target)
 	l.varRef, l.nRef, l.missRef = twosample.Inputs(spec.Params, twosample.Reference)
 	return l
@@ -350,7 +354,7 @@ func applyIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 			})
 	}
 
-	scale := scaleFromParams(spec.Params, 100.0)
+	scale := scaleFromParams(spec.Kind, spec.Params, 100.0)
 	refLookup := buildMatrixCellLookup(refMx)
 
 	rowCount := len(targetMx.RowKeys)
@@ -1237,7 +1241,7 @@ func applyRank(spec *types.ComposeOverlaySpec, reference *types.Response, target
 			})
 	}
 
-	population := populationFromParams(spec.Params)
+	population := populationFromParams(spec.Kind, spec.Params)
 	rowCount := len(targetMx.RowKeys)
 	colCount := len(targetMx.ColumnKeys)
 	cells := buildEmptyMatrixLike(rowCount, colCount)

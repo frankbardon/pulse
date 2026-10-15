@@ -155,8 +155,13 @@ type InspectFieldGroup struct {
 
 // InspectField describes a single field in the inspect output.
 type InspectField struct {
-	Name              string          `json:"name"`
-	Type              string          `json:"type"`
+	Name string `json:"name"`
+	Type string `json:"type"`
+	// Nullable reports the field's schema nullable flag: its cells may
+	// be null (the per-record null bitmap). Always present, false
+	// included — nullability is orthogonal to type, so the type name
+	// never says it.
+	Nullable          bool            `json:"nullable"`
 	ByteOffset        int             `json:"byte_offset"`
 	BitPosition       int             `json:"bit_position"`
 	Description       string          `json:"description"`

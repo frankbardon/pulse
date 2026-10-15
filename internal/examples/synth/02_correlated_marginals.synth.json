@@ -21,7 +21,7 @@
     }
   ],
   "correlations": [
-    { "a": "age", "b": "credit_score", "correlation": 0.4 },
-    { "a": "income", "b": "credit_score", "correlation": 0.6 }
+    { "a": "age", "b": "credit_score", "rho": 0.4 },
+    { "a": "income", "b": "credit_score", "rho": 0.6 }
   ]
 }

@@ -139,9 +139,7 @@ func TestLeaves_FatalCodedErrorKeepsItsCode(t *testing.T) {
 				var buf bytes.Buffer
 				root := lf.root()
 				root.Writer = &buf
-				if err := root.Run(context.Background(), lf.args(t, dir, cohort)); err != nil {
-					t.Fatalf("hard error instead of an envelope: %v", err)
-				}
+				wantEnvelopeFatal(t, root.Run(context.Background(), lf.args(t, dir, cohort)))
 				var env struct {
 					Errors []struct {
 						Code    string `json:"code"`

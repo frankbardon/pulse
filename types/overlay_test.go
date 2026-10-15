@@ -222,10 +222,22 @@ func TestOverlayLayer_WarningsFreeByteIdentical(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal populated Warnings OverlayLayer: %v", err)
 	}
-	if !contains(string(gotPopulated), `"Warnings"`) &&
-		!contains(string(gotPopulated), `"warnings"`) {
+	if !contains(string(gotPopulated), `"warnings"`) {
 		t.Fatalf("populated OverlayLayer must surface the warnings key: %s",
 			gotPopulated)
+	}
+	// Each entry is a coded {code, message, details} object — the shape
+	// of every other warning list — never the Go field names.
+	var shape struct {
+		Warnings []map[string]any `json:"warnings"`
+	}
+	if err := json.Unmarshal(gotPopulated, &shape); err != nil {
+		t.Fatalf("decode populated warnings: %v", err)
+	}
+	if w := shape.Warnings[0]; w["code"] != "PULSE_OVERLAY_REF_ZERO" ||
+		w["message"] != "reference cell is zero" || w["details"] == nil ||
+		w["Code"] != nil || w["Message"] != nil || w["Details"] != nil {
+		t.Fatalf("overlay warning entry = %v, want lowercase {code, message, details}", w)
 	}
 	// Round-trip the populated layer to confirm the entries survive.
 	var back types.OverlayLayer

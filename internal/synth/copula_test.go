@@ -46,7 +46,7 @@ func TestSynth_CopulaPreservesLognormalMarginal(t *testing.T) {
 			{Name: "b", Type: "f64", Distribution: synth.DistLogNormal,
 				Params: map[string]any{"mu": mu, "sigma": sigma}},
 		},
-		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Correlation: targetRho}},
+		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Rho: targetRho}},
 	}
 	data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 7})
 	if err != nil {
@@ -109,7 +109,7 @@ func TestSynth_CopulaNormalOnNormalIsExact(t *testing.T) {
 			{Name: "b", Type: "f64", Distribution: synth.DistNormal,
 				Params: map[string]any{"mean": 0.0, "std": 1.0}},
 		},
-		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Correlation: targetRho}},
+		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Rho: targetRho}},
 	}
 	data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 99})
 	if err != nil {

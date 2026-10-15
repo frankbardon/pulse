@@ -9,7 +9,7 @@ covers: [Request.Hash, StreamResult, Watch, WatchDir, FilterToFileWithRequest, C
 
 # Streaming & watching
 
-Primitives for deterministic identity, incremental output and reactive observation.
+Primitives for deterministic identity, incremental output, reactive observation.
 
 ## `Request.Hash()`
 
@@ -29,7 +29,7 @@ resp, _ := p.Process(ctx, req); cache.Set(key, resp)
 type StreamResult[T any] struct {
     Header StreamHeader              // RequestHash, EstimatedTotal (-1 unknown), StartedAt
     Chunks <-chan StreamChunk[T]     // 4-deep; producer never drops
-    Done   <-chan StreamTerminator   // CompletedAt, TotalRows, Status, Error
+    Done   <-chan StreamTerminator   // CompletedAt, TotalRows, Status, Error, Warnings
 }
 type StreamChunk[T any] struct {
     Sequence int; Data T; Progress float64
@@ -37,14 +37,14 @@ type StreamChunk[T any] struct {
 }
 ```
 
-Variants: `ProcessStreamResult` wraps `ProcessStream`; `SynthStream` wraps `synth.SynthBytes`.
+Variants: `ProcessStreamResult` wraps `ProcessStream`; `SynthStream` wraps `synth.SynthBytes`. Run-time warnings: iterator `Warnings()` when drained; CLI `--stream` ends with one `{"warnings":[...]}` line.
 
 ### Per-chunk + terminal `Components`
 
 What a chunk's `Components` holds depends on each operator's `mergeability` class — read it from `manifest.components_schemas`, never from the operator's name; predict flags every `none` slot `buffered_components: true` before you run.
 
 - **`mergeable`** — `operator` carries running state on every chunk. Rendering mid-stream is safe; the terminal chunk is authoritative.
-- **`partial`** — folds like mergeable but the state grows (maps / sets); a consumer may union chunk partials the way the engine does, or just wait for the terminal chunk.
+- **`partial`** — folds like mergeable but the state grows (maps / sets); union chunk partials as the engine does, or wait for the terminal chunk.
 - **`none`** — the operator needs the whole sorted input (medians, percentiles, quantile bands): non-terminal chunks carry the floor only (`n`, `n_null`; grouper `field`, `label`, `total_n`, `n_null`) with `operator` nil. MUST NOT merge non-terminal chunks.
 
 Identity: the terminal chunk's `Components` is `DeepEqual` to the buffered `Process` result's. With components disabled every chunk carries `nil`.
@@ -80,9 +80,9 @@ for ev := range ch { handle(ev.Kind, ev.Path, ev.Hash) }
 
 No pre-seed — pre-existing files surface as `ChangeCreated` on the first tick.
 
-`WatchOptions`: `PollInterval` (250 ms), `CoalesceWindow` (100 ms; `0` disables), `HashPrefixBytes` (64 KiB; `< 0` = whole file), `Recursive`, `Suffix` (`.pulse` for `WatchDir`). Network filesystems should raise `PollInterval` to ~30 s.
+`WatchOptions`: `PollInterval` (250 ms), `CoalesceWindow` (100 ms; `0` disables), `HashPrefixBytes` (64 KiB; `< 0` = whole file), `Recursive`, `Suffix` (`.pulse` for `WatchDir`). Network filesystems: raise `PollInterval` to ~30 s.
 
-Atomic-write coalescing: `Removed(temp) + Created(target)` folds into `ChangeRenamed(target)` when both share a directory, the temp looks like an editor/atomic-write temp name, and both fall inside `CoalesceWindow`.
+Atomic-write coalescing: `Removed(temp) + Created(target)` folds into `ChangeRenamed(target)` when both share a directory, the temp has an editor/atomic-write name, and both fall inside `CoalesceWindow`.
 
 ## `FilterToFileWithRequest`
 
@@ -121,7 +121,7 @@ A buffered overlay downgrades a streamable Process to buffered — price it as b
 
 ## Compose streaming vs. overlays
 
-`pulse api compose --stream` emits per-row NDJSON `{index, row}` and bypasses the envelope. The Compose-host overlay fold runs only at terminal flush — `ComposedResponse.Overlays[i]` + per-layer `Warnings` appear under `--json` (`data.overlays`) but are absent under `--stream`. Consumers needing Compose overlays MUST run buffered (`Pulse.Compose` / `ComposeParallel` return them on the `*ComposedResponse`, never on row events).
+`pulse api compose --stream` emits per-row NDJSON `{index, row}` and bypasses the envelope. The Compose-host overlay fold runs only at terminal flush — `ComposedResponse.Overlays[i]` + per-layer `Warnings` appear under `--json` (`data.overlays`) but are absent under `--stream`. Consumers needing Compose overlays MUST run buffered (`Pulse.Compose` / `ComposeParallel`).
 
 ## See
 

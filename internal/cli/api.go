@@ -3,13 +3,16 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
+	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/returnshape"
+	"github.com/frankbardon/pulse/internal/strictjson"
 	"github.com/frankbardon/pulse/types"
 	cli "github.com/urfave/cli/v3"
 )
@@ -42,7 +45,7 @@ func apiProcessCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Request JSON file path", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
-			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON (one row per line) instead of buffering"},
+			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON (one row per line) instead of buffering; a run that warned ends with one {\"warnings\":[...]} line"},
 			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
 			&cli.BoolFlag{Name: "strict", Usage: "Promote request-validation warnings into hard errors (e.g. numeric aggregation on a categorical field)"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized (post-defaults) request on the envelope under \"request\". Streaming output skips this — NDJSON has no envelope."},
@@ -91,7 +94,15 @@ func apiProcessCmd() *cli.Command {
 						return err
 					}
 					if !ok {
-						return nil
+						// A run that warned ends the stream with one
+						// {"warnings":[...]} record.
+						var ws []*types.ResponseWarning
+						if w, ok := iter.(interface {
+							Warnings() []*types.ResponseWarning
+						}); ok {
+							ws = w.Warnings()
+						}
+						return writeStreamWarnings(enc, runtimeWarnings(&types.Response{Warnings: ws}))
 					}
 					// A `return`-shaped stream writes each row at its
 					// precision; an unshaped one exactly as before.
@@ -114,7 +125,10 @@ func apiProcessCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				env := descriptor.NewEnvelope(resp)
+				// Run-time warnings (Response.Warnings) are promoted
+				// onto the envelope's top-level warnings; data keeps
+				// them too.
+				env := withRuntimeWarnings(descriptor.NewEnvelope(resp), resp)
 				// Process mutates req in place via service.applyDefaults,
 				// so by the time we reach here req is the normalized
 				// (post-defaults) form. Echo it verbatim — what the
@@ -177,7 +191,7 @@ func apiProcessChainCmd() *cli.Command {
 				if echoRequest && resp != nil && resp.NormalizedRequest != nil {
 					echoed = resp.NormalizedRequest
 				}
-				return writeEnvelopeWithRequest(cmd.Writer, resp, echoed)
+				return writeResultEnvelope(cmd.Writer, resp, echoed)
 			}
 			return writeJSON(cmd.Writer, resp)
 		},
@@ -191,7 +205,7 @@ func apiComposeCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Composed request JSON file path", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
-			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}; a ranked sweep ends with one {\"ranking\":[...]} line"},
+			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}; a batch that warned adds one {\"warnings\":[...]} line after the rows; a ranked sweep ends with one {\"ranking\":[...]} line"},
 			&cli.IntFlag{Name: "parallel", Usage: "Run requests concurrently with up to N workers (0 = GOMAXPROCS); 1 forces sequential", Value: 1},
 			&cli.BoolFlag{Name: "no-fail-fast", Usage: "Aggregate errors instead of cancelling on first failure (parallel only)"},
 			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
@@ -263,6 +277,12 @@ func apiComposeCmd() *cli.Command {
 						}
 					}
 				}
+				// A batch that warned adds one {"warnings":[...]}
+				// record after the rows (slot entries located by
+				// details.request).
+				if err := writeStreamWarnings(enc, runtimeWarnings(resp)); err != nil {
+					return err
+				}
 				// A ranked sweep ends the stream with one
 				// {"ranking":[...]} record, even when every slot was
 				// left out (an empty list).
@@ -286,7 +306,7 @@ func apiComposeCmd() *cli.Command {
 				if echoRequest && resp != nil && resp.NormalizedRequest != nil {
 					echoed = resp.NormalizedRequest
 				}
-				return writeEnvelopeWithRequest(cmd.Writer, resp, echoed)
+				return writeResultEnvelope(cmd.Writer, resp, echoed)
 			}
 
 			return writeJSON(cmd.Writer, resp)
@@ -477,7 +497,7 @@ func apiFacetCmd() *cli.Command {
 				if echoRequest {
 					echoed = req
 				}
-				return writeEnvelopeWithRequest(cmd.Writer, result, echoed)
+				return writeResultEnvelope(cmd.Writer, result, echoed)
 			}
 			return writeJSON(cmd.Writer, result)
 		},
@@ -497,16 +517,12 @@ func loadFacetRequest(path, input string, fields []string, topK int, pcts []floa
 		if err != nil {
 			return nil, fmt.Errorf("reading facet request file: %w", err)
 		}
-		if err := json.Unmarshal(data, req); err != nil {
-			return nil, fmt.Errorf("parsing facet request JSON: %w", err)
+		if err := decodeRequestJSON(data, req, "facet request"); err != nil {
+			return nil, err
 		}
 	}
 	if input != "" {
-		if req.Cohort == nil {
-			req.Cohort = &types.Cohort{Filename: input}
-		} else if req.Cohort.Filename == "" {
-			req.Cohort.Filename = input
-		}
+		req.Cohort = inputCohort(input)
 	}
 	if len(fields) > 0 {
 		req.Fields = fields
@@ -756,6 +772,15 @@ func writeMaterializeText(cmd *cli.Command, res *pulse.MaterializeResult) {
 	}
 }
 
+// inputCohort is the cohort an `-i/--input` flag names. The flag
+// REPLACES a request file's cohort outright — filename and data_dir —
+// so `-i x.pulse -r req.json` reads x.pulse whatever req.json names, as
+// the flag's help text says (#308). A data_dir left over from the file
+// would otherwise silently prefix the flag's path.
+func inputCohort(input string) *types.Cohort {
+	return &types.Cohort{Filename: input}
+}
+
 // loadLookupRequest constructs a LookupRequest either by parsing the
 // supplied --request JSON file or by composing one from the per-flag
 // shortcuts, mirroring loadFacetRequest's precedence: flag values layer
@@ -768,16 +793,12 @@ func loadLookupRequest(path, input string, keyArgs []string, returnCols, mode st
 		if err != nil {
 			return nil, fmt.Errorf("reading lookup request file: %w", err)
 		}
-		if err := json.Unmarshal(data, req); err != nil {
-			return nil, fmt.Errorf("parsing lookup request JSON: %w", err)
+		if err := decodeRequestJSON(data, req, "lookup request"); err != nil {
+			return nil, err
 		}
 	}
 	if input != "" {
-		if req.Cohort == nil {
-			req.Cohort = &types.Cohort{Filename: input}
-		} else if req.Cohort.Filename == "" {
-			req.Cohort.Filename = input
-		}
+		req.Cohort = inputCohort(input)
 	}
 	if len(keyArgs) > 0 {
 		keys, err := parseLookupKeys(keyArgs)
@@ -846,8 +867,8 @@ func loadRequest(path string) (*types.Request, error) {
 		return nil, fmt.Errorf("reading request file: %w", err)
 	}
 	var req types.Request
-	if err := json.Unmarshal(data, &req); err != nil {
-		return nil, fmt.Errorf("parsing request JSON: %w", err)
+	if err := decodeRequestJSON(data, &req, "request"); err != nil {
+		return nil, err
 	}
 	return &req, nil
 }
@@ -858,8 +879,8 @@ func loadComposedRequest(path string) (*types.ComposedRequest, error) {
 		return nil, fmt.Errorf("reading request file: %w", err)
 	}
 	var req types.ComposedRequest
-	if err := json.Unmarshal(data, &req); err != nil {
-		return nil, fmt.Errorf("parsing composed request JSON: %w", err)
+	if err := decodeRequestJSON(data, &req, "composed request"); err != nil {
+		return nil, err
 	}
 	return &req, nil
 }
@@ -870,8 +891,23 @@ func loadChainRequest(path string) (*types.ChainRequest, error) {
 		return nil, fmt.Errorf("reading request file: %w", err)
 	}
 	var req types.ChainRequest
-	if err := json.Unmarshal(data, &req); err != nil {
-		return nil, fmt.Errorf("parsing chain request JSON: %w", err)
+	if err := decodeRequestJSON(data, &req, "chain request"); err != nil {
+		return nil, err
 	}
 	return &req, nil
+}
+
+// decodeRequestJSON decodes a request file's bytes into out through the
+// shared strict decoder (internal/strictjson), as MCP does: an unknown
+// key at any depth is the coded PULSE_REQUEST_UNKNOWN_FIELD refusal
+// (details.path, suggestions, valid_keys), returned unwrapped so the
+// envelope carries its own code; a root `_meta` example block is
+// tolerated. Any other fault is the JSON error, wrapped with what.
+func decodeRequestJSON(data []byte, out any, what string) error {
+	err := strictjson.DecodeInto(data, out, strictjson.Options{AllowMeta: true})
+	var ce *perr.CodedError
+	if err == nil || errors.As(err, &ce) {
+		return err
+	}
+	return fmt.Errorf("parsing %s JSON: %w", what, err)
 }

@@ -220,7 +220,7 @@ type ConstraintSpec = isynth.ConstraintSpec
 type ContingencyCell = isynth.ContingencyCell
 
 // CorrelationSpec declares a target Pearson correlation between two
-// numeric fields.
+// numeric fields; its wire key is `rho` (the profile's spelling).
 type CorrelationSpec = isynth.CorrelationSpec
 
 // CorrelationStat is a captured pairwise correlation entry.
@@ -789,7 +789,7 @@ type Spec = isynth.Spec
 
 // VectorCorrelationSpec is one inter-element correlation: elements A and
 // B (1-based, distinct) at target Pearson correlation in [-1, 1] on the
-// latent (copula) scale.
+// latent (copula) scale; its wire key is `rho`.
 type VectorCorrelationSpec = isynth.VectorCorrelationSpec
 
 // VectorCorrelationStat is one measured element pair: 1-based elements
@@ -859,8 +859,10 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 	return isynth.SpecFromProfile(p, rowCount)
 }
 
-// ParseSpec parses Spec JSON. It returns SERVICE_VALIDATION if the shape
-// is wrong.
+// ParseSpec strictly parses Spec JSON. An unknown key at any depth, or a
+// params key the field's distribution does not read, is refused
+// PULSE_REQUEST_UNKNOWN_FIELD with details.path and a suggestion; any
+// other malformed shape is SERVICE_VALIDATION.
 func ParseSpec(raw []byte) (*Spec, error) {
 	return isynth.ParseSpec(raw)
 }

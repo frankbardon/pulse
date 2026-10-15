@@ -8,7 +8,7 @@ Raw `p_value` / `reject_null` never change, and a request with no block
 
 ```json
 {
-  "cohort": "survey",
+  "cohort": {"filename": "survey.pulse"},
   "tests": [
     {"type": "TEST_T", "field": "score", "split_by": "arm"},
     {"type": "TEST_PROP_Z", "field": "converted", "split_by": "arm"}

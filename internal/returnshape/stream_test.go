@@ -98,3 +98,41 @@ func TestRowIter_NeverMutatesInner(t *testing.T) {
 		t.Errorf("inner metadata mutated: %+v", src.meta)
 	}
 }
+
+// warnSource is a fakeSource that also carries run-time warnings.
+type warnSource struct {
+	fakeSource
+	ws []*types.ResponseWarning
+}
+
+func (w *warnSource) Warnings() []*types.ResponseWarning { return w.ws }
+
+// TestRowIter_ForwardsWarnings: a shaped stream forwards the inner
+// iterator's run-time warnings exactly when the buffered shaped
+// response would keep `warnings` — kept by default under any
+// selection, dropped only when excluded.
+func TestRowIter_ForwardsWarnings(t *testing.T) {
+	ws := []*types.ResponseWarning{{Code: "PULSE_FEAT_TARGET_LEAKAGE_RISK", Message: "m"}}
+	for _, tc := range []struct {
+		name string
+		ret  *types.Return
+		want []*types.ResponseWarning
+	}{
+		{"kept", &types.Return{Exclude: []string{"metadata"}}, ws},
+		{"preset", &types.Return{Preset: types.ReturnPresetMinimal}, ws},
+		{"excluded", &types.Return{Exclude: []string{"warnings"}}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			it := returnshape.NewRowIter(&warnSource{ws: ws}, planFor(t, tc.ret))
+			w, ok := it.(interface {
+				Warnings() []*types.ResponseWarning
+			})
+			if !ok {
+				t.Fatalf("shaped iterator %T has no Warnings accessor", it)
+			}
+			if got := w.Warnings(); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("Warnings() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

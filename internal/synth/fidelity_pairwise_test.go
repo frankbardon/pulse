@@ -42,7 +42,7 @@ func TestBuildPairwise_ComputesDeltaAgainstSourceRho(t *testing.T) {
 			{Name: "b", Type: "f64", Distribution: synth.DistNormal,
 				Params: map[string]any{"mean": 20.0, "std": 5.0}},
 		},
-		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Correlation: sourceRho}},
+		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Rho: sourceRho}},
 	}
 	res, err := synth.AugmentFromProfile(fs, spec, "/source.pulse", "/augmented.pulse", synth.Options{Seed: 62})
 	if err != nil {
@@ -110,7 +110,7 @@ func TestBuildPairwise_ErrorWhenSyntheticPartitionDegenerate(t *testing.T) {
 			{Name: "b", Type: "f64", Distribution: synth.DistNormal,
 				Params: map[string]any{"mean": 20.0, "std": 5.0}},
 		},
-		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Correlation: sourceRho}},
+		Correlations: []synth.CorrelationSpec{{A: "a", B: "b", Rho: sourceRho}},
 	}
 	res, err := synth.AugmentFromProfile(fs, spec, "/source.pulse", "/augmented.pulse", synth.Options{Seed: 64})
 	if err != nil {
@@ -123,7 +123,7 @@ func TestBuildPairwise_ErrorWhenSyntheticPartitionDegenerate(t *testing.T) {
 	schema, records := splitCohortForPairwiseTest(t, data)
 
 	report := &synth.FidelityReport{}
-	degenerate := []synth.CorrelationSpec{{A: "a", B: synth.SyntheticFieldName, Correlation: 0.5}}
+	degenerate := []synth.CorrelationSpec{{A: "a", B: synth.SyntheticFieldName, Rho: 0.5}}
 	synth.BuildPairwise(report, schema, records, degenerate, nil)
 
 	if len(report.Pairwise) != 1 {

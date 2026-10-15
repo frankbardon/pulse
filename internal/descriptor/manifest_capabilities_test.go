@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"slices"
+	"sort"
 	"strings"
 	"testing"
 
@@ -289,6 +290,32 @@ func TestManifestDistributionsComplete(t *testing.T) {
 	}
 	if len(set) != len(synth.AllDistributions()) {
 		t.Errorf("manifest distribution count = %d, want %d", len(set), len(synth.AllDistributions()))
+	}
+}
+
+// TestDistributionParamsMatchManifest: the manifest's per-distribution
+// Param lists are the declared params allowlist, and the synth spec
+// validator refuses params against synth.DistributionParamKeys (synth
+// cannot import this package). The two must be the same key set per
+// distribution, or a documented key is refused or an undocumented one
+// accepted. What the samplers actually read is held to the synth list
+// by TestDistributionParamsDeclaredMatchRead (internal/synth).
+func TestDistributionParamsMatchManifest(t *testing.T) {
+	for _, d := range BuildManifest().SynthDistributions {
+		want, ok := synth.DistributionParamKeys(d.Name)
+		if !ok {
+			t.Errorf("manifest distribution %q has no synth params allowlist", d.Name)
+			continue
+		}
+		got := make([]string, 0, len(d.Params))
+		for _, p := range d.Params {
+			got = append(got, p.Name)
+		}
+		sort.Strings(got)
+		sort.Strings(want)
+		if !slices.Equal(got, want) {
+			t.Errorf("distribution %q: manifest params %v, synth allowlist %v", d.Name, got, want)
+		}
 	}
 }
 

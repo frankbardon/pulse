@@ -48,9 +48,11 @@ refused. This is a purpose-built substitution, not an expression
 language and not the stored-template surface: it runs before the body
 is decoded.
 
-The substituted body decodes **strictly** into a `Request`: an unknown
-key or a wrong-typed value fails with `PULSE_SWEEP_INVALID`, reason
-`request_decode`, even where a plain compose body would ignore it.
+The substituted body decodes **strictly** into a `Request`, exactly as a
+plain compose slot does: an unknown key fails with
+`PULSE_REQUEST_UNKNOWN_FIELD` (`details.path`, a nearest-key suggestion,
+plus the sweep `slot` and its axis `values`), and a wrong-typed value
+fails with `PULSE_SWEEP_INVALID`, reason `request_decode`.
 
 ## Labels
 

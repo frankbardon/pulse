@@ -65,7 +65,7 @@ func TestTrainTestSplitName_NamesOnlyOffered(t *testing.T) {
 	if got := trainTestSplitName(nil); got != "FEAT_TRAIN_TEST_SPLIT" {
 		t.Errorf("unscoped = %q", got)
 	}
-	if got := trainTestSplitName(&PredictOptions{Instance: scopedExcept("FEAT_TRAIN_TEST_SPLIT")}); got != "train/test split" {
+	if got := trainTestSplitName(scopedExcept("FEAT_TRAIN_TEST_SPLIT")); got != "train/test split" {
 		t.Errorf("hidden = %q", got)
 	}
 }

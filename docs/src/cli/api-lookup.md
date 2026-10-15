@@ -31,7 +31,7 @@ pulse api lookup --input PATH --key FIELD=VALUE [--key FIELD=VALUE ...]
 
 | Flag | Alias | Type | Default | Purpose |
 |---|---|---|---|---|
-| `--input`         | `-i` | string | (required unless `--request`) | Cohort `.pulse` file path |
+| `--input`         | `-i` | string | (required unless `--request`) | Cohort `.pulse` file path; replaces a `--request` file's `cohort` (filename and `data_dir`) |
 | `--key`           | `-k` | string | (required unless `--request`) | `field=value` pair; repeat for a composite key, in the same column order the sidecar index was built with |
 | `--return`        |      | string | (none) | Comma-separated field names to project into each result row; omit for every schema field |
 | `--mode`          |      | string | `assert-unique` | Multiplicity when the key matches more than one row: `assert-unique` (errors `PULSE_LOOKUP_AMBIGUOUS`), `first`, or `all` |
@@ -62,7 +62,9 @@ a set.
 ```
 
 `rows` carries one entry under the default `assert-unique` mode or
-`first`; 1..N entries, ascending row-id order, under `all`.
+`first`; 1..N entries, ascending row-id order, under `all`. Cells render
+as [`api sample`](api-sample.md) renders them: `decimal128` a string,
+`date` `YYYY-MM-DD`, `datetime` RFC 3339 UTC (`…Z`).
 
 ## Keyable-type policy
 
@@ -75,6 +77,10 @@ multi-select bitmask has no single unambiguous equality value; use a
 `FILTER_SET` predicate via `pulse api process` instead.
 
 ## Exit codes / coded errors
+
+Exit status: 0 on a hit, 1 on any coded error below (in the envelope's
+`errors` under `--json`), 2 on a usage error — see [Exit
+status](flags.md#exit-status).
 
 | Code | Meaning |
 |---|---|

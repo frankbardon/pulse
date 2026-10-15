@@ -27,6 +27,9 @@ func TestSweep_ImportBoundary(t *testing.T) {
 		modulePrefix + "/types":             true,
 		modulePrefix + "/errors":            true,
 		modulePrefix + "/internal/template": true,
+		// The shared strict request decoder (leaf: stdlib + types +
+		// errors; TestStrictJSON_ImportBoundary).
+		modulePrefix + "/internal/strictjson": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -45,7 +48,7 @@ func TestSweep_ImportBoundary(t *testing.T) {
 		for _, imp := range f.Imports {
 			path, _ := strconv.Unquote(imp.Path.Value)
 			if strings.Contains(path, ".") && !allowedDirect[path] {
-				t.Errorf("%s imports %q; internal/sweep may import only the standard library, types, errors and internal/template", name, path)
+				t.Errorf("%s imports %q; internal/sweep may import only the standard library, types, errors, internal/template and internal/strictjson", name, path)
 			}
 		}
 	}

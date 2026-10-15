@@ -1,12 +1,12 @@
 package formulaident
 
 import (
-	"encoding/json"
 	"math"
 
 	exprparser "github.com/expr-lang/expr/parser"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -71,6 +71,7 @@ func RequestSpecRefusal(spec *types.OverlaySpec, index int, shape types.OverlayS
 	baseline := false
 	if shape == types.OverlayShapeSeries {
 		var bad bool
+		paramread.Read(paramread.Overlay, kind, BaselineParam)
 		_, baseline, bad = BaselinePosition(params)
 		if bad {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
@@ -91,10 +92,11 @@ func requestParams(spec *types.OverlaySpec, index int) (map[string]any, *errors.
 			index, ReasonMissingFormula)
 	}
 	var m map[string]any
-	if err := json.Unmarshal(spec.Params, &m); err != nil {
+	if err := paramread.Decode(paramread.Overlay, kind, spec.Params, &m); err != nil {
 		return nil, MissingFormula(kind, "overlay "+kind+" Params must be a JSON object carrying \"formula\"",
 			index, "params is not a JSON object")
 	}
+	paramread.Read(paramread.Overlay, kind, "formula")
 	return m, nil
 }
 
@@ -141,9 +143,10 @@ func SpecBaselinePosition(spec *types.OverlaySpec) (position int, set bool) {
 		return 0, false
 	}
 	var m map[string]any
-	if err := json.Unmarshal(spec.Params, &m); err != nil {
+	if err := paramread.Decode(paramread.Overlay, string(spec.Kind), spec.Params, &m); err != nil {
 		return 0, false
 	}
+	paramread.Read(paramread.Overlay, string(spec.Kind), BaselineParam)
 	position, set, bad := BaselinePosition(m)
 	return position, set && !bad
 }
