@@ -64,6 +64,13 @@ type ImportReport struct {
 	// declared group passed. Under ImportJob.StrictDedup a finding is
 	// returned as Run's error instead and there is no report.
 	GroupWarnings []*errors.CodedError `json:"GroupWarnings,omitempty"`
+	// DroppedWarnings carries the one PULSE_IMPORT_ROWS_DROPPED warning
+	// a PARTIAL import raises — some rows imported, len(RowErrors)
+	// skipped — with dropped / imported / first_failure {row, column,
+	// reason} in Details. Empty (and omitted from JSON) when no row was
+	// dropped. Under ImportJob.StrictRows the warning is Run's error
+	// instead and there is no report.
+	DroppedWarnings []*errors.CodedError `json:"DroppedWarnings,omitempty"`
 }
 
 // ExportReport summarizes the result of an export operation.
@@ -126,6 +133,13 @@ type ConvertReport struct {
 	// ConvertJob.DSTPolicy of earlier / later raises when it resolved a
 	// source-zone local time (see ImportReport.ZoneWarnings).
 	ZoneWarnings []*errors.CodedError `json:"ZoneWarnings,omitempty"`
+	// DroppedWarnings carries a PULSE_IMPORT_ROWS_DROPPED warning per
+	// stage that dropped rows: details.stage "target" for rows the
+	// target Writer refused (RowErrors), "keep_pulse" for rows the
+	// KeepPulseAt intermediate import skipped. Empty (and omitted from
+	// JSON) when nothing was dropped. Under ConvertJob.StrictRows the
+	// first is Run's error instead and there is no report.
+	DroppedWarnings []*errors.CodedError `json:"DroppedWarnings,omitempty"`
 }
 
 // RowError records a per-row error during import or export.
@@ -193,6 +207,10 @@ type PredictReport struct {
 	// error too, and StrictDedup fails Predict as it fails Run.
 	Groups        []GroupReport        `json:"Groups,omitempty"`
 	GroupWarnings []*errors.CodedError `json:"GroupWarnings,omitempty"`
+	// DroppedWarnings is what ImportReport.DroppedWarnings would carry
+	// (the measured pass converts every row as Run does), and
+	// StrictRows fails Predict as it fails Run.
+	DroppedWarnings []*errors.CodedError `json:"DroppedWarnings,omitempty"`
 	// ElidedConstants names what ElideConstants would elide.
 	ElidedConstants []string `json:"ElidedConstants,omitempty"`
 	// GroupCandidates is the SuggestGroups detection report.
@@ -358,6 +376,13 @@ type ImportJob struct {
 	// PULSE_DEDUP_LOW_RATIO) and writes nothing. It governs the gate
 	// only — other import warnings are unaffected.
 	StrictDedup bool
+	// StrictRows makes a PARTIAL import fatal: when some rows import
+	// and some are skipped as row errors, Run (and a measured Predict)
+	// returns the PULSE_IMPORT_ROWS_DROPPED warning as its error and
+	// writes nothing. Off, the warning rides
+	// ImportReport.DroppedWarnings beside RowErrors. CLI `--strict`;
+	// the pulse facade also sets it under Options.Strict.
+	StrictRows bool
 	// SuggestGroups makes Predict detect candidate parent groups —
 	// single-field keys and the fields they determine — and measure
 	// each over the full row pass (PredictReport.GroupCandidates). It
@@ -514,6 +539,13 @@ type ConvertJob struct {
 	// PULSE_IMPORT_FLOAT_WIDTH_INVALID. See ImportJob.FloatWidth. CLI
 	// `--float`.
 	FloatWidth string
+	// StrictRows makes a PARTIAL convert fatal, as ImportJob.StrictRows
+	// does an import: rows the target refused, or rows the KeepPulseAt
+	// intermediate import skipped, fail Run with
+	// PULSE_IMPORT_ROWS_DROPPED instead of riding
+	// ConvertReport.DroppedWarnings. CLI `--strict`; the pulse facade
+	// also sets it under Options.Strict.
+	StrictRows bool
 	// Includes restricts the export half to the named schema fields,
 	// in schema order. Nil / empty means write every field. The
 	// intermediate .pulse file (when KeepPulseAt is set) always

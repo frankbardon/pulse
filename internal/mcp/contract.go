@@ -174,7 +174,11 @@ type ImportSchemaField struct {
 // not: neither changes a byte written — the floor only decides whether
 // PULSE_DEDUP_LOW_RATIO is raised (at the default 2.0) and strict only
 // promotes that warning to a failure — so an agent reading group_warnings
-// already holds both. Constant elision is absent for the same reason as
+// already holds both. A partial import is the same case: rows_dropped and
+// the PULSE_IMPORT_ROWS_DROPPED entry on dropped_warnings say what was
+// skipped, and a server built with Options.Strict refuses it outright
+// (pulse.ImportFile sets imports.Spec.StrictRows), so there is no per-call
+// strict slot either. Constant elision is absent for the same reason as
 // spss_missing's opposite: its value is at-rest bytes, and a managed
 // import is a transient TTL'd cache file.
 

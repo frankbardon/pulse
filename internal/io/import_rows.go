@@ -118,7 +118,7 @@ func (c *rowConverter) convert(rowNum int, row []string, declaredNulls []bool) *
 			Err: errors.NewCodedErrorWithDetails(
 				errors.PULSE_IMPORT_ROW_ERROR,
 				fmt.Sprintf("row %d, column %q: %s", rowNum, f.Name, msg),
-				map[string]any{"row": rowNum, "column": f.Name},
+				map[string]any{"row": rowNum, "column": f.Name, "reason": msg},
 			),
 		}
 	}

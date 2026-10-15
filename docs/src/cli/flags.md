@@ -137,9 +137,10 @@ validation (every warning the leaf reports becomes an error); on
 `api process` it refuses to execute. Useful in CI gates that want the strictest possible
 validation.
 
-`import <format>` also takes `--strict`, with a narrower meaning: it
-escalates the parent-group viability warnings only — see
-[`--strict` (import)](#--strict-import).
+`import <format>`, `import auto` and `convert` also take `--strict`,
+with an import meaning: it escalates a partial import
+(`PULSE_IMPORT_ROWS_DROPPED`) and, on `import <format>`, the parent-group
+viability warnings — see [`--strict` (import)](#--strict-import).
 
 ### `--echo-request`
 
@@ -239,7 +240,7 @@ boundary. Absent the flag the document is byte-identical. See
 
 Available on: `import csv`, `import tsv`, `import ndjson`,
 `import jsonarray`, `import parquet`, `import arrow`, `import excel`,
-`import spss`, `import predict`, `convert`.
+`import spss`, `import predict`, `import auto`, `convert`.
 
 `--schema FILE` supplies an explicit schema (a JSON array of
 `{name, type, description, nullable}`, plus `precision` / `scale` on a
@@ -280,7 +281,8 @@ unknown entry key or a schema on a `.pulse` source).
 
 Available on: `import csv`, `import tsv`, `import ndjson`,
 `import jsonarray`, `import parquet`, `import arrow`, `import excel`,
-`import spss`, `import predict`, `import schema-template`, `convert`.
+`import spss`, `import predict`, `import schema-template`, `import auto`,
+`convert`.
 
 The width schema inference gives an all-float column: `f64` (the
 default) keeps every decimal the source wrote exact, so `0.1` and
@@ -294,8 +296,8 @@ value refuses the run with `PULSE_IMPORT_FLOAT_WIDTH_INVALID` (`value`,
 that carries its own schema (Arrow, Parquet, SPSS); a managed import's
 `column_type_overrides` still forces a column's type either way.
 Library: `ImportJob.FloatWidth` / `ConvertJob.FloatWidth` (`"f64"`,
-`"f32"`; `""` is `f64`). `import auto` and `pulse_import` take no
-float knob and infer `f64`.
+`"f32"`; `""` is `f64`; `ImportSpec.FloatWidth` on the managed pool,
+`float` on `pulse_import`).
 
 ### `--elide-constants`
 
@@ -323,8 +325,9 @@ Available on: `import csv`, `import tsv`, `import ndjson`,
 group per flag. On `import auto` the group is judged at the default
 ratio floor and its findings are always warnings (`--json` puts them in
 `warnings`, the per-group figures under `data.groups`); the floor and
-`--strict` stay on the per-format leaves, since neither changes the
-bytes written.
+the group findings' `--strict` stay on the per-format leaves, since
+neither changes the bytes written (`import auto --strict` escalates a
+partial import only).
 On `import predict` the declaration is evaluated, not applied: see
 [`--suggest-groups`](#--suggest-groups).
 
@@ -472,13 +475,28 @@ written either way unless `--strict` is set.
 
 ### `--strict` (import)
 
-Available on: every `import <format>` leaf, and `import predict` (which
-then fails where the import would).
+Available on: every `import <format>` leaf, `import auto`, `convert`, and
+`import predict` (which then fails where the import would).
 
-Turns the parent-group viability warnings (`PULSE_GROUP_TOO_NARROW`,
-`PULSE_DEDUP_LOW_RATIO`) into errors: the import fails with that code
-(`errors[0].code` under `--json`) and writes nothing. Other import
-warnings are unaffected.
+A PARTIAL import — some rows imported, some skipped as
+`PULSE_IMPORT_ROW_ERROR` (a null in a non-nullable field, a value the
+type cannot hold) — is a warning by default: the good rows are written
+and the envelope `warnings` carries one `PULSE_IMPORT_ROWS_DROPPED` with
+`dropped`, `imported` and `first_failure` `{row, column, reason}` in
+`details` (`data.DroppedWarnings`; `rows_dropped` / `dropped_warnings`
+on `import auto`). `convert` adds `stage`: `target` for rows the target
+writer refused, `keep_pulse` for rows the `--keep-pulse` intermediate
+skipped. `--strict` turns it into the fatal error (exit 1,
+`errors[0].code`) and nothing is written. `import predict --strict`
+fails the same way when its measured pass (`--group`,
+`--elide-constants`, `--suggest-groups`) would drop rows. Library:
+`ImportJob` / `ConvertJob` / `ImportSpec` `StrictRows`, and any instance
+built with `Options.Strict` (which `pulse_import` inherits).
+
+On `import <format>` and `import predict` it also turns the parent-group
+viability warnings (`PULSE_GROUP_TOO_NARROW`, `PULSE_DEDUP_LOW_RATIO`)
+into errors: the import fails with that code and writes nothing. Other
+import warnings are unaffected.
 Groups are named in errors and output by position and key
 (`group 1 [key: cust_id]`) — the format stores no group name. Each group
 is printed with its distinct-tuple count, and reported under `Groups`
@@ -701,7 +719,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse features init` | Print strict feature-profile JSON listing every feature this build offers, or `--from NAME` seeded from an example feature profile | [feature profiles](../library/feature-profiles.md) |
 | `pulse features show` | Describe every feature a feature profile lists: kind, category, source, since and dependencies | [feature profiles](../library/feature-profiles.md) |
 | `pulse import arrow` | Import Arrow IPC into `.pulse` | `--help` |
-| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--group` parent-group declarations, `--vector` / `--vector-kind` vector folds, `--source-tz` / `--dst-policy`, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
+| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--schema` / `--ignore-extra` / `--float` as on `import <format>`, `--strict` (a partial import is fatal), `--group` parent-group declarations, `--vector` / `--vector-kind` vector folds, `--source-tz` / `--dst-policy`, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
 | `pulse import csv` | Import CSV into `.pulse` | `--help` |
 | `pulse import drop` | Remove a managed-import handle | `--help` |
 | `pulse import excel` | Import Excel into `.pulse` | `--help` |

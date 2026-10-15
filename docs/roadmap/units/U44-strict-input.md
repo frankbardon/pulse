@@ -41,7 +41,7 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 - [x] **#301** (Strict input) Unknown keys are refused at every request root and nested spec (sort entries, slot `params`, grouper, overlay and test params, Compose / Chain / Facet roots) in predict and process, with a did-you-mean suggestion; the CLI path matches the MCP strict decode (`PULSE_REQUEST_UNKNOWN_FIELD`). Repros: `"filters"`, `sort[].direction`, `GROUP_DATE params.unit`
 - [x] **#302** (Strict input) Synth specs decode strictly: unknown spec keys and distribution params are refused (`exponential {rate}` today silently uses `lambda: 1`); `correlations[]` accepts `rho` as the skill documents (or the skill is corrected), never a silent zero
 - [x] **#303** (Strict input) Every CLI leaf exits non-zero when the envelope carries a fatal error, under `--json` too, as `docs/src/cli` documents; the envelope itself is unchanged
-- [ ] **#304** (Strict input) Imports never drop rows silently: a partial import puts a coded warning with the dropped-row count and the first failure into `warnings` (e.g. a blank cell on a non-nullable `set_*` column), and `--strict` makes it an error
+- [x] **#304** (Strict input) Imports never drop rows silently: a partial import puts a coded warning with the dropped-row count and the first failure into `warnings` (e.g. a blank cell on a non-nullable `set_*` column), and `--strict` makes it an error
 - [ ] **#305** (Strict input) Requested knobs are honoured and echoed: `bootstrap_iters` is used as given (`<= 0` means the default 1,000, not a floor), and `RegressionResult` reports replicates requested and succeeded
 - [ ] **#306** (Strict input) Label bindings apply to crosstab axis keys and pairwise-overlay pair keys, or the request draws a coded `PULSE_LABEL_NOT_APPLIED` warning; never accepted-and-ignored
 - [ ] **#307** (Strict input) Overlay-layer warnings follow the `{code, message, details}` contract (today `Code` / `Message` / `Details`) and runtime reason strings carry no predecessor prefix (`ORBIT_STATS_SKIP_POOLED_SE_INVALID`); `TestNoOrbitPrefix*` covers runtime strings. Fix the shipped examples that relied on ignored input: `overlays/40_crosstab_pairwise_prop_z.json` (empty layer) and `crosstab/11_date_grouper_axis.json` (`unit`) — *partial (E1-S4): reason strings renamed `PULSE_STATS_SKIP_*`, `TestNoOrbitPrefix*` scan every non-test Go string literal, `40_crosstab_pairwise_prop_z.json` normalized (non-empty layer, asserted) and `11_date_grouper_axis.json` fixed (E1-S2); the `{code, message, details}` json tags remain*
@@ -112,7 +112,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(strict-input/E<n>
 
 Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#375** — `pulse import auto` (managed import) takes `--float`, `--schema` and `--ignore-extra` like `import <fmt>`; today they reach the managed import only through `ImportSpec` and MCP `pulse_import`. Found in U41 (E1-S2).
+- [x] **#375** — `pulse import auto` (managed import) takes `--float`, `--schema` and `--ignore-extra` like `import <fmt>`; today they reach the managed import only through `ImportSpec` and MCP `pulse_import`. Found in U41 (E1-S2).
 
 ## Inherited from U42
 

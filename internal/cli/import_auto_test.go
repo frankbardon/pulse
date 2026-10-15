@@ -284,3 +284,69 @@ func TestImportAutoCLI_BadGroupFlagIsCoded(t *testing.T) {
 		t.Errorf("a malformed --group still imported")
 	}
 }
+
+// TestImportAutoCLI_SchemaFloatIgnoreExtra (#375): `import auto` takes
+// `import csv`'s --float, --schema and --ignore-extra, and each lands in
+// the managed cohort exactly as the per-format leaf writes it — the two
+// cohorts are byte-identical, and differ from the flag-free import.
+func TestImportAutoCLI_SchemaFloatIgnoreExtra(t *testing.T) {
+	dir := withTempDataDir(t)
+	src := writeCSVFile(t, dir, "data.csv")
+	schema := filepath.Join(dir, "s.json")
+	if err := os.WriteFile(schema, []byte(`[{"name":"id","type":"u8"},{"name":"amount","type":"f64"}]`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	read := func(p string) []byte {
+		t.Helper()
+		b, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatalf("read %s: %v", p, err)
+		}
+		return b
+	}
+	if err := runImportCLI(t, "auto", "--handle", "plain", "data.csv"); err != nil {
+		t.Fatal(err)
+	}
+	plain := read(filepath.Join(dir, "imports", "plain.pulse"))
+
+	cases := []struct {
+		name  string
+		flags []string
+	}{
+		{"float", []string{"--float", "f32"}},
+		{"schema+ignore-extra", []string{"--schema", schema, "--ignore-extra"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			handle := "h_" + string(c.name[0])
+			if err := runImportCLI(t, append(append([]string{"auto", "--handle", handle}, c.flags...), "data.csv")...); err != nil {
+				t.Fatalf("auto: %v", err)
+			}
+			direct := filepath.Join(dir, handle+"_direct.pulse")
+			if err := runImportCLI(t, append([]string{"csv", "-i", src, "-o", direct}, c.flags...)...); err != nil {
+				t.Fatalf("csv: %v", err)
+			}
+			got := read(filepath.Join(dir, "imports", handle+".pulse"))
+			if !bytes.Equal(got, read(direct)) {
+				t.Error("import auto and import csv wrote different cohorts for the same flags")
+			}
+			if bytes.Equal(got, plain) {
+				t.Error("the flags changed nothing: they never reached the spec")
+			}
+		})
+	}
+
+	// The refusals are import csv's own codes.
+	for _, c := range []struct {
+		flags []string
+		code  perrors.Code
+	}{
+		{[]string{"--schema", schema}, perrors.PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED},
+		{[]string{"--float", "f16"}, perrors.PULSE_IMPORT_FLOAT_WIDTH_INVALID},
+	} {
+		err := runImportCLI(t, append(append([]string{"auto", "--handle", "refused", "--overwrite"}, c.flags...), "data.csv")...)
+		if !perrors.HasCode(err, c.code) {
+			t.Errorf("%v: err = %v, want %s", c.flags, err, c.code)
+		}
+	}
+}

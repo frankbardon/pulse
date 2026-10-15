@@ -338,6 +338,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_IMPORT_ROWS_DROPPED: {
+		Message: "Warning-class — a partial import: some rows imported and some were skipped as PULSE_IMPORT_ROW_ERROR (a null in a non-nullable field, a value the field type cannot hold). Raised once per import on every entry point (import <format>, import auto, convert --keep-pulse and convert's target rows, the library Import / ImportFile / Convert, the managed-import pool over MCP too), beside the per-row RowErrors. Details carry `dropped` (rows skipped), `imported` (rows written) and `first_failure` {`row` (1-based source data row), `column` (empty when the failure names none), `reason`}; on convert also `stage` (`target` or `keep_pulse`). Under strict — CLI --strict, ImportJob / ConvertJob.StrictRows, imports.Spec.StrictRows, pulse.Options.Strict — it is the FATAL error instead and nothing is written. Total failure (no row imported) stays the fatal PULSE_IMPORT_ROW_ERROR.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Read details.first_failure: fix that column — declare it nullable in the schema, pick a type that holds the value, or clean the source — and re-import. To accept the partial import deliberately, keep the warning; to refuse it, pass --strict (or set StrictRows / Options.Strict).",
+			},
+		},
+	},
 	PULSE_IMPORT_WIDTH_PROMOTED: {
 		Message: "Warning-class — an inferred import met a value, past the bounded inference sample, that the width inferred from the sample cannot hold, so the field was promoted to the narrowest type that holds it and the row imported instead of becoming a PULSE_IMPORT_ROW_ERROR. Ladders: categorical_u8 → categorical_u16 → categorical_u32 when the dictionary outgrows its rung; u4 → u8 → u16 → u32 → u64 for a larger non-negative integer; u4..u32 → f64 for any other number; f32 → f64 for a value outside f32's range when f32 was inferred under the --float f32 opt-in (the default infers f64) (past MaxFloat32, or a non-zero magnitude f32 flushes to zero — a value f32 merely rounds never promotes). Every step is lossless — every value already imported is exact in f64. A non-boolean in a packed_bool stays a row error. ConvertJob.Run (`pulse convert`) promotes an inferred schema the same way, on ConvertReport.WidthWarnings. Details carry `field`, `from` (the inferred type), `to` (the written type) and `source_row` (the first 1-based source row that forced it). No value changes. Never fires for an explicit --schema or an authoritative source schema: their overflow stays a row error (on convert, a full categorical rung is the fatal PULSE_IMPORT_CATEGORICAL_OVERFLOW). Never fires for a column_type_overrides column either: its overflow refuses the import with PULSE_IMPORT_OVERRIDE_INVALID.",
 		Fixups: []Fixup{

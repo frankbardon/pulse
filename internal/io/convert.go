@@ -2,6 +2,7 @@ package io
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"strings"
 
@@ -201,6 +202,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 			SourceTZ:       j.SourceTZ,
 			ColumnSourceTZ: j.ColumnSourceTZ,
 			DSTPolicy:      j.DSTPolicy,
+			StrictRows:     j.StrictRows,
 		}
 	}
 
@@ -320,6 +322,10 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	if failure := totalRowFailure("convert", converted, rowNum, rowErrors, perrors.PULSE_EXPORT_ROW_ERROR); failure != nil {
 		return nil, failure
 	}
+	targetDropped := rowsDropped(converted, rowErrors, DroppedStageTarget)
+	if err := strictRowsDropped(j.StrictRows, targetDropped); err != nil {
+		return nil, err
+	}
 
 	// A promoted width moved every later field's offset. The KeepPulseAt
 	// intermediate is imported at the promoted types (the same schema
@@ -329,15 +335,28 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		relayoutOffsets(schema)
 	}
 
-	// Write intermediate pulse file if requested.
+	// Write intermediate pulse file if requested. Its rows are the
+	// SOURCE's, imported under the convert's schema, so it can skip rows
+	// the text pass carried through; that is a drop of its own.
+	var keepDropped *perrors.CodedError
 	if importJob != nil && j.KeepPulseAt != "" {
 		rr, ok := j.Source.(ResetReader)
 		if ok {
 			if err := rr.Reset(); err == nil {
 				importJob.Source = j.Source
-				if _, err := importJob.Run(ctx); err != nil {
+				ir, err := importJob.Run(ctx)
+				if err != nil {
+					// StrictRows refused the intermediate: the refusal
+					// is the convert's own, naming its stage.
+					var ce *perrors.CodedError
+					if stderrors.As(err, &ce) && ce.Code == perrors.PULSE_IMPORT_ROWS_DROPPED {
+						ce.Details["stage"] = DroppedStageKeepPulse
+						ce.Message = "convert (" + DroppedStageKeepPulse + "): " + ce.Message
+						return nil, ce
+					}
 					return nil, fmt.Errorf("writing intermediate pulse file: %w", err)
 				}
+				keepDropped = rowsDropped(ir.RowsImported, ir.RowErrors, DroppedStageKeepPulse)
 			}
 		}
 	}
@@ -350,6 +369,11 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		RowErrors:      rowErrors,
 		SourceWarnings: j.sourceWarnings(),
 		TargetWarnings: targetWarnings(j.Target),
+	}
+	for _, w := range []*perrors.CodedError{targetDropped, keepDropped} {
+		if w != nil {
+			report.DroppedWarnings = append(report.DroppedWarnings, w)
+		}
 	}
 	if j.LabelResolver != nil {
 		report.LabelWarnings = j.LabelResolver.Warnings()

@@ -107,6 +107,9 @@ func newExitFixture(t *testing.T) exitFixture {
 	writeExitFile(t, f.p("auto.csv"), "id,name\n1,a\n2,b\n")
 	writeExitFile(t, f.p("sets.csv"), "id,picks\n1,a|b\n2,b\n")
 	writeExitFile(t, f.p("sets.schema.json"), `[{"name":"id","type":"u8"},{"name":"picks","type":"set_u8"}]`)
+	// A blank cell in the non-nullable set column drops row 2: a partial
+	// import, PULSE_IMPORT_ROWS_DROPPED (#304).
+	writeExitFile(t, f.p("partial.csv"), "id,picks\n1,a|b\n2,\n3,b\n")
 	mustRun("import", "csv", "-i", f.p("sets.csv"), "-o", f.p("sets.pulse"), "--schema", f.p("sets.schema.json"))
 
 	c := `{"filename":"` + f.cohort + `"}`
@@ -147,10 +150,16 @@ func exitCases(f exitFixture) []exitCase {
 			ok:    []string{"--input", f.cohort2, "--output", f.p("e." + ext)}}
 	}
 	importCase := func(format, src string) exitCase {
-		return exitCase{leaf: "import " + format,
+		c := exitCase{leaf: "import " + format,
 			fatal: []string{"-i", f.p("missing." + src), "-o", f.p("x.pulse")},
 			ok:    []string{"-i", f.p("src." + src), "-o", f.p("i_" + format + ".pulse")}}
+		if format == "csv" {
+			partial := []string{"-i", f.p("partial.csv"), "-o", f.p("partial.pulse"), "--schema", f.p("sets.schema.json")}
+			c.warn, c.strict = partial, append(slices.Clone(partial), "--strict")
+		}
+		return c
 	}
+	partialSchema := []string{"--schema", f.p("sets.schema.json")}
 	return []exitCase{
 		{leaf: "api process", fatal: []string{"-r", f.p("bad.json")}, ok: []string{"-r", f.p("req.json")}},
 		{leaf: "api process-chain", fatal: []string{"-r", f.p("chain_bad.json")}, ok: []string{"-r", f.p("chain.json")}},
@@ -168,7 +177,9 @@ func exitCases(f exitFixture) []exitCase {
 		{leaf: "cohort inspect", fatal: []string{m}, ok: []string{f.cohort}},
 		{leaf: "cohort filter", fatal: []string{"-i", m, "-o", f.p("x.pulse"), "--filter", "age > 10"},
 			ok: []string{"-i", f.cohort, "-o", f.p("filtered.pulse"), "--filter", "age > 10"}},
-		{leaf: "convert", fatal: []string{f.p("missing.csv"), f.p("x.tsv")}, ok: []string{f.csv, f.p("conv.tsv")}},
+		{leaf: "convert", fatal: []string{f.p("missing.csv"), f.p("x.tsv")}, ok: []string{f.csv, f.p("conv.tsv")},
+			warn:   append(slices.Clone(partialSchema), "--keep-pulse", f.p("keep.pulse"), f.p("partial.csv"), f.p("conv_partial.tsv")),
+			strict: append(slices.Clone(partialSchema), "--strict", "--keep-pulse", f.p("keep.pulse"), f.p("partial.csv"), f.p("conv_partial.tsv"))},
 		{leaf: "convert predict", fatal: []string{f.p("missing.csv"), f.p("x.tsv")}, ok: []string{f.csv, f.p("convp.tsv")}},
 		exportCase("csv", "csv"), exportCase("tsv", "tsv"), exportCase("ndjson", "ndjson"),
 		exportCase("jsonarray", "json"), exportCase("parquet", "parquet"), exportCase("arrow", "arrow"),
@@ -183,7 +194,9 @@ func exitCases(f exitFixture) []exitCase {
 			ok: []string{"-i", f.p("src.pulse.zst"), "-o", f.p("i_transfer.pulse")}},
 		{leaf: "import predict", fatal: []string{"-i", f.p("missing.csv")}, ok: []string{"-i", f.csv}},
 		{leaf: "import schema-template", fatal: []string{f.p("missing.csv")}, ok: []string{f.csv}},
-		{leaf: "import auto", fatal: []string{"missing.csv"}, ok: []string{"auto.csv"}},
+		{leaf: "import auto", fatal: []string{"missing.csv"}, ok: []string{"auto.csv"},
+			warn:   append(slices.Clone(partialSchema), "--handle", "partial", "--overwrite", "partial.csv"),
+			strict: append(slices.Clone(partialSchema), "--handle", "partial", "--overwrite", "--strict", "partial.csv")},
 		{leaf: "import list", noFatal: "lists the managed-imports directory; an empty or absent one is an empty list", ok: []string{}},
 		{leaf: "import drop", fatal: []string{"nope"}, ok: []string{"auto"}},
 		{leaf: "index build", fatal: []string{m, "--key", "age"}, ok: []string{f.cohort2, "--key", "age"}},

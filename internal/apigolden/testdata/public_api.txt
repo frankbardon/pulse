@@ -506,6 +506,7 @@ pulse: type ImportEntry field Pinned bool "json:\"pinned\""
 pulse: type ImportEntry field Sidecar pulse/internal/imports.Sidecar "json:\"sidecar\""
 pulse: type ImportResult = pulse/internal/imports.Result
 pulse: type ImportResult underlying struct
+pulse: type ImportResult field DroppedWarnings []*pulse/errors.CodedError "json:\"dropped_warnings,omitempty\""
 pulse: type ImportResult field ExpiresAt *time.Time "json:\"expires_at,omitempty\""
 pulse: type ImportResult field Format string "json:\"format\""
 pulse: type ImportResult field GroupCandidates *pulse/io.GroupDetection "json:\"group_candidates,omitempty\""
@@ -516,6 +517,7 @@ pulse: type ImportResult field ImportedAt time.Time "json:\"imported_at,omitzero
 pulse: type ImportResult field Managed bool "json:\"managed\""
 pulse: type ImportResult field Path string "json:\"path\""
 pulse: type ImportResult field PromotedFields []string "json:\"promoted_fields,omitempty\""
+pulse: type ImportResult field RowsDropped int "json:\"rows_dropped,omitempty\""
 pulse: type ImportResult field RowsImported int "json:\"rows_imported,omitempty\""
 pulse: type ImportResult field Schema *pulse/encoding.Schema "json:\"-\""
 pulse: type ImportResult field SourceWarnings []*pulse/errors.CodedError "json:\"source_warnings,omitempty\""
@@ -556,6 +558,7 @@ pulse: type ImportSpec field SetInferenceMinPct int
 pulse: type ImportSpec field Sheet string
 pulse: type ImportSpec field SourcePath string
 pulse: type ImportSpec field SourceTZ string
+pulse: type ImportSpec field StrictRows bool
 pulse: type ImportSpec field SuggestGroups bool
 pulse: type ImportSpec field TTL time.Duration
 pulse: type ImportSpec field Vectors []pulse/io.VectorDecl
@@ -2365,6 +2368,7 @@ pulse/errors: const PULSE_IMPORT_FORMAT_UNKNOWN pulse/errors.Code = "PULSE_IMPOR
 pulse/errors: const PULSE_IMPORT_HANDLE_EXISTS pulse/errors.Code = "PULSE_IMPORT_HANDLE_EXISTS"
 pulse/errors: const PULSE_IMPORT_NULL_PROMOTED pulse/errors.Code = "PULSE_IMPORT_NULL_PROMOTED"
 pulse/errors: const PULSE_IMPORT_OVERRIDE_INVALID pulse/errors.Code = "PULSE_IMPORT_OVERRIDE_INVALID"
+pulse/errors: const PULSE_IMPORT_ROWS_DROPPED pulse/errors.Code = "PULSE_IMPORT_ROWS_DROPPED"
 pulse/errors: const PULSE_IMPORT_ROW_ERROR pulse/errors.Code = "PULSE_IMPORT_ROW_ERROR"
 pulse/errors: const PULSE_IMPORT_SCHEMA_AMBIGUOUS pulse/errors.Code = "PULSE_IMPORT_SCHEMA_AMBIGUOUS"
 pulse/errors: const PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED pulse/errors.Code = "PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED"
@@ -2762,12 +2766,14 @@ pulse/io: type ConvertJob field SampleRows int
 pulse/io: type ConvertJob field Schema *pulse/encoding.Schema
 pulse/io: type ConvertJob field Source pulse/internal/io.Reader
 pulse/io: type ConvertJob field SourceTZ string
+pulse/io: type ConvertJob field StrictRows bool
 pulse/io: type ConvertJob field Target pulse/internal/io.Writer
 pulse/io: type ConvertJob method (*ConvertJob) Hash() string
 pulse/io: type ConvertJob method (*ConvertJob) Predict(ctx context.Context) (*pulse/internal/io.PredictReport, error)
 pulse/io: type ConvertJob method (*ConvertJob) Run(ctx context.Context) (*pulse/internal/io.ConvertReport, error)
 pulse/io: type ConvertReport = pulse/internal/io.ConvertReport
 pulse/io: type ConvertReport underlying struct
+pulse/io: type ConvertReport field DroppedWarnings []*pulse/errors.CodedError "json:\"DroppedWarnings,omitempty\""
 pulse/io: type ConvertReport field LabelWarnings []pulse/internal/io.LabelWarning
 pulse/io: type ConvertReport field OverlayWarnings []*pulse/errors.CodedError
 pulse/io: type ConvertReport field RowErrors []pulse/internal/io.RowError
@@ -2945,6 +2951,7 @@ pulse/io: type ImportJob field SetInferenceMinPct int
 pulse/io: type ImportJob field Source pulse/internal/io.Reader
 pulse/io: type ImportJob field SourceTZ string
 pulse/io: type ImportJob field StrictDedup bool
+pulse/io: type ImportJob field StrictRows bool
 pulse/io: type ImportJob field SuggestGroups bool
 pulse/io: type ImportJob field Target string
 pulse/io: type ImportJob field Vectors []pulse/internal/io.VectorDecl
@@ -2959,6 +2966,7 @@ pulse/io: type ImportProjection field RowErrors int "json:\"row_errors\""
 pulse/io: type ImportProjection field RowsImported int "json:\"rows_imported\""
 pulse/io: type ImportReport = pulse/internal/io.ImportReport
 pulse/io: type ImportReport underlying struct
+pulse/io: type ImportReport field DroppedWarnings []*pulse/errors.CodedError "json:\"DroppedWarnings,omitempty\""
 pulse/io: type ImportReport field ElidedConstants []string "json:\"ElidedConstants,omitempty\""
 pulse/io: type ImportReport field GroupWarnings []*pulse/errors.CodedError "json:\"GroupWarnings,omitempty\""
 pulse/io: type ImportReport field Groups []pulse/internal/io.GroupReport "json:\"Groups,omitempty\""
@@ -3050,6 +3058,7 @@ pulse/io: type OverlayWarningEmitter imethod OverlayWarnings() []*pulse/errors.C
 pulse/io: type PredictReport = pulse/internal/io.PredictReport
 pulse/io: type PredictReport underlying struct
 pulse/io: type PredictReport field Columns []string "json:\"Columns,omitempty\""
+pulse/io: type PredictReport field DroppedWarnings []*pulse/errors.CodedError "json:\"DroppedWarnings,omitempty\""
 pulse/io: type PredictReport field ElidedConstants []string "json:\"ElidedConstants,omitempty\""
 pulse/io: type PredictReport field EstimatedRows int
 pulse/io: type PredictReport field GroupCandidates *pulse/internal/io.GroupDetection "json:\"GroupCandidates,omitempty\""
@@ -5309,4 +5318,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 2b33e2b02d8b38ed1229cbffd657d9f7a66e6b806c77f9ee0f055af77dcb4672
+// golden-hash: 5d355ebe6e3cf65a56189f5f4e60256d2a0ce9907826043751407835e7c98cd7

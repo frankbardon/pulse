@@ -405,6 +405,9 @@ type Options struct {
 	// runs the request and emits warnings through the descriptor
 	// Envelope (visible via --json at the CLI boundary). Predict's
 	// PredictOptions.Strict remains independently controllable.
+	// It also refuses a partial import: Import, Convert and ImportFile
+	// set the job's StrictRows, so PULSE_IMPORT_ROWS_DROPPED is their
+	// error and nothing is written.
 	Strict bool
 
 	// ProjectBufferedFields enables buffered-decode field projection.
@@ -1224,6 +1227,12 @@ func (p *Pulse) importJob(ctx context.Context, job *pio.ImportJob) (*pio.ImportR
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
+	// Options.Strict promotes the partial-import warning
+	// (PULSE_IMPORT_ROWS_DROPPED) to the job's error; it never relaxes
+	// a job that already asked for it.
+	if p.svc.Strict() {
+		job.StrictRows = true
+	}
 	return job.Run(ctx)
 }
 
@@ -1308,6 +1317,9 @@ func (p *Pulse) convert(ctx context.Context, job *pio.ConvertJob) (*pio.ConvertR
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
+	if p.svc.Strict() {
+		job.StrictRows = true // as importJob: Options.Strict refuses a partial convert
+	}
 	if job.LabelResolver == nil && len(job.Labels) > 0 {
 		r, err := p.newIOLabelResolver(job.Labels)
 		if err != nil {
@@ -1342,6 +1354,9 @@ func (p *Pulse) ImportFile(ctx context.Context, spec ImportSpec) (*ImportResult,
 }
 
 func (p *Pulse) importFile(ctx context.Context, spec ImportSpec) (*ImportResult, error) {
+	if p.svc.Strict() {
+		spec.StrictRows = true // as importJob: Options.Strict refuses a partial import
+	}
 	return p.imports.Open(ctx, spec)
 }
 

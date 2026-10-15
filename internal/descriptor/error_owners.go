@@ -133,6 +133,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_IMPORT_SCHEMA_AMBIGUOUS:       ownImportExport,
 	errors.PULSE_IMPORT_ROW_ERROR:              ownImportExport,
 	errors.PULSE_IMPORT_NULL_PROMOTED:          ownImportExport,
+	errors.PULSE_IMPORT_ROWS_DROPPED:           ownImportExport,
 	errors.PULSE_IMPORT_WIDTH_PROMOTED:         ownImportExport,
 	errors.PULSE_IMPORT_OVERRIDE_INVALID:       ownImportExport,
 	errors.PULSE_IMPORT_VECTOR_INVALID:         ownImportExport,

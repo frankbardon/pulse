@@ -159,6 +159,16 @@ const (
 	// non-nullable field remains a PULSE_IMPORT_ROW_ERROR.
 	PULSE_IMPORT_NULL_PROMOTED Code = "PULSE_IMPORT_NULL_PROMOTED"
 
+	// PULSE_IMPORT_ROWS_DROPPED is a WARNING-class code emitted once per
+	// partial import — some rows imported, some were skipped as
+	// PULSE_IMPORT_ROW_ERROR — on every import entry point (ImportJob,
+	// ConvertJob, the managed-import pool, the CLI leaves and MCP
+	// pulse_import). Details: dropped, imported and first_failure
+	// {row, column, reason}. Under strict (ImportJob.StrictRows,
+	// Options.Strict, CLI --strict) it is the FATAL return instead and
+	// nothing is written.
+	PULSE_IMPORT_ROWS_DROPPED Code = "PULSE_IMPORT_ROWS_DROPPED"
+
 	// PULSE_IMPORT_WIDTH_PROMOTED is a WARNING-class code emitted once per
 	// field when an inferred import meets a value, past the bounded
 	// inference sample, that the sample-inferred width cannot hold — a
@@ -3694,6 +3704,7 @@ var allCodes = []Code{
 	PULSE_IMPORT_SCHEMA_AMBIGUOUS,
 	PULSE_IMPORT_ROW_ERROR,
 	PULSE_IMPORT_NULL_PROMOTED,
+	PULSE_IMPORT_ROWS_DROPPED,
 	PULSE_IMPORT_WIDTH_PROMOTED,
 	PULSE_IMPORT_OVERRIDE_INVALID,
 	PULSE_IMPORT_SCHEMA_FIELD_MISSING,
