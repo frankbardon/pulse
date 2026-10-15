@@ -565,10 +565,18 @@ func TestHookPanicRecovered(t *testing.T) {
 // arm64): predict 259 → 267 is the same capability-table rebuild
 // growing by the AGG_VEC_SD row (259 exactly at ef294704, measured on a
 // clean export of that commit).
+//
+// Re-pinned by predict-runtime-parity E3-S2 (branch
+// predict-runtime-parity, on 0609dde0 + the change, go1.27, arm64):
+// process 162 → 161 and predict 267 → 266: the label pass now runs only
+// when it has work — predict calls ValidateLabels (and builds its
+// augment-name map) only for a request carrying bindings, and the
+// runtime builds the output-column set (descx.OutputLabels) for the
+// auto-label pass only when the service has auto labels.
 var obsOffAllocBaseline = map[string]float64{
-	"process":       162,
+	"process":       161,
 	"count_records": 45,
-	"predict":       267,
+	"predict":       266,
 	"inspect":       66,
 }
 

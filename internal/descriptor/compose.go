@@ -669,7 +669,8 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	// scored on the aggregation params.field names (else
 	// Aggregations[0]) and keyed on its GROUP columns alone — the
 	// runtime's processing.projectComposeSeriesSlots. An unknown label
-	// is PULSE_OVERLAY_FIELD_UNKNOWN (reference first, then targets),
+	// is PULSE_OVERLAY_FIELD_UNKNOWN on the first slot naming none
+	// (reference first, then targets — one error, as the runtime),
 	// and two SERIES slots whose group key columns differ by name can
 	// never align: PULSE_OVERLAY_KEY_SET_DIVERGENT, the code the
 	// runtime key-set gate raises.
@@ -696,8 +697,11 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 			cols := vectors.AggregationColumns(sreq, composeSlotSchemaFunc(composeSlotInputSchema([]*types.Request{s.req}, opts), 0),
 				aggregationKinds(opts.instance(), nil))
 			if _, ferr := seriesfield.ResolveComposeSlot(sreq.Aggregations, spec, specIdx, s.label, cols); ferr != nil {
+				// One error, the first slot the runtime resolves
+				// (reference, then targets) — it stops there (#436).
 				addCodedError(env, ferr)
 				appendComposeSlotPair(result, spec.Reference, s.label, "field-unknown")
+				break
 			}
 		}
 	}

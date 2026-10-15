@@ -14,7 +14,7 @@ requires: [capability:process_chain]
 
 ## When to chain
 
-Chain when a question is "aggregate, then aggregate the aggregates" — revenue per store, then its spread per region. It collapses N round-trips into one open + N stage validations. If the steps are independent of each other, batch them instead ([`compose-requests`](compose-requests.md)).
+Chain when a question is "aggregate, then aggregate the aggregates" — revenue per store, then its spread per region. If the steps are independent of each other, batch them instead ([`compose-requests`](compose-requests.md)).
 
 ```jsonc
 {
@@ -40,7 +40,8 @@ The bridge between stages is a synthesised cohort: grouper keys become `categori
 - **A modal value on a categorical field chains its DICTIONARY INDEX** — the next stage sees a number, not the label.
 - **Only stage 0 may join.** A later stage's `joins` ⇒ `PULSE_CHAIN_STAGE_JOIN {count, stage, stage_name}` ([`join-design`](join-design.md)).
 - **No stage may carry a `crosstab`** (it answers a matrix, not rows) ⇒ `PULSE_CHAIN_NOT_MERGEABLE`.
-- Failure: `PULSE_CHAIN_NOT_MERGEABLE` `"chain stage is not mergeable: <reason>"` `{stage_index, stage_name}`. Stages are gated as they run, so a refusal in stage 2 comes after stages 0–1 executed; a zone or join-count refusal carries `details.stage`.
+- Failure: `PULSE_CHAIN_NOT_MERGEABLE` `"chain stage is not mergeable: <reason>"` `{stage_index, stage_name}`. Stages are gated as they run, so a refusal in stage 2 comes after stages 0–1 executed; any other stage refusal carries `details.stage`.
+- **`labels` apply on every stage**: a forwarded group key relabels; an f64 output ⇒ `PULSE_LABEL_FIELD_NOT_CATEGORICAL`.
 
 When the gate refuses, run stage 0 as an ordinary request (`pulse_process`) and finish the later steps client-side.
 
@@ -71,7 +72,7 @@ An empty `target` defaults to the LAST stage. `ref` has no default — every spe
 
 ## Shape divergence
 
-A whole-chain overlay fires only when ref and target produce the same host shape: aggregations + groups ⇒ SERIES, aggregations alone ⇒ SCALAR. On a mismatch predict-chain and the runtime each emit ONE `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` WARNING per spec (same `details`, naming both shapes); predict stays valid, the runtime returns an empty layer in the target's shape. Never fatal, even under strict. Keep compared stages shape-identical: same groups, same aggregation count. Other whole-chain refusals: `PULSE_OVERLAY_KIND_UNKNOWN` (a kind outside `overlay_kinds`), `PULSE_OVERLAY_REFERENCE_UNKNOWN` / `PULSE_OVERLAY_TARGET_UNKNOWN` (index out of range, unmatched name, both or neither set).
+A whole-chain overlay fires only when ref and target produce the same host shape: aggregations + groups ⇒ SERIES, aggregations alone ⇒ SCALAR. On a mismatch predict-chain and the runtime each emit ONE `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` WARNING per spec; predict stays valid, the runtime returns an empty layer in the target's shape. Never fatal, even under strict. Keep compared stages shape-identical: same groups, same aggregation count. Other whole-chain refusals: `PULSE_OVERLAY_KIND_UNKNOWN` (a kind outside `overlay_kinds`), `PULSE_OVERLAY_REFERENCE_UNKNOWN` / `PULSE_OVERLAY_TARGET_UNKNOWN` (index out of range, unmatched name, both or neither set).
 
 ## Hashing & echo
 

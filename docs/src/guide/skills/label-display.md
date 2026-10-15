@@ -47,7 +47,7 @@ Each `LabelBinding` pairs a categorical field with a table and mode:
 
 **Replace** — value rewritten in place. Group keys, aggregation keys, sample row cells, exported cells show the label. Two source values mapping to the same label disambiguate by appending the source in parens (`"United States (US)"` vs `"United States (USA)"`) and emit `PULSE_LABEL_COLLISION`. Rows-backed tables pre-pass for symmetric rendering; function-driven tables detect collisions online only. Use **augment** for lossless round-trip.
 
-**Augment** — raw value preserved; sibling `"<field>_label"` column added. Existing `<field>_label` or agg/attr label collision ⇒ `PULSE_LABEL_FIELD_COLLISION` at validation.
+**Augment** — raw value preserved; sibling `"<field>_label"` column added. A schema field, or any output column (aggregation, attribute, group key, window, feature — default names included) named `<field>_label` ⇒ `PULSE_LABEL_FIELD_COLLISION` at validation, predict included.
 
 ## Surface coverage
 

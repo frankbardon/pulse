@@ -189,7 +189,7 @@ func processCrosstabWithoutPlan(ctx context.Context, s *Service, req *types.Requ
 
 	s.applyDefaults(req, cohort.Schema())
 
-	s.applyAutoLabels(&req.Labels, cohort.Schema(), collectOutputLabels(req), nil)
+	s.applyAutoLabels(&req.Labels, cohort.Schema(), s.autoLabelOccupied(req, cohort.Schema()), nil)
 	if err := s.validateProcessLabels(req, cohort.Schema()); err != nil {
 		return nil, err
 	}

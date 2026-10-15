@@ -162,7 +162,7 @@ func TestChainSeriesOverlay_StagesUntouched(t *testing.T) {
 
 // TestChainSeriesOverlay_FieldUnknownParity: a params.field naming no
 // aggregation of a stage the overlay reads — the target, or only the
-// reference — is PULSE_OVERLAY_FIELD_UNKNOWN from predict-chain and
+// reference — is ONE PULSE_OVERLAY_FIELD_UNKNOWN from predict-chain and
 // from the runtime, Details {index, kind, field, available, which,
 // stage_index} equal (target checked before ref on both sides).
 func TestChainSeriesOverlay_FieldUnknownParity(t *testing.T) {
@@ -200,10 +200,11 @@ func TestChainSeriesOverlay_FieldUnknownParity(t *testing.T) {
 				if !reflect.DeepEqual(ce.Details, want) {
 					t.Errorf("runtime details %#v, want %#v", ce.Details, want)
 				}
-				// Predict accumulates (a field unknown on both stages is
-				// two errors); its FIRST is the runtime's refusal.
-				if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PULSE_OVERLAY_FIELD_UNKNOWN) {
-					t.Fatalf("predict-chain: want PULSE_OVERLAY_FIELD_UNKNOWN first, got %+v", env.Errors)
+				// One error: predict stops at the first stage the
+				// runtime resolves (target, then ref) — a field unknown
+				// on both stages used to be two errors (#436).
+				if len(env.Errors) != 1 || env.Errors[0].Code != string(perr.PULSE_OVERLAY_FIELD_UNKNOWN) {
+					t.Fatalf("predict-chain: want exactly one PULSE_OVERLAY_FIELD_UNKNOWN, got %+v", env.Errors)
 				}
 				if !reflect.DeepEqual(env.Errors[0].Details, ce.Details) {
 					t.Errorf("predict details %#v != runtime %#v", env.Errors[0].Details, ce.Details)

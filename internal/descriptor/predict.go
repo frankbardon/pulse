@@ -604,9 +604,10 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 // It runs AFTER the entry passes (slot gate, item expansion, joins,
 // multiplicity, return, zones, field references, weights) and reports
 // every finding on env. Predict calls it on the request; Compose predict
-// on every slot and fit request (validateComposeRequest), so a rule
-// added here reaches both — TestComposePredict_SlotVerdictMatchesProcessPredict
-// pins that. It reads no record and constructs no operator.
+// on every slot and fit request (validateComposeRequest) and chain
+// predict on every stage (ValidateChainWithOptions), so a rule added
+// here reaches all three — TestComposePredict_SlotVerdictMatchesProcessPredict
+// and TestChainPredict_StageBodyMatchesRuntime pin that. It reads no record and constructs no operator.
 func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, opts *PredictOptions, weightErr error) {
 	// A slot still without an operator Type is refused by the runtime's
 	// operator construction; report it with the runtime's code and
@@ -661,9 +662,12 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 
 	// Validate label bindings (display-time categorical translation). Snapshot
 	// carries the registered label tables; augment-mode collisions are
-	// checked against the projected output column set so a sibling
-	// "<field>_label" cannot shadow an aggregation/attribute label.
-	ValidateLabels(env, req.Labels, schema, extensionsFromOpts(opts), opts.instance(), projected)
+	// checked against OutputLabels — the one output-column set the
+	// runtime checks too — so a sibling "<field>_label" cannot shadow an
+	// aggregation, attribute, group-key, window or feature column.
+	if len(req.Labels) > 0 {
+		ValidateLabels(env, req.Labels, schema, extensionsFromOpts(opts), opts.instance(), OutputLabels(req, schema, opts.instance()))
+	}
 }
 
 // computeCrosstabFusion answers PredictResult.CrosstabFusable /

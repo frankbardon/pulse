@@ -194,6 +194,13 @@ tests, crosstab, overlays, labels), each slot fault located by
 `details.request`; an empty batch (no `requests`, no `sweep`) is
 `SERVICE_VALIDATION`, as at run time.
 
+`predict-chain` judges every stage the same way over the stage's
+input schema (a later stage's: the columns the stage before it
+writes), each stage fault located by `details.stage`. A later stage's
+`labels` are applied at run time, so a binding naming an unknown table
+or field, or an aggregation output (not categorical), is refused on
+both sides.
+
 A refused request comes back as coded `errors` beside `data.valid:
 false` (exit 1 in text mode). A request with no cohort is
 `SERVICE_VALIDATION`; an unreadable cohort is `DATA_FILE`

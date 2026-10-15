@@ -71,7 +71,7 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 
 	// Validate / inject label bindings exactly as Process does so a
 	// labelled crosstab matches a labelled plain Process request.
-	s.applyAutoLabels(&req.Labels, cohort.Schema(), collectOutputLabels(req), nil)
+	s.applyAutoLabels(&req.Labels, cohort.Schema(), s.autoLabelOccupied(req, cohort.Schema()), nil)
 	if err := s.validateProcessLabels(req, cohort.Schema()); err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 	// Opening both sides and building the right side's hash table.
 	ei.Lap(observe.PhaseOpen)
 
-	s.applyAutoLabels(&clone.Labels, joinedSchema, collectOutputLabels(&clone), nil)
+	s.applyAutoLabels(&clone.Labels, joinedSchema, s.autoLabelOccupied(&clone, joinedSchema), nil)
 	if err := s.validateProcessLabels(&clone, joinedSchema); err != nil {
 		return nil, err
 	}

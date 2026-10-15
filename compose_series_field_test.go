@@ -167,8 +167,8 @@ func TestComposeSeriesOverlay_SlotsUntouched(t *testing.T) {
 
 // TestComposeSeriesOverlay_FieldUnknownParity: a params.field naming no
 // aggregation of a slot the overlay reads — the reference, or one
-// target — is PULSE_OVERLAY_FIELD_UNKNOWN from predict-compose and from
-// the runtime, Details {index, kind, field, available, slot} equal.
+// target — is ONE PULSE_OVERLAY_FIELD_UNKNOWN from predict-compose and
+// from the runtime, Details {index, kind, field, available, slot} equal.
 func TestComposeSeriesOverlay_FieldUnknownParity(t *testing.T) {
 	f := newMGFixture(t, pulse.Options{})
 	cases := []struct {
@@ -198,9 +198,12 @@ func TestComposeSeriesOverlay_FieldUnknownParity(t *testing.T) {
 				if !reflect.DeepEqual(ce.Details, want) {
 					t.Errorf("runtime details %#v, want %#v", ce.Details, want)
 				}
+				// One error, as the runtime stops at the first slot it
+				// resolves (reference, then targets) — "unknown
+				// everywhere" used to be one error per slot (#436).
 				env := csPredict(t, f.p, req)
-				if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PULSE_OVERLAY_FIELD_UNKNOWN) {
-					t.Fatalf("predict-compose: want PULSE_OVERLAY_FIELD_UNKNOWN first, got %+v", env.Errors)
+				if len(env.Errors) != 1 || env.Errors[0].Code != string(perr.PULSE_OVERLAY_FIELD_UNKNOWN) {
+					t.Fatalf("predict-compose: want exactly one PULSE_OVERLAY_FIELD_UNKNOWN, got %+v", env.Errors)
 				}
 				if !reflect.DeepEqual(env.Errors[0].Details, ce.Details) {
 					t.Errorf("predict details %#v != runtime %#v", env.Errors[0].Details, ce.Details)

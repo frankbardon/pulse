@@ -108,9 +108,12 @@ func ValidateChainWithExtensions(fileData io.ReadSeeker, req *types.ChainRequest
 // opts.DefaultTimeZone / ZoneLoader / DisableDefaults / SchemaLoader
 // drive the per-stage zone resolution — the runtime's order: defaults,
 // zones, the chain gate, then the field-reference rule
-// (FieldRefRefusals), each zone and field refusal tagged details.stage
-// (a joined stage 0: gate, the join-count rule, the join-key rule,
-// zones, then field references against the joined schema). The gate,
+// (FieldRefRefusals), weights, then the Process-predict request body
+// (validateRequestBodyAt — operators, accepted types, the stage's own
+// overlays and labels), each zone, field and body refusal tagged
+// details.stage (a joined stage 0: gate, the join-count rule, the
+// join-key rule, zones, then field references against the joined
+// schema). The gate,
 // the field checks and stage-schema propagation run on the defaulted
 // stage, as the runtime does. A nil opts is ValidateChain.
 func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, opts *PredictOptions) *descriptor.Envelope {
@@ -347,6 +350,13 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 					// The attribute constructors run next: ATTR_FORMULA's
 					// empty expression (params.expression is not read).
 					addCodedError(env, RefusalAt(ce, "stage", i))
+				} else if fieldSchema != nil {
+					// Then the Process-predict request body (#254): the
+					// operator construction, accepted types, the stage's
+					// own overlays and its label bindings (judged over
+					// the stage's input schema — a later stage's labels
+					// are applied, as stage 0's are), located by stage.
+					validateRequestBodyAt(env, fieldReq, fieldSchema, opts, "stage", i)
 				}
 			}
 		}
