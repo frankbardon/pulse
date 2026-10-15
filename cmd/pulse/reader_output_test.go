@@ -159,3 +159,59 @@ func TestCliRawRows_RenderCalendarLiterals(t *testing.T) {
 	}
 	check("lookup --json", lookup.Data.Rows[0])
 }
+
+// TestCliProcessRecordRows_RenderCalendarLiterals: `api process` record
+// rows (an ungrouped windowed run) render date / datetime as calendar
+// literals in text mode, the --json envelope and every --stream NDJSON
+// row.
+func TestCliProcessRecordRows_RenderCalendarLiterals(t *testing.T) {
+	dir := t.TempDir()
+	path := writeReaderCohort(t, dir)
+	reqPath := filepath.Join(dir, "req.json")
+	req := `{"cohort":{"filename":"` + path + `"},"windows":[{"type":"WIN_ROW_NUMBER","label":"rn","order_by":[{"field":"d"}]}]}`
+	if err := os.WriteFile(reqPath, []byte(req), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	check := func(surface string, row map[string]any) {
+		t.Helper()
+		if row["d"] != "2026-01-01" || row["ts"] != "2026-01-02T03:04:05Z" {
+			t.Errorf("%s row d=%#v ts=%#v, want 2026-01-01 / 2026-01-02T03:04:05Z", surface, row["d"], row["ts"])
+		}
+	}
+
+	out, err := runApp(t, "api", "process", "--request", reqPath)
+	if err != nil {
+		t.Fatalf("api process: %v\n%s", err, out)
+	}
+	var text struct {
+		Data []map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(out), &text); err != nil || len(text.Data) != 1 {
+		t.Fatalf("process text: %v\n%s", err, out)
+	}
+	check("process", text.Data[0])
+
+	out, err = runApp(t, "api", "process", "--request", reqPath, "--json")
+	if err != nil {
+		t.Fatalf("api process --json: %v\n%s", err, out)
+	}
+	var env struct {
+		Data struct {
+			Data []map[string]any `json:"data"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(out), &env); err != nil || len(env.Data.Data) != 1 {
+		t.Fatalf("process envelope: %v\n%s", err, out)
+	}
+	check("process --json", env.Data.Data[0])
+
+	out, err = runApp(t, "api", "process", "--request", reqPath, "--stream")
+	if err != nil {
+		t.Fatalf("api process --stream: %v\n%s", err, out)
+	}
+	var row map[string]any
+	if err := json.Unmarshal([]byte(strings.SplitN(out, "\n", 2)[0]), &row); err != nil {
+		t.Fatalf("stream row: %v\n%s", err, out)
+	}
+	check("process --stream", row)
+}

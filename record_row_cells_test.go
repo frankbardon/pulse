@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
-	"maps"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -162,16 +161,15 @@ func (w *captureWriter) Close() error { return nil }
 // at the column scale, exactly as export renders it and as a grouped
 // decimal aggregate already did; before, the raw Decimal128 (unexported
 // fields) marshalled as {} on all three paths. The other families were
-// already JSON-native and are pinned unchanged: numbers (date /
-// datetime as signed epoch days / seconds — pre-1970 negative, never
-// the unsigned on-wire word; packed_bool 0/1), categorical as the
+// already JSON-native and are pinned unchanged: numbers (packed_bool
+// 0/1), categorical as the
 // export label, sets as the export's label list, vectors as the
 // element array. A null cell is absent.
 //
-// Sample and Lookup — the raw-row surfaces — render date as its
-// calendar day (YYYY-MM-DD) and datetime as RFC 3339 UTC (`…Z`), the
-// same text export writes (U44 #310); Process record rows keep the
-// signed epoch numbers.
+// Every row surface — Process record rows, Sample and Lookup — renders
+// date as its calendar day (YYYY-MM-DD) and datetime as RFC 3339 UTC
+// (`…Z`), the same text export writes (U44 #310; pre-1970 values
+// included, never the unsigned on-wire word).
 func TestRecordRowCells_EveryFieldTypeIsJSONNative(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	sch := everyTypeCohort(t, fs, "all.pulse", true)
@@ -196,7 +194,7 @@ func TestRecordRowCells_EveryFieldTypeIsJSONNative(t *testing.T) {
 	want := map[string]string{
 		"t_u4": "5", "t_u8": "1", "t_u16": "200", "t_u32": "200", "t_u64": "200",
 		"t_f32": "-2.5", "t_f64": "1234.5",
-		"t_date": "-1", "t_datetime": "-1", "t_packed_bool": "1",
+		"t_date": `"1969-12-31"`, "t_datetime": `"1969-12-31T23:59:59Z"`, "t_packed_bool": "1",
 		"t_categorical_u8": `"c3"`, "t_categorical_u16": `"c3"`, "t_categorical_u32": `"c3"`,
 		"t_decimal128": `"-123.4567"`,
 		"t_set_u8":     `["m0","m2"]`, "t_set_u16": `["m0","m2"]`, "t_set_u32": `["m0","m2"]`, "t_set_u64": `["m0","m2"]`,
@@ -251,14 +249,8 @@ func TestRecordRowCells_EveryFieldTypeIsJSONNative(t *testing.T) {
 			return out
 		},
 	}
-	// The raw-row surfaces spell the temporal cells as export does.
-	calendar := map[string]string{"t_date": `"1969-12-31"`, "t_datetime": `"1969-12-31T23:59:59Z"`}
 	for name, rowsOf := range paths {
 		t.Run(name, func(t *testing.T) {
-			want := maps.Clone(want)
-			if name != "process record rows" {
-				maps.Copy(want, calendar)
-			}
 			rows := rowsOf()
 			if len(rows) != 2 {
 				t.Fatalf("%d rows, want 2", len(rows))

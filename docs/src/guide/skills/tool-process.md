@@ -17,7 +17,7 @@ The body comes from `pulse_examples_get` (or is hand-authored and run through `p
 
 ## Output
 
-`descriptor.Envelope` wrapping `pulse.Response`. `data` carries `Data` (rows or matrix), `Metadata` (cohort filename, partial-cohort reasons), and `Components` (universal floor + per-operator state — see [`response-components`](response-components.md)). `errors` / `warnings` use coded entries.
+`descriptor.Envelope` wrapping `pulse.Response`. `data` carries `Data` (rows or matrix), `Metadata` (cohort filename, partial-cohort reasons), and `Components` (universal floor + per-operator state — see [`response-components`](response-components.md)). `errors` / `warnings` use coded entries. Record rows (an ungrouped windowed run) carry `decimal128` as a decimal string, `date` as `YYYY-MM-DD` and `datetime` as RFC 3339 UTC (`…Z`): never epoch numbers, no zone applied.
 
 ## Gotchas
 
