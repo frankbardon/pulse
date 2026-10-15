@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
+	"maps"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -166,6 +167,11 @@ func (w *captureWriter) Close() error { return nil }
 // the unsigned on-wire word; packed_bool 0/1), categorical as the
 // export label, sets as the export's label list, vectors as the
 // element array. A null cell is absent.
+//
+// Sample and Lookup — the raw-row surfaces — render date as its
+// calendar day (YYYY-MM-DD) and datetime as RFC 3339 UTC (`…Z`), the
+// same text export writes (U44 #310); Process record rows keep the
+// signed epoch numbers.
 func TestRecordRowCells_EveryFieldTypeIsJSONNative(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	sch := everyTypeCohort(t, fs, "all.pulse", true)
@@ -245,8 +251,14 @@ func TestRecordRowCells_EveryFieldTypeIsJSONNative(t *testing.T) {
 			return out
 		},
 	}
+	// The raw-row surfaces spell the temporal cells as export does.
+	calendar := map[string]string{"t_date": `"1969-12-31"`, "t_datetime": `"1969-12-31T23:59:59Z"`}
 	for name, rowsOf := range paths {
 		t.Run(name, func(t *testing.T) {
+			want := maps.Clone(want)
+			if name != "process record rows" {
+				maps.Copy(want, calendar)
+			}
 			rows := rowsOf()
 			if len(rows) != 2 {
 				t.Fatalf("%d rows, want 2", len(rows))

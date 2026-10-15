@@ -6,6 +6,7 @@
       {
         "name": "order_id",
         "type": "u32",
+        "nullable": false,
         "byte_offset": 0,
         "bit_position": 0,
         "description": "Synthetic parent key",
@@ -20,6 +21,7 @@
       {
         "name": "region",
         "type": "categorical_u8",
+        "nullable": false,
         "byte_offset": 4,
         "bit_position": 0,
         "description": "Synthetic parent region",
@@ -44,6 +46,7 @@
       {
         "name": "order_total",
         "type": "u64",
+        "nullable": false,
         "byte_offset": 5,
         "bit_position": 0,
         "description": "Synthetic parent total",
@@ -58,6 +61,7 @@
       {
         "name": "qty",
         "type": "u16",
+        "nullable": false,
         "byte_offset": 13,
         "bit_position": 0,
         "description": "Synthetic per-row quantity",
@@ -67,6 +71,7 @@
       {
         "name": "tenant",
         "type": "u8",
+        "nullable": false,
         "byte_offset": 15,
         "bit_position": 0,
         "description": "Synthetic constant tenant",
@@ -142,4 +147,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 225ce81edd0d3fcb1b5bbe5335d9f04fef732918fae8949ad32a31e189b0d594
+// golden-hash: dfbe26e692d9973f9e2fee029fa09c5dc4418457a35558b0f692e091edadca5d

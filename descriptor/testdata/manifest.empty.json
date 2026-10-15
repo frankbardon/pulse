@@ -636,6 +636,7 @@
       {
         "name": "full",
         "paths": [
+          "label",
           "data",
           "metadata",
           "tests",
@@ -649,6 +650,7 @@
       {
         "name": "standard",
         "paths": [
+          "label",
           "data",
           "warnings",
           "metadata",
@@ -709,6 +711,7 @@
       {
         "name": "minimal",
         "paths": [
+          "label",
           "data",
           "warnings",
           "crosstab.shape",
@@ -792,4 +795,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7e10ffdf5cd74236bf2e16a6d4124510d3ca6e954e8d6649bad713cb55ffd66e
+// golden-hash: 35cdbf16fe3b42edcefa3b057c52678f54a5927c9e20657833052343970d0422

@@ -47,7 +47,10 @@ Pretty-printed JSON of the row array:
 ]
 ```
 
-Decimal128 values are serialised as strings to preserve precision.
+Decimal128 values are serialised as strings to preserve precision. A
+`date` cell is its calendar day (`2024-01-04`) and a `datetime` cell
+RFC 3339 UTC (`2024-01-04T09:30:00Z`) — never the stored epoch day /
+second, and no zone is applied. A null cell is omitted from its row.
 
 ## Output (`--json`)
 

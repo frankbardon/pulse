@@ -62,7 +62,9 @@ a set.
 ```
 
 `rows` carries one entry under the default `assert-unique` mode or
-`first`; 1..N entries, ascending row-id order, under `all`.
+`first`; 1..N entries, ascending row-id order, under `all`. Cells render
+as [`api sample`](api-sample.md) renders them: `decimal128` a string,
+`date` `YYYY-MM-DD`, `datetime` RFC 3339 UTC (`…Z`).
 
 ## Keyable-type policy
 

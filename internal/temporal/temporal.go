@@ -121,3 +121,22 @@ func ParseWeekday(name string) (time.Weekday, bool) {
 	wd, ok := weekdayNames[name]
 	return wd, ok
 }
+
+// dayLayout is the ISO 8601 calendar-date literal a `date` cell renders
+// as wherever a caller receives a raw row (Sample, Lookup).
+const dayLayout = "2006-01-02"
+
+// FormatDay renders epoch day day as its UTC calendar date, YYYY-MM-DD.
+// A `date` cell names a calendar day, not an instant, so no zone
+// applies.
+func FormatDay(day int64) string {
+	return DayToTime(day).Format(dayLayout)
+}
+
+// FormatUTC renders epoch seconds sec as the canonical RFC 3339 UTC
+// literal (`2026-01-02T03:04:05Z`) — FormatLocal with no zone. Raw rows
+// (Sample, Lookup) render a `datetime` cell this way: a request's
+// time_zone shapes bucketing, never a stored instant's spelling.
+func FormatUTC(sec int64) string {
+	return FormatLocal(sec, nil)
+}

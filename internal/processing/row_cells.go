@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/processing/window"
+	"github.com/frankbardon/pulse/internal/temporal"
 )
 
 // Record.AllValues is the engine's internal row form: numbers as
@@ -74,8 +75,11 @@ func finalizeRowCells(rows []map[string]any) {
 
 // RenderRecordCells returns rec's values in the row form a caller
 // receives (Sample, Lookup): AllValues with every decimal128 cell
-// rendered as its decimal string at the column scale. The returned map
-// is the caller's to keep; AllValues' cached map is never mutated.
+// rendered as its decimal string at the column scale, every `date`
+// cell as its calendar day (YYYY-MM-DD) and every `datetime` cell as
+// RFC 3339 UTC (`…Z`) — the text export writes. No request zone
+// applies: a raw row spells the stored value. The returned map is the
+// caller's to keep; AllValues' cached map is never mutated.
 func RenderRecordCells(rec *Record) map[string]any {
 	src := rec.AllValues()
 	out := make(map[string]any, len(src))
@@ -84,9 +88,26 @@ func RenderRecordCells(rec *Record) map[string]any {
 			out[k] = rowCell(rec.fieldNamed(k), d).(decimalCell).String()
 			continue
 		}
-		out[k] = v
+		out[k] = temporalCell(rec.fieldNamed(k), v)
 	}
 	return out
+}
+
+// temporalCell renders a date / datetime cell (AllValues' signed epoch
+// days / seconds) as its calendar literal; any other cell passes
+// through.
+func temporalCell(f *encoding.Field, v any) any {
+	n, ok := v.(float64)
+	if f == nil || !ok {
+		return v
+	}
+	switch f.Type {
+	case encoding.FieldTypeDate:
+		return temporal.FormatDay(int64(n))
+	case encoding.FieldTypeDateTime:
+		return temporal.FormatUTC(int64(n))
+	}
+	return v
 }
 
 // fieldNamed resolves name against the record's schema (nil when the

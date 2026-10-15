@@ -55,6 +55,8 @@ The response is a `ComposedResponse` object `{responses, overlays}`: `responses[
 
 Each `Request` takes an optional `label`. An empty label is auto-filled with `request_<index+1>` (1-based) on a clone — the caller's request is never mutated. Labels are how a Compose overlay names its `Reference` / `Target` slots, so set them explicitly whenever an overlay refers to a slot.
 
+Each response echoes its slot's final label as `label`.
+
 Two slots resolving to the same final label (duplicates, or a caller label colliding with an auto label) ⇒ `PULSE_COMPOSE_LABEL_COLLISION` before any slot runs. Omitting labels keeps wire bytes and `CanonicalHash` identical to label-free callers.
 
 ## Parallel execution

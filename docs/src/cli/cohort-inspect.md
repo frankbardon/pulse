@@ -48,6 +48,19 @@ record_stride`), never by reading a record, so it stays constant-time.
 Dictionaries with > 100 entries are flagged `(truncated)` — pass
 `--full-dict` to print every entry.
 
+A nullable field adds a `nullable: yes` line (a non-nullable field
+prints none), and a `decimal128` field its precision and scale:
+
+```
+Records: 1
+Fields: 3
+  id                             u8                   Numeric field: id
+  price                          f64                  Numeric field: price
+    nullable: yes
+  amt                            decimal128           Decimal field: amt
+    decimal: precision 12, scale 2
+```
+
 A shard archive additionally prints the per-shard breakdown under the
 aggregate:
 
@@ -133,6 +146,7 @@ echo the same object while no weight resolves.
       {
         "name": "order_id",
         "type": "u32",
+        "nullable": false,
         "byte_offset": 0,
         "bit_position": 0,
         "description": "Numeric field: order_id",
@@ -142,6 +156,7 @@ echo the same object while no weight resolves.
       {
         "name": "region",
         "type": "categorical_u8",
+        "nullable": false,
         "byte_offset": 4,
         "bit_position": 0,
         "description": "Categorical field: region",
@@ -156,6 +171,7 @@ echo the same object while no weight resolves.
       {
         "name": "units",
         "type": "u4",
+        "nullable": false,
         "byte_offset": 5,
         "bit_position": 0,
         "description": "Numeric field: units",
@@ -171,7 +187,8 @@ echo the same object while no weight resolves.
 }
 ```
 
-`record_count` and `shards` are always present. `shards` is `[]` (never
+Every field carries `nullable` (false included); a `decimal128` field
+adds `precision` and `scale`. `record_count` and `shards` are always present. `shards` is `[]` (never
 `null`) for a single-file cohort and for an anchor; for an archive it
 carries one entry per shard in insertion order, with `record_count` the
 cumulative sum:

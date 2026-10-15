@@ -102,6 +102,12 @@ func printInspectResult(cmd *cli.Command, result *descriptor.InspectResult) {
 	writeText(cmd.Writer, "Fields: %d\n", result.FieldCount)
 	for _, f := range result.Fields {
 		writeText(cmd.Writer, "  %-30s %-20s %s\n", f.Name, f.Type, f.Description)
+		if f.Nullable {
+			writeText(cmd.Writer, "    nullable: yes\n")
+		}
+		if f.Precision != nil && f.Scale != nil {
+			writeText(cmd.Writer, "    decimal: precision %d, scale %d\n", *f.Precision, *f.Scale)
+		}
 		if f.Dictionary != nil {
 			writeText(cmd.Writer, "    dictionary: %d entries", f.Dictionary.TotalEntries)
 			if f.Dictionary.Truncated {

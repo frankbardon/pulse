@@ -1524,6 +1524,14 @@ type ResponseWarning struct {
 
 // Response is the processing result type.
 type Response struct {
+	// Label echoes the Compose slot this response answers: the slot's
+	// caller-supplied Request.Label, or the synthesized
+	// `request_<index+1>` default. Set by Compose / ComposeParallel
+	// only — a standalone Process leaves it empty and absent on the
+	// wire. An ordinary `return` path, kept by the standard and
+	// minimal presets.
+	Label string `json:"label,omitempty"`
+
 	// Data holds the result rows as key-value maps.
 	Data []map[string]any `json:"data,omitempty"`
 

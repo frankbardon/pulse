@@ -1437,6 +1437,9 @@
             "null"
           ]
         },
+        "label": {
+          "type": "string"
+        },
         "metadata": {
           "$ref": "#/$defs/ResponseMetadata"
         },
@@ -1864,4 +1867,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 6a070961d5c32f060fd64a4e1141ccc829e27aaa40bd320726d94c34920fa64f
+// golden-hash: 857f2b9e0c24ef35a8da83490cbb1c9cca44a684327e31442daf810b76887c6e

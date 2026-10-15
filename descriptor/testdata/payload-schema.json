@@ -3761,6 +3761,9 @@
             "null"
           ]
         },
+        "label": {
+          "type": "string"
+        },
         "matrices": {
           "items": {
             "$ref": "#/$defs/MatrixResult"
@@ -4709,4 +4712,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 1619fa32469b4823241a21811e3367a33d87f66168fe08d9123ab6dfd2a1b458
+// golden-hash: 1ed3197c8f5c3b01e0d2b9d547d2384ebe95dc95c977a1f4e72ae218387f1e10

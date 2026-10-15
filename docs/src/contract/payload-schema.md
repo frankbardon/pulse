@@ -82,7 +82,9 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   number), `ExplainResult` (its `findings[].numbers` values are
   `["number", "null"]`, `verdict` the closed `Verdict` enum; `warnings` relays predict's
   coded warnings). A bootstrap `RegressionResult` echoes
-  `bootstrap_requested` / `bootstrap_succeeded`.
+  `bootstrap_requested` / `bootstrap_succeeded`. Each
+  `ComposedResponse.responses[i]` echoes its slot's final `label`
+  (absent on a standalone `Response`).
 - **Advisory** — `#/$defs/Advisory`, one entry of a predict result's
   `advisories` (`{code, message, details}`): a coded, non-blocking note
   that the analysis may not fit the data. Never a warning.
@@ -866,6 +868,7 @@ covering the path removes it; excluding `<key>` drops it too. Every listed path 
 
 | Slot | `minimal` (primary result) | `standard` |
 |---|---|---|
+| `label` (the Compose slot echo) | yes | yes |
 | `data`, `warnings` | yes | yes |
 | `metadata` | no | yes |
 | `crosstab` | `shape`, `matrix` | whole |

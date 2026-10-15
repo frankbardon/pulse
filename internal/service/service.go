@@ -1237,6 +1237,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 		if err != nil {
 			return nil, fmt.Errorf("request %d: %w", i, locate(err, "request", i))
 		}
+		echoSlotLabel(resp, req)
 		responses[i] = resp
 	}
 	ei.Mark()

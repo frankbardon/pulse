@@ -26,7 +26,7 @@ nested `warnings` whose parent is emitted stay unless excluded.
 
 Presets are `full` (identity), `standard` (data, warnings, metadata,
 trimmed tests and regressions, no components) and `minimal` (the primary
-result only). The manifest `return_presets` block lists each preset's
+result only); both keep a Compose slot's `label` echo. The manifest `return_presets` block lists each preset's
 paths expanded against the instance.
 
 Paths use the Response JSON names at any depth: `.` between keys, `[*]`

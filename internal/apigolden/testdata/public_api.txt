@@ -879,6 +879,7 @@ pulse: type Response underlying struct
 pulse: type Response field Components *pulse/types.ResponseComponents "json:\"components,omitempty\""
 pulse: type Response field Crosstab *pulse/types.CrosstabResult "json:\"crosstab,omitempty\""
 pulse: type Response field Data []map[string]any "json:\"data,omitempty\""
+pulse: type Response field Label string "json:\"label,omitempty\""
 pulse: type Response field Matrices []pulse/types.MatrixResult "json:\"matrices,omitempty\""
 pulse: type Response field Metadata *pulse/types.ResponseMetadata "json:\"metadata,omitempty\""
 pulse: type Response field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
@@ -1401,6 +1402,7 @@ pulse/descriptor: type InspectField field DescriptionSource string "json:\"descr
 pulse/descriptor: type InspectField field Dictionary *pulse/descriptor.DictionaryInfo "json:\"dictionary,omitempty\""
 pulse/descriptor: type InspectField field Group *pulse/descriptor.InspectFieldGroup "json:\"group,omitempty\""
 pulse/descriptor: type InspectField field Name string "json:\"name\""
+pulse/descriptor: type InspectField field Nullable bool "json:\"nullable\""
 pulse/descriptor: type InspectField field Precision *uint8 "json:\"precision,omitempty\""
 pulse/descriptor: type InspectField field Scale *uint8 "json:\"scale,omitempty\""
 pulse/descriptor: type InspectField field Type string "json:\"type\""
@@ -5120,6 +5122,7 @@ pulse/types: type Response struct
 pulse/types: type Response field Components *pulse/types.ResponseComponents "json:\"components,omitempty\""
 pulse/types: type Response field Crosstab *pulse/types.CrosstabResult "json:\"crosstab,omitempty\""
 pulse/types: type Response field Data []map[string]any "json:\"data,omitempty\""
+pulse/types: type Response field Label string "json:\"label,omitempty\""
 pulse/types: type Response field Matrices []pulse/types.MatrixResult "json:\"matrices,omitempty\""
 pulse/types: type Response field Metadata *pulse/types.ResponseMetadata "json:\"metadata,omitempty\""
 pulse/types: type Response field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
@@ -5334,4 +5337,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: ffc7fb4261c8bb65b3ff7a1bbe5bb7bbe51a5ddf1e9533afe8353dbc76635353
+// golden-hash: c5fc621f33fff425fb745533cdfb104416af22f998ddaf9d353bd42ead9189c3

@@ -112,7 +112,9 @@ With `--no-fail-fast`:
 ```
 
 `data` is a `ComposedResponse` object (since the v0.21.0 Compose facade
-lift). Each `data.responses[i]` is a full `Response`, so per-slot
+lift). Each `data.responses[i]` is a full `Response` carrying its
+slot's final `label` (the caller's, or the synthesized `request_<i+1>`;
+kept by every `return` preset), so per-slot
 `data.responses[i].components` follows the same additive contract as
 [`api process`](api-process.md#-json). `data.overlays[i]` carries the
 post-fold Compose-host overlay layer plus its per-layer
