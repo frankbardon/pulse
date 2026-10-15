@@ -143,6 +143,18 @@ var composeOverlayHandlers = map[types.OverlayKind]composeOverlayHandler{
 	types.OverlayKindFormula:    applyComposeFormula,
 }
 
+// composeCellTypedHandlers overrides composeOverlayHandlers for the
+// moment cell kinds when the dispatcher holds the authored slot
+// requests: each handler also receives the reference / first target
+// slot's crosstab cell type, so an AGG_VARIANCE / AGG_STDDEV cell's
+// population variance is read as the sample variance (E4-S4). The
+// composeOverlayHandlers entries (zero cell types) serve the bare
+// handler-signature path.
+var composeCellTypedHandlers = map[types.OverlayKind]func(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int, cellTypes composeSlotCellTypes) (types.OverlayLayer, []types.OverlayWarning, error){
+	types.OverlayKindTCell: applyTCellWith,
+	types.OverlayKindZCell: applyZCellWith,
+}
+
 // composeOverlayMultiLayerHandlers is the per-kind dispatch table for
 // COMPOSE-only kinds that emit MULTIPLE OverlayLayer entries per spec.
 // Mutually exclusive with composeOverlayHandlers — a kind appears in
@@ -430,6 +442,14 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 			continue
 		}
 		handler, ok := composeOverlayHandlers[route]
+		// The moment cell kinds read each slot's authored cell type,
+		// which no *Response carries (composeSlotCellTypes).
+		if cellHandler, typed := composeCellTypedHandlers[route]; typed {
+			cellTypes := composeCellTypes(requests, refIdx, targetIdxs)
+			handler, ok = func(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
+				return cellHandler(spec, reference, targets, refIdx, targetIdxs, cellTypes)
+			}, true
+		}
 		if !ok {
 			// Chassis fallback: an unknown kind reaching this branch
 			// is a genuine kind-unknown error (predict catches

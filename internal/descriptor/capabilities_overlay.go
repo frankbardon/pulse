@@ -1835,6 +1835,8 @@ const twoSampleParamsRule = "A scalar side REQUIRES its variance and sample size
 // twoSampleCellInputs is OVERLAY_T_CELL / OVERLAY_Z_CELL's inputs rule.
 const twoSampleCellInputs = "A cell whose components carry mean and variance (AGG_WELFORD, AGG_VARIANCE, AGG_STDDEV, or an " +
 	"extension declaring both keys) reads its mean, variance and n from Response.Components.Crosstab with no params; " +
+	"the variance is the SAMPLE variance m2/(n-1): an unweighted AGG_VARIANCE / AGG_STDDEV cell's population variance is " +
+	"converted (n < 2: undefined), an extension cell is read as is and must expose it; " +
 	"any other cell — or any cell of a slot built with components disabled — is a scalar mean. " + twoSampleParamsRule
 
 // twoSampleSeriesInputs is OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF's inputs

@@ -46,6 +46,14 @@ import (
 // Missing reference cells emit the same warning with
 // `ref_missing=true`.
 func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
+	return applyZCellWith(spec, reference, targets, refIdx, targetIdxs, composeSlotCellTypes{})
+}
+
+// applyZCellWith is applyZCell with the slots' authored crosstab cell
+// types in reach (see applyTCellWith): an unweighted AGG_VARIANCE /
+// AGG_STDDEV cell's population variance is read as the sample variance
+// (E4-S4).
+func applyZCellWith(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int, cellTypes composeSlotCellTypes) (types.OverlayLayer, []types.OverlayWarning, error) {
 	refMx := readMatrix(reference)
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
 	targetMx := readMatrix(target)
@@ -107,7 +115,7 @@ func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 				continue
 			}
 			refCoord, refCoordOK := refCoordLookup[matrixCellLookupKey{row: rowKeyStr, col: colKeyStr}]
-			tLeg, okT, err := extractCellWelchInputsFromComponents(target, cell, i, j, legs, twosample.Target)
+			tLeg, okT, err := extractCellWelchInputsFromComponents(target, cell, i, j, cellTypes.target, legs, twosample.Target)
 			if err != nil {
 				return types.OverlayLayer{}, nil, err
 			}
@@ -116,7 +124,7 @@ func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 				okR  bool
 			)
 			if refCoordOK {
-				rLeg, okR, err = extractCellWelchInputsFromComponents(reference, refCell, refCoord.Row, refCoord.Col, legs, twosample.Reference)
+				rLeg, okR, err = extractCellWelchInputsFromComponents(reference, refCell, refCoord.Row, refCoord.Col, cellTypes.ref, legs, twosample.Reference)
 			} else {
 				rLeg, okR, err = extractCellWelchInputsScalar(refCell, legs, twosample.Reference)
 			}
@@ -219,18 +227,19 @@ func welchZTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 // Crosstab.CellComponents[r][c] when the operator emitted a `{mean,
 // variance, n}` triple — through the weighted-host rule
 // (extractCellComponentsTriple → readMeanLeg), so a weighted cell
-// answers (mean, variance on w*, N*). A cell without the triple but
+// answers (mean, variance on w*, N*) and an unweighted cell of cellType
+// AGG_VARIANCE / AGG_STDDEV the sample variance. A cell without the triple but
 // with a scalar value is the scalar route: side's explicit params
 // (extractCellWelchInputsScalar).
 //
 // Absent / non-numeric cells with no components triple return ok=false
 // so the caller can skip the cell. The universal Components surface is
 // the only triple source.
-func extractCellWelchInputsFromComponents(resp *types.Response, cell types.MatrixCell, r, c int, legs *twoSampleLegs, side twosample.Side) (meanLeg, bool, error) {
+func extractCellWelchInputsFromComponents(resp *types.Response, cell types.MatrixCell, r, c int, cellType types.AggregationType, legs *twoSampleLegs, side twosample.Side) (meanLeg, bool, error) {
 	if !cell.Present {
 		return meanLeg{}, false, nil
 	}
-	if leg, tripleOK := extractCellComponentsTriple(resp, r, c); tripleOK {
+	if leg, tripleOK := extractCellComponentsTriple(resp, r, c, cellType); tripleOK {
 		return leg, true, nil
 	}
 	return extractCellWelchInputsScalar(cell, legs, side)
