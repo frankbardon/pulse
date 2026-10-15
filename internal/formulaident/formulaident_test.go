@@ -76,10 +76,12 @@ func TestComposeRefusal(t *testing.T) {
 		code    errors.Code
 		details map[string]any
 	}{
-		{"missing", map[string]any{}, errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
-			map[string]any{"index": 3, "kind": "OVERLAY_FORMULA", "reason": "missing formula param"}},
-		{"non-string", map[string]any{"formula": 2.0}, errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
-			map[string]any{"index": 3, "kind": "OVERLAY_FORMULA", "reason": "formula param is empty or non-string"}},
+		{"missing", map[string]any{}, errors.PULSE_OVERLAY_PARAM_MISSING,
+			map[string]any{"index": 3, "kind": "OVERLAY_FORMULA", "param": "formula", "reason": "missing formula param"}},
+		{"non-string", map[string]any{"formula": 2.0}, errors.PULSE_OVERLAY_PARAM_MISSING,
+			map[string]any{"index": 3, "kind": "OVERLAY_FORMULA", "param": "formula", "reason": "formula param is empty or non-string"}},
+		{"empty", map[string]any{"formula": ""}, errors.PULSE_OVERLAY_PARAM_MISSING,
+			map[string]any{"index": 3, "kind": "OVERLAY_FORMULA", "param": "formula", "reason": "formula param is empty or non-string"}},
 		{"unknown var, sorted first", map[string]any{"formula": "zeta + cell + value"}, errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
 			map[string]any{"index": 3, "kind": "OVERLAY_FORMULA", "unknown_identifier": "cell", "host_shape": "series",
 				"allowed": []string{"prior", "ref_value", "total", "value"}, "formula": "zeta + cell + value"}},

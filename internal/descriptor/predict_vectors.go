@@ -69,19 +69,23 @@ func predictReferences(env *descriptor.Envelope, req *types.Request, schema *enc
 	}
 }
 
-// predictVectorLengths reports, per request expression, the first pair
-// built-in (dot / dist / cosine) whose two arguments have known unequal
-// lengths — literal arrays or bare named vectors (vectors.LengthIssues)
-// — with the runtime build's PROCESSING_VECTOR_LENGTH_MISMATCH code,
-// message and details {function, left, right}. A request whose vectors
-// do not resolve is judged without them (the field-reference pass
-// reports that); any other argument is unknown and never refused.
+// predictVectorLengths reports, per request expression, the first
+// static fault of a reserved built-in (vectors.StaticIssues — the rule
+// the runtime build refuses with, its first issue failing the build):
+// a wrong argument count, a literal vnormalize mode other than "l1" /
+// "l2", a vector-returning call as the whole expression (each
+// PROCESSING_CONFIG), or a dot / dist / cosine pair whose arguments have
+// known unequal lengths — literal arrays or bare named vectors —
+// PROCESSING_VECTOR_LENGTH_MISMATCH {function, left, right}; code,
+// message and details are the runtime's. A request whose vectors do not
+// resolve is judged without them (the field-reference pass reports
+// that); any other argument is unknown and never refused.
 func predictVectorLengths(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema) {
 	if req == nil || (len(req.Filterers) == 0 && len(req.Attributes) == 0) {
 		return
 	}
 	resolved, _ := vectors.Resolve(req.Vectors, schema)
-	for _, ce := range vectors.LengthIssues(req, schema, resolved) {
+	for _, ce := range vectors.StaticIssues(req, schema, resolved) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}
 }

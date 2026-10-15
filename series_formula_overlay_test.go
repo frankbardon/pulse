@@ -183,7 +183,8 @@ func TestSeriesFormula_RefusalsMatchPredict(t *testing.T) {
 		{"unknown function", sfxSpec(t, "bogusfn(value)", nil), perr.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
 		{"vector built-in", sfxSpec(t, "vsum(value)", nil), perr.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
 		{"baseline without its param", sfxSpec(t, "value / baseline", nil), perr.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
-		{"missing formula", missing, perr.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
+		{"missing formula", missing, perr.PULSE_OVERLAY_PARAM_MISSING},
+		{"empty formula", sfxSpec(t, "", nil), perr.PULSE_OVERLAY_PARAM_MISSING},
 		{"parse error", sfxSpec(t, "value +", nil), perr.PULSE_OVERLAY_FORMULA_PARSE_ERROR},
 		{"total() call", sfxSpec(t, "total(value)", nil), perr.PULSE_FORMULA_TOTAL_SITE},
 		{"negative baseline_position", sfxSpec(t, "baseline", map[string]any{"baseline_position": -1}), perr.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE},
@@ -283,5 +284,67 @@ func TestRollingOverlays_Window1(t *testing.T) {
 	ce := requireCodedError(t, err, perr.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE)
 	if ce.Message != pe.Message || pe.Code != string(ce.Code) {
 		t.Errorf("runtime %s %q, predict %s %q", ce.Code, ce.Message, pe.Code, pe.Message)
+	}
+}
+
+// TestSeriesFormula_BaselineBoundMatchesPredict (E4-S3): a
+// baseline_position at or past the partition's length is the runtime's
+// PULSE_OVERLAY_REF_UNKNOWN. When every in-partition grouper is a
+// GROUP_CATEGORY over a categorical field, the dictionary sizes bound
+// the partition length before the run, so predict now reports the same
+// code, message and count (series_length: the bound, which here is the
+// actual length); over a data-dependent axis (GROUP_RANGE) predict
+// defers and only the runtime refuses. A position inside the bound runs.
+func TestSeriesFormula_BaselineBoundMatchesPredict(t *testing.T) {
+	f := newMGFixture(t, pulse.Options{})
+	ctx := context.Background()
+	host := func(pos int, groups ...*types.Group) *types.Request {
+		r := mgRequest(f, groups, psYSum())
+		r.Overlays = []types.OverlaySpec{sfxSpec(t, "value / baseline", map[string]any{"baseline_position": pos})}
+		return r
+	}
+	for _, c := range []struct {
+		name string
+		req  *types.Request
+	}{
+		{"single grouper at length", host(3, mgRegion())},
+		{"single grouper far", host(999, mgRegion())},
+		{"partition at length", host(2, mgRegion(), mgSex())},
+		// A nullable categorical's null rows form no group, so its
+		// dictionary still bounds the series.
+		{"nullable categorical", host(2, mgTier())},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			env := predictEnvelope(t, f.p, f.fs, f.cohort, c.req)
+			if len(env.Errors) != 1 {
+				t.Fatalf("predict %v, want one refusal", envCodes(env))
+			}
+			pe := env.Errors[0]
+			_, err := f.p.Process(ctx, c.req)
+			sameRefusal(t, "process", pe, err, perr.PULSE_OVERLAY_REF_UNKNOWN)
+			shard := *c.req
+			shard.Cohort = &types.Cohort{Filename: f.archive}
+			_, err = f.shard.Process(ctx, &shard)
+			sameRefusal(t, "process shards", pe, err, perr.PULSE_OVERLAY_REF_UNKNOWN)
+			_, err = f.p.Compose(ctx, &types.ComposedRequest{Requests: []*types.Request{c.req}})
+			sameRefusal(t, "compose slot", pe, unlocated(t, err), perr.PULSE_OVERLAY_REF_UNKNOWN)
+		})
+	}
+	// In reach on both sides: the last row of the series / partition.
+	for _, req := range []*types.Request{host(2, mgRegion()), host(1, mgRegion(), mgSex()), host(1, mgTier())} {
+		if env := predictEnvelope(t, f.p, f.fs, f.cohort, req); len(env.Errors) != 0 {
+			t.Errorf("predict %v", envCodes(env))
+		}
+		if _, err := f.p.Process(ctx, req); err != nil {
+			t.Errorf("process %v", err)
+		}
+	}
+	// A data-dependent axis: runtime only.
+	rng := host(999, mgScoreRng())
+	if env := predictEnvelope(t, f.p, f.fs, f.cohort, rng); len(env.Errors) != 0 {
+		t.Errorf("GROUP_RANGE: predict %v, want a runtime-only refusal", envCodes(env))
+	}
+	if _, err := f.p.Process(ctx, rng); err == nil {
+		t.Error("GROUP_RANGE: runtime ran a baseline past the series")
 	}
 }

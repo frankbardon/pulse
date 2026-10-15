@@ -22,8 +22,10 @@ const BaselineParam = "baseline_position"
 // every refusal below carries one code, message and Details on both
 // sides. nil when the spec is in reach; otherwise, first hit wins:
 //
-//   - no usable params.formula: PULSE_OVERLAY_FORMULA_INVALID_IDENT
-//     {index, kind, reason};
+//   - no usable params.formula (Params absent or not an object, the
+//     key absent, an empty or non-string value):
+//     PULSE_OVERLAY_PARAM_MISSING {index, kind, param, reason}
+//     (MissingFormula — every FORMULA arm's rule);
 //   - a parse failure: PULSE_OVERLAY_FORMULA_PARSE_ERROR {index, kind,
 //     formula, parse_error};
 //   - a total() call: totalcall.Refusal's code, Details + index, kind;
@@ -45,11 +47,10 @@ func RequestSpecRefusal(spec *types.OverlaySpec, index int, shape types.OverlayS
 	formula, reason := ComposeFormula(params)
 	if reason != "" {
 		msg := "overlay " + kind + " requires Params[\"formula\"] (non-empty string)"
-		if reason != "missing formula param" {
+		if reason != ReasonMissingFormula {
 			msg = "overlay " + kind + " Params[\"formula\"] must be a non-empty string"
 		}
-		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT, msg,
-			map[string]any{"index": index, "kind": kind, "reason": reason})
+		return MissingFormula(kind, msg, index, reason)
 	}
 	tree, err := exprparser.Parse(formula)
 	if err != nil {
@@ -81,22 +82,41 @@ func RequestSpecRefusal(spec *types.OverlaySpec, index int, shape types.OverlayS
 }
 
 // requestParams decodes spec.Params as a JSON object: the
-// PULSE_OVERLAY_FORMULA_INVALID_IDENT {index, kind, reason} refusal
-// when Params is empty or not an object.
+// MissingFormula refusal when Params is empty or not an object.
 func requestParams(spec *types.OverlaySpec, index int) (map[string]any, *errors.CodedError) {
 	kind := string(spec.Kind)
 	if len(spec.Params) == 0 {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
+		return nil, MissingFormula(kind,
 			"overlay "+kind+" requires Params[\"formula\"] (non-empty string); Params is missing or empty",
-			map[string]any{"index": index, "kind": kind, "reason": "missing formula param"})
+			index, ReasonMissingFormula)
 	}
 	var m map[string]any
 	if err := json.Unmarshal(spec.Params, &m); err != nil {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
-			"overlay "+kind+" Params must be a JSON object carrying \"formula\"",
-			map[string]any{"index": index, "kind": kind, "reason": "params is not a JSON object"})
+		return nil, MissingFormula(kind, "overlay "+kind+" Params must be a JSON object carrying \"formula\"",
+			index, "params is not a JSON object")
 	}
 	return m, nil
+}
+
+// Reasons a FORMULA spec carries no usable formula (Details.reason of
+// MissingFormula).
+const (
+	ReasonMissingFormula = "missing formula param"
+	ReasonEmptyFormula   = "formula param is empty or non-string"
+)
+
+// MissingFormula is the refusal of an OVERLAY_FORMULA spec that carries
+// no usable formula — Params absent or not an object, no "formula" key,
+// an empty or non-string value — on EVERY FORMULA arm (Request host
+// MATRIX and SERIES, Compose) and on both sides:
+// PULSE_OVERLAY_PARAM_MISSING (the more specific code for "no formula"),
+// Details {index, kind, param: "formula", reason}. A formula that is
+// present but does not parse, or names an unknown identifier, keeps its
+// formula-specific code (PULSE_OVERLAY_FORMULA_PARSE_ERROR /
+// _INVALID_IDENT).
+func MissingFormula(kind, msg string, index int, reason string) *errors.CodedError {
+	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING, msg,
+		map[string]any{"index": index, "kind": kind, "param": "formula", "reason": reason})
 }
 
 // BaselinePosition reads params.baseline_position: (position, true,
@@ -126,4 +146,23 @@ func SpecBaselinePosition(spec *types.OverlaySpec) (position int, set bool) {
 	}
 	position, set, bad := BaselinePosition(m)
 	return position, set && !bad
+}
+
+// BaselineOutOfRange is the refusal of a SERIES FORMULA whose
+// params.baseline_position is at or past the end of a partition of
+// seriesLength rows: PULSE_OVERLAY_REF_UNKNOWN {index, kind,
+// baseline_position, series_length}. The runtime raises it off the
+// materialised partition; predict raises it when the partition length is
+// bounded by the schema (every in-partition grouper a GROUP_CATEGORY
+// over a categorical field: the product of the dictionary sizes) and
+// the position reaches the bound — series_length then carries the bound.
+// A data-dependent axis is judged by the runtime only. A negative index
+// omits Details.index (the runtime handler, whose dispatcher stamps it).
+func BaselineOutOfRange(kind types.OverlayKind, index, position, seriesLength int) *errors.CodedError {
+	details := map[string]any{"kind": string(kind), BaselineParam: position, "series_length": seriesLength}
+	if index >= 0 {
+		details["index"] = index
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_UNKNOWN,
+		"overlay "+string(kind)+" params.baseline_position is out of range for the host series", details)
 }

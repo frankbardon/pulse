@@ -32,6 +32,14 @@ func TestRequestFormula_IdentRefusalMatchesPredict(t *testing.T) {
 	ctx := context.Background()
 	host := func(formula string) *types.Request {
 		params, _ := json.Marshal(map[string]any{"formula": formula})
+		switch formula {
+		case "<no params>":
+			params = nil
+		case "<no formula key>":
+			params = json.RawMessage(`{"other": 1}`)
+		case "<non-string>":
+			params = json.RawMessage(`{"formula": 2}`)
+		}
 		return specRefusalHost(cohort, types.OverlaySpec{Name: "f", Kind: types.OverlayKindFormula, Scope: types.OverlayScopeCell, Params: params})
 	}
 
@@ -43,10 +51,14 @@ func TestRequestFormula_IdentRefusalMatchesPredict(t *testing.T) {
 		{"unknown variable", "cell + bogusvar", "bogusvar", errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
 		{"vector built-in", "vsum(cell)", "vsum", errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
 		{"compose slot path", "slot.a.cell + cell", "slot.a.cell", errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
-		// The whole Request-host gate is shared (U35 #432): an empty
-		// formula was the runtime's PULSE_OVERLAY_PARAM_MISSING and a
-		// syntax error its compiler message.
-		{"empty formula", "", "", errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
+		// The whole Request-host gate is shared (U35 #432); a spec with
+		// no usable formula is PULSE_OVERLAY_PARAM_MISSING on every
+		// FORMULA arm (E4-S3: the more specific code for "no formula"),
+		// a syntax error the gate's parse message.
+		{"empty formula", "", "", errors.PULSE_OVERLAY_PARAM_MISSING},
+		{"no params", "<no params>", "", errors.PULSE_OVERLAY_PARAM_MISSING},
+		{"no formula key", "<no formula key>", "", errors.PULSE_OVERLAY_PARAM_MISSING},
+		{"non-string formula", "<non-string>", "", errors.PULSE_OVERLAY_PARAM_MISSING},
 		{"parse error", "cell +", "", errors.PULSE_OVERLAY_FORMULA_PARSE_ERROR},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -79,4 +91,47 @@ func TestRequestFormula_IdentRefusalMatchesPredict(t *testing.T) {
 	pe := firstPredictError(t, predictEnvelope(t, p, fs, cohort, host("boost(cell)")), nil)
 	_, err = p.Process(ctx, host("boost(cell)"))
 	sameRefusal(t, "no extension", pe, err, errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT)
+}
+
+// TestComposeFormula_MissingFormulaMatchesPredict (E4-S3): a Compose
+// OVERLAY_FORMULA with no usable formula is PULSE_OVERLAY_PARAM_MISSING
+// {index, kind, param, reason} from predict and the runtime alike — the
+// code every FORMULA arm (Request host MATRIX / SERIES, Compose) uses
+// for "no formula"; a present formula that does not parse keeps
+// PULSE_OVERLAY_FORMULA_PARSE_ERROR.
+func TestComposeFormula_MissingFormulaMatchesPredict(t *testing.T) {
+	p, _ := nsFixture(t, pulse.Options{})
+	ctx := context.Background()
+	for _, c := range []struct {
+		name   string
+		params map[string]any
+		want   errors.Code
+		reason string
+	}{
+		{"missing", map[string]any{}, errors.PULSE_OVERLAY_PARAM_MISSING, "missing formula param"},
+		{"empty", map[string]any{"formula": ""}, errors.PULSE_OVERLAY_PARAM_MISSING, "formula param is empty or non-string"},
+		{"non-string", map[string]any{"formula": 3.0}, errors.PULSE_OVERLAY_PARAM_MISSING, "formula param is empty or non-string"},
+		{"parse error", map[string]any{"formula": "value +"}, errors.PULSE_OVERLAY_FORMULA_PARSE_ERROR, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			mk := func() *pulse.ComposedRequest {
+				s := cfSpec("f", types.OverlayKindFormula, types.OverlayScopeGroup, "")
+				s.Params = c.params
+				return cfSlots(types.OverlayShapeSeries, s)
+			}
+			env, err := p.PredictCompose(ctx, mk())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(env.Errors) != 1 {
+				t.Fatalf("predict %v, want one refusal", envCodes(env))
+			}
+			pe := env.Errors[0]
+			if c.reason != "" && (pe.Details["reason"] != c.reason || pe.Details["param"] != "formula") {
+				t.Fatalf("predict details %v", pe.Details)
+			}
+			_, err = p.Compose(ctx, mk())
+			sameRefusal(t, "compose", pe, err, c.want)
+		})
+	}
 }

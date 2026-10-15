@@ -195,7 +195,7 @@ func pairwiseDescription(test string) string {
 		"PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / " +
 		"column_margin_distinct accumulate over raw records and are exact by construction, never gated. " +
 		"Reads Response.Components.Crosstab — a components-disabled host fires " +
-		"PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are " +
+		"PULSE_OVERLAY_COMPONENTS_REQUIRED, at predict and at runtime. Emits RAW p-values only; direction, thresholds, and min-n flags are " +
 		"the embedder's presentation concern. Buffered (inferential)."
 }
 
@@ -579,7 +579,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
 			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
 			RefKinds:    []string{},
-			Description: pairwiseDescription("two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df adjustment; reads the {mean, variance, n} Welford triple from CellComponents). A cell whose declared ComponentSchema lacks mean + variance fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, at predict and at runtime. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code"),
+			Description: pairwiseDescription("two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df adjustment; reads the {mean, variance, n} Welford triple from CellComponents). A cell whose declared ComponentSchema lacks mean + variance fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, at predict and at runtime. The test reads the sample variance m2/(n−1): an unweighted AGG_VARIANCE / AGG_STDDEV cell (population variance m2/n) is converted, so it scores as AGG_WELFORD; an extension cell must expose the sample variance. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code"),
 		}
 	case types.OverlayKindPairwiseWeightedTwoMeansZ:
 		return descriptor.OverlayCapability{
@@ -597,7 +597,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
 			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
 			RefKinds:    []string{},
-			Description: pairwiseDescription("Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A cell whose declared ComponentSchema lacks mean + variance fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, at predict and at runtime. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code"),
+			Description: pairwiseDescription("Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A cell whose declared ComponentSchema lacks mean + variance fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, at predict and at runtime. The test reads the sample variance m2/(n−1): an unweighted AGG_VARIANCE / AGG_STDDEV cell (population variance m2/n) is converted, so it scores as AGG_WELFORD; an extension cell must expose the sample variance. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code"),
 		}
 	case types.OverlayKindFormula:
 		return descriptor.OverlayCapability{
@@ -653,7 +653,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"(grouped Process) host, scope group and an empty Ref, once per row — value, total (the sum of the partition's " +
 				"values), prior (the previous present row's value, null on the first) and baseline, reachable only when " +
 				"params.baseline_position names a 0-based row (a non-negative integer, else PULSE_OVERLAY_LEVEL_OUT_OF_RANGE; " +
-				"past the partition PULSE_OVERLAY_REF_UNKNOWN at runtime). On ComposedRequest.Overlays " +
+				"past the partition PULSE_OVERLAY_REF_UNKNOWN — at predict too when every in-partition grouper is a " +
+				"GROUP_CATEGORY over a categorical field, whose dictionary sizes bound the partition). On ComposedRequest.Overlays " +
 				"the host is the first target slot, of the reference slot's shape: MATRIX adds ref_cell; SERIES binds " +
 				"value, total, prior and ref_value; SCALAR binds value and ref; every shape adds " +
 				"`slot.<label>.cell` (MATRIX) / `slot.<label>.value` for the reference and each target, aligned by key " +
@@ -661,7 +662,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"/ int / int64 widen natively; bool widens to 0.0 / 1.0; anything else fires " +
 				"PULSE_OVERLAY_FORMULA_TYPE_MISMATCH. Predict walks the parsed AST and refuses every identifier, " +
 				"function or slot path outside that namespace with PULSE_OVERLAY_FORMULA_INVALID_IDENT; on every host " +
-				"the runtime raises the same refusal before it compiles. INHERENTLY BUFFERED — margins, totals and SDs " +
+				"the runtime raises the same refusal before it compiles. A spec with no usable params.formula (absent, " +
+				"empty or not a string) is PULSE_OVERLAY_PARAM_MISSING on every host, predict and runtime. INHERENTLY BUFFERED — margins, totals and SDs " +
 				"are post-fold state.",
 		}
 	case types.OverlayKindIndexVsBaseline:

@@ -23,7 +23,7 @@ One host-matrix slot against another ALONG one axis of the SAME crosstab — the
 
 ## Host shape
 
-MATRIX crosstab (`Response.Crosstab.Matrix`) + `Response.Components.Crosstab`. Components-disabled host → `PULSE_OVERLAY_COMPONENTS_REQUIRED`.
+MATRIX crosstab (`Response.Crosstab.Matrix`) + `Response.Components.Crosstab`. Components-disabled host (options or request) → `PULSE_OVERLAY_COMPONENTS_REQUIRED`, predict and runtime.
 
 ## Output
 

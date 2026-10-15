@@ -230,11 +230,11 @@ func ComposeSlotPaths(slots []Slot) map[string]struct{} {
 func ComposeFormula(params map[string]any) (formula, reason string) {
 	raw, present := params["formula"]
 	if !present {
-		return "", "missing formula param"
+		return "", ReasonMissingFormula
 	}
 	f, ok := raw.(string)
 	if !ok || f == "" {
-		return "", "formula param is empty or non-string"
+		return "", ReasonEmptyFormula
 	}
 	return f, ""
 }
@@ -244,8 +244,8 @@ func ComposeFormula(params map[string]any) (formula, reason string) {
 // (its reference and targets) and allowed to call funcs. nil when the
 // formula reads only its namespace; otherwise, first hit wins:
 //
-//   - no usable params.formula: PULSE_OVERLAY_FORMULA_INVALID_IDENT,
-//     Details {index, kind, reason};
+//   - no usable params.formula: MissingFormula's
+//     PULSE_OVERLAY_PARAM_MISSING, Details {index, kind, param, reason};
 //   - a parse failure: PULSE_OVERLAY_FORMULA_PARSE_ERROR, Details
 //     {index, kind, formula, parse_error};
 //   - an unknown variable, function or slot path (each in sorted
@@ -255,9 +255,7 @@ func ComposeFormula(params map[string]any) (formula, reason string) {
 func ComposeRefusal(kind types.OverlayKind, params map[string]any, index int, shape types.OverlayShape, slots []Slot, funcs map[string]struct{}) *errors.CodedError {
 	formula, reason := ComposeFormula(params)
 	if reason != "" {
-		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
-			"overlay "+string(kind)+" requires params.formula (a non-empty string)",
-			map[string]any{"index": index, "kind": string(kind), "reason": reason})
+		return MissingFormula(string(kind), "overlay "+string(kind)+" requires params.formula (a non-empty string)", index, reason)
 	}
 	tree, err := exprparser.Parse(formula)
 	if err != nil {

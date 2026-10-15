@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/seriespartition"
@@ -144,9 +145,9 @@ func pairwiseProportionAdvice(opts *PredictOptions, what string) string {
 // built-in non-AGG_WEIGHTED_MEAN cell; every other kind refuses n_basis.
 // The Welford-shape requirement of the two moment kinds is judged from
 // the cell type's declared ComponentSchema (welfordTripleCellRefused),
-// the runtime's key rule read off the capability table. The per-cell
-// components requirement (PULSE_OVERLAY_COMPONENTS_REQUIRED) stays a
-// runtime condition.
+// the runtime's key rule read off the capability table. With components
+// disabled (Options or request) every kind reports the runtime's
+// PULSE_OVERLAY_COMPONENTS_REQUIRED instead.
 func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
 	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
 	// raises too (overlayhost.CrosstabSpecRefusal).
@@ -169,12 +170,21 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 			map[string]any{"index": index, "kind": string(spec.Kind)})
 		return
 	}
+	// Components disabled: every pairwise kind reads its legs off the
+	// cell components, so the runtime (processing.runPairwiseOverlay)
+	// refuses PULSE_OVERLAY_COMPONENTS_REQUIRED right after the Params
+	// decode — and that is its only refusal. The weighted-moments kind
+	// judges its own Params first (applyPairwiseWeightedTwoMeansZ), so
+	// its refusal waits for that block below.
+	componentsOff := opts.componentsDisabled(req)
+	if componentsOff && !types.PairwiseKindUsesWeightedMoments(spec.Kind) {
+		addPairwiseComponentsRequired(env, spec, index)
+		return
+	}
 	// Welford cell shape: a moment kind over a cell whose components
 	// cannot carry the triple is the runtime's
-	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, same message. With
-	// components disabled the runtime refuses first with
-	// PULSE_OVERLAY_COMPONENTS_REQUIRED, so the shape rule stands down.
-	if types.PairwiseKindUsesWelford(spec.Kind) && req.Crosstab.Cell != nil && !opts.componentsDisabled(req) &&
+	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, same message.
+	if types.PairwiseKindUsesWelford(spec.Kind) && req.Crosstab.Cell != nil &&
 		welfordTripleCellRefused(opRoute(opts.instance(), req.Crosstab.Cell.Type), opts) {
 		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 			overlayhost.WelfordCellMessage(spec.Kind),
@@ -307,7 +317,7 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 		// gates on the keys, not the type name.
 		// A cell type the instance hides is judged as a never-registered
 		// (non-built-in) name.
-		if cell := req.Crosstab.Cell; cell != nil && cell.Type != "" && !weightedMomentCell(req, cell, opts) &&
+		if cell := req.Crosstab.Cell; !componentsOff && cell != nil && cell.Type != "" && !weightedMomentCell(req, cell, opts) &&
 			isBuiltinAggregationType(opRoute(opts.instance(), cell.Type)) {
 			env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"overlay "+string(spec.Kind)+" requires an AGG_WEIGHTED_MEAN or weighted AGG_AVERAGE cell (it reads the weighted moments off Response.Components); the crosstab cell is "+weightedMomentCellName(req, cell, opts),
@@ -339,6 +349,10 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 			refused = true
 		}
 		if refused {
+			return
+		}
+		if componentsOff {
+			addPairwiseComponentsRequired(env, spec, index)
 			return
 		}
 	}
@@ -399,6 +413,14 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 			v.Message(spec.Kind, params),
 			v.Details(spec.Kind, params, index))
 	}
+}
+
+// addPairwiseComponentsRequired reports the runtime's
+// PULSE_OVERLAY_COMPONENTS_REQUIRED refusal of a pairwise kind over a
+// components-disabled host (overlayhost.ComponentsRequiredMessage).
+func addPairwiseComponentsRequired(env *descriptor.Envelope, spec *types.OverlaySpec, index int) {
+	env.AddError(string(errors.PULSE_OVERLAY_COMPONENTS_REQUIRED), overlayhost.ComponentsRequiredMessage(spec.Kind),
+		map[string]any{"index": index, "kind": string(spec.Kind)})
 }
 
 // validateOverlayPanel validates the params blob of the COMPOSE-host
@@ -559,6 +581,7 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 	}
 	for i := range req.Overlays {
 		spec := &req.Overlays[i]
+		before := len(env.Errors)
 		// A kind that does not run on Request.Overlays (a Compose,
 		// whole-chain or FACET kind) is refused before any per-kind
 		// rule — the shared overlayhost refusal the runtime's Process
@@ -600,7 +623,38 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i,
 			vectors.AggregationColumns(req, func() *encoding.Schema { return schema }, aggregationKinds(opts.instance(), nil)))
 		validateOverlaySeriesPartition(env, req, spec, opts.overlayRoute(spec.Kind), i)
+		if len(env.Errors) == before {
+			validateFormulaBaselineBound(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
+		}
 	}
+}
+
+// validateFormulaBaselineBound reports a SERIES OVERLAY_FORMULA whose
+// params.baseline_position reaches the schema bound on its partition's
+// length (formulaident.BaselineOutOfRange — the runtime's
+// PULSE_OVERLAY_REF_UNKNOWN, raised there off the materialised
+// partition). The partition holds the groupers past the
+// seriespartition.Depth prefix; the bound is categoricalSeriesLengthBound
+// over them, and an axis it cannot bound (a range, date, quantile or
+// set grouper) is left to the runtime. Run only on a spec no other rule
+// refused, so the runtime's single refusal is predict's only one.
+func validateFormulaBaselineBound(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, schema *encoding.Schema, inst *InstanceSnapshot, route types.OverlayKind, index int) {
+	if route != types.OverlayKindFormula || req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
+		return
+	}
+	pos, set := formulaident.SpecBaselinePosition(spec)
+	if !set {
+		return
+	}
+	depth, err := seriespartition.Depth(req.Groups, spec, index)
+	if err != nil || depth >= len(req.Groups) {
+		return
+	}
+	bound := categoricalSeriesLengthBound(req.Groups[depth:], schema, inst)
+	if bound < 0 || pos < bound {
+		return
+	}
+	addCodedError(env, formulaident.BaselineOutOfRange(spec.Kind, index, pos, bound))
 }
 
 // validateOverlaySeriesPartition refuses a series overlay whose
@@ -752,14 +806,23 @@ func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Re
 // -1 (the cartesian is non-computable). A grouper inst hides counts as
 // a non-categorical (never-registered) one.
 func overlayBaselineIndexPredictedSeriesLength(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) int {
-	if req == nil || schema == nil {
+	if req == nil {
 		return -1
 	}
-	if len(req.Groups) == 0 {
+	return categoricalSeriesLengthBound(req.Groups, schema, inst)
+}
+
+// categoricalSeriesLengthBound is the schema upper bound on the rows of
+// a series grouped by groups: the product of their dictionary sizes when
+// every one is a GROUP_CATEGORY over a dictionary-bearing categorical
+// field (null rows form no group), -1 otherwise (or for no groups, a nil
+// schema, an overflow).
+func categoricalSeriesLengthBound(groups []*types.Group, schema *encoding.Schema, inst *InstanceSnapshot) int {
+	if schema == nil || len(groups) == 0 {
 		return -1
 	}
 	product := 1
-	for _, g := range req.Groups {
+	for _, g := range groups {
 		if g == nil {
 			return -1
 		}

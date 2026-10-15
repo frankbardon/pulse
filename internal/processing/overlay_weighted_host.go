@@ -2,6 +2,7 @@ package processing
 
 import (
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -75,8 +76,14 @@ func readMeanLeg(m map[string]any) (meanLeg, bool) {
 
 // MeanLeg reads cell (r, c)'s two-sample inputs through the
 // weighted-host rule: (mean, variance on w*, N*) on a weighted cell,
-// (mean, variance, n) on an unweighted one. ok=false unless the cell
-// carries the {mean, variance, n} triple.
+// (mean, variance, n) on an unweighted one. On an unweighted cell of a
+// type that emits the population variance (overlayhost.
+// PopulationVarianceCell: AGG_VARIANCE / AGG_STDDEV, known from the
+// request through cellType) the variance is converted to the sample
+// variance the two-sample tests are defined on (overlayhost.
+// SampleVariance: m2 / (n - 1), undefined when n < 2), so the leg equals
+// an AGG_WELFORD cell's. ok=false unless the cell carries the {mean,
+// variance, n} triple.
 func (h *CrosstabHostView) MeanLeg(rowIdx, colIdx int) (meanLeg, bool) {
 	if h == nil || h.components == nil {
 		return meanLeg{}, false
@@ -85,7 +92,13 @@ func (h *CrosstabHostView) MeanLeg(rowIdx, colIdx int) (meanLeg, bool) {
 	if rowIdx < 0 || rowIdx >= len(cc) || colIdx < 0 || colIdx >= len(cc[rowIdx]) {
 		return meanLeg{}, false
 	}
-	return readMeanLeg(cc[rowIdx][colIdx])
+	m := cc[rowIdx][colIdx]
+	leg, ok := readMeanLeg(m)
+	if ok && leg.basis == weighting.Unweighted && overlayhost.PopulationVarianceCell(h.cellType) {
+		m2, hasM2 := componentsNumeric(m, "m2")
+		leg.variance = overlayhost.SampleVariance(leg.variance, m2, hasM2, leg.nStar)
+	}
+	return leg, ok
 }
 
 // withCellWeight records the weight basis of the host's crosstab cell

@@ -9,9 +9,9 @@ covers: [expression, expr-lang, formula, set-helpers, vector-functions, lookup, 
 
 # Expression language
 
-Two operators evaluate an `expr-lang/expr` (v1.17.x) string once per row: the formula attribute (the result is a new column) and the expression filter (a truthy result keeps the row). Both compile through one environment, so everything below holds for both; only null handling differs.
+Two operators evaluate an `expr-lang/expr` string once per row: the formula attribute (the result is a new column) and the expression filter (a truthy result keeps the row). Both compile through one environment, so everything below holds for both; only null handling differs.
 
-This is NOT request templating: `$var` / `{{}}` / `$when` are substituted into the request before decode ([`request-templating`](request-templating.md)); an expression runs over row fields at execution time.
+This is NOT request templating: `$var` / `{{}}` / `$when` are substituted into the request before decode ([`request-templating`](request-templating.md)); an expression runs over row fields.
 
 ## Field binding
 
@@ -24,7 +24,7 @@ Fields are referenced by bare name; the value a name binds depends on the schema
 | `set_*` | sorted `[]string` of member labels | `"a" in tags`, `has_any(tags, "a", "b")` |
 | `decimal128` | `Decimal128` | — |
 
-Arithmetic on a categorical errors — branch on the label and emit a number.
+Arithmetic on a categorical errors; branch on the label.
 
 ## Operators and functions
 
@@ -42,9 +42,9 @@ A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is
 | `vsum` `vmean` `vmin` `vmax` `norm` (L2) | float |
 | `vcount` | int count of valid elements |
 | `vsd` | sample SD (ddof 1); < 2 valid → NaN |
-| `dot` `dist` `cosine` (vector pair) | pairwise-complete; `dist` (euclidean) rescales by p/p_observed; `cosine` is the similarity, zero norm → NaN; unequal lengths → `PROCESSING_VECTOR_LENGTH_MISMATCH` (lists / named ones: at build + predict) |
+| `dot` `dist` `cosine` (vector pair) | pairwise-complete; `dist` (euclidean) rescales by p/p_observed; `cosine` is the similarity, zero norm → NaN; unequal lengths → `PROCESSING_VECTOR_LENGTH_MISMATCH` (lists / named: build + predict) |
 | `argmax` `argmin` | 0-based int index; none valid → NaN |
-| `vcenter` `vzscore` `vnormalize` (mode `"l1"` / `"l2"`, case-sensitive) | a vector, only inside a call: `vmax(vzscore([q1, q2, q3]))`; top-level → `PROCESSING_CONFIG` |
+| `vcenter` `vzscore` `vnormalize` (mode `"l1"` / `"l2"`, case-sensitive) | a vector, only inside a call: `vmax(vzscore([q1, q2, q3]))`; top-level, a wrong arity or a literal bad mode → `PROCESSING_CONFIG` (build + predict) |
 | `sqrt` `log` (natural) `exp` `pow(score, 2)` | IEEE scalar (`sqrt(-1)` NaN); the only built-ins an overlay formula admits |
 | `jaccard` `dice` `overlap` `hamming` (two sets: field or `["a", "b"]`, matched by label; a dictionary-less set pairs only with another) | float, `hamming` int; null set → NaN; two empty → NaN, `hamming` 0 |
 | `ref` (table, key) | a reference profile, aligned by label ([`vector-metrics`](vector-metrics.md)) |

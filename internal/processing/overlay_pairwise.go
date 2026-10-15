@@ -174,7 +174,7 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 	if !host.HasComponents() {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_COMPONENTS_REQUIRED,
-			"overlay "+string(spec.Kind)+" requires Response.Components.Crosstab; the host was built with components disabled",
+			overlayhost.ComponentsRequiredMessage(spec.Kind),
 			map[string]any{"kind": string(spec.Kind)})
 	}
 	// Welford-input kinds need {mean, variance, n} on at least one cell.

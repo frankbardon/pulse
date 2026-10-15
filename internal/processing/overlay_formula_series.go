@@ -53,14 +53,9 @@ func applyFormulaSeriesWith(spec *types.OverlaySpec, host *SeriesHostView, exts 
 	ctx := &FormulaContext{Shape: types.OverlayShapeSeries, SeriesHost: host, SeriesTotal: total}
 	if pos, set := formulaident.SpecBaselinePosition(spec); set {
 		if pos >= host.GroupCount() {
-			return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-				errors.PULSE_OVERLAY_REF_UNKNOWN,
-				"overlay "+string(spec.Kind)+" params.baseline_position is out of range for the host series",
-				map[string]any{
-					"kind":                     string(spec.Kind),
-					formulaident.BaselineParam: pos,
-					"series_length":            host.GroupCount(),
-				})
+			// The handler has no spec index: the SERIES dispatcher
+			// stamps it (codeAt), so the refusal reads predict's.
+			return types.OverlayLayer{}, nil, formulaident.BaselineOutOfRange(spec.Kind, -1, pos, host.GroupCount())
 		}
 		v, ok := host.ValueAt(pos)
 		if !ok {
