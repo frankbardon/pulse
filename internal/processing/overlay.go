@@ -432,6 +432,11 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 		// nil registry) routes through the static dispatch table where
 		// every handler shares the (spec, host) signature.
 		if route == types.OverlayKindFormula {
+			// The shared identifier gate predict raises first, with the
+			// spec index (formulaident.RequestRefusal).
+			if cerr := requestFormulaIdentRefusal(spec, exts, i); cerr != nil {
+				return nil, nil, cerr
+			}
 			layer, ws, err := applyFormulaWithExtensions(spec, host, exts)
 			if err != nil {
 				return nil, nil, err

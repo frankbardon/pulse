@@ -71,6 +71,41 @@ func weightedMomentCell(req *types.Request, cell *types.Aggregation, opts *Predi
 	return req.Weight != nil || (opts != nil && opts.DefaultWeight != nil)
 }
 
+// welfordTripleCellRefused reports whether a crosstab cell of type
+// cellType statically cannot carry the Welford triple {mean, variance,
+// n} the moment pairwise kinds (OVERLAY_PAIRWISE_WELCH_T /
+// _TWO_MEANS_Z) read. The runtime's rule (processing.runPairwiseOverlay,
+// CrosstabHostView.HasWelfordCells) is "some cell's components carry the
+// three keys", so predict asks the capability table: the cell type's
+// declared ComponentSchema — a built-in's, or a registered extension's
+// (aggregatorComponentSchemaIndex) — lacks `mean` or `variance` (`n` is
+// the universal floor every cell carries). A registered extension with
+// no declared schema emits the floor only, so it is refused too. An
+// empty or unknown type (refused elsewhere) is not judged here.
+func welfordTripleCellRefused(cellType types.AggregationType, opts *PredictOptions) bool {
+	if cellType == "" {
+		return false
+	}
+	schema, ok := aggregatorComponentSchemaIndex(opts)[string(cellType)]
+	if !ok {
+		snap := extensionsFromOpts(opts)
+		if snap == nil {
+			return false
+		}
+		for _, m := range snap.Aggregators {
+			if m.Name == string(cellType) {
+				return true
+			}
+		}
+		return false
+	}
+	have := map[string]bool{}
+	for _, k := range schema.Keys {
+		have[k.Name] = true
+	}
+	return !have["mean"] || !have["variance"]
+}
+
 // weightedMomentCellName names a refused cell for the shape refusal,
 // qualifying an AGG_AVERAGE as unweighted (the weighted one is admitted).
 func weightedMomentCellName(req *types.Request, cell *types.Aggregation, opts *PredictOptions) string {
@@ -107,10 +142,11 @@ func pairwiseProportionAdvice(opts *PredictOptions, what string) string {
 // selector, because both legs come from the triple; the weighted kind
 // likewise refuses both selectors, requires n_basis and refuses a
 // built-in non-AGG_WEIGHTED_MEAN cell; every other kind refuses n_basis.
-// The per-cell components requirement (PULSE_OVERLAY_COMPONENTS_REQUIRED)
-// and the Welford-shape requirement are runtime conditions — they depend
-// on the materialised host, not the request shape, so the handler raises
-// them, not predict.
+// The Welford-shape requirement of the two moment kinds is judged from
+// the cell type's declared ComponentSchema (welfordTripleCellRefused),
+// the runtime's key rule read off the capability table. The per-cell
+// components requirement (PULSE_OVERLAY_COMPONENTS_REQUIRED) stays a
+// runtime condition.
 func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
 	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
 	// raises too (overlayhost.CrosstabSpecRefusal).
@@ -131,6 +167,18 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 			"overlay "+string(spec.Kind)+" has malformed Params: "+err.Error(),
 			map[string]any{"index": index, "kind": string(spec.Kind)})
+		return
+	}
+	// Welford cell shape: a moment kind over a cell whose components
+	// cannot carry the triple is the runtime's
+	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, same message. With
+	// components disabled the runtime refuses first with
+	// PULSE_OVERLAY_COMPONENTS_REQUIRED, so the shape rule stands down.
+	if types.PairwiseKindUsesWelford(spec.Kind) && req.Crosstab.Cell != nil && !opts.componentsDisabled(req) &&
+		welfordTripleCellRefused(opRoute(opts.instance(), req.Crosstab.Cell.Type), opts) {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			overlayhost.WelfordCellMessage(spec.Kind),
+			map[string]any{"index": index, "kind": string(spec.Kind), "cell_type": string(req.Crosstab.Cell.Type)})
 		return
 	}
 	// Welford-input inertness. OVERLAY_PAIRWISE_WELCH_T and

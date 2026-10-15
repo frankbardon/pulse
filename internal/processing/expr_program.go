@@ -132,7 +132,7 @@ type exprProgram struct {
 // at build (refStaticRefusal — predict's rules) and every compile
 // patches its ref() calls (refPatcher).
 func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Resolved, refTables vectors.ReferenceTables, opts []expr.Option) (*exprProgram, error) {
-	if err := vectorStaticRefusal(src, what); err != nil {
+	if err := vectorStaticRefusal(src, what, vectors.ExprVectorLen(vecs, schema)); err != nil {
 		return nil, err
 	}
 	p := &exprProgram{src: src, what: what, opts: opts, decl: exprPrototype(schema)}

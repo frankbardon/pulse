@@ -115,6 +115,8 @@ func TestFormulaidentImportBoundary(t *testing.T) {
 		"sort": true, "github.com/expr-lang/expr/ast": true, "github.com/expr-lang/expr/parser": true,
 		"github.com/frankbardon/pulse/errors": true, "github.com/frankbardon/pulse/types": true,
 		"github.com/frankbardon/pulse/internal/exprbuiltins": true,
+		"github.com/frankbardon/pulse/internal/exprident":    true,
+		"strings": true,
 	}
 	files, err := filepath.Glob("*.go")
 	if err != nil {

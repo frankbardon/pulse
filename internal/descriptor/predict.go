@@ -639,6 +639,10 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 	// Validate window operations (structural checks; no execution).
 	validateWindows(env, req, schema, opts)
 
+	// Static vector lengths of the pair built-ins (dot / dist / cosine)
+	// in the request's expressions — the runtime build's refusal.
+	predictVectorLengths(env, req, schema)
+
 	// Validate tier-1 and tier-2 statistical tests against the schema +
 	// projected column set. Tier-1 catches missing fields and type
 	// mismatches; tier-2 catches alpha and unknown-type errors. Field

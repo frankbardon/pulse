@@ -11,7 +11,7 @@ covers: [OVERLAY, OverlaySpec, OverlayLayer]
 
 Additive, read-only decorations on a result. Specs ride `Request.Overlays`; each produces one layer in `Response.Overlays[i]`, in spec order. Overlays NEVER mutate the base payload — they are siblings keyed to host coordinates, so base numbers stay byte-identical.
 
-Use an overlay for a figure DERIVED from the result — a share, an index, a delta, a z-score, a cell test.
+Use one for a figure DERIVED from the result: a share, index, delta, z-score, cell test.
 
 ```jsonc
 {"overlays": [{"kind": "<overlay kind>", "scope": "cell", "ref": {"margin": {"axis": "row"}}}]}
@@ -21,13 +21,13 @@ Use an overlay for a figure DERIVED from the result — a share, an index, a del
 
 1. Name the question, then read its intent (`pulse_skills_get intents`): `composition`, `benchmark`, `compare_groups`, `change_over_time`.
 2. Filter manifest `overlays[]` on that intent, then on the HOST you have — each entry lists `shapes`, `scopes`, `ref_kinds`, `buffered` and `inferential`.
-3. Read the kind's atomic skill for math, params and warnings. `overlays[]` is the catalog; never hardcode a count.
+3. Read the kind's atomic skill for math, params and warnings. Never hardcode a kind count.
 
 ## OverlaySpec composition
 
 `kind`, `scope`, `ref`, optional `name` / `level` / `within` / `params`; Compose-only `reference` / `targets`. `scope` ∈ `cell|row|column|group|matrix|total`. `level` / `within` mirror the crosstab's `normalize_level` / `normalize_within` (same-axis rollup, opposite-axis prefix).
 
-Predict and runtime refuse a misshapen spec — or a kind on a slot or shape it does not run on — under the SAME code (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, `_LEVEL_OUT_OF_RANGE`, `_SCOPE_UNSUPPORTED`, …), carried as `errors[0].code` so `pulse_errors_lookup` resolves it.
+Predict and runtime refuse a misshapen spec — or a kind on a slot or shape it does not run on — under the SAME code (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, `_LEVEL_OUT_OF_RANGE`, `_SCOPE_UNSUPPORTED`, `_FORMULA_INVALID_IDENT`, …), carried as `errors[0].code` so `pulse_errors_lookup` resolves it.
 
 ## Reference families
 

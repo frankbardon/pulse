@@ -2,7 +2,6 @@ package descriptor
 
 import (
 	"encoding/json"
-	"sort"
 
 	exprparser "github.com/expr-lang/expr/parser"
 
@@ -109,63 +108,18 @@ func validateFormulaOverlay(env *descriptor.Envelope, req *types.Request, spec *
 		return
 	}
 
+	// The shared Request-host identifier gate (internal/formulaident):
+	// the runtime MATRIX dispatcher runs it before compiling, so an
+	// unknown variable, callee or Compose slot path is
+	// PULSE_OVERLAY_FORMULA_INVALID_IDENT on both sides.
+	if cerr := formulaident.BuiltinRefusal(spec.Kind, formula, index); cerr != nil {
+		addCodedError(env, cerr)
+		return
+	}
 	hostShape := inferRequestHostShape(req)
-	allowedVars := buildFormulaAllowedVarsRequest(hostShape, spec)
-	allowedFuncs := buildFormulaAllowedFuncs(opts)
-
-	// The shared walk (internal/formulaident.Collect) splits variables,
-	// called functions and `slot.<label>.<field>` paths — the one the
-	// Compose gate (formulaident.ComposeRefusal) reads on both sides.
-	refs := formulaident.Collect(&tree.Node)
-
-	for ident := range refs.Vars {
-		if _, ok := allowedVars[ident]; ok {
-			continue
-		}
-		env.AddError(string(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT),
-			"overlay "+string(spec.Kind)+" formula references unknown identifier "+ident+" for "+string(hostShape)+"-shape host",
-			map[string]any{
-				"index":              index,
-				"kind":               string(spec.Kind),
-				"unknown_identifier": ident,
-				"host_shape":         string(hostShape),
-				"allowed":            sortedStringSet(allowedVars),
-				"formula":            formula,
-			})
-		return
-	}
-	for fn := range refs.Funcs {
-		if _, ok := allowedFuncs[fn]; ok {
-			continue
-		}
-		env.AddError(string(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT),
-			"overlay "+string(spec.Kind)+" formula calls unknown function "+fn,
-			map[string]any{
-				"index":              index,
-				"kind":               string(spec.Kind),
-				"unknown_identifier": fn,
-				"host_shape":         string(hostShape),
-				"allowed_funcs":      sortedStringSet(allowedFuncs),
-				"formula":            formula,
-			})
-		return
-	}
-	// Slot identifiers (`slot.<label>.<field>`) fire on Request-host
-	// because the Compose slot namespace is meaningless without a
-	// ComposedRequest. The Compose-side validator handles its own
-	// member-chain dispatch and never calls this Request-host helper.
-	for slotIdent := range refs.SlotPaths {
-		env.AddError(string(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT),
-			"overlay "+string(spec.Kind)+" formula references Compose slot "+slotIdent+" on a Request host (slot namespace is Compose-only)",
-			map[string]any{
-				"index":              index,
-				"kind":               string(spec.Kind),
-				"unknown_identifier": slotIdent,
-				"host_shape":         string(hostShape),
-				"reason":             "slot namespace is Compose-only",
-				"formula":            formula,
-			})
-		return
+	if cerr := formulaident.RequestRefusal(spec.Kind, formula, &tree.Node, index, hostShape,
+		buildFormulaAllowedVarsRequest(hostShape, spec), buildFormulaAllowedFuncs(opts)); cerr != nil {
+		addCodedError(env, cerr)
 	}
 }
 
@@ -259,19 +213,12 @@ func inferRequestHostShape(req *types.Request) types.OverlayShape {
 // reference. The Compose-side validator builds its own set with the
 // Compose identifiers and the slot namespace.
 func buildFormulaAllowedVarsRequest(shape types.OverlayShape, spec *types.OverlaySpec) map[string]struct{} {
-	out := map[string]struct{}{}
-	for _, v := range types.FormulaNamespace(shape) {
-		out[v] = struct{}{}
-	}
 	// SERIES-host baseline opt-in: only when the per-spec
 	// `Params["baseline_position"]` is set is the `baseline` identifier
 	// reachable. Without the param the runtime never binds the slot, so
 	// the predict gate must reject `baseline` references when the param
 	// is absent (research note § 2.2 first-entry semantics).
-	if shape == types.OverlayShapeSeries && hasBaselinePosition(spec) {
-		out["baseline"] = struct{}{}
-	}
-	return out
+	return formulaident.RequestVars(shape, hasBaselinePosition(spec))
 }
 
 // hasBaselinePosition reports whether `OverlaySpec.Params` carries a
@@ -329,20 +276,4 @@ func buildFormulaAllowedFuncs(opts *PredictOptions) map[string]struct{} {
 		names = append(names, fn.Name)
 	}
 	return formulaident.AllowedFuncs(names, len(snap.LookupTables) > 0)
-}
-
-// sortedStringSet returns the sorted keys of `set` as a freshly
-// allocated slice. Used to populate Details maps with the available-
-// identifier list so the LLM caller's error renderer can suggest the
-// closest-matching variable.
-func sortedStringSet(set map[string]struct{}) []string {
-	if len(set) == 0 {
-		return []string{}
-	}
-	out := make([]string, 0, len(set))
-	for k := range set {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }

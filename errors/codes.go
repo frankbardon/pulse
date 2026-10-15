@@ -85,8 +85,9 @@ const (
 	// PROCESSING_VECTOR_LENGTH_MISMATCH indicates a pairwise vector
 	// expression function (dot, dist, cosine) was handed two vectors of
 	// unequal length. The run fails rather than reading the pair as NaN;
-	// two literal arrays of unequal length are refused when the
-	// expression compiles. details carry function, left and right.
+	// two arguments of request-fixed unequal length (literal arrays,
+	// bare named vectors) are refused when the expression compiles and
+	// by predict. details carry function, left and right.
 	PROCESSING_VECTOR_LENGTH_MISMATCH Code = "PROCESSING_VECTOR_LENGTH_MISMATCH"
 )
 
@@ -1655,7 +1656,9 @@ const (
 	// PULSE_OVERLAY_FORMULA_PARSE_ERROR indicates an OVERLAY_FORMULA spec's
 	// `Params["formula"]` string failed to parse via `expr-lang/expr` —
 	// e.g. unbalanced parentheses, a stray operator, or a typo on a
-	// keyword. Surfaced at both predict
+	// keyword (an unknown variable or function in a formula that parses
+	// is PULSE_OVERLAY_FORMULA_INVALID_IDENT, checked before the
+	// compile). Surfaced at both predict
 	// (`descriptor.validateOverlayFormula`) and runtime
 	// (`processing.applyFormula` family) with Details carrying
 	// `{formula, parse_error}` so the renderer can surface both the

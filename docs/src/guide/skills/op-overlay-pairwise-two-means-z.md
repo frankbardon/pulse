@@ -34,7 +34,7 @@ Use something else:
 
 ## Host shape
 
-MATRIX crosstab whose **cell aggregator is `AGG_WELFORD`** + `Response.Components.Crosstab`, from which it reads the `{mean, variance, n}` triple per cell. Non-Welford host → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`; components-disabled → `PULSE_OVERLAY_COMPONENTS_REQUIRED`.
+MATRIX crosstab whose **cell aggregator is `AGG_WELFORD`** + `Response.Components.Crosstab`, from which it reads the `{mean, variance, n}` triple per cell. Non-Welford host → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, predict and runtime alike: predict reads the cell type's declared `ComponentSchema` (built-in or extension) and refuses one without `mean` + `variance` (a sum or mode cell, …); components-disabled → `PULSE_OVERLAY_COMPONENTS_REQUIRED`.
 
 ## Output
 

@@ -2,13 +2,10 @@ package descriptor
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/exprbuiltins"
-	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
@@ -1524,19 +1521,7 @@ func composeFormulaBuiltinRefusal(spec *types.ComposeOverlaySpec, specIdx int, r
 		return nil
 	}
 	formula, _ := spec.Params["formula"].(string)
-	refused := exprident.FirstCallee(formula, exprbuiltins.OverlayRefused)
-	if refused == "" {
-		return nil
-	}
-	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
-		"overlay "+string(spec.Kind)+" formula calls "+refused+", a vector built-in OVERLAY_FORMULA does not accept (scalar maths only: "+strings.Join(exprbuiltins.OverlayNames(), ", ")+")",
-		map[string]any{
-			"index":              specIdx,
-			"kind":               string(spec.Kind),
-			"unknown_identifier": refused,
-			"allowed_builtins":   exprbuiltins.OverlayNames(),
-			"formula":            formula,
-		})
+	return formulaident.BuiltinRefusal(spec.Kind, formula, specIdx)
 }
 
 // composeFormulaTotalRefusal is PULSE_FORMULA_TOTAL_SITE for a

@@ -69,6 +69,23 @@ func predictReferences(env *descriptor.Envelope, req *types.Request, schema *enc
 	}
 }
 
+// predictVectorLengths reports, per request expression, the first pair
+// built-in (dot / dist / cosine) whose two arguments have known unequal
+// lengths — literal arrays or bare named vectors (vectors.LengthIssues)
+// — with the runtime build's PROCESSING_VECTOR_LENGTH_MISMATCH code,
+// message and details {function, left, right}. A request whose vectors
+// do not resolve is judged without them (the field-reference pass
+// reports that); any other argument is unknown and never refused.
+func predictVectorLengths(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema) {
+	if req == nil || (len(req.Filterers) == 0 && len(req.Attributes) == 0) {
+		return
+	}
+	resolved, _ := vectors.Resolve(req.Vectors, schema)
+	for _, ce := range vectors.LengthIssues(req, schema, resolved) {
+		env.AddError(string(ce.Code), ce.Message, ce.Details)
+	}
+}
+
 // predictMatrices fills PredictResult.Matrices from the one resolver
 // (internal/vectors.ResolveMatrices, the field-reference pass's own
 // call) and the shared per-matrix rules (vectors.Matrix.PSDRisk /

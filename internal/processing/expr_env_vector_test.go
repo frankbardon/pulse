@@ -412,7 +412,7 @@ func TestVectorBuiltins_StaticRefusalsAtBuild(t *testing.T) {
 		}
 	}
 	for _, ok := range []string{`dot([x, y], [1, 2])`, `vsum(vnormalize([x, y], "l1"))`, `(`} {
-		if err := vectorStaticRefusal(ok, "formula"); err != nil {
+		if err := vectorStaticRefusal(ok, "formula", nil); err != nil {
 			t.Errorf("vectorStaticRefusal(%s) = %v, want nil", ok, err)
 		}
 	}

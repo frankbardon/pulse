@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprbuiltins"
 	"github.com/frankbardon/pulse/internal/vecmath"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg/metric"
 )
 
@@ -231,13 +232,10 @@ func vecCountBuiltin(args ...any) (any, error) {
 	return vecmath.Count(v), nil
 }
 
-// vectorLengthMismatch is the coded refusal of an unequal-length pair.
+// vectorLengthMismatch is the coded refusal of an unequal-length pair
+// (vectors.LengthMismatch, the message predict's static twin raises).
 func vectorLengthMismatch(fn string, left, right int, cause error) *errors.CodedError {
-	ce := errors.NewCodedErrorWithDetails(errors.PROCESSING_VECTOR_LENGTH_MISMATCH,
-		fmt.Sprintf("%s(): vector length mismatch: %d vs %d", fn, left, right),
-		map[string]any{"function": fn, "left": left, "right": right})
-	ce.Cause = cause
-	return ce
+	return vectors.LengthMismatch(fn, left, right, cause)
 }
 
 func vecPair(fn string, k func(a, b []float64) (float64, error)) exprBuiltinFunc {
@@ -371,11 +369,12 @@ func vectorResultError(what string) *errors.CodedError {
 
 // vectorStaticRefusal is the compile-time check of the reserved
 // built-ins a parse can judge without a row: argument counts, a literal
-// vnormalize mode, two literal arrays of unequal length handed to dot /
-// dist / cosine, and a vector-returning call as the whole expression.
-// A source that does not parse returns nil — its compile reports the
-// syntax error.
-func vectorStaticRefusal(src, what string) error {
+// vnormalize mode, two arguments of known unequal length handed to dot
+// / dist / cosine (vectors.LengthScope: literal arrays and bare named
+// vectors, lenOf their member counts — the rule predict reports), and a
+// vector-returning call as the whole expression. A source that does not
+// parse returns nil — its compile reports the syntax error.
+func vectorStaticRefusal(src, what string, lenOf func(string) (int, bool)) error {
 	tree, err := exprparser.Parse(src)
 	if err != nil {
 		return nil
@@ -385,12 +384,15 @@ func vectorStaticRefusal(src, what string) error {
 			return vectorResultError(what)
 		}
 	}
-	v := &vectorStaticVisitor{}
+	v := &vectorStaticVisitor{lengths: vectors.NewLengthScope(src, lenOf)}
 	exprast.Walk(&tree.Node, v)
 	return v.err
 }
 
-type vectorStaticVisitor struct{ err error }
+type vectorStaticVisitor struct {
+	lengths vectors.LengthScope
+	err     error
+}
 
 func (v *vectorStaticVisitor) Visit(node *exprast.Node) {
 	if v.err != nil {
@@ -417,10 +419,8 @@ func (v *vectorStaticVisitor) Visit(node *exprast.Node) {
 	}
 	switch fn {
 	case "dot", "dist", "cosine":
-		a, aok := c.Arguments[0].(*exprast.ArrayNode)
-		b, bok := c.Arguments[1].(*exprast.ArrayNode)
-		if aok && bok && len(a.Nodes) != len(b.Nodes) {
-			v.err = vectorLengthMismatch(fn, len(a.Nodes), len(b.Nodes), nil)
+		if cerr := v.lengths.PairIssue(c); cerr != nil {
+			v.err = cerr
 		}
 	case "vnormalize":
 		if s, ok := c.Arguments[1].(*exprast.StringNode); ok {
