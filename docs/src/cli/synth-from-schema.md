@@ -614,8 +614,9 @@ the `--json` path, where `data.warnings` carries them in full.
 
 | Code | Meaning |
 |---|---|
-| 0 | Success |
-| 1 | Spec parse error, unknown distribution, infeasible constraints, or output write failure |
+| 0 | Success (warnings allowed) |
+| 1 | Spec parse error (an unknown key included), unknown distribution, infeasible constraints, or output write failure — in the envelope's `errors` under `--json` |
+| 2 | Usage error (unknown flag, malformed value, missing required flag); no envelope |
 
 ## Common error codes
 

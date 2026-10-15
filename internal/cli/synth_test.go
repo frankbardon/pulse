@@ -861,11 +861,10 @@ func TestSynthFromProfileCLI_RulesRefusalNamesTheFile(t *testing.T) {
 			}
 			out := filepath.Join(dir, tc.name+".pulse")
 			var buf bytes.Buffer
-			if err := runSynthCLI(t, &buf, "from-profile",
+			// The refusal is written to the envelope and exits 1.
+			wantEnvelopeFatal(t, runSynthCLI(t, &buf, "from-profile",
 				"--profile", profile, "--source", source, "--output", out,
-				"--rows", "5", "--seed", "1", "--rules", rulesPath, "--json"); err != nil {
-				t.Fatalf("--json refusals are written to the envelope, not returned: %v", err)
-			}
+				"--rows", "5", "--seed", "1", "--rules", rulesPath, "--json"))
 			var env struct {
 				FormatVersion string `json:"format_version"`
 				Errors        []struct {
@@ -956,9 +955,7 @@ func TestSynthCLI_UnknownKeysRefusedWithTheirOwnCode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			out := filepath.Join(dir, strings.ReplaceAll(tc.name, " ", "_")+".pulse")
 			var buf bytes.Buffer
-			if err := runSynthCLI(t, &buf, tc.args(out)...); err != nil {
-				t.Fatalf("--json refusals are written to the envelope, not returned: %v", err)
-			}
+			wantEnvelopeFatal(t, runSynthCLI(t, &buf, tc.args(out)...))
 			var env struct {
 				Errors []struct {
 					Code    string         `json:"code"`

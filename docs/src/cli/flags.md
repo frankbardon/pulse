@@ -81,6 +81,28 @@ nullable-check overhead. `request` is opt-in (see
 additive `Response.Components` slot documented per leaf — see
 [`api process` → `--json`](api-process.md#-json).
 
+## Exit status
+
+Scripts can trust the exit status. Every command except `pulse mcp` (a
+long-running server, see [its page](mcp.md#exit-codes)) follows the same
+three values, the bare `pulse --json` included. There are no per-domain
+codes; branch on `errors[0].code` for the reason.
+
+| Status | Meaning |
+|---|---|
+| 0 | Success. Warnings and advisories are allowed: they ride the envelope's `warnings` (stderr lines in text mode) and never move the status |
+| 1 | A fatal error. Under `--json` the envelope's `errors` carries it (a warning `--strict` escalated included) and stdout is that envelope alone, with nothing added to stderr; in text mode it is printed to stderr as `error: ...` |
+| 2 | A usage error refused before any library call: an unknown flag, a malformed flag value, a missing required flag or argument, or an unknown `--log-level` / `--log-format`. The usage text goes to the terminal; no envelope is written |
+
+The rule follows the envelope: an envelope with a non-empty `errors`
+always exits 1, one with only `warnings` exits 0. A leaf's own argument
+checks (a missing positional `COHORT`, an unknown `--root`) run inside
+the leaf, so they are a `CLI_INPUT` envelope and exit 1.
+
+```bash
+pulse api process -r req.json --json > out.json || exit $?   # 1: errors[0] in out.json
+```
+
 ## Shared per-command flags
 
 Several flags appear on multiple commands with identical semantics.

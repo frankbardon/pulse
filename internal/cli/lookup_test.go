@@ -90,9 +90,7 @@ func TestAPILookupCLI_MissErrorEnvelope(t *testing.T) {
 
 	var buf bytes.Buffer
 	err := runAPICLI(t, &buf, "lookup", "--input", cohort, "--key", "id=999", "--json")
-	if err != nil {
-		t.Fatalf("run (json mode should not return a Go error): %v", err)
-	}
+	wantEnvelopeFatal(t, err)
 
 	var env lookupEnvelope
 	if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
@@ -113,9 +111,7 @@ func TestAPILookupCLI_AmbiguousDefaultModeErrorEnvelope(t *testing.T) {
 	// region "north" matches id=1 and id=3 (writeIndexTestCohort);
 	// default multiplicity mode (assert-unique) must reject this.
 	err := runAPICLI(t, &buf, "lookup", "--input", cohort, "--key", "region=north", "--json")
-	if err != nil {
-		t.Fatalf("run (json mode should not return a Go error): %v", err)
-	}
+	wantEnvelopeFatal(t, err)
 
 	var env lookupEnvelope
 	if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
@@ -214,9 +210,7 @@ func TestAPILookupCLI_MissingIndexErrorEnvelope(t *testing.T) {
 
 	var buf bytes.Buffer
 	err := runAPICLI(t, &buf, "lookup", "--input", cohort, "--key", "id=1", "--json")
-	if err != nil {
-		t.Fatalf("run (json mode should not return a Go error): %v", err)
-	}
+	wantEnvelopeFatal(t, err)
 
 	var env lookupEnvelope
 	if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
@@ -241,9 +235,7 @@ func TestAPILookupCLI_MissingKeyFlagErrors(t *testing.T) {
 
 	buf.Reset()
 	err = runAPICLI(t, &buf, "lookup", "--input", cohort, "--json")
-	if err != nil {
-		t.Fatalf("run (json mode should not return a Go error): %v", err)
-	}
+	wantEnvelopeFatal(t, err)
 	var env lookupEnvelope
 	if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
 		t.Fatalf("json.Unmarshal: %v\nraw: %s", err, buf.String())
@@ -258,9 +250,7 @@ func TestAPILookupCLI_InvalidModeFlagErrors(t *testing.T) {
 
 	var buf bytes.Buffer
 	err := runAPICLI(t, &buf, "lookup", "--input", cohort, "--key", "id=1", "--mode", "bogus", "--json")
-	if err != nil {
-		t.Fatalf("run (json mode should not return a Go error): %v", err)
-	}
+	wantEnvelopeFatal(t, err)
 	var env lookupEnvelope
 	if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
 		t.Fatalf("json.Unmarshal: %v\nraw: %s", err, buf.String())
@@ -312,9 +302,7 @@ func TestAPILookupCLI_ShardArchiveRejected(t *testing.T) {
 
 	var buf bytes.Buffer
 	err = runAPICLI(t, &buf, "lookup", "--input", archive, "--key", "id=1", "--json")
-	if err != nil {
-		t.Fatalf("run (json mode should not return a Go error): %v", err)
-	}
+	wantEnvelopeFatal(t, err)
 	var env lookupEnvelope
 	if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
 		t.Fatalf("json.Unmarshal: %v\nraw: %s", err, buf.String())

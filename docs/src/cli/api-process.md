@@ -168,8 +168,11 @@ unchanged rows.
 
 | Code | Meaning |
 |---|---|
-| 0 | Success |
-| 1 | Any error — wrapped in the envelope's `errors` array under `--json`, or printed to stderr otherwise |
+| 0 | Success (warnings allowed) |
+| 1 | Any error — wrapped in the envelope's `errors` array under `--json` (a warning `--strict` escalated included; nothing added to stderr), or printed to stderr otherwise |
+| 2 | Usage error (unknown flag, malformed value, missing required flag); no envelope |
+
+`pulse api process -r bad.json --json; echo $?` prints the envelope, then `1`. See [Exit status](flags.md#exit-status).
 
 ## Examples
 

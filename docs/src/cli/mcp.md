@@ -241,7 +241,8 @@ and [Wiring an MCP client](../internals/wiring-mcp-client.md).
 
 `pulse mcp` is a long-running process. It exits non-zero only on
 fatal startup failure (missing data dir, transport error). Once
-serving, an MCP client controls the lifecycle.
+serving, an MCP client controls the lifecycle. It is the one command
+outside the CLI's [exit-status rule](flags.md#exit-status).
 
 ## Examples
 

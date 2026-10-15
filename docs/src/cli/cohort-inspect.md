@@ -235,8 +235,9 @@ Fields with empty descriptions on disk get a synthesised fallback
 
 | Code | Meaning |
 |---|---|
-| 0 | Success |
-| 1 | File not found, truncated, magic-byte mismatch, or unsupported format version |
+| 0 | Success (a truncated-tail warning included) |
+| 1 | File not found, truncated, magic-byte mismatch, or unsupported format version — in the envelope's `errors` under `--json` |
+| 2 | Usage error (unknown flag, malformed value, missing required flag); no envelope |
 
 ## Examples
 

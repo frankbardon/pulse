@@ -172,9 +172,7 @@ func TestIndexBuildCLI_ShardArchiveErrorEnvelope(t *testing.T) {
 
 	var buf bytes.Buffer
 	err = runIndexCLI(t, &buf, "build", "--input", archive, "--key", "id", "--json")
-	if err != nil {
-		t.Fatalf("run (json mode should not return a Go error): %v", err)
-	}
+	wantEnvelopeFatal(t, err)
 
 	var env struct {
 		Errors []struct {
@@ -390,9 +388,7 @@ func TestIndexVerifyCLI_MissingIndexErrorEnvelope(t *testing.T) {
 
 	var buf bytes.Buffer
 	err := runIndexCLI(t, &buf, "verify", "--input", cohort, "--key", "id", "--json")
-	if err != nil {
-		t.Fatalf("run (json mode should not return a Go error): %v", err)
-	}
+	wantEnvelopeFatal(t, err)
 
 	var env struct {
 		Errors []struct {
@@ -473,9 +469,7 @@ func TestIndexDropCLI_MissingIndexErrorEnvelope(t *testing.T) {
 
 	var buf bytes.Buffer
 	err := runIndexCLI(t, &buf, "drop", "--input", cohort, "--key", "id", "--json")
-	if err != nil {
-		t.Fatalf("run (json mode should not return a Go error): %v", err)
-	}
+	wantEnvelopeFatal(t, err)
 
 	var env struct {
 		Errors []struct {

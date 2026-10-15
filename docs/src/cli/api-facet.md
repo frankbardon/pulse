@@ -91,8 +91,11 @@ expect memory proportional to distinct value count.
 
 | Code | Meaning |
 |---|---|
-| 0 | Success |
-| 1 | File not found, field name not found, or unsupported version |
+| 0 | Success (warnings allowed) |
+| 1 | File not found, field name not found, or unsupported version — in the envelope's `errors` under `--json` |
+| 2 | Usage error (unknown flag, malformed value, missing required flag); no envelope |
+
+See [Exit status](flags.md#exit-status): under `--json` a fatal error is the envelope's `errors` (exit 1); warnings alone exit 0.
 
 ## Examples
 

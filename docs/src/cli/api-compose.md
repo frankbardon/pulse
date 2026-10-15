@@ -85,7 +85,7 @@ Compose](../library/parallel-compose.md) for full mechanics.
 With `--no-fail-fast` unset (the default, fail-fast on):
 
 - The first failing request cancels in-flight siblings.
-- The command exits non-zero with the first error.
+- The command exits 1 with the first error.
 
 With `--no-fail-fast`:
 
@@ -142,8 +142,11 @@ that slot's `precision`.
 
 | Code | Meaning |
 |---|---|
-| 0 | All requests succeeded |
-| 1 | One or more requests failed (fail-fast: first error; aggregated: any failure) |
+| 0 | All requests succeeded (warnings allowed) |
+| 1 | One or more requests failed (fail-fast: first error; aggregated: any failure) — in the envelope's `errors` under `--json` |
+| 2 | Usage error (unknown flag, malformed value, missing required flag); no envelope |
+
+See [Exit status](flags.md#exit-status): under `--json` a fatal error is the envelope's `errors` (exit 1); warnings alone exit 0.
 
 ## Examples
 

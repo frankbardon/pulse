@@ -65,7 +65,8 @@ Decimal128 values are serialised as strings to preserve precision.
 | Code | Meaning |
 |---|---|
 | 0 | Success |
-| 1 | File not found, truncated, or unsupported version |
+| 1 | File not found, truncated, or unsupported version — in the envelope's `errors` under `--json` |
+| 2 | Usage error (unknown flag, malformed value, missing required flag); no envelope |
 
 ## Examples
 

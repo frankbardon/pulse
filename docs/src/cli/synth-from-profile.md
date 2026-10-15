@@ -820,8 +820,9 @@ been.
 
 | Code | Meaning |
 |---|---|
-| 0 | Success |
-| 1 | Profile parse error, infeasible constraints, missing/colliding `--source`/`--output`, or output write failure |
+| 0 | Success (warnings allowed) |
+| 1 | Profile parse error, infeasible constraints, missing/colliding `--source`/`--output`, or output write failure — in the envelope's `errors` under `--json` |
+| 2 | Usage error (unknown flag, malformed value, missing required flag); no envelope |
 
 See `pulse errors lookup PULSE_SYNTH_SOURCE_REQUIRED` /
 `PULSE_SYNTH_OUTPUT_REQUIRED` / `PULSE_SYNTH_OUTPUT_COLLISION` /

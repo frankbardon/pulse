@@ -11,10 +11,20 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
+// writeJSON writes data as indented JSON. When data is an envelope
+// carrying a fatal error it returns errEnvelopeFatal after the write, so
+// the process exits ExitFatal with the envelope bytes unchanged and
+// nothing added to stderr.
 func writeJSON(w io.Writer, data any) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	return encodeFinite(enc, data)
+	if err := encodeFinite(enc, data); err != nil {
+		return err
+	}
+	if envelopeIsFatal(data) {
+		return errEnvelopeFatal
+	}
+	return nil
 }
 
 // encodeFinite writes v through enc under the wire rule for undefined
@@ -99,8 +109,11 @@ func writeErrorEnvelope(w io.Writer, code, message string) error {
 // It follows E2-S7's makeImportReader precedent: pass a *CodedError
 // through verbatim rather than re-wrapping it. errors.As rather than a
 // type assertion, so a code wrapped with %w on the way up still surfaces.
+//
+// It returns the envelope-fatal exit wrapping err (see reportedFatal), so
+// the process exits ExitFatal and a caller can still errors.As the code.
 func writeCodedErrorEnvelope(w io.Writer, fallback string, err error) error {
-	return writeJSON(w, codedErrorEnvelope(nil, fallback, err))
+	return reportedFatal(writeJSON(w, codedErrorEnvelope(nil, fallback, err)), err)
 }
 
 // codedErrorEnvelope builds writeCodedErrorEnvelope's envelope around

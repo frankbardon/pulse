@@ -154,7 +154,8 @@ filled in.
 | Code | Meaning |
 |---|---|
 | 0 | Valid (or valid with warnings, in non-strict mode) |
-| 1 | Invalid, or `--strict` with at least one warning |
+| 1 | Invalid, or `--strict` with at least one warning — the `errors` of the envelope under `--json`, text mode alike |
+| 2 | Usage error (unknown flag, malformed value, missing required flag); no envelope |
 
 ## Examples
 
@@ -215,7 +216,7 @@ or field, or an aggregation output (not categorical), is refused on
 both sides.
 
 A refused request comes back as coded `errors` beside `data.valid:
-false` (exit 1 in text mode). A request with no cohort is
+false` (exit 1, under `--json` and in text mode alike). A request with no cohort is
 `SERVICE_VALIDATION`; an unreadable cohort is `DATA_FILE`
 (`ENCODING_INVALID` for a malformed header). Each fault keeps its own code
 in `errors[0]`. Over MCP the same three shapes are `pulse_predict`'s

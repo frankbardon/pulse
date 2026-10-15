@@ -56,9 +56,7 @@ func TestImportCLI_UnknownSchemaTypeRefused(t *testing.T) {
 	for _, leaf := range schemaLeaves(t, csvPath, dir) {
 		t.Run(leaf.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			if err := leaf.run(&buf, "--schema", schemaPath); err != nil {
-				t.Fatalf("transport error: %v", err)
-			}
+			wantEnvelopeFatal(t, leaf.run(&buf, "--schema", schemaPath))
 			if got := envelopeErrorCode(t, &buf); got != want {
 				t.Fatalf("errors[0].code = %q, want %s\n%s", got, want, buf.String())
 			}
@@ -79,9 +77,7 @@ func TestImportCLI_FloatFlag(t *testing.T) {
 	for _, leaf := range schemaLeaves(t, csvPath, dir) {
 		t.Run(leaf.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			if err := leaf.run(&buf, "--float", "f16"); err != nil {
-				t.Fatalf("transport error: %v", err)
-			}
+			wantEnvelopeFatal(t, leaf.run(&buf, "--float", "f16"))
 			if got := envelopeErrorCode(t, &buf); got != want {
 				t.Fatalf("errors[0].code = %q, want %s\n%s", got, want, buf.String())
 			}

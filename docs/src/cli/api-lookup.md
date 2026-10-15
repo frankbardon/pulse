@@ -76,6 +76,10 @@ multi-select bitmask has no single unambiguous equality value; use a
 
 ## Exit codes / coded errors
 
+Exit status: 0 on a hit, 1 on any coded error below (in the envelope's
+`errors` under `--json`), 2 on a usage error — see [Exit
+status](flags.md#exit-status).
+
 | Code | Meaning |
 |---|---|
 | `PULSE_INDEX_MISSING` | No sidecar built for the requested key field(s) — run `pulse index build` first |

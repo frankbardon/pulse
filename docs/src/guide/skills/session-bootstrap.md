@@ -9,11 +9,11 @@ covers: [pulse_manifest, pulse_examples_search, pulse_examples_get, pulse_skills
 
 # Session bootstrap
 
-Canonical MCP call order. Steps 1–2 once, cached; re-enter from step 3 per user question.
+Steps 1–2 once, cached; re-enter from step 3 per question.
 
 | # | Call | Cadence | Returns / effect |
 |---|---|---|---|
-| 1 | `pulse_manifest` (`intent` scopes it to one question kind) | once per session | operator catalogs (each entry's [`intents`](intents.md) = the question kinds it answers), field types, error codes, MCP tool list, skills index, extensions, capability blocks. Deterministic per binary version |
+| 1 | `pulse_manifest` (`intent` scopes it to one question kind) | once per session | operator catalogs (each entry's [`intents`](intents.md) = the question kinds it answers), field types, error codes, MCP tool list, skills index, extensions, capability blocks |
 | 2 | `pulse_inspect` | once per cohort | schema (fields, types, descriptions, dictionaries). **Side-effect:** binds schema-aware enums into the field-name arguments of `pulse_predict` / `pulse_process` / `pulse_compose` / `pulse_sample` / `pulse_facet`, constraining them to schema-resident values |
 | 3 | `pulse_examples_search` | per question | name + summary, by `query` + `tags` + `category`; or `pulse_recommend` by `intents` ID |
 | 4 | `pulse_examples_get` | per candidate | runnable Request JSON (`body`, `_meta` stripped). Adapt cohort filename / fields / labels — do not invent |
@@ -44,6 +44,8 @@ Manifest = the contract. `pulse_inspect` = field names + values. `pulse_examples
 
 Read every `errors[]` / `warnings[]` entry (`{code, message, details}`) → `pulse_errors_lookup` each unique `code` (cache) → apply `fixups[]` → re-`pulse_predict` → re-execute only when predict is clean. An unknown key (any depth) is `PULSE_REQUEST_UNKNOWN_FIELD`: fix `details.path`.
 
+Scripts can trust the CLI exit status (all but `pulse mcp`): `0` ok, warnings allowed; `1` fatal (`errors` under `--json`, `--strict` escalations too); `2` usage error, no envelope.
+
 ## Environment
 
 Roots auto-loaded at `pulse.New`:
@@ -57,10 +59,10 @@ A name on disk and in code: `PULSE_EXTENSION_DUPLICATE`. `PULSE_BENCH_DIR` is be
 
 Managed imports (`PULSE_IMPORTS_DIR`) persist each handle's read settings in a sidecar (`format`, `source_path`, `ttl_seconds`, `column_type_overrides`, `source_tz`, `column_source_tz`, `dst_policy`, `--vector` folds); a handle read in one zone is never reused for another — re-import with `overwrite: true`. See [`time-zones`](time-zones.md).
 
-Server-side (`pulse mcp` / an embedder's `mcpserve`): `PULSE_MCP_NO_COHORT_SCAN` (flag `--no-cohort-scan`) skips enumerating `pulse://<path>` resources at startup. **On such a server `resources/list` names no cohorts and that is not evidence there are none** — a `resources/read pulse://<path>` and `pulse_inspect` still resolve, so ask the user for the cohort path. Tool responses default to the `standard` preset (no `components`; host flag `--return`); send `"return": {"preset": "full"}` for everything — see [`response-shaping`](response-shaping.md). The host caps resources (flag `--limit name=value`); read the effective caps from `manifest.limits` (`-1` = none), plan within them, and re-fetch the manifest when `limits_digest` changes — a breach is `PULSE_LIMIT_EXCEEDED`. Host diagnostics (`--log-level`, `--metrics-addr`) never reach tool responses.
+Server-side (`pulse mcp` / an embedder's `mcpserve`): `PULSE_MCP_NO_COHORT_SCAN` (flag `--no-cohort-scan`) skips enumerating `pulse://<path>` resources at startup. **There an empty `resources/list` is not evidence of no cohorts** — `resources/read pulse://<path>` and `pulse_inspect` still resolve; ask for the path. Tool responses default to the `standard` preset (no `components`; host flag `--return`); send `"return": {"preset": "full"}` for everything — see [`response-shaping`](response-shaping.md). The host caps resources (flag `--limit name=value`); plan within `manifest.limits` (`-1` = none), re-fetch the manifest on a new `limits_digest`; a breach is `PULSE_LIMIT_EXCEEDED`. Host diagnostics (`--log-level`, `--metrics-addr`) never reach tool responses.
 
 Both table kinds surface under `manifest.extensions.{label_tables,range_tables}` — check there first. Templates are NOT manifest-projected; enumerate with `ListTemplates` (`Summary.Broken`: a since-malformed file).
 
 ## Cross-links
 
-[`request-envelope`](request-envelope.md) (envelope shape, slot keys, smart defaults, streamability) · [`synthetic-data`](synthetic-data.md) (synth modes, multi-predictor models, correlations, determinism) · [`synth-structural-rules`](synth-structural-rules.md) (`rules[]` / `constraints[]`: gating, masking, derived fields) · [`response-components`](response-components.md) · [`response-shaping`](response-shaping.md) (`return`: trim a response, cap float digits) · `tool-*` (one atomic skill per MCP tool, full argument shape) · `docs/src/internals/debugging-predict.md` · `docs/src/getting-started/` (cold-start fallback) · [`spss-cohorts`](spss-cohorts.md).
+[`request-envelope`](request-envelope.md) (envelope, slot keys, defaults, streamability) · [`synthetic-data`](synthetic-data.md) (synth modes, multi-predictor models, correlations, determinism) · [`synth-structural-rules`](synth-structural-rules.md) (`rules[]` / `constraints[]`: gating, masking, derived fields) · [`response-components`](response-components.md) · [`response-shaping`](response-shaping.md) (`return`: trim a response, cap float digits) · `tool-*` (one atomic skill per MCP tool, full argument shape) · `docs/src/internals/debugging-predict.md` · `docs/src/getting-started/` (cold start) · [`spss-cohorts`](spss-cohorts.md).

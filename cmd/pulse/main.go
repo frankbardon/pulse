@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 
 	pcli "github.com/frankbardon/pulse/internal/cli"
@@ -13,15 +14,26 @@ import (
 )
 
 func main() {
+	os.Exit(run(context.Background(), os.Args, os.Stdout, os.Stderr))
+}
+
+// run executes the CLI and returns the process exit status: 0 success
+// (warnings allowed), 1 a fatal error (in the --json envelope, or printed
+// to stderr in text mode), 2 a usage error the flag parser refused.
+// pcli.ExitStatus owns the mapping; main only applies it.
+func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	app := buildApp()
-	if err := app.Run(context.Background(), os.Args); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+	app.Writer, app.ErrWriter = stdout, stderr
+	err := app.Run(ctx, args)
+	status, printErr := pcli.ExitStatus(err)
+	if printErr {
+		fmt.Fprintf(stderr, "error: %v\n", err)
 	}
+	return status
 }
 
 func buildApp() *cli.Command {
-	return &cli.Command{
+	return pcli.InstallExitPolicy(&cli.Command{
 		Name:    "pulse",
 		Usage:   "High-performance tabular data processing engine",
 		Version: pulse.Version(),
@@ -64,5 +76,5 @@ func buildApp() *cli.Command {
 			pcli.FeaturesCommand(),
 			pcli.DocsCommand(),
 		},
-	}
+	})
 }

@@ -98,9 +98,7 @@ func docsExport(ctx context.Context, res DocsExportResult) error {
 // non-zero. Under --json the envelope carries the error's own code.
 func docsFail(cmd *cli.Command, jsonOut bool, err error) error {
 	if jsonOut {
-		if werr := writeCodedErrorEnvelope(cmd.Writer, docsErrorFallback, err); werr != nil {
-			return werr
-		}
+		return writeCodedErrorEnvelope(cmd.Writer, docsErrorFallback, err)
 	}
 	return err
 }

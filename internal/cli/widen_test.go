@@ -195,9 +195,7 @@ func TestWidenCLI_JSONRefusalsCarryTheirOwnCode(t *testing.T) {
 			before := writeWidenCliCohort(t, cohort)
 
 			var buf bytes.Buffer
-			if err := runWidenCLI(t, &buf, cohort, "--field", tc.field, "--to", tc.to, "--json"); err != nil {
-				t.Fatalf("run returned a hard error instead of an envelope: %v", err)
-			}
+			wantEnvelopeFatal(t, runWidenCLI(t, &buf, cohort, "--field", tc.field, "--to", tc.to, "--json"))
 			env := decodeWidenEnvelope(t, &buf)
 			if len(env.Errors) != 1 {
 				t.Fatalf("errors = %v, want exactly one", env.Errors)
@@ -229,10 +227,8 @@ func TestWidenCLI_JSONRefusalsCarryTheirOwnCode(t *testing.T) {
 func TestWidenCLI_MissingCohortIsCoded(t *testing.T) {
 	dir := t.TempDir()
 	var buf bytes.Buffer
-	if err := runWidenCLI(t, &buf, filepath.Join(dir, "nope.pulse"),
-		"--field", "picks", "--to", "set_u128", "--json"); err != nil {
-		t.Fatalf("run returned a hard error instead of an envelope: %v", err)
-	}
+	wantEnvelopeFatal(t, runWidenCLI(t, &buf, filepath.Join(dir, "nope.pulse"),
+		"--field", "picks", "--to", "set_u128", "--json"))
 	env := decodeWidenEnvelope(t, &buf)
 	if len(env.Errors) != 1 || env.Errors[0].Code != "SERVICE_RESOURCE" {
 		t.Errorf("errors = %v, want one SERVICE_RESOURCE entry", env.Errors)
@@ -267,9 +263,7 @@ func TestWidenCLI_RefusesShardArchiveWithoutTouchingIt(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := runWidenCLI(t, &buf, archive, "--field", "picks", "--to", "set_u128", "--json"); err != nil {
-		t.Fatalf("run returned a hard error instead of an envelope: %v", err)
-	}
+	wantEnvelopeFatal(t, runWidenCLI(t, &buf, archive, "--field", "picks", "--to", "set_u128", "--json"))
 	env := decodeWidenEnvelope(t, &buf)
 	if len(env.Errors) != 1 {
 		t.Fatalf("errors = %v, want exactly one", env.Errors)
@@ -296,9 +290,7 @@ func TestWidenCLI_RefusesShardArchiveWithoutTouchingIt(t *testing.T) {
 
 func TestWidenCLI_MissingPositionalIsCliInput(t *testing.T) {
 	var buf bytes.Buffer
-	if err := runWidenCLI(t, &buf, "--field", "picks", "--to", "set_u128", "--json"); err != nil {
-		t.Fatalf("run returned a hard error instead of an envelope: %v", err)
-	}
+	wantEnvelopeFatal(t, runWidenCLI(t, &buf, "--field", "picks", "--to", "set_u128", "--json"))
 	env := decodeWidenEnvelope(t, &buf)
 	if len(env.Errors) != 1 || env.Errors[0].Code != "CLI_INPUT" {
 		t.Errorf("errors = %v, want one CLI_INPUT entry", env.Errors)

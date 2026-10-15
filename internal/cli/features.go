@@ -211,10 +211,7 @@ func featuresFail(cmd *cli.Command, jsonOut bool, data any, warnings []*descript
 	if jsonOut {
 		env := codedErrorEnvelope(data, featuresErrorFallback, err)
 		env.Warnings = append(env.Warnings, warnings...)
-		if werr := writeJSON(cmd.Writer, env); werr != nil {
-			return werr
-		}
-		return err
+		return reportedFatal(writeJSON(cmd.Writer, env), err)
 	}
 	writeEnvelopeEntries(cmd.Writer, warnings)
 	return err

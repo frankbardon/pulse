@@ -108,9 +108,7 @@ func TestImportCLI_VectorFlags(t *testing.T) {
 		}
 		root := ImportCommand()
 		root.Writer = &buf
-		if err := root.Run(context.Background(), append([]string{"import"}, args...)); err != nil {
-			t.Fatalf("%v: transport error %v", leaf, err)
-		}
+		wantEnvelopeFatal(t, root.Run(context.Background(), append([]string{"import"}, args...)))
 		if got := envelopeErrorCode(t, &buf); got != string(perrors.PULSE_IMPORT_VECTOR_INVALID) {
 			t.Fatalf("%v: errors[0].code = %q\n%s", leaf, got, buf.String())
 		}
