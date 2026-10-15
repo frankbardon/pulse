@@ -13,6 +13,7 @@ import (
 	iio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/io/csv"
 	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
 
@@ -216,6 +217,37 @@ func runExample(t *testing.T, p *pulse.Pulse, examplePath, dataDir string) {
 	if len(resp.Overlays) != len(req.Overlays) {
 		t.Fatalf("%s: %d overlay specs but %d layers", examplePath, len(req.Overlays), len(resp.Overlays))
 	}
+	// Every layer must carry at least one figure — an example whose
+	// params silently skip every cell (a p_source over raw counts, say)
+	// returns a well-formed but empty layer that a shape check misses.
+	for i := range resp.Overlays {
+		if !overlayLayerHasFigure(&resp.Overlays[i]) {
+			t.Fatalf("%s: overlay layer %q (%s) carries no figure; warnings: %+v",
+				examplePath, resp.Overlays[i].Name, resp.Overlays[i].Kind, resp.Overlays[i].Warnings)
+		}
+	}
+}
+
+// overlayLayerHasFigure reports whether an overlay layer's payload
+// carries at least one present value on whichever shape it declares.
+func overlayLayerHasFigure(l *types.OverlayLayer) bool {
+	pl := l.Payload
+	if pl.Scalar != nil {
+		return true
+	}
+	if pl.Series != nil && len(pl.Series.Entries) > 0 {
+		return true
+	}
+	if pl.Matrix != nil {
+		for _, row := range pl.Matrix.Cells {
+			for _, c := range row {
+				if c.Present {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // TestRegressionExamplesEndToEnd is a tighter contract over the

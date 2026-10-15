@@ -2,6 +2,13 @@ package types_test
 
 import (
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -258,6 +265,77 @@ func TestNoOrbitPrefix(t *testing.T) {
 			t.Errorf("enum value %q contains orbit reference", v)
 		}
 	}
+
+	// Runtime strings: every Go string literal in every non-test source
+	// file of the repository (nested contrib modules included) — the
+	// warning reasons, details values and messages an embedder reads.
+	// A predecessor-prefixed reason string (the pairwise overlay skips
+	// once shipped as ORBIT_STATS_SKIP_*) is as visible on the wire as
+	// an enum value.
+	for _, hit := range orbitStringLiterals(t) {
+		t.Errorf("string literal carries a predecessor reference: %s", hit)
+	}
+}
+
+// orbitStringLiterals parses every non-test .go file under the repository
+// root and returns "path:line: literal" for each string literal whose
+// value mentions "orbit" in any case.
+func orbitStringLiterals(t *testing.T) []string {
+	t.Helper()
+	root, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatalf("repo root: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
+		t.Fatalf("repo root %s has no go.mod: %v", root, err)
+	}
+	skipDirs := map[string]bool{".git": true, ".planning": true, "node_modules": true, "book": true, "tmp": true, "bin": true, "vendor": true}
+	var hits []string
+	files := 0
+	fset := token.NewFileSet()
+	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if path != root && skipDirs[d.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		f, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		if err != nil {
+			return err
+		}
+		files++
+		ast.Inspect(f, func(n ast.Node) bool {
+			lit, ok := n.(*ast.BasicLit)
+			if !ok || lit.Kind != token.STRING {
+				return true
+			}
+			v, err := strconv.Unquote(lit.Value)
+			if err != nil {
+				v = lit.Value
+			}
+			if strings.Contains(strings.ToLower(v), "orbit") {
+				rel, _ := filepath.Rel(root, path)
+				hits = append(hits, rel+":"+strconv.Itoa(fset.Position(lit.Pos()).Line)+": "+lit.Value)
+			}
+			return true
+		})
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk %s: %v", root, walkErr)
+	}
+	// Guard the walk itself: a wrong root would scan nothing and pass.
+	if files < 500 {
+		t.Fatalf("scanned only %d non-test Go files under %s; the walk is not reaching the repository", files, root)
+	}
+	return hits
 }
 
 // TestComposedRequestMarshalJSON verifies multi-request composition round-trips.

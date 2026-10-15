@@ -58,7 +58,7 @@ Two shapes are deliberately ACCEPTED: a fan-out grouper at depth `<= n_within_de
 
 ## p_source
 
-Proportion-input kinds only. `cell_value_pct` (default) divides the cell value by 100; `cell_value` takes it as already 0..1. A mismatch fails silently: `cell_value` over a real 0..100 percentage puts every proportion out of range and the layer returns empty.
+Proportion-input kinds only. `cell_value_pct` (default) divides the cell value by 100; `cell_value` takes it as already 0..1. A leg outside `[0,1]` (`cell_value` over a raw count or a 0..100 percentage) skips its pair as `PULSE_STATS_SKIP_PROPORTION_INVALID` (one `PULSE_OVERLAY_REF_ZERO` warning per reason) — the layer comes back empty, never scored. Over a count cell, normalize first (`normalize: row` for row scope).
 
 ## Compose-host panel
 

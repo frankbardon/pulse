@@ -382,7 +382,7 @@ func TestUndefinedFigures_PairwiseWelfordLegUndefined(t *testing.T) {
 				}
 				tooSmall := false
 				for _, w := range resp.Overlays[0].Warnings {
-					if w.Details["reason"] == "ORBIT_STATS_SKIP_N_TOO_SMALL" {
+					if w.Details["reason"] == "PULSE_STATS_SKIP_N_TOO_SMALL" {
 						tooSmall = true
 					}
 				}
