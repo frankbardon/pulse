@@ -663,6 +663,11 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if err := s.metricUnsuitedRefusal(ctx, req); err != nil {
 		return nil, markLocated(err)
 	}
+	// Strict mode: a FEAT_TARGET_ENCODE (PULSE_FEAT_TARGET_LEAKAGE_RISK)
+	// is refused here, before any record is read — predict's error.
+	if err := s.targetLeakageRefusal(req); err != nil {
+		return nil, markLocated(err)
+	}
 	// The request's `models`: every file read and decoded, bound beside
 	// what ctx already binds (a Compose pre-pass binds a slot's ahead),
 	// before any record is read — predict loads them at the same point.
@@ -720,6 +725,7 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 		return nil, err
 	}
 	s.appendVectorWarnings(ctx, req, resp)
+	s.appendTargetLeakageWarnings(req, resp)
 	// Model files: every regression `save`, from the full-precision
 	// results (a `return` shapes the response later, in the facade).
 	if err := s.saveRegressionModels(ctx, req, resp); err != nil {

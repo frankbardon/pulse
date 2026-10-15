@@ -163,6 +163,9 @@ func writeExplainText(cmd *cli.Command, res *descriptor.ExplainResult) {
 	for _, r := range res.Refusals {
 		writeText(w, "refusal %s: %s\n", r.Code, r.Message)
 	}
+	for _, wn := range res.Warnings {
+		writeText(w, "warning %s: %s\n", wn.Code, wn.Message)
+	}
 	for _, a := range res.Advisories {
 		writeText(w, "advisory %s: %s\n", a.Code, a.Message)
 	}

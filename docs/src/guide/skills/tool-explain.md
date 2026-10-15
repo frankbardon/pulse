@@ -21,7 +21,7 @@ Exactly ONE root, as an object:
 
 ## Output
 
-`mode`, `root`, `summary` (one sentence), `findings[]` (`slot`, `subject`, `operator`, `verdict`, `strength_band` + `convention`, `numbers`), `caveats`. Request mode adds `valid`, `steps[]`, `defaults_applied`, `advisories`, `refusals`. `full` adds `sentences`, `glossary_refs`, `follow_ups`.
+`mode`, `root`, `summary` (one sentence), `findings[]` (`slot`, `subject`, `operator`, `verdict`, `strength_band` + `convention`, `numbers`), `caveats`. Request mode adds `valid`, `steps[]`, `defaults_applied`, `advisories`, `refusals`, `warnings` (predict's coded warnings, each once; `details.slot` names a Compose slot). `full` adds `sentences`, `glossary_refs`, `follow_ups`.
 
 ## Gotchas
 

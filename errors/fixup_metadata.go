@@ -776,6 +776,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_FACET_VALUES_TRUNCATED: {
+		Message: "Warning-class — a facet's discrete_top_k cut a discrete field's value list to its top-K values by count (ties by value), so the dropped values are absent from fields.<name>.discrete.values; truncated_at counts them. Details carry `field`, `discrete_top_k`, `distinct` (the field's distinct values) and `dropped`, plus `additive: true` on an additive_fields tally. The counts of the kept values are exact.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"DiscreteTopK"},
+				Hint:   "Raise discrete_top_k to at least details.distinct (or set 0 for no cap) to see every value; keep it to read only the top values.",
+			},
+		},
+	},
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY: {
 		Message: "A field description is empty, too short, or matches a generic-word denylist (\"n/a\", \"tbd\", etc.).",
 		Fixups: []Fixup{
@@ -816,7 +826,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FEAT_TARGET_LEAKAGE_RISK: {
-		Message: "FEAT_TARGET_ENCODE averages every record's outcome, the record's own and validation/test records' included, because it reads no split column; a preceding train/test split does not change a single value.",
+		Message: "FEAT_TARGET_ENCODE averages every record's outcome, the record's own and validation/test records' included, because it reads no split column; a preceding train/test split does not change a single value. Predict warns, and Process (a Compose slot too) repeats the warning on the response's warnings with predict's details {feature, feature_index}; under strict both refuse — predict as an error, Process before any record is read.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,

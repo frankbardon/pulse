@@ -1005,6 +1005,12 @@
             "null"
           ]
         },
+        "bootstrap_requested": {
+          "type": "integer"
+        },
+        "bootstrap_succeeded": {
+          "type": "integer"
+        },
         "ci_lower": {
           "additionalProperties": {
             "type": [
@@ -1858,4 +1864,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 1037c3d24e4a16a98f7b07bf9c0538eb71333945ec6f46a22399fbc79066c8f6
+// golden-hash: 6a070961d5c32f060fd64a4e1141ccc829e27aaa40bd320726d94c34920fa64f

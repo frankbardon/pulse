@@ -136,14 +136,15 @@ func Explain(inst *descx.InstanceSnapshot, req descriptor.ExplainRequest, checks
 		return nil, err
 	}
 	e := &explainer{
-		inst:   inst,
-		scrub:  descx.NewProseScrub(inst),
-		g:      inst.Ontology(),
-		full:   detail == descriptor.ExplainFull,
-		checks: checks,
-		counts: map[*role]int{},
-		seenOp: map[string]bool{},
-		seenCv: map[string]bool{},
+		inst:     inst,
+		scrub:    descx.NewProseScrub(inst),
+		g:        inst.Ontology(),
+		full:     detail == descriptor.ExplainFull,
+		checks:   checks,
+		counts:   map[*role]int{},
+		seenOp:   map[string]bool{},
+		seenCv:   map[string]bool{},
+		seenWarn: map[string]bool{},
 		res: &descriptor.ExplainResult{
 			Mode:     descriptor.ExplainModeRequest,
 			Root:     root,
@@ -230,7 +231,8 @@ type explainer struct {
 	at         string   // response mode: the wire-path prefix of the result read ("responses[1].")
 	caveats    []string
 	seenCv     map[string]bool
-	uncheckedN int // request roots that name no cohort
+	seenWarn   map[string]bool // predict warnings relayed: code, message, slot
+	uncheckedN int             // request roots that name no cohort
 }
 
 // stepIn is one operator slot to describe.
@@ -311,7 +313,8 @@ func (e *explainer) caveat(s string) {
 }
 
 // absorb folds a check's envelope into the result: its errors become
-// caveats (prefix names the slot), its verdict joins Valid. Advisories
+// caveats (prefix names the slot), its warnings ride Warnings, its
+// verdict joins Valid. Advisories
 // are taken separately: a Compose root's slot advisories already ride
 // the Compose check, so a slot predict's own are not repeated.
 func (e *explainer) absorb(env *descriptor.Envelope, prefix string) {
@@ -342,6 +345,41 @@ func (e *explainer) absorb(env *descriptor.Envelope, prefix string) {
 		// The caveat names the code only: the message is predict's
 		// prose, relayed whole in Refusals, not an Explain template.
 		e.caveat("Predict refuses " + prefixWords(prefix) + "with " + er.Code + "; pulse errors lookup " + er.Code + " says how to fix it.")
+	}
+	e.warnings(env, prefix)
+}
+
+// warnings relays the check's warnings into Warnings as predict
+// reported them (prefix names the slot, as on Refusals), once each: a
+// Compose root's located slot warning (details.request = i) and the
+// same warning from that slot's own predict are one entry, the root's.
+func (e *explainer) warnings(env *descriptor.Envelope, prefix string) {
+	for _, w := range env.Warnings {
+		if w == nil {
+			continue
+		}
+		slot := strings.TrimSuffix(prefix, ".")
+		if slot == "" {
+			if i, ok := w.Details["request"].(int); ok {
+				slot = "requests[" + strconv.Itoa(i) + "]"
+			}
+		}
+		key := w.Code + "\x00" + w.Message + "\x00" + slot
+		if e.seenWarn[key] {
+			continue
+		}
+		e.seenWarn[key] = true
+		ref := descriptor.EnvelopeEntry{Code: w.Code, Message: w.Message}
+		if prefix != "" || len(w.Details) > 0 {
+			ref.Details = map[string]any{}
+			for k, v := range w.Details {
+				ref.Details[k] = v
+			}
+			if prefix != "" {
+				ref.Details["slot"] = slot
+			}
+		}
+		e.res.Warnings = append(e.res.Warnings, ref)
 	}
 }
 

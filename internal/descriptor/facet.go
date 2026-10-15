@@ -340,8 +340,8 @@ func ValidateFacetFromBytes(data []byte, req *types.FacetRequest) *descriptor.En
 // include_histogram compute nothing for a non-numeric field (the
 // discrete arm has no numeric summary), so each one set says so — in
 // that order. Predict adds them to the envelope; the runtime
-// (service.facetSchema) appends them to FacetResult.Warnings as
-// "CODE: message", so the two sides carry the same count and wording.
+// (service.facetSchema) appends them to FacetResult.Warnings as coded
+// entries, so the two sides carry the same count, wording and details.
 func FacetNotMeaningfulWarnings(req *types.FacetRequest, f *encoding.Field) []descriptor.EnvelopeEntry {
 	if req == nil || f == nil || facetIsNumeric(f.Type) {
 		return nil

@@ -34,7 +34,7 @@ Field type drives dispatch: `categorical_*` + `packed_bool` ⇒ discrete (dictio
 
 ## TopK, percentiles, histograms
 
-`discrete_top_k > 0` keeps top K by count (desc, ties asc), sets `Discrete.TruncatedAt = distinct - K`, emits a warning. `numeric_percentiles` ∈ `(0,1)` force the buffered path on requested fields (full sort + linear interp). Keys serialise as `p<int>` or `p%g`. Values match the percentile aggregator to float64. Histograms stream into fixed-width buckets; bin width `(max-min)/bins`; values outside `[min,max]` drop from the histogram (still feed mean/stddev/count). `histogram_bins` defaults to 20, caps at 256.
+`discrete_top_k > 0` keeps top K by count (desc, ties asc), sets `Discrete.TruncatedAt = distinct - K`, warns `PULSE_FACET_VALUES_TRUNCATED`. `numeric_percentiles` ∈ `(0,1)` force the buffered path per field (sort + linear interp). Keys serialise as `p<int>` or `p%g`. Values match the percentile aggregator to float64. Histograms stream into fixed-width buckets; bin width `(max-min)/bins`; values outside `[min,max]` drop from the histogram (still feed mean/stddev/count). `histogram_bins` default 20, max 256.
 
 ## Additive contribution counts
 

@@ -398,7 +398,9 @@ type Options struct {
 	DefaultReturn *types.Return
 
 	// Strict promotes request-validation warnings into hard errors at
-	// runtime (the weighting and vector advisories); future runtime
+	// runtime (the weighting and vector advisories, and a
+	// FEAT_TARGET_ENCODE's PULSE_FEAT_TARGET_LEAKAGE_RISK, refused
+	// before any record is read); future runtime
 	// validations follow the same flag. (A numeric aggregation over a
 	// categorical is refused PULSE_FIELD_TYPE_UNSUPPORTED whatever the
 	// flag.) Defaults to false — Process

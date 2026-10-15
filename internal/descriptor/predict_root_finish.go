@@ -48,3 +48,21 @@ func addMetricUnsuitedAt(env *descriptor.Envelope, req *types.Request, schema *e
 		env.AddWarning(string(w.Code), w.Message, details)
 	}
 }
+
+// addTargetLeakageAt reports each PULSE_FEAT_TARGET_LEAKAGE_RISK of one
+// request of a Compose root (a slot or fit; a chain stage carries no
+// features — PULSE_CHAIN_NOT_MERGEABLE) as a WARNING located under
+// key = idx — the list the runtime reads
+// (TargetLeakageWarnings): it warns with every entry, and under Strict
+// refuses the request with the first one, located the same way. The
+// root's Strict pass (finishPredictRoot) promotes it.
+func addTargetLeakageAt(env *descriptor.Envelope, req *types.Request, inst *InstanceSnapshot, key string, idx int) {
+	for _, w := range TargetLeakageWarnings(req, inst) {
+		details := make(map[string]any, len(w.Details)+1)
+		for k, v := range w.Details {
+			details[k] = v
+		}
+		details[key] = idx
+		env.AddWarning(string(w.Code), w.Message, details)
+	}
+}

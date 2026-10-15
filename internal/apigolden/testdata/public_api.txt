@@ -357,7 +357,7 @@ pulse: type FacetResult field Fields map[string]*pulse/types.FacetField "json:\"
 pulse: type FacetResult field FilteredRecords int64 "json:\"filtered_records\""
 pulse: type FacetResult field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse: type FacetResult field TotalRecords int64 "json:\"total_records\""
-pulse: type FacetResult field Warnings []string "json:\"warnings,omitempty\""
+pulse: type FacetResult field Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
 pulse: type FacetResult method (FacetResult) MarshalJSON() ([]byte, error)
 pulse: type FacetValueCount = pulse/types.FacetValueCount
 pulse: type FacetValueCount underlying struct
@@ -1299,6 +1299,7 @@ pulse/descriptor: type ExplainResult field Sentences []string "json:\"sentences,
 pulse/descriptor: type ExplainResult field Steps []pulse/descriptor.ExplainStep "json:\"steps,omitempty\""
 pulse/descriptor: type ExplainResult field Summary string "json:\"summary\""
 pulse/descriptor: type ExplainResult field Valid *bool "json:\"valid,omitempty\""
+pulse/descriptor: type ExplainResult field Warnings []pulse/descriptor.EnvelopeEntry "json:\"warnings,omitempty\""
 pulse/descriptor: type ExplainRoot string
 pulse/descriptor: const ExplainRootChain pulse/descriptor.ExplainRoot = "chain"
 pulse/descriptor: const ExplainRootChainResponse pulse/descriptor.ExplainRoot = "chain_response"
@@ -2340,6 +2341,7 @@ pulse/errors: const PULSE_EXTENSION_PURPOSE_INVALID pulse/errors.Code = "PULSE_E
 pulse/errors: const PULSE_EXTENSION_SKILL_COLLISION pulse/errors.Code = "PULSE_EXTENSION_SKILL_COLLISION"
 pulse/errors: const PULSE_EXTENSION_SKILL_INVALID pulse/errors.Code = "PULSE_EXTENSION_SKILL_INVALID"
 pulse/errors: const PULSE_EXTENSION_STREAMABLE_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_STREAMABLE_MISMATCH"
+pulse/errors: const PULSE_FACET_VALUES_TRUNCATED pulse/errors.Code = "PULSE_FACET_VALUES_TRUNCATED"
 pulse/errors: const PULSE_FEATURE_PROFILE_DEPENDENCY pulse/errors.Code = "PULSE_FEATURE_PROFILE_DEPENDENCY"
 pulse/errors: const PULSE_FEATURE_PROFILE_INVALID pulse/errors.Code = "PULSE_FEATURE_PROFILE_INVALID"
 pulse/errors: const PULSE_FEATURE_PROFILE_UNKNOWN pulse/errors.Code = "PULSE_FEATURE_PROFILE_UNKNOWN"
@@ -4482,7 +4484,7 @@ pulse/types: type FacetResult field Fields map[string]*pulse/types.FacetField "j
 pulse/types: type FacetResult field FilteredRecords int64 "json:\"filtered_records\""
 pulse/types: type FacetResult field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse/types: type FacetResult field TotalRecords int64 "json:\"total_records\""
-pulse/types: type FacetResult field Warnings []string "json:\"warnings,omitempty\""
+pulse/types: type FacetResult field Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
 pulse/types: type FacetResult method (FacetResult) MarshalJSON() ([]byte, error)
 pulse/types: type FacetValueCount struct
 pulse/types: type FacetValueCount field Count int64 "json:\"count\""
@@ -4524,6 +4526,8 @@ pulse/types: type FitResult struct
 pulse/types: type FitResult embed *pulse/types.RegressionResult
 pulse/types: type FitResult field RegressionResult.AdjR2 float64 "json:\"adj_r2,omitempty\""
 pulse/types: type FitResult field RegressionResult.Alpha float64 "json:\"alpha,omitempty\""
+pulse/types: type FitResult field RegressionResult.BootstrapRequested int "json:\"bootstrap_requested,omitempty\""
+pulse/types: type FitResult field RegressionResult.BootstrapSucceeded int "json:\"bootstrap_succeeded,omitempty\""
 pulse/types: type FitResult field RegressionResult.CILower map[string]float64 "json:\"ci_lower,omitempty\""
 pulse/types: type FitResult field RegressionResult.CIUpper map[string]float64 "json:\"ci_upper,omitempty\""
 pulse/types: type FitResult field RegressionResult.Coefficients map[string]float64 "json:\"coefficients,omitempty\""
@@ -5008,6 +5012,8 @@ pulse/types: type RegressionCovarianceResult field Type pulse/types.CovarianceTy
 pulse/types: type RegressionResult struct
 pulse/types: type RegressionResult field AdjR2 float64 "json:\"adj_r2,omitempty\""
 pulse/types: type RegressionResult field Alpha float64 "json:\"alpha,omitempty\""
+pulse/types: type RegressionResult field BootstrapRequested int "json:\"bootstrap_requested,omitempty\""
+pulse/types: type RegressionResult field BootstrapSucceeded int "json:\"bootstrap_succeeded,omitempty\""
 pulse/types: type RegressionResult field CILower map[string]float64 "json:\"ci_lower,omitempty\""
 pulse/types: type RegressionResult field CIUpper map[string]float64 "json:\"ci_upper,omitempty\""
 pulse/types: type RegressionResult field Coefficients map[string]float64 "json:\"coefficients,omitempty\""
@@ -5318,4 +5324,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 5d355ebe6e3cf65a56189f5f4e60256d2a0ce9907826043751407835e7c98cd7
+// golden-hash: 25d5ce72f572bc7ec84f6243976e8ef73f3141d6b764ef82832b0273550db676

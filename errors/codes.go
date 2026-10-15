@@ -438,6 +438,13 @@ const (
 	// (the accepted-types table), on both sides.
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL"
 
+	// PULSE_FACET_VALUES_TRUNCATED is a WARNING-class facet runtime
+	// code: discrete_top_k cut a discrete field's value list (the
+	// field's FacetDiscrete.TruncatedAt counts the dropped values).
+	// Details: field, discrete_top_k, distinct, dropped; additive true
+	// on an additive_fields tally.
+	PULSE_FACET_VALUES_TRUNCATED Code = "PULSE_FACET_VALUES_TRUNCATED"
+
 	// PULSE_FIELD_DESCRIPTION_LOW_QUALITY indicates a field description quality warning.
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY Code = "PULSE_FIELD_DESCRIPTION_LOW_QUALITY"
 
@@ -465,6 +472,8 @@ const (
 	// FEAT_TRAIN_TEST_SPLIT precedes it. Mitigation: compute train-only
 	// category averages (AGG_AVERAGE on split 0) in a separate request and
 	// map them back, or accept the in-sample encoding for descriptive use.
+	// Predict raises it and Process repeats it on Response.Warnings;
+	// under strict both refuse (Process before any record is read).
 	PULSE_FEAT_TARGET_LEAKAGE_RISK Code = "PULSE_FEAT_TARGET_LEAKAGE_RISK"
 
 	// PULSE_DECIMAL_OVERFLOW indicates a decimal arithmetic or aggregation
@@ -3744,6 +3753,7 @@ var allCodes = []Code{
 	PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC,
 	PULSE_MATERIALIZE_SIDECARS_INVALIDATED,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
+	PULSE_FACET_VALUES_TRUNCATED,
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
 	PULSE_WINDOW_INVALID,
 	PULSE_FIELD_TYPE_UNSUPPORTED,

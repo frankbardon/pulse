@@ -218,6 +218,15 @@ func resultWarningCodes(out any) []string {
 		for _, r := range v.Stages {
 			addResponse(r)
 		}
+	case *FacetResult:
+		if v == nil {
+			break
+		}
+		for _, w := range v.Warnings {
+			if w != nil && w.Code != "" {
+				codes = append(codes, w.Code)
+			}
+		}
 	case *SampleResult:
 		if v == nil {
 			break

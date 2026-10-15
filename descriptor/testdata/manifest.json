@@ -7669,7 +7669,8 @@
             "name": "bootstrap_iters",
             "type": "int",
             "required": false,
-            "description": "Replicate count when resample == bootstrap."
+            "default": 1000,
+            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded)."
           },
           {
             "name": "rng_seed",
@@ -7833,7 +7834,8 @@
             "name": "bootstrap_iters",
             "type": "int",
             "required": false,
-            "description": "Replicate count when resample == bootstrap."
+            "default": 1000,
+            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded)."
           },
           {
             "name": "rng_seed",
@@ -9522,7 +9524,7 @@
         ]
       }
     ],
-    "error_codes_count": 365,
+    "error_codes_count": 366,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9622,6 +9624,7 @@
       "PULSE_EXTENSION_SKILL_COLLISION",
       "PULSE_EXTENSION_SKILL_INVALID",
       "PULSE_EXTENSION_STREAMABLE_MISMATCH",
+      "PULSE_FACET_VALUES_TRUNCATED",
       "PULSE_FEATURE_PROFILE_DEPENDENCY",
       "PULSE_FEATURE_PROFILE_INVALID",
       "PULSE_FEATURE_PROFILE_UNKNOWN",
@@ -18138,4 +18141,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 53f626f424a6477ff5b04fc44421792e7b93307e30252cac8e21e3951fadfe09
+// golden-hash: bd4f7d91f07901f21d258465d1bbda6baae1286dae53272574c4d774c5cc9443

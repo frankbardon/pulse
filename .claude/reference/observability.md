@@ -38,7 +38,7 @@ Stable **attribute keys** (the message text is NOT covered by the stability prom
 | Error | `pulse: operation failed` | a failed operation, by `code` only (a limit trip logs both) |
 | Warn | `pulse: observability hook panicked` | `hook` + `op` only |
 
-**Privacy rule.** Logs carry identifiers, counts, timings, enums and error `code` — never an error message or `details` (beyond the limit triple), an expression, a filter value, a dictionary entry or a record. Warnings are reported by code only, and **string-only warnings (Facet, tests, synth) are skipped** because their text can echo values. Warning carriers: `Response` (+ overlay layers), `ComposedResponse`, `ChainResponse`, `SampleResult`, `Envelope`, shard results, Import/Export/Convert reports, `DedupResult` (`resultWarningCodes`). Enforced by `TestObservabilityNoRowData`. Logs go to **stderr only**: the CLI writes there and MCP stdout is JSON-RPC.
+**Privacy rule.** Logs carry identifiers, counts, timings, enums and error `code` — never an error message or `details` (beyond the limit triple), an expression, a filter value, a dictionary entry or a record. Warnings are reported by code only, and **string-only warnings (tests, synth) are skipped** because their text can echo values. Warning carriers: `Response` (+ overlay layers), `ComposedResponse`, `ChainResponse`, `FacetResult` (coded since U44), `SampleResult`, `Envelope`, shard results, Import/Export/Convert reports, `DedupResult` (`resultWarningCodes`). Enforced by `TestObservabilityNoRowData`. Logs go to **stderr only**: the CLI writes there and MCP stdout is JSON-RPC.
 
 ## Hook contract
 

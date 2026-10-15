@@ -17,7 +17,7 @@ Also top-K truncation and additive-contribution counts: the faceted-UI / discove
 
 ## Output
 
-`descriptor.Envelope` wrapping per-field summaries: discrete value/count lists with null tallies for categorical/boolean/geo fields; streaming `count`/`sum`/`min`/`max`/`mean`/`stddev` for numeric fields; optional `Percentiles`, `Histogram`, `AdditiveContributions`. `Response.Components` reports the facet floor + per-field operator state. FACET-host overlays appear in `Response.Overlays`.
+`descriptor.Envelope` wrapping per-field summaries: discrete value/count lists with null tallies for categorical/boolean/geo fields; streaming `count`/`sum`/`min`/`max`/`mean`/`stddev` for numeric fields; optional `Percentiles`, `Histogram`, `AdditiveContributions`. `Response.Components` reports the facet floor + per-field operator state. FACET-host overlays appear in `Response.Overlays`. `warnings` are coded `{code, message, details}` entries (truncation, not-meaningful stats, labels, overlays).
 
 ## Gotchas
 

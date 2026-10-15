@@ -184,6 +184,7 @@ var errorOwners = map[errors.Code][]string{
 
 	// Any numeric aggregator on a categorical field; predict raises it.
 	errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: own(featFacet),
+	errors.PULSE_FACET_VALUES_TRUNCATED:             own(featFacet),
 	errors.PULSE_FIELD_DESCRIPTION_LOW_QUALITY:      shared,
 	errors.PULSE_WINDOW_INVALID:                     ownAllWindows,
 	// Every operator the accepted-types table refuses a type for with it.

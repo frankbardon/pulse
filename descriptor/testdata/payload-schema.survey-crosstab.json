@@ -838,7 +838,7 @@
         },
         "warnings": {
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/ResponseWarning"
           },
           "type": [
             "array",
@@ -1804,6 +1804,12 @@
             "null"
           ]
         },
+        "bootstrap_requested": {
+          "type": "integer"
+        },
+        "bootstrap_succeeded": {
+          "type": "integer"
+        },
         "ci_lower": {
           "additionalProperties": {
             "type": [
@@ -2738,4 +2744,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: ab80cd00b348438c10a0349e2f2b72c319313bc67acdf6291bb013e572f6b42f
+// golden-hash: 82a2b99eb8ca8e45f5ad44794d2812ecc473cab44437bed70517f6f8636e3ef2

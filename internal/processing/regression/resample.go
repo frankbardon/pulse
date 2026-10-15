@@ -10,7 +10,8 @@ import (
 )
 
 // defaultBootstrapIters is the replicate count when the spec leaves
-// BootstrapIters at zero. 1000 is the standard textbook minimum for a
+// BootstrapIters at zero or negative; any positive count is used as
+// given. 1000 is the standard textbook minimum for a
 // non-parametric percentile interval; production users who care about
 // the deep tails should raise it.
 const defaultBootstrapIters = 1000
@@ -24,8 +25,8 @@ const defaultBootstrapIters = 1000
 // The driver dispatches on spec.Resample:
 //
 //   - "jackknife" : leave-one-out refit, jackknife SE formula.
-//   - "bootstrap" : B = max(BootstrapIters, defaultBootstrapIters)
-//     replicates with replacement; SE is the sample std
+//   - "bootstrap" : B = BootstrapIters (defaultBootstrapIters when
+//     <= 0) replicates with replacement; SE is the sample std
 //     of the replicate coefficient set, p-values from the
 //     fraction of replicates that cross zero (percentile-
 //     style two-sided test).
@@ -34,8 +35,10 @@ const defaultBootstrapIters = 1000
 // subset. The OLS and GLM paths supply different closures so each
 // family stays aligned with its own solver and warning surface.
 //
-// The Resample, BootstrapIters, and RNGSeed fields are echoed on the
-// returned result so consumers can identify the uncertainty source.
+// The Resample kind is echoed on the returned result so consumers can
+// identify the uncertainty source; a bootstrap also echoes the
+// replicate count it ran (BootstrapRequested) and the replicates whose
+// refit succeeded (BootstrapSucceeded).
 //
 // On any blocking refit error the driver short-circuits and returns
 // the error; partial coefficient sets are never folded back into a
@@ -147,7 +150,7 @@ func runJackknife(
 		se[j] = math.Sqrt(cov[j][j])
 	}
 
-	return packageResampleResult(spec, baseResult, predictors, se, cov, pValueFn, len(replicates), nil), nil
+	return packageResampleResult(spec, baseResult, predictors, se, cov, pValueFn, nil), nil
 }
 
 // replicateCov returns the (q×q) scaled cross-product of the centred
@@ -225,7 +228,7 @@ func runBootstrap(
 		)
 	}
 	B := spec.BootstrapIters
-	if B < defaultBootstrapIters {
+	if B <= 0 {
 		B = defaultBootstrapIters
 	}
 	seed := spec.RNGSeed
@@ -320,7 +323,10 @@ func runBootstrap(
 		bootP[j] = pTwoSided
 	}
 
-	return packageResampleResult(spec, baseResult, predictors, se, cov, pValueFn, len(replicates), bootP), nil
+	out := packageResampleResult(spec, baseResult, predictors, se, cov, pValueFn, bootP)
+	out.BootstrapRequested = B
+	out.BootstrapSucceeded = len(replicates)
+	return out, nil
 }
 
 // packageResampleResult writes the resample-derived SE / p-values onto
@@ -342,7 +348,6 @@ func packageResampleResult(
 	se []float64,
 	cov [][]float64,
 	pValueFn func(coef, se float64) float64,
-	replicates int,
 	bootstrapP []float64,
 ) *types.RegressionResult {
 	// Shallow copy of baseResult, then replace the uncertainty maps.
@@ -376,6 +381,5 @@ func packageResampleResult(
 	if spec.Vcov {
 		attachVcov(&out, predictors, cov)
 	}
-	_ = replicates // future: surface as RegressionResult field; not in v1
 	return &out
 }

@@ -36,7 +36,9 @@ type targetEncodeParams struct {
 // row's own target and the validation/test rows' targets — even when
 // FEAT_TRAIN_TEST_SPLIT runs first (features run before filters). Predict
 // flags every FEAT_TARGET_ENCODE with PULSE_FEAT_TARGET_LEAKAGE_RISK
-// (internal/descriptor/predict_feature.go); a split does not silence it.
+// (internal/descriptor/predict_feature.go) and Process repeats it on
+// Response.Warnings, refusing under strict (service/feature_leakage.go,
+// the same descx.TargetLeakageWarnings rule); a split does not silence it.
 // targetStat tallies sum and count for one category during PrePass.
 // Promoted to a package-level type so per-record streaming state has a
 // stable place to live alongside Compute's local-only equivalent.
