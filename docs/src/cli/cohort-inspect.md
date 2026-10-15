@@ -16,9 +16,11 @@ record data. The operation is constant-time regardless of cohort size.
 
 ```
 pulse cohort inspect PATH [--json] [--full-dict]
+pulse cohort inspect --input PATH [--json] [--full-dict]
 ```
 
-`PATH` is a single-file cohort, a shard archive, or the anchor form
+`PATH` (positional, or `-i` / `--input` like every other cohort leaf;
+the flag wins when both are given) is a single-file cohort, a shard archive, or the anchor form
 `archive.pulse#shard.pulse`, which inspects one shard as a one-shard
 cohort. Every mode resolves the anchor — text, `--json` and
 `--full-dict` alike.
@@ -27,6 +29,7 @@ cohort. Every mode resolves the anchor — text, `--json` and
 
 | Flag | Type | Default | Purpose |
 |---|---|---|---|
+| `--input`, `-i` | string | (none) | Cohort path; alternative to the positional `PATH` |
 | `--json`      | bool | false | Emit the standard envelope |
 | `--full-dict` | bool | false | Print every categorical dictionary entry (default truncates at 100) |
 

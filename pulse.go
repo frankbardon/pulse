@@ -197,7 +197,9 @@ type Record = map[string]any
 // Options configures a Pulse instance.
 type Options struct {
 	// DataDir is the base directory for cohort files.
-	// Defaults to PULSE_DATA_DIR if empty and FS is not set.
+	// Defaults to PULSE_DATA_DIR if empty and FS is not set. A relative
+	// value (here or in PULSE_DATA_DIR) is made absolute against the
+	// working directory once, at New — a later chdir does not move it.
 	DataDir string
 
 	// FS is an optional custom filesystem.

@@ -29,17 +29,21 @@ func cohortInspectCmd() *cli.Command {
 		Usage:     "Inspect a .pulse file header and schema",
 		ArgsUsage: "PATH",
 		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path (or pass as the positional argument)"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.BoolFlag{Name: "full-dict", Usage: "Show full categorical dictionaries without truncation"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			args := cmd.Args()
-			if args.Len() < 1 {
-				return fmt.Errorf("usage: pulse cohort inspect PATH")
-			}
-			path := args.First()
 			jsonOut := cmd.Bool("json")
 			fullDict := cmd.Bool("full-dict")
+			path := cmd.String("input")
+			if path == "" {
+				path = cmd.Args().First()
+			}
+			if path == "" {
+				return cliError(cmd, jsonOut, "CLI_INPUT",
+					"usage: pulse cohort inspect PATH (or --input PATH)")
+			}
 
 			p, err := newPulse(ctx)
 			if err != nil {
@@ -271,11 +275,11 @@ func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse
 	// bypass afero.Fs" holds literally and the site is greppable with
 	// every other filesystem reach in the CLI.
 	//
-	// It is deliberately NOT the facade's injected fs. That one is rooted
-	// at PULSE_DATA_DIR when the env var is set, so routing a
-	// cwd-relative side-file path through it would silently resolve it
-	// inside the data directory. The cohort at --input goes through the
-	// facade; this does not, and the two are different kinds of path.
+	// It is deliberately NOT the facade's injected fs: the cohort at
+	// --input goes through the facade; this does not, and the two are
+	// different kinds of path. (Today the CLI facade is an unrooted OS
+	// fs — newPulse ignores PULSE_DATA_DIR — so both resolve against the
+	// working directory, but a side file must not depend on that.)
 	f, err := afero.NewOsFs().Open(includeFrom)
 	if err != nil {
 		if jsonOut {

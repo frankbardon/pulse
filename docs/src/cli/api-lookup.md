@@ -31,7 +31,7 @@ pulse api lookup --input PATH --key FIELD=VALUE [--key FIELD=VALUE ...]
 
 | Flag | Alias | Type | Default | Purpose |
 |---|---|---|---|---|
-| `--input`         | `-i` | string | (required unless `--request`) | Cohort `.pulse` file path |
+| `--input`         | `-i` | string | (required unless `--request`) | Cohort `.pulse` file path; replaces a `--request` file's `cohort` (filename and `data_dir`) |
 | `--key`           | `-k` | string | (required unless `--request`) | `field=value` pair; repeat for a composite key, in the same column order the sidecar index was built with |
 | `--return`        |      | string | (none) | Comma-separated field names to project into each result row; omit for every schema field |
 | `--mode`          |      | string | `assert-unique` | Multiplicity when the key matches more than one row: `assert-unique` (errors `PULSE_LOOKUP_AMBIGUOUS`), `first`, or `all` |

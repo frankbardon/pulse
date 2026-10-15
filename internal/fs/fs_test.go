@@ -214,3 +214,57 @@ func TestOsFs_BasePath(t *testing.T) {
 		t.Errorf("expected directory at %s", diskPath)
 	}
 }
+
+// TestDataDir_RelativeIsAbsolutisedAtNew pins #308: a relative data
+// directory is resolved against the working directory ONCE, at New, so a
+// later chdir cannot silently re-root the filesystem.
+func TestDataDir_RelativeIsAbsolutisedAtNew(t *testing.T) {
+	base := t.TempDir()
+	if err := os.Mkdir(filepath.Join(base, "data"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(base)
+
+	cfg, err := fs.New(fs.WithDataDir("data"))
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	want, _ := filepath.Abs("data")
+	if cfg.DataDir() != want {
+		t.Errorf("DataDir() = %q, want absolute %q", cfg.DataDir(), want)
+	}
+
+	t.Chdir(t.TempDir())
+	if err := afero.WriteFile(cfg.Fs(), "x.txt", []byte("x"), 0o644); err != nil {
+		t.Fatalf("WriteFile after chdir: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(base, "data", "x.txt")); err != nil {
+		t.Errorf("file should land under the data dir resolved at New: %v", err)
+	}
+}
+
+// TestDataDirFromEnv_RelativeIsAbsolutised is the PULSE_DATA_DIR twin.
+func TestDataDirFromEnv_RelativeIsAbsolutised(t *testing.T) {
+	base := t.TempDir()
+	if err := os.Mkdir(filepath.Join(base, "data"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(base)
+	t.Setenv("PULSE_DATA_DIR", "data")
+
+	cfg, err := fs.Default()
+	if err != nil {
+		t.Fatalf("Default() error: %v", err)
+	}
+	if !filepath.IsAbs(cfg.DataDir()) {
+		t.Errorf("DataDir() = %q, want an absolute path", cfg.DataDir())
+	}
+
+	t.Chdir(t.TempDir())
+	if err := afero.WriteFile(cfg.Fs(), "y.txt", []byte("y"), 0o644); err != nil {
+		t.Fatalf("WriteFile after chdir: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(base, "data", "y.txt")); err != nil {
+		t.Errorf("file should land under the data dir resolved at Default: %v", err)
+	}
+}

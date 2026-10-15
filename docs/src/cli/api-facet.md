@@ -37,9 +37,9 @@ pulse api facet --input PATH --field NAME [--json]
 
 | Flag | Alias | Type | Default | Purpose |
 |---|---|---|---|---|
-| `--input`          | `-i` | string | (required for simple mode) | Cohort `.pulse` file path |
+| `--input`          | `-i` | string | (required for simple mode) | Cohort `.pulse` file path; replaces a `--request` file's `cohort` (filename and `data_dir`) |
 | `--field`          | `-f` | string | (required for simple mode) | Field name to facet on; repeat for rich mode |
-| `--request`        | `-r` | string | (none) | Full `FacetRequest` JSON file (overrides individual flags) |
+| `--request`        | `-r` | string | (none) | Full `FacetRequest` JSON file; individual flags layer on top of (override) it |
 | `--top-k`          |      | int    | 0      | Cap discrete values per field (rich mode) |
 | `--percentile`     |      | float  | (none) | Numeric percentile in `(0, 1)`; repeatable (rich mode) |
 | `--histogram`      |      | bool   | false  | Include numeric histograms (rich mode) |

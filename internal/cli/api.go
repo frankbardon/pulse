@@ -522,11 +522,7 @@ func loadFacetRequest(path, input string, fields []string, topK int, pcts []floa
 		}
 	}
 	if input != "" {
-		if req.Cohort == nil {
-			req.Cohort = &types.Cohort{Filename: input}
-		} else if req.Cohort.Filename == "" {
-			req.Cohort.Filename = input
-		}
+		req.Cohort = inputCohort(input)
 	}
 	if len(fields) > 0 {
 		req.Fields = fields
@@ -776,6 +772,15 @@ func writeMaterializeText(cmd *cli.Command, res *pulse.MaterializeResult) {
 	}
 }
 
+// inputCohort is the cohort an `-i/--input` flag names. The flag
+// REPLACES a request file's cohort outright — filename and data_dir —
+// so `-i x.pulse -r req.json` reads x.pulse whatever req.json names, as
+// the flag's help text says (#308). A data_dir left over from the file
+// would otherwise silently prefix the flag's path.
+func inputCohort(input string) *types.Cohort {
+	return &types.Cohort{Filename: input}
+}
+
 // loadLookupRequest constructs a LookupRequest either by parsing the
 // supplied --request JSON file or by composing one from the per-flag
 // shortcuts, mirroring loadFacetRequest's precedence: flag values layer
@@ -793,11 +798,7 @@ func loadLookupRequest(path, input string, keyArgs []string, returnCols, mode st
 		}
 	}
 	if input != "" {
-		if req.Cohort == nil {
-			req.Cohort = &types.Cohort{Filename: input}
-		} else if req.Cohort.Filename == "" {
-			req.Cohort.Filename = input
-		}
+		req.Cohort = inputCohort(input)
 	}
 	if len(keyArgs) > 0 {
 		keys, err := parseLookupKeys(keyArgs)

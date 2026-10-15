@@ -42,7 +42,7 @@ row data, filter values or error messages. An unknown value is
 
 | Variable | Used by | Required | Purpose |
 |---|---|---|---|
-| `PULSE_DATA_DIR`        | All commands when no path override is given; required by `pulse mcp` | conditionally | Base directory for cohort files. Relative cohort paths resolve against it |
+| `PULSE_DATA_DIR`        | `pulse mcp` (required unless `--data-dir`), `pulse import auto / list / drop` | conditionally | Base directory for cohort files and the managed-imports pool. A relative value is made absolute against the working directory at startup. Every other leaf resolves its `--input` / positional / `--output` paths against the working directory and ignores it |
 | `PULSE_IMPORTS_DIR`     | `pulse import auto / list / drop`                                    | no | Managed-imports subdir under the data root. Defaults to `imports` |
 | `PULSE_IMPORT_TTL`      | `pulse import auto`                                                  | no | Default TTL for managed imports. Go duration (`24h`, `30m`), day form (`7d`, `30d`), or `pin`. Defaults to `7d` |
 | `PULSE_LABEL_TABLES_DIR`| `pulse api sample --labels`, `pulse api facet --labels`              | no | Directory of JSON files auto-loaded as label tables at `pulse.New` time; each `*.json` becomes one table keyed by its filename |
@@ -106,6 +106,20 @@ pulse api process -r req.json --json > out.json || exit $?   # 1: errors[0] in o
 ## Shared per-command flags
 
 Several flags appear on multiple commands with identical semantics.
+
+### `--input` / `-i`
+
+Available on: every leaf that reads one cohort — `api sample`,
+`api facet`, `api lookup`, `cohort inspect`, `cohort filter`, `widen`,
+`dedup`, the `index` leaves, the `export` leaves, `profile create`.
+
+The cohort path, resolved against the working directory (an absolute
+path is used as-is). `cohort inspect`, `widen`, `dedup` and the `index`
+leaves also accept it as the positional argument; the flag wins when
+both are given. Paired with `--request` (`api facet`, `api lookup`), the
+flag **replaces** the request file's `cohort` outright — `filename` and
+`data_dir` — so `-i x.pulse -r req.json` reads `x.pulse` whatever
+`req.json` names.
 
 ### `--no-defaults`
 
