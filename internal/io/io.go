@@ -1,6 +1,9 @@
 package io
 
 import (
+	"encoding/json"
+	stderrors "errors"
+
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
@@ -22,23 +25,23 @@ import (
 // surfaces a PULSE_IMPORT_NULL_PROMOTED warning to callers that thread
 // coded warnings.
 type ImportReport struct {
-	RowsImported   int
-	Schema         *encoding.Schema
-	RowErrors      []RowError
-	PromotedFields []string
+	RowsImported   int              `json:"rows_imported"`
+	Schema         *encoding.Schema `json:"schema"`
+	RowErrors      []RowError       `json:"row_errors,omitempty"`
+	PromotedFields []string         `json:"promoted_fields,omitempty"`
 	// WidthWarnings carries one PULSE_IMPORT_WIDTH_PROMOTED warning per
 	// field the row pass promoted past its sample-inferred width
 	// (categorical_* rung, integer width, or integer → f64), with
 	// field / from / to / source_row in Details. Empty (and omitted from
 	// JSON) when nothing outgrew its inferred width — always, for an
 	// explicit or authoritative schema. See import_widen.go.
-	WidthWarnings []*errors.CodedError `json:"WidthWarnings,omitempty"`
+	WidthWarnings []*errors.CodedError `json:"width_warnings,omitempty"`
 	// ZoneWarnings carries the one PULSE_IMPORT_DST_RESOLVED warning a
 	// non-default ImportJob.DSTPolicy raises when it resolved at least
 	// one ambiguous or nonexistent source-zone wall clock (details:
 	// policy, ambiguous_n, nonexistent_n). Empty (and omitted from
 	// JSON) otherwise — always, without a source zone.
-	ZoneWarnings []*errors.CodedError `json:"ZoneWarnings,omitempty"`
+	ZoneWarnings []*errors.CodedError `json:"zone_warnings,omitempty"`
 	// SourceWarnings carries the non-fatal diagnostics the source
 	// Reader surfaced through the optional SourceWarningEmitter
 	// contract — today the PULSE_SPSS_* family raised by the `.sav`
@@ -46,31 +49,31 @@ type ImportReport struct {
 	// that do not implement the interface and for sources that
 	// implement it and raised nothing, so the report shape is
 	// unchanged for every pre-existing adapter.
-	SourceWarnings []*errors.CodedError
+	SourceWarnings []*errors.CodedError `json:"source_warnings,omitempty"`
 	// ElidedConstants names the fields ImportJob.ElideConstants stored
 	// once in the schema block instead of per row, in schema order.
 	// Empty (and omitted from JSON) when elision was off or elided
 	// nothing, in which case the cohort is 0x01.
-	ElidedConstants []string `json:"ElidedConstants,omitempty"`
+	ElidedConstants []string `json:"elided_constants,omitempty"`
 	// Groups describes each ImportJob.Groups declaration as written, in
 	// declaration order: its label, fields, distinct-tuple count and
 	// the entry / member / index widths a viability check weighs. Empty
 	// (and omitted from JSON) when no group was declared.
-	Groups []GroupReport `json:"Groups,omitempty"`
+	Groups []GroupReport `json:"groups,omitempty"`
 	// GroupWarnings carries the viability gate's findings, one per
 	// flagged group: PULSE_GROUP_TOO_NARROW (the group was dropped) and
 	// PULSE_DEDUP_LOW_RATIO (the group was written anyway), each with
 	// its numbers in Details. Empty (and omitted from JSON) when every
 	// declared group passed. Under ImportJob.StrictDedup a finding is
 	// returned as Run's error instead and there is no report.
-	GroupWarnings []*errors.CodedError `json:"GroupWarnings,omitempty"`
+	GroupWarnings []*errors.CodedError `json:"group_warnings,omitempty"`
 	// DroppedWarnings carries the one PULSE_IMPORT_ROWS_DROPPED warning
 	// a PARTIAL import raises — some rows imported, len(RowErrors)
 	// skipped — with dropped / imported / first_failure {row, column,
 	// reason} in Details. Empty (and omitted from JSON) when no row was
 	// dropped. Under ImportJob.StrictRows the warning is Run's error
 	// instead and there is no report.
-	DroppedWarnings []*errors.CodedError `json:"DroppedWarnings,omitempty"`
+	DroppedWarnings []*errors.CodedError `json:"dropped_warnings,omitempty"`
 }
 
 // ExportReport summarizes the result of an export operation.
@@ -88,10 +91,10 @@ type ImportReport struct {
 // layers), when no overlays were supplied,
 // or when IncludeOverlays explicitly opted out.
 type ExportReport struct {
-	RowsExported    int
-	RowErrors       []RowError
-	LabelWarnings   []LabelWarning
-	OverlayWarnings []*errors.CodedError
+	RowsExported    int                  `json:"rows_exported"`
+	RowErrors       []RowError           `json:"row_errors,omitempty"`
+	LabelWarnings   []LabelWarning       `json:"label_warnings,omitempty"`
+	OverlayWarnings []*errors.CodedError `json:"overlay_warnings,omitempty"`
 	// TargetWarnings carries the non-fatal diagnostics the target
 	// Writer surfaced through the optional TargetWarningEmitter
 	// contract — today the PULSE_SPSS_SIDECAR_* and
@@ -99,7 +102,7 @@ type ExportReport struct {
 	// for targets that do not implement the interface and for those
 	// that implement it and raised nothing, so the report shape is
 	// unchanged for every pre-existing adapter.
-	TargetWarnings []*errors.CodedError
+	TargetWarnings []*errors.CodedError `json:"target_warnings,omitempty"`
 }
 
 // ConvertReport summarizes the result of a convert operation.
@@ -111,58 +114,85 @@ type ExportReport struct {
 // OverlayWarnings carries the warn-and-skip codes the target Writer
 // surfaced through OverlayWarningEmitter — see ExportReport.OverlayWarnings.
 type ConvertReport struct {
-	RowsConverted   int
-	Schema          *encoding.Schema
-	RowErrors       []RowError
-	LabelWarnings   []LabelWarning
-	OverlayWarnings []*errors.CodedError
+	RowsConverted   int                  `json:"rows_converted"`
+	Schema          *encoding.Schema     `json:"schema"`
+	RowErrors       []RowError           `json:"row_errors,omitempty"`
+	LabelWarnings   []LabelWarning       `json:"label_warnings,omitempty"`
+	OverlayWarnings []*errors.CodedError `json:"overlay_warnings,omitempty"`
 	// SourceWarnings carries the source Reader's non-fatal diagnostics
 	// — see ImportReport.SourceWarnings. Distinct from OverlayWarnings,
 	// which come from the TARGET Writer.
-	SourceWarnings []*errors.CodedError
+	SourceWarnings []*errors.CodedError `json:"source_warnings,omitempty"`
 	// TargetWarnings carries the target Writer's non-fatal diagnostics
 	// — see ExportReport.TargetWarnings.
-	TargetWarnings []*errors.CodedError
+	TargetWarnings []*errors.CodedError `json:"target_warnings,omitempty"`
 	// WidthWarnings carries one PULSE_IMPORT_WIDTH_PROMOTED warning per
 	// field of an INFERRED schema the row pass promoted past its
 	// sample-inferred width (see ImportReport.WidthWarnings); Schema
 	// carries the promoted types. Nil for a declared schema, and when
 	// nothing outgrew its width.
-	WidthWarnings []*errors.CodedError `json:"WidthWarnings,omitempty"`
+	WidthWarnings []*errors.CodedError `json:"width_warnings,omitempty"`
 	// ZoneWarnings carries the one PULSE_IMPORT_DST_RESOLVED warning a
 	// ConvertJob.DSTPolicy of earlier / later raises when it resolved a
 	// source-zone local time (see ImportReport.ZoneWarnings).
-	ZoneWarnings []*errors.CodedError `json:"ZoneWarnings,omitempty"`
+	ZoneWarnings []*errors.CodedError `json:"zone_warnings,omitempty"`
 	// DroppedWarnings carries a PULSE_IMPORT_ROWS_DROPPED warning per
 	// stage that dropped rows: details.stage "target" for rows the
 	// target Writer refused (RowErrors), "keep_pulse" for rows the
 	// KeepPulseAt intermediate import skipped. Empty (and omitted from
 	// JSON) when nothing was dropped. Under ConvertJob.StrictRows the
 	// first is Run's error instead and there is no report.
-	DroppedWarnings []*errors.CodedError `json:"DroppedWarnings,omitempty"`
+	DroppedWarnings []*errors.CodedError `json:"dropped_warnings,omitempty"`
 }
 
 // RowError records a per-row error during import or export.
+//
+// It marshals flat, as {row, code, message, details} — the coded-entry
+// shape every other warning list uses (see MarshalJSON).
 type RowError struct {
 	Row int
 	Err error
 }
 
+// rowErrorJSON is RowError's wire shape.
+type rowErrorJSON struct {
+	Row     int            `json:"row"`
+	Code    string         `json:"code,omitempty"`
+	Message string         `json:"message"`
+	Details map[string]any `json:"details,omitempty"`
+}
+
+// MarshalJSON flattens the row error to {row, code, message, details}:
+// a coded Err lends its code, message and details; any other error its
+// Error() text, with no code. Without it an uncoded Err rendered as an
+// empty object and the row number rode a Go field name.
+func (e RowError) MarshalJSON() ([]byte, error) {
+	out := rowErrorJSON{Row: e.Row}
+	var ce *errors.CodedError
+	switch {
+	case stderrors.As(e.Err, &ce):
+		out.Code, out.Message, out.Details = string(ce.Code), ce.Message, ce.Details
+	case e.Err != nil:
+		out.Message = e.Err.Error()
+	}
+	return json.Marshal(out)
+}
+
 // PredictReport summarizes a validation-only run.
 type PredictReport struct {
-	Schema        *encoding.Schema
-	EstimatedRows int
-	Warnings      []InferenceWarning
+	Schema        *encoding.Schema   `json:"schema"`
+	EstimatedRows int                `json:"estimated_rows"`
+	Warnings      []InferenceWarning `json:"warnings,omitempty"`
 	// ZoneWarnings is what ImportReport.ZoneWarnings would carry: the
 	// predict converts every source-zone datetime cell exactly as Run
 	// does, so a DST refusal is Predict's error too.
-	ZoneWarnings []*errors.CodedError `json:"ZoneWarnings,omitempty"`
+	ZoneWarnings []*errors.CodedError `json:"zone_warnings,omitempty"`
 	// SourceWarnings carries the source Reader's non-fatal coded
 	// diagnostics — see ImportReport.SourceWarnings. Held apart from
 	// Warnings, which is the inference pass's own untyped channel: a
 	// predict against an authoritative source runs no inference, so
 	// Warnings is empty there and SourceWarnings is the only signal.
-	SourceWarnings []*errors.CodedError
+	SourceWarnings []*errors.CodedError `json:"source_warnings,omitempty"`
 	// TargetWarnings carries the non-fatal diagnostics the TARGET
 	// Writer would raise if the export ran, lifted off the optional
 	// CohortValidator contract — today the PULSE_SPSS_SIDECAR_ABSENT /
@@ -175,7 +205,7 @@ type PredictReport struct {
 	// Nil for a predict whose target does not implement
 	// CohortValidator, which is every format but `.sav` today, and nil
 	// for a validating target that raised nothing.
-	TargetWarnings []*errors.CodedError
+	TargetWarnings []*errors.CodedError `json:"target_warnings,omitempty"`
 	// Columns is the header an ExportJob.Predict with a Target says the
 	// export of a cohort WITH A VECTOR FIELD would write: one column per
 	// projected field, a `_label` sibling per augment binding, and each
@@ -184,7 +214,7 @@ type PredictReport struct {
 	// writer. Nil for a vector-free cohort (its header is its field
 	// list), for a predict with no Target, for a CohortWriter target
 	// (which lays out its own variables) and for every ImportJob.Predict.
-	Columns []string `json:"Columns,omitempty"`
+	Columns []string `json:"columns,omitempty"`
 	// The fields below are filled only by an ImportJob.Predict that runs
 	// the MEASURED pass — the job declares Groups, sets ElideConstants
 	// or sets SuggestGroups — and are nil (omitted from JSON) otherwise,
@@ -197,24 +227,24 @@ type PredictReport struct {
 	// the promoted types. Only the measured pass converts values, so a
 	// plain predict never reports a width promotion: its Schema is the
 	// sample-inferred one.
-	WidthWarnings []*errors.CodedError `json:"WidthWarnings,omitempty"`
+	WidthWarnings []*errors.CodedError `json:"width_warnings,omitempty"`
 	// Projection sizes the file the import would write.
-	Projection *ImportProjection `json:"Projection,omitempty"`
+	Projection *ImportProjection `json:"projection,omitempty"`
 	// Groups / GroupWarnings are what ImportReport.Groups /
 	// GroupWarnings would carry for the declared Groups. A declaration
 	// Run would refuse — an unknown field, or a member that varies
 	// within its key (PULSE_GROUP_MEMBER_NOT_CONSTANT) — is Predict's
 	// error too, and StrictDedup fails Predict as it fails Run.
-	Groups        []GroupReport        `json:"Groups,omitempty"`
-	GroupWarnings []*errors.CodedError `json:"GroupWarnings,omitempty"`
+	Groups        []GroupReport        `json:"groups,omitempty"`
+	GroupWarnings []*errors.CodedError `json:"group_warnings,omitempty"`
 	// DroppedWarnings is what ImportReport.DroppedWarnings would carry
 	// (the measured pass converts every row as Run does), and
 	// StrictRows fails Predict as it fails Run.
-	DroppedWarnings []*errors.CodedError `json:"DroppedWarnings,omitempty"`
+	DroppedWarnings []*errors.CodedError `json:"dropped_warnings,omitempty"`
 	// ElidedConstants names what ElideConstants would elide.
-	ElidedConstants []string `json:"ElidedConstants,omitempty"`
+	ElidedConstants []string `json:"elided_constants,omitempty"`
 	// GroupCandidates is the SuggestGroups detection report.
-	GroupCandidates *GroupDetection `json:"GroupCandidates,omitempty"`
+	GroupCandidates *GroupDetection `json:"group_candidates,omitempty"`
 }
 
 // ImportJob converts tabular source data into a .pulse file.

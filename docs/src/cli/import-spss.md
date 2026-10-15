@@ -59,25 +59,22 @@ schema the SPSS dictionary declared:
 {
   "format_version": "1.1",
   "data": {
-    "RowsImported": 2,
-    "Schema": {
-      "Fields": [
-        {"Name": "ID",   "Type": 5, "Nullable": false, "CsvColumnIdx": 0, "Description": ""},
-        {"Name": "SEX",  "Type": 9, "Nullable": true,  "CsvColumnIdx": 1, "Description": "Sex"},
-        {"Name": "NAME", "Type": 9, "Nullable": false, "CsvColumnIdx": 2, "Description": ""}
+    "rows_imported": 2,
+    "schema": {
+      "fields": [
+        {"name": "ID",   "type": "f64",            "nullable": false, "csv_column_idx": 0, "description": ""},
+        {"name": "SEX",  "type": "categorical_u8", "nullable": true,  "csv_column_idx": 1, "description": "Sex", "dictionary_size": 2},
+        {"name": "NAME", "type": "categorical_u8", "nullable": false, "csv_column_idx": 2, "description": "", "dictionary_size": 2}
       ]
-    },
-    "RowErrors": null,
-    "PromotedFields": null,
-    "SourceWarnings": null
+    }
   },
   "errors": [],
   "warnings": []
 }
 ```
 
-`Description` is lifted from the SPSS variable label. `PromotedFields`
-is **always** `null` for an SPSS import — see
+`description` is lifted from the SPSS variable label. `promoted_fields`
+is **always** absent for an SPSS import — see
 [Flags](#flags-and-what-spss-ignores).
 
 ## Type mapping

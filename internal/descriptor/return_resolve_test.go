@@ -24,7 +24,7 @@ func returnCode(err error) errors.Code {
 
 // TestResolveReturn_Paths: the resolver accepts every path the payload
 // schema publishes (deep keys, [*], map-key globs, open maps, the
-// per-group aggregator components, untagged Go-named keys) and refuses a
+// per-group aggregator components, the overlay warning entry keys) and refuses a
 // path the instance's Response does not carry with
 // PULSE_RETURN_PATH_UNKNOWN — a hidden feature's path exactly like a
 // nonexistent one — and bad syntax / preset / precision with
@@ -43,12 +43,13 @@ func TestResolveReturn_Paths(t *testing.T) {
 		{name: "per-group components", ret: types.Return{Include: []string{"components.aggregations[*].groups[*].operator.mean", "components.aggregations[*].groups[*].n"}}},
 		{name: "open map any key", ret: types.Return{Include: []string{"tests[*].details.anything_at_all.deeper", "components.groupers[*].operator.buckets"}}},
 		{name: "map-key glob", ret: types.Return{Include: []string{"tests[*].details.effect_*", "data[*].*"}}},
-		{name: "untagged go name", ret: types.Return{Include: []string{"overlays[*].warnings[*].Code"}}},
+		{name: "overlay warning keys", ret: types.Return{Include: []string{"overlays[*].warnings[*].code", "overlays[*].warnings[*].details.overlay_index"}}},
 		{name: "exclude resolves too", ret: types.Return{Preset: types.ReturnPresetFull, Exclude: []string{"components.run"}}},
 		{name: "presets valid", ret: types.Return{Preset: types.ReturnPresetMinimal}},
 		{name: "precision bounds", ret: types.Return{Precision: 17}},
 
 		{name: "unknown key", ret: types.Return{Include: []string{"tests[*].pvalue"}}, want: errors.PULSE_RETURN_PATH_UNKNOWN, at: "pvalue"},
+		{name: "overlay warning go name", ret: types.Return{Include: []string{"overlays[*].warnings[*].Code"}}, want: errors.PULSE_RETURN_PATH_UNKNOWN, at: "Code"},
 		{name: "unknown top", ret: types.Return{Exclude: []string{"nope"}}, want: errors.PULSE_RETURN_PATH_UNKNOWN, at: "nope"},
 		{name: "index on object", ret: types.Return{Include: []string{"metadata[*]"}}, want: errors.PULSE_RETURN_PATH_UNKNOWN, at: "[*]"},
 		{name: "key on array", ret: types.Return{Include: []string{"tests.p_value"}}, want: errors.PULSE_RETURN_PATH_UNKNOWN, at: "p_value"},

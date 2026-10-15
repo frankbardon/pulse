@@ -102,9 +102,9 @@ pulse: const ChangeRenamed pulse.ChangeKind = 3
 pulse: func CheckFeatureProfile(fp *pulse.FeatureProfile, opts pulse.FeatureProfileCheckOptions) (*pulse.FeatureProfileCheck, error)
 pulse: type CohesionWarning = pulse/internal/encoding.CohesionWarning
 pulse: type CohesionWarning underlying struct
-pulse: type CohesionWarning field Code string
-pulse: type CohesionWarning field Details map[string]any
-pulse: type CohesionWarning field Message string
+pulse: type CohesionWarning field Code string "json:\"code\""
+pulse: type CohesionWarning field Details map[string]any "json:\"details,omitempty\""
+pulse: type CohesionWarning field Message string "json:\"message\""
 pulse: type Cohort struct
 pulse: type Cohort method (*Cohort) Categorical(name string) (*pulse/encoding.Dictionary, bool)
 pulse: type Cohort method (*Cohort) Field(name string) *pulse/encoding.Field
@@ -937,8 +937,8 @@ pulse: type SetWidthHeadroom field Type string "json:\"type\""
 pulse: type SetWidthHeadroom field Used int "json:\"used\""
 pulse: type ShardEntry = pulse/internal/service.ShardEntry
 pulse: type ShardEntry underlying struct
-pulse: type ShardEntry field Filename string
-pulse: type ShardEntry field RecordCount int64
+pulse: type ShardEntry field Filename string "json:\"filename\""
+pulse: type ShardEntry field RecordCount int64 "json:\"record_count\""
 pulse: type ShardInfo = pulse/descriptor.ShardInfo
 pulse: type ShardInfo underlying struct
 pulse: type ShardInfo field Filename string "json:\"filename\""
@@ -1986,17 +1986,19 @@ pulse/encoding: type Dictionary method (*Dictionary) Values() []string
 pulse/encoding: type Dictionary method (*Dictionary) WriteTo(w io.Writer) (int64, error)
 pulse/encoding: func EncodeDecimal128(d pulse/encoding.Decimal128) [16]byte
 pulse/encoding: type Field struct
-pulse/encoding: type Field field BitPosition int
-pulse/encoding: type Field field ByteOffset int
-pulse/encoding: type Field field CsvColumnIdx int
-pulse/encoding: type Field field Description string
-pulse/encoding: type Field field Dictionary *pulse/encoding.Dictionary
-pulse/encoding: type Field field Name string
-pulse/encoding: type Field field Nullable bool
-pulse/encoding: type Field field Precision uint8
-pulse/encoding: type Field field Scale uint8
-pulse/encoding: type Field field Type pulse/encoding.FieldType
+pulse/encoding: type Field field BitPosition int "json:\"bit_position\""
+pulse/encoding: type Field field ByteOffset int "json:\"byte_offset\""
+pulse/encoding: type Field field CsvColumnIdx int "json:\"csv_column_idx\""
+pulse/encoding: type Field field Description string "json:\"description\""
+pulse/encoding: type Field field Dictionary *pulse/encoding.Dictionary "json:\"-\""
+pulse/encoding: type Field field Name string "json:\"name\""
+pulse/encoding: type Field field Nullable bool "json:\"nullable\""
+pulse/encoding: type Field field Precision uint8 "json:\"precision,omitempty\""
+pulse/encoding: type Field field Scale uint8 "json:\"scale,omitempty\""
+pulse/encoding: type Field field Type pulse/encoding.FieldType "json:\"type\""
+pulse/encoding: type Field method (Field) MarshalJSON() ([]byte, error)
 pulse/encoding: type FieldType byte
+pulse/encoding: type FieldType method (*FieldType) UnmarshalText(b []byte) error
 pulse/encoding: type FieldType method (FieldType) ByteSize() int
 pulse/encoding: type FieldType method (FieldType) HasDictionary() bool
 pulse/encoding: type FieldType method (FieldType) IsBitPacked() bool
@@ -2008,6 +2010,7 @@ pulse/encoding: type FieldType method (FieldType) IsNumericForAnalytics() bool
 pulse/encoding: type FieldType method (FieldType) IsSet() bool
 pulse/encoding: type FieldType method (FieldType) IsVector() bool
 pulse/encoding: type FieldType method (FieldType) IsWideSet() bool
+pulse/encoding: type FieldType method (FieldType) MarshalText() ([]byte, error)
 pulse/encoding: type FieldType method (FieldType) MaxCategoricalEntries() uint32
 pulse/encoding: type FieldType method (FieldType) MaxDictEntries() uint32
 pulse/encoding: type FieldType method (FieldType) MaxSetEntries() uint32
@@ -2040,17 +2043,19 @@ pulse/encoding: const FormatVersion byte = 1
 pulse/encoding: const FormatVersionV1 byte = 1
 pulse/encoding: const FormatVersionV2 byte = 2
 pulse/encoding: type Group struct
-pulse/encoding: type Group field Entries []byte
-pulse/encoding: type Group field Kind pulse/encoding.GroupKind
-pulse/encoding: type Group field Members []pulse/encoding.GroupMember
+pulse/encoding: type Group field Entries []byte "json:\"-\""
+pulse/encoding: type Group field Kind pulse/encoding.GroupKind "json:\"kind\""
+pulse/encoding: type Group field Members []pulse/encoding.GroupMember "json:\"members\""
 pulse/encoding: const GroupIndexWidth untyped int = 4
 pulse/encoding: type GroupKind uint8
+pulse/encoding: type GroupKind method (*GroupKind) UnmarshalText(b []byte) error
+pulse/encoding: type GroupKind method (GroupKind) MarshalText() ([]byte, error)
 pulse/encoding: type GroupKind method (GroupKind) String() string
 pulse/encoding: const GroupKindConstant pulse/encoding.GroupKind = 1
 pulse/encoding: const GroupKindIndexed pulse/encoding.GroupKind = 0
 pulse/encoding: type GroupMember struct
-pulse/encoding: type GroupMember field Field int
-pulse/encoding: type GroupMember field Key bool
+pulse/encoding: type GroupMember field Field int "json:\"field\""
+pulse/encoding: type GroupMember field Key bool "json:\"key\""
 pulse/encoding: const HeaderSize untyped int = 9
 pulse/encoding: func IsSupportedFormatVersion(v byte) bool
 pulse/encoding: func IsZstdMagic(b []byte) bool
@@ -2089,9 +2094,9 @@ pulse/encoding: type RecordLocator field Stride int64
 pulse/encoding: type RecordLocator field TotalRecords uint64
 pulse/encoding: type RecordLocator method (*RecordLocator) Offset(i uint64) int64
 pulse/encoding: type Schema struct
-pulse/encoding: type Schema field Fields []pulse/encoding.Field
-pulse/encoding: type Schema field Groups []pulse/encoding.Group
-pulse/encoding: type Schema field Vectors []pulse/encoding.VectorField
+pulse/encoding: type Schema field Fields []pulse/encoding.Field "json:\"fields\""
+pulse/encoding: type Schema field Groups []pulse/encoding.Group "json:\"groups,omitempty\""
+pulse/encoding: type Schema field Vectors []pulse/encoding.VectorField "json:\"vectors,omitempty\""
 pulse/encoding: type Schema method (*Schema) BitmapByteSize() int
 pulse/encoding: type Schema method (*Schema) Categorical(name string) (*pulse/encoding.Dictionary, bool)
 pulse/encoding: type Schema method (*Schema) Field(name string) *pulse/encoding.Field
@@ -2147,16 +2152,18 @@ pulse/encoding: type SetWidthHeadroom field Type string "json:\"type\""
 pulse/encoding: type SetWidthHeadroom field Used int "json:\"used\""
 pulse/encoding: func SupportedFormatVersions() []byte
 pulse/encoding: type VectorField struct
-pulse/encoding: type VectorField field Dim int
-pulse/encoding: type VectorField field FieldIndex int
-pulse/encoding: type VectorField field HasScale bool
-pulse/encoding: type VectorField field Kind pulse/encoding.VectorKind
-pulse/encoding: type VectorField field Labels []string
-pulse/encoding: type VectorField field ScaleMax float64
-pulse/encoding: type VectorField field ScaleMin float64
+pulse/encoding: type VectorField field Dim int "json:\"dim\""
+pulse/encoding: type VectorField field FieldIndex int "json:\"field_index\""
+pulse/encoding: type VectorField field HasScale bool "json:\"has_scale\""
+pulse/encoding: type VectorField field Kind pulse/encoding.VectorKind "json:\"kind,omitempty\""
+pulse/encoding: type VectorField field Labels []string "json:\"labels,omitempty\""
+pulse/encoding: type VectorField field ScaleMax float64 "json:\"scale_max\""
+pulse/encoding: type VectorField field ScaleMin float64 "json:\"scale_min\""
 pulse/encoding: func VectorFromBytes(src []byte, ft pulse/encoding.FieldType, dim int, dst []float64) ([]float64, error)
 pulse/encoding: type VectorKind uint8
+pulse/encoding: type VectorKind method (*VectorKind) UnmarshalText(b []byte) error
 pulse/encoding: type VectorKind method (VectorKind) IsKnown() bool
+pulse/encoding: type VectorKind method (VectorKind) MarshalText() ([]byte, error)
 pulse/encoding: type VectorKind method (VectorKind) String() string
 pulse/encoding: const VectorKindBinary pulse/encoding.VectorKind = 4
 pulse/encoding: const VectorKindComposition pulse/encoding.VectorKind = 3
@@ -2777,16 +2784,16 @@ pulse/io: type ConvertJob method (*ConvertJob) Predict(ctx context.Context) (*pu
 pulse/io: type ConvertJob method (*ConvertJob) Run(ctx context.Context) (*pulse/internal/io.ConvertReport, error)
 pulse/io: type ConvertReport = pulse/internal/io.ConvertReport
 pulse/io: type ConvertReport underlying struct
-pulse/io: type ConvertReport field DroppedWarnings []*pulse/errors.CodedError "json:\"DroppedWarnings,omitempty\""
-pulse/io: type ConvertReport field LabelWarnings []pulse/internal/io.LabelWarning
-pulse/io: type ConvertReport field OverlayWarnings []*pulse/errors.CodedError
-pulse/io: type ConvertReport field RowErrors []pulse/internal/io.RowError
-pulse/io: type ConvertReport field RowsConverted int
-pulse/io: type ConvertReport field Schema *pulse/encoding.Schema
-pulse/io: type ConvertReport field SourceWarnings []*pulse/errors.CodedError
-pulse/io: type ConvertReport field TargetWarnings []*pulse/errors.CodedError
-pulse/io: type ConvertReport field WidthWarnings []*pulse/errors.CodedError "json:\"WidthWarnings,omitempty\""
-pulse/io: type ConvertReport field ZoneWarnings []*pulse/errors.CodedError "json:\"ZoneWarnings,omitempty\""
+pulse/io: type ConvertReport field DroppedWarnings []*pulse/errors.CodedError "json:\"dropped_warnings,omitempty\""
+pulse/io: type ConvertReport field LabelWarnings []pulse/internal/io.LabelWarning "json:\"label_warnings,omitempty\""
+pulse/io: type ConvertReport field OverlayWarnings []*pulse/errors.CodedError "json:\"overlay_warnings,omitempty\""
+pulse/io: type ConvertReport field RowErrors []pulse/internal/io.RowError "json:\"row_errors,omitempty\""
+pulse/io: type ConvertReport field RowsConverted int "json:\"rows_converted\""
+pulse/io: type ConvertReport field Schema *pulse/encoding.Schema "json:\"schema\""
+pulse/io: type ConvertReport field SourceWarnings []*pulse/errors.CodedError "json:\"source_warnings,omitempty\""
+pulse/io: type ConvertReport field TargetWarnings []*pulse/errors.CodedError "json:\"target_warnings,omitempty\""
+pulse/io: type ConvertReport field WidthWarnings []*pulse/errors.CodedError "json:\"width_warnings,omitempty\""
+pulse/io: type ConvertReport field ZoneWarnings []*pulse/errors.CodedError "json:\"zone_warnings,omitempty\""
 pulse/io: type ConvertSource = pulse/internal/iocore.ConvertSource
 pulse/io: type ConvertSource underlying struct
 pulse/io: type ConvertSource field Schema *pulse/encoding.Schema
@@ -2861,11 +2868,11 @@ pulse/io: type ExportJob method (*ExportJob) Predict(ctx context.Context) (*puls
 pulse/io: type ExportJob method (*ExportJob) Run(ctx context.Context) (*pulse/internal/io.ExportReport, error)
 pulse/io: type ExportReport = pulse/internal/io.ExportReport
 pulse/io: type ExportReport underlying struct
-pulse/io: type ExportReport field LabelWarnings []pulse/internal/io.LabelWarning
-pulse/io: type ExportReport field OverlayWarnings []*pulse/errors.CodedError
-pulse/io: type ExportReport field RowErrors []pulse/internal/io.RowError
-pulse/io: type ExportReport field RowsExported int
-pulse/io: type ExportReport field TargetWarnings []*pulse/errors.CodedError
+pulse/io: type ExportReport field LabelWarnings []pulse/internal/io.LabelWarning "json:\"label_warnings,omitempty\""
+pulse/io: type ExportReport field OverlayWarnings []*pulse/errors.CodedError "json:\"overlay_warnings,omitempty\""
+pulse/io: type ExportReport field RowErrors []pulse/internal/io.RowError "json:\"row_errors,omitempty\""
+pulse/io: type ExportReport field RowsExported int "json:\"rows_exported\""
+pulse/io: type ExportReport field TargetWarnings []*pulse/errors.CodedError "json:\"target_warnings,omitempty\""
 pulse/io: type Format string
 pulse/io: type Format method (Format) CanRead() bool
 pulse/io: type Format method (Format) CanWrite() bool
@@ -2970,21 +2977,21 @@ pulse/io: type ImportProjection field RowErrors int "json:\"row_errors\""
 pulse/io: type ImportProjection field RowsImported int "json:\"rows_imported\""
 pulse/io: type ImportReport = pulse/internal/io.ImportReport
 pulse/io: type ImportReport underlying struct
-pulse/io: type ImportReport field DroppedWarnings []*pulse/errors.CodedError "json:\"DroppedWarnings,omitempty\""
-pulse/io: type ImportReport field ElidedConstants []string "json:\"ElidedConstants,omitempty\""
-pulse/io: type ImportReport field GroupWarnings []*pulse/errors.CodedError "json:\"GroupWarnings,omitempty\""
-pulse/io: type ImportReport field Groups []pulse/internal/io.GroupReport "json:\"Groups,omitempty\""
-pulse/io: type ImportReport field PromotedFields []string
-pulse/io: type ImportReport field RowErrors []pulse/internal/io.RowError
-pulse/io: type ImportReport field RowsImported int
-pulse/io: type ImportReport field Schema *pulse/encoding.Schema
-pulse/io: type ImportReport field SourceWarnings []*pulse/errors.CodedError
-pulse/io: type ImportReport field WidthWarnings []*pulse/errors.CodedError "json:\"WidthWarnings,omitempty\""
-pulse/io: type ImportReport field ZoneWarnings []*pulse/errors.CodedError "json:\"ZoneWarnings,omitempty\""
+pulse/io: type ImportReport field DroppedWarnings []*pulse/errors.CodedError "json:\"dropped_warnings,omitempty\""
+pulse/io: type ImportReport field ElidedConstants []string "json:\"elided_constants,omitempty\""
+pulse/io: type ImportReport field GroupWarnings []*pulse/errors.CodedError "json:\"group_warnings,omitempty\""
+pulse/io: type ImportReport field Groups []pulse/internal/io.GroupReport "json:\"groups,omitempty\""
+pulse/io: type ImportReport field PromotedFields []string "json:\"promoted_fields,omitempty\""
+pulse/io: type ImportReport field RowErrors []pulse/internal/io.RowError "json:\"row_errors,omitempty\""
+pulse/io: type ImportReport field RowsImported int "json:\"rows_imported\""
+pulse/io: type ImportReport field Schema *pulse/encoding.Schema "json:\"schema\""
+pulse/io: type ImportReport field SourceWarnings []*pulse/errors.CodedError "json:\"source_warnings,omitempty\""
+pulse/io: type ImportReport field WidthWarnings []*pulse/errors.CodedError "json:\"width_warnings,omitempty\""
+pulse/io: type ImportReport field ZoneWarnings []*pulse/errors.CodedError "json:\"zone_warnings,omitempty\""
 pulse/io: type InferenceWarning = pulse/internal/io.InferenceWarning
 pulse/io: type InferenceWarning underlying struct
-pulse/io: type InferenceWarning field Column string
-pulse/io: type InferenceWarning field Message string
+pulse/io: type InferenceWarning field Column string "json:\"column\""
+pulse/io: type InferenceWarning field Message string "json:\"message\""
 pulse/io: type LabelResolver = pulse/internal/io.LabelResolver
 pulse/io: type LabelResolver underlying interface
 pulse/io: type LabelResolver imethod Apply(field string, raw string) (out string, sibling string, ok bool)
@@ -2994,9 +3001,9 @@ pulse/io: type LabelResolver imethod Mode(field string) pulse/types.LabelMode
 pulse/io: type LabelResolver imethod Warnings() []pulse/internal/io.LabelWarning
 pulse/io: type LabelWarning = pulse/internal/io.LabelWarning
 pulse/io: type LabelWarning underlying struct
-pulse/io: type LabelWarning field Code string
-pulse/io: type LabelWarning field Details map[string]any
-pulse/io: type LabelWarning field Message string
+pulse/io: type LabelWarning field Code string "json:\"code\""
+pulse/io: type LabelWarning field Details map[string]any "json:\"details,omitempty\""
+pulse/io: type LabelWarning field Message string "json:\"message\""
 pulse/io: type ListAwareReader = pulse/internal/iocore.ListAwareReader
 pulse/io: type ListAwareReader underlying interface
 pulse/io: type ListAwareReader imethod Close() error
@@ -3061,20 +3068,20 @@ pulse/io: type OverlayWarningEmitter underlying interface
 pulse/io: type OverlayWarningEmitter imethod OverlayWarnings() []*pulse/errors.CodedError
 pulse/io: type PredictReport = pulse/internal/io.PredictReport
 pulse/io: type PredictReport underlying struct
-pulse/io: type PredictReport field Columns []string "json:\"Columns,omitempty\""
-pulse/io: type PredictReport field DroppedWarnings []*pulse/errors.CodedError "json:\"DroppedWarnings,omitempty\""
-pulse/io: type PredictReport field ElidedConstants []string "json:\"ElidedConstants,omitempty\""
-pulse/io: type PredictReport field EstimatedRows int
-pulse/io: type PredictReport field GroupCandidates *pulse/internal/io.GroupDetection "json:\"GroupCandidates,omitempty\""
-pulse/io: type PredictReport field GroupWarnings []*pulse/errors.CodedError "json:\"GroupWarnings,omitempty\""
-pulse/io: type PredictReport field Groups []pulse/internal/io.GroupReport "json:\"Groups,omitempty\""
-pulse/io: type PredictReport field Projection *pulse/internal/io.ImportProjection "json:\"Projection,omitempty\""
-pulse/io: type PredictReport field Schema *pulse/encoding.Schema
-pulse/io: type PredictReport field SourceWarnings []*pulse/errors.CodedError
-pulse/io: type PredictReport field TargetWarnings []*pulse/errors.CodedError
-pulse/io: type PredictReport field Warnings []pulse/internal/io.InferenceWarning
-pulse/io: type PredictReport field WidthWarnings []*pulse/errors.CodedError "json:\"WidthWarnings,omitempty\""
-pulse/io: type PredictReport field ZoneWarnings []*pulse/errors.CodedError "json:\"ZoneWarnings,omitempty\""
+pulse/io: type PredictReport field Columns []string "json:\"columns,omitempty\""
+pulse/io: type PredictReport field DroppedWarnings []*pulse/errors.CodedError "json:\"dropped_warnings,omitempty\""
+pulse/io: type PredictReport field ElidedConstants []string "json:\"elided_constants,omitempty\""
+pulse/io: type PredictReport field EstimatedRows int "json:\"estimated_rows\""
+pulse/io: type PredictReport field GroupCandidates *pulse/internal/io.GroupDetection "json:\"group_candidates,omitempty\""
+pulse/io: type PredictReport field GroupWarnings []*pulse/errors.CodedError "json:\"group_warnings,omitempty\""
+pulse/io: type PredictReport field Groups []pulse/internal/io.GroupReport "json:\"groups,omitempty\""
+pulse/io: type PredictReport field Projection *pulse/internal/io.ImportProjection "json:\"projection,omitempty\""
+pulse/io: type PredictReport field Schema *pulse/encoding.Schema "json:\"schema\""
+pulse/io: type PredictReport field SourceWarnings []*pulse/errors.CodedError "json:\"source_warnings,omitempty\""
+pulse/io: type PredictReport field TargetWarnings []*pulse/errors.CodedError "json:\"target_warnings,omitempty\""
+pulse/io: type PredictReport field Warnings []pulse/internal/io.InferenceWarning "json:\"warnings,omitempty\""
+pulse/io: type PredictReport field WidthWarnings []*pulse/errors.CodedError "json:\"width_warnings,omitempty\""
+pulse/io: type PredictReport field ZoneWarnings []*pulse/errors.CodedError "json:\"zone_warnings,omitempty\""
 pulse/io: type Reader = pulse/internal/iocore.Reader
 pulse/io: type Reader underlying interface
 pulse/io: type Reader imethod Close() error
@@ -3093,6 +3100,7 @@ pulse/io: type RowError = pulse/internal/io.RowError
 pulse/io: type RowError underlying struct
 pulse/io: type RowError field Err error
 pulse/io: type RowError field Row int
+pulse/io: type RowError method (RowError) MarshalJSON() ([]byte, error)
 pulse/io: const SPSSMissingAuto pulse/io.SPSSMissingMode = "auto"
 pulse/io: type SPSSMissingMode string
 pulse/io: const SPSSMissingNull pulse/io.SPSSMissingMode = "null"
@@ -4922,9 +4930,9 @@ pulse/types: type OverlaySummary field SignificantAdjusted *bool "json:\"signifi
 pulse/types: type OverlaySummary field Statistic *float64 "json:\"statistic,omitempty\""
 pulse/types: type OverlaySummary method (OverlaySummary) MarshalJSON() ([]byte, error)
 pulse/types: type OverlayWarning struct
-pulse/types: type OverlayWarning field Code string
-pulse/types: type OverlayWarning field Details map[string]any
-pulse/types: type OverlayWarning field Message string
+pulse/types: type OverlayWarning field Code string "json:\"code\""
+pulse/types: type OverlayWarning field Details map[string]any "json:\"details,omitempty\""
+pulse/types: type OverlayWarning field Message string "json:\"message\""
 pulse/types: type OverlayYoYRef struct
 pulse/types: func PairwiseKindUsesWeightedMoments(kind pulse/types.OverlayKind) bool
 pulse/types: func PairwiseKindUsesWelford(kind pulse/types.OverlayKind) bool
@@ -5326,4 +5334,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 61111d58718fcddbd06b5858949435840add3906705205e91c062b96cff59369
+// golden-hash: ffc7fb4261c8bb65b3ff7a1bbe5bb7bbe51a5ddf1e9533afe8353dbc76635353

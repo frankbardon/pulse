@@ -46,10 +46,10 @@ func TestCliImportPredict_SuggestGroups(t *testing.T) {
 					Members []string `json:"members"`
 					Verdict string   `json:"verdict"`
 				} `json:"candidates"`
-			}
+			} `json:"group_candidates"`
 			Projection struct {
 				FlatFileBytes int64 `json:"flat_file_bytes"`
-			}
+			} `json:"projection"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal([]byte(out), &env); err != nil {

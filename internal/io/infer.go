@@ -52,8 +52,8 @@ var setInferenceDelimiterPriority = []string{"|", ";"}
 
 // InferenceWarning records a non-fatal observation during inference.
 type InferenceWarning struct {
-	Column  string
-	Message string
+	Column  string `json:"column"`
+	Message string `json:"message"`
 }
 
 // InferOptions parameterises InferSchemaWithOptions. The zero value is

@@ -171,6 +171,24 @@ func ParseFieldType(name string) (FieldType, bool) {
 	return 0, false
 }
 
+// MarshalText renders the type by its canonical name ("f64",
+// "categorical_u8", ...) so every JSON surface — import / export /
+// convert / shard reports, a library json.Marshal of a Schema — shows
+// the name, never the schema-block type byte. The binary schema block
+// is untouched: it writes the byte through WriteSchema.
+func (ft FieldType) MarshalText() ([]byte, error) { return []byte(ft.String()), nil }
+
+// UnmarshalText inverts MarshalText through ParseFieldType; an unknown
+// name is an error, never a silent u8.
+func (ft *FieldType) UnmarshalText(b []byte) error {
+	v, ok := ParseFieldType(string(b))
+	if !ok {
+		return fmt.Errorf("unknown field type %q", b)
+	}
+	*ft = v
+	return nil
+}
+
 // IsCategorical reports whether the field type is one of the categorical types.
 func (ft FieldType) IsCategorical() bool {
 	return ft == FieldTypeCategoricalU8 || ft == FieldTypeCategoricalU16 || ft == FieldTypeCategoricalU32

@@ -64,17 +64,17 @@ func TestImportCLI_VectorFlags(t *testing.T) {
 		Data struct {
 			Schema struct {
 				Fields []struct {
-					Name string `json:"Name"`
-					Type int    `json:"Type"`
-				} `json:"Fields"`
-			} `json:"Schema"`
+					Name string `json:"name"`
+					Type string `json:"type"`
+				} `json:"fields"`
+			} `json:"schema"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
 		t.Fatalf("%v\n%s", err, buf.String())
 	}
 	if len(env.Data.Schema.Fields) != 3 || env.Data.Schema.Fields[1].Name != "r" ||
-		encoding.FieldType(env.Data.Schema.Fields[1].Type) != encoding.FieldTypeVecF64 {
+		env.Data.Schema.Fields[1].Type != encoding.FieldTypeVecF64.String() {
 		t.Fatalf("import predict schema: %s", buf.String())
 	}
 

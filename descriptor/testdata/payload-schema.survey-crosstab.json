@@ -1721,21 +1721,20 @@
     "OverlayWarning": {
       "additionalProperties": false,
       "properties": {
-        "Code": {
+        "code": {
           "type": "string"
         },
-        "Details": {
+        "details": {
           "additionalProperties": true,
           "type": "object"
         },
-        "Message": {
+        "message": {
           "type": "string"
         }
       },
       "required": [
-        "Code",
-        "Details",
-        "Message"
+        "code",
+        "message"
       ],
       "type": "object"
     },
@@ -2744,4 +2743,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 82a2b99eb8ca8e45f5ad44794d2812ecc473cab44437bed70517f6f8636e3ef2
+// golden-hash: d1b2b98e167f191117e67ab386b9a62609fec8382c0abb882276f22e557b821c

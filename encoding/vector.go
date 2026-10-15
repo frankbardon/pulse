@@ -84,6 +84,25 @@ func ParseVectorKind(name string) (VectorKind, bool) {
 	return VectorKindNone, false
 }
 
+// MarshalText renders the kind by name ("measure", ...; "" for
+// VectorKindNone) so a schema's JSON report never shows the kind byte.
+func (k VectorKind) MarshalText() ([]byte, error) { return []byte(k.String()), nil }
+
+// UnmarshalText inverts MarshalText: "" is VectorKindNone, a declared
+// kind name its kind; anything else is an error.
+func (k *VectorKind) UnmarshalText(b []byte) error {
+	if len(b) == 0 {
+		*k = VectorKindNone
+		return nil
+	}
+	v, ok := ParseVectorKind(string(b))
+	if !ok {
+		return fmt.Errorf("unknown vector kind %q", b)
+	}
+	*k = v
+	return nil
+}
+
 // IsKnown reports whether k is VectorKindNone or a declared kind.
 func (k VectorKind) IsKnown() bool { return k < vectorKindCount }
 
@@ -91,19 +110,19 @@ func (k VectorKind) IsKnown() bool { return k < vectorKindCount }
 // its dim and its optional kind, scale range and element labels.
 type VectorField struct {
 	// FieldIndex is the field's LOGICAL position in Schema.Fields.
-	FieldIndex int
+	FieldIndex int `json:"field_index"`
 	// Dim is the element count, MinVectorDim..MaxVectorDim.
-	Dim int
+	Dim int `json:"dim"`
 	// Kind is what the values mean; VectorKindNone when undeclared.
-	Kind VectorKind
+	Kind VectorKind `json:"kind,omitempty"`
 	// ScaleMin and ScaleMax are the declared value range, meaningful
 	// only when HasScale; ScaleMin < ScaleMax, both finite.
-	ScaleMin float64
-	ScaleMax float64
-	HasScale bool
+	ScaleMin float64 `json:"scale_min"`
+	ScaleMax float64 `json:"scale_max"`
+	HasScale bool    `json:"has_scale"`
 	// Labels names each element, in element order: nil (no labels) or
 	// exactly Dim entries.
-	Labels []string
+	Labels []string `json:"labels,omitempty"`
 }
 
 // HasVectors reports whether the schema declares vector-field metadata

@@ -315,7 +315,7 @@ predating `0x02` cannot open, which is why it is opt-in. Nothing is
 elided (and the cohort stays byte-identical `0x01`) for fewer than two
 rows or when the saving would not repay the schema-block growth; when
 every field is constant the lowest-index field stays in the row. The
-elided fields are printed, and reported as `ElidedConstants` under
+elided fields are printed, and reported as `elided_constants` under
 `--json`. See [parent groups](../format/parent-groups.md).
 
 ### `--group`
@@ -428,9 +428,10 @@ finishes the file to find every promotion, then rewinds and measures
 again at the final widths, so such a source is read twice. Only the
 measured pass sees the full-file widths: plain `import predict` reports
 the sample-inferred schema.
-`--json` adds `Projection`, `Groups`, `GroupWarnings`, `ElidedConstants`,
-`GroupCandidates` and `WidthWarnings` to `data`; `format_version` stays
-`"1.1"`.
+`--json` adds `projection`, `groups`, `group_warnings`, `elided_constants`,
+`group_candidates` and `width_warnings` to `data`; `format_version` stays
+`"1.1"`. Every import, export, convert and shard `--json` `data` is
+snake_case with field types as names (`"type": "f64"`).
 
 ### Width promotion (inferred imports and converts)
 
@@ -447,7 +448,7 @@ below), and by that same range test, so a value f32 merely rounds
 (`0.1`) never promotes. Every step is lossless
 for every value already read. Each promoted field draws one `PULSE_IMPORT_WIDTH_PROMOTED`
 warning (`field`, `from`, `to`, `source_row`) in the envelope `warnings`
-and `data.WidthWarnings` (`width_warnings` on `import auto` /
+and `data.width_warnings` (the same key on `import auto` /
 `pulse_import`). A `--schema` or an authoritative source schema (SPSS,
 Arrow, Parquet) never promotes: its overflow stays a
 `PULSE_IMPORT_ROW_ERROR`. A `column_type_overrides` column never promotes
@@ -457,8 +458,8 @@ non-integer in a `u64` column, a non-boolean in a `packed_bool` column
 (no type holds both losslessly), and a dictionary past `categorical_u32`.
 
 `pulse convert` copies cell text, so a promotion never changes what the
-target receives. It reports the promoted types in `data.Schema` and the
-warnings in `data.WidthWarnings` and the envelope `warnings`, and a
+target receives. It reports the promoted types in `data.schema` and the
+warnings in `data.width_warnings` and the envelope `warnings`, and a
 `--keep-pulse` intermediate is byte-identical to a plain `import` of the
 source. On a declared schema (`--schema`, or an SPSS / Arrow / Parquet
 source's own) a full categorical rung still stops the convert with the
@@ -484,8 +485,8 @@ A PARTIAL import — some rows imported, some skipped as
 type cannot hold) — is a warning by default: the good rows are written
 and the envelope `warnings` carries one `PULSE_IMPORT_ROWS_DROPPED` with
 `dropped`, `imported` and `first_failure` `{row, column, reason}` in
-`details` (`data.DroppedWarnings`; `rows_dropped` / `dropped_warnings`
-on `import auto`). `convert` adds `stage`: `target` for rows the target
+`details` (`data.dropped_warnings`; plus `rows_dropped` on
+`import auto`). `convert` adds `stage`: `target` for rows the target
 writer refused, `keep_pulse` for rows the `--keep-pulse` intermediate
 skipped. `--strict` turns it into the fatal error (exit 1,
 `errors[0].code`) and nothing is written. `import predict --strict`
@@ -595,7 +596,7 @@ the pre-transition offset (an overlap's first occurrence; Berlin
 `2026-03-29 02:30` → `01:30Z`), `later` the post-transition offset
 (second occurrence; → `00:30Z`). A resolved value is never silent: one
 `PULSE_IMPORT_DST_RESOLVED` warning carries `ambiguous_n` /
-`nonexistent_n` (`warnings` and `data.ZoneWarnings` under `--json`). The
+`nonexistent_n` (`warnings` and `data.zone_warnings` under `--json`). The
 policy is inert without a zone and under a fixed offset.
 
 On `import auto` the zone, per-column map and policy are persisted onto
