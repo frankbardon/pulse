@@ -51,6 +51,15 @@ type FilterToFileRequest struct {
 	// caller-supplied path against the deterministic hash and refuses
 	// to overwrite an existing file with mismatching content.
 	OutputName string `json:"output_name,omitempty"`
+
+	// Models loads saved model files (`.pulse-model.json`, the
+	// Request.Models rule) and binds each by name, so the predicate's
+	// coef() calls read them exactly as a Process filter does. Each
+	// file's content hash enters the predicate hash, so a rewritten
+	// model never reuses an output built from the old fit. Requires
+	// capability:models; an instance hiding it refuses a set key as
+	// PULSE_REQUEST_UNKNOWN_FIELD.
+	Models []types.ModelRef `json:"models,omitempty"`
 }
 
 // FilterToFileResult is the structured response from FilterToFileWithRequest.
@@ -96,7 +105,24 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 	if req.OutputDir == "" {
 		return nil, errors.New("filter_to_file: output dir required")
 	}
-	expr, err := req.canonicalExpression(p.svc.InstanceSnapshot())
+	inst := p.svc.InstanceSnapshot()
+	if len(req.Models) > 0 && !inst.Enabled(descx.FeatureModels) {
+		// A hidden capability:models makes `models` an unknown key, the
+		// refusal Request and FacetRequest give it.
+		return nil, descx.UnknownFieldError([]string{"models"}, filterToFileVisibleKeys(req))
+	}
+	expr, err := req.canonicalExpression(inst)
+	if err != nil {
+		return nil, err
+	}
+	// The request's models load (every file read and decoded) before
+	// any hashing or record read; their content identities key the
+	// dedup hash.
+	ctx, err = p.svc.BindFilterModels(ctx, req.Models)
+	if err != nil {
+		return nil, err
+	}
+	modelIDs, err := p.modelIdentities(req.Models)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +131,7 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 	if err != nil {
 		return nil, fmt.Errorf("filter_to_file: hashing source: %w", err)
 	}
-	predHash := req.predicateHash()
+	predHash := req.predicateHash(modelIDs)
 	outName := req.OutputName
 	if outName == "" {
 		outName = srcHash[:16] + "_" + predHash[:16] + ".pulse"
@@ -269,16 +295,61 @@ func inListExpr(field string, values []string, negate bool) string {
 	return field + " in " + lit
 }
 
+// modelIdentity is one loaded model's dedup identity: its binding name,
+// path and the SHA-256 of the file content the run reads.
+type modelIdentity struct {
+	Name   string `json:"name"`
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
+}
+
+// modelIdentities hashes every Models file's content, in entry order.
+// The files were just loaded (BindFilterModels), so a read failure here
+// is the file vanishing mid-call.
+func (p *Pulse) modelIdentities(refs []types.ModelRef) ([]modelIdentity, error) {
+	if len(refs) == 0 {
+		return nil, nil
+	}
+	out := make([]modelIdentity, len(refs))
+	for i, r := range refs {
+		data, err := p.svc.ReadModelFile(r.Path)
+		if err != nil {
+			return nil, fmt.Errorf("filter_to_file: hashing model %s: %w", r.Path, err)
+		}
+		sum := sha256.Sum256(data)
+		out[i] = modelIdentity{Name: r.Name, Path: r.Path, SHA256: hex.EncodeToString(sum[:])}
+	}
+	return out, nil
+}
+
+// filterToFileVisibleKeys is FilterToFileRequest's JSON keys minus the
+// hidden `models` — the valid_keys of the hidden-slot refusal.
+func filterToFileVisibleKeys(req *FilterToFileRequest) []string {
+	keys := descx.JSONObjectKeys(req)
+	out := keys[:0]
+	for _, k := range keys {
+		if k != "models" {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
 // predicateHash returns the canonical hash of the structured-predicate
 // payload, falling back to the literal expression when Expression is
-// supplied. Same predicate -> same hash, in both shapes.
-func (r *FilterToFileRequest) predicateHash() string {
+// supplied. Same predicate -> same hash, in both shapes. models (the
+// loaded files' content identities) join the payload only when set, so
+// a model-free request hashes exactly as it always has, and a changed
+// model file changes the hash.
+func (r *FilterToFileRequest) predicateHash(models []modelIdentity) string {
 	payload := struct {
 		Expression string            `json:"expression,omitempty"`
 		Filterers  []*types.Filterer `json:"filterers,omitempty"`
+		Models     []modelIdentity   `json:"models,omitempty"`
 	}{
 		Expression: r.Expression,
 		Filterers:  r.Filterers,
+		Models:     models,
 	}
 	return types.CanonicalHash("filter_predicate", payload)
 }

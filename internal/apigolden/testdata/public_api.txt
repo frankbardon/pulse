@@ -437,6 +437,7 @@ pulse: type FieldInputsFunc func(raw encoding/json.RawMessage) []string
 pulse: type FilterToFileRequest struct
 pulse: type FilterToFileRequest field Expression string "json:\"expression,omitempty\""
 pulse: type FilterToFileRequest field Filterers []*pulse/types.Filterer "json:\"filterers,omitempty\""
+pulse: type FilterToFileRequest field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse: type FilterToFileRequest field OutputDir string "json:\"output_dir\""
 pulse: type FilterToFileRequest field OutputName string "json:\"output_name,omitempty\""
 pulse: type FilterToFileRequest field SourcePath string "json:\"source_path\""
@@ -5301,4 +5302,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0f5bd02a95a0fddd4f39f49e3ee3648d30caebbd2df5063e6375b8b4c5dbef7a
+// golden-hash: efe019ecc621c56d970fe8ce97fe3f48503037a6f4e44d6381651250a4f98935

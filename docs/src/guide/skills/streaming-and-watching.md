@@ -94,9 +94,11 @@ res, err := p.FilterToFileWithRequest(ctx, &pulse.FilterToFileRequest{
 })
 ```
 
-Guarantees: deterministic name `{source-hash[:16]}_{predicate-hash[:16]}.pulse` when `OutputName` empty; atomic write via `OutputDir/.<name>.partial` + rename; dedup by pre-existence (re-reads hash + row count, returns `Reused: true`).
+Guarantees: deterministic name `{source-hash[:16]}_{predicate-hash[:16]}.pulse` when `OutputName` empty; atomic write (`.<name>.partial` + rename); dedup by pre-existence (`Reused: true`).
 
-Predicates: `Expression` (an expression-filter string, [`expression-language`](expression-language.md)) or structured `Filterers` (translated, AND-combined). Exactly one set — both empty/both set rejects so the predicate hash is unambiguous.
+Predicates: `Expression` ([`expression-language`](expression-language.md)) or structured `Filterers` (translated, AND-combined) — exactly one, so the predicate hash is unambiguous.
+
+`Models` (`[{name, path}]`) loads saved models for `coef()`; their content hashes join the predicate hash, so a rewritten model never reuses a stale output.
 
 ## Manifest `CommandAnnotations`
 
@@ -117,7 +119,7 @@ A buffered overlay downgrades a streamable Process to buffered — price it as b
 
 ## Compose streaming vs. overlays
 
-`pulse api compose --stream` emits per-row NDJSON `{index, row}` and bypasses the envelope. The Compose-host overlay fold runs only at terminal flush — `ComposedResponse.Overlays[i]` + per-layer `Warnings` appear under `--json` (`data.overlays`) but are absent under `--stream`. Consumers needing Compose overlays MUST run buffered; `Pulse.Compose` / `Pulse.ComposeParallel` callers see overlays on the returned `*ComposedResponse`, never on row events.
+`pulse api compose --stream` emits per-row NDJSON `{index, row}` and bypasses the envelope. The Compose-host overlay fold runs only at terminal flush — `ComposedResponse.Overlays[i]` + per-layer `Warnings` appear under `--json` (`data.overlays`) but are absent under `--stream`. Consumers needing Compose overlays MUST run buffered (`Pulse.Compose` / `ComposeParallel` return them on the `*ComposedResponse`, never on row events).
 
 ## See
 

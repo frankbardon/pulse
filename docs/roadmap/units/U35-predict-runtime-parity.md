@@ -176,8 +176,8 @@ Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`]
 Filed from [U42 handed on](U42-fit-scoring.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
 - [x] **#391** — `internal/mergegate`'s built-in row-local list includes `ATTR_CODE_IN` and the `ATTR_SET_*` attributes (pre-existing omission). Found in U42 (E1-S2). Done (E5-S3): `ATTR_CODE_IN`, `ATTR_SET_HAS`, `ATTR_SET_POPCOUNT` join the list; `ATTR_SCALE_SCORE` / `ATTR_PROFILE_SIMILARITY` stay off (per-run Components / warning tallies the reducers do not fold)
-- [ ] **#393** — `FilterToFileWithRequest` and `SampleWithRequest` load `Request.models`; today a `coef()` there is refused as `PULSE_MODEL_UNKNOWN` (loud, never a wrong number). Found in U42 (E3-S2).
-- [ ] **#394** — A direct test of model binding on the parallel-decode path (`parallel_reduce.go` → `BuildFiltersWithModels`), which needs an mmap'd OS file; the shard path is tested. Found in U42 (E2-S3).
+- [x] **#393** — `FilterToFileWithRequest` and `SampleWithRequest` load `Request.models`; today a `coef()` there is refused as `PULSE_MODEL_UNKNOWN` (loud, never a wrong number). Found in U42 (E3-S2). Done in U35 E6-S1: `FilterToFileRequest.Models` loads models for the predicate's `coef()` (gated by `capability:models`), each file's content SHA-256 joining the dedup predicate hash. The `SampleWithRequest` half is moot: `SampleRequest` has no filter surface (Cohort, N, Labels), so nothing there can call `coef()`.
+- [x] **#394** — A direct test of model binding on the parallel-decode path (`parallel_reduce.go` → `BuildFiltersWithModels`), which needs an mmap'd OS file; the shard path is tested. Found in U42 (E2-S3). Done in U35 E6-S1: `TestCoefFilter_ParallelDecodeMatchesSerial` (`fit_bound_parallel_test.go`) runs a `coef()` `FILTER_EXPRESSION` through the parallel-decode reducer at 1/2/4 workers against the serial run.
 
 ## Inherited from U43
 

@@ -23,6 +23,7 @@ type FilterToFileRequest struct {
     Filterers  []*types.Filterer  // Structured-predicate alternative
     OutputDir  string             // Where to write the result
     OutputName string             // Optional override; default: {srcHash}_{predHash}.pulse
+    Models     []types.ModelRef   // Saved models the predicate's coef() reads
 }
 
 type FilterToFileResult struct {
@@ -91,6 +92,30 @@ schema) and before the translated expression compiles: an unknown or
 empty `Field` is `SERVICE_VALIDATION` `filter references unknown field:
 <f>` with details `{field, filter}`, exactly as `Process` refuses it.
 
+### Bound models
+
+`Models` loads saved model files (`.pulse-model.json`, written by a
+regression `save`) under the same rule as `Request.Models`: each
+`{name, path}` entry is read and decoded before any record is read,
+and the predicate's `coef(name, term[, stat])` reads it exactly as a
+`Process` filter does:
+
+```go
+res, err := p.FilterToFileWithRequest(ctx, &pulse.FilterToFileRequest{
+    SourcePath: "cohort.pulse",
+    Expression: `spend > coef("mmm", "tv") * 4`,
+    OutputDir:  "derived/",
+    Models:     []types.ModelRef{{Name: "mmm", Path: "models/mmm.pulse-model.json"}},
+})
+```
+
+A load fault carries the model codes (`PULSE_MODEL_FILE_UNREADABLE`,
+`PULSE_MODEL_FILE_INVALID`, `PULSE_MODEL_REF_INVALID`, ...); a
+`coef()` naming a model the request does not load is
+`PULSE_MODEL_UNKNOWN`. `Models` rides `capability:models`: an
+instance whose feature profile hides it refuses a set `Models` as
+`PULSE_REQUEST_UNKNOWN_FIELD`, as `Request` and `FacetRequest` do.
+
 ## Deterministic output naming
 
 When `OutputName` is empty, the basename is computed as:
@@ -102,7 +127,12 @@ When `OutputName` is empty, the basename is computed as:
 - `sourceHash` is the SHA-256 of the source file's bytes.
 - `predicateHash` is `types.CanonicalHash` of the predicate payload
   (Expression or Filterers slice, normalised to the same canonical
-  JSON form used by `Request.Hash`).
+  JSON form used by `Request.Hash`). With `Models` set, each entry's
+  name, path and the SHA-256 of the model file's content join the
+  payload, so rewriting a model file (same name and path, a different
+  fit) lands on a new output instead of silently reusing the one built
+  from the old fit. A request without `Models` hashes exactly as it
+  always has.
 
 Independent consumers building the same request reach the same path
 without coordination. Combined with a `Watch` on `OutputDir`, this is
