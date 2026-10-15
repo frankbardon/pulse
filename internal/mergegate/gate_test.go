@@ -74,6 +74,14 @@ func TestMergeRefusal(t *testing.T) {
 		{"fit_on mahalanobis", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_MAHALANOBIS, Params: []byte(`{"fit_on":"filtered"}`)}}}, nil, "attribute ATTR_MAHALANOBIS is not row-local"},
 		{"unbound pc score", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PC_SCORE}}}, nil, "attribute ATTR_PC_SCORE is not row-local"},
 		{"fit-bound vec distance", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Params: []byte(`{"fit":"pop","metric":"mahalanobis"}`)}}}, nil, "attribute ATTR_VEC_DISTANCE is not row-local"},
+		// Row-local single pass, no per-run state (#391).
+		{"code-in attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_CODE_IN}}}, nil, ""},
+		{"set-has attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_SET_HAS}}}, nil, ""},
+		{"set-popcount attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_SET_POPCOUNT}}}, nil, ""},
+		// Row-local per row but tallying per run (Components.Attributes
+		// counters + a Response warning) the merged route does not fold.
+		{"scale-score attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_SCALE_SCORE}}}, nil, "attribute ATTR_SCALE_SCORE is not row-local"},
+		{"profile-similarity attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY}}}, nil, "attribute ATTR_PROFILE_SIMILARITY is not row-local"},
 		{"refit attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_REG_FITTED}}}, nil, "attribute ATTR_REG_FITTED is not row-local"},
 		{"row-local extension attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: "ATTR_X_ROW"}}}, fakeExt{}, ""},
 		{"two-pass extension attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: "ATTR_X_TWO"}}}, fakeExt{}, "attribute ATTR_X_TWO is not row-local"},

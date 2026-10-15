@@ -159,7 +159,8 @@ func TestProcessSpecRefusal_Dispatch(t *testing.T) {
 }
 
 // TestFacetSpecRefusal_Rules: the FACET contract in order — foreign Ref
-// arm, missing Population, empty cohort, scope, Level / Within — on
+// arm, missing Population, empty cohort, scope, Level / Within, a set
+// weight (null passes) — on
 // every FACET kind; a non-FACET kind and an unknown kind are not judged.
 func TestFacetSpecRefusal_Rules(t *testing.T) {
 	ref := errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
@@ -167,6 +168,11 @@ func TestFacetSpecRefusal_Rules(t *testing.T) {
 		good := types.OverlaySpec{Kind: kind, Scope: types.OverlayScopeGroup, Ref: types.OverlayRef{Population: &types.OverlayPopulationRef{Cohort: "c"}}}
 		if cerr := FacetSpecRefusal(&good, kind, 0); cerr != nil {
 			t.Fatalf("%s: %v", kind, cerr)
+		}
+		nullWeight := good
+		nullWeight.Weight = types.NullSlotWeight()
+		if cerr := FacetSpecRefusal(&nullWeight, kind, 0); cerr != nil {
+			t.Fatalf("%s: weight null refused: %v", kind, cerr)
 		}
 		for name, set := range everyRefArm {
 			if name == "population" {
@@ -188,6 +194,7 @@ func TestFacetSpecRefusal_Rules(t *testing.T) {
 			"scope":      {func(s *types.OverlaySpec) { s.Scope = types.OverlayScopeMatrix }, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED},
 			"level":      {func(s *types.OverlaySpec) { s.Level = 1 }, errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE},
 			"within":     {func(s *types.OverlaySpec) { s.Within = 2 }, errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE},
+			"weight":     {func(s *types.OverlaySpec) { s.Weight = types.SlotWeightField("w") }, errors.PULSE_WEIGHT_UNSUPPORTED},
 		} {
 			spec := good
 			c.mut(&spec)

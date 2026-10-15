@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"math"
+	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -383,5 +384,106 @@ func TestShardArchiveProcessParallel_FilteredCount(t *testing.T) {
 	if respSerial.Metadata.FilteredRows != respPar.Metadata.FilteredRows {
 		t.Errorf("filtered_rows: serial=%d parallel=%d",
 			respSerial.Metadata.FilteredRows, respPar.Metadata.FilteredRows)
+	}
+}
+
+// TestShardArchiveProcessParallel_RowLocalReadAttributes (#391):
+// ATTR_CODE_IN, ATTR_SET_HAS and ATTR_SET_POPCOUNT are pure per-row
+// reads with no per-run state, so the merge gate admits them and a
+// sharded run fans out — and every worker count equals the serial run
+// and the concatenated single file. Before #391 the gate refused them
+// (a slower serial fallback, never a wrong number).
+func TestShardArchiveProcessParallel_RowLocalReadAttributes(t *testing.T) {
+	dict := func(entries ...string) *encoding.Dictionary {
+		d := encoding.NewDictionary()
+		for _, e := range entries {
+			if _, err := d.Add(e); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return d
+	}
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict("N", "S", "E", "W"), ByteOffset: 0, CsvColumnIdx: 0},
+		{Name: "tags", Type: encoding.FieldTypeSetU8, Dictionary: dict("a", "b", "c", "d"), ByteOffset: 1, CsvColumnIdx: 1},
+		{Name: "score", Type: encoding.FieldTypeF64, ByteOffset: 2, CsvColumnIdx: 2},
+	}}
+	var concat [][]uint64
+	for r := 0; r < 24; r++ {
+		concat = append(concat, []uint64{uint64(r % 4), uint64((r*5 + 3) % 16), math.Float64bits(float64(r) + 0.5)})
+	}
+	shards := []struct {
+		Name    string
+		Records [][]uint64
+	}{
+		{Name: "a.pulse", Records: concat[0:6]},
+		{Name: "b.pulse", Records: concat[6:12]},
+		{Name: "c.pulse", Records: concat[12:18]},
+		{Name: "d.pulse", Records: concat[18:24]},
+	}
+	cfg := fs.NewMemMap()
+	if err := afero.WriteFile(cfg.Fs(), "arch.pulse", buildShardArchive(t, schema, shards), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := afero.WriteFile(cfg.Fs(), "concat.pulse", writeSinglePulse(t, schema, concat), 0644); err != nil {
+		t.Fatal(err)
+	}
+	req := func(filename string) *types.Request {
+		return &types.Request{
+			Cohort: &types.Cohort{Filename: filename},
+			Attributes: []*types.Attribute{
+				{Type: types.ATTR_CODE_IN, Field: "region", Label: "in", Params: []byte(`{"codes":["N","E"]}`)},
+				{Type: types.ATTR_SET_HAS, Field: "tags", Label: "has_b", Params: []byte(`{"label":"b"}`)},
+				{Type: types.ATTR_SET_POPCOUNT, Field: "tags", Label: "pc"},
+			},
+			Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Aggregations: []*types.Aggregation{
+				{Type: types.AGG_SUM, Field: "in", Label: "in_n"},
+				{Type: types.AGG_SUM, Field: "has_b", Label: "b_n"},
+				{Type: types.AGG_SUM, Field: "pc", Label: "pc_sum"},
+				{Type: types.AGG_SUM, Field: "score", Label: "score_sum"},
+			},
+		}
+	}
+	probe := New(cfg)
+	probe.SetShardWorkers(4)
+	cohort, err := probe.Open(context.Background(), "arch.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := probe.shouldFanOut(req("arch.pulse"), cohort); !ok {
+		t.Fatal("shouldFanOut refused — the parity below would compare serial against serial")
+	}
+	serial := New(cfg)
+	serial.SetShardWorkers(1)
+	want, err := serial.Process(context.Background(), req("arch.pulse"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	flat, err := serial.Process(context.Background(), req("concat.pulse"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(want.Data, flat.Data) {
+		t.Fatalf("serial archive %v, concat %v", want.Data, flat.Data)
+	}
+	var inTotal float64
+	for _, row := range want.Data {
+		v, _ := row["in_n"].(float64)
+		inTotal += v
+	}
+	if len(want.Data) != 4 || inTotal != 12 {
+		t.Fatalf("degenerate fixture: %v", want.Data)
+	}
+	for _, workers := range []int{2, 4} {
+		svc := New(cfg)
+		svc.SetShardWorkers(workers)
+		got, err := svc.Process(context.Background(), req("arch.pulse"))
+		if err != nil {
+			t.Fatalf("workers=%d: %v", workers, err)
+		}
+		if !reflect.DeepEqual(got.Data, want.Data) {
+			t.Fatalf("workers=%d: %v, serial %v", workers, got.Data, want.Data)
+		}
 	}
 }

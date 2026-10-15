@@ -215,15 +215,8 @@ func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 				map[string]any{"field": name})
 			continue
 		}
-		if len(req.NumericPercentiles) > 0 && !facetIsNumeric(f.Type) {
-			env.AddWarning(string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),
-				fmt.Sprintf("numeric_percentiles ignored for non-numeric field %q (type %s)", name, f.Type.String()),
-				map[string]any{"field": name, "type": f.Type.String()})
-		}
-		if req.IncludeHistogram && !facetIsNumeric(f.Type) {
-			env.AddWarning(string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),
-				fmt.Sprintf("include_histogram ignored for non-numeric field %q (type %s)", name, f.Type.String()),
-				map[string]any{"field": name, "type": f.Type.String()})
+		for _, w := range FacetNotMeaningfulWarnings(req, f) {
+			env.AddWarning(w.Code, w.Message, w.Details)
 		}
 		// Set-typed fields: numeric stats are not meaningful on bitmasks
 		// (mean / percentile / histogram of raw mask values is gibberish).
@@ -318,6 +311,34 @@ func ValidateFacetFromBytes(data []byte, req *types.FacetRequest) *descriptor.En
 // buckets), so refusing it is more useful than producing the trivial
 // answer. Widen only when a facet operator actually wants 0/1 numeric
 // stats. Canonical broader predicate: encoding.FieldType.IsNumericForAnalytics.
+// FacetNotMeaningfulWarnings are the PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL
+// warnings for one faceted field: numeric_percentiles and
+// include_histogram compute nothing for a non-numeric field (the
+// discrete arm has no numeric summary), so each one set says so — in
+// that order. Predict adds them to the envelope; the runtime
+// (service.facetSchema) appends them to FacetResult.Warnings as
+// "CODE: message", so the two sides carry the same count and wording.
+func FacetNotMeaningfulWarnings(req *types.FacetRequest, f *encoding.Field) []descriptor.EnvelopeEntry {
+	if req == nil || f == nil || facetIsNumeric(f.Type) {
+		return nil
+	}
+	var out []descriptor.EnvelopeEntry
+	add := func(slot string) {
+		out = append(out, descriptor.EnvelopeEntry{
+			Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),
+			Message: fmt.Sprintf("%s ignored for non-numeric field %q (type %s)", slot, f.Name, f.Type.String()),
+			Details: map[string]any{"field": f.Name, "type": f.Type.String()},
+		})
+	}
+	if len(req.NumericPercentiles) > 0 {
+		add("numeric_percentiles")
+	}
+	if req.IncludeHistogram {
+		add("include_histogram")
+	}
+	return out
+}
+
 func facetIsNumeric(t encoding.FieldType) bool {
 	switch t {
 	case encoding.FieldTypeU4,

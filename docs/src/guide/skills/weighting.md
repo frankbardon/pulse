@@ -17,7 +17,7 @@ Survey and sampled cohorts carry a per-row weight column. Name it once and every
 |---|---|---|
 | Request `weight` | `{"field": "wt", "kind": "probability"}` | `kind` ∈ `probability` (default) \| `frequency` |
 | per-slot `weight` | `"wt"`, `{field, kind}` or `null` | aggregations (crosstab `cell`, `margin_aggregations[i]`), `tests`, `post_tests`, regressions, attributes, overlays, `groups`, crosstab axes. Windows have none |
-| `pulse.Options.DefaultWeight` | `*types.WeightSpec` | instance default; never reaches facets |
+| `pulse.Options.DefaultWeight` | `*types.WeightSpec` | instance default; never reaches facets; a facet overlay `weight` is refused |
 
 **`null` ≠ absent.** Absent inherits; `"weight": null` opts that ONE slot out. Compose and chain have no top-level weight. The field must be `u4`…`u64`, `f32` or `f64`; else `PROCESSING_CONFIG` (unknown name `SERVICE_VALIDATION`).
 
@@ -28,7 +28,7 @@ Survey and sampled cohorts carry a per-row weight column. Name it once and every
 
 ## Resolution
 
-Per slot: its own `weight` (`null` ⇒ opted out) → request `weight` → `Options.DefaultWeight` → none. `pulse_predict` lists every slot under `data.weights[]` `{slot, operator, field, kind, status, source}` (`status` ∈ `applied | skipped_not_weight_aware | opted_out | none`). Predict refuses exactly what the run refuses — predict first.
+Per slot: its own `weight` (`null` ⇒ opted out) → request `weight` → `Options.DefaultWeight` → none. `pulse_predict` lists every slot under `data.weights[]` `{slot, operator, field, kind, status, source}` (`status` ∈ `applied | skipped_not_weight_aware | opted_out | none`). Predict refuses what the run refuses.
 
 ## Invalid weights
 
@@ -47,7 +47,7 @@ The manifest is the table: an entry's `weight_kinds` lists the kinds it computes
 | filters, features, row-local attributes, most groupers | skipped | skipped |
 | inferential, no `weight_kinds` | `PULSE_WEIGHT_UNSUPPORTED` | same |
 
-`PULSE_WEIGHT_UNSUPPORTED` details: `reason` (permanent: post-tests, regression resample / selection, a few tests), `alternative` (a weighted twin), `kind` + `supported_kinds` (frequency-only). Opt out with `"weight": null` — under an instance default, on every refused slot. A weight-aware aggregator over `decimal128` refuses too. Extensions declaring `weight_aware` run under both kinds; others are `PULSE_EXTENSION_NOT_WEIGHT_AWARE`.
+`PULSE_WEIGHT_UNSUPPORTED` details: `reason` (permanent: post-tests, regression resample / selection, a few tests), `alternative` (a weighted twin), `kind` + `supported_kinds` (frequency-only). Opt out with `"weight": null` (instance default: on every refused slot). A weight-aware aggregator over `decimal128` refuses too. Extensions declaring `weight_aware` run under both kinds; others are `PULSE_EXTENSION_NOT_WEIGHT_AWARE`.
 
 Quantiles (and quantile buckets) follow Hmisc `wtd.quantile`; probability weights are rescaled so Σw = n. Share and index overlays read the weighted host payload, no setting. `AGG_WEIGHTED_MEAN` is weighted `AGG_AVERAGE`; its `params.weight_field` is slot-weight sugar.
 

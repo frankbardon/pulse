@@ -228,3 +228,49 @@ func TestChainStage_CrosstabRefusedBothSides(t *testing.T) {
 		})
 	}
 }
+
+// TestFacetOverlay_WeightRefusedLikePredict: facets are never weighted,
+// so a facet overlay's own `weight` used to be ignored silently. A set
+// weight (a field name or a {field, kind} object) is now
+// PULSE_WEIGHT_UNSUPPORTED at predict and runtime alike — one error,
+// same message and details; absent and `null` (the explicit "run
+// unweighted" opt-out, which is what a facet does) still run (#259).
+func TestFacetOverlay_WeightRefusedLikePredict(t *testing.T) {
+	p, _, cohort := acceptanceCohort(t)
+	ctx := context.Background()
+	for _, kind := range []types.OverlayKind{types.OverlayKindChiSqVsPop, types.OverlayKindIndexVsPop, types.OverlayKindKSVsPop, types.OverlayKindZScoreVsPop} {
+		field := "x"
+		if kind == types.OverlayKindChiSqVsPop {
+			field = "g"
+		}
+		mk := func(w types.SlotWeight) *types.FacetRequest {
+			spec := types.OverlaySpec{Name: "o", Kind: kind, Scope: types.OverlayScopeGroup,
+				Ref: types.OverlayRef{Population: &types.OverlayPopulationRef{Cohort: cohort}}, Weight: w}
+			good := types.OverlaySpec{Name: "ok", Kind: kind, Scope: types.OverlayScopeGroup,
+				Ref: types.OverlayRef{Population: &types.OverlayPopulationRef{Cohort: cohort}}}
+			return &types.FacetRequest{Cohort: &types.Cohort{Filename: cohort}, Fields: []string{field}, Overlays: []types.OverlaySpec{good, spec}}
+		}
+		for name, w := range map[string]types.SlotWeight{"absent": {}, "null": types.NullSlotWeight()} {
+			if env, err := p.PredictFacet(ctx, mk(w)); err != nil || len(env.Errors) != 0 {
+				t.Fatalf("%s %s predict: %v %+v", kind, name, err, env)
+			}
+			if _, err := p.FacetSchema(ctx, mk(w)); err != nil {
+				t.Fatalf("%s %s runtime: %v", kind, name, err)
+			}
+		}
+		for name, w := range map[string]types.SlotWeight{
+			"field":     types.SlotWeightField("x"),
+			"frequency": types.SlotWeightOf(types.WeightSpec{Field: "x", Kind: types.WeightKindFrequency}),
+		} {
+			t.Run(string(kind)+"/"+name, func(t *testing.T) {
+				env, err := p.PredictFacet(ctx, mk(w))
+				pe := firstPredictError(t, env, err)
+				if len(env.Errors) != 1 || pe.Details["slot"] != "overlays[1]" || pe.Details["operator"] != string(kind) || pe.Details["field"] != "x" {
+					t.Fatalf("predict errors %+v, want one PULSE_WEIGHT_UNSUPPORTED on overlays[1]", env.Errors)
+				}
+				_, err = p.FacetSchema(ctx, mk(w))
+				sameRefusal(t, "facet", pe, err, errors.PULSE_WEIGHT_UNSUPPORTED)
+			})
+		}
+	}
+}

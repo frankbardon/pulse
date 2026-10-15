@@ -183,6 +183,14 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 		TotalRecords:    totalRows,
 		FilteredRecords: filteredRows,
 	}
+	// numeric_percentiles / include_histogram on a non-numeric field
+	// compute nothing for it: the warning predict raises, same count
+	// and wording (descx.FacetNotMeaningfulWarnings).
+	for _, name := range req.Fields {
+		for _, w := range descx.FacetNotMeaningfulWarnings(req, schema.Field(name)) {
+			result.Warnings = append(result.Warnings, w.Code+": "+w.Message)
+		}
+	}
 
 	for _, fa := range fields {
 		ff, warning, err := fa.finalize(req)

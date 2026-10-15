@@ -505,9 +505,10 @@ func attributeParitySuite() paritySuite {
 	// A two-pass attribute alongside a grouper runs buffered and serial.
 	nonStreaming := func(r parityRow) parityRow { r.bufferedOnly, r.serialOnly = true, true; return r }
 	serial := func(r parityRow) parityRow { r.serialOnly = true; return r }
-	// ATTR_SET_POPCOUNT is outside the built-in FORMULA / DATE_PART
-	// merge set, but a row_local extension attribute merges.
-	rowLocal := func(r parityRow) parityRow { r.serialOnly, r.extMerges = true, true; return r }
+	// ATTR_SET_POPCOUNT is row-local with no per-run state, so the
+	// built-in merges (#391) exactly as a row_local extension attribute
+	// does: both run the parallel and per-shard paths.
+	rowLocal := func(r parityRow) parityRow { return r }
 	byRegion := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}
 	z, pc := types.ATTR_ZSCORE, types.ATTR_SET_POPCOUNT
 	return paritySuite{

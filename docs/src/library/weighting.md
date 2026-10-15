@@ -43,7 +43,9 @@ or `null`. The slot is on aggregations (which covers the crosstab
 regressions, attributes, overlays, groups and both crosstab axes.
 Windows have no slot. Compose and process chains have no top-level
 weight: each inner request carries its own. Facets are never weighted,
-and `DefaultWeight` does not reach them.
+and `DefaultWeight` does not reach them; a facet overlay spec that sets
+a `weight` is refused with `PULSE_WEIGHT_UNSUPPORTED` (`null` or no key
+runs).
 
 From Go:
 

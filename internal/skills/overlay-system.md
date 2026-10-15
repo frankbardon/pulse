@@ -9,7 +9,7 @@ covers: [OVERLAY, OverlaySpec, OverlayLayer]
 
 # Overlays
 
-Additive, read-only decorations on a result. Specs ride `Request.Overlays`; each produces one layer in `Response.Overlays[i]`, in spec order. Overlays NEVER mutate the base payload — they are siblings keyed to host coordinates, so base numbers stay byte-identical.
+Additive, read-only decorations on a result. Specs ride `Request.Overlays`; each produces one layer in `Response.Overlays[i]`, in spec order. Overlays NEVER mutate the base payload: they are siblings keyed to host coordinates.
 
 Use one for a figure DERIVED from the result: a share, index, delta, z-score, cell test.
 
@@ -47,7 +47,7 @@ Implicit-margin kinds (the χ² and Fisher cell tests) leave `ref` empty.
 
 ## Three payload shapes
 
-`payload.shape` ∈ `scalar|series|matrix`. Scalar — `payload.scalar` + optional `summary`. Series — `payload.series.entries[i].{key, summary}`, aligned to host keys; the figure is `summary.statistic`. Matrix — `payload.matrix.cells[r][c]`, mirroring host cells. `baseline` is the centre point (100 for an index, 0 for a delta / z) and is absent for inferential kinds (manifest `inferential: true`).
+`payload.shape` ∈ `scalar|series|matrix`. Scalar — `payload.scalar` + optional `summary`. Series — `payload.series.entries[i].{key, summary}`, aligned to host keys; the figure is `summary.statistic`. Matrix — `payload.matrix.cells[r][c]`, mirroring host cells. `baseline` is the centre point (100 for an index, 0 for a delta / z), absent for inferential kinds.
 
 ## Parts (multi-output kinds)
 
@@ -60,7 +60,7 @@ The carrying request decides the host; the host decides the legal kinds (an ungr
 - **MATRIX** — a crosstab (`Request.Crosstab` + `Request.Overlays`): share, margin compare, cell tests, intra-matrix pairwise.<!-- feature: capability:crosstab --> Pairwise n: `pairwise-n-sources`.<!-- /feature -->
 - **SERIES** — a grouped Process with no crosstab: per-group self-compare (sibling, baseline, prior, rolling, year-over-year). Over N ≥ 2 `groups` it runs per partition (`params.partition_by`, a leading key prefix; default all but the last). Scores `params.field`, else `aggregations[0]`.
 <!-- feature: capability:matrices -->- **MATRIX_RESULT** — `Request.Matrices` with no crosstab, on a process request or a Compose slot (never the chain, facet or Compose-host slots): reads every group bucket of the spec `ref.matrix` names. Crosstab + `matrices` is refused.<!-- /feature -->
-- **FACET** — `FacetRequest.Overlays`: population comparisons, layers on `FacetResult.Overlays`<!-- feature: capability:facet --> (`facet-design`)<!-- /feature -->.
+- **FACET** — `FacetRequest.Overlays`: population comparisons, never weighted (a set `weight` ⇒ `PULSE_WEIGHT_UNSUPPORTED`), layers on `FacetResult.Overlays`<!-- feature: capability:facet --> (`facet-design`)<!-- /feature -->.
 - **CHAIN** — whole-chain `ChainRequest.Overlays` against an earlier stage; layers on the chain response, per-stage overlays untouched. Stages of divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->.
 - **FORMULA** — an expression over host figures: a crosstab or grouped Process on `Request.Overlays`, any shape on Compose.
 - **COMPOSE** — the post-slot fold compares slots (`reference` vs `targets`); slots must align on keys, schema and dictionaries. Layers on `ComposedResponse.Overlays[i]` (top-level `return` prunes post-fold), buffered only<!-- feature: capability:compose --> (`compose-requests`)<!-- /feature -->.

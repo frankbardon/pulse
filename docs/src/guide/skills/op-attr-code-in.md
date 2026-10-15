@@ -46,7 +46,7 @@ Use something else:
 - Integer field: a code not a whole number in range (`u4` 0..15, `u8` 0..255…) → `PROCESSING_CONFIG`.
 - A categorical code absent from the dictionary matches nothing; predict warns `PULSE_ATTR_CODE_NOT_IN_DICTIONARY` (error under `--strict`).
 - `Field` must be a cohort schema field: a column derived by an earlier attribute or feature → `PROCESSING_CONFIG` "unknown field".
-- Row-local: streams; fuses on crosstabs.
+- Row-local: streams; fuses on crosstabs; merges (shards, parallel decode, chain stages).
 
 ## See
 

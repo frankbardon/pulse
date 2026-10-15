@@ -128,3 +128,66 @@ func TestCategoricalReaders_StillRun(t *testing.T) {
 		}
 	}
 }
+
+// TestFacetNotMeaningfulForCategorical_RuntimeMatchesPredict: a facet
+// asking for numeric_percentiles / include_histogram over a categorical
+// or packed_bool field computes neither for it (the discrete arm has no
+// numeric summary), and says so with
+// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL — predict as an envelope
+// warning, the runtime as a FacetResult.Warnings entry "CODE: message"
+// (the facet result's warnings are strings, so details ride only
+// predict). Same count and messages on both sides; a numeric field
+// draws none.
+func TestFacetNotMeaningfulForCategorical_RuntimeMatchesPredict(t *testing.T) {
+	p, _, cohort := acceptanceCohort(t)
+	ctx := context.Background()
+	code := string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL)
+	for name, c := range map[string]struct {
+		fields []string
+		pcts   []float64
+		hist   bool
+		want   int
+	}{
+		"percentiles":  {[]string{"g", "x", "t_packed_bool"}, []float64{0.5}, false, 2},
+		"histogram":    {[]string{"t_categorical_u16", "x"}, nil, true, 1},
+		"both":         {[]string{"g", "t_packed_bool", "x"}, []float64{0.25, 0.75}, true, 4},
+		"numeric only": {[]string{"x", "y"}, []float64{0.5}, true, 0},
+		"neither":      {[]string{"g"}, nil, false, 0},
+	} {
+		t.Run(name, func(t *testing.T) {
+			req := func() *types.FacetRequest {
+				r := &types.FacetRequest{Cohort: &types.Cohort{Filename: cohort}, Fields: c.fields, NumericPercentiles: c.pcts}
+				if c.hist {
+					r.IncludeHistogram, r.HistogramRange = true, [2]float64{0, 10}
+				}
+				return r
+			}
+			env, err := p.PredictFacet(ctx, req())
+			if err != nil || len(env.Errors) != 0 {
+				t.Fatalf("predict: %v %+v", err, env)
+			}
+			var predicted []string
+			for _, w := range env.Warnings {
+				if w.Code == code {
+					predicted = append(predicted, w.Code+": "+w.Message)
+					if w.Details["field"] == nil || w.Details["type"] == nil {
+						t.Fatalf("predict details %v, want field and type", w.Details)
+					}
+				}
+			}
+			res, err := p.FacetSchema(ctx, req())
+			if err != nil {
+				t.Fatalf("runtime: %v", err)
+			}
+			var ran []string
+			for _, w := range res.Warnings {
+				if strings.HasPrefix(w, code+": ") {
+					ran = append(ran, w)
+				}
+			}
+			if len(predicted) != c.want || strings.Join(predicted, "\n") != strings.Join(ran, "\n") {
+				t.Fatalf("predict %q, runtime %q, want %d each", predicted, ran, c.want)
+			}
+		})
+	}
+}

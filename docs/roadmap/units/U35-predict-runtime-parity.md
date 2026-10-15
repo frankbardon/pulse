@@ -51,7 +51,7 @@ Numbering note: appended as U35 after U34 rather than renumbered.
 - [x] **#254** (7. Guided analysis › Follow-ups from U23) Chain predict does not validate stage label bindings. Done (U35 E3-S2): predict-chain runs the request body on every stage (labels, operators, accepted types, stage overlays), located `details.stage`; the runtime applies a stage ≥ 1 binding instead of dropping it
 - [x] **#255** (7. Guided analysis › Follow-ups from U23) `PredictCompose` / `PredictFacet` / `PredictChain` and `pulse api predict-compose` / `-facet` / `-chain` ignore Strict and EchoRequest (the validators read neither); wire them, then add `--strict` / `--echo-request`
 - [x] **#256** (7. Guided analysis › Follow-ups from U23) Bare MCP `pulse_predict` returns no `errors` / `warnings`, so `valid: false` carries no reason (the alternative roots do carry them); additive fix
-- [ ] **#259** (7. Guided analysis › Follow-ups from U23) The engine accepts `weight` on a facet overlay and silently ignores it (facets are never weighted); refuse it
+- [x] **#259** (7. Guided analysis › Follow-ups from U23) The engine accepts `weight` on a facet overlay and silently ignores it (facets are never weighted); refuse it. Done (E5-S3): a set `weight` on a `FacetRequest.Overlays` spec is `PULSE_WEIGHT_UNSUPPORTED` at predict and runtime (`overlayhost.FacetSpecRefusal`); `null` / absent run
 - [ ] **#260** (7. Guided analysis › Follow-ups from U23) Bound `joins` field-name enums in the MCP input schemas cover only the left cohort; right-side and joined field names fall outside them (the description says so, predict resolves them); widen the enums from the join target's schema
 - [ ] **#267** (10. Vector & matrix — operators › Follow-ups from U24) Predict `row_buffer_bytes` is an upper bound for ordinary groupers only: a fan-out grouper (`GROUP_SET_PER_ELEMENT` and kin) copies a row into every label bucket, so the true buffer can exceed it; add the fan-out multiplicity, and confirm `limits.MatrixStateBytes` counts the buffered rank-method row store
 
@@ -175,7 +175,7 @@ Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`]
 
 Filed from [U42 handed on](U42-fit-scoring.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#391** — `internal/mergegate`'s built-in row-local list includes `ATTR_CODE_IN` and the `ATTR_SET_*` attributes (pre-existing omission). Found in U42 (E1-S2).
+- [x] **#391** — `internal/mergegate`'s built-in row-local list includes `ATTR_CODE_IN` and the `ATTR_SET_*` attributes (pre-existing omission). Found in U42 (E1-S2). Done (E5-S3): `ATTR_CODE_IN`, `ATTR_SET_HAS`, `ATTR_SET_POPCOUNT` join the list; `ATTR_SCALE_SCORE` / `ATTR_PROFILE_SIMILARITY` stay off (per-run Components / warning tallies the reducers do not fold)
 - [ ] **#393** — `FilterToFileWithRequest` and `SampleWithRequest` load `Request.models`; today a `coef()` there is refused as `PULSE_MODEL_UNKNOWN` (loud, never a wrong number). Found in U42 (E3-S2).
 - [ ] **#394** — A direct test of model binding on the parallel-decode path (`parallel_reduce.go` → `BuildFiltersWithModels`), which needs an mmap'd OS file; the shard path is tested. Found in U42 (E2-S3).
 
@@ -184,7 +184,7 @@ Filed from [U42 handed on](U42-fit-scoring.md#handed-on); tick in [`TODO.md`](..
 Filed from [U43 handed on](U43-post-aggregation-ratios.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
 - [x] **#400** — Predict-compose does not run per-slot `Request.Overlays` validation: a slot-level `OVERLAY_FORMULA` on a non-crosstab host is refused at runtime (`PULSE_OVERLAY_KIND_UNKNOWN`) but predict-compose is silent (pre-existing) (the runtime code is now `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`). Done (U35 E3-S1): slot overlays go through `ValidateOverlays`, located `details.request`. Found in U43 (E2-S2).
-- [ ] **#404** (10. Vector & matrix — operators › Follow-ups from U25) Per-`Groups` statistical tests: `TEST_HOTELLING_T2`, `TEST_MANOVA`, `TEST_BOX_M`, `TEST_MARDIA`, `TEST_BARTLETT_SPHERICITY` and the fitted attributes on multi-entry `Groups`, decided with #200
+- [x] **#404** (10. Vector & matrix — operators › Follow-ups from U25) Per-`Groups` statistical tests: `TEST_HOTELLING_T2`, `TEST_MANOVA`, `TEST_BOX_M`, `TEST_MARDIA`, `TEST_BARTLETT_SPHERICITY` and the fitted attributes on multi-entry `Groups`, decided with #200. Done (E5-S3): `PULSE_MATRIX_SINGULAR` / `_INSUFFICIENT_N` join `sparseTestCodes`; the five run per group (equal to the filtered run, composite keys included) and warn rather than abort on a degenerate group; fitted attributes stay cohort-wide by design
 
 ## Inherited from U26
 

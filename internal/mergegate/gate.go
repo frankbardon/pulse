@@ -117,8 +117,17 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 				// folded per partition would be partition-local.
 				rowLocal = !totalcall.Contains(attr.Expression)
 			case types.ATTR_DATE_PART,
+				// Pure per-row reads of the row's own stored values,
+				// no per-run state (#391).
+				types.ATTR_CODE_IN, types.ATTR_SET_HAS, types.ATTR_SET_POPCOUNT,
 				// Bound before the row pass: a pure per-row score.
 				types.ATTR_REG_PREDICT:
+				// ATTR_SCALE_SCORE and ATTR_PROFILE_SIMILARITY score
+				// per row too but stay off: each tallies per run (its
+				// Components.Attributes counters and its Response
+				// warning — out-of-range members, missing references),
+				// which per-partition instances would split and the
+				// merged route does not fold back.
 				rowLocal = true
 			case types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE, types.ATTR_FACTOR_SCORE:
 				// Row-local only when bound to a prebuilt vector fit

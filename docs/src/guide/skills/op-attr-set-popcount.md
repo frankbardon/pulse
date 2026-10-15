@@ -42,7 +42,7 @@ One integer per record, 0..set width **inclusive** — 0..256 at `set_u256`, hen
 
 ## Gotchas
 
-- Row-local one-pass — streams cleanly.
+- Row-local one-pass — streams cleanly; merges (shards, parallel decode, chain stages).
 - Use as a downstream filterable signal ("respondents who selected ≥ 3 issues") — pair with `FILTER_GTE` after this attribute, or precompute as `FEAT` if you need it before the filterers slot.
 - A fully-selected `set_u256` gives 256, one past a `u8`'s 255 — size any destination column from `emits_type`, not from the rung's byte width.
 

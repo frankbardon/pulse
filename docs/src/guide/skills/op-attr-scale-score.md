@@ -42,7 +42,7 @@ One `f64` per record on the item scale (`sum`: × p).
 ## Gotchas
 
 - With a range, a value outside it is MISSING (never clamped): one `PULSE_ATTR_SCALE_OUT_OF_RANGE` warning, same counts. `MAT_RELIABILITY` refuses that data instead.
-- Row-local: streams, fuses; weight ignored.
+- Row-local: streams, fuses; weight ignored. Never merged (its tally is per run): shards / parallel decode run serially, a chain stage is refused.
 
 ## See
 
