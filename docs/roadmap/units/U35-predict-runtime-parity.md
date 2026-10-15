@@ -3,12 +3,12 @@ id: U35
 slug: predict-runtime-parity
 title: "Predict and runtime agree on every built-in, and the runtime never answers with a wrong number"
 track: API & release
-size: M
-status: not-started
+size: XL
+status: done
 depends_on: []
 soft_depends_on: [U02c]
 blocks: [U32]
-todo_items: [198, 199, 201, 207, 213, 214, 215, 221, 225, 226, 248, 249, 253, 254, 255, 256, 259, 260, 267, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419, 427, 431, 432, 436, 437, 439, 440, 442, 448]
+todo_items: [198, 199, 201, 207, 213, 214, 215, 221, 225, 226, 229, 248, 249, 253, 254, 255, 256, 259, 260, 267, 299, 300, 313, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419, 427, 431, 432, 436, 437, 439, 440, 442, 448]
 branch: predict-runtime-parity
 ---
 
@@ -16,7 +16,7 @@ branch: predict-runtime-parity
 
 **Outcome:** Predict and runtime agree on every built-in, and the runtime never answers with a wrong number.
 
-**Track:** API & release · **Size:** M · **Soft-depends on:** [U02c](U02c-cohort-facade.md) · **Unblocks:** [U32](U32-docs-audit.md)
+**Track:** API & release · **Size:** XL · **Soft-depends on:** [U02c](U02c-cohort-facade.md) · **Unblocks:** [U32](U32-docs-audit.md)
 
 ## Summary
 
@@ -37,7 +37,7 @@ Numbering note: appended as U35 after U34 rather than renumbered.
 - [x] **#198** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) Predict refuses every operator × field type the runtime refuses: the "predict looser" half of the `knownTypeDivergence` ledger (`field_type_acceptance_test.go`) is emptied. Done (E2-S2 + E2-S3): every pair predict let through and the runtime refused now refuses on both sides with one code, the decimal-on-aggregator case included (`PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`, an error on both sides); the ledger is deleted
 - [x] **#199** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) The runtime refuses, rather than silently computes on, a field it cannot read: the "predict stricter, runtime wrong" half of the ledger (`FEAT_POLY`, `REG_OLS` / `REG_GLM` / `REG_BAYES_LINEAR` and the `WIN_*` value windows on categorical, set, decimal, `packed_bool` or `datetime` columns), plus tier-1 tests on `set_*` fields
 - [x] **E2-S4 (owner-added, 2026-10-14)** Numeric readers refuse a categorical: the 16 arithmetic aggregators (`AGG_SUM` … `AGG_CI_UPPER`), `AGG_RATIO`'s numerator / denominator and `FEAT_LOG` / `SQRT` / `BUCKETIZE` refuse a categorical (its dictionary index) or `set_*` field `PULSE_FIELD_TYPE_UNSUPPORTED` on both sides; `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` narrowed to the facet's numeric-statistic warning (owner `capability:facet`); feature param refusals are `PROCESSING_CONFIG` on both sides; tier-1 `TEST_*` skill Field lists match the table (`TestAtomicSkillFieldTypesMatchFieldAcceptTable`)
-- [x] **E4-S3 (owner-added, 2026-10-14)** Pairwise overlays use the sample variance and the last overlay / vector predict gaps close: `OVERLAY_PAIRWISE_WELCH_T` / `_TWO_MEANS_Z` over an unweighted `AGG_VARIANCE` / `AGG_STDDEV` cell read m2/(n−1) (equal to `AGG_WELFORD`, bit for bit where both accumulators' m2 is exact; n < 2 → the pair skips); an `OVERLAY_FORMULA` with no usable formula is `PULSE_OVERLAY_PARAM_MISSING` on every FORMULA arm, predict and runtime; predict reports the build's static vector built-in refusals (`vectors.StaticIssues`), the pairwise kinds' `PULSE_OVERLAY_COMPONENTS_REQUIRED` with components disabled, and a SERIES FORMULA `baseline_position` past a categorical-bounded partition (`PULSE_OVERLAY_REF_UNKNOWN`)
+- [x] **E4-S3 (owner-added, 2026-10-14)** Pairwise overlays use the sample variance and the last overlay / vector predict gaps close: `OVERLAY_PAIRWISE_WELCH_T` / `_TWO_MEANS_Z` over an unweighted `AGG_VARIANCE` / `AGG_STDDEV` cell read m2/(n−1) (equal to `AGG_WELFORD` within 1e-12 relative; n < 2 → the pair skips); an `OVERLAY_FORMULA` with no usable formula is `PULSE_OVERLAY_PARAM_MISSING` on every FORMULA arm, predict and runtime; predict reports the build's static vector built-in refusals (`vectors.StaticIssues`), the pairwise kinds' `PULSE_OVERLAY_COMPONENTS_REQUIRED` with components disabled, and a SERIES FORMULA `baseline_position` past a categorical-bounded partition (`PULSE_OVERLAY_REF_UNKNOWN`)
 - [x] **E4-S4 (owner-added, 2026-10-14)** Compose `OVERLAY_T_CELL` / `OVERLAY_Z_CELL` use the sample variance: the dispatcher hands each handler its slots' crosstab cell types (`composeCellTypes`), so an unweighted `AGG_VARIANCE` / `AGG_STDDEV` cell reads m2/(n−1) (`overlayhost.SampleVariance`) and the layer equals the `AGG_WELFORD` one (n < 2 → `null` cell + `PULSE_OVERLAY_REF_ZERO`, as Welford)
 - [x] **#201** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) Remaining silent predict / runtime gaps: crosstab cell-aggregator validity in predict, one label set for the label-collision check, label bindings on ProcessChain stages ≥ 1, windowed record rows under projection (sub-gap (a), crosstab cell / margin aggregator validity, done in U35 E2 + E3-S1, inside Compose slots too; sub-gaps (b) one label set — `descriptor.OutputLabels` on both sides — and (c) stage ≥ 1 labels — now applied — done in U35 E3-S2; (d) windowed record rows — a windows-only request's rows now carry the full record under the default projection (`NeededFields` widens that shape), done in U35 E3-S3)
 - [x] **#213** (1. API surface & release pipeline › Public Go surface › Predict / runtime parity) `Response.overlays` joins the feature gate (`gatedSlots`). Done (E5-S1): `Response` / `ComposedResponse` / `ChainResponse` / `FacetResult` `overlays` ride their request root's `overlays` gate, so an instance with no runnable overlay kind lists no overlay path in its payload schema or `return` presets (`TestReturnPathsMatchSchema`, `TestReturnPresetsFor_Instance`); the shared Request / Response gate now also lists the MATRIX_RESULT host (`capability:matrices`), whose `OVERLAY_MATRIX_GROUP_SUMMARY` a matrices-only profile used to refuse as `PULSE_REQUEST_UNKNOWN_FIELD` (`TestMatrixGroupSummary_MatricesOnlyInstance`)
@@ -82,14 +82,21 @@ Each epic is a vertical slice. Commit with `feat|fix|test(predict-runtime-parity
 - S2: crosstab cell-aggregator validity, one label set for the collision check, ProcessChain stage ≥ 1 label bindings, windowed record rows under projection (#201)
 - S4 (owner-added): numeric readers refuse a categorical; the categorical-aggregation warning retired to the facet; feature param codes agree; `TEST_*` skill Field lists held to the table
 
+### Owner-added stories (beyond the original 21)
+
+- **E2-S4** — numeric readers refuse a categorical (above)
+- **E4-S3** — pairwise overlays use the sample variance; FORMULA with no formula is `PULSE_OVERLAY_PARAM_MISSING`; the last predict gaps for static vector built-ins, components-disabled pairwise kinds and SERIES `baseline_position`
+- **E4-S4** — Compose `OVERLAY_T_CELL` / `OVERLAY_Z_CELL` use the sample variance (equal to the `AGG_WELFORD` layer within 1e-12 relative)
+- **E7-S5** — join fan-out memory (#229 join half): dictionary-bound predict finding + runtime build-side backstop
+
 ## Acceptance criteria
 
 - [x] `knownTypeDivergence` returns `""` for every operator × field type pair, and the ledger is deleted
 - [x] No request with more than one `Groups` entry silently drops a group (delivered by [U54](U54-multi-grouper.md): every grouper executes, composite rows)
 - [x] Every #201 gap has a predict-vs-runtime test
 - [x] A shard whose field nullability differs from the canonical schema is refused with a coded error (`PULSE_SHARD_SCHEMA_MISMATCH` or a sibling) at every entry point, never decoded (#207)
-- [ ] `format_version` stays `"1.1"`
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] `format_version` stays `"1.1"`
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
@@ -103,6 +110,33 @@ Each epic is a vertical slice. Commit with `feat|fix|test(predict-runtime-parity
 - The atomic `op-*` skill of every operator whose accepted types change
 - `.claude/reference/predict-inspect.md` if predict's contract changes; `byte-layout.md` (projected decode) if the windowed-row fix touches the contract
 - `.claude/reference/byte-layout.md` (shard cohesion) + `skills/cohort-schema-design.md` (Sharded) if the cohesion rule's wording changes (#207)
+
+## Delivery notes
+
+- **#313** was pulled from [U45](U45-binary-and-decimal.md) and delivered here (E2-S3, one code per refusal).
+- **#393**: the `SampleWithRequest` half is moot (`SampleRequest` has no filter surface); only `FilterToFileRequest.Models` was built — the unit's one new public symbol.
+- **#432** was built, not just refused: the SERIES `OVERLAY_FORMULA` handler runs (E4-S2). The refusal half was already consistent after U30; #418's Compose half and #432's refusal consistency were likewise fixed by U30.
+- **#214** was verified already correct (E5-S1), with a regression test; no production change.
+- **#229**: the join half is done (E7-S5); the projection half is a non-goal (an over-estimate is safe).
+- `format_version` stays `"1.1"`; every break is listed in [`03-embedder-migration.md`](../v1.0.0-api-and-release/03-embedder-migration.md) "Changes from U35". Ships with U30 in `v1.0.0-alpha.13` (tag at finalize, after human approval).
+
+## Handed on from U35
+
+Open items found while delivering this unit, filed as TODOs under their owner units (TODO ids, not GitHub issues).
+
+| Item | Owner |
+|---|---|
+| #456 `ATTR_SCALE_SCORE` / `ATTR_PROFILE_SIMILARITY` merge admission needs a tally-merge hook on the shard + parallel-decode reducers (perf; serial path correct) | [U51](U51-archive-scale.md) |
+| #457 no dedicated synth-writer test that a non-nullable field's bitmap bit stays 0 | [U52](U52-synth-realism.md) |
+| #458 join `ON` key for `u64` > 2^53 still matches on its float echo (`encoding/join_keys.go`) | [U34](U34-extension-validation.md) |
+| #459 map-decoder fallback `Record`s carry no exact `u64` word | [U34](U34-extension-validation.md) |
+| #460 `Options.AutoLabels` not applied on chain stages >= 1 | [U44](U44-strict-input.md) |
+| #461 `PredictCompose` archive slots read the whole archive (not header-only); resolves with #455 | [U51](U51-archive-scale.md) |
+| #462 facet runtime warnings carry no details (`FacetResult.Warnings` is `[]string`) | [U44](U44-strict-input.md) |
+| #230 extension `FansOut` grouper has no memory bound — already inside the extension state-size hint | [U34](U34-extension-validation.md) |
+| #463 four op skills over the soft 1200 B budget (`op-attr-reg-fitted` / `-residual` / `-leverage`, `op-agg-ratio`) | [U32](U32-docs-audit.md) |
+
+Owner-unit choices for #458, #459, #460 and #462 are the closest fit, not an owner decision: re-home them if a better unit exists.
 
 ## Handed on from U25
 
@@ -139,8 +173,8 @@ Pre-existing gaps, none caused by those units and none fixed there. Each makes p
 
 ## Inherited from U17
 
-- **`Response.overlays` is not feature-gated** (#213). `internal/descriptor/request_slots.go` (`gatedSlots`) has no entry for it, so an instance hiding the overlay features still lists `overlays` paths in its payload schema and in the `return` presets (`standard` / `minimal` expand them). Gate it like `matrices`, and let `TestReturnPathsMatchSchema` / `TestReturnPresetsFor_Instance` cover a profile without overlays.
-- **Joined slot / stage `Plan.Exact`** (#214). A join gives the slot or stage defaults on a service-internal clone, so the `return` precision-exact set derives from the un-defaulted request (`Process` included). A count column that exists only after defaults would round. Resolve the plan from the defaults-resolved request on that path. The Compose-level (`overlays` root) plan likewise has no `Exact` set of its own: give it one if an overlay payload ever carries a float count.
+- **`Response.overlays` is not feature-gated** (#213). *Historical, fixed in E5-S1:* `Response` / `ComposedResponse` / `ChainResponse` / `FacetResult` `overlays` now follow their request root's `overlays` gate (see the #213 item above).
+- **Joined slot / stage `Plan.Exact`** (#214). *Historical, verified correct in E5-S1:* the join path defaults a shallow clone that shares the caller's `*Aggregation` pointers, so the precision-exact set already derives from the defaults-resolved request (`TestReturn_PrecisionJoinedDefaultCount` pins it). The Compose-level (`overlays` root) plan still has no `Exact` set of its own; give it one if an overlay payload ever carries a float count.
 - **`finalizeMergedPartial` empty partial** (#215). A merged (parallel decode / shard) run whose partial is empty emits no `Aggregations` block while the serial path emits zero-n entries, ungrouped and grouped. Pre-existing; found by E1's per-group parity gates.
 
 ## Inherited from U18

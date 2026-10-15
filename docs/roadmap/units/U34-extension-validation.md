@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U02b]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [194, 195, 196, 197, 216, 231, 374, 409, 451]
+todo_items: [194, 195, 196, 197, 216, 231, 374, 409, 451, 458, 459]
 branch: extension-validation
 ---
 
@@ -135,3 +135,10 @@ Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`]
 Filed from [U29 handed on](U29-vector-field-types.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
 - [x] **#451** — Expose the per-output-column export plan (`iocore.ExportColumn` / `ColumnAwareWriter`) on the public `io` facade, so an embedder's export writer learns which field types each output column. Today it receives the source schema and must type by column name (`docs/src/internals/adding-io-format.md`). Found in U29 (E3-G2). Done in U29 before release: `io.ColumnAwareWriter`, `io.ExportColumn`, `io.ExportColumnKind` + its four constants and `io.ColumnFields` (contract: `adding-io-format.md`, "Typing columns on export").
+
+## Handed on from U35
+
+Filed from [U35](U35-predict-runtime-parity.md); tick in [`TODO.md`](../TODO.md) when done.
+
+- [ ] **#458** A join `ON` key over a `u64` field above 2^53 still matches on its float64 echo (`encoding/join_keys.go` documents it): two distinct large keys can collide. Give the join key an exact `u64` path, or refuse such a key. #427 fixed the attribute keys only. Found in U35 (E1-S2)
+- [ ] **#459** The map-decoder fallback `Record`s (stream, `shard_iter`, parallel-decode projection without a plan, lookup, `filter_to_file`) carry no exact `u64` word, so a `u64` above 2^53 reaches an extension through its float64 echo (the keyed attribute paths of #427 are unaffected). Decide: carry the word, or document the `extend.Record` float64 contract as final. Found in U35 (E1-S2)

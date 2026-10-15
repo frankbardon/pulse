@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U19]
 blocks: [U32]
-todo_items: [354, 355, 356, 357, 358, 359, 360, 361, 373, 390, 399, 455]
+todo_items: [354, 355, 356, 357, 358, 359, 360, 361, 373, 390, 399, 455, 456, 461]
 branch: archive-scale
 ---
 
@@ -123,3 +123,10 @@ Filed from [U42 handed on](U42-fit-scoring.md#handed-on); tick in [`TODO.md`](..
 Filed from [U43 handed on](U43-post-aggregation-ratios.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
 - [ ] **#399** — Merge `total()` partial sums across partitions so shard and parallel-decode runs stay parallel; today a two-pass `total()` request falls back to the sequential path there. Found in U43 (E1).
+
+## Handed on from U35
+
+Filed from [U35](U35-predict-runtime-parity.md); tick in [`TODO.md`](../TODO.md) when done.
+
+- [ ] **#456** `ATTR_SCALE_SCORE` / `ATTR_PROFILE_SIMILARITY` are not merge-admitted: their per-run Components / warning tallies need a tally-merge hook on the shard-archive and parallel-decode reducers (~150 lines), so a Process carrying one runs the serial path (correct, slower) and a `ProcessChain` stage carrying one is refused `PULSE_CHAIN_NOT_MERGEABLE`. Perf only. Found in U35 (E5-S3, #391)
+- [ ] **#461** `PredictCompose` archive slots are archive-aware but read the whole archive (`Service.Open` does `afero.ReadFile`), not header-only like `Predict` / `Inspect`; resolves with #455. Found in U35 (E7-S3)

@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53]
 soft_depends_on: [all feature units]
 blocks: [U33]
-todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413, 435, 453]
+todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463]
 branch: docs-audit
 ---
 
@@ -157,3 +157,9 @@ Filed from [U30](U30-matrix-extensions-hardening.md); tick in [`TODO.md`](../TOD
 - **Arrow / Parquet schemas are documented as "authoritative" while only SPSS implements `iocore.SchemaAwareReader`** (found in U03, PR #301). `skills/cohort-schema-design.md` (declared widths never promote) is one such claim. Either confirm that Arrow / Parquet column types are honoured by another path and reword, or log the code gap with an issue.
 - **Skill budget overruns from U08** (#161). U08's skill contradiction fixes pushed eight overlay skills past the 1,200-char `op-*` soft budget and grew `op-overlay-chisq-vs-pop` from 1,239 to 1,401 (the `-delta-vs-margin`, `-delta-vs-stage`, `-index-vs-margin`, `-index-vs-stage`, `-t-cell`, `-t-vs-ref`, `-z-vs-ref`, `-prop-z-cell` skills by 3–127 chars); the pairwise, `prop-z-panel` and `op-reg-*` skills were already over. Run `go test ./internal/skills/ -run TestSkillTokenBudget -v` for the full list before the flip.
 - **CLAUDE.md does not name `make reference` or `internal/statdist`** (#162). Both landed in U08 and are documented in `.claude/reference/guided-analysis.md`, `architecture.md` and `update-demand.md`, but CLAUDE.md "Build / Env" and "Architecture" were left alone for the 50,000-byte budget (49,869 bytes after U08). Add them only after displacing long form (candidate: the "Shard archive variant" paragraph → `byte-layout.md`).
+
+## Handed on from U35
+
+Filed from [U35](U35-predict-runtime-parity.md); tick in [`TODO.md`](../TODO.md) when done.
+
+- [ ] **#463** Four atomic op skills sit over the soft 1200-byte budget after U35: `op-attr-reg-fitted`, `op-attr-reg-residual`, `op-attr-reg-leverage`, `op-agg-ratio`; trim in the docs audit. Found in U35 (E7-S3)

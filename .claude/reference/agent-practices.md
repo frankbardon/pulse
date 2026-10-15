@@ -2,20 +2,20 @@
 
 **Load before any delegated or agent work.** Every `.claude/agents/pulse-*.md` persona points here first. These rules are the same for every role. A persona adds only the rules specific to its own role and repeats the few that matter most for it. If a persona and this file disagree, this file wins; report the conflict.
 
-Each rule below has a one-line reason. The reasons come from failures this repo has already shipped.
+Each rule's reason comes from a failure this repo already shipped.
 
 ## Context loading
 
 - Read `CLAUDE.md` first. Next read the reference INDEX for your change from its "Reference Docs" table, for example `.claude/reference/update-demand.md`. Then load only the per-area slice or slices your change triggers. A file with a same-named subdirectory is an index, and its "How to load" note names the slices. *Why: the reference corpus is several hundred KB, and bulk-loading it uses up the context the actual change needs.*
-- Never load a whole `.claude/reference/` directory or every slice "to be safe". Unsure which slice holds a rule? Run `grep -l '<identifier>' .claude/reference/<index>/*.md`.
-- Load a `history.md` slice only when you need the rationale for a past decision. *Why: it holds superseded wording, and acting on it reintroduces fixed bugs.*
+- Never load a whole `.claude/reference/` directory or every slice. Unsure which slice holds a rule? Run `grep -l '<identifier>' .claude/reference/<index>/*.md`.
+- Load a `history.md` slice only for the rationale of a past decision. *Why: it holds superseded wording that reintroduces fixed bugs.*
 - If you were handed an effort brief or a dispatch contract, read it before re-exploring the repo.
 
 ## Sites first
 
-- Before grepping, run the `sites` tool for the operator, slot or category you are changing: `make sites ARGS="op <TYPE>"`, `ARGS="new-op <category>"`, `ARGS="slot <request|response> <name>"` or `ARGS="categories"` (also `go run ./internal/tools/sites [--json] …`). Recipe: `docs/src/internals/finding-change-sites.md`. *Why: the tool derives the file checklist, the gates to rerun and the goldens to regenerate from code. A hand grep misses the sites that do not name the identifier.*
-- Use grep only to fill gaps. Report every site the tool missed in your hand-back so the tool can be fixed.
-- The tool finds the sites, and the reference slices say what each site must contain. Read the slices it lists under "Read before editing".
+- Before grepping, run the `sites` tool for the operator, slot or category you are changing: `make sites ARGS="op <TYPE>"`, `ARGS="new-op <category>"`, `ARGS="slot <request|response> <name>"` or `ARGS="categories"` (also `go run ./internal/tools/sites [--json] …`). Recipe: `docs/src/internals/finding-change-sites.md`. *Why: it derives the file checklist, gates and goldens from code; a hand grep misses sites that do not name the identifier.*
+- Use grep only to fill gaps, and grep the operator / kind name across the root parity tests and leaf packages even when the tool is clean: it missed `internal/seriesfield`, `internal/seriespartition`, `overlayhost/series_spec_refusal.go`, `vectors.ExprSlots` (via `vecPair`) and the attribute merge suite in `extensions_parity_categories_test.go`. Report missed sites in your hand-back.
+- The tool finds sites; the slices it lists under "Read before editing" say what each must contain.
 
 ## TDD and falsification
 
@@ -36,7 +36,7 @@ Each rule below has a one-line reason. The reasons come from failures this repo 
 - In an FMA-free kernel, write the barrier as an explicit `float64(x*y)`.
 - Test-input generators follow the same rule. arm64 fuses `a*b + c` into one FMA instruction, and amd64 does not, so a generator expression such as `rng.NormFloat64()*k + c` produces different inputs on the two architectures. Wrap the product as `float64(rng.NormFloat64()*k) + c` in any generator whose output feeds frozen words or a bit-exact fixture. *Why: a frozen-word test generated its inputs this way, passed on arm64 and failed in amd64 CI.*
 - Never call `math.Signbit`, or compare raw bits, on a value that can be NaN. Guard NaN explicitly first. A runtime 0/0 is `0x7ff8…` (sign clear) on arm64 and `0xfff8…` (sign set) on x86 SSE. *Why: a sign check on a possibly-NaN statistic passed locally and failed in amd64 CI.*
-- To reproduce on amd64: `GOOS=linux GOARCH=amd64 go test -c -o t.amd64 ./<pkg>`, then `docker run --rm --platform linux/amd64 -v "$PWD":/w -w /w/<pkg> golang ./t.amd64` (adjust paths). On an Apple-silicon Mac this container runs under Rosetta, which reproduces the FMA class but emits the arm64-style NaN. A NaN sign-bit failure therefore does NOT reproduce there; only amd64 CI shows it.
+- To reproduce on amd64: `GOOS=linux GOARCH=amd64 go test -c -o t.amd64 ./<pkg>`, then `docker run --rm --platform linux/amd64 -v "$PWD":/w -w /w/<pkg> golang ./t.amd64` (adjust paths). On Apple silicon this runs under Rosetta: it reproduces the FMA class but emits the arm64-style NaN, so a NaN sign-bit failure shows only in amd64 CI.
 
 ## Local gate set
 

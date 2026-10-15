@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U35]
 blocks: [U32]
-todo_items: [301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311, 375, 397]
+todo_items: [301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311, 375, 397, 460, 462]
 branch: strict-input
 ---
 
@@ -119,3 +119,10 @@ Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`]
 Filed from [U42 handed on](U42-fit-scoring.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
 - [ ] **#397** — In a plain (non-sweep) compose slot, an unknown grouper key such as `"label"` on `GROUP_RANGE` is silently ignored, while a sweep body's strict decode refuses it. A plain request should refuse unknown grouper keys the same way, or the two paths should be unified. Found in U42 (E4-S1) while converting the MMM fixture (`docs/roadmap/fixtures/mmm-harbor-pine/req/10`–`11` used to carry `"label"`).
+
+## Handed on from U35
+
+Filed from [U35](U35-predict-runtime-parity.md); tick in [`TODO.md`](../TODO.md) when done.
+
+- [ ] **#460** Auto labels (`Options.AutoLabels`) are not injected on `ProcessChain` stages >= 1 (explicit label bindings are applied since U35 E3-S2); a stage's rows stay un-labelled unless bound. Documented in the chain-join-facet slice. Found in U35 (E3-S2)
+- [ ] **#462** Facet runtime warnings carry no details: `FacetResult.Warnings` is `[]string`, so the runtime's `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` rides as `"CODE: message"` while predict carries `details`. Make the facet warnings coded entries (additive wire change). Found in U35 (E5-S3)
