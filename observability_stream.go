@@ -79,6 +79,17 @@ func (it *observedRowIter) Returned() *types.ReturnedMarker {
 	return nil
 }
 
+// Warnings forwards the inner iterator's run-time warnings (nil when it
+// has none).
+func (it *observedRowIter) Warnings() []*types.ResponseWarning {
+	if w, ok := it.inner.(interface {
+		Warnings() []*types.ResponseWarning
+	}); ok {
+		return w.Warnings()
+	}
+	return nil
+}
+
 // MarshalRow writes a row exactly as the inner iterator would
 // (returnshape.MarshalStreamRow).
 func (it *observedRowIter) MarshalRow(row map[string]any) ([]byte, error) {

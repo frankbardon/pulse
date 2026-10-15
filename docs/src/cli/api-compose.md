@@ -25,7 +25,7 @@ pulse api compose --request FILE [--json] [--stream]
 |---|---|---|---|---|
 | `--request`       | `-r` | string | (required) | Composed-request JSON path |
 | `--json`          |      | bool   | false      | Wrap output in the standard envelope |
-| `--stream`        |      | bool   | false      | Stream rows as NDJSON; each line is `{"index": N, "row": {...}}`; a ranked sweep ends with one `{"ranking": [...]}` line |
+| `--stream`        |      | bool   | false      | Stream rows as NDJSON; each line is `{"index": N, "row": {...}}`; a batch that warned adds one `{"warnings": [...]}` line after the rows; a ranked sweep ends with one `{"ranking": [...]}` line |
 | `--parallel`      |      | int    | 1          | Worker count; 0 = `GOMAXPROCS`, 1 = sequential |
 | `--no-fail-fast`  |      | bool   | false      | Aggregate errors across slots instead of cancelling on first failure (parallel mode only) |
 | `--no-defaults`   |      | bool   | false      | Disable smart operator-type inference |
@@ -120,6 +120,11 @@ post-fold Compose-host overlay layer plus its per-layer
 the slot is `omitempty` so overlay-free Compose responses are
 byte-identical to the legacy `[]*Response` wire shape that shipped
 under `format_version: "1.0"`.
+
+Every slot's run-time warnings (`data.responses[i].warnings`) and the
+batch's own (`data.warnings`) are also written to the envelope's
+top-level `warnings`, a slot's entry located by `details.request`;
+overlay-layer warnings stay on their layer.
 
 Response shaping passes through: each slot's `return` shapes
 `data.responses[i]`, and a top-level `return` (`overlays…` paths only)

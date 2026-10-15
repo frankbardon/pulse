@@ -185,7 +185,10 @@ func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 		env.AddError(string(errors.SERVICE_VALIDATION), "discrete_top_k must be >= 0", nil)
 	}
 	if req.DiscreteTopK > 0 && req.DiscreteTopK < 5 {
-		env.AddWarning(string(errors.PULSE_FIELD_DESCRIPTION_LOW_QUALITY),
+		// The runtime's code for a cut value list: predict reads no
+		// record, so it cautions on the cap alone (details carry only
+		// discrete_top_k); the run reports each field it actually cut.
+		env.AddWarning(string(errors.PULSE_FACET_VALUES_TRUNCATED),
 			fmt.Sprintf("discrete_top_k=%d is unusually small; truncation will hide most distinct values", req.DiscreteTopK),
 			map[string]any{"discrete_top_k": req.DiscreteTopK})
 	}

@@ -118,6 +118,13 @@ func newExitFixture(t *testing.T) exitFixture {
 	writeExitFile(t, f.p("req.json"), `{"cohort":`+c+`,`+agg+`}`)
 	writeExitFile(t, f.p("bad.json"), `{"cohort":`+bad+`,`+agg+`}`)
 	writeExitFile(t, f.p("compose.json"), `{"requests":[{"cohort":`+c+`,`+agg+`}]}`)
+	// Run-time warnings ride the envelope's top-level warnings: a target
+	// encode's PULSE_FEAT_TARGET_LEAKAGE_RISK (process, compose; --strict
+	// refuses it), a `return` include matching nothing (a chain stage).
+	leak := `"features":[{"type":"FEAT_TARGET_ENCODE","field":"name","params":{"target":"age"}}],` + agg
+	writeExitFile(t, f.p("req_warn.json"), `{"cohort":`+c+`,`+leak+`}`)
+	writeExitFile(t, f.p("compose_warn.json"), `{"requests":[{"cohort":`+c+`,`+leak+`}]}`)
+	writeExitFile(t, f.p("chain_warn.json"), `{"cohort":`+c+`,"stages":[{"request":{"return":{"include":["components.aggregations[*].operator.nope"]},`+agg+`}}]}`)
 	// An unknown key is refused (PULSE_REQUEST_UNKNOWN_FIELD) by every
 	// compose leaf, predict included, which reads no record.
 	writeExitFile(t, f.p("compose_bad.json"), `{"requests":[{"cohort":`+bad+`,`+agg+`}],"bogus":1}`)
@@ -161,11 +168,15 @@ func exitCases(f exitFixture) []exitCase {
 	}
 	partialSchema := []string{"--schema", f.p("sets.schema.json")}
 	return []exitCase{
-		{leaf: "api process", fatal: []string{"-r", f.p("bad.json")}, ok: []string{"-r", f.p("req.json")}},
-		{leaf: "api process-chain", fatal: []string{"-r", f.p("chain_bad.json")}, ok: []string{"-r", f.p("chain.json")}},
-		{leaf: "api compose", fatal: []string{"-r", f.p("compose_bad.json")}, ok: []string{"-r", f.p("compose.json")}},
+		{leaf: "api process", fatal: []string{"-r", f.p("bad.json")}, ok: []string{"-r", f.p("req.json")},
+			warn: []string{"-r", f.p("req_warn.json")}, strict: []string{"-r", f.p("req_warn.json"), "--strict"}},
+		{leaf: "api process-chain", fatal: []string{"-r", f.p("chain_bad.json")}, ok: []string{"-r", f.p("chain.json")},
+			warn: []string{"-r", f.p("chain_warn.json")}},
+		{leaf: "api compose", fatal: []string{"-r", f.p("compose_bad.json")}, ok: []string{"-r", f.p("compose.json")},
+			warn: []string{"-r", f.p("compose_warn.json")}},
 		{leaf: "api sample", fatal: []string{"--input", m}, ok: []string{"--input", f.cohort, "--count", "2"}},
-		{leaf: "api facet", fatal: []string{"--input", m, "--field", "name"}, ok: []string{"--input", f.cohort, "--field", "name"}},
+		{leaf: "api facet", fatal: []string{"--input", m, "--field", "name"}, ok: []string{"--input", f.cohort, "--field", "name"},
+			warn: []string{"--input", f.cohort, "--field", "name", "--top-k", "1"}},
 		{leaf: "api predict", fatal: []string{"-r", f.p("bad.json")}, ok: []string{"-r", f.p("req.json")}},
 		{leaf: "api predict-compose", fatal: []string{"-r", f.p("compose_bad.json")}, ok: []string{"-r", f.p("compose.json")}},
 		{leaf: "api predict-facet", fatal: []string{"-r", f.p("facet_bad.json")}, ok: []string{"-r", f.p("facet.json")},

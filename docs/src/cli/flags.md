@@ -123,7 +123,8 @@ Available on: `api process`, `api compose`.
 Stream result rows as NDJSON (one row per line) instead of buffering
 the full result. For `compose`, each line carries an `{"index": N,
 "row": {...}}` shape so consumers know which sub-request produced
-each row. See [Streaming & ProcessStream](../library/streaming.md).
+each row. A run that warned ends with one `{"warnings": [...]}` line
+(compose: after the rows, before a ranked sweep's `ranking` line). See [Streaming & ProcessStream](../library/streaming.md).
 
 ### `--strict`
 

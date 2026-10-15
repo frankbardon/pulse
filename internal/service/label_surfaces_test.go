@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	stderrors "errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -363,4 +365,58 @@ func TestChain_AutoLabelsEveryStage(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCompose_OverlayAcrossLabelledAndUnlabelledSlot pins what a
+// Compose overlay does when one slot's replace binding relabels its
+// crosstab axis and the other slot's does not: the two slots' keys
+// differ ("North" vs "north"), so the fold refuses loud with
+// PULSE_OVERLAY_KEY_SET_DIVERGENT naming both key spellings — never an
+// empty or partial layer. Binding both slots the same way folds clean.
+func TestCompose_OverlayAcrossLabelledAndUnlabelledSlot(t *testing.T) {
+	bind := []*types.LabelBinding{{Field: "region", Table: "region_names", Mode: types.LabelModeReplace}}
+	slot := func(label string, labels []*types.LabelBinding) *types.Request {
+		r := pairwiseCrosstabRequest(labels)
+		r.Overlays = nil
+		r.Crosstab.Margins = types.CrosstabMargins{}
+		r.Label = label
+		return r
+	}
+	compose := func(bLabels []*types.LabelBinding) (*types.ComposedResponse, error) {
+		return labelledCrosstabService(t, false).Compose(context.Background(), &types.ComposedRequest{
+			Requests: []*types.Request{slot("a", bind), slot("b", bLabels)},
+			Overlays: []types.ComposeOverlaySpec{{
+				Name: "d", Kind: types.OverlayKindDeltaVsRef, Scope: types.OverlayScopeCell,
+				Reference: "a", Targets: []string{"b"},
+			}},
+		})
+	}
+
+	_, err := compose(nil)
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_OVERLAY_KEY_SET_DIVERGENT {
+		t.Fatalf("labelled vs unlabelled slot: err = %v, want PULSE_OVERLAY_KEY_SET_DIVERGENT", err)
+	}
+	missing, _ := ce.Details["missing"].([]string)
+	extra, _ := ce.Details["extra"].([]string)
+	if !anyContains(missing, "North") || !anyContains(extra, "north") {
+		t.Errorf("details missing=%v extra=%v, want the labelled keys missing and the raw keys extra", missing, extra)
+	}
+
+	resp, err := compose(bind)
+	if err != nil {
+		t.Fatalf("both slots labelled: %v", err)
+	}
+	if len(resp.Overlays) != 1 || resp.Overlays[0].Payload.Matrix == nil || len(resp.Overlays[0].Payload.Matrix.Cells) == 0 {
+		t.Fatalf("both slots labelled: overlay layer empty: %+v", resp.Overlays)
+	}
+}
+
+func anyContains(ss []string, sub string) bool {
+	for _, s := range ss {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
 }

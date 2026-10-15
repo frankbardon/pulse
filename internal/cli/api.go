@@ -45,7 +45,7 @@ func apiProcessCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Request JSON file path", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
-			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON (one row per line) instead of buffering"},
+			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON (one row per line) instead of buffering; a run that warned ends with one {\"warnings\":[...]} line"},
 			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
 			&cli.BoolFlag{Name: "strict", Usage: "Promote request-validation warnings into hard errors (e.g. numeric aggregation on a categorical field)"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized (post-defaults) request on the envelope under \"request\". Streaming output skips this — NDJSON has no envelope."},
@@ -94,7 +94,15 @@ func apiProcessCmd() *cli.Command {
 						return err
 					}
 					if !ok {
-						return nil
+						// A run that warned ends the stream with one
+						// {"warnings":[...]} record.
+						var ws []*types.ResponseWarning
+						if w, ok := iter.(interface {
+							Warnings() []*types.ResponseWarning
+						}); ok {
+							ws = w.Warnings()
+						}
+						return writeStreamWarnings(enc, runtimeWarnings(&types.Response{Warnings: ws}))
 					}
 					// A `return`-shaped stream writes each row at its
 					// precision; an unshaped one exactly as before.
@@ -117,7 +125,10 @@ func apiProcessCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				env := descriptor.NewEnvelope(resp)
+				// Run-time warnings (Response.Warnings) are promoted
+				// onto the envelope's top-level warnings; data keeps
+				// them too.
+				env := withRuntimeWarnings(descriptor.NewEnvelope(resp), resp)
 				// Process mutates req in place via service.applyDefaults,
 				// so by the time we reach here req is the normalized
 				// (post-defaults) form. Echo it verbatim — what the
@@ -180,7 +191,7 @@ func apiProcessChainCmd() *cli.Command {
 				if echoRequest && resp != nil && resp.NormalizedRequest != nil {
 					echoed = resp.NormalizedRequest
 				}
-				return writeEnvelopeWithRequest(cmd.Writer, resp, echoed)
+				return writeResultEnvelope(cmd.Writer, resp, echoed)
 			}
 			return writeJSON(cmd.Writer, resp)
 		},
@@ -194,7 +205,7 @@ func apiComposeCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Composed request JSON file path", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
-			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}; a ranked sweep ends with one {\"ranking\":[...]} line"},
+			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}; a batch that warned adds one {\"warnings\":[...]} line after the rows; a ranked sweep ends with one {\"ranking\":[...]} line"},
 			&cli.IntFlag{Name: "parallel", Usage: "Run requests concurrently with up to N workers (0 = GOMAXPROCS); 1 forces sequential", Value: 1},
 			&cli.BoolFlag{Name: "no-fail-fast", Usage: "Aggregate errors instead of cancelling on first failure (parallel only)"},
 			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
@@ -266,6 +277,12 @@ func apiComposeCmd() *cli.Command {
 						}
 					}
 				}
+				// A batch that warned adds one {"warnings":[...]}
+				// record after the rows (slot entries located by
+				// details.request).
+				if err := writeStreamWarnings(enc, runtimeWarnings(resp)); err != nil {
+					return err
+				}
 				// A ranked sweep ends the stream with one
 				// {"ranking":[...]} record, even when every slot was
 				// left out (an empty list).
@@ -289,7 +306,7 @@ func apiComposeCmd() *cli.Command {
 				if echoRequest && resp != nil && resp.NormalizedRequest != nil {
 					echoed = resp.NormalizedRequest
 				}
-				return writeEnvelopeWithRequest(cmd.Writer, resp, echoed)
+				return writeResultEnvelope(cmd.Writer, resp, echoed)
 			}
 
 			return writeJSON(cmd.Writer, resp)
@@ -480,7 +497,7 @@ func apiFacetCmd() *cli.Command {
 				if echoRequest {
 					echoed = req
 				}
-				return writeEnvelopeWithRequest(cmd.Writer, result, echoed)
+				return writeResultEnvelope(cmd.Writer, result, echoed)
 			}
 			return writeJSON(cmd.Writer, result)
 		},

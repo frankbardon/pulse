@@ -93,11 +93,17 @@ type StreamChunk[T any] struct {
 // stream ended. Sent after the chunks channel closes; the Done channel
 // itself is closed immediately after delivering this value so a
 // receiver that selects on Done sees one value and then channel-closed.
+//
+// Warnings, set on a StreamCompleted ProcessStreamResult only, carries
+// the run-time warnings a buffered Process of the same request returns
+// on Response.Warnings (shaped by the same `return` block); nil when the
+// run raised none.
 type StreamTerminator struct {
 	CompletedAt time.Time
 	TotalRows   int64
 	Status      StreamStatus
 	Error       error
+	Warnings    []*types.ResponseWarning
 }
 
 // StreamResult is the canonical streaming-output shape. Every operation
@@ -187,6 +193,9 @@ func (p *Pulse) processStreamResult(ctx context.Context, req *Request, end func(
 		return StreamResult[Row]{}, service.MapRequestTimeout(ctx, err)
 	}
 	marker, _ := iter.(interface{ Returned() *types.ReturnedMarker })
+	warner, _ := iter.(interface {
+		Warnings() []*types.ResponseWarning
+	})
 
 	chunks := make(chan StreamChunk[Row], streamBuffer)
 	done := make(chan StreamTerminator, 1)
@@ -218,12 +227,16 @@ func (p *Pulse) processStreamResult(ctx context.Context, req *Request, end func(
 			if finish != nil {
 				finish(err)
 			}
-			done <- StreamTerminator{
+			term := StreamTerminator{
 				CompletedAt: time.Now(),
 				TotalRows:   rows,
 				Status:      status,
 				Error:       err,
 			}
+			if status == StreamCompleted && warner != nil {
+				term.Warnings = warner.Warnings()
+			}
+			done <- term
 			close(done)
 		}
 		// stopped terminates a stream whose ctx is done: the

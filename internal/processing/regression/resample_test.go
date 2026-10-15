@@ -200,3 +200,40 @@ func TestRegOLS_Resample_RejectsSmallN(t *testing.T) {
 		t.Errorf("err = %v, want INSUFFICIENT_DATA", err)
 	}
 }
+
+// TestRegOLS_Bootstrap_ZeroSeedDeterministic: rng_seed 0 (the default)
+// derives the bootstrap seed from the request and the data the fit
+// sees, never the clock, so two identical runs give bit-identical
+// bootstrap figures, and a different request or different data draws
+// a different seed.
+func TestRegOLS_Bootstrap_ZeroSeedDeterministic(t *testing.T) {
+	records := makeLinearRecords(t, 50, []float64{1.5, -0.8}, 0.3, 0.4, 11)
+	spec := &types.RegressionSpec{
+		Type: types.REG_OLS, Target: "y", Predictors: predictorNames(2),
+		Resample: "bootstrap", BootstrapIters: 200,
+	}
+	r1 := runOLSWithModifier(t, spec, records)
+	r2 := runOLSWithModifier(t, spec, records)
+	for _, name := range []string{InterceptKey, "x1", "x2"} {
+		if math.Float64bits(r1.StdErrors[name]) != math.Float64bits(r2.StdErrors[name]) {
+			t.Errorf("rng_seed 0: bootstrap SE for %s differs across runs: %v vs %v", name, r1.StdErrors[name], r2.StdErrors[name])
+		}
+		if math.Float64bits(r1.PValues[name]) != math.Float64bits(r2.PValues[name]) {
+			t.Errorf("rng_seed 0: bootstrap p for %s differs across runs: %v vs %v", name, r1.PValues[name], r2.PValues[name])
+		}
+	}
+
+	base := deriveBootstrapSeed(spec, records, spec.Predictors)
+	if again := deriveBootstrapSeed(spec, records, spec.Predictors); again != base {
+		t.Fatalf("derived seed not stable: %d vs %d", base, again)
+	}
+	other := *spec
+	other.BootstrapIters = 300
+	if deriveBootstrapSeed(&other, records, other.Predictors) == base {
+		t.Error("a different request derived the same seed")
+	}
+	otherData := makeLinearRecords(t, 50, []float64{1.5, -0.8}, 0.3, 0.4, 12)
+	if deriveBootstrapSeed(spec, otherData, spec.Predictors) == base {
+		t.Error("different data derived the same seed")
+	}
+}

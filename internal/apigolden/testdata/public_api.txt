@@ -1006,6 +1006,7 @@ pulse: type StreamTerminator field CompletedAt time.Time
 pulse: type StreamTerminator field Error error
 pulse: type StreamTerminator field Status pulse.StreamStatus
 pulse: type StreamTerminator field TotalRows int64
+pulse: type StreamTerminator field Warnings []*pulse/types.ResponseWarning
 pulse: type SynthOptions = pulse/synth.Options
 pulse: type SynthOptions underlying struct
 pulse: type SynthOptions field FidelityReportPath string
@@ -5325,4 +5326,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 6f3d24efa52d258596a7517c51c3bbcf02f8245a40ac2211f2651b9fbbfbb03c
+// golden-hash: 61111d58718fcddbd06b5858949435840add3906705205e91c062b96cff59369

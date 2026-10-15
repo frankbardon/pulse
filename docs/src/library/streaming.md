@@ -71,6 +71,19 @@ write a row at the block's precision, assert
 `pulse api process --stream` does exactly that. With no effective
 block, the iterator is the unshaped one, byte-identical to before.
 
+## Run-time warnings
+
+A streamed run keeps the warnings a buffered `Process` puts on
+`Response.Warnings` (target-encode leakage, labels, vectors, …). Once
+the iterator is drained, assert
+`interface{ Warnings() []*types.ResponseWarning }` on it (every
+iterator `ProcessStream` returns has the method; a `return` block that
+excludes `warnings` empties it). `ProcessStreamResult` sets
+`StreamTerminator.Warnings` on a `StreamCompleted` terminator.
+`PULSE_RETURN_PATH_UNMATCHED` comes from the buffered shaping pass and
+never reaches a stream; `Predict` lists the includes that may go
+unmatched as `return.unresolved_includes`.
+
 ## What actually streams
 
 `ProcessStream` always returns an iterator, but the engine only
@@ -102,7 +115,9 @@ The output API is identical either way.
 
 `pulse api process --stream` writes NDJSON to stdout, one row per
 line. `pulse api compose --stream` does the same with an `index`
-field per row identifying which sub-request produced it.
+field per row identifying which sub-request produced it. A run that
+warned ends with one `{"warnings": [...]}` line (compose: after the
+rows, slot entries located by `details.request`).
 
 ## Cancellation
 

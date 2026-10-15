@@ -60,9 +60,9 @@ Each `LabelBinding` pairs a categorical field with a table and mode:
 | `ProcessChain` stages | every stage's `labels` + `Options.AutoLabels`, bar a `replace` default on a key an earlier stage replaced | every stage |
 | `Export` / `Convert` | column value → label | extra column inserted after source |
 
-Only key TEXT moves: an overlay coordinate still addresses the same host cell, and no figure changes. **A binding that reaches no surface warns `PULSE_LABEL_NOT_APPLIED`** (`details.reason` `field_not_in_output`: the field is no output column, axis or group key — bind a grouped field); `AutoLabels` defaults never warn.
+Only key TEXT moves: overlay coordinates address the same host cell; no figure changes. A Compose overlay over slots bound differently refuses `PULSE_OVERLAY_KEY_SET_DIVERGENT`. **A binding that reaches no surface warns `PULSE_LABEL_NOT_APPLIED`** (`details.reason` `field_not_in_output`: the field is no output column, axis or group key — bind a grouped field); `AutoLabels` defaults never warn.
 
-**Display-only.** Filters, formula attributes, sort keys, and group keys still see raw values. Labels NEVER gate which records pass through the pipeline.
+**Display-only.** Filters, formulas, sort keys and group keys see raw values; labels NEVER gate which records pass.
 
 ## Missing values
 

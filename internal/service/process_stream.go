@@ -55,7 +55,7 @@ func (s *Service) ProcessStream(ctx context.Context, req *types.Request) (RowIte
 	if err != nil {
 		return nil, err
 	}
-	return &bufferedRowIter{rows: resp.Data, meta: resp.Metadata, components: resp.Components}, nil
+	return &bufferedRowIter{rows: resp.Data, meta: resp.Metadata, components: resp.Components, warnings: resp.Warnings}, nil
 }
 
 // bufferedRowIter walks a pre-materialized row slice. It is the trivial
@@ -66,6 +66,7 @@ type bufferedRowIter struct {
 	idx        int
 	meta       *types.ResponseMetadata
 	components *types.ResponseComponents
+	warnings   []*types.ResponseWarning
 	closed     bool
 }
 
@@ -103,4 +104,14 @@ func (it *bufferedRowIter) Metadata() *types.ResponseMetadata {
 // the consumer on the last chunk only.
 func (it *bufferedRowIter) Components() *types.ResponseComponents {
 	return it.components
+}
+
+// Warnings returns the run-time warnings the run raised — the entries
+// a buffered Process call carries on Response.Warnings (leakage, label,
+// vector, return-path, …). Like Metadata, read it once the iterator is
+// exhausted. Not part of RowIter (an embedder may implement that); the
+// facade's iterators forward it, and the `api process --stream` writer
+// ends its NDJSON with them.
+func (it *bufferedRowIter) Warnings() []*types.ResponseWarning {
+	return it.warnings
 }

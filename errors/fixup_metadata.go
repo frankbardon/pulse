@@ -777,7 +777,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FACET_VALUES_TRUNCATED: {
-		Message: "Warning-class — a facet's discrete_top_k cut a discrete field's value list to its top-K values by count (ties by value), so the dropped values are absent from fields.<name>.discrete.values; truncated_at counts them. Details carry `field`, `discrete_top_k`, `distinct` (the field's distinct values) and `dropped`, plus `additive: true` on an additive_fields tally. The counts of the kept values are exact.",
+		Message: "Warning-class — a facet's discrete_top_k cut a discrete field's value list to its top-K values by count (ties by value), so the dropped values are absent from fields.<name>.discrete.values; truncated_at counts them. Details carry `field`, `discrete_top_k`, `distinct` (the field's distinct values) and `dropped`, plus `additive: true` on an additive_fields tally. The counts of the kept values are exact. Predict-facet raises the same code up front for a discrete_top_k under 5, with only `discrete_top_k` in details (it reads no record, so it cannot say which field will be cut).",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,

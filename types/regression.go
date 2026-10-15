@@ -138,7 +138,9 @@ type RegressionSpec struct {
 	BootstrapIters int `json:"bootstrap_iters,omitempty"`
 
 	// RNGSeed seeds the bootstrap RNG for reproducibility. Defaults to
-	// 0 (a deterministic seed derived from the request).
+	// 0: a deterministic seed derived from the request and the rows the
+	// fit reads (never the clock), so the same request over the same
+	// cohort is bit-identical; pin non-zero to keep it across cohorts.
 	RNGSeed int64 `json:"rng_seed,omitempty"`
 
 	// Selection requests an automated subset-selection wrapper around

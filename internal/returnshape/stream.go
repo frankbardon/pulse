@@ -127,6 +127,19 @@ func (it *RowIter) Components() *types.ResponseComponents {
 	return cp
 }
 
+// Warnings forwards the inner iterator's run-time warnings (nil when it
+// has none, or when the plan excludes `warnings` — the buffered shaped
+// response drops them the same way).
+func (it *RowIter) Warnings() []*types.ResponseWarning {
+	w, ok := it.inner.(interface {
+		Warnings() []*types.ResponseWarning
+	})
+	if !ok || !it.plan.Visit([]returnplan.Segment{returnplan.Key("warnings")}).Keep {
+		return nil
+	}
+	return w.Warnings()
+}
+
 // Returned is the selection marker, nil until the stream is exhausted.
 func (it *RowIter) Returned() *types.ReturnedMarker {
 	if !it.done {

@@ -1,9 +1,10 @@
 package regression
 
 import (
+	"encoding/binary"
+	"hash/fnv"
 	"math"
 	"math/rand/v2"
-	"time"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
@@ -205,9 +206,11 @@ func replicateCov(replicates [][]float64, mean []float64, full bool, finish func
 // (equivalently, the fraction of replicates crossing zero, mirrored).
 //
 // B defaults to defaultBootstrapIters (1000) when spec.BootstrapIters
-// is zero or negative. RNG seeding: spec.RNGSeed == 0 → time-derived
-// seed; non-zero seeds produce reproducible runs (TestRegOLS_Bootstrap_
-// Reproducible exercises this).
+// is zero or negative. RNG seeding: a non-zero spec.RNGSeed is used as
+// given (TestRegOLS_Bootstrap_Reproducible); zero derives a seed from
+// the request and the data the fit sees (deriveBootstrapSeed), never
+// the clock, so the same request over the same cohort is bit-identical
+// run to run (TestRegOLS_Bootstrap_ZeroSeedDeterministic).
 //
 // We use math/rand/v2 with rand.NewPCG, available in Go 1.22+. Each
 // replicate uses n integer draws from the same generator instance.
@@ -233,7 +236,7 @@ func runBootstrap(
 	}
 	seed := spec.RNGSeed
 	if seed == 0 {
-		seed = time.Now().UnixNano()
+		seed = deriveBootstrapSeed(spec, records, predictors)
 	}
 	rng := rand.New(rand.NewPCG(uint64(seed), uint64(seed)^0x9E3779B97F4A7C15))
 
@@ -382,4 +385,38 @@ func packageResampleResult(
 		attachVcov(&out, predictors, cov)
 	}
 	return &out
+}
+
+// deriveBootstrapSeed is the rng_seed 0 seed: an FNV-1a hash of the
+// spec's wire form (rng_seed excluded) and of every record's target and
+// predictor values, in record order. It is a pure function of the
+// request and the cohort rows the fit reads — the same request over the
+// same data always draws the same replicates, a different request (or
+// different data) a different seed. Pin a non-zero rng_seed for a seed
+// that does not move with the data.
+func deriveBootstrapSeed(spec *types.RegressionSpec, records []Record, predictors []string) int64 {
+	h := fnv.New64a()
+	cp := *spec
+	cp.RNGSeed = 0
+	if body, err := types.MarshalFinite(&cp); err == nil {
+		_, _ = h.Write(body)
+	}
+	var buf [8]byte
+	word := func(u uint64) {
+		binary.LittleEndian.PutUint64(buf[:], u)
+		_, _ = h.Write(buf[:])
+	}
+	word(uint64(len(records)))
+	fields := append([]string{spec.Target}, predictors...)
+	for _, r := range records {
+		for _, f := range fields {
+			v, ok := r.NumericValue(f)
+			if !ok {
+				word(0x7ff8000000000001) // a null: a NaN payload no value carries
+				continue
+			}
+			word(math.Float64bits(v))
+		}
+	}
+	return int64(h.Sum64())
 }

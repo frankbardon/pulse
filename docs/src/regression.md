@@ -131,7 +131,7 @@ Layered on top of any base operator (except `REG_BAYES_LINEAR`).
 |----------------|---------------------------------------------------------------------------------------------------------|
 | `""`           | No resampling. Closed-form / asymptotic standard errors.                                                |
 | `"jackknife"`  | Leave-one-out resampling. `SE = sqrt((n−1)/n · Σᵢ (β⁽⁻ⁱ⁾ − β̄)²)`.                                       |
-| `"bootstrap"`  | Non-parametric bootstrap. `bootstrap_iters` (default 1000), `rng_seed` (`0` → time-seeded; non-zero → reproducible). |
+| `"bootstrap"`  | Non-parametric bootstrap. `bootstrap_iters` (default 1000), `rng_seed` (`0` → a seed derived from the request and the rows the fit reads, so the same request over the same cohort is reproducible; non-zero → reproducible across cohorts too). |
 
 For l1 / elasticnet OLS, setting `Resample` is the rigorous answer for standard errors: it suppresses the `PROCESSING_REGRESSION_APPROXIMATE_SE` warning (the SEs are now resample-based, not plug-in over the active set).
 

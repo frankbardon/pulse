@@ -442,7 +442,9 @@ const (
 	// code: discrete_top_k cut a discrete field's value list (the
 	// field's FacetDiscrete.TruncatedAt counts the dropped values).
 	// Details: field, discrete_top_k, distinct, dropped; additive true
-	// on an additive_fields tally.
+	// on an additive_fields tally. Predict-facet raises the same code
+	// up front for a discrete_top_k under 5 (details: discrete_top_k
+	// only — predict reads no record).
 	PULSE_FACET_VALUES_TRUNCATED Code = "PULSE_FACET_VALUES_TRUNCATED"
 
 	// PULSE_FIELD_DESCRIPTION_LOW_QUALITY indicates a field description quality warning.

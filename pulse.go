@@ -966,6 +966,14 @@ type RowIter = service.RowIter
 // (the `pulse api process --stream` NDJSON writer uses it). With no
 // effective block the service iterator is returned untouched.
 //
+// Warnings: every iterator ProcessStream returns also has a
+// `Warnings() []*types.ResponseWarning` method — read it once the
+// iterator is exhausted — carrying the run-time warnings a buffered
+// Process returns on Response.Warnings (shaped by the same `return`
+// block; PULSE_RETURN_PATH_UNMATCHED excepted, which only the buffered
+// shaping pass raises). The `--stream` writer ends its NDJSON with
+// them as one {"warnings":[...]} record.
+//
 // Observability: the operation starts at the call and ends exactly once
 // — when the iterator is drained (or fails), closed, or ctx is
 // cancelled, whichever comes first. Its scan phase runs from the first
