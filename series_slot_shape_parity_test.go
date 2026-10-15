@@ -130,10 +130,11 @@ func TestComposeSeriesOverlay_UngroupedPairStillRuns(t *testing.T) {
 // both sides (U46 E4-S9): predict-chain warns and stays valid, the
 // runtime runs the chain and answers an empty layer plus one warning.
 // Same code, same class, deep-equal Details (overlay_index included),
-// for grouped-vs-ungrouped in either direction, on a default and a
-// Strict engine — the runtime
-// never promotes an overlay layer warning under Strict, and predict-chain
-// mirrors that. Before E4-S7 the runtime folded a grouped-vs-ungrouped
+// for grouped-vs-ungrouped in either direction. On a Strict engine the
+// runtime still never promotes an overlay layer warning, while
+// predict-chain's Strict promotes every warning it collects (U35 #255,
+// finishPredictRoot): the same entry, as its one error, Valid false.
+// Before E4-S7 the runtime folded a grouped-vs-ungrouped
 // pair as SERIES (PULSE_OVERLAY_REF_ZERO); before E4-S9 predict-chain
 // refused every mismatch as an envelope error. A crosstab stage (the
 // MATRIX shape) is refused outright since U30 E7-S4
@@ -177,20 +178,24 @@ func TestChainSeriesOverlay_GroupedVsUngroupedShapeParity(t *testing.T) {
 					}
 					// Predict first, on a fresh request.
 					env := chPredict(t, f.p, build())
-					if len(env.Errors) != 0 {
-						t.Fatalf("predict-chain: want no errors, got %+v", env.Errors)
+					entries, other := env.Warnings, env.Errors
+					if strict {
+						entries, other = env.Errors, env.Warnings
 					}
-					if res, ok := env.Data.(*pulse.ChainPredictResult); !ok || !res.Valid {
-						t.Fatalf("predict-chain: want a valid verdict, got %#v", env.Data)
+					if len(other) != 0 {
+						t.Fatalf("predict-chain (strict=%v): unexpected entries %+v", strict, other)
+					}
+					if res, ok := env.Data.(*pulse.ChainPredictResult); !ok || res.Valid == strict {
+						t.Fatalf("predict-chain: want valid = %v, got %#v", !strict, env.Data)
 					}
 					var pw []*descriptor.EnvelopeEntry
-					for _, w := range env.Warnings {
+					for _, w := range entries {
 						if w.Code == string(perr.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) {
 							pw = append(pw, w)
 						}
 					}
 					if len(pw) != 1 {
-						t.Fatalf("predict-chain: want one PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT warning, got %+v", env.Warnings)
+						t.Fatalf("predict-chain: want one PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT entry, got %+v", entries)
 					}
 					if !reflect.DeepEqual(pw[0].Details, want) {
 						t.Errorf("predict details = %#v, want %#v", pw[0].Details, want)

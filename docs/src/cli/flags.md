@@ -105,12 +105,14 @@ each row. See [Streaming & ProcessStream](../library/streaming.md).
 
 ### `--strict`
 
-Available on: `api process`, `api predict`.
+Available on: `api process`, `api predict`, `api predict-compose`,
+`api predict-facet`, `api predict-chain`.
 
 Treat request-validation warnings (e.g. numeric aggregation on a
 categorical field, low-quality field description) as errors. On
-`api predict` this fails validation; on `api process` it refuses to
-execute. Useful in CI gates that want the strictest possible
+`api predict` and the three `api predict-*` leaves this fails
+validation (every warning the leaf reports becomes an error); on
+`api process` it refuses to execute. Useful in CI gates that want the strictest possible
 validation.
 
 `import <format>` also takes `--strict`, with a narrower meaning: it
@@ -120,7 +122,8 @@ escalates the parent-group viability warnings only — see
 ### `--echo-request`
 
 Available on: `api process`, `api process-chain`, `api compose`,
-`api predict`, `api sample`, `api facet`.
+`api predict`, `api predict-compose`, `api predict-facet`,
+`api predict-chain`, `api sample`, `api facet`.
 
 Include the *normalized* request — smart defaults resolved, label
 bindings expanded — on `envelope.request`. Absent (and omitted from

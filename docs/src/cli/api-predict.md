@@ -178,9 +178,13 @@ pulse api predict --request req.json --json | \
 ## Compose, facet and chain requests
 
 Three sibling leaves predict the request shapes `api predict` does not
-take. Each reads `--request FILE` (required) and takes `--json`; none
-takes `--strict` or `--echo-request`, because the validators behind them
-honour neither.
+take. Each reads `--request FILE` (required) and takes `--json`,
+`--strict` (every warning the leaf reports becomes an error, `valid:
+false`) and `--echo-request` (the envelope's `request` carries the
+normalized request — what the matching run leaf echoes: for
+`predict-compose` the effective batch, a `sweep` expanded into its slots
+and every slot defaults-resolved; for `predict-chain` every stage
+defaults-resolved; for `predict-facet` the request as passed).
 
 | Leaf | Request file | `data` on `--json` |
 |---|---|---|

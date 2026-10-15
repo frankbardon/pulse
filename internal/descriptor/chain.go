@@ -116,10 +116,67 @@ func ValidateChainWithExtensions(fileData io.ReadSeeker, req *types.ChainRequest
 // schema). The gate,
 // the field checks and stage-schema propagation run on the defaulted
 // stage, as the runtime does. A nil opts is ValidateChain.
+//
+// opts.Strict promotes every warning the chain collected (stage 0's
+// PULSE_VECTOR_METRIC_UNSUITED, a whole-chain overlay's
+// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT) into an error at the chain
+// envelope (finishPredictRoot); opts.EchoRequest echoes the normalized
+// chain on env.Request (chainEcho).
 func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, opts *PredictOptions) *descriptor.Envelope {
 	if opts == nil {
 		opts = &PredictOptions{}
 	}
+	var (
+		expanded *types.ChainRequest
+		staged   []*types.Request
+	)
+	env := validateChainWithOptions(fileData, req, opts, &expanded, &staged)
+	result := env.Data.(*ChainValidationResult)
+	finishPredictRoot(env, opts, func() { result.Valid = false }, func() any {
+		if e := chainEcho(req, expanded, staged); e != nil {
+			return e
+		}
+		return nil
+	})
+	return env
+}
+
+// chainEcho is a chain predict's normalized request — the form the
+// runtime echoes as ChainResponse.NormalizedRequest: the cohort, every
+// stage (name kept) as it executes — item for_each expanded, smart
+// defaults resolved against the stage's input schema — wherever
+// predict reached it, else as written, and the whole-chain overlays.
+// Nil for a nil request.
+func chainEcho(req, expanded *types.ChainRequest, staged []*types.Request) *types.ChainRequest {
+	if req == nil {
+		return nil
+	}
+	src := req
+	if expanded != nil {
+		src = expanded
+	}
+	out := &types.ChainRequest{Cohort: req.Cohort, Overlays: req.Overlays}
+	if len(src.Stages) > 0 {
+		out.Stages = make([]*types.ChainStage, len(src.Stages))
+	}
+	for i, st := range src.Stages {
+		if st == nil {
+			continue
+		}
+		stage := &types.ChainStage{Name: st.Name, Request: st.Request}
+		if i < len(staged) && staged[i] != nil {
+			stage.Request = staged[i]
+		}
+		out.Stages[i] = stage
+	}
+	return out
+}
+
+// validateChainWithOptions is ValidateChainWithOptions before the
+// Strict and echo pass; expandedOut receives the for_each-expanded
+// chain and stagedOut each stage's defaults-resolved request
+// (index-aligned).
+func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, opts *PredictOptions, expandedOut **types.ChainRequest, stagedOut *[]*types.Request) *descriptor.Envelope {
 	snap := opts.Extensions
 	result := &ChainValidationResult{Valid: true, Request: req}
 	env := descriptor.NewEnvelope(result)
@@ -152,6 +209,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		return env
 	}
 	req = expanded
+	*expandedOut = expanded
 	// Then every stage's `models` — the runtime's model.CheckChainModels
 	// and its model-file reads, before the cohort opens; nothing past it
 	// runs on a refusal.
@@ -212,6 +270,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 	// resolved), index-aligned with req.Stages; the whole-chain overlay
 	// walk resolves its params.field labels against it.
 	stagedReqs := make([]*types.Request, len(req.Stages))
+	*stagedOut = stagedReqs
 	// stage0Schema is the schema stage 0 executes over (the joined one
 	// for a joined stage 0) — the whole-chain categorical-code rule's
 	// stage-0 input types.
@@ -313,6 +372,14 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		}
 		if !gateOK {
 			continue
+		}
+		// Stage 0 runs Process, which warns on an explicit metric that
+		// fits its vector's kind poorly — and under Strict refuses the
+		// stage with it before any record is read (a later stage runs
+		// no such check). Located details.stage; the root's Strict pass
+		// promotes it.
+		if i == 0 {
+			addMetricUnsuitedAt(env, stage.Request, gateSchema, "stage", i)
 		}
 		// A stage 0 that does not join runs Process, which applies the
 		// matrix-host rule (a crosstab carrying matrices) before its

@@ -130,10 +130,8 @@ type ComposeValidationResult struct {
 // shape inference (MATRIX / SERIES / SCALAR) is derived from each
 // slot's *types.Request alone via inferComposeSlotShape.
 //
-// The Request slot in the envelope is left nil — Compose has no
-// single normalized form to echo back (per-slot normalisation is
-// handled by service.applyComposeLabelDefaults at execution time and
-// is not the descriptor surface's responsibility).
+// Under PredictOptions.EchoRequest the envelope's Request is the
+// batch's normalized form (composeEcho); without it, nil.
 func ValidateCompose(req *types.ComposedRequest) *descriptor.Envelope {
 	return ValidateComposeWithOptions(req, nil)
 }
@@ -161,7 +159,50 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 // cohort (the managed-import TTL) without expanding twice. The
 // effective request is the input itself when it carries no sweep, and
 // the input too when the sweep was refused before it expanded.
+//
+// Options.Strict promotes every warning the batch collected (a slot's
+// PULSE_VECTOR_METRIC_UNSUITED, located details.request) into an error
+// at the batch envelope (finishPredictRoot); Options.EchoRequest echoes
+// the normalized batch on env.Request (composeEcho).
 func ValidateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions) (*descriptor.Envelope, *types.ComposedRequest) {
+	var slots []*types.Request
+	env, effective := validateComposeExpanded(req, opts, &slots)
+	result := env.Data.(*ComposeValidationResult)
+	finishPredictRoot(env, opts, func() { result.Valid = false }, func() any {
+		if e := composeEcho(effective, slots); e != nil {
+			return e
+		}
+		return nil
+	})
+	return env, effective
+}
+
+// composeEcho is a Compose predict's normalized request — the form the
+// runtime echoes as ComposedResponse.NormalizedRequest: the EFFECTIVE
+// batch (a sweep expanded into labelled slots after the explicit ones,
+// its overlays appended, no `sweep`), each slot as its Process runs it
+// (item for_each expanded, smart defaults resolved against the schema
+// it executes over) wherever predict reached that far, else as
+// written. Nil when there is no effective request.
+func composeEcho(effective *types.ComposedRequest, slots []*types.Request) *types.ComposedRequest {
+	if effective == nil {
+		return nil
+	}
+	out := *effective
+	out.Requests = make([]*types.Request, len(effective.Requests))
+	for i, slot := range effective.Requests {
+		out.Requests[i] = slot
+		if i < len(slots) && slots[i] != nil {
+			out.Requests[i] = slots[i]
+		}
+	}
+	return &out
+}
+
+// validateComposeExpanded is ValidateComposeExpanded before the Strict
+// and echo pass; slots receives each slot's normalized form
+// (validateComposeSlots).
+func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, slots *[]*types.Request) (*descriptor.Envelope, *types.ComposedRequest) {
 	result := &ComposeValidationResult{
 		Valid:                    true,
 		Request:                  req,
@@ -272,7 +313,7 @@ func ValidateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions) (
 	// does) — but its refusals are reported after the slots', as before.
 	fitEnv := descriptor.NewEnvelope(nil)
 	result.Fits = validateComposeFits(fitEnv, req.Fits, opts, loaded)
-	validateComposeSlots(env, req, opts, loaded, result.Fits)
+	*slots = validateComposeSlots(env, req, opts, loaded, result.Fits)
 	env.Errors = append(env.Errors, fitEnv.Errors...)
 	env.Warnings = append(env.Warnings, fitEnv.Warnings...)
 
@@ -1171,17 +1212,19 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 // cannot read) the slot resolves schema-less: the field-independent
 // refusals still apply, the field-dependent ones are left to the
 // runtime.
-func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded, summaries []descriptor.FitSummary) {
+func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded, summaries []descriptor.FitSummary) []*types.Request {
 	// The names every slot's ATTR_REG_PREDICT resolves: the runtime's
 	// fit pre-pass binds each `fits` entry before any slot runs, over
 	// the registered populations, beside the slot's own loaded entries.
 	fits := model.WithinCatalog(opts.populations(), composeFitCatalog(req.Fits, summaries))
+	normalized := make([]*types.Request, len(req.Requests))
 	for i, slot := range req.Requests {
 		if slot == nil {
 			continue
 		}
-		validateComposeRequest(env, slot, opts, "request", i, loadedCatalog(fits, model.RequestRefs(slot), loaded.slot(i)))
+		validateComposeRequest(env, slot, opts, "request", i, loadedCatalog(fits, model.RequestRefs(slot), loaded.slot(i)), &normalized[i])
 	}
+	return normalized
 }
 
 // composeFitCatalog is model.CatalogFromFits with each vector fit's
@@ -1266,7 +1309,7 @@ func loadComposeModels(req *types.ComposedRequest, opts *PredictOptions) (*compo
 // models are the names its ATTR_REG_PREDICT slots resolve (nil: none).
 // It returns the schema the request executes over (nil when
 // unresolvable) and whether every check passed.
-func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts *PredictOptions, key string, idx int, models model.Catalog) (*encoding.Schema, bool) {
+func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts *PredictOptions, key string, idx int, models model.Catalog, normalized **types.Request) (*encoding.Schema, bool) {
 	l := opts.instance().Limits()
 	// The request's Process expands its item for_each first (right
 	// after the slot gate the whole batch already passed).
@@ -1276,6 +1319,9 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 		return nil, false
 	}
 	slot = expanded
+	if normalized != nil {
+		*normalized = slot
+	}
 	// The request's Process refuses a second JoinSpec before it
 	// resolves a zone; Compose locates it like a zone refusal.
 	if jerr := JoinCountRefusal(slot); jerr != nil {
@@ -1294,6 +1340,11 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 		return nil, false
 	}
 	schema, keyRefusals := validatorRequestSchema(slot, cohortSchemaFor(slot.Cohort, opts), opts)
+	// An explicit metric that fits its vector's kind poorly: a warning
+	// located under key = idx (the runtime's Process warns, and under
+	// Strict refuses here — before any record is read and before its
+	// field references; the root's Strict pass promotes it).
+	addMetricUnsuitedAt(env, slot, schema, key, idx)
 	if len(keyRefusals) > 0 {
 		for _, ce := range keyRefusals {
 			addCodedError(env, RefusalAt(ce, key, idx))
@@ -1305,6 +1356,9 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 		return schema, false
 	}
 	defaulted := defaultedForValidation(slot, schema, opts)
+	if normalized != nil {
+		*normalized = defaulted
+	}
 	refs := fieldRefRefusalsWithModels(defaulted, schema, extensionsFromOpts(opts), opts.instance(), models)
 	for _, ce := range refs {
 		addCodedError(env, RefusalAt(ce, key, idx))
@@ -1397,7 +1451,7 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 		}
 		// A fit request runs before the batch binds anything: it sees
 		// only the registered populations and its own loaded entries.
-		schema, ok := validateComposeRequest(env, req, opts, "fit", i, loadedCatalog(opts.populations(), model.RequestRefs(req), loaded.fit(i)))
+		schema, ok := validateComposeRequest(env, req, opts, "fit", i, loadedCatalog(opts.populations(), model.RequestRefs(req), loaded.fit(i)), nil)
 		if !ok || schema == nil {
 			continue
 		}

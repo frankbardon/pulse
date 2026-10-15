@@ -102,3 +102,74 @@ func TestAPIPredictRoots_CodedFacadeError(t *testing.T) {
 		}
 	}
 }
+
+// TestAPIPredictRoots_StrictAndEcho (#255): --strict promotes a root's
+// warning into an error (valid false, exit 1 in text mode) and
+// --echo-request publishes the root's normalized request on the
+// envelope's `request`, absent without the flag.
+func TestAPIPredictRoots_StrictAndEcho(t *testing.T) {
+	dir := withTempDataDir(t)
+	cohort := seedCohortViaImport(t, dir, "roots.csv", "n,cat\n1,a\n2,b\n3,a\n")
+	c := `{"filename":"` + cohort + `"}`
+	// discrete_top_k under 5 is a facet warning.
+	warnPath := filepath.Join(dir, "warn.json")
+	if err := os.WriteFile(warnPath, []byte(`{"cohort":`+c+`,"fields":["cat"],"discrete_top_k":3}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	type envelope struct {
+		Data struct {
+			Valid bool `json:"valid"`
+		} `json:"data"`
+		Request  json.RawMessage         `json:"request"`
+		Errors   []struct{ Code string } `json:"errors"`
+		Warnings []struct{ Code string } `json:"warnings"`
+	}
+	decode := func(out string) envelope {
+		var env envelope
+		if err := json.Unmarshal([]byte(out), &env); err != nil {
+			t.Fatalf("not an envelope: %v\n%s", err, out)
+		}
+		return env
+	}
+	out, err := runAPI(t, "predict-facet", "-r", warnPath, "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env := decode(out); !env.Data.Valid || len(env.Warnings) != 1 || len(env.Errors) != 0 || env.Request != nil {
+		t.Fatalf("lax: %s", out)
+	}
+	out, err = runAPI(t, "predict-facet", "-r", warnPath, "--json", "--strict")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env := decode(out); env.Data.Valid || len(env.Errors) != 1 || len(env.Warnings) != 0 {
+		t.Fatalf("--strict: want the warning as the one error, got %s", out)
+	}
+	if _, err := runAPI(t, "predict-facet", "-r", warnPath, "--strict"); err == nil {
+		t.Error("--strict text mode: want a non-zero exit")
+	}
+
+	agg := `"aggregations":[{"field":"n"}]`
+	for leaf, body := range map[string]string{
+		"predict-compose": `{"requests":[{"cohort":` + c + `,` + agg + `}]}`,
+		"predict-chain":   `{"cohort":` + c + `,"stages":[{"request":{"cohort":` + c + `,` + agg + `}}]}`,
+		"predict-facet":   `{"cohort":` + c + `,"fields":["cat"]}`,
+	} {
+		reqPath := filepath.Join(dir, leaf+"-echo.json")
+		if err := os.WriteFile(reqPath, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		out, err := runAPI(t, leaf, "-r", reqPath, "--json", "--echo-request")
+		if err != nil {
+			t.Fatalf("%s: %v", leaf, err)
+		}
+		env := decode(out)
+		if len(env.Request) == 0 {
+			t.Errorf("%s --echo-request: no envelope request: %s", leaf, out)
+		}
+		// Compose and chain echo the defaults-resolved slot / stage.
+		if leaf != "predict-facet" && !strings.Contains(string(env.Request), `AGG_SUM`) {
+			t.Errorf("%s --echo-request: request not defaults-resolved: %s", leaf, env.Request)
+		}
+	}
+}

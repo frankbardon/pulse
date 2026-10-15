@@ -36,31 +36,99 @@ func invokePredict(t *testing.T, p *pulse.Pulse, cfg Config, args string) ([]byt
 
 // TestPulsePredict_BareRequestUnchanged: a bare request answers with the
 // PredictResult keys at the root, byte-identical to the facade's
-// Predict under the same MCP `return` default — no alternative key, no
-// errors / warnings slot.
+// Predict under the same MCP `return` default — no alternative key —
+// plus the coded `errors` / `warnings` behind the verdict (#256,
+// additive; each omitted when empty), so a `valid: false` names its
+// reason.
 func TestPulsePredict_BareRequestUnchanged(t *testing.T) {
 	p, _, path := flatManagedCohort(t)
-	req := `{"cohort":{"filename":"` + path + `"},"aggregations":[{"type":"AGG_SUM","field":"amount","label":"total"}]}`
-	got, err := invokePredict(t, p, Config{}, req)
-	if err != nil {
-		t.Fatalf("bare predict: %v", err)
-	}
+	for _, tc := range []struct {
+		name, field string
+		valid       bool
+	}{
+		{"valid", "amount", true},
+		{"refused", "nope", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := `{"cohort":{"filename":"` + path + `"},"aggregations":[{"type":"AGG_SUM","field":"` + tc.field + `","label":"total"}]}`
+			got, err := invokePredict(t, p, Config{}, req)
+			if err != nil {
+				t.Fatalf("bare predict: %v", err)
+			}
 
-	var direct types.Request
-	if err := json.Unmarshal([]byte(req), &direct); err != nil {
-		t.Fatal(err)
-	}
-	fillReturn(&direct, Config{}.returnDefault(instanceOf(p)))
-	res, err := p.Predict(context.Background(), &direct)
-	if err != nil {
-		t.Fatalf("facade predict: %v", err)
-	}
-	want, err := types.MarshalFinite(res)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(got, want) {
-		t.Fatalf("bare pulse_predict drifted from Pulse.Predict:\n got %s\nwant %s", got, want)
+			var direct types.Request
+			if err := json.Unmarshal([]byte(req), &direct); err != nil {
+				t.Fatal(err)
+			}
+			fillReturn(&direct, Config{}.returnDefault(instanceOf(p)))
+			res, err := p.Predict(context.Background(), &direct)
+			if err != nil {
+				t.Fatalf("facade predict: %v", err)
+			}
+			if res.Valid != tc.valid {
+				t.Fatalf("valid = %v, want %v", res.Valid, tc.valid)
+			}
+			// The result keys: byte-identical once the two reason keys
+			// are set aside.
+			var gotMap map[string]json.RawMessage
+			if err := json.Unmarshal(got, &gotMap); err != nil {
+				t.Fatal(err)
+			}
+			gotErrs, gotWarns := gotMap["errors"], gotMap["warnings"]
+			delete(gotMap, "errors")
+			delete(gotMap, "warnings")
+			stripped, err := json.Marshal(gotMap)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantRes, err := types.MarshalFinite(res)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var wantMap map[string]json.RawMessage
+			if err := json.Unmarshal(wantRes, &wantMap); err != nil {
+				t.Fatal(err)
+			}
+			wantStripped, err := json.Marshal(wantMap)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(stripped, wantStripped) {
+				t.Fatalf("bare pulse_predict drifted from Pulse.Predict:\n got %s\nwant %s", stripped, wantStripped)
+			}
+			// The reasons are the facade result's, entry for entry.
+			for _, c := range []struct {
+				key  string
+				raw  json.RawMessage
+				want any
+				n    int
+			}{
+				{"errors", gotErrs, res.Errors, len(res.Errors)},
+				{"warnings", gotWarns, res.Warnings, len(res.Warnings)},
+			} {
+				if c.n == 0 {
+					if c.raw != nil {
+						t.Errorf("%s present with none to carry: %s", c.key, c.raw)
+					}
+					continue
+				}
+				want, err := types.MarshalFinite(c.want)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(c.raw, want) {
+					t.Errorf("%s = %s, want %s", c.key, c.raw, want)
+				}
+			}
+			if !tc.valid {
+				var errs []struct {
+					Code string `json:"code"`
+				}
+				if err := json.Unmarshal(gotErrs, &errs); err != nil || len(errs) == 0 || errs[0].Code == "" {
+					t.Fatalf("refused bare predict carries no coded reason: %s", got)
+				}
+			}
+		})
 	}
 }
 

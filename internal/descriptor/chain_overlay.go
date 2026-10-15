@@ -198,9 +198,9 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 		// Warning-class, as at runtime (U46 E4-S9): the runtime answers
 		// an empty layer plus one warning and the chain still runs, so
 		// predict reports the divergence as an envelope WARNING and the
-		// chain stays valid. Neither side escalates it under Strict —
-		// the runtime never promotes an overlay layer warning, and the
-		// chain validator reads no Strict flag. Details carry every key
+		// chain stays valid. Predict's Strict promotes it, as it does
+		// every predict-root warning (finishPredictRoot, U35 #255); the
+		// runtime never promotes an overlay layer warning. Details carry every key
 		// the runtime warning does (overlay_index included), so the two
 		// deep-equal.
 		env.AddWarning(string(errors.PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT),

@@ -267,6 +267,16 @@ type PredictResult struct {
 	// Omitted when the request carries no `return` block or the block is
 	// refused (the refusal is the predict error).
 	Return *ReturnPlan `json:"return,omitempty"`
+
+	// Errors and Warnings are the coded {code, message, details}
+	// entries behind the verdict — the envelope's errors and warnings,
+	// so a Valid false result names its reason. Set by Pulse.Predict,
+	// whose return is the result alone; never marshalled with the
+	// result (`-`): every wire carries them at the envelope level
+	// (`pulse api predict --json`) or beside the result (MCP
+	// pulse_predict's top-level errors / warnings).
+	Errors   []*EnvelopeEntry `json:"-"`
+	Warnings []*EnvelopeEntry `json:"-"`
 }
 
 // ReturnPlan is a resolved `return` block: the canonical path sets the

@@ -94,10 +94,28 @@ func ValidateFacetWithExtensions(fileData io.ReadSeeker, req *types.FacetRequest
 // opts.DefaultTimeZone / ZoneLoader drive the filterer zone resolution
 // (ResolveFacetZones — the pass FacetSchema runs). A nil opts is
 // ValidateFacet.
+//
+// opts.Strict promotes every warning the facet collected into an error
+// (finishPredictRoot); opts.EchoRequest echoes the request on
+// env.Request as passed — the form the runtime facet echoes.
 func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, opts *PredictOptions) *descriptor.Envelope {
 	if opts == nil {
 		opts = &PredictOptions{}
 	}
+	env := validateFacetWithOptions(fileData, req, opts)
+	result := env.Data.(*FacetValidationResult)
+	finishPredictRoot(env, opts, func() { result.Valid = false }, func() any {
+		if req == nil {
+			return nil
+		}
+		return req
+	})
+	return env
+}
+
+// validateFacetWithOptions is ValidateFacetWithOptions before the
+// Strict and echo pass.
+func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, opts *PredictOptions) *descriptor.Envelope {
 	snap := opts.Extensions
 	result := &FacetValidationResult{
 		Valid:           true,

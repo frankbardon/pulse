@@ -1491,7 +1491,9 @@ func (p *Pulse) inspectEnvelope(ctx context.Context, path string, opts *descript
 }
 
 // Predict validates a request against a .pulse file without executing it.
-// It reads only the header and schema, never record data.
+// It reads only the header and schema, never record data. The result's
+// Errors and Warnings carry the coded entries behind its verdict, so a
+// Valid false result names its reason.
 func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictResult, error) {
 	return observed(p, ctx, requestOp(observe.OpPredict, req), func(ctx context.Context) (*descriptor.PredictResult, error) {
 		return p.predict(ctx, req)
@@ -1536,6 +1538,9 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 	opts := p.predictOptions(ctx, p.sidecarFacts(path))
 	opts.AnchorArchiveBytes = anchorArchiveBytes
 	env := descx.Predict(bytes.NewReader(data), req, &opts)
+	if result, ok := env.Data.(*descriptor.PredictResult); ok {
+		result.Errors, result.Warnings = env.Errors, env.Warnings
+	}
 	if len(env.Errors) > 0 {
 		// Return the result (which has Valid=false) rather than erroring.
 		result, ok := env.Data.(*descriptor.PredictResult)

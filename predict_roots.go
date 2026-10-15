@@ -46,6 +46,14 @@ type (
 // env.Errors entry. A returned error is a cancelled ctx. Under a
 // feature profile a hidden operator or slot predicts exactly as a
 // never-registered one.
+//
+// Options.Strict promotes every warning into an error (Valid false);
+// Options.EchoRequest sets env.Request to the normalized batch — the
+// effective request (sweep expanded, its overlays appended, no sweep),
+// each slot defaults-resolved: what ComposedResponse.NormalizedRequest
+// echoes at run time. The same two options apply to PredictFacet
+// (echo: the request as passed) and PredictChain (echo: every stage
+// defaults-resolved, as ChainResponse.NormalizedRequest).
 func (p *Pulse) PredictCompose(ctx context.Context, req *ComposedRequest) (*descriptor.Envelope, error) {
 	return observed(p, ctx, opSpec{kind: observe.OpPredict, req: composedHasher(req)}, func(ctx context.Context) (*descriptor.Envelope, error) {
 		return p.predictCompose(ctx, req)
@@ -57,6 +65,7 @@ func (p *Pulse) predictCompose(ctx context.Context, req *ComposedRequest) (*desc
 		return nil, err
 	}
 	opts := p.composePredictOptions(ctx)
+	p.predictRootOptions(&opts)
 	// The effective request: a sweep's expanded slots are touched like
 	// the explicit ones.
 	env, effective := descx.ValidateComposeExpanded(req, &opts)
@@ -85,6 +94,7 @@ func (p *Pulse) PredictFacet(ctx context.Context, req *FacetRequest) (*descripto
 			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "predict: facet request is required")
 		}
 		return p.predictCohortRoot(ctx, req.Cohort, "predict", true, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
+			p.predictRootOptions(opts)
 			return descx.ValidateFacetWithOptions(src.rs, req, opts)
 		})
 	})
@@ -101,9 +111,21 @@ func (p *Pulse) PredictChain(ctx context.Context, req *ChainRequest) (*descripto
 			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "predict: chain request is required")
 		}
 		return p.predictCohortRoot(ctx, req.Cohort, "predict", true, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
+			p.predictRootOptions(opts)
 			return descx.ValidateChainWithOptions(src.rs, req, opts)
 		})
 	})
+}
+
+// predictRootOptions adds the instance's Options.Strict and
+// Options.EchoRequest to a non-Request predict root's options: Strict
+// promotes every warning the root collects into an error, EchoRequest
+// echoes the root's normalized request on env.Request (the validators'
+// finishPredictRoot). The predict methods alone apply them — Explain's
+// checks read the same validators without either.
+func (p *Pulse) predictRootOptions(opts *descx.PredictOptions) {
+	opts.Strict = p.svc.Strict()
+	opts.EchoRequest = p.svc.EchoRequest()
 }
 
 // composePredictOptions is the option set a Compose predict runs with:
