@@ -165,6 +165,17 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 		// per-value state beside the merged ones.
 		{"shard partitions", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 4, Aggregations: 1, ValueStateAggregations: 1, PartitionBuckets: 9, PartitionRecords: records},
 			payload + 2*records*valueEntryBytes + 13*bucket(1)},
+		// A fan-out grouper (U35 #267): a record reaches up to FanOut
+		// buckets, so the distinct (bucket, value) pairs reach records x
+		// FanOut; the buffered arm adds a partition slot per extra bucket.
+		{"fan-out value state", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 3, Aggregations: 1, ValueStateAggregations: 1, FanOut: 3},
+			payload + 3*records*valueEntryBytes + 3*bucket(1)},
+		{"fan-out buffered slots", MemoryInputs{Arm: ArmBuffered, Records: records, Stride: stride, RecordBytes: rec, Buckets: 3, Aggregations: 1, FanOut: 3},
+			payload + records*(rec+bufferedValueBytes) + 2*records*fanOutSlotBytes + 3*bucket(1)},
+		// Tier-1 tests (U35 #437): an instance per test per bucket, its
+		// split levels, and a buffered test's kept values.
+		{"tests", MemoryInputs{Arm: ArmBuffered, Records: records, Stride: stride, RecordBytes: rec, Buckets: 4, Aggregations: 1, TestInstances: 8, TestLevels: 16, TestValues: 2 * records},
+			payload + records*(rec+bufferedValueBytes) + 4*bucket(1) + 8*testStateBytes + 16*testLevelBytes + 2*records*testValueBytes},
 	}
 	for _, c := range cases {
 		if got := EstimateMemory(c.in); got != c.want {

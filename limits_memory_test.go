@@ -101,6 +101,13 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 		{name: "fused crosstab", fs: fs, path: cohort, req: func() *types.Request { return crosstab(cohort) }},
 		{name: "buffered crosstab", fs: fs, path: cohort, req: func() *types.Request { return crosstab(cohort) }, noFusion: true},
 		{name: "matrix", fs: fs, path: cohort, req: func() *types.Request { return matrix3(cohort) }},
+		// U35 #437: grouped tier-1 tests — a moments test and a buffered
+		// rank test, one instance per group.
+		{name: "grouped tests", fs: fs, path: cohort, req: func() *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "a", Label: "s"}},
+				Tests:        []*types.Test{{Type: types.TEST_T, Field: "a"}, {Type: types.TEST_SPEARMAN_R, Field: "a", Field2: "c"}}}
+		}},
 		{name: "archive matrix", fs: afs, path: arch, req: func() *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: arch}, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "a", Label: "s"}},
 				Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "cov", Fields: []string{"a", "b"}}}}

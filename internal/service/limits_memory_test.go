@@ -299,8 +299,16 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 	}
 	const rows = 200_000
 	mem := afero.NewMemMapFs()
-	writeWide := func(path string, fields, n int) {
+	// writeWide writes a buildWideCohort file onto dst; allIssuers
+	// selects every issuers member on every row (the full fan-out).
+	writeWide := func(dst afero.Fs, path string, fields, n int, allIssuers bool) {
 		schema, payload := buildWideCohort(t, fields, n)
+		if allIssuers {
+			off, stride := schema.Field("issuers").ByteOffset, schema.RecordByteSize()
+			for r := 0; r < n; r++ {
+				payload[r*stride+off] = 0x3F
+			}
+		}
 		var buf bytes.Buffer
 		if err := encoding.WriteHeader(&buf); err != nil {
 			t.Fatal(err)
@@ -309,18 +317,20 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 			t.Fatal(err)
 		}
 		buf.Write(payload)
-		if err := afero.WriteFile(mem, path, buf.Bytes(), 0o644); err != nil {
+		if err := afero.WriteFile(dst, path, buf.Bytes(), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	writeWide("w.pulse", 95, rows)
-	writeWide("s.pulse", 10, 16) // a 16-row lookup keyed on brand
+	writeWide(mem, "w.pulse", 95, rows, false)
+	writeWide(mem, "s.pulse", 10, 16, false) // a 16-row lookup keyed on brand
 	cfg, err := fs.New(fs.WithFs(mem))
 	if err != nil {
 		t.Fatal(err)
 	}
 	co := &types.Cohort{Filename: "w.pulse"}
+	full := &types.Cohort{Filename: "f.pulse"}
 	brand := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "brand"}}
+	issuers := []*types.Group{{Type: types.GROUP_SET_PER_ELEMENT, Field: "issuers"}}
 	sum := []*types.Aggregation{{Type: types.AGG_SUM, Field: "weight", Label: "s"}}
 	median := []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "weight", Label: "m"}}
 	xt := &types.CrosstabSpec{Rows: brand, Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cardFeeling"}},
@@ -337,6 +347,7 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 		facet     *types.FacetRequest
 		project   bool
 		fuse      bool
+		fanOut    bool // runs on f.pulse, written for the case alone
 		maxFactor float64
 	}{
 		{name: "buffered full width", req: func() *types.Request { return &types.Request{Cohort: co, Aggregations: median} }, maxFactor: 2.5},
@@ -354,6 +365,43 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 			return &types.Request{Cohort: co, Groups: brand, Aggregations: sum,
 				Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "c", Fields: []string{"weight", "pad_014", "pad_015"}}}}
 		}, maxFactor: 2.5},
+		// U35 #437: grouped tier-1 tests (one instance per test per brand,
+		// buffered path) — a moments test and a rank test keeping every
+		// value.
+		{name: "grouped t-test", req: func() *types.Request {
+			return &types.Request{Cohort: co, Groups: brand, Aggregations: sum,
+				Tests: []*types.Test{{Type: types.TEST_T, Field: "weight"}}}
+		}, maxFactor: 2.5},
+		{name: "grouped rank test", req: func() *types.Request {
+			return &types.Request{Cohort: co, Groups: brand, Aggregations: sum,
+				Tests: []*types.Test{{Type: types.TEST_KRUSKAL_WALLIS, Field: "weight", SplitBy: "cardFeeling"}}}
+		}, maxFactor: 2.5},
+		// A rank-method matrix keeps every row and ranks the columns at
+		// finalize (limits.MatrixRowWorkBytes).
+		{name: "rank matrix", req: func() *types.Request {
+			return &types.Request{Cohort: co, Aggregations: sum,
+				Matrices: []types.MatrixSpec{{Type: types.MAT_CORRELATION, Name: "r", Fields: []string{"weight", "pad_014", "pad_015"}, Params: []byte(`{"method": "spearman"}`)}}}
+		}, maxFactor: 2.5},
+		// U35 #267: a GROUP_SET_PER_ELEMENT fan-out over f.pulse, whose
+		// rows select all 6 issuers (the worst case the dictionary-size
+		// multiplier bounds) — a rank matrix's row store and finalize,
+		// at p = 3 and p = 8, and a distinct count's value state, hold a
+		// copy per selected issuer.
+		{name: "fan-out rank matrix", req: func() *types.Request {
+			return &types.Request{Cohort: full, Groups: issuers, Aggregations: sum,
+				Matrices: []types.MatrixSpec{{Type: types.MAT_CORRELATION, Name: "r", Fields: []string{"weight", "pad_014", "pad_015"}, Params: []byte(`{"method": "spearman"}`)}}}
+		}, fanOut: true, maxFactor: 2.5},
+		{name: "fan-out wide rank matrix", req: func() *types.Request {
+			return &types.Request{Cohort: full, Groups: issuers, Aggregations: sum,
+				Matrices: []types.MatrixSpec{{Type: types.MAT_CORRELATION, Name: "r", Fields: []string{"weight", "pad_014", "pad_015", "pad_016", "pad_017", "pad_034", "pad_035", "pad_036"}, Params: []byte(`{"method": "spearman"}`)}}}
+		}, fanOut: true, maxFactor: 2.5},
+		// The value-state model assumes every record a distinct value per
+		// bucket; weight repeats, so the bound is loose here exactly as
+		// on "streaming value state" (2.13x), six buckets over.
+		{name: "fan-out value state", req: func() *types.Request {
+			return &types.Request{Cohort: full, Groups: issuers,
+				Aggregations: []*types.Aggregation{{Type: types.AGG_DISTINCT_COUNT, Field: "weight", Label: "d"}}}
+		}, fanOut: true, maxFactor: 3.5},
 		{name: "lookup join", req: func() *types.Request { return &types.Request{Cohort: co, Joins: lookup, Aggregations: sum} }, maxFactor: 2.5},
 		{name: "join build side", req: func() *types.Request { return &types.Request{Cohort: small, Joins: fanout, Aggregations: sum} }, maxFactor: 2.5},
 		{name: "facet", facet: &types.FacetRequest{Cohort: co, Fields: []string{"brand", "weight"}}, maxFactor: 2.5},
@@ -362,6 +410,18 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			svc := New(cfg)
+			if c.fanOut {
+				// A fs of its own, so the file is garbage outside this
+				// case (a live extra cohort raises every other case's
+				// heap goal).
+				fm := afero.NewMemMapFs()
+				writeWide(fm, "f.pulse", 95, rows, true)
+				fcfg, err := fs.New(fs.WithFs(fm))
+				if err != nil {
+					t.Fatal(err)
+				}
+				svc = New(fcfg)
+			}
 			svc.SetProjectBufferedFields(c.project)
 			svc.SetDisableCrosstabFusion(!c.fuse)
 			run := func() error {

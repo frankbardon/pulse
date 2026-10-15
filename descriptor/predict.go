@@ -406,8 +406,10 @@ type MatrixPredict struct {
 	// ordinal), plus the rows a shard starting inside a block buffers
 	// until finalize. An upper bound (a bucket holds one state per
 	// block its rows touch). Omitted with the bucket count
-	// unknown. A buffered spec adds its RowBufferBytes. It is the matrix
-	// term of the MaxEstimatedMemory estimate.
+	// unknown. A buffered spec adds its RowBufferBytes. The
+	// MaxEstimatedMemory estimate's matrix term is this state plus a
+	// buffered spec's row work (its kept rows and the rank finalize's
+	// copies of them, limits.MatrixRowWorkBytes).
 	EstimatedBytes *int64 `json:"estimated_bytes,omitempty"`
 	// Streamable reports whether this spec folds row by row (its
 	// result is emitted at finalize — terminal flush when streamed):
@@ -423,7 +425,9 @@ type MatrixPredict struct {
 	// RowBufferBytes estimates the row store a BUFFERED spec (not
 	// Streamable — a rank method) keeps until finalize: 8·(p + 1) bytes
 	// per admitted row (its member values and weight) times the
-	// cohort's record count, an upper bound. Omitted on a streamable
+	// cohort's record count times the fan-out multiplicity (a
+	// GROUP_SET_PER_ELEMENT row is kept once per selected member's
+	// bucket: the set dictionary size), an upper bound. Omitted on a streamable
 	// spec or with the record count unknown; EstimatedBytes includes it.
 	RowBufferBytes *int64 `json:"row_buffer_bytes,omitempty"`
 	// PairwisePSDRisk reports whether the result (or a decomposition

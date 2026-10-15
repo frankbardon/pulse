@@ -167,7 +167,8 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 		}
 		var rowBytes int64
 		if m.RowBytes() > 0 && records >= 0 {
-			rowBytes = limits.MatrixRowBufferBytes(records, m.RowBytes())
+			// One row copy per bucket a fan-out grouper routes it to.
+			rowBytes = limits.MatrixRowBufferBytes(mulSaturating(records, FanOutMultiplicity(req.Groups, schema)), m.RowBytes())
 			rb := rowBytes
 			mp.RowBufferBytes = &rb
 		}

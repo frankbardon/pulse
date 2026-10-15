@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -188,6 +189,13 @@ func ShardFanOut(req *types.Request, schema *encoding.Schema, inst *InstanceSnap
 //     the matrix bucket bound — EstimatedBytes in PredictResult.Matrices
 //     — or records x accumulator bytes when the buckets are unknown
 //     (each populated block-bucket pair holds at least one record).
+//   - fan-out: FanOutMultiplicity over the groupers and both crosstab
+//     axes — a GROUP_SET_PER_ELEMENT record lands in one bucket per
+//     selected member, so per-value state, a buffered matrix's row
+//     store and a buffered test's values scale with it.
+//   - tests: testMemory — an instance per tier-1 test per bucket, the
+//     split levels / contingency cells each keys, and every value a
+//     buffered (non-streamable) test keeps.
 //   - a join adds its build side; the joined rows a buffered arm
 //     materialises are bounded by the left count, which assumes at most
 //     one right match per left row.
@@ -259,6 +267,8 @@ func EstimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceS
 		}
 	}
 	mi.DerivedColumns = int64(len(req.Attributes) + len(req.Features) + len(req.Windows))
+	mi.FanOut = requestFanOut(req, schema)
+	mi.TestInstances, mi.TestLevels, mi.TestValues = testMemory(req, schema, inst, records, mi.Buckets, mi.FanOut)
 	mi.MatrixBytes = matrixMemory(req, schema, inst, in)
 	for _, b := range GroupBufferBytes(req, schema, inst, records) {
 		mi.GrouperBytes = addSaturating(mi.GrouperBytes, b)
@@ -447,6 +457,7 @@ func matrixMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSna
 	}
 	blocks := mergeBlocks(in)
 	buckets, _, known := vectors.EstimateBuckets(req.Groups, schema)
+	fanOut := FanOutMultiplicity(req.Groups, schema)
 	var total int64
 	for _, m := range plans {
 		var b int64
@@ -459,8 +470,10 @@ func matrixMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSna
 			b = limits.MatrixStateBytes(in.Records, 1, acc)
 		}
 		total = addSaturating(total, b)
-		// A buffered spec (a rank method) also keeps its admitted rows.
-		total = addSaturating(total, limits.MatrixRowBufferBytes(in.Records, m.RowBytes()))
+		// A buffered spec (a rank method) also keeps its admitted rows —
+		// one copy per bucket a fan-out grouper routes the row to — and
+		// ranks them at finalize.
+		total = addSaturating(total, limits.MatrixRowWorkBytes(mulSaturating(in.Records, fanOut), m.RowBytes()))
 	}
 	return total
 }
@@ -501,6 +514,123 @@ func EstimateGroups(groups []*types.Group, schema *encoding.Schema, inst *Instan
 		return 0, false
 	}
 	return crosstabAxisEstimate(groups, schema, inst, records)
+}
+
+// FanOutMultiplicity is the most buckets one record can land in under
+// groups: the product, over every position that fans one record into
+// several keys (GROUP_SET_PER_ELEMENT — one bucket per selected set
+// member), of that position's key bound (the set field's dictionary
+// size, or its include list: vectors.EstimateBuckets), else the set
+// type's member ceiling; 1 when no position fans out. Popcount is
+// data, so the dictionary size is the only schema-derivable bound. An
+// extension grouper's fan-out is its own (no schema bound), like its
+// state. Saturating.
+func FanOutMultiplicity(groups []*types.Group, schema *encoding.Schema) int64 {
+	m := int64(1)
+	for _, g := range groups {
+		if g == nil || !g.Type.FansOut() {
+			continue
+		}
+		if b, _, ok := vectors.EstimateBuckets([]*types.Group{g}, schema); ok {
+			m = mulSaturating(m, max(b, 1))
+			continue
+		}
+		if f := schema.Field(g.Field); f != nil && f.Type.IsSet() {
+			m = mulSaturating(m, int64(f.Type.MaxSetEntries()))
+		}
+	}
+	return m
+}
+
+// requestFanOut is the request's fan-out multiplicity: its groupers'
+// times both crosstab axes' (a crosstab record reaches one cell per
+// row key x column key).
+func requestFanOut(req *types.Request, schema *encoding.Schema) int64 {
+	m := FanOutMultiplicity(req.Groups, schema)
+	if req.Crosstab != nil {
+		m = mulSaturating(m, FanOutMultiplicity(req.Crosstab.Rows, schema))
+		m = mulSaturating(m, FanOutMultiplicity(req.Crosstab.Columns, schema))
+	}
+	return m
+}
+
+// testMemory is the tier-1 tests' resident state for the memory
+// estimate: instances (every test runs once per bucket — buckets is
+// the estimate's group bound, 1 ungrouped), the split levels /
+// contingency cells they key (per test the smaller of instances x its
+// schema-known levels — a categorical dictionary, 2 for packed_bool —
+// and the rows it admits, records x fanOut; a level the schema cannot
+// bound is bounded by those rows), and the values a buffered test
+// keeps: records x fanOut x its value columns (field, field2, subject,
+// every vector member, the weight). A test whose type is not a
+// streamable built-in keeps its values — the predict mirror of the
+// buffered-only tier (types.TestType.Streamable); an extension test's
+// state is its own (instances only).
+func testMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, records, buckets, fanOut int64) (instances, levels, values int64) {
+	if len(req.Tests) == 0 {
+		return 0, 0, 0
+	}
+	admitted := mulSaturating(records, max(fanOut, 1))
+	inputs, _ := vectors.ResolveTests(req, schema, func(t types.TestType) types.TestType {
+		return opRoute(inst, t)
+	}, nil)
+	for i, t := range req.Tests {
+		if t == nil {
+			continue
+		}
+		instances = addSaturating(instances, buckets)
+		if n, ok := testLevelBound(t, schema); ok && n > 0 {
+			levels = addSaturating(levels, min(mulSaturating(buckets, n), admitted))
+		} else if !ok {
+			levels = addSaturating(levels, admitted)
+		}
+		typ := opRoute(inst, t.Type)
+		if !slices.Contains(types.AllTestTypes(), typ) || typ.Streamable() {
+			continue
+		}
+		cols := int64(1) // the row weight
+		for _, f := range []string{t.Field, t.Field2, t.SubjectField} {
+			if f != "" {
+				cols++
+			}
+		}
+		if i < len(inputs) && inputs[i].Has() {
+			cols += int64(inputs[i].P() + len(inputs[i].Members2.Members))
+		} else {
+			cols += int64(len(t.Fields) + len(t.Fields2))
+		}
+		values = addSaturating(values, mulSaturating(admitted, cols))
+	}
+	return instances, levels, values
+}
+
+// testLevelBound is the levels one test instance keys — the product of
+// its split_by, rows, cols and subject_field level counts — true with 0
+// when it keys none; false when a keyed field's levels are not
+// schema-known (a numeric, date or missing field).
+func testLevelBound(t *types.Test, schema *encoding.Schema) (int64, bool) {
+	n, keyed := int64(1), false
+	for _, name := range []string{t.SplitBy, t.Rows, t.Cols, t.SubjectField} {
+		if name == "" {
+			continue
+		}
+		keyed = true
+		f := schema.Field(name)
+		switch {
+		case f == nil:
+			return 0, false
+		case f.Type.IsCategorical() && f.Dictionary != nil:
+			n = mulSaturating(n, max(int64(f.Dictionary.Count()), 1))
+		case f.Type == encoding.FieldTypePackedBool:
+			n = mulSaturating(n, 2)
+		default:
+			return 0, false
+		}
+	}
+	if !keyed {
+		return 0, true
+	}
+	return n, true
 }
 
 // groupEstimate is one grouper's unclamped schema-only key-count bound;

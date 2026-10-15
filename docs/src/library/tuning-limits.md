@@ -161,6 +161,19 @@ extension aggregators. There is no `GOMEMLIMIT` coupling: the limit is
 opt-in and independent of the Go runtime's own limit. Set it
 a little under the memory you can spare.
 
+**Fan-out groupers and tests.** A `GROUP_SET_PER_ELEMENT` grouper puts a
+record in one bucket per selected set member. The estimate assumes every
+member is selected: it multiplies the per-value state, a rank-method
+matrix's kept rows and a buffered test's kept values by the set
+dictionary's size (or the grouper's `include` count). Rows that select
+only a few members therefore estimate well above their peak. Tier-1
+tests are charged one state per test per group bucket, plus the split
+levels each one keys. A test that cannot stream (a rank-based test such
+as `TEST_MANN_WHITNEY_U` or `TEST_KRUSKAL_WALLIS`) is also charged every
+value it keeps, which grows with the record count. A rank-method matrix
+(`spearman`, `kendall`) is charged its kept rows plus the working copies
+it ranks at the end of the run.
+
 **Shard archives.** Opening an archive reads it whole onto the heap and
 the run reads it again. Neither decodes a shard's dictionaries: the open
 counts each shard's records and the scan skips each shard's schema block,

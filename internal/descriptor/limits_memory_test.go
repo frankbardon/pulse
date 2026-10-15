@@ -112,6 +112,66 @@ func TestEstimateMemory_Terms(t *testing.T) {
 		t.Errorf("4,097 + 5 sharded rows hold one more fragment and 5 buffered rows than 4,102 in one file: +%d bytes, want %d", d, 80+5*24)
 	}
 
+	// Fan-out (U35 #267): a GROUP_SET_PER_ELEMENT record reaches up to
+	// 3 buckets (the set dictionary), so its distinct (bucket, value)
+	// pairs reach 3 x records.
+	distinct := []*types.Aggregation{{Type: types.AGG_DISTINCT_COUNT, Field: "num", Label: "d"}}
+	tags := []*types.Group{{Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}}
+	if arm := MemoryArm(&types.Request{Groups: tags, Aggregations: distinct}, schema, nil, memIn(1000)); arm != limits.ArmStreaming {
+		t.Fatalf("set-per-element distinct count runs %q", arm)
+	}
+	if d := est(&types.Request{Groups: tags, Aggregations: distinct}, memIn(1000)) - est(&types.Request{Aggregations: distinct}, memIn(1000)); d != 2*(512+256)+2*1000*96 {
+		t.Errorf("fan-out value state adds %d bytes, want 2 more buckets and 2 x 1,000 more value entries (%d)", d, 2*(512+256)+2*1000*96)
+	}
+	// Tier-1 tests (U35 #437): an instance per test per bucket (5
+	// categories), its split levels (packed_bool: 2 per bucket), and a
+	// buffered rank test's values (num + the weight, per record).
+	byCat := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}}
+	medianByCat := func(tests ...*types.Test) *types.Request {
+		return &types.Request{Groups: byCat, Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "num", Label: "m"}}, Tests: tests}
+	}
+	noTests := est(medianByCat(), memIn(1000))
+	if d := est(medianByCat(&types.Test{Type: types.TEST_T, Field: "num", SplitBy: "flag"}), memIn(1000)) - noTests; d != 5*1024+10*256 {
+		t.Errorf("a grouped TEST_T adds %d bytes, want 5 instances + 10 levels (%d)", d, 5*1024+10*256)
+	}
+	if d := est(medianByCat(&types.Test{Type: types.TEST_MANN_WHITNEY_U, Field: "num", SplitBy: "flag"}), memIn(1000)) - noTests; d != 5*1024+10*256+1000*2*32 {
+		t.Errorf("a grouped TEST_MANN_WHITNEY_U adds %d bytes, want instances + levels + 2 kept values a record (%d)", d, 5*1024+10*256+1000*2*32)
+	}
+	// A split field the schema cannot bound: its levels are bounded by
+	// the rows the test admits.
+	if d := est(medianByCat(&types.Test{Type: types.TEST_T, Field: "num", SplitBy: "num"}), memIn(1000)) - noTests; d != 5*1024+1000*256 {
+		t.Errorf("an unbounded split adds %d bytes, want 5 instances + 1,000 levels (%d)", d, 5*1024+1000*256)
+	}
+	// A buffered matrix under the fan-out grouper keeps one row copy
+	// per bucket: 3 x records x 8·(p + 1), against the same request
+	// grouped by a 3-entry categorical (equal buckets and merge state).
+	fan := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "x", Type: encoding.FieldTypeF64}, {Name: "y", Type: encoding.FieldTypeF64},
+		schema.Fields[1], // tags, set_u8 over x/y/z
+		{Name: "three", Type: encoding.FieldTypeCategoricalU8, Dictionary: schema.Fields[1].Dictionary},
+	}}
+	rho := func(g *types.Group) *types.Request {
+		return &types.Request{Groups: []*types.Group{g}, Matrices: []types.MatrixSpec{{Name: "r", Type: types.MAT_CORRELATION, Fields: []string{"x", "y"}, Params: []byte(`{"method": "spearman"}`)}}}
+	}
+	fanEst := func(req *types.Request) int64 {
+		t.Helper()
+		n, ok := EstimateMemory(req, fan, nil, memIn(1000))
+		if !ok {
+			t.Fatal("no fan-out matrix estimate")
+		}
+		return n
+	}
+	setReq, catReq := rho(&types.Group{Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}), rho(&types.Group{Type: types.GROUP_CATEGORY, Field: "three"})
+	if arm := MemoryArm(setReq, fan, nil, memIn(1000)); arm != limits.ArmBuffered {
+		t.Fatalf("the rank matrix runs %q, want buffered", arm)
+	}
+	// Two more row copies a record (8·(2+1) bytes each, x10 for the
+	// store's growth and the rank finalize: limits.MatrixRowWorkBytes),
+	// plus the buffered arm's partition slot per extra bucket (24 bytes).
+	if d, want := fanEst(setReq)-fanEst(catReq), int64(2*1000*24*10+2*1000*24); d != want {
+		t.Errorf("the fan-out rank matrix adds %d bytes over the categorical one, want %d (two more row copies a record)", d, want)
+	}
+
 	if _, ok := EstimateMemory(plain, schema, nil, memIn(-1)); ok {
 		t.Error("an unknown record count has an estimate")
 	}
