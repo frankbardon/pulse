@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/imports"
 	iio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/jsonfinite"
+	"github.com/frankbardon/pulse/internal/strictjson"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
 )
@@ -438,7 +439,15 @@ func HandleExplain(ctx context.Context, p *pulse.Pulse, in ExplainIn) (ExplainOu
 			if slot.result {
 				err = jsonfinite.Unmarshal(raw, slot.dst)
 			} else {
-				err = json.Unmarshal(raw, slot.dst)
+				// A request slot decodes strictly, like every request
+				// root: an unknown key keeps its own code, located by
+				// details.field (the explain slot) beside details.path.
+				err = strictjson.DecodeInto(raw, slot.dst, descx.StrictOptions(instanceOf(p)))
+				var ce *perr.CodedError
+				if errors.As(err, &ce) {
+					ce.Details["field"] = slot.key
+					return ExplainOut{}, ce
+				}
 			}
 		}
 		if err != nil {

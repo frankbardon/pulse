@@ -15,9 +15,11 @@ and surfaced through three peer access paths:
 
 Every example is a complete `types.Request` JSON body — the same shape you
 hand to `pulse_process`. Each file is annotated with a structured `_meta`
-block describing the example. Pulse's JSON unmarshaller ignores unknown
-fields by default, so the `_meta` block is invisible at execution time;
-the file remains runnable verbatim.
+block describing the example. Every request JSON decodes strictly — an
+unknown key is refused with `PULSE_REQUEST_UNKNOWN_FIELD` — but a root
+`_meta` block is tolerated by the CLI and MCP request decoders, so the
+file remains runnable verbatim. (A rendered request template does not
+tolerate it.)
 
 ```json
 {

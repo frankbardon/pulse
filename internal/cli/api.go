@@ -3,13 +3,16 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
+	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/returnshape"
+	"github.com/frankbardon/pulse/internal/strictjson"
 	"github.com/frankbardon/pulse/types"
 	cli "github.com/urfave/cli/v3"
 )
@@ -497,8 +500,8 @@ func loadFacetRequest(path, input string, fields []string, topK int, pcts []floa
 		if err != nil {
 			return nil, fmt.Errorf("reading facet request file: %w", err)
 		}
-		if err := json.Unmarshal(data, req); err != nil {
-			return nil, fmt.Errorf("parsing facet request JSON: %w", err)
+		if err := decodeRequestJSON(data, req, "facet request"); err != nil {
+			return nil, err
 		}
 	}
 	if input != "" {
@@ -768,8 +771,8 @@ func loadLookupRequest(path, input string, keyArgs []string, returnCols, mode st
 		if err != nil {
 			return nil, fmt.Errorf("reading lookup request file: %w", err)
 		}
-		if err := json.Unmarshal(data, req); err != nil {
-			return nil, fmt.Errorf("parsing lookup request JSON: %w", err)
+		if err := decodeRequestJSON(data, req, "lookup request"); err != nil {
+			return nil, err
 		}
 	}
 	if input != "" {
@@ -846,8 +849,8 @@ func loadRequest(path string) (*types.Request, error) {
 		return nil, fmt.Errorf("reading request file: %w", err)
 	}
 	var req types.Request
-	if err := json.Unmarshal(data, &req); err != nil {
-		return nil, fmt.Errorf("parsing request JSON: %w", err)
+	if err := decodeRequestJSON(data, &req, "request"); err != nil {
+		return nil, err
 	}
 	return &req, nil
 }
@@ -858,8 +861,8 @@ func loadComposedRequest(path string) (*types.ComposedRequest, error) {
 		return nil, fmt.Errorf("reading request file: %w", err)
 	}
 	var req types.ComposedRequest
-	if err := json.Unmarshal(data, &req); err != nil {
-		return nil, fmt.Errorf("parsing composed request JSON: %w", err)
+	if err := decodeRequestJSON(data, &req, "composed request"); err != nil {
+		return nil, err
 	}
 	return &req, nil
 }
@@ -870,8 +873,23 @@ func loadChainRequest(path string) (*types.ChainRequest, error) {
 		return nil, fmt.Errorf("reading request file: %w", err)
 	}
 	var req types.ChainRequest
-	if err := json.Unmarshal(data, &req); err != nil {
-		return nil, fmt.Errorf("parsing chain request JSON: %w", err)
+	if err := decodeRequestJSON(data, &req, "chain request"); err != nil {
+		return nil, err
 	}
 	return &req, nil
+}
+
+// decodeRequestJSON decodes a request file's bytes into out through the
+// shared strict decoder (internal/strictjson), as MCP does: an unknown
+// key at any depth is the coded PULSE_REQUEST_UNKNOWN_FIELD refusal
+// (details.path, suggestions, valid_keys), returned unwrapped so the
+// envelope carries its own code; a root `_meta` example block is
+// tolerated. Any other fault is the JSON error, wrapped with what.
+func decodeRequestJSON(data []byte, out any, what string) error {
+	err := strictjson.DecodeInto(data, out, strictjson.Options{AllowMeta: true})
+	var ce *perr.CodedError
+	if err == nil || errors.As(err, &ce) {
+		return err
+	}
+	return fmt.Errorf("parsing %s JSON: %w", what, err)
 }

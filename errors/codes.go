@@ -1560,15 +1560,17 @@ const (
 	PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED Code = "PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED"
 
 	// PULSE_REQUEST_UNKNOWN_FIELD indicates a request JSON carried a
-	// top-level key that is not a recognised Request slot. JSON
-	// decoding silently ignores unknown keys, so the offending slot
-	// is dropped and the request runs as if that operation were
-	// absent. The most common cause is reusing a manifest
+	// key that is not a recognised slot of the object it sits in, at
+	// the root or at any depth. Every JSON request root is decoded
+	// strictly (internal/strictjson), so the key is REFUSED rather than
+	// ignored — an ignored key would silently drop the intended
+	// operation. The most common cause is reusing a manifest
 	// operator-catalog field name ("groupers", "aggregators") as the
 	// request key instead of the request slot name ("groups",
-	// "aggregations"). Surfaced by the MCP action handlers before
-	// execution; details carry the offending key(s), the nearest
-	// valid slot, and the full valid-key list.
+	// "aggregations"). Also raised for a slot the instance's feature
+	// profile hides. Details carry the offending key(s), the nearest
+	// valid key, the object's valid keys and, below the root, the path
+	// of the first offending key.
 	PULSE_REQUEST_UNKNOWN_FIELD Code = "PULSE_REQUEST_UNKNOWN_FIELD"
 
 	// PULSE_OVERLAY_KIND_UNKNOWN indicates a Request.Overlays entry

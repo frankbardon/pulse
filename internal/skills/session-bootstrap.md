@@ -46,7 +46,7 @@ Manifest = the contract. `pulse_inspect` = field names + values. `pulse_examples
 
 ## On failure
 
-Read every `errors[]` / `warnings[]` entry (`{code, message, details}`) → `pulse_errors_lookup` each unique `code` (cache) → apply `fixups[]` → re-`pulse_predict` → re-execute only when predict is clean.
+Read every `errors[]` / `warnings[]` entry (`{code, message, details}`) → `pulse_errors_lookup` each unique `code` (cache) → apply `fixups[]` → re-`pulse_predict` → re-execute only when predict is clean. An unknown key (any depth) is `PULSE_REQUEST_UNKNOWN_FIELD`: fix `details.path`.
 
 ## Environment
 
@@ -61,9 +61,9 @@ A name on disk and in code: `PULSE_EXTENSION_DUPLICATE`. `PULSE_BENCH_DIR` is be
 
 Managed imports (`PULSE_IMPORTS_DIR`) persist each handle's read settings in a sidecar (`format`, `source_path`, `ttl_seconds`, `column_type_overrides`, `source_tz`, `column_source_tz`, `dst_policy`, `--vector` folds); a handle read in one zone is never reused for another — re-import with `overwrite: true`. See `time-zones`.
 
-Server-side (`pulse mcp` / an embedder's `mcpserve`): `PULSE_MCP_NO_COHORT_SCAN` (flag `--no-cohort-scan`) skips enumerating `pulse://<path>` resources at startup. **On such a server `resources/list` names no cohorts and that is not evidence there are none** — a `resources/read pulse://<path>` and `pulse_inspect` both still resolve, so ask the user for the cohort path instead of concluding the data root is empty. Tool responses default to the `standard` preset (no `components`; host flag `--return`); send `"return": {"preset": "full"}` for everything — see `response-shaping`. The host caps resources (flag `--limit name=value`); read the effective caps from `manifest.limits` (`-1` = none), plan within them, and re-fetch the manifest when `limits_digest` changes — a breach is `PULSE_LIMIT_EXCEEDED`. Host diagnostics (`--log-level`, `--metrics-addr`) never reach tool responses.
+Server-side (`pulse mcp` / an embedder's `mcpserve`): `PULSE_MCP_NO_COHORT_SCAN` (flag `--no-cohort-scan`) skips enumerating `pulse://<path>` resources at startup. **On such a server `resources/list` names no cohorts and that is not evidence there are none** — a `resources/read pulse://<path>` and `pulse_inspect` still resolve, so ask the user for the cohort path. Tool responses default to the `standard` preset (no `components`; host flag `--return`); send `"return": {"preset": "full"}` for everything — see `response-shaping`. The host caps resources (flag `--limit name=value`); read the effective caps from `manifest.limits` (`-1` = none), plan within them, and re-fetch the manifest when `limits_digest` changes — a breach is `PULSE_LIMIT_EXCEEDED`. Host diagnostics (`--log-level`, `--metrics-addr`) never reach tool responses.
 
-Both table kinds surface under `manifest.extensions.{label_tables,range_tables}` — check there first. Templates are NOT manifest-projected; enumerate with `ListTemplates` (`Summary.Broken` flags a file that has gone malformed since load).
+Both table kinds surface under `manifest.extensions.{label_tables,range_tables}` — check there first. Templates are NOT manifest-projected; enumerate with `ListTemplates` (`Summary.Broken`: a since-malformed file).
 
 ## Cross-links
 

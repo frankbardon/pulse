@@ -65,8 +65,9 @@ type SweepAxis struct {
 // UnmarshalJSON decodes the axis keeping every numeric value as a
 // json.Number, so its text survives to substitution (`0.10` renders
 // as `0.10`, an integer past 2^53 keeps every digit). Unknown keys are
-// ignored, as the enclosing request's lenient decode does; a misspelled
-// `values` leaves the list empty, which validation refuses.
+// not judged here: a JSON request root decodes through the shared strict
+// decoder, which checks the axis object against these fields first, so
+// a misspelled `values` is refused as an unknown key.
 func (a *SweepAxis) UnmarshalJSON(data []byte) error {
 	type alias SweepAxis
 	var out alias

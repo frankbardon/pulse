@@ -497,11 +497,14 @@ render-time `PULSE_TEMPLATE_UNRESOLVED`.
 | `PULSE_TEMPLATE_RENDER_INVALID` | substitution succeeded but the rendered JSON failed **strict decode** into the target request type | Usually an unknown field, or a substituted value landing in a slot whose type it does not fit. |
 | `PULSE_TEMPLATE_AXIS_COLLISION` | a declared variable shares its name with an axis of a `for_each` item or a `sweep` in the body | Rename the variable or the axis. An **author** fault, raised at declaration validation like `PULSE_TEMPLATE_INVALID`. |
 
-Strict decode is harsher than the rest of Pulse, and that is worth
-knowing before it bites: a body copied out of an `internal/examples/` file
-**with its `_meta` block still attached** will fail
-`PULSE_TEMPLATE_RENDER_INVALID`. The message names the offending field
-and calls out the `_meta` case explicitly.
+Every JSON request Pulse decodes is strict; a template keeps its own
+code. An unknown key fails `PULSE_TEMPLATE_RENDER_INVALID` with
+`details.field` (the key), `details.path` (its location in the rendered
+body, e.g. `requests[1].sort[0].feild`), `details.valid_keys` (that
+object's keys) and, when one is close, `details.suggestion`. Unlike a
+request file, a rendered body does not tolerate an `internal/examples/`
+`_meta` block: a body copied out of an example **with its `_meta` block
+still attached** fails, and the message calls that case out explicitly.
 
 ## What rendering does not do
 

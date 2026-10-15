@@ -64,7 +64,8 @@ func nestedWeightCases(w types.SlotWeight) []struct {
 }
 
 // assertNestedWeightRefusal checks err is the nested unknown-field
-// refusal of `weight` at path, valid_keys the object's visible keys.
+// refusal of `weight` in the object at path — details.path the key's
+// own location (path + ".weight"), valid_keys the object's visible keys.
 func assertNestedWeightRefusal(t *testing.T, err error, path string, sample any, inst *InstanceSnapshot) *errors.CodedError {
 	t.Helper()
 	ce := asCoded(t, err)
@@ -74,8 +75,8 @@ func assertNestedWeightRefusal(t *testing.T, err error, path string, sample any,
 	if got := ce.Details["unknown_keys"]; !reflect.DeepEqual(got, []string{"weight"}) {
 		t.Errorf("unknown_keys = %v", got)
 	}
-	if got := ce.Details["path"]; got != path {
-		t.Errorf("path = %v, want %s", got, path)
+	if got := ce.Details["path"]; got != path+".weight" {
+		t.Errorf("path = %v, want %s.weight", got, path)
 	}
 	valid, _ := ce.Details["valid_keys"].([]string)
 	want := append([]string(nil), VisibleSlotKeys(sample, inst)...)

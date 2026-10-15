@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 
@@ -26,8 +25,8 @@ func apiPredictComposeCmd() *cli.Command {
 		"Composed request JSON file path",
 		func(ctx context.Context, p *pulse.Pulse, data []byte) (*descriptor.Envelope, error) {
 			var req types.ComposedRequest
-			if err := json.Unmarshal(data, &req); err != nil {
-				return nil, fmt.Errorf("parsing composed request JSON: %w", err)
+			if err := decodeRequestJSON(data, &req, "composed request"); err != nil {
+				return nil, err
 			}
 			return p.PredictCompose(ctx, &req)
 		})
@@ -39,8 +38,8 @@ func apiPredictFacetCmd() *cli.Command {
 		"Facet request JSON file path",
 		func(ctx context.Context, p *pulse.Pulse, data []byte) (*descriptor.Envelope, error) {
 			var req types.FacetRequest
-			if err := json.Unmarshal(data, &req); err != nil {
-				return nil, fmt.Errorf("parsing facet request JSON: %w", err)
+			if err := decodeRequestJSON(data, &req, "facet request"); err != nil {
+				return nil, err
 			}
 			return p.PredictFacet(ctx, &req)
 		})
@@ -52,8 +51,8 @@ func apiPredictChainCmd() *cli.Command {
 		"Chain request JSON file path",
 		func(ctx context.Context, p *pulse.Pulse, data []byte) (*descriptor.Envelope, error) {
 			var req types.ChainRequest
-			if err := json.Unmarshal(data, &req); err != nil {
-				return nil, fmt.Errorf("parsing chain request JSON: %w", err)
+			if err := decodeRequestJSON(data, &req, "chain request"); err != nil {
+				return nil, err
 			}
 			return p.PredictChain(ctx, &req)
 		})

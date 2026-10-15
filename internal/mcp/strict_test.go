@@ -14,17 +14,17 @@ import (
 )
 
 func TestJsonObjectKeys_RequestSlots(t *testing.T) {
-	keys := requestSlotKeys(nil)
+	keys := descx.VisibleSlotKeys(&types.Request{}, nil)
 	for _, want := range []string{"cohort", "groups", "aggregations", "filterers", "windows", "tests", "post_tests"} {
 		if !slices.Contains(keys, want) {
-			t.Errorf("requestSlotKeys missing %q; got %v", want, keys)
+			t.Errorf("request slot keys missing %q; got %v", want, keys)
 		}
 	}
 	// The manifest catalog field names must NOT be request slots — that
 	// confusion is exactly what this guard protects against.
 	for _, bad := range []string{"groupers", "aggregators"} {
 		if slices.Contains(keys, bad) {
-			t.Errorf("requestSlotKeys unexpectedly contains catalog name %q", bad)
+			t.Errorf("request slot keys unexpectedly contains catalog name %q", bad)
 		}
 	}
 }
@@ -167,7 +167,7 @@ func TestCheckUnknownRequestKeys_SharesSlotGateShape(t *testing.T) {
 	if ce == nil {
 		t.Fatal("expected an unknown-field error")
 	}
-	want := descx.UnknownFieldError([]string{"crosstabz", "groupers"}, requestSlotKeys(nil))
+	want := descx.UnknownFieldError([]string{"crosstabz", "groupers"}, descx.VisibleSlotKeys(&types.Request{}, nil))
 	if ce.Code != want.Code || ce.Message != want.Message || !reflect.DeepEqual(ce.Details, want.Details) {
 		t.Errorf("strict decode diverges from the shared shape\ngot:  %s %v\nwant: %s %v", ce.Message, ce.Details, want.Message, want.Details)
 	}
@@ -228,5 +228,59 @@ func TestStrictRequestDecode_WeightNullIsNotAbsent(t *testing.T) {
 	}
 	if s := req.Crosstab.MarginAggregations[0].Weight.Spec(); s == nil || s.Field != "v" {
 		t.Errorf("margin weight = %+v", req.Crosstab.MarginAggregations[0].Weight)
+	}
+}
+
+// TestStrictDecode_NestedUnknownKeys: the MCP decode is recursive — a
+// misspelt key inside a sort entry, a grouper, a compose slot's nested
+// object or a pulse_predict facet body is refused located by
+// details.path, never dropped.
+func TestStrictDecode_NestedUnknownKeys(t *testing.T) {
+	cases := []struct {
+		name   string
+		decode func() error
+		path   string
+		extra  map[string]any
+	}{
+		{"process sort", func() error {
+			_, err := strictRequestDecode([]byte(`{"cohort":{"filename":"x.pulse"},"sort":[{"field":"a","direction":"desc"}]}`), nil)
+			return err
+		}, "sort[0].direction", nil},
+		{"compose slot grouper", func() error {
+			_, err := strictComposedDecode([]byte(`{"requests":[{"groups":[{"type":"GROUP_RANGE","field":"a","label":"x"}]}]}`), nil)
+			return err
+		}, "groups[0].label", map[string]any{"request": 0}},
+		{"chain stage", func() error {
+			_, err := strictChainDecode([]byte(`{"stages":[{"name":"s","request":{"sort":[{"field":"a","dsc":true}]}}]}`), nil)
+			return err
+		}, "sort[0].dsc", map[string]any{"stage": 0}},
+		{"predict facet body", func() error {
+			_, err := strictPredictDecode([]byte(`{"facet":{"cohort":{"filename":"x.pulse"},"fields":["a"],"top_kk":3}}`), nil)
+			return err
+		}, "", nil},
+		{"facet tool", func() error {
+			_, err := strictDecode[FacetIn]([]byte(`{"path":"x.pulse","feild":"a"}`), nil)
+			return err
+		}, "", nil},
+		{"lookup tool", func() error {
+			_, err := strictDecode[LookupIn]([]byte(`{"cohort":{"filename":"x.pulse"},"keys":[{"field":"id","valu":"1"}]}`), nil)
+			return err
+		}, "keys[0].valu", nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var ce *perr.CodedError
+			if err := c.decode(); !stderrors.As(err, &ce) || ce.Code != perr.PULSE_REQUEST_UNKNOWN_FIELD {
+				t.Fatalf("err = %v, want PULSE_REQUEST_UNKNOWN_FIELD", err)
+			}
+			if got, ok := ce.Details["path"]; c.path == "" && ok || c.path != "" && got != c.path {
+				t.Errorf("details.path = %v, want %q", got, c.path)
+			}
+			for k, v := range c.extra {
+				if ce.Details[k] != v {
+					t.Errorf("details.%s = %v, want %v", k, ce.Details[k], v)
+				}
+			}
+		})
 	}
 }

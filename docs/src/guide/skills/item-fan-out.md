@@ -47,8 +47,8 @@ Under `grid` the same two axes would make 16 items, most mislabelled. To cross c
 
 ## Strictness and refusals
 
-- Each rendered item decodes STRICTLY into its slot type: an unknown key is refused.
-- Every fault is `PULSE_FOR_EACH_INVALID` with `details.field` (e.g. `windows[0].for_each.axes[1]`) and `details.reason`: the sweep's structural reasons, `axis_unreferenced`, `placeholder_unknown`, `placeholder_invalid`, `item_decode`.
+- Each rendered item decodes STRICTLY into its slot type: an unknown key is `PULSE_REQUEST_UNKNOWN_FIELD`, `details.path` from the item (`windows[0].bogus`), the combination in `index` / `values`.
+- Every other fault is `PULSE_FOR_EACH_INVALID` with `details.field` (e.g. `windows[0].for_each.axes[1]`) and `details.reason`: the sweep's structural reasons, `axis_unreferenced`, `placeholder_unknown`, `placeholder_invalid`, `item_decode`.
 - A `for_each` inside a compose `sweep` body is refused (`nested_in_sweep`): add the item's axes to the sweep instead.
 
 ## Limits, predict, hashing

@@ -3,10 +3,14 @@ package template
 import (
 	"bytes"
 	"encoding/json"
+	"reflect"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/strictjson"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -106,12 +110,12 @@ func (r *Rendered) Typed() any {
 // exactly one new failure mode, PULSE_TEMPLATE_RENDER_INVALID, for
 // substituted JSON that does not fit the target request type.
 //
-// The decode is STRICT: json.Decoder with DisallowUnknownFields. That is
-// deliberately harsher than the rest of Pulse, which tolerates unknown
-// fields — that tolerance is exactly how the internal/examples/ `_meta` sidecar
-// block survives at execution. Here a typo in a stored template must fail
-// loudly at render rather than silently drop a request slot, so an
-// unrecognised key is a hard error and the message names it.
+// The decode is STRICT: json.Decoder with DisallowUnknownFields, as every
+// JSON request root Pulse accepts is (internal/strictjson). A typo in a
+// stored template fails loudly at render rather than silently dropping a
+// request slot: an unrecognised key is a hard error naming the key, its
+// location in the body and the nearest valid key. Unlike a request file,
+// a rendered body does not tolerate an examples/ `_meta` block.
 //
 // Render never opens a cohort file, and the package it lives in cannot:
 // nothing on the render path imports a filesystem API. Field existence,
@@ -147,19 +151,19 @@ func RenderWith(t *Template, supplied map[string]any, opts RenderOptions) (*Rend
 	switch t.Target {
 	case TargetRequest:
 		out.Request = new(types.Request)
-		err = strictDecode(t, decodeRaw, out.Request, withholding)
+		err = strictDecode(t, decodeRaw, out.Request, opts.WithheldSlots)
 	case TargetComposed:
 		out.Composed = new(types.ComposedRequest)
-		err = strictDecode(t, decodeRaw, out.Composed, withholding)
+		err = strictDecode(t, decodeRaw, out.Composed, opts.WithheldSlots)
 	case TargetChain:
 		out.Chain = new(types.ChainRequest)
-		err = strictDecode(t, decodeRaw, out.Chain, withholding)
+		err = strictDecode(t, decodeRaw, out.Chain, opts.WithheldSlots)
 	case TargetFacet:
 		out.Facet = new(types.FacetRequest)
-		err = strictDecode(t, decodeRaw, out.Facet, withholding)
+		err = strictDecode(t, decodeRaw, out.Facet, opts.WithheldSlots)
 	case TargetSample:
 		out.Sample = new(types.SampleRequest)
-		err = strictDecode(t, decodeRaw, out.Sample, withholding)
+		err = strictDecode(t, decodeRaw, out.Sample, opts.WithheldSlots)
 	default:
 		// Unreachable in practice: Validate (via RenderJSON) rejects an
 		// absent or unrecognised target before any substitution runs.
@@ -183,29 +187,55 @@ const unknownFieldPrefix = "json: unknown field "
 // strictDecode decodes the rendered JSON into out, rejecting any key that
 // is not a field of the target type. Faults are translated into
 // PULSE_TEMPLATE_RENDER_INVALID carrying the template, the target, and —
-// when the fault is an unknown field — the offending field name.
+// when the fault is an unknown field — the offending field name, its
+// location in the rendered body (details.path), the object's valid keys
+// and the nearest one (details.suggestion), located by the shared strict
+// request decoder (internal/strictjson). The code stays the template's
+// own (error-code-by-provenance); the location and suggestion are the
+// same ones PULSE_REQUEST_UNKNOWN_FIELD carries on every other request
+// root.
 //
-// There is no shared strict-decode helper in the repo; this is the local
-// one, and it is deliberately local. Strictness is a template-package
-// policy, not a Pulse-wide one.
-//
-// withholding reports that raw carries withheld keys renamed by
-// withholdSlots; their faults are mapped back to the original spelling.
-func strictDecode(t *Template, raw json.RawMessage, out any, withholding bool) error {
+// withheld (RenderOptions.WithheldSlots), when non-nil, means raw
+// carries withheld keys renamed by withholdSlots; their faults are mapped
+// back to the original spelling, and no withheld key is ever a valid key
+// or a suggestion.
+func strictDecode(t *Template, raw json.RawMessage, out any, withheld func(any) []string) error {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(out); err != nil {
-		if withholding {
+		if withheld != nil {
 			err = unwithheldCause(err)
 		}
-		return renderInvalid(t, err)
+		return renderInvalid(t, err, locateUnknown(raw, out, withheld))
 	}
 	return nil
 }
 
+// unknownLocation is where a rendered body's unknown key sits.
+type unknownLocation struct {
+	object string   // the object's path in the body ("" = root)
+	valid  []string // the object's valid keys, withheld ones removed
+}
+
+// locateUnknown walks raw in document order — the order the decoder
+// reports in — and returns the first object carrying an unknown key, or
+// nil when the walk finds none.
+func locateUnknown(raw json.RawMessage, out any, withheld func(any) []string) *unknownLocation {
+	u := strictjson.Check(raw, reflect.TypeOf(out), strictjson.Options{DocumentOrder: true})
+	if u == nil {
+		return nil
+	}
+	valid := u.Valid
+	if withheld != nil {
+		drop := withheld(reflect.New(u.Type).Interface())
+		valid = slices.DeleteFunc(slices.Clone(valid), func(k string) bool { return slices.Contains(drop, k) })
+	}
+	return &unknownLocation{object: u.FullPath, valid: valid}
+}
+
 // renderInvalid builds the strict-decode fault, choosing between the
 // unknown-field message and the structural-mismatch message.
-func renderInvalid(t *Template, cause error) error {
+func renderInvalid(t *Template, cause error, loc *unknownLocation) error {
 	target := t.Target
 	details := map[string]any{
 		errors.DetailTemplate: t.Name,
@@ -215,10 +245,26 @@ func renderInvalid(t *Template, cause error) error {
 	var msg string
 	if field, ok := unknownFieldName(cause); ok {
 		details["field"] = field
-		msg = "rendered template body carries the unrecognised field " + strconv.Quote(field) +
+		where := ""
+		if loc != nil {
+			path := field
+			if loc.object != "" {
+				path = loc.object + "." + field
+				where = " in " + loc.object
+			}
+			details["path"] = path
+			valid := append([]string(nil), loc.valid...)
+			sort.Strings(valid)
+			details["valid_keys"] = valid
+			if near := strictjson.NearestKey(field, loc.valid); near != "" {
+				details["suggestion"] = near
+				where += " (did you mean " + strconv.Quote(near) + "?)"
+			}
+		}
+		msg = "rendered template body carries the unrecognised field " + strconv.Quote(field) + where +
 			", which is not a slot on the " + strconv.Quote(target.String()) + " target (" +
-			targetGoType(target) + "). A rendered template is decoded STRICTLY — unlike a request " +
-			"handed to Process directly, an unknown key is an error rather than being ignored, so a " +
+			targetGoType(target) + "). A rendered template is decoded STRICTLY, like every request " +
+			"Pulse decodes from JSON: an unknown key is an error rather than being ignored, so a " +
 			"typo cannot silently drop a request slot. Remove " + strconv.Quote(field) +
 			", correct its spelling, or move it under the slot it belongs to. If the body was copied " +
 			"from an examples/ file, drop the `_meta` block — it is an example sidecar, not a request field."

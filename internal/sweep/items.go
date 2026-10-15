@@ -1,14 +1,15 @@
 package sweep
 
 import (
-	"bytes"
 	"encoding/json"
 	stderrors "errors"
 	"math"
+	"reflect"
 	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/strictjson"
 	"github.com/frankbardon/pulse/internal/template"
 	"github.com/frankbardon/pulse/types"
 )
@@ -19,9 +20,9 @@ import (
 // ReasonPlaceholderUnknown, ReasonPlaceholderInvalid) it shares with the
 // compose sweep.
 const (
-	// ReasonItemDecode: a substituted item does not decode strictly into
-	// its slot type — an unknown key (named under `unknown_field`) or a
-	// value of the wrong JSON type.
+	// ReasonItemDecode: a substituted item does not decode into its slot
+	// type — a value of the wrong JSON type. An unknown key is
+	// PULSE_REQUEST_UNKNOWN_FIELD (details.path from the item).
 	ReasonItemDecode = "item_decode"
 	// ReasonNestedInSweep: a compose sweep body carries an item with a
 	// `for_each`. A sweep body is substituted once per slot; a second
@@ -293,19 +294,26 @@ func renderItem[T any](p pendingItem, values map[string]any, idx int) (*T, *erro
 	if err != nil {
 		return nil, itemTemplateFault(p.path, err, p.spec.Axes, values, idx)
 	}
-	item := new(T)
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(item); err != nil {
-		details := combinationDetails(values, idx)
-		msg := "for_each on " + p.path + " combination " + strconv.Itoa(idx) + " " + describeValues(p.spec.Axes, values) +
-			": the substituted item does not decode: " + err.Error()
-		if field, ok := unknownField(err); ok {
-			details["unknown_field"] = field
-			msg = "for_each on " + p.path + " combination " + strconv.Itoa(idx) + " " + describeValues(p.spec.Axes, values) +
-				": the substituted item carries the unknown field " + strconv.Quote(field) +
-				". A for_each item is decoded strictly, so a misspelled key fails here rather than being silently dropped; correct or remove it"
+	prefix := "for_each on " + p.path + " combination " + strconv.Itoa(idx) + " " + describeValues(p.spec.Axes, values) + ": "
+	// The shared strict decoder: an unknown key is
+	// PULSE_REQUEST_UNKNOWN_FIELD, its details.path rooted at the item
+	// (windows[3].bogus), the combination in details.index / values.
+	if u := strictjson.Check(raw, reflect.TypeFor[T](), strictjson.Options{}); u != nil {
+		objectPath := p.path
+		if u.FullPath != "" {
+			objectPath += "." + u.FullPath
 		}
+		ce := strictjson.UnknownFieldError(objectPath, u.Keys, u.Valid)
+		for k, v := range combinationDetails(values, idx) {
+			ce.Details[k] = v
+		}
+		ce.Message = prefix + ce.Message
+		return nil, ce
+	}
+	item := new(T)
+	if err := strictjson.DecodeInto(raw, item, strictjson.Options{}); err != nil {
+		details := combinationDetails(values, idx)
+		msg := prefix + "the substituted item does not decode: " + err.Error()
 		ce := forEachInvalid(p.path, ReasonItemDecode, msg, details)
 		ce.Cause = err
 		return nil, ce

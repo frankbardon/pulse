@@ -238,7 +238,9 @@ func TestExpand_PreflightBeforeRender(t *testing.T) {
 	}
 	// Under the limit the same body reaches the strict decode.
 	_, err = Expand(c, func(int) error { return nil })
-	requireSweepInvalid(t, err, ReasonRequestDecode)
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_REQUEST_UNKNOWN_FIELD {
+		t.Fatalf("under the limit: want the strict decode's PULSE_REQUEST_UNKNOWN_FIELD, got %v", err)
+	}
 }
 
 // TestExpand_448UnderDefaultLimit: a 7x4x4x4 sweep (448 slots) expands
@@ -344,30 +346,49 @@ func TestExpand_References(t *testing.T) {
 	}
 }
 
-// TestExpand_StrictDecode: a substituted body decodes strictly — an
-// unknown key (top level or nested) or a mistyped value is refused.
+// TestExpand_StrictDecode: a substituted body decodes strictly through
+// the shared decoder — an unknown key (top level or nested) is
+// PULSE_REQUEST_UNKNOWN_FIELD, the code a plain compose slot raises
+// (#397), located by details.path with a suggestion and the sweep slot;
+// a mistyped value stays PULSE_SWEEP_INVALID request_decode.
 func TestExpand_StrictDecode(t *testing.T) {
 	cases := map[string]struct {
-		body  string
-		field string
+		body    string
+		unknown string
+		path    string
+		suggest string
 	}{
-		"unknown top-level": {`{"cohort":{"filename":"c"},"aggregatoins":[],"return":{"precision":{"$var":"a"}}}`, "aggregatoins"},
-		"unknown nested":    {`{"cohort":{"filename":"c","fielname":"x"},"return":{"precision":{"$var":"a"}}}`, "fielname"},
-		"mistyped":          {`{"cohort":{"filename":"c"},"return":{"precision":"{{a}}"}}`, ""},
+		"unknown top-level": {`{"cohort":{"filename":"c"},"aggregatoins":[],"return":{"precision":{"$var":"a"}}}`, "aggregatoins", "", "aggregations"},
+		"unknown nested":    {`{"cohort":{"filename":"c","fielname":"x"},"return":{"precision":{"$var":"a"}}}`, "fielname", "cohort.fielname", "filename"},
+		"mistyped":          {`{"cohort":{"filename":"c"},"return":{"precision":"{{a}}"}}`, "", "", ""},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			c := decodeComposed(t, `{"requests":[],"sweep":{"axes":[{"name":"a","values":[1,2]}],"request":`+tc.body+`}}`)
 			_, err := Expand(c, nil)
-			ce := requireSweepInvalid(t, err, ReasonRequestDecode)
+			var ce *errors.CodedError
+			if tc.unknown == "" {
+				ce = requireSweepInvalid(t, err, ReasonRequestDecode)
+			} else if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_REQUEST_UNKNOWN_FIELD {
+				t.Fatalf("want PULSE_REQUEST_UNKNOWN_FIELD, got %v", err)
+			}
 			if ce.Details["slot"] != 0 || !reflect.DeepEqual(ce.Details["values"], map[string]any{"a": num("1")}) {
 				t.Fatalf("slot details %v", ce.Details)
 			}
-			if tc.field != "" && ce.Details["unknown_field"] != tc.field {
-				t.Fatalf("unknown_field = %v, want %s", ce.Details["unknown_field"], tc.field)
+			if tc.unknown == "" {
+				return
 			}
-			if tc.field != "" && !strings.Contains(ce.Message, tc.field) {
-				t.Fatalf("message does not name the field: %s", ce.Message)
+			if !reflect.DeepEqual(ce.Details["unknown_keys"], []string{tc.unknown}) {
+				t.Fatalf("unknown_keys = %v, want [%s]", ce.Details["unknown_keys"], tc.unknown)
+			}
+			if got, ok := ce.Details["path"]; tc.path == "" && ok || tc.path != "" && got != tc.path {
+				t.Fatalf("path = %v, want %q", got, tc.path)
+			}
+			if got := ce.Details["suggestions"].(map[string]any)[tc.unknown]; got != tc.suggest {
+				t.Fatalf("suggestion = %v, want %s", got, tc.suggest)
+			}
+			if !strings.Contains(ce.Message, "sweep slot 0") || !strings.Contains(ce.Message, tc.unknown) {
+				t.Fatalf("message does not name the slot and key: %s", ce.Message)
 			}
 		})
 	}

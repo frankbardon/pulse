@@ -461,17 +461,17 @@ func TestSlotRefusal_MultiplicityAtEveryNestingLevel(t *testing.T) {
 	cases := []struct {
 		name string
 		v    any
-		path string // "" = root
+		path string // the key's own location; "" = root
 		loc  map[string]any
 	}{
 		{"request root", &types.Request{Multiplicity: m}, "", nil},
-		{"test", &types.Request{Tests: []*types.Test{ttest(m)}}, "tests[0]", nil},
-		{"post-test", &types.Request{PostTests: []*types.Test{ttest(nil), ttest(m)}}, "post_tests[1]", nil},
-		{"request overlay", &types.Request{Overlays: []types.OverlaySpec{ov(matrixKind, m)}}, "overlays[0]", nil},
-		{"facet overlay", &types.FacetRequest{Overlays: []types.OverlaySpec{ov(types.OverlayKindIndexVsPop, m)}}, "overlays[0]", nil},
+		{"test", &types.Request{Tests: []*types.Test{ttest(m)}}, "tests[0].multiplicity", nil},
+		{"post-test", &types.Request{PostTests: []*types.Test{ttest(nil), ttest(m)}}, "post_tests[1].multiplicity", nil},
+		{"request overlay", &types.Request{Overlays: []types.OverlaySpec{ov(matrixKind, m)}}, "overlays[0].multiplicity", nil},
+		{"facet overlay", &types.FacetRequest{Overlays: []types.OverlaySpec{ov(types.OverlayKindIndexVsPop, m)}}, "overlays[0].multiplicity", nil},
 		{"composed root", &types.ComposedRequest{Multiplicity: m}, "", nil},
-		{"compose overlay", &types.ComposedRequest{Overlays: []types.ComposeOverlaySpec{{Kind: types.OverlayKindPropZPanel, Multiplicity: m}}}, "overlays[0]", nil},
-		{"compose slot test", &types.ComposedRequest{Requests: []*types.Request{{}, {Tests: []*types.Test{ttest(m)}}}}, "tests[0]", map[string]any{"request": 1}},
+		{"compose overlay", &types.ComposedRequest{Overlays: []types.ComposeOverlaySpec{{Kind: types.OverlayKindPropZPanel, Multiplicity: m}}}, "overlays[0].multiplicity", nil},
+		{"compose slot test", &types.ComposedRequest{Requests: []*types.Request{{}, {Tests: []*types.Test{ttest(m)}}}}, "tests[0].multiplicity", map[string]any{"request": 1}},
 		{"chain stage", &types.ChainRequest{Stages: []*types.ChainStage{{Request: &types.Request{Multiplicity: m}}}}, "", map[string]any{"stage": 0}},
 	}
 	for _, c := range cases {

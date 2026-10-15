@@ -89,7 +89,7 @@ Also `_NOT_FOUND`, `_TARGET_UNKNOWN` (absent/unknown target, or `RenderTemplateR
 
 ## What render does NOT do
 
-Render **never opens a cohort**: it checks the request *shape* only; field existence, types, operator applicability and streamability stay `Predict`'s job. Strict decode: an `internal/examples/` body with its `_meta` block attached fails `_RENDER_INVALID`.
+Render **never opens a cohort**: it checks the request *shape* only; field existence, types, operator applicability and streamability stay `Predict`'s job. Strict decode: an unknown key (examples `_meta` too) fails `_RENDER_INVALID` (`details.path`, `suggestion`).
 
 ## See
 

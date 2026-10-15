@@ -3,12 +3,15 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
+	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/jsonfinite"
+	"github.com/frankbardon/pulse/internal/strictjson"
 	cli "github.com/urfave/cli/v3"
 )
 
@@ -79,7 +82,13 @@ func ExplainCommand() *cli.Command {
 			if reqPath != "" {
 				data, err := os.ReadFile(reqPath)
 				if err == nil {
-					err = json.Unmarshal(data, pair.request(&req))
+					// The request side decodes strictly, as every request
+					// root does: an unknown key keeps its own code.
+					err = strictjson.DecodeInto(data, pair.request(&req), strictjson.Options{AllowMeta: true})
+				}
+				var ce *perr.CodedError
+				if errors.As(err, &ce) {
+					return cliCodedError(cmd, jsonOut, "CLI_INPUT", err)
 				}
 				if err != nil {
 					return cliError(cmd, jsonOut, "CLI_INPUT", "--request "+reqPath+": "+err.Error())

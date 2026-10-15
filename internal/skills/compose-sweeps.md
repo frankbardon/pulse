@@ -47,7 +47,7 @@ Omit `label` for the default: the `axis=value` pairs joined by `_`. An authored 
 
 ## Strict body
 
-The substituted body decodes STRICTLY into a `Request`: an unknown key or a wrong-typed value is `PULSE_SWEEP_INVALID` `request_decode` (`details.unknown_field`), even where a plain compose body would ignore it. The failure is found at expansion, before any slot runs.
+The substituted body decodes STRICTLY into a `Request`, like a plain compose slot: an unknown key is `PULSE_REQUEST_UNKNOWN_FIELD` (`details.path`, suggestion, plus the sweep `slot` / `values`); a wrong-typed value is `PULSE_SWEEP_INVALID` `request_decode`. The failure is found at expansion, before any slot runs.
 
 ## Overlays
 

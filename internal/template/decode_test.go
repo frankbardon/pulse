@@ -253,41 +253,57 @@ func TestRendered_Typed(t *testing.T) {
 	})
 }
 
-// TestRender_UnknownFieldNamesTheField is the papercut guard. Strict
-// decode is harsher than the rest of Pulse, which tolerates unknown
-// fields — that tolerance is how the internal/examples/ `_meta` block survives at
-// execution. The message has to name the offending key, or a body pasted
-// from an internal/examples/ file fails with no clue why.
+// TestRender_UnknownFieldNamesTheField is the papercut guard. A rendered
+// body refuses even the internal/examples/ `_meta` block a request file
+// tolerates, so the message has to name the offending key, or a body
+// pasted from an internal/examples/ file fails with no clue why. The
+// fault is located (details.path, from the body root) and suggests the
+// nearest valid key when one is close — the code stays the template's.
 func TestRender_UnknownFieldNamesTheField(t *testing.T) {
 	tests := []struct {
 		name      string
 		target    template.Target
 		body      string
 		wantField string
+		wantPath  string
+		wantNear  string
 	}{
 		{
 			name:      "examples _meta block at the root",
 			target:    template.TargetRequest,
 			body:      `{"_meta":{"operators":["AGG_SUM"]},"cohort":{"filename":"a.pulse"}}`,
 			wantField: "_meta",
+			wantPath:  "_meta",
 		},
 		{
 			name:      "typo on a request slot",
 			target:    template.TargetRequest,
 			body:      `{"cohort":{"filename":"a.pulse"},"aggregation":[]}`,
 			wantField: "aggregation",
+			wantPath:  "aggregation",
+			wantNear:  "aggregations",
 		},
 		{
 			name:      "unknown key nested inside an operator",
 			target:    template.TargetRequest,
 			body:      `{"aggregations":[{"type":"AGG_SUM","field":"x","bucket":10}]}`,
 			wantField: "bucket",
+			wantPath:  "aggregations[0].bucket",
+		},
+		{
+			name:      "typo deep inside a composed slot",
+			target:    template.TargetComposed,
+			body:      `{"requests":[{"cohort":{"filename":"a.pulse"}},{"sort":[{"feild":"x"}]}]}`,
+			wantField: "feild",
+			wantPath:  "requests[1].sort[0].feild",
+			wantNear:  "field",
 		},
 		{
 			name:      "unknown key on a non-request target",
 			target:    template.TargetFacet,
 			body:      `{"fields":["region"],"top_k":5}`,
 			wantField: "top_k",
+			wantPath:  "top_k",
 		},
 	}
 	for _, tt := range tests {
@@ -309,6 +325,15 @@ func TestRender_UnknownFieldNamesTheField(t *testing.T) {
 			}
 			if got := ce.Details["field"]; got != tt.wantField {
 				t.Errorf("details[\"field\"] = %v, want %q", got, tt.wantField)
+			}
+			if got := ce.Details["path"]; got != tt.wantPath {
+				t.Errorf("details[\"path\"] = %v, want %q", got, tt.wantPath)
+			}
+			if got, ok := ce.Details["suggestion"]; tt.wantNear == "" && ok || tt.wantNear != "" && got != tt.wantNear {
+				t.Errorf("details[\"suggestion\"] = %v, want %q", got, tt.wantNear)
+			}
+			if tt.wantNear != "" && !strings.Contains(ce.Message, `did you mean "`+tt.wantNear+`"`) {
+				t.Errorf("message does not suggest %q: %s", tt.wantNear, ce.Message)
 			}
 			if got := ce.Details[perr.DetailTemplate]; got != tm.Name {
 				t.Errorf("details[%q] = %v, want %q", perr.DetailTemplate, got, tm.Name)

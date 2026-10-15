@@ -2414,7 +2414,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_REQUEST_UNKNOWN_FIELD: {
-		Message: "The request JSON contains a top-level key that is not a recognised Request slot. JSON decoding silently ignores unknown keys, so the intended operation is dropped and the request runs as if it were absent. A common cause is using a manifest operator-catalog field name (\"groupers\", \"aggregators\") as the request key instead of the request slot name (\"groups\", \"aggregations\"). When `details.path` is present the key sits inside that slot object (\"aggregations[0]\") rather than at the top level, and `valid_keys` lists that object's keys.",
+		Message: "The request JSON contains a key that is not a recognised slot of the object it sits in — at the request root or at any depth (a sort entry, an aggregation, a crosstab cell, a Compose slot, a chain stage, a sweep body, a for_each item). Every JSON request root (CLI request files, MCP tool arguments, Compose sweep bodies and for_each items) is decoded strictly, so the key is refused rather than ignored: an ignored key would silently drop the intended operation. A slot this instance's feature profile hides is refused the same way and is never listed as valid. A common cause is using a manifest operator-catalog field name (\"groupers\", \"aggregators\") as the request key instead of the request slot name (\"groups\", \"aggregations\"). Below the root `details.path` locates the first offending key (\"sort[0].direction\", \"aggregations[0].weight\") and `valid_keys` lists that object's keys; `details.request` / `fit` / `stage` (Compose slot, fit, chain stage) or `slot` (sweep) / `index` (for_each combination) say which nested request it is in.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,

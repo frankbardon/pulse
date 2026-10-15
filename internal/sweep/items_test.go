@@ -156,19 +156,34 @@ func TestExpandItems_PreflightBeforeRender(t *testing.T) {
 	}
 }
 
-// A rendered item that does not decode strictly is item_decode, naming
-// the combination and the unknown key.
+// A rendered item carrying an unknown key is PULSE_REQUEST_UNKNOWN_FIELD
+// (the shared strict decoder), its details.path rooted at the item and
+// the combination named; a mistyped value stays item_decode.
 func TestRenderItem_StrictDecode(t *testing.T) {
 	p := pendingItem{
 		path: "windows[3]",
 		spec: &types.ForEach{Axes: []types.SweepAxis{{Name: "x", Values: []any{"a"}}}},
-		body: json.RawMessage(`{"type": "WIN_LAG", "bogus": "{{x}}"}`),
+		body: json.RawMessage(`{"type": "WIN_LAG", "bogus": "{{x}}", "frame": {"mode": "rows", "precedng": 1}}`),
 	}
 	_, err := renderItem[types.Window](p, map[string]any{"x": "a"}, 0)
-	ce := requireForEachInvalid(t, err, ReasonItemDecode, "windows[3]")
-	if ce.Details["unknown_field"] != "bogus" || ce.Details["index"] != 0 {
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_REQUEST_UNKNOWN_FIELD {
+		t.Fatalf("want PULSE_REQUEST_UNKNOWN_FIELD, got %v", err)
+	}
+	if ce.Details["path"] != "windows[3].bogus" || ce.Details["index"] != 0 {
 		t.Fatalf("details = %v", ce.Details)
 	}
+
+	p.body = json.RawMessage(`{"type": "WIN_LAG", "frame": {"mode": "rows", "precedng": 1}}`)
+	_, err = renderItem[types.Window](p, map[string]any{"x": "a"}, 0)
+	if !stderrors.As(err, &ce) || ce.Details["path"] != "windows[3].frame.precedng" ||
+		ce.Details["suggestions"].(map[string]any)["precedng"] != "preceding" {
+		t.Fatalf("nested: %v", err)
+	}
+
+	p.body = json.RawMessage(`{"type": "WIN_LAG", "field": 3}`)
+	_, err = renderItem[types.Window](p, map[string]any{"x": "a"}, 0)
+	requireForEachInvalid(t, err, ReasonItemDecode, "windows[3]")
 }
 
 func TestExpandItems_Faults(t *testing.T) {

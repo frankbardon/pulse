@@ -138,8 +138,8 @@ func TestHiddenWeighting_NestedWeightRefusedEverywhere(t *testing.T) {
 					if keys := toStrings(got.details["unknown_keys"]); !slices.Equal(keys, []string{"weight"}) {
 						t.Errorf("unknown_keys = %v", keys)
 					}
-					if got.details["path"] != path {
-						t.Errorf("path = %v, want %s", got.details["path"], path)
+					if got.details["path"] != path+".weight" {
+						t.Errorf("path = %v, want %s.weight", got.details["path"], path)
 					}
 					if slices.Contains(toStrings(got.details["valid_keys"]), "weight") {
 						t.Errorf("valid_keys lists weight")

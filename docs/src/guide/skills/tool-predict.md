@@ -29,7 +29,7 @@ Every answer carries the coded `errors` / `warnings` (`{code, message, details}`
 - `Streamable` reflects per-operator `Streamable()` plus schema gates (decimal128 forces buffered).
 - `CrosstabFusable` is absent (nil) without a crosstab; it runs the engine's own fusion rule on the defaulted request and honours `Options.DisableCrosstabFusion` (false + reason). Output is identical either way — only memory differs. Predict cannot see a grouper factory rejecting its params: it may say fusable where the runtime refuses the request anyway.
 - `DefaultsApplied` is always computed — disabling defaults at request time via `--no-defaults` does NOT suppress the report.
-- Unknown top-level keys are rejected with `PULSE_REQUEST_UNKNOWN_FIELD` and a "did you mean" suggestion.
+- An unknown key at any depth is rejected with `PULSE_REQUEST_UNKNOWN_FIELD`, `details.path` (`sort[0].direction`) and a "did you mean" suggestion; process refuses the same body alike.
 
 ## See
 

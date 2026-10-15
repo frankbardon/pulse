@@ -496,7 +496,7 @@
       },
       {
         "name": "pulse_process",
-        "description": "CALL TO RUN ONE VALIDATED REQUEST AGAINST A COHORT. Execute a pre-built processing request against an existing cohort.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nNOTE: request slot keys differ from the manifest's operator-catalog field names. Grouping operations go under the \"groups\" key (NOT \"groupers\") and aggregations under \"aggregations\" (NOT \"aggregators\"); the catalog names \"groupers\"/\"aggregators\" only list the available GROUP_*/AGG_* operators. Unknown keys are silently dropped on decode, so a misnamed slot is treated as absent — pulse_predict and pulse_process reject unrecognized top-level keys with PULSE_REQUEST_UNKNOWN_FIELD and a 'did you mean' suggestion."
+        "description": "CALL TO RUN ONE VALIDATED REQUEST AGAINST A COHORT. Execute a pre-built processing request against an existing cohort.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nNOTE: request slot keys differ from the manifest's operator-catalog field names. Grouping operations go under the \"groups\" key (NOT \"groupers\") and aggregations under \"aggregations\" (NOT \"aggregators\"); the catalog names \"groupers\"/\"aggregators\" only list the available GROUP_*/AGG_* operators. An unknown key at any depth is refused, never dropped: PULSE_REQUEST_UNKNOWN_FIELD names it, its location (details.path, e.g. sort[0].direction) and a 'did you mean' suggestion."
       },
       {
         "name": "pulse_skills_get",
@@ -1323,4 +1323,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b479e8bdb345fee554ed8197729b3dc9f1460578df5bee45e98dd23fc9653acd
+// golden-hash: ffec903f0fb0b640374e81a32deb049f4f90f32a662060533a7c06acc1b12d92

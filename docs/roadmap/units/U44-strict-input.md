@@ -118,7 +118,7 @@ Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`]
 
 Filed from [U42 handed on](U42-fit-scoring.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#397** — In a plain (non-sweep) compose slot, an unknown grouper key such as `"label"` on `GROUP_RANGE` is silently ignored, while a sweep body's strict decode refuses it. A plain request should refuse unknown grouper keys the same way, or the two paths should be unified. Found in U42 (E4-S1) while converting the MMM fixture (`docs/roadmap/fixtures/mmm-harbor-pine/req/10`–`11` used to carry `"label"`).
+- [x] **#397** — In a plain (non-sweep) compose slot, an unknown grouper key such as `"label"` on `GROUP_RANGE` is silently ignored, while a sweep body's strict decode refuses it. A plain request should refuse unknown grouper keys the same way, or the two paths should be unified. Found in U42 (E4-S1) while converting the MMM fixture (`docs/roadmap/fixtures/mmm-harbor-pine/req/10`–`11` used to carry `"label"`).
 
 ## Handed on from U35
 
