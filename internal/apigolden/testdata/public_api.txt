@@ -1685,6 +1685,7 @@ pulse/descriptor: type OverlayCapability field Fields []string "json:\"fields,om
 pulse/descriptor: type OverlayCapability field Inferential bool "json:\"inferential,omitempty\""
 pulse/descriptor: type OverlayCapability field Intents []string "json:\"intents,omitempty\""
 pulse/descriptor: type OverlayCapability field Kind pulse/types.OverlayKind "json:\"kind\""
+pulse/descriptor: type OverlayCapability field Params []pulse/descriptor.Param "json:\"params,omitempty\""
 pulse/descriptor: type OverlayCapability field Parts []pulse/descriptor.OverlayPart "json:\"parts,omitempty\""
 pulse/descriptor: type OverlayCapability field RefKinds []string "json:\"ref_kinds\""
 pulse/descriptor: type OverlayCapability field Scopes []pulse/types.OverlayScope "json:\"scopes\""
@@ -1711,6 +1712,7 @@ pulse/descriptor: type Param field ExactlyOneOf string "json:\"exactly_one_of,om
 pulse/descriptor: type Param field FieldFilter string "json:\"field_filter,omitempty\""
 pulse/descriptor: type Param field Name string "json:\"name\""
 pulse/descriptor: type Param field Required bool "json:\"required\""
+pulse/descriptor: type Param field Slot bool "json:\"slot,omitempty\""
 pulse/descriptor: type Param field Type string "json:\"type\""
 pulse/descriptor: const Partial pulse/types.ComponentsMergeability = "partial"
 pulse/descriptor: type PopulationMeta struct
@@ -2273,6 +2275,7 @@ pulse/errors: const PROCESSING_RUNTIME pulse/errors.Code = "PROCESSING_RUNTIME"
 pulse/errors: const PROCESSING_STATE pulse/errors.Code = "PROCESSING_STATE"
 pulse/errors: const PROCESSING_VECTOR_LENGTH_MISMATCH pulse/errors.Code = "PROCESSING_VECTOR_LENGTH_MISMATCH"
 pulse/errors: const PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC pulse/errors.Code = "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC"
+pulse/errors: const PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED pulse/errors.Code = "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED"
 pulse/errors: const PULSE_ADVISORY_EXTRA_PASS pulse/errors.Code = "PULSE_ADVISORY_EXTRA_PASS"
 pulse/errors: const PULSE_ADVISORY_MANY_TESTS pulse/errors.Code = "PULSE_ADVISORY_MANY_TESTS"
 pulse/errors: const PULSE_ADVISORY_ORDINAL_PARAMETRIC pulse/errors.Code = "PULSE_ADVISORY_ORDINAL_PARAMETRIC"
@@ -5306,4 +5309,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: bd98bad785260ebb37b5bebe5f3b887a7136d93a3ad45e9640eaffe46af8bd7d
+// golden-hash: 6538d11e94771de9a95cdf2b939f741052d3e93bdb3f0be0b8889084330b692b

@@ -1,7 +1,6 @@
 package processing
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
@@ -9,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -80,8 +80,9 @@ func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 			map[string]any{"alpha": spec.Alpha})
 	}
 	var params propZParams
+	paramread.Declare(paramread.Test, string(spec.Type), &params)
 	if len(spec.Params) > 0 {
-		if err := json.Unmarshal(spec.Params, &params); err != nil {
+		if err := paramread.Decode(paramread.Test, string(spec.Type), spec.Params, &params); err != nil {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				"TEST_PROP_Z params: "+err.Error())
 		}

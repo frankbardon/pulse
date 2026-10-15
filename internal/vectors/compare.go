@@ -11,6 +11,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
 )
@@ -245,13 +246,18 @@ func ComparisonParams(at string, typ types.AttributeType, raw json.RawMessage, m
 	p := len(members.Members)
 	cfg := ComparisonConfig{Type: typ, MinValid: 1, Vector: members.Name}
 	var params vecDistanceParams
+	if typ == types.ATTR_VEC_DISTANCE {
+		paramread.Declare(paramread.Attribute, string(typ), &params)
+	} else {
+		paramread.Declare(paramread.Attribute, string(typ), &params.comparisonParams)
+	}
 	raw = bytes.TrimSpace(raw)
 	if len(raw) > 0 && !bytes.Equal(raw, []byte("null")) {
 		var err error
 		if typ == types.ATTR_VEC_DISTANCE {
-			err = decodeStrict(raw, &params)
+			err = paramread.DecodeStrict(paramread.Attribute, string(typ), raw, &params)
 		} else {
-			err = decodeStrict(raw, &params.comparisonParams)
+			err = paramread.DecodeStrict(paramread.Attribute, string(typ), raw, &params.comparisonParams)
 		}
 		if err != nil {
 			keys := "metric, min_valid, reference, labels"
@@ -840,7 +846,7 @@ func comparisonReference(typ types.AttributeType, a *types.Attribute) (ref struc
 	var p struct {
 		Reference json.RawMessage `json:"reference"`
 	}
-	if json.Unmarshal(a.Params, &p) != nil {
+	if paramread.Probe(a.Params, &p) != nil {
 		return ref, false
 	}
 	if raw := bytes.TrimSpace(p.Reference); len(raw) == 0 || raw[0] != '{' || json.Unmarshal(raw, &ref) != nil {
@@ -936,7 +942,7 @@ func ComparisonRecord(typ types.AttributeType, a *types.Attribute) (ComparisonRe
 	var p struct {
 		Reference json.RawMessage `json:"reference"`
 	}
-	if json.Unmarshal(a.Params, &p) != nil {
+	if paramread.Probe(a.Params, &p) != nil {
 		return ComparisonReference{}, false
 	}
 	raw := bytes.TrimSpace(p.Reference)

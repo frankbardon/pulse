@@ -121,7 +121,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 90,
+    "error_codes_count": 91,
     "error_domains": [
       "CLI",
       "DATA",
@@ -149,6 +149,7 @@
       "PROCESSING_INTERNAL",
       "PROCESSING_RUNTIME",
       "PROCESSING_STATE",
+      "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
       "PULSE_ARCHIVE_CORRUPT",
       "PULSE_ARCHIVE_MAGIC_INVALID",
@@ -791,4 +792,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 628d45eff868860d4329beb88ad7ae253ec05a4a96afb630668c621247bb83ee
+// golden-hash: 7e10ffdf5cd74236bf2e16a6d4124510d3ca6e954e8d6649bad713cb55ffd66e

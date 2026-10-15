@@ -42,7 +42,7 @@ func TestValidateOverlay_Symmetry(t *testing.T) {
 		{"sum cell", nil, types.AGG_SUM, false, ok, ""},
 		{"correct false", nil, "", false, params(`{"correct":false}`), ""},
 		{"correct not a boolean", nil, "", false, params(`{"correct":"no"}`), errors.PULSE_OVERLAY_PARAM_MISSING},
-		{"unknown param", nil, "", false, params(`{"exact":true}`), errors.PULSE_OVERLAY_PARAM_MISSING},
+		{"unknown param", nil, "", false, params(`{"exact":true}`), errors.PULSE_REQUEST_UNKNOWN_FIELD},
 		{"average cell", nil, types.AGG_AVERAGE, false, ok, errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED},
 		{"columns carry two groupers", twoCols, "", false, ok, errors.PULSE_OVERLAY_MATRIX_NOT_SQUARE},
 		{"ref margin", nil, "", false, with(func(s *types.OverlaySpec) {
@@ -54,6 +54,7 @@ func TestValidateOverlay_Symmetry(t *testing.T) {
 		{"within", nil, "", false, with(func(s *types.OverlaySpec) { s.Within = 1 }), errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE},
 	}
 	overlayCodes := []errors.Code{
+		errors.PULSE_REQUEST_UNKNOWN_FIELD,
 		errors.PULSE_OVERLAY_KIND_UNKNOWN, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 		errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED, errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
 		errors.PULSE_OVERLAY_PARAM_MISSING, errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED,

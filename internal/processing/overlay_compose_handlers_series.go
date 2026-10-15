@@ -81,7 +81,7 @@ func composeHostIsSeries(reference *types.Response, target *types.Response) bool
 // Layer-level Summary.Baseline = scale (default 100) for renderer-
 // facing centring.
 func applyIndexVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Response, target *types.Response, refIdx int, targetIdx int) (types.OverlayLayer, []types.OverlayWarning, error) {
-	scale := scaleFromParams(spec.Params, 100.0)
+	scale := scaleFromParams(spec.Kind, spec.Params, 100.0)
 	refIndex, _ := buildSeriesRowLookup(reference.Data)
 
 	entries := make([]types.SeriesEntry, 0, len(target.Data))

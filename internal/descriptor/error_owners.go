@@ -212,7 +212,10 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_ADVISORY_EXTRA_PASS:              own("ATTR_FORMULA"),
 	// Fires only on the ordered series overlays (seriespartition.Ordered).
 	errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE: own(advisoryOrderedOverlayNames()...),
-	errors.PULSE_SUPPRESS_ADVISORY_UNKNOWN:     shared,
+	// Fires on an embedder extension operator, which any instance may
+	// register.
+	errors.PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED: shared,
+	errors.PULSE_SUPPRESS_ADVISORY_UNKNOWN:            shared,
 	// Raised by recommend AND by the core examples search's intent
 	// filter, which every instance carries.
 	errors.PULSE_RECOMMEND_INTENT_UNKNOWN: shared,

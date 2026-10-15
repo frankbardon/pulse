@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -327,6 +328,7 @@ func promoteYoYFrequencyFromGroupParams(req *types.Request, exts *ExtensionRegis
 	if date < 0 {
 		return req.Overlays
 	}
+	paramread.Read(paramread.Grouper, string(req.Groups[date].Type), "frequency")
 	groupFrequency, hasGroupFrequency := readYoYFrequencyFromParams(req.Groups[date].Params)
 	if !hasGroupFrequency {
 		return req.Overlays

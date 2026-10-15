@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -535,16 +536,17 @@ type MahalanobisConfig struct {
 // call it.
 func MahalanobisParams(at string, raw json.RawMessage) (MahalanobisConfig, *errors.CodedError) {
 	cfg := MahalanobisConfig{Output: MahalanobisD2}
-	raw = bytes.TrimSpace(raw)
-	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
-		return cfg, nil
-	}
 	var params struct {
 		FittedCommon
 		fittedLabels
 		Output *string `json:"output"`
 	}
-	if err := decodeStrict(raw, &params); err != nil {
+	paramread.Declare(paramread.Attribute, string(types.ATTR_MAHALANOBIS), &params)
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return cfg, nil
+	}
+	if err := paramread.DecodeStrict(paramread.Attribute, string(types.ATTR_MAHALANOBIS), raw, &params); err != nil {
 		return MahalanobisConfig{}, attributeInvalid(at, "bad_params",
 			at+" ATTR_MAHALANOBIS params: "+err.Error()+" (keys: output, fit_on, fit, labels, missing)", nil)
 	}
@@ -619,7 +621,7 @@ func PCScoreParams(at string, raw json.RawMessage) (PCScoreConfig, *errors.Coded
 		Epsilon    *float64     `json:"epsilon"`
 		Components *json.Number `json:"components"`
 	}
-	if err := decodeStrict(raw, &params); err != nil {
+	if err := paramread.DecodeStrict(paramread.Attribute, string(types.ATTR_PC_SCORE), raw, &params); err != nil {
 		return PCScoreConfig{}, attributeInvalid(at, "bad_params",
 			at+" ATTR_PC_SCORE params: "+err.Error()+" (keys: component, on, rotation, epsilon, components, fit_on, fit, labels, missing)", nil)
 	}
@@ -754,7 +756,7 @@ func FactorScoreParams(at string, raw json.RawMessage) (FactorScoreConfig, *erro
 		Gamma      *float64        `json:"gamma"`
 		Epsilon    *float64        `json:"epsilon"`
 	}
-	if err := decodeStrict(raw, &params); err != nil {
+	if err := paramread.DecodeStrict(paramread.Attribute, string(types.ATTR_FACTOR_SCORE), raw, &params); err != nil {
 		return FactorScoreConfig{}, attributeInvalid(at, "bad_params",
 			at+" ATTR_FACTOR_SCORE params: "+err.Error()+" (keys: factor, method, factors, extraction, rotation, kappa, gamma, epsilon, fit_on, fit, labels, missing)", nil)
 	}
@@ -857,7 +859,7 @@ func AttributeFit(typ types.AttributeType, a *types.Attribute) string {
 		return ""
 	}
 	var c FittedCommon
-	if json.Unmarshal(a.Params, &c) != nil || c.Fit == nil {
+	if paramread.Probe(a.Params, &c) != nil || c.Fit == nil {
 		return ""
 	}
 	return *c.Fit

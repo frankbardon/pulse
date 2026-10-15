@@ -150,6 +150,7 @@ suggested fix. They never change execution, `valid` or `--strict`.
 | `PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED` | the cohort names a weight variable and the request uses none |
 | `PULSE_ADVISORY_EXTRA_PASS` | an `ATTR_FORMULA` calls `total(expr)`, which adds a pre-pass over the filtered rows |
 | `PULSE_ADVISORY_SERIES_AXIS_NOT_DATE` | an ordered series overlay over two or more groupers, with no `partition_by`, runs its series down a last grouper that is not a date |
+| `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED` | a slot names an extension operator whose registration declares no params, yet carries a `params` object its keys pass through unchecked |
 
 Silence a code for the whole instance with `Options.SuppressAdvisories`;
 an unknown code is refused at `pulse.New` with

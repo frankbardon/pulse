@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -280,12 +281,11 @@ func CheckScore(attr *types.Attribute, cat Catalog) (ScoreParams, Signature, *er
 // to the zero ScoreParams (and then refuse as fit_missing).
 func DecodeScoreParams(raw json.RawMessage) (ScoreParams, *errors.CodedError) {
 	var p ScoreParams
+	paramread.Declare(paramread.Attribute, string(types.ATTR_REG_PREDICT), &p)
 	if len(bytes.TrimSpace(raw)) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 		return p, nil
 	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&p); err != nil {
+	if err := paramread.DecodeStrict(paramread.Attribute, string(types.ATTR_REG_PREDICT), raw, &p); err != nil {
 		return ScoreParams{}, scoreInvalid("", ReasonParamsInvalid,
 			"params must be an object {fit, terms?, scale?, bound?}: "+err.Error(), nil)
 	}

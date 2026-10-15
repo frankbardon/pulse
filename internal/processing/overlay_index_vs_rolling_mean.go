@@ -1,10 +1,10 @@
 package processing
 
 import (
-	"encoding/json"
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -202,7 +202,7 @@ func extractWindowParam(spec *types.OverlaySpec) (int, error) {
 			})
 	}
 	var m map[string]any
-	if err := json.Unmarshal(spec.Params, &m); err != nil {
+	if err := paramread.Decode(paramread.Overlay, string(spec.Kind), spec.Params, &m); err != nil {
 		return 0, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" Params must be a JSON object carrying \"window\"",
@@ -211,6 +211,7 @@ func extractWindowParam(spec *types.OverlaySpec) (int, error) {
 				"param": "window",
 			})
 	}
+	paramread.Read(paramread.Overlay, string(spec.Kind), "window")
 	raw, present := m["window"]
 	if !present {
 		return 0, errors.NewCodedErrorWithDetails(

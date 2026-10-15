@@ -58,7 +58,7 @@ func scoredVecAggs(layout string, expand bool) []*types.Aggregation {
 }
 
 func scoredVecGroups() []*types.Group {
-	return []*types.Group{{Type: types.GROUP_RANGE, Field: "qty", Params: json.RawMessage(`{"ranges":[[0,10],[10,20],[20,100]]}`)}}
+	return []*types.Group{{Type: types.GROUP_RANGE, Field: "qty", Interval: 10}}
 }
 
 func scoredVecCompose(layout string, expand bool, field any) *pulse.ComposedRequest {

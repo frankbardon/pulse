@@ -264,7 +264,7 @@ func TestComposeFits_Refusals(t *testing.T) {
 	noRegs := fitRequest("0", "90")
 	noRegs.Regressions = nil
 	grouped := fitRequest("0", "90")
-	grouped.Groups = []*types.Group{{Type: types.GROUP_RANGE, Field: "week", Params: json.RawMessage(`{"interval":52}`)}}
+	grouped.Groups = []*types.Group{{Type: types.GROUP_RANGE, Field: "week", Interval: 52}}
 	cases := []struct {
 		name   string
 		fits   []types.FitSpec

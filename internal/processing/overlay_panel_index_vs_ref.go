@@ -2,6 +2,7 @@ package processing
 
 import (
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -74,6 +75,9 @@ func applyPanelIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Respo
 	// Cap enforcement runs FIRST — an over-cap panel fails loud before
 	// any per-target work happens. The cap counts target slots only; the
 	// reference is always present and does not count.
+	// The per-target shim reads params.scale as OVERLAY_INDEX_VS_REF;
+	// the panel kind reads it all the same.
+	paramread.Read(paramread.Overlay, string(spec.Kind), "scale")
 	cap := resolveMaxPanelTargets(spec.Options)
 	if len(targets) > cap {
 		return nil, nil, errors.NewCodedErrorWithDetails(

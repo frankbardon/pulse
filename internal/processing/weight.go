@@ -1,11 +1,11 @@
 package processing
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -35,7 +35,7 @@ func weightedMeanField(a *types.Aggregation) string {
 		return ""
 	}
 	var p weightedMeanParams
-	if json.Unmarshal(a.Params, &p) != nil {
+	if paramread.Decode(paramread.Aggregator, string(a.Type), a.Params, &p) != nil {
 		return ""
 	}
 	return p.WeightField

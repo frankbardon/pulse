@@ -1,22 +1,16 @@
 package processing
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
-
-// jsonUnmarshalStrict wraps encoding/json so the post-test code below
-// can keep a single import alias.
-func jsonUnmarshalStrict(raw []byte, target any) error {
-	return json.Unmarshal(raw, target)
-}
 
 // Tier-2 post-test implementations. These consume the materialized
 // result row set after the window stage, so each Test must reference
@@ -65,7 +59,7 @@ func newAnovaPost(spec *types.Test, schema *encoding.Schema) (PostTest, error) {
 			map[string]any{"alpha": spec.Alpha})
 	}
 	var params anovaPostParams
-	if err := unmarshalTestParams(spec.Params, &params); err != nil {
+	if err := unmarshalTestParams(string(spec.Type), spec.Params, &params); err != nil {
 		return nil, err
 	}
 	if params.NCol == "" || params.VarianceCol == "" {
@@ -200,16 +194,14 @@ func newTrendPost(spec *types.Test, schema *encoding.Schema) (PostTest, error) {
 			map[string]any{"alpha": spec.Alpha})
 	}
 	variant := "mann_kendall"
-	if len(spec.Params) > 0 {
-		var p struct {
-			Variant string `json:"variant"`
-		}
-		if err := unmarshalTestParams(spec.Params, &p); err != nil {
-			return nil, err
-		}
-		if p.Variant != "" {
-			variant = p.Variant
-		}
+	var p struct {
+		Variant string `json:"variant"`
+	}
+	if err := unmarshalTestParams(string(spec.Type), spec.Params, &p); err != nil {
+		return nil, err
+	}
+	if p.Variant != "" {
+		variant = p.Variant
 	}
 	if variant != "mann_kendall" {
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
@@ -401,13 +393,10 @@ func stringFromRow(row map[string]any, field string, idx int) (string, error) {
 	return fmt.Sprintf("%v", v), nil
 }
 
-// unmarshalTestParams decodes spec.Params into target with a clean
-// error code. Empty raw message is OK (no params).
-func unmarshalTestParams(raw []byte, target any) error {
-	if len(raw) == 0 {
-		return nil
-	}
-	if err := jsonUnmarshalStrict(raw, target); err != nil {
+// unmarshalTestParams decodes post-test op's spec.Params into target
+// with a clean error code. Empty raw message is OK (no params).
+func unmarshalTestParams(op string, raw []byte, target any) error {
+	if err := paramread.DecodeOptional(paramread.PostTest, op, raw, target); err != nil {
 		return errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"invalid test params: "+err.Error())
 	}

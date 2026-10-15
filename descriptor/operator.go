@@ -175,6 +175,15 @@ type Param struct {
 	// required on its own. The first member in Params order is the
 	// one a drafted request names. Omitted for an ungrouped param.
 	ExactlyOneOf string `json:"exactly_one_of,omitempty"`
+
+	// Slot is true when the key is a field of the slot object itself
+	// (Group.Interval, Test.Alpha, every RegressionSpec knob), listed
+	// here for discovery, and NOT a key of its params object. A params
+	// object is checked against the entries without Slot: an unknown
+	// key there is refused PULSE_REQUEST_UNKNOWN_FIELD, so a slot key
+	// written under params is refused rather than silently ignored.
+	// Omitted for a params key.
+	Slot bool `json:"slot,omitempty"`
 }
 
 // TestMeta describes a statistical test entry in the manifest. Tier-1 and

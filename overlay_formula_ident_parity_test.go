@@ -36,7 +36,7 @@ func TestRequestFormula_IdentRefusalMatchesPredict(t *testing.T) {
 		case "<no params>":
 			params = nil
 		case "<no formula key>":
-			params = json.RawMessage(`{"other": 1}`)
+			params = json.RawMessage(`{}`)
 		case "<non-string>":
 			params = json.RawMessage(`{"formula": 2}`)
 		}

@@ -56,7 +56,7 @@ func TestValidateOverlay_Rake(t *testing.T) {
 		{"targets_as unknown", nil, "", false, params(`{` + targets + `,"targets_as":"weights"}`), errors.PULSE_OVERLAY_PARAM_MISSING},
 		{"max_iter zero", nil, "", false, params(`{` + targets + `,"max_iter":0}`), errors.PULSE_OVERLAY_PARAM_MISSING},
 		{"tolerance zero", nil, "", false, params(`{` + targets + `,"tolerance":0}`), errors.PULSE_OVERLAY_PARAM_MISSING},
-		{"unknown param", nil, "", false, params(`{` + targets + `,"write_weights":true}`), errors.PULSE_OVERLAY_PARAM_MISSING},
+		{"unknown param", nil, "", false, params(`{` + targets + `,"write_weights":true}`), errors.PULSE_REQUEST_UNKNOWN_FIELD},
 		{"average cell", nil, types.AGG_AVERAGE, false, ok, errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED},
 		{"ref margin", nil, "", false, with(func(s *types.OverlaySpec) {
 			s.Ref.Margin = &types.OverlayMarginRef{Axis: types.MarginAxisRow}
@@ -67,6 +67,7 @@ func TestValidateOverlay_Rake(t *testing.T) {
 		{"within", nil, "", false, with(func(s *types.OverlaySpec) { s.Within = 1 }), errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE},
 	}
 	overlayCodes := []errors.Code{
+		errors.PULSE_REQUEST_UNKNOWN_FIELD,
 		errors.PULSE_OVERLAY_KIND_UNKNOWN, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 		errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED, errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
 		errors.PULSE_OVERLAY_PARAM_MISSING, errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED,

@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -177,6 +178,7 @@ func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetReques
 // mirror surfaces a coded error when a caller bypassed predict and
 // dispatched directly into FacetSchema with an unresolved spec.
 func resolveFacetOverlayHostFieldRuntime(req *types.FacetRequest, spec *types.OverlaySpec, index int) (string, error) {
+	paramread.Read(paramread.Overlay, string(spec.Kind), "field")
 	requested, hasParam := readFacetOverlayFieldParamRuntime(spec.Params)
 	if hasParam {
 		for _, name := range req.Fields {

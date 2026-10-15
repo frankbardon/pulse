@@ -1,12 +1,12 @@
 package feature
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -69,7 +69,7 @@ func newTargetEncode(feat *types.Feature, schema *encoding.Schema) (Computer, er
 			"FEAT_TARGET_ENCODE requires params with a 'target' field")
 	}
 	var p targetEncodeParams
-	if err := json.Unmarshal(feat.Params, &p); err != nil {
+	if err := paramread.Decode(paramread.Feature, string(feat.Type), feat.Params, &p); err != nil {
 		return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG,
 			"parsing FEAT_TARGET_ENCODE params")
 	}

@@ -1,7 +1,6 @@
 package processing
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
@@ -13,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/dategroup"
 	"github.com/frankbardon/pulse/internal/groupfit"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -1445,8 +1445,9 @@ func newDateRangesGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, e
 	}
 
 	var params dateRangesGroupParams
+	paramread.Declare(paramread.Grouper, string(grp.Type), &params)
 	if len(grp.Params) > 0 {
-		if err := json.Unmarshal(grp.Params, &params); err != nil {
+		if err := paramread.Decode(paramread.Grouper, string(grp.Type), grp.Params, &params); err != nil {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("invalid GROUP_DATE_RANGES params: %v", err))
 		}

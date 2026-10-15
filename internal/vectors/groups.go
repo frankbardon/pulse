@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -263,7 +264,7 @@ func KMeansParams(at string, raw json.RawMessage) (KMeansConfig, *errors.CodedEr
 		// decode does not refuse the key.
 		Fit json.RawMessage `json:"fit"`
 	}
-	if err := decodeStrict(raw, &p); err != nil {
+	if err := paramread.DecodeStrict(paramread.Grouper, string(types.GROUP_KMEANS), raw, &p); err != nil {
 		return KMeansConfig{}, groupInvalid(at, "bad_params",
 			at+" GROUP_KMEANS params: "+err.Error()+" (keys: k, seed, max_iter, n_init, standardize, missing, fit)", nil)
 	}

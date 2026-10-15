@@ -15,7 +15,9 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/temporal"
+	"github.com/frankbardon/pulse/types"
 )
 
 // Operator is the type name every refusal names.
@@ -74,8 +76,9 @@ func (s Spec) DatedWeeks() bool {
 func Parse(raw json.RawMessage) (Spec, error) {
 	spec := Spec{Component: DefaultComponent, WeekStart: time.Monday}
 	var p params
+	paramread.Declare(paramread.Grouper, string(types.GROUP_DATE), &p)
 	if len(raw) > 0 {
-		if err := json.Unmarshal(raw, &p); err != nil {
+		if err := paramread.Decode(paramread.Grouper, string(types.GROUP_DATE), raw, &p); err != nil {
 			return Spec{}, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("invalid GROUP_DATE params: %v", err))
 		}

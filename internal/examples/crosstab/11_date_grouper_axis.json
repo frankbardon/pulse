@@ -28,7 +28,7 @@
         "type": "GROUP_DATE",
         "field": "period",
         "params": {
-          "unit": "month"
+          "component": "month"
         }
       }
     ],

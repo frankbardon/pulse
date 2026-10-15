@@ -116,6 +116,14 @@ func SlimManifest(m *descriptor.Manifest) *descriptor.Manifest {
 	slimOverlays := make([]descriptor.OverlayCapability, len(m.Overlays))
 	for i, o := range m.Overlays {
 		o.Description = ""
+		if len(o.Params) > 0 {
+			params := make([]descriptor.Param, len(o.Params))
+			for j, p := range o.Params {
+				p.Description = ""
+				params[j] = p
+			}
+			o.Params = params
+		}
 		slimOverlays[i] = o
 	}
 	out.Overlays = slimOverlays

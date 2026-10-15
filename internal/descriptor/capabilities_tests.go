@@ -8,14 +8,15 @@ import (
 
 // alphaParam is the shared significance-level parameter used by every
 // statistical test. The wire shape lives on the top-level Test struct
-// (not in Params), but it is the most-asked parameter so we surface it
-// in the manifest entry alongside Params for ergonomics.
+// (not in Params — Slot), but it is the most-asked parameter so we
+// surface it in the manifest entry alongside Params for ergonomics.
 var alphaParam = descriptor.Param{
 	Name:        "alpha",
 	Type:        "float",
 	Required:    false,
 	Default:     0.05,
 	Description: "Significance level in (0, 1); RejectNull is true when PValue < alpha.",
+	Slot:        true,
 }
 
 // partitionByParam is every post-test's partition key list (U46 E3-S2,
@@ -286,8 +287,12 @@ func testCapabilities() []descriptor.TestMeta {
 			Variant:     "mann_kendall",
 			Description: "Mann-Kendall trend test on an ordered numeric series; tier-2 over windowed result rows.",
 			Streamable:  false,
-			Params:      []descriptor.Param{alphaParam, partitionByParam},
-			Requires:    []string{"Field", "OrderBy"},
+			Params: []descriptor.Param{
+				alphaParam,
+				{Name: "variant", Type: "enum", Required: false, Default: "mann_kendall", EnumValues: []string{"mann_kendall"}, Description: "Trend test variant; only mann_kendall in v1."},
+				partitionByParam,
+			},
+			Requires: []string{"Field", "OrderBy"},
 		},
 		{
 			Name:        string(types.TEST_TUKEY_HSD),
@@ -300,6 +305,7 @@ func testCapabilities() []descriptor.TestMeta {
 				alphaParam,
 				{Name: "ms_within", Type: "float", Required: true, Description: "Within-group mean square from a prior ANOVA aggregate."},
 				{Name: "df_within", Type: "float", Required: true, Description: "Within-group degrees of freedom from a prior ANOVA aggregate."},
+				{Name: "n_column", Type: "string", Required: false, Default: "n", Description: "Result-row column holding each group's size (the per-group n Tukey-Kramer weighs a pair by)."},
 				partitionByParam,
 			},
 			Requires: []string{"Field", "SplitBy"},
@@ -320,8 +326,12 @@ func postTestCapabilities() []descriptor.TestMeta {
 			Variant:     "one_way_from_summary",
 			Description: "One-way ANOVA on per-group summary statistics (mean, variance, n) materialized by upstream aggregators.",
 			Streamable:  false,
-			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "SplitBy"},
+			Params: []descriptor.Param{
+				alphaParam,
+				{Name: "n_col", Type: "string", Required: true, Description: "Result-row column holding each group's size n."},
+				{Name: "variance_col", Type: "string", Required: true, Description: "Result-row column holding each group's sample variance."},
+			},
+			Requires: []string{"Field", "SplitBy"},
 		},
 		{
 			Name:        string(types.TEST_PEARSON_R) + "/pearson_post",
@@ -380,8 +390,12 @@ func postTestCapabilities() []descriptor.TestMeta {
 			Variant:     "welch_one_way_post",
 			Description: "Welch one-way ANOVA on per-group summary statistics materialized by upstream aggregators.",
 			Streamable:  false,
-			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "SplitBy"},
+			Params: []descriptor.Param{
+				alphaParam,
+				{Name: "n_col", Type: "string", Required: true, Description: "Result-row column holding each group's size n."},
+				{Name: "variance_col", Type: "string", Required: true, Description: "Result-row column holding each group's sample variance."},
+			},
+			Requires: []string{"Field", "SplitBy"},
 		},
 		{
 			Name:        string(types.TEST_BROWN_FORSYTHE) + "/median_post",

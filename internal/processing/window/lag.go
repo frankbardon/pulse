@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -37,9 +38,10 @@ func newLead(w *types.Window, _ WindowOptions) (WindowComputer, error) {
 
 func newLagLead(w *types.Window, forward bool) (*lagComputer, error) {
 	c := &lagComputer{field: w.Field, offset: 1, forward: forward}
+	paramread.Declare(paramread.Window, string(w.Type), (*lagLeadParams)(nil))
 	if len(w.Params) > 0 {
 		var p lagLeadParams
-		if err := json.Unmarshal(w.Params, &p); err != nil {
+		if err := paramread.Decode(paramread.Window, string(w.Type), w.Params, &p); err != nil {
 			return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG, "lag/lead params")
 		}
 		if p.Offset != nil {

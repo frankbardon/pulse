@@ -62,12 +62,12 @@ func TestRake_RefusalsMatchPredict(t *testing.T) {
 		{"row target outside the dictionary", rakeCrosstab(cohort, types.AGG_COUNT, nil, rakeOverlay(map[string]float64{"a": 1, "b": 1, "zz": 1}, nil, nil)), errors.PULSE_OVERLAY_RAKE_TARGET_MISMATCH},
 		{"counts totals differ", rakeCrosstab(cohort, types.AGG_COUNT, nil, rakeOverlay(map[string]float64{"a": 10, "b": 10}, map[string]float64{"s0": 5}, map[string]any{"targets_as": "counts"})), errors.PULSE_OVERLAY_RAKE_TARGET_MISMATCH},
 		{"missing col targets", rakeCrosstab(cohort, types.AGG_COUNT, nil, types.OverlaySpec{Name: "fit", Kind: types.OverlayKindRake, Scope: types.OverlayScopeMatrix, Params: json.RawMessage(`{"row_targets":{"a":1}}`)}), errors.PULSE_OVERLAY_PARAM_MISSING},
-		{"unknown param", rakeCrosstab(cohort, types.AGG_COUNT, nil, rakeOverlay(ab, nil, map[string]any{"write_weights": true})), errors.PULSE_OVERLAY_PARAM_MISSING},
+		{"unknown param", rakeCrosstab(cohort, types.AGG_COUNT, nil, rakeOverlay(ab, nil, map[string]any{"write_weights": true})), errors.PULSE_REQUEST_UNKNOWN_FIELD},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			_, err := p.Process(ctx, c.req)
 			ce := requireCode(t, err, c.want)
-			if ce.Details["index"] != 0 {
+			if !overlaySpecZeroLocated(ce) {
 				t.Fatalf("runtime details %v lack the spec index", ce.Details)
 			}
 			sameEntry(t, predictEnvelope(t, p, fs, cohort, c.req), err)

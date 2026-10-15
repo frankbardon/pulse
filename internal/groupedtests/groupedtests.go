@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -151,6 +152,7 @@ func PostTestDepth(postTests []*types.Test, groups []*types.Group) (int, *errors
 			depths[i] = -1
 			continue
 		}
+		paramread.Read(paramread.PostTest, string(t.Type), seriespartition.Param)
 		d, r := seriespartition.PrefixDepth(groups, t.Params)
 		if r != nil {
 			details := map[string]any{
@@ -184,7 +186,7 @@ func PostTestDepth(postTests []*types.Test, groups []*types.Group) (int, *errors
 		}
 		var given any
 		var m map[string]json.RawMessage
-		if json.Unmarshal(postTests[i].Params, &m) == nil {
+		if paramread.Probe(postTests[i].Params, &m) == nil {
 			if raw, ok := m[seriespartition.Param]; ok {
 				_ = json.Unmarshal(raw, &given)
 			}

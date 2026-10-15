@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -50,6 +51,7 @@ func Applies(t types.GroupType) bool {
 // Global. A present value other than "global" / "within" is refused
 // PROCESSING_CONFIG with details {type, param, value, valid, reason}.
 func Parse(t types.GroupType, raw json.RawMessage) (string, *errors.CodedError) {
+	paramread.Read(paramread.Grouper, string(t), Param)
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || raw[0] != '{' {
 		return Global, nil

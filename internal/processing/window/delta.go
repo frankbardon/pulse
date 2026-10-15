@@ -1,9 +1,8 @@
 package window
 
 import (
-	"encoding/json"
-
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -34,9 +33,10 @@ func init() {
 				"delta does not accept a frame")
 		}
 		c := &deltaComputer{field: w.Field, periods: 1}
+		paramread.Declare(paramread.Window, string(w.Type), (*deltaParams)(nil))
 		if len(w.Params) > 0 {
 			var p deltaParams
-			if err := json.Unmarshal(w.Params, &p); err != nil {
+			if err := paramread.Decode(paramread.Window, string(w.Type), w.Params, &p); err != nil {
 				return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG, "delta params")
 			}
 			if p.Periods != nil {

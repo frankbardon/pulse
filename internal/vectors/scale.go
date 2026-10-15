@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -101,9 +102,10 @@ func ScaleScoreParams(at string, raw json.RawMessage, members Resolved) (ScaleSc
 	p := len(members.Members)
 	cfg := ScaleScoreConfig{Stat: ScaleStatMean, MinValid: p}
 	var params scaleScoreParams
+	paramread.Declare(paramread.Attribute, string(types.ATTR_SCALE_SCORE), &params)
 	raw = bytes.TrimSpace(raw)
 	if len(raw) > 0 && !bytes.Equal(raw, []byte("null")) {
-		if err := decodeStrict(raw, &params); err != nil {
+		if err := paramread.DecodeStrict(paramread.Attribute, string(types.ATTR_SCALE_SCORE), raw, &params); err != nil {
 			return ScaleScoreConfig{}, attributeInvalid(at, "bad_params",
 				at+" ATTR_SCALE_SCORE params: "+err.Error()+" (keys: stat, min_valid, reverse, scale_min, scale_max)", nil)
 		}

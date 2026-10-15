@@ -47,7 +47,7 @@ func TestValidateOverlay_Markov(t *testing.T) {
 		{"step zero", nil, "", false, params(`{"steps":[0]}`), errors.PULSE_OVERLAY_PARAM_MISSING},
 		{"absorbing empty", nil, "", false, params(`{"absorbing":[]}`), errors.PULSE_OVERLAY_PARAM_MISSING},
 		{"initial unknown form", nil, "", false, params(`{"initial":"uniform"}`), errors.PULSE_OVERLAY_PARAM_MISSING},
-		{"unknown param", nil, "", false, params(`{"horizon":12}`), errors.PULSE_OVERLAY_PARAM_MISSING},
+		{"unknown param", nil, "", false, params(`{"horizon":12}`), errors.PULSE_REQUEST_UNKNOWN_FIELD},
 		{"average cell", nil, types.AGG_AVERAGE, false, ok, errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED},
 		{"columns carry two groupers", twoCols, "", false, ok, errors.PULSE_OVERLAY_MATRIX_NOT_SQUARE},
 		{"ref margin", nil, "", false, with(func(s *types.OverlaySpec) {
@@ -59,6 +59,7 @@ func TestValidateOverlay_Markov(t *testing.T) {
 		{"within", nil, "", false, with(func(s *types.OverlaySpec) { s.Within = 1 }), errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE},
 	}
 	overlayCodes := []errors.Code{
+		errors.PULSE_REQUEST_UNKNOWN_FIELD,
 		errors.PULSE_OVERLAY_KIND_UNKNOWN, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 		errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED, errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
 		errors.PULSE_OVERLAY_PARAM_MISSING, errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED,

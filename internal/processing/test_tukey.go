@@ -1,13 +1,13 @@
 package processing
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -62,8 +62,9 @@ func newTukeyHSDPost(spec *types.Test, schema *encoding.Schema) (PostTest, error
 		DFWithin float64 `json:"df_within"`
 		NColumn  string  `json:"n_column"`
 	}
+	paramread.Declare(paramread.PostTest, string(spec.Type), &params)
 	if len(spec.Params) > 0 {
-		if err := json.Unmarshal(spec.Params, &params); err != nil {
+		if err := paramread.Decode(paramread.PostTest, string(spec.Type), spec.Params, &params); err != nil {
 			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 				"TEST_TUKEY_HSD: params JSON parse failed: "+err.Error(), nil)
 		}

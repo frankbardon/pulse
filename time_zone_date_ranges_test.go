@@ -240,7 +240,7 @@ func TestTimeZone_DateRangesLocalDayEveryArm(t *testing.T) {
 	crosstabOf := func(req *types.Request) *types.Request {
 		req.Crosstab = &types.CrosstabSpec{
 			Rows:    req.Groups,
-			Columns: []*types.Group{{Type: types.GROUP_RANGE, Field: "n", Params: json.RawMessage(`{"interval":100000}`)}},
+			Columns: []*types.Group{{Type: types.GROUP_RANGE, Field: "n", Interval: 100000}},
 			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "n"},
 		}
 		req.Groups, req.Aggregations = nil, nil

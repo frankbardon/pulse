@@ -18,6 +18,8 @@ import (
 	"math/big"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/types"
 )
 
 // Params is the typed wire shape of WIN_EWMA's params. Decay stays a raw
@@ -56,7 +58,7 @@ var (
 func Resolve(raw json.RawMessage) (float64, *Refusal) {
 	var p Params
 	if len(raw) > 0 {
-		if err := json.Unmarshal(raw, &p); err != nil {
+		if err := paramread.Decode(paramread.Window, string(types.WIN_EWMA), raw, &p); err != nil {
 			return 0, &Refusal{Message: "malformed params: " + err.Error()}
 		}
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -167,7 +168,7 @@ func parseCodeInCodes(raw json.RawMessage) ([]string, error) {
 			"ATTR_CODE_IN requires params with a non-empty \"codes\" list")
 	}
 	var p codeInParams
-	if err := json.Unmarshal(raw, &p); err != nil {
+	if err := paramread.Decode(paramread.Attribute, string(types.ATTR_CODE_IN), raw, &p); err != nil {
 		return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG, "parsing ATTR_CODE_IN params")
 	}
 	if len(p.Codes) == 0 {

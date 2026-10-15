@@ -28,6 +28,7 @@ Use something else:
 
 - `alpha` — float, default `0.05`, family-wise, in `(0, 1)`.
 - `ms_within` / `df_within` — float, both required. Within-group mean square + df from a preceding one-way ANOVA.
+- `n_column` — string, default `"n"`: result-row column holding each group's size (Tukey-Kramer weighs a pair by it).
 
 `Field` + `SplitBy` both required. **Tier-2 only** — list in `Request.PostTests`.
 

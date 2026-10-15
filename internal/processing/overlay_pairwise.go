@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -61,6 +62,7 @@ func applyPairwiseTwoMeansZ(spec *types.OverlaySpec, host *CrosstabHostView) (ty
 // selector that is silently inert is the failure the refusal exists to
 // remove.
 func applyPairwiseWeightedTwoMeansZ(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
+	paramread.Declare(paramread.Overlay, string(spec.Kind), (*types.PairwiseOverlayParams)(nil))
 	params, err := types.DecodePairwiseParams(spec.Params)
 	if err != nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
@@ -161,6 +163,7 @@ type pairwisePair struct {
 }
 
 func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel pwKernel, shape pwShape) (types.OverlayLayer, []types.OverlayWarning, error) {
+	paramread.Declare(paramread.Overlay, string(spec.Kind), (*types.PairwiseOverlayParams)(nil))
 	params, err := types.DecodePairwiseParams(spec.Params)
 	if err != nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(

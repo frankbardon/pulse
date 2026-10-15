@@ -19,18 +19,30 @@ import (
 // The strict decoder and the instance slot gate (descx.SlotRefusal)
 // both build it here, so an unknown key and a hidden slot cannot drift.
 func UnknownFieldError(objectPath string, unknown, valid []string) *perr.CodedError {
+	return UnknownFieldErrorAliased(objectPath, unknown, valid, nil)
+}
+
+// UnknownFieldErrorAliased is UnknownFieldError with known misnomers:
+// an unknown key found in aliases is suggested as its alias (a valid
+// key no edit distance would reach — GROUP_DATE params.unit is
+// params.component), ahead of the nearest-key guess.
+func UnknownFieldErrorAliased(objectPath string, unknown, valid []string, aliases map[string]string) *perr.CodedError {
 	if len(unknown) == 0 {
 		return nil
 	}
 	unknown = append([]string(nil), unknown...)
 	sort.Strings(unknown)
-	validList := append([]string(nil), valid...)
+	validList := append(make([]string, 0, len(valid)), valid...) // [] (never null) for an object with no keys
 	sort.Strings(validList)
 
 	suggestions := make(map[string]any, len(unknown))
 	parts := make([]string, 0, len(unknown))
 	for _, k := range unknown {
-		if near := NearestKey(k, valid); near != "" {
+		near := aliases[k]
+		if near == "" {
+			near = NearestKey(k, valid)
+		}
+		if near != "" {
 			suggestions[k] = near
 			parts = append(parts, `"`+k+`" (did you mean "`+near+`"?)`)
 		} else {

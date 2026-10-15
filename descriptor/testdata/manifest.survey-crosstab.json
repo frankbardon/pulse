@@ -611,6 +611,20 @@
               "required": false,
               "default": 0,
               "description": "Months after January when the fiscal year starts; valid only with component=year or component=quarter. Range [-11, 11]; offsets normalise mod 12 (offset=-3 == offset=9 =\u003e October start). 0 (default) = calendar year. Non-zero offsets prefix keys with FY using the end-year convention (Apr 2024-Mar 2025 with offset=3 =\u003e FY2025)."
+            },
+            {
+              "name": "frequency",
+              "type": "enum",
+              "required": false,
+              "description": "",
+              "enum_values": [
+                "annual",
+                "daily",
+                "hourly",
+                "monthly",
+                "quarterly",
+                "weekly"
+              ]
             }
           ],
           "accepts_types": [
@@ -681,7 +695,8 @@
             "type": "float",
             "required": false,
             "default": 0.05,
-            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
+            "slot": true
           }
         ],
         "requires": [
@@ -705,7 +720,8 @@
             "type": "float",
             "required": false,
             "default": 0.05,
-            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
+            "slot": true
           },
           {
             "name": "mu",
@@ -735,7 +751,8 @@
             "type": "float",
             "required": false,
             "default": 0.05,
-            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
+            "slot": true
           }
         ],
         "requires": [
@@ -751,7 +768,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 174,
+    "error_codes_count": 175,
     "error_domains": [
       "CLI",
       "DATA",
@@ -780,6 +797,7 @@
       "PROCESSING_RUNTIME",
       "PROCESSING_STATE",
       "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC",
+      "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED",
       "PULSE_ADVISORY_ORDINAL_PARAMETRIC",
       "PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL",
@@ -1815,7 +1833,22 @@
         "intents": [
           "compare_groups"
         ],
-        "inferential": true
+        "inferential": true,
+        "params": [
+          {
+            "name": "pair_along_dim",
+            "type": "int",
+            "required": false,
+            "description": "Restrict pairs to pair-axis keys that agree on every dim position except this one; absent = every pair."
+          },
+          {
+            "name": "n_within_depth",
+            "type": "int",
+            "required": false,
+            "default": 0,
+            "description": "With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; inert otherwise."
+          }
+        ]
       },
       {
         "kind": "OVERLAY_SHARE_OF_ROW",
@@ -2279,4 +2312,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5818bb82fb188ff0469de81206415af51c619dbda4fd22e0116543431e05d110
+// golden-hash: ea388f96f2cf6aa201ea5c0ec93e9ac421351c5f2bfbb173a62e6e65b745d002

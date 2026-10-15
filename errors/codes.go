@@ -544,6 +544,16 @@ const (
 	// the series axis, its grouper and the group key columns.
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE Code = "PULSE_ADVISORY_SERIES_AXIS_NOT_DATE"
 
+	// PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED is a predict advisory:
+	// a slot names an embedder (Options.Extensions) operator whose
+	// registration declares no params, and carries a non-empty params
+	// object. Its keys cannot be checked against an allowlist, so they
+	// pass to the operator's factory unvalidated — a misspelled key is
+	// not refused there as it is on every built-in and on an extension
+	// that declares its params. One per such slot; details carry the
+	// slot, the operator and the params keys.
+	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED Code = "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED"
+
 	// PULSE_SUPPRESS_ADVISORY_UNKNOWN is raised by pulse.New when
 	// Options.SuppressAdvisories names a code that is not a registered
 	// PULSE_ADVISORY_* advisory code.
@@ -3740,6 +3750,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED,
 	PULSE_ADVISORY_EXTRA_PASS,
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
+	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN,
 	PULSE_RECOMMEND_INTENT_UNKNOWN,
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,

@@ -58,7 +58,7 @@ func TestMatrixGroupSummary_RefusalsMatchPredict(t *testing.T) {
 		}), errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
 		{"cell scope", edit(func(r *types.Request) { r.Overlays[0].Scope = types.OverlayScopeCell }), errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED},
 		{"within", edit(func(r *types.Request) { r.Overlays[0].Within = 1 }), errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE},
-		{"params", edit(func(r *types.Request) { r.Overlays[0].Params = json.RawMessage(`{"weighted": true}`) }), errors.PULSE_OVERLAY_PARAM_MISSING},
+		{"params", edit(func(r *types.Request) { r.Overlays[0].Params = json.RawMessage(`{"weighted": true}`) }), errors.PULSE_REQUEST_UNKNOWN_FIELD},
 		// The kind over a crosstab host (Crosstab + Matrices is refused,
 		// so a crosstab request carries no matrix to name).
 		{"crosstab host", &types.Request{Cohort: &types.Cohort{Filename: cohort},

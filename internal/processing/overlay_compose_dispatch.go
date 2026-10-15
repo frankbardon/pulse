@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -286,7 +287,8 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		// before reference resolution — the order predict-compose
 		// (descriptor.composeFormulaTotalRefusal) refuses it in.
 		if route == types.OverlayKindFormula {
-			formula, _ := spec.Params["formula"].(string)
+			fv, _ := paramread.Get(paramread.Overlay, string(spec.Kind), spec.Params, "formula")
+			formula, _ := fv.(string)
 			if cerr := totalcall.Refusal(formula, string(types.OverlayKindFormula)); cerr != nil {
 				details := map[string]any{"index": i, "kind": string(spec.Kind)}
 				for k, v := range cerr.Details {

@@ -3,6 +3,7 @@ package pulse_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -49,12 +50,12 @@ func TestCorrespondence_RefusalsMatchPredict(t *testing.T) {
 		{"max cell", caCrosstab(cohort, byRange, types.AGG_MAX, nil, ca("")), errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED},
 		{"dimensions over cap", caCrosstab(cohort, bySubject, types.AGG_COUNT, nil, ca(`{"dimensions":2}`)), errors.PULSE_OVERLAY_PARAM_MISSING},
 		{"unknown normalization", caCrosstab(cohort, byRange, types.AGG_COUNT, nil, ca(`{"normalization":"biplot"}`)), errors.PULSE_OVERLAY_PARAM_MISSING},
-		{"unknown param", caCrosstab(cohort, byRange, types.AGG_COUNT, nil, ca(`{"supplementary":[0]}`)), errors.PULSE_OVERLAY_PARAM_MISSING},
+		{"unknown param", caCrosstab(cohort, byRange, types.AGG_COUNT, nil, ca(`{"supplementary":[0]}`)), errors.PULSE_REQUEST_UNKNOWN_FIELD},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			_, err := p.Process(ctx, c.req)
 			ce := requireCode(t, err, c.want)
-			if ce.Details["index"] != 0 {
+			if !overlaySpecZeroLocated(ce) {
 				t.Fatalf("runtime details %v lack the spec index", ce.Details)
 			}
 			sameEntry(t, predictEnvelope(t, p, fs, cohort, c.req), err)
@@ -119,4 +120,15 @@ func TestCorrespondence_EndToEnd(t *testing.T) {
 			}
 		})
 	}
+}
+
+// overlaySpecZeroLocated reports whether ce locates overlays[0]: an
+// overlay family refusal by details.index, an unknown params key (the
+// params allowlist, PULSE_REQUEST_UNKNOWN_FIELD) by details.path.
+func overlaySpecZeroLocated(ce *errors.CodedError) bool {
+	if ce.Code == errors.PULSE_REQUEST_UNKNOWN_FIELD {
+		path, _ := ce.Details["path"].(string)
+		return strings.HasPrefix(path, "overlays[0].params.")
+	}
+	return ce.Details["index"] == 0
 }

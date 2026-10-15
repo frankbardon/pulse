@@ -1,12 +1,12 @@
 package processing
 
 import (
-	"encoding/json"
 	"math"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -38,8 +38,9 @@ type weightedMeanParams struct {
 // operator is a weighted figure by definition.
 func newWeightedMeanAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 	var params weightedMeanParams
+	paramread.Declare(paramread.Aggregator, string(agg.Type), &params)
 	if len(agg.Params) > 0 {
-		if err := json.Unmarshal(agg.Params, &params); err != nil {
+		if err := paramread.Decode(paramread.Aggregator, string(agg.Type), agg.Params, &params); err != nil {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "invalid weighted_mean params: "+err.Error())
 		}
 	}
@@ -109,8 +110,9 @@ type ratioAggregator struct {
 
 func newRatioAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
 	var params ratioParams
+	paramread.Declare(paramread.Aggregator, string(agg.Type), &params)
 	if len(agg.Params) > 0 {
-		if err := json.Unmarshal(agg.Params, &params); err != nil {
+		if err := paramread.Decode(paramread.Aggregator, string(agg.Type), agg.Params, &params); err != nil {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "invalid ratio params: "+err.Error())
 		}
 	}
@@ -316,8 +318,9 @@ const (
 func newCIAggregator(bound ciBound) AggregatorFactory {
 	return func(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
 		params := ciParams{Confidence: 0.95, Method: "normal"}
+		paramread.Declare(paramread.Aggregator, string(agg.Type), &params)
 		if len(agg.Params) > 0 {
-			if err := json.Unmarshal(agg.Params, &params); err != nil {
+			if err := paramread.Decode(paramread.Aggregator, string(agg.Type), agg.Params, &params); err != nil {
 				return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "invalid ci params: "+err.Error())
 			}
 			if params.Confidence == 0 {

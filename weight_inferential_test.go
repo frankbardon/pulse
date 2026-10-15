@@ -75,9 +75,12 @@ func inferentialRefusalRequests(t *testing.T, cohort string, w types.SlotWeight)
 		}
 		out[op] = r
 	}
+	// Each post-test carries only the params its family declares
+	// (TREND reads none of Tukey's MSE inputs).
+	params := map[string]string{"TEST_TREND": "", "TEST_TUKEY_HSD": `,"params":{"ms_within":1.5,"df_within":20}`}
 	for _, op := range []string{"TEST_TREND", "TEST_TUKEY_HSD"} {
 		r := decode(`{"groups":[{"type":"GROUP_CATEGORY","field":"subj"}],"aggregations":[{"type":"AGG_AVERAGE","field":"x","label":"m","weight":null}],` +
-			`"post_tests":[{"type":"` + op + `","field":"m","split_by":"subj","order_by":[{"field":"m"}],"params":{"ms_within":1.5,"df_within":20}}]}`)
+			`"post_tests":[{"type":"` + op + `","field":"m","split_by":"subj","order_by":[{"field":"m"}]` + params[op] + `}]}`)
 		r.PostTests[0].Weight = w
 		out["post/"+op] = r
 	}

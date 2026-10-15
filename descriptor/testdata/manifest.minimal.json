@@ -280,7 +280,8 @@
               "name": "interval",
               "type": "float",
               "required": true,
-              "description": "Bucket width on the value axis; set on the request's Group.Interval field."
+              "description": "Bucket width on the value axis; set on the request's Group.Interval field.",
+              "slot": true
             }
           ],
           "accepts_types": [
@@ -367,7 +368,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 91,
+    "error_codes_count": 92,
     "error_domains": [
       "CLI",
       "DATA",
@@ -395,6 +396,7 @@
       "PROCESSING_INTERNAL",
       "PROCESSING_RUNTIME",
       "PROCESSING_STATE",
+      "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
       "PULSE_ARCHIVE_CORRUPT",
       "PULSE_ARCHIVE_MAGIC_INVALID",
@@ -1323,4 +1325,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ffec903f0fb0b640374e81a32deb049f4f90f32a662060533a7c06acc1b12d92
+// golden-hash: 69aa0da9ad9d1400695a5095273b3f147d2d5ebb7c7f8272bea6262db872efb1

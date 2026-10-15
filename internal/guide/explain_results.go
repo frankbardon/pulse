@@ -1,12 +1,12 @@
 package guide
 
 import (
-	"encoding/json"
 	"slices"
 	"sort"
 	"strconv"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -218,7 +218,7 @@ func facetOverlayHosts(res *types.FacetResult, req *types.FacetRequest) map[int]
 			var p struct {
 				Field string `json:"field"`
 			}
-			if json.Unmarshal(req.Overlays[i].Params, &p) == nil && p.Field != "" {
+			if paramread.Probe(req.Overlays[i].Params, &p) == nil && p.Field != "" {
 				host = p.Field
 			}
 		}

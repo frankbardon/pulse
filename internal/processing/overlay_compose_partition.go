@@ -2,6 +2,7 @@ package processing
 
 import (
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -62,6 +63,7 @@ func checkPanelSlabPartition(spec *types.ComposeOverlaySpec, specIdx, refIdx int
 	if len(spec.Targets) > resolveMaxPanelTargets(spec.Options) {
 		return nil
 	}
+	paramread.Declare(paramread.Overlay, string(spec.Kind), (*types.PanelOverlayParams)(nil))
 	params, err := types.DecodePanelParamsMap(spec.Params)
 	if err != nil || !types.ValidPanelNSource(params.NSource) {
 		// The handler owns both diagnostics; raising a second,

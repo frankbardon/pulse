@@ -193,3 +193,22 @@ func TestUnknownFieldError_MessageSaysRefused(t *testing.T) {
 		t.Errorf("message = %s", ce.Message)
 	}
 }
+
+// A known misnomer is suggested as its alias, ahead of (and where) no
+// edit distance would reach; an unaliased key keeps the nearest-key
+// guess; valid_keys is [] (never null) for an object with no keys.
+func TestUnknownFieldErrorAliased_SuggestsAlias(t *testing.T) {
+	ce := UnknownFieldErrorAliased("groups[0].params", []string{"unit", "week_strat"},
+		[]string{"component", "week_start"}, map[string]string{"unit": "component"})
+	sug := ce.Details["suggestions"].(map[string]any)
+	if sug["unit"] != "component" || sug["week_strat"] != "week_start" {
+		t.Fatalf("suggestions = %v", sug)
+	}
+	if ce.Details["path"] != "groups[0].params.unit" || !strings.Contains(ce.Message, `"unit" (did you mean "component"?)`) {
+		t.Fatalf("path %v, message %s", ce.Details["path"], ce.Message)
+	}
+	empty := UnknownFieldError("windows[0].params", []string{"x"}, nil)
+	if v, ok := empty.Details["valid_keys"].([]string); !ok || v == nil || len(v) != 0 {
+		t.Fatalf("valid_keys = %#v, want []", empty.Details["valid_keys"])
+	}
+}

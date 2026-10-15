@@ -42,7 +42,7 @@ func TestLabelShadow_RefusedOnEverySide(t *testing.T) {
 	}
 	c := func() *types.Cohort { return &types.Cohort{Filename: res.Path} }
 	formula := func(label string) *types.Attribute {
-		return &types.Attribute{Type: types.ATTR_FORMULA, Label: label, Params: json.RawMessage(`{"expression":"n * 10"}`)}
+		return &types.Attribute{Type: types.ATTR_FORMULA, Label: label, Expression: "n * 10"}
 	}
 	sumM := []*types.Aggregation{{Type: types.AGG_SUM, Field: "m", Label: "total"}}
 	cases := map[string]struct {

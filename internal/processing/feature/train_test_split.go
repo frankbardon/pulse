@@ -1,7 +1,6 @@
 package feature
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"math/rand"
@@ -10,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -61,7 +61,7 @@ func newTrainTestSplit(feat *types.Feature, schema *encoding.Schema) (Computer, 
 			"FEAT_TRAIN_TEST_SPLIT requires params with 'ratios'")
 	}
 	var p trainTestSplitParams
-	if err := json.Unmarshal(feat.Params, &p); err != nil {
+	if err := paramread.Decode(paramread.Feature, string(feat.Type), feat.Params, &p); err != nil {
 		return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG,
 			"parsing FEAT_TRAIN_TEST_SPLIT params")
 	}

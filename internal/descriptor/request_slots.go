@@ -682,12 +682,14 @@ func requestSlotRefusal(req *types.Request, inst *InstanceSnapshot) *errors.Code
 //     use, descx.RefusalAt).
 //
 // valid_keys and suggestions range over the offending root's VISIBLE
-// keys only. Nil on a nil / unscoped instance. Every service funnel and
-// Predict run it before any other request check, so a hidden slot is
+// keys only. Then — on every instance, scoped or not — every slot's
+// params object is held to its operator's manifest allowlist
+// (ParamsRefusal). Every service funnel and Predict run it before any
+// other request check, so a hidden slot or an unknown params key is
 // refused at the point an unknown JSON key would have been.
 func SlotRefusal(v any, inst *InstanceSnapshot) error {
 	if !inst.Scoped() {
-		return nil
+		return ParamsRefusal(v, inst)
 	}
 	if ce := rootSlotRefusal(v, inst); ce != nil {
 		return ce
@@ -750,5 +752,5 @@ func SlotRefusal(v any, inst *InstanceSnapshot) error {
 			}
 		}
 	}
-	return nil
+	return ParamsRefusal(v, inst)
 }

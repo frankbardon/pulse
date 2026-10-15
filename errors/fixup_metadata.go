@@ -957,6 +957,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED: {
+		Message: "A slot names an embedder extension operator whose registration declares no params, and carries a params object: its keys pass to the operator unvalidated, so a misspelled key is not refused as it is on a built-in; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Params"},
+				Hint:   "Embedder: declare the operator's params (ParamMeta) on its Extensions registration; every params key is then checked and an unknown one is refused PULSE_REQUEST_UNKNOWN_FIELD with a suggestion. Caller: check details.keys against the operator's documentation.",
+			},
+		},
+	},
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN: {
 		Message: "Options.SuppressAdvisories names a code that is not a registered PULSE_ADVISORY_* advisory code.",
 		Fixups: []Fixup{
