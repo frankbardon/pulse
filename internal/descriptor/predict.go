@@ -257,8 +257,8 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		return predictForEachRefusal(req, xerr, finding)
 	}
 	var env *descriptor.Envelope
-	if data, ok := sniffArchive(fileData); ok {
-		env = predictArchive(data, expanded, opts)
+	if src, ok := sniffArchive(fileData); ok {
+		env = predictArchive(src, expanded, opts)
 	} else {
 		var anchorBytes int64
 		if opts != nil {
@@ -840,9 +840,8 @@ func predictFromBytes(data []byte, req *types.Request, opts *PredictOptions) *de
 // from the same gates the single-file path uses — a shard archive
 // inherits the streamability of its request against the canonical
 // schema, not of its shape (see PredictResult.Streamable docs).
-func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *descriptor.Envelope {
-	reader := bytes.NewReader(data)
-	arch, err := encx.OpenArchive(reader, int64(len(data)))
+func predictArchive(src archiveSource, req *types.Request, opts *PredictOptions) *descriptor.Envelope {
+	arch, err := encx.OpenArchive(src.r, src.size)
 	if err != nil {
 		result := &descriptor.PredictResult{
 			Valid:                    false,
@@ -938,7 +937,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *desc
 		shardRecords = nil
 	}
 
-	env := predictSingle(bytes.NewReader(canonical), req, opts, records, shardRecords, int64(len(data)))
+	env := predictSingle(bytes.NewReader(canonical), req, opts, records, shardRecords, src.size)
 	result, _ := env.Data.(*descriptor.PredictResult)
 	if result == nil {
 		return env

@@ -20,11 +20,12 @@ const DefaultDictionaryLimit = 100
 // field information. It never reads record data.
 //
 // Detection is by the first four bytes at the reader's position: zip
-// magic PK\x03\x04 routes to the shard-archive path (the remainder of
-// the reader is buffered, because the zip central directory sits at the
-// END of the file); PULSE magic — or any other prefix, which then
-// surfaces the standard ENCODING_INVALID envelope — takes the
-// single-file path.
+// magic PK\x03\x04 routes to the shard-archive path (read by random
+// access when the reader is an io.ReaderAt — the zip central directory
+// at the END of the file, the canonical schema entry and each shard's
+// header, never a record — else its remainder is buffered once);
+// PULSE magic — or any other prefix, which then surfaces the standard
+// ENCODING_INVALID envelope — takes the single-file path.
 //
 // For archive-backed cohorts, the canonical schema and dictionaries
 // come from the reserved _schema.pulse entry; Shards enumerates every
@@ -54,8 +55,8 @@ type InspectMetadata struct {
 // schema just read (the canonical schema for an archive). Still no
 // record is read.
 func InspectWith(fileData io.ReadSeeker, opts *descriptor.InspectOptions, meta InspectMetadata) *descriptor.Envelope {
-	if data, ok := sniffArchive(fileData); ok {
-		return inspectArchive(data, opts, meta)
+	if src, ok := sniffArchive(fileData); ok {
+		return inspectArchive(src, opts, meta)
 	}
 	if opts == nil {
 		opts = &descriptor.InspectOptions{}
@@ -169,32 +170,6 @@ func headerErrorCode(err error) errors.Code {
 	return errors.ENCODING_INVALID
 }
 
-// sniffArchive reports whether rs, at its current position, opens with
-// the zip magic PK\x03\x04 that marks a Pulse shard archive. On a hit it
-// returns the reader's remaining bytes; on a miss (or any read fault) it
-// restores the original position so the single-file path reads from
-// exactly where the caller left the reader.
-func sniffArchive(rs io.ReadSeeker) ([]byte, bool) {
-	start, err := rs.Seek(0, io.SeekCurrent)
-	if err != nil {
-		return nil, false
-	}
-	var magic [4]byte
-	n, _ := io.ReadFull(rs, magic[:])
-	if _, err := rs.Seek(start, io.SeekStart); err != nil {
-		return nil, false
-	}
-	if n < 4 || magic != [4]byte{'P', 'K', 0x03, 0x04} {
-		return nil, false
-	}
-	data, err := io.ReadAll(rs)
-	if err != nil {
-		_, _ = rs.Seek(start, io.SeekStart)
-		return nil, false
-	}
-	return data, true
-}
-
 // inspectFromBytes is the in-package byte-slice convenience over
 // Inspect. The public byte-level entry point is the instance method
 // (*pulse.Pulse).InspectBytes.
@@ -208,7 +183,7 @@ func inspectFromBytes(data []byte, opts *descriptor.InspectOptions) *descriptor.
 // record counts. The result schema and dictionaries match the
 // canonical entry (single source of truth); the truncated dictionary
 // limit applies as for single-file cohorts.
-func inspectArchive(data []byte, opts *descriptor.InspectOptions, meta InspectMetadata) *descriptor.Envelope {
+func inspectArchive(src archiveSource, opts *descriptor.InspectOptions, meta InspectMetadata) *descriptor.Envelope {
 	if opts == nil {
 		opts = &descriptor.InspectOptions{}
 	}
@@ -223,8 +198,7 @@ func inspectArchive(data []byte, opts *descriptor.InspectOptions, meta InspectMe
 	result := &descriptor.InspectResult{Shards: []descriptor.ShardInfo{}}
 	env := descriptor.NewEnvelope(result)
 
-	reader := bytes.NewReader(data)
-	arch, err := encx.OpenArchive(reader, int64(len(data)))
+	arch, err := encx.OpenArchive(src.r, src.size)
 	if err != nil {
 		env.AddError(string(errors.PULSE_ARCHIVE_CORRUPT), "invalid pulse shard archive: "+err.Error(), nil)
 		return env

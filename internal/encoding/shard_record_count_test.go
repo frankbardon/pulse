@@ -347,3 +347,59 @@ func TestPeekShardRecordCount_SkipsDictionaries(t *testing.T) {
 		}
 	}
 }
+
+// countingReaderAt counts the bytes read through ReadAt.
+type countingReaderAt struct {
+	r io.ReaderAt
+	n int64
+}
+
+func (c *countingReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	n, err := c.r.ReadAt(p, off)
+	c.n += int64(n)
+	return n, err
+}
+
+// TestPeekShardRecordCount_ReadsNoRecords (U35 #248): a stored shard's
+// count is its entry size less the header and schema block over the
+// stride — the records themselves are never read, so peeking every
+// shard of an archive reads its headers, not its payload. The count
+// equals a full decode's; a deflated entry (no stored size to trust)
+// still drains its payload.
+func TestPeekShardRecordCount_ReadsNoRecords(t *testing.T) {
+	payload := dictHeavyCohort(t, 16, 50_000)
+	want, consumed, stride := fullDecodeRecordCount(t, payload)
+	if stride == 0 || want != 50_000 {
+		t.Fatalf("fixture: %d records of stride %d", want, stride)
+	}
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, method := range map[string]uint16{"stored.pulse": zip.Store, "deflated.pulse": zip.Deflate} {
+		w, err := zw.CreateHeader(&zip.FileHeader{Name: name, Method: method})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write(payload); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	cr := &countingReaderAt{r: bytes.NewReader(buf.Bytes())}
+	arch, err := OpenArchive(cr, int64(buf.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"stored.pulse", "deflated.pulse"} {
+		cr.n = 0
+		got, err := arch.PeekShardRecordCount(name)
+		if err != nil || got != want {
+			t.Fatalf("%s: count %d, %v; want %d", name, got, err, want)
+		}
+		t.Logf("%s: peek read %d bytes (header + schema %d, payload %d)", name, cr.n, consumed, len(payload))
+		if name == "stored.pulse" && cr.n > int64(consumed)+64<<10 {
+			t.Errorf("stored peek read %d bytes; the header and schema are %d — it must not read the %d record bytes", cr.n, consumed, len(payload)-consumed)
+		}
+	}
+}

@@ -162,25 +162,15 @@ func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 		result.Valid = false
 	}
 
-	pulseVersion, err := encoding.ReadHeader(fileData)
-	if err != nil {
-		env.AddError(string(headerErrorCode(err)), "invalid pulse file header: "+err.Error(), nil)
+	// The cohort's schema and header counts — a single file's
+	// length-derived record count, or a shard archive's canonical schema
+	// and per-shard header counts: the figures the pre-flight reads off
+	// the cohort Open returns (Service.cohortCounts). Never a record.
+	schema, counts, fault := readCohortHead(fileData, opts.AnchorArchiveBytes)
+	if fault != nil {
+		env.AddError(string(fault.code), fault.message, fault.details)
 		result.Valid = false
 		return env
-	}
-	schema, err := encoding.ReadSchema(fileData, pulseVersion)
-	if err != nil {
-		env.AddError(string(errors.ENCODING_INVALID), "invalid pulse schema: "+err.Error(), nil)
-		result.Valid = false
-		return env
-	}
-
-	// The header record count, derived from the file length (never a
-	// record) — the count the pre-flight reads (Service.CountRecords
-	// shares the derivation).
-	records := int64(-1)
-	if n, _, ok := deriveSingleFileRecordCount(fileData, schema); ok {
-		records = n
 	}
 
 	result.SchemaInfo = &descriptor.PredictSchemaInfo{FieldCount: len(schema.Fields)}
@@ -287,8 +277,9 @@ func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	// references, on the same header count (an anchor-opened shard
 	// charges its archive's bytes, as Open reads them).
 	fs := FacetLimitFindings(req, schema, opts.instance().Limits(), LimitInputs{
-		Records:       records,
-		ArchiveBytes:  opts.AnchorArchiveBytes,
+		Records:       counts.Records,
+		ShardRecords:  counts.ShardRecords,
+		ArchiveBytes:  counts.ArchiveBytes,
 		JoinRightRows: -1,
 	})
 	result.LimitFindings = limitFindingsDescriptor(fs)

@@ -1452,25 +1452,17 @@ func (p *Pulse) InspectEnvelope(ctx context.Context, path string, opts *descript
 }
 
 func (p *Pulse) inspectEnvelope(ctx context.Context, path string, opts *descriptor.InspectOptions) (*descriptor.Envelope, error) {
-	readPath := path
-	anchorEntry := ""
-	if archivePath, entry, ok := service.SplitAnchorPath(path); ok {
-		readPath = archivePath
-		anchorEntry = entry
-	}
-
-	data, err := afero.ReadFile(p.fsys, readPath)
+	// A single file or a shard archive is inspected through its open
+	// handle (header + schema; an archive's central directory, schema
+	// entry and shard headers), an anchor through its one entry.
+	src, err := p.openCohortSource(path)
 	if err != nil {
+		if af, ok := asAnchorFault(err); ok {
+			return nil, fmt.Errorf("pulse: inspect anchor: %w", af.err)
+		}
 		return nil, fmt.Errorf("pulse: reading file for inspect: %w", err)
 	}
-
-	if anchorEntry != "" {
-		shardBytes, aerr := extractShardBytes(data, anchorEntry)
-		if aerr != nil {
-			return nil, fmt.Errorf("pulse: inspect anchor: %w", aerr)
-		}
-		data = shardBytes
-	}
+	defer src.close()
 
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -1478,7 +1470,7 @@ func (p *Pulse) inspectEnvelope(ctx context.Context, path string, opts *descript
 	// The cohort's SPSS sidecar may suggest a row weight: metadata
 	// beside the cohort, read here through the instance Fs, judged by
 	// descriptor inspect against the schema it reads. Never a record.
-	env := descx.InspectWith(bytes.NewReader(data), opts, descx.InspectMetadata{
+	env := descx.InspectWith(src.rs, opts, descx.InspectMetadata{
 		WeightVariable: p.sidecarWeightVariable(path),
 		Instance:       p.svc.InstanceSnapshot(),
 	})
@@ -1508,36 +1500,26 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 	path := resolveCohortPath(req.Cohort)
 
 	// Anchor syntax (`archive.pulse#shard.pulse`): resolve against the
-	// named shard's standalone bytes so Predict validates against the
-	// shard's own schema and record count, mirroring what
-	// internal/service.Open(anchor) returns at runtime.
-	readPath := path
-	anchorEntry := ""
-	if archivePath, entry, ok := service.SplitAnchorPath(path); ok {
-		readPath = archivePath
-		anchorEntry = entry
-	}
-
-	data, err := afero.ReadFile(p.fsys, readPath)
+	// named shard's own entry so Predict validates against the shard's
+	// schema and record count, mirroring what internal/service.Open
+	// (anchor) returns at runtime. A single file or a shard archive is
+	// predicted through its open handle — header and schema, an
+	// archive's central directory and shard headers — never a record.
+	src, err := p.openCohortSource(path)
 	if err != nil {
+		if af, ok := asAnchorFault(err); ok {
+			return nil, fmt.Errorf("pulse: predict anchor: %w", af.err)
+		}
 		return nil, fmt.Errorf("pulse: reading file for predict: %w", err)
 	}
-
-	var anchorArchiveBytes int64
-	if anchorEntry != "" {
-		shardBytes, aerr := extractShardBytes(data, anchorEntry)
-		if aerr != nil {
-			return nil, fmt.Errorf("pulse: predict anchor: %w", aerr)
-		}
-		// The runtime's OpenAnchor reads the whole archive to reach the
-		// shard; the memory estimate charges it the same.
-		anchorArchiveBytes = int64(len(data))
-		data = shardBytes
-	}
+	defer src.close()
+	// The runtime's OpenAnchor reads the whole archive to reach the
+	// shard; the memory estimate charges it the same.
+	anchorArchiveBytes := src.anchorArchiveBytes
 
 	opts := p.predictOptions(ctx, p.sidecarFacts(path))
 	opts.AnchorArchiveBytes = anchorArchiveBytes
-	env := descx.Predict(bytes.NewReader(data), req, &opts)
+	env := descx.Predict(src.rs, req, &opts)
 	if result, ok := env.Data.(*descriptor.PredictResult); ok {
 		result.Errors, result.Warnings = env.Errors, env.Warnings
 	}
@@ -2845,22 +2827,6 @@ func resolveCohortPath(c *types.Cohort) string {
 		return c.DataDir + "/" + c.Filename
 	}
 	return c.Filename
-}
-
-// extractShardBytes opens archiveBytes as a Pulse shard archive and
-// returns the named entry's payload, suitable as standalone single-file
-// .pulse input to internal/descriptor.Predict / internal/descriptor.Inspect.
-func extractShardBytes(archiveBytes []byte, entryName string) ([]byte, error) {
-	arch, err := encx.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
-	if err != nil {
-		return nil, err
-	}
-	rc, err := arch.Open(entryName)
-	if err != nil {
-		return nil, err
-	}
-	defer rc.Close()
-	return io.ReadAll(rc)
 }
 
 // ShardEntry is one shard inside a Pulse shard archive. Re-exported from

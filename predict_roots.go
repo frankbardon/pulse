@@ -80,9 +80,10 @@ func (p *Pulse) predictCompose(ctx context.Context, req *ComposedRequest) (*desc
 }
 
 // PredictFacet validates a facet request against its cohort without
-// executing it — the cohort's header and schema only, never a record of
-// a single-file cohort (a shard archive or anchored shard is read whole,
-// as Predict reads it). The envelope's Data is a *FacetPredictResult.
+// executing it — the cohort's header and schema only, never a record (a
+// shard archive is judged on its canonical schema and per-shard header
+// counts, read by random access; an anchored shard on its own entry,
+// as Predict reads them). The envelope's Data is a *FacetPredictResult.
 //
 // A returned error is a cancelled ctx, a nil request or cohort
 // (SERVICE_VALIDATION), or a cohort that cannot be read (DATA_FILE;

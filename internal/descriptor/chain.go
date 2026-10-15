@@ -272,26 +272,16 @@ func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		env.AddError(string(errors.SERVICE_VALIDATION), "chain request requires Cohort for stage 0", nil)
 	}
 
-	pulseVersion, err := encoding.ReadHeader(fileData)
-	if err != nil {
-		env.AddError(string(headerErrorCode(err)), "invalid pulse file header: "+err.Error(), nil)
+	// Stage 0's limit inputs: the cohort's header counts (never a
+	// record) as Process predict derives them — stage 0 runs Process,
+	// whose pre-flight reads the same counts: a single file's
+	// length-derived count (an anchor-opened shard adds its archive's
+	// bytes), or a shard archive's per-shard header counts and length.
+	schema, stage0Counts, fault := readCohortHead(fileData, opts.AnchorArchiveBytes)
+	if fault != nil {
+		env.AddError(string(fault.code), fault.message, fault.details)
 		result.Valid = false
 		return env
-	}
-	schema, err := encoding.ReadSchema(fileData, pulseVersion)
-	if err != nil {
-		env.AddError(string(errors.ENCODING_INVALID), "invalid pulse schema: "+err.Error(), nil)
-		result.Valid = false
-		return env
-	}
-
-	// Stage 0's limit inputs: the cohort's header count, derived from
-	// the file length (never a record) as Process predict derives it —
-	// stage 0 runs Process, whose pre-flight reads the same count — and
-	// an anchor-opened shard's archive bytes.
-	stage0Counts := CohortCounts{Records: -1, ArchiveBytes: opts.AnchorArchiveBytes}
-	if n, _, ok := deriveSingleFileRecordCount(fileData, schema); ok {
-		stage0Counts.Records = n
 	}
 
 	result.SchemaInfo = &descriptor.PredictSchemaInfo{FieldCount: len(schema.Fields)}
