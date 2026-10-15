@@ -108,3 +108,89 @@ func TestValidate_ForEachAxisCollisionIsDeclarationTime(t *testing.T) {
 		t.Fatalf("Validate (colliding variable referenced only as the axis) = %v, want PULSE_TEMPLATE_AXIS_COLLISION", err)
 	}
 }
+
+// TestRenderJSON_SweepAxesPassThrough is the sweep composition rule: a
+// `sweep` object's axis names scope over its `request`, `overlays` and
+// `label` — the parts the sweep expansion substitutes per slot — and
+// nowhere else. Template variables substitute beside the axis
+// placeholders and inside `axes` itself (so a variable supplies an
+// axis's values); an undeclared non-axis placeholder still refuses.
+func TestRenderJSON_SweepAxesPassThrough(t *testing.T) {
+	runRenderRows(t, []renderRow{
+		{
+			name: "axis placeholders in request, overlays and label pass through; variables substitute beside them and in axes",
+			vars: decls(varDecl("metric", template.VarField), listDecl("channels", template.VarString), varDecl("base", template.VarString)),
+			body: `{"requests": [{"label": "{{base}}", "cohort": {"filename": "c.pulse"}}],
+				"sweep": {
+					"axes": [{"name": "ch", "values": {"$var": "channels"}}, {"name": "k", "values": [1, 2]}],
+					"label": "{{ ch }}_k{{k}}",
+					"request": {"cohort": {"filename": "c.pulse"}, "aggregations": [{"type": "AGG_SUM", "field": {"$var": "metric"}, "label": "{{ch}}"}],
+						"groups": [{"type": "GROUP_RANGE", "field": "x", "interval": {"$var": "k"}}]},
+					"overlays": [{"kind": "OVERLAY_DELTA_VS_REF", "reference": "{{base}}", "targets": ["{{ch}}_k{{k}}"]}]
+				}}`,
+			supplied: map[string]any{"metric": "spend", "channels": []any{"tv", "radio"}, "base": "all"},
+			wantJSON: `{"requests": [{"label": "all", "cohort": {"filename": "c.pulse"}}],
+				"sweep": {
+					"axes": [{"name": "ch", "values": ["tv", "radio"]}, {"name": "k", "values": [1, 2]}],
+					"label": "{{ch}}_k{{k}}",
+					"request": {"cohort": {"filename": "c.pulse"}, "aggregations": [{"type": "AGG_SUM", "field": "spend", "label": "{{ch}}"}],
+						"groups": [{"type": "GROUP_RANGE", "field": "x", "interval": {"$var": "k"}}]},
+					"overlays": [{"kind": "OVERLAY_DELTA_VS_REF", "reference": "all", "targets": ["{{ch}}_k{{k}}"]}]
+				}}`,
+		},
+		{
+			name:     "a sweep axis does not scope over the composed request's explicit slots",
+			body:     `{"requests": [{"label": "{{ch}}"}], "sweep": {"axes": [{"name": "ch", "values": ["tv"]}], "request": {"label": "{{ch}}"}}}`,
+			wantCode: perr.PULSE_TEMPLATE_INVALID,
+			wantVar:  "ch",
+		},
+		{
+			name:     "a sweep axis does not scope over the sweep's own axes or rank",
+			body:     `{"sweep": {"axes": [{"name": "ch", "values": ["{{ch}}"]}], "request": {"label": "{{ch}}"}}}`,
+			wantCode: perr.PULSE_TEMPLATE_INVALID,
+			wantVar:  "ch",
+		},
+		{
+			name:     "an undeclared non-axis placeholder inside the sweep request still refuses",
+			body:     `{"sweep": {"axes": [{"name": "ch", "values": ["tv"]}], "request": {"label": "{{ch}}_{{nope}}"}}}`,
+			wantCode: perr.PULSE_TEMPLATE_INVALID,
+			wantVar:  "nope",
+		},
+		{
+			name:     "a sweep axis name spelled as a token is not literal",
+			vars:     decls(varDecl("n", template.VarString)),
+			body:     `{"sweep": {"axes": [{"name": "{{n}}", "values": ["tv"]}], "request": {"label": "x"}}}`,
+			supplied: map[string]any{"n": "ch"},
+			wantCode: perr.PULSE_TEMPLATE_INVALID,
+		},
+		{
+			name:     "a sweep axis name spelled as a marker is not literal",
+			vars:     decls(varDecl("n", template.VarString)),
+			body:     `{"sweep": {"axes": [{"name": {"$var": "n"}, "values": ["tv"]}], "request": {"label": "x"}}}`,
+			supplied: map[string]any{"n": "ch"},
+			wantCode: perr.PULSE_TEMPLATE_INVALID,
+		},
+		{
+			name:     "a declared variable named like a sweep axis collides",
+			vars:     decls(varDecl("ch", template.VarString)),
+			body:     `{"sweep": {"axes": [{"name": "ch", "values": ["tv"]}], "request": {"label": "{{ch}}"}}}`,
+			supplied: map[string]any{"ch": "radio"},
+			wantCode: perr.PULSE_TEMPLATE_AXIS_COLLISION,
+			wantVar:  "ch",
+		},
+	})
+}
+
+// TestValidate_SweepAxisCollisionIsDeclarationTime: a sweep axis
+// collision is caught by Validate, carrying the axis name's body path.
+func TestValidate_SweepAxisCollisionIsDeclarationTime(t *testing.T) {
+	tm := renderTmpl(decls(varDecl("ch", template.VarString)),
+		`{"sweep": {"axes": [{"name": "k", "values": [1]}, {"name": "ch", "values": ["tv"]}], "request": {"label": "{{k}}"}}}`)
+	err := template.Validate(tm)
+	if !perr.HasCode(err, perr.PULSE_TEMPLATE_AXIS_COLLISION) {
+		t.Fatalf("Validate = %v, want PULSE_TEMPLATE_AXIS_COLLISION", err)
+	}
+	if got := codedError(t, err).Details["path"]; got != "body.sweep.axes[1].name" {
+		t.Errorf("details.path = %v, want the sweep axis name's body path", got)
+	}
+}

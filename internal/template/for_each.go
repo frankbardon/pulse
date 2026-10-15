@@ -24,12 +24,31 @@ import (
 // rule here keeps the package inside its import ceiling
 // (TestTemplatePackage_ImportBoundary): the expansion package imports this
 // one, never the reverse.
+//
+// A Compose `sweep` (types.SweepSpec) follows the same rule one level
+// down: an object carrying a `sweep` object whose `axes` array lists
+// `{"name": …}` entries scopes those names over the sweep's `request`,
+// `overlays` and `label` — the parts the sweep's own expansion
+// substitutes per slot. Every other sweep key (`axes`, `mode`, `rank`)
+// renders in the enclosing scope, so a template variable can supply an
+// axis's `values` exactly as it can a for_each axis's.
 const (
-	forEachKey   = "for_each"
-	forEachAxes  = "axes"
-	forEachName  = "name"
-	axisScopeKey = forEachKey + "." + forEachAxes
+	forEachKey  = "for_each"
+	forEachAxes = "axes"
+	forEachName = "name"
+
+	sweepKey = "sweep"
 )
+
+// sweepScopedKeys are the keys of a `sweep` object its axes scope over.
+var sweepScopedKeys = map[string]struct{}{"request": {}, "overlays": {}, "label": {}}
+
+// sweepScoped reports whether key, a key of a `sweep` object, walks in
+// that sweep's axis scope.
+func sweepScoped(key string) bool {
+	_, ok := sweepScopedKeys[key]
+	return ok
+}
 
 // axisScope is the set of for_each axis names in force at a body node.
 // The zero value (nil) is the empty scope: outside every for_each item.
@@ -57,10 +76,11 @@ func (s axisScope) with(axes []itemAxis) axisScope {
 	return out
 }
 
-// itemAxis is one literal axis name a for_each declares, and the body
-// path of its `name` key.
+// itemAxis is one literal axis name a for_each or sweep declares, the
+// declaring key (forEachKey or sweepKey), and the body path of its
+// `name` key.
 type itemAxis struct {
-	name, path string
+	name, owner, path string
 }
 
 // itemAxes reads the axis names obj's `for_each` declares. An object
@@ -73,11 +93,23 @@ type itemAxis struct {
 // is a template author error, PULSE_TEMPLATE_INVALID. A name of any other
 // non-string kind is skipped and left to the strict decode.
 func itemAxes(t *Template, obj map[string]any, path string) ([]itemAxis, error) {
-	fe, ok := obj[forEachKey].(map[string]any)
+	return declaredAxes(t, obj, path, forEachKey)
+}
+
+// sweepAxes reads the axis names obj's `sweep` declares, under the same
+// rules as itemAxes. They scope over the sweep object's sweepScopedKeys
+// only, never over obj's other keys.
+func sweepAxes(t *Template, obj map[string]any, path string) ([]itemAxis, error) {
+	return declaredAxes(t, obj, path, sweepKey)
+}
+
+// declaredAxes reads the literal axis names under obj[owner].axes.
+func declaredAxes(t *Template, obj map[string]any, path, owner string) ([]itemAxis, error) {
+	holder, ok := obj[owner].(map[string]any)
 	if !ok {
 		return nil, nil
 	}
-	list, ok := fe[forEachAxes].([]any)
+	list, ok := holder[forEachAxes].([]any)
 	if !ok {
 		return nil, nil
 	}
@@ -87,16 +119,16 @@ func itemAxes(t *Template, obj map[string]any, path string) ([]itemAxis, error) 
 		if !ok {
 			continue
 		}
-		at := childPath(indexPath(childPath(childPath(path, forEachKey), forEachAxes), i), forEachName)
+		at := childPath(indexPath(childPath(childPath(path, owner), forEachAxes), i), forEachName)
 		switch name := ax[forEachName].(type) {
 		case string:
 			if strings.Contains(name, interpOpen) {
-				return nil, nonLiteralAxis(t, at)
+				return nil, nonLiteralAxis(t, at, owner)
 			}
-			out = append(out, itemAxis{name: strings.TrimSpace(name), path: at})
+			out = append(out, itemAxis{name: strings.TrimSpace(name), owner: owner, path: at})
 		case map[string]any:
 			if isLoneMarkerKey(name) {
-				return nil, nonLiteralAxis(t, at)
+				return nil, nonLiteralAxis(t, at, owner)
 			}
 		}
 	}
@@ -104,21 +136,21 @@ func itemAxes(t *Template, obj map[string]any, path string) ([]itemAxis, error) 
 }
 
 // nonLiteralAxis is the fault for an axis name written as template syntax.
-func nonLiteralAxis(t *Template, path string) error {
-	return invalidAt(t, path, "", "template body at "+path+" spells a "+axisScopeKey+
-		" name with template syntax; an item's axis names must be literal, because the renderer leaves that item's "+
-		"`{{axis}}` and {\""+markerKey+"\": \"axis\"} placeholders for its for_each expansion and must know them "+
+func nonLiteralAxis(t *Template, path, owner string) error {
+	return invalidAt(t, path, "", "template body at "+path+" spells a "+owner+"."+forEachAxes+
+		" name with template syntax; axis names must be literal, because the renderer leaves the "+
+		"`{{axis}}` and {\""+markerKey+"\": \"axis\"} placeholders for the "+owner+" expansion and must know them "+
 		"before any variable resolves — write the name literally (a template variable may still supply the axis's `values`)")
 }
 
 // axisCollision is the fault for a declared template variable sharing a
-// name with an axis of a for_each item in the body: inside that item the
-// placeholder would be ambiguous — template variable or axis — so the
+// name with an axis of a for_each item or a sweep in the body: inside its
+// scope the placeholder would be ambiguous — template variable or axis — so the
 // declaration is refused rather than one reading silently winning.
 func axisCollision(t *Template, a itemAxis) error {
 	return errors.NewCodedErrorWithDetails(errors.PULSE_TEMPLATE_AXIS_COLLISION,
-		"template body at "+a.path+" declares the for_each axis "+strconv.Quote(a.name)+
-			", which is also a declared template variable; inside that item `{{"+a.name+"}}` and {\""+markerKey+
+		"template body at "+a.path+" declares the "+a.owner+" axis "+strconv.Quote(a.name)+
+			", which is also a declared template variable; inside its scope `{{"+a.name+"}}` and {\""+markerKey+
 			"\": \""+a.name+"\"} would be ambiguous — rename the axis or the variable",
 		renderDetails(t, a.name, a.path))
 }

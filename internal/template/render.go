@@ -158,7 +158,7 @@ type renderer struct {
 func (r *renderer) value(v any, path string, axes axisScope) (any, bool, error) {
 	switch node := v.(type) {
 	case map[string]any:
-		return r.object(node, path, axes)
+		return r.object(node, path, axes, nil)
 	case []any:
 		return r.array(node, path, axes)
 	case string:
@@ -179,7 +179,11 @@ func (r *renderer) value(v any, path string, axes axisScope) (any, bool, error) 
 // descended into. A guard is evaluated BEFORE any child is rendered, so an
 // unresolved marker inside a doomed subtree raises nothing — the subtree
 // is never visited.
-func (r *renderer) object(obj map[string]any, path string, axes axisScope) (any, bool, error) {
+//
+// swept is non-nil only when obj is the `sweep` value of a parent that
+// declared sweep axes: it is the scope the sweep's request, overlays and
+// label walk in (see for_each.go).
+func (r *renderer) object(obj map[string]any, path string, axes, swept axisScope) (any, bool, error) {
 	if name, ok := markerName(obj); ok {
 		if axes.has(name) {
 			// An enclosing for_each item's axis marker: left whole for
@@ -208,12 +212,17 @@ func (r *renderer) object(obj map[string]any, path string, axes axisScope) (any,
 
 	// A for_each item scopes its axes over its other keys; the for_each
 	// value itself renders in the enclosing scope, so a template variable
-	// can still supply an axis's values.
+	// can still supply an axis's values. A sweep scopes its axes over its
+	// own request, overlays and label only.
 	declared, err := itemAxes(r.t, obj, path)
 	if err != nil {
 		return nil, false, err
 	}
 	inner := axes.with(declared)
+	sweepDeclared, err := sweepAxes(r.t, obj, path)
+	if err != nil {
+		return nil, false, err
+	}
 
 	// Keys are walked in sorted order so the first fault reported for a
 	// body with several is deterministic across runs; Go's map iteration
@@ -224,10 +233,21 @@ func (r *renderer) object(obj map[string]any, path string, axes axisScope) (any,
 			continue // a passing guard is stripped from the output
 		}
 		scope := inner
-		if key == forEachKey {
+		switch {
+		case key == forEachKey:
 			scope = axes
+		case swept != nil && sweepScoped(key):
+			scope = swept
 		}
-		child, keep, err := r.value(obj[key], childPath(path, key), scope)
+		var (
+			child any
+			keep  bool
+		)
+		if sub, ok := obj[key].(map[string]any); ok && key == sweepKey && len(sweepDeclared) > 0 {
+			child, keep, err = r.object(sub, childPath(path, key), scope, scope.with(sweepDeclared))
+		} else {
+			child, keep, err = r.value(obj[key], childPath(path, key), scope)
+		}
 		if err != nil {
 			return nil, false, err
 		}

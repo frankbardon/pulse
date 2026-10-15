@@ -1,0 +1,29 @@
+{
+  "description": "Spend by channel, swept over channels and bucket widths",
+  "target": "composed",
+  "variables": [
+    {"name": "metric", "type": "field", "required": true},
+    {"name": "channels", "type": "list", "items": "string", "default": ["tv", "radio"]},
+    {"name": "baseline", "type": "string", "default": "all"}
+  ],
+  "body": {
+    "requests": [
+      {"label": "{{baseline}}", "cohort": {"filename": "sales.pulse"}, "aggregations": [{"type": "AGG_SUM", "field": {"$var": "metric"}}]}
+    ],
+    "sweep": {
+      "axes": [
+        {"name": "ch", "values": {"$var": "channels"}},
+        {"name": "width", "values": [10, 20]}
+      ],
+      "label": "{{ch}}_w{{width}}",
+      "request": {
+        "cohort": {"filename": "sales.pulse"},
+        "aggregations": [{"type": "AGG_SUM", "field": {"$var": "metric"}, "label": "{{ch}}"}],
+        "groups": [{"type": "GROUP_RANGE", "field": "{{ch}}_spend", "interval": {"$var": "width"}}]
+      },
+      "overlays": [
+        {"kind": "OVERLAY_DELTA_VS_REF", "reference": "{{baseline}}", "targets": ["{{ch}}_w{{width}}"]}
+      ]
+    }
+  }
+}

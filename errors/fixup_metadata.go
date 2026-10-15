@@ -3168,12 +3168,12 @@ var codeMetadata = map[Code]Metadata{
 	},
 
 	PULSE_TEMPLATE_AXIS_COLLISION: {
-		Message: "The template declares a variable with the same name as an axis of a for_each item in its body. Inside that item the renderer leaves the item's own axis placeholders for the for_each expansion, so a same-named template variable would make each such placeholder ambiguous.",
+		Message: "The template declares a variable with the same name as an axis of a for_each item or a Compose sweep in its body. Inside that item (or the sweep's request, overlays and label) the renderer leaves the axis placeholders for the for_each or sweep expansion, so a same-named template variable would make each such placeholder ambiguous.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Variables", "*"},
-				Hint:   "Rename either the template variable or the for_each axis named in the error details so the two no longer share a name, and update the placeholders that refer to the renamed one.",
+				Hint:   "Rename either the template variable or the for_each or sweep axis named in the error details so the two no longer share a name, and update the placeholders that refer to the renamed one.",
 			},
 		},
 	},

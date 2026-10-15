@@ -161,14 +161,14 @@ Pre-existing gaps, none caused by those units and none fixed there. Each makes p
 ## Inherited from U40
 
 - [x] **#299** — An empty Compose (no `requests`, no `sweep`) predicts valid but the runtime refuses it with `SERVICE_VALIDATION`; make predict refuse it with the same code. Done (U35 E3-S1): same code and message as `Service.expandCompose`. Found in U40 (E1-S3).
-- [ ] **#300** — A sweep rank cannot read a figure that serialises with `omitempty` when it is exactly 0 (e.g. `RegressionResult.residual_std_err`): the key vanishes, so the slot is excluded as `missing` instead of ranked first. Read the Go value, or drop `omitempty` on such figures. Found in U40 (E2-S2).
+- [x] **#300** — A sweep rank cannot read a figure that serialises with `omitempty` when it is exactly 0 (e.g. `RegressionResult.residual_std_err`): the key vanishes, so the slot is excluded as `missing` instead of ranked first. Read the Go value, or drop `omitempty` on such figures. Found in U40 (E2-S2). Done in U35 E6-S2: rank re-reads a missing final segment off the typed `Response` (`internal/sweep/rank_typed.go`); an `omitempty` numeric figure that is exactly 0 ranks as 0 when its applicability rule says the fit computed it (`residual_std_err` / `r2` / `adj_r2` on `REG_OLS` / `REG_BAYES_LINEAR`, `deviance` / `null_deviance` / `pseudo_r2` on `REG_GLM`); an uncomputed or unlisted figure and a nil entry stay missing. Wire `omitempty` unchanged.
 
 ## Inherited from U41
 
 Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
 - [x] **#372** — Bit-packed reads agree on legacy cohorts: export (`internal/io/export.go`) reads the whole byte of a `u4` / `packed_bool` field while the engine `RecordReader` family and the SPSS writer read the stored `BitPosition`, so a legacy cohort with a nonzero stored `BitPosition` exports different values than it processes. **Required resolution: proper reads — every reader (engine, export, SPSS, lookup) decodes legacy cohorts correctly and identically; no re-import.** Found in U41 (E1-S5).
-- [ ] **#378** — A compose `sweep` body inside a stored request template: the renderer consumes the sweep's `{{axis}}` placeholders; extend the `for_each` scope rule in `internal/template/for_each.go` to `sweep.axes`. Found in U41 (E3-S4).
+- [x] **#378** — A compose `sweep` body inside a stored request template: the renderer consumes the sweep's `{{axis}}` placeholders; extend the `for_each` scope rule in `internal/template/for_each.go` to `sweep.axes`. Found in U41 (E3-S4). Done in U35 E6-S2: an object's `sweep.axes` names scope over that sweep's `request`, `overlays` and `label` (never its `axes` / `mode` / `rank`), reusing the literal-name and `PULSE_TEMPLATE_AXIS_COLLISION` checks; fixture `internal/template/testdata/channel-sweep.json`.
 - [ ] **#379** — Cohort-bound MCP schemas refuse a cohort field whose name contains a `{{ident}}` token on an item without `for_each` (the placeholder `else` branch); admit literal field names that match the pattern. Found in U41 (E3-S4).
 
 ## Inherited from U42

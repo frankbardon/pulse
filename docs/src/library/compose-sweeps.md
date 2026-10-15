@@ -93,9 +93,13 @@ even when its `return` excludes it, and `ranking` is never trimmed or
 rounded by the Compose `return`. Under `--stream` one trailing
 `{"ranking": [...]}` line follows the rows.
 
-Known gap: a figure serialised with `omitempty` disappears at exactly 0
-(for example `residual_std_err`), so that slot reads as missing and is
-excluded rather than ranked first (TODO #300).
+A figure serialised with `omitempty` disappears from the wire at exactly
+0. Rank reads such a figure off the typed response instead, so a fit
+whose `residual_std_err`, `r2`, `adj_r2`, `deviance`, `null_deviance` or
+`pseudo_r2` is exactly 0 ranks as 0 (first, ascending) — but only when
+the fit's regression type computes that figure. A figure the type does
+not compute (`residual_std_err` on a `REG_GLM` fit), any other absent
+figure and a nil entry still read as missing. The wire is unchanged.
 
 ## Echo and return shaping
 

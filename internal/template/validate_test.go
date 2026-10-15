@@ -2,6 +2,8 @@ package template_test
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -777,5 +779,49 @@ func TestParse_BodyStaysUnstrict(t *testing.T) {
 func TestParse_FixtureValidates(t *testing.T) {
 	if _, err := template.Parse(readFixture(t)); err != nil {
 		t.Fatalf("Parse(fixture) = %v, want nil", err)
+	}
+}
+
+// TestValidate_SweepScope is the declaration-time half of the sweep
+// scope rule: a composed body whose sweep request, overlays and label
+// carry `{{axis}}` / {"$var": "axis"} placeholders validates, while a
+// placeholder naming neither a declared variable nor an axis in scope
+// is still an undeclared reference (PULSE_TEMPLATE_INVALID).
+func TestValidate_SweepScope(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "channel-sweep.json"))
+	if err != nil {
+		t.Fatalf("reading fixture: %v", err)
+	}
+	if _, err := template.Parse(data); err != nil {
+		t.Fatalf("Parse(channel-sweep fixture) = %v, want nil", err)
+	}
+
+	tests := []struct {
+		name, body, wantVar string
+	}{
+		{"axis token in the sweep request", `{"sweep":{"axes":[{"name":"ch","values":["tv"]}],"request":{"label":"{{ch}}"}}}`, ""},
+		{"axis marker in the sweep overlays", `{"sweep":{"axes":[{"name":"ch","values":["tv"]}],"request":{},"overlays":[{"reference":{"$var":"ch"}}]}}`, ""},
+		{"axis token in the sweep label", `{"sweep":{"axes":[{"name":"ch","values":["tv"]}],"request":{},"label":"{{ch}}"}}`, ""},
+		{"axis token in the sweep rank is out of scope", `{"sweep":{"axes":[{"name":"ch","values":["tv"]}],"request":{},"rank":{"by":"{{ch}}"}}}`, "ch"},
+		{"undeclared non-axis token in the sweep request", `{"sweep":{"axes":[{"name":"ch","values":["tv"]}],"request":{"label":"{{other}}"}}}`, "other"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tm := renderTmpl(nil, tt.body)
+			tm.Target = template.TargetComposed
+			err := template.Validate(tm)
+			if tt.wantVar == "" {
+				if err != nil {
+					t.Fatalf("Validate = %v, want nil", err)
+				}
+				return
+			}
+			if !perr.HasCode(err, perr.PULSE_TEMPLATE_INVALID) {
+				t.Fatalf("Validate = %v, want PULSE_TEMPLATE_INVALID", err)
+			}
+			if got := codedError(t, err).Details[perr.DetailVariable]; got != tt.wantVar {
+				t.Errorf("details.variable = %v, want %q", got, tt.wantVar)
+			}
+		})
 	}
 }
