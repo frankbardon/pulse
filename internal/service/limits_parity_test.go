@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	stderrors "errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -41,6 +43,14 @@ type limitsFixture struct {
 	// MaxGroups=12 passes every partition and only the merge can trip;
 	// lookup a 16-row cohort keyed on brand.
 	wide, arch, lookup string
+	// repeat is a 32-row cohort whose brand key repeats (every brand
+	// twice — each of the 16 dictionary entries occurs, so the
+	// dictionary bound right - D + 1 holds); single a 1-row cohort (a
+	// provably unique join key).
+	repeat, single string
+
+	joinMu        sync.Mutex
+	joinEstimates map[string]int64
 }
 
 func writeCohortFile(t testing.TB, path string, schema *encoding.Schema, payload []byte) {
@@ -71,6 +81,11 @@ func buildLimitsFixture(t testing.TB, rows, fields int) *limitsFixture {
 	writeCohortFile(t, f.wide, schema, payload)
 	ls, lp := buildWideCohort(t, 10, 16)
 	writeCohortFile(t, f.lookup, ls, lp)
+	f.repeat, f.single = filepath.Join(dir, "repeat.pulse"), filepath.Join(dir, "single.pulse")
+	rs, rp := buildWideCohort(t, 10, 32)
+	writeCohortFile(t, f.repeat, rs, rp)
+	ss, sp := buildWideCohort(t, 10, 1)
+	writeCohortFile(t, f.single, ss, sp)
 
 	// brand is field 0 (byte 0 of every row) and cycles 0..15.
 	stride := schema.RecordByteSize()
@@ -291,6 +306,34 @@ func serialArm(t *testing.T, svc *Service) {
 	svc.SetShardWorkers(1)
 }
 
+// joinCertainEstimate is the memory pre-flight's figure for the join
+// req (the observed of its refusal at a 1-byte limit: one match per
+// left row), cached per right side and aggregation.
+func (f *limitsFixture) joinCertainEstimate(req func() *types.Request) int64 {
+	r := req()
+	f.joinMu.Lock()
+	defer f.joinMu.Unlock()
+	key := r.Joins[0].Right + "/" + r.Aggregations[0].Label
+	if n, ok := f.joinEstimates[key]; ok {
+		return n
+	}
+	svc := New(f.cfg)
+	l := limits.Defaults()
+	l.MaxEstimatedMemory = 1
+	svc.SetLimits(l)
+	_, err := svc.Process(context.Background(), r)
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_LIMIT_EXCEEDED {
+		panic(fmt.Sprintf("join estimate probe: %v", err))
+	}
+	if f.joinEstimates == nil {
+		f.joinEstimates = map[string]int64{}
+	}
+	n := ce.Details["observed"].(int64)
+	f.joinEstimates[key] = n
+	return n
+}
+
 // parityCases is the site matrix: every runtime enforcement site
 // (FR-31) with a limit tight enough to trip it, plus no-trip controls.
 func parityCases(f *limitsFixture) []parityCase {
@@ -309,6 +352,21 @@ func parityCases(f *limitsFixture) []parityCase {
 	join := func() *types.Request {
 		return &types.Request{Cohort: &types.Cohort{Filename: f.lookup}, Aggregations: paritySum,
 			Joins: []*types.JoinSpec{{Right: f.wide, Kind: "inner", As: "r_", On: []types.OnPair{{LeftField: "brand", RightField: "brand"}}}}}
+	}
+	joinOn := func(right string, aggs []*types.Aggregation) func() *types.Request {
+		return func() *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: f.lookup}, Aggregations: aggs,
+				Joins: []*types.JoinSpec{{Right: right, Kind: "inner", As: "r_", On: []types.OnPair{{LeftField: "brand", RightField: "brand"}}}}}
+		}
+	}
+	joinFanOut, joinUnique := joinOn(f.repeat, parityMedian), joinOn(f.single, parityMedian)
+	// A chain stage must be mergeable: a distinct count's per-value
+	// state scales with the joined rows instead of the buffered records.
+	joinFanOutDistinct := joinOn(f.repeat, []*types.Aggregation{{Type: types.AGG_DISTINCT_COUNT, Field: "weight", Label: "d"}})
+	// memAt sets MaxEstimatedMemory to the join req's certain estimate
+	// (the pre-flight's figure, one match per left row) plus delta.
+	memAt := func(req func() *types.Request, delta int64) func(*limits.Limits) {
+		return func(l *limits.Limits) { l.MaxEstimatedMemory = f.joinCertainEstimate(req) + delta }
 	}
 	matrix := func() *types.Request {
 		return &types.Request{Cohort: wideCohort(f), Aggregations: paritySum,
@@ -428,6 +486,37 @@ func parityCases(f *limitsFixture) []parityCase {
 		{name: "memory join", site: "join (memory pre-flight)", setup: serialArm,
 			requests: one(join), run: processRun(join),
 			limits: func(l *limits.Limits) { l.MaxEstimatedMemory = 1 << 20 }, wantTrip: limits.MaxEstimatedMemory},
+		// #229: the 16-row lookup joined to repeat (each brand twice).
+		// At the certain estimate (one match per left row) predict
+		// reports the POSSIBLE fan-out finding (16 x (32 - 16 + 1)
+		// joined rows on the dictionary bound) and the run is refused
+		// by the build-side backstop on 16 x 2 measured rows; at the
+		// possible estimate neither.
+		{name: "memory join fan-out", site: "join (build-side memory backstop)", setup: serialArm,
+			requests: one(joinFanOut), run: processRun(joinFanOut),
+			limits: memAt(joinFanOut, 0), wantTrip: limits.MaxEstimatedMemory},
+		{name: "memory join fan-out under the cap", site: "join (build-side memory backstop)", setup: serialArm,
+			requests: one(joinFanOut), run: processRun(joinFanOut),
+			limits: func(l *limits.Limits) { l.MaxEstimatedMemory = 1 << 40 }},
+		// A one-row right side is provably unique: the certain estimate
+		// is the whole story, predict and the pre-flight agree.
+		{name: "memory join unique", site: "join (memory pre-flight)", setup: serialArm,
+			requests: one(joinUnique), run: processRun(joinUnique),
+			limits: memAt(joinUnique, -1), wantTrip: limits.MaxEstimatedMemory},
+		{name: "compose slot join fan-out", host: hostCompose, site: "compose (slot join backstop)", setup: serialArm,
+			compose: func() *types.ComposedRequest { return composed(two(joinFanOut)) },
+			run: func(ctx context.Context, svc *Service) error {
+				_, err := svc.Compose(ctx, composed(two(joinFanOut)))
+				return err
+			},
+			limits: memAt(joinFanOut, 0), wantTrip: limits.MaxEstimatedMemory},
+		{name: "chain stage join fan-out", host: hostChain, site: "chain (stage 0 join backstop)", setup: serialArm,
+			chain: func() *types.ChainRequest { return chain(1, joinFanOutDistinct) },
+			run: func(ctx context.Context, svc *Service) error {
+				_, err := svc.ProcessChain(ctx, chain(1, joinFanOutDistinct))
+				return err
+			},
+			limits: memAt(joinFanOutDistinct, 0), wantTrip: limits.MaxEstimatedMemory},
 		{name: "compose slots", host: hostCompose, site: "compose", setup: serialArm,
 			compose: func() *types.ComposedRequest { return composed(two(grouped(paritySum, f.wide))) },
 			run: func(ctx context.Context, svc *Service) error {
@@ -653,7 +742,8 @@ func TestLimitsPredictRuntimeParity(t *testing.T) {
 	for _, s := range []string{"serial", "buffered", "parallel decode reducer", "parallel shard reducer", "merge",
 		"buffered crosstab", "fused crosstab", "join", "matrix", "compose", "compose (parallel)", "chain", "facet", "timeout",
 		"derived columns", "materialize (memory pre-flight)", "compose (slot memory pre-flight)",
-		"compose (archive slot memory pre-flight)", "chain (stage 0 memory pre-flight)"} {
+		"compose (archive slot memory pre-flight)", "chain (stage 0 memory pre-flight)",
+		"join (build-side memory backstop)", "compose (slot join backstop)", "chain (stage 0 join backstop)"} {
 		if !sites[s] {
 			t.Errorf("runtime site %q never tripped", s)
 		}
@@ -720,4 +810,54 @@ func TestLimitsReleaseMemory(t *testing.T) {
 			t.Fatalf("control retained %.1f B/record, want ~%d: the measurement cannot see a leak", per, stride)
 		}
 	})
+}
+
+// TestLimits_JoinFanOut_PossibleAndBackstop pins the #229 join cases of
+// the parity matrix beyond limit + configured: at the certain estimate
+// predict's only finding is POSSIBLE with the dictionary bound
+// (16 x (32 - 16 + 1) joined rows) in its details — beside
+// details.request / details.stage on Compose and the chain — and the
+// runtime refusal carries the measured multiplicity (each brand twice)
+// at the same location.
+func TestLimits_JoinFanOut_PossibleAndBackstop(t *testing.T) {
+	f := buildLimitsFixture(t, 16, limitsFields)
+	byName := map[string]parityCase{}
+	for _, c := range parityCases(f) {
+		byName[c.name] = c
+	}
+	for name, at := range map[string]string{
+		"memory join fan-out":       "",
+		"compose slot join fan-out": "request=1",
+		"chain stage join fan-out":  "stage=0",
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := byName[name]
+			svc := New(f.cfg)
+			c.setup(t, svc)
+			l := limits.Defaults()
+			c.limits(&l)
+			svc.SetLimits(l)
+			fs := predictFindings(t, svc, c, l)
+			if len(fs) != 1 {
+				t.Fatalf("findings %+v, want one", fs)
+			}
+			fd := fs[0]
+			if fd.Grade != descriptor.LimitGradePossible || fd.Limit != string(limits.MaxEstimatedMemory) || locationOf(fd.Details) != at ||
+				fd.Details["join"] != 0 || fd.Details["join_bound"] != limits.JoinBoundDictionary || fd.Details["join_rows_bound"] != int64(16*17) {
+				t.Fatalf("finding %+v", fd)
+			}
+			err := c.run(context.Background(), svc)
+			var ce *errors.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_LIMIT_EXCEEDED {
+				t.Fatalf("run: %v", err)
+			}
+			if locationOf(ce.Details) != at || ce.Details["join"] != 0 || ce.Details["right_key_multiplicity"] != int64(2) ||
+				ce.Details["join_rows_bound"] != int64(32) || ce.Details["configured"] != fd.Configured {
+				t.Fatalf("refusal details %v", ce.Details)
+			}
+			if obs := ce.Details["observed"].(int64); obs <= fd.Configured || obs > fd.Estimated {
+				t.Fatalf("backstop observed %d outside (configured %d, possible estimate %d]", obs, fd.Configured, fd.Estimated)
+			}
+		})
+	}
 }

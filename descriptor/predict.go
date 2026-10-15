@@ -909,9 +909,12 @@ const (
 //
 // Details locates a finding on a multi-request predict root, with the
 // key the matching PULSE_LIMIT_EXCEEDED error carries: `request` (the
-// Compose slot index) or `stage` (the chain stage index). It is absent
-// on a single-request root (Predict, PredictFacet) and on a whole-call
-// count (MaxComposeSlots, MaxChainStages).
+// Compose slot index) or `stage` (the chain stage index). A join
+// fan-out memory finding (`possible`: the right key may repeat) adds
+// its joined-row bound — `join` (0), `join_rows_bound` and
+// `join_bound` (`right_key_dictionary` or `left_x_right`). It is absent
+// on any other single-request finding (Predict, PredictFacet) and on a
+// whole-call count (MaxComposeSlots, MaxChainStages).
 type LimitFinding struct {
 	Limit      string         `json:"limit"`
 	Configured int64          `json:"configured"`

@@ -20,7 +20,7 @@ coded error, `PULSE_LIMIT_EXCEEDED`, with no partial result.
 | `RequestTimeout` | `request_timeout` | none (`Unlimited`) | duration | a call that runs far longer than intended | runtime, an inner deadline |
 | `MaxGroups` | `max_groups` | `10,000,000` | distinct groups | grouping on a high-cardinality field | predict (`possible`) + every bucket mint at runtime |
 | `MaxCrosstabCells` | `max_crosstab_cells` | `10,000,000` | rows x columns | a huge crosstab grid | predict (`possible`) + both crosstab arms |
-| `MaxEstimatedMemory` | `max_estimated_memory` | none (`Unlimited`) | bytes | a run whose buffered state cannot fit | predict (`certain`) and the same pre-flight before any record decodes |
+| `MaxEstimatedMemory` | `max_estimated_memory` | none (`Unlimited`) | bytes | a run whose buffered state cannot fit | predict (`certain`) and the same pre-flight before any record decodes; a 1:N join also predict (`possible`) + a check after the join build |
 | `MaxMatrixDim` | `max_matrix_dim` | `2,048` | columns `p` | a quadratic matrix output | predict (`certain`) + pre-flight |
 | `MaxComposeSlots` | `max_compose_slots` | `1,000` | requests | fan-out through Compose; a `sweep` counts its EXPANDED slots plus the explicit ones | up front, serial and parallel, and in `PredictCompose` |
 | `MaxChainStages` | `max_chain_stages` | `1,000` | stages | fan-out through ProcessChain | up front, and in `PredictChain` |
@@ -155,9 +155,8 @@ three places to raise it (`Options.Limits.<Field>`, the profile key,
 `MaxEstimatedMemory` compares against an UPPER bound, never a measurement:
 no filter selectivity is assumed, and the model carries a x3 collector
 headroom. Calibration against measured peak heap lands the estimate at
-roughly 1.3x to 4.9x the peak depending on the arm. Not modelled: a 1:N
-fan-out join (it can exceed the estimate), a `GOGC` above 100, and
-extension aggregators. There is no `GOMEMLIMIT` coupling: the limit is
+roughly 1.3x to 4.9x the peak depending on the arm. Not modelled: a
+`GOGC` above 100 and extension aggregators. There is no `GOMEMLIMIT` coupling: the limit is
 opt-in and independent of the Go runtime's own limit. Set it
 a little under the memory you can spare.
 
@@ -173,6 +172,29 @@ as `TEST_MANN_WHITNEY_U` or `TEST_KRUSKAL_WALLIS`) is also charged every
 value it keeps, which grows with the record count. A rank-method matrix
 (`spearman`, `kendall`) is charged its kept rows plus the working copies
 it ranks at the end of the run.
+
+**Joins whose right key repeats.** The pre-flight estimate assumes one
+right match per left row. A 1:N join emits one joined row per matching
+right row, which a buffered arm keeps and per-value state counts. The
+header and schema cannot prove a key unique (only a one-row right side
+is), so the extra rows are judged twice:
+
+- Predict re-runs the estimate on a joined-row bound and reports a
+  `possible` `max_estimated_memory` finding when it exceeds the limit.
+  The bound is left x (right − dictionary size + 1) for a categorical
+  right key, which holds only when every dictionary entry occurs in the
+  right cohort. A key with no dictionary uses left x right, the worst
+  case. `details` carries `join`, `join_rows_bound` and `join_bound`
+  (`right_key_dictionary` or `left_x_right`). The finding never makes
+  predict invalid.
+- The runtime knows the most rows one right key holds once the build
+  side is hashed. When the estimate on left x that multiplicity exceeds
+  the limit, the run is refused before any left row is probed. The
+  error carries the memory refusal's `details` plus `join`,
+  `join_rows_bound` and `right_key_multiplicity`.
+
+With the limit Unlimited (the default) nothing is counted and the join
+runs unchanged.
 
 **Shard archives.** Opening an archive reads it whole onto the heap and
 the run reads it again. Neither decodes a shard's dictionaries: the open

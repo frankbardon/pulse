@@ -61,7 +61,9 @@ func memoryArchive(t *testing.T, fs afero.Fs) string {
 // runtime refuses with the identical error before scanning (the
 // before-decode read assertions are internal/service
 // TestLimitsPreflight_MaxEstimatedMemoryRefusesBeforeDecode). At the
-// estimate both run; under the default (Unlimited) there is no finding.
+// estimate both run — a join whose right key repeats at its possible
+// fan-out estimate, the build-side backstop refusing it at the certain
+// one; under the default (Unlimited) there is no finding.
 func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T) {
 	ctx := context.Background()
 	fs, cohort := limitsCohort(t)
@@ -90,6 +92,12 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 		// anchor: path is an `archive#shard` anchor, which PredictBytes
 		// (bytes in hand, no anchor resolution) cannot address.
 		anchor bool
+		// joinFanOut: a join whose right key repeats on an arm whose
+		// state grows with the joined rows (#229). At the certain
+		// estimate predict reports a POSSIBLE fan-out finding and the
+		// build-side backstop refuses the run on the measured
+		// multiplicity; both clear at the possible estimate.
+		joinFanOut bool
 	}{
 		{name: "streaming", fs: fs, path: cohort, req: func() *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "a", Label: "s"}}}
@@ -116,7 +124,7 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 		{name: "archive per-shard", fs: afs, path: arch, shardWorkers: 2, req: func() *types.Request { return archiveRanged(arch) }},
 		{name: "anchored shard", fs: afs, path: anchor, anchor: true, req: func() *types.Request { return archiveRanged(anchor) }},
 		{name: "join process", fs: jfs, path: left, req: func() *types.Request { return joinedSum(left, right) }},
-		{name: "join crosstab", fs: jfs, path: left, req: func() *types.Request { return joinedCrosstab(left, right) }},
+		{name: "join crosstab", fs: jfs, path: left, req: func() *types.Request { return joinedCrosstab(left, right) }, joinFanOut: true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -187,6 +195,22 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 			}
 
 			at := open(est)
+			if c.joinFanOut {
+				res, err := at.Predict(ctx, c.req())
+				if err != nil || !res.Valid || len(res.LimitFindings) != 1 {
+					t.Fatalf("join fan-out at the estimate: valid=%v findings=%+v err=%v", res.Valid, res.LimitFindings, err)
+				}
+				fd := res.LimitFindings[0]
+				if fd.Grade != descriptor.LimitGradePossible || fd.Configured != est || fd.Details["join"] != 0 {
+					t.Fatalf("join fan-out finding %+v", fd)
+				}
+				_, perr := at.Process(ctx, c.req())
+				d := requireLimitExceeded(t, perr, "max_estimated_memory", est, "Options.Limits.MaxEstimatedMemory")
+				if obs, _ := d["observed"].(int64); d["join"] != 0 || obs <= est || obs > fd.Estimated {
+					t.Fatalf("backstop details %v (possible estimate %d)", d, fd.Estimated)
+				}
+				at = open(fd.Estimated)
+			}
 			if res, err := at.Predict(ctx, c.req()); err != nil || !res.Valid || res.LimitFindings != nil {
 				t.Fatalf("at the estimate: valid=%v findings=%+v err=%v", res.Valid, res.LimitFindings, err)
 			}

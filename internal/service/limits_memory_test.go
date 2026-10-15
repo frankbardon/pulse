@@ -74,7 +74,9 @@ func memoryHosts() map[string]memoryHost {
 // pre-flight with PULSE_LIMIT_EXCEEDED before any handle drains a
 // cohort (a join's build side included), and the same run AT the
 // estimate it reported drains them (the control that keeps the read
-// assertion from being vacuous, and pins the refusal to the estimate).
+// assertion from being vacuous, and pins the refusal to the estimate)
+// — for a join whose right key repeats, at the build-side backstop's
+// figure, which refuses the pre-flight's estimate after the build.
 func TestLimitsPreflight_MaxEstimatedMemoryRefusesBeforeDecode(t *testing.T) {
 	for name, h := range memoryHosts() {
 		t.Run(name, func(t *testing.T) {
@@ -124,6 +126,19 @@ func TestLimitsPreflight_MaxEstimatedMemoryRefusesBeforeDecode(t *testing.T) {
 			}
 
 			snap, _, err = run(estimate)
+			// A join whose right key repeats (the joined crosstab: each id
+			// 166-167 times, buffered) passes the pre-flight at its
+			// estimate and is refused by the build-side backstop (#229) on
+			// left x the measured multiplicity — after the build drained,
+			// before the left side is probed — so the control runs at that
+			// figure.
+			if stderrors.As(err, &ce) && ce.Details["join"] == 0 {
+				if snap.FullReads["right.pulse"] == 0 || snap.FullReads["left.pulse"] != 0 {
+					t.Fatalf("backstop: drained right %d, left %d time(s); want the build only", snap.FullReads["right.pulse"], snap.FullReads["left.pulse"])
+				}
+				estimate, _ = ce.Details["observed"].(int64)
+				snap, _, err = run(estimate)
+			}
 			if err != nil {
 				t.Fatalf("at the estimate (%d): %v", estimate, err)
 			}
@@ -342,13 +357,19 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 	small := &types.Cohort{Filename: "s.pulse"}
 
 	cases := []struct {
-		name      string
-		req       func() *types.Request
-		facet     *types.FacetRequest
-		project   bool
-		fuse      bool
-		fanOut    bool // runs on f.pulse, written for the case alone
-		maxFactor float64
+		name    string
+		req     func() *types.Request
+		facet   *types.FacetRequest
+		project bool
+		fuse    bool
+		fanOut  bool // runs on f.pulse, written for the case alone
+		// joinFanOut runs on jl.pulse (95 fields x 50,000 records)
+		// joined to jr.pulse (64 records: every brand 4 times), written
+		// for the case alone; the estimate is the build-side backstop's
+		// (#229: left x the measured key multiplicity), read back as
+		// the observed of its refusal at the pre-flight's estimate.
+		joinFanOut bool
+		maxFactor  float64
 	}{
 		{name: "buffered full width", req: func() *types.Request { return &types.Request{Cohort: co, Aggregations: median} }, maxFactor: 2.5},
 		{name: "buffered grouped full width", req: func() *types.Request { return &types.Request{Cohort: co, Groups: brand, Aggregations: median} }, maxFactor: 2.5},
@@ -405,6 +426,12 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 		{name: "lookup join", req: func() *types.Request { return &types.Request{Cohort: co, Joins: lookup, Aggregations: sum} }, maxFactor: 2.5},
 		{name: "join build side", req: func() *types.Request { return &types.Request{Cohort: small, Joins: fanout, Aggregations: sum} }, maxFactor: 2.5},
 		{name: "facet", facet: &types.FacetRequest{Cohort: co, Fields: []string{"brand", "weight"}}, maxFactor: 2.5},
+		// A 1:4 join on the buffered arm: 200,000 joined records
+		// materialised from a 50,000-record left side.
+		{name: "join fan-out", req: func() *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: "jl.pulse"}, Aggregations: median,
+				Joins: []*types.JoinSpec{{Right: "jr.pulse", Kind: "inner", As: "r_", On: []types.OnPair{{LeftField: "brand", RightField: "brand"}}}}}
+		}, joinFanOut: true, maxFactor: 2.5},
 	}
 	ctx := context.Background()
 	for _, c := range cases {
@@ -421,6 +448,16 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 					t.Fatal(err)
 				}
 				svc = New(fcfg)
+			}
+			if c.joinFanOut {
+				jm := afero.NewMemMapFs()
+				writeWide(jm, "jl.pulse", 95, rows/4, false)
+				writeWide(jm, "jr.pulse", 10, 64, false)
+				jcfg, err := fs.New(fs.WithFs(jm))
+				if err != nil {
+					t.Fatal(err)
+				}
+				svc = New(jcfg)
 			}
 			svc.SetProjectBufferedFields(c.project)
 			svc.SetDisableCrosstabFusion(!c.fuse)
@@ -441,6 +478,14 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 				t.Fatalf("estimate probe: %v", err)
 			}
 			estimate := float64(ce.Details["observed"].(int64))
+			if c.joinFanOut {
+				l.MaxEstimatedMemory = ce.Details["observed"].(int64)
+				svc.SetLimits(l)
+				if err := run(); !stderrors.As(err, &ce) || ce.Code != errors.PULSE_LIMIT_EXCEEDED || ce.Details["right_key_multiplicity"] != int64(4) {
+					t.Fatalf("backstop probe: %v", err)
+				}
+				estimate = float64(ce.Details["observed"].(int64))
+			}
 			svc.SetLimits(limits.Defaults())
 			peak, err := measurePeakHeap(run)
 			if err != nil {

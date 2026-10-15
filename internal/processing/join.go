@@ -54,6 +54,16 @@ type HashJoinIterator struct {
 	rightSchema *encoding.Schema
 	cursor      int
 	leftRec     *Record
+	// maxMatches is the most right rows one join key holds.
+	maxMatches int
+}
+
+// MaxMatches is the most right (build) rows one join key holds — the
+// most joined rows one left row can emit, so the joined stream is at
+// most left x MaxMatches rows. Known once the hash is built, before any
+// left row is probed (the build-side memory backstop reads it).
+func (h *HashJoinIterator) MaxMatches() int {
+	return h.maxMatches
 }
 
 // NewHashJoinIterator builds the right-side hash table eagerly from
@@ -80,15 +90,18 @@ func NewHashJoinIterator(left RecordIterator, right []*Record, leftSchema, right
 	// stringified per-OnPair value. Null on any key field skips that
 	// row (inner join semantics).
 	rightHash := make(map[string][]*Record, len(right))
+	maxMatches := 0
 	for _, r := range right {
 		key, ok := joinKeyOf(r, rightSchema, spec, true)
 		if !ok {
 			continue
 		}
 		rightHash[key] = append(rightHash[key], r)
+		maxMatches = max(maxMatches, len(rightHash[key]))
 	}
 
 	return &HashJoinIterator{
+		maxMatches:  maxMatches,
 		left:        left,
 		joined:      joinedSchema,
 		leftSchema:  leftSchema,

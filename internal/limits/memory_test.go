@@ -245,3 +245,31 @@ func TestMatrixRowBufferBytes(t *testing.T) {
 		t.Fatalf("saturation: %d", got)
 	}
 }
+
+// TestEstimateMemory_JoinedRows: a fan-out join's JoinedRows replaces
+// Records in every per-row processing term — buffered records and
+// fan-out slots, per-value state — while the payload term stays on the
+// left scan's Records; 0 leaves the figure unchanged.
+func TestEstimateMemory_JoinedRows(t *testing.T) {
+	base := MemoryInputs{Records: 100, Stride: 40, RecordBytes: 300, Buckets: 1, Aggregations: 1, ValueStateAggregations: 1, DerivedColumns: 2, FanOut: 2}
+	for _, arm := range []MemoryArm{ArmBuffered, ArmStreaming, ArmFusedCrosstab} {
+		in := base
+		in.Arm = arm
+		plain := EstimateMemory(in)
+		in.JoinedRows = 0
+		if got := EstimateMemory(in); got != plain {
+			t.Fatalf("%s: JoinedRows 0 moved the estimate %d -> %d", arm, plain, got)
+		}
+		in.JoinedRows = 400
+		// 300 extra rows: per-value state (x fan-out 2) on every arm,
+		// the buffered record (300 + 16 + 2 x 128) and one fan-out slot
+		// on the buffered arm. Never the payload.
+		want := plain + 300*2*valueEntryBytes
+		if arm == ArmBuffered {
+			want += 300*(300+bufferedValueBytes+2*derivedColumnBytes) + 300*fanOutSlotBytes
+		}
+		if got := EstimateMemory(in); got != want {
+			t.Fatalf("%s: JoinedRows 400 = %d, want %d", arm, got, want)
+		}
+	}
+}

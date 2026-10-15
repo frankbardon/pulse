@@ -39,17 +39,17 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 	clone.Joins = nil
 	clone.Cohort = nil
 	var zones []descriptor.ResolvedZone
-	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req, func(joined *encoding.Schema, lin descx.LimitInputs) error {
+	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req, func(joined *encoding.Schema, lin descx.LimitInputs) (*types.Request, error) {
 		s.applyDefaults(&clone, joined)
 		z, err := s.resolveZones(&clone, joined)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		zones = z
 		if err := s.checkFieldRefs(ctx, &clone, joined); err != nil {
-			return err
+			return nil, err
 		}
-		return s.limitsPreflight(&clone, joined, lin)
+		return &clone, s.limitsPreflight(&clone, joined, lin)
 	})
 	if err != nil {
 		return nil, err
@@ -94,10 +94,16 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 // right one MaxJoinBuildRows / MaxEstimatedMemory read). It runs after
 // the join-key rule and the MaxJoinBuildRows check and BEFORE the build
 // side decodes a record, so a refusal costs no record decode on either
-// side.
+// side. It returns the request it judged (the host's Joins-stripped,
+// defaults-resolved clone) for the build-side memory backstop: once the
+// right side is hashed, the most rows one key holds bounds the joined
+// stream at left x that multiplicity, and a set MaxEstimatedMemory that
+// estimate exceeds is refused (descx.JoinFanOutRefusal) before the
+// left side is probed — the pre-flight could only assume one match per
+// left row.
 //
 // Process applied descx.JoinCountRefusal before either caller runs.
-func (s *Service) openJoinStream(ctx context.Context, req *types.Request, preflight func(joined *encoding.Schema, lin descx.LimitInputs) error) (*processing.HashJoinIterator, *encoding.Schema, string, scanIterator, error) {
+func (s *Service) openJoinStream(ctx context.Context, req *types.Request, preflight func(joined *encoding.Schema, lin descx.LimitInputs) (*types.Request, error)) (*processing.HashJoinIterator, *encoding.Schema, string, scanIterator, error) {
 	spec := req.Joins[0]
 	if spec == nil {
 		return nil, nil, "", nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "JoinSpec is required")
@@ -155,8 +161,9 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request, prefli
 	if err != nil {
 		return nil, nil, "", nil, err
 	}
-	lin.Join, lin.JoinRightRows = true, rightRows
-	if err := preflight(joined, lin); err != nil {
+	lin.Join, lin.JoinRightRows, lin.JoinSpec = true, rightRows, spec
+	judged, err := preflight(joined, lin)
+	if err != nil {
 		return nil, nil, "", nil, err
 	}
 
@@ -215,6 +222,12 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request, prefli
 	if err != nil {
 		_ = leftIter.Close()
 		return nil, nil, "", nil, err
+	}
+	// The build-side memory backstop: the hash is built, no left row is
+	// probed yet. Unlimited (the default) skips it — byte-identical.
+	if cerr := descx.JoinFanOutRefusal(judged, joined, s.instance, l, lin, int64(join.MaxMatches())); cerr != nil {
+		_ = leftIter.Close()
+		return nil, nil, "", nil, markLocated(cerr)
 	}
 	return join, joinedSchema, leftPath, leftIter, nil
 }

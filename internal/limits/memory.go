@@ -204,10 +204,18 @@ type MemoryInputs struct {
 	// TestValues is the values buffered (non-streamable) tests keep:
 	// per such test records x FanOut x its value columns.
 	TestValues int64
+	// JoinedRows is the rows a join's probe emits into the processor
+	// when they can outnumber the left side (a right key that repeats:
+	// left x the right key's multiplicity); 0 means Records. It replaces
+	// Records in every per-row processing term — per-value state, the
+	// buffered arm's materialised records and fan-out slots — while the
+	// payload term stays on Records (the left scan).
+	JoinedRows int64
 }
 
 // EstimateMemory is the upper-bound resident footprint of one run, in
-// bytes, per arm:
+// bytes, per arm, where rows is JoinedRows when set (a fan-out join),
+// else records:
 //
 //	every arm  base + 3 x max(records x stride, archive bytes)
 //	             (the payload + GC headroom; an archive's every byte)
@@ -217,13 +225,13 @@ type MemoryInputs struct {
 //	           + partition buckets x (512 + 256 x aggs), per-shard arm
 //	           + test instances x 1024 + test levels x 256
 //	           + buffered-test values x 32
-//	buffered   + records x (record bytes + 16 x aggs + 128 x derived)
-//	           + records x (fan-out - 1) x 24
+//	buffered   + rows x (record bytes + 16 x aggs + 128 x derived)
+//	           + rows x (fan-out - 1) x 24
 //	           + buckets x (512 + 256 x aggs) + cells x 512
 //	streaming  + buckets x (512 + 256 x aggs)
 //	fused      + cells x 512
 //
-// plus (records + partition records) x fan-out x 96 per value-state
+// plus (rows + partition records) x fan-out x 96 per value-state
 // aggregation on every arm. Saturates at math.MaxInt64 rather than
 // wrapping.
 func EstimateMemory(in MemoryInputs) int64 {
@@ -234,8 +242,12 @@ func EstimateMemory(in MemoryInputs) int64 {
 	add(in.JoinRightRows, addSat(fileCopyFactor*in.Stride, buildCopyFactor*in.RecordBytes))
 	total = addSat(total, in.MatrixBytes)
 	total = addSat(total, in.GrouperBytes)
+	rows := in.Records
+	if in.JoinedRows > 0 {
+		rows = in.JoinedRows
+	}
 	fanOut := max(in.FanOut, 1)
-	add(mulSat(addSat(in.Records, in.PartitionRecords), fanOut), mulSat(in.ValueStateAggregations, valueEntryBytes))
+	add(mulSat(addSat(rows, in.PartitionRecords), fanOut), mulSat(in.ValueStateAggregations, valueEntryBytes))
 	add(in.TestInstances, testStateBytes)
 	add(in.TestLevels, testLevelBytes)
 	add(in.TestValues, testValueBytes)
@@ -244,8 +256,8 @@ func EstimateMemory(in MemoryInputs) int64 {
 	switch in.Arm {
 	case ArmBuffered:
 		per := addSat(in.RecordBytes, addSat(mulSat(in.Aggregations, bufferedValueBytes), mulSat(in.DerivedColumns, derivedColumnBytes)))
-		add(in.Records, per)
-		add(mulSat(in.Records, fanOut-1), fanOutSlotBytes)
+		add(rows, per)
+		add(mulSat(rows, fanOut-1), fanOutSlotBytes)
 		add(in.Buckets, bucketState)
 		add(in.Cells, cellBytes)
 	case ArmStreaming:

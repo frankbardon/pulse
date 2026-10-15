@@ -193,17 +193,17 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 	clone := *req
 	clone.Joins = nil
 	var zones []descriptor.ResolvedZone
-	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req, func(joined *encoding.Schema, lin descx.LimitInputs) error {
+	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req, func(joined *encoding.Schema, lin descx.LimitInputs) (*types.Request, error) {
 		s.applyDefaults(&clone, joined)
 		z, err := s.resolveZones(&clone, joined)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		zones = z
 		if err := s.checkFieldRefs(ctx, &clone, joined); err != nil {
-			return err
+			return nil, err
 		}
-		return s.limitsPreflight(&clone, joined, lin)
+		return &clone, s.limitsPreflight(&clone, joined, lin)
 	})
 	if err != nil {
 		return nil, err
