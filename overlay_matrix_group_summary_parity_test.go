@@ -6,6 +6,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -185,5 +186,52 @@ func TestMatrixGroupSummary_EndToEnd(t *testing.T) {
 	}
 	if b, _ := json.Marshal(out.Responses[0].Overlays[0]); string(b) != string(got) {
 		t.Errorf("Compose slot layer differs:\n%s\n%s", b, got)
+	}
+}
+
+// TestMatrixGroupSummary_MatricesOnlyInstance: on an instance whose only
+// overlay host is MATRIX_RESULT (capability:matrices + the kind, no
+// crosstab, no compose), the request `overlays` slot and the response
+// `overlays` it produces are visible — predict accepts, the runtime
+// runs, and the instance payload schema names both slots. The slot gate
+// once listed only the crosstab and compose hosts, so this valid profile
+// refused the overlay it enables as PULSE_REQUEST_UNKNOWN_FIELD.
+func TestMatrixGroupSummary_MatricesOnlyInstance(t *testing.T) {
+	_, fs, cohort := acceptanceCohort(t)
+	ctx := context.Background()
+	p, err := pulse.New(pulse.Options{FS: fs, FeatureProfile: &pulse.FeatureProfile{Features: []string{
+		"capability:process", "capability:matrices", "MAT_CORRELATION", "GROUP_CATEGORY", "AGG_COUNT",
+		"OVERLAY_MATRIX_GROUP_SUMMARY",
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := mgsRequest(cohort, "", mgsSpec("r"))
+	if env := predictEnvelope(t, p, fs, cohort, req); len(env.Errors) != 0 {
+		t.Fatalf("predict %+v", env.Errors)
+	}
+	resp, err := p.Process(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Overlays) != 1 || resp.Overlays[0].Kind != types.OverlayKindMatrixGroupSummary {
+		t.Fatalf("overlays %+v", resp.Overlays)
+	}
+	schema, err := p.PayloadSchema()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Defs map[string]struct {
+			Properties map[string]any `json:"properties"`
+		} `json:"$defs"`
+	}
+	if err := json.Unmarshal(schema, &doc); err != nil {
+		t.Fatal(err)
+	}
+	for _, root := range []string{"Request", "Response"} {
+		if _, ok := doc.Defs[root].Properties["overlays"]; !ok {
+			t.Errorf("instance schema %s has no overlays", root)
+		}
 	}
 }

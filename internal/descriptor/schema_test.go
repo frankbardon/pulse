@@ -278,7 +278,6 @@ func TestPayloadSchemaForInstance_ScopedOmitsHidden(t *testing.T) {
 		"GroupType":       {"GROUP_CATEGORY"},
 		"TestType":        {"TEST_T"},
 		"FiltererType":    {},
-		"OverlayKind":     {},
 		"RegressionType":  {},
 	} {
 		got := enum(name)
@@ -305,6 +304,7 @@ func TestPayloadSchemaForInstance_ScopedOmitsHidden(t *testing.T) {
 	}
 	for _, name := range []string{
 		"CrosstabSpec", "JoinSpec", "OverlaySpec", // reachable only through hidden slots
+		"OverlayLayer", "OverlayKind", // the hidden Response.overlays and its kind enum
 		"ComposedRequest", "ComposedResponse", "ChainRequest", "ChainResponse",
 		"FacetRequest", "FacetResult", "SampleRequest", "LookupRequest", "LookupResult",
 		"RecommendRequest", "RecommendResult",

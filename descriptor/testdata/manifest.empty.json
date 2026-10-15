@@ -642,7 +642,6 @@
           "regressions",
           "warnings",
           "crosstab",
-          "overlays",
           "components"
         ]
       },
@@ -703,8 +702,7 @@
           "regressions[*].selected_features",
           "regressions[*].vcov",
           "regressions[*].correlation",
-          "regressions[*].covariance",
-          "overlays"
+          "regressions[*].covariance"
         ]
       },
       {
@@ -729,11 +727,7 @@
           "regressions[*].name",
           "regressions[*].type",
           "regressions[*].coefficients",
-          "regressions[*].p_values",
-          "overlays[*].name",
-          "overlays[*].kind",
-          "overlays[*].ref",
-          "overlays[*].summary"
+          "regressions[*].p_values"
         ]
       }
     ],
@@ -797,4 +791,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2fabda884d778113effd6a99149610a1e606726a6a73f3497a65fb737b53272c
+// golden-hash: 0d3dc08a214f895d1528a46657272cc8df02d9968e7d6078141bf8f40eecaf26

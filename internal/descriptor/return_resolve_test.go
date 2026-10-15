@@ -372,6 +372,34 @@ func TestReturnPathsMatchSchema(t *testing.T) {
 	if schemaWalk(defs, root, []string{"tests", "[*]", "pvalue"}) == "" {
 		t.Error("schema walk accepted a nonexistent key")
 	}
+
+	// An instance offering every overlay host but no overlay kind: no
+	// result root's `overlays` is a path of its schema, while the full
+	// schema keeps every one.
+	var scoped map[string]any
+	if err := json.Unmarshal(BuildPayloadSchemaForInstance(noOverlayKinds()), &scoped); err != nil {
+		t.Fatal(err)
+	}
+	scopedDefs := scoped["$defs"].(map[string]any)
+	for _, name := range []string{"Response", "ComposedResponse", "FacetResult", "ChainResponse"} {
+		if schemaWalk(defs, defs[name].(map[string]any), []string{"overlays"}) != "" {
+			t.Errorf("full schema %s has no overlays", name)
+		}
+		def, ok := scopedDefs[name].(map[string]any)
+		if !ok {
+			t.Errorf("$defs.%s missing on the scoped instance", name)
+			continue
+		}
+		if schemaWalk(scopedDefs, def, []string{"overlays"}) == "" {
+			t.Errorf("%s.overlays survives on an instance with no overlay kind", name)
+		}
+	}
+}
+
+// noOverlayKinds is an instance enabling every overlay host (and the
+// result roots they produce) but no overlay kind.
+func noOverlayKinds() *InstanceSnapshot {
+	return scopedOnly(featProcess, featCrosstab, featCompose, featProcessChain, featFacet, featMatrices, "AGG_COUNT")
 }
 
 // TestReturnPresetsFor_Instance: the manifest's presets are expanded
@@ -414,6 +442,37 @@ func TestReturnPresetsFor_Instance(t *testing.T) {
 	}
 	if len(scoped[2].Paths) >= len(full[2].Paths) {
 		t.Errorf("minimal kept %d paths on the scoped instance, full registry has %d", len(scoped[2].Paths), len(full[2].Paths))
+	}
+
+	// No overlay kind enabled: no preset lists an overlay path, on any
+	// root, and naming one is the hidden-path refusal.
+	for _, inst := range []*InstanceSnapshot{hidden, noOverlayKinds()} {
+		for _, pm := range ReturnPresetsFor(inst) {
+			for _, s := range pm.Paths {
+				if strings.HasPrefix(s, "overlays") {
+					t.Errorf("%s kept hidden overlay path %q", pm.Name, s)
+				}
+			}
+		}
+	}
+	if !slices.Contains(full[0].Paths, "overlays") || !slices.Contains(full[2].Paths, "overlays[*].summary") {
+		t.Errorf("full registry presets lost the overlay paths: %v / %v", full[0].Paths, full[2].Paths)
+	}
+	for _, inst := range []*InstanceSnapshot{hidden, noOverlayKinds()} {
+		_, err := ResolveReturn(&types.Request{Return: &types.Return{Include: []string{"overlays"}}}, inst)
+		if ce := asCoded(t, err); ce.Code != errors.PULSE_RETURN_PATH_UNKNOWN {
+			t.Errorf("response include overlays = %s, want PULSE_RETURN_PATH_UNKNOWN", ce.Code)
+		}
+	}
+	composed := func(ret types.Return) *types.ComposedRequest { return &types.ComposedRequest{Return: &ret} }
+	if _, err := ResolveComposeReturn(composed(types.Return{Include: []string{"overlays"}}), noOverlayKinds()); asCoded(t, err).Code != errors.PULSE_RETURN_PATH_UNKNOWN {
+		t.Errorf("compose include overlays = %v, want PULSE_RETURN_PATH_UNKNOWN", err)
+	}
+	if _, err := ResolveComposeReturn(composed(types.Return{Preset: types.ReturnPresetMinimal}), noOverlayKinds()); err != nil {
+		t.Errorf("compose minimal refused on an instance with no overlay kind: %v", err)
+	}
+	if _, err := ResolveComposeReturn(composed(types.Return{Include: []string{"overlays"}}), scopedOnly(featCompose, "OVERLAY_RANK")); err != nil {
+		t.Errorf("compose include overlays refused with a compose kind enabled: %v", err)
 	}
 
 	m := BuildManifestForInstance(hidden)

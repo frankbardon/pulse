@@ -30,6 +30,11 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 	// references and the limits pre-flight run on the joined schema
 	// before the build side decodes a record (openJoinStream's
 	// preflight hook).
+	//
+	// The clone deliberately SHARES req's *Aggregation pointers: the
+	// defaults resolved below reach the caller's request, whose return
+	// plan's precision-exact set the facade derives after the run
+	// (TestReturn_PrecisionJoinedDefaultCount).
 	clone := *req
 	clone.Joins = nil
 	clone.Cohort = nil

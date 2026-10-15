@@ -117,6 +117,13 @@ var modelsSlotGate = gatedSlot{key: "models", visible: capabilityGate(featModels
 // rides capability:models too.
 var populationsSlotGate = gatedSlot{key: "populations", visible: capabilityGate(featModels)}
 
+// requestOverlaysSlotGate gates the `overlays` key on a Request and on
+// the Response it produces: visible iff a request-level overlay host
+// (the crosstab MATRIX host, the Compose series host or the
+// MATRIX_RESULT host a Request.Matrices request produces) is enabled
+// with one of its kinds.
+var requestOverlaysSlotGate = gatedSlot{key: "overlays", visible: overlayGate(featCrosstab, featCompose, featMatrices)}
+
 // gatedSlots maps each request root (by its Go type) to its gated
 // slots, plus the nested slot objects that carry a gated key of their
 // own (the per-slot `weight`). The nested entries are what the payload
@@ -126,7 +133,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	reflect.TypeOf(types.Request{}): {
 		{key: "crosstab", visible: capabilityGate(featCrosstab)},
 		{key: "joins", visible: capabilityGate(featJoins)},
-		{key: "overlays", visible: overlayGate(featCrosstab, featCompose)},
+		requestOverlaysSlotGate,
 		{key: "vectors", visible: capabilityGate(featMatrices)},
 		{key: "matrices", visible: capabilityGate(featMatrices)},
 		weightSlotGate,
@@ -170,9 +177,11 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	// instance ever reaches them.
 	reflect.TypeOf(types.MatrixResult{}): {multiplicitySlotGate},
 	// The matrix results ride capability:matrices with the request
-	// slots that produce them.
+	// slots that produce them; the overlay layers ride the same gate
+	// as the request `overlays` slot that produces them.
 	reflect.TypeOf(types.Response{}): {
 		{key: "matrices", visible: capabilityGate(featMatrices)},
+		requestOverlaysSlotGate,
 	},
 	reflect.TypeOf(types.ResponseComponents{}): {
 		{key: "matrices", visible: capabilityGate(featMatrices)},
@@ -185,16 +194,25 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	},
 	// The sweep rank rides capability:compose_sweep with the `sweep`
 	// slot that produces it.
+	// The top-level overlay layers of each result root ride the gate
+	// of the request root's `overlays` slot that produces them.
 	reflect.TypeOf(types.ComposedResponse{}): {
+		{key: "overlays", visible: overlayGate(featCompose)},
 		{key: "ranking", visible: capabilityGate(featComposeSweep)},
 		{key: "fits", visible: capabilityGate(featComposeFits)},
 	},
 	reflect.TypeOf(types.ChainRequest{}): {
 		{key: "overlays", visible: overlayGate(featProcessChain)},
 	},
+	reflect.TypeOf(types.ChainResponse{}): {
+		{key: "overlays", visible: overlayGate(featProcessChain)},
+	},
 	reflect.TypeOf(types.FacetRequest{}): {
 		{key: "overlays", visible: overlayGate(featFacet)},
 		modelsSlotGate,
+	},
+	reflect.TypeOf(types.FacetResult{}): {
+		{key: "overlays", visible: overlayGate(featFacet)},
 	},
 	// Explain carries every other root as a slot: a root whose
 	// capability is hidden is not a slot of it, request and result alike.
