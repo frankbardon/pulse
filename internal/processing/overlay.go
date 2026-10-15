@@ -434,7 +434,7 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 		if route == types.OverlayKindFormula {
 			// The shared identifier gate predict raises first, with the
 			// spec index (formulaident.RequestRefusal).
-			if cerr := requestFormulaIdentRefusal(spec, exts, i); cerr != nil {
+			if cerr := requestFormulaIdentRefusal(spec, exts, i, types.OverlayShapeMatrix); cerr != nil {
 				return nil, nil, cerr
 			}
 			layer, ws, err := applyFormulaWithExtensions(spec, host, exts)

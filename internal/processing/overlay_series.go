@@ -395,6 +395,12 @@ var seriesOverlayHandlers = map[types.OverlayKind]seriesOverlayHandler{
 	// see computeSeriesWelfordPopulation in
 	// internal/processing/overlay_zscore_vs_total.go.
 	types.OverlayKindZScoreVsTotal: applyZScoreVsTotal,
+
+	// OVERLAY_FORMULA: the SERIES namespace (value / total / prior /
+	// opt-in baseline) per host row (U35 #432). The Process dispatcher
+	// (applyOverlaysSeriesPerSpec) swaps in the registry-aware
+	// applyFormulaSeriesWith after the shared identifier gate.
+	types.OverlayKindFormula: applyFormulaSeries,
 }
 
 // computeSeriesGrandTotal folds a running grand-total accumulator over
@@ -531,11 +537,19 @@ func applyOverlaysSeriesPerSpec(specs []types.OverlaySpec, hostFor func(int, *ty
 					"host":  "series",
 				})
 		}
+		if route == types.OverlayKindFormula {
+			// The shared Request-host gate predict raises first, before
+			// the params.field / partition_by reads (U35 #432).
+			if cerr := requestFormulaIdentRefusal(spec, exts, i, types.OverlayShapeSeries); cerr != nil {
+				return nil, nil, cerr
+			}
+			handler = nil // runSeriesHandlerPartitioned runs applyFormulaSeriesWith
+		}
 		host, plan, err := hostFor(i, spec, route)
 		if err != nil {
 			return nil, nil, err
 		}
-		layer, ws, err := runSeriesHandlerPartitioned(handler, spec, host, plan)
+		layer, ws, err := runSeriesHandlerPartitioned(handler, exts, spec, host, plan)
 		if err != nil {
 			return nil, nil, err
 		}

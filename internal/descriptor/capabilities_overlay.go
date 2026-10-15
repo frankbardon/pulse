@@ -603,10 +603,11 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 		return descriptor.OverlayCapability{
 			Kind: types.OverlayKindFormula,
 			Shapes: []types.OverlayShape{
-				// Every shape FORMULA computes on some slot: MATRIX on
-				// Request.Overlays (a crosstab — the one Process shape it
-				// runs on, overlayhost.Shapes) and on Compose; SERIES and
-				// SCALAR on ComposedRequest.Overlays (U46 E4-S15).
+				// Every shape FORMULA computes on some slot: MATRIX and
+				// SERIES on Request.Overlays (a crosstab, a grouped
+				// Process — overlayhost.Shapes; SERIES since U35 #432)
+				// and on Compose; SCALAR on ComposedRequest.Overlays only
+				// (U46 E4-S15).
 				types.OverlayShapeMatrix,
 				types.OverlayShapeScalar,
 				types.OverlayShapeSeries,
@@ -648,8 +649,11 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"ATTR_FORMULA and FILTER_EXPRESSION — the scalar built-ins sqrt / log / exp / pow, the set helpers, " +
 				"lookup() with a registered LookupTable and embedder ExprFunctions are reachable) then runs it per " +
 				"cell / entry / scalar against a per-host-shape namespace. On Request.Overlays it runs on a MATRIX " +
-				"(crosstab) host only — cell, margin_row, margin_col, margin_grand, sd_row, sd_col, sd_grand; a grouped " +
-				"request is refused PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (details.shapes). On ComposedRequest.Overlays " +
+				"(crosstab) host — cell, margin_row, margin_col, margin_grand, sd_row, sd_col, sd_grand — and on a SERIES " +
+				"(grouped Process) host, scope group and an empty Ref, once per row — value, total (the sum of the partition's " +
+				"values), prior (the previous present row's value, null on the first) and baseline, reachable only when " +
+				"params.baseline_position names a 0-based row (a non-negative integer, else PULSE_OVERLAY_LEVEL_OUT_OF_RANGE; " +
+				"past the partition PULSE_OVERLAY_REF_UNKNOWN at runtime). On ComposedRequest.Overlays " +
 				"the host is the first target slot, of the reference slot's shape: MATRIX adds ref_cell; SERIES binds " +
 				"value, total, prior and ref_value; SCALAR binds value and ref; every shape adds " +
 				"`slot.<label>.cell` (MATRIX) / `slot.<label>.value` for the reference and each target, aligned by key " +

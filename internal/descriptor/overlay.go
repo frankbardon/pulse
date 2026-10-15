@@ -1819,6 +1819,11 @@ func validateOverlayRollingWindowParam(env *descriptor.Envelope, spec *types.Ove
 			})
 		return
 	}
+	// The kind's floor (OVERLAY_ZSCORE_VS_ROLLING: >= 2), shared with the
+	// runtime handler (U35 #431).
+	if cerr := overlayhost.RollingWindowFloorRefusal(spec, spec.Kind, window, index); cerr != nil {
+		addCodedError(env, cerr)
+	}
 }
 
 // coerceIntegralOverlayParam coerces a JSON-decoded overlay Params

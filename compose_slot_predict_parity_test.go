@@ -122,7 +122,8 @@ func TestComposePredict_SlotBodyMatchesRuntime(t *testing.T) {
 	}{
 		{"unknown aggregation", `{"aggregations":[{"type":"AGG_NOPE","field":"x"}]}`, errors.PROCESSING_CONFIG},
 		{"unknown group", `{"groups":[{"type":"GROUP_NOPE","field":"g"}],"aggregations":[{"type":"AGG_SUM","field":"x"}]}`, errors.PROCESSING_CONFIG},
-		{"formula overlay on grouped slot", `{"groups":[{"type":"GROUP_CATEGORY","field":"g"}],"aggregations":[{"type":"AGG_SUM","field":"x","label":"s"}],"overlays":[{"name":"o","kind":"OVERLAY_FORMULA","scope":"cell","params":{"formula":"cell"}}]}`, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
+		{"matrix overlay on grouped slot", `{"groups":[{"type":"GROUP_CATEGORY","field":"g"}],"aggregations":[{"type":"AGG_SUM","field":"x","label":"s"}],"overlays":[{"name":"o","kind":"OVERLAY_SHARE_OF_ROW","scope":"cell"}]}`, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
+		{"formula overlay on grouped slot", `{"groups":[{"type":"GROUP_CATEGORY","field":"g"}],"aggregations":[{"type":"AGG_SUM","field":"x","label":"s"}],"overlays":[{"name":"o","kind":"OVERLAY_FORMULA","scope":"group","params":{"formula":"cell"}}]}`, errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
 		{"crosstab cell unknown", `{"crosstab":{` + axes + `,"cell":{"type":"AGG_NOPE","field":"x"}}}`, errors.PROCESSING_CONFIG},
 		{"crosstab margin unknown", `{"crosstab":{` + axes + `,"cell":{"type":"AGG_COUNT","field":"x"},"margins":{"rows":true},"margin_aggregations":[{"type":"AGG_NOPE","field":"x","label":"m"}]}}`, errors.PROCESSING_CONFIG},
 		{"crosstab cell decimal", `{"crosstab":{` + axes + `,"cell":{"type":"AGG_MEDIAN","field":"t_decimal128"}}}`, errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL},

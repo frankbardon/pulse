@@ -30,7 +30,7 @@ Use something else:
 
 ## Host shape
 
-`Request.Overlays`: a crosstab only (`cell`, `margin_row|col|grand`, `sd_row|col|grand`); a grouped request is `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`details.shapes`), an ungrouped one the same code ("requires a MATRIX host"). Compose: the first target, any shape of the reference — MATRIX adds `ref_cell`; SERIES `value`, `total`, `prior`, `ref_value`; SCALAR `value`, `ref`; plus `slot.<label>.cell|value` for the reference and targets, aligned by key (missing → NaN → null).
+`Request.Overlays`: a crosstab (`cell`, `margin_row|col|grand`, `sd_row|col|grand`) or a grouped Process (SERIES; scope `group`, empty `Ref`): per row `value` (`params.field`, else `aggregations[0]`), `total` (the partition's sum), `prior` (previous present row; null on the first), `baseline` only with `params.baseline_position` (0-based row; not a non-negative integer → `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`, past the partition → `PULSE_OVERLAY_REF_UNKNOWN`). Over N ≥ 2 groups it runs per partition (`params.partition_by`). An ungrouped request is `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. Compose: the first target, any shape of the reference — MATRIX adds `ref_cell`; SERIES `value`, `total`, `prior`, `ref_value`; SCALAR `value`, `ref`; plus `slot.<label>.cell|value` for the reference and targets, aligned by key (missing → NaN → null).
 
 ## Output
 

@@ -140,7 +140,8 @@ func TestChainPredict_StageBodyMatchesRuntime(t *testing.T) {
 		{"label on f64 output", `{"aggregations":[{"type":"AGG_SUM","field":"s","label":"t"}],"labels":[{"field":"s","table":"regions"}]}`, errors.PULSE_LABEL_FIELD_NOT_CATEGORICAL},
 		{"label sibling collision", `{"groups":[{"type":"GROUP_CATEGORY","field":"region"}],"aggregations":[{"type":"AGG_SUM","field":"s","label":"region_label"}],"labels":[{"field":"region","table":"regions","mode":"augment"}]}`, errors.PULSE_LABEL_FIELD_COLLISION},
 		{"aggregator over categorical key", `{"aggregations":[{"type":"AGG_SUM","field":"region"}]}`, errors.PULSE_FIELD_TYPE_UNSUPPORTED},
-		{"formula overlay on grouped stage", `{"groups":[{"type":"GROUP_CATEGORY","field":"region"}],"aggregations":[{"type":"AGG_SUM","field":"s","label":"t"}],"overlays":[{"name":"o","kind":"OVERLAY_FORMULA","scope":"cell","params":{"formula":"cell"}}]}`, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
+		{"matrix overlay on grouped stage", `{"groups":[{"type":"GROUP_CATEGORY","field":"region"}],"aggregations":[{"type":"AGG_SUM","field":"s","label":"t"}],"overlays":[{"name":"o","kind":"OVERLAY_SHARE_OF_ROW","scope":"cell"}]}`, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
+		{"formula overlay on grouped stage", `{"groups":[{"type":"GROUP_CATEGORY","field":"region"}],"aggregations":[{"type":"AGG_SUM","field":"s","label":"t"}],"overlays":[{"name":"o","kind":"OVERLAY_FORMULA","scope":"group","params":{"formula":"cell"}}]}`, errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
 	} {
 		body := c.body
 		assertChainParity(t, p, "stage 1: "+c.name, func() *types.ChainRequest {

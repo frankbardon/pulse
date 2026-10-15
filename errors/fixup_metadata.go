@@ -2516,13 +2516,19 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE: {
-		Message: "An OverlaySpec's Level selector exceeds the nested-axis depth of the relevant host axis. Valid depths are zero-indexed from the top of the axis: Row axis depth = len(Crosstab.Rows), Column axis depth = len(Crosstab.Columns). Mirrors PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE on the crosstab normalize_level surface.",
+		Message: "An OverlaySpec's Level selector exceeds the nested-axis depth of the relevant host axis. Valid depths are zero-indexed from the top of the axis: Row axis depth = len(Crosstab.Rows), Column axis depth = len(Crosstab.Columns). Mirrors PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE on the crosstab normalize_level surface. The same code refuses an out-of-range overlay Params value, at predict and at runtime alike: a rolling-window Params[\"window\"] that is not a positive integer or sits below the kind's floor (details.min: 1 for the rolling-mean index, 2 for the rolling z-score, whose sample SD is undefined over one point), and a series formula overlay's Params[\"baseline_position\"] that is not a non-negative integer.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Level"},
 				Hint:     "Pick a depth in [0, len(axis)-1] where axis = Crosstab.Rows for row-axis overlays and Crosstab.Columns for column-axis overlays. Omit the field entirely to default to the leaf (the deepest grouper on the axis).",
 				Examples: []any{0, 1, 2},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "window"},
+				Hint:     "Use a whole number at or above details.min — 2 or more for the rolling z-score; window 1 of the rolling-mean index indexes each row against the one before it.",
+				Examples: []any{2, 3, 7},
 			},
 		},
 	},

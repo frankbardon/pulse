@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -86,6 +87,12 @@ import (
 //                                     for "value out of valid range"
 //                                     semantics on Params slots — keeps
 //                                     the error code surface narrow).
+//   - Window 1                    ⇒ PULSE_OVERLAY_LEVEL_OUT_OF_RANGE
+//                                     {kind, param, window, min: 2}
+//                                     (overlayhost.RollingWindowFloorRefusal,
+//                                     predict's rule too): a one-point
+//                                     sample SD is undefined, so every
+//                                     row would be null (U35 #431).
 //
 // Both gates reuse the shared `extractWindowParam` helper
 // (internal/processing/overlay_index_vs_rolling_mean.go) so the predict gate +
@@ -170,6 +177,11 @@ func applyZScoreVsRolling(spec *types.OverlaySpec, host *SeriesHostView) (types.
 	window, err := extractWindowParam(spec)
 	if err != nil {
 		return types.OverlayLayer{}, nil, err
+	}
+	// Window 1 would answer null at every row (a one-point sample SD is
+	// undefined): the shared floor predict raises too (U35 #431).
+	if cerr := overlayhost.RollingWindowFloorRefusal(spec, types.OverlayKindZScoreVsRolling, window, -1); cerr != nil {
+		return types.OverlayLayer{}, nil, cerr
 	}
 
 	groupCount := host.GroupCount()

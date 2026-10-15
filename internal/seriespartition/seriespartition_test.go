@@ -147,8 +147,8 @@ func TestRowKeys(t *testing.T) {
 
 func TestKinds(t *testing.T) {
 	ks := Kinds()
-	if len(ks) != 11 {
-		t.Fatalf("Kinds() = %v, want the 8 ordered kinds and the 3 _TOTAL kinds", ks)
+	if len(ks) != 12 {
+		t.Fatalf("Kinds() = %v, want the 9 ordered kinds (OVERLAY_FORMULA included) and the 3 _TOTAL kinds", ks)
 	}
 	ordered := 0
 	for _, k := range ks {
@@ -159,8 +159,8 @@ func TestKinds(t *testing.T) {
 			ordered++
 		}
 	}
-	if ordered != 8 {
-		t.Errorf("%d ordered kinds, want 8", ordered)
+	if ordered != 9 {
+		t.Errorf("%d ordered kinds, want 9", ordered)
 	}
 	for _, k := range []types.OverlayKind{types.OverlayKindIndexVsTotal, types.OverlayKindShareOfTotal, types.OverlayKindZScoreVsTotal} {
 		if !Applies(k) || Ordered(k) {

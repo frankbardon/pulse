@@ -158,9 +158,9 @@ func TestRefuseWrongHostOverlays_Shape(t *testing.T) {
 		req  *types.Request
 		want *errors.CodedError
 	}{
-		"series":  {series, overlayhost.ShapeRefusal(types.OverlayShapeSeries, types.OverlayKindShareOfCol, types.OverlayKindShareOfCol, 1)},
-		"matrix":  {matrix, overlayhost.ShapeRefusal(types.OverlayShapeMatrix, types.OverlayKindIndexVsPrior, types.OverlayKindIndexVsPrior, 1)},
-		"formula": {&types.Request{Groups: series.Groups, Aggregations: series.Aggregations, Overlays: []types.OverlaySpec{{Kind: types.OverlayKindFormula}}}, overlayhost.ShapeRefusal(types.OverlayShapeSeries, types.OverlayKindFormula, types.OverlayKindFormula, 0)},
+		"series":                           {series, overlayhost.ShapeRefusal(types.OverlayShapeSeries, types.OverlayKindShareOfCol, types.OverlayKindShareOfCol, 1)},
+		"matrix":                           {matrix, overlayhost.ShapeRefusal(types.OverlayShapeMatrix, types.OverlayKindIndexVsPrior, types.OverlayKindIndexVsPrior, 1)},
+		"matrix-result kind on a crosstab": {&types.Request{Crosstab: &types.CrosstabSpec{}, Matrices: []types.MatrixSpec{{}}, Overlays: []types.OverlaySpec{{Kind: types.OverlayKindMatrixGroupSummary}}}, overlayhost.ShapeRefusal(types.OverlayShapeMatrix, types.OverlayKindMatrixGroupSummary, types.OverlayKindMatrixGroupSummary, 0)},
 	} {
 		if c.want == nil {
 			t.Fatalf("%s: vacuous, no refusal expected", name)

@@ -470,6 +470,7 @@ func TestApplyOverlaysSeries_ProductionDispatchTableRegistered(t *testing.T) {
 		types.OverlayKindDeltaVsBaseline:    true,
 		types.OverlayKindZScoreVsRolling:    true,
 		types.OverlayKindYoY:                true,
+		types.OverlayKindFormula:            true,
 	}
 	for kind := range expected {
 		if _, ok := seriesOverlayHandlers[kind]; !ok {

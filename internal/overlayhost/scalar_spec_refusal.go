@@ -48,7 +48,7 @@ var scalarRules = map[types.OverlayKind]scalarRule{
 	types.OverlayKindRake:                      needsMatrix,
 	types.OverlayKindDeltaVsMargin:             needsMatrix,
 	types.OverlayKindFisherExactCell:           needsMatrix,
-	types.OverlayKindFormula:                   needsMatrix,
+	types.OverlayKindFormula:                   {host: types.OverlayShapeMatrix, dual: true},
 	types.OverlayKindIndexVsMargin:             needsMatrix,
 	types.OverlayKindPairwiseProbitT:           needsMatrix,
 	types.OverlayKindPairwisePropZ:             needsMatrix,

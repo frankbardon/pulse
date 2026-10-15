@@ -17,8 +17,9 @@ import (
 
 // mgSeriesOverlaySpecs is every SERIES overlay that reads the host as
 // an ordered series: the lag-1 prior, the rolling window, the
-// positional baseline and the sibling. With two or more groupers each
-// runs once per partition (internal/seriespartition).
+// positional baseline, the sibling and an OVERLAY_FORMULA reading
+// value, prior, total and baseline (U35 #432). With two or more
+// groupers each runs once per partition (internal/seriespartition).
 func mgSeriesOverlaySpecs() []types.OverlaySpec {
 	window := json.RawMessage(`{"window": 2}`)
 	sib := &types.OverlaySiblingRef{Field: "region", Value: "north"}
@@ -31,6 +32,8 @@ func mgSeriesOverlaySpecs() []types.OverlaySpec {
 		{Name: "db", Kind: types.OverlayKindDeltaVsBaseline, Scope: types.OverlayScopeGroup, Ref: types.OverlayRef{BaselineIndex: &types.OverlayBaselineIndexRef{}}},
 		{Name: "is", Kind: types.OverlayKindIndexVsSibling, Scope: types.OverlayScopeGroup, Ref: types.OverlayRef{Sibling: sib}},
 		{Name: "ds", Kind: types.OverlayKindDeltaVsSibling, Scope: types.OverlayScopeGroup, Ref: types.OverlayRef{Sibling: sib}},
+		{Name: "fx", Kind: types.OverlayKindFormula, Scope: types.OverlayScopeGroup,
+			Params: json.RawMessage(`{"formula": "(value - prior) / total + baseline", "baseline_position": 0}`)},
 	}
 }
 

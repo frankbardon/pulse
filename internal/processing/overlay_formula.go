@@ -481,32 +481,15 @@ func applyFormulaWithExtensions(spec *types.OverlaySpec, host *CrosstabHostView,
 	return layer, nil, nil
 }
 
-// requestFormulaIdentRefusal is the Request-host MATRIX FORMULA
-// identifier gate at index: formulaident.RequestRefusal over the MATRIX
-// namespace and the instance's callable functions, the rule predict's
-// validateFormulaOverlay applies, run BEFORE the compile so an unknown
-// variable or callee is PULSE_OVERLAY_FORMULA_INVALID_IDENT (with the
-// spec index), never the compiler's PULSE_OVERLAY_FORMULA_PARSE_ERROR.
-// nil when the formula param is unusable, refused by the total() rule
-// or fails to parse — applyFormulaWithExtensions raises those, in
-// predict's order.
-func requestFormulaIdentRefusal(spec *types.OverlaySpec, exts *ExtensionRegistry, index int) *errors.CodedError {
-	formula, err := extractFormulaParam(spec)
-	if err != nil {
-		return nil
-	}
-	if totalcall.Refusal(formula, string(types.OverlayKindFormula)) != nil {
-		return nil
-	}
-	if cerr := formulaident.BuiltinRefusal(spec.Kind, formula, index); cerr != nil {
-		return cerr
-	}
-	tree, perr := exprparser.Parse(formula)
-	if perr != nil {
-		return nil
-	}
-	return formulaident.RequestRefusal(spec.Kind, formula, &tree.Node, index, types.OverlayShapeMatrix,
-		formulaident.RequestVars(types.OverlayShapeMatrix, false), exts.overlayFormulaFuncs())
+// requestFormulaIdentRefusal is the Request-host FORMULA gate at index
+// over a host of shape (MATRIX or SERIES): formulaident.RequestSpecRefusal
+// over the instance's callable functions — the rule predict's
+// validateFormulaOverlay applies — run BEFORE the compile, so a missing
+// formula, a total() call, an unknown variable or callee is refused with
+// predict's code, message and Details (spec index included), never the
+// compiler's PULSE_OVERLAY_FORMULA_PARSE_ERROR.
+func requestFormulaIdentRefusal(spec *types.OverlaySpec, exts *ExtensionRegistry, index int, shape types.OverlayShape) *errors.CodedError {
+	return formulaident.RequestSpecRefusal(spec, index, shape, exts.overlayFormulaFuncs())
 }
 
 // runFormulaMatrix compiles formula against ctx's MATRIX prototype env

@@ -37,19 +37,25 @@ func TestRequestFormula_IdentRefusalMatchesPredict(t *testing.T) {
 
 	for _, c := range []struct {
 		name, formula, ident string
+		want                 errors.Code
 	}{
-		{"unknown callee", "bogusfn(cell)", "bogusfn"},
-		{"unknown variable", "cell + bogusvar", "bogusvar"},
-		{"vector built-in", "vsum(cell)", "vsum"},
-		{"compose slot path", "slot.a.cell + cell", "slot.a.cell"},
+		{"unknown callee", "bogusfn(cell)", "bogusfn", errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
+		{"unknown variable", "cell + bogusvar", "bogusvar", errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
+		{"vector built-in", "vsum(cell)", "vsum", errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
+		{"compose slot path", "slot.a.cell + cell", "slot.a.cell", errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
+		// The whole Request-host gate is shared (U35 #432): an empty
+		// formula was the runtime's PULSE_OVERLAY_PARAM_MISSING and a
+		// syntax error its compiler message.
+		{"empty formula", "", "", errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
+		{"parse error", "cell +", "", errors.PULSE_OVERLAY_FORMULA_PARSE_ERROR},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			pe := firstPredictError(t, predictEnvelope(t, withExt, fs, cohort, host(c.formula)), nil)
-			if pe == nil || pe.Code != string(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT) ||
-				pe.Details["index"] != 1 || pe.Details["unknown_identifier"] != c.ident {
-				t.Fatalf("predict %+v, want INVALID_IDENT %q at index 1", pe, c.ident)
+			if pe == nil || pe.Code != string(c.want) || pe.Details["index"] != 1 ||
+				(c.ident != "" && pe.Details["unknown_identifier"] != c.ident) {
+				t.Fatalf("predict %+v, want %s %q at index 1", pe, c.want, c.ident)
 			}
-			want := errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT
+			want := c.want
 			_, err := withExt.Process(ctx, host(c.formula))
 			sameRefusal(t, "process fused", pe, err, want)
 			_, err = buffered.Process(ctx, host(c.formula))

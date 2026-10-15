@@ -110,7 +110,7 @@ func TestSeriesSpecRefusal_Rules(t *testing.T) {
 			}
 		}
 	}
-	for _, route := range []types.OverlayKind{types.OverlayKindChiSqMatrix, types.OverlayKindFormula, ""} {
+	for _, route := range []types.OverlayKind{types.OverlayKindChiSqMatrix, types.OverlayKindRake, ""} {
 		spec := &types.OverlaySpec{Kind: types.OverlayKindIndexVsTotal, Scope: "nowhere",
 			Ref: types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}}}
 		if cerr := SeriesSpecRefusal(spec, route, 0); cerr != nil {
