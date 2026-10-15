@@ -80,7 +80,7 @@ arm. An engine built with `Options.DisableCrosstabFusion` answers
 
 `limit_findings` lists every instance resource limit
 (`Options.Limits`) a predicted figure exceeds, as
-`{limit, configured, estimated, grade}`; it is absent when nothing
+`{limit, configured, estimated, grade, details}`; it is absent when nothing
 exceeds a limit. A `certain` finding is an exact figure — the request
 is refused with `PULSE_LIMIT_EXCEEDED` (`valid: false`), exactly as
 `process` would refuse it before reading a record. A `possible` finding
@@ -98,6 +98,15 @@ count, read from the right cohort's header without reading a record).
 A run that does create more groups than `max_groups`, or a larger
 crosstab grid than `max_crosstab_cells`, is refused
 `PULSE_LIMIT_EXCEEDED` mid-scan, with no partial result.
+
+`predict-compose`, `predict-chain` and `predict-facet` carry the same
+`limit_findings`. Compose reports `max_compose_slots`, then every slot's
+findings with `details.request` naming the slot; a chain reports
+`max_chain_stages`, then every stage's findings with `details.stage`
+(stage 0 on the cohort's record count; a later stage's rows exist only
+at run time, so it never carries a `certain` memory finding); a facet
+reports a `possible` `max_groups` (the largest faceted field's
+dictionary size) and its `certain` memory estimate.
 
 When the request emits inferential p-values, `p_values` reports
 `{total, uncorrected, basis, threshold}`: how many it emits and how many

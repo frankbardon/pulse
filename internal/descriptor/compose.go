@@ -118,6 +118,17 @@ type ComposeValidationResult struct {
 	// cohort — read statically, never fitted. Set once the fits pass
 	// their structural rules (model.CheckFits); omitted without fits.
 	Fits []descriptor.FitSummary `json:"fits,omitempty"`
+
+	// LimitFindings lists every instance resource limit the batch's
+	// predicted figures exceed, graded like PredictResult.LimitFindings:
+	// the slot count (MaxComposeSlots — explicit plus sweep-expanded —
+	// certain, unlocated), then each slot's Request findings located by
+	// details.request, then each fit request's by details.fit. A slot is
+	// judged on its cohort's header counts (PredictOptions.
+	// CohortCounter), the figures its Process pre-flight reads. A
+	// certain finding is also a PULSE_LIMIT_EXCEEDED error. Omitted when
+	// none fires.
+	LimitFindings []descriptor.LimitFinding `json:"limit_findings,omitempty"`
 }
 
 // ValidateCompose runs the no-execute COMPOSE-host overlay walk over
@@ -242,6 +253,9 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	exp, xerr := sweep.Expand(req, composeSlotsPreflight(opts))
 	if xerr != nil {
 		addCodedError(env, xerr)
+		if f, ok := limitRefusalFinding(xerr); ok {
+			result.LimitFindings = append(result.LimitFindings, f)
+		}
 		result.Valid = false
 		return env, written
 	}
@@ -309,8 +323,10 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	// (step 12 aligns a slot's params.fit by them, as the runtime's bind
 	// does) — but its refusals are reported after the slots', as before.
 	fitEnv := descriptor.NewEnvelope(nil)
-	result.Fits = validateComposeFits(fitEnv, req.Fits, opts, loaded)
-	*slots = validateComposeSlots(env, req, opts, loaded, result.Fits)
+	var fitFindings []descriptor.LimitFinding
+	result.Fits = validateComposeFits(fitEnv, req.Fits, opts, loaded, &fitFindings)
+	*slots = validateComposeSlots(env, req, opts, loaded, result.Fits, &result.LimitFindings)
+	result.LimitFindings = append(result.LimitFindings, fitFindings...)
 	env.Errors = append(env.Errors, fitEnv.Errors...)
 	env.Warnings = append(env.Warnings, fitEnv.Warnings...)
 
@@ -1209,7 +1225,7 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 // cannot read) the slot resolves schema-less: the field-independent
 // refusals still apply, the field-dependent ones are left to the
 // runtime.
-func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded, summaries []descriptor.FitSummary) []*types.Request {
+func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded, summaries []descriptor.FitSummary, findings *[]descriptor.LimitFinding) []*types.Request {
 	// The names every slot's ATTR_REG_PREDICT resolves: the runtime's
 	// fit pre-pass binds each `fits` entry before any slot runs, over
 	// the registered populations, beside the slot's own loaded entries.
@@ -1219,7 +1235,7 @@ func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, 
 		if slot == nil {
 			continue
 		}
-		validateComposeRequest(env, slot, opts, "request", i, loadedCatalog(fits, model.RequestRefs(slot), loaded.slot(i)), &normalized[i])
+		validateComposeRequest(env, slot, opts, "request", i, loadedCatalog(fits, model.RequestRefs(slot), loaded.slot(i)), &normalized[i], findings)
 	}
 	return normalized
 }
@@ -1306,13 +1322,17 @@ func loadComposeModels(req *types.ComposedRequest, opts *PredictOptions) (*compo
 // models are the names its ATTR_REG_PREDICT slots resolve (nil: none).
 // It returns the schema the request executes over (nil when
 // unresolvable) and whether every check passed.
-func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts *PredictOptions, key string, idx int, models model.Catalog, normalized **types.Request) (*encoding.Schema, bool) {
+func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts *PredictOptions, key string, idx int, models model.Catalog, normalized **types.Request, findings *[]descriptor.LimitFinding) (*encoding.Schema, bool) {
 	l := opts.instance().Limits()
 	// The request's Process expands its item for_each first (right
 	// after the slot gate the whole batch already passed).
 	expanded, _, _, xerr := ExpandRequestItems(slot, l)
 	if xerr != nil {
-		addCodedError(env, RefusalAt(xerr, key, idx))
+		located := RefusalAt(xerr, key, idx)
+		addCodedError(env, located)
+		if f, ok := limitRefusalFinding(located); ok && findings != nil {
+			*findings = append(*findings, f)
+		}
 		return nil, false
 	}
 	slot = expanded
@@ -1375,6 +1395,20 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 		addCodedError(env, RefusalAt(werr, key, idx))
 		return schema, false
 	}
+	// Then the request's limit pre-flight (Service.limitsPreflight,
+	// right after its weights): the findings Process predict reports,
+	// on the slot cohort's header counts, located under key = idx; a
+	// certain one refuses the request there. Schema-less, nothing is
+	// judged.
+	if schema != nil {
+		located, ok := locatedFindingsAt(env, requestFindings(defaulted, schema, opts, opts.cohortCounts(slot.Cohort)), key, idx)
+		if findings != nil {
+			*findings = append(*findings, located...)
+		}
+		if !ok {
+			return schema, false
+		}
+	}
 	// The attribute constructors run next: ATTR_FORMULA's empty
 	// expression (params.expression is not read).
 	if ce := formulaExpressionRefusal(slot, opts); ce != nil {
@@ -1427,7 +1461,7 @@ func validateRequestBodyAt(env *descriptor.Envelope, req *types.Request, schema 
 // declaration order (nil without fits): a regression fit's name,
 // regression type, target, the predictors as written and the cohort; a
 // vector fit's name, cohort and battery (vectorFitSummary).
-func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *PredictOptions, loaded *composeLoaded) []descriptor.FitSummary {
+func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *PredictOptions, loaded *composeLoaded, findings *[]descriptor.LimitFinding) []descriptor.FitSummary {
 	if len(fits) == 0 {
 		return nil
 	}
@@ -1448,7 +1482,7 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 		}
 		// A fit request runs before the batch binds anything: it sees
 		// only the registered populations and its own loaded entries.
-		schema, ok := validateComposeRequest(env, req, opts, "fit", i, loadedCatalog(opts.populations(), model.RequestRefs(req), loaded.fit(i)), nil)
+		schema, ok := validateComposeRequest(env, req, opts, "fit", i, loadedCatalog(opts.populations(), model.RequestRefs(req), loaded.fit(i)), nil, findings)
 		if !ok || schema == nil {
 			continue
 		}

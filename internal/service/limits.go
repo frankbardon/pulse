@@ -32,12 +32,9 @@ func (s *Service) memoryBounded() bool {
 
 // limitInputs are the run facts the pre-flight reads for a request
 // scanning cohort (opened from path) — the figures predict reads from
-// the same header: an archive's per-shard counts from its manifest and
-// its byte length (what Open read), a
-// single file's header-only count (CountRecords, never
-// Cohort.RecordCount) — plus, for an anchor-opened shard, its archive's
-// byte length. Counts are read only when MaxEstimatedMemory is
-// set; otherwise Records is -1 (unknown), which no refusing rule needs.
+// the same header (cohortCounts). Counts are read only when
+// MaxEstimatedMemory is set; otherwise Records is -1 (unknown), which
+// no refusing rule needs.
 func (s *Service) limitInputs(ctx context.Context, cohort *Cohort, path string) (descx.LimitInputs, error) {
 	in := descx.LimitInputs{
 		Records:        -1,
@@ -49,24 +46,50 @@ func (s *Service) limitInputs(ctx context.Context, cohort *Cohort, path string) 
 	if !s.memoryBounded() {
 		return in, nil
 	}
-	if shards := cohort.Shards(); len(shards) > 0 {
-		var total int64
-		for _, sh := range shards {
-			in.ShardRecords = append(in.ShardRecords, sh.RecordCount)
-			total += sh.RecordCount
-		}
-		in.Records = total
-		in.ArchiveBytes = cohort.archiveBytes
-		return in, nil
-	}
-	n, err := s.CountRecords(ctx, path)
+	c, err := s.cohortCounts(ctx, cohort, path)
 	if err != nil {
 		return in, err
 	}
-	in.Records = int64(n)
-	// An anchor-opened shard: its archive's bytes, no shard counts.
-	in.ArchiveBytes = cohort.archiveBytes
+	in.Records, in.ShardRecords, in.ArchiveBytes = c.Records, c.ShardRecords, c.ArchiveBytes
 	return in, nil
+}
+
+// cohortCounts are the header facts of cohort (opened from path) the
+// limit rules read: an archive's per-shard counts from its manifest and
+// its byte length (what Open read), a single file's header-only count
+// (CountRecords, never Cohort.RecordCount) — plus, for an
+// anchor-opened shard, its archive's byte length.
+func (s *Service) cohortCounts(ctx context.Context, cohort *Cohort, path string) (descx.CohortCounts, error) {
+	var c descx.CohortCounts
+	if shards := cohort.Shards(); len(shards) > 0 {
+		for _, sh := range shards {
+			c.ShardRecords = append(c.ShardRecords, sh.RecordCount)
+			c.Records += sh.RecordCount
+		}
+		c.ArchiveBytes = cohort.archiveBytes
+		return c, nil
+	}
+	n, err := s.CountRecords(ctx, path)
+	if err != nil {
+		return descx.CohortCounts{Records: -1}, err
+	}
+	c.Records = int64(n)
+	// An anchor-opened shard: its archive's bytes, no shard counts.
+	c.ArchiveBytes = cohort.archiveBytes
+	return c, nil
+}
+
+// CohortCounts opens the cohort at path and returns the header facts
+// the limit pre-flight reads for it (cohortCounts) whether or not a
+// memory limit is set — predict's PredictOptions.CohortCounter, so a
+// Compose slot's limit findings carry the runtime's own figures. No
+// record is read.
+func (s *Service) CohortCounts(ctx context.Context, path string) (descx.CohortCounts, error) {
+	cohort, err := s.Open(ctx, path)
+	if err != nil {
+		return descx.CohortCounts{Records: -1}, err
+	}
+	return s.cohortCounts(ctx, cohort, path)
 }
 
 // composeSlotsPreflight refuses a Compose call carrying more than

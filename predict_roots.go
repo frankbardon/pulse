@@ -136,6 +136,11 @@ func (p *Pulse) predictRootOptions(opts *descx.PredictOptions) {
 func (p *Pulse) composePredictOptions(ctx context.Context) descx.PredictOptions {
 	opts := p.predictOptions(ctx, sidecarFacts{})
 	opts.SidecarLoader = p.sidecarLoader
+	// Each slot's limit findings read its cohort's header counts through
+	// the runtime pre-flight's own reader.
+	opts.CohortCounter = func(path string) (descx.CohortCounts, error) {
+		return p.svc.CohortCounts(ctx, path)
+	}
 	return opts
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -43,6 +44,17 @@ type ChainValidationResult struct {
 	// Empty (and omitted on the wire) when every chain-overlay spec
 	// passes the shape-match gate.
 	OverlaysSchemaDivergence []ChainOverlaySchemaDivergence `json:"overlays_schema_divergence,omitempty"`
+
+	// LimitFindings lists every instance resource limit the chain's
+	// predicted figures exceed, graded like PredictResult.LimitFindings:
+	// the stage count (MaxChainStages, certain, unlocated), then each
+	// stage's Request findings located by details.stage. Stage 0 is
+	// judged on the cohort's header count, exactly as its Process
+	// pre-flight; a later stage's input rows exist only at runtime, so
+	// it carries no memory estimate and its group bounds are unclamped.
+	// A certain finding is also a PULSE_LIMIT_EXCEEDED error. Omitted
+	// when none fires.
+	LimitFindings []descriptor.LimitFinding `json:"limit_findings,omitempty"`
 }
 
 // ChainOverlaySchemaDivergence carries one shape-divergent (Ref,
@@ -191,6 +203,16 @@ func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		result.Valid = false
 		return env
 	}
+	// The stage count — the runtime's next check (limits.
+	// CheckChainStages), a request-shape fact, so a certain finding.
+	if ce := limits.CheckChainStages(opts.instance().Limits(), len(req.Stages)); ce != nil {
+		addCodedError(env, ce)
+		if f, ok := limitRefusalFinding(ce); ok {
+			result.LimitFindings = append(result.LimitFindings, f)
+		}
+		result.Valid = false
+		return env
+	}
 	// A slot the instance hides is an unknown field, refused before
 	// anything else — the runtime's order.
 	if serr := SlotRefusal(req, opts.instance()); serr != nil {
@@ -205,6 +227,9 @@ func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 	expanded, xerr := ExpandChainItems(req, opts.instance().Limits())
 	if xerr != nil {
 		addCodedError(env, xerr)
+		if f, ok := limitRefusalFinding(xerr); ok {
+			result.LimitFindings = append(result.LimitFindings, f)
+		}
 		result.Valid = false
 		return env
 	}
@@ -258,6 +283,15 @@ func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		env.AddError(string(errors.ENCODING_INVALID), "invalid pulse schema: "+err.Error(), nil)
 		result.Valid = false
 		return env
+	}
+
+	// Stage 0's limit inputs: the cohort's header count, derived from
+	// the file length (never a record) as Process predict derives it —
+	// stage 0 runs Process, whose pre-flight reads the same count — and
+	// an anchor-opened shard's archive bytes.
+	stage0Counts := CohortCounts{Records: -1, ArchiveBytes: opts.AnchorArchiveBytes}
+	if n, _, ok := deriveSingleFileRecordCount(fileData, schema); ok {
+		stage0Counts.Records = n
 	}
 
 	result.SchemaInfo = &descriptor.PredictSchemaInfo{FieldCount: len(schema.Fields)}
@@ -413,6 +447,10 @@ func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			if len(refs) == 0 && colsOK {
 				if _, werr := ResolveWeights(fieldReq, fieldSchema, opts.DefaultWeight, opts.instance()); werr != nil {
 					addCodedError(env, RefusalAt(werr, "stage", i))
+				} else if !chainStageLimits(env, result, fieldReq, fieldSchema, opts, i, stage0Counts) {
+					// The stage's limit pre-flight refused it (a certain
+					// finding), right after its weights — the runtime's
+					// order; nothing past it runs.
 				} else if ce := formulaExpressionRefusal(fieldReq, opts); ce != nil {
 					// The attribute constructors run next: ATTR_FORMULA's
 					// empty expression (params.expression is not read).
@@ -445,6 +483,27 @@ func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		result.Valid = false
 	}
 	return env
+}
+
+// chainStageLimits reports stage i's limit findings (requestFindings)
+// on result, located details.stage, and adds every certain one's error;
+// false when a certain finding refuses the stage. Stage 0 runs Process,
+// whose pre-flight reads the cohort's header count (counts); a later
+// stage's input rows are counted only at runtime (the previous stage's
+// output), so it is judged with an unknown count — no memory estimate
+// (never a certain memory finding) and unclamped group bounds. A
+// schema-less stage (an unreadable joined right side) is not judged.
+func chainStageLimits(env *descriptor.Envelope, result *ChainValidationResult, req *types.Request, schema *encoding.Schema, opts *PredictOptions, i int, stage0 CohortCounts) bool {
+	if schema == nil {
+		return true
+	}
+	counts := unknownCounts
+	if i == 0 {
+		counts = stage0
+	}
+	located, ok := locatedFindingsAt(env, requestFindings(req, schema, opts, counts), "stage", i)
+	result.LimitFindings = append(result.LimitFindings, located...)
+	return ok
 }
 
 // loadChainModels is the runtime chain pre-pass's model half:

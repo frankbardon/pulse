@@ -23,7 +23,7 @@ coded error, `PULSE_LIMIT_EXCEEDED`, with no partial result.
 | `MaxEstimatedMemory` | `max_estimated_memory` | none (`Unlimited`) | bytes | a run whose buffered state cannot fit | predict (`certain`) and the same pre-flight before any record decodes |
 | `MaxMatrixDim` | `max_matrix_dim` | `2,048` | columns `p` | a quadratic matrix output | predict (`certain`) + pre-flight |
 | `MaxComposeSlots` | `max_compose_slots` | `1,000` | requests | fan-out through Compose; a `sweep` counts its EXPANDED slots plus the explicit ones | up front, serial and parallel, and in `PredictCompose` |
-| `MaxChainStages` | `max_chain_stages` | `1,000` | stages | fan-out through ProcessChain | up front |
+| `MaxChainStages` | `max_chain_stages` | `1,000` | stages | fan-out through ProcessChain | up front, and in `PredictChain` |
 | `MaxJoinBuildRows` | `max_join_build_rows` | `100,000,000` | records | a join's in-memory build side | predict (`certain`, from the right side's header) + the build loop |
 | `MaxDerivedColumns` | `max_derived_columns` | `1,000` | window + feature + attribute items | fan-out through an item `for_each`; counts every plain item plus every EXPANDED one (a multi-output feature counts once) | predict (`certain`) + before any `for_each` item renders, on every request host (Process, each Compose slot, each chain stage, Materialize) |
 
@@ -97,7 +97,7 @@ limits re-fetches when `limits_digest` moves.
 ## Predict findings: `certain` and `possible`
 
 `Predict` reports `PredictResult.LimitFindings`
-(`{limit, configured, estimated, grade}`) for every limit a figure
+(`{limit, configured, estimated, grade, details}`) for every limit a figure
 computed from the request and schema exceeds.
 
 - `certain`: the exact figure the runtime would see. The finding also adds
@@ -108,9 +108,29 @@ computed from the request and schema exceeds.
   sizes, a crosstab grid). Reported only; the request stays `valid` and
   the runtime decides. `MaxGroups` and `MaxCrosstabCells` are `possible`.
 
-`Predict` reports a Request's findings (a Compose slot's, a chain's first
-stage). Slot and stage counts, `RequestTimeout` and a rich facet's group
-count are knowable only at runtime.
+The other predict roots report the same `limit_findings`, graded the
+same way:
+
+- `PredictCompose`: the slot count (`MaxComposeSlots`, explicit plus
+  sweep-expanded, `certain`), then every slot's Request findings on its
+  own cohort's header counts, each located `details.request` (a fit
+  request's `details.fit`).
+- `PredictChain`: the stage count (`MaxChainStages`, `certain`, checked
+  right after the empty check, as `ProcessChain` does), then every
+  stage's findings located `details.stage`. Stage 0 is judged on the
+  cohort's header count, exactly as its run. A later stage's input rows
+  exist only at runtime, so it never carries a `certain` memory finding
+  and its group bounds are not clamped by a row count.
+- `PredictFacet`: a `possible` `MaxGroups` bound (the largest faceted
+  field's dictionary size, 2 for `packed_bool`; a numeric field mints no
+  group) and the `certain` memory estimate the facet pre-flight refuses
+  with.
+
+Only `RequestTimeout` is knowable at runtime alone. The simple
+`Facet(path, field)` has no predict root: its streamed (numeric) path
+runs the facet memory pre-flight before any record is read, and its
+categorical path returns the schema's dictionary, reads no record and
+is never refused by a limit.
 
 ## Reading `PULSE_LIMIT_EXCEEDED`
 

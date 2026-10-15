@@ -902,11 +902,18 @@ const (
 // figure exceeds. Limit is the snake_case limit name (the `limit` detail
 // of PULSE_LIMIT_EXCEEDED), Configured the instance's effective value
 // and Estimated predict's figure in the same unit.
+//
+// Details locates a finding on a multi-request predict root, with the
+// key the matching PULSE_LIMIT_EXCEEDED error carries: `request` (the
+// Compose slot index) or `stage` (the chain stage index). It is absent
+// on a single-request root (Predict, PredictFacet) and on a whole-call
+// count (MaxComposeSlots, MaxChainStages).
 type LimitFinding struct {
-	Limit      string     `json:"limit"`
-	Configured int64      `json:"configured"`
-	Estimated  int64      `json:"estimated"`
-	Grade      LimitGrade `json:"grade"`
+	Limit      string         `json:"limit"`
+	Configured int64          `json:"configured"`
+	Estimated  int64          `json:"estimated"`
+	Grade      LimitGrade     `json:"grade"`
+	Details    map[string]any `json:"details,omitempty"`
 }
 
 // SweepSummary is ComposeValidationResult.Sweep: what a Compose

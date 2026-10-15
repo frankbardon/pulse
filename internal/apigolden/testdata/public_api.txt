@@ -65,6 +65,7 @@ pulse: type ChainOverlaySchemaDivergence field TargetIndex int "json:\"target_in
 pulse: type ChainOverlaySchemaDivergence field TargetShape pulse/types.OverlayShape "json:\"target_shape\""
 pulse: type ChainPredictResult = pulse/internal/descriptor.ChainValidationResult
 pulse: type ChainPredictResult underlying struct
+pulse: type ChainPredictResult field LimitFindings []pulse/descriptor.LimitFinding "json:\"limit_findings,omitempty\""
 pulse: type ChainPredictResult field OverlaysSchemaDivergence []pulse/internal/descriptor.ChainOverlaySchemaDivergence "json:\"overlays_schema_divergence,omitempty\""
 pulse: type ChainPredictResult field Request *pulse/types.ChainRequest "json:\"request\""
 pulse: type ChainPredictResult field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
@@ -149,6 +150,7 @@ pulse: type ComposePredictResult = pulse/internal/descriptor.ComposeValidationRe
 pulse: type ComposePredictResult underlying struct
 pulse: type ComposePredictResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
 pulse: type ComposePredictResult field Fits []pulse/descriptor.FitSummary "json:\"fits,omitempty\""
+pulse: type ComposePredictResult field LimitFindings []pulse/descriptor.LimitFinding "json:\"limit_findings,omitempty\""
 pulse: type ComposePredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
 pulse: type ComposePredictResult field OverlaysSchemaDivergence []pulse/descriptor.SlotPair "json:\"overlays_schema_divergence\""
 pulse: type ComposePredictResult field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
@@ -325,6 +327,7 @@ pulse: type FacetNumeric field Sum float64 "json:\"sum\""
 pulse: type FacetPredictResult = pulse/internal/descriptor.FacetValidationResult
 pulse: type FacetPredictResult underlying struct
 pulse: type FacetPredictResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
+pulse: type FacetPredictResult field LimitFindings []pulse/descriptor.LimitFinding "json:\"limit_findings,omitempty\""
 pulse: type FacetPredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
 pulse: type FacetPredictResult field OverlaysApplied []pulse/descriptor.OverlayAppliedDescriptor "json:\"overlays_applied\""
 pulse: type FacetPredictResult field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
@@ -1472,6 +1475,7 @@ pulse/descriptor: const LevelBasic pulse/descriptor.Level = "basic"
 pulse/descriptor: const LevelIntermediate pulse/descriptor.Level = "intermediate"
 pulse/descriptor: type LimitFinding struct
 pulse/descriptor: type LimitFinding field Configured int64 "json:\"configured\""
+pulse/descriptor: type LimitFinding field Details map[string]any "json:\"details,omitempty\""
 pulse/descriptor: type LimitFinding field Estimated int64 "json:\"estimated\""
 pulse/descriptor: type LimitFinding field Grade pulse/descriptor.LimitGrade "json:\"grade\""
 pulse/descriptor: type LimitFinding field Limit string "json:\"limit\""
@@ -5302,4 +5306,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: efe019ecc621c56d970fe8ce97fe3f48503037a6f4e44d6381651250a4f98935
+// golden-hash: bd98bad785260ebb37b5bebe5f3b887a7136d93a3ad45e9640eaffe46af8bd7d

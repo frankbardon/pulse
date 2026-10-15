@@ -348,3 +348,49 @@ func TestFacetLimitRefusal(t *testing.T) {
 		t.Fatalf("unknown record count refused: %v", err)
 	}
 }
+
+// TestFacetGroupBound: a rich facet counts each faceted field's
+// distinct values against MaxGroups separately, so the bound is the
+// largest per-field one — a categorical field's dictionary size, 2 for
+// packed_bool, clamped by a known record count — and a numeric field
+// mints none. FacetLimitFindings grades it possible, beside the certain
+// memory estimate.
+func TestFacetGroupBound(t *testing.T) {
+	schema := groupsSchema(t)
+	cases := []struct {
+		name     string
+		req      *types.FacetRequest
+		records  int64
+		want     int64
+		wantSome bool
+	}{
+		{"categorical", &types.FacetRequest{Fields: []string{"cat"}}, -1, 5, true},
+		{"largest field wins", &types.FacetRequest{Fields: []string{"flag"}, AdditiveFields: []string{"cat"}}, -1, 5, true},
+		{"packed_bool", &types.FacetRequest{Fields: []string{"flag", "num"}}, -1, 2, true},
+		{"clamped by records", &types.FacetRequest{Fields: []string{"cat"}}, 3, 3, true},
+		{"numeric mints none", &types.FacetRequest{Fields: []string{"num", "day"}}, -1, 0, false},
+		{"unknown field", &types.FacetRequest{Fields: []string{"nope"}}, -1, 0, false},
+	}
+	for _, c := range cases {
+		got, ok := FacetGroupBound(c.req, schema, c.records)
+		if ok != c.wantSome || got != c.want {
+			t.Errorf("%s: bound = %d, %v; want %d, %v", c.name, got, ok, c.want, c.wantSome)
+		}
+	}
+
+	req := &types.FacetRequest{Fields: []string{"cat", "num"}}
+	l := limits.Defaults()
+	l.MaxGroups = 4
+	fs := FacetLimitFindings(req, schema, l, memIn(1000))
+	if len(fs) != 1 || fs[0].Limit != limits.MaxGroups || fs[0].Grade != limits.Possible || fs[0].Estimated != 5 {
+		t.Fatalf("findings %+v, want one possible MaxGroups of 5", fs)
+	}
+	if err := FacetLimitRefusal(req, schema, l, memIn(1000)); err != nil {
+		t.Fatalf("a possible finding refused: %v", err)
+	}
+	l.MaxEstimatedMemory = 1
+	fs = FacetLimitFindings(req, schema, l, memIn(1000))
+	if len(fs) != 2 || fs[1].Limit != limits.MaxEstimatedMemory || fs[1].Grade != limits.Certain {
+		t.Fatalf("findings %+v, want MaxGroups then a certain memory finding", fs)
+	}
+}

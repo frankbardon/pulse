@@ -99,6 +99,15 @@ type PredictOptions struct {
 	// finding.
 	RecordCounter func(path string) (int64, error)
 
+	// CohortCounter returns the header facts the limit rules read for
+	// the cohort at a path (CohortCounts: the record count, an
+	// archive's per-shard counts and byte length) — the facade passes
+	// the runtime pre-flight's own reader (Service.CohortCounts). The
+	// Compose root reads it per slot and fit, so a slot's limit
+	// findings carry the figures its Process refuses with. Nil falls
+	// back to RecordCounter's count (no archive terms).
+	CohortCounter func(path string) (CohortCounts, error)
+
 	// ModelLoader reads a model file's bytes at a path relative to the
 	// instance filesystem root — the facade passes the runtime's own
 	// read (Service.ReadModelFile). Predict uses it for every `models`

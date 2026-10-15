@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
@@ -67,6 +68,14 @@ type FacetValidationResult struct {
 	// aggregator or weight slot, so only PULSE_ADVISORY_MANY_TESTS can
 	// fire. Omitted when none does.
 	Advisories []descriptor.Advisory `json:"advisories,omitempty"`
+
+	// LimitFindings lists every instance resource limit the facet's
+	// predicted figures exceed — PredictResult.LimitFindings for the
+	// FACET host (FacetLimitFindings: a possible MaxGroups bound from the
+	// faceted fields' dictionary sizes, the certain MaxEstimatedMemory
+	// estimate the pre-flight refuses with). A certain finding is also a
+	// PULSE_LIMIT_EXCEEDED error. Omitted when none fires.
+	LimitFindings []descriptor.LimitFinding `json:"limit_findings,omitempty"`
 }
 
 // ValidateFacet validates a FacetRequest against a .pulse cohort header
@@ -164,6 +173,14 @@ func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 		env.AddError(string(errors.ENCODING_INVALID), "invalid pulse schema: "+err.Error(), nil)
 		result.Valid = false
 		return env
+	}
+
+	// The header record count, derived from the file length (never a
+	// record) — the count the pre-flight reads (Service.CountRecords
+	// shares the derivation).
+	records := int64(-1)
+	if n, _, ok := deriveSingleFileRecordCount(fileData, schema); ok {
+		records = n
 	}
 
 	result.SchemaInfo = &descriptor.PredictSchemaInfo{FieldCount: len(schema.Fields)}
@@ -264,6 +281,22 @@ func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	// The accepted-types table's filterer type refusals, as FacetSchema's
 	// filterer construction raises them.
 	validateFieldAcceptance(env, &types.Request{Filterers: req.Filterers}, schema, opts.instance(), nil)
+
+	// Instance resource limits — the rule FacetSchema's pre-flight
+	// refuses with (FacetLimitRefusal), right after its field
+	// references, on the same header count (an anchor-opened shard
+	// charges its archive's bytes, as Open reads them).
+	fs := FacetLimitFindings(req, schema, opts.instance().Limits(), LimitInputs{
+		Records:       records,
+		ArchiveBytes:  opts.AnchorArchiveBytes,
+		JoinRightRows: -1,
+	})
+	result.LimitFindings = limitFindingsDescriptor(fs)
+	for _, f := range fs {
+		if f.Grade == limits.Certain {
+			addCodedError(env, f.Err())
+		}
+	}
 
 	// Validate label bindings against the resolved schema. Facet has no
 	// projected output columns beyond the requested fields, so the extra

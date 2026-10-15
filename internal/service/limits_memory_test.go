@@ -53,6 +53,13 @@ func memoryHosts() map[string]memoryHost {
 			_, err := svc.FacetSchema(ctx, &types.FacetRequest{Cohort: &types.Cohort{Filename: "bench.pulse"}, Fields: []string{"a", "cat0"}})
 			return err
 		}, []string{"bench.pulse"}},
+		// The simple Facet's streamed (numeric) path; its categorical
+		// fast path reads no record and has no pre-flight
+		// (TestFacet_DictionaryPathSkipsMemoryPreflight).
+		"simple facet": {synthetic, func(svc *Service) error {
+			_, err := svc.Facet(ctx, "bench.pulse", "a")
+			return err
+		}, []string{"bench.pulse"}},
 	}
 	for name, req := range joinLimitRequests() {
 		hosts["join "+name] = memoryHost{joinLimitFixture, process(req), []string{"left.pulse", "right.pulse"}}
@@ -62,8 +69,8 @@ func memoryHosts() map[string]memoryHost {
 
 // TestLimitsPreflight_MaxEstimatedMemoryRefusesBeforeDecode: on every
 // host — the serial dispatch (streaming and buffered), the crosstab,
-// a matrix request, the rich facet, the plain join and the joined
-// crosstab — a MaxEstimatedMemory below the estimate is refused by the
+// a matrix request, the rich facet, the simple facet's streamed path,
+// the plain join and the joined crosstab — a MaxEstimatedMemory below the estimate is refused by the
 // pre-flight with PULSE_LIMIT_EXCEEDED before any handle drains a
 // cohort (a join's build side included), and the same run AT the
 // estimate it reported drains them (the control that keeps the read
@@ -129,6 +136,38 @@ func TestLimitsPreflight_MaxEstimatedMemoryRefusesBeforeDecode(t *testing.T) {
 				t.Fatalf("one byte under the estimate (%d) ran", estimate-1)
 			}
 		})
+	}
+}
+
+// TestFacet_DictionaryPathSkipsMemoryPreflight: the simple Facet's
+// categorical fast path returns the schema's dictionary — it reads no
+// record and mints nothing — so even a 1-byte MaxEstimatedMemory does
+// not refuse it, and it still drains nothing; the same limit refuses
+// the streamed (numeric) path.
+func TestFacet_DictionaryPathSkipsMemoryPreflight(t *testing.T) {
+	mem := afero.NewMemMapFs()
+	makeSyntheticCohort(t, mem, "bench.pulse")
+	wrapped := newCountingFs(mem)
+	cfg, err := fs.New(fs.WithFs(wrapped))
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := New(cfg)
+	l := limits.Defaults()
+	l.MaxEstimatedMemory = 1
+	svc.SetLimits(l)
+	values, err := svc.Facet(context.Background(), "bench.pulse", "cat0")
+	if err != nil {
+		t.Fatalf("dictionary path refused: %v", err)
+	}
+	if len(values) == 0 {
+		t.Fatal("dictionary path returned no values")
+	}
+	if fr := wrapped.snapshot().FullReads["bench.pulse"]; fr != 0 {
+		t.Fatalf("dictionary path drained the cohort %d time(s)", fr)
+	}
+	if _, err := svc.Facet(context.Background(), "bench.pulse", "a"); !errors.HasCode(err, errors.PULSE_LIMIT_EXCEEDED) {
+		t.Fatalf("streamed path: err = %v, want PULSE_LIMIT_EXCEEDED", err)
 	}
 }
 

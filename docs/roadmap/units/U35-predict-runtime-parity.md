@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U02c]
 blocks: [U32]
-todo_items: [198, 199, 201, 207, 213, 214, 215, 221, 248, 249, 253, 254, 255, 256, 259, 260, 267, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419, 427, 431, 432, 436, 437, 439, 440, 442, 448]
+todo_items: [198, 199, 201, 207, 213, 214, 215, 221, 225, 226, 248, 249, 253, 254, 255, 256, 259, 260, 267, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419, 427, 431, 432, 436, 437, 439, 440, 442, 448]
 branch: predict-runtime-parity
 ---
 
@@ -149,8 +149,8 @@ Pre-existing gaps, none caused by those units and none fixed there. Each makes p
 
 ## Inherited from U19
 
-- **Simple `Facet` has no limits pre-flight** (#225). U19 wired the `MaxEstimatedMemory` pre-flight into the rich facet path after `checkFacetFieldRefs` (`internal/service/facet_rich.go`), but `pulse.Facet(path, field)` builds no request and skips it. Route it through the same estimate (`descx.EstimateFacetMemory`) and extend `TestLimitsPredictRuntimeParity`.
-- **No predict limit findings for Compose / chain / facet** (#226). `ValidateCompose` / `ValidateChain` and the facet validator compute no `LimitFindings`; `TestLimitsPredictRuntimeParity` treats `max_compose_slots`, `max_chain_stages` and facet group counts as unknowable at predict. Add the findings (via `internal/descriptor.RequestLimitFindings`) where a facade predict surface exists or is added.
+- [x] **Simple `Facet` has no limits pre-flight** (#225). U19 wired the `MaxEstimatedMemory` pre-flight into the rich facet path after `checkFacetFieldRefs` (`internal/service/facet_rich.go`), but `pulse.Facet(path, field)` builds no request and skips it. Route it through the same estimate (`descx.EstimateFacetMemory`) and extend `TestLimitsPredictRuntimeParity`. Done (U35 E7-S1): the simple `Facet`'s streamed path runs `FacetLimitRefusal` before the iterator opens (`TestLimitsPreflight_MaxEstimatedMemoryRefusesBeforeDecode` host `simple facet`); the categorical fast path reads no record and skips it (`TestFacet_DictionaryPathSkipsMemoryPreflight`).
+- [x] **No predict limit findings for Compose / chain / facet** (#226). `ValidateCompose` / `ValidateChain` and the facet validator compute no `LimitFindings`; `TestLimitsPredictRuntimeParity` treats `max_compose_slots`, `max_chain_stages` and facet group counts as unknowable at predict. Add the findings (via `internal/descriptor.RequestLimitFindings`) where a facade predict surface exists or is added. Done (U35 E7-S1): `LimitFindings` on the Compose, chain and facet predict results, located by `LimitFinding.Details`; predict-chain refuses `MaxChainStages`; chain stages >= 1 carry no certain memory finding; `TestLimitsPredictRuntimeParity` judges every host through its own predict root.
 - **Memory estimate precision** (#229). U19's model (`internal/limits/memory.go`) is records x (3 x stride + `RecordBytes(schema)`) at full schema width: calibration (`TestMemoryEstimate_Calibration`, table in `.claude/reference/predict-inspect.md`) shows 1.33x-4.94x over peak heap, worst on projected buffered runs. It also assumes at most one right match per left row, so a 1:N fan-out join can exceed the estimate (the one under-estimate). Model projection and join fan-out (e.g. from the right key dictionary) without losing the upper-bound property.
 
 ## Inherited from U22

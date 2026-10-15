@@ -290,21 +290,77 @@ func GroupBufferBytes(req *types.Request, schema *encoding.Schema, inst *Instanc
 	return out
 }
 
-// FacetLimitRefusal is the rich-facet pre-flight (Service.FacetSchema,
-// right after the facet field-reference pass): the PULSE_LIMIT_EXCEEDED
-// error when EstimateFacetMemory exceeds a set MaxEstimatedMemory, nil
-// otherwise. MaxEstimatedMemory is the only limit a facet can breach
-// before it scans — each field's distinct values are counted against
-// MaxGroups as they mint.
+// FacetLimitRefusal is the facet pre-flight (Service.FacetSchema,
+// right after the facet field-reference pass; the simple Service.Facet
+// on its streamed path): the PULSE_LIMIT_EXCEEDED error of the first
+// certain FacetLimitFindings finding, nil when none. MaxEstimatedMemory
+// is the only limit a facet can breach before it scans — each field's
+// distinct values are counted against MaxGroups as they mint.
 func FacetLimitRefusal(req *types.FacetRequest, schema *encoding.Schema, l limits.Limits, in LimitInputs) *errors.CodedError {
-	if limits.IsUnlimited(limits.Value(l, limits.MaxEstimatedMemory)) {
-		return nil
+	return limits.FirstCertain(FacetLimitFindings(req, schema, l, in))
+}
+
+// FacetLimitFindings is the one limit rule for a rich facet, in limit
+// declaration order — PredictFacet reports it
+// (FacetValidationResult.LimitFindings), the pre-flight refuses its
+// first certain finding (FacetLimitRefusal):
+//
+//   - MaxGroups (Possible): FacetGroupBound, the largest distinct-value
+//     count a faceted field's discrete accumulator can mint.
+//   - MaxEstimatedMemory (Certain): EstimateFacetMemory, only when the
+//     limit is set and the record count is known.
+func FacetLimitFindings(req *types.FacetRequest, schema *encoding.Schema, l limits.Limits, in LimitInputs) []limits.Finding {
+	var out []limits.Finding
+	if n, ok := FacetGroupBound(req, schema, in.Records); ok {
+		if f, ok := limits.Evaluate(l, limits.MaxGroups, n, limits.Possible); ok {
+			out = append(out, f)
+		}
 	}
-	n, ok := EstimateFacetMemory(req, schema, in)
-	if !ok {
-		return nil
+	if !limits.IsUnlimited(limits.Value(l, limits.MaxEstimatedMemory)) {
+		if n, ok := EstimateFacetMemory(req, schema, in); ok {
+			if f, ok := limits.Evaluate(l, limits.MaxEstimatedMemory, n, limits.Certain); ok {
+				out = append(out, f)
+			}
+		}
 	}
-	return limits.Check(l, limits.MaxEstimatedMemory, n)
+	return out
+}
+
+// FacetGroupBound is the upper bound of the distinct values a rich
+// facet counts against MaxGroups — the runtime counts each faceted
+// field (Fields and AdditiveFields) separately, so the bound is the
+// largest per-field one: a categorical field's dictionary size, two
+// for packed_bool, clamped by records when known (>= 0). A numeric
+// field mints no group (its accumulator is a summary), and an unknown
+// field is refused elsewhere; false when no faceted field counts.
+func FacetGroupBound(req *types.FacetRequest, schema *encoding.Schema, records int64) (int64, bool) {
+	if req == nil || schema == nil {
+		return 0, false
+	}
+	var bound int64
+	found := false
+	for _, name := range append(append([]string(nil), req.Fields...), req.AdditiveFields...) {
+		f := schema.Field(name)
+		if f == nil {
+			continue
+		}
+		var n int64
+		switch {
+		case f.Type.IsCategorical() && f.Dictionary != nil:
+			n = int64(f.Dictionary.Count())
+		case f.Type == encoding.FieldTypePackedBool:
+			n = 2
+		default:
+			continue
+		}
+		if records >= 0 && n > records {
+			n = records
+		}
+		if !found || n > bound {
+			bound, found = n, true
+		}
+	}
+	return bound, found
 }
 
 // EstimateFacetMemory is the upper bound, in bytes, of a rich facet's
@@ -595,25 +651,60 @@ func joinBuildLimitFinding(req *types.Request, l limits.Limits, rightRows func(p
 	return limits.Evaluate(l, limits.MaxJoinBuildRows, n, limits.Certain)
 }
 
-// predictLimits fills PredictResult.LimitFindings and adds the
-// PULSE_LIMIT_EXCEEDED error of every Certain finding — the error the
-// process pre-flight raises — so a certain finding leaves Valid false.
-// A Possible finding is reported only. Findings follow limit
-// declaration order: the request-level rules, then MaxJoinBuildRows.
-//
-// records is the cohort's header record count (-1 when unknown),
-// shardRecords an archive's per-shard counts (nil for a single file)
-// and archiveBytes its byte length (0 for a single file); they clamp
-// the group-bucket estimate and drive the memory estimate.
-// A join's right-side count is read through opts.RecordCounter only
-// when MaxEstimatedMemory is set.
-func predictLimits(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, opts *PredictOptions, records int64, shardRecords []int64, archiveBytes int64) {
+// CohortCounts are the header facts of one cohort the limit rules read
+// (LimitInputs.Records / ShardRecords / ArchiveBytes): the record
+// count (-1 unknown), an archive's per-shard counts and its byte
+// length, an anchor-opened shard's archive length. PredictOptions.
+// CohortCounter returns them for a Compose slot's (or fit's) cohort —
+// the facade passes the runtime pre-flight's own reader, so a slot's
+// certain finding carries the figure the slot's Process refuses with.
+type CohortCounts struct {
+	Records      int64
+	ShardRecords []int64
+	ArchiveBytes int64
+}
+
+// unknownCounts is CohortCounts with no record count — a chain stage
+// >= 1, whose input rows exist only at runtime.
+var unknownCounts = CohortCounts{Records: -1}
+
+// cohortCounts reads the counts of the cohort at path: opts.
+// CohortCounter when wired, else opts.RecordCounter's header count
+// (no archive terms), else unknown. A read error is unknown — the
+// cohort's open fault is reported by the pass that loads its schema.
+func (o *PredictOptions) cohortCounts(c *types.Cohort) CohortCounts {
+	if o == nil || c == nil {
+		return unknownCounts
+	}
+	path := cohortPathFor(c)
+	if o.CohortCounter != nil {
+		if cc, err := o.CohortCounter(path); err == nil {
+			return cc
+		}
+		return unknownCounts
+	}
+	if o.RecordCounter != nil {
+		if n, err := o.RecordCounter(path); err == nil {
+			return CohortCounts{Records: n}
+		}
+	}
+	return unknownCounts
+}
+
+// requestFindings is the one finding set predict reports for a Request
+// over the schema it executes over: RequestLimitFindings on the run
+// facts opts carries plus counts, then MaxJoinBuildRows. Process
+// predict reports it on PredictResult; a Compose slot or fit and a
+// chain stage report it located (locatedFindings). A join's right-side
+// count is read through opts.RecordCounter only when MaxEstimatedMemory
+// is set.
+func requestFindings(req *types.Request, schema *encoding.Schema, opts *PredictOptions, counts CohortCounts) []limits.Finding {
 	inst := opts.instance()
 	l := inst.Limits()
 	in := LimitInputs{
-		Records:        records,
-		ShardRecords:   shardRecords,
-		ArchiveBytes:   archiveBytes,
+		Records:        counts.Records,
+		ShardRecords:   counts.ShardRecords,
+		ArchiveBytes:   counts.ArchiveBytes,
 		ShardWorkers:   opts.ShardWorkers,
 		JoinRightRows:  -1,
 		Extensions:     opts.Extensions,
@@ -631,6 +722,66 @@ func predictLimits(env *descriptor.Envelope, result *descriptor.PredictResult, r
 	if f, ok := joinBuildLimitFinding(req, l, opts.RecordCounter); ok {
 		fs = append(fs, f)
 	}
+	return fs
+}
+
+// locatedFindingsAt reports fs on a multi-request root: every certain
+// finding's PULSE_LIMIT_EXCEEDED error added to env located under
+// key = idx (RefusalAt's convention, the runtime locate's), and the
+// findings returned with the same Details. ok is false when a certain
+// finding refuses the request — the runtime stops there.
+func locatedFindingsAt(env *descriptor.Envelope, fs []limits.Finding, key string, idx int) (out []descriptor.LimitFinding, ok bool) {
+	ok = true
+	for _, f := range fs {
+		if f.Grade == limits.Certain {
+			addCodedError(env, RefusalAt(f.Err(), key, idx))
+			ok = false
+		}
+	}
+	out = limitFindingsDescriptor(fs)
+	for i := range out {
+		out[i].Details = map[string]any{key: idx}
+	}
+	return out, ok
+}
+
+// limitRefusalFinding is the certain finding a PULSE_LIMIT_EXCEEDED
+// refusal raised by an exact count (MaxComposeSlots, MaxChainStages,
+// MaxDerivedColumns) states — read off the error's own details, so the
+// finding and the error never disagree — with the error's location
+// key (request / stage) carried over. False for any other error.
+func limitRefusalFinding(err error) (descriptor.LimitFinding, bool) {
+	ce, ok := err.(*errors.CodedError)
+	if !ok || ce.Code != errors.PULSE_LIMIT_EXCEEDED {
+		return descriptor.LimitFinding{}, false
+	}
+	name, _ := ce.Details["limit"].(string)
+	configured, ok1 := ce.Details["configured"].(int64)
+	observed, ok2 := ce.Details["observed"].(int64)
+	if name == "" || !ok1 || !ok2 {
+		return descriptor.LimitFinding{}, false
+	}
+	out := descriptor.LimitFinding{Limit: name, Configured: configured, Estimated: observed, Grade: descriptor.LimitGradeCertain}
+	for _, key := range []string{"request", "stage", "fit"} {
+		if v, ok := ce.Details[key]; ok {
+			out.Details = map[string]any{key: v}
+		}
+	}
+	return out, true
+}
+
+// predictLimits fills PredictResult.LimitFindings and adds the
+// PULSE_LIMIT_EXCEEDED error of every Certain finding — the error the
+// process pre-flight raises — so a certain finding leaves Valid false.
+// A Possible finding is reported only. Findings follow limit
+// declaration order: the request-level rules, then MaxJoinBuildRows.
+//
+// records is the cohort's header record count (-1 when unknown),
+// shardRecords an archive's per-shard counts (nil for a single file)
+// and archiveBytes its byte length (0 for a single file); they clamp
+// the group-bucket estimate and drive the memory estimate.
+func predictLimits(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, opts *PredictOptions, records int64, shardRecords []int64, archiveBytes int64) {
+	fs := requestFindings(req, schema, opts, CohortCounts{Records: records, ShardRecords: shardRecords, ArchiveBytes: archiveBytes})
 	result.LimitFindings = limitFindingsDescriptor(fs)
 	for _, f := range fs {
 		if f.Grade == limits.Certain {
