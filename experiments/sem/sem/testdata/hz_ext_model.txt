@@ -1,0 +1,10 @@
+# equality-constrained loadings, observed exogenous covariates, labelled and fixed covariances, an output regression
+visual =~ x1 + x2 + x3
+textual =~ x4 + l*x5 + l*x6
+speed =~ x7 + x8 + x9
+visual ~ ageyr + sex
+textual ~ ageyr
+speed ~ visual + textual + grade
+x9 ~ grade
+x8 ~~ c*x9
+x2 ~~ 0.1*x3
