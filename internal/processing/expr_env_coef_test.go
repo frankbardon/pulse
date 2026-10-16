@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
@@ -202,5 +203,15 @@ func TestCoef_EmbedderFunctionShadows(t *testing.T) {
 	}
 	if got := resp.Data[0]["mx"]; got != 42.0 {
 		t.Fatalf("embedder coef = %v, want 42", got)
+	}
+}
+
+// TestCoefName_MatchesExprenv: the env declares coef under
+// exprenv.CoefFunc (the name predict declares too); it must be the
+// bound-model reader's own name, or the static rule and the declared
+// function would judge different calls.
+func TestCoefName_MatchesExprenv(t *testing.T) {
+	if exprenv.CoefFunc != model.CoefFunc {
+		t.Fatalf("exprenv.CoefFunc = %q, model.CoefFunc = %q", exprenv.CoefFunc, model.CoefFunc)
 	}
 }

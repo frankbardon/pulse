@@ -25,6 +25,11 @@ import (
 // report every entry of FieldRefRefusals at the same point. A runtime
 // that skipped it would treat each unknown name as an all-null column
 // and answer with wrong numbers and no error.
+//
+// The same walk compiles every expression it meets (ATTR_FORMULA,
+// FILTER_EXPRESSION, a total() argument) against the columns visible at
+// its pipeline point, refusing a failure as PULSE_FORMULA_COMPILE_ERROR
+// (predict_formula.go, checkCompile).
 func FieldRefRefusal(req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot) error {
 	if all := FieldRefRefusals(req, schema, snap); len(all) > 0 {
 		return all[0]
@@ -240,6 +245,7 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	for i := range schema.Fields {
 		w.cols[schema.Fields[i].Name] = true
 	}
+	w.initCompile(req, schema)
 
 	// 0. A native vector field named in a slot that reads one value
 	// (vectorScalarRefusals) — PULSE_VECTOR_FIELD_NOT_SCALAR, judged
@@ -301,8 +307,10 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 		}
 		w.checkInputs("filterer", string(fil.Type), nil, "filter")
 		if opRoute(inst, fil.Type) == types.FILTER_EXPRESSION {
+			before := len(w.out)
 			w.checkTotal(fil.Expression, string(types.FILTER_EXPRESSION))
 			w.checkCoef(fil.Expression, models)
+			w.checkCompile(fil.Expression, false, before)
 		}
 		if fil.Field == "" && !filterFieldRequired(opRoute(inst, fil.Type)) {
 			continue
@@ -362,8 +370,10 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 				break
 			}
 			if attrRoute == types.ATTR_FORMULA {
+				before := len(w.out)
 				w.checkTotal(attr.Expression, totalcall.FormulaSite)
 				w.checkCoef(attr.Expression, models)
+				w.checkCompile(attr.Expression, true, before)
 			}
 			// An attribute reading a vector input without a field (a
 			// registered extension's; a built-in is refused at step 9)
@@ -840,8 +850,10 @@ func resolveMatricesFor(req *types.Request, schema *encoding.Schema, snap *Exten
 func (w *fieldRefWalk) checkFitOn(fil *types.Filterer, attr *types.Attribute, models model.Catalog) {
 	w.checkInputs("filterer", string(fil.Type), nil, "filter")
 	if opRoute(w.inst, fil.Type) == types.FILTER_EXPRESSION {
+		before := len(w.out)
 		w.checkTotal(fil.Expression, string(types.FILTER_EXPRESSION))
 		w.checkCoef(fil.Expression, models)
+		w.checkCompile(fil.Expression, false, before)
 	}
 	if fil.Field == "" && !filterFieldRequired(opRoute(w.inst, fil.Type)) {
 		return
@@ -871,6 +883,9 @@ type fieldRefWalk struct {
 	// not read it (arrayRef). Under params.expand the per-element
 	// columns are not here — they are ordinary output columns.
 	arrayCols map[string]*types.Aggregation
+	// compile is the expression compile's state (predict_formula.go,
+	// initCompile).
+	compile exprCompileScope
 }
 
 // arrayRef refuses a downstream read (a Sort key, a window's field /

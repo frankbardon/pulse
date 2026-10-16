@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"strings"
 	"testing"
 
@@ -29,8 +30,10 @@ func TestInvoke_FormulaCompileErrorVerbatim(t *testing.T) {
 		`"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"amount *"}],` +
 		`"aggregations":[{"type":"AGG_SUM","field":"f"}]}`)
 	_, err := d.Invoke(context.Background(), p, raw)
-	ce, ok := err.(*perr.CodedError)
-	if !ok {
+	// The entry check (the field-reference walk) refuses it before any
+	// record, as a located refusal whose chain carries the coded error.
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) {
 		t.Fatalf("Invoke error = %v (%T), want *perr.CodedError", err, err)
 	}
 	reason, _ := ce.Details["compile_error"].(string)

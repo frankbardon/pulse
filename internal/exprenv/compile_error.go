@@ -7,6 +7,15 @@ import (
 	"github.com/frankbardon/pulse/errors"
 )
 
+// The compile sites, the what of [CompileError]: the runtime build and
+// predict both name a site through these, so their messages agree to the
+// byte.
+const (
+	SiteFormula       = "formula"                  // an ATTR_FORMULA expression
+	SiteFilter        = "filter"                   // a FILTER_EXPRESSION expression
+	SiteTotalArgument = "formula total() argument" // one total(expr) argument
+)
+
 // CompileError is the coded error an expression that expr-lang cannot
 // compile raises — PULSE_FORMULA_COMPILE_ERROR, at every compile site
 // (ATTR_FORMULA, FILTER_EXPRESSION, a total() argument; at build or on

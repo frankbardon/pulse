@@ -4,7 +4,7 @@ slug: binary-and-decimal
 title: "A 0/1 flag and an exact decimal work wherever a category or a number does, and a formula can say what it means"
 track: API & release
 size: M
-status: not-started
+status: in-progress
 depends_on: []
 soft_depends_on: [U35]
 blocks: [U32]
@@ -40,7 +40,7 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 - [ ] **#312** (Binary flags and decimals) `packed_bool` is accepted as a two-level category wherever one is: `TEST_PROP_Z`, `TEST_CHISQ` (rows or cols), `FEAT_TRAIN_TEST_SPLIT` `stratify`, and every `split_by`; skills and manifest `accepts_types` match the runtime
 - [x] **#313** (Binary flags and decimals) Type-refusal codes say what they mean (a "must be categorical" refusal is not `PULSE_TEST_FIELD_NOT_NUMERIC`), messages do not repeat words ("field field"), and predict and runtime raise the same code for each refusal (feeds [U35](U35-predict-runtime-parity.md) #198) — **delivered by [U35](U35-predict-runtime-parity.md) (E2-S3)**: every "does not accept this type" refusal is `PULSE_FIELD_TYPE_UNSUPPORTED` on both sides, messages come from the one table (`internal/fieldaccept`), and the acceptance gate enumerates the refusal codes it sees
 - [ ] **#314** (Binary flags and decimals) `decimal128` coverage: `AGG_NULL_COUNT` reads the bitmap and needs no decimal math; `AGG_COUNT` returns an integer; a sum over an all-null group is `null`; `ATTR_FORMULA` can divide and compare decimals (decimal-aware operators or a working `float()`), and predict refuses what process would
-- [ ] **#315** (Binary flags and decimals) Formula diagnostics: a compile failure carries expr-lang's reason in the message, and predict compiles every formula so the failure surfaces before the run
+- [x] **#315** (Binary flags and decimals) Formula diagnostics: a compile failure carries expr-lang's reason in the message, and predict compiles every formula so the failure surfaces before the run — **delivered by E2-S2** (`PULSE_FORMULA_COMPILE_ERROR`, reason in the message and `details.compile_error`) **and E2-S3** (the field-reference walk — predict's and the runtime's entry check — type-compiles every `ATTR_FORMULA`, `FILTER_EXPRESSION` and `total()` argument through `internal/exprenv`; parity gate `TestFormulaCompile_PredictMatchesRuntime`)
 - [ ] **#316** (Binary flags and decimals) `ATTR_FORMULA` may return null, and the formula environment gains `exp`, `log`, `log1p`, `sqrt` and calendar helpers (`weekday`, `month_index`, `date_trunc`) evaluated through `internal/temporal`
 - [ ] **#317** (Binary flags and decimals) Acceptance: the credit example drops its `outcome` twin and the `2.718… **` idiom; the A/B example stores binary metrics as `packed_bool`; the privacy example runs `TEST_CHISQ` on `churned` directly; the retail retention flags use a calendar helper instead of twelve hard-coded epoch-day ranges
 

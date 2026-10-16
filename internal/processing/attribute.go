@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/datepart"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/internal/totalcall"
@@ -300,7 +301,7 @@ func (a *formulaAttribute) prepare() error {
 			a.prog, a.progErr = a.prepareTotals()
 			return
 		}
-		a.prog, a.progErr = newExprProgram(a.expression, "formula", a.schema, a.vecs, a.exts.referenceTables(), a.exts.exprOptionsWithModels(a.models))
+		a.prog, a.progErr = newExprProgram(a.expression, exprenv.SiteFormula, a.schema, a.vecs, a.exts.referenceTables(), a.exts.exprOptionsWithModels(a.models))
 	})
 	return a.progErr
 }

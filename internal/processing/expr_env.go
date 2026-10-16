@@ -30,25 +30,25 @@ import (
 // PULSE_LOOKUP_TABLE_UNKNOWN at evaluation time. The compile-time
 // typecheck catches static misuse.
 func (r *ExtensionRegistry) ExprOptions() []expr.Option {
-	return append(exprenv.Options(), r.embedderExprOptions()...)
+	return r.exprBound().Options()
 }
 
-// embedderExprOptions are the registry's own contributions: one
-// expr.Function per ExprFunctions entry and, with any LookupTable, the
-// lookup builtin. Nil-receiver-safe.
-func (r *ExtensionRegistry) embedderExprOptions() []expr.Option {
+// exprBound is the registry's request-bound declaration
+// (exprenv.Bound, the one predict declares too): one expr.Function per
+// ExprFunctions entry and, with any LookupTable, the lookup builtin.
+// coef is the caller's (exprOptionsWithModels). Nil-receiver-safe.
+func (r *ExtensionRegistry) exprBound() exprenv.Bound {
 	if r == nil {
-		return nil
+		return exprenv.Bound{}
 	}
-	fns := make([]exprenv.NamedFunc, len(r.ExprFunctions))
+	b := exprenv.Bound{Extensions: make([]exprenv.NamedFunc, len(r.ExprFunctions))}
 	for i, fn := range r.ExprFunctions {
-		fns[i] = exprenv.NamedFunc{Name: fn.Name, Fn: fn.Fn}
+		b.Extensions[i] = exprenv.NamedFunc{Name: fn.Name, Fn: fn.Fn}
 	}
-	out := exprenv.ExtensionFunctions(fns)
 	if len(r.LookupTables) > 0 {
-		out = append(out, expr.Function("lookup", r.lookupBuiltin))
+		b.Lookup = r.lookupBuiltin
 	}
-	return out
+	return b
 }
 
 // lookupBuiltin is the closure registered as the `lookup` function in

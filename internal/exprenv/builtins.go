@@ -12,6 +12,12 @@
 //   - the schema-derived prototype env ([Prototype], [ValueType]): every
 //     schema field typed exactly as a decoded record surfaces it, so a
 //     caller can expr.Compile without a record or the engine.
+//   - the request-bound declarations ([Bound]: coef's typed overloads,
+//     the embedder functions, lookup) and the derived-column and
+//     named-vector types ([DerivedType], [VectorType]), so predict and
+//     the engine type-check every expression against the same env;
+//   - the compile failure, PULSE_FORMULA_COMPILE_ERROR ([CompileError],
+//     the site nouns [SiteFormula], [SiteFilter], [SiteTotalArgument]).
 //
 // Several sites read the name lists and must never drift apart:
 //
@@ -30,7 +36,9 @@
 // imports it), so predict (internal/descriptor) and the engine both
 // import it (TestExprenvImportBoundary). The record-binding runtime —
 // compile-once programs, the null-row twin, named-vector binding, the
-// ref() plan patcher, coef() and lookup() — stays in internal/processing.
+// ref() plan patcher and the bodies of coef() and lookup() — stays in
+// internal/processing; total()'s declaration is internal/totalcall's
+// (Options).
 //
 // Adding a function: append its name to [reserved] (keep the group
 // comments), implement it in [builtinImpls], and document it in the

@@ -232,8 +232,6 @@ type exprVectorFrame struct {
 	boxed []any
 }
 
-var exprVectorType = exprtypes.TypeOf([]float64(nil))
-
 // bindVectors declares every named vector the expression references
 // as a []float64 identifier: a Request.Vectors entry (no schema field
 // shadows one: a vector named like a field is refused earlier,
@@ -246,16 +244,11 @@ func (p *exprProgram) bindVectors(vecs []vectors.Resolved) error {
 	if len(vecs) == 0 || len(p.refs) == 0 {
 		return nil
 	}
-	for _, name := range p.refs {
-		v, ok := vectors.Find(vecs, name)
-		if !ok {
-			continue
-		}
-		if _, field := p.decl[name]; field && v.Native == nil {
-			continue
-		}
-		p.vecs = append(p.vecs, exprVectorBinding{name: name, fill: newMemberFill(v)})
-		p.decl[name] = exprVectorType
+	for _, v := range vectors.ExprBindings(p.refs, vecs, func(name string) bool { _, ok := p.decl[name]; return ok }) {
+		p.vecs = append(p.vecs, exprVectorBinding{name: v.Name, fill: newMemberFill(v)})
+	}
+	for i := range p.vecs {
+		p.decl[p.vecs[i].name] = exprenv.VectorType
 	}
 	if len(p.vecs) == 0 {
 		return nil
@@ -309,7 +302,10 @@ func (p *exprProgram) releaseVectors(f *exprVectorFrame) {
 
 // program returns the typed program, compiling it on the first record
 // when the build deferred it.
-func (p *exprProgram) program(env map[string]any) (*vm.Program, error) {
+//
+// nullMarked (nil: none) reports a name the record carries as null —
+// absent from env, but a column all the same.
+func (p *exprProgram) program(env map[string]any, nullMarked func(string) bool) (*vm.Program, error) {
 	if prog := p.typed.Load(); prog != nil {
 		return prog, nil
 	}
@@ -327,6 +323,19 @@ func (p *exprProgram) program(env map[string]any) (*vm.Program, error) {
 	}
 	for k, t := range p.decl { // schema fields keep their declared type
 		decl[k] = t
+	}
+	if nullMarked != nil {
+		// A derived column (an earlier attribute, a feature output)
+		// null on this first record is absent from its env, yet the
+		// name exists: declare it as every derived column is typed
+		// (exprenv.DerivedType — predict's declaration), never leave it
+		// to fail as an unknown name on whichever row happens to come
+		// first.
+		for _, name := range p.refs {
+			if _, ok := decl[name]; !ok && nullMarked(name) {
+				decl[name] = exprenv.DerivedType
+			}
+		}
 	}
 	prog, err := p.compile(decl)
 	if err != nil {
@@ -380,7 +389,7 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 		// Deferred compile, $env, or a record whose AllValues map is
 		// already built (a buffered record another expression read).
 		if len(p.vecs) == 0 {
-			return p.run(r.AllValues())
+			return p.run(r.AllValues(), r.nullMarked)
 		}
 		// The AllValues map is the record's shared cache: bind the
 		// vectors into a pooled copy, never into the cache.
@@ -389,7 +398,7 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 			env[k] = v
 		}
 		f := p.fillVectors(env, r)
-		out, nullInput, err = p.run(env)
+		out, nullInput, err = p.run(env, r.nullMarked)
 		p.releaseVectors(f)
 		clear(env)
 		exprEnvPool.Put(env)
@@ -417,8 +426,8 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 // run evaluates the expression against a whole env. nullInput reports
 // whether a referenced field was null / absent on this row; err is
 // already coded (compile or evaluation).
-func (p *exprProgram) run(env map[string]any) (out any, nullInput bool, err error) {
-	if _, err := p.program(env); err != nil {
+func (p *exprProgram) run(env map[string]any, nullMarked func(string) bool) (out any, nullInput bool, err error) {
+	if _, err := p.program(env, nullMarked); err != nil {
 		return nil, false, err
 	}
 	for _, name := range p.inputs {

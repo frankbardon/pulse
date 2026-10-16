@@ -126,6 +126,28 @@ func ExprVectorLen(resolved []Resolved, schema *encoding.Schema) func(string) (i
 	}
 }
 
+// ExprBindings returns, in refs order, the named vectors an expression
+// whose free identifiers are refs binds as a []float64
+// (exprenv.VectorType): a Request.Vectors entry Find knows, or a native
+// vector field named directly. isField reports a schema field; a
+// scalar field shadows a same-named vector (Native nil), as in
+// ExprVectorLen. The runtime build (internal/processing's bindVectors)
+// and predict's compile both declare exactly these names.
+func ExprBindings(refs []string, resolved []Resolved, isField func(string) bool) []Resolved {
+	if len(resolved) == 0 {
+		return nil
+	}
+	var out []Resolved
+	for _, name := range refs {
+		v, ok := Find(resolved, name)
+		if !ok || (isField(name) && v.Native == nil) {
+			continue
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
 // LengthIssues returns, per request expression (ExprSlots, request
 // order), its first static length refusal (ExprLengthIssue) against the
 // request's named vectors resolved over schema — the predict twin of

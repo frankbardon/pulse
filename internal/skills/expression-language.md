@@ -58,7 +58,7 @@ A null field binds `nil`. Guard with `x ?? 0` or `x == nil ? a : b`. What an ung
 - **Formula** — arithmetic on `nil` raises `PROCESSING_RUNTIME`; a `nil` result is a null value.
 - **Filter** — `==` is false, `!=` true; `>` / `+` / `len` on `nil` make the predicate UNKNOWN and the row is dropped.
 
-Compiled once: bad syntax, an unknown name or type error is `PULSE_FORMULA_COMPILE_ERROR` at build (row one if it reads a derived column), reason in `details.compile_error`.
+Compiled once, predict included: bad syntax, an unknown name or a type error is `PULSE_FORMULA_COMPILE_ERROR` pre-run (`details.compile_error`); derived columns are numbers.
 
 ## Embedder extensions
 
