@@ -278,6 +278,15 @@
         }
       },
       {
+        "name": "rake",
+        "description": "Compute survey weights — rim weighting (raking) to inline target margins, cell weighting for a joint margin, optionally per group, from a base weight, under caps — and write them as a nullable f64 column of a new cohort beside every source column (non-interactive, atomic)",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": true
+        }
+      },
+      {
         "name": "recommend",
         "description": "Turn a question kind (an intent ID) into ranked draft requests: placeholder skeletons without a cohort, predict-validated drafts bound to a cohort's fields with one",
         "annotations": {
@@ -10174,6 +10183,10 @@
         "description": "CALL WHEN EACH STAGE SHOULD READ THE PREVIOUS STAGE'S OUTPUT ROWS. Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators, mergeable groupers and row-local attributes. The mergeable aggregators are AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_RANGE, AGG_VARIANCE, AGG_STDDEV, AGG_DISTINCT_COUNT, AGG_NULL_COUNT, AGG_FREQUENCY, AGG_MODE_COUNT and AGG_MODE (on a categorical field AGG_MODE chains the dictionary index, not the label). The mergeable groupers are GROUP_CATEGORY and GROUP_RANGE. The row-local attributes are ATTR_FORMULA (unless its expression calls total(expr), a cohort-total pre-pass) and ATTR_DATE_PART. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE. Only stage 0 may carry `matrices` (MAT_COVARIANCE / MAT_CORRELATION, computed over the cohort rows and returned on stage 0's response, never passed to the next stage); a later stage's `matrices` is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE. Fall back to pulse_compose or per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field. A stage's `return` shapes that stage only after the whole chain ran (the next stage still reads its full rows); `final` follows the last stage's."
       },
       {
+        "name": "pulse_rake",
+        "description": "CALL TO COMPUTE SURVEY WEIGHTS THAT MAKE A SAMPLE MATCH KNOWN POPULATION SHARES. Rim weighting (raking) to one or more target margins, or cell weighting (post-stratification) when a margin joins several fields: writes a NEW single-file .pulse cohort (`out`, relative to PULSE_DATA_DIR) holding every source record and column verbatim plus a nullable f64 weight column (`weight_field`, default rake_weight). Targets are inline in `margins`: `{field, targets: {category: share}}` or `{fields: [..], cells: [{values: [..], target}]}`, as shares (sum 1 or 100) or `targets_as: counts`. Optional `by` rakes each group (a survey wave) separately; `base_weight` starts from a design weight; `min_weight` / `max_weight` cap weights relative to the mean. The output is a PROBABILITY weight: name it as a later request's `weight`. Returns iterations, converged, residual, per-margin observed / target / achieved shares, and the Kish efficiency (n_eff, deff_kish — the unequal-weighting design effect only, never a complex-sample one). Refusals happen before anything is written: PULSE_RAKE_INVALID (details.reason), PULSE_RAKE_UNKNOWN_CATEGORY, PULSE_RAKE_MISSING_VALUE, PULSE_RAKE_UNTARGETED_CATEGORY, PULSE_RAKE_EMPTY_CELL; an existing `out` without `overwrite: true` is SERVICE_VALIDATION. Stopping at max_iter still writes, with PULSE_RAKE_NOT_CONVERGED."
+      },
+      {
         "name": "pulse_range_tables",
         "description": "CALL TO FIND WHICH NAMED DATE-RANGE SETS EXIST BEFORE GROUPING OR FILTERING BY ONE. List the registered range tables (named, reusable sets of labeled date ranges — e.g. fiscal quarters, marketing campaigns, product-launch windows). Returns each table's name, range count, and the ordered {label, start, end} ranges themselves (ISO date literals; empty start/end is an open bound). A GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter references a table by name — the INPUT direction, turning a table name into the usable range set. Returns an empty list (never an error) when no range tables are registered; tables are supplied programmatically via Options.Extensions.RangeTables or loaded from the PULSE_RANGE_TABLES_DIR directory at pulse.New time."
       },
@@ -12750,6 +12763,10 @@
       {
         "name": "tool-process-chain",
         "description": "Linear chain of stages; stage N+1 consumes stage N's output rows."
+      },
+      {
+        "name": "tool-rake",
+        "description": "Compute survey weights (rim or cell weighting to inline target shares) and write them as a weight column of a new cohort."
       },
       {
         "name": "tool-range-tables",
@@ -18606,4 +18623,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d338b049de259513a6cfad7773ac9d2d1588138ef1ad3a28690141d03f21b51d
+// golden-hash: c24708450861ff73d39036e74dd1eccc5347076913ac63cb39e2c5f28cc13555

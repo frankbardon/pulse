@@ -112,6 +112,9 @@ func TestRegister_ProseNamesNoHiddenFeature(t *testing.T) {
 		// pulse_materialize's description and nested request schema
 		// name request slots and other tools this profile hides.
 		"materialize": {Features: []string{"capability:process", "capability:materialize"}},
+		// pulse_rake alone: its description and schema name no hidden
+		// tool or operator (a request weight is prose, not a tool).
+		"rake": {Features: []string{"capability:rake"}},
 	}
 	for name, fp := range profiles {
 		t.Run(name, func(t *testing.T) {

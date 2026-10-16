@@ -100,6 +100,27 @@ Nothing is written on any refusal:
 | `PULSE_RAKE_EMPTY_CELL` | a positive target that no record of its group can carry |
 | `SERVICE_VALIDATION` | an existing `Out` without `Overwrite` (checked before any record is read), or an anchored `archive#shard` target |
 
+## CLI and MCP
+
+The same request runs from the CLI and over MCP, both thin adapters over
+`Pulse.Rake` gated by `capability:rake`:
+
+```sh
+pulse rake survey.pulse -o survey_weighted.pulse \
+  --margins '[{"field":"gender","targets":{"F":0.51,"M":0.49}}]' \
+  --by wave --max-weight 3 --json
+```
+
+`--margins` takes a JSON array, `--request` a whole request object
+(snake_case keys: `cohort`, `out`, `margins`, `weight_field`, `by`,
+`base_weight`, `missing`, `min_weight`, `max_weight`, `max_iter`, `tol`,
+`total`, `overwrite`), each as a literal or the path of a file holding
+it; every flag set on the command line overrides its key. `--json`
+writes the `RakeResult` as the envelope's `data` with its warnings
+lifted; a refusal is the envelope's error with its own code (exit 1).
+The MCP tool `pulse_rake` takes the same object as its arguments; an
+unknown key at any depth is `PULSE_REQUEST_UNKNOWN_FIELD`.
+
 ## Output cohort
 
 Always an ungrouped single file, written atomically: the source's

@@ -3,16 +3,18 @@ name: survey-weights
 description: Computing survey weights — Pulse.Rake rim weighting (raking) and cell weighting (post-stratification) to inline census targets, per-wave raking with `by`, base weights, caps, convergence, the efficiency report (Kish n_eff / deff) and the new cohort it writes.
 type: guide
 kind: design
-applies_to: process, compose
+applies_to: process, compose, rake, mcp
 covers: [RakeRequest, RakeMargin, RakeCell, RakeResult, RakeEfficiency, rake_weight]
 requires: [capability:rake]
 ```
 
 # Computing survey weights
 
-A sample rarely matches its population. `Pulse.Rake` computes a weight per record so the weighted sample reproduces known margins (census shares), and writes a NEW cohort: every source column verbatim plus a nullable `f64` weight column (default `rake_weight`). Later requests name that column as their `weight` (see [`weighting`](weighting.md)). Weights are always a schema field, so computing them is its own step.
+A sample rarely matches its population. `Pulse.Rake` (MCP `pulse_rake`, CLI `pulse rake`) computes a weight per record so the weighted sample reproduces known margins (census shares), and writes a NEW cohort: every source column verbatim plus a nullable `f64` weight column (default `rake_weight`). Later requests name that column as their `weight` (see [`weighting`](weighting.md)). Weights are always a schema field, so computing them is its own step.
 
 ## Request
+
+The MCP arguments and `pulse rake --request` take this object; the CLI also reads `--margins` (a JSON literal or file) and one flag per scalar key (`--by`, `--base-weight`, `--max-weight`, …).
 
 ```json
 {"cohort": "survey.pulse", "out": "survey_weighted.pulse",

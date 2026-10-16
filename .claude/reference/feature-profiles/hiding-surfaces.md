@@ -36,7 +36,7 @@ Refusal and hint prose that used to name built-ins as fixed text now depends on 
 
 `capability:materialize` gates the SURFACES only — the `pulse_materialize` tool and the `pulse api materialize` leaf (manifest command `materialize`); the `Pulse.Materialize` facade stays ungated, as `Recommend` / `Explain` do, so the `PULSE_MATERIALIZE_*` codes stay `shared` in `error_owners.go`. A hidden operator inside a materialize request is refused exactly like a never-registered one (`Materialize` / `MCP/pulse_materialize` entry points of the parity harness; the `mcp-hosts` inline profile enables the capability so the MCP cells run).
 
-`capability:rake` follows the same rule: it will gate the rake CLI leaf and MCP tool; the `Pulse.Rake` facade stays ungated, so every `PULSE_RAKE_*` code is `shared`. It has no dependency edge (raking reads records directly and runs no Request host). The shipped `survey-crosstab` profile lists it; `read-only-analyst` leaves it out, as a data-writing capability.
+`capability:rake` follows the same rule: it gates the `pulse_rake` tool and the `pulse rake` leaf (manifest command `rake`); the `Pulse.Rake` facade stays ungated, so every `PULSE_RAKE_*` code is `shared`. It has no dependency edge (raking reads records directly and runs no Request host). The shipped `survey-crosstab` profile lists it; `read-only-analyst` leaves it out, as a data-writing capability.
 
 `capability:filter_to_file` hard-depends on `FILTER_EXPRESSION`: filter-to-file compiles every filterer into one filter expression, so a hidden `FILTER_EXPRESSION` would make every call fail.
 

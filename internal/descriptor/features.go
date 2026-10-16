@@ -113,6 +113,7 @@ var (
 	featImport        = FeatureName(FeatureKindCapability, "import")
 	featDedup         = FeatureName(FeatureKindCapability, "dedup")
 	featMaterialize   = FeatureName(FeatureKindCapability, "materialize")
+	featRake          = FeatureName(FeatureKindCapability, "rake")
 	featRecommend     = FeatureName(FeatureKindCapability, "recommend")
 	featExplain       = FeatureName(FeatureKindCapability, "explain")
 	featLabels        = FeatureName(FeatureKindCapability, "labels")
@@ -201,7 +202,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("filter_to_file"), // FilterToFile*
 	capability("dedup"),          // Dedup
 	capability("materialize"),    // pulse_materialize, pulse api materialize (the facade stays ungated)
-	capability("rake"),           // Rake: rim / cell weights written to a new cohort (the facade stays ungated)
+	capability("rake"),           // pulse_rake, pulse rake: rim / cell weights written to a new cohort (the facade stays ungated)
 	capability("widen"),          // WidenSetField
 	capability("templates"),      // request templates
 	capability("synth"),          // Synth, SynthStream, data-profile capture; gates every synth distribution
@@ -917,6 +918,7 @@ var mcpToolBindings = []MCPToolBinding{
 	{Tool: "pulse_drop", Feature: featImport},
 	{Tool: "pulse_dedup", Feature: featDedup},
 	{Tool: "pulse_materialize", Feature: featMaterialize},
+	{Tool: "pulse_rake", Feature: featRake},
 	{Tool: "pulse_label_tables", Feature: featLabels},
 	{Tool: "pulse_label_resolve", Feature: featLabels},
 	{Tool: "pulse_range_tables", Feature: featRangeTables},
@@ -976,6 +978,7 @@ var commandBindings = []CommandBinding{
 	{Command: "widen", Feature: featWiden},
 	{Command: "dedup", Feature: featDedup},
 	{Command: "materialize", Feature: featMaterialize},
+	{Command: "rake", Feature: featRake},
 	{Command: "recommend", Feature: featRecommend},
 	{Command: "explain", Feature: featExplain},
 	// The feature-profile tooling describes the binary, not an instance.

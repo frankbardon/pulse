@@ -695,6 +695,60 @@ func TestMCPMount(t *testing.T) {
 	}
 }
 
+// TestRakeFlow: an embedder computes survey weights through the facade
+// and through the mounted pulse_rake tool, both by public spellings
+// only; the written cohort carries the weight column.
+func TestRakeFlow(t *testing.T) {
+	p, fs := newEngine(t, pulse.Options{})
+	ingest(t, p, fs, "sales.pulse")
+	margins := []pulse.RakeMargin{{Field: "region", Targets: map[string]float64{"north": 0.5, "south": 0.5}}}
+	res, err := p.Rake(context.Background(), pulse.RakeRequest{Cohort: "sales.pulse", Out: "weighted.pulse", Margins: margins})
+	if err != nil {
+		t.Fatalf("Rake: %v", err)
+	}
+	if res.Records != 3 || res.WeightField != pulse.RakeDefaultWeightField || !res.Converged {
+		t.Fatalf("RakeResult = %+v", res)
+	}
+	if n, err := p.CountRecords(context.Background(), "weighted.pulse"); err != nil || n != 3 {
+		t.Fatalf("CountRecords = %d, %v", n, err)
+	}
+
+	server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "embedder-host", Version: "0.0.1"}, nil)
+	if err := gosdk.Register(server, p, gosdk.Config{DisableCohortScan: true}); err != nil {
+		t.Fatalf("gosdk.Register: %v", err)
+	}
+	st, ct := mcpsdk.NewInMemoryTransports()
+	ss, err := server.Connect(context.Background(), st, nil)
+	if err != nil {
+		t.Fatalf("server.Connect: %v", err)
+	}
+	defer ss.Close()
+	cs, err := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "embedder-client", Version: "0.0.1"}, nil).Connect(context.Background(), ct, nil)
+	if err != nil {
+		t.Fatalf("client.Connect: %v", err)
+	}
+	defer cs.Close()
+	call, err := cs.CallTool(context.Background(), &mcpsdk.CallToolParams{Name: "pulse_rake", Arguments: map[string]any{
+		"cohort": "sales.pulse", "out": "weighted_mcp.pulse", "weight_field": "w", "margins": margins,
+	}})
+	if err != nil || call.IsError {
+		t.Fatalf("pulse_rake: err %v result %+v", err, call)
+	}
+	c, err := p.Open(context.Background(), "weighted_mcp.pulse")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	r, err := c.Reader()
+	if err != nil {
+		t.Fatalf("Reader: %v", err)
+	}
+	defer r.Close()
+	fields := r.Schema().Fields
+	if last := fields[len(fields)-1]; last.Name != "w" || last.Type != encoding.FieldTypeF64 || !last.Nullable {
+		t.Fatalf("weight field = %+v", last)
+	}
+}
+
 func TestCodedErrorsAndEnvelope(t *testing.T) {
 	p, _ := newEngine(t, pulse.Options{})
 	_, err := p.Process(context.Background(), sumByRegion("missing.pulse"))

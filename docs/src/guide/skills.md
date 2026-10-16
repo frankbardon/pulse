@@ -307,6 +307,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`tool-predict`](skills/tool-predict.md): Validate a request against a cohort schema without executing.
 - [`tool-process`](skills/tool-process.md): Execute one pre-built processing request against a cohort.
 - [`tool-process-chain`](skills/tool-process-chain.md): Linear chain of stages; stage N+1 consumes stage N's output rows.
+- [`tool-rake`](skills/tool-rake.md): Compute survey weights (rim or cell weighting to inline target shares) and write them as a weight column of a new cohort.
 - [`tool-range-tables`](skills/tool-range-tables.md): List registered range tables — named, reusable sets of labeled date ranges.
 - [`tool-recommend`](skills/tool-recommend.md): Turn a question kind (an intent ID) into ranked draft requests — placeholder skeletons, or predict-checked drafts bound to a cohort's fields.
 - [`tool-sample`](skills/tool-sample.md): Return up to N rows from a cohort for eyeball / preview.

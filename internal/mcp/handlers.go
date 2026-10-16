@@ -386,6 +386,19 @@ func HandleMaterialize(ctx context.Context, p *pulse.Pulse, in MaterializeIn) (M
 	return *res, nil
 }
 
+// HandleRake runs pulse_rake: survey weights computed for in.Cohort and
+// written, beside every source column, into a new cohort at in.Out. All
+// behaviour — every refusal (a missing cohort, out or margins included:
+// PULSE_RAKE_INVALID), the solver, the atomic write — is pulse.Rake;
+// coded errors pass through verbatim.
+func HandleRake(ctx context.Context, p *pulse.Pulse, in RakeIn) (RakeOut, error) {
+	res, err := p.Rake(ctx, pulse.RakeRequest(in))
+	if err != nil {
+		return RakeOut{}, err
+	}
+	return *res, nil
+}
+
 // HandleRecommend runs pulse_recommend: an intent becomes ranked draft
 // requests, bound to a cohort's fields when one is given. All behaviour
 // is pulse.Recommend: an empty intent is PULSE_RECOMMEND_INTENT_UNKNOWN,

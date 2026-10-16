@@ -357,6 +357,7 @@ func invokers(cfg Config) map[string]InvokeFunc {
 		toolmeta.ToolImport:         makeInvoke(strictImportDecode, HandleImport),
 		toolmeta.ToolDedup:          makeInvoke(strictDedupDecode, HandleDedup),
 		toolmeta.ToolMaterialize:    makeInvoke(strictMaterializeDecode, HandleMaterialize),
+		toolmeta.ToolRake:           makeInvoke(strictDecode[RakeIn], HandleRake),
 		toolmeta.ToolDrop:           makeInvoke(strictDecode[DropIn], HandleDrop),
 		toolmeta.ToolImportsList:    makeInvoke(strictDecode[ImportsListIn], HandleImportsList),
 		toolmeta.ToolLabelTables:    makeInvoke(strictDecode[LabelTablesIn], HandleLabelTables),

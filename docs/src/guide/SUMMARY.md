@@ -327,6 +327,7 @@
     - [tool-predict](skills/tool-predict.md)
     - [tool-process](skills/tool-process.md)
     - [tool-process-chain](skills/tool-process-chain.md)
+    - [tool-rake](skills/tool-rake.md)
     - [tool-range-tables](skills/tool-range-tables.md)
     - [tool-recommend](skills/tool-recommend.md)
     - [tool-sample](skills/tool-sample.md)
