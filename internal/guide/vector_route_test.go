@@ -347,7 +347,9 @@ func TestBind_NativeVectorSlots(t *testing.T) {
 // TestRecommendBound_HotellingSplitTwoLevels: the two-sample
 // TEST_HOTELLING_T2 refuses a split without exactly two levels at run
 // time, which predict cannot see, so the binder splits it only by a
-// categorical field whose dictionary holds two values.
+// field with exactly two declared levels: a categorical whose dictionary
+// holds two values, or a packed_bool ("0" / "1"). The 4-level region
+// never.
 func TestRecommendBound_HotellingSplitTwoLevels(t *testing.T) {
 	b := vectorBound(t, vectorFixture(t))
 	res, err := RecommendBound(nil, descriptor.RecommendRequest{Intent: descx.IntentCompareGroups, Limit: 1000}, b)
@@ -355,6 +357,7 @@ func TestRecommendBound_HotellingSplitTwoLevels(t *testing.T) {
 		t.Fatal(err)
 	}
 	split := 0
+	seen := map[string]bool{}
 	for _, r := range res.Recommendations {
 		if r.Operator != string(types.TEST_HOTELLING_T2) {
 			continue
@@ -365,12 +368,16 @@ func TestRecommendBound_HotellingSplitTwoLevels(t *testing.T) {
 		}
 		if sb := req.Tests[0].SplitBy; sb != "" {
 			split++
-			if sb != "arm" {
+			seen[sb] = true
+			if sb != "arm" && sb != "passed" {
 				t.Errorf("TEST_HOTELLING_T2 split by %q (not two levels): %s", sb, r.Request)
 			}
 		}
 	}
 	if split == 0 {
 		t.Fatal("no two-sample TEST_HOTELLING_T2 draft")
+	}
+	if !seen["passed"] {
+		t.Error("no TEST_HOTELLING_T2 draft split by the packed_bool")
 	}
 }

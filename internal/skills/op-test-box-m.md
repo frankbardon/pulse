@@ -17,7 +17,7 @@ Tests emit statistic / p-value; no `Response.Components`.
 
 - `alpha` — float, default `0.05`. `missing` — `listwise` only.
 
-Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields`; no `field`, `vector2` / `fields2`. `split_by` required, categorical (else `PULSE_FIELD_TYPE_UNSUPPORTED`), ≥ 2 levels.
+Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields`; no `field`, `vector2` / `fields2`. `split_by` required, categorical or `packed_bool` (levels `"0"`/`"1"`; else `PULSE_FIELD_TYPE_UNSUPPORTED`), ≥ 2 levels.
 - `weight` — both kinds; per-level ν_g = N*_g − 1.
 
 ## Inputs

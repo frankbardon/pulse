@@ -7,12 +7,6 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 )
 
-var categoricalFieldTypes = []string{
-	"categorical_u16",
-	"categorical_u32",
-	"categorical_u8",
-}
-
 // featureCapabilities returns the metadata for every registered
 // feature.Computer.
 func featureCapabilities() []descriptor.Operator {
@@ -59,9 +53,9 @@ func featureCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.FEAT_ONE_HOT),
 			Category:      "feature",
-			Description:   "One-hot encode a categorical field as one f32 column per dictionary entry.",
-			AcceptsTypes:  categoricalFieldTypes,
-			EmitsTypeNote: "one column per dictionary entry, prefixed by label",
+			Description:   "One-hot encode a categorical field as one f32 column per dictionary entry; a packed_bool's levels are \"0\" / \"1\".",
+			AcceptsTypes:  fieldaccept.TypeNames(string(types.FEAT_ONE_HOT), fieldaccept.SlotField),
+			EmitsTypeNote: "one column per level (dictionary entry, or \"0\" / \"1\" for a packed_bool), prefixed by label",
 			Streamable:    true,
 		},
 		{
@@ -79,8 +73,8 @@ func featureCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.FEAT_FREQUENCY_ENCODE),
 			Category:      "feature",
-			Description:   "Replace each categorical value with its observed relative frequency in the cohort.",
-			AcceptsTypes:  categoricalFieldTypes,
+			Description:   "Replace each categorical value (or packed_bool level \"0\" / \"1\") with its observed relative frequency in the cohort.",
+			AcceptsTypes:  fieldaccept.TypeNames(string(types.FEAT_FREQUENCY_ENCODE), fieldaccept.SlotField),
 			EmitsType:     "f32",
 			EmitsTypeNote: "single column \"<label>\" with frequency per row",
 			Streamable:    true,
@@ -88,12 +82,12 @@ func featureCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.FEAT_TARGET_ENCODE),
 			Category:    "feature",
-			Description: "Replace each categorical value with the smoothed mean of a numeric Target field for that category.",
+			Description: "Replace each categorical value (or packed_bool level \"0\" / \"1\") with the smoothed mean of a numeric Target field for that category.",
 			Params: []descriptor.Param{
 				{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Numeric field whose grouped mean is encoded into the output column."},
 				{Name: "smoothing", Type: "float", Required: false, Default: 0.0, Description: "Bayesian smoothing weight blending category mean with global mean."},
 			},
-			AcceptsTypes:  categoricalFieldTypes,
+			AcceptsTypes:  fieldaccept.TypeNames(string(types.FEAT_TARGET_ENCODE), fieldaccept.SlotField),
 			EmitsType:     "f32",
 			EmitsTypeNote: "single column \"<label>\"; risk of target leakage on non-CV pipelines",
 			Streamable:    true,
@@ -105,7 +99,7 @@ func featureCapabilities() []descriptor.Operator {
 			Params: []descriptor.Param{
 				{Name: "ratios", Type: "list", Required: true, Description: "Two- or three-element ratio list summing to ~1.0."},
 				{Name: "seed", Type: "int", Required: false, Default: 0, Description: "RNG seed; same seed produces byte-identical assignments."},
-				{Name: "stratify", Type: "field", Required: false, FieldFilter: "categorical", Description: "Optional categorical field; ratios are applied per category for class balance."},
+				{Name: "stratify", Type: "field", Required: false, FieldFilter: "categorical", Description: "Optional categorical or packed_bool field; ratios are applied per level for class balance."},
 			},
 			AcceptsTypes:  nonVectorFieldTypes,
 			EmitsType:     "u8",

@@ -48,6 +48,7 @@ Floor only — no operator-specific keys. Universal `{n, n_null}` per response-c
 
 - Field must be nullable in the schema; non-nullable fields always return 0.
 - Set-typed empty mask is NOT a null — distinct from missing.
+- `decimal128`: reads the null bitmap only (no decimal math); emits a JSON integer.
 
 ## See
 

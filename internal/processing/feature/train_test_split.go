@@ -112,7 +112,7 @@ func (c *trainTestSplit) Compute(records []Record, _ string) (map[string]Output,
 
 	groups := make(map[string][]int, 16)
 	for i, r := range records {
-		s, ok := r.StringValue(c.stratify)
+		s, ok := r.LevelValue(c.stratify)
 		if !ok {
 			s = ""
 		}
@@ -137,7 +137,7 @@ func (c *trainTestSplit) PrePass(r Record, _ string) error {
 	if c.stratify == "" {
 		return nil
 	}
-	s, ok := r.StringValue(c.stratify)
+	s, ok := r.LevelValue(c.stratify)
 	if !ok {
 		s = ""
 	}

@@ -348,7 +348,8 @@ func acceptanceValues(ft encoding.FieldType) (v, w, success string) {
 	case ft == encoding.FieldTypeDateTime:
 		return "1704067200", "1719705600", "1704067200"
 	case ft == encoding.FieldTypePackedBool:
-		return "1", "1", "true"
+		// TEST_PROP_Z's packed_bool success is a level, "0" / "1".
+		return "1", "1", "1"
 	case ft.IsCategorical(), ft.IsSet():
 		return "a", "b", "a"
 	}

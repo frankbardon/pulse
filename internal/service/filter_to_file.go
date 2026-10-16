@@ -517,9 +517,21 @@ func (s *Service) fieldFilterForPlan(schema *encoding.Schema, plan filterPlan) e
 // buildSingleFilter resolves filterExpr into a single FilterFunc bound
 // to schema. Extensions (expr functions + lookup tables) registered on
 // the Service are honored; coef() reads models (nil binds nothing).
+//
+// The predicate runs zoned exactly as a Process filterer does: it is
+// resolved (resolveZones) and handed through the one zone choke point
+// (zoned), so a to_day() call reads the inherited zone. Filter-to-file
+// carries no request `time_zone`, so that zone is
+// Options.DefaultTimeZone, else UTC.
 func (s *Service) buildSingleFilter(schema *encoding.Schema, filterExpr string, models *model.Set) (processing.FilterFunc, error) {
+	req := &types.Request{Filterers: []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: filterExpr}}}
+	zones, err := s.resolveZones(req, schema)
+	if err != nil {
+		return nil, err
+	}
+	req = s.zoned(req, zones)
 	fns, err := processing.BuildFiltersWithModels(
-		[]*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: filterExpr}},
+		req.Filterers,
 		schema,
 		s.extensions,
 		models,

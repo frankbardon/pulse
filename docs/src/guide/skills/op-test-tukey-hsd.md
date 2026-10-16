@@ -34,7 +34,7 @@ Use something else:
 
 ## Inputs
 
-`Field` — per-group mean column (an average aggregate). `SplitBy` — the grouper column the upstream ANOVA partitioned by.
+`Field` — per-group mean column (an average aggregate). `SplitBy` — the grouper column the upstream ANOVA partitioned by; a `packed_bool` `GROUP_CATEGORY` keys `"0"`/`"1"`, but the test needs ≥ 3 groups (two alone is `PULSE_TEST_SPLIT_GROUPS_LT_2`).
 
 ## Output
 

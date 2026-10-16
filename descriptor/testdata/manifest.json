@@ -6080,12 +6080,13 @@
         {
           "name": "FEAT_FREQUENCY_ENCODE",
           "category": "feature",
-          "description": "Replace each categorical value with its observed relative frequency in the cohort.",
+          "description": "Replace each categorical value (or packed_bool level \"0\" / \"1\") with its observed relative frequency in the cohort.",
           "params": null,
           "accepts_types": [
             "categorical_u16",
             "categorical_u32",
-            "categorical_u8"
+            "categorical_u8",
+            "packed_bool"
           ],
           "emits_type": "f32",
           "emits_type_note": "single column \"\u003clabel\u003e\" with frequency per row",
@@ -6130,14 +6131,15 @@
         {
           "name": "FEAT_ONE_HOT",
           "category": "feature",
-          "description": "One-hot encode a categorical field as one f32 column per dictionary entry.",
+          "description": "One-hot encode a categorical field as one f32 column per dictionary entry; a packed_bool's levels are \"0\" / \"1\".",
           "params": null,
           "accepts_types": [
             "categorical_u16",
             "categorical_u32",
-            "categorical_u8"
+            "categorical_u8",
+            "packed_bool"
           ],
-          "emits_type_note": "one column per dictionary entry, prefixed by label",
+          "emits_type_note": "one column per level (dictionary entry, or \"0\" / \"1\" for a packed_bool), prefixed by label",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -6212,7 +6214,7 @@
         {
           "name": "FEAT_TARGET_ENCODE",
           "category": "feature",
-          "description": "Replace each categorical value with the smoothed mean of a numeric Target field for that category.",
+          "description": "Replace each categorical value (or packed_bool level \"0\" / \"1\") with the smoothed mean of a numeric Target field for that category.",
           "params": [
             {
               "name": "target",
@@ -6232,7 +6234,8 @@
           "accepts_types": [
             "categorical_u16",
             "categorical_u32",
-            "categorical_u8"
+            "categorical_u8",
+            "packed_bool"
           ],
           "emits_type": "f32",
           "emits_type_note": "single column \"\u003clabel\u003e\"; risk of target leakage on non-CV pipelines",
@@ -6266,7 +6269,7 @@
               "name": "stratify",
               "type": "field",
               "required": false,
-              "description": "Optional categorical field; ratios are applied per category for class balance.",
+              "description": "Optional categorical or packed_bool field; ratios are applied per level for class balance.",
               "field_filter": "categorical"
             }
           ],
@@ -6864,7 +6867,7 @@
             "name": "success",
             "type": "string",
             "required": true,
-            "description": "Dictionary value of Field treated as a success."
+            "description": "Dictionary value of Field treated as a success; on a packed_bool Field exactly \"1\" (true) or \"0\" (false)."
           }
         ],
         "requires": [
@@ -9524,7 +9527,7 @@
         ]
       }
     ],
-    "error_codes_count": 367,
+    "error_codes_count": 368,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9632,6 +9635,7 @@
       "PULSE_FIELD_DESCRIPTION_LOW_QUALITY",
       "PULSE_FIELD_TYPE_UNSUPPORTED",
       "PULSE_FIT_INVALID",
+      "PULSE_FORMULA_COMPILE_ERROR",
       "PULSE_FORMULA_TOTAL_ARITY",
       "PULSE_FORMULA_TOTAL_NESTED",
       "PULSE_FORMULA_TOTAL_SITE",
@@ -10794,8 +10798,11 @@
         ],
         "compatible_features": [
           "FEAT_BUCKETIZE",
+          "FEAT_FREQUENCY_ENCODE",
           "FEAT_LOG",
+          "FEAT_ONE_HOT",
           "FEAT_SQRT",
+          "FEAT_TARGET_ENCODE",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
       },
@@ -11347,6 +11354,10 @@
         "description": "Attribute composition rules — slot ordering, two-pass vs row-local attributes, the formula expression environment, attributes vs features. Topical design; per-attribute detail lives in atomic op-attr-* skills."
       },
       {
+        "name": "calendar-formulas",
+        "description": "Calendar helpers and log1p inside formulas and expression filters — weekday, month_index and date_trunc over epoch days, to_day for a datetime in the request time zone, the bare-datetime compile guard and the null rules. Use when an expression reads a date or a datetime."
+      },
+      {
         "name": "cohort-null-states",
         "description": "How a .pulse cohort stores absence — the per-record null bitmap, no in-band sentinels, out-of-sample null promotion on inferred imports, and the null / empty / selected states of set and categorical cells across every import and export format."
       },
@@ -11389,6 +11400,10 @@
       {
         "name": "crosstab-margin-aggregations",
         "description": "Auxiliary margin-only figures on a crosstab — a second base beside the cell metric in one scan, the cell-admission rule, present semantics and the display-flag gate"
+      },
+      {
+        "name": "decimal-formulas",
+        "description": "Exact decimal128 arithmetic inside formulas and expression filters — operator result scales, the numeric built-ins over a decimal (abs, round, max, mean and the rest), ternary and ?? lifting, the float() escape, and what is refused at compile. Use when an expression reads a money field."
       },
       {
         "name": "derived-cohorts",
@@ -11688,7 +11703,7 @@
       },
       {
         "name": "op-feat-one-hot",
-        "description": "One-hot encode a categorical field as one f64 column per dictionary entry."
+        "description": "One-hot encode a categorical or packed_bool field as one f64 column per level."
       },
       {
         "name": "op-feat-poly",
@@ -12647,7 +12662,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 226,
+    "examples_count": 231,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -18145,4 +18160,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e7f3cf81ef4144e4c257c1a47cac06b758fd95cc88ea3404343b92c31dde999f
+// golden-hash: adcd20786afc2c1ce47db9fa88686c1eea66f5fac5be40b6c9f7a13fa55c0c57

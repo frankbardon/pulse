@@ -1,28 +1,62 @@
-// Package exprbuiltins is the one list of the reserved built-in
-// expression functions Pulse registers in the shared expr-lang
-// environment (ATTR_FORMULA, FILTER_EXPRESSION, total() arguments and
-// OVERLAY_FORMULA).
+// Package exprenv is the one shared expr-lang formula environment Pulse
+// compiles ATTR_FORMULA, FILTER_EXPRESSION, total() arguments and
+// OVERLAY_FORMULA against. It owns:
 //
-// Three sites read it and must never drift apart:
+//   - the reserved built-in names (this file) and the unreserved set
+//     helpers, with their implementations (vector.go, setsim.go, set.go)
+//     and ref() (ref.go);
+//   - the `%` patcher (mod.go);
+//   - the calendar helpers and log1p (calendar.go): weekday,
+//     month_index and date_trunc over epoch days through
+//     internal/temporal, to_day in the request zone ([Bound.Zone]),
+//     and the compile-time datetime guard ([CalendarGuard]);
+//   - the exact decimal operators (decimal.go): a decimal128 field binds
+//     as a [Decimal] (mantissa + scale, [Bind]), a patcher rewrites
+//     `+ - * /`, comparisons, unary `-`, `??` / ternary branches,
+//     `float()` and the numeric built-ins (decimal_builtins.go) over one
+//     into exact builtins, and the null-row twin declares it through
+//     [Untyped];
+//   - the single always-on option hook, [Options], every expression
+//     site prepends to its own options;
+//   - embedder ExprFunction bridging ([ExtensionFunctions], [Func]);
+//   - the schema-derived prototype env ([Prototype], [ValueType]): every
+//     schema field typed exactly as a decoded record surfaces it, so a
+//     caller can expr.Compile without a record or the engine.
+//   - the request-bound declarations ([Bound]: coef's typed overloads,
+//     the embedder functions, lookup) and the derived-column and
+//     named-vector types ([DerivedType], [VectorType]), so predict and
+//     the engine type-check every expression against the same env;
+//   - the compile failure, PULSE_FORMULA_COMPILE_ERROR ([CompileError],
+//     the site nouns [SiteFormula], [SiteFilter], [SiteTotalArgument]).
 //
-//   - internal/processing registers one expr.Function per name (and its
-//     tests pin that every name has an implementation);
+// Several sites read the name lists and must never drift apart:
+//
+//   - [Options] registers one expr.Function per name (and its tests pin
+//     that every name has an implementation);
 //   - internal/processing's filter-precompute purity check treats every
 //     name as a pure function, so a filter calling one keeps the
 //     precompute fast path;
 //   - the root package's embedder validation refuses an ExprFunction
-//     claiming any name with PULSE_EXTENSION_NAME_RESERVED.
+//     claiming any name with PULSE_EXTENSION_NAME_RESERVED;
+//   - internal/vectors, internal/formulaident and internal/descriptor
+//     (predict) judge calls statically against them.
 //
-// It is a stdlib-free leaf, so the root package and internal/processing
-// both import it without a cycle and without the root reaching the
-// engine.
+// It is a no-execute leaf: it never imports internal/processing,
+// internal/service, internal/descriptor or internal/vectors (which
+// imports it), so predict (internal/descriptor) and the engine both
+// import it (TestExprenvImportBoundary). The record-binding runtime —
+// compile-once programs, the null-row twin, named-vector binding, the
+// ref() plan patcher and the bodies of coef() and lookup() — stays in
+// internal/processing; total()'s declaration is internal/totalcall's
+// (Options).
 //
 // Adding a function: append its name to [reserved] (keep the group
-// comments), implement it in internal/processing's built-in table, and
-// document it in the expression-language skill. The earlier set helpers
-// (has_any, set_union, ...) and coef / lookup are deliberately absent:
-// they predate the reservation and keep their shadowing semantics.
-package exprbuiltins
+// comments), implement it in [builtinImpls], and document it in the
+// expression-language skill. The earlier set helpers (has_any,
+// set_union, ...) and coef / lookup are deliberately absent from
+// [reserved]: they predate the reservation and keep their shadowing
+// semantics.
+package exprenv
 
 // reserved lists every reserved built-in name, grouped by family.
 var reserved = []string{
@@ -35,7 +69,9 @@ var reserved = []string{
 	// Vector-returning transforms (usable inside an expression only).
 	"vcenter", "vzscore", "vnormalize",
 	// Scalar maths.
-	"sqrt", "log", "exp", "pow",
+	"sqrt", "log", "exp", "pow", "log1p",
+	// Calendar over epoch days (calendar.go); to_day converts a datetime.
+	"weekday", "month_index", "date_trunc", "to_day",
 	// Set similarity over two label sets.
 	"jaccard", "dice", "hamming", "overlap",
 	// Reference vectors (Options.Extensions.ReferenceVectors).
@@ -69,7 +105,7 @@ func IsReserved(name string) bool { return reservedSet[name] }
 // and transform families are refused there; both the predict gate
 // (internal/descriptor) and the runtime compile (internal/processing)
 // read this one list so they never disagree.
-var overlayAllowed = []string{"sqrt", "log", "exp", "pow"}
+var overlayAllowed = []string{"sqrt", "log", "exp", "pow", "log1p"}
 
 // overlayAllowedSet indexes overlayAllowed for OverlayAllowed.
 var overlayAllowedSet = func() map[string]bool {
@@ -119,7 +155,7 @@ func OverlayRefused(name string) bool { return reservedSet[name] && !overlayAllo
 
 // MetricFunction is the linalg/metric registry metric a reserved
 // built-in evaluates and the form it answers in ("distance" or
-// "similarity", the metric.Form spellings: this leaf imports nothing).
+// "similarity", the metric.Form spellings, kept as strings).
 type MetricFunction struct {
 	Metric string
 	Form   string

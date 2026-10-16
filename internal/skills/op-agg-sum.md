@@ -45,6 +45,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 - Smart default for numeric fields when `Type` omitted.
 - Set-typed fields (`set_*`) NOT supported.
 - Overflow on huge u64 sums silently promotes through float64.
+- Empty input (all null / no rows) sums to `0` (`"0.00"` on `decimal128`), never null: the empty sum is defined. Detect emptiness by `n == 0` in the components floor.
 - `decimal128` under any weight in force (default included) → `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` opts out.
 
 ## See

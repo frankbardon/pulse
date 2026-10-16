@@ -9,13 +9,12 @@ covers: [decimal128, PULSE_DECIMAL_OVERFLOW, PULSE_PRECISION_LOSS, PULSE_DECIMAL
 
 # Financial cohorts (decimal128)
 
-`decimal128` is the only defensible type for money-movement workloads — up to 38 decimal digits, per-field declared `(precision, scale)`, banker's rounding, no NaN, no infinity, no in-band null sentinel.
+`decimal128` is the type for money-movement workloads — up to 38 decimal digits, per-field declared `(precision, scale)`, banker's rounding, no NaN, no infinity, no in-band null sentinel.
 
 ## When to pick decimal128
 
 - Currency, billing, accounting, tax, payments, ledger entries.
 - Anything reconciling to a downstream system of record (GL, payments rail, exchange).
-- Cohorts auditors will read.
 
 `f64` is fine for descriptive analytics where last-cent precision is irrelevant. Once the column drives money movement, switch to decimal.
 
@@ -34,7 +33,7 @@ Both precision and scale persist in the schema; `pulse_inspect` surfaces both pe
 
 ## Rounding
 
-Banker's rounding (half-to-even). One mode, no per-op override. IEEE 754 default; the only unbiased choice for large-series aggregation. At scale 0: `0.5 → 0`, `1.5 → 2`, `2.5 → 2`, `-1.5 → -2`, `1.6 → 2`.
+Banker's rounding (half-to-even), the unbiased choice for large series. One mode, no per-op override. At scale 0: `0.5 → 0`, `1.5 → 2`, `2.5 → 2`, `-1.5 → -2`, `1.6 → 2`.
 
 ## Precision propagation (SQL:2016 / Arrow Decimal128)
 
@@ -47,11 +46,9 @@ Banker's rounding (half-to-even). One mode, no per-op override. IEEE 754 default
 
 All result precisions clamp at **38**. When clamping kicks in and the value overflows, `PULSE_DECIMAL_OVERFLOW`.
 
-Examples: `(10,4) + (10,4) → (11,4)`. `(10,4) * (10,4) → (20,8)`. `(10,4) / (10,4) → (15,8)`.
+## Formulas and filters
 
-## Mixed-type arithmetic
-
-No implicit cast between `decimal128` and `f64`. Mixing them in a filter expression or a formula raises a type error ([`expression-language`](expression-language.md)). Downcast via an explicit attribute.
+In the formula attribute and the expression filter a decimal stays exact — `0.1 + 0.2 == 0.3` holds, `price / cost > 1.2` is decided exactly. Operator scales, `??` / ternary lifting, the numeric built-ins (`abs`, `round`, `max`, `mean`, …), the `float()` escape and the compile refusals: [`decimal-formulas`](decimal-formulas.md).
 
 ## Divide-by-zero
 
@@ -68,7 +65,9 @@ An aggregator takes a decimal field iff its manifest `accepts_types` lists `deci
 | mean | decimal128; f64 fallback + `PULSE_PRECISION_LOSS` warning on overflow |
 | variance | decimal128 at `2 * mean_scale` (f64 fallback) |
 | standard deviation | decimal128 at `mean_scale`, banker-rounded sqrt (f64 fallback) |
-| counts (rows, distinct values) | int |
+| counts (rows, distinct values, nulls) | JSON integer, never a decimal string; null count reads the bitmap only |
+
+An empty sum is `"0.00"` (at the field scale), never null; `n == 0` in the components floor is the emptiness signal. Mean, min / max, variance and standard deviation of no value are `null`.
 
 **v1 not supported** on decimal: order statistics (median, percentiles), standardised and shape moments (z-score, skewness, kurtosis), modes, range.
 
@@ -91,19 +90,6 @@ Feature transforms are float math: none emits a decimal column, and categorical-
 ## Importer accepts / rejects
 
 CSV / TSV / NDJSON / JSON-array importers parse decimal strings strictly. Accepted: `"123"`, `"-123.45"`, `"+0.001"`. Rejected: `"$1,234.56"`, `"1 234.56"`, `"1.5e3"`, leading/trailing whitespace. Malformed row → `PULSE_IMPORT_ROW_ERROR`; row is skipped.
-
-## Request shape skeleton
-
-```
-{
-  "aggregations": [
-    {"type": "AGG_SUM",     "field": "amount_usd"},
-    {"type": "AGG_AVERAGE", "field": "amount_usd"}
-  ]
-}
-```
-
-The sum stays in `decimal128(p, s)`. The mean preserves precision by default; large cohorts may fall back to f64 with a `PULSE_PRECISION_LOSS` warning.
 
 ## v1 deferred
 

@@ -328,6 +328,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_FORMULA_TOTAL_SITE:          own("FILTER_EXPRESSION", "OVERLAY_FORMULA"),
 	errors.PULSE_FORMULA_TOTAL_NESTED:        own("ATTR_FORMULA"),
 	errors.PULSE_FORMULA_TOTAL_ARITY:         own("ATTR_FORMULA"),
+	errors.PULSE_FORMULA_COMPILE_ERROR:       own("ATTR_FORMULA", "FILTER_EXPRESSION"),
 	errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC: own("ATTR_REG_PREDICT"),
 	// The model file: a `save` writes it (capability:model_save), a
 	// `models` entry loads it (capability:models) — the parse codes are

@@ -379,6 +379,10 @@
         "description": "Attribute composition rules — slot ordering, two-pass vs row-local attributes, the formula expression environment, attributes vs features. Topical design; per-attribute detail lives in atomic op-attr-* skills."
       },
       {
+        "name": "calendar-formulas",
+        "description": "Calendar helpers and log1p inside formulas and expression filters — weekday, month_index and date_trunc over epoch days, to_day for a datetime in the request time zone, the bare-datetime compile guard and the null rules. Use when an expression reads a date or a datetime."
+      },
+      {
         "name": "cohort-null-states",
         "description": "How a .pulse cohort stores absence — the per-record null bitmap, no in-band sentinels, out-of-sample null promotion on inferred imports, and the null / empty / selected states of set and categorical cells across every import and export format."
       },
@@ -401,6 +405,10 @@
       {
         "name": "cohort-width-overflow",
         "description": "What happens when a value outgrows its field width — inferred categorical and numeric rungs promote on the full row pass, declared widths refuse row by row, set cardinality and shard dictionary overflow, and how convert reports it."
+      },
+      {
+        "name": "decimal-formulas",
+        "description": "Exact decimal128 arithmetic inside formulas and expression filters — operator result scales, the numeric built-ins over a decimal (abs, round, max, mean and the rest), ternary and ?? lifting, the float() escape, and what is refused at compile. Use when an expression reads a money field."
       },
       {
         "name": "expression-language",
@@ -795,4 +803,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 35cdbf16fe3b42edcefa3b057c52678f54a5927c9e20657833052343970d0422
+// golden-hash: 9332dae6f168f31a0fd77695fac7b7065b4909d03bf48c8a6fcabcabfdfc8917

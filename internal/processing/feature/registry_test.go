@@ -41,6 +41,11 @@ func (r *fakeRecord) StringValue(name string) (string, bool) {
 	return v, ok
 }
 
+// LevelValue is StringValue: the fake carries no packed_bool.
+func (r *fakeRecord) LevelValue(name string) (string, bool) {
+	return r.StringValue(name)
+}
+
 func (r *fakeRecord) Set(name string, value float64) {
 	r.writes[name] = value
 	r.num[name] = value

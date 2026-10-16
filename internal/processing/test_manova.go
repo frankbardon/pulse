@@ -95,7 +95,7 @@ func newManovaRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 // member drops it (listwise) and counts it; a weighted test then skips
 // a row whose weight is invalid or zero.
 func (m *manovaRow) UpdateRow(record *Record) error {
-	key, ok := record.StringValue(m.splitBy)
+	key, ok := record.LevelValue(m.splitBy)
 	if !ok {
 		return nil
 	}

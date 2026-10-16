@@ -384,7 +384,7 @@ func newFittedVectorAttribute(attr *types.Attribute, schema *encoding.Schema, sr
 		members:   append([]string(nil), attr.Fields...),
 		fill:      memberFillOf(attr.Fields, schema),
 		schema:    schema,
-		fitOnSpec: src.fitOn,
+		fitOnSpec: inheritExprZone(src.fitOn, attr.TimeZone),
 		fitName:   src.fit,
 		labels:    append([]string(nil), labels...),
 		weight:    spec,

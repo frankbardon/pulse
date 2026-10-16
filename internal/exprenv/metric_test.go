@@ -1,4 +1,4 @@
-package processing
+package exprenv
 
 import (
 	stderrors "errors"
@@ -47,7 +47,7 @@ func TestExprMetrics_ResolveThroughRegistry(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := exprBuiltinImpls["dist"](c.a, c.b)
+			got, err := builtinImpls["dist"](c.a, c.b)
 			if err != nil || !same(got, c.dist) {
 				t.Errorf("dist = %v, %v; want %v", got, err, c.dist)
 			}
@@ -55,7 +55,7 @@ func TestExprMetrics_ResolveThroughRegistry(t *testing.T) {
 			if want, _ := euclid.Eval(metric.Distance, c.a, c.b, nil); !math.IsNaN(want) && got != want {
 				t.Errorf("dist %v is not the registry's euclidean %v bit for bit", got, want)
 			}
-			got, err = exprBuiltinImpls["cosine"](c.a, c.b)
+			got, err = builtinImpls["cosine"](c.a, c.b)
 			if err != nil || !same(got, c.cosine) {
 				t.Errorf("cosine = %v, %v; want %v", got, err, c.cosine)
 			}
@@ -66,7 +66,7 @@ func TestExprMetrics_ResolveThroughRegistry(t *testing.T) {
 		})
 	}
 	for _, fn := range []string{"dist", "cosine", "dot"} {
-		_, err := exprBuiltinImpls[fn]([]float64{1, 2}, []float64{1})
+		_, err := builtinImpls[fn]([]float64{1, 2}, []float64{1})
 		var ce *perr.CodedError
 		if !stderrors.As(err, &ce) || ce.Code != perr.PROCESSING_VECTOR_LENGTH_MISMATCH || ce.Details["left"] != 2 || ce.Details["right"] != 1 {
 			t.Errorf("%s length mismatch = %v, want PROCESSING_VECTOR_LENGTH_MISMATCH 2/1", fn, err)

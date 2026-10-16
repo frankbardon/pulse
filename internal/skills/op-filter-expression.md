@@ -23,7 +23,7 @@ examples_tags: [cohort-analysis, feature-engineering, streaming-friendly]
 |---|---|
 | `Field` | unused — the expression names fields. |
 
-Categorical → STRING; `set_*` → `[]string` (`has_any(tags, "a")`); `decimal128` → `Decimal128`.
+Categorical → STRING; `set_*` → `[]string` (`has_any(tags, "a")`); `decimal128` → an exact decimal (`price * 1.1 > cost`, `decimal-formulas`); `date` → epoch days, `datetime` → epoch seconds — day helpers need `to_day` (`calendar-formulas`).
 
 ## Output
 
@@ -35,7 +35,7 @@ Floor only: universal `{n_in, n_out, n_null_input}` (`response-components`). `n_
 
 ## Gotchas
 
-- Compiled once; bad syntax / types → `PROCESSING_RUNTIME` at build.
+- Compiled once; bad syntax / names / types → `PULSE_FORMULA_COMPILE_ERROR` on predict and at build alike (reason in `details.compile_error`).
 - Null binds `nil`: `==` false, `!=` true, `x ?? 0` fills; `>` / `+` / `len` on nil → predicate UNKNOWN, row dropped.
 - Error / non-bool on a non-null row → `PROCESSING_RUNTIME`.
 - `%` on a field: float `math.Mod` (`age % 2 == 0`, dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.

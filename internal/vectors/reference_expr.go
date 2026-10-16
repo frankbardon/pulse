@@ -10,7 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/exprbuiltins"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -25,8 +25,8 @@ import (
 //   - a literal key names one of its profiles (reason key_unknown; a
 //     computed key is checked per row);
 //   - a ref() that is an argument of dot / dist / cosine
-//     (exprbuiltins.IsVectorPair) — directly or under vcenter / vzscore
-//     / vnormalize (exprbuiltins.PreservesLabels) — is aligned BY LABEL
+//     (exprenv.IsVectorPair) — directly or under vcenter / vzscore
+//     / vnormalize (exprenv.PreservesLabels) — is aligned BY LABEL
 //     to the other argument: a named vector, another reference, or a
 //     label-preserving transform of either. The label sets must be equal
 //     (PULSE_VECTOR_REFERENCE_MISMATCH reason labels_differ); an
@@ -86,7 +86,7 @@ func ExprRefCall(n exprast.Node) *exprast.CallNode {
 		return nil
 	}
 	id, ok := c.Callee.(*exprast.IdentifierNode)
-	if !ok || id.Value != exprbuiltins.RefFunc {
+	if !ok || id.Value != exprenv.RefFunc {
 		return nil
 	}
 	return c
@@ -125,7 +125,7 @@ func ExprRefSlot(slot *exprast.Node) *exprast.Node {
 			return nil
 		}
 		id, ok := c.Callee.(*exprast.IdentifierNode)
-		if !ok || !exprbuiltins.PreservesLabels(id.Value) {
+		if !ok || !exprenv.PreservesLabels(id.Value) {
 			return nil
 		}
 		slot = &c.Arguments[0]
@@ -152,7 +152,7 @@ func (s RefScope) exprLabels(n exprast.Node) (labels []string, name string, ok b
 				return t.Labels, "", ok
 			}
 			id, ok := v.Callee.(*exprast.IdentifierNode)
-			if !ok || !exprbuiltins.PreservesLabels(id.Value) || len(v.Arguments) == 0 {
+			if !ok || !exprenv.PreservesLabels(id.Value) || len(v.Arguments) == 0 {
 				return nil, "", false
 			}
 			n = v.Arguments[0]
@@ -202,7 +202,7 @@ type RefAlignment struct {
 // left to that check.
 func (s RefScope) AlignPair(c *exprast.CallNode) ([]RefAlignment, []*errors.CodedError) {
 	id, ok := c.Callee.(*exprast.IdentifierNode)
-	if !ok || !exprbuiltins.IsVectorPair(id.Value) || len(c.Arguments) != 2 {
+	if !ok || !exprenv.IsVectorPair(id.Value) || len(c.Arguments) != 2 {
 		return nil, nil
 	}
 	var out []RefAlignment
@@ -290,7 +290,7 @@ func mentionsRef(req *types.Request) bool {
 	}
 	has := func(fs []*types.Filterer) bool {
 		for _, f := range fs {
-			if f != nil && f.Type == types.FILTER_EXPRESSION && strings.Contains(f.Expression, exprbuiltins.RefFunc) {
+			if f != nil && f.Type == types.FILTER_EXPRESSION && strings.Contains(f.Expression, exprenv.RefFunc) {
 				return true
 			}
 		}
@@ -303,10 +303,10 @@ func mentionsRef(req *types.Request) bool {
 		if a == nil {
 			continue
 		}
-		if a.Type == types.ATTR_FORMULA && strings.Contains(a.Expression, exprbuiltins.RefFunc) {
+		if a.Type == types.ATTR_FORMULA && strings.Contains(a.Expression, exprenv.RefFunc) {
 			return true
 		}
-		if bytes.Contains(a.Params, []byte(exprbuiltins.RefFunc)) && has(AttributeFitOn(a.Type, a)) {
+		if bytes.Contains(a.Params, []byte(exprenv.RefFunc)) && has(AttributeFitOn(a.Type, a)) {
 			return true
 		}
 	}

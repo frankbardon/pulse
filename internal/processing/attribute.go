@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/datepart"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/internal/totalcall"
@@ -249,6 +250,9 @@ type formulaAttribute struct {
 	// totals is the cohort-total state of a formula that calls
 	// total(expr) (formula_total.go); nil for a row-local formula.
 	totals *formulaTotals
+	// zone is the zone to_day() reads in: the slot `tz` the zone
+	// transport wrote (expr_zone.go); nil for UTC.
+	zone *temporal.Zone
 
 	once    sync.Once
 	prog    *exprProgram
@@ -265,9 +269,14 @@ func newFormulaAttribute(attr *types.Attribute, schema *encoding.Schema) (Attrib
 	if attr.Expression == "" {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "formula attribute requires an expression")
 	}
+	zone, err := exprZone(attr.TimeZone)
+	if err != nil {
+		return nil, err
+	}
 	a := &formulaAttribute{
 		expression: attr.Expression,
 		schema:     schema,
+		zone:       zone,
 	}
 	if totalcall.Contains(attr.Expression) {
 		a.totals = &formulaTotals{}
@@ -300,7 +309,7 @@ func (a *formulaAttribute) prepare() error {
 			a.prog, a.progErr = a.prepareTotals()
 			return
 		}
-		a.prog, a.progErr = newExprProgram(a.expression, "formula", a.schema, a.vecs, a.exts.referenceTables(), a.exts.exprOptionsWithModels(a.models))
+		a.prog, a.progErr = newExprProgram(a.expression, exprenv.SiteFormula, a.schema, a.vecs, a.exts.referenceTables(), a.exts.exprOptionsWithModels(a.models, a.zone))
 	})
 	return a.progErr
 }
@@ -359,7 +368,8 @@ func (a *formulaAttribute) Row(r *Record, _ string) (float64, error) {
 }
 
 // formulaNumber is a formula's numeric reading of an expression value:
-// a number as float64, a bool as 1 / 0; any other type is refused.
+// a number as float64, a decimal as its nearest float64, a bool as 1 /
+// 0; any other type is refused.
 func formulaNumber(output any) (float64, error) {
 	switch v := output.(type) {
 	case float64:
@@ -375,6 +385,9 @@ func formulaNumber(output any) (float64, error) {
 			return 1.0, nil
 		}
 		return 0.0, nil
+	case exprenv.Decimal:
+		// An exact decimal result downcasts to the float64 column.
+		return v.Float64(), nil
 	case []float64:
 		return 0, vectorResultError("formula")
 	default:

@@ -52,6 +52,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - High-cardinality fields → memory growth proportional to distinct values.
 - Counts non-null only; nulls collapsed.
+- Over `decimal128` the count is a JSON integer (`3`), never a decimal string; distinct by value at the column scale.
 - `set_*` rejected at build time with `PULSE_FIELD_TYPE_UNSUPPORTED`.
 
 ## See

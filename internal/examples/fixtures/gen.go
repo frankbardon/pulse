@@ -27,7 +27,7 @@ import (
 
 const (
 	seed       = 20260501
-	outputDir  = "examples/fixtures"
+	outputDir  = "internal/examples/fixtures"
 	dateFormat = "2006-01-02"
 )
 
@@ -59,7 +59,11 @@ func main() {
 	// The survey battery draws from its own source so adding it left
 	// every CSV above byte-identical.
 	must(writeSurvey(rand.New(rand.NewSource(seed+1)), 300))
-	fmt.Println("wrote 7 CSVs to", outputDir)
+	// The subscriber flags draw nothing from r: every value is a
+	// function of the row index, so the showcase tests can derive their
+	// expected numbers by hand.
+	must(writeSubscribers(48))
+	fmt.Println("wrote 8 CSVs to", outputDir)
 }
 
 // writeExperiment produces an A/B testing cohort designed so every
@@ -387,6 +391,78 @@ func writeSurvey(r *rand.Rand, n int) error {
 			row = append(row, fmt.Sprintf("%.2f", 4+float64(1.2*item)))
 		}
 		if err := w.Write(row); err != nil {
+			return err
+		}
+	}
+	w.Flush()
+	return w.Error()
+}
+
+// writeSubscribers produces the flag-and-money cohort the U45 showcase
+// examples read: binary outcomes stored as packed_bool (no 0/1 twin
+// column), a signup and a first-repeat-order date for calendar
+// retention flags, and decimal128 money for exact ratios. Every value
+// is a closed-form function of the row index i:
+//
+//   - arm alternates control / variant; within an arm (a = i/2)
+//     control converts when a%4 == 0 (6 of 24) and variant when
+//     a%8 < 3 (9 of 24).
+//   - plan cycles basic / plus / pro; within a plan (k = i/3) the
+//     first 8 / 5 / 2 of 16 rows churned.
+//   - late_payment is 1 when i%4 >= 2; within a late_payment group
+//     (g = (i/4)*2 + i%2) a late payer defaulted when g%3 == 0 (8 of
+//     24), an on-time one when g%6 == 0 (4 of 24).
+//   - signup_date steps 13 days from 2024-01-03; first_repeat_order
+//     follows it by 4, 18, 29, 41, 58 or 90 days (i%6), so the same
+//     day gap lands in different calendar months.
+//   - revenue / cost are cents-exact money.
+func writeSubscribers(n int) error {
+	w, close := openCSV("subscribers.csv")
+	defer close()
+	if err := w.Write([]string{"id", "arm", "converted", "plan", "churned", "late_payment", "defaulted", "signup_date", "first_repeat_order", "revenue", "cost"}); err != nil {
+		return err
+	}
+	plans := []string{"basic", "plus", "pro"}
+	churnedPerPlan := []int{8, 5, 2}
+	gaps := []int{4, 18, 29, 41, 58, 90}
+	start := time.Date(2024, 1, 3, 0, 0, 0, 0, time.UTC)
+	flag := func(b bool) string {
+		if b {
+			return "true"
+		}
+		return "false"
+	}
+	cents := func(c int) string { return fmt.Sprintf("%d.%02d", c/100, c%100) }
+	for i := range n {
+		a := i / 2
+		converted := a%4 == 0
+		if i%2 == 1 {
+			converted = a%8 < 3
+		}
+		late := i%4 >= 2
+		g := (i/4)*2 + i%2
+		defaulted := g%6 == 0
+		if late {
+			defaulted = g%3 == 0
+		}
+		lateCol := "0"
+		if late {
+			lateCol = "1"
+		}
+		signup := start.AddDate(0, 0, 13*i)
+		if err := w.Write([]string{
+			itoa(i + 1),
+			treatments[i%2],
+			flag(converted),
+			plans[i%3],
+			flag(i/3 < churnedPerPlan[i%3]),
+			lateCol,
+			flag(defaulted),
+			signup.Format(dateFormat),
+			signup.AddDate(0, 0, gaps[i%6]).Format(dateFormat),
+			cents(2000 + (i*937)%7000),
+			cents(700 + (i*613)%2900),
+		}); err != nil {
 			return err
 		}
 	}

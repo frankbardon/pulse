@@ -2,7 +2,6 @@ package processing
 
 import (
 	"fmt"
-	"reflect"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -15,7 +14,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/exprbuiltins"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/vectors"
 )
@@ -30,9 +29,10 @@ import (
 //
 // An exprProgram compiles once per build, against a PROTOTYPE env
 // declared from the schema: every schema field, typed exactly as
-// AllValues surfaces it (exprValueType — float64 for numeric/date/bool
+// AllValues surfaces it (exprenv.Prototype / ValueType — float64 for numeric/date/bool
 // columns, string for a dictionary-bearing categorical, []string for a
-// dictionary-bearing set, Decimal128 / uint64 / SetMask otherwise). Type
+// dictionary-bearing set, a {value, scale} exprenv.Decimal for a
+// decimal128, uint64 / SetMask otherwise). Type
 // checking therefore sees the same types a per-row compile saw on a row
 // where every field was present, so a request that compiled per row
 // compiles here, to the same program, and one that failed to compile
@@ -94,6 +94,14 @@ type exprProgram struct {
 	// absent from the env is a null-input row. Settled with the typed
 	// program.
 	inputs []string
+	// schema is the build's schema; decimals marks that it declares a
+	// decimal128 field, whose value binds lifted (exprenv.Bind — the
+	// mantissa plus the field's scale). inputDecs is index-aligned with
+	// inputs: the decimal field an input names, else nil (nil slice: no
+	// decimal input — the per-row bind then costs nothing).
+	schema    *encoding.Schema
+	decimals  bool
+	inputDecs []*encoding.Field
 	// refs are every free identifier the AST names (callees and let
 	// bindings excluded), used to decide at build whether the schema
 	// alone can declare them.
@@ -135,8 +143,16 @@ func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Re
 	if err := vectorStaticRefusal(src, what, vectors.ExprVectorLen(vecs, schema)); err != nil {
 		return nil, err
 	}
-	p := &exprProgram{src: src, what: what, opts: opts, decl: exprPrototype(schema)}
-	if callees, _ := exprident.Callees(src); slices.Contains(callees, exprbuiltins.RefFunc) {
+	p := &exprProgram{src: src, what: what, opts: opts, decl: exprenv.Prototype(schema), schema: schema}
+	if schema != nil {
+		for i := range schema.Fields {
+			if schema.Fields[i].Type == encoding.FieldTypeDecimal128 {
+				p.decimals = true
+				break
+			}
+		}
+	}
+	if callees, _ := exprident.Callees(src); slices.Contains(callees, exprenv.RefFunc) {
 		scope := refScope(src, refTables, vecs, func(name string) bool {
 			// A native vector field is a vector here, not a shadowing field.
 			return schema != nil && schema.Field(name) != nil && !vectors.IsNativeVector(name, schema)
@@ -172,11 +188,13 @@ func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Re
 	return p, nil
 }
 
-// compile runs expr.Compile against decl with the extension options.
+// compile runs expr.Compile against decl with the calendar guard over
+// the schema (exprenv.CalendarGuard, predict's too) and the extension
+// options.
 func (p *exprProgram) compile(decl exprtypes.Map) (*vm.Program, error) {
 	exprCompiles.Add(1)
-	opts := make([]expr.Option, 0, 2+len(p.opts))
-	opts = append(opts, expr.Env(decl))
+	opts := make([]expr.Option, 0, 3+len(p.opts))
+	opts = append(opts, expr.Env(decl), exprenv.CalendarGuard(p.schema))
 	opts = append(opts, p.opts...)
 	if p.refPatch != nil {
 		opts = append(opts, expr.Patch(p.refPatch))
@@ -184,9 +202,10 @@ func (p *exprProgram) compile(decl exprtypes.Map) (*vm.Program, error) {
 	return expr.Compile(p.src, opts...)
 }
 
+// compileError is PULSE_FORMULA_COMPILE_ERROR, expr-lang's reason in
+// the message and details (exprenv.CompileError — predict's spelling).
 func (p *exprProgram) compileError(err error) error {
-	return errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
-		fmt.Sprintf("compiling %s expression: %s", p.what, p.src))
+	return exprenv.CompileError(p.what, p.src, err)
 }
 
 func (p *exprProgram) evalError(err error) error {
@@ -208,6 +227,31 @@ func (p *exprProgram) settleInputs() {
 			p.inputs = append(p.inputs, name)
 		}
 	}
+	if !p.decimals {
+		return
+	}
+	for i, name := range p.inputs {
+		if f := p.schema.Field(name); f != nil && f.Type == encoding.FieldTypeDecimal128 {
+			if p.inputDecs == nil {
+				p.inputDecs = make([]*encoding.Field, len(p.inputs))
+			}
+			p.inputDecs[i] = f
+		}
+	}
+}
+
+// bindEnv copies the record's whole AllValues map into a pooled env,
+// every decimal lifted (exprenv.Bind): the map is the record's shared
+// cache and is never written.
+func (p *exprProgram) bindEnv(all map[string]any) map[string]any {
+	env := exprEnvPool.Get().(map[string]any)
+	for k, v := range all {
+		if p.decimals {
+			v = exprenv.Bind(p.schema.Field(k), v)
+		}
+		env[k] = v
+	}
+	return env
 }
 
 // exprVectorBinding is one named vector an expression reads: its
@@ -232,8 +276,6 @@ type exprVectorFrame struct {
 	boxed []any
 }
 
-var exprVectorType = exprtypes.TypeOf([]float64(nil))
-
 // bindVectors declares every named vector the expression references
 // as a []float64 identifier: a Request.Vectors entry (no schema field
 // shadows one: a vector named like a field is refused earlier,
@@ -246,16 +288,11 @@ func (p *exprProgram) bindVectors(vecs []vectors.Resolved) error {
 	if len(vecs) == 0 || len(p.refs) == 0 {
 		return nil
 	}
-	for _, name := range p.refs {
-		v, ok := vectors.Find(vecs, name)
-		if !ok {
-			continue
-		}
-		if _, field := p.decl[name]; field && v.Native == nil {
-			continue
-		}
-		p.vecs = append(p.vecs, exprVectorBinding{name: name, fill: newMemberFill(v)})
-		p.decl[name] = exprVectorType
+	for _, v := range vectors.ExprBindings(p.refs, vecs, func(name string) bool { _, ok := p.decl[name]; return ok }) {
+		p.vecs = append(p.vecs, exprVectorBinding{name: v.Name, fill: newMemberFill(v)})
+	}
+	for i := range p.vecs {
+		p.decl[p.vecs[i].name] = exprenv.VectorType
 	}
 	if len(p.vecs) == 0 {
 		return nil
@@ -309,7 +346,10 @@ func (p *exprProgram) releaseVectors(f *exprVectorFrame) {
 
 // program returns the typed program, compiling it on the first record
 // when the build deferred it.
-func (p *exprProgram) program(env map[string]any) (*vm.Program, error) {
+//
+// nullMarked (nil: none) reports a name the record carries as null —
+// absent from env, but a column all the same.
+func (p *exprProgram) program(env map[string]any, nullMarked func(string) bool) (*vm.Program, error) {
 	if prog := p.typed.Load(); prog != nil {
 		return prog, nil
 	}
@@ -327,6 +367,19 @@ func (p *exprProgram) program(env map[string]any) (*vm.Program, error) {
 	}
 	for k, t := range p.decl { // schema fields keep their declared type
 		decl[k] = t
+	}
+	if nullMarked != nil {
+		// A derived column (an earlier attribute, a feature output)
+		// null on this first record is absent from its env, yet the
+		// name exists: declare it as every derived column is typed
+		// (exprenv.DerivedType — predict's declaration), never leave it
+		// to fail as an unknown name on whichever row happens to come
+		// first.
+		for _, name := range p.refs {
+			if _, ok := decl[name]; !ok && nullMarked(name) {
+				decl[name] = exprenv.DerivedType
+			}
+		}
 	}
 	prog, err := p.compile(decl)
 	if err != nil {
@@ -351,8 +404,8 @@ func (p *exprProgram) untypedProgram() (*vm.Program, error) {
 		return p.untyped.Load(), p.untypedErr
 	}
 	decl := make(exprtypes.Map, len(p.decl))
-	for k := range p.decl {
-		decl[k] = exprtypes.Any
+	for k, t := range p.decl {
+		decl[k] = exprenv.Untyped(t) // `any`; a decimal stays decimal
 	}
 	prog, err := p.compile(decl)
 	p.untypedSet = true
@@ -379,25 +432,29 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 	if p.typed.Load() == nil || p.wholeEnv || r.allValuesCache != nil {
 		// Deferred compile, $env, or a record whose AllValues map is
 		// already built (a buffered record another expression read).
-		if len(p.vecs) == 0 {
-			return p.run(r.AllValues())
+		if len(p.vecs) == 0 && !p.decimals {
+			return p.run(r.AllValues(), r.nullMarked)
 		}
 		// The AllValues map is the record's shared cache: bind the
-		// vectors into a pooled copy, never into the cache.
-		env := exprEnvPool.Get().(map[string]any)
-		for k, v := range r.AllValues() {
-			env[k] = v
+		// vectors and lift the decimals in a pooled copy, never in the
+		// cache.
+		env := p.bindEnv(r.AllValues())
+		var f *exprVectorFrame
+		if len(p.vecs) > 0 {
+			f = p.fillVectors(env, r)
 		}
-		f := p.fillVectors(env, r)
-		out, nullInput, err = p.run(env)
+		out, nullInput, err = p.run(env, r.nullMarked)
 		p.releaseVectors(f)
 		clear(env)
 		exprEnvPool.Put(env)
 		return out, nullInput, err
 	}
 	env := exprEnvPool.Get().(map[string]any)
-	for _, name := range p.inputs {
+	for i, name := range p.inputs {
 		if v, ok := r.exprValue(name); ok {
+			if p.inputDecs != nil && p.inputDecs[i] != nil {
+				v = exprenv.Bind(p.inputDecs[i], v)
+			}
 			env[name] = v
 		} else {
 			nullInput = true
@@ -417,8 +474,8 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 // run evaluates the expression against a whole env. nullInput reports
 // whether a referenced field was null / absent on this row; err is
 // already coded (compile or evaluation).
-func (p *exprProgram) run(env map[string]any) (out any, nullInput bool, err error) {
-	if _, err := p.program(env); err != nil {
+func (p *exprProgram) run(env map[string]any, nullMarked func(string) bool) (out any, nullInput bool, err error) {
+	if _, err := p.program(env, nullMarked); err != nil {
 		return nil, false, err
 	}
 	for _, name := range p.inputs {
@@ -448,62 +505,6 @@ func (p *exprProgram) eval(env map[string]any, nullInput bool) (any, error) {
 		return nil, p.evalError(err)
 	}
 	return out, nil
-}
-
-// exprPrototype declares every schema field typed as Record.AllValues
-// surfaces it. A duplicated name keeps its first occurrence, as
-// Schema.Field does.
-func exprPrototype(schema *encoding.Schema) exprtypes.Map {
-	decl := exprtypes.Map{}
-	if schema == nil {
-		return decl
-	}
-	for i := range schema.Fields {
-		f := &schema.Fields[i]
-		if _, dup := decl[f.Name]; dup {
-			continue
-		}
-		decl[f.Name] = exprtypes.TypeOf(reflect.Zero(exprValueType(f)).Interface())
-	}
-	return decl
-}
-
-var (
-	exprFloat64Type    = reflect.TypeOf(float64(0))
-	exprStringType     = reflect.TypeOf("")
-	exprStringsType    = reflect.TypeOf([]string(nil))
-	exprUint64Type     = reflect.TypeOf(uint64(0))
-	exprSetMaskType    = reflect.TypeOf(encoding.SetMask{})
-	exprDecimal128Type = reflect.TypeOf(encoding.Decimal128{})
-	exprFloat64sType   = reflect.TypeOf([]float64(nil))
-)
-
-// exprValueType is the Go type Record.AllValues gives field f's value:
-// a dictionary-bearing categorical resolves to its label, a
-// dictionary-bearing set to its label slice, a decimal / dictionary-less
-// set rides its wide value, a vector its []float64 elements, everything
-// else is the float64 slot. Pinned
-// against every decode path by TestExprValueType_MatchesAllValues.
-func exprValueType(f *encoding.Field) reflect.Type {
-	switch {
-	case f.Type.IsCategorical():
-		if f.Dictionary != nil {
-			return exprStringType
-		}
-	case f.Type.IsSet():
-		if f.Dictionary != nil {
-			return exprStringsType
-		}
-		if f.Type.IsWideSet() {
-			return exprSetMaskType
-		}
-		return exprUint64Type
-	case f.Type == encoding.FieldTypeDecimal128:
-		return exprDecimal128Type
-	case f.Type.IsVector():
-		return exprFloat64sType
-	}
-	return exprFloat64Type
 }
 
 // exprFreeIdentifiers returns the names an expression reads from its

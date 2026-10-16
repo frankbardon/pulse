@@ -23,7 +23,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Inputs
 
-`Field` — per-group mean column (an average aggregate). `SplitBy` — the grouper column the upstream ANOVA partitioned by.
+`Field` — per-group mean column (an average aggregate). `SplitBy` — the grouper column the upstream ANOVA partitioned by; a `packed_bool`<!-- feature: GROUP_CATEGORY --> `GROUP_CATEGORY`<!-- /feature --> keys `"0"`/`"1"`, but the test needs ≥ 3 groups (two alone is `PULSE_TEST_SPLIT_GROUPS_LT_2`).
 
 ## Output
 

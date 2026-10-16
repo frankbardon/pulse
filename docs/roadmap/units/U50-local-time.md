@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U46]
 blocks: [U32]
-todo_items: [348, 349, 350, 351, 352, 353, 452]
+todo_items: [348, 349, 350, 351, 352, 353, 452, 467, 468]
 branch: local-time
 ---
 
@@ -92,6 +92,13 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(local-time/E<n>-S
 | Item | Source |
 |---|---|
 | `ATTR_PREVIOUS_STATE` — per-subject previous-state attribute (the subject's state at its previous time point, ordered in local time), so a long panel feeds the `flows` overlays without pre-pivoting | [U30](U30-matrix-extensions-hardening.md) #452 (from #449, E7-S2) |
+
+## Handed on from U45
+
+Filed from [U45](U45-binary-and-decimal.md); tick in [`TODO.md`](../TODO.md) when done.
+
+- [ ] **#467** `FilterToFileRequest` has no `TimeZone` field: a `to_day` predicate in `FilterToFile*` honours only `Options.DefaultTimeZone` (a public-API addition: the API golden, the predicate hash and the output name). Found in U45 (E4-S1)
+- [ ] **#468** `FILTER_DATE_RANGES` on `FilterToFileWithRequest` is refused with an UNCODED error ("untranslatable filter type", pre-existing): give it a coded refusal (or translate it). Found in U45 (E4-S1)
 
 ## Human inputs & decisions
 

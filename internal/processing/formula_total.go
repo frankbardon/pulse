@@ -3,10 +3,8 @@ package processing
 import (
 	"math"
 
-	"github.com/expr-lang/expr"
-	exprast "github.com/expr-lang/expr/ast"
-
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -72,25 +70,20 @@ func (a *formulaAttribute) prepareTotals() (*exprProgram, error) {
 	}
 	t := a.totals
 	t.keys = totalcall.Args(a.expression)
-	t.index = make(map[string]int, len(t.keys))
+	t.index = totalcall.Index(t.keys)
 	t.args = make([]*exprProgram, len(t.keys))
 	t.sums = make([]float64, len(t.keys))
 	t.counts = make([]int, len(t.keys))
-	argOpts := a.exts.exprOptionsWithModels(a.models)
+	argOpts := a.exts.exprOptionsWithModels(a.models, a.zone)
 	for i, key := range t.keys {
-		t.index[key] = i
-		prog, err := newExprProgram(key, "formula total() argument", a.schema, a.vecs, a.exts.referenceTables(), argOpts)
+		prog, err := newExprProgram(key, exprenv.SiteTotalArgument, a.schema, a.vecs, a.exts.referenceTables(), argOpts)
 		if err != nil {
 			return nil, err
 		}
 		t.args[i] = prog
 	}
-	opts := a.exts.exprOptionsWithModels(a.models)
-	opts = append(opts,
-		expr.Function(totalcall.Func, t.read, new(func(int) float64)),
-		expr.Patch(&totalPatcher{index: t.index}),
-	)
-	return newExprProgram(a.expression, "formula", a.schema, a.vecs, a.exts.referenceTables(), opts)
+	opts := append(a.exts.exprOptionsWithModels(a.models, a.zone), totalcall.Options(t.index, t.read)...)
+	return newExprProgram(a.expression, exprenv.SiteFormula, a.schema, a.vecs, a.exts.referenceTables(), opts)
 }
 
 // read is the patched total(i): slot i's published sum. Reading before
@@ -102,26 +95,6 @@ func (t *formulaTotals) read(args ...any) (any, error) {
 			"formula total() read before its pre-pass finalized")
 	}
 	return t.values[args[0].(int)], nil
-}
-
-// totalPatcher rewrites every total(<arg>) call to total(<slot>), the
-// slot its argument's key holds, so row evaluation reads the published
-// constant and never evaluates the argument per row.
-type totalPatcher struct{ index map[string]int }
-
-func (p *totalPatcher) Visit(node *exprast.Node) {
-	c, ok := totalcall.IsCall(*node)
-	if !ok || len(c.Arguments) != 1 {
-		return
-	}
-	i, ok := p.index[totalcall.ArgKey(c)]
-	if !ok {
-		return
-	}
-	exprast.Patch(node, &exprast.CallNode{
-		Callee:    &exprast.IdentifierNode{Value: totalcall.Func},
-		Arguments: []exprast.Node{&exprast.IntegerNode{Value: i}},
-	})
 }
 
 // PrePass folds one post-filter record into every total.

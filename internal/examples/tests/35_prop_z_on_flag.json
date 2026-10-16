@@ -1,0 +1,38 @@
+{
+  "_meta": {
+    "category": "tests",
+    "description": "Two-proportion z-test on a conversion flag stored as packed_bool: success \"1\" names the converted level, split_by the A/B arm. No yes/no categorical twin column is needed.",
+    "intents": [
+      "compare_groups"
+    ],
+    "name": "prop_z_on_flag",
+    "operators": [
+      "TEST_PROP_Z"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "parametric",
+      "proportion-analysis",
+      "two-sample",
+      "experiment-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "subscribers.pulse",
+    "data_dir": ".data"
+  },
+  "tests": [
+    {
+      "type": "TEST_PROP_Z",
+      "field": "converted",
+      "split_by": "arm",
+      "alpha": 0.05,
+      "label": "conversion_lift_z",
+      "params": {
+        "success": "1"
+      }
+    }
+  ]
+}

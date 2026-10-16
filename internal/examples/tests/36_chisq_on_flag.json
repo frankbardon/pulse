@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "category": "tests",
+    "description": "Chi-square independence of plan tier and a churned flag stored as packed_bool: the flag is read directly as levels \"0\" / \"1\", no recoded categorical column.",
+    "intents": [
+      "relationship"
+    ],
+    "name": "chisq_on_flag",
+    "operators": [
+      "TEST_CHISQ"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "tier-1-test",
+      "cross-tabulation",
+      "proportion-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "subscribers.pulse",
+    "data_dir": ".data"
+  },
+  "tests": [
+    {
+      "type": "TEST_CHISQ",
+      "rows": "plan",
+      "cols": "churned",
+      "alpha": 0.05,
+      "label": "plan_vs_churned"
+    }
+  ]
+}

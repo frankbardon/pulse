@@ -51,6 +51,7 @@ Floor only — no operator-specific keys. Universal `{n, n_null}` per response-c
 ## Gotchas
 
 - Counts non-null inputs only.
+- Over `decimal128` the count is a JSON integer (`4`), never a decimal string.
 - Never a smart default: an omitted `Type` never infers `AGG_COUNT` — name it explicitly.
 - `decimal128` under any weight in force (default included) → `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` opts out.
 

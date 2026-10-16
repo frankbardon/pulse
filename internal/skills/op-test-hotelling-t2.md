@@ -18,7 +18,7 @@ No `Response.Components`.
 - `alpha` (0.05). `mu` — per member (default zeros). `missing` — `listwise` only.
 - `variance` — `pooled` (default) or `unequal` (Krishnamoorthy–Yu); two-sample only.
 
-Slot: one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields` (globs ok); no `field`. `split_by` optional, categorical (else `PULSE_FIELD_TYPE_UNSUPPORTED`), exactly 2 levels. Paired: `vector2` / `fields2`, same count, row-wise difference; never with `split_by`.
+Slot: one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields` (globs ok); no `field`. `split_by` optional, categorical or `packed_bool` (levels `"0"`/`"1"`; else `PULSE_FIELD_TYPE_UNSUPPORTED`), exactly 2 levels. Paired: `vector2` / `fields2`, same count, row-wise difference; never with `split_by`.
 - `weight` — both kinds; N* = Σw or n_eff (`Details` add `sum_weights`).
 <!-- feature: capability:multiplicity -->
 - `multiplicity` — `p_adjusted` (`multiplicity-correction`).

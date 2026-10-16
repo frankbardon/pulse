@@ -163,7 +163,7 @@ func newComparisonCore(attr *types.Attribute, schema *encoding.Schema) (comparis
 		}
 	}
 	if cfg.Reference.Form == vectors.ReferenceCentroid {
-		c.centroid = &centroidFold{spec: cfg.Reference.Filter, by: cfg.Reference.By, keyInt: c.keyInt, schema: schema,
+		c.centroid = &centroidFold{spec: inheritExprZone(cfg.Reference.Filter, attr.TimeZone), by: cfg.Reference.By, keyInt: c.keyInt, schema: schema,
 			x: make([]float64, len(c.members)), pres: make([]bool, len(c.members))}
 		if w := attr.Weight.Spec(); w != nil {
 			ew := effectiveWeight(w)
@@ -334,7 +334,7 @@ func (c *comparisonCore) reference(rec *Record) ([]float64, bool, error) {
 		c.noteUnmatched(string(c.keyBuf))
 		return nil, false, nil
 	}
-	key, ok := rec.StringValue(field)
+	key, ok := rec.LevelValue(field)
 	if !ok && rec.IsNull(field) {
 		c.nKeyNull++
 		return nil, false, nil
@@ -577,7 +577,7 @@ func (f *centroidFold) key(rec *Record) (string, bool) {
 		f.keyBuf = strconv.AppendUint(f.keyBuf[:0], n, 10)
 		return string(f.keyBuf), true
 	}
-	key, ok := rec.StringValue(f.by)
+	key, ok := rec.LevelValue(f.by)
 	if !ok {
 		return "", false
 	}

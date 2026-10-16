@@ -174,6 +174,14 @@ func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encodi
 	}
 	if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotSplitBy, t.SplitBy, schema); cerr != nil {
 		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		return
+	}
+	// A packed_bool outcome's success is "0" / "1" only — the runtime
+	// constructor's next refusal, the same coded error.
+	if success, ok := successParam(t.Params); ok {
+		if cerr := fieldaccept.SuccessLevelRefusal(string(t.Type), t.Field, success, schema); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
 	}
 }
 
@@ -183,16 +191,23 @@ func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encodi
 // time), but a *missing* success value is the canonical failure mode
 // callers hit so it is worth catching up front.
 func hasSuccessParam(raw []byte) bool {
+	_, ok := successParam(raw)
+	return ok
+}
+
+// successParam returns the raw Params blob's non-empty "success" value;
+// false when params are absent, malformed or carry none.
+func successParam(raw []byte) (string, bool) {
 	if len(raw) == 0 {
-		return false
+		return "", false
 	}
 	var params struct {
 		Success string `json:"success"`
 	}
 	if err := json.Unmarshal(raw, &params); err != nil {
-		return false
+		return "", false
 	}
-	return params.Success != ""
+	return params.Success, params.Success != ""
 }
 
 func validateChiSquareFields(env *descriptor.Envelope, t *types.Test, schema *encoding.Schema, projected map[string]bool, tier1 bool) {

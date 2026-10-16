@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -85,15 +86,13 @@ func (ts ReferenceTables) Table(name string) (ReferenceTable, *errors.CodedError
 	if t, ok := ts[name]; ok {
 		return t, nil
 	}
-	return ReferenceTable{}, errors.NewCodedErrorWithDetails(errors.PULSE_VECTOR_REFERENCE_UNKNOWN,
-		"reference vector table "+strconv.Quote(name)+" is not registered (Options.Extensions.ReferenceVectors)",
-		map[string]any{"reason": ReferenceReasonTableUnknown, "table": name, "valid": ts.Names()})
+	return ReferenceTable{}, exprenv.RefTableUnknown(name, ts.Names())
 }
 
 // The PULSE_VECTOR_REFERENCE_UNKNOWN / _MISMATCH details.reason values.
 const (
 	// ReferenceReasonTableUnknown: no table is registered under the name.
-	ReferenceReasonTableUnknown = "table_unknown"
+	ReferenceReasonTableUnknown = exprenv.RefReasonTableUnknown
 	// ReferenceReasonTableNotLiteral: a ref() table argument is not a
 	// string literal, so its labels cannot be known before a row.
 	ReferenceReasonTableNotLiteral = "table_not_literal"

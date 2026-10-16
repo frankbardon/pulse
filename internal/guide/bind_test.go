@@ -619,3 +619,128 @@ func TestRecommendBound_WeightedMeanWeight(t *testing.T) {
 		}
 	}
 }
+
+// TestBind_PackedBoolIsATwoLevelCategory: the binder's level slots use
+// the acceptance table's level set (fieldaccept's categoricalValue
+// class), so a packed_bool fills split_by, a contingency axis,
+// TEST_PROP_Z's outcome and a categorical field_filter (stratify) as a
+// two-level category — and the two-level split_by slot — while
+// TEST_ANOVA_RM's subject stays categorical-only.
+func TestBind_PackedBoolIsATwoLevelCategory(t *testing.T) {
+	passed := &encoding.Field{Name: "passed", Type: encoding.FieldTypePackedBool}
+	region := &encoding.Field{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict(t, "n", "s", "e", "w")}
+	arm := &encoding.Field{Name: "arm", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict(t, "control", "treatment")}
+	score := &encoding.Field{Name: "score", Type: encoding.FieldTypeF64}
+	for _, c := range []struct {
+		op, key string
+		f       *encoding.Field
+		want    bool
+	}{
+		{"TEST_T", "split_by", passed, true},
+		{"TEST_HOTELLING_T2", "split_by", passed, true},
+		{"TEST_HOTELLING_T2", "split_by", arm, true},
+		{"TEST_HOTELLING_T2", "split_by", region, false},
+		{"TEST_CHISQ", "rows", passed, true},
+		{"TEST_FISHER_EXACT", "cols", passed, true},
+		{"TEST_PROP_Z", "field", passed, true},
+		{"TEST_PROP_Z", "field", score, false},
+		{"TEST_ANOVA_RM", "subject_field", passed, false},
+		{"TEST_ANOVA_RM", "subject_field", region, true},
+		{"TEST_ANOVA_RM", "split_by", passed, true},
+	} {
+		if got := testSlot(opInfo{name: c.op, category: catTest}, c.key).accept(c.f); got != c.want {
+			t.Errorf("%s %s accepts %s (%s) = %v, want %v", c.op, c.key, c.f.Name, c.f.Type, got, c.want)
+		}
+	}
+	if !fieldFilterAccept("categorical")(passed) {
+		t.Error(`field_filter "categorical" (stratify) refuses a packed_bool`)
+	}
+	if fieldFilterAccept("categorical")(score) {
+		t.Error(`field_filter "categorical" accepts a numeric field`)
+	}
+
+	// End to end: a packed_bool group hint pins TEST_T's split_by, and
+	// the draft passes predict (TestRecommendBound_EveryDraftPassesPredict
+	// holds every draft to that).
+	found := false
+	for _, r := range boundAll(t, nil, descx.IntentCompareGroups, "score", "passed").Recommendations {
+		if r.Operator == "TEST_T" {
+			found = true
+			if !strings.Contains(string(r.Request), `"split_by":"passed"`) {
+				t.Errorf("TEST_T split_by not bound to the packed_bool hint: %s", r.Request)
+			}
+			if !strings.Contains(r.Why, "passed (packed_bool, 2 groups)") {
+				t.Errorf("TEST_T why does not count the packed_bool's two levels: %s", r.Why)
+			}
+		}
+	}
+	if !found {
+		t.Error("no TEST_T draft for a numeric outcome and a packed_bool group hint")
+	}
+}
+
+// TestBind_ManyGroupTestsPreferThreeLevels: the k-group tests (ANOVA F,
+// Welch's ANOVA, Kruskal-Wallis, Brown-Forsythe, Tukey HSD) are for
+// three or more groups (their Purpose), so their split_by draws a
+// field with at least three levels when the cohort has one — the
+// 4-level region, never the 2-level arm or the packed_bool passed. A
+// 2-level field still binds when hinted or when no 3+-level field
+// exists (a preference, not a refusal), except TEST_TUKEY_HSD, whose
+// runtime refuses fewer than three groups (PULSE_TEST_SPLIT_GROUPS_LT_2).
+func TestBind_ManyGroupTestsPreferThreeLevels(t *testing.T) {
+	passed := &encoding.Field{Name: "passed", Type: encoding.FieldTypePackedBool}
+	region := &encoding.Field{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict(t, "n", "s", "e", "w")}
+	arm := &encoding.Field{Name: "arm", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict(t, "control", "treatment")}
+	for _, op := range []string{"TEST_ANOVA_F", "TEST_ANOVA_WELCH", "TEST_KRUSKAL_WALLIS", "TEST_BROWN_FORSYTHE", "TEST_TUKEY_HSD"} {
+		s := testSlot(opInfo{name: op, category: catTest}, "split_by")
+		if s.narrow == nil || !s.narrow(region) || s.narrow(arm) || s.narrow(passed) {
+			t.Errorf("%s split_by: no 3+-level preference", op)
+		}
+		hard := op == "TEST_TUKEY_HSD"
+		if s.accept(arm) == hard || s.accept(passed) == hard || !s.accept(region) {
+			t.Errorf("%s split_by accepts arm=%v passed=%v region=%v, want 2-level %v", op, s.accept(arm), s.accept(passed), s.accept(region), !hard)
+		}
+	}
+	for _, op := range []string{"TEST_T", "TEST_WELCH", "TEST_MANN_WHITNEY_U", "TEST_HOTELLING_T2", "TEST_MANOVA"} {
+		if testSlot(opInfo{name: op, category: catTest}, "split_by").narrow != nil {
+			t.Errorf("%s split_by narrows to 3+ levels", op)
+		}
+	}
+
+	// End to end over the fixture (region 4 levels, arm 2, passed a
+	// packed_bool): every many-group draft splits by region.
+	b := bound(t, nil, boundFixture(t), nil)
+	seen := 0
+	for _, op := range []string{"TEST_ANOVA_F", "TEST_ANOVA_WELCH"} {
+		for _, r := range draftsOf(t, b, descx.IntentCompareGroups, op) {
+			seen++
+			if got := decodeDraft(t, r).Tests[0].SplitBy; got != "region" {
+				t.Errorf("%s drafts split_by %q, want the 4-level region: %s", op, got, r.Request)
+			}
+		}
+	}
+	if seen < 2 {
+		t.Fatalf("vacuous: %d many-group drafts", seen)
+	}
+
+	// A hinted 2-level field still pins the split.
+	hinted := false
+	for _, r := range boundAll(t, nil, descx.IntentCompareGroups, "score", "passed").Recommendations {
+		if r.Operator == "TEST_ANOVA_F" && strings.Contains(string(r.Request), `"split_by":"passed"`) {
+			hinted = true
+		}
+	}
+	if !hinted {
+		t.Error("TEST_ANOVA_F does not bind a hinted packed_bool split")
+	}
+
+	// Without a 3+-level field the 2-level ones bind.
+	two := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "score", Type: encoding.FieldTypeF64, Description: "Test score of the student"},
+		{Name: "passed", Type: encoding.FieldTypePackedBool, Description: "Whether the student passed the course"},
+	}}
+	r := draftsOf(t, bound(t, nil, two, nil), descx.IntentCompareGroups, "TEST_ANOVA_F")
+	if got := decodeDraft(t, r[0]).Tests[0].SplitBy; got != "passed" {
+		t.Errorf("TEST_ANOVA_F over a 2-level-only cohort splits by %q, want passed", got)
+	}
+}

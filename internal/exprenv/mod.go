@@ -1,4 +1,4 @@
-package processing
+package exprenv
 
 import (
 	"fmt"
@@ -35,25 +35,24 @@ import (
 //   - A statically non-numeric operand (a categorical label, a
 //     decimal128) is left alone, so it keeps failing at COMPILE time.
 //
-// The patcher is registered in setExprOptions, so FILTER_EXPRESSION,
+// The patcher is registered in [Options], so FILTER_EXPRESSION,
 // ATTR_FORMULA (typed program and untyped twin alike) and — through
-// compileFormulaProgramWithExtensions — OVERLAY_FORMULA all see it. It
-// is a compile-time AST rewrite: the purity walk in filter_precompute
-// parses the raw source, where `%` is still a pure BinaryNode.
+// internal/processing's compileFormulaProgramWithExtensions —
+// OVERLAY_FORMULA all see it. It is a compile-time AST rewrite: the
+// purity walk in internal/processing's filter_precompute parses the raw
+// source, where `%` is still a pure BinaryNode.
 
-// exprModFuncName is the builtin `%` is rewritten into. Deliberately
+// ModFuncName is the builtin `%` is rewritten into. Deliberately
 // unspellable-looking so no embedder ExprFunction collides with it.
-const exprModFuncName = "__pulse_mod"
+const ModFuncName = "__pulse_mod"
 
 // exprModOptions returns the `%` patcher and its builtin.
 func exprModOptions() []expr.Option {
 	return []expr.Option{
-		expr.Function(exprModFuncName, exprModulo),
+		expr.Function(ModFuncName, exprModulo),
 		expr.Patch(exprModPatcher{}),
 	}
 }
-
-var exprAnyType = reflect.TypeOf((*any)(nil)).Elem()
 
 type exprModPatcher struct{}
 
@@ -71,7 +70,7 @@ func (exprModPatcher) Visit(node *exprast.Node) {
 		return // expr-lang's integer modulo
 	}
 	call := &exprast.CallNode{
-		Callee:    &exprast.IdentifierNode{Value: exprModFuncName},
+		Callee:    &exprast.IdentifierNode{Value: ModFuncName},
 		Arguments: []exprast.Node{b.Left, b.Right},
 	}
 	if lk == exprModDynamic || rk == exprModDynamic {
@@ -124,6 +123,12 @@ func exprModulo(params ...any) (out any, err error) {
 		return exprruntime.Modulo(a, b), nil
 	case ka != exprModInvalid && kb != exprModInvalid:
 		return math.Mod(exprModFloat64(a), exprModFloat64(b)), nil
+	}
+	if _, ok := a.(Decimal); ok {
+		return nil, fmt.Errorf("invalid operation: %T %% %T: %% over a decimal; convert it with float() first", a, b)
+	}
+	if _, ok := b.(Decimal); ok {
+		return nil, fmt.Errorf("invalid operation: %T %% %T: %% over a decimal; convert it with float() first", a, b)
 	}
 	return nil, fmt.Errorf("invalid operation: %T %% %T", a, b)
 }

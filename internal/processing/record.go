@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 )
 
 // Record represents a single data row with field accessors.
@@ -916,6 +917,35 @@ func (r *Record) StringValue(name string) (string, bool) {
 		return "", false
 	}
 	return resolved, true
+}
+
+// LevelValue is the one shared level read: the category a row sits in
+// for every slot of the categoricalValue acceptance class (split_by, a
+// contingency axis, TEST_PROP_Z's outcome, the encoders). A categorical
+// reads its dictionary label (StringValue, unchanged); a packed_bool
+// reads "0" / "1" (fieldaccept.PackedBoolFalse / PackedBoolTrue,
+// GROUP_CATEGORY's keys); a null, absent or other-typed field reads
+// ("", false). Every level consumer reads through here, never through
+// StringValue, which knows no packed_bool and would drop its rows
+// silently.
+func (r *Record) LevelValue(name string) (string, bool) {
+	var f *encoding.Field
+	if i := r.pos(name); i >= 0 {
+		f = r.fieldAt(i)
+	} else if r.schema != nil {
+		f = r.schema.Field(name)
+	}
+	if f == nil || f.Type != encoding.FieldTypePackedBool {
+		return r.StringValue(name)
+	}
+	v, ok := r.NumericValue(name)
+	if !ok {
+		return "", false
+	}
+	if v != 0 {
+		return fieldaccept.PackedBoolTrue, true
+	}
+	return fieldaccept.PackedBoolFalse, true
 }
 
 // stringValueOverflow is StringValue for a name with no slot. Such a

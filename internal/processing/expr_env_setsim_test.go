@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -113,7 +114,7 @@ func TestSetSimilarity_DecodePaths(t *testing.T) {
 		{`overlap(mw, mw)`, [3]float64{1, nan, 1}},
 	}
 	for _, tc := range cases {
-		prog, err := newExprProgram(tc.src, "formula", s, nil, nil, setExprOptions())
+		prog, err := newExprProgram(tc.src, "formula", s, nil, nil, exprenv.Options())
 		if err != nil {
 			t.Fatalf("%s: compile: %v", tc.src, err)
 		}
@@ -146,7 +147,7 @@ func TestSetSimilarity_MixedMaskAndLabelsRefused(t *testing.T) {
 		{"a": bitsMask(1), "b": bitsMask(1), "c": bitsMask(0), "ma": bitsMask(1), "mb": bitsMask(1), "mw": bitsMask(1)},
 	})
 	for _, src := range []string{`jaccard(a, ma)`, `dice(mw, b)`, `hamming(ma, ["T1"])`, `overlap([], mw)`} {
-		prog, err := newExprProgram(src, "formula", s, nil, nil, setExprOptions())
+		prog, err := newExprProgram(src, "formula", s, nil, nil, exprenv.Options())
 		if err != nil {
 			t.Fatalf("%s: compile: %v", src, err)
 		}
@@ -162,7 +163,7 @@ func TestSetSimilarity_MixedMaskAndLabelsRefused(t *testing.T) {
 // for all four, hamming an int, argument refusals coded.
 func TestSetSimilarity_Impls(t *testing.T) {
 	for _, fn := range []string{"jaccard", "dice", "hamming", "overlap"} {
-		impl := exprBuiltinImpls[fn]
+		impl := exprenv.Impl(fn)
 		for _, args := range [][]any{{nil, []string{"a"}}, {[]string{}, nil}, {nil, nil}} {
 			got, err := impl(args...)
 			if err != nil || !math.IsNaN(toFloat(got)) {
@@ -178,10 +179,10 @@ func TestSetSimilarity_Impls(t *testing.T) {
 			t.Errorf("%s with one argument: err %v, want arity refusal", fn, err)
 		}
 	}
-	if got, _ := exprBuiltinImpls["hamming"]([]string{"a", "b"}, []any{"b", "b", "c"}); got != 2 {
+	if got, _ := exprenv.Impl("hamming")([]string{"a", "b"}, []any{"b", "b", "c"}); got != 2 {
 		t.Errorf("hamming = %#v, want int 2", got)
 	}
-	if got, _ := exprBuiltinImpls["jaccard"](uint64(0b11), encoding.SetMaskFromUint64(0b110)); !closeTo(got.(float64), 1.0/3) {
+	if got, _ := exprenv.Impl("jaccard")(uint64(0b11), encoding.SetMaskFromUint64(0b110)); !closeTo(got.(float64), 1.0/3) {
 		t.Errorf("jaccard over narrow + wide masks = %v, want 1/3", got)
 	}
 }

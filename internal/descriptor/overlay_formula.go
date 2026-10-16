@@ -140,14 +140,14 @@ func inferRequestHostShape(req *types.Request) types.OverlayShape {
 // gate.
 //
 // Pulse's reserved built-ins are CallNodes too: only the scalar-maths
-// subset (`exprbuiltins.OverlayNames` — sqrt / log / exp / pow) widens
+// subset (`exprenv.OverlayNames` — sqrt / log / exp / pow) widens
 // the set. The vector families (vsum ... vnormalize) stay out, so they
 // fire the unknown-function arm exactly as the runtime compile refuses
 // them.
 //
 // The set admits exactly what the runtime overlay compile registers
-// (processing's setExprOptions plus the registry's own options): the
-// unreserved set helpers (`exprbuiltins.SetHelperNames` — has_any ...
+// (exprenv.Options plus the registry's own options): the
+// unreserved set helpers (`exprenv.SetHelperNames` — has_any ...
 // set_xor) always, and `lookup` when the instance registers any
 // LookupTable.
 func buildFormulaAllowedFuncs(opts *PredictOptions) map[string]struct{} {

@@ -31,6 +31,7 @@ Every answer carries the coded `errors` / `warnings` (`{code, message, details}`
 
 ## Gotchas
 
+- Every formula, expression filter and `total()` argument is type-compiled against the schema: a failure is `PULSE_FORMULA_COMPILE_ERROR`, byte-identical to the runtime's.
 - Predict is no-execute: `internal/descriptor/predict.go` MUST NOT import `internal/service/` or `internal/processing/` (enforced by `TestPredictNoExecutionImports`). Header + schema only.
 - `Streamable` reflects per-operator `Streamable()` plus schema gates (decimal128 forces buffered).
 - `CrosstabFusable` is absent (nil) without a crosstab; it runs the engine's own fusion rule on the defaulted request and honours `Options.DisableCrosstabFusion` (false + reason). Output is identical either way — only memory differs. Predict cannot see a grouper factory rejecting its params: it may say fusable where the runtime refuses the request anyway.

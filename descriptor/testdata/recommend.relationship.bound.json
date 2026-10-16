@@ -82,6 +82,53 @@
         "operator": "TEST_CHISQ",
         "category": "test",
         "level": "intermediate",
+        "why": "Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated. It uses region (categorical_u8, 4 groups) and churned (packed_bool, 2 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "cols": "churned",
+              "rows": "region",
+              "type": "TEST_CHISQ"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "the table is 2x2 and some expected counts are small",
+            "use": "TEST_FISHER_EXACT"
+          },
+          {
+            "when": "you compare a yes/no rate between exactly two groups and want a confidence interval",
+            "use": "TEST_PROP_Z"
+          },
+          {
+            "when": "both fields are numeric",
+            "use": "TEST_SPEARMAN_R"
+          },
+          {
+            "when": "you compare one subgroup's mix with the whole population",
+            "use": "OVERLAY_CHISQ_VS_POP"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the table shows an association and you want to see which cells drive it",
+            "use": "OVERLAY_FISHER_EXACT_CELL"
+          },
+          {
+            "when": "you want to see which rows depart from the overall column mix",
+            "use": "OVERLAY_CHISQ_ROW"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_CHISQ",
+        "category": "test",
+        "level": "intermediate",
         "why": "Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated. It uses plan (categorical_u8, 2 groups) and region (categorical_u8, 4 groups).",
         "bound": true,
         "request": {
@@ -138,6 +185,35 @@
           "tests": [
             {
               "cols": "plan",
+              "rows": "region",
+              "type": "TEST_FISHER_EXACT"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "either field has more than two categories",
+            "use": "TEST_CHISQ"
+          },
+          {
+            "when": "counts are large and you want the difference in rates with a confidence interval",
+            "use": "TEST_PROP_Z"
+          }
+        ]
+      },
+      {
+        "operator": "TEST_FISHER_EXACT",
+        "category": "test",
+        "level": "intermediate",
+        "why": "Exact test of whether two yes/no fields are associated, built for small 2x2 tables. It uses region (categorical_u8, 4 groups) and churned (packed_bool, 2 groups).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "tests": [
+            {
+              "cols": "churned",
               "rows": "region",
               "type": "TEST_FISHER_EXACT"
             }
@@ -346,106 +422,12 @@
             "use": "REG_OLS"
           }
         ]
-      },
-      {
-        "operator": "TEST_PEARSON_R",
-        "category": "test",
-        "level": "intermediate",
-        "why": "Measures how strongly two numeric fields rise and fall together along a straight line. It uses revenue (f64) and score (f64).",
-        "bound": true,
-        "request": {
-          "cohort": {
-            "filename": "recommend.pulse"
-          },
-          "tests": [
-            {
-              "field": "revenue",
-              "field2": "score",
-              "type": "TEST_PEARSON_R"
-            }
-          ]
-        },
-        "alternatives": [
-          {
-            "when": "the link is consistent but curved, or the values are ranks",
-            "use": "TEST_SPEARMAN_R"
-          },
-          {
-            "when": "the sample is small or has many tied values",
-            "use": "TEST_KENDALL_TAU"
-          },
-          {
-            "when": "both fields are categories",
-            "use": "TEST_CHISQ"
-          },
-          {
-            "when": "you want to predict one field from several others",
-            "use": "REG_OLS"
-          },
-          {
-            "when": "you want to know whether one ordered series keeps rising or falling",
-            "use": "TEST_TREND"
-          }
-        ],
-        "follow_ups": [
-          {
-            "when": "you want to predict one field from the other, or add more predictors",
-            "use": "REG_OLS"
-          }
-        ]
-      },
-      {
-        "operator": "TEST_PEARSON_R",
-        "category": "test",
-        "level": "intermediate",
-        "why": "Measures how strongly two numeric fields rise and fall together along a straight line. It uses seats (u16) and revenue (f64).",
-        "bound": true,
-        "request": {
-          "cohort": {
-            "filename": "recommend.pulse"
-          },
-          "tests": [
-            {
-              "field": "seats",
-              "field2": "revenue",
-              "type": "TEST_PEARSON_R"
-            }
-          ]
-        },
-        "alternatives": [
-          {
-            "when": "the link is consistent but curved, or the values are ranks",
-            "use": "TEST_SPEARMAN_R"
-          },
-          {
-            "when": "the sample is small or has many tied values",
-            "use": "TEST_KENDALL_TAU"
-          },
-          {
-            "when": "both fields are categories",
-            "use": "TEST_CHISQ"
-          },
-          {
-            "when": "you want to predict one field from several others",
-            "use": "REG_OLS"
-          },
-          {
-            "when": "you want to know whether one ordered series keeps rising or falling",
-            "use": "TEST_TREND"
-          }
-        ],
-        "follow_ups": [
-          {
-            "when": "you want to predict one field from the other, or add more predictors",
-            "use": "REG_OLS"
-          }
-        ]
       }
     ],
     "truncated": true,
-    "candidates_considered": 35
+    "candidates_considered": 37
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9bf19fb153d1c290f28fb8ffe2bc9b5a686469ca9b7a655e378d0405152ac969
+// golden-hash: d4123dbedd2a748b1510d35efe5d1a6c39689b96da7d5ae29dd64ed82d390d58

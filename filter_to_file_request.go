@@ -131,7 +131,11 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 	if err != nil {
 		return nil, fmt.Errorf("filter_to_file: hashing source: %w", err)
 	}
-	predHash := req.predicateHash(modelIDs)
+	// The zone the predicate's to_day() reads (filter-to-file has no
+	// request zone: Options.DefaultTimeZone, else UTC) keys the output
+	// too, so an instance in another zone never reuses it.
+	zone := descx.ExpressionZone(expr, "", p.svc.DefaultTimeZone(), p.svc.ZoneLoader())
+	predHash := req.predicateHash(modelIDs, zone)
 	outName := req.OutputName
 	if outName == "" {
 		outName = srcHash[:16] + "_" + predHash[:16] + ".pulse"
@@ -340,16 +344,20 @@ func filterToFileVisibleKeys(req *FilterToFileRequest) []string {
 // supplied. Same predicate -> same hash, in both shapes. models (the
 // loaded files' content identities) join the payload only when set, so
 // a model-free request hashes exactly as it always has, and a changed
-// model file changes the hash.
-func (r *FilterToFileRequest) predicateHash(models []modelIdentity) string {
+// model file changes the hash. zone (descx.ExpressionZone: the non-UTC
+// zone the predicate's to_day() reads, else "") joins the same way, so
+// a predicate that reads no zone hashes as it always has.
+func (r *FilterToFileRequest) predicateHash(models []modelIdentity, zone string) string {
 	payload := struct {
 		Expression string            `json:"expression,omitempty"`
 		Filterers  []*types.Filterer `json:"filterers,omitempty"`
 		Models     []modelIdentity   `json:"models,omitempty"`
+		Zone       string            `json:"zone,omitempty"`
 	}{
 		Expression: r.Expression,
 		Filterers:  r.Filterers,
 		Models:     models,
+		Zone:       zone,
 	}
 	return types.CanonicalHash("filter_predicate", payload)
 }

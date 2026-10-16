@@ -1,12 +1,9 @@
 package processing
 
 import (
-	"fmt"
-
 	exprast "github.com/expr-lang/expr/ast"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/exprbuiltins"
 	"github.com/frankbardon/pulse/internal/vectors"
 )
 
@@ -16,7 +13,9 @@ import (
 // The rules are internal/vectors' (reference_expr.go), read twice: by
 // the build's static refusal (refStaticRefusal, the first issue fails
 // the build exactly as predict reports it) and by refPatcher, an
-// expr.Patch visitor every compile of the expression runs:
+// expr.Patch visitor every compile of the expression runs (the
+// registered ref() built-in itself is internal/exprenv's, reading the
+// plan through exprenv.RefPlan):
 //
 //   - every ref() call gets a third argument, a constant *refPlan
 //     carrying its table (and, inside a pair, the permutation that
@@ -37,33 +36,12 @@ type refPlan struct {
 	perm  []int // nil: the table's own label order
 }
 
-// refBuiltin is the reserved ref() implementation. The patched form
-// reads its plan; an unpatched call (an expression compiled outside an
-// expression program, where nothing is registered) is refused.
-func refBuiltin(args ...any) (any, error) {
-	if len(args) != 3 {
-		if len(args) != 2 {
-			return nil, builtinArityError(exprbuiltins.RefFunc, 2, len(args))
-		}
-		table, _ := args[0].(string)
-		_, cerr := vectors.ReferenceTables(nil).Table(table)
-		return nil, cerr
-	}
-	plan, ok := args[2].(*refPlan)
+// Resolve implements exprenv.RefPlan: the key's (aligned) profile, or
+// the table's key-unknown refusal.
+func (p *refPlan) Resolve(key string) (any, error) {
+	v, ok := p.t.Profile(key, p.perm)
 	if !ok {
-		return nil, builtinArityError(exprbuiltins.RefFunc, 2, len(args))
-	}
-	if args[1] == nil {
-		// A null key field: the row's null input, not a refusal.
-		return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME, "ref(): key is null")
-	}
-	key, ok := args[1].(string)
-	if !ok {
-		key = fmt.Sprintf("%v", args[1])
-	}
-	v, ok := plan.t.Profile(key, plan.perm)
-	if !ok {
-		return nil, plan.t.KeyUnknown(plan.table, key)
+		return nil, p.t.KeyUnknown(p.table, key)
 	}
 	return v, nil
 }

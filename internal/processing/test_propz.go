@@ -19,9 +19,10 @@ import (
 //
 // Spec:
 //
-//	field    — categorical column whose dictionary contains the success value
-//	split_by — categorical column producing exactly two groups
-//	params   — {"success": "<dictionary value>"}
+//	field    — categorical column whose dictionary contains the success
+//	           value, or a packed_bool (levels "0" / "1")
+//	split_by — categorical or packed_bool column producing exactly two groups
+//	params   — {"success": "<dictionary value>"} ("0" / "1" on a packed_bool)
 //
 // State is a pair of counters per split group: (n, successes). Each
 // record contributes ±1 to either successes (when field == success
@@ -101,6 +102,12 @@ func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 	if cerr := fieldaccept.Check(string(spec.Type), fieldaccept.SlotSplitBy, spec.SplitBy, schema); cerr != nil {
 		return nil, cerr
 	}
+	// A packed_bool outcome's success is strictly one of its levels,
+	// "0" / "1": a typo (or "true") would count no success and report
+	// a confident zero rate. Predict raises the same refusal.
+	if cerr := fieldaccept.SuccessLevelRefusal(string(spec.Type), spec.Field, params.Success, schema); cerr != nil {
+		return nil, cerr
+	}
 	return &propZRow{
 		spec:       spec,
 		schema:     schema,
@@ -114,11 +121,11 @@ func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 }
 
 func (p *propZRow) UpdateRow(record *Record) error {
-	outcome, oOk := record.StringValue(p.field)
+	outcome, oOk := record.LevelValue(p.field)
 	if !oOk {
 		return nil
 	}
-	key, kOk := record.StringValue(p.splitBy)
+	key, kOk := record.LevelValue(p.splitBy)
 	if !kOk {
 		return nil
 	}

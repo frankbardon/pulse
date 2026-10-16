@@ -198,7 +198,7 @@ func TestTypeNames_DateRanges(t *testing.T) {
 // extension (unknown) aggregator are not judged by it.
 func TestDecimalRule(t *testing.T) {
 	d := encoding.FieldTypeDecimal128
-	for _, op := range []string{"AGG_MEDIAN", "AGG_NULL_COUNT", "AGG_PERCENTILE", "AGG_MODE", "AGG_WELFORD", "AGG_SET_UNION"} {
+	for _, op := range []string{"AGG_MEDIAN", "AGG_PERCENTILE", "AGG_MODE", "AGG_WELFORD", "AGG_SET_UNION"} {
 		r := Refusal(op, SlotField, "amt", d)
 		if r == nil || r.Code != errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL {
 			t.Errorf("%s: %v", op, r)
@@ -215,6 +215,10 @@ func TestDecimalRule(t *testing.T) {
 		if r := Refusal(op, SlotField, "amt", d); r != nil {
 			t.Errorf("decimal-arm %s refused: %v", op, r)
 		}
+	}
+	// AGG_NULL_COUNT reads the null bitmap only, so it has a decimal arm.
+	if !HasDecimalArm("AGG_NULL_COUNT") || Refusal("AGG_NULL_COUNT", SlotField, "amt", d) != nil {
+		t.Error("AGG_NULL_COUNT refuses decimal128")
 	}
 	if r := Refusal("AGG_EXT_NS_MEDIAN", SlotField, "amt", d); r != nil {
 		t.Errorf("extension aggregator refused: %v", r)
@@ -291,6 +295,97 @@ func TestTypeNames_NumericReaders(t *testing.T) {
 	for _, op := range []string{"AGG_COUNT", "AGG_MODE", "AGG_MODE_COUNT", "AGG_FREQUENCY", "AGG_DISTINCT_COUNT", "AGG_NULL_COUNT"} {
 		if !Accepts(op, SlotField, encoding.FieldTypeCategoricalU16) {
 			t.Errorf("%s refuses a categorical", op)
+		}
+	}
+}
+
+// TestCategoricalValue_PackedBoolLevel pins the level class: every slot
+// that reads a level accepts a packed_bool beside the categoricals —
+// the categorical encoders and FEAT_TRAIN_TEST_SPLIT's stratify
+// included — while TEST_ANOVA_RM's subject (a two-level subject id
+// identifies no subject) stays categorical-only.
+func TestCategoricalValue_PackedBoolLevel(t *testing.T) {
+	level := []string{"categorical_u16", "categorical_u32", "categorical_u8", "packed_bool"}
+	categorical := level[:3]
+	for _, tc := range []struct {
+		op   string
+		slot Slot
+		want []string
+	}{
+		{"TEST_PROP_Z", SlotField, level},
+		{"TEST_PROP_Z", SlotSplitBy, level},
+		{"TEST_CHISQ", SlotRows, level},
+		{"TEST_CHISQ", SlotCols, level},
+		{"TEST_FISHER_EXACT", SlotRows, level},
+		{"TEST_FISHER_EXACT", SlotCols, level},
+		{"TEST_T", SlotSplitBy, level},
+		{"TEST_BOX_M", SlotSplitBy, level},
+		{"TEST_ANOVA_RM", SlotSplitBy, level},
+		{"TEST_ANOVA_RM", SlotSubject, categorical},
+		{"FEAT_ONE_HOT", SlotField, level},
+		{"FEAT_FREQUENCY_ENCODE", SlotField, level},
+		{"FEAT_TARGET_ENCODE", SlotField, level},
+		{"FEAT_TRAIN_TEST_SPLIT", SlotStratify, level},
+	} {
+		if got := TypeNames(tc.op, tc.slot); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s %s: %v, want %v", tc.op, tc.slot, got, tc.want)
+		}
+	}
+}
+
+// TestLevels pins the level list FEAT_ONE_HOT's columns come from on
+// both sides: a categorical's dictionary labels in dictionary order, a
+// packed_bool's "0" / "1", nil for anything else.
+func TestLevels(t *testing.T) {
+	dict := encoding.NewDictionary()
+	dict.Add("b")
+	dict.Add("a")
+	for _, tc := range []struct {
+		name string
+		f    *encoding.Field
+		want []string
+	}{
+		{"nil", nil, nil},
+		{"categorical", &encoding.Field{Name: "c", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict}, []string{"b", "a"}},
+		{"categorical without dictionary", &encoding.Field{Name: "c", Type: encoding.FieldTypeCategoricalU8}, nil},
+		{"packed_bool", &encoding.Field{Name: "p", Type: encoding.FieldTypePackedBool}, []string{"0", "1"}},
+		{"f64", &encoding.Field{Name: "x", Type: encoding.FieldTypeF64}, nil},
+	} {
+		if got := Levels(tc.f); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestSuccessLevelRefusal pins TEST_PROP_Z's strict packed_bool success:
+// "0" / "1" only, refused with the valid levels in details; a
+// categorical (or unknown) outcome is never judged here.
+func TestSuccessLevelRefusal(t *testing.T) {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "flag", Type: encoding.FieldTypePackedBool},
+		{Name: "cat", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
+	}}
+	for _, tc := range []struct {
+		field, success string
+		refused        bool
+	}{
+		{"flag", "0", false}, {"flag", "1", false},
+		{"flag", "true", true}, {"flag", "false", true}, {"flag", " 1", true}, {"flag", "1.0", true},
+		{"cat", "anything", false}, {"missing", "x", false},
+	} {
+		cerr := SuccessLevelRefusal("TEST_PROP_Z", tc.field, tc.success, schema)
+		if (cerr != nil) != tc.refused {
+			t.Errorf("%s=%q: refusal %v, want refused=%v", tc.field, tc.success, cerr, tc.refused)
+			continue
+		}
+		if cerr == nil {
+			continue
+		}
+		if cerr.Code != errors.PULSE_TEST_SUCCESS_VALUE_MISSING {
+			t.Errorf("%s=%q: code %s", tc.field, tc.success, cerr.Code)
+		}
+		if got := cerr.Details["valid_levels"]; !reflect.DeepEqual(got, []string{"0", "1"}) {
+			t.Errorf("%s=%q: valid_levels %v", tc.field, tc.success, got)
 		}
 	}
 }

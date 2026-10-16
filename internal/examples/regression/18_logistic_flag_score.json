@@ -1,0 +1,57 @@
+{
+  "_meta": {
+    "category": "regression",
+    "description": "Credit-risk logistic fit straight on a packed_bool default flag (REG_GLM binomial, no 0/1 twin column), then the fitted coefficients scored per row with exp in ATTR_FORMULA: 1 / (1 + exp(-(b0 + b1 * late_payment))). The mean score equals the observed default rate.",
+    "intents": [
+      "drivers"
+    ],
+    "name": "logistic_flag_score",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_SUM",
+      "ATTR_FORMULA",
+      "REG_GLM"
+    ],
+    "tags": [
+      "regression",
+      "glm",
+      "logistic",
+      "financial",
+      "feature-engineering",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "subscribers.pulse",
+    "data_dir": ".data"
+  },
+  "regressions": [
+    {
+      "type": "REG_GLM",
+      "name": "default_logit",
+      "target": "defaulted",
+      "predictors": ["late_payment"],
+      "family": "binomial",
+      "link": "logit"
+    }
+  ],
+  "attributes": [
+    {
+      "type": "ATTR_FORMULA",
+      "label": "default_score",
+      "expression": "1 / (1 + exp(-(-1.6094379124341003 + 0.9162907318741551 * late_payment)))"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_SUM",
+      "field": "default_score",
+      "label": "expected_defaults"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "default_score",
+      "label": "mean_score"
+    }
+  ]
+}

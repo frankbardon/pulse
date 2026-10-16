@@ -81,7 +81,7 @@ func (zt *zTestRow) UpdateRow(record *Record) error {
 	if !ok {
 		return nil
 	}
-	key, kOk := record.StringValue(zt.splitBy)
+	key, kOk := record.LevelValue(zt.splitBy)
 	if !kOk {
 		return nil
 	}
