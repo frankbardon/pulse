@@ -311,7 +311,11 @@ func (f *expressionFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 	if err := f.exts.coefStaticRefusal(filter.Expression, f.models); err != nil {
 		return nil, err
 	}
-	prog, err := newExprProgram(filter.Expression, exprenv.SiteFilter, schema, f.vecs, f.exts.referenceTables(), f.exts.exprOptionsWithModels(f.models))
+	zone, err := exprZone(filter.TimeZone)
+	if err != nil {
+		return nil, err
+	}
+	prog, err := newExprProgram(filter.Expression, exprenv.SiteFilter, schema, f.vecs, f.exts.referenceTables(), f.exts.exprOptionsWithModels(f.models, zone))
 	if err != nil {
 		return nil, err
 	}

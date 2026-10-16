@@ -24,6 +24,7 @@
   - [Skills](skills.md)
     - [aggregation-design](skills/aggregation-design.md)
     - [attribute-composition](skills/attribute-composition.md)
+    - [calendar-formulas](skills/calendar-formulas.md)
     - [cohort-null-states](skills/cohort-null-states.md)
     - [cohort-parent-groups](skills/cohort-parent-groups.md)
     - [cohort-schema-design](skills/cohort-schema-design.md)

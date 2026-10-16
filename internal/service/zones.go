@@ -51,7 +51,8 @@ func (s *Service) resolveZones(req *types.Request, schema *encoding.Schema) ([]d
 // after its last caller-visible mutation of req (auto labels), right
 // before dispatching to its arm.
 func (s *Service) zoned(req *types.Request, zones []descriptor.ResolvedZone) *types.Request {
-	return descx.ZonedRequest(req, zones, s.ZoneLoader())
+	load := s.ZoneLoader()
+	return descx.ZonedRequest(descx.ZonedExpressions(req, s.defaultZone, load), zones, load)
 }
 
 // checkFieldRefs runs the one field-reference rule

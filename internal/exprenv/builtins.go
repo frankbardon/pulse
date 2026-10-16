@@ -6,6 +6,10 @@
 //     helpers, with their implementations (vector.go, setsim.go, set.go)
 //     and ref() (ref.go);
 //   - the `%` patcher (mod.go);
+//   - the calendar helpers and log1p (calendar.go): weekday,
+//     month_index and date_trunc over epoch days through
+//     internal/temporal, to_day in the request zone ([Bound.Zone]),
+//     and the compile-time datetime guard ([CalendarGuard]);
 //   - the exact decimal operators (decimal.go): a decimal128 field binds
 //     as a [Decimal] (mantissa + scale, [Bind]), a patcher rewrites
 //     `+ - * /`, comparisons, unary `-`, `??` / ternary branches,
@@ -65,7 +69,9 @@ var reserved = []string{
 	// Vector-returning transforms (usable inside an expression only).
 	"vcenter", "vzscore", "vnormalize",
 	// Scalar maths.
-	"sqrt", "log", "exp", "pow",
+	"sqrt", "log", "exp", "pow", "log1p",
+	// Calendar over epoch days (calendar.go); to_day converts a datetime.
+	"weekday", "month_index", "date_trunc", "to_day",
 	// Set similarity over two label sets.
 	"jaccard", "dice", "hamming", "overlap",
 	// Reference vectors (Options.Extensions.ReferenceVectors).
@@ -99,7 +105,7 @@ func IsReserved(name string) bool { return reservedSet[name] }
 // and transform families are refused there; both the predict gate
 // (internal/descriptor) and the runtime compile (internal/processing)
 // read this one list so they never disagree.
-var overlayAllowed = []string{"sqrt", "log", "exp", "pow"}
+var overlayAllowed = []string{"sqrt", "log", "exp", "pow", "log1p"}
 
 // overlayAllowedSet indexes overlayAllowed for OverlayAllowed.
 var overlayAllowedSet = func() map[string]bool {

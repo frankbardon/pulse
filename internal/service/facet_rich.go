@@ -108,7 +108,7 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	}
 	// The filterers below are built from the zoned request (a copy when
 	// an inherited non-UTC zone is written; req itself otherwise).
-	req = descx.ZonedFacetRequest(req, zones, s.ZoneLoader())
+	req = descx.ZonedFacetRequest(descx.ZonedFacetExpressions(req, s.defaultZone, s.ZoneLoader()), zones, s.ZoneLoader())
 
 	bins, err := resolveHistogramBins(req)
 	if err != nil {

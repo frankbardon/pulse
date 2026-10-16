@@ -42,10 +42,16 @@ var vectorBuiltinCases = map[string]struct {
 	"log":        {`log(exp(y))`, 2},
 	"exp":        {`exp(0)`, 1},
 	"pow":        {`pow(y, 3)`, 8},
-	"jaccard":    {`jaccard(["a", "b", "c"], ["c", "b", "d"])`, 0.5},
-	"dice":       {`dice(["a", "b", "c"], ["b", "c", "d", "e"]) * 7`, 4},
-	"hamming":    {`hamming(["a", "b"], ["b", "c", "d"]) + x`, 4},
-	"overlap":    {`overlap(["a", "b"], ["b", "c", "d"])`, 0.5},
+	"log1p":      {`log1p(x)`, math.Ln2},
+	// Calendar helpers over epoch days: day 1 is 1970-01-02, a Friday.
+	"weekday":     {`weekday(x)`, 5},
+	"month_index": {`month_index(z) - 1970 * 12`, 0},
+	"date_trunc":  {`date_trunc("week", z)`, -3},        // 1970-01-04 → Monday 1969-12-29
+	"to_day":      {`to_day(y * 86400 + 86399) + x`, 3}, // UTC day 2, plus 1
+	"jaccard":     {`jaccard(["a", "b", "c"], ["c", "b", "d"])`, 0.5},
+	"dice":        {`dice(["a", "b", "c"], ["b", "c", "d", "e"]) * 7`, 4},
+	"hamming":     {`hamming(["a", "b"], ["b", "c", "d"]) + x`, 4},
+	"overlap":     {`overlap(["a", "b"], ["b", "c", "d"])`, 0.5},
 	// vectorTestRefs: t = {p: 1, q: 2, r: 3}; u relabels them {r: 4, p: 0, q: 0}.
 	"ref": {`vsum(ref("t", "k")) + dot(ref("t", "k"), ref("u", "k")) + x`, 6 + 12 + 1},
 }

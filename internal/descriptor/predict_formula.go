@@ -74,6 +74,9 @@ func validateFormulaExpressions(env *descriptor.Envelope, req *types.Request, op
 //     feature opened the column set (w.open), or the named vectors did
 //     not resolve, such a name is unknowable here and the expression is
 //     not compiled;
+//   - the calendar guard over the schema (exprenv.CalendarGuard): a
+//     bare datetime field as a day helper's day, or a literal unknown
+//     date_trunc unit, is refused exactly as the engine refuses it;
 //   - the request-bound functions through exprenv.Bound — coef with its
 //     typed overloads, the embedder's ExprFunctions, lookup when a
 //     LookupTable is registered — and, for a total-bearing formula,
@@ -177,8 +180,8 @@ func (w *fieldRefWalk) compileRefusal(src, site string, opts []expr.Option) *err
 			}
 		}
 	}
-	all := make([]expr.Option, 0, 1+len(opts))
-	all = append(all, expr.Env(decl))
+	all := make([]expr.Option, 0, 2+len(opts))
+	all = append(all, expr.Env(decl), exprenv.CalendarGuard(c.schema))
 	if _, err := expr.Compile(src, append(all, opts...)...); err != nil {
 		return exprenv.CompileError(site, src, err)
 	}

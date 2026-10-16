@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
+	"github.com/frankbardon/pulse/internal/temporal"
 )
 
 // coef(fit, term[, stat]) — the bound-model reader for ATTR_FORMULA and
@@ -27,11 +28,13 @@ import (
 // "coef" shadows it exactly as one named has_any shadows that helper —
 // and the static check stands down for it (coefShadowed).
 
-// exprOptionsWithModels is ExprOptions plus coef() over models: the
-// built-in set helpers, coef, then the embedder's functions and lookup.
-func (r *ExtensionRegistry) exprOptionsWithModels(models *model.Set) []expr.Option {
+// exprOptionsWithModels is ExprOptions plus coef() over models and
+// to_day() in zone (nil: UTC; exprZone): the built-in set helpers,
+// to_day, coef, then the embedder's functions and lookup.
+func (r *ExtensionRegistry) exprOptionsWithModels(models *model.Set, zone *temporal.Zone) []expr.Option {
 	b := r.exprBound()
 	b.Coef = coefBuiltin(models)
+	b.Zone = zone
 	return b.Options()
 }
 

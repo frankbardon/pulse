@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/internal/vecmath"
 	"github.com/frankbardon/pulse/linalg/metric"
 )
@@ -39,30 +40,35 @@ type exprBuiltinFunc = func(args ...any) (any, error)
 // builtinImpls maps every reserved name to its implementation.
 // TestExprBuiltins_EveryNameImplemented pins the two in both directions.
 var builtinImpls = map[string]exprBuiltinFunc{
-	"vsum":       vecReduce("vsum", vecmath.Sum),
-	"vmean":      vecReduce("vmean", vecmath.Mean),
-	"vmin":       vecReduce("vmin", vecmath.Min),
-	"vmax":       vecReduce("vmax", vecmath.Max),
-	"vsd":        vecReduce("vsd", vecmath.SD),
-	"norm":       vecReduce("norm", vecmath.Norm),
-	"vcount":     vecCountBuiltin,
-	"dot":        vecPair("dot", vecmath.Dot),
-	"dist":       vecPair("dist", exprMetricKernel(builtinMetric("dist"))),
-	"cosine":     vecPair("cosine", exprMetricKernel(builtinMetric("cosine"))),
-	"argmax":     vecArg("argmax", vecmath.ArgMax),
-	"argmin":     vecArg("argmin", vecmath.ArgMin),
-	"vcenter":    vecMap("vcenter", vecmath.Center),
-	"vzscore":    vecMap("vzscore", vecmath.ZScore),
-	"vnormalize": vecNormalizeBuiltin,
-	"sqrt":       scalarUnary("sqrt", vecmath.Sqrt),
-	"log":        scalarUnary("log", vecmath.Log),
-	"exp":        scalarUnary("exp", vecmath.Exp),
-	"pow":        scalarPowBuiltin,
-	"jaccard":    setSimilarity("jaccard", exprMetric(builtinMetric("jaccard"))),
-	"dice":       setSimilarity("dice", exprMetric(builtinMetric("dice"))),
-	"hamming":    setHammingBuiltin,
-	"overlap":    setSimilarity("overlap", exprMetric(builtinMetric("overlap"))),
-	"ref":        refBuiltin,
+	"vsum":        vecReduce("vsum", vecmath.Sum),
+	"vmean":       vecReduce("vmean", vecmath.Mean),
+	"vmin":        vecReduce("vmin", vecmath.Min),
+	"vmax":        vecReduce("vmax", vecmath.Max),
+	"vsd":         vecReduce("vsd", vecmath.SD),
+	"norm":        vecReduce("norm", vecmath.Norm),
+	"vcount":      vecCountBuiltin,
+	"dot":         vecPair("dot", vecmath.Dot),
+	"dist":        vecPair("dist", exprMetricKernel(builtinMetric("dist"))),
+	"cosine":      vecPair("cosine", exprMetricKernel(builtinMetric("cosine"))),
+	"argmax":      vecArg("argmax", vecmath.ArgMax),
+	"argmin":      vecArg("argmin", vecmath.ArgMin),
+	"vcenter":     vecMap("vcenter", vecmath.Center),
+	"vzscore":     vecMap("vzscore", vecmath.ZScore),
+	"vnormalize":  vecNormalizeBuiltin,
+	"sqrt":        scalarUnary("sqrt", vecmath.Sqrt),
+	"log":         scalarUnary("log", vecmath.Log),
+	"exp":         scalarUnary("exp", vecmath.Exp),
+	"pow":         scalarPowBuiltin,
+	"log1p":       log1pBuiltin,
+	"weekday":     calendarUnary(FuncWeekday, temporal.ISOWeekday),
+	"month_index": calendarUnary(FuncMonthIndex, temporal.MonthIndex),
+	"date_trunc":  dateTruncBuiltin,
+	"to_day":      ToDayFunc(nil),
+	"jaccard":     setSimilarity("jaccard", exprMetric(builtinMetric("jaccard"))),
+	"dice":        setSimilarity("dice", exprMetric(builtinMetric("dice"))),
+	"hamming":     setHammingBuiltin,
+	"overlap":     setSimilarity("overlap", exprMetric(builtinMetric("overlap"))),
+	"ref":         refBuiltin,
 }
 
 // builtinMetric is the registry metric and form the reserved built-in
@@ -110,7 +116,7 @@ func builtinOptions() []expr.Option {
 	names := Names()
 	out := make([]expr.Option, 0, len(names))
 	for _, name := range names {
-		out = append(out, expr.Function(name, builtinImpls[name]))
+		out = append(out, expr.Function(name, builtinImpls[name], calendarSignatures[name]...))
 	}
 	return out
 }

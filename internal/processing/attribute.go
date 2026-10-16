@@ -250,6 +250,9 @@ type formulaAttribute struct {
 	// totals is the cohort-total state of a formula that calls
 	// total(expr) (formula_total.go); nil for a row-local formula.
 	totals *formulaTotals
+	// zone is the zone to_day() reads in: the slot `tz` the zone
+	// transport wrote (expr_zone.go); nil for UTC.
+	zone *temporal.Zone
 
 	once    sync.Once
 	prog    *exprProgram
@@ -266,9 +269,14 @@ func newFormulaAttribute(attr *types.Attribute, schema *encoding.Schema) (Attrib
 	if attr.Expression == "" {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "formula attribute requires an expression")
 	}
+	zone, err := exprZone(attr.TimeZone)
+	if err != nil {
+		return nil, err
+	}
 	a := &formulaAttribute{
 		expression: attr.Expression,
 		schema:     schema,
+		zone:       zone,
 	}
 	if totalcall.Contains(attr.Expression) {
 		a.totals = &formulaTotals{}
@@ -301,7 +309,7 @@ func (a *formulaAttribute) prepare() error {
 			a.prog, a.progErr = a.prepareTotals()
 			return
 		}
-		a.prog, a.progErr = newExprProgram(a.expression, exprenv.SiteFormula, a.schema, a.vecs, a.exts.referenceTables(), a.exts.exprOptionsWithModels(a.models))
+		a.prog, a.progErr = newExprProgram(a.expression, exprenv.SiteFormula, a.schema, a.vecs, a.exts.referenceTables(), a.exts.exprOptionsWithModels(a.models, a.zone))
 	})
 	return a.progErr
 }

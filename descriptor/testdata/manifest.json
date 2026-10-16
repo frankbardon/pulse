@@ -11354,6 +11354,10 @@
         "description": "Attribute composition rules — slot ordering, two-pass vs row-local attributes, the formula expression environment, attributes vs features. Topical design; per-attribute detail lives in atomic op-attr-* skills."
       },
       {
+        "name": "calendar-formulas",
+        "description": "Calendar helpers and log1p inside formulas and expression filters — weekday, month_index and date_trunc over epoch days, to_day for a datetime in the request time zone, the bare-datetime compile guard and the null rules. Use when an expression reads a date or a datetime."
+      },
+      {
         "name": "cohort-null-states",
         "description": "How a .pulse cohort stores absence — the per-record null bitmap, no in-band sentinels, out-of-sample null promotion on inferred imports, and the null / empty / selected states of set and categorical cells across every import and export format."
       },
@@ -18156,4 +18160,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3f49a11e31a0b1b42e0978b9f3b4a9de9c2fc88298b48d5c1957bc7398b5538b
+// golden-hash: 9fc6691338802b56ccc3bc1d57dfa0e46a45887de2423545a4b204745c7ec027

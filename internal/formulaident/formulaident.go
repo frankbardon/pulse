@@ -298,7 +298,7 @@ func ComposeRefusal(kind types.OverlayKind, params map[string]any, index int, sh
 
 // BuiltinRefusal refuses a FORMULA calling a reserved built-in outside
 // the overlay scalar subset (exprenv.OverlayRefused — the vector
-// families) with PULSE_OVERLAY_FORMULA_INVALID_IDENT, Details {kind,
+// families and the calendar helpers) with PULSE_OVERLAY_FORMULA_INVALID_IDENT, Details {kind,
 // unknown_identifier, allowed_builtins, formula} plus `index` when
 // index >= 0. nil when the formula calls none (or fails to parse).
 // Every host runs it before its identifier gate, predict and runtime
@@ -319,7 +319,7 @@ func BuiltinRefusal(kind types.OverlayKind, formula string, index int) *errors.C
 		details["index"] = index
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
-		"overlay "+string(kind)+" formula calls "+refused+", a vector built-in OVERLAY_FORMULA does not accept (scalar maths only: "+strings.Join(exprenv.OverlayNames(), ", ")+")",
+		"overlay "+string(kind)+" formula calls "+refused+", a vector or calendar built-in OVERLAY_FORMULA does not accept (scalar maths only: "+strings.Join(exprenv.OverlayNames(), ", ")+")",
 		details)
 }
 

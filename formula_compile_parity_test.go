@@ -198,6 +198,55 @@ func TestFormulaCompile_EveryPredictRoot(t *testing.T) {
 	})
 }
 
+// calendarFormulaCompileCases run on the calendar cohort (d date, ts
+// datetime, dn nullable date, x / y f64, cat categorical): the calendar
+// helpers (U45 #316) are declared through the shared env and the
+// datetime guard (exprenv.CalendarGuard) runs on both sides, so a bare
+// datetime as a day helper's day, a literal unknown date_trunc unit and
+// an ill-typed argument are refused identically; to_day over a datetime
+// and every helper over a date run.
+var calendarFormulaCompileCases = []struct {
+	name string
+	body string
+	bad  bool
+}{
+	{"bare datetime to weekday", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"weekday(ts)"}]}`, true},
+	{"bare datetime to month_index in a filter", `{"filterers":[{"type":"FILTER_EXPRESSION","expression":"month_index(ts) > 0"}]}`, true},
+	{"bare datetime to date_trunc in a total argument", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"x / total(date_trunc(\"month\", ts))"}]}`, true},
+	{"bare datetime in a fit_on filter", `{"attributes":[{"type":"ATTR_MAHALANOBIS","label":"m","fields":["x","y"],"params":{"fit_on":[{"type":"FILTER_EXPRESSION","expression":"weekday(ts) < 6"}]}}]}`, true},
+	{"literal unknown unit", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"date_trunc(\"weeks\", d)"}]}`, true},
+	{"unit case-sensitive", `{"filterers":[{"type":"FILTER_EXPRESSION","expression":"date_trunc(\"Month\", d) > 0"}]}`, true},
+	{"categorical day", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"weekday(cat)"}]}`, true},
+	{"string instant", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"to_day(\"2024-01-01\")"}]}`, true},
+	{"numeric unit", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"date_trunc(1, d)"}]}`, true},
+
+	{"weekday over a date", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"weekday(d)"}]}`, false},
+	{"to_day over a datetime", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"weekday(to_day(ts)) + month_index(to_day(ts))"}]}`, false},
+	{"date_trunc over to_day", `{"filterers":[{"type":"FILTER_EXPRESSION","expression":"date_trunc(\"quarter\", to_day(ts)) <= d"}]}`, false},
+	{"unit from a field", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"date_trunc(cat, d)"}]}`, false},
+	{"nullable date coalesced", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"month_index(dn ?? d) - month_index(d)"}]}`, false},
+	{"nullable date bare", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"weekday(dn)"}]}`, false},
+	{"log1p", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"log1p(x) + log1p(y)"}]}`, false},
+	{"datetime arithmetic is not guarded", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"weekday(ts / 86400)"}]}`, false},
+	{"to_day in a total argument", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"x / total(to_day(ts) - d + 1)"}]}`, false},
+	{"to_day in a fit_on filter", `{"attributes":[{"type":"ATTR_MAHALANOBIS","label":"m","fields":["x","y"],"params":{"fit_on":[{"type":"FILTER_EXPRESSION","expression":"weekday(to_day(ts)) < 6"}]}}]}`, false},
+}
+
+// TestFormulaCompile_CalendarPredictMatchesRuntime: the calendar
+// helpers' verdicts agree at predict and at the run — code, message and
+// details — under a request time zone too.
+func TestFormulaCompile_CalendarPredictMatchesRuntime(t *testing.T) {
+	p, data := calfPulse(t, pulse.Options{})
+	for _, c := range calendarFormulaCompileCases {
+		for _, zone := range []string{"", "America/New_York"} {
+			t.Run(c.name+"/"+zone, func(t *testing.T) {
+				body := c.body[:len(c.body)-1] + `,"time_zone":"` + zone + `","aggregations":[{"type":"AGG_COUNT","field":"x","label":"n"}]}`
+				assertFormulaCompileParity(t, p, data, func() *types.Request { return calfRequest(t, body) }, c.bad)
+			})
+		}
+	}
+}
+
 // decimalFormulaCompileCases run on the parity decimal cohort (region
 // categorical, age f64, amount decimal128 scale 2): a decimal operator
 // over a decimal and a number compiles on both sides (U45 #314, exact

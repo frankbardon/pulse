@@ -163,7 +163,7 @@ func newComparisonCore(attr *types.Attribute, schema *encoding.Schema) (comparis
 		}
 	}
 	if cfg.Reference.Form == vectors.ReferenceCentroid {
-		c.centroid = &centroidFold{spec: cfg.Reference.Filter, by: cfg.Reference.By, keyInt: c.keyInt, schema: schema,
+		c.centroid = &centroidFold{spec: inheritExprZone(cfg.Reference.Filter, attr.TimeZone), by: cfg.Reference.By, keyInt: c.keyInt, schema: schema,
 			x: make([]float64, len(c.members)), pres: make([]bool, len(c.members))}
 		if w := attr.Weight.Spec(); w != nil {
 			ew := effectiveWeight(w)

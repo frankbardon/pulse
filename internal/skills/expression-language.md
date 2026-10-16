@@ -11,8 +11,6 @@ covers: [expression, expr-lang, formula, set-helpers, vector-functions, lookup, 
 
 Two operators evaluate an `expr-lang/expr` string once per row: the formula attribute (a new column) and the expression filter (truthy keeps the row). One environment serves both; only null handling differs.
 
-NOT request templating: `$var` / `{{}}` / `$when` are substituted before decode<!-- feature: capability:templates --> (`request-templating`)<!-- /feature -->.
-
 ## Field binding
 
 A field is named bare; what it binds depends on its schema type:
@@ -23,6 +21,7 @@ A field is named bare; what it binds depends on its schema type:
 | `categorical_*` | dictionary STRING, never the index | `brand == "Apple"`, `region in ["NA", "EU"]` |
 | `set_*` | sorted `[]string` of member labels | `"a" in tags`, `has_any(tags, "a", "b")` |
 | `decimal128` | exact decimal — operators and numeric functions (`decimal-formulas`) | `price / cost > 1.2`, `float(price) * 1.5` |
+| `date` / `datetime` | epoch days / seconds; `weekday` `month_index` `date_trunc` `to_day` (`calendar-formulas`) | `month_index(order_day)` |
 
 Arithmetic on a categorical errors; branch on the label.
 
@@ -45,7 +44,7 @@ A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is
 | `dot` `dist` `cosine` (vector pair) | pairwise-complete; `dist` (euclidean) rescales by p/p_observed; `cosine` is the similarity, zero norm → NaN; unequal lengths → `PROCESSING_VECTOR_LENGTH_MISMATCH` (lists / named: build + predict) |
 | `argmax` `argmin` | 0-based int index; none valid → NaN |
 | `vcenter` `vzscore` `vnormalize` (mode `"l1"` / `"l2"`, case-sensitive) | a vector, only inside a call: `vmax(vzscore([q1, q2, q3]))`; top-level, a wrong arity or a literal bad mode → `PROCESSING_CONFIG` (build + predict) |
-| `sqrt` `log` (natural) `exp` `pow(score, 2)` | IEEE scalar (`sqrt(-1)` NaN); the only built-ins an overlay formula admits |
+| `sqrt` `log` (natural) `log1p` `exp` `pow(score, 2)` | IEEE scalar (`sqrt(-1)` NaN); the only built-ins an overlay formula admits |
 | `jaccard` `dice` `overlap` `hamming` (two sets: field or `["a", "b"]`, matched by label; a dictionary-less set pairs only with another) | float, `hamming` int; null set → NaN; two empty → NaN, `hamming` 0 |
 | `ref` (table, key) | a reference profile, aligned by label<!-- feature: capability:matrices --> (`vector-metrics`)<!-- /feature --> |
 
@@ -62,7 +61,7 @@ Compiled once, predict included: bad syntax, an unknown name or a type error is 
 
 ## Embedder extensions
 
-`pulse.Options.Extensions.ExprFunctions` merges custom functions into the environment; `LookupTables` is reachable as `lookup(table, keys...)` — an unknown table is `PULSE_LOOKUP_TABLE_UNKNOWN`, a missing key `PULSE_LOOKUP_MISS`; `ReferenceVectors` as `ref`. Recipe: `docs/src/internals/extension-points.md`.
+`pulse.Options.Extensions.ExprFunctions` merges custom functions into the environment; `LookupTables` is reachable as `lookup(table, keys...)` — an unknown table is `PULSE_LOOKUP_TABLE_UNKNOWN`, a missing key `PULSE_LOOKUP_MISS`; `ReferenceVectors` as `ref`.
 
 <!-- feature: capability:compose_fits -->
 ## Bound models

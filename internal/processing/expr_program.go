@@ -188,11 +188,13 @@ func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Re
 	return p, nil
 }
 
-// compile runs expr.Compile against decl with the extension options.
+// compile runs expr.Compile against decl with the calendar guard over
+// the schema (exprenv.CalendarGuard, predict's too) and the extension
+// options.
 func (p *exprProgram) compile(decl exprtypes.Map) (*vm.Program, error) {
 	exprCompiles.Add(1)
-	opts := make([]expr.Option, 0, 2+len(p.opts))
-	opts = append(opts, expr.Env(decl))
+	opts := make([]expr.Option, 0, 3+len(p.opts))
+	opts = append(opts, expr.Env(decl), exprenv.CalendarGuard(p.schema))
 	opts = append(opts, p.opts...)
 	if p.refPatch != nil {
 		opts = append(opts, expr.Patch(p.refPatch))

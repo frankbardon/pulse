@@ -50,6 +50,9 @@ func TestExprenvImportBoundary(t *testing.T) {
 		module + "/errors":           true,
 		module + "/linalg/metric":    true,
 		module + "/internal/vecmath": true,
+		// The calendar helpers' only home for epoch-day and zone math
+		// (TestNoZoneMathOutsideTemporal); a leaf over stdlib + errors.
+		module + "/internal/temporal": true,
 	}
 	files, err := filepath.Glob("*.go")
 	if err != nil {
@@ -67,7 +70,7 @@ func TestExprenvImportBoundary(t *testing.T) {
 		for _, imp := range af.Imports {
 			path, _ := strconv.Unquote(imp.Path.Value)
 			if strings.HasPrefix(path, module) && !allowedDirect[path] {
-				t.Errorf("%s imports %q; internal/exprenv may import only encoding, errors, linalg/metric and internal/vecmath from the module", f, path)
+				t.Errorf("%s imports %q; internal/exprenv may import only encoding, errors, linalg/metric, internal/vecmath and internal/temporal from the module", f, path)
 			}
 		}
 	}
@@ -108,6 +111,9 @@ func TestOverlaySubset(t *testing.T) {
 		{"log", true, false},
 		{"exp", true, false},
 		{"pow", true, false},
+		{"log1p", true, false},
+		{"weekday", false, true},
+		{"to_day", false, true},
 		{"vmean", false, true},
 		{"vsum", false, true},
 		{"dot", false, true},

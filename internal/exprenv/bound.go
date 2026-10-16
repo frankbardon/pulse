@@ -5,6 +5,7 @@ import (
 	exprtypes "github.com/expr-lang/expr/types"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/temporal"
 )
 
 // The request-bound declarations. A runtime compile (internal/processing)
@@ -36,14 +37,25 @@ type Bound struct {
 	// Lookup is lookup()'s implementation; nil when no LookupTable is
 	// registered, which leaves lookup undeclared.
 	Lookup func(args ...any) (any, error)
+	// Zone is the zone to_day() reads an instant's local day in — the
+	// request's inherited zone (request `time_zone`, then
+	// Options.DefaultTimeZone), resolved by the engine. Nil keeps the
+	// always-on UTC registration; predict leaves it nil (it never runs
+	// the function, and the declaration is the same).
+	Zone *temporal.Zone
 }
 
-// Options returns [Options] plus the bound declarations. coef carries
+// Options returns [Options] plus the bound declarations: to_day() over
+// [Bound.Zone] when it is not UTC-equivalent (the same typed declaration,
+// re-registered with the zone's body, so it replaces the UTC one). coef carries
 // its typed overloads — (fit, term) and (fit, term, stat), strings to a
 // float64 — so `coef("m", "x") + "a"` fails to compile; the embedder
 // functions and lookup are untyped (any arguments, any result).
 func (b Bound) Options() []expr.Option {
 	out := Options()
+	if b.Zone != nil && !b.Zone.IsUTC() {
+		out = append(out, expr.Function(FuncToDay, ToDayFunc(b.Zone), calendarSignatures[FuncToDay]...))
+	}
 	if b.Coef != nil {
 		out = append(out, expr.Function(CoefFunc, b.Coef,
 			new(func(string, string) float64),
