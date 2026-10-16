@@ -8,9 +8,10 @@
 //   - the `%` patcher (mod.go);
 //   - the exact decimal operators (decimal.go): a decimal128 field binds
 //     as a [Decimal] (mantissa + scale, [Bind]), a patcher rewrites
-//     `+ - * /`, comparisons, unary `-`, `??` defaults and `float()`
-//     over one into exact builtins, and the null-row twin declares it
-//     through [Untyped];
+//     `+ - * /`, comparisons, unary `-`, `??` / ternary branches,
+//     `float()` and the numeric built-ins (decimal_builtins.go) over one
+//     into exact builtins, and the null-row twin declares it through
+//     [Untyped];
 //   - the single always-on option hook, [Options], every expression
 //     site prepends to its own options;
 //   - embedder ExprFunction bridging ([ExtensionFunctions], [Func]);

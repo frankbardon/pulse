@@ -91,9 +91,12 @@ func TestLookupBuiltin_FuncBackedError(t *testing.T) {
 // `%` float-modulo builtin and its patcher (internal/exprenv mod.go), plus one per
 // reserved vector / scalar-maths built-in (internal/exprenv), plus the
 // exact decimal operators (internal/exprenv decimal.go: ten binary
-// operator builtins, float / lift / negate, and their patcher). Bump
-// this constant when the set-helper roster changes.
-var setExprHelperCount = 8 + 2 + len(exprenv.Names()) + 14
+// operator builtins, float / lift / lift_dyn / negate / the `%`
+// refusal / `in`, and their patcher — 17) and the twelve decimal
+// built-in overrides (decimal_builtins.go: abs ceil floor round int
+// max min mean median sum sort sortBy). Bump this constant when the
+// set-helper roster changes.
+var setExprHelperCount = 8 + 2 + len(exprenv.Names()) + 17 + 12
 
 func TestExprOptions_NilRegistry(t *testing.T) {
 	var r *ExtensionRegistry

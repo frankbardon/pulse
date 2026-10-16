@@ -356,3 +356,205 @@ func TestDecimal_EmbedderFunctionsSeeDecimal128(t *testing.T) {
 		t.Fatalf("embedder saw %#v (%T), want encoding.Decimal128 360", seen, seen)
 	}
 }
+
+// decimalWant checks one result against a want: a string is a decimal's
+// spelling, anything else must equal the result as is.
+func decimalWant(t *testing.T, label string, got, want any) {
+	t.Helper()
+	if w, ok := want.(string); ok {
+		if d, ok := got.(Decimal); !ok || d.String() != w {
+			t.Errorf("%s = %#v (%T), want decimal %s", label, got, got, w)
+		}
+		return
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("%s = %#v (%T), want %#v (%T)", label, got, got, want, want)
+	}
+}
+
+// TestDecimal_BranchesAndBuiltins: a ternary or `??` that mixes a
+// decimal with a number, a decimal laundered through an untyped value,
+// and every numeric built-in over a decimal compile AND run, on the
+// typed program and the null-row twin alike, to the same figure:
+// abs / max / min / sum / mean / median / sort / in exact; ceil / floor
+// / round to an integral decimal (round half-even, as every decimal
+// rescale); int truncates; sqrt / log / exp / pow and the vector family
+// read the decimal's float64 (their answers are irrational floats).
+func TestDecimal_BranchesAndBuiltins(t *testing.T) {
+	s := decimalTestSchema()
+	env := decimalStdEnv(t, s) // a 0.1, price 3.60, cost 3.00, x 0.1
+	for _, tc := range []struct {
+		src  string
+		want any
+	}{
+		// Ternary: the number branch is lifted, so the result is decimal.
+		{`x > 0 ? price : 0`, "3.60"},
+		{`x < 0 ? price : 0`, "0"},
+		{`(x > 0 ? price : 0) * 2`, "7.20"},
+		{`(x < 0 ? price : 1.5) * 2`, "3.0"},
+		{`(x < 0 ? 0 : price) / 3`, "1.2000"},
+		{`-(x > 0 ? price : 0)`, "-3.60"},
+		{`float(x > 0 ? price : 0)`, 3.6},
+		{`(x > 0 ? price : 0) > 3.5`, true},
+		{`x > 0 ? price : x`, "3.60"},
+		// `??` over an untyped default, and untyped launderings.
+		{`(price ?? x) * 3`, "10.80"},
+		{`{"a": price}.a * 2`, "7.20"},
+		{`[price, x][0] - 1`, "2.60"},
+		{`{"a": price}.a > 3.5`, true},
+		{`float({"a": price}.a)`, 3.6},
+		// Exact numeric built-ins.
+		{`abs(-price)`, "3.60"},
+		{`abs(price - 5)`, "1.40"},
+		{`abs(x > 0 ? -price : 0)`, "3.60"},
+		{`ceil(price)`, "4"},
+		{`floor(price)`, "3"},
+		{`ceil(-price)`, "-3"},
+		{`floor(-price)`, "-4"},
+		{`round(price)`, "4"},
+		{`round(a * 25)`, "2"},   // 2.5: half to even
+		{`round(a * 35)`, "4"},   // 3.5: half to even
+		{`round(-a * 25)`, "-2"}, // -2.5: half to even
+		{`ceil(cost)`, "3"},
+		{`int(price)`, 3},
+		{`int(-price)`, -3},
+		{`max(price, 1)`, "3.60"},
+		{`max(price, 5)`, "5"},
+		{`max(price, cost)`, "3.60"},
+		{`min(price, cost)`, "3.00"},
+		{`min(price, x)`, "0.1"},
+		{`max([price, cost, 4])`, "4"},
+		{`min([price, cost], 2.5)`, "2.5"},
+		{`max(price, 1) * 2`, "7.20"},
+		{`sum([price, cost])`, "6.60"},
+		{`sum([price, 1])`, "4.60"},
+		{`sum([price, cost], # * 2)`, "13.20"},
+		{`mean([price, cost])`, "3.3000"},
+		{`mean(price, cost, 1)`, "2.5333"},
+		{`median([price, cost, 1])`, "3.00"},
+		{`median([price, cost])`, "3.3000"},
+		{`sort([price, cost, 1])[0]`, 1},
+		{`sort([price, cost])[0] == cost`, true},
+		{`sort([price, cost], "desc")[0] == price`, true},
+		{`sortBy([price, cost], #)[0] == cost`, true},
+		{`sortBy([price, cost], -#)[0] == price`, true},
+		{`price in [3.6, 1]`, true},
+		{`price in [1, 2]`, false},
+		{`3.6 in [cost, price]`, true},
+		{`string(price)`, "3.60"},
+		{`toJSON(price)`, "3.60"},
+		// Float-domain built-ins read the decimal's float64.
+		{`sqrt(price)`, math.Sqrt(3.6)},
+		{`log(price)`, math.Log(3.6)},
+		{`exp(a)`, math.Exp(0.1)},
+		{`pow(price, 2)`, math.Pow(3.6, 2)},
+		{`vsum([price, cost])`, 6.6},
+		{`vmax([price, cost, x])`, 3.6},
+	} {
+		typed, twin, terr, werr := runBoth(t, s, tc.src, env)
+		if terr != nil || werr != nil {
+			t.Errorf("%s: typed err %v, twin err %v", tc.src, terr, werr)
+			continue
+		}
+		if tc.src == `string(price)` || tc.src == `toJSON(price)` {
+			if typed != tc.want || twin != tc.want {
+				t.Errorf("%s = typed %#v, twin %#v, want %q", tc.src, typed, twin, tc.want)
+			}
+			continue
+		}
+		decimalWant(t, tc.src+" (typed)", typed, tc.want)
+		decimalWant(t, tc.src+" (twin)", twin, tc.want)
+	}
+}
+
+// TestDecimal_NullTwinBranches: on a row where price is null, the twin's
+// `??` lifts an untyped default to a decimal exactly as the typed
+// program lifts a number, and a built-in over the absent decimal is an
+// evaluation error (never a number).
+func TestDecimal_NullTwinBranches(t *testing.T) {
+	s := decimalTestSchema()
+	env := decimalStdEnv(t, s)
+	delete(env, "price")
+	for _, tc := range []struct {
+		src  string
+		want any
+	}{
+		{`(price ?? x) * 3`, "0.3"},
+		{`price ?? x`, "0.1"},
+		{`x > 0 ? cost : price`, "3.00"},
+		{`(x < 0 ? cost : price) == nil`, true},
+		{`max(price ?? 0, cost)`, "3.00"},
+	} {
+		q, err := compileTwin(t, s, tc.src)
+		if err != nil {
+			t.Fatalf("twin compile %q: %v", tc.src, err)
+		}
+		got, err := expr.Run(q, env)
+		if err != nil {
+			t.Errorf("%s: %v", tc.src, err)
+			continue
+		}
+		decimalWant(t, tc.src, got, tc.want)
+	}
+	for _, src := range []string{`abs(price)`, `round(price)`, `max(price, 1)`, `sum([price, 1])`, `(x > 0 ? price : 0) * 2`} {
+		q, err := compileTwin(t, s, src)
+		if err != nil {
+			t.Fatalf("twin compile %q: %v", src, err)
+		}
+		if got, err := expr.Run(q, env); err == nil {
+			t.Errorf("%s over a null price = %#v, want an evaluation error", src, got)
+		}
+	}
+}
+
+// TestDecimal_RefusalsNameFloatEscape: an operation with no exact
+// decimal meaning is refused at COMPILE (typed program — predict's and
+// the build's compile), and the reason names float() as the escape.
+func TestDecimal_RefusalsNameFloatEscape(t *testing.T) {
+	s := decimalTestSchema()
+	for _, src := range []string{`price % 2`, `2 % price`, `(x > 0 ? price : 0) % 2`} {
+		_, err := compileTyped(t, s, src)
+		if err == nil || !strings.Contains(err.Error(), "float(") {
+			t.Errorf("compile %q: %v, want a refusal naming float()", src, err)
+		}
+	}
+}
+
+// TestDecimal_PatchHidesNoError: a patched decimal call never hides an
+// ill-typed operand beneath it — expr-lang never re-checks a typed call
+// — so the compile refuses with the error, at the position, an
+// unpatched check reports.
+func TestDecimal_PatchHidesNoError(t *testing.T) {
+	s := decimalTestSchema()
+	for _, tc := range []struct{ src, want string }{
+		{`price / "x" > 1`, `invalid operation: / (mismatched types exprenv.Decimal and string) (1:7)`},
+		{`price * len([x / "a"])`, `invalid operation: / (mismatched types float64 and string) (1:16)`},
+		{`abs(price) + (x / "a")`, `invalid operation: / (mismatched types float64 and string) (1:17)`},
+		{`(price * 2) + cat`, `invalid operation: + (mismatched types exprenv.Decimal and string) (1:13)`},
+		{`max(price, "a")`, `invalid argument for max (type string) (1:1)`},
+		{`price % 2 > 1`, `invalid operation: % over a decimal (types exprenv.Decimal and int); convert it with float() first, e.g. float(price) % 2 (1:7)`},
+	} {
+		_, err := compileTyped(t, s, tc.src)
+		if err == nil {
+			t.Errorf("compile %q: nil, want %s", tc.src, tc.want)
+			continue
+		}
+		if got := CompileReason(err); got != tc.want {
+			t.Errorf("compile %q:\n got  %s\n want %s", tc.src, got, tc.want)
+		}
+	}
+}
+
+// TestDecimal_IntOverflowCoded: int() of a decimal past int64 is
+// PULSE_DECIMAL_OVERFLOW, never a wrapped integer.
+func TestDecimal_IntOverflowCoded(t *testing.T) {
+	s := decimalTestSchema()
+	env := decimalStdEnv(t, s)
+	typed, twin, terr, werr := runBoth(t, s, `int(big)`, env)
+	for side, err := range map[string]error{"typed": terr, "twin": werr} {
+		var ce *perr.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_DECIMAL_OVERFLOW {
+			t.Errorf("int(big) (%s): err %v (typed %v, twin %v), want PULSE_DECIMAL_OVERFLOW", side, err, typed, twin)
+		}
+	}
+}

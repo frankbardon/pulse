@@ -121,6 +121,37 @@ func TestExprDecimal_FilterAndFormulaExact(t *testing.T) {
 	}
 }
 
+// TestExprDecimal_BuiltinsBothRows: the decimal built-ins, a ternary and
+// an untyped `??` run on a full row (the typed program) and on a row
+// whose price is null (the null-row twin) — the twin lifts the default
+// exactly, so (price ?? x) * 3 is 0.9 there, not float64's
+// 0.8999999999999999.
+func TestExprDecimal_BuiltinsBothRows(t *testing.T) {
+	s := exprDecimalSchema()
+	for _, tc := range []struct {
+		src        string
+		full, null float64
+	}{
+		{`(price ?? x) * 3`, 10.8, 0.9},
+		{`abs(price ?? -1.5)`, 3.6, 1.5},
+		{`max(price ?? 0, b)`, 3.6, 0.2},
+		{`round(price ?? 2.5)`, 4, 2}, // half-even
+		{`ceil(price ?? b) + floor(-(price ?? b))`, 0, 0},
+		{`(x > 0 ? (price ?? b) : 0) * 3`, 10.8, 0.6},
+		{`sum([price ?? 0, b, 0.1])`, 3.9, 0.3},
+		{`int(price ?? 7.9)`, 3, 7},
+	} {
+		recs := exprDecimalRecords(s)
+		fa := exprDecimalFormula(t, s, tc.src)
+		for i, want := range []float64{tc.full, tc.null} {
+			got, err := fa.Row(recs[i], "")
+			if err != nil || got != want {
+				t.Errorf("%q row %d = %v, %v; want %v", tc.src, i, got, err, want)
+			}
+		}
+	}
+}
+
 // TestExprDecimal_DeferredCompile: a formula naming a derived column
 // compiles on the first record, which binds the decimal the same way.
 func TestExprDecimal_DeferredCompile(t *testing.T) {

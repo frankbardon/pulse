@@ -1,6 +1,7 @@
 package exprenv
 
 import (
+	stderrors "errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -10,8 +11,11 @@ import (
 	"github.com/expr-lang/expr"
 	exprast "github.com/expr-lang/expr/ast"
 	"github.com/expr-lang/expr/builtin"
+	"github.com/expr-lang/expr/checker"
 	"github.com/expr-lang/expr/checker/nature"
 	"github.com/expr-lang/expr/conf"
+	"github.com/expr-lang/expr/file"
+	"github.com/expr-lang/expr/parser"
 	exprtypes "github.com/expr-lang/expr/types"
 	exprruntime "github.com/expr-lang/expr/vm/runtime"
 
@@ -37,12 +41,24 @@ import (
 //     (encoding.MinDecimalScale), banker's rounding. A zero divisor is
 //     PULSE_DECIMAL_DIVIDE_BY_ZERO, a result past 38 digits
 //     PULSE_DECIMAL_OVERFLOW.
-//   - Unary `-` negates; `d ?? n` lifts a numeric default to a decimal
-//     so `(price ?? 0) * 2` stays exact; `float(d)` is the explicit
+//   - Unary `-` negates; `d ?? n` and a ternary `c ? d : n` lift the
+//     number (or untyped) side to a decimal, so `(price ?? 0) * 2` and
+//     `(c ? price : 0) * 2` stay exact; `float(d)` is the explicit
 //     escape to float64.
+//   - The numeric built-ins (decimal_builtins.go): abs, max, min, sum,
+//     mean, median, sort, sortBy and `in` are exact; ceil / floor /
+//     round answer an integral decimal (round half-even, as every
+//     decimal rescale); int truncates; the float-domain built-ins (sqrt,
+//     log, exp, pow, the vector family) read the decimal's float64.
+//   - Once an expression holds a decimal, an operand typed `any` (a
+//     decimal laundered through a map / mixed array literal, an untyped
+//     `??`) is routed through the same builtins, which fall back to
+//     expr-lang's own operator for non-decimal values — so nothing the
+//     compile accepts fails at run time for a decimal type reason.
 //   - `x == nil` / `x != nil` are never rewritten: nil keeps expr-lang's
-//     own rules. Anything else (a string, a bool, `%`) is left alone and
-//     fails at COMPILE, exactly as it did.
+//     own rules. A string or bool operand is left alone and fails at
+//     COMPILE, exactly as it did; `%` over a decimal is refused at
+//     COMPILE with a reason naming float().
 //
 // The null-row twin declares a decimal name through [Untyped] — a
 // method-bearing interface, not bare `any` — so the patcher still sees
@@ -77,6 +93,10 @@ func (d Decimal) Float64() float64 {
 	}
 	return f
 }
+
+// MarshalJSON writes the decimal as a JSON number at its scale (toJSON
+// in an expression reads 3.60, not the struct).
+func (d Decimal) MarshalJSON() ([]byte, error) { return []byte(d.String()), nil }
 
 func (Decimal) exprDecimal() {}
 
@@ -137,9 +157,12 @@ func Untyped(t exprtypes.Type) exprtypes.Type {
 const decimalFuncPrefix = "__pulse_dec_"
 
 const (
-	decFuncFloat = decimalFuncPrefix + "float"
-	decFuncLift  = decimalFuncPrefix + "lift"
-	decFuncNeg   = decimalFuncPrefix + "neg"
+	decFuncFloat   = decimalFuncPrefix + "float"
+	decFuncLift    = decimalFuncPrefix + "lift"
+	decFuncLiftDyn = decimalFuncPrefix + "lift_dyn"
+	decFuncNeg     = decimalFuncPrefix + "neg"
+	decFuncMod     = decimalFuncPrefix + "mod"
+	decFuncFail    = decimalFuncPrefix + "fail"
 )
 
 // decimalBinary maps each overloaded operator to its builtin and body.
@@ -163,17 +186,42 @@ var decimalBinary = map[string]struct {
 
 // decimalOptions registers the decimal builtins and the patcher.
 func decimalOptions() []expr.Option {
-	opts := make([]expr.Option, 0, len(decimalBinary)+4)
+	opts := make([]expr.Option, 0, len(decimalBinary)+len(decimalBuiltins)+7)
 	for op, b := range decimalBinary {
 		opts = append(opts, decimalFunction(b.name, decimalBinaryBody(op), decimalBinaryValidate(op, b.compare)))
+	}
+	for name, b := range decimalBuiltins {
+		opts = append(opts, decimalFunction(decimalFuncPrefix+name, b.body, b.validate))
 	}
 	opts = append(opts,
 		decimalFunction(decFuncFloat, decimalFloatBody, decimalUnaryValidate(func(...decimalKind) reflect.Type { return exprFloat64Type })),
 		decimalFunction(decFuncLift, decimalLiftBody, decimalUnaryValidate(decimalResultType)),
+		decimalFunction(decFuncLiftDyn, decimalLiftBody, decimalUnaryValidate(func(k ...decimalKind) reflect.Type {
+			if k[0] == decUnknown {
+				return exprAnyType
+			}
+			return exprDecimalAnyType
+		})),
 		decimalFunction(decFuncNeg, decimalNegBody, decimalUnaryValidate(decimalResultType)),
+		decimalFunction(decFuncMod, decimalModRefused, decimalModValidate),
+		decimalFunction(decFuncIn, decimalInBody, decimalInValidate),
 		// A fresh patcher per compile: its pass state is never shared
-		// by two compiles running at once.
-		func(c *conf.Config) { c.Visitors = append(c.Visitors, &decimalPatcher{}) },
+		// by two compiles running at once. Its failure builtin reads that
+		// patcher's state, so it is per compile too.
+		func(c *conf.Config) {
+			p := &decimalPatcher{conf: c}
+			c.Visitors = append(c.Visitors, p)
+			c.Functions[decFuncFail] = &builtin.Function{
+				Name: decFuncFail,
+				Func: func(args ...any) (any, error) { return args[0], nil },
+				Validate: func([]reflect.Type) (reflect.Type, error) {
+					if p.failed != nil {
+						return nil, p.failed
+					}
+					return exprAnyType, nil
+				},
+			}
+		},
 	)
 	return opts
 }
@@ -196,9 +244,14 @@ const (
 	decStatic                     // a Decimal
 	decDynamic                    // the twin's decimal declaration
 	decUnknown                    // `any`: known only at run time
+	decArray                      // a slice / array (the aggregate built-ins' argument)
 )
 
 func (k decimalKind) decimal() bool { return k == decStatic || k == decDynamic }
+
+// scalar reports whether k can be an operand of a decimal operator: a
+// number, a decimal, or a value known only at run time.
+func (k decimalKind) scalar() bool { return k == decNumber || k.decimal() || k == decUnknown }
 
 func decimalKindOf(t reflect.Type) decimalKind {
 	switch {
@@ -218,25 +271,39 @@ func decimalKindOf(t reflect.Type) decimalKind {
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 		reflect.Float32, reflect.Float64:
 		return decNumber
+	case reflect.Slice, reflect.Array:
+		return decArray
 	}
 	return decInvalid
 }
 
 // decimalResultType is a decimal operation's static type: a Decimal when
-// every operand is known, else the twin's decimal declaration.
+// every operand is statically known; the twin's decimal declaration when
+// one is the twin's decimal; `any` when one is known only at run time
+// (it may be no decimal at all — the builtin then answers as expr-lang
+// would).
 func decimalResultType(kinds ...decimalKind) reflect.Type {
+	t := exprDecimalType
 	for _, k := range kinds {
-		if k == decDynamic || k == decUnknown {
-			return exprDecimalAnyType
+		switch k {
+		case decUnknown, decArray:
+			return exprAnyType
+		case decDynamic:
+			t = exprDecimalAnyType
 		}
 	}
-	return exprDecimalType
+	return t
 }
 
 // decimalBinaryApplies reports whether a binary operator over l and r is
-// a decimal operation.
-func decimalBinaryApplies(l, r decimalKind) bool {
-	return (l.decimal() || r.decimal()) && l != decInvalid && r != decInvalid
+// a decimal operation: both operands scalar and one a decimal — or, once
+// the expression holds a decimal (sawDecimal), one known only at run
+// time (it may carry a decimal there).
+func decimalBinaryApplies(l, r decimalKind, sawDecimal bool) bool {
+	if !l.scalar() || !r.scalar() {
+		return false
+	}
+	return l.decimal() || r.decimal() || sawDecimal && (l == decUnknown || r == decUnknown)
 }
 
 func decimalBinaryValidate(op string, compare bool) func([]reflect.Type) (reflect.Type, error) {
@@ -245,11 +312,14 @@ func decimalBinaryValidate(op string, compare bool) func([]reflect.Type) (reflec
 			return nil, fmt.Errorf("invalid operation: %s (want 2 operands, got %d)", op, len(args))
 		}
 		l, r := decimalKindOf(args[0]), decimalKindOf(args[1])
-		if !decimalBinaryApplies(l, r) {
+		if !l.scalar() || !r.scalar() {
 			return nil, fmt.Errorf("invalid operation: %s (mismatched types %v and %v)", op, args[0], args[1])
 		}
 		if compare {
 			return exprBoolType, nil
+		}
+		if !l.decimal() && !r.decimal() {
+			return exprAnyType, nil // two numbers: expr-lang's own operator
 		}
 		return decimalResultType(l, r), nil
 	}
@@ -261,7 +331,7 @@ func decimalUnaryValidate(result func(...decimalKind) reflect.Type) func([]refle
 			return nil, fmt.Errorf("invalid number of arguments (expected 1, got %d)", len(args))
 		}
 		k := decimalKindOf(args[0])
-		if k == decInvalid {
+		if !k.scalar() {
 			return nil, fmt.Errorf("invalid argument (type %v)", args[0])
 		}
 		return result(k), nil
@@ -272,49 +342,165 @@ func decimalUnaryValidate(result func(...decimalKind) reflect.Type) func([]refle
 // repeatable: a rewrite can type a node the previous pass could not (a
 // `let` bound to a decimal result, a `??` whose default it lifted), so
 // expr-lang re-checks and walks again until a pass changes nothing.
-type decimalPatcher struct{ applied bool }
+//
+// sawDecimal (kept across passes, never Reset) records that the
+// expression holds a decimal-typed node. From then on an operand typed
+// `any` is patched too — it may carry a decimal at run time (a map or
+// mixed-array literal launders one) — and its builtin falls back to
+// expr-lang's own operator for every non-decimal value. An expression
+// with no decimal never sets it, so its program is untouched.
+//
+// expr-lang's checker never re-checks a call that carries a type —
+// neither its Validate nor its arguments — so a call the patcher writes
+// would hide an ill-typed operand beneath it (`price / "x" > 1`) or its
+// own Validate refusal (`price % 2 > 1`) from every later check. Each
+// pass's end clears the calls' types, so the next pass judges by fresh
+// ones; the last pass then type-checks the whole patched tree itself
+// and, on an error, wraps the root in the failure builtin, whose
+// Validate raises that error at its location in the final check — the
+// compile refuses exactly what an unpatched check would. An operand
+// typed `any` may be stale within a pass (checked before a call beneath
+// it was patched), so the `any` rules wait for a pass with no patch so
+// far (untyped).
+type decimalPatcher struct {
+	conf                *conf.Config
+	applied, sawDecimal bool
+	calls               []*exprast.CallNode
+	root                *exprast.Node // the last node a walk visited
+	failed              error
+}
 
-func (p *decimalPatcher) Reset()             { p.applied = false }
-func (p *decimalPatcher) ShouldRepeat() bool { return p.applied }
+func (p *decimalPatcher) Reset() { p.applied = false }
+
+func (p *decimalPatcher) ShouldRepeat() bool {
+	for _, c := range p.calls {
+		c.SetNature(nature.Nature{})
+	}
+	if !p.applied && len(p.calls) > 0 && p.failed == nil && p.root != nil {
+		p.verify()
+	}
+	return p.applied
+}
+
+// verify type-checks the patched tree; an error is raised again, at its
+// own location, by the final check (decFuncFail wrapping the root).
+func (p *decimalPatcher) verify() {
+	_, err := checker.Check(&parser.Tree{Node: *p.root}, p.conf)
+	var fe *file.Error
+	if err == nil || !stderrors.As(err, &fe) {
+		return
+	}
+	p.failed = stderrors.New(fe.Message)
+	wrap := &exprast.CallNode{Callee: &exprast.IdentifierNode{Value: decFuncFail}, Arguments: []exprast.Node{*p.root}}
+	wrap.SetLocation(fe.Location)
+	*p.root = wrap
+}
+
+// operand reports whether an operand of kind k is patched: a decimal,
+// or — once the expression holds one — a value known only at run time.
+func (p *decimalPatcher) operand(k decimalKind) bool {
+	return k.decimal() || p.untyped() && k == decUnknown
+}
+
+// untyped reports whether the `any` rules apply now: the expression
+// holds a decimal and no patch in this pass has left a type stale.
+func (p *decimalPatcher) untyped() bool { return p.sawDecimal && !p.applied }
 
 func (p *decimalPatcher) Visit(node *exprast.Node) {
+	p.root = node
+	if !p.sawDecimal && decimalKindOf((*node).Type()).decimal() {
+		// Walk again: a node visited earlier in this pass is judged
+		// with sawDecimal set.
+		p.sawDecimal, p.applied = true, true
+	}
 	switch n := (*node).(type) {
 	case *exprast.BinaryNode:
-		if n.Operator == "??" {
-			l, r := decimalKindOf(n.Left.Type()), decimalKindOf(n.Right.Type())
-			if l.decimal() && r == decNumber {
-				n.Right = p.call(decFuncLift, decimalResultType(r), n.Right)
-			}
-			return
+		p.visitBinary(node, n)
+	case *exprast.ConditionalNode:
+		// `c ? d : n`: lift the other branch, so the result is a
+		// decimal on every row.
+		k1, k2 := decimalKindOf(n.Exp1.Type()), decimalKindOf(n.Exp2.Type())
+		if k1.decimal() && p.liftable(n.Exp2, k2) {
+			n.Exp2 = p.lift(k1, k2, n.Exp2)
+		} else if k2.decimal() && p.liftable(n.Exp1, k1) {
+			n.Exp1 = p.lift(k2, k1, n.Exp1)
 		}
-		b, ok := decimalBinary[n.Operator]
-		if !ok || isNilNode(n.Left) || isNilNode(n.Right) {
-			return
-		}
-		l, r := decimalKindOf(n.Left.Type()), decimalKindOf(n.Right.Type())
-		if !decimalBinaryApplies(l, r) {
-			return
-		}
-		t := exprBoolType
-		if !b.compare {
-			t = decimalResultType(l, r)
-		}
-		exprast.Patch(node, p.call(b.name, t, n.Left, n.Right))
 	case *exprast.UnaryNode:
-		if k := decimalKindOf(n.Node.Type()); n.Operator == "-" && k.decimal() {
+		if k := decimalKindOf(n.Node.Type()); n.Operator == "-" && p.operand(k) {
 			exprast.Patch(node, p.call(decFuncNeg, decimalResultType(k), n.Node))
 		}
+	case *exprast.CallNode:
+		// The `%` patcher (mod.go) runs first and may have rewritten a
+		// `%` whose operand was still untyped; refuse it once a
+		// decimal operand is known.
+		if id, ok := n.Callee.(*exprast.IdentifierNode); ok && id.Value == ModFuncName && len(n.Arguments) == 2 &&
+			(decimalKindOf(n.Arguments[0].Type()).decimal() || decimalKindOf(n.Arguments[1].Type()).decimal()) {
+			exprast.Patch(node, p.call(decFuncMod, exprAnyType, n.Arguments...))
+		}
 	case *exprast.BuiltinNode:
-		if n.Name == "float" && len(n.Arguments) == 1 && decimalKindOf(n.Arguments[0].Type()).decimal() {
-			exprast.Patch(node, p.call(decFuncFloat, exprFloat64Type, n.Arguments[0]))
+		p.visitBuiltin(node, n)
+	}
+}
+
+func (p *decimalPatcher) visitBinary(node *exprast.Node, n *exprast.BinaryNode) {
+	l, r := decimalKindOf(n.Left.Type()), decimalKindOf(n.Right.Type())
+	switch n.Operator {
+	case "??":
+		if l.decimal() && p.liftable(n.Right, r) {
+			n.Right = p.lift(l, r, n.Right)
+		}
+		return
+	case "%":
+		if l.decimal() || r.decimal() {
+			exprast.Patch(node, p.call(decFuncMod, exprAnyType, n.Left, n.Right))
+		}
+		return
+	case "in":
+		if p.untyped() && l.scalar() && (r == decArray || r == decUnknown) {
+			exprast.Patch(node, p.call(decFuncIn, exprBoolType, n.Left, n.Right))
+		}
+		return
+	}
+	b, ok := decimalBinary[n.Operator]
+	if !ok || isNilNode(n.Left) || isNilNode(n.Right) || !decimalBinaryApplies(l, r, p.untyped()) {
+		return
+	}
+	t := exprBoolType
+	if !b.compare {
+		t = decimalResultType(l, r)
+	}
+	exprast.Patch(node, p.call(b.name, t, n.Left, n.Right))
+}
+
+// liftable reports whether the other side of a decimal `??` or ternary
+// is lifted: a number, or a value known only at run time (never nil).
+func (p *decimalPatcher) liftable(n exprast.Node, k decimalKind) bool {
+	if c, ok := n.(*exprast.CallNode); ok {
+		if id, ok := c.Callee.(*exprast.IdentifierNode); ok && (id.Value == decFuncLift || id.Value == decFuncLiftDyn) {
+			return false // lifted already (an untyped lift stays `any`)
 		}
 	}
+	return !isNilNode(n) && (k == decNumber || k == decUnknown)
+}
+
+// lift wraps n (kind k) so it joins the decimal side (kind d) as a
+// decimal: a static Decimal beside a static decimal, the twin's decimal
+// declaration beside the twin's.
+func (p *decimalPatcher) lift(d, k decimalKind, n exprast.Node) exprast.Node {
+	name, t := decFuncLift, decimalResultType(k)
+	if d == decDynamic {
+		name, t = decFuncLiftDyn, exprDecimalAnyType
+	}
+	c := p.call(name, t, n)
+	c.SetLocation(n.Location())
+	return c
 }
 
 func (p *decimalPatcher) call(name string, t reflect.Type, args ...exprast.Node) exprast.Node {
 	p.applied = true
 	call := &exprast.CallNode{Callee: &exprast.IdentifierNode{Value: name}, Arguments: args}
 	call.SetType(t)
+	p.calls = append(p.calls, call)
 	return call
 }
 
@@ -436,7 +622,10 @@ func decimalLiftBody(args ...any) (any, error) {
 		return nil, err
 	}
 	if !ok {
-		return nil, fmt.Errorf("invalid operation: %T has no decimal value", args[0])
+		// Only a value typed `any` reaches here (a number is always a
+		// decimal): a non-number keeps its own value, as the unlifted
+		// `??` / ternary would have answered.
+		return args[0], nil
 	}
 	return d, nil
 }

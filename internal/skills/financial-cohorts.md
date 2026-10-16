@@ -48,17 +48,7 @@ All result precisions clamp at **38**. When clamping kicks in and the value over
 
 ## Formulas and filters
 
-In the formula attribute and the expression filter (`expression-language`) a decimal binds with its scale and `+ - * /` and comparisons are exact, over decimal × decimal or decimal × number; a number joins as written (`1.2` is 1.2). So `0.1 + 0.2 == 0.3` holds, as does `price / cost > 1.2` exactly.
-
-| Op | Result scale |
-|---|---|
-| `+` `-` | `max(s1, s2)` |
-| `*` | `s1 + s2` (held to 38, banker's) |
-| `/` | `max(s1, s2, 4)`, banker's |
-
-- Zero divisor → `PULSE_DECIMAL_DIVIDE_BY_ZERO`, past 38 digits → `PULSE_DECIMAL_OVERFLOW`: run errors, never null.
-- `float(price)` opts out to f64; a formula column is f64 (the nearest).
-- `price ?? 0` stays decimal; `%` or a string operand fails at compile (`PULSE_FORMULA_COMPILE_ERROR`, predict too).
+In the formula attribute and the expression filter a decimal stays exact — `0.1 + 0.2 == 0.3` holds, `price / cost > 1.2` is decided exactly. Operator scales, `??` / ternary lifting, the numeric built-ins (`abs`, `round`, `max`, `mean`, …), the `float()` escape and the compile refusals: `decimal-formulas`.
 
 ## Divide-by-zero
 

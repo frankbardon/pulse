@@ -22,7 +22,7 @@ A field is named bare; what it binds depends on its schema type:
 | numeric (`u*`, `f*`) | number | `weight_kg / (height_m ** 2)` |
 | `categorical_*` | dictionary STRING, never the index | `brand == "Apple"`, `region in ["NA", "EU"]` |
 | `set_*` | sorted `[]string` of member labels | `"a" in tags`, `has_any(tags, "a", "b")` |
-| `decimal128` | exact decimal: `+ - * /`, comparisons (`financial-cohorts`) | `price / cost > 1.2`, `float(price) * 1.5` |
+| `decimal128` | exact decimal — operators and numeric functions (`decimal-formulas`) | `price / cost > 1.2`, `float(price) * 1.5` |
 
 Arithmetic on a categorical errors; branch on the label.
 

@@ -11398,6 +11398,10 @@
         "description": "Auxiliary margin-only figures on a crosstab — a second base beside the cell metric in one scan, the cell-admission rule, present semantics and the display-flag gate"
       },
       {
+        "name": "decimal-formulas",
+        "description": "Exact decimal128 arithmetic inside formulas and expression filters — operator result scales, the numeric built-ins over a decimal (abs, round, max, mean and the rest), ternary and ?? lifting, the float() escape, and what is refused at compile. Use when an expression reads a money field."
+      },
+      {
         "name": "derived-cohorts",
         "description": "Materialise a request's derived columns (features, attributes, windows) into a new cohort so a later request can regress, group, filter or join on them — when to, the two-step recipe, what the output holds."
       },
@@ -18152,4 +18156,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f538dae991407a9a7c58edcdb4f4838fdc6d245374465412eff806d9def0ad03
+// golden-hash: 3f49a11e31a0b1b42e0978b9f3b4a9de9c2fc88298b48d5c1957bc7398b5538b

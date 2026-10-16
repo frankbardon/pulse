@@ -35,6 +35,7 @@
     - [compose-sweeps](skills/compose-sweeps.md)
     - [crosstab-guide](skills/crosstab-guide.md)
     - [crosstab-margin-aggregations](skills/crosstab-margin-aggregations.md)
+    - [decimal-formulas](skills/decimal-formulas.md)
     - [derived-cohorts](skills/derived-cohorts.md)
     - [expression-language](skills/expression-language.md)
     - [facet-design](skills/facet-design.md)

@@ -136,6 +136,11 @@ func exprFloat(a any) (float64, bool) {
 	switch v := a.(type) {
 	case float64:
 		return v, true
+	case Decimal:
+		// The float-domain built-ins (sqrt, log, exp, pow, the vector
+		// family) read a decimal as its float64: their answers are
+		// irrational floats, with no exact form to keep (decimal_builtins.go).
+		return v.Float64(), true
 	case float32:
 		return float64(v), true
 	case int:

@@ -124,6 +124,12 @@ func exprModulo(params ...any) (out any, err error) {
 	case ka != exprModInvalid && kb != exprModInvalid:
 		return math.Mod(exprModFloat64(a), exprModFloat64(b)), nil
 	}
+	if _, ok := a.(Decimal); ok {
+		return nil, fmt.Errorf("invalid operation: %T %% %T: %% over a decimal; convert it with float() first", a, b)
+	}
+	if _, ok := b.(Decimal); ok {
+		return nil, fmt.Errorf("invalid operation: %T %% %T: %% over a decimal; convert it with float() first", a, b)
+	}
 	return nil, fmt.Errorf("invalid operation: %T %% %T", a, b)
 }
 
