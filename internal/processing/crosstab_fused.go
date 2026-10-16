@@ -891,28 +891,24 @@ func (s *FusedCrosstabState) internPartialColKey(key string) (int, error) {
 // caller's filter contribute to totalRows only via the totalRows
 // counter the caller separately advances.
 //
-// Axis-key nullity is tracked independently per axis. A record whose
-// row-axis composite key is non-null AND col-axis composite key is
-// non-null lands a cell update at the (rowIdx, colIdx) intersection.
-// A record whose row-axis key is non-null but col-axis key is null
-// (or vice versa) still contributes to the appropriate axis margin
-// (rowMargin via the row key, colMargin via the col key), matching the
-// buffered RunCrosstab path: there `PartitionByAxis(spec.Rows, filtered)`
-// builds the row partition over all filtered records with valid row
-// keys regardless of column key nullity (and vice versa). The grand
-// margin counts every filter-passing record regardless of any axis
-// nullity. Partial-depth (normalize_level) margins gate on PREFIX depth
-// rather than on full-axis resolution: the row partial-margin updates
-// whenever the row axis resolved past rowNormLevel, so a record whose
-// deeper row groupers are null still feeds the denominator — matching
-// buffered, whose denominator is PartitionByAxis(spec.Rows[:level+1],
-// filtered) and never looks past level. Cross-axis (normalize_within)
-// margins carry the same prefix-depth gate, and update only when
-// BOTH the row prefix at crossRowDepth AND the column prefix at
-// crossColDepth are non-null — mirroring the buffered joined-partition
-// behaviour at internal/processing/crosstab.go::crossActive (lines ~410-448),
-// where the partition only contains records whose prefix groupers all
-// produce non-null keys.
+// Axis KEYS are tracked independently per axis: a record whose row key
+// resolved interns it whatever its column key did (and vice versa), so
+// the matrix carries the same row / column keys as buffered, whose two
+// axis partitions are built over all of `filtered`. A record whose
+// row-axis composite key AND col-axis composite key are both non-null
+// lands a cell update at the (rowIdx, colIdx) intersection.
+//
+// Every MARGIN follows the cell-admission rule (U47 #325): a record
+// reaches the row, column, grand, partial-depth (normalize_level) or
+// cross-axis (normalize_within) margin only if it reached a CELL — both
+// axes resolved in full. A record whose row key resolved but whose column
+// key is null (or a GROUP_SET_PER_ELEMENT set null or empty, or a key a
+// grouper Include excluded) moves no margin and no normalize denominator,
+// so column % is "% of those asked". Buffered RunCrosstab applies the
+// same gate by narrowing every margin and denominator bucket to the
+// records in both axis-membership sets (ownMarginMembership +
+// admitRecords). Before U47 each margin gated on its own axis alone and
+// the partial-depth / cross-axis denominators on prefix depth.
 //
 // FAN-OUT ROUTING RULE. An axis carrying a MultiKeyStreamingGrouper
 // position (GROUP_SET_PER_ELEMENT today) resolves one record to a SET of
@@ -964,12 +960,19 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 	cellValuePresent := AggregationPresent(rec, s.cellAgg)
 	cellValueNull := !cellValuePresent
 
-	// Grand margin counts every filter-passing record ONCE, regardless of
-	// axis nullity AND regardless of fan-out — it mirrors the buffered
-	// RunCrosstab path where spec.NeedsGrandMargin aggregates over all of
-	// `filtered`, never touching the per-axis partitions. See the
-	// non-additivity note on the row-axis block below.
-	if s.grandMargin != nil {
+	// THE ADMISSION RULE (U47 #325): a record reaches a margin — row,
+	// column, grand, partial-depth or cross-axis — only if it reached a
+	// CELL, i.e. both axes resolved. Buffered RunCrosstab gates its margin
+	// buckets on the same two axis-membership sets (ownMarginMembership).
+	// Axis keys are still interned below whatever the other axis did, so
+	// the matrix carries the same row / column keys on both arms.
+	admitted := rowKeys.ok && colKeys.ok
+
+	// Grand margin counts every ADMITTED record ONCE, regardless of
+	// fan-out — buffered aggregates the grand margin over the admitted
+	// subset of `filtered`, never touching the per-axis partitions. See
+	// the non-additivity note on the row-axis block below.
+	if s.grandMargin != nil && admitted {
 		if err := s.grandMargin.UpdateRow(rec, s.cellField); err != nil {
 			return err
 		}
@@ -983,14 +986,15 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		s.grandMarginWeight.ObserveSlot(rec, s.cellAgg)
 	}
 
-	// Row-axis updates (independent of column-axis nullity). Every
-	// distinct full row key the record fans into is interned and gets one
-	// row-margin update: buffered PartitionByAxis(spec.Rows, filtered)
-	// appends the record to one bucket per composite key its grouper
-	// chain produces, and each of those buckets contains it exactly once
-	// (fusedAxisKeys levels are duplicate-free at every depth). A record
-	// whose column key is null still lands here, matching the buffered
-	// row partition.
+	// Row-axis updates. Every distinct full row key the record fans into
+	// is interned (whatever the column axis did) and, when the record was
+	// admitted, gets one row-margin update: buffered
+	// PartitionByAxis(spec.Rows, filtered) appends the record to one
+	// bucket per composite key its grouper chain produces, and each of
+	// those buckets contains it exactly once (fusedAxisKeys levels are
+	// duplicate-free at every depth). A record whose column key is null
+	// interns its row key but moves no margin — buffered narrows the row
+	// bucket to column-axis members the same way.
 	//
 	// MARGIN NON-ADDITIVITY IS DELIBERATE. A record selecting 3 labels on
 	// a GROUP_SET_PER_ELEMENT axis is counted 3x across the row margins
@@ -1011,7 +1015,7 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 				return ierr
 			}
 			s.rowIdxBuf = append(s.rowIdxBuf, rowIdx)
-			if s.rowMargins == nil {
+			if s.rowMargins == nil || !admitted {
 				continue
 			}
 			mar := s.rowMargins[rowIdx]
@@ -1047,14 +1051,12 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 	// fusedAxisKeys.prefixes returns the already-deduped level, which is
 	// exactly that set.
 	//
-	// The gate is the PREFIX depth, not full-axis resolution — the same
-	// rule the cross-axis margin below applies, and the same rule
-	// buffered applies: PartitionByAxis over Rows[:level+1] buckets every
-	// record whose first level+1 groupers resolve, including records
-	// whose deeper positions are null and which therefore appear in no
-	// leaf row bucket at all. Gating on rowKeys.ok would silently shrink
-	// the denominator relative to buffered.
-	if s.partialRowIndex != nil && rowKeys.depth > s.rowNormLevel {
+	// The gate is cell admission (U47 #325), the same gate every margin
+	// takes: a record whose deeper row positions are null resolves the
+	// prefix but reached no cell, so it feeds no denominator. Buffered
+	// narrows each PartitionByAxis(Rows[:level+1]) bucket to the records
+	// in both axis-membership sets, which is the same answer.
+	if s.partialRowIndex != nil && admitted {
 		for _, pkey := range rowKeys.prefixes(s.rowNormLevel) {
 			pIdx, perr := s.internPartialRowKey(pkey)
 			if perr != nil {
@@ -1066,8 +1068,9 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		}
 	}
 
-	// Column-axis updates (independent of row-axis nullity). Mirror story
-	// for the col margin, including the non-additivity note above.
+	// Column-axis updates. Mirror story for the col margin: keys interned
+	// per axis, margin updates gated on admission, and the non-additivity
+	// note above.
 	s.colIdxBuf = s.colIdxBuf[:0]
 	if colKeys.ok {
 		colTuples := colKeys.tuples
@@ -1077,7 +1080,7 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 				return ierr
 			}
 			s.colIdxBuf = append(s.colIdxBuf, colIdx)
-			if s.colMargins == nil {
+			if s.colMargins == nil || !admitted {
 				continue
 			}
 			mar := s.colMargins[colIdx]
@@ -1103,9 +1106,9 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		}
 	}
 
-	// Column-axis partial-depth margin — prefix-depth gate, mirroring the
+	// Column-axis partial-depth margin — admission gate, mirroring the
 	// row-axis block above.
-	if s.partialColIndex != nil && colKeys.depth > s.colNormLevel {
+	if s.partialColIndex != nil && admitted {
 		for _, pkey := range colKeys.prefixes(s.colNormLevel) {
 			pIdx, perr := s.internPartialColKey(pkey)
 			if perr != nil {
@@ -1187,12 +1190,10 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 
 	// Cross-axis (normalize_within) margin. Buffered
 	// internal/processing/crosstab.go::crossActive partitions filtered records by
-	// spec.Rows[:rowDepth+1] ++ spec.Columns[:colDepth+1] and only buckets
-	// records whose prefix groupers all produce non-null keys. The fused
-	// equivalent: gate on row prefix at crossRowDepth+1 succeeding AND col
-	// prefix at crossColDepth+1 succeeding. Note this is per-PREFIX (not
-	// full-axis) — a record whose deeper grouper is null but whose prefix
-	// groupers all succeed still contributes to the cross margin.
+	// spec.Rows[:rowDepth+1] ++ spec.Columns[:colDepth+1] and narrows each
+	// bucket to the admitted records (both axes resolved in full, U47
+	// #325). The fused equivalent: gate on admission, then update once
+	// per (row prefix, col prefix) pair.
 	//
 	// Under fan-out the joined partition is the cartesian product of the
 	// two deduped prefix sets, so one update per (row prefix, col prefix)
@@ -1200,7 +1201,7 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 	// recursion crosses the row-prefix buckets with the column-prefix
 	// buckets.
 	if s.crossActive {
-		if rowKeys.depth > s.crossRowDepth && colKeys.depth > s.crossColDepth {
+		if admitted {
 			for _, rPart := range rowKeys.prefixes(s.crossRowDepth) {
 				for _, cPart := range colKeys.prefixes(s.crossColDepth) {
 					ckey := crosstabCellKey{row: rPart, col: cPart}
@@ -1260,19 +1261,15 @@ func (s *FusedCrosstabState) setCompute(c ComputePlan) {
 //     excluded key) and therefore as an empty rowIdxBuf;
 //   - a record whose COLUMN AXIS KEY did not resolve, by the same rule.
 //
-// THIS IS DELIBERATELY NOT HOW THE CELL AGGREGATOR'S OWN MARGINS BEHAVE,
-// and the difference was measured rather than assumed. A column margin
-// counts every filter-passing record routed to that column whatever
-// happened on the other axis: a rows=[brand] crosstab returns
-// byte-identical column margins with a two-brand Include and with none
-// at all. Reusing that behaviour for an auxiliary would make the figure
-// cohort-wide and metric-agnostic — a "sample size" describing every
-// respondent in the cohort rather than the respondents who could
-// actually contribute to a cell beside it.
+// The cell aggregator's OWN margins share the two axis exclusions (U47
+// #325: a record reaches any margin only if it reached a cell) but NOT
+// the cell-field exclusion: a null cell field still reached its cell, as
+// that cell's n_null, so it rides the cell margin's n_null and is absent
+// here. Keep the two gates distinct — an auxiliary is a metric-scoped
+// base, the cell's own margin is the cell's own floor.
 //
 // GETTING IT WRONG IS COMPLETELY SILENT. Every number still renders, the
-// base is merely wrong, and nothing throws or warns. The existing margin
-// counters are left exactly as they were; do not "align" the two.
+// base is merely wrong, and nothing throws or warns.
 //
 // The grand slot updates ONCE per admitted record and is never
 // multiplied by a fan-out, mirroring the cell's own grand margin. The
@@ -1850,7 +1847,12 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 	var grandValue any
 	var grandPresent bool
 	var grandComponentsMap map[string]any
-	if s.grandMargin != nil {
+	// A grand margin no record was admitted to carries no figure, exactly
+	// as buffered skips runCellAggregation over an empty admitted set (and
+	// as an unconstructed row / column margin accumulator stays absent):
+	// an aggregator over zero records has no defined output, and a
+	// fabricated 0 is indistinguishable on the wire from a real one.
+	if s.grandMargin != nil && s.grandMarginCount > 0 {
 		scalar, err := s.grandMargin.Finalize()
 		if err != nil {
 			return nil, err

@@ -4,7 +4,7 @@ slug: survey-tables
 title: "A weighted banner table with significance letters is one request, and Pulse can compute the weights"
 track: Statistical integrity
 size: L
-status: not-started
+status: in-progress
 depends_on: []
 soft_depends_on: [U46, U11, U12]
 blocks: [U32]
@@ -36,7 +36,7 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
 - [ ] **#324** (Survey tables) Weighted pairwise proportion tests on a normalised crosstab use the column base: n comes from the column margin's effective n (or is derived from the normalise denominator automatically); a reference-oracle case pins it
-- [ ] **#325** (Survey tables) `GROUP_SET_PER_ELEMENT` axis margins follow the cell-admission rule (a row whose set is null reaches no cell and no margin), or the rule is stated and an opt-in provided; column % is "of those asked"
+- [x] **#325** (Survey tables) `GROUP_SET_PER_ELEMENT` axis margins follow the cell-admission rule (a row whose set is null reaches no cell and no margin), or the rule is stated and an opt-in provided; column % is "of those asked"
 - [ ] **#326** (Survey tables) Banner tables: a crosstab takes several independent column groups side by side (Total | Gender | Age | Region) and several measures as stub rows, in one request; a Total column needs no constant field
 - [ ] **#327** (Survey tables) Significance letters: a presentation option on pairwise overlays that assigns column letters and marks, per cell, which columns it is significantly above, at a chosen alpha and correction
 - [ ] **#328** (Survey tables) A tested wave-over-wave change: an inferential prior-period overlay on grouped Process (or a crosstab with no column axis), with p-values in the multiplicity family

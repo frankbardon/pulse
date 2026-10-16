@@ -109,15 +109,13 @@ type auxMarginFigure struct {
 //     it);
 //   - a record whose COLUMN AXIS KEY did not resolve, by the same rule.
 //
-// THIS IS DELIBERATELY NOT HOW THE CELL AGGREGATOR'S OWN MARGINS BEHAVE,
-// and the loops above in RunCrosstab are left exactly as they were: they
-// iterate rowPart.Records[rkey] / colPart.Records[ckey] / filtered
-// whole, so a column margin counts every filter-passing record routed to
-// that column whatever happened on the other axis. Reusing that here
-// would make the figure cohort-wide and metric-agnostic — a "sample
-// size" describing every respondent in the cohort rather than the
-// respondents who could contribute to a cell beside it. Do not align the
-// two.
+// The cell aggregator's OWN margins in RunCrosstab share the two axis
+// exclusions (U47 #325: a record reaches any margin only if it reached a
+// cell — ownMarginMembership + admitRecords with a nil cellAgg) but NOT
+// the cell-field exclusion: a null cell field still reached its cell, as
+// that cell's n_null, and the cell's margin floor counts it the same way.
+// An auxiliary is a metric-scoped base and drops it. Keep the two gates
+// distinct.
 //
 // GETTING IT WRONG IS COMPLETELY SILENT. Every number still renders, the
 // base is merely wrong, and nothing throws or warns.
@@ -238,6 +236,24 @@ func (p *Processor) computeAuxMargins(spec *types.CrosstabSpec, filtered []*Reco
 	return out, nil
 }
 
+// ownMarginMembership resolves the two axis-membership sets the cell
+// aggregator's OWN margins (and every normalize denominator built beside
+// them) are gated on — the admission rule RunCrosstab states at its margin
+// blocks. An axis every one of the n filter-passing records resolved
+// returns nil, which admitRecords reads as "not cross-checked": the gate
+// then costs the common crosstab nothing past building the set once.
+func ownMarginMembership(rowPart, colPart *CrosstabAxisPartition, n int) (rowMember, colMember map[*Record]struct{}) {
+	rowMember = axisMembership(rowPart)
+	if len(rowMember) == n {
+		rowMember = nil
+	}
+	colMember = axisMembership(colPart)
+	if len(colMember) == n {
+		colMember = nil
+	}
+	return rowMember, colMember
+}
+
 // axisMembership collects every record that resolved at least one key on
 // an axis. Identity is the pointer: RunCrosstab partitions the SAME
 // *Record values it was handed, so a record is the same pointer in both
@@ -280,6 +296,11 @@ func axisMembership(part *CrosstabAxisPartition) map[*Record]struct{} {
 // presence; for a vector element slot (params.element) the selected
 // member's.
 //
+// A nil cellAgg skips the presence probe: the cell aggregator's OWN
+// margins gate on axis membership alone, because a record with a null
+// cell field still reached its cell (it is that cell's n_null) and so
+// belongs in the margin's n_null too.
+//
 // Returns the bucket ITSELF when every record is admitted, which is the
 // common case on a crosstab with no Include and no nullable cell field,
 // so the usual request pays no copy at all.
@@ -294,6 +315,9 @@ func admitRecords(bucket []*Record, memberA, memberB map[*Record]struct{}, cellA
 			if _, ok := memberB[r]; !ok {
 				return false
 			}
+		}
+		if cellAgg == nil {
+			return true
 		}
 		ok := AggregationPresent(r, cellAgg)
 		return ok

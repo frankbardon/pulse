@@ -668,6 +668,27 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// display flag is set — mirroring the MatrixPayload.RowMargins /
 	// ColumnMargins / GrandTotal emission rule (computed for
 	// normalization, surfaced only on explicit request).
+	//
+	// THE ADMISSION RULE (U47 #325). A record reaches a margin only if it
+	// reached a CELL: both its row key and its column key resolved. A row
+	// margin therefore walks its row bucket narrowed to the records that
+	// are also column-axis members, a column margin the reverse, and the
+	// grand margin the records that are members of BOTH axes. A record
+	// whose GROUP_SET_PER_ELEMENT set is null or empty, or whose axis key
+	// a grouper Include excluded, reached no cell and so moves no margin
+	// and no normalize denominator — column % is "% of those asked", not
+	// "% of everyone". The cell field's own nullity is NOT a gate here
+	// (admitRecords with a nil cellAgg): a null cell field still reached
+	// its cell, as that cell's n_null, and the margin floor counts it the
+	// same way. The fused walk applies the identical gate
+	// (FusedCrosstabState.Update); the auxiliary margins add the cell-field
+	// probe on top (computeAuxMargins).
+	//
+	// A nil membership set means "every filter-passing record resolved
+	// this axis", which admitRecords reads as "do not cross-check" — the
+	// common no-null, no-Include crosstab pays no per-record filtering.
+	rowMember, colMember := ownMarginMembership(rowPart, colPart, len(filtered))
+
 	var rowMargins map[string]any
 	var rowMarginPresent map[string]bool
 	var rowMarginCounts map[string]int
@@ -680,7 +701,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			rowMarginComponents = make(map[string]map[string]any, len(rowPart.Keys))
 		}
 		for _, rkey := range rowPart.Keys {
-			bucket := rowPart.Records[rkey]
+			bucket := admitRecords(rowPart.Records[rkey], colMember, nil, nil)
 			if len(bucket) == 0 {
 				continue
 			}
@@ -717,7 +738,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			colMarginComponents = make(map[string]map[string]any, len(colPart.Keys))
 		}
 		for _, ckey := range colPart.Keys {
-			bucket := colPart.Records[ckey]
+			bucket := admitRecords(colPart.Records[ckey], rowMember, nil, nil)
 			if len(bucket) == 0 {
 				continue
 			}
@@ -747,8 +768,8 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	var grandMarginCount int
 	var grandMarginComponents map[string]any
 	if spec.NeedsGrandMargin() {
-		if len(filtered) > 0 {
-			val, instance, n, nNull, err := p.runCellAggregation(cellAgg, filtered)
+		if admitted := admitRecords(filtered, rowMember, colMember, nil); len(admitted) > 0 {
+			val, instance, n, nNull, err := p.runCellAggregation(cellAgg, admitted)
 			if err != nil {
 				return nil, err
 			}
@@ -772,8 +793,8 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// Evaluated here, immediately after the cell aggregator's own three
 	// margin blocks, because these are margins too — the difference is
 	// WHICH records reach them, not where they sit. See
-	// crosstab_margin_agg.go for the admission rule, and for why the
-	// blocks above deliberately do NOT share it.
+	// crosstab_margin_agg.go for the admission rule: the blocks above
+	// share its two axis exclusions but not its cell-field probe.
 	//
 	// Placed AHEAD of the partial-depth and cross-axis margin work below
 	// on purpose: those exist solely as normalization denominators for
@@ -835,7 +856,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			partialRowMargins = make(map[string]float64, len(partialRowPart.Keys))
 			partialRowPresent = make(map[string]bool, len(partialRowPart.Keys))
 			for _, pkey := range partialRowPart.Keys {
-				bucket := partialRowPart.Records[pkey]
+				bucket := admitRecords(partialRowPart.Records[pkey], rowMember, colMember, nil)
 				if len(bucket) == 0 {
 					continue
 				}
@@ -867,7 +888,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			partialColMargins = make(map[string]float64, len(partialColPart.Keys))
 			partialColPresent = make(map[string]bool, len(partialColPart.Keys))
 			for _, pkey := range partialColPart.Keys {
-				bucket := partialColPart.Records[pkey]
+				bucket := admitRecords(partialColPart.Records[pkey], rowMember, colMember, nil)
 				if len(bucket) == 0 {
 					continue
 				}
@@ -913,7 +934,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		}
 		crossMargins = make(map[crosstabCellKey]float64, len(joined.Keys))
 		for _, jkey := range joined.Keys {
-			bucket := joined.Records[jkey]
+			bucket := admitRecords(joined.Records[jkey], rowMember, colMember, nil)
 			if len(bucket) == 0 {
 				continue
 			}

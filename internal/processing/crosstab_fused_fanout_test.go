@@ -456,8 +456,10 @@ func TestFusedCrosstab_FanOutMarginNonAdditivity(t *testing.T) {
 
 // TestFusedCrosstab_FanOutPerAxisNullityIndependence pins the per-axis
 // nullity rule under fan-out: a record whose row axis fans but whose
-// column axis is unresolved still feeds every row margin it fans into
-// and the grand margin, and lands in no cell.
+// column axis is unresolved still interns every row key it fans into
+// (the axis keys are per-axis), but lands in no cell — and so, under the
+// cell-admission rule (U47 #325), in no margin either: every margin slot
+// and the grand total carry no figure on both arms.
 func TestFusedCrosstab_FanOutPerAxisNullityIndependence(t *testing.T) {
 	schema := fanoutCrosstabSchema(t)
 	recs := []*Record{
@@ -491,34 +493,37 @@ func TestFusedCrosstab_FanOutPerAxisNullityIndependence(t *testing.T) {
 	if got, want := len(state.rowMarginCount), 2; got != want {
 		t.Errorf("row margins = %d, want %d", got, want)
 	}
+	if got, want := len(state.colMarginCount), 2; got != want {
+		t.Errorf("column margins = %d, want %d", got, want)
+	}
 	for r, n := range state.rowMarginCount {
-		if n != 1 {
-			t.Errorf("rowMarginCount[%d] = %d, want 1", r, n)
+		if n != 0 {
+			t.Errorf("rowMarginCount[%d] = %d, want 0 (the record reached no cell)", r, n)
 		}
 	}
 	for c, n := range state.colMarginCount {
-		if n != 1 {
-			t.Errorf("colMarginCount[%d] = %d, want 1", c, n)
+		if n != 0 {
+			t.Errorf("colMarginCount[%d] = %d, want 0 (the record reached no cell)", c, n)
 		}
 	}
-	if state.grandMarginCount != 2 {
-		t.Errorf("grandMarginCount = %d, want 2", state.grandMarginCount)
+	if state.grandMarginCount != 0 {
+		t.Errorf("grandMarginCount = %d, want 0 (no record reached a cell)", state.grandMarginCount)
 	}
 }
 
-// TestFusedCrosstab_PartialDepthMarginGatesOnPrefixDepth pins the
-// partial-depth (normalize_level) denominator rule the E2-S3 routing
-// table states: the margin updates once per deduped prefix key AT ITS OWN
-// DEPTH, so a record whose prefix positions all resolve feeds it even
-// when a DEEPER position is null and the record therefore lands in no
-// leaf row bucket. That is what buffered does — its denominator is
-// PartitionByAxis(spec.Rows[:level+1], filtered), which never looks past
-// level — and gating the fused update on full-axis resolution instead
-// shrinks the denominator and inflates every normalized cell.
+// TestFusedCrosstab_PartialDepthMarginFollowsCellAdmission pins the
+// partial-depth (normalize_level) denominator rule: the margin updates
+// once per deduped prefix key AT ITS OWN DEPTH, and — under the
+// cell-admission rule (U47 #325) — only for a record that reached a CELL.
+// A record whose prefix positions resolve but whose DEEPER position is
+// null lands in no leaf row bucket, so it feeds no denominator: the
+// normalised cells under a prefix then share that prefix's admitted
+// base. Before U47 both arms counted it (prefix-depth gate); the arms
+// must still agree.
 //
 // Both a single-key axis and a fanning axis are covered: the rule is
-// about depth, not about fan-out, and single-key is where it regressed.
-func TestFusedCrosstab_PartialDepthMarginGatesOnPrefixDepth(t *testing.T) {
+// about depth, not about fan-out.
+func TestFusedCrosstab_PartialDepthMarginFollowsCellAdmission(t *testing.T) {
 	zero := 0
 	cases := []struct {
 		name string

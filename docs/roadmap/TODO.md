@@ -405,7 +405,7 @@ Theme documents: see the [roadmap index](README.md).
 
 #### Survey tables ([U47](units/U47-survey-tables.md))
 - [ ] **#324** Weighted pairwise proportion tests on a normalised crosstab use the column base: n comes from the column margin's effective n (or is derived from the normalise denominator automatically); a reference-oracle case pins it · [U47](units/U47-survey-tables.md)
-- [ ] **#325** `GROUP_SET_PER_ELEMENT` axis margins follow the cell-admission rule (a row whose set is null reaches no cell and no margin), or the rule is stated and an opt-in provided; column % is "of those asked" · [U47](units/U47-survey-tables.md)
+- [x] **#325** `GROUP_SET_PER_ELEMENT` axis margins follow the cell-admission rule (a row whose set is null reaches no cell and no margin), or the rule is stated and an opt-in provided; column % is "of those asked" · [U47](units/U47-survey-tables.md)
 - [ ] **#326** Banner tables: a crosstab takes several independent column groups side by side (Total | Gender | Age | Region) and several measures as stub rows, in one request; a Total column needs no constant field · [U47](units/U47-survey-tables.md)
 - [ ] **#327** Significance letters: a presentation option on pairwise overlays that assigns column letters and marks, per cell, which columns it is significantly above, at a chosen alpha and correction · [U47](units/U47-survey-tables.md)
 - [ ] **#328** A tested wave-over-wave change: an inferential prior-period overlay on grouped Process (or a crosstab with no column axis), with p-values in the multiplicity family · [U47](units/U47-survey-tables.md)

@@ -30,12 +30,12 @@ Manifest: `crosstab.supports_margin_aggregations` + `crosstab.margin_aggregation
 
 ## The admission rule
 
-**A record contributes to an auxiliary ONLY IF IT CONTRIBUTED TO A CELL.** This is the least guessable property of the surface. Two exclusions follow, and they are the entire difference from the cell's own margins beside it:
+**A record contributes to an auxiliary ONLY IF IT CONTRIBUTED TO A CELL.** This is the least guessable property of the surface. Two exclusions follow:
 
-- a record whose CELL FIELD IS NULL (for a vector `element` cell: whose SELECTED MEMBER is null — the other members do not count);
-- a record whose axis key a grouper `include` list EXCLUDED.
+- a record whose axis key did not resolve — a null or empty set, a null key, or a key a grouper `include` list EXCLUDED;
+- a record whose CELL FIELD IS NULL (for a vector `element` cell: whose SELECTED MEMBER is null — the other members do not count).
 
-The cell's own margins count both. Deliberate, no knob: an auxiliary is a base the cells beside it are read against, so it must see the records they saw; a cohort-wide base answers a different question while looking identical. **Reading an auxiliary's `n` as a cohort count is wrong SILENTLY** — every figure still renders, only the base is off.
+The cell's own margins share the first exclusion (a record reaches ANY margin only if it reached a cell) but still count a null cell field, as that margin's `n_null`; an auxiliary drops it. Deliberate, no knob: an auxiliary is a base the cells beside it are read against, so it must see the records they saw. **Reading an auxiliary's `n` as a cohort count is wrong SILENTLY** — every figure still renders, only the base is off.
 
 Both execution arms (fused and buffered) apply the rule identically; nothing in the response says which ran, and nothing needs to.
 
@@ -51,7 +51,7 @@ On `Response.Components.Crosstab`:
 
 Each is a map keyed by effective label; each entry is `{value, present, components}`. `components` = the floor `{n, n_null}` over ADMITTED records plus that operator's own component keys — so a distinct-sum auxiliary exposes its `distinct_count` per margin slot beside the scalar: two figures off one scan.
 
-- They sit BESIDE `row_margin_components` (the CELL aggregator's margin, which admits every filter-passing record routed to the row), never inside it. Merging the two would file differently-based figures under one roof.
+- They sit BESIDE `row_margin_components` (the CELL aggregator's margin, null cell field included as `n_null`), never inside it. Merging the two would file differently-based figures under one roof.
 - **`present` is load-bearing, not a zero value.** A slot admitting no record carries `present: false` and NO `value` key — an aggregator over an empty set has no defined output, and a fabricated `0` would be indistinguishable from a real one. Its `components` still carry the floor, whose `n = 0` is true.
 - Declaring no auxiliary emits none of the three keys.
 

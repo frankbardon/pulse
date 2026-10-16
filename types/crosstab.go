@@ -92,11 +92,12 @@ type CrosstabSpec struct {
 	// ADMISSION CONTRACT (normative for the accumulation paths): an
 	// auxiliary margin aggregation observes the SAME record admission
 	// as the cell aggregator — a record contributes to these
-	// accumulators only if it contributed to a cell. That is
-	// deliberately NOT how the cell aggregator's own margins behave
-	// (those see every filter-passing record with a non-null axis
-	// key), and it is what makes an auxiliary base reconcilable
-	// against the cells it sits beside. The slot carries no knob for
+	// accumulators only if it contributed to a cell. The cell
+	// aggregator's own margins share the axis half of that rule (U47:
+	// a record reaches any margin only if both its axis keys resolved)
+	// but still count a null cell field as n_null, which an auxiliary
+	// drops; it is what makes an auxiliary base reconcilable against
+	// the cells it sits beside. The slot carries no knob for
 	// it: one sanctioned behaviour, stated here rather than made
 	// configurable.
 	//
@@ -444,7 +445,10 @@ type CrosstabComponents struct {
 	CellComponents [][]map[string]any `json:"cell_components,omitempty"`
 
 	// RowMarginCounts is the per-row-margin record count vector,
-	// indexed in MatrixPayload.RowKeys order.
+	// indexed in MatrixPayload.RowKeys order. A record reaches a margin
+	// only if it reached a cell (both axis keys resolved), so a null or
+	// empty set, or an Include-excluded key, on the column axis keeps a
+	// record out of every row margin.
 	RowMarginCounts []int `json:"row_margin_counts,omitempty"`
 
 	// RowMarginComponents is the per-row-margin aggregator components
@@ -452,7 +456,8 @@ type CrosstabComponents struct {
 	RowMarginComponents []map[string]any `json:"row_margin_components,omitempty"`
 
 	// ColumnMarginCounts is the per-column-margin record count vector,
-	// indexed in MatrixPayload.ColumnKeys order.
+	// indexed in MatrixPayload.ColumnKeys order, over the records that
+	// reached a cell (the RowMarginCounts admission rule).
 	ColumnMarginCounts []int `json:"column_margin_counts,omitempty"`
 
 	// ColumnMarginComponents is the per-column-margin aggregator
@@ -460,7 +465,8 @@ type CrosstabComponents struct {
 	ColumnMarginComponents []map[string]any `json:"column_margin_components,omitempty"`
 
 	// GrandTotalCount is the grand-total record count (mirrors the
-	// count behind MatrixPayload.GrandTotal).
+	// count behind MatrixPayload.GrandTotal) over the records that
+	// reached a cell, each counted once.
 	GrandTotalCount int `json:"grand_total_count,omitempty"`
 
 	// GrandTotalComponents is the grand-total aggregator components
@@ -479,8 +485,9 @@ type CrosstabComponents struct {
 	// These sit BESIDE RowMarginComponents rather than inside it
 	// because they are not the same figure: RowMarginComponents
 	// describes the CELL aggregator's own row margin, which counts
-	// every filter-passing record routed to that row; an auxiliary
-	// observes the cell's ADMISSION instead. Merging the two key sets
+	// every record that reached a cell in that row (null cell field
+	// included, as n_null); an auxiliary additionally drops a null
+	// cell field. Merging the two key sets
 	// into one map would put two differently-based figures under one
 	// roof with nothing saying so.
 	RowMarginAggregations []map[string]MarginAggregationFigure `json:"row_margin_aggregations,omitempty"`

@@ -255,19 +255,20 @@ func TestCrosstabWide_PerElementRowAxisHitsGeneratedTruth(t *testing.T) {
 			}
 			// Margins recompute from RAW ROWS, not from the cells: under
 			// fan-out the row margins over-count, so the grand total is
-			// the plain sum over every filter-passing record's value
-			// (nulls contribute nothing to AGG_SUM).
+			// the plain sum over every record that reached a CELL (U47
+			// #325) — a null or empty tags set reached none — counted
+			// once each (nulls contribute nothing to AGG_SUM).
 			if !m.GrandTotal.Present {
 				t.Fatal("grand margin missing")
 			}
 			var wantGrand float64
 			for _, r := range ctwRows() {
-				if !r.nullValue {
+				if !r.nullValue && !r.nullTags && len(r.tags) > 0 {
 					wantGrand += r.value
 				}
 			}
 			if got, _ := m.GrandTotal.Value.(float64); got != wantGrand {
-				t.Errorf("grand margin = %v, want %v (sum over raw rows, not over cells)", m.GrandTotal.Value, wantGrand)
+				t.Errorf("grand margin = %v, want %v (sum over admitted raw rows, not over cells)", m.GrandTotal.Value, wantGrand)
 			}
 		})
 	}

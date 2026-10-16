@@ -1174,8 +1174,11 @@ an auxiliary is never a denominator. That shape warns
 same record admission as the CELL aggregator — a record contributes only
 if it contributed to a cell — so a record whose cell field is null, and a
 record whose axis key a grouper `include` excluded, are absent from every
-auxiliary figure while the cell's own `row_margin_components` beside them
-still count both. Nothing in the schema distinguishes the two, and the
+auxiliary figure. The cell's own `row_margin_components` beside them
+follow the same axis rule (a record reaches any margin only if it reached
+a cell, so a null or empty set or an excluded key is in no margin and no
+normalize denominator) but still count a null cell field as `n_null`.
+Nothing in the schema distinguishes the two, and the
 consequence is silent: a consumer reading an auxiliary's `components.n`
 as a cohort count gets a well-formed, plausible, wrong number. See
 `skills/crosstab-guide.md` and `skills/response-components.md`.

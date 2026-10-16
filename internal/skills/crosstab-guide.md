@@ -26,12 +26,12 @@ Result `Response.Crosstab.Matrix` — `RowKeys`, `ColumnKeys`, `Cells`, margins,
 
 - Need margins (row / column / grand totals) or shares (row %, column %)? → crosstab.
 - Only one figure per key combination, no totals? → plain `groups` + `aggregations` (`grouper-design`).
-- Several figures per cell? → one crosstab per figure (Compose them). A second figure only on the MARGINS (e.g. an unweighted base, `"weight": null`) rides `margin_aggregations` — a record reaches it only if it reached a CELL (`crosstab-margin-aggregations`).
+- Several figures per cell? → one crosstab per figure (Compose them). A second figure only on the MARGINS (e.g. an unweighted base, `"weight": null`) rides `margin_aggregations` (`crosstab-margin-aggregations`).
 - Comparing cells statistically (share index, cell z, χ², pairwise column tests)? → a crosstab plus overlays (`overlay-system`).
 
 ## Axes, cell
 
-`rows`, `columns` are each a list of groupers — any grouper, either axis. Several per axis = nested headers in composite-key order. Empty axes / missing cell ⇒ `PULSE_CROSSTAB_EMPTY_ROWS` / `_EMPTY_COLUMNS` / `_MISSING_CELL`.
+`rows`, `columns`: lists of groupers, any grouper on either axis. Several per axis = nested headers in composite-key order. Empty axes / missing cell ⇒ `PULSE_CROSSTAB_EMPTY_ROWS` / `_EMPTY_COLUMNS` / `_MISSING_CELL`.
 
 **Include ordering is per axis** (per key position when nested): listed order, else alphabetical; zero-record include values drop.
 
@@ -41,13 +41,13 @@ Result `Response.Crosstab.Matrix` — `RowKeys`, `ColumnKeys`, `Cells`, margins,
 
 ## Margins recompute from raw rows
 
-Row / column / grand margins aggregate the **raw rows of that margin**, NOT the cell values. So mean / median / stddev / percentile margins are correct, and cell-sum agreement holds only for true sums. Distinct-count margins are the **union** — a respondent in two rows counts once in the column margin. A row weight weighs cells and every margin alike; normalize divides weighted by weighted.
+Row / column / grand margins aggregate the **raw rows of that margin**, NOT the cell values. So mean / median / percentile margins are correct; cells sum to a margin only for true sums. **A record reaches a margin only if it reached a CELL** (both axis keys resolved): a null or empty set, or an `include`-excluded key, moves no margin or denominator — column % is "% of those asked". Distinct-count margins are the **union** — a respondent in two rows counts once in the column margin. A row weight weighs cells and every margin alike; normalize divides weighted by weighted.
 
 The manifest classifies every cell aggregator: `crosstab.summable_aggregators`, `mean_reducible_aggregators`, `independent_aggregators` (own margin accumulator) and `recompute_aggregators` (needs a raw-row rescan, so it never fuses).
 
 ## Normalize
 
-`none` (default), `row`, `column`, `total` — each cell divided by the matching margin. Zero margin ⇒ `MatrixCell.Present=false`. Normalize computes the matching margin even when `margins.*` is false (not displayed).
+`none` (default), `row`, `column`, `total` — each cell divided by the matching margin. Zero margin ⇒ `MatrixCell.Present=false`. Normalize computes the matching margin even when `margins.*` is false.
 
 - `normalize_level: L` — same-axis rollup; cells sharing the first `L+1` groupers sum to 1. Rejections: `_OUT_OF_RANGE`, `_WITHOUT_NESTED_AXIS`, `_INCOMPATIBLE` (with `total`).
 - `normalize_within: W` — fixes a prefix of the **opposite** axis in the denominator; composes with `normalize_level`. Canonical: `rows=[brand]`, `columns=[wave,response]`, `normalize=row`, `normalize_within=0` — each cell is brand's wave-share to that response. Rejections: `_WITHIN_OUT_OF_RANGE`, `_WITHIN_WITHOUT_AXIS`, `_WITHIN_INCOMPATIBLE`.
@@ -58,25 +58,25 @@ The manifest classifies every cell aggregator: `crosstab.summable_aggregators`, 
 
 ## Streamability
 
-Crosstab output is buffered (`pulse predict` reports `streamable_reasons`); what varies is how the grid is BUILT.
+Output is buffered (predict: `streamable_reasons`); only how the grid is BUILT varies.
 
 ### Fused mergeable path
 
-Records fold into per-cell / per-margin state in one decode pass — memory `O(cells + margins)`, not `O(records)`. Automatic (predict: `crosstab_fusable`); identical output. It applies when:
+One decode pass into per-cell / per-margin state — memory `O(cells + margins)`. Automatic (predict: `crosstab_fusable`), identical output, when:
 
 - the cell aggregator is not in `crosstab.recompute_aggregators`, and every `margin_aggregations` entry is mergeable;
 - every axis grouper keys one record at a time — all but the rank-based quantile one, fan-out included, any axis (extension: declared `Streamable` / `FansOut`);
 - nothing needs whole-cohort context: no join, no tests, features, formula attributes or expression filters, no decimal cell field.
 
-Overlays never prevent fusing. A fan-out axis makes margins non-additive on both paths (a 3-option record counts 3× in row margins).
+Overlays never prevent fusing. Fan-out margins are non-additive (a 3-option record counts 3× in row margins).
 
-**Grid cap.** Rows × columns over `max_crosstab_cells` refuses either path with `PULSE_LIMIT_EXCEEDED`; predict flags it `possible`.
+**Grid cap.** Rows × columns over `max_crosstab_cells` refuses with `PULSE_LIMIT_EXCEEDED`; predict flags it `possible`.
 
 **Joins.** A joined crosstab runs buffered over the JOINED rows (`as`-prefixed right fields)<!-- feature: capability:joins -->; see `join-design`<!-- /feature -->.
 
 ## Components — `Response.Components.Crosstab`
 
-Mirrors the matrix coordinate-for-coordinate: `CellComponents[r][c]` ↔ `Cells[r][c]` (cell keys + floor `{n, n_null}`; `nil` when empty), `RowKeyComponents` / `ColumnKeyComponents` ↔ key tuples (nested: `{axes: [{field, bucket}]}`), `RowMarginCounts` / `RowMarginComponents` ↔ `RowMargins` (columns symmetric), `GrandTotalCount` / `GrandTotalComponents` ↔ `GrandTotal`, each populated iff its matrix slot is. `CellCounts` is a RECORD count (`n + n_null`, raw), not the sample size.
+Mirrors the matrix coordinate-for-coordinate: `CellComponents[r][c]` ↔ `Cells[r][c]` (cell keys + floor `{n, n_null}`; `nil` when empty), `RowKeyComponents` / `ColumnKeyComponents` ↔ key tuples (nested: `{axes: [{field, bucket}]}`), `RowMarginCounts` / `RowMarginComponents` ↔ `RowMargins` (columns symmetric), `GrandTotalCount` / `GrandTotalComponents` ↔ `GrandTotal`, each populated iff its matrix slot is. `CellCounts` is a RECORD count (`n + n_null`), not the sample size.
 
 ## Tests + overlays compose
 

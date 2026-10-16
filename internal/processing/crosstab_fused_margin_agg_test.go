@@ -154,20 +154,22 @@ func TestFusedCrosstab_AuxMarginObservesCellAdmission(t *testing.T) {
 			weighted)
 	}
 
-	// The cell aggregator's own grand margin is deliberately NOT
-	// admission-scoped: it counts every filter-passing record. If this
-	// assertion ever fails the two behaviours have been conflated.
-	if state.grandMarginCount != 5 {
-		t.Errorf("cell grand margin count = %d, want 5 — the auxiliary rule must not "+
-			"narrow the cell aggregator's own margins", state.grandMarginCount)
+	// The cell aggregator's own grand margin follows the same AXIS
+	// admission (U47 #325) but NOT the cell-field probe: respondents 1, 3
+	// (null cell field — still in its cell, as n_null) and 5. 5 means the
+	// Include-excluded and null-column-key records were counted; 2 means
+	// the null cell field was dropped from the cell's own margin.
+	if state.grandMarginCount != 3 {
+		t.Errorf("cell grand margin count = %d, want 3 — the cell's own margin "+
+			"admits axis members only, null cell field included", state.grandMarginCount)
 	}
 }
 
 // TestFusedCrosstab_AuxMarginPerAxisSlots pins the per-row and
 // per-column auxiliary figures. The contrast with the cell's own column
-// margin is the measured evidence from the research note: the `f`
-// column margin counts the Include-excluded record, the auxiliary
-// beside it must not.
+// margin: since U47 #325 neither counts the Include-excluded record, but
+// the cell's own margin still counts the null-cell-field record (as
+// n_null) where the auxiliary beside it does not.
 func TestFusedCrosstab_AuxMarginPerAxisSlots(t *testing.T) {
 	state := driveAuxMargin(t, auxMarginSpec())
 
@@ -190,9 +192,9 @@ func TestFusedCrosstab_AuxMarginPerAxisSlots(t *testing.T) {
 	if colBase != 1 {
 		t.Errorf("f column auxiliary distinct_count = %v, want 1 (respondent 1 only)", colBase)
 	}
-	if got := state.colMarginCount[colIdx]; got != 3 {
-		t.Errorf("cell f column margin count = %d, want 3 — the cell aggregator's own "+
-			"column margin still counts every record routed to the column", got)
+	if got := state.colMarginCount[colIdx]; got != 2 {
+		t.Errorf("cell f column margin count = %d, want 2 (respondents 1 and 3) — the cell "+
+			"aggregator's own column margin admits axis members only, null cell field included", got)
 	}
 }
 
