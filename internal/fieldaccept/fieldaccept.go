@@ -379,6 +379,7 @@ func init() {
 var decimalArm = map[string]bool{
 	"AGG_SUM": true, "AGG_AVERAGE": true, "AGG_MIN": true, "AGG_MAX": true,
 	"AGG_VARIANCE": true, "AGG_STDDEV": true, "AGG_COUNT": true, "AGG_DISTINCT_COUNT": true,
+	"AGG_NULL_COUNT": true,
 }
 
 // builtinAggregators is every built-in aggregator name: the decimal

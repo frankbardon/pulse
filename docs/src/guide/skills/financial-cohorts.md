@@ -68,7 +68,9 @@ An aggregator takes a decimal field iff its manifest `accepts_types` lists `deci
 | mean | decimal128; f64 fallback + `PULSE_PRECISION_LOSS` warning on overflow |
 | variance | decimal128 at `2 * mean_scale` (f64 fallback) |
 | standard deviation | decimal128 at `mean_scale`, banker-rounded sqrt (f64 fallback) |
-| counts (rows, distinct values) | int |
+| counts (rows, distinct values, nulls) | JSON integer, never a decimal string; null count reads the bitmap only |
+
+An empty sum is `"0.00"` (at the field scale), never null; `n == 0` in the components floor is the emptiness signal. Mean, min / max, variance and standard deviation of no value are `null`.
 
 **v1 not supported** on decimal: order statistics (median, percentiles), standardised and shape moments (z-score, skewness, kurtosis), modes, range.
 

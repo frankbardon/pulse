@@ -198,7 +198,7 @@ func TestTypeNames_DateRanges(t *testing.T) {
 // extension (unknown) aggregator are not judged by it.
 func TestDecimalRule(t *testing.T) {
 	d := encoding.FieldTypeDecimal128
-	for _, op := range []string{"AGG_MEDIAN", "AGG_NULL_COUNT", "AGG_PERCENTILE", "AGG_MODE", "AGG_WELFORD", "AGG_SET_UNION"} {
+	for _, op := range []string{"AGG_MEDIAN", "AGG_PERCENTILE", "AGG_MODE", "AGG_WELFORD", "AGG_SET_UNION"} {
 		r := Refusal(op, SlotField, "amt", d)
 		if r == nil || r.Code != errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL {
 			t.Errorf("%s: %v", op, r)
@@ -215,6 +215,10 @@ func TestDecimalRule(t *testing.T) {
 		if r := Refusal(op, SlotField, "amt", d); r != nil {
 			t.Errorf("decimal-arm %s refused: %v", op, r)
 		}
+	}
+	// AGG_NULL_COUNT reads the null bitmap only, so it has a decimal arm.
+	if !HasDecimalArm("AGG_NULL_COUNT") || Refusal("AGG_NULL_COUNT", SlotField, "amt", d) != nil {
+		t.Error("AGG_NULL_COUNT refuses decimal128")
 	}
 	if r := Refusal("AGG_EXT_NS_MEDIAN", SlotField, "amt", d); r != nil {
 		t.Errorf("extension aggregator refused: %v", r)

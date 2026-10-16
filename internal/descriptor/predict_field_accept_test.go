@@ -19,7 +19,7 @@ func TestPredict_FieldAcceptance_DecimalReportedOnce(t *testing.T) {
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 6,
 			Description: "Amount in USD with 6 decimal places of precision."},
 	}})
-	for _, op := range []types.AggregationType{types.AGG_MODE, types.AGG_FREQUENCY, types.AGG_SET_UNION, types.AGG_MEDIAN, types.AGG_NULL_COUNT} {
+	for _, op := range []types.AggregationType{types.AGG_MODE, types.AGG_FREQUENCY, types.AGG_SET_UNION, types.AGG_MEDIAN} {
 		for _, strict := range []bool{false, true} {
 			agg := &types.Aggregation{Type: op, Field: "amount"}
 			if op == types.AGG_FREQUENCY { // the only one of them taking params.value
