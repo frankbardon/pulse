@@ -77,7 +77,7 @@ Manifest `overlays[].buffered`; descriptive SERIES kinds stream. MATRIX kinds fo
 
 ## Weighted hosts
 
-Descriptive kinds read the weighted payload. Inferential kinds RUN on each cell's floor-key N* (Σw, or Kish n_eff under `probability`; echoed in `summary.parameters`); a pairwise proportion reads its BASE's N*, the margin its `normalize` share is of<!-- feature: capability:crosstab --> (`pairwise-n-sources`)<!-- /feature -->. Only<!-- feature: OVERLAY_FISHER_EXACT_CELL --> `OVERLAY_FISHER_EXACT_CELL` on a probability host,<!-- /feature --><!-- feature: OVERLAY_PAIRWISE_TWO_MEANS_Z --> `OVERLAY_PAIRWISE_TWO_MEANS_Z`,<!-- /feature --><!-- feature: OVERLAY_PAIRWISE_PROBIT_T --> `OVERLAY_PAIRWISE_PROBIT_T`<!-- /feature --> refuse (`PULSE_WEIGHT_UNSUPPORTED`). Spec `"weight": null` opts the slot out, not the host cell (`weighting`).
+Descriptive kinds read the weighted payload. Inferential kinds RUN on each cell's floor-key N* (Σw, or Kish n_eff under `probability`; echoed in `summary.parameters`); a pairwise proportion reads its BASE's N*, the margin its `normalize` share is of<!-- feature: capability:crosstab --> (`pairwise-n-sources`)<!-- /feature -->. Only<!-- feature: OVERLAY_FISHER_EXACT_CELL --> `OVERLAY_FISHER_EXACT_CELL` on a probability host,<!-- /feature --><!-- feature: OVERLAY_PAIRWISE_TWO_MEANS_Z --> `OVERLAY_PAIRWISE_TWO_MEANS_Z`,<!-- /feature --><!-- feature: OVERLAY_PAIRWISE_PROBIT_T --> `OVERLAY_PAIRWISE_PROBIT_T`<!-- /feature --> refuse (`PULSE_WEIGHT_UNSUPPORTED`). Spec `"weight": null` opts the slot out, not the host cell<!-- feature: capability:weighting --> (`weighting`)<!-- /feature -->.
 
 ## See
 
