@@ -313,3 +313,105 @@ func TestFormulaTotal_CrosstabDeclines(t *testing.T) {
 		t.Fatalf("AssertCanFuse refused for the wrong reason: %v", err)
 	}
 }
+
+// weightedTotalFormula is totalFormula with a slot weight on the
+// attribute (the stamped spec StampWeightsWith leaves on it).
+func weightedTotalFormula(t *testing.T, s *encoding.Schema, src string, w *types.WeightSpec) AttributeComputer {
+	t.Helper()
+	attr := &types.Attribute{Type: types.ATTR_FORMULA, Expression: src, Label: "v"}
+	if w != nil {
+		attr.Weight = types.SlotWeightOf(*w)
+	}
+	comp, err := newFormulaAttribute(attr, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := BindAttribute(comp, nil, nil); err != nil {
+		t.Fatalf("%q: bind: %v", src, err)
+	}
+	return comp
+}
+
+// TestFormulaTotal_FrequencyWeighted: under a frequency weight
+// total(expr) is Σw·expr in record order (the expanded-row total) — a
+// zero-weight row adds nothing and a null argument is still skipped —
+// bit for bit on the buffered arm and through both Processor arms
+// (ungrouped two-pass streaming, grouped buffered).
+func TestFormulaTotal_FrequencyWeighted(t *testing.T) {
+	s := exprParitySchema()
+	recs := exprParityRecords(s, 203, true)
+	freq := &types.WeightSpec{Field: "y", Kind: types.WeightKindFrequency}
+	var want, unweighted float64
+	for _, r := range recs {
+		y, _ := r.NumericValue("y")
+		if v, ok := r.NumericValue("x"); ok {
+			unweighted += v
+			if y != 0 {
+				want += float64(y * v)
+			}
+		}
+	}
+	if want == unweighted {
+		t.Fatal("degenerate fixture: weighted total equals unweighted")
+	}
+	got, err := weightedTotalFormula(t, s, "total(x) + 0 * y", freq).Compute(recs, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, v := range got {
+		if math.Float64bits(v) != math.Float64bits(want) {
+			t.Fatalf("row %d: %v, want Σw·x %v", i, v, want)
+		}
+	}
+	out := &types.Attribute{Type: types.ATTR_FORMULA, Expression: "total(x)", Label: "out", Weight: types.SlotWeightOf(*freq)}
+	resp, path := runTotal(t, s, recs, totalRunReq([]*types.Attribute{out}, nil, nil))
+	if path != PathStreaming {
+		t.Fatalf("path %v, want streaming", path)
+	}
+	if resp.Data[0]["max"] != want {
+		t.Fatalf("streaming: %v, want %v", resp.Data[0]["max"], want)
+	}
+	grouped, gpath := runTotal(t, s, recs, totalRunReq([]*types.Attribute{out},
+		[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}}, nil))
+	if gpath != PathBuffered {
+		t.Fatalf("grouped path %v, want buffered", gpath)
+	}
+	for _, row := range grouped.Data {
+		if row["max"] != want {
+			t.Fatalf("group %v: %v, want %v", row["cat"], row["max"], want)
+		}
+	}
+}
+
+// TestFormulaTotal_UnitWeightByteIdentical: a weight of 1 on every row
+// leaves total() bit-identical to the unweighted sum, and an unweighted
+// slot is untouched.
+func TestFormulaTotal_UnitWeightByteIdentical(t *testing.T) {
+	s := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "x", Type: encoding.FieldTypeF64, Nullable: true},
+		{Name: "w", Type: encoding.FieldTypeU16},
+	}}
+	recs := make([]*Record, 97)
+	for i := range recs {
+		vals := map[string]float64{"x": float64(i%13)/7 + 0.1, "w": 1}
+		nulls := map[string]bool{}
+		if i%5 == 4 {
+			delete(vals, "x")
+			nulls["x"] = true
+		}
+		recs[i] = NewRecordWithWide(s, vals, nulls, nil)
+	}
+	plain, err := weightedTotalFormula(t, s, "(x ?? 0) / total(x)", nil).Compute(recs, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	unit, err := weightedTotalFormula(t, s, "(x ?? 0) / total(x)", &types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency}).Compute(recs, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range plain {
+		if math.Float64bits(plain[i]) != math.Float64bits(unit[i]) {
+			t.Fatalf("row %d: unit weight %v, unweighted %v", i, unit[i], plain[i])
+		}
+	}
+}

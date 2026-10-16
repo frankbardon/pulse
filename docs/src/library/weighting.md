@@ -126,6 +126,7 @@ frequency weights have a standard weighted form — with
 | ordinary least squares (plain, ridge, lasso, elastic net), the GLM (binomial, poisson, gamma), the regression attributes (fitted value, residual, leverage) | weighted (both kinds) | weighted |
 | the z-score and t-score attributes, the quantile grouper (on `groups` and both crosstab axes) | weighted (both kinds) | weighted |
 | Bayesian linear regression | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
+| a formula attribute (`ATTR_FORMULA`) that calls `total(expr)` — the total is Σw·expr, the expanded-row total | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
 | Shapiro-Wilk, Tukey HSD, repeated-measures ANOVA, the trend test, every post-test, any regression with `resample` or `selection`, the percentile-rank attribute, the pairwise two-means z and probit t overlays | `PULSE_WEIGHT_UNSUPPORTED` (permanent) | `PULSE_WEIGHT_UNSUPPORTED` (permanent) |
 | the min-max rescale attribute (`ATTR_NORMALIZED`) | `PROCESSING_CONFIG` | skipped |
 

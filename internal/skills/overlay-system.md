@@ -13,21 +13,17 @@ Additive, read-only decorations on a result. Specs ride `Request.Overlays`; each
 
 Use one for a figure DERIVED from the result: a share, index, delta, z-score, cell test.
 
-```jsonc
-{"overlays": [{"kind": "<overlay kind>", "scope": "cell", "ref": {"margin": {"axis": "row"}}}]}
-```
-
 ## Choosing an overlay
 
-1. Name the question, then read its intent (`pulse_skills_get intents`): `composition`, `benchmark`, `compare_groups`, `change_over_time`.
+1. Name the question, then read its intent (`pulse_skills_get intents`).
 2. Filter manifest `overlays[]` on that intent, then on the HOST you have — each entry lists `shapes`, `scopes`, `ref_kinds`, `buffered` and `inferential`.
 3. Read the kind's atomic skill for math, params and warnings. Never hardcode a kind count.
 
 ## OverlaySpec composition
 
-`kind`, `scope`, `ref`, optional `name` / `level` / `within` / `params`; Compose-only `reference` / `targets`. `scope` ∈ `cell|row|column|group|matrix|total`. `level` / `within` mirror the crosstab's `normalize_level` / `normalize_within` (same-axis rollup, opposite-axis prefix).
+`kind`, `scope`, `ref`, optional `name` / `level` / `within` / `params`; Compose-only `reference` / `targets`. `scope` ∈ `cell|row|column|group|matrix|total`. `level` / `within` mirror the crosstab's `normalize_level` / `normalize_within`.
 
-Predict and runtime refuse a misshapen spec — or a kind on a slot or shape it does not run on — under the SAME code (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, `_LEVEL_OUT_OF_RANGE`, `_SCOPE_UNSUPPORTED`, `_FORMULA_INVALID_IDENT`, …), carried as `errors[0].code` so `pulse_errors_lookup` resolves it.
+Predict and runtime refuse a misshapen spec, or a kind on a host it does not run on, under the SAME `errors[0].code` (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, `_LEVEL_OUT_OF_RANGE`, `_SCOPE_UNSUPPORTED`, …).
 
 ## Reference families
 
@@ -81,7 +77,7 @@ Manifest `overlays[].buffered`; descriptive SERIES kinds stream. MATRIX kinds fo
 
 ## Weighted hosts
 
-Descriptive kinds read the host's weighted figures as-is. An inferential kind refuses a weight that reaches it with `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` on the spec opts out.
+Descriptive kinds read the weighted payload. Inferential kinds RUN on each cell's floor-key N* (Σw, or Kish n_eff under `probability`; echoed in `summary.parameters`); a pairwise proportion reads its BASE's N*, the margin its `normalize` share is of<!-- feature: capability:crosstab --> (`pairwise-n-sources`)<!-- /feature -->. Only<!-- feature: OVERLAY_FISHER_EXACT_CELL --> `OVERLAY_FISHER_EXACT_CELL` on a probability host,<!-- /feature --><!-- feature: OVERLAY_PAIRWISE_TWO_MEANS_Z --> `OVERLAY_PAIRWISE_TWO_MEANS_Z`,<!-- /feature --><!-- feature: OVERLAY_PAIRWISE_PROBIT_T --> `OVERLAY_PAIRWISE_PROBIT_T`<!-- /feature --> refuse (`PULSE_WEIGHT_UNSUPPORTED`). Spec `"weight": null` opts the slot out, not the host cell (`weighting`).
 
 ## See
 

@@ -253,3 +253,28 @@ func TestDistanceClassOf(t *testing.T) {
 		}
 	}
 }
+
+// TestAttributeClassOf: an ATTR_FORMULA that calls total() is
+// frequency-only (#398); a row-local formula and every other attribute
+// keep their type's class.
+func TestAttributeClassOf(t *testing.T) {
+	for expr, want := range map[string]Class{
+		"x / total(x)":     ClassFrequencyOnly,
+		"total(x * y) + 1": ClassFrequencyOnly,
+		"x * 2":            ClassNone,
+		"totals + x":       ClassNone,
+	} {
+		if got := AttributeClassOf(&types.Attribute{Type: types.ATTR_FORMULA, Expression: expr}); got != want {
+			t.Errorf("ATTR_FORMULA %q class = %v, want %v", expr, got, want)
+		}
+	}
+	if ClassOf(string(types.ATTR_FORMULA)) != ClassNone {
+		t.Error("ATTR_FORMULA's type class must stay ClassNone (row-local)")
+	}
+	if got := AttributeClassOf(&types.Attribute{Type: types.ATTR_ZSCORE, Field: "x"}); got != ClassAware {
+		t.Errorf("ATTR_ZSCORE = %v, want ClassAware", got)
+	}
+	if got := AttributeClassOf(nil); got != ClassNone {
+		t.Errorf("nil = %v, want ClassNone", got)
+	}
+}

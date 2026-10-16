@@ -84,8 +84,9 @@ func TestFormulaTotal_Arms(t *testing.T) {
 }
 
 // TestFormulaTotal_GroupedWeightedProjected: a grouped request reads
-// the cohort-wide total on every group row; a request weight does not
-// reach it (unweighted); the projected buffered decode loads the
+// the cohort-wide total on every group row; a frequency request weight
+// reaches it, a probability one is refused, a slot opt-out restores the
+// unweighted total; the projected buffered decode loads the
 // total()'s argument columns, equal to an unprojected run.
 func TestFormulaTotal_GroupedWeightedProjected(t *testing.T) {
 	fsys := afero.NewMemMapFs()
@@ -115,18 +116,41 @@ func TestFormulaTotal_GroupedWeightedProjected(t *testing.T) {
 		ftBits(t, "group "+row["region"].(string), row["max"], want)
 	}
 
-	// A weight-aware aggregation under a request weight: its weighted
-	// mean of the constant column is the unweighted total, while a
-	// weighted Σ qty·score/3 would be several times larger.
+	// A weight-aware aggregation under a request weight (its weighted
+	// mean of the constant column is the total). A frequency weight
+	// reaches the total — Σ qty·score/3, the expanded rows (#398); a
+	// probability weight is refused (a total over arbitrary-scale
+	// weights); the slot's `weight: null` keeps the unweighted total.
+	var wantW float64
+	for r := 0; r < paritySmallRows; r++ {
+		if r%7 == 3 || !ftKeep(r%13) {
+			continue
+		}
+		wantW += float64(float64(r%13) * ftThird(float64(r%50)+0.5))
+	}
 	weighted := ftReq("ft.pulse", out)
-	weighted.Weight = &types.WeightSpec{Field: "qty"}
+	weighted.Weight = &types.WeightSpec{Field: "qty", Kind: types.WeightKindFrequency}
 	weighted.Aggregations = []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "out", Label: "mean"}}
 	wresp, err := p.Process(ctx, weighted)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if wsum := ftScoreSum(paritySmallRows, ftKeep, ftThird); math.Abs(wresp.Data[0]["mean"].(float64)-wsum) > 1e-12*wsum {
-		t.Fatalf("weighted request: total %v, want the unweighted %v", wresp.Data[0]["mean"], wsum)
+	if got := wresp.Data[0]["mean"].(float64); math.Abs(got-wantW) > 1e-12*wantW || math.Abs(got-want) < 1e-6*want {
+		t.Fatalf("frequency-weighted request: total %v, want Σw·x %v (unweighted %v)", got, wantW, want)
+	}
+	weighted.Weight = &types.WeightSpec{Field: "qty"}
+	if _, err := p.Process(ctx, weighted); !errors.HasCode(err, errors.PULSE_WEIGHT_UNSUPPORTED) {
+		t.Fatalf("probability-weighted total: %v, want PULSE_WEIGHT_UNSUPPORTED", err)
+	}
+	optOut := *out
+	optOut.Weight = types.NullSlotWeight()
+	weighted.Attributes = []*types.Attribute{&optOut}
+	oresp, err := p.Process(ctx, weighted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := oresp.Data[0]["mean"].(float64); math.Abs(got-want) > 1e-12*want {
+		t.Fatalf("opted-out total %v, want the unweighted %v", got, want)
 	}
 
 	// Buffered (percentile) so projection applies; score is read only

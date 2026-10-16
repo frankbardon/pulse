@@ -337,7 +337,7 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#292** Acceptance: the example's ROI, marginal ROI and scenario scale factors come out of Pulse with no hand-computed number · [U43](units/U43-post-aggregation-ratios.md). Delivered by [U43](units/U43-post-aggregation-ratios.md) (E2-S2): fixture `req/04`, `req/10` and `req/11` compute them natively
 
 #### Follow-ups from U43
-- [ ] **#398** A weight-aware `total()`: `ATTR_FORMULA` is not weight-aware today, so `total(expr)` is always the unweighted cohort sum. Found in U43 (E1) · [U47](units/U47-survey-tables.md)
+- [x] **#398** A weight-aware `total()`: `ATTR_FORMULA` is not weight-aware today, so `total(expr)` is always the unweighted cohort sum. Found in U43 (E1) · [U47](units/U47-survey-tables.md)
 - [ ] **#399** Merge `total()` partial sums across partitions so shard and parallel-decode runs stay parallel; today a two-pass `total()` request falls back to the sequential path there. Found in U43 (E1) · [U51](units/U51-archive-scale.md)
 - [x] **#400** Predict-compose does not run per-slot `Request.Overlays` validation: a slot-level `OVERLAY_FORMULA` on a non-crosstab host is refused at runtime (`PULSE_OVERLAY_KIND_UNKNOWN`) but predict-compose is silent (pre-existing predict/runtime gap) (the runtime code is now `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`). Done (U35 E3-S1): slot overlays go through `ValidateOverlays`, located `details.request`. Found in U43 (E2-S2) · [U35](units/U35-predict-runtime-parity.md)
 
@@ -410,7 +410,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#327** Significance letters: a presentation option on pairwise overlays that assigns column letters and marks, per cell, which columns it is significantly above, at a chosen alpha and correction · [U47](units/U47-survey-tables.md)
 - [ ] **#328** A tested wave-over-wave change: an inferential prior-period overlay on grouped Process (or a crosstab with no column axis), with p-values in the multiplicity family · [U47](units/U47-survey-tables.md)
 - [ ] **#329** Weighting: rim (raking) and cell weighting to marginal targets, producing a weight column and an efficiency report (Kish n_eff, design effect, weight range), from the library, CLI and MCP · [U47](units/U47-survey-tables.md)
-- [ ] **#330** SPSS export carries value labels from label tables and categorical dictionaries; `overlay-system.md` matches the runtime on weighted inferential overlays · [U47](units/U47-survey-tables.md)
+- [ ] **#330** SPSS export carries value labels from label tables and categorical dictionaries; `overlay-system.md` matches the runtime on weighted inferential overlays (overlay-system half done in E1-S3) · [U47](units/U47-survey-tables.md)
 - [ ] **#331** Acceptance: the brand tracker's banner becomes one request per table with letters; its weights are computed by Pulse from census targets instead of inside the synth spec; its SPSS hand-off carries value labels · [U47](units/U47-survey-tables.md)
 
 #### Experiment readout ([U48](units/U48-experiment-readout.md))
