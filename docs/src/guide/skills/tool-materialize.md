@@ -30,7 +30,7 @@ The cohort holds the source fields verbatim, then one nullable `f64` per derived
 - Integer window outputs (row number, rank) are stored as `f64`; a non-numeric output → `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
 - Existing `out` without `overwrite` → `SERVICE_VALIDATION`. Every refusal happens before anything is written; the write is atomic.
 - `sort` orders the ROWS only (keys: source fields or derived columns; Process's comparator, nulls last); window values follow each window's own `order_by`.
-- Output is always a single-file cohort; source sidecars are not carried.
+- Single-file output; the SPSS metadata sidecar is carried, no other sidecar.
 
 ## See
 

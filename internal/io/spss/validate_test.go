@@ -9,7 +9,6 @@ import (
 
 	perr "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/internal/io"
-	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
 
@@ -129,9 +128,10 @@ func TestValidateCohort_SanitizeNamesTurnsTheRefusalIntoAWarning(t *testing.T) {
 	}
 }
 
-// TestValidateCohort_RefusesTheRowStreamOptions. --include and --labels are
-// refused by WriteCohort; a predict that stayed silent about them would send
-// a caller to an export that fails on its first act.
+// TestValidateCohort_RefusesTheRowStreamOptions. --include is refused by
+// WriteCohort; a predict that stayed silent about it would send a caller to
+// an export that fails on its first act. (--labels is no longer a row-stream
+// option on a .sav export: it becomes value labels — value_labels_test.go.)
 func TestValidateCohort_RefusesTheRowStreamOptions(t *testing.T) {
 	fs, cohort := cohortFromRows(t, []string{"age"}, [][]string{{"10"}, {"20"}})
 
@@ -140,7 +140,6 @@ func TestValidateCohort_RefusesTheRowStreamOptions(t *testing.T) {
 		apply func(*pio.ExportJob)
 	}{
 		{"--include", func(j *pio.ExportJob) { j.Includes = []string{"age"} }},
-		{"--labels", func(j *pio.ExportJob) { j.LabelResolver = noopResolver{} }},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			predict := pio.NewExportJob(cohort, NewWriter(afero.NewMemMapFs(), "p.out", WriterOptions{}))
@@ -324,14 +323,3 @@ func listFS(t *testing.T, fs afero.Fs) []string {
 	sort.Strings(out)
 	return out
 }
-
-// noopResolver is the minimum pio.LabelResolver a test needs to set
-// CohortSource.Labelled. Nothing calls through it: both arms refuse before
-// a cell is rendered.
-type noopResolver struct{}
-
-func (noopResolver) Has(string) bool                          { return false }
-func (noopResolver) Mode(string) types.LabelMode              { return "" }
-func (noopResolver) Apply(_, _ string) (string, string, bool) { return "", "", false }
-func (noopResolver) FieldsWithAugment() []string              { return nil }
-func (noopResolver) Warnings() []pio.LabelWarning             { return nil }

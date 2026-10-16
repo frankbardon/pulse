@@ -125,6 +125,13 @@ unknown key at any depth is `PULSE_REQUEST_UNKNOWN_FIELD`.
 
 Always an ungrouped single file, written atomically: the source's
 logical fields verbatim, then the weight as a nullable `f64` with a
-generated description. Source sidecars are not carried. An overwrite
-that leaves stale sidecars beside the target adds a
-`PULSE_RAKE_SIDECARS_INVALIDATED` warning naming them.
+generated description. The source's SPSS metadata sidecar is carried:
+read before the write, rewritten for the new cohort (the weight gets a
+plain numeric variable; a replaced variable becomes one) and
+re-fingerprinted, so value labels survive to `pulse export spss`. A stale
+or unreadable source sidecar is not carried and adds a warning with its
+own code (`PULSE_SPSS_SIDECAR_STALE` / `_INVALID`), as does a replaced
+variable a response set or the derived registry names. No other sidecar
+is carried. An overwrite that leaves stale sidecars beside the target
+adds a `PULSE_RAKE_SIDECARS_INVALIDATED` warning naming them (a carried
+SPSS sidecar is fresh, so it is never among them).

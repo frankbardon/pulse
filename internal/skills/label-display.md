@@ -45,7 +45,7 @@ Each `LabelBinding` pairs a categorical field with a table and mode:
 
 ## Modes
 
-**Replace** — value rewritten in place. Group keys, aggregation keys, sample row cells, exported cells show the label. Two source values mapping to the same label disambiguate by appending the source in parens (`"United States (US)"` vs `"United States (USA)"`) and emit `PULSE_LABEL_COLLISION`. Rows-backed tables pre-pass for symmetric rendering; function-driven tables detect collisions online only. Use **augment** for lossless round-trip.
+**Replace** — value rewritten in place. Group keys, aggregation keys, sample row cells, exported cells show the label. Two source values mapping to the same label disambiguate by appending the source in parens (`"United States (US)"` vs `"United States (USA)"`) and emit `PULSE_LABEL_COLLISION`. Use **augment** for lossless round-trip.
 
 **Augment** — raw value preserved; sibling `"<field>_label"` column added. A schema field, or any output column (aggregation, attribute, group key, window, feature — default names included) named `<field>_label` ⇒ `PULSE_LABEL_FIELD_COLLISION` at validation, predict included.
 
@@ -68,6 +68,9 @@ Each `LabelBinding` pairs a categorical field with a table and mode:
 <!-- /feature -->
 <!-- feature: capability:export -->
 | `Export` / `Convert` | column value → label | extra column inserted after source |
+<!-- /feature -->
+<!-- feature: io_format:spss -->
+| `.sav` export | value labels on the numeric code (no cell rewritten) | same — `spss-export` |
 <!-- /feature -->
 
 Only key TEXT moves: overlay coordinates address the same host cell; no figure changes.<!-- feature: capability:compose --> A Compose overlay over slots bound differently refuses `PULSE_OVERLAY_KEY_SET_DIVERGENT`.<!-- /feature --> **A binding that reaches no surface warns `PULSE_LABEL_NOT_APPLIED`** (`details.reason` `field_not_in_output`: the field is no output column, axis or group key — bind a grouped field); `AutoLabels` defaults never warn.

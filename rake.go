@@ -83,8 +83,9 @@ type RakeResult struct {
 	// Warnings are the non-fatal coded findings: PULSE_RAKE_NOT_CONVERGED
 	// per group that stopped at max_iter, the cohort write's
 	// PULSE_FIELD_DESCRIPTION_LOW_QUALITY per weak source description,
-	// then PULSE_RAKE_SIDECARS_INVALIDATED when an overwrite left stale
-	// sidecars beside the target.
+	// then a PULSE_SPSS_SIDECAR_STALE / _INVALID when the source's SPSS
+	// sidecar could not be carried, then PULSE_RAKE_SIDECARS_INVALIDATED
+	// when an overwrite left stale sidecars beside the target.
 	Warnings []*errors.CodedError `json:"warnings,omitempty"`
 	// InvalidatedSidecars names each sidecar beside the target that an
 	// Overwrite invalidated, with its rebuild command.
@@ -135,8 +136,12 @@ func (r RakeResult) MarshalJSON() ([]byte, error) {
 // through NewCohortBuilder — any failure leaves nothing at out. Its
 // schema is the source's logical fields verbatim (a replaced
 // weight_field keeps its position) plus the weight, a nullable f64 with
-// a generated description. Source sidecars are not carried; a
-// managed-import source slides its expiry, as a Process read does.
+// a generated description. The source's SPSS metadata sidecar is
+// carried — rewritten for the output schema and re-fingerprinted, so value
+// labels survive to a .sav export; a stale or unreadable one (or a
+// replaced variable its response sets or derived registry name) is not,
+// with one warning carrying the cause's code. No other sidecar is carried;
+// a managed-import source slides its expiry, as a Process read does.
 func (p *Pulse) Rake(ctx context.Context, req RakeRequest) (*RakeResult, error) {
 	return observed(p, ctx, opSpec{kind: observe.OpRake, path: req.Cohort}, func(ctx context.Context) (*RakeResult, error) {
 		return p.rake(ctx, &req)
@@ -163,6 +168,7 @@ func (p *Pulse) rake(ctx context.Context, req *RakeRequest) (*RakeResult, error)
 		return nil, err
 	}
 	defer reader.Close()
+	carry, carryWarn := p.prepareSidecarCarry(req.Cohort)
 	src := reader.Schema()
 	plan, err := rake.Compile(req, src)
 	if err != nil {
@@ -227,6 +233,11 @@ func (p *Pulse) rake(ctx context.Context, req *RakeRequest) (*RakeResult, error)
 	if err != nil {
 		return nil, err
 	}
+	var replaced []string
+	if replace >= 0 {
+		replaced = []string{plan.WeightField()}
+	}
+	carried := p.carrySidecar(carry, carryWarn, built, replaced)
 	p.touchManaged(ctx, req.Cohort)
 	rep := sol.Report
 	res := &RakeResult{
@@ -239,7 +250,7 @@ func (p *Pulse) rake(ctx context.Context, req *RakeRequest) (*RakeResult, error)
 		Margins:             rep.Margins,
 		Groups:              rep.Groups,
 		Efficiency:          rep.Efficiency,
-		Warnings:            append(append([]*errors.CodedError(nil), sol.Warnings...), built.Warnings...),
+		Warnings:            append(append(append([]*errors.CodedError(nil), sol.Warnings...), built.Warnings...), carried...),
 		InvalidatedSidecars: built.InvalidatedSidecars,
 	}
 	if len(built.InvalidatedSidecars) > 0 {

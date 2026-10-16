@@ -30,7 +30,7 @@ The column is meant for `{"weight": {"field": "rake_weight"}}` with kind `probab
 
 ## Writing
 
-The builder opens BEFORE any record is read (an existing `out` without `overwrite` is `SERVICE_VALIDATION`, no scan), every refusal aborts it (nothing at `out`), an anchored `out` is `SERVICE_VALIDATION`. The output is always `0x01` ungrouped through `NewCohortBuilder`; source sidecars are not carried; an overwrite that leaves stale sidecars warns `PULSE_RAKE_SIDECARS_INVALIDATED`.
+The builder opens BEFORE any record is read (an existing `out` without `overwrite` is `SERVICE_VALIDATION`, no scan), every refusal aborts it (nothing at `out`), an anchored `out` is `SERVICE_VALIDATION`. The output is always `0x01` ungrouped through `NewCohortBuilder`; the source's SPSS metadata sidecar is CARRIED (`spss.PrepareSidecarCarry` before the builder opens — `out` may overwrite a cohort whose sidecar the write stales — then `SidecarCarry.WriteFor` after `Close`: the weight gets a plain numeric variable, a replaced `weight_field` variable becomes one unless a response set / the derived registry names it, re-fingerprinted over `out`; a stale / invalid source sidecar or an uncarriable one is a warning with its own code, never a refusal), no other sidecar is; an overwrite that leaves stale sidecars warns `PULSE_RAKE_SIDECARS_INVALIDATED` — a carried SPSS sidecar is fresh and dropped from `invalidated_sidecars` (`carrySidecar`, root `sidecar_carry.go`). Detail: `.claude/reference/byte-layout.md` (SPSS metadata sidecar).
 
 ## Oracle
 

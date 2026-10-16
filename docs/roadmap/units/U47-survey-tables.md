@@ -41,7 +41,7 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 - [x] **#327** (Survey tables) Significance letters: a presentation option on pairwise overlays that assigns column letters and marks, per cell, which columns it is significantly above, at a chosen alpha and correction
 - [x] **#328** (Survey tables) A tested wave-over-wave change: an inferential prior-period overlay on grouped Process (or a crosstab with no column axis), with p-values in the multiplicity family
 - [x] **#329** (Survey tables) Weighting: rim (raking) and cell weighting to marginal targets, producing a weight column and an efficiency report (Kish n_eff, design effect, weight range), from the library, CLI and MCP (`Pulse.Rake` in E4-S1; `pulse rake` leaf and `pulse_rake` tool in E4-S2)
-- [ ] **#330** (Survey tables) SPSS export carries value labels from label tables and categorical dictionaries; `overlay-system.md` matches the runtime on weighted inferential overlays (overlay-system half done in E1-S3)
+- [x] **#330** (Survey tables) SPSS export carries value labels from label tables and categorical dictionaries; `overlay-system.md` matches the runtime on weighted inferential overlays (overlay-system half done in E1-S3; SPSS half — `--labels` / `io.SPSSWriterOptions.ValueLabels` value labels, and Materialize / Rake carry the SPSS sidecar — in E4-S3)
 - [ ] **#331** (Survey tables) Acceptance: the brand tracker's banner becomes one request per table with letters; its weights are computed by Pulse from census targets instead of inside the synth spec; its SPSS hand-off carries value labels
 
 ## Scope
@@ -115,3 +115,10 @@ Parallel slots overlap, so a 12-slot banner costs about 3.3–4× one scan rathe
 Filed from [U43 handed on](U43-post-aggregation-ratios.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
 - [x] **#398** — A weight-aware `total()`: `ATTR_FORMULA` is not weight-aware today, so `total(expr)` is always the unweighted cohort sum. Found in U43 (E1).
+
+## Handed on
+
+| TODO | What | Owner |
+|---|---|---|
+| #470 | `.sav` value labels on a numeric coded (`u8`) field — out by decision (the brand tracker does not need it) | unowned |
+| #471 | `pulse export predict --labels` (value-label refusals predicted at the library seam only) | unowned |

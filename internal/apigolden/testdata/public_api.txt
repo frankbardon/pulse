@@ -2844,6 +2844,7 @@ pulse/io: type CohortSource field Includes []string
 pulse/io: type CohortSource field Labelled bool
 pulse/io: type CohortSource field Path string
 pulse/io: type CohortSource field TimeZone string
+pulse/io: type CohortSource field ValueLabels map[string]map[string]string
 pulse/io: type CohortValidator = pulse/internal/iocore.CohortValidator
 pulse/io: type CohortValidator underlying interface
 pulse/io: type CohortValidator imethod Close() error
@@ -3210,11 +3211,15 @@ pulse/io: const SPSSMissingNull pulse/io.SPSSMissingMode = "null"
 pulse/io: type SPSSReaderOptions struct
 pulse/io: type SPSSReaderOptions field Charset string
 pulse/io: type SPSSReaderOptions field MissingMode pulse/io.SPSSMissingMode
+pulse/io: type SPSSValueLabels struct
+pulse/io: type SPSSValueLabels field Field string
+pulse/io: type SPSSValueLabels field Labels map[string]string
 pulse/io: type SPSSWriterOptions struct
 pulse/io: type SPSSWriterOptions field Charset string
 pulse/io: type SPSSWriterOptions field IgnoreSidecar bool
 pulse/io: type SPSSWriterOptions field SanitizeNames bool
 pulse/io: type SPSSWriterOptions field Uncompressed bool
+pulse/io: type SPSSWriterOptions field ValueLabels []pulse/io.SPSSValueLabels
 pulse/io: type SchemaAwareReader = pulse/internal/iocore.SchemaAwareReader
 pulse/io: type SchemaAwareReader underlying interface
 pulse/io: type SchemaAwareReader imethod Close() error
@@ -5540,4 +5545,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 16784bd24a332e3900f7c858e00e3b4ea3266c4f562161e479d908da873aebc7
+// golden-hash: e7b9ff256c8a4fedd65641edbf828f6f7d0a64a77368b2e694224603349ea9d9

@@ -45,5 +45,5 @@ Four `.sav` WRITE knobs, one per `io.SPSSWriterOptions` field (`io.WriterOptions
 | `--charset` (export leaf only) | charset written AND declared. Default: the source's own declared spelling; UTF-8 with no SPSS provenance. Set it when the cohort holds text that codepage cannot express (else `PULSE_SPSS_CHARSET_UNENCODABLE`) |
 | `--sanitize-names` | rewrite names a `.sav` cannot carry (space, bracket, hyphen, leading digit) instead of refusing. **Refusal is the default on purpose**; this is the opt-in for the synthesised path. Deterministic, collision-safe, every rename reported as `PULSE_SPSS_NAME_SANITIZED` (full `field → name` list). Inert on the sidecar path |
 
-`pulse export spss` **refuses** `--include`, `--labels` and a non-UTC `--tz` rather than ignoring them (`PULSE_SPSS_EXPORT_UNSUPPORTED`): the writer encodes from raw cohort storage, not the rendered row stream those transform (a `.sav` DATETIME has no offset slot). Narrow or relabel into a cohort first.
+`pulse export spss` **refuses** `--include` and a non-UTC `--tz` rather than ignoring them (`PULSE_SPSS_EXPORT_UNSUPPORTED`): the writer encodes from raw cohort storage, not the rendered row stream those transform (a `.sav` DATETIME has no offset slot). `--labels` becomes `.sav` value labels instead (`spss-export`).
 <!-- /feature -->

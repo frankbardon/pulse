@@ -68,7 +68,7 @@ Raked weights are PROBABILITY weights: `{"weight": {"field": "rake_weight"}}` (k
 
 ## Refusals
 
-Nothing is written on any refusal: `PULSE_RAKE_INVALID` (`details.reason`), `PULSE_RAKE_UNKNOWN_CATEGORY` (a target the field cannot hold), `PULSE_RAKE_MISSING_VALUE` (null margin value under `refuse`, any null `by`), `PULSE_RAKE_UNTARGETED_CATEGORY` (a record's category has no target — add it, 0 zeroes those records), `PULSE_RAKE_EMPTY_CELL` (a positive target no record of the group can carry — collapse categories). An existing `out` without `overwrite` is `SERVICE_VALIDATION`. Source: a single file, a shard archive or an anchored shard; the output is one single-file cohort. Source sidecars are not carried.
+Nothing is written on any refusal: `PULSE_RAKE_INVALID` (`details.reason`), `PULSE_RAKE_UNKNOWN_CATEGORY` (a target the field cannot hold), `PULSE_RAKE_MISSING_VALUE` (null margin value under `refuse`, any null `by`), `PULSE_RAKE_UNTARGETED_CATEGORY` (a record's category has no target — add it, 0 zeroes those records), `PULSE_RAKE_EMPTY_CELL` (a positive target no record of the group can carry — collapse categories). An existing `out` without `overwrite` is `SERVICE_VALIDATION`. Source: a single file, a shard archive or an anchored shard; the output is one single-file cohort. The source's SPSS metadata sidecar is carried (value labels survive to `pulse export spss`); other sidecars are not.
 
 ## See
 

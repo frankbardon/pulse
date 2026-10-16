@@ -213,10 +213,10 @@ func TestExportJob_SPSS_IgnoreSidecarCannotRoundTripADerivedSet(t *testing.T) {
 	}
 }
 
-// TestExportJob_SPSS_RefusesProjectionAndLabels is the honesty check on
+// TestExportJob_SPSS_RefusesProjectionAndUnresolvedLabels is the honesty check on
 // the two ExportJob slots a cohort writer cannot honour. Emitting every
 // column in answer to --include would be a silent wrong answer.
-func TestExportJob_SPSS_RefusesProjectionAndLabels(t *testing.T) {
+func TestExportJob_SPSS_RefusesProjectionAndUnresolvedLabels(t *testing.T) {
 	fs, cohort, _ := importFixture(t, richSpec())
 
 	t.Run("include", func(t *testing.T) {
@@ -234,22 +234,34 @@ func TestExportJob_SPSS_RefusesProjectionAndLabels(t *testing.T) {
 		}
 	})
 
-	t.Run("labels", func(t *testing.T) {
+	// A label binding is carried as value labels once ExportJob has
+	// resolved it onto the dictionaries (value_labels_test.go). A
+	// hand-built CohortSource that reports one WITHOUT resolving it leaves
+	// nothing to write the labels from, so both halves still refuse it.
+	t.Run("unresolved labels", func(t *testing.T) {
+		src := pio.CohortSource{FS: fs, Path: cohort, Labelled: true}
+		_, err := NewWriter(fs, "out.sav", WriterOptions{}).WriteCohort(context.Background(), src)
+		if ce := codedErr(t, err); ce.Code != perr.PULSE_SPSS_EXPORT_UNSUPPORTED {
+			t.Errorf("WriteCohort code = %s, want %s", ce.Code, perr.PULSE_SPSS_EXPORT_UNSUPPORTED)
+		}
+		_, err = NewWriter(fs, "out.sav", WriterOptions{}).ValidateCohort(context.Background(), src)
+		if ce := codedErr(t, err); ce.Code != perr.PULSE_SPSS_EXPORT_UNSUPPORTED {
+			t.Errorf("ValidateCohort code = %s, want %s", ce.Code, perr.PULSE_SPSS_EXPORT_UNSUPPORTED)
+		}
+	})
+
+	t.Run("resolved labels binding nothing", func(t *testing.T) {
 		w := NewWriter(fs, "out.sav", WriterOptions{})
 		job := pio.NewExportJob(cohort, w)
 		job.FS = fs
 		job.LabelResolver = nopResolver{}
-		_, err := job.Run(context.Background())
-		ce := codedErr(t, err)
-		if ce.Code != perr.PULSE_SPSS_EXPORT_UNSUPPORTED {
-			t.Errorf("code = %s, want %s", ce.Code, perr.PULSE_SPSS_EXPORT_UNSUPPORTED)
+		if _, err := job.Run(context.Background()); err != nil {
+			t.Errorf("a resolver binding no field refused the export: %v", err)
 		}
 	})
 }
 
-// nopResolver is a LabelResolver that binds nothing; its presence alone is
-// what the writer refuses on, because ExportJob.Run applies it to the row
-// stream the cohort path never produces.
+// nopResolver is a LabelResolver that binds nothing.
 type nopResolver struct{}
 
 func (nopResolver) Has(string) bool                             { return false }

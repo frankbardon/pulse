@@ -538,6 +538,17 @@ type CohortSource struct {
 	// cells in the row stream (ExportJob.Labels / LabelResolver).
 	Labelled bool
 
+	// ValueLabels is that resolver's binding resolved onto the cohort's
+	// DICTIONARIES, keyed by bound field name: for a bound categorical,
+	// each dictionary entry the table resolves maps to its label (a
+	// replace binding's display text, an augment binding's sibling
+	// label); a bound field that is not a categorical of this schema maps
+	// to nil. Nil when Labelled is false. It is what lets a cohort writer
+	// carry the binding as format-native value labels (the `.sav`
+	// writer) instead of refusing it; a writer that cannot must still
+	// refuse on Labelled.
+	ValueLabels map[string]map[string]string
+
 	// TimeZone is ExportJob.TimeZone when it names a zone that is NOT
 	// UTC-equivalent, and empty otherwise — so a cohort writer sees it
 	// only when the row stream would have rendered datetimes off UTC.

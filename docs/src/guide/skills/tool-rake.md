@@ -26,7 +26,7 @@ A weight must be a schema field, so `pulse_rake` writes it to a new cohort; poin
 - Every category a record holds needs a target (`PULSE_RAKE_UNTARGETED_CATEGORY`); a target the field cannot hold is `PULSE_RAKE_UNKNOWN_CATEGORY`; a malformed request is `PULSE_RAKE_INVALID` (`details.reason`).
 - Not converging still writes, with `PULSE_RAKE_NOT_CONVERGED`; caps trade fit for efficiency.
 - The weights are PROBABILITY weights. `deff_kish` is the unequal-weighting design effect only.
-- Existing `out` without `overwrite` → `SERVICE_VALIDATION`; every refusal happens before anything is written. Source sidecars are not carried.
+- Existing `out` without `overwrite` → `SERVICE_VALIDATION`; every refusal happens before anything is written. An SPSS metadata sidecar is carried onto `out`; other source sidecars are not.
 
 ## See
 

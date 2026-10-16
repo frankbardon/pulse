@@ -676,6 +676,9 @@ func BuildDictionary(req DictionaryRequest) (*DictionaryPlan, error) {
 		err error
 	)
 	synth := req.Sidecar.Synthesise()
+	if !synth && len(req.Options.ValueLabels) > 0 {
+		return nil, sidecarWithLabels(req)
+	}
 	if synth {
 		f, err = synthesiseDictionary(req)
 	} else {

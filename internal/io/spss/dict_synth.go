@@ -96,11 +96,18 @@ func synthesiseDictionary(req DictionaryRequest) (*outFile, error) {
 		displayParams: true,
 	}
 
+	bindings, err := valueLabelBindings(req.Schema, req.Options.ValueLabels)
+	if err != nil {
+		return nil, err
+	}
 	minter := newNameMinter()
 	for i := range req.Schema.Fields {
 		vars, err := synthesiseField(req.Schema, i, minter, f)
 		if err != nil {
 			return nil, err
+		}
+		if b := bindings[i]; b != nil {
+			labelledCategorical(vars[0], &req.Schema.Fields[i], b)
 		}
 		f.vars = append(f.vars, vars...)
 	}

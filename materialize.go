@@ -41,7 +41,9 @@ type MaterializeResult struct {
 	// (a fitted vector attribute's PULSE_MATRIX_SINGULAR /
 	// PULSE_MATRIX_INSUFFICIENT_N fit, whose column is then all null),
 	// the cohort write's (PULSE_FIELD_DESCRIPTION_LOW_QUALITY per weak
-	// source description), then one PULSE_MATERIALIZE_SIDECARS_INVALIDATED
+	// source description), then a PULSE_SPSS_SIDECAR_STALE / _INVALID when
+	// the source's SPSS sidecar could not be carried, then one
+	// PULSE_MATERIALIZE_SIDECARS_INVALIDATED
 	// when an overwrite invalidated sidecars beside the target, then a
 	// failure to enumerate them.
 	Warnings []*errors.CodedError `json:"warnings,omitempty"`
@@ -92,9 +94,12 @@ type MaterializeResult struct {
 // The output is always an ungrouped (format 0x01) single file, written
 // atomically through NewCohortBuilder: any failure — a refusal, a limit
 // breach (PULSE_LIMIT_EXCEEDED), a write error, cancellation — leaves
-// nothing at out (an overwritten cohort stays as it was). Sidecars of
-// the source are not carried; a managed-import source slides its
-// expiry, as a Process read does. An anchored target
+// nothing at out (an overwritten cohort stays as it was). The source's
+// SPSS metadata sidecar is carried — rewritten with a plain numeric
+// variable per derived column and re-fingerprinted, so value labels
+// survive to a .sav export; a stale or unreadable one is not, with one
+// warning carrying its code. No other sidecar is carried; a
+// managed-import source slides its expiry, as a Process read does. An anchored target
 // (`archive.pulse#name.pulse`) is refused with SERVICE_VALIDATION.
 func (p *Pulse) Materialize(ctx context.Context, req *Request, out string, opts MaterializeOptions) (*MaterializeResult, error) {
 	return observed(p, ctx, requestOp(observe.OpMaterialize, req), func(ctx context.Context) (*MaterializeResult, error) {
@@ -108,6 +113,11 @@ func (p *Pulse) materialize(ctx context.Context, req *Request, out string, opts 
 			"materialize writes a single-file cohort; an anchored archive#shard target is not accepted",
 			map[string]any{"target": out, "reason": "anchored_target"})
 	}
+	var source string
+	if req != nil && req.Cohort != nil {
+		source = resolveCohortPath(req.Cohort)
+	}
+	carry, carryWarn := p.prepareSidecarCarry(source)
 	sink := &materializeSink{p: p, ctx: ctx, out: out, opts: opts}
 	err := p.svc.Materialize(ctx, req, sink)
 	if sink.reader != nil {
@@ -125,13 +135,14 @@ func (p *Pulse) materialize(ctx context.Context, req *Request, out string, opts 
 	if err != nil {
 		return nil, err
 	}
+	carried := p.carrySidecar(carry, carryWarn, built, nil)
 	// A read of a managed import slides its expiry, as Process does.
-	p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	p.touchManaged(ctx, source)
 	res := &MaterializeResult{
 		Target:              built.Target,
 		Records:             built.Records,
 		DerivedColumns:      sink.names,
-		Warnings:            append(append([]*errors.CodedError(nil), sink.warns...), built.Warnings...),
+		Warnings:            append(append(append([]*errors.CodedError(nil), sink.warns...), built.Warnings...), carried...),
 		InvalidatedSidecars: built.InvalidatedSidecars,
 	}
 	if len(built.InvalidatedSidecars) > 0 {
