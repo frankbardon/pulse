@@ -265,9 +265,13 @@ func synthesiseSet(s *encoding.Schema, at int, minter *nameMinter, f *outFile) (
 // held to maxVariableLabelLen bytes. The option is what tells one indicator
 // from its siblings, so an over-long label gives up the set half first; only
 // an option that alone overruns the limit is itself cut. Every cut lands on a
-// rune boundary, so the label stays valid UTF-8 for the charset pass.
+// rune boundary, so the label stays valid UTF-8 for the charset pass. The set
+// half's trailing periods and blanks are dropped first.
 func indicatorLabel(set, option string) string {
 	const sep = ": "
+	// A description is a sentence: its closing period would double up against
+	// the separator ("respondents.: Good value").
+	set = strings.TrimRight(set, ". \t")
 	if len(set)+len(sep)+len(option) <= maxVariableLabelLen {
 		return set + sep + option
 	}

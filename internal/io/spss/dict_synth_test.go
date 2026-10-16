@@ -396,6 +396,20 @@ func TestSynthesise_SetIndicatorsCarryAVariableLabel(t *testing.T) {
 	}
 }
 
+// TestIndicatorLabel_DropsTrailingPeriod: a sentence-style set description
+// does not double its period against the ": " separator.
+func TestIndicatorLabel_DropsTrailingPeriod(t *testing.T) {
+	for in, want := range map[string]string{
+		"Aided-aware respondents.":  "Aided-aware respondents: Good value",
+		"Aided-aware respondents. ": "Aided-aware respondents: Good value",
+		"Aided-aware respondents":   "Aided-aware respondents: Good value",
+	} {
+		if got := indicatorLabel(in, "Good value"); got != want {
+			t.Errorf("indicatorLabel(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 // TestSynthesise_SetWithNoDictionaryIsRefused: a set column with an empty
 // dictionary has no member for a response set to name, and there is no
 // honest thing to emit.
