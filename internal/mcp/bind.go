@@ -1788,7 +1788,7 @@ func bannerSchema(reqSchema map[string]any) map[string]any {
 			"sections": map[string]any{
 				"type":        "array",
 				"minItems":    1,
-				"description": "Stub sections; each overrides the base request's crosstab rows / cell(s) and appends its own filterers (a different base, e.g. aided-aware).",
+				"description": "Stub sections; each overrides the base request's crosstab rows / cell(s), appends its own filterers (a different base, e.g. aided-aware) and may replace the banner overlays with its own. Base `labels` ride only the slots whose rows or columns group by the bound field.",
 				"items": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -1797,6 +1797,9 @@ func bannerSchema(reqSchema map[string]any) map[string]any {
 						"rows":      prop("crosstab", "rows"),
 						"cell":      prop("crosstab", "cell"),
 						"cells":     prop("crosstab", "cells"),
+						// Non-empty, they REPLACE the banner-level
+						// overlays on the section's group slots.
+						"overlays": prop("overlays"),
 					},
 					"required": []string{"label"},
 				},

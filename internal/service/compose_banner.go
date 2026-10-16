@@ -123,19 +123,21 @@ func stitchBannerSection(layout *banner.Layout, sec banner.Section, responses []
 		table.Blocks = append(table.Blocks, block)
 	}
 
-	for j, spec := range layout.Overlays {
+	for j, spec := range sec.Overlays {
 		letters, err := stitchBannerLetters(layout, sec, j, spec, responses, rowOf, starts, rows, cols)
 		if err != nil {
 			return table, err
 		}
 		if letters != nil {
+			letters.Section = sec.OwnOverlays
 			table.Letters = append(table.Letters, *letters)
 		}
 	}
 	return table, nil
 }
 
-// stitchBannerLetters places banner overlay j's `letters` part of every
+// stitchBannerLetters places section overlay j's (Section.Overlays: the
+// section's own, else the banner-level ones) `letters` part of every
 // GROUP block on the stitched coordinates, or returns nil when no block's
 // layer carries one. The Total block never received the banner overlays,
 // so its columns hold no letter cell: the Total is compared to nothing.
@@ -155,7 +157,7 @@ func stitchBannerLetters(layout *banner.Layout, sec banner.Section, j int, spec 
 		resp := responses[blk.Index]
 		li := layout.BaseOverlays + j
 		if li >= len(resp.Overlays) {
-			return nil, bannerInternal(blk.Slot, "the slot is missing banner overlay "+strconv.Itoa(j))
+			return nil, bannerInternal(blk.Slot, "the slot is missing section overlay "+strconv.Itoa(j))
 		}
 		layer := resp.Overlays[li]
 		part := layer.Payload.Parts[processing.PairwiseLettersPart]

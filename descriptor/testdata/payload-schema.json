@@ -493,6 +493,9 @@
         },
         "scope": {
           "type": "string"
+        },
+        "section": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -547,6 +550,15 @@
         },
         "label": {
           "type": "string"
+        },
+        "overlays": {
+          "items": {
+            "$ref": "#/$defs/OverlaySpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "rows": {
           "items": {
@@ -5159,4 +5171,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 8ddcd865ffc557636cae8524d8a335e9d04f3c25c824dacf334f8cf30947ecad
+// golden-hash: f1a3149ea951aaf5762e6b8f00ef9e63e290ffc256bbe48478a761b77a3d1e6e

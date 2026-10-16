@@ -4420,6 +4420,7 @@ pulse/types: type BannerLetters field Kind pulse/types.OverlayKind "json:\"kind\
 pulse/types: type BannerLetters field Name string "json:\"name,omitempty\""
 pulse/types: type BannerLetters field Overlay int "json:\"overlay\""
 pulse/types: type BannerLetters field Scope pulse/types.OverlayScope "json:\"scope\""
+pulse/types: type BannerLetters field Section bool "json:\"section,omitempty\""
 pulse/types: type BannerResult struct
 pulse/types: type BannerResult field Sections []pulse/types.BannerSectionResult "json:\"sections\""
 pulse/types: type BannerSection struct
@@ -4427,6 +4428,7 @@ pulse/types: type BannerSection field Cell *pulse/types.Aggregation "json:\"cell
 pulse/types: type BannerSection field Cells []*pulse/types.Aggregation "json:\"cells,omitempty\""
 pulse/types: type BannerSection field Filterers []*pulse/types.Filterer "json:\"filterers,omitempty\""
 pulse/types: type BannerSection field Label string "json:\"label\""
+pulse/types: type BannerSection field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
 pulse/types: type BannerSection field Rows []*pulse/types.Group "json:\"rows,omitempty\""
 pulse/types: type BannerSectionResult struct
 pulse/types: type BannerSectionResult field Blocks []pulse/types.BannerBlock "json:\"blocks\""
@@ -5549,4 +5551,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: ac43b1ab5936660754f671556f44c4c74ff17aff6ed18bb9261f8ccbdc5860fe
+// golden-hash: 6bdffc23286c4237e3c6f89698c63c0483401e52510000b9f0895e41cb4ccadd

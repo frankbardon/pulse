@@ -22,7 +22,11 @@ type BannerSpec struct {
 	// `crosstab` — the shared rows, cell(s), margins and normalize. It
 	// may not set `label` (banner slots are labelled
 	// `<section>:<group>`), crosstab `columns` (the groups own them) or
-	// crosstab shape `long` (the stitch reads the matrix).
+	// crosstab shape `long` (the stitch reads the matrix). Its `labels`
+	// bindings are scoped per slot: a binding rides only the slots whose
+	// crosstab rows or columns group by its field, so the Total and the
+	// other groups' slots never warn PULSE_LABEL_NOT_APPLIED for it; a
+	// binding no banner slot groups by stays on every slot and warns.
 	Request *Request `json:"request"`
 
 	// Sections are the stub sections, at least one, labels non-empty
@@ -42,7 +46,9 @@ type BannerSpec struct {
 	// Overlays are request overlays appended to every GROUP slot after
 	// the base request's own (the Total slot never receives them). A
 	// pairwise kind carrying params.letters lets the stitch letter the
-	// columns of each group (BannerSectionResult.Letters).
+	// columns of each group (BannerSectionResult.Letters). A section
+	// that sets its own Overlays uses those INSTEAD of these
+	// (BannerSection.Overlays).
 	Overlays []OverlaySpec `json:"overlays,omitempty"`
 }
 
@@ -64,6 +70,15 @@ type BannerSection struct {
 	// rows). Setting both is refused by the crosstab rules on the slot.
 	Cell  *Aggregation   `json:"cell,omitempty"`
 	Cells []*Aggregation `json:"cells,omitempty"`
+
+	// Overlays, when non-empty, REPLACE the banner-level overlays
+	// (BannerSpec.Overlays) on this section's group slots — so a mean
+	// stub can run a means test while proportion stubs run a
+	// proportions test — and the section's letters are stitched from
+	// them (BannerLetters.Section). The base request's overlays still
+	// lead every slot and the Total slot still receives neither. Empty
+	// or absent inherits the banner-level overlays.
+	Overlays []OverlaySpec `json:"overlays,omitempty"`
 }
 
 // BannerGroup is one column group of a banner: one crosstab slot per
@@ -165,8 +180,12 @@ type BannerBlock struct {
 // each cell is copied unchanged (the letters name rows, the same in
 // every block).
 type BannerLetters struct {
-	// Overlay is the index into BannerSpec.Overlays.
+	// Overlay is the index into BannerSpec.Overlays — or, when Section
+	// is set, into the section's own BannerSection.Overlays.
 	Overlay int `json:"overlay"`
+	// Section marks letters stitched from the section's own overlays
+	// (BannerSection.Overlays), which replaced the banner-level ones.
+	Section bool `json:"section,omitempty"`
 	// Name / Kind / Scope echo the overlay spec.
 	Name  string       `json:"name,omitempty"`
 	Kind  OverlayKind  `json:"kind"`

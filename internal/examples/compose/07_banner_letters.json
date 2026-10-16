@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "compose",
-    "description": "Compose banner table: segment share (rows) across a Total block plus two column groups — Converted and Region — for two stub sections with different bases: every respondent, and the variant arm only (the section's own filterer). The banner expands into one ordinary crosstab slot per section x block (labelled section:block, Total first), and ComposedResponse.banner stitches each section's slots side by side: concatenated column keys, a blocks list locating each group's columns with its own row margins and grand total, and per-block significance letters from the banner overlay (OVERLAY_PAIRWISE_PROP_Z with params.letters on every GROUP slot). Letters run on across the banner (A, B for Converted; C, D, … for Region) and compare columns within one group only; the Total block is compared to nothing and carries no letter. The batch-level Holm multiplicity block (family compose) pools every banner slot's pairwise tests, so the letters read the corrected significance. Predict reports the banner summary and counts the expanded slots against MaxComposeSlots.",
+    "description": "Compose banner table: segment share (rows) across a Total block plus two column groups — Converted and Region — for two stub sections with different bases: every respondent, and the variant arm only (the section's own filterer). The banner expands into one ordinary crosstab slot per section x block (labelled section:block, Total first), and ComposedResponse.banner stitches each section's slots side by side: concatenated column keys, a blocks list locating each group's columns with its own row margins and grand total, and per-block significance letters from the banner overlay (OVERLAY_PAIRWISE_PROP_Z with params.letters on every GROUP slot). Letters run on across the banner (A, B for Converted; C, D, … for Region) and compare columns within one group only; the Total block is compared to nothing and carries no letter. The variant section sets its own overlays, which REPLACE the banner overlay on that section's group slots (here a looser letters alpha; a mean stub would run a means test instead), so its letters entry carries section: true. The batch-level Holm multiplicity block (family compose) pools every banner slot's pairwise tests, so the letters read the corrected significance. Predict reports the banner summary and counts the expanded slots against MaxComposeSlots.",
     "capabilities": [
       "capability:compose_banner"
     ],
@@ -39,7 +39,15 @@
       {"label": "all"},
       {
         "label": "variant",
-        "filterers": [{"type": "FILTER_INCLUDE", "field": "treatment", "values": ["variant"]}]
+        "filterers": [{"type": "FILTER_INCLUDE", "field": "treatment", "values": ["variant"]}],
+        "overlays": [
+          {
+            "name": "sig_loose",
+            "kind": "OVERLAY_PAIRWISE_PROP_Z",
+            "scope": "column",
+            "params": {"letters": {"alpha": 0.1}}
+          }
+        ]
       }
     ],
     "groups": [

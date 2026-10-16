@@ -170,6 +170,13 @@ type Block struct {
 type Section struct {
 	Label  string
 	Blocks []Block
+	// Overlays are the overlay specs its group slots carry after the
+	// base request's: the section's own (OwnOverlays) when it sets any,
+	// else the banner-level ones.
+	Overlays []types.OverlaySpec
+	// OwnOverlays marks a section whose own overlays replaced the
+	// banner-level ones.
+	OwnOverlays bool
 }
 
 // Layout is where the banner slots sit in the effective request, read
@@ -178,11 +185,8 @@ type Layout struct {
 	// Sections are the banner sections in order.
 	Sections []Section
 	// BaseOverlays is the base request's overlay count: a group slot's
-	// banner overlay j is its layer BaseOverlays+j.
+	// section overlay j (Section.Overlays) is its layer BaseOverlays+j.
 	BaseOverlays int
-	// Overlays are the banner overlay specs (the group slots' trailing
-	// layers).
-	Overlays []types.OverlaySpec
 	// Start is the index of the first banner slot.
 	Start int
 }
@@ -211,8 +215,9 @@ type Expansion struct {
 // in section order (Total first, then the groups). Each slot is a deep
 // copy of the base request with the slot label, the section's
 // filterers appended, its rows / cell(s) replacing the base crosstab's,
-// the group's columns, and — on a group slot — the banner overlays
-// appended.
+// the group's columns, the base `labels` scoped to the bindings the slot
+// groups by (scopeLabels), and — on a group slot — the section's own
+// overlays appended, or the banner overlays when it sets none.
 func ExpandCompose(c *types.ComposedRequest, preflight func(slots int) error) (*Expansion, error) {
 	if c == nil {
 		return &Expansion{}, nil
@@ -252,11 +257,14 @@ func ExpandCompose(c *types.ComposedRequest, preflight func(slots int) error) (*
 	out.Banner = nil
 	requests := make([]*types.Request, 0, len(out.Requests)+n)
 	requests = append(requests, out.Requests...)
-	layout := &Layout{BaseOverlays: len(spec.Request.Overlays), Overlays: spec.Overlays, Start: len(requests)}
+	layout := &Layout{BaseOverlays: len(spec.Request.Overlays), Start: len(requests)}
 	for _, sec := range spec.Sections {
-		ls := Section{Label: sec.Label}
+		ls := Section{Label: sec.Label, Overlays: spec.Overlays}
+		if len(sec.Overlays) > 0 {
+			ls.Overlays, ls.OwnOverlays = sec.Overlays, true
+		}
 		add := func(label string, cols []*types.Group, total bool) error {
-			req, err := slotRequest(base, sec, cols, total, spec.Overlays)
+			req, err := slotRequest(base, sec, cols, total, ls.Overlays)
 			if err != nil {
 				return err
 			}
@@ -277,8 +285,64 @@ func ExpandCompose(c *types.ComposedRequest, preflight func(slots int) error) (*
 		}
 		layout.Sections = append(layout.Sections, ls)
 	}
+	scopeLabels(requests[layout.Start:], spec.Request.Labels)
 	out.Requests = requests
 	return &Expansion{Composed: &out, Explicit: exp.Explicit, SweepLabels: exp.Labels, Banner: layout}, nil
+}
+
+// scopeLabels narrows each banner slot's copy of the base `labels` to
+// the bindings whose field one of the slot's crosstab rows or columns
+// groups by — the only surfaces a banner slot can label — so a binding
+// on a group's column field never warns PULSE_LABEL_NOT_APPLIED on the
+// Total or another group's slot. A binding no banner slot groups by is
+// left on every slot, where it warns exactly as on a hand-written slot.
+// Without base bindings it does nothing (byte-identical slots).
+func scopeLabels(slots []*types.Request, base []*types.LabelBinding) {
+	if len(base) == 0 {
+		return
+	}
+	grouped := func(req *types.Request, field string) bool {
+		var groups []*types.Group
+		groups = append(groups, req.Groups...)
+		if ct := req.Crosstab; ct != nil {
+			groups = append(append(groups, ct.Rows...), ct.Columns...)
+		}
+		for _, g := range groups {
+			if g == nil {
+				continue
+			}
+			if g.Field == field {
+				return true
+			}
+			for _, f := range g.Fields {
+				if f == field {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	somewhere := make([]bool, len(base))
+	for i, b := range base {
+		for _, req := range slots {
+			if b != nil && grouped(req, b.Field) {
+				somewhere[i] = true
+				break
+			}
+		}
+	}
+	for _, req := range slots {
+		kept := make([]*types.LabelBinding, 0, len(req.Labels))
+		for i, b := range req.Labels {
+			if b == nil || i >= len(somewhere) || !somewhere[i] || grouped(req, b.Field) {
+				kept = append(kept, b)
+			}
+		}
+		if len(kept) == 0 {
+			kept = nil
+		}
+		req.Labels = kept
+	}
 }
 
 // slotRequest builds one banner slot from the encoded base request.

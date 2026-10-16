@@ -141,3 +141,110 @@ func TestCount(t *testing.T) {
 		t.Fatal("nil count")
 	}
 }
+
+// TestExpandCompose_ScopesLabels: a base `labels` binding rides only the
+// banner slots whose crosstab rows or columns group by its field, so no
+// Total or other-group slot carries a binding it cannot apply; a binding
+// no banner slot groups by stays on every slot (and warns there, as on a
+// hand-written slot).
+func TestExpandCompose_ScopesLabels(t *testing.T) {
+	sp := spec()
+	sp.Request.Labels = []*types.LabelBinding{
+		{Field: "gender", Table: "g"},
+		{Field: "brand", Table: "b"},
+		{Field: "kpi", Table: "k"},
+		{Field: "nowhere", Table: "n"},
+	}
+	exp, err := banner.ExpandCompose(&types.ComposedRequest{Banner: sp}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := func(r *types.Request) []string {
+		out := []string{}
+		for _, b := range r.Labels {
+			out = append(out, b.Field)
+		}
+		return out
+	}
+	want := map[string][]string{
+		"all:Total":    {"brand", "nowhere"},
+		"all:Gender":   {"gender", "brand", "nowhere"},
+		"all:Age":      {"brand", "nowhere"},
+		"aware:Total":  {"kpi", "nowhere"},
+		"aware:Gender": {"gender", "kpi", "nowhere"},
+		"aware:Age":    {"kpi", "nowhere"},
+	}
+	for _, r := range exp.Composed.Requests {
+		got, w := fields(r), want[r.Label]
+		if len(got) != len(w) {
+			t.Fatalf("slot %s labels %v, want %v", r.Label, got, w)
+		}
+		for i := range w {
+			if got[i] != w[i] {
+				t.Fatalf("slot %s labels %v, want %v", r.Label, got, w)
+			}
+		}
+	}
+	if len(sp.Request.Labels) != 4 {
+		t.Fatal("scoping changed the spec")
+	}
+	// No labels: no slot gains a `labels` key.
+	exp, err = banner.ExpandCompose(&types.ComposedRequest{Banner: spec()}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range exp.Composed.Requests {
+		if r.Labels != nil {
+			t.Fatalf("slot %s gained labels %v", r.Label, r.Labels)
+		}
+	}
+}
+
+// TestExpandCompose_SectionOverlaysReplace: a section's own overlays
+// REPLACE the banner-level overlays on that section's group slots (the
+// base request's overlays still lead every slot, the Total slot still
+// receives neither), and the layout records each section's overlay list.
+func TestExpandCompose_SectionOverlaysReplace(t *testing.T) {
+	sp := spec()
+	sp.Sections[1].Overlays = []types.OverlaySpec{
+		{Name: "mean", Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeColumn},
+		{Name: "mean2", Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeColumn},
+	}
+	exp, err := banner.ExpandCompose(&types.ComposedRequest{Banner: sp}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := func(r *types.Request) []string {
+		out := []string{}
+		for _, o := range r.Overlays {
+			out = append(out, o.Name)
+		}
+		return out
+	}
+	want := map[string][]string{
+		"all:Total":    {""},
+		"all:Gender":   {"", "sig"},
+		"all:Age":      {"", "sig"},
+		"aware:Total":  {""},
+		"aware:Gender": {"", "mean", "mean2"},
+		"aware:Age":    {"", "mean", "mean2"},
+	}
+	for _, r := range exp.Composed.Requests {
+		got, w := names(r), want[r.Label]
+		if len(got) != len(w) {
+			t.Fatalf("slot %s overlays %v, want %v", r.Label, got, w)
+		}
+		for i := range w {
+			if got[i] != w[i] {
+				t.Fatalf("slot %s overlays %v, want %v", r.Label, got, w)
+			}
+		}
+	}
+	all, aware := exp.Banner.Sections[0], exp.Banner.Sections[1]
+	if all.OwnOverlays || len(all.Overlays) != 1 || all.Overlays[0].Name != "sig" {
+		t.Fatalf("section all overlays = %+v (own %v)", all.Overlays, all.OwnOverlays)
+	}
+	if !aware.OwnOverlays || len(aware.Overlays) != 2 || aware.Overlays[1].Name != "mean2" {
+		t.Fatalf("section aware overlays = %+v (own %v)", aware.Overlays, aware.OwnOverlays)
+	}
+}
