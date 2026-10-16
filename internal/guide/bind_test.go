@@ -619,3 +619,62 @@ func TestRecommendBound_WeightedMeanWeight(t *testing.T) {
 		}
 	}
 }
+
+// TestBind_PackedBoolIsATwoLevelCategory: the binder's level slots use
+// the acceptance table's level set (fieldaccept's categoricalValue
+// class), so a packed_bool fills split_by, a contingency axis,
+// TEST_PROP_Z's outcome and a categorical field_filter (stratify) as a
+// two-level category — and the two-level split_by slot — while
+// TEST_ANOVA_RM's subject stays categorical-only.
+func TestBind_PackedBoolIsATwoLevelCategory(t *testing.T) {
+	passed := &encoding.Field{Name: "passed", Type: encoding.FieldTypePackedBool}
+	region := &encoding.Field{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict(t, "n", "s", "e", "w")}
+	arm := &encoding.Field{Name: "arm", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict(t, "control", "treatment")}
+	score := &encoding.Field{Name: "score", Type: encoding.FieldTypeF64}
+	for _, c := range []struct {
+		op, key string
+		f       *encoding.Field
+		want    bool
+	}{
+		{"TEST_T", "split_by", passed, true},
+		{"TEST_HOTELLING_T2", "split_by", passed, true},
+		{"TEST_HOTELLING_T2", "split_by", arm, true},
+		{"TEST_HOTELLING_T2", "split_by", region, false},
+		{"TEST_CHISQ", "rows", passed, true},
+		{"TEST_FISHER_EXACT", "cols", passed, true},
+		{"TEST_PROP_Z", "field", passed, true},
+		{"TEST_PROP_Z", "field", score, false},
+		{"TEST_ANOVA_RM", "subject_field", passed, false},
+		{"TEST_ANOVA_RM", "subject_field", region, true},
+		{"TEST_ANOVA_RM", "split_by", passed, true},
+	} {
+		if got := testSlot(opInfo{name: c.op, category: catTest}, c.key).accept(c.f); got != c.want {
+			t.Errorf("%s %s accepts %s (%s) = %v, want %v", c.op, c.key, c.f.Name, c.f.Type, got, c.want)
+		}
+	}
+	if !fieldFilterAccept("categorical")(passed) {
+		t.Error(`field_filter "categorical" (stratify) refuses a packed_bool`)
+	}
+	if fieldFilterAccept("categorical")(score) {
+		t.Error(`field_filter "categorical" accepts a numeric field`)
+	}
+
+	// End to end: a packed_bool group hint pins TEST_T's split_by, and
+	// the draft passes predict (TestRecommendBound_EveryDraftPassesPredict
+	// holds every draft to that).
+	found := false
+	for _, r := range boundAll(t, nil, descx.IntentCompareGroups, "score", "passed").Recommendations {
+		if r.Operator == "TEST_T" {
+			found = true
+			if !strings.Contains(string(r.Request), `"split_by":"passed"`) {
+				t.Errorf("TEST_T split_by not bound to the packed_bool hint: %s", r.Request)
+			}
+			if !strings.Contains(r.Why, "passed (packed_bool, 2 groups)") {
+				t.Errorf("TEST_T why does not count the packed_bool's two levels: %s", r.Why)
+			}
+		}
+	}
+	if !found {
+		t.Error("no TEST_T draft for a numeric outcome and a packed_bool group hint")
+	}
+}

@@ -121,7 +121,7 @@
         "operator": "AGG_MODE_COUNT",
         "category": "aggregator",
         "level": "basic",
-        "why": "How many rows share a field's most common value, over all rows or per group. It uses churned (packed_bool).",
+        "why": "How many rows share a field's most common value, over all rows or per group. It uses churned (packed_bool, 2 groups).",
         "bound": true,
         "request": {
           "aggregations": [
@@ -165,7 +165,7 @@
         "operator": "AGG_SUM",
         "category": "aggregator",
         "level": "basic",
-        "why": "Total of a numeric field, over all rows or per group. It uses churned (packed_bool).",
+        "why": "Total of a numeric field, over all rows or per group. It uses churned (packed_bool, 2 groups).",
         "bound": true,
         "request": {
           "aggregations": [
@@ -265,7 +265,7 @@
         "operator": "GROUP_CATEGORY",
         "category": "grouper",
         "level": "basic",
-        "why": "Splits the rows into one group per distinct value of a field, such as one group per region or per answer option. It uses churned (packed_bool).",
+        "why": "Splits the rows into one group per distinct value of a field, such as one group per region or per answer option. It uses churned (packed_bool, 2 groups).",
         "bound": true,
         "request": {
           "cohort": {
@@ -353,7 +353,7 @@
         "operator": "FEAT_FREQUENCY_ENCODE",
         "category": "feature",
         "level": "intermediate",
-        "why": "Replaces each category with the share of records that carry it, one number that says how common the category is. It uses churned (packed_bool).",
+        "why": "Replaces each category with the share of records that carry it, one number that says how common the category is. It uses churned (packed_bool, 2 groups).",
         "bound": true,
         "request": {
           "cohort": {
@@ -384,4 +384,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b38b8ff6f709168155af01ad4b0fd352111e841de91c0f9725d49a8e53c92523
+// golden-hash: 76813be82bbd8340ba97da262034a63df9e9131b306f2282486b0821109cb2f6

@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -214,7 +215,25 @@ func both(a, b func(*encoding.Field) bool) func(*encoding.Field) bool {
 	return func(f *encoding.Field) bool { return a(f) && b(f) }
 }
 
-func categoricalField(f *encoding.Field) bool { return f.Type.IsCategorical() }
+// categoricalField is the level set, the acceptance table's
+// categoricalValue class: a categorical (its dictionary labels are the
+// levels) or a packed_bool (levels "0" / "1", fieldaccept.Levels). Every
+// level slot the binder offers reads it, as the runtime does through
+// Record.LevelValue.
+func categoricalField(f *encoding.Field) bool {
+	return f.Type.IsCategorical() || fieldaccept.Levels(f) != nil
+}
+
+// levelSlot is the predicate for a test's level slot: the acceptance
+// table's own row when op's slot is tabled (TEST_ANOVA_RM's subject is a
+// categorical alone there), else the level set (an extension test).
+func levelSlot(op opInfo, slot fieldaccept.Slot) func(*encoding.Field) bool {
+	r, ok := fieldaccept.Lookup(op.name, slot)
+	if !ok {
+		return categoricalField
+	}
+	return func(f *encoding.Field) bool { return !f.Type.IsVector() && r.Accepts(f.Type) }
+}
 
 // preferDate orders date fields before the rest.
 func preferDate(f *encoding.Field) int {
@@ -251,7 +270,7 @@ func testSlot(op opInfo, key string) bslot {
 	switch key {
 	case "field":
 		if op.name == string(types.TEST_PROP_Z) {
-			return bslot{key: key, accept: categoricalField}
+			return bslot{key: key, accept: levelSlot(op, fieldaccept.SlotField)}
 		}
 		return bslot{key: key, accept: numeric}
 	case "field2":
@@ -263,18 +282,18 @@ func testSlot(op opInfo, key string) bslot {
 			// The two-sample form refuses a split without exactly two
 			// levels at run time (PULSE_TEST_SPLIT_GROUPS_LT_2), which
 			// predict cannot see: the dictionary is the schema's word.
-			return bslot{key: key, accept: twoLevels}
+			return bslot{key: key, accept: both(levelSlot(op, fieldaccept.SlotSplitBy), twoLevels)}
 		}
-		return bslot{key: key, accept: categoricalField}
+		return bslot{key: key, accept: levelSlot(op, fieldaccept.SlotSplitBy)}
 	default: // subject_field, rows, cols
-		return bslot{key: key, accept: categoricalField}
+		return bslot{key: key, accept: levelSlot(op, fieldaccept.Slot(key))}
 	}
 }
 
-// twoLevels accepts a categorical field whose dictionary holds exactly
-// two values.
+// twoLevels accepts a level-set field with exactly two declared levels:
+// a categorical whose dictionary holds two values, or a packed_bool.
 func twoLevels(f *encoding.Field) bool {
-	return f.Type.IsCategorical() && f.Dictionary != nil && f.Dictionary.Count() == 2
+	return len(fieldaccept.Levels(f)) == 2
 }
 
 // fieldFilterAccept turns a manifest field_filter into a predicate.
@@ -719,8 +738,8 @@ func boundWhy(plain string, schema *encoding.Schema, b binding, needs []bneed) s
 			if i := fieldIdx(schema, name); f.Type.IsVector() && i >= 0 {
 				d += ", " + strconv.Itoa(schema.VectorDim(i)) + " elements"
 			}
-			if f.Type.IsCategorical() && f.Dictionary != nil {
-				d += ", " + strconv.Itoa(f.Dictionary.Count()) + " groups"
+			if lv := fieldaccept.Levels(f); lv != nil {
+				d += ", " + strconv.Itoa(len(lv)) + " groups"
 			}
 			parts = append(parts, d+")")
 		}
