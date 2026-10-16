@@ -200,8 +200,8 @@ func pairwiseDescription(test string) string {
 		"PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / " +
 		"column_margin_distinct accumulate over raw records and are exact by construction, never gated. " +
 		"Reads Response.Components.Crosstab — a components-disabled host fires " +
-		"PULSE_OVERLAY_COMPONENTS_REQUIRED, at predict and at runtime. Emits RAW p-values only; direction, thresholds, and min-n flags are " +
-		"the embedder's presentation concern. Buffered (inferential)."
+		"PULSE_OVERLAY_COMPONENTS_REQUIRED, at predict and at runtime. RAW p-values; params.letters adds a letters part (per host cell: its letter, comparison group, and the letters it is higher than and significantly above). " +
+		"Buffered (inferential)."
 }
 
 func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {

@@ -81,6 +81,11 @@ All additive, present only when a correction ran:
   coordinates; a panel cell's vector maps element for element.
 - **Overlay layers**: a `multiplicity` echo, with `m_per` for `row` /
   `column` (each family's size, aligned with the rows or columns).
+- **Pairwise significance letters**: a pairwise overlay with
+  `params.letters` recomputes its `payload.parts.letters` after the
+  correction, so each cell's `above` follows `significant_adjusted` (an
+  explicit `letters.alpha` compares `p_adjusted` against that alpha
+  instead).
 - **Correlation matrices**: `auxiliary.p_adjusted` and
   `auxiliary.significant_adjusted` (`1` below the block's `alpha`, else
   `0`) beside `auxiliary.p`, in its encoding, mirrored into both

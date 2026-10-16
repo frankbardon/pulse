@@ -192,6 +192,14 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 			map[string]any{"index": index, "kind": string(spec.Kind)})
 		return
 	}
+	// Significance letters (U47 #327): the one alpha rule both arms
+	// raise (types.PairwiseLettersRefusal; runtime twin
+	// processing.pairwiseGate), judged before any host fact.
+	if msg := types.PairwiseLettersRefusal(spec.Kind, params); msg != "" {
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING), msg,
+			map[string]any{"index": index, "kind": string(spec.Kind), "param": "letters", "alpha": *params.Letters.Alpha})
+		return
+	}
 	// Components disabled: every pairwise kind reads its legs off the
 	// cell components, so the runtime (processing.runPairwiseOverlay)
 	// refuses PULSE_OVERLAY_COMPONENTS_REQUIRED right after the Params

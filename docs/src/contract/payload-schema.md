@@ -358,6 +358,12 @@ every renderer already reads it.
   definition has no `parts` key, and the engine refuses a handler that
   builds one (`PROCESSING_INTERNAL`).
 - Part names are fixed per kind and listed in the kind's skill.
+- A single-output kind may still write an OPT-IN part: every
+  `OVERLAY_PAIRWISE_*` kind writes `letters` only under
+  `params.letters` — a matrix on the host coordinates whose present cell
+  `value` is an object `{"letter", "group", "higher", "above"}`
+  (`types.PairwiseLetterCell`; `higher` / `above` are letter arrays,
+  empty, never `null`), not a number.
 - A coordinate-style matrix part whose columns are dimensions rather than
   host keys (points × dimensions) keys them `["dim_1"]`, `["dim_2"]`, …
   in dimension order.

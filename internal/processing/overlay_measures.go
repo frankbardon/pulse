@@ -55,20 +55,42 @@ func runPairwiseOverlayMeasures(spec *types.OverlaySpec, host *CrosstabHostView,
 	}
 
 	var colPairs []pairwisePair
+	// The pair-cell directions (on mx's grid) and the comparison groups
+	// on the folded pair axis: ROW scope pairs within each measure, so a
+	// measure's groups map sub-host row i to folded row i*M+m; COLUMN
+	// scope shares measure 0's column groups.
+	dirCells := [][]types.MatrixCell{}
+	if !rowScope {
+		dirCells = make([][]types.MatrixCell, host.RowCount())
+	}
+	var groups [][]int
+	var letters *types.PairwiseLetters
 	for m, sub := range host.measures {
 		g, err := pairwiseGate(spec, sub, shape)
 		if err != nil {
 			return types.OverlayLayer{}, nil, err
 		}
-		pairs, err := buildPairwisePairs(spec, sub, g.params, rowScope)
+		pairs, subGroups, err := buildPairwisePairs(spec, sub, g.params, rowScope)
 		if err != nil {
 			return types.OverlayLayer{}, nil, err
+		}
+		letters = g.params.Letters
+		if rowScope {
+			for _, sg := range subGroups {
+				fg := make([]int, len(sg))
+				for k, i := range sg {
+					fg[k] = i*M + m
+				}
+				groups = append(groups, fg)
+			}
+		} else if m == 0 {
+			groups = subGroups
 		}
 		oppIdx := func(o int) int { return o }
 		if !rowScope {
 			oppIdx = func(o int) int { return o*M + m }
 		}
-		pvals := acc.evaluate(sub, g, kernel, shape, pairs, rowScope, m, oppIdx)
+		pvals, dirs := acc.evaluate(sub, g, kernel, shape, pairs, rowScope, m, oppIdx)
 
 		if rowScope {
 			for p, pr := range pairs {
@@ -77,6 +99,7 @@ func runPairwiseOverlayMeasures(spec *types.OverlaySpec, host *CrosstabHostView,
 					stringifyOverlayAxisKey(host.rowKey(pr.j*M + m)),
 				})
 				mx.Cells = append(mx.Cells, pvals[p])
+				dirCells = append(dirCells, dirs[p])
 				for _, cell := range pvals[p] {
 					if cell.Present {
 						present++
@@ -94,13 +117,16 @@ func runPairwiseOverlayMeasures(spec *types.OverlaySpec, host *CrosstabHostView,
 		}
 		for r := 0; r < sub.RowCount(); r++ {
 			row := make([]types.MatrixCell, len(pairs))
+			drow := make([]types.MatrixCell, len(pairs))
 			for p := range pairs {
 				row[p] = pvals[p][r]
+				drow[p] = dirs[p][r]
 				if row[p].Present {
 					present++
 				}
 			}
 			mx.Cells[r*M+m] = row
+			dirCells[r*M+m] = drow
 		}
 	}
 	if !rowScope {
@@ -123,6 +149,11 @@ func runPairwiseOverlayMeasures(spec *types.OverlaySpec, host *CrosstabHostView,
 		Summary: &types.OverlaySummary{Count: &count},
 	}
 	acc.legs.stamp(layer.Summary)
+	if letters != nil {
+		if err := attachPairwiseLetters(&layer, types.PairwiseOverlayParams{Letters: letters}, host.Payload(), dirCells, groups); err != nil {
+			return types.OverlayLayer{}, nil, err
+		}
+	}
 	warns := acc.tally.warnings(spec)
 	layer.Warnings = warns
 	return layer, warns, nil

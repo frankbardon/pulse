@@ -24,9 +24,10 @@ import (
 // (i, j) index pair (key = the 2-tuple of the compared legs' display
 // labels) and whose OPPOSITE axis echoes the host's other axis. Each cell
 // holds the pair's two-sided p-value at that opposite-axis position, or is
-// absent when a leg was unreadable or the test degenerate. The family
-// emits RAW p-values only; direction, thresholds, and min-n flags are the
-// embedder's presentation concern.
+// absent when a leg was unreadable or the test degenerate. The primary
+// carries RAW p-values only; params.letters adds the `letters` part
+// (overlay_pairwise_letters.go), and min-n flags stay the embedder's
+// presentation concern.
 //
 // All five kinds reuse the shared harness below; only the per-pair Compute
 // kernel and the input shape (proportion + n, Welford triple, or
@@ -150,10 +151,32 @@ type pwInputs struct {
 	w1, w2   weightedMoments
 }
 
-// pwKernel computes one pair's two-sided p-value. ok=false with a reason
-// string signals a degenerate / unreadable pair that stays absent on the
-// payload and folds into one aggregated warning per reason.
-type pwKernel func(in pwInputs) (pValue float64, reason string, ok bool)
+// pwKernel computes one pair's two-sided p-value and the signed direction
+// of its test statistic. ok=false with a reason string signals a
+// degenerate / unreadable pair that stays absent on the payload and folds
+// into one aggregated warning per reason.
+type pwKernel func(in pwInputs) (out pwOutcome, reason string, ok bool)
+
+// pwOutcome is one scored pair: its two-sided p-value and dir, the sign of
+// the test statistic — +1 when leg i (pair_a) is the higher, -1 when leg j
+// (pair_b) is, 0 on a tie. The letters part reads dir to know which leg a
+// significant pair puts above the other.
+type pwOutcome struct {
+	p   float64
+	dir float64
+}
+
+// signOf is the direction of a statistic: +1, -1, or 0 (a tie, and a NaN
+// difference, which never reaches a scored pair).
+func signOf(d float64) float64 {
+	switch {
+	case d > 0:
+		return 1
+	case d < 0:
+		return -1
+	}
+	return 0
+}
 
 // pairwisePair is one evaluated (i, j) index pair along the pair axis,
 // carrying each leg's display label for the output key.
@@ -185,6 +208,12 @@ func pairwiseGate(spec *types.OverlaySpec, host *CrosstabHostView, shape pwShape
 			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" has malformed Params: "+err.Error(),
 			map[string]any{"kind": string(spec.Kind)})
+	}
+	// Significance letters (U47 #327): the alpha rule predict raises with
+	// the same code and message (types.PairwiseLettersRefusal).
+	if msg := types.PairwiseLettersRefusal(spec.Kind, params); msg != "" {
+		return pairwiseGateResult{}, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING, msg,
+			map[string]any{"kind": string(spec.Kind), "param": "letters", "alpha": *params.Letters.Alpha})
 	}
 
 	// Components gate — every kind reads per-cell counters / Welford
@@ -329,16 +358,22 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 
 	rowScope := spec.Scope == types.OverlayScopeRow
 
-	pairs, perr := buildPairwisePairs(spec, host, g.params, rowScope)
+	pairs, groups, perr := buildPairwisePairs(spec, host, g.params, rowScope)
 	if perr != nil {
 		return types.OverlayLayer{}, nil, perr
 	}
 
 	acc := newPairwiseAccumulator()
-	pvals := acc.evaluate(host, g, kernel, shape, pairs, rowScope, 0, nil)
+	pvals, dirs := acc.evaluate(host, g, kernel, shape, pairs, rowScope, 0, nil)
 
 	layer := buildPairwiseLayer(spec, host, pairs, pvals, rowScope)
 	acc.legs.stamp(layer.Summary)
+	if g.params.Letters != nil {
+		dirGrid := layoutPairCells(dirs, rowScope, host.RowCount(), len(pairs))
+		if err := attachPairwiseLetters(&layer, g.params, host.Payload(), dirGrid, groups); err != nil {
+			return types.OverlayLayer{}, nil, err
+		}
+	}
 	// Attach the per-reason skip diagnostics to the layer's own carrier
 	// (in addition to the returned slice the orchestrator promotes to
 	// Response.Warnings) so a per-Request consumer that reads layers
@@ -385,8 +420,11 @@ func newPairwiseAccumulator() *pairwiseAccumulator {
 // pair-major; the caller transposes it into the output MatrixPayload per
 // scope. measure namespaces the leg identities; oppIdx maps an opposite
 // index to the coordinate a skip warning reports (nil: itself).
+//
+// dirs mirrors pvals cell for cell: each scored pair-cell's direction
+// (pwOutcome.dir), absent where the p-value is.
 func (a *pairwiseAccumulator) evaluate(host *CrosstabHostView, g pairwiseGateResult, kernel pwKernel, shape pwShape,
-	pairs []pairwisePair, rowScope bool, measure int, oppIdx func(int) int) [][]types.MatrixCell {
+	pairs []pairwisePair, rowScope bool, measure int, oppIdx func(int) int) (pvals, dirs [][]types.MatrixCell) {
 	params, basis := g.params, g.basis
 	// Opposite-axis extent: ROW scope pairs rows, so the opposite axis is
 	// columns; COLUMN scope pairs columns, opposite axis is rows.
@@ -418,9 +456,11 @@ func (a *pairwiseAccumulator) evaluate(host *CrosstabHostView, g pairwiseGateRes
 		}
 	}
 
-	pvals := make([][]types.MatrixCell, len(pairs))
+	pvals = make([][]types.MatrixCell, len(pairs))
+	dirs = make([][]types.MatrixCell, len(pairs))
 	for p := range pairs {
 		pvals[p] = make([]types.MatrixCell, oppCount)
+		dirs[p] = make([]types.MatrixCell, oppCount)
 		for o := 0; o < oppCount; o++ {
 			r1, c1 := pairwiseLegCoord(rowScope, pairs[p].i, o)
 			r2, c2 := pairwiseLegCoord(rowScope, pairs[p].j, o)
@@ -433,15 +473,16 @@ func (a *pairwiseAccumulator) evaluate(host *CrosstabHostView, g pairwiseGateRes
 				addLeg(r1, c1)
 				addLeg(r2, c2)
 			}
-			pv, reason, ok := kernel(in)
+			out, reason, ok := kernel(in)
 			if !ok {
 				a.tally.add(reason, report(o))
 				continue
 			}
-			pvals[p][o] = types.MatrixCell{Value: pv, Present: true}
+			pvals[p][o] = types.MatrixCell{Value: out.p, Present: true}
+			dirs[p][o] = types.MatrixCell{Value: out.dir, Present: true}
 		}
 	}
-	return pvals
+	return pvals, dirs
 }
 
 // buildPairwisePairs enumerates (i, j) index pairs along the pair axis.
@@ -449,7 +490,13 @@ func (a *pairwiseAccumulator) evaluate(host *CrosstabHostView, g pairwiseGateRes
 // buckets indexes by their axis-key tuple minus that dim and pairs only
 // within each bucket. Out-of-range pair_along_dim / n_within_depth against
 // the actual axis depth fail with PULSE_OVERLAY_PARAM_MISSING.
-func buildPairwisePairs(spec *types.OverlaySpec, host *CrosstabHostView, params types.PairwiseOverlayParams, rowScope bool) ([]pairwisePair, error) {
+//
+// groups lists the comparison groups in pair order — each a set of
+// pair-axis indexes (ascending) that are paired with one another, so the
+// pairs are exactly every a < b within each group, group by group. A
+// lone index (nothing to compare it to — the implicit Total column, a
+// singleton bucket) is in no group: the letters part gives it no letter.
+func buildPairwisePairs(spec *types.OverlaySpec, host *CrosstabHostView, params types.PairwiseOverlayParams, rowScope bool) (pairs []pairwisePair, groups [][]int, err error) {
 	count := host.ColumnCount()
 	depth := host.ColumnAxisDepth()
 	keyAt := host.columnKey
@@ -462,7 +509,7 @@ func buildPairwisePairs(spec *types.OverlaySpec, host *CrosstabHostView, params 
 	}
 
 	if types.PairwiseNSourceUsesWithinDepth(params.NSource) && params.NWithinDepth >= depth {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING,
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" n_within_depth exceeds pair-axis dim count",
 			map[string]any{"kind": string(spec.Kind),
 				"n_within_depth": params.NWithinDepth, "dim_count": depth})
@@ -481,12 +528,15 @@ func buildPairwisePairs(spec *types.OverlaySpec, host *CrosstabHostView, params 
 				out = append(out, pairwisePair{i: i, j: j, labelI: labelAt(i), labelJ: labelAt(j)})
 			}
 		}
-		return out, nil
+		if len(indexes) > 1 {
+			groups = [][]int{indexes}
+		}
+		return out, groups, nil
 	}
 
 	dim := *params.PairAlongDim
 	if dim >= depth {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING,
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" pair_along_dim out of range for pair-axis dim count",
 			map[string]any{"kind": string(spec.Kind),
 				"pair_along_dim": dim, "dim_count": depth})
@@ -525,8 +575,11 @@ func buildPairwisePairs(spec *types.OverlaySpec, host *CrosstabHostView, params 
 				out = append(out, pairwisePair{i: i, j: j, labelI: labelAt(i), labelJ: labelAt(j)})
 			}
 		}
+		if len(b.indexes) > 1 {
+			groups = append(groups, b.indexes)
+		}
 	}
-	return out, nil
+	return out, groups, nil
 }
 
 // pairwiseLegCoord maps a (pairIndex, oppositeIndex) into (row, col). For
@@ -733,20 +786,14 @@ func buildPairwiseLayer(spec *types.OverlaySpec, host *CrosstabHostView, pairs [
 		mx.RowKeys = copyAxisKeys(host.Payload().RowKeys)
 		mx.ColumnHeader = pairHeader
 		mx.ColumnKeys = pairKeys
-		// Transpose pvals ([pair][row]) into Cells ([row][pair]).
-		rowCount := host.RowCount()
-		cells := make([][]types.MatrixCell, rowCount)
-		for r := 0; r < rowCount; r++ {
-			cells[r] = make([]types.MatrixCell, len(pairs))
-			for p := range pairs {
-				cell := pvals[p][r]
-				cells[r][p] = cell
+		mx.Cells = layoutPairCells(pvals, rowScope, host.RowCount(), len(pairs))
+		for _, row := range mx.Cells {
+			for _, cell := range row {
 				if cell.Present {
 					present++
 				}
 			}
 		}
-		mx.Cells = cells
 	}
 
 	count := present
@@ -761,6 +808,23 @@ func buildPairwiseLayer(spec *types.OverlaySpec, host *CrosstabHostView, pairs [
 		},
 		Summary: &types.OverlaySummary{Count: &count},
 	}
+}
+
+// layoutPairCells lays pair-major cells ([pair][opposite]) out on the
+// layer's grid: as is under ROW scope (rows = pairs), transposed to
+// [row][pair] under COLUMN scope.
+func layoutPairCells(pairMajor [][]types.MatrixCell, rowScope bool, rowCount, nPairs int) [][]types.MatrixCell {
+	if rowScope {
+		return pairMajor
+	}
+	cells := make([][]types.MatrixCell, rowCount)
+	for r := 0; r < rowCount; r++ {
+		cells[r] = make([]types.MatrixCell, nPairs)
+		for p := 0; p < nPairs; p++ {
+			cells[r][p] = pairMajor[p][r]
+		}
+	}
+	return cells
 }
 
 func copyAxisKeys(in []types.AxisKey) []types.AxisKey {
@@ -819,58 +883,59 @@ func unitProportion(p float64) bool { return p >= 0 && p <= 1 }
 
 // pairwisePropZKernel is the pooled-SE two-proportion z-test. Reuses the
 // shared twoProportionZ helper so p-values match OVERLAY_PROP_Z_CELL.
-func pairwisePropZKernel(in pwInputs) (float64, string, bool) {
+func pairwisePropZKernel(in pwInputs) (pwOutcome, string, bool) {
 	if in.nf1 == 0 || in.nf2 == 0 {
-		return 0, "PULSE_STATS_SKIP_N_ZERO", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_N_ZERO", false
 	}
 	if !unitProportion(in.p1) || !unitProportion(in.p2) {
-		return 0, "PULSE_STATS_SKIP_PROPORTION_INVALID", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_PROPORTION_INVALID", false
 	}
 	n1f, n2f := in.nf1, in.nf2
 	p, ok := twoProportionZ(in.p1*n1f, n1f, in.p2*n2f, n2f)
 	if !ok {
-		return 0, "PULSE_STATS_SKIP_POOLED_SE_INVALID", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_POOLED_SE_INVALID", false
 	}
-	return p, "", true
+	// z = (p1 - p2) / SE with SE > 0: the sign of the share difference.
+	return pwOutcome{p: p, dir: signOf(in.p1 - in.p2)}, "", true
 }
 
 // pairwiseProbitTKernel is the probit t-test: Φ⁻¹ transform of each leg's
 // proportion, Student-t tail on df = n1 + n2 - 2.
-func pairwiseProbitTKernel(in pwInputs) (float64, string, bool) {
+func pairwiseProbitTKernel(in pwInputs) (pwOutcome, string, bool) {
 	if in.nf1 == 0 || in.nf2 == 0 {
-		return 0, "PULSE_STATS_SKIP_N_ZERO", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_N_ZERO", false
 	}
 	if !unitProportion(in.p1) || !unitProportion(in.p2) {
-		return 0, "PULSE_STATS_SKIP_PROPORTION_INVALID", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_PROPORTION_INVALID", false
 	}
 	dof := in.nf1 + in.nf2 - 2
 	if dof <= 0 {
-		return 0, "PULSE_STATS_SKIP_DOF_INVALID", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_DOF_INVALID", false
 	}
 	const eps = 1e-10
 	p1c := clipUnit(in.p1, eps, 1-eps)
 	p2c := clipUnit(in.p2, eps, 1-eps)
 	denom := math.Sqrt(1.0/in.nf1 + 1.0/in.nf2)
 	if denom == 0 {
-		return 0, "PULSE_STATS_SKIP_DENOM_INVALID", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_DENOM_INVALID", false
 	}
 	t := (standardNormalPPF(p1c) - standardNormalPPF(p2c)) / denom
 	if math.IsNaN(t) || math.IsInf(t, 0) {
-		return 0, "PULSE_STATS_SKIP_T_INVALID", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_T_INVALID", false
 	}
 	pv := statdist.StudentTTwoSidedP(t, dof)
 	if math.IsNaN(pv) {
-		return 0, "PULSE_STATS_SKIP_PVALUE_NAN", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_PVALUE_NAN", false
 	}
-	return pv, "", true
+	return pwOutcome{p: pv, dir: signOf(t)}, "", true
 }
 
 // pairwiseWelchTKernel is the Welch–Satterthwaite t-test on Welford
 // triples.
-func pairwiseWelchTKernel(in pwInputs) (float64, string, bool) {
+func pairwiseWelchTKernel(in pwInputs) (pwOutcome, string, bool) {
 	n1f, n2f := in.nf1, in.nf2
 	if !(n1f > 1) || !(n2f > 1) {
-		return 0, "PULSE_STATS_SKIP_N_TOO_SMALL", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_N_TOO_SMALL", false
 	}
 	a := in.v1 / n1f
 	b := in.v2 / n2f
@@ -878,33 +943,33 @@ func pairwiseWelchTKernel(in pwInputs) (float64, string, bool) {
 	// Welford triple at N < 2 or Σw ≤ 1 (E4-S6) — skips the pair
 	// rather than scoring a NaN p-value.
 	if !(a+b > 0) {
-		return 0, "PULSE_STATS_SKIP_VARIANCE_INVALID", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_VARIANCE_INVALID", false
 	}
 	se := math.Sqrt(a + b)
 	if se == 0 {
-		return 0, "PULSE_STATS_SKIP_SE_ZERO", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_SE_ZERO", false
 	}
 	t := (in.m1 - in.m2) / se
 	dofDenom := (a*a)/(n1f-1) + (b*b)/(n2f-1)
 	if dofDenom <= 0 {
-		return 0, "PULSE_STATS_SKIP_DOF_INVALID", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_DOF_INVALID", false
 	}
 	dof := (a + b) * (a + b) / dofDenom
 	if dof <= 0 || math.IsNaN(dof) || math.IsInf(dof, 0) {
-		return 0, "PULSE_STATS_SKIP_DOF_INVALID", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_DOF_INVALID", false
 	}
 	pv := statdist.StudentTTwoSidedP(t, dof)
 	if math.IsNaN(pv) {
-		return 0, "PULSE_STATS_SKIP_PVALUE_NAN", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_PVALUE_NAN", false
 	}
-	return pv, "", true
+	return pwOutcome{p: pv, dir: signOf(t)}, "", true
 }
 
 // pairwiseTwoMeansZKernel is the two-means z-test on Welford triples
 // (normal CDF tail, no df adjustment).
-func pairwiseTwoMeansZKernel(in pwInputs) (float64, string, bool) {
+func pairwiseTwoMeansZKernel(in pwInputs) (pwOutcome, string, bool) {
 	if !(in.nf1 > 1) || !(in.nf2 > 1) {
-		return 0, "PULSE_STATS_SKIP_N_TOO_SMALL", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_N_TOO_SMALL", false
 	}
 	a := in.v1 / in.nf1
 	b := in.v2 / in.nf2
@@ -912,15 +977,15 @@ func pairwiseTwoMeansZKernel(in pwInputs) (float64, string, bool) {
 	// Welford triple at N < 2 or Σw ≤ 1 (E4-S6) — skips the pair
 	// rather than scoring a NaN p-value.
 	if !(a+b > 0) {
-		return 0, "PULSE_STATS_SKIP_VARIANCE_INVALID", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_VARIANCE_INVALID", false
 	}
 	se := math.Sqrt(a + b)
 	if se == 0 {
-		return 0, "PULSE_STATS_SKIP_SE_ZERO", false
+		return pwOutcome{}, "PULSE_STATS_SKIP_SE_ZERO", false
 	}
 	z := (in.m1 - in.m2) / se
 	pv := normalTwoSidedP(z)
-	return pv, "", true
+	return pwOutcome{p: pv, dir: signOf(z)}, "", true
 }
 
 // pairwiseWeightedTwoMeansZKernel returns the two-means z-test kernel on
@@ -933,25 +998,25 @@ func pairwiseTwoMeansZKernel(in pwInputs) (float64, string, bool) {
 // whose legs both have zero spread skips as PULSE_STATS_SKIP_SE_ZERO.
 // Both fold into the shared PULSE_OVERLAY_REF_ZERO tally.
 func pairwiseWeightedTwoMeansZKernel(nBasis string) pwKernel {
-	return func(in pwInputs) (float64, string, bool) {
+	return func(in pwInputs) (pwOutcome, string, bool) {
 		a, ok := weightedLegVarianceOverN(nBasis, in.w1)
 		if !ok {
-			return 0, "PULSE_STATS_SKIP_N_TOO_SMALL", false
+			return pwOutcome{}, "PULSE_STATS_SKIP_N_TOO_SMALL", false
 		}
 		b, ok := weightedLegVarianceOverN(nBasis, in.w2)
 		if !ok {
-			return 0, "PULSE_STATS_SKIP_N_TOO_SMALL", false
+			return pwOutcome{}, "PULSE_STATS_SKIP_N_TOO_SMALL", false
 		}
 		if !(a+b > 0) {
-			return 0, "PULSE_STATS_SKIP_SE_ZERO", false
+			return pwOutcome{}, "PULSE_STATS_SKIP_SE_ZERO", false
 		}
 		se := math.Sqrt(a + b)
 		z := (in.w1.mean - in.w2.mean) / se
 		pv := normalTwoSidedP(z)
 		if math.IsNaN(pv) {
-			return 0, "PULSE_STATS_SKIP_PVALUE_NAN", false
+			return pwOutcome{}, "PULSE_STATS_SKIP_PVALUE_NAN", false
 		}
-		return pv, "", true
+		return pwOutcome{p: pv, dir: signOf(z)}, "", true
 	}
 }
 

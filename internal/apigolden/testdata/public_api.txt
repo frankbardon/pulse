@@ -4983,6 +4983,14 @@ pulse/types: type OverlayWarning field Message string "json:\"message\""
 pulse/types: type OverlayYoYRef struct
 pulse/types: func PairwiseKindUsesWeightedMoments(kind pulse/types.OverlayKind) bool
 pulse/types: func PairwiseKindUsesWelford(kind pulse/types.OverlayKind) bool
+pulse/types: type PairwiseLetterCell struct
+pulse/types: type PairwiseLetterCell field Above []string "json:\"above\""
+pulse/types: type PairwiseLetterCell field Group int "json:\"group\""
+pulse/types: type PairwiseLetterCell field Higher []string "json:\"higher\""
+pulse/types: type PairwiseLetterCell field Letter string "json:\"letter\""
+pulse/types: type PairwiseLetters struct
+pulse/types: type PairwiseLetters field Alpha *float64 "json:\"alpha,omitempty\""
+pulse/types: func PairwiseLettersRefusal(kind pulse/types.OverlayKind, params pulse/types.PairwiseOverlayParams) string
 pulse/types: const PairwiseNBasisKish untyped string = "kish"
 pulse/types: const PairwiseNBasisWeights untyped string = "weights"
 pulse/types: const PairwiseNSourceCellNUnweighted untyped string = "cell_n_unweighted"
@@ -4998,6 +5006,7 @@ pulse/types: const PairwiseNSourceRowMarginN untyped string = "row_margin_n"
 pulse/types: func PairwiseNSourceSumsDistinctCells(s string) bool
 pulse/types: func PairwiseNSourceUsesWithinDepth(s string) bool
 pulse/types: type PairwiseOverlayParams struct
+pulse/types: type PairwiseOverlayParams field Letters *pulse/types.PairwiseLetters "json:\"letters,omitempty\""
 pulse/types: type PairwiseOverlayParams field NBasis string "json:\"n_basis,omitempty\""
 pulse/types: type PairwiseOverlayParams field NSource string "json:\"n_source,omitempty\""
 pulse/types: type PairwiseOverlayParams field NWithinDepth int "json:\"n_within_depth,omitempty\""
@@ -5382,4 +5391,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d6ebe6ab121e8de51a96c726e8cd9162953d6fb02d5aea4a03560f22924c2361
+// golden-hash: e743d7f10c265a19b5bb9a27f4e7d1a8ff713eeaa516ad03088df7b73acb27d8

@@ -2159,12 +2159,13 @@ const (
 	// when `Params.pair_along_dim` is set) so consumers zip the grid
 	// against their own re-derived pair list positionally.
 	//
-	// Division of labour: this family emits RAW p-values only. Direction
-	// (which leg is greater), significance thresholds, min-n flags, and
-	// any domain-specific row/column exclusion are presentation concerns
-	// the embedder applies — every input needed for them (the host cells,
-	// the per-cell n) is already on the response, so the overlay does not
-	// re-encode them.
+	// Division of labour: the primary carries RAW p-values only. Opt-in
+	// params.letters adds the `direction` part (which leg is greater) and
+	// the `letters` part (significance letters, multiplicity-aware —
+	// PairwiseLetters, PairwiseLetterCell); min-n flags and any
+	// domain-specific row/column exclusion stay presentation concerns the
+	// embedder applies from the host cells and per-cell n already on the
+	// response.
 	//
 	// Params (`OverlaySpec.Params`, all optional):
 	//   - pair_along_dim (int): restrict pairs to "all dims agree except
@@ -2192,6 +2193,8 @@ const (
 	//   - n_basis (string): REQUIRED on OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z
 	//     and only read there — "weights" (frequency-weight variance, n =
 	//     Σw) or "kish" (Kish effective base n_eff = (Σw)²/Σw²).
+	//   - letters (object): {} or {"alpha": a}, 0 < a < 1 — significance
+	//     letters (PairwiseOverlayParams.Letters).
 	//
 	// Components requirement: every kind reads Response.Components.Crosstab
 	// (cell n, weight sums, Welford triples, margin counts). A host built

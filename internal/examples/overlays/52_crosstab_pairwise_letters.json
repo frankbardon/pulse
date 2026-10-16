@@ -1,0 +1,66 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Column-normalized crosstab count of segment (rows) x region (columns) — each cell is the segment's share of that region — decorated with OVERLAY_PAIRWISE_PROP_Z at COLUMN scope carrying params.letters: significance letters, the survey-table reading of a pairwise test. Each region column gets a letter (A, B, C, … in column order) and payload.parts.letters holds, per host cell, that letter, its comparison group, the letters of the columns whose share it beats (higher) and the subset it beats significantly (above). With the Holm multiplicity block on the layer, above follows significant_adjusted, so a column is marked above another only when the corrected p clears alpha. The primary matrix still carries the raw two-sided p-value per column pair; p_adjusted rides beside it. The n leg defaults to each cell's base (the region's column margin under normalize column). Reads Response.Components.Crosstab.",
+    "intents": [
+      "compare_groups",
+      "composition"
+    ],
+    "name": "crosstab-pairwise-letters",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "cohort-analysis",
+      "overlay",
+      "hypothesis-test",
+      "proportion-analysis",
+      "two-sample"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "segment"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "normalize": "column",
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  },
+  "overlays": [
+    {
+      "name": "region_letters",
+      "kind": "OVERLAY_PAIRWISE_PROP_Z",
+      "scope": "column",
+      "params": {
+        "letters": {}
+      },
+      "multiplicity": {
+        "method": "holm",
+        "family": "layer"
+      }
+    }
+  ]
+}

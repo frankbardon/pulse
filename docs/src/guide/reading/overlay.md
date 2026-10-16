@@ -376,6 +376,16 @@ Pairwise t-tests on probit-transformed shares between rows (or columns) of one c
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
+#### `parts.letters.cells.value`
+
+Significance letters for this host cell: its column's (or row's) letter, and in above the letters of the same-group columns it is significantly higher than here.
+
+**Caveats:**
+
+- Significant means significant_adjusted when a multiplicity correction ran on the layer, else a raw p below 0.05 (or params.letters.alpha); higher lists every column this one beats, significant or not.
+- Letters compare only within one group (a pair_along_dim bucket), restart at A in each, and a column with nothing to compare to (the implicit Total) gets none.
+- A letter says a gap is unlikely to be chance, not that it is large: read the cell values for size.
+
 <a id="op-overlay_pairwise_prop_z"></a>
 
 ### `OVERLAY_PAIRWISE_PROP_Z`
@@ -392,6 +402,16 @@ Two-proportion z-tests between every pair of rows (or columns) of one crosstab, 
 - The layer does not report an effect size: read the two cell values for how big each gap is.
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `parts.letters.cells.value`
+
+Significance letters for this host cell: its column's (or row's) letter, and in above the letters of the same-group columns it is significantly higher than here.
+
+**Caveats:**
+
+- Significant means significant_adjusted when a multiplicity correction ran on the layer, else a raw p below 0.05 (or params.letters.alpha); higher lists every column this one beats, significant or not.
+- Letters compare only within one group (a pair_along_dim bucket), restart at A in each, and a column with nothing to compare to (the implicit Total) gets none.
+- A letter says a gap is unlikely to be chance, not that it is large: read the cell values for size.
 
 <a id="op-overlay_pairwise_two_means_z"></a>
 
@@ -410,6 +430,16 @@ Large-sample z-tests between every pair of rows (or columns) of one crosstab of 
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
+#### `parts.letters.cells.value`
+
+Significance letters for this host cell: its column's (or row's) letter, and in above the letters of the same-group columns it is significantly higher than here.
+
+**Caveats:**
+
+- Significant means significant_adjusted when a multiplicity correction ran on the layer, else a raw p below 0.05 (or params.letters.alpha); higher lists every column this one beats, significant or not.
+- Letters compare only within one group (a pair_along_dim bucket), restart at A in each, and a column with nothing to compare to (the implicit Total) gets none.
+- A letter says a gap is unlikely to be chance, not that it is large: read the cell values for size.
+
 <a id="op-overlay_pairwise_weighted_two_means_z"></a>
 
 ### `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z`
@@ -427,6 +457,16 @@ Large-sample z-tests between every pair of rows (or columns) of one crosstab of 
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
+#### `parts.letters.cells.value`
+
+Significance letters for this host cell: its column's (or row's) letter, and in above the letters of the same-group columns it is significantly higher than here.
+
+**Caveats:**
+
+- Significant means significant_adjusted when a multiplicity correction ran on the layer, else a raw p below 0.05 (or params.letters.alpha); higher lists every column this one beats, significant or not.
+- Letters compare only within one group (a pair_along_dim bucket), restart at A in each, and a column with nothing to compare to (the implicit Total) gets none.
+- A letter says a gap is unlikely to be chance, not that it is large: read the cell values for size.
+
 <a id="op-overlay_pairwise_welch_t"></a>
 
 ### `OVERLAY_PAIRWISE_WELCH_T`
@@ -443,6 +483,16 @@ Welch t-tests between every pair of rows (or columns) of one crosstab of average
 - The layer does not report an effect size: read the two cell values for how big each gap is.
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `parts.letters.cells.value`
+
+Significance letters for this host cell: its column's (or row's) letter, and in above the letters of the same-group columns it is significantly higher than here.
+
+**Caveats:**
+
+- Significant means significant_adjusted when a multiplicity correction ran on the layer, else a raw p below 0.05 (or params.letters.alpha); higher lists every column this one beats, significant or not.
+- Letters compare only within one group (a pair_along_dim bucket), restart at A in each, and a column with nothing to compare to (the implicit Total) gets none.
+- A letter says a gap is unlikely to be chance, not that it is large: read the cell values for size.
 
 <a id="op-overlay_prop_z_cell"></a>
 

@@ -17,7 +17,7 @@ Intra-matrix pairwise on MEANS along one axis of the SAME crosstab: `row` scope 
 
 `Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.pair_along_dim` (int, unset) — restrict pairs to same-bucket comparisons on the pair axis.
 
-`n_source` / `p_source` are NOT accepted — n, mean and variance all come from the Welford triple, so either would be a silent no-op. Predict refuses both (`PULSE_OVERLAY_PARAM_MISSING`), for EVERY mode and not just the distinct-key ones; runtime does not, the param being inert (weighted host: see Gotchas). `n_within_depth` stays accepted and inert. Detail: `pairwise-n-sources`.
+`n_source` / `p_source` are NOT accepted — n, mean and variance all come from the Welford triple, so either would be a silent no-op. Predict refuses both (`PULSE_OVERLAY_PARAM_MISSING`), for EVERY mode and not just the distinct-key ones; runtime does not, the param being inert (weighted host: see Gotchas). `n_within_depth` stays accepted and inert. Detail: `pairwise-n-sources`. `params.letters` (object, unset) — `{}` or `{"alpha": a}`, `0 < a < 1` (else `PULSE_OVERLAY_PARAM_MISSING`, predict and runtime): adds the `letters` part.
 
 <!-- feature: capability:multiplicity -->
 - `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiplicity-correction`).
@@ -31,13 +31,15 @@ MATRIX crosstab whose **cell aggregator is `AGG_WELFORD`** + `Response.Component
 
 MATRIX — pair × opposite-axis grid of two-sided p-values<!-- feature: OVERLAY_PAIRWISE_PROP_Z --> (layout as `op-overlay-pairwise-prop-z`)<!-- /feature -->. Per pair: `a = v_i/n_i`, `b = v_j/n_j`, `se = sqrt(a + b)`, `t = (m_i - m_j) / se`, `df = (a+b)² / (a²/(n_i-1) + b²/(n_j-1))` (Welch–Satterthwaite), two-sided via the `studentTTwoSidedP` helper the t-tests use.
 
+`payload.parts.letters` (with `params.letters`): per host cell of a compared index `{letter, group, higher, above}` — its letter (restarting per `pair_along_dim` group), the letters its mean beats (sign of `t`) and the significant subset (raw p < `0.05` or `alpha`<!-- feature: capability:multiplicity -->; `significant_adjusted` under a correction<!-- /feature -->). The implicit Total column gets none.
+
 <!-- generated: reading-the-output -->
 
 ## Gotchas
 
 - Weighted host (both kinds, any source): legs read N* = `sum_weights` (frequency) / `n_eff` (probability), variance from `m2` on w*, df on N*; `Summary.Parameters` adds `sum_weights` (+ `n_eff`). There an unweighted-count `n_source` (and a weight-sum one under probability) is `PROCESSING_CONFIG` in predict AND runtime (`pairwise-n-sources`).
 - Either leg with `n <= 1`, or an undefined (`null`) Welford variance (n < 2 / Σw ≤ 1), skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`) — never scored off a 0 variance.
-- RAW p-values only — direction / thresholds are the embedder's job.
+- The primary stays RAW p-values; direction and significance ride `letters` only when asked.
 - Buffered (inferential) — and so is the HOST: the `AGG_WELFORD` cell is non-mergeable, so `CanFuseCrosstab` rejects on the cell-aggregator arm. Expected (`TestCrosstabWelfordCell_StaysBufferedWithCorrectOverlays`).
 
 ## See

@@ -10,7 +10,7 @@ requires: [capability:crosstab]
 
 # Pairwise sample-size sources
 
-Every `OVERLAY_PAIRWISE_*` kind decodes one shared `params` blob (`types.PairwiseOverlayParams`): `pair_along_dim`, `n_source`, `n_within_depth`, `p_source`, `n_basis`. This skill is the vocabulary; per-kind math and param acceptance live in each kind's atomic skill.
+Every `OVERLAY_PAIRWISE_*` kind decodes one shared `params` blob (`types.PairwiseOverlayParams`): `pair_along_dim`, `n_source`, `n_within_depth`, `p_source`, `n_basis`, `letters`. This is the n vocabulary; per-kind math, acceptance and letters: each atomic skill.
 
 Every mode reads `Response.Components.Crosstab`, so a components-disabled host is refused first (`PULSE_OVERLAY_COMPONENTS_REQUIRED`). An unreadable leg SKIPS the pair (aggregated `PULSE_OVERLAY_REF_ZERO`), never a zero n.
 

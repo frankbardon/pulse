@@ -40,6 +40,7 @@ Refused `PULSE_MULTIPLICITY_INVALID`: `row` / `column` on a non-matrix kind, `co
 - Test result: `p_adjusted`, `significant_adjusted` (against the test's own `alpha`) and `multiplicity {method, family, alpha, m, excluded}`; `m` is the number of defined p-values corrected together, `excluded` the members left out for an undefined p (a sparse group; absent when 0).
 - Overlay summary: `p_adjusted` / `significant_adjusted` beside `p_value` (or the `statistic` the t / z-versus-reference kinds carry their p in).
 - Overlay matrix payload: parallel `payload.p_adjusted` / `payload.significant_adjusted` grids on identical headers and coordinates; a panel cell's vector maps element for element.
+- Pairwise `params.letters`: `above` follows `significant_adjusted` (an explicit `letters.alpha` compares `p_adjusted` instead).
 - Overlay layer: a `multiplicity` echo, present only when a correction ran.
 <!-- feature: capability:matrices -->- Matrix result: `auxiliary.p_adjusted` / `significant_adjusted` (1 / 0) beside `auxiliary.p`, mirrored, diagonal null, plus a `multiplicity` echo. An inherited block reaches only a spec under `params.inference`.<!-- /feature -->
 - An undefined p (NaN) gives `p_adjusted: null`, no `significant_adjusted`, and is left out of `m` (counted in `excluded`).

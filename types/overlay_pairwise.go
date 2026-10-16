@@ -1,6 +1,7 @@
 package types
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -47,6 +48,67 @@ type PairwiseOverlayParams struct {
 	// default — the convention is the embedder's statistical call). One
 	// of the PairwiseNBasis* constants. Read by no other kind.
 	NBasis string `json:"n_basis,omitempty"`
+
+	// Letters, when non-nil, asks for significance letters (U47 #327):
+	// the layer adds the payload part `letters` on the host coordinates —
+	// per cell of a compared pair-axis index its letter, its comparison
+	// group, the letters it is HIGHER than (the sign of each pair's test
+	// statistic) and the subset it is significantly ABOVE
+	// (PairwiseLetterCell). nil = no letters, the layer byte-identical to
+	// a letter-free one. Accepted by every OVERLAY_PAIRWISE_* kind.
+	Letters *PairwiseLetters `json:"letters,omitempty"`
+}
+
+// PairwiseLetters is the decoded `letters` param of an OVERLAY_PAIRWISE_*
+// spec. An empty object turns letters on with the defaults.
+type PairwiseLetters struct {
+	// Alpha, when set, is the significance level a pair is compared
+	// against: the raw p-value with no correction on the layer, the
+	// adjusted one (OverlayPayload.PAdjusted) when a multiplicity
+	// correction ran. Unset, an uncorrected layer compares raw p against
+	// DefaultMultiplicityAlpha and a corrected one reads
+	// significant_adjusted (the resolved multiplicity alpha). Must lie in
+	// the open interval (0, 1) — PairwiseLettersRefusal.
+	Alpha *float64 `json:"alpha,omitempty"`
+}
+
+// PairwiseLetterCell is one cell of a pairwise layer's `letters` part
+// (host coordinates). A cell is present iff its pair-axis index was
+// compared with at least one other index — so the implicit Total column,
+// or a lone index in its pair_along_dim group, carries none.
+type PairwiseLetterCell struct {
+	// Letter is the index's own letter: A, B, … Z, AA, AB, … in pair-axis
+	// order, restarting in every comparison group.
+	Letter string `json:"letter"`
+	// Group numbers the index's comparison group (0-based, in pair
+	// order): one group with no pair_along_dim; one per same-bucket set
+	// under it (and per measure on a multi-measure host's ROW scope).
+	// Letters compare only within a group.
+	Group int `json:"group"`
+	// Higher lists the letters of the same-group indexes this cell's
+	// figure is higher than at this opposite-axis position — the sign of
+	// each scored pair's test statistic, significant or not — in letter
+	// order; empty (never null) when none. A pair the kernel could not
+	// score, and a tie, appear on neither side.
+	Higher []string `json:"higher"`
+	// Above is the subset of Higher whose pair is significant (see
+	// PairwiseLetters.Alpha), in letter order; empty (never null) when
+	// it beats none.
+	Above []string `json:"above"`
+}
+
+// PairwiseLettersRefusal is the one `letters` param rule both arms raise
+// (PULSE_OVERLAY_PARAM_MISSING): an alpha outside the open interval
+// (0, 1). Empty when params carry no letters or a valid alpha.
+func PairwiseLettersRefusal(kind OverlayKind, params PairwiseOverlayParams) string {
+	if params.Letters == nil || params.Letters.Alpha == nil {
+		return ""
+	}
+	if a := *params.Letters.Alpha; a > 0 && a < 1 {
+		return ""
+	}
+	return "overlay " + string(kind) + " params.letters.alpha must lie in the open interval (0, 1); got " +
+		strconv.FormatFloat(*params.Letters.Alpha, 'g', -1, 64)
 }
 
 // Weighted two-means sample-size conventions (PairwiseOverlayParams.NBasis),
@@ -347,6 +409,23 @@ func DecodePairwiseParams(raw json.RawMessage) (PairwiseOverlayParams, error) {
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return p, fmt.Errorf("decode pairwise overlay params: %w", err)
+	}
+	// `letters` is a closed object: an unknown key inside it (a typo of
+	// alpha) would otherwise drop silently, so it is decoded strictly.
+	if p.Letters != nil {
+		var probe struct {
+			Letters json.RawMessage `json:"letters"`
+		}
+		if err := json.Unmarshal(raw, &probe); err != nil {
+			return p, fmt.Errorf("decode pairwise overlay params: %w", err)
+		}
+		dec := json.NewDecoder(bytes.NewReader(probe.Letters))
+		dec.DisallowUnknownFields()
+		var l PairwiseLetters
+		if err := dec.Decode(&l); err != nil {
+			return p, fmt.Errorf("decode pairwise overlay params: letters: %w", err)
+		}
+		p.Letters = &l
 	}
 	return p, nil
 }
