@@ -1284,12 +1284,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_SUCCESS_VALUE_MISSING: {
-		Message: "TEST_PROP_Z did not supply Params.success; the test cannot decide which category counts as a positive outcome.",
+		Message: "TEST_PROP_Z did not supply a usable Params.success; the test cannot decide which category counts as a positive outcome.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Tests", "*", "Params", "success"},
 				Hint:   "Supply the dictionary value that represents success (e.g. {\"success\": \"yes\"}); use pulse inspect to list the categorical's dictionary values.",
+			},
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Tests", "*", "Params", "success"},
+				Hint:   "On a packed_bool outcome success is one of its two levels, exactly \"1\" (true) or \"0\" (false) — details.valid_levels; there are no true / false aliases.",
 			},
 		},
 	},

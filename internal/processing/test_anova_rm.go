@@ -88,11 +88,11 @@ func (a *anovaRMRow) UpdateRow(record *Record) error {
 	if !ok {
 		return nil
 	}
-	cond, ok := record.StringValue(a.condition)
+	cond, ok := record.LevelValue(a.condition)
 	if !ok {
 		return nil
 	}
-	subj, ok := record.StringValue(a.subject)
+	subj, ok := record.LevelValue(a.subject)
 	if !ok {
 		return nil
 	}

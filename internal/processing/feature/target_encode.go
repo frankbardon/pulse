@@ -109,7 +109,7 @@ func (c *targetEncode) Compute(records []Record, field string) (map[string]Outpu
 	var globalCount int
 
 	for _, r := range records {
-		s, sOk := r.StringValue(field)
+		s, sOk := r.LevelValue(field)
 		t, tOk := r.NumericValue(c.target)
 		if !sOk || !tOk {
 			continue
@@ -137,7 +137,7 @@ func (c *targetEncode) Compute(records []Record, field string) (map[string]Outpu
 	globalMean := globalSum / float64(globalCount)
 
 	for i, r := range records {
-		s, ok := r.StringValue(field)
+		s, ok := r.LevelValue(field)
 		if !ok {
 			nulls[i] = true
 			continue
@@ -154,7 +154,7 @@ func (c *targetEncode) PrePass(r Record, field string) error {
 	if c.per == nil {
 		c.per = make(map[string]*targetStat, 16)
 	}
-	s, sOk := r.StringValue(field)
+	s, sOk := r.LevelValue(field)
 	t, tOk := r.NumericValue(c.target)
 	if !sOk || !tOk {
 		return nil
@@ -188,7 +188,7 @@ func (c *targetEncode) EmitRow(r Record, field string) (map[string]Output, error
 	if c.empty {
 		return map[string]Output{c.label: {Values: []float64{0}, Nulls: []bool{true}}}, nil
 	}
-	s, ok := r.StringValue(field)
+	s, ok := r.LevelValue(field)
 	if !ok {
 		return map[string]Output{c.label: {Values: []float64{0}, Nulls: []bool{true}}}, nil
 	}

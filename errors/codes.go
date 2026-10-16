@@ -767,8 +767,10 @@ const (
 
 	// PULSE_TEST_SUCCESS_VALUE_MISSING indicates a two-proportion z-test
 	// did not supply Params.success — the dictionary value treated as a
-	// success on the primary field. Without it, the test cannot decide
-	// which category counts as a positive outcome.
+	// success on the primary field — or, on a packed_bool outcome,
+	// supplied one that is not a level ("0" / "1"; details.valid_levels).
+	// Without it, the test cannot decide which category counts as a
+	// positive outcome.
 	PULSE_TEST_SUCCESS_VALUE_MISSING Code = "PULSE_TEST_SUCCESS_VALUE_MISSING"
 
 	// PULSE_TEST_CORRELATION_UNDEFINED indicates Pearson r encountered

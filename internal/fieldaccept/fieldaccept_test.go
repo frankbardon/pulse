@@ -294,3 +294,71 @@ func TestTypeNames_NumericReaders(t *testing.T) {
 		}
 	}
 }
+
+// TestCategoricalValue_PackedBoolLevel pins the level class: every slot
+// that reads a level accepts a packed_bool beside the categoricals,
+// while TEST_ANOVA_RM's subject (a two-level subject id identifies no
+// subject) and the slots whose packed_bool arm is not wired yet (the
+// categorical encoders, FEAT_TRAIN_TEST_SPLIT's stratify) stay
+// categorical-only.
+func TestCategoricalValue_PackedBoolLevel(t *testing.T) {
+	level := []string{"categorical_u16", "categorical_u32", "categorical_u8", "packed_bool"}
+	categorical := level[:3]
+	for _, tc := range []struct {
+		op   string
+		slot Slot
+		want []string
+	}{
+		{"TEST_PROP_Z", SlotField, level},
+		{"TEST_PROP_Z", SlotSplitBy, level},
+		{"TEST_CHISQ", SlotRows, level},
+		{"TEST_CHISQ", SlotCols, level},
+		{"TEST_FISHER_EXACT", SlotRows, level},
+		{"TEST_FISHER_EXACT", SlotCols, level},
+		{"TEST_T", SlotSplitBy, level},
+		{"TEST_BOX_M", SlotSplitBy, level},
+		{"TEST_ANOVA_RM", SlotSplitBy, level},
+		{"TEST_ANOVA_RM", SlotSubject, categorical},
+		{"FEAT_ONE_HOT", SlotField, categorical},
+		{"FEAT_FREQUENCY_ENCODE", SlotField, categorical},
+		{"FEAT_TARGET_ENCODE", SlotField, categorical},
+		{"FEAT_TRAIN_TEST_SPLIT", SlotStratify, categorical},
+	} {
+		if got := TypeNames(tc.op, tc.slot); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s %s: %v, want %v", tc.op, tc.slot, got, tc.want)
+		}
+	}
+}
+
+// TestSuccessLevelRefusal pins TEST_PROP_Z's strict packed_bool success:
+// "0" / "1" only, refused with the valid levels in details; a
+// categorical (or unknown) outcome is never judged here.
+func TestSuccessLevelRefusal(t *testing.T) {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "flag", Type: encoding.FieldTypePackedBool},
+		{Name: "cat", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
+	}}
+	for _, tc := range []struct {
+		field, success string
+		refused        bool
+	}{
+		{"flag", "0", false}, {"flag", "1", false},
+		{"flag", "true", true}, {"flag", "false", true}, {"flag", " 1", true}, {"flag", "1.0", true},
+		{"cat", "anything", false}, {"missing", "x", false},
+	} {
+		cerr := SuccessLevelRefusal("TEST_PROP_Z", tc.field, tc.success, schema)
+		if (cerr != nil) != tc.refused {
+			t.Errorf("%s=%q: refusal %v, want refused=%v", tc.field, tc.success, cerr, tc.refused)
+			continue
+		}
+		if cerr == nil {
+			continue
+		}
+		if cerr.Code != errors.PULSE_TEST_SUCCESS_VALUE_MISSING {
+			t.Errorf("%s=%q: code %s", tc.field, tc.success, cerr.Code)
+		}
+		if got := cerr.Details["valid_levels"]; !reflect.DeepEqual(got, []string{"0", "1"}) {
+			t.Errorf("%s=%q: valid_levels %v", tc.field, tc.success, got)
+		}
+	}
+}

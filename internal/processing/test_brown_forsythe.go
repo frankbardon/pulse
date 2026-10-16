@@ -89,7 +89,7 @@ func (b *brownForsytheRow) UpdateRow(record *Record) error {
 	if !ok {
 		return nil
 	}
-	key, ok := record.StringValue(b.splitBy)
+	key, ok := record.LevelValue(b.splitBy)
 	if !ok {
 		return nil
 	}

@@ -45,6 +45,7 @@ package fieldaccept
 import (
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -183,11 +184,60 @@ func packedBool(ft encoding.FieldType) bool {
 	return ft == encoding.FieldTypePackedBool
 }
 
-// categoricalValue is the grouping / encoding set: a categorical, whose
-// dictionary labels are the levels (split_by, a contingency axis, the
-// categorical encoders, TEST_PROP_Z's outcome).
+// categoricalValue is the level set: a categorical, whose dictionary
+// labels are the levels, or a packed_bool, whose levels are "0" / "1"
+// (PackedBoolFalse / PackedBoolTrue, GROUP_CATEGORY's keys). split_by, a
+// contingency axis and TEST_PROP_Z's outcome read it; the runtime reads
+// every level through the one shared accessor (processing.Record.
+// LevelValue), so a packed_bool row is never read as missing.
 func categoricalValue(ft encoding.FieldType) bool {
+	return ft.IsCategorical() || ft == encoding.FieldTypePackedBool
+}
+
+// categoricalOnly is a categorical alone: TEST_ANOVA_RM's subject (a
+// two-level subject id identifies no subject), and the categorical
+// encoders and FEAT_TRAIN_TEST_SPLIT's stratify, whose packed_bool arm
+// (output columns from the levels, not a dictionary) is not wired yet.
+func categoricalOnly(ft encoding.FieldType) bool {
 	return ft.IsCategorical()
+}
+
+// The two levels a packed_bool reads as: GROUP_CATEGORY's bucket keys,
+// FILTER_INCLUDE's values and TEST_PROP_Z's success literals. There are
+// no true / false aliases.
+const (
+	PackedBoolFalse = "0"
+	PackedBoolTrue  = "1"
+)
+
+// PackedBoolLevels returns the two packed_bool levels, false first.
+func PackedBoolLevels() []string {
+	return []string{PackedBoolFalse, PackedBoolTrue}
+}
+
+// SuccessLevelRefusal is TEST_PROP_Z's success-literal rule on a
+// packed_bool outcome: success must be exactly "0" or "1". Nil when the
+// outcome is not a packed_bool schema field (a categorical's success is
+// not judged against its dictionary) or success is a level. Predict and
+// the runtime constructor both raise it, after the outcome and split
+// type checks.
+func SuccessLevelRefusal(op, field, success string, schema *encoding.Schema) *errors.CodedError {
+	if schema == nil || field == "" {
+		return nil
+	}
+	f := schema.Field(field)
+	if f == nil || f.Type != encoding.FieldTypePackedBool || success == PackedBoolFalse || success == PackedBoolTrue {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SUCCESS_VALUE_MISSING,
+		op+" params.success "+strconv.Quote(success)+" is not a level of packed_bool field "+field+"; use \"1\" (true) or \"0\" (false)",
+		map[string]any{
+			"type":         op,
+			"field":        field,
+			"field_type":   f.Type.String(),
+			"success":      success,
+			"valid_levels": PackedBoolLevels(),
+		})
 }
 
 // codeValue is ATTR_CODE_IN's set: a categorical (codes match its
@@ -281,15 +331,16 @@ func init() {
 	add(packedBool, unsupported, field, "FILTER_TRUE", "FILTER_FALSE")
 	add(codeValue, unsupported, field, "ATTR_CODE_IN")
 	add(modelErrorValue, unsupported, []Slot{SlotField, SlotPrediction}, "AGG_MAE", "AGG_MAPE", "AGG_RMSE")
-	add(categoricalValue, unsupported, field, "FEAT_ONE_HOT", "FEAT_FREQUENCY_ENCODE", "FEAT_TARGET_ENCODE", "TEST_PROP_Z")
-	add(categoricalValue, unsupported, []Slot{SlotStratify}, "FEAT_TRAIN_TEST_SPLIT")
+	add(categoricalValue, unsupported, field, "TEST_PROP_Z")
+	add(categoricalOnly, unsupported, field, "FEAT_ONE_HOT", "FEAT_FREQUENCY_ENCODE", "FEAT_TARGET_ENCODE")
+	add(categoricalOnly, unsupported, []Slot{SlotStratify}, "FEAT_TRAIN_TEST_SPLIT")
 	add(testValue, unsupported, []Slot{SlotTarget}, "FEAT_TARGET_ENCODE")
 	add(categoricalValue, unsupported, []Slot{SlotRows, SlotCols}, "TEST_CHISQ", "TEST_FISHER_EXACT")
 	add(categoricalValue, unsupported, []Slot{SlotSplitBy},
 		"TEST_T", "TEST_WELCH", "TEST_ANOVA_F", "TEST_ANOVA_RM", "TEST_ANOVA_WELCH", "TEST_BROWN_FORSYTHE",
 		"TEST_KS", "TEST_KRUSKAL_WALLIS", "TEST_MANN_WHITNEY_U", "TEST_SHAPIRO_WILK", "TEST_Z_TWO_SAMPLE",
 		"TEST_PROP_Z", "TEST_HOTELLING_T2", "TEST_MANOVA", "TEST_BOX_M")
-	add(categoricalValue, unsupported, []Slot{SlotSubject}, "TEST_ANOVA_RM")
+	add(categoricalOnly, unsupported, []Slot{SlotSubject}, "TEST_ANOVA_RM")
 
 	for _, t := range types.AllAggregationTypes() {
 		// A vector aggregator (AGG_VEC_*) reads its vector members, not

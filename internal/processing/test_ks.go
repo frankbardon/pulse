@@ -81,7 +81,7 @@ func (k *ksRow) UpdateRow(record *Record) error {
 	if !ok {
 		return nil
 	}
-	key, ok := record.StringValue(k.splitBy)
+	key, ok := record.LevelValue(k.splitBy)
 	if !ok {
 		return nil
 	}

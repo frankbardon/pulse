@@ -87,7 +87,7 @@ func (a *anovaWelchRow) UpdateRow(record *Record) error {
 	if !ok {
 		return nil
 	}
-	key, ok := record.StringValue(a.splitBy)
+	key, ok := record.LevelValue(a.splitBy)
 	if !ok {
 		return nil
 	}

@@ -26,6 +26,12 @@ type Record interface {
 	// StringValue returns the resolved string value for categorical fields.
 	StringValue(name string) (string, bool)
 
+	// LevelValue returns the row's level: a categorical's dictionary
+	// label, or "0" / "1" for a packed_bool; ("", false) for a null or
+	// any other type. Every level read (the encoders, a stratify key)
+	// goes through it, never StringValue, which knows no packed_bool.
+	LevelValue(name string) (string, bool)
+
 	// Set writes a derived non-null value. Implementations clear any prior
 	// null marker and invalidate any cached views.
 	Set(name string, value float64)

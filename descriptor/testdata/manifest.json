@@ -6864,7 +6864,7 @@
             "name": "success",
             "type": "string",
             "required": true,
-            "description": "Dictionary value of Field treated as a success."
+            "description": "Dictionary value of Field treated as a success; on a packed_bool Field exactly \"1\" (true) or \"0\" (false)."
           }
         ],
         "requires": [
@@ -18145,4 +18145,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e7f3cf81ef4144e4c257c1a47cac06b758fd95cc88ea3404343b92c31dde999f
+// golden-hash: 034372ecd9088f17fff92bf76ad10ff3a81b55cf141ca7b4dda8f5a472749fb1
