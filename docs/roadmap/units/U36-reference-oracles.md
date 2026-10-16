@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U08]
 soft_depends_on: []
 blocks: []
-todo_items: [202, 203, 204, 205, 266, 271, 293, 294, 401, 405, 410, 414, 454]
+todo_items: [202, 203, 204, 205, 266, 271, 293, 294, 401, 405, 410, 414, 454, 477]
 branch: reference-oracles
 ---
 
@@ -125,3 +125,9 @@ Each epic is a vertical slice. Commit with `feat|fix|test(reference-oracles/E<n>
 - **Weakest today** (U08 research): Shapiro–Wilk, KS, Tukey and Brown–Forsythe are checked only qualitatively; Pearson `ci_low` / `ci_high` for presence only; `REG_GLM` reference values "were derived by running the engine itself"; `REG_OLS` states it does not bind to external values.
 - **`OVERLAY_PAIRWISE_PROBIT_T` is anti-conservative by design** (1/√n spread). Its oracle pins the documented formula, not a "correct" probit SE; whether it stays inferential-flagged is a U33 reviewer decision.
 - **Stock R is not always accurate enough.** `ptukey` / `qtukey` / far-tail `qt` miss `1e-10`; U08's generator refines them in R and keeps R's own value beside the golden. Follow the same pattern for any new case.
+
+## Handed on from U47
+
+Filed from [U47](U47-survey-tables.md#handed-on); tick in [`TODO.md`](../TODO.md) when done.
+
+- [ ] **#477** `weight_reference_values_test.go` was hand-edited in U47 (E4-S6) because Hmisc was absent; re-run `uv run --no-project gen_weight_reference.py --check` with Hmisc 5.3.0 and commit any regenerated values. Found in U47 (E4-S5)

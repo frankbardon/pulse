@@ -4,7 +4,7 @@ slug: survey-tables
 title: "A weighted banner table with significance letters is one request, and Pulse can compute the weights"
 track: Statistical integrity
 size: L
-status: in-progress
+status: done
 depends_on: []
 soft_depends_on: [U46, U11, U12]
 blocks: [U32]
@@ -42,7 +42,7 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 - [x] **#328** (Survey tables) A tested wave-over-wave change: an inferential prior-period overlay on grouped Process (or a crosstab with no column axis), with p-values in the multiplicity family
 - [x] **#329** (Survey tables) Weighting: rim (raking) and cell weighting to marginal targets, producing a weight column and an efficiency report (Kish n_eff, design effect, weight range), from the library, CLI and MCP (`Pulse.Rake` in E4-S1; `pulse rake` leaf and `pulse_rake` tool in E4-S2)
 - [x] **#330** (Survey tables) SPSS export carries value labels from label tables and categorical dictionaries; `overlay-system.md` matches the runtime on weighted inferential overlays (overlay-system half done in E1-S3; SPSS half — `--labels` / `io.SPSSWriterOptions.ValueLabels` value labels, and Materialize / Rake carry the SPSS sidecar — in E4-S3)
-- [ ] **#331** (Survey tables) Acceptance: the brand tracker's banner becomes one request per table with letters; its weights are computed by Pulse from census targets instead of inside the synth spec; its SPSS hand-off carries value labels
+- [x] **#331** (Survey tables) Acceptance: the brand tracker's banner becomes one request per table with letters; its weights are computed by Pulse from census targets instead of inside the synth spec; its SPSS hand-off carries value labels
 
 ## Scope
 
@@ -76,11 +76,11 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(survey-tables/E<n
 ## Acceptance criteria
 
 - [x] The 28.6% vs 6.8% weighted comparison tests at the same p as the weighted indicator-mean method
-- [ ] A raked weight reproduces the census marginals to within tolerance and reports Kish n_eff
-- [ ] The brand tracker README's Compose banners are replaced by single requests with letters
-- [ ] Showcase examples simplified where this unit allows (brand tracker (29 Compose slots, synth-computed weights, unlabelled SPSS)): requests converted, README and REPRODUCE.md expected numbers refreshed, every step still pure Pulse
-- [ ] `format_version` stays `"1.1"`; every change is additive (or the unit's decision records the one deliberate bump)
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] A raked weight reproduces the census marginals to within tolerance and reports Kish n_eff
+- [x] The brand tracker README's Compose banners are replaced by single requests with letters
+- [x] Showcase examples simplified where this unit allows (brand tracker (29 Compose slots, synth-computed weights, unlabelled SPSS)): requests converted, README and REPRODUCE.md expected numbers refreshed, every step still pure Pulse
+- [x] `format_version` stays `"1.1"`; every change is additive (or the unit's decision records the one deliberate bump)
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
@@ -118,7 +118,19 @@ Filed from [U43 handed on](U43-post-aggregation-ratios.md#handed-on); tick in [`
 
 ## Handed on
 
-| TODO | What | Owner |
+| Item | To | Why |
 |---|---|---|
-| #470 | `.sav` value labels on a numeric coded (`u8`) field — out by decision (the brand tracker does not need it) | [U50](U50-local-time.md) — its weekday / hour-of-day parts are numeric codes that want value labels on a `.sav` |
-| #471 | `pulse export predict --labels` (value-label refusals predicted at the library seam only) | done in U47 (E4-S7): `Pulse.PredictExport` + the flag |
+| #470 `.sav` value labels on a numeric coded (`u8`) field | [U50](U50-local-time.md) | out by decision; its weekday / hour-of-day parts are numeric codes that want value labels on a `.sav` |
+| #471 `pulse export predict --labels` | done in U47 (E4-S7) | `Pulse.PredictExport` + the flag |
+| `op-group-set-per-element` body 1,366 B over the 1,200 B soft atomic budget (pre-existing 1,306 B); `crosstab-guide.md` at 5,999 / 6,000 B (#472) | [U32](U32-docs-audit.md) | U32 owns the skill budget flip |
+| `.claude/reference/weighting/inference-multivariate-and-overlays.md` at 32,699 / 32,768 B (#473) | [U32](U32-docs-audit.md) | split the slice before the next edit that grows it |
+| Non-pairwise overlays on a multi-measure crosstab (per-measure extension) | unowned | owner decided 2026-10-16: refused (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, `multi_measure_host`) for now |
+| `letters` params-key hiding in feature profiles | unowned | owner decided 2026-10-16: not now; no params-key hiding mechanism exists |
+| Banner sections overriding the base crosstab `normalize` | unowned | no story requested |
+| Optional `PULSE_ADVISORY_*` for an unguarded `ATTR_FORMULA` null (#475) | [U35](U35-predict-runtime-parity.md) | predict cannot know; an advisory is a contract call (owner) |
+| Welch pairwise with mixed measure cell types is refused whole (#476) | [U35](U35-predict-runtime-parity.md) | predict / runtime parity of a per-measure refusal |
+| Ontology example detector lacks a `cells` entry (example 19 declares `_meta.capabilities` by hand) (#474) | [U32](U32-docs-audit.md) | docs / examples audit |
+| Carried SPSS variable names skip `--sanitize-names` | unowned | an illegal derived label name refuses the export unless `--ignore-sidecar` |
+| Weighted prior layers (`*_VS_PRIOR`) stamp no `summary.parameters` `sum_weights` / `n_eff` | unowned | documented limit of the partition merge |
+| Count/sum allow-list for `p_source` omission; public `LabelTable.Order` + strict validation | unowned | owner confirmation pending |
+| `weight_reference_values_test.go` hand-edited (Hmisc absent) (#477) | [U36](U36-reference-oracles.md) | re-run `gen_weight_reference.py --check` with Hmisc 5.3.0 |

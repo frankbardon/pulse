@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53]
 soft_depends_on: [all feature units]
 blocks: [U33]
-todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 469]
+todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 469, 472, 473, 474]
 branch: docs-audit
 ---
 
@@ -169,3 +169,11 @@ Filed from [U45](U45-binary-and-decimal.md); tick in [`TODO.md`](../TODO.md) whe
 Filed from [U35](U35-predict-runtime-parity.md); tick in [`TODO.md`](../TODO.md) when done.
 
 - [ ] **#463** Four atomic op skills sit over the soft 1200-byte budget after U35: `op-attr-reg-fitted`, `op-attr-reg-residual`, `op-attr-reg-leverage`, `op-agg-ratio`; trim in the docs audit. Found in U35 (E7-S3)
+
+## Handed on from U47
+
+Filed from [U47](U47-survey-tables.md#handed-on); tick in [`TODO.md`](../TODO.md) when done.
+
+- [ ] **#472** Skill budgets after U47: `op-group-set-per-element` body 1,366 B over its 1,200 B soft atomic budget (pre-existing 1,306 B) and `crosstab-guide.md` at 5,999 / 6,000 B; trim in the docs audit. Found in U47 (E4-S5)
+- [ ] **#473** Split `.claude/reference/weighting/inference-multivariate-and-overlays.md` (32,699 / 32,768 B, at its byte ceiling) into two slices, naming both in the `weighting.md` index, before the next edit that grows it. Found in U47 (E4-S5)
+- [ ] **#474** The ontology example detector has no `cells` entry (crosstab `cells` / `capability:crosstab_cells`), so example 19 declares `_meta.capabilities` by hand; add the detector entry. Found in U47 (E4-S5)
