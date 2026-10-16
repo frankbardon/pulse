@@ -20,7 +20,7 @@ Part of the expression surface; entry skills [`expression-language`](expression-
 | `/` | scale `max(s1, s2, 4)`, banker's |
 | `< > <= >= == !=` | exact verdict (against a non-finite number, IEEE) |
 | unary `-` | same scale |
-| `%` | refused at compile — write `float(price) % 2` |
+| `%` | refused at compile — write `float(price) % 2` (reached through an untyped container, `{"a": price}.a % 2`, it fails at run time instead) |
 
 ## Mixed branches and defaults
 

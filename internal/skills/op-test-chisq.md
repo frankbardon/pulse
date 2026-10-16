@@ -26,7 +26,7 @@ Slot params: `Rows` (required, categorical or `packed_bool`), `Cols` (required, 
 
 ## Inputs
 
-`Rows`, `Cols` — categorical: `categorical_u8`/`u16`/`u32`, or `packed_bool` (levels `"0"`/`"1"`) (labels `row_labels` / `col_labels` read `"0"`, `"1"`); any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (rows first).
+`Rows`, `Cols` — categorical: `categorical_u8`/`u16`/`u32`, or `packed_bool` (levels named `"0"`/`"1"`; labels follow first appearance, as for any categorical); any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (rows first).
 
 ## Output
 
