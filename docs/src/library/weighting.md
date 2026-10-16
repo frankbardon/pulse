@@ -10,6 +10,10 @@ counts each row as `w` rows: counts become Σw, sums Σw·x, means
 that names no weight produces exactly the output it always did, byte
 for byte, and `format_version` stays `"1.1"`.
 
+No weight column yet? [Computing Survey Weights](rake.md) rakes a
+cohort to population margins and writes the weights as a new column;
+use them with kind `probability`.
+
 ## Where a weight comes from
 
 There are three places to name one. For each slot Pulse takes the

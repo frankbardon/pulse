@@ -766,6 +766,81 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_RAKE_INVALID: {
+		Message: "The rake request is malformed, so nothing is read or written. It needs a source `cohort`, an `out` path that is not the source, and at least one margin; each margin is either `field` + `targets` or two or more `fields` + `cells` (each cell one value per field, no tuple twice). Margin, `by` and `base_weight` fields must exist, a margin or `by` field must be categorical, packed_bool or an unsigned integer and appear once, a base weight must be numeric with no null, negative or non-finite value. Targets are finite and non-negative with at least one positive; `targets_as: shares` sums to 1 or 100; `missing` is `refuse` or `base`; caps satisfy 0 <= min_weight <= 1 <= max_weight; max_iter, tol and total are non-negative. A `weight_field` the source already has needs `overwrite` and may not be a margin or `by` field. details.reason names the rule and details.field the request path.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"margins", "*", "field"},
+				Hint:   "Name an existing categorical, packed_bool or unsigned-integer field per margin (once each), with finite non-negative targets.",
+			},
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"weight_field"},
+				Hint:   "Choose a new weight_field name, or set overwrite to replace the existing column.",
+			},
+		},
+	},
+	PULSE_RAKE_UNKNOWN_CATEGORY: {
+		Message: "A rake target names a category its margin field cannot hold: not a dictionary entry of the categorical, not `true` / `false` for packed_bool, or not a canonical in-range decimal integer for an integer field. details carry margin, field and category.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"margins", "*", "targets"},
+				Hint:   "Key every target by the field's stored category spelling (pulse inspect --full-dict lists a categorical's entries).",
+			},
+		},
+	},
+	PULSE_RAKE_UNTARGETED_CATEGORY: {
+		Message: "Records hold a margin category that has no target in that margin, so raking cannot place them. details carry margin, fields, values, rows and first_row.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"margins", "*", "targets"},
+				Hint:   "Add a target for the category (0 gives its records weight 0), or filter those records out of the cohort before raking.",
+			},
+		},
+	},
+	PULSE_RAKE_MISSING_VALUE: {
+		Message: "Records have a null margin (or `by`) value and the rake's missing policy is `refuse` (the default). details carry field, rows and first_row.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"missing"},
+				Hint:   "Set missing to \"base\" so a record keeps its base factor for a margin it has no value for, or recode the nulls; a null `by` value is always refused.",
+			},
+		},
+	},
+	PULSE_RAKE_EMPTY_CELL: {
+		Message: "A margin category has a positive target but no record (or only zero-weight records) in its group, so no weight can reach the target. details carry margin, fields, values, target and, under `by`, group.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"margins", "*", "targets"},
+				Hint:   "Collapse the empty category into a neighbour in both the data and the targets, or set its target to 0.",
+			},
+		},
+	},
+	PULSE_RAKE_NOT_CONVERGED: {
+		Message: "Raking stopped at max_iter with an achieved share still further than tol from its target; the cohort was written with the last sweep's weights. Binding caps or contradictory margins are the usual cause. details carry iterations, residual, tol and, under `by`, group.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"max_iter"},
+				Hint:   "Raise max_iter, loosen min_weight / max_weight, or check that the margins' targets describe one population.",
+			},
+		},
+	},
+	PULSE_RAKE_SIDECARS_INVALIDATED: {
+		Message: "A rake run overwrote a cohort whose sidecars are now stale; nothing was rebuilt.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"InvalidatedSidecars"},
+				Hint:   "Run each rebuild command the result's invalidated_sidecars lists (details.sidecars names their paths), or delete the stale sidecars.",
+			},
+		},
+	},
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: {
 		Message: "A facet asks a numeric statistic (numeric_percentiles, include_histogram) of a non-numeric field; predict warns, and the facet omits that statistic for the field. (A numeric aggregation over a categorical is refused PULSE_FIELD_TYPE_UNSUPPORTED.)",
 		Fixups: []Fixup{

@@ -289,6 +289,14 @@ func resultWarningCodes(out any) []string {
 		if v != nil {
 			addCoded(v.SidecarWarnings)
 		}
+	case *MaterializeResult:
+		if v != nil {
+			addCoded(v.Warnings)
+		}
+	case *RakeResult:
+		if v != nil {
+			addCoded(v.Warnings)
+		}
 	}
 	return codes
 }

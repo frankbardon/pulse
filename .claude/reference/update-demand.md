@@ -26,7 +26,7 @@ Defer the doc/skill update to "a follow-up PR" and the follow-up will not happen
 | `ComposedResponse`, sweeps, banners, item `for_each`, ranking, `fits`, model files / `save`, `models`, `populations`, regression `conf_level` / `covariance` | `update-demand/compose.md` |
 | `Request.Overlays` / `Response.Overlays`, pairwise / panel params, the Compose overlay fold, overlay error codes, `OverlayLayer.Warnings` | `update-demand/overlays.md` |
 | Facet, ProcessChain, joins, crosstab and fusion, `DecodeWorkers`, grouped tier-1 tests, time zones / `internal/temporal` | `update-demand/engine-modes.md` (+ `.claude/reference/execution-modes.md`) |
-| `Request.Weight` / any per-slot weight (the weighting row), `multiplicity` (the Multiplicity row) | `update-demand/weighting-and-multiplicity.md` (+ `.claude/reference/weighting.md`) |
+| `Request.Weight` / any per-slot weight (the weighting row), `Pulse.Rake` (the Rake row), `multiplicity` (the Multiplicity row) | `update-demand/weighting-and-multiplicity.md` (+ `.claude/reference/weighting.md`) |
 | A new feature or the feature-profile model, request templates, the `observe` vocabulary | `update-demand/features-templates-observe.md` |
 | Synth profile document, fidelity report, generation model, type predicates | `update-demand/synth-model.md` (+ `.claude/reference/synthetic-data.md`) |
 | Synth structural rules, the pre-claim, rule/spec plumbing | `update-demand/synth-rules.md` (+ `.claude/reference/synthetic-data.md`) |

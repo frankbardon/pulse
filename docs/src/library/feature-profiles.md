@@ -113,7 +113,7 @@ Full guide: [Tuning Limits](tuning-limits.md).
 | Kind | Spelling | Examples |
 |---|---|---|
 | operator | bare registered name | `AGG_SUM`, `GROUP_DATE`, `TEST_T`, `REG_OLS`, `OVERLAY_YOY`, and your extension operators |
-| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:compose_sweep`, `capability:compose_fits`, `capability:compose_banner`, `capability:model_save`, `capability:models`, `capability:for_each`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:crosstab_cells`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:materialize`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:recommend`, `capability:explain` |
+| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:compose_sweep`, `capability:compose_fits`, `capability:compose_banner`, `capability:model_save`, `capability:models`, `capability:for_each`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:crosstab_cells`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:materialize`, `capability:rake`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:recommend`, `capability:explain` |
 | I/O format | `io_format:<name>` | `io_format:csv`, `io_format:parquet`, `io_format:spss`. One name covers both import and export |
 | MCP extra | `mcp_extra:<name>` | `mcp_extra:cohort_resources`, `mcp_extra:prompt_bootstrap`, `mcp_extra:prompt_author_request`, and one `mcp_extra:prompt_<intent>` per analytic intent (`mcp_extra:prompt_describe`, `mcp_extra:prompt_compare_groups`, …) for the `pulse-<intent>` prompts |
 
@@ -527,7 +527,7 @@ Pulse publishes example profiles to copy, in the repository's
 |---|---|
 | `minimal` | `capability:process` plus core aggregators and the default groupers |
 | `survey-crosstab` | Process, Compose, crosstab, facet, labels, row weighting and multiple-comparison correction, with survey tests, the crosstab, compose and facet overlays they feed, and the residual / correspondence / raking crosstab overlays, closed over their dependencies |
-| `read-only-analyst` | Every analytic capability and operator; nothing that writes data (`import`, `export`, `filter_to_file`, `dedup`, `materialize`, `widen`, `shard`, `index`, `synth`, `model_save`) and no I/O formats |
+| `read-only-analyst` | Every analytic capability and operator; nothing that writes data (`import`, `export`, `filter_to_file`, `dedup`, `materialize`, `rake`, `widen`, `shard`, `index`, `synth`, `model_save`) and no I/O formats |
 
 ```go
 names := pulse.ExampleFeatureProfiles()        // sorted: minimal, read-only-analyst, survey-crosstab

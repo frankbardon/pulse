@@ -79,6 +79,27 @@ var (
 	_                                                                                                                         = pulse.MaterializeResult{Target: "", Records: 0, DerivedColumns: []string(nil), Warnings: []*perrors.CodedError(nil), InvalidatedSidecars: []pulse.StaleSidecar(nil)}
 )
 
+// Survey weighting: Pulse.Rake, its request (margins, joint cells) and
+// the result's report types — every one reachable by its pulse spelling.
+var (
+	_ func(*pulse.Pulse, context.Context, pulse.RakeRequest) (*pulse.RakeResult, error) = (*pulse.Pulse).Rake
+	_                                                                                   = pulse.RakeRequest{
+		Cohort: "in.pulse", Out: "out.pulse", WeightField: pulse.RakeDefaultWeightField, By: "wave", BaseWeight: "dw",
+		Missing: "base", MinWeight: 0.3, MaxWeight: 3, MaxIter: pulse.RakeDefaultMaxIter, Tol: pulse.RakeDefaultTol, Total: 1000, Overwrite: true,
+		Margins: []pulse.RakeMargin{
+			{Field: "gender", Targets: map[string]float64{"F": 0.51, "M": 0.49}, TargetsAs: "shares"},
+			{Fields: []string{"age", "region"}, Cells: []pulse.RakeCell{{Values: []string{"18-34", "NE"}, Target: 1}}},
+		},
+	}
+	_ = pulse.RakeResult{
+		Target: "", Records: 0, WeightField: "", Iterations: 0, Converged: true, Residual: 0,
+		Margins:    []pulse.RakeMarginReport{{Fields: nil, NMissing: 0, Categories: []pulse.RakeCategoryReport{{Values: nil, ObservedN: 0, Observed: 0, Target: 0, Achieved: 0}}}},
+		Groups:     []pulse.RakeGroupReport{{Value: "1", Records: 0, Efficiency: pulse.RakeEfficiency{}}},
+		Efficiency: pulse.RakeEfficiency{N: 0, SumWeights: 0, NEff: 0, DeffKish: 0, EfficiencyPct: 0, WeightMin: 0, WeightMax: 0, WeightRangeRatio: 0, WeightCV: 0, NCapped: 0},
+		Warnings:   []*perrors.CodedError(nil), InvalidatedSidecars: []pulse.StaleSidecar(nil),
+	}
+)
+
 // Options carries the crosstab-fusion switch that replaced mutating the
 // service, alongside the filesystem an embedder supplies.
 var _ = pulse.Options{

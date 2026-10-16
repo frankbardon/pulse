@@ -806,6 +806,7 @@ pulse: type Pulse method (*Pulse) ProcessChain(ctx context.Context, req *pulse.C
 pulse: type Pulse method (*Pulse) ProcessStream(ctx context.Context, req *pulse.Request) (pulse.RowIter, error)
 pulse: type Pulse method (*Pulse) ProcessStreamResult(ctx context.Context, req *pulse.Request) (pulse.StreamResult[pulse.Row], error)
 pulse: type Pulse method (*Pulse) Profile(ctx context.Context, path string, opts pulse.ProfileOptions) (*pulse.Profile, error)
+pulse: type Pulse method (*Pulse) Rake(ctx context.Context, req pulse.RakeRequest) (*pulse.RakeResult, error)
 pulse: type Pulse method (*Pulse) RangeTables() []pulse.RangeTableInfo
 pulse: type Pulse method (*Pulse) Recommend(ctx context.Context, req pulse/descriptor.RecommendRequest) (*pulse/descriptor.RecommendResult, error)
 pulse: type Pulse method (*Pulse) ReloadTemplates() error
@@ -830,6 +831,84 @@ pulse: type Pulse method (*Pulse) WatchDir(ctx context.Context, dir string, recu
 pulse: type Pulse method (*Pulse) WatchDirWithOptions(ctx context.Context, dir string, opts pulse.WatchOptions) <-chan pulse.ChangeEvent
 pulse: type Pulse method (*Pulse) WatchWithOptions(ctx context.Context, target string, opts pulse.WatchOptions) <-chan pulse.ChangeEvent
 pulse: type Pulse method (*Pulse) WidenSetField(ctx context.Context, path string, field string, targetType string) (*pulse.WidenReport, error)
+pulse: type RakeCategoryReport = pulse/internal/rake.CategoryReport
+pulse: type RakeCategoryReport underlying struct
+pulse: type RakeCategoryReport field Achieved float64 "json:\"achieved\""
+pulse: type RakeCategoryReport field Observed float64 "json:\"observed\""
+pulse: type RakeCategoryReport field ObservedN int64 "json:\"observed_n\""
+pulse: type RakeCategoryReport field Target float64 "json:\"target\""
+pulse: type RakeCategoryReport field Values []string "json:\"values\""
+pulse: type RakeCategoryReport method (RakeCategoryReport) MarshalJSON() ([]byte, error)
+pulse: type RakeCell = pulse/internal/rake.Cell
+pulse: type RakeCell underlying struct
+pulse: type RakeCell field Target float64 "json:\"target\""
+pulse: type RakeCell field Values []string "json:\"values\""
+pulse: const RakeDefaultMaxIter untyped int = 100
+pulse: const RakeDefaultTol untyped float = 1/1000000
+pulse: const RakeDefaultWeightField untyped string = "rake_weight"
+pulse: type RakeEfficiency = pulse/internal/rake.Efficiency
+pulse: type RakeEfficiency underlying struct
+pulse: type RakeEfficiency field DeffKish float64 "json:\"deff_kish\""
+pulse: type RakeEfficiency field EfficiencyPct float64 "json:\"efficiency_pct\""
+pulse: type RakeEfficiency field N int64 "json:\"n\""
+pulse: type RakeEfficiency field NCapped int64 "json:\"n_capped\""
+pulse: type RakeEfficiency field NEff float64 "json:\"n_eff\""
+pulse: type RakeEfficiency field SumWeights float64 "json:\"sum_weights\""
+pulse: type RakeEfficiency field WeightCV float64 "json:\"weight_cv\""
+pulse: type RakeEfficiency field WeightMax float64 "json:\"weight_max\""
+pulse: type RakeEfficiency field WeightMin float64 "json:\"weight_min\""
+pulse: type RakeEfficiency field WeightRangeRatio float64 "json:\"weight_range_ratio\""
+pulse: type RakeEfficiency method (RakeEfficiency) MarshalJSON() ([]byte, error)
+pulse: type RakeGroupReport = pulse/internal/rake.GroupReport
+pulse: type RakeGroupReport underlying struct
+pulse: type RakeGroupReport field Converged bool "json:\"converged\""
+pulse: type RakeGroupReport field Efficiency pulse/internal/rake.Efficiency "json:\"efficiency\""
+pulse: type RakeGroupReport field Iterations int "json:\"iterations\""
+pulse: type RakeGroupReport field Margins []pulse/internal/rake.MarginReport "json:\"margins\""
+pulse: type RakeGroupReport field Records int64 "json:\"records\""
+pulse: type RakeGroupReport field Residual float64 "json:\"residual\""
+pulse: type RakeGroupReport field Value string "json:\"value\""
+pulse: type RakeGroupReport method (RakeGroupReport) MarshalJSON() ([]byte, error)
+pulse: type RakeMargin = pulse/internal/rake.Margin
+pulse: type RakeMargin underlying struct
+pulse: type RakeMargin field Cells []pulse/internal/rake.Cell "json:\"cells,omitempty\""
+pulse: type RakeMargin field Field string "json:\"field,omitempty\""
+pulse: type RakeMargin field Fields []string "json:\"fields,omitempty\""
+pulse: type RakeMargin field Targets map[string]float64 "json:\"targets,omitempty\""
+pulse: type RakeMargin field TargetsAs string "json:\"targets_as,omitempty\""
+pulse: type RakeMarginReport = pulse/internal/rake.MarginReport
+pulse: type RakeMarginReport underlying struct
+pulse: type RakeMarginReport field Categories []pulse/internal/rake.CategoryReport "json:\"categories\""
+pulse: type RakeMarginReport field Fields []string "json:\"fields\""
+pulse: type RakeMarginReport field NMissing int64 "json:\"n_missing\""
+pulse: type RakeRequest = pulse/internal/rake.Request
+pulse: type RakeRequest underlying struct
+pulse: type RakeRequest field BaseWeight string "json:\"base_weight,omitempty\""
+pulse: type RakeRequest field By string "json:\"by,omitempty\""
+pulse: type RakeRequest field Cohort string "json:\"cohort\""
+pulse: type RakeRequest field Margins []pulse/internal/rake.Margin "json:\"margins\""
+pulse: type RakeRequest field MaxIter int "json:\"max_iter,omitempty\""
+pulse: type RakeRequest field MaxWeight float64 "json:\"max_weight,omitempty\""
+pulse: type RakeRequest field MinWeight float64 "json:\"min_weight,omitempty\""
+pulse: type RakeRequest field Missing string "json:\"missing,omitempty\""
+pulse: type RakeRequest field Out string "json:\"out\""
+pulse: type RakeRequest field Overwrite bool "json:\"overwrite,omitempty\""
+pulse: type RakeRequest field Tol float64 "json:\"tol,omitempty\""
+pulse: type RakeRequest field Total float64 "json:\"total,omitempty\""
+pulse: type RakeRequest field WeightField string "json:\"weight_field,omitempty\""
+pulse: type RakeResult struct
+pulse: type RakeResult field Converged bool "json:\"converged\""
+pulse: type RakeResult field Efficiency pulse.RakeEfficiency "json:\"efficiency\""
+pulse: type RakeResult field Groups []pulse.RakeGroupReport "json:\"groups,omitempty\""
+pulse: type RakeResult field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
+pulse: type RakeResult field Iterations int "json:\"iterations\""
+pulse: type RakeResult field Margins []pulse.RakeMarginReport "json:\"margins\""
+pulse: type RakeResult field Records int64 "json:\"records\""
+pulse: type RakeResult field Residual float64 "json:\"residual\""
+pulse: type RakeResult field Target string "json:\"target\""
+pulse: type RakeResult field Warnings []*pulse/errors.CodedError "json:\"warnings,omitempty\""
+pulse: type RakeResult field WeightField string "json:\"weight_field\""
+pulse: type RakeResult method (RakeResult) MarshalJSON() ([]byte, error)
 pulse: type RangeTable struct
 pulse: type RangeTable field Description string
 pulse: type RangeTable field Ranges []pulse.DateRangeSpec
@@ -2508,6 +2587,13 @@ pulse/errors: const PULSE_OVERLAY_TARGET_UNKNOWN pulse/errors.Code = "PULSE_OVER
 pulse/errors: const PULSE_OVERLAY_YOY_FREQUENCY_MISSING pulse/errors.Code = "PULSE_OVERLAY_YOY_FREQUENCY_MISSING"
 pulse/errors: const PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY pulse/errors.Code = "PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY"
 pulse/errors: const PULSE_PROFILE_FIELD_UNSUPPORTED pulse/errors.Code = "PULSE_PROFILE_FIELD_UNSUPPORTED"
+pulse/errors: const PULSE_RAKE_EMPTY_CELL pulse/errors.Code = "PULSE_RAKE_EMPTY_CELL"
+pulse/errors: const PULSE_RAKE_INVALID pulse/errors.Code = "PULSE_RAKE_INVALID"
+pulse/errors: const PULSE_RAKE_MISSING_VALUE pulse/errors.Code = "PULSE_RAKE_MISSING_VALUE"
+pulse/errors: const PULSE_RAKE_NOT_CONVERGED pulse/errors.Code = "PULSE_RAKE_NOT_CONVERGED"
+pulse/errors: const PULSE_RAKE_SIDECARS_INVALIDATED pulse/errors.Code = "PULSE_RAKE_SIDECARS_INVALIDATED"
+pulse/errors: const PULSE_RAKE_UNKNOWN_CATEGORY pulse/errors.Code = "PULSE_RAKE_UNKNOWN_CATEGORY"
+pulse/errors: const PULSE_RAKE_UNTARGETED_CATEGORY pulse/errors.Code = "PULSE_RAKE_UNTARGETED_CATEGORY"
 pulse/errors: const PULSE_RANGE_DUPLICATE_LABEL pulse/errors.Code = "PULSE_RANGE_DUPLICATE_LABEL"
 pulse/errors: const PULSE_RANGE_EMPTY pulse/errors.Code = "PULSE_RANGE_EMPTY"
 pulse/errors: const PULSE_RANGE_INVALID pulse/errors.Code = "PULSE_RANGE_INVALID"
@@ -3495,6 +3581,7 @@ pulse/observe: const OpProcess pulse/observe.OperationKind = "process"
 pulse/observe: const OpProcessChain pulse/observe.OperationKind = "process_chain"
 pulse/observe: const OpProcessStream pulse/observe.OperationKind = "process_stream"
 pulse/observe: const OpProfile pulse/observe.OperationKind = "profile"
+pulse/observe: const OpRake pulse/observe.OperationKind = "rake"
 pulse/observe: const OpSample pulse/observe.OperationKind = "sample"
 pulse/observe: const OpShardAdd pulse/observe.OperationKind = "shard_add"
 pulse/observe: const OpShardCompact pulse/observe.OperationKind = "shard_compact"
@@ -5453,4 +5540,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 48308a626b0fa0ff6d82b8c24c37a6d1caaa71975039162bede81aafc1fc6c08
+// golden-hash: 16784bd24a332e3900f7c858e00e3b4ea3266c4f562161e479d908da873aebc7

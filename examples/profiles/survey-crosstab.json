@@ -8,6 +8,7 @@
     "capability:facet",
     "capability:crosstab",
     "capability:crosstab_cells",
+    "capability:rake",
     "capability:labels",
     "capability:weighting",
     "capability:multiplicity",

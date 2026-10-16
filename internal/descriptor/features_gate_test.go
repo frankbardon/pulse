@@ -23,7 +23,7 @@ import (
 var wantCapabilities = []string{
 	"process", "stream", "watch", "compose", "compose_sweep", "compose_fits", "compose_banner", "model_save", "models", "for_each", "process_chain", "facet",
 	"sample", "joins", "crosstab", "crosstab_cells", "lookup", "index", "shard", "import",
-	"export", "filter_to_file", "dedup", "materialize", "widen", "templates", "synth",
+	"export", "filter_to_file", "dedup", "materialize", "rake", "widen", "templates", "synth",
 	"labels", "range_tables", "weighting", "multiplicity", "matrices",
 	"recommend", "explain",
 }

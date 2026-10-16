@@ -247,6 +247,15 @@ func obsCalls() []obsCall {
 			}, "materialized.pulse", MaterializeOptions{Overwrite: true})
 			return err
 		}},
+		{"Rake", observe.OpRake, func(ctx context.Context, p *Pulse) error {
+			_, err := p.Rake(ctx, RakeRequest{
+				Cohort:    obsCohort,
+				Out:       "raked.pulse",
+				Overwrite: true,
+				Margins:   []RakeMargin{{Field: "region", Targets: map[string]float64{"north": .5, "south": .5}}},
+			})
+			return err
+		}},
 		{"WidenSetField", observe.OpWiden, func(ctx context.Context, p *Pulse) error {
 			_, err := p.WidenSetField(ctx, obsCohort, "region", "set_u16")
 			return err

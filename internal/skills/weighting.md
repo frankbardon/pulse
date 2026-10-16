@@ -9,7 +9,7 @@ requires: [capability:weighting]
 ---
 # Row weighting
 
-Survey and sampled cohorts carry a per-row weight column. Name it once and every weight-aware figure counts each row as `w` rows. A request naming no weight is unchanged.
+Survey and sampled cohorts carry a per-row weight column; every weight-aware figure counts each row as `w` rows. No weight, no change.
 
 ## Surface
 
@@ -23,7 +23,7 @@ Survey and sampled cohorts carry a per-row weight column. Name it once and every
 
 ## Kinds
 
-- `probability` (default) — design weights. Means, shares, ratios and quantiles are scale-free; totals scale. Adds `n_eff`.
+- `probability` (default) — design weights<!-- feature: capability:rake -->, and raked ones (`survey-weights`)<!-- /feature -->. Means, shares, ratios, quantiles are scale-free; totals scale. Adds `n_eff`.
 - `frequency` — a row stands for `w` identical rows; integer weights reproduce the duplicated cohort exactly. A fractional weight is invalid.
 
 ## Resolution
@@ -49,7 +49,7 @@ The manifest is the table: an entry's `weight_kinds` lists the kinds it computes
 
 `PULSE_WEIGHT_UNSUPPORTED` details: `reason` (permanent: post-tests, regression resample / selection, a few tests), `alternative` (a weighted twin), `kind` + `supported_kinds` (frequency-only). Opt out with `"weight": null` (instance default: on every refused slot). A weight-aware aggregator over `decimal128` refuses too. Extensions declaring `weight_aware` run under both kinds; others are `PULSE_EXTENSION_NOT_WEIGHT_AWARE`.
 
-Quantiles (and quantile buckets) follow Hmisc `wtd.quantile`; probability weights are rescaled so Σw = n. Share and index overlays read the weighted host payload, no setting.<!-- feature: AGG_WEIGHTED_MEAN, AGG_AVERAGE --> `AGG_WEIGHTED_MEAN` is weighted `AGG_AVERAGE`; its `params.weight_field` is slot-weight sugar.<!-- /feature -->
+Quantiles (and buckets) follow Hmisc `wtd.quantile`, probability weights rescaled to Σw = n. Share and index overlays read the weighted host payload, no setting.<!-- feature: AGG_WEIGHTED_MEAN, AGG_AVERAGE --> `AGG_WEIGHTED_MEAN` is weighted `AGG_AVERAGE`; its `params.weight_field` is slot-weight sugar.<!-- /feature -->
 
 ## Weighted inference
 
@@ -91,4 +91,4 @@ A weighted slot's components add `sum_weights`, `n_eff` (`probability` only) and
 
 ## See
 
-`response-components` (floor) · `request-envelope` · `aggregation-design` · `statistical-testing` · `regression-modeling` · `overlay-system`<!-- feature: capability:crosstab --> · `pairwise-n-sources` · `crosstab-margin-aggregations`<!-- /feature --> · `pulse_errors_lookup` for `PULSE_WEIGHT_*`.
+<!-- feature: capability:rake -->`survey-weights` · <!-- /feature -->`response-components` (floor) · `request-envelope` · `aggregation-design` · `statistical-testing` · `regression-modeling` · `overlay-system`<!-- feature: capability:crosstab --> · `pairwise-n-sources` · `crosstab-margin-aggregations`<!-- /feature --> · `pulse_errors_lookup` for `PULSE_WEIGHT_*`.

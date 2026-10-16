@@ -182,6 +182,15 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC:   shared,
 	errors.PULSE_MATERIALIZE_SIDECARS_INVALIDATED: shared,
 
+	// Pulse.Rake is a library method every instance carries.
+	errors.PULSE_RAKE_INVALID:              shared,
+	errors.PULSE_RAKE_UNKNOWN_CATEGORY:     shared,
+	errors.PULSE_RAKE_UNTARGETED_CATEGORY:  shared,
+	errors.PULSE_RAKE_MISSING_VALUE:        shared,
+	errors.PULSE_RAKE_EMPTY_CELL:           shared,
+	errors.PULSE_RAKE_NOT_CONVERGED:        shared,
+	errors.PULSE_RAKE_SIDECARS_INVALIDATED: shared,
+
 	// Any numeric aggregator on a categorical field; predict raises it.
 	errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: own(featFacet),
 	errors.PULSE_FACET_VALUES_TRUNCATED:             own(featFacet),

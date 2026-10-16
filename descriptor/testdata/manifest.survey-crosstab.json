@@ -768,7 +768,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 176,
+    "error_codes_count": 183,
     "error_domains": [
       "CLI",
       "DATA",
@@ -887,6 +887,13 @@
       "PULSE_OVERLAY_REF_ZERO",
       "PULSE_OVERLAY_SCOPE_UNSUPPORTED",
       "PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT",
+      "PULSE_RAKE_EMPTY_CELL",
+      "PULSE_RAKE_INVALID",
+      "PULSE_RAKE_MISSING_VALUE",
+      "PULSE_RAKE_NOT_CONVERGED",
+      "PULSE_RAKE_SIDECARS_INVALIDATED",
+      "PULSE_RAKE_UNKNOWN_CATEGORY",
+      "PULSE_RAKE_UNTARGETED_CATEGORY",
       "PULSE_RECOMMEND_INTENT_UNKNOWN",
       "PULSE_REQUEST_UNKNOWN_FIELD",
       "PULSE_RETURN_INVALID",
@@ -2337,4 +2344,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e65be6200a84e1b7b43b7a12821230384cba974fc76803407c49173b2f627a8f
+// golden-hash: 0efe8dbf17c364c89e42984a2d600581e6d4c8e1ce5f7fb1bcffa9ddf3c2a0cd

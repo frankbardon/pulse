@@ -201,6 +201,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("filter_to_file"), // FilterToFile*
 	capability("dedup"),          // Dedup
 	capability("materialize"),    // pulse_materialize, pulse api materialize (the facade stays ungated)
+	capability("rake"),           // Rake: rim / cell weights written to a new cohort (the facade stays ungated)
 	capability("widen"),          // WidenSetField
 	capability("templates"),      // request templates
 	capability("synth"),          // Synth, SynthStream, data-profile capture; gates every synth distribution

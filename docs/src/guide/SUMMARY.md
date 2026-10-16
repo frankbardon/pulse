@@ -283,6 +283,7 @@
     - [spss-response-sets](skills/spss-response-sets.md)
     - [statistical-testing](skills/statistical-testing.md)
     - [streaming-and-watching](skills/streaming-and-watching.md)
+    - [survey-weights](skills/survey-weights.md)
     - [synth-conflicts](skills/synth-conflicts.md)
     - [synth-correlations](skills/synth-correlations.md)
     - [synth-determinism](skills/synth-determinism.md)
