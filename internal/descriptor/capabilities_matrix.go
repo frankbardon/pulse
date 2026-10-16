@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/sem"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/linalg/metric"
@@ -176,6 +177,31 @@ func matrixCapabilities() []descriptor.MatrixMeta {
 				descriptor.ComponentKey{Name: "buckets", Type: "int", Description: "Buckets compared (k)."},
 				descriptor.ComponentKey{Name: "n_null_key", Type: "int", Description: "Filter-passing rows the between grouper placed in no bucket (a null key, an include rejection, a GROUP_KMEANS row with a null member); excluded from every figure."},
 			),
+		},
+		{
+			Name:         string(types.MAT_SEM),
+			Description:  "Structural equation model of a vector's members (listwise only): a lavaan / semopy description in params.model (=~ measurement, ~ regression, ~~ covariance; label* equality and number* fixed multipliers) fitted by maximum likelihood to the members' covariance, whose observed variables are exactly the members (by label). The default setup reproduces semopy (semopy.Model(desc).fit(data), semopy 2.3.11): the Wishart ML objective over the biased (divisor N) covariance minimised by a port of SciPy's SLSQP at ftol 1e-6 — semopy's early stop included — with semopy's specification rules, starting values, expected-information standard errors and calc_stats fit indices. params.solver fisher converges to the optimum instead; params.information rank2 computes the same derivatives more cheaply. The primary is the model-implied covariance Sigma(theta) over the members; auxiliary.estimates is the parameter table (rectangular: a row per semopy inspect row keyed \"lval op rval\" — op ~ for loadings and regressions, ~~ for (co)variances — columns estimate, std_estimate, std_err, z_value, p_value; SE, z and p null on a fixed parameter) and auxiliary.residual_covariance S - Sigma(theta); vectors carry each row's parameter name and whether it is free; scalars the fit indices and the fit's iterations / convergence. A rank-deficient covariance is PULSE_MATRIX_SINGULAR (semopy would substitute a nearest positive-definite matrix); a solver stop short of success warns PULSE_MATRIX_NOT_CONVERGED; negative degrees of freedom warn PULSE_MATRIX_NOT_IDENTIFIED. Weighted under frequency weights (exactly the fit on the expanded rows, N = the sum of weights); a probability weight is PULSE_WEIGHT_UNSUPPORTED.",
+			AcceptsTypes: memberTypes,
+			Params: []descriptor.Param{
+				{Name: "model", Type: "string", Required: false, Description: "The model description in semopy / lavaan syntax, one statement per line (# comments): lhs =~ indicators (measurement; the first indicator's loading is fixed to 1), lhs ~ predictors (regression; comma-separated left sides), lhs ~~ rhs (covariance); a term may carry a label (a*x: equal across every use) or a fixed value (0.5*x). Its observed variables must be exactly the members, matched by label (a variable that is not a member, or a member it never names, is SERVICE_VALIDATION bad_params). semopy's operation commands (START, BOUND, DEFINE, ...) are not supported. Absent: one factor F1 over every member."},
+				{Name: "solver", Type: "enum", Required: false, Default: string(sem.SolverSLSQP), EnumValues: vectors.SEMSolvers(), Description: "slsqp: SciPy's SLSQP as semopy calls it (a port: the same iterates, the same stop at ftol), so the results are semopy's to rounding — including its early stop short of the optimum at the default ftol. fisher: damped Fisher scoring (Levenberg-Marquardt on the expected information) to the optimum, stopping when every free gradient entry is below grad_tol; a semopy fit at a small ftol lands on the same figures."},
+				{Name: "information", Type: "enum", Required: false, Default: string(sem.InformationDense), EnumValues: vectors.SEMInformation(), Description: "How the gradient and the expected information tr(Sigma^-1 dSigma_k Sigma^-1 dSigma_l) are computed: dense forms every dSigma_k as a matrix, as semopy does; rank2 writes each as a sum of a b^T + b a^T terms so every trace is a dot product — the same figures to rounding, much cheaper on large models."},
+				{Name: "ftol", Type: "float", Required: false, Default: 1e-6, Description: "SLSQP's ftol (SciPy's and semopy's default 1e-6), a number above 0: the run stops when the objective moves by less. Solver slsqp only. The baseline model behind CFI, TLI, NFI and GFI is always fitted at the default, as semopy fits it."},
+				{Name: "max_iter", Type: "int", Required: false, Description: "Iteration cap, a positive integer: default 10000 for slsqp (semopy's setting), 500 for fisher. A run at the cap keeps its last iterate with PULSE_MATRIX_NOT_CONVERGED."},
+				{Name: "grad_tol", Type: "float", Required: false, Default: 1e-10, Description: "Fisher scoring's stop, a number above 0: every free gradient entry below it in absolute value. Solver fisher only."},
+				{Name: "missing", Type: "enum", Required: false, Default: vectors.MissingListwise, EnumValues: []string{vectors.MissingListwise}, Description: "listwise only: a row with any member null joins no figure (pairwise is refused: the likelihood is one sample's covariance)."},
+				missing[1],
+				MatrixFitParam(),
+			},
+			OutputKeys: descriptor.MatrixOutputKeys{
+				Primary:   "implied_covariance",
+				Auxiliary: []string{"estimates", "residual_covariance"},
+				Vectors:   []string{"free", "parameter"},
+				Scalars:   []string{"agfi", "aic", "bic", "cfi", "chi2", "chi2_baseline", "chi2_p_value", "converged", "dof", "dof_baseline", "gfi", "iterations", "loglik", "n", "n_params", "nfi", "objective", "rmsea", "tli"},
+			},
+			Streamable:      types.MAT_SEM.Streamable(),
+			Mergeable:       types.MAT_SEM.Mergeable(),
+			ComponentSchema: matrixSchema(),
 		},
 		{
 			Name:         string(types.MAT_COVARIANCE),

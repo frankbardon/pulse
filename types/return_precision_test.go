@@ -118,7 +118,8 @@ var precisionClass = map[string]string{
 // wantPrecisionExempt is the exact precisionExempt registry: removing an
 // entry (so a count starts rounding) fails here.
 var wantPrecisionExempt = []string{"matrices[*].auxiliary.n", "matrices[*].scalars.bartlett_df", "matrices[*].scalars.components_retained",
-	"matrices[*].scalars.converged", "matrices[*].scalars.df", "matrices[*].scalars.factors_retained", "matrices[*].scalars.iterations"}
+	"matrices[*].scalars.converged", "matrices[*].scalars.df", "matrices[*].scalars.dof", "matrices[*].scalars.dof_baseline",
+	"matrices[*].scalars.factors_retained", "matrices[*].scalars.iterations", "matrices[*].scalars.n_params"}
 
 func TestPrecision_FloatLeavesClassified(t *testing.T) {
 	got := map[string]bool{}

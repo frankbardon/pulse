@@ -436,6 +436,12 @@ var precisionExempt = []returnplan.Path{
 	{Segments: []returnplan.Segment{returnplan.Key("matrices"), returnplan.Elem(), returnplan.Key("scalars"), returnplan.Key("iterations")}},
 	{Segments: []returnplan.Segment{returnplan.Key("matrices"), returnplan.Elem(), returnplan.Key("scalars"), returnplan.Key("converged")}},
 	{Segments: []returnplan.Segment{returnplan.Key("matrices"), returnplan.Elem(), returnplan.Key("scalars"), returnplan.Key("factors_retained")}},
+	// MAT_SEM's integer scalars: the model's and the baseline's degrees
+	// of freedom and the free-parameter count (iterations / converged
+	// are MAT_FACTOR's keys above).
+	{Segments: []returnplan.Segment{returnplan.Key("matrices"), returnplan.Elem(), returnplan.Key("scalars"), returnplan.Key("dof")}},
+	{Segments: []returnplan.Segment{returnplan.Key("matrices"), returnplan.Elem(), returnplan.Key("scalars"), returnplan.Key("dof_baseline")}},
+	{Segments: []returnplan.Segment{returnplan.Key("matrices"), returnplan.Elem(), returnplan.Key("scalars"), returnplan.Key("n_params")}},
 }
 
 // marshalPlanned encodes v (the response root) under p.

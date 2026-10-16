@@ -1,6 +1,6 @@
 # Matrix and vectors — the matrix slot (`Request.Matrices` / `Response.Matrices`)
 
-Per-topic slice of the matrix-and-vectors contract. Index (package surface + section map): `.claude/reference/matrix-and-vectors.md` — load it first, then only the slice(s) your change touches. Per-operator bullets: `matrix-correlation.md`, `matrix-decomposition.md`, `matrix-factor-distance.md` in `.claude/reference/matrix-and-vectors/`.
+Per-topic slice of the matrix-and-vectors contract. Index (package surface + section map): `.claude/reference/matrix-and-vectors.md` — load it first, then only the slice(s) your change touches. Per-operator bullets: `matrix-correlation.md`, `matrix-decomposition.md`, `matrix-factor-distance.md`, `matrix-sem.md` in `.claude/reference/matrix-and-vectors/`.
 
 ## Matrix slot — `Request.Matrices` / `Response.Matrices` (U16)
 

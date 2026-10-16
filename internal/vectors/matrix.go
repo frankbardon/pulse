@@ -172,6 +172,9 @@ type Matrix struct {
 	// ExtAuxiliary is an extension operator's declared auxiliary keys
 	// (its registration's OutputKeys.Auxiliary), AuxiliaryKeys' answer.
 	ExtAuxiliary []string
+	// SEM is MAT_SEM's resolved params (resolveSEM); nil on every
+	// other type.
+	SEM *SEMPlan
 	// Fit is params.fit: the bound vector fit (a Compose `fits` entry of
 	// kind vector) the slot emits from instead of folding its rows —
 	// aligned to Columns' labels (FitLabels) by label, its own weight
@@ -234,6 +237,7 @@ type MatrixResolve struct {
 //   - MAT_FACTOR: unrotated under a rotation; factor_correlation under
 //     an oblique one.
 //   - MAT_COLLINEARITY: variance_decomposition.
+//   - MAT_SEM: estimates, residual_covariance.
 //   - MAT_DISTANCE: centroids; centroids_standardized under
 //     standardize; pooled_covariance under a fitted inverse-covariance
 //     metric.
@@ -267,6 +271,8 @@ func (m Matrix) AuxiliaryKeys() (keys []string, known bool) {
 		}
 	case types.MAT_COLLINEARITY:
 		keys = append(keys, "variance_decomposition")
+	case types.MAT_SEM:
+		keys = append(keys, "estimates", "residual_covariance")
 	case types.MAT_DISTANCE:
 		keys = append(keys, "centroids")
 		if m.Standardize {
@@ -933,6 +939,9 @@ func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, o MatrixRe
 		if err := resolveFactor(at, &m); err != nil {
 			return nil, err
 		}
+		if err := resolveSEM(at, &m); err != nil {
+			return nil, err
+		}
 		if err := resolveDistance(at, req.Vectors, resolved, schema, route, ext, &m); err != nil {
 			return nil, err
 		}
@@ -965,6 +974,8 @@ func matrixParamsShape(t types.MatrixType) any {
 		return (*distanceParams)(nil)
 	case types.MAT_COLLINEARITY:
 		return (*collinearityParams)(nil)
+	case types.MAT_SEM:
+		return (*semParams)(nil)
 	}
 	return nil
 }
@@ -1120,6 +1131,15 @@ func decodeMatrixParams(at string, spec types.MatrixSpec, m *Matrix) *errors.Cod
 			m.Center = *p.Center
 		}
 		if err := decodeRepair(at, p.Repair, m); err != nil {
+			return err
+		}
+		miss = p.missingParams
+	case types.MAT_SEM:
+		var p semParams
+		if err := paramread.DecodeStrict(paramread.Matrix, string(spec.Type), raw, &p); err != nil {
+			return matrixInvalid(at, "bad_params", at+" params do not decode: "+err.Error(), nil)
+		}
+		if err := decodeSEM(at, p, m); err != nil {
 			return err
 		}
 		miss = p.missingParams

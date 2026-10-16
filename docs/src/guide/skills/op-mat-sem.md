@@ -1,0 +1,59 @@
+```yaml
+name: op-mat-sem
+description: Structural equation model (CFA, path model, higher-order factors) in lavaan / semopy syntax, fitted by maximum likelihood to the members' covariance — semopy's estimates, SEs, z, p, standardized estimates and fit indices (chi-square, CFI, TLI, RMSEA, AIC, BIC); listwise, frequency-weighted.
+kind: operator
+category: MAT
+operator: MAT_SEM
+type: reference
+applies_to: process, compose, predict
+examples_tags: [matrix, multivariate]
+```
+
+Members = the model's observed variables, by label.
+
+## Use when
+
+Whether a theory of how measures hang together holds: the hidden qualities they reflect, how those drive each other, how well it fits.
+
+Questions it answers:
+
+- Do these brand-image items load on the five personality dimensions we designed them for, and does the model fit?
+- How strongly does the overall quality we measure through these three sub-scales drive satisfaction and loyalty?
+
+## Params
+
+| Name | Default | Description |
+|---|---|---|
+| `model` | one factor | `f =~ a + b`, `y ~ f`, `a ~~ b`; `l*x`, `0.5*x`. |
+| `solver` | `slsqp` | semopy's SLSQP, its early stop included; `fisher` converges. |
+| `information` | `dense` | `rank2`: faster, same figures. |
+| `ftol`, `max_iter`, `grad_tol` | 1e-6, 10000, 1e-10 | |
+| `missing`, `fit`, `weight`, `encoding` | | Listwise only. |
+
+## Inputs
+
+Integer / float members.
+
+## Output
+
+`primary`: Σ(θ̂). `auxiliary.estimates`: rows `lval op rval` × `estimate`, `std_estimate`, `std_err`, `z_value`, `p_value`; `residual_covariance` S − Σ. `vectors`: `parameter`, `free`. `scalars`: fit indices (`chi2`, `cfi`, `rmsea`, …).
+
+## Reading the output
+
+- `primary.values`: Each cell is the covariance the fitted model implies between the row's and the column's measure, in their own units. Compared with the observed covariance (auxiliary.residual_covariance is the difference), it shows where the model reproduces the data and where it does not.
+- `scalars.chi2_p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
+
+## Components
+
+`n`, `n_null`, `n_listwise_dropped`; weighted `sum_weights`, `n_eff`, `n_weight_invalid`; `min_pair_n` / `max_pair_n` never (listwise).
+
+## Gotchas
+
+- Unused member or non-member variable: `bad_params`.
+- Default stops where semopy does.
+- Singular S: fatal `PULSE_MATRIX_SINGULAR`. No probability weight.
+
+## See
+
+- `pulse_examples_search tags=[matrix, multivariate]`
+- Skills: [`matrix-results`](matrix-results.md), [`multivariate-design`](multivariate-design.md), [`op-mat-factor`](op-mat-factor.md), [`op-mat-reliability`](op-mat-reliability.md)

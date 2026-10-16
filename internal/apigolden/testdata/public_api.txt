@@ -4662,6 +4662,7 @@ pulse/types: const MAT_FACTOR pulse/types.MatrixType = "MAT_FACTOR"
 pulse/types: const MAT_PARTIAL_CORRELATION pulse/types.MatrixType = "MAT_PARTIAL_CORRELATION"
 pulse/types: const MAT_PCA pulse/types.MatrixType = "MAT_PCA"
 pulse/types: const MAT_RELIABILITY pulse/types.MatrixType = "MAT_RELIABILITY"
+pulse/types: const MAT_SEM pulse/types.MatrixType = "MAT_SEM"
 pulse/types: type MarginAggregationFault struct
 pulse/types: type MarginAggregationFault field Details map[string]any
 pulse/types: type MarginAggregationFault field Kind pulse/types.MarginAggregationFaultKind
@@ -5337,4 +5338,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c5fc621f33fff425fb745533cdfb104416af22f998ddaf9d353bd42ead9189c3
+// golden-hash: 5bb5467ec3f6bce3d49f9f5de6686d654e7af40a7ddd7655f01ce59c1ebf58c6

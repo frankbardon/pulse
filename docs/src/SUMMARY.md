@@ -155,6 +155,7 @@
     - [op-mat-partial-correlation](guide/skills/op-mat-partial-correlation.md)
     - [op-mat-pca](guide/skills/op-mat-pca.md)
     - [op-mat-reliability](guide/skills/op-mat-reliability.md)
+    - [op-mat-sem](guide/skills/op-mat-sem.md)
     - [op-overlay-chisq-col](guide/skills/op-overlay-chisq-col.md)
     - [op-overlay-chisq-matrix](guide/skills/op-overlay-chisq-matrix.md)
     - [op-overlay-chisq-row](guide/skills/op-overlay-chisq-row.md)

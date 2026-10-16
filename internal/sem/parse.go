@@ -1,12 +1,21 @@
-// Package sem is an experimental structural equation modelling (SEM)
-// estimator packaged as a Pulse extension MAT_* matrix operator.
+// Package sem is the structural equation model (SEM) estimator behind
+// MAT_SEM: a lavaan / semopy model description fitted by maximum
+// likelihood to a sample covariance matrix.
 //
-// It reproduces semopy's default covariance-structure model
-// (semopy.Model, obj="MLW", mimic_lavaan=False): the same variable
-// classification, the same parameter set and fixings, the same Wishart
-// maximum-likelihood objective, the same expected-information standard
-// errors and the same fit statistics, so a fit over the same data gives
-// the same numbers.
+// Its default setup is semopy 2.3.11's default covariance-structure
+// model (semopy.Model, obj="MLW", solver="SLSQP", mimic_lavaan=False):
+// the same variable classification, parameter set and fixings, the same
+// Wishart ML objective minimised by a port of SciPy's SLSQP (slsqp.go)
+// with semopy's settings, the same expected-information standard errors
+// and the same fit statistics — so a fit over the same data gives
+// semopy's numbers, its early stop at ftol included. Options select a
+// converging Fisher-scoring solver and the rank-2 derivative
+// computation instead.
+//
+// The package reads only a covariance matrix and a row count; it is
+// no-execute safe (stdlib, gonum) and imported by both the resolver
+// (internal/vectors: model validation at predict time) and the engine
+// (internal/processing: the finalizer).
 package sem
 
 import (

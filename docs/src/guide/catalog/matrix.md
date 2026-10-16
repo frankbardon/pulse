@@ -12,6 +12,7 @@ The matrix operators this instance offers: what each is for, the questions it an
 | [`MAT_PARTIAL_CORRELATION`](#op-mat_partial_correlation) | How closely each pair of numeric fields moves together once other fields are held fixed, as one square table of values from -1 to 1. | Does satisfaction still track price once delivery time is held fixed? | advanced | [`MAT_CORRELATION`](#op-mat_correlation) when you want each pair's link with nothing held fixed.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want how much each field moves the outcome, in its own units.<br>[`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you need a p-value for one pair. |
 | [`MAT_PCA`](#op-mat_pca) | How many underlying dimensions a set of related measures covers and which measures belong to each, so a few summaries can stand in for many. | How many distinct things do these twelve rating questions actually measure? | advanced | [`MAT_RELIABILITY`](#op-mat_reliability) when you want to check that one set of items measures a single quality reliably.<br>[`MAT_CORRELATION`](#op-mat_correlation) when you only want to see which measures go together, pair by pair. |
 | [`MAT_RELIABILITY`](#op-mat_reliability) | How consistently a set of rating items measures one thing, before you add them up into a score, with a check of how each item fits the rest. | Are these five satisfaction questions reliable enough to average into one score? | intermediate | [`MAT_CORRELATION`](#op-mat_correlation) when you only want to see which items go together, pair by pair.<br>[`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you want a p-value for one pair of items. |
+| [`MAT_SEM`](#op-mat_sem) | Whether a theory of how measures hang together holds: the hidden qualities they reflect, how those drive each other, how well it fits. | Do these brand-image items load on the five personality dimensions we designed them for, and does the model fit? | advanced | [`MAT_FACTOR`](#op-mat_factor) when you do not yet know which measures belong to which quality.<br>[`REG_OLS`](regression.md#op-reg_ols) when every variable is measured directly and you want one outcome's drivers.<br>[`MAT_RELIABILITY`](#op-mat_reliability) when you want one battery's reliability before scoring it. |
 
 ## Operators
 
@@ -315,3 +316,44 @@ How consistently a set of rating items measures one thing, before you add them u
 **Glossary:** [`reliability`](../glossary.md#term-reliability), [`correlation`](../glossary.md#term-correlation), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`pairwise-deletion`](../glossary.md#term-pairwise-deletion)
 
 **Skill:** [`op-mat-reliability`](../skills/op-mat-reliability.md)
+
+<a id="op-mat_sem"></a>
+
+### `MAT_SEM`
+
+Whether a theory of how measures hang together holds: the hidden qualities they reflect, how those drive each other, how well it fits.
+
+**Level:** advanced
+
+**Also known as:** `structural equation model`, `sem`, `confirmatory factor analysis`, `cfa`, `path analysis`, `lavaan`, `semopy`, `second-order factor`, `latent variable model`
+
+**Questions it answers:**
+
+- Do these brand-image items load on the five personality dimensions we designed them for, and does the model fit?
+- How strongly does the overall quality we measure through these three sub-scales drive satisfaction and loyalty?
+
+**Use cases by domain:**
+
+- *survey:* Testing a designed battery's factor structure (which items belong to which quality, and how the qualities group into higher ones) and how the qualities drive outcome questions, in one model.
+- *science:* Fitting a measurement model and the paths between latent constructs, and reporting chi-square, CFI, TLI and RMSEA alongside the paths.
+
+**Assumptions:**
+
+- You write the model: which measures reflect which quality, which qualities drive which, and any covariances; the fit says how well that theory reproduces the measures' covariance, not whether it is the only theory that would.
+- Maximum likelihood assumes roughly normal measures; with few rating levels the chi-square and standard errors are optimistic.
+- The default reproduces semopy's results exactly, including where its optimiser stops short of the best fit; choose solver fisher for the converged optimum.
+- A row with any measure missing is dropped from every figure (listwise deletion).
+
+**Use something else:**
+
+- [`MAT_FACTOR`](#op-mat_factor) when you do not yet know which measures belong to which quality.
+- [`REG_OLS`](regression.md#op-reg_ols) when every variable is measured directly and you want one outcome's drivers.
+- [`MAT_RELIABILITY`](#op-mat_reliability) when you want one battery's reliability before scoring it.
+
+**Follow up with:**
+
+- [`MAT_FACTOR`](#op-mat_factor) when the fit is poor and the structure needs exploring.
+
+**Glossary:** [`factor`](../glossary.md#term-factor), [`loading`](../glossary.md#term-loading), [`covariance`](../glossary.md#term-covariance), [`regression-coefficient`](../glossary.md#term-regression-coefficient), [`chi-square`](../glossary.md#term-chi-square), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`goodness-of-fit`](../glossary.md#term-goodness-of-fit), [`standard-error`](../glossary.md#term-standard-error), [`listwise-deletion`](../glossary.md#term-listwise-deletion)
+
+**Skill:** [`op-mat-sem`](../skills/op-mat-sem.md)

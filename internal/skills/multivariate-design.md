@@ -10,7 +10,7 @@ requires: [capability:matrices]
 
 # Choosing a multivariate operator
 
-Every operator here reads one vector (`vectors`, see `matrix-results`) and answers with a matrix plus vectors and scalars. Pick by the QUESTION, then set the missing-data mode. Comparing rows or segments by distance or similarity? Declare the vector's `kind` first so the metric fits the values (`vector-metrics`).
+Every operator here reads one vector (`vectors`, see `matrix-results`) and answers with a matrix plus vectors and scalars. Pick by the QUESTION, then set the missing-data mode. For distance or similarity, declare the vector's `kind` first (`vector-metrics`).
 
 ## Which operator answers my question
 
@@ -33,6 +33,9 @@ Every operator here reads one vector (`vectors`, see `matrix-results`) and answe
 <!-- /feature -->
 <!-- feature: MAT_FACTOR -->
 | Which hidden qualities do the items reflect (factor analysis, rotation)? | `MAT_FACTOR` |
+<!-- /feature -->
+<!-- feature: MAT_SEM -->
+| Does my CFA / path model fit? | `MAT_SEM` |
 <!-- /feature -->
 <!-- feature: MAT_COLLINEARITY -->
 | Are candidate predictors too redundant to fit together (VIF, condition index)? | `MAT_COLLINEARITY` |
@@ -117,6 +120,9 @@ Per-test correction on other operators: `multiplicity-correction`.
 <!-- /feature -->
 <!-- feature: MAT_FACTOR -->
 - `op-mat-factor`
+<!-- /feature -->
+<!-- feature: MAT_SEM -->
+- `op-mat-sem`
 <!-- /feature -->
 <!-- feature: MAT_DISTANCE -->
 - `op-mat-distance`

@@ -15,6 +15,69 @@ var matrixInterpretations = map[string][]descriptor.Interpretation{
 	"MAT_PCA":                 interpMatPCA,
 	"MAT_COLLINEARITY":        interpMatCollinearity,
 	"MAT_FACTOR":              interpMatFactor,
+	"MAT_SEM":                 interpMatSEM,
+}
+
+// interpMatSEM leaves every fit index unbanded: CFI / TLI / RMSEA
+// cut-offs are rules of thumb, not verified conventions.
+var interpMatSEM = []descriptor.Interpretation{
+	{
+		Field: "primary.values",
+		Means: "Each cell is the covariance the fitted model implies between the row's and the column's measure, in their own units. Compared with the observed covariance (auxiliary.residual_covariance is the difference), it shows where the model reproduces the data and where it does not.",
+		Caveats: []string{
+			"Large residuals concentrated on a few pairs point at a missing path or covariance between those measures.",
+		},
+	},
+	{
+		Field: "auxiliary.estimates",
+		Means: "The parameter table, one row per semopy inspect row: lval ~ rval is a loading (an indicator on its quality) or a regression path, lval ~~ rval a variance or covariance. estimate is in the variables' own units; std_estimate rescales it so loadings and paths compare across variables; std_err, z_value and p_value test it against zero.",
+		Sign: map[string]string{
+			"+": "the left variable rises with the right one",
+			"-": "the left variable falls as the right one rises",
+		},
+		Caveats: []string{
+			"Each quality's first indicator is fixed to 1 to set its scale, so that row has no standard error.",
+			"A variance at 0, or a standardized loading beyond 1, means an improper solution; simplify the model.",
+		},
+	},
+	{
+		Field:  "scalars.chi2_p_value",
+		Shared: SharedPValue,
+	},
+	{
+		Field: "scalars.chi2",
+		Means: "The likelihood-ratio chi-square of the model against a free covariance, on dof degrees of freedom: N times the minimised discrepancy. A small p says the model leaves covariance unexplained.",
+		Caveats: []string{
+			"With many rows it flags even trivial misfit; read cfi, tli and rmsea beside it.",
+			"It assumes multivariate normal measures and rests on N, the rows (the summed weight under a frequency weight).",
+		},
+	},
+	{
+		Field: "scalars.cfi",
+		Means: "The comparative fit index: how much better the model fits than a baseline in which no measure is related to any other, from 0 to 1. Higher is better.",
+		Caveats: []string{
+			"No convention bands it here; published cut-offs are rules of thumb that depend on the model's size and the data.",
+		},
+	},
+	{
+		Field: "scalars.tli",
+		Means: "The Tucker-Lewis index: CFI's comparison against the baseline with a penalty for every free parameter, so it can fall below 0 or rise above 1. Higher is better.",
+	},
+	{
+		Field: "scalars.rmsea",
+		Means: "The root mean square error of approximation: misfit per degree of freedom, adjusted for N, with 0 a perfect fit. Smaller is better.",
+		Caveats: []string{
+			"It is 0 whenever the chi-square falls below its degrees of freedom.",
+		},
+	},
+	{
+		Field: "scalars.aic",
+		Means: "semopy's AIC, 2(k - F) with k the free parameters and F the minimised discrepancy: for comparing models of the same measures, lower preferred. It is semopy's convention, not the log-likelihood AIC other software reports.",
+	},
+	{
+		Field: "scalars.bic",
+		Means: "semopy's BIC, ln(N)k - 2F: as aic with a heavier penalty per parameter; for comparing models of the same measures, lower preferred.",
+	},
 }
 
 // interpMatFactor bands KMO by Kaiser (1974), as MAT_PCA does, and

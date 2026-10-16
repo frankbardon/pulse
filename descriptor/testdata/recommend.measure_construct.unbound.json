@@ -195,6 +195,50 @@
         ]
       },
       {
+        "operator": "MAT_SEM",
+        "category": "matrix",
+        "level": "advanced",
+        "why": "Whether a theory of how measures hang together holds: the hidden qualities they reflect, how those drive each other, how well it fits. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "matrices": [
+            {
+              "fields": [
+                "\u003cfields\u003e"
+              ],
+              "type": "MAT_SEM"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "fields"
+        ],
+        "alternatives": [
+          {
+            "when": "you do not yet know which measures belong to which quality",
+            "use": "MAT_FACTOR"
+          },
+          {
+            "when": "every variable is measured directly and you want one outcome's drivers",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "you want one battery's reliability before scoring it",
+            "use": "MAT_RELIABILITY"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the fit is poor and the structure needs exploring",
+            "use": "MAT_FACTOR"
+          }
+        ]
+      },
+      {
         "operator": "ATTR_FACTOR_SCORE",
         "category": "attribute",
         "level": "advanced",
@@ -272,9 +316,9 @@
       }
     ],
     "truncated": false,
-    "candidates_considered": 7
+    "candidates_considered": 8
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8a8b359513ae8a2e11fa9787c3c3ffa2ef5036ae43ac9353d53e72390daf065e
+// golden-hash: 9fc3ac9fef02e8231d00d58d6fbf0080d933a124bb34397ca1154e3e86e30e98

@@ -2,11 +2,12 @@
 
 A **vector** names a battery of numeric fields once; a **matrix** slot
 turns a vector into a result in which every member is compared with
-every member. Eight operators ship: `MAT_COVARIANCE`,
+every member. Nine operators ship: `MAT_COVARIANCE`,
 `MAT_CORRELATION` (Pearson by default; Spearman or Kendall tau-b under
 `params.method`), `MAT_PARTIAL_CORRELATION`, `MAT_RELIABILITY`,
-`MAT_PCA`, `MAT_FACTOR`, `MAT_COLLINEARITY` and `MAT_DISTANCE` (which
-compares bucket centroids instead of members). All are additive: a request without
+`MAT_PCA`, `MAT_FACTOR`, `MAT_COLLINEARITY`, `MAT_DISTANCE` (which
+compares bucket centroids instead of members) and `MAT_SEM` (a
+structural equation model in lavaan / semopy syntax). All are additive: a request without
 `vectors` / `matrices` is byte-identical to before, and `format_version`
 stays `"1.1"`. The slots are gated by the `capability:matrices` feature.
 
@@ -402,6 +403,66 @@ frequency and probability weights (the figures are scale-free, so the
 two kinds agree). Neither VIF nor the condition index is banded: 5 or 10
 for VIF and 30 for the condition index are rules of thumb only
 (O'Brien 2007).
+
+## Structural equation models
+
+`MAT_SEM` fits a structural equation model — a confirmatory factor
+analysis, a path model, higher-order factors, regressions on latent
+qualities — to the members' covariance by maximum likelihood.
+`params.model` is the model in lavaan / semopy syntax, one statement per
+line: `f =~ a + b + c` (measurement; `a`'s loading is fixed to 1),
+`y ~ f + x` (regression; `y1, y2 ~ f` for several), `a ~~ b`
+(covariance); `l*b` shares a parameter label `l` across every use and
+`0.5*b` fixes a value. Its observed variables must be exactly the
+members, matched by label; absent, the model is one factor `F1` over
+every member.
+
+```json
+{
+  "cohort": {"filename": "survey.pulse"},
+  "vectors": [{"name": "battery", "fields": ["q1", "q2", "q3", "q4", "q5", "q6"]}],
+  "matrices": [
+    {"type": "MAT_SEM", "name": "cfa", "vector": "battery",
+     "params": {"model": "service =~ q1 + q2 + q3\nvalue =~ q4 + q5 + q6"}}
+  ]
+}
+```
+
+**The default setup is semopy.** A default fit reproduces
+`semopy.Model(desc).fit(data)` (semopy 2.3.11) to rounding: the same
+variable classification and parameter set, the Wishart ML objective over
+the biased (divisor N) covariance, a port of SciPy's SLSQP run with
+semopy's settings (so it stops where semopy stops — at `ftol` 1e-6,
+short of the optimum), semopy's expected-information standard errors and
+its `calc_stats` fit indices, conventions included (`loglik` is the
+minimised discrepancy F, `aic` = 2(k − F), `gfi` equals `nfi`). Code
+written against semopy ports 1 for 1. `params.solver: "fisher"` runs
+damped Fisher scoring to the optimum instead (a semopy fit at a small
+`ftol` lands on the same figures); `params.information: "rank2"`
+computes the gradient and information from the rank-2 structure of
+∂Σ/∂θ — the same figures, much cheaper on large models.
+
+`primary` is the model-implied covariance Σ(θ̂) over the members.
+`auxiliary.estimates` is semopy's parameter table: a row per
+`"lval op rval"` (`op` `~` for loadings and regressions, `~~` for
+variances and covariances), columns `estimate`, `std_estimate`,
+`std_err`, `z_value`, `p_value` — the last three null on a fixed
+parameter; `auxiliary.residual_covariance` is S − Σ(θ̂); `vectors`
+carry each row's parameter name and whether it is free; `scalars` carry
+`chi2` with `chi2_p_value` on `dof`, the baseline `chi2_baseline` on
+`dof_baseline`, `cfi`, `tli`, `rmsea`, `gfi`, `agfi`, `nfi`, `aic`,
+`bic`, `loglik`, `objective`, `n`, `n_params`, `iterations` and
+`converged`. None is banded: fit-index cut-offs are rules of thumb.
+
+Listwise only. Under a frequency weight the fit is exactly semopy's on
+the expanded rows (N = Σw); a probability weight is refused
+(`PULSE_WEIGHT_UNSUPPORTED`: semopy has no design-based form). A
+rank-deficient covariance is refused with `PULSE_MATRIX_SINGULAR` (semopy
+would substitute a nearest positive-definite matrix); a solver stop short
+of success keeps the last iterate with `PULSE_MATRIX_NOT_CONVERGED`; a
+model with more parameters than moments is fitted with
+`PULSE_MATRIX_NOT_IDENTIFIED`. Streamable and mergeable: the fit reads
+only the merged covariance and N.
 
 ## Groups, cost and refusals
 

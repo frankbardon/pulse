@@ -26,8 +26,8 @@ type Stats struct {
 
 // ComputeStats fills fit.Stats; desc is the model description, used to
 // fit semopy's baseline (independence) model on the same covariance.
-func ComputeStats(fit *Fit, desc string, opt Options) error {
-	opt = fit.Options
+func ComputeStats(fit *Fit, desc string) error {
+	opt := fit.Options
 	base, err := NewModel(desc, true)
 	if err != nil {
 		return err

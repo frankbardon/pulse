@@ -2,6 +2,7 @@ package pulse
 
 import (
 	"context"
+	"encoding/json"
 	stderrors "errors"
 	"slices"
 	"testing"
@@ -104,6 +105,14 @@ func TestProcess_MatricesRefuseLikePredict(t *testing.T) {
 		{"vector and fields", types.MatrixSpec{Type: types.MAT_COVARIANCE, Vector: "ab", Fields: []string{"a"}}, perr.SERVICE_VALIDATION},
 		{"categorical inline member", types.MatrixSpec{Type: types.MAT_COVARIANCE, Fields: []string{"region"}}, perr.PULSE_VECTOR_MEMBER_TYPE},
 		{"unknown type", types.MatrixSpec{Type: "MAT_NOPE", Vector: "ab"}, perr.SERVICE_VALIDATION},
+		// MAT_SEM's refusals are resolution-time (vectors.resolveSEM) and
+		// weight-class (internal/weighting): predict refuses the same.
+		{"sem bad model", types.MatrixSpec{Type: types.MAT_SEM, Vector: "ab", Params: json.RawMessage(`{"model": "f => a"}`)}, perr.SERVICE_VALIDATION},
+		{"sem non-member variable", types.MatrixSpec{Type: types.MAT_SEM, Vector: "ab", Params: json.RawMessage(`{"model": "f =~ a + b + c"}`)}, perr.SERVICE_VALIDATION},
+		{"sem unused member", types.MatrixSpec{Type: types.MAT_SEM, Fields: []string{"a", "b", "c"}, Params: json.RawMessage(`{"model": "f =~ a + b"}`)}, perr.SERVICE_VALIDATION},
+		{"sem pairwise", types.MatrixSpec{Type: types.MAT_SEM, Vector: "ab", Params: json.RawMessage(`{"missing": "pairwise"}`)}, perr.SERVICE_VALIDATION},
+		{"sem probability weight", types.MatrixSpec{Type: types.MAT_SEM, Vector: "ab",
+			Weight: types.SlotWeightOf(types.WeightSpec{Field: "c", Kind: types.WeightKindProbability})}, perr.PULSE_WEIGHT_UNSUPPORTED},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			req := build(c.spec)

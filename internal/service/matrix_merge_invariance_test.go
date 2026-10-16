@@ -47,7 +47,7 @@ var matrixInvarianceVariants = func() []matrixInvarianceVariant {
 	var out []matrixInvarianceVariant
 	for _, typ := range types.AllMatrixTypes() {
 		for _, pairwise := range []bool{false, true} {
-			if pairwise && typ == types.MAT_DISTANCE {
+			if pairwise && (typ == types.MAT_DISTANCE || typ == types.MAT_SEM) {
 				continue // listwise only
 			}
 			for _, v := range []matrixInvarianceVariant{{false, false, "", false}, {true, false, "", false}, {false, true, "", false}, {true, true, "", false}} {
@@ -147,6 +147,10 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 	}
 	if v.weighted {
 		spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
+		if v.matrixType() == types.MAT_SEM {
+			// Frequency only: semopy has no design-based form.
+			spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency})
+		}
 	}
 	req := &types.Request{
 		Cohort:   &types.Cohort{Filename: path},
@@ -270,6 +274,21 @@ func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decod
 				t.Fatalf("Process(decode=%d, shard=%d): rotated pairwise PCA lacks rotated_variance / unrotated", decodeWorkers, shardWorkers)
 			}
 			for _, x := range vs {
+				out.relBits = append(out.relBits, math.Float64bits(x))
+			}
+		}
+	} else if req.Matrices[0].Type == types.MAT_SEM {
+		// The fit is a pure function of the merged covariance and N, so
+		// every estimate and fit index is as worker-invariant as they are.
+		for _, k := range []string{"chi2", "chi2_baseline", "cfi", "rmsea", "objective", "n", "iterations"} {
+			out.relBits = append(out.relBits, math.Float64bits(m.Scalars[k]))
+		}
+		est := m.Auxiliary["estimates"]
+		if est == nil || len(est.Values) == 0 {
+			t.Fatalf("Process(decode=%d, shard=%d): MAT_SEM carries no estimates", decodeWorkers, shardWorkers)
+		}
+		for _, row := range est.Values {
+			for _, x := range row {
 				out.relBits = append(out.relBits, math.Float64bits(x))
 			}
 		}
@@ -414,6 +433,8 @@ func referenceMatrixWords(t *testing.T, n int, v matrixInvarianceVariant) []uint
 		return nil // the loadings are an eigensolver's output: no FMA-free anchor
 	case types.MAT_DISTANCE:
 		return nil // bucket distances: anchored by the R oracle (internal/processing)
+	case types.MAT_SEM:
+		return nil // the implied covariance is an optimiser's output: anchored by the semopy fixtures (internal/sem)
 	case types.MAT_COLLINEARITY:
 		if v.pairwise {
 			return nil // the repaired matrix has no independent anchor here

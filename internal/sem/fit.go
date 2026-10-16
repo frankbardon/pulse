@@ -728,3 +728,35 @@ func (st *state) estimates(x, se []float64, sg *mat.SymDense, c *mat.Dense) []Es
 }
 
 func normCDF(z float64) float64 { return 0.5 * math.Erfc(-z/math.Sqrt2) }
+
+// SpecifiedRows lists the parameter-table rows of an unfitted model,
+// in Fit.Estimates' order, with every figure NaN: the rows an undefined
+// input still reports.
+func SpecifiedRows(m *Model) []Estimate {
+	var out []Estimate
+	for mi := 0; mi < nMatrices; mi++ {
+		for _, p := range m.params {
+			for _, l := range p.locs {
+				if l.mat != mi {
+					continue
+				}
+				var rows, cols []string
+				switch mi {
+				case mBeta, mPsi:
+					rows, cols = m.Inner, m.Inner
+				case mLambda:
+					rows, cols = m.Observed, m.Inner
+				default:
+					rows, cols = m.Observed, m.Observed
+				}
+				e := Estimate{Op: matOp[mi], Param: p.name, LVal: rows[l.i], RVal: cols[l.j], Free: p.active,
+					Value: math.NaN(), StdValue: math.NaN(), SE: math.NaN(), Z: math.NaN(), P: math.NaN()}
+				if mi == mPsi && !p.active && m.isObsExo(e.LVal) && m.isObsExo(e.RVal) {
+					continue
+				}
+				out = append(out, e)
+			}
+		}
+	}
+	return out
+}

@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/groupedtests"
 	"github.com/frankbardon/pulse/internal/returnplan"
+	"github.com/frankbardon/pulse/internal/sem"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -505,6 +506,9 @@ func matrixValuesNode(name string, rows, cols int64) *sizeNode {
 //   - MAT_DISTANCE: centroids b x p; centroids_standardized b x p under
 //     standardize; pooled_covariance p x p under a fitted inverse
 //     covariance metric (mahalanobis).
+//   - MAT_SEM: estimates r x 5, r the model's parameter-table rows
+//     (sem.SpecifiedRows: known from the description alone);
+//     residual_covariance p x p.
 func matrixAuxiliaryNodes(m vectors.Matrix, mp descriptor.MatrixPredict, member bool) []*sizeNode {
 	p, k := int64(mp.Shape[0]), int64(mp.Shape[1])
 	keys, _ := m.AuxiliaryKeys()
@@ -529,6 +533,12 @@ func matrixAuxiliaryNodes(m vectors.Matrix, mp descriptor.MatrixPredict, member 
 		case "pooled_covariance":
 			members := int64(len(m.Members.Members))
 			out = append(out, matrixValuesNode(name, members, members))
+		case "estimates":
+			rows := int64(0)
+			if m.SEM != nil && m.SEM.Model != nil {
+				rows = int64(len(sem.SpecifiedRows(m.SEM.Model)))
+			}
+			out = append(out, matrixValuesNode(name, rows, int64(len(vectors.SEMEstimateColumns()))))
 		default: // n and the inference squares: p x p over the output axis
 			out = append(out, matrixValuesNode(name, p, p))
 		}
