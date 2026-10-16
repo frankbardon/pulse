@@ -1264,6 +1264,18 @@ const (
 	// "expression", "call" and "arguments".
 	PULSE_FORMULA_TOTAL_ARITY Code = "PULSE_FORMULA_TOTAL_ARITY"
 
+	// PULSE_FORMULA_COMPILE_ERROR indicates an ATTR_FORMULA or
+	// FILTER_EXPRESSION expression — or a total() argument — that
+	// expr-lang cannot compile against the schema-typed environment: a
+	// syntax error, an unknown name or function, or an ill-typed
+	// operation (a categorical label compared with a number). Raised at
+	// build, or on the first record when the expression names a feature
+	// output or an earlier attribute label. The message carries
+	// expr-lang's reason; Details carry "compile_error" (the reason) and
+	// "expression" (the source). Constructor: internal/exprenv
+	// CompileError.
+	PULSE_FORMULA_COMPILE_ERROR Code = "PULSE_FORMULA_COMPILE_ERROR"
+
 	// PULSE_MODEL_PREDICTOR_MISSING indicates a scoring frame without a
 	// column for one of a bound model's predictors: no schema field,
 	// feature output or earlier attribute label carries the name.
@@ -3873,6 +3885,7 @@ var allCodes = []Code{
 	PULSE_FORMULA_TOTAL_SITE,
 	PULSE_FORMULA_TOTAL_NESTED,
 	PULSE_FORMULA_TOTAL_ARITY,
+	PULSE_FORMULA_COMPILE_ERROR,
 	PULSE_MODEL_PREDICTOR_MISSING,
 	PULSE_MODEL_PREDICTOR_NOT_NUMERIC,
 	PULSE_MODEL_SAVE_INVALID,

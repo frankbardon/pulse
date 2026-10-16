@@ -706,6 +706,14 @@ Ships in `v1.0.0-alpha.14`. `format_version` stays `"1.1"`: an owner exception â
 | `pulse cohort inspect` took a positional `PATH` only; a missing path was an uncoded usage string (no envelope under `--json`) | it also takes `-i` / `--input` (the flag wins over a positional); a missing path is a `CLI_INPUT` envelope, exit 1 | additive (flag) + behaviour change (coded refusal) | none | U44 (E3-S3) |
 | `Process` / `ProcessStream` record rows (`Response.Data` of an ungrouped windowed run), on Compose, `pulse api process` (text, `--json`, `--stream` NDJSON) and MCP `pulse_process`, rendered a `date` cell as its epoch day (`"d": 20454`) and a `datetime` cell as epoch seconds; a `WIN_LAG` / `WIN_LEAD` copy of a date likewise | `date` is `"2026-01-01"`, `datetime` `"2026-01-02T03:04:05Z"` (the Go value a `string`), a lag / lead copy of a date too; no zone applies. Windows, `order_by` and `Request.Sort` still read the epoch number, so order is chronological and a `WIN_DELTA` / running sum over a date stays a day count. Derived-cohort materialization is unchanged | behaviour change (wire + Go type) | parse the literal as for sample / lookup | U44 (E3-S5) |
 
+## Changes from U45 (binary and decimal)
+
+Ships in the next `v1.0.0-alpha`. `format_version` stays `"1.1"`.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| an `ATTR_FORMULA` / `FILTER_EXPRESSION` expression (or a `total()` argument) that failed expr-lang's compile was `PROCESSING_RUNTIME` `compiling <site> expression: <src>`, the parser's reason reachable only through `errors.Unwrap` (never on the wire, the CLI or MCP) | the new code `PULSE_FORMULA_COMPILE_ERROR`, at build and on a deferred first-record compile alike: message `compiling <site> expression "<src>": <reason>`, `details.compile_error` (expr-lang's reason with its line:column) and `details.expression` (the source); the compile error stays the cause. New error code in `errors.allCodes`. A run-time evaluation failure stays `PROCESSING_RUNTIME` | behaviour change (code, message, details) | match `PULSE_FORMULA_COMPILE_ERROR` for a bad expression; read `details.compile_error` | U45 (E2-S2) |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

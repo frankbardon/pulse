@@ -595,31 +595,42 @@ func TestExprFormula_NullSemantics(t *testing.T) {
 
 func TestExprProgram_CompileErrorsAtBuild(t *testing.T) {
 	s := exprParitySchema()
-	wantErr := func(t *testing.T, err error, msg string) {
+	// A compile failure is PULSE_FORMULA_COMPILE_ERROR (U45 #315; it was
+	// PROCESSING_RUNTIME with expr-lang's reason dropped): the message
+	// names the site, the source and the reason; details carry
+	// compile_error (the reason) and expression (the source).
+	wantErr := func(t *testing.T, err error, what, src, reason string) {
 		t.Helper()
 		var ce *errors.CodedError
-		if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_RUNTIME || ce.Message != msg {
-			t.Fatalf("err %v, want PROCESSING_RUNTIME %q", err, msg)
+		if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_FORMULA_COMPILE_ERROR {
+			t.Fatalf("err %v, want PULSE_FORMULA_COMPILE_ERROR", err)
+		}
+		got, _ := ce.Details["compile_error"].(string)
+		if !strings.Contains(got, reason) || ce.Details["expression"] != src {
+			t.Fatalf("details %v, want compile_error naming %q and expression %q", ce.Details, reason, src)
+		}
+		if !strings.HasPrefix(ce.Message, "compiling "+what+" expression") || !strings.Contains(ce.Message, src) || !strings.Contains(ce.Message, got) {
+			t.Fatalf("message %q, want the site, the source %q and the reason %q", ce.Message, src, got)
 		}
 	}
-	// Syntax and type errors: at build, before any row, the historical
-	// message. The old per-row compile raised the same one on row one.
-	for _, src := range []string{"x >", "cat > 5", "nosuch > 1 +"} {
+	// Syntax and type errors: at build, before any row. The old per-row
+	// compile raised the same reason on row one.
+	for src, reason := range map[string]string{"x >": "unexpected token EOF", "cat > 5": "invalid operation", "nosuch > 1 +": "unexpected token EOF"} {
 		_, err := BuildFilters([]*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: src}}, s, nil)
-		wantErr(t, err, "compiling filter expression: "+src)
+		wantErr(t, err, "filter", src, reason)
 		_, perRow := perRowCompile(src, exprParityRecords(s, 1, false)[0].AllValues(), nil)
 		if perRow == nil || !strings.Contains(err.(*errors.CodedError).Cause.Error(), strings.SplitN(perRow.Error(), "\n", 2)[0]) {
 			t.Fatalf("%q: build cause %v, per-row cause %v", src, err.(*errors.CodedError).Cause, perRow)
 		}
 	}
 	// A name the schema cannot declare may be a feature output: the
-	// build defers, and the first row raises exactly as before.
+	// build defers, and the first row raises under the same code.
 	fns, err := BuildFilters([]*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "nosuch > 1"}}, s, nil)
 	if err != nil {
 		t.Fatalf("deferred build: %v", err)
 	}
 	_, err = fns[0](exprParityRecords(s, 1, false)[0])
-	wantErr(t, err, "compiling filter expression: nosuch > 1")
+	wantErr(t, err, "filter", "nosuch > 1", "unknown name nosuch")
 
 	// ATTR_FORMULA: the Processor binds at build — zero records still
 	// surface the compile error.
@@ -628,7 +639,28 @@ func TestExprProgram_CompileErrorsAtBuild(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v"}},
 	}
 	_, err = NewProcessor(s).Process(context.Background(), req, NewSliceIterator(nil))
-	wantErr(t, err, "compiling formula expression: x *")
+	wantErr(t, err, "formula", "x *", "unexpected token EOF")
+
+	// ATTR_FORMULA deferred: a non-schema name (an earlier attribute
+	// label) defers the compile; the first record raises the same code.
+	comp, err := newFormulaAttribute(&types.Attribute{Type: types.ATTR_FORMULA, Expression: "extra + cat * 2", Label: "v"}, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := BindAttribute(comp, nil, nil); err != nil {
+		t.Fatalf("deferred formula bind: %v", err)
+	}
+	r := exprParityRecords(s, 1, false)[0]
+	r.injectValue("extra", 1)
+	_, err = comp.(*formulaAttribute).Row(r, "")
+	wantErr(t, err, "formula", "extra + cat * 2", "invalid operation")
+
+	// A total() argument compiles under the same code, at build.
+	tot, err := newFormulaAttribute(&types.Attribute{Type: types.ATTR_FORMULA, Expression: "x / total(cat * 2)", Label: "v"}, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantErr(t, BindAttribute(tot, nil, nil), "formula total() argument", "cat * 2", "invalid operation")
 }
 
 func TestExprProgram_ConcurrentRuns(t *testing.T) {

@@ -9527,7 +9527,7 @@
         ]
       }
     ],
-    "error_codes_count": 367,
+    "error_codes_count": 368,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9635,6 +9635,7 @@
       "PULSE_FIELD_DESCRIPTION_LOW_QUALITY",
       "PULSE_FIELD_TYPE_UNSUPPORTED",
       "PULSE_FIT_INVALID",
+      "PULSE_FORMULA_COMPILE_ERROR",
       "PULSE_FORMULA_TOTAL_ARITY",
       "PULSE_FORMULA_TOTAL_NESTED",
       "PULSE_FORMULA_TOTAL_SITE",
@@ -18151,4 +18152,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9960462671da75c512f6ad0016a50e6337e6b3b73710ca9302662c249e8cdabc
+// golden-hash: f538dae991407a9a7c58edcdb4f4838fdc6d245374465412eff806d9def0ad03

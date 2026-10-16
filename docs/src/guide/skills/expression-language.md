@@ -9,13 +9,13 @@ covers: [expression, expr-lang, formula, set-helpers, vector-functions, lookup, 
 
 # Expression language
 
-Two operators evaluate an `expr-lang/expr` string once per row: the formula attribute (the result is a new column) and the expression filter (a truthy result keeps the row). Both compile through one environment, so everything below holds for both; only null handling differs.
+Two operators evaluate an `expr-lang/expr` string once per row: the formula attribute (a new column) and the expression filter (truthy keeps the row). Both compile through one environment, so everything below holds for both; only null handling differs.
 
 This is NOT request templating: `$var` / `{{}}` / `$when` are substituted into the request before decode ([`request-templating`](request-templating.md)); an expression runs over row fields.
 
 ## Field binding
 
-Fields are referenced by bare name; the value a name binds depends on the schema type:
+A field is named bare; what it binds depends on its schema type:
 
 | Field type | Binds as | Write |
 |---|---|---|
@@ -58,7 +58,7 @@ A null field binds `nil`. Guard with `x ?? 0` or `x == nil ? a : b`. What an ung
 - **Formula** — arithmetic on `nil` raises `PROCESSING_RUNTIME`; a `nil` result is a null value.
 - **Filter** — `==` is false, `!=` true; `>` / `+` / `len` on `nil` make the predicate UNKNOWN and the row is dropped.
 
-The program compiles once per request: bad syntax or a type error is `PROCESSING_RUNTIME` at build, before any row is read.
+Compiled once: bad syntax, an unknown name or type error is `PULSE_FORMULA_COMPILE_ERROR` at build (row one if it reads a derived column), reason in `details.compile_error`.
 
 ## Embedder extensions
 

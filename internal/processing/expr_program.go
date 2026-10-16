@@ -183,9 +183,10 @@ func (p *exprProgram) compile(decl exprtypes.Map) (*vm.Program, error) {
 	return expr.Compile(p.src, opts...)
 }
 
+// compileError is PULSE_FORMULA_COMPILE_ERROR, expr-lang's reason in
+// the message and details (exprenv.CompileError — predict's spelling).
 func (p *exprProgram) compileError(err error) error {
-	return errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
-		fmt.Sprintf("compiling %s expression: %s", p.what, p.src))
+	return exprenv.CompileError(p.what, p.src, err)
 }
 
 func (p *exprProgram) evalError(err error) error {

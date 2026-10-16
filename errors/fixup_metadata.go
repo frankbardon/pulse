@@ -1933,6 +1933,23 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_FORMULA_COMPILE_ERROR: {
+		Message: "A formula or filter expression (or a total() argument) does not compile: a syntax error, an unknown name or function, or an operation the operand types do not support — a categorical field binds as its string label, a decimal128 as an exact decimal, a set as its label list, every other field as a float64, a null as nil. The compile runs once, at build, or on the first record when the expression names a feature output or an earlier attribute label. The message carries expr-lang's reason; details.compile_error holds the reason (with its line:column) and details.expression the source.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"attributes", "*", "expression"},
+				Hint:     "Read details.compile_error for the offending token or operation, then fix the formula: balance parentheses, spell field names as the schema does, compare a categorical with a quoted label (region == \"west\"), and call only the documented functions (skills/expression-language.md).",
+				Examples: []any{map[string]any{"expression": "(revenue - cost) / revenue"}, map[string]any{"expression": "region == \"west\" ? 1 : 0"}},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"filterers", "*", "expression"},
+				Hint:     "Read details.compile_error and fix the filter expression the same way; a filter must return a bool.",
+				Examples: []any{map[string]any{"expression": "age >= 18 && region in [\"west\", \"east\"]"}},
+			},
+		},
+	},
 	PULSE_MODEL_PREDICTOR_MISSING: {
 		Message: "The scoring slot has no column for one of the bound model's predictors: no schema field, feature output or earlier attribute label carries the name. Scoring reads the model's predictors from the slot's own columns and never infers one — a one-hot reference level is an ABSENT predictor of the fit, not a missing column. The predictor is under `field`, the fit under `fit`.",
 		Fixups: []Fixup{
