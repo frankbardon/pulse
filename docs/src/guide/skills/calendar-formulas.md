@@ -25,7 +25,7 @@ A fractional day is floored; a non-finite day or instant → NaN (`null` on the 
 
 ## Time zone
 
-`to_day` reads the wall clock in the request `time_zone`, else `Options.DefaultTimeZone`, else UTC — the zone a date-part attribute inherits ([`time-zones`](time-zones.md)). An instant near midnight moves day with the zone: `2024-03-10T03:30Z` is the 10th in UTC, the 9th in `America/New_York`. DST days are handled by the embedded tz database. A per-slot `tz` is refused on the formula and the expression filter (not zone-capable); set the request `time_zone`.
+`to_day` reads the wall clock in the request `time_zone`, else `Options.DefaultTimeZone`, else UTC — the zone a date-part attribute inherits ([`time-zones`](time-zones.md)). An instant near midnight moves day with the zone: `2024-03-10T03:30Z` is the 10th in UTC, the 9th in `America/New_York`. DST days are handled by the embedded tz database. A per-slot `tz` is refused on the formula and the expression filter (not zone-capable); set the request `time_zone`. Filter-to-file takes no request zone: its predicate reads `Options.DefaultTimeZone`, and a non-UTC one joins its dedup hash.
 
 ## The datetime guard
 

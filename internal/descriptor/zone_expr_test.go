@@ -118,3 +118,25 @@ func TestZonedFacetExpressions(t *testing.T) {
 		t.Error("nil facet request")
 	}
 }
+
+// TestExpressionZone: the zone a to_day-calling expression reads —
+// request zone, else default — and "" for an expression that never
+// calls to_day or a UTC-equivalent, unknown or absent zone.
+func TestExpressionZone(t *testing.T) {
+	for _, c := range []struct {
+		src, req, def, want string
+	}{
+		{"to_day(ts) == d", "", "America/New_York", "America/New_York"},
+		{"to_day(ts) == d", "Asia/Tokyo", "America/New_York", "Asia/Tokyo"},
+		{"weekday(to_day(ts)) < 6", "", "Asia/Tokyo", "Asia/Tokyo"},
+		{"x > 1", "", "America/New_York", ""},
+		{"to_day(ts) == d", "", "", ""},
+		{"to_day(ts) == d", "", "Etc/UTC", ""},
+		{"to_day(ts) == d", "", "Not/AZone", ""},
+		{"", "", "America/New_York", ""},
+	} {
+		if got := ExpressionZone(c.src, c.req, c.def, nil); got != c.want {
+			t.Errorf("ExpressionZone(%q, %q, %q) = %q, want %q", c.src, c.req, c.def, got, c.want)
+		}
+	}
+}

@@ -93,6 +93,19 @@ func ZonedFacetExpressions(req *types.FacetRequest, defaultZone string, load Zon
 	return &c
 }
 
+// ExpressionZone is the zone an expression src's to_day() reads under
+// the inherited zone (requestZone, else defaultZone): its name, or ""
+// when src never calls to_day or the zone is absent, UTC-equivalent or
+// unknown — exactly the zone ZonedExpressions would write onto a slot
+// holding src. A caller keying a result on the expression (the
+// filter-to-file dedup hash) keys it on this zone too.
+func ExpressionZone(src, requestZone, defaultZone string, load ZoneLoader) string {
+	if !callsToDay(src) {
+		return ""
+	}
+	return inheritedExprZone(requestZone, defaultZone, load)
+}
+
 // inheritedExprZone is the inherited zone's name — requestZone, else
 // defaultZone — or "" when it is absent, UTC-equivalent or unknown.
 func inheritedExprZone(requestZone, defaultZone string, load ZoneLoader) string {

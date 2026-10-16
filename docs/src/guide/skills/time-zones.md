@@ -24,7 +24,7 @@ A `datetime` is read on its LOCAL calendar day in every mode (process, stream, c
 - `GROUP_DATE` keys are local labels. `component: hour` keys `YYYY-MM-DDTHH` local wall clock (datetime only; the skipped DST hour has no bucket, the repeated hour is one bucket). `week_start` (week only) defaults to `monday` (ISO `YYYY-Www`); any other day keys by the week's first local date.
 - Range literals (inline or `RangeTables`) are LOCAL calendar days in the slot's zone; a range table has no zone of its own.
 - `ATTR_DATE_PART` and `FEAT_DATE_FEATURES` accept `datetime` and read the zone's wall clock; part `hour` (and the sixth `<prefix>_hour` feature column) is datetime-only. Feature `dow` stays Sunday = 0 and ignores `week_start`.
-- Formulas and expression filters: `to_day(ts)` reads the inherited zone (request `time_zone` -> `Options.DefaultTimeZone` -> UTC); they take no slot `tz` ([`calendar-formulas`](calendar-formulas.md)).
+- Formulas and expression filters: `to_day(ts)` reads the inherited zone (request `time_zone` -> `Options.DefaultTimeZone` -> UTC) on every entry point — filter-to-file has no request zone, so the default; they take no slot `tz` ([`calendar-formulas`](calendar-formulas.md)).
 - `OVERLAY_YOY` has no zone slot; it follows its host grouper, so an hourly host gives hourly prior-year alignment.
 
 ## Import in a source zone
