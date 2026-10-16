@@ -36,7 +36,8 @@ func vectorStaticRefusal(src, what string, lenOf func(string) (int, bool)) error
 
 // exprRefusal returns the request's own refusal inside an expression
 // evaluation error — a coef() model refusal, an unequal-length vector
-// pair, or an invalid vnormalize mode — so the run fails under that
+// pair, an invalid vnormalize mode, or a decimal operator's zero divisor
+// or overflow (PULSE_DECIMAL_*) — so the run fails under that
 // code rather than the generic PROCESSING_RUNTIME wrapper, and a
 // null-input row never swallows it.
 func exprRefusal(err error) *errors.CodedError {
@@ -49,6 +50,7 @@ func exprRefusal(err error) *errors.CodedError {
 			return nil
 		}
 		if ce.Code == errors.PROCESSING_VECTOR_LENGTH_MISMATCH || refRefusalCode(ce.Code) ||
+			ce.Code == errors.PULSE_DECIMAL_DIVIDE_BY_ZERO || ce.Code == errors.PULSE_DECIMAL_OVERFLOW ||
 			(ce.Code == errors.PROCESSING_CONFIG && stderrors.Is(ce.Cause, vecmath.ErrInvalidNormalizeMode)) {
 			return ce
 		}

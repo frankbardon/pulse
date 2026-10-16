@@ -89,9 +89,11 @@ func TestLookupBuiltin_FuncBackedError(t *testing.T) {
 // ExprOptions: the eight set helpers (has_any / has_all / has_none /
 // popcount / set_union / set_intersect / set_diff / set_xor) plus the
 // `%` float-modulo builtin and its patcher (internal/exprenv mod.go), plus one per
-// reserved vector / scalar-maths built-in (internal/exprenv). Bump
+// reserved vector / scalar-maths built-in (internal/exprenv), plus the
+// exact decimal operators (internal/exprenv decimal.go: ten binary
+// operator builtins, float / lift / negate, and their patcher). Bump
 // this constant when the set-helper roster changes.
-var setExprHelperCount = 8 + 2 + len(exprenv.Names())
+var setExprHelperCount = 8 + 2 + len(exprenv.Names()) + 14
 
 func TestExprOptions_NilRegistry(t *testing.T) {
 	var r *ExtensionRegistry

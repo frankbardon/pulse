@@ -1,14 +1,18 @@
 package pulse_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -102,39 +106,46 @@ func formulaCompileBody(body string) string {
 // case's predict verdict equals the runtime's — code, message and every
 // details key — and a valid expression is clean on both.
 func TestFormulaCompile_PredictMatchesRuntime(t *testing.T) {
-	ctx := context.Background()
 	p, data := formulaCompilePulse(t)
 	for _, c := range formulaCompileCases {
 		t.Run(c.name, func(t *testing.T) {
 			body := formulaCompileBody(c.body)
-			pe := predictCodedError(t, p, data, formulaCompileRequest(t, body))
-			_, err := p.Process(ctx, formulaCompileRequest(t, body))
-			if !c.bad {
-				if pe != nil {
-					t.Fatalf("Predict refused a valid expression: %+v", pe)
-				}
-				if err != nil {
-					t.Fatalf("Process: %v", err)
-				}
-				return
-			}
-			if pe == nil {
-				t.Fatalf("Predict passed; Process = %v", err)
-			}
-			ce := codeOf(t, err)
-			if pe.Code != string(perr.PULSE_FORMULA_COMPILE_ERROR) || ce.Code != perr.PULSE_FORMULA_COMPILE_ERROR {
-				t.Fatalf("codes: predict %s, runtime %s (%s); want both PULSE_FORMULA_COMPILE_ERROR", pe.Code, ce.Code, ce.Message)
-			}
-			if pe.Message != ce.Message {
-				t.Fatalf("message:\n predict %q\n runtime %q", pe.Message, ce.Message)
-			}
-			if fmt.Sprint(pe.Details) != fmt.Sprint(ce.Details) {
-				t.Fatalf("details:\n predict %v\n runtime %v", pe.Details, ce.Details)
-			}
-			if pe.Details["compile_error"] == "" || pe.Details["expression"] == "" {
-				t.Fatalf("details lack compile_error / expression: %v", pe.Details)
-			}
+			assertFormulaCompileParity(t, p, data, func() *types.Request { return formulaCompileRequest(t, body) }, c.bad)
 		})
+	}
+}
+
+// assertFormulaCompileParity: predict's verdict on mk()'s request equals
+// the runtime's — both PULSE_FORMULA_COMPILE_ERROR with the same message
+// and details when bad, both clean otherwise.
+func assertFormulaCompileParity(t *testing.T, p *pulse.Pulse, data []byte, mk func() *types.Request, bad bool) {
+	t.Helper()
+	pe := predictCodedError(t, p, data, mk())
+	_, err := p.Process(context.Background(), mk())
+	if !bad {
+		if pe != nil {
+			t.Fatalf("Predict refused a valid expression: %+v", pe)
+		}
+		if err != nil {
+			t.Fatalf("Process: %v", err)
+		}
+		return
+	}
+	if pe == nil {
+		t.Fatalf("Predict passed; Process = %v", err)
+	}
+	ce := codeOf(t, err)
+	if pe.Code != string(perr.PULSE_FORMULA_COMPILE_ERROR) || ce.Code != perr.PULSE_FORMULA_COMPILE_ERROR {
+		t.Fatalf("codes: predict %s, runtime %s (%s); want both PULSE_FORMULA_COMPILE_ERROR", pe.Code, ce.Code, ce.Message)
+	}
+	if pe.Message != ce.Message {
+		t.Fatalf("message:\n predict %q\n runtime %q", pe.Message, ce.Message)
+	}
+	if fmt.Sprint(pe.Details) != fmt.Sprint(ce.Details) {
+		t.Fatalf("details:\n predict %v\n runtime %v", pe.Details, ce.Details)
+	}
+	if pe.Details["compile_error"] == "" || pe.Details["expression"] == "" {
+		t.Fatalf("details lack compile_error / expression: %v", pe.Details)
 	}
 }
 
@@ -185,4 +196,136 @@ func TestFormulaCompile_EveryPredictRoot(t *testing.T) {
 			t.Fatalf("PredictFacet errors = %+v, want %s", env.Errors, want)
 		}
 	})
+}
+
+// decimalFormulaCompileCases run on the parity decimal cohort (region
+// categorical, age f64, amount decimal128 scale 2): a decimal operator
+// over a decimal and a number compiles on both sides (U45 #314, exact
+// decimal operators), an ill-typed operand is refused by both.
+var decimalFormulaCompileCases = []struct {
+	name string
+	body string
+	bad  bool
+}{
+	{"decimal over string", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"amount / \"x\""}]}`, true},
+	{"decimal plus label", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"amount + region"}]}`, true},
+	{"decimal filter over string", `{"filterers":[{"type":"FILTER_EXPRESSION","expression":"amount > \"1\""}]}`, true},
+	{"decimal modulo", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"amount % 2"}]}`, true},
+	{"decimal total argument over string", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"age / total(amount + \"a\")"}]}`, true},
+
+	{"decimal divided by int", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"amount / 2"}]}`, false},
+	{"decimal ratio compared", `{"filterers":[{"type":"FILTER_EXPRESSION","expression":"amount / age > 1.2"}]}`, false},
+	{"decimal float escape", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"float(amount) * 1.5"}]}`, false},
+	{"decimal coalesced", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"(amount ?? 0) * 1.1"}]}`, false},
+	{"decimal total argument", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"amount / total(amount)"}]}`, false},
+	{"decimal earlier attribute", `{"attributes":[{"type":"ATTR_FORMULA","label":"a","expression":"amount * 2"},{"type":"ATTR_FORMULA","label":"g","expression":"a + amount"}]}`, false},
+}
+
+// decimalFormulaCohort is region (categorical), age (f64) and amount
+// (decimal128, scale 2; 1.00..9.99) over 40 rows, laid out by hand: CSV
+// import cannot infer a decimal128.
+const decimalFormulaCohort = "decimal_formula.pulse"
+
+func decimalFormulaPulse(t *testing.T) (*pulse.Pulse, []byte) {
+	t.Helper()
+	region := encoding.NewDictionary()
+	for _, r := range []string{"north", "south", "east", "west"} {
+		if _, err := region.Add(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "region", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 0, Dictionary: region},
+		{Name: "age", Type: encoding.FieldTypeF64, ByteOffset: 1},
+		{Name: "amount", Type: encoding.FieldTypeDecimal128, ByteOffset: 9, Precision: 18, Scale: 2},
+	}}
+	var buf bytes.Buffer
+	if err := encoding.WriteHeader(&buf); err != nil {
+		t.Fatal(err)
+	}
+	if err := encoding.WriteSchema(&buf, schema); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 40; i++ {
+		rec := make([]byte, schema.RecordByteSize())
+		rec[0] = byte(i % 4)
+		binary.LittleEndian.PutUint64(rec[1:9], math.Float64bits(float64(10+(i*7)%53)))
+		enc := encoding.EncodeDecimal128(encoding.NewDecimal128FromInt(int64(100 + (i*37)%900)))
+		copy(rec[9:], enc[:])
+		buf.Write(rec)
+	}
+	data := buf.Bytes()
+	fsys := afero.NewMemMapFs()
+	if err := afero.WriteFile(fsys, decimalFormulaCohort, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := pulse.New(pulse.Options{FS: fsys})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p, data
+}
+
+func decimalFormulaRequest(t *testing.T, body string) *types.Request {
+	t.Helper()
+	var req types.Request
+	if err := json.Unmarshal([]byte(body), &req); err != nil {
+		t.Fatalf("decode %s: %v", body, err)
+	}
+	req.Cohort = &types.Cohort{Filename: decimalFormulaCohort}
+	return &req
+}
+
+// TestFormulaCompile_DecimalPredictMatchesRuntime: the decimal operators
+// are declared through the shared env, so predict accepts exactly what
+// the runtime runs and refuses an ill-typed decimal expression under the
+// runtime's code, message and details.
+func TestFormulaCompile_DecimalPredictMatchesRuntime(t *testing.T) {
+	p, data := decimalFormulaPulse(t)
+	for _, c := range decimalFormulaCompileCases {
+		t.Run(c.name, func(t *testing.T) {
+			body := c.body[:len(c.body)-1] + `,"aggregations":[{"type":"AGG_COUNT","field":"age","label":"n"}]}`
+			assertFormulaCompileParity(t, p, data, func() *types.Request { return decimalFormulaRequest(t, body) }, c.bad)
+		})
+	}
+}
+
+// TestDecimalFormula_ExactInFilterAndFormula: on every row of the
+// decimal cohort, (amount + 0.1) - 0.1 == amount holds exactly — as a
+// FILTER_EXPRESSION verdict and as an ATTR_FORMULA 1/0 summed — while
+// the float() escape reproduces float64's misses (the oracle counts
+// them, so the exact path is proven to differ).
+func TestDecimalFormula_ExactInFilterAndFormula(t *testing.T) {
+	ctx := context.Background()
+	p, _ := decimalFormulaPulse(t)
+	floatMisses := 0
+	for i := 0; i < 40; i++ {
+		f := float64(100+(i*37)%900) / 100
+		if (f+0.1)-0.1 != f {
+			floatMisses++
+		}
+	}
+	if floatMisses == 0 {
+		t.Fatal("float64 oracle has no miss on this cohort; the test proves nothing")
+	}
+	count := func(filter, formula string) (kept, summed float64) {
+		t.Helper()
+		resp, err := p.Process(ctx, decimalFormulaRequest(t, `{"filterers":[{"type":"FILTER_EXPRESSION","expression":"`+filter+`"}],
+			"attributes":[{"type":"ATTR_FORMULA","label":"hit","expression":"`+formula+`"}],
+			"aggregations":[{"type":"AGG_COUNT","field":"age","label":"n"},{"type":"AGG_SUM","field":"hit","label":"s"}]}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		n, _ := resp.Data[0]["n"].(float64)
+		sum, _ := resp.Data[0]["s"].(float64)
+		return n, sum
+	}
+	exact := `(amount + 0.1) - 0.1 == amount`
+	if kept, summed := count(exact, exact); kept != 40 || summed != 40 {
+		t.Errorf("exact: filter kept %v, formula summed %v; want 40 and 40", kept, summed)
+	}
+	escaped := `(float(amount) + 0.1) - 0.1 == float(amount)`
+	if kept, summed := count(escaped, `amount == amount ? 1 : 0`); kept != float64(40-floatMisses) || summed != kept {
+		t.Errorf("float() escape: filter kept %v, formula summed %v; want %d", kept, summed, 40-floatMisses)
+	}
 }

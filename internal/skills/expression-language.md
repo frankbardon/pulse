@@ -9,9 +9,9 @@ covers: [expression, expr-lang, formula, set-helpers, vector-functions, lookup, 
 
 # Expression language
 
-Two operators evaluate an `expr-lang/expr` string once per row: the formula attribute (a new column) and the expression filter (truthy keeps the row). Both compile through one environment, so everything below holds for both; only null handling differs.
+Two operators evaluate an `expr-lang/expr` string once per row: the formula attribute (a new column) and the expression filter (truthy keeps the row). One environment serves both; only null handling differs.
 
-This is NOT request templating: `$var` / `{{}}` / `$when` are substituted into the request before decode<!-- feature: capability:templates --> (`request-templating`)<!-- /feature -->; an expression runs over row fields.
+NOT request templating: `$var` / `{{}}` / `$when` are substituted before decode<!-- feature: capability:templates --> (`request-templating`)<!-- /feature -->.
 
 ## Field binding
 
@@ -22,14 +22,14 @@ A field is named bare; what it binds depends on its schema type:
 | numeric (`u*`, `f*`) | number | `weight_kg / (height_m ** 2)` |
 | `categorical_*` | dictionary STRING, never the index | `brand == "Apple"`, `region in ["NA", "EU"]` |
 | `set_*` | sorted `[]string` of member labels | `"a" in tags`, `has_any(tags, "a", "b")` |
-| `decimal128` | `Decimal128` | — |
+| `decimal128` | exact decimal: `+ - * /`, comparisons (`financial-cohorts`) | `price / cost > 1.2`, `float(price) * 1.5` |
 
 Arithmetic on a categorical errors; branch on the label.
 
 ## Operators and functions
 
 - **Operators**: arithmetic (`+ - * / % **`), comparison, logical, membership / pattern (`in`; string-only `contains`, `startsWith`, `endsWith`, `matches`), range (`..`), nil-coalesce (`??`), ternary.
-- **Functions**: numeric (`abs`, `ceil`, `floor`, `round`, `min`, `max`, `sum`, `mean`, `median`), cast (`int`, `float`, `string`), collection (`len`, `keys`, `values`, `concat`, `sort`, `uniq`, `filter`, `map`, `reduce`, `all`, `any`), string (`join`, `split`, `replace`, `trim`, `lower`, `upper`, `hasPrefix`, `hasSuffix`, `indexOf`), JSON / time (`toJSON`, `fromJSON`, `now`, `date`, `duration`).
+- **Functions**: numeric (`abs`, `ceil`, `floor`, `round`, `min`, `max`, `sum`, `mean`, `median`), cast (`int`, `float` — a decimal's f64 escape, `string`), collection (`len`, `keys`, `values`, `concat`, `sort`, `uniq`, `filter`, `map`, `reduce`, `all`, `any`), string (`join`, `split`, `replace`, `trim`, `lower`, `upper`, `hasPrefix`, `hasSuffix`, `indexOf`), JSON / time (`toJSON`, `fromJSON`, `now`, `date`, `duration`).
 - **Set helpers**: `has_any`, `has_all`, `has_none`, `popcount`, `set_union`, `set_intersect`, `set_diff`, `set_xor`. `contains` is a string operator keyword, never a set helper — test membership with `"x" in tags`.
 - `%` on a field is float `math.Mod` (dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.
 
@@ -80,7 +80,7 @@ A formula's result is coerced to a scalar (`bool` → `1.0` / `0.0`); a filter's
 
 ## Gotchas
 
-- A formula sees source fields, feature output and EARLIER attribute labels (declared order), never a later one.
+- A formula sees source fields, feature output and EARLIER attribute labels, never a later one.
 - `total(expr)` — cohort-wide sum of a row-level expression over post-filter rows; allowed ONLY in the formula attribute (`PULSE_FORMULA_TOTAL_SITE` in a filter or overlay formula). One argument, no nesting; unweighted; nulls skipped. Makes the formula two-pass (one extra scan). Not overridable by `ExprFunctions`.
 - Filters run before attributes, so a filter expression cannot read a derived column — restate it over source fields.
 

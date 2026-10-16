@@ -38,18 +38,42 @@ func ExtensionFunctions(fns []NamedFunc) []expr.Option {
 
 // Func bridges an embedder-supplied function to the dynamic shape
 // `func(args ...any) (any, error)` that expr-lang's expr.Function
-// helper expects. Embedders supplying the canonical shape pay no
-// overhead; typed functions go through a one-shot reflective
-// trampoline. Any non-function value surfaces as a PROCESSING_RUNTIME
-// error at call time.
+// helper expects. Embedders supplying the canonical shape pay only the
+// decimal unwrap (a scan of the arguments); typed functions go through
+// a one-shot reflective trampoline. Any non-function value surfaces as
+// a PROCESSING_RUNTIME error at call time.
+//
+// A decimal argument reaches the embedder as the public
+// encoding.Decimal128 it always did, never the env's internal [Decimal]
+// binding (an embedder cannot name that type).
 func Func(fn any) func(args ...any) (any, error) {
+	var call func(args ...any) (any, error)
 	if dynamic, ok := fn.(func(args ...any) (any, error)); ok {
-		return dynamic
+		call = dynamic
+	} else {
+		call = reflectiveTrampoline(fn)
 	}
-	if typed, ok := fn.(func(...any) (any, error)); ok {
-		return typed
+	return func(args ...any) (any, error) { return call(unwrapDecimals(args)...) }
+}
+
+// unwrapDecimals returns args with every [Decimal] replaced by its
+// encoding.Decimal128 — args itself when it holds none (no copy).
+func unwrapDecimals(args []any) []any {
+	var out []any
+	for i, a := range args {
+		d, ok := a.(Decimal)
+		if !ok {
+			continue
+		}
+		if out == nil {
+			out = append([]any(nil), args...)
+		}
+		out[i] = d.Value
 	}
-	return reflectiveTrampoline(fn)
+	if out == nil {
+		return args
+	}
+	return out
 }
 
 // reflectiveTrampoline wraps an arbitrary Go function value

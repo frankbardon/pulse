@@ -6,6 +6,11 @@
 //     helpers, with their implementations (vector.go, setsim.go, set.go)
 //     and ref() (ref.go);
 //   - the `%` patcher (mod.go);
+//   - the exact decimal operators (decimal.go): a decimal128 field binds
+//     as a [Decimal] (mantissa + scale, [Bind]), a patcher rewrites
+//     `+ - * /`, comparisons, unary `-`, `??` defaults and `float()`
+//     over one into exact builtins, and the null-row twin declares it
+//     through [Untyped];
 //   - the single always-on option hook, [Options], every expression
 //     site prepends to its own options;
 //   - embedder ExprFunction bridging ([ExtensionFunctions], [Func]);

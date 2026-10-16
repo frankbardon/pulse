@@ -36,23 +36,23 @@ func Prototype(schema *encoding.Schema) exprtypes.Map {
 }
 
 var (
-	exprAnyType        = reflect.TypeOf((*any)(nil)).Elem()
-	exprFloat64Type    = reflect.TypeOf(float64(0))
-	exprStringType     = reflect.TypeOf("")
-	exprStringsType    = reflect.TypeOf([]string(nil))
-	exprUint64Type     = reflect.TypeOf(uint64(0))
-	exprSetMaskType    = reflect.TypeOf(encoding.SetMask{})
-	exprDecimal128Type = reflect.TypeOf(encoding.Decimal128{})
-	exprFloat64sType   = reflect.TypeOf([]float64(nil))
+	exprAnyType      = reflect.TypeOf((*any)(nil)).Elem()
+	exprFloat64Type  = reflect.TypeOf(float64(0))
+	exprStringType   = reflect.TypeOf("")
+	exprStringsType  = reflect.TypeOf([]string(nil))
+	exprUint64Type   = reflect.TypeOf(uint64(0))
+	exprSetMaskType  = reflect.TypeOf(encoding.SetMask{})
+	exprFloat64sType = reflect.TypeOf([]float64(nil))
 )
 
-// ValueType is the Go type a decoded record (Record.AllValues) gives
-// field f's value: a dictionary-bearing categorical resolves to its
-// label, a dictionary-bearing set to its label slice, a decimal /
-// dictionary-less set rides its wide value, a vector its []float64
-// elements, everything else is the float64 slot. Pinned against every
-// decode path by internal/processing's
-// TestExprValueType_MatchesAllValues.
+// ValueType is the Go type field f's value binds as in the env — a
+// decoded record's value (Record.AllValues) through [Bind]: a
+// dictionary-bearing categorical resolves to its label, a
+// dictionary-bearing set to its label slice, a decimal to a [Decimal]
+// (mantissa + the field's scale), a dictionary-less set rides its wide
+// value, a vector its []float64 elements, everything else is the
+// float64 slot. Pinned against every decode path by
+// internal/processing's TestExprValueType_MatchesAllValues.
 func ValueType(f *encoding.Field) reflect.Type {
 	switch {
 	case f.Type.IsCategorical():
@@ -68,7 +68,7 @@ func ValueType(f *encoding.Field) reflect.Type {
 		}
 		return exprUint64Type
 	case f.Type == encoding.FieldTypeDecimal128:
-		return exprDecimal128Type
+		return exprDecimalType
 	case f.Type.IsVector():
 		return exprFloat64sType
 	}

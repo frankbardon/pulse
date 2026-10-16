@@ -185,8 +185,10 @@ func TestExprValueType_MatchesAllValues(t *testing.T) {
 				continue
 			}
 			seen[path][f.Name] = true
-			if got, want := reflect.TypeOf(v), exprenv.ValueType(f); got != want {
-				t.Errorf("%s: %s (%s) surfaces %v, prototype declares %v", path, f.Name, f.Type, got, want)
+			// The env binds the value through exprenv.Bind (a decimal
+			// gains its field's scale), as runRecord does.
+			if got, want := reflect.TypeOf(exprenv.Bind(f, v)), exprenv.ValueType(f); got != want {
+				t.Errorf("%s: %s (%s) binds %v, prototype declares %v", path, f.Name, f.Type, got, want)
 			}
 		}
 	})

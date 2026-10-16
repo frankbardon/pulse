@@ -29,7 +29,7 @@ import (
 // hook every expression site (FILTER_EXPRESSION, ATTR_FORMULA and its
 // untyped null-row twin, total() arguments, OVERLAY_FORMULA) and
 // a no-engine compile (predict) must reuse: the set helpers, the reserved vector /
-// scalar-maths built-ins (vector.go) and the `%` patcher (mod.go). Call
+// scalar-maths built-ins (vector.go), the exact decimal operators (decimal.go) and the `%` patcher (mod.go). Call
 // sites prepend this to their own and the embedder's options so the
 // built-ins are uniformly visible.
 func Options() []expr.Option {
@@ -39,6 +39,7 @@ func Options() []expr.Option {
 		opts = append(opts, expr.Function(name, setHelperImpls[name]))
 	}
 	opts = append(opts, builtinOptions()...)
+	opts = append(opts, decimalOptions()...) // exact decimal operators (decimal.go)
 	return append(opts, exprModOptions()...) // `%` over float64 fields (mod.go)
 }
 

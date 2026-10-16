@@ -35,7 +35,7 @@ Use something else:
 |---|---|
 | `Field` | unused — the expression names fields. |
 
-Categorical → STRING; `set_*` → `[]string` (`has_any(tags, "a")`); `decimal128` → `Decimal128`.
+Categorical → STRING; `set_*` → `[]string` (`has_any(tags, "a")`); `decimal128` → an exact decimal (`price * 1.1 > cost`, [`financial-cohorts`](financial-cohorts.md)).
 
 ## Output
 

@@ -31,7 +31,8 @@ import (
 // declared from the schema: every schema field, typed exactly as
 // AllValues surfaces it (exprenv.Prototype / ValueType — float64 for numeric/date/bool
 // columns, string for a dictionary-bearing categorical, []string for a
-// dictionary-bearing set, Decimal128 / uint64 / SetMask otherwise). Type
+// dictionary-bearing set, a {value, scale} exprenv.Decimal for a
+// decimal128, uint64 / SetMask otherwise). Type
 // checking therefore sees the same types a per-row compile saw on a row
 // where every field was present, so a request that compiled per row
 // compiles here, to the same program, and one that failed to compile
@@ -93,6 +94,14 @@ type exprProgram struct {
 	// absent from the env is a null-input row. Settled with the typed
 	// program.
 	inputs []string
+	// schema is the build's schema; decimals marks that it declares a
+	// decimal128 field, whose value binds lifted (exprenv.Bind — the
+	// mantissa plus the field's scale). inputDecs is index-aligned with
+	// inputs: the decimal field an input names, else nil (nil slice: no
+	// decimal input — the per-row bind then costs nothing).
+	schema    *encoding.Schema
+	decimals  bool
+	inputDecs []*encoding.Field
 	// refs are every free identifier the AST names (callees and let
 	// bindings excluded), used to decide at build whether the schema
 	// alone can declare them.
@@ -134,7 +143,15 @@ func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Re
 	if err := vectorStaticRefusal(src, what, vectors.ExprVectorLen(vecs, schema)); err != nil {
 		return nil, err
 	}
-	p := &exprProgram{src: src, what: what, opts: opts, decl: exprenv.Prototype(schema)}
+	p := &exprProgram{src: src, what: what, opts: opts, decl: exprenv.Prototype(schema), schema: schema}
+	if schema != nil {
+		for i := range schema.Fields {
+			if schema.Fields[i].Type == encoding.FieldTypeDecimal128 {
+				p.decimals = true
+				break
+			}
+		}
+	}
 	if callees, _ := exprident.Callees(src); slices.Contains(callees, exprenv.RefFunc) {
 		scope := refScope(src, refTables, vecs, func(name string) bool {
 			// A native vector field is a vector here, not a shadowing field.
@@ -208,6 +225,31 @@ func (p *exprProgram) settleInputs() {
 			p.inputs = append(p.inputs, name)
 		}
 	}
+	if !p.decimals {
+		return
+	}
+	for i, name := range p.inputs {
+		if f := p.schema.Field(name); f != nil && f.Type == encoding.FieldTypeDecimal128 {
+			if p.inputDecs == nil {
+				p.inputDecs = make([]*encoding.Field, len(p.inputs))
+			}
+			p.inputDecs[i] = f
+		}
+	}
+}
+
+// bindEnv copies the record's whole AllValues map into a pooled env,
+// every decimal lifted (exprenv.Bind): the map is the record's shared
+// cache and is never written.
+func (p *exprProgram) bindEnv(all map[string]any) map[string]any {
+	env := exprEnvPool.Get().(map[string]any)
+	for k, v := range all {
+		if p.decimals {
+			v = exprenv.Bind(p.schema.Field(k), v)
+		}
+		env[k] = v
+	}
+	return env
 }
 
 // exprVectorBinding is one named vector an expression reads: its
@@ -360,8 +402,8 @@ func (p *exprProgram) untypedProgram() (*vm.Program, error) {
 		return p.untyped.Load(), p.untypedErr
 	}
 	decl := make(exprtypes.Map, len(p.decl))
-	for k := range p.decl {
-		decl[k] = exprtypes.Any
+	for k, t := range p.decl {
+		decl[k] = exprenv.Untyped(t) // `any`; a decimal stays decimal
 	}
 	prog, err := p.compile(decl)
 	p.untypedSet = true
@@ -388,16 +430,17 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 	if p.typed.Load() == nil || p.wholeEnv || r.allValuesCache != nil {
 		// Deferred compile, $env, or a record whose AllValues map is
 		// already built (a buffered record another expression read).
-		if len(p.vecs) == 0 {
+		if len(p.vecs) == 0 && !p.decimals {
 			return p.run(r.AllValues(), r.nullMarked)
 		}
 		// The AllValues map is the record's shared cache: bind the
-		// vectors into a pooled copy, never into the cache.
-		env := exprEnvPool.Get().(map[string]any)
-		for k, v := range r.AllValues() {
-			env[k] = v
+		// vectors and lift the decimals in a pooled copy, never in the
+		// cache.
+		env := p.bindEnv(r.AllValues())
+		var f *exprVectorFrame
+		if len(p.vecs) > 0 {
+			f = p.fillVectors(env, r)
 		}
-		f := p.fillVectors(env, r)
 		out, nullInput, err = p.run(env, r.nullMarked)
 		p.releaseVectors(f)
 		clear(env)
@@ -405,8 +448,11 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 		return out, nullInput, err
 	}
 	env := exprEnvPool.Get().(map[string]any)
-	for _, name := range p.inputs {
+	for i, name := range p.inputs {
 		if v, ok := r.exprValue(name); ok {
+			if p.inputDecs != nil && p.inputDecs[i] != nil {
+				v = exprenv.Bind(p.inputDecs[i], v)
+			}
 			env[name] = v
 		} else {
 			nullInput = true

@@ -30,7 +30,7 @@ func prototypeTestSchema() *encoding.Schema {
 }
 
 // TestPrototype_DeclaresSchemaTypes: every schema field is declared with
-// the Go type a decoded record surfaces for it; a duplicate keeps its
+// the Go type the env binds it as (a decoded record's value through Bind); a duplicate keeps its
 // first occurrence; a nil schema declares nothing.
 func TestPrototype_DeclaresSchemaTypes(t *testing.T) {
 	decl := Prototype(prototypeTestSchema())
@@ -42,7 +42,7 @@ func TestPrototype_DeclaresSchemaTypes(t *testing.T) {
 		"tags":     reflect.TypeOf([]string(nil)),
 		"rawtags":  reflect.TypeOf(uint64(0)),
 		"widetags": reflect.TypeOf(encoding.SetMask{}),
-		"amount":   reflect.TypeOf(encoding.Decimal128{}),
+		"amount":   reflect.TypeOf(Decimal{}),
 	}
 	if len(decl) != len(want) {
 		t.Fatalf("Prototype declares %d names, want %d: %v", len(decl), len(want), decl)

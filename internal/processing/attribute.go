@@ -360,7 +360,8 @@ func (a *formulaAttribute) Row(r *Record, _ string) (float64, error) {
 }
 
 // formulaNumber is a formula's numeric reading of an expression value:
-// a number as float64, a bool as 1 / 0; any other type is refused.
+// a number as float64, a decimal as its nearest float64, a bool as 1 /
+// 0; any other type is refused.
 func formulaNumber(output any) (float64, error) {
 	switch v := output.(type) {
 	case float64:
@@ -376,6 +377,9 @@ func formulaNumber(output any) (float64, error) {
 			return 1.0, nil
 		}
 		return 0.0, nil
+	case exprenv.Decimal:
+		// An exact decimal result downcasts to the float64 column.
+		return v.Float64(), nil
 	case []float64:
 		return 0, vectorResultError("formula")
 	default:
