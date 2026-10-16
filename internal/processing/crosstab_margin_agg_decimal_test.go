@@ -37,11 +37,11 @@ func TestCrosstabAuxMargin_DecimalRuleBothArms(t *testing.T) {
 		return stderrors.As(err, &ce) && ce.Code == errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL
 	}
 	p := NewProcessor(schema)
-	if _, err := NewFusedCrosstabState(spec(types.AGG_NULL_COUNT), schema, &ExtensionRegistry{}); !isDecimalRefusal(err) {
-		t.Errorf("fused AGG_NULL_COUNT over decimal128: %v", err)
+	if _, err := NewFusedCrosstabState(spec(types.AGG_MEDIAN), schema, &ExtensionRegistry{}); !isDecimalRefusal(err) {
+		t.Errorf("fused AGG_MEDIAN over decimal128: %v", err)
 	}
-	if _, err := p.computeAuxMargins(spec(types.AGG_NULL_COUNT), nil, &CrosstabAxisPartition{}, &CrosstabAxisPartition{}); !isDecimalRefusal(err) {
-		t.Errorf("buffered AGG_NULL_COUNT over decimal128: %v", err)
+	if _, err := p.computeAuxMargins(spec(types.AGG_MEDIAN), nil, &CrosstabAxisPartition{}, &CrosstabAxisPartition{}); !isDecimalRefusal(err) {
+		t.Errorf("buffered AGG_MEDIAN over decimal128: %v", err)
 	}
 	if _, err := NewFusedCrosstabState(spec(types.AGG_SUM), schema, &ExtensionRegistry{}); isDecimalRefusal(err) {
 		t.Errorf("fused AGG_SUM over decimal128 refused: %v", err)

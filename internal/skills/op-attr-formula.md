@@ -36,12 +36,14 @@ One `float64` per record (bools → `1.0` / `0.0`); a `nil` result → null (`n_
 - **`total(expr)`** (this operator only; lowercase, one argument, no nesting): cohort-wide sum of a row-level `expr` over post-filter rows — the same figure on every row, also when grouped. Unweighted regardless of `Request.Weight`; null-argument rows skipped. Empty total → `null`; zero total as divisor → `null`. Pro-rata: `x * 1000 / total(x)`. Subset total: `x * (1 - 1000 / total(week_index >= 52 ? x : 0))`.
 - A `total` formula is **two-pass** (like the z-score attribute): streams alone, buffers beside groups / features; shard archive, parallel decode and `ShardWorkers` run sequentially (whole-cohort total); `ProcessChain` refuses it (`PULSE_CHAIN_NOT_MERGEABLE`). Predict adds `PULSE_ADVISORY_EXTRA_PASS` per formula (`added_scans`).
 - Misuse: `total()` in an expression filter or overlay formula (Compose host too) → `PULSE_FORMULA_TOTAL_SITE`; nested → `_TOTAL_NESTED`; arity ≠ 1 → `_TOTAL_ARITY`. An embedder `ExprFunction` named `total` → `PULSE_EXTENSION_NAME_RESERVED`.
-- Compiled once; bad syntax / types → `PROCESSING_RUNTIME` at build.
+- Compiled once; bad syntax / names / types → `PULSE_FORMULA_COMPILE_ERROR` on predict and at build alike (reason in `details.compile_error`); an earlier attribute or feature output types as a number.
 - The text goes in the `expression` slot; `params.expression` is not read — an empty slot is `PROCESSING_CONFIG` on predict and runtime alike.
 - Categorical → STRING (`==` / `in`); `set_*` → `[]string` (`"a" in tags`, `has_any(tags, "a", "b")`).
+- `decimal128` is exact: `price / cost`, `price * 1.1` and comparisons keep every digit (`decimal-formulas`); the column takes the nearest f64. `float(price)` opts out; `price / 0` → `PULSE_DECIMAL_DIVIDE_BY_ZERO`.
+- `date` binds epoch days, `datetime` epoch seconds: `weekday` / `month_index` / `date_trunc` read days, so a bare datetime there → `PULSE_FORMULA_COMPILE_ERROR`; wrap it in `to_day` (request zone; `calendar-formulas`).
 - `%` on a field: float `math.Mod` (`score % 1`, dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.
 
 ## See
 
 - `pulse_examples_search tags=[feature-engineering]`
-- Skills: `attribute-composition`, `expression-language` (maths / vector functions, `ExprFunctions`, `lookup(...)`)
+- Skills: `attribute-composition`, `expression-language` (maths / vector functions, `ExprFunctions`, `lookup(...)`), `decimal-formulas` (decimal arithmetic), `calendar-formulas` (calendar helpers, `to_day`)

@@ -12,7 +12,7 @@
 // message and Details on both sides, before the runtime compiles it.
 //
 // Leaf: stdlib + expr-lang parser/ast + types + errors +
-// internal/exprbuiltins. No-execute.
+// internal/exprenv. No-execute.
 package formulaident
 
 import (
@@ -23,7 +23,7 @@ import (
 	exprparser "github.com/expr-lang/expr/parser"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/exprbuiltins"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/types"
 )
@@ -158,10 +158,10 @@ func flattenMemberChain(n *exprast.MemberNode) (*exprast.IdentifierNode, string,
 // `lookup` — exactly what the runtime overlay compile registers.
 func AllowedFuncs(exprFunctions []string, hasLookup bool) map[string]struct{} {
 	out := map[string]struct{}{}
-	for _, name := range exprbuiltins.OverlayNames() {
+	for _, name := range exprenv.OverlayNames() {
 		out[name] = struct{}{}
 	}
-	for _, name := range exprbuiltins.SetHelperNames() {
+	for _, name := range exprenv.SetHelperNames() {
 		out[name] = struct{}{}
 	}
 	for _, name := range exprFunctions {
@@ -297,29 +297,29 @@ func ComposeRefusal(kind types.OverlayKind, params map[string]any, index int, sh
 }
 
 // BuiltinRefusal refuses a FORMULA calling a reserved built-in outside
-// the overlay scalar subset (exprbuiltins.OverlayRefused — the vector
-// families) with PULSE_OVERLAY_FORMULA_INVALID_IDENT, Details {kind,
+// the overlay scalar subset (exprenv.OverlayRefused — the vector
+// families and the calendar helpers) with PULSE_OVERLAY_FORMULA_INVALID_IDENT, Details {kind,
 // unknown_identifier, allowed_builtins, formula} plus `index` when
 // index >= 0. nil when the formula calls none (or fails to parse).
 // Every host runs it before its identifier gate, predict and runtime
 // alike, so a vector built-in reads this message, not "unknown
 // function".
 func BuiltinRefusal(kind types.OverlayKind, formula string, index int) *errors.CodedError {
-	refused := exprident.FirstCallee(formula, exprbuiltins.OverlayRefused)
+	refused := exprident.FirstCallee(formula, exprenv.OverlayRefused)
 	if refused == "" {
 		return nil
 	}
 	details := map[string]any{
 		"kind":               string(kind),
 		"unknown_identifier": refused,
-		"allowed_builtins":   exprbuiltins.OverlayNames(),
+		"allowed_builtins":   exprenv.OverlayNames(),
 		"formula":            formula,
 	}
 	if index >= 0 {
 		details["index"] = index
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT,
-		"overlay "+string(kind)+" formula calls "+refused+", a vector built-in OVERLAY_FORMULA does not accept (scalar maths only: "+strings.Join(exprbuiltins.OverlayNames(), ", ")+")",
+		"overlay "+string(kind)+" formula calls "+refused+", a vector or calendar built-in OVERLAY_FORMULA does not accept (scalar maths only: "+strings.Join(exprenv.OverlayNames(), ", ")+")",
 		details)
 }
 

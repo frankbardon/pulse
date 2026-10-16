@@ -86,7 +86,7 @@ func (s *shapiroWilkRow) UpdateRow(record *Record) error {
 	}
 	key := ""
 	if s.splitBy != "" {
-		k, ok := record.StringValue(s.splitBy)
+		k, ok := record.LevelValue(s.splitBy)
 		if !ok {
 			return nil
 		}

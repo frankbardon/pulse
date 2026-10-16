@@ -129,7 +129,7 @@ func newHotellingRow(spec *types.Test, schema *encoding.Schema) (RowTest, error)
 func (h *hotellingRow) UpdateRow(record *Record) error {
 	key := ""
 	if !h.one {
-		s, ok := record.StringValue(h.splitBy)
+		s, ok := record.LevelValue(h.splitBy)
 		if !ok {
 			return nil
 		}

@@ -180,7 +180,7 @@
         "operator": "TEST_ANOVA_F",
         "category": "test",
         "level": "intermediate",
-        "why": "Checks whether the average of a numeric measure differs across three or more groups. It uses revenue (f64) and plan (categorical_u8, 2 groups).",
+        "why": "Checks whether the average of a numeric measure differs across three or more groups. It uses seats (u16) and region (categorical_u8, 4 groups).",
         "bound": true,
         "request": {
           "cohort": {
@@ -188,8 +188,8 @@
           },
           "tests": [
             {
-              "field": "revenue",
-              "split_by": "plan",
+              "field": "seats",
+              "split_by": "region",
               "type": "TEST_ANOVA_F"
             }
           ]
@@ -231,7 +231,7 @@
         "operator": "TEST_ANOVA_F",
         "category": "test",
         "level": "intermediate",
-        "why": "Checks whether the average of a numeric measure differs across three or more groups. It uses seats (u16) and region (categorical_u8, 4 groups).",
+        "why": "Checks whether the average of a numeric measure differs across three or more groups. It uses score (f64) and region (categorical_u8, 4 groups).",
         "bound": true,
         "request": {
           "cohort": {
@@ -239,7 +239,7 @@
           },
           "tests": [
             {
-              "field": "seats",
+              "field": "score",
               "split_by": "region",
               "type": "TEST_ANOVA_F"
             }
@@ -329,7 +329,7 @@
         "operator": "TEST_ANOVA_WELCH",
         "category": "test",
         "level": "intermediate",
-        "why": "Checks whether the average of a numeric measure differs across groups when the groups may have unequal spread. It uses revenue (f64) and plan (categorical_u8, 2 groups).",
+        "why": "Checks whether the average of a numeric measure differs across groups when the groups may have unequal spread. It uses seats (u16) and region (categorical_u8, 4 groups).",
         "bound": true,
         "request": {
           "cohort": {
@@ -337,8 +337,8 @@
           },
           "tests": [
             {
-              "field": "revenue",
-              "split_by": "plan",
+              "field": "seats",
+              "split_by": "region",
               "type": "TEST_ANOVA_WELCH"
             }
           ]
@@ -376,7 +376,7 @@
         "operator": "TEST_ANOVA_WELCH",
         "category": "test",
         "level": "intermediate",
-        "why": "Checks whether the average of a numeric measure differs across groups when the groups may have unequal spread. It uses seats (u16) and region (categorical_u8, 4 groups).",
+        "why": "Checks whether the average of a numeric measure differs across groups when the groups may have unequal spread. It uses score (f64) and region (categorical_u8, 4 groups).",
         "bound": true,
         "request": {
           "cohort": {
@@ -384,7 +384,7 @@
           },
           "tests": [
             {
-              "field": "seats",
+              "field": "score",
               "split_by": "region",
               "type": "TEST_ANOVA_WELCH"
             }
@@ -468,9 +468,9 @@
       }
     ],
     "truncated": true,
-    "candidates_considered": 64
+    "candidates_considered": 70
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: b4138b55ec8535f73136c59b94fc63e6f7f17de0358951a622aa37a90c19d521
+// golden-hash: 3a5a9b480666178fb7035cdf25608cc9807b07460e0fe778fa854614602f3ea9

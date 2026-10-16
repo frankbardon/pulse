@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -63,6 +64,10 @@ type bslot struct {
 	// prefer orders candidates (lower first) before schema order; nil
 	// keeps schema order.
 	prefer func(*encoding.Field) int
+	// narrow, when set, is the slot's preferred tier: if any candidate
+	// passes it, bind drops the candidates that do not, except a hinted
+	// one (a preference, never a refusal). nil keeps every candidate.
+	narrow func(*encoding.Field) bool
 	// vector marks a member-list slot that also takes ONE native vector
 	// field (vec_f32 / vec_f64) by name, drafted as "vector": "<field>"
 	// in place of the "fields" list (the slot's Vector / Fields pair).
@@ -214,7 +219,25 @@ func both(a, b func(*encoding.Field) bool) func(*encoding.Field) bool {
 	return func(f *encoding.Field) bool { return a(f) && b(f) }
 }
 
-func categoricalField(f *encoding.Field) bool { return f.Type.IsCategorical() }
+// categoricalField is the level set, the acceptance table's
+// categoricalValue class: a categorical (its dictionary labels are the
+// levels) or a packed_bool (levels "0" / "1", fieldaccept.Levels). Every
+// level slot the binder offers reads it, as the runtime does through
+// Record.LevelValue.
+func categoricalField(f *encoding.Field) bool {
+	return f.Type.IsCategorical() || fieldaccept.Levels(f) != nil
+}
+
+// levelSlot is the predicate for a test's level slot: the acceptance
+// table's own row when op's slot is tabled (TEST_ANOVA_RM's subject is a
+// categorical alone there), else the level set (an extension test).
+func levelSlot(op opInfo, slot fieldaccept.Slot) func(*encoding.Field) bool {
+	r, ok := fieldaccept.Lookup(op.name, slot)
+	if !ok {
+		return categoricalField
+	}
+	return func(f *encoding.Field) bool { return !f.Type.IsVector() && r.Accepts(f.Type) }
+}
 
 // preferDate orders date fields before the rest.
 func preferDate(f *encoding.Field) int {
@@ -251,7 +274,7 @@ func testSlot(op opInfo, key string) bslot {
 	switch key {
 	case "field":
 		if op.name == string(types.TEST_PROP_Z) {
-			return bslot{key: key, accept: categoricalField}
+			return bslot{key: key, accept: levelSlot(op, fieldaccept.SlotField)}
 		}
 		return bslot{key: key, accept: numeric}
 	case "field2":
@@ -263,18 +286,50 @@ func testSlot(op opInfo, key string) bslot {
 			// The two-sample form refuses a split without exactly two
 			// levels at run time (PULSE_TEST_SPLIT_GROUPS_LT_2), which
 			// predict cannot see: the dictionary is the schema's word.
-			return bslot{key: key, accept: twoLevels}
+			return bslot{key: key, accept: both(levelSlot(op, fieldaccept.SlotSplitBy), twoLevels)}
 		}
-		return bslot{key: key, accept: categoricalField}
+		if manyGroupTests[op.name] {
+			accept := levelSlot(op, fieldaccept.SlotSplitBy)
+			if op.name == string(types.TEST_TUKEY_HSD) {
+				// Tukey HSD refuses fewer than three groups at run time
+				// (PULSE_TEST_SPLIT_GROUPS_LT_2), and a field's declared
+				// levels bound its observed groups from above.
+				accept = both(accept, threeLevels)
+			}
+			return bslot{key: key, accept: accept, narrow: threeLevels}
+		}
+		return bslot{key: key, accept: levelSlot(op, fieldaccept.SlotSplitBy)}
 	default: // subject_field, rows, cols
-		return bslot{key: key, accept: categoricalField}
+		return bslot{key: key, accept: levelSlot(op, fieldaccept.Slot(key))}
 	}
 }
 
-// twoLevels accepts a categorical field whose dictionary holds exactly
-// two values.
+// twoLevels accepts a level-set field with exactly two declared levels:
+// a categorical whose dictionary holds two values, or a packed_bool.
 func twoLevels(f *encoding.Field) bool {
-	return f.Type.IsCategorical() && f.Dictionary != nil && f.Dictionary.Count() == 2
+	return len(fieldaccept.Levels(f)) == 2
+}
+
+// manyGroupTests are the k-group tests whose design is three or more
+// groups (their Purpose: an ANOVA / Kruskal-Wallis / Brown-Forsythe /
+// Tukey HSD across groups, with TEST_T / TEST_WELCH the two-group
+// form). No registry declares a group minimum, so this table is the
+// binder's word: their split_by prefers a field with at least three
+// declared levels (bslot.narrow) and falls back to a two-level one —
+// a categorical or a packed_bool — only when the cohort has none or a
+// hint names it.
+var manyGroupTests = map[string]bool{
+	string(types.TEST_ANOVA_F):        true,
+	string(types.TEST_ANOVA_WELCH):    true,
+	string(types.TEST_KRUSKAL_WALLIS): true,
+	string(types.TEST_BROWN_FORSYTHE): true,
+	string(types.TEST_TUKEY_HSD):      true,
+}
+
+// threeLevels accepts a level-set field with at least three declared
+// levels.
+func threeLevels(f *encoding.Field) bool {
+	return len(fieldaccept.Levels(f)) >= 3
 }
 
 // fieldFilterAccept turns a manifest field_filter into a predicate.
@@ -427,8 +482,9 @@ func nativeFits(s bslot, schema *encoding.Schema, i int) bool {
 
 // bind finds up to k bindings of slots over schema. Each hint pins the
 // first slot that takes it (a list slot takes every hint that fits);
-// the other slots take schema fields in order. With hints, an operator
-// no hint fits gets no binding.
+// the other slots take schema fields in order (a slot's narrow tier,
+// when any candidate is in it, keeps only that tier and the hints).
+// With hints, an operator no hint fits gets no binding.
 //
 // A native vector field (vec_f32 / vec_f64) binds only a vector slot
 // (bslot.vector), whole and by name; every other slot reads ONE value
@@ -453,6 +509,11 @@ func bind(slots []bslot, schema *encoding.Schema, hints []string, k int) []bindi
 			if s.accept(f) {
 				cands[i] = append(cands[i], f)
 			}
+		}
+		if s.narrow != nil && slices.ContainsFunc(cands[i], s.narrow) {
+			cands[i] = slices.DeleteFunc(cands[i], func(f *encoding.Field) bool {
+				return !s.narrow(f) && !slices.Contains(hints, f.Name)
+			})
 		}
 		if s.prefer != nil {
 			slices.SortStableFunc(cands[i], func(a, b *encoding.Field) int { return s.prefer(a) - s.prefer(b) })
@@ -719,8 +780,8 @@ func boundWhy(plain string, schema *encoding.Schema, b binding, needs []bneed) s
 			if i := fieldIdx(schema, name); f.Type.IsVector() && i >= 0 {
 				d += ", " + strconv.Itoa(schema.VectorDim(i)) + " elements"
 			}
-			if f.Type.IsCategorical() && f.Dictionary != nil {
-				d += ", " + strconv.Itoa(f.Dictionary.Count()) + " groups"
+			if lv := fieldaccept.Levels(f); lv != nil {
+				d += ", " + strconv.Itoa(len(lv)) + " groups"
 			}
 			parts = append(parts, d+")")
 		}

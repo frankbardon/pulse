@@ -1,6 +1,7 @@
 package vectors
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -45,5 +46,28 @@ func TestExprLengthIssue(t *testing.T) {
 			got.Details["function"] != c.fn || got.Details["left"] != c.left || got.Details["right"] != c.right {
 			t.Errorf("%s: %v, want %s %d vs %d", c.src, got, c.fn, c.left, c.right)
 		}
+	}
+}
+
+// TestExprBindings: a request vector binds unless a scalar field of its
+// name shadows it; a native vector field binds although it is a field;
+// an unknown name binds nothing; the order is refs'.
+func TestExprBindings(t *testing.T) {
+	resolved := []Resolved{
+		{Name: "bat", Members: []string{"a", "b"}},
+		{Name: "shadowed", Members: []string{"a"}},
+		{Name: "emb", Members: []string{"emb[0]"}, Native: &NativeVector{}},
+	}
+	fields := map[string]bool{"shadowed": true, "emb": true, "a": true}
+	got := ExprBindings([]string{"emb", "a", "shadowed", "nope", "bat"}, resolved, func(n string) bool { return fields[n] })
+	var names []string
+	for _, v := range got {
+		names = append(names, v.Name)
+	}
+	if strings.Join(names, ",") != "emb,bat" {
+		t.Fatalf("ExprBindings = %v, want [emb bat]", names)
+	}
+	if ExprBindings([]string{"bat"}, nil, func(string) bool { return false }) != nil {
+		t.Error("no resolved vectors must bind nothing")
 	}
 }

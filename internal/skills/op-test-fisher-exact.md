@@ -23,7 +23,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Inputs
 
-`Rows` / `Cols` (both required, 2 levels each) — categorical: `categorical_u8`/`u16`/`u32`; any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (rows first). `Field` ignored.
+`Rows` / `Cols` (both required, 2 levels each) — categorical: `categorical_u8`/`u16`/`u32`, or `packed_bool` (levels `"0"`/`"1"`) (a yes/no x yes/no table is the natural 2x2); any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (rows first). `Field` ignored.
 
 ## Output
 

@@ -132,7 +132,11 @@ When `OutputName` is empty, the basename is computed as:
   payload, so rewriting a model file (same name and path, a different
   fit) lands on a new output instead of silently reusing the one built
   from the old fit. A request without `Models` hashes exactly as it
-  always has.
+  always has. A predicate calling `to_day()` reads the instance's
+  `Options.DefaultTimeZone` (filter-to-file carries no request zone);
+  a non-UTC zone joins the payload too, so two instances in different
+  zones never share an output. A predicate that reads no zone hashes
+  as it always has.
 
 Independent consumers building the same request reach the same path
 without coordination. Combined with a `Watch` on `OutputDir`, this is

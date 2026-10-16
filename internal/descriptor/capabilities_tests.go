@@ -107,7 +107,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Streamable:  types.TEST_PROP_Z.Streamable(),
 			Params: []descriptor.Param{
 				alphaParam,
-				{Name: "success", Type: "string", Required: true, Description: "Dictionary value of Field treated as a success."},
+				{Name: "success", Type: "string", Required: true, Description: "Dictionary value of Field treated as a success; on a packed_bool Field exactly \"1\" (true) or \"0\" (false)."},
 			},
 			Requires: []string{"Field", "SplitBy"},
 		},

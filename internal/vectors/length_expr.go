@@ -1,13 +1,12 @@
 package vectors
 
 import (
-	"strconv"
-
 	exprast "github.com/expr-lang/expr/ast"
 	exprparser "github.com/expr-lang/expr/parser"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -29,12 +28,10 @@ var PairLengthFuncs = map[string]bool{"dot": true, "dist": true, "cosine": true}
 
 // LengthMismatch is the coded refusal of an unequal-length pair:
 // PROCESSING_VECTOR_LENGTH_MISMATCH, details {function, left, right}.
+// The one constructor is exprenv.LengthMismatch, which the run-time
+// built-ins raise.
 func LengthMismatch(fn string, left, right int, cause error) *errors.CodedError {
-	ce := errors.NewCodedErrorWithDetails(errors.PROCESSING_VECTOR_LENGTH_MISMATCH,
-		fn+"(): vector length mismatch: "+strconv.Itoa(left)+" vs "+strconv.Itoa(right),
-		map[string]any{"function": fn, "left": left, "right": right})
-	ce.Cause = cause
-	return ce
+	return exprenv.LengthMismatch(fn, left, right, cause)
 }
 
 // LengthScope answers the static length of a pair argument in one
@@ -127,6 +124,28 @@ func ExprVectorLen(resolved []Resolved, schema *encoding.Schema) func(string) (i
 		}
 		return len(v.Members), true
 	}
+}
+
+// ExprBindings returns, in refs order, the named vectors an expression
+// whose free identifiers are refs binds as a []float64
+// (exprenv.VectorType): a Request.Vectors entry Find knows, or a native
+// vector field named directly. isField reports a schema field; a
+// scalar field shadows a same-named vector (Native nil), as in
+// ExprVectorLen. The runtime build (internal/processing's bindVectors)
+// and predict's compile both declare exactly these names.
+func ExprBindings(refs []string, resolved []Resolved, isField func(string) bool) []Resolved {
+	if len(resolved) == 0 {
+		return nil
+	}
+	var out []Resolved
+	for _, name := range refs {
+		v, ok := Find(resolved, name)
+		if !ok || (isField(name) && v.Native == nil) {
+			continue
+		}
+		out = append(out, v)
+	}
+	return out
 }
 
 // LengthIssues returns, per request expression (ExprSlots, request

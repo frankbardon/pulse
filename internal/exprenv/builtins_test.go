@@ -1,10 +1,12 @@
-package exprbuiltins
+package exprenv
 
 import (
+	"bytes"
 	"go/parser"
 	"go/token"
-	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -35,9 +37,23 @@ func TestNames_CopyAndMembership(t *testing.T) {
 	}
 }
 
-// TestExprbuiltinsImportBoundary keeps the package an import-free leaf so
-// the root package can import it without reaching the engine.
-func TestExprbuiltinsImportBoundary(t *testing.T) {
+// TestExprenvImportBoundary keeps the shared formula environment a
+// no-execute leaf: predict (internal/descriptor, whose predict files may
+// not import the engine — TestPredictNoExecutionImports) and the engine
+// both compile against it. Direct intra-module imports are pinned; the
+// transitive graph is checked against the execution, descriptor and
+// vector-resolver packages (internal/vectors imports this one).
+func TestExprenvImportBoundary(t *testing.T) {
+	const module = "github.com/frankbardon/pulse"
+	allowedDirect := map[string]bool{
+		module + "/encoding":         true,
+		module + "/errors":           true,
+		module + "/linalg/metric":    true,
+		module + "/internal/vecmath": true,
+		// The calendar helpers' only home for epoch-day and zone math
+		// (TestNoZoneMathOutsideTemporal); a leaf over stdlib + errors.
+		module + "/internal/temporal": true,
+	}
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
@@ -47,16 +63,40 @@ func TestExprbuiltinsImportBoundary(t *testing.T) {
 		if strings.HasSuffix(f, "_test.go") {
 			continue
 		}
-		src, err := os.ReadFile(f)
+		af, err := parser.ParseFile(fset, f, nil, parser.ImportsOnly)
 		if err != nil {
 			t.Fatal(err)
 		}
-		af, err := parser.ParseFile(fset, f, src, parser.ImportsOnly)
-		if err != nil {
-			t.Fatal(err)
+		for _, imp := range af.Imports {
+			path, _ := strconv.Unquote(imp.Path.Value)
+			if strings.HasPrefix(path, module) && !allowedDirect[path] {
+				t.Errorf("%s imports %q; internal/exprenv may import only encoding, errors, linalg/metric, internal/vecmath and internal/temporal from the module", f, path)
+			}
 		}
-		if len(af.Imports) > 0 {
-			t.Errorf("%s imports %d packages; exprbuiltins must stay an import-free leaf", f, len(af.Imports))
+	}
+
+	cmd := exec.Command("go", "list", "-deps", module+"/internal/exprenv")
+	var out, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("go list -deps: %v\n%s", err, stderr.String())
+	}
+	deps := strings.Fields(out.String())
+	if len(deps) == 0 {
+		t.Fatal("go list -deps returned nothing; the firewall cannot inspect an empty graph")
+	}
+	forbidden := []string{
+		module + "/internal/processing",
+		module + "/internal/service",
+		module + "/internal/descriptor",
+		module + "/descriptor",
+		module + "/internal/vectors",
+	}
+	for _, dep := range deps {
+		for _, bad := range forbidden {
+			if dep == bad || strings.HasPrefix(dep, bad+"/") {
+				t.Errorf("internal/exprenv transitively imports %s", dep)
+			}
 		}
 	}
 }
@@ -71,6 +111,9 @@ func TestOverlaySubset(t *testing.T) {
 		{"log", true, false},
 		{"exp", true, false},
 		{"pow", true, false},
+		{"log1p", true, false},
+		{"weekday", false, true},
+		{"to_day", false, true},
 		{"vmean", false, true},
 		{"vsum", false, true},
 		{"dot", false, true},

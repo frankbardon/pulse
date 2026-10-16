@@ -235,7 +235,8 @@ func TestProcessor_DecimalSumDispatch(t *testing.T) {
 // with no contributing value, AGG_AVERAGE / MIN / MAX / VARIANCE /
 // STDDEV are undefined — NaN in the row (null on the wire), exactly as
 // over a float column, never a "0" decimal string — while AGG_SUM,
-// AGG_COUNT and AGG_DISTINCT_COUNT stay the defined empty figure. Both
+// AGG_COUNT, AGG_DISTINCT_COUNT and AGG_NULL_COUNT stay the defined
+// empty figure — the counts a JSON integer, never a decimal string. Both
 // the row path and the crosstab cell path.
 func TestDecimalAggregation_NoValueIsNull(t *testing.T) {
 	schema := &encoding.Schema{Fields: []encoding.Field{
@@ -243,7 +244,7 @@ func TestDecimalAggregation_NoValueIsNull(t *testing.T) {
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 2, Nullable: true},
 	}}
 	undefined := []types.AggregationType{types.AGG_AVERAGE, types.AGG_MIN, types.AGG_MAX, types.AGG_VARIANCE, types.AGG_STDDEV}
-	defined := map[types.AggregationType]string{types.AGG_SUM: `"0.00"`, types.AGG_COUNT: `"0"`, types.AGG_DISTINCT_COUNT: `"0"`}
+	defined := map[types.AggregationType]string{types.AGG_SUM: `"0.00"`, types.AGG_COUNT: `0`, types.AGG_DISTINCT_COUNT: `0`, types.AGG_NULL_COUNT: `0`}
 
 	var aggs []*types.Aggregation
 	for _, op := range undefined {

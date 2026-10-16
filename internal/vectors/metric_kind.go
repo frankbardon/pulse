@@ -7,7 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/exprbuiltins"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
@@ -285,7 +285,7 @@ func AttributeMetricDefaults(req *types.Request, schema *encoding.Schema) []Attr
 // order: every metric-taking matrix slot reading a kind-declared vector
 // by name, every comparison attribute (ATTR_PROFILE_SIMILARITY,
 // ATTR_VEC_DISTANCE) doing the same, then every expression call of a metric built-in
-// (exprbuiltins.Metric) whose argument IS a kind-declared vector — the
+// (exprenv.Metric) whose argument IS a kind-declared vector — the
 // filterers' FILTER_EXPRESSION, each attribute's ATTR_FORMULA and its
 // params.fit_on filterers, the slots exprReferenced scans. A wrapped
 // argument (cosine(vcenter(v), …)) is a transform of the vector, not
@@ -344,7 +344,7 @@ func MetricUnsuitedIssues(req *types.Request, schema *encoding.Schema) []*errors
 		calls, _ := exprident.Calls(src)
 		seen := map[string]bool{}
 		for _, call := range calls {
-			mf, ok := exprbuiltins.Metric(call.Name)
+			mf, ok := exprenv.Metric(call.Name)
 			if !ok {
 				continue
 			}
@@ -399,7 +399,7 @@ func NativeKindsMatter(req *types.Request) bool {
 		}
 		calls, _ := exprident.Calls(slot.Src)
 		for _, call := range calls {
-			if _, ok := exprbuiltins.Metric(call.Name); !ok {
+			if _, ok := exprenv.Metric(call.Name); !ok {
 				continue
 			}
 			for _, arg := range call.Args {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/totalcall"
@@ -310,7 +311,11 @@ func (f *expressionFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 	if err := f.exts.coefStaticRefusal(filter.Expression, f.models); err != nil {
 		return nil, err
 	}
-	prog, err := newExprProgram(filter.Expression, "filter", schema, f.vecs, f.exts.referenceTables(), f.exts.exprOptionsWithModels(f.models))
+	zone, err := exprZone(filter.TimeZone)
+	if err != nil {
+		return nil, err
+	}
+	prog, err := newExprProgram(filter.Expression, exprenv.SiteFilter, schema, f.vecs, f.exts.referenceTables(), f.exts.exprOptionsWithModels(f.models, zone))
 	if err != nil {
 		return nil, err
 	}

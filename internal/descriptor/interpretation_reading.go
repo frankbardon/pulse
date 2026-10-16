@@ -57,7 +57,7 @@ var multiColumnOutputs = map[string]string{
 	string(types.AGG_WELFORD):        "Rich() emits WelfordTriple {mean, variance, n} (internal/processing/aggregator_welford.go)",
 	string(types.AGG_SET_FREQUENCY):  "Rich() emits a label -> row-count map (internal/processing/aggregator_set.go)",
 	string(types.FEAT_POLY):          "one column <prefix>_<k> per power k = 2..degree (internal/processing/feature/poly.go)",
-	string(types.FEAT_ONE_HOT):       "one column <prefix>_<category> per dictionary entry",
+	string(types.FEAT_ONE_HOT):       "one column <prefix>_<category> per dictionary entry (a packed_bool: <prefix>_0 and <prefix>_1)",
 	string(types.FEAT_DATE_FEATURES): "five columns <prefix>_year / _month / _day / _dow / _quarter, plus _hour over a datetime",
 }
 

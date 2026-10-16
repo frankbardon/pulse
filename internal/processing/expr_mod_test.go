@@ -10,10 +10,11 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/types"
 )
 
-// `%` over float64-bound Pulse fields (expr_mod.go). Every numeric field
+// `%` over float64-bound Pulse fields (internal/exprenv mod.go). Every numeric field
 // binds as float64 and expr-lang's `%` is integer-only, so without the
 // patcher `x % 2` never compiles on a field.
 
@@ -135,7 +136,7 @@ func TestExprMod_PureForPrecompute(t *testing.T) {
 	if !ok || strings.Join(got, ",") != "x,id,y" {
 		t.Fatalf("exprPureInputs = %v, %v; want [x id y], true", got, ok)
 	}
-	if !exprPureSetBuiltins[exprModFuncName] {
-		t.Fatalf("%s must be pure", exprModFuncName)
+	if !exprPureSetBuiltins[exprenv.ModFuncName] {
+		t.Fatalf("%s must be pure", exprenv.ModFuncName)
 	}
 }

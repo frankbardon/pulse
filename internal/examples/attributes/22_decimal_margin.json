@@ -1,0 +1,56 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Exact money arithmetic in formulas on decimal128 fields: FILTER_EXPRESSION keeps subscribers whose revenue exceeds twice their cost (an exact decimal compare), and ATTR_FORMULA derives the margin ratio (revenue - cost) / revenue, divided exactly at four decimal places before it lands in its float column.",
+    "intents": [
+      "prepare"
+    ],
+    "name": "decimal_margin",
+    "operators": [
+      "AGG_COUNT",
+      "AGG_SUM",
+      "ATTR_FORMULA",
+      "FILTER_EXPRESSION"
+    ],
+    "tags": [
+      "financial",
+      "feature-engineering",
+      "pre-filter",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "subscribers.pulse",
+    "data_dir": ".data"
+  },
+  "filterers": [
+    {
+      "type": "FILTER_EXPRESSION",
+      "expression": "revenue > cost * 2"
+    }
+  ],
+  "attributes": [
+    {
+      "type": "ATTR_FORMULA",
+      "label": "margin",
+      "expression": "(revenue - cost) / revenue"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "kept"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "kept_revenue"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "margin",
+      "label": "margin_total"
+    }
+  ]
+}

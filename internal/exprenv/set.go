@@ -1,4 +1,4 @@
-package processing
+package exprenv
 
 import (
 	"fmt"
@@ -7,7 +7,6 @@ import (
 	"github.com/expr-lang/expr"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/exprbuiltins"
 )
 
 // Built-in set expression helpers for ATTR_FORMULA / FILTER_EXPRESSION.
@@ -26,21 +25,25 @@ import (
 // the returned slice is deterministic (alphabetical) and duplicate
 // labels are de-duplicated.
 
-// setExprOptions returns the always-on built-in Options: the set
-// helpers, the reserved vector / scalar-maths built-ins
-// (expr_env_vector.go) and the `%` patcher. Call sites prepend this to
-// extension-supplied options so the built-ins are uniformly visible.
-func setExprOptions() []expr.Option {
-	names := exprbuiltins.SetHelperNames()
+// Options returns the always-on built-in options — the single option
+// hook every expression site (FILTER_EXPRESSION, ATTR_FORMULA and its
+// untyped null-row twin, total() arguments, OVERLAY_FORMULA) and
+// a no-engine compile (predict) must reuse: the set helpers, the reserved vector /
+// scalar-maths built-ins (vector.go), the exact decimal operators (decimal.go) and the `%` patcher (mod.go). Call
+// sites prepend this to their own and the embedder's options so the
+// built-ins are uniformly visible.
+func Options() []expr.Option {
+	names := SetHelperNames()
 	opts := make([]expr.Option, 0, len(names))
 	for _, name := range names {
 		opts = append(opts, expr.Function(name, setHelperImpls[name]))
 	}
-	opts = append(opts, vectorExprOptions()...)
-	return append(opts, exprModOptions()...) // `%` over float64 fields (expr_mod.go)
+	opts = append(opts, builtinOptions()...)
+	opts = append(opts, decimalOptions()...) // exact decimal operators (decimal.go)
+	return append(opts, exprModOptions()...) // `%` over float64 fields (mod.go)
 }
 
-// setHelperImpls implements every exprbuiltins.SetHelperNames entry
+// setHelperImpls implements every SetHelperNames entry
 // (TestSetHelpers_EveryNameImplemented pins both directions), so the
 // overlay predict gate's list and the registered set never drift.
 var setHelperImpls = map[string]func(args ...any) (any, error){

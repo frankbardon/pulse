@@ -390,6 +390,7 @@ func (minimalFeatureRecord) NumericValue(name string) (float64, bool) {
 	return 5, name == "x"
 }
 func (minimalFeatureRecord) StringValue(name string) (string, bool) { return "lbl", name == "c" }
+func (minimalFeatureRecord) LevelValue(name string) (string, bool)  { return "lbl", name == "c" }
 func (minimalFeatureRecord) Set(string, float64)                    {}
 func (minimalFeatureRecord) SetNull(string)                         {}
 

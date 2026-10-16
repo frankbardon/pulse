@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -35,7 +36,7 @@ func TestRef_ProgramAlignment(t *testing.T) {
 		{`ref("t", "k")[0] + 0 * x`, 10}, // outside a pair: the table's order
 	}
 	for _, tc := range cases {
-		prog, err := newExprProgram(tc.src, "formula", s, vecs, refTables(), setExprOptions())
+		prog, err := newExprProgram(tc.src, "formula", s, vecs, refTables(), exprenv.Options())
 		if err != nil {
 			t.Fatalf("%s: %v", tc.src, err)
 		}
@@ -50,7 +51,7 @@ func TestRef_ProgramAlignment(t *testing.T) {
 
 	// The literal key is folded: the aligned profile is a program
 	// constant, so a row reads nothing for it.
-	prog, err := newExprProgram(`dot(v, ref("t", "k"))`, "formula", s, vecs, refTables(), setExprOptions())
+	prog, err := newExprProgram(`dot(v, ref("t", "k"))`, "formula", s, vecs, refTables(), exprenv.Options())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +65,7 @@ func TestRef_ProgramAlignment(t *testing.T) {
 		t.Errorf("constants %v carry no folded [30 10 20]", prog.typed.Load().Constants)
 	}
 
-	keyed, err := newExprProgram(`dot(v, ref("t", x)) > 0`, "filter", s, vecs, refTables(), setExprOptions())
+	keyed, err := newExprProgram(`dot(v, ref("t", x)) > 0`, "filter", s, vecs, refTables(), exprenv.Options())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,14 +96,14 @@ func TestRef_BuildRefusals(t *testing.T) {
 		{`dot(w, ref("t", "k"))`, perr.PULSE_VECTOR_REFERENCE_MISMATCH},
 	}
 	for _, tc := range cases {
-		_, err := newExprProgram(tc.src, "formula", s, vecs, refTables(), setExprOptions())
+		_, err := newExprProgram(tc.src, "formula", s, vecs, refTables(), exprenv.Options())
 		if topCode(err) != tc.code {
 			t.Errorf("%s: %v, want %s", tc.src, err, tc.code)
 		}
 	}
 	// Outside an expression program nothing is bound: the unpatched
 	// call is refused, never a silent empty vector.
-	if _, err := refBuiltin("t", "k"); topCode(err) != perr.PULSE_VECTOR_REFERENCE_UNKNOWN {
+	if _, err := exprenv.Impl("ref")("t", "k"); topCode(err) != perr.PULSE_VECTOR_REFERENCE_UNKNOWN {
 		t.Errorf("unpatched ref(): %v, want PULSE_VECTOR_REFERENCE_UNKNOWN", err)
 	}
 }

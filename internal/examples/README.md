@@ -15,7 +15,7 @@ internal/examples/
 │   ├── *.csv                  # checked-in source data
 │   └── schemas/*.json         # hand-tuned schemas with descriptions
 ├── aggregations/              # AGG_* aggregations, incl. vector aggregators (21)
-├── attributes/                # ATTR_* per-record derivations (21)
+├── attributes/                # ATTR_* per-record derivations (23)
 ├── compose/                   # Compose batches: sweeps, fits, populations (6)
 ├── crosstab/                  # Crosstab tables, margins and inference (17)
 ├── facet/                     # Facet requests (3)
@@ -24,9 +24,9 @@ internal/examples/
 ├── groupers/                  # GROUP_* partitioning (11)
 ├── matrices/                  # MAT_* matrix operators over virtual vectors (14)
 ├── overlays/                  # OVERLAY_* layers on Request / Compose / Facet hosts (48)
-├── regression/                # REG_* regressions (17)
+├── regression/                # REG_* regressions (18)
 ├── synth/                     # synth specs (6)
-├── tests/                     # TEST_* tier-1 and tier-2 statistical tests (34)
+├── tests/                     # TEST_* tier-1 and tier-2 statistical tests (36)
 ├── windows/                   # WIN_* per-row analytics (12)
 └── <new-category>/            # each: README.md + run-all.sh + *.json
 ```
@@ -42,8 +42,8 @@ make build
 
 That writes `transactions.pulse`, `customers.pulse`, `orders.pulse`,
 `training_data.pulse`, `all_types.pulse`, `experiment.pulse`,
-`repeated_measures.pulse`, `card_issuers.pulse`, `tier_migrations.pulse`
-and `survey.pulse` into `.data/` at the repo root, plus the point-lookup
+`repeated_measures.pulse`, `card_issuers.pulse`, `tier_migrations.pulse`,
+`survey.pulse` and `subscribers.pulse` into `.data/` at the repo root, plus the point-lookup
 index on `experiment.pulse` (`id`). Every example request has
 `cohort.data_dir = ".data"` so the requests run unmodified.
 
@@ -58,6 +58,7 @@ index on `experiment.pulse` (`id`). Every example request has
 | `all_types.pulse` | One column for every one of the 17 supported types (u8/u16/u32/u64, f32/f64, nullable_bool/u4/u8/u16, date, packed_bool, categorical_u8/u16/u32, decimal128, nullable_decimal128). Hand-curated 5-row CSV — exists so a single fixture exercises every type-aware code path. |
 | `experiment.pulse` | A/B test cohort: `id` (u32), `treatment`/`region`/`segment`/`converted` (categorical), `revenue`/`session_minutes` (f64), `period` (date). Planted effects across treatment, region, segment, and time so every `TEST_*` example produces a meaningful, non-trivial result. |
 | `survey.pulse` | A six-item rating battery: `id` (u32), `panel` (categorical, `a` / `b`), `q1`-`q6` (f64). Two correlated factors (q1-q3 service, q4-q6 value; q3 / q6 cross-load) for factor-analysis, rotation, vector-fit and population examples. |
+| `subscribers.pulse` | 48 subscriber accounts with binary outcomes stored as flags: `id` (u32), `arm` / `plan` (categorical), `converted` / `churned` / `defaulted` (packed_bool, read as levels `"0"` / `"1"`), `late_payment` (u8 0/1), `signup_date` / `first_repeat_order` (date), `revenue` / `cost` (decimal128, cents). Every value is a closed-form function of the row index (`fixtures/gen.go`), so the flag tests, the logistic fit, calendar retention and exact money examples have hand-derivable answers (`showcase_flags_money_test.go`). |
 
 The generator (`fixtures/gen.go`) is deterministic — re-running with the
 same seed produces byte-identical CSVs. Re-generate from scratch:

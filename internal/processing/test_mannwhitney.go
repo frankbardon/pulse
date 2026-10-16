@@ -89,7 +89,7 @@ func (m *mannWhitneyRow) UpdateRow(record *Record) error {
 	if !ok {
 		return nil
 	}
-	key, ok := record.StringValue(m.splitBy)
+	key, ok := record.LevelValue(m.splitBy)
 	if !ok {
 		return nil
 	}

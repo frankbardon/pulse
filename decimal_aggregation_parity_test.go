@@ -16,7 +16,8 @@ import (
 // ONE PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL — never a predict warning the
 // runtime then contradicts — at every aggregation slot (top level,
 // grouped, crosstab cell, crosstab margin aggregation); a decimal-arm
-// aggregator runs on both sides. (AGG_WEIGHTED_MEAN never reaches the
+// aggregator — AGG_NULL_COUNT included, a bitmap-only count — runs on
+// both sides. (AGG_WEIGHTED_MEAN never reaches the
 // rule: it always carries a weight, refused PULSE_WEIGHT_UNSUPPORTED
 // over a decimal128 value field before any dispatch.)
 func TestDecimalAggregation_PredictMatchesRuntime(t *testing.T) {
@@ -57,9 +58,9 @@ func TestDecimalAggregation_PredictMatchesRuntime(t *testing.T) {
 					t.Errorf("%s %s: decimal refusal as a warning", shapeName, op)
 				}
 			}
-			if op == "AGG_SUM" {
+			if op == "AGG_SUM" || op == "AGG_NULL_COUNT" {
 				if rerr != nil || len(codes) != 0 {
-					t.Errorf("%s AGG_SUM over decimal128: runtime %v, predict %v; want both to run", shapeName, rerr, codes)
+					t.Errorf("%s %s over decimal128: runtime %v, predict %v; want both to run", shapeName, op, rerr, codes)
 				}
 				continue
 			}

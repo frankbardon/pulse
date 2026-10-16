@@ -529,7 +529,7 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 		return
 	}
 	// Gate 0c: a Compose-host OVERLAY_FORMULA may not call a vector
-	// built-in (exprbuiltins.OverlayRefused) — the request-host gate's
+	// built-in (exprenv.OverlayRefused) — the request-host gate's
 	// callee rule. The runtime compile refuses the same formula under
 	// the same code.
 	if cerr := composeFormulaBuiltinRefusal(spec, specIdx, opts.overlayRoute(spec.Kind)); cerr != nil {
@@ -1549,7 +1549,7 @@ func vectorFitAxis(req *types.Request, schema *encoding.Schema, opts *PredictOpt
 // for a Compose-host OVERLAY_FORMULA whose Params["formula"] calls a
 // reserved built-in outside the overlay scalar-maths subset (the first
 // such callee, internal/exprident.FirstCallee with
-// exprbuiltins.OverlayRefused — the runtime compile's own rule). nil
+// exprenv.OverlayRefused — the runtime compile's own rule). nil
 // for any other kind, a missing / non-string / unparsable formula (the
 // parse error surfaces elsewhere) or a formula calling none. route is
 // the instance's route of spec.Kind.

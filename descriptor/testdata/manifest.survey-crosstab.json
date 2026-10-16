@@ -1327,6 +1327,10 @@
         "description": "Attribute composition rules — slot ordering, two-pass vs row-local attributes, the formula expression environment, attributes vs features. Topical design; per-attribute detail lives in atomic op-attr-* skills."
       },
       {
+        "name": "calendar-formulas",
+        "description": "Calendar helpers and log1p inside formulas and expression filters — weekday, month_index and date_trunc over epoch days, to_day for a datetime in the request time zone, the bare-datetime compile guard and the null rules. Use when an expression reads a date or a datetime."
+      },
+      {
         "name": "cohort-null-states",
         "description": "How a .pulse cohort stores absence — the per-record null bitmap, no in-band sentinels, out-of-sample null promotion on inferred imports, and the null / empty / selected states of set and categorical cells across every import and export format."
       },
@@ -1357,6 +1361,10 @@
       {
         "name": "crosstab-margin-aggregations",
         "description": "Auxiliary margin-only figures on a crosstab — a second base beside the cell metric in one scan, the cell-admission rule, present semantics and the display-flag gate"
+      },
+      {
+        "name": "decimal-formulas",
+        "description": "Exact decimal128 arithmetic inside formulas and expression filters — operator result scales, the numeric built-ins over a decimal (abs, round, max, mean and the rest), ternary and ?? lifting, the float() escape, and what is refused at compile. Use when an expression reads a money field."
       },
       {
         "name": "expression-language",
@@ -1675,7 +1683,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 27,
+    "examples_count": 28,
     "example_categories": [
       "aggregations",
       "crosstab",
@@ -2316,4 +2324,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f58e364a591aea0bd091b210536f36f00243ed37e91ac0422e0d7461f289891f
+// golden-hash: b35b9141988eb4906ad5749a757c23f29ad443a96f6e14cfcf1fb8ed8c4ecf92

@@ -461,11 +461,12 @@ func featureOutputLabels(feat *types.Feature, schema *encoding.Schema) []string 
 		if prefix == "" {
 			prefix = feat.Field
 		}
-		f := schema.Field(feat.Field)
-		if f == nil || f.Dictionary == nil {
+		// The runtime's level list (newOneHot): dictionary labels, or a
+		// packed_bool's "0" / "1".
+		values := fieldaccept.Levels(schema.Field(feat.Field))
+		if values == nil {
 			return nil
 		}
-		values := f.Dictionary.Values()
 		out := make([]string, len(values))
 		for i, v := range values {
 			out[i] = prefix + "_" + strings.ReplaceAll(v, " ", "_")

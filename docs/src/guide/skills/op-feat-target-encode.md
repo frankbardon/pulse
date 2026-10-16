@@ -37,7 +37,7 @@ encoded = (count_cat * mean_cat + smoothing * mean_global) / (count_cat + smooth
 
 ## Inputs
 
-`Field` — `categorical_u8`, `categorical_u16`, `categorical_u32`. `params.target` — numeric (categorical rejected at construction).
+`Field` — `categorical_u8`, `categorical_u16`, `categorical_u32`, or `packed_bool` (levels `"0"`/`"1"`). `params.target` — numeric (categorical rejected at construction).
 
 ## Output
 
@@ -51,7 +51,7 @@ One `f64` column at `Label` (default `TARGET_<field>`): the (smoothed) mean of `
 ## Gotchas
 
 - **TARGET LEAKAGE — `PULSE_FEAT_TARGET_LEAKAGE_RISK`** on every use, from predict AND on the process response's `warnings` (Compose slots too); under `--strict` predict errors and process refuses before reading a record. Means use EVERY row's target (test rows, own row): no split column is read, so a prior split or `split == 0` filter changes nothing. See [`feature-engineering`](feature-engineering.md).
-- Missing `target` or `smoothing < 0` → `PROCESSING_CONFIG`; a non-categorical `Field`, or a categorical / `set_*` `target`, → `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime).
+- Missing `target` or `smoothing < 0` → `PROCESSING_CONFIG`; a `Field` of any other type, or a categorical / `set_*` `target`, → `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime).
 - GLOBAL-PASS: PrePass tallies per-category + global (sum, count); Finalize freezes `globalMean`. Streamable via `iter.Reset()` (file-backed: second I/O).
 - Zero non-null targets → every row null. Category with all targets null → `globalMean`.
 

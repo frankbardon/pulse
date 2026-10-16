@@ -3,6 +3,7 @@ package processing
 import (
 	"fmt"
 	"math"
+	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -29,7 +30,16 @@ type decimalAggResult struct {
 	// a row: cellValue turns it into NaN, the engine-wide undefined
 	// figure (JSON null via types.MarshalFinite), never a "0" string.
 	Undefined bool
+	// IsCount marks a count (AGG_COUNT / AGG_DISTINCT_COUNT /
+	// AGG_NULL_COUNT) over a decimal128 field. A count is never a
+	// decimal: cellValue hands the row the float64 count every other
+	// field type's count carries, so it marshals as a JSON integer.
+	IsCount bool
+	Count   int64
 }
+
+// decimalCount is the result of a count over a decimal128 field.
+func decimalCount(n int) decimalAggResult { return decimalAggResult{IsCount: true, Count: int64(n)} }
 
 // undefinedDecimal is the result of a decimal aggregation over no
 // contributing row whose figure is undefined (not a count or a sum).
@@ -42,6 +52,9 @@ func (r decimalAggResult) cellValue() any {
 	if r.Undefined {
 		return math.NaN()
 	}
+	if r.IsCount {
+		return float64(r.Count)
+	}
 	return r
 }
 
@@ -50,6 +63,9 @@ func (r decimalAggResult) cellValue() any {
 func (r decimalAggResult) MarshalJSON() ([]byte, error) {
 	if r.Undefined {
 		return []byte("null"), nil
+	}
+	if r.IsCount {
+		return []byte(strconv.FormatInt(r.Count, 10)), nil
 	}
 	if r.FellBack {
 		return []byte(fmt.Sprintf("%v", r.Float)), nil
@@ -61,6 +77,9 @@ func (r decimalAggResult) MarshalJSON() ([]byte, error) {
 func (r decimalAggResult) String() string {
 	if r.Undefined {
 		return ""
+	}
+	if r.IsCount {
+		return strconv.FormatInt(r.Count, 10)
 	}
 	if r.FellBack {
 		return fmt.Sprintf("%g", r.Float)
@@ -115,6 +134,17 @@ func (r *ExtensionRegistry) decimalSlotRefusal(agg *types.Aggregation, schema *e
 // the given records, reading the wide map for `field`. Used by the
 // orchestrator when the field type is decimal128 or nullable_decimal128.
 func AggregateDecimalField(agg types.AggregationType, records []*Record, field string, scale uint8) (decimalAggResult, error) {
+	if agg == types.AGG_NULL_COUNT {
+		// The null bitmap only: no decimal math, so the count is the
+		// floor's n_null question (FieldPresent), asked per record.
+		nNull := 0
+		for _, r := range records {
+			if !FieldPresent(r, field) {
+				nNull++
+			}
+		}
+		return decimalCount(nNull), nil
+	}
 	values := make([]encoding.Decimal128, 0, len(records))
 	for _, r := range records {
 		v, ok := r.WideValue(field)
@@ -129,19 +159,13 @@ func AggregateDecimalField(agg types.AggregationType, records []*Record, field s
 	}
 	switch agg {
 	case types.AGG_COUNT:
-		return decimalAggResult{
-			Value: encoding.NewDecimal128FromInt(int64(len(values))),
-			Scale: 0,
-		}, nil
+		return decimalCount(len(values)), nil
 	case types.AGG_DISTINCT_COUNT:
 		seen := make(map[string]struct{}, len(values))
 		for _, v := range values {
 			seen[v.String(scale)] = struct{}{}
 		}
-		return decimalAggResult{
-			Value: encoding.NewDecimal128FromInt(int64(len(seen))),
-			Scale: 0,
-		}, nil
+		return decimalCount(len(seen)), nil
 	case types.AGG_SUM:
 		acc := encoding.ZeroDecimal128()
 		for _, v := range values {
@@ -348,6 +372,9 @@ func decimalVarianceFloat64(values []encoding.Decimal128, scale uint8, agg types
 func (r decimalAggResult) SortValue() any {
 	if r.Undefined {
 		return math.NaN()
+	}
+	if r.IsCount {
+		return float64(r.Count)
 	}
 	if r.FellBack {
 		return r.Float

@@ -34,7 +34,7 @@
         "operator": "REG_OLS",
         "category": "regression",
         "level": "intermediate",
-        "why": "Fits a straight-line model that predicts a numeric outcome from one or more numeric predictors, by least squares. It uses revenue (f64), seats (u16), score (f64), signup (date) and churned (packed_bool).",
+        "why": "Fits a straight-line model that predicts a numeric outcome from one or more numeric predictors, by least squares. It uses revenue (f64), seats (u16), score (f64), signup (date) and churned (packed_bool, 2 groups).",
         "bound": true,
         "request": {
           "cohort": {
@@ -80,7 +80,7 @@
         "operator": "REG_OLS",
         "category": "regression",
         "level": "intermediate",
-        "why": "Fits a straight-line model that predicts a numeric outcome from one or more numeric predictors, by least squares. It uses seats (u16), revenue (f64), score (f64), signup (date) and churned (packed_bool).",
+        "why": "Fits a straight-line model that predicts a numeric outcome from one or more numeric predictors, by least squares. It uses seats (u16), revenue (f64), score (f64), signup (date) and churned (packed_bool, 2 groups).",
         "bound": true,
         "request": {
           "cohort": {
@@ -126,7 +126,7 @@
         "operator": "REG_OLS",
         "category": "regression",
         "level": "intermediate",
-        "why": "Fits a straight-line model that predicts a numeric outcome from one or more numeric predictors, by least squares. It uses score (f64), revenue (f64), seats (u16), signup (date) and churned (packed_bool).",
+        "why": "Fits a straight-line model that predicts a numeric outcome from one or more numeric predictors, by least squares. It uses score (f64), revenue (f64), seats (u16), signup (date) and churned (packed_bool, 2 groups).",
         "bound": true,
         "request": {
           "cohort": {
@@ -393,4 +393,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 005bd8c6b3917f68460c920ebda42143a336c5b8077ccc78c8f0ffca92136406
+// golden-hash: 0e8abc72c7226ca46a15be4cb3be21e66671570979102013be722cde224d7fa5

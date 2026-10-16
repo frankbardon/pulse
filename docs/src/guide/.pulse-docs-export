@@ -25,6 +25,7 @@ reading/test.md
 skills.md
 skills/aggregation-design.md
 skills/attribute-composition.md
+skills/calendar-formulas.md
 skills/cohort-null-states.md
 skills/cohort-parent-groups.md
 skills/cohort-schema-design.md
@@ -36,6 +37,7 @@ skills/compose-requests.md
 skills/compose-sweeps.md
 skills/crosstab-guide.md
 skills/crosstab-margin-aggregations.md
+skills/decimal-formulas.md
 skills/derived-cohorts.md
 skills/expression-language.md
 skills/facet-design.md

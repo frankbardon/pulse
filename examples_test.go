@@ -85,7 +85,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 // the anchor-syntax example reads.
 func buildExampleFixtures(t *testing.T, p *pulse.Pulse, fs afero.Fs, tmp string) {
 	t.Helper()
-	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers", "tier_migrations", "survey"}
+	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers", "tier_migrations", "survey", "subscribers"}
 	for _, name := range cohorts {
 		csvPath := filepath.Join("internal", "examples", "fixtures", name+".csv")
 		schemaPath := filepath.Join("internal", "examples", "fixtures", "schemas", name+".json")
@@ -262,7 +262,7 @@ func TestRegressionExamplesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
-	for _, name := range []string{"customers", "training_data", "experiment"} {
+	for _, name := range []string{"customers", "training_data", "experiment", "subscribers"} {
 		csvPath := filepath.Join("internal", "examples", "fixtures", name+".csv")
 		schemaPath := filepath.Join("internal", "examples", "fixtures", "schemas", name+".json")
 		outPath := filepath.Join(tmp, name+".pulse")
@@ -286,8 +286,8 @@ func TestRegressionExamplesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("glob: %v", err)
 	}
-	if len(matches) != 17 {
-		t.Fatalf("expected exactly 17 regression examples, found %d", len(matches))
+	if len(matches) != 18 {
+		t.Fatalf("expected exactly 18 regression examples, found %d", len(matches))
 	}
 	for _, ex := range matches {
 		t.Run(filepath.Base(ex), func(t *testing.T) {
@@ -330,7 +330,7 @@ func TestRegressionExamplesCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("glob: %v", err)
 	}
-	const want = 17
+	const want = 18
 	if len(matches) != want {
 		t.Errorf("want %d regression examples under examples/regression/, found %d: %v", want, len(matches), matches)
 	}
