@@ -1,13 +1,17 @@
 package spss
 
 import (
+	"bufio"
 	"encoding/binary"
 	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/spf13/afero"
 )
 
 // ---------------------------------------------------------------------------
@@ -359,6 +363,39 @@ func TestSynthesise_SetExpandsToDichotomyMembers(t *testing.T) {
 	}
 }
 
+// TestSynthesise_SetIndicatorsCarryAVariableLabel: every synthesised
+// indicator carries the variable label `<set description or name>: <option>`,
+// so a re-import does not see N undescribed numerics; a label past SPSS's
+// 255-byte variable-label limit loses the set half, never the option, and is
+// cut on a rune boundary.
+func TestSynthesise_SetIndicatorsCarryAVariableLabel(t *testing.T) {
+	long := strings.Repeat("é", 200) // 400 bytes
+	plan := synthesise(t,
+		encoding.Field{Name: "media", Type: encoding.FieldTypeSetU8,
+			Dictionary: dictOf(t, "tv", "radio"), Description: "Media consumed"},
+		encoding.Field{Name: "brands", Type: encoding.FieldTypeSetU8,
+			Dictionary: dictOf(t, "acme")},
+		encoding.Field{Name: "wide", Type: encoding.FieldTypeSetU8,
+			Dictionary: dictOf(t, "opt"), Description: long},
+	)
+	d := reparse(t, plan)
+	for name, want := range map[string]string{
+		"tv":    "Media consumed: tv",
+		"radio": "Media consumed: radio",
+		"acme":  "brands: acme",
+	} {
+		v := readVar(t, d, name)
+		if !v.hasLabel || v.label != want {
+			t.Errorf("%s variable label = %q (has %v), want %q", name, v.label, v.hasLabel, want)
+		}
+	}
+	v := readVar(t, d, "opt")
+	if len(v.label) > maxVariableLabelLen || !utf8.ValidString(v.label) || !strings.HasSuffix(v.label, ": opt") {
+		t.Errorf("long-description label = %d bytes %q, want <= %d valid UTF-8 ending %q",
+			len(v.label), v.label, maxVariableLabelLen, ": opt")
+	}
+}
+
 // TestSynthesise_SetWithNoDictionaryIsRefused: a set column with an empty
 // dictionary has no member for a response set to name, and there is no
 // honest thing to emit.
@@ -544,5 +581,56 @@ func TestSynthesise_ElementIndicesCountElementsNotVariables(t *testing.T) {
 	}
 	if plan.ElementCount != 5 {
 		t.Errorf("nominal_case_size = %d, want 5 (1 + ceil(20/8) + 1)", plan.ElementCount)
+	}
+}
+
+// TestRoundTrip_SetIndicatorsReimportDescribed: a native set exported and
+// re-imported through Pulse's own reader comes back with every constituent
+// field described, so the round trip draws no
+// PULSE_FIELD_DESCRIPTION_LOW_QUALITY finding for the indicators.
+func TestRoundTrip_SetIndicatorsReimportDescribed(t *testing.T) {
+	d := encoding.NewDictionary()
+	for _, e := range []string{"tv", "radio"} {
+		if _, err := d.Add(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fs, cohort := vecCohort(t, &encoding.Schema{Fields: []encoding.Field{
+		{Name: "id", Type: encoding.FieldTypeU8, Description: "Respondent identifier"},
+		{Name: "media", Type: encoding.FieldTypeSetU8, Dictionary: d, Description: "Media consumed"},
+	}}, [][]any{{uint64(1), []string{"tv"}}, {uint64(2), []string{"tv", "radio"}}})
+	sav, _, err := exportVecSav(t, fs, cohort, WriterOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := afero.WriteFile(fs, "back.sav", sav, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	importSav(t, fs, "back.sav", "back.pulse")
+	f, err := fs.Open("back.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	r := bufio.NewReader(f)
+	ver, err := encoding.ReadHeader(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := encoding.ReadSchema(r, ver)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, fld := range s.Fields {
+		seen[fld.Name] = true
+		if encx.IsLowQualityDescription(fld.Description) {
+			t.Errorf("re-imported field %q (%s) has a low-quality description %q", fld.Name, fld.Type, fld.Description)
+		}
+	}
+	for _, want := range []string{"tv", "radio"} {
+		if !seen[want] {
+			t.Errorf("re-imported cohort has no indicator field %q (fields %v)", want, seen)
+		}
 	}
 }
