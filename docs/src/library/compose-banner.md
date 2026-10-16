@@ -56,7 +56,13 @@ That request runs eight slots: `all:Total`, `all:Gender`, `all:Age`,
   filterers, `return` and the shared crosstab (rows, cell or cells,
   margins, normalize). It may not set `label`, crosstab `columns` (the
   groups own them) or crosstab `shape: long` (the stitch reads the
-  matrix).
+  matrix). Its `labels` bindings are scoped per slot: a binding rides
+  only the slots whose crosstab rows or columns group by its field, so a
+  `region` binding labels the Region columns without warning
+  `PULSE_LABEL_NOT_APPLIED` on the Total, Gender and Age slots, and the
+  stitched table carries the display labels. A binding that no slot
+  groups by stays on every slot and warns there, as on a hand-written
+  slot (its warning `index` is the slot's own `labels` position).
 - `sections` (at least one) each carry a unique `label` and may append
   their own `filterers` after the base's — so KPIs with different bases
   (all adults, the aided-aware) share one table — and replace the base
@@ -69,6 +75,14 @@ That request runs eight slots: `all:Total`, `all:Gender`, `all:Age`,
   labelled `Total`.
 - `overlays` are request overlays appended to every GROUP slot after the
   base's own. The Total slot never receives them.
+- A section may set its own `overlays`. When non-empty they REPLACE the
+  banner-level `overlays` on that section's group slots — they do not
+  add to them — so a mean stub can run
+  `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` while the proportion stubs run
+  `OVERLAY_PAIRWISE_PROP_Z`. The base request's overlays still lead
+  every slot, and the Total slot still receives neither. A section that
+  sets none inherits the banner-level list; there is no way to opt a
+  section out of the banner-level overlays except by giving it its own.
 
 Structural faults are `PULSE_BANNER_INVALID`, with `details.field` and
 `details.reason`. Everything else — an unknown field, a bad grouper, an
@@ -89,15 +103,19 @@ per block. Nothing is recomputed: every figure equals its slot's.
 ## Letters
 
 A banner overlay with `params.letters` adds `Letters` to each section:
-one entry per such overlay, its cells on the stitched coordinates. Under
+one entry per such overlay, its cells on the stitched coordinates. A
+section with its own overlays letters from those instead: its entries
+carry `Section: true`, and `Overlay` indexes the section's `overlays`
+rather than the banner's. Under
 `column` scope the letters run on across the banner (Gender A and B, Age
 C to E, Region F to I) and every block keeps its own comparison groups,
 so a column is only ever compared with columns of its own group. The
 Total block is compared to nothing: it never receives the banner
 overlays, so its columns carry no letter. Under `row` scope the cells are
 copied unchanged. A batch multiplicity block with family `compose` pools
-every banner slot's tests, and the letters are recomputed after that
-fold.
+every banner slot's tests (a section's own overlays in place of the
+banner-level ones it replaced), and the letters are recomputed after
+that fold.
 
 ## Limits, predict, return and echo
 

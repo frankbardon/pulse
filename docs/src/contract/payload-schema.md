@@ -982,10 +982,13 @@ always emitted, never rounded by `precision`.
 `{request, sections, groups, total, overlays}`: `request` a typed
 `Request` (the base every slot starts from — no `label`, no crosstab
 `columns`, no crosstab `shape: long`), `sections` a non-empty list of
-`BannerSection {label, filterers, rows, cell, cells}`, `groups` a list of
+`BannerSection {label, filterers, rows, cell, cells, overlays}`, `groups` a list of
 `BannerGroup {label, columns}`, `total` a boolean (the Total block: a
 crosstab with no column grouper) and `overlays` request `OverlaySpec`s
-appended to every group slot. It expands into one crosstab slot per
+appended to every group slot — except a section's that sets its own
+`overlays`, which REPLACE them on its group slots. The base request's
+`labels` ride only the slots whose crosstab rows or columns group by the
+bound field (a binding no slot groups by stays on every slot). It expands into one crosstab slot per
 section × block (Total first, then the groups), labelled
 `<section>:<block>`, appended after the explicit and sweep slots. The
 slot is `omitempty`, so a banner-free request is byte-identical on the
@@ -1005,7 +1008,8 @@ column_header, row_margins, grand_total, measures}` locates one block's
 columns and carries its own margins: a record reaches a block's margin
 only if it reached a CELL of that block. `letters` holds one
 `BannerLetters {overlay, name, kind, scope, cells}` per banner overlay
-carrying a `letters` part; under `column` scope the letters are
+carrying a `letters` part (from a section's own overlays: `section: true`
+added, `overlay` indexing the section's list; absent otherwise); under `column` scope the letters are
 re-assigned banner-wide (unique across blocks, comparison groups never
 spanning two blocks) and the Total block carries no letter cell — it is
 compared to nothing. Every figure is copied from its slot; undefined

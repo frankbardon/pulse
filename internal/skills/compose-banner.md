@@ -40,17 +40,17 @@ A **banner** is the survey table "Total | Gender | Age | Region" across several 
 
 ## Shape
 
-- `request` is the base every slot starts from: cohort, weight, filterers, `return` and the shared crosstab (rows, cell, margins, normalize). It may not set `label`, crosstab `columns` (the groups own them) or crosstab `shape: long` (the stitch reads the matrix).
+- `request` is the base every slot starts from: cohort, weight, filterers, `return` and the shared crosstab (rows, cell, margins, normalize). It may not set `label`, crosstab `columns` (the groups own them) or crosstab `shape: long`. Its `labels` ride only the slots whose rows or columns group by the bound field, so banner columns get display labels without `PULSE_LABEL_NOT_APPLIED`; a binding grouped by no slot stays on every slot and warns.
 - `sections` (at least one): each a unique `label`, plus optional `filterers` APPENDED to the base's — a section has its own base (all adults vs aided-aware) — and optional `rows` / `cell` / `cells` REPLACING the base crosstab's (several `cells` = several measures as stub rows, `crosstab-measures`).
 - `groups`: each a unique `label` and a non-empty `columns` grouper list. Empty only with `total: true`.
 - `total: true` adds the Total block: a crosstab with no column grouper (the implicit Total column), stitched first. No group may then be labelled `Total`.
-- `overlays` are request overlays appended to every GROUP slot after the base's own — never to the Total slot.
+- `overlays` are appended to every GROUP slot after the base's own — never to the Total slot. A section's own `overlays` REPLACE them on its group slots (a means test on a mean stub); its `letters[]` then carry `section: true`.
 
-Slot labels are `<section>:<group>` (`all:Total`, `aware:Gender`); they must stay unique across the batch (`PULSE_COMPOSE_LABEL_COLLISION`). Compose overlays may name banner slots by them. Structural faults are `PULSE_BANNER_INVALID` with `details.reason` (`request_missing`, `request_label_set`, `columns_set`, `shape_long`, `sections_empty`, `groups_empty`, `label_empty`, `label_duplicate`, `label_reserved`, `columns_empty`) and `details.field`; everything else is judged on the expanded slot exactly as on its hand-written twin.
+Slot labels are `<section>:<group>` (`all:Total`), unique across the batch (`PULSE_COMPOSE_LABEL_COLLISION`). Structural faults are `PULSE_BANNER_INVALID` with `details.reason` (`request_missing`, `request_label_set`, `columns_set`, `shape_long`, `sections_empty`, `groups_empty`, `label_empty`, `label_duplicate`, `label_reserved`, `columns_empty`) and `details.field`; everything else is judged on the expanded slot exactly as on its hand-written twin.
 
 ## The stitched table
 
-`banner.sections[i]` per section: `row_header` / `row_keys` (the union of the blocks' rows, first seen first), `column_keys` (every block's keys concatenated), `cells[row][column]`, `column_margins`, `cell_label` / `cell_labels`, `normalize_applied`, and `blocks[]` — `{label, slot, total, start, count, column_header, row_margins, grand_total, measures}`. Every figure is COPIED from its slot, never recomputed. A record reaches a block's margin only if it reached a CELL of that block, so row margins and grand totals are per block. A row a block lacks is absent there.
+`banner.sections[i]` per section: `row_header` / `row_keys` (the union of the blocks' rows, first seen first), `column_keys` (every block's keys concatenated), `cells[row][column]`, `column_margins`, `cell_label` / `cell_labels`, `normalize_applied`, and `blocks[]` — `{label, slot, total, start, count, column_header, row_margins, grand_total, measures}`. Every figure is COPIED from its slot. A record reaches a block's margin only if it reached a CELL of that block, so row margins and grand totals are per block. A row a block lacks is absent there.
 
 ## Letters
 
@@ -66,7 +66,7 @@ A batch `multiplicity` block with family `compose` pools every banner slot's tes
 - `PredictCompose` / `pulse_predict` expands the same way and reports `banner {sections, groups, total, expanded_count, labels}`.
 - A banner slot always computes its whole response (the stitch reads it unshaped); its `return` still trims it on the wire. `banner` sits outside the compose `return`: always emitted, never rounded. MCP fills a missing base-request `return` with the `standard` default.
 - `--echo-request` echoes the expanded slots; `--stream` ends with one `{"banner":{...}}` line.
-- Cost: N scans of the cohort, one per slot — `ComposeParallel` overlaps them.
+- Cost: one cohort scan per slot; `ComposeParallel` overlaps them.
 
 ## See
 
