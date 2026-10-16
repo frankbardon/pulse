@@ -5,7 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	perr "github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/exprbuiltins"
+	"github.com/frankbardon/pulse/internal/exprenv"
 )
 
 // TestExtensions_ExprFunctionReservedBuiltins: an embedder ExprFunction
@@ -14,7 +14,7 @@ import (
 // name the reservation predates (abs) still register.
 func TestExtensions_ExprFunctionReservedBuiltins(t *testing.T) {
 	fn := func(x float64) float64 { return x }
-	for _, name := range exprbuiltins.Names() {
+	for _, name := range exprenv.Names() {
 		t.Run(name, func(t *testing.T) {
 			_, err := pulse.New(newTestOptions(pulse.Extensions{
 				ExprFunctions: []pulse.ExprFunction{{Name: name, Fn: fn}},

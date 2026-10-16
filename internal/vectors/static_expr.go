@@ -9,7 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/exprbuiltins"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vecmath"
 	"github.com/frankbardon/pulse/types"
@@ -64,12 +64,10 @@ func VectorResultRefusal(what string) *errors.CodedError {
 // InvalidNormalizeMode is the coded refusal of a vnormalize mode other
 // than "l1" / "l2" (case-sensitive): PROCESSING_CONFIG {function, mode,
 // valid}, cause attached.
+// The one constructor is exprenv.InvalidNormalizeMode, which the
+// run-time vnormalize raises.
 func InvalidNormalizeMode(mode string, cause error) *errors.CodedError {
-	ce := errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-		"vnormalize(): mode "+strconv.Quote(mode)+" is not "+strconv.Quote(vecmath.NormL1)+" or "+strconv.Quote(vecmath.NormL2)+" (case-sensitive)",
-		map[string]any{"function": "vnormalize", "mode": mode, "valid": []string{vecmath.NormL1, vecmath.NormL2}})
-	ce.Cause = cause
-	return ce
+	return exprenv.InvalidNormalizeMode(mode, cause)
 }
 
 // ExprStaticIssue is src's first static built-in issue at site what,
@@ -104,7 +102,7 @@ func (v *staticVisitor) Visit(node *exprast.Node) {
 		return
 	}
 	id, ok := c.Callee.(*exprast.IdentifierNode)
-	if !ok || !exprbuiltins.IsReserved(id.Value) {
+	if !ok || !exprenv.IsReserved(id.Value) {
 		return
 	}
 	fn, n := id.Value, len(c.Arguments)

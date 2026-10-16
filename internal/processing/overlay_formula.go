@@ -10,6 +10,7 @@ import (
 	"github.com/expr-lang/expr/vm"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/totalcall"
@@ -734,8 +735,8 @@ func compileFormulaProgramWithExtensions(spec *types.OverlaySpec, formula string
 	} else {
 		// The shared built-ins (set helpers, vector / scalar maths) and
 		// the `%` patcher — cells are float64 — even without a registry
-		// (expr_mod.go).
-		opts = append(opts, setExprOptions()...)
+		// (internal/exprenv mod.go).
+		opts = append(opts, exprenv.Options()...)
 	}
 	program, err := expr.Compile(formula, opts...)
 	if err != nil {

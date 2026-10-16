@@ -10,7 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	encx "github.com/frankbardon/pulse/internal/encoding"
-	"github.com/frankbardon/pulse/internal/exprbuiltins"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -399,19 +399,19 @@ func (v *exprPurityVisitor) Visit(node *exprast.Node) {
 	v.idents = append(v.idents, id.Value)
 }
 
-// exprPureSetBuiltins are the built-ins setExprOptions registers, all
+// exprPureSetBuiltins are the built-ins exprenv.Options registers, all
 // pure: the set helpers, the `%` rewrite target and every reserved
-// vector / scalar-maths built-in (internal/exprbuiltins — the one list,
+// vector / scalar-maths built-in (internal/exprenv — the one list,
 // so a new built-in can never silently drop a filter off the precompute
 // fast path).
 var exprPureSetBuiltins = func() map[string]bool {
 	m := map[string]bool{
-		exprModFuncName: true, // the builtin `%` rewrites into (expr_mod.go)
+		exprenv.ModFuncName: true, // the builtin `%` rewrites into (internal/exprenv mod.go)
 	}
-	for _, name := range exprbuiltins.SetHelperNames() {
+	for _, name := range exprenv.SetHelperNames() {
 		m[name] = true
 	}
-	for _, name := range exprbuiltins.Names() {
+	for _, name := range exprenv.Names() {
 		m[name] = true
 	}
 	return m

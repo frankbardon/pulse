@@ -17,6 +17,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -184,7 +185,7 @@ func TestExprValueType_MatchesAllValues(t *testing.T) {
 				continue
 			}
 			seen[path][f.Name] = true
-			if got, want := reflect.TypeOf(v), exprValueType(f); got != want {
+			if got, want := reflect.TypeOf(v), exprenv.ValueType(f); got != want {
 				t.Errorf("%s: %s (%s) surfaces %v, prototype declares %v", path, f.Name, f.Type, got, want)
 			}
 		}
@@ -201,7 +202,7 @@ func TestExprValueType_MatchesAllValues(t *testing.T) {
 	// A dictionary-less categorical (a synthesized schema) is a float.
 	bare := &encoding.Schema{Fields: []encoding.Field{{Name: "k", Type: encoding.FieldTypeCategoricalU8}}}
 	r := NewRecord(bare, map[string]float64{"k": 2})
-	if got, want := reflect.TypeOf(r.AllValues()["k"]), exprValueType(&bare.Fields[0]); got != want {
+	if got, want := reflect.TypeOf(r.AllValues()["k"]), exprenv.ValueType(&bare.Fields[0]); got != want {
 		t.Fatalf("dictionary-less categorical: AllValues %v, prototype %v", got, want)
 	}
 }

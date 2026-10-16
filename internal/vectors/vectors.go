@@ -4,8 +4,10 @@
 // PULSE_VECTOR_* codes.
 //
 // It is NO-EXECUTE: it reads only the schema, never a record, and
-// imports nothing but the standard library, errors, encoding, types and
-// the parse-only internal/exprident (an expression's vector references).
+// imports nothing but the standard library, errors, encoding, types,
+// the parse-only internal/exprident (an expression's vector references)
+// and the shared formula environment's no-execute leaf internal/exprenv
+// (the built-in names and their coded refusals).
 // Predict (internal/descriptor), the runtime (internal/service, via the
 // descriptor's field-reference pass) and projection
 // (internal/processing.NeededFields) all call it, so the three cannot

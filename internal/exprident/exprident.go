@@ -115,7 +115,7 @@ func (v *calleeVisitor) Visit(node *exprast.Node) {
 // calls for which match reports true; "" when none does or the
 // expression does not parse (a compile then reports the syntax error).
 // The overlay formula built-in refusal reads it at both predict hosts
-// and the runtime compile with exprbuiltins.OverlayRefused.
+// and the runtime compile with exprenv.OverlayRefused.
 func FirstCallee(src string, match func(string) bool) string {
 	names, _ := Callees(src)
 	for _, n := range names {

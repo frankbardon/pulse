@@ -4,23 +4,20 @@ import (
 	"context"
 	stderrors "errors"
 	"math"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/expr-lang/expr"
-
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/exprbuiltins"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
 // vectorBuiltinCases holds one scalar expression per reserved built-in,
 // over the record x=1, y=2, z=3, with its expected value. Every
-// exprbuiltins name must have a case (TestVectorBuiltins_CaseCoverage),
+// exprenv name must have a case (TestVectorBuiltins_CaseCoverage),
 // so a new built-in cannot ship untested through the three consumers.
 var vectorBuiltinCases = map[string]struct {
 	src  string
@@ -85,7 +82,7 @@ func processVector(t *testing.T, req *types.Request) (*types.Response, error) {
 func closeTo(got, want float64) bool { return math.Abs(got-want) <= 1e-12 }
 
 func TestVectorBuiltins_CaseCoverage(t *testing.T) {
-	for _, name := range exprbuiltins.Names() {
+	for _, name := range exprenv.Names() {
 		c, ok := vectorBuiltinCases[name]
 		if !ok {
 			t.Errorf("reserved built-in %q has no vectorBuiltinCases entry", name)
@@ -94,28 +91,6 @@ func TestVectorBuiltins_CaseCoverage(t *testing.T) {
 		if !strings.Contains(c.src, name+"(") {
 			t.Errorf("case for %q does not call it: %s", name, c.src)
 		}
-	}
-}
-
-// TestExprBuiltins_EveryNameImplemented pins the shared name list to the
-// implementation table in both directions.
-func TestExprBuiltins_EveryNameImplemented(t *testing.T) {
-	names := exprbuiltins.Names()
-	for _, name := range names {
-		if exprBuiltinImpls[name] == nil {
-			t.Errorf("reserved built-in %q has no implementation", name)
-		}
-	}
-	if len(exprBuiltinImpls) != len(names) {
-		var impl []string
-		for k := range exprBuiltinImpls {
-			impl = append(impl, k)
-		}
-		sort.Strings(impl)
-		t.Errorf("implementation table %v has names outside exprbuiltins %v", impl, names)
-	}
-	if got := len(vectorExprOptions()); got != len(names) {
-		t.Errorf("vectorExprOptions registers %d functions, want %d", got, len(names))
 	}
 }
 
@@ -296,56 +271,10 @@ func TestVectorBuiltins_NullInputRefusalNotSwallowed(t *testing.T) {
 	}
 }
 
-// TestVectorBuiltins_Edges pins the expr-layer adaptations: argmax of an
-// all-NaN vector is NaN, a []float64 argument is accepted as is and not
-// mutated, and the vector transforms return a new slice.
-func TestVectorBuiltins_Edges(t *testing.T) {
-	got, err := exprBuiltinImpls["argmax"]([]any{nil, nil})
-	if err != nil || !math.IsNaN(got.(float64)) {
-		t.Errorf("argmax([nil, nil]) = %v, %v; want NaN", got, err)
-	}
-	got, err = exprBuiltinImpls["argmin"]([]float64{3, 1, 1})
-	if err != nil || got != 1 {
-		t.Errorf("argmin = %v, %v; want int 1", got, err)
-	}
-	in := []float64{1, 2, 3}
-	out, err := exprBuiltinImpls["vcenter"](in)
-	if err != nil {
-		t.Fatal(err)
-	}
-	o := out.([]float64)
-	o[0] = 99
-	if in[0] != 1 {
-		t.Error("vcenter returned or mutated its bound argument")
-	}
-	got, err = exprBuiltinImpls["vsum"]([]any{nil})
-	if err != nil || !math.IsNaN(got.(float64)) {
-		t.Errorf("vsum([nil]) = %v, %v; want NaN", got, err)
-	}
-	got, err = exprBuiltinImpls["sqrt"](-1)
-	if err != nil || !math.IsNaN(got.(float64)) {
-		t.Errorf("sqrt(-1) = %v, %v; want NaN (IEEE)", got, err)
-	}
-	got, err = exprBuiltinImpls["pow"](uint8(2), float32(0.5))
-	if err != nil || !closeTo(got.(float64), math.Sqrt2) {
-		t.Errorf("pow(2, 0.5) = %v, %v", got, err)
-	}
-	for name, fn := range exprBuiltinImpls {
-		if _, err := fn(); err == nil || topCode(err) != perr.PROCESSING_RUNTIME {
-			t.Errorf("%s() with no arguments: %v, want PROCESSING_RUNTIME arity error", name, err)
-		}
-	}
-	for _, name := range []string{"pow", "dot", "dist", "cosine", "vnormalize"} {
-		if _, err := exprBuiltinImpls[name]([]any{1}, "x"); err == nil {
-			t.Errorf("%s with a bad second argument: want an error", name)
-		}
-	}
-}
-
 // TestVectorBuiltins_FilterPrecomputePure: a filter calling any reserved
 // built-in keeps the filter-precompute fast path.
 func TestVectorBuiltins_FilterPrecomputePure(t *testing.T) {
-	for _, name := range exprbuiltins.Names() {
+	for _, name := range exprenv.Names() {
 		src := `(` + vectorBuiltinCases[name].src + `) > x`
 		got, ok := exprPureInputs(src, nil)
 		if !ok {
@@ -406,7 +335,7 @@ func TestVectorBuiltins_StaticRefusalsAtBuild(t *testing.T) {
 		{`pow(x)`, perr.PROCESSING_CONFIG},
 		{`vsum([x], [y])`, perr.PROCESSING_CONFIG},
 	} {
-		_, err := newExprProgram(tc.src, "formula", vectorTestSchema(), nil, nil, setExprOptions())
+		_, err := newExprProgram(tc.src, "formula", vectorTestSchema(), nil, nil, exprenv.Options())
 		if got := topCode(err); got != tc.want {
 			t.Errorf("newExprProgram(%s): %v, want %s", tc.src, err, tc.want)
 		}
@@ -415,24 +344,5 @@ func TestVectorBuiltins_StaticRefusalsAtBuild(t *testing.T) {
 		if err := vectorStaticRefusal(ok, "formula", nil); err != nil {
 			t.Errorf("vectorStaticRefusal(%s) = %v, want nil", ok, err)
 		}
-	}
-}
-
-// TestSetHelpers_EveryNameImplemented: every exprbuiltins.SetHelperNames
-// entry (the list the overlay predict gate admits) has an
-// implementation setExprOptions registers, and no implementation hides
-// outside the list.
-func TestSetHelpers_EveryNameImplemented(t *testing.T) {
-	names := exprbuiltins.SetHelperNames()
-	for _, name := range names {
-		if setHelperImpls[name] == nil {
-			t.Errorf("set helper %q has no implementation", name)
-		}
-		if _, err := expr.Compile(name+`(["a"], ["a"])`, setExprOptions()...); err != nil {
-			t.Errorf("set helper %q does not compile: %v", name, err)
-		}
-	}
-	if len(setHelperImpls) != len(names) {
-		t.Errorf("setHelperImpls has %d entries, exprbuiltins lists %d", len(setHelperImpls), len(names))
 	}
 }

@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/internal/exprbuiltins"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -31,7 +31,7 @@ import (
 //     fmt.Sprintf is skipped);
 //   - inline (single-backtick, outside fenced blocks) spans that call a
 //     set helper, `contains(` or a reserved vector / scalar-maths
-//     built-in (exprbuiltins.Names; expression-host pages only), test `"label" in field`, or show a
+//     built-in (exprenv.Names; expression-host pages only), test `"label" in field`, or show a
 //     `field % n` modulo.
 //
 // An example naming a field the synthetic schema lacks fails rather
@@ -104,12 +104,12 @@ var (
 	docSetCallRe    = regexp.MustCompile(`^(contains|has_any|has_all|has_none|popcount|set_union|set_intersect|set_diff|set_xor)\(.*\)$`)
 	// docBuiltinCallRe: an inline call of a reserved vector /
 	// scalar-maths built-in (vmean(...), pow(...), ...).
-	docBuiltinCallRe = regexp.MustCompile(`^(` + strings.Join(exprbuiltins.Names(), "|") + `)\(.*\)$`)
+	docBuiltinCallRe = regexp.MustCompile(`^(` + strings.Join(exprenv.Names(), "|") + `)\(.*\)$`)
 	docExprHostPages = map[string]bool{
 		"expression-language.md": true, "op-attr-formula.md": true, "op-filter-expression.md": true,
 	}
 	docInLabelRe = regexp.MustCompile(`^"[^"]+" in [A-Za-z_][A-Za-z0-9_]*$`)
-	// docModRe: an inline `field % n` example (float modulo, expr_mod.go).
+	// docModRe: an inline `field % n` example (float modulo, internal/exprenv mod.go).
 	docModRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]* % [0-9.]+( == [0-9.]+)?$`)
 )
 
@@ -185,14 +185,14 @@ func harvestDocExpressions(t *testing.T) []docExpr {
 
 // TestExprBuiltinsDocumented pins the inventory: every reserved
 // vector / scalar-maths built-in is named, backticked, in the
-// expression-language skill, so a function added to exprbuiltins
+// expression-language skill, so a function added to exprenv
 // without a documented row fails here.
 func TestExprBuiltinsDocumented(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("..", "..", "internal", "skills", "expression-language.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range exprbuiltins.Names() {
+	for _, name := range exprenv.Names() {
 		re := regexp.MustCompile("`" + regexp.QuoteMeta(name) + "[`(]")
 		if !re.Match(raw) {
 			t.Errorf("expression-language.md does not document the built-in %q (want a `%s` or `%s(` span)", name, name, name)

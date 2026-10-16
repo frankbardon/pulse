@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	"github.com/expr-lang/expr"
+
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
 )
@@ -29,7 +31,7 @@ import (
 // exprOptionsWithModels is ExprOptions plus coef() over models: the
 // built-in set helpers, coef, then the embedder's functions and lookup.
 func (r *ExtensionRegistry) exprOptionsWithModels(models *model.Set) []expr.Option {
-	out := setExprOptions()
+	out := exprenv.Options()
 	out = append(out, expr.Function(model.CoefFunc, coefBuiltin(models),
 		new(func(string, string) float64),
 		new(func(string, string, string) float64),

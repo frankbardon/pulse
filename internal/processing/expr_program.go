@@ -2,7 +2,6 @@ package processing
 
 import (
 	"fmt"
-	"reflect"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -15,7 +14,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/exprbuiltins"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/vectors"
 )
@@ -30,7 +29,7 @@ import (
 //
 // An exprProgram compiles once per build, against a PROTOTYPE env
 // declared from the schema: every schema field, typed exactly as
-// AllValues surfaces it (exprValueType — float64 for numeric/date/bool
+// AllValues surfaces it (exprenv.Prototype / ValueType — float64 for numeric/date/bool
 // columns, string for a dictionary-bearing categorical, []string for a
 // dictionary-bearing set, Decimal128 / uint64 / SetMask otherwise). Type
 // checking therefore sees the same types a per-row compile saw on a row
@@ -135,8 +134,8 @@ func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Re
 	if err := vectorStaticRefusal(src, what, vectors.ExprVectorLen(vecs, schema)); err != nil {
 		return nil, err
 	}
-	p := &exprProgram{src: src, what: what, opts: opts, decl: exprPrototype(schema)}
-	if callees, _ := exprident.Callees(src); slices.Contains(callees, exprbuiltins.RefFunc) {
+	p := &exprProgram{src: src, what: what, opts: opts, decl: exprenv.Prototype(schema)}
+	if callees, _ := exprident.Callees(src); slices.Contains(callees, exprenv.RefFunc) {
 		scope := refScope(src, refTables, vecs, func(name string) bool {
 			// A native vector field is a vector here, not a shadowing field.
 			return schema != nil && schema.Field(name) != nil && !vectors.IsNativeVector(name, schema)
@@ -448,62 +447,6 @@ func (p *exprProgram) eval(env map[string]any, nullInput bool) (any, error) {
 		return nil, p.evalError(err)
 	}
 	return out, nil
-}
-
-// exprPrototype declares every schema field typed as Record.AllValues
-// surfaces it. A duplicated name keeps its first occurrence, as
-// Schema.Field does.
-func exprPrototype(schema *encoding.Schema) exprtypes.Map {
-	decl := exprtypes.Map{}
-	if schema == nil {
-		return decl
-	}
-	for i := range schema.Fields {
-		f := &schema.Fields[i]
-		if _, dup := decl[f.Name]; dup {
-			continue
-		}
-		decl[f.Name] = exprtypes.TypeOf(reflect.Zero(exprValueType(f)).Interface())
-	}
-	return decl
-}
-
-var (
-	exprFloat64Type    = reflect.TypeOf(float64(0))
-	exprStringType     = reflect.TypeOf("")
-	exprStringsType    = reflect.TypeOf([]string(nil))
-	exprUint64Type     = reflect.TypeOf(uint64(0))
-	exprSetMaskType    = reflect.TypeOf(encoding.SetMask{})
-	exprDecimal128Type = reflect.TypeOf(encoding.Decimal128{})
-	exprFloat64sType   = reflect.TypeOf([]float64(nil))
-)
-
-// exprValueType is the Go type Record.AllValues gives field f's value:
-// a dictionary-bearing categorical resolves to its label, a
-// dictionary-bearing set to its label slice, a decimal / dictionary-less
-// set rides its wide value, a vector its []float64 elements, everything
-// else is the float64 slot. Pinned
-// against every decode path by TestExprValueType_MatchesAllValues.
-func exprValueType(f *encoding.Field) reflect.Type {
-	switch {
-	case f.Type.IsCategorical():
-		if f.Dictionary != nil {
-			return exprStringType
-		}
-	case f.Type.IsSet():
-		if f.Dictionary != nil {
-			return exprStringsType
-		}
-		if f.Type.IsWideSet() {
-			return exprSetMaskType
-		}
-		return exprUint64Type
-	case f.Type == encoding.FieldTypeDecimal128:
-		return exprDecimal128Type
-	case f.Type.IsVector():
-		return exprFloat64sType
-	}
-	return exprFloat64Type
 }
 
 // exprFreeIdentifiers returns the names an expression reads from its

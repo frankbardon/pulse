@@ -1,13 +1,12 @@
 package vectors
 
 import (
-	"strconv"
-
 	exprast "github.com/expr-lang/expr/ast"
 	exprparser "github.com/expr-lang/expr/parser"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -29,12 +28,10 @@ var PairLengthFuncs = map[string]bool{"dot": true, "dist": true, "cosine": true}
 
 // LengthMismatch is the coded refusal of an unequal-length pair:
 // PROCESSING_VECTOR_LENGTH_MISMATCH, details {function, left, right}.
+// The one constructor is exprenv.LengthMismatch, which the run-time
+// built-ins raise.
 func LengthMismatch(fn string, left, right int, cause error) *errors.CodedError {
-	ce := errors.NewCodedErrorWithDetails(errors.PROCESSING_VECTOR_LENGTH_MISMATCH,
-		fn+"(): vector length mismatch: "+strconv.Itoa(left)+" vs "+strconv.Itoa(right),
-		map[string]any{"function": fn, "left": left, "right": right})
-	ce.Cause = cause
-	return ce
+	return exprenv.LengthMismatch(fn, left, right, cause)
 }
 
 // LengthScope answers the static length of a pair argument in one
