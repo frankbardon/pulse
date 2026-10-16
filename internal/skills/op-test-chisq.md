@@ -18,7 +18,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 - `alpha` — float, default `0.05`, in `(0, 1)`.
 - `weight` — slot weight (`null` opts out), both kinds: table of Σw per cell. Frequency: Pearson on the Σw table. Probability: Pearson on the table scaled to n_eff — first-order Kish approximation; not Rao-Scott (`survey::svychisq`). `expected_min`, the `< 5` guard, V, φ read the scaled table; `Details` add scalar `sum_weights` (+ `n_eff`); `n` stays raw rows.
 
-Slot params: `Rows` (required, categorical), `Cols` (required, categorical). `Field` is ignored.
+Slot params: `Rows` (required, categorical or `packed_bool`), `Cols` (required, same). `Field` is ignored.
 
 <!-- feature: capability:multiplicity -->
 - `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
@@ -26,7 +26,7 @@ Slot params: `Rows` (required, categorical), `Cols` (required, categorical). `Fi
 
 ## Inputs
 
-`Rows`, `Cols` — categorical: `categorical_u8`/`u16`/`u32`; any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (rows first).
+`Rows`, `Cols` — categorical: `categorical_u8`/`u16`/`u32`, or `packed_bool` (levels `"0"`/`"1"`) (labels `row_labels` / `col_labels` read `"0"`, `"1"`); any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (rows first).
 
 ## Output
 

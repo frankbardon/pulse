@@ -11694,7 +11694,7 @@
       },
       {
         "name": "op-feat-one-hot",
-        "description": "One-hot encode a categorical field as one f64 column per dictionary entry."
+        "description": "One-hot encode a categorical or packed_bool field as one f64 column per level."
       },
       {
         "name": "op-feat-poly",
@@ -18151,4 +18151,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d81c35abbc83b5e8e8aaee5fbab50ec92733ec7b111ff5955032e9f9d313f81d
+// golden-hash: 9960462671da75c512f6ad0016a50e6337e6b3b73710ca9302662c249e8cdabc

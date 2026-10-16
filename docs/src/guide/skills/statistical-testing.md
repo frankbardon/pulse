@@ -9,7 +9,7 @@ covers: [TEST, tier-1, tier-2, tests, post_tests, ANOVA, Tukey, assumption-gates
 
 # Statistical testing
 
-Two test slots; this file teaches choosing and chaining, per-test detail is in atomic `op-test-<name>` skills. Tests emit no `Response.Components`; results ride `Response.Tests` / `Response.PostTests`.
+Two test slots; this file teaches choosing and chaining, per-test detail is in `op-test-<name>`. No `Response.Components`; results ride `Response.Tests` / `PostTests`.
 
 ## Finding the right test
 
@@ -45,7 +45,7 @@ Four questions narrow a comparison:
 | Roughly normal, or skewed / ranked / extreme? | normal → mean-based; otherwise rank-based |
 | Similar spread across groups? | no → the Welch forms |
 
-Outcome type routes first: a numeric measure → mean or rank tests; a yes/no rate → the two-proportion z or a contingency test; two categorical fields → χ² (2×2 with any expected cell < 5 → Fisher's exact, `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`); two numeric fields → a correlation (Kendall's cost grows with n²).
+Outcome type routes first: a numeric measure → mean or rank tests; a yes/no rate (categorical or `packed_bool`) → the two-proportion z or a contingency test; two categorical fields → χ² (2×2 with any expected cell < 5 → Fisher's exact, `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`); two numeric fields → a correlation (Kendall's cost grows with n²).
 
 A whole battery of numeric fields (mean profiles, covariance, sphericity, joint normality) takes a `vector` test: [`multivariate-design`](multivariate-design.md).
 

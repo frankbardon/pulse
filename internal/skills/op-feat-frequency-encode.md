@@ -15,11 +15,11 @@ Feature operators emit derived columns; no `Response.Components`.
 
 ## Params
 
-None. `Field` (required, categorical) — `params` block is unused.
+None. `Field` (required, categorical or `packed_bool`) — `params` block is unused.
 
 ## Inputs
 
-`Field` — `categorical_u8`, `categorical_u16`, `categorical_u32`.
+`Field` — `categorical_u8`, `categorical_u16`, `categorical_u32`, or `packed_bool` (levels `"0"`/`"1"`).
 
 ## Output
 
@@ -33,7 +33,7 @@ One `f64` column written to `Label` (default `FREQ_<field>`). Value per row = `c
 - Frequencies reflect the RAW cohort because FEAT runs PRE-FILTER. To encode within a filtered subset, stage via Compose / ProcessChain.
 - Cohort with zero non-null categories → every row emits `null`.
 - Null categories on individual rows emit `null`.
-- Non-categorical fields rejected with `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime).
+- Any other field type rejected with `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime).
 
 ## See
 

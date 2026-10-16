@@ -23,7 +23,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Inputs
 
-`Field` (required) — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1). `SplitBy` (required, ≥ 2 groups) — categorical: `categorical_u8`/`u16`/`u32`; else `PULSE_FIELD_TYPE_UNSUPPORTED`.
+`Field` (required) — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1). `SplitBy` (required, ≥ 2 groups) — categorical: `categorical_u8`/`u16`/`u32` or `packed_bool` (levels `"0"`/`"1"`); else `PULSE_FIELD_TYPE_UNSUPPORTED`.
 
 ## Output
 

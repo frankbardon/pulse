@@ -89,7 +89,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-feat-date-features`](skills/op-feat-date-features.md): Expand a date or datetime field into year / month / day / day-of-week / quarter (+ hour) columns.
 - [`op-feat-frequency-encode`](skills/op-feat-frequency-encode.md): Replace each categorical value with its observed relative frequency in the cohort.
 - [`op-feat-log`](skills/op-feat-log.md): Per-row log1p(x) of a numeric field; emits one f64 column. Standard skew-tamer.
-- [`op-feat-one-hot`](skills/op-feat-one-hot.md): One-hot encode a categorical field as one f64 column per dictionary entry.
+- [`op-feat-one-hot`](skills/op-feat-one-hot.md): One-hot encode a categorical or packed_bool field as one f64 column per level.
 - [`op-feat-poly`](skills/op-feat-poly.md): Per-row polynomial expansion x^2..x^Degree of a numeric field — the basis for a polynomial regression.
 - [`op-feat-sqrt`](skills/op-feat-sqrt.md): Per-row sqrt(x) of a numeric field; emits one f64 column.
 - [`op-feat-target-encode`](skills/op-feat-target-encode.md): Replace each categorical value with the smoothed mean of a numeric Target field for that category. Leakage trap — see Gotchas.

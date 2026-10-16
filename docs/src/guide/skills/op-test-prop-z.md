@@ -29,12 +29,12 @@ Use something else:
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
 - `weight` — slot weight (`null` opts out), both kinds: p̂_g = Σw_success/Σw_g, N*_g = Σw_g (frequency) or Kish n_eff_g (probability) for the pooled rate and SEs. `successes` becomes Σw_success; `Details` add `sum_weights` (+ `n_eff`) shaped like `n` (raw rows).
-- `success` — string, required. Dictionary value of Field treated as a "success".
+- `success` — string, required. Dictionary value of Field treated as a "success"; on a `packed_bool` Field strictly `"1"` or `"0"`.
 - `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Inputs
 
-`Field` (required) — categorical: `categorical_u8`/`u16`/`u32`. `SplitBy` (required, exactly 2 groups) — same set. Any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (field first).
+`Field` (required) — categorical: `categorical_u8`/`u16`/`u32`, or `packed_bool` (levels `"0"`/`"1"`). `SplitBy` (required, exactly 2 groups) — same set. Any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (field first).
 
 ## Output
 
@@ -49,7 +49,7 @@ Use something else:
 
 ## Gotchas
 
-- `success` must match a dictionary value; otherwise `PULSE_TEST_INVALID_SUCCESS`.
+- `success` must match a dictionary value; otherwise `PULSE_TEST_INVALID_SUCCESS`. On a `packed_bool` outcome anything but `"0"` / `"1"` (`true`, `yes`) is `PULSE_TEST_SUCCESS_VALUE_MISSING` with `details.valid_levels`.
 - Streamable — per-group counts feed both numerator and pooled denominator in one pass.
 - More than two `SplitBy` groups is a `(SplitBy × Field)` contingency-table question, not this test.
 - Pairs with `OVERLAY_PROP_Z_CELL` for crosstab cell-level proportion tests.

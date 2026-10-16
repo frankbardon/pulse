@@ -19,11 +19,11 @@ Feature operators emit derived columns; no `Response.Components`.
 |---|---|---|---|
 | `ratios` | list[float] | (required) | Two elements → train + val; three → all three splits. Must sum to `1.0` within `1e-6`. |
 | `seed` | int | `0` | Same seed ⇒ byte-identical assignments. |
-| `stratify` | string | — | Optional categorical field; ratios applied per category for class balance. |
+| `stratify` | string | — | Optional categorical or `packed_bool` field; ratios applied per category for class balance. |
 
 ## Inputs
 
-`Field` not consulted — assignments are positional / per-shuffle; may be omitted. `params.stratify` — `categorical_u8` / `u16` / `u32` only.
+`Field` not consulted — assignments are positional / per-shuffle; may be omitted. `params.stratify` — `categorical_u8` / `u16` / `u32`, or `packed_bool` (levels `"0"`/`"1"`).
 
 ## Output
 
@@ -31,7 +31,7 @@ One `u8`-valued `f64` column at `Label` (default `split`), from `internal/proces
 
 ## Gotchas
 
-- `ratios` length outside `[2, 3]`, any negative ratio, or a sum off `1.0` by more than `1e-6` → `PROCESSING_CONFIG`; a non-categorical `stratify` → `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime).
+- `ratios` length outside `[2, 3]`, any negative ratio, or a sum off `1.0` by more than `1e-6` → `PROCESSING_CONFIG`; a `stratify` of any other type → `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime).
 - GLOBAL-PASS: PrePass collects row count + stratify keys, Finalize materialises the assignment table (O(rows) memory), EmitRow yields it in PrePass order. EmitRow over-call (more rows than PrePass) → `PROCESSING_INTERNAL`.
 - Streamable via `iter.Reset()`; file-backed iterators pay a second I/O.
 - Stratified mode seeds each group distinctly, so groups never share one shuffle.
