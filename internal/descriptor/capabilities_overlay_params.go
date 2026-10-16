@@ -76,7 +76,7 @@ func pairwiseParams(kind types.OverlayKind) []descriptor.Param {
 	case !types.PairwiseKindUsesWelford(kind):
 		ps = append(ps,
 			descriptor.Param{Name: "n_source", Type: "enum", Required: false, Description: "Where each leg's sample size is read (default cell_n_unweighted)."},
-			descriptor.Param{Name: "p_source", Type: "enum", Required: false, Description: "How each leg's proportion is derived (default cell_value_pct)."},
+			descriptor.Param{Name: "p_source", Type: "enum", Required: false, Description: "How each leg's proportion is derived (default cell_value on a normalized host, else cell_value_pct; cell_value_pct on a normalized host is refused)."},
 		)
 	}
 	return ps

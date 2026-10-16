@@ -56,3 +56,41 @@ func SampleVariance(popVariance, m2 float64, hasM2 bool, n float64) float64 {
 	}
 	return popVariance * n / (n - 1)
 }
+
+// normalised reports whether a crosstab normalize mode divides every
+// cell by a denominator, so the cell value is a 0..1 share.
+func normalised(mode types.CrosstabNormalize) bool {
+	return mode != "" && mode != types.CrosstabNormalizeNone
+}
+
+// EffectivePairwisePSource is the proportion-leg reading a pairwise
+// proportion kind applies: the explicit p_source when set, else — the
+// omitted default — cell_value on a normalised host (every cell is
+// already a 0..1 share; dividing it by 100 would score the pair
+// silently wrong, survey-tables E1-S3) and cell_value_pct otherwise.
+// mode is the host crosstab's NormalizeOrDefault. The runtime
+// (processing.runPairwiseOverlay) reads through it; predict's refusal
+// below is its other half.
+func EffectivePairwisePSource(pSource string, mode types.CrosstabNormalize) string {
+	switch {
+	case pSource != "":
+		return pSource
+	case normalised(mode):
+		return types.PairwisePSourceCellValue
+	}
+	return types.PairwisePSourceCellValuePct
+}
+
+// PairwisePSourceRefusal is the PULSE_OVERLAY_PARAM_MISSING message of
+// an EXPLICIT p_source cell_value_pct on a normalised host ("" when the
+// pair is fine): the selector divides a 0..1 share by 100. The runtime
+// (processing.runPairwiseOverlay) and predict
+// (descriptor.validateOverlayPairwise) raise it with this text and
+// details {kind, param, p_source, normalize}.
+func PairwisePSourceRefusal(kind types.OverlayKind, pSource string, mode types.CrosstabNormalize) string {
+	if pSource != types.PairwisePSourceCellValuePct || !normalised(mode) {
+		return ""
+	}
+	return "overlay " + string(kind) + " p_source " + pSource + " reads each cell as a 0..100 percentage, but the host crosstab is normalized (normalize " +
+		string(mode) + ") so every cell is already a 0..1 share; omit p_source or set \"" + types.PairwisePSourceCellValue + "\""
+}

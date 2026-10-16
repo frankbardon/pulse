@@ -210,3 +210,27 @@ func TestReadsCellValue(t *testing.T) {
 		}
 	}
 }
+
+func TestPairwisePSourceResolution(t *testing.T) {
+	for _, c := range []struct {
+		p    string
+		mode types.CrosstabNormalize
+		want string
+		bad  bool
+	}{
+		{"", "", types.PairwisePSourceCellValuePct, false},
+		{"", types.CrosstabNormalizeNone, types.PairwisePSourceCellValuePct, false},
+		{"", types.CrosstabNormalizeColumn, types.PairwisePSourceCellValue, false},
+		{"", types.CrosstabNormalizeTotal, types.PairwisePSourceCellValue, false},
+		{types.PairwisePSourceCellValue, types.CrosstabNormalizeRow, types.PairwisePSourceCellValue, false},
+		{types.PairwisePSourceCellValuePct, types.CrosstabNormalizeNone, types.PairwisePSourceCellValuePct, false},
+		{types.PairwisePSourceCellValuePct, types.CrosstabNormalizeRow, types.PairwisePSourceCellValuePct, true},
+	} {
+		if got := EffectivePairwisePSource(c.p, c.mode); got != c.want {
+			t.Errorf("EffectivePairwisePSource(%q, %q) = %q, want %q", c.p, c.mode, got, c.want)
+		}
+		if got := PairwisePSourceRefusal(types.OverlayKindPairwisePropZ, c.p, c.mode) != ""; got != c.bad {
+			t.Errorf("PairwisePSourceRefusal(%q, %q) refused=%v, want %v", c.p, c.mode, got, c.bad)
+		}
+	}
+}

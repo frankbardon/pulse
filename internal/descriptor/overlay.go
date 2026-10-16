@@ -379,6 +379,16 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 			map[string]any{"index": index, "kind": string(spec.Kind), "p_source": params.PSource})
 		return
 	}
+	// An explicit cell_value_pct on a normalised host divides a 0..1
+	// share by 100 (survey-tables E1-S3); the runtime twin is
+	// processing.runPairwiseOverlay, same code and message.
+	if mode := req.Crosstab.NormalizeOrDefault(); overlayhost.PairwisePSourceRefusal(spec.Kind, params.PSource, mode) != "" {
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+			overlayhost.PairwisePSourceRefusal(spec.Kind, params.PSource, mode),
+			map[string]any{"index": index, "kind": string(spec.Kind), "param": "p_source",
+				"p_source": params.PSource, "normalize": string(mode)})
+		return
+	}
 	if params.PairAlongDim != nil && *params.PairAlongDim < 0 {
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 			"overlay "+string(spec.Kind)+" pair_along_dim must be >= 0",

@@ -2184,9 +2184,11 @@ const (
 	//   - n_within_depth (int): with n_source=n_within, fixes the first
 	//     depth+1 pair-axis dims in the denominator (mirrors
 	//     CrosstabSpec.NormalizeWithin).
-	//   - p_source (string): "cell_value_pct" (default; cell value is a
-	//     0..100 percentage, divided by 100) or "cell_value" (already a
-	//     0..1 proportion). Ignored by the Welford-input kinds.
+	//   - p_source (string): "cell_value_pct" (cell value is a 0..100
+	//     percentage, divided by 100; the omitted default under
+	//     normalize none, refused on a normalised host) or "cell_value"
+	//     (already a 0..1 proportion; the omitted default on a
+	//     normalised host). Ignored by the Welford-input kinds.
 	//   - n_basis (string): REQUIRED on OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z
 	//     and only read there — "weights" (frequency-weight variance, n =
 	//     Σw) or "kish" (Kish effective base n_eff = (Σw)²/Σw²).

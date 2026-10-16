@@ -201,6 +201,18 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 		}
 		weightedHost = basis.Weighted()
 	}
+	// Proportion legs on a normalised host (survey-tables E1-S3): every
+	// cell is already a 0..1 share, so an explicit cell_value_pct (÷100)
+	// is refused as predict refuses it, and the omitted p_source reads
+	// the share as is (overlayhost.EffectivePairwisePSource).
+	if shape == pwShapeProportion {
+		if msg := overlayhost.PairwisePSourceRefusal(spec.Kind, params.PSource, host.normalize); msg != "" {
+			return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING, msg,
+				map[string]any{"kind": string(spec.Kind), "param": "p_source", "p_source": params.PSource,
+					"normalize": string(host.normalize)})
+		}
+		params.PSource = overlayhost.EffectivePairwisePSource(params.PSource, host.normalize)
+	}
 	// The weighted kind needs the weighted moments on at least one cell
 	// — emitted by AGG_WEIGHTED_MEAN and by a WEIGHTED AGG_AVERAGE (its
 	// moments plus the weighted floor's sum_weights). An unweighted

@@ -35,8 +35,11 @@ type PairwiseOverlayParams struct {
 
 	// PSource selects how the proportion leg is derived for the
 	// proportion-input kinds (prop-Z, probit-t). One of the
-	// PairwisePSource* constants. Empty = cell_value_pct. Ignored by the
-	// Welford-input kinds.
+	// PairwisePSource* constants. Empty = cell_value on a normalised
+	// host (normalize != none: every cell is already a 0..1 share),
+	// cell_value_pct otherwise; an explicit cell_value_pct on a
+	// normalised host is refused (PULSE_OVERLAY_PARAM_MISSING). Ignored
+	// by the Welford-input kinds.
 	PSource string `json:"p_source,omitempty"`
 
 	// NBasis selects the variance / sample-size convention for
@@ -323,7 +326,8 @@ func ValidPairwiseNSource(s string) bool {
 }
 
 // ValidPairwisePSource reports whether s names a supported PSource mode.
-// Empty counts as valid (defaults to cell_value_pct).
+// Empty counts as valid (cell_value on a normalised host, else
+// cell_value_pct).
 func ValidPairwisePSource(s string) bool {
 	switch s {
 	case "", PairwisePSourceCellValuePct, PairwisePSourceCellValue:
