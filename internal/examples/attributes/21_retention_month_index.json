@@ -1,0 +1,63 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Calendar-month retention flags from month_index(first_repeat_order) - month_index(signup_date): the month offset of each subscriber's first repeat order, plus month-1 and within-quarter retention flags, without hard-coded epoch-day ranges.",
+    "intents": [
+      "prepare"
+    ],
+    "name": "retention_month_index",
+    "operators": [
+      "AGG_COUNT",
+      "AGG_SUM",
+      "ATTR_FORMULA"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "feature-engineering",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "subscribers.pulse",
+    "data_dir": ".data"
+  },
+  "attributes": [
+    {
+      "type": "ATTR_FORMULA",
+      "label": "repeat_month",
+      "expression": "month_index(first_repeat_order) - month_index(signup_date)"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "retained_m1",
+      "expression": "month_index(first_repeat_order) - month_index(signup_date) == 1 ? 1 : 0"
+    },
+    {
+      "type": "ATTR_FORMULA",
+      "label": "retained_q1",
+      "expression": "month_index(first_repeat_order) - month_index(signup_date) <= 3 ? 1 : 0"
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "subscribers"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "repeat_month",
+      "label": "repeat_month_total"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "retained_m1",
+      "label": "retained_m1"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "retained_q1",
+      "label": "retained_q1"
+    }
+  ]
+}

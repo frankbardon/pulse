@@ -1,0 +1,13 @@
+[
+  {"name": "id", "type": "u32", "description": "Unique subscriber identifier (1..N)"},
+  {"name": "arm", "type": "categorical_u8", "description": "A/B test arm the subscriber was assigned to: control or variant"},
+  {"name": "converted", "type": "packed_bool", "description": "Whether the subscriber converted to a paid plan during the experiment; stored as a flag, read as levels 0 and 1"},
+  {"name": "plan", "type": "categorical_u8", "description": "Subscription plan tier: basic, plus or pro"},
+  {"name": "churned", "type": "packed_bool", "description": "Whether the subscriber cancelled within a year of signup; stored as a flag, read as levels 0 and 1"},
+  {"name": "late_payment", "type": "u8", "description": "Count-style indicator: 1 when the subscriber has paid at least one invoice late, else 0"},
+  {"name": "defaulted", "type": "packed_bool", "description": "Credit outcome flag: whether the subscriber's account went into default"},
+  {"name": "signup_date", "type": "date", "description": "Calendar day the subscriber signed up"},
+  {"name": "first_repeat_order", "type": "date", "description": "Calendar day of the subscriber's first repeat order after signup"},
+  {"name": "revenue", "type": "decimal128", "precision": 20, "scale": 2, "description": "Lifetime revenue in USD with exact cents"},
+  {"name": "cost", "type": "decimal128", "precision": 20, "scale": 2, "description": "Lifetime cost to serve in USD with exact cents"}
+]
