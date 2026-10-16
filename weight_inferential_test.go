@@ -710,7 +710,11 @@ func TestWeight_NormalizedNotWeightableMatchesPredict(t *testing.T) {
 // OWN slot weight — the slot-only host that, before E3-S1, ran the
 // overlay on raw row counts — under each kind; the raw-row-count
 // sources are PROCESSING_CONFIG under both, the weight sum under
-// probability only, and an omitted source runs and predicts clean.
+// probability only, and an omitted source runs and predicts clean. The
+// margin modes read a margin floor's N* on a weighted host (U47 #324),
+// so on this Welford kind they fall back to its standing one-arm rule —
+// predict's inert-selector PULSE_OVERLAY_PARAM_MISSING, the runtime
+// ignoring them — exactly as on an unweighted host.
 func TestWeight_PairwiseNSourceMatchesPredict(t *testing.T) {
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
@@ -733,7 +737,16 @@ func TestWeight_PairwiseNSourceMatchesPredict(t *testing.T) {
 		"frequency":   {Field: "t_u8", Kind: types.WeightKindFrequency},
 		"probability": {Field: "y", Kind: types.WeightKindProbability},
 	} {
-		refused := []string{types.PairwiseNSourceCellNUnweighted, types.PairwiseNSourceRowMarginN, types.PairwiseNSourceColumnMarginN}
+		for _, s := range []string{types.PairwiseNSourceRowMarginN, types.PairwiseNSourceColumnMarginN} {
+			if _, rerr := p.Process(ctx, mk(w, s)); rerr != nil {
+				t.Fatalf("%s n_source %s: runtime %v, want the inert selector to run", name, s, rerr)
+			}
+			env := predictEnvelope(t, p, fs, cohort, mk(w, s))
+			if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PULSE_OVERLAY_PARAM_MISSING) {
+				t.Fatalf("%s n_source %s: predict %+v, want the inert-selector refusal", name, s, env.Errors)
+			}
+		}
+		refused := []string{types.PairwiseNSourceCellNUnweighted}
 		if w.Kind == types.WeightKindProbability {
 			refused = append(refused, types.PairwiseNSourceCellWeightSum)
 		}

@@ -15,7 +15,7 @@ One host-matrix slot against another ALONG one axis of the SAME crosstab — the
 
 ## Params
 
-`Scope` (enum, required) — `row` (pair rows per column) or `column` (pair columns per row). `Ref` (object, empty) — intra-matrix; any populated arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `params.pair_along_dim` (int, unset) — restrict pairs to buckets agreeing on all pair-axis dims but this one; unset = every pair. `params.n_source` (default `cell_n_unweighted`), `params.n_within_depth` (default `0`) and `params.p_source` (default `cell_value_pct`) are the family-wide vocabulary — nine sample-size modes, three of them distinct-KEY: `pairwise-n-sources`.
+`Scope` (enum, required) — `row` (pair rows per column) or `column` (pair columns per row). `Ref` (object, empty) — intra-matrix; any populated arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `params.pair_along_dim` (int, unset) — restrict pairs to buckets agreeing on all pair-axis dims but this one; unset = every pair. `params.n_source` (omitted: the cell's base — on a normalised host the denominator its share is of, as a count or, weighted, its N*), `params.n_within_depth` (default `0`) and `params.p_source` (default `cell_value_pct`) are the family-wide vocabulary — nine sample-size modes, three of them distinct-KEY: `pairwise-n-sources`.
 
 <!-- feature: capability:multiplicity -->
 - `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiplicity-correction`).
@@ -34,7 +34,7 @@ MATRIX (`Payload.Shape = "matrix"`). PAIR axis = one entry per evaluated `(i, j)
 ## Gotchas
 
 - An undefined (NaN) host cell is MISSING: its pairs skip as an absent cell's do (`PULSE_STATS_SKIP_EXTRACT_FAILED`).
-- Weighted host (both kinds, any source): p̂ = the weighted cell share (Σw_success/Σw_base); with `n_source` omitted n = the cell's N* (`sum_weights` frequency, `n_eff` probability). Unweighted-count modes (and `cell_weight_sum` / `cell_value_weighted` under probability) are `PROCESSING_CONFIG` in predict AND runtime (`pairwise-n-sources`). `Summary.Parameters` adds `sum_weights` (+ `n_eff`).
+- Weighted host (both kinds, any source): p̂ = the weighted cell share (Σw_success/Σw_base); with `n_source` omitted n = the N* of that base, the cell's normalise denominator (`sum_weights` frequency, `n_eff` probability); `row_margin_n` / `column_margin_n` read a displayed margin's N*. Unweighted-count modes (and `cell_weight_sum` / `cell_value_weighted` under probability) are `PROCESSING_CONFIG` in predict AND runtime (`pairwise-n-sources`). `Summary.Parameters` adds `sum_weights` (+ `n_eff`).
 - Reuses `twoProportionZ` — byte-for-byte equal to every two-proportion z test and overlay on the same (success, n).
 - RAW p-values only — direction, thresholds and min-n flags are the embedder's job.
 - Degenerate pairs (n=0, pooled ∈ {0,1}, zero SE) fold into one aggregated `PULSE_OVERLAY_REF_ZERO` per reason.

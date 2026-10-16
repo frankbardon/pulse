@@ -144,8 +144,8 @@ type pwInputs struct {
 	// nf1 / nf2 are the legs' sample sizes. Welford legs: the raw n on
 	// an unweighted cell, N* on a weighted one (CrosstabHostView.MeanLeg).
 	// Proportion legs: the n_source figure (an integer count, exactly
-	// representable) or, on a weighted host with n_source omitted, the
-	// cell's N* (pairwiseSampleSize).
+	// representable) or, on a weighted host, a floor's N* — with
+	// n_source omitted the cell's BASE (pairwiseSampleSize).
 	nf1, nf2 float64
 	w1, w2   weightedMoments
 }
@@ -307,6 +307,9 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 	// of every pair it sits in), for the summary's Parameters.
 	var legs weightedLegTally
 	legSeen := map[[2]int]bool{}
+	// A proportion layer's n legs are bases, shared by every cell a base
+	// divided: each is tallied once (nLegKey).
+	nLegSeen := map[nLegKey]bool{}
 	addLeg := func(r, c int) {
 		if legSeen[[2]int{r, c}] {
 			return
@@ -318,7 +321,8 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 			}
 			return
 		}
-		if l, ok := host.CellFloor(r, c, basis); ok {
+		if l, key, ok := pairwiseWeightedNLeg(host, params, basis, r, c); ok && !nLegSeen[key] {
+			nLegSeen[key] = true
 			legs.add(l)
 		}
 	}
@@ -506,18 +510,19 @@ func pairwiseProportion(host *CrosstabHostView, params types.PairwiseOverlayPara
 // pairwiseSampleSize reads the n leg per the n_source mode. rowScope names
 // the pair axis so n_within sums CellCounts along it.
 //
-// Weighted host (basis weighted; weighting-inferential E3-S2): with
-// n_source omitted the leg is the cell's N* — sum_weights under kind
-// frequency, n_eff under kind probability — read off its floor, so the
-// successes p̂·N* rest on Σw_success/Σw_base (the weighted cell
-// proportion) and the base's effective size. The unweighted-count
-// modes never reach here on a weighted host (refused up front,
-// weighting.NSourceRefusal). Every count mode answers an integer,
-// exactly representable as float64, so an unweighted host's kernels
-// read the same numbers as before.
+// Weighted host (basis weighted): n is a weighted sample size N* —
+// sum_weights under kind frequency, n_eff under kind probability — read
+// off a floor (pairwiseWeightedNLeg). With n_source omitted it is the
+// cell's BASE (U47 #324): the denominator normalize divided the cell by,
+// so the successes p̂·N* rest on Σw_cell/Σw_base and the base's own
+// effective size; row_margin_n / column_margin_n read the displayed
+// margin's floor. The unweighted-count modes never reach here on a
+// weighted host (refused up front, weighting.NSourceRefusal). Every
+// count mode answers an integer, exactly representable as float64, so
+// an unweighted host's kernels read the same numbers as before.
 func pairwiseSampleSize(host *CrosstabHostView, params types.PairwiseOverlayParams, basis weighting.Basis, rowScope bool, r, c int) (float64, bool) {
-	if params.NSource == "" && basis.Weighted() {
-		l, ok := host.CellFloor(r, c, basis)
+	if basis.Weighted() && pairwiseNSourceReadsNStar(params.NSource) {
+		l, _, ok := pairwiseWeightedNLeg(host, params, basis, r, c)
 		if !ok {
 			return 0, false
 		}
@@ -525,6 +530,39 @@ func pairwiseSampleSize(host *CrosstabHostView, params types.PairwiseOverlayPara
 	}
 	n, ok := pairwiseCountSampleSize(host, params, rowScope, r, c)
 	return float64(n), ok
+}
+
+// pairwiseNSourceReadsNStar reports whether an n_source on a weighted
+// host reads a floor's N* (the omitted default and the two margin
+// modes) rather than its unweighted count reading (the weight-sum
+// sources, admitted under kind frequency only).
+func pairwiseNSourceReadsNStar(nSource string) bool {
+	switch nSource {
+	case "", types.PairwiseNSourceRowMarginN, types.PairwiseNSourceColumnMarginN:
+		return true
+	}
+	return false
+}
+
+// pairwiseWeightedNLeg is the weight-only leg {basis, Σw, N*} a
+// proportion pair's n reads on a weighted host, and its identity: the
+// cell's base (n_source omitted, BaseFloor), the row / column margin
+// (row_margin_n / column_margin_n — the displayed margin's floor; a
+// hidden margin carries none and the pair skips), else the cell's own
+// floor (the weight-sum sources, whose Σw is that floor's).
+func pairwiseWeightedNLeg(host *CrosstabHostView, params types.PairwiseOverlayParams, basis weighting.Basis, r, c int) (meanLeg, nLegKey, bool) {
+	switch params.NSource {
+	case "":
+		return host.BaseFloor(r, c, basis)
+	case types.PairwiseNSourceRowMarginN:
+		l, ok := host.RowMarginFloor(r, basis)
+		return l, nLegKey{site: nLegRowMargin, a: r}, ok
+	case types.PairwiseNSourceColumnMarginN:
+		l, ok := host.ColumnMarginFloor(c, basis)
+		return l, nLegKey{site: nLegColumnMargin, a: c}, ok
+	}
+	l, ok := host.CellFloor(r, c, basis)
+	return l, nLegKey{site: nLegCell, a: r, b: c}, ok
 }
 
 // pairwiseCountSampleSize is the count reading of every n_source mode.
@@ -571,6 +609,14 @@ func pairwiseCountSampleSize(host *CrosstabHostView, params types.PairwiseOverla
 			return host.RowSlabDistinctN(r, c, prefix)
 		}
 		return host.ColumnSlabDistinctN(r, c, prefix)
+	case "":
+		// The omitted default reads the cell's BASE (U47 #324): on a
+		// normalised host the cell value is a share of its normalise
+		// denominator, so n is that denominator's count; under
+		// normalize none the cell is its own base. The weighted twin is
+		// pairwiseWeightedNLeg, so a frequency weight equals the
+		// expanded rows and a unity weight equals no weight.
+		return host.BaseN(r, c)
 	default:
 		return host.CellN(r, c)
 	}

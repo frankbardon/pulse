@@ -689,6 +689,15 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// common no-null, no-Include crosstab pays no per-record filtering.
 	rowMember, colMember := ownMarginMembership(rowPart, colPart, len(filtered))
 
+	// Normalise-denominator floors for the pairwise proportion overlays
+	// (crosstab_base_floors.go, U47 #324): collected only under a
+	// normalize mode on a run that folds overlays, and never written to
+	// the wire.
+	var baseSrc *baseFloorSource
+	if spec.NormalizeOrDefault() != types.CrosstabNormalizeNone && len(req.Overlays) > 0 && p.compute.Overlays {
+		baseSrc = &baseFloorSource{mode: spec.NormalizeOrDefault()}
+	}
+
 	var rowMargins map[string]any
 	var rowMarginPresent map[string]bool
 	var rowMarginCounts map[string]int
@@ -710,6 +719,12 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 				return nil, err
 			}
 			rowMarginCounts[rkey] = n + nNull
+			if baseSrc != nil && baseSrc.mode == types.CrosstabNormalizeRow {
+				if baseSrc.rows == nil {
+					baseSrc.rows = make(map[string]baseTally, len(rowPart.Keys))
+				}
+				baseSrc.rows[rkey] = baseTally{n: n, w: val.weight}
+			}
 			if buildComps {
 				compMap, err := buildCellComponentMap(instance, n, nNull)
 				if err != nil {
@@ -747,6 +762,12 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 				return nil, err
 			}
 			colMarginCounts[ckey] = n + nNull
+			if baseSrc != nil && baseSrc.mode == types.CrosstabNormalizeColumn {
+				if baseSrc.cols == nil {
+					baseSrc.cols = make(map[string]baseTally, len(colPart.Keys))
+				}
+				baseSrc.cols[ckey] = baseTally{n: n, w: val.weight}
+			}
 			if buildComps {
 				compMap, err := buildCellComponentMap(instance, n, nNull)
 				if err != nil {
@@ -774,6 +795,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 				return nil, err
 			}
 			grandMarginCount = n + nNull
+			if baseSrc != nil {
+				baseSrc.grand, baseSrc.grandOK = baseTally{n: n, w: val.weight}, true
+			}
 			if buildComps {
 				compMap, err := buildCellComponentMap(instance, n, nNull)
 				if err != nil {
@@ -855,10 +879,16 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			}
 			partialRowMargins = make(map[string]float64, len(partialRowPart.Keys))
 			partialRowPresent = make(map[string]bool, len(partialRowPart.Keys))
+			if baseSrc != nil {
+				baseSrc.rows = make(map[string]baseTally, len(partialRowPart.Keys))
+			}
 			for _, pkey := range partialRowPart.Keys {
 				bucket := admitRecords(partialRowPart.Records[pkey], rowMember, colMember, nil)
 				if len(bucket) == 0 {
 					continue
+				}
+				if baseSrc != nil {
+					baseSrc.rows[pkey] = bucketBaseTally(cellAgg, bucket)
 				}
 				row, err := p.aggregate([]*types.Aggregation{cellAgg}, bucket)
 				if err != nil {
@@ -871,6 +901,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 				partialRowPresent[pkey] = true
 			}
 			leafRowToPartial = buildLeafToPartial(rowPart.Keys, level)
+			if baseSrc != nil {
+				baseSrc.leafRowToPartial = leafRowToPartial
+			}
 		}
 	}
 	if mode == types.CrosstabNormalizeColumn {
@@ -887,10 +920,16 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			}
 			partialColMargins = make(map[string]float64, len(partialColPart.Keys))
 			partialColPresent = make(map[string]bool, len(partialColPart.Keys))
+			if baseSrc != nil {
+				baseSrc.cols = make(map[string]baseTally, len(partialColPart.Keys))
+			}
 			for _, pkey := range partialColPart.Keys {
 				bucket := admitRecords(partialColPart.Records[pkey], rowMember, colMember, nil)
 				if len(bucket) == 0 {
 					continue
+				}
+				if baseSrc != nil {
+					baseSrc.cols[pkey] = bucketBaseTally(cellAgg, bucket)
 				}
 				row, err := p.aggregate([]*types.Aggregation{cellAgg}, bucket)
 				if err != nil {
@@ -903,6 +942,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 				partialColPresent[pkey] = true
 			}
 			leafColToPartial = buildLeafToPartial(colPart.Keys, level)
+			if baseSrc != nil {
+				baseSrc.leafColToPartial = leafColToPartial
+			}
 		}
 	}
 
@@ -933,10 +975,20 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			return nil, err
 		}
 		crossMargins = make(map[crosstabCellKey]float64, len(joined.Keys))
+		if baseSrc != nil {
+			baseSrc.cross = make(map[crosstabCellKey]baseTally, len(joined.Keys))
+		}
 		for _, jkey := range joined.Keys {
 			bucket := admitRecords(joined.Records[jkey], rowMember, colMember, nil)
 			if len(bucket) == 0 {
 				continue
+			}
+			if baseSrc != nil {
+				parts := strings.Split(jkey, crosstabAxisKeySep)
+				baseSrc.cross[crosstabCellKey{
+					row: strings.Join(parts[:rowDepth+1], crosstabAxisKeySep),
+					col: strings.Join(parts[rowDepth+1:], crosstabAxisKeySep),
+				}] = bucketBaseTally(cellAgg, bucket)
 			}
 			row, err := p.aggregate([]*types.Aggregation{cellAgg}, bucket)
 			if err != nil {
@@ -953,6 +1005,10 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		crossLeafRowToPartial = buildLeafToPartial(rowPart.Keys, rowDepth)
 		crossLeafColToPartial = buildLeafToPartial(colPart.Keys, colDepth)
 		crossActive = true
+		if baseSrc != nil {
+			baseSrc.crossActive = true
+			baseSrc.crossRow, baseSrc.crossCol = crossLeafRowToPartial, crossLeafColToPartial
+		}
 	}
 
 	if mode != types.CrosstabNormalizeNone {
@@ -1150,7 +1206,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	//     FusedCrosstabState.Finalize returns, so an overlay-carrying
 	//     crosstab no longer forces the buffered path and both paths
 	//     emit identical Response.Overlays / Response.Warnings.
-	if err := applyOverlaysToResponse(req, resp, p.exts, p.compute); err != nil {
+	if err := applyOverlaysToResponse(req, resp, p.exts, p.compute, baseSrc.build(rowPart.Keys, colPart.Keys)); err != nil {
 		return nil, err
 	}
 	// Attribute slots' Components entries (cohort-wide; the fused arm
@@ -1197,7 +1253,11 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 // compute is the run's ComputePlan: a layer it skips (ComputesOverlay)
 // runs no handler and raises no refusal — the slab-partition gate
 // included — and no layer computed is the overlay-free exit.
-func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *ExtensionRegistry, compute ComputePlan) error {
+//
+// bases carries each host cell's normalise-denominator floor (nil when
+// the cell slot is unweighted or normalize is none) — the n leg of the
+// weighted pairwise proportion kinds (crosstab_base_floors.go).
+func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *ExtensionRegistry, compute ComputePlan, bases *crosstabBaseFloors) error {
 	if req == nil || len(req.Overlays) == 0 || !compute.Overlays {
 		return nil
 	}
@@ -1241,6 +1301,7 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 	// weight basis comes from it, not from floor-key inference (an
 	// AGG_WEIGHTED_MEAN cell emits n_eff under either kind).
 	if req.Crosstab != nil {
+		host.withNormalize(req.Crosstab.NormalizeOrDefault(), bases)
 		host.withCellWeight(req.Crosstab.Cell)
 		if req.Crosstab.Cell != nil {
 			host.cellType = req.Crosstab.Cell.Type

@@ -9,7 +9,7 @@ requires: [capability:weighting]
 ---
 # Row weighting
 
-Survey and sampled cohorts carry a per-row weight column. Name it once and every weight-aware figure counts each row as `w` rows. A request naming no weight is byte-identical to before.
+Survey and sampled cohorts carry a per-row weight column. Name it once and every weight-aware figure counts each row as `w` rows. A request naming no weight is unchanged.
 
 ## Surface
 
@@ -19,7 +19,7 @@ Survey and sampled cohorts carry a per-row weight column. Name it once and every
 | per-slot `weight` | `"wt"`, `{field, kind}` or `null` | aggregations<!-- feature: capability:crosstab --> (crosstab `cell`, `margin_aggregations[i]`)<!-- /feature -->, `tests`, `post_tests`, regressions, attributes, overlays, `groups`<!-- feature: capability:crosstab -->, crosstab axes<!-- /feature -->. Windows have none |
 | `pulse.Options.DefaultWeight` | `*types.WeightSpec` | instance default; never reaches facets; a facet overlay `weight` is refused |
 
-**`null` ≠ absent.** Absent inherits; `"weight": null` opts that ONE slot out. Compose and chain have no top-level weight. The field must be `u4`…`u64`, `f32` or `f64`; else `PROCESSING_CONFIG` (unknown name `SERVICE_VALIDATION`).
+**`null` ≠ absent.** Absent inherits; `"weight": null` opts that ONE slot out. Compose and chain have no top weight. The field must be `u4`…`u64`, `f32` or `f64`; else `PROCESSING_CONFIG` (unknown name `SERVICE_VALIDATION`).
 
 ## Kinds
 
@@ -32,7 +32,7 @@ Per slot: its own `weight` (`null` ⇒ opted out) → request `weight` → `Opti
 
 ## Invalid weights
 
-Never coerced. Zero is valid and contributes nothing. Null, negative, NaN / ±Inf and (`frequency`) non-integer weights drop the row from that slot (`n_weight_invalid`), with one `PULSE_WEIGHT_INVALID_ROWS` warning per weight column (`details.by_reason`); `--strict` makes it an error.
+Never coerced. Zero is valid, contributing nothing. Null, negative, NaN / ±Inf and (`frequency`) non-integer weights drop the row from that slot (`n_weight_invalid`), with one `PULSE_WEIGHT_INVALID_ROWS` warning per weight column (`details.by_reason`); `--strict` makes it an error.
 
 ## What honours a weight
 
@@ -60,7 +60,7 @@ Tests, regressions, CI bounds and inferential overlays use ONE rule: the unweigh
 - Frequency-only operators (rank, exact and distribution tests) equal the duplicated rows; a probability weight is refused naming the kind.
 - Unequal weighting only (weights assumed unrelated to the outcome): no strata, clusters or FPC. Probability χ² is a first-order Kish approximation, not Rao-Scott.
 <!-- feature: capability:crosstab -->
-- Overlays read each host cell's N* from its floor keys, even when only the cell's own weight set it. There `n_source` raw-count and distinct-key modes are `PROCESSING_CONFIG` — omit it. A probability host with components disabled refuses the χ² and proportion overlays.
+- Overlays read each host cell's N* from its floor keys, even when only the cell's own weight set it. Omitted, `n_source` is the N* of the cell's base (normalise denominator); raw-count and distinct-key modes are `PROCESSING_CONFIG`. A probability host with components off refuses the χ² and proportion overlays.
 <!-- /feature -->
 
 <!-- feature: capability:crosstab -->
@@ -86,7 +86,7 @@ A weighted slot's components add `sum_weights`, `n_eff` (`probability` only) and
 <!-- feature: io_format:spss -->
 ## SPSS suggestion
 
-`pulse_inspect` / `pulse_predict` report `suggested_weight {field, source: "spss_sidecar", kind: "probability"}` from `WEIGHT BY`. Never applied, name it yourself; `WEIGHT BY` replicates cases, so `kind: "frequency"` usually fits. Predict adds advisory `PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED` (`predict-advisories`).
+`pulse_inspect` / `pulse_predict` report `suggested_weight {field, source: "spss_sidecar", kind: "probability"}` from `WEIGHT BY`. Never applied; `WEIGHT BY` replicates cases, so `kind: "frequency"` usually fits. Predict adds advisory `PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED` (`predict-advisories`).
 <!-- /feature -->
 
 ## See

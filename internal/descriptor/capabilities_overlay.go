@@ -181,8 +181,12 @@ func pairwiseDescription(test string) string {
 		"index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other " +
 		"axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test " +
 		"degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts " +
-		"pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), " +
-		"cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY " +
+		"pairs to same-bucket comparisons; n_source selects the sample-size leg — omitted, the cell's BASE: the " +
+		"cell itself under normalize none, else the denominator normalize divided it by (row / column / grand " +
+		"margin, or the normalize_level / normalize_within denominator), its record count or, on a weighted host, " +
+		"its N* (sum_weights under kind frequency, Kish n_eff under probability) — or cell_n_unweighted, " +
+		"cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n (on a weighted host the displayed " +
+		"margin's N*), n_within, plus the DISTINCT-KEY " +
 		"modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell " +
 		"aggregator's distinct-key cardinality instead of a record count and are admitted only on an " +
 		"AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell " +

@@ -157,7 +157,13 @@ func (p *Processor) RunCrosstabFused(ctx context.Context, req *types.Request, it
 	// Called here rather than inside Finalize because Finalize has
 	// neither the *types.Request nor the ExtensionRegistry the fold
 	// needs; RunCrosstabFused has both.
-	if err := applyOverlaysToResponse(req, resp, p.exts, p.compute); err != nil {
+	// The per-cell normalise-denominator floors are laid out only for a
+	// run that folds overlays (crosstab_base_floors.go).
+	var bases *crosstabBaseFloors
+	if len(req.Overlays) > 0 && p.compute.Overlays {
+		bases = state.baseFloors()
+	}
+	if err := applyOverlaysToResponse(req, resp, p.exts, p.compute, bases); err != nil {
 		return nil, err
 	}
 	// Row-local attribute warnings, first and in declared order (the

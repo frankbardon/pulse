@@ -90,6 +90,14 @@ type CrosstabHostView struct {
 	// basis is inferred from the cells' floor keys (WeightBasis).
 	basis      weighting.Basis
 	basisKnown bool
+
+	// normalize is the host crosstab's applied normalize mode when the
+	// caller knows it from the request (applyOverlaysToResponse); empty
+	// otherwise (read as none). bases is each cell's normalise-
+	// denominator floor (crosstab_base_floors.go) — the base a weighted
+	// pairwise proportion leg reads its n from (BaseFloor).
+	normalize types.CrosstabNormalize
+	bases     *crosstabBaseFloors
 }
 
 // NewCrosstabHostView wraps a MatrixPayload as a host view. payload

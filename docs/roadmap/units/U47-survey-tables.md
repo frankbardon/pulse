@@ -35,7 +35,7 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#324** (Survey tables) Weighted pairwise proportion tests on a normalised crosstab use the column base: n comes from the column margin's effective n (or is derived from the normalise denominator automatically); a reference-oracle case pins it
+- [x] **#324** (Survey tables) Weighted pairwise proportion tests on a normalised crosstab use the column base: n comes from the column margin's effective n (or is derived from the normalise denominator automatically); a reference-oracle case pins it
 - [x] **#325** (Survey tables) `GROUP_SET_PER_ELEMENT` axis margins follow the cell-admission rule (a row whose set is null reaches no cell and no margin), or the rule is stated and an opt-in provided; column % is "of those asked"
 - [ ] **#326** (Survey tables) Banner tables: a crosstab takes several independent column groups side by side (Total | Gender | Age | Region) and several measures as stub rows, in one request; a Total column needs no constant field
 - [ ] **#327** (Survey tables) Significance letters: a presentation option on pairwise overlays that assigns column letters and marks, per cell, which columns it is significantly above, at a chosen alpha and correction
@@ -75,7 +75,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(survey-tables/E<n
 
 ## Acceptance criteria
 
-- [ ] The 28.6% vs 6.8% weighted comparison tests at the same p as the weighted indicator-mean method
+- [x] The 28.6% vs 6.8% weighted comparison tests at the same p as the weighted indicator-mean method
 - [ ] A raked weight reproduces the census marginals to within tolerance and reports Kish n_eff
 - [ ] The brand tracker README's Compose banners are replaced by single requests with letters
 - [ ] Showcase examples simplified where this unit allows (brand tracker (29 Compose slots, synth-computed weights, unlabelled SPSS)): requests converted, README and REPRODUCE.md expected numbers refreshed, every step still pure Pulse

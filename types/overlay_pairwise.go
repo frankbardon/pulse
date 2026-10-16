@@ -19,8 +19,13 @@ type PairwiseOverlayParams struct {
 	PairAlongDim *int `json:"pair_along_dim,omitempty"`
 
 	// NSource selects where the sample-size leg is read. One of the
-	// PairwiseNSource* constants. Empty = cell_n_unweighted. Ignored by
-	// the Welford-input kinds (welch / two-means read n from the triple).
+	// PairwiseNSource* constants. Empty reads the cell's BASE (U47 #324):
+	// under normalize none the cell itself (cell_n_unweighted, or N* on
+	// a weighted host); on a normalised host the denominator normalize
+	// divided the cell by — row / column / grand margin, or the
+	// normalize_level / normalize_within denominator — its count, or its
+	// N* on a weighted host. Ignored by the Welford-input kinds (welch /
+	// two-means read n from the triple).
 	NSource string `json:"n_source,omitempty"`
 
 	// NWithinDepth, with NSource=n_within or n_within_distinct, fixes the

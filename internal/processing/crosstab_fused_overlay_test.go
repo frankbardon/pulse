@@ -595,12 +595,23 @@ func TestFusedCrosstab_PairwisePropZOverWeightedMeanMatchesBuffered(t *testing.T
 			wantErr: errors.PROCESSING_CONFIG,
 		},
 		{
-			// A raw margin count is not a sample size on a weighted
-			// host: both arms refuse identically.
-			name: "row_scope_row_margin_n_refused",
+			// A margin mode on a weighted host reads the displayed
+			// margin's N* off its floor (U47 #324): both arms score it
+			// identically.
+			name: "row_scope_row_margin_n_weighted",
 			overlays: []types.OverlaySpec{
 				propZ(types.OverlayScopeRow, types.PairwiseOverlayParams{
 					NSource: types.PairwiseNSourceRowMarginN,
+				}),
+			},
+		},
+		{
+			// A raw cell count is not a sample size on a weighted host:
+			// both arms refuse identically.
+			name: "row_scope_cell_n_unweighted_refused",
+			overlays: []types.OverlaySpec{
+				propZ(types.OverlayScopeRow, types.PairwiseOverlayParams{
+					NSource: types.PairwiseNSourceCellNUnweighted,
 				}),
 			},
 			wantErr: errors.PROCESSING_CONFIG,

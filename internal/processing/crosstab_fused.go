@@ -244,7 +244,11 @@ type FusedCrosstabState struct {
 	// cardinality (one entry per outer-prefix slab, not one per cell)
 	// so the cost of the additional hash probe is dwarfed by the per-
 	// record cell update; kept as a map for simplicity.
-	crossMargins  map[crosstabCellKey]OnlineAggregator
+	crossMargins map[crosstabCellKey]OnlineAggregator
+	// crossBase is the cross-axis denominators' floor (present n and
+	// weighted floor), fed the same admitted records — the n leg of the
+	// pairwise proportion overlays (crosstab_base_floors.go).
+	crossBase     map[crosstabCellKey]*baseTally
 	crossActive   bool
 	crossRowDepth int
 	crossColDepth int
@@ -262,8 +266,20 @@ type FusedCrosstabState struct {
 	partialColIndex   map[string]int
 	partialColKeys    []string
 	partialColMargins []OnlineAggregator
-	rowNormLevel      int
-	colNormLevel      int
+	// partialRowBase / partialColBase are the partial-depth
+	// denominators' floors in lockstep with the accumulators above
+	// (crosstab_base_floors.go).
+	partialRowBase []baseTally
+	partialColBase []baseTally
+	// baseSrc / baseRowKeys / baseColKeys are Finalize's normalise-
+	// denominator floors and the sorted axis keys they lay out over —
+	// built into per-cell floors only when the overlay fold asks
+	// (baseFloors); nil under normalize none.
+	baseSrc      *baseFloorSource
+	baseRowKeys  []string
+	baseColKeys  []string
+	rowNormLevel int
+	colNormLevel int
 
 	// Row counters.
 	totalRows    int64
@@ -463,6 +479,7 @@ func NewFusedCrosstabState(spec *types.CrosstabSpec, schema *encoding.Schema, ex
 			st.crossRowDepth = *spec.NormalizeWithin
 		}
 		st.crossMargins = make(map[crosstabCellKey]OnlineAggregator)
+		st.crossBase = make(map[crosstabCellKey]*baseTally)
 		st.crossActive = true
 	}
 
@@ -863,6 +880,7 @@ func (s *FusedCrosstabState) internPartialRowKey(key string) (int, error) {
 		return -1, err
 	}
 	s.partialRowMargins = append(s.partialRowMargins, agg)
+	s.partialRowBase = append(s.partialRowBase, baseTally{w: NewWeightFloor(s.cellAgg)})
 	return idx, nil
 }
 
@@ -879,6 +897,7 @@ func (s *FusedCrosstabState) internPartialColKey(key string) (int, error) {
 		return -1, err
 	}
 	s.partialColMargins = append(s.partialColMargins, agg)
+	s.partialColBase = append(s.partialColBase, baseTally{w: NewWeightFloor(s.cellAgg)})
 	return idx, nil
 }
 
@@ -1065,6 +1084,7 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 			if err := s.partialRowMargins[pIdx].UpdateRow(rec, s.cellField); err != nil {
 				return err
 			}
+			s.partialRowBase[pIdx].observe(rec, s.cellAgg, cellValuePresent)
 		}
 	}
 
@@ -1117,6 +1137,7 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 			if err := s.partialColMargins[pIdx].UpdateRow(rec, s.cellField); err != nil {
 				return err
 			}
+			s.partialColBase[pIdx].observe(rec, s.cellAgg, cellValuePresent)
 		}
 	}
 
@@ -1216,6 +1237,12 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 					if err := mar.UpdateRow(rec, s.cellField); err != nil {
 						return err
 					}
+					bt := s.crossBase[ckey]
+					if bt == nil {
+						bt = &baseTally{w: NewWeightFloor(s.cellAgg)}
+						s.crossBase[ckey] = bt
+					}
+					bt.observe(rec, s.cellAgg, cellValuePresent)
 				}
 			}
 		}
@@ -1977,6 +2004,16 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 		cellValues = normalized
 	}
 
+	// Normalise-denominator floors for the overlay fold — the same
+	// denominators the pass above divided by, laid out per sorted cell
+	// on demand (crosstab_base_floors.go, U47 #324). Never written to
+	// the wire.
+	if mode != types.CrosstabNormalizeNone {
+		s.baseSrc = s.baseFloorSource(mode, leafRowToPartial, leafColToPartial,
+			crossLeafRowToPartial, crossLeafColToPartial)
+		s.baseRowKeys, s.baseColKeys = rowKeys, colKeys
+	}
+
 	// Build response. Metadata mirrors the buffered Response shape.
 	resp := &types.Response{
 		Metadata: &types.ResponseMetadata{
@@ -2099,6 +2136,71 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 	}
 
 	return resp, nil
+}
+
+// baseFloorSource collects the fused walk's normalise-denominator
+// floors keyed as the normalisation pass looks them up: the leaf margin
+// floors (or the partial-depth ones under normalize_level), the grand
+// floor, or the cross-axis floors under normalize_within.
+func (s *FusedCrosstabState) baseFloorSource(mode types.CrosstabNormalize,
+	leafRowToPartial, leafColToPartial, crossRow, crossCol map[string]string,
+) *baseFloorSource {
+	src := &baseFloorSource{mode: mode}
+	switch {
+	case s.crossActive:
+		src.crossActive = true
+		src.crossRow, src.crossCol = crossRow, crossCol
+		src.cross = make(map[crosstabCellKey]baseTally, len(s.crossBase))
+		for k, t := range s.crossBase {
+			src.cross[k] = *t
+		}
+	case mode == types.CrosstabNormalizeRow && s.partialRowIndex != nil:
+		src.rows = make(map[string]baseTally, len(s.partialRowKeys))
+		for i, k := range s.partialRowKeys {
+			src.rows[k] = s.partialRowBase[i]
+		}
+		src.leafRowToPartial = leafRowToPartial
+	case mode == types.CrosstabNormalizeRow:
+		src.rows = make(map[string]baseTally, len(s.rowKeys))
+		for i, k := range s.rowKeys {
+			if i < len(s.rowMarginCount) && s.rowMarginCount[i] > 0 {
+				src.rows[k] = baseTally{n: s.rowMarginCount[i] - s.rowMarginNNull[i], w: s.marginWeightAt(s.rowMarginWeight, i)}
+			}
+		}
+	case mode == types.CrosstabNormalizeColumn && s.partialColIndex != nil:
+		src.cols = make(map[string]baseTally, len(s.partialColKeys))
+		for i, k := range s.partialColKeys {
+			src.cols[k] = s.partialColBase[i]
+		}
+		src.leafColToPartial = leafColToPartial
+	case mode == types.CrosstabNormalizeColumn:
+		src.cols = make(map[string]baseTally, len(s.colKeys))
+		for i, k := range s.colKeys {
+			if i < len(s.colMarginCount) && s.colMarginCount[i] > 0 {
+				src.cols[k] = baseTally{n: s.colMarginCount[i] - s.colMarginNNull[i], w: s.marginWeightAt(s.colMarginWeight, i)}
+			}
+		}
+	case mode == types.CrosstabNormalizeTotal:
+		src.grand = baseTally{n: s.grandMarginCount - s.grandMarginNNull, w: s.grandMarginWeight}
+		src.grandOK = s.grandMarginCount > 0
+	}
+	return src
+}
+
+// marginWeightAt is a leaf margin's weighted floor — the inert floor
+// on an unweighted cell slot, whose margin weight slices are never
+// allocated.
+func (s *FusedCrosstabState) marginWeightAt(floors []WeightFloor, i int) WeightFloor {
+	if i < len(floors) {
+		return floors[i]
+	}
+	return NewWeightFloor(s.cellAgg)
+}
+
+// baseFloors lays Finalize's normalise-denominator floors out per
+// sorted cell (nil before Finalize or under normalize none).
+func (s *FusedCrosstabState) baseFloors() *crosstabBaseFloors {
+	return s.baseSrc.build(s.baseRowKeys, s.baseColKeys)
 }
 
 // axisComponents captures the per-axis-position MetaGrouper.Components()

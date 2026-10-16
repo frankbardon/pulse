@@ -361,8 +361,8 @@ this release a host weighted only by its own slot weight ran these
 overlays on raw row counts, which gave standard errors that were too
 small; that was a bug and is fixed. On a weighted host the pairwise
 Welch t refuses an `n_source` that reads raw row counts
-(`cell_n_unweighted`, `row_margin_n`, `column_margin_n`), and
-`cell_weight_sum` under `probability`, with `PROCESSING_CONFIG`.
+(`cell_n_unweighted`), and `cell_weight_sum` under `probability`, with
+`PROCESSING_CONFIG`.
 
 The χ² and proportion overlays also run weighted under both kinds. A
 weighted host's cells and margins are weight sums (Σw). Under
@@ -380,7 +380,17 @@ low-expected-count warning reads the scaled table. The proportion
 overlays read p̂ = Σw of the successes over Σw of the base, with the
 base's n_eff (or Σw under `frequency`) as the sample size, never the
 payload's Σw under `probability`. On a weighted host the pairwise
-proportion z omits `n_source` to read that sample size. Every
+proportion z and probit t omit `n_source` to read that sample size,
+and the base is the one the cell's share is of: the column margin
+under `normalize: column`, the row margin under `row`, the grand total
+under `total`, and the partial-depth denominator under
+`normalize_level` / `normalize_within`. Under `normalize: none` the
+cell is its own base. An unweighted host reads the same base's record
+count, so frequency weights still equal the expanded rows. Before U47
+the omitted `n_source` read the cell's own sample size, so a column
+percentage was tested against a fraction of its column and p-values
+came out far too large. `row_margin_n` / `column_margin_n` read a
+displayed margin's Σw or n_eff. Every
 unweighted count (raw rows, `n_within`, the distinct-key modes) is
 refused with `PROCESSING_CONFIG`, and `cell_weight_sum` /
 `cell_value_weighted` are accepted under `frequency` only. This is a
