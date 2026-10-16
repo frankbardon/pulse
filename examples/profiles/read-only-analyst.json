@@ -15,6 +15,7 @@
     "capability:sample",
     "capability:joins",
     "capability:crosstab",
+    "capability:crosstab_cells",
     "capability:lookup",
     "capability:templates",
     "capability:labels",

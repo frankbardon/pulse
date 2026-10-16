@@ -1604,6 +1604,20 @@ const (
 	// so the second figure would overwrite the first.
 	PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL Code = "PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL"
 
+	// PULSE_CROSSTAB_CELLS_INVALID indicates a structural defect in the
+	// multi-measure Crosstab.Cells slot: Cell and Cells both set, a null
+	// entry, or an entry with no aggregation type that smart defaults
+	// could not infer. Refused rather than dropped — skipping a measure
+	// would return a table with a requested stub row missing.
+	PULSE_CROSSTAB_CELLS_INVALID Code = "PULSE_CROSSTAB_CELLS_INVALID"
+
+	// PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL indicates two Crosstab.Cells
+	// entries resolve to the same effective label (Label when set,
+	// otherwise TYPE_field). Each measure is addressed by its label on
+	// every row key, CellLabels entry and Measures entry, so the two
+	// stub rows would be indistinguishable.
+	PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL Code = "PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL"
+
 	// PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED indicates margin_aggregations
 	// were declared on a Crosstab section that DISPLAYS no margin
 	// (margins.rows / .columns / .grand all false). Auxiliary
@@ -3938,6 +3952,8 @@ var allCodes = []Code{
 	PULSE_CROSSTAB_MARGIN_AGG_INVALID,
 	PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL,
 	PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED,
+	PULSE_CROSSTAB_CELLS_INVALID,
+	PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL,
 	PULSE_REQUEST_UNKNOWN_FIELD,
 	PULSE_OVERLAY_KIND_UNKNOWN,
 	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,

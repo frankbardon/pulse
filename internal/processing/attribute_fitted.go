@@ -818,6 +818,15 @@ func ResolveAggregationInputs(req *types.Request, schema *encoding.Schema, exts 
 		if ct.Cell != nil {
 			cc.Cell = rewrite(ct.Cell)
 		}
+		if ct.Cells != nil {
+			cc.Cells = make([]*types.Aggregation, len(ct.Cells))
+			for i, a := range ct.Cells {
+				cc.Cells[i] = a
+				if a != nil {
+					cc.Cells[i] = rewrite(a)
+				}
+			}
+		}
 		if len(ct.MarginAggregations) > 0 {
 			cc.MarginAggregations = make([]*types.Aggregation, len(ct.MarginAggregations))
 			for i, a := range ct.MarginAggregations {

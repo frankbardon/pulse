@@ -357,7 +357,11 @@ func (c *paramsChecker) request(req *types.Request) *errors.CodedError {
 		if ce := c.groups("crosstab.columns", ct.Columns); ce != nil {
 			return ce
 		}
-		if ct.Cell != nil {
+		if ct.HasMeasures() {
+			if ce := c.aggregations("crosstab.cells", ct.Cells); ce != nil {
+				return ce
+			}
+		} else if ct.Cell != nil {
 			if ce := c.check("crosstab.cell", -1, paramread.Aggregator, string(ct.Cell.Type), ct.Cell.Params); ce != nil {
 				return ce
 			}

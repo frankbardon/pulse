@@ -342,7 +342,9 @@ func measureLevelAdvisories(req *types.Request, cohort *encoding.Schema, measure
 		aggSlot("aggregations["+strconv.Itoa(i)+"]", a)
 	}
 	if req.Crosstab != nil {
-		aggSlot("crosstab.cell", req.Crosstab.Cell)
+		for i, cell := range req.Crosstab.CellAggregations() {
+			aggSlot(req.Crosstab.CellSlotPath(i), cell)
+		}
 		for i, a := range req.Crosstab.MarginAggregations {
 			aggSlot("crosstab.margin_aggregations["+strconv.Itoa(i)+"]", a)
 		}

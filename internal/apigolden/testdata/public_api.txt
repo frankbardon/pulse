@@ -1206,6 +1206,7 @@ pulse/descriptor: type ComponentsSchemasBlock field Groupers map[string]pulse/de
 pulse/descriptor: type ComponentsSchemasBlock field Matrices map[string]pulse/descriptor.ComponentSchema "json:\"matrices,omitempty\""
 pulse/descriptor: type CrosstabCapability struct
 pulse/descriptor: type CrosstabCapability field ArrayValuedAggregators []string "json:\"array_valued_aggregators,omitempty\""
+pulse/descriptor: type CrosstabCapability field CellsRules []string "json:\"cells_rules,omitempty\""
 pulse/descriptor: type CrosstabCapability field IndependentAggregators []string "json:\"independent_aggregators\""
 pulse/descriptor: type CrosstabCapability field MapValuedCellAggregators []string "json:\"map_valued_cell_aggregators\""
 pulse/descriptor: type CrosstabCapability field MarginAggregationRules []string "json:\"margin_aggregation_rules\""
@@ -1219,6 +1220,7 @@ pulse/descriptor: type CrosstabCapability field RejectionRules []string "json:\"
 pulse/descriptor: type CrosstabCapability field Shapes []string "json:\"shapes\""
 pulse/descriptor: type CrosstabCapability field StreamingExceptions []string "json:\"streaming_exceptions\""
 pulse/descriptor: type CrosstabCapability field SummableAggregators []string "json:\"summable_aggregators\""
+pulse/descriptor: type CrosstabCapability field SupportsCells bool "json:\"supports_cells\""
 pulse/descriptor: type CrosstabCapability field SupportsMarginAggregations bool "json:\"supports_margin_aggregations\""
 pulse/descriptor: type CrosstabCapability field SupportsNormalizeLevel bool "json:\"supports_normalize_level\""
 pulse/descriptor: type CrosstabCapability field SupportsNormalizeWithin bool "json:\"supports_normalize_within\""
@@ -2308,6 +2310,8 @@ pulse/errors: const PULSE_CHAIN_STAGE_JOIN pulse/errors.Code = "PULSE_CHAIN_STAG
 pulse/errors: const PULSE_COHORT_COMPRESSED pulse/errors.Code = "PULSE_COHORT_COMPRESSED"
 pulse/errors: const PULSE_COMPOSE_LABEL_COLLISION pulse/errors.Code = "PULSE_COMPOSE_LABEL_COLLISION"
 pulse/errors: const PULSE_CROSSTAB_AGG_UNCLASSIFIED pulse/errors.Code = "PULSE_CROSSTAB_AGG_UNCLASSIFIED"
+pulse/errors: const PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL pulse/errors.Code = "PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL"
+pulse/errors: const PULSE_CROSSTAB_CELLS_INVALID pulse/errors.Code = "PULSE_CROSSTAB_CELLS_INVALID"
 pulse/errors: const PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS pulse/errors.Code = "PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS"
 pulse/errors: const PULSE_CROSSTAB_EMPTY_COLUMNS pulse/errors.Code = "PULSE_CROSSTAB_EMPTY_COLUMNS"
 pulse/errors: const PULSE_CROSSTAB_EMPTY_ROWS pulse/errors.Code = "PULSE_CROSSTAB_EMPTY_ROWS"
@@ -4292,6 +4296,15 @@ pulse/types: type AxisHeader field Types []string "json:\"types\""
 pulse/types: type AxisKey []any
 pulse/types: func AxisTypes(axis []*pulse/types.Group) []string
 pulse/types: func CanonicalHash(tag string, v any) string
+pulse/types: type CellsFault struct
+pulse/types: type CellsFault field Details map[string]any
+pulse/types: type CellsFault field Kind pulse/types.CellsFaultKind
+pulse/types: type CellsFault field Message string
+pulse/types: const CellsFaultBothSet pulse/types.CellsFaultKind = "both_set"
+pulse/types: const CellsFaultDuplicateLabel pulse/types.CellsFaultKind = "duplicate_label"
+pulse/types: type CellsFaultKind string
+pulse/types: const CellsFaultMissingType pulse/types.CellsFaultKind = "missing_type"
+pulse/types: const CellsFaultNilEntry pulse/types.CellsFaultKind = "nil_entry"
 pulse/types: type ChainOverlaySpec struct
 pulse/types: type ChainOverlaySpec field Kind pulse/types.OverlayKind "json:\"kind\""
 pulse/types: type ChainOverlaySpec field Name string "json:\"name,omitempty\""
@@ -4378,6 +4391,7 @@ pulse/types: type CrosstabComponents field GrandTotalAggregations map[string]pul
 pulse/types: type CrosstabComponents field GrandTotalComponents map[string]any "json:\"grand_total_components,omitempty\""
 pulse/types: type CrosstabComponents field GrandTotalCount int "json:\"grand_total_count,omitempty\""
 pulse/types: type CrosstabComponents field IncludedRecords int "json:\"included_records,omitempty\""
+pulse/types: type CrosstabComponents field Measures []pulse/types.CrosstabMeasureComponents "json:\"measures,omitempty\""
 pulse/types: type CrosstabComponents field RowKeyComponents []map[string]any "json:\"row_key_components,omitempty\""
 pulse/types: type CrosstabComponents field RowMarginAggregations []map[string]pulse/types.MarginAggregationFigure "json:\"row_margin_aggregations,omitempty\""
 pulse/types: type CrosstabComponents field RowMarginComponents []map[string]any "json:\"row_margin_components,omitempty\""
@@ -4387,6 +4401,20 @@ pulse/types: type CrosstabMargins struct
 pulse/types: type CrosstabMargins field Columns bool "json:\"columns,omitempty\""
 pulse/types: type CrosstabMargins field Grand bool "json:\"grand,omitempty\""
 pulse/types: type CrosstabMargins field Rows bool "json:\"rows,omitempty\""
+pulse/types: type CrosstabMeasureComponents struct
+pulse/types: type CrosstabMeasureComponents field ColumnMarginAggregations []map[string]pulse/types.MarginAggregationFigure "json:\"column_margin_aggregations,omitempty\""
+pulse/types: type CrosstabMeasureComponents field ColumnMarginComponents []map[string]any "json:\"column_margin_components,omitempty\""
+pulse/types: type CrosstabMeasureComponents field ColumnMarginCounts []int "json:\"column_margin_counts,omitempty\""
+pulse/types: type CrosstabMeasureComponents field GrandTotalAggregations map[string]pulse/types.MarginAggregationFigure "json:\"grand_total_aggregations,omitempty\""
+pulse/types: type CrosstabMeasureComponents field GrandTotalComponents map[string]any "json:\"grand_total_components,omitempty\""
+pulse/types: type CrosstabMeasureComponents field GrandTotalCount int "json:\"grand_total_count,omitempty\""
+pulse/types: type CrosstabMeasureComponents field Label string "json:\"label\""
+pulse/types: const CrosstabMeasureField untyped string = "_measure"
+pulse/types: type CrosstabMeasureMargins struct
+pulse/types: type CrosstabMeasureMargins field ColumnMargins []pulse/types.MatrixCell "json:\"column_margins,omitempty\""
+pulse/types: type CrosstabMeasureMargins field GrandTotal pulse/types.MatrixCell "json:\"grand_total\""
+pulse/types: type CrosstabMeasureMargins field Label string "json:\"label\""
+pulse/types: const CrosstabMeasureType untyped string = "MEASURE"
 pulse/types: type CrosstabNormalize string
 pulse/types: const CrosstabNormalizeColumn pulse/types.CrosstabNormalize = "column"
 pulse/types: const CrosstabNormalizeNone pulse/types.CrosstabNormalize = "none"
@@ -4400,7 +4428,8 @@ pulse/types: type CrosstabShape string
 pulse/types: const CrosstabShapeLong pulse/types.CrosstabShape = "long"
 pulse/types: const CrosstabShapeMatrix pulse/types.CrosstabShape = "matrix"
 pulse/types: type CrosstabSpec struct
-pulse/types: type CrosstabSpec field Cell *pulse/types.Aggregation "json:\"cell\""
+pulse/types: type CrosstabSpec field Cell *pulse/types.Aggregation "json:\"cell,omitempty\""
+pulse/types: type CrosstabSpec field Cells []*pulse/types.Aggregation "json:\"cells,omitempty\""
 pulse/types: type CrosstabSpec field Columns []*pulse/types.Group "json:\"columns,omitempty\""
 pulse/types: type CrosstabSpec field MarginAggregations []*pulse/types.Aggregation "json:\"margin_aggregations,omitempty\""
 pulse/types: type CrosstabSpec field Margins pulse/types.CrosstabMargins "json:\"margins,omitzero\""
@@ -4409,10 +4438,14 @@ pulse/types: type CrosstabSpec field NormalizeLevel *int "json:\"normalize_level
 pulse/types: type CrosstabSpec field NormalizeWithin *int "json:\"normalize_within,omitempty\""
 pulse/types: type CrosstabSpec field Rows []*pulse/types.Group "json:\"rows\""
 pulse/types: type CrosstabSpec field Shape pulse/types.CrosstabShape "json:\"shape,omitempty\""
+pulse/types: type CrosstabSpec method (*CrosstabSpec) CellAggregations() []*pulse/types.Aggregation
 pulse/types: type CrosstabSpec method (*CrosstabSpec) CellLabel() string
+pulse/types: type CrosstabSpec method (*CrosstabSpec) CellSlotPath(i int) string
+pulse/types: type CrosstabSpec method (*CrosstabSpec) CellsFaults() []pulse/types.CellsFault
 pulse/types: type CrosstabSpec method (*CrosstabSpec) ColumnHeader() pulse/types.AxisHeader
 pulse/types: type CrosstabSpec method (*CrosstabSpec) HasImplicitTotalColumn() bool
 pulse/types: type CrosstabSpec method (*CrosstabSpec) HasMarginAggregations() bool
+pulse/types: type CrosstabSpec method (*CrosstabSpec) HasMeasures() bool
 pulse/types: type CrosstabSpec method (*CrosstabSpec) IsBuffered() bool
 pulse/types: type CrosstabSpec method (*CrosstabSpec) LowerColumnsOnly(src *pulse/types.Request) *pulse/types.Request
 pulse/types: type CrosstabSpec method (*CrosstabSpec) LowerGrandOnly(src *pulse/types.Request) *pulse/types.Request
@@ -4421,6 +4454,9 @@ pulse/types: type CrosstabSpec method (*CrosstabSpec) LowerToGroupedRequest(src 
 pulse/types: type CrosstabSpec method (*CrosstabSpec) MarginAggregationFaults() []pulse/types.MarginAggregationFault
 pulse/types: type CrosstabSpec method (*CrosstabSpec) MarginAggregationLabels() []string
 pulse/types: type CrosstabSpec method (*CrosstabSpec) MarginAggregationsObserved() bool
+pulse/types: type CrosstabSpec method (*CrosstabSpec) MeasureLabels() []string
+pulse/types: type CrosstabSpec method (*CrosstabSpec) MeasureRowHeader() pulse/types.AxisHeader
+pulse/types: type CrosstabSpec method (*CrosstabSpec) MeasureSpec(i int) *pulse/types.CrosstabSpec
 pulse/types: type CrosstabSpec method (*CrosstabSpec) NeedsColumnMargin() bool
 pulse/types: type CrosstabSpec method (*CrosstabSpec) NeedsGrandMargin() bool
 pulse/types: type CrosstabSpec method (*CrosstabSpec) NeedsRowMargin() bool
@@ -4722,11 +4758,13 @@ pulse/types: type MatrixPair field R float64 "json:\"r\""
 pulse/types: type MatrixPair field Row string "json:\"row\""
 pulse/types: type MatrixPayload struct
 pulse/types: type MatrixPayload field CellLabel string "json:\"cell_label\""
+pulse/types: type MatrixPayload field CellLabels []string "json:\"cell_labels,omitempty\""
 pulse/types: type MatrixPayload field Cells [][]pulse/types.MatrixCell "json:\"cells\""
 pulse/types: type MatrixPayload field ColumnHeader pulse/types.AxisHeader "json:\"column_header\""
 pulse/types: type MatrixPayload field ColumnKeys []pulse/types.AxisKey "json:\"column_keys\""
 pulse/types: type MatrixPayload field ColumnMargins []pulse/types.MatrixCell "json:\"column_margins,omitempty\""
 pulse/types: type MatrixPayload field GrandTotal pulse/types.MatrixCell "json:\"grand_total\""
+pulse/types: type MatrixPayload field Measures []pulse/types.CrosstabMeasureMargins "json:\"measures,omitempty\""
 pulse/types: type MatrixPayload field NormalizeApplied pulse/types.CrosstabNormalize "json:\"normalize_applied\""
 pulse/types: type MatrixPayload field RowHeader pulse/types.AxisHeader "json:\"row_header\""
 pulse/types: type MatrixPayload field RowKeys []pulse/types.AxisKey "json:\"row_keys\""
@@ -5344,4 +5382,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 8939389804f7680184025e058b8547a015b592567257f3f5942763e842661fb0
+// golden-hash: d6ebe6ab121e8de51a96c726e8cd9162953d6fb02d5aea4a03560f22924c2361

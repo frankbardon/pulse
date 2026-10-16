@@ -186,6 +186,11 @@ func (in returnSizeInputs) dataRows() (int64, string, bool) {
 func (in returnSizeInputs) crosstabCells() (rows, cols int64, ok bool) {
 	r, rok := crosstabAxisEstimate(in.req.Crosstab.Rows, in.schema, in.inst, -1)
 	c, cok := crosstabAxisEstimate(in.req.Crosstab.Columns, in.schema, in.inst, -1)
+	// A multi-measure crosstab folds one payload row per (row key,
+	// measure).
+	if n := len(in.req.Crosstab.Cells); n > 0 {
+		r *= int64(n)
+	}
 	return r, c, rok && cok
 }
 

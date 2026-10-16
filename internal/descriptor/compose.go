@@ -584,6 +584,13 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 			}
 		}
 	}
+	// Gate 2a: a slot the overlay reads is a multi-measure crosstab
+	// (crosstab.cells) — the runtime's first check in
+	// Service.applyComposeOverlays, over the same raw slots.
+	if merr := composeOverlayMeasureSlotRefusal(specIdx, spec, req.Requests, labels, opts.instance()); merr != nil {
+		addCodedError(env, merr)
+		return
+	}
 	var defaultWeight *types.WeightSpec
 	if opts != nil {
 		defaultWeight = opts.DefaultWeight

@@ -106,7 +106,9 @@ func validateFieldAcceptance(env *descriptor.Envelope, req *types.Request, schem
 		for _, g := range ct.Columns {
 			group(g)
 		}
-		agg(ct.Cell)
+		for _, cell := range ct.CellAggregations() {
+			agg(cell)
+		}
 		for _, a := range ct.MarginAggregations {
 			agg(a)
 		}

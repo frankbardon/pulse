@@ -94,6 +94,11 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 			continue
 		}
 		n, basis := overlayPValueCount(routed, spec.Scope, rows, cols)
+		// A multi-measure crosstab runs a pairwise kind once per measure
+		// (the only kinds it runs): M times the single-measure count.
+		if m := len(req.Crosstab.MeasureLabels()); m > 0 && basis == descriptor.PValueBasisDictionary {
+			n *= m
+		}
 		add(n, basis, member(overlays, i))
 	}
 	// A matrix under params.inference (set, or implied by its own

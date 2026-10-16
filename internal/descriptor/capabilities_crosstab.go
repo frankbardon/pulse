@@ -30,7 +30,7 @@ func crosstabCapability() descriptor.CrosstabCapability {
 		},
 		RejectionRules: []string{
 			"crosstab requires at least one grouper in rows (PULSE_CROSSTAB_EMPTY_ROWS)",
-			"crosstab requires a cell aggregation (PULSE_CROSSTAB_MISSING_CELL)",
+			"crosstab requires a cell aggregation — cell, or several measures in cells (PULSE_CROSSTAB_MISSING_CELL)",
 			"crosstab cannot coexist with top-level groups or aggregations (PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS)",
 			"matrix shape, any margin, or any normalization forces the buffered path",
 		},
@@ -52,6 +52,16 @@ func crosstabCapability() descriptor.CrosstabCapability {
 			"margin_aggregations effective labels (label, else TYPE_field) must be unique across the slot and distinct from the cell's (PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL)",
 			"auxiliary figures are emitted only where the margin is DISPLAYED (margins.rows / margins.columns / margins.grand), matching the emission rule the cell aggregator's own margin counts and components follow; declaring margin_aggregations on a section that displays no margin computes them into nowhere — advisory warning, not a refusal (PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED) — and a normalize direction does not satisfy it, because the margin it requires is a denominator and an auxiliary is never a denominator",
 		},
+	}
+	cap.SupportsCells = true
+	cap.CellsRules = []string{
+		"cell and cells are mutually exclusive; a null cells entry, or one with no aggregation type smart defaults can infer, is refused (PULSE_CROSSTAB_CELLS_INVALID)",
+		"cells effective labels (label, else TYPE_field) must be unique (PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL), and distinct from every margin_aggregations label (PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL)",
+		"each measure runs exactly as a single-cell crosstab would — its own cells, margins, normalize denominators, auxiliary margins and components; nothing is pooled across measures",
+		"the matrix row axis gains an innermost MEASURE position (row_header field _measure, type MEASURE): spec row r becomes len(cells) rows, row key + measure label, measures in declaration order; matrix.cell_labels names each row's measure and cell_label is empty",
+		"column margins and the grand total are per measure: matrix.measures[m] {label, column_margins, grand_total} and components.crosstab.measures[m]; the single-measure column_margins / grand_total slots stay empty",
+		"shape=long emits each measure's rows in declaration order, every row stamped _measure",
+		"only OVERLAY_PAIRWISE_* overlays run on a multi-measure crosstab, once per measure (pairs never cross measures); every other request overlay, and any Compose overlay reading such a slot, is refused (PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE)",
 	}
 	cap.RejectionRules = append(cap.RejectionRules,
 		"map-valued cell aggregators (AGG_SET_FREQUENCY) cannot pair with normalize=row/column/total (PULSE_CROSSTAB_NORMALIZE_MAP_VALUED)",

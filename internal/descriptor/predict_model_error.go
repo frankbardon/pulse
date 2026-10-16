@@ -57,7 +57,9 @@ func validateModelErrorAggs(env *descriptor.Envelope, req *types.Request, schema
 		check(agg)
 	}
 	if req.Crosstab != nil {
-		check(req.Crosstab.Cell)
+		for _, cell := range req.Crosstab.CellAggregations() {
+			check(cell)
+		}
 		for _, agg := range req.Crosstab.MarginAggregations {
 			check(agg)
 		}

@@ -286,9 +286,7 @@ func estimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceS
 		} else {
 			mi.Cells = records
 		}
-		if req.Crosstab.Cell != nil {
-			aggs = append(append([]*types.Aggregation(nil), aggs...), req.Crosstab.Cell)
-		}
+		aggs = append(append([]*types.Aggregation(nil), aggs...), req.Crosstab.CellAggregations()...)
 		aggs = append(append([]*types.Aggregation(nil), aggs...), req.Crosstab.MarginAggregations...)
 	}
 	mi.Aggregations = int64(len(aggs))

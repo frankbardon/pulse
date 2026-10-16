@@ -2451,6 +2451,28 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_CROSSTAB_CELLS_INVALID: {
+		Message: "The Crosstab.Cells slot is malformed: Cell and Cells are both set, an entry is null, or an entry has no aggregation type and smart defaults could not infer one from its field. Cells is the multi-measure form of Cell — each entry is one measure, rendered as a stub row.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "Cells", "*", "Type"},
+				Hint:     "Give every Cells entry an aggregation Type (or a field whose schema type infers one), drop null entries, and set either Cell (one measure) or Cells (several), never both.",
+				Examples: []any{"AGG_AVERAGE", "AGG_COUNT", "AGG_SUM"},
+			},
+		},
+	},
+	PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL: {
+		Message: "Two Crosstab.Cells entries resolve to the same effective label (Label when set, otherwise TYPE_field). Each measure is addressed by its label on every row key, so the two stub rows would be indistinguishable.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "Cells", "*", "Label"},
+				Hint:     "Set an explicit, distinct Label on each Cells entry; two entries of the same type over the same field need one.",
+				Examples: []any{"mean_score", "top2_share"},
+			},
+		},
+	},
 	PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED: {
 		Message: "margin_aggregations were declared on a Crosstab section that displays no margin (margins.rows / margins.columns / margins.grand are all false). Auxiliary aggregations are evaluated into the row / column / grand margin accumulators only, and are emitted only where that margin is displayed, so nothing carries them back. A normalize direction does not carry them either: the margin it requires is a normalization denominator, and an auxiliary is never a denominator. The request is legal and runs; the figures are accumulated and then discarded.",
 		Fixups: []Fixup{

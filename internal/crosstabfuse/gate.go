@@ -145,9 +145,18 @@ func Decide(req *types.Request, schema *encoding.Schema, facts Facts) (bool, []s
 	var reasons []string
 	decline := func(r string) { reasons = append(reasons, r) }
 
-	if cell := req.Crosstab.Cell; cell == nil {
+	// Every measure of a multi-measure crosstab (Cells) runs its own
+	// fused accumulators in lockstep, so each one must fuse on its own.
+	cells := req.Crosstab.CellAggregations()
+	if len(cells) == 0 {
 		decline("missing cell aggregator")
-	} else {
+	}
+	for _, cell := range cells {
+		if cell == nil || (req.Crosstab.HasMeasures() && cell.Type == "") {
+			// Structurally malformed (Cells entry): validateCrosstabSpec
+			// refuses it with a coded error on either path.
+			continue
+		}
 		cellOK := true
 		if !facts.AggregatorMergeable(cell.Type) {
 			decline(fmt.Sprintf("non-mergeable cell aggregator (%s)", cell.Type))
@@ -258,8 +267,10 @@ func unintrospectable(req *types.Request, facts Facts, decline func(string)) {
 			check("aggregator", string(a.Type))
 		}
 	}
-	if req.Crosstab.Cell != nil {
-		check("aggregator", string(req.Crosstab.Cell.Type))
+	for _, cell := range req.Crosstab.CellAggregations() {
+		if cell != nil {
+			check("aggregator", string(cell.Type))
+		}
 	}
 	for _, a := range req.Attributes {
 		if a != nil {

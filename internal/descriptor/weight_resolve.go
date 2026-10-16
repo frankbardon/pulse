@@ -411,8 +411,10 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 		}
 	}
 	if ct := req.Crosstab; ct != nil {
-		if ct.Cell != nil {
-			addAgg("crosstab.cell", ct.Cell)
+		for i, cell := range ct.CellAggregations() {
+			if cell != nil {
+				addAgg(ct.CellSlotPath(i), cell)
+			}
 		}
 		for i, a := range ct.MarginAggregations {
 			if a != nil {

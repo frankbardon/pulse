@@ -173,6 +173,18 @@ holding every record whose row key resolved — a Total column with no
 constant field behind it. Additive: a request that declares columns
 marshals and runs byte-identically.
 
+`crosstab.cell` is optional too: a crosstab names its cell aggregation
+either as `cell` or as several measures in `cells` (an array of
+`Aggregation`, mutually exclusive with `cell` — predict refuses both, or
+neither, since the schema cannot say "exactly one"). Each measure
+becomes a stub row under every row key: `row_header` gains the
+`_measure` / `MEASURE` position, `matrix.cell_labels[i]` names row i's
+measure, and the per-measure column margins and grand total move to
+`matrix.measures[]` (`CrosstabMeasureMargins`) and
+`components.crosstab.measures[]` (`CrosstabMeasureComponents`). All three
+result slots are optional and absent on a single-`cell` crosstab, so a
+`cell` request is byte-identical; `format_version` stays `"1.1"`.
+
 ## Time-zone slots
 
 Two additive, optional string slots name a time zone (`format_version`

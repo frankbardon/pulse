@@ -389,6 +389,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE:       own(featCrosstab),
 	errors.PULSE_CROSSTAB_MARGIN_AGG_INVALID:                  own(featCrosstab),
 	errors.PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL:          own(featCrosstab),
+	errors.PULSE_CROSSTAB_CELLS_INVALID:                       own(featCrosstabCells),
+	errors.PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL:               own(featCrosstabCells),
 	errors.PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED:               own(featCrosstab),
 
 	// The hidden-slot refusal itself.

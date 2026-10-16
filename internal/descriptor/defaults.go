@@ -93,6 +93,9 @@ const defaultDateComponent = "day"
 // DefaultApplied entry per change made. Mutates req in place.
 //
 // Rules:
+//   - The crosstab cell — and each measure of a multi-measure
+//     crosstab.cells — is an aggregation slot and defaults like one
+//     (Path ["Crosstab", "Cell" | "Cells", i, "Type"]).
 //   - Defaults never override an explicit Type.
 //   - Defaults never cross categories (a missing aggregator does not
 //     insert a grouper, and vice versa).
@@ -160,6 +163,39 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema, inst *Instance
 			Category: "grouper",
 			Reason:   f.Type.String() + " → " + string(rule.Group) + " (rule: " + rule.FamilyTag + ")",
 		})
+	}
+
+	// The crosstab cell aggregations — the single Cell, or each measure
+	// of a multi-measure Cells — default exactly as a top-level
+	// aggregation does: a field but no Type takes the field type's rule.
+	if ct := req.Crosstab; ct != nil {
+		cellPath := func(i int) []string {
+			if ct.HasMeasures() {
+				return []string{"Crosstab", "Cells", strconv.Itoa(i), "Type"}
+			}
+			return []string{"Crosstab", "Cell", "Type"}
+		}
+		for i, agg := range ct.CellAggregations() {
+			if agg == nil || agg.Type != "" || agg.Field == "" {
+				continue
+			}
+			f := schema.Field(agg.Field)
+			if f == nil {
+				continue
+			}
+			rule, ok := defaultRules[f.Type]
+			if !ok || rule.Agg == "" || inst.Hidden(string(rule.Agg)) {
+				continue
+			}
+			agg.Type = rule.Agg
+			applied = append(applied, descriptor.DefaultApplied{
+				Path:     cellPath(i),
+				Field:    agg.Field,
+				Type:     string(rule.Agg),
+				Category: "aggregation",
+				Reason:   f.Type.String() + " → " + string(rule.Agg) + " (rule: " + rule.FamilyTag + ")",
+			})
+		}
 	}
 
 	applied = append(applied, resolveMetricDefaults(req, schema, inst)...)
@@ -313,6 +349,25 @@ func cloneRequestForDefaults(req *types.Request) *types.Request {
 			ac := *a
 			clone.Aggregations[i] = &ac
 		}
+	}
+	// The crosstab cell aggregations default in place too: copy the
+	// spec and every cell so the caller's request is untouched.
+	if req.Crosstab != nil {
+		ct := *req.Crosstab
+		if ct.Cell != nil {
+			cc := *ct.Cell
+			ct.Cell = &cc
+		}
+		if ct.Cells != nil {
+			ct.Cells = make([]*types.Aggregation, len(req.Crosstab.Cells))
+			for i, a := range req.Crosstab.Cells {
+				if a != nil {
+					ac := *a
+					ct.Cells[i] = &ac
+				}
+			}
+		}
+		clone.Crosstab = &ct
 	}
 	if len(req.Groups) > 0 {
 		clone.Groups = make([]*types.Group, len(req.Groups))

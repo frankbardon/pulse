@@ -80,8 +80,9 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		"capability:stream":         {{"capability:process"}},
 		"capability:watch":          {{"capability:process"}},
 		"capability:filter_to_file": {{"capability:process"}, {"FILTER_EXPRESSION"}},
-		"capability:materialize":    {{"capability:process"}}, // runs Process's pre-flight and record pipeline
-		"capability:compose_sweep":  {{"capability:compose"}}, // a sweep expands into Compose slots
+		"capability:materialize":    {{"capability:process"}},  // runs Process's pre-flight and record pipeline
+		"capability:compose_sweep":  {{"capability:compose"}},  // a sweep expands into Compose slots
+		"capability:crosstab_cells": {{"capability:crosstab"}}, // the measures are a crosstab's cells
 		// fits run before Compose slots, and a fit is one regression
 		"capability:compose_fits": {{"capability:compose"}, {"ATTR_FACTOR_SCORE", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "REG_BAYES_LINEAR", "REG_GLM", "REG_OLS", "capability:matrices"}},
 		// a save writes a fitted regression, from any request host

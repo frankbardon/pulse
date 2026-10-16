@@ -58,7 +58,7 @@ CLI commands map 1:1 to manifest commands: `process`, `compose`, `sample`, `face
 
 ### Naming
 
-- Pulse-native identifiers. No predecessor references (`TestNoOrbitPrefix`, `TestNoOrbitPrefixes`).
+- Pulse-native identifiers. No predecessor references.
 - Module path: `github.com/frankbardon/pulse`. The public `io` package is imported as `pio "..."`.
 - Component types: SCREAMING_SNAKE — `AGG_COUNT`, `ATTR_ZSCORE`, `FILTER_INCLUDE`, `GROUP_CATEGORY`, `WIN_LAG`, `FEAT_LOG`, `TEST_T`.
 - Error codes: DOMAIN_CATEGORY — `ENCODING_INVALID`, `PROCESSING_CONFIG`, `SERVICE_VALIDATION`, `DATA_FILE`, `CLI_INPUT`, `PULSE_IMPORT_ROW_ERROR`.
@@ -119,7 +119,7 @@ Every `Response` carries an optional `Components *ResponseComponents` (additive 
 
 - `Aggregations []AggregationComponents` — one entry per aggregator slot; universal floor `{n, n_null}` + operator-specific `Operator map[string]any` keyed by the manifest schema. Grouped: cohort-wide floor + per-row `Groups` (reference).
 - `Groupers []GrouperComponents` — universal floor `{total_n, n_null}` + operator-specific bucket layout.
-- `Crosstab *CrosstabComponents` — `CellCounts[r][c]`, `CellComponents[r][c]`, row/column/grand-total margin counterparts, axis-key components. Mirrors `MatrixPayload` coordinate-for-coordinate. Auxiliary `crosstab.margin_aggregations` margin figures extend this bullet — reference below.
+- `Crosstab *CrosstabComponents` — `CellCounts[r][c]`, `CellComponents[r][c]`, row/column/grand-total margin counterparts, axis-key components. Mirrors `MatrixPayload` coordinate-for-coordinate. Auxiliary `crosstab.margin_aggregations` figures and the multi-measure (`crosstab.cells`) `Measures` extend this bullet — reference below.
 - `Filterers []FiltererComponents` — uniform `{n_in, n_out, n_null_input}` on every filterer.
 - `Run *RunComponents` — `total_records`, `filtered_records`, `null_records`, `shard_count`, `partial_cohort_reason`. Coexists with `Response.Metadata`: `Metadata` keeps non-numerical run facts (cohort filename); `Run` carries the typed counters.
 - `Matrices []MatrixComponents` — one per `Response.Matrices` result: floor `{n, n_null, n_listwise_dropped}` (weight-0 rows count in `n`), pairwise `{min_pair_n, max_pair_n}`, the weighted floor keys, operator map (`ddof`). Rides `capability:matrices`.

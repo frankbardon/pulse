@@ -436,6 +436,10 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		c.RecomputeAggregators = filterNames(c.RecomputeAggregators, on)
 		c.MapValuedCellAggregators = filterNames(c.MapValuedCellAggregators, on)
 		c.ArrayValuedAggregators = filterNames(c.ArrayValuedAggregators, on)
+		if !on(featCrosstabCells) {
+			c.SupportsCells = false
+			c.CellsRules = nil
+		}
 		m.Crosstab = &c
 	}
 	if on(featExport) {

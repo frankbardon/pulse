@@ -36,7 +36,9 @@ func validateAggregationParams(env *descriptor.Envelope, req *types.Request, ins
 		check(a, "aggregations["+strconv.Itoa(i)+"]")
 	}
 	if req.Crosstab != nil {
-		check(req.Crosstab.Cell, "crosstab.cell")
+		for i, cell := range req.Crosstab.CellAggregations() {
+			check(cell, req.Crosstab.CellSlotPath(i))
+		}
 		for i, a := range req.Crosstab.MarginAggregations {
 			check(a, "crosstab.margin_aggregations["+strconv.Itoa(i)+"]")
 		}

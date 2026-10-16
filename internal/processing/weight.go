@@ -157,6 +157,12 @@ func StampWeightsWith(req *types.Request, def *types.WeightSpec, exts *Extension
 	if req.Crosstab != nil {
 		ct := *req.Crosstab
 		ct.Cell = stampAgg(req.Crosstab.Cell, req.Weight, def, aware)
+		if req.Crosstab.Cells != nil {
+			ct.Cells = make([]*types.Aggregation, len(req.Crosstab.Cells))
+			for i, a := range req.Crosstab.Cells {
+				ct.Cells[i] = stampAgg(a, req.Weight, def, aware)
+			}
+		}
 		ct.MarginAggregations = make([]*types.Aggregation, len(req.Crosstab.MarginAggregations))
 		for i, a := range req.Crosstab.MarginAggregations {
 			ct.MarginAggregations[i] = stampAgg(a, req.Weight, def, aware)
@@ -295,8 +301,10 @@ func namesWeight(req *types.Request, def *types.WeightSpec) bool {
 		}
 	}
 	if ct := req.Crosstab; ct != nil {
-		if named(ct.Cell) {
-			return true
+		for _, a := range ct.CellAggregations() {
+			if named(a) {
+				return true
+			}
 		}
 		for _, a := range ct.MarginAggregations {
 			if named(a) {
@@ -483,7 +491,7 @@ func NewWeightRowTally(req *types.Request) *WeightRowTally {
 	slots := req.Aggregations
 	if ct := req.Crosstab; ct != nil {
 		// The crosstab cell and auxiliary margin slots weight rows too.
-		slots = append(append(append([]*types.Aggregation(nil), slots...), ct.Cell), ct.MarginAggregations...)
+		slots = append(append(append([]*types.Aggregation(nil), slots...), ct.CellAggregations()...), ct.MarginAggregations...)
 	}
 	weights := make([]*types.WeightSpec, 0, len(slots)+len(req.Tests)+len(req.Regressions)+len(req.Attributes))
 	for _, a := range slots {

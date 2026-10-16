@@ -569,7 +569,9 @@ func TestMCPSchemaBinding_CrosstabColumnsOptional(t *testing.T) {
 	if got["columns"] {
 		t.Errorf("crosstab.required = %v, want columns optional", required)
 	}
-	if !got["rows"] || !got["cell"] {
-		t.Errorf("crosstab.required = %v, want rows and cell", required)
+	// cell is no longer required either: crosstab.cells is its
+	// multi-measure alternative (U47 E2-S2).
+	if !got["rows"] || got["cell"] {
+		t.Errorf("crosstab.required = %v, want rows only (cell or cells)", required)
 	}
 }

@@ -162,11 +162,26 @@ type pairwisePair struct {
 	labelI, labelJ string
 }
 
-func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel pwKernel, shape pwShape) (types.OverlayLayer, []types.OverlayWarning, error) {
+// pairwiseGateResult is what pairwiseGate resolves for one host: the
+// decoded params (p_source resolved against the host's normalize), the
+// host's weight basis and whether its proportion / Welford legs read N*.
+type pairwiseGateResult struct {
+	params       types.PairwiseOverlayParams
+	basis        weighting.Basis
+	weightedHost bool
+}
+
+// pairwiseGate runs every up-front refusal of a pairwise kind against one
+// single-measure host — params, the components gate, the per-shape cell
+// gates, the weighted-host n_source rule, p_source on a normalised host
+// and the distinct-key admission — and resolves the facts the pair loop
+// reads. A multi-measure host runs it once per measure, so a refusal is
+// raised exactly as the single-measure crosstab of that measure raises it.
+func pairwiseGate(spec *types.OverlaySpec, host *CrosstabHostView, shape pwShape) (pairwiseGateResult, error) {
 	paramread.Declare(paramread.Overlay, string(spec.Kind), (*types.PairwiseOverlayParams)(nil))
 	params, err := types.DecodePairwiseParams(spec.Params)
 	if err != nil {
-		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+		return pairwiseGateResult{}, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" has malformed Params: "+err.Error(),
 			map[string]any{"kind": string(spec.Kind)})
@@ -175,14 +190,14 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 	// Components gate — every kind reads per-cell counters / Welford
 	// triples / margin counts. Without them there is no sample-size leg.
 	if !host.HasComponents() {
-		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+		return pairwiseGateResult{}, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_COMPONENTS_REQUIRED,
 			overlayhost.ComponentsRequiredMessage(spec.Kind),
 			map[string]any{"kind": string(spec.Kind)})
 	}
 	// Welford-input kinds need {mean, variance, n} on at least one cell.
 	if shape == pwShapeWelford && !host.HasWelfordCells() {
-		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+		return pairwiseGateResult{}, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			overlayhost.WelfordCellMessage(spec.Kind),
 			map[string]any{"kind": string(spec.Kind)})
@@ -197,7 +212,7 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 	weightedHost := false
 	if shape != pwShapeWeighted {
 		if err := overlayNSourceWeightedRefusal(spec.Kind, params.NSource, basis); err != nil {
-			return types.OverlayLayer{}, nil, err
+			return pairwiseGateResult{}, err
 		}
 		weightedHost = basis.Weighted()
 	}
@@ -207,7 +222,7 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 	// the share as is (overlayhost.EffectivePairwisePSource).
 	if shape == pwShapeProportion {
 		if msg := overlayhost.PairwisePSourceRefusal(spec.Kind, params.PSource, host.normalize); msg != "" {
-			return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING, msg,
+			return pairwiseGateResult{}, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING, msg,
 				map[string]any{"kind": string(spec.Kind), "param": "p_source", "p_source": params.PSource,
 					"normalize": string(host.normalize)})
 		}
@@ -219,7 +234,7 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 	// AGG_AVERAGE or an AGG_WELFORD triple does not qualify: its variance
 	// is unweighted and its n is a record count.
 	if shape == pwShapeWeighted && !host.HasWeightedMomentCells() {
-		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+		return pairwiseGateResult{}, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires AGG_WEIGHTED_MEAN or weighted AGG_AVERAGE cells (weighted moments "+
 				"{weighted_mean, m2_weighted, sum_weights, sum_weights_sq} on CellComponents); host matrix has none",
@@ -263,7 +278,7 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 	// distinct modes on purpose — widening it would add runtime
 	// failures E2-S1 decided against.
 	if types.PairwiseKindUsesWelford(spec.Kind) && types.PairwiseNSourceReadsDistinctKeys(params.NSource) {
-		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+		return pairwiseGateResult{}, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" does not accept n_source ("+params.NSource+
 				"): n, mean and variance all come from the AGG_WELFORD triple {mean, variance, n}, "+
@@ -287,7 +302,7 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 			for i, a := range admitted {
 				admittedNames[i] = string(a)
 			}
-			return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+			return pairwiseGateResult{}, errors.NewCodedErrorWithDetails(
 				errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 				"overlay "+string(spec.Kind)+" n_source="+params.NSource+" requires a distinct-key cell aggregator; observed cell aggregator "+
 					observedName+remedyDistinctNAdmitted(nil),
@@ -300,47 +315,109 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 		}
 	}
 
+	return pairwiseGateResult{params: params, basis: basis, weightedHost: weightedHost}, nil
+}
+
+func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel pwKernel, shape pwShape) (types.OverlayLayer, []types.OverlayWarning, error) {
+	if host.measures != nil {
+		return runPairwiseOverlayMeasures(spec, host, kernel, shape)
+	}
+	g, err := pairwiseGate(spec, host, shape)
+	if err != nil {
+		return types.OverlayLayer{}, nil, err
+	}
+
 	rowScope := spec.Scope == types.OverlayScopeRow
 
-	pairs, perr := buildPairwisePairs(spec, host, params, rowScope)
+	pairs, perr := buildPairwisePairs(spec, host, g.params, rowScope)
 	if perr != nil {
 		return types.OverlayLayer{}, nil, perr
 	}
 
+	acc := newPairwiseAccumulator()
+	pvals := acc.evaluate(host, g, kernel, shape, pairs, rowScope, 0, nil)
+
+	layer := buildPairwiseLayer(spec, host, pairs, pvals, rowScope)
+	acc.legs.stamp(layer.Summary)
+	// Attach the per-reason skip diagnostics to the layer's own carrier
+	// (in addition to the returned slice the orchestrator promotes to
+	// Response.Warnings) so a per-Request consumer that reads layers
+	// directly can associate each skip with its originating spec.
+	warns := acc.tally.warnings(spec)
+	layer.Warnings = warns
+	return layer, warns, nil
+}
+
+// pairwiseAccumulator is the layer-wide state the pair loop folds into:
+// the per-reason skip tally and the weighted legs the layer read, each
+// leg once. A multi-measure layer shares ONE accumulator across its
+// measures, so its summary and warnings describe the whole layer; leg
+// identities carry the measure, so two measures never share a leg.
+type pairwiseAccumulator struct {
+	tally *pairwiseTally
+	// The weighted legs the layer read, each cell once (a cell is a leg
+	// of every pair it sits in), for the summary's Parameters.
+	legs    weightedLegTally
+	legSeen map[pairwiseLegID]bool
+	// A proportion layer's n legs are bases, shared by every cell a base
+	// divided: each is tallied once (nLegKey).
+	nLegSeen map[pairwiseNLegID]bool
+}
+
+// pairwiseLegID / pairwiseNLegID identify a cell leg / an n leg within
+// one measure (0 on a single-measure host).
+type pairwiseLegID struct{ measure, r, c int }
+type pairwiseNLegID struct {
+	measure int
+	key     nLegKey
+}
+
+func newPairwiseAccumulator() *pairwiseAccumulator {
+	return &pairwiseAccumulator{
+		tally:    newPairwiseTally(),
+		legSeen:  map[pairwiseLegID]bool{},
+		nLegSeen: map[pairwiseNLegID]bool{},
+	}
+}
+
+// evaluate runs the kernel over every (pair, opposite index) of one
+// single-measure host and returns pvals[pairPos][opp] — laid out
+// pair-major; the caller transposes it into the output MatrixPayload per
+// scope. measure namespaces the leg identities; oppIdx maps an opposite
+// index to the coordinate a skip warning reports (nil: itself).
+func (a *pairwiseAccumulator) evaluate(host *CrosstabHostView, g pairwiseGateResult, kernel pwKernel, shape pwShape,
+	pairs []pairwisePair, rowScope bool, measure int, oppIdx func(int) int) [][]types.MatrixCell {
+	params, basis := g.params, g.basis
 	// Opposite-axis extent: ROW scope pairs rows, so the opposite axis is
 	// columns; COLUMN scope pairs columns, opposite axis is rows.
 	oppCount := host.ColumnCount()
 	if !rowScope {
 		oppCount = host.RowCount()
 	}
-
-	tally := newPairwiseTally()
-	// The weighted legs the layer read, each cell once (a cell is a leg
-	// of every pair it sits in), for the summary's Parameters.
-	var legs weightedLegTally
-	legSeen := map[[2]int]bool{}
-	// A proportion layer's n legs are bases, shared by every cell a base
-	// divided: each is tallied once (nLegKey).
-	nLegSeen := map[nLegKey]bool{}
+	report := func(o int) int {
+		if oppIdx == nil {
+			return o
+		}
+		return oppIdx(o)
+	}
 	addLeg := func(r, c int) {
-		if legSeen[[2]int{r, c}] {
+		id := pairwiseLegID{measure, r, c}
+		if a.legSeen[id] {
 			return
 		}
-		legSeen[[2]int{r, c}] = true
+		a.legSeen[id] = true
 		if shape == pwShapeWelford {
 			if l, ok := host.MeanLeg(r, c); ok {
-				legs.add(l)
+				a.legs.add(l)
 			}
 			return
 		}
-		if l, key, ok := pairwiseWeightedNLeg(host, params, basis, r, c); ok && !nLegSeen[key] {
-			nLegSeen[key] = true
-			legs.add(l)
+		if l, key, ok := pairwiseWeightedNLeg(host, params, basis, r, c); ok && !a.nLegSeen[pairwiseNLegID{measure, key}] {
+			a.nLegSeen[pairwiseNLegID{measure, key}] = true
+			a.legs.add(l)
 		}
 	}
 
-	// pvals[pairPos][opp] — laid out pair-major; transposed into the
-	// output MatrixPayload below per scope.
 	pvals := make([][]types.MatrixCell, len(pairs))
 	for p := range pairs {
 		pvals[p] = make([]types.MatrixCell, oppCount)
@@ -349,31 +426,22 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 			r2, c2 := pairwiseLegCoord(rowScope, pairs[p].j, o)
 			in, ok := extractPairInputs(host, params, shape, basis, rowScope, r1, c1, r2, c2)
 			if !ok {
-				tally.add("PULSE_STATS_SKIP_EXTRACT_FAILED", o)
+				a.tally.add("PULSE_STATS_SKIP_EXTRACT_FAILED", report(o))
 				continue
 			}
-			if weightedHost {
+			if g.weightedHost {
 				addLeg(r1, c1)
 				addLeg(r2, c2)
 			}
 			pv, reason, ok := kernel(in)
 			if !ok {
-				tally.add(reason, o)
+				a.tally.add(reason, report(o))
 				continue
 			}
 			pvals[p][o] = types.MatrixCell{Value: pv, Present: true}
 		}
 	}
-
-	layer := buildPairwiseLayer(spec, host, pairs, pvals, rowScope)
-	legs.stamp(layer.Summary)
-	// Attach the per-reason skip diagnostics to the layer's own carrier
-	// (in addition to the returned slice the orchestrator promotes to
-	// Response.Warnings) so a per-Request consumer that reads layers
-	// directly can associate each skip with its originating spec.
-	warns := tally.warnings(spec)
-	layer.Warnings = warns
-	return layer, warns, nil
+	return pvals
 }
 
 // buildPairwisePairs enumerates (i, j) index pairs along the pair axis.

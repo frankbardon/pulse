@@ -147,6 +147,16 @@ type CrosstabCapability struct {
 	// section emits no margin to carry the auxiliary figures.
 	MarginAggregationRules []string `json:"margin_aggregation_rules"`
 
+	// SupportsCells reports whether the engine honors CrosstabSpec.Cells
+	// — several cell aggregations (measures) rendered as stub rows, a
+	// MEASURE position folded into the row axis. False (and CellsRules
+	// empty) on an instance that hides capability:crosstab_cells.
+	SupportsCells bool `json:"supports_cells"`
+
+	// CellsRules names the rules specific to the Cells slot: the
+	// rejections, the folded payload layout and the overlay limit.
+	CellsRules []string `json:"cells_rules,omitempty"`
+
 	// MapValuedCellAggregators is the alphabetized list of aggregator
 	// names whose Crosstab Cell output is map-valued (rich payload
 	// per cell, e.g. AGG_SET_FREQUENCY's per-label row counts). These

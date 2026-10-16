@@ -54,6 +54,7 @@ bin/pulse api predict --request internal/examples/crosstab/05_median_revenue_rec
 | 16 | `welford_components_revenue_by_region_treatment` | AGG_WELFORD cells carrying the streaming (n, mean, variance) triple, with margins |
 | 17 | `vector_element_cells` | one vector member as a scalar cell (`params.element` on AGG_VEC_MEAN) + an element margin aggregation (AGG_VEC_SD) on `survey.pulse` |
 | 18 | `total_column_no_columns` | no `columns`: one implicit Total column (key `["Total"]`) per row, column % summing to 1 |
+| 19 | `measures_as_stub_rows` | several measures in `cells`: a count and a mean revenue as stub rows under each region, per-measure column margins in `matrix.measures` |
 
 For a deeper walkthrough — recipes, the margins-are-reaggregations
 contract, and the cell-aggregator → statistical-test cheat sheet — see

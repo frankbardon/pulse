@@ -52,7 +52,8 @@ type CrosstabMargins struct {
 //     column keyed CrosstabTotalColumnKey ("Total") holding every record
 //     whose row key resolved — a Total column with no constant field
 //     behind it (U47 #326 / #328). See HasImplicitTotalColumn.
-//   - Cell is required.
+//   - Exactly one of Cell and Cells is required (Cells: several
+//     measures as stub rows, see Cells and CellsFaults).
 //   - A crosstab section cannot coexist with top-level Aggregations / Groups
 //     on the same Request (PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS).
 //   - Normalize=row requires row margins internally; normalize=column
@@ -73,8 +74,32 @@ type CrosstabSpec struct {
 	// Columns is the column-axis grouper list. Optional: absent or empty
 	// yields the single implicit Total column (HasImplicitTotalColumn).
 	// `omitempty`, so a spec carrying columns marshals as before.
-	Columns []*Group     `json:"columns,omitempty"`
-	Cell    *Aggregation `json:"cell"`
+	Columns []*Group `json:"columns,omitempty"`
+	// Cell is the single-measure cell aggregation. Exactly one of Cell
+	// and Cells is set (PULSE_CROSSTAB_CELLS_INVALID when both are).
+	// `omitempty` so a multi-measure spec does not echo "cell": null.
+	Cell *Aggregation `json:"cell,omitempty"`
+
+	// Cells declares SEVERAL cell aggregations — measures — over the
+	// same axes (U47 #326): the multi-measure form of Cell, mutually
+	// exclusive with it. Each measure is a stub row: the matrix folds a
+	// MEASURE dimension into the row axis as its innermost position, so
+	// MatrixPayload and CrosstabComponents stay 2-D. Row key r of the
+	// spec becomes len(Cells) payload rows (row key + measure label), in
+	// declaration order, and MatrixPayload.CellLabels names each row's
+	// measure. Every measure runs exactly as a single-measure crosstab
+	// with Cell = Cells[i] would — its own cells, margins, normalize
+	// denominators, components and pairwise overlays — so nothing is
+	// ever pooled across measures. Column and grand margins are
+	// per-measure figures and so ride MatrixPayload.Measures /
+	// CrosstabComponents.Measures rather than the single-measure slots.
+	//
+	// Entries follow the Cell rules (smart defaults fill a missing Type
+	// from the field's schema type); effective labels (Label, else
+	// TYPE_field) must be unique (PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL)
+	// and distinct from every margin_aggregations label. See CellsFaults.
+	// Additive and `omitempty`.
+	Cells []*Aggregation `json:"cells,omitempty"`
 
 	// MarginAggregations declares zero or more AUXILIARY aggregations
 	// that are evaluated into the row / column / grand MARGIN
@@ -394,6 +419,23 @@ type MatrixPayload struct {
 	// NormalizeApplied echoes the normalization mode that was actually
 	// applied. Mirrors CrosstabSpec.Normalize after defaulting.
 	NormalizeApplied CrosstabNormalize `json:"normalize_applied"`
+
+	// CellLabels names each row's measure, in RowKeys order — set only
+	// on a multi-measure crosstab (CrosstabSpec.Cells), where CellLabel
+	// is empty because no one label covers every row. Additive
+	// `omitempty`: a single-measure payload marshals as before.
+	CellLabels []string `json:"cell_labels,omitempty"`
+
+	// Measures carries one entry per declared measure on a multi-measure
+	// crosstab, in declaration order: its label plus its own column
+	// margins and grand total. A column or grand margin is a per-measure
+	// figure — measure m aggregated over a column's (or the table's)
+	// admitted records — so the single-measure ColumnMargins and
+	// GrandTotal slots stay empty on such a payload rather than show one
+	// measure's figure for all. Row margins need no such home: each
+	// payload row is already one (row key, measure). Additive
+	// `omitempty`.
+	Measures []CrosstabMeasureMargins `json:"measures,omitempty"`
 }
 
 // MarginAggregationFigure is one auxiliary margin-only aggregation's
@@ -563,6 +605,15 @@ type CrosstabComponents struct {
 	// stage (null axis key, missing dict entry, etc.). IncludedRecords
 	// + ExcludedRecords equals the post-filter input record count.
 	ExcludedRecords int `json:"excluded_records,omitempty"`
+
+	// Measures is the multi-measure (CrosstabSpec.Cells) home of the
+	// per-measure column-margin and grand-total counterparts, one entry
+	// per measure in declaration order, mirroring MatrixPayload.Measures.
+	// On such a payload the row-indexed slots above (CellCounts,
+	// CellComponents, RowMargin*, RowKeyComponents) are laid out over
+	// the folded (row key, measure) rows, and the single-measure
+	// ColumnMargin* / GrandTotal* slots stay empty. Additive `omitempty`.
+	Measures []CrosstabMeasureComponents `json:"measures,omitempty"`
 }
 
 // CrosstabResult is the top-level result of a crosstab request. Carries
@@ -600,11 +651,7 @@ func (s *CrosstabSpec) LowerToGroupedRequest(src *Request) *Request {
 			groups = append(groups, &cp)
 		}
 	}
-	var aggs []*Aggregation
-	if s.Cell != nil {
-		cell := *s.Cell
-		aggs = []*Aggregation{&cell}
-	}
+	aggs := s.cellAggregationCopies()
 	return &Request{
 		Cohort:       src.Cohort,
 		Filterers:    src.Filterers,
@@ -630,11 +677,7 @@ func (s *CrosstabSpec) LowerRowsOnly(src *Request) *Request {
 			groups = append(groups, &cp)
 		}
 	}
-	var aggs []*Aggregation
-	if s.Cell != nil {
-		cell := *s.Cell
-		aggs = []*Aggregation{&cell}
-	}
+	aggs := s.cellAggregationCopies()
 	return &Request{
 		Cohort:       src.Cohort,
 		Filterers:    src.Filterers,
@@ -658,11 +701,7 @@ func (s *CrosstabSpec) LowerColumnsOnly(src *Request) *Request {
 			groups = append(groups, &cp)
 		}
 	}
-	var aggs []*Aggregation
-	if s.Cell != nil {
-		cell := *s.Cell
-		aggs = []*Aggregation{&cell}
-	}
+	aggs := s.cellAggregationCopies()
 	return &Request{
 		Cohort:       src.Cohort,
 		Filterers:    src.Filterers,
@@ -680,11 +719,7 @@ func (s *CrosstabSpec) LowerGrandOnly(src *Request) *Request {
 	if s == nil || src == nil {
 		return nil
 	}
-	var aggs []*Aggregation
-	if s.Cell != nil {
-		cell := *s.Cell
-		aggs = []*Aggregation{&cell}
-	}
+	aggs := s.cellAggregationCopies()
 	return &Request{
 		Cohort:       src.Cohort,
 		Filterers:    src.Filterers,
@@ -692,6 +727,20 @@ func (s *CrosstabSpec) LowerGrandOnly(src *Request) *Request {
 		Labels:       src.Labels,
 		Aggregations: aggs,
 	}
+}
+
+// cellAggregationCopies returns a copy of every cell aggregation (each
+// measure on the multi-measure form) for the Lower* requests, sharing
+// no pointer with the spec.
+func (s *CrosstabSpec) cellAggregationCopies() []*Aggregation {
+	var aggs []*Aggregation
+	for _, c := range s.CellAggregations() {
+		if c != nil {
+			cell := *c
+			aggs = append(aggs, &cell)
+		}
+	}
+	return aggs
 }
 
 // CellLabel returns the output label the cell aggregation would emit in
@@ -834,8 +883,10 @@ func (s *CrosstabSpec) MarginAggregationFaults() []MarginAggregationFault {
 	// The cell aggregator's own margin already claims CellLabel in the
 	// margin-components namespace, so it seeds the seen set.
 	seen := map[string]bool{}
-	if cl := s.CellLabel(); cl != "" {
-		seen[cl] = true
+	for _, cell := range s.CellAggregations() {
+		if cl := AggregationLabelOf(cell); cl != "" {
+			seen[cl] = true
+		}
 	}
 	for i, a := range s.MarginAggregations {
 		if a == nil {

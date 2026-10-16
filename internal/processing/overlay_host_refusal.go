@@ -70,6 +70,14 @@ func refuseWrongHostOverlays(req *types.Request, exts *ExtensionRegistry, keep f
 				return cerr
 			}
 		}
+		// A multi-measure crosstab (crosstab.cells) runs only the pairwise
+		// family, per measure; every other kind is refused up front, the
+		// refusal predict raises (overlayhost.MeasureHostRefusal).
+		if req.Crosstab.HasMeasures() {
+			if cerr := overlayhost.MeasureHostRefusal(req.Overlays[i].Kind, route, i); cerr != nil {
+				return cerr
+			}
+		}
 	}
 	return nil
 }

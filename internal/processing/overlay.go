@@ -98,6 +98,14 @@ type CrosstabHostView struct {
 	// pairwise proportion leg reads its n from (BaseFloor).
 	normalize types.CrosstabNormalize
 	bases     *crosstabBaseFloors
+
+	// measures holds one single-measure host per measure when the host
+	// crosstab is multi-measure (types.CrosstabSpec.Cells); nil
+	// otherwise. The pairwise family runs per measure against these
+	// (overlay_measures.go) and lays the result over this view's
+	// MEASURE-folded payload; every other overlay kind is refused on such
+	// a host before it reaches a handler (overlayhost.MeasureHostRefusal).
+	measures []*CrosstabHostView
 }
 
 // NewCrosstabHostView wraps a MatrixPayload as a host view. payload

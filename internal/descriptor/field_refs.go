@@ -493,8 +493,10 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 				grouper(g, "column grouper")
 			}
 		}
-		if spec.Cell != nil {
-			agg(spec.Cell, "cell aggregation")
+		for _, cell := range spec.CellAggregations() {
+			if cell != nil {
+				agg(cell, "cell aggregation")
+			}
 		}
 		for _, a := range spec.MarginAggregations {
 			if a != nil {

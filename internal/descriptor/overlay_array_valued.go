@@ -594,10 +594,22 @@ func processOverlayArrayValuedRefusals(req *types.Request, kinds vectors.Aggrega
 // "categorical_code", field, field_type}, PROCESSING_CONFIG. The array-
 // valued cell keeps its own whole-request crosstab refusal.
 func crosstabCellCodeRefusal(req *types.Request, kinds vectors.AggregationKinds, inputType fieldTypeLookup, readsCell func(types.OverlayKind) bool) *errors.CodedError {
-	cell := req.Crosstab.Cell
 	if readsCell == nil {
 		return nil
 	}
+	// Every measure of a multi-measure crosstab is a cell the pairwise
+	// overlays read; the first code-valued one is refused.
+	for i, cell := range req.Crosstab.CellAggregations() {
+		if ce := crosstabOneCellCodeRefusal(req, cell, req.Crosstab.CellSlotPath(i), kinds, inputType, readsCell); ce != nil {
+			return ce
+		}
+	}
+	return nil
+}
+
+// crosstabOneCellCodeRefusal is crosstabCellCodeRefusal for one cell
+// aggregation at request path slot.
+func crosstabOneCellCodeRefusal(req *types.Request, cell *types.Aggregation, slot string, kinds vectors.AggregationKinds, inputType fieldTypeLookup, readsCell func(types.OverlayKind) bool) *errors.CodedError {
 	if _, ok := codeInput(cell, kinds, inputType); !ok {
 		return nil
 	}
@@ -610,7 +622,7 @@ func crosstabCellCodeRefusal(req *types.Request, kinds vectors.AggregationKinds,
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			"overlays["+strconv.Itoa(i)+"] ("+string(kind)+") reads the crosstab cell values, and the cell "+label+" ("+string(cell.Type)+
 				") is "+codeClause+"; an overlay compares magnitudes across cells — score a count instead (an AGG_COUNT cell, AGG_FREQUENCY of one label, AGG_AVERAGE of a packed_bool)",
-			withCodeDetails(map[string]any{"aggregation": string(cell.Type), "label": label, "slot": "crosstab.cell", "reason": reasonCategoricalCode},
+			withCodeDetails(map[string]any{"aggregation": string(cell.Type), "label": label, "slot": slot, "reason": reasonCategoricalCode},
 				reasonCategoricalCode, cell, kinds, inputType))
 	}
 	return nil

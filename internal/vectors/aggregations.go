@@ -268,8 +268,10 @@ func AggregationSlots(req *types.Request) []AggregationSlot {
 		}
 	}
 	if ct := req.Crosstab; ct != nil {
-		if ct.Cell != nil {
-			out = append(out, AggregationSlot{Path: "crosstab.cell", Agg: ct.Cell})
+		for i, c := range ct.CellAggregations() {
+			if c != nil {
+				out = append(out, AggregationSlot{Path: ct.CellSlotPath(i), Agg: c})
+			}
 		}
 		for i, a := range ct.MarginAggregations {
 			if a != nil {
@@ -294,8 +296,10 @@ func anyAggregationSlot(req *types.Request, pred func(*types.Aggregation) bool) 
 		}
 	}
 	if ct := req.Crosstab; ct != nil {
-		if ct.Cell != nil && pred(ct.Cell) {
-			return true
+		for _, c := range ct.CellAggregations() {
+			if c != nil && pred(c) {
+				return true
+			}
 		}
 		for _, a := range ct.MarginAggregations {
 			if a != nil && pred(a) {
@@ -759,7 +763,13 @@ func ArrayValuedCrosstabRefusal(spec *types.CrosstabSpec, kinds AggregationKinds
 			"crosstab "+slot+" "+string(a.Type)+" is array-valued (one figure per vector member); a crosstab cell holds one number — select one element with params.element (built-in AGG_VEC_*), or run it as a grouped aggregation",
 			map[string]any{"aggregation": string(a.Type), "slot": "crosstab." + slot, "reason": "array_valued"})
 	}
-	if err := check("cell", spec.Cell); err != nil {
+	if spec.HasMeasures() {
+		for i, a := range spec.Cells {
+			if err := check("cells["+strconv.Itoa(i)+"]", a); err != nil {
+				return err
+			}
+		}
+	} else if err := check("cell", spec.Cell); err != nil {
 		return err
 	}
 	for i, a := range spec.MarginAggregations {

@@ -1780,7 +1780,16 @@ func validateRegisteredOperators(env *descriptor.Envelope, req *types.Request, o
 		for i, g := range ct.Columns {
 			group(g, "crosstab.columns", i)
 		}
-		agg(ct.Cell, "crosstab.cell", -1, "unknown aggregation type: ")
+		if ct.HasMeasures() {
+			for i, a := range ct.Cells {
+				// A missing type is the Cells fault validateCrosstab reports.
+				if a != nil && a.Type != "" {
+					agg(a, "crosstab.cells", i, "unknown aggregation type: ")
+				}
+			}
+		} else {
+			agg(ct.Cell, "crosstab.cell", -1, "unknown aggregation type: ")
+		}
 		for i, a := range ct.MarginAggregations {
 			agg(a, "crosstab.margin_aggregations", i, "unknown crosstab margin aggregation type: ")
 		}

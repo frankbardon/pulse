@@ -1778,7 +1778,7 @@
       ],
       "rejection_rules": [
         "crosstab requires at least one grouper in rows (PULSE_CROSSTAB_EMPTY_ROWS)",
-        "crosstab requires a cell aggregation (PULSE_CROSSTAB_MISSING_CELL)",
+        "crosstab requires a cell aggregation — cell, or several measures in cells (PULSE_CROSSTAB_MISSING_CELL)",
         "crosstab cannot coexist with top-level groups or aggregations (PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS)",
         "matrix shape, any margin, or any normalization forces the buffered path"
       ],
@@ -1800,6 +1800,7 @@
         "margin_aggregations effective labels (label, else TYPE_field) must be unique across the slot and distinct from the cell's (PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL)",
         "auxiliary figures are emitted only where the margin is DISPLAYED (margins.rows / margins.columns / margins.grand), matching the emission rule the cell aggregator's own margin counts and components follow; declaring margin_aggregations on a section that displays no margin computes them into nowhere — advisory warning, not a refusal (PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED) — and a normalize direction does not satisfy it, because the margin it requires is a denominator and an auxiliary is never a denominator"
       ],
+      "supports_cells": false,
       "map_valued_cell_aggregators": [
         "AGG_WELFORD"
       ]
@@ -2323,4 +2324,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 27bcd528060239d2cabebf18b9e8dc720a8b160d8ad11c15f520119ddea606d0
+// golden-hash: f1a6237ef794ebf3a2750deefeccdd7343afc01797956e7bc449c32ff39f98b8

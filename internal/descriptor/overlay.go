@@ -148,7 +148,29 @@ func pairwiseProportionAdvice(opts *PredictOptions, what string) string {
 // the runtime's key rule read off the capability table. With components
 // disabled (Options or request) every kind reports the runtime's
 // PULSE_OVERLAY_COMPONENTS_REQUIRED instead.
+//
+// On a multi-measure crosstab (crosstab.cells) the rules run once per
+// measure, against the single-measure request that measure runs as
+// (types.CrosstabSpec.MeasureSpec), stopping at the first measure that
+// refuses — the runtime's order (processing.runPairwiseOverlayMeasures
+// gates each measure in turn), so the cell-type, weight-basis and
+// distinct-key rules judge each measure's own cell.
 func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
+	if req != nil && req.Crosstab.HasMeasures() {
+		for m, cell := range req.Crosstab.Cells {
+			if cell == nil {
+				continue
+			}
+			mreq := *req
+			mreq.Crosstab = req.Crosstab.MeasureSpec(m)
+			before := len(env.Errors)
+			validateOverlayPairwise(env, &mreq, spec, opts, index)
+			if len(env.Errors) > before {
+				return
+			}
+		}
+		return
+	}
 	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
 	// raises too (overlayhost.CrosstabSpecRefusal).
 	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
@@ -628,6 +650,15 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		// with the runtime hook's shared refusal.
 		if req.Crosstab.HasImplicitTotalColumn() {
 			if cerr := overlayhost.TotalColumnRefusal(spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
+				addCodedError(env, cerr)
+				continue
+			}
+		}
+		// A multi-measure crosstab (crosstab.cells) runs only the
+		// pairwise family, per measure — the runtime hook's shared
+		// refusal for every other kind.
+		if req.Crosstab.HasMeasures() {
+			if cerr := overlayhost.MeasureHostRefusal(spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
 				addCodedError(env, cerr)
 				continue
 			}

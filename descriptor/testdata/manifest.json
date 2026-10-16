@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:80a833d4af04380b87169d50d1ed8aa706487b61227f7b32685c3161c8c6465d",
+    "feature_set_digest": "fs1:cd213a1eb2b84095d2dc66806c4f639c9505a8b2e4ab902e9f489a0aa4b2a8b3",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -9703,7 +9703,7 @@
         ]
       }
     ],
-    "error_codes_count": 368,
+    "error_codes_count": 370,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9760,6 +9760,8 @@
       "PULSE_COHORT_COMPRESSED",
       "PULSE_COMPOSE_LABEL_COLLISION",
       "PULSE_CROSSTAB_AGG_UNCLASSIFIED",
+      "PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL",
+      "PULSE_CROSSTAB_CELLS_INVALID",
       "PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS",
       "PULSE_CROSSTAB_EMPTY_COLUMNS",
       "PULSE_CROSSTAB_EMPTY_ROWS",
@@ -11578,6 +11580,10 @@
         "description": "Auxiliary margin-only figures on a crosstab — a second base beside the cell metric in one scan, the cell-admission rule, present semantics and the display-flag gate"
       },
       {
+        "name": "crosstab-measures",
+        "description": "Several measures as stub rows in one crosstab — crosstab.cells, the MEASURE row position, per-measure margins and components, normalize and pairwise overlays per measure"
+      },
+      {
         "name": "decimal-formulas",
         "description": "Exact decimal128 arithmetic inside formulas and expression filters — operator result scales, the numeric built-ins over a decimal (abs, round, max, mean and the rest), ternary and ?? lifting, the float() escape, and what is refused at compile. Use when an expression reads a money field."
       },
@@ -12842,7 +12848,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 233,
+    "examples_count": 234,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -13120,7 +13126,7 @@
       ],
       "rejection_rules": [
         "crosstab requires at least one grouper in rows (PULSE_CROSSTAB_EMPTY_ROWS)",
-        "crosstab requires a cell aggregation (PULSE_CROSSTAB_MISSING_CELL)",
+        "crosstab requires a cell aggregation — cell, or several measures in cells (PULSE_CROSSTAB_MISSING_CELL)",
         "crosstab cannot coexist with top-level groups or aggregations (PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS)",
         "matrix shape, any margin, or any normalization forces the buffered path",
         "map-valued cell aggregators (AGG_SET_FREQUENCY) cannot pair with normalize=row/column/total (PULSE_CROSSTAB_NORMALIZE_MAP_VALUED)",
@@ -13143,6 +13149,16 @@
         "every margin_aggregations entry needs an aggregation type; null entries are refused (PULSE_CROSSTAB_MARGIN_AGG_INVALID)",
         "margin_aggregations effective labels (label, else TYPE_field) must be unique across the slot and distinct from the cell's (PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL)",
         "auxiliary figures are emitted only where the margin is DISPLAYED (margins.rows / margins.columns / margins.grand), matching the emission rule the cell aggregator's own margin counts and components follow; declaring margin_aggregations on a section that displays no margin computes them into nowhere — advisory warning, not a refusal (PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED) — and a normalize direction does not satisfy it, because the margin it requires is a denominator and an auxiliary is never a denominator"
+      ],
+      "supports_cells": true,
+      "cells_rules": [
+        "cell and cells are mutually exclusive; a null cells entry, or one with no aggregation type smart defaults can infer, is refused (PULSE_CROSSTAB_CELLS_INVALID)",
+        "cells effective labels (label, else TYPE_field) must be unique (PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL), and distinct from every margin_aggregations label (PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL)",
+        "each measure runs exactly as a single-cell crosstab would — its own cells, margins, normalize denominators, auxiliary margins and components; nothing is pooled across measures",
+        "the matrix row axis gains an innermost MEASURE position (row_header field _measure, type MEASURE): spec row r becomes len(cells) rows, row key + measure label, measures in declaration order; matrix.cell_labels names each row's measure and cell_label is empty",
+        "column margins and the grand total are per measure: matrix.measures[m] {label, column_margins, grand_total} and components.crosstab.measures[m]; the single-measure column_margins / grand_total slots stay empty",
+        "shape=long emits each measure's rows in declaration order, every row stamped _measure",
+        "only OVERLAY_PAIRWISE_* overlays run on a multi-measure crosstab, once per measure (pairs never cross measures); every other request overlay, and any Compose overlay reading such a slot, is refused (PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE)"
       ],
       "map_valued_cell_aggregators": [
         "AGG_SET_FREQUENCY",
@@ -18389,4 +18405,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d6283635018c12194949d7a8cb0d5a4786604c3c2f43e6ae8af8033ea7e2fa8e
+// golden-hash: c6d8039fe800e057db99b9b60368790279541dd3e909adcc9cd127a468a1c28b

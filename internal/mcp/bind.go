@@ -686,6 +686,9 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 		"Request-level multiple-comparison correction, inherited by every test, post-test and overlay that sets no `multiplicity` of its own (each field on its own: slot, then request, then the ComposedRequest, then the instance default). Raw p-values never move; corrected p_adjusted / significant_adjusted ride beside them. {\"method\":\"none\"} opts out. Family `compose` is valid only on a pulse_compose slot.",
 		types.AllMultiplicityFamilies(), true)
 	dropHiddenSlots(requestObject, &types.Request{}, inst)
+	if ct, ok := reqProps["crosstab"].(map[string]any); ok {
+		dropHiddenSlots(ct, &types.CrosstabSpec{}, inst)
+	}
 	dropHiddenWeights(requestObject, inst)
 	dropHiddenMultiplicity(requestObject, inst)
 	relaxForEachItems(reqProps)
@@ -1350,6 +1353,25 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 				"anyOf":                columnInputAnyOf(),
 				"additionalProperties": true,
 			},
+			"cells": map[string]any{
+				"type":        "array",
+				"minItems":    1,
+				"description": "Several cell aggregations — measures — rendered as stub rows; mutually exclusive with cell (PULSE_CROSSTAB_CELLS_INVALID when both are set). The matrix row axis gains an innermost MEASURE position (row_header field _measure, type MEASURE): every row key ends with its measure's effective label (label, else TYPE_field), and matrix.cell_labels names each row's measure. Each measure runs exactly as a single-cell crosstab would — its own cells, margins, normalize denominators and components; column margins and the grand total are per measure, on matrix.measures / components.crosstab.measures. Effective labels must be unique (PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL). Only the OVERLAY_PAIRWISE_* overlays run on such a crosstab, once per measure (pairs never cross measures).",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"type":   enumStringField(aggTypes, ""),
+						"field":  enumStringField(c.AllFields, "Field the measure reads. AGG_COUNT may name any field."),
+						"label":  map[string]any{"type": "string"},
+						"params": map[string]any{},
+						"weight": slotWeightSchema(c),
+						"vector": crosstabArrayValuedVectorSchema(),
+						"fields": crosstabArrayValuedFieldsSchema(),
+					},
+					"anyOf":                columnInputAnyOf(),
+					"additionalProperties": true,
+				},
+			},
 			"margin_aggregations": map[string]any{
 				"type":        "array",
 				"description": "Auxiliary MARGIN-ONLY aggregations: evaluated into the row / column / grand margin accumulators and never into a cell. Use it to carry a second figure — canonically an unweighted respondent base beside a weighted cell metric — without a second scan of the cohort. Effective labels (label, else TYPE_field) must be unique across the slot and distinct from the cell's, because margin components are keyed by label (PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL). Declaring it on a section that displays no margin warns PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED — the figures have nowhere to land; a normalize direction does not satisfy it, because the margin it requires is a denominator and an auxiliary is never a denominator. Figures surface on Response.Components.Crosstab as row_margin_aggregations / column_margin_aggregations / grand_total_aggregations, one map per margin slot keyed by effective label, each {value, present, components}; a slot that admitted no record carries present:false and NO value. An auxiliary sees the same record admission as the CELL — a record contributes only if it contributed to a cell — so a null cell field and an Include-excluded axis key are absent from it while the cell's own margins still count them.",
@@ -1399,7 +1421,7 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 				"description": "Zero-indexed depth on the OPPOSITE axis whose value fixes a partition of the 100% denominator. With normalize=row it fixes a prefix of the column axis (so the denominator collapses only columns deeper than this level while holding the full row key); with normalize=column it fixes a prefix of the row axis. Composes independently with normalize_level. Rejected when normalize is none or total.",
 			},
 		},
-		"required":             []string{"rows", "cell"},
+		"required":             []string{"rows"},
 		"additionalProperties": true,
 	}
 }

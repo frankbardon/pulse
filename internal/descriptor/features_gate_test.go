@@ -22,7 +22,7 @@ import (
 // discovered, so the gate pins the exact list.
 var wantCapabilities = []string{
 	"process", "stream", "watch", "compose", "compose_sweep", "compose_fits", "model_save", "models", "for_each", "process_chain", "facet",
-	"sample", "joins", "crosstab", "lookup", "index", "shard", "import",
+	"sample", "joins", "crosstab", "crosstab_cells", "lookup", "index", "shard", "import",
 	"export", "filter_to_file", "dedup", "materialize", "widen", "templates", "synth",
 	"labels", "range_tables", "weighting", "multiplicity", "matrices",
 	"recommend", "explain",

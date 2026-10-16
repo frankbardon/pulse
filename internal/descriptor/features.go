@@ -98,37 +98,38 @@ func op(name string) Feature {
 // Capability feature names, referenced by the MCP tool and command
 // binding tables and the instance manifest.
 var (
-	featProcess      = FeatureName(FeatureKindCapability, "process")
-	featCompose      = FeatureName(FeatureKindCapability, "compose")
-	featComposeSweep = FeatureName(FeatureKindCapability, "compose_sweep")
-	featComposeFits  = FeatureName(FeatureKindCapability, "compose_fits")
-	featModelSave    = FeatureModelSave
-	featModels       = FeatureModels
-	featForEach      = FeatureForEach
-	featProcessChain = FeatureName(FeatureKindCapability, "process_chain")
-	featFacet        = FeatureName(FeatureKindCapability, "facet")
-	featSample       = FeatureName(FeatureKindCapability, "sample")
-	featLookup       = FeatureName(FeatureKindCapability, "lookup")
-	featImport       = FeatureName(FeatureKindCapability, "import")
-	featDedup        = FeatureName(FeatureKindCapability, "dedup")
-	featMaterialize  = FeatureName(FeatureKindCapability, "materialize")
-	featRecommend    = FeatureName(FeatureKindCapability, "recommend")
-	featExplain      = FeatureName(FeatureKindCapability, "explain")
-	featLabels       = FeatureName(FeatureKindCapability, "labels")
-	featRangeTables  = FeatureName(FeatureKindCapability, "range_tables")
-	featCrosstab     = FeatureName(FeatureKindCapability, "crosstab")
-	featJoins        = FeatureName(FeatureKindCapability, "joins")
-	featStream       = FeatureName(FeatureKindCapability, "stream")
-	featWatch        = FeatureName(FeatureKindCapability, "watch")
-	featFilterToFile = FeatureName(FeatureKindCapability, "filter_to_file")
-	featIndex        = FeatureName(FeatureKindCapability, "index")
-	featShard        = FeatureName(FeatureKindCapability, "shard")
-	featWiden        = FeatureName(FeatureKindCapability, "widen")
-	featSynth        = FeatureName(FeatureKindCapability, "synth")
-	featExport       = FeatureName(FeatureKindCapability, "export")
-	featWeighting    = FeatureWeighting
-	featMultiplicity = FeatureMultiplicity
-	featMatrices     = FeatureName(FeatureKindCapability, "matrices")
+	featProcess       = FeatureName(FeatureKindCapability, "process")
+	featCompose       = FeatureName(FeatureKindCapability, "compose")
+	featComposeSweep  = FeatureName(FeatureKindCapability, "compose_sweep")
+	featComposeFits   = FeatureName(FeatureKindCapability, "compose_fits")
+	featModelSave     = FeatureModelSave
+	featModels        = FeatureModels
+	featForEach       = FeatureForEach
+	featProcessChain  = FeatureName(FeatureKindCapability, "process_chain")
+	featFacet         = FeatureName(FeatureKindCapability, "facet")
+	featSample        = FeatureName(FeatureKindCapability, "sample")
+	featLookup        = FeatureName(FeatureKindCapability, "lookup")
+	featImport        = FeatureName(FeatureKindCapability, "import")
+	featDedup         = FeatureName(FeatureKindCapability, "dedup")
+	featMaterialize   = FeatureName(FeatureKindCapability, "materialize")
+	featRecommend     = FeatureName(FeatureKindCapability, "recommend")
+	featExplain       = FeatureName(FeatureKindCapability, "explain")
+	featLabels        = FeatureName(FeatureKindCapability, "labels")
+	featRangeTables   = FeatureName(FeatureKindCapability, "range_tables")
+	featCrosstab      = FeatureName(FeatureKindCapability, "crosstab")
+	featCrosstabCells = FeatureCrosstabCells
+	featJoins         = FeatureName(FeatureKindCapability, "joins")
+	featStream        = FeatureName(FeatureKindCapability, "stream")
+	featWatch         = FeatureName(FeatureKindCapability, "watch")
+	featFilterToFile  = FeatureName(FeatureKindCapability, "filter_to_file")
+	featIndex         = FeatureName(FeatureKindCapability, "index")
+	featShard         = FeatureName(FeatureKindCapability, "shard")
+	featWiden         = FeatureName(FeatureKindCapability, "widen")
+	featSynth         = FeatureName(FeatureKindCapability, "synth")
+	featExport        = FeatureName(FeatureKindCapability, "export")
+	featWeighting     = FeatureWeighting
+	featMultiplicity  = FeatureMultiplicity
+	featMatrices      = FeatureName(FeatureKindCapability, "matrices")
 )
 
 // FeatureMultiplicity is capability:multiplicity — the multiple-
@@ -137,6 +138,13 @@ var (
 // pulse.Options.DefaultMultiplicity. Exported because the root facade
 // (DefaultMultiplicity refusal) reads it too.
 const FeatureMultiplicity = "capability:multiplicity"
+
+// FeatureCrosstabCells is capability:crosstab_cells — the multi-measure
+// crosstab: the `cells` key on CrosstabSpec (several measures as stub
+// rows) and the MEASURE-folded payload slots it produces
+// (MatrixPayload.cell_labels / measures, CrosstabComponents.measures).
+// Exported for the MCP bound schema.
+const FeatureCrosstabCells = "capability:crosstab_cells"
 
 // FeatureForEach is capability:for_each — the item fan-out: the
 // `for_each` key on Window, Feature and Attribute. Exported because the
@@ -182,6 +190,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("sample"),         // Sample, SampleWithRequest
 	capability("joins"),          // Request.Joins slot
 	capability("crosstab"),       // Request.Crosstab slot
+	capability("crosstab_cells"), // CrosstabSpec.Cells (several measures as stub rows)
 	capability("lookup"),         // Lookup
 	capability("index"),          // BuildIndex, VerifyIndex, ListIndexes, DropIndex
 	capability("shard"),          // every shard-archive method
@@ -528,6 +537,9 @@ var slotTokens = map[string]slotTokenSet{
 	// pulse_explain's `sample` root slot: "sample" is everyday English
 	// (a sample of rows, sample size).
 	featSample: {},
+	// `cells` and `measures` are everyday English, and no guidance
+	// sentence names the `cell_labels` payload slot yet.
+	featCrosstabCells: {},
 }
 
 // slotTokenHomonyms lists, per slot token, the tokens that mark a
@@ -713,6 +725,9 @@ var hardEdges = map[string][]string{
 	// A sweep expands into Compose slots: without Compose there is
 	// nothing to expand into.
 	featComposeSweep: {featCompose},
+	// The measures are a crosstab's cells: without the crosstab host
+	// there is no table to fold them into.
+	featCrosstabCells: {featCrosstab},
 	// A save writes a fitted regression (a model file) or a vector fit
 	// (a population file): without a regression or a vector battery
 	// there is nothing to save.

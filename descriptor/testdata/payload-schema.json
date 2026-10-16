@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:80a833d4af04380b87169d50d1ed8aa706487b61227f7b32685c3161c8c6465d",
+  "$comment": "feature_set_digest: fs1:cd213a1eb2b84095d2dc66806c4f639c9505a8b2e4ab902e9f489a0aa4b2a8b3",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -779,6 +779,15 @@
         "included_records": {
           "type": "integer"
         },
+        "measures": {
+          "items": {
+            "$ref": "#/$defs/CrosstabMeasureComponents"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "row_key_components": {
           "items": {
             "additionalProperties": true,
@@ -838,6 +847,87 @@
       },
       "type": "object"
     },
+    "CrosstabMeasureComponents": {
+      "additionalProperties": false,
+      "properties": {
+        "column_margin_aggregations": {
+          "items": {
+            "additionalProperties": {
+              "$ref": "#/$defs/MarginAggregationFigure"
+            },
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "column_margin_components": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "column_margin_counts": {
+          "items": {
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "grand_total_aggregations": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MarginAggregationFigure"
+          },
+          "type": "object"
+        },
+        "grand_total_components": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "grand_total_count": {
+          "type": "integer"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "type": "object"
+    },
+    "CrosstabMeasureMargins": {
+      "additionalProperties": false,
+      "properties": {
+        "column_margins": {
+          "items": {
+            "$ref": "#/$defs/MatrixCell"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "grand_total": {
+          "$ref": "#/$defs/MatrixCell"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "grand_total",
+        "label"
+      ],
+      "type": "object"
+    },
     "CrosstabResult": {
       "additionalProperties": false,
       "properties": {
@@ -858,6 +948,15 @@
       "properties": {
         "cell": {
           "$ref": "#/$defs/Aggregation"
+        },
+        "cells": {
+          "items": {
+            "$ref": "#/$defs/Aggregation"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "columns": {
           "items": {
@@ -903,7 +1002,6 @@
         }
       },
       "required": [
-        "cell",
         "rows"
       ],
       "type": "object"
@@ -2088,6 +2186,15 @@
         "cell_label": {
           "type": "string"
         },
+        "cell_labels": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "cells": {
           "items": {
             "items": {
@@ -2130,6 +2237,15 @@
         },
         "grand_total": {
           "$ref": "#/$defs/MatrixCell"
+        },
+        "measures": {
+          "items": {
+            "$ref": "#/$defs/CrosstabMeasureMargins"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "normalize_applied": {
           "type": "string"
@@ -4712,4 +4828,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 6f31f69bdc5eba1b262dfdf797be746298fd86c12671466bdaca1bb141b28633
+// golden-hash: ebf5f10314f0be300d4379ce427cce40ab14ecf8b2b69adc6d9c23ad7b4ff03c

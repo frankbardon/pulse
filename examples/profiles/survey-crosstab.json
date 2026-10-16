@@ -6,6 +6,7 @@
     "capability:compose",
     "capability:facet",
     "capability:crosstab",
+    "capability:crosstab_cells",
     "capability:labels",
     "capability:weighting",
     "capability:multiplicity",
