@@ -15,11 +15,13 @@ func init() {
 	register(types.FEAT_ONE_HOT, newOneHot)
 }
 
-// oneHot expands a categorical field into N boolean columns. Output column
-// names default to "<field>_<category>"; setting Label overrides the prefix
-// to "<label>_<category>". Categories come from the schema dictionary so
-// the output column set is deterministic — predict can materialize the
-// post-feature schema without scanning records.
+// oneHot expands a level field (a categorical, or a packed_bool whose
+// levels are "0" / "1") into N boolean columns. Output column names
+// default to "<field>_<category>"; setting Label overrides the prefix to
+// "<label>_<category>". Categories come from the schema (the dictionary,
+// or the packed_bool levels) so the output column set is deterministic —
+// predict can materialize the post-feature schema without scanning
+// records.
 type oneHot struct {
 	prefix     string
 	categories []string
@@ -42,7 +44,10 @@ func newOneHot(feat *types.Feature, schema *encoding.Schema) (Computer, error) {
 	if cerr := fieldaccept.Refusal(string(types.FEAT_ONE_HOT), fieldaccept.SlotField, feat.Field, f.Type); cerr != nil {
 		return nil, cerr
 	}
-	if f.Dictionary == nil {
+	// The levels: a categorical's dictionary labels, or a packed_bool's
+	// "0" / "1" — the same list predict's post-feature schema names.
+	levels := fieldaccept.Levels(f)
+	if levels == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			fmt.Sprintf("FEAT_ONE_HOT: field %q must be categorical with a dictionary", feat.Field))
 	}
@@ -52,7 +57,7 @@ func newOneHot(feat *types.Feature, schema *encoding.Schema) (Computer, error) {
 		prefix = feat.Field
 	}
 
-	cats := append([]string(nil), f.Dictionary.Values()...)
+	cats := append([]string(nil), levels...)
 	sort.Strings(cats)
 	return &oneHot{prefix: prefix, categories: cats}, nil
 }

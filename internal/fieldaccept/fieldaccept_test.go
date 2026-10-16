@@ -296,11 +296,10 @@ func TestTypeNames_NumericReaders(t *testing.T) {
 }
 
 // TestCategoricalValue_PackedBoolLevel pins the level class: every slot
-// that reads a level accepts a packed_bool beside the categoricals,
-// while TEST_ANOVA_RM's subject (a two-level subject id identifies no
-// subject) and the slots whose packed_bool arm is not wired yet (the
-// categorical encoders, FEAT_TRAIN_TEST_SPLIT's stratify) stay
-// categorical-only.
+// that reads a level accepts a packed_bool beside the categoricals —
+// the categorical encoders and FEAT_TRAIN_TEST_SPLIT's stratify
+// included — while TEST_ANOVA_RM's subject (a two-level subject id
+// identifies no subject) stays categorical-only.
 func TestCategoricalValue_PackedBoolLevel(t *testing.T) {
 	level := []string{"categorical_u16", "categorical_u32", "categorical_u8", "packed_bool"}
 	categorical := level[:3]
@@ -319,13 +318,37 @@ func TestCategoricalValue_PackedBoolLevel(t *testing.T) {
 		{"TEST_BOX_M", SlotSplitBy, level},
 		{"TEST_ANOVA_RM", SlotSplitBy, level},
 		{"TEST_ANOVA_RM", SlotSubject, categorical},
-		{"FEAT_ONE_HOT", SlotField, categorical},
-		{"FEAT_FREQUENCY_ENCODE", SlotField, categorical},
-		{"FEAT_TARGET_ENCODE", SlotField, categorical},
-		{"FEAT_TRAIN_TEST_SPLIT", SlotStratify, categorical},
+		{"FEAT_ONE_HOT", SlotField, level},
+		{"FEAT_FREQUENCY_ENCODE", SlotField, level},
+		{"FEAT_TARGET_ENCODE", SlotField, level},
+		{"FEAT_TRAIN_TEST_SPLIT", SlotStratify, level},
 	} {
 		if got := TypeNames(tc.op, tc.slot); !reflect.DeepEqual(got, tc.want) {
 			t.Errorf("%s %s: %v, want %v", tc.op, tc.slot, got, tc.want)
+		}
+	}
+}
+
+// TestLevels pins the level list FEAT_ONE_HOT's columns come from on
+// both sides: a categorical's dictionary labels in dictionary order, a
+// packed_bool's "0" / "1", nil for anything else.
+func TestLevels(t *testing.T) {
+	dict := encoding.NewDictionary()
+	dict.Add("b")
+	dict.Add("a")
+	for _, tc := range []struct {
+		name string
+		f    *encoding.Field
+		want []string
+	}{
+		{"nil", nil, nil},
+		{"categorical", &encoding.Field{Name: "c", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict}, []string{"b", "a"}},
+		{"categorical without dictionary", &encoding.Field{Name: "c", Type: encoding.FieldTypeCategoricalU8}, nil},
+		{"packed_bool", &encoding.Field{Name: "p", Type: encoding.FieldTypePackedBool}, []string{"0", "1"}},
+		{"f64", &encoding.Field{Name: "x", Type: encoding.FieldTypeF64}, nil},
+	} {
+		if got := Levels(tc.f); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: %v, want %v", tc.name, got, tc.want)
 		}
 	}
 }

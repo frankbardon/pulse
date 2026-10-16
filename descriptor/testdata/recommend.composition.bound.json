@@ -350,58 +350,38 @@
         ]
       },
       {
-        "operator": "AGG_FREQUENCY",
-        "category": "aggregator",
-        "level": "basic",
-        "why": "How many rows hold one chosen value of a field, such as the Yes answers, over all rows or per group. It uses region (categorical_u8, 4 groups). Fill in each placeholder in the draft before you run it.",
-        "bound": false,
+        "operator": "FEAT_FREQUENCY_ENCODE",
+        "category": "feature",
+        "level": "intermediate",
+        "why": "Replaces each category with the share of records that carry it, one number that says how common the category is. It uses churned (packed_bool).",
+        "bound": true,
         "request": {
-          "aggregations": [
-            {
-              "field": "region",
-              "params": {
-                "value": "\u003cvalue\u003e"
-              },
-              "type": "AGG_FREQUENCY"
-            }
-          ],
           "cohort": {
             "filename": "recommend.pulse"
-          }
+          },
+          "features": [
+            {
+              "field": "churned",
+              "type": "FEAT_FREQUENCY_ENCODE"
+            }
+          ]
         },
-        "placeholders": [
-          "value"
-        ],
-        "needs": [
-          {
-            "param": "value",
-            "why": "Name the value whose share to count."
-          }
-        ],
         "alternatives": [
           {
-            "when": "you want how many rows share the field's most common value, whatever it is",
-            "use": "AGG_MODE_COUNT"
-          },
-          {
-            "when": "you want a count for every value of the field: group by it, then count rows",
+            "when": "you want the count table itself, one row per category: group by the field, then count",
             "use": "GROUP_CATEGORY"
           },
           {
-            "when": "you want rows holding any of several values: keep them, then count rows",
-            "use": "FILTER_INCLUDE"
-          },
-          {
-            "when": "the field is a multi-select",
-            "use": "AGG_SET_FREQUENCY"
+            "when": "the field has few categories and each should be its own column",
+            "use": "FEAT_ONE_HOT"
           }
         ]
       }
     ],
     "truncated": true,
-    "candidates_considered": 12
+    "candidates_considered": 13
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: c6da82a9a9d733411a0055226cbba30a2e27bf656e90dacf0efd569f558e4ddd
+// golden-hash: b38b8ff6f709168155af01ad4b0fd352111e841de91c0f9725d49a8e53c92523

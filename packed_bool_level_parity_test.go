@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
@@ -239,5 +240,143 @@ func TestPackedBoolLevel_AnovaRMSubjectRefused(t *testing.T) {
 	env := predictEnvelope(t, p, fs, cohort, mk())
 	if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PULSE_FIELD_TYPE_UNSUPPORTED) {
 		t.Fatalf("predict errors %+v, want one %s", env.Errors, errors.PULSE_FIELD_TYPE_UNSUPPORTED)
+	}
+}
+
+// packedBoolMatrixCases extend the level matrix past the tier-1 tests:
+// the stratified split, the three encoders, the vector-input tests'
+// named-vector form, and the post-tests that read a packed_bool
+// GROUP_CATEGORY key column as their split_by. Each body is a whole
+// request; $FLAG / $GRP name the packed_bool column or its categorical
+// twin. The post-test rows read an OUTPUT key column (a grouper's
+// label), never a schema field, so they carry no acceptance-table row:
+// their parity rides the grouper's "0" / "1" keys.
+var packedBoolMatrixCases = []struct{ name, body string }{
+	{"FEAT_TRAIN_TEST_SPLIT stratify", `{"features":[{"type":"FEAT_TRAIN_TEST_SPLIT","label":"split","params":{"ratios":[0.5,0.5],"seed":11,"stratify":"$FLAG"}}],` +
+		`"groups":[{"type":"GROUP_CATEGORY","field":"$FLAG"}],"aggregations":[{"type":"AGG_SUM","field":"split","label":"val"},{"type":"AGG_COUNT","field":"x","label":"n"}]}`},
+	{"FEAT_ONE_HOT", `{"features":[{"type":"FEAT_ONE_HOT","field":"$FLAG"}],` +
+		`"groups":[{"type":"GROUP_CATEGORY","field":"cat_grp"}],"aggregations":[{"type":"AGG_SUM","field":"$FLAG_0","label":"lvl0"},{"type":"AGG_SUM","field":"$FLAG_1","label":"lvl1"}]}`},
+	{"FEAT_FREQUENCY_ENCODE", `{"features":[{"type":"FEAT_FREQUENCY_ENCODE","field":"$FLAG","label":"enc"}],` +
+		`"groups":[{"type":"GROUP_CATEGORY","field":"cat_grp"}],"aggregations":[{"type":"AGG_SUM","field":"enc","label":"s"},{"type":"AGG_COUNT","field":"enc","label":"n"}]}`},
+	{"FEAT_TARGET_ENCODE", `{"features":[{"type":"FEAT_TARGET_ENCODE","field":"$FLAG","label":"enc","params":{"target":"x","smoothing":2}}],` +
+		`"groups":[{"type":"GROUP_CATEGORY","field":"cat_grp"}],"aggregations":[{"type":"AGG_SUM","field":"enc","label":"s"},{"type":"AGG_COUNT","field":"enc","label":"n"}]}`},
+	{"TEST_HOTELLING_T2 vector", `{"vectors":[{"name":"v","fields":["x","y"]}],"tests":[{"type":"TEST_HOTELLING_T2","vector":"v","split_by":"$GRP","label":"level_test"}]}`},
+	{"TEST_MANOVA vector", `{"vectors":[{"name":"v","fields":["x","y"]}],"tests":[{"type":"TEST_MANOVA","vector":"v","split_by":"$GRP","label":"level_test"}]}`},
+	{"TEST_BOX_M vector", `{"vectors":[{"name":"v","fields":["x","y"]}],"tests":[{"type":"TEST_BOX_M","vector":"v","split_by":"$GRP","label":"level_test"}]}`},
+	{"post TEST_ANOVA_F", `{"groups":[{"type":"GROUP_CATEGORY","field":"$GRP"}],` +
+		`"aggregations":[{"type":"AGG_AVERAGE","field":"x","label":"mean"},{"type":"AGG_COUNT","field":"x","label":"n"},{"type":"AGG_VARIANCE","field":"x","label":"var"}],` +
+		`"post_tests":[{"type":"TEST_ANOVA_F","field":"mean","split_by":"$GRP","label":"level_test","params":{"n_col":"n","variance_col":"var"}}]}`},
+	{"post TEST_ANOVA_WELCH", `{"groups":[{"type":"GROUP_CATEGORY","field":"$GRP"}],` +
+		`"aggregations":[{"type":"AGG_AVERAGE","field":"x","label":"mean"},{"type":"AGG_COUNT","field":"x","label":"n"},{"type":"AGG_VARIANCE","field":"x","label":"var"}],` +
+		`"post_tests":[{"type":"TEST_ANOVA_WELCH","field":"mean","split_by":"$GRP","label":"level_test","params":{"n_col":"n","variance_col":"var"}}]}`},
+	{"post TEST_BROWN_FORSYTHE", `{"groups":[{"type":"GROUP_CATEGORY","field":"$GRP"},{"type":"GROUP_CATEGORY","field":"subj"}],` +
+		`"aggregations":[{"type":"AGG_AVERAGE","field":"x","label":"mean"}],` +
+		`"post_tests":[{"type":"TEST_BROWN_FORSYTHE","field":"mean","split_by":"$GRP","label":"level_test","params":{"partition_by":[]}}]}`},
+	{"post TEST_KS", `{"groups":[{"type":"GROUP_CATEGORY","field":"$GRP"},{"type":"GROUP_CATEGORY","field":"subj"}],` +
+		`"aggregations":[{"type":"AGG_AVERAGE","field":"x","label":"mean"}],` +
+		`"post_tests":[{"type":"TEST_KS","field":"mean","split_by":"$GRP","label":"level_test","params":{"partition_by":[]}}]}`},
+	{"post TEST_SHAPIRO_WILK", `{"groups":[{"type":"GROUP_CATEGORY","field":"$GRP"},{"type":"GROUP_CATEGORY","field":"subj"}],` +
+		`"aggregations":[{"type":"AGG_AVERAGE","field":"x","label":"mean"}],` +
+		`"post_tests":[{"type":"TEST_SHAPIRO_WILK","field":"mean","split_by":"$GRP","label":"level_test","params":{"partition_by":[]}}]}`},
+}
+
+// TestPackedBoolLevel_MatrixMatchesCategoricalTwin runs every matrix
+// row over a packed_bool column and over its categorical twin: the whole
+// response (data, tests, post-tests) must match once column names are
+// aligned, and predict must accept every request the runtime runs. A
+// refusal on either side, a level read as missing, or a one-hot column
+// set built from a dictionary the packed_bool lacks all fail it.
+func TestPackedBoolLevel_MatrixMatchesCategoricalTwin(t *testing.T) {
+	p, fs, cohort := packedBoolLevelCohort(t)
+	ctx := context.Background()
+	run := func(t *testing.T, body string) []byte {
+		t.Helper()
+		var req types.Request
+		if err := json.Unmarshal([]byte(body), &req); err != nil {
+			t.Fatalf("request: %v", err)
+		}
+		req.Cohort = &types.Cohort{Filename: cohort}
+		if env := predictEnvelope(t, p, fs, cohort, &req); len(env.Errors) != 0 {
+			t.Errorf("predict refused %s: %s %s", body, env.Errors[0].Code, env.Errors[0].Message)
+		}
+		resp, err := p.Process(ctx, &req)
+		if err != nil {
+			t.Fatalf("process %s: %v", body, err)
+		}
+		out, err := json.Marshal(struct {
+			Data      any `json:"data"`
+			Tests     any `json:"tests"`
+			PostTests any `json:"post_tests"`
+		}{resp.Data, resp.Tests, resp.PostTests})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	// Align the column names, then re-marshal so object keys sort on
+	// the aligned names.
+	norm := func(b []byte) []byte {
+		b = bytes.ReplaceAll(bytes.ReplaceAll(b, []byte(`"pb_`), []byte(`"col_`)), []byte(`"cat_`), []byte(`"col_`))
+		var v any
+		if err := json.Unmarshal(b, &v); err != nil {
+			t.Fatal(err)
+		}
+		out, err := json.Marshal(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	for _, tc := range packedBoolMatrixCases {
+		t.Run(tc.name, func(t *testing.T) {
+			pb := norm(run(t, strings.NewReplacer("$FLAG", "pb_flag", "$GRP", "pb_grp").Replace(tc.body)))
+			twin := norm(run(t, strings.NewReplacer("$FLAG", "cat_flag", "$GRP", "cat_grp").Replace(tc.body)))
+			if !bytes.Equal(pb, twin) {
+				t.Errorf("packed_bool result differs from its categorical twin:\npacked_bool: %s\ntwin:        %s", pb, twin)
+			}
+			if bytes.Contains(pb, []byte(`"tests":null`)) && bytes.Contains(pb, []byte(`"post_tests":null`)) && !strings.HasPrefix(tc.name, "FEAT_") {
+				t.Errorf("no test result: %s", pb)
+			}
+		})
+	}
+}
+
+// TestPackedBoolLevel_StratifyPreservesProportion pins the stratified
+// split on a packed_bool: each level is split at the ratio on its own,
+// so the validation share inside level "0" and inside level "1" is half
+// (within one row), and every row of each level is assigned.
+func TestPackedBoolLevel_StratifyPreservesProportion(t *testing.T) {
+	p, _, cohort := packedBoolLevelCohort(t)
+	var req types.Request
+	body := `{"features":[{"type":"FEAT_TRAIN_TEST_SPLIT","label":"split","params":{"ratios":[0.5,0.5],"seed":3,"stratify":"pb_flag"}}],` +
+		`"groups":[{"type":"GROUP_CATEGORY","field":"pb_flag"}],"aggregations":[{"type":"AGG_SUM","field":"split","label":"val"},{"type":"AGG_COUNT","field":"split","label":"n"}]}`
+	if err := json.Unmarshal([]byte(body), &req); err != nil {
+		t.Fatal(err)
+	}
+	req.Cohort = &types.Cohort{Filename: cohort}
+	resp, err := p.Process(context.Background(), &req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(resp.Data)
+	var rows []struct {
+		Key string  `json:"pb_flag"`
+		Val float64 `json:"val"`
+		N   float64 `json:"n"`
+	}
+	if err := json.Unmarshal(b, &rows); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	total := 0.0
+	for _, r := range rows {
+		seen[r.Key] = true
+		total += r.N
+		if math.Abs(r.Val-r.N/2) > 1 {
+			t.Errorf("level %q: %v of %v rows in validation, want half", r.Key, r.Val, r.N)
+		}
+	}
+	if !seen["0"] || !seen["1"] || total != 60 {
+		t.Fatalf("levels %v over %v rows, want 0 and 1 over 60: %s", seen, total, b)
 	}
 }

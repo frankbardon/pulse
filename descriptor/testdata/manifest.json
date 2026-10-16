@@ -6080,12 +6080,13 @@
         {
           "name": "FEAT_FREQUENCY_ENCODE",
           "category": "feature",
-          "description": "Replace each categorical value with its observed relative frequency in the cohort.",
+          "description": "Replace each categorical value (or packed_bool level \"0\" / \"1\") with its observed relative frequency in the cohort.",
           "params": null,
           "accepts_types": [
             "categorical_u16",
             "categorical_u32",
-            "categorical_u8"
+            "categorical_u8",
+            "packed_bool"
           ],
           "emits_type": "f32",
           "emits_type_note": "single column \"\u003clabel\u003e\" with frequency per row",
@@ -6130,14 +6131,15 @@
         {
           "name": "FEAT_ONE_HOT",
           "category": "feature",
-          "description": "One-hot encode a categorical field as one f32 column per dictionary entry.",
+          "description": "One-hot encode a categorical field as one f32 column per dictionary entry; a packed_bool's levels are \"0\" / \"1\".",
           "params": null,
           "accepts_types": [
             "categorical_u16",
             "categorical_u32",
-            "categorical_u8"
+            "categorical_u8",
+            "packed_bool"
           ],
-          "emits_type_note": "one column per dictionary entry, prefixed by label",
+          "emits_type_note": "one column per level (dictionary entry, or \"0\" / \"1\" for a packed_bool), prefixed by label",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -6212,7 +6214,7 @@
         {
           "name": "FEAT_TARGET_ENCODE",
           "category": "feature",
-          "description": "Replace each categorical value with the smoothed mean of a numeric Target field for that category.",
+          "description": "Replace each categorical value (or packed_bool level \"0\" / \"1\") with the smoothed mean of a numeric Target field for that category.",
           "params": [
             {
               "name": "target",
@@ -6232,7 +6234,8 @@
           "accepts_types": [
             "categorical_u16",
             "categorical_u32",
-            "categorical_u8"
+            "categorical_u8",
+            "packed_bool"
           ],
           "emits_type": "f32",
           "emits_type_note": "single column \"\u003clabel\u003e\"; risk of target leakage on non-CV pipelines",
@@ -6266,7 +6269,7 @@
               "name": "stratify",
               "type": "field",
               "required": false,
-              "description": "Optional categorical field; ratios are applied per category for class balance.",
+              "description": "Optional categorical or packed_bool field; ratios are applied per level for class balance.",
               "field_filter": "categorical"
             }
           ],
@@ -10794,8 +10797,11 @@
         ],
         "compatible_features": [
           "FEAT_BUCKETIZE",
+          "FEAT_FREQUENCY_ENCODE",
           "FEAT_LOG",
+          "FEAT_ONE_HOT",
           "FEAT_SQRT",
+          "FEAT_TARGET_ENCODE",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
       },
@@ -18145,4 +18151,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 034372ecd9088f17fff92bf76ad10ff3a81b55cf141ca7b4dda8f5a472749fb1
+// golden-hash: d81c35abbc83b5e8e8aaee5fbab50ec92733ec7b111ff5955032e9f9d313f81d
