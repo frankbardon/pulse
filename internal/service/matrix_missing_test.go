@@ -51,9 +51,12 @@ func withOneBucketBetween(raw json.RawMessage) json.RawMessage {
 }
 
 // pairwiseRefused reports an operator that refuses params.missing
-// "pairwise" (MAT_DISTANCE: every centroid rests on one row set; its
-// refusal is pinned by the vectors resolver tests).
-func pairwiseRefused(typ types.MatrixType) bool { return typ == types.MAT_DISTANCE }
+// "pairwise" (MAT_DISTANCE: every centroid rests on one row set;
+// MAT_SEM: the likelihood is one sample's covariance; both refusals are
+// pinned by the vectors resolver tests).
+func pairwiseRefused(typ types.MatrixType) bool {
+	return typ == types.MAT_DISTANCE || typ == types.MAT_SEM
+}
 
 func runOneMatrix(t *testing.T, rows [][5]float64, spec types.MatrixSpec) types.MatrixResult {
 	t.Helper()
@@ -350,10 +353,14 @@ func TestMatrixWarnings_InsufficientN(t *testing.T) {
 			}
 
 			zero := append([][5]float64(nil), matrixRefRows...)
-			for i := range zero {
-				zero[i][4] = 0
+			weightCol, weight := 4, "p"
+			if typ == types.MAT_SEM {
+				weightCol, weight = 3, "f" // frequency only
 			}
-			zw := runOneMatrix(t, zero, missingSpec(typ, x123, "p", ""))
+			for i := range zero {
+				zero[i][weightCol] = 0
+			}
+			zw := runOneMatrix(t, zero, missingSpec(typ, x123, weight, ""))
 			if w := findWarning(zw, errors.PULSE_MATRIX_INSUFFICIENT_N); w == nil || w.Details["scope"] != "matrix" || w.Details["sum_weights"] != 0.0 {
 				t.Errorf("zero-mass warning = %v", w)
 			}
@@ -432,6 +439,13 @@ func TestMatrixWarnings_ZeroVariance(t *testing.T) {
 					// communalities.
 					if len(res.Primary.ColumnKeys) != 0 || !math.IsNaN(res.Vectors["communalities"].([]float64)[0]) {
 						t.Errorf("factor analysis over a constant member = %v / %v, want undefined", res.Primary.ColumnKeys, res.Vectors["communalities"])
+					}
+					return
+				}
+				if typ == types.MAT_SEM {
+					// No covariance to fit: every figure null.
+					if !math.IsNaN(res.Primary.Values[0][0]) || !math.IsNaN(res.Scalars["chi2"]) {
+						t.Errorf("SEM over a constant member = %v / chi2 %v, want undefined", res.Primary.Values[0], res.Scalars["chi2"])
 					}
 					return
 				}

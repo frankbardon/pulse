@@ -51,6 +51,12 @@ var matrixInvarianceVariants = func() []matrixInvarianceVariant {
 				continue // listwise only
 			}
 			for _, v := range []matrixInvarianceVariant{{false, false, "", false}, {true, false, "", false}, {false, true, "", false}, {true, true, "", false}} {
+				if v.weighted && typ == types.MAT_SEM {
+					// Frequency only, and these weights are fractional
+					// (invalid under kind frequency): the frequency fit
+					// is TestMatrixSEM_FrequencyWeightIsExpansion's.
+					continue
+				}
 				v.typ = typ
 				v.pairwise = pairwise
 				out = append(out, v)
@@ -145,12 +151,15 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 		spec.Params = json.RawMessage(`{"max_drop_share": 0, "standardize": true, "metric": "` + metric +
 			`", "between": {"type": "GROUP_RANGE", "field": "x3", "interval": 250000}}`)
 	}
+	// MAT_SEM regresses x1 on x3 (df 1): the near-collinear x1 / x2
+	// pair at these scales leaves a covariance no ML fit can factor
+	// (PULSE_MATRIX_SINGULAR), so the model leaves x2 out.
+	if v.matrixType() == types.MAT_SEM {
+		spec.Fields = []string{"x1", "x3"}
+		spec.Params = json.RawMessage(`{"max_drop_share": 0, "model": "x1 ~ x3"}`)
+	}
 	if v.weighted {
 		spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
-		if v.matrixType() == types.MAT_SEM {
-			// Frequency only: semopy has no design-based form.
-			spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency})
-		}
 	}
 	req := &types.Request{
 		Cohort:   &types.Cohort{Filename: path},
@@ -620,6 +629,9 @@ func TestMatrixCovariance_WorkerInvariant(t *testing.T) {
 		}
 		for _, typ := range types.AllMatrixTypes() {
 			for _, weighted := range []bool{false, true} {
+				if weighted && typ == types.MAT_SEM {
+					continue // frequency only; these weights are fractional
+				}
 				alone := runMatrixInvariance(t, cfg, matrixInvarianceRequest("m.pulse", matrixInvarianceVariant{weighted, false, typ, false}), 0, 0)
 				beside := runMatrixInvariance(t, cfg, matrixInvarianceRequest("m.pulse", matrixInvarianceVariant{weighted, true, typ, false}), 0, 0)
 				if i := firstWordDiff(alone.words, beside.words); i != -1 {
