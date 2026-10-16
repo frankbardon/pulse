@@ -373,6 +373,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("MAT_PARTIAL_CORRELATION"),
 	op("MAT_PCA"),
 	op("MAT_RELIABILITY"),
+	op("MAT_SEM"),
 	// Overlay kinds — types.AllOverlayKinds().
 	op("OVERLAY_CHISQ_COL"),
 	op("OVERLAY_CHISQ_MATRIX"),
@@ -707,6 +708,7 @@ var hardEdges = map[string][]string{
 	"MAT_PARTIAL_CORRELATION": {featMatrices},
 	"MAT_PCA":                 {featMatrices},
 	"MAT_RELIABILITY":         {featMatrices},
+	"MAT_SEM":                 {featMatrices},
 
 	// A sweep expands into Compose slots: without Compose there is
 	// nothing to expand into.

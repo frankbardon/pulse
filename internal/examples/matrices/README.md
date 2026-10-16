@@ -20,6 +20,7 @@ Whole-set matrix operators (`MAT_*`) over virtual vectors
 | `12_distance.json` | `MAT_DISTANCE` | Distances between bucket centroids (`between`: any non-date grouper, `GROUP_KMEANS` included): euclidean / sq_euclidean / manhattan / chebyshev / cosine / hellinger / aitchison / mahalanobis (the `linalg/metric` registry), `standardize`, centroids and bucket sizes. |
 | `13_correlation_inference.json` | `MAT_CORRELATION` + `MAT_PARTIAL_CORRELATION` | `params.inference`: per-pair `auxiliary.p` and Fisher-z intervals (`ci_lower` / `ci_upper`) on a pairwise Pearson matrix and on a partial correlation with `alpha` 0.1. |
 | `14_rotations.json` | `MAT_FACTOR` + `MAT_PCA` | Rotation criteria on a two-factor rating battery (`survey.pulse`): `geomin` (oblique, `epsilon`, `factor_correlation`), `quartimax`, `entropy`, and `geomin_orthogonal` on MAT_PCA (orthogonal criteria only). |
+| `15_sem.json` | `MAT_SEM` | A confirmatory factor analysis in lavaan / semopy syntax (`service =~ q1 + q2 + q3`, `value =~ q4 + q5 + q6`): semopy's estimates, standard errors and fit indices (default, its SLSQP and early stop), and the converged fit (`solver: "fisher"`, `information: "rank2"`). |
 
 Run every example:
 

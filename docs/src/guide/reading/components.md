@@ -825,6 +825,14 @@ Only the floor keys.
 | `iterations` | int | when its condition holds | Coordinate sweeps the one-factor minres fit behind omega ran (cap 1000); absent when no fit ran (2 items, an undefined or unrepaired non-PSD input). |
 | `converged` | bool | when its condition holds | Whether the minres fit met its tolerance (1e-12) within the cap; false comes with PULSE_MATRIX_NOT_CONVERGED. Absent when no fit ran. |
 
+<a id="op-mat_sem"></a>
+
+#### `MAT_SEM`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/matrix.md#op-mat_sem).
+
+Only the floor keys.
+
 ### Attributes
 
 <a id="op-attr_profile_similarity"></a>

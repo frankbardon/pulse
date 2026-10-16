@@ -17,6 +17,37 @@ var matrixPurposes = map[string]descriptor.Purpose{
 	"MAT_COLLINEARITY":        purposeMatCollinearity,
 	"MAT_FACTOR":              purposeMatFactor,
 	"MAT_DISTANCE":            purposeMatDistance,
+	"MAT_SEM":                 purposeMatSEM,
+}
+
+var purposeMatSEM = descriptor.Purpose{
+	Plain:   "Whether a theory of how measures hang together holds: the hidden qualities they reflect, how those drive each other, how well it fits.",
+	KnownAs: []string{"structural equation model", "sem", "confirmatory factor analysis", "cfa", "path analysis", "lavaan", "semopy", "second-order factor", "latent variable model"},
+	Intents: []string{IntentMeasureConstruct},
+	Questions: []string{
+		"Do these brand-image items load on the five personality dimensions we designed them for, and does the model fit?",
+		"How strongly does the overall quality we measure through these three sub-scales drive satisfaction and loyalty?",
+	},
+	UseCases: map[descriptor.Domain]string{
+		descriptor.DomainSurvey:  "Testing a designed battery's factor structure (which items belong to which quality, and how the qualities group into higher ones) and how the qualities drive outcome questions, in one model.",
+		descriptor.DomainScience: "Fitting a measurement model and the paths between latent constructs, and reporting chi-square, CFI, TLI and RMSEA alongside the paths.",
+	},
+	NotFor: []descriptor.Alternative{
+		{When: "you do not yet know which measures belong to which quality", Use: "MAT_FACTOR"},
+		{When: "every variable is measured directly and you want one outcome's drivers", Use: "REG_OLS"},
+		{When: "you want one battery's reliability before scoring it", Use: "MAT_RELIABILITY"},
+	},
+	FollowUps: []descriptor.Alternative{
+		{When: "the fit is poor and the structure needs exploring", Use: "MAT_FACTOR"},
+	},
+	Assumptions: []string{
+		"You write the model: which measures reflect which quality, which qualities drive which, and any covariances; the fit says how well that theory reproduces the measures' covariance, not whether it is the only theory that would.",
+		"Maximum likelihood assumes roughly normal measures; with few rating levels the chi-square and standard errors are optimistic.",
+		"The default reproduces semopy's results exactly, including where its optimiser stops short of the best fit; choose solver fisher for the converged optimum.",
+		"A row with any measure missing is dropped from every figure (listwise deletion).",
+	},
+	Level:    descriptor.LevelAdvanced,
+	Glossary: []string{"factor", "loading", "covariance", "regression-coefficient", "chi-square", "degrees-of-freedom", "goodness-of-fit", "standard-error", "listwise-deletion"},
 }
 
 var purposeMatDistance = descriptor.Purpose{

@@ -234,13 +234,16 @@ func vparCases() []vparCase {
 	return []vparCase{
 		{
 			name: "co-moment matrices by native name",
-			ops:  []string{"MAT_COVARIANCE", "MAT_CORRELATION", "MAT_PARTIAL_CORRELATION", "MAT_COLLINEARITY"},
+			ops:  []string{"MAT_COVARIANCE", "MAT_CORRELATION", "MAT_PARTIAL_CORRELATION", "MAT_COLLINEARITY", "MAT_SEM"},
 			req: func(twin bool) *types.Request {
 				return vparReq(twin, &types.Request{Matrices: []types.MatrixSpec{
 					matrix(types.MAT_COVARIANCE, "emb", ""),
 					matrix(types.MAT_CORRELATION, "emb", `{"missing":"pairwise","summary":{"top_pairs":2}}`),
 					matrix(types.MAT_PARTIAL_CORRELATION, "emb", ""),
 					matrix(types.MAT_COLLINEARITY, "emb2", ""),
+					// The default one-factor model names the members by
+					// label: a native vector's element labels.
+					matrix(types.MAT_SEM, "emb", ""),
 				}})
 			},
 		},

@@ -264,6 +264,13 @@ var matrixClasses = map[types.MatrixType]Class{
 	// GROUP_KMEANS between makes the spec frequency-only
 	// (DistanceClassOf).
 	types.MAT_DISTANCE: ClassAware,
+	// MAT_SEM fits the weighted covariance M2_w/Σw with N = Σw: under a
+	// frequency weight exactly semopy's fit on the expanded rows (the
+	// likelihood, the information matrix and every fit index read N).
+	// semopy has no probability-weighted (design-based) form, so a
+	// probability weight is refused rather than given a figure it never
+	// produces.
+	types.MAT_SEM: ClassFrequencyOnly,
 }
 
 // DistanceClassOf is a MAT_DISTANCE spec's weight class given its

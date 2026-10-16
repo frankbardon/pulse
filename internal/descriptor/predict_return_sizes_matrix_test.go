@@ -48,7 +48,8 @@ type auxShape struct {
 // (every one declared in its OutputKeys.Auxiliary) and shapes as its
 // runtime emits them (matrix_finalize.go,
 // matrix_inference.go, matrix_partial.go, matrix_pca.go,
-// matrix_factor.go, matrix_collinearity.go, matrix_distance.go).
+// matrix_factor.go, matrix_collinearity.go, matrix_distance.go,
+// matrix_sem.go).
 func TestMatrixAuxiliaryNodes_PerOperator(t *testing.T) {
 	x3 := []string{"x1", "x2", "x3"}
 	x4 := []string{"x1", "x2", "x3", "x4"}
@@ -81,6 +82,10 @@ func TestMatrixAuxiliaryNodes_PerOperator(t *testing.T) {
 		{"collinearity_uncentered", auxSpec(types.MAT_COLLINEARITY, x3, ""), []auxShape{{"variance_decomposition", 4, 4}}},
 		{"collinearity_centered", auxSpec(types.MAT_COLLINEARITY, x3, `{"center": true}`), []auxShape{{"variance_decomposition", 3, 3}}},
 		{"distance", auxSpec(types.MAT_DISTANCE, x3, `{`+between+`}`), []auxShape{{"centroids", 4, 3}}},
+		// One factor over three members: three loadings (x1's fixed),
+		// three residual variances and the factor variance.
+		{"sem_default", auxSpec(types.MAT_SEM, x3, ""), []auxShape{{"estimates", 7, 5}, {"residual_covariance", 3, 3}}},
+		{"sem_model", auxSpec(types.MAT_SEM, x4, `{"model": "f =~ x1 + x2 + x3\nx4 ~ f"}`), []auxShape{{"estimates", 9, 5}, {"residual_covariance", 4, 4}}},
 		{"distance_standardized_mahalanobis", auxSpec(types.MAT_DISTANCE, x3, `{`+between+`, "standardize": true, "metric": "mahalanobis"}`),
 			[]auxShape{{"centroids", 4, 3}, {"centroids_standardized", 4, 3}, {"pooled_covariance", 3, 3}}},
 	}

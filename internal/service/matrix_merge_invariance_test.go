@@ -47,10 +47,16 @@ var matrixInvarianceVariants = func() []matrixInvarianceVariant {
 	var out []matrixInvarianceVariant
 	for _, typ := range types.AllMatrixTypes() {
 		for _, pairwise := range []bool{false, true} {
-			if pairwise && typ == types.MAT_DISTANCE {
+			if pairwise && (typ == types.MAT_DISTANCE || typ == types.MAT_SEM) {
 				continue // listwise only
 			}
 			for _, v := range []matrixInvarianceVariant{{false, false, "", false}, {true, false, "", false}, {false, true, "", false}, {true, true, "", false}} {
+				if v.weighted && typ == types.MAT_SEM {
+					// Frequency only, and these weights are fractional
+					// (invalid under kind frequency): the frequency fit
+					// is TestMatrixSEM_FrequencyWeightIsExpansion's.
+					continue
+				}
 				v.typ = typ
 				v.pairwise = pairwise
 				out = append(out, v)
@@ -144,6 +150,13 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 		}
 		spec.Params = json.RawMessage(`{"max_drop_share": 0, "standardize": true, "metric": "` + metric +
 			`", "between": {"type": "GROUP_RANGE", "field": "x3", "interval": 250000}}`)
+	}
+	// MAT_SEM regresses x1 on x3 (df 1): the near-collinear x1 / x2
+	// pair at these scales leaves a covariance no ML fit can factor
+	// (PULSE_MATRIX_SINGULAR), so the model leaves x2 out.
+	if v.matrixType() == types.MAT_SEM {
+		spec.Fields = []string{"x1", "x3"}
+		spec.Params = json.RawMessage(`{"max_drop_share": 0, "model": "x1 ~ x3"}`)
 	}
 	if v.weighted {
 		spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
@@ -270,6 +283,21 @@ func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decod
 				t.Fatalf("Process(decode=%d, shard=%d): rotated pairwise PCA lacks rotated_variance / unrotated", decodeWorkers, shardWorkers)
 			}
 			for _, x := range vs {
+				out.relBits = append(out.relBits, math.Float64bits(x))
+			}
+		}
+	} else if req.Matrices[0].Type == types.MAT_SEM {
+		// The fit is a pure function of the merged covariance and N, so
+		// every estimate and fit index is as worker-invariant as they are.
+		for _, k := range []string{"chi2", "chi2_baseline", "cfi", "rmsea", "objective", "n", "iterations"} {
+			out.relBits = append(out.relBits, math.Float64bits(m.Scalars[k]))
+		}
+		est := m.Auxiliary["estimates"]
+		if est == nil || len(est.Values) == 0 {
+			t.Fatalf("Process(decode=%d, shard=%d): MAT_SEM carries no estimates", decodeWorkers, shardWorkers)
+		}
+		for _, row := range est.Values {
+			for _, x := range row {
 				out.relBits = append(out.relBits, math.Float64bits(x))
 			}
 		}
@@ -414,6 +442,8 @@ func referenceMatrixWords(t *testing.T, n int, v matrixInvarianceVariant) []uint
 		return nil // the loadings are an eigensolver's output: no FMA-free anchor
 	case types.MAT_DISTANCE:
 		return nil // bucket distances: anchored by the R oracle (internal/processing)
+	case types.MAT_SEM:
+		return nil // the implied covariance is an optimiser's output: anchored by the semopy fixtures (internal/sem)
 	case types.MAT_COLLINEARITY:
 		if v.pairwise {
 			return nil // the repaired matrix has no independent anchor here
@@ -599,6 +629,9 @@ func TestMatrixCovariance_WorkerInvariant(t *testing.T) {
 		}
 		for _, typ := range types.AllMatrixTypes() {
 			for _, weighted := range []bool{false, true} {
+				if weighted && typ == types.MAT_SEM {
+					continue // frequency only; these weights are fractional
+				}
 				alone := runMatrixInvariance(t, cfg, matrixInvarianceRequest("m.pulse", matrixInvarianceVariant{weighted, false, typ, false}), 0, 0)
 				beside := runMatrixInvariance(t, cfg, matrixInvarianceRequest("m.pulse", matrixInvarianceVariant{weighted, true, typ, false}), 0, 0)
 				if i := firstWordDiff(alone.words, beside.words); i != -1 {

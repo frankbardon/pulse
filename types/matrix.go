@@ -134,6 +134,28 @@ const (
 	// frequency and probability weights (a GROUP_KMEANS between under
 	// frequency weights only).
 	MAT_DISTANCE MatrixType = "MAT_DISTANCE"
+	// MAT_SEM is a structural equation model fitted by maximum
+	// likelihood to the members' covariance: params.model is a lavaan /
+	// semopy description (=~ measurement, ~ regression, ~~ covariance,
+	// label* equality and number* fixed multipliers; absent: one factor
+	// over every member) whose observed variables are exactly the
+	// members (by label). The default setup reproduces semopy's
+	// semopy.Model(desc).fit(data) — the Wishart ML objective over the
+	// biased covariance minimised by SciPy's SLSQP at ftol 1e-6, its
+	// early stop included; params.solver "fisher" converges to the
+	// optimum instead, params.information "rank2" computes the same
+	// derivatives more cheaply. The primary is the model-implied
+	// covariance Σ(θ̂); auxiliary.estimates is the parameter table
+	// (MatrixKindRectangular: a row per "lval op rval", columns
+	// estimate, std_estimate, std_err, z_value, p_value) and
+	// auxiliary.residual_covariance S − Σ(θ̂); vectors carry each row's
+	// parameter name and whether it is free; scalars the fit indices
+	// (chi-square and its p, the baseline chi-square, CFI, GFI, AGFI,
+	// NFI, TLI, RMSEA, AIC, BIC, semopy's LogLik) and the fit's
+	// iterations / convergence. Listwise only. Weighted under frequency
+	// weights (exactly the fit on the expanded rows); a probability
+	// weight is refused.
+	MAT_SEM MatrixType = "MAT_SEM"
 )
 
 // AllMatrixTypes returns every built-in matrix operator in alphabetical
@@ -148,6 +170,7 @@ func AllMatrixTypes() []MatrixType {
 		MAT_PARTIAL_CORRELATION,
 		MAT_PCA,
 		MAT_RELIABILITY,
+		MAT_SEM,
 	}
 }
 
@@ -159,7 +182,7 @@ func AllMatrixTypes() []MatrixType {
 // MatrixSpec.Streamable, which its params may turn off.
 func (t MatrixType) Streamable() bool {
 	switch t {
-	case MAT_COLLINEARITY, MAT_CORRELATION, MAT_COVARIANCE, MAT_DISTANCE, MAT_FACTOR, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
+	case MAT_COLLINEARITY, MAT_CORRELATION, MAT_COVARIANCE, MAT_DISTANCE, MAT_FACTOR, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY, MAT_SEM:
 		return true
 	}
 	return false
@@ -174,7 +197,7 @@ func (t MatrixType) Streamable() bool {
 // Streamable: the merge gate reads MatrixSpec.Mergeable.
 func (t MatrixType) Mergeable() bool {
 	switch t {
-	case MAT_COLLINEARITY, MAT_CORRELATION, MAT_COVARIANCE, MAT_DISTANCE, MAT_FACTOR, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY:
+	case MAT_COLLINEARITY, MAT_CORRELATION, MAT_COVARIANCE, MAT_DISTANCE, MAT_FACTOR, MAT_PARTIAL_CORRELATION, MAT_PCA, MAT_RELIABILITY, MAT_SEM:
 		return true
 	}
 	return false

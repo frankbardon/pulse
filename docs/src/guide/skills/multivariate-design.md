@@ -10,7 +10,7 @@ requires: [capability:matrices]
 
 # Choosing a multivariate operator
 
-Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-results.md)) and answers with a matrix plus vectors and scalars. Pick by the QUESTION, then set the missing-data mode. Comparing rows or segments by distance or similarity? Declare the vector's `kind` first so the metric fits the values ([`vector-metrics`](vector-metrics.md)).
+Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-results.md)) and answers with a matrix plus vectors and scalars. Pick by the QUESTION, then set the missing-data mode. For distance or similarity, declare the vector's `kind` first ([`vector-metrics`](vector-metrics.md)).
 
 ## Which operator answers my question
 
@@ -22,6 +22,7 @@ Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-r
 | Do these items measure one scale (alpha, omega, which item to drop)? | `MAT_RELIABILITY` |
 | How many dimensions carry the variance; is the battery factorable (KMO, Bartlett)? | `MAT_PCA` |
 | Which hidden qualities do the items reflect (factor analysis, rotation)? | `MAT_FACTOR` |
+| Does my CFA / path model fit? | `MAT_SEM` |
 | Are candidate predictors too redundant to fit together (VIF, condition index)? | `MAT_COLLINEARITY` |
 | Which rows are unusual across the fields as a whole? | `ATTR_MAHALANOBIS` (a row score) |
 | Each row's score on a component (a summary column)? | `ATTR_PC_SCORE` (a row score) |
@@ -70,6 +71,7 @@ Per-test correction on other operators: [`multiplicity-correction`](multiplicity
 - [`vector-metrics`](vector-metrics.md) — vector `kind`, metric defaults and the unsuited-metric warning.
 - [`op-mat-pca`](op-mat-pca.md)
 - [`op-mat-factor`](op-mat-factor.md)
+- [`op-mat-sem`](op-mat-sem.md)
 - [`op-mat-distance`](op-mat-distance.md)
 - [`op-mat-reliability`](op-mat-reliability.md)
 - [`op-attr-scale-score`](op-attr-scale-score.md)

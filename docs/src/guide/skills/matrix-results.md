@@ -28,20 +28,21 @@ A **vector** names numeric fields once; a **matrix** slot turns a vector into a 
 - `MAT_CORRELATION` — Pearson r, or `params.method` `spearman` / `kendall` (frequency weights only); p / CI via `params.inference`; `params.summary.top_pairs: k`.
 - `MAT_PARTIAL_CORRELATION` — partial r, `params.control` `"all"` or fields held fixed; non-PSD input fatal unless `params.repair: "nearest"` (a repair stopped at its iteration cap also warns `PULSE_MATRIX_NOT_CONVERGED`).
 - `MAT_COLLINEARITY` — VIF, tolerance, Belsley condition indices + variance decomposition; `params.center`.
-- `MAT_DISTANCE` — bucket × bucket centroid distances (square, keyed by bucket label), centroids (rectangular k × p), sizes; `params.between`, `metric`, `standardize`.
+- `MAT_DISTANCE` — centroid distances between buckets (square, keyed by bucket label), centroids (k × p), sizes; `params.between`, `metric`, `standardize`.
 - `MAT_FACTOR` — factor loadings (rectangular p × k), communalities, uniquenesses, rmsr (`ml`: likelihood chi-square, TLI, RMSEA, BIC); `params.factors`, `extraction`, `rotation`.
+- `MAT_SEM` — semopy `params.model`: implied covariance, `estimates`, fit indices.
 - `MAT_PCA` — loadings (rectangular p × k), eigenvalues, KMO, Bartlett; `params.components` k / `kaiser` / `{variance}`.
 - `MAT_RELIABILITY` — alpha, omega, item diagnostics; `params.reverse` + `scale_min` / `scale_max` flip reverse-keyed items.
 
 Reading a result: `primary` is the matrix (`row_keys` = members, `labels` only when you set them); `scalars.determinant` is null unless the matrix is positive definite; `kind` is `square_symmetric` or `rectangular` (p × k); `warnings` lists data-quality findings. **Undefined cells are `null`, never NaN or 0.**
 
-`encoding`: `full` (default, p rows of p cells) or `upper` (row r holds the p − r cells from the diagonal, `values[r][k]` = cell (r, r + k)) — about half the bytes.
+`encoding`: `full` (default) or `upper` (row r holds the p − r cells from the diagonal, `values[r][k]` = cell (r, r + k)) — half the bytes.
 
 ## 3. Missing data and weights
 
-`params.missing`: `listwise` (default, drop a row if any member is null) or `pairwise` (each cell uses the rows where both members are present; `auxiliary.n` gives each pair's row count).
+`params.missing`: `listwise` (default, drop a row if any member is null) or `pairwise` (each cell over the rows where both are present; `auxiliary.n` per pair).
 
-- Pairwise matrices of three or more members can fail to be positive semi-definite: a warning on covariance / correlation, FATAL on a decomposition unless `params.repair: "nearest"` (`PULSE_MATRIX_NOT_PSD`).
+- Pairwise matrices of 3+ members may not be positive semi-definite: a warning on covariance / correlation, FATAL on a decomposition unless `params.repair: "nearest"` (`PULSE_MATRIX_NOT_PSD`).
 - `max_drop_share` (listwise only) warns `PULSE_MATRIX_LISTWISE_HEAVY_DROP` when more than that share of rows was dropped.
 - `PULSE_MATRIX_INSUFFICIENT_N` (under two rows or no weight mass) and `PULSE_MATRIX_ZERO_VARIANCE` (a constant member: its correlation row and column are null; covariance keeps an exact 0).
 - Weights follow [`weighting`](weighting.md): frequency and probability both fold into a weighted covariance. A row of weight 0 counts toward `n` but adds no mass.

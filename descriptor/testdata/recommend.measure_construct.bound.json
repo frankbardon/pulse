@@ -189,6 +189,48 @@
         ]
       },
       {
+        "operator": "MAT_SEM",
+        "category": "matrix",
+        "level": "advanced",
+        "why": "Whether a theory of how measures hang together holds: the hidden qualities they reflect, how those drive each other, how well it fits. It uses revenue (f64), seats (u16) and score (f64).",
+        "bound": true,
+        "request": {
+          "cohort": {
+            "filename": "recommend.pulse"
+          },
+          "matrices": [
+            {
+              "fields": [
+                "revenue",
+                "seats",
+                "score"
+              ],
+              "type": "MAT_SEM"
+            }
+          ]
+        },
+        "alternatives": [
+          {
+            "when": "you do not yet know which measures belong to which quality",
+            "use": "MAT_FACTOR"
+          },
+          {
+            "when": "every variable is measured directly and you want one outcome's drivers",
+            "use": "REG_OLS"
+          },
+          {
+            "when": "you want one battery's reliability before scoring it",
+            "use": "MAT_RELIABILITY"
+          }
+        ],
+        "follow_ups": [
+          {
+            "when": "the fit is poor and the structure needs exploring",
+            "use": "MAT_FACTOR"
+          }
+        ]
+      },
+      {
         "operator": "ATTR_FACTOR_SCORE",
         "category": "attribute",
         "level": "advanced",
@@ -278,9 +320,9 @@
       }
     ],
     "truncated": false,
-    "candidates_considered": 7
+    "candidates_considered": 8
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 90565e847e75811990b265577e28c24521e5b54275362c22b77f480eff1d9b33
+// golden-hash: b61ac5505b95fb6611c74d4551459fb0eeda577a86cabf4f8a8e1aafc1550dbf

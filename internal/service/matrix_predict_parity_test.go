@@ -63,6 +63,9 @@ func TestMatrixPredict_MatchesRuntime(t *testing.T) {
 				continue
 			}
 			for _, mode := range []string{"listwise", "pairwise"} {
+				if mode == "pairwise" && pairwiseRefused(typ) {
+					continue // refused at resolution, by predict and runtime alike
+				}
 				for _, members := range [][]string{{"x1", "x2", "x3"}, {"x1", "x2"}} {
 					label := fmt.Sprintf("%s/%s/%s/%d", fx.name, typ, mode, len(members))
 					params := `{"missing": "` + mode + `"}`
@@ -102,7 +105,7 @@ func TestMatrixPredict_MatchesRuntime(t *testing.T) {
 						// collinear members on these small fixtures)
 						// refuses; that is not a PSD-risk question.
 						var ce *errors.CodedError
-						if vectors.IsDecomposition(typ) && stderrors.As(err, &ce) && ce.Code == errors.PULSE_MATRIX_SINGULAR {
+						if (vectors.IsDecomposition(typ) || typ == types.MAT_SEM) && stderrors.As(err, &ce) && ce.Code == errors.PULSE_MATRIX_SINGULAR {
 							continue
 						}
 						t.Fatalf("%s: Process: %v", label, err)

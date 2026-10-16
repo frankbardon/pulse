@@ -567,7 +567,7 @@ scalars, warnings}`, one per spec in request order (`format_version`
 stays `"1.1"`; a matrix-free request and response are byte-identical).
 `type` is the registry-backed `MatrixType` enum (`MAT_COVARIANCE`,
 `MAT_CORRELATION`, `MAT_PARTIAL_CORRELATION`, `MAT_PCA`, `MAT_FACTOR`,
-`MAT_COLLINEARITY`, `MAT_RELIABILITY`, `MAT_DISTANCE`); `encoding` is `full` (default) or `upper`. Every
+`MAT_COLLINEARITY`, `MAT_RELIABILITY`, `MAT_DISTANCE`, `MAT_SEM`); `encoding` is `full` (default) or `upper`. Every
 matrix is a dedicated `MatrixValues` `{kind, encoding, row_keys,
 column_keys, labels?, values}` — not the crosstab `MatrixPayload` —
 whose `values` rows hold `p` cells (`full`) or `p − r` cells from the
@@ -579,7 +579,10 @@ diagonal (`upper`). `kind` is `square_symmetric` or `rectangular`
 `(intercept)` first unless `center` — and `column_keys` `D1` … `Dq`;
 `MAT_DISTANCE`'s primary is `square_symmetric` but keyed by its
 between grouper's bucket labels, and its `auxiliary.centroids` is k × p:
-`row_keys` the buckets, `column_keys` the members).
+`row_keys` the buckets, `column_keys` the members; `MAT_SEM`'s
+`auxiliary.estimates` is r × 5: `row_keys` semopy's inspect rows
+`"lval op rval"`, `column_keys` `estimate`, `std_estimate`, `std_err`,
+`z_value`, `p_value`).
 `MAT_CORRELATION` (every `method`) and `MAT_PARTIAL_CORRELATION` take
 `params.inference` (bool) and `params.alpha` (0 < alpha < 1, default
 0.05): on, `auxiliary` gains `p`, `ci_lower` and `ci_upper`, square
@@ -624,7 +627,14 @@ no own `weight` or `tz` — `metric` a `linalg/metric` registry name
 (`capabilities.matrix.metrics`, consumer `MAT_DISTANCE`): `euclidean`
 (default), `sq_euclidean`, `manhattan`, `chebyshev`, `cosine`,
 `hellinger`, `aitchison` or `mahalanobis`, `standardize` (boolean, default
-`false`), `min_valid` (integer 1 … p, default 1), listwise only). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
+`false`), `min_valid` (integer 1 … p, default 1), listwise only;
+`MAT_SEM` only: `model` (a lavaan / semopy description whose observed
+variables are exactly the members by label; default one factor over every
+member), `solver` `slsqp` (default) or `fisher`, `information` `dense`
+(default) or `rank2`, `ftol` (slsqp only, default 1e-6), `max_iter`
+(default 10000 slsqp, 500 fisher), `grad_tol` (fisher only, default
+1e-10), listwise only — a probability weight is
+`PULSE_WEIGHT_UNSUPPORTED`). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
 the same shape and encoding holding each pair's row count. `vectors` is an
 open object: with `summary.top_pairs`, `vectors.top_pairs` is
 `[{row, col, r, n}]` — the k off-diagonal pairs with the largest `|r|`,
@@ -654,7 +664,15 @@ factor) and `scalars` `rmsr`, `empirical_chisq`, `df`, `empirical_p`,
 null at `df` ≤ 0); `MAT_DISTANCE` adds
 `auxiliary.centroids` (always), `centroids_standardized` (standardize)
 and `pooled_covariance` (mahalanobis), and `vectors.sizes` (each bucket's
-weight mass) / `counts` (its rows, integers), one per bucket.
+weight mass) / `counts` (its rows, integers), one per bucket;
+`MAT_SEM`'s primary is the model-implied covariance over the members and
+it adds `auxiliary.estimates` and `residual_covariance` (S − Σ(θ̂)),
+`vectors.parameter` (each estimate row's parameter name) / `free`
+(booleans) and `scalars` `dof`, `dof_baseline`, `chi2`, `chi2_p_value`,
+`chi2_baseline`, `cfi`, `gfi`, `agfi`, `nfi`, `tli`, `rmsea`, `aic`,
+`bic`, `loglik`, `objective`, `n`, `n_params`, `iterations`, `converged`
+(`dof`, `dof_baseline`, `n_params`, `iterations` and `converged` are
+never rounded by `return.precision`).
 `warnings` are `{code, message, details}` entries
 (`PULSE_MATRIX_INSUFFICIENT_N`, `_ZERO_VARIANCE`,
 `_LISTWISE_HEAVY_DROP`, `_NOT_PSD` — fatal, not a warning, on
@@ -671,7 +689,9 @@ whole fit) and, under `ml`, `_INSUFFICIENT_N` scope `likelihood` that
 nulls the likelihood figures; `MAT_DISTANCE` `_INSUFFICIENT_N` scope
 `buckets` (a massless bucket) or `pooled` (mahalanobis with no more rows
 than buckets) and a `_SINGULAR` warning that nulls the mahalanobis
-distances). `components.matrices` carries one
+distances; `MAT_SEM` a fatal `_SINGULAR` on a rank-deficient covariance,
+`_NOT_CONVERGED` (solver stop short of success, last iterate kept) and
+`_NOT_IDENTIFIED` (negative degrees of freedom, fitted anyway)). `components.matrices` carries one
 `MatrixComponents` per result, in the same order: `{name, type,
 group_key?, n, n_null, n_listwise_dropped, min_pair_n?, max_pair_n?,
 sum_weights?, n_eff?, n_weight_invalid?, operator?}` (pairwise and

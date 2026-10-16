@@ -38,6 +38,9 @@ func TestManifestMatrixComponentSchemasComplete(t *testing.T) {
 		types.MAT_DISTANCE: {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid", "metric", "standardize", "buckets", "n_null_key"},
 		// The minres fit behind omega: optional, absent when no fit ran.
 		types.MAT_RELIABILITY: {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid", "iterations", "converged"},
+		// Listwise only, so the pairwise keys never appear; the fit's
+		// iterations / convergence ride scalars.
+		types.MAT_SEM: {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid"},
 	}
 	if len(want) != len(types.AllMatrixTypes()) {
 		t.Fatalf("table covers %d matrix types, registry has %d", len(want), len(types.AllMatrixTypes()))

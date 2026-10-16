@@ -1,0 +1,39 @@
+{
+  "_meta": {
+    "name": "structural_equation_model",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "multivariate",
+      "streaming-friendly"
+    ],
+    "operators": [
+      "MAT_SEM"
+    ],
+    "description": "A confirmatory factor analysis of the six-item rating battery on survey.pulse (q1..q6), written in lavaan / semopy syntax: service =~ q1 + q2 + q3 and value =~ q4 + q5 + q6, the two factors free to correlate. The default setup reproduces semopy's semopy.Model(desc).fit(data): its SLSQP fit at ftol 1e-6, its standard errors and its calc_stats fit indices, early stop included. auxiliary.estimates is semopy's inspect table (q2 ~ service is a loading; service ~~ value the factor covariance; q1's loading is fixed to 1, so it has no standard error); scalars carry the chi-square with its p, CFI, TLI, RMSEA, AIC and BIC. q3 and q6 cross-load in the data, so the chi-square flags misfit and residual_covariance shows where. The second spec converges to the optimum with solver fisher and the cheaper rank2 derivatives. Streamable and mergeable.",
+    "intents": [
+      "measure_construct"
+    ]
+  },
+  "cohort": {
+    "filename": "survey.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {"name": "battery", "fields": ["q1", "q2", "q3", "q4", "q5", "q6"]}
+  ],
+  "matrices": [
+    {
+      "type": "MAT_SEM",
+      "name": "cfa",
+      "vector": "battery",
+      "params": {"model": "service =~ q1 + q2 + q3\nvalue =~ q4 + q5 + q6"}
+    },
+    {
+      "type": "MAT_SEM",
+      "name": "cfa_converged",
+      "vector": "battery",
+      "params": {"model": "service =~ q1 + q2 + q3\nvalue =~ q4 + q5 + q6", "solver": "fisher", "information": "rank2"}
+    }
+  ]
+}

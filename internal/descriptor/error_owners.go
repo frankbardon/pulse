@@ -605,7 +605,7 @@ var errorOwners = map[errors.Code][]string{
 	// it (a Heywood fit scored, Bartlett over ψ ≤ 0 nulled; an
 	// unidentified or Kaiser-short count nulled).
 	errors.PULSE_MATRIX_HEYWOOD:        own("MAT_RELIABILITY", "MAT_FACTOR", "ATTR_FACTOR_SCORE"),
-	errors.PULSE_MATRIX_NOT_IDENTIFIED: own("MAT_RELIABILITY", "MAT_FACTOR", "ATTR_FACTOR_SCORE"),
+	errors.PULSE_MATRIX_NOT_IDENTIFIED: own("MAT_RELIABILITY", "MAT_FACTOR", "ATTR_FACTOR_SCORE", "MAT_SEM"),
 	// Bartlett's test (and MAT_FACTOR's empirical chi-square) over a
 	// pairwise matrix reads the smallest pair.
 	errors.PULSE_MATRIX_PAIRWISE_N_STAR: own("MAT_PCA", "MAT_FACTOR"),
