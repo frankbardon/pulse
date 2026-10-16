@@ -30,7 +30,6 @@ func crosstabCapability() descriptor.CrosstabCapability {
 		},
 		RejectionRules: []string{
 			"crosstab requires at least one grouper in rows (PULSE_CROSSTAB_EMPTY_ROWS)",
-			"crosstab requires at least one grouper in columns (PULSE_CROSSTAB_EMPTY_COLUMNS)",
 			"crosstab requires a cell aggregation (PULSE_CROSSTAB_MISSING_CELL)",
 			"crosstab cannot coexist with top-level groups or aggregations (PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS)",
 			"matrix shape, any margin, or any normalization forces the buffered path",

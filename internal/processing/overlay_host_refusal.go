@@ -62,6 +62,14 @@ func refuseWrongHostOverlays(req *types.Request, exts *ExtensionRegistry, keep f
 				return cerr
 			}
 		}
+		// A crosstab with no column grouper has the one implicit Total
+		// column: a kind needing two columns is refused up front, the
+		// refusal predict raises (overlayhost.TotalColumnRefusal).
+		if req.Crosstab.HasImplicitTotalColumn() {
+			if cerr := overlayhost.TotalColumnRefusal(req.Overlays[i].Kind, route, i); cerr != nil {
+				return cerr
+			}
+		}
 	}
 	return nil
 }

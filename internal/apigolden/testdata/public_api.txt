@@ -4401,7 +4401,7 @@ pulse/types: const CrosstabShapeLong pulse/types.CrosstabShape = "long"
 pulse/types: const CrosstabShapeMatrix pulse/types.CrosstabShape = "matrix"
 pulse/types: type CrosstabSpec struct
 pulse/types: type CrosstabSpec field Cell *pulse/types.Aggregation "json:\"cell\""
-pulse/types: type CrosstabSpec field Columns []*pulse/types.Group "json:\"columns\""
+pulse/types: type CrosstabSpec field Columns []*pulse/types.Group "json:\"columns,omitempty\""
 pulse/types: type CrosstabSpec field MarginAggregations []*pulse/types.Aggregation "json:\"margin_aggregations,omitempty\""
 pulse/types: type CrosstabSpec field Margins pulse/types.CrosstabMargins "json:\"margins,omitzero\""
 pulse/types: type CrosstabSpec field Normalize pulse/types.CrosstabNormalize "json:\"normalize,omitempty\""
@@ -4410,6 +4410,8 @@ pulse/types: type CrosstabSpec field NormalizeWithin *int "json:\"normalize_with
 pulse/types: type CrosstabSpec field Rows []*pulse/types.Group "json:\"rows\""
 pulse/types: type CrosstabSpec field Shape pulse/types.CrosstabShape "json:\"shape,omitempty\""
 pulse/types: type CrosstabSpec method (*CrosstabSpec) CellLabel() string
+pulse/types: type CrosstabSpec method (*CrosstabSpec) ColumnHeader() pulse/types.AxisHeader
+pulse/types: type CrosstabSpec method (*CrosstabSpec) HasImplicitTotalColumn() bool
 pulse/types: type CrosstabSpec method (*CrosstabSpec) HasMarginAggregations() bool
 pulse/types: type CrosstabSpec method (*CrosstabSpec) IsBuffered() bool
 pulse/types: type CrosstabSpec method (*CrosstabSpec) LowerColumnsOnly(src *pulse/types.Request) *pulse/types.Request
@@ -4425,6 +4427,9 @@ pulse/types: type CrosstabSpec method (*CrosstabSpec) NeedsRowMargin() bool
 pulse/types: type CrosstabSpec method (*CrosstabSpec) NormalizeLevelOrLeaf(axisLen int) int
 pulse/types: type CrosstabSpec method (*CrosstabSpec) NormalizeOrDefault() pulse/types.CrosstabNormalize
 pulse/types: type CrosstabSpec method (*CrosstabSpec) ShapeOrDefault() pulse/types.CrosstabShape
+pulse/types: const CrosstabTotalColumnField untyped string = "_total"
+pulse/types: const CrosstabTotalColumnKey untyped string = "Total"
+pulse/types: const CrosstabTotalColumnType untyped string = "TOTAL"
 pulse/types: func DecodePairwiseParams(raw encoding/json.RawMessage) (pulse/types.PairwiseOverlayParams, error)
 pulse/types: func DecodePanelParams(raw encoding/json.RawMessage) (pulse/types.PanelOverlayParams, error)
 pulse/types: func DecodePanelParamsMap(params map[string]any) (pulse/types.PanelOverlayParams, error)
@@ -5339,4 +5344,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: a21a240d33232347898e27020b95d47c973fb2139bc38f29220cf7b307fad187
+// golden-hash: 8939389804f7680184025e058b8547a015b592567257f3f5942763e842661fb0

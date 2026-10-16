@@ -1683,7 +1683,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 28,
+    "examples_count": 29,
     "example_categories": [
       "aggregations",
       "crosstab",
@@ -1778,7 +1778,6 @@
       ],
       "rejection_rules": [
         "crosstab requires at least one grouper in rows (PULSE_CROSSTAB_EMPTY_ROWS)",
-        "crosstab requires at least one grouper in columns (PULSE_CROSSTAB_EMPTY_COLUMNS)",
         "crosstab requires a cell aggregation (PULSE_CROSSTAB_MISSING_CELL)",
         "crosstab cannot coexist with top-level groups or aggregations (PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS)",
         "matrix shape, any margin, or any normalization forces the buffered path"
@@ -2324,4 +2323,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b35b9141988eb4906ad5749a757c23f29ad443a96f6e14cfcf1fb8ed8c4ecf92
+// golden-hash: 27bcd528060239d2cabebf18b9e8dc720a8b160d8ad11c15f520119ddea606d0

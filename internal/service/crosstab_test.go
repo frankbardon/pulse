@@ -581,8 +581,10 @@ func TestCrosstab_EmptyRowsRejected(t *testing.T) {
 	}
 }
 
-// TestCrosstab_EmptyColumnsRejected.
-func TestCrosstab_EmptyColumnsRejected(t *testing.T) {
+// TestCrosstab_NoColumnsIsTotalColumn: a crosstab with no column grouper
+// is no longer refused (PULSE_CROSSTAB_EMPTY_COLUMNS is not raised) — it
+// runs with the one implicit Total column (U47 #326 / #328).
+func TestCrosstab_NoColumnsIsTotalColumn(t *testing.T) {
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -591,14 +593,26 @@ func TestCrosstab_EmptyColumnsRejected(t *testing.T) {
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "ct.pulse"},
 		Crosstab: &types.CrosstabSpec{
-			Rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
-			Cell: &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Margins: types.CrosstabMargins{Grand: true},
 		},
 	}
 
-	_, err := svc.Process(ctx, req)
-	if !errors.HasCode(err, errors.PULSE_CROSSTAB_EMPTY_COLUMNS) {
-		t.Errorf("expected PULSE_CROSSTAB_EMPTY_COLUMNS, got %v", err)
+	resp, err := svc.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("no-column crosstab refused: %v", err)
+	}
+	m := resp.Crosstab.Matrix
+	if len(m.ColumnKeys) != 1 || len(m.ColumnKeys[0]) != 1 || m.ColumnKeys[0][0] != types.CrosstabTotalColumnKey {
+		t.Fatalf("ColumnKeys = %v, want [[Total]]", m.ColumnKeys)
+	}
+	sum := 0.0
+	for _, row := range m.Cells {
+		sum += row[0].Scalar()
+	}
+	if sum != m.GrandTotal.Scalar() || sum == 0 {
+		t.Errorf("Total column cells sum to %v, grand total %v", sum, m.GrandTotal.Scalar())
 	}
 }
 

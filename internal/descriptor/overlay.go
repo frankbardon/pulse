@@ -623,6 +623,15 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 				continue
 			}
 		}
+		// The implicit Total column (a crosstab with no column grouper)
+		// is one column by construction: a kind needing two is refused
+		// with the runtime hook's shared refusal.
+		if req.Crosstab.HasImplicitTotalColumn() {
+			if cerr := overlayhost.TotalColumnRefusal(spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
+				addCodedError(env, cerr)
+				continue
+			}
+		}
 		validateOverlaySpec(env, req, spec, opts, i)
 		validateOverlayMatrixResult(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		validateOverlayCorrespondence(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
@@ -1197,7 +1206,9 @@ func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, route types.Ov
 		return 0, 0, "rows", "columns"
 	}
 	rowDepth := len(req.Crosstab.Rows)
-	colDepth := len(req.Crosstab.Columns)
+	// The host's column tuple length — runtime reads len(ColumnKeys[0])
+	// — which the implicit Total column makes 1, not len(Columns) = 0.
+	colDepth := len(req.Crosstab.ColumnHeader().Fields)
 	switch route {
 	case types.OverlayKindShareOfRow:
 		return rowDepth, colDepth, "rows", "columns"

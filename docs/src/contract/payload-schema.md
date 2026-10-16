@@ -161,10 +161,17 @@ put that statement back into an absence — exactly what it exists to
 avoid. Every other field of every response sub-shape stays `omitempty`.
 
 Cross-slot validation rules that depend on more than one field (e.g. a
-crosstab requires at least one row **and** one column, mutually exclusive
-with top-level `groups`; every `crosstab.margin_aggregations` entry needs
+crosstab requires at least one row grouper, mutually exclusive with
+top-level `groups`; every `crosstab.margin_aggregations` entry needs
 a type and a label distinct from every other entry's and from the cell's)
 are enforced by `pulse predict` at request time, not by the schema.
+
+`crosstab.columns` is optional (not in the schema's `required` list):
+absent, `null` or `[]` runs the crosstab with ONE implicit column, key
+`["Total"]`, `column_header` `{fields: ["_total"], types: ["TOTAL"]}`,
+holding every record whose row key resolved — a Total column with no
+constant field behind it. Additive: a request that declares columns
+marshals and runs byte-identically.
 
 ## Time-zone slots
 

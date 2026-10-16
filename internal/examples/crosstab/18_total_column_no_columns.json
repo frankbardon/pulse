@@ -1,0 +1,41 @@
+{
+  "_meta": {
+    "category": "crosstab",
+    "description": "Crosstab with no column axis: each region's count in the one implicit Total column (key [\"Total\"]), normalized by column so the Total column sums to 1 — a Total column without a constant field.",
+    "intents": [
+      "composition"
+    ],
+    "name": "crosstab_total_column_region",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "cohort-analysis"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "columns": true,
+      "grand": true
+    },
+    "normalize": "column",
+    "shape": "matrix"
+  }
+}

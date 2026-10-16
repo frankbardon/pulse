@@ -48,7 +48,10 @@ type CrosstabMargins struct {
 //
 // Validation rules (enforced in both predict and execution):
 //   - Rows must contain at least one Group.
-//   - Columns must contain at least one Group.
+//   - Columns is optional. Absent (nil) or empty yields ONE implicit
+//     column keyed CrosstabTotalColumnKey ("Total") holding every record
+//     whose row key resolved — a Total column with no constant field
+//     behind it (U47 #326 / #328). See HasImplicitTotalColumn.
 //   - Cell is required.
 //   - A crosstab section cannot coexist with top-level Aggregations / Groups
 //     on the same Request (PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS).
@@ -66,8 +69,11 @@ type CrosstabMargins struct {
 //     satisfy it: an auxiliary is never a denominator, so it is not
 //     emitted there. See MarginAggregationsObserved.
 type CrosstabSpec struct {
-	Rows    []*Group     `json:"rows"`
-	Columns []*Group     `json:"columns"`
+	Rows []*Group `json:"rows"`
+	// Columns is the column-axis grouper list. Optional: absent or empty
+	// yields the single implicit Total column (HasImplicitTotalColumn).
+	// `omitempty`, so a spec carrying columns marshals as before.
+	Columns []*Group     `json:"columns,omitempty"`
 	Cell    *Aggregation `json:"cell"`
 
 	// MarginAggregations declares zero or more AUXILIARY aggregations
@@ -154,6 +160,41 @@ func (s *CrosstabSpec) ShapeOrDefault() CrosstabShape {
 		return CrosstabShapeMatrix
 	}
 	return s.Shape
+}
+
+// CrosstabTotalColumnKey is the one column key a crosstab without column
+// groupers emits: MatrixPayload.ColumnKeys is [["Total"]]. Every record
+// whose row key resolved reaches it, so the column is the rows' own
+// total — no constant field is needed to build it.
+const CrosstabTotalColumnKey = "Total"
+
+// CrosstabTotalColumnField and CrosstabTotalColumnType are the implicit
+// Total column's AxisHeader entries. The axis has no grouper, so the
+// header carries a synthetic position (the PAIR-axis precedent of the
+// pairwise overlays) to keep "header position i names key position i"
+// true: a consumer recognises the implicit column by the TOTAL type.
+const (
+	CrosstabTotalColumnField = "_total"
+	CrosstabTotalColumnType  = "TOTAL"
+)
+
+// HasImplicitTotalColumn reports whether the spec declares no column
+// grouper, so its column axis is the single implicit Total column.
+func (s *CrosstabSpec) HasImplicitTotalColumn() bool {
+	return s != nil && len(s.Columns) == 0
+}
+
+// ColumnHeader returns the column-axis header the matrix payload
+// carries: the grouper fields and types in order, or the synthetic
+// Total position when the spec has no column grouper.
+func (s *CrosstabSpec) ColumnHeader() AxisHeader {
+	if s.HasImplicitTotalColumn() {
+		return AxisHeader{
+			Fields: []string{CrosstabTotalColumnField},
+			Types:  []string{CrosstabTotalColumnType},
+		}
+	}
+	return AxisHeader{Fields: AxisFieldNames(s.Columns), Types: AxisTypes(s.Columns)}
 }
 
 // NormalizeLevelOrLeaf returns the configured normalize depth clamped

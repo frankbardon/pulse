@@ -1331,7 +1331,7 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 			},
 			"columns": map[string]any{
 				"type":        "array",
-				"description": "Column-axis groupers. Multiple entries produce nested columns.",
+				"description": "Column-axis groupers. Multiple entries produce nested columns. Optional: absent or empty yields one implicit column keyed \"Total\" (column_header type TOTAL) holding every record whose row key resolved.",
 				"items":       groupItem,
 			},
 			"cell": map[string]any{
@@ -1399,7 +1399,7 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 				"description": "Zero-indexed depth on the OPPOSITE axis whose value fixes a partition of the 100% denominator. With normalize=row it fixes a prefix of the column axis (so the denominator collapses only columns deeper than this level while holding the full row key); with normalize=column it fixes a prefix of the row axis. Composes independently with normalize_level. Rejected when normalize is none or total.",
 			},
 		},
-		"required":             []string{"rows", "columns", "cell"},
+		"required":             []string{"rows", "cell"},
 		"additionalProperties": true,
 	}
 }

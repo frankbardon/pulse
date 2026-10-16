@@ -1519,7 +1519,9 @@ type fusedAxisKeyer struct {
 // FusedCrosstabState field it was built from; the keyer never mutates it.
 func newFusedAxisKeyer(groupers []fusedAxisGrouper) *fusedAxisKeyer {
 	k := &fusedAxisKeyer{groupers: groupers}
-	k.ensureDepth(len(groupers))
+	// A zero-grouper axis (the implicit Total column) still derives one
+	// level, so it needs one level of scratch.
+	k.ensureDepth(max(len(groupers), 1))
 	for i := 1; i < len(groupers); i++ {
 		if _, ok := groupers[i].grouper.(MetaGrouper); ok {
 			k.driveUnresolvedTail = true
@@ -1594,11 +1596,15 @@ func (k *fusedAxisKeyer) ensureDepth(n int) {
 func (k *fusedAxisKeyer) derive(rec *Record) (fusedAxisKeys, error) {
 	n := len(k.groupers)
 	if n == 0 {
-		// Empty axis is a programming bug — validateCrosstabSpec rejects
-		// zero-grouper axes up-front so reaching here means the gate
-		// drifted. Surface a typed error rather than a silent placement.
-		return fusedAxisKeys{}, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-			"fused crosstab axis has zero groupers; spec validation should have rejected")
+		// The implicit Total column (a crosstab with no column grouper,
+		// CrosstabSpec.HasImplicitTotalColumn): every record resolves it
+		// to the one composite key "" — the key buffered's empty-axis
+		// PartitionByAxis bucket carries — under the "Total" tuple. One
+		// level, so the cross-axis consumer's prefixes(0) reads the same
+		// "" column part buffered's joined partition produces.
+		k.levels[0] = append(k.levels[0][:0], "")
+		k.tuples = append(k.tuples[:0], types.AxisKey{types.CrosstabTotalColumnKey})
+		return fusedAxisKeys{levels: k.levels[:1], tuples: k.tuples, depth: 1, ok: true}, nil
 	}
 
 	// Single-position single-key axis — the overwhelmingly common shape,
@@ -1819,6 +1825,16 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 		// keep metadata internally consistent rather than emitting a
 		// total that is smaller than the filtered count.
 		s.totalRows = s.filteredRows
+	}
+
+	// The implicit Total column exists whatever the data: buffered's
+	// empty-axis partition always yields its one bucket, even over zero
+	// records. Every record interns it on Update, so only a run that saw
+	// no record at all lands here without it.
+	if s.spec.HasImplicitTotalColumn() && len(s.colKeys) == 0 {
+		if _, err := s.internColKey("", types.AxisKey{types.CrosstabTotalColumnKey}); err != nil {
+			return nil, err
+		}
 	}
 
 	// Deterministic key emission order: order by per-axis-position include

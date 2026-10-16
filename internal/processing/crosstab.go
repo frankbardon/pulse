@@ -565,6 +565,15 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	if err != nil {
 		return nil, err
 	}
+	// The implicit Total column (no column grouper): the empty-axis
+	// partition is one bucket under composite key "" holding every
+	// filtered record, which is exactly the Total column. Only its tuple
+	// is relabelled — the composite key stays "" so the per-row column
+	// partition below, the margins and the normalize lookups keep
+	// addressing it unchanged. The fused keyer emits the same pair.
+	if spec.HasImplicitTotalColumn() {
+		colPart.Tuples = []types.AxisKey{{types.CrosstabTotalColumnKey}}
+	}
 	// MaxCrosstabCells: the observed grid is rows x cols, refused before
 	// the per-cell maps below preallocate it. The fused arm checks the
 	// same product at its axis-key interners.
@@ -910,7 +919,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		axisLen := len(spec.Columns)
 		level := spec.NormalizeLevelOrLeaf(axisLen)
 		colNormLevel = level
-		if level == axisLen-1 {
+		// The implicit Total column has no depth to truncate: its one
+		// leaf margin is the denominator.
+		if axisLen == 0 || level == axisLen-1 {
 			partialColMargins = coerceAnyMarginMap(colMargins)
 			partialColPresent = colMarginPresent
 		} else {
@@ -969,7 +980,12 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			rowDepth = *spec.NormalizeWithin
 		}
 		partitionAxis = append(partitionAxis, spec.Rows[:rowDepth+1]...)
-		partitionAxis = append(partitionAxis, spec.Columns[:colDepth+1]...)
+		// Under the implicit Total column (normalize=column only — a
+		// row-mode normalize_within has no column depth and is refused)
+		// there is no column prefix to fix: the joined key is the row
+		// prefix alone and its column part is "", the Total column's
+		// composite key.
+		partitionAxis = append(partitionAxis, spec.Columns[:min(colDepth+1, len(spec.Columns))]...)
 		joined, err := p.PartitionByAxis(partitionAxis, filtered)
 		if err != nil {
 			return nil, err
@@ -1468,10 +1484,7 @@ func buildMatrixPayload(spec *types.CrosstabSpec,
 			Fields: types.AxisFieldNames(spec.Rows),
 			Types:  types.AxisTypes(spec.Rows),
 		},
-		ColumnHeader: types.AxisHeader{
-			Fields: types.AxisFieldNames(spec.Columns),
-			Types:  types.AxisTypes(spec.Columns),
-		},
+		ColumnHeader:     spec.ColumnHeader(),
 		RowKeys:          append([]types.AxisKey(nil), rowPart.Tuples...),
 		ColumnKeys:       append([]types.AxisKey(nil), colPart.Tuples...),
 		Cells:            make([][]types.MatrixCell, len(rowPart.Keys)),
@@ -2002,10 +2015,8 @@ func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request, ext *Ext
 		return errors.NewCodedError(errors.PULSE_CROSSTAB_EMPTY_ROWS,
 			"crosstab requires at least one row-axis grouper")
 	}
-	if len(spec.Columns) == 0 {
-		return errors.NewCodedError(errors.PULSE_CROSSTAB_EMPTY_COLUMNS,
-			"crosstab requires at least one column-axis grouper")
-	}
+	// No column grouper is the implicit Total column
+	// (CrosstabSpec.HasImplicitTotalColumn), not a refusal.
 	if spec.Cell == nil {
 		return errors.NewCodedError(errors.PULSE_CROSSTAB_MISSING_CELL,
 			"crosstab requires a Cell aggregation")

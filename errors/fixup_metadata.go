@@ -2308,7 +2308,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_CROSSTAB_EMPTY_ROWS: {
-		Message: "The Crosstab section has no row-axis groupers. A crosstab requires at least one grouper on each axis.",
+		Message: "The Crosstab section has no row-axis groupers. A crosstab requires at least one row grouper; the column axis is optional (absent columns yield one implicit \"Total\" column).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2318,12 +2318,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_CROSSTAB_EMPTY_COLUMNS: {
-		Message: "The Crosstab section has no column-axis groupers. A crosstab requires at least one grouper on each axis.",
+		Message: "No longer raised: a Crosstab section with no column-axis groupers runs with one implicit \"Total\" column (U47). The code is retained so lookups of it keep resolving.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Crosstab", "Columns"},
-				Hint:   "Add at least one Group entry to Crosstab.Columns; for a single-axis aggregation use a plain Process request with Groups + Aggregations instead.",
+				Hint:   "Omit Crosstab.Columns for a single Total column holding every record whose row key resolved, or add Group entries for a real column axis.",
 			},
 		},
 	},

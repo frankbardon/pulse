@@ -574,18 +574,27 @@ func TestFusedAxisKeyer_ErrorsPropagate(t *testing.T) {
 	}
 }
 
-// TestFusedAxisKeyer_ZeroGroupersIsTyped keeps the defensive guard from
-// the single-key predecessor: validateCrosstabSpec rejects a
-// zero-grouper axis, so reaching derivation with one is a typed internal
-// error rather than a silent empty placement.
-func TestFusedAxisKeyer_ZeroGroupersIsTyped(t *testing.T) {
-	_, err := newFusedAxisKeyer(nil).derive(dummyRecord())
-	if err == nil {
-		t.Fatal("expected an error for a zero-grouper axis")
+// TestFusedAxisKeyer_ZeroGroupersIsTotalColumn pins the zero-grouper
+// axis — only the column axis can have one, a crosstab with no column
+// grouper (CrosstabSpec.HasImplicitTotalColumn): every record resolves
+// it to the one composite key "" under the "Total" tuple, the pair the
+// buffered empty-axis partition carries.
+func TestFusedAxisKeyer_ZeroGroupersIsTotalColumn(t *testing.T) {
+	got, err := newFusedAxisKeyer(nil).derive(dummyRecord())
+	if err != nil {
+		t.Fatalf("derive: %v", err)
 	}
-	var coded *errors.CodedError
-	if !stderrors.As(err, &coded) || coded.Code != errors.PROCESSING_INTERNAL {
-		t.Fatalf("err = %v, want PROCESSING_INTERNAL CodedError", err)
+	if !got.ok || got.depth != 1 {
+		t.Fatalf("ok=%v depth=%d, want a resolved one-level axis", got.ok, got.depth)
+	}
+	if keys := got.keys(); len(keys) != 1 || keys[0] != "" {
+		t.Fatalf("keys = %q, want [\"\"]", keys)
+	}
+	if len(got.tuples) != 1 || len(got.tuples[0]) != 1 || got.tuples[0][0] != types.CrosstabTotalColumnKey {
+		t.Fatalf("tuples = %v, want [[%s]]", got.tuples, types.CrosstabTotalColumnKey)
+	}
+	if p := got.prefixes(0); len(p) != 1 || p[0] != "" {
+		t.Fatalf("prefixes(0) = %q, want [\"\"]", p)
 	}
 }
 

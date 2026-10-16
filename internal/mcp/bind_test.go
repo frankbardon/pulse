@@ -544,3 +544,32 @@ func TestMergeEnumNames_ExtensionMatrixOps(t *testing.T) {
 		t.Fatalf("enum = %v", got)
 	}
 }
+
+// TestMCPSchemaBinding_CrosstabColumnsOptional pins that the bound
+// crosstab schema no longer requires `columns`: a crosstab with no column
+// grouper is the implicit Total column (U47 #326 / #328), so an MCP
+// client validating against the bound schema must not refuse it.
+func TestMCPSchemaBinding_CrosstabColumnsOptional(t *testing.T) {
+	schemas, err := Bind(makeBindSchema())
+	if err != nil {
+		t.Fatalf("Bind: %v", err)
+	}
+	req := decodeBoundRequest(t, schemas[toolmeta.ToolProcess])
+	props, _ := req["properties"].(map[string]any)
+	cross, _ := props["crosstab"].(map[string]any)
+	if cross == nil {
+		t.Fatal("crosstab schema missing from request")
+	}
+	required, _ := cross["required"].([]any)
+	got := map[string]bool{}
+	for _, r := range required {
+		s, _ := r.(string)
+		got[s] = true
+	}
+	if got["columns"] {
+		t.Errorf("crosstab.required = %v, want columns optional", required)
+	}
+	if !got["rows"] || !got["cell"] {
+		t.Errorf("crosstab.required = %v, want rows and cell", required)
+	}
+}

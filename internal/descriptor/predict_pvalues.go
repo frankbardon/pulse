@@ -83,6 +83,9 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 	if req.Crosstab != nil {
 		rows = axisBuckets(req.Crosstab.Rows, schema, inst)
 		cols = axisBuckets(req.Crosstab.Columns, schema, inst)
+		if req.Crosstab.HasImplicitTotalColumn() {
+			cols = 1 // the one implicit Total column
+		}
 	}
 	for i := range req.Overlays {
 		spec := &req.Overlays[i]

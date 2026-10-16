@@ -25,11 +25,8 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 			"crosstab requires at least one row-axis grouper",
 			nil)
 	}
-	if len(spec.Columns) == 0 {
-		env.AddError(string(errors.PULSE_CROSSTAB_EMPTY_COLUMNS),
-			"crosstab requires at least one column-axis grouper",
-			nil)
-	}
+	// No column grouper is the implicit Total column
+	// (CrosstabSpec.HasImplicitTotalColumn), not a refusal.
 	if spec.Cell == nil {
 		env.AddError(string(errors.PULSE_CROSSTAB_MISSING_CELL),
 			"crosstab requires a Cell aggregation",
@@ -73,12 +70,14 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 				}
 			}
 		case types.CrosstabNormalizeColumn:
-			if axisLen := len(spec.Columns); axisLen > 0 {
-				if lvl := *spec.NormalizeLevel; lvl < 0 || lvl >= axisLen {
-					env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE),
-						"crosstab normalize_level is out of range for the column axis",
-						map[string]any{"normalize_level": lvl, "axis": "columns", "axis_len": axisLen})
-				}
+			// An absent column axis (the implicit Total column) has no
+			// depth at all, so every level is out of range — the runtime
+			// validator's axis_len 0 refusal.
+			axisLen := len(spec.Columns)
+			if lvl := *spec.NormalizeLevel; lvl < 0 || lvl >= axisLen {
+				env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE),
+					"crosstab normalize_level is out of range for the column axis",
+					map[string]any{"normalize_level": lvl, "axis": "columns", "axis_len": axisLen})
 			}
 		}
 	}
@@ -94,12 +93,12 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 				"crosstab normalize_within cannot be combined with Normalize=total",
 				map[string]any{"normalize": string(mode), "normalize_within": *spec.NormalizeWithin})
 		case types.CrosstabNormalizeRow:
-			if otherLen := len(spec.Columns); otherLen > 0 {
-				if w := *spec.NormalizeWithin; w < 0 || w >= otherLen {
-					env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE),
-						"crosstab normalize_within is out of range for the column axis",
-						map[string]any{"normalize_within": w, "axis": "columns", "axis_len": otherLen})
-				}
+			// The implicit Total column has no prefix to fix (axis_len 0).
+			otherLen := len(spec.Columns)
+			if w := *spec.NormalizeWithin; w < 0 || w >= otherLen {
+				env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE),
+					"crosstab normalize_within is out of range for the column axis",
+					map[string]any{"normalize_within": w, "axis": "columns", "axis_len": otherLen})
 			}
 		case types.CrosstabNormalizeColumn:
 			if otherLen := len(spec.Rows); otherLen > 0 {

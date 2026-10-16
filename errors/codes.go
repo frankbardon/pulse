@@ -1495,13 +1495,18 @@ const (
 
 	// PULSE_CROSSTAB_EMPTY_ROWS indicates a Crosstab section was
 	// presented with no row-axis groupers. A crosstab requires at
-	// least one grouper on each axis; use a plain grouped Process
-	// request when only one axis is needed.
+	// least one row grouper; the column axis is optional (absent
+	// columns are the implicit Total column).
 	PULSE_CROSSTAB_EMPTY_ROWS Code = "PULSE_CROSSTAB_EMPTY_ROWS"
 
-	// PULSE_CROSSTAB_EMPTY_COLUMNS indicates a Crosstab section was
-	// presented with no column-axis groupers. Mirrors PULSE_CROSSTAB_
-	// EMPTY_ROWS for the column axis.
+	// PULSE_CROSSTAB_EMPTY_COLUMNS is NO LONGER RAISED. It refused a
+	// Crosstab section with no column-axis groupers until U47 made the
+	// column axis optional: absent (or empty) Columns now yields one
+	// implicit column keyed types.CrosstabTotalColumnKey ("Total").
+	// The code is retained rather than retired — the precedent of
+	// PULSE_SPSS_EXPORT_UNSUPPORTED: removing a code breaks the public
+	// constant, the manifest's error list and every embedder lookup of
+	// it, where a code that is merely never raised breaks nothing.
 	PULSE_CROSSTAB_EMPTY_COLUMNS Code = "PULSE_CROSSTAB_EMPTY_COLUMNS"
 
 	// PULSE_CROSSTAB_MISSING_CELL indicates a Crosstab section was

@@ -131,6 +131,11 @@ func fusionParityCorpus() []fusionCase {
 		Params: json.RawMessage(`{"table":"` + fuseRangeTable + `"}`)}}, region, sum()))
 	add("date_ranges_unknown_table", fusionXtab([]*types.Group{{Type: types.GROUP_DATE_RANGES, Field: "day",
 		Params: json.RawMessage(`{"table":"no_such_table"}`)}}, region, sum()))
+	// No column grouper: the implicit Total column (U47 #326 / #328) —
+	// fusable on its own, still declined for a non-keyable row grouper.
+	add("no_columns", fusionXtab(region, nil, sum()))
+	add("no_columns_fanning_rows", fusionXtab([]*types.Group{axisFix[types.GROUP_SET_PER_ELEMENT]}, nil, sum()))
+	add("no_columns_quantile_rows", fusionXtab([]*types.Group{axisFix[types.GROUP_QUANTILE]}, nil, sum()))
 	add("unknown_grouper", fusionXtab([]*types.Group{{Type: "GROUP_NO_SUCH", Field: "region"}}, region, sum()))
 	add("nil_grouper", fusionXtab([]*types.Group{nil}, region, sum()))
 	out = append(out, fusionCase{name: "grouper_bad_params", constructFails: true,
