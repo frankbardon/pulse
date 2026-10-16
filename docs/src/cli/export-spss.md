@@ -35,7 +35,8 @@ pulse export spss --input PATH.pulse --output PATH.sav
                   [--labels FIELD=TABLE[:replace|augment] ...] [--json]
 pulse export predict --input PATH.pulse --format spss
                      [--ignore-sidecar] [--uncompressed]
-                     [--charset NAME] [--sanitize-names] [--json]
+                     [--charset NAME] [--sanitize-names]
+                     [--labels FIELD=TABLE[:replace|augment] ...] [--json]
 pulse convert PATH.pulse OUT.sav
 pulse convert PATH.csv  OUT.sav
 ```
@@ -303,25 +304,37 @@ PULSE_LABEL_TABLES_DIR=./labels \
 
 - **Codes.** The dictionary's own integers when every entry is the
   canonical spelling of one (`"1"`, `"2"`, `"9"` — what an SPSS-origin
-  cohort holds); otherwise the entry's position plus one, in dictionary
-  (first-seen) order.
+  cohort holds). Otherwise, when the bound table states an entry order —
+  a table file's key order, `LabelTable.Order` for a programmatic table —
+  each entry's code is its position in that order plus one: the TABLE
+  position, so every cohort bound to one table codes an entry alike even
+  when it holds only some of the entries. Entries the table does not list
+  follow, in byte-wise sorted order. With no order (a `Lookup` table, or a
+  `Rows` map without `Order`), the code is the entry's rank in byte-wise
+  sorted dictionary order plus one. Never the dictionary's first-seen
+  order, which only records which row came first. Value labels are written
+  in code order.
 - **Labels.** The table's label for the entry; an entry the table misses
   keeps its own text as the label (and is counted in a
   `PULSE_LABEL_LOOKUP_MISS` warning). A label that would just repeat an
   integer code is omitted. `replace` and `augment` bindings both write
   value labels — no cell is rewritten and no sibling column is added.
 - **Library.** `io.SPSSWriterOptions.ValueLabels` binds a field to a
-  `map[string]string` (nil: label each code with its entry text) — the
-  same mechanism; an `ExportJob` binding replaces it on the same field.
-- **Refusals,** predicted by `ExportJob.Predict` exactly as the export
-  raises them: a binding beside an honoured metadata sidecar is
+  `map[string]string` (nil: label each code with its entry text) and an
+  optional `Order` — the same mechanism; an `ExportJob` binding replaces
+  it on the same field.
+- **Refusals,** predicted by `pulse export predict --format spss --labels`
+  (`Pulse.PredictExport`, which resolves the bindings against the
+  instance's label tables as `Export` does) exactly as the export raises
+  them: an unregistered table is `PULSE_LABEL_TABLE_UNKNOWN`, a binding beside an honoured metadata sidecar is
   `PULSE_SPSS_EXPORT_UNSUPPORTED` (the sidecar already carries the
   source's labels; `--ignore-sidecar` relabels from the table), an unknown
   field `PULSE_LABEL_FIELD_UNKNOWN`, a non-categorical field
   `PULSE_LABEL_FIELD_NOT_CATEGORICAL`, two bindings on one field
   `PULSE_LABEL_DUPLICATE_BINDING`, and a label past 255 bytes
-  `PULSE_SPSS_WIDTH_OVERFLOW`. `pulse export predict` carries no
-  `--labels` flag.
+  `PULSE_SPSS_WIDTH_OVERFLOW` (the export's data-free pass sees it too).
+  On the CLI a field bound twice is refused while the flags are parsed,
+  with the same code, on both leaves.
 
 A cohort written by `Pulse.Materialize` or `Pulse.Rake` from an
 SPSS-origin cohort carries the source's metadata sidecar, so its labels
@@ -397,7 +410,9 @@ filesystem it never flushes.
 on this leaf too, and the answer depends on them: `--sanitize-names` in
 particular turns a `PULSE_SPSS_NAME_INVALID` refusal into a
 `PULSE_SPSS_NAME_SANITIZED` warning, so a predict that could not be told
-about it would refuse an export that would have succeeded.
+about it would refuse an export that would have succeeded. `--labels`
+likewise: with it, predict resolves the bindings through
+`Pulse.PredictExport` and refuses a bad one with the export's code.
 
 **A refusal carries the export's own code**, not a `PREDICT_ERROR`
 placeholder, so it is usable with `pulse errors lookup`:
@@ -485,8 +500,10 @@ Two rules govern the dictionary:
 - **With no sidecar, nothing is invented.** A categorical becomes a
   **string** variable holding the dictionary text, rather than a numeric
   with codes taken from positions. A `set_*` expands into one indicator
-  variable per entry (named for that entry, so the mask round-trips) plus
-  a `7/7` dichotomy definition. `CategoryCode.Known` stays `false`, so the
+  variable per entry (named for that entry, so the mask round-trips, and
+  carrying the variable label `<set description or name>: <entry>`, held
+  to 255 bytes by shortening the set half) plus a `7/7` dichotomy
+  definition. `CategoryCode.Known` stays `false`, so the
   plan itself records which of the two it is.
 
 Two things deliberately do **not** reproduce the source, because

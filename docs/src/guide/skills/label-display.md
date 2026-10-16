@@ -59,7 +59,7 @@ Each `LabelBinding` pairs a categorical field with a table and mode:
 | Crosstab matrix axes | `row_keys` / `column_keys` → label; overlay keys follow, a pairwise PAIR key rebuilt from the labelled legs | not applied: `PULSE_LABEL_NOT_APPLIED` (no sibling on a key; use `replace` or shape `long`) |
 | `ProcessChain` stages | every stage's `labels` + `Options.AutoLabels`, bar a `replace` default on a key an earlier stage replaced | every stage |
 | `Export` / `Convert` | column value → label | extra column inserted after source |
-| `.sav` export | value labels on the numeric code (no cell rewritten) | same — [`spss-export`](spss-export.md) |
+| `.sav` export | value labels on the code, in table key order (cells untouched) | same — [`spss-export`](spss-export.md) |
 
 Only key TEXT moves: overlay coordinates address the same host cell; no figure changes. A Compose overlay over slots bound differently refuses `PULSE_OVERLAY_KEY_SET_DIVERGENT`. **A binding that reaches no surface warns `PULSE_LABEL_NOT_APPLIED`** (`details.reason` `field_not_in_output`: the field is no output column, axis or group key — bind a grouped field); `AutoLabels` defaults never warn.
 

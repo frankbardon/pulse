@@ -8,7 +8,7 @@ status: in-progress
 depends_on: []
 soft_depends_on: [U46, U11, U12]
 blocks: [U32]
-todo_items: [324, 325, 326, 327, 328, 329, 330, 331, 398]
+todo_items: [324, 325, 326, 327, 328, 329, 330, 331, 398, 471]
 branch: survey-tables
 ---
 
@@ -120,5 +120,5 @@ Filed from [U43 handed on](U43-post-aggregation-ratios.md#handed-on); tick in [`
 
 | TODO | What | Owner |
 |---|---|---|
-| #470 | `.sav` value labels on a numeric coded (`u8`) field — out by decision (the brand tracker does not need it) | unowned |
-| #471 | `pulse export predict --labels` (value-label refusals predicted at the library seam only) | unowned |
+| #470 | `.sav` value labels on a numeric coded (`u8`) field — out by decision (the brand tracker does not need it) | [U50](U50-local-time.md) — its weekday / hour-of-day parts are numeric codes that want value labels on a `.sav` |
+| #471 | `pulse export predict --labels` (value-label refusals predicted at the library seam only) | done in U47 (E4-S7): `Pulse.PredictExport` + the flag |

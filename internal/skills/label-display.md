@@ -70,7 +70,7 @@ Each `LabelBinding` pairs a categorical field with a table and mode:
 | `Export` / `Convert` | column value → label | extra column inserted after source |
 <!-- /feature -->
 <!-- feature: io_format:spss -->
-| `.sav` export | value labels on the numeric code (no cell rewritten) | same — `spss-export` |
+| `.sav` export | value labels on the code, in table key order (cells untouched) | same — `spss-export` |
 <!-- /feature -->
 
 Only key TEXT moves: overlay coordinates address the same host cell; no figure changes.<!-- feature: capability:compose --> A Compose overlay over slots bound differently refuses `PULSE_OVERLAY_KEY_SET_DIVERGENT`.<!-- /feature --> **A binding that reaches no surface warns `PULSE_LABEL_NOT_APPLIED`** (`details.reason` `field_not_in_output`: the field is no output column, axis or group key — bind a grouped field); `AutoLabels` defaults never warn.
