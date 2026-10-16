@@ -333,7 +333,9 @@ func TestVsPrior_PredictMatchesRuntime(t *testing.T) {
 		{"multi-measure crosstab", xtMulti + ov(`{"kind":"OVERLAY_T_VS_PRIOR","scope":"group"}`), errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
 		{"series measure without moments", seriesSum + ov(`{"kind":"OVERLAY_Z_VS_PRIOR","scope":"group"}`), errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
 		{"series proportion of a sum", seriesSum + ov(`{"kind":"OVERLAY_PROP_Z_VS_PRIOR","scope":"group"}`), errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
-		{"series proportion of the welford measure", priorSeriesAggs + ov(`{"kind":"OVERLAY_PROP_Z_VS_PRIOR","scope":"group","params":{"field":"m"}}`), errors.PROCESSING_CONFIG}, // the shared non_scalar refusal
+		// The kind's own measure rule, not the shared non_scalar one (E4-S6).
+		{"series proportion of the welford measure", priorSeriesAggs + ov(`{"kind":"OVERLAY_PROP_Z_VS_PRIOR","scope":"group","params":{"field":"m"}}`), errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
+		{"crosstab proportion of the welford measure", priorXtMeans + ov(`{"kind":"OVERLAY_PROP_Z_VS_PRIOR","scope":"group"}`), errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
 		{"crosstab count cell", xtCount + ov(`{"kind":"OVERLAY_T_VS_PRIOR","scope":"group"}`), errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
 		{"crosstab proportion of a count", xtCount + ov(`{"kind":"OVERLAY_PROP_Z_VS_PRIOR","scope":"group"}`), errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
 		{"normalized proportion crosstab", xtNormProp + ov(`{"kind":"OVERLAY_PROP_Z_VS_PRIOR","scope":"group"}`), errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
