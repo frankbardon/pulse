@@ -40,7 +40,7 @@ Use something else:
 
 ## Output
 
-One `float64` per record (bools → `1.0` / `0.0`); a `nil` result → null (`n_null`). Null binds `nil`: guard `x ?? 0` / `x == nil ? a : b`; unguarded arithmetic on nil → `PROCESSING_RUNTIME`.
+One `float64` per record (bools → `1.0` / `0.0`); a `nil` result → null (`n_null`). Null binds `nil`: guard `x ?? 0` / `x == nil ? a : b`; unguarded arithmetic on nil → `PROCESSING_RUNTIME`, at runtime only: predict reads no record, so a nullable field that holds a null looks like one that holds none — guard every nullable field.
 
 ## Gotchas
 
