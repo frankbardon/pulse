@@ -196,6 +196,10 @@ func obsCalls() []obsCall {
 			_, err := p.Export(ctx, pio.NewExportJob(obsCohort, wbuf()))
 			return err
 		}},
+		{"PredictExport", observe.OpPredict, func(ctx context.Context, p *Pulse) error {
+			_, err := p.PredictExport(ctx, pio.NewExportJob(obsCohort, wbuf()))
+			return err
+		}},
 		{"ExportTransfer", observe.OpExport, func(ctx context.Context, p *Pulse) error {
 			_, err := p.ExportTransfer(ctx, &pio.TransferExportJob{Source: obsCohort, Output: "obs.pulse.zst"})
 			return err

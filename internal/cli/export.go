@@ -22,6 +22,10 @@ var exportFlags = []cli.Flag{
 	&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 }
 
+// predictLabelsFlagUsage is `export predict --labels`: the export leaves'
+// binding syntax, checked rather than applied.
+const predictLabelsFlagUsage = "Categorical label binding to check, as the export leaves take it: field=table[:replace|augment]. Repeatable. With --format spss, predicts the .sav value-label refusals (unknown or non-categorical field, unregistered table, a field bound twice, a binding beside the SPSS metadata sidecar) with the export's own codes. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."
+
 // exportTZFlagUsage is shared by the export leaves and `export predict`.
 const exportTZFlagUsage = "Render datetime columns on this IANA zone's wall clock with its offset (e.g. Asia/Kolkata -> 2026-03-29T08:00:00+05:30) instead of UTC ...Z. Re-imports to the same instants; date columns never move. Omit, or UTC, for byte-identical UTC output. Refused by spss (a .sav DATETIME has no offset)."
 
@@ -276,12 +280,14 @@ func exportPredictCmd() *cli.Command {
 			&cli.StringFlag{Name: "charset", Usage: writeCharsetFlagUsage},
 			&cli.BoolFlag{Name: "sanitize-names", Usage: sanitizeNamesFlagUsage},
 			&cli.StringFlag{Name: "tz", Usage: exportTZFlagUsage},
+			&cli.StringSliceFlag{Name: "labels", Usage: predictLabelsFlagUsage},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			input := cmd.String("input")
 			format := cmd.String("format")
 			jsonOut := cmd.Bool("json")
+			labelArgs := cmd.StringSlice("labels")
 
 			fs := afero.NewOsFs()
 
@@ -305,7 +311,31 @@ func exportPredictCmd() *cli.Command {
 				job.Target = writer
 			}
 
-			report, err := job.Predict(ctx)
+			var report *pio.PredictReport
+			var err error
+			if len(labelArgs) > 0 {
+				// As the export leaf: the bindings resolve against the
+				// instance's label tables, through the facade, so predict
+				// raises every label refusal the export would.
+				bindings, perr := parseLabelBindings(labelArgs)
+				if perr != nil {
+					if jsonOut {
+						return writeCodedErrorEnvelope(cmd.Writer, "CLI_INPUT", perr)
+					}
+					return perr
+				}
+				job.Labels = bindings
+				p, perr := newPulse(ctx)
+				if perr != nil {
+					if jsonOut {
+						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", perr)
+					}
+					return perr
+				}
+				report, err = p.PredictExport(ctx, job)
+			} else {
+				report, err = job.Predict(ctx)
+			}
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
