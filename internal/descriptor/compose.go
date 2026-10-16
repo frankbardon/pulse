@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/banner"
 	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
@@ -112,6 +113,13 @@ type ComposeValidationResult struct {
 	// sweep slots' labels. Set whenever the sweep is structurally
 	// valid, also on a refused batch; omitted without a sweep.
 	Sweep *descriptor.SweepSummary `json:"sweep,omitempty"`
+
+	// Banner summarises what the request's `banner` block expands to —
+	// section and group labels, the Total block, the expanded slot count
+	// and (once expanded) the banner slots' labels. Set whenever the
+	// banner is structurally valid, also on a refused batch; omitted
+	// without a banner.
+	Banner *descriptor.BannerSummary `json:"banner,omitempty"`
 
 	// Fits lists the request's `fits` entries in declaration order —
 	// name, regression type, target, the predictors as written and the
@@ -227,7 +235,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	// An empty batch — no slot and no sweep to expand into one — is the
 	// runtime's first refusal (Service.expandCompose), before anything
 	// else is judged: same code, same message.
-	if len(req.Requests) == 0 && req.Sweep == nil {
+	if len(req.Requests) == 0 && req.Sweep == nil && req.Banner == nil {
 		env.AddError(string(errors.SERVICE_VALIDATION), "composed request must contain at least one request", nil)
 		result.Valid = false
 		return env, req
@@ -242,15 +250,18 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	// effective request. Every pass below judges the effective request:
 	// explicit slots, then sweep slots, one label namespace.
 	// result.Request keeps the request as written.
-	if req.Sweep != nil {
+	if req.Sweep != nil || req.Banner != nil {
 		if serr := SlotRefusal(req, opts.instance()); serr != nil {
 			addCodedError(env, serr)
 			result.Valid = false
 			return env, written
 		}
-		result.Sweep = sweepSummary(req.Sweep)
+		if req.Sweep != nil {
+			result.Sweep = sweepSummary(req.Sweep)
+		}
+		result.Banner = bannerSummary(req.Banner)
 	}
-	exp, xerr := sweep.Expand(req, composeSlotsPreflight(opts))
+	exp, xerr := banner.ExpandCompose(req, composeSlotsPreflight(opts))
 	if xerr != nil {
 		addCodedError(env, xerr)
 		if f, ok := limitRefusalFinding(xerr); ok {
@@ -261,7 +272,14 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	}
 	req = exp.Composed
 	if result.Sweep != nil {
-		result.Sweep.Labels = exp.Labels
+		result.Sweep.Labels = exp.SweepLabels
+	}
+	if result.Banner != nil && exp.Banner != nil {
+		for _, sec := range exp.Banner.Sections {
+			for _, blk := range sec.Blocks {
+				result.Banner.Labels = append(result.Banner.Labels, blk.Slot)
+			}
+		}
 	}
 	// A slot the instance hides is an unknown field, refused before
 	// anything else past the expansion — the runtime's order. A sweep
@@ -424,6 +442,23 @@ func sweepSummary(spec *types.SweepSpec) *descriptor.SweepSummary {
 		axes[i] = descriptor.SweepAxisSummary{Name: ax.Name, Count: len(ax.Values)}
 	}
 	return &descriptor.SweepSummary{Axes: axes, Mode: mode, ExpandedCount: sweep.Count(spec)}
+}
+
+// bannerSummary is ComposeValidationResult.Banner for a banner that
+// passes the structural check (banner.Validate), else nil. Labels are
+// filled in once the expansion succeeds.
+func bannerSummary(spec *types.BannerSpec) *descriptor.BannerSummary {
+	if spec == nil || banner.Validate(spec) != nil {
+		return nil
+	}
+	out := &descriptor.BannerSummary{Sections: []string{}, Groups: []string{}, Total: spec.Total, ExpandedCount: banner.Count(spec)}
+	for _, sec := range spec.Sections {
+		out.Sections = append(out.Sections, sec.Label)
+	}
+	for _, g := range spec.Groups {
+		out.Groups = append(out.Groups, g.Label)
+	}
+	return out
 }
 
 // addLabelCollision reports PULSE_COMPOSE_LABEL_COLLISION for label.

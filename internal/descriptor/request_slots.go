@@ -31,6 +31,8 @@ import (
 //     SERIES host a grouped Process runs)
 //   - ComposedRequest.Overlays — capability:compose
 //   - ComposedRequest.Sweep    — capability:compose_sweep
+//   - ComposedRequest.Banner   — capability:compose_banner (+ the
+//     ComposedResponse.Banner it produces)
 //   - ComposedRequest.Fits     — capability:compose_fits (each fit
 //     request's own slots are gated like a slot's, details.fit)
 //   - ChainRequest.Overlays    — capability:process_chain
@@ -208,6 +210,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		multiplicitySlotGate,
 		{key: "sweep", visible: capabilityGate(featComposeSweep)},
 		{key: "fits", visible: capabilityGate(featComposeFits)},
+		{key: "banner", visible: capabilityGate(featComposeBanner)},
 	},
 	// The sweep rank rides capability:compose_sweep with the `sweep`
 	// slot that produces it.
@@ -217,6 +220,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "overlays", visible: overlayGate(featCompose)},
 		{key: "ranking", visible: capabilityGate(featComposeSweep)},
 		{key: "fits", visible: capabilityGate(featComposeFits)},
+		{key: "banner", visible: capabilityGate(featComposeBanner)},
 	},
 	reflect.TypeOf(types.ChainRequest{}): {
 		{key: "overlays", visible: overlayGate(featProcessChain)},
@@ -423,6 +427,9 @@ func setSlots(v any) []string {
 		}
 		if r != nil && len(r.Fits) > 0 {
 			out = append(out, "fits")
+		}
+		if r != nil && r.Banner != nil {
+			out = append(out, "banner")
 		}
 	case *types.ChainRequest:
 		if r != nil && len(r.Overlays) > 0 {

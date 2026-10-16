@@ -149,6 +149,7 @@ pulse: type ComposeOptions field PerRequestTimeout time.Duration
 pulse: type ComposePredictResult = pulse/internal/descriptor.ComposeValidationResult
 pulse: type ComposePredictResult underlying struct
 pulse: type ComposePredictResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
+pulse: type ComposePredictResult field Banner *pulse/descriptor.BannerSummary "json:\"banner,omitempty\""
 pulse: type ComposePredictResult field Fits []pulse/descriptor.FitSummary "json:\"fits,omitempty\""
 pulse: type ComposePredictResult field LimitFindings []pulse/descriptor.LimitFinding "json:\"limit_findings,omitempty\""
 pulse: type ComposePredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
@@ -159,6 +160,7 @@ pulse: type ComposePredictResult field Sweep *pulse/descriptor.SweepSummary "jso
 pulse: type ComposePredictResult field Valid bool "json:\"valid\""
 pulse: type ComposedRequest = pulse/types.ComposedRequest
 pulse: type ComposedRequest underlying struct
+pulse: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,omitempty\""
 pulse: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
@@ -168,6 +170,7 @@ pulse: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omi
 pulse: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse: type ComposedResponse = pulse/types.ComposedResponse
 pulse: type ComposedResponse underlying struct
+pulse: type ComposedResponse field Banner *pulse/types.BannerResult "json:\"banner,omitempty\""
 pulse: type ComposedResponse field Fits map[string]*pulse/types.FitResult "json:\"fits,omitempty\""
 pulse: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
 pulse: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
@@ -1163,6 +1166,12 @@ pulse/descriptor: type Band struct
 pulse/descriptor: type Band field Label string "json:\"label\""
 pulse/descriptor: type Band field Max *float64 "json:\"max,omitempty\""
 pulse/descriptor: type Band field Min *float64 "json:\"min,omitempty\""
+pulse/descriptor: type BannerSummary struct
+pulse/descriptor: type BannerSummary field ExpandedCount int "json:\"expanded_count\""
+pulse/descriptor: type BannerSummary field Groups []string "json:\"groups\""
+pulse/descriptor: type BannerSummary field Labels []string "json:\"labels,omitempty\""
+pulse/descriptor: type BannerSummary field Sections []string "json:\"sections\""
+pulse/descriptor: type BannerSummary field Total bool "json:\"total,omitempty\""
 pulse/descriptor: type CohortFieldType struct
 pulse/descriptor: type CohortFieldType field Categorical bool "json:\"categorical\""
 pulse/descriptor: type CohortFieldType field CompatibleAggregators []string "json:\"compatible_aggregators,omitempty\""
@@ -2304,6 +2313,7 @@ pulse/errors: const PULSE_ARCHIVE_CORRUPT pulse/errors.Code = "PULSE_ARCHIVE_COR
 pulse/errors: const PULSE_ARCHIVE_MAGIC_INVALID pulse/errors.Code = "PULSE_ARCHIVE_MAGIC_INVALID"
 pulse/errors: const PULSE_ATTR_CODE_NOT_IN_DICTIONARY pulse/errors.Code = "PULSE_ATTR_CODE_NOT_IN_DICTIONARY"
 pulse/errors: const PULSE_ATTR_SCALE_OUT_OF_RANGE pulse/errors.Code = "PULSE_ATTR_SCALE_OUT_OF_RANGE"
+pulse/errors: const PULSE_BANNER_INVALID pulse/errors.Code = "PULSE_BANNER_INVALID"
 pulse/errors: const PULSE_CHAIN_EMPTY pulse/errors.Code = "PULSE_CHAIN_EMPTY"
 pulse/errors: const PULSE_CHAIN_NOT_MERGEABLE pulse/errors.Code = "PULSE_CHAIN_NOT_MERGEABLE"
 pulse/errors: const PULSE_CHAIN_STAGE_JOIN pulse/errors.Code = "PULSE_CHAIN_STAGE_JOIN"
@@ -4295,6 +4305,53 @@ pulse/types: type AxisHeader field Fields []string "json:\"fields\""
 pulse/types: type AxisHeader field Types []string "json:\"types\""
 pulse/types: type AxisKey []any
 pulse/types: func AxisTypes(axis []*pulse/types.Group) []string
+pulse/types: type BannerBlock struct
+pulse/types: type BannerBlock field ColumnHeader pulse/types.AxisHeader "json:\"column_header\""
+pulse/types: type BannerBlock field Count int "json:\"count\""
+pulse/types: type BannerBlock field GrandTotal pulse/types.MatrixCell "json:\"grand_total\""
+pulse/types: type BannerBlock field Label string "json:\"label\""
+pulse/types: type BannerBlock field Measures []pulse/types.CrosstabMeasureMargins "json:\"measures,omitempty\""
+pulse/types: type BannerBlock field RowMargins []pulse/types.MatrixCell "json:\"row_margins,omitempty\""
+pulse/types: type BannerBlock field Slot string "json:\"slot\""
+pulse/types: type BannerBlock field Start int "json:\"start\""
+pulse/types: type BannerBlock field Total bool "json:\"total,omitempty\""
+pulse/types: type BannerGroup struct
+pulse/types: type BannerGroup field Columns []*pulse/types.Group "json:\"columns\""
+pulse/types: type BannerGroup field Label string "json:\"label\""
+pulse/types: type BannerLetters struct
+pulse/types: type BannerLetters field Cells [][]pulse/types.MatrixCell "json:\"cells\""
+pulse/types: type BannerLetters field Kind pulse/types.OverlayKind "json:\"kind\""
+pulse/types: type BannerLetters field Name string "json:\"name,omitempty\""
+pulse/types: type BannerLetters field Overlay int "json:\"overlay\""
+pulse/types: type BannerLetters field Scope pulse/types.OverlayScope "json:\"scope\""
+pulse/types: type BannerResult struct
+pulse/types: type BannerResult field Sections []pulse/types.BannerSectionResult "json:\"sections\""
+pulse/types: type BannerSection struct
+pulse/types: type BannerSection field Cell *pulse/types.Aggregation "json:\"cell,omitempty\""
+pulse/types: type BannerSection field Cells []*pulse/types.Aggregation "json:\"cells,omitempty\""
+pulse/types: type BannerSection field Filterers []*pulse/types.Filterer "json:\"filterers,omitempty\""
+pulse/types: type BannerSection field Label string "json:\"label\""
+pulse/types: type BannerSection field Rows []*pulse/types.Group "json:\"rows,omitempty\""
+pulse/types: type BannerSectionResult struct
+pulse/types: type BannerSectionResult field Blocks []pulse/types.BannerBlock "json:\"blocks\""
+pulse/types: type BannerSectionResult field CellLabel string "json:\"cell_label\""
+pulse/types: type BannerSectionResult field CellLabels []string "json:\"cell_labels,omitempty\""
+pulse/types: type BannerSectionResult field Cells [][]pulse/types.MatrixCell "json:\"cells\""
+pulse/types: type BannerSectionResult field ColumnKeys []pulse/types.AxisKey "json:\"column_keys\""
+pulse/types: type BannerSectionResult field ColumnMargins []pulse/types.MatrixCell "json:\"column_margins,omitempty\""
+pulse/types: type BannerSectionResult field Label string "json:\"label\""
+pulse/types: type BannerSectionResult field Letters []pulse/types.BannerLetters "json:\"letters,omitempty\""
+pulse/types: type BannerSectionResult field NormalizeApplied pulse/types.CrosstabNormalize "json:\"normalize_applied\""
+pulse/types: type BannerSectionResult field RowHeader pulse/types.AxisHeader "json:\"row_header\""
+pulse/types: type BannerSectionResult field RowKeys []pulse/types.AxisKey "json:\"row_keys\""
+pulse/types: func BannerSlotLabel(section string, group string) string
+pulse/types: type BannerSpec struct
+pulse/types: type BannerSpec field Groups []pulse/types.BannerGroup "json:\"groups,omitempty\""
+pulse/types: type BannerSpec field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
+pulse/types: type BannerSpec field Request *pulse/types.Request "json:\"request\""
+pulse/types: type BannerSpec field Sections []pulse/types.BannerSection "json:\"sections\""
+pulse/types: type BannerSpec field Total bool "json:\"total,omitempty\""
+pulse/types: const BannerTotalLabel untyped string = "Total"
 pulse/types: func CanonicalHash(tag string, v any) string
 pulse/types: type CellsFault struct
 pulse/types: type CellsFault field Details map[string]any
@@ -4349,6 +4406,7 @@ pulse/types: type ComposeOverlaySpec field Scope pulse/types.OverlayScope "json:
 pulse/types: type ComposeOverlaySpec field Targets []string "json:\"targets,omitempty\""
 pulse/types: type ComposeOverlaySpec field Within int "json:\"within,omitempty\""
 pulse/types: type ComposedRequest struct
+pulse/types: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,omitempty\""
 pulse/types: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse/types: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
@@ -4357,6 +4415,7 @@ pulse/types: type ComposedRequest field Return *pulse/types.Return "json:\"retur
 pulse/types: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omitempty\""
 pulse/types: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse/types: type ComposedResponse struct
+pulse/types: type ComposedResponse field Banner *pulse/types.BannerResult "json:\"banner,omitempty\""
 pulse/types: type ComposedResponse field Fits map[string]*pulse/types.FitResult "json:\"fits,omitempty\""
 pulse/types: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
 pulse/types: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
@@ -5394,4 +5453,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 92f14188c7141626875e5289260a030bf2fb6f74be083fb467c80330ef920a4a
+// golden-hash: 48308a626b0fa0ff6d82b8c24c37a6d1caaa71975039162bede81aafc1fc6c08

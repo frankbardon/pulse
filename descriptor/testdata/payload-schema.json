@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:21dccebe5b8b46da081220b1e8543629b073028d6b3964104a5e90add9be62fe",
+  "$comment": "feature_set_digest: fs1:1b77e8a6e3ebad77435d6f1cafd766ecb3b35982b31a02c3d95e68a3c4553eb7",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -389,6 +389,328 @@
       ],
       "type": "object"
     },
+    "BannerBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "column_header": {
+          "$ref": "#/$defs/AxisHeader"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "grand_total": {
+          "$ref": "#/$defs/MatrixCell"
+        },
+        "label": {
+          "type": "string"
+        },
+        "measures": {
+          "items": {
+            "$ref": "#/$defs/CrosstabMeasureMargins"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "row_margins": {
+          "items": {
+            "$ref": "#/$defs/MatrixCell"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "slot": {
+          "type": "string"
+        },
+        "start": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "column_header",
+        "count",
+        "grand_total",
+        "label",
+        "slot",
+        "start"
+      ],
+      "type": "object"
+    },
+    "BannerGroup": {
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "items": {
+            "$ref": "#/$defs/Group"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "columns",
+        "label"
+      ],
+      "type": "object"
+    },
+    "BannerLetters": {
+      "additionalProperties": false,
+      "properties": {
+        "cells": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/MatrixCell"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/OverlayKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "overlay": {
+          "type": "integer"
+        },
+        "scope": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "cells",
+        "kind",
+        "overlay",
+        "scope"
+      ],
+      "type": "object"
+    },
+    "BannerResult": {
+      "additionalProperties": false,
+      "properties": {
+        "sections": {
+          "items": {
+            "$ref": "#/$defs/BannerSectionResult"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "sections"
+      ],
+      "type": "object"
+    },
+    "BannerSection": {
+      "additionalProperties": false,
+      "properties": {
+        "cell": {
+          "$ref": "#/$defs/Aggregation"
+        },
+        "cells": {
+          "items": {
+            "$ref": "#/$defs/Aggregation"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "filterers": {
+          "items": {
+            "$ref": "#/$defs/Filterer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/Group"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "type": "object"
+    },
+    "BannerSectionResult": {
+      "additionalProperties": false,
+      "properties": {
+        "blocks": {
+          "items": {
+            "$ref": "#/$defs/BannerBlock"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "cell_label": {
+          "type": "string"
+        },
+        "cell_labels": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "cells": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/MatrixCell"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "column_keys": {
+          "items": {
+            "items": true,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "column_margins": {
+          "items": {
+            "$ref": "#/$defs/MatrixCell"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "letters": {
+          "items": {
+            "$ref": "#/$defs/BannerLetters"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "normalize_applied": {
+          "type": "string"
+        },
+        "row_header": {
+          "$ref": "#/$defs/AxisHeader"
+        },
+        "row_keys": {
+          "items": {
+            "items": true,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "blocks",
+        "cell_label",
+        "cells",
+        "column_keys",
+        "label",
+        "normalize_applied",
+        "row_header",
+        "row_keys"
+      ],
+      "type": "object"
+    },
+    "BannerSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/BannerGroup"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "overlays": {
+          "items": {
+            "$ref": "#/$defs/OverlaySpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "request": {
+          "$ref": "#/$defs/Request"
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/$defs/BannerSection"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "total": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "request",
+        "sections"
+      ],
+      "type": "object"
+    },
     "ChainOverlaySpec": {
       "additionalProperties": false,
       "properties": {
@@ -565,6 +887,9 @@
     "ComposedRequest": {
       "additionalProperties": false,
       "properties": {
+        "banner": {
+          "$ref": "#/$defs/BannerSpec"
+        },
         "fits": {
           "items": {
             "$ref": "#/$defs/FitSpec"
@@ -610,6 +935,9 @@
     "ComposedResponse": {
       "additionalProperties": false,
       "properties": {
+        "banner": {
+          "$ref": "#/$defs/BannerResult"
+        },
         "fits": {
           "additionalProperties": {
             "$ref": "#/$defs/FitResult"
@@ -4831,4 +5159,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 9d58cce6aba8f99eb5f5b9038c47b9a9dd615dc944315f311c96c2e2807a37fc
+// golden-hash: d943e48ba44d420283ce480cd548f53aa59d441f72656fab9b19332c268f1257

@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:21dccebe5b8b46da081220b1e8543629b073028d6b3964104a5e90add9be62fe",
+    "feature_set_digest": "fs1:1b77e8a6e3ebad77435d6f1cafd766ecb3b35982b31a02c3d95e68a3c4553eb7",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -9703,7 +9703,7 @@
         ]
       }
     ],
-    "error_codes_count": 370,
+    "error_codes_count": 371,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9754,6 +9754,7 @@
       "PULSE_ARCHIVE_MAGIC_INVALID",
       "PULSE_ATTR_CODE_NOT_IN_DICTIONARY",
       "PULSE_ATTR_SCALE_OUT_OF_RANGE",
+      "PULSE_BANNER_INVALID",
       "PULSE_CHAIN_EMPTY",
       "PULSE_CHAIN_NOT_MERGEABLE",
       "PULSE_CHAIN_STAGE_JOIN",
@@ -11560,6 +11561,10 @@
         "description": "What happens when a value outgrows its field width — inferred categorical and numeric rungs promote on the full row pass, declared widths refuse row by row, set cardinality and shard dictionary overflow, and how convert reports it."
       },
       {
+        "name": "compose-banner",
+        "description": "ComposedRequest.banner — a survey banner table (stub sections × column groups + a Total block) as ONE Compose request, expanded into ordinary crosstab slots and stitched back into ComposedResponse.banner with per-block significance letters."
+      },
+      {
         "name": "compose-fits",
         "description": "ComposedRequest.fits — named regression or vector fits that run once before any Compose slot (sweep slots included) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity."
       },
@@ -12860,7 +12865,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 237,
+    "examples_count": 238,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -18590,4 +18595,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9314de34c3e9fdd90d83bb10c309823d920e54123a362b25cbbba24b8237a496
+// golden-hash: 0d2d3e36f909de0da7181c49e85fb0854d3a310e8101ea689a74763060f68928

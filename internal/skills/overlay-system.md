@@ -63,7 +63,7 @@ The carrying request decides the host; the host decides the legal kinds (an ungr
 
 ## Per-layer warnings (`OverlayLayer.Warnings`)
 
-Additive lowercase `warnings: [{code, message, details}]` per layer, `omitempty`. Canonical: `PULSE_OVERLAY_REF_ZERO` (zero reference, undefined ratio), `PULSE_OVERLAY_EXPECTED_LOW` (expected count below 5: χ² cells, symmetry pairs). On Compose and chain hosts it rides the matching layer's `Overlays[i].Warnings`; a partitioned SERIES layer raises each code once (`details.partitions`). Warnings never fail the request.
+Additive lowercase `warnings: [{code, message, details}]` per layer, `omitempty`. Canonical: `PULSE_OVERLAY_REF_ZERO` (zero reference), `PULSE_OVERLAY_EXPECTED_LOW` (expected count below 5: χ² cells, symmetry pairs). On Compose and chain hosts it rides the matching layer's `Overlays[i].Warnings`<!-- feature: capability:compose_banner --> (banner: each slot's own layers, never `banner`)<!-- /feature -->; a partitioned SERIES layer raises each code once (`details.partitions`). Warnings never fail the request.
 
 <!-- feature: capability:multiplicity -->
 ## Multiplicity

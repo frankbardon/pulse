@@ -998,6 +998,28 @@ type ForEachSummary struct {
 	ExpandedCount int `json:"expanded_count"`
 }
 
+// BannerSummary is ComposeValidationResult.Banner: what a Compose
+// request's `banner` block expands to, reported by predict without
+// running a slot. It is set whenever the banner is structurally valid —
+// also when the batch is then refused (over MaxComposeSlots, a slot
+// fault, a label collision), so a caller sees the size of the table.
+type BannerSummary struct {
+	// Sections are the section labels in order.
+	Sections []string `json:"sections"`
+	// Groups are the column-group labels in order (the Total block not
+	// included).
+	Groups []string `json:"groups"`
+	// Total reports the Total block.
+	Total bool `json:"total,omitempty"`
+	// ExpandedCount is the number of slots the banner adds — sections ×
+	// (groups + 1 with the Total block). Explicit plus sweep plus banner
+	// slots is what MaxComposeSlots bounds.
+	ExpandedCount int `json:"expanded_count"`
+	// Labels are the banner slots' labels (`<section>:<block>`) in
+	// expansion order. Absent when expansion was refused.
+	Labels []string `json:"labels,omitempty"`
+}
+
 // SweepAxisSummary is one SweepSummary axis.
 type SweepAxisSummary struct {
 	// Name is the axis's placeholder name.

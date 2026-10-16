@@ -55,11 +55,16 @@ const rankingKey = "ranking"
 // full precision (the bound models are scored from those figures).
 const fitsKey = "fits"
 
+// bannerKey is the ComposedResponse.Banner JSON key: like `ranking`,
+// outside the plan's path space, so a set banner is always emitted at
+// full precision (its cells are copies of the slots' unshaped figures).
+const bannerKey = "banner"
+
 // pinnedRootKey reports whether name is a root key the plan never
-// prunes: the `returned` marker, the sweep `ranking` and the Compose
-// `fits`.
+// prunes: the `returned` marker, the sweep `ranking`, the Compose
+// `fits` and the stitched `banner`.
 func pinnedRootKey(name string) bool {
-	return name == returnedKey || name == rankingKey || name == fitsKey
+	return name == returnedKey || name == rankingKey || name == fitsKey || name == bannerKey
 }
 
 // structuralTypes are the result types whose MarshalJSON is exactly

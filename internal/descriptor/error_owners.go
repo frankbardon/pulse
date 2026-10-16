@@ -310,6 +310,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_COMPOSE_LABEL_COLLISION: own(featCompose),
 	errors.PULSE_SWEEP_INVALID:           own(featComposeSweep),
 	errors.PULSE_SWEEP_RANK_PATH:         own(featComposeSweep),
+	errors.PULSE_BANNER_INVALID:          own(featComposeBanner),
 	// The one model namespace: Compose fits and loaded models bind it.
 	errors.PULSE_FIT_INVALID:          own(featComposeFits),
 	errors.PULSE_MODEL_NAME_COLLISION: own(featComposeFits, featModels),

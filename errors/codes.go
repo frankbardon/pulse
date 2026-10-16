@@ -1178,6 +1178,16 @@ const (
 	// slot only) carries on its own response.
 	PULSE_SWEEP_RANK_PATH Code = "PULSE_SWEEP_RANK_PATH"
 
+	// PULSE_BANNER_INVALID indicates a malformed ComposedRequest
+	// `banner` block: no base request, a base request that sets `label`,
+	// crosstab `columns` or crosstab shape `long`, no sections, a section
+	// or group label that is empty or repeated, a group with no column
+	// grouper or labelled `Total` beside the Total block, or neither a
+	// group nor the Total block. Refused identically by predict and the
+	// runtime before any slot runs. Details carry "field" (the
+	// banner-rooted path), "reason" and, where one applies, "label".
+	PULSE_BANNER_INVALID Code = "PULSE_BANNER_INVALID"
+
 	// PULSE_FIT_INVALID indicates a malformed ComposedRequest `fits`
 	// entry: an empty name (reason "name_missing"), no request
 	// ("request_missing"), a request holding zero or more than one
@@ -3893,6 +3903,7 @@ var allCodes = []Code{
 	PULSE_COMPOSE_LABEL_COLLISION,
 	PULSE_SWEEP_INVALID,
 	PULSE_SWEEP_RANK_PATH,
+	PULSE_BANNER_INVALID,
 	PULSE_FIT_INVALID,
 	PULSE_MODEL_NAME_COLLISION,
 	PULSE_MODEL_UNKNOWN,

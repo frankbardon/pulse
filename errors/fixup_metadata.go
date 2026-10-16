@@ -1784,6 +1784,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_BANNER_INVALID: {
+		Message: "The ComposedRequest `banner` block is malformed, so nothing runs — predict refuses it identically. A banner needs a base `request` (the cohort, weight, filterers and the shared crosstab rows / cell / margins / normalize) that sets no `label` (reason `request_label_set`: slots are labelled `<section>:<group>`), no crosstab `columns` (reason `columns_set`: the groups own the columns) and no crosstab shape `long` (reason `shape_long`: the stitch reads the matrix). It needs at least one section (`sections_empty`) and at least one group or `total: true` (`groups_empty`). Every section and group label is non-empty (`label_empty`) and unique among its kind (`label_duplicate`); with the Total block no group may be labelled `Total` (`label_reserved`). Every group needs at least one column grouper (`columns_empty`). The offending path is under `field`, the rule under `reason` and the label under `label` where one applies.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"banner", "request", "crosstab", "columns"},
+				Hint:   "Move the column groupers into banner.groups[*].columns, drop `label` from the base request and keep the crosstab in matrix shape.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"banner", "groups", "*", "label"},
+				Hint:   "Give every section and group a non-empty label unique among its kind, at least one column grouper per group, and at least one group or `total: true`.",
+			},
+		},
+	},
 	PULSE_FIT_INVALID: {
 		Message: "A ComposedRequest `fits` entry is malformed, so nothing runs — predict refuses it identically. Every fit needs a non-empty `name` and a `request` holding exactly ONE regression (reason `regression_count`, the count under `count`) and no `groups` or `crosstab` (reason `grouped`): a fit is one model over one row set, fit once before any slot. A missing name is `name_missing`, a missing request `request_missing`. The entry index is under `fit`, its name under `name`.",
 		Fixups: []Fixup{

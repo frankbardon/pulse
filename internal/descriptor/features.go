@@ -102,6 +102,7 @@ var (
 	featCompose       = FeatureName(FeatureKindCapability, "compose")
 	featComposeSweep  = FeatureName(FeatureKindCapability, "compose_sweep")
 	featComposeFits   = FeatureName(FeatureKindCapability, "compose_fits")
+	featComposeBanner = FeatureName(FeatureKindCapability, "compose_banner")
 	featModelSave     = FeatureModelSave
 	featModels        = FeatureModels
 	featForEach       = FeatureForEach
@@ -182,6 +183,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("compose"),        // Compose, ComposeParallel, ApplySeriesOverlays
 	capability("compose_sweep"),  // ComposedRequest.Sweep + ComposedResponse.Ranking
 	capability("compose_fits"),   // ComposedRequest.Fits + ComposedResponse.Fits
+	capability("compose_banner"), // ComposedRequest.Banner + ComposedResponse.Banner
 	capability("model_save"),     // RegressionSpec.Save + FitSpec.Save (model + population files)
 	capability("models"),         // Request.Models + FacetRequest.Models + Request.Populations (load saved files)
 	capability("for_each"),       // the `for_each` item fan-out on Window / Feature / Attribute
@@ -531,6 +533,8 @@ var slotTokens = map[string]slotTokenSet{
 	featComposeSweep: {},
 	// `fits` is everyday English; no guidance sentence names the slot.
 	featComposeFits: {},
+	// `banner` names the slot only; no guidance sentence names it yet.
+	featComposeBanner: {},
 	// `save` is everyday English; no guidance sentence names the slot.
 	featModelSave: {},
 	// `models` is everyday English; no guidance sentence names the slot.
@@ -764,6 +768,10 @@ var hardEdges = map[string][]string{
 //     vector attribute): it needs Compose AND any-of the REG_*
 //     operators, capability:matrices and the fitted attributes.
 var groupEdges = map[string][][]string{
+	// A banner expands into Compose slots, each a crosstab: without
+	// Compose there is nothing to expand into, without the crosstab host
+	// there is no table to stitch.
+	featComposeBanner: {{featCompose}, {featCrosstab}},
 	featComposeFits: {
 		{featCompose},
 		{string(types.ATTR_FACTOR_SCORE), string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),

@@ -24,13 +24,14 @@ Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md ke
 - **Matrices** (`Request.Vectors` + `Request.Matrices`, `Response.Matrices`) — whole-set matrix operators (`MAT_*`) over virtual vectors, folded into per-block `linalg.CoMoment`s through the `BlockMerger` opt-in and emitted at finalize (streaming: terminal flush). `skills/op-mat-covariance.md`; contract `.claude/reference/matrix-and-vectors.md`.
 - **Item fan-out** (`for_each` on `Window` / `Feature` / `Attribute`) — one item expanded in place over parameter axes before any other check; section below. `skills/item-fan-out.md`.
 - **Compose fits** (`ComposedRequest.Fits`, `ComposedResponse.Fits`) — a pre-pass that fits each named one-regression request ONCE before any slot and binds the result into every slot by name; section below. `skills/compose-fits.md`.
+- **Compose banner** (`ComposedRequest.Banner`, `ComposedResponse.Banner`) — Compose sugar: sections × column groups (+ Total) expanded into crosstab slots and stitched back with per-block letters; section below. `skills/compose-banner.md`.
 
 ## Section map
 
 | Section (pre-split heading) | Slice |
 |---|---|
 | Streaming Process; Projected buffered decode; Parallel buffered Process; Cooperative cancellation (ctx polling); Request timeout (`Limits.RequestTimeout`) | `execution-modes/streaming-and-decode.md` |
-| Parallel Compose; Compose fits; Item fan-out (`for_each`) | `execution-modes/compose.md` |
+| Parallel Compose; Compose fits; Compose banner; Item fan-out (`for_each`) | `execution-modes/compose.md` |
 | Parallel shards; Blocked merge (`processing.BlockMerger`); Filter precompute (grouped cohorts); Compile-once expressions (`FILTER_EXPRESSION`, `ATTR_FORMULA`) | `execution-modes/shards-and-merge.md` |
 | ProcessChain; Pushdown hash join; Facet endpoints | `execution-modes/chain-join-facet.md` |
 | Crosstab; Fused crosstab | `execution-modes/crosstab.md` |

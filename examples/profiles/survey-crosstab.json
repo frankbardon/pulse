@@ -4,6 +4,7 @@
   "features": [
     "capability:process",
     "capability:compose",
+    "capability:compose_banner",
     "capability:facet",
     "capability:crosstab",
     "capability:crosstab_cells",

@@ -1698,6 +1698,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 			"return": returnSchema("Shapes the TOP-LEVEL Compose overlays only: paths root at the ComposedResponse and only `overlays…` paths are valid (each slot is shaped by its own requests[i].return). Omit to leave the overlays whole."),
 			"sweep":  sweepSchema(),
 			"fits":   fitsSchema(reqSchema, inst),
+			"banner": bannerSchema(reqSchema),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,
@@ -1756,6 +1757,66 @@ func forEachSchema() map[string]any {
 			"mode": enumStringField(stringSlice(types.AllSweepModes()), "grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths) — e.g. a label axis beside a parameter axis."),
 		},
 		"required": []string{"axes"},
+	}
+}
+
+// bannerSchema describes the ComposedRequest `banner` block
+// (types.BannerSpec): sections × column groups (+ a Total block)
+// expanded into crosstab slots and stitched into the response `banner`.
+// Dropped with the slot when capability:compose_banner is hidden
+// (dropHiddenSlots).
+func bannerSchema(reqSchema map[string]any) map[string]any {
+	// The section, group and overlay keys reuse the bound request's own
+	// sub-schemas, so they are typed exactly like a hand-written slot's.
+	prop := func(path ...string) any {
+		var cur any = reqSchema
+		for _, k := range path {
+			m, _ := cur.(map[string]any)
+			props, _ := m["properties"].(map[string]any)
+			if props == nil || props[k] == nil {
+				return map[string]any{}
+			}
+			cur = props[k]
+		}
+		return cur
+	}
+	return map[string]any{
+		"type":        "object",
+		"description": "Banner table: one crosstab slot per section × column group (plus a Total block), appended after `requests` and stitched into the response `banner` — column blocks side by side, per-block letters. Letters compare columns within one group only; the Total block is compared to nothing.",
+		"properties": map[string]any{
+			"request": reqSchema,
+			"sections": map[string]any{
+				"type":        "array",
+				"minItems":    1,
+				"description": "Stub sections; each overrides the base request's crosstab rows / cell(s) and appends its own filterers (a different base, e.g. aided-aware).",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"label":     map[string]any{"type": "string", "description": "Section label, unique."},
+						"filterers": prop("filterers"),
+						"rows":      prop("crosstab", "rows"),
+						"cell":      prop("crosstab", "cell"),
+						"cells":     prop("crosstab", "cells"),
+					},
+					"required": []string{"label"},
+				},
+			},
+			"groups": map[string]any{
+				"type":        "array",
+				"description": "Column groups (Gender, Age, …); each one crosstab slot per section.",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"label":   map[string]any{"type": "string", "description": "Group label, unique."},
+						"columns": prop("crosstab", "columns"),
+					},
+					"required": []string{"label", "columns"},
+				},
+			},
+			"total":    map[string]any{"type": "boolean", "description": "Add the Total block (a crosstab with no column grouper), stitched first."},
+			"overlays": prop("overlays"),
+		},
+		"required": []string{"request", "sections"},
 	}
 }
 

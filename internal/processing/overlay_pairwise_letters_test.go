@@ -55,8 +55,8 @@ func TestPairwiseKernels_RecordDirection(t *testing.T) {
 // sequence, so a group past 26 indexes never repeats a letter.
 func TestPairwiseLetterName(t *testing.T) {
 	for k, want := range map[int]string{0: "A", 1: "B", 25: "Z", 26: "AA", 27: "AB", 51: "AZ", 52: "BA", 701: "ZZ", 702: "AAA"} {
-		if got := pairwiseLetterName(k); got != want {
-			t.Errorf("pairwiseLetterName(%d) = %q, want %q", k, got, want)
+		if got := PairwiseLetterName(k); got != want {
+			t.Errorf("PairwiseLetterName(%d) = %q, want %q", k, got, want)
 		}
 	}
 }

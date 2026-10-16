@@ -976,6 +976,42 @@ a non-number, ambiguous or nowhere-resolving path refuses the batch with
 the same code. `ranking` is pinned outside the Compose-level `return`:
 always emitted, never rounded by `precision`.
 
+### Compose banner
+
+`ComposedRequest.banner` (`BannerSpec`) is
+`{request, sections, groups, total, overlays}`: `request` a typed
+`Request` (the base every slot starts from — no `label`, no crosstab
+`columns`, no crosstab `shape: long`), `sections` a non-empty list of
+`BannerSection {label, filterers, rows, cell, cells}`, `groups` a list of
+`BannerGroup {label, columns}`, `total` a boolean (the Total block: a
+crosstab with no column grouper) and `overlays` request `OverlaySpec`s
+appended to every group slot. It expands into one crosstab slot per
+section × block (Total first, then the groups), labelled
+`<section>:<block>`, appended after the explicit and sweep slots. The
+slot is `omitempty`, so a banner-free request is byte-identical on the
+wire, and it is gated by `capability:compose_banner` (hidden: the
+`banner` property and the `Banner*` defs are absent). A malformed banner
+is `PULSE_BANNER_INVALID` with `details.field` and `details.reason`;
+predict reports `banner {sections, groups, total, expanded_count,
+labels}`.
+
+The banner adds `ComposedResponse.banner`, an `omitempty`
+`BannerResult {sections}`: one `BannerSectionResult {label, row_header,
+row_keys, column_keys, cells, column_margins, cell_label, cell_labels,
+normalize_applied, blocks, letters}` per section, the section's slot
+matrices side by side — rows the union of the blocks' rows, column keys
+concatenated. Each `BannerBlock {label, slot, total, start, count,
+column_header, row_margins, grand_total, measures}` locates one block's
+columns and carries its own margins: a record reaches a block's margin
+only if it reached a CELL of that block. `letters` holds one
+`BannerLetters {overlay, name, kind, scope, cells}` per banner overlay
+carrying a `letters` part; under `column` scope the letters are
+re-assigned banner-wide (unique across blocks, comparison groups never
+spanning two blocks) and the Total block carries no letter cell — it is
+compared to nothing. Every figure is copied from its slot; undefined
+figures are `null`. `banner` is pinned outside the Compose-level
+`return`: always emitted, never rounded.
+
 ### Compose fits
 
 `ComposedRequest.fits` is an `omitempty` array of `FitSpec {name,

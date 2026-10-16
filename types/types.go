@@ -2012,6 +2012,15 @@ type ComposedRequest struct {
 	// Nil is absent — the slot is `omitempty`, so a fit-free request is
 	// byte-identical on the wire and under Hash. See FitSpec.
 	Fits []FitSpec `json:"fits,omitempty"`
+
+	// Banner is the optional banner table: sections × column groups
+	// (plus a Total block) expanded into crosstab slots appended after
+	// Requests and any sweep slots, before any slot runs, and stitched
+	// back into ComposedResponse.Banner. Gated by
+	// capability:compose_banner. Nil is absent — the slot is
+	// `omitempty`, so a banner-free request is byte-identical on the
+	// wire and under Hash. See BannerSpec.
+	Banner *BannerSpec `json:"banner,omitempty"`
 }
 
 // ComposedResponse is the structured response shape for ComposedRequest
@@ -2063,6 +2072,14 @@ type ComposedResponse struct {
 	// the Compose-level `return`: always emitted, never rounded. Gated
 	// by capability:compose_fits with the `fits` request slot.
 	Fits map[string]*FitResult `json:"fits,omitempty"`
+
+	// Banner carries the stitched banner tables, one per
+	// ComposedRequest.Banner section (BannerResult), read off the
+	// finished, multiplicity-folded, still-unshaped banner slots. Omitted
+	// when the request set no banner. Like `ranking` it sits outside the
+	// Compose-level `return`: always emitted, never rounded. Gated by
+	// capability:compose_banner with the `banner` request slot.
+	Banner *BannerResult `json:"banner,omitempty"`
 
 	// Warnings carries the batch-level diagnostics no slot owns: today
 	// a fit's PULSE_MODEL_OVERWRITTEN (a `fits` save — or a save on the

@@ -23,7 +23,7 @@ Defer the doc/skill update to "a follow-up PR" and the follow-up will not happen
 | Import: set / float-width inference, null promotion, `SchemaAwareReader`, explicit schemas, `pulse_import` slots, vector folding, total-failure verdict, null-aware readers, source warnings, sidecar emitters | `update-demand/io-import.md` |
 | Export / convert / `Materialize`, transport compression, a registered I/O format, `CohortWriter` / `CohortValidator`, the `.sav` writer, SPSS fidelity | `update-demand/io-export.md` |
 | `Request.Vectors`, `Request.Matrices` / `Response.Matrices`, a `MAT_*` operator | `update-demand/vectors-and-matrices.md` (+ `.claude/reference/matrix-and-vectors.md`) |
-| `ComposedResponse`, sweeps, item `for_each`, ranking, `fits`, model files / `save`, `models`, `populations`, regression `conf_level` / `covariance` | `update-demand/compose.md` |
+| `ComposedResponse`, sweeps, banners, item `for_each`, ranking, `fits`, model files / `save`, `models`, `populations`, regression `conf_level` / `covariance` | `update-demand/compose.md` |
 | `Request.Overlays` / `Response.Overlays`, pairwise / panel params, the Compose overlay fold, overlay error codes, `OverlayLayer.Warnings` | `update-demand/overlays.md` |
 | Facet, ProcessChain, joins, crosstab and fusion, `DecodeWorkers`, grouped tier-1 tests, time zones / `internal/temporal` | `update-demand/engine-modes.md` (+ `.claude/reference/execution-modes.md`) |
 | `Request.Weight` / any per-slot weight (the weighting row), `multiplicity` (the Multiplicity row) | `update-demand/weighting-and-multiplicity.md` (+ `.claude/reference/weighting.md`) |

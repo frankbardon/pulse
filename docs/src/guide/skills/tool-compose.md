@@ -13,7 +13,7 @@ Distinct `types.Request` payloads against the same or different cohorts: ecologi
 
 ## Input
 
-`request` (string): JSON-encoded `types.ComposedRequest`. Carries `requests` (the slot list) plus optional Compose-level overlays that fold across slots (see [`compose-requests`](compose-requests.md)). An optional `sweep` expands one request body over axes into more slots ([`compose-sweeps`](compose-sweeps.md)); a sweep body's missing `return` defaults to `standard`. Parallel execution: `Options.MaxWorkers`, `PerRequestTimeout`, `FailFast`. Each slot's `return` shapes its response; a top-level `return` (`overlays…` paths only) shapes `data.overlays` after the fold.
+`request` (string): JSON-encoded `types.ComposedRequest`. Carries `requests` (the slot list) plus optional Compose-level overlays that fold across slots (see [`compose-requests`](compose-requests.md)). An optional `sweep` expands one request body over axes into more slots ([`compose-sweeps`](compose-sweeps.md)); a sweep body's missing `return` defaults to `standard`. An optional `banner` expands sections × column groups (+ Total) into crosstab slots ([`compose-banner`](compose-banner.md)). Parallel execution: `Options.MaxWorkers`, `PerRequestTimeout`, `FailFast`. Each slot's `return` shapes its response; a top-level `return` (`overlays…` paths only) shapes `data.overlays` after the fold.
 
 ## Output
 
@@ -22,6 +22,7 @@ Distinct `types.Request` payloads against the same or different cohorts: ecologi
 - `data.responses[]` — full `Response` per slot in input order; each carries its slot's final `label` (caller's or `request_<n>`) plus its own `Data`, `Metadata`, `Components`, per-Request `Overlays`.
 - `data.overlays[]` — `OverlayLayer` per Compose `overlays[i]` spec via `internal/service/compose_overlay.go`. Omitted when no Compose overlays declared.
 - `data.overlays[i].warnings[]` — per-layer `OverlayWarning{code, message, details}` diagnostics (cohesion, missing coordinates, panel overflow). Omitted when empty, so overlay-free Compose stays byte-identical (`TestComposedResponse_OverlayFreeByteIdentical`).
+- `data.banner` — the stitched banner tables (column blocks, per-block letters); omitted without a banner.
 - `data.warnings[]` — batch-level diagnostics no slot owns (a fit save's overwrite, `details.fit`); omitted when empty.
 
 ## Gotchas

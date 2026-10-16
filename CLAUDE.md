@@ -84,7 +84,7 @@ Field descriptions in `.pulse` capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_T
 
 **Shard archive variant.** A `.pulse` path may instead be an uncompressed Zip64 **shard archive** (zip magic `PK\x03\x04`, dispatched at `pulse.Open`; a reserved `_schema.pulse` entry + N shards); `.pulse.zst` is transport-only. Set fields WIDEN across shards; nullability never does (`dimension: "nullable"` refusals). Every archive rewrite is atomic with a MANDATORY warning.
 
-**Contract: `.claude/reference/byte-layout.md` — load it before any byte-layout change; its "The always-load half, long form" paragraph holds what this section compresses. Each of these fails SILENTLY when got wrong:** the sidecar point-lookup index + its manifest, the SPSS metadata sidecar (`cohort.pulse.spss.json`), SPSS derived columns / export / convert, target-aware export predict, default-on projected buffered decode.
+**Contract: `.claude/reference/byte-layout.md` — load it before any byte-layout change; its "The always-load half, long form" paragraph holds what this section compresses. Each fails SILENTLY when got wrong:** the sidecar point-lookup index + its manifest, the SPSS metadata sidecar (`cohort.pulse.spss.json`), SPSS derived columns / export / convert, target-aware export predict, default-on projected buffered decode.
 
 ### Smart defaults
 
@@ -103,7 +103,7 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 - **Undefined figures are `null`.** A non-finite float is JSON `null` in place, key kept (`types.MarshalFinite`); Go keeps NaN; a result read back decodes `null` → NaN (`internal/jsonfinite`), never 0. Long form: `.claude/reference/response-components.md` (Undefined figures on the wire).
 - `request` is an opt-in echo of the *normalized* request, omitted unless `Options.EchoRequest` / `--echo-request`; shaped per operation (five request roots). Streaming skips it; additive `omitempty`, no `format_version` bump.
 
-**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, each response echoing its slot `label`; `--stream` writes bare per-row NDJSON. `sweep` / `rank` / `fits` add slots (`skills/compose-sweeps.md`, `skills/compose-fits.md`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
+**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, each response echoing its `label`; `--stream` writes bare per-row NDJSON. `sweep` / `rank` / `fits` / `banner` add slots (skills `compose-sweeps`, `compose-fits`, `compose-banner`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
 
 **Item fan-out.** A `for_each` on a window / feature / attribute item expands in place before validation (absent = byte-identical). Long form: `execution-modes.md` (Item fan-out).
 

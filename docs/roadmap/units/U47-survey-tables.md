@@ -37,7 +37,7 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 
 - [x] **#324** (Survey tables) Weighted pairwise proportion tests on a normalised crosstab use the column base: n comes from the column margin's effective n (or is derived from the normalise denominator automatically); a reference-oracle case pins it
 - [x] **#325** (Survey tables) `GROUP_SET_PER_ELEMENT` axis margins follow the cell-admission rule (a row whose set is null reaches no cell and no margin), or the rule is stated and an opt-in provided; column % is "of those asked"
-- [ ] **#326** (Survey tables) Banner tables: a crosstab takes several independent column groups side by side (Total | Gender | Age | Region) and several measures as stub rows, in one request; a Total column needs no constant field
+- [x] **#326** (Survey tables) Banner tables: a crosstab takes several independent column groups side by side (Total | Gender | Age | Region) and several measures as stub rows, in one request; a Total column needs no constant field
 - [x] **#327** (Survey tables) Significance letters: a presentation option on pairwise overlays that assigns column letters and marks, per cell, which columns it is significantly above, at a chosen alpha and correction
 - [x] **#328** (Survey tables) A tested wave-over-wave change: an inferential prior-period overlay on grouped Process (or a crosstab with no column axis), with p-values in the multiplicity family
 - [ ] **#329** (Survey tables) Weighting: rim (raking) and cell weighting to marginal targets, producing a weight column and an efficiency report (Kish n_eff, design effect, weight range), from the library, CLI and MCP
@@ -87,6 +87,17 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(survey-tables/E<n
 - the weighting reference oracles, `TestCrosstab_BufferedAuxMarginObservesCellAdmission`, `TestCrosstab_BufferedAuxMarginMatchesFused`, `TestSkillsCoverAllPurposes`, `TestPayloadSchemaGolden`
 - New: weighted pairwise base oracle, set-margin admission test, raking convergence and marginal-match test, SPSS value-label round trip
 - Avoid the prefix-matched gate families for new gates unless the gate is also listed in CLAUDE.md "Non-Skippable CI Gates"
+
+### Banner N-scan cost (E3-S3, #326)
+
+The banner is Compose sugar (decision: N scans accepted for v1), so each section × block slot scans the cohort once. `BenchmarkComposeBanner` (root package, `ComposeParallel` with default workers, in-memory cohort, Apple M1 Max, 2026-10-16):
+
+| Rows | One Total-only slot | Banner 1 × 4 (Total + 3 groups) | Banner 3 × 4 (12 slots) |
+|---|---|---|---|
+| 100,000 | 29.1 ms | 47.3 ms (1.63×) | 116.1 ms (3.99×) |
+| 1,000,000 | 288.8 ms | 442.1 ms (1.53×) | 964.1 ms (3.34×) |
+
+Parallel slots overlap, so a 12-slot banner costs about 3.3–4× one scan rather than 12×. The single-scan engine banner (research option (a)) stays unneeded at these sizes.
 
 ## Update Demand companions
 

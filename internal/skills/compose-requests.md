@@ -14,7 +14,7 @@ requires: [capability:compose]
 
 ## When to compose
 
-- **Several independent questions in one call** — a summary, a breakdown and a crosstab of one survey, or one request over several cohorts<!-- feature: capability:compose_sweep --> (a parameter grid: `compose-sweeps`)<!-- /feature -->.
+- **Several independent questions in one call** — a summary, a breakdown and a crosstab of one survey, or one request over several cohorts<!-- feature: capability:compose_sweep --> (a grid: `compose-sweeps`)<!-- /feature --><!-- feature: capability:compose_banner --> (banners: `compose-banner`)<!-- /feature -->.
 - **Comparing slots** — a Compose-host overlay reads two or more finished slots and decorates the comparison (reference vs target, or a multi-slot panel).
 <!-- feature: capability:compose_fits -->
 - **One model, many slots** — fit once, every slot reads it by name (`compose-fits`).

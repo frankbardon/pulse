@@ -81,7 +81,7 @@ func attachPairwiseLetters(layer *types.OverlayLayer, params types.PairwiseOverl
 	higher := map[int][][]string{}
 	for _, members := range groups {
 		for k, idx := range members {
-			letter[idx] = pairwiseLetterName(k)
+			letter[idx] = PairwiseLetterName(k)
 			higher[idx] = make([][]string, opp)
 		}
 	}
@@ -128,9 +128,9 @@ func attachPairwiseLetters(layer *types.OverlayLayer, params types.PairwiseOverl
 	return RefreshPairwiseLetters(layer)
 }
 
-// pairwiseLetterName is the k-th letter of a group (0-based): A … Z, AA,
+// PairwiseLetterName is the k-th letter of a group (0-based): A … Z, AA,
 // AB, … — the spreadsheet column sequence.
-func pairwiseLetterName(k int) string {
+func PairwiseLetterName(k int) string {
 	s := ""
 	for k >= 0 {
 		s = string(rune('A'+k%26)) + s
