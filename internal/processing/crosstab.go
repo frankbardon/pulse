@@ -846,6 +846,8 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 		if req.Crosstab.Cell != nil {
 			host.cellType = req.Crosstab.Cell.Type
 		}
+		host.cell = req.Crosstab.Cell
+		host.rowGroups = req.Crosstab.Rows
 	}
 	// When the Processor carries a live ExtensionRegistry the
 	// FORMULA dispatch arm of ApplyOverlaysWithExtensions threads the

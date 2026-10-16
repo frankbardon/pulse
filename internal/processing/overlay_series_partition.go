@@ -219,7 +219,7 @@ func (h *SeriesHostView) subset(rows []int, project int) *SeriesHostView {
 			kinds = []types.GroupType{h.grouperKinds[project]}
 		}
 	}
-	return &SeriesHostView{groupKeys: keys, resolver: resolver, groupFields: fields, grouperKinds: kinds}
+	return &SeriesHostView{groupKeys: keys, resolver: resolver, groupFields: fields, grouperKinds: kinds, legs: h.legs.subset(rows)}
 }
 
 // seriesPartitionFor is how spec splits the grouped host: OVERLAY_YOY

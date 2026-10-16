@@ -28,6 +28,14 @@ func TestScalarSpecRefusal_CoversProcessKinds(t *testing.T) {
 		if !ruled {
 			continue
 		}
+		if rule.prior {
+			// The prior-period kinds run on both shapes under one rule:
+			// their host refusal names both, keyed as SERIES.
+			if !PriorTestKind(kind) || !matrix || !series || rule.dual || rule.host != types.OverlayShapeSeries {
+				t.Errorf("%s: prior rule %+v, matrix %v series %v", kind, rule, matrix, series)
+			}
+			continue
+		}
 		if rule.dual != (matrix && series) {
 			t.Errorf("%s: dual %v, runs on both Process shapes %v", kind, rule.dual, matrix && series)
 		}
@@ -93,6 +101,9 @@ func TestScalarSpecRefusal_Rules(t *testing.T) {
 			host := "requires a MATRIX host (Request.Crosstab); none present"
 			if shape == types.OverlayShapeSeries {
 				host = "requires a SERIES host (grouped Process result: Request.Groups and Request.Aggregations non-empty, Request.Crosstab nil)"
+			}
+			if scalarRules[kind].prior {
+				host += " or a crosstab with no column grouper"
 			}
 			if !strings.HasSuffix(cerr.Message, host) {
 				t.Fatalf("%s: message %q, want the %s host wording", kind, cerr.Message, shape)

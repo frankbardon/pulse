@@ -44,6 +44,14 @@ func specRefusalCases(t *testing.T) []specRefusalCase {
 	}
 	var out []specRefusalCase
 	for _, kind := range kinds {
+		if overlayhost.PriorTestKind(kind) {
+			// The prior-period tests run on a crosstab with NO column
+			// grouper (this g × g host is their column refusal) and
+			// delegate Ref / Scope to the SERIES rule: pinned by
+			// TestSeriesOverlay_SpecRefusalsMatchPredict and, on the
+			// no-column crosstab, TestVsPrior_PredictMatchesRuntime.
+			continue
+		}
 		scopes := overlayhost.CrosstabSpecScopes(kind)
 		good := types.OverlaySpec{Name: "o", Kind: kind, Scope: scopes[0]}
 		var bad types.OverlayScope

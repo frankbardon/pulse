@@ -63,6 +63,9 @@ var ordered = map[types.OverlayKind]bool{
 	types.OverlayKindDeltaVsSibling:     true,
 	types.OverlayKindIndexVsSibling:     true,
 	types.OverlayKindFormula:            true,
+	types.OverlayKindTVsPrior:           true,
+	types.OverlayKindZVsPrior:           true,
+	types.OverlayKindPropZVsPrior:       true,
 }
 
 // kinds is every process-host series overlay kind that runs per
@@ -81,6 +84,9 @@ var kinds = map[types.OverlayKind]bool{
 	types.OverlayKindShareOfTotal:       true,
 	types.OverlayKindZScoreVsTotal:      true,
 	types.OverlayKindFormula:            true,
+	types.OverlayKindTVsPrior:           true,
+	types.OverlayKindZVsPrior:           true,
+	types.OverlayKindPropZVsPrior:       true,
 }
 
 // Applies reports whether kind is a series overlay kind that runs per

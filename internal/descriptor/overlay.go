@@ -662,6 +662,15 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 				continue
 			}
 		}
+		// The prior-period kinds walk the rows of the implicit Total
+		// column: a crosstab with a column grouper is the runtime hook's
+		// shared refusal.
+		if req.Crosstab != nil && !req.Crosstab.HasImplicitTotalColumn() && judged == types.OverlayShapeMatrix {
+			if cerr := overlayhost.PriorColumnsRefusal(spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
+				addCodedError(env, cerr)
+				continue
+			}
+		}
 		// A multi-measure crosstab (crosstab.cells) runs only the
 		// pairwise family, per measure — the runtime hook's shared
 		// refusal for every other kind.
@@ -678,11 +687,12 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		validateOverlayRake(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
 		validateOverlayLevelWithinPredict(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		validateOverlayBaselineIndexPredict(env, req, spec, schema, opts.instance(), i)
-		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i,
-			vectors.AggregationColumns(req, func() *encoding.Schema { return schema }, aggregationKinds(opts.instance(), nil)))
+		cols := vectors.AggregationColumns(req, func() *encoding.Schema { return schema }, aggregationKinds(opts.instance(), nil))
+		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i, cols)
 		validateOverlaySeriesPartition(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		if len(env.Errors) == before {
 			validateFormulaBaselineBound(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
+			validateOverlayPriorMeasure(env, req, spec, opts, opts.overlayRoute(spec.Kind), i, cols)
 		}
 	}
 }
@@ -1032,6 +1042,16 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 		}
 		return
 	}
+	// The inferential prior-period kinds walk the ordered period axis on
+	// either host: Level / Within must be zero (the runtime MATRIX twin
+	// is processing.validateOverlayLevelWithinRuntime, same message).
+	if overlayhost.PriorTestKind(route) {
+		if spec.Level != 0 || spec.Within != 0 {
+			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE), overlayhost.PriorLevelWithinMessage(spec.Kind),
+				map[string]any{"index": index, "kind": string(spec.Kind), "level": spec.Level, "within": spec.Within})
+		}
+		return
+	}
 	// INDEX_VS_PRIOR is a windowed-SERIES kind (req.Groups, no
 	// req.Crosstab); its Level / Within gate mirrors INDEX_VS_TOTAL
 	// because the single-state lag carrier folds across the ordered axis
@@ -1280,7 +1300,10 @@ func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, route types.Ov
 // vetoes a `return` skip with (U18), beside its refusal half
 // validateOverlayHiddenFloor. The OVERLAY_PAIRWISE_* family always
 // reads per-cell floors, Welford triples, margin and slab counts
-// (PULSE_OVERLAY_COMPONENTS_REQUIRED without them). The
+// (PULSE_OVERLAY_COMPONENTS_REQUIRED without them), and so do the
+// inferential prior-period kinds (each period's n and moments; on a
+// SERIES host they read Components.Aggregations instead, the service's
+// requestOverlaysReadGroupComponents). The
 // weighting.ScalesByHostFloor kinds and OVERLAY_FISHER_EXACT_CELL read
 // the cells' weighted floors only on a WEIGHTED host — the stamped
 // sum_weights their summary Parameters carry (frequency), plus the Kish
@@ -1292,7 +1315,7 @@ func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, route types.Ov
 // only. Components.Crosstab is the only Components sub-part any overlay
 // reads.
 func OverlayReadsHostComponents(kind types.OverlayKind, cellBasis weighting.Basis) bool {
-	if types.IsPairwiseOverlayKind(kind) {
+	if types.IsPairwiseOverlayKind(kind) || overlayhost.PriorTestKind(kind) {
 		return true
 	}
 	return (weighting.ScalesByHostFloor(kind) || kind == types.OverlayKindFisherExactCell) && cellBasis.Weighted()
@@ -1414,6 +1437,8 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 		validateOverlayZScoreVsRolling(env, req, spec, index)
 	case types.OverlayKindZScoreVsTotal:
 		validateOverlayZScoreVsTotal(env, req, spec, index)
+	case types.OverlayKindTVsPrior, types.OverlayKindZVsPrior, types.OverlayKindPropZVsPrior:
+		validateOverlayPriorTest(env, req, spec, opts, index)
 	}
 }
 

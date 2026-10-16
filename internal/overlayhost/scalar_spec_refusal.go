@@ -29,11 +29,16 @@ type scalarRule struct {
 	host types.OverlayShape
 	// dual marks OVERLAY_SHARE_OF_TOTAL (MATRIX and SERIES dispatch).
 	dual bool
+	// prior marks the inferential prior-period kinds: one rule on both
+	// hosts, so the host refusal names both (a grouped Process or a
+	// crosstab with no column grouper).
+	prior bool
 }
 
 var (
 	needsMatrix = scalarRule{host: types.OverlayShapeMatrix}
 	needsSeries = scalarRule{host: types.OverlayShapeSeries}
+	needsPrior  = scalarRule{host: types.OverlayShapeSeries, prior: true}
 )
 
 // scalarRules has a row for every kind that runs on a MATRIX or SERIES
@@ -73,6 +78,9 @@ var scalarRules = map[types.OverlayKind]scalarRule{
 	types.OverlayKindZScoreVsRolling:           needsSeries,
 	types.OverlayKindZScoreVsTotal:             needsSeries,
 	types.OverlayKindShareOfTotal:              {host: types.OverlayShapeMatrix, dual: true},
+	types.OverlayKindTVsPrior:                  needsPrior,
+	types.OverlayKindZVsPrior:                  needsPrior,
+	types.OverlayKindPropZVsPrior:              needsPrior,
 }
 
 // ScalarSpecKinds returns every kind ScalarSpecRefusal judges, in no
@@ -124,6 +132,10 @@ func HostRequiredRefusal(spec *types.OverlaySpec, route types.OverlayKind, group
 	}
 	kind := string(spec.Kind)
 	details := map[string]any{"index": index, "kind": kind}
+	if scalarRules[route].prior {
+		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+			"overlay "+kind+" requires a SERIES host (grouped Process result: Request.Groups and Request.Aggregations non-empty, Request.Crosstab nil) or a crosstab with no column grouper", details)
+	}
 	if shape == types.OverlayShapeSeries {
 		msg := "overlay " + kind + " requires a SERIES host (grouped Process result: Request.Groups and Request.Aggregations non-empty, Request.Crosstab nil)"
 		if dual {

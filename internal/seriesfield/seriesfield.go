@@ -39,6 +39,9 @@ var kinds = map[types.OverlayKind]bool{
 	types.OverlayKindShareOfTotal:       true,
 	types.OverlayKindZScoreVsTotal:      true,
 	types.OverlayKindFormula:            true,
+	types.OverlayKindTVsPrior:           true,
+	types.OverlayKindZVsPrior:           true,
+	types.OverlayKindPropZVsPrior:       true,
 }
 
 // Applies reports whether kind is a series overlay kind that scores the

@@ -86,6 +86,10 @@ func TestOverlayReadsCellValue_MatchesHandlers(t *testing.T) {
 				spec.Scope = types.OverlayScopeRow
 			case types.OverlayKindPairwiseWelchT, types.OverlayKindPairwiseTwoMeansZ:
 				spec.Scope, comps = types.OverlayScopeRow, welford
+			case types.OverlayKindTVsPrior, types.OverlayKindZVsPrior:
+				spec.Scope, comps = types.OverlayScopeGroup, welford
+			case types.OverlayKindPropZVsPrior:
+				spec.Scope = types.OverlayScopeGroup
 			case types.OverlayKindPairwiseWeightedTwoMeansZ:
 				spec.Scope, comps = types.OverlayScopeRow, weighted
 				spec.Params = json.RawMessage(`{"n_basis":"kish"}`)
@@ -104,6 +108,15 @@ func TestOverlayReadsCellValue_MatchesHandlers(t *testing.T) {
 				spec.Params = json.RawMessage(`{"row_targets":{"a":1,"b":2,"c":3},"col_targets":{"x":3,"y":2,"z":1}}`)
 			}
 			run := func(cells [3][3]float64) string {
+				if kind == types.OverlayKindPropZVsPrior {
+					// The proportion prior-period kind reads each cell as
+					// a proportion in [0, 1].
+					for i := range cells {
+						for j := range cells[i] {
+							cells[i][j] /= 100
+						}
+					}
+				}
 				host := readsCellHost(cells, comps)
 				if kind == types.OverlayKindMarkov || kind == types.OverlayKindSymmetry || kind == types.OverlayKindRetention {
 					// A transition table: the columns name the row states.

@@ -471,6 +471,9 @@ func TestApplyOverlaysSeries_ProductionDispatchTableRegistered(t *testing.T) {
 		types.OverlayKindZScoreVsRolling:    true,
 		types.OverlayKindYoY:                true,
 		types.OverlayKindFormula:            true,
+		types.OverlayKindTVsPrior:           true,
+		types.OverlayKindZVsPrior:           true,
+		types.OverlayKindPropZVsPrior:       true,
 	}
 	for kind := range expected {
 		if _, ok := seriesOverlayHandlers[kind]; !ok {

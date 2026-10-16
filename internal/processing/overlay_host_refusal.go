@@ -70,6 +70,14 @@ func refuseWrongHostOverlays(req *types.Request, exts *ExtensionRegistry, keep f
 				return cerr
 			}
 		}
+		// The prior-period kinds walk the rows of the implicit Total
+		// column: a crosstab with a column grouper is refused up front,
+		// the refusal predict raises (overlayhost.PriorColumnsRefusal).
+		if req.Crosstab != nil && !req.Crosstab.HasImplicitTotalColumn() && judged == types.OverlayShapeMatrix {
+			if cerr := overlayhost.PriorColumnsRefusal(req.Overlays[i].Kind, route, i); cerr != nil {
+				return cerr
+			}
+		}
 		// A multi-measure crosstab (crosstab.cells) runs only the pairwise
 		// family, per measure; every other kind is refused up front, the
 		// refusal predict raises (overlayhost.MeasureHostRefusal).

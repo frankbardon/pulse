@@ -4878,6 +4878,7 @@ pulse/types: const OverlayKindPairwiseWelchT pulse/types.OverlayKind = "OVERLAY_
 pulse/types: const OverlayKindPanelIndexVsRef pulse/types.OverlayKind = "OVERLAY_PANEL_INDEX_VS_REF"
 pulse/types: const OverlayKindPropZCell pulse/types.OverlayKind = "OVERLAY_PROP_Z_CELL"
 pulse/types: const OverlayKindPropZPanel pulse/types.OverlayKind = "OVERLAY_PROP_Z_PANEL"
+pulse/types: const OverlayKindPropZVsPrior pulse/types.OverlayKind = "OVERLAY_PROP_Z_VS_PRIOR"
 pulse/types: const OverlayKindRake pulse/types.OverlayKind = "OVERLAY_RAKE"
 pulse/types: const OverlayKindRank pulse/types.OverlayKind = "OVERLAY_RANK"
 pulse/types: const OverlayKindRetention pulse/types.OverlayKind = "OVERLAY_RETENTION"
@@ -4887,6 +4888,7 @@ pulse/types: const OverlayKindShareOfTotal pulse/types.OverlayKind = "OVERLAY_SH
 pulse/types: const OverlayKindStdResidual pulse/types.OverlayKind = "OVERLAY_STD_RESIDUAL"
 pulse/types: const OverlayKindSymmetry pulse/types.OverlayKind = "OVERLAY_SYMMETRY"
 pulse/types: const OverlayKindTCell pulse/types.OverlayKind = "OVERLAY_T_CELL"
+pulse/types: const OverlayKindTVsPrior pulse/types.OverlayKind = "OVERLAY_T_VS_PRIOR"
 pulse/types: const OverlayKindTVsRef pulse/types.OverlayKind = "OVERLAY_T_VS_REF"
 pulse/types: const OverlayKindYoY pulse/types.OverlayKind = "OVERLAY_YOY"
 pulse/types: const OverlayKindZCell pulse/types.OverlayKind = "OVERLAY_Z_CELL"
@@ -4894,6 +4896,7 @@ pulse/types: const OverlayKindZScoreVsMargin pulse/types.OverlayKind = "OVERLAY_
 pulse/types: const OverlayKindZScoreVsPop pulse/types.OverlayKind = "OVERLAY_ZSCORE_VS_POP"
 pulse/types: const OverlayKindZScoreVsRolling pulse/types.OverlayKind = "OVERLAY_ZSCORE_VS_ROLLING"
 pulse/types: const OverlayKindZScoreVsTotal pulse/types.OverlayKind = "OVERLAY_ZSCORE_VS_TOTAL"
+pulse/types: const OverlayKindZVsPrior pulse/types.OverlayKind = "OVERLAY_Z_VS_PRIOR"
 pulse/types: const OverlayKindZVsRef pulse/types.OverlayKind = "OVERLAY_Z_VS_REF"
 pulse/types: type OverlayLayer struct
 pulse/types: type OverlayLayer field Kind pulse/types.OverlayKind "json:\"kind\""
@@ -5391,4 +5394,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e743d7f10c265a19b5bb9a27f4e7d1a8ff713eeaa516ad03088df7b73acb27d8
+// golden-hash: 92f14188c7141626875e5289260a030bf2fb6f74be083fb467c80330ef920a4a

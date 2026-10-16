@@ -300,7 +300,9 @@ changes. Where they land follows where the kind carries its p-values:
 an `OverlaySummary` (the layer's, for the χ² / KS kinds whose p is
 `summary.p_value`; each SERIES entry's, for `OVERLAY_CHISQ_ROW` /
 `_COL`, and for `OVERLAY_T_VS_REF` / `OVERLAY_Z_VS_REF` whose p is the
-entry's `statistic`) gains `p_adjusted` and `significant_adjusted`; a
+entry's `statistic`; each tested period's, for the `*_VS_PRIOR` tests
+whose p is the entry's `p_value` — the first period has none and is no
+family member) gains `p_adjusted` and `significant_adjusted`; a
 MATRIX payload whose cells are p-values (the pairwise, Fisher and
 `*_CELL` kinds) gains two parallel `MatrixPayload`s, `payload.p_adjusted`
 and `payload.significant_adjusted`, on identical headers, keys and

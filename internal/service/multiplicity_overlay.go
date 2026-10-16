@@ -72,6 +72,11 @@ var overlayPSites = map[types.OverlayKind]overlayPSite{
 	types.OverlayKindPairwiseWeightedTwoMeansZ: pSiteMatrixCell,
 	types.OverlayKindStdResidual:               pSiteMatrixPart,
 	types.OverlayKindSymmetry:                  pSiteSummaryPValue,
+	// The inferential prior-period kinds: one p per tested period (the
+	// first period carries none, so it never joins a family).
+	types.OverlayKindTVsPrior:     pSiteSeriesPValue,
+	types.OverlayKindZVsPrior:     pSiteSeriesPValue,
+	types.OverlayKindPropZVsPrior: pSiteSeriesPValue,
 	// Compose host.
 	types.OverlayKindPropZCell:  pSiteMatrixCell,
 	types.OverlayKindTCell:      pSiteMatrixCell,

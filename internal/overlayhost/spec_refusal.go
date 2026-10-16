@@ -27,6 +27,11 @@ const (
 	// refMargin: Ref.Margin must be set and name a known MarginAxis
 	// (the axis-margin family). Other arms are not judged.
 	refMargin
+	// refPrior: Ref.Prior or an empty Ref, Ref.Prior.Lag 0 — the
+	// inferential prior-period kinds on a no-column crosstab, judged
+	// exactly as their SERIES rule (seriesRules, seriesPrior) so one
+	// spec answers the same on both hosts.
+	refPrior
 )
 
 // specRule is one kind's Ref / Scope rule.
@@ -44,6 +49,7 @@ var (
 	scopeColumn    = []types.OverlayScope{types.OverlayScopeColumn}
 	scopeCell      = []types.OverlayScope{types.OverlayScopeCell}
 	scopeRowColumn = []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn}
+	scopeGroup     = []types.OverlayScope{types.OverlayScopeGroup}
 )
 
 const pairwiseWhy = "intra-matrix pairwise: the test compares two slots of the host matrix along the scope axis"
@@ -75,6 +81,10 @@ var specRules = map[types.OverlayKind]specRule{
 	types.OverlayKindShareOfCol:     {refMargin, "", scopeCell},
 	types.OverlayKindShareOfTotal:   {refMargin, "", scopeCell},
 	types.OverlayKindZScoreVsMargin: {refMargin, "", scopeCell},
+
+	types.OverlayKindTVsPrior:     {refPrior, "", scopeGroup},
+	types.OverlayKindZVsPrior:     {refPrior, "", scopeGroup},
+	types.OverlayKindPropZVsPrior: {refPrior, "", scopeGroup},
 }
 
 // knownMarginAxes is the MarginAxis set a refMargin kind accepts.
@@ -132,6 +142,10 @@ func CrosstabSpecRefusal(spec *types.OverlaySpec, route types.OverlayKind, index
 		return d
 	}
 	switch rule.ref {
+	case refPrior:
+		// The SERIES rule verbatim: same code, message and details on
+		// both hosts.
+		return SeriesSpecRefusal(spec, route, index)
 	case refEmpty:
 		if spec.Ref != (types.OverlayRef{}) {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/paramread"
@@ -276,7 +277,9 @@ func composeOverlaysComputed(composed *types.ComposedRequest, ret *returnplan.Pl
 // skipped layer reads nothing; the basis is resolved only when a
 // computed layer's kind depends on it.
 func (s *Service) requestOverlaysReadComponents(req *types.Request, plan processing.ComputePlan) bool {
-	if req == nil {
+	if req == nil || req.Crosstab == nil {
+		// No crosstab host: no Components.Crosstab to read (a series
+		// host's readers are requestOverlaysReadGroupComponents').
 		return false
 	}
 	basis, resolved := weighting.Unweighted, false
@@ -289,6 +292,23 @@ func (s *Service) requestOverlaysReadComponents(req *types.Request, plan process
 			basis, resolved = descx.CrosstabCellWeightBasis(req, s.defaultWeight, s.instance), true
 		}
 		if descx.OverlayReadsHostComponents(kind, basis) {
+			return true
+		}
+	}
+	return false
+}
+
+// requestOverlaysReadGroupComponents reports whether any of req's own
+// overlays that plan computes is an inferential prior-period kind over a
+// grouped Process (SERIES) host: each period's leg is read off the
+// scored aggregation's per-group components (Components.Aggregations[]
+// .Groups), so a `return` that excludes them still computes them.
+func requestOverlaysReadGroupComponents(req *types.Request, plan processing.ComputePlan) bool {
+	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
+		return false
+	}
+	for i := range req.Overlays {
+		if plan.ComputesOverlay(i) && overlayhost.PriorTestKind(req.Overlays[i].Kind) {
 			return true
 		}
 	}
@@ -386,6 +406,9 @@ func (s *Service) resolveComputePlan(ctx context.Context, req *types.Request, re
 	}
 	if s.requestOverlaysReadComponents(req, plan) {
 		plan.Crosstab = true
+	}
+	if requestOverlaysReadGroupComponents(req, plan) {
+		plan.Aggs, plan.Groups = true, true
 	}
 	switch componentsVetoOf(ctx) {
 	case vetoAll:

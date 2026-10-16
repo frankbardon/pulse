@@ -377,6 +377,13 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// OVERLAY_DELTA_VS_REF (which are descriptive fold-only kinds);
 	// inferential kinds carry the family-buffered policy.
 	OverlayKindTVsRef: false,
+	// OVERLAY_T_VS_PRIOR / OVERLAY_Z_VS_PRIOR / OVERLAY_PROP_Z_VS_PRIOR
+	// are buffered — inferential kinds carry the family-buffered policy
+	// (PRD §2 Non-Goals), and each leg is read off the finished host's
+	// per-group (or per-cell) components, not a streaming lag carrier.
+	OverlayKindTVsPrior:     false,
+	OverlayKindZVsPrior:     false,
+	OverlayKindPropZVsPrior: false,
 	// OVERLAY_YOY is buffered — the per-frequency prior-period lookup
 	// requires the materialised host series. Coarse-frequency arms
 	// (annual / quarterly / monthly / weekly) index into an arbitrary

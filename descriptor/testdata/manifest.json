@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:cd213a1eb2b84095d2dc66806c4f639c9505a8b2e4ab902e9f489a0aa4b2a8b3",
+    "feature_set_digest": "fs1:21dccebe5b8b46da081220b1e8543629b073028d6b3964104a5e90add9be62fe",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -12160,6 +12160,10 @@
         "description": "Compose-host multi-reference per-cell pairwise two-proportion z-test across N+1 slots."
       },
       {
+        "name": "op-overlay-prop-z-vs-prior",
+        "description": "Two-proportion z-test of each period's share against the period before it on an ordered SERIES host or a crosstab with no column grouper; independent samples only."
+      },
+      {
         "name": "op-overlay-rake",
         "description": "Rake a crosstab to target row and column margins (IPF) — fitted table, adjustment factors and a convergence report; the host is never changed."
       },
@@ -12196,6 +12200,10 @@
         "description": "Compose-host per-cell Welch t-test against the reference slot's matching cell; parity overlay reading from CellComponents."
       },
       {
+        "name": "op-overlay-t-vs-prior",
+        "description": "Welch t-test of each period's mean against the period before it on an ordered SERIES host or a crosstab with no column grouper; independent samples only."
+      },
+      {
         "name": "op-overlay-t-vs-ref",
         "description": "Compose-host per-group Welch t-test against the reference slot's matching group (SERIES); parity overlay reading from CellComponents."
       },
@@ -12206,6 +12214,10 @@
       {
         "name": "op-overlay-z-cell",
         "description": "Compose-host per-cell two-sample z-test on the means against the reference slot's matching cell; parity overlay reading from CellComponents."
+      },
+      {
+        "name": "op-overlay-z-vs-prior",
+        "description": "Large-sample z-test of each period's mean against the period before it on an ordered SERIES host or a crosstab with no column grouper; independent samples only."
       },
       {
         "name": "op-overlay-z-vs-ref",
@@ -12848,7 +12860,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 235,
+    "examples_count": 237,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -14799,6 +14811,42 @@
         ]
       },
       {
+        "kind": "OVERLAY_PROP_Z_VS_PRIOR",
+        "shapes": [
+          "series"
+        ],
+        "scopes": [
+          "group"
+        ],
+        "ref_kinds": [
+          "Prior"
+        ],
+        "buffered": true,
+        "description": "Tests each period against the PRESENT period before it: pooled two-proportion z-test (the OVERLAY_PAIRWISE_PROP_Z kernel). Hosts: a grouped Process (periods = the last grouper's keys, per params.partition_by partition, scored on params.field) or a crosstab with NO column grouper (periods = the rows of the implicit Total column, partitioned on the leading row keys); a crosstab with a column grouper is refused. Legs: an AGG_AVERAGE measure of a 0/1 indicator: p̂ is its value, n its floor's non-null count (weighted: N* — Σw under frequency, n_eff under probability); on the crosstab host normalize must be none. GROUP scope, Ref.Prior (lag 0) or an empty Ref, Level / Within zero. SERIES payload, one entry per period: statistic (current minus prior) and p_value, which joins the request's multiplicity family (p_adjusted / significant_adjusted). The first present period has a null statistic and no p_value; a missing period keeps its key with no statistic and does not advance the prior; a degenerate test is null with one PULSE_OVERLAY_REF_ZERO warning per reason. A measure without the moments is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, components disabled PULSE_OVERLAY_COMPONENTS_REQUIRED (predict and runtime). Assumes independent samples: panel respondents in both periods violate it. Buffered. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
+        "intents": [
+          "change_over_time"
+        ],
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ],
+        "params": [
+          {
+            "name": "field",
+            "type": "string",
+            "required": false,
+            "description": "On a SERIES host, the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+          },
+          {
+            "name": "partition_by",
+            "type": "list",
+            "required": false,
+            "description": "Over two or more groupers, the leading group key columns each partition shares (default every key but the last; [] = one walk over every row; OVERLAY_YOY: exactly the non-date keys). Anything else is PULSE_OVERLAY_PARTITION_INVALID."
+          }
+        ]
+      },
+      {
         "kind": "OVERLAY_RAKE",
         "shapes": [
           "matrix"
@@ -15108,6 +15156,42 @@
         ]
       },
       {
+        "kind": "OVERLAY_T_VS_PRIOR",
+        "shapes": [
+          "series"
+        ],
+        "scopes": [
+          "group"
+        ],
+        "ref_kinds": [
+          "Prior"
+        ],
+        "buffered": true,
+        "description": "Tests each period against the PRESENT period before it: Welch t-test on the means (Welch-Satterthwaite df; the OVERLAY_PAIRWISE_WELCH_T kernel). Hosts: a grouped Process (periods = the last grouper's keys, per params.partition_by partition, scored on params.field) or a crosstab with NO column grouper (periods = the rows of the implicit Total column, partitioned on the leading row keys); a crosstab with a column grouper is refused. Legs: the Welford triple {mean, variance, n} of an AGG_WELFORD, AGG_VARIANCE or AGG_STDDEV measure (population variance converted to the sample variance; weighted: variance on w*, n = N*). GROUP scope, Ref.Prior (lag 0) or an empty Ref, Level / Within zero. SERIES payload, one entry per period: statistic (current minus prior) and p_value, which joins the request's multiplicity family (p_adjusted / significant_adjusted). The first present period has a null statistic and no p_value; a missing period keeps its key with no statistic and does not advance the prior; a degenerate test is null with one PULSE_OVERLAY_REF_ZERO warning per reason. A measure without the moments is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, components disabled PULSE_OVERLAY_COMPONENTS_REQUIRED (predict and runtime). Assumes independent samples: panel respondents in both periods violate it. Buffered. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
+        "intents": [
+          "change_over_time"
+        ],
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ],
+        "params": [
+          {
+            "name": "field",
+            "type": "string",
+            "required": false,
+            "description": "On a SERIES host, the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+          },
+          {
+            "name": "partition_by",
+            "type": "list",
+            "required": false,
+            "description": "Over two or more groupers, the leading group key columns each partition shares (default every key but the last; [] = one walk over every row; OVERLAY_YOY: exactly the non-date keys). Anything else is PULSE_OVERLAY_PARTITION_INVALID."
+          }
+        ]
+      },
+      {
         "kind": "OVERLAY_T_VS_REF",
         "shapes": [
           "series"
@@ -15384,6 +15468,42 @@
             "type": "float",
             "required": false,
             "description": "One sample size for both sides, read when a side's own key is absent. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+          }
+        ]
+      },
+      {
+        "kind": "OVERLAY_Z_VS_PRIOR",
+        "shapes": [
+          "series"
+        ],
+        "scopes": [
+          "group"
+        ],
+        "ref_kinds": [
+          "Prior"
+        ],
+        "buffered": true,
+        "description": "Tests each period against the PRESENT period before it: two-means z-test (normal tail, no df; the OVERLAY_PAIRWISE_TWO_MEANS_Z kernel). Hosts: a grouped Process (periods = the last grouper's keys, per params.partition_by partition, scored on params.field) or a crosstab with NO column grouper (periods = the rows of the implicit Total column, partitioned on the leading row keys); a crosstab with a column grouper is refused. Legs: the Welford triple {mean, variance, n} of an AGG_WELFORD, AGG_VARIANCE or AGG_STDDEV measure (population variance converted to the sample variance; weighted: variance on w*, n = N*). GROUP scope, Ref.Prior (lag 0) or an empty Ref, Level / Within zero. SERIES payload, one entry per period: statistic (current minus prior) and p_value, which joins the request's multiplicity family (p_adjusted / significant_adjusted). The first present period has a null statistic and no p_value; a missing period keeps its key with no statistic and does not advance the prior; a degenerate test is null with one PULSE_OVERLAY_REF_ZERO warning per reason. A measure without the moments is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, components disabled PULSE_OVERLAY_COMPONENTS_REQUIRED (predict and runtime). Assumes independent samples: panel respondents in both periods violate it. Buffered. Measure: on a SERIES host the overlay scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value); absent, it scores Request.Aggregations[0]. A label naming no aggregation fires PULSE_OVERLAY_FIELD_UNKNOWN at predict and at runtime. Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading keys Params[\"partition_by\"] names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group key columns fires PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime. The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
+        "intents": [
+          "change_over_time"
+        ],
+        "inferential": true,
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ],
+        "params": [
+          {
+            "name": "field",
+            "type": "string",
+            "required": false,
+            "description": "On a SERIES host, the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+          },
+          {
+            "name": "partition_by",
+            "type": "list",
+            "required": false,
+            "description": "Over two or more groupers, the leading group key columns each partition shares (default every key but the last; [] = one walk over every row; OVERLAY_YOY: exactly the non-date keys). Anything else is PULSE_OVERLAY_PARTITION_INVALID."
           }
         ]
       },
@@ -18470,4 +18590,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 806595f5500b4ebd834fce7b69d0f8cb373ea284567609abc152ef9fdc160ff9
+// golden-hash: 9314de34c3e9fdd90d83bb10c309823d920e54123a362b25cbbba24b8237a496

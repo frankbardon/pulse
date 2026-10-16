@@ -102,8 +102,14 @@ func sfModes() []mgMode {
 // from the default on every kind (YoY runs annual, so its second point
 // has a prior), so the equality is not two copies of the default.
 func TestSeriesOverlayField_ScoresNamedAggregation(t *testing.T) {
-	if got := len(seriesfield.Kinds()); got != 13 {
-		t.Fatalf("seriesfield.Kinds() = %d kinds, want 13", got)
+	// 13 kinds score any aggregation here; the three prior-period tests
+	// (U47 #328) score only their measure family, and their params.field
+	// is pinned by root TestVsPrior_* instead.
+	if got := len(seriesfield.Kinds()); got != 16 {
+		t.Fatalf("seriesfield.Kinds() = %d kinds, want 16", got)
+	}
+	if got := len(sfSpecs()); got != 13 {
+		t.Fatalf("sfSpecs() = %d kinds, want 13", got)
 	}
 	f := newMGFixture(t, pulse.Options{})
 	n := func() *types.Aggregation { return &types.Aggregation{Type: types.AGG_COUNT, Field: "id", Label: "n"} }

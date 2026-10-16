@@ -178,7 +178,7 @@ func TestShapeRefusal(t *testing.T) {
 }
 
 // TestReadsCellValue: every MATRIX kind but the three moment pairwise
-// kinds reads cell values; no SERIES-only, Compose, chain or FACET kind
+// kinds and the two moment prior-period kinds reads cell values; no SERIES-only, Compose, chain or FACET kind
 // does (processing's TestOverlayReadsCellValue_MatchesHandlers pins the
 // MATRIX half to the handlers).
 func TestReadsCellValue(t *testing.T) {
@@ -186,6 +186,8 @@ func TestReadsCellValue(t *testing.T) {
 		types.OverlayKindPairwiseWelchT:            true,
 		types.OverlayKindPairwiseTwoMeansZ:         true,
 		types.OverlayKindPairwiseWeightedTwoMeansZ: true,
+		types.OverlayKindTVsPrior:                  true,
+		types.OverlayKindZVsPrior:                  true,
 	}
 	values := 0
 	for _, k := range types.AllOverlayKinds() {
@@ -201,8 +203,8 @@ func TestReadsCellValue(t *testing.T) {
 			values++
 		}
 	}
-	if values != 19 {
-		t.Errorf("%d value-reading kinds, want 19", values)
+	if values != 20 {
+		t.Errorf("%d value-reading kinds, want 20", values)
 	}
 	for _, k := range []types.OverlayKind{types.OverlayKindTCell, types.OverlayKindDeltaVsStage, types.OverlayKindYoY, "OVERLAY_NOT_IN_CATALOG", ""} {
 		if ReadsCellValue(k) {

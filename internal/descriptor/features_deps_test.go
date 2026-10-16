@@ -101,9 +101,14 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		// Any-of edge (FR-18): a weighted AGG_AVERAGE cell is a host too.
 		"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z": {{"capability:crosstab"}, {"AGG_AVERAGE", "AGG_WEIGHTED_MEAN"}},
 		"OVERLAY_SHARE_OF_TOTAL":                {{"capability:compose", "capability:crosstab"}},
-		"OVERLAY_YOY":                           {{"capability:compose"}, {"GROUP_DATE"}},
-		"capability:process":                    nil,
-		"io_format:csv":                         nil,
+		// The prior-period tests (U47 #328): a series or no-column crosstab
+		// host, and the measure family whose components they read.
+		"OVERLAY_T_VS_PRIOR":      {{"capability:compose", "capability:crosstab"}, {"AGG_STDDEV", "AGG_VARIANCE", "AGG_WELFORD"}},
+		"OVERLAY_Z_VS_PRIOR":      {{"capability:compose", "capability:crosstab"}, {"AGG_STDDEV", "AGG_VARIANCE", "AGG_WELFORD"}},
+		"OVERLAY_PROP_Z_VS_PRIOR": {{"capability:compose", "capability:crosstab"}, {"AGG_AVERAGE"}},
+		"OVERLAY_YOY":             {{"capability:compose"}, {"GROUP_DATE"}},
+		"capability:process":      nil,
+		"io_format:csv":           nil,
 	}
 	for name, want := range expect {
 		got, ok := descx.FeatureDependencies(name)

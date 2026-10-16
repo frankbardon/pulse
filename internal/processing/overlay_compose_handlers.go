@@ -549,25 +549,32 @@ func applyDeltaVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 // TEST_PROP_Z produce identical p-values for the same (success, n)
 // pair.
 func twoProportionZ(sa, na, sb, nb float64) (float64, bool) {
+	_, p, ok := twoProportionZStat(sa, na, sb, nb)
+	return p, ok
+}
+
+// twoProportionZStat is twoProportionZ returning the z statistic too:
+// (z, p, ok), z NaN whenever ok is false.
+func twoProportionZStat(sa, na, sb, nb float64) (float64, float64, bool) {
 	if na <= 0 || nb <= 0 {
-		return math.NaN(), false
+		return math.NaN(), math.NaN(), false
 	}
 	pooled := (sa + sb) / (na + nb)
 	if pooled == 0 || pooled == 1 {
-		return math.NaN(), false
+		return math.NaN(), math.NaN(), false
 	}
 	se := math.Sqrt(pooled * (1 - pooled) * (1/na + 1/nb))
 	if se == 0 {
-		return math.NaN(), false
+		return math.NaN(), math.NaN(), false
 	}
 	pa := sa / na
 	pb := sb / nb
 	z := (pa - pb) / se
 	p := normalTwoSidedP(z)
 	if math.IsNaN(p) || math.IsInf(p, 0) {
-		return math.NaN(), false
+		return math.NaN(), math.NaN(), false
 	}
-	return p, true
+	return z, p, true
 }
 
 // applyPropZCell is the COMPOSE-host runtime handler for

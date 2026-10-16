@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -20,10 +21,10 @@ func TestOverlayReadsHostComponents(t *testing.T) {
 	weighted := []weighting.Basis{weighting.Frequency, weighting.Probability}
 	for _, kind := range types.AllOverlayKinds() {
 		floor := weighting.ScalesByHostFloor(kind) || kind == types.OverlayKindFisherExactCell
-		if types.IsPairwiseOverlayKind(kind) {
+		if types.IsPairwiseOverlayKind(kind) || overlayhost.PriorTestKind(kind) {
 			for _, b := range append([]weighting.Basis{weighting.Unweighted}, weighted...) {
 				if !OverlayReadsHostComponents(kind, b) {
-					t.Errorf("%s (basis %v): pairwise kind reads per-cell floors, yet not flagged", kind, b)
+					t.Errorf("%s (basis %v): pairwise / prior-period kind reads per-cell components, yet not flagged", kind, b)
 				}
 			}
 			continue

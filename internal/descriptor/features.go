@@ -418,6 +418,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("OVERLAY_PANEL_INDEX_VS_REF"),
 	op("OVERLAY_PROP_Z_CELL"),
 	op("OVERLAY_PROP_Z_PANEL"),
+	op("OVERLAY_PROP_Z_VS_PRIOR"),
 	op("OVERLAY_RAKE"),
 	op("OVERLAY_RANK"),
 	op("OVERLAY_RETENTION"),
@@ -427,6 +428,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("OVERLAY_STD_RESIDUAL"),
 	op("OVERLAY_SYMMETRY"),
 	op("OVERLAY_T_CELL"),
+	op("OVERLAY_T_VS_PRIOR"),
 	op("OVERLAY_T_VS_REF"),
 	op("OVERLAY_YOY"),
 	op("OVERLAY_ZSCORE_VS_MARGIN"),
@@ -434,6 +436,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("OVERLAY_ZSCORE_VS_ROLLING"),
 	op("OVERLAY_ZSCORE_VS_TOTAL"),
 	op("OVERLAY_Z_CELL"),
+	op("OVERLAY_Z_VS_PRIOR"),
 	op("OVERLAY_Z_VS_REF"),
 })
 
@@ -614,6 +617,7 @@ var overlayHostKinds = map[string][]string{
 		"OVERLAY_PAIRWISE_TWO_MEANS_Z",
 		"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z",
 		"OVERLAY_PAIRWISE_WELCH_T",
+		"OVERLAY_PROP_Z_VS_PRIOR",
 		"OVERLAY_RAKE",
 		"OVERLAY_RETENTION",
 		"OVERLAY_SHARE_OF_COL",
@@ -621,7 +625,9 @@ var overlayHostKinds = map[string][]string{
 		"OVERLAY_SHARE_OF_TOTAL",
 		"OVERLAY_STD_RESIDUAL",
 		"OVERLAY_SYMMETRY",
+		"OVERLAY_T_VS_PRIOR",
 		"OVERLAY_ZSCORE_VS_MARGIN",
+		"OVERLAY_Z_VS_PRIOR",
 	},
 	featCompose: {
 		// composeOverlayHandlers.
@@ -647,10 +653,13 @@ var overlayHostKinds = map[string][]string{
 		"OVERLAY_INDEX_VS_ROLLING_MEAN",
 		"OVERLAY_INDEX_VS_SIBLING",
 		"OVERLAY_INDEX_VS_TOTAL",
+		"OVERLAY_PROP_Z_VS_PRIOR",
 		"OVERLAY_SHARE_OF_TOTAL",
+		"OVERLAY_T_VS_PRIOR",
 		"OVERLAY_YOY",
 		"OVERLAY_ZSCORE_VS_ROLLING",
 		"OVERLAY_ZSCORE_VS_TOTAL",
+		"OVERLAY_Z_VS_PRIOR",
 	},
 	featMatrices: {
 		// matrixResultOverlayHandlers: the MATRIX_RESULT host reads
@@ -675,7 +684,9 @@ var overlayHostKinds = map[string][]string{
 // today:
 //
 //   - The Welford-reading overlays consume the {mean, variance, n} triple
-//     only AGG_WELFORD emits on the host's cell/row components.
+//     only AGG_WELFORD emits on the host's cell/row components (the
+//     prior-period T / Z kinds also read an AGG_VARIANCE / AGG_STDDEV
+//     measure's; OVERLAY_PROP_Z_VS_PRIOR an AGG_AVERAGE share).
 //   - OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z reads the weighted moments
 //     AGG_WEIGHTED_MEAN or a weighted AGG_AVERAGE cell emits — either
 //     operator satisfies it.
@@ -698,12 +709,17 @@ var overlayHostKinds = map[string][]string{
 // TEST_TUKEY_HSD after TEST_ANOVA_F is deliberately absent: its inputs
 // are plain numeric params, so the pairing is advice, not a dependency.
 var hardEdges = map[string][]string{
-	"OVERLAY_T_CELL":                        {"AGG_WELFORD"},
-	"OVERLAY_Z_CELL":                        {"AGG_WELFORD"},
-	"OVERLAY_T_VS_REF":                      {"AGG_WELFORD"},
-	"OVERLAY_Z_VS_REF":                      {"AGG_WELFORD"},
-	"OVERLAY_PAIRWISE_WELCH_T":              {"AGG_WELFORD"},
-	"OVERLAY_PAIRWISE_TWO_MEANS_Z":          {"AGG_WELFORD"},
+	"OVERLAY_T_CELL":               {"AGG_WELFORD"},
+	"OVERLAY_Z_CELL":               {"AGG_WELFORD"},
+	"OVERLAY_T_VS_REF":             {"AGG_WELFORD"},
+	"OVERLAY_Z_VS_REF":             {"AGG_WELFORD"},
+	"OVERLAY_PAIRWISE_WELCH_T":     {"AGG_WELFORD"},
+	"OVERLAY_PAIRWISE_TWO_MEANS_Z": {"AGG_WELFORD"},
+	// The prior-period kinds read a measure's moments: the Welford triple
+	// (any of the three built-ins carrying it) or an AGG_AVERAGE share.
+	"OVERLAY_T_VS_PRIOR":                    {"AGG_STDDEV", "AGG_VARIANCE", "AGG_WELFORD"},
+	"OVERLAY_Z_VS_PRIOR":                    {"AGG_STDDEV", "AGG_VARIANCE", "AGG_WELFORD"},
+	"OVERLAY_PROP_Z_VS_PRIOR":               {"AGG_AVERAGE"},
 	"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z": {"AGG_AVERAGE", "AGG_WEIGHTED_MEAN"},
 	"ATTR_REG_FITTED":                       {"REG_OLS"},
 	"ATTR_REG_LEVERAGE":                     {"REG_OLS"},

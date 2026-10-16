@@ -387,6 +387,36 @@ for (r in lk) {
   out("ov_compose_series", sprintf("1/entry[k=%s].summary.statistic", r), 2 * pnorm(-abs(d / se)))
 }
 
+# OVERLAY_T_VS_PRIOR / OVERLAY_Z_VS_PRIOR / OVERLAY_PROP_Z_VS_PRIOR (U47
+# #328): periods k = p, q, r, each tested against the one before it
+# (current minus prior) — t.test, the normal tail on R's mean / var, and
+# prop.test (z = sign · sqrt(X-squared)) on the o = "yes" share. The
+# grouped Process host (ov_prior: layers t, z, pz) and the no-column
+# crosstab (ov_prior_xt_means: t, z; ov_prior_xt_prop: pz) read the same
+# legs.
+for (pr in list(c("q", "p"), c("r", "q"))) {
+  a <- xs$x[xs$k == pr[1]]
+  b <- xs$x[xs$k == pr[2]]
+  tt0 <- t.test(a, b)
+  z <- (mean(a) - mean(b)) / sqrt(var(a) / length(a) + var(b) / length(b))
+  s <- sapply(pr, function(c) sum(e$k == c & e$o == "yes"))
+  n <- sapply(pr, function(c) sum(e$k == c))
+  pt0 <- suppressWarnings(prop.test(s, n, correct = FALSE))
+  pzs <- sign(s[1] / n[1] - s[2] / n[2]) * sqrt(unname(pt0$statistic))
+  for (cs in list(c("ov_prior", 0, 1, 2), c("ov_prior_xt_means", 0, 1, NA), c("ov_prior_xt_prop", NA, NA, 0))) {
+    if (!is.na(cs[2])) {
+      out(cs[1], sprintf("%s/entry[%s].summary.statistic", cs[2], pr[1]), tt0$statistic)
+      out(cs[1], sprintf("%s/entry[%s].summary.p_value", cs[2], pr[1]), tt0$p.value)
+      out(cs[1], sprintf("%s/entry[%s].summary.statistic", cs[3], pr[1]), z)
+      out(cs[1], sprintf("%s/entry[%s].summary.p_value", cs[3], pr[1]), 2 * pnorm(-abs(z)))
+    }
+    if (!is.na(cs[4])) {
+      out(cs[1], sprintf("%s/entry[%s].summary.statistic", cs[4], pr[1]), pzs)
+      out(cs[1], sprintf("%s/entry[%s].summary.p_value", cs[4], pr[1]), pt0$p.value)
+    }
+  }
+}
+
 # OVERLAY_CHISQ_VS_REF / OVERLAY_PROP_Z_CELL / OVERLAY_PROP_Z_PANEL on
 # h × o counts: total (reference), sub and sub2 (targets).
 tt <- tab_of(sub)

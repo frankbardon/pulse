@@ -159,6 +159,13 @@ var overlayWeightClasses = map[types.OverlayKind]overlayWeighting{
 	types.OverlayKindPropZPanel:      {class: weighting.ClassAware},
 	types.OverlayKindPairwisePropZ:   {class: weighting.ClassAware},
 	types.OverlayKindFisherExactCell: {class: weighting.ClassFrequencyOnly},
+	// The inferential prior-period kinds (U47 #328) read each period's
+	// leg through the weighted-host rule: a Welford leg as T_VS_REF does
+	// (N*, the variance recomputed from m2 on w*), a proportion leg's n
+	// as N* off the measure's floor (the cell's base on a crosstab).
+	types.OverlayKindTVsPrior:     {class: weighting.ClassAware},
+	types.OverlayKindZVsPrior:     {class: weighting.ClassAware},
+	types.OverlayKindPropZVsPrior: {class: weighting.ClassAware},
 	types.OverlayKindPairwiseTwoMeansZ: {class: weighting.ClassRefuse,
 		reason: "its unweighted Welford triple cannot carry a weighted variance; its weighted twin computes the weighted z",
 		twin:   types.OverlayKindPairwiseWeightedTwoMeansZ},

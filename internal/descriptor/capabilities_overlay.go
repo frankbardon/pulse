@@ -170,6 +170,25 @@ const chainSeriesFieldNote = " Measure: on SERIES stages the overlay keys each r
 // rather than silently dropped — types.AllOverlayKinds() is the
 // authoritative iteration surface, and the per-kind switch below is
 // expected to grow in lock-step.
+// priorTestCapability is the shared entry of the three inferential
+// prior-period kinds (U47 #328), around the kind's test and leg
+// sentences.
+func priorTestCapability(kind types.OverlayKind, test, legs string) descriptor.OverlayCapability {
+	return descriptor.OverlayCapability{
+		Kind:        kind,
+		Inferential: true,
+		Shapes:      []types.OverlayShape{types.OverlayShapeSeries},
+		Scopes:      []types.OverlayScope{types.OverlayScopeGroup},
+		RefKinds:    []string{"Prior"},
+		Description: "Tests each period against the PRESENT period before it: " + test + ". Hosts: a grouped Process (periods = the last grouper's keys, per params.partition_by partition, scored on params.field) " +
+			"or a crosstab with NO column grouper (periods = the rows of the implicit Total column, partitioned on the leading row keys); a crosstab with a column grouper is refused. " +
+			"Legs: " + legs + ". GROUP scope, Ref.Prior (lag 0) or an empty Ref, Level / Within zero. SERIES payload, one entry per period: statistic (current minus prior) and p_value, " +
+			"which joins the request's multiplicity family (p_adjusted / significant_adjusted). The first present period has a null statistic and no p_value; a missing period keeps its key with no statistic and does not advance the prior; " +
+			"a degenerate test is null with one PULSE_OVERLAY_REF_ZERO warning per reason. A measure without the moments is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, components disabled PULSE_OVERLAY_COMPONENTS_REQUIRED (predict and runtime). " +
+			"Assumes independent samples: panel respondents in both periods violate it. Buffered.",
+	}
+}
+
 // pairwiseDescription composes the shared OVERLAY_PAIRWISE_* manifest
 // blurb around the per-kind test sentence so every OVERLAY_PAIRWISE_*
 // entry stays consistent on the catalog surface.
@@ -1557,6 +1576,18 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 " +
 				"Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches.",
 		}
+	case types.OverlayKindTVsPrior:
+		return priorTestCapability(types.OverlayKindTVsPrior,
+			"Welch t-test on the means (Welch-Satterthwaite df; the OVERLAY_PAIRWISE_WELCH_T kernel)",
+			"the Welford triple {mean, variance, n} of an AGG_WELFORD, AGG_VARIANCE or AGG_STDDEV measure (population variance converted to the sample variance; weighted: variance on w*, n = N*)")
+	case types.OverlayKindZVsPrior:
+		return priorTestCapability(types.OverlayKindZVsPrior,
+			"two-means z-test (normal tail, no df; the OVERLAY_PAIRWISE_TWO_MEANS_Z kernel)",
+			"the Welford triple {mean, variance, n} of an AGG_WELFORD, AGG_VARIANCE or AGG_STDDEV measure (population variance converted to the sample variance; weighted: variance on w*, n = N*)")
+	case types.OverlayKindPropZVsPrior:
+		return priorTestCapability(types.OverlayKindPropZVsPrior,
+			"pooled two-proportion z-test (the OVERLAY_PAIRWISE_PROP_Z kernel)",
+			"an AGG_AVERAGE measure of a 0/1 indicator: p̂ is its value, n its floor's non-null count (weighted: N* — Σw under frequency, n_eff under probability); on the crosstab host normalize must be none")
 	case types.OverlayKindYoY:
 		return descriptor.OverlayCapability{
 			Kind: types.OverlayKindYoY,

@@ -365,6 +365,13 @@ Welch t refuses an `n_source` that reads raw row counts
 (`cell_n_unweighted`), and `cell_weight_sum` under `probability`, with
 `PROCESSING_CONFIG`.
 
+The prior-period tests (`OVERLAY_T_VS_PRIOR`, `OVERLAY_Z_VS_PRIOR`,
+`OVERLAY_PROP_Z_VS_PRIOR`) also run weighted under both kinds. Each
+period's sample size is Σw (`frequency`) or n_eff (`probability`); the
+mean kinds read the variance from `m2` as above, and the proportion
+kind reads the weighted share. Unlike the mean-comparison overlays,
+their layer adds no weight keys to `parameters`.
+
 The χ² and proportion overlays also run weighted under both kinds. A
 weighted host's cells and margins are weight sums (Σw). Under
 `frequency` the χ² overlays run Pearson's test on the Σw table, which

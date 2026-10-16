@@ -115,13 +115,16 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// MATRIX_GROUP_SUMMARY reads every bucket's finished matrix.
 		OverlayKindMatrixGroupSummary: false,
 		// STD_RESIDUAL reads the whole table's totals (CHISQ_MATRIX).
-		OverlayKindStdResidual: false,
-		OverlayKindSymmetry:    false,
-		OverlayKindRetention:   false,
-		OverlayKindTCell:       false,
-		OverlayKindTVsRef:      false,
-		OverlayKindYoY:         false,
-		OverlayKindZCell:       false,
+		OverlayKindStdResidual:  false,
+		OverlayKindSymmetry:     false,
+		OverlayKindRetention:    false,
+		OverlayKindTCell:        false,
+		OverlayKindTVsRef:       false,
+		OverlayKindTVsPrior:     false,
+		OverlayKindZVsPrior:     false,
+		OverlayKindPropZVsPrior: false,
+		OverlayKindYoY:          false,
+		OverlayKindZCell:        false,
 		// ZSCORE_VS_MARGIN shares INDEX_VS_MARGIN's buffered footprint —
 		// both the per-slice Welford recurrence and the margin
 		// centerpoint require a fully-materialised matrix, so the host

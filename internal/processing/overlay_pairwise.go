@@ -161,9 +161,13 @@ type pwKernel func(in pwInputs) (out pwOutcome, reason string, ok bool)
 // the test statistic — +1 when leg i (pair_a) is the higher, -1 when leg j
 // (pair_b) is, 0 on a tie. The letters part reads dir to know which leg a
 // significant pair puts above the other.
+//
+// stat is the signed test statistic itself (z or t, leg i minus leg j):
+// the prior-period kinds (overlay_vs_prior.go) report it per period.
 type pwOutcome struct {
-	p   float64
-	dir float64
+	p    float64
+	dir  float64
+	stat float64
 }
 
 // signOf is the direction of a statistic: +1, -1, or 0 (a tie, and a NaN
@@ -891,12 +895,12 @@ func pairwisePropZKernel(in pwInputs) (pwOutcome, string, bool) {
 		return pwOutcome{}, "PULSE_STATS_SKIP_PROPORTION_INVALID", false
 	}
 	n1f, n2f := in.nf1, in.nf2
-	p, ok := twoProportionZ(in.p1*n1f, n1f, in.p2*n2f, n2f)
+	z, p, ok := twoProportionZStat(in.p1*n1f, n1f, in.p2*n2f, n2f)
 	if !ok {
 		return pwOutcome{}, "PULSE_STATS_SKIP_POOLED_SE_INVALID", false
 	}
 	// z = (p1 - p2) / SE with SE > 0: the sign of the share difference.
-	return pwOutcome{p: p, dir: signOf(in.p1 - in.p2)}, "", true
+	return pwOutcome{p: p, dir: signOf(in.p1 - in.p2), stat: z}, "", true
 }
 
 // pairwiseProbitTKernel is the probit t-test: Φ⁻¹ transform of each leg's
@@ -927,7 +931,7 @@ func pairwiseProbitTKernel(in pwInputs) (pwOutcome, string, bool) {
 	if math.IsNaN(pv) {
 		return pwOutcome{}, "PULSE_STATS_SKIP_PVALUE_NAN", false
 	}
-	return pwOutcome{p: pv, dir: signOf(t)}, "", true
+	return pwOutcome{p: pv, dir: signOf(t), stat: t}, "", true
 }
 
 // pairwiseWelchTKernel is the Welch–Satterthwaite t-test on Welford
@@ -962,7 +966,7 @@ func pairwiseWelchTKernel(in pwInputs) (pwOutcome, string, bool) {
 	if math.IsNaN(pv) {
 		return pwOutcome{}, "PULSE_STATS_SKIP_PVALUE_NAN", false
 	}
-	return pwOutcome{p: pv, dir: signOf(t)}, "", true
+	return pwOutcome{p: pv, dir: signOf(t), stat: t}, "", true
 }
 
 // pairwiseTwoMeansZKernel is the two-means z-test on Welford triples
@@ -985,7 +989,7 @@ func pairwiseTwoMeansZKernel(in pwInputs) (pwOutcome, string, bool) {
 	}
 	z := (in.m1 - in.m2) / se
 	pv := normalTwoSidedP(z)
-	return pwOutcome{p: pv, dir: signOf(z)}, "", true
+	return pwOutcome{p: pv, dir: signOf(z), stat: z}, "", true
 }
 
 // pairwiseWeightedTwoMeansZKernel returns the two-means z-test kernel on
@@ -1016,7 +1020,7 @@ func pairwiseWeightedTwoMeansZKernel(nBasis string) pwKernel {
 		if math.IsNaN(pv) {
 			return pwOutcome{}, "PULSE_STATS_SKIP_PVALUE_NAN", false
 		}
-		return pwOutcome{p: pv, dir: signOf(z)}, "", true
+		return pwOutcome{p: pv, dir: signOf(z), stat: z}, "", true
 	}
 }
 

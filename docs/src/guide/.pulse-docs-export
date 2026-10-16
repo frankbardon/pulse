@@ -182,6 +182,7 @@ skills/op-overlay-pairwise-welch-t.md
 skills/op-overlay-panel-index-vs-ref.md
 skills/op-overlay-prop-z-cell.md
 skills/op-overlay-prop-z-panel.md
+skills/op-overlay-prop-z-vs-prior.md
 skills/op-overlay-rake.md
 skills/op-overlay-rank.md
 skills/op-overlay-retention.md
@@ -191,9 +192,11 @@ skills/op-overlay-share-of-total.md
 skills/op-overlay-std-residual.md
 skills/op-overlay-symmetry.md
 skills/op-overlay-t-cell.md
+skills/op-overlay-t-vs-prior.md
 skills/op-overlay-t-vs-ref.md
 skills/op-overlay-yoy.md
 skills/op-overlay-z-cell.md
+skills/op-overlay-z-vs-prior.md
 skills/op-overlay-z-vs-ref.md
 skills/op-overlay-zscore-vs-margin.md
 skills/op-overlay-zscore-vs-pop.md

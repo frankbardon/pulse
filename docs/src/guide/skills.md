@@ -161,6 +161,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-overlay-panel-index-vs-ref`](skills/op-overlay-panel-index-vs-ref.md): Compose-host multi-reference index — indexes every target slot against a shared reference; emits one layer per target.
 - [`op-overlay-prop-z-cell`](skills/op-overlay-prop-z-cell.md): Compose-host per-cell two-proportion z-test against the reference slot's matching cell.
 - [`op-overlay-prop-z-panel`](skills/op-overlay-prop-z-panel.md): Compose-host multi-reference per-cell pairwise two-proportion z-test across N+1 slots.
+- [`op-overlay-prop-z-vs-prior`](skills/op-overlay-prop-z-vs-prior.md): Two-proportion z-test of each period's share against the period before it on an ordered SERIES host or a crosstab with no column grouper; independent samples only.
 - [`op-overlay-rake`](skills/op-overlay-rake.md): Rake a crosstab to target row and column margins (IPF) — fitted table, adjustment factors and a convergence report; the host is never changed.
 - [`op-overlay-rank`](skills/op-overlay-rank.md): Compose-host per-cell rank of each target cell within a configurable population (row / column / matrix).
 - [`op-overlay-retention`](skills/op-overlay-retention.md): Retention rates of a from × to crosstab — per starting state, the share that stayed, switched or churned into a named absorbing state.
@@ -170,9 +171,11 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-overlay-std-residual`](skills/op-overlay-std-residual.md): Per-cell Haberman adjusted standardized residual of the host crosstab, with expected counts and two-sided p-values as parts.
 - [`op-overlay-symmetry`](skills/op-overlay-symmetry.md): Paired-change test on a before × after crosstab — McNemar (2 × 2) or Bowker (k × k): are moves one way as common as moves back?
 - [`op-overlay-t-cell`](skills/op-overlay-t-cell.md): Compose-host per-cell Welch t-test against the reference slot's matching cell; parity overlay reading from CellComponents.
+- [`op-overlay-t-vs-prior`](skills/op-overlay-t-vs-prior.md): Welch t-test of each period's mean against the period before it on an ordered SERIES host or a crosstab with no column grouper; independent samples only.
 - [`op-overlay-t-vs-ref`](skills/op-overlay-t-vs-ref.md): Compose-host per-group Welch t-test against the reference slot's matching group (SERIES); parity overlay reading from CellComponents.
 - [`op-overlay-yoy`](skills/op-overlay-yoy.md): Per-point year-over-year ratio against the same period one year prior; requires one GROUP_DATE grouper, partitions by the other keys.
 - [`op-overlay-z-cell`](skills/op-overlay-z-cell.md): Compose-host per-cell two-sample z-test on the means against the reference slot's matching cell; parity overlay reading from CellComponents.
+- [`op-overlay-z-vs-prior`](skills/op-overlay-z-vs-prior.md): Large-sample z-test of each period's mean against the period before it on an ordered SERIES host or a crosstab with no column grouper; independent samples only.
 - [`op-overlay-z-vs-ref`](skills/op-overlay-z-vs-ref.md): Compose-host per-group two-sample z-test on the means against the reference slot's matching group (SERIES); parity overlay reading from CellComponents.
 - [`op-overlay-zscore-vs-margin`](skills/op-overlay-zscore-vs-margin.md): Per-cell standardized-margin z-score — (cell − margin) / sd where sd is the population SD within the same margin slice.
 - [`op-overlay-zscore-vs-pop`](skills/op-overlay-zscore-vs-pop.md): Per-value population-comparison z-score for a Facet host — (subset_freq − pop_freq) / sd_pop.

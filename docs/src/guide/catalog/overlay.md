@@ -38,6 +38,7 @@ The overlays this instance offers: what each is for, the questions it answers an
 | [`OVERLAY_PANEL_INDEX_VS_REF`](#op-overlay_panel_index_vs_ref) | Index values of several target Compose requests against one shared reference request, one layer per target (target / reference x 100). | How do the last four waves each compare with the benchmark wave? | intermediate | [`OVERLAY_INDEX_VS_REF`](#op-overlay_index_vs_ref) when there is only one target.<br>[`OVERLAY_PROP_Z_PANEL`](#op-overlay_prop_z_panel) when you want tests between every pair of requests. |
 | [`OVERLAY_PROP_Z_CELL`](#op-overlay_prop_z_cell) | Two-proportion z-test for every crosstab cell in a Compose request: does the target's share in that cell differ from the reference's? | Which answer shares changed between this wave and last wave? | intermediate | [`OVERLAY_PROP_Z_PANEL`](#op-overlay_prop_z_panel) when you compare three or more requests at once.<br>[`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) when the groups are rows or columns of one crosstab.<br>[`TEST_FISHER_EXACT`](test.md#op-test_fisher_exact) when a cell has only a handful of successes or failures: stack both sources' rows and run an exact 2x2 test.<br>[`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the size of the change rather than a p-value. |
 | [`OVERLAY_PROP_Z_PANEL`](#op-overlay_prop_z_panel) | Two-proportion z-tests between every pair of requests in a Compose panel, for each crosstab cell: which waves or markets differ in share? | Across four waves, which pairs of waves differ in this answer's share? | advanced | [`OVERLAY_PROP_Z_CELL`](#op-overlay_prop_z_cell) when there is only one target.<br>[`OVERLAY_PANEL_INDEX_VS_REF`](#op-overlay_panel_index_vs_ref) when you want index values against one reference rather than tests.<br>[`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) when the groups are rows or columns of one crosstab. |
+| [`OVERLAY_PROP_Z_VS_PRIOR`](#op-overlay_prop_z_vs_prior) | Two-proportion z-test of each period's share against the period before it: did awareness (or any yes/no share) change since last wave? | Did brand awareness change significantly from last wave? | intermediate | [`OVERLAY_T_VS_PRIOR`](#op-overlay_t_vs_prior) when the measure is an average of a scale, not a 0/1 share.<br>[`OVERLAY_DELTA_VS_PRIOR`](#op-overlay_delta_vs_prior) when you want the size of the change in points rather than a p-value.<br>[`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) when you want every pair of periods, not only consecutive ones. |
 | [`OVERLAY_RAKE`](#op-overlay_rake) | Rake a crosstab to known row and column totals: the fitted table, per-cell adjustment factors and whether the fit converged. | What would this age by region table look like if its margins matched the census shares? | advanced | [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want each cell's share of its row, with no target margins.<br>[`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether rows and columns are associated. |
 | [`OVERLAY_RANK`](#op-overlay_rank) | Ranks each cell of a target Compose request's crosstab (1 = largest) within its row, its column or the whole table. | Which product is the top seller in each region? | basic | [`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) when you want each cell's share of the whole.<br>[`OVERLAY_ZSCORE_VS_MARGIN`](#op-overlay_zscore_vs_margin) when you want how far each cell sits from its row or column.<br>[`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the change from the reference request. |
 | [`OVERLAY_RETENTION`](#op-overlay_retention) | Retention rates of a from-state by to-state crosstab: for each starting state, the share that stayed, switched or churned. | What share of each tier's customers kept their tier, moved to another tier or churned between the two snapshots? | basic | [`OVERLAY_MARKOV`](#op-overlay_markov) when you want where the flow leads over several periods, or the expected time until churn.<br>[`OVERLAY_SYMMETRY`](#op-overlay_symmetry) when you want to test whether moves one way outnumber moves back.<br>[`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want every destination's share of each row, not one stay / switch / churn split. |
@@ -47,6 +48,7 @@ The overlays this instance offers: what each is for, the questions it answers an
 | [`OVERLAY_STD_RESIDUAL`](#op-overlay_std_residual) | Adjusted residual for every crosstab cell: how far its count sits above or below what its row and column totals predict. | Which cells drive the association in this crosstab? | advanced | [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one test for the whole table.<br>[`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when counts are small and you want an exact per-cell test.<br>[`OVERLAY_ZSCORE_VS_MARGIN`](#op-overlay_zscore_vs_margin) when you want each cell's distance from its margin without a test. |
 | [`OVERLAY_SYMMETRY`](#op-overlay_symmetry) | Test of symmetry on a before-by-after crosstab of the same units: are moves between two states as common one way as back? | Did more customers move up a tier than down between the two snapshots? | intermediate | [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when the rows and columns come from different units, or you want to know whether two fields are associated.<br>[`OVERLAY_MARKOV`](#op-overlay_markov) when you want where the flow leads over several periods, not a test.<br>[`TEST_PAIRED_T`](test.md#op-test_paired_t) when you compare a numeric measure before and after on the same units. |
 | [`OVERLAY_T_CELL`](#op-overlay_t_cell) | Welch t-test for every crosstab cell in a Compose request: does the target's mean in that cell differ from the reference's? | Which segment-by-product cells changed in average rating since last wave? | advanced | [`OVERLAY_Z_CELL`](#op-overlay_z_cell) when every cell is large and you want the normal-curve version.<br>[`OVERLAY_T_VS_REF`](#op-overlay_t_vs_ref) when the results are grouped series rather than crosstabs.<br>[`OVERLAY_PROP_Z_CELL`](#op-overlay_prop_z_cell) when the cells hold shares rather than averages.<br>[`OVERLAY_PAIRWISE_WELCH_T`](#op-overlay_pairwise_welch_t) when the groups are rows or columns of one crosstab. |
+| [`OVERLAY_T_VS_PRIOR`](#op-overlay_t_vs_prior) | Welch t-test of each period against the period before it: did the average really change from the last wave, or is it noise? | Did the average satisfaction score change significantly from last wave? | advanced | [`OVERLAY_PROP_Z_VS_PRIOR`](#op-overlay_prop_z_vs_prior) when the measure is a share of respondents (a 0/1 indicator).<br>[`OVERLAY_DELTA_VS_PRIOR`](#op-overlay_delta_vs_prior) when you want the size of the change rather than a p-value.<br>[`TEST_PAIRED_T`](test.md#op-test_paired_t) when the same respondents answer in both periods. |
 | [`OVERLAY_T_VS_REF`](#op-overlay_t_vs_ref) | Welch t-test for every group of a grouped result in a Compose request: does the target's mean differ from the reference's? | Which regions' average spend changed between this quarter and last? | advanced | [`OVERLAY_Z_VS_REF`](#op-overlay_z_vs_ref) when every group is large and you want the normal-curve version.<br>[`OVERLAY_T_CELL`](#op-overlay_t_cell) when the results are crosstabs rather than grouped series.<br>[`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the size of the change rather than a p-value. |
 | [`OVERLAY_YOY`](#op-overlay_yoy) | Each period of a date-grouped series as an index value against the same period one year earlier (x 100): year-over-year change. | How do this year's monthly sales compare with the same months last year? | basic | [`OVERLAY_INDEX_VS_PRIOR`](#op-overlay_index_vs_prior) when you want each period against the one before.<br>[`OVERLAY_INDEX_VS_BASELINE`](#op-overlay_index_vs_baseline) when you want each period against one fixed starting period.<br>[`TEST_TREND`](test.md#op-test_trend) when you want to test for a steady rise or fall across the series. |
 | [`OVERLAY_ZSCORE_VS_MARGIN`](#op-overlay_zscore_vs_margin) | Each crosstab cell's gap from its row, column or grand margin, in standard deviations of the cells in that slice: which cells stand out? | Which segment-by-question averages sit unusually far from the question's overall average? | intermediate | [`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when you want a test of whether a cell's count departs from what the margins predict.<br>[`OVERLAY_DELTA_VS_MARGIN`](#op-overlay_delta_vs_margin) when the gap in the cell's own units is easier to explain.<br>[`OVERLAY_INDEX_VS_MARGIN`](#op-overlay_index_vs_margin) when you want a ratio to the margin. |
@@ -54,6 +56,7 @@ The overlays this instance offers: what each is for, the questions it answers an
 | [`OVERLAY_ZSCORE_VS_ROLLING`](#op-overlay_zscore_vs_rolling) | How many standard deviations each point sits from the rolling mean of the previous W points: a simple flag for unusual periods. | Which days had unusually high or low orders compared with the previous two weeks? | intermediate | [`TEST_TREND`](test.md#op-test_trend) when you want to test for a steady rise or fall across the whole series.<br>[`OVERLAY_INDEX_VS_ROLLING_MEAN`](#op-overlay_index_vs_rolling_mean) when you want the ratio to the rolling mean.<br>[`ATTR_ZSCORE`](attribute.md#op-attr_zscore) when you want a standardized column for each row rather than per period. |
 | [`OVERLAY_ZSCORE_VS_TOTAL`](#op-overlay_zscore_vs_total) | How many standard deviations each group's value sits from the average of all groups on a grouped result: which groups stand out? | Which stores' sales are unusually high or low compared with the other stores? | intermediate | [`TEST_ANOVA_WELCH`](test.md#op-test_anova_welch) when you want to test whether group averages differ, from raw rows.<br>[`OVERLAY_SHARE_OF_TOTAL`](#op-overlay_share_of_total) when you want each group's share of the total.<br>[`OVERLAY_DELTA_VS_SIBLING`](#op-overlay_delta_vs_sibling) when you want each group against one chosen group. |
 | [`OVERLAY_Z_CELL`](#op-overlay_z_cell) | Large-sample z-test for every crosstab cell in a Compose request: does the target's mean in that cell differ from the reference's? | With large samples, which segment-by-question means moved since last wave? | advanced | [`OVERLAY_T_CELL`](#op-overlay_t_cell) when any cell is small; the t-based version is more honest there.<br>[`OVERLAY_Z_VS_REF`](#op-overlay_z_vs_ref) when the results are grouped series rather than crosstabs.<br>[`OVERLAY_PROP_Z_CELL`](#op-overlay_prop_z_cell) when the cells hold shares rather than averages. |
+| [`OVERLAY_Z_VS_PRIOR`](#op-overlay_z_vs_prior) | Large-sample z-test of each period's mean against the period before it: did the average change from the last wave? | With large waves, did the average spend per visit change from last quarter? | advanced | [`OVERLAY_T_VS_PRIOR`](#op-overlay_t_vs_prior) when some periods are small.<br>[`OVERLAY_PROP_Z_VS_PRIOR`](#op-overlay_prop_z_vs_prior) when the measure is a share of respondents (a 0/1 indicator).<br>[`OVERLAY_DELTA_VS_PRIOR`](#op-overlay_delta_vs_prior) when you want the size of the change rather than a p-value. |
 | [`OVERLAY_Z_VS_REF`](#op-overlay_z_vs_ref) | Large-sample z-test for every group of a grouped result in a Compose request: does the target's mean differ from the reference's? | With large samples, which regions' average spend changed since last quarter? | advanced | [`OVERLAY_T_VS_REF`](#op-overlay_t_vs_ref) when any group is small; the t-based version is more honest there.<br>[`OVERLAY_Z_CELL`](#op-overlay_z_cell) when the results are crosstabs rather than grouped series.<br>[`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the size of the change rather than a p-value. |
 
 ## Operators
@@ -1262,6 +1265,42 @@ Two-proportion z-tests between every pair of requests in a Compose panel, for ea
 
 **Skill:** [`op-overlay-prop-z-panel`](../skills/op-overlay-prop-z-panel.md)
 
+<a id="op-overlay_prop_z_vs_prior"></a>
+
+### `OVERLAY_PROP_Z_VS_PRIOR`
+
+Two-proportion z-test of each period's share against the period before it: did awareness (or any yes/no share) change since last wave?
+
+**Level:** intermediate
+
+**Questions it answers:**
+
+- Did brand awareness change significantly from last wave?
+- Which months' conversion rate moved from the month before beyond chance?
+
+**Use cases by domain:**
+
+- *survey:* Test the wave-on-wave change of a tracker's awareness or consideration share.
+- *ops:* Test whether this week's on-time rate moved from last week's.
+- *science:* Test change of a success rate between consecutive independent batches.
+
+**Assumptions:**
+
+- The measure must be AGG_AVERAGE of a 0/1 indicator: its value is the share and its n the respondents with a value; on a crosstab, normalize must be none.
+- The two periods must be separate, independent samples of people. When the same respondents answer in both periods (a panel), the test is wrong: their answers are linked, and the p-value is then usually too large. Pulse cannot detect this.
+- The periods must be ordered. The first period has no prior: it gets no statistic and no p-value. A period with no value is skipped and the next one is tested against the last period that had one, so a gap can span more than one period.
+- Weighted, n is the effective sample size (Kish n_eff under probability weights), not the raw count. Each period is a separate test; to adjust for multiple comparisons, set multiplicity on the overlay (holm or bonferroni hold the family-wise error, bh or by the false discovery rate) to add adjusted p-values beside the raw ones.
+
+**Use something else:**
+
+- [`OVERLAY_T_VS_PRIOR`](#op-overlay_t_vs_prior) when the measure is an average of a scale, not a 0/1 share.
+- [`OVERLAY_DELTA_VS_PRIOR`](#op-overlay_delta_vs_prior) when you want the size of the change in points rather than a p-value.
+- [`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) when you want every pair of periods, not only consecutive ones.
+
+**Glossary:** [`effective-sample-size`](../glossary.md#term-effective-sample-size), [`independence`](../glossary.md#term-independence), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`two-tailed`](../glossary.md#term-two-tailed), [`z-score`](../glossary.md#term-z-score)
+
+**Skill:** [`op-overlay-prop-z-vs-prior`](../skills/op-overlay-prop-z-vs-prior.md)
+
 <a id="op-overlay_rake"></a>
 
 ### `OVERLAY_RAKE`
@@ -1599,6 +1638,42 @@ Welch t-test for every crosstab cell in a Compose request: does the target's mea
 
 **Skill:** [`op-overlay-t-cell`](../skills/op-overlay-t-cell.md)
 
+<a id="op-overlay_t_vs_prior"></a>
+
+### `OVERLAY_T_VS_PRIOR`
+
+Welch t-test of each period against the period before it: did the average really change from the last wave, or is it noise?
+
+**Level:** advanced
+
+**Questions it answers:**
+
+- Did the average satisfaction score change significantly from last wave?
+- Which months' mean order value moved more than chance from the month before?
+
+**Use cases by domain:**
+
+- *survey:* Test the wave-on-wave change of a tracker's mean rating.
+- *ops:* Test whether average handling time moved from one week to the next.
+- *science:* Test step-to-step change of a mean across independent batches.
+
+**Assumptions:**
+
+- The measure must be AGG_WELFORD (or AGG_VARIANCE / AGG_STDDEV), which supplies each period's mean, variance and n; another measure is refused.
+- The two periods must be separate, independent samples of people. When the same respondents answer in both periods (a panel), the test is wrong: their answers are linked, and the p-value is then usually too large. Pulse cannot detect this.
+- The periods must be ordered. The first period has no prior: it gets no statistic and no p-value. A period with no value is skipped and the next one is tested against the last period that had one, so a gap can span more than one period.
+- Equal variances are not assumed. Each period is a separate test; to adjust for multiple comparisons, set multiplicity on the overlay (holm or bonferroni hold the family-wise error, bh or by the false discovery rate) to add adjusted p-values beside the raw ones.
+
+**Use something else:**
+
+- [`OVERLAY_PROP_Z_VS_PRIOR`](#op-overlay_prop_z_vs_prior) when the measure is a share of respondents (a 0/1 indicator).
+- [`OVERLAY_DELTA_VS_PRIOR`](#op-overlay_delta_vs_prior) when you want the size of the change rather than a p-value.
+- [`TEST_PAIRED_T`](test.md#op-test_paired_t) when the same respondents answer in both periods.
+
+**Glossary:** [`independence`](../glossary.md#term-independence), [`mean`](../glossary.md#term-mean), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`t-statistic`](../glossary.md#term-t-statistic), [`two-tailed`](../glossary.md#term-two-tailed), [`variance`](../glossary.md#term-variance)
+
+**Skill:** [`op-overlay-t-vs-prior`](../skills/op-overlay-t-vs-prior.md)
+
 <a id="op-overlay_t_vs_ref"></a>
 
 ### `OVERLAY_T_VS_REF`
@@ -1843,6 +1918,42 @@ Large-sample z-test for every crosstab cell in a Compose request: does the targe
 **Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`independence`](../glossary.md#term-independence), [`mean`](../glossary.md#term-mean), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`normal-distribution`](../glossary.md#term-normal-distribution), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`standard-error`](../glossary.md#term-standard-error), [`two-tailed`](../glossary.md#term-two-tailed)
 
 **Skill:** [`op-overlay-z-cell`](../skills/op-overlay-z-cell.md)
+
+<a id="op-overlay_z_vs_prior"></a>
+
+### `OVERLAY_Z_VS_PRIOR`
+
+Large-sample z-test of each period's mean against the period before it: did the average change from the last wave?
+
+**Level:** advanced
+
+**Questions it answers:**
+
+- With large waves, did the average spend per visit change from last quarter?
+- Which weeks' mean basket differs from the week before beyond chance?
+
+**Use cases by domain:**
+
+- *survey:* Test wave-on-wave mean change on large tracker waves.
+- *ops:* Test day-on-day change of a high-volume average.
+- *science:* Test change of a mean between large consecutive runs.
+
+**Assumptions:**
+
+- The measure must be AGG_WELFORD (or AGG_VARIANCE / AGG_STDDEV), which supplies each period's mean, variance and n; another measure is refused.
+- The two periods must be separate, independent samples of people. When the same respondents answer in both periods (a panel), the test is wrong: their answers are linked, and the p-value is then usually too large. Pulse cannot detect this.
+- The periods must be ordered. The first period has no prior: it gets no statistic and no p-value. A period with no value is skipped and the next one is tested against the last period that had one, so a gap can span more than one period.
+- The normal curve stands in for the t distribution, which is fair only when every period is large. Each period is a separate test; to adjust for multiple comparisons, set multiplicity on the overlay (holm or bonferroni hold the family-wise error, bh or by the false discovery rate) to add adjusted p-values beside the raw ones.
+
+**Use something else:**
+
+- [`OVERLAY_T_VS_PRIOR`](#op-overlay_t_vs_prior) when some periods are small.
+- [`OVERLAY_PROP_Z_VS_PRIOR`](#op-overlay_prop_z_vs_prior) when the measure is a share of respondents (a 0/1 indicator).
+- [`OVERLAY_DELTA_VS_PRIOR`](#op-overlay_delta_vs_prior) when you want the size of the change rather than a p-value.
+
+**Glossary:** [`independence`](../glossary.md#term-independence), [`mean`](../glossary.md#term-mean), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`normal-distribution`](../glossary.md#term-normal-distribution), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`two-tailed`](../glossary.md#term-two-tailed), [`variance`](../glossary.md#term-variance), [`z-score`](../glossary.md#term-z-score)
+
+**Skill:** [`op-overlay-z-vs-prior`](../skills/op-overlay-z-vs-prior.md)
 
 <a id="op-overlay_z_vs_ref"></a>
 

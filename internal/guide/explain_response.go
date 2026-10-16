@@ -77,11 +77,14 @@ var overlayClass = map[string]string{
 	"OVERLAY_PAIRWISE_WELCH_T":              classDifference,
 	"OVERLAY_PROP_Z_CELL":                   classDifference,
 	"OVERLAY_PROP_Z_PANEL":                  classDifference,
+	"OVERLAY_PROP_Z_VS_PRIOR":               classDifference,
 	"OVERLAY_STD_RESIDUAL":                  classAssociation,
 	"OVERLAY_SYMMETRY":                      classDifference,
 	"OVERLAY_T_CELL":                        classDifference,
+	"OVERLAY_T_VS_PRIOR":                    classDifference,
 	"OVERLAY_T_VS_REF":                      classDifference,
 	"OVERLAY_Z_CELL":                        classDifference,
+	"OVERLAY_Z_VS_PRIOR":                    classDifference,
 	"OVERLAY_Z_VS_REF":                      classDifference,
 }
 

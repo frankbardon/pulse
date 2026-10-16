@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Crosstab with no column grouper — rows are the signup years of subscribers.pulse, the one column is the implicit Total — whose cell is AGG_AVERAGE of the churned flag, read as 0/1 (each signup year's churn share), decorated with OVERLAY_PROP_Z_VS_PRIOR: a pooled two-proportion z-test of each year's share against the year before it, the survey tracker's wave-on-wave significance test. The share is the cell value and n its components' n, so normalize must stay none. The first year has no prior: a null statistic and no p-value; the second year carries the z (negative when the share fell) and its two-sided p. The test assumes the two years are independent samples of subscribers. Buffered: reads Response.Components.Crosstab.",
+    "intents": [
+      "change_over_time"
+    ],
+    "name": "crosstab-prop-z-vs-prior",
+    "operators": [
+      "AGG_AVERAGE",
+      "GROUP_DATE"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "hypothesis-test",
+      "overlay",
+      "proportion-analysis",
+      "time-series",
+      "two-sample"
+    ]
+  },
+  "cohort": {
+    "filename": "subscribers.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_DATE",
+        "field": "signup_date",
+        "params": {
+          "component": "year"
+        }
+      }
+    ],
+    "cell": {
+      "type": "AGG_AVERAGE",
+      "field": "churned",
+      "label": "churn_share"
+    }
+  },
+  "overlays": [
+    {
+      "name": "yoy_share_test",
+      "kind": "OVERLAY_PROP_Z_VS_PRIOR",
+      "scope": "group"
+    }
+  ]
+}
