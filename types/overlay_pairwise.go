@@ -39,8 +39,10 @@ type PairwiseOverlayParams struct {
 	// PairwisePSource* constants. Empty = cell_value on a normalised
 	// host (normalize != none: every cell is already a 0..1 share),
 	// cell_value_pct otherwise; an explicit cell_value_pct on a
-	// normalised host is refused (PULSE_OVERLAY_PARAM_MISSING). Ignored
-	// by the Welford-input kinds.
+	// normalised host is refused (PULSE_OVERLAY_PARAM_MISSING), and so is
+	// the omitted default on an unnormalised host whose built-in cell is
+	// not a count or sum (overlayhost.PairwiseMeanCellRefusal: a mean is
+	// no percentage). Ignored by the Welford-input kinds.
 	PSource string `json:"p_source,omitempty"`
 
 	// NBasis selects the variance / sample-size convention for

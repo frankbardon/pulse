@@ -34,3 +34,35 @@ func TestSampleVariance(t *testing.T) {
 		t.Error("empty message")
 	}
 }
+
+// TestPairwiseMeanCellRefusal pins the omitted-p_source rule over an
+// unnormalised host (survey-tables E4-S6): a built-in statistic cell is
+// refused, a count / sum cell, an extension or unknown type, an explicit
+// p_source and a normalised host are not.
+func TestPairwiseMeanCellRefusal(t *testing.T) {
+	k := types.OverlayKindPairwisePropZ
+	cases := []struct {
+		pSource string
+		mode    types.CrosstabNormalize
+		cell    types.AggregationType
+		refused bool
+	}{
+		{"", "", types.AGG_AVERAGE, true},
+		{"", types.CrosstabNormalizeNone, types.AGG_WELFORD, true},
+		{"", types.CrosstabNormalizeNone, types.AGG_MEDIAN, true},
+		{"", "", types.AGG_COUNT, false},
+		{"", "", types.AGG_SUM, false},
+		{"", "", types.AGG_FREQUENCY, false},
+		{"", "", "", false},
+		{"", "", "AGG_ACME_SHARE", false},
+		{types.PairwisePSourceCellValue, "", types.AGG_AVERAGE, false},
+		{types.PairwisePSourceCellValuePct, "", types.AGG_AVERAGE, false},
+		{"", types.CrosstabNormalizeColumn, types.AGG_AVERAGE, false},
+	}
+	for _, c := range cases {
+		msg := PairwiseMeanCellRefusal(k, c.pSource, c.mode, c.cell)
+		if (msg != "") != c.refused {
+			t.Errorf("p_source %q normalize %q cell %q: refused = %v, want %v (%q)", c.pSource, c.mode, c.cell, msg != "", c.refused, msg)
+		}
+	}
+}

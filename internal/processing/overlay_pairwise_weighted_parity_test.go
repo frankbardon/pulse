@@ -149,7 +149,13 @@ func TestPairwiseOverlay_NBasisInertAtRuntimeOnOtherKinds(t *testing.T) {
 				}
 				return jsonOf(t, resp.Overlays)
 			}
-			if without, with := run(`{}`), run(`{"n_basis":"kish"}`); without != with {
+			// A proportion kind over the mean cell names its p_source:
+			// omitted there it is refused (survey-tables E4-S6).
+			base, kish := `{}`, `{"n_basis":"kish"}`
+			if !types.PairwiseKindUsesWelford(kind) {
+				base, kish = `{"p_source":"cell_value_pct"}`, `{"p_source":"cell_value_pct","n_basis":"kish"}`
+			}
+			if without, with := run(base), run(kish); without != with {
 				t.Fatalf("n_basis changed the output:\nwithout %s\nwith    %s", without, with)
 			}
 		})

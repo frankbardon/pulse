@@ -26,7 +26,7 @@ Use something else:
 
 ## Params
 
-`Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.pair_along_dim` (int, unset) — restrict pairs to same-bucket comparisons on the pair axis. `params.n_source` (omitted: the cell's base — the normalise denominator on a normalised host, its N* when weighted), `params.n_within_depth` and `params.p_source` (default `cell_value` on a normalised host, else `cell_value_pct`) are the family-wide vocabulary, identical to [`op-overlay-pairwise-prop-z`](op-overlay-pairwise-prop-z.md): [`pairwise-n-sources`](pairwise-n-sources.md). `params.letters` (object, unset) — `{}` or `{"alpha": a}`, `0 < a < 1` (else `PULSE_OVERLAY_PARAM_MISSING`, predict and runtime): adds the `letters` part.
+`Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.pair_along_dim` (int, unset) — restrict pairs to same-bucket comparisons on the pair axis. `params.n_source` (omitted: the cell's base — the normalise denominator on a normalised host, its N* when weighted), `params.n_within_depth` and `params.p_source` (default `cell_value` on a normalised host, else `cell_value_pct`; omitted over an unnormalised mean / non-count cell → `PULSE_OVERLAY_PARAM_MISSING`) are the family-wide vocabulary, identical to [`op-overlay-pairwise-prop-z`](op-overlay-pairwise-prop-z.md): [`pairwise-n-sources`](pairwise-n-sources.md). `params.letters` (object, unset) — `{}` or `{"alpha": a}`, `0 < a < 1` (else `PULSE_OVERLAY_PARAM_MISSING`, predict and runtime): adds the `letters` part.
 
 - `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched ([`multiplicity-correction`](multiplicity-correction.md)).
 

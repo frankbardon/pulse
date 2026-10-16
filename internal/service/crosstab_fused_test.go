@@ -771,7 +771,9 @@ func TestCrosstabFused_PairwisePropZOverWeightedMeanEndToEnd(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			params, err := json.Marshal(types.PairwiseOverlayParams{NSource: tc.nSource})
+			// The mean cell names its proportion reading: an omitted
+			// p_source over it is refused (survey-tables E4-S6).
+			params, err := json.Marshal(types.PairwiseOverlayParams{NSource: tc.nSource, PSource: types.PairwisePSourceCellValuePct})
 			if err != nil {
 				t.Fatalf("marshal pairwise params: %v", err)
 			}

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	stderrors "errors"
 	"reflect"
 	"strings"
@@ -44,8 +45,10 @@ func pairwiseCrosstabRequest(labels []*types.LabelBinding) *types.Request {
 			Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
 		},
 		Overlays: []types.OverlaySpec{
-			{Name: "pz_row", Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeRow},
-			{Name: "pz_col", Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeColumn},
+			// The mean cell names its proportion reading (an omitted
+			// p_source over it is refused, survey-tables E4-S6).
+			{Name: "pz_row", Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeRow, Params: json.RawMessage(`{"p_source":"cell_value_pct"}`)},
+			{Name: "pz_col", Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeColumn, Params: json.RawMessage(`{"p_source":"cell_value_pct"}`)},
 		},
 		Labels: labels,
 	}

@@ -419,6 +419,18 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 				"p_source": params.PSource, "normalize": string(mode)})
 		return
 	}
+	// An omitted p_source on an unnormalised host whose cell is a
+	// statistic of its field reads a mean as a percentage (survey-tables
+	// E4-S6); the runtime twin is processing.pairwiseGate, same code and
+	// message.
+	if req.Crosstab.Cell != nil && !types.PairwiseKindUsesWelford(spec.Kind) && !types.PairwiseKindUsesWeightedMoments(spec.Kind) {
+		if msg := overlayhost.PairwiseMeanCellRefusal(spec.Kind, params.PSource, req.Crosstab.NormalizeOrDefault(), req.Crosstab.Cell.Type); msg != "" {
+			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING), msg,
+				map[string]any{"index": index, "kind": string(spec.Kind), "param": "p_source",
+					"cell_type": string(req.Crosstab.Cell.Type)})
+			return
+		}
+	}
 	if params.PairAlongDim != nil && *params.PairAlongDim < 0 {
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 			"overlay "+string(spec.Kind)+" pair_along_dim must be >= 0",

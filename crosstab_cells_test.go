@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math"
 	"reflect"
@@ -485,7 +486,9 @@ func TestCrosstabCells_PredictMatchesRuntime(t *testing.T) {
 		{"accepted", xtab(nil), ""},
 		{"one measure", xtab(func(r *types.Request) { r.Crosstab.Cells = r.Crosstab.Cells[:1] }), ""},
 		{"pairwise overlay", xtab(func(r *types.Request) {
-			r.Overlays = []types.OverlaySpec{{Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeColumn}}
+			// cellsMeasures carries a mean: it names its p_source (E4-S6).
+			r.Overlays = []types.OverlaySpec{{Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeColumn,
+				Params: json.RawMessage(`{"p_source":"cell_value_pct"}`)}}
 		}), ""},
 		{"cell and cells", xtab(func(r *types.Request) {
 			r.Crosstab.Cell = &types.Aggregation{Type: types.AGG_COUNT, Field: "score"}

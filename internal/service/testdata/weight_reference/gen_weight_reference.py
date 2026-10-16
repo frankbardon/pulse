@@ -1423,7 +1423,10 @@ def ov_request(case, kind):
         return {"attributes": [{"type": "ATTR_FORMULA", "field": "o", "label": "yes",
                                 "expression": 'o == "yes" ? 100 : 0'}],
                 "crosstab": ov_xt("h", "k", {"type": "AGG_AVERAGE", "field": "yes", "label": "cell"}),
-                "overlays": [{"name": "pz", "kind": "OVERLAY_PAIRWISE_PROP_Z", "scope": "column"}]}
+                # The 0/100 mean cell names its percentage reading: an
+                # omitted p_source over a mean cell is refused (U47 E4-S6).
+                "overlays": [{"name": "pz", "kind": "OVERLAY_PAIRWISE_PROP_Z", "scope": "column",
+                              "params": {"p_source": "cell_value_pct"}}]}
     if case == "ov_pairwise_weighted_z":
         basis = "kish" if kind == "probability" else "weights"
         return {"crosstab": ov_xt("k", "h", {"type": "AGG_AVERAGE", "field": "y", "label": "cell"}),

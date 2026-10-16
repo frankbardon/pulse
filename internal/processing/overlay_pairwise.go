@@ -259,6 +259,13 @@ func pairwiseGate(spec *types.OverlaySpec, host *CrosstabHostView, shape pwShape
 				map[string]any{"kind": string(spec.Kind), "param": "p_source", "p_source": params.PSource,
 					"normalize": string(host.normalize)})
 		}
+		// An omitted p_source on an unnormalised host whose cell is a
+		// statistic of its field (a mean, not a count) would read it as
+		// a percentage (E4-S6): refused as predict refuses it.
+		if msg := overlayhost.PairwiseMeanCellRefusal(spec.Kind, params.PSource, host.normalize, host.cellType); msg != "" {
+			return pairwiseGateResult{}, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING, msg,
+				map[string]any{"kind": string(spec.Kind), "param": "p_source", "cell_type": string(host.cellType)})
+		}
 		params.PSource = overlayhost.EffectivePairwisePSource(params.PSource, host.normalize)
 	}
 	// The weighted kind needs the weighted moments on at least one cell

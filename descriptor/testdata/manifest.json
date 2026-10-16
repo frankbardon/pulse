@@ -14538,7 +14538,7 @@
             "name": "p_source",
             "type": "enum",
             "required": false,
-            "description": "How each leg's proportion is derived (default cell_value on a normalized host, else cell_value_pct; cell_value_pct on a normalized host is refused)."
+            "description": "How each leg's proportion is derived (default cell_value on a normalized host, else cell_value_pct; cell_value_pct on a normalized host is refused, and so is the omitted default on an unnormalized host whose built-in cell is not a count or sum — a mean cell names its reading)."
           }
         ]
       },
@@ -14599,7 +14599,7 @@
             "name": "p_source",
             "type": "enum",
             "required": false,
-            "description": "How each leg's proportion is derived (default cell_value on a normalized host, else cell_value_pct; cell_value_pct on a normalized host is refused)."
+            "description": "How each leg's proportion is derived (default cell_value on a normalized host, else cell_value_pct; cell_value_pct on a normalized host is refused, and so is the omitted default on an unnormalized host whose built-in cell is not a count or sum — a mean cell names its reading)."
           }
         ]
       },
@@ -18623,4 +18623,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 56a81e79f020b65f4f1f7e8a2305c69ed49a007e45c03cb90714a2f251b63cab
+// golden-hash: 07781d33077a27824989e0191092b336014d189ccd2bf9fddfe485ee4244043d

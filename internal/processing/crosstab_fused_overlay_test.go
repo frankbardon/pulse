@@ -538,6 +538,11 @@ func TestFusedCrosstab_PairwisePropZOverWeightedMeanMatchesBuffered(t *testing.T
 	recs := crosstabWeightedOverlayRecords(schema)
 
 	propZ := func(scope types.OverlayScope, params types.PairwiseOverlayParams) types.OverlaySpec {
+		// A mean cell names its proportion reading: the omitted
+		// p_source is refused there (survey-tables E4-S6).
+		if params.PSource == "" {
+			params.PSource = types.PairwisePSourceCellValuePct
+		}
 		return types.OverlaySpec{
 			Name:   "pz",
 			Kind:   types.OverlayKindPairwisePropZ,

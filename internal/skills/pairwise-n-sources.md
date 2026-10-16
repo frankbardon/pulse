@@ -57,7 +57,7 @@ Two shapes are ACCEPTED: a fan-out grouper at depth `<= n_within_depth` (inside 
 
 ## p_source
 
-Proportion-input kinds only. `cell_value_pct` divides the cell value by 100; `cell_value` takes it as already 0..1. Omitted: `cell_value` on a normalised host (every cell a 0..1 share), else `cell_value_pct`; explicit `cell_value_pct` there is `PULSE_OVERLAY_PARAM_MISSING`. A leg outside `[0,1]` (`cell_value` over a raw count) skips its pair as `PULSE_STATS_SKIP_PROPORTION_INVALID` (one `PULSE_OVERLAY_REF_ZERO` warning per reason), never scored. Over a count cell, normalize first.
+Proportion-input kinds only. `cell_value_pct` reads the cell ÷100, `cell_value` as 0..1. Omitted: `cell_value` on a normalised host, else `cell_value_pct`. `PULSE_OVERLAY_PARAM_MISSING`: an explicit `cell_value_pct` on a normalised host, or the omitted default over an unnormalised built-in cell that is no count or sum (a mean; `cell_type`). A leg outside `[0,1]` skips its pair as `PULSE_STATS_SKIP_PROPORTION_INVALID` (one `PULSE_OVERLAY_REF_ZERO` warning per reason). Over a count cell, normalize first.
 
 ## Compose-host panel
 
