@@ -16,14 +16,26 @@ package spss
 //     SPSS-origin cohort that lost its sidecar (a Materialize before the
 //     sidecar was carried, a CSV of SPSS codes): its dictionary holds "1",
 //     "2", "9", and those are written back as 1, 2, 9.
-//   - Otherwise the code is the entry's position plus one, in dictionary
-//     (first-seen) order, and the entry text survives as the code's label
-//     whenever the binding has no label of its own for it.
+//   - Otherwise, when the binding states an entry ORDER (a label table's
+//     own entry order — the key order of its file), each entry's code is its
+//     position in that order plus one. The code is the TABLE position, not a
+//     rank among the entries present, so every cohort bound to one table
+//     codes an entry alike however few of its entries it holds. Entries the
+//     order does not list follow it — codes len(order)+1, … — in byte-wise
+//     sorted order.
+//   - With no order, the code is the entry's rank in byte-wise sorted
+//     dictionary order plus one. Never the dictionary's first-seen order:
+//     that is an accident of which row came first, and it would re-code a
+//     variable between two exports of the same population.
+//
+// The entry text survives as the code's label whenever the binding has no
+// label of its own for it.
 //
 // The plan marks every such code Known, because it is now a stated value
 // rather than a gap: the data encoder writes it like a sidecar's code.
 
 import (
+	"sort"
 	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -95,8 +107,10 @@ func sidecarWithLabels(req DictionaryRequest) error {
 }
 
 // categoryCodes returns each dictionary entry's SPSS code, in ID order, and
-// whether the codes are the entries' own integers.
-func categoryCodes(entries []string) ([]float64, bool) {
+// whether the codes are the entries' own integers. order is the binding's
+// stated entry order (ValueLabels.Order), nil for none — see the file
+// comment for the rule.
+func categoryCodes(entries, order []string) ([]float64, bool) {
 	codes := make([]float64, len(entries))
 	own := len(entries) > 0
 	seen := make(map[int64]bool, len(entries))
@@ -109,19 +123,36 @@ func categoryCodes(entries []string) ([]float64, bool) {
 		seen[n] = true
 		codes[i] = float64(n)
 	}
-	if !own {
-		for i := range codes {
-			codes[i] = float64(i + 1)
+	if own {
+		return codes, true
+	}
+
+	position := make(map[string]int, len(order))
+	for i, e := range order {
+		if _, dup := position[e]; !dup {
+			position[e] = i
 		}
 	}
-	return codes, own
+	rest := make([]int, 0, len(entries))
+	for id, e := range entries {
+		if at, ok := position[e]; ok {
+			codes[id] = float64(at + 1)
+			continue
+		}
+		rest = append(rest, id)
+	}
+	sort.SliceStable(rest, func(a, b int) bool { return entries[rest[a]] < entries[rest[b]] })
+	for k, id := range rest {
+		codes[id] = float64(len(order) + k + 1)
+	}
+	return codes, false
 }
 
 // labelledCategorical turns v — a categorical field's variable — into a
 // numeric variable with value labels from b.
 func labelledCategorical(v *outVar, fld *encoding.Field, b *ValueLabels) {
 	_, entries := dictionaryWidth(fld.Dictionary)
-	codes, _ := categoryCodes(entries)
+	codes, _ := categoryCodes(entries, b.Order)
 
 	width := 1
 	v.categories = make([]CategoryCode, len(entries))
@@ -142,6 +173,8 @@ func labelledCategorical(v *outVar, fld *encoding.Field, b *ValueLabels) {
 		}
 		v.labels = append(v.labels, outLabel{numeric: code, label: label})
 	}
+	// Value labels go out in code order, which is the order SPSS lists them.
+	sort.SliceStable(v.labels, func(a, b int) bool { return v.labels[a].numeric < v.labels[b].numeric })
 
 	v.width = 0
 	v.widthDerived = false

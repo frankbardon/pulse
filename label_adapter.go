@@ -27,6 +27,12 @@ func (a labelResolverAdapter) Apply(field, raw string) (out, sibling string, ok 
 	return a.r.Apply(field, raw)
 }
 
+// Order is the bound table's entry order; the export's cohort writers
+// discover it through the io package's optional label-order method.
+func (a labelResolverAdapter) Order(field string) []string {
+	return a.r.Order(field)
+}
+
 func (a labelResolverAdapter) FieldsWithAugment() []string {
 	return a.r.FieldsWithAugment()
 }

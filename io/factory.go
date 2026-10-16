@@ -106,8 +106,9 @@ type SPSSWriterOptions struct {
 	// ValueLabels binds value labels onto categorical fields: a bound
 	// field is written as a NUMERIC variable with value labels instead of
 	// a string variable of dictionary text. Codes are the dictionary's
-	// own integers when every entry is one, else entry position + 1; a
-	// code's label is the table's label for its entry, else the entry
+	// own integers when every entry is one, else the table's entry order
+	// (SPSSValueLabels.Order) or, without one, sorted dictionary order —
+	// never first-seen order; a code's label is the table's label for its entry, else the entry
 	// text. Synthesised dictionary only — beside an honoured SPSS
 	// metadata sidecar a binding is PULSE_SPSS_EXPORT_UNSUPPORTED. An
 	// ExportJob label binding (ExportJob.Labels, `--labels`) reaches the
@@ -124,6 +125,11 @@ type SPSSValueLabels struct {
 	// Labels maps a dictionary entry's text to its value label. Nil
 	// labels every code with its own dictionary text.
 	Labels map[string]string
+	// Order is the entry order the codes follow (entry Order[i] -> code
+	// i+1, unlisted entries after it in sorted order). Nil codes by sorted
+	// dictionary order. Ignored when every entry is an integer — those
+	// are the codes.
+	Order []string
 }
 
 // BufferWriter is a Writer whose output is held in memory and read back
@@ -193,7 +199,7 @@ func spssValueLabels(in []SPSSValueLabels) []spss.ValueLabels {
 	}
 	out := make([]spss.ValueLabels, len(in))
 	for i, b := range in {
-		out[i] = spss.ValueLabels{Field: b.Field, Labels: b.Labels}
+		out[i] = spss.ValueLabels{Field: b.Field, Labels: b.Labels, Order: b.Order}
 	}
 	return out
 }

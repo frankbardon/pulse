@@ -549,6 +549,14 @@ type CohortSource struct {
 	// refuse on Labelled.
 	ValueLabels map[string]map[string]string
 
+	// ValueLabelOrder is, per bound field in ValueLabels, the entry order
+	// of the table it is bound to — the order a writer that assigns codes
+	// (the `.sav` value labels) codes by. A field whose table states no
+	// order is absent; nil when no bound table states one. A resolver
+	// reports a table's order through an optional
+	// `Order(field string) []string` method.
+	ValueLabelOrder map[string][]string
+
 	// TimeZone is ExportJob.TimeZone when it names a zone that is NOT
 	// UTC-equivalent, and empty otherwise — so a cohort writer sees it
 	// only when the row stream would have rendered datetimes off UTC.

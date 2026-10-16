@@ -3,13 +3,16 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
 	perrors "github.com/frankbardon/pulse/errors"
 	iio "github.com/frankbardon/pulse/internal/io"
+	"github.com/frankbardon/pulse/internal/io/spss"
 	"github.com/spf13/afero"
 )
 
@@ -61,4 +64,74 @@ func TestExportSPSS_LabelsBecomeValueLabels(t *testing.T) {
 
 	err = runExportCLI("spss", "-i", cohort, "-o", filepath.Join(dir, "bad.sav"), "--labels", "n=regions")
 	wantCode(t, err, perrors.PULSE_LABEL_FIELD_NOT_CATEGORICAL)
+}
+
+// TestExportSPSS_LabelCodesFollowTheTableFileOrder: `--labels` codes the
+// bound categorical by the label table FILE's key order (NE, MW, SO, WE),
+// not by the cohort's first-seen order (SO, NE, …) and not alphabetically —
+// the loader keeps the order, the resolver reports it, the export carries it
+// onto the .sav, and Pulse's SPSS reader brings the codes back.
+func TestExportSPSS_LabelCodesFollowTheTableFileOrder(t *testing.T) {
+	dir := t.TempDir()
+	tables := filepath.Join(dir, "tables")
+	if err := os.MkdirAll(tables, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	table := `{"description":"US census region","rows":{"NE":"Northeast","MW":"Midwest","SO":"South","WE":"West"}}`
+	if err := os.WriteFile(filepath.Join(tables, "regions.json"), []byte(table), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PULSE_LABEL_TABLES_DIR", tables)
+
+	cohort := filepath.Join(dir, "native.pulse")
+	b, err := iio.NewCohortBuild(context.Background(), afero.NewOsFs(), cohort, &encoding.Schema{Fields: []encoding.Field{
+		{Name: "region", Type: encoding.FieldTypeCategoricalU8},
+	}}, iio.CohortBuildOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range []string{"SO", "NE", "WE", "MW"} {
+		if err := b.Append([]any{r}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := b.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	out := filepath.Join(dir, "out.sav")
+	if err := runExportCLI("spss", "-i", cohort, "-o", out, "--labels", "region=regions"); err != nil {
+		t.Fatalf("export spss --labels: %v", err)
+	}
+
+	osfs := afero.NewOsFs()
+	back := filepath.Join(dir, "back.pulse")
+	job := iio.NewImportJob(spss.NewReader(osfs, out), back)
+	job.FS = osfs
+	if _, err := job.Run(context.Background()); err != nil {
+		t.Fatalf("re-import: %v", err)
+	}
+	raw, err := os.ReadFile(spss.SidecarPath(back))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc spss.Document
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	got := map[int64]string{}
+	for _, v := range doc.Payload.Variables {
+		if v.Name != "region" {
+			continue
+		}
+		for _, c := range v.Categories {
+			if c.Labelled && c.Code != nil {
+				got[int64(*c.Code)] = c.Label
+			}
+		}
+	}
+	want := map[int64]string{1: "Northeast", 2: "Midwest", 3: "South", 4: "West"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("region codes -> labels = %v, want the table file's order %v", got, want)
+	}
 }

@@ -532,3 +532,23 @@ func TestFactory_SPSSValueLabelsReachWriter(t *testing.T) {
 		t.Errorf("value-labelled read back = %v, want the codes [[1] [2]]", got)
 	}
 }
+
+// TestFactory_SPSSValueLabelsOrderReachesWriter proves SPSSValueLabels.Order
+// is projected too: with Order [beta alpha] beta is code 1, where sorted
+// dictionary order would make it 2.
+func TestFactory_SPSSValueLabelsOrderReachesWriter(t *testing.T) {
+	w, err := pio.NewWriterToBuffer(pio.FormatSPSS, pio.WriterOptions{SPSS: pio.SPSSWriterOptions{
+		ValueLabels: []pio.SPSSValueLabels{{Field: "n", Order: []string{"beta", "alpha"}}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeRows(t, w, []string{"n"}, [][]string{{"alpha"}, {"beta"}})
+	r, err := pio.NewReaderFromBytes(pio.FormatSPSS, w.Bytes(), pio.ReaderOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, got := readRows(t, r); !reflect.DeepEqual(got, [][]string{{"2"}, {"1"}}) {
+		t.Errorf("ordered read back = %v, want the codes [[2] [1]]", got)
+	}
+}

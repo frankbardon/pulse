@@ -593,6 +593,7 @@ pulse: const LabelModeReplace pulse/types.LabelMode = "replace"
 pulse: type LabelTable struct
 pulse: type LabelTable field Description string
 pulse: type LabelTable field Lookup func(key string) (label string, ok bool, err error)
+pulse: type LabelTable field Order []string
 pulse: type LabelTable field Rows map[string]string
 pulse: type LabelTableInfo struct
 pulse: type LabelTableInfo field Enumerable bool "json:\"enumerable\""
@@ -2844,6 +2845,7 @@ pulse/io: type CohortSource field Includes []string
 pulse/io: type CohortSource field Labelled bool
 pulse/io: type CohortSource field Path string
 pulse/io: type CohortSource field TimeZone string
+pulse/io: type CohortSource field ValueLabelOrder map[string][]string
 pulse/io: type CohortSource field ValueLabels map[string]map[string]string
 pulse/io: type CohortValidator = pulse/internal/iocore.CohortValidator
 pulse/io: type CohortValidator underlying interface
@@ -3214,6 +3216,7 @@ pulse/io: type SPSSReaderOptions field MissingMode pulse/io.SPSSMissingMode
 pulse/io: type SPSSValueLabels struct
 pulse/io: type SPSSValueLabels field Field string
 pulse/io: type SPSSValueLabels field Labels map[string]string
+pulse/io: type SPSSValueLabels field Order []string
 pulse/io: type SPSSWriterOptions struct
 pulse/io: type SPSSWriterOptions field Charset string
 pulse/io: type SPSSWriterOptions field IgnoreSidecar bool
@@ -5545,4 +5548,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e7b9ff256c8a4fedd65641edbf828f6f7d0a64a77368b2e694224603349ea9d9
+// golden-hash: 2e7a2d5ac072bbc09dd6b9acaa41be3484710f6ad2e1e84e9c6de162a7013a7a

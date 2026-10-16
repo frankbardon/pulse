@@ -162,12 +162,13 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 	// receive is a single WriteRow call. See CohortWriter.
 	if cw, ok := j.Target.(CohortWriter); ok {
 		n, err := cw.WriteCohort(ctx, CohortSource{
-			FS:          j.FS,
-			Path:        j.Source,
-			Includes:    j.Includes,
-			Labelled:    j.LabelResolver != nil,
-			ValueLabels: cohortValueLabels(schema, j.Labels, j.LabelResolver),
-			TimeZone:    zoneName(zone),
+			FS:              j.FS,
+			Path:            j.Source,
+			Includes:        j.Includes,
+			Labelled:        j.LabelResolver != nil,
+			ValueLabels:     cohortValueLabels(schema, j.Labels, j.LabelResolver),
+			ValueLabelOrder: cohortValueLabelOrder(schema, j.Labels, j.LabelResolver),
+			TimeZone:        zoneName(zone),
 		})
 		if err != nil {
 			return nil, err
@@ -635,12 +636,13 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	// starts no write lifecycle on a writer it will never Close.
 	if cv, ok := j.Target.(CohortValidator); ok {
 		warns, err := cv.ValidateCohort(ctx, CohortSource{
-			FS:          j.FS,
-			Path:        j.Source,
-			Includes:    j.Includes,
-			Labelled:    j.LabelResolver != nil,
-			ValueLabels: cohortValueLabels(schema, j.Labels, j.LabelResolver),
-			TimeZone:    zoneName(zone),
+			FS:              j.FS,
+			Path:            j.Source,
+			Includes:        j.Includes,
+			Labelled:        j.LabelResolver != nil,
+			ValueLabels:     cohortValueLabels(schema, j.Labels, j.LabelResolver),
+			ValueLabelOrder: cohortValueLabelOrder(schema, j.Labels, j.LabelResolver),
+			TimeZone:        zoneName(zone),
 		})
 		if err != nil {
 			return nil, err
@@ -707,6 +709,33 @@ func cohortValueLabels(schema *encoding.Schema, bindings []*types.LabelBinding, 
 			}
 		}
 		out[name] = labels
+	}
+	return out
+}
+
+// labelOrderer is the optional resolver method that reports a bound
+// table's entry order (pulse's resolver implements it from
+// LabelTable.Order). A resolver without it binds tables with no order.
+type labelOrderer interface {
+	Order(field string) []string
+}
+
+// cohortValueLabelOrder is CohortSource.ValueLabelOrder: for every field
+// cohortValueLabels binds, the bound table's entry order when the resolver
+// reports one. Nil when none does.
+func cohortValueLabelOrder(schema *encoding.Schema, bindings []*types.LabelBinding, r LabelResolver) map[string][]string {
+	o, ok := r.(labelOrderer)
+	if !ok {
+		return nil
+	}
+	var out map[string][]string
+	for name := range cohortValueLabels(schema, bindings, r) {
+		if order := o.Order(name); len(order) > 0 {
+			if out == nil {
+				out = map[string][]string{}
+			}
+			out[name] = order
+		}
 	}
 	return out
 }

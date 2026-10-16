@@ -171,7 +171,9 @@ func TestValueLabels_RoundTrip(t *testing.T) {
 	if want := map[float64]string{1: "Poor", 3: "Good"}; !reflect.DeepEqual(labels, want) {
 		t.Errorf("grade labels read back = %v, want %v (10 has no label: its text is its code)", labels, want)
 	}
-	if want := []string{"3", "1", "10"}; !reflect.DeepEqual(dict, want) {
+	// The value labels go out in code order, and the reader seeds the
+	// dictionary from them before the data adds the unlabelled 10.
+	if want := []string{"1", "3", "10"}; !reflect.DeepEqual(dict, want) {
 		t.Errorf("grade dictionary read back = %v, want %v", dict, want)
 	}
 }
@@ -192,20 +194,74 @@ func TestValueLabels_NilLabelsUseTheDictionaryText(t *testing.T) {
 func TestCategoryCodes(t *testing.T) {
 	for _, tc := range []struct {
 		entries []string
+		order   []string
 		want    []float64
 		own     bool
 	}{
-		{[]string{"3", "1", "-2"}, []float64{3, 1, -2}, true},
-		{[]string{"01", "1"}, []float64{1, 2}, false},
-		{[]string{"07", "3"}, []float64{1, 2}, false},
-		{[]string{"1", "x"}, []float64{1, 2}, false},
-		{[]string{"9007199254740993"}, []float64{1}, false},
-		{[]string{""}, []float64{1}, false},
+		{[]string{"3", "1", "-2"}, nil, []float64{3, 1, -2}, true},
+		// The entries' own integers win over a table order.
+		{[]string{"3", "1"}, []string{"1", "3"}, []float64{3, 1}, true},
+		// No table order: byte-wise sorted dictionary order, never first-seen.
+		{[]string{"South", "North", "East"}, nil, []float64{3, 2, 1}, false},
+		{[]string{"01", "1"}, nil, []float64{1, 2}, false},
+		{[]string{"07", "3"}, nil, []float64{1, 2}, false},
+		{[]string{"x", "1"}, nil, []float64{2, 1}, false},
+		{[]string{"9007199254740993"}, nil, []float64{1}, false},
+		{[]string{""}, nil, []float64{1}, false},
+		// A table order: the code is the entry's table position + 1, so a
+		// cohort holding only some of the table's entries keeps the codes
+		// every other cohort bound to the table gets.
+		{[]string{"W3", "W1", "W4"}, []string{"W1", "W2", "W3", "W4"}, []float64{3, 1, 4}, false},
+		// Entries the table does not list follow it, in sorted order.
+		{[]string{"W3", "X", "A"}, []string{"W1", "W2", "W3"}, []float64{3, 5, 4}, false},
+		// A repeated table entry keeps its first position.
+		{[]string{"b", "a"}, []string{"a", "b", "a"}, []float64{2, 1}, false},
 	} {
-		got, own := categoryCodes(tc.entries)
+		got, own := categoryCodes(tc.entries, tc.order)
 		if !reflect.DeepEqual(got, tc.want) || own != tc.own {
-			t.Errorf("categoryCodes(%q) = %v,%v want %v,%v", tc.entries, got, own, tc.want, tc.own)
+			t.Errorf("categoryCodes(%q, %q) = %v,%v want %v,%v", tc.entries, tc.order, got, own, tc.want, tc.own)
 		}
+	}
+}
+
+// TestValueLabels_CodesFollowTheTableOrder: a binding whose table states an
+// entry order codes the categorical by it — the cohort's first-seen order
+// (SO, NE, WE, MW) is not what SPSS sees — and Pulse's reader brings the
+// codes and labels back. Without an order the codes are the sorted
+// dictionary order.
+func TestValueLabels_CodesFollowTheTableOrder(t *testing.T) {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "region", Type: encoding.FieldTypeCategoricalU8},
+	}}
+	rows := [][]any{{"SO"}, {"NE"}, {"WE"}, {"MW"}}
+	names := map[string]string{"NE": "Northeast", "MW": "Midwest", "SO": "South", "WE": "West"}
+	for _, tc := range []struct {
+		name   string
+		order  []string
+		codes  []float64
+		labels map[float64]string
+	}{
+		{"table order", []string{"NE", "MW", "SO", "WE"}, []float64{3, 1, 4, 2},
+			map[float64]string{1: "Northeast", 2: "Midwest", 3: "South", 4: "West"}},
+		{"sorted", nil, []float64{3, 2, 4, 1},
+			map[float64]string{1: "Midwest", 2: "Northeast", 3: "South", 4: "West"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fs, cohort := vecCohort(t, schema, rows)
+			sav, _, err := exportVecSav(t, fs, cohort, WriterOptions{ValueLabels: []ValueLabels{
+				{Field: "region", Labels: names, Order: tc.order},
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := savColumn(t, sav, "region"); !reflect.DeepEqual(got, tc.codes) {
+				t.Errorf("region codes = %v, want %v", got, tc.codes)
+			}
+			labels, _ := readBackLabels(t, fs, sav, "region")
+			if !reflect.DeepEqual(labels, tc.labels) {
+				t.Errorf("labels read back = %v, want %v", labels, tc.labels)
+			}
+		})
 	}
 }
 

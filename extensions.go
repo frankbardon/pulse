@@ -894,6 +894,13 @@ type LabelTable struct {
 	// from Lookup surfaces as PULSE_LABEL_LOOKUP_MISS with the
 	// embedder's message attached.
 	Lookup func(key string) (label string, ok bool, err error)
+	// Order is the table's entry order, optional: the keys in the order
+	// the table lists them. A `.sav` export bound to the table codes the
+	// categorical by it (entry i -> code i+1); without it the codes follow
+	// sorted dictionary order. A table loaded from PULSE_LABEL_TABLES_DIR
+	// gets its file's key order. Each entry appears once and, on a Rows
+	// table, is one of its keys (PULSE_EXTENSION_PARAM_INVALID at New).
+	Order []string
 }
 
 // RangeTable is a named, ordered set of labeled date ranges. It is the

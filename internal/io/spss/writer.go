@@ -601,7 +601,7 @@ func (w *Writer) optionsFor(src iocore.CohortSource) (WriterOptions, error) {
 			// the dictionary build refuses the field on its own terms.
 			labels = map[string]string{}
 		}
-		merged = append(merged, ValueLabels{Field: name, Labels: labels})
+		merged = append(merged, ValueLabels{Field: name, Labels: labels, Order: src.ValueLabelOrder[name]})
 	}
 	opts.ValueLabels = merged
 	return opts, nil

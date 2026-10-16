@@ -1,6 +1,7 @@
 package pulse
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -20,7 +21,8 @@ const envLabelTablesDir = "PULSE_LABEL_TABLES_DIR"
 //
 // File format: either a flat map {"k": "v"} or a wrapped object
 // {"description": "...", "rows": {"k": "v"}}. The filename without
-// .json becomes the registered table name.
+// .json becomes the registered table name. The file's key order becomes
+// the table's Order (the code order of a `.sav` export bound to it).
 //
 // Files matching a known Pulse sidecar suffix (internal/imports.SidecarSuffix,
 // spsssidecar.Suffix — see isPulseSidecarName) are skipped without
@@ -93,13 +95,25 @@ func loadLabelTablesFromDir(opts *Options) error {
 }
 
 // parseLabelTableFile accepts either a flat map or a wrapped object.
+// Order is the rows object's key order; a key the file repeats keeps its
+// first position (its value, as encoding/json decodes it, is the last).
 func parseLabelTableFile(raw []byte) (LabelTable, error) {
 	var wrapped struct {
 		Description string            `json:"description"`
 		Rows        map[string]string `json:"rows"`
 	}
 	if err := json.Unmarshal(raw, &wrapped); err == nil && wrapped.Rows != nil {
-		return LabelTable{Description: wrapped.Description, Rows: wrapped.Rows}, nil
+		var shell struct {
+			Rows json.RawMessage `json:"rows"`
+		}
+		if err := json.Unmarshal(raw, &shell); err != nil {
+			return LabelTable{}, err
+		}
+		order, err := objectKeyOrder(shell.Rows)
+		if err != nil {
+			return LabelTable{}, err
+		}
+		return LabelTable{Description: wrapped.Description, Rows: wrapped.Rows, Order: order}, nil
 	}
 	var flat map[string]string
 	if err := json.Unmarshal(raw, &flat); err != nil {
@@ -108,5 +122,36 @@ func parseLabelTableFile(raw []byte) (LabelTable, error) {
 	if len(flat) == 0 {
 		return LabelTable{}, fmt.Errorf("empty label table")
 	}
-	return LabelTable{Rows: flat}, nil
+	order, err := objectKeyOrder(raw)
+	if err != nil {
+		return LabelTable{}, err
+	}
+	return LabelTable{Rows: flat, Order: order}, nil
+}
+
+// objectKeyOrder returns a JSON object's keys in document order, each once.
+// The caller has already decoded raw as a string map, so every value is a
+// string token.
+func objectKeyOrder(raw []byte) ([]string, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	if _, err := dec.Token(); err != nil { // '{'
+		return nil, err
+	}
+	var order []string
+	seen := map[string]bool{}
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return nil, err
+		}
+		key, _ := tok.(string)
+		if _, err := dec.Token(); err != nil { // the value
+			return nil, err
+		}
+		if !seen[key] {
+			seen[key] = true
+			order = append(order, key)
+		}
+	}
+	return order, nil
 }

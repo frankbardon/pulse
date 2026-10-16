@@ -394,6 +394,37 @@ func TestExtensions_LabelTableNeitherOrBoth(t *testing.T) {
 	})
 }
 
+// TestExtensions_LabelTableOrder: LabelTable.Order lists each entry once
+// and, on a Rows table, only keys Rows holds; a Lookup table may order any
+// keys.
+func TestExtensions_LabelTableOrder(t *testing.T) {
+	rows := map[string]string{"a": "A", "b": "B"}
+	lookup := func(key string) (string, bool, error) { return key, true, nil }
+	for _, tc := range []struct {
+		name string
+		tbl  pulse.LabelTable
+		ok   bool
+	}{
+		{"rows order", pulse.LabelTable{Rows: rows, Order: []string{"b", "a"}}, true},
+		{"partial rows order", pulse.LabelTable{Rows: rows, Order: []string{"b"}}, true},
+		{"lookup order", pulse.LabelTable{Lookup: lookup, Order: []string{"z", "y"}}, true},
+		{"repeated entry", pulse.LabelTable{Rows: rows, Order: []string{"a", "a"}}, false},
+		{"repeated lookup entry", pulse.LabelTable{Lookup: lookup, Order: []string{"z", "z"}}, false},
+		{"key rows lacks", pulse.LabelTable{Rows: rows, Order: []string{"a", "c"}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := pulse.New(newTestOptions(pulse.Extensions{LabelTables: map[string]pulse.LabelTable{"t": tc.tbl}}))
+			if tc.ok {
+				if err != nil {
+					t.Fatalf("rejected: %v", err)
+				}
+				return
+			}
+			assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+		})
+	}
+}
+
 func TestExtensions_LabelTableEmptyName(t *testing.T) {
 	ext := pulse.Extensions{
 		LabelTables: map[string]pulse.LabelTable{

@@ -187,8 +187,11 @@ type WriterOptions struct {
 // The variable's numeric CODES come from the field's dictionary: the
 // entries' own integers when EVERY entry is the canonical decimal spelling
 // of an integer SPSS can hold exactly (|n| <= 2^53) — the SPSS-origin case,
-// where the dictionary already holds the source codes — and otherwise each
-// entry's position plus one (dictionary order, which is first-seen order).
+// where the dictionary already holds the source codes. Otherwise, with an
+// Order, each entry's code is its position in Order plus one (entries Order
+// does not list follow, in byte-wise sorted order); with no Order, each
+// entry's rank in byte-wise sorted dictionary order plus one — never the
+// dictionary's first-seen order.
 // Each code's LABEL is Labels[entry text] when present, else the entry
 // text itself, so a positional code never loses the text it stands for; a
 // label equal to the code's own decimal spelling (an integer entry with no
@@ -200,6 +203,10 @@ type ValueLabels struct {
 	// Labels maps a dictionary entry's text to its value label. Nil
 	// labels every code with its own dictionary text.
 	Labels map[string]string
+
+	// Order is the entry order the codes follow — a label table's own
+	// entry order. Nil codes by sorted dictionary order.
+	Order []string
 }
 
 // Compression is the header compression flag these options select: SPSS
