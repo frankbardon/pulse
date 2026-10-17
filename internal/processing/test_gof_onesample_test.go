@@ -266,6 +266,15 @@ func TestChiSqGOF_Weighted(t *testing.T) {
 func runPropOne(t *testing.T, params string, rows []armRow, kind types.WeightKind) (*types.TestResult, error) {
 	t.Helper()
 	schema := armSchema()
+	// The success level is a dictionary entry before the test is built,
+	// as in a loaded cohort.
+	var p struct {
+		Success string `json:"success"`
+	}
+	if err := json.Unmarshal([]byte(params), &p); err != nil {
+		t.Fatal(err)
+	}
+	dictIDOrAdd(schema, "arm", p.Success)
 	spec := types.Test{Type: types.TEST_PROP_Z, Field: "arm", Params: json.RawMessage(params)}
 	if kind != "" {
 		spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: kind})

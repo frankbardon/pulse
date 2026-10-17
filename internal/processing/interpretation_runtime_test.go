@@ -345,6 +345,7 @@ var testProbeFixtures = []testProbeFixture{
 			{Name: "treatment", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 			{Name: "converted", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 		}}
+		dictIDOrAdd(schema, "converted", "yes") // a loaded cohort's dictionary holds the success level
 		spec := &types.Test{Type: types.TEST_PROP_Z, Field: "converted", SplitBy: "treatment", Params: json.RawMessage(`{"success":"yes"}`)}
 		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
 			for _, c := range []struct {
@@ -365,6 +366,7 @@ var testProbeFixtures = []testProbeFixture{
 		}}
 		dictIDOrAdd(schema, "treatment", "a")
 		dictIDOrAdd(schema, "treatment", "b")
+		dictIDOrAdd(schema, "converted", "yes") // a loaded cohort's dictionary holds the success level
 		spec := &types.Test{Type: types.TEST_PROP_Z, Field: "converted", SplitBy: "treatment", Params: json.RawMessage(`{"success":"yes","reference":"a"}`)}
 		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
 			for _, c := range []struct {
@@ -382,6 +384,7 @@ var testProbeFixtures = []testProbeFixture{
 		schema := &encoding.Schema{Fields: []encoding.Field{
 			{Name: "converted", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 		}}
+		dictIDOrAdd(schema, "converted", "yes") // a loaded cohort's dictionary holds the success level
 		spec := &types.Test{Type: types.TEST_PROP_Z, Field: "converted", Params: json.RawMessage(`{"success":"yes","p0":0.5}`)}
 		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
 			for _, c := range []struct {

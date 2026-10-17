@@ -1364,7 +1364,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Tests", "*", "Params", "success"},
-				Hint:   "Supply the dictionary value that represents success (e.g. {\"success\": \"yes\"}); use pulse inspect to list the categorical's dictionary values.",
+				Hint:   "Supply the dictionary value that represents success, spelt exactly as the outcome's dictionary holds it (e.g. {\"success\": \"yes\"}); a categorical success no entry matches is refused — use pulse inspect to list the dictionary values.",
 			},
 			{
 				Action: FixupSetDefault,

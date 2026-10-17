@@ -122,9 +122,10 @@ func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 	if cerr := fieldaccept.Check(string(spec.Type), fieldaccept.SlotSplitBy, spec.SplitBy, schema); cerr != nil {
 		return nil, cerr
 	}
-	// A packed_bool outcome's success is strictly one of its levels,
-	// "0" / "1": a typo (or "true") would count no success and report
-	// a confident zero rate. Predict raises the same refusal.
+	// success is strictly one of the outcome's levels — "0" / "1" on a
+	// packed_bool, a dictionary entry on a categorical: a typo (or
+	// "true") would count no success and report a confident zero rate.
+	// Predict raises the same refusal.
 	if cerr := fieldaccept.SuccessLevelRefusal(string(spec.Type), spec.Field, params.Success, schema); cerr != nil {
 		return nil, cerr
 	}

@@ -217,8 +217,9 @@ func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encodi
 		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		return
 	}
-	// A packed_bool outcome's success is "0" / "1" only — the runtime
-	// constructor's next refusal, the same coded error.
+	// success is one of the outcome's levels ("0" / "1" on a packed_bool,
+	// a dictionary entry on a categorical) — the runtime constructor's
+	// next refusal, the same coded error.
 	if success, ok := successParam(t.Params); ok {
 		if cerr := fieldaccept.SuccessLevelRefusal(string(t.Type), t.Field, success, schema); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)

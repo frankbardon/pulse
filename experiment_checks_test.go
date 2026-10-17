@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"math"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -135,6 +136,11 @@ func TestExperimentChecks_PredictMatchesRuntime(t *testing.T) {
 		{"p0 with split_by", `{"type":"TEST_PROP_Z","field":"cat_flag","split_by":"cat_grp","params":{"success":"1","p0":0.5}}`, errors.PULSE_TEST_P0_INVALID, true},
 		{"no field", `{"type":"TEST_PROP_Z","split_by":"cat_grp","params":{"success":"1"}}`, errors.PROCESSING_CONFIG, true},
 		{"two-sample without split_by", `{"type":"TEST_PROP_Z","field":"cat_flag","params":{"success":"1"}}`, errors.PROCESSING_CONFIG, true},
+		// A categorical success names a dictionary entry of the outcome,
+		// both forms (cat_flag's levels are "0" / "1").
+		{"success not a dictionary level", `{"type":"TEST_PROP_Z","field":"cat_flag","split_by":"cat_grp","params":{"success":"yes"}}`, errors.PULSE_TEST_SUCCESS_VALUE_MISSING, true},
+		{"success not a dictionary level, one-proportion", `{"type":"TEST_PROP_Z","field":"cat_flag","params":{"success":"true","p0":0.5}}`, errors.PULSE_TEST_SUCCESS_VALUE_MISSING, true},
+		{"success packed_bool alias", `{"type":"TEST_PROP_Z","field":"pb_flag","split_by":"cat_grp","params":{"success":"true"}}`, errors.PULSE_TEST_SUCCESS_VALUE_MISSING, true},
 		// U48 E1-S3: params.reference names a split_by level.
 		{"reference not a dictionary level", `{"type":"TEST_WELCH","field":"x","split_by":"cat_grp","params":{"reference":"control"}}`, errors.PULSE_TEST_REFERENCE_INVALID, true},
 		{"reference packed_bool alias", `{"type":"TEST_MANN_WHITNEY_U","field":"x","split_by":"pb_grp","params":{"reference":"true"}}`, errors.PULSE_TEST_REFERENCE_INVALID, true},
@@ -211,6 +217,8 @@ func TestExperimentChecks_PredictMatchesRuntime(t *testing.T) {
 		`{"type":"TEST_CHISQ","rows":"pb_flag","params":{"expected":{"0":0.5,"1":0.5}}}`,
 		`{"type":"TEST_CHISQ","rows":"cat_flag","params":{"expected":{"0":0.25,"1":0.5,"9":0.25}}}`,
 		`{"type":"TEST_PROP_Z","field":"pb_flag","params":{"success":"1","p0":0.4}}`,
+		`{"type":"TEST_PROP_Z","field":"cat_flag","params":{"success":"0","p0":0.4}}`,
+		`{"type":"TEST_PROP_Z","field":"cat_flag","split_by":"cat_grp","params":{"success":"1"}}`,
 	} {
 		var req types.Request
 		if err := json.Unmarshal([]byte(`{"tests":[`+test+`]}`), &req); err != nil {
@@ -223,5 +231,60 @@ func TestExperimentChecks_PredictMatchesRuntime(t *testing.T) {
 		if _, err := p.Process(ctx, &req); err != nil {
 			t.Errorf("runtime refused %s: %v", test, err)
 		}
+	}
+}
+
+// TestExperimentChecks_SuccessLevelOverShardArchive: over a shard
+// archive a categorical success is judged against the canonical
+// schema's dictionary — the union of every shard's — so a level only a
+// later shard holds is accepted (and counted) by predict and the
+// runtime alike, and a level no shard holds is refused by both with
+// the same code and message.
+func TestExperimentChecks_SuccessLevelOverShardArchive(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	p, err := pulse.New(pulse.Options{FS: fs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	importArmCohort(t, p, fs, "s0.pulse", []string{"no"}, []int{10})
+	importArmCohort(t, p, fs, "s1.pulse", []string{"yes", "no"}, []int{6, 4})
+	if _, err := p.CreateShardArchive(ctx, "archive.pulse", []string{"s0.pulse", "s1.pulse"}); err != nil {
+		t.Fatal(err)
+	}
+	request := func(success string) *types.Request {
+		var req types.Request
+		if err := json.Unmarshal([]byte(`{"cohort":{"filename":"archive.pulse"},"tests":[{"type":"TEST_PROP_Z","field":"arm","params":{"success":`+strconv.Quote(success)+`,"p0":0.5}}]}`), &req); err != nil {
+			t.Fatal(err)
+		}
+		return &req
+	}
+
+	res, err := p.Predict(ctx, request("yes"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Errors) != 0 {
+		t.Fatalf("predict refused a level only the second shard holds: %+v", res.Errors)
+	}
+	resp, err := p.Process(ctx, request("yes"))
+	if err != nil {
+		t.Fatalf("runtime refused a level only the second shard holds: %v", err)
+	}
+	if got := resp.Tests[0].Details["successes"]; got != int64(6) {
+		t.Fatalf("successes %v (%T), want 6", got, got)
+	}
+
+	_, err = p.Process(ctx, request("Yes"))
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_TEST_SUCCESS_VALUE_MISSING {
+		t.Fatalf("runtime: %v, want PULSE_TEST_SUCCESS_VALUE_MISSING", err)
+	}
+	res, err = p.Predict(ctx, request("Yes"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Errors) != 1 || res.Errors[0].Code != string(ce.Code) || res.Errors[0].Message != ce.Message {
+		t.Fatalf("predict %+v, runtime %s %q", res.Errors, ce.Code, ce.Message)
 	}
 }

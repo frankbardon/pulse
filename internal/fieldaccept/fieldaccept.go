@@ -233,29 +233,53 @@ func Levels(f *encoding.Field) []string {
 	return nil
 }
 
-// SuccessLevelRefusal is TEST_PROP_Z's success-literal rule on a
-// packed_bool outcome: success must be exactly "0" or "1". Nil when the
-// outcome is not a packed_bool schema field (a categorical's success is
-// not judged against its dictionary) or success is a level. Predict and
-// the runtime constructor both raise it, after the outcome and split
-// type checks.
+// SuccessLevelRefusal is TEST_PROP_Z's success-literal rule: on a
+// packed_bool outcome success must be exactly "0" or "1"; on a
+// categorical one, exactly an entry of its dictionary — a typo (or
+// "true") would count no success and report a confident zero rate.
+// Nil when success is a level, or the outcome is not a schema field (a
+// derived column), a dictionary-less categorical, or another type (the
+// accepted-types table's refusal). Both forms, two-group and p0, are
+// judged alike. Over a shard archive the schema is the canonical one,
+// its dictionaries the union of every shard's (ReferenceRefusal's
+// split_by rule reads the same). Predict and the runtime constructor
+// both raise it, after the outcome and split type checks.
 func SuccessLevelRefusal(op, field, success string, schema *encoding.Schema) *errors.CodedError {
 	if schema == nil || field == "" {
 		return nil
 	}
 	f := schema.Field(field)
-	if f == nil || f.Type != encoding.FieldTypePackedBool || success == PackedBoolFalse || success == PackedBoolTrue {
+	if f == nil {
 		return nil
 	}
-	return errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SUCCESS_VALUE_MISSING,
-		op+" params.success "+strconv.Quote(success)+" is not a level of packed_bool field "+field+"; use \"1\" (true) or \"0\" (false)",
-		map[string]any{
-			"type":         op,
-			"field":        field,
-			"field_type":   f.Type.String(),
-			"success":      success,
-			"valid_levels": PackedBoolLevels(),
-		})
+	switch {
+	case f.Type == encoding.FieldTypePackedBool:
+		if success == PackedBoolFalse || success == PackedBoolTrue {
+			return nil
+		}
+		return errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SUCCESS_VALUE_MISSING,
+			op+" params.success "+strconv.Quote(success)+" is not a level of packed_bool field "+field+"; use \"1\" (true) or \"0\" (false)",
+			map[string]any{
+				"type":         op,
+				"field":        field,
+				"field_type":   f.Type.String(),
+				"success":      success,
+				"valid_levels": PackedBoolLevels(),
+			})
+	case f.Type.IsCategorical() && f.Dictionary != nil:
+		if _, ok := f.Dictionary.IDFor(success); ok {
+			return nil
+		}
+		return errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SUCCESS_VALUE_MISSING,
+			op+" params.success "+strconv.Quote(success)+" is not a level of "+f.Type.String()+" field "+field+"; name a dictionary entry exactly (pulse inspect lists them)",
+			map[string]any{
+				"type":       op,
+				"field":      field,
+				"field_type": f.Type.String(),
+				"success":    success,
+			})
+	}
+	return nil
 }
 
 // codeValue is ATTR_CODE_IN's set: a categorical (codes match its

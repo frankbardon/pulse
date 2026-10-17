@@ -44,12 +44,17 @@ func countFixture() []cRow {
 	return out
 }
 
+// countSchema's outcome dictionary already holds the success level, as
+// a loaded cohort's does before any test is built (TEST_PROP_Z refuses
+// a success its dictionary lacks).
 func countSchema() *encoding.Schema {
-	return &encoding.Schema{Fields: []encoding.Field{
+	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "g", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 		{Name: "o", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 		{Name: "w", Type: encoding.FieldTypeF64},
 	}}
+	dictIDOrAdd(schema, "o", "yes")
+	return schema
 }
 
 func countRecord(schema *encoding.Schema, r cRow) *Record {
