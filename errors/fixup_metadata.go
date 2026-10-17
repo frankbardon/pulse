@@ -1437,11 +1437,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_TIES_DOMINATE: {
-		Message: "A rank-based test observed ties on >= 50% of input values; the asymptotic approximation loses accuracy.",
+		Message: "A rank-based test observed ties on >= 50% of input values: the test then mostly compares the share of tied values, not their order, and the asymptotic approximation loses accuracy.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Hint:   "Treat the p-value as advisory; for small n with heavy ties prefer an exact-permutation variant when registered, or accept the effect-direction statistic alone.",
+				Hint:   "Treat the p-value as advisory: with this many ties it mostly reflects how often each group hits the tied value(s). Compare those shares directly (TEST_CHISQ or TEST_PROP_Z on a tied-vs-not indicator), or for small n prefer an exact-permutation variant when registered.",
 			},
 		},
 	},

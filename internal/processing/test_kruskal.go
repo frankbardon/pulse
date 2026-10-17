@@ -171,8 +171,7 @@ func (k *kruskalWallisRow) Finalize() (*types.TestResult, error) {
 	}
 	k.noteGroupSums(res.Details, sumWs, sumWSqs)
 	if tiesDominateW(ties, Nf) {
-		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
-			": ≥ 50% of values are tied; asymptotic p-value is unreliable")
+		res.Warnings = append(res.Warnings, tiesDominateWarning("values"))
 	}
 	return res, nil
 }

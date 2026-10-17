@@ -159,8 +159,7 @@ func (k *kendallTauRow) Finalize() (*types.TestResult, error) {
 	}
 	k.noteScalar(res.Details, k.xs.sumW, k.xs.sumWSq)
 	if tiesDominateW(tiesX, nf) || tiesDominateW(tiesY, nf) {
-		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
-			": ≥ 50% of values are tied in at least one column; asymptotic p-value is unreliable")
+		res.Warnings = append(res.Warnings, tiesDominateWarning("values in at least one column"))
 	}
 	return res, nil
 }

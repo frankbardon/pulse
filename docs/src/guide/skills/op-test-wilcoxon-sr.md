@@ -50,6 +50,7 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pr
 ## Gotchas
 
 - Buffered — |d| ranked across the whole set.
+- ≥ 50% of |d| tied → warning `PULSE_TEST_TIES_DOMINATE`: the test then mostly compares the share of tied values, not their order; the asymptotic p is unreliable.
 - Zero-diff pairs are dropped (Wilcoxon convention); reported in `Details.zero_diffs`.
 - Nonparametric alternative to a paired t-test when d is non-normal.
 - Asymptotic only; < 6 non-zero pairs is `PULSE_TEST_INSUFFICIENT_N`.

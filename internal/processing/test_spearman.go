@@ -134,8 +134,7 @@ func (s *spearmanRRow) Finalize() (*types.TestResult, error) {
 	}
 	s.noteScalar(res.Details, s.xs.sumW, s.xs.sumWSq)
 	if tiesDominateW(tiesX, nW) || tiesDominateW(tiesY, nW) {
-		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
-			": ≥ 50% of values are tied in at least one column; asymptotic p-value is unreliable")
+		res.Warnings = append(res.Warnings, tiesDominateWarning("values in at least one column"))
 	}
 	return res, nil
 }

@@ -630,7 +630,7 @@ var (
 				"1 means the odds of the first column are the same in both rows, above 1 higher in the first row, below 1 lower.",
 			Caveats: []string{
 				"Bands apply to max(OR, 1/OR), so an odds ratio of 0.25 reads like one of 4.",
-				"Rows and columns follow the order values were first seen (details.row_labels / col_labels), so the ratio can come out inverted from what you expect: check the labels.",
+				"Rows and columns are sorted alphabetically (details.row_labels / col_labels), so the ratio can come out inverted from what you expect: check the labels.",
 				"A zero in b or c gives an infinite ratio and a zero in a or d gives 0; with zero cells read the p-value and the table, not the ratio.",
 				"This is the plain cross-product ratio, not the conditional estimate R's fisher.test reports, so the two differ slightly.",
 			},

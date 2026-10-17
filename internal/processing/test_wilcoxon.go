@@ -166,8 +166,7 @@ func (w *wilcoxonSRRow) Finalize() (*types.TestResult, error) {
 	}
 	w.noteScalar(res.Details, w.diffs.sumW, w.diffs.sumWSq)
 	if tiesDominateW(ties, nf) {
-		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
-			": ≥ 50% of |diff| values are tied; asymptotic p-value is unreliable")
+		res.Warnings = append(res.Warnings, tiesDominateWarning("|diff| values"))
 	}
 	return res, nil
 }

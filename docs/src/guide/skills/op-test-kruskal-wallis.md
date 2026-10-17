@@ -47,6 +47,7 @@ Use something else:
 ## Gotchas
 
 - Buffered — combined values ranked across all groups under tie correction.
+- ≥ 50% tied → warning `PULSE_TEST_TIES_DOMINATE`: the test then mostly compares the share of tied values, not their order; the asymptotic p is unreliable.
 - Nonparametric alternative to one-way ANOVA for skewed or heavy-tailed data.
 - Global only — no Dunn / Conover post-hoc; use pairwise `TEST_MANN_WHITNEY_U` with a `multiplicity` block (Holm/Bonferroni).
 - Groups under ~5 rows: shaky p; only N < 2k is refused (`PULSE_TEST_INSUFFICIENT_N`). ε² unbanded.

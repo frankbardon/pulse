@@ -197,8 +197,7 @@ func (m *mannWhitneyRow) Finalize() (*types.TestResult, error) {
 	setEffectSize(res.Details, "rank_biserial", rankBiserialIndependent(uA, nAf, nBf))
 	m.noteGroupSums(res.Details, []float64{a.sumW, b.sumW}, []float64{a.sumWSq, b.sumWSq})
 	if tiesDominateW(ties, N) {
-		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
-			": ≥ 50% of values are tied; the asymptotic p-value is unreliable")
+		res.Warnings = append(res.Warnings, tiesDominateWarning("values"))
 	}
 	return res, nil
 }
