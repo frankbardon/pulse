@@ -424,13 +424,16 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#477** `weight_reference_values_test.go` was hand-edited in U47 (E4-S6) because Hmisc was absent; re-run `uv run --no-project gen_weight_reference.py --check` with Hmisc 5.3.0 and commit any regenerated values. Found in U47 (E4-S5) · [U36](units/U36-reference-oracles.md)
 
 #### Experiment readout ([U48](units/U48-experiment-readout.md))
-- [ ] **#332** Goodness-of-fit chi-square against supplied expected proportions (`TEST_CHISQ` `params.expected` or a dedicated GOF test) and a one-sample `TEST_PROP_Z` (`p0`), so a sample-ratio check is one test · [U48](units/U48-experiment-readout.md)
-- [ ] **#333** `params.reference` on two-group tests (`TEST_PROP_Z`, `TEST_WELCH`, `TEST_T`, `TEST_MANN_WHITNEY_U`, `TEST_Z_TWO_SAMPLE`) so `diff` and its interval read treatment − reference · [U48](units/U48-experiment-readout.md)
-- [ ] **#334** Regression results carry coefficient confidence intervals at the request alpha, and regression p-values can join a `multiplicity` family · [U48](units/U48-experiment-readout.md)
-- [ ] **#335** Covariate-adjusted comparisons in one call: a `covariate` on the two-group mean and proportion tests (CUPED), with the adjusted estimate, interval and variance reduction reported · [U48](units/U48-experiment-readout.md)
-- [ ] **#336** Predict accuracy for test-only and regression-only requests (streamability and size), and `predict-compose` reports per-slot streamability, p-value counts and the cross-slot multiplicity advisory · [U48](units/U48-experiment-readout.md)
-- [ ] **#337** Polish: `TEST_CHISQ` labels ordered consistently with the other tests; the Mann-Whitney ties warning says the test mostly compares the share of tied values · [U48](units/U48-experiment-readout.md)
-- [ ] **#338** Acceptance: the A/B readout drops the design cohort and facet SRM workaround, the two-step CUPED and every sign flip · [U48](units/U48-experiment-readout.md)
+- [x] **#332** Goodness-of-fit chi-square against supplied expected proportions (`TEST_CHISQ` `params.expected` or a dedicated GOF test) and a one-sample `TEST_PROP_Z` (`p0`), so a sample-ratio check is one test · [U48](units/U48-experiment-readout.md)
+- [x] **#333** `params.reference` on two-group tests (`TEST_PROP_Z`, `TEST_WELCH`, `TEST_T`, `TEST_MANN_WHITNEY_U`, `TEST_Z_TWO_SAMPLE`) so `diff` and its interval read treatment − reference · [U48](units/U48-experiment-readout.md)
+- [x] **#334** Regression results carry coefficient confidence intervals at the request alpha, and regression p-values can join a `multiplicity` family · [U48](units/U48-experiment-readout.md)
+- [x] **#335** Covariate-adjusted comparisons in one call: a `covariate` on the two-group mean and proportion tests (CUPED), with the adjusted estimate, interval and variance reduction reported · [U48](units/U48-experiment-readout.md)
+- [x] **#336** Predict accuracy for test-only and regression-only requests (streamability and size), and `predict-compose` reports per-slot streamability, p-value counts and the cross-slot multiplicity advisory · [U48](units/U48-experiment-readout.md)
+- [x] **#337** Polish: `TEST_CHISQ` labels ordered consistently with the other tests; the Mann-Whitney ties warning says the test mostly compares the share of tied values · [U48](units/U48-experiment-readout.md)
+- [x] **#338** Acceptance: the A/B readout drops the design cohort and facet SRM workaround, the two-step CUPED and every sign flip · [U48](units/U48-experiment-readout.md)
+
+#### Follow-ups from U48 (experiment readout)
+- [ ] **#478** Skill `pulse_examples_search tags=[…]` pointers that no example carries (none is in `internal/examples.CanonicalTags`), so the search returns nothing: `tags=[synth]` in all 14 `op-synth-*` skills (the synth examples carry no tags at all), `target-encoding` / `polynomial-regression` / `train-test-split` (`feature-engineering`), `survey` (`grouper-design`), `ranking` / `moving-average` / `lag-lead` (`window-design`). Point each at a canonical tag an example carries (or tag the synth examples), and gate it: every skill tag pointer resolves to ≥ 1 example. `statistical-testing`'s own (`ab-test`, `anova`, `correlation`) were fixed in U48. Found in U48 (E3-S3) · [U32](units/U32-docs-audit.md)
 
 #### Model workbench ([U49](units/U49-model-workbench.md))
 - [ ] **#339** `REG_GLM` fits robustly: per-row starting values (`mustart`) and step-halving on deviance increase; a distinct coded error for divergence or separation instead of `RANK_DEFICIENT`; an oracle case on the showcase's `default ~ collections_flag` against R · [U49](units/U49-model-workbench.md)

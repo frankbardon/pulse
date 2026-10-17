@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53]
 soft_depends_on: [all feature units]
 blocks: [U33]
-todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 469, 472, 473, 474]
+todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 469, 472, 473, 474, 478]
 branch: docs-audit
 ---
 
@@ -177,3 +177,9 @@ Filed from [U47](U47-survey-tables.md#handed-on); tick in [`TODO.md`](../TODO.md
 - [ ] **#472** Skill budgets after U47: `op-group-set-per-element` body 1,366 B over its 1,200 B soft atomic budget (pre-existing 1,306 B) and `crosstab-guide.md` at 5,999 / 6,000 B; trim in the docs audit. Found in U47 (E4-S5)
 - [ ] **#473** Split `.claude/reference/weighting/inference-multivariate-and-overlays.md` (32,699 / 32,768 B, at its byte ceiling) into two slices, naming both in the `weighting.md` index, before the next edit that grows it. Found in U47 (E4-S5)
 - [ ] **#474** The ontology example detector has no `cells` entry (crosstab `cells` / `capability:crosstab_cells`), so example 19 declares `_meta.capabilities` by hand; add the detector entry. Found in U47 (E4-S5)
+
+## Handed on from U48
+
+Filed from [U48](U48-experiment-readout.md#handed-on); tick in [`TODO.md`](../TODO.md) when done.
+
+- [ ] **#478** Skill `pulse_examples_search tags=[…]` pointers that no example carries (`synth` in the 14 `op-synth-*` skills, `target-encoding` / `polynomial-regression` / `train-test-split`, `survey`, `ranking` / `moving-average` / `lag-lead`); repoint them at canonical tags an example carries and gate it. Found in U48 (E3-S3)
