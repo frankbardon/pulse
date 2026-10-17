@@ -76,8 +76,8 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(experiment-readou
 
 - [x] The SRM χ² from the GOF test equals the facet-overlay result (0.76, p 0.38 on the showcase data) — `TestExperimentSRM_GOFEqualsChiSqVsPopFacet`, `TestExperimentReadout_EndToEnd`
 - [x] The CUPED-adjusted interval equals the two-step result — `TestExperimentCUPED_OracleEqualsTwoStep`
-- [ ] The A/B README quotes every lift without a sign flip (casebook PR, E3-S4)
-- [ ] Showcase examples simplified where this unit allows (A/B test readout): requests converted, README and REPRODUCE.md expected numbers refreshed, every step still pure Pulse (casebook PR, E3-S4)
+- [x] The A/B README quotes every lift without a sign flip (pulse-casebook#5)
+- [x] Showcase examples simplified where this unit allows (A/B test readout): requests converted, README and REPRODUCE.md expected numbers refreshed, every step still pure Pulse (pulse-casebook#5)
 - [x] `format_version` stays `"1.1"`; every change is additive (or the unit's decision records the one deliberate bump) — the behaviour changes are listed in the [migration guide](../v1.0.0-api-and-release/03-embedder-migration.md) "Changes from U48"
 - [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
