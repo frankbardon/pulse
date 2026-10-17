@@ -72,12 +72,12 @@ var interpretationProbes = map[string][]string{
 	"TEST_PEARSON_R":           {"details.ci_high", "details.ci_low"},
 	"TEST_PROP_Z":              {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_h", "details.p0", "details.reference"},
 	"TEST_SHAPIRO_WILK":        {"details.per_group"},
-	"TEST_T":                   {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d", "details.reference"},
+	"TEST_T":                   {"details.ci_high", "details.ci_low", "details.covariate_mean", "details.diff", "details.diff_unadjusted", "details.effect_size.cohens_d", "details.n_covariate_dropped", "details.reference", "details.theta", "details.variance_reduction"},
 	"TEST_TREND":               {"details.s", "details.tau"},
 	"TEST_TUKEY_HSD":           {"details.comparisons"},
-	"TEST_WELCH":               {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d", "details.reference"},
+	"TEST_WELCH":               {"details.ci_high", "details.ci_low", "details.covariate_mean", "details.diff", "details.diff_unadjusted", "details.effect_size.cohens_d", "details.n_covariate_dropped", "details.reference", "details.theta", "details.variance_reduction"},
 	"TEST_WILCOXON_SR":         {"details.effect_size.rank_biserial", "details.z", "details.zero_diffs"},
-	"TEST_Z_TWO_SAMPLE":        {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d", "details.reference"},
+	"TEST_Z_TWO_SAMPLE":        {"details.ci_high", "details.ci_low", "details.covariate_mean", "details.diff", "details.diff_unadjusted", "details.effect_size.cohens_d", "details.n_covariate_dropped", "details.reference", "details.theta", "details.variance_reduction"},
 }
 
 // runRegisteredRow constructs typ's row test from the registry and feeds
@@ -158,6 +158,21 @@ func referenceRow(typ types.TestType) func(t *testing.T) *types.TestResult {
 				for _, v := range g.values {
 					mustUpdate(t, rt, newTestRecord(t, schema, map[string]float64{"revenue": v}, "treatment", g.name))
 				}
+			}
+		})
+	}
+}
+
+// covariateRow runs typ with params.covariate over the CUPED fixture
+// (test_cuped_test.go), every 9th covariate null.
+func covariateRow(typ types.TestType) func(t *testing.T) *types.TestResult {
+	return func(t *testing.T) *types.TestResult {
+		schema := cupedSchema()
+		recs := cupedRecords(t, schema, cupedFixture(120, 9), nil)
+		spec := &types.Test{Type: typ, Field: "y", SplitBy: "arm", Params: json.RawMessage(`{"covariate":"x"}`)}
+		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
+			for _, r := range recs {
+				mustUpdate(t, rt, r)
 			}
 		})
 	}
@@ -307,6 +322,9 @@ var testProbeFixtures = []testProbeFixture{
 	{types.TEST_T, tierRow, "two_sample_reference", referenceRow(types.TEST_T)},
 	{types.TEST_WELCH, tierRow, "two_sample_reference", referenceRow(types.TEST_WELCH)},
 	{types.TEST_Z_TWO_SAMPLE, tierRow, "two_sample_reference", referenceRow(types.TEST_Z_TWO_SAMPLE)},
+	{types.TEST_T, tierRow, "two_sample_covariate", covariateRow(types.TEST_T)},
+	{types.TEST_WELCH, tierRow, "two_sample_covariate", covariateRow(types.TEST_WELCH)},
+	{types.TEST_Z_TWO_SAMPLE, tierRow, "two_sample_covariate", covariateRow(types.TEST_Z_TWO_SAMPLE)},
 	{types.TEST_KS, tierRow, "two_sample", groupedRow(types.TEST_KS)},
 	{types.TEST_MANN_WHITNEY_U, tierRow, "two_sample", groupedRow(types.TEST_MANN_WHITNEY_U)},
 	{types.TEST_MANN_WHITNEY_U, tierRow, "two_sample_reference", referenceRow(types.TEST_MANN_WHITNEY_U)},

@@ -26,7 +26,8 @@
 // PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL.
 //
 // It is a leaf: it imports only the public errors / encoding / types
-// packages, never internal/processing or internal/service, so
+// packages (and the stdlib-only internal/paramread, for a lenient
+// params probe), never internal/processing or internal/service, so
 // internal/descriptor may import it without breaking
 // TestPredictNoExecutionImports.
 //

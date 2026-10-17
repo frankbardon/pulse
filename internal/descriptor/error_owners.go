@@ -267,6 +267,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_TEST_P0_INVALID:               own("TEST_PROP_Z"),
 	errors.PULSE_TEST_REFERENCE_INVALID:        own("TEST_MANN_WHITNEY_U", "TEST_PROP_Z", "TEST_T", "TEST_WELCH", "TEST_Z_TWO_SAMPLE"),
 	errors.PULSE_TEST_REFERENCE_MISSING:        own("TEST_MANN_WHITNEY_U", "TEST_PROP_Z", "TEST_T", "TEST_WELCH", "TEST_Z_TWO_SAMPLE"),
+	errors.PULSE_TEST_COVARIATE_INVALID:        ownAllTests,
 	errors.PULSE_TEST_CORRELATION_UNDEFINED:    ownAllTests,
 	errors.PULSE_TEST_PAIRED_LENGTH_MISMATCH:   own("TEST_PAIRED_T", "TEST_WILCOXON_SR"),
 	errors.PULSE_TEST_TIES_DOMINATE:            ownAllTests,

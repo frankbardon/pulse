@@ -150,6 +150,14 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 	}
+	// A mean test's params.covariate (CUPED) — the constructor's refusal
+	// after params.reference (fieldaccept.CovariateRefusal). On any
+	// other test the params allowlist refused it already.
+	if tier1 && fieldaccept.TakesCovariate(t.Type) {
+		if cerr := fieldaccept.CovariateRefusal(string(t.Type), t.Field, t.SplitBy, fieldaccept.CovariateParam(t.Params), schema); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+	}
 	_ = opts
 }
 

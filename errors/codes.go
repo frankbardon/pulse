@@ -868,6 +868,17 @@ const (
 	// groups}.
 	PULSE_TEST_REFERENCE_MISSING Code = "PULSE_TEST_REFERENCE_MISSING"
 
+	// PULSE_TEST_COVARIATE_INVALID indicates a test's params.covariate
+	// (the pre-period column a mean test adjusts by, CUPED) cannot be
+	// used: the test takes no covariate (reason unsupported_test — only
+	// TEST_T two-sample, TEST_WELCH and TEST_Z_TWO_SAMPLE do), it is set
+	// without split_by (without_split_by), the column is not numeric
+	// (not_numeric) or it is the test's own field (is_field). Raised by
+	// predict and the runtime alike (internal/fieldaccept
+	// CovariateUnsupportedRefusal / CovariateRefusal); Details {type,
+	// reason, covariate, ...}.
+	PULSE_TEST_COVARIATE_INVALID Code = "PULSE_TEST_COVARIATE_INVALID"
+
 	// PULSE_TEST_CORRELATION_UNDEFINED indicates Pearson r encountered
 	// a column with zero variance; r and its t-statistic are
 	// mathematically undefined in that case.
@@ -3962,6 +3973,7 @@ var allCodes = []Code{
 	PULSE_TEST_P0_INVALID,
 	PULSE_TEST_REFERENCE_INVALID,
 	PULSE_TEST_REFERENCE_MISSING,
+	PULSE_TEST_COVARIATE_INVALID,
 	PULSE_TEST_CORRELATION_UNDEFINED,
 	PULSE_TEST_PAIRED_LENGTH_MISMATCH,
 	PULSE_TEST_TIES_DOMINATE,

@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
 	"github.com/frankbardon/pulse/internal/overlayhost"
@@ -1090,6 +1091,10 @@ func (w *fieldRefWalk) checkTest(t *types.Test, postIndex int) {
 			add(t.Field2, typ+" references unknown field2: "+t.Field2, map[string]any{"type": typ, "field2": t.Field2})
 		}
 		add(t.SplitBy, typ+" split_by references unknown field: "+t.SplitBy, map[string]any{"type": typ, "split_by": t.SplitBy})
+		if postIndex < 0 && fieldaccept.TakesCovariate(route) {
+			cov := fieldaccept.CovariateParam(t.Params)
+			add(cov, typ+": params.covariate references unknown field "+cov, map[string]any{"type": typ, "field": cov, "param": fieldaccept.CovariateKey})
+		}
 		if route == types.TEST_ANOVA_RM {
 			add(t.SubjectField, "TEST_ANOVA_RM subject_field references unknown field: "+t.SubjectField,
 				map[string]any{"type": typ, "subject_field": t.SubjectField})

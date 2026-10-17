@@ -45,6 +45,9 @@ type tTestRow struct {
 	// reference is params.reference (two-sample): the split_by level
 	// read second, so diff = other − reference ("" = alphabetical).
 	reference string
+	// cuped is the params.covariate adjustment's state (two-sample;
+	// nil without a covariate): it replaces groups as the fold target.
+	cuped *cupedArms
 
 	// groups holds per-key weighted Welford state in first-seen
 	// insertion order so Finalize can return groups deterministically.
@@ -57,15 +60,17 @@ type tTestRow struct {
 }
 
 // tTestParams is the JSON payload for TEST_T.Params. Mu is honored only
-// for the one-sample variant; Reference only for the two-sample one.
+// for the one-sample variant; Reference and Covariate (refused without
+// split_by) only for the two-sample one.
 type tTestParams struct {
 	Mu        float64 `json:"mu"`
 	Reference string  `json:"reference"`
+	Covariate string  `json:"covariate"`
 }
 
 // twoGroupParams is the params payload of a test whose only param is
-// params.reference (TEST_WELCH, TEST_Z_TWO_SAMPLE, TEST_MANN_WHITNEY_U):
-// the split_by level every signed figure is read against.
+// params.reference (TEST_MANN_WHITNEY_U): the split_by level every
+// signed figure is read against. The mean tests read meanTestParams.
 type twoGroupParams struct {
 	Reference string `json:"reference"`
 }
@@ -135,23 +140,26 @@ func newTTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		}
 	}
 	var mu float64
-	var reference string
+	var reference, covariate string
 	if spec.Type == types.TEST_T {
 		var p tTestParams
 		if err := paramread.DecodeOptional(paramread.Test, string(spec.Type), spec.Params, &p); err != nil {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				"TEST_T params: "+err.Error())
 		}
-		mu, reference = p.Mu, p.Reference
+		mu, reference, covariate = p.Mu, p.Reference, p.Covariate
 		if cerr := fieldaccept.ReferenceRefusal(string(spec.Type), spec.SplitBy, reference, schema); cerr != nil {
 			return nil, cerr
 		}
+		if cerr := fieldaccept.CovariateRefusal(string(spec.Type), spec.Field, spec.SplitBy, covariate, schema); cerr != nil {
+			return nil, cerr
+		}
 	} else {
-		ref, err := decodeTwoGroupParams(spec, schema)
+		p, err := decodeMeanTestParams(spec, schema)
 		if err != nil {
 			return nil, err
 		}
-		reference = ref
+		reference, covariate = p.Reference, p.Covariate
 	}
 	return &tTestRow{
 		spec:       spec,
@@ -161,6 +169,7 @@ func newTTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		alpha:      alpha,
 		mu:         mu,
 		reference:  reference,
+		cuped:      newCupedArms(covariate),
 		one:        spec.SplitBy == "",
 		groups:     make(map[string]*weighting.Welford),
 		testWeight: newTestWeight(spec),
@@ -184,6 +193,20 @@ func (tt *tTestRow) UpdateRow(record *Record) error {
 			return nil
 		}
 		key = s
+	}
+	if tt.cuped != nil {
+		x, ok := tt.cuped.covariateValue(record)
+		if !ok {
+			return nil
+		}
+		w, ok := tt.rowWeight(record)
+		if !ok {
+			return nil
+		}
+		if tt.cuped.add(key, x, v, w) {
+			tt.order = append(tt.order, key)
+		}
+		return nil
 	}
 	w, ok := tt.rowWeight(record)
 	if !ok {
@@ -214,6 +237,7 @@ func (tt *tTestRow) Finalize() (*types.TestResult, error) {
 func (tt *tTestRow) reset() {
 	tt.groups = make(map[string]*weighting.Welford)
 	tt.order = nil
+	tt.cuped.reset()
 }
 
 func (tt *tTestRow) finalizeOneSample() (*types.TestResult, error) {
@@ -289,6 +313,13 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 		return nil, err
 	}
 	a, b := tt.groups[keys[0]], tt.groups[keys[1]]
+	// Under params.covariate the test runs on the adjusted outcome's
+	// moments (test_cuped.go).
+	var cf *cupedFacts
+	if tt.cuped != nil {
+		adjA, adjB, f := tt.cuped.adjust(tt.cuped.groups[keys[0]], tt.cuped.groups[keys[1]])
+		a, b, cf = &adjA, &adjB, &f
+	}
 	if a.N < 2 || b.N < 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_T two-sample requires n ≥ 2 per group, got %d / %d", a.N, b.N),
@@ -340,6 +371,9 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 		},
 	}
 	noteReference(res.Details, tt.reference)
+	if cf != nil {
+		cf.note(res.Details, tt.basis, num)
+	}
 	setEffectSize(res.Details, "cohens_d", cohensDTwoSample(diff, na, va, nb, vb))
 	tt.noteGroups(res.Details, []*weighting.Welford{a, b})
 	tt.checkNEff(tt.spec, true, keys[0], a.NEff(), 2)

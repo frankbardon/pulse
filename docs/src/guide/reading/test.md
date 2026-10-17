@@ -813,6 +813,43 @@ The gap in standard-deviation units: (mean - target) / SD for one sample, (first
 - This d divides by the pooled standard deviation of the two groups, even though the test itself does not assume equal variances; when spreads differ a lot, d describes neither group exactly.
 - When the standard deviation is zero, d is undefined and the key is left out rather than reported as 0.
 
+#### `details.diff_unadjusted`
+
+Present only with params.covariate: the raw first-minus-second difference of means on the same rows; details.diff, its interval, the statistic, p, mean, variance and cohens_d are the covariate-adjusted figures.
+
+**Sign:**
+
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
+
+**Caveats:**
+
+- Cohen's d here divides by the adjusted spread, so it is larger than the raw d: compare it only with other adjusted d's.
+
+#### `details.theta`
+
+Present only with params.covariate: the slope of the outcome on the covariate pooled over both groups; each row is read as outcome - theta x (covariate - covariate_mean).
+
+**Caveats:**
+
+- Null when the covariate is constant: nothing is adjusted then. It is estimated from the same data, which standard CUPED practice ignores in the interval.
+
+#### `details.covariate_mean`
+
+Present only with params.covariate: the covariate's mean over both groups, the point the adjustment centres on.
+
+#### `details.variance_reduction`
+
+Present only with params.covariate: the share of the difference's sampling variance the covariate removed (0.6 = the interval is about 37% narrower than unadjusted).
+
+**Caveats:**
+
+- Null when theta is; below 0 means the covariate made the estimate noisier, so drop it. Use a covariate measured before assignment: one the treatment moved biases diff.
+
+#### `details.n_covariate_dropped`
+
+Present only with params.covariate: rows with an outcome and a group but a null covariate, left out of the test (n counts the rest).
+
 <a id="op-test_trend"></a>
 
 ### `TEST_TREND`
@@ -952,6 +989,43 @@ The gap between the two means in pooled-standard-deviation units; 0.5 means they
 - This d divides by the pooled standard deviation of the two groups, even though the test itself does not assume equal variances; when spreads differ a lot, d describes neither group exactly.
 - When the standard deviation is zero, d is undefined and the key is left out rather than reported as 0.
 
+#### `details.diff_unadjusted`
+
+Present only with params.covariate: the raw first-minus-second difference of means on the same rows; details.diff, its interval, the statistic, p, mean, variance and cohens_d are the covariate-adjusted figures.
+
+**Sign:**
+
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
+
+**Caveats:**
+
+- Cohen's d here divides by the adjusted spread, so it is larger than the raw d: compare it only with other adjusted d's.
+
+#### `details.theta`
+
+Present only with params.covariate: the slope of the outcome on the covariate pooled over both groups; each row is read as outcome - theta x (covariate - covariate_mean).
+
+**Caveats:**
+
+- Null when the covariate is constant: nothing is adjusted then. It is estimated from the same data, which standard CUPED practice ignores in the interval.
+
+#### `details.covariate_mean`
+
+Present only with params.covariate: the covariate's mean over both groups, the point the adjustment centres on.
+
+#### `details.variance_reduction`
+
+Present only with params.covariate: the share of the difference's sampling variance the covariate removed (0.6 = the interval is about 37% narrower than unadjusted).
+
+**Caveats:**
+
+- Null when theta is; below 0 means the covariate made the estimate noisier, so drop it. Use a covariate measured before assignment: one the treatment moved biases diff.
+
+#### `details.n_covariate_dropped`
+
+Present only with params.covariate: rows with an outcome and a group but a null covariate, left out of the test (n counts the rest).
+
 <a id="op-test_wilcoxon_sr"></a>
 
 ### `TEST_WILCOXON_SR`
@@ -1075,3 +1149,40 @@ The gap between the two means in pooled-standard-deviation units; 0.5 means they
 
 - This d divides by the pooled standard deviation of the two groups, even though the test itself does not assume equal variances; when spreads differ a lot, d describes neither group exactly.
 - When the standard deviation is zero, d is undefined and the key is left out rather than reported as 0.
+
+#### `details.diff_unadjusted`
+
+Present only with params.covariate: the raw first-minus-second difference of means on the same rows; details.diff, its interval, the statistic, p, mean, variance and cohens_d are the covariate-adjusted figures.
+
+**Sign:**
+
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
+
+**Caveats:**
+
+- Cohen's d here divides by the adjusted spread, so it is larger than the raw d: compare it only with other adjusted d's.
+
+#### `details.theta`
+
+Present only with params.covariate: the slope of the outcome on the covariate pooled over both groups; each row is read as outcome - theta x (covariate - covariate_mean).
+
+**Caveats:**
+
+- Null when the covariate is constant: nothing is adjusted then. It is estimated from the same data, which standard CUPED practice ignores in the interval.
+
+#### `details.covariate_mean`
+
+Present only with params.covariate: the covariate's mean over both groups, the point the adjustment centres on.
+
+#### `details.variance_reduction`
+
+Present only with params.covariate: the share of the difference's sampling variance the covariate removed (0.6 = the interval is about 37% narrower than unadjusted).
+
+**Caveats:**
+
+- Null when theta is; below 0 means the covariate made the estimate noisier, so drop it. Use a covariate measured before assignment: one the treatment moved biases diff.
+
+#### `details.n_covariate_dropped`
+
+Present only with params.covariate: rows with an outcome and a group but a null covariate, left out of the test (n counts the rest).

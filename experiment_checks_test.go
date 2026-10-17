@@ -161,6 +161,16 @@ func TestExperimentChecks_PredictMatchesRuntime(t *testing.T) {
 		{"spearman no field2", `{"type":"TEST_SPEARMAN_R","field":"x"}`, errors.PROCESSING_CONFIG, true},
 		{"anova rm no subject", `{"type":"TEST_ANOVA_RM","field":"x","split_by":"cat_grp"}`, errors.PROCESSING_CONFIG, true},
 		{"shapiro no field", `{"type":"TEST_SHAPIRO_WILK"}`, errors.PROCESSING_CONFIG, true},
+		// U48 E2-S2: params.covariate (CUPED) on the two-sample mean
+		// tests only; anywhere else it is one pointed refusal.
+		{"covariate on mann-whitney", `{"type":"TEST_MANN_WHITNEY_U","field":"x","split_by":"cat_grp","params":{"covariate":"y"}}`, errors.PULSE_TEST_COVARIATE_INVALID, true},
+		{"covariate on anova", `{"type":"TEST_ANOVA_F","field":"x","split_by":"cat_grp","params":{"covariate":"y"}}`, errors.PULSE_TEST_COVARIATE_INVALID, true},
+		{"covariate on prop_z", `{"type":"TEST_PROP_Z","field":"cat_flag","split_by":"cat_grp","params":{"success":"1","covariate":"y"}}`, errors.PULSE_TEST_COVARIATE_INVALID, true},
+		{"covariate on pearson", `{"type":"TEST_PEARSON_R","field":"x","field2":"y","params":{"covariate":"y"}}`, errors.PULSE_TEST_COVARIATE_INVALID, true},
+		{"covariate one-sample t", `{"type":"TEST_T","field":"x","params":{"covariate":"y"}}`, errors.PULSE_TEST_COVARIATE_INVALID, true},
+		{"covariate categorical", `{"type":"TEST_WELCH","field":"x","split_by":"pb_grp","params":{"covariate":"cat_flag"}}`, errors.PULSE_TEST_COVARIATE_INVALID, true},
+		{"covariate is the field", `{"type":"TEST_Z_TWO_SAMPLE","field":"x","split_by":"cat_grp","params":{"covariate":"x"}}`, errors.PULSE_TEST_COVARIATE_INVALID, true},
+		{"covariate unknown field", `{"type":"TEST_WELCH","field":"x","split_by":"cat_grp","params":{"covariate":"nope"}}`, errors.SERVICE_VALIDATION, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -212,8 +222,25 @@ func TestExperimentChecks_PredictMatchesRuntime(t *testing.T) {
 		}
 	}
 
+	// A post-test reads aggregated rows: params.covariate is the same
+	// pointed refusal on both sides.
+	{
+		req := decodeRequest(t, `{"groups":[{"type":"GROUP_CATEGORY","field":"cat_grp"}],"aggregations":[{"type":"AGG_SUM","field":"x","label":"m"}],"post_tests":[{"type":"TEST_ANOVA_F","field":"m","params":{"covariate":"x"}}]}`)
+		req.Cohort = &types.Cohort{Filename: cohort}
+		_, err := p.Process(ctx, req)
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_TEST_COVARIATE_INVALID {
+			t.Errorf("post-test covariate runtime: %v", err)
+		} else if env := predictEnvelope(t, p, fs, cohort, req); len(env.Errors) != 1 || env.Errors[0].Code != string(ce.Code) || env.Errors[0].Message != ce.Message {
+			t.Errorf("post-test covariate: predict %+v, runtime %s %q", env.Errors, ce.Code, ce.Message)
+		}
+	}
+
 	// The accepted forms: predict and the runtime both accept them.
 	for _, test := range []string{
+		`{"type":"TEST_WELCH","field":"x","split_by":"cat_grp","params":{"covariate":"y","reference":"0"}}`,
+		`{"type":"TEST_T","field":"x","split_by":"pb_grp","params":{"covariate":"y"}}`,
+		`{"type":"TEST_Z_TWO_SAMPLE","field":"x","split_by":"cat_grp","params":{"covariate":"y"}}`,
 		`{"type":"TEST_CHISQ","rows":"pb_flag","params":{"expected":{"0":0.5,"1":0.5}}}`,
 		`{"type":"TEST_CHISQ","rows":"cat_flag","params":{"expected":{"0":0.25,"1":0.5,"9":0.25}}}`,
 		`{"type":"TEST_PROP_Z","field":"pb_flag","params":{"success":"1","p0":0.4}}`,

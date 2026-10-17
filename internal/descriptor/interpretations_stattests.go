@@ -105,10 +105,33 @@ var interpReference = descriptor.Interpretation{
 	Means: "Present only with params.reference: the split_by level read second in details.groups, so diff, its interval, the statistic and the signed effect size read the other group minus this one.",
 }
 
+// interpCovariate reads the two-sample mean tests' params.covariate
+// (CUPED) outputs, present only when the covariate is set.
+var interpCovariate = []descriptor.Interpretation{
+	{
+		Field:   "details.diff_unadjusted",
+		Means:   "Present only with params.covariate: the raw first-minus-second difference of means on the same rows; details.diff, its interval, the statistic, p, mean, variance and cohens_d are the covariate-adjusted figures.",
+		Sign:    twoGroupSign,
+		Caveats: []string{"Cohen's d here divides by the adjusted spread, so it is larger than the raw d: compare it only with other adjusted d's."},
+	},
+	{
+		Field:   "details.theta",
+		Means:   "Present only with params.covariate: the slope of the outcome on the covariate pooled over both groups; each row is read as outcome - theta x (covariate - covariate_mean).",
+		Caveats: []string{"Null when the covariate is constant: nothing is adjusted then. It is estimated from the same data, which standard CUPED practice ignores in the interval."},
+	},
+	{Field: "details.covariate_mean", Means: "Present only with params.covariate: the covariate's mean over both groups, the point the adjustment centres on."},
+	{
+		Field:   "details.variance_reduction",
+		Means:   "Present only with params.covariate: the share of the difference's sampling variance the covariate removed (0.6 = the interval is about 37% narrower than unadjusted).",
+		Caveats: []string{"Null when theta is; below 0 means the covariate made the estimate noisier, so drop it. Use a covariate measured before assignment: one the treatment moved biases diff."},
+	},
+	{Field: "details.n_covariate_dropped", Means: "Present only with params.covariate: rows with an outcome and a group but a null covariate, left out of the test (n counts the rest)."},
+}
+
 // --- Comparing averages ----------------------------------------------
 
 var (
-	interpTestT = []descriptor.Interpretation{
+	interpTestT = append([]descriptor.Interpretation{
 		{
 			Field: "statistic",
 			Means: "t is the gap between averages measured in standard errors: the sample mean minus the target value (one-sample), " +
@@ -150,9 +173,9 @@ var (
 			},
 			Caveats: []string{cohensDPooledCaveat, cohensDOmitted},
 		}),
-	}
+	}, interpCovariate...)
 
-	interpTestWelch = []descriptor.Interpretation{
+	interpTestWelch = append([]descriptor.Interpretation{
 		{
 			Field: "statistic",
 			Means: "Welch's t: the first group's mean minus the second's, in standard errors computed from each group's own variance. " +
@@ -173,9 +196,9 @@ var (
 			Sign:    cohensDSign,
 			Caveats: []string{cohensDPooledCaveat, cohensDOmitted},
 		}),
-	}
+	}, interpCovariate...)
 
-	interpTestZTwoSample = []descriptor.Interpretation{
+	interpTestZTwoSample = append([]descriptor.Interpretation{
 		{
 			Field: "statistic",
 			Means: "z: the first group's mean minus the second's, in standard errors built from each group's sample variance, " +
@@ -196,7 +219,7 @@ var (
 			Sign:    cohensDSign,
 			Caveats: []string{cohensDPooledCaveat, cohensDOmitted},
 		}),
-	}
+	}, interpCovariate...)
 
 	interpTestPairedT = []descriptor.Interpretation{
 		{

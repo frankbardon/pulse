@@ -2689,6 +2689,7 @@ pulse/errors: const PULSE_TEMPLATE_VAR_UNKNOWN pulse/errors.Code = "PULSE_TEMPLA
 pulse/errors: const PULSE_TEST_BALANCED_DESIGN_REQUIRED pulse/errors.Code = "PULSE_TEST_BALANCED_DESIGN_REQUIRED"
 pulse/errors: const PULSE_TEST_CONTINGENCY_DEGENERATE pulse/errors.Code = "PULSE_TEST_CONTINGENCY_DEGENERATE"
 pulse/errors: const PULSE_TEST_CORRELATION_UNDEFINED pulse/errors.Code = "PULSE_TEST_CORRELATION_UNDEFINED"
+pulse/errors: const PULSE_TEST_COVARIATE_INVALID pulse/errors.Code = "PULSE_TEST_COVARIATE_INVALID"
 pulse/errors: const PULSE_TEST_EXPECTED_COUNT_TOO_LOW pulse/errors.Code = "PULSE_TEST_EXPECTED_COUNT_TOO_LOW"
 pulse/errors: const PULSE_TEST_EXPECTED_INVALID pulse/errors.Code = "PULSE_TEST_EXPECTED_INVALID"
 pulse/errors: const PULSE_TEST_EXPECTED_LABEL_MISSING pulse/errors.Code = "PULSE_TEST_EXPECTED_LABEL_MISSING"
@@ -5569,4 +5570,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 3c26a5a69b886facde84181a70ce7328e8d498d344ff48ef8317884c52ed264a
+// golden-hash: 04a1ef07130b33ed1807a335ab54dac2f585a42741e62cba9f3c37990ece6256

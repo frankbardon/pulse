@@ -1425,6 +1425,22 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_TEST_COVARIATE_INVALID: {
+		Message: "A test's params.covariate (the pre-period column a mean test adjusts by, CUPED) cannot be used: the test takes no covariate, split_by is missing, the column is not numeric, or it is the test's own field. details.reason says which.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Tests", "*", "Type"},
+				Hint:     "unsupported_test: only the two-sample mean tests take a covariate — TEST_WELCH, TEST_T with split_by, TEST_Z_TWO_SAMPLE; drop covariate on any other test.",
+				Examples: []any{"TEST_WELCH"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Tests", "*", "Params", "covariate"},
+				Hint:   "Name a numeric column measured BEFORE assignment (a pre-period value of the outcome is best), other than the test's own field; without_split_by: set split_by — the adjustment compares two groups.",
+			},
+		},
+	},
 	PULSE_TEST_P0_INVALID: {
 		Message: "TEST_PROP_Z params.p0 (the one-proportion test's hypothesised success rate) is not strictly between 0 and 1, or is set together with split_by.",
 		Fixups: []Fixup{

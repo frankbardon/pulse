@@ -31,6 +31,16 @@ var testReferenceParam = descriptor.Param{
 	Description: "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING.",
 }
 
+// testCovariateParam is the two-sample mean tests' params.covariate
+// (U48, CUPED): the pre-period column the difference of means is
+// adjusted by, one pass from per-group moments.
+var testCovariateParam = descriptor.Param{
+	Name:        "covariate",
+	Type:        "string",
+	Required:    false,
+	Description: "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test.",
+}
+
 var partitionByParam = descriptor.Param{
 	Name:        "partition_by",
 	Type:        "list",
@@ -61,6 +71,7 @@ func testCapabilities() []descriptor.TestMeta {
 				alphaParam,
 				{Name: "mu", Type: "float", Required: false, Default: 0.0, Description: "Hypothesized mean for the one-sample variant (ignored when SplitBy is set)."},
 				testReferenceParam,
+				testCovariateParam,
 			},
 			Requires: []string{"Field"},
 		},
@@ -70,7 +81,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Tier:        1,
 			Description: "Explicit two-sample Welch t-test alias; identical to TEST_T with SplitBy.",
 			Streamable:  types.TEST_WELCH.Streamable(),
-			Params:      []descriptor.Param{alphaParam, testReferenceParam},
+			Params:      []descriptor.Param{alphaParam, testReferenceParam, testCovariateParam},
 			Requires:    []string{"Field", "SplitBy"},
 		},
 		{
@@ -231,7 +242,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Tier:        1,
 			Description: "Two-sample z-test on Field means across two SplitBy groups; identical SE to TEST_WELCH but p-value via standard normal Φ.",
 			Streamable:  types.TEST_Z_TWO_SAMPLE.Streamable(),
-			Params:      []descriptor.Param{alphaParam, testReferenceParam},
+			Params:      []descriptor.Param{alphaParam, testReferenceParam, testCovariateParam},
 			Requires:    []string{"Field", "SplitBy"},
 		},
 		{
