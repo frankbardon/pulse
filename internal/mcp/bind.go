@@ -1033,7 +1033,8 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 					"required":             []string{"type"},
 					"additionalProperties": false,
 				},
-				"weight": slotWeightSchema(c),
+				"weight":       slotWeightSchema(c),
+				"multiplicity": regressionMultiplicitySchema(),
 			},
 			"required":             []string{"type", "target"},
 			"additionalProperties": true,
@@ -1266,6 +1267,21 @@ func multiplicitySchema(description string, families []types.MultiplicityFamily,
 		"properties":           props,
 		"additionalProperties": false,
 	}
+}
+
+// regressionMultiplicitySchema is a RegressionSpec's own block
+// (types.RegressionMultiplicity): the correction block plus the member
+// coefficients.
+func regressionMultiplicitySchema() map[string]any {
+	out := multiplicitySchema(
+		"Opt this regression's coefficient p-values into a multiple-comparison family (REG_OLS / REG_GLM; refused on REG_BAYES_LINEAR). Only a regression's own block makes it a member; method / family / alpha each inherit the request's when omitted. Family `request` (default) pools with the request's tests, `compose` (pulse_compose slots only) across the batch. Adds p_adjusted / significant_adjusted maps beside p_values.",
+		[]types.MultiplicityFamily{types.MultiplicityFamilyRequest, types.MultiplicityFamilyCompose}, true)
+	out["properties"].(map[string]any)["coefficients"] = map[string]any{
+		"type":        "array",
+		"description": "Member coefficients: predictor names or (intercept). Omit for every predictor (the intercept excluded).",
+		"items":       map[string]any{"type": "string"},
+	}
+	return out
 }
 
 // overlayMultiplicitySchema is an OverlaySpec's own block on the Request

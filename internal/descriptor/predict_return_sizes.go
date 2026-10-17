@@ -135,6 +135,10 @@ type returnSizeInputs struct {
 	// a resolved multiplicity family claims (their results gain the
 	// adjusted twins and the echo).
 	matrixMembers []bool
+	// regressionMembers is the resolved multiplicity plan's regression
+	// list (index-aligned with Request.Regressions): a member's result
+	// gains the adjusted twins over its coefficients and the echo.
+	regressionMembers []ResolvedMultiplicity
 	// records is the cohort's record count; recordsKnown is false when
 	// it cannot be derived from the file length.
 	records      int64
@@ -261,20 +265,28 @@ func returnSections(in returnSizeInputs) []returnSection {
 
 	if len(req.Regressions) > 0 {
 		var kids []*sizeNode
-		for _, r := range req.Regressions {
+		for i, r := range req.Regressions {
 			if r == nil {
 				continue
 			}
 			terms := int64(len(r.Predictors)) + 1
 			// A map of one entry per term (the intercept included).
-			term := func(name string) *sizeNode {
-				return leaf(name, sizeObject+terms*(sizeLabel+1+sizeNumber+1))
+			mapOf := func(name string, n int64) *sizeNode {
+				return leaf(name, sizeObject+n*(sizeLabel+1+sizeNumber+1))
 			}
-			kids = append(kids, elems(1,
+			term := func(name string) *sizeNode { return mapOf(name, terms) }
+			result := []*sizeNode{
 				leaf("name", sizeLabel), leaf("type", sizeLabel),
 				term("coefficients"), term("std_errors"), term("p_values"),
 				term("ci_lower"), term("ci_upper"), leaf("df", sizeNumber), leaf("conf_level", sizeNumber),
-				leaf("r2", sizeNumber), leaf("adj_r2", sizeNumber), leaf("n_obs", sizeNumber)))
+				leaf("r2", sizeNumber), leaf("adj_r2", sizeNumber), leaf("n_obs", sizeNumber)}
+			if i < len(in.regressionMembers) && in.regressionMembers[i].Member {
+				// One adjusted entry per member coefficient, and the echo.
+				members := int64(len(in.regressionMembers[i].Coefficients))
+				result = append(result, mapOf("p_adjusted", members), mapOf("significant_adjusted", members),
+					leaf("multiplicity", sizeHeader))
+			}
+			kids = append(kids, elems(1, result...))
 		}
 		add(key("regressions", kids...), returnSizeHeuristic)
 	}

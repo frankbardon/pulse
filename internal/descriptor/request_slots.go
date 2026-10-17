@@ -162,7 +162,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "measures", visible: capabilityGate(featCrosstabCells)},
 	},
 	reflect.TypeOf(types.Test{}):               {weightSlotGate, multiplicitySlotGate},
-	reflect.TypeOf(types.RegressionSpec{}):     {weightSlotGate, modelSaveSlotGate},
+	reflect.TypeOf(types.RegressionSpec{}):     {weightSlotGate, modelSaveSlotGate, multiplicitySlotGate},
 	reflect.TypeOf(types.FitSpec{}):            {modelSaveSlotGate},
 	reflect.TypeOf(types.MatrixSpec{}):         {weightSlotGate, multiplicitySlotGate},
 	reflect.TypeOf(types.Attribute{}):          {weightSlotGate, forEachSlotGate},
@@ -195,6 +195,12 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	// keys of the open auxiliary map, so no request on a hidden
 	// instance ever reaches them.
 	reflect.TypeOf(types.MatrixResult{}): {multiplicitySlotGate},
+	// The regression twins: the adjusted coefficient maps and the echo.
+	reflect.TypeOf(types.RegressionResult{}): {
+		multiplicitySlotGate,
+		{key: "p_adjusted", visible: capabilityGate(featMultiplicity)},
+		{key: "significant_adjusted", visible: capabilityGate(featMultiplicity)},
+	},
 	// The matrix results ride capability:matrices with the request
 	// slots that produce them; the overlay layers ride the same gate
 	// as the request `overlays` slot that produces them.
@@ -566,7 +572,8 @@ func overlayWeightRefusal(overlays []types.OverlaySpec, inst *InstanceSnapshot) 
 
 // nestedMultiplicityRefusal refuses the first `multiplicity` block set
 // inside req when inst hides capability:multiplicity, in the
-// resolver's slot order: tests, post-tests, overlays, matrices. The refusal is
+// resolver's slot order: tests, post-tests, overlays, matrices,
+// regressions. The refusal is
 // PULSE_REQUEST_UNKNOWN_FIELD at that object (details.path), valid_keys
 // over its visible keys.
 func nestedMultiplicityRefusal(req *types.Request, inst *InstanceSnapshot) *errors.CodedError {
@@ -591,6 +598,12 @@ func nestedMultiplicityRefusal(req *types.Request, inst *InstanceSnapshot) *erro
 		if req.Matrices[i].Multiplicity != nil {
 			return unknownFieldErrorAt(fmt.Sprintf("matrices[%d]", i), []string{multiplicityKey},
 				VisibleSlotKeys(&req.Matrices[i], inst))
+		}
+	}
+	for i, r := range req.Regressions {
+		if r != nil && r.Multiplicity != nil {
+			return unknownFieldErrorAt(fmt.Sprintf("regressions[%d]", i), []string{multiplicityKey},
+				VisibleSlotKeys(r, inst))
 		}
 	}
 	return nil

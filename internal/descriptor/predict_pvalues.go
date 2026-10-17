@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -35,8 +36,11 @@ var pvalueBasisRank = map[string]int{
 // GROUP_CATEGORY over a categorical or packed_bool field, else counted
 // as one (a lower bound). A MAT_CORRELATION / MAT_PARTIAL_CORRELATION
 // under params.inference contributes one per output pair (per bucket
-// when grouped). A test type or overlay kind the instance does
-// not offer (hidden or never registered) is not counted. Nil when the
+// when grouped). A REG_OLS / REG_GLM regression contributes one per
+// non-intercept predictor, corrected for the coefficients its own
+// multiplicity block claims. A test type, overlay kind or regression
+// type the instance does not offer (hidden or never registered) is not
+// counted. Nil when the
 // request emits no p-value.
 func countPValues(req *types.Request, schema *encoding.Schema, plan *MultiplicityPlan, opts *PredictOptions) *descriptor.PValueCount {
 	inst := opts.instance()
@@ -128,6 +132,37 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 				}
 			}
 		}
+	}
+	// A frequentist regression (REG_OLS, REG_GLM) carries one p-value
+	// per non-intercept predictor — the hypotheses a readout tests; the
+	// intercept's is not counted. A member regression's resolved
+	// coefficients are corrected (its own list may name the intercept)
+	// and every other predictor's p-value stays uncorrected. A Selection
+	// fit counts its candidate predictors. REG_BAYES_LINEAR emits none.
+	var regressions []ResolvedMultiplicity
+	if plan != nil {
+		regressions = plan.Regressions
+	}
+	for i, r := range req.Regressions {
+		if r == nil {
+			continue
+		}
+		routed := opRoute(inst, r.Type)
+		if _, ok := knownRegressionTypes[routed]; !ok || routed == types.REG_BAYES_LINEAR {
+			continue
+		}
+		var corrected []string
+		if member(regressions, i) {
+			corrected = regressions[i].Coefficients
+		}
+		uncorrected := 0
+		for _, p := range r.Predictors {
+			if p != regressionInterceptKey && !slices.Contains(corrected, p) {
+				uncorrected++
+			}
+		}
+		add(len(corrected), descriptor.PValueBasisExact, true)
+		add(uncorrected, descriptor.PValueBasisExact, false)
 	}
 	if out.Total == 0 {
 		return nil

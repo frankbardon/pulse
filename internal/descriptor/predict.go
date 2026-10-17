@@ -453,6 +453,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 		for _, rm := range multPlan.Matrices {
 			sizeIn.matrixMembers = append(sizeIn.matrixMembers, rm.Member)
 		}
+		sizeIn.regressionMembers = multPlan.Regressions
 	}
 	sizeIn.matrixPlans = predictMatrices(result, req, schema, extensionsFromOpts(opts), opts.Instance, blocks, buffered, matrixRecords)
 	// Instance resource limits — the rule the process pre-flight

@@ -121,3 +121,36 @@ func TestAllMultiplicityVocabularies(t *testing.T) {
 		t.Errorf("families = %s, want %s", got, want)
 	}
 }
+
+// TestRegressionMultiplicityRoundTrip: a regression without a block
+// marshals (spec and result) with no multiplicity key at all; a set block
+// survives JSON with its coefficients, and Block() hands the resolver
+// its {method, family, alpha} half (nil for an absent block).
+func TestRegressionMultiplicityRoundTrip(t *testing.T) {
+	spec := &RegressionSpec{Type: REG_OLS, Target: "y", Predictors: []string{"x"}}
+	res := &RegressionResult{Type: REG_OLS, PValues: map[string]float64{"x": 0.2}}
+	for name, v := range map[string]any{"spec": spec, "result": res} {
+		b, _ := json.Marshal(v)
+		for _, key := range []string{"multiplicity", "p_adjusted", "significant_adjusted"} {
+			if strings.Contains(string(b), key) {
+				t.Errorf("absent %s: %q reached the wire: %s", name, key, b)
+			}
+		}
+	}
+	if spec.Multiplicity.Block() != nil {
+		t.Error("an absent block has a Block()")
+	}
+	spec.Multiplicity = &RegressionMultiplicity{Method: MultiplicityMethodHolm, Family: MultiplicityFamilyCompose, Alpha: 0.1, Coefficients: []string{"x", "(intercept)"}}
+	b, _ := json.Marshal(spec)
+	var back RegressionSpec
+	if err := json.Unmarshal(b, &back); err != nil {
+		t.Fatal(err)
+	}
+	if got := back.Multiplicity; got == nil || got.Method != MultiplicityMethodHolm || got.Family != MultiplicityFamilyCompose ||
+		got.Alpha != 0.1 || strings.Join(got.Coefficients, ",") != "x,(intercept)" {
+		t.Errorf("block lost: %s -> %+v", b, got)
+	}
+	if blk := back.Multiplicity.Block(); *blk != (Multiplicity{Method: MultiplicityMethodHolm, Family: MultiplicityFamilyCompose, Alpha: 0.1}) {
+		t.Errorf("Block() = %+v", blk)
+	}
+}

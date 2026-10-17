@@ -47,8 +47,8 @@ built with a feature profile gets a narrower document:
   `capability:weighting` no per-slot `weight` is a property either (so
   `SlotWeight` and `WeightSpec` are absent), and without
   `capability:multiplicity` no `multiplicity` block is a property of any
-  root or slot (so `Multiplicity`, `MultiplicityMethod` and
-  `MultiplicityFamily` are absent);
+  root or slot (so `Multiplicity`, `RegressionMultiplicity`,
+  `MultiplicityMethod` and `MultiplicityFamily` are absent);
 - a root whose capability is not offered is absent — `ComposedRequest` /
   `ComposedResponse` (compose), `ChainRequest` / `ChainResponse`
   (process-chain), `FacetRequest` / `FacetResult` (facet),
@@ -227,7 +227,12 @@ Multiple-comparison correction adds one additive block shape,
 byte-identical to the earlier wire form and hashes identically). It rides
 as `multiplicity` on `Request`, `Test` (`tests[]` and `post_tests[]`),
 `OverlaySpec` (request and facet overlays), `MatrixSpec` (`matrices[]`),
-`ComposeOverlaySpec` and `ComposedRequest`. `method` is the closed enum
+`ComposeOverlaySpec` and `ComposedRequest`; a `RegressionSpec`
+(`regressions[]`) carries `#/$defs/RegressionMultiplicity`, the same
+three keys plus `coefficients` (an array of coefficient names). A
+member regression's `RegressionResult` gains the additive `p_adjusted`
+(number map, `null` for an undefined p), `significant_adjusted` (boolean
+map) and `multiplicity` (`AppliedMultiplicity`) beside `p_values`. `method` is the closed enum
 `MultiplicityMethod` (`none`, `bonferroni`, `holm`, `bh`, `by`) and
 `family` the closed enum `MultiplicityFamily` (`layer`, `row`, `column`,
 `request`, `compose`, `matrix`);
@@ -236,8 +241,10 @@ number in (0, 1).
 
 Each key falls through on its own: slot → request (a Compose slot: then
 the `ComposedRequest`) → the engine's `DefaultMultiplicity` → none, and an
-omitted family takes the surface default (`request` for tests, `layer`
-for overlays, `matrix` for a matrix spec). `{"method": "none"}` is the explicit opt-out. What the
+omitted family takes the surface default (`request` for tests and
+regressions, `layer` for overlays, `matrix` for a matrix spec). A
+regression joins only through its own block — an inherited one never
+reaches it — and `REG_BAYES_LINEAR` refuses any method but `none`. `{"method": "none"}` is the explicit opt-out. What the
 schema cannot say is enforced identically by `pulse predict` and the
 runtime (`PULSE_MULTIPLICITY_INVALID`): the families each surface offers
 (`row` / `column` only on a MATRIX-payload overlay kind, `compose` only

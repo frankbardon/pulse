@@ -34,7 +34,8 @@ discovery rate (the expected share of false positives among the hits),
 
 It rides on the `Request`, each `tests[]` / `post_tests[]` entry, each
 overlay spec, each `MAT_CORRELATION` / `MAT_PARTIAL_CORRELATION`
-`matrices[]` spec (where it implies `params.inference`), the
+`matrices[]` spec (where it implies `params.inference`), each
+`regressions[]` spec (with an optional `coefficients` list), the
 `ComposedRequest` and its overlay specs, and
 engine-wide as `Options.DefaultMultiplicity`. Each key falls through on
 its own: slot, request, `ComposedRequest`, engine default, none.
@@ -45,7 +46,7 @@ its own: slot, request, `ComposedRequest`, engine default, none.
 |---|---|---|
 | `layer` | one overlay layer | overlays (the overlay default) |
 | `row` / `column` | each row / column of one layer's matrix | overlays with a MATRIX payload |
-| `request` | the request's tests, post-tests and `request`-family overlays | tests (the test default), request overlays |
+| `request` | the request's tests, post-tests, `request`-family overlays and member regression coefficients | tests and regressions (their default), request overlays |
 | `compose` | every `compose` member across all slots and Compose-host layers | inside Compose |
 | `matrix` | one matrix result's distinct pairs (the upper triangle: m = k(k − 1)/2 for k members), one family per group bucket | matrix specs (the matrix default; `request` also offered) |
 
@@ -61,6 +62,17 @@ different methods are `PULSE_MULTIPLICITY_CONFLICT`. `alpha` on a test's
 own block is refused (the test's `alpha` is used), and so is an explicit
 correction on Tukey HSD, which is already family-wise and never joins a
 family.
+
+A regression joins a family only through its OWN block: a request-level
+or engine-default block never reaches a regression without one (its
+fields still fill the own block's empty ones). Its members are the
+coefficients its `coefficients` list names (a predictor or
+`(intercept)`; an unknown or repeated name is refused), by default every
+predictor that reports a p-value. A named coefficient the fit reports no
+p-value for (dropped by `selection`) stays a member with an undefined p.
+`REG_BAYES_LINEAR` emits no p-values, so a block resolving to any method
+but `none` on it is refused (`PULSE_MULTIPLICITY_INVALID`, by predict
+too).
 
 `row` and `column` build one family per row or column index of the
 layer's own matrix, purely by coordinate: a pairwise overlay's rows are
@@ -91,6 +103,10 @@ All additive, present only when a correction ran:
   `0`) beside `auxiliary.p`, in its encoding, mirrored into both
   triangles with a null diagonal, plus a `multiplicity` echo on the
   matrix result.
+- **Regressions**: `p_adjusted` (a map keyed like `p_values`, one entry
+  per member coefficient) and `significant_adjusted` (against the block's
+  `alpha`, 0.05 by default) beside `p_values`, plus a `multiplicity` echo
+  on the regression result.
 
 `m` is the number of defined p-values corrected together. An undefined
 (NaN) p is left out of `m` and shows `p_adjusted: null`. Field shapes:
@@ -112,7 +128,9 @@ All additive, present only when a correction ran:
 
 `pulse predict` applies the same rules to a request without running it
 and reports `p_values {total, uncorrected, basis, threshold}`: how many
-inferential p-values the request emits and how many no block reaches.
+inferential p-values the request emits (a `REG_OLS` / `REG_GLM`
+regression counts one per non-intercept predictor) and how many no block
+reaches.
 `threshold` is 10 (`descriptor.MultiplicityTriggerThreshold`); an
 `uncorrected` count at or above it is the cue to add a block. `basis` is
 `exact`, `dictionary` (assumes every dictionary entry of a category axis
@@ -131,6 +149,6 @@ payload schema, and predict omits `p_values`. See
 
 ## Not corrected
 
-Regression coefficient p-values are out of scope. An extension `TEST_*`
+A p-value no block claims stays raw. An extension `TEST_*`
 joins families like a built-in
 ([Extension Points](../internals/extension-points.md)).

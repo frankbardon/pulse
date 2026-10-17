@@ -4758,10 +4758,12 @@ pulse/types: type FitResult field RegressionResult.Deviance float64 "json:\"devi
 pulse/types: type FitResult field RegressionResult.Family string "json:\"family,omitempty\""
 pulse/types: type FitResult field RegressionResult.L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type FitResult field RegressionResult.Link string "json:\"link,omitempty\""
+pulse/types: type FitResult field RegressionResult.Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type FitResult field RegressionResult.NEff float64 "json:\"n_eff,omitempty\""
 pulse/types: type FitResult field RegressionResult.NObs int "json:\"n_obs,omitempty\""
 pulse/types: type FitResult field RegressionResult.Name string "json:\"name,omitempty\""
 pulse/types: type FitResult field RegressionResult.NullDeviance float64 "json:\"null_deviance,omitempty\""
+pulse/types: type FitResult field RegressionResult.PAdjusted map[string]float64 "json:\"p_adjusted,omitempty\""
 pulse/types: type FitResult field RegressionResult.PValues map[string]float64 "json:\"p_values,omitempty\""
 pulse/types: type FitResult field RegressionResult.Penalty string "json:\"penalty,omitempty\""
 pulse/types: type FitResult field RegressionResult.Prior string "json:\"prior,omitempty\""
@@ -4771,6 +4773,7 @@ pulse/types: type FitResult field RegressionResult.Resample string "json:\"resam
 pulse/types: type FitResult field RegressionResult.ResidualStdErr float64 "json:\"residual_std_err,omitempty\""
 pulse/types: type FitResult field RegressionResult.SelectedFeatures []string "json:\"selected_features,omitempty\""
 pulse/types: type FitResult field RegressionResult.Selection string "json:\"selection,omitempty\""
+pulse/types: type FitResult field RegressionResult.SignificantAdjusted map[string]bool "json:\"significant_adjusted,omitempty\""
 pulse/types: type FitResult field RegressionResult.StdErrors map[string]float64 "json:\"std_errors,omitempty\""
 pulse/types: type FitResult field RegressionResult.SumWeights float64 "json:\"sum_weights,omitempty\""
 pulse/types: type FitResult field RegressionResult.Type pulse/types.RegressionType "json:\"type\""
@@ -5240,6 +5243,12 @@ pulse/types: type RegressionCovarianceResult field Clusters int "json:\"clusters
 pulse/types: type RegressionCovarianceResult field Lags *int "json:\"lags,omitempty\""
 pulse/types: type RegressionCovarianceResult field OrderBy string "json:\"order_by,omitempty\""
 pulse/types: type RegressionCovarianceResult field Type pulse/types.CovarianceType "json:\"type\""
+pulse/types: type RegressionMultiplicity struct
+pulse/types: type RegressionMultiplicity field Alpha float64 "json:\"alpha,omitempty\""
+pulse/types: type RegressionMultiplicity field Coefficients []string "json:\"coefficients,omitempty\""
+pulse/types: type RegressionMultiplicity field Family pulse/types.MultiplicityFamily "json:\"family,omitempty\""
+pulse/types: type RegressionMultiplicity field Method pulse/types.MultiplicityMethod "json:\"method,omitempty\""
+pulse/types: type RegressionMultiplicity method (*RegressionMultiplicity) Block() *pulse/types.Multiplicity
 pulse/types: type RegressionResult struct
 pulse/types: type RegressionResult field AdjR2 float64 "json:\"adj_r2,omitempty\""
 pulse/types: type RegressionResult field Alpha float64 "json:\"alpha,omitempty\""
@@ -5259,10 +5268,12 @@ pulse/types: type RegressionResult field Deviance float64 "json:\"deviance,omite
 pulse/types: type RegressionResult field Family string "json:\"family,omitempty\""
 pulse/types: type RegressionResult field L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type RegressionResult field Link string "json:\"link,omitempty\""
+pulse/types: type RegressionResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type RegressionResult field NEff float64 "json:\"n_eff,omitempty\""
 pulse/types: type RegressionResult field NObs int "json:\"n_obs,omitempty\""
 pulse/types: type RegressionResult field Name string "json:\"name,omitempty\""
 pulse/types: type RegressionResult field NullDeviance float64 "json:\"null_deviance,omitempty\""
+pulse/types: type RegressionResult field PAdjusted map[string]float64 "json:\"p_adjusted,omitempty\""
 pulse/types: type RegressionResult field PValues map[string]float64 "json:\"p_values,omitempty\""
 pulse/types: type RegressionResult field Penalty string "json:\"penalty,omitempty\""
 pulse/types: type RegressionResult field Prior string "json:\"prior,omitempty\""
@@ -5272,6 +5283,7 @@ pulse/types: type RegressionResult field Resample string "json:\"resample,omitem
 pulse/types: type RegressionResult field ResidualStdErr float64 "json:\"residual_std_err,omitempty\""
 pulse/types: type RegressionResult field SelectedFeatures []string "json:\"selected_features,omitempty\""
 pulse/types: type RegressionResult field Selection string "json:\"selection,omitempty\""
+pulse/types: type RegressionResult field SignificantAdjusted map[string]bool "json:\"significant_adjusted,omitempty\""
 pulse/types: type RegressionResult field StdErrors map[string]float64 "json:\"std_errors,omitempty\""
 pulse/types: type RegressionResult field SumWeights float64 "json:\"sum_weights,omitempty\""
 pulse/types: type RegressionResult field Type pulse/types.RegressionType "json:\"type\""
@@ -5288,6 +5300,7 @@ pulse/types: type RegressionSpec field Family string "json:\"family,omitempty\""
 pulse/types: type RegressionSpec field L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type RegressionSpec field Link string "json:\"link,omitempty\""
 pulse/types: type RegressionSpec field MaxIters int "json:\"max_iters,omitempty\""
+pulse/types: type RegressionSpec field Multiplicity *pulse/types.RegressionMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type RegressionSpec field Name string "json:\"name,omitempty\""
 pulse/types: type RegressionSpec field Penalty string "json:\"penalty,omitempty\""
 pulse/types: type RegressionSpec field Predictors []string "json:\"predictors,omitempty\""
@@ -5556,4 +5569,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: a1586da747bd43d402f20240903c2ba1ff8c2fc1ff504edc910c9e070f5a3ff7
+// golden-hash: 3c26a5a69b886facde84181a70ce7328e8d498d344ff48ef8317884c52ed264a
