@@ -204,6 +204,60 @@ type RegressionSpec struct {
 	// slot out (it runs unweighted); a field-name string or a
 	// {field, kind} object sets the slot's own weight. See SlotWeight.
 	Weight SlotWeight `json:"weight,omitzero"`
+
+	// Multiplicity opts this regression's coefficient p-values into a
+	// multiple-comparison family (see RegressionMultiplicity). Absent
+	// means the regression joins no family — a request-level or
+	// instance-default block never reaches a regression that carries no
+	// block of its own — so a request without one is byte-identical.
+	// Gated by capability:multiplicity.
+	Multiplicity *RegressionMultiplicity `json:"multiplicity,omitempty"`
+}
+
+// RegressionMultiplicity is a regression's own multiple-comparison
+// block: the Multiplicity fields plus the coefficients that join the
+// family. Setting it is what makes the regression a member; its Method,
+// Family and Alpha each fall through on their own like any slot's
+// (slot → request → ComposedRequest → pulse.Options.
+// DefaultMultiplicity → none), the family defaulting to `request`
+// (pooled with the request's tests, post-tests, `request`-family
+// overlays and matrix specs); `compose` is offered inside Compose.
+// Alpha is the level RegressionResult.SignificantAdjusted compares
+// against (0.05 when nothing sets one). REG_BAYES_LINEAR emits no
+// p-values, so a block resolving to any method but none is refused
+// (PULSE_MULTIPLICITY_INVALID).
+type RegressionMultiplicity struct {
+	// Method is the correction procedure (MultiplicityMethod*). Empty
+	// inherits.
+	Method MultiplicityMethod `json:"method,omitempty"`
+
+	// Family is `request` (the default) or, inside Compose, `compose`.
+	// Empty inherits, then takes `request`.
+	Family MultiplicityFamily `json:"family,omitempty"`
+
+	// Alpha is the significance level SignificantAdjusted compares
+	// against, in (0, 1); zero inherits, then DefaultMultiplicityAlpha.
+	Alpha float64 `json:"alpha,omitempty"`
+
+	// Coefficients names the coefficients (keys of
+	// RegressionResult.PValues: a predictor, or "(intercept)") whose
+	// p-values join the family. Empty means every non-intercept
+	// predictor that has a p-value. A name that is neither a predictor
+	// nor "(intercept)", or a repeated name, is refused
+	// (PULSE_MULTIPLICITY_INVALID, key "coefficients"). A named
+	// coefficient the fit reports no p-value for (dropped by Selection)
+	// stays a member with an undefined p: excluded from m, its
+	// p_adjusted null.
+	Coefficients []string `json:"coefficients,omitempty"`
+}
+
+// Block returns the {method, family, alpha} half of m as a
+// Multiplicity (nil for a nil m), the shape every resolver rule reads.
+func (m *RegressionMultiplicity) Block() *Multiplicity {
+	if m == nil {
+		return nil
+	}
+	return &Multiplicity{Method: m.Method, Family: m.Family, Alpha: m.Alpha}
 }
 
 // RegressionResult is the per-spec outcome embedded in
@@ -363,6 +417,25 @@ type RegressionResult struct {
 	// p-values, intervals and Vcov came from (RegressionSpec.Covariance),
 	// "auto" lags resolved; absent on a classical fit.
 	Covariance *RegressionCovarianceResult `json:"covariance,omitempty"`
+
+	// PAdjusted maps each family-member coefficient (keyed like PValues)
+	// to its multiplicity-adjusted p-value, present only when the spec's
+	// own multiplicity block resolved to a method other than none. It
+	// rides BESIDE PValues, which never move. A member whose p-value is
+	// undefined (absent, or NaN) is excluded from the family's m and its
+	// adjusted value is null.
+	PAdjusted map[string]float64 `json:"p_adjusted,omitempty"`
+
+	// SignificantAdjusted maps each member coefficient whose adjusted
+	// p-value is defined to PAdjusted < the resolved multiplicity alpha
+	// (Multiplicity.Alpha); a member with an undefined adjusted p has no
+	// key here.
+	SignificantAdjusted map[string]bool `json:"significant_adjusted,omitempty"`
+
+	// Multiplicity echoes the correction that ran over the member
+	// coefficients: method, family, alpha, the family size m and the
+	// excluded (undefined-p) member count. Absent when none ran.
+	Multiplicity *AppliedMultiplicity `json:"multiplicity,omitempty"`
 }
 
 // Streamable reports whether a regression type can run via the

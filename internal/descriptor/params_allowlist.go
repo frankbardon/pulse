@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/strictjson"
 	"github.com/frankbardon/pulse/types"
@@ -259,6 +260,12 @@ func (c *paramsChecker) check(prefix string, i int, cat paramread.Category, op s
 	}
 	if len(unknown) == 0 {
 		return nil
+	}
+	// params.covariate on a test that does not read it is the pointed
+	// refusal naming the tests that do (the covariate adjustment would
+	// otherwise be silently absent).
+	if (cat == paramread.Test || cat == paramread.PostTest) && slices.Contains(unknown, fieldaccept.CovariateKey) {
+		return fieldaccept.CovariateUnsupportedRefusal(slotPath(prefix, i), op)
 	}
 	return strictjson.UnknownFieldErrorAliased(slotPath(prefix, i)+".params", unknown, decl.Keys, paramsAliases[paramread.Key{Category: cat, Op: op}])
 }

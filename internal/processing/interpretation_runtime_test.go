@@ -63,21 +63,21 @@ var interpretationProbes = map[string][]string{
 	"TEST_MARDIA":              {"details.kurtosis", "details.skewness"},
 	"TEST_ANOVA_RM":            {"details.dropped_subjects", "details.effect_size.partial_eta_squared"},
 	"TEST_ANOVA_WELCH":         {"details.effect_size.omega_squared"},
-	"TEST_CHISQ":               {"details.effect_size.cramers_v", "details.effect_size.phi", "details.expected_min"},
+	"TEST_CHISQ":               {"details.effect_size.cramers_v", "details.effect_size.phi", "details.expected", "details.expected_min"},
 	"TEST_HOTELLING_T2":        {"details.f"},
 	"TEST_KRUSKAL_WALLIS":      {"details.effect_size.epsilon_squared"},
-	"TEST_MANN_WHITNEY_U":      {"details.effect_size.rank_biserial", "details.z"},
+	"TEST_MANN_WHITNEY_U":      {"details.effect_size.rank_biserial", "details.reference", "details.z"},
 	"TEST_MANOVA":              {"details.f", "details.hotelling_lawley", "details.roy", "details.wilks"},
 	"TEST_PAIRED_T":            {"details.ci_high", "details.ci_low", "details.effect_size.cohens_d", "details.mean_diff"},
 	"TEST_PEARSON_R":           {"details.ci_high", "details.ci_low"},
-	"TEST_PROP_Z":              {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_h"},
+	"TEST_PROP_Z":              {"details.ci_high", "details.ci_low", "details.covariate_mean", "details.diff", "details.diff_unadjusted", "details.effect_size.cohens_h", "details.n_covariate_dropped", "details.p0", "details.reference", "details.theta", "details.variance_reduction"},
 	"TEST_SHAPIRO_WILK":        {"details.per_group"},
-	"TEST_T":                   {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d"},
+	"TEST_T":                   {"details.ci_high", "details.ci_low", "details.covariate_mean", "details.diff", "details.diff_unadjusted", "details.effect_size.cohens_d", "details.n_covariate_dropped", "details.reference", "details.theta", "details.variance_reduction"},
 	"TEST_TREND":               {"details.s", "details.tau"},
 	"TEST_TUKEY_HSD":           {"details.comparisons"},
-	"TEST_WELCH":               {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d"},
+	"TEST_WELCH":               {"details.ci_high", "details.ci_low", "details.covariate_mean", "details.diff", "details.diff_unadjusted", "details.effect_size.cohens_d", "details.n_covariate_dropped", "details.reference", "details.theta", "details.variance_reduction"},
 	"TEST_WILCOXON_SR":         {"details.effect_size.rank_biserial", "details.z", "details.zero_diffs"},
-	"TEST_Z_TWO_SAMPLE":        {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d"},
+	"TEST_Z_TWO_SAMPLE":        {"details.ci_high", "details.ci_low", "details.covariate_mean", "details.diff", "details.diff_unadjusted", "details.effect_size.cohens_d", "details.n_covariate_dropped", "details.reference", "details.theta", "details.variance_reduction"},
 }
 
 // runRegisteredRow constructs typ's row test from the registry and feeds
@@ -138,6 +138,41 @@ func groupedRow(typ types.TestType) func(t *testing.T) *types.TestResult {
 				for _, v := range g.values {
 					mustUpdate(t, rt, newTestRecord(t, schema, map[string]float64{"revenue": v}, "treatment", g.name))
 				}
+			}
+		})
+	}
+}
+
+// referenceRow is groupedRow (sleep groups "1" / "2") with
+// params.reference "1": the dictionary is seeded first, as a cohort's
+// is, so the constructor's level check sees both levels.
+func referenceRow(typ types.TestType) func(t *testing.T) *types.TestResult {
+	return func(t *testing.T) *types.TestResult {
+		schema := twoSampleFixtureSchema()
+		for _, g := range sleepGroups {
+			dictIDOrAdd(schema, "treatment", g.name)
+		}
+		spec := &types.Test{Type: typ, Field: "revenue", SplitBy: "treatment", Params: json.RawMessage(`{"reference":"1"}`)}
+		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
+			for _, g := range sleepGroups {
+				for _, v := range g.values {
+					mustUpdate(t, rt, newTestRecord(t, schema, map[string]float64{"revenue": v}, "treatment", g.name))
+				}
+			}
+		})
+	}
+}
+
+// covariateRow runs typ with params.covariate over the CUPED fixture
+// (test_cuped_test.go), every 9th covariate null.
+func covariateRow(typ types.TestType) func(t *testing.T) *types.TestResult {
+	return func(t *testing.T) *types.TestResult {
+		schema := cupedSchema()
+		recs := cupedRecords(t, schema, cupedFixture(120, 9), nil)
+		spec := &types.Test{Type: typ, Field: "y", SplitBy: "arm", Params: json.RawMessage(`{"covariate":"x"}`)}
+		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
+			for _, r := range recs {
+				mustUpdate(t, rt, r)
 			}
 		})
 	}
@@ -284,8 +319,25 @@ var testProbeFixtures = []testProbeFixture{
 	{types.TEST_T, tierRow, "two_sample", groupedRow(types.TEST_T)},
 	{types.TEST_WELCH, tierRow, "two_sample", groupedRow(types.TEST_WELCH)},
 	{types.TEST_Z_TWO_SAMPLE, tierRow, "two_sample", groupedRow(types.TEST_Z_TWO_SAMPLE)},
+	{types.TEST_T, tierRow, "two_sample_reference", referenceRow(types.TEST_T)},
+	{types.TEST_WELCH, tierRow, "two_sample_reference", referenceRow(types.TEST_WELCH)},
+	{types.TEST_Z_TWO_SAMPLE, tierRow, "two_sample_reference", referenceRow(types.TEST_Z_TWO_SAMPLE)},
+	{types.TEST_T, tierRow, "two_sample_covariate", covariateRow(types.TEST_T)},
+	{types.TEST_WELCH, tierRow, "two_sample_covariate", covariateRow(types.TEST_WELCH)},
+	{types.TEST_Z_TWO_SAMPLE, tierRow, "two_sample_covariate", covariateRow(types.TEST_Z_TWO_SAMPLE)},
+	{types.TEST_PROP_Z, tierRow, "two_proportion_covariate", func(t *testing.T) *types.TestResult {
+		schema := cwSchema()
+		recs := cwRecords(schema, cwFixture(120, "", 9), nil)
+		spec := &types.Test{Type: types.TEST_PROP_Z, Field: "conv", SplitBy: "arm", Params: json.RawMessage(`{"success":"yes","covariate":"x"}`)}
+		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
+			for _, r := range recs {
+				mustUpdate(t, rt, r)
+			}
+		})
+	}},
 	{types.TEST_KS, tierRow, "two_sample", groupedRow(types.TEST_KS)},
 	{types.TEST_MANN_WHITNEY_U, tierRow, "two_sample", groupedRow(types.TEST_MANN_WHITNEY_U)},
+	{types.TEST_MANN_WHITNEY_U, tierRow, "two_sample_reference", referenceRow(types.TEST_MANN_WHITNEY_U)},
 	{types.TEST_ANOVA_F, tierRow, "plant_growth", groupedRow(types.TEST_ANOVA_F)},
 	{types.TEST_ANOVA_WELCH, tierRow, "plant_growth", groupedRow(types.TEST_ANOVA_WELCH)},
 	{types.TEST_KRUSKAL_WALLIS, tierRow, "plant_growth", groupedRow(types.TEST_KRUSKAL_WALLIS)},
@@ -303,6 +355,17 @@ var testProbeFixtures = []testProbeFixture{
 	{types.TEST_KENDALL_TAU, tierRow, "sleep_pairs", pairedRow(types.TEST_KENDALL_TAU)},
 	{types.TEST_CHISQ, tierRow, "2x2", contingencyRow(types.TEST_CHISQ, [][]int{{90, 10}, {80, 20}})},
 	{types.TEST_CHISQ, tierRow, "2x3", contingencyRow(types.TEST_CHISQ, [][]int{{762, 327, 468}, {484, 239, 477}})},
+	{types.TEST_CHISQ, tierRow, "goodness_of_fit", func(t *testing.T) *types.TestResult {
+		schema := chiSquareFixtureSchema()
+		spec := &types.Test{Type: types.TEST_CHISQ, Rows: "kind", Params: json.RawMessage(`{"expected":{"r0":0.5,"r1":0.3,"r2":0.2}}`)}
+		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
+			for i, n := range []int{48, 33, 19} {
+				for range n {
+					mustUpdate(t, rt, chiSquareTestRecord(t, schema, []string{"r0", "r1", "r2"}[i], "c0"))
+				}
+			}
+		})
+	}},
 	{types.TEST_FISHER_EXACT, tierRow, "2x2", contingencyRow(types.TEST_FISHER_EXACT, [][]int{{1, 9}, {11, 3}})},
 	{types.TEST_SHAPIRO_WILK, tierRow, "plant_growth", oneSampleRow(types.TEST_SHAPIRO_WILK, nil)},
 	{types.TEST_PROP_Z, tierRow, "150of200_vs_170of200", func(t *testing.T) *types.TestResult {
@@ -310,6 +373,7 @@ var testProbeFixtures = []testProbeFixture{
 			{Name: "treatment", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 			{Name: "converted", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 		}}
+		dictIDOrAdd(schema, "converted", "yes") // a loaded cohort's dictionary holds the success level
 		spec := &types.Test{Type: types.TEST_PROP_Z, Field: "converted", SplitBy: "treatment", Params: json.RawMessage(`{"success":"yes"}`)}
 		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
 			for _, c := range []struct {
@@ -319,6 +383,45 @@ var testProbeFixtures = []testProbeFixture{
 				g, o := dictIDOrAdd(schema, "treatment", c.g), dictIDOrAdd(schema, "converted", c.o)
 				for range c.n {
 					mustUpdate(t, rt, NewRecord(schema, map[string]float64{"treatment": float64(g), "converted": float64(o)}))
+				}
+			}
+		})
+	}},
+	{types.TEST_PROP_Z, tierRow, "150of200_vs_170of200_reference_a", func(t *testing.T) *types.TestResult {
+		schema := &encoding.Schema{Fields: []encoding.Field{
+			{Name: "treatment", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
+			{Name: "converted", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
+		}}
+		dictIDOrAdd(schema, "treatment", "a")
+		dictIDOrAdd(schema, "treatment", "b")
+		dictIDOrAdd(schema, "converted", "yes") // a loaded cohort's dictionary holds the success level
+		spec := &types.Test{Type: types.TEST_PROP_Z, Field: "converted", SplitBy: "treatment", Params: json.RawMessage(`{"success":"yes","reference":"a"}`)}
+		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
+			for _, c := range []struct {
+				g, o string
+				n    int
+			}{{"a", "yes", 150}, {"a", "no", 50}, {"b", "yes", 170}, {"b", "no", 30}} {
+				g, o := dictIDOrAdd(schema, "treatment", c.g), dictIDOrAdd(schema, "converted", c.o)
+				for range c.n {
+					mustUpdate(t, rt, NewRecord(schema, map[string]float64{"treatment": float64(g), "converted": float64(o)}))
+				}
+			}
+		})
+	}},
+	{types.TEST_PROP_Z, tierRow, "one_proportion_120of200", func(t *testing.T) *types.TestResult {
+		schema := &encoding.Schema{Fields: []encoding.Field{
+			{Name: "converted", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
+		}}
+		dictIDOrAdd(schema, "converted", "yes") // a loaded cohort's dictionary holds the success level
+		spec := &types.Test{Type: types.TEST_PROP_Z, Field: "converted", Params: json.RawMessage(`{"success":"yes","p0":0.5}`)}
+		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
+			for _, c := range []struct {
+				o string
+				n int
+			}{{"yes", 120}, {"no", 80}} {
+				o := dictIDOrAdd(schema, "converted", c.o)
+				for range c.n {
+					mustUpdate(t, rt, NewRecord(schema, map[string]float64{"converted": float64(o)}))
 				}
 			}
 		})

@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -143,6 +144,9 @@ func vectorScalarRefusals(req *types.Request, schema *encoding.Schema, snap *Ext
 		judge(t.Field2, slot+" field2", "")
 		judge(t.SplitBy, slot+" split_by", "")
 		judge(t.SubjectField, slot+" subject_field", "")
+		if fieldaccept.TakesCovariate(opRoute(inst, t.Type)) {
+			judge(fieldaccept.CovariateParam(t.Params), slot+" params.covariate", "")
+		}
 	}
 
 	for i, reg := range req.Regressions {

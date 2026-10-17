@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
 	"github.com/frankbardon/pulse/internal/overlayhost"
@@ -1055,8 +1056,8 @@ func (w *fieldRefWalk) shadow(label string, mk func() *errors.CodedError) {
 // against the record columns, a tier-2 post-test (postIndex = its
 // slot) against the output row columns, the latter's details carrying
 // post_test_index. The slots judged per type are the ones the test
-// reads — rows/cols for TEST_CHISQ / TEST_FISHER_EXACT, field and
-// split_by for TEST_PROP_Z, otherwise field, field2 (paired /
+// reads — rows/cols for TEST_CHISQ / TEST_FISHER_EXACT, field,
+// split_by and params.covariate for TEST_PROP_Z, otherwise field, field2 (paired /
 // bivariate tests), split_by, subject_field (TEST_ANOVA_RM) and, on a
 // post-test, its order_by keys.
 func (w *fieldRefWalk) checkTest(t *types.Test, postIndex int) {
@@ -1084,12 +1085,20 @@ func (w *fieldRefWalk) checkTest(t *types.Test, postIndex int) {
 	case types.TEST_PROP_Z:
 		add(t.Field, "TEST_PROP_Z field references unknown field: "+t.Field, map[string]any{"axis": "field", "field": t.Field})
 		add(t.SplitBy, "TEST_PROP_Z split_by references unknown field: "+t.SplitBy, map[string]any{"axis": "split_by", "field": t.SplitBy})
+		if postIndex < 0 {
+			cov := fieldaccept.CovariateParam(t.Params)
+			add(cov, typ+": params.covariate references unknown field "+cov, map[string]any{"type": typ, "field": cov, "param": fieldaccept.CovariateKey})
+		}
 	default:
 		add(t.Field, typ+" references unknown field: "+t.Field, map[string]any{"type": typ, "field": t.Field})
 		if numericField2Tests[route] {
 			add(t.Field2, typ+" references unknown field2: "+t.Field2, map[string]any{"type": typ, "field2": t.Field2})
 		}
 		add(t.SplitBy, typ+" split_by references unknown field: "+t.SplitBy, map[string]any{"type": typ, "split_by": t.SplitBy})
+		if postIndex < 0 && fieldaccept.TakesCovariate(route) {
+			cov := fieldaccept.CovariateParam(t.Params)
+			add(cov, typ+": params.covariate references unknown field "+cov, map[string]any{"type": typ, "field": cov, "param": fieldaccept.CovariateKey})
+		}
 		if route == types.TEST_ANOVA_RM {
 			add(t.SubjectField, "TEST_ANOVA_RM subject_field references unknown field: "+t.SubjectField,
 				map[string]any{"type": typ, "subject_field": t.SubjectField})

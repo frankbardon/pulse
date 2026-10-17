@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/groupedtests"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -93,8 +94,16 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 	if t.Field == "" && tier1 && vectors.HasVectorInput(t) && isExtensionTestType(opts, t.Type) {
 		return
 	}
-	// Field requirement.
-	if t.Field == "" {
+	// Required slots: a built-in test's missing field / field2 /
+	// split_by / subject_field is its constructor's refusal
+	// (fieldaccept.RequiredSlotsRefusal: PROCESSING_CONFIG, message for
+	// message); a test with no tabled rule (an extension's) needs field.
+	if fieldaccept.HasRequiredSlots(t.Type, !tier1) {
+		if cerr := fieldaccept.RequiredSlotsRefusal(t.Type, !tier1, fieldaccept.TestSlotsOf(t)); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			return
+		}
+	} else if t.Field == "" {
 		env.AddError(string(errors.SERVICE_VALIDATION),
 			string(t.Type)+" requires field",
 			map[string]any{"type": string(t.Type)})
@@ -113,12 +122,8 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 		if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotField, t.Field, schema); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
-		if numericField2Tests[t.Type] {
-			if t.Field2 == "" {
-				env.AddError(string(errors.SERVICE_VALIDATION),
-					string(t.Type)+" requires field2 (second numeric column)",
-					map[string]any{"type": string(t.Type)})
-			} else if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotField2, t.Field2, schema); cerr != nil {
+		if numericField2Tests[t.Type] && t.Field2 != "" {
+			if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotField2, t.Field2, schema); cerr != nil {
 				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
 		}
@@ -127,33 +132,70 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 		if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotSplitBy, t.SplitBy, schema); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
-		if t.Type == types.TEST_ANOVA_RM {
-			if t.SubjectField == "" {
-				env.AddError(string(errors.SERVICE_VALIDATION),
-					"TEST_ANOVA_RM requires subject_field",
-					map[string]any{"type": string(t.Type)})
-			} else if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotSubject, t.SubjectField, schema); cerr != nil {
+		if t.Type == types.TEST_ANOVA_RM && t.SubjectField != "" {
+			if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotSubject, t.SubjectField, schema); cerr != nil {
 				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
+		}
+	}
+	// A two-group test's params.reference names a split_by level — the
+	// runtime constructor's refusal after its type checks (a post-test
+	// slot is judged without a schema, as the runtime judges it).
+	if fieldaccept.TakesReference(t.Type) {
+		var s *encoding.Schema
+		if tier1 {
+			s = schema
+		}
+		if cerr := fieldaccept.ReferenceRefusal(string(t.Type), t.SplitBy, referenceParam(t.Params), s); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+	}
+	// A mean test's params.covariate (CUPED) — the constructor's refusal
+	// after params.reference (fieldaccept.CovariateRefusal). On any
+	// other test the params allowlist refused it already.
+	if tier1 && fieldaccept.TakesCovariate(t.Type) {
+		if cerr := fieldaccept.CovariateRefusal(string(t.Type), t.Field, t.SplitBy, fieldaccept.CovariateParam(t.Params), schema); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 	}
 	_ = opts
 }
 
+// referenceParam returns the raw Params blob's "reference" value; ""
+// when params are absent, malformed or carry none — the runtime
+// constructor's reading (empty = alphabetical order).
+func referenceParam(raw []byte) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var params struct {
+		Reference string `json:"reference"`
+	}
+	if paramread.Probe(raw, &params) != nil {
+		return ""
+	}
+	return params.Reference
+}
+
 // validateProportionZ validates TEST_PROP_Z's unique signature: a
 // categorical outcome column (Field), a categorical split column
-// (SplitBy), and a required Params.success value. Tier-2 variants are
+// (SplitBy), and a required Params.success value. A missing field or
+// split_by is PROCESSING_CONFIG, the runtime constructor's code (and
+// every sibling test's missing-split_by refusal), message for message. Tier-2 variants are
 // not implemented for TEST_PROP_Z so the tier1 flag controls only the
 // schema-aware checks.
 func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encoding.Schema, projected map[string]bool, tier1 bool) {
 	if t.Field == "" {
-		env.AddError(string(errors.SERVICE_VALIDATION),
+		env.AddError(string(errors.PROCESSING_CONFIG),
 			"TEST_PROP_Z requires field (categorical outcome column)",
 			map[string]any{"type": string(t.Type)})
 		return
 	}
-	if t.SplitBy == "" {
-		env.AddError(string(errors.SERVICE_VALIDATION),
+	// params.p0 selects the one-proportion test, which reads no
+	// split_by (the runtime constructor's rule, P0Refusal below).
+	p0, hasP0 := p0Param(t.Params)
+	if t.SplitBy == "" && !hasP0 {
+		env.AddError(string(errors.PROCESSING_CONFIG),
 			"TEST_PROP_Z requires split_by (categorical group column)",
 			map[string]any{"type": string(t.Type)})
 	}
@@ -161,8 +203,17 @@ func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encodi
 		env.AddError(string(errors.PULSE_TEST_SUCCESS_VALUE_MISSING),
 			"TEST_PROP_Z requires params.success (the dictionary value treated as a success)",
 			map[string]any{"type": string(t.Type)})
+	} else if hasP0 {
+		if cerr := fieldaccept.P0Refusal(string(t.Type), t.SplitBy, p0); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
 	}
 	if !tier1 || schema == nil {
+		if cerr := fieldaccept.ReferenceRefusal(string(t.Type), t.SplitBy, referenceParam(t.Params), nil); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		} else if cerr := fieldaccept.CovariateRefusal(string(t.Type), t.Field, t.SplitBy, fieldaccept.CovariateParam(t.Params), nil); tier1 && cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
 		return
 	}
 	// An unknown name is FieldRefRefusals' refusal; a non-categorical
@@ -176,12 +227,23 @@ func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encodi
 		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		return
 	}
-	// A packed_bool outcome's success is "0" / "1" only — the runtime
-	// constructor's next refusal, the same coded error.
+	// success is one of the outcome's levels ("0" / "1" on a packed_bool,
+	// a dictionary entry on a categorical) — the runtime constructor's
+	// next refusal, the same coded error.
 	if success, ok := successParam(t.Params); ok {
 		if cerr := fieldaccept.SuccessLevelRefusal(string(t.Type), t.Field, success, schema); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			return
 		}
+	}
+	// params.reference names a split_by level, then params.covariate
+	// (CUPED) is usable — the constructor's last two refusals.
+	if cerr := fieldaccept.ReferenceRefusal(string(t.Type), t.SplitBy, referenceParam(t.Params), schema); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		return
+	}
+	if cerr := fieldaccept.CovariateRefusal(string(t.Type), t.Field, t.SplitBy, fieldaccept.CovariateParam(t.Params), schema); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
 }
 
@@ -193,6 +255,38 @@ func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encodi
 func hasSuccessParam(raw []byte) bool {
 	_, ok := successParam(raw)
 	return ok
+}
+
+// p0Param returns the raw Params blob's "p0" value; false when params
+// are absent, malformed or carry none (null included) — the runtime
+// constructor's reading.
+func p0Param(raw []byte) (float64, bool) {
+	if len(raw) == 0 {
+		return 0, false
+	}
+	var params struct {
+		P0 *float64 `json:"p0"`
+	}
+	if paramread.Probe(raw, &params) != nil || params.P0 == nil {
+		return 0, false
+	}
+	return *params.P0, true
+}
+
+// expectedParam returns the raw Params blob's "expected" map (TEST_CHISQ
+// goodness of fit); false when params are absent, malformed or carry
+// none (null included) — the runtime constructor's reading.
+func expectedParam(raw []byte) (map[string]float64, bool) {
+	if len(raw) == 0 {
+		return nil, false
+	}
+	var params struct {
+		Expected map[string]float64 `json:"expected"`
+	}
+	if paramread.Probe(raw, &params) != nil || params.Expected == nil {
+		return nil, false
+	}
+	return params.Expected, true
 }
 
 // successParam returns the raw Params blob's non-empty "success" value;
@@ -211,6 +305,32 @@ func successParam(raw []byte) (string, bool) {
 }
 
 func validateChiSquareFields(env *descriptor.Envelope, t *types.Test, schema *encoding.Schema, projected map[string]bool, tier1 bool) {
+	// params.expected selects TEST_CHISQ's goodness-of-fit form: rows
+	// alone, then the shared params rule (the runtime constructor's
+	// order — rows, alpha, ExpectedRefusal, the rows axis type).
+	if expected, ok := expectedParam(t.Params); ok && t.Type == types.TEST_CHISQ {
+		if t.Rows == "" {
+			env.AddError(string(errors.SERVICE_VALIDATION),
+				"TEST_CHISQ goodness of fit (params.expected) requires rows",
+				map[string]any{"rows": t.Rows})
+			return
+		}
+		var s *encoding.Schema
+		if tier1 {
+			s = schema
+		}
+		if cerr := fieldaccept.ExpectedRefusal(string(t.Type), t.Rows, t.Cols, expected, s); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			return
+		}
+		if !tier1 || schema == nil {
+			return
+		}
+		if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotRows, t.Rows, schema); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+		return
+	}
 	if t.Rows == "" || t.Cols == "" {
 		env.AddError(string(errors.SERVICE_VALIDATION),
 			"TEST_CHISQ requires rows and cols",

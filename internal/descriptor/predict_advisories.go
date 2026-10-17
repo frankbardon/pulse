@@ -35,6 +35,7 @@ var advisoryCodes = []errors.Code{
 	errors.PULSE_ADVISORY_EXTRA_PASS,
 	errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
 	errors.PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
+	errors.PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT,
 }
 
 // AdvisoryCodes returns every registered PULSE_ADVISORY_* code, in rule

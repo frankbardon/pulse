@@ -453,6 +453,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 		for _, rm := range multPlan.Matrices {
 			sizeIn.matrixMembers = append(sizeIn.matrixMembers, rm.Member)
 		}
+		sizeIn.regressionMembers = multPlan.Regressions
 	}
 	sizeIn.matrixPlans = predictMatrices(result, req, schema, extensionsFromOpts(opts), opts.Instance, blocks, buffered, matrixRecords)
 	// Instance resource limits — the rule the process pre-flight
@@ -775,8 +776,11 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		}
 	}
 
-	if len(req.Aggregations) == 0 && len(req.Matrices) == 0 {
-		reasons = append(reasons, "no aggregations: streaming path requires at least one OnlineAggregator")
+	// A request whose only per-record work is matrices, tier-1 tests or
+	// regressions streams (processing.hasStreamingWork's twin); one
+	// with none of them buffers.
+	if len(req.Aggregations) == 0 && len(req.Matrices) == 0 && len(req.Tests) == 0 && len(req.Regressions) == 0 {
+		reasons = append(reasons, "no aggregations, matrices, tests or regressions: streaming path requires per-record work")
 	}
 	for _, grp := range req.Groups {
 		if !streamableWithOverlay(opts, "grouper", string(grp.Type), opRoute(opts.instance(), grp.Type).Streamable()) {

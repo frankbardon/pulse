@@ -40,6 +40,8 @@ type mannWhitneyRow struct {
 	field   string
 	splitBy string
 	alpha   float64
+	// reference is params.reference ("" = alphabetical order).
+	reference string
 
 	values map[string]*rankSample
 	order  []string
@@ -48,13 +50,8 @@ type mannWhitneyRow struct {
 }
 
 func newMannWhitneyRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
-	if spec.Field == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_MANN_WHITNEY_U requires field")
-	}
-	if spec.SplitBy == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_MANN_WHITNEY_U requires split_by")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, false, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {
@@ -73,12 +70,17 @@ func newMannWhitneyRow(spec *types.Test, schema *encoding.Schema) (RowTest, erro
 			return nil, cerr
 		}
 	}
+	reference, err := decodeTwoGroupParams(spec, schema)
+	if err != nil {
+		return nil, err
+	}
 	return &mannWhitneyRow{
 		spec:       spec,
 		schema:     schema,
 		field:      spec.Field,
 		splitBy:    spec.SplitBy,
 		alpha:      alpha,
+		reference:  reference,
 		values:     make(map[string]*rankSample),
 		testWeight: newTestWeight(spec),
 	}, nil
@@ -120,6 +122,10 @@ func (m *mannWhitneyRow) Finalize() (*types.TestResult, error) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SPLIT_GROUPS_LT_2,
 			fmt.Sprintf("TEST_MANN_WHITNEY_U sees %d groups", len(keys))+remedyTwoGroupsFilterTo(nil),
 			map[string]any{"groups": keys, "max_allowed": 2})
+	}
+	keys, err := referenceOrder(types.TEST_MANN_WHITNEY_U, m.reference, keys)
+	if err != nil {
+		return nil, err
 	}
 	a := m.values[keys[0]]
 	b := m.values[keys[1]]
@@ -193,12 +199,12 @@ func (m *mannWhitneyRow) Finalize() (*types.TestResult, error) {
 	// The r_b expression above collapses to rB = N(N+1)/2 − rA; rewrite
 	// directly for clarity.
 	res.Details["r_b"] = N*(N+1)/2 - rA
+	noteReference(res.Details, m.reference)
 	// Signed: > 0 ⇒ groups[0] tends larger (same direction as z).
 	setEffectSize(res.Details, "rank_biserial", rankBiserialIndependent(uA, nAf, nBf))
 	m.noteGroupSums(res.Details, []float64{a.sumW, b.sumW}, []float64{a.sumWSq, b.sumWSq})
 	if tiesDominateW(ties, N) {
-		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
-			": ≥ 50% of values are tied; the asymptotic p-value is unreliable")
+		res.Warnings = append(res.Warnings, tiesDominateWarning("values"))
 	}
 	return res, nil
 }

@@ -27,6 +27,9 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 | `conf_level` | float | `0.95` | `CILower` / `CIUpper` coverage, `0<c<1`. |
 | `vcov` | bool | `false` | Adds `Vcov` + `Correlation` (`MatrixValues`, keys `(intercept)` + predictors); √diag = `StdErrors`. Unpenalized σ̂²(XᵀX)⁻¹ / ridge sandwich, N* basis. Resample: replicate covariance; selection: final refit's. `l1` / `elasticnet` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. |
 | `covariance` | object | absent | `{type, cluster, order_by, lags}` — the estimator behind `StdErrors`, `PValues`, CIs, `Vcov`. `classical` (= absent); `hc0`–`hc3`; `cluster` (CR1 on `cluster`, categorical / unsigned int, `DF` = G−1); `hac` (Newey–West, `order_by` date / datetime / numeric, `lags` int or `"auto"` = ⌊4(n/100)^(2/9)⌋). Weighted: w* rule. |
+<!-- feature: capability:multiplicity -->
+| `multiplicity` | object | absent | `{method, family, alpha, coefficients}`: the member coefficients' `PValues` (default every predictor; `(intercept)` only if listed; unknown name refused) join a correction family — `request` (default, pooled with the tests) or `compose`. Adds `PAdjusted` / `SignificantAdjusted` (vs `alpha`, 0.05) + a `Multiplicity` echo beside the raw `PValues`. Only the regression's own block opts it in (`multiplicity-correction`). |
+<!-- /feature -->
 
 `resample` / `selection` are top-level modifiers — see `op-reg-mod-resample`, `op-reg-mod-selection`.
 

@@ -38,6 +38,7 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 
 - Buffered O(n²) pair enumeration — expensive on large n; filter or pre-sample first.
 - Suits small samples and heavy ties (tau-b corrects for ties in either column).
+- ≥ 50% tied → warning `PULSE_TEST_TIES_DOMINATE`: the test then mostly compares the share of tied values, not their order; the asymptotic p is unreliable.
 - Distribution-free; no normality assumption.
 - Tier-2 variant `TEST_KENDALL_TAU/tau_b_post` runs over result columns.
 <!-- feature: MAT_CORRELATION -->

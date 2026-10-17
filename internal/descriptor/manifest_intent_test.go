@@ -30,8 +30,14 @@ var scopedManifestExceptions = map[string]float64{
 	// OVERLAY_PAIRWISE_* family; it sat at about 14.94% before significance
 	// letters gave each of the five pairwise kinds a `letters` param and
 	// part (U47 E3-S1, #327). Measured 15.10% (51,021 of 337,940 bytes)
-	// there — no other content of the scope moved.
-	IntentCompareGroups: 0.151,
+	// there — no other content of the scope moved. U48 E1-S3 gave the
+	// five two-group tests a `reference` param (the first params on
+	// TEST_WELCH / TEST_Z_TWO_SAMPLE / TEST_MANN_WHITNEY_U): measured
+	// 15.14% (51,509 of 340,329 bytes), up from 15.05%. U48 E2-S3 gave
+	// TEST_PROP_Z a `covariate` param (CUPED on the success indicator,
+	// owner-accepted feature growth): measured 15.20% (51,793 of 340,644
+	// bytes).
+	IntentCompareGroups: 0.153,
 }
 
 func compactJSON(t *testing.T, v any) []byte {

@@ -3700,6 +3700,30 @@
       ],
       "type": "object"
     },
+    "RegressionMultiplicity": {
+      "additionalProperties": false,
+      "properties": {
+        "alpha": {
+          "type": "number"
+        },
+        "coefficients": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "family": {
+          "$ref": "#/$defs/MultiplicityFamily"
+        },
+        "method": {
+          "$ref": "#/$defs/MultiplicityMethod"
+        }
+      },
+      "type": "object"
+    },
     "RegressionResult": {
       "additionalProperties": false,
       "properties": {
@@ -3805,6 +3829,9 @@
         "link": {
           "type": "string"
         },
+        "multiplicity": {
+          "$ref": "#/$defs/AppliedMultiplicity"
+        },
         "n_eff": {
           "type": [
             "number",
@@ -3822,6 +3849,15 @@
             "number",
             "null"
           ]
+        },
+        "p_adjusted": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
         },
         "p_values": {
           "additionalProperties": {
@@ -3870,6 +3906,12 @@
         },
         "selection": {
           "type": "string"
+        },
+        "significant_adjusted": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "type": "object"
         },
         "std_errors": {
           "additionalProperties": {
@@ -3930,6 +3972,9 @@
         },
         "max_iters": {
           "type": "integer"
+        },
+        "multiplicity": {
+          "$ref": "#/$defs/RegressionMultiplicity"
         },
         "name": {
           "type": "string"
@@ -5171,4 +5216,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: f1a3149ea951aaf5762e6b8f00ef9e63e290ffc256bbe48478a761b77a3d1e6e
+// golden-hash: 369a743a69977edc1b1f23ca0cd704ecbb2c5caeee87036ad433a3604e810325

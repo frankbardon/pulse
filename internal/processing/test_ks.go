@@ -39,13 +39,8 @@ type ksRow struct {
 }
 
 func newKSRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
-	if spec.Field == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_KS requires field")
-	}
-	if spec.SplitBy == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_KS requires split_by")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, false, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {

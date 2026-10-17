@@ -1,6 +1,10 @@
 package processing
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/frankbardon/pulse/errors"
+)
 
 // Rank machinery shared by the nonparametric TEST_* operators
 // (Mann-Whitney U, Wilcoxon signed-rank, Kruskal-Wallis, Spearman ρ,
@@ -113,6 +117,16 @@ func tiesDominateW(ties []float64, n float64) bool {
 		count += t
 	}
 	return count*2 >= n
+}
+
+// tiesDominateWarning is the PULSE_TEST_TIES_DOMINATE warning every
+// rank test emits; scope names what tied ("values", "|diff| values",
+// "values in at least one column"). With most values tied the ranks
+// carry little order, so the test then mostly compares the share of
+// tied values, not a shift in location or a monotone trend.
+func tiesDominateWarning(scope string) string {
+	return string(errors.PULSE_TEST_TIES_DOMINATE) + ": ≥ 50% of " + scope +
+		" are tied; the test then mostly compares the share of tied values, not their order, and the asymptotic p-value is unreliable"
 }
 
 func intsToFloats(xs []int) []float64 {

@@ -33,7 +33,7 @@
         "operator": "TEST_PROP_Z",
         "category": "test",
         "level": "basic",
-        "why": "Checks whether the rate of one outcome, such as conversion, differs between two groups. Fill in each placeholder in the draft before you run it.",
+        "why": "Checks whether the rate of one outcome, such as conversion, differs between two groups, or from a planned rate. Fill in each placeholder in the draft before you run it.",
         "bound": false,
         "request": {
           "cohort": {
@@ -257,7 +257,7 @@
         "operator": "TEST_CHISQ",
         "category": "test",
         "level": "intermediate",
-        "why": "Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated. Fill in each placeholder in the draft before you run it.",
+        "why": "Checks whether two categorical fields are associated, or whether one categorical field's counts match planned proportions. Fill in each placeholder in the draft before you run it.",
         "bound": false,
         "request": {
           "cohort": {
@@ -470,4 +470,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d225bbb1acd2a7eb2be820395dd67fab3c6e4b997831946ef887b69d190e0934
+// golden-hash: d64663993866464e132988a1d67bcbb98b6e781adff492af58b2af4f103de8ef

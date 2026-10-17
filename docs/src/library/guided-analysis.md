@@ -145,6 +145,7 @@ suggested fix. They never change execution, `valid` or `--strict`.
 |---|---|
 | `PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS` | a two-sample test splits on a field with more than two groups |
 | `PULSE_ADVISORY_MANY_TESTS` | ten or more uncorrected p-values and no `multiplicity` |
+| `PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT` | Compose only: two or more slots put ten or more p-values in all into two or more separate correction families, so no correction spans the batch; `family: "compose"` pools them |
 | `PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC` | an SPSS nominal field is averaged as a number |
 | `PULSE_ADVISORY_ORDINAL_PARAMETRIC` | a parametric test runs on an SPSS ordinal field |
 | `PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED` | the cohort names a weight variable and the request uses none |
@@ -155,7 +156,8 @@ suggested fix. They never change execution, `valid` or `--strict`.
 Silence a code for the whole instance with `Options.SuppressAdvisories`;
 an unknown code is refused at `pulse.New` with
 `PULSE_SUPPRESS_ADVISORY_UNKNOWN`. Compose and Facet predict carry
-advisories too. Facet has no test slot, so only the many-tests code can
+advisories too; Compose predict also lists each slot's `streamable`,
+`p_values` and correction `families` under `slots`. Facet has no test slot, so only the many-tests code can
 fire there.
 
 ## Over MCP and the CLI

@@ -1020,6 +1020,50 @@ type BannerSummary struct {
 	Labels []string `json:"labels,omitempty"`
 }
 
+// ComposeSlotPredict is one ComposeValidationResult.Slots entry: what
+// predict reads of one Compose slot (explicit, then sweep and banner
+// slots, in batch order) without running it.
+type ComposeSlotPredict struct {
+	// Request is the slot's index in the effective batch — the
+	// details.request every slot finding carries.
+	Request int `json:"request"`
+	// Label is the slot's resolved label (`request_<i+1>` when unset).
+	Label string `json:"label"`
+	// Streamable reports whether the slot's Process takes the streaming
+	// arm — the verdict Process predict gives the same request.
+	Streamable bool `json:"streamable"`
+	// StreamableReasons lists every gate that keeps the slot buffered.
+	StreamableReasons []string `json:"streamable_reasons,omitempty"`
+	// PValues counts the slot's p-values — tests, post-tests, Request
+	// overlays, inferential matrices and regression predictors — under
+	// the batch's resolved multiplicity, as Process predict counts them.
+	PValues *PValueCount `json:"p_values,omitempty"`
+	// Families lists the correction families the slot's corrected
+	// p-values join, in first-member order. Absent when none is
+	// corrected.
+	Families []PValueFamily `json:"families,omitempty"`
+}
+
+// PValueFamily is one correction family a Compose slot's p-values join.
+// ID names the family across the batch: `compose` is the one
+// batch-wide family; every other family is local to the slot (or
+// overlay layer, or matrix spec) that owns it, e.g.
+// `requests[0]#request`, `requests[1].overlays[0]#layer`,
+// `requests[2].matrices[0]#matrix`. Two slots whose families share an
+// ID are corrected together.
+type PValueFamily struct {
+	// ID identifies the family across the batch.
+	ID string `json:"id"`
+	// Family is the resolved family name.
+	Family types.MultiplicityFamily `json:"family"`
+	// Method is the family's resolved correction method.
+	Method types.MultiplicityMethod `json:"method"`
+	// Count is how many of the slot's p-values join the family.
+	Count int `json:"count"`
+	// Basis is how Count was derived (PValueBasis*).
+	Basis string `json:"basis"`
+}
+
 // SweepAxisSummary is one SweepSummary axis.
 type SweepAxisSummary struct {
 	// Name is the axis's placeholder name.

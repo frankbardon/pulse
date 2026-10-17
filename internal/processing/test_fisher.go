@@ -3,6 +3,7 @@ package processing
 import (
 	"fmt"
 	"math"
+	"sort"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -133,6 +134,10 @@ func (f *fisherExactRow) Finalize() (*types.TestResult, error) {
 			fmt.Sprintf("TEST_FISHER_EXACT supports 2×2 tables only; got %d×%d", len(f.rowOrd), len(f.colOrd)),
 			map[string]any{"rows": len(f.rowOrd), "cols": len(f.colOrd)})
 	}
+	// Rows and columns in byte-wise sorted order (as every other test
+	// reports its labels), never first-seen.
+	sort.Strings(f.rowOrd)
+	sort.Strings(f.colOrd)
 	// Build the 2×2 table with deterministic ordering: the Σw cells
 	// (the raw counts unweighted, where every w is 1). Frequency weights
 	// are integers, so each Σw is an exact integer (the round is a

@@ -332,10 +332,11 @@ func (s *Service) componentsGateClosed(req *types.Request) bool {
 //  1. processing.ComputePlanFor(ret): a part is computed iff the
 //     selection keeps it or something below it;
 //  2. the matrices slot and its auxiliary / scalars / vectors
-//     sub-parts, and the regressions slot, follow the selection with
-//     no veto: nothing downstream reads them (matrices are refused
-//     under joins and crosstab; neither sits in the multiplicity pool;
-//     no Compose / chain overlay reads them). A skipped regression
+//     sub-parts, and the regressions slot, follow the selection except
+//     for the multiplicity veto: a member matrix spec keeps its
+//     auxiliaries and a member regression (or one that saves a model)
+//     keeps the whole regressions slot computed, so the family's m and
+//     every kept p_adjusted are the full run's. A skipped regression
 //     fits nothing and raises no fit refusal or low-n_eff warning;
 //  3. the overlay, tests and post-tests slots follow the selection,
 //     per entry: an excluded slot still computes every entry a
@@ -398,6 +399,13 @@ func (s *Service) resolveComputePlan(ctx context.Context, req *types.Request, re
 		// A computed MATRIX_RESULT overlay reads every result's Primary:
 		// a selection that drops the matrices still computes them.
 		plan.MatricesSlot = true
+	}
+	if !plan.Regressions && anyMember(claimed.Regressions) {
+		// A member regression's coefficient p-values join a family: a
+		// selection that drops the regressions still fits them, so m and
+		// every kept p_adjusted (a pooled `request` family's tests
+		// included) match the full run.
+		plan.Regressions = true
 	}
 	if !plan.Regressions && savesModel(req) {
 		// A regression that saves a model file is fitted whatever the

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -317,8 +318,8 @@ func TestShowcase_PrivacyChiSqOnFlag(t *testing.T) {
 	p, rows := showcasePulse(t, nil)
 	_, resp := showcaseRun(t, p, "tests/36_chisq_on_flag.json")
 
-	// Labels are first-appearance ordered (categorical and flag alike);
-	// a flag's levels read "0" / "1".
+	// Labels are sorted byte-wise (categorical and flag alike; U48
+	// E1-S2 — first-appearance before); a flag's levels read "0" / "1".
 	level := func(b bool) string {
 		if b {
 			return "1"
@@ -336,6 +337,14 @@ func TestShowcase_PrivacyChiSqOnFlag(t *testing.T) {
 			ci[level(r.churned)] = len(colLabels)
 			colLabels = append(colLabels, level(r.churned))
 		}
+	}
+	sort.Strings(rowLabels)
+	sort.Strings(colLabels)
+	for i, l := range rowLabels {
+		ri[l] = i
+	}
+	for i, l := range colLabels {
+		ci[l] = i
 	}
 	obs := make([][]float64, len(rowLabels))
 	for i := range obs {

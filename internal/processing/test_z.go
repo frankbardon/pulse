@@ -31,6 +31,11 @@ type zTestRow struct {
 	field   string
 	splitBy string
 	alpha   float64
+	// reference is params.reference ("" = alphabetical order).
+	reference string
+	// cuped is the params.covariate adjustment's state (nil without a
+	// covariate): it replaces groups as the fold target.
+	cuped *cupedArms
 
 	groups map[string]*weighting.Welford
 	order  []string
@@ -40,13 +45,8 @@ type zTestRow struct {
 }
 
 func newZTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
-	if spec.Field == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_Z_TWO_SAMPLE requires field (numeric measurement column)")
-	}
-	if spec.SplitBy == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_Z_TWO_SAMPLE requires split_by (categorical two-group column)")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, false, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {
@@ -65,12 +65,18 @@ func newZTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 			return nil, cerr
 		}
 	}
+	params, err := decodeMeanTestParams(spec, schema)
+	if err != nil {
+		return nil, err
+	}
 	return &zTestRow{
 		spec:       spec,
 		schema:     schema,
 		field:      spec.Field,
 		splitBy:    spec.SplitBy,
 		alpha:      alpha,
+		reference:  params.Reference,
+		cuped:      newCupedArms(params.Covariate),
 		groups:     make(map[string]*weighting.Welford),
 		testWeight: newTestWeight(spec),
 	}, nil
@@ -83,6 +89,20 @@ func (zt *zTestRow) UpdateRow(record *Record) error {
 	}
 	key, kOk := record.LevelValue(zt.splitBy)
 	if !kOk {
+		return nil
+	}
+	if zt.cuped != nil {
+		x, ok := zt.cuped.covariateValue(record)
+		if !ok {
+			return nil
+		}
+		w, ok := zt.rowWeight(record)
+		if !ok {
+			return nil
+		}
+		if zt.cuped.add(key, x, v, w) {
+			zt.order = append(zt.order, key)
+		}
 		return nil
 	}
 	w, ok := zt.rowWeight(record)
@@ -113,7 +133,18 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 			fmt.Sprintf("TEST_Z_TWO_SAMPLE sees %d groups", len(keys))+remedyTwoGroupsOrAnova(nil),
 			map[string]any{"groups": keys, "max_allowed": 2})
 	}
+	keys, err := referenceOrder(types.TEST_Z_TWO_SAMPLE, zt.reference, keys)
+	if err != nil {
+		return nil, err
+	}
 	a, b := zt.groups[keys[0]], zt.groups[keys[1]]
+	// Under params.covariate the test runs on the adjusted outcome's
+	// moments (test_cuped.go).
+	var cf *cupedFacts
+	if zt.cuped != nil {
+		adjA, adjB, f := zt.cuped.adjust(zt.cuped.groups[keys[0]], zt.cuped.groups[keys[1]])
+		a, b, cf = &adjA, &adjB, &f
+	}
 	if a.N < 2 || b.N < 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_Z_TWO_SAMPLE requires n ≥ 2 per group, got %d / %d", a.N, b.N),
@@ -128,7 +159,8 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 	}
 	na := a.NStar(zt.basis)
 	nb := b.NStar(zt.basis)
-	se := math.Sqrt(va/na + vb/nb)
+	se2 := va/na + vb/nb
+	se := math.Sqrt(se2)
 	if se == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
 			"TEST_Z_TWO_SAMPLE: standard error is zero",
@@ -158,6 +190,11 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 			"ci_high":  ciHigh,
 		},
 	}
+	noteReference(res.Details, zt.reference)
+	if cf != nil {
+		diffRaw, seRaw2 := cf.rawWelch(zt.basis)
+		cf.note(res.Details, diffRaw, se2, seRaw2)
+	}
 	setEffectSize(res.Details, "cohens_d", cohensDTwoSample(diff, na, va, nb, vb))
 	zt.noteGroups(res.Details, []*weighting.Welford{a, b})
 	zt.checkNEff(zt.spec, true, keys[0], a.NEff(), 2)
@@ -168,4 +205,5 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 func (zt *zTestRow) reset() {
 	zt.groups = make(map[string]*weighting.Welford)
 	zt.order = nil
+	zt.cuped.reset()
 }

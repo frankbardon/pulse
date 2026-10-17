@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -46,9 +47,8 @@ type spearmanRRow struct {
 }
 
 func newSpearmanRRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
-	if spec.Field == "" || spec.Field2 == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_SPEARMAN_R requires field and field2")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, false, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {
@@ -134,8 +134,7 @@ func (s *spearmanRRow) Finalize() (*types.TestResult, error) {
 	}
 	s.noteScalar(res.Details, s.xs.sumW, s.xs.sumWSq)
 	if tiesDominateW(tiesX, nW) || tiesDominateW(tiesY, nW) {
-		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
-			": ≥ 50% of values are tied in at least one column; asymptotic p-value is unreliable")
+		res.Warnings = append(res.Warnings, tiesDominateWarning("values in at least one column"))
 	}
 	return res, nil
 }

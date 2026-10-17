@@ -1,6 +1,6 @@
 ```yaml
 name: op-test-chisq
-description: Chi-square independence test on a 2D Rows × Cols contingency table.
+description: Chi-square independence test on a 2D Rows × Cols contingency table, or goodness of fit of Rows against expected proportions.
 kind: operator
 category: TEST
 operator: TEST_CHISQ
@@ -13,7 +13,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Use when
 
-Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated.
+Checks whether two categorical fields are associated, or whether one categorical field's counts match planned proportions.
 
 Questions it answers:
 
@@ -30,22 +30,23 @@ Use something else:
 - `alpha` — float, default `0.05`, in `(0, 1)`.
 - `weight` — slot weight (`null` opts out), both kinds: table of Σw per cell. Frequency: Pearson on the Σw table. Probability: Pearson on the table scaled to n_eff — first-order Kish approximation; not Rao-Scott (`survey::svychisq`). `expected_min`, the `< 5` guard, V, φ read the scaled table; `Details` add scalar `sum_weights` (+ `n_eff`); `n` stays raw rows.
 
-Slot params: `Rows` (required, categorical or `packed_bool`), `Cols` (required, same). `Field` is ignored.
+- `expected` — object, optional: `{level: proportion}` → goodness of fit (`Variant` `goodness_of_fit`), `Cols` omitted. Each > 0, sum 1 ± 1e-9 (never renormalised), ≥ 2 labels; a listed level never observed counts as 0; an observed level not listed → `PULSE_TEST_EXPECTED_LABEL_MISSING`. Bad map / with `Cols` / `packed_bool` label ≠ `"0"`/`"1"` → `PULSE_TEST_EXPECTED_INVALID` (predict too). The SRM check: `{"control":0.5,"treatment":0.5}`.
+
+Slot params: `Rows` (required, categorical or `packed_bool`), `Cols` (required unless `expected`, same). `Field` is ignored.
 
 - `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Inputs
 
-`Rows`, `Cols` — categorical: `categorical_u8`/`u16`/`u32`, or `packed_bool` (levels named `"0"`/`"1"`; labels follow first appearance, as for any categorical); any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (rows first).
+`Rows`, `Cols` — categorical: `categorical_u8`/`u16`/`u32`, or `packed_bool` (levels named `"0"`/`"1"`; labels sorted byte-wise, as for any categorical); any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (rows first).
 
 ## Output
 
-`Statistic` = χ² (no Yates); `DF` = `(rows−1)(cols−1)`; `PValue` via χ² survival. `Details`: `contingency`, `row_labels`/`col_labels`, `row_totals`/`col_totals`, `n`, `expected_min`. `effect_size.cramers_v` = √(χ²/(n·(min(r,c)−1))); `effect_size.phi` = √(χ²/n), 2×2 only.
+`Statistic` = χ² (no Yates); `DF` = `(rows−1)(cols−1)` (goodness of fit: labels − 1); `PValue` via χ² survival. Goodness of fit `Details`: `labels` (sorted), `observed`, `expected` (counts; Σw when weighted), `expected_proportions`, `n`, `expected_min`; no effect size. `Details`: `contingency` (indexed by `row_labels`/`col_labels`, both sorted byte-wise), `row_totals`/`col_totals`, `n`, `expected_min`. `effect_size.cramers_v` = √(χ²/(n·(min(r,c)−1))); `effect_size.phi` = √(χ²/n), 2×2 only.
 
 ## Reading the output
 
-- `statistic`: Pearson's chi-square adds up, over every cell, how far the observed count is from the count expected if the two fields were unrelated. Larger values mean the table departs more from that pattern.
-- `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
+- `statistic`: Pearson's chi-square adds up, over every cell, how far the observed count is from the count expected if the two fields were unrelated. Larger values mean the table departs more from that pattern. With params.expected (Variant goodness_of_fit) the cells are the rows levels and the expected counts come from the given proportions, so it measures how far the observed mix is from the planned one.
 - `details.expected_min`: The smallest expected count across all cells.
 
 ## Gotchas

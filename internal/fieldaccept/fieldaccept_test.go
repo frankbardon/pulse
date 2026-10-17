@@ -357,13 +357,22 @@ func TestLevels(t *testing.T) {
 	}
 }
 
-// TestSuccessLevelRefusal pins TEST_PROP_Z's strict packed_bool success:
-// "0" / "1" only, refused with the valid levels in details; a
-// categorical (or unknown) outcome is never judged here.
+// TestSuccessLevelRefusal pins TEST_PROP_Z's success levels: "0" / "1"
+// only on a packed_bool, refused with the valid levels in details; an
+// exact dictionary entry on a categorical. An outcome the schema does
+// not hold (a derived column) or a categorical without a dictionary is
+// never judged here.
 func TestSuccessLevelRefusal(t *testing.T) {
+	dict := encoding.NewDictionary()
+	for _, v := range []string{"no", "yes"} {
+		if _, err := dict.Add(v); err != nil {
+			t.Fatal(err)
+		}
+	}
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "flag", Type: encoding.FieldTypePackedBool},
-		{Name: "cat", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
+		{Name: "cat", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict},
+		{Name: "nodict", Type: encoding.FieldTypeCategoricalU16},
 	}}
 	for _, tc := range []struct {
 		field, success string
@@ -371,7 +380,9 @@ func TestSuccessLevelRefusal(t *testing.T) {
 	}{
 		{"flag", "0", false}, {"flag", "1", false},
 		{"flag", "true", true}, {"flag", "false", true}, {"flag", " 1", true}, {"flag", "1.0", true},
-		{"cat", "anything", false}, {"missing", "x", false},
+		{"cat", "yes", false}, {"cat", "no", false},
+		{"cat", "Yes", true}, {"cat", "yes ", true}, {"cat", "1", true},
+		{"nodict", "anything", false}, {"missing", "x", false},
 	} {
 		cerr := SuccessLevelRefusal("TEST_PROP_Z", tc.field, tc.success, schema)
 		if (cerr != nil) != tc.refused {
@@ -383,6 +394,15 @@ func TestSuccessLevelRefusal(t *testing.T) {
 		}
 		if cerr.Code != errors.PULSE_TEST_SUCCESS_VALUE_MISSING {
 			t.Errorf("%s=%q: code %s", tc.field, tc.success, cerr.Code)
+		}
+		if cerr.Details["success"] != tc.success || cerr.Details["field"] != tc.field {
+			t.Errorf("%s=%q: details %v", tc.field, tc.success, cerr.Details)
+		}
+		if tc.field != "flag" {
+			if _, ok := cerr.Details["valid_levels"]; ok {
+				t.Errorf("%s=%q: a dictionary's levels are inspect's to list, not details'", tc.field, tc.success)
+			}
+			continue
 		}
 		if got := cerr.Details["valid_levels"]; !reflect.DeepEqual(got, []string{"0", "1"}) {
 			t.Errorf("%s=%q: valid_levels %v", tc.field, tc.success, got)

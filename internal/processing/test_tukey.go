@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
@@ -44,9 +45,8 @@ type tukeyHSDPost struct {
 }
 
 func newTukeyHSDPost(spec *types.Test, schema *encoding.Schema) (PostTest, error) {
-	if spec.Field == "" || spec.SplitBy == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_TUKEY_HSD requires field (per-group mean column) and split_by (group label column)")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, true, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {

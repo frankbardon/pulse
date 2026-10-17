@@ -63,11 +63,11 @@ func TestProcessor_OLSStreams(t *testing.T) {
 	}
 }
 
-// TestProcessor_OLSBuffered confirms that a regression-only request
-// (no aggregations) still routes through the buffered path (canStream
-// requires ≥1 aggregation), and that the buffered orchestrator also
-// fits the OLS model correctly via FitBuffered.
-func TestProcessor_OLSBuffered(t *testing.T) {
+// TestProcessor_OLSRegressionOnlyStreams confirms that a
+// regression-only request (no aggregations) streams (U48 #336: a
+// streamable regression is per-record work, no throwaway aggregation
+// needed) and fits the OLS model correctly.
+func TestProcessor_OLSRegressionOnlyStreams(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "y", Type: encoding.FieldTypeF64},
@@ -81,7 +81,7 @@ func TestProcessor_OLSBuffered(t *testing.T) {
 			"y": 3.0 + 0.5*float64(i),
 		})
 	}
-	// No aggregations → buffered path. Pair with a regression slot only.
+	// No aggregations: a regression slot only.
 	req := &types.Request{
 		Regressions: []*types.RegressionSpec{
 			{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}},
@@ -92,8 +92,8 @@ func TestProcessor_OLSBuffered(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Process: %v", err)
 	}
-	if proc.LastPath() != PathBuffered {
-		t.Errorf("LastPath = %v, want PathBuffered (regression-only forces buffered)", proc.LastPath())
+	if proc.LastPath() != PathStreaming {
+		t.Errorf("LastPath = %v, want PathStreaming (a regression-only request streams)", proc.LastPath())
 	}
 	if len(resp.Regressions) != 1 {
 		t.Fatalf("Regressions len = %d, want 1", len(resp.Regressions))
@@ -109,7 +109,8 @@ func TestProcessor_OLSBuffered(t *testing.T) {
 
 // TestProcessor_OLSStreamingMatchesBuffered fits the same dataset
 // through both orchestrator paths (streaming via the aggregation-paired
-// request, buffered via the regression-only request) and asserts the
+// request, buffered via the forced-buffered arm on the regression-only
+// request) and asserts the
 // emitted RegressionResult is identical to ~1e-10 across paths.
 func TestProcessor_OLSStreamingMatchesBuffered(t *testing.T) {
 	schema := &encoding.Schema{
@@ -147,7 +148,7 @@ func TestProcessor_OLSStreamingMatchesBuffered(t *testing.T) {
 	}
 
 	bufProc := NewProcessor(schema)
-	bufResp, err := bufProc.Process(context.Background(), bufferedReq, NewSliceIterator(records))
+	bufResp, err := processBuffered(bufProc, bufferedReq, records)
 	if err != nil {
 		t.Fatalf("buffered Process: %v", err)
 	}

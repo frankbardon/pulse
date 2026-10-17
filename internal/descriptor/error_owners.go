@@ -213,6 +213,9 @@ var errorOwners = map[errors.Code][]string{
 	// refusal is raised by pulse.New on every instance.
 	errors.PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS: own("TEST_T", "TEST_WELCH"),
 	errors.PULSE_ADVISORY_MANY_TESTS:                 own(featMultiplicity),
+	// The split-families rule reads the per-slot p-value families,
+	// which a hidden capability:multiplicity withholds.
+	errors.PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT: own(featMultiplicity),
 	// The SPSS-sidecar measure-level rules fire only on the operators
 	// that treat a field as a quantity (mean-family aggregators,
 	// parametric tests); the weight rule wraps suggested_weight, which a
@@ -262,6 +265,12 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_TEST_EXPECTED_COUNT_TOO_LOW:   ownChiSq,
 	errors.PULSE_TEST_FIELD2_NOT_NUMERIC:       own("TEST_PEARSON_R", "TEST_SPEARMAN_R", "TEST_KENDALL_TAU", "TEST_PAIRED_T", "TEST_WILCOXON_SR"),
 	errors.PULSE_TEST_SUCCESS_VALUE_MISSING:    own("TEST_PROP_Z"),
+	errors.PULSE_TEST_EXPECTED_INVALID:         own("TEST_CHISQ"),
+	errors.PULSE_TEST_EXPECTED_LABEL_MISSING:   own("TEST_CHISQ"),
+	errors.PULSE_TEST_P0_INVALID:               own("TEST_PROP_Z"),
+	errors.PULSE_TEST_REFERENCE_INVALID:        own("TEST_MANN_WHITNEY_U", "TEST_PROP_Z", "TEST_T", "TEST_WELCH", "TEST_Z_TWO_SAMPLE"),
+	errors.PULSE_TEST_REFERENCE_MISSING:        own("TEST_MANN_WHITNEY_U", "TEST_PROP_Z", "TEST_T", "TEST_WELCH", "TEST_Z_TWO_SAMPLE"),
+	errors.PULSE_TEST_COVARIATE_INVALID:        ownAllTests,
 	errors.PULSE_TEST_CORRELATION_UNDEFINED:    ownAllTests,
 	errors.PULSE_TEST_PAIRED_LENGTH_MISMATCH:   own("TEST_PAIRED_T", "TEST_WILCOXON_SR"),
 	errors.PULSE_TEST_TIES_DOMINATE:            ownAllTests,

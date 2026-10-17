@@ -6504,7 +6504,7 @@
         "name": "TEST_CHISQ",
         "family": "TEST_CHISQ",
         "tier": 1,
-        "description": "Chi-square independence test on a 2D Rows×Cols contingency table.",
+        "description": "Chi-square independence test on a 2D Rows×Cols contingency table; with params.expected and no Cols, a goodness-of-fit test of Rows' level counts against expected proportions.",
         "streamable": true,
         "params": [
           {
@@ -6514,6 +6514,12 @@
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
             "slot": true
+          },
+          {
+            "name": "expected",
+            "type": "object",
+            "required": false,
+            "description": "Goodness of fit: map of Rows level to expected proportion (each \u003e 0, summing to 1 within 1e-9; never renormalised). Selects Variant goodness_of_fit (df = labels − 1) and requires Cols absent; an observed level it omits is refused, a listed level never observed counts as 0."
           }
         ],
         "requires": [
@@ -6705,6 +6711,12 @@
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
             "slot": true
+          },
+          {
+            "name": "reference",
+            "type": "string",
+            "required": false,
+            "description": "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           }
         ],
         "requires": [
@@ -6861,7 +6873,7 @@
         "name": "TEST_PROP_Z",
         "family": "TEST_PROP_Z",
         "tier": 1,
-        "description": "Two-proportion z-test on the success rate of Field across two SplitBy groups.",
+        "description": "Two-proportion z-test on the success rate of Field across two SplitBy groups; with params.p0 and no SplitBy, a one-proportion z-test against p0.",
         "streamable": true,
         "params": [
           {
@@ -6877,6 +6889,24 @@
             "type": "string",
             "required": true,
             "description": "Dictionary value of Field treated as a success; on a packed_bool Field exactly \"1\" (true) or \"0\" (false)."
+          },
+          {
+            "name": "p0",
+            "type": "float",
+            "required": false,
+            "description": "Hypothesised success rate in (0, 1) for the one-proportion variant (Variant one_proportion); requires SplitBy absent."
+          },
+          {
+            "name": "reference",
+            "type": "string",
+            "required": false,
+            "description": "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
+          },
+          {
+            "name": "covariate",
+            "type": "string",
+            "required": false,
+            "description": "Numeric pre-period column (CUPED) adjusting the success indicator I to I − θ·(x − x̄): Variant two_proportion_adjusted, z = adjusted diff / its Wald SE; proportion, diff, its interval and cohens_h are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped. Needs SplitBy (not with p0); else, or non-numeric, PULSE_TEST_COVARIATE_INVALID."
           }
         ],
         "requires": [
@@ -6962,6 +6992,18 @@
             "required": false,
             "default": 0,
             "description": "Hypothesized mean for the one-sample variant (ignored when SplitBy is set)."
+          },
+          {
+            "name": "reference",
+            "type": "string",
+            "required": false,
+            "description": "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
+          },
+          {
+            "name": "covariate",
+            "type": "string",
+            "required": false,
+            "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test."
           }
         ],
         "requires": [
@@ -6990,6 +7032,18 @@
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
             "slot": true
+          },
+          {
+            "name": "reference",
+            "type": "string",
+            "required": false,
+            "description": "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
+          },
+          {
+            "name": "covariate",
+            "type": "string",
+            "required": false,
+            "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test."
           }
         ],
         "requires": [
@@ -7046,6 +7100,18 @@
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
             "slot": true
+          },
+          {
+            "name": "reference",
+            "type": "string",
+            "required": false,
+            "description": "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
+          },
+          {
+            "name": "covariate",
+            "type": "string",
+            "required": false,
+            "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test."
           }
         ],
         "requires": [
@@ -9712,7 +9778,7 @@
         ]
       }
     ],
-    "error_codes_count": 378,
+    "error_codes_count": 385,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9750,6 +9816,7 @@
       "PROCESSING_STATE",
       "PROCESSING_VECTOR_LENGTH_MISMATCH",
       "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC",
+      "PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT",
       "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED",
       "PULSE_ADVISORY_EXTRA_PASS",
       "PULSE_ADVISORY_MANY_TESTS",
@@ -10058,14 +10125,20 @@
       "PULSE_TEST_BALANCED_DESIGN_REQUIRED",
       "PULSE_TEST_CONTINGENCY_DEGENERATE",
       "PULSE_TEST_CORRELATION_UNDEFINED",
+      "PULSE_TEST_COVARIATE_INVALID",
       "PULSE_TEST_EXPECTED_COUNT_TOO_LOW",
+      "PULSE_TEST_EXPECTED_INVALID",
+      "PULSE_TEST_EXPECTED_LABEL_MISSING",
       "PULSE_TEST_FIELD2_NOT_NUMERIC",
       "PULSE_TEST_FIELD_NOT_NUMERIC",
       "PULSE_TEST_FISHER_R_OR_C_GT_2",
       "PULSE_TEST_INSUFFICIENT_N",
       "PULSE_TEST_INVALID_ALPHA",
+      "PULSE_TEST_P0_INVALID",
       "PULSE_TEST_PAIRED_LENGTH_MISMATCH",
       "PULSE_TEST_PARTITION_INVALID",
+      "PULSE_TEST_REFERENCE_INVALID",
+      "PULSE_TEST_REFERENCE_MISSING",
       "PULSE_TEST_SHAPIRO_N_BOUND",
       "PULSE_TEST_SPLIT_GROUPS_LT_2",
       "PULSE_TEST_SUBJECT_MISSING",
@@ -12370,7 +12443,7 @@
       },
       {
         "name": "op-test-chisq",
-        "description": "Chi-square independence test on a 2D Rows × Cols contingency table."
+        "description": "Chi-square independence test on a 2D Rows × Cols contingency table, or goodness of fit of Rows against expected proportions."
       },
       {
         "name": "op-test-fisher-exact",
@@ -12414,7 +12487,7 @@
       },
       {
         "name": "op-test-prop-z",
-        "description": "Two-proportion z-test on the success rate of Field across two SplitBy groups; streamable via success / total counts."
+        "description": "Two-proportion z-test on the success rate of Field across two SplitBy groups, or one-proportion against params.p0; streamable via success / total counts."
       },
       {
         "name": "op-test-shapiro-wilk",
@@ -12502,7 +12575,7 @@
       },
       {
         "name": "predict-advisories",
-        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
+        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
       },
       {
         "name": "process-chain",
@@ -18623,4 +18696,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 07781d33077a27824989e0191092b336014d189ccd2bf9fddfe485ee4244043d
+// golden-hash: a7589fddb0515068dcb19e3dfe3cf129588c54adff86cfe39f601649acfadc4e

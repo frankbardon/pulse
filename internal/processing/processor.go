@@ -355,6 +355,16 @@ func hasTwoPassAttribute(req *types.Request, schema *encoding.Schema, exts *Exte
 	return false
 }
 
+// hasStreamingWork reports whether req carries a slot the streaming
+// paths fold per record: an aggregation, a matrix, a tier-1 test or a
+// regression. A request with none (empty, filters / attributes /
+// features only) routes buffered. Predict's computeStreamable carries
+// the same rule (TestPredict_Streamable_NoAggregationWork).
+func hasStreamingWork(req *types.Request) bool {
+	return len(req.Aggregations) > 0 || len(req.Matrices) > 0 ||
+		len(req.Tests) > 0 || len(req.Regressions) > 0
+}
+
 // canStream reports whether the request can be safely executed via the
 // streaming path. Every per-operator streamability fact below is read
 // through ExtensionRegistry.IsStreamable: a built-in answers from its
@@ -378,6 +388,8 @@ func hasTwoPassAttribute(req *types.Request, schema *encoding.Schema, exts *Exte
 //   - tier-1 tests: empty, OR every test streamable AND registered
 //     AND no groupers / features / two-pass attributes (those
 //     combinations are not yet wired through the streaming paths)
+//   - at least one per-record slot (hasStreamingWork): an aggregation,
+//     a matrix, a tier-1 test or a regression
 //
 // Tier-2 tests (req.PostTests) never affect streamability — they run
 // after `data` is materialized regardless of which path produced it.
@@ -483,11 +495,14 @@ func (p *Processor) canStream(req *types.Request) bool {
 	if len(req.Features) > 0 && !feature.IsStreamableWithExt(req.Features, p.schema, p.exts.LookupFeature) {
 		return false
 	}
-	if len(req.Aggregations) == 0 && len(req.Matrices) == 0 {
-		// No aggregations: buffered path produces the same empty data
-		// payload and exposes the same error surface (e.g., when a
-		// downstream component validates against the materialized set).
-		// A matrix-only request streams: both paths emit no data row.
+	if !hasStreamingWork(req) {
+		// Nothing folds per record: the buffered path produces the same
+		// empty data payload and exposes the same error surface (e.g.,
+		// when a downstream component validates against the
+		// materialized set). A request whose only work is matrices,
+		// tier-1 tests or regressions streams: both paths emit no data
+		// row and fold the same records (the gates above refused every
+		// buffered-only test, regression or combination).
 		return false
 	}
 	for _, agg := range req.Aggregations {

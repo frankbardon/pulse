@@ -215,11 +215,11 @@ Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
 ### `TEST_CHISQ`
 
-Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated. See its [catalog entry](../catalog/test.md#op-test_chisq).
+Checks whether two categorical fields are associated, or whether one categorical field's counts match planned proportions. See its [catalog entry](../catalog/test.md#op-test_chisq).
 
 #### `statistic`
 
-Pearson's chi-square adds up, over every cell, how far the observed count is from the count expected if the two fields were unrelated. Larger values mean the table departs more from that pattern.
+Pearson's chi-square adds up, over every cell, how far the observed count is from the count expected if the two fields were unrelated. Larger values mean the table departs more from that pattern. With params.expected (Variant goodness_of_fit) the cells are the rows levels and the expected counts come from the given proportions, so it measures how far the observed mix is from the planned one.
 
 **Caveats:**
 
@@ -237,6 +237,14 @@ The smallest expected count across all cells.
 **Caveats:**
 
 - Below 5 the chi-square approximation becomes unreliable (Pulse also warns); for a 2x2 table use TEST_FISHER_EXACT instead.
+
+#### `details.expected`
+
+Goodness of fit only: the count each level in details.labels should have under params.expected (total times its proportion), beside details.observed.
+
+**Caveats:**
+
+- A level listed in params.expected that the data never shows still counts, with observed 0.
 
 #### `details.effect_size.cramers_v`
 
@@ -286,7 +294,7 @@ The sample odds ratio (a*d)/(b*c) of the 2x2 table in details.contingency, also 
 **Caveats:**
 
 - Bands apply to max(OR, 1/OR), so an odds ratio of 0.25 reads like one of 4.
-- Rows and columns follow the order values were first seen (details.row_labels / col_labels), so the ratio can come out inverted from what you expect: check the labels.
+- Rows and columns are sorted alphabetically (details.row_labels / col_labels), so the ratio can come out inverted from what you expect: check the labels.
 - A zero in b or c gives an infinite ratio and a zero in a or d gives 0; with zero cells read the p-value and the table, not the ratio.
 - This is the plain cross-product ratio, not the conditional estimate R's fisher.test reports, so the two differ slightly.
 
@@ -409,14 +417,18 @@ U counts, over every pair of rows from the two groups, how often one group's val
 
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
+#### `details.reference`
+
+Present only with params.reference: the split_by level read second in details.groups, so diff, its interval, the statistic and the signed effect size read the other group minus this one.
+
 #### `details.z`
 
 The normal score the p-value is read from, with a continuity correction of one half.
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
 
 **Caveats:**
 
@@ -428,8 +440,8 @@ Rank-biserial correlation, from -1 to +1: the chance that a random row from the 
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
 
 **Caveats:**
 
@@ -607,16 +619,16 @@ Upper end of the confidence interval for r at the 1 - alpha level (95% by defaul
 
 ### `TEST_PROP_Z`
 
-Checks whether the rate of one outcome, such as conversion, differs between two groups. See its [catalog entry](../catalog/test.md#op-test_prop_z).
+Checks whether the rate of one outcome, such as conversion, differs between two groups, or from a planned rate. See its [catalog entry](../catalog/test.md#op-test_prop_z).
 
 #### `statistic`
 
-z: the first group's success rate minus the second's, in standard errors computed from the pooled rate. Values far from 0 in either direction are unlikely if the true rates are equal.
+z: the first group's success rate minus the second's, in standard errors computed from the pooled rate. Values far from 0 in either direction are unlikely if the true rates are equal. With params.p0 (Variant one_proportion) it is the observed rate minus p0, in standard errors computed from p0.
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups is higher (alphabetical; with params.reference, the non-reference group); one-proportion: the observed rate is above p0
+- `-`: the second group in details.groups is higher (alphabetical; with params.reference, the reference); one-proportion: the observed rate is below p0
 
 **Caveats:**
 
@@ -626,14 +638,22 @@ z: the first group's success rate minus the second's, in standard errors compute
 
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
+#### `details.reference`
+
+Present only with params.reference: the split_by level read second in details.groups, so diff, its interval, the statistic and the signed effect size read the other group minus this one.
+
 #### `details.diff`
 
-The first group's success rate minus the second's, as a proportion (0.05 = 5 percentage points).
+The first group's success rate minus the second's (one-proportion: the observed rate minus details.p0), as a proportion (0.05 = 5 percentage points).
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups is higher (alphabetical; with params.reference, the non-reference group); one-proportion: the observed rate is above p0
+- `-`: the second group in details.groups is higher (alphabetical; with params.reference, the reference); one-proportion: the observed rate is below p0
+
+#### `details.p0`
+
+One-proportion only: the hypothesised success rate the observed rate is tested against.
 
 #### `details.ci_low`
 
@@ -650,7 +670,7 @@ Upper end of the confidence interval for details.diff.
 
 #### `details.effect_size.cohens_h`
 
-Cohen's h, the gap between the two rates on an arcsine scale that treats a change from 0.01 to 0.05 as larger than one from 0.45 to 0.49.
+Cohen's h, the gap between the two rates (one-proportion: the observed rate and p0) on an arcsine scale that treats a change from 0.01 to 0.05 as larger than one from 0.45 to 0.49.
 
 **Bands** (convention: Cohen (1988); a labelled convention, not a rule):
 
@@ -663,12 +683,49 @@ Cohen's h, the gap between the two rates on an arcsine scale that treats a chang
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups is higher (alphabetical; with params.reference, the non-reference group); one-proportion: the observed rate is above p0
+- `-`: the second group in details.groups is higher (alphabetical; with params.reference, the reference); one-proportion: the observed rate is below p0
 
 **Caveats:**
 
 - Cohen's 0.2 / 0.5 / 0.8 benchmarks for h are the same as for d, applied to |h|.
+
+#### `details.diff_unadjusted`
+
+Present only with params.covariate: the raw first-minus-second difference of success rates on the same rows; details.diff, its interval, the statistic (a Wald z, Variant two_proportion_adjusted), p, proportion and cohens_h are the covariate-adjusted figures.
+
+**Sign:**
+
+- `+`: the first group in details.groups is higher (alphabetical; with params.reference, the non-reference group); one-proportion: the observed rate is above p0
+- `-`: the second group in details.groups is higher (alphabetical; with params.reference, the reference); one-proportion: the observed rate is below p0
+
+**Caveats:**
+
+- An adjusted rate can leave [0, 1] in a small group; cohens_h is then omitted.
+
+#### `details.theta`
+
+Present only with params.covariate: the slope of the outcome on the covariate pooled over both groups; each row is read as outcome - theta x (covariate - covariate_mean).
+
+**Caveats:**
+
+- Null when the covariate is constant: nothing is adjusted then. It is estimated from the same data, which standard CUPED practice ignores in the interval.
+
+#### `details.covariate_mean`
+
+Present only with params.covariate: the covariate's mean over both groups, the point the adjustment centres on.
+
+#### `details.variance_reduction`
+
+Present only with params.covariate: the share of the difference's sampling variance the covariate removed (0.6 = the interval is about 37% narrower than unadjusted).
+
+**Caveats:**
+
+- Null when theta is; below 0 means the covariate made the estimate noisier, so drop it. Use a covariate measured before assignment: one the treatment moved biases diff.
+
+#### `details.n_covariate_dropped`
+
+Present only with params.covariate: rows with an outcome and a group but a null covariate, left out of the test (n counts the rest).
 
 <a id="op-test_shapiro_wilk"></a>
 
@@ -745,14 +802,18 @@ t is the gap between averages measured in standard errors: the sample mean minus
 
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
+#### `details.reference`
+
+Present only with params.reference: the split_by level read second in details.groups, so diff, its interval, the statistic and the signed effect size read the other group minus this one.
+
 #### `details.diff`
 
 Two-sample only: the first group's mean minus the second's, in the field's own units.
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
 
 #### `details.ci_low`
 
@@ -788,6 +849,43 @@ The gap in standard-deviation units: (mean - target) / SD for one sample, (first
 
 - This d divides by the pooled standard deviation of the two groups, even though the test itself does not assume equal variances; when spreads differ a lot, d describes neither group exactly.
 - When the standard deviation is zero, d is undefined and the key is left out rather than reported as 0.
+
+#### `details.diff_unadjusted`
+
+Present only with params.covariate: the raw first-minus-second difference of means on the same rows; details.diff, its interval, the statistic, p, mean, variance and cohens_d are the covariate-adjusted figures.
+
+**Sign:**
+
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
+
+**Caveats:**
+
+- Cohen's d here divides by the adjusted spread, so it is larger than the raw d: compare it only with other adjusted d's.
+
+#### `details.theta`
+
+Present only with params.covariate: the slope of the outcome on the covariate pooled over both groups; each row is read as outcome - theta x (covariate - covariate_mean).
+
+**Caveats:**
+
+- Null when the covariate is constant: nothing is adjusted then. It is estimated from the same data, which standard CUPED practice ignores in the interval.
+
+#### `details.covariate_mean`
+
+Present only with params.covariate: the covariate's mean over both groups, the point the adjustment centres on.
+
+#### `details.variance_reduction`
+
+Present only with params.covariate: the share of the difference's sampling variance the covariate removed (0.6 = the interval is about 37% narrower than unadjusted).
+
+**Caveats:**
+
+- Null when theta is; below 0 means the covariate made the estimate noisier, so drop it. Use a covariate measured before assignment: one the treatment moved biases diff.
+
+#### `details.n_covariate_dropped`
+
+Present only with params.covariate: rows with an outcome and a group but a null covariate, left out of the test (n counts the rest).
 
 <a id="op-test_trend"></a>
 
@@ -869,8 +967,8 @@ Welch's t: the first group's mean minus the second's, in standard errors compute
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
 
 **Caveats:**
 
@@ -880,14 +978,18 @@ Welch's t: the first group's mean minus the second's, in standard errors compute
 
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
+#### `details.reference`
+
+Present only with params.reference: the split_by level read second in details.groups, so diff, its interval, the statistic and the signed effect size read the other group minus this one.
+
 #### `details.diff`
 
 The first group's mean minus the second's, in the field's own units.
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
 
 #### `details.ci_low`
 
@@ -916,13 +1018,50 @@ The gap between the two means in pooled-standard-deviation units; 0.5 means they
 
 **Sign:**
 
-- `+`: the first group in details.groups has the higher average
-- `-`: the second group in details.groups has the higher average
+- `+`: the first group in details.groups (the non-reference one) has the higher average
+- `-`: the second group in details.groups (the reference) has the higher average
 
 **Caveats:**
 
 - This d divides by the pooled standard deviation of the two groups, even though the test itself does not assume equal variances; when spreads differ a lot, d describes neither group exactly.
 - When the standard deviation is zero, d is undefined and the key is left out rather than reported as 0.
+
+#### `details.diff_unadjusted`
+
+Present only with params.covariate: the raw first-minus-second difference of means on the same rows; details.diff, its interval, the statistic, p, mean, variance and cohens_d are the covariate-adjusted figures.
+
+**Sign:**
+
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
+
+**Caveats:**
+
+- Cohen's d here divides by the adjusted spread, so it is larger than the raw d: compare it only with other adjusted d's.
+
+#### `details.theta`
+
+Present only with params.covariate: the slope of the outcome on the covariate pooled over both groups; each row is read as outcome - theta x (covariate - covariate_mean).
+
+**Caveats:**
+
+- Null when the covariate is constant: nothing is adjusted then. It is estimated from the same data, which standard CUPED practice ignores in the interval.
+
+#### `details.covariate_mean`
+
+Present only with params.covariate: the covariate's mean over both groups, the point the adjustment centres on.
+
+#### `details.variance_reduction`
+
+Present only with params.covariate: the share of the difference's sampling variance the covariate removed (0.6 = the interval is about 37% narrower than unadjusted).
+
+**Caveats:**
+
+- Null when theta is; below 0 means the covariate made the estimate noisier, so drop it. Use a covariate measured before assignment: one the treatment moved biases diff.
+
+#### `details.n_covariate_dropped`
+
+Present only with params.covariate: rows with an outcome and a group but a null covariate, left out of the test (n counts the rest).
 
 <a id="op-test_wilcoxon_sr"></a>
 
@@ -989,8 +1128,8 @@ z: the first group's mean minus the second's, in standard errors built from each
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
 
 **Caveats:**
 
@@ -1000,14 +1139,18 @@ z: the first group's mean minus the second's, in standard errors built from each
 
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
+#### `details.reference`
+
+Present only with params.reference: the split_by level read second in details.groups, so diff, its interval, the statistic and the signed effect size read the other group minus this one.
+
 #### `details.diff`
 
 The first group's mean minus the second's, in the field's own units.
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
 
 #### `details.ci_low`
 
@@ -1036,10 +1179,47 @@ The gap between the two means in pooled-standard-deviation units; 0.5 means they
 
 **Sign:**
 
-- `+`: the first group in details.groups has the higher average
-- `-`: the second group in details.groups has the higher average
+- `+`: the first group in details.groups (the non-reference one) has the higher average
+- `-`: the second group in details.groups (the reference) has the higher average
 
 **Caveats:**
 
 - This d divides by the pooled standard deviation of the two groups, even though the test itself does not assume equal variances; when spreads differ a lot, d describes neither group exactly.
 - When the standard deviation is zero, d is undefined and the key is left out rather than reported as 0.
+
+#### `details.diff_unadjusted`
+
+Present only with params.covariate: the raw first-minus-second difference of means on the same rows; details.diff, its interval, the statistic, p, mean, variance and cohens_d are the covariate-adjusted figures.
+
+**Sign:**
+
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
+
+**Caveats:**
+
+- Cohen's d here divides by the adjusted spread, so it is larger than the raw d: compare it only with other adjusted d's.
+
+#### `details.theta`
+
+Present only with params.covariate: the slope of the outcome on the covariate pooled over both groups; each row is read as outcome - theta x (covariate - covariate_mean).
+
+**Caveats:**
+
+- Null when the covariate is constant: nothing is adjusted then. It is estimated from the same data, which standard CUPED practice ignores in the interval.
+
+#### `details.covariate_mean`
+
+Present only with params.covariate: the covariate's mean over both groups, the point the adjustment centres on.
+
+#### `details.variance_reduction`
+
+Present only with params.covariate: the share of the difference's sampling variance the covariate removed (0.6 = the interval is about 37% narrower than unadjusted).
+
+**Caveats:**
+
+- Null when theta is; below 0 means the covariate made the estimate noisier, so drop it. Use a covariate measured before assignment: one the treatment moved biases diff.
+
+#### `details.n_covariate_dropped`
+
+Present only with params.covariate: rows with an outcome and a group but a null covariate, left out of the test (n counts the rest).

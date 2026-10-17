@@ -35,7 +35,7 @@
         "operator": "TEST_CHISQ",
         "category": "test",
         "level": "intermediate",
-        "why": "Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated. Fill in each placeholder in the draft before you run it.",
+        "why": "Checks whether two categorical fields are associated, or whether one categorical field's counts match planned proportions. Fill in each placeholder in the draft before you run it.",
         "bound": false,
         "request": {
           "cohort": {
@@ -466,4 +466,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e32db6870f367fbb0138ffb8494c107521c6f1a582728cae6bf6ae061a20743d
+// golden-hash: 26051bc4e807a8373d8df706fe1d9a9385530aa4dbcb67fa918688ccbd729eb1

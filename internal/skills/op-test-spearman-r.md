@@ -42,7 +42,7 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 <!-- feature: MAT_CORRELATION -->
 - Same p as a `MAT_CORRELATION` spearman cell on the same rows.
 <!-- /feature -->
-- Heavy ties degrade the asymptotic p-value.
+- ≥ 50% tied in either column → warning `PULSE_TEST_TIES_DOMINATE`: the test then mostly compares the share of tied values, not their order; the asymptotic p is unreliable.
 
 ## See
 

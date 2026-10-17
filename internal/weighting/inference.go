@@ -254,3 +254,72 @@ func HiddenFloorRefusal(slot string, kind types.OverlayKind, host string) (strin
 	return msg, map[string]any{"slot": slot, "operator": string(kind), "host": host,
 		"kind": string(types.WeightKindProbability), "reason": "components_disabled"}
 }
+
+// CoWelford is the bivariate weighted Welford–West bucket behind the
+// covariate adjustment (CUPED, U48): one sample's running raw row
+// count, Σw, Σw², the weighted means of x (the covariate) and y (the
+// outcome), M2X = Σw·(x − x̄)², M2Y = Σw·(y − ȳ)² and the co-moment
+// CXY = Σw·(x − x̄)(y − ȳ) — the moment sufficient statistics
+// (n, Σy, Σx, Σxy, Σx², Σy²) in their centred, numerically stable
+// form. Add folds a row in Welford.Add's operation order, so the y
+// half (N, SumW, SumWSq, MeanY, M2Y) is bit for bit the Welford bucket
+// of y alone, and w ≡ 1 is the unweighted recurrence. Merge combines
+// two buckets (Chan et al.), so the state is mergeable across
+// partitions. The zero value is an empty bucket.
+type CoWelford struct {
+	// N is the number of rows folded.
+	N int64
+	// SumW is Σw, SumWSq Σw².
+	SumW, SumWSq float64
+	// MeanX / MeanY are the weighted means of x and y.
+	MeanX, MeanY float64
+	// M2X / M2Y are Σw·(x − MeanX)² and Σw·(y − MeanY)²; CXY is
+	// Σw·(x − MeanX)(y − MeanY).
+	M2X, M2Y, CXY float64
+}
+
+// Add folds the pair (x, y) with weight w (> 0; invalid and zero
+// weights were excluded by the caller).
+func (c *CoWelford) Add(x, y, w float64) {
+	c.N++
+	c.SumW += w
+	c.SumWSq += w * w
+	dx := x - c.MeanX
+	dy := y - c.MeanY
+	wdx := w * dx
+	wdy := w * dy
+	c.MeanX += wdx / c.SumW
+	c.MeanY += wdy / c.SumW
+	c.M2X += wdx * (x - c.MeanX)
+	c.M2Y += wdy * (y - c.MeanY)
+	c.CXY += wdx * (y - c.MeanY)
+}
+
+// Merge folds o into c: the pooled moments of the two samples' union.
+func (c *CoWelford) Merge(o CoWelford) {
+	if o.N == 0 {
+		return
+	}
+	if c.N == 0 {
+		*c = o
+		return
+	}
+	w := c.SumW + o.SumW
+	dx := o.MeanX - c.MeanX
+	dy := o.MeanY - c.MeanY
+	f := c.SumW * o.SumW / w
+	c.M2X += o.M2X + float64(dx*dx)*f
+	c.M2Y += o.M2Y + float64(dy*dy)*f
+	c.CXY += o.CXY + float64(dx*dy)*f
+	c.MeanX += dx * (o.SumW / w)
+	c.MeanY += dy * (o.SumW / w)
+	c.N += o.N
+	c.SumW = w
+	c.SumWSq += o.SumWSq
+}
+
+// YWelford is the bucket's y half as a Welford bucket (the unadjusted
+// outcome's moments).
+func (c *CoWelford) YWelford() Welford {
+	return Welford{N: c.N, SumW: c.SumW, SumWSq: c.SumWSq, Mean: c.MeanY, M2: c.M2Y}
+}

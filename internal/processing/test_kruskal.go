@@ -40,13 +40,8 @@ type kruskalWallisRow struct {
 }
 
 func newKruskalWallisRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
-	if spec.Field == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_KRUSKAL_WALLIS requires field")
-	}
-	if spec.SplitBy == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_KRUSKAL_WALLIS requires split_by")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, false, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {
@@ -171,8 +166,7 @@ func (k *kruskalWallisRow) Finalize() (*types.TestResult, error) {
 	}
 	k.noteGroupSums(res.Details, sumWs, sumWSqs)
 	if tiesDominateW(ties, Nf) {
-		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
-			": ≥ 50% of values are tied; asymptotic p-value is unreliable")
+		res.Warnings = append(res.Warnings, tiesDominateWarning("values"))
 	}
 	return res, nil
 }

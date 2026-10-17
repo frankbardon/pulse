@@ -41,7 +41,10 @@ const ReasonSplitIsGrouper = "split_is_grouper"
 // request order) whose split field names a grouper's field: split_by
 // (PULSE_TEST_SPLIT_GROUPS_LT_2 — every group holds one split level) or
 // a chi-square rows / cols axis (PULSE_TEST_CONTINGENCY_DEGENERATE —
-// every group's table has a single row or column). Details {index,
+// every group's table has a single row or column; a goodness-of-fit
+// TEST_CHISQ reads rows alone, so its one-way table would hold one
+// level). A one-proportion TEST_PROP_Z (params.p0) has no split_by and
+// never matches; it runs per group like any other test. Details {index,
 // type, slot, field, groups, reason}. Nil when groups is empty or no
 // test splits on a grouper. A vector grouper (GROUP_KMEANS) keys no
 // record field and never matches.
