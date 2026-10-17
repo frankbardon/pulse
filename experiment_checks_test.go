@@ -133,6 +133,8 @@ func TestExperimentChecks_PredictMatchesRuntime(t *testing.T) {
 		{"p0 range", `{"type":"TEST_PROP_Z","field":"cat_flag","params":{"success":"1","p0":1.2}}`, errors.PULSE_TEST_P0_INVALID, true},
 		{"p0 zero", `{"type":"TEST_PROP_Z","field":"pb_flag","params":{"success":"1","p0":0}}`, errors.PULSE_TEST_P0_INVALID, true},
 		{"p0 with split_by", `{"type":"TEST_PROP_Z","field":"cat_flag","split_by":"cat_grp","params":{"success":"1","p0":0.5}}`, errors.PULSE_TEST_P0_INVALID, true},
+		{"no field", `{"type":"TEST_PROP_Z","split_by":"cat_grp","params":{"success":"1"}}`, errors.PROCESSING_CONFIG, true},
+		{"two-sample without split_by", `{"type":"TEST_PROP_Z","field":"cat_flag","params":{"success":"1"}}`, errors.PROCESSING_CONFIG, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

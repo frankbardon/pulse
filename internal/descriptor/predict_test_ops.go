@@ -143,12 +143,14 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 
 // validateProportionZ validates TEST_PROP_Z's unique signature: a
 // categorical outcome column (Field), a categorical split column
-// (SplitBy), and a required Params.success value. Tier-2 variants are
+// (SplitBy), and a required Params.success value. A missing field or
+// split_by is PROCESSING_CONFIG, the runtime constructor's code (and
+// every sibling test's missing-split_by refusal), message for message. Tier-2 variants are
 // not implemented for TEST_PROP_Z so the tier1 flag controls only the
 // schema-aware checks.
 func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encoding.Schema, projected map[string]bool, tier1 bool) {
 	if t.Field == "" {
-		env.AddError(string(errors.SERVICE_VALIDATION),
+		env.AddError(string(errors.PROCESSING_CONFIG),
 			"TEST_PROP_Z requires field (categorical outcome column)",
 			map[string]any{"type": string(t.Type)})
 		return
@@ -157,7 +159,7 @@ func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encodi
 	// split_by (the runtime constructor's rule, P0Refusal below).
 	p0, hasP0 := p0Param(t.Params)
 	if t.SplitBy == "" && !hasP0 {
-		env.AddError(string(errors.SERVICE_VALIDATION),
+		env.AddError(string(errors.PROCESSING_CONFIG),
 			"TEST_PROP_Z requires split_by (categorical group column)",
 			map[string]any{"type": string(t.Type)})
 	}

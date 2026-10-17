@@ -48,7 +48,8 @@ Use something else:
 
 ## Gotchas
 
-- `success` must match a dictionary value; otherwise `PULSE_TEST_INVALID_SUCCESS`. On a `packed_bool` outcome anything but `"0"` / `"1"` (`true`, `yes`) is `PULSE_TEST_SUCCESS_VALUE_MISSING` with `details.valid_levels`.
+- `success` absent or empty → `PULSE_TEST_SUCCESS_VALUE_MISSING`; on a `packed_bool` outcome anything but `"0"` / `"1"` (`true`, `yes`) is the same code with `details.valid_levels`. A categorical `success` is NOT checked against the dictionary: a misspelt level counts zero successes — check `successes`.
+- No `field`, or no `split_by` without `p0` → `PROCESSING_CONFIG` (predict too).
 - Streamable — per-group counts feed both numerator and pooled denominator in one pass.
 - More than two `SplitBy` groups is a `(SplitBy × Field)` contingency-table question, not this test.
 - Pairs with `OVERLAY_PROP_Z_CELL` for crosstab cell-level proportion tests.
