@@ -1,6 +1,6 @@
 ---
 name: op-test-prop-z
-description: Two-proportion z-test on the success rate of Field across two SplitBy groups; streamable via success / total counts.
+description: Two-proportion z-test on the success rate of Field across two SplitBy groups, or one-proportion against params.p0; streamable via success / total counts.
 kind: operator
 category: TEST
 operator: TEST_PROP_Z
@@ -18,17 +18,18 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 - `alpha` — float, default `0.05`, in `(0, 1)`.
 - `weight` — slot weight (`null` opts out), both kinds: p̂_g = Σw_success/Σw_g, N*_g = Σw_g (frequency) or Kish n_eff_g (probability) for the pooled rate and SEs. `successes` becomes Σw_success; `Details` add `sum_weights` (+ `n_eff`) shaped like `n` (raw rows).
 - `success` — string, required. Dictionary value of Field treated as a "success"; on a `packed_bool` Field strictly `"1"` or `"0"`.
+- `p0` — float in `(0, 1)`, optional: with `SplitBy` absent, the one-proportion test (`Variant` `one_proportion`). Out of range or beside `SplitBy` → `PULSE_TEST_P0_INVALID` (predict too).
 <!-- feature: capability:multiplicity -->
 - `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Inputs
 
-`Field` (required) — categorical: `categorical_u8`/`u16`/`u32`, or `packed_bool` (levels `"0"`/`"1"`). `SplitBy` (required, exactly 2 groups) — same set. Any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (field first).
+`Field` (required) — categorical: `categorical_u8`/`u16`/`u32`, or `packed_bool` (levels `"0"`/`"1"`). `SplitBy` (required unless `p0`, exactly 2 groups) — same set. Any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (field first).
 
 ## Output
 
-`Statistic` = z (pooled SE under H₀); `PValue` two-sided via Φ. `Details`: `groups`, `n`, `successes`, `proportion` (per arm), `diff`, `pooled`, Wald `ci_low`/`ci_high`. `effect_size.cohens_h` = 2·asin√p₁ − 2·asin√p₂ (sign of `diff`).
+`Statistic` = z (pooled SE under H₀); `PValue` two-sided via Φ. `Details`: `groups`, `n`, `successes`, `proportion` (per arm), `diff`, `pooled`, Wald `ci_low`/`ci_high`. `effect_size.cohens_h` = 2·asin√p₁ − 2·asin√p₂ (sign of `diff`). One-proportion: z = (p̂ − p0)/√(p0(1−p0)/N*); scalar `n`, `successes`, `proportion`, plus `p0`, `diff` = p̂ − p0, Wald `ci_low`/`ci_high` on `diff`, `cohens_h` vs p0.
 
 <!-- generated: reading-the-output -->
 

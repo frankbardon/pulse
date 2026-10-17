@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/groupedtests"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -152,7 +153,10 @@ func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encodi
 			map[string]any{"type": string(t.Type)})
 		return
 	}
-	if t.SplitBy == "" {
+	// params.p0 selects the one-proportion test, which reads no
+	// split_by (the runtime constructor's rule, P0Refusal below).
+	p0, hasP0 := p0Param(t.Params)
+	if t.SplitBy == "" && !hasP0 {
 		env.AddError(string(errors.SERVICE_VALIDATION),
 			"TEST_PROP_Z requires split_by (categorical group column)",
 			map[string]any{"type": string(t.Type)})
@@ -161,6 +165,10 @@ func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encodi
 		env.AddError(string(errors.PULSE_TEST_SUCCESS_VALUE_MISSING),
 			"TEST_PROP_Z requires params.success (the dictionary value treated as a success)",
 			map[string]any{"type": string(t.Type)})
+	} else if hasP0 {
+		if cerr := fieldaccept.P0Refusal(string(t.Type), t.SplitBy, p0); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
 	}
 	if !tier1 || schema == nil {
 		return
@@ -195,6 +203,38 @@ func hasSuccessParam(raw []byte) bool {
 	return ok
 }
 
+// p0Param returns the raw Params blob's "p0" value; false when params
+// are absent, malformed or carry none (null included) — the runtime
+// constructor's reading.
+func p0Param(raw []byte) (float64, bool) {
+	if len(raw) == 0 {
+		return 0, false
+	}
+	var params struct {
+		P0 *float64 `json:"p0"`
+	}
+	if paramread.Probe(raw, &params) != nil || params.P0 == nil {
+		return 0, false
+	}
+	return *params.P0, true
+}
+
+// expectedParam returns the raw Params blob's "expected" map (TEST_CHISQ
+// goodness of fit); false when params are absent, malformed or carry
+// none (null included) — the runtime constructor's reading.
+func expectedParam(raw []byte) (map[string]float64, bool) {
+	if len(raw) == 0 {
+		return nil, false
+	}
+	var params struct {
+		Expected map[string]float64 `json:"expected"`
+	}
+	if paramread.Probe(raw, &params) != nil || params.Expected == nil {
+		return nil, false
+	}
+	return params.Expected, true
+}
+
 // successParam returns the raw Params blob's non-empty "success" value;
 // false when params are absent, malformed or carry none.
 func successParam(raw []byte) (string, bool) {
@@ -211,6 +251,32 @@ func successParam(raw []byte) (string, bool) {
 }
 
 func validateChiSquareFields(env *descriptor.Envelope, t *types.Test, schema *encoding.Schema, projected map[string]bool, tier1 bool) {
+	// params.expected selects TEST_CHISQ's goodness-of-fit form: rows
+	// alone, then the shared params rule (the runtime constructor's
+	// order — rows, alpha, ExpectedRefusal, the rows axis type).
+	if expected, ok := expectedParam(t.Params); ok && t.Type == types.TEST_CHISQ {
+		if t.Rows == "" {
+			env.AddError(string(errors.SERVICE_VALIDATION),
+				"TEST_CHISQ goodness of fit (params.expected) requires rows",
+				map[string]any{"rows": t.Rows})
+			return
+		}
+		var s *encoding.Schema
+		if tier1 {
+			s = schema
+		}
+		if cerr := fieldaccept.ExpectedRefusal(string(t.Type), t.Rows, t.Cols, expected, s); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			return
+		}
+		if !tier1 || schema == nil {
+			return
+		}
+		if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotRows, t.Rows, schema); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+		return
+	}
 	if t.Rows == "" || t.Cols == "" {
 		env.AddError(string(errors.SERVICE_VALIDATION),
 			"TEST_CHISQ requires rows and cols",

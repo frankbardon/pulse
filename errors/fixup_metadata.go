@@ -1373,6 +1373,48 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_TEST_EXPECTED_INVALID: {
+		Message: "TEST_CHISQ params.expected (goodness-of-fit proportions, label to proportion) cannot define a fit: it is set with cols, lists fewer than two labels or an empty one, holds a proportion that is not a finite number above 0, does not sum to 1 within 1e-9, or (packed_bool rows) names a label other than \"0\" / \"1\". details.reason says which.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Tests", "*", "Params", "expected"},
+				Hint:     "List every rows level with its planned share, each above 0, summing to exactly 1 (e.g. a 50/50 split); Pulse never renormalises.",
+				Examples: []any{map[string]any{"expected": map[string]any{"control": 0.5, "treatment": 0.5}}},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Tests", "*", "Cols"},
+				Hint:   "with_cols: goodness of fit reads rows alone; drop cols, or drop params.expected for the independence test.",
+			},
+		},
+	},
+	PULSE_TEST_EXPECTED_LABEL_MISSING: {
+		Message: "A TEST_CHISQ goodness-of-fit run observed rows levels (details.labels) that params.expected does not list; the proportions are never renormalised over what was seen.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Tests", "*", "Params", "expected"},
+				Hint:   "Add each missing label with its expected share (re-balancing the others so the total stays 1), or filter those rows out before the test; check the spelling against pulse inspect's dictionary.",
+			},
+		},
+	},
+	PULSE_TEST_P0_INVALID: {
+		Message: "TEST_PROP_Z params.p0 (the one-proportion test's hypothesised success rate) is not strictly between 0 and 1, or is set together with split_by.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Tests", "*", "Params", "p0"},
+				Hint:     "Give p0 as a proportion strictly between 0 and 1 (e.g. 0.5 for a planned 50/50 split).",
+				Examples: []any{map[string]any{"p0": 0.5}},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Tests", "*", "SplitBy"},
+				Hint:   "with_split_by: p0 selects the one-proportion test; drop split_by, or drop p0 for the two-proportion test.",
+			},
+		},
+	},
 	PULSE_TEST_CORRELATION_UNDEFINED: {
 		Message: "Pearson r encountered a column with zero variance; r and its t-statistic are undefined.",
 		Fixups: []Fixup{

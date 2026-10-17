@@ -215,11 +215,11 @@ Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
 ### `TEST_CHISQ`
 
-Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated. See its [catalog entry](../catalog/test.md#op-test_chisq).
+Checks whether two categorical fields are associated, or whether one categorical field's counts match planned proportions. See its [catalog entry](../catalog/test.md#op-test_chisq).
 
 #### `statistic`
 
-Pearson's chi-square adds up, over every cell, how far the observed count is from the count expected if the two fields were unrelated. Larger values mean the table departs more from that pattern.
+Pearson's chi-square adds up, over every cell, how far the observed count is from the count expected if the two fields were unrelated. Larger values mean the table departs more from that pattern. With params.expected (Variant goodness_of_fit) the cells are the rows levels and the expected counts come from the given proportions, so it measures how far the observed mix is from the planned one.
 
 **Caveats:**
 
@@ -237,6 +237,14 @@ The smallest expected count across all cells.
 **Caveats:**
 
 - Below 5 the chi-square approximation becomes unreliable (Pulse also warns); for a 2x2 table use TEST_FISHER_EXACT instead.
+
+#### `details.expected`
+
+Goodness of fit only: the count each level in details.labels should have under params.expected (total times its proportion), beside details.observed.
+
+**Caveats:**
+
+- A level listed in params.expected that the data never shows still counts, with observed 0.
 
 #### `details.effect_size.cramers_v`
 
@@ -607,16 +615,16 @@ Upper end of the confidence interval for r at the 1 - alpha level (95% by defaul
 
 ### `TEST_PROP_Z`
 
-Checks whether the rate of one outcome, such as conversion, differs between two groups. See its [catalog entry](../catalog/test.md#op-test_prop_z).
+Checks whether the rate of one outcome, such as conversion, differs between two groups, or from a planned rate. See its [catalog entry](../catalog/test.md#op-test_prop_z).
 
 #### `statistic`
 
-z: the first group's success rate minus the second's, in standard errors computed from the pooled rate. Values far from 0 in either direction are unlikely if the true rates are equal.
+z: the first group's success rate minus the second's, in standard errors computed from the pooled rate. Values far from 0 in either direction are unlikely if the true rates are equal. With params.p0 (Variant one_proportion) it is the observed rate minus p0, in standard errors computed from p0.
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups (alphabetical order) is higher; one-proportion: the observed rate is above p0
+- `-`: the second group in details.groups (alphabetical order) is higher; one-proportion: the observed rate is below p0
 
 **Caveats:**
 
@@ -628,12 +636,16 @@ Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
 #### `details.diff`
 
-The first group's success rate minus the second's, as a proportion (0.05 = 5 percentage points).
+The first group's success rate minus the second's (one-proportion: the observed rate minus details.p0), as a proportion (0.05 = 5 percentage points).
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups (alphabetical order) is higher; one-proportion: the observed rate is above p0
+- `-`: the second group in details.groups (alphabetical order) is higher; one-proportion: the observed rate is below p0
+
+#### `details.p0`
+
+One-proportion only: the hypothesised success rate the observed rate is tested against.
 
 #### `details.ci_low`
 
@@ -650,7 +662,7 @@ Upper end of the confidence interval for details.diff.
 
 #### `details.effect_size.cohens_h`
 
-Cohen's h, the gap between the two rates on an arcsine scale that treats a change from 0.01 to 0.05 as larger than one from 0.45 to 0.49.
+Cohen's h, the gap between the two rates (one-proportion: the observed rate and p0) on an arcsine scale that treats a change from 0.01 to 0.05 as larger than one from 0.45 to 0.49.
 
 **Bands** (convention: Cohen (1988); a labelled convention, not a rule):
 
@@ -663,8 +675,8 @@ Cohen's h, the gap between the two rates on an arcsine scale that treats a chang
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups (alphabetical order) is higher; one-proportion: the observed rate is above p0
+- `-`: the second group in details.groups (alphabetical order) is higher; one-proportion: the observed rate is below p0
 
 **Caveats:**
 

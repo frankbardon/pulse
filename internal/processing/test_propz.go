@@ -29,6 +29,10 @@ import (
 // value) or just to n. Finalize emits the pooled z-statistic, the
 // per-group rates, and a Wald confidence interval on the rate diff.
 //
+// One-proportion (params.p0, split_by absent — TEST_T's params.mu
+// precedent): one bucket, the score z = (p̂ − p0)/√(p0(1−p0)/N*) with
+// a Wald interval on p̂ − p0 (finalizeOneProportion).
+//
 // Weighted (.claude/reference/weighting.md, Weighted inference): each
 // group's rate is p̂_g = Σw_success/Σw_g and its sample size N*_g (Σw_g
 // under frequency, Kish n_eff_g under probability); the pooled rate is
@@ -41,6 +45,10 @@ type propZRow struct {
 	splitBy string
 	success string
 	alpha   float64
+	// p0 is the one-proportion test's hypothesised rate; one is set
+	// when params.p0 selects that form (split_by absent).
+	p0  float64
+	one bool
 
 	groups map[string]*propGroup
 	order  []string
@@ -59,7 +67,8 @@ type propGroup struct {
 }
 
 type propZParams struct {
-	Success string `json:"success"`
+	Success string   `json:"success"`
+	P0      *float64 `json:"p0"`
 }
 
 func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -67,7 +76,15 @@ func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"TEST_PROP_Z requires field (categorical outcome column)")
 	}
-	if spec.SplitBy == "" {
+	var params propZParams
+	paramread.Declare(paramread.Test, string(spec.Type), &params)
+	if len(spec.Params) > 0 {
+		if err := paramread.Decode(paramread.Test, string(spec.Type), spec.Params, &params); err != nil {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				"TEST_PROP_Z params: "+err.Error())
+		}
+	}
+	if spec.SplitBy == "" && params.P0 == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"TEST_PROP_Z requires split_by (categorical group column)")
 	}
@@ -80,18 +97,17 @@ func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 			fmt.Sprintf("alpha %g not in (0, 1)", spec.Alpha),
 			map[string]any{"alpha": spec.Alpha})
 	}
-	var params propZParams
-	paramread.Declare(paramread.Test, string(spec.Type), &params)
-	if len(spec.Params) > 0 {
-		if err := paramread.Decode(paramread.Test, string(spec.Type), spec.Params, &params); err != nil {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				"TEST_PROP_Z params: "+err.Error())
-		}
-	}
 	if params.Success == "" {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SUCCESS_VALUE_MISSING,
 			"TEST_PROP_Z requires params.success (the dictionary value treated as a success)",
 			map[string]any{"type": string(types.TEST_PROP_Z)})
+	}
+	var p0 float64
+	if params.P0 != nil {
+		p0 = *params.P0
+		if cerr := fieldaccept.P0Refusal(string(spec.Type), spec.SplitBy, p0); cerr != nil {
+			return nil, cerr
+		}
 	}
 	// The accepted-types table's refusals, field then split_by (a
 	// categorical outcome and a categorical split); predict raises the
@@ -115,6 +131,8 @@ func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		splitBy:    spec.SplitBy,
 		success:    params.Success,
 		alpha:      alpha,
+		p0:         p0,
+		one:        params.P0 != nil,
 		groups:     make(map[string]*propGroup),
 		testWeight: newTestWeight(spec),
 	}, nil
@@ -125,9 +143,13 @@ func (p *propZRow) UpdateRow(record *Record) error {
 	if !oOk {
 		return nil
 	}
-	key, kOk := record.LevelValue(p.splitBy)
-	if !kOk {
-		return nil
+	var key string
+	if !p.one {
+		k, kOk := record.LevelValue(p.splitBy)
+		if !kOk {
+			return nil
+		}
+		key = k
 	}
 	w, ok := p.rowWeight(record)
 	if !ok {
@@ -149,6 +171,9 @@ func (p *propZRow) UpdateRow(record *Record) error {
 
 func (p *propZRow) Finalize() (*types.TestResult, error) {
 	defer p.reset()
+	if p.one {
+		return p.finalizeOneProportion()
+	}
 	keys := append([]string(nil), p.order...)
 	sort.Strings(keys)
 	if len(keys) < 2 {
@@ -212,6 +237,52 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 		Label:      testLabel(p.spec),
 		Type:       types.TEST_PROP_Z,
 		Variant:    "two_proportion_pooled",
+		Statistic:  z,
+		PValue:     pvalue,
+		Alpha:      p.alpha,
+		RejectNull: pvalue < p.alpha,
+		Details:    details,
+	}, nil
+}
+
+// finalizeOneProportion is the one-proportion z-test against params.p0:
+// z = (p̂ − p0)/√(p0(1−p0)/N*) (the score test, R's prop.test without
+// continuity correction gives z²), a Wald interval on diff = p̂ − p0
+// with √(p̂(1−p̂)/N*), and Cohen's h of p̂ against p0. Weighted, p̂ =
+// Σw_success/Σw and N* is Σw (frequency) or Kish n_eff (probability);
+// `n` stays the raw row count and `successes` becomes Σw_success.
+func (p *propZRow) finalizeOneProportion() (*types.TestResult, error) {
+	g, ok := p.groups[""]
+	if !ok || g.w.N < 1 {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
+			"TEST_PROP_Z one-proportion requires n ≥ 1, got 0",
+			map[string]any{"n": 0, "min_required": 1})
+	}
+	nStar := g.w.NStar(p.basis)
+	ph := g.succW / g.w.SumW
+	z := (ph - p.p0) / math.Sqrt(p.p0*(1-p.p0)/nStar)
+	pvalue := normalTwoSidedP(z)
+	half := normalCriticalTwoSided(p.alpha) * math.Sqrt(ph*(1-ph)/nStar)
+	diff := ph - p.p0
+	details := map[string]any{
+		"success":    p.success,
+		"p0":         p.p0,
+		"n":          g.w.N,
+		"successes":  g.successes,
+		"proportion": ph,
+		"diff":       diff,
+		"ci_low":     diff - half,
+		"ci_high":    diff + half,
+	}
+	if p.basis.Weighted() {
+		details["successes"] = g.succW
+	}
+	p.noteScalar(details, g.w.SumW, g.w.SumWSq)
+	setEffectSize(details, "cohens_h", cohensH(ph, p.p0))
+	return &types.TestResult{
+		Label:      testLabel(p.spec),
+		Type:       types.TEST_PROP_Z,
+		Variant:    "one_proportion",
 		Statistic:  z,
 		PValue:     pvalue,
 		Alpha:      p.alpha,

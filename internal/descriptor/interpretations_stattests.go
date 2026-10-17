@@ -72,6 +72,12 @@ var (
 		"+": "the first group in details.groups (alphabetical order) is higher",
 		"-": "the second group in details.groups (alphabetical order) is higher",
 	}
+	// propZSign signs TEST_PROP_Z: two-group order, or the observed
+	// rate against p0 in the one-proportion form.
+	propZSign = map[string]string{
+		"+": "the first group in details.groups (alphabetical order) is higher; one-proportion: the observed rate is above p0",
+		"-": "the second group in details.groups (alphabetical order) is higher; one-proportion: the observed rate is below p0",
+	}
 	// pairedMeanSign signs the paired t family by the MEAN difference;
 	// pairedRankSign signs the Wilcoxon family, whose rank statistic is
 	// a per-pair tendency (U08 statistics review S-11).
@@ -578,7 +584,8 @@ var (
 		{
 			Field: "statistic",
 			Means: "Pearson's chi-square adds up, over every cell, how far the observed count is from the count expected if the two fields were unrelated. " +
-				"Larger values mean the table departs more from that pattern.",
+				"Larger values mean the table departs more from that pattern. " +
+				"With params.expected (Variant goodness_of_fit) the cells are the rows levels and the expected counts come from the given proportions, so it measures how far the observed mix is from the planned one.",
 			Caveats: []string{
 				"Chi-square grows with the number of rows, so it does not measure the strength of the association: read Cramer's V.",
 				"No continuity (Yates) correction is applied, so on a 2x2 table the p-value is smaller than R's chisq.test default.",
@@ -590,6 +597,13 @@ var (
 			Means: "The smallest expected count across all cells.",
 			Caveats: []string{
 				"Below 5 the chi-square approximation becomes unreliable (Pulse also warns); for a 2x2 table use TEST_FISHER_EXACT instead.",
+			},
+		},
+		{
+			Field: "details.expected",
+			Means: "Goodness of fit only: the count each level in details.labels should have under params.expected (total times its proportion), beside details.observed.",
+			Caveats: []string{
+				"A level listed in params.expected that the data never shows still counts, with observed 0.",
 			},
 		},
 		{
@@ -628,14 +642,16 @@ var (
 		{
 			Field: "statistic",
 			Means: "z: the first group's success rate minus the second's, in standard errors computed from the pooled rate. " +
-				"Values far from 0 in either direction are unlikely if the true rates are equal.",
-			Sign: twoGroupSign,
+				"Values far from 0 in either direction are unlikely if the true rates are equal. " +
+				"With params.p0 (Variant one_proportion) it is the observed rate minus p0, in standard errors computed from p0.",
+			Sign: propZSign,
 			Caveats: []string{
 				"The normal approximation needs at least 10 successes and 10 failures in each group.",
 			},
 		},
 		interpPValue,
-		{Field: "details.diff", Means: "The first group's success rate minus the second's, as a proportion (0.05 = 5 percentage points).", Sign: twoGroupSign},
+		{Field: "details.diff", Means: "The first group's success rate minus the second's (one-proportion: the observed rate minus details.p0), as a proportion (0.05 = 5 percentage points).", Sign: propZSign},
+		{Field: "details.p0", Means: "One-proportion only: the hypothesised success rate the observed rate is tested against."},
 		{
 			Field: "details.ci_low",
 			Means: "Lower end of the confidence interval for details.diff at the 1 - alpha level (95% by default).",
@@ -647,8 +663,8 @@ var (
 		{Field: "details.ci_high", Means: "Upper end of the confidence interval for details.diff."},
 		bandedBy(ConventionCohenD, descriptor.Interpretation{
 			Field: "details.effect_size.cohens_h",
-			Means: "Cohen's h, the gap between the two rates on an arcsine scale that treats a change from 0.01 to 0.05 as larger than one from 0.45 to 0.49.",
-			Sign:  twoGroupSign,
+			Means: "Cohen's h, the gap between the two rates (one-proportion: the observed rate and p0) on an arcsine scale that treats a change from 0.01 to 0.05 as larger than one from 0.45 to 0.49.",
+			Sign:  propZSign,
 			Caveats: []string{
 				"Cohen's 0.2 / 0.5 / 0.8 benchmarks for h are the same as for d, applied to |h|.",
 			},

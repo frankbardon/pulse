@@ -208,7 +208,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-test-bartlett-sphericity`](skills/op-test-bartlett-sphericity.md): Bartlett's sphericity test on a vector's correlation matrix (is it the identity?); the factorability check, bit-equal to the PCA operator's Bartlett scalars.
 - [`op-test-box-m`](skills/op-test-box-m.md): Box's M test of one shared covariance across a SplitBy of 2+ levels; chi-square headline, F approximation in details. The MANOVA / Hotelling assumption check.
 - [`op-test-brown-forsythe`](skills/op-test-brown-forsythe.md): Homogeneity-of-variance test; one-way ANOVA on absolute deviations from per-group medians.
-- [`op-test-chisq`](skills/op-test-chisq.md): Chi-square independence test on a 2D Rows × Cols contingency table.
+- [`op-test-chisq`](skills/op-test-chisq.md): Chi-square independence test on a 2D Rows × Cols contingency table, or goodness of fit of Rows against expected proportions.
 - [`op-test-fisher-exact`](skills/op-test-fisher-exact.md): Exact two-sided p-value for a 2×2 Rows × Cols contingency table; small-sample CHISQ alternative.
 - [`op-test-hotelling-t2`](skills/op-test-hotelling-t2.md): Hotelling's T² on a mean vector of p numeric members; one-sample or paired (difference vector) against params.mu, or two-sample over a 2-level SplitBy with pooled or unequal covariance.
 - [`op-test-kendall-tau`](skills/op-test-kendall-tau.md): Concordance-based correlation between Field and Field2; buffered O(n²) pair count under tie correction.
@@ -219,7 +219,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-test-mardia`](skills/op-test-mardia.md): Mardia's multivariate normality test on a vector — skewness χ² and kurtosis z; buffered.
 - [`op-test-paired-t`](skills/op-test-paired-t.md): Paired-sample t-test on the per-row difference d = Field − Field2; streamable via Welford on d.
 - [`op-test-pearson-r`](skills/op-test-pearson-r.md): Parametric Pearson correlation test between two numeric fields; streamable via online cross-product.
-- [`op-test-prop-z`](skills/op-test-prop-z.md): Two-proportion z-test on the success rate of Field across two SplitBy groups; streamable via success / total counts.
+- [`op-test-prop-z`](skills/op-test-prop-z.md): Two-proportion z-test on the success rate of Field across two SplitBy groups, or one-proportion against params.p0; streamable via success / total counts.
 - [`op-test-shapiro-wilk`](skills/op-test-shapiro-wilk.md): Shapiro-Francia (W′) normality test on Field; runs per-group when SplitBy is set; p advisory outside 5..5000.
 - [`op-test-spearman-r`](skills/op-test-spearman-r.md): Rank-based correlation between Field and Field2 (monotonic association); buffered mid-ranks then Pearson.
 - [`op-test-t`](skills/op-test-t.md): One-sample or two-sample Welch t-test on a numeric field; SplitBy switches to the two-sample variant.

@@ -825,6 +825,31 @@ const (
 	// positive outcome.
 	PULSE_TEST_SUCCESS_VALUE_MISSING Code = "PULSE_TEST_SUCCESS_VALUE_MISSING"
 
+	// PULSE_TEST_EXPECTED_INVALID indicates TEST_CHISQ's params.expected
+	// (the goodness-of-fit proportions, label -> proportion) cannot
+	// define a fit: set together with cols, fewer than two labels, an
+	// empty label, a proportion that is not a finite number above 0,
+	// proportions that do not sum to 1 within 1e-9, or (on a packed_bool
+	// rows field) a label that is not a level ("0" / "1"). Raised by
+	// predict and the runtime constructor alike (one shared check,
+	// internal/fieldaccept.ExpectedRefusal); Details {type, reason, ...}.
+	PULSE_TEST_EXPECTED_INVALID Code = "PULSE_TEST_EXPECTED_INVALID"
+
+	// PULSE_TEST_EXPECTED_LABEL_MISSING indicates a TEST_CHISQ
+	// goodness-of-fit run observed a rows level that params.expected
+	// does not list. The proportions are never renormalised over the
+	// observed levels: a missing label is refused, Details {type, rows,
+	// labels (the missing ones), expected_labels}. Data-dependent, so
+	// only the runtime raises it.
+	PULSE_TEST_EXPECTED_LABEL_MISSING Code = "PULSE_TEST_EXPECTED_LABEL_MISSING"
+
+	// PULSE_TEST_P0_INVALID indicates TEST_PROP_Z's params.p0 (the
+	// hypothesised success rate of the one-proportion test) is not a
+	// number strictly between 0 and 1, or is set together with split_by
+	// (a two-proportion test has no p0). Raised by predict and the
+	// runtime constructor alike (internal/fieldaccept.P0Refusal).
+	PULSE_TEST_P0_INVALID Code = "PULSE_TEST_P0_INVALID"
+
 	// PULSE_TEST_CORRELATION_UNDEFINED indicates Pearson r encountered
 	// a column with zero variance; r and its t-statistic are
 	// mathematically undefined in that case.
@@ -3913,6 +3938,9 @@ var allCodes = []Code{
 	PULSE_TEST_EXPECTED_COUNT_TOO_LOW,
 	PULSE_TEST_FIELD2_NOT_NUMERIC,
 	PULSE_TEST_SUCCESS_VALUE_MISSING,
+	PULSE_TEST_EXPECTED_INVALID,
+	PULSE_TEST_EXPECTED_LABEL_MISSING,
+	PULSE_TEST_P0_INVALID,
 	PULSE_TEST_CORRELATION_UNDEFINED,
 	PULSE_TEST_PAIRED_LENGTH_MISMATCH,
 	PULSE_TEST_TIES_DOMINATE,

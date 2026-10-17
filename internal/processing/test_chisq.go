@@ -48,6 +48,15 @@ type chiSqRow struct {
 }
 
 func newChiSqRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
+	params, err := decodeChiSqParams(spec)
+	if err != nil {
+		return nil, err
+	}
+	// params.expected selects the goodness-of-fit form, which reads
+	// rows alone (test_chisq_gof.go).
+	if params.Expected != nil {
+		return newChiSqGOFRow(spec, schema, params.Expected)
+	}
 	if spec.Rows == "" || spec.Cols == "" {
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			"TEST_CHISQ requires rows and cols",
