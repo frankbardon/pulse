@@ -786,7 +786,9 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	if err != nil {
 		return nil, err
 	}
-	postResults, _, err := p.runPostTests(req.PostTests, req.Groups, data)
+	// Post-test warnings are kept (ungrouped they are none today: only a
+	// partitioned run warns) so this arm can never drift from buffered.
+	postResults, postWarnings, err := p.runPostTests(req.PostTests, req.Groups, data)
 	if err != nil {
 		return nil, err
 	}
@@ -821,6 +823,9 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		PostTests:   postResults,
 		Regressions: regressionResults,
 		Matrices:    matrixResults,
+		// After the row-local attribute warnings prepended below — the
+		// buffered arm's order.
+		Warnings: postWarnings,
 	}
 
 	// Components emission block — one gate per sub-part off the
@@ -1469,7 +1474,9 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		data = []map[string]any{row}
 	}
 
-	postResults, _, err := p.runPostTests(req.PostTests, req.Groups, data)
+	// Kept, appended after the attribute fit warnings below (the
+	// buffered arm's order); ungrouped they are none today.
+	postResults, postWarnings, err := p.runPostTests(req.PostTests, req.Groups, data)
 	if err != nil {
 		return nil, err
 	}
@@ -1528,6 +1535,7 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 	for i := range stages {
 		resp.Warnings = append(resp.Warnings, AttributeWarnings(stages[i].row)...)
 	}
+	resp.Warnings = append(resp.Warnings, postWarnings...)
 	for i := range stages {
 		entry, ok, err := attributeComponents(stages[i].attr, stages[i].label, stages[i].row, stages[i].floor)
 		if err != nil {

@@ -128,3 +128,67 @@ func TestNoAggregationRequests_StreamAndMatchBuffered(t *testing.T) {
 		})
 	}
 }
+
+// TestPostTestWarnings_StreamAndMatchBuffered: a streamable request
+// carrying post-tests answers byte-identically streamed and forced-
+// buffered, WARNINGS included (U48 E3-S3). Post-test warnings are the
+// partitioned run's sparse-partition warnings, so only a grouped request
+// raises them (ungrouped, the post-test runs once over the one data row
+// and runPostTests returns no warning); on the grouped stream they ride
+// the shared grouped tail. The ungrouped streaming arms and the crosstab
+// arm keep runPostTests' warnings anyway, in the buffered arm's order.
+func TestPostTestWarnings_StreamAndMatchBuffered(t *testing.T) {
+	schema := weightedTestSchema()
+	var recs []*Record
+	for _, r := range weightedTestFixture() {
+		recs = append(recs, NewRecord(schema, map[string]float64{"x": r.x, "y": r.y, "w": r.w, "g": float64(dictIDOrAdd(schema, "g", r.g))}))
+	}
+	aggs := func() []*types.Aggregation {
+		return []*types.Aggregation{
+			{Type: types.AGG_COUNT, Field: "x", Label: "n"},
+			{Type: types.AGG_AVERAGE, Field: "y", Label: "my"},
+		}
+	}
+	pearson := func() []*types.Test {
+		return []*types.Test{{Type: types.TEST_PEARSON_R, Field: "n", Field2: "my", Label: "r"}}
+	}
+	cases := []struct {
+		name      string
+		req       func() *types.Request
+		wantWarns bool
+	}{
+		// Two groupers: the post-test runs once per g partition; each
+		// partition's handful of (g, round(x)) rows is too few for a
+		// correlation, so every partition warns.
+		{"grouped sparse partitions", func() *types.Request {
+			return &types.Request{Groups: []*types.Group{
+				{Type: types.GROUP_CATEGORY, Field: "g"},
+				{Type: types.GROUP_ROUNDED, Field: "x", Interval: 2},
+			}, Aggregations: aggs(), PostTests: pearson()}
+		}, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			p := NewProcessor(schema)
+			streamed, err := p.Process(context.Background(), c.req(), NewSliceIterator(recs))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if p.LastPath() != PathStreaming {
+				t.Fatalf("ran %v, want streaming", p.LastPath())
+			}
+			buffered, err := processBuffered(NewProcessor(schema), c.req(), recs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.wantWarns && len(buffered.Warnings) == 0 {
+				t.Fatal("fixture raised no post-test warning on the buffered arm")
+			}
+			a, _ := json.Marshal(streamed)
+			b, _ := json.Marshal(buffered)
+			if string(a) != string(b) {
+				t.Fatalf("streaming and buffered differ:\n%s\n%s", a, b)
+			}
+		})
+	}
+}

@@ -697,11 +697,14 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// cell-row view; for shape=long the cell rows are already
 	// addressable as the non-margin subset of resp.Data.
 	postRows := folded.postRows
-	postResults, _, err := p.runPostTests(req.PostTests, nil, postRows)
+	// Unpartitioned (nil groups), so no warning today; kept after the
+	// attribute and refit warnings — the process buffered arm's order.
+	postResults, postWarnings, err := p.runPostTests(req.PostTests, nil, postRows)
 	if err != nil {
 		return nil, err
 	}
 	resp.PostTests = postResults
+	resp.Warnings = append(resp.Warnings, postWarnings...)
 
 	// Overlay fold. When Request.Overlays is non-empty and the
 	// buffered exit produced a MATRIX-shaped CrosstabResult, wrap the
