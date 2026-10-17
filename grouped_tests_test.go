@@ -44,6 +44,14 @@ func gtCases() []gtCase {
 	wGof := `{"type":"TEST_CHISQ","rows":"sex","params":{"expected":{"F":0.4,"M":0.6}},"label":"wgof","weight":{"field":"score","kind":"probability"}}`
 	prop1 := `{"type":"TEST_PROP_Z","field":"sex","params":{"success":"F","p0":0.4},"label":"p1"}`
 	wProp1 := `{"type":"TEST_PROP_Z","field":"sex","params":{"success":"F","p0":0.4},"label":"wp1","weight":{"field":"score","kind":"frequency"}}`
+	// U48 E1-S3: params.reference (here the alphabetical-first level,
+	// so every signed figure flips) runs per group.
+	tRef := `{"type":"TEST_T","field":"score","split_by":"sex","params":{"reference":"F"},"label":"tref"}`
+	zRef := `{"type":"TEST_Z_TWO_SAMPLE","field":"score","split_by":"sex","params":{"reference":"F"},"label":"zref"}`
+	mwRef := `{"type":"TEST_MANN_WHITNEY_U","field":"score","split_by":"sex","params":{"reference":"F"},"label":"mwref"}`
+	propRef := `{"type":"TEST_PROP_Z","field":"tier","split_by":"sex","params":{"success":"gold","reference":"F"},"label":"propref"}`
+	wTRef := `{"type":"TEST_WELCH","field":"y","split_by":"sex","params":{"reference":"F"},"label":"wtref","weight":{"field":"score","kind":"probability"}}`
+	wMwRef := `{"type":"TEST_MANN_WHITNEY_U","field":"score","split_by":"sex","params":{"reference":"F"},"label":"wmwref","weight":{"field":"y","kind":"frequency"}}`
 	region := func() []*types.Group { return []*types.Group{mgRegion()} }
 	regionTier := func() []*types.Group { return []*types.Group{mgRegion(), mgTier()} }
 	regionTags := func() []*types.Group { return []*types.Group{mgRegion(), mgTags()} }
@@ -57,6 +65,8 @@ func gtCases() []gtCase {
 		{"Weighted chisq/region×tags", "[" + wChi + "]", regionTags},
 		{"GOF+one-proportion/region", "[" + gof + "," + prop1 + "]", region},
 		{"Weighted GOF+one-proportion/region×tier", "[" + wGof + "," + wProp1 + "]", regionTier},
+		{"Reference/region", "[" + tRef + "," + zRef + "," + mwRef + "," + propRef + "]", region},
+		{"Weighted reference/region×tier", "[" + wTRef + "," + wMwRef + "]", regionTier},
 	}
 }
 
@@ -295,6 +305,18 @@ func TestGroupedTests_SparseGroupsAndLowNEff(t *testing.T) {
 	resp = run(`[{"type":"TEST_CHISQ","rows":"sex","cols":"tier","label":"chi"}]`, mgRegion())
 	if ws := gtWarnings(t, resp.Warnings, perr.PULSE_TEST_CONTINGENCY_DEGENERATE); len(ws["[west]"]) != 1 || len(ws) != 1 {
 		t.Fatalf("CONTINGENCY_DEGENERATE warnings %v, want exactly west", ws)
+	}
+
+	// gold holds only north and south: a reference of west names neither
+	// observed group there (PULSE_TEST_REFERENCE_MISSING, sparse).
+	resp = run(`[{"type":"TEST_Z_TWO_SAMPLE","field":"score","split_by":"region","params":{"reference":"west"},"label":"zw"}]`, mgTier())
+	if ws := gtWarnings(t, resp.Warnings, perr.PULSE_TEST_REFERENCE_MISSING); len(ws["[gold]"]) != 1 || len(ws) != 1 {
+		t.Fatalf("REFERENCE_MISSING warnings %v, want exactly gold", ws)
+	}
+	for _, r := range resp.Tests {
+		if fmt.Sprint(r.GroupKey) == "[gold]" && (!math.IsNaN(r.Statistic) || !math.IsNaN(r.PValue)) {
+			t.Fatalf("gold's reference-missing result is not null: %+v", r)
+		}
 	}
 
 	resp = run(`[{"type":"TEST_T","field":"y","split_by":"sex","label":"wt","weight":{"field":"score","kind":"probability"}}]`, mgRegion(), mgTier())

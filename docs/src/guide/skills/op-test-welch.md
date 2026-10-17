@@ -27,6 +27,7 @@ Use something else:
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
+- `reference` — string: the `SplitBy` level read second, so `diff`, CI, t and `cohens_d` read other − reference (default: alphabetical, second level). Not a level, or no `SplitBy` → `PULSE_TEST_REFERENCE_INVALID` (predict too); neither observed group → `PULSE_TEST_REFERENCE_MISSING` (grouped: that group's figures `null`).
 
 Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exactly 2 groups).
 - `weight` — slot weight (`null` opts out), both kinds: per-group moments on w*, Welch–Satterthwaite df on N*_g (Σw frequency, Kish n_eff probability; fractional). `Details` add `sum_weights` (+ `n_eff`, probability) shaped like `n` (raw rows); n_eff < 2 warns `PULSE_WEIGHT_LOW_NEFF`.
@@ -52,6 +53,7 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 - Welch denominator never assumes equal variance — the safe default when spreads may differ.
 - The Welford triple is byte-equal to the Welford aggregate's on the same inputs — reuse via `OVERLAY_T_CELL` on crosstabs.
 - Constant Field within a group → `PULSE_TEST_VARIANCE_ZERO`.
+- No `Field` or no `SplitBy` → `PROCESSING_CONFIG` (predict too).
 
 ## See
 

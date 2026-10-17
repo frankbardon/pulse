@@ -22,6 +22,15 @@ var alphaParam = descriptor.Param{
 // partitionByParam is every post-test's partition key list (U46 E3-S2,
 // internal/groupedtests.PostTestDepth): over two or more groupers a
 // post-test runs once per partition of the result rows.
+// testReferenceParam is the two-group tests' params.reference (U48): the
+// split_by level every signed figure is read against.
+var testReferenceParam = descriptor.Param{
+	Name:        "reference",
+	Type:        "string",
+	Required:    false,
+	Description: "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING.",
+}
+
 var partitionByParam = descriptor.Param{
 	Name:        "partition_by",
 	Type:        "list",
@@ -51,6 +60,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Params: []descriptor.Param{
 				alphaParam,
 				{Name: "mu", Type: "float", Required: false, Default: 0.0, Description: "Hypothesized mean for the one-sample variant (ignored when SplitBy is set)."},
+				testReferenceParam,
 			},
 			Requires: []string{"Field"},
 		},
@@ -60,7 +70,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Tier:        1,
 			Description: "Explicit two-sample Welch t-test alias; identical to TEST_T with SplitBy.",
 			Streamable:  types.TEST_WELCH.Streamable(),
-			Params:      []descriptor.Param{alphaParam},
+			Params:      []descriptor.Param{alphaParam, testReferenceParam},
 			Requires:    []string{"Field", "SplitBy"},
 		},
 		{
@@ -112,6 +122,7 @@ func testCapabilities() []descriptor.TestMeta {
 				alphaParam,
 				{Name: "success", Type: "string", Required: true, Description: "Dictionary value of Field treated as a success; on a packed_bool Field exactly \"1\" (true) or \"0\" (false)."},
 				{Name: "p0", Type: "float", Required: false, Description: "Hypothesised success rate in (0, 1) for the one-proportion variant (Variant one_proportion); requires SplitBy absent."},
+				testReferenceParam,
 			},
 			Requires: []string{"Field", "SplitBy"},
 		},
@@ -130,7 +141,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Tier:        1,
 			Description: "Nonparametric two-sample location test; buffered tie-corrected rank sum.",
 			Streamable:  types.TEST_MANN_WHITNEY_U.Streamable(),
-			Params:      []descriptor.Param{alphaParam},
+			Params:      []descriptor.Param{alphaParam, testReferenceParam},
 			Requires:    []string{"Field", "SplitBy"},
 		},
 		{
@@ -220,7 +231,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Tier:        1,
 			Description: "Two-sample z-test on Field means across two SplitBy groups; identical SE to TEST_WELCH but p-value via standard normal Φ.",
 			Streamable:  types.TEST_Z_TWO_SAMPLE.Streamable(),
-			Params:      []descriptor.Param{alphaParam},
+			Params:      []descriptor.Param{alphaParam, testReferenceParam},
 			Requires:    []string{"Field", "SplitBy"},
 		},
 		{

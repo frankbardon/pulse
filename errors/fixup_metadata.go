@@ -1399,6 +1399,32 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_TEST_REFERENCE_INVALID: {
+		Message: "A two-group test's params.reference (the split_by level signed figures are read against) is set without split_by, or is not a level of the split_by field (\"0\" / \"1\" on a packed_bool, a dictionary entry on a categorical). details.reason says which.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Tests", "*", "Params", "reference"},
+				Hint:     "Name the control arm exactly as the split_by dictionary spells it (pulse inspect lists the levels); on a packed_bool use \"1\" or \"0\". Omit it for alphabetical order.",
+				Examples: []any{map[string]any{"reference": "control"}},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Tests", "*", "SplitBy"},
+				Hint:   "without_split_by: reference orders the two split_by groups; set split_by, or drop reference for the one-sample form.",
+			},
+		},
+	},
+	PULSE_TEST_REFERENCE_MISSING: {
+		Message: "A two-group test saw two split_by groups (details.groups) and neither is params.reference: the filtered data (or this group of a grouped run) never shows that level.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Tests", "*", "Params", "reference"},
+				Hint:   "Name one of the two observed groups as the reference, or filter the rows to the two arms you mean to compare.",
+			},
+		},
+	},
 	PULSE_TEST_P0_INVALID: {
 		Message: "TEST_PROP_Z params.p0 (the one-proportion test's hypothesised success rate) is not strictly between 0 and 1, or is set together with split_by.",
 		Fixups: []Fixup{

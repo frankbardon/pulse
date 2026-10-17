@@ -17,6 +17,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
 - `mu` — float, default `0.0`. Hypothesized mean, one-sample only; ignored when `SplitBy` is set.
+- `reference` — string, two-sample: the `SplitBy` level read second, so `diff`, CI, t and `cohens_d` read other − reference (default: alphabetical, second level). Not a level, or no `SplitBy` → `PULSE_TEST_REFERENCE_INVALID` (predict too); neither observed group → `PULSE_TEST_REFERENCE_MISSING` (grouped: that group's figures `null`).
 - `weight` — slot weight (`null` opts out), both kinds: moments on w*, N* = Σw (frequency) or Kish n_eff (probability); `df` = N*−1 (two-sample: Welch df on N*_g), may be fractional. `Details` add `sum_weights` (+ `n_eff`, probability) shaped like `n` (raw rows); n_eff < 2 warns `PULSE_WEIGHT_LOW_NEFF`.
 <!-- feature: capability:multiplicity -->
 - `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
@@ -34,7 +35,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Gotchas
 
-- Two-sample needs exactly 2 `SplitBy` groups, else `PULSE_TEST_INVALID_SPLITBY`.
+- Two-sample needs exactly 2 `SplitBy` groups, else `PULSE_TEST_SPLIT_GROUPS_LT_2`.
 - Streamable — running Welford state per `SplitBy` group.
 - Constant Field within a group → `PULSE_TEST_VARIANCE_ZERO`.
 - n < 2 (per group) → `PULSE_TEST_INSUFFICIENT_N`.

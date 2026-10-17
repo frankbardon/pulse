@@ -6711,6 +6711,12 @@
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
             "slot": true
+          },
+          {
+            "name": "reference",
+            "type": "string",
+            "required": false,
+            "description": "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           }
         ],
         "requires": [
@@ -6889,6 +6895,12 @@
             "type": "float",
             "required": false,
             "description": "Hypothesised success rate in (0, 1) for the one-proportion variant (Variant one_proportion); requires SplitBy absent."
+          },
+          {
+            "name": "reference",
+            "type": "string",
+            "required": false,
+            "description": "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           }
         ],
         "requires": [
@@ -6974,6 +6986,12 @@
             "required": false,
             "default": 0,
             "description": "Hypothesized mean for the one-sample variant (ignored when SplitBy is set)."
+          },
+          {
+            "name": "reference",
+            "type": "string",
+            "required": false,
+            "description": "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           }
         ],
         "requires": [
@@ -7002,6 +7020,12 @@
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
             "slot": true
+          },
+          {
+            "name": "reference",
+            "type": "string",
+            "required": false,
+            "description": "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           }
         ],
         "requires": [
@@ -7058,6 +7082,12 @@
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
             "slot": true
+          },
+          {
+            "name": "reference",
+            "type": "string",
+            "required": false,
+            "description": "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           }
         ],
         "requires": [
@@ -9724,7 +9754,7 @@
         ]
       }
     ],
-    "error_codes_count": 381,
+    "error_codes_count": 383,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10081,6 +10111,8 @@
       "PULSE_TEST_P0_INVALID",
       "PULSE_TEST_PAIRED_LENGTH_MISMATCH",
       "PULSE_TEST_PARTITION_INVALID",
+      "PULSE_TEST_REFERENCE_INVALID",
+      "PULSE_TEST_REFERENCE_MISSING",
       "PULSE_TEST_SHAPIRO_N_BOUND",
       "PULSE_TEST_SPLIT_GROUPS_LT_2",
       "PULSE_TEST_SUBJECT_MISSING",
@@ -18638,4 +18670,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: bdc2318f68919a5e4d4eb039bd970e33a6318b25f9b012337a5429fdfe1f31c5
+// golden-hash: 0df91e5f6b0661ba7b10e5d6bf72b7cdb01565a6b5c9a73241ea69871a7820d8

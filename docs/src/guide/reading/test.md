@@ -417,14 +417,18 @@ U counts, over every pair of rows from the two groups, how often one group's val
 
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
+#### `details.reference`
+
+Present only with params.reference: the split_by level read second in details.groups, so diff, its interval, the statistic and the signed effect size read the other group minus this one.
+
 #### `details.z`
 
 The normal score the p-value is read from, with a continuity correction of one half.
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
 
 **Caveats:**
 
@@ -436,8 +440,8 @@ Rank-biserial correlation, from -1 to +1: the chance that a random row from the 
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
 
 **Caveats:**
 
@@ -623,8 +627,8 @@ z: the first group's success rate minus the second's, in standard errors compute
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher; one-proportion: the observed rate is above p0
-- `-`: the second group in details.groups (alphabetical order) is higher; one-proportion: the observed rate is below p0
+- `+`: the first group in details.groups is higher (alphabetical; with params.reference, the non-reference group); one-proportion: the observed rate is above p0
+- `-`: the second group in details.groups is higher (alphabetical; with params.reference, the reference); one-proportion: the observed rate is below p0
 
 **Caveats:**
 
@@ -634,14 +638,18 @@ z: the first group's success rate minus the second's, in standard errors compute
 
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
+#### `details.reference`
+
+Present only with params.reference: the split_by level read second in details.groups, so diff, its interval, the statistic and the signed effect size read the other group minus this one.
+
 #### `details.diff`
 
 The first group's success rate minus the second's (one-proportion: the observed rate minus details.p0), as a proportion (0.05 = 5 percentage points).
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher; one-proportion: the observed rate is above p0
-- `-`: the second group in details.groups (alphabetical order) is higher; one-proportion: the observed rate is below p0
+- `+`: the first group in details.groups is higher (alphabetical; with params.reference, the non-reference group); one-proportion: the observed rate is above p0
+- `-`: the second group in details.groups is higher (alphabetical; with params.reference, the reference); one-proportion: the observed rate is below p0
 
 #### `details.p0`
 
@@ -675,8 +683,8 @@ Cohen's h, the gap between the two rates (one-proportion: the observed rate and 
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher; one-proportion: the observed rate is above p0
-- `-`: the second group in details.groups (alphabetical order) is higher; one-proportion: the observed rate is below p0
+- `+`: the first group in details.groups is higher (alphabetical; with params.reference, the non-reference group); one-proportion: the observed rate is above p0
+- `-`: the second group in details.groups is higher (alphabetical; with params.reference, the reference); one-proportion: the observed rate is below p0
 
 **Caveats:**
 
@@ -757,14 +765,18 @@ t is the gap between averages measured in standard errors: the sample mean minus
 
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
+#### `details.reference`
+
+Present only with params.reference: the split_by level read second in details.groups, so diff, its interval, the statistic and the signed effect size read the other group minus this one.
+
 #### `details.diff`
 
 Two-sample only: the first group's mean minus the second's, in the field's own units.
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
 
 #### `details.ci_low`
 
@@ -881,8 +893,8 @@ Welch's t: the first group's mean minus the second's, in standard errors compute
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
 
 **Caveats:**
 
@@ -892,14 +904,18 @@ Welch's t: the first group's mean minus the second's, in standard errors compute
 
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
+#### `details.reference`
+
+Present only with params.reference: the split_by level read second in details.groups, so diff, its interval, the statistic and the signed effect size read the other group minus this one.
+
 #### `details.diff`
 
 The first group's mean minus the second's, in the field's own units.
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
 
 #### `details.ci_low`
 
@@ -928,8 +944,8 @@ The gap between the two means in pooled-standard-deviation units; 0.5 means they
 
 **Sign:**
 
-- `+`: the first group in details.groups has the higher average
-- `-`: the second group in details.groups has the higher average
+- `+`: the first group in details.groups (the non-reference one) has the higher average
+- `-`: the second group in details.groups (the reference) has the higher average
 
 **Caveats:**
 
@@ -1001,8 +1017,8 @@ z: the first group's mean minus the second's, in standard errors built from each
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
 
 **Caveats:**
 
@@ -1012,14 +1028,18 @@ z: the first group's mean minus the second's, in standard errors built from each
 
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
+#### `details.reference`
+
+Present only with params.reference: the split_by level read second in details.groups, so diff, its interval, the statistic and the signed effect size read the other group minus this one.
+
 #### `details.diff`
 
 The first group's mean minus the second's, in the field's own units.
 
 **Sign:**
 
-- `+`: the first group in details.groups (alphabetical order) is higher
-- `-`: the second group in details.groups (alphabetical order) is higher
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
 
 #### `details.ci_low`
 
@@ -1048,8 +1068,8 @@ The gap between the two means in pooled-standard-deviation units; 0.5 means they
 
 **Sign:**
 
-- `+`: the first group in details.groups has the higher average
-- `-`: the second group in details.groups has the higher average
+- `+`: the first group in details.groups (the non-reference one) has the higher average
+- `-`: the second group in details.groups (the reference) has the higher average
 
 **Caveats:**
 

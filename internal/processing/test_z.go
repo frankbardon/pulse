@@ -31,6 +31,8 @@ type zTestRow struct {
 	field   string
 	splitBy string
 	alpha   float64
+	// reference is params.reference ("" = alphabetical order).
+	reference string
 
 	groups map[string]*weighting.Welford
 	order  []string
@@ -40,13 +42,8 @@ type zTestRow struct {
 }
 
 func newZTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
-	if spec.Field == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_Z_TWO_SAMPLE requires field (numeric measurement column)")
-	}
-	if spec.SplitBy == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_Z_TWO_SAMPLE requires split_by (categorical two-group column)")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, false, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {
@@ -65,12 +62,17 @@ func newZTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 			return nil, cerr
 		}
 	}
+	reference, err := decodeTwoGroupParams(spec, schema)
+	if err != nil {
+		return nil, err
+	}
 	return &zTestRow{
 		spec:       spec,
 		schema:     schema,
 		field:      spec.Field,
 		splitBy:    spec.SplitBy,
 		alpha:      alpha,
+		reference:  reference,
 		groups:     make(map[string]*weighting.Welford),
 		testWeight: newTestWeight(spec),
 	}, nil
@@ -112,6 +114,10 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SPLIT_GROUPS_LT_2,
 			fmt.Sprintf("TEST_Z_TWO_SAMPLE sees %d groups", len(keys))+remedyTwoGroupsOrAnova(nil),
 			map[string]any{"groups": keys, "max_allowed": 2})
+	}
+	keys, err := referenceOrder(types.TEST_Z_TWO_SAMPLE, zt.reference, keys)
+	if err != nil {
+		return nil, err
 	}
 	a, b := zt.groups[keys[0]], zt.groups[keys[1]]
 	if a.N < 2 || b.N < 2 {
@@ -158,6 +164,7 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 			"ci_high":  ciHigh,
 		},
 	}
+	noteReference(res.Details, zt.reference)
 	setEffectSize(res.Details, "cohens_d", cohensDTwoSample(diff, na, va, nb, vb))
 	zt.noteGroups(res.Details, []*weighting.Welford{a, b})
 	zt.checkNEff(zt.spec, true, keys[0], a.NEff(), 2)

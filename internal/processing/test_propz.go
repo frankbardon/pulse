@@ -49,6 +49,9 @@ type propZRow struct {
 	// when params.p0 selects that form (split_by absent).
 	p0  float64
 	one bool
+	// reference is params.reference (two-proportion): the split_by
+	// level read second, so diff = other − reference ("" = alphabetical).
+	reference string
 
 	groups map[string]*propGroup
 	order  []string
@@ -67,8 +70,9 @@ type propGroup struct {
 }
 
 type propZParams struct {
-	Success string   `json:"success"`
-	P0      *float64 `json:"p0"`
+	Success   string   `json:"success"`
+	P0        *float64 `json:"p0"`
+	Reference string   `json:"reference"`
 }
 
 func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -124,6 +128,11 @@ func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 	if cerr := fieldaccept.SuccessLevelRefusal(string(spec.Type), spec.Field, params.Success, schema); cerr != nil {
 		return nil, cerr
 	}
+	// A reference names a split_by level (and needs split_by: the
+	// one-proportion form has no second group).
+	if cerr := fieldaccept.ReferenceRefusal(string(spec.Type), spec.SplitBy, params.Reference, schema); cerr != nil {
+		return nil, cerr
+	}
 	return &propZRow{
 		spec:       spec,
 		schema:     schema,
@@ -133,6 +142,7 @@ func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		alpha:      alpha,
 		p0:         p0,
 		one:        params.P0 != nil,
+		reference:  params.Reference,
 		groups:     make(map[string]*propGroup),
 		testWeight: newTestWeight(spec),
 	}, nil
@@ -186,6 +196,10 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 			fmt.Sprintf("TEST_PROP_Z sees %d groups", len(keys))+remedyTwoGroupsOrChiSq(nil),
 			map[string]any{"groups": keys, "max_allowed": 2})
 	}
+	keys, err := referenceOrder(types.TEST_PROP_Z, p.reference, keys)
+	if err != nil {
+		return nil, err
+	}
 	a, b := p.groups[keys[0]], p.groups[keys[1]]
 	if a.w.N < 1 || b.w.N < 1 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
@@ -231,6 +245,7 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 	if p.basis.Weighted() {
 		details["successes"] = []float64{a.succW, b.succW}
 	}
+	noteReference(details, p.reference)
 	p.noteGroups(details, []*weighting.Welford{&a.w, &b.w})
 	setEffectSize(details, "cohens_h", cohensH(pa, pb))
 	return &types.TestResult{

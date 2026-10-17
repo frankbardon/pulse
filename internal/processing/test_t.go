@@ -42,6 +42,9 @@ type tTestRow struct {
 	alpha   float64
 	mu      float64
 	one     bool
+	// reference is params.reference (two-sample): the split_by level
+	// read second, so diff = other − reference ("" = alphabetical).
+	reference string
 
 	// groups holds per-key weighted Welford state in first-seen
 	// insertion order so Finalize can return groups deterministically.
@@ -54,16 +57,63 @@ type tTestRow struct {
 }
 
 // tTestParams is the JSON payload for TEST_T.Params. Mu is honored only
-// for the one-sample variant. TEST_WELCH (always two-sample) reads no
-// params.
+// for the one-sample variant; Reference only for the two-sample one.
 type tTestParams struct {
-	Mu float64 `json:"mu"`
+	Mu        float64 `json:"mu"`
+	Reference string  `json:"reference"`
+}
+
+// twoGroupParams is the params payload of a test whose only param is
+// params.reference (TEST_WELCH, TEST_Z_TWO_SAMPLE, TEST_MANN_WHITNEY_U):
+// the split_by level every signed figure is read against.
+type twoGroupParams struct {
+	Reference string `json:"reference"`
+}
+
+// decodeTwoGroupParams reads a twoGroupParams test's params (absent =
+// no reference) and refuses a reference that names no split_by level
+// (fieldaccept.ReferenceRefusal, the refusal predict raises).
+func decodeTwoGroupParams(spec *types.Test, schema *encoding.Schema) (string, error) {
+	var p twoGroupParams
+	if err := paramread.DecodeOptional(paramread.Test, string(spec.Type), spec.Params, &p); err != nil {
+		return "", errors.NewCodedError(errors.PROCESSING_CONFIG,
+			string(spec.Type)+" params: "+err.Error())
+	}
+	if cerr := fieldaccept.ReferenceRefusal(string(spec.Type), spec.SplitBy, p.Reference, schema); cerr != nil {
+		return "", cerr
+	}
+	return p.Reference, nil
+}
+
+// referenceOrder orders a two-group test's two sorted split keys so the
+// non-reference group is first (bucket a) and params.reference second
+// (bucket b): every signed figure then reads other − reference. An
+// empty reference keeps the alphabetical order. Neither key being the
+// reference (a level the filtered data — or this group of a grouped
+// run — never shows) is PULSE_TEST_REFERENCE_MISSING.
+func referenceOrder(op types.TestType, reference string, keys []string) ([]string, error) {
+	switch reference {
+	case "", keys[1]:
+		return keys, nil
+	case keys[0]:
+		return []string{keys[1], keys[0]}, nil
+	}
+	return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_REFERENCE_MISSING,
+		fmt.Sprintf("%s params.reference %q is neither observed split group (%q, %q)", op, reference, keys[0], keys[1]),
+		map[string]any{"type": string(op), "reference": reference, "groups": keys})
+}
+
+// noteReference echoes params.reference in Details (absent when unset,
+// so a request without one is byte-identical).
+func noteReference(details map[string]any, reference string) {
+	if reference != "" {
+		details["reference"] = reference
+	}
 }
 
 func newTTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
-	if spec.Field == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_T requires field")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, false, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {
@@ -85,16 +135,23 @@ func newTTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		}
 	}
 	var mu float64
+	var reference string
 	if spec.Type == types.TEST_T {
-		paramread.Declare(paramread.Test, string(spec.Type), (*tTestParams)(nil))
-	}
-	if spec.Type == types.TEST_T && len(spec.Params) > 0 {
 		var p tTestParams
-		if err := paramread.Decode(paramread.Test, string(spec.Type), spec.Params, &p); err != nil {
+		if err := paramread.DecodeOptional(paramread.Test, string(spec.Type), spec.Params, &p); err != nil {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				"TEST_T params: "+err.Error())
 		}
-		mu = p.Mu
+		mu, reference = p.Mu, p.Reference
+		if cerr := fieldaccept.ReferenceRefusal(string(spec.Type), spec.SplitBy, reference, schema); cerr != nil {
+			return nil, cerr
+		}
+	} else {
+		ref, err := decodeTwoGroupParams(spec, schema)
+		if err != nil {
+			return nil, err
+		}
+		reference = ref
 	}
 	return &tTestRow{
 		spec:       spec,
@@ -103,6 +160,7 @@ func newTTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		splitBy:    spec.SplitBy,
 		alpha:      alpha,
 		mu:         mu,
+		reference:  reference,
 		one:        spec.SplitBy == "",
 		groups:     make(map[string]*weighting.Welford),
 		testWeight: newTestWeight(spec),
@@ -212,7 +270,8 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 	// Use sorted key set so deterministic ordering survives across the
 	// underlying hash-map iteration. order preserves first-seen sequence
 	// but ordering test labels alphabetically is the more standard
-	// scientific convention; tie-break to first-seen for stability.
+	// scientific convention; params.reference then moves its level
+	// second (referenceOrder), before any arithmetic.
 	keys := append([]string(nil), tt.order...)
 	sort.Strings(keys)
 	if len(keys) < 2 {
@@ -224,6 +283,10 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SPLIT_GROUPS_LT_2,
 			fmt.Sprintf("TEST_T two-sample sees %d groups", len(keys))+remedyAnovaForK(nil),
 			map[string]any{"groups": keys, "max_allowed": 2})
+	}
+	keys, err := referenceOrder(tt.spec.Type, tt.reference, keys)
+	if err != nil {
+		return nil, err
 	}
 	a, b := tt.groups[keys[0]], tt.groups[keys[1]]
 	if a.N < 2 || b.N < 2 {
@@ -276,6 +339,7 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 			"ci_high":  ciHigh,
 		},
 	}
+	noteReference(res.Details, tt.reference)
 	setEffectSize(res.Details, "cohens_d", cohensDTwoSample(diff, na, va, nb, vb))
 	tt.noteGroups(res.Details, []*weighting.Welford{a, b})
 	tt.checkNEff(tt.spec, true, keys[0], a.NEff(), 2)

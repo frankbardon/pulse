@@ -66,18 +66,18 @@ var interpretationProbes = map[string][]string{
 	"TEST_CHISQ":               {"details.effect_size.cramers_v", "details.effect_size.phi", "details.expected", "details.expected_min"},
 	"TEST_HOTELLING_T2":        {"details.f"},
 	"TEST_KRUSKAL_WALLIS":      {"details.effect_size.epsilon_squared"},
-	"TEST_MANN_WHITNEY_U":      {"details.effect_size.rank_biserial", "details.z"},
+	"TEST_MANN_WHITNEY_U":      {"details.effect_size.rank_biserial", "details.reference", "details.z"},
 	"TEST_MANOVA":              {"details.f", "details.hotelling_lawley", "details.roy", "details.wilks"},
 	"TEST_PAIRED_T":            {"details.ci_high", "details.ci_low", "details.effect_size.cohens_d", "details.mean_diff"},
 	"TEST_PEARSON_R":           {"details.ci_high", "details.ci_low"},
-	"TEST_PROP_Z":              {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_h", "details.p0"},
+	"TEST_PROP_Z":              {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_h", "details.p0", "details.reference"},
 	"TEST_SHAPIRO_WILK":        {"details.per_group"},
-	"TEST_T":                   {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d"},
+	"TEST_T":                   {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d", "details.reference"},
 	"TEST_TREND":               {"details.s", "details.tau"},
 	"TEST_TUKEY_HSD":           {"details.comparisons"},
-	"TEST_WELCH":               {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d"},
+	"TEST_WELCH":               {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d", "details.reference"},
 	"TEST_WILCOXON_SR":         {"details.effect_size.rank_biserial", "details.z", "details.zero_diffs"},
-	"TEST_Z_TWO_SAMPLE":        {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d"},
+	"TEST_Z_TWO_SAMPLE":        {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d", "details.reference"},
 }
 
 // runRegisteredRow constructs typ's row test from the registry and feeds
@@ -135,6 +135,26 @@ func groupedRow(typ types.TestType) func(t *testing.T) *types.TestResult {
 		schema := twoSampleFixtureSchema()
 		return runRegisteredRow(t, &types.Test{Type: typ, Field: "revenue", SplitBy: "treatment"}, schema, func(rt RowTest) {
 			for _, g := range groups {
+				for _, v := range g.values {
+					mustUpdate(t, rt, newTestRecord(t, schema, map[string]float64{"revenue": v}, "treatment", g.name))
+				}
+			}
+		})
+	}
+}
+
+// referenceRow is groupedRow (sleep groups "1" / "2") with
+// params.reference "1": the dictionary is seeded first, as a cohort's
+// is, so the constructor's level check sees both levels.
+func referenceRow(typ types.TestType) func(t *testing.T) *types.TestResult {
+	return func(t *testing.T) *types.TestResult {
+		schema := twoSampleFixtureSchema()
+		for _, g := range sleepGroups {
+			dictIDOrAdd(schema, "treatment", g.name)
+		}
+		spec := &types.Test{Type: typ, Field: "revenue", SplitBy: "treatment", Params: json.RawMessage(`{"reference":"1"}`)}
+		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
+			for _, g := range sleepGroups {
 				for _, v := range g.values {
 					mustUpdate(t, rt, newTestRecord(t, schema, map[string]float64{"revenue": v}, "treatment", g.name))
 				}
@@ -284,8 +304,12 @@ var testProbeFixtures = []testProbeFixture{
 	{types.TEST_T, tierRow, "two_sample", groupedRow(types.TEST_T)},
 	{types.TEST_WELCH, tierRow, "two_sample", groupedRow(types.TEST_WELCH)},
 	{types.TEST_Z_TWO_SAMPLE, tierRow, "two_sample", groupedRow(types.TEST_Z_TWO_SAMPLE)},
+	{types.TEST_T, tierRow, "two_sample_reference", referenceRow(types.TEST_T)},
+	{types.TEST_WELCH, tierRow, "two_sample_reference", referenceRow(types.TEST_WELCH)},
+	{types.TEST_Z_TWO_SAMPLE, tierRow, "two_sample_reference", referenceRow(types.TEST_Z_TWO_SAMPLE)},
 	{types.TEST_KS, tierRow, "two_sample", groupedRow(types.TEST_KS)},
 	{types.TEST_MANN_WHITNEY_U, tierRow, "two_sample", groupedRow(types.TEST_MANN_WHITNEY_U)},
+	{types.TEST_MANN_WHITNEY_U, tierRow, "two_sample_reference", referenceRow(types.TEST_MANN_WHITNEY_U)},
 	{types.TEST_ANOVA_F, tierRow, "plant_growth", groupedRow(types.TEST_ANOVA_F)},
 	{types.TEST_ANOVA_WELCH, tierRow, "plant_growth", groupedRow(types.TEST_ANOVA_WELCH)},
 	{types.TEST_KRUSKAL_WALLIS, tierRow, "plant_growth", groupedRow(types.TEST_KRUSKAL_WALLIS)},
@@ -322,6 +346,26 @@ var testProbeFixtures = []testProbeFixture{
 			{Name: "converted", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 		}}
 		spec := &types.Test{Type: types.TEST_PROP_Z, Field: "converted", SplitBy: "treatment", Params: json.RawMessage(`{"success":"yes"}`)}
+		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
+			for _, c := range []struct {
+				g, o string
+				n    int
+			}{{"a", "yes", 150}, {"a", "no", 50}, {"b", "yes", 170}, {"b", "no", 30}} {
+				g, o := dictIDOrAdd(schema, "treatment", c.g), dictIDOrAdd(schema, "converted", c.o)
+				for range c.n {
+					mustUpdate(t, rt, NewRecord(schema, map[string]float64{"treatment": float64(g), "converted": float64(o)}))
+				}
+			}
+		})
+	}},
+	{types.TEST_PROP_Z, tierRow, "150of200_vs_170of200_reference_a", func(t *testing.T) *types.TestResult {
+		schema := &encoding.Schema{Fields: []encoding.Field{
+			{Name: "treatment", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
+			{Name: "converted", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
+		}}
+		dictIDOrAdd(schema, "treatment", "a")
+		dictIDOrAdd(schema, "treatment", "b")
+		spec := &types.Test{Type: types.TEST_PROP_Z, Field: "converted", SplitBy: "treatment", Params: json.RawMessage(`{"success":"yes","reference":"a"}`)}
 		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
 			for _, c := range []struct {
 				g, o string

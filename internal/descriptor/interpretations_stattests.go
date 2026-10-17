@@ -62,21 +62,21 @@ var (
 	// TEST_WELCH, TEST_Z_TWO_SAMPLE).
 	cohensDPooledCaveat = "This d divides by the pooled standard deviation of the two groups, even though the test itself does not assume equal variances; when spreads differ a lot, d describes neither group exactly."
 	cohensDSign         = map[string]string{
-		"+": "the first group in details.groups has the higher average",
-		"-": "the second group in details.groups has the higher average",
+		"+": "the first group in details.groups (the non-reference one) has the higher average",
+		"-": "the second group in details.groups (the reference) has the higher average",
 	}
 	cohensDOmitted = "When the standard deviation is zero, d is undefined and the key is left out rather than reported as 0."
 
 	// Signed two-group statistic / difference.
 	twoGroupSign = map[string]string{
-		"+": "the first group in details.groups (alphabetical order) is higher",
-		"-": "the second group in details.groups (alphabetical order) is higher",
+		"+": "the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)",
+		"-": "the second group in details.groups is higher (alphabetical order; with params.reference, the reference)",
 	}
 	// propZSign signs TEST_PROP_Z: two-group order, or the observed
 	// rate against p0 in the one-proportion form.
 	propZSign = map[string]string{
-		"+": "the first group in details.groups (alphabetical order) is higher; one-proportion: the observed rate is above p0",
-		"-": "the second group in details.groups (alphabetical order) is higher; one-proportion: the observed rate is below p0",
+		"+": "the first group in details.groups is higher (alphabetical; with params.reference, the non-reference group); one-proportion: the observed rate is above p0",
+		"-": "the second group in details.groups is higher (alphabetical; with params.reference, the reference); one-proportion: the observed rate is below p0",
 	}
 	// pairedMeanSign signs the paired t family by the MEAN difference;
 	// pairedRankSign signs the Wilcoxon family, whose rank statistic is
@@ -99,6 +99,12 @@ var (
 	ciCaveat        = "An interval that excludes 0 matches a p-value below alpha; its width shows how precisely the difference is pinned down."
 )
 
+// interpReference reads the two-group tests' params.reference echo.
+var interpReference = descriptor.Interpretation{
+	Field: "details.reference",
+	Means: "Present only with params.reference: the split_by level read second in details.groups, so diff, its interval, the statistic and the signed effect size read the other group minus this one.",
+}
+
 // --- Comparing averages ----------------------------------------------
 
 var (
@@ -116,6 +122,7 @@ var (
 			},
 		},
 		interpPValue,
+		interpReference,
 		{
 			Field: "details.diff",
 			Means: "Two-sample only: the first group's mean minus the second's, in the field's own units.",
@@ -156,6 +163,7 @@ var (
 			},
 		},
 		interpPValue,
+		interpReference,
 		{Field: "details.diff", Means: "The first group's mean minus the second's, in the field's own units.", Sign: twoGroupSign},
 		{Field: "details.ci_low", Means: "Lower end of the " + ciTwoGroupMeans, Caveats: []string{ciCaveat}},
 		{Field: "details.ci_high", Means: "Upper end of the " + ciTwoGroupMeans},
@@ -178,6 +186,7 @@ var (
 			},
 		},
 		interpPValue,
+		interpReference,
 		{Field: "details.diff", Means: "The first group's mean minus the second's, in the field's own units.", Sign: twoGroupSign},
 		{Field: "details.ci_low", Means: "Lower end of the normal-theory " + ciTwoGroupMeans, Caveats: []string{ciCaveat}},
 		{Field: "details.ci_high", Means: "Upper end of the normal-theory " + ciTwoGroupMeans},
@@ -499,6 +508,7 @@ var (
 			},
 		},
 		interpPValue,
+		interpReference,
 		{
 			Field: "details.z",
 			Means: "The normal score the p-value is read from, with a continuity correction of one half.",
@@ -650,6 +660,7 @@ var (
 			},
 		},
 		interpPValue,
+		interpReference,
 		{Field: "details.diff", Means: "The first group's success rate minus the second's (one-proportion: the observed rate minus details.p0), as a proportion (0.05 = 5 percentage points).", Sign: propZSign},
 		{Field: "details.p0", Means: "One-proportion only: the hypothesised success rate the observed rate is tested against."},
 		{

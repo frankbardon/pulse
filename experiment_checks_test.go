@@ -135,6 +135,26 @@ func TestExperimentChecks_PredictMatchesRuntime(t *testing.T) {
 		{"p0 with split_by", `{"type":"TEST_PROP_Z","field":"cat_flag","split_by":"cat_grp","params":{"success":"1","p0":0.5}}`, errors.PULSE_TEST_P0_INVALID, true},
 		{"no field", `{"type":"TEST_PROP_Z","split_by":"cat_grp","params":{"success":"1"}}`, errors.PROCESSING_CONFIG, true},
 		{"two-sample without split_by", `{"type":"TEST_PROP_Z","field":"cat_flag","params":{"success":"1"}}`, errors.PROCESSING_CONFIG, true},
+		// U48 E1-S3: params.reference names a split_by level.
+		{"reference not a dictionary level", `{"type":"TEST_WELCH","field":"x","split_by":"cat_grp","params":{"reference":"control"}}`, errors.PULSE_TEST_REFERENCE_INVALID, true},
+		{"reference packed_bool alias", `{"type":"TEST_MANN_WHITNEY_U","field":"x","split_by":"pb_grp","params":{"reference":"true"}}`, errors.PULSE_TEST_REFERENCE_INVALID, true},
+		{"reference z two-sample", `{"type":"TEST_Z_TWO_SAMPLE","field":"x","split_by":"cat_grp","params":{"reference":"2"}}`, errors.PULSE_TEST_REFERENCE_INVALID, true},
+		{"reference prop_z", `{"type":"TEST_PROP_Z","field":"cat_flag","split_by":"pb_grp","params":{"success":"1","reference":"yes"}}`, errors.PULSE_TEST_REFERENCE_INVALID, true},
+		{"reference one-sample t", `{"type":"TEST_T","field":"x","params":{"reference":"0"}}`, errors.PULSE_TEST_REFERENCE_INVALID, true},
+		{"reference one-proportion", `{"type":"TEST_PROP_Z","field":"cat_flag","params":{"success":"1","p0":0.5,"reference":"0"}}`, errors.PULSE_TEST_REFERENCE_INVALID, true},
+		{"reference two-sample t", `{"type":"TEST_T","field":"x","split_by":"cat_grp","params":{"reference":"9"}}`, errors.PULSE_TEST_REFERENCE_INVALID, true},
+		// A missing required slot is the constructor's PROCESSING_CONFIG,
+		// message for message, on every generic test.
+		{"mann-whitney no field", `{"type":"TEST_MANN_WHITNEY_U","split_by":"cat_grp"}`, errors.PROCESSING_CONFIG, true},
+		{"mann-whitney no split_by", `{"type":"TEST_MANN_WHITNEY_U","field":"x"}`, errors.PROCESSING_CONFIG, true},
+		{"welch no split_by", `{"type":"TEST_WELCH","field":"x"}`, errors.PROCESSING_CONFIG, true},
+		{"z two-sample no field", `{"type":"TEST_Z_TWO_SAMPLE","split_by":"cat_grp"}`, errors.PROCESSING_CONFIG, true},
+		{"anova no split_by", `{"type":"TEST_ANOVA_F","field":"x"}`, errors.PROCESSING_CONFIG, true},
+		{"paired t no field2", `{"type":"TEST_PAIRED_T","field":"x"}`, errors.PROCESSING_CONFIG, true},
+		{"pearson no field2", `{"type":"TEST_PEARSON_R","field":"x"}`, errors.PROCESSING_CONFIG, true},
+		{"spearman no field2", `{"type":"TEST_SPEARMAN_R","field":"x"}`, errors.PROCESSING_CONFIG, true},
+		{"anova rm no subject", `{"type":"TEST_ANOVA_RM","field":"x","split_by":"cat_grp"}`, errors.PROCESSING_CONFIG, true},
+		{"shapiro no field", `{"type":"TEST_SHAPIRO_WILK"}`, errors.PROCESSING_CONFIG, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -159,6 +179,31 @@ func TestExperimentChecks_PredictMatchesRuntime(t *testing.T) {
 				t.Fatalf("predict %+v, runtime %s %q", env.Errors, ce.Code, ce.Message)
 			}
 		})
+	}
+
+	// Post-tests: a missing required slot is the post-test
+	// constructor's PROCESSING_CONFIG on both sides, message for message.
+	for _, test := range []string{
+		`{"type":"TEST_PEARSON_R","field":"m"}`,
+		`{"type":"TEST_ANOVA_F","field":"m"}`,
+		`{"type":"TEST_TREND"}`,
+		`{"type":"TEST_KS","split_by":"cat_grp"}`,
+	} {
+		var req types.Request
+		if err := json.Unmarshal([]byte(`{"groups":[{"type":"GROUP_CATEGORY","field":"cat_grp"}],"aggregations":[{"type":"AGG_SUM","field":"x","label":"m"}],"post_tests":[`+test+`]}`), &req); err != nil {
+			t.Fatal(err)
+		}
+		req.Cohort = &types.Cohort{Filename: cohort}
+		_, err := p.Process(ctx, &req)
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_CONFIG {
+			t.Errorf("post %s runtime: %v, want PROCESSING_CONFIG", test, err)
+			continue
+		}
+		env := predictEnvelope(t, p, fs, cohort, &req)
+		if len(env.Errors) != 1 || env.Errors[0].Code != string(ce.Code) || env.Errors[0].Message != ce.Message {
+			t.Errorf("post %s: predict %+v, runtime %s %q", test, env.Errors, ce.Code, ce.Message)
+		}
 	}
 
 	// The accepted forms: predict and the runtime both accept them.

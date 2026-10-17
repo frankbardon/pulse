@@ -734,6 +734,12 @@
             "required": false,
             "default": 0,
             "description": "Hypothesized mean for the one-sample variant (ignored when SplitBy is set)."
+          },
+          {
+            "name": "reference",
+            "type": "string",
+            "required": false,
+            "description": "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           }
         ],
         "requires": [
@@ -758,6 +764,12 @@
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
             "slot": true
+          },
+          {
+            "name": "reference",
+            "type": "string",
+            "required": false,
+            "description": "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           }
         ],
         "requires": [
@@ -773,7 +785,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 185,
+    "error_codes_count": 187,
     "error_domains": [
       "CLI",
       "DATA",
@@ -958,6 +970,8 @@
       "PULSE_TEST_INSUFFICIENT_N",
       "PULSE_TEST_INVALID_ALPHA",
       "PULSE_TEST_PARTITION_INVALID",
+      "PULSE_TEST_REFERENCE_INVALID",
+      "PULSE_TEST_REFERENCE_MISSING",
       "PULSE_TEST_SPLIT_GROUPS_LT_2",
       "PULSE_TEST_TIES_DOMINATE",
       "PULSE_TEST_UNKNOWN_TYPE",
@@ -2351,4 +2365,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: dcd21efa726b88f795f4b8a5ab49fac1f09d07c116de4748f0b7a6ce8a39a6a5
+// golden-hash: 99c9c81d181d36c29a191299ab11a12f25804a233c5c48e6c8d4e64ccb0818c5

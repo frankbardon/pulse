@@ -850,6 +850,24 @@ const (
 	// runtime constructor alike (internal/fieldaccept.P0Refusal).
 	PULSE_TEST_P0_INVALID Code = "PULSE_TEST_P0_INVALID"
 
+	// PULSE_TEST_REFERENCE_INVALID indicates a two-group test's
+	// params.reference (the split_by level every signed figure is read
+	// against: diff = other − reference) cannot name a level: set
+	// without split_by (reason without_split_by), or not a level of the
+	// split_by field — "0" / "1" on a packed_bool, a dictionary entry on
+	// a categorical (reason not_a_level). Raised by predict and the
+	// runtime constructor alike (internal/fieldaccept.ReferenceRefusal);
+	// Details {type, reason, reference, split_by, ...}.
+	PULSE_TEST_REFERENCE_INVALID Code = "PULSE_TEST_REFERENCE_INVALID"
+
+	// PULSE_TEST_REFERENCE_MISSING indicates a two-group test observed
+	// two split_by groups and neither is params.reference (a level the
+	// filtered data, or this group of a grouped run, never shows).
+	// Data-dependent, so only the runtime raises it; a grouped run turns
+	// it into one null result for the group. Details {type, reference,
+	// groups}.
+	PULSE_TEST_REFERENCE_MISSING Code = "PULSE_TEST_REFERENCE_MISSING"
+
 	// PULSE_TEST_CORRELATION_UNDEFINED indicates Pearson r encountered
 	// a column with zero variance; r and its t-statistic are
 	// mathematically undefined in that case.
@@ -3942,6 +3960,8 @@ var allCodes = []Code{
 	PULSE_TEST_EXPECTED_INVALID,
 	PULSE_TEST_EXPECTED_LABEL_MISSING,
 	PULSE_TEST_P0_INVALID,
+	PULSE_TEST_REFERENCE_INVALID,
+	PULSE_TEST_REFERENCE_MISSING,
 	PULSE_TEST_CORRELATION_UNDEFINED,
 	PULSE_TEST_PAIRED_LENGTH_MISMATCH,
 	PULSE_TEST_TIES_DOMINATE,

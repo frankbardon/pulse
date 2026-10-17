@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
@@ -33,9 +34,8 @@ type pairedTPost struct {
 }
 
 func newPairedTPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
-	if spec.Field == "" || spec.Field2 == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_PAIRED_T (post): requires field and field2 (paired columns)")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, true, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {
@@ -112,9 +112,8 @@ type spearmanRPost struct {
 }
 
 func newSpearmanRPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
-	if spec.Field == "" || spec.Field2 == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_SPEARMAN_R (post): requires field and field2")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, true, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {
@@ -208,9 +207,8 @@ type kendallTauPost struct {
 }
 
 func newKendallTauPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
-	if spec.Field == "" || spec.Field2 == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_KENDALL_TAU (post): requires field and field2")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, true, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {
@@ -321,9 +319,8 @@ type wilcoxonSRPost struct {
 }
 
 func newWilcoxonSRPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
-	if spec.Field == "" || spec.Field2 == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_WILCOXON_SR (post): requires field and field2 (paired columns)")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, true, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {
@@ -440,9 +437,8 @@ type anovaWelchPost struct {
 }
 
 func newAnovaWelchPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
-	if spec.Field == "" || spec.SplitBy == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_ANOVA_WELCH (post): requires field (per-group mean column) and split_by (group label column)")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, true, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {
@@ -577,9 +573,8 @@ type brownForsythePost struct {
 }
 
 func newBrownForsythePost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
-	if spec.Field == "" || spec.SplitBy == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_BROWN_FORSYTHE (post): requires field and split_by")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, true, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {
@@ -688,9 +683,8 @@ type shapiroWilkPost struct {
 }
 
 func newShapiroWilkPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
-	if spec.Field == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_SHAPIRO_WILK (post): requires field")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, true, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {
@@ -790,9 +784,8 @@ type ksPost struct {
 }
 
 func newKSPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
-	if spec.Field == "" || spec.SplitBy == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_KS (post): requires field and split_by")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, true, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {

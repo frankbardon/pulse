@@ -29,6 +29,7 @@ Use something else:
 - `alpha` — float, default `0.05`, in `(0, 1)`.
 - `weight` — slot weight (`null` opts out), both kinds: p̂_g = Σw_success/Σw_g, N*_g = Σw_g (frequency) or Kish n_eff_g (probability) for the pooled rate and SEs. `successes` becomes Σw_success; `Details` add `sum_weights` (+ `n_eff`) shaped like `n` (raw rows).
 - `success` — string, required. Dictionary value of Field treated as a "success"; on a `packed_bool` Field strictly `"1"` or `"0"`.
+- `reference` — string, two-proportion: the `SplitBy` level read second, so `diff`, CI, z and `cohens_h` read other − reference (default: alphabetical, second level). Not a level, or no `SplitBy` → `PULSE_TEST_REFERENCE_INVALID` (predict too); neither observed group → `PULSE_TEST_REFERENCE_MISSING` (grouped: that group's figures `null`).
 - `p0` — float in `(0, 1)`, optional: with `SplitBy` absent, the one-proportion test (`Variant` `one_proportion`). Out of range or beside `SplitBy` → `PULSE_TEST_P0_INVALID` (predict too).
 - `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p ([`multiplicity-correction`](multiplicity-correction.md)).
 

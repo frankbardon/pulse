@@ -94,8 +94,16 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 	if t.Field == "" && tier1 && vectors.HasVectorInput(t) && isExtensionTestType(opts, t.Type) {
 		return
 	}
-	// Field requirement.
-	if t.Field == "" {
+	// Required slots: a built-in test's missing field / field2 /
+	// split_by / subject_field is its constructor's refusal
+	// (fieldaccept.RequiredSlotsRefusal: PROCESSING_CONFIG, message for
+	// message); a test with no tabled rule (an extension's) needs field.
+	if fieldaccept.HasRequiredSlots(t.Type, !tier1) {
+		if cerr := fieldaccept.RequiredSlotsRefusal(t.Type, !tier1, fieldaccept.TestSlotsOf(t)); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			return
+		}
+	} else if t.Field == "" {
 		env.AddError(string(errors.SERVICE_VALIDATION),
 			string(t.Type)+" requires field",
 			map[string]any{"type": string(t.Type)})
@@ -114,12 +122,8 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 		if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotField, t.Field, schema); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
-		if numericField2Tests[t.Type] {
-			if t.Field2 == "" {
-				env.AddError(string(errors.SERVICE_VALIDATION),
-					string(t.Type)+" requires field2 (second numeric column)",
-					map[string]any{"type": string(t.Type)})
-			} else if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotField2, t.Field2, schema); cerr != nil {
+		if numericField2Tests[t.Type] && t.Field2 != "" {
+			if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotField2, t.Field2, schema); cerr != nil {
 				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
 		}
@@ -128,17 +132,41 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 		if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotSplitBy, t.SplitBy, schema); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
-		if t.Type == types.TEST_ANOVA_RM {
-			if t.SubjectField == "" {
-				env.AddError(string(errors.SERVICE_VALIDATION),
-					"TEST_ANOVA_RM requires subject_field",
-					map[string]any{"type": string(t.Type)})
-			} else if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotSubject, t.SubjectField, schema); cerr != nil {
+		if t.Type == types.TEST_ANOVA_RM && t.SubjectField != "" {
+			if cerr := fieldaccept.Check(string(t.Type), fieldaccept.SlotSubject, t.SubjectField, schema); cerr != nil {
 				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
 		}
 	}
+	// A two-group test's params.reference names a split_by level — the
+	// runtime constructor's refusal after its type checks (a post-test
+	// slot is judged without a schema, as the runtime judges it).
+	if fieldaccept.TakesReference(t.Type) {
+		var s *encoding.Schema
+		if tier1 {
+			s = schema
+		}
+		if cerr := fieldaccept.ReferenceRefusal(string(t.Type), t.SplitBy, referenceParam(t.Params), s); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+	}
 	_ = opts
+}
+
+// referenceParam returns the raw Params blob's "reference" value; ""
+// when params are absent, malformed or carry none — the runtime
+// constructor's reading (empty = alphabetical order).
+func referenceParam(raw []byte) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var params struct {
+		Reference string `json:"reference"`
+	}
+	if paramread.Probe(raw, &params) != nil {
+		return ""
+	}
+	return params.Reference
 }
 
 // validateProportionZ validates TEST_PROP_Z's unique signature: a
@@ -173,6 +201,9 @@ func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encodi
 		}
 	}
 	if !tier1 || schema == nil {
+		if cerr := fieldaccept.ReferenceRefusal(string(t.Type), t.SplitBy, referenceParam(t.Params), nil); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
 		return
 	}
 	// An unknown name is FieldRefRefusals' refusal; a non-categorical
@@ -191,7 +222,13 @@ func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encodi
 	if success, ok := successParam(t.Params); ok {
 		if cerr := fieldaccept.SuccessLevelRefusal(string(t.Type), t.Field, success, schema); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			return
 		}
+	}
+	// params.reference names a split_by level (the constructor's last
+	// refusal).
+	if cerr := fieldaccept.ReferenceRefusal(string(t.Type), t.SplitBy, referenceParam(t.Params), schema); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
 }
 
