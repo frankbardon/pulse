@@ -729,18 +729,16 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 			}
 		}
 	}
-	// Regression slots do not yet compose with groupers, features,
-	// two-pass attributes, or tier-1 row tests in the streaming path.
-	// Mirror the runtime gate so predict stays parity-true.
+	// Regression slots do not compose with groupers, features or
+	// two-pass attributes in the streaming path; beside tier-1 row tests
+	// they stream (U48). Mirror the runtime gate so predict stays
+	// parity-true.
 	if len(req.Regressions) > 0 {
 		if len(req.Groups) > 0 {
 			reasons = append(reasons, "regression with groupers runs via the buffered path")
 		}
 		if len(req.Features) > 0 {
 			reasons = append(reasons, "regression with features runs via the buffered path")
-		}
-		if len(req.Tests) > 0 {
-			reasons = append(reasons, "regression with tier-1 tests runs via the buffered path")
 		}
 		if tp := firstTwoPassAttribute(req, schema, opts); tp != "" {
 			reasons = append(reasons, "regression with two-pass attribute "+string(tp)+" runs via the buffered path")

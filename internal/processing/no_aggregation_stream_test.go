@@ -66,8 +66,33 @@ func TestNoAggregationRequests_StreamAndMatchBuffered(t *testing.T) {
 			r.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC1}
 			return &types.Request{Regressions: []*types.RegressionSpec{r}}
 		}, false},
-		{"tests beside a regression buffer", func() *types.Request {
+		// U48 E3-S3 fix: tests beside a regression fold in the same
+		// ungrouped loop — one readout request, no Compose batch.
+		{"tests beside a regression", func() *types.Request {
 			return &types.Request{Regressions: []*types.RegressionSpec{ols()}, Tests: []*types.Test{{Type: types.TEST_T, Field: "x"}}}
+		}, true},
+		{"weighted tests beside a weighted regression and a filter", func() *types.Request {
+			return &types.Request{Weight: weight, Filterers: []*types.Filterer{filter()},
+				Regressions: []*types.RegressionSpec{ols()},
+				Tests: []*types.Test{
+					{Type: types.TEST_ANOVA_F, Field: "x", SplitBy: "g"},
+					{Type: types.TEST_PEARSON_R, Field: "x", Field2: "y"},
+					{Type: types.TEST_T, Field: "y", Params: json.RawMessage(`{"mu":1}`)},
+				}}
+		}, true},
+		{"tests beside a regression and an aggregation", func() *types.Request {
+			return &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "y"}},
+				Regressions: []*types.RegressionSpec{ols()}, Tests: []*types.Test{{Type: types.TEST_PEARSON_R, Field: "x", Field2: "y"}}}
+		}, true},
+		{"tests beside a robust regression buffer", func() *types.Request {
+			r := ols()
+			r.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC1}
+			return &types.Request{Regressions: []*types.RegressionSpec{r}, Tests: []*types.Test{{Type: types.TEST_T, Field: "x"}}}
+		}, false},
+		{"grouped tests beside a regression buffer", func() *types.Request {
+			return &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "y"}},
+				Regressions:  []*types.RegressionSpec{ols()}, Tests: []*types.Test{{Type: types.TEST_T, Field: "x"}}}
 		}, false},
 		{"empty request buffers", func() *types.Request { return &types.Request{} }, false},
 		{"attributes only buffer", func() *types.Request {
@@ -97,7 +122,7 @@ func TestNoAggregationRequests_StreamAndMatchBuffered(t *testing.T) {
 			if string(a) != string(b) {
 				t.Fatalf("streaming and buffered differ:\n%s\n%s", a, b)
 			}
-			if streamed.Data != nil {
+			if streamed.Data != nil && len(c.req().Aggregations) == 0 {
 				t.Fatalf("a no-aggregation request emitted data rows: %v", streamed.Data)
 			}
 		})

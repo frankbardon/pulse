@@ -103,4 +103,3 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(experiment-readou
 | Item | To | Why |
 |---|---|---|
 | #478 skill `tags=[…]` example pointers that no example carries | [U32](U32-docs-audit.md) | docs audit; `statistical-testing`'s own pointers fixed here |
-| One Process request carrying tier-1 tests AND a regression runs buffered ("regression with tier-1 tests runs via the buffered path", pinned by E3-S1) | unowned | the readout streams as Compose slots (`TestExperimentReadout_EndToEnd`); lifting the gate is an engine change, owner call |

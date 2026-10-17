@@ -413,11 +413,13 @@ func (p *Processor) canStream(req *types.Request) bool {
 		return false
 	}
 	// Regression slots stream only when every spec opts in via
-	// RegressionSpec.Streamable() (today: unpenalized REG_OLS without
-	// Resample/Selection modifiers). The streaming path does not yet
-	// compose regressions with groupers, features, two-pass attributes,
-	// or row tests — those combinations route through the buffered
-	// path so the orchestrator's invariants stay tight.
+	// RegressionSpec.Streamable() (REG_OLS / REG_BAYES_LINEAR without
+	// Resample / Selection modifiers or a robust covariance). The
+	// streaming path does not compose regressions with groupers,
+	// features or two-pass attributes — those combinations route
+	// buffered. Tier-1 row tests beside a regression stream (U48): the
+	// ungrouped loop folds each filter-passing record into both, in the
+	// buffered arm's record order, and finalizes them in its order.
 	if len(req.Regressions) > 0 {
 		for _, reg := range req.Regressions {
 			if reg == nil {
@@ -430,7 +432,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 				return false
 			}
 		}
-		if len(req.Groups) > 0 || len(req.Features) > 0 || hasTwoPassAttribute(req, p.schema, p.exts) || len(req.Tests) > 0 {
+		if len(req.Groups) > 0 || len(req.Features) > 0 || hasTwoPassAttribute(req, p.schema, p.exts) {
 			return false
 		}
 	}

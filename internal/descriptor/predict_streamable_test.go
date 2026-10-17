@@ -377,8 +377,9 @@ func TestPredict_Streamable_EmptyAggregationsBlocks(t *testing.T) {
 // TestPredict_Streamable_NoAggregationWork (U48 #336): a request whose
 // only per-record work is tier-1 tests or regressions streams, in
 // predict and at runtime alike — no throwaway AGG_COUNT — while a
-// buffered-only test or regression, a test beside a regression, and a
-// request with no such work (empty, attributes only) stay buffered.
+// buffered-only test or regression, a grouped request, and a request
+// with no such work (empty, attributes only) stay buffered. Tests
+// beside a streamable regression stream too (the one-request readout).
 // Each case pins the expected answer as well as the parity.
 func TestPredict_Streamable_NoAggregationWork(t *testing.T) {
 	schema := &encoding.Schema{Fields: []encoding.Field{
@@ -411,7 +412,28 @@ func TestPredict_Streamable_NoAggregationWork(t *testing.T) {
 		}()}}, true},
 		{"rank test only buffers", &types.Request{Tests: []*types.Test{{Type: types.TEST_MANN_WHITNEY_U, Field: "score", SplitBy: "arm"}}}, false},
 		{"GLM only buffers", &types.Request{Regressions: []*types.RegressionSpec{{Type: types.REG_GLM, Target: "score", Predictors: []string{"prior"}, Family: "gaussian"}}}, false},
-		{"tests beside a regression buffer", &types.Request{Regressions: []*types.RegressionSpec{ols()}, Tests: []*types.Test{{Type: types.TEST_T, Field: "score"}}}, false},
+		// U48 E3-S3 fix: the whole readout in one request streams.
+		{"tests beside a regression", &types.Request{Regressions: []*types.RegressionSpec{ols()}, Tests: []*types.Test{{Type: types.TEST_T, Field: "score"}}}, true},
+		{"weighted tests beside a regression with multiplicity", &types.Request{
+			Weight:       &types.WeightSpec{Field: "prior", Kind: types.WeightKindFrequency},
+			Multiplicity: &types.Multiplicity{Method: types.MultiplicityMethodHolm},
+			Regressions: []*types.RegressionSpec{func() *types.RegressionSpec {
+				r := ols()
+				r.Multiplicity = &types.RegressionMultiplicity{Method: types.MultiplicityMethodHolm}
+				return r
+			}()},
+			Tests: []*types.Test{{Type: types.TEST_WELCH, Field: "score", SplitBy: "arm", Params: json.RawMessage(`{"covariate":"prior","reference":"control"}`)}},
+		}, true},
+		{"tests beside a robust regression buffer", &types.Request{Regressions: []*types.RegressionSpec{func() *types.RegressionSpec {
+			r := ols()
+			r.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC1}
+			return r
+		}()}, Tests: []*types.Test{{Type: types.TEST_T, Field: "score"}}}, false},
+		{"grouped tests beside a regression buffer", &types.Request{
+			Groups:      []*types.Group{{Type: types.GROUP_CATEGORY, Field: "arm"}},
+			Regressions: []*types.RegressionSpec{ols()},
+			Tests:       []*types.Test{{Type: types.TEST_T, Field: "score"}},
+		}, false},
 		{"grouped tests only buffer", &types.Request{
 			Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "arm"}},
 			Tests:  []*types.Test{{Type: types.TEST_T, Field: "score"}},
@@ -519,6 +541,16 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 			&types.Request{
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
 				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}}},
+			},
+			numericSchema,
+		},
+		{
+			// U48 E3-S3 fix: tier-1 tests beside a regression stream.
+			"REG_OLS beside a tier-1 test streams",
+			&types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}}},
+				Tests:        []*types.Test{{Type: types.TEST_T, Field: "score"}},
 			},
 			numericSchema,
 		},

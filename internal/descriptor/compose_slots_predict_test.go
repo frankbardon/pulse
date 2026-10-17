@@ -53,7 +53,8 @@ func holmIn(family types.MultiplicityFamily) *types.Multiplicity {
 // regression predictors) and the correction families its p-values join.
 func TestComposePredict_SlotDetail(t *testing.T) {
 	ols := &types.RegressionSpec{Type: types.REG_OLS, Name: "fit", Target: "y", Predictors: []string{"z", "w"},
-		Multiplicity: &types.RegressionMultiplicity{Method: types.MultiplicityMethodHolm}}
+		Multiplicity: &types.RegressionMultiplicity{Method: types.MultiplicityMethodHolm},
+		Covariance:   &types.RegressionCovariance{Type: types.CovarianceHC1}}
 	slots := []*types.Request{
 		{Label: "guardrails", Cohort: &types.Cohort{Filename: "e.pulse"}, Multiplicity: holmIn(types.MultiplicityFamilyRequest), Tests: welchTests(3)},
 		{Cohort: &types.Cohort{Filename: "e.pulse"}, Multiplicity: holmIn(types.MultiplicityFamilyRequest), Tests: welchTests(2), Regressions: []*types.RegressionSpec{ols}},
@@ -93,7 +94,8 @@ func TestComposePredict_SlotDetail(t *testing.T) {
 			t.Errorf("slot %d p_values %+v, Process predict %+v", i, got.PValues, direct.PValues)
 		}
 	}
-	// Tests-only streams; a regression beside tier-1 tests buffers.
+	// Tests-only streams; a robust-covariance regression (beside tier-1
+	// tests, which alone no longer buffer it) runs buffered.
 	if !res.Slots[0].Streamable || res.Slots[1].Streamable {
 		t.Errorf("streamable = %v / %v, want true / false", res.Slots[0].Streamable, res.Slots[1].Streamable)
 	}

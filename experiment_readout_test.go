@@ -3,12 +3,14 @@ package pulse_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"sort"
 	"sync"
 	"testing"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -19,9 +21,8 @@ import (
 // goodness-of-fit chi-square (kept out of the correction), the
 // trial-start lift read against the control arm, the CUPED-adjusted
 // pages lift — and a regression slot whose is_variant coefficient joins
-// the same holm compose family. (One Process request carrying both tests
-// and a regression is the buffered path: predict's "regression with
-// tier-1 tests" reason; Compose keeps each slot on the streaming arm.)
+// the same holm compose family. It is the oracle for abReadoutRequest,
+// the same readout as ONE Process request.
 const abReadout = `{"multiplicity":{"method":"holm","family":"compose"},"requests":[
 	{"label":"readout","cohort":{"filename":"ab.pulse"},"tests":[
 		{"type":"TEST_CHISQ","rows":"arm","label":"srm","params":{"expected":{"new_page":0.5,"old_page":0.5}},"multiplicity":{"method":"none"}},
@@ -30,6 +31,17 @@ const abReadout = `{"multiplicity":{"method":"holm","family":"compose"},"request
 	{"label":"regression_adjustment","cohort":{"filename":"ab.pulse"},"regressions":[
 		{"type":"REG_OLS","name":"pages_adjusted","target":"pages_viewed","predictors":["is_variant","prior_sessions"],
 		 "multiplicity":{"method":"holm","coefficients":["is_variant"]}}]}]}`
+
+// abReadoutRequest is the whole readout as ONE Process request: the
+// three tests and the regression adjustment side by side, the lifts and
+// the is_variant coefficient one holm request family of three. %s is
+// spliced in after the cohort (a weight, a forcing aggregation).
+const abReadoutRequest = `{"cohort":{"filename":"ab.pulse"},%s"multiplicity":{"method":"holm"},"tests":[
+	{"type":"TEST_CHISQ","rows":"arm","label":"srm","params":{"expected":{"new_page":0.5,"old_page":0.5}},"multiplicity":{"method":"none"}},
+	{"type":"TEST_PROP_Z","field":"trial_started","split_by":"arm","label":"trial_start","params":{"success":"yes","reference":"old_page"}},
+	{"type":"TEST_WELCH","field":"pages_viewed","split_by":"arm","label":"pages_cuped","params":{"covariate":"prior_sessions","reference":"old_page"}}],
+	"regressions":[{"type":"REG_OLS","name":"pages_adjusted","target":"pages_viewed","predictors":["is_variant","prior_sessions"],
+	 "multiplicity":{"method":"holm","coefficients":["is_variant"]}}]}`
 
 // holm is R p.adjust(p, "holm"): sort ascending, scale the i-th by
 // m − i, carry the running maximum, cap at 1.
@@ -122,7 +134,19 @@ func TestExperimentReadout_EndToEnd(t *testing.T) {
 			t.Fatalf("slot %s data %v total rows %d", r.Label, r.Data, r.Metadata.TotalRows)
 		}
 	}
-	srm, trial, cuped, reg := tests.Tests[0], tests.Tests[1], tests.Tests[2], regs.Regressions[0]
+	checkReadoutFigures(t, tests.Tests, regs.Regressions[0], types.MultiplicityFamilyCompose)
+}
+
+// checkReadoutFigures pins the showcase's readout figures on the three
+// tests (srm, trial_start, pages_cuped) and the regression adjustment:
+// the two lifts and the is_variant coefficient one holm family of three
+// (family), the SRM check raw.
+func checkReadoutFigures(t *testing.T, tests []*types.TestResult, reg *types.RegressionResult, family types.MultiplicityFamily) {
+	t.Helper()
+	if len(tests) != 3 {
+		t.Fatalf("%d tests, want 3", len(tests))
+	}
+	srm, trial, cuped := tests[0], tests[1], tests[2]
 
 	near := func(name string, got, want, tol float64) {
 		t.Helper()
@@ -179,11 +203,124 @@ func TestExperimentReadout_EndToEnd(t *testing.T) {
 		}
 	}
 	for name, m := range map[string]*types.AppliedMultiplicity{"trial_start": trial.Multiplicity, "pages_cuped": cuped.Multiplicity, "pages_adjusted": reg.Multiplicity} {
-		if m == nil || m.Method != types.MultiplicityMethodHolm || m.Family != types.MultiplicityFamilyCompose || m.M != 3 {
-			t.Errorf("%s multiplicity %+v, want holm compose m 3", name, m)
+		if m == nil || m.Method != types.MultiplicityMethodHolm || m.Family != family || m.M != 3 {
+			t.Errorf("%s multiplicity %+v, want holm %s m 3", name, m, family)
 		}
 	}
 	if !*trial.SignificantAdjusted || !*cuped.SignificantAdjusted || !reg.SignificantAdjusted["is_variant"] {
 		t.Errorf("a lift lost significance after holm: %v %v %v", *trial.SignificantAdjusted, *cuped.SignificantAdjusted, reg.SignificantAdjusted)
+	}
+}
+
+// TestExperimentReadout_OneRequestStreams (U48 E3-S3 fix): the whole
+// readout runs as ONE Process request — tests beside the regression
+// adjustment, no AGG_COUNT — on the streaming arm. Predict says
+// streamable with no reason and counts the request family; the figures
+// are the showcase's and equal the Compose-batch oracle's
+// (TestExperimentReadout_EndToEnd) bit for bit; and, weighted or not,
+// the tests and regressions (holm-corrected together) are byte-identical
+// to the forced-buffered run of the same request (a buffered-only
+// AGG_MEDIAN beside it).
+func TestExperimentReadout_OneRequestStreams(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	var mu sync.Mutex
+	var last observe.Arm
+	p, err := pulse.New(pulse.Options{FS: fs, Hooks: &observe.Hooks{
+		OnOperationEnd: func(_ context.Context, info observe.OperationInfo, res observe.OperationResult) {
+			if info.Kind == observe.OpProcess {
+				mu.Lock()
+				last = res.Arm
+				mu.Unlock()
+			}
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	showcaseABCohort(t, p)
+	req := func(extra string) *types.Request {
+		return decodeRequest(t, fmt.Sprintf(abReadoutRequest, extra))
+	}
+	run := func(extra string, wantArm observe.Arm) *types.Response {
+		t.Helper()
+		resp, err := p.Process(ctx, req(extra))
+		if err != nil {
+			t.Fatal(err)
+		}
+		mu.Lock()
+		arm := last
+		mu.Unlock()
+		if arm != wantArm {
+			t.Fatalf("%q ran on the %q arm, want %q", extra, arm, wantArm)
+		}
+		return resp
+	}
+
+	env := predictEnvelope(t, p, fs, "ab.pulse", req(""))
+	res := env.Data.(*descriptor.PredictResult)
+	if len(env.Errors) != 0 || !res.Streamable || len(res.StreamableReasons) != 0 {
+		t.Fatalf("predict errors %+v streamable %v (%v)", env.Errors, res.Streamable, res.StreamableReasons)
+	}
+	if pv := res.PValues; pv == nil || pv.Total != 5 || pv.Uncorrected != 2 {
+		t.Errorf("p_values %+v, want total 5, uncorrected 2 (srm, prior_sessions)", pv)
+	}
+
+	one := run("", observe.ArmStreaming)
+	if one.Data != nil || one.Metadata.TotalRows != 40000 || len(one.Regressions) != 1 {
+		t.Fatalf("data %v total rows %d regressions %d", one.Data, one.Metadata.TotalRows, len(one.Regressions))
+	}
+	checkReadoutFigures(t, one.Tests, one.Regressions[0], types.MultiplicityFamilyRequest)
+
+	// The Compose-batch oracle: the same statistics and the same
+	// corrected p, only the family name differs.
+	var batch types.ComposedRequest
+	if err := json.Unmarshal([]byte(abReadout), &batch); err != nil {
+		t.Fatal(err)
+	}
+	out, err := p.Compose(ctx, &batch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oracleTests, oracleReg := out.Responses[0].Tests, out.Responses[1].Regressions[0]
+	for i, tr := range one.Tests {
+		o := oracleTests[i]
+		a, _ := json.Marshal(tr.Details)
+		b, _ := json.Marshal(o.Details)
+		if tr.Statistic != o.Statistic || tr.PValue != o.PValue || string(a) != string(b) ||
+			(tr.PAdjusted == nil) != (o.PAdjusted == nil) || (tr.PAdjusted != nil && *tr.PAdjusted != *o.PAdjusted) {
+			t.Errorf("test %s differs from the Compose oracle:\n%+v\n%+v", tr.Label, tr, o)
+		}
+	}
+	for _, pair := range [][2]any{
+		{one.Regressions[0].Coefficients, oracleReg.Coefficients},
+		{one.Regressions[0].PValues, oracleReg.PValues},
+		{one.Regressions[0].PAdjusted, oracleReg.PAdjusted},
+	} {
+		a, _ := json.Marshal(pair[0])
+		b, _ := json.Marshal(pair[1])
+		if string(a) != string(b) {
+			t.Errorf("regression differs from the Compose oracle:\n%s\n%s", a, b)
+		}
+	}
+
+	// Streamed ≡ forced-buffered, weighted and unweighted.
+	const forceBuffered = `"aggregations":[{"type":"AGG_MEDIAN","field":"pages_viewed"}],`
+	for _, weight := range []string{"", `"weight":{"field":"prior_sessions","kind":"frequency"},`} {
+		streamed := run(weight, observe.ArmStreaming)
+		buffered := run(weight+forceBuffered, observe.ArmBuffered)
+		for _, pair := range [][2]any{{streamed.Tests, buffered.Tests}, {streamed.Regressions, buffered.Regressions}, {streamed.Warnings, buffered.Warnings}} {
+			a, _ := json.Marshal(pair[0])
+			b, _ := json.Marshal(pair[1])
+			if string(a) != string(b) {
+				t.Fatalf("weight %q: streamed and buffered differ:\n%s\n%s", weight, a, b)
+			}
+		}
+		if m := streamed.Regressions[0].Multiplicity; m == nil || m.M != 3 || streamed.Tests[2].PAdjusted == nil {
+			t.Fatalf("weight %q: the family did not span tests and regression: %+v", weight, m)
+		}
+		if weight != "" && streamed.Tests[2].PValue == one.Tests[2].PValue {
+			t.Fatalf("the weighted run read the unweighted figures (p %v)", streamed.Tests[2].PValue)
+		}
 	}
 }
