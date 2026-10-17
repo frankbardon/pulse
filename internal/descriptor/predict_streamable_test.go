@@ -355,8 +355,9 @@ func TestPredict_RegressionValidation(t *testing.T) {
 	}
 }
 
-// TestPredict_Streamable_EmptyAggregationsBlocks asserts that requests
-// with no aggregations are non-streamable (no work to drive UpdateRow).
+// TestPredict_Streamable_EmptyAggregationsBlocks asserts that a request
+// with no per-record work (no aggregation, matrix, test or regression)
+// is non-streamable (nothing drives UpdateRow).
 func TestPredict_Streamable_EmptyAggregationsBlocks(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -370,6 +371,72 @@ func TestPredict_Streamable_EmptyAggregationsBlocks(t *testing.T) {
 	result := env.Data.(*descriptor.PredictResult)
 	if result.Streamable {
 		t.Error("Streamable = true, want false (no aggregations)")
+	}
+}
+
+// TestPredict_Streamable_NoAggregationWork (U48 #336): a request whose
+// only per-record work is tier-1 tests or regressions streams, in
+// predict and at runtime alike — no throwaway AGG_COUNT — while a
+// buffered-only test or regression, a test beside a regression, and a
+// request with no such work (empty, attributes only) stay buffered.
+// Each case pins the expected answer as well as the parity.
+func TestPredict_Streamable_NoAggregationWork(t *testing.T) {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
+		{Name: "prior", Type: encoding.FieldTypeF64, Description: "Pre-period score of the same student"},
+		{Name: "arm", Type: encoding.FieldTypeCategoricalU8, Dictionary: makeDictionary(t, "control", "variant"), Description: "Experiment arm the student was assigned"},
+	}}
+	ols := func() *types.RegressionSpec {
+		return &types.RegressionSpec{Type: types.REG_OLS, Target: "score", Predictors: []string{"prior"}}
+	}
+	cases := []struct {
+		name string
+		req  *types.Request
+		want bool
+	}{
+		{"tests only", &types.Request{Tests: []*types.Test{
+			{Type: types.TEST_WELCH, Field: "score", SplitBy: "arm", Params: json.RawMessage(`{"covariate":"prior","reference":"control"}`)},
+			{Type: types.TEST_CHISQ, Rows: "arm", Cols: "arm"},
+		}}, true},
+		{"tests beside a filter and a row-local attribute", &types.Request{
+			Filterers:  []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "score > 0"}},
+			Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "score / 2", Label: "half"}},
+			Tests:      []*types.Test{{Type: types.TEST_T, Field: "half"}},
+		}, true},
+		{"regression only", &types.Request{Regressions: []*types.RegressionSpec{ols()}}, true},
+		{"regression only with multiplicity", &types.Request{Regressions: []*types.RegressionSpec{func() *types.RegressionSpec {
+			r := ols()
+			r.Multiplicity = &types.RegressionMultiplicity{Method: types.MultiplicityMethodHolm}
+			return r
+		}()}}, true},
+		{"rank test only buffers", &types.Request{Tests: []*types.Test{{Type: types.TEST_MANN_WHITNEY_U, Field: "score", SplitBy: "arm"}}}, false},
+		{"GLM only buffers", &types.Request{Regressions: []*types.RegressionSpec{{Type: types.REG_GLM, Target: "score", Predictors: []string{"prior"}, Family: "gaussian"}}}, false},
+		{"tests beside a regression buffer", &types.Request{Regressions: []*types.RegressionSpec{ols()}, Tests: []*types.Test{{Type: types.TEST_T, Field: "score"}}}, false},
+		{"grouped tests only buffer", &types.Request{
+			Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "arm"}},
+			Tests:  []*types.Test{{Type: types.TEST_T, Field: "score"}},
+		}, false},
+		{"tests with a two-pass attribute buffer", &types.Request{
+			Attributes: []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "score", Label: "z"}},
+			Tests:      []*types.Test{{Type: types.TEST_T, Field: "z"}},
+		}, false},
+		{"empty request buffers", &types.Request{}, false},
+		{"attributes only buffer", &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "score / 2", Label: "half"}}}, false},
+	}
+	data := buildTestPulseFile(t, schema)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			env := predictFromBytes(data, c.req, nil)
+			result := env.Data.(*descriptor.PredictResult)
+			runtime := processing.CanStreamRequest(c.req, schema)
+			if result.Streamable != runtime || runtime != c.want {
+				t.Fatalf("predict.Streamable=%v runtime=%v, want %v (reasons: %v)",
+					result.Streamable, runtime, c.want, result.StreamableReasons)
+			}
+			if c.want && len(result.StreamableReasons) != 0 {
+				t.Fatalf("streamable with reasons %v", result.StreamableReasons)
+			}
+		})
 	}
 }
 

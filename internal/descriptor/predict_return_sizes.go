@@ -157,7 +157,7 @@ func (in returnSizeInputs) clamp(n int64) int64 {
 }
 
 // dataRows is the Response.Data row count, its basis, and whether it is
-// known at all.
+// known at all. 0 exact means the request emits no Data row.
 func (in returnSizeInputs) dataRows() (int64, string, bool) {
 	req := in.req
 	if len(req.Groups) > 0 {
@@ -176,6 +176,13 @@ func (in returnSizeInputs) dataRows() (int64, string, bool) {
 	}
 	if len(req.Aggregations) > 0 {
 		return 1, returnSizeExact, true
+	}
+	if len(req.Windows) == 0 {
+		// Ungrouped with no aggregation and no window, the run emits no
+		// Data row (tests, regressions, matrices, attributes or
+		// features only): the record-row arm is the windows-only one
+		// (processing.Processor.processRecords).
+		return 0, returnSizeExact, true
 	}
 	if !in.recordsKnown {
 		return 0, "", false
@@ -218,9 +225,10 @@ func returnSections(in returnSizeInputs) []returnSection {
 		xtRows, xtCols, xtKnown = in.crosstabCells()
 	}
 
-	// data: rows x output columns. A crosstab writes no data rows; a
-	// join's column set is open.
-	if req.Crosstab == nil && rowsKnown {
+	// data: rows x output columns. A crosstab writes no data rows, and
+	// a request that emits none has no `data` key (omitempty); a join's
+	// column set is open.
+	if req.Crosstab == nil && rowsKnown && !(rows == 0 && rowsBasis == returnSizeExact) {
 		if cols, open := returnOutputColumns(req, in.schema, in.inst); !open {
 			kids := make([]*sizeNode, 0, len(cols))
 			for _, c := range slices.Sorted(maps.Keys(cols)) {

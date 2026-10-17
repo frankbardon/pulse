@@ -113,9 +113,10 @@ func (o testParityOp) build(path string) func() *types.Request {
 	}
 }
 
-// testSteerCount is the opted-out AGG_COUNT a tests-only request needs to
-// stream at all (the streaming path requires an aggregator); stripSteer
-// drops it before comparison.
+// testSteerCount is an opted-out AGG_COUNT riding beside the tests.
+// Before U48 a tests-only request needed one to stream at all; it now
+// streams on its own, and the slot stays so every arm's request keeps
+// one fixed shape. stripSteer drops it before comparison.
 func testSteerCount() *types.Aggregation {
 	return &types.Aggregation{Type: types.AGG_COUNT, Field: "y", Label: paritySteer + "count", Weight: types.NullSlotWeight()}
 }

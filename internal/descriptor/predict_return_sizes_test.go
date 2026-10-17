@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -240,22 +241,25 @@ func TestPredict_ReturnSizes_Basis(t *testing.T) {
 }
 
 // TestPredict_ReturnSizes_ArchiveRecordCount: a row-level request over a
-// shard archive is sized by the cumulative record count.
+// shard archive is sized by the cumulative record count. The row-level
+// shape is windows-only (the record-row arm); a request with no window
+// emits no data row at all (TestPredict_ReturnSizes_NoDataRows).
 func TestPredict_ReturnSizes_ArchiveRecordCount(t *testing.T) {
 	data := buildShardArchiveBytes(t, twoShardInspectSchema(t), []struct {
 		Name    string
 		NRecord int
 	}{{"p1.pulse", 4}, {"p2.pulse", 6}})
 	req := func() *types.Request {
-		return &types.Request{Return: &types.Return{Exclude: []string{"metadata"}}}
+		return &types.Request{Windows: []*types.Window{{Type: types.WIN_LAG, Field: "score", Label: "prev"}},
+			Return: &types.Return{Exclude: []string{"metadata"}}}
 	}
 	rp := predictSizes(t, data, req())
 	s, ok := sizeOf(rp, "data")
 	if !ok || s.Basis != "upper_bound" {
 		t.Fatalf("archive row-level data: %+v (present %v)", s, ok)
 	}
-	// One row's bytes: braces + two columns.
-	row := int64(2 + len("id") + 4 + 12 + len("score") + 4 + 12)
+	// One row's bytes: braces + the two record columns + the window's.
+	row := int64(2 + len("id") + 4 + 12 + len("score") + 4 + 12 + len("prev") + 4 + 12)
 	if s.FullBytes != len64("data")+4+2+10*row {
 		t.Errorf("archive data full = %d, want 10 rows of %d", s.FullBytes, row)
 	}
@@ -326,5 +330,74 @@ func TestReturnSizes_DataRowsMultiGrouper(t *testing.T) {
 				t.Fatalf("dataRows = %d %q %v, want %d upper_bound %v", n, basis, known, c.want, c.known)
 			}
 		})
+	}
+}
+
+// TestPredict_ReturnSizes_NoDataRows (U48 #336): a request that emits no
+// Response.Data row — ungrouped, no aggregation, no window: tests,
+// regressions or attributes only — sizes no `data` section (the runtime
+// omits the key), so a tests-only request on 40,000 records no longer
+// predicts one row per record (~19 MB on the A/B showcase). A
+// windows-only request still emits the filtered records themselves.
+func TestPredict_ReturnSizes_NoDataRows(t *testing.T) {
+	const records = 40000
+	data := sizesCohort(t, records)
+	cases := []struct {
+		name string
+		req  *types.Request
+	}{
+		{"tests only", &types.Request{Tests: []*types.Test{
+			{Type: types.TEST_T, Field: "revenue", SplitBy: "tier"},
+			{Type: types.TEST_CHISQ, Rows: "region", Cols: "tier"},
+		}}},
+		{"regression only", &types.Request{Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "revenue", Predictors: []string{"cost"}}}}},
+		{"attributes only", &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "revenue - cost", Label: "margin"}}}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			in := returnSizeInputs{req: c.req, schema: sizesSchema(t), records: records, recordsKnown: true}
+			if n, basis, known := in.dataRows(); n != 0 || basis != returnSizeExact || !known {
+				t.Fatalf("dataRows = %d %q %v, want 0 exact", n, basis, known)
+			}
+			res := predictSizes(t, data, c.req)
+			if s, ok := sizeOf(res, "data"); ok {
+				t.Fatalf("data sized for a request that emits no rows: %+v", s)
+			}
+			var total int64
+			for _, s := range res.Sizes {
+				total += s.FullBytes
+			}
+			if total > 4096 {
+				t.Fatalf("sizes total %d bytes: %+v", total, res.Sizes)
+			}
+		})
+	}
+	windows := &types.Request{Windows: []*types.Window{{Type: types.WIN_LAG, Field: "revenue", Label: "prev"}}}
+	in := returnSizeInputs{req: windows, schema: sizesSchema(t), records: records, recordsKnown: true}
+	if n, basis, known := in.dataRows(); n != records || basis != returnSizeUpperBound || !known {
+		t.Fatalf("windows-only dataRows = %d %q %v, want %d upper_bound", n, basis, known, records)
+	}
+}
+
+// TestEstimateMemory_TestsOnlyFollowsStreamingArm (U48 #336): a
+// tests-only request is costed on the streaming arm — no per-record
+// buffer — so it estimates what the throwaway-AGG_COUNT workaround did
+// (to within that aggregator's one bucket of state), not 40,000
+// materialised records.
+func TestEstimateMemory_TestsOnlyFollowsStreamingArm(t *testing.T) {
+	schema := sizesSchema(t)
+	tests := func() []*types.Test {
+		return []*types.Test{{Type: types.TEST_T, Field: "revenue", SplitBy: "tier"}}
+	}
+	only := &types.Request{Tests: tests()}
+	workaround := &types.Request{Tests: tests(), Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "revenue"}}}
+	in := LimitInputs{Records: 40000}
+	if arm := MemoryArm(only, schema, nil, in); arm != limits.ArmStreaming {
+		t.Fatalf("tests-only arm %v, want streaming", arm)
+	}
+	a, okA := EstimateMemory(only, schema, nil, in)
+	b, okB := EstimateMemory(workaround, schema, nil, in)
+	if !okA || !okB || a > b || b-a > 1024 {
+		t.Fatalf("tests-only %d (%v), with AGG_COUNT %d (%v)", a, okA, b, okB)
 	}
 }
