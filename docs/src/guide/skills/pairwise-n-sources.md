@@ -10,7 +10,7 @@ requires: [capability:crosstab]
 
 # Pairwise sample-size sources
 
-Every `OVERLAY_PAIRWISE_*` kind decodes one shared `params` blob (`types.PairwiseOverlayParams`): `pair_along_dim`, `n_source`, `n_within_depth`, `p_source`, `n_basis`. This skill is the vocabulary; per-kind math and param acceptance live in each kind's atomic skill (manifest `overlays[]` entries serving `compare_groups`).
+Every `OVERLAY_PAIRWISE_*` kind decodes one shared `params` blob (`types.PairwiseOverlayParams`): `pair_along_dim`, `n_source`, `n_within_depth`, `p_source`, `n_basis`, `letters`. This is the n vocabulary; per-kind math, acceptance and letters: each atomic skill.
 
 Every mode reads `Response.Components.Crosstab`, so a components-disabled host is refused first (`PULSE_OVERLAY_COMPONENTS_REQUIRED`). An unreadable leg SKIPS the pair (aggregated `PULSE_OVERLAY_REF_ZERO`), never a zero n.
 
@@ -18,20 +18,19 @@ Every mode reads `Response.Components.Crosstab`, so a components-disabled host i
 
 The question is: **what does one observation mean here?**
 
-- One record per respondent, unweighted → the default, `cell_n_unweighted`.
-- Weighted host (a weight on the cell, any source) → omit `n_source`: n is N* (`sum_weights` under kind frequency, Kish `n_eff` under probability). Unweighted counts (`cell_n_unweighted`, margin `_n`, `n_within`, every distinct mode) are `PROCESSING_CONFIG` there, and `cell_weight_sum` / `cell_value_weighted` stand under frequency only.
+- Omit `n_source` → the cell's BASE, the figure its share is of: the cell itself under `normalize: none`, else the normalise denominator (column / row / grand margin, or the `normalize_level` / `normalize_within` one), always the admitted one: its record count, or weighted its N* (`sum_weights` frequency, Kish `n_eff` probability).
+- Weighted host (any weight source) → omit `n_source`, or `row_margin_n` / `column_margin_n` for a DISPLAYED margin's N*. Unweighted counts (`cell_n_unweighted`, `n_within`, every distinct mode) are `PROCESSING_CONFIG`; `cell_weight_sum` / `cell_value_weighted` stand under frequency only.
 - The pair compares slices of a wider population (the share of a region WITHIN an issuer) → `n_within`, holding the first `n_within_depth`+1 dims fixed.
 - Several records per respondent and n must be respondents → a DISTINCT mode (below).
-- Margin bases → `row_margin_n` / `column_margin_n`, or their distinct twins.
 
 ## The nine n_source modes
 
 | `n_source` | Leg |
 |---|---|
-| `cell_n_unweighted` (default; empty means this) | `CellCounts[r][c]` |
+| `cell_n_unweighted` (= the omitted default only under `normalize: none`) | `CellCounts[r][c]` |
 | `cell_value_weighted` | the cell VALUE, truncated |
 | `cell_weight_sum` | `CellComponents[r][c]["sum_weights"]` |
-| `row_margin_n` / `column_margin_n` | `RowMarginCounts[r]` / `ColumnMarginCounts[c]` |
+| `row_margin_n` / `column_margin_n` | `RowMarginCounts[r]` / `ColumnMarginCounts[c]` (weighted: that margin's floor N*) |
 | `n_within` | the SLAB: `CellCounts` summed across the pair axis, first `n_within_depth`+1 dims held fixed |
 | `n_within_distinct` | that slab, in distinct KEYS |
 | `row_margin_distinct` / `column_margin_distinct` | `RowMarginComponents[r]` / `ColumnMarginComponents[c]`, in distinct KEYS |
@@ -42,23 +41,23 @@ The question is: **what does one observation mean here?**
 
 Use a distinct mode when one respondent contributes several records. `n_within_distinct` SUMS per-cell cardinalities; the margin modes read ONE accumulated figure.
 
-**Admission** is decided on the cell aggregator's IDENTITY, up front, not per pair — an exact component-key-set match against its `ComponentSchema`. Two are admitted: the sum-of-distinct aggregator (figure on `distinct_count`) and the distinct count (on `cardinality`). Everything else is `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, naming the observed aggregator and the admitted set — including the modal aggregators, which ALSO emit a key spelled `distinct_count` but count distinct VALUES of the measure (answer codes), not respondents. A key-presence probe would read an answer-code count as a sample size; that is why identity, not presence, is the test.
+**Admission** is decided on the cell aggregator's IDENTITY, up front, not per pair — an exact component-key-set match against its `ComponentSchema`. Two are admitted: the sum-of-distinct aggregator (figure on `distinct_count`) and the distinct count (on `cardinality`). Everything else is `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` — including the modal aggregators, which ALSO emit a key spelled `distinct_count` but count distinct VALUES of the measure (answer codes), not respondents. A key-presence probe would read that as a sample size; identity, not presence, is the test.
 
 ## Null rules
 
 The n leg counts exactly what the CELL counted, so the two admitted aggregators differ: sum-of-distinct registers a key only when the key AND the value are non-null; distinct count counts distinct non-null values.
 
-A slab cell no record reached contributes zero — a true zero, not an unreadable leg. A nil or absent MARGIN entry is the opposite: components off, or that margin's display flag off, means the leg was never emitted, so the pair skips.
+A slab cell no record reached contributes a true zero, not an unreadable leg. A nil or absent MARGIN entry is the opposite: components or that margin's display flag off means the leg was never emitted, so the pair skips.
 
 ## The slab partition rule
 
 Summing per-cell distinct cardinalities equals the slab's true count only when its cells PARTITION the key set. A fan-out grouper (one row in several buckets, e.g. per-element grouping of a `set_*` field) at a depth the slab sums across puts one key in two cells: n too big, every p-value too small, silently. So it is refused: `PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`, at predict and again at runtime (`pulse.Process` does not run predict).
 
-Two shapes are deliberately ACCEPTED: a fan-out grouper at depth `<= n_within_depth` (inside the FIXED prefix, it multiplies slabs, not cells — the shape the mode exists for), and one on the OPPOSITE axis, which the slab never sums across. Fix a refusal by raising `n_within_depth` past the offending dim, or switch to `n_within` — record counts ARE additive. The margin distinct modes are exact by construction (a margin accumulates each record once) and not gated. Extension groupers declare fan-out, so are gated alike.
+Two shapes are ACCEPTED: a fan-out grouper at depth `<= n_within_depth` (inside the FIXED prefix it multiplies slabs, not cells) and one on the OPPOSITE axis, which the slab never sums across. Fix a refusal by raising `n_within_depth` past the offending dim, or use `n_within` — record counts ARE additive. The margin distinct modes are exact by construction (each record counted once) and not gated. Extension groupers declare fan-out, so are gated alike.
 
 ## p_source
 
-Proportion-input kinds only. `cell_value_pct` (default) divides the cell value by 100; `cell_value` takes it as already 0..1. A leg outside `[0,1]` (`cell_value` over a raw count or a 0..100 percentage) skips its pair as `PULSE_STATS_SKIP_PROPORTION_INVALID` (one `PULSE_OVERLAY_REF_ZERO` warning per reason) — the layer comes back empty, never scored. Over a count cell, normalize first (`normalize: row` for row scope).
+Proportion-input kinds only. `cell_value_pct` reads the cell ÷100, `cell_value` as 0..1. Omitted: `cell_value` on a normalised host, else `cell_value_pct`. `PULSE_OVERLAY_PARAM_MISSING`: an explicit `cell_value_pct` on a normalised host, or the omitted default over an unnormalised built-in cell that is no count or sum (a mean; `cell_type`). A leg outside `[0,1]` skips its pair as `PULSE_STATS_SKIP_PROPORTION_INVALID` (one `PULSE_OVERLAY_REF_ZERO` warning per reason). Over a count cell, normalize first.
 
 ## Compose-host panel
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	perrors "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -14,9 +15,10 @@ import (
 //	field=table:replace
 //	field=table:augment
 //
-// Whitespace around segments is trimmed. Duplicate fields surface
-// here as a typed error so the CLI can reject the misuse before the
-// pulse facade.
+// Whitespace around segments is trimmed. A duplicate field surfaces
+// here as PULSE_LABEL_DUPLICATE_BINDING — the code the library raises
+// for the same misuse — so the CLI rejects it before the pulse facade,
+// on every leaf alike (export and `export predict` included).
 func parseLabelBindings(args []string) ([]*types.LabelBinding, error) {
 	out := make([]*types.LabelBinding, 0, len(args))
 	seen := map[string]int{}
@@ -49,7 +51,9 @@ func parseLabelBindings(args []string) ([]*types.LabelBinding, error) {
 			return nil, fmt.Errorf("labels[%d]: field and table are required (%q)", i, raw)
 		}
 		if prior, ok := seen[field]; ok {
-			return nil, fmt.Errorf("labels[%d]: field %q already bound at labels[%d]", i, field, prior)
+			return nil, perrors.NewCodedErrorWithDetails(perrors.PULSE_LABEL_DUPLICATE_BINDING,
+				fmt.Sprintf("labels[%d]: field %q already bound at labels[%d]", i, field, prior),
+				map[string]any{"field": field, "index": i, "prior": prior, "option": "--labels"})
 		}
 		seen[field] = i
 		out = append(out, &types.LabelBinding{Field: field, Table: rest, Mode: mode})

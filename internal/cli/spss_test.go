@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -77,7 +78,7 @@ func TestWriterOptionsFrom_MapsEveryFlag(t *testing.T) {
 		t.Fatalf("running: %v", err)
 	}
 	want := pio.SPSSWriterOptions{IgnoreSidecar: true, Uncompressed: true, Charset: "cp1252", SanitizeNames: true}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("writerOptionsFrom = %+v, want %+v", got, want)
 	}
 }

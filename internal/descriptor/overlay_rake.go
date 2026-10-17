@@ -3,6 +3,7 @@ package descriptor
 import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
@@ -70,6 +71,16 @@ func validateOverlayRake(env *descriptor.Envelope, req *types.Request, spec *typ
 		{overlayhost.RakeAxisRow, req.Crosstab.Rows, params.RowTargets},
 		{overlayhost.RakeAxisColumn, req.Crosstab.Columns, params.ColTargets},
 	} {
+		if axis.name == overlayhost.RakeAxisColumn && req.Crosstab.HasImplicitTotalColumn() {
+			// The implicit Total column has exactly one key, known
+			// without a record: the runtime's both-way key check
+			// (rakeAxisTargets) applies in full.
+			if cerr := rakeTotalColumnKeyRefusal(spec.Kind, axis.targets, index); cerr != nil {
+				addCodedError(env, cerr)
+				return
+			}
+			continue
+		}
 		dict := axisDictionary(axis.groups, schema, inst)
 		if dict == nil {
 			continue
@@ -100,4 +111,21 @@ func axisDictionary(axis []*types.Group, schema *encoding.Schema, inst *Instance
 		}
 	}
 	return nil
+}
+
+// rakeTotalColumnKeyRefusal is the rake key check against the implicit
+// Total column's one key (types.CrosstabTotalColumnKey): a target naming
+// any other key is target-only, and an absent "Total" target leaves the
+// host key unmatched — the refusal the runtime raises off the host.
+func rakeTotalColumnKeyRefusal(kind types.OverlayKind, targets map[string]float64, index int) *errors.CodedError {
+	var targetOnly, hostOnly []string
+	for key := range targets {
+		if key != types.CrosstabTotalColumnKey {
+			targetOnly = append(targetOnly, key)
+		}
+	}
+	if _, ok := targets[types.CrosstabTotalColumnKey]; !ok {
+		hostOnly = []string{types.CrosstabTotalColumnKey}
+	}
+	return overlayhost.RakeKeyRefusal(kind, overlayhost.RakeAxisColumn, targetOnly, hostOnly, index)
 }

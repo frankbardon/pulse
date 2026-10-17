@@ -11,23 +11,19 @@ covers: [OVERLAY, OverlaySpec, OverlayLayer]
 
 Additive, read-only decorations on a result. Specs ride `Request.Overlays`; each produces one layer in `Response.Overlays[i]`, in spec order. Overlays NEVER mutate the base payload: they are siblings keyed to host coordinates.
 
-Use one for a figure DERIVED from the result: a share, index, delta, z-score, cell test.
-
-```jsonc
-{"overlays": [{"kind": "<overlay kind>", "scope": "cell", "ref": {"margin": {"axis": "row"}}}]}
-```
+Use one for a figure DERIVED from the result.
 
 ## Choosing an overlay
 
-1. Name the question, then read its intent (`pulse_skills_get intents`): `composition`, `benchmark`, `compare_groups`, `change_over_time`.
+1. Name the question, then read its intent (`pulse_skills_get intents`).
 2. Filter manifest `overlays[]` on that intent, then on the HOST you have — each entry lists `shapes`, `scopes`, `ref_kinds`, `buffered` and `inferential`.
 3. Read the kind's atomic skill for math, params and warnings. Never hardcode a kind count.
 
 ## OverlaySpec composition
 
-`kind`, `scope`, `ref`, optional `name` / `level` / `within` / `params`; Compose-only `reference` / `targets`. `scope` ∈ `cell|row|column|group|matrix|total`. `level` / `within` mirror the crosstab's `normalize_level` / `normalize_within` (same-axis rollup, opposite-axis prefix).
+`kind`, `scope`, `ref`, optional `name` / `level` / `within` / `params`; Compose-only `reference` / `targets`. `scope` ∈ `cell|row|column|group|matrix|total`. `level` / `within` mirror the crosstab's `normalize_level` / `normalize_within`.
 
-Predict and runtime refuse a misshapen spec — or a kind on a slot or shape it does not run on — under the SAME code (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, `_LEVEL_OUT_OF_RANGE`, `_SCOPE_UNSUPPORTED`, `_FORMULA_INVALID_IDENT`, …), carried as `errors[0].code` so `pulse_errors_lookup` resolves it.
+Predict and runtime refuse a misshapen spec, or a kind on a host it does not run on, under the SAME `errors[0].code` (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, `_LEVEL_OUT_OF_RANGE`, `_SCOPE_UNSUPPORTED`, …).
 
 ## Reference families
 
@@ -51,7 +47,7 @@ Implicit-margin kinds (the χ² and Fisher cell tests) leave `ref` empty.
 
 ## Parts (multi-output kinds)
 
-A multi-output kind adds `payload.parts`: named secondary payloads beside the primary. Each is a plain scalar | series | matrix payload, never nested; manifest `overlays[].parts` lists them (`when` = condition). A points × dimensions part keys its columns `["dim_1"]`, `["dim_2"]`, …. Select one via `return`: `overlays[*].payload.parts.<part>`.
+A multi-output kind (a pairwise kind under `params.letters`) adds `payload.parts`: named secondary payloads beside the primary. Each is a plain scalar | series | matrix payload, never nested; manifest `overlays[].parts` lists them (`when` = condition). A points × dimensions part keys its columns `["dim_1"]`, `["dim_2"]`, …. Select one via `return`: `overlays[*].payload.parts.<part>`.
 
 ## Host-arm wiring
 
@@ -67,12 +63,12 @@ The carrying request decides the host; the host decides the legal kinds (an ungr
 
 ## Per-layer warnings (`OverlayLayer.Warnings`)
 
-Additive lowercase `warnings: [{code, message, details}]` per layer, `omitempty` — overlay-free responses stay byte-identical. Canonical: `PULSE_OVERLAY_REF_ZERO` (zero reference, undefined ratio), `PULSE_OVERLAY_EXPECTED_LOW` (expected count below 5: χ² cells, symmetry pairs). On Compose and chain hosts it rides the matching layer's `Overlays[i].Warnings`; a partitioned SERIES layer raises each code once (`details.partitions`). Warnings never fail the request — read them before reporting a figure.
+Additive lowercase `warnings: [{code, message, details}]` per layer, `omitempty`. Canonical: `PULSE_OVERLAY_REF_ZERO` (zero reference), `PULSE_OVERLAY_EXPECTED_LOW` (expected count below 5: χ² cells, symmetry pairs). On Compose and chain hosts it rides the matching layer's `Overlays[i].Warnings`<!-- feature: capability:compose_banner --> (banner: each slot's own layers, never `banner`)<!-- /feature -->; a partitioned SERIES layer raises each code once (`details.partitions`). Warnings never fail the request.
 
 <!-- feature: capability:multiplicity -->
 ## Multiplicity
 
-Inferential layers take `multiplicity` (`layer` / `row` / `column` / `request` / `compose`): adds `p_adjusted` figures and a layer echo, base payload untouched (`multiplicity-correction`).
+Inferential layers take `multiplicity` (`layer` / `row` / `column` / `request` / `compose`): adds `p_adjusted` figures and a layer echo, base payload untouched; pairwise letters follow it (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Streamability
@@ -81,7 +77,7 @@ Manifest `overlays[].buffered`; descriptive SERIES kinds stream. MATRIX kinds fo
 
 ## Weighted hosts
 
-Descriptive kinds read the host's weighted figures as-is. An inferential kind refuses a weight that reaches it with `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` on the spec opts out.
+Descriptive kinds read the weighted payload. Inferential kinds RUN on each cell's floor-key N* (Σw, or Kish n_eff under `probability`; echoed in `summary.parameters`); a pairwise proportion reads its BASE's N*, the margin its `normalize` share is of<!-- feature: capability:crosstab --> (`pairwise-n-sources`)<!-- /feature -->. Only<!-- feature: OVERLAY_FISHER_EXACT_CELL --> `OVERLAY_FISHER_EXACT_CELL` on a probability host,<!-- /feature --><!-- feature: OVERLAY_PAIRWISE_TWO_MEANS_Z --> `OVERLAY_PAIRWISE_TWO_MEANS_Z`,<!-- /feature --><!-- feature: OVERLAY_PAIRWISE_PROBIT_T --> `OVERLAY_PAIRWISE_PROBIT_T`<!-- /feature --> refuse (`PULSE_WEIGHT_UNSUPPORTED`). Spec `"weight": null` opts the slot out, not the host cell<!-- feature: capability:weighting --> (`weighting`)<!-- /feature -->.
 
 ## See
 

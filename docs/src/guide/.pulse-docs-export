@@ -32,11 +32,13 @@ skills/cohort-schema-design.md
 skills/cohort-sharding.md
 skills/cohort-sidecar-index.md
 skills/cohort-width-overflow.md
+skills/compose-banner.md
 skills/compose-fits.md
 skills/compose-requests.md
 skills/compose-sweeps.md
 skills/crosstab-guide.md
 skills/crosstab-margin-aggregations.md
+skills/crosstab-measures.md
 skills/decimal-formulas.md
 skills/derived-cohorts.md
 skills/expression-language.md
@@ -181,6 +183,7 @@ skills/op-overlay-pairwise-welch-t.md
 skills/op-overlay-panel-index-vs-ref.md
 skills/op-overlay-prop-z-cell.md
 skills/op-overlay-prop-z-panel.md
+skills/op-overlay-prop-z-vs-prior.md
 skills/op-overlay-rake.md
 skills/op-overlay-rank.md
 skills/op-overlay-retention.md
@@ -190,9 +193,11 @@ skills/op-overlay-share-of-total.md
 skills/op-overlay-std-residual.md
 skills/op-overlay-symmetry.md
 skills/op-overlay-t-cell.md
+skills/op-overlay-t-vs-prior.md
 skills/op-overlay-t-vs-ref.md
 skills/op-overlay-yoy.md
 skills/op-overlay-z-cell.md
+skills/op-overlay-z-vs-prior.md
 skills/op-overlay-z-vs-ref.md
 skills/op-overlay-zscore-vs-margin.md
 skills/op-overlay-zscore-vs-pop.md
@@ -279,6 +284,7 @@ skills/spss-missing-values.md
 skills/spss-response-sets.md
 skills/statistical-testing.md
 skills/streaming-and-watching.md
+skills/survey-weights.md
 skills/synth-conflicts.md
 skills/synth-correlations.md
 skills/synth-determinism.md
@@ -322,6 +328,7 @@ skills/tool-materialize.md
 skills/tool-predict.md
 skills/tool-process-chain.md
 skills/tool-process.md
+skills/tool-rake.md
 skills/tool-range-tables.md
 skills/tool-recommend.md
 skills/tool-sample.md

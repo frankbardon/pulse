@@ -157,11 +157,15 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 		if err != nil {
 			return nil, seriesPartitionPlan{}, err
 		}
-		if h, ok := hosts[scored.Column]; ok {
-			return h, plan, nil
+		h, ok := hosts[scored.Column]
+		if !ok {
+			h = buildSeriesHostFromGroupedResponse(req, resp, scored.Index, scored.Column)
+			hosts[scored.Column] = h
 		}
-		h := buildSeriesHostFromGroupedResponse(req, resp, scored.Index, scored.Column)
-		hosts[scored.Column] = h
+		if overlayhost.PriorTestKind(kind) {
+			// The prior-period kinds read each row's components.
+			withPriorLegs(h, req, resp, scored.Index)
+		}
 		return h, plan, nil
 	}
 	// OVERLAY_YOY frequency promotion. The YoY handler reads

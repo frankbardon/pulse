@@ -1275,6 +1275,36 @@ func (p *Pulse) exportJob(ctx context.Context, job *pio.ExportJob) (*pio.ExportR
 	return job.Run(ctx)
 }
 
+// PredictExport validates an export without writing it: ExportJob.Predict
+// run the way Export runs the job. When job.Labels is non-empty and
+// job.LabelResolver is nil, the resolver is built from the instance's
+// registered LabelTables first, exactly as Export builds it — so a label
+// refusal (PULSE_LABEL_TABLE_UNKNOWN, and through a target's
+// ValidateCohort the `.sav` value-label refusals: PULSE_LABEL_FIELD_UNKNOWN,
+// PULSE_LABEL_FIELD_NOT_CATEGORICAL, a binding beside an honoured SPSS
+// metadata sidecar) is raised with the code the export would raise. The
+// job's FS field is set to the instance's filesystem if not already set.
+// Reports as a `predict` operation.
+func (p *Pulse) PredictExport(ctx context.Context, job *pio.ExportJob) (*pio.PredictReport, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpPredict, path: exportSource(job)}, func(ctx context.Context) (*pio.PredictReport, error) {
+		return p.predictExport(ctx, job)
+	})
+}
+
+func (p *Pulse) predictExport(ctx context.Context, job *pio.ExportJob) (*pio.PredictReport, error) {
+	if job.FS == nil {
+		job.FS = p.fsys
+	}
+	if job.LabelResolver == nil && len(job.Labels) > 0 {
+		r, err := p.newIOLabelResolver(job.Labels)
+		if err != nil {
+			return nil, err
+		}
+		job.LabelResolver = r
+	}
+	return job.Predict(ctx)
+}
+
 // ExportTransfer compresses a cohort's exact bytes into a zstd transfer
 // artifact (`.pulse.zst`) for moving it between machines. The job's FS
 // field is set to the Pulse instance's filesystem if not already set.

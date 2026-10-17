@@ -8,7 +8,7 @@ status: done
 depends_on: []
 soft_depends_on: [U02c]
 blocks: [U32]
-todo_items: [198, 199, 201, 207, 213, 214, 215, 221, 225, 226, 229, 248, 249, 253, 254, 255, 256, 259, 260, 267, 299, 300, 313, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419, 427, 431, 432, 436, 437, 439, 440, 442, 448]
+todo_items: [198, 199, 201, 207, 213, 214, 215, 221, 225, 226, 229, 248, 249, 253, 254, 255, 256, 259, 260, 267, 299, 300, 313, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419, 427, 431, 432, 436, 437, 439, 440, 442, 448, 475, 476]
 branch: predict-runtime-parity
 ---
 
@@ -250,3 +250,10 @@ Filed from [U46](U46-grouped-analysis.md); tick in [`TODO.md`](../TODO.md) when 
 - [x] **#440** (Grouped analysis › Follow-ups from U46) Request-host MATRIX `OVERLAY_FORMULA` with an unknown identifier: predict `PULSE_OVERLAY_FORMULA_INVALID_IDENT` vs runtime `PULSE_OVERLAY_FORMULA_PARSE_ERROR`; reuse `internal/formulaident` on the Request host. Found in U46 (E4-S15).
 - [x] **#442** (Grouped analysis › Follow-ups from U46) A Compose overlay spec with no targets passes predict-compose but the runtime refuses `PULSE_OVERLAY_TARGET_UNKNOWN` (every single-target kind); refuse on predict. Found in U46 (E4-S15). Done in U30 E7-S4: `ComposeSlotRefusals` refuses an empty `targets` on predict-compose and the runtime alike.
 - [x] **#448** (Grouped analysis › Follow-ups from U46) Moment pairwise kinds (`OVERLAY_PAIRWISE_WELCH_T` / `_TWO_MEANS_Z` / `_WEIGHTED_TWO_MEANS_Z`) over an `AGG_MODE` cell are refused only by the runtime cell-shape rule; predict may be silent. Found in U46 (E4-S17).
+
+## Handed on from U47
+
+Filed from [U47](U47-survey-tables.md#handed-on); tick in [`TODO.md`](../TODO.md) when done.
+
+- [ ] **#475** Optional `PULSE_ADVISORY_*` for an `ATTR_FORMULA` that can yield null without a guard: predict cannot know, so an advisory is a contract call (owner). Found in U47 (E4-S5)
+- [ ] **#476** `OVERLAY_PAIRWISE_WELCH_T` / `_TWO_MEANS_Z` on a multi-measure crosstab whose measures have mixed cell types is refused whole; refuse per measure, predict and runtime alike. Found in U47 (E4-S5)

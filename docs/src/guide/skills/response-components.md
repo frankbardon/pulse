@@ -10,7 +10,7 @@ applies_to: process, compose, predict, sample, facet
 
 The constituent parts behind every emitted value. Reach for it when a figure must be checked or re-based: "what n is this mean over?". This skill is the shared shape; per-operator keys live in each atomic skill's `## Components` and in `manifest.components_schemas`.
 
-Additive `omitempty` — a run producing nothing components-shaped emits no `components` key. Nothing here moves `format_version` (`"1.1"`).
+Additive `omitempty`: nothing components-shaped, no `components` key. Nothing here moves `format_version` (`"1.1"`).
 
 ## Universal floor
 
@@ -42,7 +42,7 @@ Weighted slots (crosstab cells and margins too) add `sum_weights` / `n_eff` / `n
 - **Grouped runs** (`Request.Groups`, no crosstab): each `aggregations[i]` carries the COHORT-WIDE floor (all filter-passing records, no `operator`) and `groups[]` — one `{group_key, n, n_null, weighted floor, operator}` per `Data` row, in `Data` order (`sort` included), equal to an ungrouped run over that bucket. A stream: terminal chunk only.
 - Several `groups`: `group_key` is the tuple; one `groupers` entry per slot.
 - A fan-out grouper's bucket sum may EXCEED `total_n`.
-- `run` coexists with `Response.Metadata`: `Metadata.TotalRows == Run.TotalRecords`; `Metadata` keeps non-numerical facts (cohort filename), `run` the counters.
+- `run` coexists with `Response.Metadata` (`Metadata.TotalRows == Run.TotalRecords`), which keeps non-numerical facts.
 
 ## Crosstab block
 
@@ -50,7 +50,7 @@ Mirrors the matrix coordinate-for-coordinate (cells, margins, grand total, axis 
 
 **`CellCounts[r][c]` is a RECORD count; the floor's `n` counts NON-NULL observations — `CellCounts[r][c] == n + n_null`.** Never read it as the sample size (raw under a weight; Σw is `sum_weights`); same on every margin.
 
-A vector `element` cell: its member's floor and `element_*`. Auxiliary margin-only figures land BESIDE the margin components, and a record reaches an auxiliary margin only if it reached a CELL: [`crosstab-margin-aggregations`](crosstab-margin-aggregations.md).
+**A record reaches a margin only if it reached a CELL** (both axis keys resolved): a null or empty set, or an `include`-excluded key, is in no margin or denominator. Auxiliary figures sit BESIDE the margin components and also drop a null cell field: [`crosstab-margin-aggregations`](crosstab-margin-aggregations.md). A vector `element` cell: its member's floor and `element_*`.
 
 ## Opting out
 
@@ -60,7 +60,7 @@ A vector `element` cell: its member's floor and `element_*`. Auxiliary margin-on
 | `types.Request.DisableComponents *bool` | per request — `nil` inherits, `true` forces off, `false` forces ON even on an engine shipping them off |
 | `--no-components` | CLI, on `pulse api process` / [`process-chain`](process-chain.md) / `compose`; request JSON `"disable_components"` wins over it |
 
-Disabled ⇒ `Response.Components` stays `nil` (wire form byte-identical to the pre-Components baseline; the work is skipped). Consumers MUST tolerate a `nil` block. Compose: per `requests[i]`. MCP tools do not surface the knob.
+Disabled ⇒ `Response.Components` stays `nil` (byte-identical; the work is skipped). Consumers MUST tolerate `nil`. Compose: per `requests[i]`. MCP never surfaces the knob.
 
 ## Manifest declaration
 

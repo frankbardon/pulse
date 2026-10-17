@@ -515,18 +515,18 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// Map-valued aggregators (AGG_SET_FREQUENCY today) cannot normalize —
 	// dividing one map by another is undefined. Reject up-front so the
 	// dispatch loop below can treat every scalar/rich routing as safe.
-	if spec.Cell != nil &&
-		spec.NormalizeOrDefault() != types.CrosstabNormalizeNone &&
-		spec.Cell.Type.MapValued() {
-		return nil, errors.NewCodedErrorWithDetails(
-			errors.PULSE_CROSSTAB_NORMALIZE_MAP_VALUED,
-			"crosstab normalize="+string(spec.NormalizeOrDefault())+
-				" is incompatible with map-valued cell aggregator "+
-				string(spec.Cell.Type),
-			map[string]any{
-				"aggregation": string(spec.Cell.Type),
-				"normalize":   string(spec.NormalizeOrDefault()),
-			})
+	for _, cell := range spec.CellAggregations() {
+		if spec.NormalizeOrDefault() != types.CrosstabNormalizeNone && cell.Type.MapValued() {
+			return nil, errors.NewCodedErrorWithDetails(
+				errors.PULSE_CROSSTAB_NORMALIZE_MAP_VALUED,
+				"crosstab normalize="+string(spec.NormalizeOrDefault())+
+					" is incompatible with map-valued cell aggregator "+
+					string(cell.Type),
+				map[string]any{
+					"aggregation": string(cell.Type),
+					"normalize":   string(spec.NormalizeOrDefault()),
+				})
+		}
 	}
 
 	if err := p.applyFeatures(req.Features, records); err != nil {
@@ -565,6 +565,15 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	if err != nil {
 		return nil, err
 	}
+	// The implicit Total column (no column grouper): the empty-axis
+	// partition is one bucket under composite key "" holding every
+	// filtered record, which is exactly the Total column. Only its tuple
+	// is relabelled — the composite key stays "" so the per-row column
+	// partition below, the margins and the normalize lookups keep
+	// addressing it unchanged. The fused keyer emits the same pair.
+	if spec.HasImplicitTotalColumn() {
+		colPart.Tuples = []types.AxisKey{{types.CrosstabTotalColumnKey}}
+	}
 	// MaxCrosstabCells: the observed grid is rows x cols, refused before
 	// the per-cell maps below preallocate it. The fused arm checks the
 	// same product at its axis-key interners.
@@ -572,52 +581,10 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		return nil, err
 	}
 
-	cellAgg := spec.Cell
-	cellLabel := spec.CellLabel()
-
-	// cellValues admits any aggregator payload — scalar float64 for the
-	// usual aggregators, plus rich shapes (map[string]int, []string) when
-	// the cell aggregator implements RichAggregator. The normalize gate
-	// below rejects spec.Normalize != none paired with a MapValued()
-	// aggregator (see types.AggregationType.MapValued), so partial /
-	// margin paths that need a float64 denominator stay scalar.
-	cellValues := make(map[crosstabCellKey]any, len(rowPart.Keys)*len(colPart.Keys))
-	cellPresent := make(map[crosstabCellKey]bool, len(rowPart.Keys)*len(colPart.Keys))
-
-	// Per-cell record count tracked alongside the aggregator update
-	// so Response.Components.Crosstab.CellCounts can be populated without
-	// a second pass. A cell entry is created whenever a non-empty
-	// (row, col) bucket exists — independent of whether the cell
-	// aggregator finalises a value (an aggregator returning a nil row is
-	// still routed N records). includedRecords is the count of records
-	// that landed in at least one cell (both axis keys non-null);
-	// ExcludedRecords on Components.Crosstab is then
-	// filteredRows - includedRecords.
-	cellCounts := make(map[crosstabCellKey]int, len(rowPart.Keys)*len(colPart.Keys))
-	var includedRecords int
-
-	// Per-cell components map indexed by the same composite-key
-	// pair as cellValues. The buffered cell builder runs the cell
-	// aggregator through runCellAggregation which returns the post-
-	// Finalize aggregator instance, scalar value, and per-cell n_null
-	// (counted by walking the bucket once for the cell field). When the
-	// aggregator implements MetaAggregator the operator-specific keys are
-	// merged into a flat map alongside the universal floor (n, n_null);
-	// for floor-only operators (AGG_COUNT / AGG_NULL_COUNT) the operator
-	// half is empty and the cell's payload is the floor alone. Empty
-	// cells (no bucket) emit nil — preserved by the nil sentinel
-	// populateCrosstabComponents writes when no entry exists for (r, c).
-	//
-	// Built only when the ComputePlan computes components.crosstab (the
-	// `return` selection and the DisableComponents gate): a nil map
-	// skips every per-cell and per-margin MetaAggregator.Components()
-	// call below, not merely their emission.
-	buildComps := p.compute.Crosstab
-	var cellComponents map[crosstabCellKey]map[string]any
-	if buildComps {
-		cellComponents = make(map[crosstabCellKey]map[string]any, len(rowPart.Keys)*len(colPart.Keys))
-	}
-
+	// The per-row column partitions are measure-independent: computed
+	// once, before any measure, so a params.fit "within" refit warns
+	// once and every measure reads the same buckets.
+	innerCols := make([]*CrosstabAxisPartition, len(rowPart.Keys))
 	for ri, rkey := range rowPart.Keys {
 		rowRecs := rowPart.Records[rkey]
 		if len(rowRecs) == 0 {
@@ -627,351 +594,53 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		if err != nil {
 			return nil, err
 		}
-		for _, ckey := range innerCol.Keys {
-			bucket := innerCol.Records[ckey]
-			if len(bucket) == 0 {
-				continue
-			}
-			ck := crosstabCellKey{rkey, ckey}
-			cellCounts[ck] = len(bucket)
-			includedRecords += len(bucket)
-			val, instance, n, nNull, err := p.runCellAggregation(cellAgg, bucket)
-			if err != nil {
-				return nil, err
-			}
-			if buildComps {
-				compMap, err := buildCellComponentMap(instance, n, nNull)
-				if err != nil {
-					return nil, err
-				}
-				val.weight.stampMap(compMap)
-				cellComponents[ck] = compMap
-			}
-			if !val.present {
-				continue
-			}
-			cellValues[ck] = val.value
-			cellPresent[ck] = true
-		}
+		innerCols[ri] = innerCol
 	}
+	// The own-margin admission sets (see runCrosstabMeasure) are axis
+	// facts, shared by every measure.
+	rowMember, colMember := ownMarginMembership(rowPart, colPart, len(filtered))
 
-	// Margin recompute routes through runCellAggregation so
-	// the orchestrator captures the post-Finalize aggregator instance
-	// alongside the scalar/rich margin value. The instance feeds
-	// buildCellComponentMap which merges the universal floor {n, n_null}
-	// with the cell aggregator's MetaAggregator.Components() output for
-	// the row-margin / column-margin / grand-total components emission.
-	// Component maps are tracked whenever the plan computes
-	// components.crosstab and the margin slot is computed
-	// (NeedsRowMargin / NeedsColumnMargin / NeedsGrandMargin),
-	// but only flow to Response.Components when the corresponding
-	// display flag is set — mirroring the MatrixPayload.RowMargins /
-	// ColumnMargins / GrandTotal emission rule (computed for
-	// normalization, surfaced only on explicit request).
-	var rowMargins map[string]any
-	var rowMarginPresent map[string]bool
-	var rowMarginCounts map[string]int
-	var rowMarginComponents map[string]map[string]any
-	if spec.NeedsRowMargin() {
-		rowMargins = make(map[string]any, len(rowPart.Keys))
-		rowMarginPresent = make(map[string]bool, len(rowPart.Keys))
-		rowMarginCounts = make(map[string]int, len(rowPart.Keys))
-		if buildComps {
-			rowMarginComponents = make(map[string]map[string]any, len(rowPart.Keys))
-		}
-		for _, rkey := range rowPart.Keys {
-			bucket := rowPart.Records[rkey]
-			if len(bucket) == 0 {
-				continue
-			}
-			val, instance, n, nNull, err := p.runCellAggregation(cellAgg, bucket)
-			if err != nil {
-				return nil, err
-			}
-			rowMarginCounts[rkey] = n + nNull
-			if buildComps {
-				compMap, err := buildCellComponentMap(instance, n, nNull)
-				if err != nil {
-					return nil, err
-				}
-				val.weight.stampMap(compMap)
-				rowMarginComponents[rkey] = compMap
-			}
-			if !val.present {
-				continue
-			}
-			rowMargins[rkey] = val.value
-			rowMarginPresent[rkey] = true
-		}
-	}
-
-	var colMargins map[string]any
-	var colMarginPresent map[string]bool
-	var colMarginCounts map[string]int
-	var colMarginComponents map[string]map[string]any
-	if spec.NeedsColumnMargin() {
-		colMargins = make(map[string]any, len(colPart.Keys))
-		colMarginPresent = make(map[string]bool, len(colPart.Keys))
-		colMarginCounts = make(map[string]int, len(colPart.Keys))
-		if buildComps {
-			colMarginComponents = make(map[string]map[string]any, len(colPart.Keys))
-		}
-		for _, ckey := range colPart.Keys {
-			bucket := colPart.Records[ckey]
-			if len(bucket) == 0 {
-				continue
-			}
-			val, instance, n, nNull, err := p.runCellAggregation(cellAgg, bucket)
-			if err != nil {
-				return nil, err
-			}
-			colMarginCounts[ckey] = n + nNull
-			if buildComps {
-				compMap, err := buildCellComponentMap(instance, n, nNull)
-				if err != nil {
-					return nil, err
-				}
-				val.weight.stampMap(compMap)
-				colMarginComponents[ckey] = compMap
-			}
-			if !val.present {
-				continue
-			}
-			colMargins[ckey] = val.value
-			colMarginPresent[ckey] = true
-		}
-	}
-
-	var grandMargin any
-	grandPresent := false
-	var grandMarginCount int
-	var grandMarginComponents map[string]any
-	if spec.NeedsGrandMargin() {
-		if len(filtered) > 0 {
-			val, instance, n, nNull, err := p.runCellAggregation(cellAgg, filtered)
-			if err != nil {
-				return nil, err
-			}
-			grandMarginCount = n + nNull
-			if buildComps {
-				compMap, err := buildCellComponentMap(instance, n, nNull)
-				if err != nil {
-					return nil, err
-				}
-				val.weight.stampMap(compMap)
-				grandMarginComponents = compMap
-			}
-			if val.present {
-				grandMargin = val.value
-				grandPresent = true
-			}
-		}
-	}
-
-	// Auxiliary margin-only aggregations (spec.MarginAggregations).
-	// Evaluated here, immediately after the cell aggregator's own three
-	// margin blocks, because these are margins too — the difference is
-	// WHICH records reach them, not where they sit. See
-	// crosstab_margin_agg.go for the admission rule, and for why the
-	// blocks above deliberately do NOT share it.
-	//
-	// Placed AHEAD of the partial-depth and cross-axis margin work below
-	// on purpose: those exist solely as normalization denominators for
-	// the cell, and an auxiliary is never a denominator, so neither gets
-	// one — on either path.
-	//
-	// THE FIGURES REACH THE WIRE through the components block below:
-	// auxMargins.components() normalises this path's carrier into the one
-	// emission shape populateCrosstabComponents projects, and the fused
-	// path normalises its live accumulators into the same shape.
-	//
-	// Computed HERE rather than inside that block, i.e. OUTSIDE the
-	// components gate, because this call is also what refuses an
-	// auxiliary naming an operator no registry knows — which the fused
-	// arm refuses at construction, unconditionally. Moving it inside the
-	// gate would make that refusal depend on whether components happened
-	// to be enabled
-	// (TestCrosstab_BufferedAuxMarginUnresolvableTypeRefused). The
-	// ACCUMULATION past that refusal does ride the plan:
-	// computeAuxMargins returns nil without evaluating a figure when
-	// ComputePlan.AuxMargins is off.
-	auxMargins, err := p.computeAuxMargins(spec, filtered, rowPart, colPart)
-	if err != nil {
-		return nil, err
-	}
-
-	mode := spec.NormalizeOrDefault()
-
-	// Partial-depth normalization. When spec.NormalizeLevel selects a
-	// non-leaf depth on the normalization axis, build partial margins
-	// keyed by the truncated composite key and a leaf→partial lookup so
-	// the per-cell loop dispatches through the partial denominator.
-	// When level == leaf (default), partial structures alias the leaf
-	// maps; byte-equal output is preserved.
-	var partialRowPart, partialColPart *CrosstabAxisPartition
-	var partialRowMargins map[string]float64
-	var partialRowPresent map[string]bool
-	var partialColMargins map[string]float64
-	var partialColPresent map[string]bool
-	var leafRowToPartial map[string]string
-	var leafColToPartial map[string]string
-	rowNormLevel := -1
-	colNormLevel := -1
-
-	if mode == types.CrosstabNormalizeRow {
-		axisLen := len(spec.Rows)
-		level := spec.NormalizeLevelOrLeaf(axisLen)
-		rowNormLevel = level
-		if level == axisLen-1 {
-			// Normalize rejected for map cells; coerce-cast the leaf
-			// margin map (every value is float64 here).
-			partialRowMargins = coerceAnyMarginMap(rowMargins)
-			partialRowPresent = rowMarginPresent
-		} else {
-			partialRowPart, err = p.PartitionByAxis(spec.Rows[:level+1], filtered)
-			if err != nil {
-				return nil, err
-			}
-			partialRowMargins = make(map[string]float64, len(partialRowPart.Keys))
-			partialRowPresent = make(map[string]bool, len(partialRowPart.Keys))
-			for _, pkey := range partialRowPart.Keys {
-				bucket := partialRowPart.Records[pkey]
-				if len(bucket) == 0 {
-					continue
-				}
-				row, err := p.aggregate([]*types.Aggregation{cellAgg}, bucket)
-				if err != nil {
-					return nil, err
-				}
-				if row == nil {
-					continue
-				}
-				partialRowMargins[pkey] = coerceFloat64(row[cellLabel])
-				partialRowPresent[pkey] = true
-			}
-			leafRowToPartial = buildLeafToPartial(rowPart.Keys, level)
-		}
-	}
-	if mode == types.CrosstabNormalizeColumn {
-		axisLen := len(spec.Columns)
-		level := spec.NormalizeLevelOrLeaf(axisLen)
-		colNormLevel = level
-		if level == axisLen-1 {
-			partialColMargins = coerceAnyMarginMap(colMargins)
-			partialColPresent = colMarginPresent
-		} else {
-			partialColPart, err = p.PartitionByAxis(spec.Columns[:level+1], filtered)
-			if err != nil {
-				return nil, err
-			}
-			partialColMargins = make(map[string]float64, len(partialColPart.Keys))
-			partialColPresent = make(map[string]bool, len(partialColPart.Keys))
-			for _, pkey := range partialColPart.Keys {
-				bucket := partialColPart.Records[pkey]
-				if len(bucket) == 0 {
-					continue
-				}
-				row, err := p.aggregate([]*types.Aggregation{cellAgg}, bucket)
-				if err != nil {
-					return nil, err
-				}
-				if row == nil {
-					continue
-				}
-				partialColMargins[pkey] = coerceFloat64(row[cellLabel])
-				partialColPresent[pkey] = true
-			}
-			leafColToPartial = buildLeafToPartial(colPart.Keys, level)
-		}
-	}
-
-	// Cross-axis partition normalization. When spec.NormalizeWithin is
-	// set, the denominator fixes the full normalize-axis key (truncated
-	// to NormalizeLevel if that is also set) AND a prefix of the OTHER
-	// axis at the configured depth. Distinct from same-axis truncation
-	// (NormalizeLevel alone) — both can coexist on the same request.
-	var crossMargins map[crosstabCellKey]float64
-	var crossLeafRowToPartial map[string]string
-	var crossLeafColToPartial map[string]string
-	crossActive := false
-	if mode != types.CrosstabNormalizeNone && spec.NormalizeWithin != nil {
-		var rowDepth, colDepth int
-		var partitionAxis []*types.Group
-		switch mode {
-		case types.CrosstabNormalizeRow:
-			rowDepth = spec.NormalizeLevelOrLeaf(len(spec.Rows))
-			colDepth = *spec.NormalizeWithin
-		case types.CrosstabNormalizeColumn:
-			colDepth = spec.NormalizeLevelOrLeaf(len(spec.Columns))
-			rowDepth = *spec.NormalizeWithin
-		}
-		partitionAxis = append(partitionAxis, spec.Rows[:rowDepth+1]...)
-		partitionAxis = append(partitionAxis, spec.Columns[:colDepth+1]...)
-		joined, err := p.PartitionByAxis(partitionAxis, filtered)
+	// Per-axis grouper components, measure-independent too: computed
+	// once when the plan builds components.crosstab.
+	var rowKeyComponents, colKeyComponents []map[string]any
+	if p.compute.Crosstab {
+		// Per-axis grouper components for the row + column axes. Each
+		// axis grouper is instantiated fresh and exercised against the full
+		// filtered set so MetaGrouper.Components() reflects the cohort-wide
+		// bucket emission for that axis position. Buckets are then projected
+		// onto the sorted RowKeys / ColumnKeys via projectAxisKeyComponents
+		// so RowKeyComponents[r] / ColumnKeyComponents[c] are indexed in
+		// lockstep with MatrixPayload.RowKeys / ColumnKeys.
+		rowAxisComponents, err := p.axisComponentsFor(spec.Rows, filtered)
 		if err != nil {
 			return nil, err
 		}
-		crossMargins = make(map[crosstabCellKey]float64, len(joined.Keys))
-		for _, jkey := range joined.Keys {
-			bucket := joined.Records[jkey]
-			if len(bucket) == 0 {
-				continue
-			}
-			row, err := p.aggregate([]*types.Aggregation{cellAgg}, bucket)
-			if err != nil {
-				return nil, err
-			}
-			if row == nil {
-				continue
-			}
-			parts := strings.Split(jkey, crosstabAxisKeySep)
-			rPartKey := strings.Join(parts[:rowDepth+1], crosstabAxisKeySep)
-			cPartKey := strings.Join(parts[rowDepth+1:], crosstabAxisKeySep)
-			crossMargins[crosstabCellKey{rPartKey, cPartKey}] = coerceFloat64(row[cellLabel])
+		colAxisComponents, err := p.axisComponentsFor(spec.Columns, filtered)
+		if err != nil {
+			return nil, err
 		}
-		crossLeafRowToPartial = buildLeafToPartial(rowPart.Keys, rowDepth)
-		crossLeafColToPartial = buildLeafToPartial(colPart.Keys, colDepth)
-		crossActive = true
+		rowKeyComponents = projectAxisKeyComponents(spec.Rows, rowPart.Tuples, rowAxisComponents)
+		colKeyComponents = projectAxisKeyComponents(spec.Columns, colPart.Tuples, colAxisComponents)
 	}
 
-	if mode != types.CrosstabNormalizeNone {
-		// Map-valued aggregators rejected upstream by the
-		// MapValued() gate; every cell here is scalar.
-		normalized := make(map[crosstabCellKey]any, len(cellValues))
-		for ck, v := range cellValues {
-			var denom float64
-			var ok bool
-			if crossActive {
-				key := crosstabCellKey{
-					row: crossLeafRowToPartial[ck.row],
-					col: crossLeafColToPartial[ck.col],
-				}
-				if d, present := crossMargins[key]; present {
-					denom, ok = d, true
-				}
-			} else {
-				rLookup := ck.row
-				if leafRowToPartial != nil {
-					rLookup = leafRowToPartial[ck.row]
-				}
-				cLookup := ck.col
-				if leafColToPartial != nil {
-					cLookup = leafColToPartial[ck.col]
-				}
-				denom, ok = normalizeDenominator(mode, rLookup, cLookup,
-					partialRowMargins, partialRowPresent,
-					partialColMargins, partialColPresent,
-					coerceFloat64(grandMargin), grandPresent)
-			}
-			if !ok || denom == 0 {
-				// Divide-by-zero policy: drop the cell. Downstream
-				// rendering sees Present=false.
-				cellPresent[ck] = false
-				continue
-			}
-			normalized[ck] = coerceFloat64(v) / denom
+	// One run per measure: the single Cell, or each Cells entry as the
+	// single-measure spec it runs as (types.CrosstabSpec.MeasureSpec).
+	// Every run shares the partitions above, so the measures' axis keys
+	// are identical by construction — the property foldCrosstabMeasures
+	// stitches on.
+	in := crosstabMeasureInput{
+		req: req, filtered: filtered, filteredRows: filteredRows,
+		rowPart: rowPart, colPart: colPart, innerCols: innerCols,
+		rowMember: rowMember, colMember: colMember,
+		rowKeyComponents: rowKeyComponents, colKeyComponents: colKeyComponents,
+	}
+	runs := make([]*crosstabMeasureRun, 0, max(1, len(spec.Cells)))
+	for _, ms := range crosstabMeasureSpecs(spec) {
+		run, err := p.runCrosstabMeasure(ms, in)
+		if err != nil {
+			return nil, err
 		}
-		cellValues = normalized
+		runs = append(runs, run)
 	}
 
 	// Tier-1 row tests fold over the filter-passing record set, mirroring
@@ -1006,90 +675,20 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		Warnings: append(attrWarnings, refitWarns...),
 	}
 
-	shape := spec.ShapeOrDefault()
-	if shape == types.CrosstabShapeMatrix {
-		resp.Crosstab = &types.CrosstabResult{
-			Shape:  shape,
-			Matrix: buildMatrixPayload(spec, rowPart, colPart, cellValues, cellPresent, rowMargins, rowMarginPresent, colMargins, colMarginPresent, grandMargin, grandPresent, cellLabel, mode),
+	// The measures' payloads, components and post-test rows: the one
+	// run itself on the single-measure form (byte-identical to the
+	// pre-Cells wire), else the MEASURE fold.
+	folded, err := foldCrosstabMeasures(spec, runs)
+	if err != nil {
+		return nil, err
+	}
+	resp.Crosstab = folded.result
+	resp.Data = folded.long
+	if folded.comps != nil {
+		if resp.Components == nil {
+			resp.Components = &types.ResponseComponents{}
 		}
-	} else {
-		resp.Crosstab = &types.CrosstabResult{Shape: shape}
-		resp.Data = buildLongRows(spec, rowPart, colPart, cellValues, cellPresent,
-			rowMargins, rowMarginPresent, colMargins, colMarginPresent,
-			grandMargin, grandPresent, cellLabel,
-			partialRowPart, partialRowMargins, partialRowPresent, rowNormLevel,
-			partialColPart, partialColMargins, partialColPresent, colNormLevel)
-	}
-
-	// Emit per-cell record-count matrix on Response.Components.
-	// Layout indexed identically to MatrixPayload.Cells (rowPart.Keys
-	// outer, colPart.Keys inner) so consumers can use the same (r, c) to
-	// dereference cell value and cell count. Even shape=long callers see
-	// the matrix because the components slot is shape-agnostic; the
-	// indexing tracks rowPart / colPart key order which is deterministic
-	// regardless of shape.
-	excludedRecords := int(filteredRows) - includedRecords
-	if excludedRecords < 0 {
-		// Defensive: should never happen — includedRecords is bounded by
-		// the count of records that landed in at least one cell, which is
-		// at most filteredRows. Surface the divergence as zero rather
-		// than emit a negative count to the wire.
-		excludedRecords = 0
-	}
-	// Row / column / grand-total margin counts + components emit
-	// alongside the cell matrices. Display flags drive the emission gate —
-	// counts/components ride only when the corresponding MatrixPayload
-	// margin slot is populated (spec.Margins.Rows / Columns / Grand). The
-	// normalization-only path computes the margins internally but does
-	// not surface counts/components (mirrors the value emission rule).
-	var rowMarginCountsSlot map[string]int
-	var rowMarginComponentsSlot map[string]map[string]any
-	if spec.Margins.Rows {
-		rowMarginCountsSlot = rowMarginCounts
-		rowMarginComponentsSlot = rowMarginComponents
-	}
-	var colMarginCountsSlot map[string]int
-	var colMarginComponentsSlot map[string]map[string]any
-	if spec.Margins.Columns {
-		colMarginCountsSlot = colMarginCounts
-		colMarginComponentsSlot = colMarginComponents
-	}
-	var grandMarginCountSlot int
-	var grandMarginComponentsSlot map[string]any
-	if spec.Margins.Grand {
-		grandMarginCountSlot = grandMarginCount
-		grandMarginComponentsSlot = grandMarginComponents
-	}
-	// Components emission block — gated by the processor's
-	// ComputePlan (components.crosstab). The axis grouper instantiation +
-	// MetaGrouper.Components walk is expensive on wide cohorts, so the
-	// gate skips that work entirely rather than building then discarding.
-	if p.compute.Crosstab {
-		// Per-axis grouper components for the row + column axes. Each
-		// axis grouper is instantiated fresh and exercised against the full
-		// filtered set so MetaGrouper.Components() reflects the cohort-wide
-		// bucket emission for that axis position. Buckets are then projected
-		// onto the sorted RowKeys / ColumnKeys via projectAxisKeyComponents
-		// so RowKeyComponents[r] / ColumnKeyComponents[c] are indexed in
-		// lockstep with MatrixPayload.RowKeys / ColumnKeys.
-		rowAxisComponents, err := p.axisComponentsFor(spec.Rows, filtered)
-		if err != nil {
-			return nil, err
-		}
-		colAxisComponents, err := p.axisComponentsFor(spec.Columns, filtered)
-		if err != nil {
-			return nil, err
-		}
-		rowKeyComponents := projectAxisKeyComponents(spec.Rows, rowPart.Tuples, rowAxisComponents)
-		colKeyComponents := projectAxisKeyComponents(spec.Columns, colPart.Tuples, colAxisComponents)
-		populateCrosstabComponents(resp, rowPart.Keys, colPart.Keys,
-			cellCounts, cellComponents,
-			rowMarginCountsSlot, rowMarginComponentsSlot,
-			colMarginCountsSlot, colMarginComponentsSlot,
-			grandMarginCountSlot, grandMarginComponentsSlot, spec.Margins.Grand,
-			includedRecords, excludedRecords,
-			rowKeyComponents, colKeyComponents,
-			auxMargins.components(spec.Margins))
+		resp.Components.Crosstab = folded.comps
 	}
 
 	// Tier-2 post-tests run over the materialized cell rows. Margin rows
@@ -1097,7 +696,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// observations. For shape=matrix the orchestrator synthesises the
 	// cell-row view; for shape=long the cell rows are already
 	// addressable as the non-margin subset of resp.Data.
-	postRows := buildCellRowsForPostTest(spec, rowPart, colPart, cellValues, cellPresent, cellLabel)
+	postRows := folded.postRows
 	postResults, _, err := p.runPostTests(req.PostTests, nil, postRows)
 	if err != nil {
 		return nil, err
@@ -1129,7 +728,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	//     FusedCrosstabState.Finalize returns, so an overlay-carrying
 	//     crosstab no longer forces the buffered path and both paths
 	//     emit identical Response.Overlays / Response.Warnings.
-	if err := applyOverlaysToResponse(req, resp, p.exts, p.compute); err != nil {
+	if err := applyOverlaysToResponse(req, resp, p.exts, p.compute, folded.bases, folded.measureHosts); err != nil {
 		return nil, err
 	}
 	// Attribute slots' Components entries (cohort-wide; the fused arm
@@ -1176,7 +775,17 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 // compute is the run's ComputePlan: a layer it skips (ComputesOverlay)
 // runs no handler and raises no refusal — the slab-partition gate
 // included — and no layer computed is the overlay-free exit.
-func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *ExtensionRegistry, compute ComputePlan) error {
+//
+// bases carries each host cell's normalise-denominator floor (nil when
+// the cell slot is unweighted or normalize is none) — the n leg of the
+// weighted pairwise proportion kinds (crosstab_base_floors.go).
+//
+// measures carries each measure's single-measure host on a multi-measure
+// crosstab (types.CrosstabSpec.Cells; nil otherwise): every overlay then
+// runs per measure against that host and folds into one layer over the
+// MEASURE-folded payload (overlay_measures.go), so a pair never crosses
+// measures and each measure reads its own margins and bases.
+func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *ExtensionRegistry, compute ComputePlan, bases *crosstabBaseFloors, measures []crosstabMeasureHost) error {
 	if req == nil || len(req.Overlays) == 0 || !compute.Overlays {
 		return nil
 	}
@@ -1215,15 +824,30 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 		crosstabComps = resp.Components.Crosstab
 	}
 	host := newCrosstabHostViewWithComponents(resp.Crosstab.Matrix, crosstabComps)
+	if req.Crosstab != nil && req.Crosstab.HasMeasures() {
+		host.measures = make([]*CrosstabHostView, len(measures))
+		for m, mh := range measures {
+			sub := newCrosstabHostViewWithComponents(mh.matrix, mh.comps)
+			sub.withNormalize(req.Crosstab.NormalizeOrDefault(), mh.bases)
+			sub.withCellWeight(mh.cell)
+			if mh.cell != nil {
+				sub.cellType = mh.cell.Type
+			}
+			host.measures[m] = sub
+		}
+	}
 	// Both crosstab arms stamp req before they run (StampWeightsWith),
 	// so the cell's own `weight` IS its resolved weight: the host's
 	// weight basis comes from it, not from floor-key inference (an
 	// AGG_WEIGHTED_MEAN cell emits n_eff under either kind).
 	if req.Crosstab != nil {
+		host.withNormalize(req.Crosstab.NormalizeOrDefault(), bases)
 		host.withCellWeight(req.Crosstab.Cell)
 		if req.Crosstab.Cell != nil {
 			host.cellType = req.Crosstab.Cell.Type
 		}
+		host.cell = req.Crosstab.Cell
+		host.rowGroups = req.Crosstab.Rows
 	}
 	// When the Processor carries a live ExtensionRegistry the
 	// FORMULA dispatch arm of ApplyOverlaysWithExtensions threads the
@@ -1386,10 +1010,7 @@ func buildMatrixPayload(spec *types.CrosstabSpec,
 			Fields: types.AxisFieldNames(spec.Rows),
 			Types:  types.AxisTypes(spec.Rows),
 		},
-		ColumnHeader: types.AxisHeader{
-			Fields: types.AxisFieldNames(spec.Columns),
-			Types:  types.AxisTypes(spec.Columns),
-		},
+		ColumnHeader:     spec.ColumnHeader(),
 		RowKeys:          append([]types.AxisKey(nil), rowPart.Tuples...),
 		ColumnKeys:       append([]types.AxisKey(nil), colPart.Tuples...),
 		Cells:            make([][]types.MatrixCell, len(rowPart.Keys)),
@@ -1920,13 +1541,16 @@ func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request, ext *Ext
 		return errors.NewCodedError(errors.PULSE_CROSSTAB_EMPTY_ROWS,
 			"crosstab requires at least one row-axis grouper")
 	}
-	if len(spec.Columns) == 0 {
-		return errors.NewCodedError(errors.PULSE_CROSSTAB_EMPTY_COLUMNS,
-			"crosstab requires at least one column-axis grouper")
-	}
-	if spec.Cell == nil {
+	// No column grouper is the implicit Total column
+	// (CrosstabSpec.HasImplicitTotalColumn), not a refusal.
+	if spec.Cell == nil && !spec.HasMeasures() {
 		return errors.NewCodedError(errors.PULSE_CROSSTAB_MISSING_CELL,
 			"crosstab requires a Cell aggregation")
+	}
+	// The multi-measure Cells slot. Detection is shared with predict via
+	// types.CrosstabSpec.CellsFaults; first fault wins here.
+	for _, fault := range spec.CellsFaults() {
+		return errors.NewCodedErrorWithDetails(cellsFaultCode(fault.Kind), fault.Message, fault.Details)
 	}
 	if req != nil && (len(req.Groups) > 0 || len(req.Aggregations) > 0) {
 		return errors.NewCodedError(errors.PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS,
@@ -2014,14 +1638,15 @@ func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request, ext *Ext
 	// and to every auxiliary margin aggregation alike: an auxiliary
 	// lands in the same margin accumulators, so an unclassified one is
 	// the same defect in the same place.
-	for _, agg := range append([]*types.Aggregation{spec.Cell}, spec.MarginAggregations...) {
+	cells := spec.CellAggregations()
+	for i, agg := range append(append([]*types.Aggregation(nil), cells...), spec.MarginAggregations...) {
 		switch agg.Type.MarginReducibility() {
 		case types.MarginSummable, types.MarginMeanReducible,
 			types.MarginIndependent, types.MarginRecompute:
 			// classified
 		default:
 			slot := "cell"
-			if agg != spec.Cell {
+			if i >= len(cells) {
 				slot = "margin_aggregations"
 			}
 			return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_AGG_UNCLASSIFIED,
@@ -2030,6 +1655,15 @@ func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request, ext *Ext
 		}
 	}
 	return nil
+}
+
+// cellsFaultCode maps a shared Cells fault kind onto this package's coded
+// surface; internal/descriptor/crosstab.go holds the predict twin.
+func cellsFaultCode(kind types.CellsFaultKind) errors.Code {
+	if kind == types.CellsFaultDuplicateLabel {
+		return errors.PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL
+	}
+	return errors.PULSE_CROSSTAB_CELLS_INVALID
 }
 
 // marginAggregationFaultCode maps a shared structural fault kind onto

@@ -94,6 +94,10 @@ type weightSlot struct {
 	// specBetween names a MAT_DISTANCE params.between grouper that set
 	// specClass (GROUP_KMEANS: frequency-only), echoed in the refusal.
 	specBetween string
+	// specTotal marks an ATTR_FORMULA whose expression calls total()
+	// (weighting.AttributeClassOf: frequency-only), echoed in the
+	// refusal with its reason.
+	specTotal bool
 	// reason is a slot-level PERMANENT refusal of a built-in operator
 	// that is otherwise classed by the table: every post-test (it reads
 	// aggregated rows) and a regression carrying a resample or
@@ -155,6 +159,13 @@ var overlayWeightClasses = map[types.OverlayKind]overlayWeighting{
 	types.OverlayKindPropZPanel:      {class: weighting.ClassAware},
 	types.OverlayKindPairwisePropZ:   {class: weighting.ClassAware},
 	types.OverlayKindFisherExactCell: {class: weighting.ClassFrequencyOnly},
+	// The inferential prior-period kinds (U47 #328) read each period's
+	// leg through the weighted-host rule: a Welford leg as T_VS_REF does
+	// (N*, the variance recomputed from m2 on w*), a proportion leg's n
+	// as N* off the measure's floor (the cell's base on a crosstab).
+	types.OverlayKindTVsPrior:     {class: weighting.ClassAware},
+	types.OverlayKindZVsPrior:     {class: weighting.ClassAware},
+	types.OverlayKindPropZVsPrior: {class: weighting.ClassAware},
 	types.OverlayKindPairwiseTwoMeansZ: {class: weighting.ClassRefuse,
 		reason: "its unweighted Welford triple cannot carry a weighted variance; its weighted twin computes the weighted z",
 		twin:   types.OverlayKindPairwiseWeightedTwoMeansZ},
@@ -240,6 +251,10 @@ func kindOnlyHead(s weightSlot, field string, kind types.WeightKind) (string, ma
 		op += " (params.between " + s.specBetween + ")"
 		details["between"] = s.specBetween
 	}
+	if s.specTotal {
+		op += " calling total()"
+		details["function"] = "total"
+	}
 	return fmt.Sprintf("%s: %s has a weighted form only under weight kind %q, and the weight in force is kind %q", s.slot, op, types.WeightKindFrequency, kind), details
 }
 
@@ -247,7 +262,11 @@ func kindOnlyHead(s weightSlot, field string, kind types.WeightKind) (string, ma
 // frequency-only slot under a probability weight.
 func weightKindUnsupported(s weightSlot, spec *types.WeightSpec) error {
 	head, details := kindOnlyHead(s, spec.Field, spec.EffectiveKind())
-	if reason := weighting.KindRefusalReason(s.operator); reason != "" && !s.hidden {
+	reason := weighting.KindRefusalReason(s.operator)
+	if s.specTotal {
+		reason = weighting.FormulaTotalKindReason
+	}
+	if reason != "" && !s.hidden {
 		// A permanent kind refusal states why (GROUP_KMEANS).
 		head += " (" + reason + ")"
 		details["reason"] = reason
@@ -399,8 +418,10 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 		}
 	}
 	if ct := req.Crosstab; ct != nil {
-		if ct.Cell != nil {
-			addAgg("crosstab.cell", ct.Cell)
+		for i, cell := range ct.CellAggregations() {
+			if cell != nil {
+				addAgg(ct.CellSlotPath(i), cell)
+			}
 		}
 		for i, a := range ct.MarginAggregations {
 			if a != nil {
@@ -438,6 +459,12 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 		if a != nil {
 			add(fmt.Sprintf("attributes[%d]", i), string(a.Type), a.Weight)
 			ext(extCategoryAttribute)
+			// A total-bearing ATTR_FORMULA is frequency-only
+			// (weighting.AttributeClassOf).
+			if c := weighting.AttributeClassOf(a); c != weighting.ClassOf(string(a.Type)) {
+				s := &slots[len(slots)-1]
+				s.specClass, s.specTotal = c, true
+			}
 		}
 	}
 	for i, o := range req.Overlays {

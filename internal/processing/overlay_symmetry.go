@@ -84,7 +84,7 @@ func applySymmetryAt(spec *types.OverlaySpec, host *CrosstabHostView, index int)
 		return types.OverlayLayer{}, nil, cerr
 	}
 	payload := host.Payload()
-	if cerr := overlayhost.MarkovArityRefusal(spec.Kind, len(payload.RowHeader.Fields), len(payload.ColumnHeader.Fields), index); cerr != nil {
+	if cerr := overlayhost.MarkovArityRefusal(spec.Kind, overlayhost.HeaderGrouperCount(payload.RowHeader), overlayhost.HeaderGrouperCount(payload.ColumnHeader), index); cerr != nil {
 		return types.OverlayLayer{}, nil, cerr
 	}
 

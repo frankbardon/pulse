@@ -161,10 +161,29 @@ put that statement back into an absence — exactly what it exists to
 avoid. Every other field of every response sub-shape stays `omitempty`.
 
 Cross-slot validation rules that depend on more than one field (e.g. a
-crosstab requires at least one row **and** one column, mutually exclusive
-with top-level `groups`; every `crosstab.margin_aggregations` entry needs
+crosstab requires at least one row grouper, mutually exclusive with
+top-level `groups`; every `crosstab.margin_aggregations` entry needs
 a type and a label distinct from every other entry's and from the cell's)
 are enforced by `pulse predict` at request time, not by the schema.
+
+`crosstab.columns` is optional (not in the schema's `required` list):
+absent, `null` or `[]` runs the crosstab with ONE implicit column, key
+`["Total"]`, `column_header` `{fields: ["_total"], types: ["TOTAL"]}`,
+holding every record whose row key resolved — a Total column with no
+constant field behind it. Additive: a request that declares columns
+marshals and runs byte-identically.
+
+`crosstab.cell` is optional too: a crosstab names its cell aggregation
+either as `cell` or as several measures in `cells` (an array of
+`Aggregation`, mutually exclusive with `cell` — predict refuses both, or
+neither, since the schema cannot say "exactly one"). Each measure
+becomes a stub row under every row key: `row_header` gains the
+`_measure` / `MEASURE` position, `matrix.cell_labels[i]` names row i's
+measure, and the per-measure column margins and grand total move to
+`matrix.measures[]` (`CrosstabMeasureMargins`) and
+`components.crosstab.measures[]` (`CrosstabMeasureComponents`). All three
+result slots are optional and absent on a single-`cell` crosstab, so a
+`cell` request is byte-identical; `format_version` stays `"1.1"`.
 
 ## Time-zone slots
 
@@ -281,7 +300,9 @@ changes. Where they land follows where the kind carries its p-values:
 an `OverlaySummary` (the layer's, for the χ² / KS kinds whose p is
 `summary.p_value`; each SERIES entry's, for `OVERLAY_CHISQ_ROW` /
 `_COL`, and for `OVERLAY_T_VS_REF` / `OVERLAY_Z_VS_REF` whose p is the
-entry's `statistic`) gains `p_adjusted` and `significant_adjusted`; a
+entry's `statistic`; each tested period's, for the `*_VS_PRIOR` tests
+whose p is the entry's `p_value` — the first period has none and is no
+family member) gains `p_adjusted` and `significant_adjusted`; a
 MATRIX payload whose cells are p-values (the pairwise, Fisher and
 `*_CELL` kinds) gains two parallel `MatrixPayload`s, `payload.p_adjusted`
 and `payload.significant_adjusted`, on identical headers, keys and
@@ -339,6 +360,12 @@ every renderer already reads it.
   definition has no `parts` key, and the engine refuses a handler that
   builds one (`PROCESSING_INTERNAL`).
 - Part names are fixed per kind and listed in the kind's skill.
+- A single-output kind may still write an OPT-IN part: every
+  `OVERLAY_PAIRWISE_*` kind writes `letters` only under
+  `params.letters` — a matrix on the host coordinates whose present cell
+  `value` is an object `{"letter", "group", "higher", "above"}`
+  (`types.PairwiseLetterCell`; `higher` / `above` are letter arrays,
+  empty, never `null`), not a number.
 - A coordinate-style matrix part whose columns are dimensions rather than
   host keys (points × dimensions) keys them `["dim_1"]`, `["dim_2"]`, …
   in dimension order.
@@ -949,6 +976,46 @@ a non-number, ambiguous or nowhere-resolving path refuses the batch with
 the same code. `ranking` is pinned outside the Compose-level `return`:
 always emitted, never rounded by `precision`.
 
+### Compose banner
+
+`ComposedRequest.banner` (`BannerSpec`) is
+`{request, sections, groups, total, overlays}`: `request` a typed
+`Request` (the base every slot starts from — no `label`, no crosstab
+`columns`, no crosstab `shape: long`), `sections` a non-empty list of
+`BannerSection {label, filterers, rows, cell, cells, overlays}`, `groups` a list of
+`BannerGroup {label, columns}`, `total` a boolean (the Total block: a
+crosstab with no column grouper) and `overlays` request `OverlaySpec`s
+appended to every group slot — except a section's that sets its own
+`overlays`, which REPLACE them on its group slots. The base request's
+`labels` ride only the slots whose crosstab rows or columns group by the
+bound field (a binding no slot groups by stays on every slot). It expands into one crosstab slot per
+section × block (Total first, then the groups), labelled
+`<section>:<block>`, appended after the explicit and sweep slots. The
+slot is `omitempty`, so a banner-free request is byte-identical on the
+wire, and it is gated by `capability:compose_banner` (hidden: the
+`banner` property and the `Banner*` defs are absent). A malformed banner
+is `PULSE_BANNER_INVALID` with `details.field` and `details.reason`;
+predict reports `banner {sections, groups, total, expanded_count,
+labels}`.
+
+The banner adds `ComposedResponse.banner`, an `omitempty`
+`BannerResult {sections}`: one `BannerSectionResult {label, row_header,
+row_keys, column_keys, cells, column_margins, cell_label, cell_labels,
+normalize_applied, blocks, letters}` per section, the section's slot
+matrices side by side — rows the union of the blocks' rows, column keys
+concatenated. Each `BannerBlock {label, slot, total, start, count,
+column_header, row_margins, grand_total, measures}` locates one block's
+columns and carries its own margins: a record reaches a block's margin
+only if it reached a CELL of that block. `letters` holds one
+`BannerLetters {overlay, name, kind, scope, cells}` per banner overlay
+carrying a `letters` part (from a section's own overlays: `section: true`
+added, `overlay` indexing the section's list; absent otherwise); under `column` scope the letters are
+re-assigned banner-wide (unique across blocks, comparison groups never
+spanning two blocks) and the Total block carries no letter cell — it is
+compared to nothing. Every figure is copied from its slot; undefined
+figures are `null`. `banner` is pinned outside the Compose-level
+`return`: always emitted, never rounded.
+
 ### Compose fits
 
 `ComposedRequest.fits` is an `omitempty` array of `FitSpec {name,
@@ -1174,8 +1241,11 @@ an auxiliary is never a denominator. That shape warns
 same record admission as the CELL aggregator — a record contributes only
 if it contributed to a cell — so a record whose cell field is null, and a
 record whose axis key a grouper `include` excluded, are absent from every
-auxiliary figure while the cell's own `row_margin_components` beside them
-still count both. Nothing in the schema distinguishes the two, and the
+auxiliary figure. The cell's own `row_margin_components` beside them
+follow the same axis rule (a record reaches any margin only if it reached
+a cell, so a null or empty set or an excluded key is in no margin and no
+normalize denominator) but still count a null cell field as `n_null`.
+Nothing in the schema distinguishes the two, and the
 consequence is silent: a consumer reading an auxiliary's `components.n`
 as a cohort count gets a well-formed, plausible, wrong number. See
 `skills/crosstab-guide.md` and `skills/response-components.md`.

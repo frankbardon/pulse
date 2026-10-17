@@ -131,6 +131,21 @@ func fusionParityCorpus() []fusionCase {
 		Params: json.RawMessage(`{"table":"` + fuseRangeTable + `"}`)}}, region, sum()))
 	add("date_ranges_unknown_table", fusionXtab([]*types.Group{{Type: types.GROUP_DATE_RANGES, Field: "day",
 		Params: json.RawMessage(`{"table":"no_such_table"}`)}}, region, sum()))
+	// No column grouper: the implicit Total column (U47 #326 / #328) —
+	// fusable on its own, still declined for a non-keyable row grouper.
+	add("no_columns", fusionXtab(region, nil, sum()))
+	add("no_columns_fanning_rows", fusionXtab([]*types.Group{axisFix[types.GROUP_SET_PER_ELEMENT]}, nil, sum()))
+	add("no_columns_quantile_rows", fusionXtab([]*types.Group{axisFix[types.GROUP_QUANTILE]}, nil, sum()))
+	// Several measures (crosstab.cells, U47 E2-S2): every measure runs
+	// its own fused accumulators in lockstep, so each must fuse on its
+	// own — a recompute-margin or decimal measure declines the request.
+	cells := func(as ...*types.Aggregation) *types.Request {
+		return &types.Request{Crosstab: &types.CrosstabSpec{Rows: region, Columns: region, Cells: as}}
+	}
+	add("cells_fusable", cells(sum(), &types.Aggregation{Type: types.AGG_COUNT, Field: "score"}))
+	add("cells_recompute_measure", cells(sum(), &types.Aggregation{Type: types.AGG_MEDIAN, Field: "score"}))
+	add("cells_decimal_measure", cells(sum(), &types.Aggregation{Type: types.AGG_SUM, Field: "amount", Label: "amt"}))
+	add("cells_malformed", cells(nil, &types.Aggregation{Field: "score"}, sum()))
 	add("unknown_grouper", fusionXtab([]*types.Group{{Type: "GROUP_NO_SUCH", Field: "region"}}, region, sum()))
 	add("nil_grouper", fusionXtab([]*types.Group{nil}, region, sum()))
 	out = append(out, fusionCase{name: "grouper_bad_params", constructFails: true,

@@ -17,10 +17,11 @@ source dictionary rather than inventing one.
 > emitted. Asking for ZSAV output is
 > `PULSE_SPSS_COMPRESSION_UNSUPPORTED`, not a silent downgrade.
 
-> **`--include`, `--labels` and a non-UTC `--tz` are refused, not
-> ignored.** The `.sav` writer encodes from the cohort's raw storage, not
-> from the rendered row stream those transform. See [What this leaf
-> refuses](#what-this-leaf-refuses).
+> **`--include` and a non-UTC `--tz` are refused, not ignored.** The
+> `.sav` writer encodes from the cohort's raw storage, not from the
+> rendered row stream those transform. See [What this leaf
+> refuses](#what-this-leaf-refuses). `--labels` is not a row rewrite
+> here: it becomes `.sav` value labels — see [Value labels](#value-labels).
 
 > **Illegal variable names stop the export by default.** `--sanitize-names`
 > is the opt-in escape hatch. See [The name boundary](#the-name-boundary).
@@ -30,10 +31,12 @@ source dictionary rather than inventing one.
 ```
 pulse export spss --input PATH.pulse --output PATH.sav
                   [--ignore-sidecar] [--uncompressed]
-                  [--charset NAME] [--sanitize-names] [--json]
+                  [--charset NAME] [--sanitize-names]
+                  [--labels FIELD=TABLE[:replace|augment] ...] [--json]
 pulse export predict --input PATH.pulse --format spss
                      [--ignore-sidecar] [--uncompressed]
-                     [--charset NAME] [--sanitize-names] [--json]
+                     [--charset NAME] [--sanitize-names]
+                     [--labels FIELD=TABLE[:replace|augment] ...] [--json]
 pulse convert PATH.pulse OUT.sav
 pulse convert PATH.csv  OUT.sav
 ```
@@ -288,9 +291,58 @@ plain `f64` and moves those labels into the sibling's `Derived.Reasons` —
 the only place they survive. The write path re-emits them as ordinary
 records `3` / `4`.
 
+## Value labels
+
+A cohort with no SPSS provenance writes every categorical as a STRING
+variable of its dictionary text. Bind a categorical to a label table and
+it goes out as a NUMERIC variable with value labels instead:
+
+```bash
+PULSE_LABEL_TABLES_DIR=./labels \
+  pulse export spss -i d.pulse -o out.sav --labels region=region_names
+```
+
+- **Codes.** The dictionary's own integers when every entry is the
+  canonical spelling of one (`"1"`, `"2"`, `"9"` — what an SPSS-origin
+  cohort holds). Otherwise, when the bound table states an entry order —
+  a table file's key order, `LabelTable.Order` for a programmatic table —
+  each entry's code is its position in that order plus one: the TABLE
+  position, so every cohort bound to one table codes an entry alike even
+  when it holds only some of the entries. Entries the table does not list
+  follow, in byte-wise sorted order. With no order (a `Lookup` table, or a
+  `Rows` map without `Order`), the code is the entry's rank in byte-wise
+  sorted dictionary order plus one. Never the dictionary's first-seen
+  order, which only records which row came first. Value labels are written
+  in code order.
+- **Labels.** The table's label for the entry; an entry the table misses
+  keeps its own text as the label (and is counted in a
+  `PULSE_LABEL_LOOKUP_MISS` warning). A label that would just repeat an
+  integer code is omitted. `replace` and `augment` bindings both write
+  value labels — no cell is rewritten and no sibling column is added.
+- **Library.** `io.SPSSWriterOptions.ValueLabels` binds a field to a
+  `map[string]string` (nil: label each code with its entry text) and an
+  optional `Order` — the same mechanism; an `ExportJob` binding replaces
+  it on the same field.
+- **Refusals,** predicted by `pulse export predict --format spss --labels`
+  (`Pulse.PredictExport`, which resolves the bindings against the
+  instance's label tables as `Export` does) exactly as the export raises
+  them: an unregistered table is `PULSE_LABEL_TABLE_UNKNOWN`, a binding beside an honoured metadata sidecar is
+  `PULSE_SPSS_EXPORT_UNSUPPORTED` (the sidecar already carries the
+  source's labels; `--ignore-sidecar` relabels from the table), an unknown
+  field `PULSE_LABEL_FIELD_UNKNOWN`, a non-categorical field
+  `PULSE_LABEL_FIELD_NOT_CATEGORICAL`, two bindings on one field
+  `PULSE_LABEL_DUPLICATE_BINDING`, and a label past 255 bytes
+  `PULSE_SPSS_WIDTH_OVERFLOW` (the export's data-free pass sees it too).
+  On the CLI a field bound twice is refused while the flags are parsed,
+  with the same code, on both leaves.
+
+A cohort written by `Pulse.Materialize` or `Pulse.Rake` from an
+SPSS-origin cohort carries the source's metadata sidecar, so its labels
+survive without a binding.
+
 ## What this leaf refuses
 
-`--include`, `--labels` and a non-UTC `--tz` are **refused with
+`--include` and a non-UTC `--tz` are **refused with
 `PULSE_SPSS_EXPORT_UNSUPPORTED`**, not silently dropped (`details.option`
 names the flag). `--tz` is refused because a `.sav` DATETIME is a naive
 wall-clock second count with no offset slot: the local reading would lose
@@ -358,7 +410,9 @@ filesystem it never flushes.
 on this leaf too, and the answer depends on them: `--sanitize-names` in
 particular turns a `PULSE_SPSS_NAME_INVALID` refusal into a
 `PULSE_SPSS_NAME_SANITIZED` warning, so a predict that could not be told
-about it would refuse an export that would have succeeded.
+about it would refuse an export that would have succeeded. `--labels`
+likewise: with it, predict resolves the bindings through
+`Pulse.PredictExport` and refuses a bad one with the export's code.
 
 **A refusal carries the export's own code**, not a `PREDICT_ERROR`
 placeholder, so it is usable with `pulse errors lookup`:
@@ -393,7 +447,8 @@ and every string lives in the schema block's dictionaries.
 | `PULSE_SPSS_SIDECAR_ABSENT` / `_STALE` / `_INVALID` / `_IGNORED` | `PULSE_SPSS_CHARSET_UNENCODABLE` in cell text |
 | `PULSE_SPSS_CHARSET_UNSUPPORTED` / `_UNENCODABLE` in dictionary text | `PULSE_SPSS_EXPORT_UNSUPPORTED` for a dictionary ID with no source code |
 | `PULSE_SPSS_COLUMN_UNMAPPED`, `PULSE_SPSS_DERIVED_UNFOLDABLE` | |
-| `PULSE_SPSS_EXPORT_UNSUPPORTED` for `--include` / `--labels` / non-UTC `--tz` | |
+| `PULSE_SPSS_EXPORT_UNSUPPORTED` for `--include` / non-UTC `--tz` / a value-label binding beside a sidecar | |
+| `PULSE_LABEL_FIELD_UNKNOWN` / `_NOT_CATEGORICAL` / `_DUPLICATE_BINDING` for a value-label binding | |
 | `PULSE_SPSS_COMPRESSION_UNSUPPORTED` / `_INVALID` | |
 
 **So predict is a sound but incomplete filter.** A refusal is real; a pass
@@ -445,8 +500,10 @@ Two rules govern the dictionary:
 - **With no sidecar, nothing is invented.** A categorical becomes a
   **string** variable holding the dictionary text, rather than a numeric
   with codes taken from positions. A `set_*` expands into one indicator
-  variable per entry (named for that entry, so the mask round-trips) plus
-  a `7/7` dichotomy definition. `CategoryCode.Known` stays `false`, so the
+  variable per entry (named for that entry, so the mask round-trips, and
+  carrying the variable label `<set description or name>: <entry>`, held
+  to 255 bytes by shortening the set half) plus a `7/7` dichotomy
+  definition. `CategoryCode.Known` stays `false`, so the
   plan itself records which of the two it is.
 
 Two things deliberately do **not** reproduce the source, because
@@ -523,7 +580,7 @@ row path does — has raised none of them when the job builds its report.
 | `PULSE_SPSS_NAME_SANITIZED` | warning | `--sanitize-names` rewrote names; details carry the full `field → name` list |
 | `PULSE_SPSS_COLUMN_UNMAPPED` | error | A cohort column would leave the export silently, and the registry does not account for it |
 | `PULSE_SPSS_DERIVED_UNFOLDABLE` | error | A registry entry this binary cannot fold back |
-| `PULSE_SPSS_EXPORT_UNSUPPORTED` | error | `--include` / `--labels` / non-UTC `--tz` on a `.sav` export, or a value with no honest `.sav` form |
+| `PULSE_SPSS_EXPORT_UNSUPPORTED` | error | `--include` / non-UTC `--tz` on a `.sav` export, a value-label binding beside an honoured sidecar, or a value with no honest `.sav` form |
 | `PULSE_SPSS_COMPRESSION_UNSUPPORTED` | error | ZSAV emission — read-only, not implemented |
 | `PULSE_SPSS_CHARSET_UNENCODABLE` | error | A character the target charset cannot represent |
 | `PULSE_SPSS_CHARSET_UNSUPPORTED` | error | A `--charset` name Pulse cannot write |

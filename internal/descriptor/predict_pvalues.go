@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/groupedtests"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -83,6 +84,9 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 	if req.Crosstab != nil {
 		rows = axisBuckets(req.Crosstab.Rows, schema, inst)
 		cols = axisBuckets(req.Crosstab.Columns, schema, inst)
+		if req.Crosstab.HasImplicitTotalColumn() {
+			cols = 1 // the one implicit Total column
+		}
 	}
 	for i := range req.Overlays {
 		spec := &req.Overlays[i]
@@ -91,6 +95,14 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 			continue
 		}
 		n, basis := overlayPValueCount(routed, spec.Scope, rows, cols)
+		if overlayhost.PriorTestKind(routed) {
+			n, basis = priorPValueCount(req, schema, inst, rows)
+		}
+		// A multi-measure crosstab runs a pairwise kind once per measure
+		// (the only kinds it runs): M times the single-measure count.
+		if m := len(req.Crosstab.MeasureLabels()); m > 0 && basis == descriptor.PValueBasisDictionary {
+			n *= m
+		}
 		add(n, basis, member(overlays, i))
 	}
 	// A matrix under params.inference (set, or implied by its own
@@ -157,6 +169,23 @@ func axisBuckets(axis []*types.Group, schema *encoding.Schema, inst *InstanceSna
 		return 0
 	}
 	return 0
+}
+
+// priorPValueCount is how many p-values an inferential prior-period
+// layer carries: one per period after the first — rows - 1 on a crosstab
+// whose one row grouper's buckets the dictionary bounds (rows), groups -
+// 1 on a one-grouper SERIES host the dictionaries bound; one as a lower
+// bound otherwise (a data-dependent axis, or partitions).
+func priorPValueCount(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, rows int) (int, string) {
+	switch {
+	case req.Crosstab != nil && rows > 0:
+		return rows - 1, descriptor.PValueBasisDictionary
+	case req.Crosstab == nil && len(req.Groups) == 1:
+		if g, basis := groupsPValues(req.Groups, schema, inst); basis == descriptor.PValueBasisDictionary {
+			return g - 1, basis
+		}
+	}
+	return 1, descriptor.PValueBasisLowerBound
 }
 
 // overlayPValueCount is how many p-values one inferential Request-host

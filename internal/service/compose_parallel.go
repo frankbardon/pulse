@@ -92,7 +92,7 @@ func (s *Service) composeParallel(
 ) (*types.ComposedResponse, error) {
 	// The sweep expands before the worker pool starts, exactly as on
 	// the serial path.
-	composed, rank, err := s.expandCompose(composed)
+	composed, ext, err := s.expandCompose(composed)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +198,7 @@ func (s *Service) composeParallel(
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			reqCtx := bindSlotModels(rankSlotContext(deferMatrixResultOverlays(composeSlotContext(runCtx, vetoes, multPlan, i), &deferred[i]), rank, i), slotSets[i], req)
+			reqCtx := bindSlotModels(ext.slotContext(deferMatrixResultOverlays(composeSlotContext(runCtx, vetoes, multPlan, i), &deferred[i]), i), slotSets[i], req)
 			if o.PerRequestTimeout > 0 {
 				var reqCancel context.CancelFunc
 				reqCtx, reqCancel = context.WithTimeout(reqCtx, o.PerRequestTimeout)
@@ -308,7 +308,11 @@ func (s *Service) composeParallel(
 		return nil, err
 	}
 	// The sweep rank reads the finished, folded, still-unshaped slots.
-	if err := applyComposeRank(rank, requests, out); err != nil {
+	if err := applyComposeRank(ext.rank, requests, out); err != nil {
+		return nil, err
+	}
+	// The banner stitch reads the same finished, folded, unshaped slots.
+	if err := applyComposeBanner(ext.banner, out); err != nil {
 		return nil, err
 	}
 

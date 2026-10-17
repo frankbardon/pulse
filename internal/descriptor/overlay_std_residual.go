@@ -40,6 +40,18 @@ var overlayPartShapes = map[types.OverlayKind]map[string]overlayPart{
 	types.OverlayKindRake:           rakeParts,
 
 	types.OverlayKindMatrixGroupSummary: matrixGroupSummaryParts,
+
+	types.OverlayKindPairwisePropZ:             pairwiseLetterParts,
+	types.OverlayKindPairwiseProbitT:           pairwiseLetterParts,
+	types.OverlayKindPairwiseWelchT:            pairwiseLetterParts,
+	types.OverlayKindPairwiseTwoMeansZ:         pairwiseLetterParts,
+	types.OverlayKindPairwiseWeightedTwoMeansZ: pairwiseLetterParts,
+}
+
+// pairwiseLetterParts is the OVERLAY_PAIRWISE_* significance-letters
+// part (U47 #327), written only under params.letters.
+var pairwiseLetterParts = map[string]overlayPart{
+	"letters": {Shape: types.OverlayShapeMatrix, When: "params.letters"},
 }
 
 // overlayPartTemplated reports whether a declared part name is a

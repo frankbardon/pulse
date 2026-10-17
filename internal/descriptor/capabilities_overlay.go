@@ -170,6 +170,25 @@ const chainSeriesFieldNote = " Measure: on SERIES stages the overlay keys each r
 // rather than silently dropped — types.AllOverlayKinds() is the
 // authoritative iteration surface, and the per-kind switch below is
 // expected to grow in lock-step.
+// priorTestCapability is the shared entry of the three inferential
+// prior-period kinds (U47 #328), around the kind's test and leg
+// sentences.
+func priorTestCapability(kind types.OverlayKind, test, legs string) descriptor.OverlayCapability {
+	return descriptor.OverlayCapability{
+		Kind:        kind,
+		Inferential: true,
+		Shapes:      []types.OverlayShape{types.OverlayShapeSeries},
+		Scopes:      []types.OverlayScope{types.OverlayScopeGroup},
+		RefKinds:    []string{"Prior"},
+		Description: "Tests each period against the PRESENT period before it: " + test + ". Hosts: a grouped Process (periods = the last grouper's keys, per params.partition_by partition, scored on params.field) " +
+			"or a crosstab with NO column grouper (periods = the rows of the implicit Total column, partitioned on the leading row keys); a crosstab with a column grouper is refused. " +
+			"Legs: " + legs + ". GROUP scope, Ref.Prior (lag 0) or an empty Ref, Level / Within zero. SERIES payload, one entry per period: statistic (current minus prior) and p_value, " +
+			"which joins the request's multiplicity family (p_adjusted / significant_adjusted). The first present period has a null statistic and no p_value; a missing period keeps its key with no statistic and does not advance the prior; " +
+			"a degenerate test is null with one PULSE_OVERLAY_REF_ZERO warning per reason. A measure without the moments is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, components disabled PULSE_OVERLAY_COMPONENTS_REQUIRED (predict and runtime). " +
+			"Assumes independent samples: panel respondents in both periods violate it. Buffered.",
+	}
+}
+
 // pairwiseDescription composes the shared OVERLAY_PAIRWISE_* manifest
 // blurb around the per-kind test sentence so every OVERLAY_PAIRWISE_*
 // entry stays consistent on the catalog surface.
@@ -181,8 +200,12 @@ func pairwiseDescription(test string) string {
 		"index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other " +
 		"axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test " +
 		"degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts " +
-		"pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), " +
-		"cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY " +
+		"pairs to same-bucket comparisons; n_source selects the sample-size leg — omitted, the cell's BASE: the " +
+		"cell itself under normalize none, else the denominator normalize divided it by (row / column / grand " +
+		"margin, or the normalize_level / normalize_within denominator), its record count or, on a weighted host, " +
+		"its N* (sum_weights under kind frequency, Kish n_eff under probability) — or cell_n_unweighted, " +
+		"cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n (on a weighted host the displayed " +
+		"margin's N*), n_within, plus the DISTINCT-KEY " +
 		"modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell " +
 		"aggregator's distinct-key cardinality instead of a record count and are admitted only on an " +
 		"AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell " +
@@ -196,8 +219,8 @@ func pairwiseDescription(test string) string {
 		"PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / " +
 		"column_margin_distinct accumulate over raw records and are exact by construction, never gated. " +
 		"Reads Response.Components.Crosstab — a components-disabled host fires " +
-		"PULSE_OVERLAY_COMPONENTS_REQUIRED, at predict and at runtime. Emits RAW p-values only; direction, thresholds, and min-n flags are " +
-		"the embedder's presentation concern. Buffered (inferential)."
+		"PULSE_OVERLAY_COMPONENTS_REQUIRED, at predict and at runtime. RAW p-values; params.letters adds a letters part (per host cell: its letter, comparison group, and the letters it is higher than and significantly above). " +
+		"Buffered (inferential)."
 }
 
 func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
@@ -1553,6 +1576,18 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 " +
 				"Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches.",
 		}
+	case types.OverlayKindTVsPrior:
+		return priorTestCapability(types.OverlayKindTVsPrior,
+			"Welch t-test on the means (Welch-Satterthwaite df; the OVERLAY_PAIRWISE_WELCH_T kernel)",
+			"the Welford triple {mean, variance, n} of an AGG_WELFORD, AGG_VARIANCE or AGG_STDDEV measure (population variance converted to the sample variance; weighted: variance on w*, n = N*)")
+	case types.OverlayKindZVsPrior:
+		return priorTestCapability(types.OverlayKindZVsPrior,
+			"two-means z-test (normal tail, no df; the OVERLAY_PAIRWISE_TWO_MEANS_Z kernel)",
+			"the Welford triple {mean, variance, n} of an AGG_WELFORD, AGG_VARIANCE or AGG_STDDEV measure (population variance converted to the sample variance; weighted: variance on w*, n = N*)")
+	case types.OverlayKindPropZVsPrior:
+		return priorTestCapability(types.OverlayKindPropZVsPrior,
+			"pooled two-proportion z-test (the OVERLAY_PAIRWISE_PROP_Z kernel)",
+			"an AGG_AVERAGE measure of a 0/1 indicator: p̂ is its value, n its floor's non-null count (weighted: N* — Σw under frequency, n_eff under probability); on the crosstab host normalize must be none")
 	case types.OverlayKindYoY:
 		return descriptor.OverlayCapability{
 			Kind: types.OverlayKindYoY,

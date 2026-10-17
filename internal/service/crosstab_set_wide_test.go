@@ -167,11 +167,16 @@ func TestWideSetGrouper_PerElementAxisThroughService(t *testing.T) {
 				}
 			}
 			// Margins recompute from raw rows: the grand total is the
-			// plain sum over every record, NOT the sum over the fanned
-			// cells (which over-counts multi-label rows).
+			// plain sum over every record that reached a cell, NOT the
+			// sum over the fanned cells (which over-counts multi-label
+			// rows). The empty-mask row reached no cell, so it is in no
+			// margin (U47 #325: a record reaches a margin only if it
+			// reached a cell).
 			var wantGrand float64
 			for _, r := range rows {
-				wantGrand += r.value
+				if len(r.bits) > 0 {
+					wantGrand += r.value
+				}
 			}
 			if got, _ := m.GrandTotal.Value.(float64); got != wantGrand {
 				t.Errorf("grand margin = %v, want %v (raw rows, not cells)", m.GrandTotal.Value, wantGrand)

@@ -80,8 +80,9 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		"capability:stream":         {{"capability:process"}},
 		"capability:watch":          {{"capability:process"}},
 		"capability:filter_to_file": {{"capability:process"}, {"FILTER_EXPRESSION"}},
-		"capability:materialize":    {{"capability:process"}}, // runs Process's pre-flight and record pipeline
-		"capability:compose_sweep":  {{"capability:compose"}}, // a sweep expands into Compose slots
+		"capability:materialize":    {{"capability:process"}},  // runs Process's pre-flight and record pipeline
+		"capability:compose_sweep":  {{"capability:compose"}},  // a sweep expands into Compose slots
+		"capability:crosstab_cells": {{"capability:crosstab"}}, // the measures are a crosstab's cells
 		// fits run before Compose slots, and a fit is one regression
 		"capability:compose_fits": {{"capability:compose"}, {"ATTR_FACTOR_SCORE", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "REG_BAYES_LINEAR", "REG_GLM", "REG_OLS", "capability:matrices"}},
 		// a save writes a fitted regression, from any request host
@@ -100,9 +101,14 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		// Any-of edge (FR-18): a weighted AGG_AVERAGE cell is a host too.
 		"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z": {{"capability:crosstab"}, {"AGG_AVERAGE", "AGG_WEIGHTED_MEAN"}},
 		"OVERLAY_SHARE_OF_TOTAL":                {{"capability:compose", "capability:crosstab"}},
-		"OVERLAY_YOY":                           {{"capability:compose"}, {"GROUP_DATE"}},
-		"capability:process":                    nil,
-		"io_format:csv":                         nil,
+		// The prior-period tests (U47 #328): a series or no-column crosstab
+		// host, and the measure family whose components they read.
+		"OVERLAY_T_VS_PRIOR":      {{"capability:compose", "capability:crosstab"}, {"AGG_STDDEV", "AGG_VARIANCE", "AGG_WELFORD"}},
+		"OVERLAY_Z_VS_PRIOR":      {{"capability:compose", "capability:crosstab"}, {"AGG_STDDEV", "AGG_VARIANCE", "AGG_WELFORD"}},
+		"OVERLAY_PROP_Z_VS_PRIOR": {{"capability:compose", "capability:crosstab"}, {"AGG_AVERAGE"}},
+		"OVERLAY_YOY":             {{"capability:compose"}, {"GROUP_DATE"}},
+		"capability:process":      nil,
+		"io_format:csv":           nil,
 	}
 	for name, want := range expect {
 		got, ok := descx.FeatureDependencies(name)

@@ -196,6 +196,10 @@ func obsCalls() []obsCall {
 			_, err := p.Export(ctx, pio.NewExportJob(obsCohort, wbuf()))
 			return err
 		}},
+		{"PredictExport", observe.OpPredict, func(ctx context.Context, p *Pulse) error {
+			_, err := p.PredictExport(ctx, pio.NewExportJob(obsCohort, wbuf()))
+			return err
+		}},
 		{"ExportTransfer", observe.OpExport, func(ctx context.Context, p *Pulse) error {
 			_, err := p.ExportTransfer(ctx, &pio.TransferExportJob{Source: obsCohort, Output: "obs.pulse.zst"})
 			return err
@@ -245,6 +249,15 @@ func obsCalls() []obsCall {
 				Cohort:   &types.Cohort{Filename: obsCohort},
 				Features: []*types.Feature{{Type: types.FEAT_LOG, Field: "amount"}},
 			}, "materialized.pulse", MaterializeOptions{Overwrite: true})
+			return err
+		}},
+		{"Rake", observe.OpRake, func(ctx context.Context, p *Pulse) error {
+			_, err := p.Rake(ctx, RakeRequest{
+				Cohort:    obsCohort,
+				Out:       "raked.pulse",
+				Overwrite: true,
+				Margins:   []RakeMargin{{Field: "region", Targets: map[string]float64{"north": .5, "south": .5}}},
+			})
 			return err
 		}},
 		{"WidenSetField", observe.OpWiden, func(ctx context.Context, p *Pulse) error {

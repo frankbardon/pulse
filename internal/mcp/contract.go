@@ -212,6 +212,29 @@ type MaterializeIn struct {
 	Overwrite bool           `json:"overwrite,omitempty" jsonschema:"Replace an existing cohort at out (atomic: a failure leaves it as it was). Sidecars beside it become stale and are listed under invalidated_sidecars, each with its rebuild command; nothing is rebuilt."`
 }
 
+// RakeIn is the input contract for pulse_rake: a pulse.RakeRequest
+// spread at the root (cohort, out and overwrite ARE request keys here,
+// so nothing needs nesting). It declares the request's fields in the
+// request's order and types, differing only in the schema descriptions,
+// so HandleRake converts it with a plain type conversion — a field added
+// to, removed from or retyped on pulse.RakeRequest without this mirror
+// fails to compile. Every judgement on it is pulse.Rake's.
+type RakeIn struct {
+	Cohort      string             `json:"cohort" jsonschema:"Source cohort path (relative to PULSE_DATA_DIR): a single file, a shard archive or an archive#shard anchor. Required."`
+	Out         string             `json:"out" jsonschema:"Path of the NEW single-file .pulse cohort to write (relative to PULSE_DATA_DIR): every source column verbatim plus the weight column. Required. An existing file is refused with SERVICE_VALIDATION unless overwrite is set; an archive#shard target is refused."`
+	WeightField string             `json:"weight_field,omitempty" jsonschema:"Name of the output weight column (nullable f64). Default rake_weight. A name the source already carries is refused (PULSE_RAKE_INVALID reason weight_field_exists) unless overwrite is set, which replaces that column in place."`
+	Margins     []pulse.RakeMargin `json:"margins" jsonschema:"The target distributions the weights must reproduce, applied in order each sweep. A rim margin is {field, targets: {category: target}}; a joint margin (cell weighting) is {fields: [two or more], cells: [{values: [one category per field], target}]}. Categories are dictionary labels, decimal integers or true/false. targets_as is shares (default; the targets sum to 1 or 100) or counts (any positive total). Every category a record holds needs a target (PULSE_RAKE_UNTARGETED_CATEGORY); a target the field cannot hold is PULSE_RAKE_UNKNOWN_CATEGORY."`
+	By          string             `json:"by,omitempty" jsonschema:"Rake every group of this field (e.g. a survey wave) separately to the SAME targets; each group is normalised on its own. A null by value is PULSE_RAKE_MISSING_VALUE."`
+	BaseWeight  string             `json:"base_weight,omitempty" jsonschema:"A design-weight field the raking starts from: the output is that weight times the raking adjustment. Null, negative or non-finite values are PULSE_RAKE_INVALID (reason base_weight_invalid)."`
+	Missing     string             `json:"missing,omitempty" jsonschema:"Null margin value policy: refuse (default; PULSE_RAKE_MISSING_VALUE with the offending row count) or base (the record keeps its current factor for that margin and is not counted by it)."`
+	MinWeight   float64            `json:"min_weight,omitempty" jsonschema:"Lower cap on every weight, relative to its group's mean weight (0 = no cap), applied after every sweep."`
+	MaxWeight   float64            `json:"max_weight,omitempty" jsonschema:"Upper cap on every weight, relative to its group's mean weight (0 = no cap), applied after every sweep. Caps trade margin fit for efficiency."`
+	MaxIter     int                `json:"max_iter,omitempty" jsonschema:"Sweep ceiling (0 = 100). A run that stops there still writes the cohort, with a PULSE_RAKE_NOT_CONVERGED warning."`
+	Tol         float64            `json:"tol,omitempty" jsonschema:"Convergence tolerance: the largest absolute achieved-vs-target share gap over every margin category (0 = 1e-6)."`
+	Total       float64            `json:"total,omitempty" jsonschema:"Normalise every group's weights to sum to this value (0 = the group's record count, so the mean weight is 1)."`
+	Overwrite   bool               `json:"overwrite,omitempty" jsonschema:"Replace an existing cohort at out (atomic) and an existing source column named weight_field. Sidecars beside an overwritten cohort become stale and are listed under invalidated_sidecars with a PULSE_RAKE_SIDECARS_INVALIDATED warning; nothing is rebuilt."`
+}
+
 // DropIn is the input contract for pulse_drop.
 type DropIn struct {
 	Handle string `json:"handle" jsonschema:"Managed handle name to remove"`
@@ -406,6 +429,9 @@ type DedupOut = pulse.DedupResult
 
 // MaterializeOut is the output contract for pulse_materialize.
 type MaterializeOut = pulse.MaterializeResult
+
+// RakeOut is the output contract for pulse_rake.
+type RakeOut = pulse.RakeResult
 
 // DropOut is the output contract for pulse_drop.
 type DropOut struct {

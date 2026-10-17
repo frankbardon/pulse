@@ -162,11 +162,13 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 	// receive is a single WriteRow call. See CohortWriter.
 	if cw, ok := j.Target.(CohortWriter); ok {
 		n, err := cw.WriteCohort(ctx, CohortSource{
-			FS:       j.FS,
-			Path:     j.Source,
-			Includes: j.Includes,
-			Labelled: j.LabelResolver != nil,
-			TimeZone: zoneName(zone),
+			FS:              j.FS,
+			Path:            j.Source,
+			Includes:        j.Includes,
+			Labelled:        j.LabelResolver != nil,
+			ValueLabels:     cohortValueLabels(schema, j.Labels, j.LabelResolver),
+			ValueLabelOrder: cohortValueLabelOrder(schema, j.Labels, j.LabelResolver),
+			TimeZone:        zoneName(zone),
 		})
 		if err != nil {
 			return nil, err
@@ -634,11 +636,13 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	// starts no write lifecycle on a writer it will never Close.
 	if cv, ok := j.Target.(CohortValidator); ok {
 		warns, err := cv.ValidateCohort(ctx, CohortSource{
-			FS:       j.FS,
-			Path:     j.Source,
-			Includes: j.Includes,
-			Labelled: j.LabelResolver != nil,
-			TimeZone: zoneName(zone),
+			FS:              j.FS,
+			Path:            j.Source,
+			Includes:        j.Includes,
+			Labelled:        j.LabelResolver != nil,
+			ValueLabels:     cohortValueLabels(schema, j.Labels, j.LabelResolver),
+			ValueLabelOrder: cohortValueLabelOrder(schema, j.Labels, j.LabelResolver),
+			TimeZone:        zoneName(zone),
 		})
 		if err != nil {
 			return nil, err
@@ -649,6 +653,91 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	}
 
 	return report, nil
+}
+
+// cohortValueLabels resolves the export's label binding onto the cohort's
+// dictionaries for a CohortWriter (CohortSource.ValueLabels). A bound field
+// is one the job's Labels name — so a binding on a field the schema lacks
+// still reaches the writer and is refused there — or, for a caller that
+// supplied only a resolver, every schema field the resolver Has. A bound
+// categorical maps each dictionary entry the binding resolves to its
+// label: a replace binding's display text, an augment binding's sibling
+// label. Entries the table misses are absent, and the resolver records them
+// for its PULSE_LABEL_LOOKUP_MISS summary. Any other bound field maps to
+// nil. Nil without a resolver; Run and Predict both call it, so a writer
+// validates exactly what it would write.
+func cohortValueLabels(schema *encoding.Schema, bindings []*types.LabelBinding, r LabelResolver) map[string]map[string]string {
+	if r == nil || schema == nil {
+		return nil
+	}
+	byName := make(map[string]int, len(schema.Fields))
+	for i := range schema.Fields {
+		byName[schema.Fields[i].Name] = i
+	}
+	var bound []string
+	for _, b := range bindings {
+		if b != nil {
+			bound = append(bound, b.Field)
+		}
+	}
+	if len(bound) == 0 {
+		for i := range schema.Fields {
+			if r.Has(schema.Fields[i].Name) {
+				bound = append(bound, schema.Fields[i].Name)
+			}
+		}
+	}
+	out := make(map[string]map[string]string, len(bound))
+	for _, name := range bound {
+		at, ok := byName[name]
+		if !ok || !schema.Fields[at].Type.IsCategorical() {
+			out[name] = nil
+			continue
+		}
+		labels := map[string]string{}
+		if d := schema.Fields[at].Dictionary; d != nil && r.Has(name) {
+			for _, entry := range d.Values() {
+				shown, sibling, hit := r.Apply(name, entry)
+				if !hit {
+					continue
+				}
+				if r.Mode(name) == types.LabelModeAugment {
+					labels[entry] = sibling
+				} else {
+					labels[entry] = shown
+				}
+			}
+		}
+		out[name] = labels
+	}
+	return out
+}
+
+// labelOrderer is the optional resolver method that reports a bound
+// table's entry order (pulse's resolver implements it from
+// LabelTable.Order). A resolver without it binds tables with no order.
+type labelOrderer interface {
+	Order(field string) []string
+}
+
+// cohortValueLabelOrder is CohortSource.ValueLabelOrder: for every field
+// cohortValueLabels binds, the bound table's entry order when the resolver
+// reports one. Nil when none does.
+func cohortValueLabelOrder(schema *encoding.Schema, bindings []*types.LabelBinding, r LabelResolver) map[string][]string {
+	o, ok := r.(labelOrderer)
+	if !ok {
+		return nil
+	}
+	var out map[string][]string
+	for name := range cohortValueLabels(schema, bindings, r) {
+		if order := o.Order(name); len(order) > 0 {
+			if out == nil {
+				out = map[string][]string{}
+			}
+			out[name] = order
+		}
+	}
+	return out
 }
 
 // exportZone resolves ExportJob.TimeZone. Empty, "UTC" and every

@@ -90,6 +90,31 @@ type CrosstabHostView struct {
 	// basis is inferred from the cells' floor keys (WeightBasis).
 	basis      weighting.Basis
 	basisKnown bool
+
+	// normalize is the host crosstab's applied normalize mode when the
+	// caller knows it from the request (applyOverlaysToResponse); empty
+	// otherwise (read as none). bases is each cell's normalise-
+	// denominator floor (crosstab_base_floors.go) — the base a weighted
+	// pairwise proportion leg reads its n from (BaseFloor).
+	normalize types.CrosstabNormalize
+	bases     *crosstabBaseFloors
+
+	// measures holds one single-measure host per measure when the host
+	// crosstab is multi-measure (types.CrosstabSpec.Cells); nil
+	// otherwise. The pairwise family runs per measure against these
+	// (overlay_measures.go) and lays the result over this view's
+	// MEASURE-folded payload; every other overlay kind is refused on such
+	// a host before it reaches a handler (overlayhost.MeasureHostRefusal).
+	measures []*CrosstabHostView
+
+	// cell / rowGroups are the host crosstab's single-measure cell
+	// aggregation and its row groupers when the caller knows them from
+	// the request (applyOverlaysToResponse); nil otherwise. The
+	// prior-period kinds (overlay_vs_prior.go) resolve params.field
+	// against cell and params.partition_by against rowGroups, the
+	// readings predict applies to the same request.
+	cell      *types.Aggregation
+	rowGroups []*types.Group
 }
 
 // NewCrosstabHostView wraps a MatrixPayload as a host view. payload
@@ -322,6 +347,19 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 	types.OverlayKindSymmetry:                  applySymmetry,
 	types.OverlayKindRetention:                 applyRetention,
 	types.OverlayKindZScoreVsMargin:            applyZScoreVsMargin,
+	// The prior-period kinds run index-aware (applyPriorTestMatrixAt,
+	// below); the table row marks them MATRIX-dispatched.
+	types.OverlayKindTVsPrior:     priorTestMatrixHandler(types.OverlayKindTVsPrior),
+	types.OverlayKindZVsPrior:     priorTestMatrixHandler(types.OverlayKindZVsPrior),
+	types.OverlayKindPropZVsPrior: priorTestMatrixHandler(types.OverlayKindPropZVsPrior),
+}
+
+// priorTestMatrixHandler is route's MATRIX handler for a caller without
+// a spec index.
+func priorTestMatrixHandler(route types.OverlayKind) overlayHandler {
+	return func(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
+		return applyPriorTestMatrixAt(spec, route, host, -1)
+	}
 }
 
 // applyOverlays executes every spec in specs against the host view
@@ -495,6 +533,8 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 			layer, ws, err = applySymmetryAt(spec, host, i)
 		case types.OverlayKindRetention:
 			layer, ws, err = applyRetentionAt(spec, host, i)
+		case types.OverlayKindTVsPrior, types.OverlayKindZVsPrior, types.OverlayKindPropZVsPrior:
+			layer, ws, err = applyPriorTestMatrixAt(spec, route, host, i)
 		default:
 			layer, ws, err = handler(spec, host)
 		}
@@ -575,6 +615,17 @@ func codeAt(err error, code errors.Code, index int) error {
 // messages name the authored spec.Kind.
 func validateOverlayLevelWithinRuntime(spec *types.OverlaySpec, route types.OverlayKind, host *CrosstabHostView, specIndex int) error {
 	if spec == nil {
+		return nil
+	}
+	if overlayhost.PriorTestKind(route) {
+		// The prior-period kinds walk the ordered period axis: Level /
+		// Within must both be zero, predict's message
+		// (overlayhost.PriorLevelWithinMessage).
+		if spec.Level != 0 || spec.Within != 0 {
+			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
+				overlayhost.PriorLevelWithinMessage(spec.Kind),
+				map[string]any{"index": specIndex, "kind": string(spec.Kind), "level": spec.Level, "within": spec.Within})
+		}
 		return nil
 	}
 	switch route {
@@ -3121,6 +3172,14 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// uppercasing (mirrors the INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES
 		// dispatch convention).
 		return "zscore_vs_total"
+	case types.OverlayKindTVsPrior:
+		// The inferential prior-period kinds (overlay_vs_prior.go):
+		// lower-case bare-kind defaults, one per kind, on both hosts.
+		return "t_vs_prior"
+	case types.OverlayKindZVsPrior:
+		return "z_vs_prior"
+	case types.OverlayKindPropZVsPrior:
+		return "prop_z_vs_prior"
 	}
 	return string(spec.Kind)
 }

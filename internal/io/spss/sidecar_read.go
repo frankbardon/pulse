@@ -163,6 +163,50 @@ type WriterOptions struct {
 	// rewrite, and rewriting a source's own names would be the fidelity
 	// loss the whole write side exists to avoid.
 	SanitizeNames bool
+
+	// ValueLabels binds value labels onto categorical fields, one entry
+	// per field. A bound categorical goes out as a NUMERIC variable with
+	// value labels instead of a STRING variable holding the dictionary
+	// text — see [ValueLabels] for the code and label rules.
+	//
+	// Synthesised path only: a cohort whose metadata sidecar is honoured
+	// already carries the source's own codes and labels, so a binding
+	// beside one is refused with PULSE_SPSS_EXPORT_UNSUPPORTED rather
+	// than silently overriding them (--ignore-sidecar labels from the
+	// binding instead). A binding naming no field is
+	// PULSE_LABEL_FIELD_UNKNOWN, one naming a non-categorical field
+	// PULSE_LABEL_FIELD_NOT_CATEGORICAL and two naming one field
+	// PULSE_LABEL_DUPLICATE_BINDING — every one raised by the dictionary
+	// build, so `pulse export predict` refuses on the same terms.
+	ValueLabels []ValueLabels
+}
+
+// ValueLabels is one categorical field's value-label binding on a `.sav`
+// export.
+//
+// The variable's numeric CODES come from the field's dictionary: the
+// entries' own integers when EVERY entry is the canonical decimal spelling
+// of an integer SPSS can hold exactly (|n| <= 2^53) — the SPSS-origin case,
+// where the dictionary already holds the source codes. Otherwise, with an
+// Order, each entry's code is its position in Order plus one (entries Order
+// does not list follow, in byte-wise sorted order); with no Order, each
+// entry's rank in byte-wise sorted dictionary order plus one — never the
+// dictionary's first-seen order.
+// Each code's LABEL is Labels[entry text] when present, else the entry
+// text itself, so a positional code never loses the text it stands for; a
+// label equal to the code's own decimal spelling (an integer entry with no
+// table hit) is omitted, as is an empty one.
+type ValueLabels struct {
+	// Field is the cohort field name.
+	Field string
+
+	// Labels maps a dictionary entry's text to its value label. Nil
+	// labels every code with its own dictionary text.
+	Labels map[string]string
+
+	// Order is the entry order the codes follow — a label table's own
+	// entry order. Nil codes by sorted dictionary order.
+	Order []string
 }
 
 // Compression is the header compression flag these options select: SPSS

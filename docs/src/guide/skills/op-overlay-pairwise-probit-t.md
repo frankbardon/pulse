@@ -26,7 +26,7 @@ Use something else:
 
 ## Params
 
-`Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.pair_along_dim` (int, unset) — restrict pairs to same-bucket comparisons on the pair axis. `params.n_source`, `params.n_within_depth` and `params.p_source` are the family-wide vocabulary, identical to [`op-overlay-pairwise-prop-z`](op-overlay-pairwise-prop-z.md): [`pairwise-n-sources`](pairwise-n-sources.md).
+`Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.pair_along_dim` (int, unset) — restrict pairs to same-bucket comparisons on the pair axis. `params.n_source` (omitted: the cell's base — the normalise denominator on a normalised host, its N* when weighted), `params.n_within_depth` and `params.p_source` (default `cell_value` on a normalised host, else `cell_value_pct`; omitted over an unnormalised mean / non-count cell → `PULSE_OVERLAY_PARAM_MISSING`) are the family-wide vocabulary, identical to [`op-overlay-pairwise-prop-z`](op-overlay-pairwise-prop-z.md): [`pairwise-n-sources`](pairwise-n-sources.md). `params.letters` (object, unset) — `{}` or `{"alpha": a}`, `0 < a < 1` (else `PULSE_OVERLAY_PARAM_MISSING`, predict and runtime): adds the `letters` part.
 
 - `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched ([`multiplicity-correction`](multiplicity-correction.md)).
 
@@ -36,20 +36,20 @@ MATRIX crosstab + `Response.Components.Crosstab`. Components-disabled host (opti
 
 ## Output
 
-MATRIX — pair × opposite-axis grid of two-sided p-values, layout identical to [`op-overlay-pairwise-prop-z`](op-overlay-pairwise-prop-z.md). Per pair: `t = (Φ⁻¹(p_i) - Φ⁻¹(p_j)) / sqrt(1/n_i + 1/n_j)` against Student-t with `df = n_i + n_j - 2`, two-sided; proportions clipped to `[1e-10, 1-1e-10]` before Φ⁻¹. Reuses the Student-t survival helper the t-tests use.
+MATRIX — pair × opposite-axis grid of two-sided p-values, layout identical to [`op-overlay-pairwise-prop-z`](op-overlay-pairwise-prop-z.md). Per pair: `t = (Φ⁻¹(p_i) - Φ⁻¹(p_j)) / sqrt(1/n_i + 1/n_j)` against Student-t with `df = n_i + n_j - 2`, two-sided; proportions clipped to `[1e-10, 1-1e-10]` before Φ⁻¹. Reuses the Student-t survival helper the t-tests use. `payload.parts.letters` (with `params.letters`): per host cell `{letter, group, higher, above}` — `higher` from the sign of `t`, `above` its significant subset — as [`op-overlay-pairwise-prop-z`](op-overlay-pairwise-prop-z.md) describes.
 
 ## Reading the output
 
 - `cells.value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
-  - Caveat: Each cell holds the two-sided p-value for one pair, from a t curve on n_i + n_j - 2 degrees of freedom after a probit transform of each share; it is absent when a leg is unreadable or the test is degenerate.
   - Caveat: The probit simplification differs from the textbook two-proportion test (OVERLAY_PAIRWISE_PROP_Z), so the two give different p-values for the same cells.
+- `parts.letters.cells.value`: Significance letters for this host cell: its column's (or row's) letter, and in above the letters of the same-group columns it is significantly higher than here.
 
 ## Gotchas
 
 - An undefined (NaN) host cell is MISSING: its pairs skip as an absent cell's do (`PULSE_STATS_SKIP_EXTRACT_FAILED`).
 - Never weighted (no reference weighted form): a row weight reaching the overlay slot (request, its own `weight`, or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; set `"weight": null` on the overlay to run it unweighted.
 - `df <= 0` (n_i + n_j <= 2) or a non-finite t skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`).
-- RAW p-values only — direction / thresholds / min-n are the embedder's job.
+- The primary stays RAW p-values; direction and significance ride `letters` only when asked; min-n is the embedder's job.
 - `p_source` mismatch empties the layer: a leg outside `[0,1]` (`cell_value` over a raw count or a 0..100 percentage) skips every pair (`PULSE_OVERLAY_REF_ZERO`, reason `PULSE_STATS_SKIP_PROPORTION_INVALID`) — never clipped. Normalize a count cell first.
 - **Distinct-KEY n modes carry the same admission and the same slab partition refusal as on prop-Z** — distinct-key cell aggregators only, `PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED` for a fan-out grouper at a summed-across depth, margin modes never gated. Full rules: [`pairwise-n-sources`](pairwise-n-sources.md).
 - Flagged buffered in `OverlayStreamability`; the HOST crosstab still FUSES on a mergeable cell aggregator.

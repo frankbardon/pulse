@@ -1,0 +1,58 @@
+{
+  "_meta": {
+    "capabilities": [
+      "capability:crosstab_cells"
+    ],
+    "category": "crosstab",
+    "description": "Several measures in one crosstab: each region row carries two stub rows, a record count and the mean revenue, read against the treatment columns with per-measure column margins and grand totals.",
+    "intents": [
+      "compare_groups"
+    ],
+    "name": "crosstab_measures_as_stub_rows",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "cohort-analysis"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "region"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "treatment"
+      }
+    ],
+    "cells": [
+      {
+        "type": "AGG_COUNT",
+        "field": "id",
+        "label": "n"
+      },
+      {
+        "type": "AGG_AVERAGE",
+        "field": "revenue",
+        "label": "mean_revenue"
+      }
+    ],
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    },
+    "shape": "matrix"
+  }
+}

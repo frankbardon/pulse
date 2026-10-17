@@ -1381,6 +1381,9 @@ def ov_xt(rows, cols, cell, extra=None):
 
 
 OV_COUNT = {"type": "AGG_COUNT", "field": "o", "label": "cell"}
+# A 0/1 indicator of o = "yes": the prior-period proportion kind reads
+# its AGG_AVERAGE as the share.
+OV_YES = {"type": "ATTR_FORMULA", "field": "o", "label": "yes", "expression": 'o == "yes" ? 1 : 0'}
 OV_WELFORD = {"type": "AGG_WELFORD", "field": "x", "label": "cell"}
 
 
@@ -1420,7 +1423,10 @@ def ov_request(case, kind):
         return {"attributes": [{"type": "ATTR_FORMULA", "field": "o", "label": "yes",
                                 "expression": 'o == "yes" ? 100 : 0'}],
                 "crosstab": ov_xt("h", "k", {"type": "AGG_AVERAGE", "field": "yes", "label": "cell"}),
-                "overlays": [{"name": "pz", "kind": "OVERLAY_PAIRWISE_PROP_Z", "scope": "column"}]}
+                # The 0/100 mean cell names its percentage reading: an
+                # omitted p_source over a mean cell is refused (U47 E4-S6).
+                "overlays": [{"name": "pz", "kind": "OVERLAY_PAIRWISE_PROP_Z", "scope": "column",
+                              "params": {"p_source": "cell_value_pct"}}]}
     if case == "ov_pairwise_weighted_z":
         basis = "kish" if kind == "probability" else "weights"
         return {"crosstab": ov_xt("k", "h", {"type": "AGG_AVERAGE", "field": "y", "label": "cell"}),
@@ -1447,11 +1453,34 @@ def ov_request(case, kind):
             {"name": "pc", "kind": "OVERLAY_PROP_Z_CELL", "scope": "cell", "reference": "total", "targets": ["sub"]},
             {"name": "pp", "kind": "OVERLAY_PROP_Z_PANEL", "scope": "cell", "reference": "total",
              "targets": ["sub", "sub2"]}]}
+    if case == "ov_prior":
+        # The inferential prior-period kinds on a grouped Process host:
+        # periods = k (p, q, r), each tested against the one before it.
+        return {"attributes": [OV_YES],
+                "groups": [{"type": "GROUP_CATEGORY", "field": "k"}],
+                "aggregations": [{"type": "AGG_WELFORD", "field": "x", "label": "m"},
+                                 {"type": "AGG_AVERAGE", "field": "yes", "label": "share"}],
+                "overlays": [
+                    {"name": "t", "kind": "OVERLAY_T_VS_PRIOR", "scope": "group", "params": {"field": "m"}},
+                    {"name": "z", "kind": "OVERLAY_Z_VS_PRIOR", "scope": "group", "params": {"field": "m"}},
+                    {"name": "pz", "kind": "OVERLAY_PROP_Z_VS_PRIOR", "scope": "group", "params": {"field": "share"}}]}
+    if case == "ov_prior_xt_means":
+        # The no-column crosstab form: rows = the periods.
+        return {"crosstab": {"rows": [{"type": "GROUP_CATEGORY", "field": "k"}], "cell": OV_WELFORD},
+                "overlays": [
+                    {"name": "t", "kind": "OVERLAY_T_VS_PRIOR", "scope": "group"},
+                    {"name": "z", "kind": "OVERLAY_Z_VS_PRIOR", "scope": "group"}]}
+    if case == "ov_prior_xt_prop":
+        return {"attributes": [OV_YES],
+                "crosstab": {"rows": [{"type": "GROUP_CATEGORY", "field": "k"}],
+                             "cell": {"type": "AGG_AVERAGE", "field": "yes", "label": "cell"}},
+                "overlays": [{"name": "pz", "kind": "OVERLAY_PROP_Z_VS_PRIOR", "scope": "group"}]}
     raise ValueError(case)
 
 
 OV_CASES = ["ov_chisq", "ov_std_residual", "ov_symmetry", "ov_fisher", "ov_pairwise_welch", "ov_pairwise_prop",
-            "ov_pairwise_weighted_z", "ov_compose_means", "ov_compose_series", "ov_compose_props"]
+            "ov_pairwise_weighted_z", "ov_compose_means", "ov_compose_series", "ov_compose_props",
+            "ov_prior", "ov_prior_xt_means", "ov_prior_xt_prop"]
 OV_FREQUENCY_ONLY = {"ov_fisher"}
 
 
@@ -1489,6 +1518,36 @@ def welch_p(a, b, normal=False):
         return float(2 * scipy.stats.norm.sf(abs(t)))
     df = (va + vb) ** 2 / (va * va / (a.nstar - 1) + vb * vb / (b.nstar - 1))
     return t_two_sided(t, df)
+
+
+def welch_stat(a, b, normal=False):
+    """(statistic, two-sided p) of the Welch t (or two-means z) of a - b."""
+    va, vb = a.var / a.nstar, b.var / b.nstar
+    t = (a.mean - b.mean) / math.sqrt(va + vb)
+    if normal:
+        return float(t), float(2 * scipy.stats.norm.sf(abs(t)))
+    df = (va + vb) ** 2 / (va * va / (a.nstar - 1) + vb * vb / (b.nstar - 1))
+    return float(t), t_two_sided(t, df)
+
+
+def two_prop_stat(p1, n1, p2, n2):
+    """(z, two-sided p) of the pooled two-proportion z of p1 - p2."""
+    pooled = (p1 * n1 + p2 * n2) / (n1 + n2)
+    z = (p1 - p2) / math.sqrt(pooled * (1 - pooled) * (1 / n1 + 1 / n2))
+    return float(z), float(2 * scipy.stats.norm.sf(abs(z)))
+
+
+# The prior-period periods in host order: each after the first is tested
+# against the one before it (current minus prior).
+OV_PRIOR_PAIRS = [("q", "p"), ("r", "q")]
+
+
+def ov_prior_share(rows, prob, k):
+    """(p̂, N*) of the o = "yes" indicator in period k."""
+    ws = [r[5] for r in rows if r[3] == k]
+    yes = sum(r[5] for r in rows if r[3] == k and r[4] == "yes")
+    sw = float(np.sum(ws))
+    return yes / sw, (kish(ws) if prob else sw)
 
 
 def ov_filter(rows, expr):
@@ -1653,6 +1712,20 @@ def ov_closed_form(case, rows, prob):
             t = d / math.sqrt(vt + vr)
             out[f"0/entry[k={k}].summary.statistic"] = t_two_sided(t, df)
             out[f"1/entry[k={k}].summary.statistic"] = float(2 * scipy.stats.norm.sf(abs(t)))
+        return out, warn
+    if case in ("ov_prior", "ov_prior_xt_means", "ov_prior_xt_prop"):
+        layers = {"ov_prior": [("t", 0), ("z", 1), ("p", 2)], "ov_prior_xt_means": [("t", 0), ("z", 1)],
+                  "ov_prior_xt_prop": [("p", 0)]}[case]
+        for test, li in layers:
+            for cur, prior in OV_PRIOR_PAIRS:
+                if test == "p":
+                    stat, pv = two_prop_stat(*ov_prior_share(rows, prob, cur), *ov_prior_share(rows, prob, prior))
+                else:
+                    a = ov_cell_sample(rows, "x", prob, k=cur)
+                    b = ov_cell_sample(rows, "x", prob, k=prior)
+                    stat, pv = welch_stat(a, b, normal=test == "z")
+                out[f"{li}/entry[{cur}].summary.statistic"] = stat
+                out[f"{li}/entry[{cur}].summary.p_value"] = pv
         return out, warn
     if case == "ov_compose_props":
         slots = [rows, ov_filter(rows, OV_SUB), ov_filter(rows, OV_SUB2)]

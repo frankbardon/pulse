@@ -1,0 +1,63 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Grouped Process of AGG_WELFORD revenue by quarter of order_date decorated with OVERLAY_T_VS_PRIOR and OVERLAY_Z_VS_PRIOR: each quarter's mean revenue is tested against the quarter before it (Welch t, then the large-sample normal z) from the per-group Welford components {n, mean, variance}. The first quarter has no prior, so its entry carries a null statistic and no p-value; every later quarter carries the statistic (positive when it rose) and its two-sided p. The Holm multiplicity block adjusts the per-quarter p-values within each layer (p_adjusted, significant_adjusted beside the raw p). The tests assume the quarters are independent samples — a panel of the same customers would make the p-values wrong. Buffered: reads Response.Components.",
+    "intents": [
+      "change_over_time"
+    ],
+    "name": "process-t-z-vs-prior",
+    "operators": [
+      "AGG_WELFORD",
+      "GROUP_DATE"
+    ],
+    "tags": [
+      "hypothesis-test",
+      "overlay",
+      "time-series",
+      "two-sample",
+      "welch",
+      "welford-triple",
+      "z"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_WELFORD",
+      "field": "revenue",
+      "label": "revenue_moments"
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_DATE",
+      "field": "order_date",
+      "params": {
+        "component": "quarter"
+      }
+    }
+  ],
+  "overlays": [
+    {
+      "name": "qoq_t",
+      "kind": "OVERLAY_T_VS_PRIOR",
+      "scope": "group",
+      "multiplicity": {
+        "method": "holm",
+        "family": "layer"
+      }
+    },
+    {
+      "name": "qoq_z",
+      "kind": "OVERLAY_Z_VS_PRIOR",
+      "scope": "group",
+      "multiplicity": {
+        "method": "holm",
+        "family": "layer"
+      }
+    }
+  ]
+}

@@ -148,7 +148,29 @@ func pairwiseProportionAdvice(opts *PredictOptions, what string) string {
 // the runtime's key rule read off the capability table. With components
 // disabled (Options or request) every kind reports the runtime's
 // PULSE_OVERLAY_COMPONENTS_REQUIRED instead.
+//
+// On a multi-measure crosstab (crosstab.cells) the rules run once per
+// measure, against the single-measure request that measure runs as
+// (types.CrosstabSpec.MeasureSpec), stopping at the first measure that
+// refuses — the runtime's order (processing.runPairwiseOverlayMeasures
+// gates each measure in turn), so the cell-type, weight-basis and
+// distinct-key rules judge each measure's own cell.
 func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
+	if req != nil && req.Crosstab.HasMeasures() {
+		for m, cell := range req.Crosstab.Cells {
+			if cell == nil {
+				continue
+			}
+			mreq := *req
+			mreq.Crosstab = req.Crosstab.MeasureSpec(m)
+			before := len(env.Errors)
+			validateOverlayPairwise(env, &mreq, spec, opts, index)
+			if len(env.Errors) > before {
+				return
+			}
+		}
+		return
+	}
 	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
 	// raises too (overlayhost.CrosstabSpecRefusal).
 	if cerr := overlayhost.CrosstabSpecRefusal(spec, spec.Kind, index); cerr != nil {
@@ -168,6 +190,14 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 			"overlay "+string(spec.Kind)+" has malformed Params: "+err.Error(),
 			map[string]any{"index": index, "kind": string(spec.Kind)})
+		return
+	}
+	// Significance letters (U47 #327): the one alpha rule both arms
+	// raise (types.PairwiseLettersRefusal; runtime twin
+	// processing.pairwiseGate), judged before any host fact.
+	if msg := types.PairwiseLettersRefusal(spec.Kind, params); msg != "" {
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING), msg,
+			map[string]any{"index": index, "kind": string(spec.Kind), "param": "letters", "alpha": *params.Letters.Alpha})
 		return
 	}
 	// Components disabled: every pairwise kind reads its legs off the
@@ -378,6 +408,28 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 			"overlay "+string(spec.Kind)+" has unknown p_source: "+params.PSource,
 			map[string]any{"index": index, "kind": string(spec.Kind), "p_source": params.PSource})
 		return
+	}
+	// An explicit cell_value_pct on a normalised host divides a 0..1
+	// share by 100 (survey-tables E1-S3); the runtime twin is
+	// processing.runPairwiseOverlay, same code and message.
+	if mode := req.Crosstab.NormalizeOrDefault(); overlayhost.PairwisePSourceRefusal(spec.Kind, params.PSource, mode) != "" {
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+			overlayhost.PairwisePSourceRefusal(spec.Kind, params.PSource, mode),
+			map[string]any{"index": index, "kind": string(spec.Kind), "param": "p_source",
+				"p_source": params.PSource, "normalize": string(mode)})
+		return
+	}
+	// An omitted p_source on an unnormalised host whose cell is a
+	// statistic of its field reads a mean as a percentage (survey-tables
+	// E4-S6); the runtime twin is processing.pairwiseGate, same code and
+	// message.
+	if req.Crosstab.Cell != nil && !types.PairwiseKindUsesWelford(spec.Kind) && !types.PairwiseKindUsesWeightedMoments(spec.Kind) {
+		if msg := overlayhost.PairwiseMeanCellRefusal(spec.Kind, params.PSource, req.Crosstab.NormalizeOrDefault(), req.Crosstab.Cell.Type); msg != "" {
+			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING), msg,
+				map[string]any{"index": index, "kind": string(spec.Kind), "param": "p_source",
+					"cell_type": string(req.Crosstab.Cell.Type)})
+			return
+		}
 	}
 	if params.PairAlongDim != nil && *params.PairAlongDim < 0 {
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
@@ -613,6 +665,33 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 				continue
 			}
 		}
+		// The implicit Total column (a crosstab with no column grouper)
+		// is one column by construction: a kind needing two is refused
+		// with the runtime hook's shared refusal.
+		if req.Crosstab.HasImplicitTotalColumn() {
+			if cerr := overlayhost.TotalColumnRefusal(spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
+				addCodedError(env, cerr)
+				continue
+			}
+		}
+		// The prior-period kinds walk the rows of the implicit Total
+		// column: a crosstab with a column grouper is the runtime hook's
+		// shared refusal.
+		if req.Crosstab != nil && !req.Crosstab.HasImplicitTotalColumn() && judged == types.OverlayShapeMatrix {
+			if cerr := overlayhost.PriorColumnsRefusal(spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
+				addCodedError(env, cerr)
+				continue
+			}
+		}
+		// A multi-measure crosstab (crosstab.cells) runs only the
+		// pairwise family, per measure — the runtime hook's shared
+		// refusal for every other kind.
+		if req.Crosstab.HasMeasures() {
+			if cerr := overlayhost.MeasureHostRefusal(spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
+				addCodedError(env, cerr)
+				continue
+			}
+		}
 		validateOverlaySpec(env, req, spec, opts, i)
 		validateOverlayMatrixResult(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		validateOverlayCorrespondence(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
@@ -620,11 +699,12 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		validateOverlayRake(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
 		validateOverlayLevelWithinPredict(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		validateOverlayBaselineIndexPredict(env, req, spec, schema, opts.instance(), i)
-		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i,
-			vectors.AggregationColumns(req, func() *encoding.Schema { return schema }, aggregationKinds(opts.instance(), nil)))
+		cols := vectors.AggregationColumns(req, func() *encoding.Schema { return schema }, aggregationKinds(opts.instance(), nil))
+		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i, cols)
 		validateOverlaySeriesPartition(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		if len(env.Errors) == before {
 			validateFormulaBaselineBound(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
+			validateOverlayPriorMeasure(env, req, spec, opts, opts.overlayRoute(spec.Kind), i, cols)
 		}
 	}
 }
@@ -974,6 +1054,16 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 		}
 		return
 	}
+	// The inferential prior-period kinds walk the ordered period axis on
+	// either host: Level / Within must be zero (the runtime MATRIX twin
+	// is processing.validateOverlayLevelWithinRuntime, same message).
+	if overlayhost.PriorTestKind(route) {
+		if spec.Level != 0 || spec.Within != 0 {
+			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE), overlayhost.PriorLevelWithinMessage(spec.Kind),
+				map[string]any{"index": index, "kind": string(spec.Kind), "level": spec.Level, "within": spec.Within})
+		}
+		return
+	}
 	// INDEX_VS_PRIOR is a windowed-SERIES kind (req.Groups, no
 	// req.Crosstab); its Level / Within gate mirrors INDEX_VS_TOTAL
 	// because the single-state lag carrier folds across the ordered axis
@@ -1187,7 +1277,9 @@ func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, route types.Ov
 		return 0, 0, "rows", "columns"
 	}
 	rowDepth := len(req.Crosstab.Rows)
-	colDepth := len(req.Crosstab.Columns)
+	// The host's column tuple length — runtime reads len(ColumnKeys[0])
+	// — which the implicit Total column makes 1, not len(Columns) = 0.
+	colDepth := len(req.Crosstab.ColumnHeader().Fields)
 	switch route {
 	case types.OverlayKindShareOfRow:
 		return rowDepth, colDepth, "rows", "columns"
@@ -1220,7 +1312,10 @@ func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, route types.Ov
 // vetoes a `return` skip with (U18), beside its refusal half
 // validateOverlayHiddenFloor. The OVERLAY_PAIRWISE_* family always
 // reads per-cell floors, Welford triples, margin and slab counts
-// (PULSE_OVERLAY_COMPONENTS_REQUIRED without them). The
+// (PULSE_OVERLAY_COMPONENTS_REQUIRED without them), and so do the
+// inferential prior-period kinds (each period's n and moments; on a
+// SERIES host they read Components.Aggregations instead, the service's
+// requestOverlaysReadGroupComponents). The
 // weighting.ScalesByHostFloor kinds and OVERLAY_FISHER_EXACT_CELL read
 // the cells' weighted floors only on a WEIGHTED host — the stamped
 // sum_weights their summary Parameters carry (frequency), plus the Kish
@@ -1232,7 +1327,7 @@ func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, route types.Ov
 // only. Components.Crosstab is the only Components sub-part any overlay
 // reads.
 func OverlayReadsHostComponents(kind types.OverlayKind, cellBasis weighting.Basis) bool {
-	if types.IsPairwiseOverlayKind(kind) {
+	if types.IsPairwiseOverlayKind(kind) || overlayhost.PriorTestKind(kind) {
 		return true
 	}
 	return (weighting.ScalesByHostFloor(kind) || kind == types.OverlayKindFisherExactCell) && cellBasis.Weighted()
@@ -1354,6 +1449,8 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 		validateOverlayZScoreVsRolling(env, req, spec, index)
 	case types.OverlayKindZScoreVsTotal:
 		validateOverlayZScoreVsTotal(env, req, spec, index)
+	case types.OverlayKindTVsPrior, types.OverlayKindZVsPrior, types.OverlayKindPropZVsPrior:
+		validateOverlayPriorTest(env, req, spec, opts, index)
 	}
 }
 

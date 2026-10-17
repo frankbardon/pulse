@@ -48,8 +48,8 @@ func scalarHostCases(t *testing.T, grouped bool) []specRefusalCase {
 	t.Helper()
 	kinds := overlayhost.ScalarSpecKinds()
 	sort.Slice(kinds, func(i, j int) bool { return kinds[i] < kinds[j] })
-	if len(kinds) != 33 {
-		t.Fatalf("SCALAR rule table lists %d kinds, want the 33 MATRIX / SERIES Process kinds", len(kinds))
+	if len(kinds) != 36 {
+		t.Fatalf("SCALAR rule table lists %d kinds, want the 36 MATRIX / SERIES Process kinds", len(kinds))
 	}
 	ref := errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
 	var out []specRefusalCase

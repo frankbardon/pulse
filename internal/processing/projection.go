@@ -167,7 +167,12 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 			}
 			addKnown(g.Field)
 		}
-		if c := req.Crosstab.Cell; c != nil {
+		// Every measure of a multi-measure crosstab (Cells) reads its
+		// field exactly as the single cell does.
+		for _, c := range req.Crosstab.CellAggregations() {
+			if c == nil {
+				continue
+			}
 			addKnown(c.Field)
 			addAggParamFields(out, c, known)
 		}
@@ -387,15 +392,19 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 				addAllKnown(inputs)
 			}
 		}
-		if req.Crosstab != nil && req.Crosstab.Cell != nil {
-			a := req.Crosstab.Cell
-			if _, custom := ext.Aggregators[a.Type]; custom {
-				inputs, ok := ext.FieldInputsFor("aggregator", string(a.Type), a.Params)
-				if !ok {
-					out.Widen()
-					return out
+		if req.Crosstab != nil {
+			for _, a := range req.Crosstab.CellAggregations() {
+				if a == nil {
+					continue
 				}
-				addAllKnown(inputs)
+				if _, custom := ext.Aggregators[a.Type]; custom {
+					inputs, ok := ext.FieldInputsFor("aggregator", string(a.Type), a.Params)
+					if !ok {
+						out.Widen()
+						return out
+					}
+					addAllKnown(inputs)
+				}
 			}
 		}
 		if req.Crosstab != nil {
@@ -528,8 +537,10 @@ func requestWeightFields(req *types.Request) []string {
 		}
 	}
 	if ct := req.Crosstab; ct != nil {
-		if ct.Cell != nil {
-			add(ct.Cell.Weight)
+		for _, a := range ct.CellAggregations() {
+			if a != nil {
+				add(a.Weight)
+			}
 		}
 		for _, a := range ct.MarginAggregations {
 			if a != nil {

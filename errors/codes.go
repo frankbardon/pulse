@@ -431,6 +431,58 @@ const (
 	// invalidated_sidecars names each with its rebuild command.
 	PULSE_MATERIALIZE_SIDECARS_INVALIDATED Code = "PULSE_MATERIALIZE_SIDECARS_INVALIDATED"
 
+	// PULSE_RAKE_INVALID indicates a malformed Pulse.Rake request,
+	// refused before any record is read or any file is created.
+	// details.reason names the rule ("cohort_missing", "out_missing",
+	// "out_is_source", "margins_empty", "margin_shape", "field_unknown",
+	// "field_type", "field_repeated", "targets_invalid", "targets_zero",
+	// "targets_sum", "targets_as", "cell_shape", "cell_duplicate",
+	// "missing_policy", "caps", "max_iter", "tol", "total",
+	// "weight_field_exists", "weight_field_in_use", "base_weight_invalid")
+	// and details.field the request path.
+	PULSE_RAKE_INVALID Code = "PULSE_RAKE_INVALID"
+
+	// PULSE_RAKE_UNKNOWN_CATEGORY indicates a Pulse.Rake target naming a
+	// category its margin field cannot hold: not a dictionary entry of a
+	// categorical, not "true" / "false" for packed_bool, not a canonical
+	// decimal integer in range for an integer field. details carry
+	// margin (index), field and category. Raised before any record is
+	// read.
+	PULSE_RAKE_UNKNOWN_CATEGORY Code = "PULSE_RAKE_UNKNOWN_CATEGORY"
+
+	// PULSE_RAKE_UNTARGETED_CATEGORY indicates a record whose margin
+	// category has no target in that margin: raking cannot place it.
+	// details carry margin, fields, values, rows (how many records hold
+	// it) and first_row. Raised before any file is created.
+	PULSE_RAKE_UNTARGETED_CATEGORY Code = "PULSE_RAKE_UNTARGETED_CATEGORY"
+
+	// PULSE_RAKE_MISSING_VALUE indicates records whose margin (or `by`)
+	// value is null under the default missing policy "refuse". details
+	// carry field, rows and first_row (and margin for a margin field).
+	// Raised before any file is created; missing "base" keeps such a
+	// record's base factor instead (never for `by`).
+	PULSE_RAKE_MISSING_VALUE Code = "PULSE_RAKE_MISSING_VALUE"
+
+	// PULSE_RAKE_EMPTY_CELL indicates a margin category with a positive
+	// target that no record (or only zero-weight records) of its group
+	// holds: no weight can reach the target. details carry margin,
+	// fields, values, target and, under `by`, group. Raised before any
+	// file is created.
+	PULSE_RAKE_EMPTY_CELL Code = "PULSE_RAKE_EMPTY_CELL"
+
+	// PULSE_RAKE_NOT_CONVERGED is a warning: raking stopped at max_iter
+	// with the largest achieved-vs-target share gap above tol (typically
+	// caps that bind, or margins that contradict one another). The
+	// cohort IS written with the last sweep's weights; details carry
+	// iterations, residual, tol and, under `by`, group.
+	PULSE_RAKE_NOT_CONVERGED Code = "PULSE_RAKE_NOT_CONVERGED"
+
+	// PULSE_RAKE_SIDECARS_INVALIDATED is a warning: a Pulse.Rake run
+	// with Overwrite replaced a cohort whose sidecars are now stale.
+	// details carry target and sidecars; the result's
+	// invalidated_sidecars names each with its rebuild command.
+	PULSE_RAKE_SIDECARS_INVALIDATED Code = "PULSE_RAKE_SIDECARS_INVALIDATED"
+
 	// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL is a predict warning: a
 	// facet asks numeric_percentiles / include_histogram of a non-numeric
 	// field, which the facet omits for it. A numeric aggregation or
@@ -1178,6 +1230,16 @@ const (
 	// slot only) carries on its own response.
 	PULSE_SWEEP_RANK_PATH Code = "PULSE_SWEEP_RANK_PATH"
 
+	// PULSE_BANNER_INVALID indicates a malformed ComposedRequest
+	// `banner` block: no base request, a base request that sets `label`,
+	// crosstab `columns` or crosstab shape `long`, no sections, a section
+	// or group label that is empty or repeated, a group with no column
+	// grouper or labelled `Total` beside the Total block, or neither a
+	// group nor the Total block. Refused identically by predict and the
+	// runtime before any slot runs. Details carry "field" (the
+	// banner-rooted path), "reason" and, where one applies, "label".
+	PULSE_BANNER_INVALID Code = "PULSE_BANNER_INVALID"
+
 	// PULSE_FIT_INVALID indicates a malformed ComposedRequest `fits`
 	// entry: an empty name (reason "name_missing"), no request
 	// ("request_missing"), a request holding zero or more than one
@@ -1495,13 +1557,18 @@ const (
 
 	// PULSE_CROSSTAB_EMPTY_ROWS indicates a Crosstab section was
 	// presented with no row-axis groupers. A crosstab requires at
-	// least one grouper on each axis; use a plain grouped Process
-	// request when only one axis is needed.
+	// least one row grouper; the column axis is optional (absent
+	// columns are the implicit Total column).
 	PULSE_CROSSTAB_EMPTY_ROWS Code = "PULSE_CROSSTAB_EMPTY_ROWS"
 
-	// PULSE_CROSSTAB_EMPTY_COLUMNS indicates a Crosstab section was
-	// presented with no column-axis groupers. Mirrors PULSE_CROSSTAB_
-	// EMPTY_ROWS for the column axis.
+	// PULSE_CROSSTAB_EMPTY_COLUMNS is NO LONGER RAISED. It refused a
+	// Crosstab section with no column-axis groupers until U47 made the
+	// column axis optional: absent (or empty) Columns now yields one
+	// implicit column keyed types.CrosstabTotalColumnKey ("Total").
+	// The code is retained rather than retired — the precedent of
+	// PULSE_SPSS_EXPORT_UNSUPPORTED: removing a code breaks the public
+	// constant, the manifest's error list and every embedder lookup of
+	// it, where a code that is merely never raised breaks nothing.
 	PULSE_CROSSTAB_EMPTY_COLUMNS Code = "PULSE_CROSSTAB_EMPTY_COLUMNS"
 
 	// PULSE_CROSSTAB_MISSING_CELL indicates a Crosstab section was
@@ -1598,6 +1665,20 @@ const (
 	// cell aggregation's label. Margin components are keyed by label,
 	// so the second figure would overwrite the first.
 	PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL Code = "PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL"
+
+	// PULSE_CROSSTAB_CELLS_INVALID indicates a structural defect in the
+	// multi-measure Crosstab.Cells slot: Cell and Cells both set, a null
+	// entry, or an entry with no aggregation type that smart defaults
+	// could not infer. Refused rather than dropped — skipping a measure
+	// would return a table with a requested stub row missing.
+	PULSE_CROSSTAB_CELLS_INVALID Code = "PULSE_CROSSTAB_CELLS_INVALID"
+
+	// PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL indicates two Crosstab.Cells
+	// entries resolve to the same effective label (Label when set,
+	// otherwise TYPE_field). Each measure is addressed by its label on
+	// every row key, CellLabels entry and Measures entry, so the two
+	// stub rows would be indistinguishable.
+	PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL Code = "PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL"
 
 	// PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED indicates margin_aggregations
 	// were declared on a Crosstab section that DISPLAYS no margin
@@ -3776,6 +3857,13 @@ var allCodes = []Code{
 	PULSE_MATERIALIZE_OUTPUT_UNDECLARED,
 	PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC,
 	PULSE_MATERIALIZE_SIDECARS_INVALIDATED,
+	PULSE_RAKE_INVALID,
+	PULSE_RAKE_UNKNOWN_CATEGORY,
+	PULSE_RAKE_UNTARGETED_CATEGORY,
+	PULSE_RAKE_MISSING_VALUE,
+	PULSE_RAKE_EMPTY_CELL,
+	PULSE_RAKE_NOT_CONVERGED,
+	PULSE_RAKE_SIDECARS_INVALIDATED,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
 	PULSE_FACET_VALUES_TRUNCATED,
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
@@ -3874,6 +3962,7 @@ var allCodes = []Code{
 	PULSE_COMPOSE_LABEL_COLLISION,
 	PULSE_SWEEP_INVALID,
 	PULSE_SWEEP_RANK_PATH,
+	PULSE_BANNER_INVALID,
 	PULSE_FIT_INVALID,
 	PULSE_MODEL_NAME_COLLISION,
 	PULSE_MODEL_UNKNOWN,
@@ -3933,6 +4022,8 @@ var allCodes = []Code{
 	PULSE_CROSSTAB_MARGIN_AGG_INVALID,
 	PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL,
 	PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED,
+	PULSE_CROSSTAB_CELLS_INVALID,
+	PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL,
 	PULSE_REQUEST_UNKNOWN_FIELD,
 	PULSE_OVERLAY_KIND_UNKNOWN,
 	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,

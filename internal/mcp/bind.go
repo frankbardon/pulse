@@ -686,6 +686,9 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 		"Request-level multiple-comparison correction, inherited by every test, post-test and overlay that sets no `multiplicity` of its own (each field on its own: slot, then request, then the ComposedRequest, then the instance default). Raw p-values never move; corrected p_adjusted / significant_adjusted ride beside them. {\"method\":\"none\"} opts out. Family `compose` is valid only on a pulse_compose slot.",
 		types.AllMultiplicityFamilies(), true)
 	dropHiddenSlots(requestObject, &types.Request{}, inst)
+	if ct, ok := reqProps["crosstab"].(map[string]any); ok {
+		dropHiddenSlots(ct, &types.CrosstabSpec{}, inst)
+	}
 	dropHiddenWeights(requestObject, inst)
 	dropHiddenMultiplicity(requestObject, inst)
 	relaxForEachItems(reqProps)
@@ -1331,7 +1334,7 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 			},
 			"columns": map[string]any{
 				"type":        "array",
-				"description": "Column-axis groupers. Multiple entries produce nested columns.",
+				"description": "Column-axis groupers. Multiple entries produce nested columns. Optional: absent or empty yields one implicit column keyed \"Total\" (column_header type TOTAL) holding every record whose row key resolved.",
 				"items":       groupItem,
 			},
 			"cell": map[string]any{
@@ -1349,6 +1352,25 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 				"required":             []string{"type"},
 				"anyOf":                columnInputAnyOf(),
 				"additionalProperties": true,
+			},
+			"cells": map[string]any{
+				"type":        "array",
+				"minItems":    1,
+				"description": "Several cell aggregations — measures — rendered as stub rows; mutually exclusive with cell (PULSE_CROSSTAB_CELLS_INVALID when both are set). The matrix row axis gains an innermost MEASURE position (row_header field _measure, type MEASURE): every row key ends with its measure's effective label (label, else TYPE_field), and matrix.cell_labels names each row's measure. Each measure runs exactly as a single-cell crosstab would — its own cells, margins, normalize denominators and components; column margins and the grand total are per measure, on matrix.measures / components.crosstab.measures. Effective labels must be unique (PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL). Only the OVERLAY_PAIRWISE_* overlays run on such a crosstab, once per measure (pairs never cross measures).",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"type":   enumStringField(aggTypes, ""),
+						"field":  enumStringField(c.AllFields, "Field the measure reads. AGG_COUNT may name any field."),
+						"label":  map[string]any{"type": "string"},
+						"params": map[string]any{},
+						"weight": slotWeightSchema(c),
+						"vector": crosstabArrayValuedVectorSchema(),
+						"fields": crosstabArrayValuedFieldsSchema(),
+					},
+					"anyOf":                columnInputAnyOf(),
+					"additionalProperties": true,
+				},
 			},
 			"margin_aggregations": map[string]any{
 				"type":        "array",
@@ -1399,7 +1421,7 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 				"description": "Zero-indexed depth on the OPPOSITE axis whose value fixes a partition of the 100% denominator. With normalize=row it fixes a prefix of the column axis (so the denominator collapses only columns deeper than this level while holding the full row key); with normalize=column it fixes a prefix of the row axis. Composes independently with normalize_level. Rejected when normalize is none or total.",
 			},
 		},
-		"required":             []string{"rows", "columns", "cell"},
+		"required":             []string{"rows"},
 		"additionalProperties": true,
 	}
 }
@@ -1676,6 +1698,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 			"return": returnSchema("Shapes the TOP-LEVEL Compose overlays only: paths root at the ComposedResponse and only `overlays…` paths are valid (each slot is shaped by its own requests[i].return). Omit to leave the overlays whole."),
 			"sweep":  sweepSchema(),
 			"fits":   fitsSchema(reqSchema, inst),
+			"banner": bannerSchema(reqSchema),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,
@@ -1734,6 +1757,69 @@ func forEachSchema() map[string]any {
 			"mode": enumStringField(stringSlice(types.AllSweepModes()), "grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths) — e.g. a label axis beside a parameter axis."),
 		},
 		"required": []string{"axes"},
+	}
+}
+
+// bannerSchema describes the ComposedRequest `banner` block
+// (types.BannerSpec): sections × column groups (+ a Total block)
+// expanded into crosstab slots and stitched into the response `banner`.
+// Dropped with the slot when capability:compose_banner is hidden
+// (dropHiddenSlots).
+func bannerSchema(reqSchema map[string]any) map[string]any {
+	// The section, group and overlay keys reuse the bound request's own
+	// sub-schemas, so they are typed exactly like a hand-written slot's.
+	prop := func(path ...string) any {
+		var cur any = reqSchema
+		for _, k := range path {
+			m, _ := cur.(map[string]any)
+			props, _ := m["properties"].(map[string]any)
+			if props == nil || props[k] == nil {
+				return map[string]any{}
+			}
+			cur = props[k]
+		}
+		return cur
+	}
+	return map[string]any{
+		"type":        "object",
+		"description": "Banner table: one crosstab slot per section × column group (plus a Total block), appended after `requests` and stitched into the response `banner` — column blocks side by side, per-block letters. Letters compare columns within one group only; the Total block is compared to nothing.",
+		"properties": map[string]any{
+			"request": reqSchema,
+			"sections": map[string]any{
+				"type":        "array",
+				"minItems":    1,
+				"description": "Stub sections; each overrides the base request's crosstab rows / cell(s), appends its own filterers (a different base, e.g. aided-aware) and may replace the banner overlays with its own. Base `labels` ride only the slots whose rows or columns group by the bound field.",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"label":     map[string]any{"type": "string", "description": "Section label, unique."},
+						"filterers": prop("filterers"),
+						"rows":      prop("crosstab", "rows"),
+						"cell":      prop("crosstab", "cell"),
+						"cells":     prop("crosstab", "cells"),
+						// Non-empty, they REPLACE the banner-level
+						// overlays on the section's group slots.
+						"overlays": prop("overlays"),
+					},
+					"required": []string{"label"},
+				},
+			},
+			"groups": map[string]any{
+				"type":        "array",
+				"description": "Column groups (Gender, Age, …); each one crosstab slot per section.",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"label":   map[string]any{"type": "string", "description": "Group label, unique."},
+						"columns": prop("crosstab", "columns"),
+					},
+					"required": []string{"label", "columns"},
+				},
+			},
+			"total":    map[string]any{"type": "boolean", "description": "Add the Total block (a crosstab with no column grouper), stitched first."},
+			"overlays": prop("overlays"),
+		},
+		"required": []string{"request", "sections"},
 	}
 }
 

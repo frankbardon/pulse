@@ -176,9 +176,8 @@ func NSourceRefusal(nSource string, basis Basis) string {
 		return ""
 	}
 	switch nSource {
-	case types.PairwiseNSourceCellNUnweighted, types.PairwiseNSourceRowMarginN,
-		types.PairwiseNSourceColumnMarginN, types.PairwiseNSourceNWithin:
-		return "raw row count is not a valid sample size on a weighted host; omit n_source to read the weighted sample size N* (sum_weights under kind frequency, n_eff under kind probability)"
+	case types.PairwiseNSourceCellNUnweighted, types.PairwiseNSourceNWithin:
+		return "raw row count is not a valid sample size on a weighted host; omit n_source to read the weighted sample size N* of the cell's base (sum_weights under kind frequency, n_eff under kind probability)"
 	case types.PairwiseNSourceNWithinDistinct, types.PairwiseNSourceRowMarginDistinct,
 		types.PairwiseNSourceColumnMarginDistinct, types.PanelNSourceRowMarginDistinctWithin:
 		return "a distinct-key count is unweighted, so it is not a valid sample size on a weighted host; omit n_source to read the weighted sample size N* (sum_weights under kind frequency, n_eff under kind probability)"

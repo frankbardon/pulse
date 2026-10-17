@@ -147,6 +147,10 @@ func newExitFixture(t *testing.T) exitFixture {
 	return f
 }
 
+// rakeExitMargins is the rake row's one margin: every `name` of the
+// fixture CSV, as counts.
+const rakeExitMargins = `[{"field":"name","targets_as":"counts","targets":{"alice":1,"bob":2,"charlie":1}}]`
+
 // exitCases is the per-leaf table, run in order (later rows read what
 // earlier rows wrote: shards, the profile, the managed import).
 func exitCases(f exitFixture) []exitCase {
@@ -224,6 +228,8 @@ func exitCases(f exitFixture) []exitCase {
 		{leaf: "shard remove", fatal: []string{m, "a.pulse"}, ok: []string{f.p("arch.pulse"), "b.pulse"}},
 		{leaf: "widen", fatal: []string{m, "--field", "picks", "--to", "set_u16"}, ok: []string{f.p("sets.pulse"), "--field", "picks", "--to", "set_u16"}},
 		{leaf: "dedup", fatal: []string{m, "--suggest-groups"}, ok: []string{f.cohort2, "--suggest-groups"}},
+		{leaf: "rake", fatal: []string{m, "-o", f.p("never.pulse"), "--margins", rakeExitMargins},
+			ok: []string{f.cohort2, "-o", f.p("raked.pulse"), "--margins", rakeExitMargins}},
 		{leaf: "profile create", fatal: []string{"-i", m, "-o", f.p("x.json")}, ok: []string{"-i", f.cohort2, "-o", f.p("profile.json")}},
 		{leaf: "synth from-profile", fatal: []string{"--profile", f.p("missing.json"), "--source", f.cohort2, "--output", f.p("x.pulse"), "--rows", "5"},
 			ok: []string{"--profile", f.p("profile.json"), "--source", f.cohort2, "--output", f.p("sp.pulse"), "--rows", "5", "--seed", "1"}},

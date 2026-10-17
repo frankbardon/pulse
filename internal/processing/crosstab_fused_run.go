@@ -59,17 +59,29 @@ func (p *Processor) RunCrosstabFused(ctx context.Context, req *types.Request, it
 		return nil, err
 	}
 
-	state, err := NewFusedCrosstabState(spec, p.schema, p.exts)
-	if err != nil {
-		return nil, err
-	}
-	state.setCompute(p.compute)
-	state.setLimits(p.limits)
-	// Defensive: echo the static gate's exclusions so a stale dispatch
-	// shortcut that drifts past a newly added request slot fails fast
-	// here rather than producing a divergent fused result.
-	if err := state.AssertCanFuse(req); err != nil {
-		return nil, err
+	// One state per measure: the single Cell, or one per Cells entry as
+	// the single-measure spec it runs as (types.CrosstabSpec.MeasureSpec),
+	// all driven in lockstep over ONE scan below — each cell holds one
+	// accumulator per measure. Each state keys the same records with the
+	// same groupers, so the measures' axis keys are identical by
+	// construction and foldCrosstabMeasures stitches them exactly as it
+	// stitches the buffered arm's measure runs.
+	measureSpecs := crosstabMeasureSpecs(spec)
+	states := make([]*FusedCrosstabState, len(measureSpecs))
+	for i, ms := range measureSpecs {
+		st, err := NewFusedCrosstabState(ms, p.schema, p.exts)
+		if err != nil {
+			return nil, err
+		}
+		st.setCompute(p.compute)
+		st.setLimits(p.limits)
+		// Defensive: echo the static gate's exclusions so a stale
+		// dispatch shortcut that drifts past a newly added request slot
+		// fails fast here rather than producing a divergent fused result.
+		if err := st.AssertCanFuse(req); err != nil {
+			return nil, err
+		}
+		states[i] = st
 	}
 
 	filterFns, err := p.buildFilterFuncs(req.Filterers)
@@ -99,7 +111,9 @@ func (p *Processor) RunCrosstabFused(ctx context.Context, req *types.Request, it
 			return nil, err
 		}
 		rec := iter.Record()
-		state.AddTotalRow()
+		for _, state := range states {
+			state.AddTotalRow()
+		}
 
 		pass := true
 		for _, fn := range filterFns {
@@ -130,14 +144,39 @@ func (p *Processor) RunCrosstabFused(ctx context.Context, req *types.Request, it
 		}
 
 		weights.Observe(rec)
-		if uerr := state.Update(rec); uerr != nil {
-			return nil, uerr
+		for _, state := range states {
+			if uerr := state.Update(rec); uerr != nil {
+				return nil, uerr
+			}
 		}
 	}
 
-	resp, err := state.Finalize()
+	// The per-cell normalise-denominator floors are laid out only for a
+	// run that folds overlays (crosstab_base_floors.go).
+	foldsOverlays := len(req.Overlays) > 0 && p.compute.Overlays
+	runs := make([]*crosstabMeasureRun, len(states))
+	for i, state := range states {
+		r, err := state.Finalize()
+		if err != nil {
+			return nil, err
+		}
+		runs[i] = &crosstabMeasureRun{resp: r}
+		if foldsOverlays {
+			runs[i].bases = state.baseFloors()
+		}
+	}
+	folded, err := foldCrosstabMeasures(spec, runs)
 	if err != nil {
 		return nil, err
+	}
+	resp := runs[0].resp
+	if spec.HasMeasures() {
+		// Metadata (total / filtered rows) is measure-independent; the
+		// payload, long rows and components are the fold's.
+		resp = &types.Response{Metadata: runs[0].resp.Metadata, Crosstab: folded.result, Data: folded.long}
+		if folded.comps != nil {
+			resp.Components = &types.ResponseComponents{Crosstab: folded.comps}
+		}
 	}
 
 	// Overlay fold — the same hook the buffered exit calls
@@ -157,7 +196,7 @@ func (p *Processor) RunCrosstabFused(ctx context.Context, req *types.Request, it
 	// Called here rather than inside Finalize because Finalize has
 	// neither the *types.Request nor the ExtensionRegistry the fold
 	// needs; RunCrosstabFused has both.
-	if err := applyOverlaysToResponse(req, resp, p.exts, p.compute); err != nil {
+	if err := applyOverlaysToResponse(req, resp, p.exts, p.compute, folded.bases, folded.measureHosts); err != nil {
 		return nil, err
 	}
 	// Row-local attribute warnings, first and in declared order (the

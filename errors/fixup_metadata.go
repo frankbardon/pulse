@@ -766,6 +766,81 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_RAKE_INVALID: {
+		Message: "The rake request is malformed, so nothing is read or written. It needs a source `cohort`, an `out` path that is not the source, and at least one margin; each margin is either `field` + `targets` or two or more `fields` + `cells` (each cell one value per field, no tuple twice). Margin, `by` and `base_weight` fields must exist, a margin or `by` field must be categorical, packed_bool or an unsigned integer and appear once, a base weight must be numeric with no null, negative or non-finite value. Targets are finite and non-negative with at least one positive; `targets_as: shares` sums to 1 or 100; `missing` is `refuse` or `base`; caps satisfy 0 <= min_weight <= 1 <= max_weight; max_iter, tol and total are non-negative. A `weight_field` the source already has needs `overwrite` and may not be a margin or `by` field. details.reason names the rule and details.field the request path.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"margins", "*", "field"},
+				Hint:   "Name an existing categorical, packed_bool or unsigned-integer field per margin (once each), with finite non-negative targets.",
+			},
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"weight_field"},
+				Hint:   "Choose a new weight_field name, or set overwrite to replace the existing column.",
+			},
+		},
+	},
+	PULSE_RAKE_UNKNOWN_CATEGORY: {
+		Message: "A rake target names a category its margin field cannot hold: not a dictionary entry of the categorical, not `true` / `false` for packed_bool, or not a canonical in-range decimal integer for an integer field. details carry margin, field and category.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"margins", "*", "targets"},
+				Hint:   "Key every target by the field's stored category spelling (pulse inspect --full-dict lists a categorical's entries).",
+			},
+		},
+	},
+	PULSE_RAKE_UNTARGETED_CATEGORY: {
+		Message: "Records hold a margin category that has no target in that margin, so raking cannot place them. details carry margin, fields, values, rows and first_row.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"margins", "*", "targets"},
+				Hint:   "Add a target for the category (0 gives its records weight 0), or filter those records out of the cohort before raking.",
+			},
+		},
+	},
+	PULSE_RAKE_MISSING_VALUE: {
+		Message: "Records have a null margin (or `by`) value and the rake's missing policy is `refuse` (the default). details carry field, rows and first_row.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"missing"},
+				Hint:   "Set missing to \"base\" so a record keeps its base factor for a margin it has no value for, or recode the nulls; a null `by` value is always refused.",
+			},
+		},
+	},
+	PULSE_RAKE_EMPTY_CELL: {
+		Message: "A margin category has a positive target but no record (or only zero-weight records) in its group, so no weight can reach the target. details carry margin, fields, values, target and, under `by`, group.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"margins", "*", "targets"},
+				Hint:   "Collapse the empty category into a neighbour in both the data and the targets, or set its target to 0.",
+			},
+		},
+	},
+	PULSE_RAKE_NOT_CONVERGED: {
+		Message: "Raking stopped at max_iter with an achieved share still further than tol from its target; the cohort was written with the last sweep's weights. Binding caps or contradictory margins are the usual cause. details carry iterations, residual, tol and, under `by`, group.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"max_iter"},
+				Hint:   "Raise max_iter, loosen min_weight / max_weight, or check that the margins' targets describe one population.",
+			},
+		},
+	},
+	PULSE_RAKE_SIDECARS_INVALIDATED: {
+		Message: "A rake run overwrote a cohort whose sidecars are now stale; nothing was rebuilt.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"InvalidatedSidecars"},
+				Hint:   "Run each rebuild command the result's invalidated_sidecars lists (details.sidecars names their paths), or delete the stale sidecars.",
+			},
+		},
+	},
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: {
 		Message: "A facet asks a numeric statistic (numeric_percentiles, include_histogram) of a non-numeric field; predict warns, and the facet omits that statistic for the field. (A numeric aggregation over a categorical is refused PULSE_FIELD_TYPE_UNSUPPORTED.)",
 		Fixups: []Fixup{
@@ -1784,6 +1859,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_BANNER_INVALID: {
+		Message: "The ComposedRequest `banner` block is malformed, so nothing runs — predict refuses it identically. A banner needs a base `request` (the cohort, weight, filterers and the shared crosstab rows / cell / margins / normalize) that sets no `label` (reason `request_label_set`: slots are labelled `<section>:<group>`), no crosstab `columns` (reason `columns_set`: the groups own the columns) and no crosstab shape `long` (reason `shape_long`: the stitch reads the matrix). It needs at least one section (`sections_empty`) and at least one group or `total: true` (`groups_empty`). Every section and group label is non-empty (`label_empty`) and unique among its kind (`label_duplicate`); with the Total block no group may be labelled `Total` (`label_reserved`). Every group needs at least one column grouper (`columns_empty`). The offending path is under `field`, the rule under `reason` and the label under `label` where one applies.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"banner", "request", "crosstab", "columns"},
+				Hint:   "Move the column groupers into banner.groups[*].columns, drop `label` from the base request and keep the crosstab in matrix shape.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"banner", "groups", "*", "label"},
+				Hint:   "Give every section and group a non-empty label unique among its kind, at least one column grouper per group, and at least one group or `total: true`.",
+			},
+		},
+	},
 	PULSE_FIT_INVALID: {
 		Message: "A ComposedRequest `fits` entry is malformed, so nothing runs — predict refuses it identically. Every fit needs a non-empty `name` and a `request` holding exactly ONE regression (reason `regression_count`, the count under `count`) and no `groups` or `crosstab` (reason `grouped`): a fit is one model over one row set, fit once before any slot. A missing name is `name_missing`, a missing request `request_missing`. The entry index is under `fit`, its name under `name`.",
 		Fixups: []Fixup{
@@ -2308,7 +2398,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_CROSSTAB_EMPTY_ROWS: {
-		Message: "The Crosstab section has no row-axis groupers. A crosstab requires at least one grouper on each axis.",
+		Message: "The Crosstab section has no row-axis groupers. A crosstab requires at least one row grouper; the column axis is optional (absent columns yield one implicit \"Total\" column).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2318,12 +2408,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_CROSSTAB_EMPTY_COLUMNS: {
-		Message: "The Crosstab section has no column-axis groupers. A crosstab requires at least one grouper on each axis.",
+		Message: "No longer raised: a Crosstab section with no column-axis groupers runs with one implicit \"Total\" column (U47). The code is retained so lookups of it keep resolving.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Crosstab", "Columns"},
-				Hint:   "Add at least one Group entry to Crosstab.Columns; for a single-axis aggregation use a plain Process request with Groups + Aggregations instead.",
+				Hint:   "Omit Crosstab.Columns for a single Total column holding every record whose row key resolved, or add Group entries for a real column axis.",
 			},
 		},
 	},
@@ -2448,6 +2538,28 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"Crosstab", "MarginAggregations", "*", "Label"},
 				Hint:     "Set an explicit, distinct Label on each margin_aggregations entry. Two entries of the same type over the same field are indistinguishable without one, and the cell aggregation's own label is already taken.",
 				Examples: []any{"unweighted_base", "weighted_base"},
+			},
+		},
+	},
+	PULSE_CROSSTAB_CELLS_INVALID: {
+		Message: "The Crosstab.Cells slot is malformed: Cell and Cells are both set, an entry is null, or an entry has no aggregation type and smart defaults could not infer one from its field. Cells is the multi-measure form of Cell — each entry is one measure, rendered as a stub row.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "Cells", "*", "Type"},
+				Hint:     "Give every Cells entry an aggregation Type (or a field whose schema type infers one), drop null entries, and set either Cell (one measure) or Cells (several), never both.",
+				Examples: []any{"AGG_AVERAGE", "AGG_COUNT", "AGG_SUM"},
+			},
+		},
+	},
+	PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL: {
+		Message: "Two Crosstab.Cells entries resolve to the same effective label (Label when set, otherwise TYPE_field). Each measure is addressed by its label on every row key, so the two stub rows would be indistinguishable.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "Cells", "*", "Label"},
+				Hint:     "Set an explicit, distinct Label on each Cells entry; two entries of the same type over the same field need one.",
+				Examples: []any{"mean_score", "top2_share"},
 			},
 		},
 	},
@@ -2599,7 +2711,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_PARAM_MISSING: {
-		Message: "An OverlaySpec did not supply a Params entry that the chosen Kind requires. The rolling-mean index overlay requires Params[\"window\"] (positive integer) per the WIN_* operator convention; the window width lives on Params, not on Ref. Surfaced at both predict (descriptor.validateOverlayIndexVsRollingMean) and runtime (processing.applyIndexVsRollingMean) with Details carrying the kind and the missing param name. A Compose two-sample t / z overlay (vs-ref or per-cell) scoring a bare scalar mean on a side needs that side's variance and sample size — there is no default (details.reason params_missing; details.side reference | target, details.params the missing keys, details.slot the slot). A formula overlay with no usable params.formula — Params absent or not an object, the key absent, an empty or non-string value — is this code on every host (Request crosstab / grouped, Compose), predict and runtime alike, Details {index, kind, param: \"formula\", reason}; a formula that is present but does not parse is PULSE_OVERLAY_FORMULA_PARSE_ERROR.",
+		Message: "An OverlaySpec did not supply a Params entry that the chosen Kind requires. The rolling-mean index overlay requires Params[\"window\"] (positive integer) per the WIN_* operator convention; the window width lives on Params, not on Ref. Surfaced at both predict (descriptor.validateOverlayIndexVsRollingMean) and runtime (processing.applyIndexVsRollingMean) with Details carrying the kind and the missing param name. A Compose two-sample t / z overlay (vs-ref or per-cell) scoring a bare scalar mean on a side needs that side's variance and sample size — there is no default (details.reason params_missing; details.side reference | target, details.params the missing keys, details.slot the slot). A formula overlay with no usable params.formula — Params absent or not an object, the key absent, an empty or non-string value — is this code on every host (Request crosstab / grouped, Compose), predict and runtime alike, Details {index, kind, param: \"formula\", reason}; a formula that is present but does not parse is PULSE_OVERLAY_FORMULA_PARSE_ERROR. A pairwise proportion overlay with an EXPLICIT params.p_source cell_value_pct on a crosstab whose normalize is not none is this code too, predict and runtime alike, Details {kind, param: \"p_source\", p_source, normalize}: every normalised cell is already a 0..1 share, so dividing it by 100 would score each pair silently wrong (the omitted p_source reads the share as is).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -2612,6 +2724,12 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"Overlays", "*", "Params"},
 				Hint:     "Two-sample overlay (details.reason params_missing): supply the keys details.params names — variance_target / variance_ref and sample_size_target / sample_size_ref, or the symmetric variance / sample_size for both sides — each a finite number > 0. Or let the slot carry the moments: score the moment aggregator (Welford mean, variance and n — on a crosstab cell, any aggregator whose components carry mean and variance) with components enabled, and no params are read.",
 				Examples: []any{map[string]any{"variance": 4.0, "sample_size": 30}, map[string]any{"variance_target": 2.5, "variance_ref": 3.1, "sample_size_target": 40, "sample_size_ref": 38}},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "p_source"},
+				Hint:     "Pairwise proportion kind on a normalised crosstab (details.param p_source, details.normalize set): drop p_source — the default on a normalised host reads each cell as the 0..1 share it already is — or set it to cell_value. Keep cell_value_pct only for a normalize none host whose cells are 0..100 percentages.",
+				Examples: []any{map[string]any{"p_source": "cell_value"}},
 			},
 		},
 	},

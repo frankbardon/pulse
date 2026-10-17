@@ -37,6 +37,13 @@ const (
 	// and not a policy. A wider string variable's labels ride record 7/21
 	// instead, whose length field is an int32 and has no such ceiling.
 	maxValueLabelLen = 255
+
+	// maxVariableLabelLen is the longest variable label a synthesised
+	// variable is given. Record type 2 counts the label with an int32, so
+	// this is not structural: it is SPSS's own limit (a longer label is
+	// truncated on open), kept at the value-label ceiling so no label this
+	// writer composes is cut by the reader it is handed to.
+	maxVariableLabelLen = 255
 )
 
 // Record type tags.

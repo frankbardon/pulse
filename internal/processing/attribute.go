@@ -279,7 +279,7 @@ func newFormulaAttribute(attr *types.Attribute, schema *encoding.Schema) (Attrib
 		zone:       zone,
 	}
 	if totalcall.Contains(attr.Expression) {
-		a.totals = &formulaTotals{}
+		a.totals = &formulaTotals{weight: attr.Weight.Spec()}
 		return &formulaTotalAttribute{formulaAttribute: a}, nil
 	}
 	return a, nil

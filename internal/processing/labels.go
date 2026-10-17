@@ -118,6 +118,21 @@ func BuildLabelResolver(bindings []*types.LabelBinding, registry *ExtensionRegis
 	return r, nil
 }
 
+// Order returns the entry order of the table bound to field — the
+// table's own Order — or nil when the field is unbound or its table
+// states none. A cohort writer that assigns codes (the `.sav` value
+// labels) codes by it. Nil-safe.
+func (r *LabelResolver) Order(field string) []string {
+	if r == nil {
+		return nil
+	}
+	st, ok := r.bindings[field]
+	if !ok {
+		return nil
+	}
+	return st.table.Order
+}
+
 // Has reports whether the resolver carries any binding for the named
 // field. Cheap and nil-safe.
 func (r *LabelResolver) Has(field string) bool {

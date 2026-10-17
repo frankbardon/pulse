@@ -61,7 +61,7 @@ func twoSampleParams() []descriptor.Param {
 }
 
 // pairwiseParams is a pairwise kind's accepted params: every kind takes
-// pair_along_dim and n_within_depth; the proportion kinds add the
+// pair_along_dim, n_within_depth and letters; the proportion kinds add the
 // n_source / p_source selectors, the weighted-moments kind n_basis.
 // The selectors a kind does not take are refused by the kind itself
 // (paramsOwnRefusals).
@@ -69,6 +69,7 @@ func pairwiseParams(kind types.OverlayKind) []descriptor.Param {
 	ps := []descriptor.Param{
 		{Name: "pair_along_dim", Type: "int", Required: false, Description: "Restrict pairs to pair-axis keys that agree on every dim position except this one; absent = every pair."},
 		{Name: "n_within_depth", Type: "int", Required: false, Default: 0, Description: "With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; inert otherwise."},
+		{Name: "letters", Type: "object", Required: false, Description: "{} or {\"alpha\": a}, 0 < a < 1: significance letters (the letters part); reads significant_adjusted under a correction, else raw p < 0.05 (an explicit alpha applies to either)."},
 	}
 	switch {
 	case types.PairwiseKindUsesWeightedMoments(kind):
@@ -76,7 +77,7 @@ func pairwiseParams(kind types.OverlayKind) []descriptor.Param {
 	case !types.PairwiseKindUsesWelford(kind):
 		ps = append(ps,
 			descriptor.Param{Name: "n_source", Type: "enum", Required: false, Description: "Where each leg's sample size is read (default cell_n_unweighted)."},
-			descriptor.Param{Name: "p_source", Type: "enum", Required: false, Description: "How each leg's proportion is derived (default cell_value_pct)."},
+			descriptor.Param{Name: "p_source", Type: "enum", Required: false, Description: "How each leg's proportion is derived (default cell_value on a normalized host, else cell_value_pct; cell_value_pct on a normalized host is refused, and so is the omitted default on an unnormalized host whose built-in cell is not a count or sum — a mean cell names its reading)."},
 		)
 	}
 	return ps

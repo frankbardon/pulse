@@ -4,7 +4,7 @@ Pulse is a self-describing tabular data processing engine. Ships as a Go library
 
 **Design principles**
 
-- **Library-first.** `pulse.go` is the public API — `New`, `Open` (+ `Cohort.Reader`), `NewCohortBuilder`, `Process`, `Compose`, `ComposeParallel`, `ProcessStream`, `ProcessChain`, `Import`, `Export`, `Convert`, `Inspect`, `InspectEnvelope`, `InspectBytes`, `Predict`, `PredictBytes`, `PredictCompose` / `PredictFacet` / `PredictChain`, `Recommend`, `Explain`, `Sample`, `Facet`, `Synth`, `Profile`, `CountRecords`, `Lookup`, `BuildIndex`, `VerifyIndex`, `ListIndexes`, `DropIndex`, `CohortArtifacts`, `WidenSetField`, `Dedup`, `Materialize`, `ListTemplates`, `GetTemplate`, `RenderTemplate`, `RenderTemplateRequest`, `ReloadTemplates`, `InitFeatureProfile`, `CheckFeatureProfile`, `DiffFeatureProfile`, `DescribeFeatureProfile`, `ExampleFeatureProfiles`, `ExampleFeatureProfile`, `Glossary`, `Intents`, `Ontology`, `Skills`, `Skill`, `ExportReference`, `Version`. **The CLI never contains business logic.**
+- **Library-first.** `pulse.go` is the public API — `New`, `Open` (+ `Cohort.Reader`), `NewCohortBuilder`, `Process`, `Compose`, `ComposeParallel`, `ProcessStream`, `ProcessChain`, `Import`, `Export`, `Convert`, `Inspect`, `InspectEnvelope`, `InspectBytes`, `Predict`, `PredictBytes`, `PredictCompose` / `PredictFacet` / `PredictChain`, `Recommend`, `Explain`, `Sample`, `Facet`, `Synth`, `Profile`, `CountRecords`, `Lookup`, `BuildIndex`, `VerifyIndex`, `ListIndexes`, `DropIndex`, `CohortArtifacts`, `WidenSetField`, `Dedup`, `Materialize`, `Rake`, `ListTemplates`, `GetTemplate`, `RenderTemplate`, `RenderTemplateRequest`, `ReloadTemplates`, `InitFeatureProfile`, `CheckFeatureProfile`, `DiffFeatureProfile`, `DescribeFeatureProfile`, `ExampleFeatureProfile(s)`, `Glossary`, `Intents`, `Ontology`, `Skills`, `Skill`, `ExportReference`, `Version`. **The CLI never contains business logic.**
 - **Self-describing.** Every `.pulse` file carries its schema in the header. `internal/descriptor/` provides `manifest`, `predict`, `inspect` — no-execute operations.
 - **Skill-augmented.** `internal/skills/` embeds an atomic-per-surface pack (`op-*` / `tool-*` / `type-*`) plus ~20 topical design skills via `//go:embed *.md`; the filesystem walk + frontmatter parse is the source of truth.
 - **Embedder-extensible.** `pulse.Options.Extensions` registers custom operators, expr functions, named tables, skills and examples. Predict, manifest, MCP and runtime treat them identically to built-ins.
@@ -50,7 +50,7 @@ Between them the rows carry every word `TestUpdateDemandTableCovers` checks; kee
 
 Docs: <https://frankbardon.github.io/pulse/>.
 
-CLI commands map 1:1 to manifest commands: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `recommend`, `explain`, `manifest`, `schema`, `mcp`, `widen`, `dedup`, `docs export`, `version`, plus `synth from-schema`, `synth from-profile`, `profile create`, `shard {create,add,remove,list,compact,verify,extract}`, `index {build,list,verify,drop}`, `features {init,check,diff,show}`, `api {process,compose,facet,process-chain,lookup,materialize,predict-compose,predict-facet,predict-chain}`. `pulse schema` prints the payload JSON Schema RAW — not envelope-wrapped.
+CLI commands map 1:1 to manifest commands: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `recommend`, `explain`, `manifest`, `schema`, `mcp`, `widen`, `dedup`, `rake`, `docs export`, `version`, plus `synth from-schema`, `synth from-profile`, `profile create`, `shard {create,add,remove,list,compact,verify,extract}`, `index {build,list,verify,drop}`, `features {init,check,diff,show}`, `api {process,compose,facet,process-chain,lookup,materialize,predict-compose,predict-facet,predict-chain}`. `pulse schema` prints the payload JSON Schema RAW — not envelope-wrapped.
 
 **MCP:** `internal/mcp/` is the SDK-free core (`TestMCPCore_NoSDKImport`); `mcp/gosdk/` is the ONLY go-sdk importer (`Register(server, p, cfg)`). **The manifest is the source-of-truth tool count, never hardcode it**; `pulse://schema` is a RESOURCE, not a tool. **Tools, prompts and resources are registered per instance** — a profiled instance mounts only what it enables, so `gosdk.RegisteredTools()` / `RegisteredPrompts()` stay the GLOBAL lists. Prompts: `pulse-bootstrap`, `pulse-author-request` (routes a question to a mounted per-intent prompt or tool) and one `pulse-<intent>` per analytic intent (`TestSkillsCoverAllMCPPrompts`). MCP `return` defaults to `standard`, not `full`. Detail: `.claude/reference/architecture.md` (MCP layer split).
 
@@ -58,7 +58,7 @@ CLI commands map 1:1 to manifest commands: `process`, `compose`, `sample`, `face
 
 ### Naming
 
-- Pulse-native identifiers. No predecessor references (`TestNoOrbitPrefix`, `TestNoOrbitPrefixes`).
+- Pulse-native identifiers. No predecessor references.
 - Module path: `github.com/frankbardon/pulse`. The public `io` package is imported as `pio "..."`.
 - Component types: SCREAMING_SNAKE — `AGG_COUNT`, `ATTR_ZSCORE`, `FILTER_INCLUDE`, `GROUP_CATEGORY`, `WIN_LAG`, `FEAT_LOG`, `TEST_T`.
 - Error codes: DOMAIN_CATEGORY — `ENCODING_INVALID`, `PROCESSING_CONFIG`, `SERVICE_VALIDATION`, `DATA_FILE`, `CLI_INPUT`, `PULSE_IMPORT_ROW_ERROR`.
@@ -84,7 +84,7 @@ Field descriptions in `.pulse` capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_T
 
 **Shard archive variant.** A `.pulse` path may instead be an uncompressed Zip64 **shard archive** (zip magic `PK\x03\x04`, dispatched at `pulse.Open`; a reserved `_schema.pulse` entry + N shards); `.pulse.zst` is transport-only. Set fields WIDEN across shards; nullability never does (`dimension: "nullable"` refusals). Every archive rewrite is atomic with a MANDATORY warning.
 
-**Contract: `.claude/reference/byte-layout.md` — load it before any byte-layout change; its "The always-load half, long form" paragraph holds what this section compresses. Each of these fails SILENTLY when got wrong:** the sidecar point-lookup index + its manifest, the SPSS metadata sidecar (`cohort.pulse.spss.json`), SPSS derived columns / export / convert, target-aware export predict, default-on projected buffered decode.
+**Contract: `.claude/reference/byte-layout.md` — load it before any byte-layout change; its "The always-load half, long form" paragraph holds what this section compresses. Each fails SILENTLY when got wrong:** the sidecar point-lookup index + its manifest, the SPSS metadata sidecar (`cohort.pulse.spss.json`), SPSS derived columns / export / convert, target-aware export predict, default-on projected buffered decode.
 
 ### Smart defaults
 
@@ -103,7 +103,7 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 - **Undefined figures are `null`.** A non-finite float is JSON `null` in place, key kept (`types.MarshalFinite`); Go keeps NaN; a result read back decodes `null` → NaN (`internal/jsonfinite`), never 0. Long form: `.claude/reference/response-components.md` (Undefined figures on the wire).
 - `request` is an opt-in echo of the *normalized* request, omitted unless `Options.EchoRequest` / `--echo-request`; shaped per operation (five request roots). Streaming skips it; additive `omitempty`, no `format_version` bump.
 
-**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, each response echoing its slot `label`; `--stream` writes bare per-row NDJSON. `sweep` / `rank` / `fits` add slots (`skills/compose-sweeps.md`, `skills/compose-fits.md`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
+**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, each response echoing its `label`; `--stream` writes bare per-row NDJSON. `sweep` / `rank` / `fits` / `banner` add slots (skills `compose-sweeps`, `compose-fits`, `compose-banner`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
 
 **Item fan-out.** A `for_each` on a window / feature / attribute item expands in place before validation (absent = byte-identical). Long form: `execution-modes.md` (Item fan-out).
 
@@ -119,7 +119,7 @@ Every `Response` carries an optional `Components *ResponseComponents` (additive 
 
 - `Aggregations []AggregationComponents` — one entry per aggregator slot; universal floor `{n, n_null}` + operator-specific `Operator map[string]any` keyed by the manifest schema. Grouped: cohort-wide floor + per-row `Groups` (reference).
 - `Groupers []GrouperComponents` — universal floor `{total_n, n_null}` + operator-specific bucket layout.
-- `Crosstab *CrosstabComponents` — `CellCounts[r][c]`, `CellComponents[r][c]`, row/column/grand-total margin counterparts, axis-key components. Mirrors `MatrixPayload` coordinate-for-coordinate. Auxiliary `crosstab.margin_aggregations` margin figures extend this bullet — reference below.
+- `Crosstab *CrosstabComponents` — `CellCounts[r][c]`, `CellComponents[r][c]`, row/column/grand-total margin counterparts, axis-key components. Mirrors `MatrixPayload` coordinate-for-coordinate. Auxiliary `crosstab.margin_aggregations` figures and the multi-measure (`crosstab.cells`) `Measures` extend this bullet — reference below.
 - `Filterers []FiltererComponents` — uniform `{n_in, n_out, n_null_input}` on every filterer.
 - `Run *RunComponents` — `total_records`, `filtered_records`, `null_records`, `shard_count`, `partial_cohort_reason`. Coexists with `Response.Metadata`: `Metadata` keeps non-numerical run facts (cohort filename); `Run` carries the typed counters.
 - `Matrices []MatrixComponents` — one per `Response.Matrices` result: floor `{n, n_null, n_listwise_dropped}` (weight-0 rows count in `n`), pairwise `{min_pair_n, max_pair_n}`, the weighted floor keys, operator map (`ddof`). Rides `capability:matrices`.

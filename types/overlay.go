@@ -2159,12 +2159,13 @@ const (
 	// when `Params.pair_along_dim` is set) so consumers zip the grid
 	// against their own re-derived pair list positionally.
 	//
-	// Division of labour: this family emits RAW p-values only. Direction
-	// (which leg is greater), significance thresholds, min-n flags, and
-	// any domain-specific row/column exclusion are presentation concerns
-	// the embedder applies — every input needed for them (the host cells,
-	// the per-cell n) is already on the response, so the overlay does not
-	// re-encode them.
+	// Division of labour: the primary carries RAW p-values only. Opt-in
+	// params.letters adds the `direction` part (which leg is greater) and
+	// the `letters` part (significance letters, multiplicity-aware —
+	// PairwiseLetters, PairwiseLetterCell); min-n flags and any
+	// domain-specific row/column exclusion stay presentation concerns the
+	// embedder applies from the host cells and per-cell n already on the
+	// response.
 	//
 	// Params (`OverlaySpec.Params`, all optional):
 	//   - pair_along_dim (int): restrict pairs to "all dims agree except
@@ -2184,12 +2185,16 @@ const (
 	//   - n_within_depth (int): with n_source=n_within, fixes the first
 	//     depth+1 pair-axis dims in the denominator (mirrors
 	//     CrosstabSpec.NormalizeWithin).
-	//   - p_source (string): "cell_value_pct" (default; cell value is a
-	//     0..100 percentage, divided by 100) or "cell_value" (already a
-	//     0..1 proportion). Ignored by the Welford-input kinds.
+	//   - p_source (string): "cell_value_pct" (cell value is a 0..100
+	//     percentage, divided by 100; the omitted default under
+	//     normalize none, refused on a normalised host) or "cell_value"
+	//     (already a 0..1 proportion; the omitted default on a
+	//     normalised host). Ignored by the Welford-input kinds.
 	//   - n_basis (string): REQUIRED on OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z
 	//     and only read there — "weights" (frequency-weight variance, n =
 	//     Σw) or "kish" (Kish effective base n_eff = (Σw)²/Σw²).
+	//   - letters (object): {} or {"alpha": a}, 0 < a < 1 — significance
+	//     letters (PairwiseOverlayParams.Letters).
 	//
 	// Components requirement: every kind reads Response.Components.Crosstab
 	// (cell n, weight sums, Welford triples, margin counts). A host built
@@ -2511,6 +2516,40 @@ const (
 	// inferential family is buffered as a matter of policy.
 	OverlayKindZVsRef OverlayKind = "OVERLAY_Z_VS_REF"
 
+	// OverlayKindTVsPrior, OverlayKindZVsPrior and OverlayKindPropZVsPrior
+	// are the INFERENTIAL prior-period kinds (U47 #328): each tests one
+	// period against the period before it — a Welch t-test on the means,
+	// a two-means z-test, or a pooled two-proportion z-test — reusing the
+	// OVERLAY_PAIRWISE_* kernels. GROUP scope, Ref.Prior (lag 1; an empty
+	// Ref spells the same), SERIES payload: one SeriesEntry per period in
+	// host order, its Summary carrying the statistic (current minus prior,
+	// so a positive figure is a rise) and the two-sided p-value, which
+	// joins the request's multiplicity family (Summary.PAdjusted /
+	// SignificantAdjusted). The first period of each partition has no
+	// prior and carries a null statistic and p-value — never 0.
+	//
+	// Two hosts: a grouped Process (the periods are the last grouper's
+	// keys, run per params.partition_by partition and scored on
+	// params.field) and a crosstab with NO column grouper (the periods
+	// are the row keys of the implicit Total column). Legs come from the
+	// scored measure's components, read through the weighted-host rule:
+	// the T / Z kinds read the Welford triple {mean, variance, n} (N* and
+	// the variance on w* when weighted); the proportion kind reads the
+	// measure's value as p̂ (an AGG_AVERAGE of a 0/1 indicator) and its
+	// floor's n (N* when weighted). A host without those moments is
+	// refused PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE by predict and
+	// the runtime alike; components disabled is
+	// PULSE_OVERLAY_COMPONENTS_REQUIRED.
+	//
+	// The tests assume the two periods are INDEPENDENT samples: panel
+	// respondents present in both periods violate it (the p-value is then
+	// too large for a positive within-person correlation).
+	//
+	// Buffered: the inferential family policy (OVERLAY_T_VS_REF).
+	OverlayKindTVsPrior     OverlayKind = "OVERLAY_T_VS_PRIOR"
+	OverlayKindZVsPrior     OverlayKind = "OVERLAY_Z_VS_PRIOR"
+	OverlayKindPropZVsPrior OverlayKind = "OVERLAY_PROP_Z_VS_PRIOR"
+
 	// OverlayKindRank is the COMPOSE-host per-cell rank of each target
 	// cell within a configurable population per `Params["population"]`
 	// (`"row" | "column" | "matrix"`; defaults to `"matrix"`). CELL
@@ -2592,6 +2631,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindPanelIndexVsRef,
 		OverlayKindPropZCell,
 		OverlayKindPropZPanel,
+		OverlayKindPropZVsPrior,
 		OverlayKindRake,
 		OverlayKindRank,
 		OverlayKindRetention,
@@ -2601,6 +2641,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindStdResidual,
 		OverlayKindSymmetry,
 		OverlayKindTCell,
+		OverlayKindTVsPrior,
 		OverlayKindTVsRef,
 		OverlayKindYoY,
 		OverlayKindZScoreVsMargin,
@@ -2608,6 +2649,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindZScoreVsRolling,
 		OverlayKindZScoreVsTotal,
 		OverlayKindZCell,
+		OverlayKindZVsPrior,
 		OverlayKindZVsRef,
 	}
 }

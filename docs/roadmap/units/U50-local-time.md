@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U46]
 blocks: [U32]
-todo_items: [348, 349, 350, 351, 352, 353, 452, 467, 468]
+todo_items: [348, 349, 350, 351, 352, 353, 452, 467, 468, 470]
 branch: local-time
 ---
 
@@ -99,6 +99,12 @@ Filed from [U45](U45-binary-and-decimal.md); tick in [`TODO.md`](../TODO.md) whe
 
 - [ ] **#467** `FilterToFileRequest` has no `TimeZone` field: a `to_day` predicate in `FilterToFile*` honours only `Options.DefaultTimeZone` (a public-API addition: the API golden, the predicate hash and the output name). Found in U45 (E4-S1)
 - [ ] **#468** `FILTER_DATE_RANGES` on `FilterToFileWithRequest` is refused with an UNCODED error ("untranslatable filter type", pre-existing): give it a coded refusal (or translate it). Found in U45 (E4-S1)
+
+## Handed on from U47
+
+Filed from [U47 handed on](U47-survey-tables.md#handed-on); tick in [`TODO.md`](../TODO.md) when done. It lands here because this unit's calendar parts (weekday, hour of day) are numeric codes whose names belong on a `.sav` as value labels.
+
+- [ ] **#470** `.sav` value labels on a NUMERIC coded field (a `u8` / `u16` holding 1 = Male, 2 = Female, or a weekday 1..7) bound to a label table: today `--labels` / `io.SPSSWriterOptions.ValueLabels` bind `categorical_*` fields only (`PULSE_LABEL_FIELD_NOT_CATEGORICAL`). Sites: `internal/io/spss/dict_labels.go` (codes = the stored integers; the table's keys are their decimal spellings), `internal/io/export.go` (`cohortValueLabels` enumerates no dictionary for a numeric field — enumerate the table instead), `types/labels.go` binding validation. Found in U47 (E4-S3)
 
 ## Human inputs & decisions
 

@@ -157,6 +157,12 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			types.OverlayKindZVsRef,
 			types.OverlayKindChiSqVsRef,
 			types.OverlayKindRank,
+			// The prior-period kinds run on a crosstab with NO column
+			// grouper (this fixture has one) or a SERIES host; their
+			// predict suite is overlay_vs_prior_test.go.
+			types.OverlayKindTVsPrior,
+			types.OverlayKindZVsPrior,
+			types.OverlayKindPropZVsPrior,
 			// MATRIX_RESULT host (Request.Matrices), not a crosstab.
 			types.OverlayKindMatrixGroupSummary:
 			continue
@@ -681,6 +687,11 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		types.OverlayKindZVsRef:             true,
 		types.OverlayKindChiSqVsRef:         true,
 		types.OverlayKindRank:               true,
+		// The prior-period kinds run on a crosstab with NO column
+		// grouper or a SERIES host (overlay_vs_prior_test.go).
+		types.OverlayKindTVsPrior:     true,
+		types.OverlayKindZVsPrior:     true,
+		types.OverlayKindPropZVsPrior: true,
 		// MATRIX_RESULT host (Request.Matrices), not a crosstab.
 		types.OverlayKindMatrixGroupSummary: true,
 	}
@@ -1087,6 +1098,23 @@ func TestPredict_OverlaysApplied_AllKinds_DescriptorCoverage(t *testing.T) {
 		types.OverlayKindZScoreVsTotal: {
 			Name:  "zscore_vs_total",
 			Kind:  types.OverlayKindZScoreVsTotal,
+			Scope: types.OverlayScopeGroup,
+		},
+		// Inferential prior-period kinds — Ref.Prior (or empty), GROUP.
+		types.OverlayKindTVsPrior: {
+			Name:  "t_vs_prior",
+			Kind:  types.OverlayKindTVsPrior,
+			Scope: types.OverlayScopeGroup,
+			Ref:   types.OverlayRef{Prior: &types.OverlayPriorRef{}},
+		},
+		types.OverlayKindZVsPrior: {
+			Name:  "z_vs_prior",
+			Kind:  types.OverlayKindZVsPrior,
+			Scope: types.OverlayScopeGroup,
+		},
+		types.OverlayKindPropZVsPrior: {
+			Name:  "prop_z_vs_prior",
+			Kind:  types.OverlayKindPropZVsPrior,
 			Scope: types.OverlayScopeGroup,
 		},
 	}
@@ -1562,6 +1590,9 @@ func TestPredict_OverlayCost_AllKindsHaveMultiplier(t *testing.T) {
 			Kind:  types.OverlayKindZScoreVsTotal,
 			Scope: types.OverlayScopeGroup,
 		},
+		types.OverlayKindTVsPrior:     {Name: "t_vs_prior", Kind: types.OverlayKindTVsPrior, Scope: types.OverlayScopeGroup},
+		types.OverlayKindZVsPrior:     {Name: "z_vs_prior", Kind: types.OverlayKindZVsPrior, Scope: types.OverlayScopeGroup},
+		types.OverlayKindPropZVsPrior: {Name: "prop_z_vs_prior", Kind: types.OverlayKindPropZVsPrior, Scope: types.OverlayScopeGroup},
 	}
 
 	// Catalog completeness — every kind in types.AllOverlayKinds() MUST

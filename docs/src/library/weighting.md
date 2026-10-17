@@ -10,6 +10,10 @@ counts each row as `w` rows: counts become Σw, sums Σw·x, means
 that names no weight produces exactly the output it always did, byte
 for byte, and `format_version` stays `"1.1"`.
 
+No weight column yet? [Computing Survey Weights](rake.md) rakes a
+cohort to population margins and writes the weights as a new column;
+use them with kind `probability`.
+
 ## Where a weight comes from
 
 There are three places to name one. For each slot Pulse takes the
@@ -126,6 +130,7 @@ frequency weights have a standard weighted form — with
 | ordinary least squares (plain, ridge, lasso, elastic net), the GLM (binomial, poisson, gamma), the regression attributes (fitted value, residual, leverage) | weighted (both kinds) | weighted |
 | the z-score and t-score attributes, the quantile grouper (on `groups` and both crosstab axes) | weighted (both kinds) | weighted |
 | Bayesian linear regression | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
+| a formula attribute (`ATTR_FORMULA`) that calls `total(expr)` — the total is Σw·expr, the expanded-row total | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
 | Shapiro-Wilk, Tukey HSD, repeated-measures ANOVA, the trend test, every post-test, any regression with `resample` or `selection`, the percentile-rank attribute, the pairwise two-means z and probit t overlays | `PULSE_WEIGHT_UNSUPPORTED` (permanent) | `PULSE_WEIGHT_UNSUPPORTED` (permanent) |
 | the min-max rescale attribute (`ATTR_NORMALIZED`) | `PROCESSING_CONFIG` | skipped |
 
@@ -361,8 +366,15 @@ this release a host weighted only by its own slot weight ran these
 overlays on raw row counts, which gave standard errors that were too
 small; that was a bug and is fixed. On a weighted host the pairwise
 Welch t refuses an `n_source` that reads raw row counts
-(`cell_n_unweighted`, `row_margin_n`, `column_margin_n`), and
-`cell_weight_sum` under `probability`, with `PROCESSING_CONFIG`.
+(`cell_n_unweighted`), and `cell_weight_sum` under `probability`, with
+`PROCESSING_CONFIG`.
+
+The prior-period tests (`OVERLAY_T_VS_PRIOR`, `OVERLAY_Z_VS_PRIOR`,
+`OVERLAY_PROP_Z_VS_PRIOR`) also run weighted under both kinds. Each
+period's sample size is Σw (`frequency`) or n_eff (`probability`); the
+mean kinds read the variance from `m2` as above, and the proportion
+kind reads the weighted share. Unlike the mean-comparison overlays,
+their layer adds no weight keys to `parameters`.
 
 The χ² and proportion overlays also run weighted under both kinds. A
 weighted host's cells and margins are weight sums (Σw). Under
@@ -380,7 +392,17 @@ low-expected-count warning reads the scaled table. The proportion
 overlays read p̂ = Σw of the successes over Σw of the base, with the
 base's n_eff (or Σw under `frequency`) as the sample size, never the
 payload's Σw under `probability`. On a weighted host the pairwise
-proportion z omits `n_source` to read that sample size. Every
+proportion z and probit t omit `n_source` to read that sample size,
+and the base is the one the cell's share is of: the column margin
+under `normalize: column`, the row margin under `row`, the grand total
+under `total`, and the partial-depth denominator under
+`normalize_level` / `normalize_within`. Under `normalize: none` the
+cell is its own base. An unweighted host reads the same base's record
+count, so frequency weights still equal the expanded rows. Before U47
+the omitted `n_source` read the cell's own sample size, so a column
+percentage was tested against a fraction of its column and p-values
+came out far too large. `row_margin_n` / `column_margin_n` read a
+displayed margin's Σw or n_eff. Every
 unweighted count (raw rows, `n_within`, the distinct-key modes) is
 refused with `PROCESSING_CONFIG`, and `cell_weight_sum` /
 `cell_value_weighted` are accepted under `frequency` only. This is a

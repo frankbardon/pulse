@@ -107,6 +107,7 @@ func TestSkillsManifestConsistent(t *testing.T) {
 		"predict":       true,
 		"manifest":      true,
 		"materialize":   true,
+		"rake":          true,
 		"mcp":           true,
 	}
 

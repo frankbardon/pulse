@@ -789,6 +789,9 @@ type CohortSource struct {
     Path     string   // the `.pulse` cohort path; also where a format sidecar rides
     Includes []string // ExportJob.Includes verbatim
     Labelled bool     // a label resolver is rewriting or augmenting cells
+    // ValueLabels: that binding resolved onto the dictionaries — per bound
+    // field, entry text -> label (nil for a field that is no categorical)
+    ValueLabels map[string]map[string]string
     TimeZone string   // ExportJob.TimeZone when NOT UTC-equivalent, else ""
 }
 
@@ -815,7 +818,13 @@ instead. The returned count becomes `ExportReport.RowsExported`.
 `TimeZone` is set only when the row stream would have rendered
 `datetime` cells off UTC (`--tz`); a writer whose format cannot carry an
 offset-bearing instant refuses it — `internal/io/spss` does, because a
-`.sav` DATETIME is a naive wall-clock count.
+`.sav` DATETIME is a naive wall-clock count. A label binding is the one
+exception a format can honour natively: `ExportJob` resolves it onto the
+cohort's dictionaries as `ValueLabels` (in both `Run` and `Predict`), plus
+each bound table's entry order as `ValueLabelOrder` when the resolver
+reports one (an optional `Order(field string) []string` method), and
+`internal/io/spss` writes those as value labels coded in that order; a
+writer with no such slot refuses on `Labelled`.
 
 **A writer can implement both paths.** `internal/io/spss` does: `WriteCohort` for
 an export whose source is a cohort, and a buffering `WriteRow` for
@@ -1016,7 +1025,9 @@ It mounts the target format's write flags too (`--sanitize-names` turns a
 `.sav` name refusal into a warning, so a predict that could not be told
 about it would refuse an export that would have succeeded), and with no
 `--format` it keeps the old target-blind behaviour and says so in the
-output.
+output. With `--labels` it routes through `Pulse.PredictExport`, which
+builds the label resolver from the instance's tables exactly as
+`Pulse.Export` does, so a label refusal predicts with the export's code.
 
 ## 5. Skill and doc update
 

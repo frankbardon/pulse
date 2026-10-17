@@ -201,7 +201,13 @@ func vectorScalarRefusals(req *types.Request, schema *encoding.Schema, snap *Ext
 				grouper(g, at("crosstab.columns", i, string(g.Type)))
 			}
 		}
-		if spec.Cell != nil {
+		if spec.HasMeasures() {
+			for i, a := range spec.Cells {
+				if a != nil {
+					aggregation(a, at("crosstab.cells", i, string(a.Type)))
+				}
+			}
+		} else if spec.Cell != nil {
 			aggregation(spec.Cell, "crosstab.cell ("+string(spec.Cell.Type)+")")
 		}
 		for i, a := range spec.MarginAggregations {

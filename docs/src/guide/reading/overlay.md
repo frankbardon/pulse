@@ -376,6 +376,16 @@ Pairwise t-tests on probit-transformed shares between rows (or columns) of one c
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
+#### `parts.letters.cells.value`
+
+Significance letters for this host cell: its column's (or row's) letter, and in above the letters of the same-group columns it is significantly higher than here.
+
+**Caveats:**
+
+- Significant means significant_adjusted when a multiplicity correction ran on the layer, else a raw p below 0.05 (or params.letters.alpha); higher lists every column this one beats, significant or not.
+- Letters compare only within one group (a pair_along_dim bucket), restart at A in each, and a column with nothing to compare to (the implicit Total) gets none.
+- A letter says a gap is unlikely to be chance, not that it is large: read the cell values for size.
+
 <a id="op-overlay_pairwise_prop_z"></a>
 
 ### `OVERLAY_PAIRWISE_PROP_Z`
@@ -392,6 +402,16 @@ Two-proportion z-tests between every pair of rows (or columns) of one crosstab, 
 - The layer does not report an effect size: read the two cell values for how big each gap is.
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `parts.letters.cells.value`
+
+Significance letters for this host cell: its column's (or row's) letter, and in above the letters of the same-group columns it is significantly higher than here.
+
+**Caveats:**
+
+- Significant means significant_adjusted when a multiplicity correction ran on the layer, else a raw p below 0.05 (or params.letters.alpha); higher lists every column this one beats, significant or not.
+- Letters compare only within one group (a pair_along_dim bucket), restart at A in each, and a column with nothing to compare to (the implicit Total) gets none.
+- A letter says a gap is unlikely to be chance, not that it is large: read the cell values for size.
 
 <a id="op-overlay_pairwise_two_means_z"></a>
 
@@ -410,6 +430,16 @@ Large-sample z-tests between every pair of rows (or columns) of one crosstab of 
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
+#### `parts.letters.cells.value`
+
+Significance letters for this host cell: its column's (or row's) letter, and in above the letters of the same-group columns it is significantly higher than here.
+
+**Caveats:**
+
+- Significant means significant_adjusted when a multiplicity correction ran on the layer, else a raw p below 0.05 (or params.letters.alpha); higher lists every column this one beats, significant or not.
+- Letters compare only within one group (a pair_along_dim bucket), restart at A in each, and a column with nothing to compare to (the implicit Total) gets none.
+- A letter says a gap is unlikely to be chance, not that it is large: read the cell values for size.
+
 <a id="op-overlay_pairwise_weighted_two_means_z"></a>
 
 ### `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z`
@@ -427,6 +457,16 @@ Large-sample z-tests between every pair of rows (or columns) of one crosstab of 
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
+#### `parts.letters.cells.value`
+
+Significance letters for this host cell: its column's (or row's) letter, and in above the letters of the same-group columns it is significantly higher than here.
+
+**Caveats:**
+
+- Significant means significant_adjusted when a multiplicity correction ran on the layer, else a raw p below 0.05 (or params.letters.alpha); higher lists every column this one beats, significant or not.
+- Letters compare only within one group (a pair_along_dim bucket), restart at A in each, and a column with nothing to compare to (the implicit Total) gets none.
+- A letter says a gap is unlikely to be chance, not that it is large: read the cell values for size.
+
 <a id="op-overlay_pairwise_welch_t"></a>
 
 ### `OVERLAY_PAIRWISE_WELCH_T`
@@ -443,6 +483,16 @@ Welch t-tests between every pair of rows (or columns) of one crosstab of average
 - The layer does not report an effect size: read the two cell values for how big each gap is.
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `parts.letters.cells.value`
+
+Significance letters for this host cell: its column's (or row's) letter, and in above the letters of the same-group columns it is significantly higher than here.
+
+**Caveats:**
+
+- Significant means significant_adjusted when a multiplicity correction ran on the layer, else a raw p below 0.05 (or params.letters.alpha); higher lists every column this one beats, significant or not.
+- Letters compare only within one group (a pair_along_dim bucket), restart at A in each, and a column with nothing to compare to (the implicit Total) gets none.
+- A letter says a gap is unlikely to be chance, not that it is large: read the cell values for size.
 
 <a id="op-overlay_prop_z_cell"></a>
 
@@ -477,6 +527,34 @@ Two-proportion z-tests between every pair of requests in a Compose panel, for ea
 - The normal approximation needs roughly 10 successes and 10 failures per side.
 - A pair involving a slot whose row margin is missing or zero is NaN, with a warning: it gets no test.
 - The layer does not report an effect size: compare the slots' cell shares (cell / row total) for how big each gap is.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+<a id="op-overlay_prop_z_vs_prior"></a>
+
+### `OVERLAY_PROP_Z_VS_PRIOR`
+
+Two-proportion z-test of each period's share against the period before it: did awareness (or any yes/no share) change since last wave? See its [catalog entry](../catalog/overlay.md#op-overlay_prop_z_vs_prior).
+
+#### `summary.statistic`
+
+In each series entry (one per period): the two-proportion z statistic of this period minus the period before it, in standard errors. Null on the first period and on a test that could not be computed; read the entry's p_value for the test.
+
+**Sign:**
+
+- `+`: this period is higher than the one before
+- `-`: this period is lower than the one before
+
+**Caveats:**
+
+- The two periods must be separate, independent samples of people. When the same respondents answer in both periods (a panel), the test is wrong: their answers are linked, and the p-value is then usually too large. Pulse cannot detect this.
+
+#### `summary.p_value`
+
+**Caveats:**
+
+- Every period after the first is a separate test and Pulse reports the p-values raw: with many periods some small ones turn up by luck, so adjust for multiple comparisons: set multiplicity on the overlay and read summary.p_adjusted.
+- The first period has no p-value. The layer does not report an effect size: read OVERLAY_DELTA_VS_PRIOR for how big each change is.
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
@@ -642,6 +720,34 @@ Welch t-test for every crosstab cell in a Compose request: does the target's mea
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
+<a id="op-overlay_t_vs_prior"></a>
+
+### `OVERLAY_T_VS_PRIOR`
+
+Welch t-test of each period against the period before it: did the average really change from the last wave, or is it noise? See its [catalog entry](../catalog/overlay.md#op-overlay_t_vs_prior).
+
+#### `summary.statistic`
+
+In each series entry (one per period): the Welch t statistic of this period minus the period before it, in standard errors. Null on the first period and on a test that could not be computed; read the entry's p_value for the test.
+
+**Sign:**
+
+- `+`: this period is higher than the one before
+- `-`: this period is lower than the one before
+
+**Caveats:**
+
+- The two periods must be separate, independent samples of people. When the same respondents answer in both periods (a panel), the test is wrong: their answers are linked, and the p-value is then usually too large. Pulse cannot detect this.
+
+#### `summary.p_value`
+
+**Caveats:**
+
+- Every period after the first is a separate test and Pulse reports the p-values raw: with many periods some small ones turn up by luck, so adjust for multiple comparisons: set multiplicity on the overlay and read summary.p_adjusted.
+- The first period has no p-value. The layer does not report an effect size: read OVERLAY_DELTA_VS_PRIOR for how big each change is.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
 <a id="op-overlay_t_vs_ref"></a>
 
 ### `OVERLAY_T_VS_REF`
@@ -757,6 +863,34 @@ Large-sample z-test for every crosstab cell in a Compose request: does the targe
 - Without AGG_WELFORD values (or explicit variance and sample-size params) Pulse computes the p-value from placeholder inputs (variance 1, n 2), and it then describes those placeholders, not your data.
 - Every cell is a separate test and Pulse reports the p-values raw: with many cells some small ones turn up by luck, so before flagging cells adjust for multiple comparisons: set multiplicity on the overlay and read payload.p_adjusted.
 - The layer does not report an effect size: read the gap itself (for example OVERLAY_DELTA_VS_REF) for how big a difference is.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+<a id="op-overlay_z_vs_prior"></a>
+
+### `OVERLAY_Z_VS_PRIOR`
+
+Large-sample z-test of each period's mean against the period before it: did the average change from the last wave? See its [catalog entry](../catalog/overlay.md#op-overlay_z_vs_prior).
+
+#### `summary.statistic`
+
+In each series entry (one per period): the z statistic of this period minus the period before it, in standard errors. Null on the first period and on a test that could not be computed; read the entry's p_value for the test.
+
+**Sign:**
+
+- `+`: this period is higher than the one before
+- `-`: this period is lower than the one before
+
+**Caveats:**
+
+- The two periods must be separate, independent samples of people. When the same respondents answer in both periods (a panel), the test is wrong: their answers are linked, and the p-value is then usually too large. Pulse cannot detect this.
+
+#### `summary.p_value`
+
+**Caveats:**
+
+- Every period after the first is a separate test and Pulse reports the p-values raw: with many periods some small ones turn up by luck, so adjust for multiple comparisons: set multiplicity on the overlay and read summary.p_adjusted.
+- The first period has no p-value. The layer does not report an effect size: read OVERLAY_DELTA_VS_PRIOR for how big each change is.
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 

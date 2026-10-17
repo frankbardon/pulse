@@ -182,6 +182,15 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC:   shared,
 	errors.PULSE_MATERIALIZE_SIDECARS_INVALIDATED: shared,
 
+	// Pulse.Rake is a library method every instance carries.
+	errors.PULSE_RAKE_INVALID:              shared,
+	errors.PULSE_RAKE_UNKNOWN_CATEGORY:     shared,
+	errors.PULSE_RAKE_UNTARGETED_CATEGORY:  shared,
+	errors.PULSE_RAKE_MISSING_VALUE:        shared,
+	errors.PULSE_RAKE_EMPTY_CELL:           shared,
+	errors.PULSE_RAKE_NOT_CONVERGED:        shared,
+	errors.PULSE_RAKE_SIDECARS_INVALIDATED: shared,
+
 	// Any numeric aggregator on a categorical field; predict raises it.
 	errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: own(featFacet),
 	errors.PULSE_FACET_VALUES_TRUNCATED:             own(featFacet),
@@ -310,6 +319,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_COMPOSE_LABEL_COLLISION: own(featCompose),
 	errors.PULSE_SWEEP_INVALID:           own(featComposeSweep),
 	errors.PULSE_SWEEP_RANK_PATH:         own(featComposeSweep),
+	errors.PULSE_BANNER_INVALID:          own(featComposeBanner),
 	// The one model namespace: Compose fits and loaded models bind it.
 	errors.PULSE_FIT_INVALID:          own(featComposeFits),
 	errors.PULSE_MODEL_NAME_COLLISION: own(featComposeFits, featModels),
@@ -389,6 +399,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE:       own(featCrosstab),
 	errors.PULSE_CROSSTAB_MARGIN_AGG_INVALID:                  own(featCrosstab),
 	errors.PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL:          own(featCrosstab),
+	errors.PULSE_CROSSTAB_CELLS_INVALID:                       own(featCrosstabCells),
+	errors.PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL:               own(featCrosstabCells),
 	errors.PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED:               own(featCrosstab),
 
 	// The hidden-slot refusal itself.

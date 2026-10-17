@@ -278,7 +278,10 @@ func TestPairwiseWelchT_WeightedHostNSource(t *testing.T) {
 		}
 		return cellAt(t, layer, 0, 0), nil
 	}
-	raw := []string{types.PairwiseNSourceCellNUnweighted, types.PairwiseNSourceRowMarginN, types.PairwiseNSourceColumnMarginN}
+	// The margin modes read a margin floor's N* on a weighted host (U47
+	// #324), so like every non-refused source they stay inert here.
+	raw := []string{types.PairwiseNSourceCellNUnweighted}
+	margins := []string{types.PairwiseNSourceRowMarginN, types.PairwiseNSourceColumnMarginN}
 	for _, basis := range []weighting.Basis{weighting.Unweighted, weighting.Frequency, weighting.Probability} {
 		base, err := run(basis, "")
 		if err != nil {
@@ -294,7 +297,7 @@ func TestPairwiseWelchT_WeightedHostNSource(t *testing.T) {
 			refused[types.PairwiseNSourceCellWeightSum] = true
 			refused[types.PairwiseNSourceCellValueWeight] = true
 		}
-		for _, s := range append(raw, types.PairwiseNSourceCellWeightSum, types.PairwiseNSourceCellValueWeight) {
+		for _, s := range append(append(raw, margins...), types.PairwiseNSourceCellWeightSum, types.PairwiseNSourceCellValueWeight) {
 			p, err := run(basis, s)
 			if refused[s] {
 				var ce *errors.CodedError

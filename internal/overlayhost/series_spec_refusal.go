@@ -63,6 +63,12 @@ var seriesRules = map[types.OverlayKind]seriesRule{
 
 	types.OverlayKindIndexVsPrior: {seriesPrior, "", false},
 	types.OverlayKindDeltaVsPrior: {seriesPrior, "", false},
+	// The inferential prior-period kinds run on a no-column crosstab
+	// too, under the same rule (spec_refusal.go refPrior), so their
+	// messages do not name a dispatch.
+	types.OverlayKindTVsPrior:     {seriesPrior, "", false},
+	types.OverlayKindZVsPrior:     {seriesPrior, "", false},
+	types.OverlayKindPropZVsPrior: {seriesPrior, "", false},
 
 	types.OverlayKindIndexVsRollingMean: {seriesRollingMean, rollingWhy, false},
 	types.OverlayKindZScoreVsRolling:    {seriesRollingMean, "windowed rolling-window reference; window width lives on Params[\"window\"]", false},

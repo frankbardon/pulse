@@ -56,6 +56,7 @@ const (
 	OpProfile         OperationKind = "profile"
 	OpDedup           OperationKind = "dedup"
 	OpMaterialize     OperationKind = "materialize"
+	OpRake            OperationKind = "rake"
 	OpWiden           OperationKind = "widen"
 	OpIndexBuild      OperationKind = "index_build"
 	OpIndexVerify     OperationKind = "index_verify"
@@ -81,7 +82,7 @@ func AllOperationKinds() []OperationKind {
 		OpInspect, OpPredict, OpManifest, OpPayloadSchema, OpImport,
 		OpExport, OpConvert, OpImportsSweep, OpDrop, OpSample,
 		OpFilterToFile, OpSynth, OpSynthStream, OpProfile, OpDedup,
-		OpMaterialize, OpWiden, OpIndexBuild, OpIndexVerify, OpIndexList, OpIndexDrop,
+		OpMaterialize, OpRake, OpWiden, OpIndexBuild, OpIndexVerify, OpIndexList, OpIndexDrop,
 		OpShardCreate, OpShardAdd, OpShardRemove, OpShardList,
 		OpShardExtract, OpShardCompact, OpShardVerify, OpTemplateRender,
 		OpTemplateReload,

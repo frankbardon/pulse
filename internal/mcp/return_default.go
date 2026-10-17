@@ -87,7 +87,7 @@ func fillRequestReturn(in *types.Request, def *types.Return) { fillReturn(in, de
 
 // fillComposeReturn fills each slot; the Compose-level `return` shapes
 // only the top-level overlays and is left to the caller. A sweep's body
-// is a slot too: it receives the same default, so an expanded slot is
+// (and a banner's base request) is a slot too: it receives the same default, so an expanded slot is
 // shaped exactly as an explicit one sent without a `return`.
 func fillComposeReturn(in *types.ComposedRequest, def *types.Return) {
 	for _, slot := range in.Requests {
@@ -95,6 +95,12 @@ func fillComposeReturn(in *types.ComposedRequest, def *types.Return) {
 	}
 	if in.Sweep != nil {
 		in.Sweep.Request = fillRawReturn(in.Sweep.Request, def)
+	}
+	// A banner's base request is every banner slot's body: it receives
+	// the same default, so each banner slot is shaped exactly as an
+	// explicit one sent without a `return`.
+	if in.Banner != nil {
+		fillReturn(in.Banner.Request, def)
 	}
 }
 

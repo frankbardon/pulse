@@ -23,12 +23,16 @@ import (
 // The gated slots and their owning features:
 //
 //   - Request.Crosstab  — capability:crosstab
+//   - CrosstabSpec.Cells (+ the MatrixPayload cell_labels / measures and
+//     CrosstabComponents measures it produces) — capability:crosstab_cells
 //   - Request.Joins     — capability:joins
 //   - Request.Overlays  — an overlay host a plain Request reaches:
 //     capability:crosstab (the MATRIX host) or capability:compose (the
 //     SERIES host a grouped Process runs)
 //   - ComposedRequest.Overlays — capability:compose
 //   - ComposedRequest.Sweep    — capability:compose_sweep
+//   - ComposedRequest.Banner   — capability:compose_banner (+ the
+//     ComposedResponse.Banner it produces)
 //   - ComposedRequest.Fits     — capability:compose_fits (each fit
 //     request's own slots are gated like a slot's, details.fit)
 //   - ChainRequest.Overlays    — capability:process_chain
@@ -118,6 +122,10 @@ var modelsSlotGate = gatedSlot{key: "models", visible: capabilityGate(featModels
 // rides capability:models too.
 var populationsSlotGate = gatedSlot{key: "populations", visible: capabilityGate(featModels)}
 
+// crosstabCellsSlotGate gates the `cells` key on a CrosstabSpec (the
+// multi-measure crosstab): capability:crosstab_cells.
+var crosstabCellsSlotGate = gatedSlot{key: "cells", visible: capabilityGate(featCrosstabCells)}
+
 // requestOverlaysSlotGate gates the `overlays` key on a Request and on
 // the Response it produces: visible iff a request-level overlay host
 // (the crosstab MATRIX host, the Compose series host or the
@@ -142,7 +150,17 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		modelsSlotGate,
 		populationsSlotGate,
 	},
-	reflect.TypeOf(types.Aggregation{}):        {weightSlotGate},
+	reflect.TypeOf(types.Aggregation{}): {weightSlotGate},
+	// The multi-measure crosstab: the `cells` request key and the
+	// MEASURE-folded payload slots it alone produces.
+	reflect.TypeOf(types.CrosstabSpec{}): {crosstabCellsSlotGate},
+	reflect.TypeOf(types.MatrixPayload{}): {
+		{key: "cell_labels", visible: capabilityGate(featCrosstabCells)},
+		{key: "measures", visible: capabilityGate(featCrosstabCells)},
+	},
+	reflect.TypeOf(types.CrosstabComponents{}): {
+		{key: "measures", visible: capabilityGate(featCrosstabCells)},
+	},
 	reflect.TypeOf(types.Test{}):               {weightSlotGate, multiplicitySlotGate},
 	reflect.TypeOf(types.RegressionSpec{}):     {weightSlotGate, modelSaveSlotGate},
 	reflect.TypeOf(types.FitSpec{}):            {modelSaveSlotGate},
@@ -192,6 +210,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		multiplicitySlotGate,
 		{key: "sweep", visible: capabilityGate(featComposeSweep)},
 		{key: "fits", visible: capabilityGate(featComposeFits)},
+		{key: "banner", visible: capabilityGate(featComposeBanner)},
 	},
 	// The sweep rank rides capability:compose_sweep with the `sweep`
 	// slot that produces it.
@@ -201,6 +220,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "overlays", visible: overlayGate(featCompose)},
 		{key: "ranking", visible: capabilityGate(featComposeSweep)},
 		{key: "fits", visible: capabilityGate(featComposeFits)},
+		{key: "banner", visible: capabilityGate(featComposeBanner)},
 	},
 	reflect.TypeOf(types.ChainRequest{}): {
 		{key: "overlays", visible: overlayGate(featProcessChain)},
@@ -408,6 +428,9 @@ func setSlots(v any) []string {
 		if r != nil && len(r.Fits) > 0 {
 			out = append(out, "fits")
 		}
+		if r != nil && r.Banner != nil {
+			out = append(out, "banner")
+		}
 	case *types.ChainRequest:
 		if r != nil && len(r.Overlays) > 0 {
 			out = append(out, "overlays")
@@ -465,8 +488,10 @@ func nestedWeightRefusal(req *types.Request, inst *InstanceSnapshot) *errors.Cod
 		}
 	}
 	if ct := req.Crosstab; ct != nil {
-		if ct.Cell != nil && !ct.Cell.Weight.IsZero() {
-			return at("crosstab.cell", ct.Cell)
+		for i, cell := range ct.CellAggregations() {
+			if cell != nil && !cell.Weight.IsZero() {
+				return at(ct.CellSlotPath(i), cell)
+			}
 		}
 		for i, a := range ct.MarginAggregations {
 			if a != nil && !a.Weight.IsZero() {
@@ -646,11 +671,26 @@ func nestedForEachRefusal(req *types.Request, inst *InstanceSnapshot) *errors.Co
 	return nil
 }
 
+// nestedCrosstabCellsRefusal refuses a set crosstab `cells` key when
+// inst hides capability:crosstab_cells — PULSE_REQUEST_UNKNOWN_FIELD at
+// the crosstab object (details.path "crosstab"), valid_keys over its
+// visible keys. A present key is refused even when empty, as strict
+// decode refuses any set key; a Go caller's empty slice is not set.
+func nestedCrosstabCellsRefusal(req *types.Request, inst *InstanceSnapshot) *errors.CodedError {
+	if req == nil || req.Crosstab == nil || req.Crosstab.Cells == nil || inst.Enabled(featCrosstabCells) {
+		return nil
+	}
+	return unknownFieldErrorAt("crosstab", []string{crosstabCellsSlotGate.key}, VisibleSlotKeys(req.Crosstab, inst))
+}
+
 // requestSlotRefusal gates one Request: its own top-level slots, then
-// every nested slot `weight`, then every nested `multiplicity`, then
-// every item `for_each`.
+// the crosstab `cells` key, then every nested slot `weight`, then every
+// nested `multiplicity`, then every item `for_each`.
 func requestSlotRefusal(req *types.Request, inst *InstanceSnapshot) *errors.CodedError {
 	if ce := rootSlotRefusal(req, inst); ce != nil {
+		return ce
+	}
+	if ce := nestedCrosstabCellsRefusal(req, inst); ce != nil {
 		return ce
 	}
 	if ce := nestedWeightRefusal(req, inst); ce != nil {
@@ -696,6 +736,9 @@ func SlotRefusal(v any, inst *InstanceSnapshot) error {
 	}
 	switch r := v.(type) {
 	case *types.Request:
+		if ce := nestedCrosstabCellsRefusal(r, inst); ce != nil {
+			return ce
+		}
 		if ce := nestedWeightRefusal(r, inst); ce != nil {
 			return ce
 		}

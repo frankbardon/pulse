@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/totalcall"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -26,8 +27,16 @@ import (
 //     the buffered arm hands Compute and the streaming drive hands
 //     PrePass; attributes run before grouping, so a grouped request's
 //     total is cohort-wide, never per group;
-//   - unweighted: ATTR_FORMULA is not weight-aware, so no weight reaches
-//     the sum whatever Request.Weight says;
+//   - weighted under a FREQUENCY weight only (survey-tables E1-S3,
+//     #398): a total-bearing formula is ClassFrequencyOnly
+//     (weighting.AttributeClassOf), so the slot's stamped weight folds
+//     each row as Σw·expr — the expanded-row total; a row whose weight
+//     is invalid or zero adds nothing (U11 validity rule) but is still
+//     scored. A probability weight is refused PULSE_WEIGHT_UNSUPPORTED
+//     by the resolver (predict and runtime alike): a total that scales
+//     with arbitrary weights is a trap. An unweighted slot folds the
+//     plain sequential sum, byte-identical to before; a row-local
+//     formula (no total()) reads no weight and is reported skipped;
 //   - a row whose argument is null is skipped: the argument evaluates
 //     to nil, or raises only because a referenced field is null;
 //   - a total over zero non-null rows is NaN (null on the wire), so the
@@ -41,6 +50,8 @@ import (
 
 // formulaTotals is a total-bearing formula's pre-pass state.
 type formulaTotals struct {
+	// weight is the slot's stamped frequency weight (nil: unweighted).
+	weight *types.WeightSpec
 	keys   []string       // distinct argument keys, walk order
 	index  map[string]int // key -> position in keys
 	args   []*exprProgram // per key: the argument's row-level program
@@ -122,6 +133,13 @@ func (a *formulaTotalAttribute) PrePass(r *Record, _ string) error {
 			return errors.NewCodedErrorWithDetails(errors.PROCESSING_RUNTIME,
 				"formula total() argument must be numeric: total("+t.keys[i]+")",
 				map[string]any{"argument": t.keys[i]})
+		}
+		if t.weight != nil {
+			w, reason := readWeight(r, t.weight)
+			if reason != weighting.Valid || w == 0 {
+				continue // an invalid or zero weight adds nothing
+			}
+			v = float64(w * v) // FMA barrier: identical on every arch
 		}
 		t.sums[i] += v
 		t.counts[i]++

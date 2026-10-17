@@ -149,6 +149,7 @@ pulse: type ComposeOptions field PerRequestTimeout time.Duration
 pulse: type ComposePredictResult = pulse/internal/descriptor.ComposeValidationResult
 pulse: type ComposePredictResult underlying struct
 pulse: type ComposePredictResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
+pulse: type ComposePredictResult field Banner *pulse/descriptor.BannerSummary "json:\"banner,omitempty\""
 pulse: type ComposePredictResult field Fits []pulse/descriptor.FitSummary "json:\"fits,omitempty\""
 pulse: type ComposePredictResult field LimitFindings []pulse/descriptor.LimitFinding "json:\"limit_findings,omitempty\""
 pulse: type ComposePredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
@@ -159,6 +160,7 @@ pulse: type ComposePredictResult field Sweep *pulse/descriptor.SweepSummary "jso
 pulse: type ComposePredictResult field Valid bool "json:\"valid\""
 pulse: type ComposedRequest = pulse/types.ComposedRequest
 pulse: type ComposedRequest underlying struct
+pulse: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,omitempty\""
 pulse: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
@@ -168,6 +170,7 @@ pulse: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omi
 pulse: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse: type ComposedResponse = pulse/types.ComposedResponse
 pulse: type ComposedResponse underlying struct
+pulse: type ComposedResponse field Banner *pulse/types.BannerResult "json:\"banner,omitempty\""
 pulse: type ComposedResponse field Fits map[string]*pulse/types.FitResult "json:\"fits,omitempty\""
 pulse: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
 pulse: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
@@ -590,6 +593,7 @@ pulse: const LabelModeReplace pulse/types.LabelMode = "replace"
 pulse: type LabelTable struct
 pulse: type LabelTable field Description string
 pulse: type LabelTable field Lookup func(key string) (label string, ok bool, err error)
+pulse: type LabelTable field Order []string
 pulse: type LabelTable field Rows map[string]string
 pulse: type LabelTableInfo struct
 pulse: type LabelTableInfo field Enumerable bool "json:\"enumerable\""
@@ -797,12 +801,14 @@ pulse: type Pulse method (*Pulse) Predict(ctx context.Context, req *pulse.Reques
 pulse: type Pulse method (*Pulse) PredictBytes(ctx context.Context, data []byte, req *pulse.Request) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) PredictChain(ctx context.Context, req *pulse.ChainRequest) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) PredictCompose(ctx context.Context, req *pulse.ComposedRequest) (*pulse/descriptor.Envelope, error)
+pulse: type Pulse method (*Pulse) PredictExport(ctx context.Context, job *pulse/io.ExportJob) (*pulse/io.PredictReport, error)
 pulse: type Pulse method (*Pulse) PredictFacet(ctx context.Context, req *pulse.FacetRequest) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) Process(ctx context.Context, req *pulse.Request) (*pulse.Response, error)
 pulse: type Pulse method (*Pulse) ProcessChain(ctx context.Context, req *pulse.ChainRequest) (*pulse.ChainResponse, error)
 pulse: type Pulse method (*Pulse) ProcessStream(ctx context.Context, req *pulse.Request) (pulse.RowIter, error)
 pulse: type Pulse method (*Pulse) ProcessStreamResult(ctx context.Context, req *pulse.Request) (pulse.StreamResult[pulse.Row], error)
 pulse: type Pulse method (*Pulse) Profile(ctx context.Context, path string, opts pulse.ProfileOptions) (*pulse.Profile, error)
+pulse: type Pulse method (*Pulse) Rake(ctx context.Context, req pulse.RakeRequest) (*pulse.RakeResult, error)
 pulse: type Pulse method (*Pulse) RangeTables() []pulse.RangeTableInfo
 pulse: type Pulse method (*Pulse) Recommend(ctx context.Context, req pulse/descriptor.RecommendRequest) (*pulse/descriptor.RecommendResult, error)
 pulse: type Pulse method (*Pulse) ReloadTemplates() error
@@ -827,6 +833,84 @@ pulse: type Pulse method (*Pulse) WatchDir(ctx context.Context, dir string, recu
 pulse: type Pulse method (*Pulse) WatchDirWithOptions(ctx context.Context, dir string, opts pulse.WatchOptions) <-chan pulse.ChangeEvent
 pulse: type Pulse method (*Pulse) WatchWithOptions(ctx context.Context, target string, opts pulse.WatchOptions) <-chan pulse.ChangeEvent
 pulse: type Pulse method (*Pulse) WidenSetField(ctx context.Context, path string, field string, targetType string) (*pulse.WidenReport, error)
+pulse: type RakeCategoryReport = pulse/internal/rake.CategoryReport
+pulse: type RakeCategoryReport underlying struct
+pulse: type RakeCategoryReport field Achieved float64 "json:\"achieved\""
+pulse: type RakeCategoryReport field Observed float64 "json:\"observed\""
+pulse: type RakeCategoryReport field ObservedN int64 "json:\"observed_n\""
+pulse: type RakeCategoryReport field Target float64 "json:\"target\""
+pulse: type RakeCategoryReport field Values []string "json:\"values\""
+pulse: type RakeCategoryReport method (RakeCategoryReport) MarshalJSON() ([]byte, error)
+pulse: type RakeCell = pulse/internal/rake.Cell
+pulse: type RakeCell underlying struct
+pulse: type RakeCell field Target float64 "json:\"target\""
+pulse: type RakeCell field Values []string "json:\"values\""
+pulse: const RakeDefaultMaxIter untyped int = 100
+pulse: const RakeDefaultTol untyped float = 1/1000000
+pulse: const RakeDefaultWeightField untyped string = "rake_weight"
+pulse: type RakeEfficiency = pulse/internal/rake.Efficiency
+pulse: type RakeEfficiency underlying struct
+pulse: type RakeEfficiency field DeffKish float64 "json:\"deff_kish\""
+pulse: type RakeEfficiency field EfficiencyPct float64 "json:\"efficiency_pct\""
+pulse: type RakeEfficiency field N int64 "json:\"n\""
+pulse: type RakeEfficiency field NCapped int64 "json:\"n_capped\""
+pulse: type RakeEfficiency field NEff float64 "json:\"n_eff\""
+pulse: type RakeEfficiency field SumWeights float64 "json:\"sum_weights\""
+pulse: type RakeEfficiency field WeightCV float64 "json:\"weight_cv\""
+pulse: type RakeEfficiency field WeightMax float64 "json:\"weight_max\""
+pulse: type RakeEfficiency field WeightMin float64 "json:\"weight_min\""
+pulse: type RakeEfficiency field WeightRangeRatio float64 "json:\"weight_range_ratio\""
+pulse: type RakeEfficiency method (RakeEfficiency) MarshalJSON() ([]byte, error)
+pulse: type RakeGroupReport = pulse/internal/rake.GroupReport
+pulse: type RakeGroupReport underlying struct
+pulse: type RakeGroupReport field Converged bool "json:\"converged\""
+pulse: type RakeGroupReport field Efficiency pulse/internal/rake.Efficiency "json:\"efficiency\""
+pulse: type RakeGroupReport field Iterations int "json:\"iterations\""
+pulse: type RakeGroupReport field Margins []pulse/internal/rake.MarginReport "json:\"margins\""
+pulse: type RakeGroupReport field Records int64 "json:\"records\""
+pulse: type RakeGroupReport field Residual float64 "json:\"residual\""
+pulse: type RakeGroupReport field Value string "json:\"value\""
+pulse: type RakeGroupReport method (RakeGroupReport) MarshalJSON() ([]byte, error)
+pulse: type RakeMargin = pulse/internal/rake.Margin
+pulse: type RakeMargin underlying struct
+pulse: type RakeMargin field Cells []pulse/internal/rake.Cell "json:\"cells,omitempty\""
+pulse: type RakeMargin field Field string "json:\"field,omitempty\""
+pulse: type RakeMargin field Fields []string "json:\"fields,omitempty\""
+pulse: type RakeMargin field Targets map[string]float64 "json:\"targets,omitempty\""
+pulse: type RakeMargin field TargetsAs string "json:\"targets_as,omitempty\""
+pulse: type RakeMarginReport = pulse/internal/rake.MarginReport
+pulse: type RakeMarginReport underlying struct
+pulse: type RakeMarginReport field Categories []pulse/internal/rake.CategoryReport "json:\"categories\""
+pulse: type RakeMarginReport field Fields []string "json:\"fields\""
+pulse: type RakeMarginReport field NMissing int64 "json:\"n_missing\""
+pulse: type RakeRequest = pulse/internal/rake.Request
+pulse: type RakeRequest underlying struct
+pulse: type RakeRequest field BaseWeight string "json:\"base_weight,omitempty\""
+pulse: type RakeRequest field By string "json:\"by,omitempty\""
+pulse: type RakeRequest field Cohort string "json:\"cohort\""
+pulse: type RakeRequest field Margins []pulse/internal/rake.Margin "json:\"margins\""
+pulse: type RakeRequest field MaxIter int "json:\"max_iter,omitempty\""
+pulse: type RakeRequest field MaxWeight float64 "json:\"max_weight,omitempty\""
+pulse: type RakeRequest field MinWeight float64 "json:\"min_weight,omitempty\""
+pulse: type RakeRequest field Missing string "json:\"missing,omitempty\""
+pulse: type RakeRequest field Out string "json:\"out\""
+pulse: type RakeRequest field Overwrite bool "json:\"overwrite,omitempty\""
+pulse: type RakeRequest field Tol float64 "json:\"tol,omitempty\""
+pulse: type RakeRequest field Total float64 "json:\"total,omitempty\""
+pulse: type RakeRequest field WeightField string "json:\"weight_field,omitempty\""
+pulse: type RakeResult struct
+pulse: type RakeResult field Converged bool "json:\"converged\""
+pulse: type RakeResult field Efficiency pulse.RakeEfficiency "json:\"efficiency\""
+pulse: type RakeResult field Groups []pulse.RakeGroupReport "json:\"groups,omitempty\""
+pulse: type RakeResult field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
+pulse: type RakeResult field Iterations int "json:\"iterations\""
+pulse: type RakeResult field Margins []pulse.RakeMarginReport "json:\"margins\""
+pulse: type RakeResult field Records int64 "json:\"records\""
+pulse: type RakeResult field Residual float64 "json:\"residual\""
+pulse: type RakeResult field Target string "json:\"target\""
+pulse: type RakeResult field Warnings []*pulse/errors.CodedError "json:\"warnings,omitempty\""
+pulse: type RakeResult field WeightField string "json:\"weight_field\""
+pulse: type RakeResult method (RakeResult) MarshalJSON() ([]byte, error)
 pulse: type RangeTable struct
 pulse: type RangeTable field Description string
 pulse: type RangeTable field Ranges []pulse.DateRangeSpec
@@ -1163,6 +1247,12 @@ pulse/descriptor: type Band struct
 pulse/descriptor: type Band field Label string "json:\"label\""
 pulse/descriptor: type Band field Max *float64 "json:\"max,omitempty\""
 pulse/descriptor: type Band field Min *float64 "json:\"min,omitempty\""
+pulse/descriptor: type BannerSummary struct
+pulse/descriptor: type BannerSummary field ExpandedCount int "json:\"expanded_count\""
+pulse/descriptor: type BannerSummary field Groups []string "json:\"groups\""
+pulse/descriptor: type BannerSummary field Labels []string "json:\"labels,omitempty\""
+pulse/descriptor: type BannerSummary field Sections []string "json:\"sections\""
+pulse/descriptor: type BannerSummary field Total bool "json:\"total,omitempty\""
 pulse/descriptor: type CohortFieldType struct
 pulse/descriptor: type CohortFieldType field Categorical bool "json:\"categorical\""
 pulse/descriptor: type CohortFieldType field CompatibleAggregators []string "json:\"compatible_aggregators,omitempty\""
@@ -1206,6 +1296,7 @@ pulse/descriptor: type ComponentsSchemasBlock field Groupers map[string]pulse/de
 pulse/descriptor: type ComponentsSchemasBlock field Matrices map[string]pulse/descriptor.ComponentSchema "json:\"matrices,omitempty\""
 pulse/descriptor: type CrosstabCapability struct
 pulse/descriptor: type CrosstabCapability field ArrayValuedAggregators []string "json:\"array_valued_aggregators,omitempty\""
+pulse/descriptor: type CrosstabCapability field CellsRules []string "json:\"cells_rules,omitempty\""
 pulse/descriptor: type CrosstabCapability field IndependentAggregators []string "json:\"independent_aggregators\""
 pulse/descriptor: type CrosstabCapability field MapValuedCellAggregators []string "json:\"map_valued_cell_aggregators\""
 pulse/descriptor: type CrosstabCapability field MarginAggregationRules []string "json:\"margin_aggregation_rules\""
@@ -1219,6 +1310,7 @@ pulse/descriptor: type CrosstabCapability field RejectionRules []string "json:\"
 pulse/descriptor: type CrosstabCapability field Shapes []string "json:\"shapes\""
 pulse/descriptor: type CrosstabCapability field StreamingExceptions []string "json:\"streaming_exceptions\""
 pulse/descriptor: type CrosstabCapability field SummableAggregators []string "json:\"summable_aggregators\""
+pulse/descriptor: type CrosstabCapability field SupportsCells bool "json:\"supports_cells\""
 pulse/descriptor: type CrosstabCapability field SupportsMarginAggregations bool "json:\"supports_margin_aggregations\""
 pulse/descriptor: type CrosstabCapability field SupportsNormalizeLevel bool "json:\"supports_normalize_level\""
 pulse/descriptor: type CrosstabCapability field SupportsNormalizeWithin bool "json:\"supports_normalize_within\""
@@ -2302,12 +2394,15 @@ pulse/errors: const PULSE_ARCHIVE_CORRUPT pulse/errors.Code = "PULSE_ARCHIVE_COR
 pulse/errors: const PULSE_ARCHIVE_MAGIC_INVALID pulse/errors.Code = "PULSE_ARCHIVE_MAGIC_INVALID"
 pulse/errors: const PULSE_ATTR_CODE_NOT_IN_DICTIONARY pulse/errors.Code = "PULSE_ATTR_CODE_NOT_IN_DICTIONARY"
 pulse/errors: const PULSE_ATTR_SCALE_OUT_OF_RANGE pulse/errors.Code = "PULSE_ATTR_SCALE_OUT_OF_RANGE"
+pulse/errors: const PULSE_BANNER_INVALID pulse/errors.Code = "PULSE_BANNER_INVALID"
 pulse/errors: const PULSE_CHAIN_EMPTY pulse/errors.Code = "PULSE_CHAIN_EMPTY"
 pulse/errors: const PULSE_CHAIN_NOT_MERGEABLE pulse/errors.Code = "PULSE_CHAIN_NOT_MERGEABLE"
 pulse/errors: const PULSE_CHAIN_STAGE_JOIN pulse/errors.Code = "PULSE_CHAIN_STAGE_JOIN"
 pulse/errors: const PULSE_COHORT_COMPRESSED pulse/errors.Code = "PULSE_COHORT_COMPRESSED"
 pulse/errors: const PULSE_COMPOSE_LABEL_COLLISION pulse/errors.Code = "PULSE_COMPOSE_LABEL_COLLISION"
 pulse/errors: const PULSE_CROSSTAB_AGG_UNCLASSIFIED pulse/errors.Code = "PULSE_CROSSTAB_AGG_UNCLASSIFIED"
+pulse/errors: const PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL pulse/errors.Code = "PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL"
+pulse/errors: const PULSE_CROSSTAB_CELLS_INVALID pulse/errors.Code = "PULSE_CROSSTAB_CELLS_INVALID"
 pulse/errors: const PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS pulse/errors.Code = "PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS"
 pulse/errors: const PULSE_CROSSTAB_EMPTY_COLUMNS pulse/errors.Code = "PULSE_CROSSTAB_EMPTY_COLUMNS"
 pulse/errors: const PULSE_CROSSTAB_EMPTY_ROWS pulse/errors.Code = "PULSE_CROSSTAB_EMPTY_ROWS"
@@ -2494,6 +2589,13 @@ pulse/errors: const PULSE_OVERLAY_TARGET_UNKNOWN pulse/errors.Code = "PULSE_OVER
 pulse/errors: const PULSE_OVERLAY_YOY_FREQUENCY_MISSING pulse/errors.Code = "PULSE_OVERLAY_YOY_FREQUENCY_MISSING"
 pulse/errors: const PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY pulse/errors.Code = "PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY"
 pulse/errors: const PULSE_PROFILE_FIELD_UNSUPPORTED pulse/errors.Code = "PULSE_PROFILE_FIELD_UNSUPPORTED"
+pulse/errors: const PULSE_RAKE_EMPTY_CELL pulse/errors.Code = "PULSE_RAKE_EMPTY_CELL"
+pulse/errors: const PULSE_RAKE_INVALID pulse/errors.Code = "PULSE_RAKE_INVALID"
+pulse/errors: const PULSE_RAKE_MISSING_VALUE pulse/errors.Code = "PULSE_RAKE_MISSING_VALUE"
+pulse/errors: const PULSE_RAKE_NOT_CONVERGED pulse/errors.Code = "PULSE_RAKE_NOT_CONVERGED"
+pulse/errors: const PULSE_RAKE_SIDECARS_INVALIDATED pulse/errors.Code = "PULSE_RAKE_SIDECARS_INVALIDATED"
+pulse/errors: const PULSE_RAKE_UNKNOWN_CATEGORY pulse/errors.Code = "PULSE_RAKE_UNKNOWN_CATEGORY"
+pulse/errors: const PULSE_RAKE_UNTARGETED_CATEGORY pulse/errors.Code = "PULSE_RAKE_UNTARGETED_CATEGORY"
 pulse/errors: const PULSE_RANGE_DUPLICATE_LABEL pulse/errors.Code = "PULSE_RANGE_DUPLICATE_LABEL"
 pulse/errors: const PULSE_RANGE_EMPTY pulse/errors.Code = "PULSE_RANGE_EMPTY"
 pulse/errors: const PULSE_RANGE_INVALID pulse/errors.Code = "PULSE_RANGE_INVALID"
@@ -2744,6 +2846,8 @@ pulse/io: type CohortSource field Includes []string
 pulse/io: type CohortSource field Labelled bool
 pulse/io: type CohortSource field Path string
 pulse/io: type CohortSource field TimeZone string
+pulse/io: type CohortSource field ValueLabelOrder map[string][]string
+pulse/io: type CohortSource field ValueLabels map[string]map[string]string
 pulse/io: type CohortValidator = pulse/internal/iocore.CohortValidator
 pulse/io: type CohortValidator underlying interface
 pulse/io: type CohortValidator imethod Close() error
@@ -3110,11 +3214,16 @@ pulse/io: const SPSSMissingNull pulse/io.SPSSMissingMode = "null"
 pulse/io: type SPSSReaderOptions struct
 pulse/io: type SPSSReaderOptions field Charset string
 pulse/io: type SPSSReaderOptions field MissingMode pulse/io.SPSSMissingMode
+pulse/io: type SPSSValueLabels struct
+pulse/io: type SPSSValueLabels field Field string
+pulse/io: type SPSSValueLabels field Labels map[string]string
+pulse/io: type SPSSValueLabels field Order []string
 pulse/io: type SPSSWriterOptions struct
 pulse/io: type SPSSWriterOptions field Charset string
 pulse/io: type SPSSWriterOptions field IgnoreSidecar bool
 pulse/io: type SPSSWriterOptions field SanitizeNames bool
 pulse/io: type SPSSWriterOptions field Uncompressed bool
+pulse/io: type SPSSWriterOptions field ValueLabels []pulse/io.SPSSValueLabels
 pulse/io: type SchemaAwareReader = pulse/internal/iocore.SchemaAwareReader
 pulse/io: type SchemaAwareReader underlying interface
 pulse/io: type SchemaAwareReader imethod Close() error
@@ -3481,6 +3590,7 @@ pulse/observe: const OpProcess pulse/observe.OperationKind = "process"
 pulse/observe: const OpProcessChain pulse/observe.OperationKind = "process_chain"
 pulse/observe: const OpProcessStream pulse/observe.OperationKind = "process_stream"
 pulse/observe: const OpProfile pulse/observe.OperationKind = "profile"
+pulse/observe: const OpRake pulse/observe.OperationKind = "rake"
 pulse/observe: const OpSample pulse/observe.OperationKind = "sample"
 pulse/observe: const OpShardAdd pulse/observe.OperationKind = "shard_add"
 pulse/observe: const OpShardCompact pulse/observe.OperationKind = "shard_compact"
@@ -4291,7 +4401,65 @@ pulse/types: type AxisHeader field Fields []string "json:\"fields\""
 pulse/types: type AxisHeader field Types []string "json:\"types\""
 pulse/types: type AxisKey []any
 pulse/types: func AxisTypes(axis []*pulse/types.Group) []string
+pulse/types: type BannerBlock struct
+pulse/types: type BannerBlock field ColumnHeader pulse/types.AxisHeader "json:\"column_header\""
+pulse/types: type BannerBlock field Count int "json:\"count\""
+pulse/types: type BannerBlock field GrandTotal pulse/types.MatrixCell "json:\"grand_total\""
+pulse/types: type BannerBlock field Label string "json:\"label\""
+pulse/types: type BannerBlock field Measures []pulse/types.CrosstabMeasureMargins "json:\"measures,omitempty\""
+pulse/types: type BannerBlock field RowMargins []pulse/types.MatrixCell "json:\"row_margins,omitempty\""
+pulse/types: type BannerBlock field Slot string "json:\"slot\""
+pulse/types: type BannerBlock field Start int "json:\"start\""
+pulse/types: type BannerBlock field Total bool "json:\"total,omitempty\""
+pulse/types: type BannerGroup struct
+pulse/types: type BannerGroup field Columns []*pulse/types.Group "json:\"columns\""
+pulse/types: type BannerGroup field Label string "json:\"label\""
+pulse/types: type BannerLetters struct
+pulse/types: type BannerLetters field Cells [][]pulse/types.MatrixCell "json:\"cells\""
+pulse/types: type BannerLetters field Kind pulse/types.OverlayKind "json:\"kind\""
+pulse/types: type BannerLetters field Name string "json:\"name,omitempty\""
+pulse/types: type BannerLetters field Overlay int "json:\"overlay\""
+pulse/types: type BannerLetters field Scope pulse/types.OverlayScope "json:\"scope\""
+pulse/types: type BannerLetters field Section bool "json:\"section,omitempty\""
+pulse/types: type BannerResult struct
+pulse/types: type BannerResult field Sections []pulse/types.BannerSectionResult "json:\"sections\""
+pulse/types: type BannerSection struct
+pulse/types: type BannerSection field Cell *pulse/types.Aggregation "json:\"cell,omitempty\""
+pulse/types: type BannerSection field Cells []*pulse/types.Aggregation "json:\"cells,omitempty\""
+pulse/types: type BannerSection field Filterers []*pulse/types.Filterer "json:\"filterers,omitempty\""
+pulse/types: type BannerSection field Label string "json:\"label\""
+pulse/types: type BannerSection field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
+pulse/types: type BannerSection field Rows []*pulse/types.Group "json:\"rows,omitempty\""
+pulse/types: type BannerSectionResult struct
+pulse/types: type BannerSectionResult field Blocks []pulse/types.BannerBlock "json:\"blocks\""
+pulse/types: type BannerSectionResult field CellLabel string "json:\"cell_label\""
+pulse/types: type BannerSectionResult field CellLabels []string "json:\"cell_labels,omitempty\""
+pulse/types: type BannerSectionResult field Cells [][]pulse/types.MatrixCell "json:\"cells\""
+pulse/types: type BannerSectionResult field ColumnKeys []pulse/types.AxisKey "json:\"column_keys\""
+pulse/types: type BannerSectionResult field ColumnMargins []pulse/types.MatrixCell "json:\"column_margins,omitempty\""
+pulse/types: type BannerSectionResult field Label string "json:\"label\""
+pulse/types: type BannerSectionResult field Letters []pulse/types.BannerLetters "json:\"letters,omitempty\""
+pulse/types: type BannerSectionResult field NormalizeApplied pulse/types.CrosstabNormalize "json:\"normalize_applied\""
+pulse/types: type BannerSectionResult field RowHeader pulse/types.AxisHeader "json:\"row_header\""
+pulse/types: type BannerSectionResult field RowKeys []pulse/types.AxisKey "json:\"row_keys\""
+pulse/types: func BannerSlotLabel(section string, group string) string
+pulse/types: type BannerSpec struct
+pulse/types: type BannerSpec field Groups []pulse/types.BannerGroup "json:\"groups,omitempty\""
+pulse/types: type BannerSpec field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
+pulse/types: type BannerSpec field Request *pulse/types.Request "json:\"request\""
+pulse/types: type BannerSpec field Sections []pulse/types.BannerSection "json:\"sections\""
+pulse/types: type BannerSpec field Total bool "json:\"total,omitempty\""
+pulse/types: const BannerTotalLabel untyped string = "Total"
 pulse/types: func CanonicalHash(tag string, v any) string
+pulse/types: type CellsFault struct
+pulse/types: type CellsFault field Details map[string]any
+pulse/types: type CellsFault field Kind pulse/types.CellsFaultKind
+pulse/types: type CellsFault field Message string
+pulse/types: const CellsFaultBothSet pulse/types.CellsFaultKind = "both_set"
+pulse/types: const CellsFaultDuplicateLabel pulse/types.CellsFaultKind = "duplicate_label"
+pulse/types: type CellsFaultKind string
+pulse/types: const CellsFaultMissingType pulse/types.CellsFaultKind = "missing_type"
+pulse/types: const CellsFaultNilEntry pulse/types.CellsFaultKind = "nil_entry"
 pulse/types: type ChainOverlaySpec struct
 pulse/types: type ChainOverlaySpec field Kind pulse/types.OverlayKind "json:\"kind\""
 pulse/types: type ChainOverlaySpec field Name string "json:\"name,omitempty\""
@@ -4336,6 +4504,7 @@ pulse/types: type ComposeOverlaySpec field Scope pulse/types.OverlayScope "json:
 pulse/types: type ComposeOverlaySpec field Targets []string "json:\"targets,omitempty\""
 pulse/types: type ComposeOverlaySpec field Within int "json:\"within,omitempty\""
 pulse/types: type ComposedRequest struct
+pulse/types: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,omitempty\""
 pulse/types: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse/types: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
@@ -4344,6 +4513,7 @@ pulse/types: type ComposedRequest field Return *pulse/types.Return "json:\"retur
 pulse/types: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omitempty\""
 pulse/types: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse/types: type ComposedResponse struct
+pulse/types: type ComposedResponse field Banner *pulse/types.BannerResult "json:\"banner,omitempty\""
 pulse/types: type ComposedResponse field Fits map[string]*pulse/types.FitResult "json:\"fits,omitempty\""
 pulse/types: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
 pulse/types: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
@@ -4378,6 +4548,7 @@ pulse/types: type CrosstabComponents field GrandTotalAggregations map[string]pul
 pulse/types: type CrosstabComponents field GrandTotalComponents map[string]any "json:\"grand_total_components,omitempty\""
 pulse/types: type CrosstabComponents field GrandTotalCount int "json:\"grand_total_count,omitempty\""
 pulse/types: type CrosstabComponents field IncludedRecords int "json:\"included_records,omitempty\""
+pulse/types: type CrosstabComponents field Measures []pulse/types.CrosstabMeasureComponents "json:\"measures,omitempty\""
 pulse/types: type CrosstabComponents field RowKeyComponents []map[string]any "json:\"row_key_components,omitempty\""
 pulse/types: type CrosstabComponents field RowMarginAggregations []map[string]pulse/types.MarginAggregationFigure "json:\"row_margin_aggregations,omitempty\""
 pulse/types: type CrosstabComponents field RowMarginComponents []map[string]any "json:\"row_margin_components,omitempty\""
@@ -4387,6 +4558,20 @@ pulse/types: type CrosstabMargins struct
 pulse/types: type CrosstabMargins field Columns bool "json:\"columns,omitempty\""
 pulse/types: type CrosstabMargins field Grand bool "json:\"grand,omitempty\""
 pulse/types: type CrosstabMargins field Rows bool "json:\"rows,omitempty\""
+pulse/types: type CrosstabMeasureComponents struct
+pulse/types: type CrosstabMeasureComponents field ColumnMarginAggregations []map[string]pulse/types.MarginAggregationFigure "json:\"column_margin_aggregations,omitempty\""
+pulse/types: type CrosstabMeasureComponents field ColumnMarginComponents []map[string]any "json:\"column_margin_components,omitempty\""
+pulse/types: type CrosstabMeasureComponents field ColumnMarginCounts []int "json:\"column_margin_counts,omitempty\""
+pulse/types: type CrosstabMeasureComponents field GrandTotalAggregations map[string]pulse/types.MarginAggregationFigure "json:\"grand_total_aggregations,omitempty\""
+pulse/types: type CrosstabMeasureComponents field GrandTotalComponents map[string]any "json:\"grand_total_components,omitempty\""
+pulse/types: type CrosstabMeasureComponents field GrandTotalCount int "json:\"grand_total_count,omitempty\""
+pulse/types: type CrosstabMeasureComponents field Label string "json:\"label\""
+pulse/types: const CrosstabMeasureField untyped string = "_measure"
+pulse/types: type CrosstabMeasureMargins struct
+pulse/types: type CrosstabMeasureMargins field ColumnMargins []pulse/types.MatrixCell "json:\"column_margins,omitempty\""
+pulse/types: type CrosstabMeasureMargins field GrandTotal pulse/types.MatrixCell "json:\"grand_total\""
+pulse/types: type CrosstabMeasureMargins field Label string "json:\"label\""
+pulse/types: const CrosstabMeasureType untyped string = "MEASURE"
 pulse/types: type CrosstabNormalize string
 pulse/types: const CrosstabNormalizeColumn pulse/types.CrosstabNormalize = "column"
 pulse/types: const CrosstabNormalizeNone pulse/types.CrosstabNormalize = "none"
@@ -4400,8 +4585,9 @@ pulse/types: type CrosstabShape string
 pulse/types: const CrosstabShapeLong pulse/types.CrosstabShape = "long"
 pulse/types: const CrosstabShapeMatrix pulse/types.CrosstabShape = "matrix"
 pulse/types: type CrosstabSpec struct
-pulse/types: type CrosstabSpec field Cell *pulse/types.Aggregation "json:\"cell\""
-pulse/types: type CrosstabSpec field Columns []*pulse/types.Group "json:\"columns\""
+pulse/types: type CrosstabSpec field Cell *pulse/types.Aggregation "json:\"cell,omitempty\""
+pulse/types: type CrosstabSpec field Cells []*pulse/types.Aggregation "json:\"cells,omitempty\""
+pulse/types: type CrosstabSpec field Columns []*pulse/types.Group "json:\"columns,omitempty\""
 pulse/types: type CrosstabSpec field MarginAggregations []*pulse/types.Aggregation "json:\"margin_aggregations,omitempty\""
 pulse/types: type CrosstabSpec field Margins pulse/types.CrosstabMargins "json:\"margins,omitzero\""
 pulse/types: type CrosstabSpec field Normalize pulse/types.CrosstabNormalize "json:\"normalize,omitempty\""
@@ -4409,8 +4595,14 @@ pulse/types: type CrosstabSpec field NormalizeLevel *int "json:\"normalize_level
 pulse/types: type CrosstabSpec field NormalizeWithin *int "json:\"normalize_within,omitempty\""
 pulse/types: type CrosstabSpec field Rows []*pulse/types.Group "json:\"rows\""
 pulse/types: type CrosstabSpec field Shape pulse/types.CrosstabShape "json:\"shape,omitempty\""
+pulse/types: type CrosstabSpec method (*CrosstabSpec) CellAggregations() []*pulse/types.Aggregation
 pulse/types: type CrosstabSpec method (*CrosstabSpec) CellLabel() string
+pulse/types: type CrosstabSpec method (*CrosstabSpec) CellSlotPath(i int) string
+pulse/types: type CrosstabSpec method (*CrosstabSpec) CellsFaults() []pulse/types.CellsFault
+pulse/types: type CrosstabSpec method (*CrosstabSpec) ColumnHeader() pulse/types.AxisHeader
+pulse/types: type CrosstabSpec method (*CrosstabSpec) HasImplicitTotalColumn() bool
 pulse/types: type CrosstabSpec method (*CrosstabSpec) HasMarginAggregations() bool
+pulse/types: type CrosstabSpec method (*CrosstabSpec) HasMeasures() bool
 pulse/types: type CrosstabSpec method (*CrosstabSpec) IsBuffered() bool
 pulse/types: type CrosstabSpec method (*CrosstabSpec) LowerColumnsOnly(src *pulse/types.Request) *pulse/types.Request
 pulse/types: type CrosstabSpec method (*CrosstabSpec) LowerGrandOnly(src *pulse/types.Request) *pulse/types.Request
@@ -4419,12 +4611,18 @@ pulse/types: type CrosstabSpec method (*CrosstabSpec) LowerToGroupedRequest(src 
 pulse/types: type CrosstabSpec method (*CrosstabSpec) MarginAggregationFaults() []pulse/types.MarginAggregationFault
 pulse/types: type CrosstabSpec method (*CrosstabSpec) MarginAggregationLabels() []string
 pulse/types: type CrosstabSpec method (*CrosstabSpec) MarginAggregationsObserved() bool
+pulse/types: type CrosstabSpec method (*CrosstabSpec) MeasureLabels() []string
+pulse/types: type CrosstabSpec method (*CrosstabSpec) MeasureRowHeader() pulse/types.AxisHeader
+pulse/types: type CrosstabSpec method (*CrosstabSpec) MeasureSpec(i int) *pulse/types.CrosstabSpec
 pulse/types: type CrosstabSpec method (*CrosstabSpec) NeedsColumnMargin() bool
 pulse/types: type CrosstabSpec method (*CrosstabSpec) NeedsGrandMargin() bool
 pulse/types: type CrosstabSpec method (*CrosstabSpec) NeedsRowMargin() bool
 pulse/types: type CrosstabSpec method (*CrosstabSpec) NormalizeLevelOrLeaf(axisLen int) int
 pulse/types: type CrosstabSpec method (*CrosstabSpec) NormalizeOrDefault() pulse/types.CrosstabNormalize
 pulse/types: type CrosstabSpec method (*CrosstabSpec) ShapeOrDefault() pulse/types.CrosstabShape
+pulse/types: const CrosstabTotalColumnField untyped string = "_total"
+pulse/types: const CrosstabTotalColumnKey untyped string = "Total"
+pulse/types: const CrosstabTotalColumnType untyped string = "TOTAL"
 pulse/types: func DecodePairwiseParams(raw encoding/json.RawMessage) (pulse/types.PairwiseOverlayParams, error)
 pulse/types: func DecodePanelParams(raw encoding/json.RawMessage) (pulse/types.PanelOverlayParams, error)
 pulse/types: func DecodePanelParamsMap(params map[string]any) (pulse/types.PanelOverlayParams, error)
@@ -4717,11 +4915,13 @@ pulse/types: type MatrixPair field R float64 "json:\"r\""
 pulse/types: type MatrixPair field Row string "json:\"row\""
 pulse/types: type MatrixPayload struct
 pulse/types: type MatrixPayload field CellLabel string "json:\"cell_label\""
+pulse/types: type MatrixPayload field CellLabels []string "json:\"cell_labels,omitempty\""
 pulse/types: type MatrixPayload field Cells [][]pulse/types.MatrixCell "json:\"cells\""
 pulse/types: type MatrixPayload field ColumnHeader pulse/types.AxisHeader "json:\"column_header\""
 pulse/types: type MatrixPayload field ColumnKeys []pulse/types.AxisKey "json:\"column_keys\""
 pulse/types: type MatrixPayload field ColumnMargins []pulse/types.MatrixCell "json:\"column_margins,omitempty\""
 pulse/types: type MatrixPayload field GrandTotal pulse/types.MatrixCell "json:\"grand_total\""
+pulse/types: type MatrixPayload field Measures []pulse/types.CrosstabMeasureMargins "json:\"measures,omitempty\""
 pulse/types: type MatrixPayload field NormalizeApplied pulse/types.CrosstabNormalize "json:\"normalize_applied\""
 pulse/types: type MatrixPayload field RowHeader pulse/types.AxisHeader "json:\"row_header\""
 pulse/types: type MatrixPayload field RowKeys []pulse/types.AxisKey "json:\"row_keys\""
@@ -4835,6 +5035,7 @@ pulse/types: const OverlayKindPairwiseWelchT pulse/types.OverlayKind = "OVERLAY_
 pulse/types: const OverlayKindPanelIndexVsRef pulse/types.OverlayKind = "OVERLAY_PANEL_INDEX_VS_REF"
 pulse/types: const OverlayKindPropZCell pulse/types.OverlayKind = "OVERLAY_PROP_Z_CELL"
 pulse/types: const OverlayKindPropZPanel pulse/types.OverlayKind = "OVERLAY_PROP_Z_PANEL"
+pulse/types: const OverlayKindPropZVsPrior pulse/types.OverlayKind = "OVERLAY_PROP_Z_VS_PRIOR"
 pulse/types: const OverlayKindRake pulse/types.OverlayKind = "OVERLAY_RAKE"
 pulse/types: const OverlayKindRank pulse/types.OverlayKind = "OVERLAY_RANK"
 pulse/types: const OverlayKindRetention pulse/types.OverlayKind = "OVERLAY_RETENTION"
@@ -4844,6 +5045,7 @@ pulse/types: const OverlayKindShareOfTotal pulse/types.OverlayKind = "OVERLAY_SH
 pulse/types: const OverlayKindStdResidual pulse/types.OverlayKind = "OVERLAY_STD_RESIDUAL"
 pulse/types: const OverlayKindSymmetry pulse/types.OverlayKind = "OVERLAY_SYMMETRY"
 pulse/types: const OverlayKindTCell pulse/types.OverlayKind = "OVERLAY_T_CELL"
+pulse/types: const OverlayKindTVsPrior pulse/types.OverlayKind = "OVERLAY_T_VS_PRIOR"
 pulse/types: const OverlayKindTVsRef pulse/types.OverlayKind = "OVERLAY_T_VS_REF"
 pulse/types: const OverlayKindYoY pulse/types.OverlayKind = "OVERLAY_YOY"
 pulse/types: const OverlayKindZCell pulse/types.OverlayKind = "OVERLAY_Z_CELL"
@@ -4851,6 +5053,7 @@ pulse/types: const OverlayKindZScoreVsMargin pulse/types.OverlayKind = "OVERLAY_
 pulse/types: const OverlayKindZScoreVsPop pulse/types.OverlayKind = "OVERLAY_ZSCORE_VS_POP"
 pulse/types: const OverlayKindZScoreVsRolling pulse/types.OverlayKind = "OVERLAY_ZSCORE_VS_ROLLING"
 pulse/types: const OverlayKindZScoreVsTotal pulse/types.OverlayKind = "OVERLAY_ZSCORE_VS_TOTAL"
+pulse/types: const OverlayKindZVsPrior pulse/types.OverlayKind = "OVERLAY_Z_VS_PRIOR"
 pulse/types: const OverlayKindZVsRef pulse/types.OverlayKind = "OVERLAY_Z_VS_REF"
 pulse/types: type OverlayLayer struct
 pulse/types: type OverlayLayer field Kind pulse/types.OverlayKind "json:\"kind\""
@@ -4940,6 +5143,14 @@ pulse/types: type OverlayWarning field Message string "json:\"message\""
 pulse/types: type OverlayYoYRef struct
 pulse/types: func PairwiseKindUsesWeightedMoments(kind pulse/types.OverlayKind) bool
 pulse/types: func PairwiseKindUsesWelford(kind pulse/types.OverlayKind) bool
+pulse/types: type PairwiseLetterCell struct
+pulse/types: type PairwiseLetterCell field Above []string "json:\"above\""
+pulse/types: type PairwiseLetterCell field Group int "json:\"group\""
+pulse/types: type PairwiseLetterCell field Higher []string "json:\"higher\""
+pulse/types: type PairwiseLetterCell field Letter string "json:\"letter\""
+pulse/types: type PairwiseLetters struct
+pulse/types: type PairwiseLetters field Alpha *float64 "json:\"alpha,omitempty\""
+pulse/types: func PairwiseLettersRefusal(kind pulse/types.OverlayKind, params pulse/types.PairwiseOverlayParams) string
 pulse/types: const PairwiseNBasisKish untyped string = "kish"
 pulse/types: const PairwiseNBasisWeights untyped string = "weights"
 pulse/types: const PairwiseNSourceCellNUnweighted untyped string = "cell_n_unweighted"
@@ -4955,6 +5166,7 @@ pulse/types: const PairwiseNSourceRowMarginN untyped string = "row_margin_n"
 pulse/types: func PairwiseNSourceSumsDistinctCells(s string) bool
 pulse/types: func PairwiseNSourceUsesWithinDepth(s string) bool
 pulse/types: type PairwiseOverlayParams struct
+pulse/types: type PairwiseOverlayParams field Letters *pulse/types.PairwiseLetters "json:\"letters,omitempty\""
 pulse/types: type PairwiseOverlayParams field NBasis string "json:\"n_basis,omitempty\""
 pulse/types: type PairwiseOverlayParams field NSource string "json:\"n_source,omitempty\""
 pulse/types: type PairwiseOverlayParams field NWithinDepth int "json:\"n_within_depth,omitempty\""
@@ -5339,4 +5551,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: a21a240d33232347898e27020b95d47c973fb2139bc38f29220cf7b307fad187
+// golden-hash: 6bdffc23286c4237e3c6f89698c63c0483401e52510000b9f0895e41cb4ccadd

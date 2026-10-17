@@ -531,8 +531,6 @@
         }
       },
       "required": [
-        "cell",
-        "columns",
         "rows"
       ],
       "type": "object"
@@ -2746,4 +2744,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 3788d32b60f02a236577986a0828f667db18791f5dbc665d37f6714632d17704
+// golden-hash: 71d3ff6748c9ff647851c16f45e1be46ec23db6e9426d992f953fe1c73b0c7f9

@@ -212,6 +212,8 @@ func TestResultWarningCodes(t *testing.T) {
 		{"envelope", &descriptor.Envelope{Warnings: []*descriptor.EnvelopeEntry{{Code: "E"}}}, []string{"E"}},
 		{"add shard", &AddShardResult{Warnings: []encx.CohesionWarning{{Code: "W"}}}, []string{"W"}},
 		{"dedup", &DedupResult{SidecarWarnings: []*errors.CodedError{coded(errors.SERVICE_RESOURCE)}}, []string{string(errors.SERVICE_RESOURCE)}},
+		{"materialize", &MaterializeResult{Warnings: []*errors.CodedError{coded(errors.PULSE_MATERIALIZE_SIDECARS_INVALIDATED)}}, []string{string(errors.PULSE_MATERIALIZE_SIDECARS_INVALIDATED)}},
+		{"rake", &RakeResult{Warnings: []*errors.CodedError{coded(errors.PULSE_RAKE_NOT_CONVERGED)}}, []string{string(errors.PULSE_RAKE_NOT_CONVERGED)}},
 		{"facet", &FacetResult{Warnings: []*types.ResponseWarning{{Code: "F"}, nil}}, []string{"F"}},
 	}
 	for _, tc := range cases {

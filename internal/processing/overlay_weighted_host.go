@@ -250,6 +250,101 @@ func (h *CrosstabHostView) RowMarginFloor(rowIdx int, basis weighting.Basis) (me
 	return floorLeg(h.components.RowMarginComponents[rowIdx], basis)
 }
 
+// ColumnMarginFloor reads column c's margin floor under basis
+// (floorLeg) — present only when the column margin is displayed and
+// components are on.
+func (h *CrosstabHostView) ColumnMarginFloor(colIdx int, basis weighting.Basis) (meanLeg, bool) {
+	if h == nil || h.components == nil || colIdx < 0 || colIdx >= len(h.components.ColumnMarginComponents) {
+		return meanLeg{}, false
+	}
+	return floorLeg(h.components.ColumnMarginComponents[colIdx], basis)
+}
+
+// GrandMarginFloor reads the grand-total floor under basis (floorLeg) —
+// present only when the grand margin is displayed and components are on.
+func (h *CrosstabHostView) GrandMarginFloor(basis weighting.Basis) (meanLeg, bool) {
+	if h == nil || h.components == nil {
+		return meanLeg{}, false
+	}
+	return floorLeg(h.components.GrandTotalComponents, basis)
+}
+
+// withNormalize records the host crosstab's applied normalize mode and
+// its per-cell normalise-denominator floors (nil: none were collected —
+// an unweighted cell, or normalize none). Returns h.
+func (h *CrosstabHostView) withNormalize(mode types.CrosstabNormalize, bases *crosstabBaseFloors) *CrosstabHostView {
+	if h == nil {
+		return h
+	}
+	h.normalize = mode
+	h.bases = bases
+	return h
+}
+
+// nLegSite names where a weight-only n leg was read, so a layer's
+// Parameters tally counts each distinct base once however many cells
+// share it.
+type nLegSite int
+
+const (
+	nLegCell nLegSite = iota
+	nLegBase
+	nLegRowMargin
+	nLegColumnMargin
+)
+
+// nLegKey identifies one n leg: its site plus the cell (r, c), the
+// base's id, or the margin index.
+type nLegKey struct {
+	site nLegSite
+	a, b int
+}
+
+// BaseFloor reads the weighted floor of the base cell (r, c) was
+// normalised by (U47 #324) — the n leg of a weighted proportion test,
+// whose p̂ is Σw_cell / Σw_base: the column margin under normalize
+// column, the row margin under row, the grand margin under total, and
+// the partial-depth (normalize_level) or cross-axis (normalize_within)
+// denominator when those engage — always the admitted one. Under
+// normalize none the cell is its own base (CellFloor). A normalised host
+// whose base floor is unreadable answers ok=false and the pair SKIPS:
+// it never falls back to the cell's own N*, which is a sliver of the
+// base and would score every pair far too high.
+func (h *CrosstabHostView) BaseFloor(rowIdx, colIdx int, basis weighting.Basis) (meanLeg, nLegKey, bool) {
+	if h == nil {
+		return meanLeg{}, nLegKey{}, false
+	}
+	if h.normalize == "" || h.normalize == types.CrosstabNormalizeNone {
+		l, ok := h.CellFloor(rowIdx, colIdx, basis)
+		return l, nLegKey{site: nLegCell, a: rowIdx, b: colIdx}, ok
+	}
+	m, id, ok := h.bases.at(rowIdx, colIdx)
+	if !ok {
+		return meanLeg{}, nLegKey{}, false
+	}
+	l, ok := floorLeg(m, basis)
+	return l, nLegKey{site: nLegBase, a: id}, ok
+}
+
+// BaseN is the unweighted twin of BaseFloor: the present-row count of
+// the base cell (r, c) was normalised by — its own record count
+// (CellN) under normalize none. ok=false on a normalised host whose
+// base is unreadable; the pair skips, never falling back to the cell.
+func (h *CrosstabHostView) BaseN(rowIdx, colIdx int) (int, bool) {
+	if h == nil {
+		return 0, false
+	}
+	if h.normalize == "" || h.normalize == types.CrosstabNormalizeNone {
+		return h.CellN(rowIdx, colIdx)
+	}
+	m, _, ok := h.bases.at(rowIdx, colIdx)
+	if !ok {
+		return 0, false
+	}
+	n, ok := m["n"].(int)
+	return n, ok
+}
+
 // overlayNSourceWeightedRefusal is the runtime half of the weighted-host
 // n_source rule (weighting.NSourceRefusal): PROCESSING_CONFIG naming the
 // kind and the source, or nil. The predict validator raises the same

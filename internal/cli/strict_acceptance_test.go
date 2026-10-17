@@ -118,6 +118,8 @@ func strictAcceptanceRows(c string) []strictRow {
 		{family: "request.crosstab.cell", body: xt(`"rows":[` + grp + `],"columns":[` + grp + `],"cell":{"type":"AGG_COUNT","feild":"n"}`), path: "crosstab.cell.feild", unknown: "feild"},
 		{family: "request.crosstab.cell.weight", body: xt(`"rows":[` + grp + `],"columns":[` + grp + `],"cell":{"type":"AGG_SUM","field":"n","weight":{"knid":"frequency"}}`), path: "crosstab.cell.weight.knid", unknown: "knid"},
 		{family: "request.crosstab.cell.params", body: xt(`"rows":[` + grp + `],"columns":[` + grp + `],"cell":{"type":"AGG_PERCENTILE","field":"n","params":{"percentil":50}}`), path: "crosstab.cell.params.percentil", unknown: "percentil"},
+		{family: "request.crosstab.cells", body: xt(`"rows":[` + grp + `],"columns":[` + grp + `],"cells":[{"type":"AGG_COUNT","feild":"n"}]`), path: "crosstab.cells[0].feild", unknown: "feild"},
+		{family: "request.crosstab.cells.params", body: xt(`"rows":[` + grp + `],"columns":[` + grp + `],"cells":[{"type":"AGG_COUNT","field":"n","label":"c"},{"type":"AGG_PERCENTILE","field":"n","label":"p","params":{"percentil":50}}]`), path: "crosstab.cells[1].params.percentil", unknown: "percentil"},
 		{family: "request.crosstab.margin_aggregations", body: xt(`"rows":[` + grp + `],"columns":[` + grp + `],` + cell + `,"margin_aggregations":[{"type":"AGG_SUM","feild":"n"}]`), path: "crosstab.margin_aggregations[0].feild", unknown: "feild"},
 		{family: "request.crosstab.margin_aggregations.params", body: xt(`"rows":[` + grp + `],"columns":[` + grp + `],` + cell + `,"margin_aggregations":[{"type":"AGG_PERCENTILE","field":"n","label":"p","params":{"percentil":50}}]`), path: "crosstab.margin_aggregations[0].params.percentil", unknown: "percentil"},
 		{family: "request.crosstab.margins", body: xt(`"rows":[` + grp + `],"columns":[` + grp + `],` + cell + `,"margins":{"rows":true,"grnad":true}`), path: "crosstab.margins.grnad", unknown: "grnad"},
@@ -141,6 +143,14 @@ func strictAcceptanceRows(c string) []strictRow {
 		{family: "composed.sweep.request", body: `{"sweep":{` + sweepAxes + `,"request":` + nested(`"aggregations":[{"type":"AGG_SUM","field":"n","label":"t{{k}}","lable":"x"}]`) + `}}`, path: "aggregations[0].lable", unknown: "lable", locator: "slot"},
 		{family: "composed.fits", body: composed(`"fits":[{"name":"f","request":` + nested(`"regressions":[{"type":"REG_OLS","target":"n","predictors":["n2"]}]`) + `,"svae":"x"}]`), path: "fits[0].svae", unknown: "svae"},
 		{family: "composed.fits.request", body: composed(`"fits":[{"name":"f","request":` + nested(`"regresions":[]`) + `}]`), unknown: "regresions", locator: "fit"},
+		{family: "composed.banner", body: `{"banner":{"request":` + nested(`"crosstab":{"rows":[`+grp+`],`+cell+`}`) + `,"sections":[{"label":"s"}],"totl":true}}`, path: "banner.totl", unknown: "totl"},
+		{family: "composed.banner.request", body: `{"banner":{"request":` + nested(`"crosstab":{"rows":[`+grp+`],`+cell+`},"filterres":[]`) + `,"sections":[{"label":"s"}],"total":true}}`, path: "banner.request.filterres", unknown: "filterres"},
+		{family: "composed.banner.sections", body: `{"banner":{"request":` + nested(`"crosstab":{"rows":[`+grp+`],`+cell+`}`) + `,"sections":[{"label":"s","rwos":[]}],"total":true}}`, path: "banner.sections[0].rwos", unknown: "rwos"},
+		{family: "composed.banner.groups", body: `{"banner":{"request":` + nested(`"crosstab":{"rows":[`+grp+`],`+cell+`}`) + `,"sections":[{"label":"s"}],"groups":[{"label":"g","colums":[]}]}}`, path: "banner.groups[0].colums", unknown: "colums"},
+		{family: "composed.banner.overlays", body: `{"banner":{"request":` + nested(`"crosstab":{"rows":[`+grp+`],`+cell+`}`) + `,"sections":[{"label":"s"}],"groups":[{"label":"g","columns":[` + grp + `]}],"overlays":[{"kind":"OVERLAY_PAIRWISE_PROP_Z","scoep":"column"}]}}`, path: "banner.overlays[0].scoep", unknown: "scoep"},
+		{family: "composed.banner.sections", body: `{"banner":{"request":` + nested(`"crosstab":{"rows":[`+grp+`],`+cell+`}`) + `,"sections":[{"label":"s","overlays":[{"kind":"OVERLAY_PAIRWISE_PROP_Z","scoep":"column"}]}],"groups":[{"label":"g","columns":[` + grp + `]}]}}`, path: "banner.sections[0].overlays[0].scoep", unknown: "scoep"},
+		{family: "composed.banner.sections", body: `{"banner":{"request":` + nested(`"crosstab":{"rows":[`+grp+`],`+cell+`}`) + `,"sections":[{"label":"s","overlays":[{"kind":"OVERLAY_PAIRWISE_PROP_Z","scope":"column","params":{"n_sourse":"x"}}]}],"groups":[{"label":"g","columns":[` + grp + `]}]}}`, path: "overlays[0].params.n_sourse", unknown: "n_sourse", locator: "request"},
+		{family: "composed.banner.overlays.params", body: `{"banner":{"request":` + nested(`"crosstab":{"rows":[`+grp+`],`+cell+`}`) + `,"sections":[{"label":"s"}],"groups":[{"label":"g","columns":[` + grp + `]}],"overlays":[{"kind":"OVERLAY_PAIRWISE_PROP_Z","scope":"column","params":{"n_sourse":"x"}}]}}`, path: "overlays[0].params.n_sourse", unknown: "n_sourse", locator: "request"},
 
 		// --- Chain root ---
 		{family: "chain", body: `{"cohort":` + c + `,"stagse":[]}`, unknown: "stagse"},
@@ -209,6 +219,13 @@ func strictAcceptanceRequiredFamilies() []string {
 			}
 			out = append(out, name)
 			if isSingle(f.Type) {
+				// A single nested request (the banner's base request) is
+				// one family, like a fit's or a stage's: the same strict
+				// decoder judges it, and its own families are the
+				// request root's.
+				if f.name == "request" && et == reflect.TypeFor[types.Request]() {
+					continue
+				}
 				walk(name, et)
 				continue
 			}

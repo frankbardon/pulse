@@ -26,6 +26,7 @@ var inferentialOverlayKinds = []types.OverlayKind{
 	types.OverlayKindPropZCell, types.OverlayKindPropZPanel, types.OverlayKindStdResidual, types.OverlayKindSymmetry,
 	types.OverlayKindTCell, types.OverlayKindTVsRef,
 	types.OverlayKindZCell, types.OverlayKindZVsRef,
+	types.OverlayKindTVsPrior, types.OverlayKindZVsPrior, types.OverlayKindPropZVsPrior,
 }
 
 // expectedInterpretationFields is the coverage report's expectation for

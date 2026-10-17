@@ -125,6 +125,12 @@ type SeriesHostView struct {
 	// consult grouper kind keep working against the legacy
 	// constructor.
 	grouperKinds []types.GroupType
+
+	// legs is the prior-period kinds' leg source (overlay_vs_prior.go):
+	// the scored aggregation's components for host ordinal i, nil when
+	// the host carries none. Attached by withPriorLegs only for a spec
+	// of those kinds, so no other host pays for it.
+	legs *seriesLegSource
 }
 
 // NewSeriesHostView wraps an ordered list of group keys plus a value
@@ -401,6 +407,11 @@ var seriesOverlayHandlers = map[types.OverlayKind]seriesOverlayHandler{
 	// (applyOverlaysSeriesPerSpec) swaps in the registry-aware
 	// applyFormulaSeriesWith after the shared identifier gate.
 	types.OverlayKindFormula: applyFormulaSeries,
+
+	// The inferential prior-period kinds (overlay_vs_prior.go).
+	types.OverlayKindTVsPrior:     priorTestSeriesHandler(types.OverlayKindTVsPrior),
+	types.OverlayKindZVsPrior:     priorTestSeriesHandler(types.OverlayKindZVsPrior),
+	types.OverlayKindPropZVsPrior: priorTestSeriesHandler(types.OverlayKindPropZVsPrior),
 }
 
 // computeSeriesGrandTotal folds a running grand-total accumulator over
@@ -556,6 +567,11 @@ func applyOverlaysSeriesPerSpec(specs []types.OverlaySpec, hostFor func(int, *ty
 				// spec index, as predict's bound does
 				// (formulaident.BaselineOutOfRange).
 				err = codeAt(err, errors.PULSE_OVERLAY_REF_UNKNOWN, i)
+			}
+			if overlayhost.PriorTestKind(route) {
+				// The prior-period handler has no spec index: stamp the
+				// one predict reports.
+				err = codeAt(codeAt(err, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, i), errors.PULSE_OVERLAY_COMPONENTS_REQUIRED, i)
 			}
 			return nil, nil, err
 		}

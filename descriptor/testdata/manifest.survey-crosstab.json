@@ -376,7 +376,6 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar — except the two-sample t / z vs-ref overlays, which read the triple from the slot's per-group components (components disabled on that slot: PULSE_OVERLAY_COMPONENTS_REQUIRED reason components_disabled)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -768,7 +767,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 176,
+    "error_codes_count": 183,
     "error_domains": [
       "CLI",
       "DATA",
@@ -887,6 +886,13 @@
       "PULSE_OVERLAY_REF_ZERO",
       "PULSE_OVERLAY_SCOPE_UNSUPPORTED",
       "PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT",
+      "PULSE_RAKE_EMPTY_CELL",
+      "PULSE_RAKE_INVALID",
+      "PULSE_RAKE_MISSING_VALUE",
+      "PULSE_RAKE_NOT_CONVERGED",
+      "PULSE_RAKE_SIDECARS_INVALIDATED",
+      "PULSE_RAKE_UNKNOWN_CATEGORY",
+      "PULSE_RAKE_UNTARGETED_CATEGORY",
       "PULSE_RECOMMEND_INTENT_UNKNOWN",
       "PULSE_REQUEST_UNKNOWN_FIELD",
       "PULSE_RETURN_INVALID",
@@ -1683,7 +1689,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 28,
+    "examples_count": 29,
     "example_categories": [
       "aggregations",
       "crosstab",
@@ -1778,8 +1784,7 @@
       ],
       "rejection_rules": [
         "crosstab requires at least one grouper in rows (PULSE_CROSSTAB_EMPTY_ROWS)",
-        "crosstab requires at least one grouper in columns (PULSE_CROSSTAB_EMPTY_COLUMNS)",
-        "crosstab requires a cell aggregation (PULSE_CROSSTAB_MISSING_CELL)",
+        "crosstab requires a cell aggregation — cell, or several measures in cells (PULSE_CROSSTAB_MISSING_CELL)",
         "crosstab cannot coexist with top-level groups or aggregations (PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS)",
         "matrix shape, any margin, or any normalization forces the buffered path"
       ],
@@ -1801,6 +1806,7 @@
         "margin_aggregations effective labels (label, else TYPE_field) must be unique across the slot and distinct from the cell's (PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL)",
         "auxiliary figures are emitted only where the margin is DISPLAYED (margins.rows / margins.columns / margins.grand), matching the emission rule the cell aggregator's own margin counts and components follow; declaring margin_aggregations on a section that displays no margin computes them into nowhere — advisory warning, not a refusal (PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED) — and a normalize direction does not satisfy it, because the margin it requires is a denominator and an auxiliary is never a denominator"
       ],
+      "supports_cells": false,
       "map_valued_cell_aggregators": [
         "AGG_WELFORD"
       ]
@@ -1838,11 +1844,18 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A cell whose declared ComponentSchema lacks mean + variance fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, at predict and at runtime. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code. MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED, at predict and at runtime. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential).",
+        "description": "Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A cell whose declared ComponentSchema lacks mean + variance fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, at predict and at runtime. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code. MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED, at predict and at runtime. RAW p-values; params.letters adds a letters part (per host cell: its letter, comparison group, and the letters it is higher than and significantly above). Buffered (inferential).",
         "intents": [
           "compare_groups"
         ],
         "inferential": true,
+        "parts": [
+          {
+            "name": "letters",
+            "shape": "matrix",
+            "when": "params.letters"
+          }
+        ],
         "params": [
           {
             "name": "pair_along_dim",
@@ -1856,6 +1869,12 @@
             "required": false,
             "default": 0,
             "description": "With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; inert otherwise."
+          },
+          {
+            "name": "letters",
+            "type": "object",
+            "required": false,
+            "description": ""
           }
         ]
       },
@@ -2324,4 +2343,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b35b9141988eb4906ad5749a757c23f29ad443a96f6e14cfcf1fb8ed8c4ecf92
+// golden-hash: 366d4f5a2b7a41061c73bc8351395b3e1ef3fa5b430ce4b5089cab9b4fd7ed39

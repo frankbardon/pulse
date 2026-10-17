@@ -11,6 +11,7 @@ package weighting
 import (
 	"math"
 
+	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -284,6 +285,29 @@ func DistanceClassOf(between types.GroupType) Class {
 	}
 	return ClassOf(string(types.MAT_DISTANCE))
 }
+
+// AttributeClassOf is an attribute spec's weight class: its type's
+// (attributeClasses) unless it is an ATTR_FORMULA whose expression
+// calls total(expr), which is ClassFrequencyOnly (survey-tables E1-S3,
+// #398): the cohort total folds Σw·expr — the expanded-row total under
+// a frequency weight — and a probability weight, whose scale is
+// arbitrary, would make the total (and every share read off it) move
+// with the weight scale, so it is refused rather than given that
+// figure. A row-local formula stays ClassNone (the weight is skipped).
+func AttributeClassOf(a *types.Attribute) Class {
+	if a == nil {
+		return ClassNone
+	}
+	if a.Type == types.ATTR_FORMULA && totalcall.Contains(a.Expression) {
+		return ClassFrequencyOnly
+	}
+	return ClassOf(string(a.Type))
+}
+
+// FormulaTotalKindReason is why a total-bearing ATTR_FORMULA refuses a
+// probability weight (AttributeClassOf); it rides the
+// PULSE_WEIGHT_UNSUPPORTED refusal's message and details.reason.
+const FormulaTotalKindReason = "total(expr) under a probability weight would scale with the arbitrary weight scale, so every share or ratio read off it would move with it"
 
 // MatrixClassOf is a matrix spec's weight class: its type's
 // (matrixClasses) unless rankMethod — a MAT_CORRELATION params.method

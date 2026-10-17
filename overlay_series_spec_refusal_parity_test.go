@@ -57,8 +57,8 @@ func seriesSpecCases(t *testing.T) []specRefusalCase {
 	t.Helper()
 	kinds := overlayhost.SeriesSpecKinds()
 	sort.Slice(kinds, func(i, j int) bool { return kinds[i] < kinds[j] })
-	if len(kinds) != 13 {
-		t.Fatalf("SERIES rule table lists %d kinds, want the 13 SERIES-host kinds (OVERLAY_FORMULA included)", len(kinds))
+	if len(kinds) != 16 {
+		t.Fatalf("SERIES rule table lists %d kinds, want the 16 SERIES-host kinds (OVERLAY_FORMULA included)", len(kinds))
 	}
 	ref := errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
 	var out []specRefusalCase
@@ -80,7 +80,7 @@ func seriesSpecCases(t *testing.T) []specRefusalCase {
 			missing := good
 			missing.Ref = types.OverlayRef{}
 			out = append(out, specRefusalCase{name + "ref_missing", missing, ref})
-		case kind == types.OverlayKindIndexVsPrior || kind == types.OverlayKindDeltaVsPrior:
+		case kind == types.OverlayKindIndexVsPrior || kind == types.OverlayKindDeltaVsPrior || overlayhost.PriorTestKind(kind):
 			lag := good
 			lag.Ref.Prior = &types.OverlayPriorRef{Lag: 1}
 			out = append(out, specRefusalCase{name + "ref_lag", lag, ref})
@@ -102,10 +102,21 @@ func seriesSpecHost(cohort string, spec types.OverlaySpec) *types.Request {
 	if spec.Kind == types.OverlayKindYoY {
 		g = &types.Group{Type: types.GROUP_DATE, Field: "day", Params: json.RawMessage(`{"frequency":"monthly"}`)}
 	}
+	aggs := []*types.Aggregation{{Type: types.AGG_SUM, Field: "score", Label: "s"}}
+	if overlayhost.PriorTestKind(spec.Kind) {
+		// A prior-period test scores a measure of its own family (U47
+		// #328): the Welford triple, or a proportion.
+		measure := types.AGG_WELFORD
+		if !overlayhost.PriorTestUsesWelford(spec.Kind) {
+			measure = types.AGG_AVERAGE
+		}
+		aggs = append(aggs, &types.Aggregation{Type: measure, Field: "score", Label: "m"})
+		spec.Params = json.RawMessage(`{"field":"m"}`)
+	}
 	return &types.Request{
 		Cohort:       &types.Cohort{Filename: cohort},
 		Groups:       []*types.Group{g},
-		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score", Label: "s"}},
+		Aggregations: aggs,
 		Overlays:     []types.OverlaySpec{{Name: "t", Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeGroup}, spec},
 	}
 }

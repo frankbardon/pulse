@@ -41,7 +41,7 @@ Floor `{total_n, n_null}` plus:
 
 - `sum(buckets[].count) > total_n` is CORRECT.
 - Empty-mask rows skipped; do NOT increment `n_null`. Null rows do.
-- Crosstab margins are non-additive: a 3-label row counts 3× across row margins, once in the grand total. Both paths agree.
+- Crosstab: a null or empty set reaches no cell, so no margin (column % = "% of those asked"). Margins are non-additive: 3 labels count 3× across row margins, once in the grand total.
 
 ## See
 

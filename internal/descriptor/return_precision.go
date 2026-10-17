@@ -64,8 +64,8 @@ func returnExactPaths(req *types.Request) []returnplan.Path {
 		}
 	}
 	if ct := req.Crosstab; ct != nil {
-		if ct.Cell != nil && countSemanticAggregations[ct.Cell.Type] &&
-			(ct.Normalize == "" || ct.Normalize == types.CrosstabNormalizeNone) {
+		raw := ct.Normalize == "" || ct.Normalize == types.CrosstabNormalizeNone
+		if ct.Cell != nil && !ct.HasMeasures() && countSemanticAggregations[ct.Cell.Type] && raw {
 			out = append(out,
 				returnKeyPath("data", "[*]", types.AggregationLabelOf(ct.Cell)),
 				returnKeyPath("crosstab", "matrix", "cells", "[*]", "[*]", "value"),
@@ -73,6 +73,28 @@ func returnExactPaths(req *types.Request) []returnplan.Path {
 				returnKeyPath("crosstab", "matrix", "column_margins", "[*]", "value"),
 				returnKeyPath("crosstab", "matrix", "grand_total", "value"),
 			)
+		}
+		// A multi-measure crosstab: each count measure's long-form column
+		// is its own label; the folded matrix mixes measures row by row,
+		// so its cells and margins stay exact only when EVERY measure
+		// counts.
+		if ct.HasMeasures() && raw {
+			allCount := true
+			for _, c := range ct.Cells {
+				if c == nil || !countSemanticAggregations[c.Type] {
+					allCount = false
+					continue
+				}
+				out = append(out, returnKeyPath("data", "[*]", types.AggregationLabelOf(c)))
+			}
+			if allCount {
+				out = append(out,
+					returnKeyPath("crosstab", "matrix", "cells", "[*]", "[*]", "value"),
+					returnKeyPath("crosstab", "matrix", "row_margins", "[*]", "value"),
+					returnKeyPath("crosstab", "matrix", "measures", "[*]", "column_margins", "[*]", "value"),
+					returnKeyPath("crosstab", "matrix", "measures", "[*]", "grand_total", "value"),
+				)
+			}
 		}
 		for _, m := range ct.MarginAggregations {
 			if m == nil || !countSemanticAggregations[m.Type] {
@@ -84,6 +106,12 @@ func returnExactPaths(req *types.Request) []returnplan.Path {
 				returnKeyPath("components", "crosstab", "column_margin_aggregations", "[*]", label, "value"),
 				returnKeyPath("components", "crosstab", "grand_total_aggregations", label, "value"),
 			)
+			if ct.HasMeasures() {
+				out = append(out,
+					returnKeyPath("components", "crosstab", "measures", "[*]", "column_margin_aggregations", "[*]", label, "value"),
+					returnKeyPath("components", "crosstab", "measures", "[*]", "grand_total_aggregations", label, "value"),
+				)
+			}
 		}
 	}
 	return out

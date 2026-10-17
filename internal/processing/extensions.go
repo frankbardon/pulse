@@ -262,6 +262,9 @@ type LookupTable struct {
 type LabelTable struct {
 	Rows   map[string]string
 	Lookup func(key string) (string, bool, error)
+	// Order is the table's entry order (pulse.LabelTable.Order); nil
+	// when the table states none.
+	Order []string
 }
 
 // RangeTable is the runtime-side mirror of pulse.RangeTable. It holds

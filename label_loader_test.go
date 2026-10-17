@@ -51,6 +51,36 @@ func TestLoadLabelTables_Wrapped(t *testing.T) {
 	}
 }
 
+// TestLoadLabelTables_KeepTheFileKeyOrder: both file shapes record their
+// rows' key order as LabelTable.Order — the code order of a `.sav` export
+// bound to the table — and a repeated key keeps its first position.
+func TestLoadLabelTables_KeepTheFileKeyOrder(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"flat.json":    `{"NE": "Northeast", "MW": "Midwest", "SO": "South", "WE": "West"}`,
+		"wrapped.json": `{"description": "census regions", "rows": {"WE": "West", "NE": "Northeast", "SO": "South"}}`,
+		"repeat.json":  `{"b": "B", "a": "A", "b": "B2"}`,
+	}
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	opts := Options{LabelTablesDir: dir}
+	if err := loadLabelTablesFromDir(&opts); err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string][]string{
+		"flat":    {"NE", "MW", "SO", "WE"},
+		"wrapped": {"WE", "NE", "SO"},
+		"repeat":  {"b", "a"},
+	} {
+		if got := opts.Extensions.LabelTables[name].Order; !reflect.DeepEqual(got, want) {
+			t.Errorf("%s Order = %q, want %q", name, got, want)
+		}
+	}
+}
+
 func TestLoadLabelTables_EnvVar(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "x.json"),

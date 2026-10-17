@@ -945,6 +945,36 @@ func validateLabelTables(tables map[string]LabelTable) error {
 				map[string]any{"category": "label_table", "name": name, "has_rows": hasRows, "has_lookup": hasFn},
 			)
 		}
+		if err := validateLabelTableOrder(name, t); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateLabelTableOrder checks LabelTable.Order: every entry once, and
+// on a Rows table every entry one of its keys — an order naming a key the
+// table cannot label is a typo, not an ordering.
+func validateLabelTableOrder(name string, t LabelTable) error {
+	seen := make(map[string]bool, len(t.Order))
+	for i, e := range t.Order {
+		reason := ""
+		switch {
+		case seen[e]:
+			reason = "repeats an entry"
+		case t.Rows != nil:
+			if _, ok := t.Rows[e]; !ok {
+				reason = "names a key Rows does not hold"
+			}
+		}
+		if reason != "" {
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("label table %q: Order[%d] %q %s", name, i, e, reason),
+				map[string]any{"category": "label_table", "name": name, "order_index": i, "entry": e},
+			)
+		}
+		seen[e] = true
 	}
 	return nil
 }

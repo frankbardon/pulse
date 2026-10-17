@@ -11,10 +11,13 @@ import (
 // crosstab_buffered_margin_agg_test.go pins the answers to but does not
 // itself defend:
 //
-//  1. the CONTRAST — every record the auxiliary rule excludes is still
-//     present in the cell aggregator's own margin counts, read off
-//     Response.Components.Crosstab on BOTH paths, so "the auxiliary
-//     narrows the base" is a measured difference rather than a claim;
+//  1. the CONTRAST — the cell aggregator's own margins share the
+//     auxiliary's AXIS admission (U47 #325: a record reaches any margin
+//     only if it reached a cell) but not its cell-field probe, so the
+//     null-cell-field record is still present in the cell's own margin
+//     (as n_null), read off Response.Components.Crosstab on BOTH paths,
+//     while the axis-excluded records are absent from both — a measured
+//     difference rather than a claim;
 //  2. the NON-VACUITY CONTROL — the fixture genuinely DISCRIMINATES
 //     between cell-admission and the wrong rules, so the shipped
 //     assertions cannot go quietly vacuous if the fixture is edited.
@@ -38,7 +41,8 @@ import (
 //     key null, so no column resolves).
 //
 // If either half is dropped — if an auxiliary is admitted on the slot's
-// OWN axis alone, the way the cell aggregator's own margins are —
+// OWN axis alone, the way the cell aggregator's own margins were before
+// U47 —
 // NOTHING THROWS, NOTHING WARNS, AND EVERY NUMBER STILL RENDERS. The
 // reported base merely becomes cohort-wide and metric-agnostic. No
 // downstream test can see that: the metric fields this slot was built
@@ -56,13 +60,13 @@ import (
 // shared fixture; each names the test that caught it.
 //
 //	1. buffered admitRecords: drop the cell-field null test
-//	   → ...StayInTheCellsOwnMargins/buffered_auxiliary (base 2→3)
+//	   → ...NullCellFieldStaysInTheCellsOwnMargins/buffered_auxiliary (base 2→3)
 //	2. buffered admitRecords: drop both axis-membership tests
-//	   → ...StayInTheCellsOwnMargins/buffered_auxiliary (grand base 2→4)
+//	   → ...NullCellFieldStaysInTheCellsOwnMargins/buffered_auxiliary (grand base 2→4)
 //	3. fused updateAuxMargins: drop the !cellValuePresent term
-//	   → ...StayInTheCellsOwnMargins/fused_auxiliary (base 2→3)
+//	   → ...NullCellFieldStaysInTheCellsOwnMargins/fused_auxiliary (base 2→3)
 //	4. fused updateAuxMargins: drop the colIdxBuf-empty term
-//	   → ...StayInTheCellsOwnMargins/fused_auxiliary (row base 2→3)
+//	   → ...NullCellFieldStaysInTheCellsOwnMargins/fused_auxiliary (row base 2→3)
 //	5. fixture: give respondent 3 a metric value
 //	   → ...FixtureDiscriminates... drift guard (cell-admission 2→3)
 //	6. fixture: resolve every axis key (respondent 4 gains a gender,
@@ -74,11 +78,16 @@ import (
 //	     discriminating slots. This is the arm the story's non-vacuity
 //	     criterion is actually about, and mutations 5 and 6 do NOT
 //	     reach it — they stop at the drift guard.
-//	8. RunCrosstab: narrow the CELL's own grand margin to the admitted
-//	   set, conflating the two behaviours
-//	   → ...StayInTheCellsOwnMargins/buffered_cell_margins fires all
-//	     three of its assertions, including the strictly-below contrast
-//	     guard that stops this file going vacuous.
+//	8. RunCrosstab: narrow the CELL's own grand margin by the cell-field
+//	   probe too (admitRecords with the cell aggregation), conflating the
+//	   two behaviours
+//	   → ...NullCellFieldStaysInTheCellsOwnMargins/buffered_cell_margins
+//	     fires, including the strictly-below contrast guard that stops
+//	     this file going vacuous.
+//	9. RunCrosstab / FusedCrosstabState.Update: drop the axis-membership
+//	   gate on the cell's own margins (the pre-U47 rule)
+//	   → ...NullCellFieldStaysInTheCellsOwnMargins/*_cell_margins
+//	     (grand count 3→5).
 
 // auxAdmissionSlots names the three margin slots the fixture
 // discriminates on, together with the figures each surface reports.
@@ -86,19 +95,22 @@ import (
 // The `want` numbers are MEASURED against the shared fixture, not
 // derived: auxBase is what both paths' auxiliary accumulators hold (and
 // what the E2-S2 / E2-S3 tests pin independently), while marginCount and
-// marginN / marginNNull are what the cell aggregator's own margins have
-// always reported and which this effort deliberately did not touch.
+// marginN / marginNNull are what the cell aggregator's own margins
+// report under the cell-admission rule (U47 #325): axis members only,
+// the null cell field still counted as n_null.
 //
-// The contrast is the point. At every slot auxBase is strictly smaller
-// than BOTH the raw routed count and the universal floor's own n, so a
-// rule that quietly widened to either would fail here.
+// The contrast is the point. At every slot auxBase equals the cell
+// margin's n (both exclude the axis-excluded records) and is strictly
+// smaller than its count (the null cell field rides the cell margin's
+// n_null, never the auxiliary), so a rule that quietly widened or
+// narrowed either would fail here.
 type auxAdmissionSlot struct {
 	name string
 	// which semantic decision each excluded record belongs to
 	excluded string
 	// auxiliary distinct_count over `respondent`, admission-scoped
 	auxBase float64
-	// the cell aggregator's own margin, which is NOT admission-scoped
+	// the cell aggregator's own margin: axis-admitted, cell field unprobed
 	marginCount int
 	marginN     int
 	marginNNull int
@@ -111,49 +123,47 @@ func auxAdmissionSlots() []auxAdmissionSlot {
 			excluded: "respondent 2 (included-universe: row key excluded), " +
 				"respondent 3 (metric-scoping: cell field null), " +
 				"respondent 4 (included-universe: column key null)",
-			auxBase: 2, marginCount: 5, marginN: 4, marginNNull: 1,
+			auxBase: 2, marginCount: 3, marginN: 2, marginNNull: 1,
 		},
 		{
 			name: "row[alpha]",
 			excluded: "respondent 3 (metric-scoping: cell field null), " +
 				"respondent 4 (included-universe: column key null)",
-			auxBase: 2, marginCount: 4, marginN: 3, marginNNull: 1,
+			auxBase: 2, marginCount: 3, marginN: 2, marginNNull: 1,
 		},
 		{
 			name: "column[f]",
 			excluded: "respondent 2 (included-universe: row key excluded by Include), " +
 				"respondent 3 (metric-scoping: cell field null)",
-			auxBase: 1, marginCount: 3, marginN: 2, marginNNull: 1,
+			auxBase: 1, marginCount: 2, marginN: 1, marginNNull: 1,
 		},
 	}
 }
 
-// TestCrosstabAuxMargin_ExcludedRecordsStayInTheCellsOwnMargins is the
+// TestCrosstabAuxMargin_NullCellFieldStaysInTheCellsOwnMargins is the
 // contrast the story asks for, on both paths and at the surface a caller
 // actually reads.
 //
-// Each of the three excluded records must be ABSENT from the auxiliary
-// figure and STILL PRESENT in the cell aggregator's own margin — and the
-// two must be demonstrably different numbers, or the auxiliary assertion
-// proves nothing. Being present in the existing margin takes two forms
-// and both are checked: the Include-excluded and null-column-key records
-// ride the universal floor's `n`, while the null-cell-field record rides
-// its `n_null`.
+// Since U47 #325 the cell aggregator's own margins and the auxiliaries
+// share the AXIS half of the admission rule: the Include-excluded and
+// null-column-key records reached no cell and are absent from both. They
+// differ only on the cell-field probe: the null-cell-field record reached
+// its cell (as that cell's n_null), so it rides the cell margin's
+// `n_null` and is absent from the auxiliary. Both halves are checked —
+// the floor `{n, n_null}` and the strictly-below contrast — or the
+// auxiliary assertion proves nothing.
 //
 // It reads the existing margins off Response.Components.Crosstab rather
-// than off either path's internal carrier, which is deliberate on two
-// counts. It is the surface a caller sees, so this is the difference
-// they would actually observe; and reading it through RunCrosstab /
-// RunCrosstabFused end to end is what proves this effort left the cell
-// aggregator's own margins alone on BOTH arms — the regression that would
-// otherwise be indistinguishable from the auxiliary working.
-func TestCrosstabAuxMargin_ExcludedRecordsStayInTheCellsOwnMargins(t *testing.T) {
+// than off either path's internal carrier: it is the surface a caller
+// sees, and reading it through RunCrosstab / RunCrosstabFused end to end
+// proves both arms apply the same rule to the cell's own margins.
+func TestCrosstabAuxMargin_NullCellFieldStaysInTheCellsOwnMargins(t *testing.T) {
 	slots := auxAdmissionSlots()
 
 	// The cell aggregator's own margins, read off the response. Asserted
 	// per path so a divergence names which arm moved.
 	for _, path := range []string{"buffered", "fused"} {
-		t.Run(path+" cell margins are not admission-scoped", func(t *testing.T) {
+		t.Run(path+" cell margins are axis-admitted only", func(t *testing.T) {
 			schema := auxMarginSchema(t)
 			records := auxMarginRecords(schema)
 			req := &types.Request{Crosstab: auxMarginSpec()}
@@ -197,8 +207,8 @@ func TestCrosstabAuxMargin_ExcludedRecordsStayInTheCellsOwnMargins(t *testing.T)
 			for _, s := range slots {
 				count, comps := read(s.name)
 				if count != s.marginCount {
-					t.Errorf("%s %s cell margin count = %d, want %d — this effort must not "+
-						"narrow the cell aggregator's own margins; excluded here: %s",
+					t.Errorf("%s %s cell margin count = %d, want %d — the cell's own margin "+
+						"admits axis members only, null cell field included; auxiliary-excluded here: %s",
 						path, s.name, count, s.marginCount, s.excluded)
 				}
 				n := int(coerceFloat64(comps["n"]))
@@ -209,10 +219,10 @@ func TestCrosstabAuxMargin_ExcludedRecordsStayInTheCellsOwnMargins(t *testing.T)
 				}
 				// The contrast itself. Without this the auxiliary could
 				// be reporting the floor and nobody would notice.
-				if s.auxBase >= float64(n) {
+				if s.auxBase >= float64(count) {
 					t.Errorf("%s %s: auxiliary base %v is not strictly below the cell margin's "+
-						"own n=%d, so this slot no longer demonstrates that the auxiliary is "+
-						"admission-scoped", path, s.name, s.auxBase, n)
+						"own count=%d, so this slot no longer demonstrates that the auxiliary is "+
+						"metric-scoped", path, s.name, s.auxBase, count)
 				}
 			}
 		})
@@ -289,7 +299,8 @@ func assertAuxBases(t *testing.T, path string, slots []auxAdmissionSlot, got map
 // "simplification":
 //
 //   - AXIS-ONLY — admit whatever the slot's own axis routed, which is
-//     precisely how the cell aggregator's own margins behave and
+//     precisely how the cell aggregator's own margins behaved before
+//     U47 and
 //     therefore the most likely wrong turn. Loses BOTH decisions.
 //   - NO METRIC-SCOPING — keep the axis cross-check, drop the cell-field
 //     null test.

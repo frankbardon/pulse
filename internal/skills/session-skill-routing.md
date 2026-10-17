@@ -43,6 +43,9 @@ Lowercase the operator family prefix and map through this table.
 <!-- feature: capability:materialize -->
 | a window, feature or attribute column a later request must regress, group, filter or join on — `pulse_materialize` / `pulse api materialize -r REQ -o OUT [--overwrite]` writes it as a field of a new cohort | `tool-materialize`, `derived-cohorts` |
 <!-- /feature -->
+<!-- feature: capability:rake -->
+| survey weights to census targets — `pulse_rake` / `pulse rake COHORT -o OUT --margins JSON [--by F] [--max-weight X]` writes a weight column into a new cohort | `tool-rake`, `survey-weights` |
+<!-- /feature -->
 <!-- feature: capability:widen -->
 | a set column out of option headroom — `pulse widen COHORT --field F --to set_u128\|set_u256` rewrites it in place (single-file cohorts only; no MCP tool) | `cohort-schema-design` (set rungs), `cohort-sharding` (archives auto-widen) |
 <!-- /feature -->

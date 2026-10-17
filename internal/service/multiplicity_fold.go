@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/groupedtests"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/multiplicity"
 	"github.com/frankbardon/pulse/types"
 )
@@ -176,7 +177,23 @@ func foldRequestMultiplicity(plan *descx.MultiplicityPlan, resp *types.Response)
 	}
 	fams := newMultFamilies()
 	collectRequestSites(fams, "", plan, resp)
-	return fams.fold()
+	if err := fams.fold(); err != nil {
+		return err
+	}
+	return refreshOverlayLetters(resp.Overlays)
+}
+
+// refreshOverlayLetters recomputes every pairwise layer's significance
+// letters after the fold wrote its adjusted twins, so the letters read
+// the corrected significance (processing.RefreshPairwiseLetters). A
+// layer without letters is untouched.
+func refreshOverlayLetters(layers []types.OverlayLayer) error {
+	for i := range layers {
+		if err := processing.RefreshPairwiseLetters(&layers[i]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // composeSlotScope is the family-key scope of Compose slot i, so its
@@ -215,5 +232,16 @@ func foldComposeMultiplicity(plan *descx.ComposeMultiplicityPlan, out *types.Com
 		}
 	}
 	collectOverlaySites(fams, composeHostScope, plan.Overlays, out.Overlays)
-	return fams.fold()
+	if err := fams.fold(); err != nil {
+		return err
+	}
+	for _, resp := range out.Responses {
+		if resp == nil {
+			continue
+		}
+		if err := refreshOverlayLetters(resp.Overlays); err != nil {
+			return err
+		}
+	}
+	return nil
 }

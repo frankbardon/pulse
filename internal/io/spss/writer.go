@@ -48,16 +48,20 @@ package spss
 //
 // # What it refuses
 //
-// A projection (ExportJob.Includes) or a label binding (ExportJob.Labels) is
-// an output-time transformation of the ROW stream, and the cohort path never
-// sees that stream. Silently emitting every column in answer to
-// `--include age` would be the quiet wrong answer this effort exists to
-// avoid, so both are refused with a coded error naming what was asked for.
+// A projection (ExportJob.Includes) is an output-time transformation of the
+// ROW stream, and the cohort path never sees that stream. Silently emitting
+// every column in answer to `--include age` would be the quiet wrong answer
+// this effort exists to avoid, so it is refused with a coded error naming
+// what was asked for. A label binding (ExportJob.Labels) is NOT refused:
+// ExportJob resolves it onto the cohort's dictionaries
+// (CohortSource.ValueLabels) and it is written as `.sav` value labels — see
+// dict_labels.go.
 
 import (
 	"bufio"
 	"bytes"
 	"context"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -226,11 +230,11 @@ func (w *Writer) WriteCohort(ctx context.Context, src iocore.CohortSource) (int,
 	if len(src.Includes) > 0 {
 		return 0, w.cannotProject("--include", strings.Join(src.Includes, ", "))
 	}
-	if src.Labelled {
-		return 0, w.cannotProject("--labels",
-			"a label binding rewrites or augments cells in the rendered row stream")
+	opts, err := w.optionsFor(src)
+	if err != nil {
+		return 0, err
 	}
-	if err := w.encodeCohort(ctx, src.FS, src.Path); err != nil {
+	if err := w.encodeCohort(ctx, src.FS, src.Path, opts); err != nil {
 		return 0, err
 	}
 	return w.cases, nil
@@ -263,11 +267,11 @@ func (w *Writer) ValidateCohort(ctx context.Context, src iocore.CohortSource) ([
 	if len(src.Includes) > 0 {
 		return nil, w.cannotProject("--include", strings.Join(src.Includes, ", "))
 	}
-	if src.Labelled {
-		return nil, w.cannotProject("--labels",
-			"a label binding rewrites or augments cells in the rendered row stream")
+	opts, err := w.optionsFor(src)
+	if err != nil {
+		return nil, err
 	}
-	pass, err := w.planCohort(ctx, src.FS, src.Path)
+	pass, err := w.planCohort(ctx, src.FS, src.Path, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -362,7 +366,7 @@ func (p *cohortPass) close() {
 //
 // It mutates nothing on the Writer. A successful call hands back an OPEN
 // file; the caller owns closing it through [cohortPass.close].
-func (w *Writer) planCohort(ctx context.Context, fs afero.Fs, path string) (*cohortPass, error) {
+func (w *Writer) planCohort(ctx context.Context, fs afero.Fs, path string, opts WriterOptions) (*cohortPass, error) {
 	if fs == nil {
 		return nil, errors.NewCodedErrorWithDetails(errors.DATA_FILE,
 			"spss: the .sav writer was given no filesystem to read the cohort from",
@@ -371,7 +375,7 @@ func (w *Writer) planCohort(ctx context.Context, fs afero.Fs, path string) (*coh
 
 	// The sidecar read is the writer's first act, and it is the one that can
 	// refuse: a STALE sidecar stops the export outright. See LoadSidecar.
-	res, err := LoadSidecar(fs, path, w.opts)
+	res, err := LoadSidecar(fs, path, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -409,8 +413,8 @@ func (w *Writer) planCohort(ctx context.Context, fs afero.Fs, path string) (*coh
 		Schema:      schema,
 		Sidecar:     res,
 		Cases:       -1,
-		Compression: w.opts.Compression(),
-		Options:     w.opts,
+		Compression: opts.Compression(),
+		Options:     opts,
 	})
 	if err != nil {
 		return fail(err)
@@ -439,8 +443,8 @@ func (w *Writer) planCohort(ctx context.Context, fs afero.Fs, path string) (*coh
 
 // encodeCohort is E5-S1..S5 assembled: run the non-data pass, encode every
 // case, concatenate.
-func (w *Writer) encodeCohort(ctx context.Context, fs afero.Fs, path string) error {
-	pass, err := w.planCohort(ctx, fs, path)
+func (w *Writer) encodeCohort(ctx context.Context, fs afero.Fs, path string, opts WriterOptions) error {
+	pass, err := w.planCohort(ctx, fs, path, opts)
 	if err != nil {
 		return err
 	}
@@ -556,7 +560,51 @@ func (w *Writer) encodeRows(ctx context.Context) error {
 			return err
 		}
 	}
-	return w.encodeCohort(ctx, mem, rowPathCohort)
+	return w.encodeCohort(ctx, mem, rowPathCohort, w.opts)
+}
+
+// optionsFor is the writer's options for one cohort source: the caller's
+// WriterOptions with the export job's label binding (CohortSource.ValueLabels)
+// merged into ValueLabels, a job binding replacing an option binding on the
+// same field. The binding becomes value labels on the emitted variables —
+// see [ValueLabels] — rather than a rewrite of the row stream this path never
+// renders.
+//
+// A source that reports a label binding without resolving it
+// (Labelled with no ValueLabels — a hand-built CohortSource) is refused as
+// before: there is nothing to write the labels from.
+func (w *Writer) optionsFor(src iocore.CohortSource) (WriterOptions, error) {
+	opts := w.opts
+	if !src.Labelled {
+		return opts, nil
+	}
+	if src.ValueLabels == nil {
+		return opts, w.cannotProject("--labels",
+			"the label binding reached the writer unresolved, so there are no value labels to write")
+	}
+	names := make([]string, 0, len(src.ValueLabels))
+	for name := range src.ValueLabels {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	merged := make([]ValueLabels, 0, len(opts.ValueLabels)+len(names))
+	for _, b := range opts.ValueLabels {
+		if _, replaced := src.ValueLabels[b.Field]; !replaced {
+			merged = append(merged, b)
+		}
+	}
+	for _, name := range names {
+		labels := src.ValueLabels[name]
+		if labels == nil {
+			// A bound field that is not a categorical of this schema: an
+			// empty, non-nil table keeps the binding a table binding, and
+			// the dictionary build refuses the field on its own terms.
+			labels = map[string]string{}
+		}
+		merged = append(merged, ValueLabels{Field: name, Labels: labels, Order: src.ValueLabelOrder[name]})
+	}
+	opts.ValueLabels = merged
+	return opts, nil
 }
 
 // rowReader replays a buffered header + rows as a iocore.ResetReader, so the

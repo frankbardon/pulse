@@ -61,8 +61,11 @@ res, err := p.Materialize(ctx, &pulse.Request{
   categorical label) fails the run with
   `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
 - **Writing.** Always an ungrouped (`0x01`) single file, written
-  atomically through `NewCohortBuilder`; source sidecars are not
-  carried. An existing target needs `Overwrite`; replacing one reports
+  atomically through `NewCohortBuilder`. The source's SPSS metadata
+  sidecar is carried — rewritten with a plain numeric variable per
+  derived column and re-fingerprinted, so value labels survive to
+  `pulse export spss`; a stale or unreadable one is dropped with a warning
+  carrying its own code. No other sidecar is carried. An existing target needs `Overwrite`; replacing one reports
   its stale sidecars in `InvalidatedSidecars` plus a
   `PULSE_MATERIALIZE_SIDECARS_INVALIDATED` warning. `Strict` escalates
   a weak description on the output schema (the generated ones always

@@ -124,6 +124,12 @@ func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedR
 		}
 		labels[i] = r.Label
 	}
+	// A slot the overlay reads is a multi-measure crosstab
+	// (crosstab.cells): no Compose kind reads a MEASURE-folded table as
+	// one. Same rule, same slots as ValidateComposeWithOptions (gate 2a).
+	if err := descx.ComposeOverlayMeasureSlotRefusal(req.Overlays, requests, labels, s.instance); err != nil {
+		return nil, nil, err
+	}
 	// An Inferential kind over a slot that a request or instance
 	// default weight reaches is refused (no weighted form yet) — the
 	// shared rule ValidateComposeWithOptions applies to the same raw

@@ -668,9 +668,10 @@ func TestFusedCrosstab_FanOutIncludeOrderingIsHonoured(t *testing.T) {
 
 // TestFusedCrosstab_FanOutIncludeCanEmptyARecord covers the acceptance
 // case "a set that is non-empty but empty AFTER Include filtering". The
-// record still exists, still passes the filters, and still feeds the
-// grand margin — it simply resolves to no bucket on the filtered axis,
-// exactly as a popcount-0 mask would.
+// record still exists and still passes the filters, but it resolves to
+// no bucket on the filtered axis, exactly as a popcount-0 mask would —
+// so it reaches no cell and, under the cell-admission rule (U47 #325),
+// no margin either: the grand margin counts only the admitted records.
 func TestFusedCrosstab_FanOutIncludeCanEmptyARecord(t *testing.T) {
 	schema := fanoutCrosstabSchema(t)
 	recs := fanoutRecords(schema)
@@ -705,12 +706,14 @@ func TestFusedCrosstab_FanOutIncludeCanEmptyARecord(t *testing.T) {
 		t.Errorf("includedRecords = %d, want %d", got, want)
 	}
 	// Row margin counts each AMEX record once per included label (one
-	// label here), so 2 — NOT the 8 records the grand margin sees.
+	// label here), so 2.
 	if got, want := state.rowMarginCount[0], 2; got != want {
 		t.Errorf("rowMarginCount[0] = %d, want %d", got, want)
 	}
-	if got, want := state.grandMarginCount, len(recs); got != want {
-		t.Errorf("grandMarginCount = %d, want %d — an Include-excluded record still exists", got, want)
+	// The grand margin sees the same two admitted records, not the 8
+	// filter-passing ones: an Include-excluded record reached no cell.
+	if got, want := state.grandMarginCount, 2; got != want {
+		t.Errorf("grandMarginCount = %d, want %d — an Include-excluded record reached no cell, so no margin", got, want)
 	}
 }
 

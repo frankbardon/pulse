@@ -69,6 +69,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 			r.LabelTables[name] = processing.LabelTable{
 				Rows:   t.Rows,
 				Lookup: t.Lookup,
+				Order:  t.Order,
 			}
 		}
 	}

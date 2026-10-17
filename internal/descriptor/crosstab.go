@@ -25,15 +25,17 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 			"crosstab requires at least one row-axis grouper",
 			nil)
 	}
-	if len(spec.Columns) == 0 {
-		env.AddError(string(errors.PULSE_CROSSTAB_EMPTY_COLUMNS),
-			"crosstab requires at least one column-axis grouper",
-			nil)
-	}
-	if spec.Cell == nil {
+	// No column grouper is the implicit Total column
+	// (CrosstabSpec.HasImplicitTotalColumn), not a refusal.
+	if spec.Cell == nil && !spec.HasMeasures() {
 		env.AddError(string(errors.PULSE_CROSSTAB_MISSING_CELL),
 			"crosstab requires a Cell aggregation",
 			nil)
+	}
+	// The multi-measure Cells slot: detection shared with the runtime
+	// validator (types.CrosstabSpec.CellsFaults); every fault reported.
+	for _, fault := range spec.CellsFaults() {
+		env.AddError(string(cellsFaultCode(fault.Kind)), fault.Message, fault.Details)
 	}
 	if len(req.Groups) > 0 || len(req.Aggregations) > 0 {
 		env.AddError(string(errors.PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS),
@@ -73,12 +75,14 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 				}
 			}
 		case types.CrosstabNormalizeColumn:
-			if axisLen := len(spec.Columns); axisLen > 0 {
-				if lvl := *spec.NormalizeLevel; lvl < 0 || lvl >= axisLen {
-					env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE),
-						"crosstab normalize_level is out of range for the column axis",
-						map[string]any{"normalize_level": lvl, "axis": "columns", "axis_len": axisLen})
-				}
+			// An absent column axis (the implicit Total column) has no
+			// depth at all, so every level is out of range — the runtime
+			// validator's axis_len 0 refusal.
+			axisLen := len(spec.Columns)
+			if lvl := *spec.NormalizeLevel; lvl < 0 || lvl >= axisLen {
+				env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE),
+					"crosstab normalize_level is out of range for the column axis",
+					map[string]any{"normalize_level": lvl, "axis": "columns", "axis_len": axisLen})
 			}
 		}
 	}
@@ -94,12 +98,12 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 				"crosstab normalize_within cannot be combined with Normalize=total",
 				map[string]any{"normalize": string(mode), "normalize_within": *spec.NormalizeWithin})
 		case types.CrosstabNormalizeRow:
-			if otherLen := len(spec.Columns); otherLen > 0 {
-				if w := *spec.NormalizeWithin; w < 0 || w >= otherLen {
-					env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE),
-						"crosstab normalize_within is out of range for the column axis",
-						map[string]any{"normalize_within": w, "axis": "columns", "axis_len": otherLen})
-				}
+			// The implicit Total column has no prefix to fix (axis_len 0).
+			otherLen := len(spec.Columns)
+			if w := *spec.NormalizeWithin; w < 0 || w >= otherLen {
+				env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE),
+					"crosstab normalize_within is out of range for the column axis",
+					map[string]any{"normalize_within": w, "axis": "columns", "axis_len": otherLen})
 			}
 		case types.CrosstabNormalizeColumn:
 			if otherLen := len(spec.Rows); otherLen > 0 {
@@ -114,12 +118,20 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 
 	// Axis / cell / margin-aggregation field existence is the
 	// field-reference rule's (FieldRefRefusals).
-	if spec.Cell != nil {
+	// Every cell aggregation — the single Cell, or each measure of a
+	// multi-measure Cells — is judged as the cell it runs as.
+	for _, cell := range spec.CellAggregations() {
+		if cell == nil || cell.Type == "" {
+			// A Cells structural fault, reported above.
+			if spec.HasMeasures() {
+				continue
+			}
+		}
 		// A cell type the instance hides is judged as a never-registered
 		// name; messages keep naming the authored type. A numeric cell
 		// over a categorical is the accepted-types table's refusal
 		// (validateFieldAcceptance).
-		cellRoute := opRoute(opts.instance(), spec.Cell.Type)
+		cellRoute := opRoute(opts.instance(), cell.Type)
 		// Warn when normalization is requested on a recompute aggregator
 		// without the implied margin: harmless under v1's always-
 		// recompute path, but flag so the warning trail is informative.
@@ -132,23 +144,23 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 			snap = opts.Extensions
 		}
 		cellClass := snap.AggregatorMarginReducibility(cellRoute)
-		if c, ok := vectors.ElementMarginClass(spec.Cell, aggregationKinds(opts.instance(), snap)); ok {
+		if c, ok := vectors.ElementMarginClass(cell, aggregationKinds(opts.instance(), snap)); ok {
 			// A vector element slot margins like its scalar twin.
 			cellClass = c
 		}
 		if mode != types.CrosstabNormalizeNone && cellClass == types.MarginRecompute {
 			env.AddWarning(string(errors.PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE),
-				"normalize="+string(mode)+" on a recompute-margin aggregator ("+string(spec.Cell.Type)+") requires recomputing the margin over raw rows; v1 does this automatically but cost is non-trivial",
-				map[string]any{"aggregation": string(spec.Cell.Type), "normalize": string(mode)})
+				"normalize="+string(mode)+" on a recompute-margin aggregator ("+string(cell.Type)+") requires recomputing the margin over raw rows; v1 does this automatically but cost is non-trivial",
+				map[string]any{"aggregation": string(cell.Type), "normalize": string(mode)})
 		}
 		// Reject normalize × map-valued aggregator. Map cells
 		// (AGG_SET_FREQUENCY today) cannot be divided by a margin —
 		// the operation is undefined.
 		if mode != types.CrosstabNormalizeNone && cellRoute.MapValued() {
 			env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_MAP_VALUED),
-				"crosstab normalize="+string(mode)+" is incompatible with map-valued cell aggregator "+string(spec.Cell.Type)+
+				"crosstab normalize="+string(mode)+" is incompatible with map-valued cell aggregator "+string(cell.Type)+
 					" — drop normalize or pick a scalar aggregator",
-				map[string]any{"aggregation": string(spec.Cell.Type), "normalize": string(mode)})
+				map[string]any{"aggregation": string(cell.Type), "normalize": string(mode)})
 		}
 	}
 
@@ -199,6 +211,15 @@ func validateCrosstabMarginAggregations(
 			"crosstab margin_aggregations were declared but the section displays no margin (margins.rows / margins.columns / margins.grand are all false) — the auxiliary figures have nowhere to land. A normalize direction does not carry them: it computes its margin as a denominator, and an auxiliary is never a denominator",
 			map[string]any{"margin_aggregations": len(spec.MarginAggregations)})
 	}
+}
+
+// cellsFaultCode maps a shared Cells fault kind onto the predict-side
+// coded surface; internal/processing/crosstab.go holds the runtime twin.
+func cellsFaultCode(kind types.CellsFaultKind) errors.Code {
+	if kind == types.CellsFaultDuplicateLabel {
+		return errors.PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL
+	}
+	return errors.PULSE_CROSSTAB_CELLS_INVALID
 }
 
 // marginAggregationFaultCode maps a shared structural fault kind onto

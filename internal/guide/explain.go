@@ -598,6 +598,18 @@ func (e *explainer) requestSteps(prefix string, r *types.Request, inferred map[s
 				detail = " on " + tick(ct.Cell.Field) + " in each cell"
 				fields = append(fields, ct.Cell.Field)
 			}
+		} else if ct.HasMeasures() {
+			// Several measures as stub rows: the step names the first
+			// measure's operator and lists every measure.
+			if c := ct.Cells[0]; c != nil {
+				op = string(c.Type)
+			}
+			for _, c := range ct.Cells {
+				if c != nil && c.Field != "" {
+					fields = append(fields, c.Field)
+				}
+			}
+			detail = " for " + strconv.Itoa(len(ct.Cells)) + " measures (" + andList(ticks(ct.MeasureLabels())) + ") as stub rows in each cell"
 		}
 		if len(rows) > 0 {
 			detail += ", with rows by " + andList(ticks(rows))

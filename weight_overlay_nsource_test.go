@@ -50,9 +50,14 @@ func TestWeight_OverlayNSourceRefusalsMatchPredict(t *testing.T) {
 		// admits: whether the kind runs on an admitted source (false:
 		// refusal arm only).
 		admits bool
+		// normalize: the host's normalize mode — the default n then
+		// reads the cell's base (U47 #324), the margin modes the
+		// displayed margin's floor.
+		normalize types.CrosstabNormalize
 	}{
-		{types.OverlayKindPairwisePropZ, types.AGG_COUNT, true},
-		{types.OverlayKindPairwiseWelchT, types.AGG_WELFORD, false},
+		{types.OverlayKindPairwisePropZ, types.AGG_COUNT, true, ""},
+		{types.OverlayKindPairwisePropZ, types.AGG_COUNT, true, types.CrosstabNormalizeColumn},
+		{types.OverlayKindPairwiseWelchT, types.AGG_WELFORD, false, ""},
 	}
 	refusedRuns, admittedRuns := 0, 0
 	for _, h := range hosts {
@@ -62,10 +67,11 @@ func TestWeight_OverlayNSourceRefusalsMatchPredict(t *testing.T) {
 					req := &types.Request{
 						Cohort: &types.Cohort{Filename: cohort},
 						Crosstab: &types.CrosstabSpec{
-							Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
-							Columns: []*types.Group{{Type: types.GROUP_RANGE, Field: "x", Interval: 20}},
-							Cell:    &types.Aggregation{Type: h.cell, Field: "x", Label: "c"},
-							Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
+							Rows:      []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+							Columns:   []*types.Group{{Type: types.GROUP_RANGE, Field: "x", Interval: 20}},
+							Cell:      &types.Aggregation{Type: h.cell, Field: "x", Label: "c"},
+							Margins:   types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
+							Normalize: h.normalize,
 						},
 						Overlays: []types.OverlaySpec{{Name: "pw", Kind: h.kind, Scope: types.OverlayScopeColumn, Params: params(mode)}},
 					}
@@ -74,7 +80,7 @@ func TestWeight_OverlayNSourceRefusalsMatchPredict(t *testing.T) {
 					} else {
 						req.Crosstab.Cell.Weight = types.SlotWeightOf(w)
 					}
-					where := string(h.kind) + " " + wname + " " + src + " n_source=" + mode
+					where := string(h.kind) + " " + string(h.normalize) + " " + wname + " " + src + " n_source=" + mode
 					_, rerr := p.Process(ctx, req)
 					env := predictEnvelope(t, p, fs, cohort, req)
 					if weighting.NSourceRefusal(mode, weighting.BasisOf(&w)) != "" {

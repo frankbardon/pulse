@@ -110,6 +110,9 @@ var hosts = map[types.OverlayKind][]Host{
 	types.OverlayKindYoY:                requestOnly,
 	types.OverlayKindZScoreVsRolling:    requestOnly,
 	types.OverlayKindZScoreVsTotal:      requestOnly,
+	types.OverlayKindTVsPrior:           requestOnly,
+	types.OverlayKindZVsPrior:           requestOnly,
+	types.OverlayKindPropZVsPrior:       requestOnly,
 	// Process (MATRIX only — processShapes) and Compose.
 	types.OverlayKindFormula: {Request, Compose},
 	// Compose kinds.
@@ -241,6 +244,9 @@ var processShapes = map[types.OverlayKind][]types.OverlayShape{
 	types.OverlayKindZScoreVsRolling:           seriesOnly,
 	types.OverlayKindZScoreVsTotal:             seriesOnly,
 	types.OverlayKindShareOfTotal:              bothProcess,
+	types.OverlayKindTVsPrior:                  bothProcess,
+	types.OverlayKindZVsPrior:                  bothProcess,
+	types.OverlayKindPropZVsPrior:              bothProcess,
 	types.OverlayKindMatrixGroupSummary:        matrixResultOnly,
 }
 
@@ -371,5 +377,5 @@ func ReadsCellValue(kind types.OverlayKind) bool {
 			matrix = true
 		}
 	}
-	return matrix && !types.PairwiseKindUsesWelford(kind) && !types.PairwiseKindUsesWeightedMoments(kind)
+	return matrix && !types.PairwiseKindUsesWelford(kind) && !types.PairwiseKindUsesWeightedMoments(kind) && !PriorTestUsesWelford(kind)
 }

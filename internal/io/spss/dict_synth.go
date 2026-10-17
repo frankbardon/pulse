@@ -35,6 +35,7 @@ package spss
 import (
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -96,11 +97,18 @@ func synthesiseDictionary(req DictionaryRequest) (*outFile, error) {
 		displayParams: true,
 	}
 
+	bindings, err := valueLabelBindings(req.Schema, req.Options.ValueLabels)
+	if err != nil {
+		return nil, err
+	}
 	minter := newNameMinter()
 	for i := range req.Schema.Fields {
 		vars, err := synthesiseField(req.Schema, i, minter, f)
 		if err != nil {
 			return nil, err
+		}
+		if b := bindings[i]; b != nil {
+			labelledCategorical(vars[0], &req.Schema.Fields[i], b)
 		}
 		f.vars = append(f.vars, vars...)
 	}
@@ -206,6 +214,10 @@ func synthesiseSet(s *encoding.Schema, at int, minter *nameMinter, f *outFile) (
 	}
 
 	setName := "$" + fld.Name
+	setLabel := fld.Description
+	if setLabel == "" {
+		setLabel = fld.Name
+	}
 	counted := strconv.Itoa(synthSetCountedValue)
 	members := make([]*outVar, 0, len(entries))
 	shortNames := make([]string, 0, len(entries))
@@ -219,7 +231,9 @@ func synthesiseSet(s *encoding.Schema, at int, minter *nameMinter, f *outFile) (
 
 			// An indicator is a 0/1 numeric. It carries no value labels:
 			// "0 = No, 1 = Yes" would be text the cohort never held, and
-			// the entry's meaning is already in the variable's name.
+			// the entry's meaning is already in the variable's name. It
+			// does carry a VARIABLE label naming the set and the option,
+			// so a re-import does not see N undescribed numerics.
 			print:        Format{Code: fmtF, Width: 1},
 			write:        Format{Code: fmtF, Width: 1},
 			measure:      int32(measureNominal),
@@ -229,25 +243,54 @@ func synthesiseSet(s *encoding.Schema, at int, minter *nameMinter, f *outFile) (
 			countedValue: synthSetCountedValue,
 		}
 		v.name = text
+		v.label, v.hasLabel = indicatorLabel(setLabel, text), true
 		mintNames(v, minter, text)
 		v.segments = numericSegment(v.shortName)
 		members = append(members, v)
 		shortNames = append(shortNames, v.shortName)
 	}
 
-	label := fld.Description
-	if label == "" {
-		label = fld.Name
-	}
 	f.mrSets = append(f.mrSets, MRSet{
 		Name:         setName,
 		Kind:         MRSetKindDichotomy,
-		Label:        label,
+		Label:        setLabel,
 		Subtype:      extMRSets,
 		Variables:    shortNames,
 		CountedValue: &counted,
 	})
 	return members, nil
+}
+
+// indicatorLabel is a set indicator's variable label, `<set>: <option>`,
+// held to maxVariableLabelLen bytes. The option is what tells one indicator
+// from its siblings, so an over-long label gives up the set half first; only
+// an option that alone overruns the limit is itself cut. Every cut lands on a
+// rune boundary, so the label stays valid UTF-8 for the charset pass. The set
+// half's trailing periods and blanks are dropped first.
+func indicatorLabel(set, option string) string {
+	const sep = ": "
+	// A description is a sentence: its closing period would double up against
+	// the separator ("respondents.: Good value").
+	set = strings.TrimRight(set, ". \t")
+	if len(set)+len(sep)+len(option) <= maxVariableLabelLen {
+		return set + sep + option
+	}
+	if room := maxVariableLabelLen - len(sep) - len(option); room > 0 {
+		return truncateUTF8(set, room) + sep + option
+	}
+	return truncateUTF8(option, maxVariableLabelLen)
+}
+
+// truncateUTF8 returns the longest prefix of s that is at most n bytes and
+// ends on a rune boundary.
+func truncateUTF8(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n]
 }
 
 // synthesiseVector expands a vec_f32 / vec_f64 column into one numeric

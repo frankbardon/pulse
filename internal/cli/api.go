@@ -295,6 +295,13 @@ func apiComposeCmd() *cli.Command {
 						return err
 					}
 				}
+				// A banner ends the stream with one {"banner":{...}}
+				// record: the stitched tables are a matrix, never rows.
+				if composed.Banner != nil && resp != nil && resp.Banner != nil {
+					if err := encodeFinite(enc, map[string]any{"banner": resp.Banner}); err != nil {
+						return err
+					}
+				}
 				return nil
 			}
 

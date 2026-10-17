@@ -181,6 +181,36 @@ func overlayParityCases() []overlayParityCase {
 					`{"name":"z","kind":"OVERLAY_Z_VS_REF","scope":"group","reference":"total","targets":["sub"],"params":`+seriesParams+`}`),
 		},
 		{
+			// The inferential prior-period kinds (U47 #328) on a grouped
+			// Process: periods = k, each tested against the one before.
+			// The weight reaches the layer through each period's N*
+			// (frequency Σw, probability n_eff); no Parameters stamp.
+			name:     "prior_series",
+			noParams: true,
+			kinds:    []types.OverlayKind{types.OverlayKindTVsPrior, types.OverlayKindZVsPrior, types.OverlayKindPropZVsPrior},
+			req: process(`"groups":[{"type":"GROUP_CATEGORY","field":"k"}],"aggregations":[`+
+				`{"type":"AGG_WELFORD","field":"x","label":"m"},{"type":"AGG_AVERAGE","field":"b","label":"share"}]`,
+				`{"name":"t","kind":"OVERLAY_T_VS_PRIOR","scope":"group","params":{"field":"m"}},`+
+					`{"name":"z","kind":"OVERLAY_Z_VS_PRIOR","scope":"group","params":{"field":"m"}},`+
+					`{"name":"pz","kind":"OVERLAY_PROP_Z_VS_PRIOR","scope":"group","params":{"field":"share"}}`),
+		},
+		{
+			// The same kinds on the no-column crosstab (the implicit
+			// Total column): rows = the periods.
+			name:     "prior_crosstab_means",
+			noParams: true,
+			kinds:    []types.OverlayKind{types.OverlayKindTVsPrior, types.OverlayKindZVsPrior},
+			req: process(`"crosstab":{"rows":[{"type":"GROUP_CATEGORY","field":"k"}],"cell":`+welford+`}`,
+				`{"name":"t","kind":"OVERLAY_T_VS_PRIOR","scope":"group"},{"name":"z","kind":"OVERLAY_Z_VS_PRIOR","scope":"group"}`),
+		},
+		{
+			name:     "prior_crosstab_prop",
+			noParams: true,
+			kinds:    []types.OverlayKind{types.OverlayKindPropZVsPrior},
+			req: process(`"crosstab":{"rows":[{"type":"GROUP_CATEGORY","field":"k"}],"cell":{"type":"AGG_AVERAGE","field":"b","label":"cell"}}`,
+				`{"name":"pz","kind":"OVERLAY_PROP_Z_VS_PRIOR","scope":"group"}`),
+		},
+		{
 			name:    "compose_proportions",
 			compose: true,
 			kinds: []types.OverlayKind{types.OverlayKindChiSqVsRef, types.OverlayKindPropZCell,

@@ -752,8 +752,9 @@ func TestCrosstabFused_PairwisePropZOverWeightedMeanEndToEnd(t *testing.T) {
 	// The weight_field sugar is kind probability; frequency rows carry a
 	// kind-frequency slot weight on the cell instead. On the weighted
 	// host the weighted-host n_source rule (weighting-inferential E3-S2)
-	// admits cell_weight_sum under frequency only and refuses a raw
-	// margin count under both kinds — identically on both arms.
+	// admits cell_weight_sum under frequency only, reads a margin mode
+	// off the margin floor's N* (U47 #324) and refuses a raw cell count
+	// under both kinds — identically on both arms.
 	cases := []struct {
 		name      string
 		nSource   string
@@ -764,12 +765,15 @@ func TestCrosstabFused_PairwisePropZOverWeightedMeanEndToEnd(t *testing.T) {
 		{"default_n_star_frequency", "", true, ""},
 		{"cell_weight_sum_frequency", types.PairwiseNSourceCellWeightSum, true, ""},
 		{"cell_weight_sum_probability_refused", types.PairwiseNSourceCellWeightSum, false, errors.PROCESSING_CONFIG},
-		{"row_margin_n_refused", types.PairwiseNSourceRowMarginN, true, errors.PROCESSING_CONFIG},
+		{"row_margin_n_weighted", types.PairwiseNSourceRowMarginN, true, ""},
+		{"cell_n_unweighted_refused", types.PairwiseNSourceCellNUnweighted, true, errors.PROCESSING_CONFIG},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			params, err := json.Marshal(types.PairwiseOverlayParams{NSource: tc.nSource})
+			// The mean cell names its proportion reading: an omitted
+			// p_source over it is refused (survey-tables E4-S6).
+			params, err := json.Marshal(types.PairwiseOverlayParams{NSource: tc.nSource, PSource: types.PairwisePSourceCellValuePct})
 			if err != nil {
 				t.Fatalf("marshal pairwise params: %v", err)
 			}

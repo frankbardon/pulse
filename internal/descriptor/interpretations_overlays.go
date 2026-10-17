@@ -43,14 +43,17 @@ var overlayInterpretations = map[string][]descriptor.Interpretation{
 	"OVERLAY_PAIRWISE_WELCH_T":              interpOverlayPairwiseWelchT,
 	"OVERLAY_PROP_Z_CELL":                   interpOverlayPropZCell,
 	"OVERLAY_PROP_Z_PANEL":                  interpOverlayPropZPanel,
+	"OVERLAY_PROP_Z_VS_PRIOR":               interpOverlayPropZVsPrior,
 	"OVERLAY_MATRIX_GROUP_SUMMARY":          interpOverlayMatrixGroupSummary,
 	"OVERLAY_RAKE":                          interpOverlayRake,
 	"OVERLAY_RETENTION":                     interpOverlayRetention,
 	"OVERLAY_STD_RESIDUAL":                  interpOverlayStdResidual,
 	"OVERLAY_SYMMETRY":                      interpOverlaySymmetry,
 	"OVERLAY_T_CELL":                        interpOverlayTCell,
+	"OVERLAY_T_VS_PRIOR":                    interpOverlayTVsPrior,
 	"OVERLAY_T_VS_REF":                      interpOverlayTVsRef,
 	"OVERLAY_Z_CELL":                        interpOverlayZCell,
+	"OVERLAY_Z_VS_PRIOR":                    interpOverlayZVsPrior,
 	"OVERLAY_Z_VS_REF":                      interpOverlayZVsRef,
 	"OVERLAY_ZSCORE_VS_MARGIN":              interpOverlayZScoreVsMargin,
 	"OVERLAY_ZSCORE_VS_POP":                 interpOverlayZScoreVsPop,
@@ -75,6 +78,20 @@ const (
 		"read the p-value for the test and the cell values (or TEST_CHISQ's Cramer's V on raw rows) for strength."
 	overlayZScoreNoBands = "There are no sourced bands for reading this z-score: the familiar 1.96 / 2.58 cut-offs are critical values of a test " +
 		"statistic built from a standard error, and this value is built from a spread of values instead, so it has no p-value behind it."
+)
+
+var (
+	// overlayPairLetters is the letters part every pairwise kind writes
+	// under params.letters (U47 #327).
+	overlayPairLetters = descriptor.Interpretation{
+		Field: "parts.letters.cells.value",
+		Means: "Significance letters for this host cell: its column's (or row's) letter, and in above the letters of the same-group columns it is significantly higher than here.",
+		Caveats: []string{
+			"Significant means significant_adjusted when a multiplicity correction ran on the layer, else a raw p below 0.05 (or params.letters.alpha); higher lists every column this one beats, significant or not.",
+			"Letters compare only within one group (a pair_along_dim bucket), restart at A in each, and a column with nothing to compare to (the implicit Total) gets none.",
+			"A letter says a gap is unlikely to be chance, not that it is large: read the cell values for size.",
+		},
+	}
 )
 
 // zScoreSign is the direction reading every ZSCORE_* kind shares.
@@ -531,6 +548,7 @@ var (
 				overlayPairNoEffect,
 			},
 		},
+		overlayPairLetters,
 	}
 
 	interpOverlayPairwiseProbitT = []descriptor.Interpretation{
@@ -544,6 +562,7 @@ var (
 				overlayPairNoEffect,
 			},
 		},
+		overlayPairLetters,
 	}
 
 	interpOverlayPairwiseWelchT = []descriptor.Interpretation{
@@ -557,6 +576,7 @@ var (
 				overlayPairNoEffect,
 			},
 		},
+		overlayPairLetters,
 	}
 
 	interpOverlayPairwiseTwoMeansZ = []descriptor.Interpretation{
@@ -570,6 +590,7 @@ var (
 				overlayPairNoEffect,
 			},
 		},
+		overlayPairLetters,
 	}
 
 	interpOverlayPairwiseWeightedTwoMeansZ = []descriptor.Interpretation{
@@ -583,6 +604,7 @@ var (
 				overlayPairNoEffect,
 			},
 		},
+		overlayPairLetters,
 	}
 
 	interpOverlayTCell = []descriptor.Interpretation{

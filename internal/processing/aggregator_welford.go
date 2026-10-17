@@ -60,18 +60,21 @@ func newWelfordAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggr
 	// callers always pass a schema and the field-type check below catches
 	// type errors before Aggregate ever runs.
 	if schema != nil {
-		f := schema.Field(agg.Field)
-		if f == nil {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				"AGG_WELFORD: unknown field "+agg.Field)
-		}
-		switch f.Type {
-		case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
-			encoding.FieldTypeF32, encoding.FieldTypeF64:
+		// A field the schema does not carry is a derived column (an
+		// attribute output) the record reads like a stored one; it is
+		// not judged here, exactly as numericReader leaves it to its
+		// siblings (survey-tables E4-S6: refusing it made predict and
+		// the runtime disagree). A name nothing defines is the field
+		// reference walk's PULSE_FIELD_UNKNOWN on both sides.
+		if f := schema.Field(agg.Field); f != nil {
+			switch f.Type {
+			case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
+				encoding.FieldTypeF32, encoding.FieldTypeF64:
 			// accepted
-		default:
-			return nil, errors.NewCodedError(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
-				fmt.Sprintf("AGG_WELFORD field %q has non-numeric type %s", agg.Field, f.Type.String()))
+			default:
+				return nil, errors.NewCodedError(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
+					fmt.Sprintf("AGG_WELFORD field %q has non-numeric type %s", agg.Field, f.Type.String()))
+			}
 		}
 	}
 	if w := slotWeight(agg); w != nil {

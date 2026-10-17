@@ -102,6 +102,10 @@ func TestLeaves_FatalCodedErrorKeepsItsCode(t *testing.T) {
 			}
 			return []string{"api", "materialize", "--json", "-r", reqFile(t, dir, "m.json", mat), "-o", filepath.Join(dir, "mat.pulse")}
 		}, ""},
+		{"rake", RakeCommand, func(t *testing.T, dir, c string) []string {
+			return []string{"rake", "--json", c, "-o", filepath.Join(dir, "raked.pulse"),
+				"--margins", `[{"field":"id","targets":{"1":1}}]`}
+		}, ""},
 		{"cohort filter", CohortCommand, func(t *testing.T, dir, c string) []string {
 			return []string{"cohort", "filter", "--json", "-i", c, "-o", filepath.Join(dir, "out.pulse"), "--filter", "id > 1"}
 		}, ""},

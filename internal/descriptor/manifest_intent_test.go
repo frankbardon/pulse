@@ -26,6 +26,12 @@ var scopedManifestExceptions = map[string]float64{
 	// so its operator list alone is about a quarter of the catalog.
 	// Measured 25.3% (51,218 of 202,559 bytes) at guidance-mcp E3-S1.
 	IntentDescribe: 0.26,
+	// compare_groups is served by every two-sample test and the whole
+	// OVERLAY_PAIRWISE_* family; it sat at about 14.94% before significance
+	// letters gave each of the five pairwise kinds a `letters` param and
+	// part (U47 E3-S1, #327). Measured 15.10% (51,021 of 337,940 bytes)
+	// there — no other content of the scope moved.
+	IntentCompareGroups: 0.151,
 }
 
 func compactJSON(t *testing.T, v any) []byte {

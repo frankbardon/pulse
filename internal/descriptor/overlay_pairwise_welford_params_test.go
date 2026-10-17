@@ -81,12 +81,19 @@ func pwWelfordRequest(kind types.OverlayKind, params string) *types.Request {
 	if params != "" {
 		raw = json.RawMessage(params)
 	}
+	// A proportion kind reads a count cell: over a mean cell its
+	// omitted p_source is refused (survey-tables E4-S6), which would
+	// mask the selector rules these tests pin.
+	cell := types.AGG_WELFORD
+	if !types.PairwiseKindUsesWelford(kind) {
+		cell = types.AGG_COUNT
+	}
 	return &types.Request{
 		Cohort: &types.Cohort{Filename: "c.pulse"},
 		Crosstab: &types.CrosstabSpec{
 			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "brand"}},
 			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "wave"}},
-			Cell:    &types.Aggregation{Type: types.AGG_WELFORD, Field: "score"},
+			Cell:    &types.Aggregation{Type: cell, Field: "score"},
 			Shape:   types.CrosstabShapeMatrix,
 		},
 		Overlays: []types.OverlaySpec{{

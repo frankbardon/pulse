@@ -507,7 +507,12 @@ func fusedCrosstabRecordsWithNulls(schema *encoding.Schema) []*Record {
 	}
 }
 
-func TestFusedCrosstab_RowNullColValidStillFeedsColMargin(t *testing.T) {
+// TestFusedCrosstab_RowNullColValidSkipsColMargin: a record whose row key
+// is null reached no cell, so under the cell-admission rule (U47 #325) it
+// feeds no column margin on either arm. The column KEY still appears (axis
+// keys are per-axis), with an absent margin when nothing in it was
+// admitted.
+func TestFusedCrosstab_RowNullColValidSkipsColMargin(t *testing.T) {
 	schema := fusedCrosstabSchema(t)
 	recs := fusedCrosstabRecordsWithNulls(schema)
 	req := &types.Request{
@@ -528,26 +533,37 @@ func TestFusedCrosstab_RowNullColValidStillFeedsColMargin(t *testing.T) {
 	assertMatrixEqual(t, want.Crosstab.Matrix, got.Crosstab.Matrix)
 	assertMetadataEqual(t, want.Metadata, got.Metadata)
 
-	// Spot-check: the wholesale column margin must include the
-	// (NULL, wholesale) records' value contribution (100 + 110 = 210).
-	// We don't hard-code the expected sum here; the buffered/fused
-	// equivalence above is the load-bearing assertion. This spot check
-	// guards against silent regression in the buffered path itself.
+	// Spot-check: the only wholesale records are (NULL, wholesale), so
+	// the wholesale column margin admits nobody and carries no figure;
+	// retail is (north,retail) 10 + 20 and (south,retail) 5 = 35.
 	m := got.Crosstab.Matrix
+	seen := map[string]bool{}
 	for i, ck := range m.ColumnKeys {
-		if len(ck) > 0 && ck[0] == "wholesale" {
-			if !m.ColumnMargins[i].Present {
-				t.Errorf("wholesale column margin must be present; got absent")
-			}
-			if m.ColumnMargins[i].Scalar() < 210 {
-				t.Errorf("wholesale column margin = %v; want >= 210 (null-region contributions)",
+		if len(ck) == 0 {
+			continue
+		}
+		switch ck[0] {
+		case "wholesale":
+			seen["wholesale"] = true
+			if m.ColumnMargins[i].Present {
+				t.Errorf("wholesale column margin = %v; want absent (null-region records reached no cell)",
 					m.ColumnMargins[i].Scalar())
+			}
+		case "retail":
+			seen["retail"] = true
+			if !m.ColumnMargins[i].Present || m.ColumnMargins[i].Scalar() != 35 {
+				t.Errorf("retail column margin = %+v; want 35", m.ColumnMargins[i])
 			}
 		}
 	}
+	if !seen["wholesale"] || !seen["retail"] {
+		t.Fatalf("fixture drift: column keys = %v", m.ColumnKeys)
+	}
 }
 
-func TestFusedCrosstab_ColNullRowValidStillFeedsRowMargin(t *testing.T) {
+// TestFusedCrosstab_ColNullRowValidSkipsRowMargin is the row-axis mirror:
+// a (north, NULL) record reached no cell, so it feeds no row margin.
+func TestFusedCrosstab_ColNullRowValidSkipsRowMargin(t *testing.T) {
 	schema := fusedCrosstabSchema(t)
 	recs := fusedCrosstabRecordsWithNulls(schema)
 	req := &types.Request{
@@ -568,19 +584,21 @@ func TestFusedCrosstab_ColNullRowValidStillFeedsRowMargin(t *testing.T) {
 	assertMatrixEqual(t, want.Crosstab.Matrix, got.Crosstab.Matrix)
 	assertMetadataEqual(t, want.Metadata, got.Metadata)
 
-	// Spot-check: the north row margin must include the (north, NULL)
-	// records' value contribution (10 + 20 + 50 + 60 = 140).
+	// Spot-check: the north row margin is its two admitted records
+	// (10 + 20); 140 means the (north, NULL) records were counted.
 	m := got.Crosstab.Matrix
+	found := false
 	for i, rk := range m.RowKeys {
 		if len(rk) > 0 && rk[0] == "north" {
-			if !m.RowMargins[i].Present {
-				t.Errorf("north row margin must be present; got absent")
-			}
-			if m.RowMargins[i].Scalar() < 140 {
-				t.Errorf("north row margin = %v; want >= 140 (null-segment contributions)",
-					m.RowMargins[i].Scalar())
+			found = true
+			if !m.RowMargins[i].Present || m.RowMargins[i].Scalar() != 30 {
+				t.Errorf("north row margin = %+v; want 30 (null-segment records reached no cell)",
+					m.RowMargins[i])
 			}
 		}
+	}
+	if !found {
+		t.Fatalf("fixture drift: row keys = %v", m.RowKeys)
 	}
 }
 
@@ -621,12 +639,11 @@ func TestFusedCrosstab_RowKeysIncludeAllSeenBrands(t *testing.T) {
 	}
 }
 
-// TestFusedCrosstab_GrandMarginCountsAllPostFilterRows: the grand margin
-// must aggregate over every filter-passing record regardless of axis-key
-// nullity. The buffered RunCrosstab applies the cell aggregator to the
-// raw `filtered` slice; the fused path must drive grandMargin from every
-// Update call.
-func TestFusedCrosstab_GrandMarginCountsAllPostFilterRows(t *testing.T) {
+// TestFusedCrosstab_GrandMarginCountsAdmittedRows: the grand margin
+// aggregates over every record that reached a CELL — both axis keys
+// resolved — on both arms (U47 #325). A record with a null axis key
+// passed the filters but was never placed in the table.
+func TestFusedCrosstab_GrandMarginCountsAdmittedRows(t *testing.T) {
 	schema := fusedCrosstabSchema(t)
 	recs := fusedCrosstabRecordsWithNulls(schema)
 	req := &types.Request{
@@ -647,17 +664,16 @@ func TestFusedCrosstab_GrandMarginCountsAllPostFilterRows(t *testing.T) {
 	assertMatrixEqual(t, want.Crosstab.Matrix, got.Crosstab.Matrix)
 	assertMetadataEqual(t, want.Metadata, got.Metadata)
 
-	// Explicit assertion: the grand AGG_COUNT must equal the post-filter
-	// record count regardless of axis nullity. fusedCrosstabRecordsWithNulls
-	// returns 12 records; none are filtered out by this request.
+	// Explicit assertion: of the 12 fixture records only (north,retail)
+	// x2 and (south,retail) resolve both axes, so the grand AGG_COUNT is
+	// 3; 12 means every filter-passing record was counted.
 	m := got.Crosstab.Matrix
 	if !m.GrandTotal.Present {
 		t.Fatalf("grand total must be present")
 	}
-	wantCount := float64(len(recs))
-	if m.GrandTotal.Scalar() != wantCount {
-		t.Errorf("grand AGG_COUNT = %v; want %v (one per post-filter record)",
-			m.GrandTotal.Scalar(), wantCount)
+	if m.GrandTotal.Scalar() != 3 {
+		t.Errorf("grand AGG_COUNT = %v; want 3 (one per record that reached a cell)",
+			m.GrandTotal.Scalar())
 	}
 }
 
