@@ -41,6 +41,7 @@ its cohort from the shared `.data` directory and assumes
 | `34_mardia_joint_normality.json` | 1 | `TEST_MARDIA` | Mardia's joint-normality check on the revenue_before / revenue / session_minutes profile; skewness χ² headline, kurtosis z in details; buffered |
 | `35_prop_z_on_flag.json` | 1 | `TEST_PROP_Z` | conversion stored as a `packed_bool` flag on `subscribers.pulse`: `success: "1"` names the converted level, `split_by` the arm — no yes/no twin column |
 | `36_chisq_on_flag.json` | 1 | `TEST_CHISQ` | plan × a `packed_bool` churn flag on `subscribers.pulse`, the flag read directly as levels `"0"` / `"1"` |
+| `37_ab_readout.json` | 1 | `TEST_CHISQ` + `TEST_PROP_Z` + `TEST_WELCH` | the A/B readout in one streaming request with no aggregation: goodness-of-fit sample-ratio check (`params.expected`, kept raw), conversion and CUPED revenue lifts read variant − control (`params.reference`, `params.covariate`), Holm-corrected together |
 
 ## Cohort
 

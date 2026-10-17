@@ -37,6 +37,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Gotchas
 
+- Fixed-horizon p only: no sequential / always-valid p-values, no Bayesian readout (`statistical-testing`).
 - `success` absent or empty → `PULSE_TEST_SUCCESS_VALUE_MISSING`; on a `packed_bool` outcome anything but `"0"` / `"1"` (`true`, `yes`) is the same code with `details.valid_levels`. On a categorical outcome `success` must be an exact dictionary entry (a shard archive's union dictionary); a misspelt level is the same code, never a silent zero-success run — `pulse inspect` lists the entries.
 - No `field`, or no `split_by` without `p0` → `PROCESSING_CONFIG` (predict too).
 - Streamable — per-group counts feed both numerator and pooled denominator in one pass.

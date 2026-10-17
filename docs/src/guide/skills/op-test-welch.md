@@ -50,6 +50,7 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 
 ## Gotchas
 
+- Fixed-horizon p only: no sequential / always-valid p-values, no Bayesian readout ([`statistical-testing`](statistical-testing.md)).
 - Identical math to `TEST_T` with `SplitBy`; this alias documents intent.
 - Welch denominator never assumes equal variance — the safe default when spreads may differ.
 - The Welford triple is byte-equal to the Welford aggregate's on the same inputs — reuse via `OVERLAY_T_CELL` on crosstabs.

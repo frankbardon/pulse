@@ -24,9 +24,7 @@ Two test slots; this file teaches choosing and chaining, per-test detail is in `
 | `tests` (tier 1) | during row scan | raw records | near-zero when reusing aggregator Welford state |
 | `post_tests` (tier 2) | after `windows` | materialized result rows | one pass over `Response.Data` |
 
-Same `Test` shape and `TestResult`; the split is *what they read*.
-
-A `null` post-test cell (an undefined figure: a mean over a group with no value) is never dropped: `statistic` / `p_value` are `null`. Filter the group out first.
+Same `Test` shape and `TestResult`. A post-test over a `null` cell (a group with no value) gives `null` `statistic` / `p_value`; filter the group out first.
 
 ## Picking the tier
 
@@ -43,7 +41,7 @@ Raw-row and per-group correlations can disagree (Simpson's paradox); `Variant` (
 | Roughly normal, or skewed / ranked / extreme? | normal → mean-based; otherwise rank-based |
 | Similar spread across groups? | no → the Welch forms |
 
-Outcome type routes first: a numeric measure → mean or rank tests; a yes/no rate (categorical or `packed_bool`) → the two-proportion z or a contingency test; two categorical fields → χ² (2×2 with any expected cell < 5 → Fisher's exact, `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`); two numeric fields → a correlation (Kendall's cost grows with n²).
+Outcome type routes first: a numeric measure → mean or rank tests; a yes/no rate (categorical or `packed_bool`) → the two-proportion z or a contingency test; two categorical fields → χ² (2×2 with any expected cell < 5 → Fisher's exact, `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`); two numeric fields → a correlation.
 
 A whole battery of numeric fields (mean profiles, covariance, sphericity, joint normality) takes a `vector` test: [`multivariate-design`](multivariate-design.md).
 
@@ -66,9 +64,8 @@ After Welch's ANOVA, Tukey's pooled `ms_within` is wrong: run pairwise Welch tes
 ## P-value conventions
 
 - `alpha` defaults to 0.05, range `(0, 1)` (else `PULSE_TEST_INVALID_ALPHA`).
-- Two-sided by default; one-sided is caller-side.
+- Two-sided, fixed-horizon: one look at a planned n. Limits: no sequential / always-valid p-values (peeking inflates false positives), no Bayesian readout (probability to beat control); one-sided is caller-side.
 - Two-group signs read first − second (alphabetical); `params.reference` is second.
-- Regression inference uses Wald-z, not Student-t; `TEST_*` never mix the two.
 - Multi-group headline tracks the worst group; detail in `Details.per_group`.
 - Many tests: `multiplicity` adds `p_adjusted` beside raw p ([`multiplicity-correction`](multiplicity-correction.md)).
 
@@ -92,7 +89,7 @@ A tier-1 test streams when it can run on online state (mean / variance / n, or c
 
 ## See
 
-- Recipes: `pulse_examples_search tags=["ab-test"]`, `tags=["anova"]`, `tags=["correlation"]`, `tags=["nonparametric"]` plus atomic `op-test-<name>`.
+- Recipes: `pulse_examples_search tags=["experiment-analysis"]`, `tags=["k-sample"]`, `tags=["correlation-analysis"]`, `tags=["nonparametric"]` plus atomic `op-test-<name>`.
 - [`aggregation-design`](aggregation-design.md) — a mean-based tier-1 test reads the Welford aggregator's `(mean, variance, n)` on the same `(field, split_by)` free; `MetaAggregator` contract.
 - [`regression-modeling`](regression-modeling.md) — Wald-z vs Student-t inference inside regressions.
 - [`overlay-system`](overlay-system.md) — crosstab cell stat overlays.

@@ -37,6 +37,7 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 
 ## Gotchas
 
+- Fixed-horizon p only: no sequential / always-valid p-values, no Bayesian readout (`statistical-testing`).
 <!-- feature: TEST_T -->
 - Identical math to `TEST_T` with `SplitBy`; this alias documents intent.
 <!-- /feature -->
