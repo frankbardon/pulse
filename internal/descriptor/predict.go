@@ -453,6 +453,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 		for _, rm := range multPlan.Matrices {
 			sizeIn.matrixMembers = append(sizeIn.matrixMembers, rm.Member)
 		}
+		sizeIn.regressionMembers = multPlan.Regressions
 	}
 	sizeIn.matrixPlans = predictMatrices(result, req, schema, extensionsFromOpts(opts), opts.Instance, blocks, buffered, matrixRecords)
 	// Instance resource limits — the rule the process pre-flight
@@ -728,18 +729,16 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 			}
 		}
 	}
-	// Regression slots do not yet compose with groupers, features,
-	// two-pass attributes, or tier-1 row tests in the streaming path.
-	// Mirror the runtime gate so predict stays parity-true.
+	// Regression slots do not compose with groupers, features or
+	// two-pass attributes in the streaming path; beside tier-1 row tests
+	// they stream (U48). Mirror the runtime gate so predict stays
+	// parity-true.
 	if len(req.Regressions) > 0 {
 		if len(req.Groups) > 0 {
 			reasons = append(reasons, "regression with groupers runs via the buffered path")
 		}
 		if len(req.Features) > 0 {
 			reasons = append(reasons, "regression with features runs via the buffered path")
-		}
-		if len(req.Tests) > 0 {
-			reasons = append(reasons, "regression with tier-1 tests runs via the buffered path")
 		}
 		if tp := firstTwoPassAttribute(req, schema, opts); tp != "" {
 			reasons = append(reasons, "regression with two-pass attribute "+string(tp)+" runs via the buffered path")
@@ -775,8 +774,11 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		}
 	}
 
-	if len(req.Aggregations) == 0 && len(req.Matrices) == 0 {
-		reasons = append(reasons, "no aggregations: streaming path requires at least one OnlineAggregator")
+	// A request whose only per-record work is matrices, tier-1 tests or
+	// regressions streams (processing.hasStreamingWork's twin); one
+	// with none of them buffers.
+	if len(req.Aggregations) == 0 && len(req.Matrices) == 0 && len(req.Tests) == 0 && len(req.Regressions) == 0 {
+		reasons = append(reasons, "no aggregations, matrices, tests or regressions: streaming path requires per-record work")
 	}
 	for _, grp := range req.Groups {
 		if !streamableWithOverlay(opts, "grouper", string(grp.Type), opRoute(opts.instance(), grp.Type).Streamable()) {

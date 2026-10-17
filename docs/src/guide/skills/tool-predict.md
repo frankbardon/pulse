@@ -15,7 +15,7 @@ Cheap — reads only the cohort header + schema, never records. Returns the shap
 
 A bare `types.Request` at the root, as execution takes it; or ONE alternative root alone (any key beside it is `SERVICE_VALIDATION`):
 
-- `composed` — a Compose batch: each slot over its cohort, then the batch overlays.
+- `composed` — a Compose batch: each slot over its cohort, then the batch overlays. The verdict adds `slots[]` (each slot's `streamable`, `p_values`, correction `families`).
 - `facet` — a rich facet request.
 - `chain` — a chain: each stage over the schema the one before produces.
 

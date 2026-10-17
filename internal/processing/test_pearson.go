@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -73,13 +74,8 @@ func (m *pearsonMoments) add(x, y, w float64) {
 }
 
 func newPearsonRRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
-	if spec.Field == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_PEARSON_R requires field")
-	}
-	if spec.Field2 == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_PEARSON_R requires field2 (second numeric column)")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, false, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {
@@ -152,13 +148,8 @@ type pearsonRPost struct {
 }
 
 func newPearsonRPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
-	if spec.Field == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_PEARSON_R (post): requires field")
-	}
-	if spec.Field2 == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_PEARSON_R (post): requires field2 (second numeric column)")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, true, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {

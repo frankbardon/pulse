@@ -468,6 +468,7 @@ func TestSlotRefusal_MultiplicityAtEveryNestingLevel(t *testing.T) {
 		{"test", &types.Request{Tests: []*types.Test{ttest(m)}}, "tests[0].multiplicity", nil},
 		{"post-test", &types.Request{PostTests: []*types.Test{ttest(nil), ttest(m)}}, "post_tests[1].multiplicity", nil},
 		{"request overlay", &types.Request{Overlays: []types.OverlaySpec{ov(matrixKind, m)}}, "overlays[0].multiplicity", nil},
+		{"regression", &types.Request{Regressions: []*types.RegressionSpec{{Type: types.REG_OLS}, {Type: types.REG_OLS, Multiplicity: &types.RegressionMultiplicity{Method: mHolm}}}}, "regressions[1].multiplicity", nil},
 		{"facet overlay", &types.FacetRequest{Overlays: []types.OverlaySpec{ov(types.OverlayKindIndexVsPop, m)}}, "overlays[0].multiplicity", nil},
 		{"composed root", &types.ComposedRequest{Multiplicity: m}, "", nil},
 		{"compose overlay", &types.ComposedRequest{Overlays: []types.ComposeOverlaySpec{{Kind: types.OverlayKindPropZPanel, Multiplicity: m}}}, "overlays[0].multiplicity", nil},
@@ -514,7 +515,7 @@ func TestPayloadSchema_MultiplicityHidden(t *testing.T) {
 			}
 			s := string(b)
 			for _, tok := range []string{`"multiplicity"`, `"Multiplicity"`, `"MultiplicityMethod"`, `"MultiplicityFamily"`,
-				`"AppliedMultiplicity"`, `"p_adjusted"`, `"significant_adjusted"`} {
+				`"AppliedMultiplicity"`, `"RegressionMultiplicity"`, `"p_adjusted"`, `"significant_adjusted"`} {
 				if got := strings.Contains(s, tok); got != c.want {
 					t.Errorf("%s present = %v, want %v", tok, got, c.want)
 				}

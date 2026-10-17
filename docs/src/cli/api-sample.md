@@ -86,9 +86,11 @@ pulse api sample --input sales.pulse --count 100 | jq '.[] | .revenue'
 
 ## When `sample` is the wrong tool
 
-- For filtered subsets, use [`pulse api process`](api-process.md) with a
-  `FILTER_*` and no aggregation — the result will be one row per
-  matching record.
+- For filtered subsets, use `pulse cohort filter` to write the matching
+  records to a new `.pulse` file, then sample or export that. A
+  [`pulse api process`](api-process.md) request with only a `FILTER_*`
+  returns no rows: `process` emits `data` only for groups, aggregations
+  or windows.
 - For distinct values of a single field, use [`pulse api
   facet`](api-facet.md).
 - For schema-only views (types, descriptions, dictionaries), use

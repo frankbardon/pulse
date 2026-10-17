@@ -423,7 +423,7 @@
         "operator": "TEST_CHISQ",
         "category": "test",
         "level": "intermediate",
-        "why": "Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated. It uses region (categorical_u8, 4 groups) and plan (categorical_u8, 2 groups).",
+        "why": "Checks whether two categorical fields are associated, or whether one categorical field's counts match planned proportions. It uses region (categorical_u8, 4 groups) and plan (categorical_u8, 2 groups).",
         "bound": true,
         "request": {
           "cohort": {
@@ -473,4 +473,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3a5a9b480666178fb7035cdf25608cc9807b07460e0fe778fa854614602f3ea9
+// golden-hash: 92ac99d80de32069510dd23d88036e62e917f61a811937f2fa41bb3b904c5499

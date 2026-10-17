@@ -107,6 +107,7 @@ func TestPropZ_KnownStatistic(t *testing.T) {
 		{Name: "treatment", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 		{Name: "converted", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 	}}
+	dictIDOrAdd(schema, "converted", "yes") // a loaded cohort's dictionary holds the success level
 	spec := &types.Test{
 		Type:    types.TEST_PROP_Z,
 		Field:   "converted",

@@ -101,9 +101,19 @@ type ComposeValidationResult struct {
 	// refused, and when the instance hides capability:multiplicity.
 	PValues *descriptor.PValueCount `json:"p_values,omitempty"`
 
+	// Slots is the per-slot detail, one entry per slot of the effective
+	// batch in order: the streamability verdict Process predict gives
+	// the slot, its p-value count and the correction families its
+	// p-values join under the batch's resolved multiplicity. The count
+	// and families are withheld when the batch multiplicity is refused
+	// or the instance hides capability:multiplicity. Omitted when the
+	// batch is refused before its slots are judged.
+	Slots []descriptor.ComposeSlotPredict `json:"slots,omitempty"`
+
 	// Advisories carries the coded, non-blocking PULSE_ADVISORY_* notes:
 	// each slot's Request advisories in slot order (details.request = the
 	// slot index, every slot path prefixed "requests[i]."), then
+	// PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT over Slots, then
 	// PULSE_ADVISORY_MANY_TESTS over PValues. Never a warning; omitted
 	// when none fires.
 	Advisories []descriptor.Advisory `json:"advisories,omitempty"`
@@ -354,7 +364,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	if merr == nil && opts.instance().Enabled(featMultiplicity) {
 		result.PValues = countComposeHostPValues(req, multPlan, opts)
 	}
-	result.Advisories = composeAdvisories(req, multPlan, merr == nil, result.PValues, opts)
+	result.Advisories, result.Slots = composeAdvisories(req, multPlan, merr == nil, result.PValues, opts)
 
 	if len(req.Overlays) == 0 {
 		if len(env.Errors) > 0 {

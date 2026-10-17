@@ -1,0 +1,68 @@
+{
+  "_meta": {
+    "category": "tests",
+    "description": "A/B readout in one streaming request with no aggregation: a goodness-of-fit sample-ratio check (kept out of the correction), the conversion lift and the CUPED-adjusted revenue lift both read variant minus control, corrected together under Holm.",
+    "intents": [
+      "compare_groups"
+    ],
+    "name": "ab_readout",
+    "operators": [
+      "TEST_CHISQ",
+      "TEST_PROP_Z",
+      "TEST_WELCH"
+    ],
+    "tags": [
+      "experiment-analysis",
+      "hypothesis-test",
+      "tier-1-test",
+      "two-sample",
+      "proportion-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "multiplicity": {
+    "method": "holm",
+    "family": "request"
+  },
+  "tests": [
+    {
+      "type": "TEST_CHISQ",
+      "rows": "treatment",
+      "label": "sample_ratio",
+      "params": {
+        "expected": {
+          "control": 0.5,
+          "variant": 0.5
+        }
+      },
+      "multiplicity": {
+        "method": "none"
+      }
+    },
+    {
+      "type": "TEST_PROP_Z",
+      "field": "converted",
+      "split_by": "treatment",
+      "label": "conversion_lift",
+      "params": {
+        "success": "yes",
+        "reference": "control"
+      }
+    },
+    {
+      "type": "TEST_WELCH",
+      "field": "revenue",
+      "split_by": "treatment",
+      "label": "revenue_lift_cuped",
+      "params": {
+        "covariate": "revenue_before",
+        "reference": "control"
+      }
+    }
+  ]
+
+}

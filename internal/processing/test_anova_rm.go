@@ -47,9 +47,8 @@ type anovaRMRow struct {
 }
 
 func newAnovaRMRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
-	if spec.Field == "" || spec.SplitBy == "" || spec.SubjectField == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_ANOVA_RM requires field (value), split_by (condition), and subject_field")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, false, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {

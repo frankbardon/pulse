@@ -2,6 +2,7 @@ package processing
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -12,8 +13,10 @@ import (
 // chiSqRow implements TEST_CHISQ as a streaming row test on a 2D
 // contingency table built from two categorical fields (Rows × Cols).
 // State is two running label sets (insertion-ordered) and a map of
-// (row,col)→count keyed by composite string. After the iterator
-// drains, Finalize materializes a dense observed matrix, computes
+// (row,col)→count keyed by composite index. After the iterator drains,
+// Finalize sorts both label sets byte-wise (the order every other test
+// and the goodness-of-fit form report), materializes a dense observed
+// matrix indexed by the sorted labels, computes
 // expected counts under independence, and emits the χ² statistic with
 // (R-1)(C-1) degrees of freedom.
 //
@@ -48,6 +51,15 @@ type chiSqRow struct {
 }
 
 func newChiSqRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
+	params, err := decodeChiSqParams(spec)
+	if err != nil {
+		return nil, err
+	}
+	// params.expected selects the goodness-of-fit form, which reads
+	// rows alone (test_chisq_gof.go).
+	if params.Expected != nil {
+		return newChiSqGOFRow(spec, schema, params.Expected)
+	}
 	if spec.Rows == "" || spec.Cols == "" {
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			"TEST_CHISQ requires rows and cols",
@@ -130,13 +142,29 @@ func (c *chiSqRow) Finalize() (*types.TestResult, error) {
 			fmt.Sprintf("TEST_CHISQ contingency must be ≥ 2x2 with non-zero counts; got %dx%d, N=%d", r, col, c.grandTotal),
 			map[string]any{"rows": r, "cols": col, "n": c.grandTotal})
 	}
+	// Sort both axes byte-wise; rowPos / colPos map an insertion index
+	// to its sorted position, and every per-index slice is permuted.
+	rowLabels, rowPos := sortedLabelPerm(c.rowLabels)
+	colLabels, colPos := sortedLabelPerm(c.colLabels)
+	rowTotals := make([]int64, r)
+	rowW := make([]float64, r)
+	for i, p := range rowPos {
+		rowTotals[p] = c.rowTotals[i]
+		rowW[p] = c.rowW[i]
+	}
+	colTotals := make([]int64, col)
+	colW := make([]float64, col)
+	for i, p := range colPos {
+		colTotals[p] = c.colTotals[i]
+		colW[p] = c.colW[i]
+	}
 	observed := make([][]int64, r)
 	for i := range observed {
 		observed[i] = make([]int64, col)
 	}
 	for key, count := range c.cellCounts {
-		ri := key / (1 << 20)
-		ci := key % (1 << 20)
+		ri := rowPos[key/(1<<20)]
+		ci := colPos[key%(1<<20)]
 		observed[ri][ci] = count
 	}
 	// The table the statistic reads: Σw per cell, scaled by
@@ -155,14 +183,14 @@ func (c *chiSqRow) Finalize() (*types.TestResult, error) {
 		cellW[i] = make([]float64, col)
 	}
 	for key, w := range c.cellW {
-		cellW[key/(1<<20)][key%(1<<20)] = w
+		cellW[rowPos[key/(1<<20)]][colPos[key%(1<<20)]] = w
 	}
 	var stat, expectedMin float64
 	expectedMin = -1
 	lowExpectedCells := 0
 	for ri := range r {
 		for ci := range col {
-			expected := scaled(c.rowW[ri]) * scaled(c.colW[ci]) / N
+			expected := scaled(rowW[ri]) * scaled(colW[ci]) / N
 			if expectedMin < 0 || expected < expectedMin {
 				expectedMin = expected
 			}
@@ -184,19 +212,19 @@ func (c *chiSqRow) Finalize() (*types.TestResult, error) {
 			errors.PULSE_TEST_EXPECTED_COUNT_TOO_LOW, lowExpectedCells))
 	}
 	details := map[string]any{
-		"row_labels":   c.rowLabels,
-		"col_labels":   c.colLabels,
+		"row_labels":   rowLabels,
+		"col_labels":   colLabels,
 		"contingency":  observed,
-		"row_totals":   c.rowTotals,
-		"col_totals":   c.colTotals,
+		"row_totals":   rowTotals,
+		"col_totals":   colTotals,
 		"n":            c.grandTotal,
 		"expected_min": expectedMin,
 	}
 	if c.basis.Weighted() {
 		// The observed table and margins as Σw (unscaled weighted counts).
 		details["contingency"] = cellW
-		details["row_totals"] = append([]float64(nil), c.rowW...)
-		details["col_totals"] = append([]float64(nil), c.colW...)
+		details["row_totals"] = rowW
+		details["col_totals"] = colW
 	}
 	c.noteScalar(details, c.sumW, c.sumWSq)
 	setEffectSize(details, "cramers_v", cramersV(stat, N, r, col))
@@ -230,4 +258,21 @@ func (c *chiSqRow) reset() {
 	c.rowW = nil
 	c.colW = nil
 	c.sumW, c.sumWSq = 0, 0
+}
+
+// sortedLabelPerm returns labels sorted byte-wise (a fresh slice) and
+// pos, where pos[i] is the sorted position of labels[i]. Labels are
+// distinct, so the order is total.
+func sortedLabelPerm(labels []string) ([]string, []int) {
+	sorted := append([]string(nil), labels...)
+	sort.Strings(sorted)
+	at := make(map[string]int, len(sorted))
+	for i, l := range sorted {
+		at[l] = i
+	}
+	pos := make([]int, len(labels))
+	for i, l := range labels {
+		pos[i] = at[l]
+	}
+	return sorted, pos
 }

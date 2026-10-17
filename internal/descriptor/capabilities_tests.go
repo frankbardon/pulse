@@ -22,6 +22,34 @@ var alphaParam = descriptor.Param{
 // partitionByParam is every post-test's partition key list (U46 E3-S2,
 // internal/groupedtests.PostTestDepth): over two or more groupers a
 // post-test runs once per partition of the result rows.
+// testReferenceParam is the two-group tests' params.reference (U48): the
+// split_by level every signed figure is read against.
+var testReferenceParam = descriptor.Param{
+	Name:        "reference",
+	Type:        "string",
+	Required:    false,
+	Description: "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING.",
+}
+
+// testCovariateParam is the two-sample mean tests' params.covariate
+// (U48, CUPED): the pre-period column the difference of means is
+// adjusted by, one pass from per-group moments.
+var testCovariateParam = descriptor.Param{
+	Name:        "covariate",
+	Type:        "string",
+	Required:    false,
+	Description: "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test.",
+}
+
+// testPropCovariateParam is TEST_PROP_Z's params.covariate (U48 E2-S3):
+// the same adjustment on the success indicator, read by the Wald form.
+var testPropCovariateParam = descriptor.Param{
+	Name:        "covariate",
+	Type:        "string",
+	Required:    false,
+	Description: "Numeric pre-period column (CUPED) adjusting the success indicator I to I − θ·(x − x̄): Variant two_proportion_adjusted, z = adjusted diff / its Wald SE; proportion, diff, its interval and cohens_h are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped. Needs SplitBy (not with p0); else, or non-numeric, PULSE_TEST_COVARIATE_INVALID.",
+}
+
 var partitionByParam = descriptor.Param{
 	Name:        "partition_by",
 	Type:        "list",
@@ -51,6 +79,8 @@ func testCapabilities() []descriptor.TestMeta {
 			Params: []descriptor.Param{
 				alphaParam,
 				{Name: "mu", Type: "float", Required: false, Default: 0.0, Description: "Hypothesized mean for the one-sample variant (ignored when SplitBy is set)."},
+				testReferenceParam,
+				testCovariateParam,
 			},
 			Requires: []string{"Field"},
 		},
@@ -60,17 +90,20 @@ func testCapabilities() []descriptor.TestMeta {
 			Tier:        1,
 			Description: "Explicit two-sample Welch t-test alias; identical to TEST_T with SplitBy.",
 			Streamable:  types.TEST_WELCH.Streamable(),
-			Params:      []descriptor.Param{alphaParam},
+			Params:      []descriptor.Param{alphaParam, testReferenceParam, testCovariateParam},
 			Requires:    []string{"Field", "SplitBy"},
 		},
 		{
 			Name:        string(types.TEST_CHISQ),
 			Family:      string(types.TEST_CHISQ),
 			Tier:        1,
-			Description: "Chi-square independence test on a 2D Rows×Cols contingency table.",
+			Description: "Chi-square independence test on a 2D Rows×Cols contingency table; with params.expected and no Cols, a goodness-of-fit test of Rows' level counts against expected proportions.",
 			Streamable:  types.TEST_CHISQ.Streamable(),
-			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Rows", "Cols"},
+			Params: []descriptor.Param{
+				alphaParam,
+				{Name: "expected", Type: "object", Required: false, Description: "Goodness of fit: map of Rows level to expected proportion (each > 0, summing to 1 within 1e-9; never renormalised). Selects Variant goodness_of_fit (df = labels − 1) and requires Cols absent; an observed level it omits is refused, a listed level never observed counts as 0."},
+			},
+			Requires: []string{"Rows", "Cols"},
 		},
 		{
 			Name:        string(types.TEST_ANOVA_F),
@@ -103,11 +136,14 @@ func testCapabilities() []descriptor.TestMeta {
 			Name:        string(types.TEST_PROP_Z),
 			Family:      string(types.TEST_PROP_Z),
 			Tier:        1,
-			Description: "Two-proportion z-test on the success rate of Field across two SplitBy groups.",
+			Description: "Two-proportion z-test on the success rate of Field across two SplitBy groups; with params.p0 and no SplitBy, a one-proportion z-test against p0.",
 			Streamable:  types.TEST_PROP_Z.Streamable(),
 			Params: []descriptor.Param{
 				alphaParam,
 				{Name: "success", Type: "string", Required: true, Description: "Dictionary value of Field treated as a success; on a packed_bool Field exactly \"1\" (true) or \"0\" (false)."},
+				{Name: "p0", Type: "float", Required: false, Description: "Hypothesised success rate in (0, 1) for the one-proportion variant (Variant one_proportion); requires SplitBy absent."},
+				testReferenceParam,
+				testPropCovariateParam,
 			},
 			Requires: []string{"Field", "SplitBy"},
 		},
@@ -126,7 +162,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Tier:        1,
 			Description: "Nonparametric two-sample location test; buffered tie-corrected rank sum.",
 			Streamable:  types.TEST_MANN_WHITNEY_U.Streamable(),
-			Params:      []descriptor.Param{alphaParam},
+			Params:      []descriptor.Param{alphaParam, testReferenceParam},
 			Requires:    []string{"Field", "SplitBy"},
 		},
 		{
@@ -216,7 +252,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Tier:        1,
 			Description: "Two-sample z-test on Field means across two SplitBy groups; identical SE to TEST_WELCH but p-value via standard normal Φ.",
 			Streamable:  types.TEST_Z_TWO_SAMPLE.Streamable(),
-			Params:      []descriptor.Param{alphaParam},
+			Params:      []descriptor.Param{alphaParam, testReferenceParam, testCovariateParam},
 			Requires:    []string{"Field", "SplitBy"},
 		},
 		{

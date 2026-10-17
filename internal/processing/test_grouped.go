@@ -43,6 +43,8 @@ var sparseTestCodes = map[errors.Code]bool{
 	errors.PULSE_TEST_VARIANCE_ZERO:          true,
 	errors.PULSE_TEST_CONTINGENCY_DEGENERATE: true,
 	errors.PULSE_TEST_CORRELATION_UNDEFINED:  true,
+	// A group whose two split levels exclude params.reference (U48).
+	errors.PULSE_TEST_REFERENCE_MISSING: true,
 	// A rank-deficient or too-small group's covariance (#404). The five
 	// built-in vector tests warn rather than refuse on these, so this
 	// reaches a test that refuses (an extension's) and keeps one

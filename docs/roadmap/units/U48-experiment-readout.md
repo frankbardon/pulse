@@ -4,7 +4,7 @@ slug: experiment-readout
 title: "An experiment readout is one request: sample-ratio check, a named reference arm, an adjusted effect with its interval, all in one correction family"
 track: Statistical integrity
 size: M
-status: not-started
+status: done
 depends_on: []
 soft_depends_on: [U43, U46]
 blocks: [U32]
@@ -35,13 +35,13 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#332** (Experiment readout) Goodness-of-fit chi-square against supplied expected proportions (`TEST_CHISQ` `params.expected` or a dedicated GOF test) and a one-sample `TEST_PROP_Z` (`p0`), so a sample-ratio check is one test
-- [ ] **#333** (Experiment readout) `params.reference` on two-group tests (`TEST_PROP_Z`, `TEST_WELCH`, `TEST_T`, `TEST_MANN_WHITNEY_U`, `TEST_Z_TWO_SAMPLE`) so `diff` and its interval read treatment − reference
-- [ ] **#334** (Experiment readout) Regression results carry coefficient confidence intervals at the request alpha, and regression p-values can join a `multiplicity` family
-- [ ] **#335** (Experiment readout) Covariate-adjusted comparisons in one call: a `covariate` on the two-group mean and proportion tests (CUPED), with the adjusted estimate, interval and variance reduction reported
-- [ ] **#336** (Experiment readout) Predict accuracy for test-only and regression-only requests (streamability and size), and `predict-compose` reports per-slot streamability, p-value counts and the cross-slot multiplicity advisory
-- [ ] **#337** (Experiment readout) Polish: `TEST_CHISQ` labels ordered consistently with the other tests; the Mann-Whitney ties warning says the test mostly compares the share of tied values
-- [ ] **#338** (Experiment readout) Acceptance: the A/B readout drops the design cohort and facet SRM workaround, the two-step CUPED and every sign flip
+- [x] **#332** (Experiment readout) Goodness-of-fit chi-square against supplied expected proportions (`TEST_CHISQ` `params.expected` or a dedicated GOF test) and a one-sample `TEST_PROP_Z` (`p0`), so a sample-ratio check is one test
+- [x] **#333** (Experiment readout) `params.reference` on two-group tests (`TEST_PROP_Z`, `TEST_WELCH`, `TEST_T`, `TEST_MANN_WHITNEY_U`, `TEST_Z_TWO_SAMPLE`) so `diff` and its interval read treatment − reference
+- [x] **#334** (Experiment readout) Regression results carry coefficient confidence intervals at the request alpha, and regression p-values can join a `multiplicity` family
+- [x] **#335** (Experiment readout) Covariate-adjusted comparisons in one call: a `covariate` on the two-group mean and proportion tests (CUPED), with the adjusted estimate, interval and variance reduction reported
+- [x] **#336** (Experiment readout) Predict accuracy for test-only and regression-only requests (streamability and size), and `predict-compose` reports per-slot streamability, p-value counts and the cross-slot multiplicity advisory
+- [x] **#337** (Experiment readout) Polish: `TEST_CHISQ` labels ordered consistently with the other tests; the Mann-Whitney ties warning says the test mostly compares the share of tied values
+- [x] **#338** (Experiment readout) Acceptance: the A/B readout drops the design cohort and facet SRM workaround, the two-step CUPED and every sign flip
 
 ## Scope
 
@@ -53,8 +53,8 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 - Predict accuracy for test batteries
 
 **Out of scope**
-- Sequential testing and always-valid p-values (state as a limit)
-- Bayesian experiment analysis
+- Sequential testing and always-valid p-values (stated as a limit in `skills/statistical-testing.md`, `op-test-welch`, `op-test-prop-z`)
+- Bayesian experiment analysis (stated as a limit in the same skills)
 
 ## Epics & stories
 
@@ -74,12 +74,12 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(experiment-readou
 
 ## Acceptance criteria
 
-- [ ] The SRM χ² from the GOF test equals the facet-overlay result (0.76, p 0.38 on the showcase data)
-- [ ] The CUPED-adjusted interval equals the two-step result
-- [ ] The A/B README quotes every lift without a sign flip
-- [ ] Showcase examples simplified where this unit allows (A/B test readout): requests converted, README and REPRODUCE.md expected numbers refreshed, every step still pure Pulse
-- [ ] `format_version` stays `"1.1"`; every change is additive (or the unit's decision records the one deliberate bump)
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] The SRM χ² from the GOF test equals the facet-overlay result (0.76, p 0.38 on the showcase data) — `TestExperimentSRM_GOFEqualsChiSqVsPopFacet`, `TestExperimentReadout_EndToEnd`
+- [x] The CUPED-adjusted interval equals the two-step result — `TestExperimentCUPED_OracleEqualsTwoStep`
+- [x] The A/B README quotes every lift without a sign flip (pulse-casebook#5)
+- [x] Showcase examples simplified where this unit allows (A/B test readout): requests converted, README and REPRODUCE.md expected numbers refreshed, every step still pure Pulse (pulse-casebook#5)
+- [x] `format_version` stays `"1.1"`; every change is additive (or the unit's decision records the one deliberate bump) — the behaviour changes are listed in the [migration guide](../v1.0.0-api-and-release/03-embedder-migration.md) "Changes from U48"
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
@@ -95,4 +95,11 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(experiment-readou
 
 ## Human inputs & decisions
 
-- **Open:** CUPED as a test parameter or as a reusable attribute that U43's cohort-total scalars make expressible. A parameter is one call; the attribute generalises.
+- **Decided:** CUPED is a test parameter (`params.covariate` on `TEST_T` two-sample, `TEST_WELCH`, `TEST_Z_TWO_SAMPLE` and two-proportion `TEST_PROP_Z`): one call, one pass from per-group moments, reporting θ and the variance reduction. The `total()` two-step stays the fallback for a test that refuses a covariate.
+- **Decided:** the goodness-of-fit test is `TEST_CHISQ` `params.expected` (the `TEST_T` `mu` precedent), not a new operator; `reference` is per test, no request-level default; tests-only and regression-only requests stream (the runtime route, not only predict).
+
+## Handed on
+
+| Item | To | Why |
+|---|---|---|
+| #478 skill `tags=[…]` example pointers that no example carries | [U32](U32-docs-audit.md) | docs audit; `statistical-testing`'s own pointers fixed here |

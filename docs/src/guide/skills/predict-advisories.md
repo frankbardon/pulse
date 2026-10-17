@@ -1,6 +1,6 @@
 ```yaml
 name: predict-advisories
-description: Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one.
+description: Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one.
 kind: design
 type: guide
 applies_to: predict
@@ -22,6 +22,7 @@ Predict answers "will this run" (errors, warnings). An **advisory** answers a di
 |---|---|---|
 | `PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS` | a two-sample t-test's `split_by` is a categorical field whose dictionary holds more than two entries (exactly two never fires) | `slot`, `operator`, `field`, `split_by`, `groups`, `suggested` (the many-group ANOVA; absent when none is offered) |
 | `PULSE_ADVISORY_MANY_TESTS` | `p_values.uncorrected` ≥ `threshold` (10) and no `multiplicity` block anywhere — request, slot or instance default | `total`, `uncorrected`, `basis`, `threshold`, `suggested: {"multiplicity": {"method": "holm"}}` |
+| `PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT` | Compose only: ≥ 2 slots emit p-values, their corrected ones sit in ≥ 2 separate families other than `compose`, and the slots emit ≥ 10 in total — no correction spans the batch | `slots`, `families` (IDs), `total`, `uncorrected`, `basis`, `threshold`, `suggested: {"multiplicity": {"method": M, "family": "compose"}}` |
 | `PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC` | the SPSS sidecar records a numeric field `nominal` and a mean-family aggregator (average, stddev, variance, moments, CI bounds) or a parametric test (t, z, paired t, ANOVA, Pearson) reads it | `slot`, `operator`, `field`, `measure`, `suggested` (a frequency count or chi-square) |
 | `PULSE_ADVISORY_ORDINAL_PARAMETRIC` | the SPSS sidecar records a numeric field `ordinal` and a parametric test reads it | `slot`, `operator`, `field`, `measure`, `suggested` (the rank-based test from the operator's `not_for`; absent when it names none) |
 | `PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED` | predict echoes `suggested_weight` (an SPSS weight variable, no slot resolving a weight) | `field`, `source`, `suggested: {"weight": {"field": F}}` |
@@ -37,7 +38,7 @@ The three SPSS rules need the cohort's SPSS metadata sidecar: a cohort imported 
 
 ## Roots
 
-Request predict runs every rule. Facet predict runs them too, but a facet request has no test, aggregation or weight slot, so only the many-tests note can fire: one p-value per inferential population-comparison overlay (chi-square or Kolmogorov-Smirnov), counted in its own `p_values`. Compose predict forwards each slot's advisories in slot order, attributed by `details.request` (the slot index) and a `requests[i].` prefix on `slot`, then adds a many-tests note over its own overlays. Their `p_values` count one per inferential overlay on a `lower_bound` basis, because the extent depends on slot results. Chain predict carries no advisories.
+Request predict runs every rule. Facet predict runs them too, but a facet request has no test, aggregation or weight slot, so only the many-tests note can fire: one p-value per inferential population-comparison overlay (chi-square or Kolmogorov-Smirnov), counted in its own `p_values`. Compose predict forwards each slot's advisories in slot order, attributed by `details.request` (the slot index) and a `requests[i].` prefix on `slot`, then the split-families note, then a many-tests note over its own overlays. Its `slots[]` show each slot's `streamable`, `p_values` and `families` (`id` `compose`, or local such as `requests[0]#request`); set `family: "compose"` on each slot's block to pool them. Their `p_values` count one per inferential overlay on a `lower_bound` basis, because the extent depends on slot results. Chain predict carries no advisories.
 
 ## Suppression
 

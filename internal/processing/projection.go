@@ -7,6 +7,7 @@ import (
 	exprparser "github.com/expr-lang/expr/parser"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -288,6 +289,10 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		addKnown(t.Rows)
 		addKnown(t.Cols)
 		addKnown(t.SubjectField)
+		// A mean test's params.covariate (CUPED) is a decoded column too.
+		if fieldaccept.TakesCovariate(t.Type) {
+			addKnown(fieldaccept.CovariateParam(t.Params))
+		}
 		for _, k := range t.OrderBy {
 			addKnown(k.Field)
 		}

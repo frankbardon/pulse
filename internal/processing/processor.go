@@ -355,6 +355,16 @@ func hasTwoPassAttribute(req *types.Request, schema *encoding.Schema, exts *Exte
 	return false
 }
 
+// hasStreamingWork reports whether req carries a slot the streaming
+// paths fold per record: an aggregation, a matrix, a tier-1 test or a
+// regression. A request with none (empty, filters / attributes /
+// features only) routes buffered. Predict's computeStreamable carries
+// the same rule (TestPredict_Streamable_NoAggregationWork).
+func hasStreamingWork(req *types.Request) bool {
+	return len(req.Aggregations) > 0 || len(req.Matrices) > 0 ||
+		len(req.Tests) > 0 || len(req.Regressions) > 0
+}
+
 // canStream reports whether the request can be safely executed via the
 // streaming path. Every per-operator streamability fact below is read
 // through ExtensionRegistry.IsStreamable: a built-in answers from its
@@ -378,6 +388,8 @@ func hasTwoPassAttribute(req *types.Request, schema *encoding.Schema, exts *Exte
 //   - tier-1 tests: empty, OR every test streamable AND registered
 //     AND no groupers / features / two-pass attributes (those
 //     combinations are not yet wired through the streaming paths)
+//   - at least one per-record slot (hasStreamingWork): an aggregation,
+//     a matrix, a tier-1 test or a regression
 //
 // Tier-2 tests (req.PostTests) never affect streamability — they run
 // after `data` is materialized regardless of which path produced it.
@@ -401,11 +413,13 @@ func (p *Processor) canStream(req *types.Request) bool {
 		return false
 	}
 	// Regression slots stream only when every spec opts in via
-	// RegressionSpec.Streamable() (today: unpenalized REG_OLS without
-	// Resample/Selection modifiers). The streaming path does not yet
-	// compose regressions with groupers, features, two-pass attributes,
-	// or row tests — those combinations route through the buffered
-	// path so the orchestrator's invariants stay tight.
+	// RegressionSpec.Streamable() (REG_OLS / REG_BAYES_LINEAR without
+	// Resample / Selection modifiers or a robust covariance). The
+	// streaming path does not compose regressions with groupers,
+	// features or two-pass attributes — those combinations route
+	// buffered. Tier-1 row tests beside a regression stream (U48): the
+	// ungrouped loop folds each filter-passing record into both, in the
+	// buffered arm's record order, and finalizes them in its order.
 	if len(req.Regressions) > 0 {
 		for _, reg := range req.Regressions {
 			if reg == nil {
@@ -418,7 +432,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 				return false
 			}
 		}
-		if len(req.Groups) > 0 || len(req.Features) > 0 || hasTwoPassAttribute(req, p.schema, p.exts) || len(req.Tests) > 0 {
+		if len(req.Groups) > 0 || len(req.Features) > 0 || hasTwoPassAttribute(req, p.schema, p.exts) {
 			return false
 		}
 	}
@@ -483,11 +497,14 @@ func (p *Processor) canStream(req *types.Request) bool {
 	if len(req.Features) > 0 && !feature.IsStreamableWithExt(req.Features, p.schema, p.exts.LookupFeature) {
 		return false
 	}
-	if len(req.Aggregations) == 0 && len(req.Matrices) == 0 {
-		// No aggregations: buffered path produces the same empty data
-		// payload and exposes the same error surface (e.g., when a
-		// downstream component validates against the materialized set).
-		// A matrix-only request streams: both paths emit no data row.
+	if !hasStreamingWork(req) {
+		// Nothing folds per record: the buffered path produces the same
+		// empty data payload and exposes the same error surface (e.g.,
+		// when a downstream component validates against the
+		// materialized set). A request whose only work is matrices,
+		// tier-1 tests or regressions streams: both paths emit no data
+		// row and fold the same records (the gates above refused every
+		// buffered-only test, regression or combination).
 		return false
 	}
 	for _, agg := range req.Aggregations {
@@ -769,7 +786,9 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	if err != nil {
 		return nil, err
 	}
-	postResults, _, err := p.runPostTests(req.PostTests, req.Groups, data)
+	// Post-test warnings are kept (ungrouped they are none today: only a
+	// partitioned run warns) so this arm can never drift from buffered.
+	postResults, postWarnings, err := p.runPostTests(req.PostTests, req.Groups, data)
 	if err != nil {
 		return nil, err
 	}
@@ -804,6 +823,9 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		PostTests:   postResults,
 		Regressions: regressionResults,
 		Matrices:    matrixResults,
+		// After the row-local attribute warnings prepended below — the
+		// buffered arm's order.
+		Warnings: postWarnings,
 	}
 
 	// Components emission block — one gate per sub-part off the
@@ -1452,7 +1474,9 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		data = []map[string]any{row}
 	}
 
-	postResults, _, err := p.runPostTests(req.PostTests, req.Groups, data)
+	// Kept, appended after the attribute fit warnings below (the
+	// buffered arm's order); ungrouped they are none today.
+	postResults, postWarnings, err := p.runPostTests(req.PostTests, req.Groups, data)
 	if err != nil {
 		return nil, err
 	}
@@ -1511,6 +1535,7 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 	for i := range stages {
 		resp.Warnings = append(resp.Warnings, AttributeWarnings(stages[i].row)...)
 	}
+	resp.Warnings = append(resp.Warnings, postWarnings...)
 	for i := range stages {
 		entry, ok, err := attributeComponents(stages[i].attr, stages[i].label, stages[i].row, stages[i].floor)
 		if err != nil {

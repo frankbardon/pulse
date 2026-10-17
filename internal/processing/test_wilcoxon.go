@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -45,9 +46,8 @@ type wilcoxonSRRow struct {
 }
 
 func newWilcoxonSRRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
-	if spec.Field == "" || spec.Field2 == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_WILCOXON_SR requires field and field2 (paired columns)")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, false, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {
@@ -166,8 +166,7 @@ func (w *wilcoxonSRRow) Finalize() (*types.TestResult, error) {
 	}
 	w.noteScalar(res.Details, w.diffs.sumW, w.diffs.sumWSq)
 	if tiesDominateW(ties, nf) {
-		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
-			": ≥ 50% of |diff| values are tied; asymptotic p-value is unreliable")
+		res.Warnings = append(res.Warnings, tiesDominateWarning("|diff| values"))
 	}
 	return res, nil
 }

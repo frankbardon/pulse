@@ -35,7 +35,7 @@
         "operator": "TEST_CHISQ",
         "category": "test",
         "level": "intermediate",
-        "why": "Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated. It uses region (categorical_u8, 4 groups) and plan (categorical_u8, 2 groups).",
+        "why": "Checks whether two categorical fields are associated, or whether one categorical field's counts match planned proportions. It uses region (categorical_u8, 4 groups) and plan (categorical_u8, 2 groups).",
         "bound": true,
         "request": {
           "cohort": {
@@ -82,7 +82,7 @@
         "operator": "TEST_CHISQ",
         "category": "test",
         "level": "intermediate",
-        "why": "Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated. It uses region (categorical_u8, 4 groups) and churned (packed_bool, 2 groups).",
+        "why": "Checks whether two categorical fields are associated, or whether one categorical field's counts match planned proportions. It uses region (categorical_u8, 4 groups) and churned (packed_bool, 2 groups).",
         "bound": true,
         "request": {
           "cohort": {
@@ -129,7 +129,7 @@
         "operator": "TEST_CHISQ",
         "category": "test",
         "level": "intermediate",
-        "why": "Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated. It uses plan (categorical_u8, 2 groups) and region (categorical_u8, 4 groups).",
+        "why": "Checks whether two categorical fields are associated, or whether one categorical field's counts match planned proportions. It uses plan (categorical_u8, 2 groups) and region (categorical_u8, 4 groups).",
         "bound": true,
         "request": {
           "cohort": {
@@ -430,4 +430,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d4123dbedd2a748b1510d35efe5d1a6c39689b96da7d5ae29dd64ed82d390d58
+// golden-hash: 815933ef3342794eb6296cf7bf91f4237da3df32b3c3eed71cefc08d4b1e6602

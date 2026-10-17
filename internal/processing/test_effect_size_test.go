@@ -143,6 +143,7 @@ func TestPropZ_CohensH(t *testing.T) {
 				{Name: "treatment", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 				{Name: "converted", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 			}}
+			dictIDOrAdd(schema, "converted", "yes") // a loaded cohort's dictionary holds the success level
 			rt, err := newPropZRow(&types.Test{
 				Type: types.TEST_PROP_Z, Field: "converted", SplitBy: "treatment",
 				Params: json.RawMessage(`{"success":"yes"}`),

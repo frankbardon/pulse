@@ -601,8 +601,8 @@ var (
 
 var (
 	purposeTestChiSq = descriptor.Purpose{
-		Plain:   "Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated.",
-		KnownAs: []string{"chi square", "chi-square test", "pearson chi-square", "chisq.test"},
+		Plain:   "Checks whether two categorical fields are associated, or whether one categorical field's counts match planned proportions.",
+		KnownAs: []string{"chi square", "chi-square test", "pearson chi-square", "chisq.test", "goodness of fit", "sample ratio mismatch"},
 		Intents: []string{IntentRelationship, IntentCompareGroups},
 		Questions: []string{
 			"Is preferred channel associated with age band?",
@@ -667,8 +667,8 @@ var (
 	}
 
 	purposeTestPropZ = descriptor.Purpose{
-		Plain:   "Checks whether the rate of one outcome, such as conversion, differs between two groups.",
-		KnownAs: []string{"two-proportion z test", "prop.test"},
+		Plain:   "Checks whether the rate of one outcome, such as conversion, differs between two groups, or from a planned rate.",
+		KnownAs: []string{"two-proportion z test", "prop.test", "one-proportion z test"},
 		Intents: []string{IntentCompareGroups},
 		Questions: []string{
 			"Does the new checkout convert at a different rate from the old one?",

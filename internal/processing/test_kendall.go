@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -58,9 +59,8 @@ type kendallTauRow struct {
 }
 
 func newKendallTauRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
-	if spec.Field == "" || spec.Field2 == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_KENDALL_TAU requires field and field2")
+	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, false, fieldaccept.TestSlotsOf(spec)); cerr != nil {
+		return nil, cerr
 	}
 	alpha := spec.Alpha
 	if alpha == 0 {
@@ -159,8 +159,7 @@ func (k *kendallTauRow) Finalize() (*types.TestResult, error) {
 	}
 	k.noteScalar(res.Details, k.xs.sumW, k.xs.sumWSq)
 	if tiesDominateW(tiesX, nf) || tiesDominateW(tiesY, nf) {
-		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
-			": ≥ 50% of values are tied in at least one column; asymptotic p-value is unreliable")
+		res.Warnings = append(res.Warnings, tiesDominateWarning("values in at least one column"))
 	}
 	return res, nil
 }

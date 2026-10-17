@@ -37,6 +37,7 @@ Use something else:
 | `conf_level` | float | `0.95` | `CILower` / `CIUpper` coverage, `0<c<1`. |
 | `vcov` | bool | `false` | Adds `Vcov` = (XᵀWX)⁻¹ at the converged weights (dispersion 1) + `Correlation`; √diag = `StdErrors`. Resample: replicate covariance; selection: final refit's. |
 | `covariance` | object | absent | `{type, cluster, order_by, lags}` as [`op-reg-ols`](op-reg-ols.md): `hc0`–`hc3`, `cluster` (CR1), `hac` (Newey–West). Sandwich over the IRLS scores at the converged weights (R `sandwich` on `glm`) behind `StdErrors`, `PValues`, CIs, `Vcov`; still Wald z (no `DF`, cluster too). Weighted: w* rule. |
+| `multiplicity` | object | absent | `{method, family, alpha, coefficients}` as [`op-reg-ols`](op-reg-ols.md): the member coefficients' Wald p-values join a `request` / `compose` family; adds `PAdjusted` / `SignificantAdjusted` + echo beside `PValues`. |
 
 `resample` / `selection` are top-level modifiers — see [`op-reg-mod-resample`](op-reg-mod-resample.md), [`op-reg-mod-selection`](op-reg-mod-selection.md).
 

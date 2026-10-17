@@ -47,6 +47,9 @@ func multRefusalCases() map[string]multRefusalCase {
 	tt := func(m *types.Multiplicity) *types.Test {
 		return &types.Test{Type: types.TEST_T, Field: "x", SplitBy: "g", Multiplicity: m}
 	}
+	reg := func(typ types.RegressionType, m *types.RegressionMultiplicity) *types.RegressionSpec {
+		return &types.RegressionSpec{Type: typ, Target: "y", Predictors: []string{"x"}, Multiplicity: m}
+	}
 	with := func(f func(r *types.Request)) func(string) *types.Request {
 		return func(cohort string) *types.Request {
 			r := base(cohort)
@@ -79,6 +82,19 @@ func multRefusalCases() map[string]multRefusalCase {
 		})},
 		"request family mixes methods":           {nil, conf, with(func(r *types.Request) { r.Tests = []*types.Test{tt(multBlock(holm, "", 0)), tt(multBlock(bh, "", 0))} })},
 		"instance default conflicts with a slot": {multBlock(holm, "", 0), conf, with(func(r *types.Request) { r.Tests = []*types.Test{tt(nil), tt(multBlock(bh, "", 0))} })},
+		"method on a Bayes regression": {nil, inv, with(func(r *types.Request) {
+			r.Regressions = []*types.RegressionSpec{reg(types.REG_BAYES_LINEAR, &types.RegressionMultiplicity{Method: holm})}
+		})},
+		"instance method reaching a Bayes regression's block": {multBlock(holm, "", 0), inv, with(func(r *types.Request) {
+			r.Regressions = []*types.RegressionSpec{reg(types.REG_BAYES_LINEAR, &types.RegressionMultiplicity{})}
+		})},
+		"unknown regression coefficient": {nil, inv, with(func(r *types.Request) {
+			r.Regressions = []*types.RegressionSpec{reg(types.REG_OLS, &types.RegressionMultiplicity{Method: holm, Coefficients: []string{"z"}})}
+		})},
+		"request family mixes a test and a regression": {nil, conf, with(func(r *types.Request) {
+			r.Tests = []*types.Test{tt(multBlock(holm, "", 0))}
+			r.Regressions = []*types.RegressionSpec{reg(types.REG_OLS, &types.RegressionMultiplicity{Method: bh})}
+		})},
 	}
 }
 
@@ -280,7 +296,7 @@ func TestMultiplicity_DefaultValidatedAtNew(t *testing.T) {
 }
 
 func multiplicityProfile(with bool) *pulse.FeatureProfile {
-	f := []string{"capability:process", "capability:compose", "capability:matrices", "AGG_SUM", "TEST_T", "MAT_CORRELATION"}
+	f := []string{"capability:process", "capability:compose", "capability:matrices", "AGG_SUM", "TEST_T", "MAT_CORRELATION", "REG_OLS"}
 	if with {
 		f = append(f, descx.FeatureMultiplicity)
 	}
@@ -311,6 +327,10 @@ func TestHiddenMultiplicity_RefusedAsUnknownField(t *testing.T) {
 		"tests[0]": func() *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x"}},
 				Tests: []*types.Test{{Type: types.TEST_T, Field: "x", SplitBy: "g", Multiplicity: holm}}}
+		},
+		"regressions[0]": func() *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x"}},
+				Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Multiplicity: &types.RegressionMultiplicity{Method: types.MultiplicityMethodHolm}}}}
 		},
 		"matrices[0]": func() *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x"}},

@@ -163,7 +163,9 @@ func TestPackedBoolLevel_TestsMatchCategoricalTwin(t *testing.T) {
 // packed_bool outcome: only "0" / "1" (no true / false aliases), and
 // anything else is refused by predict and runtime with the same code,
 // whose details name the valid levels. A categorical outcome's success
-// is not judged against its dictionary (unchanged).
+// is an exact dictionary entry, refused the same way (U48: it used to
+// count no success); TestExperimentChecks_PredictMatchesRuntime pins
+// that refusal's parity.
 func TestPackedBoolLevel_PropZSuccessStrict(t *testing.T) {
 	p, fs, cohort := packedBoolLevelCohort(t)
 	ctx := context.Background()
@@ -177,7 +179,8 @@ func TestPackedBoolLevel_PropZSuccessStrict(t *testing.T) {
 		{"pb_flag", "false", true},
 		{"pb_flag", "yes", true},
 		{"pb_flag", "01", true},
-		{"cat_flag", "maybe", false},
+		{"cat_flag", "1", false},
+		{"cat_flag", "0", false},
 	} {
 		t.Run(tc.field+"="+tc.success, func(t *testing.T) {
 			body := fmt.Sprintf(`{"tests":[{"type":"TEST_PROP_Z","field":%q,"split_by":"cat_grp","params":{"success":%q}}]}`, tc.field, tc.success)
@@ -193,8 +196,7 @@ func TestPackedBoolLevel_PropZSuccessStrict(t *testing.T) {
 			env := predictEnvelope(t, p, fs, cohort, mk())
 			var ce *errors.CodedError
 			if !tc.refused {
-				// A categorical's unseen success counts no success: the
-				// run may end in a data outcome (a zero pooled rate),
+				// An accepted level runs; it may end in a data outcome,
 				// never in the success refusal.
 				if stderrors.As(rerr, &ce) && ce.Code == errors.PULSE_TEST_SUCCESS_VALUE_MISSING {
 					t.Fatalf("runtime refused: %v", rerr)

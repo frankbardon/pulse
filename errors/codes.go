@@ -627,6 +627,15 @@ const (
 	// slot, the operator and the params keys.
 	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED Code = "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED"
 
+	// PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT is a Compose predict
+	// advisory: two or more slots emit p-values, they join two or more
+	// distinct correction families other than the batch-wide `compose`
+	// family, and the slots emit at least MultiplicityTriggerThreshold
+	// p-values in total. Each family is corrected on its own, so no
+	// correction spans the batch. details carry the slots, the family
+	// IDs, the total and the patch {"multiplicity":{"family":"compose"}}.
+	PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT Code = "PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT"
+
 	// PULSE_SUPPRESS_ADVISORY_UNKNOWN is raised by pulse.New when
 	// Options.SuppressAdvisories names a code that is not a registered
 	// PULSE_ADVISORY_* advisory code.
@@ -825,6 +834,61 @@ const (
 	// positive outcome.
 	PULSE_TEST_SUCCESS_VALUE_MISSING Code = "PULSE_TEST_SUCCESS_VALUE_MISSING"
 
+	// PULSE_TEST_EXPECTED_INVALID indicates TEST_CHISQ's params.expected
+	// (the goodness-of-fit proportions, label -> proportion) cannot
+	// define a fit: set together with cols, fewer than two labels, an
+	// empty label, a proportion that is not a finite number above 0,
+	// proportions that do not sum to 1 within 1e-9, or (on a packed_bool
+	// rows field) a label that is not a level ("0" / "1"). Raised by
+	// predict and the runtime constructor alike (one shared check,
+	// internal/fieldaccept.ExpectedRefusal); Details {type, reason, ...}.
+	PULSE_TEST_EXPECTED_INVALID Code = "PULSE_TEST_EXPECTED_INVALID"
+
+	// PULSE_TEST_EXPECTED_LABEL_MISSING indicates a TEST_CHISQ
+	// goodness-of-fit run observed a rows level that params.expected
+	// does not list. The proportions are never renormalised over the
+	// observed levels: a missing label is refused, Details {type, rows,
+	// labels (the missing ones), expected_labels}. Data-dependent, so
+	// only the runtime raises it.
+	PULSE_TEST_EXPECTED_LABEL_MISSING Code = "PULSE_TEST_EXPECTED_LABEL_MISSING"
+
+	// PULSE_TEST_P0_INVALID indicates TEST_PROP_Z's params.p0 (the
+	// hypothesised success rate of the one-proportion test) is not a
+	// number strictly between 0 and 1, or is set together with split_by
+	// (a two-proportion test has no p0). Raised by predict and the
+	// runtime constructor alike (internal/fieldaccept.P0Refusal).
+	PULSE_TEST_P0_INVALID Code = "PULSE_TEST_P0_INVALID"
+
+	// PULSE_TEST_REFERENCE_INVALID indicates a two-group test's
+	// params.reference (the split_by level every signed figure is read
+	// against: diff = other − reference) cannot name a level: set
+	// without split_by (reason without_split_by), or not a level of the
+	// split_by field — "0" / "1" on a packed_bool, a dictionary entry on
+	// a categorical (reason not_a_level). Raised by predict and the
+	// runtime constructor alike (internal/fieldaccept.ReferenceRefusal);
+	// Details {type, reason, reference, split_by, ...}.
+	PULSE_TEST_REFERENCE_INVALID Code = "PULSE_TEST_REFERENCE_INVALID"
+
+	// PULSE_TEST_REFERENCE_MISSING indicates a two-group test observed
+	// two split_by groups and neither is params.reference (a level the
+	// filtered data, or this group of a grouped run, never shows).
+	// Data-dependent, so only the runtime raises it; a grouped run turns
+	// it into one null result for the group. Details {type, reference,
+	// groups}.
+	PULSE_TEST_REFERENCE_MISSING Code = "PULSE_TEST_REFERENCE_MISSING"
+
+	// PULSE_TEST_COVARIATE_INVALID indicates a test's params.covariate
+	// (the pre-period column a two-group test adjusts by, CUPED) cannot
+	// be used: the test takes no covariate (reason unsupported_test —
+	// only TEST_T two-sample, TEST_WELCH, TEST_Z_TWO_SAMPLE and
+	// TEST_PROP_Z do), it is set without split_by (without_split_by —
+	// the one-sample / one-proportion forms included), the column is not numeric
+	// (not_numeric) or it is the test's own field (is_field). Raised by
+	// predict and the runtime alike (internal/fieldaccept
+	// CovariateUnsupportedRefusal / CovariateRefusal); Details {type,
+	// reason, covariate, ...}.
+	PULSE_TEST_COVARIATE_INVALID Code = "PULSE_TEST_COVARIATE_INVALID"
+
 	// PULSE_TEST_CORRELATION_UNDEFINED indicates Pearson r encountered
 	// a column with zero variance; r and its t-statistic are
 	// mathematically undefined in that case.
@@ -839,9 +903,10 @@ const (
 	PULSE_TEST_PAIRED_LENGTH_MISMATCH Code = "PULSE_TEST_PAIRED_LENGTH_MISMATCH"
 
 	// PULSE_TEST_TIES_DOMINATE warns that a rank-based test observed
-	// ties on ≥ 50 % of the input values. The asymptotic normal / chi-
-	// square approximation used for the p-value loses accuracy under
-	// heavy ties; consider an exact-permutation variant when the count
+	// ties on ≥ 50 % of the input values. The test then mostly compares
+	// the share of tied values, not their order, and the asymptotic
+	// normal / chi-square approximation used for the p-value loses
+	// accuracy; consider an exact-permutation variant when the count
 	// is small.
 	PULSE_TEST_TIES_DOMINATE Code = "PULSE_TEST_TIES_DOMINATE"
 
@@ -3884,6 +3949,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_EXTRA_PASS,
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
 	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
+	PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT,
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN,
 	PULSE_RECOMMEND_INTENT_UNKNOWN,
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,
@@ -3913,6 +3979,12 @@ var allCodes = []Code{
 	PULSE_TEST_EXPECTED_COUNT_TOO_LOW,
 	PULSE_TEST_FIELD2_NOT_NUMERIC,
 	PULSE_TEST_SUCCESS_VALUE_MISSING,
+	PULSE_TEST_EXPECTED_INVALID,
+	PULSE_TEST_EXPECTED_LABEL_MISSING,
+	PULSE_TEST_P0_INVALID,
+	PULSE_TEST_REFERENCE_INVALID,
+	PULSE_TEST_REFERENCE_MISSING,
+	PULSE_TEST_COVARIATE_INVALID,
 	PULSE_TEST_CORRELATION_UNDEFINED,
 	PULSE_TEST_PAIRED_LENGTH_MISMATCH,
 	PULSE_TEST_TIES_DOMINATE,

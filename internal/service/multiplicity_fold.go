@@ -115,7 +115,8 @@ func (f *multFamilies) fold() error {
 // family local to the layer, a `request` family pooled with the tests;
 // each inferential matrix spec its results' off-diagonal p-values
 // (collectMatrixResultSites) — a `matrix` family per result, or pooled into
-// `request`.
+// `request`; each member regression its member coefficients' p-values
+// (collectRegressionSites), pooled into `request` or `compose`.
 // A non-member slot (method none, the skipped Tukey HSD post-test, a
 // descriptive overlay kind) contributes nothing. Nil plan or resp is a
 // no-op.
@@ -127,6 +128,57 @@ func collectRequestSites(fams *multFamilies, scope string, plan *descx.Multiplic
 	collectTestSites(fams, scope, plan.PostTests, resp.PostTests)
 	collectOverlaySites(fams, scope, plan.Overlays, resp.Overlays)
 	collectMatrixResultSites(fams, scope, plan.Matrices, resp.Matrices)
+	collectRegressionSites(fams, scope, plan.Regressions, resp.Regressions)
+}
+
+// collectRegressionSites files each member regression's coefficient
+// p-values under its slot's family, LAST (after the matrices), one site
+// per member coefficient in the resolved order. Results pair with slots
+// by index (one result per spec). A default member list skips a
+// predictor the fit reports no p-value for (dropped by Selection); an
+// explicit list keeps it as an undefined (NaN) member, excluded from m.
+func collectRegressionSites(fams *multFamilies, scope string, slots []descx.ResolvedMultiplicity, results []*types.RegressionResult) {
+	for i, r := range results {
+		if i >= len(slots) || r == nil || !slots[i].Member {
+			continue
+		}
+		rm := slots[i]
+		method, family, alpha := rm.Method, rm.Family, rm.Alpha
+		echo := &types.AppliedMultiplicity{Method: method, Family: family, Alpha: alpha}
+		for _, name := range rm.Coefficients {
+			p, ok := r.PValues[name]
+			if !ok {
+				if !rm.ExplicitCoefficients {
+					continue
+				}
+				p = math.NaN()
+			}
+			fams.add(multFamilyKey(scope, family), family, method, multSite{
+				p: p,
+				write: func(adjusted float64, m, excluded int) {
+					writeRegressionAdjusted(r, echo, name, adjusted, m, excluded)
+				},
+			})
+		}
+	}
+}
+
+// writeRegressionAdjusted records one member coefficient's adjusted p
+// beside the raw PValues. significant_adjusted compares against the
+// resolved multiplicity alpha and is absent for an undefined adjusted
+// p. echo is shared by the regression's sites: every coefficient of one
+// regression sits in one family, so m and excluded agree.
+func writeRegressionAdjusted(r *types.RegressionResult, echo *types.AppliedMultiplicity, name string, adjusted float64, m, excluded int) {
+	if r.PAdjusted == nil {
+		r.PAdjusted = map[string]float64{}
+		r.SignificantAdjusted = map[string]bool{}
+	}
+	r.PAdjusted[name] = adjusted
+	if !math.IsNaN(adjusted) {
+		r.SignificantAdjusted[name] = adjusted < echo.Alpha
+	}
+	echo.M, echo.Excluded = m, excluded
+	r.Multiplicity = echo
 }
 
 // collectTestSites files each member test result under its slot's

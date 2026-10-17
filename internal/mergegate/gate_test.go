@@ -61,6 +61,11 @@ func TestMergeRefusal(t *testing.T) {
 		{"mergeable", &types.Request{Aggregations: sum("n"), Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "n"}}}, nil, ""},
 		{"no aggregator", &types.Request{}, nil, "no aggregator"},
 		{"tests", &types.Request{Aggregations: sum("n"), Tests: []*types.Test{{}}}, nil, "windows, features"},
+		// A tests-only or regression-only request streams (U48 #336) but
+		// never merges: it is refused for its tests / regressions, not
+		// for a missing aggregator.
+		{"tests only", &types.Request{Tests: []*types.Test{{}}}, nil, "windows, features, tests"},
+		{"regressions only", &types.Request{Regressions: []*types.RegressionSpec{{}}}, nil, "windows, features, tests"},
 		{"nil attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{nil}}, nil, "attribute slot is nil"},
 		{"row-local built-in attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA}}}, nil, ""},
 		// Bound before the row pass: a per-row score merges like a formula.
@@ -170,6 +175,7 @@ func TestChainRefusal(t *testing.T) {
 		reason string
 	}{
 		{"merge refusal", &types.Request{}, "no aggregator"},
+		{"tests-only stage", &types.Request{Tests: []*types.Test{{Type: types.TEST_T, Field: "n"}}}, "tests, post-tests and regressions are excluded"},
 		{"non-mergeable", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n"}, {Type: types.AGG_MEDIAN, Field: "n"}}}, "aggregator AGG_MEDIAN is not mergeable"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

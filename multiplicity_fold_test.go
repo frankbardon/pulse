@@ -85,7 +85,8 @@ func TestMultiplicity_ExtensionTestJoinsFamily(t *testing.T) {
 // byte-identically on the wire — no adjusted figure, no echo, no
 // parallel adjusted matrix — and leave the request's canonical hash
 // where it was. It runs over a tests request and over a crosstab
-// carrying inferential overlays.
+// carrying inferential overlays, and over a request with regressions
+// (REG_BAYES_LINEAR included: an explicit none is accepted on it).
 func TestMultiplicityNoneIsIdentity(t *testing.T) {
 	_, fs, cohort := acceptanceCohort(t)
 	none := &types.Multiplicity{Method: types.MultiplicityMethodNone}
@@ -100,6 +101,17 @@ func TestMultiplicityNoneIsIdentity(t *testing.T) {
 				Tests: []*types.Test{
 					{Type: types.TEST_T, Field: "x", SplitBy: "g", Label: "t"},
 					{Type: types.TEST_PEARSON_R, Field: "x", Field2: "y", Label: "r"},
+				},
+			}
+		},
+		"regressions": func() *types.Request {
+			return &types.Request{
+				Cohort:       &types.Cohort{Filename: cohort},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "x", Label: "m"}},
+				Tests:        []*types.Test{{Type: types.TEST_T, Field: "x", SplitBy: "g", Label: "t"}},
+				Regressions: []*types.RegressionSpec{
+					{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}},
+					{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}},
 				},
 			}
 		},
@@ -160,6 +172,9 @@ func TestMultiplicityNoneIsIdentity(t *testing.T) {
 					for i := range r.Overlays {
 						r.Overlays[i].Multiplicity = none
 					}
+					for _, rg := range r.Regressions {
+						rg.Multiplicity = &types.RegressionMultiplicity{Method: types.MultiplicityMethodNone}
+					}
 					return run(plain, r), r.Hash()
 				},
 				"instance default none": func() ([]byte, string) {
@@ -178,6 +193,51 @@ func TestMultiplicityNoneIsIdentity(t *testing.T) {
 						t.Errorf("an instance default moved the request hash: %s vs %s", hash, absentHash)
 					}
 				})
+			}
+		})
+	}
+}
+
+// TestMultiplicity_InheritedBlockSkipsRegressions: a regression joins a
+// family only through its own block — a request-level or instance
+// default block corrects the tests and leaves every regression result
+// byte-identical (no p_adjusted, no echo), Bayes included.
+func TestMultiplicity_InheritedBlockSkipsRegressions(t *testing.T) {
+	_, fs, cohort := acceptanceCohort(t)
+	holm := &types.Multiplicity{Method: types.MultiplicityMethodHolm}
+	mk := func(m *types.Multiplicity) *types.Request {
+		return &types.Request{
+			Cohort:       &types.Cohort{Filename: cohort},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x", Label: "n"}},
+			Tests:        []*types.Test{{Type: types.TEST_T, Field: "x", SplitBy: "g", Label: "t"}},
+			Regressions: []*types.RegressionSpec{
+				{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}},
+				{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}},
+			},
+			Multiplicity: m,
+		}
+	}
+	ctx := context.Background()
+	base, err := multPulse(t, fs, nil).Process(ctx, mk(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, run := range map[string]func() (*types.Response, error){
+		"request block":    func() (*types.Response, error) { return multPulse(t, fs, nil).Process(ctx, mk(holm)) },
+		"instance default": func() (*types.Response, error) { return multPulse(t, fs, holm).Process(ctx, mk(nil)) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, err := run()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Tests[0].Multiplicity == nil {
+				t.Fatal("the test was not corrected; the block reached nothing")
+			}
+			b, _ := json.Marshal(got.Regressions)
+			w, _ := json.Marshal(base.Regressions)
+			if !bytes.Equal(b, w) {
+				t.Errorf("regressions moved under an inherited block:\n got  %s\n want %s", b, w)
 			}
 		})
 	}

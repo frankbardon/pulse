@@ -26,11 +26,11 @@ import (
 // → none / surface default).
 type ResolvedMultiplicity struct {
 	// Slot is the slot path inside its request ("tests[0]",
-	// "post_tests[1]", "overlays[2]", "matrices[3]"); a Compose-host
+	// "post_tests[1]", "overlays[2]", "matrices[3]", "regressions[4]"); a Compose-host
 	// overlay is "overlays[i]" of the ComposedRequest.
 	Slot string
-	// Operator is the slot's test type, overlay kind or matrix type as
-	// authored.
+	// Operator is the slot's test type, overlay kind, matrix type or
+	// regression type as authored.
 	Operator string
 	// Name is a matrix spec's result name (MatrixSpec.EffectiveName):
 	// the fold pairs every Response.Matrices entry (one per group
@@ -59,6 +59,16 @@ type ResolvedMultiplicity struct {
 	// declared MatrixOpRegistration.PValues; "" on every other slot.
 	// The fold writes the adjusted twins beside it (MatrixAdjustedKeys).
 	PValueKey string
+	// Coefficients is a member regression's family members: the keys of
+	// its RegressionResult.PValues that join the family, in order — its
+	// block's own list, else every predictor in spec order (the
+	// "(intercept)" excluded; a predictor the fit reports no p-value for
+	// is skipped by the fold). Nil on every other slot.
+	Coefficients []string
+	// ExplicitCoefficients reports that Coefficients is the block's own
+	// list: a listed name the fit reports no p-value for stays a member
+	// with an undefined p (excluded from m, p_adjusted null).
+	ExplicitCoefficients bool
 }
 
 // MultiplicityPlan is the resolved correction of one Request, each
@@ -69,6 +79,8 @@ type MultiplicityPlan struct {
 	Overlays  []ResolvedMultiplicity
 	// Matrices is index-aligned with Request.Matrices.
 	Matrices []ResolvedMultiplicity
+	// Regressions is index-aligned with Request.Regressions.
+	Regressions []ResolvedMultiplicity
 }
 
 // Active reports whether any slot of the plan is a family member.
@@ -88,7 +100,7 @@ func (p *MultiplicityPlan) Active() bool {
 
 // lists is every slot list of the plan, in resolution order.
 func (p *MultiplicityPlan) lists() [][]ResolvedMultiplicity {
-	return [][]ResolvedMultiplicity{p.Tests, p.PostTests, p.Overlays, p.Matrices}
+	return [][]ResolvedMultiplicity{p.Tests, p.PostTests, p.Overlays, p.Matrices, p.Regressions}
 }
 
 // ComposeMultiplicityPlan is the resolved correction of one
@@ -111,13 +123,15 @@ const (
 	surfaceFacetOverlay
 	// surfaceMatrix is a MatrixSpec's own block (U28 E3-S4).
 	surfaceMatrix
+	// surfaceRegression is a RegressionSpec's own block (U48).
+	surfaceRegression
 )
 
 // defaultFamily is the family a slot of surface takes when nothing (or
 // only an inapplicable inherited family) names one.
 func (s multSurface) defaultFamily() types.MultiplicityFamily {
 	switch s {
-	case surfaceTest:
+	case surfaceTest, surfaceRegression:
 		return types.MultiplicityFamilyRequest
 	case surfaceMatrix:
 		return types.MultiplicityFamilyMatrix
@@ -146,7 +160,7 @@ func (s multSurface) families(inCompose, matrix bool) []types.MultiplicityFamily
 		case types.MultiplicityFamilyRow, types.MultiplicityFamilyColumn:
 			ok = s.overlay() && matrix
 		case types.MultiplicityFamilyRequest:
-			ok = s == surfaceTest || s == surfaceRequestOverlay || s == surfaceMatrix
+			ok = s == surfaceTest || s == surfaceRequestOverlay || s == surfaceMatrix || s == surfaceRegression
 		case types.MultiplicityFamilyCompose:
 			ok = inCompose && s != surfaceFacetOverlay && s != surfaceMatrix
 		case types.MultiplicityFamilyMatrix:
@@ -172,6 +186,9 @@ const (
 	multReasonMatrixFamily   = "the matrix family corrects one matrix result's cells and exists only on a matrix spec (matrices[i].multiplicity)"
 	multReasonMatrixSpec     = "a matrix spec corrects its cells as one matrix (matrix) or pooled with the request (request); layer, row and column belong to overlay layers and compose is not offered on a matrix spec"
 	multReasonMatrixType     = "emits no p-values; a multiplicity block applies only to the matrix operators that take params.inference"
+	multReasonBayes          = "REG_BAYES_LINEAR emits no p-values (its credible intervals replace them); a regression multiplicity block applies to REG_OLS and REG_GLM"
+	multReasonCoefficient    = "names no coefficient of this regression; list predictors or (intercept)"
+	multReasonCoefficientDup = "repeats a coefficient; list each once"
 )
 
 func stringsOf[T ~string](in []T) []string {
@@ -283,7 +300,7 @@ func (r multResolver) family(where string, s multSurface, own *types.Multiplicit
 			reason = multReasonMatrixFamily
 		case own.Family == types.MultiplicityFamilyCompose && !r.inCompose && s != surfaceFacetOverlay:
 			reason = multReasonComposeOutside
-		case (own.Family == types.MultiplicityFamilyRow || own.Family == types.MultiplicityFamilyColumn) && s != surfaceTest && !matrix:
+		case (own.Family == types.MultiplicityFamilyRow || own.Family == types.MultiplicityFamilyColumn) && s.overlay() && !matrix:
 			reason = multReasonNotMatrix
 		}
 		return "", multInvalid(where, "family", string(own.Family), reason, stringsOf(offered))
@@ -428,6 +445,84 @@ func paramsInference(raw json.RawMessage) bool {
 	return p.Inference != nil && *p.Inference
 }
 
+// regressionInterceptKey is the coefficient key a fit reports its
+// intercept under (regression.InterceptKey; predict cannot import the
+// engine).
+const regressionInterceptKey = "(intercept)"
+
+// regression resolves one regression spec at slot. A regression joins a
+// family only through its OWN block: an inherited request-level or
+// instance block never reaches it (its fields still fall through to the
+// own block's empty ones). The block's coefficients must each name a
+// predictor or "(intercept)", once. REG_BAYES_LINEAR emits no p-values,
+// so a block resolving to any method but none is refused; a hidden or
+// unknown type is the regression validators' refusal and joins no
+// family here.
+func (r multResolver) regression(slot string, spec *types.RegressionSpec, chain multChain) (ResolvedMultiplicity, error) {
+	rm := ResolvedMultiplicity{Slot: slot, Method: types.MultiplicityMethodNone, Family: types.MultiplicityFamilyRequest}
+	if spec == nil {
+		return rm, nil
+	}
+	rm.Operator = string(spec.Type)
+	own := spec.Multiplicity.Block()
+	if own == nil {
+		return rm, nil
+	}
+	where := slot + ".multiplicity"
+	if err := ValidateMultiplicitySpec(own, where); err != nil {
+		return rm, err
+	}
+	known := map[string]bool{regressionInterceptKey: true}
+	for _, p := range spec.Predictors {
+		known[p] = true
+	}
+	seen := map[string]bool{}
+	for _, c := range spec.Multiplicity.Coefficients {
+		reason := ""
+		switch {
+		case !known[c]:
+			reason = multReasonCoefficient
+		case seen[c]:
+			reason = multReasonCoefficientDup
+		}
+		if reason != "" {
+			valid := append([]string{regressionInterceptKey}, spec.Predictors...)
+			return rm, multInvalid(where, "coefficients", c, reason, valid)
+		}
+		seen[c] = true
+	}
+	family, err := r.family(where, surfaceRegression, own, chain, false)
+	if err != nil {
+		return rm, err
+	}
+	rm.Family = family
+	method := chain.method(own)
+	routed := opRoute(r.inst, spec.Type)
+	if routed == types.REG_BAYES_LINEAR && method != types.MultiplicityMethodNone {
+		return rm, multInvalid(where, "method", string(method), multReasonBayes, []string{string(types.MultiplicityMethodNone)})
+	}
+	if _, ok := knownRegressionTypes[routed]; !ok {
+		return rm, nil
+	}
+	rm.Method = method
+	rm.Alpha = chain.alpha(own)
+	rm.Member = method != types.MultiplicityMethodNone
+	if !rm.Member {
+		return rm, nil
+	}
+	if len(spec.Multiplicity.Coefficients) > 0 {
+		rm.Coefficients = slices.Clone(spec.Multiplicity.Coefficients)
+		rm.ExplicitCoefficients = true
+	} else {
+		for _, p := range spec.Predictors {
+			if p != regressionInterceptKey && !slices.Contains(rm.Coefficients, p) {
+				rm.Coefficients = append(rm.Coefficients, p)
+			}
+		}
+	}
+	return rm, nil
+}
+
 // request resolves one Request's tests, post-tests and overlays, then
 // refuses a `request` family whose members disagree on the method.
 // composed is the ComposedRequest's block (nil outside Compose).
@@ -472,6 +567,13 @@ func (r multResolver) request(req *types.Request, composed, def *types.Multiplic
 			return nil, err
 		}
 		plan.Matrices = append(plan.Matrices, rm)
+	}
+	for i, spec := range req.Regressions {
+		rm, err := r.regression("regressions["+strconv.Itoa(i)+"]", spec, chain)
+		if err != nil {
+			return nil, err
+		}
+		plan.Regressions = append(plan.Regressions, rm)
 	}
 	var members []ResolvedMultiplicity
 	for _, list := range plan.lists() {
@@ -549,6 +651,11 @@ func requestNamesMultiplicity(req *types.Request, inherited ...*types.Multiplici
 			return true
 		}
 	}
+	for _, r := range req.Regressions {
+		if r != nil && r.Multiplicity != nil {
+			return true
+		}
+	}
 	return false
 }
 
@@ -576,11 +683,17 @@ func requestNamesMultiplicity(req *types.Request, inherited ...*types.Multiplici
 //     emits no p-values (outside vectors.InferenceTypes); its own
 //     family must be `matrix` or `request`; it becomes a member only
 //     under params.inference (set, or implied by its own block);
+//   - a regression joins only through its own block, whose family must
+//     be `request` (or `compose` inside Compose) and whose coefficients
+//     must each name a predictor or "(intercept)", once; a block
+//     resolving to a method other than none on REG_BAYES_LINEAR is
+//     refused;
 //   - an inherited family the slot's surface does not offer falls back
 //     to the surface default (`request` for tests, `layer` for
 //     overlays, `matrix` for matrix specs), never refused;
 //   - members of the `request` family (tests, post-tests, inferential
-//     overlays and inferential matrix specs whose method is not none)
+//     overlays, inferential matrix specs and member regressions whose
+//     method is not none)
 //     must agree on one method, else PULSE_MULTIPLICITY_CONFLICT.
 //
 // The plan is nil when nothing — the request, any slot, or def — names

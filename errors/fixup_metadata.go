@@ -1061,6 +1061,17 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT: {
+		Message: "The compose request's slots emit many p-values into two or more separate correction families, and each family is corrected on its own, so no correction spans the batch; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Requests", "*", "Multiplicity", "Family"},
+				Hint:     "To correct the readout as one family, set family \"compose\" on the multiplicity block of each slot named in details.slots (or on the compose request's own block, when the slots name no family of their own), with one method across the batch. Keep the split when each slot answers a separate question.",
+				Examples: []any{map[string]any{"multiplicity": map[string]any{"method": "holm", "family": "compose"}}},
+			},
+		},
+	},
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN: {
 		Message: "Options.SuppressAdvisories names a code that is not a registered PULSE_ADVISORY_* advisory code.",
 		Fixups: []Fixup{
@@ -1364,12 +1375,96 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Tests", "*", "Params", "success"},
-				Hint:   "Supply the dictionary value that represents success (e.g. {\"success\": \"yes\"}); use pulse inspect to list the categorical's dictionary values.",
+				Hint:   "Supply the dictionary value that represents success, spelt exactly as the outcome's dictionary holds it (e.g. {\"success\": \"yes\"}); a categorical success no entry matches is refused — use pulse inspect to list the dictionary values.",
 			},
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Tests", "*", "Params", "success"},
 				Hint:   "On a packed_bool outcome success is one of its two levels, exactly \"1\" (true) or \"0\" (false) — details.valid_levels; there are no true / false aliases.",
+			},
+		},
+	},
+	PULSE_TEST_EXPECTED_INVALID: {
+		Message: "TEST_CHISQ params.expected (goodness-of-fit proportions, label to proportion) cannot define a fit: it is set with cols, lists fewer than two labels or an empty one, holds a proportion that is not a finite number above 0, does not sum to 1 within 1e-9, or (packed_bool rows) names a label other than \"0\" / \"1\". details.reason says which.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Tests", "*", "Params", "expected"},
+				Hint:     "List every rows level with its planned share, each above 0, summing to exactly 1 (e.g. a 50/50 split); Pulse never renormalises.",
+				Examples: []any{map[string]any{"expected": map[string]any{"control": 0.5, "treatment": 0.5}}},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Tests", "*", "Cols"},
+				Hint:   "with_cols: goodness of fit reads rows alone; drop cols, or drop params.expected for the independence test.",
+			},
+		},
+	},
+	PULSE_TEST_EXPECTED_LABEL_MISSING: {
+		Message: "A TEST_CHISQ goodness-of-fit run observed rows levels (details.labels) that params.expected does not list; the proportions are never renormalised over what was seen.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Tests", "*", "Params", "expected"},
+				Hint:   "Add each missing label with its expected share (re-balancing the others so the total stays 1), or filter those rows out before the test; check the spelling against pulse inspect's dictionary.",
+			},
+		},
+	},
+	PULSE_TEST_REFERENCE_INVALID: {
+		Message: "A two-group test's params.reference (the split_by level signed figures are read against) is set without split_by, or is not a level of the split_by field (\"0\" / \"1\" on a packed_bool, a dictionary entry on a categorical). details.reason says which.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Tests", "*", "Params", "reference"},
+				Hint:     "Name the control arm exactly as the split_by dictionary spells it (pulse inspect lists the levels); on a packed_bool use \"1\" or \"0\". Omit it for alphabetical order.",
+				Examples: []any{map[string]any{"reference": "control"}},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Tests", "*", "SplitBy"},
+				Hint:   "without_split_by: reference orders the two split_by groups; set split_by, or drop reference for the one-sample form.",
+			},
+		},
+	},
+	PULSE_TEST_REFERENCE_MISSING: {
+		Message: "A two-group test saw two split_by groups (details.groups) and neither is params.reference: the filtered data (or this group of a grouped run) never shows that level.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Tests", "*", "Params", "reference"},
+				Hint:   "Name one of the two observed groups as the reference, or filter the rows to the two arms you mean to compare.",
+			},
+		},
+	},
+	PULSE_TEST_COVARIATE_INVALID: {
+		Message: "A test's params.covariate (the pre-period column a two-group mean or proportion test adjusts by, CUPED) cannot be used: the test takes no covariate, split_by is missing, the column is not numeric, or it is the test's own field. details.reason says which.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Tests", "*", "Type"},
+				Hint:     "unsupported_test: only the two-group mean and proportion tests take a covariate — TEST_WELCH, TEST_T with split_by, TEST_Z_TWO_SAMPLE, TEST_PROP_Z with split_by; drop covariate on any other test.",
+				Examples: []any{"TEST_WELCH"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Tests", "*", "Params", "covariate"},
+				Hint:   "Name a numeric column measured BEFORE assignment (a pre-period value of the outcome is best), other than the test's own field; without_split_by: set split_by — the adjustment compares two groups (drop covariate on a one-sample t or a p0 test).",
+			},
+		},
+	},
+	PULSE_TEST_P0_INVALID: {
+		Message: "TEST_PROP_Z params.p0 (the one-proportion test's hypothesised success rate) is not strictly between 0 and 1, or is set together with split_by.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Tests", "*", "Params", "p0"},
+				Hint:     "Give p0 as a proportion strictly between 0 and 1 (e.g. 0.5 for a planned 50/50 split).",
+				Examples: []any{map[string]any{"p0": 0.5}},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Tests", "*", "SplitBy"},
+				Hint:   "with_split_by: p0 selects the one-proportion test; drop split_by, or drop p0 for the two-proportion test.",
 			},
 		},
 	},
@@ -1395,11 +1490,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_TIES_DOMINATE: {
-		Message: "A rank-based test observed ties on >= 50% of input values; the asymptotic approximation loses accuracy.",
+		Message: "A rank-based test observed ties on >= 50% of input values: the test then mostly compares the share of tied values, not their order, and the asymptotic approximation loses accuracy.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Hint:   "Treat the p-value as advisory; for small n with heavy ties prefer an exact-permutation variant when registered, or accept the effect-direction statistic alone.",
+				Hint:   "Treat the p-value as advisory: with this many ties it mostly reflects how often each group hits the tied value(s). Compare those shares directly (TEST_CHISQ or TEST_PROP_Z on a tied-vs-not indicator), or for small n prefer an exact-permutation variant when registered.",
 			},
 		},
 	},

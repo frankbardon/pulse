@@ -60,6 +60,7 @@ Use something else:
 - `penalty` / `alpha` / `l1_ratio` / `family` / `link` rejected — other engines' knobs.
 - `resample` / `selection` → `PROCESSING_CONFIG` (not advertised) — credible intervals already convey uncertainty.
 - `prior_mu` length ≠ predictors + 1 → `PROCESSING_CONFIG`.
+- A `multiplicity` block resolving to any method but `none` → `PULSE_MULTIPLICITY_INVALID` (no p-values to correct); predict refuses it identically.
 - Robust `covariance` is a substitution, not a posterior: honest under heteroskedastic or dependent rows, but no longer the conjugate model's probability statement. It forces the buffered path; < 2 clusters or a repeated `order_by` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`.
 - Vague-prior limit reproduces the OLS point estimate; intervals and `ResidualStdErr` run below OLS with few rows per predictor (σ² ≈ RSS/n, not RSS/(n−p−1)).
 - `R2` is on the posterior-mean fit, not averaged over posterior draws.

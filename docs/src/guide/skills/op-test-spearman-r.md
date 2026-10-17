@@ -55,7 +55,7 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 - Detects monotonic association; robust to outliers (rank transform).
 - Tier-2 variant `TEST_SPEARMAN_R/rank_pearson_post` runs over result columns.
 - Same p as a `MAT_CORRELATION` spearman cell on the same rows.
-- Heavy ties degrade the asymptotic p-value.
+- ≥ 50% tied in either column → warning `PULSE_TEST_TIES_DOMINATE`: the test then mostly compares the share of tied values, not their order; the asymptotic p is unreliable.
 
 ## See
 

@@ -81,7 +81,11 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 	if req == nil {
 		return "the request is nil"
 	}
-	if len(req.Aggregations) == 0 && len(req.Matrices) == 0 {
+	// A tests-only or regression-only request streams (the engine's
+	// canStream and predict's computeStreamable admit it) but does not
+	// merge: it falls through to the exclusion below, so the refusal
+	// names its tests / regressions rather than a missing aggregator.
+	if len(req.Aggregations) == 0 && len(req.Matrices) == 0 && len(req.Tests) == 0 && len(req.Regressions) == 0 {
 		return "it has no aggregator"
 	}
 	if len(req.Windows) > 0 || len(req.Features) > 0 ||
