@@ -60,7 +60,7 @@ func TestTakesCovariate(t *testing.T) {
 			got = append(got, string(op))
 		}
 	}
-	if want := CovariateTests(); !slices.Equal(got, want) || len(want) != 3 {
+	if want := CovariateTests(); !slices.Equal(got, want) || len(want) != 4 {
 		t.Fatalf("TakesCovariate %v, CovariateTests %v", got, want)
 	}
 	cerr := CovariateUnsupportedRefusal("tests[0]", "TEST_MANN_WHITNEY_U")

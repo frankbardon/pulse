@@ -38,6 +38,15 @@ import (
 // under frequency, Kish n_eff_g under probability); the pooled rate is
 // Σ(p̂_g·N*_g)/ΣN*_g. Cohen's h is scale-free. `n` stays the raw row
 // count; `successes` becomes Σw_success.
+//
+// Covariate-adjusted (params.covariate, CUPED — test_cuped.go): each
+// group also folds (x, I) into a CoWelford bucket, I the success
+// indicator, and Finalize reads the adjusted indicator
+// I′ = I − θ(x − x̄) by the Wald form (Variant two_proportion_adjusted):
+// diff = Ī′_a − Ī′_b, SE² = Σ_g v′_g/N*_g with v′_g = M2′_g/Σw_g, the
+// weighted POPULATION variance of I′ (so θ = 0 is p̂(1 − p̂) exactly and
+// the interval is the unadjusted Wald one), z = diff/SE — the pooled
+// rate is no null variance for an adjusted difference.
 type propZRow struct {
 	spec    *types.Test
 	schema  *encoding.Schema
@@ -52,6 +61,9 @@ type propZRow struct {
 	// reference is params.reference (two-proportion): the split_by
 	// level read second, so diff = other − reference ("" = alphabetical).
 	reference string
+	// cuped is the params.covariate adjustment's state (two-proportion;
+	// nil without a covariate), folded beside groups.
+	cuped *cupedArms
 
 	groups map[string]*propGroup
 	order  []string
@@ -73,6 +85,7 @@ type propZParams struct {
 	Success   string   `json:"success"`
 	P0        *float64 `json:"p0"`
 	Reference string   `json:"reference"`
+	Covariate string   `json:"covariate"`
 }
 
 func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -134,6 +147,12 @@ func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 	if cerr := fieldaccept.ReferenceRefusal(string(spec.Type), spec.SplitBy, params.Reference, schema); cerr != nil {
 		return nil, cerr
 	}
+	// A covariate (CUPED) adjusts the two-proportion difference: it
+	// needs split_by (so the one-proportion form refuses it), must be
+	// numeric and not the outcome. Predict raises the same refusal.
+	if cerr := fieldaccept.CovariateRefusal(string(spec.Type), spec.Field, spec.SplitBy, params.Covariate, schema); cerr != nil {
+		return nil, cerr
+	}
 	return &propZRow{
 		spec:       spec,
 		schema:     schema,
@@ -144,6 +163,7 @@ func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		p0:         p0,
 		one:        params.P0 != nil,
 		reference:  params.Reference,
+		cuped:      newCupedArms(params.Covariate),
 		groups:     make(map[string]*propGroup),
 		testWeight: newTestWeight(spec),
 	}, nil
@@ -162,6 +182,15 @@ func (p *propZRow) UpdateRow(record *Record) error {
 		}
 		key = k
 	}
+	// Under a covariate a null one drops the row listwise, before its
+	// weight is judged (the mean tests' order).
+	var x float64
+	if p.cuped != nil {
+		var xOk bool
+		if x, xOk = p.cuped.covariateValue(record); !xOk {
+			return nil
+		}
+	}
 	w, ok := p.rowWeight(record)
 	if !ok {
 		return nil
@@ -173,9 +202,14 @@ func (p *propZRow) UpdateRow(record *Record) error {
 		p.order = append(p.order, key)
 	}
 	g.w.Add(0, w)
+	indicator := 0.0
 	if outcome == p.success {
 		g.successes++
 		g.succW += w
+		indicator = 1
+	}
+	if p.cuped != nil {
+		p.cuped.add(key, x, indicator, w)
 	}
 	return nil
 }
@@ -223,6 +257,9 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 			"TEST_PROP_Z: pooled proportion is 0 or 1; z-statistic undefined",
 			map[string]any{"pooled": pooled})
 	}
+	if p.cuped != nil {
+		return p.finalizeAdjusted(keys, a, b, na, nb, pa, pb, pooled)
+	}
 	sePool := math.Sqrt(pooled * (1 - pooled) * (1/na + 1/nb))
 	z := (pa - pb) / sePool
 	pvalue := normalTwoSidedP(z)
@@ -253,6 +290,54 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 		Label:      testLabel(p.spec),
 		Type:       types.TEST_PROP_Z,
 		Variant:    "two_proportion_pooled",
+		Statistic:  z,
+		PValue:     pvalue,
+		Alpha:      p.alpha,
+		RejectNull: pvalue < p.alpha,
+		Details:    details,
+	}, nil
+}
+
+// finalizeAdjusted is the covariate-adjusted two-proportion test
+// (params.covariate, CUPED): the Wald z on the adjusted indicator's
+// moments (the type comment). proportion, diff, the interval, z, p and
+// Cohen's h read the adjusted rates; successes, pooled and n stay the
+// listwise sample's raw figures; diff_unadjusted is p̂_a − p̂_b.
+func (p *propZRow) finalizeAdjusted(keys []string, a, b *propGroup, na, nb, pa, pb, pooled float64) (*types.TestResult, error) {
+	adjA, adjB, f := p.cuped.adjust(p.cuped.groups[keys[0]], p.cuped.groups[keys[1]])
+	se2 := (adjA.M2/adjA.SumW)/na + (adjB.M2/adjB.SumW)/nb
+	if !(se2 > 0) {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
+			"TEST_PROP_Z: the covariate-adjusted success indicator has zero variance in both groups; z-statistic undefined",
+			map[string]any{"pooled": pooled, "theta": f.theta})
+	}
+	se := math.Sqrt(se2)
+	diff := adjA.Mean - adjB.Mean
+	z := diff / se
+	pvalue := normalTwoSidedP(z)
+	half := normalCriticalTwoSided(p.alpha) * se
+	details := map[string]any{
+		"success":    p.success,
+		"groups":     keys,
+		"n":          []int64{a.w.N, b.w.N},
+		"successes":  []int64{a.successes, b.successes},
+		"proportion": []float64{adjA.Mean, adjB.Mean},
+		"diff":       diff,
+		"pooled":     pooled,
+		"ci_low":     diff - half,
+		"ci_high":    diff + half,
+	}
+	if p.basis.Weighted() {
+		details["successes"] = []float64{a.succW, b.succW}
+	}
+	noteReference(details, p.reference)
+	f.note(details, pa-pb, se2, pa*(1-pa)/na+pb*(1-pb)/nb)
+	p.noteGroups(details, []*weighting.Welford{&a.w, &b.w})
+	setEffectSize(details, "cohens_h", cohensH(adjA.Mean, adjB.Mean))
+	return &types.TestResult{
+		Label:      testLabel(p.spec),
+		Type:       types.TEST_PROP_Z,
+		Variant:    "two_proportion_adjusted",
 		Statistic:  z,
 		PValue:     pvalue,
 		Alpha:      p.alpha,
@@ -310,6 +395,7 @@ func (p *propZRow) finalizeOneProportion() (*types.TestResult, error) {
 func (p *propZRow) reset() {
 	p.groups = make(map[string]*propGroup)
 	p.order = nil
+	p.cuped.reset()
 }
 
 // normalCriticalTwoSided is the two-sided standard-normal critical

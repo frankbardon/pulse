@@ -1426,18 +1426,18 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_COVARIATE_INVALID: {
-		Message: "A test's params.covariate (the pre-period column a mean test adjusts by, CUPED) cannot be used: the test takes no covariate, split_by is missing, the column is not numeric, or it is the test's own field. details.reason says which.",
+		Message: "A test's params.covariate (the pre-period column a two-group mean or proportion test adjusts by, CUPED) cannot be used: the test takes no covariate, split_by is missing, the column is not numeric, or it is the test's own field. details.reason says which.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Tests", "*", "Type"},
-				Hint:     "unsupported_test: only the two-sample mean tests take a covariate — TEST_WELCH, TEST_T with split_by, TEST_Z_TWO_SAMPLE; drop covariate on any other test.",
+				Hint:     "unsupported_test: only the two-group mean and proportion tests take a covariate — TEST_WELCH, TEST_T with split_by, TEST_Z_TWO_SAMPLE, TEST_PROP_Z with split_by; drop covariate on any other test.",
 				Examples: []any{"TEST_WELCH"},
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Tests", "*", "Params", "covariate"},
-				Hint:   "Name a numeric column measured BEFORE assignment (a pre-period value of the outcome is best), other than the test's own field; without_split_by: set split_by — the adjustment compares two groups.",
+				Hint:   "Name a numeric column measured BEFORE assignment (a pre-period value of the outcome is best), other than the test's own field; without_split_by: set split_by — the adjustment compares two groups (drop covariate on a one-sample t or a p0 test).",
 			},
 		},
 	},

@@ -20,6 +20,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 - `success` — string, required. Dictionary value of Field treated as a "success"; on a `packed_bool` Field strictly `"1"` or `"0"`.
 - `reference` — string, two-proportion: the `SplitBy` level read second, so `diff`, CI, z and `cohens_h` read other − reference (default: alphabetical, second level). Not a level, or no `SplitBy` → `PULSE_TEST_REFERENCE_INVALID` (predict too); neither observed group → `PULSE_TEST_REFERENCE_MISSING` (grouped: that group's figures `null`).
 - `p0` — float in `(0, 1)`, optional: with `SplitBy` absent, the one-proportion test (`Variant` `one_proportion`). Out of range or beside `SplitBy` → `PULSE_TEST_P0_INVALID` (predict too).
+- `covariate` — string, two-proportion: a numeric pre-period column (CUPED) adjusting the success indicator I to I − θ(x − x̄), θ pooled over both groups (weighted: on the weights; grouped: per group). `Variant` `two_proportion_adjusted`: `proportion`, `diff`, Wald CI, `cohens_h` adjusted; z = `diff` / its Wald SE (θ = 0 gives the unadjusted interval). `Details` add `diff_unadjusted`, `theta`, `covariate_mean`, `variance_reduction`, `n_covariate_dropped`. With `p0`, non-numeric or `= Field` → `PULSE_TEST_COVARIATE_INVALID` (predict too).
 <!-- feature: capability:multiplicity -->
 - `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
 <!-- /feature -->

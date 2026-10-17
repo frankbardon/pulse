@@ -11,8 +11,9 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Covariate adjustment (CUPED, U48) of the two-sample mean tests —
-// TEST_T with split_by, TEST_WELCH, TEST_Z_TWO_SAMPLE — under
+// Covariate adjustment (CUPED, U48) of the two-group tests — TEST_T
+// with split_by, TEST_WELCH, TEST_Z_TWO_SAMPLE and TEST_PROP_Z (y the
+// success indicator; test_propz.go reads it by the Wald form) — under
 // params.covariate. ONE pass: each split_by group folds the outcome y
 // and the covariate x into a bivariate weighted Welford bucket
 // (weighting.CoWelford: the moment sufficient statistics n, Σy, Σx,
@@ -36,6 +37,14 @@ import (
 // their weight is judged. A constant covariate (M2X = 0) leaves y
 // unadjusted: θ and variance_reduction are then undefined (NaN, null
 // on the wire), never 0.
+//
+// Weighted (both kinds; .claude/reference/weighting.md, Weighted
+// inference): the fold carries the row weight w, so θ and x̄ are the
+// weighted (WLS) slope and mean on the RAW weights — scale-free, so
+// identical under both kinds — and each group's adjusted moments keep
+// its Σw / Σw², so the test reads its own N*_g and Kish scale c_g on
+// y′ as on any weighted outcome: the weighted two-step. Grouped
+// requests mint one instance per bucket, so θ is pooled per partition.
 
 // meanTestParams is the params payload of TEST_WELCH and
 // TEST_Z_TWO_SAMPLE: params.reference and params.covariate.
@@ -143,17 +152,24 @@ func (c *cupedArms) adjust(a, b *weighting.CoWelford) (weighting.Welford, weight
 	return adj(a), adj(b), f
 }
 
+// rawWelch is the mean tests' unadjusted reading of the listwise
+// sample: the raw difference of means and its Welch SE², Σ s²_g/N*_g.
+func (f cupedFacts) rawWelch(basis weighting.Basis) (diff, se2 float64) {
+	return f.raw[0].Mean - f.raw[1].Mean,
+		f.raw[0].Variance(basis)/f.raw[0].NStar(basis) + f.raw[1].Variance(basis)/f.raw[1].NStar(basis)
+}
+
 // note writes the adjustment's Details: diff_unadjusted (the listwise
-// sample's raw difference of means), theta, covariate_mean,
-// variance_reduction (1 − SE²_adjusted / SE²_unadjusted of the
-// difference: the share of its sampling variance the covariate
-// removed; undefined with theta) and n_covariate_dropped.
-func (f cupedFacts) note(details map[string]any, basis weighting.Basis, seAdj2 float64) {
-	details["diff_unadjusted"] = f.raw[0].Mean - f.raw[1].Mean
+// sample's raw difference), theta, covariate_mean, variance_reduction
+// (1 − SE²_adjusted / SE²_unadjusted of the difference, both read by
+// the test's own SE form: the share of its sampling variance the
+// covariate removed; undefined with theta) and n_covariate_dropped.
+func (f cupedFacts) note(details map[string]any, diffRaw, seAdj2, seRaw2 float64) {
+	details["diff_unadjusted"] = diffRaw
 	details["theta"] = f.theta
 	details["covariate_mean"] = f.xbar
 	reduction := math.NaN()
-	if seRaw2 := f.raw[0].Variance(basis)/f.raw[0].NStar(basis) + f.raw[1].Variance(basis)/f.raw[1].NStar(basis); !math.IsNaN(f.theta) && seRaw2 > 0 {
+	if !math.IsNaN(f.theta) && seRaw2 > 0 {
 		reduction = 1 - seAdj2/seRaw2
 	}
 	details["variance_reduction"] = reduction

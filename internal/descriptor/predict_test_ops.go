@@ -211,6 +211,8 @@ func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encodi
 	if !tier1 || schema == nil {
 		if cerr := fieldaccept.ReferenceRefusal(string(t.Type), t.SplitBy, referenceParam(t.Params), nil); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		} else if cerr := fieldaccept.CovariateRefusal(string(t.Type), t.Field, t.SplitBy, fieldaccept.CovariateParam(t.Params), nil); tier1 && cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 		return
 	}
@@ -234,9 +236,13 @@ func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encodi
 			return
 		}
 	}
-	// params.reference names a split_by level (the constructor's last
-	// refusal).
+	// params.reference names a split_by level, then params.covariate
+	// (CUPED) is usable — the constructor's last two refusals.
 	if cerr := fieldaccept.ReferenceRefusal(string(t.Type), t.SplitBy, referenceParam(t.Params), schema); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		return
+	}
+	if cerr := fieldaccept.CovariateRefusal(string(t.Type), t.Field, t.SplitBy, fieldaccept.CovariateParam(t.Params), schema); cerr != nil {
 		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
 }

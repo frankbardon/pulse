@@ -192,7 +192,8 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 	}
 	noteReference(res.Details, zt.reference)
 	if cf != nil {
-		cf.note(res.Details, zt.basis, se2)
+		diffRaw, seRaw2 := cf.rawWelch(zt.basis)
+		cf.note(res.Details, diffRaw, se2, seRaw2)
 	}
 	setEffectSize(res.Details, "cohens_d", cohensDTwoSample(diff, na, va, nb, vb))
 	zt.noteGroups(res.Details, []*weighting.Welford{a, b})

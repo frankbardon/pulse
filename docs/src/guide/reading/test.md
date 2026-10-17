@@ -690,6 +690,43 @@ Cohen's h, the gap between the two rates (one-proportion: the observed rate and 
 
 - Cohen's 0.2 / 0.5 / 0.8 benchmarks for h are the same as for d, applied to |h|.
 
+#### `details.diff_unadjusted`
+
+Present only with params.covariate: the raw first-minus-second difference of success rates on the same rows; details.diff, its interval, the statistic (a Wald z, Variant two_proportion_adjusted), p, proportion and cohens_h are the covariate-adjusted figures.
+
+**Sign:**
+
+- `+`: the first group in details.groups is higher (alphabetical; with params.reference, the non-reference group); one-proportion: the observed rate is above p0
+- `-`: the second group in details.groups is higher (alphabetical; with params.reference, the reference); one-proportion: the observed rate is below p0
+
+**Caveats:**
+
+- An adjusted rate can leave [0, 1] in a small group; cohens_h is then omitted.
+
+#### `details.theta`
+
+Present only with params.covariate: the slope of the outcome on the covariate pooled over both groups; each row is read as outcome - theta x (covariate - covariate_mean).
+
+**Caveats:**
+
+- Null when the covariate is constant: nothing is adjusted then. It is estimated from the same data, which standard CUPED practice ignores in the interval.
+
+#### `details.covariate_mean`
+
+Present only with params.covariate: the covariate's mean over both groups, the point the adjustment centres on.
+
+#### `details.variance_reduction`
+
+Present only with params.covariate: the share of the difference's sampling variance the covariate removed (0.6 = the interval is about 37% narrower than unadjusted).
+
+**Caveats:**
+
+- Null when theta is; below 0 means the covariate made the estimate noisier, so drop it. Use a covariate measured before assignment: one the treatment moved biases diff.
+
+#### `details.n_covariate_dropped`
+
+Present only with params.covariate: rows with an outcome and a group but a null covariate, left out of the test (n counts the rest).
+
 <a id="op-test_shapiro_wilk"></a>
 
 ### `TEST_SHAPIRO_WILK`

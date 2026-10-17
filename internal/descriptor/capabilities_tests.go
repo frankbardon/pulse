@@ -41,6 +41,15 @@ var testCovariateParam = descriptor.Param{
 	Description: "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test.",
 }
 
+// testPropCovariateParam is TEST_PROP_Z's params.covariate (U48 E2-S3):
+// the same adjustment on the success indicator, read by the Wald form.
+var testPropCovariateParam = descriptor.Param{
+	Name:        "covariate",
+	Type:        "string",
+	Required:    false,
+	Description: "Numeric pre-period column (CUPED) adjusting the success indicator I to I − θ·(x − x̄): Variant two_proportion_adjusted, z = adjusted diff / its Wald SE; proportion, diff, its interval and cohens_h are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped. Needs SplitBy (not with p0); else, or non-numeric, PULSE_TEST_COVARIATE_INVALID.",
+}
+
 var partitionByParam = descriptor.Param{
 	Name:        "partition_by",
 	Type:        "list",
@@ -134,6 +143,7 @@ func testCapabilities() []descriptor.TestMeta {
 				{Name: "success", Type: "string", Required: true, Description: "Dictionary value of Field treated as a success; on a packed_bool Field exactly \"1\" (true) or \"0\" (false)."},
 				{Name: "p0", Type: "float", Required: false, Description: "Hypothesised success rate in (0, 1) for the one-proportion variant (Variant one_proportion); requires SplitBy absent."},
 				testReferenceParam,
+				testPropCovariateParam,
 			},
 			Requires: []string{"Field", "SplitBy"},
 		},

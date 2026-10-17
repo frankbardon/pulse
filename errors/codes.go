@@ -869,10 +869,11 @@ const (
 	PULSE_TEST_REFERENCE_MISSING Code = "PULSE_TEST_REFERENCE_MISSING"
 
 	// PULSE_TEST_COVARIATE_INVALID indicates a test's params.covariate
-	// (the pre-period column a mean test adjusts by, CUPED) cannot be
-	// used: the test takes no covariate (reason unsupported_test — only
-	// TEST_T two-sample, TEST_WELCH and TEST_Z_TWO_SAMPLE do), it is set
-	// without split_by (without_split_by), the column is not numeric
+	// (the pre-period column a two-group test adjusts by, CUPED) cannot
+	// be used: the test takes no covariate (reason unsupported_test —
+	// only TEST_T two-sample, TEST_WELCH, TEST_Z_TWO_SAMPLE and
+	// TEST_PROP_Z do), it is set without split_by (without_split_by —
+	// the one-sample / one-proportion forms included), the column is not numeric
 	// (not_numeric) or it is the test's own field (is_field). Raised by
 	// predict and the runtime alike (internal/fieldaccept
 	// CovariateUnsupportedRefusal / CovariateRefusal); Details {type,

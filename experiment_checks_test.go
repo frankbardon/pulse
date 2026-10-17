@@ -165,7 +165,13 @@ func TestExperimentChecks_PredictMatchesRuntime(t *testing.T) {
 		// tests only; anywhere else it is one pointed refusal.
 		{"covariate on mann-whitney", `{"type":"TEST_MANN_WHITNEY_U","field":"x","split_by":"cat_grp","params":{"covariate":"y"}}`, errors.PULSE_TEST_COVARIATE_INVALID, true},
 		{"covariate on anova", `{"type":"TEST_ANOVA_F","field":"x","split_by":"cat_grp","params":{"covariate":"y"}}`, errors.PULSE_TEST_COVARIATE_INVALID, true},
-		{"covariate on prop_z", `{"type":"TEST_PROP_Z","field":"cat_flag","split_by":"cat_grp","params":{"success":"1","covariate":"y"}}`, errors.PULSE_TEST_COVARIATE_INVALID, true},
+		// U48 E2-S3: TEST_PROP_Z takes a covariate on the two-proportion
+		// form only; the one-proportion form (p0) refuses it.
+		{"covariate one-proportion", `{"type":"TEST_PROP_Z","field":"cat_flag","params":{"success":"1","p0":0.5,"covariate":"y"}}`, errors.PULSE_TEST_COVARIATE_INVALID, true},
+		{"covariate prop_z categorical", `{"type":"TEST_PROP_Z","field":"cat_flag","split_by":"pb_grp","params":{"success":"1","covariate":"cat_grp"}}`, errors.PULSE_TEST_COVARIATE_INVALID, true},
+		{"covariate prop_z is the outcome", `{"type":"TEST_PROP_Z","field":"cat_flag","split_by":"cat_grp","params":{"success":"1","covariate":"cat_flag"}}`, errors.PULSE_TEST_COVARIATE_INVALID, true},
+		{"covariate prop_z unknown field", `{"type":"TEST_PROP_Z","field":"cat_flag","split_by":"cat_grp","params":{"success":"1","covariate":"nope"}}`, errors.SERVICE_VALIDATION, true},
+		{"covariate prop_z bad reference first", `{"type":"TEST_PROP_Z","field":"cat_flag","split_by":"pb_grp","params":{"success":"1","reference":"yes","covariate":"cat_grp"}}`, errors.PULSE_TEST_REFERENCE_INVALID, true},
 		{"covariate on pearson", `{"type":"TEST_PEARSON_R","field":"x","field2":"y","params":{"covariate":"y"}}`, errors.PULSE_TEST_COVARIATE_INVALID, true},
 		{"covariate one-sample t", `{"type":"TEST_T","field":"x","params":{"covariate":"y"}}`, errors.PULSE_TEST_COVARIATE_INVALID, true},
 		{"covariate categorical", `{"type":"TEST_WELCH","field":"x","split_by":"pb_grp","params":{"covariate":"cat_flag"}}`, errors.PULSE_TEST_COVARIATE_INVALID, true},

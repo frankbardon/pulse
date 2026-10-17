@@ -70,7 +70,7 @@ var interpretationProbes = map[string][]string{
 	"TEST_MANOVA":              {"details.f", "details.hotelling_lawley", "details.roy", "details.wilks"},
 	"TEST_PAIRED_T":            {"details.ci_high", "details.ci_low", "details.effect_size.cohens_d", "details.mean_diff"},
 	"TEST_PEARSON_R":           {"details.ci_high", "details.ci_low"},
-	"TEST_PROP_Z":              {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_h", "details.p0", "details.reference"},
+	"TEST_PROP_Z":              {"details.ci_high", "details.ci_low", "details.covariate_mean", "details.diff", "details.diff_unadjusted", "details.effect_size.cohens_h", "details.n_covariate_dropped", "details.p0", "details.reference", "details.theta", "details.variance_reduction"},
 	"TEST_SHAPIRO_WILK":        {"details.per_group"},
 	"TEST_T":                   {"details.ci_high", "details.ci_low", "details.covariate_mean", "details.diff", "details.diff_unadjusted", "details.effect_size.cohens_d", "details.n_covariate_dropped", "details.reference", "details.theta", "details.variance_reduction"},
 	"TEST_TREND":               {"details.s", "details.tau"},
@@ -325,6 +325,16 @@ var testProbeFixtures = []testProbeFixture{
 	{types.TEST_T, tierRow, "two_sample_covariate", covariateRow(types.TEST_T)},
 	{types.TEST_WELCH, tierRow, "two_sample_covariate", covariateRow(types.TEST_WELCH)},
 	{types.TEST_Z_TWO_SAMPLE, tierRow, "two_sample_covariate", covariateRow(types.TEST_Z_TWO_SAMPLE)},
+	{types.TEST_PROP_Z, tierRow, "two_proportion_covariate", func(t *testing.T) *types.TestResult {
+		schema := cwSchema()
+		recs := cwRecords(schema, cwFixture(120, "", 9), nil)
+		spec := &types.Test{Type: types.TEST_PROP_Z, Field: "conv", SplitBy: "arm", Params: json.RawMessage(`{"success":"yes","covariate":"x"}`)}
+		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
+			for _, r := range recs {
+				mustUpdate(t, rt, r)
+			}
+		})
+	}},
 	{types.TEST_KS, tierRow, "two_sample", groupedRow(types.TEST_KS)},
 	{types.TEST_MANN_WHITNEY_U, tierRow, "two_sample", groupedRow(types.TEST_MANN_WHITNEY_U)},
 	{types.TEST_MANN_WHITNEY_U, tierRow, "two_sample_reference", referenceRow(types.TEST_MANN_WHITNEY_U)},

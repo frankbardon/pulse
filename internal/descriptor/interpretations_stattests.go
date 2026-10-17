@@ -106,14 +106,26 @@ var interpReference = descriptor.Interpretation{
 }
 
 // interpCovariate reads the two-sample mean tests' params.covariate
-// (CUPED) outputs, present only when the covariate is set.
-var interpCovariate = []descriptor.Interpretation{
-	{
-		Field:   "details.diff_unadjusted",
-		Means:   "Present only with params.covariate: the raw first-minus-second difference of means on the same rows; details.diff, its interval, the statistic, p, mean, variance and cohens_d are the covariate-adjusted figures.",
-		Sign:    twoGroupSign,
-		Caveats: []string{"Cohen's d here divides by the adjusted spread, so it is larger than the raw d: compare it only with other adjusted d's."},
-	},
+// (CUPED) outputs, present only when the covariate is set;
+// interpCovariateProp is TEST_PROP_Z's (the same keys, the adjusted
+// figures being rates).
+var interpCovariate = append([]descriptor.Interpretation{{
+	Field:   "details.diff_unadjusted",
+	Means:   "Present only with params.covariate: the raw first-minus-second difference of means on the same rows; details.diff, its interval, the statistic, p, mean, variance and cohens_d are the covariate-adjusted figures.",
+	Sign:    twoGroupSign,
+	Caveats: []string{"Cohen's d here divides by the adjusted spread, so it is larger than the raw d: compare it only with other adjusted d's."},
+}}, interpCovariateShared...)
+
+var interpCovariateProp = append([]descriptor.Interpretation{{
+	Field:   "details.diff_unadjusted",
+	Means:   "Present only with params.covariate: the raw first-minus-second difference of success rates on the same rows; details.diff, its interval, the statistic (a Wald z, Variant two_proportion_adjusted), p, proportion and cohens_h are the covariate-adjusted figures.",
+	Sign:    propZSign,
+	Caveats: []string{"An adjusted rate can leave [0, 1] in a small group; cohens_h is then omitted."},
+}}, interpCovariateShared...)
+
+// interpCovariateShared are the covariate outputs every adjusted test
+// reads alike.
+var interpCovariateShared = []descriptor.Interpretation{
 	{
 		Field:   "details.theta",
 		Means:   "Present only with params.covariate: the slope of the outcome on the covariate pooled over both groups; each row is read as outcome - theta x (covariate - covariate_mean).",
@@ -671,7 +683,7 @@ var (
 		interpPValue,
 	}
 
-	interpTestPropZ = []descriptor.Interpretation{
+	interpTestPropZ = append([]descriptor.Interpretation{
 		{
 			Field: "statistic",
 			Means: "z: the first group's success rate minus the second's, in standard errors computed from the pooled rate. " +
@@ -703,7 +715,7 @@ var (
 				"Cohen's 0.2 / 0.5 / 0.8 benchmarks for h are the same as for d, applied to |h|.",
 			},
 		}),
-	}
+	}, interpCovariateProp...)
 )
 
 // --- Association and trend --------------------------------------------

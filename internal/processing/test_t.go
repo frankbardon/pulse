@@ -372,7 +372,8 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 	}
 	noteReference(res.Details, tt.reference)
 	if cf != nil {
-		cf.note(res.Details, tt.basis, num)
+		diffRaw, seRaw2 := cf.rawWelch(tt.basis)
+		cf.note(res.Details, diffRaw, num, seRaw2)
 	}
 	setEffectSize(res.Details, "cohens_d", cohensDTwoSample(diff, na, va, nb, vb))
 	tt.noteGroups(res.Details, []*weighting.Welford{a, b})

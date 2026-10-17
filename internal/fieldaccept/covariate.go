@@ -9,8 +9,8 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// CovariateKey is the params key of the mean tests' covariate
-// adjustment (CUPED, U48).
+// CovariateKey is the params key of the two-group mean and proportion
+// tests' covariate adjustment (CUPED, U48).
 const CovariateKey = "covariate"
 
 // The Details["reason"] values of PULSE_TEST_COVARIATE_INVALID.
@@ -23,8 +23,11 @@ const (
 
 // covariateTests are the tests that read params.covariate: the
 // two-sample mean tests, whose difference of means the covariate
-// adjusts (CUPED). Every other test — and every post-test — refuses it.
+// adjusts (CUPED), and TEST_PROP_Z, whose difference of success rates
+// it adjusts (the success indicator is the outcome). Every other test —
+// and every post-test — refuses it.
 var covariateTests = map[types.TestType]bool{
+	types.TEST_PROP_Z:       true,
 	types.TEST_T:            true,
 	types.TEST_WELCH:        true,
 	types.TEST_Z_TWO_SAMPLE: true,
@@ -52,7 +55,7 @@ func CovariateTests() []string {
 // alike, so a covariate is never silently ignored.
 func CovariateUnsupportedRefusal(path, op string) *errors.CodedError {
 	return errors.NewCodedErrorWithDetails(errors.PULSE_TEST_COVARIATE_INVALID,
-		path+": "+op+" takes no params.covariate; the covariate adjustment (CUPED) runs on the two-sample mean tests only (TEST_T with split_by, TEST_WELCH, TEST_Z_TWO_SAMPLE)",
+		path+": "+op+" takes no params.covariate; the covariate adjustment (CUPED) runs on the two-group mean and proportion tests only (TEST_T with split_by, TEST_WELCH, TEST_Z_TWO_SAMPLE, TEST_PROP_Z with split_by)",
 		map[string]any{"type": op, "reason": CovariateReasonUnsupported, "path": path + ".params." + CovariateKey, "supported_tests": CovariateTests()})
 }
 

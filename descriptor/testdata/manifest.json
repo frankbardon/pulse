@@ -6901,6 +6901,12 @@
             "type": "string",
             "required": false,
             "description": "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
+          },
+          {
+            "name": "covariate",
+            "type": "string",
+            "required": false,
+            "description": "Numeric pre-period column (CUPED) adjusting the success indicator I to I − θ·(x − x̄): Variant two_proportion_adjusted, z = adjusted diff / its Wald SE; proportion, diff, its interval and cohens_h are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped. Needs SplitBy (not with p0); else, or non-numeric, PULSE_TEST_COVARIATE_INVALID."
           }
         ],
         "requires": [
@@ -18689,4 +18695,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9d6ee55c76852e5d9f05548eccbc513e9bf5ec9a09ef689a11182956618924a4
+// golden-hash: 3358d2aee175432e3d94a5989d1468a4a7baeeeb71b314e1c232b3b27ec5d436

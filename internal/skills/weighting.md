@@ -9,7 +9,7 @@ requires: [capability:weighting]
 ---
 # Row weighting
 
-Survey and sampled cohorts carry a per-row weight column; every weight-aware figure counts each row as `w` rows. No weight, no change.
+Survey and sampled cohorts carry a per-row weight column; a weight-aware figure counts each row as `w` rows.
 
 ## Surface
 
@@ -24,7 +24,7 @@ Survey and sampled cohorts carry a per-row weight column; every weight-aware fig
 ## Kinds
 
 - `probability` (default) — design weights<!-- feature: capability:rake -->, and raked ones (`survey-weights`)<!-- /feature -->. Means, shares, ratios, quantiles are scale-free; totals scale. Adds `n_eff`.
-- `frequency` — a row stands for `w` identical rows; integer weights reproduce the duplicated cohort exactly. A fractional weight is invalid.
+- `frequency` — a row stands for `w` identical rows; integer weights reproduce the duplicated cohort exactly; fractional ones are invalid.
 
 ## Resolution
 
@@ -32,11 +32,11 @@ Per slot: its own `weight` (`null` ⇒ opted out) → request `weight` → `Opti
 
 ## Invalid weights
 
-Never coerced. Zero is valid, contributing nothing. Null, negative, NaN / ±Inf and (`frequency`) non-integer weights drop the row from that slot (`n_weight_invalid`), with one `PULSE_WEIGHT_INVALID_ROWS` warning per weight column (`details.by_reason`); `--strict` makes it an error.
+Never coerced; zero is valid and adds nothing. Null, negative, NaN / ±Inf and (`frequency`) non-integer weights drop the row from that slot (`n_weight_invalid`), with one `PULSE_WEIGHT_INVALID_ROWS` warning per weight column (`details.by_reason`); `--strict` errors.
 
 ## What honours a weight
 
-The manifest is the table: an entry's `weight_kinds` lists the kinds it computes a weighted figure under (`weight_aware: true` beside it).
+The manifest is the table: an entry's `weight_kinds` lists the kinds it weights under (`weight_aware: true` beside it).
 
 | Class | Explicit weight | Only `Options.DefaultWeight` |
 |---|---|---|
@@ -49,15 +49,16 @@ The manifest is the table: an entry's `weight_kinds` lists the kinds it computes
 
 `PULSE_WEIGHT_UNSUPPORTED` details: `reason` (permanent: post-tests, regression resample / selection, a few tests), `alternative` (a weighted twin), `kind` + `supported_kinds` (frequency-only). Opt out with `"weight": null` (instance default: on every refused slot). A weight-aware aggregator over `decimal128` refuses too. Extensions declaring `weight_aware` run under both kinds; others are `PULSE_EXTENSION_NOT_WEIGHT_AWARE`.
 
-Quantiles (and buckets) follow Hmisc `wtd.quantile`, probability weights rescaled to Σw = n. Share and index overlays read the weighted host payload, no setting.<!-- feature: AGG_WEIGHTED_MEAN, AGG_AVERAGE --> `AGG_WEIGHTED_MEAN` is weighted `AGG_AVERAGE`; its `params.weight_field` is slot-weight sugar.<!-- /feature -->
+Quantiles (and buckets) follow Hmisc `wtd.quantile`, probability weights rescaled to Σw = n. Share and index overlays read the weighted host payload.<!-- feature: AGG_WEIGHTED_MEAN, AGG_AVERAGE --> `AGG_WEIGHTED_MEAN` is weighted `AGG_AVERAGE`; its `params.weight_field` is slot-weight sugar.<!-- /feature -->
 
 ## Weighted inference
 
-Tests, regressions, CI bounds and inferential overlays use ONE rule: the unweighted formula with sample size N* = Σw (`frequency`) or Kish n_eff = (Σw)²/Σw² (`probability`). Point estimates (means, r, β, proportions) match across kinds; SEs, df (may be fractional) and p-values read N*.
+Tests, regressions, CI bounds and inferential overlays use ONE rule: the unweighted formula with sample size N* = Σw (`frequency`) or Kish n_eff = (Σw)²/Σw² (`probability`). Point estimates (means, r, β, proportions) match across kinds; SEs, fractional df and p-values read N*.
 
-- Results keep raw `n` / `n_obs` and add `sum_weights` + `n_eff` (test `details`, regression results, overlay `summary.parameters`). Read those as the sample size, never `n`.
-- Probability n_eff below the test's minimum (regressions: predictors + 1) warns `PULSE_WEIGHT_LOW_NEFF` (strict: error); the p-value is fragile.
-- Frequency-only operators (rank, exact and distribution tests) equal the duplicated rows; a probability weight is refused naming the kind.
+- Results keep raw `n` / `n_obs` and add `sum_weights` + `n_eff` (test `details`, regressions, overlay `summary.parameters`): the sample size, never `n`.
+- Probability n_eff below the test's minimum (regressions: predictors + 1) warns `PULSE_WEIGHT_LOW_NEFF` (strict: error).
+- Frequency-only operators (rank, exact and distribution tests) equal the duplicated rows; probability is refused, naming the kind.
+- Test `covariate` (CUPED), either kind: θ, x̄ on the raw weights, then y − θ(x − x̄) on each group's N* (the weighted two-step).
 - Unequal weighting only (weights assumed unrelated to the outcome): no strata, clusters or FPC. Probability χ² is a first-order Kish approximation, not Rao-Scott.
 <!-- feature: capability:crosstab -->
 - Overlays read each host cell's N* from its floor keys, even when only the cell's own weight set it. Omitted, `n_source` is the N* of the cell's base (normalise denominator); raw-count and distinct-key modes are `PROCESSING_CONFIG`. A probability host with components off refuses the χ² and proportion overlays.

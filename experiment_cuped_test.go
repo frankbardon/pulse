@@ -6,6 +6,7 @@ import (
 	stderrors "errors"
 	"math"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -180,16 +181,26 @@ func TestExperimentCUPED_StreamsAndShardsAgree(t *testing.T) {
 }
 
 // TestExperimentCUPED_CovariateFieldTypeParity walks every field type in
-// the covariate slot: predict accepts exactly what the runtime accepts,
-// and both refuse the rest with one code — a non-numeric column
-// PULSE_TEST_COVARIATE_INVALID (not_numeric), a vector
-// PULSE_VECTOR_FIELD_NOT_SCALAR.
+// the covariate slot of a mean test and of TEST_PROP_Z: predict accepts
+// exactly what the runtime accepts, and both refuse the rest with one
+// code — a non-numeric column PULSE_TEST_COVARIATE_INVALID
+// (not_numeric), a vector PULSE_VECTOR_FIELD_NOT_SCALAR.
 func TestExperimentCUPED_CovariateFieldTypeParity(t *testing.T) {
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
+	for _, tmpl := range []string{
+		`{"type":"TEST_WELCH","field":"x","split_by":"g","params":{"covariate":"$C"}}`,
+		`{"type":"TEST_PROP_Z","field":"subj","split_by":"g","params":{"success":"s1","covariate":"$C"}}`,
+	} {
+		covariateFieldTypeParity(ctx, t, p, fs, cohort, tmpl)
+	}
+}
+
+func covariateFieldTypeParity(ctx context.Context, t *testing.T, p *pulse.Pulse, fs afero.Fs, cohort, tmpl string) {
+	t.Helper()
 	accepted := 0
 	for _, ft := range acceptanceFieldTypes() {
-		req := decodeRequest(t, `{"tests":[{"type":"TEST_WELCH","field":"x","split_by":"g","params":{"covariate":"t_`+ft.String()+`"}}]}`)
+		req := decodeRequest(t, `{"tests":[`+strings.Replace(tmpl, "$C", "t_"+ft.String(), 1)+`]}`)
 		req.Cohort = &types.Cohort{Filename: cohort}
 		_, rerr := p.Process(ctx, req)
 		var ce *errors.CodedError
@@ -202,13 +213,112 @@ func TestExperimentCUPED_CovariateFieldTypeParity(t *testing.T) {
 				t.Errorf("%s: accepted as a covariate", ft)
 			}
 		case runtimeOK || len(env.Errors) != 1 || ce == nil || env.Errors[0].Code != string(ce.Code) || env.Errors[0].Message != ce.Message:
-			t.Errorf("%s: runtime %v, predict %+v", ft, rerr, env.Errors)
+			t.Errorf("%s %s: runtime %v, predict %+v", tmpl, ft, rerr, env.Errors)
 		case ft.IsVector() && ce.Code != errors.PULSE_VECTOR_FIELD_NOT_SCALAR,
 			!ft.IsVector() && ce.Code != errors.PULSE_TEST_COVARIATE_INVALID:
-			t.Errorf("%s: refused with %s", ft, ce.Code)
+			t.Errorf("%s %s: refused with %s", tmpl, ft, ce.Code)
 		}
 	}
 	if accepted == 0 {
-		t.Fatal("no covariate type accepted")
+		t.Fatalf("%s: no covariate type accepted", tmpl)
+	}
+}
+
+// TestExperimentCUPED_PropZOnShowcase: TEST_PROP_Z adjusts the
+// retention rate by the pre-period prior_sessions (retention rises
+// gently with it in the showcase, so θ > 0 and the reduction is small
+// but positive): one pass (predict streams it), the raw difference
+// is the plain test's, and the adjusted interval is narrower than the
+// unadjusted Wald one by exactly the reported variance reduction.
+func TestExperimentCUPED_PropZOnShowcase(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	p, err := pulse.New(pulse.Options{FS: fs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	showcaseABCohort(t, p)
+	req := decodeRequest(t, `{"cohort":{"filename":"ab.pulse"},
+		"aggregations":[{"type":"AGG_COUNT","field":"user_id"}],
+		"tests":[
+		{"type":"TEST_PROP_Z","field":"retained_30d","split_by":"arm","label":"adj","params":{"success":"yes","reference":"old_page","covariate":"prior_sessions"}},
+		{"type":"TEST_PROP_Z","field":"retained_30d","split_by":"arm","label":"raw","params":{"success":"yes","reference":"old_page"}}]}`)
+	env := predictEnvelope(t, p, fs, "ab.pulse", req)
+	if res := env.Data.(*descriptor.PredictResult); len(env.Errors) != 0 || !res.Streamable {
+		t.Fatalf("predict errors %+v streamable %v (%v)", env.Errors, res.Streamable, res.StreamableReasons)
+	}
+	resp, err := p.Process(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	adj, raw := resp.Tests[0], resp.Tests[1]
+	d := adj.Details
+	if adj.Variant != "two_proportion_adjusted" || raw.Variant != "two_proportion_pooled" {
+		t.Fatalf("variants %s / %s", adj.Variant, raw.Variant)
+	}
+	if got, want := d["diff_unadjusted"].(float64), raw.Details["diff"].(float64); math.Abs(got-want) > 1e-12 {
+		t.Errorf("diff_unadjusted %v, plain diff %v", got, want)
+	}
+	vr := d["variance_reduction"].(float64)
+	if !(vr > 0) || !(d["theta"].(float64) > 0) {
+		t.Fatalf("variance_reduction %v theta %v: prior_sessions predicts retention", vr, d["theta"])
+	}
+	width := func(r *types.TestResult) float64 {
+		return r.Details["ci_high"].(float64) - r.Details["ci_low"].(float64)
+	}
+	if got, want := width(adj)/width(raw), math.Sqrt(1-vr); math.Abs(got-want) > 1e-9 {
+		t.Errorf("interval width ratio %v, want √(1 − variance_reduction) %v", got, want)
+	}
+}
+
+// TestExperimentCUPED_GroupedThetaPerPartition: under groups every
+// partition pools its own θ and x̄ — each group's adjusted test (mean
+// and proportion) is exactly the ungrouped adjusted test filtered to
+// that group, and the per-partition slopes differ.
+func TestExperimentCUPED_GroupedThetaPerPartition(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	p, err := pulse.New(pulse.Options{FS: fs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	showcaseABCohort(t, p)
+	tests := `[{"type":"TEST_WELCH","field":"pages_viewed","split_by":"arm","params":{"covariate":"prior_sessions","reference":"old_page"}},
+		{"type":"TEST_PROP_Z","field":"retained_30d","split_by":"arm","params":{"success":"yes","covariate":"prior_sessions","reference":"old_page"}}]`
+	req := decodeRequest(t, `{"cohort":{"filename":"ab.pulse"},"groups":[{"type":"GROUP_CATEGORY","field":"device"}],
+		"aggregations":[{"type":"AGG_COUNT","field":"user_id"}],"tests":`+tests+`}`)
+	if env := predictEnvelope(t, p, fs, "ab.pulse", req); len(env.Errors) != 0 {
+		t.Fatalf("predict: %+v", env.Errors)
+	}
+	resp, err := p.Process(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Tests) != 6 {
+		t.Fatalf("%d results, want 2 tests × 3 devices", len(resp.Tests))
+	}
+	thetas := map[float64]bool{}
+	for k, r := range resp.Tests {
+		single := decodeRequest(t, `{"cohort":{"filename":"ab.pulse"},"aggregations":[{"type":"AGG_COUNT","field":"user_id"}],"tests":`+tests+`}`)
+		single.Filterers = []*types.Filterer{gtKeyFilter(req.Groups[0], r.GroupKey[0])}
+		sresp, err := p.Process(ctx, single)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := sresp.Tests[k/3]
+		for _, c := range [][3]any{
+			{"statistic", r.Statistic, want.Statistic}, {"p_value", r.PValue, want.PValue},
+			{"diff", r.Details["diff"], want.Details["diff"]}, {"theta", r.Details["theta"], want.Details["theta"]},
+			{"covariate_mean", r.Details["covariate_mean"], want.Details["covariate_mean"]},
+			{"variance_reduction", r.Details["variance_reduction"], want.Details["variance_reduction"]},
+		} {
+			if c[1].(float64) != c[2].(float64) {
+				t.Errorf("tests[%d] group %v %s: grouped %v, filtered %v", k, r.GroupKey, c[0], c[1], c[2])
+			}
+		}
+		thetas[r.Details["theta"].(float64)] = true
+	}
+	if len(thetas) != 6 {
+		t.Errorf("per-partition thetas %v: want one per (test, group)", thetas)
 	}
 }
