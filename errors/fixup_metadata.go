@@ -1061,6 +1061,17 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT: {
+		Message: "The compose request's slots emit many p-values into two or more separate correction families, and each family is corrected on its own, so no correction spans the batch; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Requests", "*", "Multiplicity", "Family"},
+				Hint:     "To correct the readout as one family, set family \"compose\" on the multiplicity block of each slot named in details.slots (or on the compose request's own block, when the slots name no family of their own), with one method across the batch. Keep the split when each slot answers a separate question.",
+				Examples: []any{map[string]any{"multiplicity": map[string]any{"method": "holm", "family": "compose"}}},
+			},
+		},
+	},
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN: {
 		Message: "Options.SuppressAdvisories names a code that is not a registered PULSE_ADVISORY_* advisory code.",
 		Fixups: []Fixup{

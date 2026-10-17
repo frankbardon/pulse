@@ -326,7 +326,7 @@ type InspectOut struct {
 // it (additive on the bare arm, #256; each omitted when empty).
 type PredictOut struct {
 	*descriptor.PredictResult
-	Composed *pulse.ComposePredictResult `json:"composed,omitempty" jsonschema:"The verdict on a composed root: valid, the echoed request, rejected overlay pairs, overlay cost, p-value count and each slot's advisories."`
+	Composed *pulse.ComposePredictResult `json:"composed,omitempty" jsonschema:"The verdict on a composed root: valid, the echoed request, rejected overlay pairs, overlay cost, p-value count, per-slot detail (streamable, p-value count, correction families) and the advisories, each slot's and the split-families note."`
 	Facet    *pulse.FacetPredictResult   `json:"facet,omitempty" jsonschema:"The verdict on a facet root: valid, the echoed request, schema info and the accepted overlays."`
 	Chain    *pulse.ChainPredictResult   `json:"chain,omitempty" jsonschema:"The verdict on a chain root: valid, the echoed request, the source schema and each stage's inferred output columns."`
 	Errors   []*descriptor.EnvelopeEntry `json:"errors,omitempty" jsonschema:"Every coded refusal behind valid false — {code, message, details}, for a bare request and an alternative root alike. Absent when there is none."`

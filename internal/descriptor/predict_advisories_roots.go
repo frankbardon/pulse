@@ -1,9 +1,12 @@
 package descriptor
 
 import (
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -104,15 +107,24 @@ func facetAdvisories(plan []ResolvedMultiplicity, pv *descriptor.PValueCount, op
 // PULSE_ADVISORY_MANY_TESTS over the Compose-host overlays' p-values
 // (hostPV, always a lower_bound). plan is ResolveComposeMultiplicity's;
 // planOK false (a refused batch) withholds every p-value count.
-func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan, planOK bool, hostPV *descriptor.PValueCount, opts *PredictOptions) []descriptor.Advisory {
+//
+// It also returns ComposeValidationResult.Slots: per slot, the
+// streamability verdict Process predict gives it (computeStreamable over
+// the same defaulted request and schema), its p-value count and the
+// correction families its corrected p-values join (countPValuesVisit, so
+// the families never drift from the count). PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT
+// reads them, after the slot advisories and before the host many-tests
+// note.
+func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan, planOK bool, hostPV *descriptor.PValueCount, opts *PredictOptions) ([]descriptor.Advisory, []descriptor.ComposeSlotPredict) {
 	if req == nil {
-		return nil
+		return nil, nil
 	}
 	if opts == nil {
 		opts = &PredictOptions{}
 	}
 	inst := opts.instance()
 	var out []descriptor.Advisory
+	var slots []descriptor.ComposeSlotPredict
 	for i, slot := range req.Requests {
 		if slot == nil {
 			continue
@@ -127,10 +139,20 @@ func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan
 		if plan != nil && i < len(plan.Requests) {
 			slotPlan = plan.Requests[i]
 		}
+		at := "requests[" + strconv.Itoa(i) + "]"
+		entry := descriptor.ComposeSlotPredict{Request: i, Label: slot.Label}
+		if entry.Label == "" {
+			entry.Label = composeDescriptorDefaultLabel(i)
+		}
+		entry.Streamable, entry.StreamableReasons = computeStreamable(defaulted, schema, opts)
 		var pv *descriptor.PValueCount
 		if planOK && inst.Enabled(featMultiplicity) {
-			pv = countPValues(defaulted, schema, slotPlan, opts)
+			pv = countPValuesVisit(defaulted, schema, slotPlan, opts, func(n int, basis string, rm ResolvedMultiplicity) {
+				entry.Families = addFamily(entry.Families, pvalueFamilyID(at, rm), rm, n, basis)
+			})
 		}
+		entry.PValues = pv
+		slots = append(slots, entry)
 		var weightVar string
 		var measures map[string]string
 		if opts.SidecarLoader != nil && slot.Cohort != nil {
@@ -142,7 +164,6 @@ func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan
 				suggested = SuggestWeight(cohort, weightVar, inst)
 			}
 		}
-		at := "requests[" + strconv.Itoa(i) + "]"
 		out = append(out, computeAdvisories(advisoryInput{
 			req:             defaulted,
 			schema:          schema,
@@ -157,8 +178,115 @@ func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan
 			subject:         "The request at " + at + " emits",
 		})...)
 	}
+	if a, ok := familiesSplitAdvisory(slots); ok && !inst.AdvisorySuppressed(a.Code) {
+		out = append(out, a)
+	}
 	if a, ok := manyTestsAdvisory(plan != nil, hostPV, "The compose request's overlays emit"); ok && !inst.AdvisorySuppressed(a.Code) {
 		out = append(out, a)
 	}
-	return out
+	return out, slots
+}
+
+// pvalueFamilyID names the family rm resolved for a slot of the Compose
+// slot at (`requests[i]`) — the runtime fold's family key
+// (multFamilyKey / overlayFamilyKey) spelled for the wire: the one
+// batch-wide `compose` family; the slot's own `request` family; every
+// other family (an overlay layer's layer / row / column, a matrix
+// spec's matrix) local to the slot path that owns it.
+func pvalueFamilyID(at string, rm ResolvedMultiplicity) string {
+	switch rm.Family {
+	case types.MultiplicityFamilyCompose:
+		return string(types.MultiplicityFamilyCompose)
+	case types.MultiplicityFamilyRequest:
+		return at + "#" + string(rm.Family)
+	}
+	return at + "." + rm.Slot + "#" + string(rm.Family)
+}
+
+// addFamily folds n p-values on basis into the family id of fams (first
+// member first); the weakest basis wins.
+func addFamily(fams []descriptor.PValueFamily, id string, rm ResolvedMultiplicity, n int, basis string) []descriptor.PValueFamily {
+	for k := range fams {
+		if fams[k].ID != id {
+			continue
+		}
+		fams[k].Count += n
+		if pvalueBasisRank[basis] > pvalueBasisRank[fams[k].Basis] {
+			fams[k].Basis = basis
+		}
+		return fams
+	}
+	return append(fams, descriptor.PValueFamily{ID: id, Family: rm.Family, Method: rm.Method, Count: n, Basis: basis})
+}
+
+// familiesSplitAdvisory is PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT over
+// ComposeValidationResult.Slots: it fires when two or more slots emit
+// p-values, their corrected p-values join two or more distinct families
+// other than `compose`, and the slots emit at least
+// MultiplicityTriggerThreshold p-values in total (corrected or not).
+// Each such family is corrected on its own, so no correction spans the
+// batch. details: slots (the slot indices whose p-values join a split
+// family), families (their IDs, first-seen order), total, uncorrected,
+// basis (weakest), threshold, and the patch suggested =
+// {"multiplicity": {"method": <the first family's method>, "family":
+// "compose"}}. A batch advisory: no details.request.
+func familiesSplitAdvisory(slots []descriptor.ComposeSlotPredict) (descriptor.Advisory, bool) {
+	emitting, total, uncorrected := 0, 0, 0
+	basis := descriptor.PValueBasisExact
+	var families []string
+	var inFamily []int
+	var method types.MultiplicityMethod
+	for _, s := range slots {
+		if s.PValues == nil || s.PValues.Total == 0 {
+			continue
+		}
+		emitting++
+		total += s.PValues.Total
+		uncorrected += s.PValues.Uncorrected
+		if pvalueBasisRank[s.PValues.Basis] > pvalueBasisRank[basis] {
+			basis = s.PValues.Basis
+		}
+		joined := false
+		for _, f := range s.Families {
+			if f.Family == types.MultiplicityFamilyCompose {
+				continue
+			}
+			joined = true
+			if !slices.Contains(families, f.ID) {
+				if len(families) == 0 {
+					method = f.Method
+				}
+				families = append(families, f.ID)
+			}
+		}
+		if joined {
+			inFamily = append(inFamily, s.Request)
+		}
+	}
+	if emitting < 2 || len(families) < 2 || total < descriptor.MultiplicityTriggerThreshold {
+		return descriptor.Advisory{}, false
+	}
+	count := strconv.Itoa(total)
+	switch basis {
+	case descriptor.PValueBasisLowerBound:
+		count = "at least " + count
+	case descriptor.PValueBasisDictionary:
+		count = "an estimated " + count
+	}
+	return descriptor.Advisory{
+		Code: string(errors.PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT),
+		Message: "The compose request's slots emit " + count + " p-values (threshold " +
+			strconv.Itoa(descriptor.MultiplicityTriggerThreshold) + ") into " + strconv.Itoa(len(families)) +
+			" separate correction families (" + strings.Join(families, ", ") +
+			"); each family is corrected on its own, so no correction spans the batch. To correct them as one, set family compose on the multiplicity block of each slot in details.slots, or keep the split when each slot answers a separate question.",
+		Details: map[string]any{
+			"slots":       inFamily,
+			"families":    families,
+			"total":       total,
+			"uncorrected": uncorrected,
+			"basis":       basis,
+			"threshold":   descriptor.MultiplicityTriggerThreshold,
+			"suggested":   map[string]any{"multiplicity": map[string]any{"method": string(method), "family": string(types.MultiplicityFamilyCompose)}},
+		},
+	}, true
 }

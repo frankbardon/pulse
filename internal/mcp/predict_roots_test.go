@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -315,6 +317,70 @@ func TestBindForInstance_PredictAdvertisesRoots(t *testing.T) {
 	for _, key := range []string{"composed", "facet", "chain"} {
 		if _, ok := props[key]; ok {
 			t.Errorf("minimal: pulse_predict still advertises hidden root %q", key)
+		}
+	}
+}
+
+// TestPulsePredict_ComposedSlotsAndSplitFamilies: pulse_predict's
+// composed root carries the per-slot detail and the
+// PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT advisory when two slots correct
+// their p-values in separate request families (5 + 5, at the
+// threshold); family compose on both silences it.
+func TestPulsePredict_ComposedSlotsAndSplitFamilies(t *testing.T) {
+	p, _, path := flatManagedCohort(t)
+	slot := func(family string) string {
+		var tests []string
+		for i := 0; i < 5; i++ {
+			tests = append(tests, `{"type":"TEST_T","field":"amount","label":"t`+strconv.Itoa(i)+`"}`)
+		}
+		return `{"cohort":{"filename":"` + path + `"},"multiplicity":{"method":"holm","family":"` + family + `"},"tests":[` + strings.Join(tests, ",") + `]}`
+	}
+	code := string(perr.PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT)
+	for _, tc := range []struct {
+		family string
+		fire   bool
+	}{{"request", true}, {"compose", false}} {
+		body, err := invokePredict(t, p, Config{}, `{"composed":{"requests":[`+slot(tc.family)+`,`+slot(tc.family)+`]}}`)
+		if err != nil {
+			t.Fatalf("%s: invoke: %v", tc.family, err)
+		}
+		var out struct {
+			Composed struct {
+				Valid bool `json:"valid"`
+				Slots []struct {
+					Request    int  `json:"request"`
+					Streamable bool `json:"streamable"`
+					PValues    struct {
+						Total int `json:"total"`
+					} `json:"p_values"`
+					Families []struct {
+						ID    string `json:"id"`
+						Count int    `json:"count"`
+					} `json:"families"`
+				} `json:"slots"`
+				Advisories []struct {
+					Code string `json:"code"`
+				} `json:"advisories"`
+			} `json:"composed"`
+		}
+		if err := json.Unmarshal(body, &out); err != nil {
+			t.Fatal(err)
+		}
+		c := out.Composed
+		if !c.Valid || len(c.Slots) != 2 {
+			t.Fatalf("%s: verdict %s", tc.family, body)
+		}
+		for i, s := range c.Slots {
+			if s.Request != i || !s.Streamable || s.PValues.Total != 5 || len(s.Families) != 1 || s.Families[0].Count != 5 {
+				t.Errorf("%s: slot %d = %+v", tc.family, i, s)
+			}
+		}
+		fired := false
+		for _, a := range c.Advisories {
+			fired = fired || a.Code == code
+		}
+		if fired != tc.fire {
+			t.Errorf("%s: fired %v, want %v: %s", tc.family, fired, tc.fire, body)
 		}
 	}
 }

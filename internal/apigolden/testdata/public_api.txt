@@ -156,6 +156,7 @@ pulse: type ComposePredictResult field OverlayCost map[string]float64 "json:\"ov
 pulse: type ComposePredictResult field OverlaysSchemaDivergence []pulse/descriptor.SlotPair "json:\"overlays_schema_divergence\""
 pulse: type ComposePredictResult field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
 pulse: type ComposePredictResult field Request *pulse/types.ComposedRequest "json:\"request\""
+pulse: type ComposePredictResult field Slots []pulse/descriptor.ComposeSlotPredict "json:\"slots,omitempty\""
 pulse: type ComposePredictResult field Sweep *pulse/descriptor.SweepSummary "json:\"sweep,omitempty\""
 pulse: type ComposePredictResult field Valid bool "json:\"valid\""
 pulse: type ComposedRequest = pulse/types.ComposedRequest
@@ -1294,6 +1295,13 @@ pulse/descriptor: type ComponentsSchemasBlock field Attributes map[string]pulse/
 pulse/descriptor: type ComponentsSchemasBlock field Filterers map[string]pulse/descriptor.ComponentSchema "json:\"filterers,omitempty\""
 pulse/descriptor: type ComponentsSchemasBlock field Groupers map[string]pulse/descriptor.ComponentSchema "json:\"groupers,omitempty\""
 pulse/descriptor: type ComponentsSchemasBlock field Matrices map[string]pulse/descriptor.ComponentSchema "json:\"matrices,omitempty\""
+pulse/descriptor: type ComposeSlotPredict struct
+pulse/descriptor: type ComposeSlotPredict field Families []pulse/descriptor.PValueFamily "json:\"families,omitempty\""
+pulse/descriptor: type ComposeSlotPredict field Label string "json:\"label\""
+pulse/descriptor: type ComposeSlotPredict field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
+pulse/descriptor: type ComposeSlotPredict field Request int "json:\"request\""
+pulse/descriptor: type ComposeSlotPredict field Streamable bool "json:\"streamable\""
+pulse/descriptor: type ComposeSlotPredict field StreamableReasons []string "json:\"streamable_reasons,omitempty\""
 pulse/descriptor: type CrosstabCapability struct
 pulse/descriptor: type CrosstabCapability field ArrayValuedAggregators []string "json:\"array_valued_aggregators,omitempty\""
 pulse/descriptor: type CrosstabCapability field CellsRules []string "json:\"cells_rules,omitempty\""
@@ -1803,6 +1811,12 @@ pulse/descriptor: type PValueCount field Basis string "json:\"basis\""
 pulse/descriptor: type PValueCount field Threshold int "json:\"threshold\""
 pulse/descriptor: type PValueCount field Total int "json:\"total\""
 pulse/descriptor: type PValueCount field Uncorrected int "json:\"uncorrected\""
+pulse/descriptor: type PValueFamily struct
+pulse/descriptor: type PValueFamily field Basis string "json:\"basis\""
+pulse/descriptor: type PValueFamily field Count int "json:\"count\""
+pulse/descriptor: type PValueFamily field Family pulse/types.MultiplicityFamily "json:\"family\""
+pulse/descriptor: type PValueFamily field ID string "json:\"id\""
+pulse/descriptor: type PValueFamily field Method pulse/types.MultiplicityMethod "json:\"method\""
 pulse/descriptor: type Param struct
 pulse/descriptor: type Param field Default any "json:\"default,omitempty\""
 pulse/descriptor: type Param field Description string "json:\"description\""
@@ -2381,6 +2395,7 @@ pulse/errors: const PROCESSING_RUNTIME pulse/errors.Code = "PROCESSING_RUNTIME"
 pulse/errors: const PROCESSING_STATE pulse/errors.Code = "PROCESSING_STATE"
 pulse/errors: const PROCESSING_VECTOR_LENGTH_MISMATCH pulse/errors.Code = "PROCESSING_VECTOR_LENGTH_MISMATCH"
 pulse/errors: const PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC pulse/errors.Code = "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC"
+pulse/errors: const PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT pulse/errors.Code = "PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT"
 pulse/errors: const PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED pulse/errors.Code = "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED"
 pulse/errors: const PULSE_ADVISORY_EXTRA_PASS pulse/errors.Code = "PULSE_ADVISORY_EXTRA_PASS"
 pulse/errors: const PULSE_ADVISORY_MANY_TESTS pulse/errors.Code = "PULSE_ADVISORY_MANY_TESTS"
@@ -5570,4 +5585,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 04a1ef07130b33ed1807a335ab54dac2f585a42741e62cba9f3c37990ece6256
+// golden-hash: dd46b3692ded57c47be6f1edcc16e435ddf8e48fb8865f52902eabcd95d0c262

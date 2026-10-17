@@ -43,14 +43,30 @@ var pvalueBasisRank = map[string]int{
 // counted. Nil when the
 // request emits no p-value.
 func countPValues(req *types.Request, schema *encoding.Schema, plan *MultiplicityPlan, opts *PredictOptions) *descriptor.PValueCount {
+	return countPValuesVisit(req, schema, plan, opts, nil)
+}
+
+// pvalueVisit receives each corrected countPValues contribution: n
+// p-values on basis joining the family rm resolved (a member slot).
+type pvalueVisit func(n int, basis string, rm ResolvedMultiplicity)
+
+// countPValuesVisit is countPValues also handing every corrected
+// contribution to visit (nil visits nothing) — the one count Compose
+// predict's per-slot families read, so they never drift from p_values.
+func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *MultiplicityPlan, opts *PredictOptions, visit pvalueVisit) *descriptor.PValueCount {
 	inst := opts.instance()
 	if req == nil {
 		return nil
 	}
 	out := &descriptor.PValueCount{Basis: descriptor.PValueBasisExact, Threshold: descriptor.MultiplicityTriggerThreshold}
-	add := func(n int, basis string, member bool) { addPValues(out, n, basis, member) }
-	member := func(list []ResolvedMultiplicity, i int) bool {
-		return i < len(list) && list[i].Member
+	// addAt folds n p-values on basis for slot i of list: corrected iff
+	// list[i] is a member, and then visited.
+	addAt := func(n int, basis string, list []ResolvedMultiplicity, i int) {
+		member := i < len(list) && list[i].Member
+		addPValues(out, n, basis, member)
+		if member && visit != nil && n > 0 {
+			visit(n, basis, list[i])
+		}
 	}
 	var tests, postTests, overlays []ResolvedMultiplicity
 	if plan != nil {
@@ -81,7 +97,7 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 			if routed == types.TEST_TUKEY_HSD || (!isKnownTestType(routed) && !isExtensionTestType(opts, t.Type)) {
 				continue
 			}
-			add(tier.n, tier.basis, member(tier.plan, i))
+			addAt(tier.n, tier.basis, tier.plan, i)
 		}
 	}
 	rows, cols := 0, 0
@@ -107,7 +123,7 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 		if m := len(req.Crosstab.MeasureLabels()); m > 0 && basis == descriptor.PValueBasisDictionary {
 			n *= m
 		}
-		add(n, basis, member(overlays, i))
+		addAt(n, basis, overlays, i)
 	}
 	// A matrix under params.inference (set, or implied by its own
 	// multiplicity block) carries one p per distinct output pair — the
@@ -128,7 +144,7 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 				}
 				k := len(m.OutputIndices())
 				if pairs := k * (k - 1) / 2; pairs > 0 {
-					add(pairs*perTest, perTestBasis, member(matrices, m.Index))
+					addAt(pairs*perTest, perTestBasis, matrices, m.Index)
 				}
 			}
 		}
@@ -152,7 +168,8 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 			continue
 		}
 		var corrected []string
-		if member(regressions, i) {
+		member := i < len(regressions) && regressions[i].Member
+		if member {
 			corrected = regressions[i].Coefficients
 		}
 		uncorrected := 0
@@ -161,8 +178,10 @@ func countPValues(req *types.Request, schema *encoding.Schema, plan *Multiplicit
 				uncorrected++
 			}
 		}
-		add(len(corrected), descriptor.PValueBasisExact, true)
-		add(uncorrected, descriptor.PValueBasisExact, false)
+		if member {
+			addAt(len(corrected), descriptor.PValueBasisExact, regressions, i)
+		}
+		addPValues(out, uncorrected, descriptor.PValueBasisExact, false)
 	}
 	if out.Total == 0 {
 		return nil

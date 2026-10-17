@@ -213,6 +213,9 @@ var errorOwners = map[errors.Code][]string{
 	// refusal is raised by pulse.New on every instance.
 	errors.PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS: own("TEST_T", "TEST_WELCH"),
 	errors.PULSE_ADVISORY_MANY_TESTS:                 own(featMultiplicity),
+	// The split-families rule reads the per-slot p-value families,
+	// which a hidden capability:multiplicity withholds.
+	errors.PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT: own(featMultiplicity),
 	// The SPSS-sidecar measure-level rules fire only on the operators
 	// that treat a field as a quantity (mean-family aggregators,
 	// parametric tests); the weight rule wraps suggested_weight, which a

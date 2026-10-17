@@ -627,6 +627,15 @@ const (
 	// slot, the operator and the params keys.
 	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED Code = "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED"
 
+	// PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT is a Compose predict
+	// advisory: two or more slots emit p-values, they join two or more
+	// distinct correction families other than the batch-wide `compose`
+	// family, and the slots emit at least MultiplicityTriggerThreshold
+	// p-values in total. Each family is corrected on its own, so no
+	// correction spans the batch. details carry the slots, the family
+	// IDs, the total and the patch {"multiplicity":{"family":"compose"}}.
+	PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT Code = "PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT"
+
 	// PULSE_SUPPRESS_ADVISORY_UNKNOWN is raised by pulse.New when
 	// Options.SuppressAdvisories names a code that is not a registered
 	// PULSE_ADVISORY_* advisory code.
@@ -3940,6 +3949,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_EXTRA_PASS,
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
 	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
+	PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT,
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN,
 	PULSE_RECOMMEND_INTENT_UNKNOWN,
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,
