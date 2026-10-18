@@ -108,3 +108,24 @@ func TestTruncDay_Units(t *testing.T) {
 		}
 	}
 }
+
+// TestISOWeekdayOf: a time.Weekday renumbers ISO (Monday = 1 ..
+// Sunday = 7) — the numbering ATTR_DATE_PART iso_weekday and
+// FEAT_DATE_FEATURES dow emit for a local wall clock — and agrees with
+// ISOWeekday on every day of a week.
+func TestISOWeekdayOf(t *testing.T) {
+	want := map[time.Weekday]int64{
+		time.Monday: 1, time.Tuesday: 2, time.Wednesday: 3, time.Thursday: 4,
+		time.Friday: 5, time.Saturday: 6, time.Sunday: 7,
+	}
+	for wd, w := range want {
+		if got := ISOWeekdayOf(wd); got != w {
+			t.Errorf("ISOWeekdayOf(%s) = %d, want %d", wd, got, w)
+		}
+	}
+	for day := int64(-7); day < 7; day++ {
+		if got, w := ISOWeekdayOf(DayToTime(day).Weekday()), ISOWeekday(day); got != w {
+			t.Errorf("day %d: ISOWeekdayOf = %d, ISOWeekday = %d", day, got, w)
+		}
+	}
+}

@@ -15,7 +15,7 @@ func init() {
 }
 
 // dateFeatures expands a date-family field into derived columns: year,
-// month, day, day-of-week (0=Sunday..6=Saturday) and quarter (1..4),
+// month, day, day-of-week (ISO 8601: 1=Monday..7=Sunday) and quarter (1..4),
 // plus hour (0..23) over a `datetime`. Default column names are
 // "<field>_year", "<field>_month", etc. A Label override substitutes
 // the prefix.
@@ -214,18 +214,18 @@ func (c *dateFeatures) EmitRow(r Record, field string) (map[string]Output, error
 func decodeDateParts(v float64) (year, month, day, dow, quarter float64) {
 	t := temporal.DayToTime(int64(v))
 	yy, mm, dd := t.Date()
-	return float64(yy), float64(mm), float64(dd), float64(t.Weekday()), float64((int(mm)-1)/3 + 1)
+	return float64(yy), float64(mm), float64(dd), float64(temporal.ISOWeekday(int64(v))), float64((int(mm)-1)/3 + 1)
 }
 
 // decodeInstantParts is decodeDateParts for a `datetime` instant sec
 // (epoch seconds) on the wall clock of zone z (the slot's or the row's;
-// nil: UTC), plus the hour. dow keeps Sunday = 0.
+// nil: UTC), plus the hour. dow is the LOCAL day's ISO weekday.
 func decodeInstantParts(sec int64, z *temporal.Zone) (year, month, day, dow, quarter, hour float64) {
 	if z == nil {
 		z = temporal.UTC
 	}
 	p := temporal.LocalParts(sec, z)
-	return float64(p.Year), float64(p.Month), float64(p.Day), float64(p.Weekday), float64((int(p.Month)-1)/3 + 1), float64(p.Hour)
+	return float64(p.Year), float64(p.Month), float64(p.Day), float64(temporal.ISOWeekdayOf(p.Weekday)), float64((int(p.Month)-1)/3 + 1), float64(p.Hour)
 }
 
 func (c *dateFeatures) columnName(part string) string {

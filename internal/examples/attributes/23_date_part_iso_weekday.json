@@ -1,0 +1,60 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Number each order instant's local weekday with ATTR_DATE_PART part=iso_weekday (1 = Monday .. 7 = Sunday) on a datetime field read in America/New_York, and group on it for a Monday-first weekly profile.",
+    "intents": [
+      "change_over_time",
+      "prepare"
+    ],
+    "name": "attr_date_part_iso_weekday_local",
+    "operators": [
+      "AGG_COUNT",
+      "AGG_SUM",
+      "ATTR_DATE_PART",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "time-series",
+      "feature-engineering",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "total"
+    }
+  ],
+  "attributes": [
+    {
+      "type": "ATTR_DATE_PART",
+      "field": "ordered_at",
+      "label": "weekday",
+      "params": {
+        "part": "iso_weekday"
+      }
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "time_zone": "America/New_York",
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "weekday"
+    }
+  ],
+  "sort": [
+    {
+      "field": "weekday"
+    }
+  ]
+}

@@ -3336,7 +3336,7 @@
         {
           "name": "ATTR_DATE_PART",
           "category": "attribute",
-          "description": "Extract a calendar component (year, month, day, year_month, year_month_day, month_day, hour) from a date or datetime field; a datetime reads the wall clock of its resolved time zone, and hour needs a datetime.",
+          "description": "Extract a calendar component (year, month, day, year_month, year_month_day, month_day, hour, iso_weekday) from a date or datetime field; a datetime reads the wall clock of its resolved time zone, and hour needs a datetime.",
           "params": [
             {
               "name": "part",
@@ -3346,6 +3346,7 @@
               "enum_values": [
                 "day",
                 "hour",
+                "iso_weekday",
                 "month",
                 "month_day",
                 "year",
@@ -3359,7 +3360,7 @@
             "datetime"
           ],
           "emits_type": "f64",
-          "emits_type_note": "encoded integer per record (e.g. year_month=YYYYMM)",
+          "emits_type_note": "encoded integer per record (e.g. year_month=YYYYMM, iso_weekday=1..7 with Monday=1)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -6283,7 +6284,7 @@
         {
           "name": "FEAT_DATE_FEATURES",
           "category": "feature",
-          "description": "Expand a date or datetime field into year, month, day, day-of-week (dow, 0 = Sunday) and quarter columns, plus hour over a datetime; a datetime reads the wall clock of its resolved time zone.",
+          "description": "Expand a date or datetime field into year, month, day, day-of-week (dow, ISO: 1 = Monday .. 7 = Sunday) and quarter columns, plus hour over a datetime; a datetime reads the wall clock of its resolved time zone.",
           "params": null,
           "accepts_types": [
             "date",
@@ -12136,7 +12137,7 @@
       },
       {
         "name": "op-attr-date-part",
-        "description": "Extract a calendar component (year, month, day, year_month, ..., hour) from a date or datetime field."
+        "description": "Extract a calendar component (year, month, day, year_month, ..., hour, iso_weekday) from a date or datetime field."
       },
       {
         "name": "op-attr-factor-score",
@@ -13219,7 +13220,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 243,
+    "examples_count": 244,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -19064,4 +19065,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 98286f347c213e44f010baa9e8d7a98fa167963b657c48d40fc5824ae1e521e0
+// golden-hash: 4a19bf484803a8dc95077c47a6ddf50df84777949d969ea503650c0f84486c28

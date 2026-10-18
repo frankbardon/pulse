@@ -305,15 +305,19 @@ func perRowCases() []perRowCase {
 				req := perRowBase(cohort, z)
 				a := &types.Attribute{Type: types.ATTR_DATE_PART, Field: "ts", Label: "lday", Params: json.RawMessage(`{"part":"year_month_day"}`)}
 				z.zoned(&a.TimeZone, &a.TimeZoneField)
+				wd := &types.Attribute{Type: types.ATTR_DATE_PART, Field: "ts", Label: "lwd", Params: json.RawMessage(`{"part":"iso_weekday"}`)}
+				z.zoned(&wd.TimeZone, &wd.TimeZoneField)
 				f := &types.Feature{Type: types.FEAT_DATE_FEATURES, Field: "ts", Label: "f"}
 				z.zoned(&f.TimeZone, &f.TimeZoneField)
-				req.Attributes = []*types.Attribute{a}
+				req.Attributes = []*types.Attribute{a, wd}
 				req.Features = []*types.Feature{f}
 				req.Aggregations = []*types.Aggregation{
 					{Type: types.AGG_COUNT, Field: "n", Label: "count"},
 					{Type: types.AGG_SUM, Field: "lday", Label: "sum_lday"},
 					{Type: types.AGG_SUM, Field: "f_hour", Label: "sum_hour"},
 					{Type: types.AGG_SUM, Field: "f_day", Label: "sum_day"},
+					{Type: types.AGG_SUM, Field: "lwd", Label: "sum_lwd"},
+					{Type: types.AGG_SUM, Field: "f_dow", Label: "sum_dow"},
 				}
 				req.Groups = []*types.Group{site}
 				return req
@@ -329,6 +333,9 @@ func perRowCases() []perRowCase {
 					out[r.site+"|sum_lday"] += float64(l.Year()*10000 + int(l.Month())*100 + l.Day())
 					out[r.site+"|sum_hour"] += float64(l.Hour())
 					out[r.site+"|sum_day"] += float64(l.Day())
+					iso := float64((int(l.Weekday())+6)%7 + 1)
+					out[r.site+"|sum_lwd"] += iso
+					out[r.site+"|sum_dow"] += iso
 				}
 				return out
 			},

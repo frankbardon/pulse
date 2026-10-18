@@ -101,19 +101,19 @@ func attributeCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.ATTR_DATE_PART),
 			Category:    "attribute",
-			Description: "Extract a calendar component (year, month, day, year_month, year_month_day, month_day, hour) from a date or datetime field; a datetime reads the wall clock of its resolved time zone, and hour needs a datetime.",
+			Description: "Extract a calendar component (year, month, day, year_month, year_month_day, month_day, hour, iso_weekday) from a date or datetime field; a datetime reads the wall clock of its resolved time zone, and hour needs a datetime.",
 			Params: []descriptor.Param{
 				{
 					Name:        "part",
 					Type:        "enum",
 					Required:    true,
 					Description: "Which calendar component to extract.",
-					EnumValues:  []string{"day", "hour", "month", "month_day", "year", "year_month", "year_month_day"},
+					EnumValues:  []string{"day", "hour", "iso_weekday", "month", "month_day", "year", "year_month", "year_month_day"},
 				},
 			},
 			AcceptsTypes:  []string{"date", "datetime"},
 			EmitsType:     "f64",
-			EmitsTypeNote: "encoded integer per record (e.g. year_month=YYYYMM)",
+			EmitsTypeNote: "encoded integer per record (e.g. year_month=YYYYMM, iso_weekday=1..7 with Monday=1)",
 			Streamable:    true,
 		},
 		{

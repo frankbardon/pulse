@@ -55,6 +55,8 @@ func datePartReference(part string, t time.Time) float64 {
 		return float64(int(m)*100 + d)
 	case "hour":
 		return float64(t.Hour())
+	case "iso_weekday":
+		return float64((int(t.Weekday())+6)%7 + 1)
 	}
 	panic(part)
 }
@@ -75,7 +77,7 @@ func TestAttribute_DatePart_DateTimeFollowsZone(t *testing.T) {
 		vals[i] = float64(s)
 	}
 	records := makeRecords(schema, "ts", vals)
-	for _, part := range []string{"year", "month", "day", "year_month", "year_month_day", "month_day", "hour"} {
+	for _, part := range []string{"year", "month", "day", "year_month", "year_month_day", "month_day", "hour", "iso_weekday"} {
 		for _, tc := range []struct {
 			tz  string
 			loc *time.Location
@@ -123,7 +125,7 @@ func TestAttribute_DatePart_FieldRefusals(t *testing.T) {
 		{"year", "score", `ATTR_DATE_PART field score has type f64; accepted: date, datetime`, unsupported},
 		{"hour", "score", `ATTR_DATE_PART field score has type f64; accepted: date, datetime`, unsupported},
 		{"month", "derived", `requires a date or datetime field, got "derived"`, config},
-		{"minute", "ts", `invalid date part "minute": must be one of year, month, day, year_month, year_month_day, month_day, hour`, config},
+		{"minute", "ts", `invalid date part "minute": must be one of year, month, day, year_month, year_month_day, month_day, hour, iso_weekday`, config},
 	} {
 		t.Run(tc.part+"/"+tc.field, func(t *testing.T) {
 			_, err := attributeRegistry[types.ATTR_DATE_PART](&types.Attribute{
@@ -162,7 +164,7 @@ func TestAttribute_DatePart_DateIgnoresZoneKeepsNullZero(t *testing.T) {
 // TestDateFeatures_DateTimeFollowsZone: over a `datetime`
 // FEAT_DATE_FEATURES writes six columns (hour added) equal to the
 // time.In reference in the slot zone, on both the buffered (Compute) and
-// streaming (EmitRow) paths; dow keeps Sunday = 0.
+// streaming (EmitRow) paths; dow is ISO (Monday = 1 .. Sunday = 7).
 func TestDateFeatures_DateTimeFollowsZone(t *testing.T) {
 	berlin, err := temporal.LoadZone("Europe/Berlin")
 	if err != nil {
@@ -183,7 +185,7 @@ func TestDateFeatures_DateTimeFollowsZone(t *testing.T) {
 	ref := func(t time.Time) map[string]float64 {
 		return map[string]float64{
 			"df_year": float64(t.Year()), "df_month": float64(t.Month()), "df_day": float64(t.Day()),
-			"df_dow": float64(t.Weekday()), "df_quarter": float64((int(t.Month())-1)/3 + 1), "df_hour": float64(t.Hour()),
+			"df_dow": float64((int(t.Weekday())+6)%7 + 1), "df_quarter": float64((int(t.Month())-1)/3 + 1), "df_hour": float64(t.Hour()),
 		}
 	}
 	for _, tc := range []struct {
@@ -250,5 +252,60 @@ func TestDateFeatures_FieldTypes(t *testing.T) {
 	_, err = factory(&types.Feature{Type: types.FEAT_DATE_FEATURES, Field: "score"}, schema)
 	if err == nil || !errors.HasCode(err, errors.PULSE_FIELD_TYPE_UNSUPPORTED) || !strings.Contains(err.Error(), "accepted: date, datetime") {
 		t.Fatalf("score: err = %v", err)
+	}
+}
+
+// TestAttribute_DatePart_ISOWeekdayPins: part iso_weekday is ISO 8601
+// (Monday = 1 .. Sunday = 7) over a `date` (the calendar, no zone) and
+// over a `datetime` (the slot zone's wall clock). Saturday 23:30 in New
+// York is Sunday 04:30 UTC: 6 there, 7 in UTC — the local-midnight
+// crossing a UTC reading gets wrong.
+func TestAttribute_DatePart_ISOWeekdayPins(t *testing.T) {
+	schema := dateTimeSchema()
+	day := func(s string) float64 {
+		tm, _ := time.Parse("2006-01-02", s)
+		return float64(temporal.TimeToDay(tm))
+	}
+	instant := func(s string) float64 {
+		tm, _ := time.Parse(time.RFC3339, s)
+		return float64(tm.Unix())
+	}
+	for _, tc := range []struct {
+		name, field, tz string
+		v, want         float64
+	}{
+		{"date epoch Thursday", "d", "", 0, 4},
+		{"date pre-epoch Wednesday", "d", "", -1, 3},
+		{"date Monday", "d", "", day("2024-03-04"), 1},
+		{"date Saturday", "d", "", day("2024-03-16"), 6},
+		{"date Sunday", "d", "", day("2024-03-17"), 7},
+		{"datetime Sat 23:30 New York", "ts", "America/New_York", instant("2026-03-15T03:30:00Z"), 6},
+		{"datetime same instant UTC", "ts", "", instant("2026-03-15T03:30:00Z"), 7},
+		{"datetime Sun 00:30 New York", "ts", "America/New_York", instant("2026-03-15T04:30:00Z"), 7},
+		{"datetime Mon 00:10 Kolkata, Sun UTC", "ts", "Asia/Kolkata", instant("2026-03-15T18:40:00Z"), 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			attr, err := attributeRegistry[types.ATTR_DATE_PART](&types.Attribute{
+				Type: types.ATTR_DATE_PART, Field: tc.field, Label: "wd", TimeZone: tc.tz,
+				Params: json.RawMessage(`{"part":"iso_weekday"}`),
+			}, schema)
+			if err != nil {
+				t.Fatal(err)
+			}
+			recs := makeRecords(schema, tc.field, []float64{tc.v})
+			got, err := attr.Compute(recs, tc.field)
+			if err != nil {
+				t.Fatal(err)
+			}
+			row, err := attr.(interface {
+				Row(*Record, string) (float64, error)
+			}).Row(recs[0], tc.field)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got[0] != tc.want || row != tc.want {
+				t.Fatalf("iso_weekday: Compute %v, Row %v, want %v", got[0], row, tc.want)
+			}
+		})
 	}
 }

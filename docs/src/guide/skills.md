@@ -72,7 +72,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-agg-welford`](skills/op-agg-welford.md): Streaming Welford-Pébaÿ moment triple — running mean, sample variance (n-1), and observed count.
 - [`op-agg-zscore`](skills/op-agg-zscore.md): Standardized z-score aggregate — mean-centered, stddev-scaled summary.
 - [`op-attr-code-in`](skills/op-attr-code-in.md): Per-row 0/1 — whether a field's value is one of a list of codes; its mean is the share of the whole base.
-- [`op-attr-date-part`](skills/op-attr-date-part.md): Extract a calendar component (year, month, day, year_month, ..., hour) from a date or datetime field.
+- [`op-attr-date-part`](skills/op-attr-date-part.md): Extract a calendar component (year, month, day, year_month, ..., hour, iso_weekday) from a date or datetime field.
 - [`op-attr-factor-score`](skills/op-attr-factor-score.md): Per-row score on one common factor of a vector of numeric members, from an inline fit with the factor-analysis matrix operator's knobs, loadings, order and sign; regression or Bartlett scores; fit_on fits on a subset and still scores every row.
 - [`op-attr-formula`](skills/op-attr-formula.md): Per-row expression evaluation against the record's fields via expr-lang.
 - [`op-attr-mahalanobis`](skills/op-attr-mahalanobis.md): Per-row Mahalanobis distance D² (or its chi-square p) across a vector of numeric members, from a cohort-wide fit; fit_on fits on a subset and still scores every row.

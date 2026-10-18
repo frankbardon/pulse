@@ -661,6 +661,9 @@ func (a *datePartAttribute) Row(r *Record, field string) (float64, error) {
 	if a.date.seconds {
 		return a.instantPart(int64(v)), nil
 	}
+	if a.part == datepart.PartISOWeekday {
+		return float64(temporal.ISOWeekday(int64(v))), nil
+	}
 	t := temporal.DayToTime(int64(v))
 	year, month, day := t.Date()
 	return encodeDatePart(a.part, year, month, day), nil
@@ -679,8 +682,11 @@ func (a *datePartAttribute) partIn(sec int64, z *temporal.Zone) float64 {
 		z = temporal.UTC
 	}
 	p := temporal.LocalParts(sec, z)
-	if a.part == datepart.PartHour {
+	switch a.part {
+	case datepart.PartHour:
 		return float64(p.Hour)
+	case datepart.PartISOWeekday:
+		return float64(temporal.ISOWeekdayOf(p.Weekday))
 	}
 	return encodeDatePart(a.part, p.Year, p.Month, p.Day)
 }

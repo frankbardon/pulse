@@ -33,6 +33,7 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `20_record_reference.json` | `ATTR_VEC_DISTANCE` | Each row's distance to one stored record (`{record: {keys}}`), point-looked-up before the run through the cohort's sidecar index on `id` (built by `fixtures/build.sh`) |
 | `21_retention_month_index.json` | `ATTR_FORMULA` | Calendar-month retention on `subscribers.pulse`: `month_index(first_repeat_order) - month_index(signup_date)` and month-1 / within-quarter flags, no hard-coded epoch-day ranges |
 | `22_decimal_margin.json` | `ATTR_FORMULA`, `FILTER_EXPRESSION` | Exact money on `decimal128` fields: keep `revenue > cost * 2`, then the margin ratio `(revenue - cost) / revenue` divided exactly at four places |
+| `23_date_part_iso_weekday.json` | `ATTR_DATE_PART` | Local ISO weekday number of a `datetime` (`part: iso_weekday`, 1 = Monday .. 7 = Sunday) as a Monday-first grouping key |
 
 See `pulse skills show attribute-composition` for the full operator
 contract, the `ATTR_FORMULA` allowlist, and composition rules.

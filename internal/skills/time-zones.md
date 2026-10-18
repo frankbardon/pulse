@@ -44,7 +44,7 @@ A `datetime` is read on its LOCAL calendar day in every mode (process, stream, c
 - Range literals (inline or `RangeTables`) are LOCAL calendar days in the slot's zone; a range table has no zone of its own.
 <!-- /feature -->
 <!-- feature: ATTR_DATE_PART, FEAT_DATE_FEATURES -->
-- `ATTR_DATE_PART` and `FEAT_DATE_FEATURES` accept `datetime` and read the zone's wall clock; part `hour` (and the sixth `<prefix>_hour` feature column) is datetime-only. Feature `dow` stays Sunday = 0 and ignores `week_start`.
+- `ATTR_DATE_PART` and `FEAT_DATE_FEATURES` accept `datetime` and read the zone's wall clock; part `hour` (and the sixth `<prefix>_hour` feature column) is datetime-only. `iso_weekday` / `dow` are ISO (Monday = 1), ignoring `week_start`.
 <!-- /feature -->
 - Formulas and expression filters: `to_day(ts)` reads the inherited zone (request `time_zone` -> `Options.DefaultTimeZone` -> UTC) on every entry point — `FilterToFileRequest.TimeZone` is filter-to-file's request zone; they take no slot `tz` (`calendar-formulas`).
 <!-- feature: OVERLAY_YOY -->

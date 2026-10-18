@@ -22,8 +22,12 @@ import (
 // PartHour is the sub-day part: the local wall-clock hour (0..23).
 const PartHour = "hour"
 
+// PartISOWeekday is the ISO 8601 weekday of the (local) calendar day:
+// 1 = Monday through 7 = Sunday.
+const PartISOWeekday = "iso_weekday"
+
 // partList is the part set in the order refusals name it.
-const partList = "year, month, day, year_month, year_month_day, month_day, hour"
+const partList = "year, month, day, year_month, year_month_day, month_day, hour, iso_weekday"
 
 var validParts = map[string]bool{
 	"year":           true,
@@ -33,6 +37,7 @@ var validParts = map[string]bool{
 	"year_month_day": true,
 	"month_day":      true,
 	PartHour:         true,
+	PartISOWeekday:   true,
 }
 
 type params struct {

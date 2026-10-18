@@ -580,7 +580,8 @@ var dstOps = []dstOp{
 		},
 	},
 	{
-		// Local weekday, Sunday = 0 (it never follows a week_start).
+		// Local weekday, ISO: Monday = 1 .. Sunday = 7 (it never
+		// follows a week_start).
 		name: "FEAT_DATE_FEATURES/dow", key: "df_dow",
 		mk: func(f *dstFixture, s, r string) *types.Request {
 			return identityFeatReq(f.cohort, r, "df_dow", &types.Feature{Type: types.FEAT_DATE_FEATURES, Field: "ts", Label: "df", TimeZone: s})
@@ -588,7 +589,7 @@ var dstOps = []dstOp{
 		want: func(f *dstFixture, at func(int64) time.Time) map[string]float64 {
 			out := map[string]float64{}
 			for _, s := range f.instants {
-				out[fmt.Sprint(int(at(s).Weekday()))]++
+				out[fmt.Sprint((int(at(s).Weekday())+6)%7+1)]++
 			}
 			return out
 		},
