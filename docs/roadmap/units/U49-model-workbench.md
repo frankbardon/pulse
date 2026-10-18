@@ -80,8 +80,8 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(model-workbench/E
 
 - [x] `default ~ collections_flag` converges and matches R's coefficients within oracle tolerance (E1-S1, `glm_irls.json`)
 - [x] AUC on the holdout matches a reference implementation — in repo on the committed credit-shaped fixture against pROC (E3-S4, `TestCreditWorkbench_EndToEnd`, `credit_workbench.json`); the casebook showcase holdout re-run is E3-S5
-- [ ] The credit README's requests 11–14 contain no copied numbers — **pending E3-S5** (pulse-casebook PR)
-- [ ] Showcase examples simplified where this unit allows (credit risk model): requests converted, README and REPRODUCE.md expected numbers refreshed, every step still pure Pulse — **pending E3-S5** (pulse-casebook PR)
+- [x] The credit README's requests 11–14 contain no copied numbers — [pulse-casebook#6](https://github.com/frankbardon/pulse-casebook/pull/6) (E3-S5): purpose encoding is one `FEAT_TARGET_ENCODE` `fit_on`/`folds`, holdout scored by Compose `fits` + `ATTR_REG_PREDICT`
+- [x] Showcase examples simplified where this unit allows (credit risk model): requests converted, README and REPRODUCE.md expected numbers refreshed, every step still pure Pulse — [pulse-casebook#6](https://github.com/frankbardon/pulse-casebook/pull/6) (E3-S5); found and fixed the Compose `explain` fit-binding bug (E3-S6)
 - [x] `format_version` stays `"1.1"`; every wire change is additive; the deliberate behaviour breaks are listed in [03-embedder-migration](../v1.0.0-api-and-release/03-embedder-migration.md) "Changes from U49"
 - [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit)) — the casebook conversion (E3-S5) lands in its own repository
 
@@ -116,4 +116,4 @@ Filed from [U42 handed on](U42-fit-scoring.md#handed-on) and moved here from [U4
 | Item | To | Why |
 |---|---|---|
 | #479 `WIN_FORMULA` (a general post-window formula site) | v1.x backlog (no unit) | `WIN_LIFT` covers the gains table in v1; the general site is additive |
-| Credit showcase conversion (README requests 11–14, REPRODUCE.md) | E3-S5 (pulse-casebook) | separate repository and PR |
+| Credit showcase conversion (README requests 11–14, REPRODUCE.md) | E3-S5 (pulse-casebook) | [pulse-casebook#6](https://github.com/frankbardon/pulse-casebook/pull/6), merge after this PR |
