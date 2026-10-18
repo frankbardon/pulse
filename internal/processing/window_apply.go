@@ -18,8 +18,11 @@ import (
 // (validateWindows reports the same *errors.CodedError) and is raised
 // before any row is windowed, empty input included. A type the
 // instance does not resolve is left to ApplyWithExt's unknown-window
-// error, as predict reports an unknown type before its field.
-func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, windows []*types.Window) error {
+// error, as predict reports an unknown type before its field. orders is
+// the grouped run's grouper key orders (groupKeyOrders): an order_by on
+// a grouper key column follows its grouper's key order. Nil on a
+// record-row run (no grouper key column), byte-identically.
+func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, windows []*types.Window, orders window.KeyOrders) error {
 	for _, w := range windows {
 		if w == nil {
 			continue
@@ -48,5 +51,5 @@ func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, win
 			}
 		}
 	}
-	return window.ApplyWithExt(ctx, rows, windows, p.exts.LookupWindow)
+	return window.ApplyKeyed(ctx, rows, windows, p.exts.LookupWindow, orders)
 }

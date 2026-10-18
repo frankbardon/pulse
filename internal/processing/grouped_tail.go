@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -186,7 +187,14 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 		data = append(data, row)
 	}
 
-	keys, err := sortGroupedRows(data, req.Sort, keys)
+	// The sort follows each grouper key column's key order, read off
+	// the run's own groupers (their rank derives from configuration
+	// alone), so every worker count sorts as the buffered arm does.
+	var keyOrders window.KeyOrders
+	if len(req.Sort) > 0 {
+		keyOrders = windowKeyOrders(keyOrdersOf(t.Groups, func(i int, _ *types.Group) Grouper { return t.Groupers[i] }))
+	}
+	keys, err := sortGroupedRows(data, req.Sort, keys, keyOrders)
 	if err != nil {
 		return nil, err
 	}

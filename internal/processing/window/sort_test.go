@@ -15,7 +15,7 @@ func TestSortIndices_AscendingNumeric(t *testing.T) {
 		{"x": 2.0},
 	}
 	idx := []int{0, 1, 2}
-	sortIndices(rows, idx, nil, []types.OrderKey{{Field: "x"}})
+	sortIndices(rows, idx, nil, []types.OrderKey{{Field: "x"}}, nil)
 	want := []int{1, 2, 0}
 	if !reflect.DeepEqual(idx, want) {
 		t.Errorf("idx = %v, want %v", idx, want)
@@ -29,7 +29,7 @@ func TestSortIndices_DescendingNumeric(t *testing.T) {
 		{"x": 2.0},
 	}
 	idx := []int{0, 1, 2}
-	sortIndices(rows, idx, nil, []types.OrderKey{{Field: "x", Desc: true}})
+	sortIndices(rows, idx, nil, []types.OrderKey{{Field: "x", Desc: true}}, nil)
 	want := []int{1, 2, 0}
 	if !reflect.DeepEqual(idx, want) {
 		t.Errorf("idx = %v, want %v", idx, want)
@@ -44,7 +44,7 @@ func TestSortIndices_NullsLast(t *testing.T) {
 		{"x": nil},
 	}
 	idx := []int{0, 1, 2, 3}
-	sortIndices(rows, idx, nil, []types.OrderKey{{Field: "x"}})
+	sortIndices(rows, idx, nil, []types.OrderKey{{Field: "x"}}, nil)
 	// Non-null values first (1.0 then 2.0), nulls trailing.
 	if rows[idx[0]]["x"] != 1.0 || rows[idx[1]]["x"] != 2.0 {
 		t.Errorf("non-null prefix wrong: %+v", []any{rows[idx[0]]["x"], rows[idx[1]]["x"]})
@@ -62,7 +62,7 @@ func TestSortIndices_PartitionThenOrder(t *testing.T) {
 		{"region": "eu", "ts": 2.0},
 	}
 	idx := []int{0, 1, 2, 3}
-	sortIndices(rows, idx, []string{"region"}, []types.OrderKey{{Field: "ts"}})
+	sortIndices(rows, idx, []string{"region"}, []types.OrderKey{{Field: "ts"}}, nil)
 	// All eu come first (ts 1, ts 2), then us (ts 1, ts 2).
 	got := []string{}
 	for _, i := range idx {
@@ -81,7 +81,7 @@ func TestSortIndices_StableForEqualKeys(t *testing.T) {
 		{"x": 1.0, "id": "c"},
 	}
 	idx := []int{0, 1, 2}
-	sortIndices(rows, idx, nil, []types.OrderKey{{Field: "x"}})
+	sortIndices(rows, idx, nil, []types.OrderKey{{Field: "x"}}, nil)
 	// All equal keys: stable sort preserves input order.
 	if !reflect.DeepEqual(idx, []int{0, 1, 2}) {
 		t.Errorf("stable sort failed: idx = %v", idx)
@@ -132,7 +132,7 @@ func TestPartition_SingletonGroups(t *testing.T) {
 
 func TestSortCache_SharesSortAcrossEqualTuples(t *testing.T) {
 	rows := []map[string]any{{"x": 2.0}, {"x": 1.0}}
-	cache := newSortCache(rows)
+	cache := newSortCache(rows, nil)
 	a, _ := cache.get(nil, []types.OrderKey{{Field: "x"}})
 	b, _ := cache.get(nil, []types.OrderKey{{Field: "x"}})
 	// Same underlying slice.
@@ -143,7 +143,7 @@ func TestSortCache_SharesSortAcrossEqualTuples(t *testing.T) {
 
 func TestSortCache_DistinctTuplesGetDistinctSorts(t *testing.T) {
 	rows := []map[string]any{{"x": 2.0}, {"x": 1.0}}
-	cache := newSortCache(rows)
+	cache := newSortCache(rows, nil)
 	a, _ := cache.get(nil, []types.OrderKey{{Field: "x"}})
 	b, _ := cache.get(nil, []types.OrderKey{{Field: "x", Desc: true}})
 	if &a[0] == &b[0] {
@@ -158,7 +158,7 @@ func TestCompareCell_Decimal128ByValue(t *testing.T) {
 	d := encoding.NewDecimal128FromInt
 	rows := []map[string]any{{"x": d(1050)}, {"x": d(-325)}, {"x": nil}, {"x": d(250)}, {"x": d(10000)}}
 	idx := []int{0, 1, 2, 3, 4}
-	sortIndices(rows, idx, nil, []types.OrderKey{{Field: "x"}})
+	sortIndices(rows, idx, nil, []types.OrderKey{{Field: "x"}}, nil)
 	if want := []int{1, 3, 0, 4, 2}; !reflect.DeepEqual(idx, want) {
 		t.Errorf("idx = %v, want %v", idx, want)
 	}
@@ -220,7 +220,7 @@ func TestSortAndSortIndices_DescNullsLast(t *testing.T) {
 	}
 	rows = mk()
 	idx := []int{0, 1, 2, 3, 4}
-	sortIndices(rows, idx, nil, keys)
+	sortIndices(rows, idx, nil, keys, nil)
 	if want := []int{2, 4, 0, 1, 3}; !reflect.DeepEqual(idx, want) {
 		t.Errorf("sortIndices desc idx = %v, want %v", idx, want)
 	}

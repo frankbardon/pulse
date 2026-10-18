@@ -1819,8 +1819,15 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		recordRows = true
 	}
 
+	// A grouped run's grouper key columns order by their grouper's key
+	// order under window ORDER BY and Request.Sort (groupKeyOrders).
+	var keyOrders window.KeyOrders
+	if len(req.Groups) > 0 && (len(req.Windows) > 0 || len(req.Sort) > 0) {
+		keyOrders = windowKeyOrders(p.groupKeyOrders(req.Groups))
+	}
+
 	if len(req.Windows) > 0 {
-		if err := p.applyWindows(ctx, data, req.Windows); err != nil {
+		if err := p.applyWindows(ctx, data, req.Windows, keyOrders); err != nil {
 			return nil, err
 		}
 	}
@@ -1828,7 +1835,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// Grouped, the bucket keys follow the rows through the sort so the
 	// per-bucket matrices render in the final Data order.
 	if len(req.Groups) > 0 {
-		if groupKeys, err = sortGroupedRows(data, req.Sort, groupKeys); err != nil {
+		if groupKeys, err = sortGroupedRows(data, req.Sort, groupKeys, keyOrders); err != nil {
 			return nil, err
 		}
 	} else if len(req.Sort) > 0 {

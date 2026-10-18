@@ -5,7 +5,13 @@ import "github.com/frankbardon/pulse/types"
 type rankComputer struct {
 	orderBy []types.OrderKey
 	dense   bool
+	// orders is the run's grouper key orders (ApplyKeyed), nil before
+	// it is stamped: ties are CompareRows ties under them.
+	orders KeyOrders
 }
+
+// setKeyOrders implements keyOrderedComputer.
+func (c *rankComputer) setKeyOrders(orders KeyOrders) { c.orders = orders }
 
 func init() {
 	register(types.WIN_RANK, func(w *types.Window, _ WindowOptions) (WindowComputer, error) {
@@ -27,7 +33,7 @@ func (c *rankComputer) Compute(rows []map[string]any, partitions [][]int, label 
 			}
 			prev := rows[part[i-1]]
 			cur := rows[rowIdx]
-			if equalsOnKeys(cur, prev, c.orderBy) {
+			if equalsOnKeys(cur, prev, c.orderBy, c.orders) {
 				// Tie: same rank as previous.
 				same++
 				rows[rowIdx][label] = rank

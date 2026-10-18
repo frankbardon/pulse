@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/groupedtests"
+	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/slotfail"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -422,7 +423,7 @@ func (p *Processor) runPostTestsOrdered(tests []*types.Test, groups, keyGroups [
 // a data-dependent code (sparseTestCodes) gets a null-statistics result
 // plus one warning naming its group_key; the others proceed. No rows,
 // no results.
-func (p *Processor) runPartitionedPostTests(entries []postTestEntry, n int, groups []*types.Group, depth int, rows []map[string]any, orders map[string]*includeFilter) ([]*types.TestResult, []*types.ResponseWarning, error) {
+func (p *Processor) runPartitionedPostTests(entries []postTestEntry, n int, groups []*types.Group, depth int, rows []map[string]any, orders window.KeyOrders) ([]*types.TestResult, []*types.ResponseWarning, error) {
 	keys := seriespartition.RowKeys(rows, seriespartition.KeyColumns(groups))
 	parts := seriespartition.Partition(keys, depth)
 	if len(parts) == 0 {
@@ -471,64 +472,23 @@ func (p *Processor) runPartitionedPostTests(entries []postTestEntry, n int, grou
 // column by that grouper's intrinsic key order rather than byte-wise
 // (TEST_TREND): the run stamps the per-column orders before Run.
 type keyOrderedPostTest interface {
-	setKeyOrders(orders map[string]*includeFilter)
+	setKeyOrders(orders window.KeyOrders)
 }
 
 // stampKeyOrders hands orders to t when it orders by grouper keys.
-func stampKeyOrders(t PostTest, orders map[string]*includeFilter) {
+func stampKeyOrders(t PostTest, orders window.KeyOrders) {
 	if ko, ok := t.(keyOrderedPostTest); ok && orders != nil {
 		ko.setKeyOrders(orders)
 	}
 }
 
-// postTestKeyOrders maps each grouper key column of groups (the row
-// column vectors.GroupKeyField names) to that grouper's intrinsic key
-// order (keyOrderFilter: GROUP_DATE day_of_week Monday-first,
-// GROUP_DATE_RANGES / GROUP_NUMERIC_RANGES supplied order, the numeric
-// bucket groupers by value). The rank derives from the grouper's
-// configuration alone, so a fresh instance orders as the one that
-// partitioned. Nil when no entry orders by keys or no grouper carries a
-// key order. A column two groupers share is ambiguous and dropped (it
-// stays byte-wise); a grouper that does not construct here contributes
-// nothing (the partition pass already ran it, so this is defensive).
-func (p *Processor) postTestKeyOrders(entries []postTestEntry, groups []*types.Group) map[string]*includeFilter {
-	wanted := false
+// postTestKeyOrders is the run's grouper key orders (groupKeyOrders)
+// when some entry orders by keys (keyOrderedPostTest), else nil.
+func (p *Processor) postTestKeyOrders(entries []postTestEntry, groups []*types.Group) window.KeyOrders {
 	for _, e := range entries {
 		if _, ok := e.test.(keyOrderedPostTest); ok {
-			wanted = true
-			break
+			return windowKeyOrders(p.groupKeyOrders(groups))
 		}
 	}
-	if !wanted || len(groups) == 0 {
-		return nil
-	}
-	var orders map[string]*includeFilter
-	seen := make(map[string]bool, len(groups))
-	for _, grp := range groups {
-		if grp == nil {
-			continue
-		}
-		col := vectors.GroupKeyField(grp.Type, grp)
-		if seen[col] {
-			delete(orders, col)
-			continue
-		}
-		seen[col] = true
-		factory, ok := p.exts.LookupGrouper(grp.Type)
-		if !ok {
-			continue
-		}
-		g, err := factory(grp, p.schema)
-		if err != nil {
-			continue
-		}
-		ApplyGrouperExtensions(g, p.exts)
-		if f := keyOrderFilter(g); f != nil {
-			if orders == nil {
-				orders = make(map[string]*includeFilter, len(groups))
-			}
-			orders[col] = f
-		}
-	}
-	return orders
+	return nil
 }
