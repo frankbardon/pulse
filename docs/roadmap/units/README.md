@@ -32,7 +32,7 @@ These files were generated once from the theme documents and `TODO.md`, and are 
 
 ## Suggested order
 
-The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U38 (skill sync, appended after U21) lands after U21 and before U32. U39 (code-in attribute, appended after U38) is done and has no dependencies. U40 (compose sweep, added after U39) is done and lands before U32; U41 (derived cohort), U42 (fit scoring) and U43 (post-aggregation ratios) are done; U41, U42 and U43 follow it in a chain (derived cohort, fit scoring, post-aggregation ratios) and ship in v1.0.0 (owner decision 2026-10-10). U44–U52 (from the [showcase examples](https://github.com/frankbardon/pulse-casebook/tree/main/showcase)) also ship in v1.0.0 and land before U32; they have no hard dependencies on each other, so they can run in parallel sessions, with the soft dependencies in each unit's frontmatter. U53 (custom regressions, appended after U52) ships in v1.0.0 (owner decision 2026-10-10) and lands before U32; it has no hard dependency, with U34, U36 and U42 soft. U54 (multi-grouper, appended after U53 on 2026-10-11) runs NEXT, immediately after U27 (owner decision): plain `groups` has only ever executed its first grouper, silently; it takes #200 from U35 and #318 from U46, and U46 now depends on it. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
+The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U38 (skill sync, appended after U21) lands after U21 and before U32. U39 (code-in attribute, appended after U38) is done and has no dependencies. U40 (compose sweep, added after U39) is done and lands before U32; U41 (derived cohort), U42 (fit scoring) and U43 (post-aggregation ratios) are done; U41, U42 and U43 follow it in a chain (derived cohort, fit scoring, post-aggregation ratios) and ship in v1.0.0 (owner decision 2026-10-10). U44–U52 (from the [showcase examples](https://github.com/frankbardon/pulse-casebook/tree/main/showcase)) also ship in v1.0.0 and land before U32; they have no hard dependencies on each other, so they can run in parallel sessions, with the soft dependencies in each unit's frontmatter. U53 (custom regressions, appended after U52) ships in v1.0.0 (owner decision 2026-10-10) and lands before U32; it has no hard dependency, with U34, U36 and U42 soft. U55 (previous state, appended after U50 on 2026-10-18) owns #452 and follows U50; it ships in v1.0.0 and lands before U32. U54 (multi-grouper, appended after U53 on 2026-10-11) runs NEXT, immediately after U27 (owner decision): plain `groups` has only ever executed its first grouper, silently; it takes #200 from U35 and #318 from U46, and U46 now depends on it. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
 
 | # | Unit | Track | Size | Depends on | TODO items |
 |---|---|---|---|---|---|
@@ -87,11 +87,12 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U47 | [survey-tables](U47-survey-tables.md): A weighted banner table with significance letters is one request, and Pulse can compute the weights | Statistical integrity | L | — (U46, U11, U12 soft) | 324, 325, 326, 327, 328, 329, 330, 331, 398, 471 |
 | U48 | [experiment-readout](U48-experiment-readout.md): An experiment readout is one request: sample-ratio check, a named reference arm, an adjusted effect with its interval, all in one correction family | Statistical integrity | M | — (U43, U46 soft) | 332, 333, 334, 335, 336, 337, 338 |
 | U49 | [model-workbench](U49-model-workbench.md): Models fit reliably and are validated with standard metrics, and leakage-safe encoding is one parameter | Statistical integrity | L | — (U42 soft) | 339, 340, 341, 342, 343, 344, 345, 346, 347, 395 |
-| U50 | [local-time](U50-local-time.md): Every row is read in its own local time, and calendar parts sort and filter the way a calendar does | Time zones | M | — (U46 soft) | 348, 349, 350, 351, 352, 353, 452 |
+| U50 | [local-time](U50-local-time.md): Every row is read in its own local time, and calendar parts sort and filter the way a calendar does | Time zones | M | — (U46 soft) | 348, 349, 350, 351, 352, 353, 467, 468, 470 |
 | U51 | [archive-scale](U51-archive-scale.md): A 50-million-row shard archive runs on a 16 GB machine: header-only operations read headers, and appending costs only the new shard | Embedder operations | L | — (U19 soft) | 354, 355, 356, 357, 358, 359, 360, 361, 373, 390, 399, 455, 456, 461 |
 | U52 | [synth-realism](U52-synth-realism.md): Pulse can synthesize time series, outcomes drawn from a model, and privacy-checked twins without outside tooling | API & release | L | — (U50 soft) | 362, 363, 364, 365, 366, 367, 368, 369, 370, 450, 457 |
 | U53 | [custom-regressions](U53-custom-regressions.md): Embedders register their own regression models, treated exactly like built-ins, and the core gains the model options media-mix work needs | API & release | L | — (U34, U36, U42 soft) | 381, 382, 383, 384, 385, 386, 387, 388, 389 |
 | U54 | [multi-grouper](U54-multi-grouper.md): Two or more groupers give one row per key combination, in every execution path | API & release | M | — (U27 soft) | 200, 318, 421, 422 |
+| U55 | [previous-state](U55-previous-state.md): A long panel feeds a from-state × to-state crosstab: a per-subject previous-state attribute read in local time | Time zones | S | U50 | 452 |
 
 ## Dependency graph
 
@@ -153,6 +154,7 @@ graph TD
   U52["U52 synth-realism"]
   U53["U53 custom-regressions"]
   U54["U54 multi-grouper"]
+  U55["U55 previous-state"]
   U02 --> U02b
   U02 --> U02c
   U02 --> U04
@@ -239,6 +241,8 @@ graph TD
   U52 --> U32
   U53 --> U32
   U54 --> U32
+  U55 --> U32
+  U50 --> U55
   U54 --> U46
   U35 -.-> U44
   U35 -.-> U45

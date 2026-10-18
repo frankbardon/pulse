@@ -144,7 +144,7 @@ As delivered (the plan's two epics grew to nine; E9 ran first):
 
 | Item | Destination |
 |---|---|
-| `ATTR_PREVIOUS_STATE`, a per-subject previous-state attribute (the fourth `flows` declarer) | [U50](U50-local-time.md) #452 (from #449, E7-S2) |
+| `ATTR_PREVIOUS_STATE`, a per-subject previous-state attribute (the fourth `flows` declarer) | [U55](U55-previous-state.md) #452 (from #449, E7-S2; first filed under [U50](U50-local-time.md)) |
 | `sites` change-site tool gaps (non-enum param forms, metric-registry consumers, false category-norm warnings, subset hand lists, shared-oracle attribution) | [U32](U32-docs-audit.md) #453 |
 | `OVERLAY_SYMMETRY` exact binomial McNemar (`params.exact`) and the discordant odds-ratio effect size | [U36](U36-reference-oracles.md) #454 (owner decision 2026-10-14) |
 | Streaming shard-archive open for Process runs (section readers instead of reading the whole archive), then drop predict's archive byte term | [U51](U51-archive-scale.md) #455 (owner decision 2026-10-14) |
