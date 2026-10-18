@@ -63,7 +63,7 @@ Ordinary least squares with optional regularization.
 | `predictors`  | yes      | One or more numeric predictor fields.                                                  |
 | `penalty`     | no       | `""` (default), `"l1"`, `"l2"`, or `"elasticnet"`.                                     |
 | `alpha`       | conditional | Required and `> 0` when `penalty != ""`.                                            |
-| `l1_ratio`    | conditional | Required and in `[0, 1]` when `penalty == "elasticnet"`.                            |
+| `l1_ratio`    | conditional | Required and in `(0, 1)` when `penalty == "elasticnet"`.                            |
 | `max_iters`   | no       | Coordinate-descent cap (default 1000).                                                 |
 | `tol`         | no       | Convergence tolerance (default `1e-6`).                                                |
 | `resample`    | no       | `"jackknife"` or `"bootstrap"`. Downgrades streaming.                                  |
@@ -72,6 +72,8 @@ Ordinary least squares with optional regularization.
 | `covariance`  | no       | `{type, cluster, order_by, lags}`: `classical` (default), `hc0`–`hc3`, `cluster` (CR1 on `cluster`'s levels, df = clusters − 1) or `hac` (Newey–West over `order_by`, `lags` an integer or `"auto"`). Drives `std_errors`, `p_values`, the intervals and `vcov`; refused beside a penalty, `resample` or `selection` (`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`). Downgrades streaming. |
 
 Modifier compatibility: `Resample` and `Selection` may be combined; `Selection` runs first, `Resample` re-fits the selected subset.
+
+Every penalty minimizes one objective, glmnet's with `standardize = FALSE` and the same one `REG_GLM` uses: `(1/2N*)·Σw·(y − β₀ − Xβ)² + alpha·[(1 − l1_ratio)/2·‖β‖² + l1_ratio·‖β‖₁]` (`l2` is `l1_ratio = 0`, `l1` is `1`), `N*` the sum of the weights, the intercept unpenalized and the predictors on their own units — so `l2` at `alpha` is the elastic net's limit at `l1_ratio → 0` at the same `alpha`, and a predictor on a large scale is barely shrunk (divide it by its SD upstream to penalize all alike). `l2` is solved in closed form, `l1` / `elasticnet` by coordinate descent on the centred Gram; a coefficient shrunk to 0 has no `std_errors` / `p_values` entry. Oracle: R `glmnet` (`scripts/reference/gen_ols_penalty.R`).
 
 Error codes: `PROCESSING_REGRESSION_RANK_DEFICIENT`, `PROCESSING_REGRESSION_SINGULAR_GRAM`, `PROCESSING_REGRESSION_NO_CONVERGE`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PROCESSING_REGRESSION_APPROXIMATE_SE` (warning, l1/elasticnet without resample), `PROCESSING_REGRESSION_REGULARIZED_SELECTION` (warning, penalty + selection), `PROCESSING_CONFIG`.
 

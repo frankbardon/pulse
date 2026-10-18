@@ -238,7 +238,7 @@ The difference in the outcome's expected value between rows one unit apart on th
 - Its size depends on the predictor's units, so do not rank predictors by raw coefficients unless they share units; standardize the predictors first to compare them.
 - With strongly related predictors (multicollinearity) a coefficient can swing, or even flip sign, between fits on similar data.
 - (intercept) is the prediction when every predictor is 0, which may lie outside the data and mean nothing.
-- Penalized fits (l1, l2, elasticnet) shrink coefficients toward 0 on purpose; an l1 coefficient shrunk to 0 means the penalty dropped it, not that the predictor is unrelated to the outcome.
+- Penalized fits (l1, l2, elasticnet) shrink coefficients toward 0 on purpose, on the predictors' own units (a predictor on a large scale is barely shrunk); an l1 coefficient shrunk to 0 means the penalty dropped it, not that the predictor is unrelated to the outcome.
 
 #### `std_errors.*`
 

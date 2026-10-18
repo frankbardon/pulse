@@ -1837,10 +1837,10 @@ def overlay_cases():
 #     lm(weights = w) / WLS: those read the row count as the df.
 #   * REG_OLS penalised (l2 / l1 / elasticnet) — β only, from
 #     scikit-learn: Ridge(alpha = λ·Σw) (Pulse adds Σw·λ to the centered
-#     Gram, unstandardized); Lasso / ElasticNet(alpha = λ, l1_ratio) on
-#     predictors divided by their weighted population SD, β = coef/σ —
-#     Pulse's coordinate descent minimizes the same
-#     (1/2Σw)·Σw(y − Xβ)² + λ(α‖β_std‖₁ + (1 − α)/2‖β_std‖²).
+#     Gram); Lasso / ElasticNet(alpha = λ, l1_ratio) on the RAW
+#     predictors — every Pulse penalty minimizes glmnet's
+#     standardize = FALSE objective
+#     (1/2Σw)·Σw(y − Xβ)² + λ(α‖β‖₁ + (1 − α)/2‖β‖²) (U49 E3-S1).
 #     Frequency on the np.repeat expansion, unweighted; probability with
 #     sample_weight = w (β is kind-free: the penalty scales by Σw). The
 #     ridge β is also checked against its closed form.
@@ -2015,12 +2015,12 @@ def penalised_beta(case, ws, kind):
         closed = np.linalg.solve(xc.T @ (w[:, None] * xc) + sw * lam * np.eye(2), xc.T @ (w * yc))
         assert np.allclose(coef, closed, rtol=1e-10, atol=0), (kind, coef, closed)
     else:
-        mu, sd = weighted_scales(X, w)
+        mu, _ = weighted_scales(X, w)
         cls = sklearn.linear_model.Lasso if case == "lasso" else sklearn.linear_model.ElasticNet
         kw = {} if case == "lasso" else {"l1_ratio": REG_L1_RATIO}
         m = cls(alpha=lam, fit_intercept=True, tol=1e-15, max_iter=10_000_000, **kw)
-        m.fit(X / sd, y, sample_weight=sample_weight)
-        coef = m.coef_ / sd
+        m.fit(X, y, sample_weight=sample_weight)
+        coef = m.coef_
         icpt = float(np.sum(w * y) / sw) - float(coef @ mu)
         assert close(icpt, m.intercept_, 1e-9), (case, kind, icpt, m.intercept_)
     out = {f"coefficients.{t}": float(v) for t, v in zip(REG_TERMS, [icpt, *coef])}

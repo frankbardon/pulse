@@ -12,20 +12,19 @@ import (
 //	β = (M2_xx + n·λ·I)⁻¹ · M2_xy
 //	intercept = μ_y − Σ β_j · μ_x[j]
 //
-// The n·λ scaling matches scikit-learn's Ridge(alpha=λ) convention
-// (penalty added to Σ(y − Xβ)², not the mean). This way Phase 2's
-// Alpha=0 boundary reproduces unpenalized OLS exactly: the augmented
-// system reduces to the same Cholesky problem Phase 1 already solves.
+// This is the minimizer of glmnet's standardize = FALSE objective
+// (1/2N*)·Σw·r² + λ/2·‖β‖² (N* = Σw; n unweighted) — the α meaning the
+// lasso / elastic-net solvers and REG_GLM's penalties share, so l2 at λ
+// equals elasticnet at l1_ratio → 0 (TestRegOLS_RidgeEqualsElasticNetAtZeroL1).
+// It is scikit-learn's Ridge(alpha = N*·λ), NOT Ridge(alpha = λ). At
+// λ = 0 the augmented system is the unpenalized Cholesky problem.
 //
 // Standard errors are the classic ridge sandwich:
 //
 //	Var(β) = σ² · (M2_xx + n·λ·I)⁻¹ · M2_xx · (M2_xx + n·λ·I)⁻¹
 //
 // with σ² = RSS / (n − p − 1) on the original (un-standardized) scale.
-// Operating on the unstandardized centered Gram keeps the SE
-// derivation aligned with Phase 1's bookkeeping; standardization is
-// reserved for the iterative l1 / elasticnet solvers where it changes
-// the optimization landscape.
+// Like every OLS penalty it runs on the unstandardized centered Gram.
 //
 // Returns:
 //   - PROCESSING_REGRESSION_INSUFFICIENT_DATA: n < p + 1.
@@ -34,9 +33,10 @@ import (
 //     remains effectively singular, e.g. alpha → 0 with duplicated
 //     columns).
 //
-// reference: numpy.linalg.solve(XtX + n·alpha·I, Xty) on identical
-// inputs produces the same β to machine precision; the closed-form
-// fixture in ols_ridge_test.go documents one such case.
+// reference: the closed form solve(XcᵀXc + n·λ·I, Xcᵀyc) (centred) on
+// identical inputs produces the same β to machine precision (fixture in
+// ols_ridge_test.go), and R glmnet(alpha = 0, standardize = FALSE) on a
+// unit-SD response agrees (ols_penalty_reference_test.go).
 func solveRidge(a *olsAccumulator, alpha float64) (*olsSolveResult, error) {
 	p := a.p
 	if a.n < p+1 {

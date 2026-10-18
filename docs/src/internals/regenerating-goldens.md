@@ -221,7 +221,7 @@ is the whole list in one place.
 | `sandwich` | 3.1-3 | robust covariance (`gen_robust_vcov*.R`) |
 | `lmtest` | 0.9-40 | robust covariance tests |
 | `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |
-| `glmnet` | 5.1 | penalised `REG_GLM` (`gen_glm_penalty.R`; thresh / maxit through `control`) |
+| `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`; thresh / maxit through `control`) |
 
 `ICSNP`, `MVTests` and `MVN` do NOT build on R 4.6.1; nothing needs
 them. The scripts compute what they would (the unequal-covariance

@@ -14,29 +14,29 @@ const (
 )
 
 // solveLasso fits the L1-penalized OLS coefficients via coordinate
-// descent on standardized predictors.
+// descent on the raw centred streaming Gram, minimizing glmnet's
+// objective with standardize = FALSE — the one α meaning every REG_OLS
+// penalty and REG_GLM share:
 //
-// Algorithm (cyclic coordinate descent with soft-thresholding):
+//	(1/2N*)·Σw·(y − β₀ − Xβ)² + λ·[(1−l1_ratio)/2·‖β‖² + l1_ratio·‖β‖₁]
+//
+// (l1_ratio = 1 here), the intercept unpenalized, N* = Σw. Algorithm
+// (cyclic coordinate descent with soft-thresholding):
 //
 //	repeat:
 //	    for j = 0..p-1:
-//	        r_j      = M2_xy_std[j] − Σ_{k≠j} M2_xx_std[j,k] · β_std[k]
-//	        z        = r_j / n
-//	        β_new[j] = soft_threshold(z, λ) · n / M2_xx_std[j,j]
-//	    until max|Δβ| < tol  or  iter == MaxIters
+//	        r_j      = M2_xy[j] − Σ_{k≠j} M2_xx[j,k] · β[k]
+//	        β_new[j] = soft_threshold(r_j/N*, λ) / (M2_xx[j,j]/N*)
+//	    until max_j sd_j·|Δβ_j| < tol  or  iter == MaxIters
 //
-// soft_threshold(z, γ) = sign(z) · max(|z| − γ, 0).
-//
-// All inner products derive from the standardized streaming Gram —
-// coordinate descent never re-reads the data. After convergence the
-// standardized coefficients are de-standardized to the original scale
-// via destandardizeCoeffs.
+// soft_threshold(z, γ) = sign(z) · max(|z| − γ, 0). Every inner product
+// comes from the streaming Gram — coordinate descent never re-reads the
+// data — and the intercept is ȳ − Σ β_j·x̄_j.
 //
 // Standard errors are emitted only for the non-zero active set using a
-// naive plug-in σ² estimate (RSS over the unpenalized active set) so
-// callers see a usable approximate SE; the engine attaches a warning
-// to the response flagging the limitation. Rigorous lasso SE/CI ships
-// in Phase 5 via bootstrap / jackknife resampling.
+// naive plug-in σ² estimate so callers see a usable approximate SE;
+// predict warns PROCESSING_REGRESSION_APPROXIMATE_SE. Resample gives
+// the rigorous one.
 //
 // Returns:
 //   - PROCESSING_REGRESSION_INSUFFICIENT_DATA: n < p + 1.
@@ -45,11 +45,10 @@ const (
 //   - PROCESSING_REGRESSION_NO_CONVERGE:       coordinate descent
 //     exceeded MaxIters without reaching Tol.
 //
-// reference: scikit-learn Lasso(alpha=λ, fit_intercept=True,
-// normalize=False) with the same λ produces identical coefficients
-// modulo numerical tolerance once Pulse's per-predictor standardization
-// is applied. The sparse-recovery fixture in ols_lasso_test.go cites
-// the scikit-learn reference values it asserts against.
+// reference: R glmnet(standardize = FALSE) on a unit-SD response (glmnet
+// standardizes a gaussian y internally, which rescales its ridge term;
+// at sd(y) = 1 that is the identity) — ols_penalty_reference_test.go,
+// oracle scripts/reference/gen_ols_penalty.R.
 func solveLasso(a *olsAccumulator, alpha float64, maxIters int, tol float64) (*olsSolveResult, int, error) {
 	if maxIters <= 0 {
 		maxIters = defaultLassoMaxIters
@@ -70,15 +69,13 @@ func solveLasso(a *olsAccumulator, alpha float64, maxIters int, tol float64) (*o
 }
 
 // coordinateDescent is the shared coordinate-descent loop for lasso
-// (l1Ratio=1) and elastic-net (0 < l1Ratio < 1). The combined penalty
-// is λ·(α·||β||₁ + (1−α)/2·||β||₂²) where α is l1Ratio:
+// (l1Ratio=1) and elastic-net (0 < l1Ratio < 1) on the raw centred
+// Gram (see solveLasso for the objective):
 //
-//	β_new[j] = soft_threshold(r_j/n, λ·α) / (M2_xx_std[j,j]/n + λ·(1−α))
+//	β_new[j] = soft_threshold(r_j/N*, λ·α) / (M2_xx[j,j]/N* + λ·(1−α))
 //
-// The pure-lasso update collapses to the same expression with the
-// l2 term vanishing (1−α=0). Both solvers share this implementation
-// so the soft-threshold + denominator-augmentation algebra lives in
-// exactly one place.
+// with α = l1Ratio. At l1Ratio = 0 the fixed point is ridge's
+// (M2_xx + N*·λ·I)β = M2_xy (TestRegOLS_RidgeEqualsElasticNetAtZeroL1).
 //
 // Returns the solve result, the iteration count actually executed,
 // and any error.
@@ -93,13 +90,16 @@ func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, 
 	}
 
 	a.finalize()
-	sg := standardizeGram(a)
-	if sg.degenerate {
-		return nil, 0, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
-			"a predictor has zero centered variance; coordinate descent cannot standardize a constant column",
-			map[string]any{"n": a.n, "p": p},
-		)
+	// A constant predictor (zero centred variance) has no coordinate
+	// update under a pure l1 penalty (0/0); refused as before.
+	for j := 0; j < p; j++ {
+		if a.m2XX[j*p+j]/a.sumW <= 1e-300 {
+			return nil, 0, errors.NewCodedErrorWithDetails(
+				errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
+				"a predictor has zero centered variance; coordinate descent cannot fit a constant column",
+				map[string]any{"n": a.n, "p": p},
+			)
+		}
 	}
 
 	// Σw in place of n (exactly n unweighted): the objective is
@@ -108,36 +108,39 @@ func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, 
 	lambdaL1 := alpha * l1Ratio
 	lambdaL2 := alpha * (1 - l1Ratio)
 
-	betaStd := make([]float64, p)
-	// Precompute per-coordinate denominators (M2_xx_std[j,j]/n + λ·(1−α)).
-	// On standardized predictors M2_xx_std[j,j] == n exactly, so denom_j
-	// simplifies to 1 + λ·(1−α). Compute via the explicit form anyway so
-	// the algebra survives any future change to the standardization
-	// convention.
+	// Coordinate descent on the RAW centred Gram (glmnet
+	// standardize = FALSE): the penalty reads each coefficient on its
+	// predictor's own units, the same α meaning as REG_GLM's penalties
+	// and ridge. denom_j = M2_xx[j,j]/n + λ·(1−α).
+	coeffs := make([]float64, p)
 	denom := make([]float64, p)
+	scale := make([]float64, p)
 	for j := 0; j < p; j++ {
-		denom[j] = sg.m2xxStd[j*p+j]/n + lambdaL2
+		denom[j] = a.m2XX[j*p+j]/n + lambdaL2
+		// The column SD: convergence judges sd_j·|Δβ_j| (the move in
+		// outcome units per predictor SD), the scale-free test the
+		// standardized solver applied.
+		scale[j] = math.Sqrt(a.m2XX[j*p+j] / n)
 	}
 
 	var iters int
 	for iters = 0; iters < maxIters; iters++ {
 		maxDelta := 0.0
 		for j := 0; j < p; j++ {
-			// r_j = M2_xy_std[j] − Σ_{k≠j} M2_xx_std[j,k] · β_std[k]
-			r := sg.m2xyStd[j]
+			// r_j = M2_xy[j] − Σ_{k≠j} M2_xx[j,k] · β[k]
+			r := a.m2XY[j]
 			for k := 0; k < p; k++ {
 				if k == j {
 					continue
 				}
-				r -= sg.m2xxStd[j*p+k] * betaStd[k]
+				r -= a.m2XX[j*p+k] * coeffs[k]
 			}
-			z := r / n
-			newBeta := softThreshold(z, lambdaL1) / denom[j]
-			delta := math.Abs(newBeta - betaStd[j])
+			newBeta := softThreshold(r/n, lambdaL1) / denom[j]
+			delta := scale[j] * math.Abs(newBeta-coeffs[j])
 			if delta > maxDelta {
 				maxDelta = delta
 			}
-			betaStd[j] = newBeta
+			coeffs[j] = newBeta
 		}
 		if maxDelta < tol {
 			iters++ // count the final converged cycle
@@ -158,7 +161,10 @@ func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, 
 		)
 	}
 
-	coeffs, intercept := destandardizeCoeffs(betaStd, sg)
+	intercept := a.meanY
+	for j := 0; j < p; j++ {
+		intercept -= coeffs[j] * a.meanX[j]
+	}
 
 	// RSS on the original scale: m2YY − 2·β·m2XY + βᵀ·m2XX·β.
 	rss := a.m2YY

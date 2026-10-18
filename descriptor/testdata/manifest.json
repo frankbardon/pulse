@@ -8163,7 +8163,7 @@
             "type": "enum",
             "required": false,
             "default": "",
-            "description": "Regularization scheme; empty for OLS.",
+            "description": "Regularization scheme; empty for OLS. Minimizes (1/2N*)·Σw·r² + alpha·[(1-l1_ratio)/2·||b||² + l1_ratio·||b||₁] (glmnet, standardize = FALSE; the same alpha meaning as REG_GLM): predictors unstandardized, intercept unpenalized, N* = Σw.",
             "enum_values": [
               "",
               "elasticnet",
@@ -8175,13 +8175,13 @@
             "name": "alpha",
             "type": "float",
             "required": false,
-            "description": "Regularization strength (\u003e0 when penalty is set)."
+            "description": "Regularization strength (\u003e0 when penalty is set; glmnet's lambda)."
           },
           {
             "name": "l1_ratio",
             "type": "float",
             "required": false,
-            "description": "Elastic-net mixing parameter in [0,1]; only read when penalty == elasticnet."
+            "description": "Elastic-net mixing parameter, 0 \u003c l1_ratio \u003c 1; only read when penalty == elasticnet (glmnet's alpha)."
           },
           {
             "name": "max_iters",
@@ -19162,4 +19162,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 28f75b66f33a52485dda1ded6b019abb14d354588a4583d3c7aca8e9e3628008
+// golden-hash: e011b376a9c446e90667fd8033215da6017680e4b8e7868fd0ef4c56c0439d42

@@ -81,8 +81,8 @@ var interpRegOLS = slices.Concat([]descriptor.Interpretation{
 			regCoefUnits,
 			regCoefCollinear,
 			regInterceptAtZero,
-			"Penalized fits (l1, l2, elasticnet) shrink coefficients toward 0 on purpose; an l1 coefficient shrunk to 0 " +
-				"means the penalty dropped it, not that the predictor is unrelated to the outcome.",
+			"Penalized fits (l1, l2, elasticnet) shrink coefficients toward 0 on purpose, on the predictors' own units (a predictor on a large scale is barely shrunk); " +
+				"an l1 coefficient shrunk to 0 means the penalty dropped it, not that the predictor is unrelated to the outcome.",
 		},
 	},
 	{

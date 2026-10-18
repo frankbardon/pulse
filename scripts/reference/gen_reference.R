@@ -411,6 +411,11 @@ source(file.path(script_dir, "gen_glm_irls.R"), local = FALSE)
 # objective with standardize = FALSE, KKT-self-checked); glmnet + jsonlite.
 source(file.path(script_dir, "gen_glm_penalty.R"), local = FALSE)
 
+# The penalised REG_OLS golden (ols_penalty.json: l2 / l1 / elasticnet
+# on the shared standardize = FALSE objective, glmnet on the unit-SD
+# response, KKT-self-checked); glmnet + jsonlite.
+source(file.path(script_dir, "gen_ols_penalty.R"), local = FALSE)
+
 # The AGG_AUC golden (auc.json: pROC rank-sum AUC with ties half and its
 # DeLong se / 95% interval, plus weighted cases computed as the weighted
 # Mann-Whitney double sum); pROC + jsonlite.

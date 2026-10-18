@@ -46,9 +46,9 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 			Params: []descriptor.Param{
 				{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Response variable field name."},
 				{Name: "predictors", Type: "list", Required: true, Description: "Predictor field names (numeric only in v1)."},
-				{Name: "penalty", Type: "enum", Required: false, Default: "", EnumValues: []string{"", "elasticnet", "l1", "l2"}, Description: "Regularization scheme; empty for OLS."},
-				{Name: "alpha", Type: "float", Required: false, Description: "Regularization strength (>0 when penalty is set)."},
-				{Name: "l1_ratio", Type: "float", Required: false, Description: "Elastic-net mixing parameter in [0,1]; only read when penalty == elasticnet."},
+				{Name: "penalty", Type: "enum", Required: false, Default: "", EnumValues: []string{"", "elasticnet", "l1", "l2"}, Description: "Regularization scheme; empty for OLS. Minimizes (1/2N*)·Σw·r² + alpha·[(1-l1_ratio)/2·||b||² + l1_ratio·||b||₁] (glmnet, standardize = FALSE; the same alpha meaning as REG_GLM): predictors unstandardized, intercept unpenalized, N* = Σw."},
+				{Name: "alpha", Type: "float", Required: false, Description: "Regularization strength (>0 when penalty is set; glmnet's lambda)."},
+				{Name: "l1_ratio", Type: "float", Required: false, Description: "Elastic-net mixing parameter, 0 < l1_ratio < 1; only read when penalty == elasticnet (glmnet's alpha)."},
 				{Name: "max_iters", Type: "int", Required: false, Description: "Coordinate-descent iteration cap for regularized fits."},
 				{Name: "tol", Type: "float", Required: false, Description: "Relative convergence tolerance for regularized fits."},
 				{Name: "resample", Type: "enum", Required: false, EnumValues: []string{"", "bootstrap", "jackknife"}, Description: "Orthogonal resampling layer; downgrades streaming."},
