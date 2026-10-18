@@ -152,3 +152,80 @@ func TestPredict_JackknifeKnobRefusals(t *testing.T) {
 		})
 	}
 }
+
+// TestComposePredict_AdvisoryJackknifeCostMatchesProcess: a Compose
+// slot and a Compose fit carrying the leave-one-out jackknife over a
+// cohort of LeaveOneOutCostRows records draw the advisory Process
+// predict gives the same request — the same message and details, the
+// slot path prefixed and details.request / details.fit added — reading
+// the cohort's header count through PredictOptions.CohortCounter (or,
+// unwired, RecordCounter). One record fewer, or no counter at all,
+// fires nothing.
+func TestComposePredict_AdvisoryJackknifeCostMatchesProcess(t *testing.T) {
+	at := regresample.LeaveOneOutCostRows
+	reg := func() *types.RegressionSpec {
+		return &types.RegressionSpec{Name: "m", Type: types.REG_GLM, Family: "poisson", Target: "y", Predictors: []string{"x"}, Resample: "jackknife"}
+	}
+	process := jackknifeAdvisories(t, at, []*types.RegressionSpec{reg()}, nil)
+	if len(process) != 1 {
+		t.Fatalf("vacuous: process advisories = %+v", process)
+	}
+	cohorts := map[string][]byte{"big.pulse": jackknifeCohort(t, at), "small.pulse": jackknifeCohort(t, at-1)}
+	header := func(path string) int64 { return int64(len(cohorts[path])-len(jackknifeCohort(t, 0))) / 16 }
+	compose := func(file string) *types.ComposedRequest {
+		return &types.ComposedRequest{
+			Requests: []*types.Request{{Cohort: &types.Cohort{Filename: file}, Regressions: []*types.RegressionSpec{reg()}}},
+			Fits:     []types.FitSpec{{Name: "f", Request: &types.Request{Cohort: &types.Cohort{Filename: file}, Regressions: []*types.RegressionSpec{reg()}}}},
+		}
+	}
+	counters := map[string]func(o *PredictOptions){
+		"cohort counter": func(o *PredictOptions) {
+			o.CohortCounter = func(path string) (CohortCounts, error) { return CohortCounts{Records: header(path)}, nil }
+		},
+		"record counter": func(o *PredictOptions) {
+			o.RecordCounter = func(path string) (int64, error) { return header(path), nil }
+		},
+	}
+	for name, wire := range counters {
+		t.Run(name, func(t *testing.T) {
+			opts := &PredictOptions{SchemaLoader: composeSchemaLoader(t, cohorts)}
+			wire(opts)
+			got := jackknifeOnly(composeResult(t, compose("big.pulse"), opts).Advisories)
+			if len(got) != 2 {
+				t.Fatalf("compose advisories = %+v, want slot + fit", got)
+			}
+			for i, w := range []struct {
+				prefix string
+				key    string
+			}{{"requests[0].", "request"}, {"fits[0].request.", "fit"}} {
+				want := map[string]any{w.key: 0}
+				for k, v := range process[0].Details {
+					want[k] = v
+				}
+				want["slot"] = w.prefix + "regressions[0]"
+				if !reflect.DeepEqual(got[i].Details, want) {
+					t.Errorf("%s details = %v, want %v", w.key, got[i].Details, want)
+				}
+				if wantMsg := strings.Replace(process[0].Message, "regressions[0]", w.prefix+"regressions[0]", 1); got[i].Message != wantMsg {
+					t.Errorf("%s message = %q, want %q", w.key, got[i].Message, wantMsg)
+				}
+			}
+			if got := jackknifeOnly(composeResult(t, compose("small.pulse"), opts).Advisories); len(got) != 0 {
+				t.Errorf("one record short: %+v", got)
+			}
+		})
+	}
+	if got := jackknifeOnly(composeResult(t, compose("big.pulse"), &PredictOptions{SchemaLoader: composeSchemaLoader(t, cohorts)}).Advisories); len(got) != 0 {
+		t.Errorf("no counter wired: %+v", got)
+	}
+}
+
+func jackknifeOnly(as []descriptor.Advisory) []descriptor.Advisory {
+	var out []descriptor.Advisory
+	for _, a := range as {
+		if a.Code == string(errors.PULSE_ADVISORY_JACKKNIFE_COST) {
+			out = append(out, a)
+		}
+	}
+	return out
+}
