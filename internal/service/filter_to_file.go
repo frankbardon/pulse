@@ -96,21 +96,24 @@ func (s *Service) FilterToFileBySetAndExpr(ctx context.Context, src, dst, includ
 	})
 }
 
-// FilterToFileFilterers is FilterToFile for a structured predicate:
-// filterExpr is the expression the filterers translate to (the facade's
-// FilterToFileRequest.canonicalExpression), and the filterers
-// themselves are judged by the shared field rule
+// FilterToFileFilterers is FilterToFile for the facade's
+// FilterToFileRequest: filterExpr is the request's predicate (its
+// Expression, or the expression its structured filterers translate to
+// — FilterToFileRequest.canonicalExpression). Non-empty filterers are
+// judged by the shared field rule
 // (internal/descriptor.FieldRefRefusals, filterer half) against the
 // cohort schema — the canonical one for a shard archive — before the
 // expression compiles, so an unknown or empty Field is refused with the
 // code, message and details Process and predict use rather than an
-// expression compile error.
-func (s *Service) FilterToFileFilterers(ctx context.Context, src, dst string, filterers []*types.Filterer, filterExpr string) (int64, error) {
+// expression compile error. timeZone is the request zone the
+// expression's to_day() reads (Request.TimeZone's rule; "" inherits
+// Options.DefaultTimeZone, else UTC).
+func (s *Service) FilterToFileFilterers(ctx context.Context, src, dst string, filterers []*types.Filterer, filterExpr, timeZone string) (int64, error) {
 	if filterExpr == "" {
 		return 0, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"filter_to_file requires a non-empty filter expression")
 	}
-	return s.filterToFile(ctx, src, dst, filterPlan{filterExpr: filterExpr, filterers: filterers})
+	return s.filterToFile(ctx, src, dst, filterPlan{filterExpr: filterExpr, filterers: filterers, timeZone: timeZone})
 }
 
 // filterPlan captures the per-call predicate inputs so the input-shape
@@ -126,6 +129,9 @@ type filterPlan struct {
 	// models is the bound-model set the expression's coef() reads
 	// (nil binds nothing).
 	models *model.Set
+	// timeZone is the request zone the expression's to_day() reads
+	// (FilterToFileRequest.TimeZone); "" inherits the instance default.
+	timeZone string
 }
 
 // BindFilterModels returns ctx carrying refs loaded — every file read
@@ -520,11 +526,11 @@ func (s *Service) fieldFilterForPlan(schema *encoding.Schema, plan filterPlan) e
 //
 // The predicate runs zoned exactly as a Process filterer does: it is
 // resolved (resolveZones) and handed through the one zone choke point
-// (zoned), so a to_day() call reads the inherited zone. Filter-to-file
-// carries no request `time_zone`, so that zone is
+// (zoned), so a to_day() call reads the inherited zone: timeZone (the
+// FilterToFileRequest's `time_zone`, in Request.TimeZone's place), else
 // Options.DefaultTimeZone, else UTC.
-func (s *Service) buildSingleFilter(schema *encoding.Schema, filterExpr string, models *model.Set) (processing.FilterFunc, error) {
-	req := &types.Request{Filterers: []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: filterExpr}}}
+func (s *Service) buildSingleFilter(schema *encoding.Schema, filterExpr, timeZone string, models *model.Set) (processing.FilterFunc, error) {
+	req := &types.Request{Filterers: []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: filterExpr}}, TimeZone: timeZone}
 	zones, err := s.resolveZones(req, schema)
 	if err != nil {
 		return nil, err
@@ -563,7 +569,7 @@ func (s *Service) buildCombinedFilter(schema *encoding.Schema, plan filterPlan) 
 
 	var exprFn processing.FilterFunc
 	if plan.filterExpr != "" {
-		fn, err := s.buildSingleFilter(schema, plan.filterExpr, plan.models)
+		fn, err := s.buildSingleFilter(schema, plan.filterExpr, plan.timeZone, plan.models)
 		if err != nil {
 			return nil, err
 		}

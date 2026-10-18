@@ -9,8 +9,6 @@ covers: [Request.Hash, StreamResult, Watch, WatchDir, FilterToFileWithRequest, C
 
 # Streaming & watching
 
-Primitives for deterministic identity, incremental output, reactive observation.
-
 ## `Request.Hash()`
 
 `Hash() string` returns a 32-char hex digest of canonical-JSON form. Supported: `Request`, `ComposedRequest`, `FacetRequest`, `ChainRequest`, `synth.Spec`. Lower-level: `types.CanonicalHash(tag, v)`.
@@ -89,14 +87,14 @@ Atomic-write coalescing: `Removed(temp) + Created(target)` folds into `ChangeRen
 ```go
 res, err := p.FilterToFileWithRequest(ctx, &pulse.FilterToFileRequest{
     SourcePath: "cohort-2025-Q3.pulse",
-    Expression: "age >= 18 && state in [\"CA\", \"NY\"]",
+    Expression: "age >= 18",
     OutputDir:  "derived/",
 })
 ```
 
 Guarantees: deterministic name `{source-hash[:16]}_{predicate-hash[:16]}.pulse` when `OutputName` empty; atomic write (`.<name>.partial` + rename); dedup by pre-existence (`Reused: true`).
 
-Predicates: `Expression` ([`expression-language`](expression-language.md)) or structured `Filterers` (translated, AND-combined) — exactly one, so the predicate hash is unambiguous.
+Predicates: `Expression` ([`expression-language`](expression-language.md)) or structured `Filterers` (translated, AND-combined) — exactly one; an untranslatable filterer → `PROCESSING_CONFIG` `{operator}`. `TimeZone` is the zone `to_day()` reads (over the instance default; joins the hash).
 
 `Models` (`[{name, path}]`) loads saved models for `coef()`; their content hashes join the predicate hash, so a rewritten model never reuses a stale output.
 

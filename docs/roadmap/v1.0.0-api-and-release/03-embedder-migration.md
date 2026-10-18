@@ -822,6 +822,15 @@ Release-notes grouping (rows below; there is no separate behaviour-breaks file �
 | `Explain` on a `composed` root re-predicted every slot ALONE beside the batch check: a slot reading a Compose fit (`ATTR_REG_PREDICT`, `coef()`, a vector `params.fit`, a `{population}`) was refused `PULSE_MODEL_UNKNOWN` / `PULSE_VECTOR_REFERENCE_UNKNOWN` (`valid: false`) where `PredictCompose` said valid, and a real slot refusal appeared twice (once unlocated) | the batch check — `PredictCompose`'s own validator, fits and `models` bound first — is Explain's verdict: `valid` and the refusal codes equal `PredictCompose`'s, each located refusal gaining `details.slot` (`requests[i]` / `fits[k]`); a slot's own predict only names inferred operators and relays warnings | behaviour change (bug fix) | nothing; read `refusals[].details.slot` | U49 (E3-S6) |
 | `Explain` named a regression run under `selection` by every CANDIDATE predictor (request step and response finding alike), and did not read a `ComposedResponse`'s `fits` | a response finding's `subject` names the predictors the selection KEPT (`selected_features`) and its sentence the dropped candidates ("Stepwise selection on BIC kept 13 of 23 candidate predictors and dropped …"); a request step calls the predictors candidates; a `ComposedResponse`'s regression fits are read as findings at `fits.<name>` (vector fits are not), counted in the summary and the many-tests caveat | behaviour change (explain output) | match findings by `slot`, never by `subject` prose | U49 (E3-S6) |
 
+## Changes from U50 (local time)
+
+Ships in the next alpha. `format_version` stays `"1.1"`.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| `FilterToFileRequest` had no zone of its own: a `to_day` predicate read only `Options.DefaultTimeZone`, else UTC (#467) | new `FilterToFileRequest.TimeZone` (`time_zone`, `omitempty`), the `Request.TimeZone` rule: it wins over `Options.DefaultTimeZone`; an unknown name is `PULSE_TIMEZONE_UNKNOWN`, refused before the source is read. The non-UTC zone a `to_day` predicate reads keys the dedup hash, so the same resolved zone named by either knob lands on the same output and different zones never share one. An empty `TimeZone` runs and hashes byte-identically | API addition | set `TimeZone` instead of building a per-zone instance | U50 (E3-S1) |
+| a `FilterToFileWithRequest` filterer it cannot translate — `FILTER_DATE_RANGES`, an extension filterer, a hidden or never-registered type — was refused with an UNCODED error, so a CLI / MCP envelope carried the placeholder code (#468) | refused `PROCESSING_CONFIG` with the same message (`filter_to_file: unsupported filter type "<T>"`) and `details.operator` | behaviour change (error code) | branch on `PROCESSING_CONFIG` + `details.operator`; write a date window as `FILTER_EXPRESSION` over `to_day(ts)` with the request `TimeZone` | U50 (E3-S1) |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

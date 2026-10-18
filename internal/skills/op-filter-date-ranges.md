@@ -37,7 +37,8 @@ Floor only — `{n_in, n_out, n_null_input}`. Mergeable (additive).
 - Both/neither → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`.
 - Overlap/dup → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL`; bad literal, start>end → `_INVALID`.
 - `start: 2026-03-01`, `tz: Europe/Berlin` keeps `2026-02-28T23:30Z`.
-- Zone on `date` / derived field, any zone under `FilterToFileWithRequest` → `PROCESSING_CONFIG`.
+- Zone on `date` / derived field → `PROCESSING_CONFIG`.
+- Untranslatable (any slot zone too) under `FilterToFileWithRequest` → `PROCESSING_CONFIG` `{operator}`; use an expression filter over `to_day(ts)` + the request `TimeZone`.
 - Row-local streamable.
 
 ## See

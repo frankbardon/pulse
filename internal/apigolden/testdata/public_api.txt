@@ -449,6 +449,7 @@ pulse: type FilterToFileRequest field Models []pulse/types.ModelRef "json:\"mode
 pulse: type FilterToFileRequest field OutputDir string "json:\"output_dir\""
 pulse: type FilterToFileRequest field OutputName string "json:\"output_name,omitempty\""
 pulse: type FilterToFileRequest field SourcePath string "json:\"source_path\""
+pulse: type FilterToFileRequest field TimeZone string "json:\"time_zone,omitempty\""
 pulse: type FilterToFileResult struct
 pulse: type FilterToFileResult field ElapsedMs int64 "json:\"elapsed_ms\""
 pulse: type FilterToFileResult field OutputHash string "json:\"output_hash\""
@@ -5629,4 +5630,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 91fd68edfca3e096cc5d8402f79a21e800babe1be8f645e0e232cb0016349c40
+// golden-hash: 6ebb61feb11db91f57d4b396bc9290f026d03bb0d5af579ab1c0bb2c33e39d77

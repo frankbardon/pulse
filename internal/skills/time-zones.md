@@ -30,7 +30,7 @@ A `datetime` is read on its LOCAL calendar day in every mode (process, stream, c
 <!-- feature: ATTR_DATE_PART, FEAT_DATE_FEATURES -->
 - `ATTR_DATE_PART` and `FEAT_DATE_FEATURES` accept `datetime` and read the zone's wall clock; part `hour` (and the sixth `<prefix>_hour` feature column) is datetime-only. Feature `dow` stays Sunday = 0 and ignores `week_start`.
 <!-- /feature -->
-- Formulas and expression filters: `to_day(ts)` reads the inherited zone (request `time_zone` -> `Options.DefaultTimeZone` -> UTC) on every entry point — filter-to-file has no request zone, so the default; they take no slot `tz` (`calendar-formulas`).
+- Formulas and expression filters: `to_day(ts)` reads the inherited zone (request `time_zone` -> `Options.DefaultTimeZone` -> UTC) on every entry point — `FilterToFileRequest.TimeZone` is filter-to-file's request zone; they take no slot `tz` (`calendar-formulas`).
 <!-- feature: OVERLAY_YOY -->
 - `OVERLAY_YOY` has no zone slot; it follows its host grouper, so an hourly host gives hourly prior-year alignment.
 <!-- /feature -->
