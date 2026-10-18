@@ -38,7 +38,7 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs (link scale); `StdErrors`, `PValues` (Wald-z from `Cov(β) = (XᵀWX)⁻¹`); `CILower` / `CIUpper` = Wald β ∓ z·SE (R `confint.default`, not the profile `confint`), `ConfLevel`, no `DF`; `Deviance`, `NullDeviance`, `PseudoR2` = 1 − D/D₀ (McFadden only for 0/1 binomial); `Family`, `Link` echoed; `ConvergedIters` = IRLS steps; `NObs` raw rows, weighted adds `SumWeights` (+ `NEff`, probability); a robust `covariance` adds the `Covariance` echo. Always buffered — IRLS needs multiple passes.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs (link scale); `StdErrors`, `PValues` (Wald-z from `Cov(β) = (XᵀWX)⁻¹`); `CILower` / `CIUpper` = Wald β ∓ z·SE (R `confint.default`, not the profile `confint`), `ConfLevel`, no `DF`; `Deviance`, `NullDeviance`, `PseudoR2` = 1 − D/D₀ (McFadden only for 0/1 binomial); `Family`, `Link` echoed; `ConvergedIters` = IRLS steps (R's per-row start, step-halving); `NObs` raw rows, weighted adds `SumWeights` (+ `NEff`, probability); a robust `covariance` adds the `Covariance` echo. Always buffered — IRLS needs multiple passes.
 
 <!-- generated: reading-the-output -->
 
@@ -46,11 +46,12 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 - Weighted: `resample` / `selection` → `PULSE_WEIGHT_UNSUPPORTED`; n_eff < p+1 → `PULSE_WEIGHT_LOW_NEFF`.
 - `penalty` / `alpha` / `l1_ratio` rejected → `PROCESSING_CONFIG`. Regularized GLM is a later phase.
-- Binomial separation diverges → `PROCESSING_REGRESSION_NO_CONVERGE`. Raise `max_iters`, drop the offender, or pre-bin.
+- Binomial separation (a predictor splits the outcome, e.g. an empty 2×2 cell) → `PROCESSING_REGRESSION_SEPARATION`, `details.predictors` named, no coefficients (the MLE is infinite). Drop or merge it; check it is not recorded after the outcome. A strong but unseparated predictor converges.
+- Other non-convergence → `PROCESSING_REGRESSION_NO_CONVERGE` (`details.reason`): raise `max_iters`, rescale.
 - Unsupported link → `PROCESSING_REGRESSION_INVALID_LINK`.
 - Dispersion fixed at 1 for binomial / poisson, and gamma (weighted too) inherits it — be sceptical of gamma SEs and overdispersed counts; `covariance` `hc0`–`hc3` is dispersion-free.
 - Robust `covariance` beside `resample` / `selection`, < 2 clusters or a repeated `order_by` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. A null `cluster` / `order_by` drops the row.
-- Collinearity → `PROCESSING_REGRESSION_RANK_DEFICIENT`; drop a predictor.
+- Collinear or constant predictor → `PROCESSING_REGRESSION_RANK_DEFICIENT` from the up-front rank check, `details.columns` naming it; drop it.
 
 ## See
 

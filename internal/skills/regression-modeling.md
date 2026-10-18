@@ -87,11 +87,11 @@ Runnable JSON: `internal/examples/regression/`.
 
 ## Polynomial terms
 
-Polynomial columns are built in `features`, before the fit: the transform emits `Degree − 1` derived columns (`<label>_2 … <label>_<Degree>`) and keeps the original. Degree gate `[2, 10]`. Standardize predictors first — `x^10` overflows `f64` past `|x| ≈ a few hundred`. Parameter table and naming: `feature-engineering`.
+Built in `features`, before the fit: `Degree − 1` derived columns (`<label>_2 … <label>_<Degree>`) beside the original, degree `[2, 10]`. Standardize first — `x^10` overflows `f64` past `|x| ≈ a few hundred`. Table: `feature-engineering`.
 
 ## Ecological caveat
 
-A significant group-level slope does NOT imply individual-level association (Robinson 1950, Simpson). Use ecological fits only when the question is about groups or individual data is unavailable (census, precincts). Pulse cannot enforce this — annotate consumer prose.
+A significant group-level slope does NOT imply individual-level association (Robinson 1950, Simpson). Use them only for group-level questions or when individual data is unavailable. Pulse cannot enforce this.
 
 ## Inference
 
@@ -99,8 +99,9 @@ Per model (atomic skill): Student-t p for unpenalized / `l2` OLS, plug-in SE ove
 
 ## Gotchas
 
-- `n_obs` ≠ raw record count when nullable fields appear.
-- `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`: drop a predictor or add regularization.
+- `n_obs` < record count when nulls drop rows.
+- `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`: collinear columns (the GLM names them) — drop one, or regularize.
+- `PROCESSING_REGRESSION_SEPARATION` (binomial GLM): a predictor separates the outcome, not collinearity — drop or merge it.
 - `PROCESSING_REGRESSION_NO_CONVERGE`: raise `MaxIters` / `Tol`, or reduce `Alpha`.
 - Knobs belong to their engine: a penalty on the GLM, or `Penalty` / `Family` / `Link` on the Bayesian fit, is rejected (`PROCESSING_CONFIG`).
 

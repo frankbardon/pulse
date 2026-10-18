@@ -94,7 +94,9 @@ Generalized linear model via iteratively-reweighted least squares.
 
 Always buffered. Setting `penalty` / `alpha` / `l1_ratio` on a `REG_GLM` spec is rejected with `PROCESSING_CONFIG`; regularized GLM is reserved for a later phase.
 
-Error codes: `PROCESSING_REGRESSION_INVALID_FAMILY`, `PROCESSING_REGRESSION_INVALID_LINK`, `PROCESSING_REGRESSION_NO_CONVERGE`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PROCESSING_CONFIG`.
+The fit is R's `glm.fit` IRLS: per-row starting values (binomial `(w·y + 0.5)/(w + 1)`, poisson `y + 0.1`, gamma `y`), the step halved back toward the previous coefficients whenever the deviance rises, and convergence on the relative change in the coefficients. An up-front QR rank check of the (weighted) design is the only source of `PROCESSING_REGRESSION_RANK_DEFICIENT` (`details.columns` names the aliased columns). A binomial fit whose fitted probabilities reach numerically 0 or 1 while a predictor's coefficient keeps climbing is separated — the maximum-likelihood estimate is at infinity — and is refused `PROCESSING_REGRESSION_SEPARATION` (`details.predictors`) rather than reporting wherever the loop stopped.
+
+Error codes: `PROCESSING_REGRESSION_INVALID_FAMILY`, `PROCESSING_REGRESSION_INVALID_LINK`, `PROCESSING_REGRESSION_RANK_DEFICIENT`, `PROCESSING_REGRESSION_SEPARATION`, `PROCESSING_REGRESSION_NO_CONVERGE`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PROCESSING_CONFIG`.
 
 ### `REG_BAYES_LINEAR`
 
@@ -205,6 +207,7 @@ Look up full prose via `pulse_errors_lookup` or `pulse errors lookup CODE`.
 |-----------------------------------------------|-------------------------------------------------------------------------------|
 | `PROCESSING_REGRESSION_NOT_IMPLEMENTED`       | Reserved as of Phase 8; no engine returns this today.                         |
 | `PROCESSING_REGRESSION_RANK_DEFICIENT`        | XᵀX is singular; add regularization or drop a predictor.                       |
+| `PROCESSING_REGRESSION_SEPARATION`            | Binomial `REG_GLM` is separated (a predictor splits the outcome); `details.predictors`. |
 | `PROCESSING_REGRESSION_NO_CONVERGE`           | IRLS or coordinate descent failed within `MaxIters`.                          |
 | `PROCESSING_REGRESSION_SINGULAR_GRAM`         | XᵀX non-invertible even after regularization; increase `alpha`.               |
 | `PROCESSING_REGRESSION_INVALID_FAMILY`        | `REG_GLM` Family outside `{binomial, poisson, gamma}`.                        |

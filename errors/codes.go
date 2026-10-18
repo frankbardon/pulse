@@ -53,6 +53,12 @@ const (
 	// failed to converge within MaxIters.
 	PROCESSING_REGRESSION_NO_CONVERGE Code = "PROCESSING_REGRESSION_NO_CONVERGE"
 
+	// PROCESSING_REGRESSION_SEPARATION indicates a binomial REG_GLM fit
+	// is separated: fitted probabilities reached numerically 0 or 1
+	// while a predictor's coefficient kept growing, so the maximum-
+	// likelihood estimate lies at infinity. Details name the predictors.
+	PROCESSING_REGRESSION_SEPARATION Code = "PROCESSING_REGRESSION_SEPARATION"
+
 	// PROCESSING_REGRESSION_SINGULAR_GRAM indicates XᵀX remained
 	// non-invertible even after regularization. Typically caused by a
 	// degenerate predictor (all-zero column) or a vanishingly small
@@ -3857,6 +3863,7 @@ var allCodes = []Code{
 	PROCESSING_REGRESSION_NOT_IMPLEMENTED,
 	PROCESSING_REGRESSION_RANK_DEFICIENT,
 	PROCESSING_REGRESSION_NO_CONVERGE,
+	PROCESSING_REGRESSION_SEPARATION,
 	PROCESSING_REGRESSION_SINGULAR_GRAM,
 	PROCESSING_REGRESSION_INVALID_FAMILY,
 	PROCESSING_REGRESSION_INVALID_LINK,

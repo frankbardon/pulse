@@ -8,7 +8,7 @@ import (
 
 // glmFamily bundles the link function, inverse link, link derivative,
 // variance function, and deviance contribution for a single GLM error
-// family + link combination. The IRLS loop in glm.go consumes this
+// family + link combination. The IRLS loop in glm_irls.go consumes this
 // interface without branching on the family name; the families table
 // (selectFamily) wires concrete implementations for binomial+logit,
 // poisson+log, and gamma+inverse.
@@ -46,6 +46,17 @@ type glmFamily struct {
 	// the link's saturation boundary (e.g. ȳ = 0 for binomial logit).
 	// Implementations clamp the input to a family-specific interior.
 	SafeMean func(yBar float64) float64
+
+	// MuStart is the per-row starting mean μ⁰ for a response y under
+	// prior weight w — R's family `initialize` (binomial
+	// (w·y + 0.5)/(w + 1), poisson y + 0.1, gamma y); the IRLS loop
+	// starts from η⁰ = LinkFunc(μ⁰).
+	MuStart func(y, w float64) float64
+
+	// ValidEta, when set, reports whether η is inside the link's valid
+	// range (R's family valideta / validmu); a step landing outside it
+	// is halved. nil = every finite η is valid.
+	ValidEta func(eta float64) bool
 }
 
 // epsilons used for boundary clamps. Conservative enough that
@@ -129,6 +140,9 @@ var binomialLogit = glmFamily{
 		}
 		return yBar
 	},
+	MuStart: func(y, w float64) float64 {
+		return (w*y + 0.5) / (w + 1)
+	},
 }
 
 // poissonLog is the Family("poisson"), Link("log") combination —
@@ -170,6 +184,9 @@ var poissonLog = glmFamily{
 			return poissonEps
 		}
 		return yBar
+	},
+	MuStart: func(y, _ float64) float64 {
+		return y + 0.1
 	},
 }
 
@@ -231,6 +248,13 @@ var gammaInverse = glmFamily{
 			return gammaEps
 		}
 		return yBar
+	},
+	MuStart: func(y, _ float64) float64 {
+		return y
+	},
+	// μ = 1/η must stay positive (R's Gamma validmu).
+	ValidEta: func(eta float64) bool {
+		return eta > 0
 	},
 }
 

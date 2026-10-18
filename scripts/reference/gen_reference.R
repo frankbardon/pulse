@@ -397,3 +397,10 @@ source(file.path(script_dir, "gen_matrix_inference.R"), local = FALSE)
 # p-values of a correlation matrix, per result or pooled across buckets
 # and specs); base stats + ppcor.
 source(file.path(script_dir, "gen_matrix_multiplicity.R"), local = FALSE)
+
+# The REG_GLM IRLS golden (glm_irls.json: two-level designs whose MLE has
+# a closed form — the credit-risk showcase's default x collections_flag
+# table among them — fitted by glm and checked against the closed form,
+# plus complete and quasi-complete separations glm itself flags); base
+# stats only.
+source(file.path(script_dir, "gen_glm_irls.R"), local = FALSE)

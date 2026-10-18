@@ -128,6 +128,17 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PROCESSING_REGRESSION_SEPARATION: {
+		Message: "A binomial REG_GLM fit is separated: a predictor splits the outcome perfectly, or almost perfectly, so fitted probabilities reach numerically 0 or 1 while its coefficient keeps growing; the maximum-likelihood estimate does not exist and no coefficients are reported. details.predictors names the separating predictors.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"Regressions", "*", "Penalty"},
+				Hint:     "Add penalty: l2 (a ridge penalty keeps every coefficient finite), or drop the named predictor, merge its rare level, or check that it is not recorded after the outcome.",
+				Examples: []any{"l2"},
+			},
+		},
+	},
 	PROCESSING_REGRESSION_SINGULAR_GRAM: {
 		Message: "The Gram matrix XᵀX remained non-invertible even after regularization.",
 		Fixups: []Fixup{

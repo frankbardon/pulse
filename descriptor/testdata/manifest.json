@@ -9778,7 +9778,7 @@
         ]
       }
     ],
-    "error_codes_count": 385,
+    "error_codes_count": 386,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9810,6 +9810,7 @@
       "PROCESSING_REGRESSION_NOT_IMPLEMENTED",
       "PROCESSING_REGRESSION_NO_CONVERGE",
       "PROCESSING_REGRESSION_RANK_DEFICIENT",
+      "PROCESSING_REGRESSION_SEPARATION",
       "PROCESSING_REGRESSION_SINGULAR_GRAM",
       "PROCESSING_REGRESSION_VCOV_UNSUPPORTED",
       "PROCESSING_RUNTIME",
@@ -18696,4 +18697,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 088fac14631ef7e2c6b1fd04a8eeebefeffd703691430116e2f7066a086dfbf2
+// golden-hash: dfc06a5b71387114b1fa6ef4277d3bddbfd6437351a02831dfbb9fb7b0e5ea64

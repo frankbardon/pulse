@@ -139,9 +139,8 @@ func olsFitter(records []Record, target string, activePredictors []string, spec 
 // glmFitter fits a GLM (family + link) over a record subset restricted
 // to the given predictor subset.
 //
-// This is the same IRLS loop that drives glmEngine.FitBuffered, factored
-// into a free function so the modifier drivers can call it without
-// recreating the whole engine. The intercept-only baseline (p=0)
+// It runs the one IRLS loop glmEngine.FitBuffered runs (irlsFit), so
+// the modifier drivers refit without recreating the whole engine. The intercept-only baseline (p=0)
 // short-circuits: the saturated null fit has μᵢ = ȳ for every row and
 // its deviance is the engine's NullDeviance.
 //
@@ -152,7 +151,8 @@ func olsFitter(records []Record, target string, activePredictors []string, spec 
 // Returns:
 //   - refitResult with Deviance populated (RSS untouched).
 //   - PROCESSING_REGRESSION_INSUFFICIENT_DATA when n < p + 1.
-//   - PROCESSING_REGRESSION_NO_CONVERGE / RANK_DEFICIENT bubbled untouched.
+//   - PROCESSING_REGRESSION_RANK_DEFICIENT / SEPARATION / NO_CONVERGE
+//     bubbled untouched.
 func glmFitter(records []Record, target string, activePredictors []string, fam glmFamily, maxIters int, tol float64) (*refitResult, error) {
 	if maxIters <= 0 {
 		maxIters = defaultGLMMaxIters
@@ -190,31 +190,19 @@ func glmFitter(records []Record, target string, activePredictors []string, fam g
 		}, nil
 	}
 
-	// Run IRLS — same recurrence as glmEngine.FitBuffered, simplified to
-	// drop the SE bookkeeping (selection / resample don't need final
-	// XᵀWX⁻¹; just β, deviance, and n).
-	beta, conv, err := irlsFit(xRows, yVec, p, fam, maxIters, tol)
+	// The same weighted IRLS loop glmEngine.FitBuffered runs (every
+	// prior weight 1), without the final (XᵀWX)⁻¹: selection / resample
+	// need only β, deviance and n.
+	sol, err := irlsFit(&irlsProblem{
+		X: xRows, Y: yVec, K: p + 1,
+		Columns:  append([]string{InterceptKey}, activePredictors...),
+		Family:   fam,
+		MaxIters: maxIters, Tol: tol,
+	})
 	if err != nil {
 		return nil, err
 	}
-	_ = conv
-
-	// Compute deviance at the converged β.
-	eta := make([]float64, n)
-	for i := 0; i < n; i++ {
-		s := 0.0
-		xi := xRows[i*(p+1) : (i+1)*(p+1)]
-		for a := 0; a < p+1; a++ {
-			s += xi[a] * beta[a]
-		}
-		eta[i] = s
-	}
-	deviance := 0.0
-	for i := 0; i < n; i++ {
-		mu := fam.InverseLink(eta[i])
-		deviance += fam.Deviance(yVec[i], mu)
-	}
-	deviance *= 2
+	beta, deviance := sol.Beta, sol.Deviance
 
 	intercept := beta[0]
 	slopes := make([]float64, p)

@@ -5,7 +5,6 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -17,21 +16,13 @@ import (
 // materialized record slice via FitBuffered (no StreamingEngine
 // implementation).
 //
-// Algorithm (per family g with link `g`, variance V):
-//
-//  1. Build design matrix X (n × (p+1)) with intercept column and
-//     target vector y (length n) by walking the record slice with
-//     listwise null deletion.
-//  2. η₀ = g(ȳ_safe); β₀ = [η₀, 0, …, 0].
-//  3. For iter = 0..MaxIters-1:
-//     μ_i  = g⁻¹(η_i)
-//     dμdη = ∂μ/∂η at η_i
-//     W_i  = dμdη² / V(μ_i)
-//     z_i  = η_i + (y_i − μ_i) / dμdη
-//     β_new = (XᵀWX)⁻¹ XᵀWz  (solved via Cholesky)
-//     if ||Δβ|| / (||β|| + ε) < Tol → converged
-//     β ← β_new; η ← Xβ
-//  4. If not converged → PROCESSING_REGRESSION_NO_CONVERGE.
+// Algorithm: build the design matrix X (n × (p+1), intercept column
+// first) and target y with listwise null deletion, then run the one
+// weighted IRLS loop, irlsFit (glm_irls.go) — an up-front QR rank check
+// (the only RANK_DEFICIENT site), R's per-row starting values,
+// step-halving on a deviance rise, convergence on the relative change in
+// β, and the PROCESSING_REGRESSION_SEPARATION / NO_CONVERGE
+// classification of a fit that stops short.
 //
 // At convergence the standard errors come from
 //
@@ -187,190 +178,23 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		tol = defaultGLMTol
 	}
 
-	// We never materialize X as a dense matrix — the inner IRLS loop
-	// builds XᵀWX and XᵀWz directly from the flat xRows slice. Doing it
-	// this way keeps allocations to a single n × (p+1) buffer per fit;
-	// the only matrix work is the (p+1)×(p+1) Cholesky on the normal
-	// equations, through linalg's gonum-backed SPD path (spd.go).
-
-	// β init: intercept = g(yBarSafe), slopes = 0. ȳ is the prior-
-	// weighted mean (the plain mean unweighted).
+	// The one weighted IRLS loop (glm_irls.go): the up-front rank check,
+	// per-row starting values, step-halving and the separation refusal.
+	// yBar (the prior-weighted mean) seeds only the null deviance below.
 	yBar := weightedMean(yVec, prior)
-	mu0 := e.family.SafeMean(yBar)
-	eta0 := e.family.LinkFunc(mu0)
-	beta := make([]float64, p+1)
-	beta[0] = eta0
-
-	// eta = X β; initially eta_i = eta0 (since slope = 0).
-	eta := make([]float64, n)
-	for i := range eta {
-		eta[i] = eta0
+	sol, err := irlsFit(&irlsProblem{
+		X: xRows, Y: yVec, Prior: prior, K: p + 1,
+		Columns:  append([]string{InterceptKey}, e.spec.Predictors...),
+		Family:   e.family,
+		MaxIters: maxIters, Tol: tol,
+		WantInverse: true,
+	})
+	if err != nil {
+		return nil, err
 	}
-
-	// Workspace reused per iteration.
-	w := make([]float64, n)   // diagonal weights
-	z := make([]float64, n)   // working response
-	mu := make([]float64, n)  // mean response
-	dmu := make([]float64, n) // ∂μ/∂η
-	convergedIters := 0
-	converged := false
-
-	// Cache for the final XᵀWX inverse used for Cov(β).
-	var lastInvXtWX *linalg.Sym
-
-	for iter := 0; iter < maxIters; iter++ {
-		// Per-row: compute μ, dμ/dη, W, z.
-		for i := 0; i < n; i++ {
-			mu[i] = e.family.InverseLink(eta[i])
-			dmu[i] = e.family.DmuDeta(eta[i])
-			v := e.family.Variance(mu[i])
-			if v < 1e-300 {
-				v = 1e-300
-			}
-			// Working weight: prior weight × IRLS weight (R glm's
-			// weights · μ'(η)²/V(μ)).
-			w[i] = prior[i] * (dmu[i] * dmu[i] / v)
-			// Working response: z = η + (y − μ)/dμdη. Guard against
-			// dμdη → 0 (saturated rows) by clamping to a small floor
-			// — the corresponding W is also tiny so the row contributes
-			// negligibly to the normal equations.
-			if math.Abs(dmu[i]) < 1e-300 {
-				z[i] = eta[i]
-			} else {
-				z[i] = eta[i] + (yVec[i]-mu[i])/dmu[i]
-			}
-		}
-
-		// Build XᵀWX (p+1 × p+1) and XᵀWz (p+1) without materialising
-		// the n × n W matrix. Symmetric by construction.
-		xtwx := make([]float64, (p+1)*(p+1))
-		xtwz := make([]float64, p+1)
-		for i := 0; i < n; i++ {
-			wi := w[i]
-			zi := z[i]
-			// X[i,*] has length p+1 (first column = 1).
-			xi := xRows[i*(p+1) : (i+1)*(p+1)]
-			for a := 0; a < p+1; a++ {
-				wa := wi * xi[a]
-				xtwz[a] += wa * zi
-				row := a * (p + 1)
-				for b := a; b < p+1; b++ {
-					xtwx[row+b] += wa * xi[b]
-				}
-			}
-		}
-		// Mirror upper into lower triangle.
-		for a := 0; a < p+1; a++ {
-			for b := a + 1; b < p+1; b++ {
-				xtwx[b*(p+1)+a] = xtwx[a*(p+1)+b]
-			}
-		}
-
-		chol, ok := factorSPD(p+1, xtwx)
-		if !ok {
-			return nil, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
-				"REG_GLM weighted normal equations are not positive-definite; predictors are collinear or the fit is saturated",
-				map[string]any{"n": n, "p": p, "iter": iter, "family": e.family.Name, "link": e.family.Link},
-			)
-		}
-		betaNew, err := solveSPD(chol, xtwz)
-		if err != nil {
-			return nil, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
-				"REG_GLM Cholesky solve failed inside IRLS",
-				map[string]any{"n": n, "p": p, "iter": iter, "gonum_error": backendErrorText(err)},
-			)
-		}
-		// Relative-change convergence check.
-		var dnum, dnorm float64
-		for a := 0; a < p+1; a++ {
-			bn := betaNew[a]
-			d := bn - beta[a]
-			dnum += d * d
-			dnorm += beta[a] * beta[a]
-		}
-		dnum = math.Sqrt(dnum)
-		dnorm = math.Sqrt(dnorm)
-		// Copy new β and recompute η.
-		for a := 0; a < p+1; a++ {
-			beta[a] = betaNew[a]
-		}
-		// Cache the inverse of the current XᵀWX for SE computation.
-		// We need the inverse at the converged weights, which is the
-		// XᵀWX from this iteration evaluated at the next β; but β is
-		// what we just solved for. Recompute X β and update η.
-		// η_i through the shared scoring kernel (score.go): column 0 of
-		// X is the intercept's 1, so η_i = β₀ + Σ β_a·x_ia in predictor
-		// order — the expression ATTR_REG_PREDICT evaluates, bit for bit.
-		for i := 0; i < n; i++ {
-			xi := xRows[i*(p+1) : (i+1)*(p+1)]
-			eta[i] = LinearPredictor(beta[0], beta[1:], xi[1:])
-		}
-		convergedIters = iter + 1
-		if dnum/(dnorm+convergenceEps) < tol {
-			converged = true
-			// Recompute one more (XᵀWX) at the final weights for SE.
-			// W at the converged β: refresh mu/dmu/w.
-			for i := 0; i < n; i++ {
-				mu[i] = e.family.InverseLink(eta[i])
-				dmu[i] = e.family.DmuDeta(eta[i])
-				v := e.family.Variance(mu[i])
-				if v < 1e-300 {
-					v = 1e-300
-				}
-				w[i] = prior[i] * (dmu[i] * dmu[i] / v)
-			}
-			finalXtWX := make([]float64, (p+1)*(p+1))
-			for i := 0; i < n; i++ {
-				wi := w[i]
-				xi := xRows[i*(p+1) : (i+1)*(p+1)]
-				for a := 0; a < p+1; a++ {
-					wa := wi * xi[a]
-					row := a * (p + 1)
-					for b := a; b < p+1; b++ {
-						finalXtWX[row+b] += wa * xi[b]
-					}
-				}
-			}
-			for a := 0; a < p+1; a++ {
-				for b := a + 1; b < p+1; b++ {
-					finalXtWX[b*(p+1)+a] = finalXtWX[a*(p+1)+b]
-				}
-			}
-			finalChol, ok := factorSPD(p+1, finalXtWX)
-			if !ok {
-				return nil, errors.NewCodedErrorWithDetails(
-					errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
-					"REG_GLM converged but final-iteration XᵀWX is singular; SE undefined",
-					map[string]any{"n": n, "p": p, "family": e.family.Name, "link": e.family.Link},
-				)
-			}
-			invSym, err := finalChol.Inverse()
-			if err != nil {
-				return nil, errors.NewCodedErrorWithDetails(
-					errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
-					"REG_GLM final XᵀWX inverse failed",
-					map[string]any{"gonum_error": backendErrorText(err)},
-				)
-			}
-			lastInvXtWX = invSym
-			break
-		}
-	}
-
-	if !converged {
-		return nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_REGRESSION_NO_CONVERGE,
-			"REG_GLM IRLS failed to converge within MaxIters",
-			map[string]any{
-				"n": n, "p": p,
-				"max_iters": maxIters, "tol": tol,
-				"family": e.family.Name, "link": e.family.Link,
-				"converged_iters": convergedIters,
-			},
-		)
-	}
+	beta, eta, mu := sol.Beta, sol.Eta, sol.Mu
+	convergedIters := sol.Iters
+	lastInvXtWX := sol.Inverse
 
 	// Standard errors: diag of Cov(β) = (XᵀWX)⁻¹ at converged W.
 	stdErrors := make([]float64, p+1)
@@ -380,12 +204,6 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 			v = 0
 		}
 		stdErrors[a] = math.Sqrt(v)
-	}
-
-	// Deviance at converged β.
-	mu = make([]float64, n)
-	for i := 0; i < n; i++ {
-		mu[i] = e.family.InverseLink(eta[i])
 	}
 
 	// A robust covariance replaces (XᵀWX)⁻¹ behind the standard errors,
@@ -402,11 +220,7 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	if e.fitted != nil {
 		e.fitted(eta, mu)
 	}
-	deviance := 0.0
-	for i := 0; i < n; i++ {
-		deviance += prior[i] * e.family.Deviance(yVec[i], mu[i])
-	}
-	deviance *= 2.0
+	deviance := sol.Deviance
 
 	// Null deviance: intercept-only model. The null fit has
 	// μ_i = ȳ for every i; for binomial/poisson/gamma with their
