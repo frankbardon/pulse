@@ -141,6 +141,13 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		return nil, err
 	}
 
+	// A label binding convert could never apply is refused against the
+	// resolved schema before the target sees a header, with the row
+	// export's rules and codes (Predict makes the same call).
+	if err := checkRowLabelBindings("convert", schema, j.Labels, j.LabelResolver, widenable); err != nil {
+		return nil, err
+	}
+
 	augmentInsertAfter, _, replaceFields := planLabelColumns(schema, j.LabelResolver, includeMask)
 
 	// Hand the SOURCE's declared facts to a target that rebuilds a cohort
@@ -442,6 +449,7 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 		}
 	}
 
+	inferredSchema := schema == nil
 	if schema == nil {
 		rr, ok := j.Source.(ResetReader)
 		if !ok {
@@ -466,6 +474,11 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 
 	zones, err := j.zoneJob().resolveSourceZones(schema)
 	if err != nil {
+		return nil, err
+	}
+
+	// Run's label-binding refusals, on the same schema and terms.
+	if err := checkRowLabelBindings("convert", schema, j.Labels, j.LabelResolver, widenableFields(schema, inferredSchema, nil)); err != nil {
 		return nil, err
 	}
 

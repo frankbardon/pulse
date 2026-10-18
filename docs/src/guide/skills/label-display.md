@@ -45,7 +45,7 @@ Each `LabelBinding` pairs a categorical field with a table and mode:
 
 ## Modes
 
-**Replace** — value rewritten in place. Group keys, aggregation keys, sample row cells, exported cells show the label. Two source values mapping to the same label disambiguate by appending the source in parens (`"United States (US)"` vs `"United States (USA)"`) and emit `PULSE_LABEL_COLLISION`. Use **augment** for lossless round-trip.
+**Replace** — value rewritten in place. Group keys, aggregation keys, sample row cells, exported cells show the label. Two source values mapping to the same label disambiguate by appending the source in parens (`"United States (US)"`) and emit `PULSE_LABEL_COLLISION`. Use **augment** for lossless round-trip.
 
 **Augment** — raw value preserved; sibling `"<field>_label"` column added. A schema field, or any output column (aggregation, attribute, group key, window, feature — default names included) named `<field>_label` ⇒ `PULSE_LABEL_FIELD_COLLISION` at validation, predict included.
 
@@ -71,13 +71,13 @@ A value absent from the table falls back to the raw string (an unmatched code ke
 
 ## Validation surface
 
-Validated before any record is read; `pulse_predict` reports the same codes:
+Validated before any record is read or written; predict reports the same codes:
 
 | Code | Meaning |
 |---|---|
 | `PULSE_LABEL_FIELD_UNKNOWN` | Binding references a field not in the schema. |
-| `PULSE_LABEL_FIELD_NOT_CATEGORICAL` | Bound field is not `categorical_*` (export: nor `u4`–`u32`). |
-| `PULSE_LABEL_KEY_INVALID` | Export: a `u4`–`u32` table key is no decimal value the field holds. |
+| `PULSE_LABEL_FIELD_NOT_CATEGORICAL` | Bound field is not `categorical_*` (export/convert: nor `u4`–`u32`). |
+| `PULSE_LABEL_KEY_INVALID` | Export/convert: a `u4`–`u32` table key is no decimal value the field holds. |
 | `PULSE_LABEL_TABLE_UNKNOWN` | Table not registered. |
 | `PULSE_LABEL_FIELD_COLLISION` | Augment sibling collides with an existing field or agg label. |
 | `PULSE_LABEL_DUPLICATE_BINDING` | Two bindings target the same field. |
@@ -93,7 +93,7 @@ Labels are output-only. `pulse_label_tables` lists tables, row counts and enumer
 
 - They don't filter. Filter `country = "United States"` won't match; write `country = "US"`.
 - They don't persist: other `LabelTables`, other output; no re-encoding.
-- No non-categoricals (derive a categorical at import), bar `u4`–`u32` codes on export.
+- No non-categoricals (derive a categorical at import), bar `u4`–`u32` codes on export/convert.
 
 ## See
 

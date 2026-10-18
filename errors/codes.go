@@ -1599,14 +1599,15 @@ const (
 	PULSE_RANGE_TABLE_KIND_MISMATCH Code = "PULSE_RANGE_TABLE_KIND_MISMATCH"
 
 	// PULSE_LABEL_FIELD_UNKNOWN indicates a LabelBinding references a
-	// field name not present in the cohort schema.
+	// field name not present in the cohort schema (on a convert, the
+	// schema convert resolves from the source).
 	PULSE_LABEL_FIELD_UNKNOWN Code = "PULSE_LABEL_FIELD_UNKNOWN"
 
 	// PULSE_LABEL_FIELD_NOT_CATEGORICAL indicates a LabelBinding
 	// references a schema field whose type is not one of
 	// categorical_u8 / categorical_u16 / categorical_u32. Labels
 	// translate dictionary string values; other types have no
-	// dictionary key to translate. An export also accepts an
+	// dictionary key to translate. An export or a convert also accepts an
 	// integer-coded u4 / u8 / u16 / u32 field, keyed by its stored
 	// integers' decimal spellings.
 	PULSE_LABEL_FIELD_NOT_CATEGORICAL Code = "PULSE_LABEL_FIELD_NOT_CATEGORICAL"
@@ -1625,8 +1626,8 @@ const (
 	PULSE_LABEL_FIELD_COLLISION Code = "PULSE_LABEL_FIELD_COLLISION"
 
 	// PULSE_LABEL_DUPLICATE_BINDING indicates two LabelBinding
-	// entries in the same request target the same Field. Bindings
-	// must be unique per field within a request.
+	// entries in the same request, export or convert target the same
+	// Field. Bindings must be unique per field.
 	PULSE_LABEL_DUPLICATE_BINDING Code = "PULSE_LABEL_DUPLICATE_BINDING"
 
 	// PULSE_LABEL_KEY_INVALID indicates a label binding on an

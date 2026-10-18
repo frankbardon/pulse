@@ -94,7 +94,7 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 	// A row writer refuses a label binding it could never apply before
 	// a byte is written; a CohortWriter validates its own bindings.
 	if !cohortWriter {
-		if err := checkRowLabelBindings(schema, j.Labels, j.LabelResolver); err != nil {
+		if err := checkRowLabelBindings("export", schema, j.Labels, j.LabelResolver, nil); err != nil {
 			return nil, err
 		}
 	}
@@ -601,7 +601,7 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	// terms — with no target too, since every target refuses them (the
 	// `.sav` writer through its own validator below).
 	if _, cw := j.Target.(CohortWriter); !cw {
-		if err := checkRowLabelBindings(schema, j.Labels, j.LabelResolver); err != nil {
+		if err := checkRowLabelBindings("export", schema, j.Labels, j.LabelResolver, nil); err != nil {
 			return nil, err
 		}
 	}

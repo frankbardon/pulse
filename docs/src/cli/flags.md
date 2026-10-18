@@ -730,7 +730,12 @@ Any other type (`f32` / `f64`, `u64`, `decimal128`, `date`, `datetime`,
 `packed_bool`, `set_*`, `vec_*`) refuses
 `PULSE_LABEL_FIELD_NOT_CATEGORICAL` before a byte is written, and
 `export predict --labels` raises the same code with or without
-`--format`. A value the table lacks keeps its raw text — an unmatched
+`--format`. So does a binding on a field the cohort lacks
+(`PULSE_LABEL_FIELD_UNKNOWN`) and a second binding on one field
+(`PULSE_LABEL_DUPLICATE_BINDING`) — the codes `export spss` raises — on
+every row format, rather than labelling nothing or letting the last
+binding win. Under `--json` each refusal is the envelope's error, exit
+status 1. A value the table lacks keeps its raw text — an unmatched
 code keeps its number — and `augment` leaves its `FIELD_label` cell
 empty; one `PULSE_LABEL_LOOKUP_MISS` warning per field summarises them.
 

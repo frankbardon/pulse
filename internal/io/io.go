@@ -469,7 +469,12 @@ type ExportJob struct {
 	// binds too, its table keyed by the stored integers' decimal
 	// spellings (else PULSE_LABEL_KEY_INVALID); a binding on any other
 	// non-categorical type refuses PULSE_LABEL_FIELD_NOT_CATEGORICAL,
-	// from Run and Predict alike, before anything is written.
+	// a binding on a field the cohort lacks PULSE_LABEL_FIELD_UNKNOWN
+	// and a second binding on one field PULSE_LABEL_DUPLICATE_BINDING —
+	// from Run and Predict alike, on every row target, before anything
+	// is written (the `.sav` writer raises the same codes itself). The
+	// bindings are checked even with no LabelResolver; the key check
+	// needs one that lists the table's entries.
 	Labels []*types.LabelBinding
 	// LabelResolver carries the runtime resolver built from Labels +
 	// the pulse Service's registered LabelTables. The pulse.Export
@@ -602,7 +607,13 @@ type ConvertJob struct {
 	Includes []string
 	// Labels apply to the export phase only — the import side reads
 	// raw source bytes and has no use for label translation. See
-	// ExportJob.Labels.
+	// ExportJob.Labels: the bindings are checked by the row export's
+	// rules and codes against the schema convert resolves (inferred,
+	// declared or explicit) — on every target, `.sav` included, since
+	// convert labels the row stream — from Run and Predict alike,
+	// before anything is written. An INFERRED integer field may promote
+	// past its sampled width in the row pass, so its keys are bounded
+	// by u32 rather than the sampled type.
 	Labels []*types.LabelBinding
 	// LabelResolver carries the runtime resolver. See
 	// ExportJob.LabelResolver.

@@ -2450,22 +2450,22 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LABEL_FIELD_UNKNOWN: {
-		Message: "A LabelBinding references a field name not present in the cohort schema.",
+		Message: "A LabelBinding references a field name not present in the cohort schema (on a convert, the schema convert resolves from the source). Every export format and convert refuse it before writing, rather than labelling nothing.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Labels", "*", "Field"},
-				Hint:   "Use a field name reported by pulse_inspect; categorical fields only.",
+				Hint:   "Use a field name reported by pulse_inspect: a categorical field, or on an export or convert a u4 / u8 / u16 / u32 code field.",
 			},
 		},
 	},
 	PULSE_LABEL_FIELD_NOT_CATEGORICAL: {
-		Message: "A LabelBinding references a non-categorical field. Labels translate dictionary string values; numeric and date fields have no dictionary key to translate. An export (every format) also accepts an integer-coded u4 / u8 / u16 / u32 field.",
+		Message: "A LabelBinding references a non-categorical field. Labels translate dictionary string values; numeric and date fields have no dictionary key to translate. An export (every format) or a convert also accepts an integer-coded u4 / u8 / u16 / u32 field.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Labels", "*", "Field"},
-				Hint:   "Pick a categorical_u8 / categorical_u16 / categorical_u32 field (on an export, a u4 / u8 / u16 / u32 code field too). For float, u64 or date translation, derive a categorical column upstream during import.",
+				Hint:   "Pick a categorical_u8 / categorical_u16 / categorical_u32 field (on an export or convert, a u4 / u8 / u16 / u32 code field too). For float, u64 or date translation, derive a categorical column upstream during import.",
 			},
 		},
 	},
@@ -2491,7 +2491,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LABEL_DUPLICATE_BINDING: {
-		Message: "Two LabelBinding entries target the same Field. Each field may carry at most one binding per request.",
+		Message: "Two LabelBinding entries target the same Field. Each field may carry at most one binding per request, export or convert.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2501,7 +2501,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LABEL_KEY_INVALID: {
-		Message: "A label binding on an integer-coded field (u4 / u8 / u16 / u32, on any export format) uses a table key that is not the canonical decimal spelling of a value the field can store; the stored integers are the codes, so the key could never label a value.",
+		Message: "A label binding on an integer-coded field (u4 / u8 / u16 / u32, on any export format or a convert) uses a table key that is not the canonical decimal spelling of a value the field can store; the stored integers are the codes, so the key could never label a value.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
